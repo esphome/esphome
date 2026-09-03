@@ -1,8 +1,9 @@
 from esphome import pins
 import esphome.codegen as cg
+from esphome.components import time as time_
 from esphome.components.esp32 import include_builtin_idf_component
 import esphome.config_validation as cv
-from esphome.const import CONF_ID
+from esphome.const import CONF_ID, CONF_TIME_ID
 from esphome.core import CORE
 
 CODEOWNERS = ["@fornellas"]
@@ -41,6 +42,9 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Optional(CONF_CONTROLLER_PRODUCT_VERSION, default=0): cv.int_range(
             min=0, max=255
         ),
+        # §5.3.4 Class 4, IDs 20/21/22: if set, this master keeps the boiler's Day-of-week/Time, Date
+        # and Year synced to this clock. Left unset, those three ids are never sent.
+        cv.Optional(CONF_TIME_ID): cv.use_id(time_.RealTimeClock),
     }
 ).extend(cv.COMPONENT_SCHEMA)
 
@@ -60,6 +64,10 @@ async def to_code(config: dict) -> None:
     )
     cg.add(var.set_controller_product_type(config[CONF_CONTROLLER_PRODUCT_TYPE]))
     cg.add(var.set_controller_product_version(config[CONF_CONTROLLER_PRODUCT_VERSION]))
+
+    if (time_id := config.get(CONF_TIME_ID)) is not None:
+        time_var = await cg.get_variable(time_id)
+        cg.add(var.set_time_id(time_var))
 
     if CORE.is_esp32:
         # §4.3/§3.3.2 bit-timing (datalink.h) needs a hardware timer for microsecond-accurate sampling.

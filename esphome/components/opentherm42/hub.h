@@ -10,6 +10,7 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/switch/switch.h"
 #include "esphome/components/text_sensor/text_sensor.h"
+#include "esphome/components/time/real_time_clock.h"
 #include "datalink.h"
 #include "flag_bits.h"
 
@@ -74,6 +75,88 @@ enum class RequestKind : uint8_t {
   BRAND_SERIAL_NUMBER,
   // §5.3.3 Class 3, ID 4: a remote request command. Sent on demand (button press), not scheduled.
   REMOTE_REQUEST,
+
+  // §5.3.4 Class 4: write-only numbers this master provides to the boiler.
+  ROOM_SETPOINT,      // ID 16
+  ROOM_SETPOINT_CH2,  // ID 23
+  ROOM_TEMPERATURE,   // ID 24
+  TRCH2,              // ID 37
+  // §5.3.4 Class 4, IDs 20/21/22: Day-of-week/Time, Date, Year -- written once per essential rotation
+  // from the configured time_id, so the boiler's clock stays in sync with this master's.
+  DAY_TIME,
+  DATE,
+  YEAR,
+  // §5.3.4 Class 4, IDs 27/38/78/79: R/W ids -- WRITE_DATA if the "_set" number is configured,
+  // otherwise READ_DATA if the plain sensor is configured (see build_next_request_()).
+  OUTSIDE_TEMPERATURE,            // ID 27
+  RELATIVE_HUMIDITY,              // ID 38
+  RELATIVE_HUMIDITY_EXHAUST_AIR,  // ID 78
+  CO2_LEVEL,                      // ID 79
+  // §5.3.4 Class 4, ID 35: HB Boiler fan speed Setpoint + LB Boiler fan speed -- two sensors from one
+  // conversation, so it doesn't fit the single-sensor SimpleSensorInfo table below.
+  BOILER_FAN_SPEED,
+
+  // §5.3.4 Class 4: read-only sensors dispatched generically through the SimpleSensorInfo table in
+  // hub.cpp (single value per conversation, no bit decomposition) -- see find_simple_sensor_().
+  RELATIVE_MODULATION_LEVEL,             // ID 17
+  CH_WATER_PRESSURE,                     // ID 18
+  DHW_FLOW_RATE,                         // ID 19
+  BOILER_WATER_TEMPERATURE,              // ID 25
+  DHW_TEMPERATURE,                       // ID 26
+  RETURN_WATER_TEMPERATURE,              // ID 28
+  SOLAR_STORAGE_TEMPERATURE,             // ID 29
+  SOLAR_COLLECTOR_TEMPERATURE,           // ID 30
+  FLOW_TEMPERATURE_CH2,                  // ID 31
+  DHW2_TEMPERATURE,                      // ID 32
+  EXHAUST_TEMPERATURE,                   // ID 33
+  BOILER_HEAT_EXCHANGER_TEMPERATURE,     // ID 34
+  FLAME_CURRENT,                         // ID 36
+  RELATIVE_VENTILATION,                  // ID 77
+  SUPPLY_INLET_TEMPERATURE,              // ID 80
+  SUPPLY_OUTLET_TEMPERATURE,             // ID 81
+  EXHAUST_INLET_TEMPERATURE,             // ID 82
+  EXHAUST_OUTLET_TEMPERATURE,            // ID 83
+  ACTUAL_EXHAUST_FAN_SPEED,              // ID 84
+  ACTUAL_INLET_FAN_SPEED,                // ID 85
+  COOLING_OPERATION_HOURS,               // ID 96
+  POWER_CYCLES,                          // ID 97
+  ELECTRICITY_PRODUCER_STARTS,           // ID 109
+  ELECTRICITY_PRODUCER_HOURS,            // ID 110
+  ELECTRICITY_PRODUCTION,                // ID 111
+  CUMULATIVE_ELECTRICITY_PRODUCTION,     // ID 112
+  NUMBER_OF_UNSUCCESSFUL_BURNER_STARTS,  // ID 113
+  NUMBER_OF_TIMES_FLAME_SIGNAL_TOO_LOW,  // ID 114
+  SUCCESSFUL_BURNER_STARTS,              // ID 116
+  CH_PUMP_STARTS,                        // ID 117
+  DHW_PUMP_VALVE_STARTS,                 // ID 118
+  DHW_BURNER_STARTS,                     // ID 119
+  BURNER_OPERATION_HOURS,                // ID 120
+  CH_PUMP_OPERATION_HOURS,               // ID 121
+  DHW_PUMP_VALVE_OPERATION_HOURS,        // ID 122
+  DHW_BURNER_OPERATION_HOURS,            // ID 123
+};
+
+class OpenTherm42Hub;
+
+// How a SimpleSensorInfo's raw frame bytes convert to the value passed to sensor::Sensor::publish_state().
+enum class SimpleValueKind : uint8_t {
+  F88,    // frame.value_f88()
+  S16,    // frame.value_s16() -- a plain signed integer, not fixed-point, despite also being 16 bits
+  U16,    // frame.value_u16()
+  U8_LB,  // frame.value_lb -- only the low byte carries data
+};
+
+// Describes one single-value, non-bit-decomposed read-only data-id: which id to READ_DATA, how to
+// convert the response into a float, which member holds its sensor pointer, and what to name it in log
+// messages. OpenTherm42Hub::SIMPLE_SENSORS is the table every class after Class 1 registers its "plain"
+// reads into; find_simple_sensor_() is the generic fallback build_next_request_()/handle_response_()/
+// invalidate_response_() dispatch to for every RequestKind not given bespoke handling.
+struct SimpleSensorInfo {
+  RequestKind kind;
+  uint8_t id;
+  SimpleValueKind value_kind;
+  sensor::Sensor *OpenTherm42Hub::*member;
+  const char *log_name;
 };
 
 // The order startup-only conversations happen in, before the main essential/informational rotation
@@ -305,6 +388,73 @@ class OpenTherm42Hub : public Component {
   }
   OT42_SET_SENSOR(remote_request_last_response_code, remote_request_last_response_code_sensor_)
 
+  // §5.3.4 Class 4, IDs 20/21/22: the clock this master's Day-of-week/Time, Date and Year writes are
+  // sourced from. Left unset (nullptr), those three ids are simply never sent.
+  void set_time_id(time::RealTimeClock *time_id) { this->time_id_ = time_id; }
+
+  // §5.3.4 Class 4: write-only numbers.
+  OT42_SET_NUMBER(sensor_and_informational_data_room_setpoint, room_setpoint_number_)
+  OT42_SET_NUMBER(sensor_and_informational_data_room_setpoint_ch2, room_setpoint_ch2_number_)
+  OT42_SET_NUMBER(sensor_and_informational_data_room_temperature, room_temperature_number_)
+  OT42_SET_NUMBER(sensor_and_informational_data_trch2, trch2_number_)
+
+  // §5.3.4 Class 4, IDs 27/38/78/79: R/W ids -- both directions' entities, see the RequestKind comment.
+  OT42_SET_NUMBER(sensor_and_informational_data_outside_temperature_set, outside_temperature_number_)
+  OT42_SET_SENSOR(sensor_and_informational_data_outside_temperature, outside_temperature_sensor_)
+  OT42_SET_NUMBER(sensor_and_informational_data_relative_humidity_set, relative_humidity_number_)
+  OT42_SET_SENSOR(sensor_and_informational_data_relative_humidity, relative_humidity_sensor_)
+  OT42_SET_NUMBER(sensor_and_informational_data_relative_humidity_exhaust_air_set,
+                  relative_humidity_exhaust_air_number_)
+  OT42_SET_SENSOR(sensor_and_informational_data_relative_humidity_exhaust_air, relative_humidity_exhaust_air_sensor_)
+  OT42_SET_NUMBER(sensor_and_informational_data_co2_level_set, co2_level_number_)
+  OT42_SET_SENSOR(sensor_and_informational_data_co2_level, co2_level_sensor_)
+
+  // §5.3.4 Class 4, ID 35: HB Boiler fan speed Setpoint, LB Boiler fan speed.
+  OT42_SET_SENSOR(sensor_and_informational_data_boiler_fan_speed_setpoint, boiler_fan_speed_setpoint_sensor_)
+  OT42_SET_SENSOR(sensor_and_informational_data_boiler_fan_speed, boiler_fan_speed_sensor_)
+
+  // §5.3.4 Class 4: read-only sensors (see the SimpleSensorInfo table in hub.cpp).
+  OT42_SET_SENSOR(sensor_and_informational_data_relative_modulation_level, relative_modulation_level_sensor_)
+  OT42_SET_SENSOR(sensor_and_informational_data_ch_water_pressure, ch_water_pressure_sensor_)
+  OT42_SET_SENSOR(sensor_and_informational_data_dhw_flow_rate, dhw_flow_rate_sensor_)
+  OT42_SET_SENSOR(sensor_and_informational_data_boiler_water_temperature, boiler_water_temperature_sensor_)
+  OT42_SET_SENSOR(sensor_and_informational_data_dhw_temperature, dhw_temperature_sensor_)
+  OT42_SET_SENSOR(sensor_and_informational_data_return_water_temperature, return_water_temperature_sensor_)
+  OT42_SET_SENSOR(sensor_and_informational_data_solar_storage_temperature, solar_storage_temperature_sensor_)
+  OT42_SET_SENSOR(sensor_and_informational_data_solar_collector_temperature, solar_collector_temperature_sensor_)
+  OT42_SET_SENSOR(sensor_and_informational_data_flow_temperature_ch2, flow_temperature_ch2_sensor_)
+  OT42_SET_SENSOR(sensor_and_informational_data_dhw2_temperature, dhw2_temperature_sensor_)
+  OT42_SET_SENSOR(sensor_and_informational_data_exhaust_temperature, exhaust_temperature_sensor_)
+  OT42_SET_SENSOR(sensor_and_informational_data_boiler_heat_exchanger_temperature,
+                  boiler_heat_exchanger_temperature_sensor_)
+  OT42_SET_SENSOR(sensor_and_informational_data_flame_current, flame_current_sensor_)
+  OT42_SET_SENSOR(sensor_and_informational_data_relative_ventilation, relative_ventilation_sensor_)
+  OT42_SET_SENSOR(sensor_and_informational_data_supply_inlet_temperature, supply_inlet_temperature_sensor_)
+  OT42_SET_SENSOR(sensor_and_informational_data_supply_outlet_temperature, supply_outlet_temperature_sensor_)
+  OT42_SET_SENSOR(sensor_and_informational_data_exhaust_inlet_temperature, exhaust_inlet_temperature_sensor_)
+  OT42_SET_SENSOR(sensor_and_informational_data_exhaust_outlet_temperature, exhaust_outlet_temperature_sensor_)
+  OT42_SET_SENSOR(sensor_and_informational_data_actual_exhaust_fan_speed, actual_exhaust_fan_speed_sensor_)
+  OT42_SET_SENSOR(sensor_and_informational_data_actual_inlet_fan_speed, actual_inlet_fan_speed_sensor_)
+  OT42_SET_SENSOR(sensor_and_informational_data_cooling_operation_hours, cooling_operation_hours_sensor_)
+  OT42_SET_SENSOR(sensor_and_informational_data_power_cycles, power_cycles_sensor_)
+  OT42_SET_SENSOR(sensor_and_informational_data_electricity_producer_starts, electricity_producer_starts_sensor_)
+  OT42_SET_SENSOR(sensor_and_informational_data_electricity_producer_hours, electricity_producer_hours_sensor_)
+  OT42_SET_SENSOR(sensor_and_informational_data_electricity_production, electricity_production_sensor_)
+  OT42_SET_SENSOR(sensor_and_informational_data_cumulative_electricity_production,
+                  cumulative_electricity_production_sensor_)
+  OT42_SET_SENSOR(sensor_and_informational_data_number_of_unsuccessful_burner_starts,
+                  number_of_unsuccessful_burner_starts_sensor_)
+  OT42_SET_SENSOR(sensor_and_informational_data_number_of_times_flame_signal_too_low,
+                  number_of_times_flame_signal_too_low_sensor_)
+  OT42_SET_SENSOR(sensor_and_informational_data_successful_burner_starts, successful_burner_starts_sensor_)
+  OT42_SET_SENSOR(sensor_and_informational_data_ch_pump_starts, ch_pump_starts_sensor_)
+  OT42_SET_SENSOR(sensor_and_informational_data_dhw_pump_valve_starts, dhw_pump_valve_starts_sensor_)
+  OT42_SET_SENSOR(sensor_and_informational_data_dhw_burner_starts, dhw_burner_starts_sensor_)
+  OT42_SET_SENSOR(sensor_and_informational_data_burner_operation_hours, burner_operation_hours_sensor_)
+  OT42_SET_SENSOR(sensor_and_informational_data_ch_pump_operation_hours, ch_pump_operation_hours_sensor_)
+  OT42_SET_SENSOR(sensor_and_informational_data_dhw_pump_valve_operation_hours, dhw_pump_valve_operation_hours_sensor_)
+  OT42_SET_SENSOR(sensor_and_informational_data_dhw_burner_operation_hours, dhw_burner_operation_hours_sensor_)
+
  protected:
   // §4.3.1: minimum time between the end of one conversation and the start of the next.
   static constexpr uint32_t MASTER_WAIT_TIME_MS = 100;
@@ -333,6 +483,13 @@ class OpenTherm42Hub : public Component {
   // On a failed conversation, every read-only entity that conversation would have updated must show
   // unknown rather than keep stale data.
   void invalidate_response_(RequestKind kind);
+  // Looks up a single-value, non-bit-decomposed read-only sensor's data-id/sensor pointer/log name --
+  // the fallback every class after Class 1 dispatches "plain" reads through. Returns nullptr for kinds
+  // with bespoke handling (bit-decomposed, write-only, dual-mode, ...).
+  const SimpleSensorInfo *find_simple_sensor_(RequestKind kind) const;
+  // Defined (sized) in hub.cpp: its pointer-to-member entries need this class complete, and an
+  // out-of-class member definition has the same access to protected members as a member function does.
+  static const SimpleSensorInfo SIMPLE_SENSORS[];
 
   InternalGPIOPin *in_pin_{nullptr};
   InternalGPIOPin *out_pin_{nullptr};
@@ -410,6 +567,63 @@ class OpenTherm42Hub : public Component {
   bool remote_request_pending_{false};
   uint8_t remote_request_code_{0};
   sensor::Sensor *remote_request_last_response_code_sensor_{nullptr};
+
+  // §5.3.4 Class 4 entities.
+  time::RealTimeClock *time_id_{nullptr};
+
+  number::Number *room_setpoint_number_{nullptr};
+  number::Number *room_setpoint_ch2_number_{nullptr};
+  number::Number *room_temperature_number_{nullptr};
+  number::Number *trch2_number_{nullptr};
+
+  number::Number *outside_temperature_number_{nullptr};
+  sensor::Sensor *outside_temperature_sensor_{nullptr};
+  number::Number *relative_humidity_number_{nullptr};
+  sensor::Sensor *relative_humidity_sensor_{nullptr};
+  number::Number *relative_humidity_exhaust_air_number_{nullptr};
+  sensor::Sensor *relative_humidity_exhaust_air_sensor_{nullptr};
+  number::Number *co2_level_number_{nullptr};
+  sensor::Sensor *co2_level_sensor_{nullptr};
+
+  sensor::Sensor *boiler_fan_speed_setpoint_sensor_{nullptr};
+  sensor::Sensor *boiler_fan_speed_sensor_{nullptr};
+
+  sensor::Sensor *relative_modulation_level_sensor_{nullptr};
+  sensor::Sensor *ch_water_pressure_sensor_{nullptr};
+  sensor::Sensor *dhw_flow_rate_sensor_{nullptr};
+  sensor::Sensor *boiler_water_temperature_sensor_{nullptr};
+  sensor::Sensor *dhw_temperature_sensor_{nullptr};
+  sensor::Sensor *return_water_temperature_sensor_{nullptr};
+  sensor::Sensor *solar_storage_temperature_sensor_{nullptr};
+  sensor::Sensor *solar_collector_temperature_sensor_{nullptr};
+  sensor::Sensor *flow_temperature_ch2_sensor_{nullptr};
+  sensor::Sensor *dhw2_temperature_sensor_{nullptr};
+  sensor::Sensor *exhaust_temperature_sensor_{nullptr};
+  sensor::Sensor *boiler_heat_exchanger_temperature_sensor_{nullptr};
+  sensor::Sensor *flame_current_sensor_{nullptr};
+  sensor::Sensor *relative_ventilation_sensor_{nullptr};
+  sensor::Sensor *supply_inlet_temperature_sensor_{nullptr};
+  sensor::Sensor *supply_outlet_temperature_sensor_{nullptr};
+  sensor::Sensor *exhaust_inlet_temperature_sensor_{nullptr};
+  sensor::Sensor *exhaust_outlet_temperature_sensor_{nullptr};
+  sensor::Sensor *actual_exhaust_fan_speed_sensor_{nullptr};
+  sensor::Sensor *actual_inlet_fan_speed_sensor_{nullptr};
+  sensor::Sensor *cooling_operation_hours_sensor_{nullptr};
+  sensor::Sensor *power_cycles_sensor_{nullptr};
+  sensor::Sensor *electricity_producer_starts_sensor_{nullptr};
+  sensor::Sensor *electricity_producer_hours_sensor_{nullptr};
+  sensor::Sensor *electricity_production_sensor_{nullptr};
+  sensor::Sensor *cumulative_electricity_production_sensor_{nullptr};
+  sensor::Sensor *number_of_unsuccessful_burner_starts_sensor_{nullptr};
+  sensor::Sensor *number_of_times_flame_signal_too_low_sensor_{nullptr};
+  sensor::Sensor *successful_burner_starts_sensor_{nullptr};
+  sensor::Sensor *ch_pump_starts_sensor_{nullptr};
+  sensor::Sensor *dhw_pump_valve_starts_sensor_{nullptr};
+  sensor::Sensor *dhw_burner_starts_sensor_{nullptr};
+  sensor::Sensor *burner_operation_hours_sensor_{nullptr};
+  sensor::Sensor *ch_pump_operation_hours_sensor_{nullptr};
+  sensor::Sensor *dhw_pump_valve_operation_hours_sensor_{nullptr};
+  sensor::Sensor *dhw_burner_operation_hours_sensor_{nullptr};
 };
 
 }  // namespace esphome::opentherm42

@@ -6,6 +6,56 @@ namespace esphome::opentherm42 {
 
 static const char *const TAG = "opentherm42";
 
+// clang-format off
+const SimpleSensorInfo OpenTherm42Hub::SIMPLE_SENSORS[] = {
+    {RequestKind::RELATIVE_MODULATION_LEVEL, 17, SimpleValueKind::F88, &OpenTherm42Hub::relative_modulation_level_sensor_, "Relative Modulation Level (id=17)"},
+    {RequestKind::CH_WATER_PRESSURE, 18, SimpleValueKind::F88, &OpenTherm42Hub::ch_water_pressure_sensor_, "CH water pressure (id=18)"},
+    {RequestKind::DHW_FLOW_RATE, 19, SimpleValueKind::F88, &OpenTherm42Hub::dhw_flow_rate_sensor_, "DHW flow rate (id=19)"},
+    {RequestKind::BOILER_WATER_TEMPERATURE, 25, SimpleValueKind::F88, &OpenTherm42Hub::boiler_water_temperature_sensor_, "Boiler water temp. (id=25)"},
+    {RequestKind::DHW_TEMPERATURE, 26, SimpleValueKind::F88, &OpenTherm42Hub::dhw_temperature_sensor_, "DHW temperature (id=26)"},
+    {RequestKind::RETURN_WATER_TEMPERATURE, 28, SimpleValueKind::F88, &OpenTherm42Hub::return_water_temperature_sensor_, "Return water temperature (id=28)"},
+    {RequestKind::SOLAR_STORAGE_TEMPERATURE, 29, SimpleValueKind::F88, &OpenTherm42Hub::solar_storage_temperature_sensor_, "Solar storage temperature (id=29)"},
+    {RequestKind::SOLAR_COLLECTOR_TEMPERATURE, 30, SimpleValueKind::S16, &OpenTherm42Hub::solar_collector_temperature_sensor_, "Solar collector temperature (id=30)"},
+    {RequestKind::FLOW_TEMPERATURE_CH2, 31, SimpleValueKind::F88, &OpenTherm42Hub::flow_temperature_ch2_sensor_, "Flow temperature CH2 (id=31)"},
+    {RequestKind::DHW2_TEMPERATURE, 32, SimpleValueKind::F88, &OpenTherm42Hub::dhw2_temperature_sensor_, "DHW2 temperature (id=32)"},
+    {RequestKind::EXHAUST_TEMPERATURE, 33, SimpleValueKind::S16, &OpenTherm42Hub::exhaust_temperature_sensor_, "Exhaust temperature (id=33)"},
+    {RequestKind::BOILER_HEAT_EXCHANGER_TEMPERATURE, 34, SimpleValueKind::F88, &OpenTherm42Hub::boiler_heat_exchanger_temperature_sensor_, "Boiler heat exchanger temperature (id=34)"},
+    {RequestKind::FLAME_CURRENT, 36, SimpleValueKind::F88, &OpenTherm42Hub::flame_current_sensor_, "Flame current (id=36)"},
+    {RequestKind::RELATIVE_VENTILATION, 77, SimpleValueKind::U8_LB, &OpenTherm42Hub::relative_ventilation_sensor_, "Relative ventilation (id=77)"},
+    {RequestKind::SUPPLY_INLET_TEMPERATURE, 80, SimpleValueKind::F88, &OpenTherm42Hub::supply_inlet_temperature_sensor_, "Supply inlet temperature (id=80)"},
+    {RequestKind::SUPPLY_OUTLET_TEMPERATURE, 81, SimpleValueKind::F88, &OpenTherm42Hub::supply_outlet_temperature_sensor_, "Supply outlet temperature (id=81)"},
+    {RequestKind::EXHAUST_INLET_TEMPERATURE, 82, SimpleValueKind::F88, &OpenTherm42Hub::exhaust_inlet_temperature_sensor_, "Exhaust inlet temperature (id=82)"},
+    {RequestKind::EXHAUST_OUTLET_TEMPERATURE, 83, SimpleValueKind::F88, &OpenTherm42Hub::exhaust_outlet_temperature_sensor_, "Exhaust outlet temperature (id=83)"},
+    {RequestKind::ACTUAL_EXHAUST_FAN_SPEED, 84, SimpleValueKind::U16, &OpenTherm42Hub::actual_exhaust_fan_speed_sensor_, "Actual exhaust fan speed (id=84)"},
+    {RequestKind::ACTUAL_INLET_FAN_SPEED, 85, SimpleValueKind::U16, &OpenTherm42Hub::actual_inlet_fan_speed_sensor_, "Actual inlet fan speed (id=85)"},
+    {RequestKind::COOLING_OPERATION_HOURS, 96, SimpleValueKind::U16, &OpenTherm42Hub::cooling_operation_hours_sensor_, "Cooling Operation hours (id=96)"},
+    {RequestKind::POWER_CYCLES, 97, SimpleValueKind::U16, &OpenTherm42Hub::power_cycles_sensor_, "Power Cycles (id=97)"},
+    {RequestKind::ELECTRICITY_PRODUCER_STARTS, 109, SimpleValueKind::U16, &OpenTherm42Hub::electricity_producer_starts_sensor_, "Electricity producer starts (id=109)"},
+    {RequestKind::ELECTRICITY_PRODUCER_HOURS, 110, SimpleValueKind::U16, &OpenTherm42Hub::electricity_producer_hours_sensor_, "Electricity producer hours (id=110)"},
+    {RequestKind::ELECTRICITY_PRODUCTION, 111, SimpleValueKind::U16, &OpenTherm42Hub::electricity_production_sensor_, "Electricity production (id=111)"},
+    {RequestKind::CUMULATIVE_ELECTRICITY_PRODUCTION, 112, SimpleValueKind::U16, &OpenTherm42Hub::cumulative_electricity_production_sensor_, "Cumulative Electricity production (id=112)"},
+    {RequestKind::NUMBER_OF_UNSUCCESSFUL_BURNER_STARTS, 113, SimpleValueKind::U16, &OpenTherm42Hub::number_of_unsuccessful_burner_starts_sensor_, "Number of un-successful burner starts (id=113)"},
+    {RequestKind::NUMBER_OF_TIMES_FLAME_SIGNAL_TOO_LOW, 114, SimpleValueKind::U16, &OpenTherm42Hub::number_of_times_flame_signal_too_low_sensor_, "Number of times flame signal was too low (id=114)"},
+    {RequestKind::SUCCESSFUL_BURNER_STARTS, 116, SimpleValueKind::U16, &OpenTherm42Hub::successful_burner_starts_sensor_, "Successful Burner starts (id=116)"},
+    {RequestKind::CH_PUMP_STARTS, 117, SimpleValueKind::U16, &OpenTherm42Hub::ch_pump_starts_sensor_, "CH pump starts (id=117)"},
+    {RequestKind::DHW_PUMP_VALVE_STARTS, 118, SimpleValueKind::U16, &OpenTherm42Hub::dhw_pump_valve_starts_sensor_, "DHW pump/valve starts (id=118)"},
+    {RequestKind::DHW_BURNER_STARTS, 119, SimpleValueKind::U16, &OpenTherm42Hub::dhw_burner_starts_sensor_, "DHW burner starts (id=119)"},
+    {RequestKind::BURNER_OPERATION_HOURS, 120, SimpleValueKind::U16, &OpenTherm42Hub::burner_operation_hours_sensor_, "Burner operation hours (id=120)"},
+    {RequestKind::CH_PUMP_OPERATION_HOURS, 121, SimpleValueKind::U16, &OpenTherm42Hub::ch_pump_operation_hours_sensor_, "CH pump operation hours (id=121)"},
+    {RequestKind::DHW_PUMP_VALVE_OPERATION_HOURS, 122, SimpleValueKind::U16, &OpenTherm42Hub::dhw_pump_valve_operation_hours_sensor_, "DHW pump/valve operation hours (id=122)"},
+    {RequestKind::DHW_BURNER_OPERATION_HOURS, 123, SimpleValueKind::U16, &OpenTherm42Hub::dhw_burner_operation_hours_sensor_, "DHW burner operation hours (id=123)"},
+};
+// clang-format on
+
+const SimpleSensorInfo *OpenTherm42Hub::find_simple_sensor_(RequestKind kind) const {
+  for (auto const &info : SIMPLE_SENSORS) {
+    if (info.kind == kind) {
+      return &info;
+    }
+  }
+  return nullptr;
+}
+
 void OpenTherm42Hub::setup() {
   this->datalink_ = make_unique<OpenThermDataLink>(this->in_pin_, this->out_pin_);
   if (!this->datalink_->initialize()) {
@@ -104,6 +154,57 @@ void OpenTherm42Hub::build_schedule_() {
   if (this->solar_storage_product_type_sensor_ != nullptr || this->solar_storage_product_version_sensor_ != nullptr) {
     this->informational_requests_.push_back(RequestKind::PRODUCT_VERSION_SOLAR_STORAGE);
   }
+
+  // §5.3.4 Class 4: write-only numbers -- essential, like the Class 1 setpoints, since they represent
+  // this master's active control input.
+  if (this->room_setpoint_number_ != nullptr) {
+    this->essential_requests_.push_back(RequestKind::ROOM_SETPOINT);
+  }
+  if (this->room_setpoint_ch2_number_ != nullptr) {
+    this->essential_requests_.push_back(RequestKind::ROOM_SETPOINT_CH2);
+  }
+  if (this->room_temperature_number_ != nullptr) {
+    this->essential_requests_.push_back(RequestKind::ROOM_TEMPERATURE);
+  }
+  if (this->trch2_number_ != nullptr) {
+    this->essential_requests_.push_back(RequestKind::TRCH2);
+  }
+  if (this->time_id_ != nullptr) {
+    this->essential_requests_.push_back(RequestKind::DAY_TIME);
+    this->essential_requests_.push_back(RequestKind::DATE);
+    this->essential_requests_.push_back(RequestKind::YEAR);
+  }
+  // IDs 27/38/78/79: essential (write) if the "_set" number is configured, else informational (read)
+  // if the plain sensor is configured -- never both, see build_next_request_()/handle_response_().
+  if (this->outside_temperature_number_ != nullptr) {
+    this->essential_requests_.push_back(RequestKind::OUTSIDE_TEMPERATURE);
+  } else if (this->outside_temperature_sensor_ != nullptr) {
+    this->informational_requests_.push_back(RequestKind::OUTSIDE_TEMPERATURE);
+  }
+  if (this->relative_humidity_number_ != nullptr) {
+    this->essential_requests_.push_back(RequestKind::RELATIVE_HUMIDITY);
+  } else if (this->relative_humidity_sensor_ != nullptr) {
+    this->informational_requests_.push_back(RequestKind::RELATIVE_HUMIDITY);
+  }
+  if (this->relative_humidity_exhaust_air_number_ != nullptr) {
+    this->essential_requests_.push_back(RequestKind::RELATIVE_HUMIDITY_EXHAUST_AIR);
+  } else if (this->relative_humidity_exhaust_air_sensor_ != nullptr) {
+    this->informational_requests_.push_back(RequestKind::RELATIVE_HUMIDITY_EXHAUST_AIR);
+  }
+  if (this->co2_level_number_ != nullptr) {
+    this->essential_requests_.push_back(RequestKind::CO2_LEVEL);
+  } else if (this->co2_level_sensor_ != nullptr) {
+    this->informational_requests_.push_back(RequestKind::CO2_LEVEL);
+  }
+  if (this->boiler_fan_speed_setpoint_sensor_ != nullptr || this->boiler_fan_speed_sensor_ != nullptr) {
+    this->informational_requests_.push_back(RequestKind::BOILER_FAN_SPEED);
+  }
+  // Every plain read-only sensor: informational if its entity is configured.
+  for (auto const &info : SIMPLE_SENSORS) {
+    if (this->*(info.member) != nullptr) {
+      this->informational_requests_.push_back(info.kind);
+    }
+  }
 }
 
 Frame OpenTherm42Hub::build_next_request_() {
@@ -188,8 +289,110 @@ Frame OpenTherm42Hub::build_next_request_() {
       frame.type = static_cast<uint8_t>(MessageType::READ_DATA);
       frame.id = 73;
       break;
-    default:
-      break;  // every startup-only kind is handled by build_startup_request_(), unreachable here
+    case RequestKind::REMOTE_REQUEST:
+      break;  // built directly in build_next_request_() before this switch, unreachable here
+
+    case RequestKind::ROOM_SETPOINT:
+      frame.type = static_cast<uint8_t>(MessageType::WRITE_DATA);
+      frame.id = 16;
+      frame.set_value_f88(this->room_setpoint_number_ != nullptr ? this->room_setpoint_number_->state : 0.0f);
+      break;
+    case RequestKind::ROOM_SETPOINT_CH2:
+      frame.type = static_cast<uint8_t>(MessageType::WRITE_DATA);
+      frame.id = 23;
+      frame.set_value_f88(this->room_setpoint_ch2_number_ != nullptr ? this->room_setpoint_ch2_number_->state : 0.0f);
+      break;
+    case RequestKind::ROOM_TEMPERATURE:
+      frame.type = static_cast<uint8_t>(MessageType::WRITE_DATA);
+      frame.id = 24;
+      frame.set_value_f88(this->room_temperature_number_ != nullptr ? this->room_temperature_number_->state : 0.0f);
+      break;
+    case RequestKind::TRCH2:
+      frame.type = static_cast<uint8_t>(MessageType::WRITE_DATA);
+      frame.id = 37;
+      frame.set_value_f88(this->trch2_number_ != nullptr ? this->trch2_number_->state : 0.0f);
+      break;
+
+    case RequestKind::DAY_TIME: {
+      frame.type = static_cast<uint8_t>(MessageType::WRITE_DATA);
+      frame.id = 20;
+      if (this->time_id_ != nullptr) {
+        ESPTime const now = this->time_id_->now();
+        // §5.3.4 ID 20: day of week is Monday=1..Sunday=7; ESPTime's is Sunday=1..Saturday=7.
+        uint8_t const day_of_week = now.day_of_week == 1 ? 7 : now.day_of_week - 1;
+        frame.value_hb = (day_of_week << 5) | (now.hour & 0x1F);
+        frame.value_lb = now.minute;
+      }
+      break;
+    }
+    case RequestKind::DATE:
+      frame.type = static_cast<uint8_t>(MessageType::WRITE_DATA);
+      frame.id = 21;
+      if (this->time_id_ != nullptr) {
+        ESPTime const now = this->time_id_->now();
+        frame.value_hb = now.month;
+        frame.value_lb = now.day_of_month;
+      }
+      break;
+    case RequestKind::YEAR:
+      frame.type = static_cast<uint8_t>(MessageType::WRITE_DATA);
+      frame.id = 22;
+      if (this->time_id_ != nullptr) {
+        frame.set_value_u16(this->time_id_->now().year);
+      }
+      break;
+
+    case RequestKind::OUTSIDE_TEMPERATURE:
+      frame.id = 27;
+      if (this->outside_temperature_number_ != nullptr) {
+        frame.type = static_cast<uint8_t>(MessageType::WRITE_DATA);
+        frame.set_value_f88(this->outside_temperature_number_->state);
+      } else {
+        frame.type = static_cast<uint8_t>(MessageType::READ_DATA);
+      }
+      break;
+    case RequestKind::RELATIVE_HUMIDITY:
+      frame.id = 38;
+      if (this->relative_humidity_number_ != nullptr) {
+        frame.type = static_cast<uint8_t>(MessageType::WRITE_DATA);
+        frame.set_value_f88(this->relative_humidity_number_->state);
+      } else {
+        frame.type = static_cast<uint8_t>(MessageType::READ_DATA);
+      }
+      break;
+    case RequestKind::RELATIVE_HUMIDITY_EXHAUST_AIR:
+      frame.id = 78;
+      if (this->relative_humidity_exhaust_air_number_ != nullptr) {
+        frame.type = static_cast<uint8_t>(MessageType::WRITE_DATA);
+        frame.value_lb = static_cast<uint8_t>(this->relative_humidity_exhaust_air_number_->state);
+      } else {
+        frame.type = static_cast<uint8_t>(MessageType::READ_DATA);
+      }
+      break;
+    case RequestKind::CO2_LEVEL:
+      frame.id = 79;
+      if (this->co2_level_number_ != nullptr) {
+        frame.type = static_cast<uint8_t>(MessageType::WRITE_DATA);
+        frame.set_value_u16(static_cast<uint16_t>(this->co2_level_number_->state));
+      } else {
+        frame.type = static_cast<uint8_t>(MessageType::READ_DATA);
+      }
+      break;
+
+    case RequestKind::BOILER_FAN_SPEED:
+      frame.type = static_cast<uint8_t>(MessageType::READ_DATA);
+      frame.id = 35;
+      break;
+
+    default: {
+      // Every plain read-only sensor (see the SIMPLE_SENSORS table) shares this one case.
+      const SimpleSensorInfo *info = this->find_simple_sensor_(kind);
+      if (info != nullptr) {
+        frame.type = static_cast<uint8_t>(MessageType::READ_DATA);
+        frame.id = info->id;
+      }
+      break;  // info == nullptr only for startup-only kinds, unreachable here
+    }
   }
   return frame;
 }
@@ -569,6 +772,163 @@ void OpenTherm42Hub::handle_response_(const Frame &frame) {
         this->remote_request_last_response_code_sensor_->publish_state(frame.value_lb);
       }
       return;
+
+    case RequestKind::ROOM_SETPOINT:
+      if (type != MessageType::WRITE_ACK) {
+        ESP_LOGW(TAG, "Room Setpoint (id=16) write was rejected (message type %u)", frame.type);
+      }
+      return;
+
+    case RequestKind::ROOM_SETPOINT_CH2:
+      if (type != MessageType::WRITE_ACK) {
+        ESP_LOGW(TAG, "Room Setpoint CH2 (id=23) write was rejected (message type %u)", frame.type);
+      }
+      return;
+
+    case RequestKind::ROOM_TEMPERATURE:
+      if (type != MessageType::WRITE_ACK) {
+        ESP_LOGW(TAG, "Room temperature (id=24) write was rejected (message type %u)", frame.type);
+      }
+      return;
+
+    case RequestKind::TRCH2:
+      if (type != MessageType::WRITE_ACK) {
+        ESP_LOGW(TAG, "TrCH2 (id=37) write was rejected (message type %u)", frame.type);
+      }
+      return;
+
+    case RequestKind::DAY_TIME:
+      if (type != MessageType::WRITE_ACK) {
+        ESP_LOGW(TAG, "Day of Week & Time of Day (id=20) write was rejected (message type %u)", frame.type);
+      }
+      return;
+
+    case RequestKind::DATE:
+      if (type != MessageType::WRITE_ACK) {
+        ESP_LOGW(TAG, "Date (id=21) write was rejected (message type %u)", frame.type);
+      }
+      return;
+
+    case RequestKind::YEAR:
+      if (type != MessageType::WRITE_ACK) {
+        ESP_LOGW(TAG, "Year (id=22) write was rejected (message type %u)", frame.type);
+      }
+      return;
+
+    case RequestKind::OUTSIDE_TEMPERATURE:
+      if (this->outside_temperature_number_ != nullptr) {
+        if (type != MessageType::WRITE_ACK) {
+          ESP_LOGW(TAG, "Outside temperature (id=27) write was rejected (message type %u)", frame.type);
+        }
+        return;
+      }
+      if (type != MessageType::READ_ACK) {
+        ESP_LOGW(TAG, "Outside temperature (id=27) read was rejected (message type %u)", frame.type);
+        this->invalidate_response_(RequestKind::OUTSIDE_TEMPERATURE);
+        return;
+      }
+      if (this->outside_temperature_sensor_ != nullptr) {
+        this->outside_temperature_sensor_->publish_state(frame.value_f88());
+      }
+      return;
+
+    case RequestKind::RELATIVE_HUMIDITY:
+      if (this->relative_humidity_number_ != nullptr) {
+        if (type != MessageType::WRITE_ACK) {
+          ESP_LOGW(TAG, "Relative Humidity (id=38) write was rejected (message type %u)", frame.type);
+        }
+        return;
+      }
+      if (type != MessageType::READ_ACK) {
+        ESP_LOGW(TAG, "Relative Humidity (id=38) read was rejected (message type %u)", frame.type);
+        this->invalidate_response_(RequestKind::RELATIVE_HUMIDITY);
+        return;
+      }
+      if (this->relative_humidity_sensor_ != nullptr) {
+        this->relative_humidity_sensor_->publish_state(frame.value_f88());
+      }
+      return;
+
+    case RequestKind::RELATIVE_HUMIDITY_EXHAUST_AIR:
+      if (this->relative_humidity_exhaust_air_number_ != nullptr) {
+        if (type != MessageType::WRITE_ACK) {
+          ESP_LOGW(TAG, "Relative humidity exhaust air (id=78) write was rejected (message type %u)", frame.type);
+        }
+        return;
+      }
+      if (type != MessageType::READ_ACK) {
+        ESP_LOGW(TAG, "Relative humidity exhaust air (id=78) read was rejected (message type %u)", frame.type);
+        this->invalidate_response_(RequestKind::RELATIVE_HUMIDITY_EXHAUST_AIR);
+        return;
+      }
+      if (this->relative_humidity_exhaust_air_sensor_ != nullptr) {
+        this->relative_humidity_exhaust_air_sensor_->publish_state(frame.value_lb);
+      }
+      return;
+
+    case RequestKind::CO2_LEVEL:
+      if (this->co2_level_number_ != nullptr) {
+        if (type != MessageType::WRITE_ACK) {
+          ESP_LOGW(TAG, "CO2 level (id=79) write was rejected (message type %u)", frame.type);
+        }
+        return;
+      }
+      if (type != MessageType::READ_ACK) {
+        ESP_LOGW(TAG, "CO2 level (id=79) read was rejected (message type %u)", frame.type);
+        this->invalidate_response_(RequestKind::CO2_LEVEL);
+        return;
+      }
+      if (this->co2_level_sensor_ != nullptr) {
+        this->co2_level_sensor_->publish_state(frame.value_u16());
+      }
+      return;
+
+    case RequestKind::BOILER_FAN_SPEED:
+      if (type != MessageType::READ_ACK) {
+        ESP_LOGW(TAG, "Boiler fan speed (id=35) read was rejected (message type %u)", frame.type);
+        this->invalidate_response_(RequestKind::BOILER_FAN_SPEED);
+        return;
+      }
+      if (this->boiler_fan_speed_setpoint_sensor_ != nullptr) {
+        this->boiler_fan_speed_setpoint_sensor_->publish_state(frame.value_hb);
+      }
+      if (this->boiler_fan_speed_sensor_ != nullptr) {
+        this->boiler_fan_speed_sensor_->publish_state(frame.value_lb);
+      }
+      return;
+
+    default: {
+      // Every plain read-only sensor (see the SIMPLE_SENSORS table) shares this one case.
+      const SimpleSensorInfo *info = this->find_simple_sensor_(this->pending_request_kind_);
+      if (info == nullptr) {
+        return;  // startup-only kinds are handled by handle_response_()'s dedicated cases, unreachable here
+      }
+      sensor::Sensor *sensor_ptr = this->*(info->member);
+      if (type != MessageType::READ_ACK) {
+        ESP_LOGW(TAG, "%s read was rejected (message type %u)", info->log_name, frame.type);
+        if (sensor_ptr != nullptr) {
+          sensor_ptr->set_has_state(false);
+        }
+        return;
+      }
+      if (sensor_ptr == nullptr) {
+        return;
+      }
+      switch (info->value_kind) {
+        case SimpleValueKind::F88:
+          sensor_ptr->publish_state(frame.value_f88());
+          return;
+        case SimpleValueKind::S16:
+          sensor_ptr->publish_state(frame.value_s16());
+          return;
+        case SimpleValueKind::U16:
+          sensor_ptr->publish_state(frame.value_u16());
+          return;
+        case SimpleValueKind::U8_LB:
+          sensor_ptr->publish_state(frame.value_lb);
+          return;
+      }
+    }
   }
 }
 
@@ -751,6 +1111,60 @@ void OpenTherm42Hub::invalidate_response_(RequestKind kind) {
         this->remote_request_last_response_code_sensor_->set_has_state(false);
       }
       return;
+
+    case RequestKind::ROOM_SETPOINT:
+    case RequestKind::ROOM_SETPOINT_CH2:
+    case RequestKind::ROOM_TEMPERATURE:
+    case RequestKind::TRCH2:
+    case RequestKind::DAY_TIME:
+    case RequestKind::DATE:
+    case RequestKind::YEAR:
+      return;  // write-only, nothing to invalidate
+
+    case RequestKind::OUTSIDE_TEMPERATURE:
+      if (this->outside_temperature_number_ == nullptr && this->outside_temperature_sensor_ != nullptr) {
+        this->outside_temperature_sensor_->set_has_state(false);
+      }
+      return;
+
+    case RequestKind::RELATIVE_HUMIDITY:
+      if (this->relative_humidity_number_ == nullptr && this->relative_humidity_sensor_ != nullptr) {
+        this->relative_humidity_sensor_->set_has_state(false);
+      }
+      return;
+
+    case RequestKind::RELATIVE_HUMIDITY_EXHAUST_AIR:
+      if (this->relative_humidity_exhaust_air_number_ == nullptr &&
+          this->relative_humidity_exhaust_air_sensor_ != nullptr) {
+        this->relative_humidity_exhaust_air_sensor_->set_has_state(false);
+      }
+      return;
+
+    case RequestKind::CO2_LEVEL:
+      if (this->co2_level_number_ == nullptr && this->co2_level_sensor_ != nullptr) {
+        this->co2_level_sensor_->set_has_state(false);
+      }
+      return;
+
+    case RequestKind::BOILER_FAN_SPEED:
+      if (this->boiler_fan_speed_setpoint_sensor_ != nullptr) {
+        this->boiler_fan_speed_setpoint_sensor_->set_has_state(false);
+      }
+      if (this->boiler_fan_speed_sensor_ != nullptr) {
+        this->boiler_fan_speed_sensor_->set_has_state(false);
+      }
+      return;
+
+    default: {
+      const SimpleSensorInfo *info = this->find_simple_sensor_(kind);
+      if (info != nullptr) {
+        sensor::Sensor *sensor_ptr = this->*(info->member);
+        if (sensor_ptr != nullptr) {
+          sensor_ptr->set_has_state(false);
+        }
+      }
+      return;
+    }
   }
 }
 
