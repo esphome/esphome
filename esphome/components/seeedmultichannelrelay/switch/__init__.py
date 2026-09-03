@@ -1,11 +1,11 @@
 import esphome.codegen as cg
-from esphome.components import i2c, switch
+from esphome.components import i2c as i2c, switch
 import esphome.config_validation as cv
 from esphome.const import CONF_INTERLOCK, CONF_CHANNEL
 
 from .. import (
     CONF_SEEED_MULTI_CHANNEL_RELAY_ID,
-    Seeed_Multi_Channel_Relay,
+    Seeed_Multi_Channel_Relay as Seeed_Multi_Channel_Relay,
     seeed_multi_channel_relay_ns,
 )
 

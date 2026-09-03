@@ -61,7 +61,6 @@ class seeed_multi_channel_relay : public Component, public i2c::I2CDevice {
       @return None
   */
   void turn_off_channel_(uint8_t channel);
-
 };
 
 }  // namespace seeed_multi_channel_relay
