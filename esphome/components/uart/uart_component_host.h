@@ -6,10 +6,9 @@
 #include "esphome/core/log.h"
 #include "uart_component.h"
 
-namespace esphome {
-namespace uart {
+namespace esphome::uart {
 
-class HostUartComponent : public UARTComponent, public Component {
+class HostUartComponent final : public UARTComponent, public Component {
  public:
   virtual ~HostUartComponent();
   void setup() override;
@@ -18,21 +17,19 @@ class HostUartComponent : public UARTComponent, public Component {
   void write_array(const uint8_t *data, size_t len) override;
   bool peek_byte(uint8_t *data) override;
   bool read_array(uint8_t *data, size_t len) override;
-  int available() override;
-  void flush() override;
+  size_t available() override;
+  UARTFlushResult flush() override;
   void set_name(std::string port_name) { port_name_ = port_name; };
 
  protected:
   void update_error_(const std::string &error);
   void check_logger_conflict() override {}
   std::string port_name_;
-  std::string first_error_{""};
+  std::string first_error_;
   int file_descriptor_ = -1;
   bool has_peek_{false};
   uint8_t peek_byte_;
 };
 
-}  // namespace uart
-}  // namespace esphome
-
+}  // namespace esphome::uart
 #endif  // USE_HOST

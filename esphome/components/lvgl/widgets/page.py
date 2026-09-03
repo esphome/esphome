@@ -85,6 +85,7 @@ page_spec = PageType()
     "lvgl.page.next",
     LvglAction,
     SHOW_SCHEMA,
+    synchronous=True,
 )
 async def page_next_to_code(config, action_id, template_arg, args):
     animation = await LV_ANIM.process(config[CONF_ANIMATION])
@@ -125,6 +126,7 @@ async def page_is_showing_to_code(config, condition_id, template_arg, args):
     "lvgl.page.previous",
     LvglAction,
     SHOW_SCHEMA,
+    synchronous=True,
 )
 async def page_previous_to_code(config, action_id, template_arg, args):
     animation = await LV_ANIM.process(config[CONF_ANIMATION])
@@ -148,6 +150,7 @@ async def page_previous_to_code(config, action_id, template_arg, args):
         ),
         key=CONF_ID,
     ),
+    synchronous=True,
 )
 async def page_show_to_code(config, action_id, template_arg, args):
     widget = await cg.get_variable(config[CONF_ID])

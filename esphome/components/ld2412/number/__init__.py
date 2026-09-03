@@ -16,6 +16,7 @@ from esphome.const import (
     UNIT_PERCENT,
     UNIT_SECOND,
 )
+from esphome.types import ConfigType
 
 from .. import CONF_LD2412_ID, LD2412_ns, LD2412Component
 
@@ -31,6 +32,7 @@ TIMEOUT_GROUP = "timeout"
 
 CONFIG_SCHEMA = cv.Schema(
     {
+        cv.GenerateID(CONF_ID): cv.declare_id(cg.EntityBase),
         cv.GenerateID(CONF_LD2412_ID): cv.use_id(LD2412Component),
         cv.Optional(CONF_LIGHT_THRESHOLD): number.number_schema(
             LightThresholdNumber,
@@ -84,7 +86,7 @@ CONFIG_SCHEMA = CONFIG_SCHEMA.extend(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     LD2412_component = await cg.get_variable(config[CONF_LD2412_ID])
     if light_threshold_config := config.get(CONF_LIGHT_THRESHOLD):
         n = await number.new_number(

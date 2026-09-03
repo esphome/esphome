@@ -120,42 +120,42 @@ async def test_scheduler_pool(
 
         try:
             # Phase 1: Component lifecycle
-            client.execute_service(phase_services[1], {})
+            await client.execute_service(phase_services[1], {})
             await asyncio.wait_for(phase_futures[1], timeout=1.0)
             await asyncio.sleep(0.05)  # Let timeouts complete
 
             # Phase 2: Sensor polling
-            client.execute_service(phase_services[2], {})
+            await client.execute_service(phase_services[2], {})
             await asyncio.wait_for(phase_futures[2], timeout=1.0)
             await asyncio.sleep(0.1)  # Let intervals run a bit
 
             # Phase 3: Communication patterns
-            client.execute_service(phase_services[3], {})
+            await client.execute_service(phase_services[3], {})
             await asyncio.wait_for(phase_futures[3], timeout=1.0)
             await asyncio.sleep(0.1)  # Let heartbeat run
 
             # Phase 4: Defer patterns
-            client.execute_service(phase_services[4], {})
+            await client.execute_service(phase_services[4], {})
             await asyncio.wait_for(phase_futures[4], timeout=1.0)
             await asyncio.sleep(0.2)  # Let everything settle and recycle
 
             # Phase 5: Pool reuse verification
-            client.execute_service(phase_services[5], {})
+            await client.execute_service(phase_services[5], {})
             await asyncio.wait_for(phase_futures[5], timeout=1.0)
             await asyncio.sleep(0.1)  # Let Phase 5 timeouts complete and recycle
 
             # Phase 6: Full pool reuse verification
-            client.execute_service(phase_services[6], {})
+            await client.execute_service(phase_services[6], {})
             await asyncio.wait_for(phase_futures[6], timeout=1.0)
             await asyncio.sleep(0.1)  # Let Phase 6 timeouts complete
 
             # Phase 7: Same-named defer optimization
-            client.execute_service(phase_services[7], {})
+            await client.execute_service(phase_services[7], {})
             await asyncio.wait_for(phase_futures[7], timeout=1.0)
             await asyncio.sleep(0.05)  # Let the single defer execute
 
             # Complete test
-            client.execute_service(complete_service, {})
+            await client.execute_service(complete_service, {})
             await asyncio.wait_for(test_complete_future, timeout=0.5)
 
         except TimeoutError as e:
@@ -180,16 +180,22 @@ async def test_scheduler_pool(
     # Verify pool behavior
     assert pool_recycle_count > 0, "Should have recycled items to pool"
 
-    # Check pool metrics
-    if pool_recycle_count > 0:
-        max_pool_size = 0
-        for line in log_lines:
-            if match := recycle_pattern.search(line):
-                size = int(match.group(1))
-                max_pool_size = max(max_pool_size, size)
+    # Pool is unbounded; the cap was the source of the churn it was meant to prevent.
+    assert pool_full_count == 0, (
+        f"Pool should never report full (got {pool_full_count})"
+    )
 
-        # Pool can grow up to its maximum of 5
-        assert max_pool_size <= 5, f"Pool grew beyond maximum ({max_pool_size})"
+    # Verify the pool actually grew past the old MAX_POOL_SIZE=5 cap.
+    # Phase 5 + Phase 6 schedule 8 + 10 same-component timeouts respectively, so the
+    # observed peak should comfortably exceed 5. Without this lower-bound check, a
+    # silent regression that re-introduced a small cap could pass the test above.
+    max_pool_size = 0
+    for line in log_lines:
+        if match := recycle_pattern.search(line):
+            max_pool_size = max(max_pool_size, int(match.group(1)))
+    assert max_pool_size > 5, (
+        f"Pool should grow past the old cap of 5; observed peak {max_pool_size}"
+    )
 
     # Log summary for debugging
     print("\nScheduler Pool Test Summary (Python Orchestrated):")

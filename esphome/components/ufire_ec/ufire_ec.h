@@ -6,8 +6,7 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/i2c/i2c.h"
 
-namespace esphome {
-namespace ufire_ec {
+namespace esphome::ufire_ec {
 
 static const uint8_t CONFIG_TEMP_COMPENSATION = 0x02;
 
@@ -25,7 +24,7 @@ static const uint8_t COMMAND_CALIBRATE_PROBE = 20;
 static const uint8_t COMMAND_MEASURE_TEMP = 40;
 static const uint8_t COMMAND_MEASURE_EC = 80;
 
-class UFireECComponent : public PollingComponent, public i2c::I2CDevice {
+class UFireECComponent final : public PollingComponent, public i2c::I2CDevice {
  public:
   void setup() override;
   void update() override;
@@ -44,7 +43,7 @@ class UFireECComponent : public PollingComponent, public i2c::I2CDevice {
  protected:
   float measure_temperature_();
   float measure_ms_();
-  void set_solution_(float solution, float temperature);
+  bool set_solution_(float solution, float temperature);
   void set_compensation_(float temperature);
   void set_coefficient_(float coefficient);
   void set_temperature_(float temperature);
@@ -59,13 +58,13 @@ class UFireECComponent : public PollingComponent, public i2c::I2CDevice {
   float temperature_coefficient_{0.0};
 };
 
-template<typename... Ts> class UFireECCalibrateProbeAction : public Action<Ts...> {
+template<typename... Ts> class UFireECCalibrateProbeAction final : public Action<Ts...> {
  public:
   UFireECCalibrateProbeAction(UFireECComponent *parent) : parent_(parent) {}
   TEMPLATABLE_VALUE(float, solution)
   TEMPLATABLE_VALUE(float, temperature)
 
-  void play(Ts... x) override {
+  void play(const Ts &...x) override {
     this->parent_->calibrate_probe(this->solution_.value(x...), this->temperature_.value(x...));
   }
 
@@ -73,15 +72,14 @@ template<typename... Ts> class UFireECCalibrateProbeAction : public Action<Ts...
   UFireECComponent *parent_;
 };
 
-template<typename... Ts> class UFireECResetAction : public Action<Ts...> {
+template<typename... Ts> class UFireECResetAction final : public Action<Ts...> {
  public:
   UFireECResetAction(UFireECComponent *parent) : parent_(parent) {}
 
-  void play(Ts... x) override { this->parent_->reset_board(); }
+  void play(const Ts &...x) override { this->parent_->reset_board(); }
 
  protected:
   UFireECComponent *parent_;
 };
 
-}  // namespace ufire_ec
-}  // namespace esphome
+}  // namespace esphome::ufire_ec

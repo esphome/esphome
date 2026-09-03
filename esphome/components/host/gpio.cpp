@@ -25,11 +25,7 @@ void HostGPIOPin::attach_interrupt(void (*func)(void *), void *arg, gpio::Interr
 }
 void HostGPIOPin::pin_mode(gpio::Flags flags) { ESP_LOGD(TAG, "Setting pin %d mode to %02X", pin_, (uint32_t) flags); }
 
-std::string HostGPIOPin::dump_summary() const {
-  char buffer[32];
-  snprintf(buffer, sizeof(buffer), "GPIO%u", pin_);
-  return buffer;
-}
+size_t HostGPIOPin::dump_summary(char *buffer, size_t len) const { return snprintf(buffer, len, "GPIO%u", this->pin_); }
 
 bool HostGPIOPin::digital_read() { return inverted_; }
 void HostGPIOPin::digital_write(bool value) {

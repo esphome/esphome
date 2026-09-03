@@ -1,10 +1,7 @@
 #include "xiaomi_hhccpot002.h"
 #include "esphome/core/log.h"
 
-#ifdef USE_ESP32
-
-namespace esphome {
-namespace xiaomi_hhccpot002 {
+namespace esphome::xiaomi_hhccpot002 {
 
 static const char *const TAG = "xiaomi_hhccpot002";
 
@@ -14,12 +11,14 @@ void XiaomiHHCCPOT002 ::dump_config() {
   LOG_SENSOR("  ", "Conductivity", this->conductivity_);
 }
 
-bool XiaomiHHCCPOT002::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
+bool XiaomiHHCCPOT002::parse_device(const ble_device_base::ESPBTDevice &device) {
   if (device.address_uint64() != this->address_) {
     ESP_LOGVV(TAG, "parse_device(): unknown MAC address.");
     return false;
   }
-  ESP_LOGVV(TAG, "parse_device(): MAC address %s found.", device.address_str().c_str());
+  char addr_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
+  const char *addr_str = device.address_str_to(addr_buf);
+  ESP_LOGVV(TAG, "parse_device(): MAC address %s found.", addr_str);
 
   bool success = false;
   for (auto &service_data : device.get_service_datas()) {
@@ -37,7 +36,7 @@ bool XiaomiHHCCPOT002::parse_device(const esp32_ble_tracker::ESPBTDevice &device
     if (!(xiaomi_ble::parse_xiaomi_message(service_data.data, *res))) {
       continue;
     }
-    if (!(xiaomi_ble::report_xiaomi_results(res, device.address_str()))) {
+    if (!(xiaomi_ble::report_xiaomi_results(res, addr_str))) {
       continue;
     }
     if (res->moisture.has_value() && this->moisture_ != nullptr)
@@ -50,7 +49,4 @@ bool XiaomiHHCCPOT002::parse_device(const esp32_ble_tracker::ESPBTDevice &device
   return success;
 }
 
-}  // namespace xiaomi_hhccpot002
-}  // namespace esphome
-
-#endif
+}  // namespace esphome::xiaomi_hhccpot002

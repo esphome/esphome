@@ -7,8 +7,7 @@
 
 #ifdef USE_ESP32
 
-namespace esphome {
-namespace ble_client {
+namespace esphome::ble_client {
 
 static const char *const TAG = "ble_client";
 
@@ -39,7 +38,7 @@ void BLEClient::set_enabled(bool enabled) {
     return;
   this->enabled = enabled;
   if (!enabled) {
-    ESP_LOGI(TAG, "[%s] Disabling BLE client.", this->address_str().c_str());
+    ESP_LOGI(TAG, "[%s] Disabling BLE client.", this->address_str());
     this->disconnect();
   }
 }
@@ -52,7 +51,9 @@ bool BLEClient::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t es
   for (auto *node : this->nodes_)
     node->gattc_event_handler(event, esp_gattc_if, param);
 
-  if (!this->services_.empty() && this->all_nodes_established_()) {
+  // The release frees the GATT cache that BLEClientBase's CCCD lookup still needs.
+  // The last REG_FOR_NOTIFY event clears the counter before node dispatch, so the release still runs here.
+  if (!this->services_.empty() && !this->notify_registration_pending() && this->all_nodes_established_()) {
     this->release_services();
     ESP_LOGD(TAG, "All clients established, services released");
   }
@@ -82,7 +83,6 @@ bool BLEClient::all_nodes_established_() {
   return true;
 }
 
-}  // namespace ble_client
-}  // namespace esphome
+}  // namespace esphome::ble_client
 
 #endif

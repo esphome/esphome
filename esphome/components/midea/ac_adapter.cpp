@@ -1,16 +1,14 @@
-#ifdef USE_ARDUINO
+#if (defined(USE_ARDUINO) && !defined(USE_RP2) && !defined(USE_LIBRETINY)) || defined(USE_ESP_IDF)
 
 #include "esphome/core/log.h"
 #include "ac_adapter.h"
 
-namespace esphome {
-namespace midea {
-namespace ac {
+namespace esphome::midea::ac {
 
 const char *const Constants::TAG = "midea";
-const std::string Constants::FREEZE_PROTECTION = "freeze protection";
-const std::string Constants::SILENT = "silent";
-const std::string Constants::TURBO = "turbo";
+const char *const Constants::FREEZE_PROTECTION = "Freeze Protection";
+const char *const Constants::SILENT = "Silent";
+const char *const Constants::TURBO = "Turbo";
 
 ClimateMode Converters::to_climate_mode(MideaMode mode) {
   switch (mode) {
@@ -108,7 +106,7 @@ bool Converters::is_custom_midea_fan_mode(MideaFanMode mode) {
   }
 }
 
-const std::string &Converters::to_custom_climate_fan_mode(MideaFanMode mode) {
+const char *Converters::to_custom_climate_fan_mode(MideaFanMode mode) {
   switch (mode) {
     case MideaFanMode::FAN_SILENT:
       return Constants::SILENT;
@@ -117,8 +115,8 @@ const std::string &Converters::to_custom_climate_fan_mode(MideaFanMode mode) {
   }
 }
 
-MideaFanMode Converters::to_midea_fan_mode(const std::string &mode) {
-  if (mode == Constants::SILENT)
+MideaFanMode Converters::to_midea_fan_mode(const char *mode) {
+  if (strcmp(mode, Constants::SILENT) == 0)
     return MideaFanMode::FAN_SILENT;
   return MideaFanMode::FAN_TURBO;
 }
@@ -151,9 +149,9 @@ ClimatePreset Converters::to_climate_preset(MideaPreset preset) {
 
 bool Converters::is_custom_midea_preset(MideaPreset preset) { return preset == MideaPreset::PRESET_FREEZE_PROTECTION; }
 
-const std::string &Converters::to_custom_climate_preset(MideaPreset preset) { return Constants::FREEZE_PROTECTION; }
+const char *Converters::to_custom_climate_preset(MideaPreset preset) { return Constants::FREEZE_PROTECTION; }
 
-MideaPreset Converters::to_midea_preset(const std::string &preset) { return MideaPreset::PRESET_FREEZE_PROTECTION; }
+MideaPreset Converters::to_midea_preset(const char *preset) { return MideaPreset::PRESET_FREEZE_PROTECTION; }
 
 void Converters::to_climate_traits(ClimateTraits &traits, const dudanov::midea::ac::Capabilities &capabilities) {
   if (capabilities.supportAutoMode())
@@ -168,12 +166,10 @@ void Converters::to_climate_traits(ClimateTraits &traits, const dudanov::midea::
     traits.add_supported_preset(ClimatePreset::CLIMATE_PRESET_BOOST);
   if (capabilities.supportEcoPreset())
     traits.add_supported_preset(ClimatePreset::CLIMATE_PRESET_ECO);
-  if (capabilities.supportFrostProtectionPreset())
-    traits.add_supported_custom_preset(Constants::FREEZE_PROTECTION);
+  // Frost protection custom preset is handled by AirConditioner directly
+  // since custom presets are stored on the Climate base class
 }
 
-}  // namespace ac
-}  // namespace midea
-}  // namespace esphome
+}  // namespace esphome::midea::ac
 
-#endif  // USE_ARDUINO
+#endif  // USE_ARDUINO || USE_ESP_IDF

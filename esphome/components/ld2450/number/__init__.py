@@ -9,6 +9,7 @@ from esphome.const import (
     UNIT_MILLIMETER,
     UNIT_SECOND,
 )
+from esphome.types import ConfigType
 
 from .. import CONF_LD2450_ID, LD2450Component, ld2450_ns
 
@@ -28,6 +29,7 @@ ZoneCoordinateNumber = ld2450_ns.class_("ZoneCoordinateNumber", number.Number)
 
 CONFIG_SCHEMA = cv.Schema(
     {
+        cv.GenerateID(CONF_ID): cv.declare_id(cg.EntityBase),
         cv.GenerateID(CONF_LD2450_ID): cv.use_id(LD2450Component),
         cv.Required(CONF_PRESENCE_TIMEOUT): number.number_schema(
             PresenceTimeoutNumber,
@@ -77,7 +79,7 @@ CONFIG_SCHEMA = CONFIG_SCHEMA.extend(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     ld2450_component = await cg.get_variable(config[CONF_LD2450_ID])
     if presence_timeout_config := config.get(CONF_PRESENCE_TIMEOUT):
         n = await number.new_number(

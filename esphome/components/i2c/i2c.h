@@ -6,8 +6,7 @@
 #include "esphome/core/optional.h"
 #include "i2c_bus.h"
 
-namespace esphome {
-namespace i2c {
+namespace esphome::i2c {
 
 #define LOG_I2C_DEVICE(this) ESP_LOGCONFIG(TAG, "  Address: 0x%02X", this->address_);
 
@@ -267,41 +266,9 @@ class I2CDevice {
 
   bool write_byte_16(uint8_t a_register, uint16_t data) const { return write_bytes_16(a_register, &data, 1); }
 
-  // Deprecated functions
-
-  ESPDEPRECATED("The stop argument is no longer used. This will be removed from ESPHome 2026.3.0", "2025.9.0")
-  ErrorCode read_register(uint8_t a_register, uint8_t *data, size_t len, bool stop) {
-    return this->read_register(a_register, data, len);
-  }
-
-  ESPDEPRECATED("The stop argument is no longer used. This will be removed from ESPHome 2026.3.0", "2025.9.0")
-  ErrorCode read_register16(uint16_t a_register, uint8_t *data, size_t len, bool stop) {
-    return this->read_register16(a_register, data, len);
-  }
-
-  ESPDEPRECATED("The stop argument is no longer used; use write_read() for consecutive write and read. This will be "
-                "removed from ESPHome 2026.3.0",
-                "2025.9.0")
-  ErrorCode write(const uint8_t *data, size_t len, bool stop) const { return this->write(data, len); }
-
-  ESPDEPRECATED("The stop argument is no longer used; use write_read() for consecutive write and read. This will be "
-                "removed from ESPHome 2026.3.0",
-                "2025.9.0")
-  ErrorCode write_register(uint8_t a_register, const uint8_t *data, size_t len, bool stop) const {
-    return this->write_register(a_register, data, len);
-  }
-
-  ESPDEPRECATED("The stop argument is no longer used; use write_read() for consecutive write and read. This will be "
-                "removed from ESPHome 2026.3.0",
-                "2025.9.0")
-  ErrorCode write_register16(uint16_t a_register, const uint8_t *data, size_t len, bool stop) const {
-    return this->write_register16(a_register, data, len);
-  }
-
  protected:
   uint8_t address_{0x00};  ///< store the address of the device on the bus
   I2CBus *bus_{nullptr};   ///< pointer to I2CBus instance
 };
 
-}  // namespace i2c
-}  // namespace esphome
+}  // namespace esphome::i2c

@@ -1,0 +1,19 @@
+<<: !include common.yaml
+
+esp32_ble_tracker:
+  max_connections: 9
+
+bluetooth_proxy:
+  active: true
+  connection_slots: 9
+
+esp32_hosted:
+  active_high: true
+  variant: ESP32C6
+  reset_pin: GPIO54
+  cmd_pin: GPIO19
+  clk_pin: GPIO18
+  d0_pin: GPIO14
+  d1_pin: GPIO15
+  d2_pin: GPIO16
+  d3_pin: GPIO17

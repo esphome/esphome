@@ -2,12 +2,17 @@
 
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
+#include "esphome/core/defines.h"
 
 #ifdef USE_ESP32
 
 #include "esphome/core/event_pool.h"
 #include "esphome/core/lock_free_queue.h"
 #include "espnow_packet.h"
+
+#if defined(USE_WIFI) && defined(USE_WIFI_CONNECT_STATE_LISTENERS)
+#include "esphome/components/wifi/wifi_component.h"
+#endif
 
 #include <esp_idf_version.h>
 
@@ -31,8 +36,8 @@ using peer_address_t = std::array<uint8_t, ESP_NOW_ETH_ALEN>;
 enum class ESPNowTriggers : uint8_t {
   TRIGGER_NONE = 0,
   ON_NEW_PEER = 1,
-  ON_RECEIVED = 2,
-  ON_BROADCASTED = 3,
+  ON_RECEIVE = 2,
+  ON_BROADCAST = 3,
   ON_SUCCEED = 10,
   ON_FAILED = 11,
 };
@@ -62,7 +67,7 @@ class ESPNowUnknownPeerHandler {
   /// @param data Pointer to the received data payload
   /// @param size Size of the received data in bytes
   /// @return true if the packet was handled, false otherwise
-  virtual bool on_unknown_peer(const ESPNowRecvInfo &info, const uint8_t *data, uint8_t size) = 0;
+  virtual bool on_unknown_peer(const ESPNowRecvInfo &info, const uint8_t *data, uint16_t size) = 0;
 };
 
 /// Handler interface for receiving ESPNow packets
@@ -74,21 +79,25 @@ class ESPNowReceivedPacketHandler {
   /// @param data Pointer to the received data payload
   /// @param size Size of the received data in bytes
   /// @return true if the packet was handled, false otherwise
-  virtual bool on_received(const ESPNowRecvInfo &info, const uint8_t *data, uint8_t size) = 0;
+  virtual bool on_receive(const ESPNowRecvInfo &info, const uint8_t *data, uint16_t size) = 0;
 };
-/// Handler interface for receiving broadcasted ESPNow packets
+/// Handler interface for receiving ESPNow broadcast packets
 /// Components should inherit from this class to handle incoming ESPNow data
-class ESPNowBroadcastedHandler {
+class ESPNowBroadcastHandler {
  public:
-  /// Called when a broadcasted ESPNow packet is received
+  /// Called when an ESPNow broadcast packet is received
   /// @param info Information about the received packet (sender MAC, etc.)
   /// @param data Pointer to the received data payload
   /// @param size Size of the received data in bytes
   /// @return true if the packet was handled, false otherwise
-  virtual bool on_broadcasted(const ESPNowRecvInfo &info, const uint8_t *data, uint8_t size) = 0;
+  virtual bool on_broadcast(const ESPNowRecvInfo &info, const uint8_t *data, uint16_t size) = 0;
 };
 
-class ESPNowComponent : public Component {
+#if defined(USE_WIFI) && defined(USE_WIFI_CONNECT_STATE_LISTENERS)
+class ESPNowComponent final : public Component, public wifi::WiFiConnectStateListener {
+#else
+class ESPNowComponent final : public Component {
+#endif
  public:
   ESPNowComponent();
   void setup() override;
@@ -114,6 +123,11 @@ class ESPNowComponent : public Component {
 
   void set_auto_add_peer(bool value) { this->auto_add_peer_ = value; }
 
+#if defined(USE_WIFI) && defined(USE_WIFI_CONNECT_STATE_LISTENERS)
+  // WiFiConnectStateListener interface: refresh the cached channel after each (re)connect
+  void on_wifi_connect_state(StringRef ssid, std::span<const uint8_t, 6> bssid) override;
+#endif
+
   void enable();
   void disable();
   bool is_disabled() const { return this->state_ == ESPNOW_STATE_DISABLED; };
@@ -136,13 +150,11 @@ class ESPNowComponent : public Component {
   esp_err_t send(const uint8_t *peer_address, const uint8_t *payload, size_t size,
                  const send_callback_t &callback = nullptr);
 
-  void register_received_handler(ESPNowReceivedPacketHandler *handler) { this->received_handlers_.push_back(handler); }
+  void register_receive_handler(ESPNowReceivedPacketHandler *handler) { this->receive_handlers_.push_back(handler); }
   void register_unknown_peer_handler(ESPNowUnknownPeerHandler *handler) {
     this->unknown_peer_handlers_.push_back(handler);
   }
-  void register_broadcasted_handler(ESPNowBroadcastedHandler *handler) {
-    this->broadcasted_handlers_.push_back(handler);
-  }
+  void register_broadcast_handler(ESPNowBroadcastHandler *handler) { this->broadcast_handlers_.push_back(handler); }
 
  protected:
   friend void on_data_received(const esp_now_recv_info_t *info, const uint8_t *data, int size);
@@ -156,17 +168,21 @@ class ESPNowComponent : public Component {
   void send_();
 
   std::vector<ESPNowUnknownPeerHandler *> unknown_peer_handlers_;
-  std::vector<ESPNowReceivedPacketHandler *> received_handlers_;
-  std::vector<ESPNowBroadcastedHandler *> broadcasted_handlers_;
+  std::vector<ESPNowReceivedPacketHandler *> receive_handlers_;
+  std::vector<ESPNowBroadcastHandler *> broadcast_handlers_;
 
   std::vector<ESPNowPeer> peers_{};
 
   uint8_t own_address_[ESP_NOW_ETH_ALEN]{0};
   LockFreeQueue<ESPNowPacket, MAX_ESP_NOW_RECEIVE_QUEUE_SIZE> receive_packet_queue_{};
-  EventPool<ESPNowPacket, MAX_ESP_NOW_RECEIVE_QUEUE_SIZE> receive_packet_pool_{};
+  // Pool sized to queue capacity (SIZE-1) because LockFreeQueue<T,N> is a ring
+  // buffer that holds N-1 elements. This guarantees allocate() returns nullptr
+  // before push() can fail, preventing a pool slot leak.
+  EventPool<ESPNowPacket, MAX_ESP_NOW_RECEIVE_QUEUE_SIZE - 1> receive_packet_pool_{};
 
   LockFreeQueue<ESPNowSendPacket, MAX_ESP_NOW_SEND_QUEUE_SIZE> send_packet_queue_{};
-  EventPool<ESPNowSendPacket, MAX_ESP_NOW_SEND_QUEUE_SIZE> send_packet_pool_{};
+  // Pool sized to queue capacity (SIZE-1) — see receive_packet_pool_ comment.
+  EventPool<ESPNowSendPacket, MAX_ESP_NOW_SEND_QUEUE_SIZE - 1> send_packet_pool_{};
   ESPNowSendPacket *current_send_packet_{nullptr};  // Currently sending packet, nullptr if none
 
   uint8_t wifi_channel_{0};

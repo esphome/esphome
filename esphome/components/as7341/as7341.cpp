@@ -2,8 +2,7 @@
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
 
-namespace esphome {
-namespace as7341 {
+namespace esphome::as7341 {
 
 static const char *const TAG = "as7341";
 
@@ -57,8 +56,6 @@ void AS7341Component::dump_config() {
   LOG_SENSOR("  ", "Clear", this->clear_);
   LOG_SENSOR("  ", "NIR", this->nir_);
 }
-
-float AS7341Component::get_setup_priority() const { return setup_priority::DATA; }
 
 void AS7341Component::update() {
   this->read_channels(this->channel_readings_);
@@ -268,5 +265,4 @@ bool AS7341Component::clear_register_bit(uint8_t address, uint8_t bit_position) 
 
 uint16_t AS7341Component::swap_bytes(uint16_t data) { return (data >> 8) | (data << 8); }
 
-}  // namespace as7341
-}  // namespace esphome
+}  // namespace esphome::as7341

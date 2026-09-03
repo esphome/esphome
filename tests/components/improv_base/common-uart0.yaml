@@ -1,0 +1,8 @@
+wifi:
+  ssid: MySSID
+  password: password1
+
+logger:
+  hardware_uart: UART0
+
+improv_serial:

@@ -29,15 +29,16 @@
 
 #include <array>
 
-namespace esphome {
-namespace ld2410 {
+namespace esphome::ld2410 {
 
 using namespace ld24xx;
 
-static constexpr uint8_t MAX_LINE_LENGTH = 46;  // Max characters for serial buffer
-static constexpr uint8_t TOTAL_GATES = 9;       // Total number of gates supported by the LD2410
+// Engineering data frame is 45 bytes; +1 for null terminator, +4 so that a frame footer always
+// lands inside the buffer during footer-based resynchronization after losing sync.
+static constexpr uint8_t MAX_LINE_LENGTH = 50;
+static constexpr uint8_t TOTAL_GATES = 9;  // Total number of gates supported by the LD2410
 
-class LD2410Component : public Component, public uart::UARTDevice {
+class LD2410Component final : public Component, public uart::UARTDevice {
 #ifdef USE_BINARY_SENSOR
   SUB_BINARY_SENSOR(out_pin_presence_status)
   SUB_BINARY_SENSOR(moving_target)
@@ -98,8 +99,8 @@ class LD2410Component : public Component, public uart::UARTDevice {
   void read_all_info();
   void restart_and_read_all_info();
   void set_bluetooth(bool enable);
-  void set_distance_resolution(const std::string &state);
-  void set_baud_rate(const std::string &state);
+  void set_distance_resolution(const char *state);
+  void set_baud_rate(const char *state);
   void factory_reset();
 
  protected:
@@ -120,7 +121,7 @@ class LD2410Component : public Component, public uart::UARTDevice {
   uint8_t out_pin_level_ = 0;
   uint8_t buffer_pos_ = 0;  // where to resume processing/populating buffer
   uint8_t buffer_data_[MAX_LINE_LENGTH];
-  uint8_t mac_address_[6] = {0, 0, 0, 0, 0, 0};
+  uint8_t mac_address_[MAC_ADDRESS_SIZE] = {0, 0, 0, 0, 0, 0};
   uint8_t version_[6] = {0, 0, 0, 0, 0, 0};
   bool bluetooth_on_{false};
 #ifdef USE_NUMBER
@@ -128,10 +129,9 @@ class LD2410Component : public Component, public uart::UARTDevice {
   std::array<number::Number *, TOTAL_GATES> gate_still_threshold_numbers_{};
 #endif
 #ifdef USE_SENSOR
-  std::array<SensorWithDedup<uint8_t> *, TOTAL_GATES> gate_move_sensors_{};
-  std::array<SensorWithDedup<uint8_t> *, TOTAL_GATES> gate_still_sensors_{};
+  std::array<SensorWithDedup<uint8_t>, TOTAL_GATES> gate_move_sensors_{};
+  std::array<SensorWithDedup<uint8_t>, TOTAL_GATES> gate_still_sensors_{};
 #endif
 };
 
-}  // namespace ld2410
-}  // namespace esphome
+}  // namespace esphome::ld2410

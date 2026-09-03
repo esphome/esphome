@@ -2,8 +2,7 @@
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
 
-namespace esphome {
-namespace grove_tb6612fng {
+namespace esphome::grove_tb6612fng {
 
 static const char *const TAG = "GroveMotorDriveTB6612FNG";
 
@@ -123,7 +122,7 @@ void GroveMotorDriveTB6612FNG::stepper_run(StepperModeTypeT mode, int16_t steps,
 
   rpm = clamp<uint16_t>(rpm, 1, 300);
 
-  ms_per_step = (uint16_t) (3000.0 / (float) rpm);
+  ms_per_step = (uint16_t) (3000.0f / (float) rpm);
   buffer_[0] = mode;
   buffer_[1] = cw;  //(cw=1) => cw; (cw=0) => ccw
   buffer_[2] = steps;
@@ -131,7 +130,7 @@ void GroveMotorDriveTB6612FNG::stepper_run(StepperModeTypeT mode, int16_t steps,
   buffer_[4] = ms_per_step;
   buffer_[5] = (ms_per_step >> 8);
 
-  if (this->write_register(GROVE_MOTOR_DRIVER_I2C_CMD_STEPPER_RUN, buffer_, 1) != i2c::ERROR_OK) {
+  if (this->write_register(GROVE_MOTOR_DRIVER_I2C_CMD_STEPPER_RUN, buffer_, 6) != i2c::ERROR_OK) {
     ESP_LOGW(TAG, "Run stepper failed!");
     this->status_set_warning();
     return;
@@ -139,7 +138,8 @@ void GroveMotorDriveTB6612FNG::stepper_run(StepperModeTypeT mode, int16_t steps,
 }
 
 void GroveMotorDriveTB6612FNG::stepper_stop() {
-  if (this->write_register(GROVE_MOTOR_DRIVER_I2C_CMD_STEPPER_STOP, nullptr, 1) != i2c::ERROR_OK) {
+  uint8_t status = 0;
+  if (this->write_register(GROVE_MOTOR_DRIVER_I2C_CMD_STEPPER_STOP, &status, 1) != i2c::ERROR_OK) {
     ESP_LOGW(TAG, "Send stop stepper failed!");
     this->status_set_warning();
     return;
@@ -153,7 +153,7 @@ void GroveMotorDriveTB6612FNG::stepper_keep_run(StepperModeTypeT mode, uint16_t 
   uint16_t ms_per_step = 0;
 
   rpm = clamp<uint16_t>(rpm, 1, 300);
-  ms_per_step = (uint16_t) (3000.0 / (float) rpm);
+  ms_per_step = (uint16_t) (3000.0f / (float) rpm);
 
   buffer_[0] = mode;
   buffer_[1] = cw;  //(cw=1) => cw; (cw=0) => ccw
@@ -166,5 +166,4 @@ void GroveMotorDriveTB6612FNG::stepper_keep_run(StepperModeTypeT mode, uint16_t 
     return;
   }
 }
-}  // namespace grove_tb6612fng
-}  // namespace esphome
+}  // namespace esphome::grove_tb6612fng

@@ -5,6 +5,9 @@
 #include "esphome/core/application.h"
 #include "esphome/core/log.h"
 #include "esphome/core/util.h"
+#ifdef USE_API_USER_DEFINED_ACTIONS
+#include "user_services.h"
+#endif
 
 namespace esphome::api {
 
@@ -70,6 +73,15 @@ LIST_ENTITIES_HANDLER(media_player, media_player::MediaPlayer, ListEntitiesMedia
 LIST_ENTITIES_HANDLER(alarm_control_panel, alarm_control_panel::AlarmControlPanel,
                       ListEntitiesAlarmControlPanelResponse)
 #endif
+#ifdef USE_WATER_HEATER
+LIST_ENTITIES_HANDLER(water_heater, water_heater::WaterHeater, ListEntitiesWaterHeaterResponse)
+#endif
+#ifdef USE_INFRARED
+LIST_ENTITIES_HANDLER(infrared, infrared::Infrared, ListEntitiesInfraredResponse)
+#endif
+#ifdef USE_RADIO_FREQUENCY
+LIST_ENTITIES_HANDLER(radio_frequency, radio_frequency::RadioFrequency, ListEntitiesRadioFrequencyResponse)
+#endif
 #ifdef USE_EVENT
 LIST_ENTITIES_HANDLER(event, event::Event, ListEntitiesEventResponse)
 #endif
@@ -82,10 +94,19 @@ bool ListEntitiesIterator::on_end() { return this->client_->send_list_info_done(
 
 ListEntitiesIterator::ListEntitiesIterator(APIConnection *client) : client_(client) {}
 
-#ifdef USE_API_SERVICES
+#ifdef USE_API_USER_DEFINED_ACTIONS
+// Yield after every Nth service; bounds direct (non-batched) writes per loop pass
+static constexpr uint8_t SERVICE_YIELD_INTERVAL = 3;
+
 bool ListEntitiesIterator::on_service(UserServiceDescriptor *service) {
-  auto resp = service->encode_list_service_response();
-  return this->client_->send_message(resp, ListEntitiesServicesResponse::MESSAGE_TYPE);
+  UserActionScratch scratch;
+  auto resp = service->encode_list_service_response(scratch);
+  if (!this->client_->send_message(resp))
+    return false;
+  // at_ is this service's index
+  if ((this->at_ + 1) % SERVICE_YIELD_INTERVAL == 0)
+    this->yield_after_step_();
+  return true;
 }
 #endif
 

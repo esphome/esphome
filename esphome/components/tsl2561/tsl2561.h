@@ -4,8 +4,7 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/i2c/i2c.h"
 
-namespace esphome {
-namespace tsl2561 {
+namespace esphome::tsl2561 {
 
 /** Enum listing all conversion/integration time settings for the TSL2561
  *
@@ -27,7 +26,7 @@ enum TSL2561Gain {
 };
 
 /// This class includes support for the TSL2561 i2c ambient light sensor.
-class TSL2561Sensor : public sensor::Sensor, public PollingComponent, public i2c::I2CDevice {
+class TSL2561Sensor final : public sensor::Sensor, public PollingComponent, public i2c::I2CDevice {
  public:
   /** Set the time that sensor values should be accumulated for.
    *
@@ -67,7 +66,6 @@ class TSL2561Sensor : public sensor::Sensor, public PollingComponent, public i2c
   void setup() override;
   void dump_config() override;
   void update() override;
-  float get_setup_priority() const override;
 
   bool tsl2561_read_byte(uint8_t a_register, uint8_t *value);
   bool tsl2561_read_uint(uint8_t a_register, uint16_t *value);
@@ -83,5 +81,4 @@ class TSL2561Sensor : public sensor::Sensor, public PollingComponent, public i2c
   bool package_cs_{false};
 };
 
-}  // namespace tsl2561
-}  // namespace esphome
+}  // namespace esphome::tsl2561

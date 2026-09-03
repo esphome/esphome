@@ -2,8 +2,7 @@
 
 #include <cinttypes>
 
-namespace esphome {
-namespace es7243e {
+namespace esphome::es7243e {
 
 // ES7243E register addresses
 static const uint8_t ES7243E_RESET_REG00 = 0x00;      // Reset control
@@ -50,5 +49,4 @@ static const uint8_t ES7243E_CHIP_ID1_REGFD = 0xFD;      // chip ID 1, reads 0x7
 static const uint8_t ES7243E_CHIP_ID2_REGFE = 0xFE;      // chip ID 2, reads 0x43 (RO)
 static const uint8_t ES7243E_CHIP_VERSION_REGFF = 0xFF;  // chip version, reads 0x00 (RO)
 
-}  // namespace es7243e
-}  // namespace esphome
+}  // namespace esphome::es7243e

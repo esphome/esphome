@@ -1,0 +1,14 @@
+audio:
+  codecs:
+    flac:
+      buffer_memory: internal
+    mp3:
+      buffer_memory: psram
+    opus:
+      floating_point: false
+      state_memory: psram
+      pseudostack:
+        threadsafe: false
+        buffer_memory: internal
+        size: 80000
+    wav:

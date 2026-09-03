@@ -9,14 +9,19 @@ from esphome.const import (
     CONF_RESTORE,
     CONF_SENSOR,
     CONF_UNIT_OF_MEASUREMENT,
+    CONF_VALUE,
 )
+from esphome.core import ID
 from esphome.core.entity_helpers import inherit_property_from
+from esphome.cpp_generator import MockObj, TemplateArgsType
+from esphome.types import ConfigType
 
 integration_ns = cg.esphome_ns.namespace("integration")
 IntegrationSensor = integration_ns.class_(
     "IntegrationSensor", sensor.Sensor, cg.Component
 )
 ResetAction = integration_ns.class_("ResetAction", automation.Action)
+SetValueAction = integration_ns.class_("SetValueAction", automation.Action)
 
 IntegrationSensorTime = integration_ns.enum("IntegrationSensorTime")
 INTEGRATION_TIMES = {
@@ -37,14 +42,14 @@ CONF_TIME_UNIT = "time_unit"
 CONF_INTEGRATION_METHOD = "integration_method"
 
 
-def inherit_unit_of_measurement(uom, config):
+def inherit_unit_of_measurement(uom: str, config: ConfigType) -> str:
     suffix = config[CONF_TIME_UNIT]
     if uom.endswith("/" + suffix):
         return uom[0 : -len("/" + suffix)]
     return uom + suffix
 
 
-def inherit_accuracy_decimals(decimals, config):
+def inherit_accuracy_decimals(decimals: int, config: ConfigType) -> int:
     return decimals + 2
 
 
@@ -88,7 +93,7 @@ FINAL_VALIDATE_SCHEMA = cv.All(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
 
     await cg.register_component(var, config)
@@ -109,7 +114,38 @@ async def to_code(config):
             cv.Required(CONF_ID): cv.use_id(IntegrationSensor),
         }
     ),
+    synchronous=True,
 )
-async def sensor_integration_reset_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, paren)
+async def sensor_integration_reset_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
+    var = cg.new_Pvariable(action_id, template_arg)
+    await cg.register_parented(var, config[CONF_ID])
+    return var
+
+
+@automation.register_action(
+    "sensor.integration.set_value",
+    SetValueAction,
+    cv.Schema(
+        {
+            cv.Required(CONF_ID): cv.use_id(IntegrationSensor),
+            cv.Required(CONF_VALUE): cv.templatable(cv.float_),
+        }
+    ),
+    synchronous=True,
+)
+async def sensor_integration_set_value_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
+    var = cg.new_Pvariable(action_id, template_arg)
+    await cg.register_parented(var, config[CONF_ID])
+    template_ = await cg.templatable(config[CONF_VALUE], args, cg.float_)
+    cg.add(var.set_value(template_))
+    return var

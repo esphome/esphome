@@ -1,41 +1,47 @@
 from __future__ import annotations
 
-import contextlib
-import hashlib
-import io
+from collections.abc import Callable
+from dataclasses import dataclass
 import logging
 from pathlib import Path
-import re
 
 from PIL import Image, UnidentifiedImageError
 
-from esphome import core, external_files
 import esphome.codegen as cg
-from esphome.components.const import CONF_BYTE_ORDER
+from esphome.components.const import CONF_BYTE_ORDER, KEY_METADATA
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_DEFAULTS,
-    CONF_DITHER,
     CONF_FILE,
-    CONF_ICON,
+    CONF_FILES,
     CONF_ID,
-    CONF_PATH,
-    CONF_RAW_DATA_ID,
-    CONF_RESIZE,
-    CONF_SOURCE,
+    CONF_PLATFORM,
     CONF_TYPE,
-    CONF_URL,
 )
-from esphome.core import CORE, HexInt
+from esphome.core import CORE
+from esphome.types import ConfigType
 
 _LOGGER = logging.getLogger(__name__)
 
 DOMAIN = "image"
 DEPENDENCIES = ["display"]
+IS_PLATFORM_COMPONENT = True
+
+# Name of the built-in static-image platform (local file / web / MDI sources).
+PLATFORM_FILE = "file"
 
 image_ns = cg.esphome_ns.namespace("image")
 
 ImageType = image_ns.enum("ImageType")
+
+
+@dataclass(frozen=True)
+class ImageMetaData:
+    width: int
+    height: int
+    image_type: str
+    transparency: str
+
 
 CONF_OPAQUE = "opaque"
 CONF_CHROMA_KEY = "chroma_key"
@@ -48,6 +54,9 @@ TRANSPARENCY_TYPES = (
     CONF_CHROMA_KEY,
     CONF_ALPHA_CHANNEL,
 )
+
+# Shared validator for the image platform schemas and `_drop_incompatible_byte_order`.
+validate_byte_order = cv.one_of("BIG_ENDIAN", "LITTLE_ENDIAN", upper=True)
 
 
 def get_image_type_enum(type):
@@ -73,7 +82,7 @@ class ImageEncoder:
 
     def __init__(self, width, height, transparency, dither, invert_alpha):
         """
-        :param width:  The image width in pixels
+        :param width:  The image width in pixels (or bytes)
         :param height:  The image height in pixels
         :param transparency: Transparency type
         :param dither: Dither method
@@ -82,11 +91,12 @@ class ImageEncoder:
         self.transparency = transparency
         self.width = width
         self.height = height
-        self.data = [0 for _ in range(width * height)]
+        self.data = [0] * width * height
         self.dither = dither
         self.index = 0
         self.invert_alpha = invert_alpha
         self.path = ""
+        self.big_endian = False
 
     def convert(self, image, path):
         """
@@ -108,23 +118,21 @@ class ImageEncoder:
         :return:
         """
 
+    def end_image(self):
+        """
+        Called at the end of the image.
+        :return:
+        """
+
+    def set_big_endian(self, big_endian: bool) -> None:
+        self.big_endian = big_endian
+
     @classmethod
     def is_endian(cls) -> bool:
         """
         Check if the image encoder supports endianness configuration
         """
-        return getattr(cls, "set_big_endian", None) is not None
-
-    @classmethod
-    def get_options(cls) -> list[str]:
-        """
-        Get the available options for this image encoder
-        """
-        options = [*OPTIONS]
-        if not cls.is_endian():
-            options.remove(CONF_BYTE_ORDER)
-        options.append(CONF_RAW_DATA_ID)
-        return options
+        return False
 
 
 def is_alpha_only(image: Image):
@@ -201,18 +209,21 @@ class ImageGrayscale(ImageEncoder):
 
 class ImageRGB565(ImageEncoder):
     def __init__(self, width, height, transparency, dither, invert_alpha):
-        stride = 3 if transparency == CONF_ALPHA_CHANNEL else 2
         super().__init__(
-            width * stride,
+            width * 2,
             height,
             transparency,
             dither,
             invert_alpha,
         )
-        self.big_endian = True
+        self.alpha = [0] * width * height
 
-    def set_big_endian(self, big_endian: bool) -> None:
-        self.big_endian = big_endian
+    @classmethod
+    def is_endian(cls) -> bool:
+        """
+        Check if the image encoder supports endianness configuration
+        """
+        return True
 
     def convert(self, image, path):
         return image.convert("RGBA")
@@ -222,6 +233,9 @@ class ImageRGB565(ImageEncoder):
         r = r >> 3
         g = g >> 2
         b = b >> 3
+        if self.invert_alpha:
+            a ^= 0xFF
+        self.alpha[self.index // 2] = a
         if self.transparency == CONF_CHROMA_KEY:
             if r == 0 and g == 1 and b == 0:
                 g = 0
@@ -240,11 +254,10 @@ class ImageRGB565(ImageEncoder):
             self.index += 1
             self.data[self.index] = rgb >> 8
             self.index += 1
+
+    def end_image(self):
         if self.transparency == CONF_ALPHA_CHANNEL:
-            if self.invert_alpha:
-                a ^= 0xFF
-            self.data[self.index] = a
-            self.index += 1
+            self.data.extend(self.alpha)
 
 
 class ImageRGB(ImageEncoder):
@@ -270,11 +283,11 @@ class ImageRGB(ImageEncoder):
                 r = 0
                 g = 1
                 b = 0
-        self.data[self.index] = r
+        self.data[self.index] = b
         self.index += 1
         self.data[self.index] = g
         self.index += 1
-        self.data[self.index] = b
+        self.data[self.index] = r
         self.index += 1
         if self.transparency == CONF_ALPHA_CHANNEL:
             if self.invert_alpha:
@@ -313,138 +326,16 @@ TransparencyType = image_ns.enum("TransparencyType")
 
 CONF_TRANSPARENCY = "transparency"
 
-# If the MDI file cannot be downloaded within this time, abort.
-IMAGE_DOWNLOAD_TIMEOUT = 30  # seconds
-
-SOURCE_LOCAL = "local"
-SOURCE_WEB = "web"
-
-SOURCE_MDI = "mdi"
-SOURCE_MDIL = "mdil"
-SOURCE_MEMORY = "memory"
-
-MDI_SOURCES = {
-    SOURCE_MDI: "https://raw.githubusercontent.com/Templarian/MaterialDesign/master/svg/",
-    SOURCE_MDIL: "https://raw.githubusercontent.com/Pictogrammers/MaterialDesignLight/refs/heads/master/svg/",
-    SOURCE_MEMORY: "https://raw.githubusercontent.com/Pictogrammers/Memory/refs/heads/main/src/svg/",
-}
-
 Image_ = image_ns.class_("Image")
 
 INSTANCE_TYPE = Image_
 
 
-def compute_local_image_path(value) -> Path:
-    url = value[CONF_URL] if isinstance(value, dict) else value
-    h = hashlib.new("sha256")
-    h.update(url.encode())
-    key = h.hexdigest()[:8]
-    base_dir = external_files.compute_local_file_dir(DOMAIN)
-    return base_dir / key
-
-
-def local_path(value):
-    value = value[CONF_PATH] if isinstance(value, dict) else value
-    return str(CORE.relative_config_path(value))
-
-
-def download_file(url, path):
-    external_files.download_content(url, path, IMAGE_DOWNLOAD_TIMEOUT)
-    return str(path)
-
-
-def download_gh_svg(value, source):
-    mdi_id = value[CONF_ICON] if isinstance(value, dict) else value
-    base_dir = external_files.compute_local_file_dir(DOMAIN) / source
-    path = base_dir / f"{mdi_id}.svg"
-
-    url = MDI_SOURCES[source] + mdi_id + ".svg"
-    return download_file(url, path)
-
-
-def download_image(value):
-    value = value[CONF_URL] if isinstance(value, dict) else value
-    return download_file(value, compute_local_image_path(value))
-
-
 def is_svg_file(file):
     if not file:
         return False
-    with open(file, "rb") as f:
+    with Path(file).open("rb") as f:
         return "<svg" in str(f.read(1024))
-
-
-def validate_cairosvg_installed():
-    try:
-        import cairosvg
-    except ImportError as err:
-        raise cv.Invalid(
-            "Please install the cairosvg python package to use this feature. "
-            "(pip install cairosvg)"
-        ) from err
-
-    major, minor, _ = cairosvg.__version__.split(".")
-    if major < "2" or major == "2" and minor < "2":
-        raise cv.Invalid(
-            "Please update your cairosvg installation to at least 2.2.0. "
-            "(pip install -U cairosvg)"
-        )
-
-
-def validate_file_shorthand(value):
-    value = cv.string_strict(value)
-    parts = value.strip().split(":")
-    if len(parts) == 2 and parts[0] in MDI_SOURCES:
-        match = re.match(r"^[a-zA-Z0-9\-]+$", parts[1])
-        if match is None:
-            raise cv.Invalid(f"Could not parse mdi icon name from '{value}'.")
-        return download_gh_svg(parts[1], parts[0])
-
-    if value.startswith("http://") or value.startswith("https://"):
-        return download_image(value)
-
-    value = cv.file_(value)
-    return local_path(value)
-
-
-LOCAL_SCHEMA = cv.All(
-    {
-        cv.Required(CONF_PATH): cv.file_,
-    },
-    local_path,
-)
-
-
-def mdi_schema(source):
-    def validate_mdi(value):
-        return download_gh_svg(value, source)
-
-    return cv.All(
-        cv.Schema(
-            {
-                cv.Required(CONF_ICON): cv.string,
-            }
-        ),
-        validate_mdi,
-    )
-
-
-WEB_SCHEMA = cv.All(
-    {
-        cv.Required(CONF_URL): cv.string,
-    },
-    download_image,
-)
-
-
-TYPED_FILE_SCHEMA = cv.typed_schema(
-    {
-        SOURCE_LOCAL: LOCAL_SCHEMA,
-        SOURCE_WEB: WEB_SCHEMA,
-    }
-    | {source: mdi_schema(source) for source in MDI_SOURCES},
-    key=CONF_SOURCE,
-)
 
 
 def validate_transparency(choices=TRANSPARENCY_TYPES):
@@ -490,9 +381,7 @@ def validate_settings(value, path=()):
         )
     if file := value.get(CONF_FILE):
         file = Path(file)
-        if is_svg_file(file):
-            validate_cairosvg_installed()
-        else:
+        if not is_svg_file(file):
             try:
                 Image.open(file)
             except UnidentifiedImageError as exc:
@@ -502,244 +391,329 @@ def validate_settings(value, path=()):
     return value
 
 
-IMAGE_ID_SCHEMA = {
-    cv.Required(CONF_ID): cv.declare_id(Image_),
-    cv.Required(CONF_FILE): cv.Any(validate_file_shorthand, TYPED_FILE_SCHEMA),
-    cv.GenerateID(CONF_RAW_DATA_ID): cv.declare_id(cg.uint8),
-}
+def add_metadata(id: str, width: int, height: int, image_type: str, transparency):
+    all_metadata = CORE.data.setdefault(DOMAIN, {}).setdefault(KEY_METADATA, {})
+    all_metadata[str(id)] = ImageMetaData(
+        width=width, height=height, image_type=image_type, transparency=transparency
+    )
 
 
-OPTIONS_SCHEMA = {
-    cv.Optional(CONF_RESIZE): cv.dimensions,
-    cv.Optional(CONF_DITHER, default="NONE"): cv.one_of(
-        "NONE", "FLOYDSTEINBERG", upper=True
-    ),
-    cv.Optional(CONF_INVERT_ALPHA, default=False): cv.boolean,
-    cv.Optional(CONF_BYTE_ORDER): cv.one_of("BIG_ENDIAN", "LITTLE_ENDIAN", upper=True),
-    cv.Optional(CONF_TRANSPARENCY, default=CONF_OPAQUE): validate_transparency(),
-}
-
-DEFAULTS_SCHEMA = {
-    **OPTIONS_SCHEMA,
-    cv.Optional(CONF_TYPE): validate_type(IMAGE_TYPE),
-}
-
-OPTIONS = [key.schema for key in OPTIONS_SCHEMA]
-
-# image schema with no defaults, used with `CONF_IMAGES` in the config
-IMAGE_SCHEMA_NO_DEFAULTS = {
-    **IMAGE_ID_SCHEMA,
-    **{cv.Optional(key): OPTIONS_SCHEMA[key] for key in OPTIONS},
-}
-
-IMAGE_SCHEMA = cv.Schema(
-    {
-        **IMAGE_ID_SCHEMA,
-        **OPTIONS_SCHEMA,
-        cv.Required(CONF_TYPE): validate_type(IMAGE_TYPE),
-    }
-)
+async def to_code(config: ConfigType) -> None:
+    # Base platform-component codegen: each entry is generated by its platform's
+    # own ``to_code``; here we only need the feature define to be present.
+    cg.add_define("USE_IMAGE")
 
 
-def apply_defaults(image, defaults, path):
+def get_all_image_metadata() -> dict[str, ImageMetaData]:
+    """Get all image metadata."""
+    return CORE.data.get(DOMAIN, {}).get(KEY_METADATA, {})
+
+
+def get_image_metadata(image_id: str) -> ImageMetaData | None:
+    """Get image metadata by ID for use by other components."""
+    return get_all_image_metadata().get(image_id)
+
+
+# ---------------------------------------------------------------------------
+# `defaults:`/`files:` expansion: a `platform:` entry merges shared `defaults:`
+# into every `files:` entry; the platform's CONFIG_SCHEMA validates each.
+# Permanent, unlike the legacy migration below.
+# ---------------------------------------------------------------------------
+
+
+def _drop_incompatible_byte_order(
+    merged: dict, explicit: dict, *, index: int | None = None
+) -> dict:
+    """Drop `byte_order` when the resolved type doesn't support it, unless written directly on `explicit`.
+
+    With `index`, inherited values are validated before being dropped (the legacy flattener always drops).
     """
-    Apply defaults to an image configuration
-    """
-    type = image.get(CONF_TYPE, defaults.get(CONF_TYPE))
-    if type is None:
+    if CONF_BYTE_ORDER in explicit:
+        return merged
+    type_class = IMAGE_TYPE.get(str(merged.get(CONF_TYPE, "")).upper())
+    if (
+        CONF_BYTE_ORDER in merged
+        and isinstance(type_class, type)
+        and issubclass(type_class, ImageEncoder)
+        and not type_class.is_endian()
+    ):
+        if index is not None:
+            try:
+                validate_byte_order(merged[CONF_BYTE_ORDER])
+            except cv.Invalid as exc:
+                exc.prepend([index])
+                raise
+        del merged[CONF_BYTE_ORDER]
+    return merged
+
+
+def _expand_platform_entry(index: int, entry: dict) -> list[dict]:
+    if CONF_FILES not in entry:
+        if CONF_DEFAULTS in entry:
+            raise cv.Invalid(
+                f"'{CONF_DEFAULTS}' may only be used together with '{CONF_FILES}'",
+                path=[index],
+            )
+        return [entry]
+
+    extra_keys = set(entry) - {CONF_PLATFORM, CONF_DEFAULTS, CONF_FILES}
+    if extra_keys:
         raise cv.Invalid(
-            "Type is required either in the image config or in the defaults", path=path
+            f"'{CONF_FILES}' cannot be combined with "
+            f"{', '.join(sorted(extra_keys))} on the same entry",
+            path=[index],
         )
-    type_class = IMAGE_TYPE[type]
-    config = {
-        **{key: image.get(key, defaults.get(key)) for key in type_class.get_options()},
-        **{key.schema: image[key.schema] for key in IMAGE_ID_SCHEMA},
-        CONF_TYPE: image.get(CONF_TYPE, defaults.get(CONF_TYPE)),
-    }
-    validate_settings(config, path)
-    return config
 
+    files = entry[CONF_FILES]
+    if files is None:
+        raise cv.Invalid(f"'{CONF_FILES}' must not be empty", path=[index])
+    if not isinstance(files, list):
+        raise cv.Invalid(f"'{CONF_FILES}' must be a list", path=[index])
+    if not files:
+        raise cv.Invalid(f"'{CONF_FILES}' must not be empty", path=[index])
 
-def validate_defaults(value):
-    """
-    Apply defaults to the images in the configuration and flatten to a single list.
-    """
-    defaults = value[CONF_DEFAULTS]
-    result = []
-    # Apply defaults to the images: list and add the list entries to the result
-    for index, image in enumerate(value.get(CONF_IMAGES, [])):
-        result.append(apply_defaults(image, defaults, [CONF_IMAGES, index]))
+    defaults = entry.get(CONF_DEFAULTS, {})
+    if defaults is None:
+        defaults = {}
+    if not isinstance(defaults, dict):
+        raise cv.Invalid(f"'{CONF_DEFAULTS}' must be a mapping", path=[index])
+    # Neither `id:` nor `platform:` makes sense inside `defaults:`.
+    for disallowed in (CONF_ID, CONF_PLATFORM):
+        if disallowed in defaults:
+            raise cv.Invalid(
+                f"'{disallowed}' is not allowed inside '{CONF_DEFAULTS}'",
+                path=[index],
+            )
 
-    # Apply defaults to images under the type keys and add them to the result
-    for image_type, type_config in value.items():
-        type_upper = image_type.upper()
-        if type_upper not in IMAGE_TYPE:
-            continue
-        type_class = IMAGE_TYPE[type_upper]
-        if isinstance(type_config, list):
-            # If the type is a list, apply defaults to each entry
-            for index, image in enumerate(type_config):
-                result.append(apply_defaults(image, defaults, [image_type, index]))
-        else:
-            # Handle transparency options for the type
-            for trans_type in set(type_class.allow_config).intersection(type_config):
-                for index, image in enumerate(type_config[trans_type]):
-                    result.append(
-                        apply_defaults(image, defaults, [image_type, trans_type, index])
-                    )
+    from esphome import yaml_util
+
+    platform = entry[CONF_PLATFORM]
+    result: list[dict] = []
+    for file_entry in files:
+        if not isinstance(file_entry, dict):
+            raise cv.Invalid(
+                f"each entry in '{CONF_FILES}' must be a mapping", path=[index]
+            )
+        # The platform is chosen by the entry's own `platform:` key, not per file.
+        if CONF_PLATFORM in file_entry:
+            raise cv.Invalid(
+                f"'{CONF_PLATFORM}' is not allowed inside '{CONF_FILES}'",
+                path=[index],
+            )
+        # Keep the `files:` item's source range so whole-entry errors anchor there;
+        # `make_data_base` needs a real ESPHomeDataBase, so skip it for plain dicts.
+        source = (
+            file_entry if isinstance(file_entry, yaml_util.ESPHomeDataBase) else None
+        )
+        merged = yaml_util.make_data_base(
+            {CONF_PLATFORM: platform, **defaults, **file_entry}, source
+        )
+        result.append(_drop_incompatible_byte_order(merged, file_entry, index=index))
     return result
 
 
-def typed_image_schema(image_type):
+def expand_platform_config(config: list) -> list:
+    """Expand `defaults:`/`files:` entries; the platform's own CONFIG_SCHEMA validates each result."""
+    result = []
+    for i, entry in enumerate(config):
+        if isinstance(entry, dict) and CONF_PLATFORM in entry:
+            result.extend(_expand_platform_entry(i, entry))
+        else:
+            result.append(entry)
+    return result
+
+
+EXPAND_PLATFORM_CONFIG = expand_platform_config
+
+# --------------------- end defaults/files expansion -------------------------
+
+
+# ---------------------------------------------------------------------------
+# Legacy top-level component -> `image:` platform deprecation helpers
+# -- REMOVE after 2027.1.0 together with the `animation:`/`online_image:` shims.
+#
+# `animation:` and `online_image:` used to be standalone top-level components and
+# are now platforms of `image:`. Their deprecated top-level shims use this helper
+# to (1) record each raw entry as it is validated and (2) print a single,
+# pasteable migrated `image:` block once every entry has been seen. The block is
+# emitted from FINAL_VALIDATE_SCHEMA, which always runs after every per-entry
+# CONFIG_SCHEMA step, so all entries are captured before it fires.
+# ---------------------------------------------------------------------------
+
+
+def legacy_platform_migration_warning(
+    domain: str, platform: str, removal_version: str
+) -> tuple[
+    Callable[[ConfigType], ConfigType],
+    Callable[[ConfigType], ConfigType],
+]:
+    """Build the per-entry capture and one-shot warning validators for a
+    deprecated top-level component that is now an ``image:`` platform.
+
+    Returns ``(capture, finalize)``:
+    * ``capture`` is a ``CONFIG_SCHEMA`` validator placed *before* the real
+      schema so it sees the raw user entry; it records a copy of each entry.
+    * ``finalize`` is a ``FINAL_VALIDATE_SCHEMA`` validator that warns exactly
+      once with the migrated, pasteable ``image:`` block.
     """
-    Construct a schema for a specific image type, allowing transparency options
-    """
-    return cv.Any(
-        cv.Schema(
-            {
-                cv.Optional(t.lower()): cv.ensure_list(
-                    {
-                        **IMAGE_ID_SCHEMA,
-                        **{
-                            cv.Optional(key): OPTIONS_SCHEMA[key]
-                            for key in OPTIONS
-                            if key != CONF_TRANSPARENCY
-                        },
-                        cv.Optional(
-                            CONF_TRANSPARENCY, default=t
-                        ): validate_transparency((t,)),
-                        cv.Optional(CONF_TYPE, default=image_type): validate_type(
-                            (image_type,)
-                        ),
-                    }
-                )
-                for t in IMAGE_TYPE[image_type].allow_config.intersection(
-                    TRANSPARENCY_TYPES
-                )
-            }
-        ),
-        # Allow a default configuration with no transparency preselected
-        cv.ensure_list(
-            {
-                **IMAGE_SCHEMA_NO_DEFAULTS,
-                cv.Optional(CONF_TYPE, default=image_type): validate_type(
-                    (image_type,)
-                ),
-            }
-        ),
-    )
+    entries_key = "legacy_entries"
+    shown_key = "legacy_warning_shown"
 
+    def capture(config: ConfigType) -> ConfigType:
+        data = CORE.data.setdefault(domain, {})
+        data.setdefault(entries_key, []).append(dict(config))
+        return config
 
-# The config schema can be a (possibly empty) single list of images,
-# or a dictionary with optional keys `defaults:`, `images:` and the image types
+    def finalize(config: ConfigType) -> ConfigType:
+        data = CORE.data.setdefault(domain, {})
+        if not data.get(shown_key):
+            data[shown_key] = True
 
+            from esphome import yaml_util
 
-def _config_schema(value):
-    if isinstance(value, list) or (
-        isinstance(value, dict) and (CONF_ID in value or CONF_FILE in value)
-    ):
-        return cv.ensure_list(cv.All(IMAGE_SCHEMA, validate_settings))(value)
-    if not isinstance(value, dict):
-        raise cv.Invalid(
-            "Badly formed image configuration, expected a list or a dictionary",
-        )
-    return cv.All(
-        cv.Schema(
-            {
-                cv.Optional(CONF_DEFAULTS, default={}): DEFAULTS_SCHEMA,
-                cv.Optional(CONF_IMAGES, default=[]): cv.ensure_list(
-                    {
-                        **IMAGE_SCHEMA_NO_DEFAULTS,
-                        cv.Optional(CONF_TYPE): validate_type(IMAGE_TYPE),
-                    }
-                ),
-                **{cv.Optional(t.lower()): typed_image_schema(t) for t in IMAGE_TYPE},
-            }
-        ),
-        validate_defaults,
-    )(value)
-
-
-CONFIG_SCHEMA = _config_schema
-
-
-async def write_image(config, all_frames=False):
-    path = Path(config[CONF_FILE])
-    if not path.is_file():
-        raise core.EsphomeError(f"Could not load image file {path}")
-
-    resize = config.get(CONF_RESIZE)
-    if is_svg_file(path):
-        # Local import so use of non-SVG files needn't require cairosvg installed
-        from cairosvg import svg2png
-
-        if not resize:
-            resize = (None, None)
-        with open(path, "rb") as file:
-            image = svg2png(
-                file_obj=file,
-                output_width=resize[0],
-                output_height=resize[1],
+            migrated = [
+                {CONF_PLATFORM: platform, **entry}
+                for entry in data.get(entries_key, [])
+            ]
+            _LOGGER.warning(
+                "The top-level '%s:' configuration is deprecated and will be "
+                "removed in ESPHome %s. '%s' is now a platform of the 'image' "
+                "component. Replace your '%s:' block with:\n\n%s",
+                domain,
+                removal_version,
+                domain,
+                domain,
+                yaml_util.dump({DOMAIN: migrated}),
             )
-        image = Image.open(io.BytesIO(image))
-        width, height = image.size
-    else:
-        image = Image.open(path)
-        width, height = image.size
-        if resize:
-            # Preserve aspect ratio
-            new_width_max = min(width, resize[0])
-            new_height_max = min(height, resize[1])
-            ratio = min(new_width_max / width, new_height_max / height)
-            width, height = int(width * ratio), int(height * ratio)
+        return config
 
-    if not resize and (width > 500 or height > 500):
-        _LOGGER.warning(
-            'The image "%s" you requested is very big. Please consider'
-            " using the resize parameter.",
-            path,
-        )
+    return capture, finalize
 
-    dither = (
-        Image.Dither.NONE
-        if config[CONF_DITHER] == "NONE"
-        else Image.Dither.FLOYDSTEINBERG
+
+# ---------------------------------------------------------------------------
+# Legacy `image:` config migration -- REMOVE after 2027.1.0
+#
+# Before `image` became a platform component, its top-level config was either a
+# bare list of image dicts, a single image dict, or a dict with `defaults:`,
+# `images:` and per-type group keys. This block transparently rewrites those
+# forms into the new ``platform: file`` list and prints the migrated YAML.
+# It is intentionally self-contained so it can be deleted in one piece together
+# with the ``LEGACY_CONFIG_MIGRATE`` assignment below.
+# ---------------------------------------------------------------------------
+
+LEGACY_REMOVAL_VERSION = "2027.1.0"
+
+
+def _is_new_image_format(config: object) -> bool:
+    """True when the config is already the new ``platform:``-tagged list."""
+    return isinstance(config, list) and all(
+        isinstance(entry, dict) and CONF_PLATFORM in entry for entry in config
     )
-    type = config[CONF_TYPE]
-    transparency = config.get(CONF_TRANSPARENCY, CONF_OPAQUE)
-    invert_alpha = config[CONF_INVERT_ALPHA]
-    frame_count = 1
-    if all_frames:
-        with contextlib.suppress(AttributeError):
-            frame_count = image.n_frames
-        if frame_count <= 1:
-            _LOGGER.warning("Image file %s has no animation frames", path)
-
-    total_rows = height * frame_count
-    encoder = IMAGE_TYPE[type](width, total_rows, transparency, dither, invert_alpha)
-    if byte_order := config.get(CONF_BYTE_ORDER):
-        # Check for valid type has already been done in validate_settings
-        encoder.set_big_endian(byte_order == "BIG_ENDIAN")
-    for frame_index in range(frame_count):
-        image.seek(frame_index)
-        pixels = encoder.convert(image.resize((width, height)), path).getdata()
-        for row in range(height):
-            for col in range(width):
-                encoder.encode(pixels[row * width + col])
-            encoder.end_row()
-
-    rhs = [HexInt(x) for x in encoder.data]
-    prog_arr = cg.progmem_array(config[CONF_RAW_DATA_ID], rhs)
-    image_type = get_image_type_enum(type)
-    trans_value = get_transparency_enum(encoder.transparency)
-
-    return prog_arr, width, height, image_type, trans_value, frame_count
 
 
-async def to_code(config):
-    # By now the config should be a simple list.
-    for entry in config:
-        prog_arr, width, height, image_type, trans_value, _ = await write_image(entry)
-        cg.new_Pvariable(
-            entry[CONF_ID], prog_arr, width, height, image_type, trans_value
+def _is_legacy_image_format(config: object) -> bool:
+    """True when ``config`` matches a shape the pre-platform schema accepted.
+
+    Only these shapes are migrated. Anything else -- a list containing a
+    non-dict (or already platform-tagged) entry, or a dict with no recognised
+    image keys -- is left untouched so the platform validation surfaces a
+    proper error instead of the migration silently dropping the input.
+    """
+    if isinstance(config, list):
+        # Exclude `files:` entries -- the list branch would otherwise silently
+        # migrate them to `platform: file` instead of raising the missing-platform error.
+        return bool(config) and all(
+            isinstance(entry, dict)
+            and CONF_PLATFORM not in entry
+            and CONF_FILES not in entry
+            for entry in config
         )
+    if not isinstance(config, dict) or CONF_PLATFORM in config or CONF_FILES in config:
+        # `platform:`/`files:` dicts are new-format (left for list-wrapping +
+        # expansion); the legacy flattener has no `files:` branch and would drop them.
+        return False
+    # A single image dict, or the grouped `defaults:`/`images:`/type-key form.
+    return (
+        CONF_ID in config
+        or CONF_FILE in config
+        or any(
+            key in (CONF_DEFAULTS, CONF_IMAGES) or key.upper() in IMAGE_TYPE
+            for key in config
+        )
+    )
+
+
+def _flatten_legacy_image_config(config: object) -> list[dict]:
+    """Structurally flatten a legacy ``image:`` config into image dicts.
+
+    No validation or file IO is performed -- the ``file`` platform schema
+    validates the resulting entries. Unrecognised shapes yield no entries so the
+    normal platform validation surfaces the error.
+    """
+    if isinstance(config, list):
+        return [dict(entry) for entry in config if isinstance(entry, dict)]
+    if not isinstance(config, dict):
+        return []
+    if CONF_ID in config or CONF_FILE in config:
+        return [dict(config)]
+
+    defaults = config.get(CONF_DEFAULTS) or {}
+    result: list[dict] = []
+
+    def _add(entry: dict, extra: dict) -> None:
+        merged = {**defaults, **extra, **entry}
+        # Always drop, matching the pre-platform behavior -- see `_drop_incompatible_byte_order`.
+        result.append(_drop_incompatible_byte_order(merged, {}))
+
+    def _add_entries(entries: object, extra: dict) -> None:
+        # `entries` may be a single image dict or a list of them; non-dict
+        # members are silently skipped, mirroring the old `ensure_list` leniency.
+        for entry in [entries] if isinstance(entries, dict) else entries:
+            if isinstance(entry, dict):
+                _add(entry, extra)
+
+    _add_entries(config.get(CONF_IMAGES, []), {})
+
+    for key, value in config.items():
+        if key in (CONF_DEFAULTS, CONF_IMAGES) or key.upper() not in IMAGE_TYPE:
+            continue
+        type_extra = {CONF_TYPE: key}
+        if isinstance(value, dict) and (
+            transparency_keys := [k for k in value if k in TRANSPARENCY_TYPES]
+        ):
+            for trans in transparency_keys:
+                _add_entries(value[trans], {**type_extra, CONF_TRANSPARENCY: trans})
+        elif isinstance(value, (list, dict)):
+            _add_entries(value, type_extra)
+    return result
+
+
+def _migrate_legacy_image_config(config: object) -> list[dict] | None:
+    """Rewrite a legacy ``image:`` config into the ``platform: file`` list.
+
+    Returns None for the already-migrated platform form and for any shape the
+    pre-platform schema never accepted, so normal platform validation can
+    surface a proper error instead of the migration silently discarding input.
+    """
+    if _is_new_image_format(config) or not _is_legacy_image_format(config):
+        return None
+    migrated = [
+        {CONF_PLATFORM: PLATFORM_FILE, **entry}
+        for entry in _flatten_legacy_image_config(config)
+    ]
+
+    from esphome import yaml_util
+
+    _LOGGER.warning(
+        "The 'image:' configuration format is deprecated and will be removed in "
+        "ESPHome %s. Images are now platforms of the 'image' component. Replace "
+        "your 'image:' block with:\n\n%s",
+        LEGACY_REMOVAL_VERSION,
+        yaml_util.dump({DOMAIN: migrated}),
+    )
+    return migrated
+
+
+LEGACY_CONFIG_MIGRATE = _migrate_legacy_image_config
+
+# --------------------------- end legacy migration --------------------------

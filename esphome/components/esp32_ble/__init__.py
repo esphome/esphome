@@ -1,23 +1,48 @@
+from collections.abc import Callable, MutableMapping
 from enum import Enum
-import re
+import logging
+from typing import Any
 
 from esphome import automation
 import esphome.codegen as cg
-from esphome.components.esp32 import add_idf_sdkconfig_option, const, get_esp32_variant
+
+# bt_uuid validation lives in the platform-neutral ble_device_base; re-exported
+# here for backward compatibility.
+from esphome.components.ble_device_base import (  # noqa: F401  # pylint: disable=unused-import
+    BT_UUID16_FORMAT as bt_uuid16_format,
+    BT_UUID32_FORMAT as bt_uuid32_format,
+    BT_UUID128_FORMAT as bt_uuid128_format,
+    bt_uuid,
+)
+from esphome.components.const import CONF_USE_PSRAM
+from esphome.components.esp32 import (
+    add_idf_sdkconfig_option,
+    const,
+    get_esp32_variant,
+    request_bluetooth,
+)
+from esphome.components.esp32.const import VARIANT_ESP32C2
+from esphome.config_helpers import filter_source_files_from_defines
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ENABLE_ON_BOOT,
     CONF_ESPHOME,
     CONF_ID,
+    CONF_MAX_CONNECTIONS,
     CONF_NAME,
     CONF_NAME_ADD_MAC_SUFFIX,
 )
-from esphome.core import TimePeriod
+from esphome.core import CORE, ID, TimePeriod
+from esphome.cpp_generator import MockObj, TemplateArgsType
 import esphome.final_validate as fv
+from esphome.types import ConfigType
 
+AUTO_LOAD = ["ble_device_base"]  # ble_uuid.h builds on the neutral ESPBTUUID
 DEPENDENCIES = ["esp32"]
 CODEOWNERS = ["@jesserockz", "@Rapsssito", "@bdraco"]
 DOMAIN = "esp32_ble"
+
+_LOGGER = logging.getLogger(__name__)
 
 
 class BTLoggers(Enum):
@@ -101,8 +126,120 @@ class BTLoggers(Enum):
     """ESP32 WiFi provisioning over Bluetooth"""
 
 
-# Set to track which loggers are needed by components
-_required_loggers: set[BTLoggers] = set()
+# Key for storing required loggers in CORE.data
+ESP32_BLE_REQUIRED_LOGGERS_KEY = "esp32_ble_required_loggers"
+
+
+def _get_required_loggers() -> set[BTLoggers]:
+    """Get the set of required Bluetooth loggers from CORE.data."""
+    return CORE.data.setdefault(ESP32_BLE_REQUIRED_LOGGERS_KEY, set())
+
+
+# Handler slot counters sizing the StaticCallbackManager storage in ble.h;
+# one request per register_* call below.
+_request_gap_event_slot = cg.slot_counter("ESPHOME_ESP32_BLE_GAP_EVENT_HANDLER_COUNT")
+_request_gap_scan_event_slot = cg.slot_counter(
+    "ESPHOME_ESP32_BLE_GAP_SCAN_EVENT_HANDLER_COUNT"
+)
+_request_gattc_event_slot = cg.slot_counter(
+    "ESPHOME_ESP32_BLE_GATTC_EVENT_HANDLER_COUNT"
+)
+_request_gatts_event_slot = cg.slot_counter(
+    "ESPHOME_ESP32_BLE_GATTS_EVENT_HANDLER_COUNT"
+)
+_request_ble_status_event_slot = cg.slot_counter(
+    "ESPHOME_ESP32_BLE_BLE_STATUS_EVENT_HANDLER_COUNT"
+)
+
+
+def _add_callback(
+    parent_var: cg.MockObj,
+    method: str,
+    handler_var: cg.MockObj,
+    params: str,
+    call_args: str,
+) -> None:
+    """Generate a lambda callback that forwards to a handler method.
+
+    Uses a braced scope with a local pointer variable so the generated C++
+    lambda captures only that pointer, avoiding GCC warnings about capturing
+    variables with static storage duration.
+    """
+    cg.add(
+        cg.RawStatement(
+            f"{{ auto *h = {handler_var}; "
+            f"{parent_var}->{method}("
+            f"[h]({params}) {{ h->{call_args}; }}); }}"
+        )
+    )
+
+
+def register_gap_event_handler(parent_var: cg.MockObj, handler_var: cg.MockObj) -> None:
+    """Register a GAP event handler and request a handler slot."""
+    _request_gap_event_slot()
+    _add_callback(
+        parent_var,
+        "add_gap_event_callback",
+        handler_var,
+        "esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param",
+        "gap_event_handler(event, param)",
+    )
+
+
+def register_gap_scan_event_handler(
+    parent_var: cg.MockObj, handler_var: cg.MockObj
+) -> None:
+    """Register a GAP scan event handler and request a handler slot."""
+    _request_gap_scan_event_slot()
+    _add_callback(
+        parent_var,
+        "add_gap_scan_event_callback",
+        handler_var,
+        "const esphome::esp32_ble::BLEScanResult &scan_result",
+        "gap_scan_event_handler(scan_result)",
+    )
+
+
+def register_gattc_event_handler(
+    parent_var: cg.MockObj, handler_var: cg.MockObj
+) -> None:
+    """Register a GATTc event handler and request a handler slot."""
+    _request_gattc_event_slot()
+    _add_callback(
+        parent_var,
+        "add_gattc_event_callback",
+        handler_var,
+        "esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if, esp_ble_gattc_cb_param_t *param",
+        "gattc_event_handler(event, gattc_if, param)",
+    )
+
+
+def register_gatts_event_handler(
+    parent_var: cg.MockObj, handler_var: cg.MockObj
+) -> None:
+    """Register a GATTs event handler and request a handler slot."""
+    _request_gatts_event_slot()
+    _add_callback(
+        parent_var,
+        "add_gatts_event_callback",
+        handler_var,
+        "esp_gatts_cb_event_t event, esp_gatt_if_t gatts_if, esp_ble_gatts_cb_param_t *param",
+        "gatts_event_handler(event, gatts_if, param)",
+    )
+
+
+def register_ble_status_event_handler(
+    parent_var: cg.MockObj, handler_var: cg.MockObj
+) -> None:
+    """Register a BLE status event handler and request a handler slot."""
+    _request_ble_status_event_slot()
+    _add_callback(
+        parent_var,
+        "add_ble_status_event_callback",
+        handler_var,
+        "",
+        "ble_before_disabled_event_handler()",
+    )
 
 
 def register_bt_logger(*loggers: BTLoggers) -> None:
@@ -111,30 +248,52 @@ def register_bt_logger(*loggers: BTLoggers) -> None:
     Args:
         *loggers: One or more BTLoggers enum members
     """
+    required_loggers = _get_required_loggers()
     for logger in loggers:
         if not isinstance(logger, BTLoggers):
             raise TypeError(
                 f"Logger must be a BTLoggers enum member, got {type(logger)}"
             )
-        _required_loggers.add(logger)
+        required_loggers.add(logger)
 
 
 CONF_BLE_ID = "ble_id"
 CONF_IO_CAPABILITY = "io_capability"
+CONF_AUTH_REQ_MODE = "auth_req_mode"
+CONF_MAX_KEY_SIZE = "max_key_size"
+CONF_MIN_KEY_SIZE = "min_key_size"
 CONF_ADVERTISING = "advertising"
 CONF_ADVERTISING_CYCLE_TIME = "advertising_cycle_time"
 CONF_DISABLE_BT_LOGS = "disable_bt_logs"
 CONF_CONNECTION_TIMEOUT = "connection_timeout"
 CONF_MAX_NOTIFICATIONS = "max_notifications"
 
+# BLE connection limits
+# ESP-IDF CONFIG_BT_ACL_CONNECTIONS has range 1-9, default 4
+# Total instances: 10 (ADV + SCAN + connections)
+# - ADV only: up to 9 connections
+# - SCAN only: up to 9 connections
+# - ADV + SCAN: up to 8 connections
+DEFAULT_MAX_CONNECTIONS = 3
+IDF_MAX_CONNECTIONS = 9
+
+# Connection slot tracking keys
+KEY_ESP32_BLE = "esp32_ble"
+KEY_USED_CONNECTION_SLOTS = "used_connection_slots"
+
+# Export for use by other components (bluetooth_proxy, etc.)
+__all__ = [
+    "DEFAULT_MAX_CONNECTIONS",
+    "IDF_MAX_CONNECTIONS",
+    "KEY_ESP32_BLE",
+    "KEY_USED_CONNECTION_SLOTS",
+    "consume_connection_slots",
+]
+
 NO_BLUETOOTH_VARIANTS = [const.VARIANT_ESP32S2]
 
 esp32_ble_ns = cg.esphome_ns.namespace("esp32_ble")
 ESP32BLE = esp32_ble_ns.class_("ESP32BLE", cg.Component)
-
-GAPEventHandler = esp32_ble_ns.class_("GAPEventHandler")
-GATTcEventHandler = esp32_ble_ns.class_("GATTcEventHandler")
-GATTsEventHandler = esp32_ble_ns.class_("GATTsEventHandler")
 
 BLEEnabledCondition = esp32_ble_ns.class_("BLEEnabledCondition", automation.Condition)
 BLEEnableAction = esp32_ble_ns.class_("BLEEnableAction", automation.Action)
@@ -147,6 +306,18 @@ IO_CAPABILITY = {
     "keyboard_display": IoCapability.IO_CAP_KBDISP,
     "display_only": IoCapability.IO_CAP_OUT,
     "display_yes_no": IoCapability.IO_CAP_IO,
+}
+
+AuthReqMode = esp32_ble_ns.enum("AuthReqMode")
+AUTH_REQ_MODE = {
+    "no_bond": AuthReqMode.AUTH_REQ_NO_BOND,
+    "bond": AuthReqMode.AUTH_REQ_BOND,
+    "mitm": AuthReqMode.AUTH_REQ_MITM,
+    "bond_mitm": AuthReqMode.AUTH_REQ_BOND_MITM,
+    "sc_only": AuthReqMode.AUTH_REQ_SC_ONLY,
+    "sc_bond": AuthReqMode.AUTH_REQ_SC_BOND,
+    "sc_mitm": AuthReqMode.AUTH_REQ_SC_MITM,
+    "sc_mitm_bond": AuthReqMode.AUTH_REQ_SC_MITM_BOND,
 }
 
 esp_power_level_t = cg.global_ns.enum("esp_power_level_t")
@@ -169,6 +340,10 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Optional(CONF_IO_CAPABILITY, default="none"): cv.enum(
             IO_CAPABILITY, lower=True
         ),
+        # note: no defaults so we can action them not being present
+        cv.Optional(CONF_AUTH_REQ_MODE): cv.enum(AUTH_REQ_MODE, lower=True),
+        cv.Optional(CONF_MAX_KEY_SIZE): cv.int_range(min=7, max=16),
+        cv.Optional(CONF_MIN_KEY_SIZE): cv.int_range(min=7, max=16),
         cv.Optional(CONF_ENABLE_ON_BOOT, default=True): cv.boolean,
         cv.Optional(CONF_ADVERTISING, default=False): cv.boolean,
         cv.Optional(
@@ -183,54 +358,94 @@ CONFIG_SCHEMA = cv.Schema(
             cv.positive_int,
             cv.Range(min=1, max=64),
         ),
+        cv.Optional(CONF_MAX_CONNECTIONS, default=DEFAULT_MAX_CONNECTIONS): cv.All(
+            cv.positive_int, cv.Range(min=1, max=IDF_MAX_CONNECTIONS)
+        ),
+        cv.Optional(CONF_USE_PSRAM): cv.All(
+            cv.only_on_esp32, cv.requires_component("psram"), cv.boolean
+        ),
     }
 ).extend(cv.COMPONENT_SCHEMA)
 
 
-bt_uuid16_format = "XXXX"
-bt_uuid32_format = "XXXXXXXX"
-bt_uuid128_format = "XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX"
-
-
-def bt_uuid(value):
-    in_value = cv.string_strict(value)
-    value = in_value.upper()
-
-    if len(value) == len(bt_uuid16_format):
-        pattern = re.compile("^[A-F|0-9]{4,}$")
-        if not pattern.match(value):
-            raise cv.Invalid(
-                f"Invalid hexadecimal value for 16 bit UUID format: '{in_value}'"
-            )
-        return value
-    if len(value) == len(bt_uuid32_format):
-        pattern = re.compile("^[A-F|0-9]{8,}$")
-        if not pattern.match(value):
-            raise cv.Invalid(
-                f"Invalid hexadecimal value for 32 bit UUID format: '{in_value}'"
-            )
-        return value
-    if len(value) == len(bt_uuid128_format):
-        pattern = re.compile(
-            "^[A-F|0-9]{8,}-[A-F|0-9]{4,}-[A-F|0-9]{4,}-[A-F|0-9]{4,}-[A-F|0-9]{12,}$"
+def _validate_key_sizes(config: ConfigType) -> ConfigType:
+    if (
+        CONF_MIN_KEY_SIZE in config
+        and CONF_MAX_KEY_SIZE in config
+        and config[CONF_MIN_KEY_SIZE] > config[CONF_MAX_KEY_SIZE]
+    ):
+        raise cv.Invalid(
+            f"min_key_size ({config[CONF_MIN_KEY_SIZE]}) must be "
+            f"less than or equal to "
+            f"max_key_size ({config[CONF_MAX_KEY_SIZE]})"
         )
-        if not pattern.match(value):
-            raise cv.Invalid(
-                f"Invalid hexadecimal value for 128 UUID format: '{in_value}'"
-            )
-        return value
-    raise cv.Invalid(
-        f"Bluetooth UUID must be in 16 bit '{bt_uuid16_format}', 32 bit '{bt_uuid32_format}', or 128 bit '{bt_uuid128_format}' format"
-    )
+    return config
 
 
-def validate_variant(_):
+CONFIG_SCHEMA = cv.All(CONFIG_SCHEMA, _validate_key_sizes)
+
+
+def validate_variant(_: ConfigType) -> None:
     variant = get_esp32_variant()
     if variant in NO_BLUETOOTH_VARIANTS:
         raise cv.Invalid(f"{variant} does not support Bluetooth")
 
 
-def final_validation(config):
+def consume_connection_slots(
+    value: int, consumer: str
+) -> Callable[[MutableMapping], MutableMapping]:
+    """Reserve BLE connection slots for a component.
+
+    Args:
+        value: Number of connection slots to reserve
+        consumer: Name of the component consuming the slots
+
+    Returns:
+        A validator function that records the slot usage
+    """
+
+    def _consume_connection_slots(config: MutableMapping) -> MutableMapping:
+        data: dict[str, Any] = CORE.data.setdefault(KEY_ESP32_BLE, {})
+        slots: list[str] = data.setdefault(KEY_USED_CONNECTION_SLOTS, [])
+        slots.extend([consumer] * value)
+        return config
+
+    return _consume_connection_slots
+
+
+def validate_connection_slots(max_connections: int) -> None:
+    """Validate that BLE connection slots don't exceed the configured maximum."""
+    # Skip validation in testing mode to allow component grouping
+    if CORE.testing_mode:
+        return
+
+    ble_data = CORE.data.get(KEY_ESP32_BLE, {})
+    used_slots = ble_data.get(KEY_USED_CONNECTION_SLOTS, [])
+    num_used = len(used_slots)
+
+    if num_used <= max_connections:
+        return
+
+    slot_users = ", ".join(used_slots)
+
+    if num_used > IDF_MAX_CONNECTIONS:
+        raise cv.Invalid(
+            f"BLE components require {num_used} connection slots but maximum is {IDF_MAX_CONNECTIONS}. "
+            f"Reduce the number of BLE clients. Components: {slot_users}"
+        )
+
+    _LOGGER.warning(
+        "BLE components require %d connection slot(s) but only %d configured. "
+        "Please set 'max_connections: %d' in the 'esp32_ble' component. "
+        "Components: %s",
+        num_used,
+        max_connections,
+        num_used,
+        slot_users,
+    )
+
+
+def final_validation(config: ConfigType) -> None:
     validate_variant(config)
     if (name := config.get(CONF_NAME)) is not None:
         full_config = fv.full_config.get()
@@ -242,36 +457,114 @@ def final_validation(config):
                 f"Name '{name}' is too long, maximum length is {max_length} characters"
             )
 
+    # ESP32-C2 has very limited RAM (~272KB). Without releasing BLE IRAM,
+    # esp_bt_controller_init fails with ESP_ERR_NO_MEM.
+    # CONFIG_BT_RELEASE_IRAM changes the memory layout so IRAM and DRAM share
+    # space more flexibly, giving the BT controller enough contiguous memory.
+    # This requires CONFIG_ESP_SYSTEM_PMP_IDRAM_SPLIT to be disabled.
+    if get_esp32_variant() == VARIANT_ESP32C2:
+        add_idf_sdkconfig_option("CONFIG_BT_RELEASE_IRAM", True)
+        add_idf_sdkconfig_option("CONFIG_ESP_SYSTEM_PMP_IDRAM_SPLIT", False)
+
     # Set GATT Client/Server sdkconfig options based on which components are loaded
     full_config = fv.full_config.get()
 
-    # Check if BLE Server is needed
-    has_ble_server = "esp32_ble_server" in full_config
-    add_idf_sdkconfig_option("CONFIG_BT_GATTS_ENABLE", has_ble_server)
+    # Validate connection slots usage
+    max_connections = config.get(CONF_MAX_CONNECTIONS, DEFAULT_MAX_CONNECTIONS)
+    validate_connection_slots(max_connections)
+
+    # Check if hosted bluetooth is being used
+    if "esp32_hosted" in full_config:
+        add_idf_sdkconfig_option("CONFIG_BT_CLASSIC_ENABLED", False)
+        add_idf_sdkconfig_option("CONFIG_BT_BLE_ENABLED", True)
+        add_idf_sdkconfig_option("CONFIG_BT_BLUEDROID_ENABLED", True)
+        add_idf_sdkconfig_option("CONFIG_BT_CONTROLLER_DISABLED", True)
+        add_idf_sdkconfig_option("CONFIG_ESP_HOSTED_ENABLE_BT_BLUEDROID", True)
+        add_idf_sdkconfig_option("CONFIG_ESP_HOSTED_BLUEDROID_HCI_VHCI", True)
 
     # Check if BLE Client is needed (via esp32_ble_tracker or esp32_ble_client)
     has_ble_client = (
         "esp32_ble_tracker" in full_config or "esp32_ble_client" in full_config
     )
+
+    # Check if BLE Server is needed
+    has_ble_server = "esp32_ble_server" in full_config
+
+    # ESP-IDF BLE stack requires GATT Server to be enabled when GATT Client is enabled
+    # This is an internal dependency in the Bluedroid stack
+    # See: https://github.com/espressif/esp-idf/issues/17724
+    add_idf_sdkconfig_option("CONFIG_BT_GATTS_ENABLE", has_ble_server or has_ble_client)
     add_idf_sdkconfig_option("CONFIG_BT_GATTC_ENABLE", has_ble_client)
 
-    return config
+    # Handle max_connections: check for deprecated location in esp32_ble_tracker
+    max_connections = config.get(CONF_MAX_CONNECTIONS, DEFAULT_MAX_CONNECTIONS)
+
+    # Use value from tracker if esp32_ble doesn't have it explicitly set (backward compat)
+    if "esp32_ble_tracker" in full_config:
+        tracker_config = full_config["esp32_ble_tracker"]
+        if "max_connections" in tracker_config and CONF_MAX_CONNECTIONS not in config:
+            max_connections = tracker_config["max_connections"]
+
+    # Set CONFIG_BT_ACL_CONNECTIONS to the maximum connections needed + 1 for ADV/SCAN
+    # This is the Bluedroid host stack total instance limit (range 1-9, default 4)
+    # Total instances = ADV/SCAN (1) + connection slots (max_connections)
+    # Shared between client (tracker/ble_client) and server
+    add_idf_sdkconfig_option("CONFIG_BT_ACL_CONNECTIONS", max_connections + 1)
+
+    # Set controller-specific max connections for ESP32 (classic)
+    # CONFIG_BTDM_CTRL_BLE_MAX_CONN is ESP32-specific controller limit (just connections, not ADV/SCAN)
+    # For newer chips (C3/S3/etc), different configs are used automatically
+    add_idf_sdkconfig_option("CONFIG_BTDM_CTRL_BLE_MAX_CONN", max_connections)
 
 
 FINAL_VALIDATE_SCHEMA = final_validation
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     cg.add(var.set_enable_on_boot(config[CONF_ENABLE_ON_BOOT]))
     cg.add(var.set_io_capability(config[CONF_IO_CAPABILITY]))
+
+    if (
+        CONF_AUTH_REQ_MODE in config
+        or CONF_MAX_KEY_SIZE in config
+        or CONF_MIN_KEY_SIZE in config
+    ):
+        cg.add_define("ESPHOME_ESP32_BLE_EXTENDED_AUTH_PARAMS", None)
+
+    if CONF_AUTH_REQ_MODE in config:
+        cg.add(var.set_auth_req(config[CONF_AUTH_REQ_MODE]))
+    if CONF_MAX_KEY_SIZE in config:
+        cg.add(var.set_max_key_size(config[CONF_MAX_KEY_SIZE]))
+    if CONF_MIN_KEY_SIZE in config:
+        cg.add(var.set_min_key_size(config[CONF_MIN_KEY_SIZE]))
+
     cg.add(var.set_advertising_cycle_time(config[CONF_ADVERTISING_CYCLE_TIME]))
     if (name := config.get(CONF_NAME)) is not None:
         cg.add(var.set_name(name))
     await cg.register_component(var, config)
 
-    add_idf_sdkconfig_option("CONFIG_BT_ENABLED", True)
-    add_idf_sdkconfig_option("CONFIG_BT_BLE_42_FEATURES_SUPPORTED", True)
+    # Define max connections for use in C++ code (e.g., ble_server.h)
+    max_connections = config.get(CONF_MAX_CONNECTIONS, DEFAULT_MAX_CONNECTIONS)
+    cg.add_define("USE_ESP32_BLE_MAX_CONNECTIONS", max_connections)
+
+    request_bluetooth()
+
+    # When PSRAM and BT are used together, Bluedroid should prefer SPIRAM for
+    # heap allocations and use dynamic (heap-based) environment memory tables
+    # instead of large static DRAM arrays. This frees ~40 kB of internal RAM.
+    # Reference: Espressif ADF Design Considerations
+    # https://espressif-docs.readthedocs-hosted.com/projects/esp-adf/en/latest/
+    #            design-guide/design-considerations.html
+    if config.get(CONF_USE_PSRAM, False):
+        cg.add_define("USE_ESP32_BLE_PSRAM")
+        # CONFIG_BT_ALLOCATION_FROM_SPIRAM_FIRST is only available on ESP32
+        # (BTDM dual-mode controller). BLE-only SoCs (C3, S3, C2, H2) do not
+        # expose this Kconfig symbol; applying it there would cause a build error.
+        if get_esp32_variant() == const.VARIANT_ESP32:
+            add_idf_sdkconfig_option("CONFIG_BT_ALLOCATION_FROM_SPIRAM_FIRST", True)
+        # CONFIG_BT_BLE_DYNAMIC_ENV_MEMORY applies to all Bluedroid-enabled variants.
+        add_idf_sdkconfig_option("CONFIG_BT_BLE_DYNAMIC_ENV_MEMORY", True)
 
     # Register the core BLE loggers that are always needed
     register_bt_logger(BTLoggers.GAP, BTLoggers.BTM, BTLoggers.HCI)
@@ -279,8 +572,9 @@ async def to_code(config):
     # Apply logger settings if log disabling is enabled
     if config.get(CONF_DISABLE_BT_LOGS, False):
         # Disable all Bluetooth loggers that are not required
+        required_loggers = _get_required_loggers()
         for logger in BTLoggers:
-            if logger not in _required_loggers:
+            if logger not in required_loggers:
                 add_idf_sdkconfig_option(f"{logger.value}_NONE", True)
 
     # Set BLE connection establishment timeout to match aioesphomeapi/bleak-retry-connector
@@ -313,15 +607,41 @@ async def to_code(config):
 
 
 @automation.register_condition("ble.enabled", BLEEnabledCondition, cv.Schema({}))
-async def ble_enabled_to_code(config, condition_id, template_arg, args):
+async def ble_enabled_to_code(
+    config: ConfigType,
+    condition_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     return cg.new_Pvariable(condition_id, template_arg)
 
 
-@automation.register_action("ble.enable", BLEEnableAction, cv.Schema({}))
-async def ble_enable_to_code(config, action_id, template_arg, args):
+@automation.register_action(
+    "ble.enable", BLEEnableAction, cv.Schema({}), synchronous=True
+)
+async def ble_enable_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     return cg.new_Pvariable(action_id, template_arg)
 
 
-@automation.register_action("ble.disable", BLEDisableAction, cv.Schema({}))
-async def ble_disable_to_code(config, action_id, template_arg, args):
+@automation.register_action(
+    "ble.disable", BLEDisableAction, cv.Schema({}), synchronous=True
+)
+async def ble_disable_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     return cg.new_Pvariable(action_id, template_arg)
+
+
+# ble_advertising.cpp is fully #ifdef'd on USE_ESP32_BLE_ADVERTISING, set
+# when advertising is enabled here or by esp32_ble_server / esp32_ble_beacon.
+FILTER_SOURCE_FILES = filter_source_files_from_defines(
+    {"ble_advertising.cpp": "USE_ESP32_BLE_ADVERTISING"}
+)

@@ -6,10 +6,9 @@
 
 #include <vector>
 
-namespace esphome {
-namespace nfc {
+namespace esphome::nfc {
 
-static const uint8_t PAYLOAD_IDENTIFIERS_COUNT = 0x23;
+static constexpr uint8_t PAYLOAD_IDENTIFIERS_COUNT = 0x23;
 static const char *const PAYLOAD_IDENTIFIERS[] = {"",
                                                   "http://www.",
                                                   "https://www.",
@@ -74,5 +73,4 @@ class NdefRecordUri : public NdefRecord {
   std::string uri_;
 };
 
-}  // namespace nfc
-}  // namespace esphome
+}  // namespace esphome::nfc

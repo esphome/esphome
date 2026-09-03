@@ -1,0 +1,7 @@
+sensor:
+  - platform: hdc2010
+    i2c_id: i2c_bus
+    temperature:
+      name: Temperature
+    humidity:
+      name: Humidity

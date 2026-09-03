@@ -1,50 +1,12 @@
-uart:
-  - id: uart_modbus_client
-    tx_pin: ${client_tx_pin}
-    rx_pin: ${client_rx_pin}
-    baud_rate: 9600
-  - id: uart_modbus_server
-    tx_pin: ${server_tx_pin}
-    rx_pin: ${server_rx_pin}
-    baud_rate: 9600
-
-modbus:
-  - id: mod_bus1
-    uart_id: uart_modbus_client
-    flow_control_pin: ${flow_control_pin}
-  - id: mod_bus2
-    uart_id: uart_modbus_server
-    role: server
-
 modbus_controller:
   - id: modbus_controller1
     address: 0x2
-    modbus_id: mod_bus1
-    allow_duplicate_commands: false
+    modbus_id: modbus_bus
+    continuous: true
     on_online:
       then:
         logger.log: "Module Online"
-  - id: modbus_controller2
-    address: 0x2
-    modbus_id: mod_bus2
-    server_registers:
-      - address: 0x0000
-        value_type: S_DWORD_R
-        read_lambda: |-
-          return 42.3;
-    max_cmd_retries: 0
-  - id: modbus_controller3
-    address: 0x3
-    modbus_id: mod_bus2
-    server_registers:
-      - address: 0x0009
-        value_type: S_DWORD
-        read_lambda: |-
-          return 31;
-        write_lambda: |-
-          printf("address=%d, value=%d", x);
-          return true;
-    max_cmd_retries: 0
+
 binary_sensor:
   - platform: modbus_controller
     modbus_controller_id: modbus_controller1
@@ -53,6 +15,15 @@ binary_sensor:
     register_type: read
     address: 0x3200
     bitmask: 0x80
+  - platform: modbus_controller
+    modbus_controller_id: modbus_controller1
+    id: modbus_binary_sensor2
+    name: Test Binary Sensor with Lambda
+    register_type: input
+    address: 0x3201
+    reuse_previous_range: false
+    lambda: |-
+      return x;
 
 number:
   - platform: modbus_controller
@@ -62,6 +33,23 @@ number:
     address: 0x9001
     value_type: U_WORD
     multiply: 1.0
+  - platform: modbus_controller
+    modbus_controller_id: modbus_controller1
+    id: modbus_number2
+    name: Test Number with Lambda
+    address: 0x9002
+    value_type: U_WORD
+    lambda: |-
+      return x * 2.0;
+    write_lambda: |-
+      return x / 2.0;
+  # Covers Python value-type maps + read/write path for byte-swapped words
+  - platform: modbus_controller
+    modbus_controller_id: modbus_controller1
+    id: modbus_number3
+    name: Test Number Swapped Word
+    address: 0x9003
+    value_type: U_WORD_S
 
 output:
   - platform: modbus_controller
@@ -71,6 +59,14 @@ output:
     register_type: holding
     value_type: U_WORD
     multiply: 1000
+  - platform: modbus_controller
+    modbus_controller_id: modbus_controller1
+    id: modbus_output2
+    address: 2049
+    register_type: holding
+    value_type: U_WORD
+    write_lambda: |-
+      return x * 100.0;
 
 select:
   - platform: modbus_controller
@@ -84,8 +80,53 @@ select:
       "One": 1
       "Two": 2
       "Three": 3
+  - platform: modbus_controller
+    modbus_controller_id: modbus_controller1
+    id: modbus_select2
+    name: Test Select with Lambda
+    address: 1001
+    value_type: U_WORD
+    reuse_previous_range: auto
+    optionsmap:
+      "Off": 0
+      "On": 1
+      "Two": 2
+    lambda: |-
+      ESP_LOGD("Reg1001", "Received value %lld", x);
+      if (x > 1) {
+        return std::string("Two");
+      } else if (x == 1) {
+        return std::string("On");
+      }
+      return std::string("Off");
+    write_lambda: |-
+      ESP_LOGD("Reg1001", "Set option to %s (%lld)", x.c_str(), value);
+      if (x == "On") {
+        return 1;
+      }
+      if (x == "Two") {
+        payload.push_back(0x0002);
+        return 0;
+      }
+      return value;
 
 sensor:
+  # custom_pdu polls a ready-made PDU (function code + data - no device address byte, no CRC); covers
+  # the set_custom_pdu codegen path and the custom-range polling constructor.
+  - platform: modbus_controller
+    modbus_controller_id: modbus_controller1
+    id: modbus_sensor_custom_pdu
+    name: Test Custom PDU Sensor
+    custom_pdu: [0x03, 0x00, 0x2A, 0x00, 0x01]
+    value_type: U_WORD
+  # Deprecated custom_command (leading byte 0x02 == modbus_controller1's address) drives the
+  # migrate_custom_command final-validate auto-migration path in CI.
+  - platform: modbus_controller
+    modbus_controller_id: modbus_controller1
+    id: modbus_sensor_custom_command
+    name: Test Custom Command Sensor
+    custom_command: [0x02, 0x03, 0x00, 0x2B, 0x00, 0x01]
+    value_type: U_WORD
   - platform: modbus_controller
     modbus_controller_id: modbus_controller1
     id: modbus_sensor1
@@ -94,6 +135,71 @@ sensor:
     address: 0x9001
     unit_of_measurement: "AH"
     value_type: U_WORD
+  - platform: modbus_controller
+    modbus_controller_id: modbus_controller1
+    id: modbus_sensor2
+    name: Test Sensor with Lambda
+    register_type: holding
+    address: 0x9002
+    value_type: U_WORD
+    reuse_previous_range: true
+    lambda: |-
+      return x / 10.0;
+  # Non-mergeable sensor sharing the start address of modbus_sensor1 (different value type width):
+  # must join the same range, never open a second range keyed on the same (address, type).
+  - platform: modbus_controller
+    modbus_controller_id: modbus_controller1
+    id: modbus_sensor_shared_addr
+    name: Test Sensor Shared Address
+    register_type: holding
+    address: 0x9001
+    value_type: U_DWORD
+  # Sensors sharing one start address with distinct byte offsets (mixed register counts, so they take
+  # the shared-start path: each resolves to exactly its configured offset, no accumulation).
+  - platform: modbus_controller
+    modbus_controller_id: modbus_controller1
+    id: modbus_sensor_shared_offs0
+    name: Test Sensor Shared Offset Base
+    register_type: holding
+    address: 0x9020
+    value_type: U_DWORD
+  - platform: modbus_controller
+    modbus_controller_id: modbus_controller1
+    id: modbus_sensor_shared_offs1
+    name: Test Sensor Shared Offset Low Word
+    register_type: holding
+    address: 0x9020
+    value_type: U_WORD
+  - platform: modbus_controller
+    modbus_controller_id: modbus_controller1
+    id: modbus_sensor_shared_offs2
+    name: Test Sensor Shared Offset High Word
+    register_type: holding
+    address: 0x9020
+    value_type: U_WORD
+    offset: 2
+  # Raw-decode lambda kept on the deprecated get_data() helper on purpose: `data` is a span now, so this
+  # pins that the compatibility overload still accepts one. The deprecation warning it raises is the
+  # point - it is what a user on the old helper sees. `item->offset` locates this sensor's data.
+  - platform: modbus_controller
+    modbus_controller_id: modbus_controller1
+    id: modbus_sensor_raw_lambda
+    name: Test Sensor Raw Lambda
+    register_type: holding
+    address: 0x9050
+    value_type: U_WORD
+    lambda: |-
+      return modbus_controller::get_data<uint16_t>(data, item->offset) * 0.1f;
+  # The deprecated force_new_range migrates to reuse_previous_range: false, so this sensor never
+  # joins a range built before it and the lower-address sensors above keep their own ranges.
+  - platform: modbus_controller
+    modbus_controller_id: modbus_controller1
+    id: modbus_sensor_forced_high
+    name: Test Sensor Forced High Address
+    register_type: holding
+    address: 0x9040
+    value_type: U_WORD
+    force_new_range: true
 
 switch:
   - platform: modbus_controller
@@ -103,6 +209,16 @@ switch:
     register_type: coil
     address: 0x15
     bitmask: 1
+  - platform: modbus_controller
+    modbus_controller_id: modbus_controller1
+    id: modbus_switch2
+    name: Test Switch with Lambda
+    register_type: coil
+    address: 0x16
+    lambda: |-
+      return !x;
+    write_lambda: |-
+      return !x;
 
 text_sensor:
   - platform: modbus_controller
@@ -111,6 +227,36 @@ text_sensor:
     name: Test Text Sensor
     register_type: holding
     address: 0x9013
-    register_count: 3
     raw_encode: HEXBYTES
     response_size: 6
+  - platform: modbus_controller
+    modbus_controller_id: modbus_controller1
+    id: modbus_text_sensor2
+    name: Test Text Sensor with Lambda
+    register_type: holding
+    address: 0x9014
+    response_size: 4
+    lambda: |-
+      return "Modified: " + x;
+  # A register reporting FEWER bytes than two per register (response_size: 3 over 2 registers), followed
+  # by a contiguous reuse:true sensor (auto never joins past a response_size register): the follower's
+  # byte position must track the actual 3 bytes, not underflow.
+  # register_count matches the derived width, so it migrates with a deprecation warning.
+  - platform: modbus_controller
+    modbus_controller_id: modbus_controller1
+    id: modbus_text_sensor_narrow
+    name: Test Text Sensor Narrow Response
+    register_type: holding
+    address: 0x9030
+    register_count: 2
+    response_size: 3
+    raw_encode: HEXBYTES
+  - platform: modbus_controller
+    modbus_controller_id: modbus_controller1
+    id: modbus_text_sensor_after_narrow
+    name: Test Text Sensor After Narrow
+    register_type: holding
+    address: 0x9032
+    register_count: 1
+    reuse_previous_range: true
+    raw_encode: HEXBYTES

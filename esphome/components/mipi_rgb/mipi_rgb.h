@@ -1,15 +1,14 @@
 #pragma once
 
-#ifdef USE_ESP32_VARIANT_ESP32S3
+#if defined(USE_ESP32_VARIANT_ESP32S3) || defined(USE_ESP32_VARIANT_ESP32P4) || defined(USE_ESP32_VARIANT_ESP32S31)
 #include "esphome/core/gpio.h"
 #include "esphome/components/display/display.h"
-#include "esp_lcd_panel_ops.h"
+#include <esp_lcd_panel_rgb.h>
 #ifdef USE_SPI
 #include "esphome/components/spi/spi.h"
 #endif
 
-namespace esphome {
-namespace mipi_rgb {
+namespace esphome::mipi_rgb {
 
 constexpr static const char *const TAG = "display.mipi_rgb";
 const uint8_t SW_RESET_CMD = 0x01;
@@ -26,19 +25,20 @@ class MipiRgb : public display::Display {
  public:
   MipiRgb(int width, int height) : width_(width), height_(height) {}
   void setup() override;
-  void loop() override;
+#ifdef USE_ESP32_VARIANT_ESP32S3
+  void loop() override {
+    if (this->handle_ != nullptr)
+      esp_lcd_rgb_panel_restart(this->handle_);
+  }
+#endif
   void update() override;
-  void fill(Color color);
+  void fill(Color color) override;
   void draw_pixels_at(int x_start, int y_start, int w, int h, const uint8_t *ptr, display::ColorOrder order,
                       display::ColorBitness bitness, bool big_endian, int x_offset, int y_offset, int x_pad) override;
-  void write_to_display_(int x_start, int y_start, int w, int h, const uint8_t *ptr, int x_offset, int y_offset,
-                         int x_pad);
-  bool check_buffer_();
 
   display::ColorOrder get_color_mode() { return this->color_mode_; }
   void set_color_mode(display::ColorOrder color_mode) { this->color_mode_ = color_mode; }
   void set_invert_colors(bool invert_colors) { this->invert_colors_ = invert_colors; }
-  void set_madctl(uint8_t madctl) { this->madctl_ = madctl; }
 
   void add_data_pin(InternalGPIOPin *data_pin, size_t index) { this->data_pins_[index] = data_pin; };
   void set_de_pin(InternalGPIOPin *de_pin) { this->de_pin_ = de_pin; }
@@ -62,12 +62,15 @@ class MipiRgb : public display::Display {
   display::DisplayType get_display_type() override { return display::DisplayType::DISPLAY_TYPE_COLOR; }
   int get_width_internal() override { return this->width_; }
   int get_height_internal() override { return this->height_; }
-  void dump_pins_(uint8_t start, uint8_t end, const char *name, uint8_t offset);
   void dump_config() override;
   void draw_pixel_at(int x, int y, Color color) override;
 
   // this will be horribly slow.
  protected:
+  void write_to_display_(int x_start, int y_start, int w, int h, const uint8_t *ptr, int x_offset, int y_offset,
+                         int x_pad);
+  bool check_buffer_();
+  void dump_pins_(uint8_t start, uint8_t end, const char *name, uint8_t offset);
   void setup_enables_();
   void common_setup_();
   InternalGPIOPin *de_pin_{nullptr};
@@ -84,7 +87,6 @@ class MipiRgb : public display::Display {
   uint16_t vsync_front_porch_ = 10;
   uint32_t pclk_frequency_ = 16 * 1000 * 1000;
   bool pclk_inverted_{true};
-  uint8_t madctl_{};
   const char *model_{"Unknown"};
   bool invert_colors_{};
   display::ColorOrder color_mode_{display::COLOR_ORDER_BGR};
@@ -101,9 +103,9 @@ class MipiRgb : public display::Display {
 };
 
 #ifdef USE_SPI
-class MipiRgbSpi : public MipiRgb,
-                   public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW, spi::CLOCK_PHASE_LEADING,
-                                         spi::DATA_RATE_1MHZ> {
+class MipiRgbSpi final : public MipiRgb,
+                         public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW,
+                                               spi::CLOCK_PHASE_LEADING, spi::DATA_RATE_1MHZ> {
  public:
   MipiRgbSpi(int width, int height) : MipiRgb(width, height) {}
 
@@ -115,13 +117,12 @@ class MipiRgbSpi : public MipiRgb,
   void write_command_(uint8_t value);
   void write_data_(uint8_t value);
   void write_init_sequence_();
-  void dump_config();
+  void dump_config() override;
 
   GPIOPin *dc_pin_{nullptr};
   std::vector<uint8_t> init_sequence_;
 };
 #endif
 
-}  // namespace mipi_rgb
-}  // namespace esphome
+}  // namespace esphome::mipi_rgb
 #endif

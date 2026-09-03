@@ -12,7 +12,7 @@ from esphome.components.const import (
     CONF_DRAW_ROUNDING,
 )
 from esphome.components.display import CONF_SHOW_TEST_CARD
-from esphome.components.esp32 import const, only_on_variant
+from esphome.components.esp32 import VARIANT_ESP32P4, only_on_variant
 from esphome.components.mipi import (
     COLOR_ORDERS,
     CONF_COLOR_DEPTH,
@@ -32,11 +32,13 @@ from esphome.components.mipi import (
     dimension_schema,
     get_color_depth,
     map_sequence,
+    model_schema_extractor,
     power_of_two,
     requires_buffer,
 )
 import esphome.config_validation as cv
 from esphome.const import (
+    CONF_AUTO_CLEAR_ENABLED,
     CONF_COLOR_ORDER,
     CONF_DIMENSIONS,
     CONF_ENABLE_PIN,
@@ -44,18 +46,17 @@ from esphome.const import (
     CONF_INIT_SEQUENCE,
     CONF_INVERT_COLORS,
     CONF_LAMBDA,
-    CONF_MIRROR_X,
-    CONF_MIRROR_Y,
     CONF_MODEL,
     CONF_RESET_PIN,
     CONF_ROTATION,
-    CONF_SWAP_XY,
     CONF_TRANSFORM,
     CONF_WIDTH,
 )
 from esphome.final_validate import full_config
+from esphome.types import ConfigType
 
 from . import mipi_dsi_ns, models
+from .models import DsiDriverChip
 
 # Currently only ESP32-P4 is supported, so esp_ldo and psram are required
 DEPENDENCIES = ["esp32", "esp_ldo", "psram"]
@@ -63,14 +64,14 @@ DOMAIN = "mipi_dsi"
 
 LOGGER = logging.getLogger(DOMAIN)
 
-MIPI_DSI = mipi_dsi_ns.class_("MIPI_DSI", display.Display, cg.Component)
+MipiDsi = mipi_dsi_ns.class_("MipiDsi", display.Display, cg.Component)
 ColorOrder = display.display_ns.enum("ColorMode")
 ColorBitness = display.display_ns.enum("ColorBitness")
 
 CONF_LANE_BIT_RATE = "lane_bit_rate"
 CONF_LANES = "lanes"
 
-DriverChip("CUSTOM")
+DsiDriverChip("CUSTOM")
 
 # Import all models dynamically from the models package
 
@@ -85,45 +86,22 @@ COLOR_DEPTHS = {
 }
 
 
-def model_schema(config):
+def model_schema(config: ConfigType) -> cv.All:
     model = MODELS[config[CONF_MODEL].upper()]
-    transform = cv.Schema(
-        {
-            cv.Required(CONF_MIRROR_X): cv.boolean,
-            cv.Required(CONF_MIRROR_Y): cv.boolean,
-        }
-    )
-    if model.get_default(CONF_SWAP_XY) != cv.UNDEFINED:
-        transform = transform.extend(
-            {
-                cv.Optional(CONF_SWAP_XY): cv.invalid(
-                    "Axis swapping not supported by this model"
-                )
-            }
-        )
-    else:
-        transform = transform.extend(
-            {
-                cv.Required(CONF_SWAP_XY): cv.boolean,
-            }
-        )
+    transform = model.transform_schema()
     # CUSTOM model will need to provide a custom init sequence
     iseqconf = (
         cv.Required(CONF_INIT_SEQUENCE)
         if model.initsequence is None
         else cv.Optional(CONF_INIT_SEQUENCE)
     )
-    swap_xy = config.get(CONF_TRANSFORM, {}).get(CONF_SWAP_XY, False)
-
-    # Dimensions are optional if the model has a default width and the swap_xy transform is not overridden
-    cv_dimensions = (
-        cv.Optional if model.get_default(CONF_WIDTH) and not swap_xy else cv.Required
-    )
+    # Dimensions are optional if the model has a default width
+    cv_dimensions = cv.Optional if model.get_default(CONF_WIDTH) else cv.Required
     pixel_modes = (PIXEL_MODE_16BIT, PIXEL_MODE_24BIT, "16", "24")
     schema = display.FULL_DISPLAY_SCHEMA.extend(
         {
             model.option(CONF_RESET_PIN, cv.UNDEFINED): pins.gpio_output_pin_schema,
-            cv.GenerateID(): cv.declare_id(MIPI_DSI),
+            cv.GenerateID(): cv.declare_id(MipiDsi),
             cv_dimensions(CONF_DIMENSIONS): dimension_schema(
                 model.get_default(CONF_DRAW_ROUNDING, 1)
             ),
@@ -165,22 +143,40 @@ def model_schema(config):
     )
     return cv.All(
         schema,
-        only_on_variant(supported=[const.VARIANT_ESP32P4]),
-        cv.only_with_esp_idf,
+        cv.only_on_esp32,
+        only_on_variant(supported=[VARIANT_ESP32P4]),
     )
 
 
-def _config_schema(config):
+@model_schema_extractor(MODELS, model_schema)
+def _config_schema(config: ConfigType) -> ConfigType:
     config = cv.Schema(
         {
             cv.Required(CONF_MODEL): cv.one_of(*MODELS, upper=True),
         },
         extra=cv.ALLOW_EXTRA,
     )(config)
-    return model_schema(config)(config)
+    config = model_schema(config)(config)
+    model = MODELS[config[CONF_MODEL].upper()]
+    model.check_requirements()
+    width, height, _offset_width, _offset_height, _pad_width, _pad_height = (
+        model.get_dimensions(config)
+    )
+    display.add_metadata(
+        config[CONF_ID],
+        width,
+        height,
+        has_hardware_rotation=False,
+        byte_order=config[CONF_BYTE_ORDER],
+        has_writer=requires_buffer(config)
+        or config.get(CONF_AUTO_CLEAR_ENABLED) is True,
+        rotation=config.get(CONF_ROTATION, 0),
+        draw_rounding=config.get(CONF_DRAW_ROUNDING, 0),
+    )
+    return config
 
 
-def _final_validate(config):
+def _final_validate(config: ConfigType) -> None:
     global_config = full_config.get()
 
     from esphome.components.lvgl import DOMAIN as LVGL_DOMAIN
@@ -188,24 +184,24 @@ def _final_validate(config):
     if not requires_buffer(config) and LVGL_DOMAIN not in global_config:
         # If no drawing methods are configured, and LVGL is not enabled, show a test card
         config[CONF_SHOW_TEST_CARD] = True
-    return config
 
 
 CONFIG_SCHEMA = _config_schema
 FINAL_VALIDATE_SCHEMA = _final_validate
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     model = MODELS[config[CONF_MODEL].upper()]
     color_depth = COLOR_DEPTHS[get_color_depth(config)]
     pixel_mode = int(config[CONF_PIXEL_MODE].removesuffix("bit"))
-    width, height, _offset_width, _offset_height = model.get_dimensions(config)
+    width, height, _offset_width, _offset_height, _pad_width, _pad_height = (
+        model.get_dimensions(config)
+    )
     var = cg.new_Pvariable(config[CONF_ID], width, height, color_depth, pixel_mode)
 
-    sequence, madctl = model.get_sequence(config)
+    sequence = model.get_sequence(config)
     cg.add(var.set_model(config[CONF_MODEL]))
     cg.add(var.set_init_sequence(sequence))
-    cg.add(var.set_madctl(madctl))
     cg.add(var.set_invert_colors(config[CONF_INVERT_COLORS]))
     cg.add(var.set_hsync_pulse_width(config[CONF_HSYNC_PULSE_WIDTH]))
     cg.add(var.set_hsync_back_porch(config[CONF_HSYNC_BACK_PORCH]))
@@ -213,9 +209,9 @@ async def to_code(config):
     cg.add(var.set_vsync_pulse_width(config[CONF_VSYNC_PULSE_WIDTH]))
     cg.add(var.set_vsync_back_porch(config[CONF_VSYNC_BACK_PORCH]))
     cg.add(var.set_vsync_front_porch(config[CONF_VSYNC_FRONT_PORCH]))
-    cg.add(var.set_pclk_frequency(int(config[CONF_PCLK_FREQUENCY] / 1e6)))
+    cg.add(var.set_pclk_frequency(config[CONF_PCLK_FREQUENCY] / 1.0e6))
     cg.add(var.set_lanes(int(config[CONF_LANES])))
-    cg.add(var.set_lane_bit_rate(int(config[CONF_LANE_BIT_RATE] / 1e6)))
+    cg.add(var.set_lane_bit_rate(config[CONF_LANE_BIT_RATE] / 1.0e6))
     if reset_pin := config.get(CONF_RESET_PIN):
         reset = await cg.gpio_pin_expression(reset_pin)
         cg.add(var.set_reset_pin(reset))

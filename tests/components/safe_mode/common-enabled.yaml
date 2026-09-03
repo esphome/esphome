@@ -16,3 +16,7 @@ button:
 switch:
   - platform: safe_mode
     name: Safe Mode Switch
+
+esphome:
+  on_boot:
+    - safe_mode.mark_successful

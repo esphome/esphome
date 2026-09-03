@@ -33,4 +33,4 @@ async def to_code(config):
     data = config[CONF_DATA]
     if isinstance(data, bytes):
         data = [HexInt(x) for x in data]
-    cg.add(var.set_data(data))
+    cg.add(var.set_data(cg.ArrayInitializer(*data)))

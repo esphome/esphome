@@ -1,8 +1,7 @@
 #include "hydreon_rgxx.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace hydreon_rgxx {
+namespace esphome::hydreon_rgxx {
 
 static const char *const TAG = "hydreon_rgxx.sensor";
 static const int MAX_DATA_LENGTH_BYTES = 80;
@@ -12,7 +11,6 @@ static const char *const PROTOCOL_NAMES[] = {HYDREON_RGXX_PROTOCOL_LIST(, HYDREO
 static const char *const IGNORE_STRINGS[] = {HYDREON_RGXX_IGNORE_LIST(, HYDREON_RGXX_COMMA)};
 
 void HydreonRGxxComponent::dump_config() {
-  this->check_uart_settings(9600, 1, esphome::uart::UART_CONFIG_PARITY_NONE, 8);
   ESP_LOGCONFIG(TAG, "hydreon_rgxx:");
   if (this->is_failed()) {
     ESP_LOGE(TAG, "Connection with hydreon_rgxx failed!");
@@ -284,7 +282,4 @@ void HydreonRGxxComponent::process_line_() {
   }
 }
 
-float HydreonRGxxComponent::get_setup_priority() const { return setup_priority::DATA; }
-
-}  // namespace hydreon_rgxx
-}  // namespace esphome
+}  // namespace esphome::hydreon_rgxx

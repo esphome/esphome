@@ -1,0 +1,46 @@
+# pylint: disable=E0602
+Import("env")  # noqa
+
+# Remove forced scanf linkage to allow garbage collection of unused code
+#
+# The ESP8266 Arduino framework unconditionally adds:
+#   -u _printf_float -u _scanf_float
+#
+# The -u flag forces symbols to be linked even if unreferenced, which pulls
+# in the entire scanf family (~7-8KB). ESPHome doesn't use scanf at all
+# (verified by CI check in PR #13657), so this is pure dead weight.
+#
+# By removing -u _scanf_float, --gc-sections can eliminate:
+#   - scanf family functions (~7KB)
+#   - _strtod_l (~3.7KB)
+#   - Related parsing infrastructure
+#
+# We keep -u _printf_float because components still use %f in logging.
+
+
+def remove_scanf_float_flag(source, target, env):
+    """Remove -u _scanf_float from linker flags.
+
+    This is called as a pre-action before the link step, after the
+    Arduino framework has added its default flags.
+    """
+    linkflags = env.get("LINKFLAGS", [])
+    new_linkflags = []
+    i = 0
+
+    while i < len(linkflags):
+        flag = linkflags[i]
+        if flag == "-u" and i + 1 < len(linkflags):
+            next_flag = linkflags[i + 1]
+            if next_flag == "_scanf_float":
+                print("ESPHome: Removing _scanf_float (saves ~8KB flash)")
+                i += 2  # Skip both -u and the symbol
+                continue
+        new_linkflags.append(flag)
+        i += 1
+
+    env.Replace(LINKFLAGS=new_linkflags)
+
+
+# Register the callback to run before the link step
+env.AddPreAction("$BUILD_DIR/${PROGNAME}.elf", remove_scanf_float_flag)

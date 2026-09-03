@@ -1,9 +1,9 @@
 #include "veml7700.h"
 #include "esphome/core/application.h"
 #include "esphome/core/log.h"
+#include <limits>
 
-namespace esphome {
-namespace veml7700 {
+namespace esphome::veml7700 {
 
 static const char *const TAG = "veml7700";
 static const size_t VEML_REG_SIZE = 2;
@@ -12,30 +12,30 @@ static float reduce_to_zero(float a, float b) { return (a > b) ? (a - b) : 0; }
 
 template<typename T, size_t size> T get_next(const T (&array)[size], const T val) {
   size_t i = 0;
-  size_t idx = -1;
-  while (idx == -1 && i < size) {
+  size_t idx = std::numeric_limits<size_t>::max();
+  while (idx == std::numeric_limits<size_t>::max() && i < size) {
     if (array[i] == val) {
       idx = i;
       break;
     }
     i++;
   }
-  if (idx == -1 || i + 1 >= size)
+  if (idx == std::numeric_limits<size_t>::max() || i + 1 >= size)
     return val;
   return array[i + 1];
 }
 
 template<typename T, size_t size> T get_prev(const T (&array)[size], const T val) {
   size_t i = size - 1;
-  size_t idx = -1;
-  while (idx == -1 && i > 0) {
+  size_t idx = std::numeric_limits<size_t>::max();
+  while (idx == std::numeric_limits<size_t>::max() && i > 0) {
     if (array[i] == val) {
       idx = i;
       break;
     }
     i--;
   }
-  if (idx == -1 || i == 0)
+  if (idx == std::numeric_limits<size_t>::max() || i == 0)
     return val;
   return array[i - 1];
 }
@@ -140,7 +140,7 @@ void VEML7700Component::loop() {
     // Datasheet: 2.5 ms before the first measurement is needed, allowing for the correct start of the signal processor
     // and oscillator.
     // Reality: wait for couple integration times to have first samples captured
-    this->set_timeout(2 * this->integration_time_, [this]() { this->state_ = State::IDLE; });
+    this->set_timeout(2 * get_itime_ms(this->integration_time_), [this]() { this->state_ = State::IDLE; });
   }
 
   if (this->is_ready()) {
@@ -259,7 +259,7 @@ ErrorCode VEML7700Component::configure_() {
 
 ErrorCode VEML7700Component::reconfigure_time_and_gain_(IntegrationTime time, Gain gain, bool shutdown) {
   ESP_LOGV(TAG, "Reconfigure time and gain (%d ms, %s) %s", get_itime_ms(time), get_gain_str(gain),
-           shutdown ? "Shutting down" : "Turning back on");
+           shutdown ? LOG_STR_LITERAL("Shutting down") : LOG_STR_LITERAL("Turning back on"));
 
   ConfigurationRegister als_conf{0};
   als_conf.raw = 0;
@@ -272,7 +272,7 @@ ErrorCode VEML7700Component::reconfigure_time_and_gain_(IntegrationTime time, Ga
   als_conf.ALS_GAIN = gain;
   auto err = this->write_register((uint8_t) CommandRegisters::ALS_CONF_0, als_conf.raw_bytes, VEML_REG_SIZE);
   if (err != i2c::ERROR_OK) {
-    ESP_LOGW(TAG, "%s failed", shutdown ? "Shutdown" : "Turn on");
+    ESP_LOGW(TAG, "%s failed", shutdown ? LOG_STR_LITERAL("Shutdown") : LOG_STR_LITERAL("Turn on"));
   }
 
   return err;
@@ -363,8 +363,8 @@ void VEML7700Component::apply_lux_calculation_(Readings &data) {
   data.fake_infrared_lux = reduce_to_zero(data.white_lux, data.als_lux);
 
   ESP_LOGV(TAG, "%s mode - ALS = %.1f lx, WHITE = %.1f lx, FAKE_IR = %.1f lx",
-           this->automatic_mode_enabled_ ? "Automatic" : "Manual", data.als_lux, data.white_lux,
-           data.fake_infrared_lux);
+           this->automatic_mode_enabled_ ? LOG_STR_LITERAL("Automatic") : LOG_STR_LITERAL("Manual"), data.als_lux,
+           data.white_lux, data.fake_infrared_lux);
 }
 
 void VEML7700Component::apply_lux_compensation_(Readings &data) {
@@ -380,7 +380,7 @@ void VEML7700Component::apply_lux_compensation_(Readings &data) {
   // if this light level is exceeded"
   auto compensate = [&local_data](float &lux) {
     auto calculate_high_lux_compensation = [](float lux_veml) -> float {
-      return (((6.0135e-13 * lux_veml - 9.3924e-9) * lux_veml + 8.1488e-5) * lux_veml + 1.0023) * lux_veml;
+      return (((6.0135e-13f * lux_veml - 9.3924e-9f) * lux_veml + 8.1488e-5f) * lux_veml + 1.0023f) * lux_veml;
     };
 
     if (lux > 1000.0f || local_data.actual_gain == Gain::X_1_8 || local_data.actual_gain == Gain::X_1_4) {
@@ -433,5 +433,4 @@ void VEML7700Component::publish_data_part_3_(Readings &data) {
     this->actual_integration_time_sensor_->publish_state(get_itime_ms(data.actual_time));
   }
 }
-}  // namespace veml7700
-}  // namespace esphome
+}  // namespace esphome::veml7700

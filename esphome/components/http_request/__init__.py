@@ -1,3 +1,6 @@
+from pathlib import Path
+from typing import Any
+
 from esphome import automation
 import esphome.codegen as cg
 from esphome.components import esp32
@@ -5,21 +8,25 @@ from esphome.components.const import CONF_REQUEST_HEADERS
 from esphome.config_helpers import filter_source_files_from_platform
 import esphome.config_validation as cv
 from esphome.const import (
+    CONF_CAPTURE_RESPONSE,
     CONF_ESP8266_DISABLE_SSL_SUPPORT,
     CONF_ID,
     CONF_METHOD,
     CONF_ON_ERROR,
     CONF_ON_RESPONSE,
     CONF_TIMEOUT,
-    CONF_TRIGGER_ID,
     CONF_URL,
     CONF_WATCHDOG_TIMEOUT,
+    PLATFORM_ESP32,
     PLATFORM_HOST,
     PlatformFramework,
     __version__,
 )
-from esphome.core import CORE, Lambda
+from esphome.core import CORE, ID, Lambda, TimePeriodMilliseconds
+from esphome.cpp_generator import MockObj, TemplateArgsType
+import esphome.final_validate as fv
 from esphome.helpers import IS_MACOS
+from esphome.types import ConfigType
 
 DEPENDENCIES = ["network"]
 AUTO_LOAD = ["json", "watchdog"]
@@ -50,6 +57,8 @@ CONF_FOLLOW_REDIRECTS = "follow_redirects"
 CONF_REDIRECT_LIMIT = "redirect_limit"
 CONF_BUFFER_SIZE_RX = "buffer_size_rx"
 CONF_BUFFER_SIZE_TX = "buffer_size_tx"
+CONF_TLS_BUFFER_SIZE_RX = "tls_buffer_size_rx"
+CONF_TLS_BUFFER_SIZE_TX = "tls_buffer_size_tx"
 CONF_CA_CERTIFICATE_PATH = "ca_certificate_path"
 
 CONF_MAX_RESPONSE_BUFFER_SIZE = "max_response_buffer_size"
@@ -57,23 +66,19 @@ CONF_HEADERS = "headers"
 CONF_COLLECT_HEADERS = "collect_headers"
 CONF_BODY = "body"
 CONF_JSON = "json"
-CONF_CAPTURE_RESPONSE = "capture_response"
 
 
-def validate_url(value):
+def validate_url(value: Any) -> str:
     value = cv.url(value)
-    if value.startswith("http://") or value.startswith("https://"):
+    if value.startswith(("http://", "https://")):
         return value
     raise cv.Invalid("URL must start with 'http://' or 'https://'")
 
 
-def validate_ssl_verification(config):
+def validate_ssl_verification(config: ConfigType) -> ConfigType:
     error_message = ""
 
-    if CORE.is_esp32 and not CORE.using_esp_idf and config[CONF_VERIFY_SSL]:
-        error_message = "ESPHome supports certificate verification only via ESP-IDF"
-
-    if CORE.is_rp2040 and config[CONF_VERIFY_SSL]:
+    if CORE.is_rp2 and config[CONF_VERIFY_SSL]:
         error_message = "ESPHome does not support certificate verification on RP2040"
 
     if (
@@ -91,12 +96,40 @@ def validate_ssl_verification(config):
     return config
 
 
-def _declare_request_class(value):
+# esp_http_client_open() runs DNS, TCP connect and the TLS handshake with no
+# watchdog feed in between; each can take up to `timeout` on ESP-IDF.
+WATCHDOG_TIMEOUT_MULTIPLIER = 3
+# Headroom over the exact worst case so a fully stalled open does not land on
+# the watchdog deadline.
+WATCHDOG_TIMEOUT_MARGIN_MS = 1000
+
+
+def default_watchdog_timeout(config: ConfigType) -> None:
+    """Arm the request watchdog on ESP32 when the user did not set it.
+
+    The default never goes below the platform task watchdog, so a user who
+    widened `esp32.watchdog_timeout` keeps that window during requests.
+    """
+    if not CORE.is_esp32 or CONF_WATCHDOG_TIMEOUT in config:
+        return
+    derived_ms = (
+        config[CONF_TIMEOUT].total_milliseconds * WATCHDOG_TIMEOUT_MULTIPLIER
+        + WATCHDOG_TIMEOUT_MARGIN_MS
+    )
+    platform_ms = fv.full_config.get()[PLATFORM_ESP32][
+        CONF_WATCHDOG_TIMEOUT
+    ].total_milliseconds
+    config[CONF_WATCHDOG_TIMEOUT] = TimePeriodMilliseconds(
+        milliseconds=max(derived_ms, platform_ms)
+    )
+
+
+def _declare_request_class(value: Any) -> ID:
     if CORE.is_host:
         return cv.declare_id(HttpRequestHost)(value)
-    if CORE.using_esp_idf:
+    if CORE.is_esp32:
         return cv.declare_id(HttpRequestIDF)(value)
-    if CORE.is_esp8266 or CORE.is_esp32 or CORE.is_rp2040:
+    if CORE.is_esp8266 or CORE.is_rp2:
         return cv.declare_id(HttpRequestArduino)(value)
     return NotImplementedError
 
@@ -118,19 +151,25 @@ CONFIG_SCHEMA = cv.All(
             ),
             cv.Optional(CONF_VERIFY_SSL, default=True): cv.boolean,
             cv.Optional(CONF_WATCHDOG_TIMEOUT): cv.All(
-                cv.Any(cv.only_on_esp32, cv.only_on_rp2040),
+                cv.Any(cv.only_on_esp32, cv.only_on_rp2),
                 cv.positive_not_null_time_period,
                 cv.positive_time_period_milliseconds,
             ),
-            cv.SplitDefault(CONF_BUFFER_SIZE_RX, esp32_idf=512): cv.All(
-                cv.uint16_t, cv.only_with_esp_idf
+            cv.SplitDefault(CONF_BUFFER_SIZE_RX, esp32=512): cv.All(
+                cv.uint16_t, cv.only_on_esp32
             ),
-            cv.SplitDefault(CONF_BUFFER_SIZE_TX, esp32_idf=512): cv.All(
-                cv.uint16_t, cv.only_with_esp_idf
+            cv.SplitDefault(CONF_BUFFER_SIZE_TX, esp32=512): cv.All(
+                cv.uint16_t, cv.only_on_esp32
+            ),
+            cv.SplitDefault(CONF_TLS_BUFFER_SIZE_RX, esp8266=512): cv.All(
+                cv.uint16_t, cv.only_on_esp8266
+            ),
+            cv.SplitDefault(CONF_TLS_BUFFER_SIZE_TX, esp8266=512): cv.All(
+                cv.uint16_t, cv.only_on_esp8266
             ),
             cv.Optional(CONF_CA_CERTIFICATE_PATH): cv.All(
                 cv.file_,
-                cv.only_on(PLATFORM_HOST),
+                cv.Any(cv.only_on(PLATFORM_HOST), cv.only_on_esp32),
             ),
         }
     ).extend(cv.COMPONENT_SCHEMA),
@@ -138,14 +177,16 @@ CONFIG_SCHEMA = cv.All(
         esp8266_arduino=cv.Version(2, 5, 1),
         esp32_arduino=cv.Version(0, 0, 0),
         esp_idf=cv.Version(0, 0, 0),
-        rp2040_arduino=cv.Version(0, 0, 0),
+        rp2_arduino=cv.Version(0, 0, 0),
         host=cv.Version(0, 0, 0),
     ),
     validate_ssl_verification,
 )
 
+FINAL_VALIDATE_SCHEMA = default_watchdog_timeout
 
-async def to_code(config):
+
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     cg.add(var.set_timeout(config[CONF_TIMEOUT]))
     cg.add(var.set_useragent(config[CONF_USERAGENT]))
@@ -154,33 +195,52 @@ async def to_code(config):
 
     if CORE.is_esp8266 and not config[CONF_ESP8266_DISABLE_SSL_SUPPORT]:
         cg.add_define("USE_HTTP_REQUEST_ESP8266_HTTPS")
+        cg.add(var.set_tls_buffer_size_rx(config[CONF_TLS_BUFFER_SIZE_RX]))
+        cg.add(var.set_tls_buffer_size_tx(config[CONF_TLS_BUFFER_SIZE_TX]))
 
     if timeout_ms := config.get(CONF_WATCHDOG_TIMEOUT):
         cg.add(var.set_watchdog_timeout(timeout_ms))
 
     if CORE.is_esp32:
-        if CORE.using_esp_idf:
-            cg.add(var.set_buffer_size_rx(config[CONF_BUFFER_SIZE_RX]))
-            cg.add(var.set_buffer_size_tx(config[CONF_BUFFER_SIZE_TX]))
+        # Re-enable ESP-IDF's HTTP client (excluded by default to save compile time).
+        # esp-tls is re-enabled too because http_request includes <esp_tls.h>
+        # directly and esp_http_client only pulls it in as a private dependency.
+        esp32.include_builtin_idf_component("esp_http_client")
+        esp32.include_builtin_idf_component("esp-tls")
 
-            esp32.add_idf_sdkconfig_option(
-                "CONFIG_MBEDTLS_CERTIFICATE_BUNDLE",
-                config.get(CONF_VERIFY_SSL),
-            )
-            esp32.add_idf_sdkconfig_option(
-                "CONFIG_ESP_TLS_INSECURE",
-                not config.get(CONF_VERIFY_SSL),
-            )
-            esp32.add_idf_sdkconfig_option(
-                "CONFIG_ESP_TLS_SKIP_SERVER_CERT_VERIFY",
-                not config.get(CONF_VERIFY_SSL),
-            )
-        else:
-            cg.add_library("NetworkClientSecure", None)
-            cg.add_library("HTTPClient", None)
+        cg.add(var.set_buffer_size_rx(config[CONF_BUFFER_SIZE_RX]))
+        cg.add(var.set_buffer_size_tx(config[CONF_BUFFER_SIZE_TX]))
+        cg.add(var.set_verify_ssl(config[CONF_VERIFY_SSL]))
+
+        if config.get(CONF_VERIFY_SSL):
+            if ca_cert_path := config.get(CONF_CA_CERTIFICATE_PATH):
+                with Path(ca_cert_path).open(encoding="utf-8") as f:
+                    ca_cert_content = f.read()
+                cg.add(var.set_ca_certificate(ca_cert_content))
+            else:
+                # Uses the certificate bundle configured in esp32 component.
+                # By default, ESPHome uses the CMN (common CAs) bundle which covers
+                # ~99% of websites including GitHub, Let's Encrypt, DigiCert, etc.
+                # If connecting to services with uncommon CAs, components can call:
+                #   esp32.require_full_certificate_bundle()
+                # Or users can set in their config:
+                #   esp32:
+                #     framework:
+                #       advanced:
+                #         use_full_certificate_bundle: true
+                esp32.require_certificate_bundle()
+
+        esp32.add_idf_sdkconfig_option(
+            "CONFIG_ESP_TLS_INSECURE",
+            not config.get(CONF_VERIFY_SSL),
+        )
+        esp32.add_idf_sdkconfig_option(
+            "CONFIG_ESP_TLS_SKIP_SERVER_CERT_VERIFY",
+            not config.get(CONF_VERIFY_SSL),
+        )
     if CORE.is_esp8266:
         cg.add_library("ESP8266HTTPClient", None)
-    if CORE.is_rp2040 and CORE.using_arduino:
+    if CORE.is_rp2 and CORE.using_arduino:
         cg.add_library("HTTPClient", None)
     if CORE.is_host:
         if IS_MACOS:
@@ -216,16 +276,8 @@ HTTP_REQUEST_ACTION_SCHEMA = cv.Schema(
             f"{CONF_VERIFY_SSL} has moved to the base component configuration."
         ),
         cv.Optional(CONF_CAPTURE_RESPONSE, default=False): cv.boolean,
-        cv.Optional(CONF_ON_RESPONSE): automation.validate_automation(
-            {cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(HttpRequestResponseTrigger)}
-        ),
-        cv.Optional(CONF_ON_ERROR): automation.validate_automation(
-            {
-                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
-                    automation.Trigger.template()
-                )
-            }
-        ),
+        cv.Optional(CONF_ON_RESPONSE): automation.validate_automation(single=True),
+        cv.Optional(CONF_ON_ERROR): automation.validate_automation(single=True),
         cv.Optional(CONF_MAX_RESPONSE_BUFFER_SIZE, default="1kB"): cv.validate_bytes,
     }
 )
@@ -265,22 +317,43 @@ HTTP_REQUEST_SEND_ACTION_SCHEMA = HTTP_REQUEST_ACTION_SCHEMA.extend(
 
 
 @automation.register_action(
-    "http_request.get", HttpRequestSendAction, HTTP_REQUEST_GET_ACTION_SCHEMA
+    "http_request.get",
+    HttpRequestSendAction,
+    HTTP_REQUEST_GET_ACTION_SCHEMA,
+    synchronous=True,
 )
 @automation.register_action(
-    "http_request.post", HttpRequestSendAction, HTTP_REQUEST_POST_ACTION_SCHEMA
+    "http_request.post",
+    HttpRequestSendAction,
+    HTTP_REQUEST_POST_ACTION_SCHEMA,
+    synchronous=True,
 )
 @automation.register_action(
-    "http_request.send", HttpRequestSendAction, HTTP_REQUEST_SEND_ACTION_SCHEMA
+    "http_request.send",
+    HttpRequestSendAction,
+    HTTP_REQUEST_SEND_ACTION_SCHEMA,
+    synchronous=True,
 )
-async def http_request_action_to_code(config, action_id, template_arg, args):
+async def http_request_action_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
 
     template_ = await cg.templatable(config[CONF_URL], args, cg.std_string)
     cg.add(var.set_url(template_))
-    cg.add(var.set_method(config[CONF_METHOD]))
-    cg.add(var.set_capture_response(config[CONF_CAPTURE_RESPONSE]))
+    template_ = await cg.templatable(config[CONF_METHOD], args, cg.const_char_ptr)
+    cg.add(var.set_method(template_))
+
+    capture_response = config[CONF_CAPTURE_RESPONSE]
+    if capture_response:
+        template_ = await cg.templatable(capture_response, args, cg.bool_)
+        cg.add(var.set_capture_response(template_))
+        cg.add_define("USE_HTTP_REQUEST_RESPONSE")
+
     cg.add(var.set_max_response_buffer_size(config[CONF_MAX_RESPONSE_BUFFER_SIZE]))
 
     if CONF_BODY in config:
@@ -293,31 +366,40 @@ async def http_request_action_to_code(config, action_id, template_arg, args):
             lambda_ = await cg.process_lambda(json_, args_, return_type=cg.void)
             cg.add(var.set_json(lambda_))
         else:
+            cg.add(var.init_json(len(json_)))
             for key in json_:
                 template_ = await cg.templatable(json_[key], args, cg.std_string)
                 cg.add(var.add_json(key, template_))
-    for key, value in config.get(CONF_REQUEST_HEADERS, {}).items():
+    request_headers = config.get(CONF_REQUEST_HEADERS, {})
+    if request_headers:
+        cg.add(var.init_request_headers(len(request_headers)))
+    for key, value in request_headers.items():
         template_ = await cg.templatable(value, args, cg.const_char_ptr)
         cg.add(var.add_request_header(key, template_))
 
     for value in config.get(CONF_COLLECT_HEADERS, []):
-        cg.add(var.add_collect_header(value))
+        cg.add(var.add_collect_header(value.lower()))
 
-    for conf in config.get(CONF_ON_RESPONSE, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID])
-        cg.add(var.register_response_trigger(trigger))
-        await automation.build_automation(
-            trigger,
-            [
-                (cg.std_shared_ptr.template(HttpContainer), "response"),
-                (cg.std_string_ref, "body"),
-            ],
-            conf,
-        )
-    for conf in config.get(CONF_ON_ERROR, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID])
-        cg.add(var.register_error_trigger(trigger))
-        await automation.build_automation(trigger, [], conf)
+    if response_conf := config.get(CONF_ON_RESPONSE):
+        if capture_response:
+            await automation.build_automation(
+                var.get_success_trigger_with_response(),
+                [
+                    (cg.std_shared_ptr.template(HttpContainer), "response"),
+                    (cg.std_string_ref, "body"),
+                    *args,
+                ],
+                response_conf,
+            )
+        else:
+            await automation.build_automation(
+                var.get_success_trigger(),
+                [(cg.std_shared_ptr.template(HttpContainer), "response"), *args],
+                response_conf,
+            )
+
+    if error_conf := config.get(CONF_ON_ERROR):
+        await automation.build_automation(var.get_error_trigger(), args, error_conf)
 
     return var
 
@@ -326,13 +408,15 @@ FILTER_SOURCE_FILES = filter_source_files_from_platform(
     {
         "http_request_host.cpp": {PlatformFramework.HOST_NATIVE},
         "http_request_arduino.cpp": {
-            PlatformFramework.ESP32_ARDUINO,
             PlatformFramework.ESP8266_ARDUINO,
-            PlatformFramework.RP2040_ARDUINO,
+            PlatformFramework.RP2_ARDUINO,
             PlatformFramework.BK72XX_ARDUINO,
             PlatformFramework.RTL87XX_ARDUINO,
             PlatformFramework.LN882X_ARDUINO,
         },
-        "http_request_idf.cpp": {PlatformFramework.ESP32_IDF},
+        "http_request_idf.cpp": {
+            PlatformFramework.ESP32_ARDUINO,
+            PlatformFramework.ESP32_IDF,
+        },
     }
 )

@@ -4,10 +4,9 @@
 
 #include "esphome/core/hal.h"
 
-namespace esphome {
-namespace host {
+namespace esphome::host {
 
-class HostGPIOPin : public InternalGPIOPin {
+class HostGPIOPin final : public InternalGPIOPin {
  public:
   void set_pin(uint8_t pin) { pin_ = pin; }
   void set_inverted(bool inverted) { inverted_ = inverted; }
@@ -17,7 +16,7 @@ class HostGPIOPin : public InternalGPIOPin {
   void pin_mode(gpio::Flags flags) override;
   bool digital_read() override;
   void digital_write(bool value) override;
-  std::string dump_summary() const override;
+  size_t dump_summary(char *buffer, size_t len) const override;
   void detach_interrupt() const override;
   ISRInternalGPIOPin to_isr() const override;
   uint8_t get_pin() const override { return pin_; }
@@ -28,11 +27,10 @@ class HostGPIOPin : public InternalGPIOPin {
   void attach_interrupt(void (*func)(void *), void *arg, gpio::InterruptType type) const override;
 
   uint8_t pin_;
-  bool inverted_;
-  gpio::Flags flags_;
+  bool inverted_{};
+  gpio::Flags flags_{};
 };
 
-}  // namespace host
-}  // namespace esphome
+}  // namespace esphome::host
 
 #endif  // USE_HOST

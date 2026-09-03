@@ -1,8 +1,8 @@
-import hashlib
 from pathlib import Path
 
 from esphome import core, external_files
 import esphome.codegen as cg
+from esphome.components.const import CONF_STATE_SAVE_INTERVAL
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ID,
@@ -11,18 +11,22 @@ from esphome.const import (
     CONF_SAMPLE_RATE,
     CONF_TEMPERATURE_OFFSET,
 )
+from esphome.cpp_generator import MockObj
+from esphome.external_files import RemoteFile
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@neffs", "@kbx81"]
+CONFLICTS_WITH = ["bme680_bsec"]
 
 DOMAIN = "bme68x_bsec2"
 
 BSEC2_LIBRARY_VERSION = "1.10.2610"
+BME68x_LIBRARY_VERSION = "v1.3.40408"
 
 CONF_ALGORITHM_OUTPUT = "algorithm_output"
 CONF_BME68X_BSEC2_ID = "bme68x_bsec2_id"
 CONF_IAQ_MODE = "iaq_mode"
 CONF_OPERATING_AGE = "operating_age"
-CONF_STATE_SAVE_INTERVAL = "state_save_interval"
 CONF_SUPPLY_VOLTAGE = "supply_voltage"
 
 bme68x_bsec2_ns = cg.esphome_ns.namespace("bme68x_bsec2")
@@ -72,11 +76,7 @@ VOLTAGE_FILE_NAME = {
 
 
 def _compute_local_file_path(url: str) -> Path:
-    h = hashlib.new("sha256")
-    h.update(url.encode())
-    key = h.hexdigest()[:8]
-    base_dir = external_files.compute_local_file_dir(DOMAIN)
-    return base_dir / key
+    return external_files.compute_local_file_path(DOMAIN, url)
 
 
 def _compute_url(config: dict) -> str:
@@ -95,7 +95,7 @@ def _compute_url(config: dict) -> str:
     return f"https://raw.githubusercontent.com/boschsensortec/Bosch-BSEC2-Library/{BSEC2_LIBRARY_VERSION}/src/config/{model}/{model}_{algo}_{volts}_{sample_rate}_{operating_age}/{filename}.txt"
 
 
-def download_bme68x_blob(config):
+def download_bme68x_blob(config: ConfigType) -> ConfigType:
     url = _compute_url(config)
     path = _compute_local_file_path(url)
     external_files.download_content(url, path)
@@ -103,7 +103,43 @@ def download_bme68x_blob(config):
     return config
 
 
-def validate_bme68x(config):
+# Shared by the schema and the prefetch hook so they cannot drift.
+_MODEL_VALIDATOR = cv.one_of(*MODEL_OPTIONS, lower=True)
+_ALGORITHM_OUTPUT_VALIDATOR = cv.enum(ALGORITHM_OUTPUT_OPTIONS, lower=True)
+# Key -> (validator, default) for the defaulted options that select the blob.
+_BLOB_OPTIONS = {
+    CONF_OPERATING_AGE: (cv.enum(OPERATING_AGE_OPTIONS, lower=True), "28d"),
+    CONF_SAMPLE_RATE: (cv.enum(SAMPLE_RATE_OPTIONS, upper=True), "LP"),
+    CONF_SUPPLY_VOLTAGE: (cv.enum(VOLTAGE_OPTIONS, upper=True), "3.3V"),
+}
+
+
+def _extract_blob_ref(entry: ConfigType) -> RemoteFile | None:
+    """Raw entry to its BSEC2 blob; None when a value is unrecognized.
+
+    Applies the schema defaults and validators read-only; skipped entries
+    are left to the schema validator.
+    """
+    try:
+        spec = {
+            key: validator(str(entry.get(key, default)))  # pylint: disable=not-callable
+            for key, (validator, default) in _BLOB_OPTIONS.items()
+        }
+        spec[CONF_MODEL] = _MODEL_VALIDATOR(str(entry.get(CONF_MODEL, "")))
+        if (algorithm_output := entry.get(CONF_ALGORITHM_OUTPUT)) is not None:
+            spec[CONF_ALGORITHM_OUTPUT] = _ALGORITHM_OUTPUT_VALIDATOR(
+                str(algorithm_output)
+            )
+    except cv.Invalid:
+        return None
+    url = _compute_url(spec)
+    return RemoteFile(url, _compute_local_file_path(url))
+
+
+PREFETCH_FILES = external_files.single_stage_prefetch(_extract_blob_ref)
+
+
+def validate_bme68x(config: ConfigType) -> ConfigType:
     if CONF_ALGORITHM_OUTPUT not in config:
         return config
 
@@ -126,20 +162,13 @@ CONFIG_SCHEMA_BASE = (
         {
             cv.GenerateID(): cv.declare_id(BME68xBSEC2Component),
             cv.GenerateID(CONF_RAW_DATA_ID): cv.declare_id(cg.uint8),
-            cv.Required(CONF_MODEL): cv.one_of(*MODEL_OPTIONS, lower=True),
-            cv.Optional(CONF_ALGORITHM_OUTPUT): cv.enum(
-                ALGORITHM_OUTPUT_OPTIONS, lower=True
-            ),
-            cv.Optional(CONF_OPERATING_AGE, default="28d"): cv.enum(
-                OPERATING_AGE_OPTIONS, lower=True
-            ),
-            cv.Optional(CONF_SAMPLE_RATE, default="LP"): cv.enum(
-                SAMPLE_RATE_OPTIONS, upper=True
-            ),
-            cv.Optional(CONF_SUPPLY_VOLTAGE, default="3.3V"): cv.enum(
-                VOLTAGE_OPTIONS, upper=True
-            ),
-            cv.Optional(CONF_TEMPERATURE_OFFSET, default=0): cv.temperature,
+            cv.Required(CONF_MODEL): _MODEL_VALIDATOR,
+            cv.Optional(CONF_ALGORITHM_OUTPUT): _ALGORITHM_OUTPUT_VALIDATOR,
+            **{
+                cv.Optional(key, default=default): validator
+                for key, (validator, default) in _BLOB_OPTIONS.items()
+            },
+            cv.Optional(CONF_TEMPERATURE_OFFSET, default=0): cv.temperature_delta,
             cv.Optional(
                 CONF_STATE_SAVE_INTERVAL, default="6hours"
             ): cv.positive_time_period_minutes,
@@ -150,7 +179,7 @@ CONFIG_SCHEMA_BASE = (
 )
 
 
-async def to_code_base(config):
+async def to_code_base(config: ConfigType) -> MockObj:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
 
@@ -167,10 +196,12 @@ async def to_code_base(config):
     path = _compute_local_file_path(_compute_url(config))
 
     try:
-        with open(path, encoding="utf-8") as f:
+        with path.open(encoding="utf-8") as f:
             bsec2_iaq_config = f.read()
     except Exception as e:
-        raise core.EsphomeError(f"Could not open binary configuration file {path}: {e}")
+        raise core.EsphomeError(
+            f"Could not open binary configuration file {path}: {e}"
+        ) from e
 
     # Convert retrieved BSEC2 config to an array of ints
     rhs = [int(x) for x in bsec2_iaq_config.split(",")]
@@ -178,19 +209,37 @@ async def to_code_base(config):
     bsec2_arr = cg.progmem_array(config[CONF_RAW_DATA_ID], rhs)
     cg.add(var.set_bsec2_configuration(bsec2_arr, len(rhs)))
 
-    # Although this component does not use SPI, the BSEC2 Arduino library requires the SPI library
+    # The BSEC2 and BME68x Arduino libraries unconditionally include Wire.h and
+    # SPI.h in their source files, so these libraries must be available even though
+    # ESPHome uses its own I2C/SPI abstractions instead of the Arduino ones.
     if core.CORE.using_arduino:
+        cg.add_library("Wire", None)
         cg.add_library("SPI", None)
-    cg.add_library(
-        "BME68x Sensor library",
-        "1.3.40408",
-        "https://github.com/boschsensortec/Bosch-BME68x-Library",
-    )
-    cg.add_library(
-        "BSEC2 Software Library",
-        None,
-        f"https://github.com/boschsensortec/Bosch-BSEC2-Library.git#{BSEC2_LIBRARY_VERSION}",
-    )
+
+    if core.CORE.is_esp32:
+        from esphome.components.esp32 import add_idf_component
+
+        add_idf_component(
+            name="boschsensortec/Bosch-BME68x-Library",
+            repo="https://github.com/esphome-libs/Bosch-BME68x-Library",
+            ref=BME68x_LIBRARY_VERSION,
+        )
+        add_idf_component(
+            name="boschsensortec/Bosch-BSEC2-Library",
+            repo="https://github.com/esphome-libs/Bosch-BSEC2-Library",
+            ref=BSEC2_LIBRARY_VERSION,
+        )
+    else:
+        cg.add_library(
+            "BME68x Sensor library",
+            None,
+            f"https://github.com/boschsensortec/Bosch-BME68x-Library#{BME68x_LIBRARY_VERSION}",
+        )
+        cg.add_library(
+            "BSEC2 Software Library",
+            None,
+            f"https://github.com/boschsensortec/Bosch-BSEC2-Library.git#{BSEC2_LIBRARY_VERSION}",
+        )
 
     cg.add_define("USE_BSEC2")
 

@@ -4,8 +4,7 @@
 #include "esphome/core/hal.h"
 #include "esphome/components/sensor/sensor.h"
 
-namespace esphome {
-namespace duty_cycle {
+namespace esphome::duty_cycle {
 
 /// Store data in a class that doesn't use multiple-inheritance (vtables in flash)
 struct DutyCycleSensorStore {
@@ -17,12 +16,11 @@ struct DutyCycleSensorStore {
   static void gpio_intr(DutyCycleSensorStore *arg);
 };
 
-class DutyCycleSensor : public sensor::Sensor, public PollingComponent {
+class DutyCycleSensor final : public sensor::Sensor, public PollingComponent {
  public:
   void set_pin(InternalGPIOPin *pin) { pin_ = pin; }
 
   void setup() override;
-  float get_setup_priority() const override;
   void dump_config() override;
   void update() override;
 
@@ -33,5 +31,4 @@ class DutyCycleSensor : public sensor::Sensor, public PollingComponent {
   uint32_t last_update_{0};
 };
 
-}  // namespace duty_cycle
-}  // namespace esphome
+}  // namespace esphome::duty_cycle

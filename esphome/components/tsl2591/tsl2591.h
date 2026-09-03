@@ -6,8 +6,7 @@
 
 #include <cinttypes>
 
-namespace esphome {
-namespace tsl2591 {
+namespace esphome::tsl2591 {
 
 /** Enum listing all conversion/integration time settings for the TSL2591.
  *
@@ -64,7 +63,7 @@ enum TSL2591SensorChannel {
 /// light. They are reported as separate sensors, and the difference
 /// between the values is reported as a third sensor as a convenience
 /// for visible light only.
-class TSL2591Component : public PollingComponent, public i2c::I2CDevice {
+class TSL2591Component final : public PollingComponent, public i2c::I2CDevice {
  public:
   /** Set device integration time and gain.
    *
@@ -249,8 +248,6 @@ class TSL2591Component : public PollingComponent, public i2c::I2CDevice {
   void dump_config() override;
   /** Used by ESPHome framework. */
   void update() override;
-  /** Used by ESPHome framework. */
-  float get_setup_priority() const override;
 
  protected:
   const char *name_;
@@ -272,5 +269,4 @@ class TSL2591Component : public PollingComponent, public i2c::I2CDevice {
   void interval_function_for_update_();
 };
 
-}  // namespace tsl2591
-}  // namespace esphome
+}  // namespace esphome::tsl2591

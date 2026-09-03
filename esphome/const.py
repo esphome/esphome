@@ -4,12 +4,31 @@ from enum import Enum
 
 from esphome.enum import StrEnum
 
-__version__ = "2025.10.0-dev"
+__version__ = "2026.10.0-dev"
 
 ALLOWED_NAME_CHARS = "abcdefghijklmnopqrstuvwxyz0123456789-_"
 VALID_SUBSTITUTIONS_CHARACTERS = (
     "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_"
 )
+
+# CLI Help Text Constants
+ARGUMENT_HELP_DEVICE = "Manually specify the serial port/address to use, for example /dev/ttyUSB0. Can be specified multiple times for fallback addresses. Use 'OTA' for resolving from MQTT, DNS or mDNS and avoiding the interactive prompt."
+
+
+class Toolchain(StrEnum):
+    """Toolchain identifiers for ESPHome."""
+
+    PLATFORMIO = "platformio"
+    ESP_IDF = "esp-idf"
+    SDK_NRF = "sdk-nrf"
+    # ESP8266: the Arduino core built directly (no PlatformIO)
+    ARDUINO = "arduino"
+
+
+# Toolchains that drive their build natively and never read platformio.ini.
+# SDK_NRF is absent on purpose: the zephyr backend keeps consuming
+# platformio_options.
+NATIVE_TOOLCHAINS = frozenset({Toolchain.ESP_IDF, Toolchain.ARDUINO})
 
 
 class Platform(StrEnum):
@@ -22,7 +41,12 @@ class Platform(StrEnum):
     LIBRETINY_OLDSTYLE = "libretiny"
     LN882X = "ln882x"
     NRF52 = "nrf52"
-    RP2040 = "rp2040"
+    RP2 = "rp2"  # canonical name for the RP2 family (RP2040, RP2350, …)
+    # Deprecated: use Platform.RP2 instead. Python enum aliasing makes this
+    # the same member as RP2 (same string value), so ``Platform.RP2040`` and
+    # ``Platform.RP2`` remain interchangeable for external custom components.
+    # Scheduled for removal in 2027.7.0.
+    RP2040 = "rp2"
     RTL87XX = "rtl87xx"
 
 
@@ -36,7 +60,30 @@ class Framework(StrEnum):
 
 
 class ThreadModel(StrEnum):
-    """Threading model identifiers for ESPHome scheduler."""
+    """Threading model identifiers for ESPHome scheduler.
+
+    ESPHome currently uses three threading models based on platform capabilities:
+
+    SINGLE:
+        - Single-threaded platforms (ESP8266, RP2040)
+        - No RTOS task switching
+        - No concurrent access to scheduler data structures
+        - No atomics or locks required
+        - Minimal overhead
+
+    MULTI_NO_ATOMICS:
+        - Multi-threaded platforms without hardware atomic RMW support (e.g. LibreTiny BK7231N)
+        - Uses FreeRTOS or another RTOS with multiple tasks
+        - CPU lacks exclusive load/store instructions (ARM968E-S has no LDREX/STREX)
+        - std::atomic cannot provide lock-free RMW; libatomic is avoided to save flash (4–8 KB)
+        - Scheduler uses explicit FreeRTOS mutexes for synchronization
+
+    MULTI_ATOMICS:
+        - Multi-threaded platforms with hardware atomic RMW support (ESP32, Cortex-M, Host)
+        - CPU provides native atomic instructions (ESP32 S32C1I, ARM LDREX/STREX)
+        - std::atomic is used for lock-free synchronization
+        - Reduced contention and better performance
+    """
 
     SINGLE = "ESPHOME_THREAD_SINGLE"
     MULTI_NO_ATOMICS = "ESPHOME_THREAD_MULTI_NO_ATOMICS"
@@ -52,6 +99,9 @@ class PlatformFramework(Enum):
 
     # Arduino framework platforms
     ESP8266_ARDUINO = (Platform.ESP8266, Framework.ARDUINO)
+    RP2_ARDUINO = (Platform.RP2, Framework.ARDUINO)
+    # Deprecated: use PlatformFramework.RP2_ARDUINO instead. Kept as an
+    # alias for backwards compatibility; scheduled for removal in 2027.7.0.
     RP2040_ARDUINO = (Platform.RP2040, Framework.ARDUINO)
     BK72XX_ARDUINO = (Platform.BK72XX, Framework.ARDUINO)
     RTL87XX_ARDUINO = (Platform.RTL87XX, Framework.ARDUINO)
@@ -72,10 +122,14 @@ PLATFORM_HOST = Platform.HOST
 PLATFORM_LIBRETINY_OLDSTYLE = Platform.LIBRETINY_OLDSTYLE
 PLATFORM_LN882X = Platform.LN882X
 PLATFORM_NRF52 = Platform.NRF52
+PLATFORM_RP2 = Platform.RP2
+# Deprecated: use PLATFORM_RP2 instead. Kept as a back-compat alias;
+# scheduled for removal in 2027.7.0.
 PLATFORM_RP2040 = Platform.RP2040
 PLATFORM_RTL87XX = Platform.RTL87XX
 
 
+BUNDLE_EXTENSION = ".esphomebundle.tar.gz"
 SOURCE_FILE_EXTENSIONS = {".cpp", ".hpp", ".h", ".c", ".tcc", ".ino"}
 HEADER_FILE_EXTENSIONS = {".h", ".hpp", ".tcc"}
 SECRETS_FILES = ("secrets.yaml", "secrets.yml")
@@ -100,6 +154,7 @@ CONF_ADDRESS = "address"
 CONF_ADDRESSABLE_LIGHT_ID = "addressable_light_id"
 CONF_ADVANCED = "advanced"
 CONF_AFTER = "after"
+CONF_ALGORITHM_TUNING = "algorithm_tuning"
 CONF_ALL = "all"
 CONF_ALLOW_OTHER_USES = "allow_other_uses"
 CONF_ALPHA = "alpha"
@@ -125,6 +180,7 @@ CONF_ASSUMED_STATE = "assumed_state"
 CONF_AT = "at"
 CONF_ATTENUATION = "attenuation"
 CONF_ATTRIBUTE = "attribute"
+CONF_AUDIO_DAC = "audio_dac"
 CONF_AUTH = "auth"
 CONF_AUTO_CLEAR_ENABLED = "auto_clear_enabled"
 CONF_AUTO_MODE = "auto_mode"
@@ -164,6 +220,7 @@ CONF_BROKER = "broker"
 CONF_BSSID = "bssid"
 CONF_BUFFER_DURATION = "buffer_duration"
 CONF_BUFFER_SIZE = "buffer_size"
+CONF_BUILD_FLAGS = "build_flags"
 CONF_BUILD_PATH = "build_path"
 CONF_BUS_VOLTAGE = "bus_voltage"
 CONF_BUSY_PIN = "busy_pin"
@@ -174,6 +231,7 @@ CONF_CALIBRATE_LINEAR = "calibrate_linear"
 CONF_CALIBRATION = "calibration"
 CONF_CAPACITANCE = "capacitance"
 CONF_CAPACITY = "capacity"
+CONF_CAPTURE_RESPONSE = "capture_response"
 CONF_CARBON_MONOXIDE = "carbon_monoxide"
 CONF_CARRIER_DUTY_PERCENT = "carrier_duty_percent"
 CONF_CARRIER_FREQUENCY = "carrier_frequency"
@@ -222,6 +280,7 @@ CONF_COMPENSATION = "compensation"
 CONF_COMPILE_PROCESS_LIMIT = "compile_process_limit"
 CONF_COMPONENT_ID = "component_id"
 CONF_COMPONENTS = "components"
+CONF_COMPRESSION = "compression"
 CONF_CONDITION = "condition"
 CONF_CONDITION_ID = "condition_id"
 CONF_CONDUCTIVITY = "conductivity"
@@ -244,6 +303,7 @@ CONF_CURRENT = "current"
 CONF_CURRENT_HUMIDITY_STATE_TOPIC = "current_humidity_state_topic"
 CONF_CURRENT_OPERATION = "current_operation"
 CONF_CURRENT_RESISTOR = "current_resistor"
+CONF_CURRENT_TEMPERATURE = "current_temperature"
 CONF_CURRENT_TEMPERATURE_STATE_TOPIC = "current_temperature_state_topic"
 CONF_CUSTOM = "custom"
 CONF_CUSTOM_FAN_MODE = "custom_fan_mode"
@@ -296,6 +356,7 @@ CONF_DISABLE_CRC = "disable_crc"
 CONF_DISABLED = "disabled"
 CONF_DISABLED_BY_DEFAULT = "disabled_by_default"
 CONF_DISCONNECT_DELAY = "disconnect_delay"
+CONF_DISCOVER_IP = "discover_ip"
 CONF_DISCOVERY = "discovery"
 CONF_DISCOVERY_OBJECT_ID_GENERATOR = "discovery_object_id_generator"
 CONF_DISCOVERY_PREFIX = "discovery_prefix"
@@ -325,16 +386,20 @@ CONF_EFFECT = "effect"
 CONF_EFFECTS = "effects"
 CONF_ELSE = "else"
 CONF_ENABLE_BTM = "enable_btm"
+CONF_ENABLE_FULL_PRINTF = "enable_full_printf"
 CONF_ENABLE_IPV6 = "enable_ipv6"
 CONF_ENABLE_ON_BOOT = "enable_on_boot"
+CONF_ENABLE_OTA_ROLLBACK = "enable_ota_rollback"
 CONF_ENABLE_PIN = "enable_pin"
 CONF_ENABLE_PRIVATE_NETWORK_ACCESS = "enable_private_network_access"
 CONF_ENABLE_RRM = "enable_rrm"
 CONF_ENABLE_TIME = "enable_time"
+CONF_ENCRYPTION = "encryption"
 CONF_ENERGY = "energy"
 CONF_ENTITY_CATEGORY = "entity_category"
 CONF_ENTITY_ID = "entity_id"
 CONF_ENUM_DATAPOINT = "enum_datapoint"
+CONF_ENVIRONMENT_VARIABLES = "environment_variables"
 CONF_EQUATION = "equation"
 CONF_ESP8266_DISABLE_SSL_SUPPORT = "esp8266_disable_ssl_support"
 CONF_ESPHOME = "esphome"
@@ -410,6 +475,7 @@ CONF_GAIN_FACTOR = "gain_factor"
 CONF_GAMMA_CORRECT = "gamma_correct"
 CONF_GAS_RESISTANCE = "gas_resistance"
 CONF_GATEWAY = "gateway"
+CONF_GATING_MAX_DURATION_MINUTES = "gating_max_duration_minutes"
 CONF_GLASS_ATTENUATION_FACTOR = "glass_attenuation_factor"
 CONF_GLYPHS = "glyphs"
 CONF_GPIO = "gpio"
@@ -433,6 +499,7 @@ CONF_HEAT_OVERRUN = "heat_overrun"
 CONF_HEATER = "heater"
 CONF_HEIGHT = "height"
 CONF_HIDDEN = "hidden"
+CONF_HIDE_HASH = "hide_hash"
 CONF_HIDE_TIMESTAMP = "hide_timestamp"
 CONF_HIGH = "high"
 CONF_HIGH_VOLTAGE_REFERENCE = "high_voltage_reference"
@@ -470,7 +537,9 @@ CONF_IMPORT_REACTIVE_ENERGY = "import_reactive_energy"
 CONF_INC_PIN = "inc_pin"
 CONF_INCLUDE_INTERNAL = "include_internal"
 CONF_INCLUDES = "includes"
+CONF_INCLUDES_C = "includes_c"
 CONF_INDEX = "index"
+CONF_INDEX_OFFSET = "index_offset"
 CONF_INDOOR = "indoor"
 CONF_INFRARED = "infrared"
 CONF_INIT_SEQUENCE = "init_sequence"
@@ -508,6 +577,8 @@ CONF_LAMBDA = "lambda"
 CONF_LAST_CONFIDENCE = "last_confidence"
 CONF_LAST_FINGER_ID = "last_finger_id"
 CONF_LATITUDE = "latitude"
+CONF_LEARNING_TIME_GAIN_HOURS = "learning_time_gain_hours"
+CONF_LEARNING_TIME_OFFSET_HOURS = "learning_time_offset_hours"
 CONF_LED = "led"
 CONF_LEGEND = "legend"
 CONF_LENGTH = "length"
@@ -533,6 +604,7 @@ CONF_LOGS = "logs"
 CONF_LONGITUDE = "longitude"
 CONF_LOOP_TIME = "loop_time"
 CONF_LOW = "low"
+CONF_LOW_POWER_MODE = "low_power_mode"
 CONF_LOW_VOLTAGE_REFERENCE = "low_voltage_reference"
 CONF_MAC_ADDRESS = "mac_address"
 CONF_MAGNITUDE = "magnitude"
@@ -563,6 +635,7 @@ CONF_MEASUREMENT_SEQUENCE_NUMBER = "measurement_sequence_number"
 CONF_MEDIA_PLAYER = "media_player"
 CONF_MEDIUM = "medium"
 CONF_MEMORY_BLOCKS = "memory_blocks"
+CONF_MERGE_WARNINGS = "merge_warnings"
 CONF_MESSAGE = "message"
 CONF_METHANE = "methane"
 CONF_METHOD = "method"
@@ -605,6 +678,7 @@ CONF_MOVEMENT_COUNTER = "movement_counter"
 CONF_MOVING_DISTANCE = "moving_distance"
 CONF_MQTT = "mqtt"
 CONF_MQTT_ID = "mqtt_id"
+CONF_MQTT_JSON_STATE_PAYLOAD = "mqtt_json_state_payload"
 CONF_MULTIPLE = "multiple"
 CONF_MULTIPLEXER = "multiplexer"
 CONF_MULTIPLY = "multiply"
@@ -618,7 +692,9 @@ CONF_NEVER = "never"
 CONF_NEW_PASSWORD = "new_password"
 CONF_NITROGEN_DIOXIDE = "nitrogen_dioxide"
 CONF_NOISE_LEVEL = "noise_level"
+CONF_NORMALIZED_OFFSET_SLOPE = "normalized_offset_slope"
 CONF_NOTIFY = "notify"
+CONF_NOX = "nox"
 CONF_NUM_ATTEMPTS = "num_attempts"
 CONF_NUM_CHANNELS = "num_channels"
 CONF_NUM_CHIPS = "num_chips"
@@ -645,6 +721,7 @@ CONF_ON_CLIENT_CONNECTED = "on_client_connected"
 CONF_ON_CLIENT_DISCONNECTED = "on_client_disconnected"
 CONF_ON_CONNECT = "on_connect"
 CONF_ON_CONTROL = "on_control"
+CONF_ON_DATA = "on_data"
 CONF_ON_DIRECTION_SET = "on_direction_set"
 CONF_ON_DISCONNECT = "on_disconnect"
 CONF_ON_DOUBLE_CLICK = "on_double_click"
@@ -675,7 +752,9 @@ CONF_ON_RELEASE = "on_release"
 CONF_ON_RESPONSE = "on_response"
 CONF_ON_SHUTDOWN = "on_shutdown"
 CONF_ON_SPEED_SET = "on_speed_set"
+CONF_ON_START = "on_start"
 CONF_ON_STATE = "on_state"
+CONF_ON_SUCCESS = "on_success"
 CONF_ON_TAG = "on_tag"
 CONF_ON_TAG_REMOVED = "on_tag_removed"
 CONF_ON_TIME = "on_time"
@@ -694,6 +773,7 @@ CONF_OPEN_DRAIN = "open_drain"
 CONF_OPEN_DRAIN_INTERRUPT = "open_drain_interrupt"
 CONF_OPEN_DURATION = "open_duration"
 CONF_OPEN_ENDSTOP = "open_endstop"
+CONF_OPENTHREAD = "openthread"
 CONF_OPERATION = "operation"
 CONF_OPTIMISTIC = "optimistic"
 CONF_OPTION = "option"
@@ -707,6 +787,7 @@ CONF_OTA = "ota"
 CONF_OUTDOOR_TEMPERATURE = "outdoor_temperature"
 CONF_OUTPUT = "output"
 CONF_OUTPUT_ID = "output_id"
+CONF_OUTPUT_POWER = "output_power"
 CONF_OUTPUT_SPEAKER = "output_speaker"
 CONF_OUTPUTS = "outputs"
 CONF_OVERSAMPLING = "oversampling"
@@ -818,6 +899,7 @@ CONF_RESET_DURATION = "reset_duration"
 CONF_RESET_PIN = "reset_pin"
 CONF_RESIZE = "resize"
 CONF_RESOLUTION = "resolution"
+CONF_RESPONSE_TEMPLATE = "response_template"
 CONF_RESTART = "restart"
 CONF_RESTORE = "restore"
 CONF_RESTORE_MODE = "restore_mode"
@@ -901,7 +983,6 @@ CONF_SPI = "spi"
 CONF_SPI_ID = "spi_id"
 CONF_SPIKE_REJECTION = "spike_rejection"
 CONF_SSID = "ssid"
-CONF_SSL_FINGERPRINTS = "ssl_fingerprints"
 CONF_STARTUP_DELAY = "startup_delay"
 CONF_STATE = "state"
 CONF_STATE_CLASS = "state_class"
@@ -909,6 +990,7 @@ CONF_STATE_TOPIC = "state_topic"
 CONF_STATIC_IP = "static_ip"
 CONF_STATUS = "status"
 CONF_STB_PIN = "stb_pin"
+CONF_STD_INITIAL = "std_initial"
 CONF_STEP = "step"
 CONF_STEP_DELAY = "step_delay"
 CONF_STEP_MODE = "step_mode"
@@ -916,6 +998,7 @@ CONF_STEP_PIN = "step_pin"
 CONF_STILL_THRESHOLD = "still_threshold"
 CONF_STOP = "stop"
 CONF_STOP_ACTION = "stop_action"
+CONF_STORAGE = "storage"
 CONF_STORE_BASELINE = "store_baseline"
 CONF_SUBNET = "subnet"
 CONF_SUBSCRIBE_QOS = "subscribe_qos"
@@ -976,6 +1059,7 @@ CONF_TILT_COMMAND_TOPIC = "tilt_command_topic"
 CONF_TILT_LAMBDA = "tilt_lambda"
 CONF_TILT_STATE_TOPIC = "tilt_state_topic"
 CONF_TIME = "time"
+CONF_TIME_CONSTANT = "time_constant"
 CONF_TIME_ID = "time_id"
 CONF_TIMEOUT = "timeout"
 CONF_TIMES = "times"
@@ -985,6 +1069,7 @@ CONF_TO = "to"
 CONF_TO_NTC_RESISTANCE = "to_ntc_resistance"
 CONF_TO_NTC_TEMPERATURE = "to_ntc_temperature"
 CONF_TOLERANCE = "tolerance"
+CONF_TOOLCHAIN = "toolchain"
 CONF_TOPIC = "topic"
 CONF_TOPIC_PREFIX = "topic_prefix"
 CONF_TOTAL = "total"
@@ -1030,6 +1115,8 @@ CONF_VERSION = "version"
 CONF_VIBRATIONS = "vibrations"
 CONF_VISIBLE = "visible"
 CONF_VISUAL = "visual"
+CONF_VOC = "voc"
+CONF_VOC_BASELINE = "voc_baseline"
 CONF_VOLTAGE = "voltage"
 CONF_VOLTAGE_ATTENUATION = "voltage_attenuation"
 CONF_VOLTAGE_DIVIDER = "voltage_divider"
@@ -1042,8 +1129,11 @@ CONF_WAKEUP_PIN = "wakeup_pin"
 CONF_WAND_ID = "wand_id"
 CONF_WARM_WHITE = "warm_white"
 CONF_WARM_WHITE_COLOR_TEMPERATURE = "warm_white_color_temperature"
+CONF_WARMUP_TIME = "warmup_time"
+CONF_WATCHDOG = "watchdog"
 CONF_WATCHDOG_THRESHOLD = "watchdog_threshold"
 CONF_WATCHDOG_TIMEOUT = "watchdog_timeout"
+CONF_WATER_HEATER = "water_heater"
 CONF_WEB_SERVER = "web_server"
 CONF_WEB_SERVER_ID = "web_server_id"
 CONF_WEIGHT = "weight"
@@ -1137,6 +1227,7 @@ ICON_TIMELAPSE = "mdi:timelapse"
 ICON_TIMER = "mdi:timer-outline"
 ICON_VIBRATE = "mdi:vibrate"
 ICON_WATER = "mdi:water"
+ICON_WATER_HEATER = "mdi:water-boiler"
 ICON_WATER_PERCENT = "mdi:water-percent"
 ICON_WEATHER_SUNSET = "mdi:weather-sunset"
 ICON_WEATHER_SUNSET_DOWN = "mdi:weather-sunset-down"
@@ -1168,6 +1259,7 @@ UNIT_KELVIN = "K"
 UNIT_KILOGRAM = "kg"
 UNIT_KILOMETER = "km"
 UNIT_KILOMETER_PER_HOUR = "km/h"
+UNIT_KILOPASCAL = "kPa"
 UNIT_KILOVOLT_AMPS = "kVA"
 UNIT_KILOVOLT_AMPS_HOURS = "kVAh"
 UNIT_KILOVOLT_AMPS_REACTIVE = "kvar"
@@ -1175,9 +1267,12 @@ UNIT_KILOVOLT_AMPS_REACTIVE_HOURS = "kvarh"
 UNIT_KILOWATT = "kW"
 UNIT_KILOWATT_HOURS = "kWh"
 UNIT_LITRE = "L"
+UNIT_LITRE_PER_HOUR = "L/h"
+UNIT_LITRE_PER_SECOND = "L/s"
 UNIT_LUX = "lx"
 UNIT_MEGAJOULE = "MJ"
 UNIT_METER = "m"
+UNIT_METER_PER_SECOND = "m/s"
 UNIT_METER_PER_SECOND_SQUARED = "m/s²"
 UNIT_MICROAMP = "µA"
 UNIT_MICROGRAMS_PER_CUBIC_METER = "µg/m³"
@@ -1187,6 +1282,7 @@ UNIT_MICROSILVERTS_PER_HOUR = "µSv/h"
 UNIT_MICROTESLA = "µT"
 UNIT_MILLIAMP = "mA"
 UNIT_MILLIGRAMS_PER_CUBIC_METER = "mg/m³"
+UNIT_MILLILITRE = "mL"
 UNIT_MILLIMETER = "mm"
 UNIT_MILLISECOND = "ms"
 UNIT_MILLISIEMENS_PER_CENTIMETER = "mS/cm"
@@ -1198,6 +1294,7 @@ UNIT_PARTS_PER_MILLION = "ppm"
 UNIT_PASCAL = "Pa"
 UNIT_PERCENT = "%"
 UNIT_PH = "pH"
+UNIT_POUND = "lb"
 UNIT_PULSES = "pulses"
 UNIT_PULSES_PER_MINUTE = "pulses/min"
 UNIT_REVOLUTIONS_PER_MINUTE = "RPM"
@@ -1279,6 +1376,7 @@ DEVICE_CLASS_PRECIPITATION_INTENSITY = "precipitation_intensity"
 DEVICE_CLASS_PRESENCE = "presence"
 DEVICE_CLASS_PRESSURE = "pressure"
 DEVICE_CLASS_PROBLEM = "problem"
+DEVICE_CLASS_RADON = "radon"
 DEVICE_CLASS_REACTIVE_ENERGY = "reactive_energy"
 DEVICE_CLASS_REACTIVE_POWER = "reactive_power"
 DEVICE_CLASS_RESTART = "restart"
@@ -1295,8 +1393,10 @@ DEVICE_CLASS_SULPHUR_DIOXIDE = "sulphur_dioxide"
 DEVICE_CLASS_SWITCH = "switch"
 DEVICE_CLASS_TAMPER = "tamper"
 DEVICE_CLASS_TEMPERATURE = "temperature"
+DEVICE_CLASS_TEMPERATURE_DELTA = "temperature_delta"
 DEVICE_CLASS_TIMESTAMP = "timestamp"
 DEVICE_CLASS_UPDATE = "update"
+DEVICE_CLASS_UPTIME = "uptime"
 DEVICE_CLASS_VIBRATION = "vibration"
 DEVICE_CLASS_VOLATILE_ORGANIC_COMPOUNDS = "volatile_organic_compounds"
 DEVICE_CLASS_VOLATILE_ORGANIC_COMPOUNDS_PARTS = "volatile_organic_compounds_parts"
@@ -1316,6 +1416,9 @@ STATE_CLASS_NONE = ""
 # The state represents a measurement in present time
 STATE_CLASS_MEASUREMENT = "measurement"
 
+# The state represents a measurement in present time for angles measured in degrees (°)
+STATE_CLASS_MEASUREMENT_ANGLE = "measurement_angle"
+
 # The state represents a total that only increases, a decrease is considered a reset.
 STATE_CLASS_TOTAL_INCREASING = "total_increasing"
 
@@ -1329,6 +1432,14 @@ KEY_FRAMEWORK_VERSION = "framework_version"
 KEY_NAME = "name"
 KEY_VARIANT = "variant"
 KEY_PAST_SAFE_MODE = "past_safe_mode"
+# esp32 storage keys; defined here so the upload/logs fast path
+# (storage_json.apply_to_core, espidf.toolchain) can use them without
+# importing the esp32 component package.
+KEY_ESP32 = "esp32"
+# Also used by esp8266 to index its BOARDS metadata dicts, whose
+# entries in boards.py spell the literal; do not change the value.
+KEY_FLASH_SIZE = "flash_size"
+KEY_IDF_VERSION = "idf_version"
 
 # Entity categories
 ENTITY_CATEGORY_NONE = ""
@@ -1342,3 +1453,12 @@ ENTITY_CATEGORY_DIAGNOSTIC = "diagnostic"
 # The corresponding constant exists in c++
 # when update_interval is set to never, it becomes SCHEDULER_DONT_RUN milliseconds
 SCHEDULER_DONT_RUN = 4294967295
+
+# Sentinel values written by the esphome-device-builder dashboard into
+# secrets.yaml on first boot so that !secret wifi_ssid / !secret wifi_password
+# references resolve cleanly through validation before the user has finished
+# the onboarding wizard. Compilation refuses if these reach the binary so that
+# a user who dismisses onboarding can't accidentally flash a device that will
+# never associate with their wifi.
+PLACEHOLDER_WIFI_SSID = "REPLACE_WITH_YOUR_WIFI_NETWORK"
+PLACEHOLDER_WIFI_PASSWORD = "REPLACE_WITH_YOUR_WIFI_PASSWORD"  # noqa: S105

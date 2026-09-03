@@ -7,24 +7,35 @@ namespace esphome::api {
 
 class APIPlaintextFrameHelper final : public APIFrameHelper {
  public:
-  APIPlaintextFrameHelper(std::unique_ptr<socket::Socket> socket, const ClientInfo *client_info)
-      : APIFrameHelper(std::move(socket), client_info) {
-    // Plaintext header structure (worst case):
-    // Pos 0: indicator (0x00)
-    // Pos 1-3: payload size varint (up to 3 bytes)
-    // Pos 4-5: message type varint (up to 2 bytes)
-    // Pos 6+: actual payload data
-    frame_header_padding_ = 6;
+  // Plaintext header structure (worst case):
+  // Pos 0: indicator (0x00)
+  // Pos 1-3: payload size varint (up to 3 bytes)
+  // Pos 4-5: message type varint (up to 2 bytes; covers message IDs up to
+  //          16383, enforced by the proto codegen)
+  // Pos 6+: actual payload data
+  static constexpr uint8_t HEADER_PADDING = 1 + 3 + 2;  // indicator + size varint + type varint
+
+  explicit APIPlaintextFrameHelper(std::unique_ptr<socket::Socket> socket) : APIFrameHelper(std::move(socket)) {
+    frame_header_padding_ = HEADER_PADDING;
   }
   ~APIPlaintextFrameHelper() override = default;
   APIError init() override;
   APIError loop() override;
   APIError read_packet(ReadPacketBuffer *buffer) override;
-  APIError write_protobuf_packet(uint8_t type, ProtoWriteBuffer buffer) override;
-  APIError write_protobuf_packets(ProtoWriteBuffer buffer, std::span<const PacketInfo> packets) override;
+  APIError write_protobuf_packet(uint16_t type, ProtoWriteBuffer buffer) override;
+  APIError write_protobuf_messages(ProtoWriteBuffer buffer, std::span<const MessageInfo> messages) override;
+#ifdef USE_API_NOISE
+  // After try_read_frame_ returned PROTOCOL_SWITCH_TO_NOISE: copy out the
+  // header bytes already consumed from the socket (at most 3, the size of the
+  // Noise fixed header) so the replacement Noise helper can be seeded with them.
+  uint8_t get_consumed_header(uint8_t out[3]) const {
+    memcpy(out, this->rx_header_buf_, this->rx_header_buf_pos_);
+    return this->rx_header_buf_pos_;
+  }
+#endif
 
  protected:
-  APIError try_read_frame_(std::vector<uint8_t> *frame);
+  APIError try_read_frame_();
 
   // Group 2-byte aligned types
   uint16_t rx_header_parsed_type_ = 0;

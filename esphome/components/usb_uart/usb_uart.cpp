@@ -1,13 +1,14 @@
 // Should not be needed, but it's required to pass CI clang-tidy checks
-#if defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3) || defined(USE_ESP32_VARIANT_ESP32P4)
+#if defined(USE_ESP32_VARIANT_ESP32P4) || defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3) || \
+    defined(USE_ESP32_VARIANT_ESP32S31) || defined(USE_ESP32_VARIANT_ESP32H4)
 #include "usb_uart.h"
 #include "esphome/core/log.h"
-#include "esphome/components/uart/uart_debugger.h"
+#include "esphome/core/application.h"
 
 #include <cinttypes>
+#include <cstring>
 
-namespace esphome {
-namespace usb_uart {
+namespace esphome::usb_uart {
 
 /**
  *
@@ -21,6 +22,7 @@ static optional<CdcEps> get_cdc(const usb_config_desc_t *config_desc, uint8_t in
   // look for an interface with an interrupt endpoint (notify), and one with two bulk endpoints (data in/out)
   CdcEps eps{};
   eps.bulk_interface_number = 0xFF;
+  eps.interrupt_interface_number = 0xFF;
   for (;;) {
     const auto *intf_desc = usb_parse_interface_descriptor(config_desc, intf_idx++, 0, &conf_offset);
     if (!intf_desc) {
@@ -106,10 +108,15 @@ std::vector<CdcEps> USBUartTypeCdcAcm::parse_descriptors(usb_device_handle_t dev
 }
 
 void RingBuffer::push(uint8_t item) {
+  if (this->get_free_space() == 0)
+    return;
   this->buffer_[this->insert_pos_] = item;
   this->insert_pos_ = (this->insert_pos_ + 1) % this->buffer_size_;
 }
 void RingBuffer::push(const uint8_t *data, size_t len) {
+  size_t free = this->get_free_space();
+  if (len > free)
+    len = free;
   for (size_t i = 0; i != len; i++) {
     this->buffer_[this->insert_pos_] = *data++;
     this->insert_pos_ = (this->insert_pos_ + 1) % this->buffer_size_;
@@ -129,29 +136,64 @@ size_t RingBuffer::pop(uint8_t *data, size_t len) {
   }
   return len;
 }
-void USBUartChannel::write_array(const uint8_t *data, size_t len) {
+void USBUartChannelBase::write_array(const uint8_t *data, size_t len) {
   if (!this->initialised_.load()) {
-    ESP_LOGV(TAG, "Channel not initialised - write ignored");
+    ESP_LOGD(TAG, "Channel not initialised - write ignored");
     return;
   }
-  while (this->output_buffer_.get_free_space() != 0 && len-- != 0) {
-    this->output_buffer_.push(*data++);
+#ifdef USE_UART_DEBUGGER
+  if (this->debug_) {
+    constexpr size_t batch = 16;
+    char buf[format_hex_pretty_size(batch)];  // "XX,XX,...,XX\0"
+    for (size_t off = 0; off < len; off += batch) {
+      size_t n = std::min(len - off, batch);
+      format_hex_pretty_to(buf, data + off, n, ',');
+      ESP_LOGD(TAG, "%s>>> %s", this->debug_prefix_.c_str(), buf);
+    }
   }
-  len++;
-  if (len > 0) {
-    ESP_LOGE(TAG, "Buffer full - failed to write %d bytes", len);
+#endif
+  while (len > 0) {
+    UsbOutputChunk *chunk = this->output_pool_.allocate();
+    if (chunk == nullptr) {
+      ESP_LOGE(TAG, "Output pool full - lost %zu bytes", len);
+      break;
+    }
+    uint16_t chunk_len = std::min(len, UsbOutputChunk::MAX_CHUNK_SIZE);
+    memcpy(chunk->data, data, chunk_len);
+    chunk->length = chunk_len;
+    // Push always succeeds: pool is sized to queue capacity (SIZE-1), so if
+    // allocate() returned non-null, the queue cannot be full.
+    this->output_queue_.push(chunk);
+    data += chunk_len;
+    len -= chunk_len;
   }
   this->parent_->start_output(this);
 }
 
-bool USBUartChannel::peek_byte(uint8_t *data) {
+uart::UARTFlushResult USBUartChannelBase::flush() {
+  // Spin until the output queue is drained and the last USB transfer completes.
+  // Safe to call from the main loop only.
+  // The flush_timeout_ms_ timeout guards against a device that stops responding mid-flush;
+  // in that case the main loop is blocked for the full duration.
+  uint32_t start = millis();
+  while ((!this->output_queue_.empty() || this->output_started_.load()) && millis() - start < this->flush_timeout_ms_) {
+    // Kick start_output() in case data arrived but no transfer is in flight yet.
+    this->parent_->start_output(this);
+    yield();
+  }
+  if (!this->output_queue_.empty() || this->output_started_.load())
+    return uart::UARTFlushResult::UART_FLUSH_RESULT_TIMEOUT;
+  return uart::UARTFlushResult::UART_FLUSH_RESULT_SUCCESS;
+}
+
+bool USBUartChannelBase::peek_byte(uint8_t *data) {
   if (this->input_buffer_.is_empty()) {
     return false;
   }
   *data = this->input_buffer_.peek();
   return true;
 }
-bool USBUartChannel::read_array(uint8_t *data, size_t len) {
+bool USBUartChannelBase::read_array(uint8_t *data, size_t len) {
   if (!this->initialised_.load()) {
     ESP_LOGV(TAG, "Channel not initialised - read ignored");
     return false;
@@ -171,31 +213,51 @@ bool USBUartChannel::read_array(uint8_t *data, size_t len) {
 }
 void USBUartComponent::setup() { USBClient::setup(); }
 void USBUartComponent::loop() {
-  USBClient::loop();
+  bool had_work = this->process_usb_events_();
+  had_work |= this->run_config_machine_();
 
   // Process USB data from the lock-free queue
   UsbDataChunk *chunk;
   while ((chunk = this->usb_data_queue_.pop()) != nullptr) {
+    had_work = true;
     auto *channel = chunk->channel;
 
 #ifdef USE_UART_DEBUGGER
     if (channel->debug_) {
-      uart::UARTDebug::log_hex(uart::UART_DIRECTION_RX, std::vector<uint8_t>(chunk->data, chunk->data + chunk->length),
-                               ',');  // NOLINT()
+      char buf[format_hex_pretty_size(usb_host::USB_MAX_PACKET_SIZE)];  // "XX,XX,...,XX\0"
+      format_hex_pretty_to(buf, chunk->data, chunk->length, ',');
+      ESP_LOGD(TAG, "%s<<< %s", channel->debug_prefix_.c_str(), buf);
     }
 #endif
 
+    // If there is not enough space for the full chunk, let the device subclass
+    // handle it (e.g. FTDI clears the buffer to prevent mid-telegram corruption).
+    if (channel->input_buffer_.get_free_space() < chunk->length) {
+      this->on_rx_overflow(channel);
+    }
     // Push data to ring buffer (now safe in main loop)
     channel->input_buffer_.push(chunk->data, chunk->length);
 
     // Return chunk to pool for reuse
     this->chunk_pool_.release(chunk);
+
+    // Invoke the RX callback (if registered) immediately after data lands in the
+    // ring buffer.  This lets consumers such as ZigbeeProxy process incoming bytes
+    // in the same loop iteration they are delivered, avoiding an extra wakeup cycle.
+    if (channel->rx_callback_) {
+      channel->rx_callback_();
+    }
   }
 
   // Log dropped USB data periodically
   uint16_t dropped = this->usb_data_queue_.get_and_reset_dropped_count();
   if (dropped > 0) {
     ESP_LOGW(TAG, "Dropped %u USB data chunks due to buffer overflow", dropped);
+  }
+
+  // Disable loop when idle. Callbacks re-enable via enable_loop_soon_any_context().
+  if (!had_work) {
+    this->disable_loop();
   }
 }
 void USBUartComponent::dump_config() {
@@ -207,14 +269,16 @@ void USBUartComponent::dump_config() {
                   "    Data Bits: %u\n"
                   "    Parity: %s\n"
                   "    Stop bits: %s\n"
+                  "    Flush Timeout: %" PRIu32 " ms\n"
                   "    Debug: %s\n"
                   "    Dummy receiver: %s",
                   channel->index_, channel->baud_rate_, channel->data_bits_, PARITY_NAMES[channel->parity_],
-                  STOP_BITS_NAMES[channel->stop_bits_], YESNO(channel->debug_), YESNO(channel->dummy_receiver_));
+                  STOP_BITS_NAMES[channel->stop_bits_], channel->flush_timeout_ms_, YESNO(channel->debug_),
+                  YESNO(channel->dummy_receiver_));
   }
 }
-void USBUartComponent::start_input(USBUartChannel *channel) {
-  if (!channel->initialised_.load() || channel->input_started_.load())
+void USBUartComponent::start_input(USBUartChannelBase *channel) {
+  if (!channel->initialised_.load())
     return;
   // THREAD CONTEXT: Called from both USB task and main loop threads
   // - USB task: Immediate restart after successful transfer for continuous data flow
@@ -226,12 +290,18 @@ void USBUartComponent::start_input(USBUartChannel *channel) {
   //
   // The underlying transfer_in() uses lock-free atomic allocation from the
   // TransferRequest pool, making this multi-threaded access safe
+
+  // Use compare_exchange_strong to avoid spurious failures: a missed submit here is
+  // never retried by read_array() because no data will ever arrive to trigger it.
+  auto started = false;
+  if (!channel->input_started_.compare_exchange_strong(started, true))
+    return;
   const auto *ep = channel->cdc_dev_.in_ep;
   // CALLBACK CONTEXT: This lambda is executed in USB task via transfer_callback
   auto callback = [this, channel](const usb_host::TransferStatus &status) {
     ESP_LOGV(TAG, "Transfer result: length: %u; status %X", status.data_len, status.error_code);
     if (!status.success) {
-      ESP_LOGE(TAG, "Control transfer failed, status=%s", esp_err_to_name(status.error_code));
+      ESP_LOGE(TAG, "Input transfer failed, status=%s", esp_err_to_name(status.error_code));
       // On failure, don't restart - let next read_array() trigger it
       channel->input_started_.store(false);
       return;
@@ -254,8 +324,15 @@ void USBUartComponent::start_input(USBUartChannel *channel) {
       chunk->channel = channel;
 
       // Push to lock-free queue for main loop processing
-      // Push always succeeds because pool size == queue size
+      // Push always succeeds: pool is sized to queue capacity (SIZE-1), so if
+      // allocate() returned non-null, the queue cannot be full.
       this->usb_data_queue_.push(chunk);
+
+      // Re-enable component loop to process the queued data
+      this->enable_loop_soon_any_context();
+
+      // Wake main loop immediately to process USB data
+      App.wake_loop_threadsafe();
     }
 
     // On success, restart input immediately from USB task for performance
@@ -263,37 +340,57 @@ void USBUartComponent::start_input(USBUartChannel *channel) {
     channel->input_started_.store(false);
     this->start_input(channel);
   };
-  channel->input_started_.store(true);
-  this->transfer_in(ep->bEndpointAddress, callback, ep->wMaxPacketSize);
+  if (!this->transfer_in(ep->bEndpointAddress, callback, ep->wMaxPacketSize)) {
+    ESP_LOGE(TAG, "IN transfer submission failed for ep=0x%02X", ep->bEndpointAddress);
+    channel->input_started_.store(false);
+  }
 }
 
-void USBUartComponent::start_output(USBUartChannel *channel) {
-  // IMPORTANT: This function must only be called from the main loop!
-  // The output_buffer_ is not thread-safe and can only be accessed from main loop.
-  // USB callbacks use defer() to ensure this function runs in the correct context.
-  if (channel->output_started_.load())
-    return;
-  if (channel->output_buffer_.is_empty()) {
+void USBUartComponent::start_output(USBUartChannelBase *channel) {
+  // THREAD CONTEXT: Called from both main loop and USB task threads.
+  // The output_queue_ is a lock-free SPSC queue, so pop() is safe from either thread.
+  // The output_started_ atomic flag is claimed via compare_exchange to guarantee that
+  // only one thread starts a transfer at a time.
+
+  // Atomically claim the "output in progress" flag. If already set, another thread
+  // is handling the transfer; return immediately.
+  bool expected = false;
+  if (!channel->output_started_.compare_exchange_strong(expected, true, std::memory_order_acq_rel)) {
     return;
   }
+
+  UsbOutputChunk *chunk = channel->output_queue_.pop();
+  if (chunk == nullptr) {
+    // Nothing to send — release the flag and return.
+    channel->output_started_.store(false, std::memory_order_release);
+    return;
+  }
+
   const auto *ep = channel->cdc_dev_.out_ep;
-  // CALLBACK CONTEXT: This lambda is executed in USB task via transfer_callback
-  auto callback = [this, channel](const usb_host::TransferStatus &status) {
-    ESP_LOGV(TAG, "Output Transfer result: length: %u; status %X", status.data_len, status.error_code);
-    channel->output_started_.store(false);
-    // Defer restart to main loop (defer is thread-safe)
-    this->defer([this, channel] { this->start_output(channel); });
+  // CALLBACK CONTEXT: This lambda is executed in the USB task via transfer_callback.
+  // It releases the chunk, clears the flag, and directly restarts output without
+  // going through defer() — eliminating one full main-loop-wakeup cycle of latency.
+  auto callback = [this, channel, chunk](const usb_host::TransferStatus &status) {
+    if (!status.success) {
+      ESP_LOGW(TAG, "Output transfer failed: status %X", status.error_code);
+    } else {
+      ESP_LOGV(TAG, "Output Transfer result: length: %u; status %X", status.data_len, status.error_code);
+    }
+    channel->output_pool_.release(chunk);
+    channel->output_started_.store(false, std::memory_order_release);
+    // Restart directly from USB task — safe because output_queue_ is lock-free
+    // and transfer_out() uses thread-safe atomic slot allocation.
+    this->start_output(channel);
   };
-  channel->output_started_.store(true);
-  uint8_t data[ep->wMaxPacketSize];
-  auto len = channel->output_buffer_.pop(data, ep->wMaxPacketSize);
-  this->transfer_out(ep->bEndpointAddress, callback, data, len);
-#ifdef USE_UART_DEBUGGER
-  if (channel->debug_) {
-    uart::UARTDebug::log_hex(uart::UART_DIRECTION_TX, std::vector<uint8_t>(data, data + len), ',');  // NOLINT()
+
+  const auto len = chunk->length;
+  if (!this->transfer_out(ep->bEndpointAddress, callback, chunk->data, len)) {
+    // Transfer submission failed — return chunk and release flag so callers can retry.
+    channel->output_pool_.release(chunk);
+    channel->output_started_.store(false, std::memory_order_release);
+    return;
   }
-#endif
-  ESP_LOGV(TAG, "Output %d bytes started", len);
+  ESP_LOGV(TAG, "Output %u bytes started", len);
 }
 
 /**
@@ -303,17 +400,17 @@ void USBUartComponent::start_output(USBUartChannel *channel) {
 static void fix_mps(const usb_ep_desc_t *ep) {
   if (ep != nullptr) {
     auto *ep_mutable = const_cast<usb_ep_desc_t *>(ep);
-    if (ep->wMaxPacketSize > 64) {
-      ESP_LOGW(TAG, "Corrected MPS of EP 0x%02X from %u to 64", static_cast<uint8_t>(ep->bEndpointAddress & 0xFF),
-               ep->wMaxPacketSize);
-      ep_mutable->wMaxPacketSize = 64;
+    if (ep->wMaxPacketSize > usb_host::USB_MAX_PACKET_SIZE) {
+      ESP_LOGW(TAG, "Corrected MPS of EP 0x%02X from %u to %u", static_cast<uint8_t>(ep->bEndpointAddress & 0xFF),
+               ep->wMaxPacketSize, usb_host::USB_MAX_PACKET_SIZE);
+      ep_mutable->wMaxPacketSize = usb_host::USB_MAX_PACKET_SIZE;
     }
   }
 }
 void USBUartTypeCdcAcm::on_connected() {
   auto cdc_devs = this->parse_descriptors(this->device_handle_);
   if (cdc_devs.empty()) {
-    this->status_set_error("No CDC-ACM device found");
+    this->status_set_error(LOG_STR("No CDC-ACM device found"));
     this->disconnect();
     return;
   }
@@ -322,23 +419,39 @@ void USBUartTypeCdcAcm::on_connected() {
   for (auto *channel : this->channels_) {
     if (i == cdc_devs.size()) {
       ESP_LOGE(TAG, "No configuration found for channel %d", channel->index_);
-      this->status_set_warning("No configuration found for channel");
+      this->status_set_warning(LOG_STR("No configuration found for channel"));
       break;
     }
     channel->cdc_dev_ = cdc_devs[i++];
     fix_mps(channel->cdc_dev_.in_ep);
     fix_mps(channel->cdc_dev_.out_ep);
     channel->initialised_.store(true);
+    // Claim the communication (interrupt) interface so CDC class requests are accepted
+    // by the device. Some CDC ACM implementations (e.g. EFR32 NCP) require this before
+    // they enable data flow on the bulk endpoints.
+    if (channel->cdc_dev_.interrupt_interface_number != 0xFF &&
+        channel->cdc_dev_.interrupt_interface_number != channel->cdc_dev_.bulk_interface_number) {
+      auto err_comm = usb_host_interface_claim(this->handle_, this->device_handle_,
+                                               channel->cdc_dev_.interrupt_interface_number, 0);
+      if (err_comm != ESP_OK) {
+        ESP_LOGW(TAG, "Could not claim comm interface %d: %s", channel->cdc_dev_.interrupt_interface_number,
+                 esp_err_to_name(err_comm));
+        channel->cdc_dev_.interrupt_interface_number = 0xFF;  // Mark as unavailable, but continue anyway
+      } else {
+        ESP_LOGD(TAG, "Claimed comm interface %d", channel->cdc_dev_.interrupt_interface_number);
+      }
+    }
     auto err =
         usb_host_interface_claim(this->handle_, this->device_handle_, channel->cdc_dev_.bulk_interface_number, 0);
     if (err != ESP_OK) {
       ESP_LOGE(TAG, "usb_host_interface_claim failed: %s, channel=%d, intf=%d", esp_err_to_name(err), channel->index_,
                channel->cdc_dev_.bulk_interface_number);
-      this->status_set_error("usb_host_interface_claim failed");
+      this->status_set_error(LOG_STR("usb_host_interface_claim failed"));
       this->disconnect();
       return;
     }
   }
+  this->status_clear_error();
   this->enable_channels();
 }
 
@@ -356,26 +469,207 @@ void USBUartTypeCdcAcm::on_disconnected() {
       usb_host_endpoint_halt(this->device_handle_, channel->cdc_dev_.notify_ep->bEndpointAddress);
       usb_host_endpoint_flush(this->device_handle_, channel->cdc_dev_.notify_ep->bEndpointAddress);
     }
+    if (channel->cdc_dev_.interrupt_interface_number != 0xFF &&
+        channel->cdc_dev_.interrupt_interface_number != channel->cdc_dev_.bulk_interface_number) {
+      usb_host_interface_release(this->handle_, this->device_handle_, channel->cdc_dev_.interrupt_interface_number);
+      channel->cdc_dev_.interrupt_interface_number = 0xFF;
+    }
     usb_host_interface_release(this->handle_, this->device_handle_, channel->cdc_dev_.bulk_interface_number);
-    channel->initialised_.store(false);
-    channel->input_started_.store(false);
-    channel->output_started_.store(false);
+    // Reset the input and output started flags to their initial state to avoid the possibility of spurious restarts
+    channel->input_started_.store(true);
+    channel->output_started_.store(true);
     channel->input_buffer_.clear();
-    channel->output_buffer_.clear();
+    // Drain any pending output chunks and return them to the pool
+    {
+      UsbOutputChunk *chunk;
+      while ((chunk = channel->output_queue_.pop()) != nullptr) {
+        channel->output_pool_.release(chunk);
+      }
+    }
+    channel->initialised_.store(false);
   }
   USBClient::on_disconnected();
 }
 
-void USBUartTypeCdcAcm::enable_channels() {
-  for (auto *channel : this->channels_) {
-    if (!channel->initialised_.load())
-      continue;
+bool USBUartTypeCdcAcm::config_step(USBUartChannelBase *channel, uint8_t step, bool reload, bool ok,
+                                    const uint8_t *response) {
+  static constexpr uint8_t CDC_REQUEST_TYPE = usb_host::USB_TYPE_CLASS | usb_host::USB_RECIP_INTERFACE;
+  static constexpr uint8_t CDC_SET_LINE_CODING = 0x20;
+  static constexpr uint8_t CDC_SET_CONTROL_LINE_STATE = 0x22;
+  static constexpr uint16_t CDC_DTR_RTS = 0x0003;  // D0=DTR, D1=RTS
+
+  switch (step) {
+    case 0: {
+      // Configure the bridge's UART parameters. A USB-UART bridge will not forward data
+      // at the correct speed until SET_LINE_CODING is sent; without it the UART may run
+      // at an indeterminate default rate so the NCP receives garbled bytes and never
+      // sends RSTACK.
+      uint32_t baud = channel->baud_rate_;
+      std::vector<uint8_t> line_coding = {
+          static_cast<uint8_t>(baud & 0xFF),         static_cast<uint8_t>((baud >> 8) & 0xFF),
+          static_cast<uint8_t>((baud >> 16) & 0xFF), static_cast<uint8_t>((baud >> 24) & 0xFF),
+          static_cast<uint8_t>(channel->stop_bits_),  // bCharFormat: 0=1stop, 1=1.5stop, 2=2stop
+          static_cast<uint8_t>(channel->parity_),     // bParityType: 0=None, 1=Odd, 2=Even, 3=Mark, 4=Space
+          static_cast<uint8_t>(channel->data_bits_),  // bDataBits
+      };
+      ESP_LOGD(TAG, "SET_LINE_CODING: baud=%u stop=%u parity=%u data=%u", (unsigned) baud, channel->stop_bits_,
+               (unsigned) channel->parity_, channel->data_bits_);
+      this->config_transfer_(CDC_REQUEST_TYPE, CDC_SET_LINE_CODING, 0, channel->cdc_dev_.interrupt_interface_number,
+                             line_coding);
+      return true;
+    }
+    case 1:
+      // Assert DTR+RTS to signal DTE is present (init only).
+      if (reload)
+        return false;
+      this->config_transfer_(CDC_REQUEST_TYPE, CDC_SET_CONTROL_LINE_STATE, CDC_DTR_RTS,
+                             channel->cdc_dev_.interrupt_interface_number);
+      return true;
+    default:
+      return false;
+  }
+}
+
+void USBUartComponent::enable_channels() {
+  this->cfg_single_ = nullptr;
+  this->cfg_pending_reload_ = nullptr;
+  this->cfg_channel_idx_ = 0;
+  this->start_config_(false);
+}
+
+void USBUartComponent::apply_channel_settings(USBUartChannelBase *channel) {
+  if (this->cfg_active_) {
+    // A config sequence is already running. Defer this reload until it finishes to preserve
+    // the one-control-transfer-at-a-time guarantee (restarting mid-flight would let an
+    // in-flight callback complete against fresh state). The pending slot coalesces multiple
+    // requests; the channel's live settings are read when the reload eventually runs.
+    // Note: multiple channel reloads are not queued; only one pending reload is supported at a time.
+    this->cfg_pending_reload_ = channel;
+    return;
+  }
+  this->cfg_single_ = channel;
+  this->start_config_(true);
+}
+
+void USBUartComponent::start_config_(bool reload) {
+  this->cfg_reload_ = reload;
+  this->cfg_device_phase_ = !reload;
+  this->cfg_step_ = 0;
+  this->cfg_ok_ = true;
+  this->cfg_in_flight_ = false;
+  this->cfg_done_.store(false);
+  this->cfg_active_ = true;
+  this->enable_loop();
+}
+
+void USBUartComponent::config_transfer_(uint8_t type, uint8_t request, uint16_t value, uint16_t index,
+                                        const std::vector<uint8_t> &data) {
+  this->cfg_done_.store(false);
+  // The completion callback runs in the USB-task context: it only records the result and
+  // wakes the loop. The next transfer is issued from run_config_machine_() on the loop thread.
+  bool submitted = this->control_transfer(
+      type, request, value, index,
+      [this](const usb_host::TransferStatus &status) {
+        this->cfg_ok_ = status.success;
+        if (!status.success) {
+          ESP_LOGW(TAG, "Config control transfer failed: %s", esp_err_to_name(status.error_code));
+        } else if (status.data_len > 0) {
+          memcpy(this->cfg_response_, status.data, std::min<size_t>(status.data_len, sizeof(this->cfg_response_)));
+        }
+        // Release: publishes cfg_ok_/cfg_response_ before the loop observes cfg_done_.
+        this->cfg_done_.store(true, std::memory_order_release);
+        this->enable_loop_soon_any_context();
+        App.wake_loop_threadsafe();
+      },
+      data);
+  if (!submitted) {
+    // Submission failed (e.g. no free transfer request). No callback will fire, so synthesize
+    // a failed completion here so the state machine advances/aborts instead of hanging.
+    ESP_LOGW(TAG, "Config control transfer submit failed");
+    this->cfg_ok_ = false;
+    this->cfg_done_.store(true, std::memory_order_release);
+  }
+}
+
+bool USBUartComponent::run_config_machine_() {
+  if (!this->cfg_active_)
+    return false;
+
+  if (this->cfg_in_flight_) {
+    // Acquire: pairs with the release in config_transfer_'s callback.
+    if (!this->cfg_done_.load(std::memory_order_acquire))
+      return false;  // still waiting; the callback will re-wake the loop (no busy spin)
+    this->cfg_in_flight_ = false;
+    this->cfg_done_.store(false);
+    this->cfg_step_++;
+  }
+
+  // cfg_ok_ is now synchronized (we only get here on the initial entry or after observing
+  // cfg_done_ with acquire ordering), so it is safe to read.
+  ESP_LOGV(TAG, "Config machine: device_phase=%d channel_idx=%d step=%d reload=%d ok=%d", this->cfg_device_phase_,
+           this->cfg_channel_idx_, this->cfg_step_, this->cfg_reload_, this->cfg_ok_);
+
+  // One-time device-level phase (init only). config_device_step() inspects cfg_ok_ itself.
+  if (this->cfg_device_phase_) {
+    if (this->config_device_step(this->cfg_step_, this->cfg_ok_, this->cfg_response_)) {
+      this->cfg_in_flight_ = true;
+      return true;
+    }
+    this->cfg_device_phase_ = false;
+    this->cfg_step_ = 0;
+    this->cfg_ok_ = true;
+  }
+
+  USBUartChannelBase *channel =
+      this->cfg_single_ != nullptr
+          ? this->cfg_single_
+          : (this->cfg_channel_idx_ < this->channels_.size() ? this->channels_[this->cfg_channel_idx_] : nullptr);
+
+  if (channel != nullptr && channel->initialised_.load()) {
+    if (!this->cfg_ok_) {
+      // A previous step in this channel's sequence failed. Abort the rest. On a full init,
+      // mark the channel uninitialised so data flow isn't started on a misconfigured channel;
+      // on a reload, leave the already-working channel as it was.
+      if (!this->cfg_reload_)
+        channel->initialised_.store(false);
+    } else if (this->config_step(channel, this->cfg_step_, this->cfg_reload_, this->cfg_ok_, this->cfg_response_)) {
+      this->cfg_in_flight_ = true;
+      return true;
+    }
+  }
+
+  // Channel finished (or aborted). On full init, kick off data flow if still initialised.
+  if (channel != nullptr && !this->cfg_reload_ && channel->initialised_.load()) {
     channel->input_started_.store(false);
     channel->output_started_.store(false);
     this->start_input(channel);
   }
+
+  // Advance to the next channel (or finish).
+  this->cfg_step_ = 0;
+  this->cfg_ok_ = true;
+  if (this->cfg_single_ != nullptr) {
+    this->cfg_active_ = false;
+    this->cfg_single_ = nullptr;
+  } else if (++this->cfg_channel_idx_ >= this->channels_.size()) {
+    this->cfg_active_ = false;
+  }
+
+  // If the machine just went idle and a reload was requested while it was busy, start it now.
+  if (!this->cfg_active_ && this->cfg_pending_reload_ != nullptr) {
+    this->cfg_single_ = this->cfg_pending_reload_;
+    this->cfg_pending_reload_ = nullptr;
+    this->start_config_(true);
+  }
+  return true;
 }
 
-}  // namespace usb_uart
-}  // namespace esphome
-#endif  // USE_ESP32_VARIANT_ESP32S2 || USE_ESP32_VARIANT_ESP32S3
+void USBUartChannelBase::load_settings(bool /*dump_config*/) {
+  // The per-channel control transfers already log their values at debug level.
+  this->parent_->apply_channel_settings(this);
+}
+
+}  // namespace esphome::usb_uart
+
+#endif  // USE_ESP32_VARIANT_ESP32P4 || USE_ESP32_VARIANT_ESP32S2 || USE_ESP32_VARIANT_ESP32S3 ||
+        // USE_ESP32_VARIANT_ESP32S31 || USE_ESP32_VARIANT_ESP32H4

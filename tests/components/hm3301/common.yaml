@@ -1,10 +1,6 @@
-i2c:
-  - id: i2c_hm3301
-    scl: ${scl_pin}
-    sda: ${sda_pin}
-
 sensor:
   - platform: hm3301
+    i2c_id: i2c_bus
     pm_1_0:
       name: PM1.0
     pm_2_5:

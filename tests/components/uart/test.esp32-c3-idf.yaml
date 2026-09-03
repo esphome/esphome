@@ -1,11 +1,15 @@
 esphome:
   on_boot:
     then:
-      - uart.write: 'Hello World'
-      - uart.write: [0x00, 0x20, 0x42]
+      - uart.write:
+          id: uart_id
+          data: 'Hello World'
+      - uart.write:
+          id: uart_id
+          data: [0x00, 0x20, 0x42]
 
 uart:
-  - id: uart_uart
+  - id: uart_id
     tx_pin: 4
     rx_pin: 5
     flow_control_pin: 6
@@ -16,3 +20,9 @@ uart:
     rx_timeout: 1
     parity: EVEN
     stop_bits: 2
+  - id: uart_debug
+    tx_pin: 18
+    rx_pin: 19
+    baud_rate: 115200
+    debug:
+      debug_prefix: "[UART1] "

@@ -1,48 +1,80 @@
 import esphome.codegen as cg
 
-KEY_ESP32 = "esp32"
+# Re-exported for the many esp32-side users; defined in esphome.const
+# and esphome.espidf so the upload/logs fast path can use them without
+# importing this package.
+from esphome.const import (  # noqa: F401  # pylint: disable=unused-import
+    KEY_ESP32,
+    KEY_FLASH_SIZE,
+    KEY_IDF_VERSION,
+    KEY_VARIANT,
+)
+
+# Back compat for external components only; in-tree callers import it
+# from esphome.espidf directly.
+from esphome.espidf import (  # noqa: F401  # pylint: disable=unused-import
+    variant_to_idf_target,
+)
+
 KEY_BOARD = "board"
-KEY_VARIANT = "variant"
 KEY_SDKCONFIG_OPTIONS = "sdkconfig_options"
 KEY_COMPONENTS = "components"
+KEY_EXCLUDE_COMPONENTS = "exclude_components"
+KEY_ARDUINO_LIBRARIES = "arduino_libraries"
 KEY_REPO = "repo"
 KEY_REF = "ref"
 KEY_REFRESH = "refresh"
 KEY_PATH = "path"
 KEY_SUBMODULES = "submodules"
 KEY_EXTRA_BUILD_FILES = "extra_build_files"
+KEY_CERT_BUNDLE = "cert_bundle"
+KEY_FULL_CERT_BUNDLE = "full_cert_bundle"
+KEY_NETWORK_SDKCONFIG = "network_sdkconfig"
 
 VARIANT_ESP32 = "ESP32"
-VARIANT_ESP32S2 = "ESP32S2"
-VARIANT_ESP32S3 = "ESP32S3"
 VARIANT_ESP32C2 = "ESP32C2"
 VARIANT_ESP32C3 = "ESP32C3"
 VARIANT_ESP32C5 = "ESP32C5"
 VARIANT_ESP32C6 = "ESP32C6"
+VARIANT_ESP32C61 = "ESP32C61"
 VARIANT_ESP32H2 = "ESP32H2"
+VARIANT_ESP32H4 = "ESP32H4"
+VARIANT_ESP32H21 = "ESP32H21"
 VARIANT_ESP32P4 = "ESP32P4"
+VARIANT_ESP32S2 = "ESP32S2"
+VARIANT_ESP32S3 = "ESP32S3"
+VARIANT_ESP32S31 = "ESP32S31"
 VARIANTS = [
     VARIANT_ESP32,
-    VARIANT_ESP32S2,
-    VARIANT_ESP32S3,
     VARIANT_ESP32C2,
     VARIANT_ESP32C3,
     VARIANT_ESP32C5,
     VARIANT_ESP32C6,
+    VARIANT_ESP32C61,
     VARIANT_ESP32H2,
+    VARIANT_ESP32H4,
+    VARIANT_ESP32H21,
     VARIANT_ESP32P4,
+    VARIANT_ESP32S2,
+    VARIANT_ESP32S3,
+    VARIANT_ESP32S31,
 ]
 
 VARIANT_FRIENDLY = {
     VARIANT_ESP32: "ESP32",
-    VARIANT_ESP32S2: "ESP32-S2",
-    VARIANT_ESP32S3: "ESP32-S3",
     VARIANT_ESP32C2: "ESP32-C2",
     VARIANT_ESP32C3: "ESP32-C3",
     VARIANT_ESP32C5: "ESP32-C5",
     VARIANT_ESP32C6: "ESP32-C6",
+    VARIANT_ESP32C61: "ESP32-C61",
     VARIANT_ESP32H2: "ESP32-H2",
+    VARIANT_ESP32H4: "ESP32-H4",
+    VARIANT_ESP32H21: "ESP32-H21",
     VARIANT_ESP32P4: "ESP32-P4",
+    VARIANT_ESP32S2: "ESP32-S2",
+    VARIANT_ESP32S3: "ESP32-S3",
+    VARIANT_ESP32S31: "ESP32-S31",
 }
+
 
 esp32_ns = cg.esphome_ns.namespace("esp32")

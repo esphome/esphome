@@ -9,4 +9,7 @@ substitutions:
   dc_pin2: GPIO21
   reset_pin2: GPIO22
 
+packages:
+  spi: !include ../../test_build_components/common/spi/rp2040-ard.yaml
+
 <<: !include common.yaml

@@ -1,7 +1,6 @@
 #include "esp_hsv_color.h"
 
-namespace esphome {
-namespace light {
+namespace esphome::light {
 
 Color ESPHSVColor::to_rgb() const {
   // based on FastLED's hsv rainbow to rgb
@@ -70,5 +69,4 @@ Color ESPHSVColor::to_rgb() const {
   return rgb;
 }
 
-}  // namespace light
-}  // namespace esphome
+}  // namespace esphome::light

@@ -3,10 +3,9 @@
 #include "esphome/components/number/number.h"
 #include "../ld2420.h"
 
-namespace esphome {
-namespace ld2420 {
+namespace esphome::ld2420 {
 
-class LD2420TimeoutNumber : public number::Number, public Parented<LD2420Component> {
+class LD2420TimeoutNumber final : public number::Number, public Parented<LD2420Component> {
  public:
   LD2420TimeoutNumber() = default;
 
@@ -14,7 +13,7 @@ class LD2420TimeoutNumber : public number::Number, public Parented<LD2420Compone
   void control(float timeout) override;
 };
 
-class LD2420MinDistanceNumber : public number::Number, public Parented<LD2420Component> {
+class LD2420MinDistanceNumber final : public number::Number, public Parented<LD2420Component> {
  public:
   LD2420MinDistanceNumber() = default;
 
@@ -22,7 +21,7 @@ class LD2420MinDistanceNumber : public number::Number, public Parented<LD2420Com
   void control(float min_gate) override;
 };
 
-class LD2420MaxDistanceNumber : public number::Number, public Parented<LD2420Component> {
+class LD2420MaxDistanceNumber final : public number::Number, public Parented<LD2420Component> {
  public:
   LD2420MaxDistanceNumber() = default;
 
@@ -30,7 +29,7 @@ class LD2420MaxDistanceNumber : public number::Number, public Parented<LD2420Com
   void control(float max_gate) override;
 };
 
-class LD2420GateSelectNumber : public number::Number, public Parented<LD2420Component> {
+class LD2420GateSelectNumber final : public number::Number, public Parented<LD2420Component> {
  public:
   LD2420GateSelectNumber() = default;
 
@@ -38,7 +37,7 @@ class LD2420GateSelectNumber : public number::Number, public Parented<LD2420Comp
   void control(float gate_select) override;
 };
 
-class LD2420MoveSensFactorNumber : public number::Number, public Parented<LD2420Component> {
+class LD2420MoveSensFactorNumber final : public number::Number, public Parented<LD2420Component> {
  public:
   LD2420MoveSensFactorNumber() = default;
 
@@ -46,7 +45,7 @@ class LD2420MoveSensFactorNumber : public number::Number, public Parented<LD2420
   void control(float move_factor) override;
 };
 
-class LD2420StillSensFactorNumber : public number::Number, public Parented<LD2420Component> {
+class LD2420StillSensFactorNumber final : public number::Number, public Parented<LD2420Component> {
  public:
   LD2420StillSensFactorNumber() = default;
 
@@ -54,7 +53,7 @@ class LD2420StillSensFactorNumber : public number::Number, public Parented<LD242
   void control(float still_factor) override;
 };
 
-class LD2420StillThresholdNumbers : public number::Number, public Parented<LD2420Component> {
+class LD2420StillThresholdNumbers final : public number::Number, public Parented<LD2420Component> {
  public:
   LD2420StillThresholdNumbers() = default;
   LD2420StillThresholdNumbers(uint8_t gate);
@@ -64,7 +63,7 @@ class LD2420StillThresholdNumbers : public number::Number, public Parented<LD242
   void control(float still_threshold) override;
 };
 
-class LD2420MoveThresholdNumbers : public number::Number, public Parented<LD2420Component> {
+class LD2420MoveThresholdNumbers final : public number::Number, public Parented<LD2420Component> {
  public:
   LD2420MoveThresholdNumbers() = default;
   LD2420MoveThresholdNumbers(uint8_t gate);
@@ -74,5 +73,4 @@ class LD2420MoveThresholdNumbers : public number::Number, public Parented<LD2420
   void control(float move_threshold) override;
 };
 
-}  // namespace ld2420
-}  // namespace esphome
+}  // namespace esphome::ld2420

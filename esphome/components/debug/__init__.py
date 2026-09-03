@@ -12,6 +12,7 @@ from esphome.const import (
     PlatformFramework,
 )
 from esphome.core import CORE
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@esphome/core"]
 DEPENDENCIES = ["logger"]
@@ -45,7 +46,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     if CORE.using_zephyr:
         zephyr_add_prj_conf("HWINFO", True)
         # gdb thread support
@@ -59,6 +60,7 @@ async def to_code(config):
         zephyr_add_prj_conf("SEGGER_RTT_MODE_BLOCK_IF_FIFO_FULL", True)
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
+    cg.add_define("USE_DEBUG")
 
 
 FILTER_SOURCE_FILES = filter_source_files_from_platform(
@@ -69,7 +71,7 @@ FILTER_SOURCE_FILES = filter_source_files_from_platform(
         },
         "debug_esp8266.cpp": {PlatformFramework.ESP8266_ARDUINO},
         "debug_host.cpp": {PlatformFramework.HOST_NATIVE},
-        "debug_rp2040.cpp": {PlatformFramework.RP2040_ARDUINO},
+        "debug_rp2.cpp": {PlatformFramework.RP2_ARDUINO},
         "debug_libretiny.cpp": {
             PlatformFramework.BK72XX_ARDUINO,
             PlatformFramework.RTL87XX_ARDUINO,

@@ -1,0 +1,21 @@
+substitutions:
+  include_file: inc1
+  x: 3  # override x from inc2.yaml
+
+packages:
+  my_package: !include
+    file: ${include_file + ".yaml"}  # includes inc1.yaml
+    vars:
+      var1: 4
+      a: ${x+2}
+      b: ${a+1}
+      c: 7
+  other_package: !include
+    file: inc${1+1}.yaml  # includes inc2.yaml
+    vars:
+      y: 4
+
+values:
+  - From main config, x is $x, y is $y
+  - $a $b $c are out of scope here
+  - !include ${"inc" + "3.yaml"}  # includes inc3.yaml here (not a package)

@@ -5,8 +5,7 @@
 #include "esphome/components/md5/md5.h"
 #include <string>
 
-namespace esphome {
-namespace hmac_md5 {
+namespace esphome::hmac_md5 {
 
 class HmacMD5 {
  public:
@@ -30,7 +29,7 @@ class HmacMD5 {
   void get_bytes(uint8_t *output);
 
   /// Retrieve the HMAC-MD5 digest as hex characters.
-  /// The output must be able to hold 32 bytes or more.
+  /// The output must be able to hold 33 bytes or more (32 hex chars + null terminator).
   void get_hex(char *output);
 
   /// Compare the digest against a provided byte-encoded digest (16 bytes).
@@ -44,6 +43,6 @@ class HmacMD5 {
   md5::MD5Digest ohash_;
 };
 
-}  // namespace hmac_md5
-}  // namespace esphome
+}  // namespace esphome::hmac_md5
+
 #endif

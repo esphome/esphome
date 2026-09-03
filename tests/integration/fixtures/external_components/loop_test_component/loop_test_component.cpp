@@ -1,7 +1,6 @@
 #include "loop_test_component.h"
 
-namespace esphome {
-namespace loop_test_component {
+namespace esphome::loop_test_component {
 
 void LoopTestComponent::setup() { ESP_LOGI(TAG, "[%s] Setup called", this->name_.c_str()); }
 
@@ -63,5 +62,4 @@ void LoopTestUpdateComponent::update() {
            this->update_count_, loop_disabled ? "YES" : "NO");
 }
 
-}  // namespace loop_test_component
-}  // namespace esphome
+}  // namespace esphome::loop_test_component

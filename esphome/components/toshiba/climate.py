@@ -2,6 +2,7 @@ import esphome.codegen as cg
 from esphome.components import climate_ir
 import esphome.config_validation as cv
 from esphome.const import CONF_MODEL
+from esphome.types import ConfigType
 
 AUTO_LOAD = ["climate_ir"]
 CODEOWNERS = ["@kbx81"]
@@ -14,6 +15,7 @@ MODELS = {
     "GENERIC": Model.MODEL_GENERIC,
     "RAC-PT1411HWRU-C": Model.MODEL_RAC_PT1411HWRU_C,
     "RAC-PT1411HWRU-F": Model.MODEL_RAC_PT1411HWRU_F,
+    "RAS-2819T": Model.MODEL_RAS_2819T,
 }
 
 CONFIG_SCHEMA = climate_ir.climate_ir_with_receiver_schema(ToshibaClimate).extend(
@@ -23,6 +25,6 @@ CONFIG_SCHEMA = climate_ir.climate_ir_with_receiver_schema(ToshibaClimate).exten
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = await climate_ir.new_climate_ir(config)
     cg.add(var.set_model(config[CONF_MODEL]))

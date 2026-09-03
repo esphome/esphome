@@ -10,16 +10,21 @@ from esphome.const import (
     CONF_ID,
     CONF_MQTT_ID,
     CONF_ON_PRESS,
-    CONF_TRIGGER_ID,
     CONF_WEB_SERVER,
     DEVICE_CLASS_EMPTY,
     DEVICE_CLASS_IDENTIFY,
     DEVICE_CLASS_RESTART,
     DEVICE_CLASS_UPDATE,
 )
-from esphome.core import CORE, CoroPriority, coroutine_with_priority
-from esphome.core.entity_helpers import entity_duplicate_validator, setup_entity
-from esphome.cpp_generator import MockObjClass
+from esphome.core import CORE, ID, CoroPriority, coroutine_with_priority
+from esphome.core.entity_helpers import (
+    entity_duplicate_validator,
+    queue_entity_register,
+    setup_device_class,
+    setup_entity,
+)
+from esphome.cpp_generator import MockObj, MockObjClass, TemplateArgsType
+from esphome.types import ConfigType, SafeExpType
 
 CODEOWNERS = ["@esphome/core"]
 IS_PLATFORM_COMPONENT = True
@@ -37,10 +42,6 @@ ButtonPtr = Button.operator("ptr")
 
 PressAction = button_ns.class_("PressAction", automation.Action)
 
-ButtonPressTrigger = button_ns.class_(
-    "ButtonPressTrigger", automation.Trigger.template()
-)
-
 validate_device_class = cv.one_of(*DEVICE_CLASSES, lower=True, space="_")
 
 
@@ -50,12 +51,10 @@ _BUTTON_SCHEMA = (
     .extend(
         {
             cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTButtonComponent),
-            cv.Optional(CONF_DEVICE_CLASS): validate_device_class,
-            cv.Optional(CONF_ON_PRESS): automation.validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ButtonPressTrigger),
-                }
-            ),
+            cv.Optional(
+                CONF_DEVICE_CLASS, visibility=cv.Visibility.ADVANCED
+            ): validate_device_class,
+            cv.Optional(CONF_ON_PRESS): automation.validate_automation({}),
         }
     )
 )
@@ -84,20 +83,16 @@ def button_schema(
     return _BUTTON_SCHEMA.extend(schema)
 
 
-# Remove before 2025.11.0
-BUTTON_SCHEMA = button_schema(Button)
-BUTTON_SCHEMA.add_extra(cv.deprecated_schema_constant("button"))
+_CALLBACK_AUTOMATIONS = (
+    automation.CallbackAutomation(CONF_ON_PRESS, "add_on_press_callback"),
+)
 
 
-async def setup_button_core_(var, config):
-    await setup_entity(var, config, "button")
+@setup_entity("button")
+async def setup_button_core_(var: MockObj, config: ConfigType) -> None:
+    await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
 
-    for conf in config.get(CONF_ON_PRESS, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [], conf)
-
-    if device_class := config.get(CONF_DEVICE_CLASS):
-        cg.add(var.set_device_class(device_class))
+    setup_device_class(config)
 
     if mqtt_id := config.get(CONF_MQTT_ID):
         mqtt_ = cg.new_Pvariable(mqtt_id, var)
@@ -107,15 +102,15 @@ async def setup_button_core_(var, config):
         await web_server.add_entity_config(var, web_server_config)
 
 
-async def register_button(var, config):
+async def register_button(var: MockObj, config: ConfigType) -> None:
     if not CORE.has_id(config[CONF_ID]):
         var = cg.Pvariable(config[CONF_ID], var)
-    cg.add(cg.App.register_button(var))
+    queue_entity_register("button", config)
     CORE.register_platform_component("button", var)
     await setup_button_core_(var, config)
 
 
-async def new_button(config, *args):
+async def new_button(config: ConfigType, *args: SafeExpType) -> MockObj:
     var = cg.new_Pvariable(config[CONF_ID], *args)
     await register_button(var, config)
     return var
@@ -128,12 +123,19 @@ BUTTON_PRESS_SCHEMA = maybe_simple_id(
 )
 
 
-@automation.register_action("button.press", PressAction, BUTTON_PRESS_SCHEMA)
-async def button_press_to_code(config, action_id, template_arg, args):
+@automation.register_action(
+    "button.press", PressAction, BUTTON_PRESS_SCHEMA, synchronous=True
+)
+async def button_press_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     paren = await cg.get_variable(config[CONF_ID])
     return cg.new_Pvariable(action_id, template_arg, paren)
 
 
 @coroutine_with_priority(CoroPriority.CORE)
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     cg.add_global(button_ns.using)

@@ -2,8 +2,7 @@
 #include "constants.h"
 #include "sml_parser.h"
 
-namespace esphome {
-namespace sml {
+namespace esphome::sml {
 
 SmlFile::SmlFile(const BytesView &buffer) : buffer_(buffer) {
   // extract messages
@@ -35,6 +34,8 @@ bool SmlFile::setup_node(SmlNode *node) {
 
   // Check if we need additional length bytes
   if (overlength) {
+    if (this->pos_ + 1 >= this->buffer_.size())
+      return false;
     // Shift the current length to the higher nibble
     // and add the lower nibble of the next byte to the length
     length = (length << 4) + (this->buffer_[this->pos_ + 1] & 0x0f);
@@ -104,7 +105,10 @@ std::vector<ObisInfo> SmlFile::get_obis_info() {
 std::string bytes_repr(const BytesView &buffer) {
   std::string repr;
   for (auto const value : buffer) {
-    repr += str_sprintf("%02x", value & 0xff);
+    // max 3: 2 hex digits + null
+    char hex_buf[3];
+    snprintf(hex_buf, sizeof(hex_buf), "%02x", static_cast<unsigned int>(value));
+    repr += hex_buf;
   }
   return repr;
 }
@@ -146,8 +150,11 @@ ObisInfo::ObisInfo(const BytesView &server_id, const SmlNode &val_list_entry) : 
 }
 
 std::string ObisInfo::code_repr() const {
-  return str_sprintf("%d-%d:%d.%d.%d", this->code[0], this->code[1], this->code[2], this->code[3], this->code[4]);
+  // max 20: "255-255:255.255.255" (19 chars) + null
+  char buf[20];
+  snprintf(buf, sizeof(buf), "%d-%d:%d.%d.%d", this->code[0], this->code[1], this->code[2], this->code[3],
+           this->code[4]);
+  return buf;
 }
 
-}  // namespace sml
-}  // namespace esphome
+}  // namespace esphome::sml

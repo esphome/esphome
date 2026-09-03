@@ -1,3 +1,5 @@
+from collections.abc import Callable
+from dataclasses import dataclass, field
 import logging
 
 from esphome.const import (
@@ -7,14 +9,193 @@ from esphome.const import (
     CONF_UPDATE_INTERVAL,
     KEY_PAST_SAFE_MODE,
 )
-from esphome.core import CORE, ID, coroutine
+from esphome.core import CORE, ID, CoroPriority, coroutine, coroutine_with_priority
 from esphome.coroutine import FakeAwaitable
-from esphome.cpp_generator import LogStringLiteral, add, get_variable
+from esphome.cpp_generator import (
+    RawStatement,
+    add,
+    add_define,
+    add_global,
+    get_variable,
+)
 from esphome.cpp_types import App
+from esphome.helpers import cpp_string_escape
 from esphome.types import ConfigFragmentType, ConfigType
 from esphome.util import Registry, RegistryEntry
 
 _LOGGER = logging.getLogger(__name__)
+
+_COMPONENT_SOURCE_DOMAIN = "component_source_pool"
+
+# Maximum unique component source names (8-bit index, 0 = not set)
+_MAX_COMPONENT_SOURCES = 0xFF  # 255
+
+
+@dataclass
+class ComponentSourcePool:
+    """Pool of component source names for PROGMEM lookup table.
+
+    Source names are registered during to_code() and assigned 1-based indices.
+    Index 0 means "not set" (returns LOG_STR("<unknown>")). At render time,
+    the pool generates a C++ PROGMEM table + lookup function.
+    """
+
+    sources: dict[str, int] = field(default_factory=dict)
+    table_registered: bool = False
+
+
+def _get_source_pool() -> ComponentSourcePool:
+    """Get or create the component source pool from CORE.data."""
+    if _COMPONENT_SOURCE_DOMAIN not in CORE.data:
+        CORE.data[_COMPONENT_SOURCE_DOMAIN] = ComponentSourcePool()
+    return CORE.data[_COMPONENT_SOURCE_DOMAIN]
+
+
+def _ensure_source_table_registered() -> None:
+    """Schedule the table generation job (once)."""
+    pool = _get_source_pool()
+    if pool.table_registered:
+        return
+    pool.table_registered = True
+    CORE.add_job(_generate_component_source_table)
+
+
+def register_component_source(name: str) -> int:
+    """Register a component source name and return its 1-based index.
+
+    Deduplicates: multiple components from the same source share one index.
+    """
+    if not name:
+        return 0
+    pool = _get_source_pool()
+    if name in pool.sources:
+        return pool.sources[name]
+    idx = len(pool.sources) + 1
+    if idx > _MAX_COMPONENT_SOURCES:
+        if not CORE.testing_mode:
+            _LOGGER.warning(
+                "Too many unique component source names (max %d), "
+                "'%s' will show as '<unknown>'",
+                _MAX_COMPONENT_SOURCES,
+                name,
+            )
+        return 0
+    pool.sources[name] = idx
+    _ensure_source_table_registered()
+    return idx
+
+
+def _generate_source_table_code(
+    table_var: str,
+    lookup_fn: str,
+    strings: dict[str, int],
+) -> str:
+    """Generate C++ PROGMEM table + LogString* lookup for component sources.
+
+    Same pattern as entity_helpers._generate_category_code but returns
+    const LogString* instead of const char* (needed for LOG_STR_ARG).
+    """
+    if not strings:
+        return ""
+
+    sorted_strings = sorted(strings.items(), key=lambda x: x[1])
+    count = len(sorted_strings)
+
+    # Emit individual PROGMEM char arrays so string data lives in flash on ESP8266
+    lines: list[str] = []
+    var_names: list[str] = []
+    for i, (s, _) in enumerate(sorted_strings):
+        var_name = f"{table_var}_STR_{i}"
+        var_names.append(var_name)
+        lines.append(
+            f"static const char {var_name}[] PROGMEM = {cpp_string_escape(s)};"
+        )
+
+    entries = ", ".join(var_names)
+    lines.append(f"static const char *const {table_var}[] PROGMEM = {{{entries}}};")
+    lines.append(f"const LogString *{lookup_fn}(uint8_t index) {{")
+    cond = "index == 0" if count >= 255 else f"index == 0 || index > {count}"
+    lines.append(f'  if ({cond}) return LOG_STR("<unknown>");')
+    lines.append("  return reinterpret_cast<const LogString *>(")
+    lines.append(f"    progmem_read_ptr(&{table_var}[index - 1]));")
+    lines.append("}")
+    return "\n".join(lines) + "\n"
+
+
+@coroutine_with_priority(CoroPriority.FINAL)
+async def _generate_component_source_table() -> None:
+    """Generate the component source lookup table as a FINAL-priority job.
+
+    Runs after all component to_code() calls have registered their sources.
+    """
+    pool = _get_source_pool()
+    if code := _generate_source_table_code(
+        "COMP_SRC_TABLE", "component_source_lookup", pool.sources
+    ):
+        add_global(
+            RawStatement(f"namespace esphome {{\n{code}}}  // namespace esphome")
+        )
+
+
+_SLOT_COUNTER_DOMAIN = "slot_counter"
+
+
+@dataclass
+class _SlotCounterState:
+    """Per-run slot counter state: requested counts and already-emitted defines."""
+
+    counts: dict[str, int] = field(default_factory=dict)
+    emitted: set[str] = field(default_factory=set)
+
+
+def _get_slot_counter_state() -> _SlotCounterState:
+    """Get or create the slot counter state from CORE.data."""
+    if _SLOT_COUNTER_DOMAIN not in CORE.data:
+        CORE.data[_SLOT_COUNTER_DOMAIN] = _SlotCounterState()
+    return CORE.data[_SLOT_COUNTER_DOMAIN]
+
+
+def get_slot_count(define: str) -> int:
+    """Number of slots requested so far for `define`."""
+    return _get_slot_counter_state().counts.get(define, 0)
+
+
+def slot_counter(define: str) -> Callable[[], None]:
+    """Create a request_slot function for codegen-sized storage.
+
+    The pattern behind a StaticVector listener array: a consumer's to_code
+    calls the returned function once per slot it will occupy at runtime, and
+    at FINAL priority — after every consumer's to_code has run — `define` is
+    emitted with the requested count. No requests, no define: the guarded
+    storage and its registration method compile out entirely.
+
+    The counts live in a table under CORE.data, which clears between runs.
+    A request arriving after the define was already emitted raises instead of
+    silently undercounting: the define would keep the stale smaller value and
+    StaticVector::push_back would drop the extra listener at runtime.
+    """
+
+    @coroutine_with_priority(CoroPriority.FINAL)
+    async def emit_job() -> None:
+        state = _get_slot_counter_state()
+        state.emitted.add(define)
+        # Scheduled only by the first request, so the count is always >= 1 here.
+        add_define(define, state.counts[define])
+
+    def request_slot() -> None:
+        state = _get_slot_counter_state()
+        if define in state.emitted:
+            raise ValueError(
+                f"slot_counter('{define}'): slot requested after the count "
+                f"define was emitted; request slots from to_code, not from a "
+                f"job running after FINAL emission"
+            )
+        counts = state.counts
+        counts[define] = (count := counts.get(define, 0) + 1)
+        if count == 1:
+            CORE.add_job(emit_job)
+
+    return request_slot
 
 
 async def gpio_pin_expression(conf):
@@ -30,6 +211,17 @@ async def gpio_pin_expression(conf):
         if key in conf:
             return await coroutine(func)(conf)
     return await coroutine(pins.PIN_SCHEMA_REGISTRY[CORE.target_platform][0])(conf)
+
+
+def set_setup_priority(var, priority: float) -> None:
+    """Emit a setup-priority override for the given component.
+
+    Pairs the ``set_setup_priority()`` call with the ``USE_SETUP_PRIORITY_OVERRIDE``
+    define that compiles in the core override support, so callers cannot emit one
+    without the other.
+    """
+    add_define("USE_SETUP_PRIORITY_OVERRIDE")
+    add(var.set_setup_priority(priority))
 
 
 async def register_component(var, config):
@@ -49,7 +241,7 @@ async def register_component(var, config):
         )
     CORE.component_ids.remove(id_)
     if CONF_SETUP_PRIORITY in config:
-        add(var.set_setup_priority(config[CONF_SETUP_PRIORITY]))
+        set_setup_priority(var, config[CONF_SETUP_PRIORITY])
     if CONF_UPDATE_INTERVAL in config:
         add(var.set_update_interval(config[CONF_UPDATE_INTERVAL]))
 
@@ -76,9 +268,15 @@ async def register_component(var, config):
             "Error while finding name of component, please report this", exc_info=e
         )
     if name is not None:
-        add(var.set_component_source(LogStringLiteral(name)))
+        idx = register_component_source(name)
+        add(App.register_component_(var, idx))
+    else:
+        add(App.register_component_(var))
 
-    add(App.register_component(var))
+    # Collect C++ type for compile-time looping component count
+    comp_entries = CORE.data.setdefault("looping_component_entries", [])
+    comp_entries.append(str(var.base.type))
+
     return var
 
 

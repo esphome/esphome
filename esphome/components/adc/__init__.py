@@ -1,19 +1,25 @@
+from typing import Any
+
 from esphome import pins
 import esphome.codegen as cg
-from esphome.components.esp32 import VARIANT_ESP32P4, get_esp32_variant
-from esphome.components.esp32.const import (
+from esphome.components.esp32 import (
     VARIANT_ESP32,
     VARIANT_ESP32C2,
     VARIANT_ESP32C3,
     VARIANT_ESP32C5,
     VARIANT_ESP32C6,
+    VARIANT_ESP32C61,
     VARIANT_ESP32H2,
+    VARIANT_ESP32P4,
     VARIANT_ESP32S2,
     VARIANT_ESP32S3,
+    VARIANT_ESP32S31,
+    get_esp32_variant,
 )
 import esphome.config_validation as cv
 from esphome.const import CONF_ANALOG, CONF_INPUT, CONF_NUMBER, PLATFORM_ESP8266
 from esphome.core import CORE
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@esphome/core"]
 
@@ -99,6 +105,13 @@ ESP32_VARIANT_ADC1_PIN_TO_CHANNEL = {
         5: adc_channel_t.ADC_CHANNEL_5,
         6: adc_channel_t.ADC_CHANNEL_6,
     },
+    # https://docs.espressif.com/projects/esp-idf/en/latest/esp32c61/api-reference/peripherals/gpio.html
+    VARIANT_ESP32C61: {
+        1: adc_channel_t.ADC_CHANNEL_0,
+        3: adc_channel_t.ADC_CHANNEL_1,
+        4: adc_channel_t.ADC_CHANNEL_2,
+        5: adc_channel_t.ADC_CHANNEL_3,
+    },
     # https://github.com/espressif/esp-idf/blob/master/components/soc/esp32h2/include/soc/adc_channel.h
     VARIANT_ESP32H2: {
         1: adc_channel_t.ADC_CHANNEL_0,
@@ -106,6 +119,17 @@ ESP32_VARIANT_ADC1_PIN_TO_CHANNEL = {
         3: adc_channel_t.ADC_CHANNEL_2,
         4: adc_channel_t.ADC_CHANNEL_3,
         5: adc_channel_t.ADC_CHANNEL_4,
+    },
+    # https://github.com/espressif/esp-idf/blob/master/components/soc/esp32p4/include/soc/adc_channel.h
+    VARIANT_ESP32P4: {
+        16: adc_channel_t.ADC_CHANNEL_0,
+        17: adc_channel_t.ADC_CHANNEL_1,
+        18: adc_channel_t.ADC_CHANNEL_2,
+        19: adc_channel_t.ADC_CHANNEL_3,
+        20: adc_channel_t.ADC_CHANNEL_4,
+        21: adc_channel_t.ADC_CHANNEL_5,
+        22: adc_channel_t.ADC_CHANNEL_6,
+        23: adc_channel_t.ADC_CHANNEL_7,
     },
     # https://github.com/espressif/esp-idf/blob/master/components/soc/esp32s2/include/soc/adc_channel.h
     VARIANT_ESP32S2: {
@@ -133,15 +157,16 @@ ESP32_VARIANT_ADC1_PIN_TO_CHANNEL = {
         9: adc_channel_t.ADC_CHANNEL_8,
         10: adc_channel_t.ADC_CHANNEL_9,
     },
-    VARIANT_ESP32P4: {
-        16: adc_channel_t.ADC_CHANNEL_0,
-        17: adc_channel_t.ADC_CHANNEL_1,
-        18: adc_channel_t.ADC_CHANNEL_2,
-        19: adc_channel_t.ADC_CHANNEL_3,
-        20: adc_channel_t.ADC_CHANNEL_4,
-        21: adc_channel_t.ADC_CHANNEL_5,
-        22: adc_channel_t.ADC_CHANNEL_6,
-        23: adc_channel_t.ADC_CHANNEL_7,
+    # https://github.com/espressif/esp-idf/blob/master/components/soc/esp32s31/include/soc/adc_channel.h
+    VARIANT_ESP32S31: {
+        42: adc_channel_t.ADC_CHANNEL_0,
+        43: adc_channel_t.ADC_CHANNEL_1,
+        44: adc_channel_t.ADC_CHANNEL_2,
+        45: adc_channel_t.ADC_CHANNEL_3,
+        46: adc_channel_t.ADC_CHANNEL_4,
+        47: adc_channel_t.ADC_CHANNEL_5,
+        48: adc_channel_t.ADC_CHANNEL_6,
+        49: adc_channel_t.ADC_CHANNEL_7,
     },
 }
 
@@ -173,8 +198,19 @@ ESP32_VARIANT_ADC2_PIN_TO_CHANNEL = {
     VARIANT_ESP32C5: {},  # no ADC2
     # https://github.com/espressif/esp-idf/blob/master/components/soc/esp32c6/include/soc/adc_channel.h
     VARIANT_ESP32C6: {},  # no ADC2
+    # ESP32-C61 has no ADC2
+    VARIANT_ESP32C61: {},  # no ADC2
     # https://github.com/espressif/esp-idf/blob/master/components/soc/esp32h2/include/soc/adc_channel.h
     VARIANT_ESP32H2: {},  # no ADC2
+    # https://github.com/espressif/esp-idf/blob/master/components/soc/esp32p4/include/soc/adc_channel.h
+    VARIANT_ESP32P4: {
+        49: adc_channel_t.ADC_CHANNEL_0,
+        50: adc_channel_t.ADC_CHANNEL_1,
+        51: adc_channel_t.ADC_CHANNEL_2,
+        52: adc_channel_t.ADC_CHANNEL_3,
+        53: adc_channel_t.ADC_CHANNEL_4,
+        54: adc_channel_t.ADC_CHANNEL_5,
+    },
     # https://github.com/espressif/esp-idf/blob/master/components/soc/esp32s2/include/soc/adc_channel.h
     VARIANT_ESP32S2: {
         11: adc_channel_t.ADC_CHANNEL_0,
@@ -201,25 +237,29 @@ ESP32_VARIANT_ADC2_PIN_TO_CHANNEL = {
         19: adc_channel_t.ADC_CHANNEL_8,
         20: adc_channel_t.ADC_CHANNEL_9,
     },
-    VARIANT_ESP32P4: {
-        49: adc_channel_t.ADC_CHANNEL_0,
-        50: adc_channel_t.ADC_CHANNEL_1,
-        51: adc_channel_t.ADC_CHANNEL_2,
-        52: adc_channel_t.ADC_CHANNEL_3,
-        53: adc_channel_t.ADC_CHANNEL_4,
-        54: adc_channel_t.ADC_CHANNEL_5,
+    # https://github.com/espressif/esp-idf/blob/master/components/soc/esp32s31/include/soc/adc_channel.h
+    VARIANT_ESP32S31: {
+        50: adc_channel_t.ADC_CHANNEL_0,
+        51: adc_channel_t.ADC_CHANNEL_1,
+        52: adc_channel_t.ADC_CHANNEL_2,
+        53: adc_channel_t.ADC_CHANNEL_3,
+        54: adc_channel_t.ADC_CHANNEL_4,
+        55: adc_channel_t.ADC_CHANNEL_5,
+        56: adc_channel_t.ADC_CHANNEL_6,
+        57: adc_channel_t.ADC_CHANNEL_7,
     },
 }
 
 
-def validate_adc_pin(value):
+def validate_adc_pin(value: Any) -> ConfigType | str:
     if str(value).upper() == "VCC":
-        if CORE.is_rp2040:
+        if CORE.is_rp2:
             return pins.internal_gpio_input_pin_schema(29)
         return cv.only_on([PLATFORM_ESP8266])("VCC")
 
+    # Deprecated in favour of the `internal_temperature` platform, remove before 2027.2.0
     if str(value).upper() == "TEMPERATURE":
-        return cv.only_on_rp2040("TEMPERATURE")
+        return cv.only_on_rp2("TEMPERATURE")
 
     if CORE.is_esp32:
         conf = pins.internal_gpio_input_pin_schema(value)
@@ -248,11 +288,11 @@ def validate_adc_pin(value):
             raise cv.Invalid("ESP8266: Only pin A0 (GPIO17) supports ADC")
         return conf
 
-    if CORE.is_rp2040:
+    if CORE.is_rp2:
         conf = pins.internal_gpio_input_pin_schema(value)
         number = conf[CONF_NUMBER]
         if number not in (26, 27, 28, 29):
-            raise cv.Invalid("RP2040: Only pins 26, 27, 28 and 29 support ADC")
+            raise cv.Invalid("RP2: Only pins 26, 27, 28 and 29 support ADC")
         return conf
 
     if CORE.is_libretiny:

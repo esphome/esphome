@@ -6,6 +6,11 @@ esphome:
           speed: 255
           direction: BACKWARD
           id: test_motor
+      - grove_tb6612fng.run:
+          channel: 0
+          speed: !lambda "return 200;"
+          direction: BACKWARD
+          id: test_motor
       - grove_tb6612fng.stop:
           channel: 1
           id: test_motor
@@ -13,11 +18,7 @@ esphome:
           channel: 1
           id: test_motor
 
-i2c:
-  - id: i2c_grove_tb6612fng
-    scl: ${scl_pin}
-    sda: ${sda_pin}
-
 grove_tb6612fng:
   id: test_motor
+  i2c_id: i2c_bus
   address: 0x14

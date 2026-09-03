@@ -5,12 +5,11 @@
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
 
-namespace esphome {
-namespace tca9555 {
+namespace esphome::tca9555 {
 
-class TCA9555Component : public Component,
-                         public i2c::I2CDevice,
-                         public gpio_expander::CachedGpioExpander<uint8_t, 16> {
+class TCA9555Component final : public Component,
+                               public i2c::I2CDevice,
+                               public gpio_expander::CachedGpioExpander<uint8_t, 16> {
  public:
   TCA9555Component() = default;
 
@@ -24,10 +23,14 @@ class TCA9555Component : public Component,
 
   void loop() override;
 
+  void set_interrupt_pin(InternalGPIOPin *pin) { this->interrupt_pin_ = pin; }
+
  protected:
-  bool digital_read_hw(uint8_t pin) override;
-  bool digital_read_cache(uint8_t pin) override;
-  void digital_write_hw(uint8_t pin, bool value) override;
+  static void IRAM_ATTR gpio_intr(TCA9555Component *arg);
+  // Virtual methods from GpioExpander base class — names come from base
+  bool digital_read_hw(uint8_t pin) override;               // NOLINT(readability-identifier-naming)
+  bool digital_read_cache(uint8_t pin) override;            // NOLINT(readability-identifier-naming)
+  void digital_write_hw(uint8_t pin, bool value) override;  // NOLINT(readability-identifier-naming)
 
   /// Mask for the pin mode - 1 means output, 0 means input
   uint16_t mode_mask_{0x00};
@@ -39,16 +42,18 @@ class TCA9555Component : public Component,
   bool read_gpio_modes_();
   bool write_gpio_modes_();
   bool read_gpio_outputs_();
+
+  InternalGPIOPin *interrupt_pin_{nullptr};
 };
 
 /// Helper class to expose a TCA9555 pin as an internal input GPIO pin.
-class TCA9555GPIOPin : public GPIOPin, public Parented<TCA9555Component> {
+class TCA9555GPIOPin final : public GPIOPin, public Parented<TCA9555Component> {
  public:
   void setup() override;
   void pin_mode(gpio::Flags flags) override;
   bool digital_read() override;
   void digital_write(bool value) override;
-  std::string dump_summary() const override;
+  size_t dump_summary(char *buffer, size_t len) const override;
 
   void set_pin(uint8_t pin) { this->pin_ = pin; }
   void set_inverted(bool inverted) { this->inverted_ = inverted; }
@@ -62,5 +67,4 @@ class TCA9555GPIOPin : public GPIOPin, public Parented<TCA9555Component> {
   gpio::Flags flags_;
 };
 
-}  // namespace tca9555
-}  // namespace esphome
+}  // namespace esphome::tca9555

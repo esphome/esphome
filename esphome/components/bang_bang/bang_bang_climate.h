@@ -5,8 +5,7 @@
 #include "esphome/components/climate/climate.h"
 #include "esphome/components/sensor/sensor.h"
 
-namespace esphome {
-namespace bang_bang {
+namespace esphome::bang_bang {
 
 struct BangBangClimateTargetTempConfig {
  public:
@@ -17,7 +16,7 @@ struct BangBangClimateTargetTempConfig {
   float default_temperature_high{NAN};
 };
 
-class BangBangClimate : public climate::Climate, public Component {
+class BangBangClimate final : public climate::Climate, public Component {
  public:
   BangBangClimate();
   void setup() override;
@@ -25,13 +24,14 @@ class BangBangClimate : public climate::Climate, public Component {
 
   void set_sensor(sensor::Sensor *sensor);
   void set_humidity_sensor(sensor::Sensor *humidity_sensor);
-  Trigger<> *get_idle_trigger() const;
-  Trigger<> *get_cool_trigger() const;
   void set_supports_cool(bool supports_cool);
-  Trigger<> *get_heat_trigger() const;
   void set_supports_heat(bool supports_heat);
   void set_normal_config(const BangBangClimateTargetTempConfig &normal_config);
   void set_away_config(const BangBangClimateTargetTempConfig &away_config);
+
+  Trigger<> *get_idle_trigger();
+  Trigger<> *get_cool_trigger();
+  Trigger<> *get_heat_trigger();
 
  protected:
   /// Override control to change settings of the climate device.
@@ -56,34 +56,31 @@ class BangBangClimate : public climate::Climate, public Component {
    *
    * In idle mode, the controller is assumed to have both heating and cooling disabled.
    */
-  Trigger<> *idle_trigger_;
+  Trigger<> idle_trigger_;
   /** The trigger to call when the controller should switch to cooling mode.
    */
-  Trigger<> *cool_trigger_;
-  /** Whether the controller supports cooling.
-   *
-   * A false value for this attribute means that the controller has no cooling action
-   * (for example a thermostat, where only heating and not-heating is possible).
-   */
-  bool supports_cool_{false};
+  Trigger<> cool_trigger_;
   /** The trigger to call when the controller should switch to heating mode.
-   *
-   * A null value for this attribute means that the controller has no heating action
-   * For example window blinds, where only cooling (blinds closed) and not-cooling
-   * (blinds open) is possible.
    */
-  Trigger<> *heat_trigger_{nullptr};
-  bool supports_heat_{false};
+  Trigger<> heat_trigger_;
   /** A reference to the trigger that was previously active.
    *
    * This is so that the previous trigger can be stopped before enabling a new one.
    */
   Trigger<> *prev_trigger_{nullptr};
 
-  BangBangClimateTargetTempConfig normal_config_{};
+  /** Whether the controller supports cooling/heating
+   *
+   * A false value for this attribute means that the controller has no respective action
+   * (for example a thermostat, where only heating and not-heating is possible).
+   */
+  bool supports_cool_{false};
+  bool supports_heat_{false};
+
   bool supports_away_{false};
+
+  BangBangClimateTargetTempConfig normal_config_{};
   BangBangClimateTargetTempConfig away_config_{};
 };
 
-}  // namespace bang_bang
-}  // namespace esphome
+}  // namespace esphome::bang_bang

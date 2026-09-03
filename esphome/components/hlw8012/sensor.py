@@ -1,6 +1,7 @@
 from esphome import pins
 import esphome.codegen as cg
 from esphome.components import sensor
+from esphome.components.esp32 import include_builtin_idf_component
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_CHANGE_MODE_EVERY,
@@ -25,6 +26,8 @@ from esphome.const import (
     UNIT_WATT,
     UNIT_WATT_HOURS,
 )
+from esphome.core import CORE
+from esphome.types import ConfigType
 
 AUTO_LOAD = ["pulse_counter"]
 
@@ -90,7 +93,10 @@ CONFIG_SCHEMA = cv.Schema(
 ).extend(cv.polling_component_schema("60s"))
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
+    if CORE.is_esp32:
+        include_builtin_idf_component("esp_driver_pcnt")
+
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
 

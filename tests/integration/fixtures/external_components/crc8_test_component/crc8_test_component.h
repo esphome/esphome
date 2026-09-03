@@ -4,8 +4,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace crc8_test_component {
+namespace esphome::crc8_test_component {
 
 class CRC8TestComponent : public Component {
  public:
@@ -25,5 +24,4 @@ class CRC8TestComponent : public Component {
                    uint8_t poly = 0x8C, bool msb_first = false);
 };
 
-}  // namespace crc8_test_component
-}  // namespace esphome
+}  // namespace esphome::crc8_test_component

@@ -1,0 +1,98 @@
+name: PR Title Check
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+    branches-ignore:
+      - release
+      - beta
+
+permissions:
+  contents: read       # actions/checkout to load detect-tags.js
+  pull-requests: read  # pulls.listFiles to map changed files to component/core/dashboard/ci tags
+
+jobs:
+  check:
+    name: Validate PR title
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        with:
+          script: |
+            const {
+              detectComponents,
+              hasCoreChanges,
+              hasDashboardChanges,
+              hasGitHubActionsChanges,
+            } = require('./.github/scripts/detect-tags.js');
+
+            const title = context.payload.pull_request.title;
+            const user = context.payload.pull_request.user;
+
+            // Skip bot PRs (e.g. dependabot, esphome[bot] device-class sync) -
+            // they have their own title formats.
+            if (user.type === 'Bot') {
+              return;
+            }
+
+            // Block titles starting with "word:" or "word(scope):" patterns
+            const commitStylePattern = /^\w+(\(.*?\))?[!]?\s*:/;
+            if (commitStylePattern.test(title)) {
+              core.setFailed(
+                `PR title should not start with a "prefix:" style format.\n` +
+                `Please use the format: [component] Brief description\n`
+              );
+              return;
+            }
+
+            // Get changed files to detect tags
+            const files = await github.paginate(github.rest.pulls.listFiles, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.issue.number,
+            });
+            const filenames = files.map(f => f.filename);
+
+            // Detect tags from changed files using shared logic
+            const tags = new Set();
+
+            for (const comp of detectComponents(filenames)) {
+              tags.add(comp);
+            }
+            if (hasCoreChanges(filenames)) tags.add('core');
+            if (hasDashboardChanges(filenames)) tags.add('dashboard');
+            if (hasGitHubActionsChanges(filenames)) tags.add('ci');
+
+            if (tags.size === 0) {
+              return;
+            }
+
+            // Check for MDX syntax characters not wrapped in backticks.
+            // Astro docs MDX treats bare `<` as JSX component opening tags and
+            // bare `{` as JS expressions, so both must be escaped in changelog entries.
+            const stripped = title.replace(/`[^`]*`/g, '');
+            if (/[<>{}]/.test(stripped)) {
+              core.setFailed(
+                'PR title contains `<`, `>`, `{`, or `}` not wrapped in backticks.\n' +
+                'Astro docs MDX interprets bare `<` as JSX components and bare `{` as JS expressions.\n' +
+                'Please wrap these characters with backticks, e.g.: [component] Add `<feature>` support'
+              );
+              return;
+            }
+
+            // Check title starts with [tag] prefix
+            const bracketPattern = /^\[\w+\]/;
+            if (!bracketPattern.test(title)) {
+              const suggestion = [...tags].map(c => `[${c}]`).join('');
+              // Skip if the suggested prefix would be too long for a readable title
+              if (suggestion.length > 40) {
+                return;
+              }
+              core.setFailed(
+                `PR modifies: ${[...tags].join(', ')}\n` +
+                `Title must start with a [tag] prefix.\n` +
+                `Suggested: ${suggestion} <description>`
+              );
+            }

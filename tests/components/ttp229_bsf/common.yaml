@@ -1,6 +1,6 @@
 ttp229_bsf:
-  scl_pin: ${scl_pin}
-  sdo_pin: ${sdo_pin}
+  scl_pin: ${ttp229_scl_pin}
+  sdo_pin: ${ttp229_sdo_pin}
 
 binary_sensor:
   - platform: ttp229_bsf

@@ -115,4 +115,4 @@ examples/
 Dockerfile
 .git/
 tests/
-.*
+.?*

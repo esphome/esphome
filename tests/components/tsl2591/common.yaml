@@ -1,10 +1,6 @@
-i2c:
-  - id: i2c_tsl2591
-    scl: ${scl_pin}
-    sda: ${sda_pin}
-
 sensor:
   - platform: tsl2591
+    i2c_id: i2c_bus
     id: test_tsl2591
     address: 0x29
     integration_time: 600ms

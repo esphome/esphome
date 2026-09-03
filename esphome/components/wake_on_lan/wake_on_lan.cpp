@@ -1,11 +1,10 @@
 #include "wake_on_lan.h"
-#ifdef USE_NETWORK
+#if defined(USE_NETWORK) && !defined(USE_ZEPHYR)
 #include "esphome/core/log.h"
 #include "esphome/components/network/ip_address.h"
 #include "esphome/components/network/util.h"
 
-namespace esphome {
-namespace wake_on_lan {
+namespace esphome::wake_on_lan {
 
 static const char *const TAG = "wake_on_lan.button";
 static const uint8_t PREFIX[6] = {255, 255, 255, 255, 255, 255};
@@ -41,8 +40,9 @@ void WakeOnLanButton::press_action() {
     memcpy(buffer + i * sizeof(this->macaddr_) + sizeof(PREFIX), this->macaddr_, sizeof(this->macaddr_));
   }
   if (this->broadcast_socket_->sendto(buffer, sizeof(buffer), 0, reinterpret_cast<const sockaddr *>(&saddr),
-                                      addr_len) <= 0)
+                                      addr_len) <= 0) {
     ESP_LOGW(TAG, "sendto() error %d", errno);
+  }
 #else
   IPAddress broadcast = IPAddress(255, 255, 255, 255);
   for (auto ip : esphome::network::get_ip_addresses()) {
@@ -67,8 +67,8 @@ void WakeOnLanButton::setup() {
 #if defined(USE_SOCKET_IMPL_BSD_SOCKETS) || defined(USE_SOCKET_IMPL_LWIP_SOCKETS)
   this->broadcast_socket_ = socket::socket(AF_INET, SOCK_DGRAM, IPPROTO_IP);
   if (this->broadcast_socket_ == nullptr) {
+    this->status_set_error(LOG_STR("Could not create socket"));
     this->mark_failed();
-    this->status_set_error("Could not create socket");
     return;
   }
   int enable = 1;
@@ -84,6 +84,6 @@ void WakeOnLanButton::setup() {
 #endif
 }
 
-}  // namespace wake_on_lan
-}  // namespace esphome
+}  // namespace esphome::wake_on_lan
+
 #endif

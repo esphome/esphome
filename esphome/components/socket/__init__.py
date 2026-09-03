@@ -1,6 +1,15 @@
+from collections.abc import Callable, MutableMapping
+from dataclasses import dataclass
+from enum import StrEnum
+import logging
+
 import esphome.codegen as cg
+from esphome.config_helpers import filter_source_files_from_defines
 import esphome.config_validation as cv
 from esphome.core import CORE
+from esphome.types import ConfigType
+
+_LOGGER = logging.getLogger(__name__)
 
 CODEOWNERS = ["@esphome/core"]
 
@@ -9,17 +18,140 @@ IMPLEMENTATION_LWIP_TCP = "lwip_tcp"
 IMPLEMENTATION_LWIP_SOCKETS = "lwip_sockets"
 IMPLEMENTATION_BSD_SOCKETS = "bsd_sockets"
 
+# Socket tracking infrastructure
+# Components register their socket needs and platforms read this to configure appropriately
+KEY_SOCKET_CONSUMERS_TCP = "socket_consumers_tcp"
+KEY_SOCKET_CONSUMERS_UDP = "socket_consumers_udp"
+KEY_SOCKET_CONSUMERS_TCP_LISTEN = "socket_consumers_tcp_listen"
+
+# Recommended minimum socket counts.
+# Platforms should apply these (or their own) on top of get_socket_counts().
+# These cover minimal configs (e.g. api-only without web_server).
+# When web_server is present, its 5 registered sockets push past the TCP minimum.
+MIN_TCP_SOCKETS = 8
+MIN_UDP_SOCKETS = 6
+# Minimum listening sockets — at least api + ota baseline.
+MIN_TCP_LISTEN_SOCKETS = 2
+
+
+class SocketType(StrEnum):
+    TCP = "tcp"
+    UDP = "udp"
+    TCP_LISTEN = "tcp_listen"
+
+
+_SOCKET_TYPE_KEYS = {
+    SocketType.TCP: KEY_SOCKET_CONSUMERS_TCP,
+    SocketType.UDP: KEY_SOCKET_CONSUMERS_UDP,
+    SocketType.TCP_LISTEN: KEY_SOCKET_CONSUMERS_TCP_LISTEN,
+}
+
+
+def consume_sockets(
+    value: int, consumer: str, socket_type: SocketType = SocketType.TCP
+) -> Callable[[MutableMapping], MutableMapping]:
+    """Register socket usage for a component.
+
+    Args:
+        value: Number of sockets needed by the component
+        consumer: Name of the component consuming the sockets
+        socket_type: Type of socket (SocketType.TCP, SocketType.UDP, or SocketType.TCP_LISTEN)
+
+    Returns:
+        A validator function that records the socket usage
+    """
+    typed_key = _SOCKET_TYPE_KEYS[socket_type]
+
+    def _consume_sockets(config: MutableMapping) -> MutableMapping:
+        consumers: dict[str, int] = CORE.data.setdefault(typed_key, {})
+        consumers[consumer] = consumers.get(consumer, 0) + value
+        return config
+
+    return _consume_sockets
+
+
+def _format_consumers(consumers: dict[str, int]) -> str:
+    """Format consumer dict as 'name=count, ...' or 'none'."""
+    if not consumers:
+        return "none"
+    return ", ".join(f"{name}={count}" for name, count in sorted(consumers.items()))
+
+
+@dataclass(frozen=True)
+class SocketCounts:
+    """Socket counts and component details for platform configuration."""
+
+    tcp: int
+    udp: int
+    tcp_listen: int
+    tcp_details: str
+    udp_details: str
+    tcp_listen_details: str
+
+
+def get_socket_counts() -> SocketCounts:
+    """Return socket counts and component details for platform configuration.
+
+    Platforms call this during code generation to configure lwIP socket limits.
+    All components will have registered their needs by then.
+
+    Platforms should apply their own minimums on top of these values.
+    """
+    tcp_consumers = CORE.data.get(KEY_SOCKET_CONSUMERS_TCP, {})
+    udp_consumers = CORE.data.get(KEY_SOCKET_CONSUMERS_UDP, {})
+    tcp_listen_consumers = CORE.data.get(KEY_SOCKET_CONSUMERS_TCP_LISTEN, {})
+    tcp = sum(tcp_consumers.values())
+    udp = sum(udp_consumers.values())
+    tcp_listen = sum(tcp_listen_consumers.values())
+
+    tcp_details = _format_consumers(tcp_consumers)
+    udp_details = _format_consumers(udp_consumers)
+    tcp_listen_details = _format_consumers(tcp_listen_consumers)
+    _LOGGER.debug(
+        "Socket counts: TCP=%d (%s), UDP=%d (%s), TCP_LISTEN=%d (%s)",
+        tcp,
+        tcp_details,
+        udp,
+        udp_details,
+        tcp_listen,
+        tcp_listen_details,
+    )
+    return SocketCounts(
+        tcp, udp, tcp_listen, tcp_details, udp_details, tcp_listen_details
+    )
+
+
+def require_wake_loop_threadsafe() -> None:
+    """Deprecated: wake loop support is now always available on all platforms.
+
+    This function adds backward-compatible defines so external components
+    that check #ifdef USE_WAKE_LOOP_THREADSAFE / USE_SOCKET_SELECT_SUPPORT
+    continue to compile. Remove before 2026.12.0.
+    """
+    # Remove before 2026.12.0
+    _LOGGER.warning(
+        "require_wake_loop_threadsafe() is deprecated and no longer needed. "
+        "Wake loop support is now always available. Remove this call and any "
+        "#ifdef USE_SOCKET_SELECT_SUPPORT / USE_WAKE_LOOP_THREADSAFE guards. "
+        "This will be removed in 2026.12.0."
+    )
+    # Add deprecated defines for backward compat with external component C++ code
+    cg.add_define("USE_WAKE_LOOP_THREADSAFE")
+    cg.add_define("USE_SOCKET_SELECT_SUPPORT")
+
+
 CONFIG_SCHEMA = cv.Schema(
     {
         cv.SplitDefault(
             CONF_IMPLEMENTATION,
             esp8266=IMPLEMENTATION_LWIP_TCP,
             esp32=IMPLEMENTATION_BSD_SOCKETS,
-            rp2040=IMPLEMENTATION_LWIP_TCP,
+            rp2=IMPLEMENTATION_LWIP_TCP,
             bk72xx=IMPLEMENTATION_LWIP_SOCKETS,
             ln882x=IMPLEMENTATION_LWIP_SOCKETS,
             rtl87xx=IMPLEMENTATION_LWIP_SOCKETS,
             host=IMPLEMENTATION_BSD_SOCKETS,
+            nrf52=IMPLEMENTATION_BSD_SOCKETS,
         ): cv.one_of(
             IMPLEMENTATION_LWIP_TCP,
             IMPLEMENTATION_LWIP_SOCKETS,
@@ -31,28 +163,32 @@ CONFIG_SCHEMA = cv.Schema(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     impl = config[CONF_IMPLEMENTATION]
     if impl == IMPLEMENTATION_LWIP_TCP:
         cg.add_define("USE_SOCKET_IMPL_LWIP_TCP")
     elif impl == IMPLEMENTATION_LWIP_SOCKETS:
         cg.add_define("USE_SOCKET_IMPL_LWIP_SOCKETS")
-        cg.add_define("USE_SOCKET_SELECT_SUPPORT")
     elif impl == IMPLEMENTATION_BSD_SOCKETS:
         cg.add_define("USE_SOCKET_IMPL_BSD_SOCKETS")
-        cg.add_define("USE_SOCKET_SELECT_SUPPORT")
+        if CORE.using_zephyr:
+            from esphome.components.zephyr import zephyr_add_prj_conf
+
+            zephyr_add_prj_conf("NET_SOCKETS", True)
+            zephyr_add_prj_conf("POSIX_API", True)
+    # ESP32 and LibreTiny both have LwIP >= 2.1.3 with lwip_socket_dbg_get_socket()
+    # and FreeRTOS task notifications — enable fast select to bypass lwip_select().
+    # Only when not using lwip_tcp, which does not provide select() support.
+    if (CORE.is_esp32 or CORE.is_libretiny) and impl != IMPLEMENTATION_LWIP_TCP:
+        cg.add_build_flag("-DUSE_LWIP_FAST_SELECT")
 
 
-def FILTER_SOURCE_FILES() -> list[str]:
-    """Return list of socket implementation files that aren't selected by the user."""
-    impl = CORE.config["socket"][CONF_IMPLEMENTATION]
-
-    # Build list of files to exclude based on selected implementation
-    excluded = []
-    if impl != IMPLEMENTATION_LWIP_TCP:
-        excluded.append("lwip_raw_tcp_impl.cpp")
-    if impl != IMPLEMENTATION_BSD_SOCKETS:
-        excluded.append("bsd_sockets_impl.cpp")
-    if impl != IMPLEMENTATION_LWIP_SOCKETS:
-        excluded.append("lwip_sockets_impl.cpp")
-    return excluded
+# Each implementation file is fully #ifdef'd on the define set in to_code
+# for the selected implementation.
+FILTER_SOURCE_FILES = filter_source_files_from_defines(
+    {
+        "lwip_raw_tcp_impl.cpp": "USE_SOCKET_IMPL_LWIP_TCP",
+        "bsd_sockets_impl.cpp": "USE_SOCKET_IMPL_BSD_SOCKETS",
+        "lwip_sockets_impl.cpp": "USE_SOCKET_IMPL_LWIP_SOCKETS",
+    }
+)

@@ -1,0 +1,53 @@
+esphome:
+  name: strftime-to-test
+host:
+api:
+logger:
+
+time:
+  - platform: homeassistant
+    id: ha_time
+
+text_sensor:
+  # Test strftime_to with a valid format
+  - platform: template
+    name: "Time Format Test"
+    id: time_format_test
+    update_interval: 100ms
+    lambda: |-
+      auto now = ESPTime::from_epoch_local(1704067200);  // 2024-01-01 00:00:00 UTC
+      char buf[ESPTime::STRFTIME_BUFFER_SIZE];
+      size_t len = now.strftime_to(buf, "%Y-%m-%d %H:%M:%S");
+      return std::string(buf, len);
+
+  # Test strftime_to with a short format
+  - platform: template
+    name: "Time Short Format"
+    id: time_short_format
+    update_interval: 100ms
+    lambda: |-
+      auto now = ESPTime::from_epoch_local(1704067200);
+      char buf[ESPTime::STRFTIME_BUFFER_SIZE];
+      size_t len = now.strftime_to(buf, "%H:%M");
+      return std::string(buf, len);
+
+  # Test strftime (std::string version) still works
+  - platform: template
+    name: "Time String Format"
+    id: time_string_format
+    update_interval: 100ms
+    lambda: |-
+      auto now = ESPTime::from_epoch_local(1704067200);
+      return now.strftime("%Y-%m-%d");
+
+  # Test strftime_to with empty/invalid format returns ERROR
+  - platform: template
+    name: "Time Error Format"
+    id: time_error_format
+    update_interval: 100ms
+    lambda: |-
+      auto now = ESPTime::from_epoch_local(1704067200);
+      char buf[ESPTime::STRFTIME_BUFFER_SIZE];
+      // Empty format string causes strftime to return 0
+      size_t len = now.strftime_to(buf, "");
+      return std::string(buf, len);

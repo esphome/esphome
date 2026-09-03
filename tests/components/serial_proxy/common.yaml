@@ -1,0 +1,10 @@
+wifi:
+  ssid: MySSID
+  password: password1
+
+api:
+
+serial_proxy:
+  - id: serial_proxy_1
+    name: Test Serial Port
+    port_type: RS232

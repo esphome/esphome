@@ -1,0 +1,12 @@
+# Common I2C configuration for ESP32-C3 Arduino tests - Low Frequency (10kHz)
+
+substitutions:
+  scl_pin: GPIO6
+  sda_pin: GPIO5
+
+i2c:
+  - id: i2c_bus
+    scl: ${scl_pin}
+    sda: ${sda_pin}
+    frequency: 10kHz
+    scan: true

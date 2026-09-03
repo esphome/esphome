@@ -1,17 +1,19 @@
 import esphome.codegen as cg
 from esphome.components import esp32, i2c
+from esphome.components.const import CONF_STATE_SAVE_INTERVAL
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_SAMPLE_RATE, CONF_TEMPERATURE_OFFSET, Framework
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@trvrnrth"]
 DEPENDENCIES = ["i2c"]
 AUTO_LOAD = ["sensor", "text_sensor"]
+CONFLICTS_WITH = ["bme68x_bsec2"]
 MULTI_CONF = True
 
 CONF_BME680_BSEC_ID = "bme680_bsec_id"
 CONF_IAQ_MODE = "iaq_mode"
 CONF_SUPPLY_VOLTAGE = "supply_voltage"
-CONF_STATE_SAVE_INTERVAL = "state_save_interval"
 
 bme680_bsec_ns = cg.esphome_ns.namespace("bme680_bsec")
 
@@ -41,7 +43,7 @@ CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(BME680BSECComponent),
-            cv.Optional(CONF_TEMPERATURE_OFFSET, default=0): cv.temperature,
+            cv.Optional(CONF_TEMPERATURE_OFFSET, default=0): cv.temperature_delta,
             cv.Optional(CONF_IAQ_MODE, default="STATIC"): cv.enum(
                 IAQ_MODE_OPTIONS, upper=True
             ),
@@ -69,13 +71,13 @@ CONFIG_SCHEMA = cv.All(
         cv.only_on_esp8266,
         cv.All(
             cv.only_on_esp32,
-            esp32.only_on_variant(supported=[esp32.const.VARIANT_ESP32]),
+            esp32.only_on_variant(supported=[esp32.VARIANT_ESP32]),
         ),
     ),
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)
@@ -89,8 +91,9 @@ async def to_code(config):
         var.set_state_save_interval(config[CONF_STATE_SAVE_INTERVAL].total_milliseconds)
     )
 
-    # Although this component does not use SPI, the BSEC library requires the SPI library
+    # Although this component does not use SPI/Wire directly, the BSEC library requires them
     cg.add_library("SPI", None)
+    cg.add_library("Wire", None)
 
     cg.add_define("USE_BSEC")
     cg.add_library("boschsensortec/BSEC Software Library", "1.6.1480")

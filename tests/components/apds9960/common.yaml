@@ -1,9 +1,5 @@
-i2c:
-  - id: i2c_apds9960
-    scl: ${scl_pin}
-    sda: ${sda_pin}
-
 apds9960:
+  i2c_id: i2c_bus
   address: 0x20
   update_interval: 60s
 

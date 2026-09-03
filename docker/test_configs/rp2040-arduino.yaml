@@ -1,0 +1,7 @@
+esphome:
+  name: docker-test-rp2040-arduino
+
+rp2040:
+  variant: rp2040
+
+logger:

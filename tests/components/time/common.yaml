@@ -6,5 +6,9 @@ api:
 
 time:
   - platform: homeassistant
+    on_time:
+      - seconds: "0,10,20,30,40,50"
+        then:
+          - logger.log: "CronTrigger fired (every 10 seconds)"
   - platform: sntp
     id: sntp_time

@@ -1,8 +1,9 @@
 substitutions:
-  scl_pin: GPIO5
-  sda_pin: GPIO4
   display_reset_pin: GPIO3
-  interrupt_pin: GPIO12
-  touch_reset_pin: GPIO13
+  interrupt_pin: GPIO15
+  touch_reset_pin: GPIO16
+
+packages:
+  i2c: !include ../../test_build_components/common/i2c/esp8266-ard.yaml
 
 <<: !include common.yaml

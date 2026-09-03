@@ -1,0 +1,13 @@
+# Common UART configuration for ESP32 IDF tests
+# Provides a shared UART bus that components can use
+# Components will auto-use this bus if they don't specify uart_id
+
+substitutions:
+  tx_pin: GPIO17
+  rx_pin: GPIO16
+
+uart:
+  - id: uart_bus
+    tx_pin: ${tx_pin}
+    rx_pin: ${rx_pin}
+    baud_rate: 9600

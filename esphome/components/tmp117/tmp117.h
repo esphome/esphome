@@ -4,14 +4,12 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/i2c/i2c.h"
 
-namespace esphome {
-namespace tmp117 {
+namespace esphome::tmp117 {
 
-class TMP117Component : public PollingComponent, public i2c::I2CDevice, public sensor::Sensor {
+class TMP117Component final : public PollingComponent, public i2c::I2CDevice, public sensor::Sensor {
  public:
   void setup() override;
   void dump_config() override;
-  float get_setup_priority() const override;
   void update() override;
   void set_config(uint16_t config) { config_ = config; };
 
@@ -23,5 +21,4 @@ class TMP117Component : public PollingComponent, public i2c::I2CDevice, public s
   uint16_t config_;
 };
 
-}  // namespace tmp117
-}  // namespace esphome
+}  // namespace esphome::tmp117

@@ -1,6 +1,1 @@
-packages: !include common.yaml
-
-time:
-  - id: !remove sntp_time
-
-wifi: !remove
+<<: !include common-base.yaml

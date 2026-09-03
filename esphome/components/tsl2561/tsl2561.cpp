@@ -1,8 +1,7 @@
 #include "tsl2561.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace tsl2561 {
+namespace esphome::tsl2561 {
 
 static const char *const TAG = "tsl2561";
 
@@ -70,6 +69,10 @@ float TSL2561Sensor::calculate_lx_(uint16_t ch0, uint16_t ch1) {
     return NAN;
   }
 
+  if (ch0 == 0) {
+    ESP_LOGVV(TAG, "No light detected");
+    return 0.0f;
+  }
   float d0 = ch0, d1 = ch1;
   float ratio = d1 / d0;
 
@@ -144,7 +147,7 @@ void TSL2561Sensor::set_integration_time(TSL2561IntegrationTime integration_time
 }
 void TSL2561Sensor::set_gain(TSL2561Gain gain) { this->gain_ = gain; }
 void TSL2561Sensor::set_is_cs_package(bool package_cs) { this->package_cs_ = package_cs; }
-float TSL2561Sensor::get_setup_priority() const { return setup_priority::DATA; }
+
 bool TSL2561Sensor::tsl2561_write_byte(uint8_t a_register, uint8_t value) {
   return this->write_byte(a_register | TSL2561_COMMAND_BIT, value);
 }
@@ -161,5 +164,4 @@ bool TSL2561Sensor::tsl2561_read_byte(uint8_t a_register, uint8_t *value) {
   return this->read_byte(a_register | TSL2561_COMMAND_BIT, value);
 }
 
-}  // namespace tsl2561
-}  // namespace esphome
+}  // namespace esphome::tsl2561

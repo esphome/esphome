@@ -3,19 +3,18 @@
 #include "esphome/core/component.h"
 #include "esphome/components/text_sensor/text_sensor.h"
 
-namespace esphome {
-namespace version {
+namespace esphome::version {
 
-class VersionTextSensor : public text_sensor::TextSensor, public Component {
+class VersionTextSensor final : public text_sensor::TextSensor, public Component {
  public:
-  void set_hide_timestamp(bool hide_timestamp);
+  void set_hide_hash(bool hide_hash) { this->hide_hash_ = hide_hash; }
+  void set_hide_timestamp(bool hide_timestamp) { this->hide_timestamp_ = hide_timestamp; }
   void setup() override;
   void dump_config() override;
-  float get_setup_priority() const override;
 
  protected:
+  bool hide_hash_{false};
   bool hide_timestamp_{false};
 };
 
-}  // namespace version
-}  // namespace esphome
+}  // namespace esphome::version

@@ -1,8 +1,7 @@
 #include "resistance_sensor.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace resistance {
+namespace esphome::resistance {
 
 static const char *const TAG = "resistance";
 
@@ -12,8 +11,8 @@ void ResistanceSensor::dump_config() {
                 "  Configuration: %s\n"
                 "  Resistor: %.2fΩ\n"
                 "  Reference Voltage: %.1fV",
-                this->configuration_ == UPSTREAM ? "UPSTREAM" : "DOWNSTREAM", this->resistor_,
-                this->reference_voltage_);
+                this->configuration_ == UPSTREAM ? LOG_STR_LITERAL("UPSTREAM") : LOG_STR_LITERAL("DOWNSTREAM"),
+                this->resistor_, this->reference_voltage_);
 }
 void ResistanceSensor::process_(float value) {
   if (std::isnan(value)) {
@@ -39,9 +38,8 @@ void ResistanceSensor::process_(float value) {
   }
 
   res *= this->resistor_;
-  ESP_LOGD(TAG, "'%s' - Resistance %.1fΩ", this->name_.c_str(), res);
+  ESP_LOGV(TAG, "'%s' - Resistance %.1fΩ", this->name_.c_str(), res);
   this->publish_state(res);
 }
 
-}  // namespace resistance
-}  // namespace esphome
+}  // namespace esphome::resistance

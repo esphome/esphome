@@ -1,16 +1,19 @@
 from esphome import pins
 import esphome.codegen as cg
-from esphome.components import i2c
+from esphome.components import gpio_expander, i2c
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ID,
     CONF_INPUT,
+    CONF_INTERRUPT_PIN,
     CONF_INVERTED,
     CONF_MODE,
     CONF_NUMBER,
     CONF_OUTPUT,
     CONF_PULLUP,
 )
+from esphome.cpp_generator import MockObj
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@Mat931"]
 DEPENDENCIES = ["i2c"]
@@ -25,19 +28,26 @@ PCA6416AGPIOPin = pca6416a_ns.class_(
 
 CONF_PCA6416A = "pca6416a"
 CONFIG_SCHEMA = (
-    cv.Schema({cv.Required(CONF_ID): cv.declare_id(PCA6416AComponent)})
+    cv.Schema(
+        {
+            cv.Required(CONF_ID): cv.declare_id(PCA6416AComponent),
+            cv.Optional(CONF_INTERRUPT_PIN): gpio_expander.validate_interrupt_pin,
+        }
+    )
     .extend(cv.COMPONENT_SCHEMA)
     .extend(i2c.i2c_device_schema(0x21))
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)
+    if interrupt_pin := config.get(CONF_INTERRUPT_PIN):
+        cg.add(var.set_interrupt_pin(await cg.gpio_pin_expression(interrupt_pin)))
 
 
-def validate_mode(value):
+def validate_mode(value: ConfigType) -> ConfigType:
     if not (value[CONF_INPUT] or value[CONF_OUTPUT]):
         raise cv.Invalid("Mode must be either input or output")
     if value[CONF_INPUT] and value[CONF_OUTPUT]:
@@ -51,7 +61,7 @@ PCA6416A_PIN_SCHEMA = cv.All(
     {
         cv.GenerateID(): cv.declare_id(PCA6416AGPIOPin),
         cv.Required(CONF_PCA6416A): cv.use_id(PCA6416AComponent),
-        cv.Required(CONF_NUMBER): cv.int_range(min=0, max=16),
+        cv.Required(CONF_NUMBER): cv.int_range(min=0, max=15),
         cv.Optional(CONF_MODE, default={}): cv.All(
             {
                 cv.Optional(CONF_INPUT, default=False): cv.boolean,
@@ -66,7 +76,7 @@ PCA6416A_PIN_SCHEMA = cv.All(
 
 
 @pins.PIN_SCHEMA_REGISTRY.register(CONF_PCA6416A, PCA6416A_PIN_SCHEMA)
-async def pca6416a_pin_to_code(config):
+async def pca6416a_pin_to_code(config: ConfigType) -> MockObj:
     var = cg.new_Pvariable(config[CONF_ID])
     parent = await cg.get_variable(config[CONF_PCA6416A])
 

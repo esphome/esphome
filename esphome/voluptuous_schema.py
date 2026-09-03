@@ -39,8 +39,7 @@ class _Schema(vol.Schema):
             try:
                 res = extra(res)
             except vol.Invalid as err:
-                # pylint: disable=raise-missing-from
-                raise ensure_multiple_invalid(err)
+                raise ensure_multiple_invalid(err) from err
         return res
 
     def _compile_mapping(self, schema, invalid_msg=None):
@@ -175,6 +174,12 @@ class _Schema(vol.Schema):
                 else:
                     if self.extra == vol.ALLOW_EXTRA:
                         out[key] = value
+                    elif key == "id":
+                        # Silently drop 'id' on any dict so that
+                        # !extend / !remove work on every list-based
+                        # config without requiring each component to
+                        # declare an id in its schema.
+                        pass
                     elif self.extra != vol.REMOVE_EXTRA:
                         if isinstance(key, str) and key_names:
                             matches = difflib.get_close_matches(key, key_names)

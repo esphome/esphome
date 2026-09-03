@@ -1,0 +1,22 @@
+esphome:
+  name: sntp-test
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+wifi:
+  ssid: "testssid"
+  password: "testpassword"
+
+# Test multiple SNTP instances that should be merged
+time:
+  - platform: sntp
+    servers:
+      - 192.168.1.1
+      - pool.ntp.org
+  - platform: sntp
+    servers:
+      - pool.ntp.org
+      - 192.168.1.2

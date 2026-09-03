@@ -1,0 +1,11 @@
+# Common configuration for 4-channel UART bridge/expander chips
+# Used by components like wk2168, wk2204, wk2212 that create 4 UART channels
+# Defines standardized UART IDs: uart_id_0, uart_id_1, uart_id_2, uart_id_3
+
+substitutions:
+  # These will be overridden by component-specific values
+  uart_bridge_address: "0x70"
+
+# Note: The actual UART instances are created by the bridge component
+# This package just ensures all bridge components use the same ID naming convention
+# so they can be grouped together without conflicts

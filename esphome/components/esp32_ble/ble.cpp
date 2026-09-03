@@ -6,7 +6,17 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
+#ifndef CONFIG_ESP_HOSTED_ENABLE_BT_BLUEDROID
 #include <esp_bt.h>
+#else
+#include "esphome/components/watchdog/watchdog.h"
+#include <cinttypes>
+extern "C" {
+#include <esp_hosted.h>
+#include <esp_hosted_misc.h>
+#include <esp_hosted_bluedroid.h>
+}
+#endif
 #include <esp_bt_device.h>
 #include <esp_bt_main.h>
 #include <esp_gap_ble_api.h>
@@ -16,12 +26,48 @@
 #include <nvs_flash.h>
 
 #ifdef USE_ARDUINO
-#include <esp32-hal-bt.h>
+// Prevent Arduino from releasing BT memory at startup (esp32-hal-misc.c).
+// Without this, esp_bt_controller_init() fails with ESP_ERR_INVALID_STATE.
+extern "C" bool btInUse() { return true; }  // NOLINT(readability-identifier-naming)
 #endif
 
 namespace esphome::esp32_ble {
 
 static const char *const TAG = "esp32_ble";
+
+#ifdef CONFIG_ESP_HOSTED_ENABLE_BT_BLUEDROID
+// Bringing up the remote BT controller issues synchronous RPCs to the
+// co-processor with 5 second response timeouts, and the default task watchdog
+// is also 5 seconds. If the co-processor firmware does not answer (for example
+// factory firmware without Bluetooth support), the watchdog would reboot the
+// device before the RPC could return an error, causing a boot loop. Raise the
+// watchdog for the duration of the bring-up so failures surface as error
+// returns instead. 60 seconds covers the worst case: transport reconnect
+// (up to ~20s), version preflight (1s), controller init/enable (5s each) and
+// the bluedroid host bring-up over the hosted HCI transport.
+static constexpr uint32_t HOSTED_BT_WDT_TIMEOUT_MS = 60000;
+#endif
+
+// GAP event groups for deduplication across gap_event_handler and dispatch_gap_event_
+#define GAP_SCAN_COMPLETE_EVENTS \
+  case ESP_GAP_BLE_SCAN_PARAM_SET_COMPLETE_EVT: \
+  case ESP_GAP_BLE_SCAN_START_COMPLETE_EVT: \
+  case ESP_GAP_BLE_SCAN_STOP_COMPLETE_EVT
+
+#define GAP_ADV_COMPLETE_EVENTS \
+  case ESP_GAP_BLE_ADV_DATA_SET_COMPLETE_EVT: \
+  case ESP_GAP_BLE_SCAN_RSP_DATA_SET_COMPLETE_EVT: \
+  case ESP_GAP_BLE_ADV_DATA_RAW_SET_COMPLETE_EVT: \
+  case ESP_GAP_BLE_SCAN_RSP_DATA_RAW_SET_COMPLETE_EVT: \
+  case ESP_GAP_BLE_ADV_START_COMPLETE_EVT: \
+  case ESP_GAP_BLE_ADV_STOP_COMPLETE_EVT
+
+#define GAP_SECURITY_EVENTS \
+  case ESP_GAP_BLE_AUTH_CMPL_EVT: \
+  case ESP_GAP_BLE_SEC_REQ_EVT: \
+  case ESP_GAP_BLE_PASSKEY_NOTIF_EVT: \
+  case ESP_GAP_BLE_PASSKEY_REQ_EVT: \
+  case ESP_GAP_BLE_NC_REQ_EVT
 
 void ESP32BLE::setup() {
   global_ble = this;
@@ -50,8 +96,6 @@ void ESP32BLE::disable() {
 
   this->state_ = BLE_COMPONENT_STATE_DISABLE;
 }
-
-bool ESP32BLE::is_active() { return this->state_ == BLE_COMPONENT_STATE_ACTIVE; }
 
 #ifdef USE_ESP32_BLE_ADVERTISING
 void ESP32BLE::advertising_start() {
@@ -136,12 +180,10 @@ void ESP32BLE::advertising_init_() {
 
 bool ESP32BLE::ble_setup_() {
   esp_err_t err;
-#ifdef USE_ARDUINO
-  if (!btStart()) {
-    ESP_LOGE(TAG, "btStart failed: %d", esp_bt_controller_get_status());
-    return false;
-  }
-#else
+#ifdef CONFIG_ESP_HOSTED_ENABLE_BT_BLUEDROID
+  watchdog::WatchdogManager wdt(HOSTED_BT_WDT_TIMEOUT_MS);
+#endif
+#ifndef CONFIG_ESP_HOSTED_ENABLE_BT_BLUEDROID
   if (esp_bt_controller_get_status() != ESP_BT_CONTROLLER_STATUS_ENABLED) {
     // start bt controller
     if (esp_bt_controller_get_status() == ESP_BT_CONTROLLER_STATUS_IDLE) {
@@ -166,9 +208,50 @@ bool ESP32BLE::ble_setup_() {
       return false;
     }
   }
-#endif
 
   esp_bt_controller_mem_release(ESP_BT_MODE_CLASSIC_BT);
+#else
+  if (esp_hosted_connect_to_slave() != ESP_OK) {  // NOLINT
+    ESP_LOGE(TAG, "Co-processor transport failed; BLE disabled");
+    return false;
+  }
+
+  // Fast preflight (1 second RPC timeout): verifies the co-processor answers
+  // RPCs at all before the 5 second timeout BT controller RPCs below, and
+  // before hosted_hci_bluedroid_open(), which aborts if the transport is down.
+  esp_hosted_coprocessor_fwver_t fw_ver{};
+  if (esp_hosted_get_coprocessor_fwversion(&fw_ver) != ESP_OK) {
+    ESP_LOGE(TAG, "Co-processor not responding; BLE disabled. Update its firmware with the esp32_hosted "
+                  "update component");
+    return false;
+  }
+  ESP_LOGD(TAG, "Co-processor firmware %" PRIu32 ".%" PRIu32 ".%" PRIu32, fw_ver.major1, fw_ver.minor1, fw_ver.patch1);
+
+  if (esp_hosted_bt_controller_init() != ESP_OK) {
+    ESP_LOGE(TAG,
+             "BT controller init failed; co-processor firmware %" PRIu32 ".%" PRIu32 ".%" PRIu32
+             " may lack BT support. Update it with the esp32_hosted update component; BLE disabled",
+             fw_ver.major1, fw_ver.minor1, fw_ver.patch1);
+    return false;
+  }
+
+  if (esp_hosted_bt_controller_enable() != ESP_OK) {
+    ESP_LOGE(TAG,
+             "BT controller enable failed; co-processor firmware %" PRIu32 ".%" PRIu32 ".%" PRIu32
+             " may lack BT support. Update it with the esp32_hosted update component; BLE disabled",
+             fw_ver.major1, fw_ver.minor1, fw_ver.patch1);
+    return false;
+  }
+
+  hosted_hci_bluedroid_open();
+
+  esp_bluedroid_hci_driver_operations_t operations = {
+      .send = hosted_hci_bluedroid_send,
+      .check_send_available = hosted_hci_bluedroid_check_send_available,
+      .register_host_callback = hosted_hci_bluedroid_register_host_callback,
+  };
+  esp_bluedroid_attach_hci_driver(&operations);
+#endif
 
   err = esp_bluedroid_init();
   if (err != ESP_OK) {
@@ -181,62 +264,105 @@ bool ESP32BLE::ble_setup_() {
     return false;
   }
 
-  if (!this->gap_event_handlers_.empty()) {
-    err = esp_ble_gap_register_callback(ESP32BLE::gap_event_handler);
-    if (err != ESP_OK) {
-      ESP_LOGE(TAG, "esp_ble_gap_register_callback failed: %d", err);
-      return false;
-    }
-  }
-
-#ifdef USE_ESP32_BLE_SERVER
-  if (!this->gatts_event_handlers_.empty()) {
-    err = esp_ble_gatts_register_callback(ESP32BLE::gatts_event_handler);
-    if (err != ESP_OK) {
-      ESP_LOGE(TAG, "esp_ble_gatts_register_callback failed: %d", err);
-      return false;
-    }
+#ifdef ESPHOME_ESP32_BLE_GAP_EVENT_HANDLER_COUNT
+  err = esp_ble_gap_register_callback(ESP32BLE::gap_event_handler);
+  if (err != ESP_OK) {
+    ESP_LOGE(TAG, "esp_ble_gap_register_callback failed: %d", err);
+    return false;
   }
 #endif
 
-#ifdef USE_ESP32_BLE_CLIENT
-  if (!this->gattc_event_handlers_.empty()) {
-    err = esp_ble_gattc_register_callback(ESP32BLE::gattc_event_handler);
-    if (err != ESP_OK) {
-      ESP_LOGE(TAG, "esp_ble_gattc_register_callback failed: %d", err);
-      return false;
-    }
+#if defined(USE_ESP32_BLE_SERVER) && defined(ESPHOME_ESP32_BLE_GATTS_EVENT_HANDLER_COUNT)
+  err = esp_ble_gatts_register_callback(ESP32BLE::gatts_event_handler);
+  if (err != ESP_OK) {
+    ESP_LOGE(TAG, "esp_ble_gatts_register_callback failed: %d", err);
+    return false;
   }
 #endif
 
-  std::string name;
-  if (this->name_.has_value()) {
-    name = this->name_.value();
+#if defined(USE_ESP32_BLE_CLIENT) && defined(ESPHOME_ESP32_BLE_GATTC_EVENT_HANDLER_COUNT)
+  err = esp_ble_gattc_register_callback(ESP32BLE::gattc_event_handler);
+  if (err != ESP_OK) {
+    ESP_LOGE(TAG, "esp_ble_gattc_register_callback failed: %d", err);
+    return false;
+  }
+#endif
+
+  // BLE device names are limited to 20 characters
+  // Buffer: 20 chars + null terminator
+  constexpr size_t ble_name_max_len = 21;
+  char name_buffer[ble_name_max_len];
+  const char *device_name;
+
+  if (this->name_ != nullptr) {
     if (App.is_name_add_mac_suffix_enabled()) {
-      name += "-" + get_mac_address().substr(6);
+      // MAC address suffix length (last 6 characters of 12-char MAC address string)
+      constexpr size_t mac_address_suffix_len = 6;
+      char mac_addr[MAC_ADDRESS_BUFFER_SIZE];
+      get_mac_address_into_buffer(mac_addr);
+      const char *mac_suffix_ptr = mac_addr + mac_address_suffix_len;
+      make_name_with_suffix_to(name_buffer, sizeof(name_buffer), this->name_, strlen(this->name_), '-', mac_suffix_ptr,
+                               mac_address_suffix_len);
+      device_name = name_buffer;
+    } else {
+      device_name = this->name_;
     }
   } else {
-    name = App.get_name();
-    if (name.length() > 20) {
+    const auto &app_name = App.get_name();
+    size_t name_len = app_name.length();
+    if (name_len > 20) {
       if (App.is_name_add_mac_suffix_enabled()) {
-        name.erase(name.begin() + 13, name.end() - 7);  // Remove characters between 13 and the mac address
+        // Keep first 13 chars and last 7 chars (MAC suffix), remove middle
+        memcpy(name_buffer, app_name.c_str(), 13);
+        memcpy(name_buffer + 13, app_name.c_str() + name_len - 7, 7);
       } else {
-        name = name.substr(0, 20);
+        memcpy(name_buffer, app_name.c_str(), 20);
       }
+      name_buffer[20] = '\0';
+    } else {
+      memcpy(name_buffer, app_name.c_str(), name_len + 1);  // Include null terminator
     }
+    device_name = name_buffer;
   }
 
-  err = esp_ble_gap_set_device_name(name.c_str());
+  err = esp_ble_gap_set_device_name(device_name);
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "esp_ble_gap_set_device_name failed: %d", err);
     return false;
   }
 
-  err = esp_ble_gap_set_security_param(ESP_BLE_SM_IOCAP_MODE, &(this->io_cap_), sizeof(uint8_t));
+  err = esp_ble_gap_set_security_param(ESP_BLE_SM_IOCAP_MODE, &(this->io_cap_), sizeof(esp_ble_io_cap_t));
   if (err != ESP_OK) {
-    ESP_LOGE(TAG, "esp_ble_gap_set_security_param failed: %d", err);
+    ESP_LOGE(TAG, "esp_ble_gap_set_security_param iocap_mode failed: %d", err);
     return false;
   }
+
+#ifdef ESPHOME_ESP32_BLE_EXTENDED_AUTH_PARAMS
+  if (this->max_key_size_) {
+    err = esp_ble_gap_set_security_param(ESP_BLE_SM_MAX_KEY_SIZE, &(this->max_key_size_), sizeof(uint8_t));
+    if (err != ESP_OK) {
+      ESP_LOGE(TAG, "esp_ble_gap_set_security_param max_key_size failed: %d", err);
+      return false;
+    }
+  }
+
+  if (this->min_key_size_) {
+    err = esp_ble_gap_set_security_param(ESP_BLE_SM_MIN_KEY_SIZE, &(this->min_key_size_), sizeof(uint8_t));
+    if (err != ESP_OK) {
+      ESP_LOGE(TAG, "esp_ble_gap_set_security_param min_key_size failed: %d", err);
+      return false;
+    }
+  }
+
+  if (this->auth_req_mode_) {
+    err = esp_ble_gap_set_security_param(ESP_BLE_SM_AUTHEN_REQ_MODE, &(this->auth_req_mode_.value()),
+                                         sizeof(esp_ble_auth_req_t));
+    if (err != ESP_OK) {
+      ESP_LOGE(TAG, "esp_ble_gap_set_security_param authen_req_mode failed: %d", err);
+      return false;
+    }
+  }
+#endif  // ESPHOME_ESP32_BLE_EXTENDED_AUTH_PARAMS
 
   // BLE takes some time to be fully set up, 200ms should be more than enough
   delay(200);  // NOLINT
@@ -245,23 +371,30 @@ bool ESP32BLE::ble_setup_() {
 }
 
 bool ESP32BLE::ble_dismantle_() {
+#ifdef CONFIG_ESP_HOSTED_ENABLE_BT_BLUEDROID
+  // Same 5 second RPCs as the bring-up path; see HOSTED_BT_WDT_TIMEOUT_MS
+  watchdog::WatchdogManager wdt(HOSTED_BT_WDT_TIMEOUT_MS);
+#endif
   esp_err_t err = esp_bluedroid_disable();
   if (err != ESP_OK) {
-    ESP_LOGE(TAG, "esp_bluedroid_disable failed: %d", err);
-    return false;
+    // ESP_ERR_INVALID_STATE means Bluedroid is already disabled, which is fine
+    if (err != ESP_ERR_INVALID_STATE) {
+      ESP_LOGE(TAG, "esp_bluedroid_disable failed: %d", err);
+      return false;
+    }
+    ESP_LOGD(TAG, "Already disabled");
   }
   err = esp_bluedroid_deinit();
   if (err != ESP_OK) {
-    ESP_LOGE(TAG, "esp_bluedroid_deinit failed: %d", err);
-    return false;
+    // ESP_ERR_INVALID_STATE means Bluedroid is already deinitialized, which is fine
+    if (err != ESP_ERR_INVALID_STATE) {
+      ESP_LOGE(TAG, "esp_bluedroid_deinit failed: %d", err);
+      return false;
+    }
+    ESP_LOGD(TAG, "Already deinitialized");
   }
 
-#ifdef USE_ARDUINO
-  if (!btStop()) {
-    ESP_LOGE(TAG, "btStop failed: %d", esp_bt_controller_get_status());
-    return false;
-  }
-#else
+#ifndef CONFIG_ESP_HOSTED_ENABLE_BT_BLUEDROID
   if (esp_bt_controller_get_status() != ESP_BT_CONTROLLER_STATUS_IDLE) {
     // stop bt controller
     if (esp_bt_controller_get_status() == ESP_BT_CONTROLLER_STATUS_ENABLED) {
@@ -285,71 +418,57 @@ bool ESP32BLE::ble_dismantle_() {
       return false;
     }
   }
+#else
+  if (esp_hosted_bt_controller_disable() != ESP_OK) {
+    ESP_LOGE(TAG, "esp_hosted_bt_controller_disable failed");
+    return false;
+  }
+
+  if (esp_hosted_bt_controller_deinit(false) != ESP_OK) {
+    ESP_LOGE(TAG, "esp_hosted_bt_controller_deinit failed");
+    return false;
+  }
+
+  hosted_hci_bluedroid_close();
 #endif
   return true;
 }
 
 void ESP32BLE::loop() {
-  switch (this->state_) {
-    case BLE_COMPONENT_STATE_OFF:
-    case BLE_COMPONENT_STATE_DISABLED:
-      return;
-    case BLE_COMPONENT_STATE_DISABLE: {
-      ESP_LOGD(TAG, "Disabling");
-
-      for (auto *ble_event_handler : this->ble_status_event_handlers_) {
-        ble_event_handler->ble_before_disabled_event_handler();
-      }
-
-      if (!ble_dismantle_()) {
-        ESP_LOGE(TAG, "Could not be dismantled");
-        this->mark_failed();
-        return;
-      }
-      this->state_ = BLE_COMPONENT_STATE_DISABLED;
-      return;
-    }
-    case BLE_COMPONENT_STATE_ENABLE: {
-      ESP_LOGD(TAG, "Enabling");
-      this->state_ = BLE_COMPONENT_STATE_OFF;
-
-      if (!ble_setup_()) {
-        ESP_LOGE(TAG, "Could not be set up");
-        this->mark_failed();
-        return;
-      }
-
-      this->state_ = BLE_COMPONENT_STATE_ACTIVE;
-      return;
-    }
-    case BLE_COMPONENT_STATE_ACTIVE:
-      break;
+  if (this->state_ != BLE_COMPONENT_STATE_ACTIVE) {
+    this->loop_handle_state_transition_not_active_();
+    return;
   }
 
+#ifdef USE_ESP32_BLE_ADVERTISING
+  if (this->advertising_ != nullptr) {
+    this->advertising_->loop();
+  }
+#endif
+
   BLEEvent *ble_event = this->ble_events_.pop();
-  while (ble_event != nullptr) {
+  if (ble_event == nullptr)
+    return;
+
+  do {
     switch (ble_event->type_) {
-#ifdef USE_ESP32_BLE_SERVER
+#if defined(USE_ESP32_BLE_SERVER) && defined(ESPHOME_ESP32_BLE_GATTS_EVENT_HANDLER_COUNT)
       case BLEEvent::GATTS: {
         esp_gatts_cb_event_t event = ble_event->event_.gatts.gatts_event;
         esp_gatt_if_t gatts_if = ble_event->event_.gatts.gatts_if;
         esp_ble_gatts_cb_param_t *param = &ble_event->event_.gatts.gatts_param;
         ESP_LOGV(TAG, "gatts_event [esp_gatt_if: %d] - %d", gatts_if, event);
-        for (auto *gatts_handler : this->gatts_event_handlers_) {
-          gatts_handler->gatts_event_handler(event, gatts_if, param);
-        }
+        this->gatts_event_callbacks_.call(event, gatts_if, param);
         break;
       }
 #endif
-#ifdef USE_ESP32_BLE_CLIENT
+#if defined(USE_ESP32_BLE_CLIENT) && defined(ESPHOME_ESP32_BLE_GATTC_EVENT_HANDLER_COUNT)
       case BLEEvent::GATTC: {
         esp_gattc_cb_event_t event = ble_event->event_.gattc.gattc_event;
         esp_gatt_if_t gattc_if = ble_event->event_.gattc.gattc_if;
         esp_ble_gattc_cb_param_t *param = &ble_event->event_.gattc.gattc_param;
         ESP_LOGV(TAG, "gattc_event [esp_gatt_if: %d] - %d", gattc_if, event);
-        for (auto *gattc_handler : this->gattc_event_handlers_) {
-          gattc_handler->gattc_event_handler(event, gattc_if, param);
-        }
+        this->gattc_event_callbacks_.call(event, gattc_if, param);
         break;
       }
 #endif
@@ -357,61 +476,54 @@ void ESP32BLE::loop() {
         esp_gap_ble_cb_event_t gap_event = ble_event->event_.gap.gap_event;
         switch (gap_event) {
           case ESP_GAP_BLE_SCAN_RESULT_EVT:
-            // Use the new scan event handler - no memcpy!
-            for (auto *scan_handler : this->gap_scan_event_handlers_) {
-              scan_handler->gap_scan_event_handler(ble_event->scan_result());
-            }
+#ifdef ESPHOME_ESP32_BLE_GAP_SCAN_EVENT_HANDLER_COUNT
+            this->gap_scan_event_callbacks_.call(ble_event->scan_result());
+#endif
             break;
 
           // Scan complete events
-          case ESP_GAP_BLE_SCAN_PARAM_SET_COMPLETE_EVT:
-          case ESP_GAP_BLE_SCAN_START_COMPLETE_EVT:
-          case ESP_GAP_BLE_SCAN_STOP_COMPLETE_EVT:
-            // All three scan complete events have the same structure with just status
-            // The scan_complete struct matches ESP-IDF's layout exactly, so this reinterpret_cast is safe
-            // This is verified at compile-time by static_assert checks in ble_event.h
-            // The struct already contains our copy of the status (copied in BLEEvent constructor)
-            ESP_LOGV(TAG, "gap_event_handler - %d", gap_event);
-            for (auto *gap_handler : this->gap_event_handlers_) {
-              gap_handler->gap_event_handler(
-                  gap_event, reinterpret_cast<esp_ble_gap_cb_param_t *>(&ble_event->event_.gap.scan_complete));
-            }
-            break;
-
+          GAP_SCAN_COMPLETE_EVENTS:
           // Advertising complete events
-          case ESP_GAP_BLE_ADV_DATA_SET_COMPLETE_EVT:
-          case ESP_GAP_BLE_SCAN_RSP_DATA_SET_COMPLETE_EVT:
-          case ESP_GAP_BLE_ADV_DATA_RAW_SET_COMPLETE_EVT:
-          case ESP_GAP_BLE_ADV_START_COMPLETE_EVT:
-          case ESP_GAP_BLE_ADV_STOP_COMPLETE_EVT:
-            // All advertising complete events have the same structure with just status
-            ESP_LOGV(TAG, "gap_event_handler - %d", gap_event);
-            for (auto *gap_handler : this->gap_event_handlers_) {
-              gap_handler->gap_event_handler(
-                  gap_event, reinterpret_cast<esp_ble_gap_cb_param_t *>(&ble_event->event_.gap.adv_complete));
-            }
-            break;
-
+          GAP_ADV_COMPLETE_EVENTS:
           // RSSI complete event
           case ESP_GAP_BLE_READ_RSSI_COMPLETE_EVT:
-            ESP_LOGV(TAG, "gap_event_handler - %d", gap_event);
-            for (auto *gap_handler : this->gap_event_handlers_) {
-              gap_handler->gap_event_handler(
-                  gap_event, reinterpret_cast<esp_ble_gap_cb_param_t *>(&ble_event->event_.gap.read_rssi_complete));
-            }
-            break;
-
           // Security events
-          case ESP_GAP_BLE_AUTH_CMPL_EVT:
-          case ESP_GAP_BLE_SEC_REQ_EVT:
-          case ESP_GAP_BLE_PASSKEY_NOTIF_EVT:
-          case ESP_GAP_BLE_PASSKEY_REQ_EVT:
-          case ESP_GAP_BLE_NC_REQ_EVT:
+          GAP_SECURITY_EVENTS:
             ESP_LOGV(TAG, "gap_event_handler - %d", gap_event);
-            for (auto *gap_handler : this->gap_event_handlers_) {
-              gap_handler->gap_event_handler(
-                  gap_event, reinterpret_cast<esp_ble_gap_cb_param_t *>(&ble_event->event_.gap.security));
+#ifdef ESPHOME_ESP32_BLE_GAP_EVENT_HANDLER_COUNT
+            {
+              esp_ble_gap_cb_param_t *param = NULL;
+              // clang-format off
+              switch (gap_event) {
+                // All three scan complete events have the same structure with just status
+                // The scan_complete struct matches ESP-IDF's layout exactly, so this reinterpret_cast is safe
+                // This is verified at compile-time by static_assert checks in ble_event.h
+                // The struct already contains our copy of the status (copied in BLEEvent constructor)
+                GAP_SCAN_COMPLETE_EVENTS:
+                  param = reinterpret_cast<esp_ble_gap_cb_param_t *>(&ble_event->event_.gap.scan_complete);
+                  break;
+
+                // All advertising complete events have the same structure with just status
+                GAP_ADV_COMPLETE_EVENTS:
+                  param = reinterpret_cast<esp_ble_gap_cb_param_t *>(&ble_event->event_.gap.adv_complete);
+                  break;
+
+                case ESP_GAP_BLE_READ_RSSI_COMPLETE_EVT:
+                  param = reinterpret_cast<esp_ble_gap_cb_param_t *>(&ble_event->event_.gap.read_rssi_complete);
+                  break;
+
+                GAP_SECURITY_EVENTS:
+                  param = reinterpret_cast<esp_ble_gap_cb_param_t *>(&ble_event->event_.gap.security);
+                  break;
+
+                default:
+                  break;
+              }
+              // clang-format on
+              // Dispatch to all registered handlers
+              this->gap_event_callbacks_.call(gap_event, param);
             }
+#endif
             break;
 
           default:
@@ -426,18 +538,43 @@ void ESP32BLE::loop() {
     }
     // Return the event to the pool
     this->ble_event_pool_.release(ble_event);
-    ble_event = this->ble_events_.pop();
-  }
-#ifdef USE_ESP32_BLE_ADVERTISING
-  if (this->advertising_ != nullptr) {
-    this->advertising_->loop();
-  }
-#endif
+  } while ((ble_event = this->ble_events_.pop()) != nullptr);
 
-  // Log dropped events periodically
+  // Log dropped events - only reachable when events were processed.
+  // Drops only occur when the queue is full, and only this loop drains it,
+  // so if pop() returned nullptr above we can skip this check (saves a memw).
   uint16_t dropped = this->ble_events_.get_and_reset_dropped_count();
   if (dropped > 0) {
     ESP_LOGW(TAG, "Dropped %u BLE events due to buffer overflow", dropped);
+  }
+}
+
+void ESP32BLE::loop_handle_state_transition_not_active_() {
+  // Caller ensures state_ != ACTIVE
+  if (this->state_ == BLE_COMPONENT_STATE_DISABLE) {
+    ESP_LOGD(TAG, "Disabling");
+
+#ifdef ESPHOME_ESP32_BLE_BLE_STATUS_EVENT_HANDLER_COUNT
+    this->ble_status_event_callbacks_.call();
+#endif
+
+    if (!ble_dismantle_()) {
+      ESP_LOGE(TAG, "Could not be dismantled");
+      this->mark_failed();
+      return;
+    }
+    this->state_ = BLE_COMPONENT_STATE_DISABLED;
+  } else if (this->state_ == BLE_COMPONENT_STATE_ENABLE) {
+    ESP_LOGD(TAG, "Enabling");
+    this->state_ = BLE_COMPONENT_STATE_OFF;
+
+    if (!ble_setup_()) {
+      ESP_LOGE(TAG, "Could not be set up");
+      this->mark_failed();
+      return;
+    }
+
+    this->state_ = BLE_COMPONENT_STATE_ACTIVE;
   }
 }
 
@@ -471,8 +608,9 @@ template<typename... Args> void enqueue_ble_event(Args... args) {
   load_ble_event(event, args...);
 
   // Push the event to the queue
+  // Push always succeeds: pool is sized to queue capacity (N-1), so if
+  // allocate() returned non-null, the queue is guaranteed to have room.
   global_ble->ble_events_.push(event);
-  // Push always succeeds because we're the only producer and the pool ensures we never exceed queue size
 }
 
 // Explicit template instantiations for the friend function
@@ -489,31 +627,49 @@ void ESP32BLE::gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_pa
     // Queue GAP events that components need to handle
     // Scanning events - used by esp32_ble_tracker
     case ESP_GAP_BLE_SCAN_RESULT_EVT:
-    case ESP_GAP_BLE_SCAN_PARAM_SET_COMPLETE_EVT:
-    case ESP_GAP_BLE_SCAN_START_COMPLETE_EVT:
-    case ESP_GAP_BLE_SCAN_STOP_COMPLETE_EVT:
+    GAP_SCAN_COMPLETE_EVENTS:
     // Advertising events - used by esp32_ble_beacon and esp32_ble server
-    case ESP_GAP_BLE_ADV_DATA_SET_COMPLETE_EVT:
-    case ESP_GAP_BLE_SCAN_RSP_DATA_SET_COMPLETE_EVT:
-    case ESP_GAP_BLE_ADV_DATA_RAW_SET_COMPLETE_EVT:
-    case ESP_GAP_BLE_ADV_START_COMPLETE_EVT:
-    case ESP_GAP_BLE_ADV_STOP_COMPLETE_EVT:
+    GAP_ADV_COMPLETE_EVENTS:
     // Connection events - used by ble_client
     case ESP_GAP_BLE_READ_RSSI_COMPLETE_EVT:
-    // Security events - used by ble_client and bluetooth_proxy
-    case ESP_GAP_BLE_AUTH_CMPL_EVT:
-    case ESP_GAP_BLE_SEC_REQ_EVT:
-    case ESP_GAP_BLE_PASSKEY_NOTIF_EVT:
-    case ESP_GAP_BLE_PASSKEY_REQ_EVT:
-    case ESP_GAP_BLE_NC_REQ_EVT:
       enqueue_ble_event(event, param);
       return;
 
+    // Security events - used by ble_client and bluetooth_proxy
+    // These are rare but interactive (pairing/bonding), so notify immediately
+    GAP_SECURITY_EVENTS:
+      enqueue_ble_event(event, param);
+      // Wake up main loop to process security event immediately
+      App.wake_loop_threadsafe();
+      return;
+
+    // Log the result of connection parameter updates: a peer can reject or
+    // never answer an update, and without this the link silently stays on the
+    // old parameters (visible only as unexplained supervision timeouts).
+    case ESP_GAP_BLE_UPDATE_CONN_PARAMS_EVT: {
+      if (param->update_conn_params.status != ESP_BT_STATUS_SUCCESS) {
+        char mac_s[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
+        format_mac_addr_upper(param->update_conn_params.bda, mac_s);
+        ESP_LOGW(TAG, "[%s] Conn param update failed, status=%d", mac_s, param->update_conn_params.status);
+      }
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
+      else {
+        char mac_s[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
+        format_mac_addr_upper(param->update_conn_params.bda, mac_s);
+        ESP_LOGV(TAG, "[%s] Conn params updated: interval=%u (x1.25ms) latency=%u timeout=%u (x10ms)", mac_s,
+                 param->update_conn_params.conn_int, param->update_conn_params.latency,
+                 param->update_conn_params.timeout);
+      }
+#endif
+      return;
+    }
+
     // Ignore these GAP events as they are not relevant for our use case
-    case ESP_GAP_BLE_UPDATE_CONN_PARAMS_EVT:
     case ESP_GAP_BLE_SET_PKT_LENGTH_COMPLETE_EVT:
     case ESP_GAP_BLE_PHY_UPDATE_COMPLETE_EVT:       // BLE 5.0 PHY update complete
     case ESP_GAP_BLE_CHANNEL_SELECT_ALGORITHM_EVT:  // BLE 5.0 channel selection algorithm
+    case ESP_GAP_BLE_LOCAL_IR_EVT:                  // Local identity root key generated at security init
+    case ESP_GAP_BLE_LOCAL_ER_EVT:                  // Local encryption root key generated at security init
       return;
 
     default:
@@ -526,6 +682,8 @@ void ESP32BLE::gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_pa
 void ESP32BLE::gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_if,
                                    esp_ble_gatts_cb_param_t *param) {
   enqueue_ble_event(event, gatts_if, param);
+  // Wake up main loop to process GATT event immediately
+  App.wake_loop_threadsafe();
 }
 #endif
 
@@ -533,14 +691,28 @@ void ESP32BLE::gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gat
 void ESP32BLE::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if,
                                    esp_ble_gattc_cb_param_t *param) {
   enqueue_ble_event(event, gattc_if, param);
+  // Wake up main loop to process GATT event immediately
+  App.wake_loop_threadsafe();
 }
 #endif
+
+void ESP32BLE::get_mac_msb_first(uint8_t out[MAC_ADDRESS_SIZE]) const {
+  // The running stack owns the address (on hosted controllers it lives in
+  // the remote chip's efuse); null before init becomes all-zero.
+  const uint8_t *mac = esp_bt_dev_get_address();
+  if (mac != nullptr) {
+    memcpy(out, mac, MAC_ADDRESS_SIZE);
+  } else {
+    memset(out, 0, MAC_ADDRESS_SIZE);
+  }
+}
 
 float ESP32BLE::get_setup_priority() const { return setup_priority::BLUETOOTH; }
 
 void ESP32BLE::dump_config() {
-  const uint8_t *mac_address = esp_bt_dev_get_address();
-  if (mac_address) {
+  uint8_t mac_address[MAC_ADDRESS_SIZE];
+  this->get_mac_msb_first(mac_address);
+  if (mac_address_is_valid(mac_address)) {
     const char *io_capability_s;
     switch (this->io_cap_) {
       case ESP_IO_CAP_OUT:
@@ -562,25 +734,62 @@ void ESP32BLE::dump_config() {
         io_capability_s = "invalid";
         break;
     }
+
+    char mac_s[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
+    format_mac_addr_upper(mac_address, mac_s);
     ESP_LOGCONFIG(TAG,
                   "BLE:\n"
                   "  MAC address: %s\n"
                   "  IO Capability: %s",
-                  format_mac_address_pretty(mac_address).c_str(), io_capability_s);
+                  mac_s, io_capability_s);
+#ifdef USE_ESP32_BLE_PSRAM
+    ESP_LOGCONFIG(TAG, "  PSRAM BLE allocation: enabled");
+#endif
+
+#ifdef ESPHOME_ESP32_BLE_EXTENDED_AUTH_PARAMS
+    const char *auth_req_mode_s = "<default>";
+    if (this->auth_req_mode_) {
+      switch (this->auth_req_mode_.value()) {
+        case AUTH_REQ_NO_BOND:
+          auth_req_mode_s = "no_bond";
+          break;
+        case AUTH_REQ_BOND:
+          auth_req_mode_s = "bond";
+          break;
+        case AUTH_REQ_MITM:
+          auth_req_mode_s = "mitm";
+          break;
+        case AUTH_REQ_BOND_MITM:
+          auth_req_mode_s = "bond_mitm";
+          break;
+        case AUTH_REQ_SC_ONLY:
+          auth_req_mode_s = "sc_only";
+          break;
+        case AUTH_REQ_SC_BOND:
+          auth_req_mode_s = "sc_bond";
+          break;
+        case AUTH_REQ_SC_MITM:
+          auth_req_mode_s = "sc_mitm";
+          break;
+        case AUTH_REQ_SC_MITM_BOND:
+          auth_req_mode_s = "sc_mitm_bond";
+          break;
+      }
+    }
+
+    ESP_LOGCONFIG(TAG, "  Auth Req Mode: %s", auth_req_mode_s);
+    if (this->max_key_size_ && this->min_key_size_) {
+      ESP_LOGCONFIG(TAG, "  Key Size: %u - %u", this->min_key_size_, this->max_key_size_);
+    } else if (this->max_key_size_) {
+      ESP_LOGCONFIG(TAG, "  Key Size: <default> - %u", this->max_key_size_);
+    } else if (this->min_key_size_) {
+      ESP_LOGCONFIG(TAG, "  Key Size: %u - <default>", this->min_key_size_);
+    }
+#endif  // ESPHOME_ESP32_BLE_EXTENDED_AUTH_PARAMS
+
   } else {
     ESP_LOGCONFIG(TAG, "Bluetooth stack is not enabled");
   }
-}
-
-uint64_t ble_addr_to_uint64(const esp_bd_addr_t address) {
-  uint64_t u = 0;
-  u |= uint64_t(address[0] & 0xFF) << 40;
-  u |= uint64_t(address[1] & 0xFF) << 32;
-  u |= uint64_t(address[2] & 0xFF) << 24;
-  u |= uint64_t(address[3] & 0xFF) << 16;
-  u |= uint64_t(address[4] & 0xFF) << 8;
-  u |= uint64_t(address[5] & 0xFF) << 0;
-  return u;
 }
 
 ESP32BLE *global_ble = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)

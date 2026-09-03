@@ -1,10 +1,6 @@
-i2c:
-  - id: i2c_qmc5883l
-    scl: ${scl_pin}
-    sda: ${sda_pin}
-
 sensor:
   - platform: qmc5883l
+    i2c_id: i2c_bus
     address: 0x0D
     field_strength_x:
       name: QMC5883L Field Strength X
@@ -17,5 +13,7 @@ sensor:
     temperature:
       name: QMC5883L Temperature
     range: 800uT
+    data_rate: 200Hz
     oversampling: 256x
     update_interval: 15s
+    drdy_pin: ${drdy_pin}

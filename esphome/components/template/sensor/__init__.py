@@ -44,10 +44,11 @@ async def to_code(config):
             cv.Required(CONF_STATE): cv.templatable(cv.float_),
         }
     ),
+    synchronous=True,
 )
 async def sensor_template_publish_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
-    template_ = await cg.templatable(config[CONF_STATE], args, float)
+    template_ = await cg.templatable(config[CONF_STATE], args, cg.float_)
     cg.add(var.set_state(template_))
     return var

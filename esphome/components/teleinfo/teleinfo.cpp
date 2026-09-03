@@ -1,8 +1,7 @@
 #include "teleinfo.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace teleinfo {
+namespace esphome::teleinfo {
 
 static const char *const TAG = "teleinfo";
 
@@ -58,7 +57,7 @@ bool TeleInfo::read_chars_until_(bool drop, uint8_t c) {
      */
     if (buf_index_ >= (MAX_BUF_SIZE - 1)) {
       ESP_LOGW(TAG, "Internal buffer full");
-      state_ = OFF;
+      state_ = STATE_OFF;
       return false;
     }
     buf_[buf_index_++] = received;
@@ -66,18 +65,18 @@ bool TeleInfo::read_chars_until_(bool drop, uint8_t c) {
 
   return false;
 }
-void TeleInfo::setup() { state_ = OFF; }
+void TeleInfo::setup() { state_ = STATE_OFF; }
 void TeleInfo::update() {
-  if (state_ == OFF) {
+  if (state_ == STATE_OFF) {
     buf_index_ = 0;
-    state_ = ON;
+    state_ = STATE_ON;
   }
 }
 void TeleInfo::loop() {
   switch (state_) {
-    case OFF:
+    case STATE_OFF:
       break;
-    case ON:
+    case STATE_ON:
       /* Dequeue chars until start frame (0x2) */
       if (read_chars_until_(true, 0x2))
         state_ = START_FRAME_RECEIVED;
@@ -174,7 +173,7 @@ void TeleInfo::loop() {
 
         publish_value_(std::string(tag_), std::string(val_));
       }
-      state_ = OFF;
+      state_ = STATE_OFF;
       break;
   }
 }
@@ -185,10 +184,7 @@ void TeleInfo::publish_value_(const std::string &tag, const std::string &val) {
     element->publish_val(val);
   }
 }
-void TeleInfo::dump_config() {
-  ESP_LOGCONFIG(TAG, "TeleInfo:");
-  this->check_uart_settings(baud_rate_, 1, uart::UART_CONFIG_PARITY_EVEN, 7);
-}
+void TeleInfo::dump_config() { ESP_LOGCONFIG(TAG, "TeleInfo:"); }
 TeleInfo::TeleInfo(bool historical_mode) {
   if (historical_mode) {
     /*
@@ -196,14 +192,11 @@ TeleInfo::TeleInfo(bool historical_mode) {
      */
     checksum_area_end_ = 2;
     separator_ = 0x20;
-    baud_rate_ = 1200;
   } else {
     checksum_area_end_ = 1;
     separator_ = 0x9;
-    baud_rate_ = 9600;
   }
 }
 void TeleInfo::register_teleinfo_listener(TeleInfoListener *listener) { teleinfo_listeners_.push_back(listener); }
 
-}  // namespace teleinfo
-}  // namespace esphome
+}  // namespace esphome::teleinfo

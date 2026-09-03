@@ -1,6 +1,6 @@
 binary_sensor:
   - platform: switch
-    id: some_binary_sensor
+    id: switch_some_binary_sensor
     name: "Template Switch State"
     source_id: the_switch
 

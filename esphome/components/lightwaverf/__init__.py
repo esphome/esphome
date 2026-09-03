@@ -11,7 +11,10 @@ from esphome.const import (
     CONF_REPEAT,
     CONF_WRITE_PIN,
 )
+from esphome.core import ID
+from esphome.cpp_generator import MockObj, TemplateArgsType
 from esphome.cpp_helpers import gpio_pin_expression
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@max246"]
 
@@ -28,7 +31,7 @@ CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(LIGHTWAVERFComponent),
         cv.Optional(CONF_READ_PIN, default=13): pins.internal_gpio_input_pin_schema,
-        cv.Optional(CONF_WRITE_PIN, default=14): pins.internal_gpio_input_pin_schema,
+        cv.Optional(CONF_WRITE_PIN, default=14): pins.internal_gpio_output_pin_schema,
     }
 ).extend(cv.polling_component_schema("1s"))
 
@@ -55,24 +58,28 @@ LIGHTWAVE_SEND_SCHEMA = cv.Any(
     "lightwaverf.send_raw",
     LightwaveRawAction,
     LIGHTWAVE_SEND_SCHEMA,
+    synchronous=True,
 )
-async def send_raw_to_code(config, action_id, template_arg, args):
+async def send_raw_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
 
-    repeats = await cg.templatable(config[CONF_REPEAT], args, int)
-    inverted = await cg.templatable(config[CONF_INVERTED], args, bool)
-    pulse_length = await cg.templatable(config[CONF_PULSE_LENGTH], args, int)
-    code = config[CONF_CODE]
-
-    cg.add(var.set_repeats(repeats))
-    cg.add(var.set_inverted(inverted))
-    cg.add(var.set_pulse_length(pulse_length))
-    cg.add(var.set_data(code))
+    template_ = await cg.templatable(config[CONF_REPEAT], args, cg.int_)
+    cg.add(var.set_repeat(template_))
+    template_ = await cg.templatable(config[CONF_INVERTED], args, cg.int_)
+    cg.add(var.set_inverted(template_))
+    template_ = await cg.templatable(config[CONF_PULSE_LENGTH], args, cg.int_)
+    cg.add(var.set_pulse_length(template_))
+    cg.add(var.set_code(config[CONF_CODE]))
     return var
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
 

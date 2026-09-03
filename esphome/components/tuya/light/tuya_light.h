@@ -4,16 +4,11 @@
 #include "esphome/components/tuya/tuya.h"
 #include "esphome/components/light/light_output.h"
 
-namespace esphome {
-namespace tuya {
+namespace esphome::tuya {
 
-enum TuyaColorType {
-  RGB,
-  HSV,
-  RGBHSV,
-};
+enum TuyaColorType { RGB, HSV, RGBHSV };
 
-class TuyaLight : public Component, public light::LightOutput {
+class TuyaLight final : public Component, public light::LightOutput {
  public:
   void setup() override;
   void dump_config() override;
@@ -28,6 +23,7 @@ class TuyaLight : public Component, public light::LightOutput {
   void set_color_temperature_invert(bool color_temperature_invert) {
     this->color_temperature_invert_ = color_temperature_invert;
   }
+  void set_color_type_lowercase(bool color_type_lowercase) { this->color_type_lowercase_ = color_type_lowercase; }
   void set_tuya_parent(Tuya *parent) { this->parent_ = parent; }
   void set_min_value(uint32_t min_value) { min_value_ = min_value; }
   void set_max_value(uint32_t max_value) { max_value_ = max_value; }
@@ -63,9 +59,9 @@ class TuyaLight : public Component, public light::LightOutput {
   float cold_white_temperature_;
   float warm_white_temperature_;
   bool color_temperature_invert_{false};
+  bool color_type_lowercase_{false};
   bool color_interlock_{false};
   light::LightState *state_{nullptr};
 };
 
-}  // namespace tuya
-}  // namespace esphome
+}  // namespace esphome::tuya

@@ -1,10 +1,6 @@
-i2c:
-  - id: i2c_pmsa003i
-    scl: ${scl_pin}
-    sda: ${sda_pin}
-
 sensor:
   - platform: pmsa003i
+    i2c_id: i2c_bus
     pm_1_0:
       name: PMSA003i PM1.0
     pm_2_5:

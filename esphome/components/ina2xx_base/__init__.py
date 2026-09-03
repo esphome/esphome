@@ -1,5 +1,8 @@
+from typing import Any
+
 import esphome.codegen as cg
 from esphome.components import sensor
+from esphome.components.const import UNIT_AMPERE_HOUR
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BUS_VOLTAGE,
@@ -25,6 +28,9 @@ from esphome.const import (
     UNIT_WATT,
     UNIT_WATT_HOURS,
 )
+from esphome.core import EnumValue
+from esphome.cpp_generator import MockObj
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@latonita"]
 
@@ -35,7 +41,7 @@ CONF_CHARGE = "charge"
 CONF_CHARGE_COULOMBS = "charge_coulombs"
 CONF_ENERGY_JOULES = "energy_joules"
 CONF_TEMPERATURE_COEFFICIENT = "temperature_coefficient"
-UNIT_AMPERE_HOURS = "Ah"
+CONF_RESET_ON_BOOT = "reset_on_boot"
 UNIT_COULOMB = "C"
 UNIT_JOULE = "J"
 UNIT_MILLIVOLT = "mV"
@@ -75,7 +81,7 @@ SENSOR_MODEL_OPTIONS = {
 }
 
 
-def validate_model_config(config):
+def validate_model_config(config: ConfigType) -> ConfigType:
     model = config[CONF_MODEL]
 
     for key in config:
@@ -91,7 +97,7 @@ def validate_model_config(config):
     return config
 
 
-def validate_adc_time(value):
+def validate_adc_time(value: Any) -> EnumValue:
     value = cv.positive_time_period_microseconds(value).total_microseconds
     return cv.enum(ADC_TIMES, int=True)(value)
 
@@ -113,6 +119,7 @@ INA2XX_SCHEMA = cv.Schema(
         cv.Optional(CONF_TEMPERATURE_COEFFICIENT, default=0): cv.int_range(
             min=0, max=16383
         ),
+        cv.Optional(CONF_RESET_ON_BOOT, default=True): cv.boolean,
         cv.Optional(CONF_SHUNT_VOLTAGE): cv.maybe_simple_value(
             sensor.sensor_schema(
                 unit_of_measurement=UNIT_MILLIVOLT,
@@ -178,7 +185,7 @@ INA2XX_SCHEMA = cv.Schema(
         ),
         cv.Optional(CONF_CHARGE): cv.maybe_simple_value(
             sensor.sensor_schema(
-                unit_of_measurement=UNIT_AMPERE_HOURS,
+                unit_of_measurement=UNIT_AMPERE_HOUR,
                 accuracy_decimals=8,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
@@ -196,7 +203,7 @@ INA2XX_SCHEMA = cv.Schema(
 ).extend(cv.polling_component_schema("60s"))
 
 
-async def setup_ina2xx(var, config):
+async def setup_ina2xx(var: MockObj, config: ConfigType) -> None:
     await cg.register_component(var, config)
 
     cg.add(var.set_model(config[CONF_MODEL]))
@@ -206,6 +213,7 @@ async def setup_ina2xx(var, config):
     cg.add(var.set_adc_range(config[CONF_ADC_RANGE]))
     cg.add(var.set_adc_avg_samples(config[CONF_ADC_AVERAGING]))
     cg.add(var.set_shunt_tempco(config[CONF_TEMPERATURE_COEFFICIENT]))
+    cg.add(var.set_reset_on_boot(config[CONF_RESET_ON_BOOT]))
 
     adc_time_config = config[CONF_ADC_TIME]
     if isinstance(adc_time_config, dict):

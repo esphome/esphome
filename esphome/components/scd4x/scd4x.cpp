@@ -2,8 +2,7 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace scd4x {
+namespace esphome::scd4x {
 
 static const char *const TAG = "scd4x";
 
@@ -307,7 +306,7 @@ bool SCD4XComponent::start_measurement_() {
       break;
   }
 
-  static uint8_t remaining_retries = 3;
+  uint8_t remaining_retries = 3;
   while (remaining_retries) {
     if (!this->write_command(measurement_command)) {
       ESP_LOGE(TAG, "Error starting measurements");
@@ -316,6 +315,7 @@ bool SCD4XComponent::start_measurement_() {
       if (--remaining_retries == 0)
         return false;
       delay(50);  // NOLINT wait 50 ms and try again
+      continue;
     }
     this->status_clear_warning();
     return true;
@@ -323,5 +323,4 @@ bool SCD4XComponent::start_measurement_() {
   return false;
 }
 
-}  // namespace scd4x
-}  // namespace esphome
+}  // namespace esphome::scd4x

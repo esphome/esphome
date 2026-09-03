@@ -1,10 +1,7 @@
 #include "atc_mithermometer.h"
 #include "esphome/core/log.h"
 
-#ifdef USE_ESP32
-
-namespace esphome {
-namespace atc_mithermometer {
+namespace esphome::atc_mithermometer {
 
 static const char *const TAG = "atc_mithermometer";
 
@@ -16,12 +13,14 @@ void ATCMiThermometer::dump_config() {
   LOG_SENSOR("  ", "Battery Voltage", this->battery_voltage_);
 }
 
-bool ATCMiThermometer::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
+bool ATCMiThermometer::parse_device(const ble_device_base::ESPBTDevice &device) {
   if (device.address_uint64() != this->address_) {
     ESP_LOGVV(TAG, "parse_device(): unknown MAC address.");
     return false;
   }
-  ESP_LOGVV(TAG, "parse_device(): MAC address %s found.", device.address_str().c_str());
+  char addr_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
+  const char *addr_str = device.address_str_to(addr_buf);
+  ESP_LOGVV(TAG, "parse_device(): MAC address %s found.", addr_str);
 
   bool success = false;
   for (auto &service_data : device.get_service_datas()) {
@@ -32,7 +31,7 @@ bool ATCMiThermometer::parse_device(const esp32_ble_tracker::ESPBTDevice &device
     if (!(parse_message_(service_data.data, *res))) {
       continue;
     }
-    if (!(report_results_(res, device.address_str()))) {
+    if (!(report_results_(res, addr_str))) {
       continue;
     }
     if (res->temperature.has_value() && this->temperature_ != nullptr)
@@ -51,7 +50,7 @@ bool ATCMiThermometer::parse_device(const esp32_ble_tracker::ESPBTDevice &device
   return success;
 }
 
-optional<ParseResult> ATCMiThermometer::parse_header_(const esp32_ble_tracker::ServiceData &service_data) {
+optional<ParseResult> ATCMiThermometer::parse_header_(const ble_device_base::ServiceData &service_data) {
   ParseResult result;
   if (!service_data.uuid.contains(0x1A, 0x18)) {
     ESP_LOGVV(TAG, "parse_header(): no service data UUID magic bytes.");
@@ -59,13 +58,16 @@ optional<ParseResult> ATCMiThermometer::parse_header_(const esp32_ble_tracker::S
   }
 
   auto raw = service_data.data;
-
-  static uint8_t last_frame_count = 0;
-  if (last_frame_count == raw[12]) {
-    ESP_LOGVV(TAG, "parse_header(): duplicate data packet received (%hhu).", last_frame_count);
+  if (raw.size() < 13) {
+    ESP_LOGVV(TAG, "parse_header_(): service data too short (%zu).", raw.size());
     return {};
   }
-  last_frame_count = raw[12];
+
+  if (this->last_frame_count_ == raw[12]) {
+    ESP_LOGVV(TAG, "parse_header(): duplicate data packet received (%hhu).", this->last_frame_count_);
+    return {};
+  }
+  this->last_frame_count_ = raw[12];
 
   return result;
 }
@@ -103,13 +105,13 @@ bool ATCMiThermometer::parse_message_(const std::vector<uint8_t> &message, Parse
   return true;
 }
 
-bool ATCMiThermometer::report_results_(const optional<ParseResult> &result, const std::string &address) {
+bool ATCMiThermometer::report_results_(const optional<ParseResult> &result, const char *address) {
   if (!result.has_value()) {
     ESP_LOGVV(TAG, "report_results(): no results available.");
     return false;
   }
 
-  ESP_LOGD(TAG, "Got ATC MiThermometer (%s):", address.c_str());
+  ESP_LOGD(TAG, "Got ATC MiThermometer (%s):", address);
 
   if (result->temperature.has_value()) {
     ESP_LOGD(TAG, "  Temperature: %.1f °C", *result->temperature);
@@ -127,7 +129,4 @@ bool ATCMiThermometer::report_results_(const optional<ParseResult> &result, cons
   return true;
 }
 
-}  // namespace atc_mithermometer
-}  // namespace esphome
-
-#endif
+}  // namespace esphome::atc_mithermometer

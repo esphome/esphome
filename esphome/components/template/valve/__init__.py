@@ -112,15 +112,16 @@ async def to_code(config):
             ),
         }
     ),
+    synchronous=True,
 )
 async def valve_template_publish_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
     if state_config := config.get(CONF_STATE):
-        template_ = await cg.templatable(state_config, args, float)
+        template_ = await cg.templatable(state_config, args, cg.float_)
         cg.add(var.set_position(template_))
     if (position_config := config.get(CONF_POSITION)) is not None:
-        template_ = await cg.templatable(position_config, args, float)
+        template_ = await cg.templatable(position_config, args, cg.float_)
         cg.add(var.set_position(template_))
     if current_operation_config := config.get(CONF_CURRENT_OPERATION):
         template_ = await cg.templatable(

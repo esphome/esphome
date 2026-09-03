@@ -5,9 +5,11 @@ from esphome.const import (
     CONF_HAS_MOVING_TARGET,
     CONF_HAS_STILL_TARGET,
     CONF_HAS_TARGET,
+    CONF_ID,
     DEVICE_CLASS_MOTION,
     DEVICE_CLASS_OCCUPANCY,
 )
+from esphome.types import ConfigType
 
 from . import CONF_LD2450_ID, LD2450Component
 
@@ -18,6 +20,7 @@ ICON_SHIELD_ACCOUNT = "mdi:shield-account"
 ICON_TARGET_ACCOUNT = "mdi:target-account"
 
 CONFIG_SCHEMA = {
+    cv.GenerateID(CONF_ID): cv.declare_id(cg.EntityBase),
     cv.GenerateID(CONF_LD2450_ID): cv.use_id(LD2450Component),
     cv.Optional(CONF_HAS_TARGET): binary_sensor.binary_sensor_schema(
         device_class=DEVICE_CLASS_OCCUPANCY,
@@ -37,7 +40,7 @@ CONFIG_SCHEMA = {
 }
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     ld2450_component = await cg.get_variable(config[CONF_LD2450_ID])
     if has_target_config := config.get(CONF_HAS_TARGET):
         sens = await binary_sensor.new_binary_sensor(has_target_config)

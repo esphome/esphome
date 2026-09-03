@@ -3,14 +3,13 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace integration {
+namespace esphome::integration {
 
 static const char *const TAG = "integration";
 
 void IntegrationSensor::setup() {
   if (this->restore_) {
-    this->pref_ = global_preferences->make_preference<float>(this->get_preference_hash());
+    this->pref_ = this->make_entity_preference<float>();
     float preference_value = 0;
     this->pref_.load(&preference_value);
     this->result_ = preference_value;
@@ -47,5 +46,4 @@ void IntegrationSensor::process_sensor_value_(float value) {
   this->publish_and_save_(this->result_ + area);
 }
 
-}  // namespace integration
-}  // namespace esphome
+}  // namespace esphome::integration

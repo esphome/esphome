@@ -6,8 +6,7 @@
 #include "esphome/core/automation.h"
 #include "esphome/core/helpers.h"
 
-namespace esphome {
-namespace loop_test_component {
+namespace esphome::loop_test_component {
 
 static const char *const TAG = "loop_test_component";
 
@@ -39,7 +38,7 @@ template<typename... Ts> class EnableAction : public Action<Ts...> {
  public:
   EnableAction(LoopTestComponent *parent) : parent_(parent) {}
 
-  void play(Ts... x) override { this->parent_->service_enable(); }
+  void play(const Ts &...x) override { this->parent_->service_enable(); }
 
  protected:
   LoopTestComponent *parent_;
@@ -49,7 +48,7 @@ template<typename... Ts> class DisableAction : public Action<Ts...> {
  public:
   DisableAction(LoopTestComponent *parent) : parent_(parent) {}
 
-  void play(Ts... x) override { this->parent_->service_disable(); }
+  void play(const Ts &...x) override { this->parent_->service_disable(); }
 
  protected:
   LoopTestComponent *parent_;
@@ -79,5 +78,4 @@ class LoopTestUpdateComponent : public PollingComponent {
   int disable_loop_after_{0};
 };
 
-}  // namespace loop_test_component
-}  // namespace esphome
+}  // namespace esphome::loop_test_component

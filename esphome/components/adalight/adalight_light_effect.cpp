@@ -1,15 +1,14 @@
 #include "adalight_light_effect.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace adalight {
+namespace esphome::adalight {
 
 static const char *const TAG = "adalight_light_effect";
 
 static const uint32_t ADALIGHT_ACK_INTERVAL = 1000;
 static const uint32_t ADALIGHT_RECEIVE_TIMEOUT = 1000;
 
-AdalightLightEffect::AdalightLightEffect(const std::string &name) : AddressableLightEffect(name) {}
+AdalightLightEffect::AdalightLightEffect(const char *name) : AddressableLightEffect(name) {}
 
 void AdalightLightEffect::start() {
   AddressableLightEffect::start();
@@ -129,7 +128,7 @@ AdalightLightEffect::Frame AdalightLightEffect::parse_frame_(light::AddressableL
   uint8_t *led_data = &frame_[6];
 
   for (int led = 0; led < accepted_led_count; led++, led_data += 3) {
-    auto white = std::min(std::min(led_data[0], led_data[1]), led_data[2]);
+    auto white = std::min({led_data[0], led_data[1], led_data[2]});
 
     it[led].set(Color(led_data[0], led_data[1], led_data[2], white));
   }
@@ -138,5 +137,4 @@ AdalightLightEffect::Frame AdalightLightEffect::parse_frame_(light::AddressableL
   return CONSUMED;
 }
 
-}  // namespace adalight
-}  // namespace esphome
+}  // namespace esphome::adalight

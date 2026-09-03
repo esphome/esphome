@@ -7,10 +7,9 @@
 #include "esphome/core/automation.h"
 #include "esphome/components/output/float_output.h"
 
-namespace esphome {
-namespace esp8266_pwm {
+namespace esphome::esp8266_pwm {
 
-class ESP8266PWM : public output::FloatOutput, public Component {
+class ESP8266PWM final : public output::FloatOutput, public Component {
  public:
   void set_pin(InternalGPIOPin *pin) { pin_ = pin; }
   void set_frequency(float frequency) { this->frequency_ = frequency; }
@@ -35,12 +34,12 @@ class ESP8266PWM : public output::FloatOutput, public Component {
   float last_output_{0.0};
 };
 
-template<typename... Ts> class SetFrequencyAction : public Action<Ts...> {
+template<typename... Ts> class SetFrequencyAction final : public Action<Ts...> {
  public:
   SetFrequencyAction(ESP8266PWM *parent) : parent_(parent) {}
   TEMPLATABLE_VALUE(float, frequency);
 
-  void play(Ts... x) {
+  void play(const Ts &...x) {
     float freq = this->frequency_.value(x...);
     this->parent_->update_frequency(freq);
   }
@@ -48,7 +47,6 @@ template<typename... Ts> class SetFrequencyAction : public Action<Ts...> {
   ESP8266PWM *parent_;
 };
 
-}  // namespace esp8266_pwm
-}  // namespace esphome
+}  // namespace esphome::esp8266_pwm
 
 #endif

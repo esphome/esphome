@@ -1,2 +1,6 @@
 ethernet:
   type: OPENETH
+  on_connect:
+    - logger.log: "Ethernet connected!"
+  on_disconnect:
+    - logger.log: "Ethernet disconnected!"

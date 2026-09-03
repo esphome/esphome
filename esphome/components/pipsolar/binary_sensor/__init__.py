@@ -1,6 +1,7 @@
 import esphome.codegen as cg
 from esphome.components import binary_sensor
 import esphome.config_validation as cv
+from esphome.types import ConfigType
 
 from .. import CONF_PIPSOLAR_ID, PIPSOLAR_COMPONENT_SCHEMA
 
@@ -62,7 +63,7 @@ CONF_WARNING_MPPT_OVERLOAD = "warning_mppt_overload"
 CONF_WARNING_BATTERY_TOO_LOW_TO_CHARGE = "warning_battery_too_low_to_charge"
 CONF_FAULT_DC_DC_OVER_CURRENT = "fault_dc_dc_over_current"
 CONF_FAULT_CODE = "fault_code"
-CONF_WARNUNG_LOW_PV_ENERGY = "warnung_low_pv_energy"
+CONF_WARNING_LOW_PV_ENERGY = "warning_low_pv_energy"
 CONF_WARNING_HIGH_AC_INPUT_DURING_BUS_SOFT_START = (
     "warning_high_ac_input_during_bus_soft_start"
 )
@@ -122,7 +123,7 @@ TYPES = [
     CONF_WARNING_BATTERY_TOO_LOW_TO_CHARGE,
     CONF_FAULT_DC_DC_OVER_CURRENT,
     CONF_FAULT_CODE,
-    CONF_WARNUNG_LOW_PV_ENERGY,
+    CONF_WARNING_LOW_PV_ENERGY,
     CONF_WARNING_HIGH_AC_INPUT_DURING_BUS_SOFT_START,
     CONF_WARNING_BATTERY_EQUALIZATION,
 ]
@@ -132,7 +133,7 @@ CONFIG_SCHEMA = PIPSOLAR_COMPONENT_SCHEMA.extend(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     paren = await cg.get_variable(config[CONF_PIPSOLAR_ID])
     for type in TYPES:
         if type in config:

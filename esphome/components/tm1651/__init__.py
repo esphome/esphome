@@ -9,6 +9,9 @@ from esphome.const import (
     CONF_ID,
     CONF_LEVEL,
 )
+from esphome.core import ID
+from esphome.cpp_generator import MockObj, TemplateArgsType
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@mrtoy-me"]
 
@@ -39,11 +42,11 @@ CONFIG_SCHEMA = cv.All(
             cv.Required(CONF_CLK_PIN): pins.internal_gpio_output_pin_schema,
             cv.Required(CONF_DIO_PIN): pins.internal_gpio_output_pin_schema,
         }
-    ),
+    ).extend(cv.COMPONENT_SCHEMA),
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     clk_pin = await cg.gpio_pin_expression(config[CONF_CLK_PIN])
@@ -73,8 +76,14 @@ BINARY_OUTPUT_ACTION_SCHEMA = maybe_simple_id(
         },
         key=CONF_BRIGHTNESS,
     ),
+    synchronous=True,
 )
-async def tm1651_set_brightness_to_code(config, action_id, template_arg, args):
+async def tm1651_set_brightness_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
     template_ = await cg.templatable(config[CONF_BRIGHTNESS], args, cg.uint8)
@@ -92,8 +101,14 @@ async def tm1651_set_brightness_to_code(config, action_id, template_arg, args):
         },
         key=CONF_LEVEL,
     ),
+    synchronous=True,
 )
-async def tm1651_set_level_to_code(config, action_id, template_arg, args):
+async def tm1651_set_level_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
     template_ = await cg.templatable(config[CONF_LEVEL], args, cg.uint8)
@@ -111,8 +126,14 @@ async def tm1651_set_level_to_code(config, action_id, template_arg, args):
         },
         key=CONF_LEVEL_PERCENT,
     ),
+    synchronous=True,
 )
-async def tm1651_set_level_percent_to_code(config, action_id, template_arg, args):
+async def tm1651_set_level_percent_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
     template_ = await cg.templatable(config[CONF_LEVEL_PERCENT], args, cg.uint8)
@@ -121,16 +142,31 @@ async def tm1651_set_level_percent_to_code(config, action_id, template_arg, args
 
 
 @automation.register_action(
-    "tm1651.turn_off", TurnOffAction, BINARY_OUTPUT_ACTION_SCHEMA
+    "tm1651.turn_off",
+    TurnOffAction,
+    BINARY_OUTPUT_ACTION_SCHEMA,
+    synchronous=True,
 )
-async def output_turn_off_to_code(config, action_id, template_arg, args):
+async def output_turn_off_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
     return var
 
 
-@automation.register_action("tm1651.turn_on", TurnOnAction, BINARY_OUTPUT_ACTION_SCHEMA)
-async def output_turn_on_to_code(config, action_id, template_arg, args):
+@automation.register_action(
+    "tm1651.turn_on", TurnOnAction, BINARY_OUTPUT_ACTION_SCHEMA, synchronous=True
+)
+async def output_turn_on_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
     return var

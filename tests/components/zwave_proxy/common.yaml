@@ -3,12 +3,6 @@ wifi:
   password: password1
   power_save_mode: none
 
-uart:
-  - id: uart_zwave_proxy
-    tx_pin: ${tx_pin}
-    rx_pin: ${rx_pin}
-    baud_rate: 115200
-
 api:
 
 zwave_proxy:

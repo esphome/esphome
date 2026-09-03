@@ -81,7 +81,7 @@ async def test_scheduler_removed_item_race(
         assert run_test_service is not None, "run_test service not found"
 
         # Execute the test
-        client.execute_service(run_test_service, {})
+        await client.execute_service(run_test_service, {})
 
         # Wait for test completion
         try:

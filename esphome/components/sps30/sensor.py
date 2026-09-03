@@ -26,6 +26,9 @@ from esphome.const import (
     UNIT_MICROGRAMS_PER_CUBIC_METER,
     UNIT_MICROMETER,
 )
+from esphome.core import ID
+from esphome.cpp_generator import MockObj, TemplateArgsType
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@martgras"]
 DEPENDENCIES = ["i2c"]
@@ -38,8 +41,11 @@ SPS30Component = sps30_ns.class_(
 
 # Actions
 StartFanAction = sps30_ns.class_("StartFanAction", automation.Action)
+StartMeasurementAction = sps30_ns.class_("StartMeasurementAction", automation.Action)
+StopMeasurementAction = sps30_ns.class_("StopMeasurementAction", automation.Action)
 
 CONF_AUTO_CLEANING_INTERVAL = "auto_cleaning_interval"
+CONF_IDLE_INTERVAL = "idle_interval"
 
 CONFIG_SCHEMA = (
     cv.Schema(
@@ -109,6 +115,7 @@ CONFIG_SCHEMA = (
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_AUTO_CLEANING_INTERVAL): cv.update_interval,
+            cv.Optional(CONF_IDLE_INTERVAL): cv.update_interval,
         }
     )
     .extend(cv.polling_component_schema("60s"))
@@ -116,7 +123,7 @@ CONFIG_SCHEMA = (
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)
@@ -164,6 +171,9 @@ async def to_code(config):
     if CONF_AUTO_CLEANING_INTERVAL in config:
         cg.add(var.set_auto_cleaning_interval(config[CONF_AUTO_CLEANING_INTERVAL]))
 
+    if CONF_IDLE_INTERVAL in config:
+        cg.add(var.set_idle_interval(config[CONF_IDLE_INTERVAL]))
+
 
 SPS30_ACTION_SCHEMA = maybe_simple_id(
     {
@@ -173,8 +183,29 @@ SPS30_ACTION_SCHEMA = maybe_simple_id(
 
 
 @automation.register_action(
-    "sps30.start_fan_autoclean", StartFanAction, SPS30_ACTION_SCHEMA
+    "sps30.start_fan_autoclean",
+    StartFanAction,
+    SPS30_ACTION_SCHEMA,
+    synchronous=True,
 )
-async def sps30_fan_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, paren)
+@automation.register_action(
+    "sps30.start_measurement",
+    StartMeasurementAction,
+    SPS30_ACTION_SCHEMA,
+    synchronous=True,
+)
+@automation.register_action(
+    "sps30.stop_measurement",
+    StopMeasurementAction,
+    SPS30_ACTION_SCHEMA,
+    synchronous=True,
+)
+async def sps30_action_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
+    var = cg.new_Pvariable(action_id, template_arg)
+    await cg.register_parented(var, config[CONF_ID])
+    return var

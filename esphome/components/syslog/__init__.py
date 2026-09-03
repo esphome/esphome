@@ -1,11 +1,12 @@
 import esphome.codegen as cg
 from esphome.components import udp
-from esphome.components.logger import LOG_LEVELS, is_log_level
+from esphome.components.logger import LOG_LEVELS, is_log_level, request_log_listener
 from esphome.components.time import RealTimeClock
 from esphome.components.udp import CONF_UDP_ID
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_LEVEL, CONF_PORT, CONF_TIME_ID
 from esphome.cpp_types import Component, Parented
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@clydebarrow"]
 
@@ -28,7 +29,7 @@ CONFIG_SCHEMA = udp.UDP_SCHEMA.extend(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     parent = await cg.get_variable(config[CONF_UDP_ID])
     time = await cg.get_variable(config[CONF_TIME_ID])
     cg.add(parent.set_broadcast_port(config[CONF_PORT]))
@@ -36,6 +37,7 @@ async def to_code(config):
     level = LOG_LEVELS[config[CONF_LEVEL]]
     var = cg.new_Pvariable(config[CONF_ID], level, time)
     await cg.register_component(var, config)
+    request_log_listener()  # Request a log listener slot for syslog
     await cg.register_parented(var, parent)
     cg.add(var.set_strip(config[CONF_STRIP]))
     cg.add(var.set_facility(config[CONF_FACILITY]))

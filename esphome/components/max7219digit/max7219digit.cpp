@@ -6,9 +6,9 @@
 #include "max7219font.h"
 
 #include <algorithm>
+#include <cinttypes>
 
-namespace esphome {
-namespace max7219digit {
+namespace esphome::max7219digit {
 
 static const char *const TAG = "max7219DIGIT";
 
@@ -90,9 +90,11 @@ void MAX7219Component::loop() {
   }
 
   if (this->scroll_mode_ == ScrollMode::STOP) {
-    if (this->stepsleft_ + get_width_internal() == first_line_size + 1) {
+    if (static_cast<size_t>(this->stepsleft_ + get_width_internal()) == first_line_size + 1) {
       if (millis_since_last_scroll < this->scroll_dwell_) {
-        ESP_LOGVV(TAG, "Dwell time at end of string in case of stop at end. Step %d, since last scroll %d, dwell %d.",
+        ESP_LOGVV(TAG,
+                  "Dwell time at end of string in case of stop at end. Step %d, since last scroll %" PRIu32
+                  ", dwell %d.",
                   this->stepsleft_, millis_since_last_scroll, this->scroll_dwell_);
         return;
       }
@@ -271,7 +273,11 @@ void MAX7219Component::send64pixels(uint8_t chip, const uint8_t pixels[8]) {
         }
       }
     } else if (this->orientation_ == 1) {
-      b = pixels[col];
+      if (this->flip_x_) {
+        b = pixels[7 - col];
+      } else {
+        b = pixels[col];
+      }
     } else if (this->orientation_ == 2) {
       for (uint8_t i = 0; i < 8; i++) {
         if (this->flip_x_) {
@@ -282,7 +288,11 @@ void MAX7219Component::send64pixels(uint8_t chip, const uint8_t pixels[8]) {
       }
     } else {
       for (uint8_t i = 0; i < 8; i++) {
-        b |= ((pixels[7 - col] >> i) & 1) << (7 - i);
+        if (this->flip_x_) {
+          b |= ((pixels[col] >> i) & 1) << (7 - i);
+        } else {
+          b |= ((pixels[7 - col] >> i) & 1) << (7 - i);
+        }
       }
     }
     // send this byte to display at selected chip
@@ -341,5 +351,4 @@ uint8_t MAX7219Component::strftimedigit(const char *format, ESPTime time) {
   return this->strftimedigit(0, format, time);
 }
 
-}  // namespace max7219digit
-}  // namespace esphome
+}  // namespace esphome::max7219digit

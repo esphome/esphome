@@ -1,8 +1,7 @@
 #include "midea_protocol.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace remote_base {
+namespace esphome::remote_base {
 
 static const char *const TAG = "remote.midea";
 
@@ -70,7 +69,9 @@ optional<MideaData> MideaProtocol::decode(RemoteReceiveData src) {
   return {};
 }
 
-void MideaProtocol::dump(const MideaData &data) { ESP_LOGI(TAG, "Received Midea: %s", data.to_string().c_str()); }
+void MideaProtocol::dump(const MideaData &data) {
+  char buf[MideaData::TO_STR_BUFFER_SIZE];
+  ESP_LOGI(TAG, "Received Midea: %s", data.to_str(buf));
+}
 
-}  // namespace remote_base
-}  // namespace esphome
+}  // namespace esphome::remote_base

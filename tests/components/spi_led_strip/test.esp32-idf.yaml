@@ -1,5 +1,4 @@
-substitutions:
-  clk_pin: GPIO16
-  mosi_pin: GPIO17
+packages:
+  spi: !include ../../test_build_components/common/spi/esp32-idf.yaml
 
 <<: !include common.yaml

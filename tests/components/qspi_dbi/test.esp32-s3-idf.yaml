@@ -1,1 +1,4 @@
+packages:
+  qspi: !include ../../test_build_components/common/qspi/esp32-s3-idf.yaml
+
 <<: !include common.yaml

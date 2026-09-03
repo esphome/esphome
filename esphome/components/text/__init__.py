@@ -13,9 +13,14 @@ from esphome.const import (
     CONF_VALUE,
     CONF_WEB_SERVER,
 )
-from esphome.core import CORE, CoroPriority, coroutine_with_priority
-from esphome.core.entity_helpers import entity_duplicate_validator, setup_entity
-from esphome.cpp_generator import MockObjClass
+from esphome.core import CORE, ID, CoroPriority, coroutine_with_priority
+from esphome.core.entity_helpers import (
+    entity_duplicate_validator,
+    queue_entity_register,
+    setup_entity,
+)
+from esphome.cpp_generator import MockObj, MockObjClass, TemplateArgsType
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@mauritskorse"]
 IS_PLATFORM_COMPONENT = True
@@ -84,21 +89,15 @@ def text_schema(
     return _TEXT_SCHEMA.extend(schema)
 
 
-# Remove before 2025.11.0
-TEXT_SCHEMA = text_schema()
-TEXT_SCHEMA.add_extra(cv.deprecated_schema_constant("text"))
-
-
+@setup_entity("text")
 async def setup_text_core_(
-    var,
-    config,
+    var: MockObj,
+    config: ConfigType,
     *,
     min_length: int | None,
     max_length: int | None,
     pattern: str | None,
-):
-    await setup_entity(var, config, "text")
-
+) -> None:
     cg.add(var.traits.set_min_length(min_length))
     cg.add(var.traits.set_max_length(max_length))
     if pattern is not None:
@@ -119,16 +118,16 @@ async def setup_text_core_(
 
 
 async def register_text(
-    var,
-    config,
+    var: MockObj,
+    config: ConfigType,
     *,
     min_length: int | None = 0,
     max_length: int | None = 255,
     pattern: str | None = None,
-):
+) -> None:
     if not CORE.has_id(config[CONF_ID]):
         var = cg.Pvariable(config[CONF_ID], var)
-    cg.add(cg.App.register_text(var))
+    queue_entity_register("text", config)
     CORE.register_platform_component("text", var)
     await setup_text_core_(
         var, config, min_length=min_length, max_length=max_length, pattern=pattern
@@ -136,12 +135,12 @@ async def register_text(
 
 
 async def new_text(
-    config,
+    config: ConfigType,
     *,
     min_length: int | None = 0,
     max_length: int | None = 255,
     pattern: str | None = None,
-):
+) -> MockObj:
     var = cg.new_Pvariable(config[CONF_ID])
     await register_text(
         var, config, min_length=min_length, max_length=max_length, pattern=pattern
@@ -150,7 +149,7 @@ async def new_text(
 
 
 @coroutine_with_priority(CoroPriority.CORE)
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     cg.add_global(text_ns.using)
 
 
@@ -169,8 +168,14 @@ OPERATION_BASE_SCHEMA = cv.Schema(
             cv.Required(CONF_VALUE): cv.templatable(cv.string_strict),
         }
     ),
+    synchronous=True,
 )
-async def text_set_to_code(config, action_id, template_arg, args):
+async def text_set_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
     template_ = await cg.templatable(config[CONF_VALUE], args, cg.std_string)

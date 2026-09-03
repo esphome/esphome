@@ -5,13 +5,13 @@
 #include <string>
 #include <cstdio>
 #include <array>
+#include <cstring>
 #include "esphome/core/helpers.h"
 #include "esphome/core/macros.h"
 
-#if defined(USE_ESP_IDF) || defined(USE_LIBRETINY) || USE_ARDUINO_VERSION_CODE > VERSION_CODE(3, 0, 0)
+#if defined(USE_ESP32) || defined(USE_LIBRETINY) || USE_ARDUINO_VERSION_CODE > VERSION_CODE(3, 0, 0)
 #include <lwip/ip_addr.h>
 #endif
-
 #if USE_ARDUINO
 #include <Arduino.h>
 #include <IPAddress.h>
@@ -19,9 +19,44 @@
 
 #ifdef USE_HOST
 #include <arpa/inet.h>
+#if USE_NETWORK_IPV6
+using ip4_addr_t = struct in_addr;
+using ip6_addr_t = struct in6_addr;
+struct ip_addr_t {
+  union {
+    struct in6_addr ip6;
+    struct in_addr ip4;
+  } u_addr;
+  uint8_t type;
+};
+enum : uint8_t { IPADDR_TYPE_V4 = 0, IPADDR_TYPE_V6 = 6 };
+static inline int ipaddr_aton(const char *cp, ip_addr_t *addr) {
+  if (strchr(cp, ':') != nullptr) {
+    if (inet_pton(AF_INET6, cp, &addr->u_addr.ip6) != 1) {
+      return 0;
+    }
+    addr->type = IPADDR_TYPE_V6;
+    return 1;
+  }
+  if (inet_aton(cp, &addr->u_addr.ip4) != 1) {
+    return 0;
+  }
+  addr->type = IPADDR_TYPE_V4;
+  return 1;
+}
+#else
 using ip_addr_t = in_addr;
 using ip4_addr_t = in_addr;
 #define ipaddr_aton(x, y) inet_aton((x), (y))
+#endif  // USE_NETWORK_IPV6
+#endif  // USE_HOST
+
+#ifdef USE_ZEPHYR
+#include <zephyr/net/net_ip.h>
+#include <zephyr/net/socket.h>
+#include <zephyr/posix/arpa/inet.h>
+using ip_addr_t = struct in6_addr;
+static inline int ipaddr_aton(const char *cp, ip_addr_t *addr) { return inet_pton(AF_INET6, cp, addr) == 1 ? 1 : 0; }
 #endif
 
 #if USE_ESP32_FRAMEWORK_ARDUINO
@@ -33,23 +68,134 @@ using ip4_addr_t = in_addr;
 #endif
 
 #ifdef USE_ESP32
-#include <cstring>
 #include <esp_netif.h>
 #endif
 
-namespace esphome {
-namespace network {
+namespace esphome::network {
+
+/// Buffer size for IP address string (IPv6 max: 39 chars + null)
+static constexpr size_t IP_ADDRESS_BUFFER_SIZE = 40;
+
+/// Lowercase hex digits in IP address string (A-F -> a-f for IPv6 per RFC 5952)
+inline void lowercase_ip_str(char *buf) {
+  for (char *p = buf; *p; ++p) {
+    if (*p >= 'A' && *p <= 'F')
+      *p += 32;
+  }
+}
 
 struct IPAddress {
  public:
-#ifdef USE_HOST
+#ifdef USE_ZEPHYR
+  IPAddress() { memset(&ip_addr_, 0, sizeof(ip_addr_)); }
+  IPAddress(const std::string &in_address) : ip_addr_{} { ipaddr_aton(in_address.c_str(), &ip_addr_); }
+  IPAddress(const struct in6_addr *other_ip) { ip_addr_ = *other_ip; }
+  IPAddress(const struct sockaddr_in6 *addr) { ip_addr_ = addr->sin6_addr; }
+
+  operator struct in6_addr() const { return ip_addr_; }
+
+  bool is_set() const { return !net_ipv6_is_addr_unspecified(&ip_addr_); }
+  bool is_ip4() const { return false; }
+  bool is_ip6() const { return this->is_set(); }
+  bool is_multicast() const { return net_ipv6_is_addr_mcast(&ip_addr_); }
+  char *str_to(char *buf) const {
+    if (inet_ntop(AF_INET6, &ip_addr_, buf, IP_ADDRESS_BUFFER_SIZE) == nullptr)
+      buf[0] = '\0';
+    return buf;
+  }
+  bool operator==(const IPAddress &other) const { return net_ipv6_addr_cmp(&ip_addr_, &other.ip_addr_); }
+  bool operator!=(const IPAddress &other) const { return !net_ipv6_addr_cmp(&ip_addr_, &other.ip_addr_); }
+
+#elif defined(USE_HOST)
+#if USE_NETWORK_IPV6
+  IPAddress() { memset(&this->ip_addr_, 0, sizeof(this->ip_addr_)); }
+  IPAddress(uint8_t first, uint8_t second, uint8_t third, uint8_t fourth) {
+    memset(&this->ip_addr_, 0, sizeof(this->ip_addr_));
+    this->ip_addr_.u_addr.ip4.s_addr =
+        htonl(((uint32_t) first << 24) | ((uint32_t) second << 16) | ((uint32_t) third << 8) | fourth);
+    this->ip_addr_.type = IPADDR_TYPE_V4;
+  }
+  IPAddress(const char *in_address) {
+    memset(&this->ip_addr_, 0, sizeof(this->ip_addr_));
+    ipaddr_aton(in_address, &this->ip_addr_);
+  }
+  IPAddress(const std::string &in_address) : IPAddress(in_address.c_str()) {}
+  IPAddress(const ip_addr_t *other_ip) { memcpy(&this->ip_addr_, other_ip, sizeof(ip_addr_t)); }
+  IPAddress(ip4_addr_t *other_ip) {
+    memset(&this->ip_addr_, 0, sizeof(this->ip_addr_));
+    this->ip_addr_.u_addr.ip4 = *other_ip;
+    this->ip_addr_.type = IPADDR_TYPE_V4;
+  }
+  IPAddress(ip6_addr_t *other_ip) {
+    memset(&this->ip_addr_, 0, sizeof(this->ip_addr_));
+    this->ip_addr_.u_addr.ip6 = *other_ip;
+    this->ip_addr_.type = IPADDR_TYPE_V6;
+  }
+  operator ip_addr_t() const { return this->ip_addr_; }
+  bool is_set() const {
+    if (this->ip_addr_.type == IPADDR_TYPE_V6) {
+      static constexpr uint8_t zero[sizeof(struct in6_addr)] = {};
+      return memcmp(this->ip_addr_.u_addr.ip6.s6_addr, zero, sizeof(zero)) != 0;
+    }
+    return this->ip_addr_.u_addr.ip4.s_addr != 0;
+  }
+  bool is_ip4() const { return this->ip_addr_.type == IPADDR_TYPE_V4; }
+  bool is_ip6() const { return this->ip_addr_.type == IPADDR_TYPE_V6; }
+  bool is_multicast() const {
+    if (this->ip_addr_.type == IPADDR_TYPE_V6) {
+      return this->ip_addr_.u_addr.ip6.s6_addr[0] == 0xff;
+    }
+    return (ntohl(this->ip_addr_.u_addr.ip4.s_addr) & 0xF0000000UL) == 0xE0000000UL;
+  }
+  // Remove before 2026.8.0
+  ESPDEPRECATED(
+      "str() is deprecated: use 'char buf[IP_ADDRESS_BUFFER_SIZE]; ip.str_to(buf);' instead. Removed in 2026.8.0",
+      "2026.2.0")
+  std::string str() const {
+    char buf[IP_ADDRESS_BUFFER_SIZE];
+    this->str_to(buf);
+    return buf;
+  }
+  char *str_to(char *buf) const {
+    if (this->ip_addr_.type == IPADDR_TYPE_V6) {
+      inet_ntop(AF_INET6, &this->ip_addr_.u_addr.ip6, buf, IP_ADDRESS_BUFFER_SIZE);
+    } else {
+      inet_ntop(AF_INET, &this->ip_addr_.u_addr.ip4, buf, IP_ADDRESS_BUFFER_SIZE);
+    }
+    lowercase_ip_str(buf);
+    return buf;
+  }
+  bool operator==(const IPAddress &other) const {
+    if (this->ip_addr_.type != other.ip_addr_.type) {
+      return false;
+    }
+    if (this->ip_addr_.type == IPADDR_TYPE_V6) {
+      return memcmp(&this->ip_addr_.u_addr.ip6, &other.ip_addr_.u_addr.ip6, sizeof(struct in6_addr)) == 0;
+    }
+    return this->ip_addr_.u_addr.ip4.s_addr == other.ip_addr_.u_addr.ip4.s_addr;
+  }
+  bool operator!=(const IPAddress &other) const { return !(*this == other); }
+  IPAddress &operator+=(uint8_t increase) {
+    if (this->ip_addr_.type == IPADDR_TYPE_V4) {
+      (((uint8_t *) (&this->ip_addr_.u_addr.ip4))[3]) += increase;
+    }
+    return *this;
+  }
+#else
   IPAddress() { ip_addr_.s_addr = 0; }
   IPAddress(uint8_t first, uint8_t second, uint8_t third, uint8_t fourth) {
     this->ip_addr_.s_addr = htonl((first << 24) | (second << 16) | (third << 8) | fourth);
   }
   IPAddress(const std::string &in_address) { inet_aton(in_address.c_str(), &ip_addr_); }
   IPAddress(const ip_addr_t *other_ip) { ip_addr_ = *other_ip; }
-  std::string str() const { return str_lower_case(inet_ntoa(ip_addr_)); }
+  bool is_ip4() const { return true; }
+  bool is_ip6() const { return false; }
+  /// Write IP address to buffer. Buffer must be at least IP_ADDRESS_BUFFER_SIZE bytes.
+  char *str_to(char *buf) const {
+    inet_ntop(AF_INET, &ip_addr_, buf, IP_ADDRESS_BUFFER_SIZE);
+    return buf;  // IPv4 only, no hex letters to lowercase
+  }
+#endif  // USE_NETWORK_IPV6
 #else
   IPAddress() { ip_addr_set_zero(&ip_addr_); }
   IPAddress(uint8_t first, uint8_t second, uint8_t third, uint8_t fourth) {
@@ -60,7 +206,7 @@ struct IPAddress {
   IPAddress(const std::string &in_address) { ipaddr_aton(in_address.c_str(), &ip_addr_); }
   IPAddress(ip4_addr_t *other_ip) {
     memcpy((void *) &ip_addr_, (void *) other_ip, sizeof(ip4_addr_t));
-#if USE_ESP32 && LWIP_IPV6
+#if LWIP_IPV6
     ip_addr_.type = IPADDR_TYPE_V4;
 #endif
   }
@@ -81,7 +227,12 @@ struct IPAddress {
     ip_addr_.type = IPADDR_TYPE_V6;
   }
 #endif /* LWIP_IPV6 */
-  IPAddress(esp_ip4_addr_t *other_ip) { memcpy((void *) &ip_addr_, (void *) other_ip, sizeof(esp_ip4_addr_t)); }
+  IPAddress(esp_ip4_addr_t *other_ip) {
+    memcpy((void *) &ip_addr_, (void *) other_ip, sizeof(esp_ip4_addr_t));
+#if LWIP_IPV6
+    ip_addr_.type = IPADDR_TYPE_V4;
+#endif
+  }
   IPAddress(esp_ip_addr_t *other_ip) {
 #if LWIP_IPV6
     memcpy((void *) &ip_addr_, (void *) other_ip, sizeof(ip_addr_));
@@ -118,11 +269,17 @@ struct IPAddress {
   operator arduino_ns::IPAddress() const { return ip_addr_get_ip4_u32(&ip_addr_); }
 #endif
 
-  bool is_set() { return !ip_addr_isany(&ip_addr_); }  // NOLINT(readability-simplify-boolean-expr)
-  bool is_ip4() { return IP_IS_V4(&ip_addr_); }
-  bool is_ip6() { return IP_IS_V6(&ip_addr_); }
-  bool is_multicast() { return ip_addr_ismulticast(&ip_addr_); }
-  std::string str() const { return str_lower_case(ipaddr_ntoa(&ip_addr_)); }
+  bool is_set() const { return !ip_addr_isany(&ip_addr_); }  // NOLINT(readability-simplify-boolean-expr)
+  bool is_ip4() const { return IP_IS_V4(&ip_addr_); }
+  bool is_ip6() const { return IP_IS_V6(&ip_addr_); }
+  bool is_multicast() const { return ip_addr_ismulticast(&ip_addr_); }
+  /// Write IP address to buffer. Buffer must be at least IP_ADDRESS_BUFFER_SIZE bytes.
+  /// Output is lowercased per RFC 5952 (IPv6 hex digits a-f).
+  char *str_to(char *buf) const {
+    ipaddr_ntoa_r(&ip_addr_, buf, IP_ADDRESS_BUFFER_SIZE);
+    lowercase_ip_str(buf);
+    return buf;
+  }
   bool operator==(const IPAddress &other) const { return ip_addr_cmp(&ip_addr_, &other.ip_addr_); }
   bool operator!=(const IPAddress &other) const { return !ip_addr_cmp(&ip_addr_, &other.ip_addr_); }
   IPAddress &operator+=(uint8_t increase) {
@@ -143,6 +300,5 @@ struct IPAddress {
 
 using IPAddresses = std::array<IPAddress, 5>;
 
-}  // namespace network
-}  // namespace esphome
+}  // namespace esphome::network
 #endif

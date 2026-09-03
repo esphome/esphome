@@ -1,13 +1,11 @@
 #pragma once
 
-#ifdef USE_ARDUINO
+#if (defined(USE_ARDUINO) && !defined(USE_RP2) && !defined(USE_LIBRETINY)) || defined(USE_ESP_IDF)
 
 #include "esphome/core/automation.h"
 #include "air_conditioner.h"
 
-namespace esphome {
-namespace midea {
-namespace ac {
+namespace esphome::midea::ac {
 
 template<typename... Ts> class MideaActionBase : public Action<Ts...> {
  public:
@@ -22,7 +20,7 @@ template<typename... Ts> class FollowMeAction : public MideaActionBase<Ts...> {
   TEMPLATABLE_VALUE(bool, use_fahrenheit)
   TEMPLATABLE_VALUE(bool, beeper)
 
-  void play(Ts... x) override {
+  void play(const Ts &...x) override {
     this->parent_->do_follow_me(this->temperature_.value(x...), this->use_fahrenheit_.value(x...),
                                 this->beeper_.value(x...));
   }
@@ -30,41 +28,39 @@ template<typename... Ts> class FollowMeAction : public MideaActionBase<Ts...> {
 
 template<typename... Ts> class SwingStepAction : public MideaActionBase<Ts...> {
  public:
-  void play(Ts... x) override { this->parent_->do_swing_step(); }
+  void play(const Ts &...x) override { this->parent_->do_swing_step(); }
 };
 
 template<typename... Ts> class DisplayToggleAction : public MideaActionBase<Ts...> {
  public:
-  void play(Ts... x) override { this->parent_->do_display_toggle(); }
+  void play(const Ts &...x) override { this->parent_->do_display_toggle(); }
 };
 
 template<typename... Ts> class BeeperOnAction : public MideaActionBase<Ts...> {
  public:
-  void play(Ts... x) override { this->parent_->do_beeper_on(); }
+  void play(const Ts &...x) override { this->parent_->do_beeper_on(); }
 };
 
 template<typename... Ts> class BeeperOffAction : public MideaActionBase<Ts...> {
  public:
-  void play(Ts... x) override { this->parent_->do_beeper_off(); }
+  void play(const Ts &...x) override { this->parent_->do_beeper_off(); }
 };
 
 template<typename... Ts> class PowerOnAction : public MideaActionBase<Ts...> {
  public:
-  void play(Ts... x) override { this->parent_->do_power_on(); }
+  void play(const Ts &...x) override { this->parent_->do_power_on(); }
 };
 
 template<typename... Ts> class PowerOffAction : public MideaActionBase<Ts...> {
  public:
-  void play(Ts... x) override { this->parent_->do_power_off(); }
+  void play(const Ts &...x) override { this->parent_->do_power_off(); }
 };
 
 template<typename... Ts> class PowerToggleAction : public MideaActionBase<Ts...> {
  public:
-  void play(Ts... x) override { this->parent_->do_power_toggle(); }
+  void play(const Ts &...x) override { this->parent_->do_power_toggle(); }
 };
 
-}  // namespace ac
-}  // namespace midea
-}  // namespace esphome
+}  // namespace esphome::midea::ac
 
-#endif  // USE_ARDUINO
+#endif  // USE_ARDUINO || USE_ESP_IDF

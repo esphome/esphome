@@ -1,8 +1,7 @@
 #include "mpu6050.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace mpu6050 {
+namespace esphome::mpu6050 {
 
 static const char *const TAG = "mpu6050";
 
@@ -140,7 +139,5 @@ void MPU6050Component::update() {
 
   this->status_clear_warning();
 }
-float MPU6050Component::get_setup_priority() const { return setup_priority::DATA; }
 
-}  // namespace mpu6050
-}  // namespace esphome
+}  // namespace esphome::mpu6050

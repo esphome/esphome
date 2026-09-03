@@ -1,25 +1,28 @@
 ARG BUILD_VERSION=dev
-ARG BUILD_OS=alpine
-ARG BUILD_BASE_VERSION=2025.04.0
+ARG BUILD_BASE_VERSION=2026.06.1
 ARG BUILD_TYPE=docker
 
-FROM ghcr.io/esphome/docker-base:${BUILD_OS}-${BUILD_BASE_VERSION} AS base-source-docker
-FROM ghcr.io/esphome/docker-base:${BUILD_OS}-ha-addon-${BUILD_BASE_VERSION} AS base-source-ha-addon
+FROM ghcr.io/esphome/docker-base:debian-${BUILD_BASE_VERSION} AS base-source-docker
+FROM ghcr.io/esphome/docker-base:debian-ha-addon-${BUILD_BASE_VERSION} AS base-source-ha-addon
 
 ARG BUILD_TYPE
 FROM base-source-${BUILD_TYPE} AS base
 
-RUN git config --system --add safe.directory "*"
+RUN git config --system --add safe.directory "*" \
+    && git config --system advice.detachedHead false
 
 ENV PIP_DISABLE_PIP_VERSION_CHECK=1
 
-RUN pip install --no-cache-dir -U pip uv==0.6.14
+RUN pip install --no-cache-dir -U pip uv==0.10.1
 
 COPY requirements.txt /
 
 RUN \
     uv pip install --no-cache-dir \
     -r /requirements.txt
+
+# Install the ESPHome Device Builder dashboard.
+RUN uv pip install --no-cache-dir esphome-device-builder==1.14.0
 
 RUN \
     platformio settings set enable_telemetry No \

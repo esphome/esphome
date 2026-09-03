@@ -3,8 +3,7 @@
 
 // Tnx to the work of https://github.com/arendst (Tasmota) for making the initial version of the driver
 
-namespace esphome {
-namespace sm2135 {
+namespace esphome::sm2135 {
 
 static const char *const TAG = "sm2135";
 
@@ -25,7 +24,7 @@ void SM2135::setup() {
   this->data_pin_->pin_mode(gpio::FLAG_OUTPUT);
   this->clock_pin_->setup();
   this->clock_pin_->digital_write(false);
-  this->data_pin_->pin_mode(gpio::FLAG_OUTPUT);
+  this->clock_pin_->pin_mode(gpio::FLAG_OUTPUT);
 
   this->data_pin_->pin_mode(gpio::FLAG_PULLUP);
   this->clock_pin_->pin_mode(gpio::FLAG_PULLUP);
@@ -34,11 +33,13 @@ void SM2135::setup() {
 }
 
 void SM2135::dump_config() {
-  ESP_LOGCONFIG(TAG, "SM2135:");
+  ESP_LOGCONFIG(TAG,
+                "SM2135:\n"
+                "  CW Current: %dmA\n"
+                "  RGB Current: %dmA",
+                10 + (this->cw_current_ * 5), 10 + (this->rgb_current_ * 5));
   LOG_PIN("  Data Pin: ", this->data_pin_);
   LOG_PIN("  Clock Pin: ", this->clock_pin_);
-  ESP_LOGCONFIG(TAG, "  CW Current: %dmA", 10 + (this->cw_current_ * 5));
-  ESP_LOGCONFIG(TAG, "  RGB Current: %dmA", 10 + (this->rgb_current_ * 5));
 }
 
 void SM2135::write_byte_(uint8_t data) {
@@ -147,5 +148,4 @@ void SM2135::sm2135_set_high_(GPIOPin *pin) {
   pin->pin_mode(gpio::FLAG_PULLUP);
 }
 
-}  // namespace sm2135
-}  // namespace esphome
+}  // namespace esphome::sm2135

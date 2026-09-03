@@ -1,15 +1,14 @@
-<<: !include common.yaml
+packages:
+  spi: !include ../../test_build_components/common/spi/rp2040-ard.yaml
 
-spi:
-  - id: spi_main_lcd
-    clk_pin: 18
-    mosi_pin: 19
-    miso_pin: 16
+<<: !include common.yaml
 
 display:
   - platform: ili9xxx
-    id: main_lcd
+    spi_id: spi_bus
+    id: online_image_main_lcd
     model: ili9342
+    data_rate: 20MHz
     cs_pin: 20
     dc_pin: 17
     reset_pin: 21

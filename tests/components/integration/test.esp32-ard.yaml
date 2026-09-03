@@ -1,4 +1,0 @@
-substitutions:
-  pin: A0
-
-<<: !include common-esp32.yaml

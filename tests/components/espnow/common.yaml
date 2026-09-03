@@ -1,6 +1,8 @@
 espnow:
+  id: espnow_component
   auto_add_peer: false
   channel: 1
+  max_payload_size: 1470
   peers:
     - 11:22:33:44:55:66
   on_receive:
@@ -29,6 +31,8 @@ espnow:
     - espnow.broadcast:
         data: "Hello, World!"
     - espnow.broadcast:
+        data: "it's a test"
+    - espnow.broadcast:
         data: [0x01, 0x02, 0x03, 0x04, 0x05]
     - espnow.broadcast:
         data: !lambda 'return {0x01, 0x02, 0x03, 0x04, 0x05};'
@@ -50,3 +54,27 @@ espnow:
           - format_mac_address_pretty(info.src_addr).c_str()
           - format_hex_pretty(data, size).c_str()
           - info.rx_ctrl->rssi
+
+packet_transport:
+  - platform: espnow
+    id: transport1
+    espnow_id: espnow_component
+    peer_address: "FF:FF:FF:FF:FF:FF"
+    encryption:
+      key: "0123456789abcdef0123456789abcdef"
+    sensors:
+      - espnow_temp_sensor
+    providers:
+      - name: test-provider
+        encryption:
+          key: "0123456789abcdef0123456789abcdef"
+
+sensor:
+  - platform: internal_temperature
+    id: espnow_temp_sensor
+
+  - platform: packet_transport
+    transport_id: transport1
+    provider: test-provider
+    remote_id: espnow_temp_sensor
+    id: remote_temp

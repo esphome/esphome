@@ -2,8 +2,7 @@
 
 #include "esphome/core/hal.h"
 
-namespace esphome {
-namespace animation {
+namespace esphome::animation {
 
 Animation::Animation(const uint8_t *data_start, int width, int height, uint32_t animation_frame_count,
                      image::ImageType type, image::Transparency transparent)
@@ -26,12 +25,12 @@ uint32_t Animation::get_animation_frame_count() const { return this->animation_f
 int Animation::get_current_frame() const { return this->current_frame_; }
 void Animation::next_frame() {
   this->current_frame_++;
-  if (loop_count_ && this->current_frame_ == loop_end_frame_ &&
+  if (loop_count_ && static_cast<uint32_t>(this->current_frame_) == loop_end_frame_ &&
       (this->loop_current_iteration_ < loop_count_ || loop_count_ < 0)) {
     this->current_frame_ = loop_start_frame_;
     this->loop_current_iteration_++;
   }
-  if (this->current_frame_ >= animation_frame_count_) {
+  if (static_cast<uint32_t>(this->current_frame_) >= animation_frame_count_) {
     this->loop_current_iteration_ = 1;
     this->current_frame_ = 0;
   }
@@ -62,9 +61,13 @@ void Animation::set_frame(int frame) {
 }
 
 void Animation::update_data_start_() {
-  const uint32_t image_size = this->get_width_stride() * this->height_;
+  uint32_t image_size = this->get_width_stride() * this->height_;
+  // RGB565 with an alpha channel stores the alpha plane immediately after the RGB
+  // plane within each frame, so the per-frame stride includes the alpha bytes.
+  if (this->type_ == image::IMAGE_TYPE_RGB565 && this->transparency_ == image::TRANSPARENCY_ALPHA_CHANNEL) {
+    image_size += static_cast<uint32_t>(this->width_) * this->height_;
+  }
   this->data_start_ = this->animation_data_start_ + image_size * this->current_frame_;
 }
 
-}  // namespace animation
-}  // namespace esphome
+}  // namespace esphome::animation

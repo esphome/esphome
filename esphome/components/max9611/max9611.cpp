@@ -1,8 +1,8 @@
 #include "max9611.h"
 #include "esphome/core/log.h"
 #include "esphome/components/i2c/i2c_bus.h"
-namespace esphome {
-namespace max9611 {
+
+namespace esphome::max9611 {
 using namespace esphome::i2c;
 // Sign extend
 // http://graphics.stanford.edu/~seander/bithacks.html#FixedSignExtend
@@ -91,5 +91,4 @@ void MAX9611Component::update() {
 
   ESP_LOGD(TAG, "V: %f, A: %f, W: %f, Deg C: %f", voltage, amps, watts, temp);
 }
-}  // namespace max9611
-}  // namespace esphome
+}  // namespace esphome::max9611

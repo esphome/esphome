@@ -1,8 +1,4 @@
-i2c:
-  - id: i2c_i2c_device
-    scl: ${scl_pin}
-    sda: ${sda_pin}
-
 i2c_device:
   id: i2cdev
+  i2c_id: i2c_bus
   address: 0x2C
