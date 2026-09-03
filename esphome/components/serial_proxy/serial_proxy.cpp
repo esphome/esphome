@@ -278,7 +278,14 @@ void SerialProxy::write_from_client(api::APIConnection *api_connection, const ui
   // Bytes from anyone but the live subscriber would interleave with the subscriber's
   // traffic -- or with an active tap's -- on the wire
   if (!this->is_subscriber_(api_connection)) {
-    ESP_LOGW(TAG, "Ignoring write from client without port subscription [%" PRIu32 "]", this->instance_index_);
+    if (this->api_connection_ != nullptr) {
+      ESP_LOGW(TAG, "Ignoring write from client that does not hold serial proxy [%" PRIu32 "]", this->instance_index_);
+    } else {
+      // A legacy client streaming writes without subscribing would flood WARN, one per
+      // request; writes are the only high-rate, unacknowledged operation, so keep this
+      // visible without drowning the log
+      ESP_LOGV(TAG, "Ignoring write from client without port subscription [%" PRIu32 "]", this->instance_index_);
+    }
     return;
   }
 #endif
