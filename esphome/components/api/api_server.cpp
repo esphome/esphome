@@ -160,7 +160,12 @@ void APIServer::loop() {
     if (this->reboot_timeout_ != 0 && !this->provisioning_pending_()) {
       const uint32_t now = App.get_loop_component_start_time();
       if (now - this->last_connected_ > this->reboot_timeout_) {
-        ESP_LOGE(TAG, "No clients; rebooting");
+        // Distinguish a wrong-key peer from nothing connecting at all
+        if (this->saw_unauthenticated_client_) {
+          ESP_LOGE(TAG, "Clients connected but none authenticated; rebooting");
+        } else {
+          ESP_LOGE(TAG, "No clients; rebooting");
+        }
         App.reboot();
       }
     }
@@ -245,6 +250,9 @@ void APIServer::remove_client_(uint8_t client_index) {
   // healthy session's timestamp and trigger a spurious reboot
   if (was_authenticated) {
     this->last_connected_ = App.get_loop_component_start_time();
+    this->saw_unauthenticated_client_ = false;
+  } else {
+    this->saw_unauthenticated_client_ = true;
   }
   if (this->api_connection_count_ == 0 && this->reboot_timeout_ != 0 && !this->provisioning_pending_()) {
     this->status_set_warning(LOG_STR("waiting for client connection"));

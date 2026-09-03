@@ -23,8 +23,11 @@ void OutgoingConnectionManager::setup() {
   this->target_pref_ = global_preferences->make_preference<SavedOutgoingTarget>(629847102UL, true);
   if (this->target_pref_.load(&this->saved_)) {
     this->host_persisted_ = true;
+    ESP_LOGD(TAG, "Loaded target %s", this->saved_.host);
   } else {
-    this->saved_ = {};  // dump_config() reports the empty state
+    // Never saved, or the blob failed its size/CRC check
+    ESP_LOGD(TAG, "No saved target");
+    this->saved_ = {};
   }
   // Defend against a corrupt or truncated preference blob
   this->saved_.host[sizeof(this->saved_.host) - 1] = '\0';

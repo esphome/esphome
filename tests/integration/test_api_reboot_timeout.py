@@ -16,7 +16,9 @@ async def test_api_reboot_timeout(
     """Test that the device reboots when no API clients connect within the timeout."""
     loop = asyncio.get_running_loop()
     reboot_future = loop.create_future()
-    reboot_pattern = re.compile(r"No clients; rebooting")
+    # The harness port probe counts as an unauthenticated client, so the
+    # reboot may report either form
+    reboot_pattern = re.compile(r"(No clients|none authenticated); rebooting")
 
     def check_output(line: str) -> None:
         """Check output for reboot message."""

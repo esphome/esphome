@@ -364,7 +364,11 @@ class APIServer final : public Component,
   // Connection limits - these defaults will be overridden by config values
   // from cv.SplitDefault in __init__.py which sets platform-specific defaults.
   uint8_t listen_backlog_{4};
-  bool shutting_down_ = false;
+  // Bit-packed so the two flags share one byte
+  bool shutting_down_ : 1 = false;
+  // For the reboot log: whether any removal since the last watchdog refresh
+  // was an unauthenticated session (e.g. a wrong-key peer)
+  bool saw_unauthenticated_client_ : 1 = false;
   uint8_t api_connection_count_{0};
 #ifdef USE_API_OUTGOING_CONNECTION
   // Connected clients whose hello declared them a dial-back target
