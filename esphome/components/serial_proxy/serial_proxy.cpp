@@ -372,6 +372,10 @@ SerialProxyResult SerialProxy::serial_proxy_request(api::APIConnection *api_conn
           return SerialProxyResult::SERIAL_PROXY_RESULT_PORT_IN_USE;
         }
         ESP_LOGW(TAG, "Previous subscriber disconnected; taking over subscription");
+        // End the dead client's session before starting the new one, so its mode
+        // cannot leak into a session that never asked for it
+        this->api_connection_ = nullptr;
+        this->reset_mode_();
       }
       this->api_connection_ = api_connection;
       this->enable_loop();
