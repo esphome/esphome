@@ -26,6 +26,9 @@ import pytest
 from .state_utils import SensorTracker, find_entity, require_entity, wait_for_state
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
+# Byte-swapped raw U_WORD view of reg_u_word_s (0x1234 -> 0x3412)
+MESH_RAW_U_WORD_S = 13330
+
 # Initial values of the mesh fixture's address 1 registers; the
 # server_controller test reads them and the write test uses them as baseline.
 MESH_INITIAL_VALUES: dict[str, object] = {
@@ -318,8 +321,7 @@ async def test_uart_mock_modbus_server_controller(
 
     line_callback, error_log_lines, warning_log_lines = _make_modbus_line_callback()
 
-    # 13330 is the byte-swapped view of reg_u_word_s (0x1234 -> 0x3412)
-    expected_values = MESH_INITIAL_VALUES | {"reg_u_word_s_raw": 13330}
+    expected_values = MESH_INITIAL_VALUES | {"reg_u_word_s_raw": MESH_RAW_U_WORD_S}
     tracker = SensorTracker(list(expected_values.keys()))
     futures = tracker.expect_all(expected_values)
 
@@ -350,7 +352,7 @@ async def test_uart_mock_modbus_server_controller_write(
 
     # Per read-back sensor: the number entity to write through and the value;
     # floats read back within tolerance, everything else exactly
-    register_writes: dict[str, tuple[str, float]] = {
+    register_writes: dict[str, tuple[str, int | float]] = {
         "reg_u_word": ("write_u_word", 42),
         "reg_u_word_s": ("write_u_word_s", 17185),
         "reg_s_word": ("write_s_word", -42),
@@ -374,7 +376,7 @@ async def test_uart_mock_modbus_server_controller_write(
     # times, so only the raw sensor can catch a symmetrically dropped swap.
     # Phase 1: expect initial baseline values
     initial_futures = tracker.expect_all(
-        MESH_INITIAL_VALUES | {"reg_u_word_s_raw": 13330}  # 0x1234 -> 0x3412
+        MESH_INITIAL_VALUES | {"reg_u_word_s_raw": MESH_RAW_U_WORD_S}
     )
     # Phase 2: expect post-write values (registered now so on_state can match them)
     written_futures = tracker.expect_all(
@@ -463,8 +465,7 @@ async def test_uart_mock_modbus_server_controller_bits(
 
         # Flip both writable bits: 0x02 false -> true, 0x03 true -> false
         for switch_name, value in (("write_bit_2", True), ("write_bit_3", False)):
-            entity = find_entity(entities, switch_name, SwitchInfo)
-            assert entity is not None, f"{switch_name} switch entity not found"
+            entity = require_entity(entities, switch_name, SwitchInfo)
             client.switch_command(entity.key, value)
 
         # Wait for both read views to reflect the written values
