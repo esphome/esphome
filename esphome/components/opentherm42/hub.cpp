@@ -205,6 +205,37 @@ void OpenTherm42Hub::build_schedule_() {
       this->informational_requests_.push_back(info.kind);
     }
   }
+
+  // §5.3.5 Class 5.
+  if (this->remote_parameter_transfer_enable_flags_read_.any_configured() ||
+      this->remote_parameter_read_write_flags_read_.any_configured()) {
+    this->informational_requests_.push_back(RequestKind::REMOTE_PARAMETER_FLAGS);
+  }
+  if (this->remote_parameter_transfer_enable_flags_ventilation_read_.any_configured() ||
+      this->remote_parameter_read_write_flags_ventilation_read_.any_configured()) {
+    this->informational_requests_.push_back(RequestKind::REMOTE_PARAMETER_FLAGS_VENTILATION);
+  }
+  if (this->dhwsetp_upper_bound_sensor_ != nullptr || this->dhwsetp_lower_bound_sensor_ != nullptr) {
+    this->informational_requests_.push_back(RequestKind::DHWSETP_BOUNDS);
+  }
+  if (this->max_chsetp_upper_bound_sensor_ != nullptr || this->max_chsetp_lower_bound_sensor_ != nullptr) {
+    this->informational_requests_.push_back(RequestKind::MAX_CHSETP_BOUNDS);
+  }
+  if (this->dhw_setpoint_number_ != nullptr) {
+    this->essential_requests_.push_back(RequestKind::DHW_SETPOINT);
+  } else if (this->dhw_setpoint_sensor_ != nullptr) {
+    this->informational_requests_.push_back(RequestKind::DHW_SETPOINT);
+  }
+  if (this->max_ch_water_setpoint_number_ != nullptr) {
+    this->essential_requests_.push_back(RequestKind::MAX_CH_WATER_SETPOINT);
+  } else if (this->max_ch_water_setpoint_sensor_ != nullptr) {
+    this->informational_requests_.push_back(RequestKind::MAX_CH_WATER_SETPOINT);
+  }
+  if (this->nominal_ventilation_value_number_ != nullptr) {
+    this->essential_requests_.push_back(RequestKind::NOMINAL_VENTILATION_VALUE);
+  } else if (this->nominal_ventilation_value_sensor_ != nullptr) {
+    this->informational_requests_.push_back(RequestKind::NOMINAL_VENTILATION_VALUE);
+  }
 }
 
 Frame OpenTherm42Hub::build_next_request_() {
@@ -382,6 +413,51 @@ Frame OpenTherm42Hub::build_next_request_() {
     case RequestKind::BOILER_FAN_SPEED:
       frame.type = static_cast<uint8_t>(MessageType::READ_DATA);
       frame.id = 35;
+      break;
+
+    case RequestKind::REMOTE_PARAMETER_FLAGS:
+      frame.type = static_cast<uint8_t>(MessageType::READ_DATA);
+      frame.id = 6;
+      break;
+    case RequestKind::REMOTE_PARAMETER_FLAGS_VENTILATION:
+      frame.type = static_cast<uint8_t>(MessageType::READ_DATA);
+      frame.id = 86;
+      break;
+    case RequestKind::DHWSETP_BOUNDS:
+      frame.type = static_cast<uint8_t>(MessageType::READ_DATA);
+      frame.id = 48;
+      break;
+    case RequestKind::MAX_CHSETP_BOUNDS:
+      frame.type = static_cast<uint8_t>(MessageType::READ_DATA);
+      frame.id = 49;
+      break;
+
+    case RequestKind::DHW_SETPOINT:
+      frame.id = 56;
+      if (this->dhw_setpoint_number_ != nullptr) {
+        frame.type = static_cast<uint8_t>(MessageType::WRITE_DATA);
+        frame.set_value_f88(this->dhw_setpoint_number_->state);
+      } else {
+        frame.type = static_cast<uint8_t>(MessageType::READ_DATA);
+      }
+      break;
+    case RequestKind::MAX_CH_WATER_SETPOINT:
+      frame.id = 57;
+      if (this->max_ch_water_setpoint_number_ != nullptr) {
+        frame.type = static_cast<uint8_t>(MessageType::WRITE_DATA);
+        frame.set_value_f88(this->max_ch_water_setpoint_number_->state);
+      } else {
+        frame.type = static_cast<uint8_t>(MessageType::READ_DATA);
+      }
+      break;
+    case RequestKind::NOMINAL_VENTILATION_VALUE:
+      frame.id = 87;
+      if (this->nominal_ventilation_value_number_ != nullptr) {
+        frame.type = static_cast<uint8_t>(MessageType::WRITE_DATA);
+        frame.value_hb = static_cast<uint8_t>(this->nominal_ventilation_value_number_->state);
+      } else {
+        frame.type = static_cast<uint8_t>(MessageType::READ_DATA);
+      }
       break;
 
     default: {
@@ -897,6 +973,109 @@ void OpenTherm42Hub::handle_response_(const Frame &frame) {
       }
       return;
 
+    case RequestKind::REMOTE_PARAMETER_FLAGS:
+      if (type != MessageType::READ_ACK) {
+        ESP_LOGW(TAG, "Remote-parameter transfer-enable/read-write flags (id=6) read was rejected (message type %u)",
+                 frame.type);
+        this->invalidate_response_(RequestKind::REMOTE_PARAMETER_FLAGS);
+        return;
+      }
+      this->remote_parameter_transfer_enable_flags_read_.publish(frame.value_hb);
+      this->remote_parameter_read_write_flags_read_.publish(frame.value_lb);
+      return;
+
+    case RequestKind::REMOTE_PARAMETER_FLAGS_VENTILATION:
+      if (type != MessageType::READ_ACK) {
+        ESP_LOGW(TAG,
+                 "Remote-parameter transfer-enable/read-write flags ventilation/heat-recovery (id=86) read was "
+                 "rejected (message type %u)",
+                 frame.type);
+        this->invalidate_response_(RequestKind::REMOTE_PARAMETER_FLAGS_VENTILATION);
+        return;
+      }
+      this->remote_parameter_transfer_enable_flags_ventilation_read_.publish(frame.value_hb);
+      this->remote_parameter_read_write_flags_ventilation_read_.publish(frame.value_lb);
+      return;
+
+    case RequestKind::DHWSETP_BOUNDS:
+      if (type != MessageType::READ_ACK) {
+        ESP_LOGW(TAG, "DHWsetp upp-/low-bound (id=48) read was rejected (message type %u)", frame.type);
+        this->invalidate_response_(RequestKind::DHWSETP_BOUNDS);
+        return;
+      }
+      if (this->dhwsetp_upper_bound_sensor_ != nullptr) {
+        this->dhwsetp_upper_bound_sensor_->publish_state(static_cast<int8_t>(frame.value_hb));
+      }
+      if (this->dhwsetp_lower_bound_sensor_ != nullptr) {
+        this->dhwsetp_lower_bound_sensor_->publish_state(static_cast<int8_t>(frame.value_lb));
+      }
+      return;
+
+    case RequestKind::MAX_CHSETP_BOUNDS:
+      if (type != MessageType::READ_ACK) {
+        ESP_LOGW(TAG, "max CHsetp upp-/low-bnd (id=49) read was rejected (message type %u)", frame.type);
+        this->invalidate_response_(RequestKind::MAX_CHSETP_BOUNDS);
+        return;
+      }
+      if (this->max_chsetp_upper_bound_sensor_ != nullptr) {
+        this->max_chsetp_upper_bound_sensor_->publish_state(static_cast<int8_t>(frame.value_hb));
+      }
+      if (this->max_chsetp_lower_bound_sensor_ != nullptr) {
+        this->max_chsetp_lower_bound_sensor_->publish_state(static_cast<int8_t>(frame.value_lb));
+      }
+      return;
+
+    case RequestKind::DHW_SETPOINT:
+      if (this->dhw_setpoint_number_ != nullptr) {
+        if (type != MessageType::WRITE_ACK) {
+          ESP_LOGW(TAG, "DHW Setpoint (id=56) write was rejected (message type %u)", frame.type);
+        }
+        return;
+      }
+      if (type != MessageType::READ_ACK) {
+        ESP_LOGW(TAG, "DHW Setpoint (id=56) read was rejected (message type %u)", frame.type);
+        this->invalidate_response_(RequestKind::DHW_SETPOINT);
+        return;
+      }
+      if (this->dhw_setpoint_sensor_ != nullptr) {
+        this->dhw_setpoint_sensor_->publish_state(frame.value_f88());
+      }
+      return;
+
+    case RequestKind::MAX_CH_WATER_SETPOINT:
+      if (this->max_ch_water_setpoint_number_ != nullptr) {
+        if (type != MessageType::WRITE_ACK) {
+          ESP_LOGW(TAG, "max CH water Setpoint (id=57) write was rejected (message type %u)", frame.type);
+        }
+        return;
+      }
+      if (type != MessageType::READ_ACK) {
+        ESP_LOGW(TAG, "max CH water Setpoint (id=57) read was rejected (message type %u)", frame.type);
+        this->invalidate_response_(RequestKind::MAX_CH_WATER_SETPOINT);
+        return;
+      }
+      if (this->max_ch_water_setpoint_sensor_ != nullptr) {
+        this->max_ch_water_setpoint_sensor_->publish_state(frame.value_f88());
+      }
+      return;
+
+    case RequestKind::NOMINAL_VENTILATION_VALUE:
+      if (this->nominal_ventilation_value_number_ != nullptr) {
+        if (type != MessageType::WRITE_ACK) {
+          ESP_LOGW(TAG, "Nominal ventilation value (id=87) write was rejected (message type %u)", frame.type);
+        }
+        return;
+      }
+      if (type != MessageType::READ_ACK) {
+        ESP_LOGW(TAG, "Nominal ventilation value (id=87) read was rejected (message type %u)", frame.type);
+        this->invalidate_response_(RequestKind::NOMINAL_VENTILATION_VALUE);
+        return;
+      }
+      if (this->nominal_ventilation_value_sensor_ != nullptr) {
+        this->nominal_ventilation_value_sensor_->publish_state(frame.value_hb);
+      }
+      return;
+
     default: {
       // Every plain read-only sensor (see the SIMPLE_SENSORS table) shares this one case.
       const SimpleSensorInfo *info = this->find_simple_sensor_(this->pending_request_kind_);
@@ -1152,6 +1331,52 @@ void OpenTherm42Hub::invalidate_response_(RequestKind kind) {
       }
       if (this->boiler_fan_speed_sensor_ != nullptr) {
         this->boiler_fan_speed_sensor_->set_has_state(false);
+      }
+      return;
+
+    case RequestKind::REMOTE_PARAMETER_FLAGS:
+      this->remote_parameter_transfer_enable_flags_read_.invalidate();
+      this->remote_parameter_read_write_flags_read_.invalidate();
+      return;
+
+    case RequestKind::REMOTE_PARAMETER_FLAGS_VENTILATION:
+      this->remote_parameter_transfer_enable_flags_ventilation_read_.invalidate();
+      this->remote_parameter_read_write_flags_ventilation_read_.invalidate();
+      return;
+
+    case RequestKind::DHWSETP_BOUNDS:
+      if (this->dhwsetp_upper_bound_sensor_ != nullptr) {
+        this->dhwsetp_upper_bound_sensor_->set_has_state(false);
+      }
+      if (this->dhwsetp_lower_bound_sensor_ != nullptr) {
+        this->dhwsetp_lower_bound_sensor_->set_has_state(false);
+      }
+      return;
+
+    case RequestKind::MAX_CHSETP_BOUNDS:
+      if (this->max_chsetp_upper_bound_sensor_ != nullptr) {
+        this->max_chsetp_upper_bound_sensor_->set_has_state(false);
+      }
+      if (this->max_chsetp_lower_bound_sensor_ != nullptr) {
+        this->max_chsetp_lower_bound_sensor_->set_has_state(false);
+      }
+      return;
+
+    case RequestKind::DHW_SETPOINT:
+      if (this->dhw_setpoint_number_ == nullptr && this->dhw_setpoint_sensor_ != nullptr) {
+        this->dhw_setpoint_sensor_->set_has_state(false);
+      }
+      return;
+
+    case RequestKind::MAX_CH_WATER_SETPOINT:
+      if (this->max_ch_water_setpoint_number_ == nullptr && this->max_ch_water_setpoint_sensor_ != nullptr) {
+        this->max_ch_water_setpoint_sensor_->set_has_state(false);
+      }
+      return;
+
+    case RequestKind::NOMINAL_VENTILATION_VALUE:
+      if (this->nominal_ventilation_value_number_ == nullptr && this->nominal_ventilation_value_sensor_ != nullptr) {
+        this->nominal_ventilation_value_sensor_->set_has_state(false);
       }
       return;
 

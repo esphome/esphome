@@ -23,6 +23,14 @@ from ..const import (
     CONF_CONTROL_AND_STATUS_INFORMATION_OEM_FAULT_CODE_VENTILATION_HEAT_RECOVERY,
     CONF_CONTROL_AND_STATUS_INFORMATION_SOLAR_STORAGE_MODE_AND_STATUS_SOLAR_MODE,
     CONF_CONTROL_AND_STATUS_INFORMATION_SOLAR_STORAGE_MODE_AND_STATUS_SOLAR_STATUS,
+    CONF_OPENTHERM42_ID,
+    CONF_PRE_DEFINED_REMOTE_BOILER_PARAMETERS_DHW_SETPOINT,
+    CONF_PRE_DEFINED_REMOTE_BOILER_PARAMETERS_DHWSETP_LOWER_BOUND,
+    CONF_PRE_DEFINED_REMOTE_BOILER_PARAMETERS_DHWSETP_UPPER_BOUND,
+    CONF_PRE_DEFINED_REMOTE_BOILER_PARAMETERS_MAX_CH_WATER_SETPOINT,
+    CONF_PRE_DEFINED_REMOTE_BOILER_PARAMETERS_MAX_CHSETP_LOWER_BOUND,
+    CONF_PRE_DEFINED_REMOTE_BOILER_PARAMETERS_MAX_CHSETP_UPPER_BOUND,
+    CONF_PRE_DEFINED_REMOTE_BOILER_PARAMETERS_NOMINAL_VENTILATION_VALUE,
     CONF_REMOTE_REQUEST_LAST_RESPONSE_CODE,
     CONF_SENSOR_AND_INFORMATIONAL_DATA_ACTUAL_EXHAUST_FAN_SPEED,
     CONF_SENSOR_AND_INFORMATIONAL_DATA_ACTUAL_INLET_FAN_SPEED,
@@ -67,8 +75,6 @@ from ..const import (
     CONF_SENSOR_AND_INFORMATIONAL_DATA_SUPPLY_INLET_TEMPERATURE,
     CONF_SENSOR_AND_INFORMATIONAL_DATA_SUPPLY_OUTLET_TEMPERATURE,
 )
-
-CONF_OPENTHERM42_ID = "opentherm42_id"
 
 # All of these sensors are boiler-reported values: on a failed conversation, every configured sensor
 # here must show unknown rather than keep a stale reading.
@@ -273,6 +279,23 @@ TYPES: dict[str, cv.Schema] = {
         device_class="carbon_dioxide",
         state_class="measurement",
     ),
+    # §5.3.5 Class 5, ID 48 HB: DHWsetp upp-bound -- upper bound for adjustment of DHW setp (degrees C).
+    CONF_PRE_DEFINED_REMOTE_BOILER_PARAMETERS_DHWSETP_UPPER_BOUND: _TEMPERATURE_SCHEMA,
+    # §5.3.5 Class 5, ID 48 LB: DHWsetp low-bound -- lower bound for adjustment of DHW setp (degrees C).
+    CONF_PRE_DEFINED_REMOTE_BOILER_PARAMETERS_DHWSETP_LOWER_BOUND: _TEMPERATURE_SCHEMA,
+    # §5.3.5 Class 5, ID 49 HB: max CHsetp upp-bound -- upper bound for adjustment of maxCHsetp (degrees C).
+    CONF_PRE_DEFINED_REMOTE_BOILER_PARAMETERS_MAX_CHSETP_UPPER_BOUND: _TEMPERATURE_SCHEMA,
+    # §5.3.5 Class 5, ID 49 LB: max CHsetp low-bnd -- lower bound for adjustment of maxCHsetp (degrees C).
+    CONF_PRE_DEFINED_REMOTE_BOILER_PARAMETERS_MAX_CHSETP_LOWER_BOUND: _TEMPERATURE_SCHEMA,
+    # §5.3.5 Class 5, ID 56: DHW Setpoint -- domestic hot water temperature Setpoint (degrees C), read
+    # from the boiler. Only used if the number platform's dhw_setpoint_set is NOT configured.
+    CONF_PRE_DEFINED_REMOTE_BOILER_PARAMETERS_DHW_SETPOINT: _TEMPERATURE_SCHEMA,
+    # §5.3.5 Class 5, ID 57: max CH water Setpoint -- maximum allowable CH water Setpoint (degrees C),
+    # read from the boiler. Only used if the number platform's max_ch_water_setpoint_set is NOT configured.
+    CONF_PRE_DEFINED_REMOTE_BOILER_PARAMETERS_MAX_CH_WATER_SETPOINT: _TEMPERATURE_SCHEMA,
+    # §5.3.5 Class 5, ID 87 HB: Nominal ventilation value (0-100%), read from the boiler. Only used if
+    # the number platform's nominal_ventilation_value_set is NOT configured.
+    CONF_PRE_DEFINED_REMOTE_BOILER_PARAMETERS_NOMINAL_VENTILATION_VALUE: _PERCENT_SCHEMA,
 }
 
 CONFIG_SCHEMA = cv.Schema(

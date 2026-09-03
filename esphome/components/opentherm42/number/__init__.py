@@ -8,6 +8,10 @@ from ..const import (
     CONF_CONTROL_AND_STATUS_INFORMATION_CONTROL_SETPOINT,
     CONF_CONTROL_AND_STATUS_INFORMATION_CONTROL_SETPOINT_2_TSETCH2,
     CONF_CONTROL_AND_STATUS_INFORMATION_CONTROL_SETPOINT_VENTILATION_HEAT_RECOVERY,
+    CONF_OPENTHERM42_ID,
+    CONF_PRE_DEFINED_REMOTE_BOILER_PARAMETERS_DHW_SETPOINT_SET,
+    CONF_PRE_DEFINED_REMOTE_BOILER_PARAMETERS_MAX_CH_WATER_SETPOINT_SET,
+    CONF_PRE_DEFINED_REMOTE_BOILER_PARAMETERS_NOMINAL_VENTILATION_VALUE_SET,
     CONF_SENSOR_AND_INFORMATIONAL_DATA_CO2_LEVEL_SET,
     CONF_SENSOR_AND_INFORMATIONAL_DATA_OUTSIDE_TEMPERATURE_SET,
     CONF_SENSOR_AND_INFORMATIONAL_DATA_RELATIVE_HUMIDITY_EXHAUST_AIR_SET,
@@ -17,8 +21,6 @@ from ..const import (
     CONF_SENSOR_AND_INFORMATIONAL_DATA_ROOM_TEMPERATURE,
     CONF_SENSOR_AND_INFORMATIONAL_DATA_TRCH2,
 )
-
-CONF_OPENTHERM42_ID = "opentherm42_id"
 
 OpenTherm42Number = opentherm42_ns.class_(
     "OpenTherm42Number", number.Number, cg.Component
@@ -105,6 +107,23 @@ TYPES: dict[str, tuple[cv.Schema, dict]] = {
     CONF_SENSOR_AND_INFORMATIONAL_DATA_CO2_LEVEL_SET: (
         _number_schema("ppm", 0, 2000, 0),
         {"min_value": 0, "max_value": 2000, "step": 1},
+    ),
+    # §5.3.5 Class 5, ID 56: DHW Setpoint -- domestic hot water temperature setpoint (degrees C, 0..127).
+    # Takes priority over the sensor platform's plain dhw_setpoint (reading the boiler's own value).
+    CONF_PRE_DEFINED_REMOTE_BOILER_PARAMETERS_DHW_SETPOINT_SET: (
+        _number_schema("°C", 0, 127, 60.0),
+        {"min_value": 0, "max_value": 127, "step": 0.1},
+    ),
+    # §5.3.5 Class 5, ID 57: max CH water Setpoint -- maximum allowable CH water Setpoint (degrees C, 0..127).
+    CONF_PRE_DEFINED_REMOTE_BOILER_PARAMETERS_MAX_CH_WATER_SETPOINT_SET: (
+        _number_schema("°C", 0, 127, 80.0),
+        {"min_value": 0, "max_value": 127, "step": 0.1},
+    ),
+    # §5.3.5 Class 5, ID 87 HB: Nominal ventilation value -- nominal relative value for ventilation
+    # (0-100%), i.e. the value for the mid position in case of a 3-speed ventilation system.
+    CONF_PRE_DEFINED_REMOTE_BOILER_PARAMETERS_NOMINAL_VENTILATION_VALUE_SET: (
+        _number_schema("%", 0, 100, 50),
+        {"min_value": 0, "max_value": 100, "step": 1},
     ),
 }
 

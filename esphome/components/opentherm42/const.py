@@ -3,6 +3,9 @@
 # and the spec's term for the boiler side of the conversation replaced by "boiler" (see CLAUDE.md's
 # C++ enumerator-naming rule for why that term is avoided project-wide).
 
+# Every platform file's schema uses this to reference the opentherm42: hub.
+CONF_OPENTHERM42_ID = "opentherm42_id"
+
 # §5.3.1 Class 1, ID 0 HB: Master status -- one switch per control bit.
 CONF_CONTROL_AND_STATUS_INFORMATION_MASTER_STATUS_CH_ENABLE = (
     "control_and_status_information_master_status_ch_enable"
@@ -400,4 +403,58 @@ CONF_SENSOR_AND_INFORMATIONAL_DATA_DHW_PUMP_VALVE_OPERATION_HOURS = (
 )
 CONF_SENSOR_AND_INFORMATIONAL_DATA_DHW_BURNER_OPERATION_HOURS = (
     "sensor_and_informational_data_dhw_burner_operation_hours"
+)
+
+# §5.3.5 Class 5, ID 6: Remote-parameter transfer-enable/read-write flags for DHW Setpoint / max CHsetpoint.
+CONF_PRE_DEFINED_REMOTE_BOILER_PARAMETERS_TRANSFER_ENABLE_FLAGS_DHW_SETPOINT = (
+    "pre_defined_remote_boiler_parameters_transfer_enable_flags_dhw_setpoint"
+)
+CONF_PRE_DEFINED_REMOTE_BOILER_PARAMETERS_TRANSFER_ENABLE_FLAGS_MAX_CHSETPOINT = (
+    "pre_defined_remote_boiler_parameters_transfer_enable_flags_max_chsetpoint"
+)
+CONF_PRE_DEFINED_REMOTE_BOILER_PARAMETERS_READ_WRITE_FLAGS_DHW_SETPOINT = (
+    "pre_defined_remote_boiler_parameters_read_write_flags_dhw_setpoint"
+)
+CONF_PRE_DEFINED_REMOTE_BOILER_PARAMETERS_READ_WRITE_FLAGS_MAX_CHSETPOINT = (
+    "pre_defined_remote_boiler_parameters_read_write_flags_max_chsetpoint"
+)
+
+# §5.3.5 Class 5, ID 86: same transfer-enable/read-write flags, for ventilation/heat-recovery's
+# Nominal ventilation value.
+CONF_PRE_DEFINED_REMOTE_BOILER_PARAMETERS_TRANSFER_ENABLE_FLAGS_VENTILATION_HEAT_RECOVERY_NOMINAL_VENTILATION_VALUE = "pre_defined_remote_boiler_parameters_transfer_enable_flags_ventilation_heat_recovery_nominal_ventilation_value"
+CONF_PRE_DEFINED_REMOTE_BOILER_PARAMETERS_READ_WRITE_FLAGS_VENTILATION_HEAT_RECOVERY_NOMINAL_VENTILATION_VALUE = "pre_defined_remote_boiler_parameters_read_write_flags_ventilation_heat_recovery_nominal_ventilation_value"
+
+# §5.3.5 Class 5, IDs 48/49: upper/lower adjustment bounds for the DHW Setpoint / max CH water Setpoint.
+CONF_PRE_DEFINED_REMOTE_BOILER_PARAMETERS_DHWSETP_UPPER_BOUND = (
+    "pre_defined_remote_boiler_parameters_dhwsetp_upper_bound"
+)
+CONF_PRE_DEFINED_REMOTE_BOILER_PARAMETERS_DHWSETP_LOWER_BOUND = (
+    "pre_defined_remote_boiler_parameters_dhwsetp_lower_bound"
+)
+CONF_PRE_DEFINED_REMOTE_BOILER_PARAMETERS_MAX_CHSETP_UPPER_BOUND = (
+    "pre_defined_remote_boiler_parameters_max_chsetp_upper_bound"
+)
+CONF_PRE_DEFINED_REMOTE_BOILER_PARAMETERS_MAX_CHSETP_LOWER_BOUND = (
+    "pre_defined_remote_boiler_parameters_max_chsetp_lower_bound"
+)
+
+# §5.3.5 Class 5, IDs 56/57/87: the remote boiler parameters themselves -- R/W ids, same "_set" number
+# takes priority over plain sensor" pattern as Class 4's IDs 27/38/78/79.
+CONF_PRE_DEFINED_REMOTE_BOILER_PARAMETERS_DHW_SETPOINT = (
+    "pre_defined_remote_boiler_parameters_dhw_setpoint"
+)
+CONF_PRE_DEFINED_REMOTE_BOILER_PARAMETERS_DHW_SETPOINT_SET = (
+    "pre_defined_remote_boiler_parameters_dhw_setpoint_set"
+)
+CONF_PRE_DEFINED_REMOTE_BOILER_PARAMETERS_MAX_CH_WATER_SETPOINT = (
+    "pre_defined_remote_boiler_parameters_max_ch_water_setpoint"
+)
+CONF_PRE_DEFINED_REMOTE_BOILER_PARAMETERS_MAX_CH_WATER_SETPOINT_SET = (
+    "pre_defined_remote_boiler_parameters_max_ch_water_setpoint_set"
+)
+CONF_PRE_DEFINED_REMOTE_BOILER_PARAMETERS_NOMINAL_VENTILATION_VALUE = (
+    "pre_defined_remote_boiler_parameters_nominal_ventilation_value"
+)
+CONF_PRE_DEFINED_REMOTE_BOILER_PARAMETERS_NOMINAL_VENTILATION_VALUE_SET = (
+    "pre_defined_remote_boiler_parameters_nominal_ventilation_value_set"
 )
