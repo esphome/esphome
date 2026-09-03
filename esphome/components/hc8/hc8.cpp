@@ -96,7 +96,6 @@ void HC8Component::dump_config() {
                 "  Warmup time: %" PRIu32 " s",
                 this->warmup_seconds_);
   LOG_SENSOR("  ", "CO2", this->co2_sensor_);
-  this->check_uart_settings(9600);
 }
 
 }  // namespace esphome::hc8

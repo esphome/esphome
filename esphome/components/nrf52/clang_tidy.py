@@ -14,13 +14,11 @@ CodeChecker, which adapts GCC's flags/headers for Clang-based analysis.
   mcumgr, zigbee) so their include paths land in the compile commands;
 * the platform defines (USE_ZEPHYR, USE_NRF52) match what a real ESPHome
   nrf52 build adds via its generated project.
-
-``ESPHOME_ZEPHYR_COMPILE_COMMANDS`` may point at an existing build's
-``compile_commands.json`` to skip generation (fast iteration).
 """
 
 from __future__ import annotations
 
+import json
 import logging
 from pathlib import Path
 
@@ -278,4 +276,31 @@ def generate_compile_commands(
             f"west build reported success but {compile_commands_path} was not generated"
         )
 
+    _check_compile_commands_cover_sources(compile_commands_path, source_files)
+
     return compile_commands_path
+
+
+def _check_compile_commands_cover_sources(
+    compile_commands_path: Path, source_files: list[str]
+) -> None:
+    """Raise naming any ``source_files`` entry CMake produced no compile command
+    for, instead of letting it surface later as a generic --file/compile-database
+    mismatch that points the reader at the wrong (downstream) layer."""
+    from esphome.core import EsphomeError
+
+    entries = json.loads(compile_commands_path.read_text(encoding="utf-8"))
+    compiled_files = set()
+    for entry in entries:
+        entry_file = Path(entry["file"])
+        if not entry_file.is_absolute():
+            entry_file = Path(entry["directory"]) / entry_file
+        compiled_files.add(entry_file.resolve())
+
+    missing = [f for f in source_files if Path(f).resolve() not in compiled_files]
+    if missing:
+        joined = "\n".join(f"  {f}" for f in missing)
+        raise EsphomeError(
+            f"{compile_commands_path} has no compile command for:\n{joined}\n"
+            "-- target_sources() likely silently dropped one or more source files"
+        )

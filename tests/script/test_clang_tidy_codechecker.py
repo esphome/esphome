@@ -6,6 +6,7 @@ import argparse
 import importlib.machinery
 import importlib.util
 import json
+import os
 from pathlib import Path
 import re
 import sys
@@ -162,7 +163,7 @@ def test_get_codechecker_binary_rejects_field_collision(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """The pinned digits appearing in the *web* section must not validate a
-    mismatched *analyzer* version (Koan finding #6 -- the bug this exists to fix)."""
+    mismatched *analyzer* version."""
     pin = clang_tidy_script._codechecker_pinned_version()
     mismatched_major = pin[0] - 1
     stdout = _codechecker_version_stdout(
@@ -224,7 +225,7 @@ def test_get_codechecker_binary_includes_stderr_in_error(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """A broken CodeChecker install must surface its real diagnostic, not just
-    "version unknown" (Silent Failure #6)."""
+    "version unknown"."""
     monkeypatch.setattr(
         clang_tidy_script.subprocess,
         "run",
@@ -345,6 +346,28 @@ def test_run_codechecker_zephyr_reports_missing_codechecker_binary(
     assert "CodeChecker is not installed" in stderr
 
 
+def test_run_codechecker_zephyr_reports_pin_lookup_failure_distinctly(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A missing/renamed requirements file must not be misreported as a missing
+    CodeChecker/clang-tidy binary -- regression test for the pin lookups
+    previously running inside the binary-presence try blocks."""
+
+    def fake_pinned_major() -> int:
+        raise FileNotFoundError("requirements_dev.txt")
+
+    monkeypatch.setattr(
+        clang_tidy_script, "_clang_tidy_pinned_major", fake_pinned_major
+    )
+    result = clang_tidy_script.run_codechecker_zephyr(["file.cpp"], _args())
+
+    assert result == 1
+    stderr = capsys.readouterr().err
+    assert "Could not determine pinned tool versions" in stderr
+    assert "CodeChecker is not installed" not in stderr
+    assert "clang-tidy is not installed" not in stderr
+
+
 def test_run_codechecker_zephyr_success(
     tmp_path: Path, explicit_compile_commands: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -382,9 +405,12 @@ def test_run_codechecker_zephyr_fails_on_parse_failure(
 
 
 def test_run_codechecker_zephyr_fails_when_any_file_failed(
-    tmp_path: Path, explicit_compile_commands: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path,
+    explicit_compile_commands: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
 ) -> None:
-    """A crashed/errored file must not read as a clean run (Koan finding #7)."""
+    """A crashed/errored file must not read as a clean run."""
     output_dir = tmp_path / "codechecker-nrf52-adafruit"
 
     def fake_run(cmd: list[str], **kwargs: object) -> MagicMock:
@@ -395,7 +421,52 @@ def test_run_codechecker_zephyr_fails_when_any_file_failed(
 
     monkeypatch.setattr(clang_tidy_script.subprocess, "run", fake_run)
     result = clang_tidy_script.run_codechecker_zephyr(["file.cpp"], _args())
+    # The failing file must be named, not just counted -- otherwise an
+    # analyzer crash in CI is undiagnosable from the log.
+    assert str(Path("file.cpp").resolve()) in capsys.readouterr().err
     assert result == 1
+
+
+def test_run_codechecker_zephyr_fails_when_failed_count_disagrees_with_sources(
+    tmp_path: Path,
+    explicit_compile_commands: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A count/list mismatch must not let a crashed file read as covered
+    just because the scalar failed count was 0."""
+    output_dir = tmp_path / "codechecker-nrf52-adafruit"
+
+    def fake_run(cmd: list[str], **kwargs: object) -> MagicMock:
+        if cmd[1] == "analyze":
+            output_dir.mkdir(parents=True, exist_ok=True)
+            metadata = {
+                "tools": [
+                    {
+                        "analyzers": {
+                            "clang-tidy": {
+                                "analyzer_statistics": {
+                                    "successful": 1,
+                                    "failed": 0,
+                                    "successful_sources": [
+                                        str(Path("file.cpp").resolve())
+                                    ],
+                                    # Inconsistent with failed=0.
+                                    "failed_sources": [str(Path("file.cpp").resolve())],
+                                }
+                            }
+                        }
+                    }
+                ]
+            }
+            (output_dir / "metadata.json").write_text(json.dumps(metadata))
+        return MagicMock(returncode=0)
+
+    monkeypatch.setattr(clang_tidy_script.subprocess, "run", fake_run)
+    result = clang_tidy_script.run_codechecker_zephyr(["file.cpp"], _args())
+
+    assert result == 1
+    assert "inconsistent" in capsys.readouterr().err
 
 
 def test_run_codechecker_zephyr_fails_on_file_count_mismatch(
@@ -460,10 +531,57 @@ def test_run_codechecker_zephyr_fails_when_counts_match_but_a_file_is_missing(
     assert str(Path("a.cpp").resolve()) not in stderr
 
 
+def test_run_codechecker_zephyr_fails_when_an_unrequested_file_is_analyzed(
+    tmp_path: Path,
+    explicit_compile_commands: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """An over-matching --file pattern that analyzes an extra, unrequested file
+    must not pass just because every requested file was also covered -- these
+    same patterns scope fixit --apply, which would mutate the extra file too."""
+    output_dir = tmp_path / "codechecker-nrf52-adafruit"
+    requested_source = str(Path("a.cpp").resolve())
+    unrequested_source = str((tmp_path / "unrequested.cpp").resolve())
+
+    def fake_run(cmd: list[str], **kwargs: object) -> MagicMock:
+        if cmd[1] == "analyze":
+            output_dir.mkdir(parents=True, exist_ok=True)
+            metadata = {
+                "tools": [
+                    {
+                        "analyzers": {
+                            "clang-tidy": {
+                                "analyzer_statistics": {
+                                    "successful": 2,
+                                    "failed": 0,
+                                    "successful_sources": [
+                                        requested_source,
+                                        unrequested_source,
+                                    ],
+                                    "failed_sources": [],
+                                }
+                            }
+                        }
+                    }
+                ]
+            }
+            (output_dir / "metadata.json").write_text(json.dumps(metadata))
+        return MagicMock(returncode=0)
+
+    monkeypatch.setattr(clang_tidy_script.subprocess, "run", fake_run)
+    result = clang_tidy_script.run_codechecker_zephyr(["a.cpp"], _args())
+
+    assert result == 1
+    stderr = capsys.readouterr().err
+    assert unrequested_source in stderr
+    assert requested_source not in stderr
+
+
 def test_run_codechecker_zephyr_fails_on_fixit_failure(
     tmp_path: Path, explicit_compile_commands: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A failed `fixit --apply` must not be silently discarded (Koan finding #6)."""
+    """A failed `fixit --apply` must not be silently discarded."""
     output_dir = tmp_path / "codechecker-nrf52-adafruit"
 
     def fake_run(cmd: list[str], **kwargs: object) -> MagicMock:
@@ -510,7 +628,7 @@ def test_run_codechecker_zephyr_scopes_fixit_to_file_patterns(
 def test_run_codechecker_zephyr_does_not_cache_on_mismatch(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Cache must only be marked fresh once validated (Koan finding #8)."""
+    """Cache must only be marked fresh once validated."""
     work_dir = tmp_path / "zephyr-nrf52-adafruit"
     cc_path = work_dir / "build" / "compile_commands.json"
 
@@ -636,6 +754,49 @@ def test_run_codechecker_zephyr_invalidates_reused_cache_on_metadata_error(
     assert not reused_cache.exists()
 
 
+def test_run_codechecker_zephyr_reports_metadata_schema_drift_distinctly(
+    tmp_path: Path,
+    reused_cache: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A metadata.json that parses but no longer has the expected keys (e.g. a
+    future CodeChecker minor renaming successful_sources/failed_sources) must
+    be reported as a schema mismatch, not misattributed to an analyze failure."""
+    output_dir = tmp_path / "codechecker-nrf52-adafruit"
+
+    def fake_run(cmd: list[str], **kwargs: object) -> MagicMock:
+        if cmd[1] == "analyze":
+            output_dir.mkdir(parents=True, exist_ok=True)
+            metadata = {
+                "tools": [
+                    {
+                        "analyzers": {
+                            "clang-tidy": {
+                                "analyzer_statistics": {
+                                    "failed": 0,
+                                    # successful_sources/failed_sources renamed --
+                                    # simulates schema drift in a future CodeChecker.
+                                }
+                            }
+                        }
+                    }
+                ]
+            }
+            (output_dir / "metadata.json").write_text(json.dumps(metadata))
+        return MagicMock(returncode=0)
+
+    monkeypatch.setattr(clang_tidy_script.subprocess, "run", fake_run)
+    result = clang_tidy_script.run_codechecker_zephyr(["file.cpp"], _args())
+
+    assert result == 1
+    assert not reused_cache.exists()
+    err = capsys.readouterr().err
+    assert "unexpected shape" in err
+    assert "failed_sources" in err
+    assert "exit 0" not in err
+
+
 def test_run_codechecker_zephyr_invalidates_reused_cache_on_count_mismatch(
     tmp_path: Path, reused_cache: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -668,6 +829,89 @@ def test_run_codechecker_zephyr_keeps_reused_cache_on_success(
 
     assert result == 0
     assert reused_cache.exists()
+
+
+def test_run_codechecker_zephyr_does_not_cache_regenerated_failure(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A regenerated database that produced analyzer failures must not be cached as good."""
+    work_dir = tmp_path / "zephyr-nrf52-adafruit"
+    cc_path = work_dir / "build" / "compile_commands.json"
+
+    def fake_generate(
+        work_dir: Path, platformio_ini: Path, source_files: list[str]
+    ) -> Path:
+        cc_path.parent.mkdir(parents=True, exist_ok=True)
+        cc_path.write_text("[]")
+        return cc_path
+
+    monkeypatch.setattr(
+        "esphome.components.nrf52.clang_tidy.generate_compile_commands",
+        fake_generate,
+    )
+    monkeypatch.setattr(clang_tidy_hash, "is_cached", lambda *a, **k: False)
+    update_cache_calls = []
+    monkeypatch.setattr(
+        clang_tidy_hash,
+        "update_cache",
+        lambda *a, **k: update_cache_calls.append((a, k)),
+    )
+
+    output_dir = tmp_path / "codechecker-nrf52-adafruit"
+
+    def fake_run(cmd: list[str], **kwargs: object) -> MagicMock:
+        if cmd[1] == "analyze":
+            # All requested files covered, but one failed -- must not cache.
+            _write_metadata(output_dir, successful=0, failed=1)
+        return MagicMock(returncode=0)
+
+    monkeypatch.setattr(clang_tidy_script.subprocess, "run", fake_run)
+    result = clang_tidy_script.run_codechecker_zephyr(["file.cpp"], _args())
+
+    assert result == 1
+    assert update_cache_calls == []
+
+
+def test_run_codechecker_zephyr_does_not_cache_on_nonzero_analyze_returncode(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`analyze` exiting non-zero for a reason not reflected in metadata.json
+    (0 failed, fully covered) must still block the cache write."""
+    work_dir = tmp_path / "zephyr-nrf52-adafruit"
+    cc_path = work_dir / "build" / "compile_commands.json"
+
+    def fake_generate(
+        work_dir: Path, platformio_ini: Path, source_files: list[str]
+    ) -> Path:
+        cc_path.parent.mkdir(parents=True, exist_ok=True)
+        cc_path.write_text("[]")
+        return cc_path
+
+    monkeypatch.setattr(
+        "esphome.components.nrf52.clang_tidy.generate_compile_commands",
+        fake_generate,
+    )
+    monkeypatch.setattr(clang_tidy_hash, "is_cached", lambda *a, **k: False)
+    update_cache_calls = []
+    monkeypatch.setattr(
+        clang_tidy_hash,
+        "update_cache",
+        lambda *a, **k: update_cache_calls.append((a, k)),
+    )
+
+    output_dir = tmp_path / "codechecker-nrf52-adafruit"
+
+    def fake_run(cmd: list[str], **kwargs: object) -> MagicMock:
+        if cmd[1] == "analyze":
+            _write_metadata(output_dir, successful=1, failed=0)
+            return MagicMock(returncode=1)
+        return MagicMock(returncode=0)
+
+    monkeypatch.setattr(clang_tidy_script.subprocess, "run", fake_run)
+    result = clang_tidy_script.run_codechecker_zephyr(["file.cpp"], _args())
+
+    assert result == 1
+    assert update_cache_calls == []
 
 
 def test_run_codechecker_zephyr_regenerated_failure_does_not_crash(
@@ -718,14 +962,32 @@ def _codechecker_matcher_regex() -> re.Pattern[str]:
 
 
 def test_codechecker_matcher_parses_report_line() -> None:
-    """Shape verified against the installed codechecker_report_converter's
-    plaintext.format_report(): "[{severity}] {file}:{line}:{col}: {message} [{checker}]"."""
-    regex = _codechecker_matcher_regex()
-    line = (
-        "[HIGH] /work/esphome/components/nrf52/nrf52.cpp:42:7: "
-        "use of uninitialized value 'x' [clang-analyzer-core.uninitialized.Assign]"
-    )
+    """The sample line is generated by the installed codechecker_report_converter's
+    own plaintext.format_report(), so an upstream format change fails this test
+    instead of silently making the matcher emit zero annotations in CI."""
+    try:
+        from codechecker_report_converter.report import File, Report
+        from codechecker_report_converter.report.output.plaintext import format_report
+    except ImportError:
+        if os.environ.get("ESPHOME_REQUIRE_CODECHECKER"):
+            pytest.fail(
+                "codechecker_report_converter is not importable even though "
+                "ESPHOME_REQUIRE_CODECHECKER is set -- this must not skip in "
+                "the CI leg that installs requirements_codechecker.txt"
+            )
+        pytest.skip("codechecker_report_converter is not installed")
 
+    report = Report(
+        file=File("/work/esphome/components/nrf52/nrf52.cpp"),
+        line=42,
+        column=7,
+        message="use of uninitialized value 'x'",
+        checker_name="clang-analyzer-core.uninitialized.Assign",
+        severity="HIGH",
+    )
+    line = format_report(report, content_is_not_changed=True)
+
+    regex = _codechecker_matcher_regex()
     match = regex.match(line)
 
     assert match is not None

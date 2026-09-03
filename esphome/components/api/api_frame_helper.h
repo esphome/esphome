@@ -49,16 +49,16 @@ struct ReadPacketBuffer {
 };
 
 // Packed message info structure to minimize memory usage
-// Note: message_type is uint8_t — all current protobuf message types fit in 8 bits.
-// The noise wire format encodes types as 16-bit, but the high byte is always 0.
-// If message types ever exceed 255, this and encrypt_noise_message_ must be updated.
+// message_type matches the wire formats: noise carries a fixed 16-bit type
+// field, plaintext a type varint. The proto codegen caps message IDs at 16383
+// so the plaintext type varint fits the 2 bytes budgeted in HEADER_PADDING.
 struct MessageInfo {
   uint16_t offset;        // Offset in buffer where message starts
   uint16_t payload_size;  // Size of the message payload
-  uint8_t message_type;   // Message type (0-255)
+  uint16_t message_type;  // Message type (0-16383)
   uint8_t header_size;    // Actual header size used (avoids recomputation in write path)
 
-  MessageInfo(uint8_t type, uint16_t off, uint16_t size, uint8_t hdr)
+  MessageInfo(uint16_t type, uint16_t off, uint16_t size, uint8_t hdr)
       : offset(off), payload_size(size), message_type(type), header_size(hdr) {}
 };
 
@@ -173,7 +173,7 @@ class APIFrameHelper {
   }
   // Write a single protobuf message - the hot path (87-100% of all writes).
   // Caller must ensure state is DATA before calling.
-  virtual APIError write_protobuf_packet(uint8_t type, ProtoWriteBuffer buffer) = 0;
+  virtual APIError write_protobuf_packet(uint16_t type, ProtoWriteBuffer buffer) = 0;
   // Write multiple protobuf messages in a single batched operation.
   // Caller must ensure state is DATA and messages is not empty.
   // messages contains (message_type, offset, length) for each message in the buffer.
@@ -187,15 +187,15 @@ class APIFrameHelper {
   // Distinguishes protocols via frame_footer_size_ (noise always has a non-zero MAC
   // footer, plaintext has footer=0). If a protocol with a plaintext footer is ever
   // added, this should become a virtual method.
-  uint8_t frame_header_size(uint16_t payload_size, uint8_t message_type) const {
+  uint8_t frame_header_size(uint16_t payload_size, uint16_t message_type) const {
 #if defined(USE_API_NOISE) && defined(USE_API_PLAINTEXT)
     return this->frame_footer_size_
                ? this->frame_header_padding_
-               : static_cast<uint8_t>(1 + ProtoSize::varint16(payload_size) + ProtoSize::varint8(message_type));
+               : static_cast<uint8_t>(1 + ProtoSize::varint16(payload_size) + ProtoSize::varint16(message_type));
 #elif defined(USE_API_NOISE)
     return this->frame_header_padding_;
 #else  // USE_API_PLAINTEXT only
-    return static_cast<uint8_t>(1 + ProtoSize::varint16(payload_size) + ProtoSize::varint8(message_type));
+    return static_cast<uint8_t>(1 + ProtoSize::varint16(payload_size) + ProtoSize::varint16(message_type));
 #endif
   }
   // Get the frame footer size required by this protocol
