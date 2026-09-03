@@ -20,7 +20,11 @@ void ICNT86Touchscreen::setup() {
   // Perform reset if necessary
   if (this->reset_pin_ != nullptr) {
     this->reset_pin_->setup();
-    this->reset_();
+    if (this->reset_pin_ != nullptr) {
+      this->reset_pin_->digital_write(false);
+      delay(10);
+      this->reset_pin_->digital_write(true);
+    }
   }
 
   // Swap intentional: this touch chip's raw axes are transposed relative to the display's native orientation.
@@ -74,14 +78,6 @@ void ICNT86Touchscreen::update_touches() {
       }
       this->add_raw_touch_position_(touch_id, x, y, p);
     }
-  }
-}
-
-void ICNT86Touchscreen::reset_() {
-  if (this->reset_pin_ != nullptr) {
-    this->reset_pin_->digital_write(false);
-    delay(10);
-    this->reset_pin_->digital_write(true);
   }
 }
 

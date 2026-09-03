@@ -17,7 +17,6 @@ class ICNT86Touchscreen : public touchscreen::Touchscreen, public i2c::I2CDevice
 
  protected:
   void update_touches() override;
-  void reset_();
   InternalGPIOPin *interrupt_pin_{};
   GPIOPin *reset_pin_{nullptr};
 
