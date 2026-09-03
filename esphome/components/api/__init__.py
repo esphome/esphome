@@ -480,11 +480,10 @@ def _validate_outgoing_socket_implementation(config: ConfigType) -> ConfigType:
 
     socket_conf = fv.full_config.get().get("socket") or {}
     if (
-        socket_conf.get(socket.CONF_IMPLEMENTATION)
-        in socket.IMPLEMENTATIONS_WITHOUT_CONNECT
-    ):
+        impl := socket_conf.get(socket.CONF_IMPLEMENTATION)
+    ) in socket.IMPLEMENTATIONS_WITHOUT_CONNECT:
         raise cv.Invalid(
-            "outgoing_connection is not supported with the lwip_tcp socket "
+            f"outgoing_connection is not supported with the {impl} socket "
             "implementation because it cannot make outgoing connections",
             path=[CONF_OUTGOING_CONNECTION],
         )

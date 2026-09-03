@@ -97,45 +97,22 @@ void AsyncClient::loop() {
     return;
 
   if (connecting_) {
-    // For connecting, we need to check writability, not readability
-    // The Application's select() only monitors read FDs, so we do our own check here
-    // For ESP platforms lwip_select() might be faster, but this code isn't used
-    // on those platforms anyway. If it was, we'd fix the Application select()
-    // to report writability instead of doing it this way.
-    int fd = socket_->get_fd();
-    if (fd < 0) {
-      ESP_LOGW(TAG, "Invalid socket fd");
-      close();
-      return;
-    }
-
-    fd_set writefds;
-    FD_ZERO(&writefds);
-    FD_SET(fd, &writefds);
-
-    struct timeval tv = {0, 0};
-    int ret = select(fd + 1, nullptr, &writefds, nullptr, &tv);
-
-    if (ret > 0 && FD_ISSET(fd, &writefds)) {
-      int error = 0;
-      socklen_t len = sizeof(error);
-      if (socket_->getsockopt(SOL_SOCKET, SO_ERROR, &error, &len) == 0 && error == 0) {
+    int err = 0;
+    switch (socket::poll_connect(*socket_, err)) {
+      case socket::ConnectPollResult::CONNECT_POLL_PENDING:
+        break;
+      case socket::ConnectPollResult::CONNECT_POLL_CONNECTED:
         connecting_ = false;
         connected_ = true;
         if (connect_cb_)
           connect_cb_(connect_arg_, this);
-      } else {
-        ESP_LOGW(TAG, "Connection failed: %d", error);
+        break;
+      case socket::ConnectPollResult::CONNECT_POLL_ERROR:
+        ESP_LOGW(TAG, "Connection failed: %d", err);
         close();
         if (error_cb_)
-          error_cb_(error_arg_, this, error);
-      }
-    } else if (ret < 0) {
-      const int err = errno;
-      ESP_LOGE(TAG, "Select error: %d", err);
-      close();
-      if (error_cb_)
-        error_cb_(error_arg_, this, err);
+          error_cb_(error_arg_, this, err);
+        break;
     }
   } else if (connected_) {
     // For connected sockets, use the Application's select() results
