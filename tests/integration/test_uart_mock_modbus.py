@@ -19,23 +19,12 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import Callable
-from dataclasses import dataclass
 
 from aioesphomeapi import ButtonInfo, NumberInfo, SwitchInfo, TextSensorState
 import pytest
 
-from .state_utils import SensorTracker, find_entity, wait_for_state
+from .state_utils import SensorTracker, find_entity, require_entity, wait_for_state
 from .types import APIClientConnectedFactory, RunCompiledFunction
-
-
-@dataclass
-class RegisterTestCase:
-    """Test parameters for a single modbus register write/read round-trip."""
-
-    write_number_name: str
-    write_value: float
-    post_write_value: object
-
 
 # Initial values of the mesh fixture's address 1 registers; the
 # server_controller test reads them and the write test uses them as baseline.
@@ -330,7 +319,7 @@ async def test_uart_mock_modbus_server_controller(
     line_callback, error_log_lines, warning_log_lines = _make_modbus_line_callback()
 
     # 13330 is the byte-swapped view of reg_u_word_s (0x1234 -> 0x3412)
-    expected_values = {**MESH_INITIAL_VALUES, "reg_u_word_s_raw": 13330}
+    expected_values = MESH_INITIAL_VALUES | {"reg_u_word_s_raw": 13330}
     tracker = SensorTracker(list(expected_values.keys()))
     futures = tracker.expect_all(expected_values)
 
@@ -338,9 +327,6 @@ async def test_uart_mock_modbus_server_controller(
         run_compiled(yaml_config, line_callback=line_callback),
         api_client_connected() as client,
     ):
-        # The controller polls from boot, so the first values can already be in
-        # the states the device sends on connect; matching them there saves
-        # waiting for the next poll
         await tracker.setup_and_start_scenario(client, match_initial_states=True)
         await tracker.await_all(futures)
         _assert_no_modbus_errors(error_log_lines, warning_log_lines)
@@ -362,38 +348,40 @@ async def test_uart_mock_modbus_server_controller_write(
 
     line_callback, error_log_lines, warning_log_lines = _make_modbus_line_callback()
 
-    register_test_cases: dict[str, RegisterTestCase] = {
-        "reg_u_word": RegisterTestCase("write_u_word", 42, 42),
-        "reg_u_word_s": RegisterTestCase("write_u_word_s", 17185, 17185),
-        "reg_s_word": RegisterTestCase("write_s_word", -42, -42),
-        "reg_s_word_s": RegisterTestCase("write_s_word_s", -257, -257),
-        "reg_u_dword": RegisterTestCase("write_u_dword", 2002, 2002),
-        "reg_s_dword": RegisterTestCase("write_s_dword", -2002, -2002),
-        "reg_u_dword_r": RegisterTestCase("write_u_dword_r", 4004, 4004),
-        "reg_s_dword_r": RegisterTestCase("write_s_dword_r", -4004, -4004),
-        "reg_u_qword": RegisterTestCase("write_u_qword", 6006, 6006),
-        "reg_s_qword": RegisterTestCase("write_s_qword", -6006, -6006),
-        "reg_u_qword_r": RegisterTestCase("write_u_qword_r", 8008, 8008),
-        "reg_s_qword_r": RegisterTestCase("write_s_qword_r", -8008, -8008),
-        "reg_fp32": RegisterTestCase("write_fp32", 6.28, pytest.approx(6.28, abs=0.01)),
-        "reg_fp32_r": RegisterTestCase(
-            "write_fp32_r", 9.42, pytest.approx(9.42, abs=0.01)
-        ),
+    # Per read-back sensor: the number entity to write through and the value;
+    # floats read back within tolerance, everything else exactly
+    register_writes: dict[str, tuple[str, float]] = {
+        "reg_u_word": ("write_u_word", 42),
+        "reg_u_word_s": ("write_u_word_s", 17185),
+        "reg_s_word": ("write_s_word", -42),
+        "reg_s_word_s": ("write_s_word_s", -257),
+        "reg_u_dword": ("write_u_dword", 2002),
+        "reg_s_dword": ("write_s_dword", -2002),
+        "reg_u_dword_r": ("write_u_dword_r", 4004),
+        "reg_s_dword_r": ("write_s_dword_r", -4004),
+        "reg_u_qword": ("write_u_qword", 6006),
+        "reg_s_qword": ("write_s_qword", -6006),
+        "reg_u_qword_r": ("write_u_qword_r", 8008),
+        "reg_s_qword_r": ("write_s_qword_r", -8008),
+        "reg_fp32": ("write_fp32", 6.28),
+        "reg_fp32_r": ("write_fp32_r", 9.42),
     }
 
-    tracker = SensorTracker([*register_test_cases, "reg_u_word_s_raw"])
+    tracker = SensorTracker([*register_writes, "reg_u_word_s_raw"])
 
     # The raw U_WORD view of 0x02 pins the byte swap on the write path: the
     # round trip through write_u_word_s applies the swap an even number of
     # times, so only the raw sensor can catch a symmetrically dropped swap.
     # Phase 1: expect initial baseline values
     initial_futures = tracker.expect_all(
-        {name: MESH_INITIAL_VALUES[name] for name in register_test_cases}
-        | {"reg_u_word_s_raw": 13330}  # 0x1234 -> 0x3412
+        MESH_INITIAL_VALUES | {"reg_u_word_s_raw": 13330}  # 0x1234 -> 0x3412
     )
     # Phase 2: expect post-write values (registered now so on_state can match them)
     written_futures = tracker.expect_all(
-        {name: case.post_write_value for name, case in register_test_cases.items()}
+        {
+            name: pytest.approx(value, abs=0.01) if isinstance(value, float) else value
+            for name, (_, value) in register_writes.items()
+        }
         | {"reg_u_word_s_raw": 8515}  # 0x4321 -> 0x2143
     )
 
@@ -401,9 +389,6 @@ async def test_uart_mock_modbus_server_controller_write(
         run_compiled(yaml_config, line_callback=line_callback),
         api_client_connected() as client,
     ):
-        # The controller polls from boot, so the baseline can already be in the
-        # states the device sends on connect; matching it there saves waiting for
-        # the next poll
         entities = await tracker.setup_and_start_scenario(
             client, match_initial_states=True
         )
@@ -413,12 +398,9 @@ async def test_uart_mock_modbus_server_controller_write(
         await tracker.await_all(initial_futures, timeout=4.0)
 
         # Issue write commands for all register types
-        for case in register_test_cases.values():
-            entity = find_entity(entities, case.write_number_name, NumberInfo)
-            assert entity is not None, (
-                f"{case.write_number_name} number entity not found"
-            )
-            client.number_command(entity.key, case.write_value)
+        for number_name, value in register_writes.values():
+            entity = require_entity(entities, number_name, NumberInfo)
+            client.number_command(entity.key, value)
 
         # Wait for sensors to reflect the written values (round-trip write+read)
         await tracker.await_all(written_futures, timeout=4.0)
@@ -471,8 +453,6 @@ async def test_uart_mock_modbus_server_controller_bits(
         run_compiled(yaml_config, line_callback=line_callback),
         api_client_connected() as client,
     ):
-        # The controller polls from boot and binary sensors drop repeats, so the
-        # baseline can arrive only in the states the device sends on connect
         entities = await tracker.setup_and_start_scenario(
             client, match_initial_states=True
         )
@@ -511,9 +491,6 @@ async def test_uart_mock_modbus_server_controller_multiple(
         run_compiled(yaml_config, line_callback=line_callback),
         api_client_connected() as client,
     ):
-        # The controller polls from boot, so the first values can already be in
-        # the states the device sends on connect; matching them there saves
-        # waiting for the next poll
         await tracker.setup_and_start_scenario(client, match_initial_states=True)
         await tracker.await_all(futures)
         _assert_no_modbus_errors(error_log_lines, warning_log_lines)
