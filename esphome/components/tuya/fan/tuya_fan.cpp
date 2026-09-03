@@ -17,7 +17,7 @@ void TuyaFan::setup() {
           this->speed = datapoint.value_enum + 1;
           this->publish_state();
         }
-      } else if (datapoint.type == TuyaDatapointType::INTEGER) {
+      } else {
         ESP_LOGV(TAG, "MCU reported speed of: %d", datapoint.value_int);
         this->speed = datapoint.value_int;
         this->publish_state();
@@ -87,11 +87,16 @@ fan::FanTraits TuyaFan::get_traits() {
 }
 
 void TuyaFan::control(const fan::FanCall &call) {
+  auto optimistic = this->optimistic_;
   auto switch_id = this->switch_id_;
   if (switch_id.has_value()) {
     auto state = call.get_state();
     if (state.has_value()) {
       this->parent_->set_boolean_datapoint_value(*switch_id, *state);
+      if (optimistic) {
+        this->state = *state;
+        this->publish_state();
+      }
     }
   }
   auto osc_id = this->oscillation_id_;
@@ -103,6 +108,10 @@ void TuyaFan::control(const fan::FanCall &call) {
       } else if (this->oscillation_type_ == TuyaDatapointType::BOOLEAN) {
         this->parent_->set_boolean_datapoint_value(*osc_id, *oscillating);
       }
+      if (optimistic) {
+        this->oscillating = *oscillating;
+        this->publish_state();
+      }
     }
   }
   auto dir_id = this->direction_id_;
@@ -111,6 +120,10 @@ void TuyaFan::control(const fan::FanCall &call) {
     if (direction.has_value()) {
       bool enable = *direction == fan::FanDirection::REVERSE;
       this->parent_->set_enum_datapoint_value(*dir_id, enable);
+      if (optimistic) {
+        this->direction = *direction;
+        this->publish_state();
+      }
     }
   }
   auto spd_id = this->speed_id_;
@@ -119,8 +132,12 @@ void TuyaFan::control(const fan::FanCall &call) {
     if (speed.has_value()) {
       if (this->speed_type_ == TuyaDatapointType::ENUM) {
         this->parent_->set_enum_datapoint_value(*spd_id, *speed - 1);
-      } else if (this->speed_type_ == TuyaDatapointType::INTEGER) {
+      } else {
         this->parent_->set_integer_datapoint_value(*spd_id, *speed);
+      }
+      if (optimistic) {
+        this->speed = *speed;
+        this->publish_state();
       }
     }
   }

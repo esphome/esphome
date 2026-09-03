@@ -1,7 +1,12 @@
 import esphome.codegen as cg
 from esphome.components import fan
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, CONF_SPEED_COUNT, CONF_SWITCH_DATAPOINT
+from esphome.const import (
+    CONF_ID,
+    CONF_OPTIMISTIC,
+    CONF_SPEED_COUNT,
+    CONF_SWITCH_DATAPOINT,
+)
 
 from .. import CONF_TUYA_ID, Tuya, tuya_ns
 
@@ -23,6 +28,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_SWITCH_DATAPOINT): cv.uint8_t,
             cv.Optional(CONF_DIRECTION_DATAPOINT): cv.uint8_t,
             cv.Optional(CONF_SPEED_COUNT, default=3): cv.int_range(min=1, max=256),
+            cv.Optional(CONF_OPTIMISTIC, default=False): cv.boolean,
         }
     )
     .extend(cv.COMPONENT_SCHEMA),
@@ -45,3 +51,5 @@ async def to_code(config):
         cg.add(var.set_oscillation_id(config[CONF_OSCILLATION_DATAPOINT]))
     if CONF_DIRECTION_DATAPOINT in config:
         cg.add(var.set_direction_id(config[CONF_DIRECTION_DATAPOINT]))
+    if CONF_OPTIMISTIC in config:
+        cg.add(var.set_optimistic(config[CONF_OPTIMISTIC]))
