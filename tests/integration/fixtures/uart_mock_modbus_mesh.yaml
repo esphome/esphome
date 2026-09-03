@@ -359,6 +359,8 @@ sensor:
     name: "client_read_1"
     id: client_read_1
 
+# The number schema caps min/max at 16777215 (float32 integer precision), so
+# the large dword/qword baselines cannot be written back through these numbers.
 number:
   - platform: modbus_controller
     modbus_controller_id: modbus_controller_1
