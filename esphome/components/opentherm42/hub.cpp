@@ -47,6 +47,9 @@ const SimpleSensorInfo OpenTherm42Hub::SIMPLE_SENSORS[] = {
     {RequestKind::NUMBER_OF_TSPS, 10, SimpleValueKind::U8_HB, &OpenTherm42Hub::number_of_tsps_sensor_, "Number of TSP's (id=10)"},
     {RequestKind::NUMBER_OF_TSPS_VENTILATION, 88, SimpleValueKind::U8_HB, &OpenTherm42Hub::number_of_tsps_ventilation_sensor_, "Number of TSP's ventilation/heat-recovery (id=88)"},
     {RequestKind::NUMBER_OF_TSPS_SOLAR_STORAGE, 105, SimpleValueKind::U8_HB, &OpenTherm42Hub::number_of_tsps_solar_storage_sensor_, "Number of TSP's Solar Storage (id=105)"},
+    {RequestKind::FAULT_HISTORY_BUFFER_SIZE, 12, SimpleValueKind::U8_HB, &OpenTherm42Hub::fault_history_buffer_size_sensor_, "Size of Fault Buffer (id=12)"},
+    {RequestKind::FAULT_HISTORY_BUFFER_SIZE_VENTILATION, 90, SimpleValueKind::U8_HB, &OpenTherm42Hub::fault_history_buffer_size_ventilation_sensor_, "Size of Fault Buffer ventilation/heat-recovery (id=90)"},
+    {RequestKind::FAULT_HISTORY_BUFFER_SIZE_SOLAR_STORAGE, 107, SimpleValueKind::U8_HB, &OpenTherm42Hub::fault_history_buffer_size_solar_storage_sensor_, "Size of Fault Buffer Solar Storage (id=107)"},
 };
 // clang-format on
 
@@ -244,6 +247,11 @@ void OpenTherm42Hub::build_schedule_() {
   // reads; on-demand writes (see write_tsp()) are serviced ahead of this rotation.
   if (!this->tsp_slots_.empty()) {
     this->informational_requests_.push_back(RequestKind::TSP);
+  }
+
+  // §5.3.7 Class 7: same round-robin, for fault-history-buffer entries (purely read-only).
+  if (!this->fhb_slots_.empty()) {
+    this->informational_requests_.push_back(RequestKind::FHB);
   }
 }
 
@@ -493,6 +501,17 @@ Frame OpenTherm42Hub::build_next_request_() {
         frame.id = slot.data_id;
         frame.value_hb = slot.index;
         this->tsp_read_index_ = (this->tsp_read_index_ + 1) % this->tsp_slots_.size();
+      }
+      break;
+
+    case RequestKind::FHB:
+      if (!this->fhb_slots_.empty()) {
+        this->pending_fhb_slot_index_ = this->fhb_read_index_;
+        auto const &slot = this->fhb_slots_[this->fhb_read_index_];
+        frame.type = static_cast<uint8_t>(MessageType::READ_DATA);
+        frame.id = slot.data_id;
+        frame.value_hb = slot.index;
+        this->fhb_read_index_ = (this->fhb_read_index_ + 1) % this->fhb_slots_.size();
       }
       break;
 
@@ -1136,6 +1155,22 @@ void OpenTherm42Hub::handle_response_(const Frame &frame) {
       return;
     }
 
+    case RequestKind::FHB: {
+      auto const &slot = this->fhb_slots_[this->pending_fhb_slot_index_];
+      if (type != MessageType::READ_ACK) {
+        ESP_LOGW(TAG, "FHB read (id=%u, index=%u) was rejected (message type %u)", slot.data_id, slot.index,
+                 frame.type);
+        if (slot.sensor != nullptr) {
+          slot.sensor->set_has_state(false);
+        }
+        return;
+      }
+      if (slot.sensor != nullptr) {
+        slot.sensor->publish_state(frame.value_lb);
+      }
+      return;
+    }
+
     default: {
       // Every plain read-only sensor (see the SIMPLE_SENSORS table) shares this one case.
       const SimpleSensorInfo *info = this->find_simple_sensor_(this->pending_request_kind_);
@@ -1448,6 +1483,15 @@ void OpenTherm42Hub::invalidate_response_(RequestKind kind) {
         number::Number *tsp_number = this->tsp_slots_[this->pending_tsp_slot_index_].number;
         if (tsp_number != nullptr) {
           tsp_number->set_has_state(false);
+        }
+      }
+      return;
+
+    case RequestKind::FHB:
+      if (this->pending_fhb_slot_index_ < this->fhb_slots_.size()) {
+        sensor::Sensor *fhb_sensor = this->fhb_slots_[this->pending_fhb_slot_index_].sensor;
+        if (fhb_sensor != nullptr) {
+          fhb_sensor->set_has_state(false);
         }
       }
       return;

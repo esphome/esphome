@@ -158,6 +158,15 @@ enum class RequestKind : uint8_t {
   // configured slot (see TspSlot) is due next -- see build_next_request_()'s tsp_write_pending_ check
   // for on-demand writes and the informational-rotation case for the periodic read cycle.
   TSP,
+
+  // §5.3.7 Class 7, IDs 12/90/107 HB: size of the fault history buffer, one per family.
+  FAULT_HISTORY_BUFFER_SIZE,
+  FAULT_HISTORY_BUFFER_SIZE_VENTILATION,
+  FAULT_HISTORY_BUFFER_SIZE_SOLAR_STORAGE,
+  // §5.3.7 Class 7, IDs 13/91/108: a fault-history-buffer entry read, at whichever configured slot
+  // (see FhbSlot) is due next -- purely read-only, so unlike TSP there's no write-pending priority
+  // check, just the informational-rotation case.
+  FHB,
 };
 
 class OpenTherm42Hub;
@@ -216,6 +225,13 @@ struct TspSlot {
   uint8_t data_id;  // 11 (main), 89 (ventilation/heat-recovery), or 106 (Solar Storage)
   uint8_t index;    // TSP-index, 0..255
   number::Number *number{nullptr};
+};
+
+// §5.3.7 Class 7: one user-configured fault-history-buffer slot. Like TSP, purely read-only here.
+struct FhbSlot {
+  uint8_t data_id;  // 13 (main), 91 (ventilation/heat-recovery), or 108 (Solar Storage)
+  uint8_t index;    // FHB-index, 0..255
+  sensor::Sensor *sensor{nullptr};
 };
 
 // Declares set_<name>_switch()/set_<name>_binary_sensor(), storing the pointer at a fixed bit position
@@ -542,6 +558,18 @@ class OpenTherm42Hub : public Component {
     this->tsp_write_value_ = value;
   }
 
+  // §5.3.7 Class 7, IDs 12/90/107 HB: size of the fault history buffer, one per family.
+  OT42_SET_SENSOR(fault_history_data_size_of_fault_buffer, fault_history_buffer_size_sensor_)
+  OT42_SET_SENSOR(fault_history_data_size_of_fault_buffer_ventilation_heat_recovery,
+                  fault_history_buffer_size_ventilation_sensor_)
+  OT42_SET_SENSOR(fault_history_data_size_of_fault_buffer_solar_storage,
+                  fault_history_buffer_size_solar_storage_sensor_)
+
+  // §5.3.7 Class 7, IDs 13/91/108: registers one user-configured fault-history-buffer slot.
+  void add_fhb_slot(uint8_t data_id, uint8_t index, sensor::Sensor *sensor) {
+    this->fhb_slots_.push_back(FhbSlot{data_id, index, sensor});
+  }
+
  protected:
   // §4.3.1: minimum time between the end of one conversation and the start of the next.
   static constexpr uint32_t MASTER_WAIT_TIME_MS = 100;
@@ -744,6 +772,17 @@ class OpenTherm42Hub : public Component {
   // invalidate_response_() which slot and direction that conversation was for.
   size_t pending_tsp_slot_index_{0};
   bool pending_tsp_is_write_{false};
+
+  // §5.3.7 Class 7 entities.
+  sensor::Sensor *fault_history_buffer_size_sensor_{nullptr};
+  sensor::Sensor *fault_history_buffer_size_ventilation_sensor_{nullptr};
+  sensor::Sensor *fault_history_buffer_size_solar_storage_sensor_{nullptr};
+
+  std::vector<FhbSlot> fhb_slots_;
+  size_t fhb_read_index_{0};
+  // Set immediately before build_next_request_() returns an FHB frame; tells handle_response_()/
+  // invalidate_response_() which slot that conversation was for.
+  size_t pending_fhb_slot_index_{0};
 };
 
 }  // namespace esphome::opentherm42
