@@ -258,8 +258,10 @@ SerialProxyResult SerialProxy::set_mode_from_client(api::APIConnection *api_conn
   }
   ESP_LOGD(TAG, "Serial proxy [%" PRIu32 "] mode set to %s", this->instance_index_,
            mode == api::enums::SERIAL_PROXY_MODE_PROTOCOL ? LOG_STR_LITERAL("PROTOCOL") : LOG_STR_LITERAL("RAW"));
+#ifdef USE_SERIAL_PROXY_TAP
   const bool leaving_protocol_mode =
       this->mode_ != api::enums::SERIAL_PROXY_MODE_RAW && mode == api::enums::SERIAL_PROXY_MODE_RAW;
+#endif
   this->mode_ = mode;
 
 #ifdef USE_SERIAL_PROXY_TAP
