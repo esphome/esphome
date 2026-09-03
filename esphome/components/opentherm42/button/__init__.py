@@ -4,6 +4,7 @@ import esphome.config_validation as cv
 
 from .. import OpenTherm42Hub, opentherm42_ns
 from ..const import (
+    CONF_CONTROL_OF_SPECIAL_APPLICATIONS_MANUAL_DHW_PUSH2,
     CONF_OPENTHERM42_ID,
     CONF_REMOTE_REQUEST_AUTOMATIC_HYDRONIC_AIR_PURGE,
     CONF_REMOTE_REQUEST_BACK_TO_NORMAL_OPERATION_MODE,
@@ -22,6 +23,9 @@ from ..const import (
 
 OpenTherm42RemoteRequestButton = opentherm42_ns.class_(
     "OpenTherm42RemoteRequestButton", button.Button, cg.Component
+)
+OpenTherm42ManualDhwPush2Button = opentherm42_ns.class_(
+    "OpenTherm42ManualDhwPush2Button", button.Button, cg.Component
 )
 
 # §5.3.3 Class 3, ID 4 HB: Request-Code. Pressing a button sends WRITE-DATA(id=4, code, 00); the
@@ -64,6 +68,13 @@ CONFIG_SCHEMA = cv.Schema(
             ).extend(cv.COMPONENT_SCHEMA)
             for marker in CODES
         },
+        # §5.3.8.3 Class 8, ID 99 HB bit 4: Manual DHW push2 -- rises the DHW temperature once to
+        # Comfort level and returns to the previous Operating Mode.
+        cv.Optional(
+            CONF_CONTROL_OF_SPECIAL_APPLICATIONS_MANUAL_DHW_PUSH2
+        ): button.button_schema(OpenTherm42ManualDhwPush2Button).extend(
+            cv.COMPONENT_SCHEMA
+        ),
     }
 )
 
@@ -74,3 +85,11 @@ async def to_code(config: dict) -> None:
         if (marker_config := config.get(marker)) is not None:
             var = await button.new_button(marker_config, hub, code)
             await cg.register_component(var, marker_config)
+
+    if (
+        marker_config := config.get(
+            CONF_CONTROL_OF_SPECIAL_APPLICATIONS_MANUAL_DHW_PUSH2
+        )
+    ) is not None:
+        var = await button.new_button(marker_config, hub)
+        await cg.register_component(var, marker_config)

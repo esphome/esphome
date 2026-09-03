@@ -167,6 +167,23 @@ enum class RequestKind : uint8_t {
   // (see FhbSlot) is due next -- purely read-only, so unlike TSP there's no write-pending priority
   // check, just the informational-rotation case.
   FHB,
+
+  // §5.3.8.1/§5.3.8.2 Class 8, IDs 7/14: write-only numbers.
+  COOLING_CONTROL_SIGNAL,
+  MAX_REL_MOD_LEVEL_SETTING,
+  // §5.3.8.2 Class 8, ID 15: HB Maximum boiler capacity, LB Minimum modulation level -- two sensors
+  // from one conversation, like Class 4's BOILER_FAN_SPEED.
+  MAX_CAPACITY_MIN_MOD_LEVEL,
+  // §5.3.8.3 Class 8, IDs 9/39: Remote Override Room Setpoint (1 and 2). Dispatched through the
+  // SIMPLE_SENSORS table (plain f8.8 reads).
+  REMOTE_OVERRIDE_ROOM_SETPOINT,
+  REMOTE_OVERRIDE_ROOM_SETPOINT_2,
+  // §5.3.8.3 Class 8, ID 99: Remote Override Operating Modes (read) and Manual DHW push2 (write) --
+  // same one-id-two-directions pattern as Class 6's TSP, minus the periodic-write case (push2 is
+  // purely on-demand, there's nothing to keep synced between pushes).
+  REMOTE_OVERRIDE_OPERATING_MODES,
+  // §5.3.8.3 Class 8, ID 100 LB: Remote Override Room Setpoint function flags.
+  REMOTE_OVERRIDE_ROOM_SETPOINT_FUNCTION,
 };
 
 class OpenTherm42Hub;
@@ -570,6 +587,34 @@ class OpenTherm42Hub : public Component {
     this->fhb_slots_.push_back(FhbSlot{data_id, index, sensor});
   }
 
+  // §5.3.8.1/§5.3.8.2 Class 8, IDs 7/14: write-only numbers.
+  OT42_SET_NUMBER(control_of_special_applications_cooling_control_signal, cooling_control_signal_number_)
+  OT42_SET_NUMBER(control_of_special_applications_maximum_relative_modulation_level_setting,
+                  max_rel_mod_level_setting_number_)
+  // §5.3.8.2 Class 8, ID 15: HB Maximum boiler capacity, LB Minimum modulation level.
+  OT42_SET_SENSOR(control_of_special_applications_maximum_boiler_capacity, maximum_boiler_capacity_sensor_)
+  OT42_SET_SENSOR(control_of_special_applications_minimum_modulation_level, minimum_modulation_level_sensor_)
+  // §5.3.8.3 Class 8, IDs 9/39: Remote Override Room Setpoint (1 and 2).
+  OT42_SET_SENSOR(control_of_special_applications_remote_override_room_setpoint, remote_override_room_setpoint_sensor_)
+  OT42_SET_SENSOR(control_of_special_applications_remote_override_room_setpoint_2,
+                  remote_override_room_setpoint_2_sensor_)
+  // §5.3.8.3 Class 8, ID 99: Remote Override Operating Modes.
+  OT42_SET_SENSOR(control_of_special_applications_remote_override_operating_mode_dhw,
+                  remote_override_operating_mode_dhw_sensor_)
+  OT42_SET_SENSOR(control_of_special_applications_remote_override_operating_mode_heating_hc1,
+                  remote_override_operating_mode_heating_hc1_sensor_)
+  OT42_SET_SENSOR(control_of_special_applications_remote_override_operating_mode_heating_hc2,
+                  remote_override_operating_mode_heating_hc2_sensor_)
+  // §5.3.8.3 Class 8, ID 99 HB bit 4: Manual DHW push2 -- queued on demand, serviced ahead of the
+  // essential/informational rotation, same priority tier as Class 3's remote requests and Class 6's
+  // TSP writes.
+  void push_manual_dhw_push2() { this->manual_dhw_push2_pending_ = true; }
+  // §5.3.8.3 Class 8, ID 100 LB: Remote Override Room Setpoint function.
+  OT42_FLAG_READ_BIT(control_of_special_applications_remote_override_room_setpoint_function_manual_change_priority,
+                     remote_override_room_setpoint_function_read_, 0)
+  OT42_FLAG_READ_BIT(control_of_special_applications_remote_override_room_setpoint_function_program_change_priority,
+                     remote_override_room_setpoint_function_read_, 1)
+
  protected:
   // §4.3.1: minimum time between the end of one conversation and the start of the next.
   static constexpr uint32_t MASTER_WAIT_TIME_MS = 100;
@@ -783,6 +828,19 @@ class OpenTherm42Hub : public Component {
   // Set immediately before build_next_request_() returns an FHB frame; tells handle_response_()/
   // invalidate_response_() which slot that conversation was for.
   size_t pending_fhb_slot_index_{0};
+
+  // §5.3.8 Class 8 entities.
+  number::Number *cooling_control_signal_number_{nullptr};
+  number::Number *max_rel_mod_level_setting_number_{nullptr};
+  sensor::Sensor *maximum_boiler_capacity_sensor_{nullptr};
+  sensor::Sensor *minimum_modulation_level_sensor_{nullptr};
+  sensor::Sensor *remote_override_room_setpoint_sensor_{nullptr};
+  sensor::Sensor *remote_override_room_setpoint_2_sensor_{nullptr};
+  sensor::Sensor *remote_override_operating_mode_dhw_sensor_{nullptr};
+  sensor::Sensor *remote_override_operating_mode_heating_hc1_sensor_{nullptr};
+  sensor::Sensor *remote_override_operating_mode_heating_hc2_sensor_{nullptr};
+  bool manual_dhw_push2_pending_{false};
+  FlagReadBits remote_override_room_setpoint_function_read_;
 };
 
 }  // namespace esphome::opentherm42

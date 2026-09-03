@@ -499,3 +499,47 @@ CONF_FAULT_HISTORY_DATA_FAULT_BUFFER_VENTILATION_HEAT_RECOVERY = (
 CONF_FAULT_HISTORY_DATA_FAULT_BUFFER_SOLAR_STORAGE = (
     "fault_history_data_fault_buffer_solar_storage"
 )
+
+# §5.3.8.1 Class 8, ID 7: Cooling control signal (write-only).
+CONF_CONTROL_OF_SPECIAL_APPLICATIONS_COOLING_CONTROL_SIGNAL = (
+    "control_of_special_applications_cooling_control_signal"
+)
+
+# §5.3.8.2 Class 8, ID 14: Maximum relative modulation level setting (write-only).
+CONF_CONTROL_OF_SPECIAL_APPLICATIONS_MAXIMUM_RELATIVE_MODULATION_LEVEL_SETTING = (
+    "control_of_special_applications_maximum_relative_modulation_level_setting"
+)
+# §5.3.8.2 Class 8, ID 15: HB Maximum boiler capacity; LB Minimum modulation level.
+CONF_CONTROL_OF_SPECIAL_APPLICATIONS_MAXIMUM_BOILER_CAPACITY = (
+    "control_of_special_applications_maximum_boiler_capacity"
+)
+CONF_CONTROL_OF_SPECIAL_APPLICATIONS_MINIMUM_MODULATION_LEVEL = (
+    "control_of_special_applications_minimum_modulation_level"
+)
+
+# §5.3.8.3 Class 8, IDs 9/39: Remote Override Room Setpoint (1 and 2). 0 = no override, 1..30 = value.
+CONF_CONTROL_OF_SPECIAL_APPLICATIONS_REMOTE_OVERRIDE_ROOM_SETPOINT = (
+    "control_of_special_applications_remote_override_room_setpoint"
+)
+CONF_CONTROL_OF_SPECIAL_APPLICATIONS_REMOTE_OVERRIDE_ROOM_SETPOINT_2 = (
+    "control_of_special_applications_remote_override_room_setpoint_2"
+)
+
+# §5.3.8.3 Class 8, ID 99: Remote Override Operating Mode (DHW / Heating HC1 / Heating HC2), plus the
+# Manual DHW push2 action bit.
+CONF_CONTROL_OF_SPECIAL_APPLICATIONS_REMOTE_OVERRIDE_OPERATING_MODE_DHW = (
+    "control_of_special_applications_remote_override_operating_mode_dhw"
+)
+CONF_CONTROL_OF_SPECIAL_APPLICATIONS_REMOTE_OVERRIDE_OPERATING_MODE_HEATING_HC1 = (
+    "control_of_special_applications_remote_override_operating_mode_heating_hc1"
+)
+CONF_CONTROL_OF_SPECIAL_APPLICATIONS_REMOTE_OVERRIDE_OPERATING_MODE_HEATING_HC2 = (
+    "control_of_special_applications_remote_override_operating_mode_heating_hc2"
+)
+CONF_CONTROL_OF_SPECIAL_APPLICATIONS_MANUAL_DHW_PUSH2 = (
+    "control_of_special_applications_manual_dhw_push2"
+)
+
+# §5.3.8.3 Class 8, ID 100 LB: Remote Override Room Setpoint function.
+CONF_CONTROL_OF_SPECIAL_APPLICATIONS_REMOTE_OVERRIDE_ROOM_SETPOINT_FUNCTION_MANUAL_CHANGE_PRIORITY = "control_of_special_applications_remote_override_room_setpoint_function_manual_change_priority"
+CONF_CONTROL_OF_SPECIAL_APPLICATIONS_REMOTE_OVERRIDE_ROOM_SETPOINT_FUNCTION_PROGRAM_CHANGE_PRIORITY = "control_of_special_applications_remote_override_room_setpoint_function_program_change_priority"
