@@ -858,19 +858,16 @@ def load_idedata(environment: str) -> dict[str, Any]:
 
     # Content hash of the idedata inputs (data files and the generator code); a
     # content hash, unlike mtimes, stays correct across git checkouts.
-    from clang_tidy_hash import idedata_cache_hash
+    from clang_tidy_hash import idedata_cache_hash, is_cached, update_cache
 
     temp_idedata = Path(temp_folder) / f"idedata-{environment}.json"
     temp_hash = Path(temp_folder) / f"idedata-{environment}.hash"
 
-    cache_key = idedata_cache_hash(environment)
-    changed = (
-        not temp_idedata.is_file()
-        or not temp_hash.is_file()
-        or temp_hash.read_text().strip() != cache_key
-    )
+    # Snapshotted now, before pio runs below, so the key reflects what the
+    # work below actually saw rather than edits made mid-run.
+    key = idedata_cache_hash(environment)
 
-    if not changed:
+    if temp_idedata.is_file() and is_cached(temp_hash, key):
         data = json.loads(temp_idedata.read_text())
         elapsed = time.time() - start_time
         print(f"IDE data loaded from cache in {elapsed:.2f} seconds")
@@ -884,18 +881,18 @@ def load_idedata(environment: str) -> dict[str, Any]:
         from esphome.espidf.clang_tidy import load_idedata as idf_load_idedata
 
         data = idf_load_idedata(environment, temp_folder, platformio_ini)
-    elif "nrf" in environment:
-        from helpers_zephyr import load_idedata as zephyr_load_idedata
-
-        data = zephyr_load_idedata(environment, temp_folder, platformio_ini)
     else:
         stdout = subprocess.check_output(
             ["pio", "run", "-t", "idedata", "-e", environment]
         )
         match = re.search(r'{\s*".*}', stdout.decode("utf-8"))
+        if match is None:
+            raise RuntimeError(
+                f"Could not find idedata JSON in 'pio run -t idedata -e {environment}' output"
+            )
         data = json.loads(match.group())
     temp_idedata.write_text(json.dumps(data, indent=2) + "\n")
-    temp_hash.write_text(cache_key + "\n")
+    update_cache(temp_hash, key)
 
     elapsed = time.time() - start_time
     print(f"IDE data generated and cached in {elapsed:.2f} seconds")
