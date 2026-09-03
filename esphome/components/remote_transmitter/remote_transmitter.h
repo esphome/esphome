@@ -15,6 +15,7 @@
 // Enables the ISR-driven transmitter on Beken. Gated on BK7238 alone: the shadow-load PWM
 // block is shared with BK7231N, but LibreTiny builds that family against an older BDK whose
 // PWM driver has no pwm_init_param()/pwm_start(). See remote_transmitter_bk72xx.cpp.
+// Keep in sync with _NON_BLOCKING_LIBRETINY_FAMILIES in __init__.py.
 #ifdef USE_LIBRETINY_VARIANT_BK7238
 #define REMOTE_TRANSMITTER_BK_PWM
 #endif

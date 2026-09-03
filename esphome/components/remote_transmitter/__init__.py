@@ -45,6 +45,8 @@ DigitalWriteAction = remote_transmitter_ns.class_(
 )
 
 
+# Keep in sync with the USE_LIBRETINY_VARIANT_RTL8720C / REMOTE_TRANSMITTER_BK_PWM gates in
+# remote_transmitter.h, which decide where set_non_blocking() is declared
 _NON_BLOCKING_LIBRETINY_FAMILIES = (FAMILY_RTL8720C, FAMILY_BK7238)
 
 
