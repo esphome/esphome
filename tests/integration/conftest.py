@@ -62,7 +62,8 @@ def pytest_configure(config: pytest.Config) -> None:
     config.addinivalue_line(
         "markers",
         "shared_yaml(name): load fixtures/<name>.yaml and compile it in a shared, "
-        "hash-keyed incremental build directory",
+        "hash-keyed incremental build directory. Tests sharing a fixture share one "
+        "device name and thus one host prefs file; do not use restore-backed state",
     )
 
 
