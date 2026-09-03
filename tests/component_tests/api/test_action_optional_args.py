@@ -104,6 +104,16 @@ def test_default_is_validated_against_type() -> None:
         validate_variable({"type": "int", "default": "not_a_number"})
 
 
+def test_float_default_keeps_decimal_point() -> None:
+    var = validate_variable({"type": "float", "default": 5})
+    conf = {"action": "a", "variables": {"b": var}}
+    assert _action_strings(conf, has_metadata=False, has_optional=True) == [
+        "a",
+        "b",
+        "5.0",
+    ]
+
+
 def test_array_variables_cannot_be_optional() -> None:
     with pytest.raises(Invalid):
         validate_variable({"type": "int[]", "required": False})

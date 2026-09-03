@@ -44,7 +44,7 @@ ListEntitiesServicesResponse UserServiceStatic::encode_list_service_response_(
     arg.example = this->str_(base + 2, scratch);
 #endif
 #ifdef USE_API_USER_DEFINED_ACTION_OPTIONAL_ARGS
-    arg.optional = ((this->arg_optional_mask_ >> i) & 1) != 0;
+    arg.optional = i < 32 && ((this->arg_optional_mask_ >> i) & 1) != 0;
     arg.default_value = this->str_(base + USER_ACTION_ARG_BASE_STRINGS, scratch);
 #endif
   }
