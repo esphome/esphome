@@ -362,7 +362,8 @@ def _prune_stale_builds(name: str, keep: Path) -> None:
     for stale in SHARED_BUILDS_ROOT.iterdir():
         if stale == keep:
             continue
-        if not stale.name.startswith(prefix) and not _unused_since(stale, cutoff):
+        same_fixture = stale.name.startswith(prefix)
+        if not same_fixture and not _unused_since(stale, cutoff):
             continue
         try:
             lock_file = (stale / ".lock").open("w")
@@ -376,6 +377,10 @@ def _prune_stale_builds(name: str, keep: Path) -> None:
                 fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
             except BlockingIOError:
                 continue  # still in use by another run
+            # Re-probe under the lock: a worker freshens its dir before
+            # locking, so a just-claimed dir no longer looks unused
+            if not same_fixture and not _unused_since(stale, cutoff):
+                continue
             # rmtree tolerates races; a leftover partial tree only costs a
             # rebuild, since the ELF is deleted before every compile
             try:
@@ -464,6 +469,9 @@ async def compile_esphome(
         # pay one full compile and later only a main.cpp (port) rebuild + relink
         shared_dir = _shared_build_dir(name)
         shared_dir.mkdir(parents=True, exist_ok=True)
+        # Freshen the dir before locking so a concurrent age sweep, which
+        # re-probes under the lock, never reaps a dir a worker just claimed
+        os.utime(shared_dir)
         if shared_dir not in _pruned_dirs:
             _pruned_dirs.add(shared_dir)
             await loop.run_in_executor(None, _prune_stale_builds, name, shared_dir)
