@@ -41,10 +41,11 @@ SERIAL_PROXY_PORT_TYPES = {
 }
 
 SerialProxyMode = api_enums_ns.enum("SerialProxyMode")
-# The mode a port starts in. `raw` is a plain byte pipe; `protocol` activates the
+# The mode a port boots into. `raw` is a plain byte pipe; `protocol` activates the
 # port's tap (if one is configured), letting it observe traffic and inject protocol
-# bytes such as acknowledgements. Clients may change it at runtime, so this only
-# decides what the device boots into.
+# bytes such as acknowledgements. The mode returns to `raw` whenever a client session
+# ends, so this value applies only until the first session ends; after that, clients
+# select the mode at runtime.
 SERIAL_PROXY_MODES = {
     "RAW": SerialProxyMode.SERIAL_PROXY_MODE_RAW,
     "PROTOCOL": SerialProxyMode.SERIAL_PROXY_MODE_PROTOCOL,

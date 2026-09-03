@@ -1682,7 +1682,7 @@ void APIConnection::on_serial_proxy_set_mode_request(const SerialProxySetModeReq
                           enums::SERIAL_PROXY_STATUS_INVALID_ARGUMENT);
     return;
   }
-  serial_proxy::SerialProxyResult result = proxies[msg.instance]->set_mode(this, msg.mode);
+  serial_proxy::SerialProxyResult result = proxies[msg.instance]->set_mode_from_client(this, msg.mode);
   send_serial_proxy_ack(this, msg.instance, enums::SERIAL_PROXY_REQUEST_TYPE_SET_MODE,
                         serial_proxy_result_to_status(result));
 }

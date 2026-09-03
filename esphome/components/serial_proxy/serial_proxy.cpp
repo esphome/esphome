@@ -134,6 +134,10 @@ bool SerialProxy::tap_observing_() const {
 
 void SerialProxy::tap_pump() {
 #ifdef USE_API
+  // Nothing would consume the bytes; leave them in the FIFO
+  if (!this->tap_observing_() && this->api_connection_ == nullptr) {
+    return;
+  }
   const size_t available = this->available();
   if (available > 0) {
     this->read_and_send_(available);
@@ -230,7 +234,8 @@ SerialProxyResult SerialProxy::configure(api::APIConnection *api_connection, uin
   return SerialProxyResult::SERIAL_PROXY_RESULT_OK;
 }
 
-SerialProxyResult SerialProxy::set_mode(api::APIConnection *api_connection, api::enums::SerialProxyMode mode) {
+SerialProxyResult SerialProxy::set_mode_from_client(api::APIConnection *api_connection,
+                                                    api::enums::SerialProxyMode mode) {
 #ifdef USE_API
   // Only the live subscriber may change the mode, so the mode cannot outlive a session
   if (this->api_connection_ != api_connection) {
@@ -242,6 +247,16 @@ SerialProxyResult SerialProxy::set_mode(api::APIConnection *api_connection, api:
   if (mode != api::enums::SERIAL_PROXY_MODE_RAW && mode != api::enums::SERIAL_PROXY_MODE_PROTOCOL) {
     ESP_LOGW(TAG, "Invalid mode: %" PRIu32, static_cast<uint32_t>(mode));
     return SerialProxyResult::SERIAL_PROXY_RESULT_INVALID_ARGUMENT;
+  }
+  // PROTOCOL on a port with no tap would be a silent no-op; refuse so the client knows
+  if (mode == api::enums::SERIAL_PROXY_MODE_PROTOCOL) {
+#ifdef USE_SERIAL_PROXY_TAP
+    if (this->tap_ == nullptr)
+#endif
+    {
+      ESP_LOGW(TAG, "No tap on serial proxy [%" PRIu32 "]; PROTOCOL mode unavailable", this->instance_index_);
+      return SerialProxyResult::SERIAL_PROXY_RESULT_NOT_SUPPORTED;
+    }
   }
   ESP_LOGD(TAG, "Serial proxy [%" PRIu32 "] mode set to %s", this->instance_index_,
            mode == api::enums::SERIAL_PROXY_MODE_PROTOCOL ? LOG_STR_LITERAL("PROTOCOL") : LOG_STR_LITERAL("RAW"));

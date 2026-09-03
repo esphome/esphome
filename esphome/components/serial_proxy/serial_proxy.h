@@ -115,7 +115,7 @@ class SerialProxy final : public uart::UARTDevice, public Component {
   api::enums::SerialProxyMode get_mode() const { return this->mode_; }
 
   /// Handle a mode change requested by an API client
-  SerialProxyResult set_mode(api::APIConnection *api_connection, api::enums::SerialProxyMode mode);
+  SerialProxyResult set_mode_from_client(api::APIConnection *api_connection, api::enums::SerialProxyMode mode);
 
   /// Configure UART parameters and apply them
   /// @param api_connection The API connection requesting the change
@@ -176,7 +176,7 @@ class SerialProxy final : public uart::UARTDevice, public Component {
 
   /// Resume reading after a tap's needs change. loop() disables itself when there is
   /// neither a subscriber nor a tap that wants the port, so a tap starting fresh work
-  /// must ask for it back.
+  /// must ask for it back. Must be called from the main loop.
   void tap_request_port() { this->enable_loop(); }
 
   /// Whether the underlying device is present. On a USB UART this tracks enumeration, so
