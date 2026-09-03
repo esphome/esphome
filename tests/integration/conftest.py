@@ -555,8 +555,10 @@ async def compile_esphome(
             if built is not None:
                 built.unlink(missing_ok=True)
             else:
-                for leftover in shared_dir.glob(".esphome/build/*/.pioenvs/*/program"):
-                    leftover.unlink()
+                # Layout-agnostic: ESPHOME_BUILD_PATH can move the build tree
+                for leftover in shared_dir.rglob("program"):
+                    if leftover.is_file():
+                        leftover.unlink()
             await loop.run_in_executor(
                 None, write_file_if_changed, shared_config, content
             )
