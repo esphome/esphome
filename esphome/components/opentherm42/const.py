@@ -480,3 +480,22 @@ CONF_TRANSPARENT_BOILER_PARAMETERS_VENTILATION_HEAT_RECOVERY = (
 CONF_TRANSPARENT_BOILER_PARAMETERS_SOLAR_STORAGE = (
     "transparent_boiler_parameters_solar_storage"
 )
+
+# §5.3.7 Class 7, IDs 12/90/107 HB: size of the fault history buffer, one per family.
+CONF_FAULT_HISTORY_DATA_SIZE_OF_FAULT_BUFFER = "fault_history_data_size_of_fault_buffer"
+CONF_FAULT_HISTORY_DATA_SIZE_OF_FAULT_BUFFER_VENTILATION_HEAT_RECOVERY = (
+    "fault_history_data_size_of_fault_buffer_ventilation_heat_recovery"
+)
+CONF_FAULT_HISTORY_DATA_SIZE_OF_FAULT_BUFFER_SOLAR_STORAGE = (
+    "fault_history_data_size_of_fault_buffer_solar_storage"
+)
+
+# §5.3.7 Class 7, IDs 13/91/108: user-named, user-indexed fault-history-buffer slots -- one list per
+# family. Like Class 6's TSPs, entry values are opaque and manufacturer-specific.
+CONF_FAULT_HISTORY_DATA_FAULT_BUFFER = "fault_history_data_fault_buffer"
+CONF_FAULT_HISTORY_DATA_FAULT_BUFFER_VENTILATION_HEAT_RECOVERY = (
+    "fault_history_data_fault_buffer_ventilation_heat_recovery"
+)
+CONF_FAULT_HISTORY_DATA_FAULT_BUFFER_SOLAR_STORAGE = (
+    "fault_history_data_fault_buffer_solar_storage"
+)
