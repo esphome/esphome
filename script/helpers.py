@@ -1126,7 +1126,7 @@ def get_fixture_to_test_files() -> dict[str, frozenset[str]]:
             result.setdefault(base_name, set()).add(rel_path)
         # Shared fixtures are named by marker, not by a test function
         names = _SHARED_YAML_RE.findall(content)
-        if len(names) != content.count("shared_yaml("):
+        if len(names) != content.count("pytest.mark.shared_yaml("):
             # A wrapped or non-literal marker would silently drop the mapping
             # and CI would select no tests for that fixture
             raise ValueError(

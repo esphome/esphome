@@ -2141,11 +2141,11 @@ def test_no_orphan_integration_fixtures() -> None:
     helpers.get_fixture_to_test_files.cache_clear()
     mapping = helpers.get_fixture_to_test_files()
     fixtures_dir = (Path(__file__).parent.parent / "integration" / "fixtures").resolve()
+    fixtures = list(fixtures_dir.glob("*.yaml"))
+    assert fixtures, f"no fixtures found under {fixtures_dir}"
     # cache_init is covered via INTEGRATION_TESTS_TRIGGER_FILES instead
     orphans = [
-        f.stem
-        for f in fixtures_dir.glob("*.yaml")
-        if f.stem != "cache_init" and f.stem not in mapping
+        f.stem for f in fixtures if f.stem != "cache_init" and f.stem not in mapping
     ]
     assert not orphans, f"fixtures invisible to CI test selection: {orphans}"
 

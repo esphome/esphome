@@ -11,13 +11,19 @@ boot (e.g. forcing safe mode) or to clear stale state between runs.
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 import struct
 
 
 def host_prefs_path(device_name: str) -> Path:
-    """Return the on-disk prefs file path for a host-platform device."""
-    return Path.home() / ".esphome" / "prefs" / f"{device_name}.prefs"
+    """Return the on-disk prefs file path for a host-platform device.
+
+    Honors ESPHOME_PREFDIR, which the autouse isolated_preferences fixture
+    sets, so seeds land where the binary will look."""
+    prefdir = os.environ.get("ESPHOME_PREFDIR")
+    base = Path(prefdir) if prefdir else Path.home() / ".esphome" / "prefs"
+    return base / f"{device_name}.prefs"
 
 
 def clear_host_prefs(device_name: str) -> None:
