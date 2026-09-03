@@ -306,11 +306,33 @@ def _shared_build_key(name: str) -> str:
 _STALE_BUILD_MAX_AGE_S = 30 * 24 * 3600
 
 
-def _log_prune_error(_func: object, path: object, exc: BaseException) -> None:
-    # A concurrent pruner deleting pieces under us is expected; anything else
-    # would grow builds/ without bound, so make it visible
-    if not isinstance(exc, FileNotFoundError):
-        _LOGGER.warning("Failed to prune %s: %s", path, exc)
+def _read_text_if_exists(path: Path) -> str | None:
+    try:
+        return path.read_text(encoding="utf-8")
+    except FileNotFoundError:
+        return None
+
+
+def _prune_one_build(stale: Path) -> None:
+    """Delete one build dir, quarantining a partial delete so it is never reused."""
+    failed = False
+
+    def _onexc(_func: object, path: object, exc: BaseException) -> None:
+        nonlocal failed
+        # A concurrent pruner deleting pieces under us is expected; anything
+        # else would grow builds/ without bound, so make it visible
+        if not isinstance(exc, FileNotFoundError):
+            failed = True
+            _LOGGER.warning("Failed to prune %s: %s", path, exc)
+
+    shutil.rmtree(stale, onexc=_onexc)
+    if failed and stale.exists():
+        # Rename aside so mkdir(exist_ok=True) cannot resurrect a half-deleted
+        # build tree; the name keeps its prefix, so later sweeps retry it
+        try:
+            stale.rename(stale.with_name(stale.name + ".broken"))
+        except OSError as err:
+            _LOGGER.warning("Cannot quarantine %s: %s", stale, err)
 
 
 def _prune_stale_builds(name: str, keep: Path) -> None:
@@ -327,7 +349,16 @@ def _prune_stale_builds(name: str, keep: Path) -> None:
             try:
                 if (stale / ".lock").stat().st_mtime >= cutoff:
                     continue
-            except OSError:
+            except FileNotFoundError:
+                # No .lock: aborted before ever locking, or a stray entry;
+                # prunable unless it appeared just now (racing mkdir)
+                try:
+                    if stale.stat().st_mtime >= cutoff:
+                        continue
+                except OSError:
+                    continue
+            except OSError as err:
+                _LOGGER.warning("Cannot check %s for pruning: %s", stale, err)
                 continue
         try:
             lock_file = (stale / ".lock").open("w")
@@ -341,7 +372,7 @@ def _prune_stale_builds(name: str, keep: Path) -> None:
                 fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
             except BlockingIOError:
                 continue  # still in use by another run
-            shutil.rmtree(stale, onexc=_log_prune_error)
+            _prune_one_build(stale)
 
 
 async def _run_esphome_compile(
@@ -459,7 +490,11 @@ async def compile_esphome(
                             f"build of {shared_dir.name}"
                         )
                     await asyncio.sleep(0.1)
+            previous = await loop.run_in_executor(
+                None, _read_text_if_exists, shared_config
+            )
             await loop.run_in_executor(None, shared_config.write_text, content)
+            compile_start = time.time()
             await _run_esphome_compile(shared_config, shared_dir, env)
             built = _shared_elf_paths.get(shared_dir)
             if built is None or not built.exists():
@@ -467,6 +502,11 @@ async def compile_esphome(
                     None, _resolve_compiled_binary, shared_config
                 )
                 _shared_elf_paths[shared_dir] = built
+            # A changed config (the injected port differs) must relink; an
+            # untouched ELF here means an interrupted build left a stale one.
+            # An unchanged config legitimately skips the relink
+            if content != previous and built.stat().st_mtime < compile_start:
+                raise RuntimeError(f"Compile did not relink stale {built}")
             # Copy out before unlocking: another worker may relink firmware.elf
             # while this test is still running its private copy
             await loop.run_in_executor(None, shutil.copy2, built, private_binary)
