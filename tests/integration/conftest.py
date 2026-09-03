@@ -17,6 +17,7 @@ import socket
 import subprocess
 import sys
 import tempfile
+import time
 from typing import TextIO
 
 from aioesphomeapi import APIClient, APIConnectionError, LogParser, ReconnectLogic
@@ -278,7 +279,11 @@ _shared_elf_paths: dict[Path, Path] = {}
 def _shared_yaml_name(request: pytest.FixtureRequest) -> str | None:
     """Name passed to the shared_yaml marker, or None when unmarked."""
     marker = request.node.get_closest_marker("shared_yaml")
-    return marker.args[0] if marker is not None else None
+    if marker is None:
+        return None
+    if not marker.args or not marker.args[0]:
+        raise ValueError("shared_yaml marker requires a non-empty fixture name")
+    return marker.args[0]
 
 
 # In the dir name (not just the hash) so pruning stays inside this checkout
@@ -293,6 +298,13 @@ def _shared_build_key(name: str) -> str:
     return hashlib.sha256((FIXTURES_DIR / f"{name}.yaml").read_bytes()).hexdigest()[:16]
 
 
+def _log_prune_error(_func: object, path: object, exc: BaseException) -> None:
+    # A concurrent pruner deleting pieces under us is expected; anything else
+    # would grow builds/ without bound, so make it visible
+    if not isinstance(exc, FileNotFoundError):
+        print(f"Failed to prune {path}: {exc}")
+
+
 def _prune_stale_builds(name: str, keep: Path) -> None:
     """Remove this checkout's outdated build dirs for a fixture (blocking, run
     in executor). Tolerates other workers pruning the same dirs concurrently."""
@@ -301,15 +313,17 @@ def _prune_stale_builds(name: str, keep: Path) -> None:
             continue
         try:
             lock_file = (stale / ".lock").open("w")
-        except OSError:
+        except (FileNotFoundError, NotADirectoryError):
             continue  # pruned by another worker mid-glob
+        except OSError as err:
+            print(f"Cannot prune {stale}: {err}")
+            continue
         with lock_file:
             try:
                 fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
             except BlockingIOError:
                 continue  # still in use by another run
-            # ignore_errors: a concurrent pruner may delete pieces under us
-            shutil.rmtree(stale, ignore_errors=True)
+            shutil.rmtree(stale, onexc=_log_prune_error)
 
 
 async def _run_esphome_compile(
@@ -408,17 +422,29 @@ async def compile_esphome(
         # Non-blocking retries keep the wait cancellable; a blocking LOCK_EX in
         # an executor thread would survive test cancellation holding the fd
         with (shared_dir / ".lock").open("w") as lock_file:
-            for _ in range(_SHARED_LOCK_TIMEOUT_S * 10):
+            start = time.monotonic()
+            last_report = start
+            while True:
                 try:
                     fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
                     break
                 except BlockingIOError:
+                    now = time.monotonic()
+                    if now - start > _SHARED_LOCK_TIMEOUT_S:
+                        raise RuntimeError(
+                            f"Timed out waiting for the {shared_dir} lock"
+                        ) from None
+                    if now - last_report >= 30:
+                        last_report = now
+                        print(
+                            f"Waited {now - start:.0f}s for another worker's "
+                            f"build of {shared_dir.name}"
+                        )
                     await asyncio.sleep(0.1)
-            else:
-                raise RuntimeError(f"Timed out waiting for the {shared_dir} lock")
             await loop.run_in_executor(None, shared_config.write_text, content)
             await _run_esphome_compile(shared_config, shared_dir, env)
-            if (built := _shared_elf_paths.get(shared_dir)) is None:
+            built = _shared_elf_paths.get(shared_dir)
+            if built is None or not built.exists():
                 built = await loop.run_in_executor(
                     None, _resolve_compiled_binary, shared_config
                 )
