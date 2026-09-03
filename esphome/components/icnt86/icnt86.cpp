@@ -28,12 +28,11 @@ void ICNT86Touchscreen::setup() {
     }
   }
 
-  // Swap intentional: this touch chip's raw axes are transposed relative to the display's native orientation.
   if (this->x_raw_max_ == this->x_raw_min_) {
-    this->x_raw_max_ = this->display_->get_native_height();
+    this->x_raw_max_ = this->display_->get_native_width();
   }
   if (this->y_raw_max_ == this->y_raw_min_) {
-    this->y_raw_max_ = this->display_->get_native_width();
+    this->y_raw_max_ = this->display_->get_native_height();
   }
 }
 
