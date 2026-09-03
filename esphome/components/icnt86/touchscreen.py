@@ -19,7 +19,7 @@ CONFIG_SCHEMA = touchscreen.touchscreen_schema("250ms").extend(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(ICNT86Touchscreen),
-            cv.Required(CONF_INTERRUPT_PIN): pins.internal_gpio_input_pin_schema,
+            cv.Optional(CONF_INTERRUPT_PIN): pins.internal_gpio_input_pin_schema,
             cv.Optional(CONF_RESET_PIN): pins.gpio_output_pin_schema,
         }
     ).extend(i2c.i2c_device_schema(0x48))
@@ -31,9 +31,10 @@ async def to_code(config: ConfigType) -> None:
     await touchscreen.register_touchscreen(var, config)
     await i2c.register_i2c_device(var, config)
 
-    cg.add(
-        var.set_interrupt_pin(await cg.gpio_pin_expression(config[CONF_INTERRUPT_PIN]))
-    )
+    if interrupt_pin_config := config.get(CONF_INTERRUPT_PIN):
+        cg.add(
+            var.set_interrupt_pin(await cg.gpio_pin_expression(interrupt_pin_config))
+        )
 
     if reset_pin_config := config.get(CONF_RESET_PIN):
         cg.add(var.set_reset_pin(await cg.gpio_pin_expression(reset_pin_config)))
