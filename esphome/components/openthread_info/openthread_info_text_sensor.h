@@ -134,6 +134,28 @@ class ChannelOpenThreadInfo final : public OpenThreadInstancePollingComponent, p
   uint8_t last_channel_;
 };
 
+class MeshLocalEidOpenThreadInfo final : public OpenThreadInstancePollingComponent, public text_sensor::TextSensor {
+ public:
+  void update_instance(otInstance *instance) override {
+    const otIp6Address *addr = otThreadGetMeshLocalEid(instance);
+    if (addr == nullptr) {
+      return;
+    }
+
+    char buf[OT_IP6_ADDRESS_STRING_SIZE];
+    otIp6AddressToString(addr, buf, sizeof(buf));
+
+    if (this->last_addr_ != buf) {
+      this->last_addr_ = buf;
+      this->publish_state(buf);
+    }
+  }
+  void dump_config() override;
+
+ protected:
+  std::string last_addr_;
+};
+
 class DatasetOpenThreadInfo : public OpenThreadInstancePollingComponent {
  public:
   void update_instance(otInstance *instance) override {
