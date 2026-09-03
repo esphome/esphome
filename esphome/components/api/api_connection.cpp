@@ -1661,6 +1661,7 @@ void APIConnection::on_serial_proxy_request(const SerialProxyRequest &msg) {
       break;
     case enums::SERIAL_PROXY_REQUEST_TYPE_CONFIGURE:
     case enums::SERIAL_PROXY_REQUEST_TYPE_SET_MODEM_PINS:
+    case enums::SERIAL_PROXY_REQUEST_TYPE_SET_MODE:
       // Response-only discriminators; never valid in a request
       ESP_LOGW(TAG, "Response-only serial proxy request type: %" PRIu32, static_cast<uint32_t>(msg.type));
       status = enums::SERIAL_PROXY_STATUS_INVALID_ARGUMENT;
@@ -1677,9 +1678,13 @@ void APIConnection::on_serial_proxy_set_mode_request(const SerialProxySetModeReq
   auto &proxies = App.get_serial_proxies();
   if (msg.instance >= proxies.size()) {
     ESP_LOGW(TAG, "Serial proxy instance %" PRIu32 " out of range", msg.instance);
+    send_serial_proxy_ack(this, msg.instance, enums::SERIAL_PROXY_REQUEST_TYPE_SET_MODE,
+                          enums::SERIAL_PROXY_STATUS_INVALID_ARGUMENT);
     return;
   }
-  proxies[msg.instance]->set_mode(this, msg.mode);
+  serial_proxy::SerialProxyResult result = proxies[msg.instance]->set_mode(this, msg.mode);
+  send_serial_proxy_ack(this, msg.instance, enums::SERIAL_PROXY_REQUEST_TYPE_SET_MODE,
+                        serial_proxy_result_to_status(result));
 }
 
 void APIConnection::send_serial_proxy_data(const SerialProxyDataReceived &msg) {

@@ -2803,6 +2803,7 @@ enum SerialProxyRequestType {
   // error the device answers with INVALID_ARGUMENT.
   SERIAL_PROXY_REQUEST_TYPE_CONFIGURE = 3;      // Acknowledges a SerialProxyConfigureRequest
   SERIAL_PROXY_REQUEST_TYPE_SET_MODEM_PINS = 4; // Acknowledges a SerialProxySetModemPinsRequest
+  SERIAL_PROXY_REQUEST_TYPE_SET_MODE = 5;       // Acknowledges a SerialProxySetModeRequest (since API 1.17)
 }
 
 enum SerialProxyStatus {

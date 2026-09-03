@@ -114,7 +114,7 @@ class SerialProxy final : public uart::UARTDevice, public Component {
   api::enums::SerialProxyMode get_mode() const { return this->mode_; }
 
   /// Handle a mode change requested by an API client
-  void set_mode(api::APIConnection *api_connection, api::enums::SerialProxyMode mode);
+  SerialProxyResult set_mode(api::APIConnection *api_connection, api::enums::SerialProxyMode mode);
 
   /// Configure UART parameters and apply them
   /// @param api_connection The API connection requesting the change

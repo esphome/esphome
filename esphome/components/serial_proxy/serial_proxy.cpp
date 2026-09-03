@@ -231,11 +231,11 @@ SerialProxyResult SerialProxy::configure(api::APIConnection *api_connection, uin
   return SerialProxyResult::SERIAL_PROXY_RESULT_OK;
 }
 
-void SerialProxy::set_mode(api::APIConnection *api_connection, api::enums::SerialProxyMode mode) {
+SerialProxyResult SerialProxy::set_mode(api::APIConnection *api_connection, api::enums::SerialProxyMode mode) {
 #ifdef USE_API
   if (this->port_claimed_by_other_(api_connection)) {
     ESP_LOGW(TAG, "Ignoring mode request from client without port access [%" PRIu32 "]", this->instance_index_);
-    return;
+    return SerialProxyResult::SERIAL_PROXY_RESULT_PORT_IN_USE;
   }
 #endif
   ESP_LOGD(TAG, "Serial proxy [%" PRIu32 "] mode set to %s", this->instance_index_,
@@ -252,6 +252,7 @@ void SerialProxy::set_mode(api::APIConnection *api_connection, api::enums::Seria
     this->tap_->on_protocol_disabled();
   }
 #endif
+  return SerialProxyResult::SERIAL_PROXY_RESULT_OK;
 }
 
 void SerialProxy::write_from_client(api::APIConnection *api_connection, const uint8_t *data, size_t len) {
