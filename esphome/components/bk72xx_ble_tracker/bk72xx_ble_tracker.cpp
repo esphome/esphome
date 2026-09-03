@@ -69,8 +69,9 @@ void BK72xxBLETracker::on_ota_global_state(ota::OTAState state, float progress, 
     this->stop_scan();
     // The transfer starves the loop; a deferred stop would leave the radio
     // scanning for the whole update, so drain it here, bounded.
-    if (!this->parent_->flush_pending_stop(OTA_STOP_FLUSH_MS))
+    if (!this->parent_->flush_pending_stop(OTA_STOP_FLUSH_MS)) {
       ESP_LOGE(TAG, "Scan still stopping at OTA start; the radio may contend with the update");
+    }
   } else if (state == ota::OTA_ERROR || state == ota::OTA_ABORT) {
     // On success the device reboots, so restore only on a failed/aborted update;
     // loop() restarts the scan on its next iteration (continuous idle branch).
