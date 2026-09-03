@@ -43,7 +43,7 @@ namespace esphome::socket {
 // (Ethernet). On ESP8266, it's a no-op.
 #define LWIP_LOCK() esphome::LwIPLock lwip_lock_guard  // NOLINT
 
-static const char *const TAG = "socket.lwip";
+static const char *const TAG = "socket";
 
 #ifdef USE_ESP8266
 // optimistic_yield() rate limit in microseconds of CONT time; cheap when hot.

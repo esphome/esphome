@@ -1,4 +1,5 @@
 from pathlib import Path
+from typing import Any
 
 from esphome import automation
 import esphome.codegen as cg
@@ -21,7 +22,8 @@ from esphome.const import (
     PlatformFramework,
     __version__,
 )
-from esphome.core import CORE, Lambda, TimePeriodMilliseconds
+from esphome.core import CORE, ID, Lambda, TimePeriodMilliseconds
+from esphome.cpp_generator import MockObj, TemplateArgsType
 import esphome.final_validate as fv
 from esphome.helpers import IS_MACOS
 from esphome.types import ConfigType
@@ -66,14 +68,14 @@ CONF_BODY = "body"
 CONF_JSON = "json"
 
 
-def validate_url(value):
+def validate_url(value: Any) -> str:
     value = cv.url(value)
     if value.startswith(("http://", "https://")):
         return value
     raise cv.Invalid("URL must start with 'http://' or 'https://'")
 
 
-def validate_ssl_verification(config):
+def validate_ssl_verification(config: ConfigType) -> ConfigType:
     error_message = ""
 
     if CORE.is_rp2 and config[CONF_VERIFY_SSL]:
@@ -122,7 +124,7 @@ def default_watchdog_timeout(config: ConfigType) -> None:
     )
 
 
-def _declare_request_class(value):
+def _declare_request_class(value: Any) -> ID:
     if CORE.is_host:
         return cv.declare_id(HttpRequestHost)(value)
     if CORE.is_esp32:
@@ -184,7 +186,7 @@ CONFIG_SCHEMA = cv.All(
 FINAL_VALIDATE_SCHEMA = default_watchdog_timeout
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     cg.add(var.set_timeout(config[CONF_TIMEOUT]))
     cg.add(var.set_useragent(config[CONF_USERAGENT]))
@@ -200,8 +202,11 @@ async def to_code(config):
         cg.add(var.set_watchdog_timeout(timeout_ms))
 
     if CORE.is_esp32:
-        # Re-enable ESP-IDF's HTTP client (excluded by default to save compile time)
+        # Re-enable ESP-IDF's HTTP client (excluded by default to save compile time).
+        # esp-tls is re-enabled too because http_request includes <esp_tls.h>
+        # directly and esp_http_client only pulls it in as a private dependency.
         esp32.include_builtin_idf_component("esp_http_client")
+        esp32.include_builtin_idf_component("esp-tls")
 
         cg.add(var.set_buffer_size_rx(config[CONF_BUFFER_SIZE_RX]))
         cg.add(var.set_buffer_size_tx(config[CONF_BUFFER_SIZE_TX]))
@@ -223,9 +228,7 @@ async def to_code(config):
                 #     framework:
                 #       advanced:
                 #         use_full_certificate_bundle: true
-                esp32.add_idf_sdkconfig_option(
-                    "CONFIG_MBEDTLS_CERTIFICATE_BUNDLE", True
-                )
+                esp32.require_certificate_bundle()
 
         esp32.add_idf_sdkconfig_option(
             "CONFIG_ESP_TLS_INSECURE",
@@ -331,7 +334,12 @@ HTTP_REQUEST_SEND_ACTION_SCHEMA = HTTP_REQUEST_ACTION_SCHEMA.extend(
     HTTP_REQUEST_SEND_ACTION_SCHEMA,
     synchronous=True,
 )
-async def http_request_action_to_code(config, action_id, template_arg, args):
+async def http_request_action_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
 
