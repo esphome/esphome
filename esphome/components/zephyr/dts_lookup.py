@@ -47,6 +47,20 @@ def validate_dts_label_exists(platform: str, board: str, label: str) -> None:
         )
 
 
+def dts_node_label_exists(board: str, label: str) -> bool:
+    """Return True if some node anywhere in board's DTS carries devicetree label
+    `label`. Used to require an existing pinctrl node (e.g. "uart1_default") before
+    generating a tx_pin/rx_pin override for it -- merging into a node that doesn't
+    exist would silently produce one missing whatever properties (bias-pull-up,
+    input-enable, etc.) the board's own convention expects it to have. Returns False,
+    not None, when DTS is unavailable, since there's nothing to safely merge into
+    either way."""
+    edt = _get_edt(board)
+    if edt is None:
+        return False
+    return any(label in node.labels for node in _iter_nodes(edt))
+
+
 def resolve_zephyr_bus(
     platform: str, board: str, override_key: str, override: str | None = None
 ) -> str:

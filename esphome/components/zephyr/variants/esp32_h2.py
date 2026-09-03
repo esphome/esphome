@@ -54,6 +54,7 @@ VARIANT = ZephyrVariant(
     swap_methods=frozenset({"scratch", "move", "direct"}),
     # https://github.com/espressif/esp-idf/blob/master/components/soc/esp32h2/include/soc/adc_channel.h
     adc1_channel_map={1: 0, 2: 1, 3: 2, 4: 3, 5: 4},
+    uart_node_labels={},
     uart_valid_pins={"tx": _UART_VALID_PINS, "rx": _UART_VALID_PINS},
 )
 

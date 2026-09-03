@@ -163,10 +163,27 @@ def validate_zephyr_config(config):
         variant = zephyr_variant()
         variant_info = VARIANTS.get(variant)
         valid_pins = variant_info.uart_valid_pins if variant_info is not None else {}
-        if not valid_pins:
+        valid_pins_by_instance = (
+            variant_info.uart_valid_pins_by_instance if variant_info is not None else {}
+        )
+        if not valid_pins and not valid_pins_by_instance:
             raise cv.Invalid(
                 "TX and RX pins are not supported for UART on this Zephyr variant."
             )
+        if valid_pins_by_instance:
+            # CONF_PORT is always set here (_fill_zephyr_uart_defaults() already ran).
+            port_value = config[CONF_PORT]
+            instance_key = (
+                port_value[1:].upper() if port_value.startswith("&") else port_value
+            )
+            instance_pins = valid_pins_by_instance.get(instance_key)
+            if instance_pins is None:
+                raise cv.Invalid(
+                    f"'{port_value}' does not support UART pin remapping on {variant}. "
+                    f"Valid instances: {', '.join(valid_pins_by_instance)}",
+                    path=[CONF_PORT],
+                )
+            valid_pins = instance_pins
         for conf_key, signal in ((CONF_TX_PIN, "tx"), (CONF_RX_PIN, "rx")):
             if conf_key in config:
                 pin_num = config[conf_key][CONF_NUMBER]
@@ -464,8 +481,10 @@ async def to_code(config):
                 zephyr_add_prj_conf,
                 zephyr_data,
                 zephyr_variant,
+                zephyr_variant_family,
             )
             from esphome.components.zephyr.dts_lookup import (
+                dts_node_label_exists,
                 resolve_uart_node_label,
                 validate_dts_label_exists,
             )
@@ -496,31 +515,47 @@ async def to_code(config):
                 )
             )
             if CONF_TX_PIN in config or CONF_RX_PIN in config:
-                # esp32-family only. Ports other than uart0 have no default pinctrl on
-                # stock devkit boards, so `port: uart1` fails at devicetree-generation
-                # time unless we supply one ourselves. Also usable to override uart0's.
+                # Board pinctrl splits TX into group1, RX into group2 -- overriding
+                # just `pinmux` there keeps whatever else the board put on each group
+                # (e.g. RX's bias-pull-up).
+                node_label = f"{port_label}_default"
+                node_exists = dts_node_label_exists(
+                    zephyr_data()[KEY_BOARD], node_label
+                )
+                if not node_exists:
+                    _LOGGER.warning(
+                        "Board '%s' has no '%s' devicetree node -- assuming you've "
+                        "defined it yourself via `zephyr: overlays:`. If not, this "
+                        "will fail at devicetree-compile time.",
+                        zephyr_data()[KEY_BOARD],
+                        node_label,
+                    )
                 prefix = port_label.upper()
-                pinmux_entries = []
-                if CONF_TX_PIN in config:
-                    pinmux_entries.append(
-                        f"<{prefix}_TX_GPIO{config[CONF_TX_PIN][CONF_NUMBER]}>"
-                    )
-                if CONF_RX_PIN in config:
-                    pinmux_entries.append(
-                        f"<{prefix}_RX_GPIO{config[CONF_RX_PIN][CONF_NUMBER]}>"
-                    )
-                pinmux = ",\n                                 ".join(pinmux_entries)
-                zephyr_add_overlay(
-                    f"""
-                        &pinctrl {{
-                            {port_label}_default: {port_label}_default {{
-                                group1 {{
-                                    pinmux = {pinmux};
-                                }};
+                # rp2040/rp2350 pinctrl macros are `_P{n}`, esp32-family is `_GPIO{n}`.
+                pin_suffix = "P" if zephyr_variant_family() == "rpi_pico" else "GPIO"
+                tx_pinmux = (
+                    f"""&pinctrl {{
+                        {node_label} {{
+                            group1 {{
+                                pinmux = <{prefix}_TX_{pin_suffix}{config[CONF_TX_PIN][CONF_NUMBER]}>;
                             }};
                         }};
-                    """
+                    }};"""
+                    if CONF_TX_PIN in config and node_exists
+                    else ""
                 )
+                rx_pinmux = (
+                    f"""&pinctrl {{
+                        {node_label} {{
+                            group2 {{
+                                pinmux = <{prefix}_RX_{pin_suffix}{config[CONF_RX_PIN][CONF_NUMBER]}>;
+                            }};
+                        }};
+                    }};"""
+                    if CONF_RX_PIN in config and node_exists
+                    else ""
+                )
+                zephyr_add_overlay(f"{tx_pinmux}\n{rx_pinmux}")
                 # current-speed must exist in DT for the driver's init macro regardless
                 # of value; the real baud rate is set at runtime by uart_configure().
                 zephyr_add_overlay(
@@ -529,6 +564,20 @@ async def to_code(config):
                     f'pinctrl-0 = <&{port_label}_default>; pinctrl-names = "default"; }};'
                 )
             else:
+                # Without this, a board with no pre-wired pinctrl-0 fails with a
+                # confusing low-level binding-schema error instead of a clear one.
+                if not dts_node_label_exists(
+                    zephyr_data()[KEY_BOARD], f"{port_label}_default"
+                ):
+                    _LOGGER.warning(
+                        "Board '%s' has no '%s_default' devicetree node -- port '%s' "
+                        "has no pre-wired pinctrl. Assuming you've configured it "
+                        "yourself via `zephyr: overlays:`. If not, this will fail at "
+                        "devicetree-compile time.",
+                        zephyr_data()[KEY_BOARD],
+                        port_label,
+                        port_value,
+                    )
                 zephyr_add_overlay(f'&{port_label} {{ status = "okay"; }};')
         else:
             cg.add(var.set_name(config[CONF_PORT]))

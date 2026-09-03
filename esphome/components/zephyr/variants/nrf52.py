@@ -119,6 +119,7 @@ VARIANT = ZephyrVariant(
     # nrf52840 layout never had one either), and move/offset don't need one.
     swap_methods=frozenset({"move", "offset"}),
     adc_ain_map=_ADC_AIN_MAP,
+    uart_node_labels={},
     pwm_node_labels=["pwm0", "pwm1", "pwm2", "pwm3"],
 )
 
