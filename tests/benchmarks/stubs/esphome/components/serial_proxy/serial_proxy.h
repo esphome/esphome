@@ -40,6 +40,7 @@ class SerialProxy {
     return SerialProxyResult::SERIAL_PROXY_RESULT_OK;
   }
   void write_from_client(api::APIConnection *api_connection, const uint8_t *data, size_t len) {}
+  void set_mode(api::APIConnection *api_connection, api::enums::SerialProxyMode mode) {}
   SerialProxyResult set_modem_pins(api::APIConnection *api_connection, uint32_t line_states) {
     return SerialProxyResult::SERIAL_PROXY_RESULT_OK;
   }
