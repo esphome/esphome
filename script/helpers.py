@@ -1104,7 +1104,11 @@ def get_components_per_integration_fixture() -> dict[str, set[str]]:
 
 
 _TEST_FUNC_RE = re.compile(r"async def (test_\w+)")
-_SHARED_YAML_USE_RE = re.compile(r"^\s*@[\w.]*mark\.shared_yaml", re.MULTILINE)
+# Decorator form plus module/class-level pytestmark assignments, which
+# get_closest_marker honors equally at runtime
+_SHARED_YAML_USE_RE = re.compile(
+    r"^\s*(?:@[\w.]*|pytestmark\s*=.*?\bpytest\.)mark\.shared_yaml", re.MULTILINE
+)
 _SHARED_YAML_ARG_RE = re.compile(r"\(\s*[\"'](\w+)[\"']\s*\)")
 
 
