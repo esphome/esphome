@@ -3,7 +3,7 @@
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
 #include "esphome/components/output/binary_output.h"
-#ifdef USE_GPIO_HOLD
+#if defined(USE_DEEP_SLEEP) && defined(USE_GPIO_HOLD)
 #include "esphome/components/deep_sleep/deep_sleep_component.h"
 #endif
 
@@ -14,7 +14,7 @@ class GPIOBinaryOutput final : public output::BinaryOutput, public Component {
   void set_pin(GPIOPin *pin) { pin_ = pin; }
 
   void setup() override {
-#ifdef USE_GPIO_HOLD
+#if defined(USE_DEEP_SLEEP) && defined(USE_GPIO_HOLD)
     if ((this->pin_->get_flags() & gpio::FLAG_HOLD) && deep_sleep::woken_from_deepsleep()) {
       // keep state and don't turn off
       this->pin_->setup();
