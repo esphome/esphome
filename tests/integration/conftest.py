@@ -329,28 +329,39 @@ def _shared_build_dir(name: str) -> Path:
     return SHARED_BUILDS_ROOT / (_shared_build_prefix(name) + key)
 
 
-def _read_stamp(stamp: Path) -> Path | None:
+def _read_stamp(stamp: Path, shared_dir: Path) -> Path | None:
     """ELF path recorded by the last completed compile, or None."""
     try:
         text = stamp.read_text(encoding="utf-8").strip()
-    except OSError:
+    except FileNotFoundError:
         return None
-    return Path(text) if text else None
+    except OSError as err:
+        warnings.warn(f"Cannot read {stamp}: {err}", stacklevel=2)
+        return None
+    if not text:
+        return None
+    built = Path(text)
+    # Never trust a stamp pointing outside its own build dir as an unlink target
+    return built if shared_dir in built.parents else None
 
 
 def _unused_since(stale: Path, cutoff: float) -> bool:
     """Whether a build dir looks untouched since cutoff; unknown counts as used."""
-    # .built is rewritten by every completed compile; a dir without one never
-    # finished a build, and its own mtime covers a racing mkdir
+    # Newest of the .built stamp (rewritten by every completed compile) and the
+    # dir itself (freshened by a worker claiming the dir before locking)
+    newest: float | None = None
     for probe in (stale / ".built", stale):
         try:
-            return probe.stat().st_mtime < cutoff
+            mtime = probe.stat().st_mtime
         except FileNotFoundError:
             continue
+        except NotADirectoryError:
+            return True  # a stray file where a dir should be; reclaimable
         except OSError as err:
             warnings.warn(f"Cannot age-probe {stale}: {err}", stacklevel=2)
             return False
-    return False
+        newest = mtime if newest is None else max(newest, mtime)
+    return newest is not None and newest < cutoff
 
 
 def _prune_stale_builds(name: str, keep: Path) -> None:
@@ -367,8 +378,11 @@ def _prune_stale_builds(name: str, keep: Path) -> None:
             continue
         try:
             lock_file = (stale / ".lock").open("w")
-        except (FileNotFoundError, NotADirectoryError):
+        except FileNotFoundError:
             continue  # pruned by another worker meanwhile
+        except NotADirectoryError:
+            stale.unlink(missing_ok=True)  # a stray file, not a build dir
+            continue
         except OSError as err:
             warnings.warn(f"Cannot prune {stale}: {err}", stacklevel=2)
             continue
@@ -512,7 +526,7 @@ async def compile_esphome(
             # later workers skip the config re-read in _resolve_compiled_binary
             stamp = shared_dir / ".built"
             if (built := _shared_elf_paths.get(shared_dir)) is None:
-                built = await loop.run_in_executor(None, _read_stamp, stamp)
+                built = await loop.run_in_executor(None, _read_stamp, stamp, shared_dir)
             # Delete the ELF before compiling: whatever exists afterwards is
             # this compile's output, so no staleness check is ever needed
             if built is not None:
