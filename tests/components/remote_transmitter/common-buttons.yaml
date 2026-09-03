@@ -246,6 +246,16 @@ button:
         button: 1
         check: 1
   - platform: template
+    name: OnkyoRI
+    on_press:
+      remote_transmitter.transmit_onkyori:
+        data: 0xD9
+  - platform: template
+    name: OnkyoRI 12-bit
+    on_press:
+      remote_transmitter.transmit_onkyori:
+        data: 0x170
+  - platform: template
     name: Toto
     on_press:
       - remote_transmitter.transmit_toto:

@@ -917,6 +917,41 @@ async def nec_action(var, config, args):
     cg.add(var.set_command_repeats(template_))
 
 
+# Onkyo RI
+OnkyoRIData, OnkyoRIBinarySensor, OnkyoRITrigger, OnkyoRIAction, OnkyoRIDumper = (
+    declare_protocol("OnkyoRI")
+)
+ONKYORI_SCHEMA = cv.Schema({cv.Required(CONF_DATA): cv.hex_int_range(0, 0xFFF)})
+
+
+@register_binary_sensor("onkyori", OnkyoRIBinarySensor, ONKYORI_SCHEMA)
+def onkyori_binary_sensor(var, config):
+    cg.add(
+        var.set_data(
+            cg.StructInitializer(
+                OnkyoRIData,
+                ("data", config[CONF_DATA]),
+            )
+        )
+    )
+
+
+@register_trigger("onkyori", OnkyoRITrigger, OnkyoRIData)
+def onkyori_trigger(var, config):
+    pass
+
+
+@register_dumper("onkyori", OnkyoRIDumper)
+def onkyori_dumper(var, config):
+    pass
+
+
+@register_action("onkyori", OnkyoRIAction, ONKYORI_SCHEMA)
+async def onkyori_action(var, config, args):
+    template_ = await cg.templatable(config[CONF_DATA], args, cg.uint16)
+    cg.add(var.set_data(template_))
+
+
 # Pioneer
 (
     PioneerData,
