@@ -1,0 +1,77 @@
+import esphome.codegen as cg
+from esphome.components import button
+import esphome.config_validation as cv
+
+from .. import OpenTherm42Hub, opentherm42_ns
+from ..const import (
+    CONF_REMOTE_REQUEST_AUTOMATIC_HYDRONIC_AIR_PURGE,
+    CONF_REMOTE_REQUEST_BACK_TO_NORMAL_OPERATION_MODE,
+    CONF_REMOTE_REQUEST_BOILER_LOCKOUT_RESET,
+    CONF_REMOTE_REQUEST_CH_WATER_FILLING,
+    CONF_REMOTE_REQUEST_RESET_SERVICE_REQUEST_FLAG,
+    CONF_REMOTE_REQUEST_SERVICE_MODE_3_WAY_VALVE_TO_CH,
+    CONF_REMOTE_REQUEST_SERVICE_MODE_3_WAY_VALVE_TO_DHW,
+    CONF_REMOTE_REQUEST_SERVICE_MODE_FAN_MAXIMUM_SPEED,
+    CONF_REMOTE_REQUEST_SERVICE_MODE_FAN_MINIMUM_SPEED,
+    CONF_REMOTE_REQUEST_SERVICE_MODE_MAXIMUM_POWER,
+    CONF_REMOTE_REQUEST_SERVICE_MODE_MINIMUM_POWER,
+    CONF_REMOTE_REQUEST_SERVICE_MODE_SPARK_TEST,
+    CONF_REMOTE_REQUEST_SERVICE_TEST_1,
+)
+
+CONF_OPENTHERM42_ID = "opentherm42_id"
+
+OpenTherm42RemoteRequestButton = opentherm42_ns.class_(
+    "OpenTherm42RemoteRequestButton", button.Button, cg.Component
+)
+
+# §5.3.3 Class 3, ID 4 HB: Request-Code. Pressing a button sends WRITE-DATA(id=4, code, 00); the
+# boiler's WRITE-ACK reports acceptance via the remote_request_last_response_code sensor.
+CODES: dict[str, int] = {
+    # 0: Back to Normal operation mode
+    CONF_REMOTE_REQUEST_BACK_TO_NORMAL_OPERATION_MODE: 0,
+    # 1: "BLOR" = Boiler Lock-out Reset request
+    CONF_REMOTE_REQUEST_BOILER_LOCKOUT_RESET: 1,
+    # 2: "CHWF" = CH water filling request
+    CONF_REMOTE_REQUEST_CH_WATER_FILLING: 2,
+    # 3: Service mode maximum power request (for instance for CO2 measurement during Chimney Sweep Function)
+    CONF_REMOTE_REQUEST_SERVICE_MODE_MAXIMUM_POWER: 3,
+    # 4: Service mode minimum power request (CO2 measurement)
+    CONF_REMOTE_REQUEST_SERVICE_MODE_MINIMUM_POWER: 4,
+    # 5: Service mode spark test request (no gas)
+    CONF_REMOTE_REQUEST_SERVICE_MODE_SPARK_TEST: 5,
+    # 6: Service mode fan maximum speed request (no flame)
+    CONF_REMOTE_REQUEST_SERVICE_MODE_FAN_MAXIMUM_SPEED: 6,
+    # 7: Service mode fan to minimum speed request (no flame)
+    CONF_REMOTE_REQUEST_SERVICE_MODE_FAN_MINIMUM_SPEED: 7,
+    # 8: Service mode 3-way valve to CH request (no pump, no flame)
+    CONF_REMOTE_REQUEST_SERVICE_MODE_3_WAY_VALVE_TO_CH: 8,
+    # 9: Service mode 3-way valve to DHW request (no pump, no flame)
+    CONF_REMOTE_REQUEST_SERVICE_MODE_3_WAY_VALVE_TO_DHW: 9,
+    # 10: Request to reset service request flag
+    CONF_REMOTE_REQUEST_RESET_SERVICE_REQUEST_FLAG: 10,
+    # 11: Service test 1. This is an OEM specific test.
+    CONF_REMOTE_REQUEST_SERVICE_TEST_1: 11,
+    # 12: Automatic hydronic air purge.
+    CONF_REMOTE_REQUEST_AUTOMATIC_HYDRONIC_AIR_PURGE: 12,
+}
+
+CONFIG_SCHEMA = cv.Schema(
+    {
+        cv.GenerateID(CONF_OPENTHERM42_ID): cv.use_id(OpenTherm42Hub),
+        **{
+            cv.Optional(marker): button.button_schema(
+                OpenTherm42RemoteRequestButton
+            ).extend(cv.COMPONENT_SCHEMA)
+            for marker in CODES
+        },
+    }
+)
+
+
+async def to_code(config: dict) -> None:
+    hub = await cg.get_variable(config[CONF_OPENTHERM42_ID])
+    for marker, code in CODES.items():
+        if (marker_config := config.get(marker)) is not None:
+            var = await button.new_button(marker_config, hub, code)
+            await cg.register_component(var, marker_config)
