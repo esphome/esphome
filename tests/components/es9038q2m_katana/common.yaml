@@ -1,0 +1,17 @@
+esphome:
+  on_boot:
+    then:
+      - audio_dac.mute_off:
+      - audio_dac.mute_on:
+      - audio_dac.set_volume:
+          volume: 50%
+
+audio_dac:
+  - platform: es9038q2m_katana
+    i2c_id: i2c_bus
+    filter_shape: hybrid
+    bits_per_sample: 16bit
+    sample_rate: 48000
+    deemphasis: 48khz
+    dop: false
+    dump_registers: false
