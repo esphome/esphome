@@ -21,6 +21,7 @@ uart:
 # registers, addr 5 = the read/write 0x17 target, addr 2/3 on the second
 # server hub. auto_start everywhere: the controller polls at boot, so the
 # forwarding must already be live or early requests generate warnings.
+# Every test presses Start Scenario, so all merged actions fire in every test.
 uart_mock:
   - id: virtual_uart_server
     baud_rate: 9600
