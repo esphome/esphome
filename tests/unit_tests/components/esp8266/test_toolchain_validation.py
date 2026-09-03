@@ -63,8 +63,10 @@ def test_valid_config_passes() -> None:
 
 
 def test_platformio_toolchain_skips_checks() -> None:
+    # 3.0.2 is pio-legal (>= the global 3.0.0 floor) but below the native
+    # toolchain's own 3.1.1 floor; the bogus board only the native path checks
     CORE.toolchain = Toolchain.PLATFORMIO
-    config = _config(board="not_a_board", version="2.7.4")
+    config = _config(board="not_a_board", version="3.0.2")
     assert _validate_native_toolchain(config) is config
 
 
