@@ -43,6 +43,53 @@ ESPHOME_TESTS_COMPONENTS_PATH = "tests/components/"
 # Tuple of component and test paths for efficient startswith checks
 COMPONENT_AND_TESTS_PATHS = (ESPHOME_COMPONENTS_PATH, ESPHOME_TESTS_COMPONENTS_PATH)
 
+# Integration tests path prefix
+INTEGRATION_TESTS_PATH = "tests/integration/"
+
+# Per-file integration test durations from CI junit output; shared by the
+# reader (determine-jobs) and writer (update_integration_test_durations)
+INTEGRATION_TEST_DURATIONS_FILE = "tests/integration/integration_test_durations.json"
+
+
+def all_integration_test_files() -> list[str]:
+    """Return all integration test file paths, sorted, relative to repo root."""
+    return sorted(
+        p.relative_to(root_path).as_posix()
+        for p in (Path(root_path) / "tests" / "integration").glob("test_*.py")
+    )
+
+
+def load_integration_durations() -> dict[str, float]:
+    """Return recorded per-file pytest durations in seconds; empty when unavailable."""
+    try:
+        raw = json.loads(
+            (Path(root_path) / INTEGRATION_TEST_DURATIONS_FILE).read_text()
+        )
+        if not isinstance(raw, dict):
+            print(
+                f"integration durations unavailable: expected an object, "
+                f"got {type(raw).__name__}",
+                file=sys.stderr,
+            )
+            return {}
+    except (OSError, ValueError) as err:
+        # The file ships in the repo; degrade to unweighted bucketing, loudly
+        print(f"integration durations unavailable: {err}", file=sys.stderr)
+        return {}
+    durations = {
+        key: seconds
+        for key, value in raw.items()
+        if isinstance(value, (int, float)) and (seconds := float(value)) > 0
+    }
+    if len(durations) != len(raw):
+        # One bad entry must not discard the whole recording
+        print(
+            f"dropped {len(raw) - len(durations)} invalid duration entries",
+            file=sys.stderr,
+        )
+    return durations
+
+
 # Base bus components - these ARE the bus implementations and should not
 # be flagged as needing migration since they are the platform/base components
 BASE_BUS_COMPONENTS = {
@@ -809,17 +856,18 @@ def load_idedata(environment: str) -> dict[str, Any]:
     start_time = time.time()
     print(f"Loading IDE data for environment '{environment}'...")
 
-    # Reuse the clang-tidy input hash as the cache key: it already covers every
-    # file baked into the generated idedata (platformio.ini, sdkconfig.defaults,
-    # esphome/idf_component.yml), so this can't drift from that file list. A
-    # content hash -- unlike an mtime comparison -- stays correct across git
-    # checkouts, which don't preserve mtimes.
-    from clang_tidy_hash import is_cached, update_cache
+    # Content hash of the idedata inputs (data files and the generator code); a
+    # content hash, unlike mtimes, stays correct across git checkouts.
+    from clang_tidy_hash import idedata_cache_hash, is_cached, update_cache
 
     temp_idedata = Path(temp_folder) / f"idedata-{environment}.json"
     temp_hash = Path(temp_folder) / f"idedata-{environment}.hash"
 
-    if temp_idedata.is_file() and is_cached(temp_hash):
+    # Snapshotted now, before pio runs below, so the key reflects what the
+    # work below actually saw rather than edits made mid-run.
+    key = idedata_cache_hash(environment)
+
+    if temp_idedata.is_file() and is_cached(temp_hash, key):
         data = json.loads(temp_idedata.read_text())
         elapsed = time.time() - start_time
         print(f"IDE data loaded from cache in {elapsed:.2f} seconds")
@@ -838,41 +886,36 @@ def load_idedata(environment: str) -> dict[str, Any]:
             ["pio", "run", "-t", "idedata", "-e", environment]
         )
         match = re.search(r'{\s*".*}', stdout.decode("utf-8"))
+        if match is None:
+            raise RuntimeError(
+                f"Could not find idedata JSON in 'pio run -t idedata -e {environment}' output"
+            )
         data = json.loads(match.group())
     temp_idedata.write_text(json.dumps(data, indent=2) + "\n")
-    update_cache(temp_hash)
+    update_cache(temp_hash, key)
 
     elapsed = time.time() - start_time
     print(f"IDE data generated and cached in {elapsed:.2f} seconds")
     return data
 
 
-def get_binary(name: str, version: str, version_args: list[str] | None = None) -> str:
-    # Defaults to LLVM tools' `-version` flag; pass e.g. ["version"] for
-    # CodeChecker's subcommand-style version check.
-    version_args = version_args or ["-version"]
+def get_binary(name: str, version: str) -> str:
     binary_file = f"{name}-{version}"
     try:
-        result = subprocess.check_output([binary_file, *version_args])
+        result = subprocess.check_output([binary_file, "-version"])
         return binary_file
     except FileNotFoundError:
         pass
     binary_file = name
     try:
         result = subprocess.run(
-            [binary_file, *version_args], text=True, capture_output=True, check=False
+            [binary_file, "-version"], text=True, capture_output=True, check=False
         )
-        # Anchored to "version" followed by the exact version number, not just
-        # those digits appearing anywhere (e.g. a build year) in the output.
-        version_re = rf"version[^\d]*\b{re.escape(str(version))}\b"
-        if result.returncode == 0 and re.search(
-            version_re, result.stdout, re.IGNORECASE
-        ):
+        if result.returncode == 0 and (f"version {version}") in result.stdout:
             return binary_file
         raise FileNotFoundError(f"{name} not found")
 
     except FileNotFoundError:
-        version_cmd = " ".join(version_args)
         print(
             f"""
             Oops. It looks like {name} is not installed. It should be available under venv/bin
@@ -880,7 +923,7 @@ def get_binary(name: str, version: str, version_args: list[str] | None = None) -
               script/setup
               source venv/bin/activate.
 
-            Please confirm you can run "{name} {version_cmd}" or "{name}-{version} {version_cmd}"
+            Please confirm you can run "{name} -version" or "{name}-{version} -version"
             in your terminal and install
             {name} (v{version}) if necessary.
 
@@ -1148,17 +1191,41 @@ def filter_component_and_test_files(file_path: str) -> bool:
     )
 
 
-def filter_component_and_test_cpp_files(file_path: str) -> bool:
-    """Check if a file is a C++ source file in component or test directories.
+def filter_cpp_unit_test_files(file_path: str) -> bool:
+    """Check if a file can affect a component's C++ unit test build.
+
+    Besides C++ sources, a component's Python code (defines, source file
+    filters, libraries) and the ``__init__.py`` manifest overrides under
+    ``tests/components/<component>/`` decide what the host test binary
+    compiles and links. Other Python files under ``tests/components/``
+    (pytest conftest.py, fixtures) do not.
 
     Args:
         file_path: Path to check
 
     Returns:
-        True if the file is a C++ source/header file in component or test directories
+        True if the file is a C++ or Python file in a component directory, or
+        a C++ file or ``__init__.py`` in a component test directory
     """
-    return file_path.endswith(CPP_FILE_EXTENSIONS) and file_path.startswith(
-        COMPONENT_AND_TESTS_PATHS
+    if file_path.startswith(ESPHOME_COMPONENTS_PATH):
+        return file_path.endswith(CPP_AND_PYTHON_FILE_EXTENSIONS)
+    if file_path.startswith(ESPHOME_TESTS_COMPONENTS_PATH):
+        return file_path.endswith(CPP_FILE_EXTENSIONS) or file_path.endswith(
+            "/__init__.py"
+        )
+    return False
+
+
+def has_cpp_unit_tests(component: str, tests_dir: Path) -> bool:
+    """Check if a component has C++ test or benchmark sources in ``tests_dir``.
+
+    Shared by CI job selection and the build itself
+    (``build_helpers.filter_components_with_files``) so both agree on
+    which components have something to build.
+    """
+    component_dir = tests_dir / component
+    return component_dir.is_dir() and (
+        any(component_dir.glob("*.cpp")) or any(component_dir.glob("*.h"))
     )
 
 
@@ -1484,41 +1551,59 @@ def base_python_changed(files: list[str]) -> bool:
 
 
 def get_cpp_changed_components(files: list[str]) -> list[str]:
-    """Get components that have changed C++ files or tests.
+    """Get components whose C++ unit tests are affected by changed files.
 
     This function analyzes a list of changed files and determines which components
     are affected. It handles two scenarios:
 
-    1. Test files changed (tests/components/<component>/*.cpp):
+    1. Test files changed (tests/components/<component>/*.cpp or __init__.py):
        - Adds the component to the affected list
        - Only that component needs to be tested
 
-    2. Component C++ files changed (esphome/components/<component>/*):
+    2. Component files changed (esphome/components/<component>/*.cpp or *.py):
        - Adds the component to the affected list
        - Also adds all components that depend on this component (recursively)
        - This ensures that changes propagate to dependent components
 
+    Python files count because a component's Python code decides which
+    sources and defines end up in the host test build. Components without
+    C++ test sources are dropped so CI does not schedule the job for nothing.
+
     Args:
-        files: List of file paths to analyze (should be C++ files)
+        files: List of changed file paths; irrelevant ones are ignored
 
     Returns:
         Sorted list of component names that need C++ unit tests run
     """
     components_graph = create_components_graph()
+    tests_dir = Path(root_path) / ESPHOME_TESTS_COMPONENTS_PATH
     affected: set[str] = set()
     for file in files:
-        if not file.endswith(CPP_FILE_EXTENSIONS):
+        if not filter_cpp_unit_test_files(file):
             continue
-        if file.startswith(ESPHOME_TESTS_COMPONENTS_PATH):
-            parts = file.split("/")
-            if len(parts) >= 4:
-                component_dir = Path(ESPHOME_TESTS_COMPONENTS_PATH) / parts[2]
-                if component_dir.is_dir():
-                    affected.add(parts[2])
-        elif file.startswith(ESPHOME_COMPONENTS_PATH):
-            parts = file.split("/")
-            if len(parts) >= 4:
-                component = parts[2]
-                affected.update(find_children_of_component(components_graph, component))
-                affected.add(component)
-    return sorted(affected)
+        parts = file.split("/")
+        if len(parts) < 4:
+            continue
+        component = parts[2]
+        affected.add(component)
+        if file.startswith(ESPHOME_COMPONENTS_PATH):
+            affected.update(find_children_of_component(components_graph, component))
+    return sorted(c for c in affected if has_cpp_unit_tests(c, tests_dir))
+
+
+def lpt_partition(
+    items: list[str], weights: dict[str, float], count: int
+) -> list[list[str]]:
+    """Partition items into `count` weight-balanced groups (LPT greedy).
+
+    Heaviest item first into the lightest group. Ties keep input order, so
+    pass pre-sorted items for deterministic output. script/clang-tidy's
+    split_list is the unweighted contiguous sibling.
+    """
+    groups: list[list[str]] = [[] for _ in range(count)]
+    group_weights = [0.0] * count
+    for item in sorted(items, key=lambda i: -weights[i]):
+        lightest = min(range(count), key=group_weights.__getitem__)
+        groups[lightest].append(item)
+        group_weights[lightest] += weights[item]
+    return groups

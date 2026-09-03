@@ -7,6 +7,7 @@ import esphome.automation as auto
 import esphome.codegen as cg
 from esphome.components import mqtt, power_supply, web_server
 from esphome.components.const import CONF_CHANNEL_COLORS, CONF_IS_WRGB
+from esphome.config_helpers import filter_source_files_from_defines
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BLUE,
@@ -557,3 +558,10 @@ async def new_light(config, *args):
 @coroutine_with_priority(CoroPriority.CORE)
 async def to_code(config):
     cg.add_global(light_ns.using)
+
+
+# light_json_schema.cpp is only used by mqtt and web_server, which both
+# auto load json; USE_JSON alone is too broad since other components load it.
+FILTER_SOURCE_FILES = filter_source_files_from_defines(
+    {"light_json_schema.cpp": ("USE_MQTT", "USE_WEBSERVER")}
+)

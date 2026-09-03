@@ -14,13 +14,11 @@ CodeChecker, which adapts GCC's flags/headers for Clang-based analysis.
   mcumgr, zigbee) so their include paths land in the compile commands;
 * the platform defines (USE_ZEPHYR, USE_NRF52) match what a real ESPHome
   nrf52 build adds via its generated project.
-
-``ESPHOME_ZEPHYR_COMPILE_COMMANDS`` may point at an existing build's
-``compile_commands.json`` to skip generation (fast iteration).
 """
 
 from __future__ import annotations
 
+import json
 import logging
 from pathlib import Path
 
@@ -34,7 +32,7 @@ root_path = Path(__file__).resolve().parents[3]
 _TIDY_BOARD = "adafruit_itsybitsy/nrf52840"
 
 # Never compiled (the build is configure-only): the file exists only so the
-# app target emits a C++ compile command to harvest flags/includes from.
+# app target emits a C++ compile command for CodeChecker to analyze directly.
 _TIDY_MAIN_CPP = "int main() { return 0; }\n"
 
 # Kconfig superset enabling every subsystem an ESPHome nrf52 component may
@@ -79,6 +77,12 @@ CONFIG_CRYPTO=y
 CONFIG_NVS=y
 CONFIG_SETTINGS=y
 #zigbee end
+#openthread begin
+CONFIG_NET_L2_OPENTHREAD=y
+CONFIG_OPENTHREAD_NORDIC_LIBRARY_FTD=y
+CONFIG_OPENTHREAD_FTD=y
+CONFIG_MAIN_STACK_SIZE=4096
+#openthread end
 """
 
 
@@ -132,6 +136,7 @@ def _parse_lib_deps(platformio_ini: Path) -> list:
     for section, key in (
         ("common", "lib_deps_base"),
         ("common:idf-component-libs", "lib_deps"),
+        ("common:nrf52-zephyr", "lib_deps"),
     ):
         if parser.has_option(section, key):
             tokens += parser.get(section, key).splitlines()
@@ -297,4 +302,36 @@ def generate_compile_commands(
     ):
         raise EsphomeError("nRF52 clang-tidy configure failed")
 
+    if not compile_commands_path.is_file():
+        raise EsphomeError(
+            f"west build reported success but {compile_commands_path} was not generated"
+        )
+
+    _check_compile_commands_cover_sources(compile_commands_path, source_files)
+
     return compile_commands_path
+
+
+def _check_compile_commands_cover_sources(
+    compile_commands_path: Path, source_files: list[str]
+) -> None:
+    """Raise naming any ``source_files`` entry CMake produced no compile command
+    for, instead of letting it surface later as a generic --file/compile-database
+    mismatch that points the reader at the wrong (downstream) layer."""
+    from esphome.core import EsphomeError
+
+    entries = json.loads(compile_commands_path.read_text(encoding="utf-8"))
+    compiled_files = set()
+    for entry in entries:
+        entry_file = Path(entry["file"])
+        if not entry_file.is_absolute():
+            entry_file = Path(entry["directory"]) / entry_file
+        compiled_files.add(entry_file.resolve())
+
+    missing = [f for f in source_files if Path(f).resolve() not in compiled_files]
+    if missing:
+        joined = "\n".join(f"  {f}" for f in missing)
+        raise EsphomeError(
+            f"{compile_commands_path} has no compile command for:\n{joined}\n"
+            "-- target_sources() likely silently dropped one or more source files"
+        )
