@@ -254,9 +254,9 @@ void DaikinMadoka::update() {
   }
 }
 
-static bool validate_buffer(std::vector<uint8_t> buffer) { return !buffer.empty() && buffer[0] == buffer.size(); }
+static bool validate_buffer(std::vector<uint8_t> &buffer) { return !buffer.empty() && buffer[0] == buffer.size(); }
 
-void DaikinMadoka::process_incoming_chunk_(std::vector<uint8_t> chk) {
+void DaikinMadoka::process_incoming_chunk_(std::vector<uint8_t> &chk) {
   if (chk.size() < 2) {
     ESP_LOGI(TAG, "Chunk discarded: invalid length.");
     return;
@@ -294,7 +294,7 @@ void DaikinMadoka::process_incoming_chunk_(std::vector<uint8_t> chk) {
   }
 }
 
-std::vector<std::vector<uint8_t>> DaikinMadoka::split_payload_(std::vector<uint8_t> msg) {
+std::vector<std::vector<uint8_t>> DaikinMadoka::split_payload_(std::vector<uint8_t> &msg) {
   std::vector<std::vector<uint8_t>> result;
   size_t len = msg.size();
 
@@ -313,14 +313,14 @@ std::vector<std::vector<uint8_t>> DaikinMadoka::split_payload_(std::vector<uint8
   return result;
 }
 
-std::vector<uint8_t> DaikinMadoka::prepare_message_(uint16_t cmd, std::vector<uint8_t> args) {
+std::vector<uint8_t> DaikinMadoka::prepare_message_(uint16_t cmd, std::vector<uint8_t> &args) {
   std::vector<uint8_t> result({0x00, (uint8_t) ((cmd >> 8) & 0xFF), (uint8_t) (cmd & 0xFF)});
   result.insert(result.end(), args.begin(), args.end());
   return result;
 }
 
-void DaikinMadoka::query_(uint16_t cmd, std::vector<uint8_t> args) {
-  std::vector<uint8_t> payload = this->prepare_message_(cmd, std::move(args));
+void DaikinMadoka::query_(uint16_t cmd, std::vector<uint8_t> &args) {
+  std::vector<uint8_t> payload = this->prepare_message_(cmd, args);
 
   if (this->node_state != espbt::ClientState::ESTABLISHED) {
     return;
@@ -346,7 +346,7 @@ void DaikinMadoka::query_(uint16_t cmd, std::vector<uint8_t> args) {
   }
 }
 
-void DaikinMadoka::parse_cb_(std::vector<uint8_t> msg) {
+void DaikinMadoka::parse_cb_(std::vector<uint8_t> &msg) {
   if (msg.size() < 4) {
     ESP_LOGE(TAG, "Discarding message: invalid length.");
     return;

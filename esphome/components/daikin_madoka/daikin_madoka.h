@@ -68,11 +68,11 @@ class DaikinMadoka : public climate::Climate, public esphome::ble_client::BLECli
       .mode = 0,
   };
 
-  std::vector<std::vector<uint8_t>> split_payload_(std::vector<uint8_t> msg);
-  std::vector<uint8_t> prepare_message_(uint16_t cmd, std::vector<uint8_t> args);
-  void query_(uint16_t cmd, std::vector<uint8_t> args);
-  void parse_cb_(std::vector<uint8_t> msg);
-  void process_incoming_chunk_(std::vector<uint8_t> chk);
+  std::vector<std::vector<uint8_t>> split_payload_(std::vector<uint8_t> &msg);
+  std::vector<uint8_t> prepare_message_(uint16_t cmd, std::vector<uint8_t> &args);
+  void query_(uint16_t cmd, std::vector<uint8_t> &args);
+  void parse_cb_(std::vector<uint8_t> &msg);
+  void process_incoming_chunk_(std::vector<uint8_t> &chk);
 
   void control(const climate::ClimateCall &call) override;
 
