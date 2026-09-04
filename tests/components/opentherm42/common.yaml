@@ -69,78 +69,64 @@ number:
     control_and_status_information_control_setpoint:
       name: "Control and Status Information: Control Setpoint"
       initial_value: 40.0
-      restore_value: true
     # §5.3.1 Class 1, ID 8: Control Setpoint 2 (TsetCH2), setpoint for the 2nd CH circuit (degrees C, 0..100).
     control_and_status_information_control_setpoint_2_tsetch2:
       name: "Control and Status Information: Control Setpoint 2 (TsetCH2)"
       initial_value: 40.0
-      restore_value: true
     # §5.3.1 Class 1, ID 71 LB: Control Setpoint ventilation/heat-recovery. Relative ventilation
     # position (0-100%): 0% is the minimum set ventilation, 100% is the maximum set ventilation.
     control_and_status_information_control_setpoint_ventilation_heat_recovery:
       name: "Control and Status Information: Control Setpoint ventilation-heat-recovery"
       initial_value: 0
-      restore_value: true
     # §5.3.4 Class 4, ID 16: Room Setpoint -- current room temperature setpoint (degrees C, -40..127).
     sensor_and_informational_data_room_setpoint:
       name: "Sensor and Informational Data: Room Setpoint"
       initial_value: 20.0
-      restore_value: true
     # §5.3.4 Class 4, ID 23: Room Setpoint CH2 -- current room setpoint for the 2nd CH circuit
     # (degrees C, -40..127).
     sensor_and_informational_data_room_setpoint_ch2:
       name: "Sensor and Informational Data: Room Setpoint CH2"
       initial_value: 20.0
-      restore_value: true
     # §5.3.4 Class 4, ID 24: Room temperature -- this master's own sensed room temperature
     # (degrees C, -40..127), pushed to the boiler.
     sensor_and_informational_data_room_temperature:
       name: "Sensor and Informational Data: Room temperature"
       initial_value: 20.0
-      restore_value: true
     # §5.3.4 Class 4, ID 37: TrCH2 -- room temperature for the 2nd CH circuit (degrees C, -40..127).
     sensor_and_informational_data_trch2:
       name: "Sensor and Informational Data: TrCH2"
       initial_value: 20.0
-      restore_value: true
     # §5.3.4 Class 4, ID 27: Outside temperature (degrees C, -40..127), provided by this master. Takes
     # priority over the sensor platform's plain outside_temperature (reading the boiler's own value).
     sensor_and_informational_data_outside_temperature_set:
       name: "Sensor and Informational Data: Outside temperature (set)"
       initial_value: 10.0
-      restore_value: true
     # §5.3.4 Class 4, ID 38: Relative Humidity (0..100%), provided by this master.
     sensor_and_informational_data_relative_humidity_set:
       name: "Sensor and Informational Data: Relative Humidity (set)"
       initial_value: 50.0
-      restore_value: true
     # §5.3.4 Class 4, ID 78 LB: Relative humidity exhaust air (0..100%), provided by this master.
     sensor_and_informational_data_relative_humidity_exhaust_air_set:
       name: "Sensor and Informational Data: Relative humidity exhaust air (set)"
       initial_value: 50.0
-      restore_value: true
     # §5.3.4 Class 4, ID 79: CO2 level exhaust air (0..2000 ppm), provided by this master.
     sensor_and_informational_data_co2_level_set:
       name: "Sensor and Informational Data: CO2 level (set)"
       initial_value: 0
-      restore_value: true
     # §5.3.5 Class 5, ID 56: DHW Setpoint -- domestic hot water temperature setpoint (degrees C, 0..127).
     # Takes priority over the sensor platform's plain dhw_setpoint (reading the boiler's own value).
     pre_defined_remote_boiler_parameters_dhw_setpoint_set:
       name: "Pre-Defined Remote Boiler Parameters: DHW Setpoint (set)"
       initial_value: 60.0
-      restore_value: true
     # §5.3.5 Class 5, ID 57: max CH water Setpoint -- maximum allowable CH water Setpoint (degrees C, 0..127).
     pre_defined_remote_boiler_parameters_max_ch_water_setpoint_set:
       name: "Pre-Defined Remote Boiler Parameters: max CH water Setpoint (set)"
       initial_value: 80.0
-      restore_value: true
     # §5.3.5 Class 5, ID 87 HB: Nominal ventilation value -- nominal relative value for ventilation
     # (0-100%), i.e. the value for the mid position in case of a 3-speed ventilation system.
     pre_defined_remote_boiler_parameters_nominal_ventilation_value_set:
       name: "Pre-Defined Remote Boiler Parameters: Nominal ventilation value (set)"
       initial_value: 50
-      restore_value: true
     # §5.3.6 Class 6, IDs 11/89/106: TSP values are opaque and manufacturer-specific, so unlike every
     # other option here there's no spec-provided name/description -- name and index come from whatever
     # the boiler's own documentation says slot N means.
