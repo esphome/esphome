@@ -183,6 +183,13 @@ SIGNED_OTA_V1_ECDSA_VARIANTS = {
     VARIANT_ESP32,
 }
 
+# Variants that support execution from PSRAM
+PSRAM_XIP_VARIANTS = {
+    VARIANT_ESP32S3,
+    VARIANT_ESP32P4,
+    VARIANT_ESP32S31,
+}
+
 # NVS encryption (HMAC peripheral scheme) is only available on variants that
 # expose the HMAC peripheral (SOC_HMAC_SUPPORTED in soc_caps.h). The original
 # ESP32 and ESP32-C2 do not have it. New variants with an HMAC peripheral
@@ -215,11 +222,13 @@ COMPILER_OPTIMIZATIONS = {
 # builds that need them.
 DEFAULT_EXCLUDED_IDF_COMPONENTS = (
     "app_trace",  # CPU trace/SystemView support - unused by ESPHome
+    "bt",  # Bluetooth stack - re-included by request_bluetooth(); its REQUIRES pulls the WiFi stack back
     "cmock",  # Unit testing mock framework - ESPHome doesn't use IDF's testing
     "console",  # Console REPL - unused by ESPHome; espressif/mdns pulls it back when configured
     "driver",  # Legacy driver shim - only needed by esp32_touch, esp32_can for legacy headers
     "esp-tls",  # TLS wrapper - re-included by http_request, mqtt, web_server_idf
     "esp_adc",  # ADC driver - only needed by adc component
+    "esp_coex",  # WiFi/BT coexistence - re-included by esp32_ble_tracker, zigbee; esp_wifi/bt pull it back
     "esp_driver_cam",  # Camera driver - the esp32-camera managed component pulls it back
     "esp_driver_dac",  # DAC driver - only needed by esp32_dac component
     "esp_driver_gptimer",  # General purpose timer - re-included by ac_dimmer, opentherm, Arduino BLE libs
@@ -237,6 +246,7 @@ DEFAULT_EXCLUDED_IDF_COMPONENTS = (
     "esp_driver_twai",  # TWAI/CAN driver - only needed by esp32_can component
     "esp_eth",  # Ethernet driver - only needed by ethernet component
     "esp_gdbstub",  # GDB stub panic handler - unused by ESPHome; bt pulls it back
+    "esp_hal_ieee802154",  # 802.15.4 HAL - ieee802154 pulls it back
     "esp_hid",  # HID host/device support - ESPHome doesn't implement HID functionality
     "esp_http_client",  # HTTP client - only needed by http_request component
     "esp_http_server",  # HTTP server - re-included by web_server_idf, esp32_camera_web_server
@@ -244,8 +254,11 @@ DEFAULT_EXCLUDED_IDF_COMPONENTS = (
     "esp_https_server",  # HTTPS server - ESPHome has its own web server
     "esp_lcd",  # LCD controller drivers - only needed by display component
     "esp_local_ctrl",  # Local control over HTTPS/BLE - ESPHome has native API
+    "esp_phy",  # RF PHY - re-included by internal_temperature on the original ESP32; esp_wifi/bt/ieee802154 pull it back
+    "esp_wifi",  # WiFi stack - re-included by request_wifi(), espnow; bt pulls it back for BLE builds
     "espcoredump",  # Core dump support - ESPHome has its own debug component
     "fatfs",  # FAT filesystem - ESPHome doesn't use filesystem storage
+    "ieee802154",  # 802.15.4 radio - IDF openthread and the Zigbee libs pull it back
     "json",  # cJSON library - ESPHome uses ArduinoJson instead
     "mqtt",  # ESP-IDF MQTT library - ESPHome has its own MQTT implementation
     "nvs_sec_provider",  # NVS encryption key provider - re-included when CONFIG_NVS_ENCRYPTION is set
@@ -261,6 +274,7 @@ DEFAULT_EXCLUDED_IDF_COMPONENTS = (
     "unity",  # Unit testing framework - ESPHome doesn't use IDF's testing
     "wear_levelling",  # Flash wear levelling for fatfs - unused since fatfs unused
     "wifi_provisioning",  # WiFi provisioning - ESPHome uses its own improv implementation
+    "wpa_supplicant",  # WPA supplicant - re-included by request_wifi() for esp_eap_client.h
 )
 
 # Additional IDF managed components to exclude for Arduino framework builds
@@ -725,6 +739,9 @@ def request_wifi(ap: bool = False) -> None:
     net.wifi = True
     if ap:
         net.wifi_ap = True
+    include_builtin_idf_component("esp_wifi")
+    # wifi_component.cpp includes esp_eap_client.h/esp_wpa2.h
+    include_builtin_idf_component("wpa_supplicant")
 
 
 def request_ethernet() -> None:
@@ -736,11 +753,14 @@ def request_bluetooth() -> None:
     """Request the Bluetooth controller."""
     net = _network_sdkconfig()
     net.bluetooth = True
+    include_builtin_idf_component("bt")
 
 
 def request_software_coexistence() -> None:
     """Request WiFi/BT software coexistence (only valid alongside WiFi)."""
     _network_sdkconfig().software_coexistence = True
+    # Callers include esp_coexist.h directly.
+    include_builtin_idf_component("esp_coex")
 
 
 def add_idf_component(
@@ -1526,7 +1546,7 @@ def final_validate(config) -> None:
             )
         )
     if advanced[CONF_EXECUTE_FROM_PSRAM]:
-        if config[CONF_VARIANT] not in {VARIANT_ESP32S3, VARIANT_ESP32P4}:
+        if config[CONF_VARIANT] not in PSRAM_XIP_VARIANTS:
             errs.append(
                 cv.Invalid(
                     f"'{CONF_EXECUTE_FROM_PSRAM}' is not available on this esp32 variant",
@@ -2322,6 +2342,8 @@ async def _reconcile_network_sdkconfig() -> None:
 
     # WiFi stack: disable only when Ethernet is present and WiFi is not. WiFi
     # relies on the IDF default (enabled), so it is never written True here.
+    # esp_wifi is excluded by default on IDF, so this only matters for Arduino
+    # or when bt pulls it back.
     wifi_disabled = net.ethernet and not net.wifi
     if wifi_disabled:
         set_idf_sdkconfig_default("CONFIG_ESP_WIFI_ENABLED", False)
@@ -2761,13 +2783,7 @@ async def to_code(config):
     _configure_lwip_max_sockets(conf)
 
     if advanced[CONF_EXECUTE_FROM_PSRAM]:
-        if variant == VARIANT_ESP32S3:
-            add_idf_sdkconfig_option("CONFIG_SPIRAM_FETCH_INSTRUCTIONS", True)
-            add_idf_sdkconfig_option("CONFIG_SPIRAM_RODATA", True)
-        elif variant == VARIANT_ESP32P4:
-            add_idf_sdkconfig_option("CONFIG_SPIRAM_XIP_FROM_PSRAM", True)
-        else:
-            raise ValueError("Unhandled ESP32 variant")
+        add_idf_sdkconfig_option("CONFIG_SPIRAM_XIP_FROM_PSRAM", True)
 
     # Apply LWIP core locking for better socket performance
     # This is already enabled by default in Arduino framework, where it provides
@@ -3379,7 +3395,13 @@ def _write_sdkconfig():
     if write_file_if_changed(internal_path, contents):
         # internal changed, update real one
         write_file_if_changed(sdk_path, contents)
-        clean_build(clear_pio_cache=False)
+        if not CORE.using_toolchain_esp_idf:
+            # PIO's dependency tracking under-declares sdkconfig inputs
+            # (ldgen, linker scripts); without a clean the image can be
+            # unbootable (esphome#15336). The esp-idf toolchain tracks
+            # sdkconfig via IDF's cmake and has_outdated_files(), so a
+            # reconfigure suffices there; everything else fails safe.
+            clean_build(clear_pio_cache=False)
 
 
 def _write_idf_component_yml():
