@@ -34,7 +34,52 @@ APIServer::APIServer() { global_api_server = this; }
 void APIServer::socket_failed_(const LogString *msg) {
   ESP_LOGW(TAG, "Socket %s: errno %d", LOG_STR_ARG(msg), errno);
   this->destroy_socket_();
+#ifdef USE_API_OUTGOING_CONNECTION
+  // Dial-out needs no listener; degrade instead of stopping the component
+  this->status_set_error(LOG_STR("listen socket failed"));
+#else
   this->mark_failed();
+#endif
+}
+
+bool APIServer::create_listen_socket_() {
+  this->socket_ = socket::socket_ip_loop_monitored(SOCK_STREAM, 0).release();  // monitored for incoming connections
+  if (this->socket_ == nullptr) {
+    this->socket_failed_(LOG_STR("creation"));
+    return false;
+  }
+  int enable = 1;
+  int err = this->socket_->setsockopt(SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(int));
+  if (err != 0) {
+    ESP_LOGW(TAG, "Socket reuseaddr: errno %d", errno);
+    // we can still continue
+  }
+  err = this->socket_->setblocking(false);
+  if (err != 0) {
+    this->socket_failed_(LOG_STR("nonblocking"));
+    return false;
+  }
+
+  struct sockaddr_storage server;
+
+  socklen_t sl = socket::set_sockaddr_any((struct sockaddr *) &server, sizeof(server), this->port_);
+  if (sl == 0) {
+    this->socket_failed_(LOG_STR("set sockaddr"));
+    return false;
+  }
+
+  err = this->socket_->bind((struct sockaddr *) &server, sl);
+  if (err != 0) {
+    this->socket_failed_(LOG_STR("bind"));
+    return false;
+  }
+
+  err = this->socket_->listen(this->listen_backlog_);
+  if (err != 0) {
+    this->socket_failed_(LOG_STR("listen"));
+    return false;
+  }
+  return true;
 }
 
 void APIServer::setup() {
@@ -53,42 +98,14 @@ void APIServer::setup() {
 #endif
 #endif
 
-  this->socket_ = socket::socket_ip_loop_monitored(SOCK_STREAM, 0).release();  // monitored for incoming connections
-  if (this->socket_ == nullptr) {
-    this->socket_failed_(LOG_STR("creation"));
+#ifdef USE_API_OUTGOING_CONNECTION
+  // A dead listener degrades to an error status; dial-out still runs
+  this->create_listen_socket_();
+#else
+  if (!this->create_listen_socket_()) {
     return;
   }
-  int enable = 1;
-  int err = this->socket_->setsockopt(SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(int));
-  if (err != 0) {
-    ESP_LOGW(TAG, "Socket reuseaddr: errno %d", errno);
-    // we can still continue
-  }
-  err = this->socket_->setblocking(false);
-  if (err != 0) {
-    this->socket_failed_(LOG_STR("nonblocking"));
-    return;
-  }
-
-  struct sockaddr_storage server;
-
-  socklen_t sl = socket::set_sockaddr_any((struct sockaddr *) &server, sizeof(server), this->port_);
-  if (sl == 0) {
-    this->socket_failed_(LOG_STR("set sockaddr"));
-    return;
-  }
-
-  err = this->socket_->bind((struct sockaddr *) &server, sl);
-  if (err != 0) {
-    this->socket_failed_(LOG_STR("bind"));
-    return;
-  }
-
-  err = this->socket_->listen(this->listen_backlog_);
-  if (err != 0) {
-    this->socket_failed_(LOG_STR("listen"));
-    return;
-  }
+#endif
 
 #ifdef USE_LOGGER
   if (logger::global_logger != nullptr) {

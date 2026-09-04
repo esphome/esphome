@@ -13,7 +13,10 @@ void UDPComponent::setup() {
 #if defined(USE_SOCKET_IMPL_BSD_SOCKETS) || defined(USE_SOCKET_IMPL_LWIP_SOCKETS)
   for (const auto &address : this->addresses_) {
     struct sockaddr saddr {};
-    socket::set_sockaddr(&saddr, sizeof(saddr), address, this->broadcast_port_);
+    if (socket::set_sockaddr(&saddr, sizeof(saddr), address, this->broadcast_port_) == 0) {
+      ESP_LOGW(TAG, "Invalid address %s", address);
+      continue;
+    }
     this->sockaddrs_.push_back(saddr);
   }
   // set up broadcast socket

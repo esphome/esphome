@@ -42,7 +42,14 @@ bool AsyncClient::connect(const char *host, uint16_t port) {
     return false;
   }
 
-  socket_->setblocking(false);
+  if (socket_->setblocking(false) != 0) {
+    // A blocking connect()/read() would stall the whole loop
+    ESP_LOGE(TAG, "Failed to set nonblocking: errno %d", errno);
+    socket_.reset();
+    if (error_cb_)
+      error_cb_(error_arg_, this, errno);
+    return false;
+  }
 
   int err = socket_->connect((struct sockaddr *) &addr, addrlen);
   if (err == 0) {

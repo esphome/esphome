@@ -312,6 +312,7 @@ class APIServer final : public Component,
     this->socket_ = nullptr;
   }
   void socket_failed_(const LogString *msg);
+  bool create_listen_socket_();
   // Pointers and pointer-like types first (4 bytes each)
   socket::ListenSocket *socket_{nullptr};
 #ifdef USE_API_CLIENT_CONNECTED_TRIGGER
