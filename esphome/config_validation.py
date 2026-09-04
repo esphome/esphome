@@ -812,11 +812,11 @@ def convert_id_state_to_lambda(value) -> Lambda | None:
                 {Optional(x): validate_id_name for x in LAMBDA_SHORTHAND_KEYS},
             )(value)
         )
+        # has_exactly_one_key guarantees exactly one of these keys is present and, per
+        # validate_id_name, non-empty.
         if entity_state := value.get(CONF_ENTITY_STATE):
             return Lambda(f"return id({entity_state}).state;")
-        if argument := value.get(CONF_ARGUMENT):
-            return Lambda(f"return {argument};")
-        # Fall through and let other validators issue an error (though in practice this should never happen)
+        return Lambda(f"return {value[CONF_ARGUMENT]};")
     return None
 
 
