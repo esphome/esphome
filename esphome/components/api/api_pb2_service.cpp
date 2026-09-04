@@ -712,17 +712,6 @@ void APIConnection::read_message_(uint32_t msg_size, uint32_t msg_type, const ui
       this->on_device_capabilities_request();
       break;
     }
-#ifdef USE_ZIGBEE_PROXY
-    case ZigbeeProxyRequest::MESSAGE_TYPE: {
-      ZigbeeProxyRequest msg;
-      msg.decode(msg_data, msg_size);
-#ifdef HAS_PROTO_MESSAGE_DUMP
-      this->log_receive_message_(LOG_STR("on_zigbee_proxy_request"), msg);
-#endif
-      this->on_zigbee_proxy_request(msg);
-      break;
-    }
-#endif
 #ifdef USE_SERIAL_PROXY
     case SerialProxySetModeRequest::MESSAGE_TYPE: {
       SerialProxySetModeRequest msg;
@@ -731,6 +720,17 @@ void APIConnection::read_message_(uint32_t msg_size, uint32_t msg_type, const ui
       this->log_receive_message_(LOG_STR("on_serial_proxy_set_mode_request"), msg);
 #endif
       this->on_serial_proxy_set_mode_request(msg);
+      break;
+    }
+#endif
+#ifdef USE_ZIGBEE_PROXY
+    case ZigbeeProxyRequest::MESSAGE_TYPE: {
+      ZigbeeProxyRequest msg;
+      msg.decode(msg_data, msg_size);
+#ifdef HAS_PROTO_MESSAGE_DUMP
+      this->log_receive_message_(LOG_STR("on_zigbee_proxy_request"), msg);
+#endif
+      this->on_zigbee_proxy_request(msg);
       break;
     }
 #endif

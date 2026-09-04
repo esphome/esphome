@@ -854,6 +854,8 @@ template<> const char *proto_enum_to_string<enums::SerialProxyRequestType>(enums
       return ESPHOME_PSTR("SERIAL_PROXY_REQUEST_TYPE_CONFIGURE");
     case enums::SERIAL_PROXY_REQUEST_TYPE_SET_MODEM_PINS:
       return ESPHOME_PSTR("SERIAL_PROXY_REQUEST_TYPE_SET_MODEM_PINS");
+    case enums::SERIAL_PROXY_REQUEST_TYPE_SET_MODE:
+      return ESPHOME_PSTR("SERIAL_PROXY_REQUEST_TYPE_SET_MODE");
     default:
       return ESPHOME_PSTR("UNKNOWN");
   }

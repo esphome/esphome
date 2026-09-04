@@ -356,6 +356,7 @@ enum SerialProxyRequestType : uint32_t {
   SERIAL_PROXY_REQUEST_TYPE_FLUSH = 2,
   SERIAL_PROXY_REQUEST_TYPE_CONFIGURE = 3,
   SERIAL_PROXY_REQUEST_TYPE_SET_MODEM_PINS = 4,
+  SERIAL_PROXY_REQUEST_TYPE_SET_MODE = 5,
 };
 enum SerialProxyStatus : uint32_t {
   SERIAL_PROXY_STATUS_OK = 0,
@@ -3420,7 +3421,7 @@ class SerialProxyRequestResponse final : public ProtoMessage {
 };
 class SerialProxySetModeRequest final : public ProtoDecodableMessage {
  public:
-  static constexpr uint16_t MESSAGE_TYPE = 151;
+  static constexpr uint16_t MESSAGE_TYPE = 152;
   static constexpr uint8_t ESTIMATED_SIZE = 6;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const LogString *message_name() const override { return LOG_STR("serial_proxy_set_mode_request"); }
@@ -3476,7 +3477,7 @@ class BluetoothSetConnectionParamsResponse final : public ProtoMessage {
 #ifdef USE_ZIGBEE_PROXY
 class ZigbeeProxyRequest final : public ProtoDecodableMessage {
  public:
-  static constexpr uint16_t MESSAGE_TYPE = 150;
+  static constexpr uint16_t MESSAGE_TYPE = 153;
   static constexpr uint8_t ESTIMATED_SIZE = 21;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const LogString *message_name() const override { return LOG_STR("zigbee_proxy_request"); }

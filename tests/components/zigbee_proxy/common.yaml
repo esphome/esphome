@@ -20,4 +20,3 @@ serial_proxy:
     uart_id: zigbee_uart
     name: Zigbee
     port_type: TTL
-    mode: protocol

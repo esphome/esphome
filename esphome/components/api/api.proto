@@ -2733,7 +2733,8 @@ enum SerialProxyParity {
   SERIAL_PROXY_PARITY_ODD = 2;
 }
 
-// Configure UART parameters for a serial proxy instance
+// Configure UART parameters for a serial proxy instance. Only the subscribed client may
+// configure the port; others are refused with PORT_IN_USE (since API 1.17).
 message SerialProxyConfigureRequest {
   option (id) = 138;
   option (source) = SOURCE_CLIENT;
@@ -2759,7 +2760,8 @@ message SerialProxyDataReceived {
   bytes data = 2;               // Raw data received from the serial device
 }
 
-// Write data to a serial device
+// Write data to a serial device. Only the subscribed client may write; writes from
+// others are ignored (since API 1.17).
 message SerialProxyWriteRequest {
   option (id) = 140;
   option (source) = SOURCE_CLIENT;
@@ -2770,7 +2772,8 @@ message SerialProxyWriteRequest {
   bytes data = 2;               // Raw data to write to the serial device
 }
 
-// Set modem control pin states (RTS and DTR)
+// Set modem control pin states (RTS and DTR). Only the subscribed client may set them;
+// others are refused with PORT_IN_USE (since API 1.17).
 message SerialProxySetModemPinsRequest {
   option (id) = 141;
   option (source) = SOURCE_CLIENT;
@@ -2809,6 +2812,7 @@ enum SerialProxyRequestType {
   // error the device answers with INVALID_ARGUMENT.
   SERIAL_PROXY_REQUEST_TYPE_CONFIGURE = 3;      // Acknowledges a SerialProxyConfigureRequest
   SERIAL_PROXY_REQUEST_TYPE_SET_MODEM_PINS = 4; // Acknowledges a SerialProxySetModemPinsRequest
+  SERIAL_PROXY_REQUEST_TYPE_SET_MODE = 5;       // Acknowledges a SerialProxySetModeRequest (since API 1.17)
 }
 
 enum SerialProxyStatus {
@@ -2821,7 +2825,8 @@ enum SerialProxyStatus {
   SERIAL_PROXY_STATUS_INVALID_ARGUMENT = 6; // Invalid instance index or parameter value
 }
 
-// Generic request message for simple serial proxy operations
+// Generic request message for simple serial proxy operations. FLUSH requires an active
+// subscription; it is refused with PORT_IN_USE otherwise (since API 1.17).
 message SerialProxyRequest {
   option (id) = 144;
   option (source) = SOURCE_CLIENT;
@@ -2856,8 +2861,11 @@ enum SerialProxyMode {
   SERIAL_PROXY_MODE_PROTOCOL = 1;
 }
 
+// Only the subscribed client may change the mode; any other caller -- including one that
+// never subscribed -- is refused with PORT_IN_USE. PROTOCOL is refused with NOT_SUPPORTED
+// when the port has no protocol-aware tap configured.
 message SerialProxySetModeRequest {
-  option (id) = 151;
+  option (id) = 152;
   option (source) = SOURCE_CLIENT;
   option (ifdef) = "USE_SERIAL_PROXY";
 
@@ -2894,7 +2902,7 @@ enum ZigbeeProxyRequestType {
 }
 
 message ZigbeeProxyRequest {
-  option (id) = 150;
+  option (id) = 153;
   option (source) = SOURCE_BOTH;
   option (ifdef) = "USE_ZIGBEE_PROXY";
 
