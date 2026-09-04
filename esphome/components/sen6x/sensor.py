@@ -4,6 +4,10 @@ from esphome.components.const import CONF_NOX_INDEX, CONF_VOC_INDEX
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ALGORITHM_TUNING,
+    CONF_ALTITUDE_COMPENSATION,
+    CONF_AMBIENT_PRESSURE_COMPENSATION,
+    CONF_AMBIENT_PRESSURE_COMPENSATION_SOURCE,
+    CONF_AUTOMATIC_SELF_CALIBRATION,
     CONF_CO2,
     CONF_FORMALDEHYDE,
     CONF_GAIN_FACTOR,
@@ -153,6 +157,19 @@ CONFIG_SCHEMA = cv.All(
                 accuracy_decimals=0,
                 device_class=DEVICE_CLASS_CARBON_DIOXIDE,
                 state_class=STATE_CLASS_MEASUREMENT,
+            ).extend(
+                {
+                    cv.Optional(CONF_AUTOMATIC_SELF_CALIBRATION): cv.boolean,
+                    cv.Optional(CONF_ALTITUDE_COMPENSATION): cv.int_range(
+                        min=0, max=3000
+                    ),
+                    cv.Optional(CONF_AMBIENT_PRESSURE_COMPENSATION): cv.int_range(
+                        min=700, max=1200
+                    ),
+                    cv.Optional(CONF_AMBIENT_PRESSURE_COMPENSATION_SOURCE): cv.use_id(
+                        sensor.Sensor
+                    ),
+                }
             ),
             cv.Optional(CONF_FORMALDEHYDE): sensor.sensor_schema(
                 unit_of_measurement="ppb",
@@ -209,3 +226,15 @@ async def to_code(config: ConfigType) -> None:
                 args.append(std_initial)
             args.append(tuning[CONF_GAIN_FACTOR])
             cg.add(getattr(var, setter)(*args))
+    if co2_cfg := config.get(CONF_CO2):
+        if (asc := co2_cfg.get(CONF_AUTOMATIC_SELF_CALIBRATION)) is not None:
+            cg.add(var.set_automatic_self_calibration(asc))
+        if (altitude := co2_cfg.get(CONF_ALTITUDE_COMPENSATION)) is not None:
+            cg.add(var.set_altitude_compensation(altitude))
+        if (pressure := co2_cfg.get(CONF_AMBIENT_PRESSURE_COMPENSATION)) is not None:
+            cg.add(var.set_ambient_pressure_compensation(pressure))
+        if (
+            source := co2_cfg.get(CONF_AMBIENT_PRESSURE_COMPENSATION_SOURCE)
+        ) is not None:
+            sens = await cg.get_variable(source)
+            cg.add(var.set_ambient_pressure_source(sens))
