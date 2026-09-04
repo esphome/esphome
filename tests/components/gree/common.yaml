@@ -12,6 +12,13 @@ climate:
     transmitter_id: xmitr
     receiver_id: rcvr
 
+  - platform: gree
+    name: GREE YB1FA
+    id: my_gree_yb1fa_ac
+    model: YB1FA
+    transmitter_id: xmitr
+    receiver_id: rcvr
+
 switch:
   - platform: gree
     gree_id: my_gree_ac

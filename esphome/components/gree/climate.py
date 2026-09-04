@@ -17,6 +17,7 @@ MODELS = {
     "yaa": Model.GREE_YAA,
     "yac": Model.GREE_YAC,
     "yac1fb9": Model.GREE_YAC1FB9,
+    "yb1fa": Model.GREE_YB1FA,
     "yx1ff": Model.GREE_YX1FF,
     "yag": Model.GREE_YAG,
 }

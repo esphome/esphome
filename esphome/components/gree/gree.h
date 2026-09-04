@@ -48,7 +48,6 @@ static constexpr uint32_t GREE_YAC1FB9_MESSAGE_SPACE = 19980;
 // State Frame size
 static constexpr uint8_t GREE_STATE_FRAME_SIZE = 8;
 
-// Only available on YAN
 // Vertical air directions. Note that these cannot be set on all heat pumps
 static constexpr uint8_t GREE_VDIR_AUTO = 0x00;
 static constexpr uint8_t GREE_VDIR_MANUAL = 0x00;
@@ -58,6 +57,9 @@ static constexpr uint8_t GREE_VDIR_MUP = 0x03;
 static constexpr uint8_t GREE_VDIR_MIDDLE = 0x04;
 static constexpr uint8_t GREE_VDIR_MDOWN = 0x05;
 static constexpr uint8_t GREE_VDIR_DOWN = 0x06;
+static constexpr uint8_t GREE_VDIR_SWING_DOWN = 0x07;
+static constexpr uint8_t GREE_VDIR_SWING_MIDDLE = 0x09;
+static constexpr uint8_t GREE_VDIR_SWING_UP = 0x0B;
 
 // Only available on YAC/YAG
 // Horizontal air directions. Note that these cannot be set on all heat pumps
@@ -83,7 +85,7 @@ static constexpr uint8_t GREE_PRESET_SLEEP = 0x01;
 static constexpr uint8_t GREE_PRESET_SLEEP_BIT = 0x80;
 
 // Model codes
-enum Model { GREE_GENERIC, GREE_YAN, GREE_YAA, GREE_YAC, GREE_YAC1FB9, GREE_YX1FF, GREE_YAG };
+enum Model { GREE_GENERIC, GREE_YAN, GREE_YAA, GREE_YAC, GREE_YAC1FB9, GREE_YB1FA, GREE_YX1FF, GREE_YAG };
 
 using GreeState = std::array<uint8_t, GREE_STATE_FRAME_SIZE>;
 
@@ -121,7 +123,7 @@ class GreeClimateCodec {
   static uint8_t encode_fan_mode(Model model, climate::ClimateFanMode fan_mode);
   static uint8_t encode_horizontal_swing(climate::ClimateSwingMode swing_mode);
   static uint8_t encode_vertical_swing(climate::ClimateSwingMode swing_mode);
-  static optional<GreeClimateData> decode_yx1ff(const GreeState &state);
+  static optional<GreeClimateData> decode_model_a(Model model, const GreeState &state);
 };
 
 class GreeClimate final : public climate_ir::ClimateIR {

@@ -10,6 +10,44 @@ static constexpr uint8_t GREE_POWER_MASK = 0x08;
 static constexpr uint8_t GREE_FAN_MASK = 0x30;
 static constexpr uint8_t GREE_SWING_AUTO_MASK = 0x40;
 static constexpr uint8_t GREE_SLEEP_MASK = 0x80;
+static constexpr uint8_t GREE_TEMP_MASK = 0x0F;
+static constexpr uint8_t GREE_TIMER_HALF_HOUR_MASK = 0x10;
+static constexpr uint8_t GREE_TIMER_TENS_HOUR_MASK = 0x60;
+static constexpr uint8_t GREE_TIMER_HOURS_MASK = 0x0F;
+static constexpr uint8_t GREE_BYTE5_FIXED_MASK = 0xB8;
+static constexpr uint8_t GREE_BYTE5_FIXED_VALUE = 0x20;
+
+static bool is_valid_timer(const GreeState &state) {
+  const uint8_t timer_hours = state[2] & GREE_TIMER_HOURS_MASK;
+  const uint8_t timer_tens_hours = (state[1] & GREE_TIMER_TENS_HOUR_MASK) >> 5;
+  const bool timer_half_hour = state[1] & GREE_TIMER_HALF_HOUR_MASK;
+
+  if (timer_hours > 9 || timer_tens_hours > 2)
+    return false;
+  if (timer_tens_hours < 2)
+    return true;
+  return timer_hours < 4 || (timer_hours == 4 && !timer_half_hour);
+}
+
+static bool is_valid_vertical_swing(bool automatic, uint8_t position) {
+  if (automatic) {
+    return position == GREE_VDIR_SWING || position == GREE_VDIR_SWING_DOWN || position == GREE_VDIR_SWING_MIDDLE ||
+           position == GREE_VDIR_SWING_UP;
+  }
+  return position == GREE_VDIR_MANUAL || (position >= GREE_VDIR_UP && position <= GREE_VDIR_DOWN);
+}
+
+static bool is_valid_swing(Model model, const GreeState &state) {
+  const bool automatic = state[0] & GREE_SWING_AUTO_MASK;
+  const uint8_t vertical = state[4] & 0x0F;
+  const uint8_t horizontal = state[4] >> 4;
+
+  if (!is_valid_vertical_swing(automatic, vertical))
+    return false;
+  if (model == GREE_YX1FF)
+    return horizontal == (automatic ? GREE_HDIR_SWING : GREE_HDIR_MANUAL);
+  return horizontal == GREE_HDIR_MANUAL;
+}
 
 void GreeProtocol::encode(remote_base::RemoteTransmitData *data, const GreeState &state) const {
   data->reserve(140);
@@ -107,22 +145,24 @@ GreeState GreeClimateCodec::encode(Model model, const GreeClimateData &data, uin
     state[4] = GreeClimateCodec::encode_vertical_swing(data.swing_mode);
   }
 
-  if (model == GREE_YX1FF) {
+  if (model == GREE_YB1FA || model == GREE_YX1FF) {
     state[2] = GREE_LIGHT_BIT;
     if (data.mode != climate::CLIMATE_MODE_OFF)
       state[2] |= GREE_MODEL_A_BIT;
     state[3] = 0x50;
 
-    if (data.fan_mode == climate::CLIMATE_FAN_HIGH)
+    if (model == GREE_YX1FF && data.fan_mode == climate::CLIMATE_FAN_HIGH)
       state[2] |= GREE_FAN_TURBO_BIT;
 
     if (data.swing_mode == climate::CLIMATE_SWING_VERTICAL || data.swing_mode == climate::CLIMATE_SWING_BOTH) {
       state[0] |= GREE_SWING_AUTO_MASK;
-      // YX1FF repeats the automatic swing value in both nibbles.
-      state[4] = (GREE_HDIR_SWING << 4) | GREE_VDIR_SWING;
+      state[4] = GREE_VDIR_SWING;
+      // YX1FF repeats the automatic swing value in both nibbles, while YB1FA only uses the vertical field.
+      if (model == GREE_YX1FF)
+        state[4] |= GREE_HDIR_SWING << 4;
     }
 
-    if (data.preset == climate::CLIMATE_PRESET_SLEEP)
+    if (model == GREE_YX1FF && data.preset == climate::CLIMATE_PRESET_SLEEP)
       state[0] |= GREE_PRESET_SLEEP_BIT;
   }
 
@@ -161,9 +201,9 @@ GreeState GreeClimateCodec::encode(Model model, const GreeClimateData &data, uin
 }
 
 optional<GreeClimateData> GreeClimateCodec::decode(Model model, const GreeState &state) {
-  if (model != GREE_YX1FF)
+  if (model != GREE_YB1FA && model != GREE_YX1FF)
     return {};
-  return GreeClimateCodec::decode_yx1ff(state);
+  return GreeClimateCodec::decode_model_a(model, state);
 }
 
 uint8_t GreeClimateCodec::encode_operation_mode(climate::ClimateMode mode) {
@@ -243,7 +283,7 @@ uint8_t GreeClimateCodec::encode_vertical_swing(climate::ClimateSwingMode swing_
   }
 }
 
-optional<GreeClimateData> GreeClimateCodec::decode_yx1ff(const GreeState &state) {
+optional<GreeClimateData> GreeClimateCodec::decode_model_a(Model model, const GreeState &state) {
   if (!GreeProtocol::valid_checksum(state))
     return {};
 
@@ -252,22 +292,24 @@ optional<GreeClimateData> GreeClimateCodec::decode_yx1ff(const GreeState &state)
   const uint8_t fan = state[0] & GREE_FAN_MASK;
   const bool swing = state[0] & GREE_SWING_AUTO_MASK;
   const bool turbo = state[2] & GREE_FAN_TURBO_BIT;
-  // Light and X-Fan are independent features that are not represented by Climate.
-  const uint8_t byte2_validation_mask = static_cast<uint8_t>(~(GREE_LIGHT_BIT | GREE_XFAN_BIT));
-  const uint8_t expected_byte2 = (power ? GREE_MODEL_A_BIT : 0x00) | (turbo ? GREE_FAN_TURBO_BIT : 0x00);
+  const uint8_t temperature = state[1] & GREE_TEMP_MASK;
 
-  if (mode > GREE_MODE_HEAT || state[1] > GREE_TEMP_MAX - GREE_TEMP_MIN ||
-      (state[2] & byte2_validation_mask) != expected_byte2 || state[3] != 0x50 || state[4] != (swing ? 0x11 : 0x00) ||
-      state[5] != 0x20 || state[6] != 0x00 || (state[7] & 0x0F) != 0x00 || (turbo && fan != GREE_FAN_3)) {
+  // Timer, Turbo, Light, X-Fan, display temperature, I-Feel, and WiFi are independent features that are not
+  // represented by Climate. Validate their encodings where possible, then ignore them when publishing state.
+  if (mode > GREE_MODE_HEAT || temperature > GREE_TEMP_MAX - GREE_TEMP_MIN || !is_valid_timer(state) ||
+      static_cast<bool>(state[2] & GREE_MODEL_A_BIT) != power || state[3] != 0x50 || !is_valid_swing(model, state) ||
+      (state[5] & GREE_BYTE5_FIXED_MASK) != GREE_BYTE5_FIXED_VALUE || state[6] != 0x00 || (state[7] & 0x0F) != 0x00 ||
+      (model == GREE_YX1FF && turbo && fan != GREE_FAN_3)) {
     return {};
   }
 
   GreeClimateData data{
       .mode = climate::CLIMATE_MODE_OFF,
-      .target_temperature = static_cast<uint8_t>(GREE_TEMP_MIN + state[1]),
+      .target_temperature = static_cast<uint8_t>(GREE_TEMP_MIN + temperature),
       .fan_mode = climate::CLIMATE_FAN_AUTO,
       .swing_mode = swing ? climate::CLIMATE_SWING_VERTICAL : climate::CLIMATE_SWING_OFF,
-      .preset = state[0] & GREE_SLEEP_MASK ? climate::CLIMATE_PRESET_SLEEP : climate::CLIMATE_PRESET_NONE,
+      .preset = model == GREE_YX1FF && state[0] & GREE_SLEEP_MASK ? climate::CLIMATE_PRESET_SLEEP
+                                                                  : climate::CLIMATE_PRESET_NONE,
   };
 
   if (power) {
@@ -292,7 +334,7 @@ optional<GreeClimateData> GreeClimateCodec::decode_yx1ff(const GreeState &state)
 
   if (turbo) {
     data.fan_mode = climate::CLIMATE_FAN_HIGH;
-  } else {
+  } else if (model == GREE_YX1FF) {
     switch (fan) {
       case GREE_FAN_1:
         data.fan_mode = climate::CLIMATE_FAN_QUIET;
@@ -302,6 +344,21 @@ optional<GreeClimateData> GreeClimateCodec::decode_yx1ff(const GreeState &state)
         break;
       case GREE_FAN_3:
         data.fan_mode = climate::CLIMATE_FAN_MEDIUM;
+        break;
+      case GREE_FAN_AUTO:
+        data.fan_mode = climate::CLIMATE_FAN_AUTO;
+        break;
+    }
+  } else {
+    switch (fan) {
+      case GREE_FAN_1:
+        data.fan_mode = climate::CLIMATE_FAN_LOW;
+        break;
+      case GREE_FAN_2:
+        data.fan_mode = climate::CLIMATE_FAN_MEDIUM;
+        break;
+      case GREE_FAN_3:
+        data.fan_mode = climate::CLIMATE_FAN_HIGH;
         break;
       case GREE_FAN_AUTO:
         data.fan_mode = climate::CLIMATE_FAN_AUTO;
@@ -324,13 +381,14 @@ climate::ClimateTraits GreeClimate::traits() {
 }
 
 void GreeClimate::set_model(Model model) {
-  if (model == GREE_YAN || model == GREE_YX1FF) {
+  if (model == GREE_YAN || model == GREE_YB1FA || model == GREE_YX1FF) {
     // These remotes only expose a vertical swing control.
     this->swing_modes_.erase(climate::CLIMATE_SWING_HORIZONTAL);
     this->swing_modes_.erase(climate::CLIMATE_SWING_BOTH);
   }
-  if (model == GREE_YX1FF) {
+  if (model == GREE_YX1FF)
     this->fan_modes_.insert(climate::CLIMATE_FAN_QUIET);
+  if (model == GREE_YX1FF) {
     this->presets_.insert(climate::CLIMATE_PRESET_NONE);
     this->presets_.insert(climate::CLIMATE_PRESET_SLEEP);
   }

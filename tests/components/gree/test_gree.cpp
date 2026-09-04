@@ -21,12 +21,14 @@ static RawTimings encode_signal(const GreeState &state) {
   return data.get_data();
 }
 
-static GreeClimateData decode_climate_state(const GreeState &state) {
-  auto decoded = GreeClimateCodec::decode(GREE_YX1FF, state);
+static GreeClimateData decode_climate_state(Model model, const GreeState &state) {
+  auto decoded = GreeClimateCodec::decode(model, state);
   EXPECT_TRUE(decoded.has_value());
   return decoded.value_or(GreeClimateData{climate::CLIMATE_MODE_OFF, GREE_TEMP_MIN, climate::CLIMATE_FAN_AUTO,
                                           climate::CLIMATE_SWING_OFF, climate::CLIMATE_PRESET_NONE});
 }
+
+static GreeClimateData decode_climate_state(const GreeState &state) { return decode_climate_state(GREE_YX1FF, state); }
 
 TEST(GreeYX1FF, DecodeCool22Auto) {
   const GreeState state{0x09, 0x06, 0x60, 0x50, 0x00, 0x20, 0x00, 0xB0};
@@ -122,6 +124,142 @@ TEST(GreeYX1FF, ExactTransmitStatesMatchCaptures) {
             (GreeState{0x79, 0x06, 0x70, 0x50, 0x11, 0x20, 0x00, 0xC0}));
 }
 
+TEST(GreeYB1FA, DecodeCapturedPowerTemperatureAndModes) {
+  struct Capture {
+    GreeState state;
+    climate::ClimateMode mode;
+    uint8_t temperature;
+    climate::ClimateFanMode fan_mode;
+    climate::ClimateSwingMode swing_mode;
+  };
+  const std::array<Capture, 8> captures{{
+      {{0x31, 0x04, 0x20, 0x50, 0x00, 0x21, 0x00, 0x10},
+       climate::CLIMATE_MODE_OFF,
+       20,
+       climate::CLIMATE_FAN_HIGH,
+       climate::CLIMATE_SWING_OFF},
+      {{0x39, 0x04, 0x60, 0x50, 0x00, 0x21, 0x00, 0x90},
+       climate::CLIMATE_MODE_COOL,
+       20,
+       climate::CLIMATE_FAN_HIGH,
+       climate::CLIMATE_SWING_OFF},
+      {{0x39, 0x05, 0x60, 0x50, 0x04, 0x21, 0x00, 0xA0},
+       climate::CLIMATE_MODE_COOL,
+       21,
+       climate::CLIMATE_FAN_HIGH,
+       climate::CLIMATE_SWING_OFF},
+      {{0x1A, 0x08, 0x60, 0x50, 0x00, 0x21, 0x00, 0xE0},
+       climate::CLIMATE_MODE_DRY,
+       24,
+       climate::CLIMATE_FAN_LOW,
+       climate::CLIMATE_SWING_OFF},
+      {{0x3B, 0x06, 0x60, 0x50, 0x04, 0x21, 0x00, 0xD0},
+       climate::CLIMATE_MODE_FAN_ONLY,
+       22,
+       climate::CLIMATE_FAN_HIGH,
+       climate::CLIMATE_SWING_OFF},
+      {{0x3C, 0x06, 0x60, 0x50, 0x00, 0x21, 0x00, 0xE0},
+       climate::CLIMATE_MODE_HEAT,
+       22,
+       climate::CLIMATE_FAN_HIGH,
+       climate::CLIMATE_SWING_OFF},
+      {{0x48, 0x09, 0x60, 0x50, 0x01, 0x21, 0x00, 0xD0},
+       climate::CLIMATE_MODE_HEAT_COOL,
+       25,
+       climate::CLIMATE_FAN_AUTO,
+       climate::CLIMATE_SWING_VERTICAL},
+      {{0x39, 0x04, 0x60, 0x50, 0x04, 0x20, 0x00, 0x90},
+       climate::CLIMATE_MODE_COOL,
+       20,
+       climate::CLIMATE_FAN_HIGH,
+       climate::CLIMATE_SWING_OFF},
+  }};
+
+  for (const auto &capture : captures) {
+    const auto decoded = decode_climate_state(GREE_YB1FA, capture.state);
+    EXPECT_EQ(decoded.mode, capture.mode);
+    EXPECT_EQ(decoded.target_temperature, capture.temperature);
+    EXPECT_EQ(decoded.fan_mode, capture.fan_mode);
+    EXPECT_EQ(decoded.swing_mode, capture.swing_mode);
+  }
+}
+
+TEST(GreeYB1FA, DecodeCapturedSwingPositions) {
+  struct Capture {
+    GreeState state;
+    climate::ClimateSwingMode expected;
+  };
+  const std::array<Capture, 10> captures{{
+      {{0x39, 0x04, 0x60, 0x50, 0x00, 0x21, 0x00, 0x90}, climate::CLIMATE_SWING_OFF},
+      {{0x79, 0x04, 0x60, 0x50, 0x01, 0x21, 0x00, 0x90}, climate::CLIMATE_SWING_VERTICAL},
+      {{0x39, 0x04, 0x60, 0x50, 0x02, 0x21, 0x00, 0x90}, climate::CLIMATE_SWING_OFF},
+      {{0x39, 0x04, 0x60, 0x50, 0x03, 0x21, 0x00, 0x90}, climate::CLIMATE_SWING_OFF},
+      {{0x39, 0x04, 0x60, 0x50, 0x04, 0x21, 0x00, 0x90}, climate::CLIMATE_SWING_OFF},
+      {{0x39, 0x04, 0x60, 0x50, 0x05, 0x21, 0x00, 0x90}, climate::CLIMATE_SWING_OFF},
+      {{0x39, 0x04, 0x60, 0x50, 0x06, 0x21, 0x00, 0x90}, climate::CLIMATE_SWING_OFF},
+      {{0x79, 0x04, 0x60, 0x50, 0x07, 0x21, 0x00, 0x90}, climate::CLIMATE_SWING_VERTICAL},
+      {{0x79, 0x04, 0x60, 0x50, 0x09, 0x21, 0x00, 0x90}, climate::CLIMATE_SWING_VERTICAL},
+      {{0x79, 0x04, 0x60, 0x50, 0x0B, 0x21, 0x00, 0x90}, climate::CLIMATE_SWING_VERTICAL},
+  }};
+
+  for (const auto &capture : captures) {
+    const auto decoded = decode_climate_state(GREE_YB1FA, capture.state);
+    EXPECT_EQ(decoded.swing_mode, capture.expected);
+  }
+}
+
+TEST(GreeYB1FA, DecodeCapturedFanTurboAndFeatureFields) {
+  struct Capture {
+    GreeState state;
+    climate::ClimateFanMode expected;
+  };
+  const std::array<Capture, 7> captures{{
+      {{0x59, 0x04, 0x60, 0x50, 0x01, 0x21, 0x00, 0x90}, climate::CLIMATE_FAN_LOW},
+      {{0x69, 0x04, 0x60, 0x50, 0x01, 0x21, 0x00, 0x90}, climate::CLIMATE_FAN_MEDIUM},
+      {{0x79, 0x04, 0x60, 0x50, 0x01, 0x21, 0x00, 0x90}, climate::CLIMATE_FAN_HIGH},
+      {{0x49, 0x04, 0x60, 0x50, 0x01, 0x21, 0x00, 0x90}, climate::CLIMATE_FAN_AUTO},
+      {{0x49, 0x04, 0x70, 0x50, 0x01, 0x21, 0x00, 0x90}, climate::CLIMATE_FAN_HIGH},
+      {{0x49, 0x04, 0xE0, 0x50, 0x01, 0x21, 0x00, 0x90}, climate::CLIMATE_FAN_AUTO},
+      {{0x79, 0x04, 0x40, 0x50, 0x01, 0x21, 0x00, 0x90}, climate::CLIMATE_FAN_HIGH},
+  }};
+
+  for (const auto &capture : captures) {
+    const auto decoded = decode_climate_state(GREE_YB1FA, capture.state);
+    EXPECT_EQ(decoded.fan_mode, capture.expected);
+  }
+}
+
+TEST(GreeYB1FA, DecodeCapturedTimerFramesAndRejectAuxiliaryFrames) {
+  constexpr std::array<GreeState, 2> climate_frames{{
+      {0x79, 0xB4, 0x62, 0x50, 0x01, 0x20, 0x00, 0xB0},
+      {0x79, 0xD4, 0x61, 0x50, 0x01, 0x20, 0x00, 0xA0},
+  }};
+  constexpr std::array<GreeState, 3> auxiliary_frames{{
+      {0x79, 0xB4, 0x62, 0x60, 0xF6, 0x0A, 0x00, 0x82},
+      {0x79, 0xD4, 0x61, 0x60, 0x00, 0x08, 0x51, 0xD1},
+      {0x79, 0xD4, 0x61, 0x60, 0xF5, 0x1A, 0x51, 0xD3},
+  }};
+
+  for (const auto &state : climate_frames) {
+    const auto decoded = decode_climate_state(GREE_YB1FA, state);
+    EXPECT_EQ(decoded.mode, climate::CLIMATE_MODE_COOL);
+    EXPECT_EQ(decoded.target_temperature, 20);
+    EXPECT_EQ(decoded.fan_mode, climate::CLIMATE_FAN_HIGH);
+    EXPECT_EQ(decoded.swing_mode, climate::CLIMATE_SWING_VERTICAL);
+  }
+  for (const auto &state : auxiliary_frames) {
+    EXPECT_TRUE(GreeProtocol::valid_checksum(state));
+    EXPECT_FALSE(GreeClimateCodec::decode(GREE_YB1FA, state).has_value());
+  }
+}
+
+TEST(GreeYB1FA, ExactTransmitStateUsesYB1FAFanAndSwingEncoding) {
+  const GreeClimateData data{climate::CLIMATE_MODE_COOL, 20, climate::CLIMATE_FAN_HIGH, climate::CLIMATE_SWING_VERTICAL,
+                             climate::CLIMATE_PRESET_NONE};
+
+  EXPECT_EQ(GreeClimateCodec::encode(GREE_YB1FA, data), (GreeState{0x79, 0x04, 0x60, 0x50, 0x01, 0x20, 0x00, 0x90}));
+}
+
 TEST(GreeClimateCodec, OtherModelsTransmitStateRegression) {
   const GreeClimateData source{climate::CLIMATE_MODE_COOL, 22, climate::CLIMATE_FAN_MEDIUM,
                                climate::CLIMATE_SWING_VERTICAL, climate::CLIMATE_PRESET_NONE};
@@ -179,6 +317,47 @@ TEST(GreeYX1FF, ClimateStateRoundTrip) {
   }
 }
 
+TEST(GreeYB1FA, ClimateStateRoundTrip) {
+  constexpr std::array<climate::ClimateMode, 6> modes{
+      climate::CLIMATE_MODE_OFF, climate::CLIMATE_MODE_HEAT_COOL, climate::CLIMATE_MODE_COOL,
+      climate::CLIMATE_MODE_DRY, climate::CLIMATE_MODE_FAN_ONLY,  climate::CLIMATE_MODE_HEAT,
+  };
+  constexpr std::array<uint8_t, 5> temperatures{16, 17, 22, 27, 30};
+  constexpr std::array<climate::ClimateFanMode, 4> fans{
+      climate::CLIMATE_FAN_AUTO,
+      climate::CLIMATE_FAN_LOW,
+      climate::CLIMATE_FAN_MEDIUM,
+      climate::CLIMATE_FAN_HIGH,
+  };
+  constexpr std::array<climate::ClimateSwingMode, 2> swings{
+      climate::CLIMATE_SWING_OFF,
+      climate::CLIMATE_SWING_VERTICAL,
+  };
+  constexpr std::array<climate::ClimatePreset, 1> presets{
+      climate::CLIMATE_PRESET_NONE,
+  };
+
+  for (const auto mode : modes) {
+    for (const auto temperature : temperatures) {
+      for (const auto fan : fans) {
+        for (const auto swing : swings) {
+          for (const auto preset : presets) {
+            const GreeClimateData source{mode, temperature, fan, swing, preset};
+            const GreeState state = GreeClimateCodec::encode(GREE_YB1FA, source);
+            const auto decoded = decode_climate_state(GREE_YB1FA, state);
+
+            EXPECT_EQ(decoded.mode, source.mode);
+            EXPECT_EQ(decoded.target_temperature, source.target_temperature);
+            EXPECT_EQ(decoded.fan_mode, source.fan_mode);
+            EXPECT_EQ(decoded.swing_mode, source.swing_mode);
+            EXPECT_EQ(decoded.preset, source.preset);
+          }
+        }
+      }
+    }
+  }
+}
+
 TEST(GreeProtocol, SignalRoundTrip) {
   const GreeState expected{0x79, 0x06, 0x70, 0x50, 0x11, 0x20, 0x00, 0xC0};
   auto decoded = decode_signal(encode_signal(expected));
@@ -223,13 +402,15 @@ TEST(GreeProtocol, RejectsBadInterBlockGap) {
 }
 
 TEST(GreeYX1FF, RejectsInvalidStateFields) {
-  std::array<GreeState, 6> invalid_states{{
+  std::array<GreeState, 8> invalid_states{{
       {0x0F, 0x06, 0x60, 0x50, 0x00, 0x20, 0x00, 0x00},  // Invalid operation mode.
       {0x09, 0x0F, 0x60, 0x50, 0x00, 0x20, 0x00, 0x00},  // Temperature above 30 degrees.
       {0x09, 0x06, 0x70, 0x50, 0x00, 0x20, 0x00, 0x00},  // Turbo without fan speed 3.
       {0x49, 0x06, 0x60, 0x50, 0x00, 0x20, 0x00, 0x00},  // Swing flag without swing payload.
       {0x09, 0x06, 0x20, 0x50, 0x00, 0x20, 0x00, 0x00},  // ModelA bit does not match power.
-      {0x09, 0x06, 0x61, 0x50, 0x00, 0x20, 0x00, 0x00},  // Unsupported timer hours.
+      {0x09, 0x06, 0x6A, 0x50, 0x00, 0x20, 0x00, 0x00},  // Invalid timer units digit.
+      {0x09, 0x66, 0x60, 0x50, 0x00, 0x20, 0x00, 0x00},  // Invalid timer tens digit.
+      {0x09, 0x56, 0x64, 0x50, 0x00, 0x20, 0x00, 0x00},  // Timer above the 24-hour maximum.
   }};
 
   for (auto &state : invalid_states) {
