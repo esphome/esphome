@@ -4,6 +4,7 @@ import logging
 import os
 from pathlib import Path
 import re
+import subprocess
 import time
 
 from esphome import loader
@@ -739,3 +740,53 @@ def write_gitignore():
     path = CORE.relative_config_path(".gitignore")
     if not path.is_file():
         path.write_text(GITIGNORE_CONTENT, encoding="utf-8")
+
+
+def check_build_tree_not_tracked() -> None:
+    """Warn if the build tree is tracked by git.
+
+    ``write_gitignore`` never touches an existing ``.gitignore``, so a build
+    tree that was committed before it was excluded (or on a config predating
+    ESPHome's auto-generated ``.gitignore``) stays tracked forever: adding a
+    pattern to ``.gitignore`` does not untrack files already in the index.
+    Every subsequent build would then keep changing the regenerated files
+    under version control.
+    """
+    data_dir = CORE.data_dir
+    if (data_dir / ".gitkeep").is_file():
+        # The user deliberately placed a .gitkeep file, opting the build
+        # directory into version control on purpose.
+        return
+
+    try:
+        relative_data_dir = data_dir.relative_to(CORE.config_dir)
+    except ValueError:
+        # Outside the config directory (e.g. the Home Assistant add-on's
+        # /data, or ESPHOME_DATA_DIR pointing elsewhere) -- can't be part of
+        # this repository.
+        return
+
+    try:
+        result = subprocess.run(
+            ["git", "ls-files", "-z", "--", str(relative_data_dir)],
+            cwd=CORE.config_dir,
+            capture_output=True,
+            check=False,
+        )
+    except FileNotFoundError:
+        # git is not installed.
+        return
+    if result.returncode != 0 or not result.stdout:
+        return
+
+    tracked_count = len([name for name in result.stdout.split(b"\0") if name])
+    _LOGGER.warning(
+        "%s is tracked by git (%d file%s). This is the ESPHome build "
+        "directory; it holds generated files and should not be committed. "
+        "Add it to your .gitignore, then remove it from version control "
+        "with: git rm -r --cached %s",
+        relative_data_dir,
+        tracked_count,
+        "" if tracked_count == 1 else "s",
+        relative_data_dir,
+    )
