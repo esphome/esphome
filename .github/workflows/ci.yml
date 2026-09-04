@@ -949,7 +949,7 @@ jobs:
           - id: clang-tidy
             name: Run script/clang-tidy for ESP32 S3
             # yamllint disable-line rule:line-length
-            options: --environment esp32s3-idf-tidy --grep SOC_TEMP_SENSOR_SUPPORTED --grep USE_ESP32_VARIANT_ESP32S3 --grep USE_LOGGER_USB_CDC
+            options: --environment esp32s3-idf-tidy --grep SOC_TEMP_SENSOR_SUPPORTED --grep USE_ESP32_VARIANT_ESP32S3 --grep USE_LOGGER_USB_CDC --grep USE_OPENTHREAD
             tidy_environment: esp32s3-idf-tidy
           - id: clang-tidy
             name: Run script/clang-tidy for ESP32 P4
