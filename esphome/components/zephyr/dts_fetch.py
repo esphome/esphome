@@ -9,6 +9,7 @@ import time
 
 import yaml
 
+from esphome.build_helpers.tools_cache import SDK_ZEPHYR_TOOLS_CACHE, tools_cache_path
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_PATH,
@@ -28,13 +29,26 @@ from .variants import ZephyrSDK
 
 _LOGGER = logging.getLogger(__name__)
 
-_DTS_CACHE = Path.home() / ".esphome" / "zephyr_dts_cache"
 # Bump when _sparse_clone_dts()'s `sparse-checkout set` file list changes, so a cache
 # from before the change (still matching on tag alone) is detected as stale and
 # re-fetched instead of silently missing the newly-added paths forever.
 _SPARSE_CHECKOUT_SCHEMA = "2"
-_SDK_SOURCE_VERSION_CACHE = Path.home() / ".esphome" / "zephyr_sdk_source_version_cache"
-_MANIFEST_REVISION_CACHE = Path.home() / ".esphome" / "zephyr_manifest_revision_cache"
+
+
+def _dts_cache_root() -> Path:
+    # Nested under the same machine-global sdk-zephyr cache root as the SDK/west
+    # workspace itself (not a bare ~/.esphome/) so it's covered by the same
+    # ESPHOME_SDK_ZEPHYR_PREFIX override and by `esphome clean-all`.
+    return tools_cache_path(*SDK_ZEPHYR_TOOLS_CACHE) / "dts_cache"
+
+
+def _sdk_source_version_cache_root() -> Path:
+    return tools_cache_path(*SDK_ZEPHYR_TOOLS_CACHE) / "sdk_source_version_cache"
+
+
+def _manifest_revision_cache_root() -> Path:
+    return tools_cache_path(*SDK_ZEPHYR_TOOLS_CACHE) / "manifest_revision_cache"
+
 
 # A fork-pinned boards revision (e.g. Silabs' zephyr-silabs west.yml) is a raw commit
 # SHA, which `git clone --branch` can't resolve.
@@ -184,7 +198,7 @@ def resolve_sdk_source_version(source: ConfigType, refresh: TimePeriodSeconds) -
 
     url = source[CONF_URL]
     ref = source.get(CONF_REF)
-    dest = _SDK_SOURCE_VERSION_CACHE / _sdk_source_cache_key(url, ref)
+    dest = _sdk_source_version_cache_root() / _sdk_source_cache_key(url, ref)
     version_file = dest / "VERSION"
 
     needs_fetch = not version_file.is_file()
@@ -229,17 +243,19 @@ def _native_dts_path(sdk: ZephyrSDK) -> Path | None:
     """Return the zephyr/ subdirectory in the native SDK install if it is present on disk.
 
     Both mainline Zephyr and NCS check out the tree that owns boards/ under a sibling
-    directory literally named "zephyr" (NCS: <tools_subdir>/frameworks/v<ver>/zephyr,
-    the bundled sdk-zephyr fork project -- confirmed against a real local NCS install),
-    so this needs no per-sdk branching.
+    directory literally named "zephyr" (the bundled sdk-zephyr fork project -- confirmed
+    against a real local NCS install), so this needs no per-sdk branching beyond the cache
+    key. Only matches the plain official-source install (no sdk_source: override, no
+    modules) -- framework_west._source_cache_key()'s other branches aren't reproducible
+    here without the source/git_modules info this function doesn't have; those cases just
+    fall through to the caller's git-fetch fallback.
     """
     if sdk.tools_subdir is None:
         return None
     candidate = (
-        CORE.data_dir
-        / sdk.tools_subdir
+        tools_cache_path(*SDK_ZEPHYR_TOOLS_CACHE)
         / "frameworks"
-        / f"v{_framework_base_version()}"
+        / f"{sdk.tools_subdir}-v{_framework_base_version()}"
         / "zephyr"
     )
     return candidate if candidate.is_dir() else None
@@ -253,15 +269,16 @@ def _resolve_boards_ref(sdk: ZephyrSDK, ver: str) -> str | None:
     manifest_url's own west.yml at tag f"v{ver}" and read the boards_repo_url project's
     own `revision:` field -- the only correct way to know it; see
     ZephyrSDK.resolve_boards_ref_via_manifest for why a guessed format string can't work.
-    Cached at ~/.esphome/zephyr_manifest_revision_cache/ (small -- just the resolved
-    string), immutable per (manifest_url, ver) since ver always maps to the same
-    immutable upstream tag.
+    Cached under the machine-global sdk-zephyr cache root's manifest_revision_cache/
+    (small -- just the resolved string), immutable per (manifest_url, ver) since ver
+    always maps to the same immutable upstream tag.
     """
     if not sdk.resolve_boards_ref_via_manifest:
         return f"v{ver}"
 
+    cache_root = _manifest_revision_cache_root()
     cache_key = hashlib.sha1(f"{sdk.manifest_url}@v{ver}".encode()).hexdigest()[:16]
-    cache_file = _MANIFEST_REVISION_CACHE / cache_key
+    cache_file = cache_root / cache_key
     if cache_file.is_file():
         return cache_file.read_text().strip() or None
 
@@ -322,7 +339,7 @@ def _resolve_boards_ref(sdk: ZephyrSDK, ver: str) -> str | None:
             sdk.boards_repo_url,
         )
 
-    _MANIFEST_REVISION_CACHE.mkdir(parents=True, exist_ok=True)
+    cache_root.mkdir(parents=True, exist_ok=True)
     cache_file.write_text(revision or "")
     return revision
 
@@ -410,17 +427,18 @@ def _sparse_clone_dts(
     """Sparse-clone boards/, dts/, and include/zephyr/dt-bindings/ from the sdk's board
     repo.
 
-    The clone is cached at ~/.esphome/zephyr_dts_cache/<variant>/<sdk_name>/<sdk_ver>/
-    and reused on subsequent compiles. The cache is keyed on the resolved boards
-    revision (stored in a small marker file), not just directory presence, so a stale
-    checkout from before a ref-resolution fix landed is detected and re-fetched
-    automatically instead of silently reused forever.
+    The clone is cached under the machine-global sdk-zephyr cache root's
+    dts_cache/<variant>/<sdk_name>/<sdk_ver>/ and reused on subsequent compiles. The
+    cache is keyed on the resolved boards revision (stored in a small marker file),
+    not just directory presence, so a stale checkout from before a ref-resolution fix
+    landed is detected and re-fetched automatically instead of silently reused
+    forever.
     Returns None if git is unavailable, the tag/ref can't be resolved, or the clone
     fails.
     """
     repo = sdk.boards_repo_url or sdk.manifest_url
     ver = _framework_base_version()
-    dest = _DTS_CACHE / variant / sdk_name / ver
+    dest = _dts_cache_root() / variant / sdk_name / ver
 
     tag = _resolve_boards_ref(sdk, ver)
     if tag is None:
@@ -480,8 +498,8 @@ def _sparse_clone_dts_from_source(
     Mirrors _sparse_clone_dts() but clones the user's fork/ref directly instead of an
     upstream tag -- a fork's VERSION file (e.g. a custom bump like "4.4.99") has no
     matching tag on the plain upstream repo, so DTS lookups must come from the same
-    fork/ref the rest of the build uses. Cached at
-    ~/.esphome/zephyr_dts_cache/<url-ref-hash>/, keyed the same way as
+    fork/ref the rest of the build uses. Cached under the machine-global sdk-zephyr
+    cache root's dts_cache/<url-ref-hash>/, keyed the same way as
     resolve_sdk_source_version()'s cache. Unlike the upstream-tag path (an immutable
     tag never needs re-fetching), a fork/branch is a moving ref -- respects the same
     `refresh:` window as resolve_sdk_source_version()/framework_west.py's SDK install,
@@ -490,7 +508,7 @@ def _sparse_clone_dts_from_source(
     """
     url = source[CONF_URL]
     ref = source.get(CONF_REF)
-    dest = _DTS_CACHE / _sdk_source_cache_key(url, ref)
+    dest = _dts_cache_root() / _sdk_source_cache_key(url, ref)
     schema_marker = dest / ".sparse_schema"
 
     zephyr_dir = dest / "zephyr" if (dest / "zephyr").is_dir() else dest
@@ -577,7 +595,7 @@ async def fetch_board_dts(
     directly from that same fork/ref, for the same reason. Otherwise tries the native
     SDK install (no network required if already installed), then falls back to a
     sparse git clone of the resolved boards revision (see _resolve_boards_ref()),
-    cached under ~/.esphome/zephyr_dts_cache/. Safe to call multiple times in one run —
+    cached under _dts_cache_root(). Safe to call multiple times in one run —
     no-op after the first successful resolve.
     """
     zd = CORE.data[KEY_ZEPHYR]

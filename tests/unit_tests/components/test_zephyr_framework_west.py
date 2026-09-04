@@ -7,12 +7,15 @@ from pathlib import Path
 import time
 from unittest.mock import patch
 
+import platformdirs
+import pytest
 import yaml
 
 from esphome.components.zephyr.framework_west import (
     _effective_requirements,
     _generate_synthetic_manifest,
     _source_cache_key,
+    _tools_path,
     check_and_install,
 )
 from esphome.components.zephyr.variants import ZephyrModule, ZephyrSDK
@@ -137,16 +140,29 @@ def test_source_cache_key_differs_when_module_url_changes_but_name_and_rev_match
     module_a = [ZephyrModule(name="mod", manifest_url="http://a", revision="main")]
     module_b = [ZephyrModule(name="mod", manifest_url="http://b", revision="main")]
 
-    assert _source_cache_key("v1.0.0", None, module_a) != _source_cache_key(
-        "v1.0.0", None, module_b
+    assert _source_cache_key(_FAKE_SDK, "v1.0.0", None, module_a) != _source_cache_key(
+        _FAKE_SDK, "v1.0.0", None, module_b
     )
 
 
 def test_source_cache_key_matches_for_identical_module_set() -> None:
     modules = [ZephyrModule(name="mod", manifest_url="http://a", revision="main")]
 
-    assert _source_cache_key("v1.0.0", None, modules) == _source_cache_key(
-        "v1.0.0", None, modules
+    assert _source_cache_key(_FAKE_SDK, "v1.0.0", None, modules) == _source_cache_key(
+        _FAKE_SDK, "v1.0.0", None, modules
+    )
+
+
+def test_source_cache_key_differs_across_sdk_variants() -> None:
+    # MAINLINE/NCS/SILABS share one machine-global cache root; a matching version:
+    # string must not resolve to the same directory for different SDKs.
+    mainline = ZephyrSDK(
+        manifest_url="https://example.invalid/zephyr", tools_subdir="a"
+    )
+    ncs = ZephyrSDK(manifest_url="https://example.invalid/nrf", tools_subdir="b")
+
+    assert _source_cache_key(mainline, "v1.0.0", None) != _source_cache_key(
+        ncs, "v1.0.0", None
     )
 
 
@@ -215,3 +231,24 @@ def test_generate_synthetic_manifest_root_name_override(tmp_path: Path) -> None:
 
     manifest = yaml.safe_load((manifest_dir / "west.yml").read_text())
     assert manifest["manifest"]["projects"][0]["name"] == "nrf"
+
+
+# ---------------------------------------------------------------------------
+# _tools_path -- machine-global cache location
+# ---------------------------------------------------------------------------
+
+
+def test_tools_path_env_override(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    override = tmp_path / "custom" / "sdk-zephyr"
+    monkeypatch.setenv("ESPHOME_SDK_ZEPHYR_PREFIX", str(override))
+    assert _tools_path() == override.resolve()
+
+
+def test_tools_path_default_is_global_cache(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("ESPHOME_SDK_ZEPHYR_PREFIX", raising=False)
+    expected = (
+        Path(platformdirs.user_cache_dir("esphome", appauthor=False)) / "sdk-zephyr"
+    ).resolve()
+    assert _tools_path() == expected

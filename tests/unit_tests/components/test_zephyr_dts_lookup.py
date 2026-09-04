@@ -32,8 +32,7 @@ from esphome.components.zephyr.dts_lookup import (
     resolve_zephyr_bus,
     validate_board_revision,
 )
-import esphome.config_validation as cv
-from esphome.core import CORE
+from esphome.core import CORE, EsphomeError
 
 
 def _empty_zd(**overrides) -> dict:
@@ -95,14 +94,16 @@ def test_resolve_zephyr_bus_returns_explicit_override() -> None:
 
 
 def test_resolve_zephyr_bus_raises_when_nothing_resolves() -> None:
+    # resolve_zephyr_bus() raises EsphomeError, not cv.Invalid -- it runs from
+    # to_code(), not CONFIG_SCHEMA, where only cv.Invalid is caught/formatted.
     CORE.data[KEY_ZEPHYR] = _empty_zd()
-    with pytest.raises(cv.Invalid, match="Cannot determine I2C bus label"):
+    with pytest.raises(EsphomeError, match="Cannot determine I2C bus label"):
         resolve_zephyr_bus("i2c", "unknown_board", override_key="dts_node_override")
 
 
 def test_resolve_zephyr_bus_error_hint_uses_caller_supplied_override_key() -> None:
     CORE.data[KEY_ZEPHYR] = _empty_zd()
-    with pytest.raises(cv.Invalid, match="interface: spi0"):
+    with pytest.raises(EsphomeError, match="interface: spi0"):
         resolve_zephyr_bus("spi", "unknown_board", override_key="interface")
 
 
