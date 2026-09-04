@@ -9,11 +9,8 @@ from esphome.const import (
     CONF_ID,
     CONF_LAMBDA,
     CONF_ON_TOUCH,
-    PLATFORM_BK72XX,
     PLATFORM_ESP32,
     PLATFORM_ESP8266,
-    PLATFORM_LN882X,
-    PLATFORM_RTL87XX,
 )
 from esphome.core import CORE, TimePeriod
 
@@ -153,9 +150,6 @@ CONFIG_SCHEMA = cv.All(
                     [
                         PLATFORM_ESP32,
                         PLATFORM_ESP8266,
-                        PLATFORM_BK72XX,
-                        PLATFORM_RTL87XX,
-                        PLATFORM_LN882X,
                     ]
                 ),
             ),
@@ -296,7 +290,9 @@ async def to_code(config):
 
         if CORE.is_esp32:
             # Re-enable ESP-IDF's HTTP client (excluded by default to save compile time)
+            # and esp-tls, whose sdkconfig options below need the component present
             esp32.include_builtin_idf_component("esp_http_client")
+            esp32.include_builtin_idf_component("esp-tls")
             esp32.add_idf_sdkconfig_option("CONFIG_ESP_TLS_INSECURE", True)
             esp32.add_idf_sdkconfig_option(
                 "CONFIG_ESP_TLS_SKIP_SERVER_CERT_VERIFY", True

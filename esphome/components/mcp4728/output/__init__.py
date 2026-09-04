@@ -2,6 +2,7 @@ import esphome.codegen as cg
 from esphome.components import output
 import esphome.config_validation as cv
 from esphome.const import CONF_CHANNEL, CONF_GAIN, CONF_ID
+from esphome.types import ConfigType
 
 from .. import CONF_MCP4728_ID, MCP4728Component, mcp4728_ns
 
@@ -50,7 +51,7 @@ CONFIG_SCHEMA = output.FLOAT_OUTPUT_SCHEMA.extend(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     paren = await cg.get_variable(config[CONF_MCP4728_ID])
     var = cg.new_Pvariable(
         config[CONF_ID],

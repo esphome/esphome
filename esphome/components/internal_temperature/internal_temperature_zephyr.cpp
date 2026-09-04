@@ -8,7 +8,7 @@
 
 namespace esphome::internal_temperature {
 
-static const char *const TAG = "internal_temperature.zephyr";
+static const char *const TAG = "internal_temperature";
 
 static const struct device *const DIE_TEMPERATURE_SENSOR = DEVICE_DT_GET_ONE(nordic_nrf_temp);
 
