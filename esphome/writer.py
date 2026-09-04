@@ -779,7 +779,7 @@ def check_build_tree_not_tracked() -> None:
     if result.returncode != 0 or not result.stdout:
         return
 
-    tracked_count = len([name for name in result.stdout.split(b"\0") if name])
+    tracked_count = sum(1 for name in result.stdout.split(b"\0") if name)
     _LOGGER.warning(
         "%s is tracked by git (%d file%s). This is the ESPHome build "
         "directory; it holds generated files that may contain your secrets "

@@ -4275,10 +4275,14 @@ def test_write_cpp_writes_gitignore_and_checks_build_tree(
     mock_write_file.assert_called_once()
 
 
-def test_write_cpp_skips_git_checks_when_nogitignore_env_set(
+def test_write_cpp_skips_gitignore_but_still_checks_build_tree(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """ESPHOME_NOGITIGNORE skips both writing .gitignore and the tracked-file check."""
+    """ESPHOME_NOGITIGNORE skips writing .gitignore.
+
+    The (read-only) tracked-file check still runs -- it isn't tied to
+    whether ESPHome is allowed to write files.
+    """
     monkeypatch.setenv(ENV_NOGITIGNORE, "true")
 
     with (
@@ -4291,7 +4295,7 @@ def test_write_cpp_skips_git_checks_when_nogitignore_env_set(
         write_cpp({})
 
     mock_write_gitignore.assert_not_called()
-    mock_check_tracked.assert_not_called()
+    mock_check_tracked.assert_called_once()
 
 
 def test_command_config_hash(
