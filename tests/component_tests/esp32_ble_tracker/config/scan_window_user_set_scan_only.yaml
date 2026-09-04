@@ -1,0 +1,14 @@
+esphome:
+  name: scan-window-user-scan-only
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+wifi:
+  ssid: MySSID
+
+esp32_ble_tracker:
+  scan_parameters:
+    connection_scan_window: 20ms

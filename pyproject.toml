@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools==83.0.0", "wheel>=0.43,<0.48"]
+requires = ["setuptools==84.0.0", "wheel>=0.43,<0.49"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -56,6 +56,9 @@ include = ["esphome*"]
 testpaths = [
   "tests",
 ]
+# Prepend the repo root so in-process esphome imports resolve to THIS tree,
+# not wherever the venv's editable install points (e.g. another git worktree).
+pythonpath = ["."]
 addopts = [
   "--cov=esphome",
   "--cov-branch",
@@ -110,6 +113,10 @@ target-version = "py312"
 exclude = ['generated']
 
 [tool.ruff.lint]
+# Preview mode is scoped: with explicit-preview-rules only rules named in
+# select run in preview, prefixes like "PL" keep their stable set.
+preview = true
+explicit-preview-rules = true
 select = [
   "B",    # flake8-bugbear
   "BLE",  # flake8-blind-except
@@ -131,6 +138,7 @@ select = [
   "PGH",  # pygrep-hooks
   "PIE",  # flake8-pie
   "PL",   # pylint
+  "PLW1514", # require explicit encoding on text file I/O (Windows defaults to cp1252)
   "PTH",  # flake8-use-pathlib
   "PYI",  # flake8-pyi
   "Q",    # flake8-quotes
@@ -151,6 +159,7 @@ ignore = [
   "PLR0912", # Too many branches ({branches} > {max_branches})
   "PLR0913", # Too many arguments to function call ({c_args} > {max_args})
   "PLR0915", # Too many statements ({statements} > {max_statements})
+  "PLR0917", # Too many positional arguments ({c_pos} > {max_pos})
   "PLW1641", # Object does not implement `__hash__` method
   "PLR2004", # Magic value used in comparison, consider replacing {value} with a constant variable
   "PLW2901", # Outer {outer_kind} variable {name} overwritten by inner {inner_kind} target

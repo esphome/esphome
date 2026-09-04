@@ -21,7 +21,7 @@ esp32:
       disable_fatfs: true
 
 ota:
-  platform: esphome
+  - platform: esphome
 
 wifi:
   ssid: MySSID

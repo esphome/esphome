@@ -153,7 +153,7 @@ def customise_schema(config):
 CONFIG_SCHEMA = customise_schema
 
 
-def _final_validate(config):
+def _final_validate(config) -> None:
     spi.final_validate_device_schema(
         "epaper_spi", require_miso=False, require_mosi=True
     )(config)
@@ -170,7 +170,6 @@ def _final_validate(config):
             config[CONF_SHOW_TEST_CARD] = True
     elif CONF_UPDATE_INTERVAL not in config:
         config[CONF_UPDATE_INTERVAL] = update_interval("1min")
-    return config
 
 
 FINAL_VALIDATE_SCHEMA = _final_validate

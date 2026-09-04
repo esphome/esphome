@@ -8,6 +8,7 @@
 #include "ble_aes_ccm.h"
 
 #include "esphome/core/defines.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
@@ -98,6 +99,8 @@ ESPBTUUID ESPBTUUID::from_raw(const char *data, size_t length) {
 
 #ifdef USE_ESP32
 ESPBTUUID ESPBTUUID::from_uuid(esp_bt_uuid_t uuid) {
+  if (uuid.len == 0)  // the unset sentinel get_uuid() emits
+    return {};
   if (uuid.len == ESP_UUID_LEN_16)
     return ESPBTUUID::from_uint16(uuid.uuid.uuid16);
   if (uuid.len == ESP_UUID_LEN_32)
@@ -108,6 +111,10 @@ ESPBTUUID ESPBTUUID::from_uuid(esp_bt_uuid_t uuid) {
 esp_bt_uuid_t ESPBTUUID::get_uuid() const {
   esp_bt_uuid_t ret;
   switch (this->type_) {
+    case Type::UNSET:
+      ret.len = 0;
+      memset(&ret.uuid, 0, sizeof(ret.uuid));
+      break;
     case Type::UUID16:
       ret.len = ESP_UUID_LEN_16;
       ret.uuid.uuid16 = this->uuid_.uuid16;
@@ -129,8 +136,8 @@ void ESPBTDevice::parse_scan_rst(const esp32_ble::BLEScanResult &scan_result) {
   this->scan_result_ = &scan_result;
   // BLEScanResult's bda is most-significant octet first; the neutral ingest
   // takes the BLE controller (LSB-first) order, so reverse — address_uint64()/
-  // address_str() then produce exactly the historical esp32 values.
-  uint8_t mac_lsb_first[6];
+  // address_str_to() then produce exactly the historical esp32 values.
+  uint8_t mac_lsb_first[MAC_ADDRESS_SIZE];
   for (uint8_t i = 0; i < 6; i++)
     mac_lsb_first[i] = scan_result.bda[5 - i];
   this->from_scan_result(mac_lsb_first, scan_result.rssi, scan_result.ble_addr_type, scan_result.ble_adv,
@@ -139,7 +146,8 @@ void ESPBTDevice::parse_scan_rst(const esp32_ble::BLEScanResult &scan_result) {
 #endif  // USE_ESP32
 
 ESPBTUUID ESPBTUUID::as_128bit() const {
-  if (this->type_ == Type::UUID128)
+  // Widening an unset UUID stays unset; expanding it would produce a set 0x0000 base UUID.
+  if (this->type_ == Type::UNSET || this->type_ == Type::UUID128)
     return *this;
   uint8_t data[16];
   this->to_128bit_(data);
@@ -149,6 +157,8 @@ ESPBTUUID ESPBTUUID::as_128bit() const {
 bool ESPBTUUID::contains(uint8_t data1, uint8_t data2) const {
   // Adjacent byte-pair search — identical semantics to esp32_ble::ESPBTUUID::contains.
   switch (this->type_) {
+    case Type::UNSET:
+      return false;
     case Type::UUID16:
       return (this->uuid_.uuid16 >> 8) == data2 && (this->uuid_.uuid16 & 0xFF) == data1;
     case Type::UUID32:
@@ -173,6 +183,9 @@ const char *ESPBTUUID::to_str(char *buf) const {
   // Identical output format to esp32_ble::ESPBTUUID::to_str.
   char *pos = buf;
   switch (this->type_) {
+    case Type::UNSET:
+      memcpy(buf, "None", 5);
+      return buf;
     case Type::UUID16:
       *pos++ = '0';
       *pos++ = 'x';
@@ -207,6 +220,7 @@ const char *ESPBTUUID::to_str(char *buf) const {
 void ESPBTUUID::to_128bit_(uint8_t out[16]) const {
   // Bluetooth Base UUID 00000000-0000-1000-8000-00805F9B34FB (LSB-first), with the 16/32-bit
   // value placed at bytes 12..; identical expansion to esp32_ble::ESPBTUUID::as_128bit().
+  // Callers screen out UNSET first (operator==, as_128bit); it would expand like 0x0000.
   static const uint8_t BASE[16] = {0xFB, 0x34, 0x9B, 0x5F, 0x80, 0x00, 0x00, 0x80,
                                    0x00, 0x10, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
   if (this->type_ == Type::UUID128) {
@@ -223,6 +237,8 @@ void ESPBTUUID::to_128bit_(uint8_t out[16]) const {
 bool ESPBTUUID::operator==(const ESPBTUUID &other) const {
   if (this->type_ == other.type_) {
     switch (this->type_) {
+      case Type::UNSET:
+        return true;
       case Type::UUID16:
         return this->uuid_.uuid16 == other.uuid_.uuid16;
       case Type::UUID32:
@@ -232,6 +248,9 @@ bool ESPBTUUID::operator==(const ESPBTUUID &other) const {
     }
     return false;
   }
+  // Unset never equals a set UUID; 0x0000 is a valid value, distinct from "not configured".
+  if (this->type_ == Type::UNSET || other.type_ == Type::UNSET)
+    return false;
   // Different widths: expand both to the 128-bit Bluetooth Base UUID form and compare, so a
   // configured 16/32-bit UUID matches the equivalent 128-bit advertisement (esp32 parity).
   uint8_t a[16];
@@ -247,22 +266,80 @@ bool ESPBTUUID::operator==(const ESPBTUUID &other) const {
 
 ESPBLEiBeacon::ESPBLEiBeacon(const uint8_t *data) { memcpy(&this->beacon_data_, data, sizeof(this->beacon_data_)); }
 
-optional<ESPBLEiBeacon> ESPBLEiBeacon::from_manufacturer_data(const ServiceData &data) {
+optional<ESPBLEiBeacon> ESPBLEiBeacon::from_manufacturer_data(const ServiceData &data, bool *prefix_rejected) {
   // iBeacon manufacturer specific data (after company-ID bytes have been stripped):
   //   [0x02][0x15][16-byte UUID][2-byte major][2-byte minor][1-byte power] = exactly 23 bytes
-  // Parity with esp32_ble_tracker: gate on the Apple company ID and length only.
-  // (Checking the 0x02/0x15 sub-type prefix would be stricter, but is a behavior
-  // change; it belongs to a follow-up, not this refactor.)
   if (!data.uuid.contains(0x4C, 0x00))  // Apple company ID 0x004C
     return {};
   if (data.data.size() != 23)
     return {};
+  // Require the iBeacon sub-type/length prefix — stricter than the legacy
+  // esp32 parser, which accepted any 23-byte Apple payload and surfaced
+  // non-iBeacon frames as garbage beacons.
+  if (data.data[0] != 0x02 || data.data[1] != 0x15) {
+    if (prefix_rejected != nullptr)
+      *prefix_rejected = true;
+    return {};
+  }
   return ESPBLEiBeacon(data.data.data());
 }
 
 // ---------------------------------------------------------------------------
 // ESPBTDevice
 // ---------------------------------------------------------------------------
+
+optional<ESPBLEiBeacon> ESPBTDevice::get_ibeacon() const {
+  bool prefix_rejected = false;
+  uint8_t rejected_sub_type = 0;
+  uint8_t rejected_len = 0;
+  for (const auto &it : this->manufacturer_datas_) {
+    bool rejected = false;
+    auto res = ESPBLEiBeacon::from_manufacturer_data(it, &rejected);
+    if (res.has_value())
+      return res;
+    if (rejected && !prefix_rejected) {
+      prefix_rejected = true;
+      rejected_sub_type = it.data[0];
+      rejected_len = it.data[1];
+    }
+  }
+  if (prefix_rejected) {
+    // Only when no beacon was found at all: these frames were accepted before
+    // the prefix check, so their disappearance must be observable at the
+    // default log level. Throttled so a chatty non-iBeacon Apple advertiser
+    // cannot flood the log; a different address may bypass the shared window
+    // so that advertiser cannot mask the device that actually regressed — but
+    // with a 1 s floor, or two alternating advertisers log every frame.
+    static uint32_t last_log = 0;
+    static uint64_t last_addr = 0;
+    const uint32_t now = millis();
+    const uint64_t addr = this->address_uint64();
+    const uint32_t since = now - last_log;
+    if (last_log == 0 || since > 60000 || (addr != last_addr && since > 1000)) {
+      last_log = now;
+      last_addr = addr;
+      char addr_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
+      ESP_LOGD(TAG, "%s: 23-byte Apple frame without iBeacon prefix ignored (sub-type 0x%02X len 0x%02X)",
+               this->address_str_to(addr_buf), rejected_sub_type, rejected_len);
+    }
+  }
+  return {};
+}
+
+const char *ESPBTDevice::address_type_str() const {
+  switch (this->address_type_) {
+    case BLE_ADDR_TYPE_PUBLIC:
+      return "PUBLIC";
+    case BLE_ADDR_TYPE_RANDOM:
+      return "RANDOM";
+    case BLE_ADDR_TYPE_RPA_PUBLIC:
+      return "RPA_PUBLIC";
+    case BLE_ADDR_TYPE_RPA_RANDOM:
+      return "RPA_RANDOM";
+    default:
+      return "UNKNOWN";
+  }
+}
 
 void ESPBTDevice::from_scan_result(const uint8_t *mac, int rssi, uint8_t addr_type, const uint8_t *data,
                                    uint16_t data_len) {
@@ -272,7 +349,8 @@ void ESPBTDevice::from_scan_result(const uint8_t *mac, int rssi, uint8_t addr_ty
     this->address_[i] = mac[5 - i];
   this->address_type_ = addr_type;
   this->rssi_ = rssi;
-  this->name_.clear();
+  this->name_len_ = 0;
+  this->name_[0] = '\0';
   this->service_uuids_.clear();
   this->manufacturer_datas_.clear();
   this->service_datas_.clear();
@@ -282,29 +360,13 @@ void ESPBTDevice::from_scan_result(const uint8_t *mac, int rssi, uint8_t addr_ty
   this->parse_adv_(data, data_len);
 
 #ifdef ESPHOME_LOG_HAS_VERY_VERBOSE
-  ESP_LOGVV(TAG, "Parse Result:");
-  const char *address_type;
-  switch (this->address_type_) {
-    case BLE_ADDR_TYPE_PUBLIC:
-      address_type = "PUBLIC";
-      break;
-    case BLE_ADDR_TYPE_RANDOM:
-      address_type = "RANDOM";
-      break;
-    case BLE_ADDR_TYPE_RPA_PUBLIC:
-      address_type = "RPA_PUBLIC";
-      break;
-    case BLE_ADDR_TYPE_RPA_RANDOM:
-      address_type = "RPA_RANDOM";
-      break;
-    default:
-      address_type = "UNKNOWN";
-      break;
-  }
   char addr_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
-  ESP_LOGVV(TAG, "  Address: %s (%s)", this->address_str_to(addr_buf), address_type);
-  ESP_LOGVV(TAG, "  RSSI: %d", this->rssi_);
-  ESP_LOGVV(TAG, "  Name: '%s'", this->name_.c_str());
+  ESP_LOGVV(TAG,
+            "Parse Result:\n"
+            "  Address: %s (%s)\n"
+            "  RSSI: %d\n"
+            "  Name: '%s'",
+            this->address_str_to(addr_buf), this->address_type_str(), this->rssi_, this->name_);
   for (auto &it : this->tx_powers_) {
     ESP_LOGVV(TAG, "  TX Power: %d", it);
   }
@@ -322,25 +384,32 @@ void ESPBTDevice::from_scan_result(const uint8_t *mac, int rssi, uint8_t addr_ty
   for (auto &mfg_data : this->manufacturer_datas_) {
     auto ibeacon = ESPBLEiBeacon::from_manufacturer_data(mfg_data);
     if (ibeacon.has_value()) {
-      ESP_LOGVV(TAG, "  Manufacturer iBeacon:");
-      ESP_LOGVV(TAG, "    UUID: %s", ibeacon.value().get_uuid().to_str(uuid_buf));
-      ESP_LOGVV(TAG, "    Major: %u", ibeacon.value().get_major());
-      ESP_LOGVV(TAG, "    Minor: %u", ibeacon.value().get_minor());
-      ESP_LOGVV(TAG, "    TXPower: %d", ibeacon.value().get_signal_power());
+      ESP_LOGVV(TAG,
+                "  Manufacturer iBeacon:\n"
+                "    UUID: %s\n"
+                "    Major: %u\n"
+                "    Minor: %u\n"
+                "    TXPower: %d",
+                ibeacon.value().get_uuid().to_str(uuid_buf), ibeacon.value().get_major(), ibeacon.value().get_minor(),
+                ibeacon.value().get_signal_power());
     } else {
       ESP_LOGVV(TAG, "  Manufacturer ID: %s, data: %s", mfg_data.uuid.to_str(uuid_buf),
                 format_hex_pretty_to(hex_buf, mfg_data.data.data(), mfg_data.data.size()));
     }
   }
   for (auto &svc_data : this->service_datas_) {
-    ESP_LOGVV(TAG, "  Service data:");
-    ESP_LOGVV(TAG, "    UUID: %s", svc_data.uuid.to_str(uuid_buf));
-    ESP_LOGVV(TAG, "    Data: %s", format_hex_pretty_to(hex_buf, svc_data.data.data(), svc_data.data.size()));
+    ESP_LOGVV(TAG,
+              "  Service data:\n"
+              "    UUID: %s\n"
+              "    Data: %s",
+              svc_data.uuid.to_str(uuid_buf),
+              format_hex_pretty_to(hex_buf, svc_data.data.data(), svc_data.data.size()));
   }
   ESP_LOGVV(TAG, "  Adv data: %s", format_hex_pretty_to(hex_buf, data, data_len));
 #endif  // ESPHOME_LOG_HAS_VERY_VERBOSE
 }
 
+// Remove before 2027.2.0
 std::string ESPBTDevice::address_str() const {
   char buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
   return std::string(this->address_str_to(buf));
@@ -409,8 +478,12 @@ void ESPBTDevice::parse_adv_(const uint8_t *payload, uint16_t len) {
         // Keep the longest name seen — a merged adv + scan-response frame may carry both the
         // shortened and the complete name, and the shortened form must never replace the
         // complete one (same rule as esp32_ble_tracker's parse_adv_).
-        if (ad_data_len > this->name_.length())
-          this->name_.assign(reinterpret_cast<const char *>(ad_data), ad_data_len);
+        if (ad_data_len > this->name_len_) {
+          uint8_t name_len = ad_data_len > MAX_ADV_NAME_LEN ? MAX_ADV_NAME_LEN : static_cast<uint8_t>(ad_data_len);
+          memcpy(this->name_, ad_data, name_len);
+          this->name_[name_len] = '\0';
+          this->name_len_ = name_len;
+        }
         break;
 
       case 0x0A:  // TX Power Level
@@ -491,6 +564,35 @@ void ESPBTDevice::parse_adv_(const uint8_t *payload, uint16_t len) {
         break;
     }
   }
+}
+
+// ---------------------------------------------------------------------------
+// DiscoveredDeviceLog
+// ---------------------------------------------------------------------------
+
+void DiscoveredDeviceLog::log_device(const char *tag, const ESPBTDevice &device) {
+#ifdef ESPHOME_LOG_HAS_DEBUG
+  // Everything here feeds ESP_LOGD: below DEBUG the whole body (including the
+  // dedup vector growth) would be pure overhead, so compile it out entirely.
+  const uint64_t address = device.address_uint64();
+  for (auto &disc : this->already_discovered_) {
+    if (disc == address)
+      return;
+  }
+  this->already_discovered_.push_back(address);
+
+  char addr_buf[ESPBTDevice::MAC_ADDRESS_PRETTY_BUFFER_SIZE];
+  ESP_LOGD(tag,
+           "Found device %s RSSI=%d\n"
+           "  Address Type: %s",
+           device.address_str_to(addr_buf), device.get_rssi(), device.address_type_str());
+  if (!device.get_name().empty()) {
+    ESP_LOGD(tag, "  Name: '%s'", device.get_name().c_str());
+  }
+  for (auto &tx_power : device.get_tx_powers()) {
+    ESP_LOGD(tag, "  TX Power: %d", tx_power);
+  }
+#endif  // ESPHOME_LOG_HAS_DEBUG
 }
 
 }  // namespace esphome::ble_device_base

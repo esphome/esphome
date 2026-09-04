@@ -23,6 +23,7 @@ import pytest_asyncio
 
 import esphome.config
 from esphome.core import CORE
+from esphome.helpers import get_usable_cpu_count
 from esphome.platformio.toolchain import get_idedata
 
 from .const import (
@@ -60,16 +61,34 @@ def _get_platformio_env(cache_dir: Path) -> dict[str, str]:
     env = os.environ.copy()
     env["PLATFORMIO_CORE_DIR"] = str(cache_dir)
     env["PLATFORMIO_CACHE_DIR"] = str(cache_dir / ".cache")
-    env["PLATFORMIO_LIBDEPS_DIR"] = str(cache_dir / "libdeps")
+    # libdeps is keyed only by env name (the device name), and fixtures share
+    # names; two xdist workers first-compiling the same name race pio pkg
+    # install in the same directory. Keep libdeps per worker.
+    worker = os.environ.get("PYTEST_XDIST_WORKER", "master")
+    env["PLATFORMIO_LIBDEPS_DIR"] = str(cache_dir / "libdeps" / worker)
     # Prevent cache cleaning during integration tests
     env["ESPHOME_SKIP_CLEAN_BUILD"] = "1"
+    # Cap each compile's -j so several xdist workers do not each spawn a
+    # full-width compiler fan-out on the same machine. An explicit env wins.
+    if "ESPHOME_DEFAULT_COMPILE_PROCESS_LIMIT" not in os.environ:
+        workers = int(os.environ.get("PYTEST_XDIST_WORKER_COUNT", "1"))
+        # Floor of 2 keeps a lone tail compile from running fully serial
+        env["ESPHOME_DEFAULT_COMPILE_PROCESS_LIMIT"] = str(
+            max(2, get_usable_cpu_count() // workers)
+        )
+    # Compile with THIS tree's esphome sources, not wherever the venv's editable
+    # install points (which may be a different git worktree or checkout).
+    repo_root = str(Path(__file__).resolve().parent.parent.parent)
+    existing = env.get("PYTHONPATH")
+    env["PYTHONPATH"] = f"{repo_root}{os.pathsep}{existing}" if existing else repo_root
     return env
 
 
 @pytest.fixture(scope="session")
 def shared_platformio_cache() -> Generator[Path]:
     """Initialize a shared PlatformIO cache for all integration tests."""
-    # Use a dedicated directory for integration tests to avoid conflicts
+    # Use a dedicated directory for integration tests to avoid conflicts.
+    # CI caches parts of this path; keep in sync with ci.yml integration-tests.
     test_cache_dir = Path.home() / ".esphome-integration-tests"
     cache_dir = test_cache_dir / "platformio"
 
@@ -101,7 +120,7 @@ def shared_platformio_cache() -> Generator[Path]:
                 env = _get_platformio_env(cache_dir)
 
                 subprocess.run(
-                    ["esphome", "compile", str(config_path)],
+                    [sys.executable, "-m", "esphome", "compile", str(config_path)],
                     check=True,
                     cwd=init_dir,
                     env=env,
@@ -245,6 +264,8 @@ async def compile_esphome(
         for attempt in range(max_retries):
             # Compile using subprocess, inheriting stdout/stderr to show progress
             proc = await asyncio.create_subprocess_exec(
+                sys.executable,
+                "-m",
                 "esphome",
                 "compile",
                 str(config_path),
