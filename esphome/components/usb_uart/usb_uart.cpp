@@ -471,7 +471,8 @@ void USBUartTypeCdcAcm::on_disconnected() {
       usb_host_endpoint_halt(this->device_handle_, channel->cdc_dev_.out_ep->bEndpointAddress);
       usb_host_endpoint_flush(this->device_handle_, channel->cdc_dev_.out_ep->bEndpointAddress);
     }
-    if (channel->cdc_dev_.notify_ep != nullptr) {
+    // The notify pipe only exists in the host stack while its interface is claimed
+    if (channel->cdc_dev_.notify_ep != nullptr && channel->cdc_dev_.interrupt_interface_claimed) {
       usb_host_endpoint_halt(this->device_handle_, channel->cdc_dev_.notify_ep->bEndpointAddress);
       usb_host_endpoint_flush(this->device_handle_, channel->cdc_dev_.notify_ep->bEndpointAddress);
     }
