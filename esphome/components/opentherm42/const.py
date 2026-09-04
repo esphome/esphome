@@ -405,6 +405,54 @@ CONF_SENSOR_AND_INFORMATIONAL_DATA_DHW_BURNER_OPERATION_HOURS = (
     "sensor_and_informational_data_dhw_burner_operation_hours"
 )
 
+# §5.3.4 Class 4: reset-by-writing-zero buttons for the 14 counter/hour ids above (optional for the
+# boiler to honor). ID 111 (Electricity production) is read-only and has no reset.
+CONF_SENSOR_AND_INFORMATIONAL_DATA_COOLING_OPERATION_HOURS_RESET = (
+    "sensor_and_informational_data_cooling_operation_hours_reset"
+)
+CONF_SENSOR_AND_INFORMATIONAL_DATA_POWER_CYCLES_RESET = (
+    "sensor_and_informational_data_power_cycles_reset"
+)
+CONF_SENSOR_AND_INFORMATIONAL_DATA_ELECTRICITY_PRODUCER_STARTS_RESET = (
+    "sensor_and_informational_data_electricity_producer_starts_reset"
+)
+CONF_SENSOR_AND_INFORMATIONAL_DATA_ELECTRICITY_PRODUCER_HOURS_RESET = (
+    "sensor_and_informational_data_electricity_producer_hours_reset"
+)
+CONF_SENSOR_AND_INFORMATIONAL_DATA_CUMULATIVE_ELECTRICITY_PRODUCTION_RESET = (
+    "sensor_and_informational_data_cumulative_electricity_production_reset"
+)
+CONF_SENSOR_AND_INFORMATIONAL_DATA_NUMBER_OF_UNSUCCESSFUL_BURNER_STARTS_RESET = (
+    "sensor_and_informational_data_number_of_unsuccessful_burner_starts_reset"
+)
+CONF_SENSOR_AND_INFORMATIONAL_DATA_NUMBER_OF_TIMES_FLAME_SIGNAL_TOO_LOW_RESET = (
+    "sensor_and_informational_data_number_of_times_flame_signal_too_low_reset"
+)
+CONF_SENSOR_AND_INFORMATIONAL_DATA_SUCCESSFUL_BURNER_STARTS_RESET = (
+    "sensor_and_informational_data_successful_burner_starts_reset"
+)
+CONF_SENSOR_AND_INFORMATIONAL_DATA_CH_PUMP_STARTS_RESET = (
+    "sensor_and_informational_data_ch_pump_starts_reset"
+)
+CONF_SENSOR_AND_INFORMATIONAL_DATA_DHW_PUMP_VALVE_STARTS_RESET = (
+    "sensor_and_informational_data_dhw_pump_valve_starts_reset"
+)
+CONF_SENSOR_AND_INFORMATIONAL_DATA_DHW_BURNER_STARTS_RESET = (
+    "sensor_and_informational_data_dhw_burner_starts_reset"
+)
+CONF_SENSOR_AND_INFORMATIONAL_DATA_BURNER_OPERATION_HOURS_RESET = (
+    "sensor_and_informational_data_burner_operation_hours_reset"
+)
+CONF_SENSOR_AND_INFORMATIONAL_DATA_CH_PUMP_OPERATION_HOURS_RESET = (
+    "sensor_and_informational_data_ch_pump_operation_hours_reset"
+)
+CONF_SENSOR_AND_INFORMATIONAL_DATA_DHW_PUMP_VALVE_OPERATION_HOURS_RESET = (
+    "sensor_and_informational_data_dhw_pump_valve_operation_hours_reset"
+)
+CONF_SENSOR_AND_INFORMATIONAL_DATA_DHW_BURNER_OPERATION_HOURS_RESET = (
+    "sensor_and_informational_data_dhw_burner_operation_hours_reset"
+)
+
 # §5.3.5 Class 5, ID 6: Remote-parameter transfer-enable/read-write flags for DHW Setpoint / max CHsetpoint.
 CONF_PRE_DEFINED_REMOTE_BOILER_PARAMETERS_TRANSFER_ENABLE_FLAGS_DHW_SETPOINT = (
     "pre_defined_remote_boiler_parameters_transfer_enable_flags_dhw_setpoint"
