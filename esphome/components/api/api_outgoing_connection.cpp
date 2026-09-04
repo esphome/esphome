@@ -43,9 +43,8 @@ void OutgoingConnectionManager::loop(APIServer *server) {
   const uint32_t now = App.get_loop_component_start_time();
   switch (this->state_) {
     case DialState::DIAL_STATE_IDLE:
-#if defined(API_OUTGOING_CONNECTION_HOST) || defined(USE_DEEP_SLEEP)
-      // A fixed host has no inbound path worth waiting for, and a deep
-      // sleep wake window is too short to spend on the delay
+#ifdef USE_DEEP_SLEEP
+      // A deep sleep wake window is too short to spend on the delay
       this->schedule_wait_(now, BACKOFF_MIN_MS);
 #else
       // Target went away; give it the configured delay to reconnect first
@@ -102,7 +101,7 @@ void OutgoingConnectionManager::try_dial_(APIServer *server, uint32_t now) {
   }
   this->dial_socket_ = socket::socket_loop_monitored(((struct sockaddr *) &addr)->sa_family, SOCK_STREAM, IPPROTO_TCP);
   if (!this->dial_socket_ || this->dial_socket_->setblocking(false) != 0) {
-    ESP_LOGW(TAG, "Socket create failed: errno %d", errno);
+    ESP_LOGW(TAG, "Socket %s failed: errno %d", this->dial_socket_ ? "setblocking" : "create", errno);
     this->schedule_retry_(now);
     return;
   }
