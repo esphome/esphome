@@ -860,6 +860,8 @@ def test_check_build_tree_not_tracked_warns_when_tracked(
 
     assert "is tracked by git" in caplog.text
     assert "2 files" in caplog.text
+    assert "secrets" in caplog.text
+    assert ".gitkeep" in caplog.text
     mock_run.assert_called_once_with(
         ["git", "ls-files", "-z", "--", ".esphome"],
         cwd=tmp_path,

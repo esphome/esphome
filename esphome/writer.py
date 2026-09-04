@@ -782,9 +782,12 @@ def check_build_tree_not_tracked() -> None:
     tracked_count = len([name for name in result.stdout.split(b"\0") if name])
     _LOGGER.warning(
         "%s is tracked by git (%d file%s). This is the ESPHome build "
-        "directory; it holds generated files and should not be committed. "
-        "Add it to your .gitignore, then remove it from version control "
-        "with: git rm -r --cached %s",
+        "directory; it holds generated files that may contain your secrets "
+        "(e.g. Wi-Fi credentials or API keys) in plain text, and should not "
+        "be committed. Add it to your .gitignore, then remove it from "
+        "version control with: git rm -r --cached %s "
+        "(if you really want to keep this directory in git, add a file "
+        "named .gitkeep to it to silence this warning)",
         relative_data_dir,
         tracked_count,
         "" if tracked_count == 1 else "s",
