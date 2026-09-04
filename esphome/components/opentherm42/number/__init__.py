@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 from esphome.components import number
 import esphome.config_validation as cv
-from esphome.const import CONF_INDEX, CONF_INITIAL_VALUE, CONF_RESTORE_VALUE
+from esphome.const import CONF_INDEX, CONF_INITIAL_VALUE
 
 from .. import OpenTherm42Hub, opentherm42_ns
 from ..const import (
@@ -38,6 +38,8 @@ OpenTherm42TspNumber = opentherm42_ns.class_(
 def _number_schema(
     unit_of_measurement: str, min_value: float, max_value: float, default: float
 ) -> cv.Schema:
+    # Always restores its last value from flash on boot (see OpenTherm42Number) -- initial_value is
+    # only the fallback for first boot or a corrupt/missing preference, not a way to opt out of restore.
     return number.number_schema(
         OpenTherm42Number, unit_of_measurement=unit_of_measurement
     ).extend(
@@ -45,7 +47,6 @@ def _number_schema(
             cv.Optional(CONF_INITIAL_VALUE, default=default): cv.float_range(
                 min=min_value, max=max_value
             ),
-            cv.Optional(CONF_RESTORE_VALUE, default=False): cv.boolean,
         }
     )
 
@@ -187,7 +188,6 @@ async def to_code(config: dict) -> None:
             var = await number.new_number(marker_config, **traits)
             await cg.register_component(var, marker_config)
             cg.add(var.set_initial_value(marker_config[CONF_INITIAL_VALUE]))
-            cg.add(var.set_restore_value(marker_config[CONF_RESTORE_VALUE]))
             cg.add(getattr(hub, f"set_{marker}_number")(var))
 
     slot_index = 0
