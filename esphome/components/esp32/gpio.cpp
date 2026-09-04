@@ -172,6 +172,8 @@ void ESP32InternalGPIOPin::detach_interrupt() const { gpio_intr_disable(this->ge
 
 using namespace esp32;
 
+// NOLINTBEGIN(clang-analyzer-core.FixedAddressDereference) -- some gpio_hal functions use MMIO at fixed addresses
+// internally
 bool IRAM_ATTR ISRInternalGPIOPin::digital_read() {
   auto *arg = reinterpret_cast<ISRPinArg *>(this->arg_);
   return bool(gpio_hal_get_level(&GPIO_HAL, arg->pin)) != arg->inverted;
@@ -245,6 +247,7 @@ void IRAM_ATTR ISRInternalGPIOPin::pin_mode(gpio::Flags flags) {
 #endif
   arg->flags = flags;
 }
+// NOLINTEND(clang-analyzer-core.FixedAddressDereference)
 
 }  // namespace esphome
 
