@@ -1,0 +1,8 @@
+packages:
+  remote_transmitter: !include ../../test_build_components/common/remote_transmitter/esp32-idf.yaml
+
+climate:
+  - platform: whynter
+    name: Whynter Climate Cool Only
+    transmitter_id: xmitr
+    supports_heat: false
