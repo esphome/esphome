@@ -5,6 +5,7 @@ from concurrent.futures import ThreadPoolExecutor
 import contextlib
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
+from functools import partial
 import hashlib
 import logging
 import os
@@ -14,8 +15,8 @@ import time
 import esphome.config_validation as cv
 from esphome.const import CONF_FILE, CONF_TYPE, CONF_URL, __version__
 from esphome.core import CORE, EsphomeError, TimePeriodSeconds
-from esphome.happy_eyeballs import ensure_happy_eyeballs
 from esphome.helpers import write_file
+from esphome.net_retry import fetch_with_retry, http_request
 from esphome.types import ConfigType
 
 _LOGGER = logging.getLogger(__name__)
@@ -142,7 +143,6 @@ def has_remote_file_changed(
     # Deferred so configs with no remote files skip the heavy import.
     import requests
 
-    ensure_happy_eyeballs()
     if local_file_path.exists():
         _LOGGER.debug("has_remote_file_changed: File exists at %s", local_file_path)
         try:
@@ -157,8 +157,15 @@ def has_remote_file_changed(
             }
             if etag := _read_etag(local_file_path):
                 headers[IF_NONE_MATCH] = etag
-            response = requests.head(
-                url, headers=headers, timeout=timeout, allow_redirects=True
+            # Retried so allow_stale=False consumers don't hard-fail on a
+            # healed flake. Only connection-level failures retry: HEAD
+            # never raises on HTTP status (servers rejecting HEAD with
+            # 405/501 must fall through to the GET), so 5xx is handled by
+            # the GET's own retry.
+            response = fetch_with_retry(
+                url,
+                partial(http_request, "HEAD", url, headers=headers, timeout=timeout),
+                what="Revalidation",
             )
 
             _LOGGER.debug(
@@ -272,7 +279,6 @@ def download_content(
             ) from failure.cause
         # The file appeared since the failure; revalidate normally.
         del run_data.failed_paths[path]
-    ensure_happy_eyeballs()
     if CORE.skip_external_update and path.exists():
         _LOGGER.debug("Skipping update for %s (refresh disabled)", url)
         run_data.unchecked_paths.add(path)
@@ -293,8 +299,9 @@ def download_content(
     _LOGGER.info("Downloading %s", url)
     _LOGGER.debug("Saving to %s", path)
 
-    try:
-        req = requests.get(
+    def _fetch() -> tuple[requests.Response, bytes]:
+        req = http_request(
+            "GET",
             url,
             timeout=timeout,
             headers={"User-agent": f"ESPHome/{__version__} (https://esphome.io)"},
@@ -304,7 +311,10 @@ def download_content(
         # and mid-stream connection errors all surface here as
         # RequestException subclasses, so this needs the same fall-back
         # treatment as the request itself.
-        data = req.content
+        return req, req.content
+
+    try:
+        req, data = fetch_with_retry(url, _fetch)
     except requests.exceptions.RequestException as e:
         if path.exists():
             # Memoized so a flaky host warns once per run, not per consumer.
@@ -358,7 +368,6 @@ def download_content_many(
     unique = list(seen.values())
     if not unique:
         return
-    ensure_happy_eyeballs()
     _LOGGER.info("Checking %d %s for updates", len(unique), description)
 
     def _download_one(file: RemoteFile) -> None:

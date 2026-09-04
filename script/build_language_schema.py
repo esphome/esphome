@@ -250,6 +250,16 @@ def add_pin_validators():
         "modes": ["input"],
     }
 
+    from esphome.components import gpio_expander
+
+    # Wraps pins.internal_gpio_input_pin_schema, so the editor schema must keep
+    # treating the config var as a pin
+    pin_validators[repr(gpio_expander.validate_interrupt_pin)] = {
+        "schema": True,
+        "internal": True,
+        "modes": ["input"],
+    }
+
 
 def add_module_registries(domain, module):
     for attr_name in dir(module):

@@ -86,8 +86,8 @@ void SendspinImageSlot::on_decode_(const uint8_t *data, size_t length) {
   }
 
   const bool decoded = this->decode_frame_(data, length, target);
-  // Drops any half-finished decoder. An external buffer is let go of rather than freed, so this is
-  // safe on every path.
+  // Ends any half-finished decode session (the decoder object is kept for reuse). An external
+  // buffer is let go of rather than freed, so this is safe on every path.
   this->decode_sink_.release();
 
   if (!decoded) {

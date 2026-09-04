@@ -217,9 +217,15 @@ class WaterHeater : public EntityBase {
   virtual WaterHeaterCallInternal make_call() = 0;
 
 #ifdef USE_WATER_HEATER_VISUAL_OVERRIDES
-  void set_visual_min_temperature_override(float min_temperature_override);
-  void set_visual_max_temperature_override(float max_temperature_override);
-  void set_visual_target_temperature_step_override(float visual_target_temperature_step_override);
+  void set_visual_min_temperature_override(float min_temperature_override) {
+    this->visual_min_temperature_override_ = min_temperature_override;
+  }
+  void set_visual_max_temperature_override(float max_temperature_override) {
+    this->visual_max_temperature_override_ = max_temperature_override;
+  }
+  void set_visual_target_temperature_step_override(float visual_target_temperature_step_override) {
+    this->visual_target_temperature_step_override_ = visual_target_temperature_step_override;
+  }
 #endif
   virtual void control(const WaterHeaterCall &call) = 0;
 

@@ -157,7 +157,7 @@ class RadioFrequency : public Component, public EntityBase, public remote_base::
   const RadioFrequencyTraits &get_traits() const { return this->traits_; }
 
   /// Create a call object for transmitting
-  RadioFrequencyCall make_call();
+  RadioFrequencyCall make_call() { return RadioFrequencyCall(this); }
 
   /// Get capability flags for this radio frequency instance
   uint32_t get_capability_flags() const;
