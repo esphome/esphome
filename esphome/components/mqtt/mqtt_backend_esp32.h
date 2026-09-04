@@ -6,6 +6,7 @@
 
 #include <string>
 #include <cstring>
+#include <atomic>
 #include <mqtt_client.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
@@ -185,6 +186,7 @@ class MQTTBackendESP32 final : public MQTTBackend {
     if (is_initalized_)
       esp_mqtt_client_disconnect(handler_.get());
   }
+  void disable() final;
 
   bool subscribe(const char *topic, uint8_t qos) final {
 #if defined(USE_MQTT_IDF_ENQUEUE)
@@ -262,6 +264,7 @@ class MQTTBackendESP32 final : public MQTTBackend {
   EventPool<struct QueueElement, MQTT_QUEUE_LENGTH - 1> mqtt_outbound_pool_;
   NotifyingLockFreeQueue<struct QueueElement, MQTT_QUEUE_LENGTH> mqtt_queue_;
   TaskHandle_t task_handle_{nullptr};
+  std::atomic<bool> task_shutdown_requested_{false};
   bool enqueue_(MqttQueueTypeT type, const char *topic, int qos = 0, bool retain = false, const char *payload = NULL,
                 size_t len = 0);
 #endif

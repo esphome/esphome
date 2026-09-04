@@ -7,6 +7,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
+#include "esphome/components/watchdog/watchdog.h"
 
 namespace esphome::mqtt {
 
@@ -58,6 +59,7 @@ bool MQTTBackendESP32::initialize_() {
     is_initalized_ = true;
     esp_mqtt_client_register_event(mqtt_client, MQTT_EVENT_ANY, mqtt_event_handler, this);
 #if defined(USE_MQTT_IDF_ENQUEUE)
+    this->task_shutdown_requested_.store(false, std::memory_order_release);
     // Create the task only after MQTT client is initialized successfully
     // Use larger stack size when TLS is enabled
     size_t stack_size = this->ca_certificate_.has_value() ? TASK_STACK_SIZE_TLS : TASK_STACK_SIZE;
@@ -77,6 +79,65 @@ bool MQTTBackendESP32::initialize_() {
     ESP_LOGE(TAG, "Failed to init client");
     return false;
   }
+}
+
+void MQTTBackendESP32::disable() {
+  if (!this->is_initalized_) {
+    return;
+  }
+  this->is_connected_ = false;
+
+#if defined(USE_MQTT_IDF_ENQUEUE)
+  // Stop async MQTT task before releasing resources it may use.
+  this->mqtt_queue_.set_task_to_notify(nullptr);
+  if (this->task_handle_ != nullptr) {
+    this->task_shutdown_requested_.store(true, std::memory_order_release);
+    xTaskNotifyGive(this->task_handle_);
+
+    constexpr TickType_t max_wait_ticks = pdMS_TO_TICKS(100);
+    TickType_t waited_ticks = 0;
+    while (eTaskGetState(this->task_handle_) != eDeleted && waited_ticks < max_wait_ticks) {
+      vTaskDelay(1);
+      waited_ticks++;
+    }
+
+    if (eTaskGetState(this->task_handle_) != eDeleted) {
+      ESP_LOGW(TAG, "MQTT task did not exit cleanly, forcing delete");
+      vTaskDelete(this->task_handle_);
+    }
+
+    this->task_handle_ = nullptr;
+  }
+
+  // Release any queued elements that were not processed.
+  struct QueueElement *elem;
+  while ((elem = this->mqtt_queue_.pop()) != nullptr) {
+    this->mqtt_outbound_pool_.release(elem);
+  }
+
+  this->last_dropped_log_time_ = 0;
+  this->task_shutdown_requested_.store(false, std::memory_order_release);
+#endif
+
+  esp_mqtt_client_handle_t client = this->handler_.get();
+  if (client != nullptr) {
+    esp_mqtt_client_unregister_event(client, MQTT_EVENT_ANY, mqtt_event_handler);
+  }
+
+  // We must extend the watchdog before resetting the handler,
+  // as the handler's destructor may block for a while if the MQTT task
+  // is in the middle of trying to connect to a broker that is not responding
+  uint32_t wdt_timeout;
+  if (this->mqtt_cfg_.network.timeout_ms > 0) {
+    wdt_timeout = this->mqtt_cfg_.network.timeout_ms + 1000;
+  } else {
+    wdt_timeout = 15000;  // ESP-IDF default timeout is 10s + 5s margin
+  }
+  watchdog::WatchdogManager wdm(wdt_timeout);
+  // Stops and destroys the client
+  App.feed_wdt();
+  this->handler_.reset();
+  this->is_initalized_ = false;
 }
 
 void MQTTBackendESP32::loop() {
@@ -215,9 +276,18 @@ void MQTTBackendESP32::esphome_mqtt_task(void *params) {
     // Wait for notification indefinitely
     ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
 
+    if (this_mqtt->task_shutdown_requested_.load(std::memory_order_acquire)) {
+      break;
+    }
+
     // Process all queued items
     struct QueueElement *elem;
     while ((elem = this_mqtt->mqtt_queue_.pop()) != nullptr) {
+      if (this_mqtt->task_shutdown_requested_.load(std::memory_order_acquire)) {
+        this_mqtt->mqtt_outbound_pool_.release(elem);
+        break;
+      }
+
       if (this_mqtt->is_connected_) {
         switch (elem->type) {
           case MQTT_QUEUE_TYPE_SUBSCRIBE:
@@ -241,10 +311,14 @@ void MQTTBackendESP32::esphome_mqtt_task(void *params) {
       this_mqtt->mqtt_outbound_pool_.release(elem);
     }
   }
+
+  vTaskDelete(nullptr);
 }
 
 bool MQTTBackendESP32::enqueue_(MqttQueueTypeT type, const char *topic, int qos, bool retain, const char *payload,
                                 size_t len) {
+  // Note: We can enqueue even if disabled or not connected,
+  // as the queue will be processed when connection is available
   auto *elem = this->mqtt_outbound_pool_.allocate();
 
   if (!elem) {
