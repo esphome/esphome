@@ -11,10 +11,13 @@ import pytest
 
 from esphome.components.zephyr.dts_fetch import (
     _SPARSE_CHECKOUT_SCHEMA,
+    _dts_cache_root,
     _framework_base_version,
+    _manifest_revision_cache_root,
     _native_dts_path,
     _resolve_boards_ref,
     _sdk_source_cache_key,
+    _sdk_source_version_cache_root,
     _sparse_clone_dts,
     _sparse_clone_dts_from_source,
     _sparse_clone_hal_modules,
@@ -71,6 +74,41 @@ def test_native_dts_path_none_when_not_on_disk(
 
 
 # ---------------------------------------------------------------------------
+# _dts_cache_root / _sdk_source_version_cache_root / _manifest_revision_cache_root
+# -- must nest under the machine-global sdk-zephyr root (ESPHOME_SDK_ZEPHYR_PREFIX),
+# not a bare ~/.esphome/, so they're covered by the same override and by
+# `esphome clean-all`.
+# ---------------------------------------------------------------------------
+
+
+def test_dts_cache_root_nests_under_sdk_zephyr_prefix(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("ESPHOME_SDK_ZEPHYR_PREFIX", str(tmp_path))
+    assert _dts_cache_root() == (tmp_path / "dts_cache").resolve()
+
+
+def test_sdk_source_version_cache_root_nests_under_sdk_zephyr_prefix(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("ESPHOME_SDK_ZEPHYR_PREFIX", str(tmp_path))
+    assert (
+        _sdk_source_version_cache_root()
+        == (tmp_path / "sdk_source_version_cache").resolve()
+    )
+
+
+def test_manifest_revision_cache_root_nests_under_sdk_zephyr_prefix(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("ESPHOME_SDK_ZEPHYR_PREFIX", str(tmp_path))
+    assert (
+        _manifest_revision_cache_root()
+        == (tmp_path / "manifest_revision_cache").resolve()
+    )
+
+
+# ---------------------------------------------------------------------------
 # _resolve_boards_ref
 # ---------------------------------------------------------------------------
 
@@ -101,8 +139,8 @@ def test_resolve_boards_ref_reads_manifest_revision_for_manifest_resolved_sdk(
 
     with (
         patch(
-            "esphome.components.zephyr.dts_fetch._MANIFEST_REVISION_CACHE",
-            tmp_path / "zephyr_manifest_revision_cache",
+            "esphome.components.zephyr.dts_fetch._manifest_revision_cache_root",
+            return_value=tmp_path / "zephyr_manifest_revision_cache",
         ),
         patch("subprocess.run", side_effect=fake_run),
     ):
@@ -115,8 +153,8 @@ def test_resolve_boards_ref_returns_none_when_git_fails(tmp_path: Path) -> None:
 
     with (
         patch(
-            "esphome.components.zephyr.dts_fetch._MANIFEST_REVISION_CACHE",
-            tmp_path / "zephyr_manifest_revision_cache",
+            "esphome.components.zephyr.dts_fetch._manifest_revision_cache_root",
+            return_value=tmp_path / "zephyr_manifest_revision_cache",
         ),
         patch("subprocess.run", side_effect=fake_run),
     ):
@@ -133,7 +171,8 @@ def test_resolve_boards_ref_returns_cached_value_without_reinvoking_git(
 
     with (
         patch(
-            "esphome.components.zephyr.dts_fetch._MANIFEST_REVISION_CACHE", cache_dir
+            "esphome.components.zephyr.dts_fetch._manifest_revision_cache_root",
+            return_value=cache_dir,
         ),
         patch("subprocess.run") as mock_run,
     ):
@@ -172,8 +211,8 @@ def test_sparse_clone_dts_sparse_checkout_never_lists_version_file(
 
     with (
         patch(
-            "esphome.components.zephyr.dts_fetch._DTS_CACHE",
-            tmp_path / "zephyr_dts_cache",
+            "esphome.components.zephyr.dts_fetch._dts_cache_root",
+            return_value=tmp_path / "zephyr_dts_cache",
         ),
         patch("subprocess.run", side_effect=fake_run),
     ):
@@ -196,8 +235,8 @@ def test_sparse_clone_dts_returns_none_and_cleans_up_on_git_failure(
     dest = tmp_path / "zephyr_dts_cache" / "ESP32H2" / "zephyr" / "4.4.1"
     with (
         patch(
-            "esphome.components.zephyr.dts_fetch._DTS_CACHE",
-            tmp_path / "zephyr_dts_cache",
+            "esphome.components.zephyr.dts_fetch._dts_cache_root",
+            return_value=tmp_path / "zephyr_dts_cache",
         ),
         patch("subprocess.run", side_effect=fake_run),
     ):
@@ -219,8 +258,8 @@ def test_sparse_clone_dts_returns_cached_path_without_reinvoking_git(
 
     with (
         patch(
-            "esphome.components.zephyr.dts_fetch._DTS_CACHE",
-            tmp_path / "zephyr_dts_cache",
+            "esphome.components.zephyr.dts_fetch._dts_cache_root",
+            return_value=tmp_path / "zephyr_dts_cache",
         ),
         patch("subprocess.run") as mock_run,
     ):
@@ -253,8 +292,8 @@ def test_sparse_clone_dts_self_heals_when_resolved_ref_changed(
 
     with (
         patch(
-            "esphome.components.zephyr.dts_fetch._DTS_CACHE",
-            tmp_path / "zephyr_dts_cache",
+            "esphome.components.zephyr.dts_fetch._dts_cache_root",
+            return_value=tmp_path / "zephyr_dts_cache",
         ),
         patch("subprocess.run", side_effect=fake_run) as mock_run,
     ):
@@ -289,8 +328,8 @@ def test_sparse_clone_dts_from_source_cache_hit_with_current_schema_marker(
 
     with (
         patch(
-            "esphome.components.zephyr.dts_fetch._DTS_CACHE",
-            tmp_path / "zephyr_dts_cache",
+            "esphome.components.zephyr.dts_fetch._dts_cache_root",
+            return_value=tmp_path / "zephyr_dts_cache",
         ),
         patch("subprocess.run") as mock_run,
     ):
@@ -324,8 +363,8 @@ def test_sparse_clone_dts_from_source_refetches_when_schema_marker_missing(
 
     with (
         patch(
-            "esphome.components.zephyr.dts_fetch._DTS_CACHE",
-            tmp_path / "zephyr_dts_cache",
+            "esphome.components.zephyr.dts_fetch._dts_cache_root",
+            return_value=tmp_path / "zephyr_dts_cache",
         ),
         patch("subprocess.run", side_effect=fake_run) as mock_run,
     ):
