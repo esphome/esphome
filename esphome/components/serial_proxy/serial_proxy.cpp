@@ -12,6 +12,10 @@
 #include "esphome/components/api/api_server.h"
 #endif
 
+#ifdef USE_SERIAL_PROXY_USB_INFO
+#include "esphome/components/usb_uart/usb_uart.h"
+#endif
+
 namespace esphome::serial_proxy {
 
 static const char *const TAG = "serial_proxy";
@@ -156,9 +160,10 @@ void SerialProxy::dump_config() {
                 "  RTS Pin: %s\n"
                 "  DTR Pin: %s",
                 this->instance_index_, this->name_ != nullptr ? this->name_ : "",
-                this->port_type_ == api::enums::SERIAL_PROXY_PORT_TYPE_RS485   ? LOG_STR_LITERAL("RS485")
-                : this->port_type_ == api::enums::SERIAL_PROXY_PORT_TYPE_RS232 ? LOG_STR_LITERAL("RS232")
-                                                                               : LOG_STR_LITERAL("TTL"),
+                this->port_type_ == api::enums::SERIAL_PROXY_PORT_TYPE_RS485        ? LOG_STR_LITERAL("RS485")
+                : this->port_type_ == api::enums::SERIAL_PROXY_PORT_TYPE_RS232      ? LOG_STR_LITERAL("RS232")
+                : this->port_type_ == api::enums::SERIAL_PROXY_PORT_TYPE_USB_SERIAL ? LOG_STR_LITERAL("USB_SERIAL")
+                                                                                    : LOG_STR_LITERAL("TTL"),
                 this->rts_pin_ != nullptr ? LOG_STR_LITERAL("configured") : LOG_STR_LITERAL("not configured"),
                 this->dtr_pin_ != nullptr ? LOG_STR_LITERAL("configured") : LOG_STR_LITERAL("not configured"));
 }
@@ -332,6 +337,27 @@ SerialProxyResult SerialProxy::set_modem_pins(api::APIConnection *api_connection
   }
   return SerialProxyResult::SERIAL_PROXY_RESULT_OK;
 }
+
+#if defined(USE_SERIAL_PROXY_USB_INFO) && defined(USE_API)
+void SerialProxy::get_usb_info(usb_host::UsbDeviceInfo &info, api::SerialProxyGetUsbInfoResponse &resp) const {
+  if (this->usb_channel_ == nullptr) {
+    resp.status = api::enums::SERIAL_PROXY_STATUS_NOT_SUPPORTED;
+    return;
+  }
+  resp.interface_number = this->usb_channel_->get_index();
+  if (!this->usb_channel_->get_parent()->get_device_info(info)) {
+    // No device attached right now; not an error
+    return;
+  }
+  resp.connected = true;
+  resp.vendor_id = info.vendor_id;
+  resp.product_id = info.product_id;
+  resp.bcd_device = info.bcd_device;
+  resp.manufacturer = StringRef(info.manufacturer);
+  resp.product = StringRef(info.product);
+  resp.serial_number = StringRef(info.serial_number);
+}
+#endif
 
 uint32_t SerialProxy::get_modem_pins() const {
   return (this->rts_state_ ? static_cast<uint32_t>(SERIAL_PROXY_LINE_STATE_FLAG_RTS) : 0u) |

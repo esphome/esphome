@@ -1,0 +1,21 @@
+wifi:
+  ssid: MySSID
+  password: password1
+
+api:
+
+usb_host:
+
+# port_type is omitted deliberately: a port on a USB UART channel derives USB_SERIAL
+usb_uart:
+  - type: CDC_ACM
+    vid: 0x303A
+    pid: 0x831A
+    channels:
+      - id: usb_serial_channel
+        baud_rate: 460800
+
+serial_proxy:
+  - id: serial_proxy_usb
+    uart_id: usb_serial_channel
+    name: USB Serial Port

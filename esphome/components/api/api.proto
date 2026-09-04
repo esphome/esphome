@@ -78,6 +78,7 @@ service APIConnection {
   rpc serial_proxy_write(SerialProxyWriteRequest) returns (void) {}
   rpc serial_proxy_set_modem_pins(SerialProxySetModemPinsRequest) returns (void) {}
   rpc serial_proxy_get_modem_pins(SerialProxyGetModemPinsRequest) returns (void) {}
+  rpc serial_proxy_get_usb_info(SerialProxyGetUsbInfoRequest) returns (void) {}
   rpc serial_proxy_request(SerialProxyRequest) returns (void) {}
   rpc serial_proxy_set_mode(SerialProxySetModeRequest) returns (void) {}
 }
@@ -230,6 +231,11 @@ enum SerialProxyPortType {
   SERIAL_PROXY_PORT_TYPE_TTL = 0;
   SERIAL_PROXY_PORT_TYPE_RS232 = 1;
   SERIAL_PROXY_PORT_TYPE_RS485 = 2;
+  // A serial device attached through a USB bridge. Set by the device configuration, never
+  // by the user; identifies ports whose USB identity can be read with
+  // SerialProxyGetUsbInfoRequest. Deliberately not a USB endpoint type: serial_proxy
+  // carries serial devices only, whatever bridge chip connects them.
+  SERIAL_PROXY_PORT_TYPE_USB_SERIAL = 3;
 }
 
 message SerialProxyInfo {
@@ -2873,6 +2879,36 @@ message SerialProxySetModeRequest {
   SerialProxyMode mode = 2;
 }
 
+// Ask for the USB identity of the device behind a USB_SERIAL port. Read-only, so no
+// subscription is required -- a client typically uses this to decide which port to
+// subscribe to. Answered with NOT_SUPPORTED on ports that are not USB_SERIAL.
+message SerialProxyGetUsbInfoRequest {
+  option (id) = 153;
+  option (source) = SOURCE_CLIENT;
+  option (ifdef) = "USE_SERIAL_PROXY";
+
+  uint32 instance = 1;
+}
+
+// The USB identity of the device currently behind a port, read live from the cached
+// USB descriptors. Fields are zero/empty while no device is connected.
+message SerialProxyGetUsbInfoResponse {
+  option (id) = 154;
+  option (source) = SOURCE_SERVER;
+  option (ifdef) = "USE_SERIAL_PROXY";
+
+  uint32 instance = 1;
+  SerialProxyStatus status = 2;   // NOT_SUPPORTED when the port is not USB_SERIAL
+  bool connected = 3;             // True when a USB device is currently attached
+  uint32 vendor_id = 4;
+  uint32 product_id = 5;
+  uint32 bcd_device = 6;
+  uint32 interface_number = 7;    // Channel index on multi-port bridges
+  string manufacturer = 8;
+  string product = 9;
+  string serial_number = 10;
+}
+
 // ==================== BLUETOOTH CONNECTION PARAMS ====================
 message BluetoothSetConnectionParamsRequest {
   option (id) = 145;
@@ -2902,7 +2938,7 @@ enum ZigbeeProxyRequestType {
 }
 
 message ZigbeeProxyRequest {
-  option (id) = 153;
+  option (id) = 155;
   option (source) = SOURCE_BOTH;
   option (ifdef) = "USE_ZIGBEE_PROXY";
 

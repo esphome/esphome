@@ -164,6 +164,9 @@ class USBUartChannelBase : public uart::UARTComponent, public Parented<USBUartCo
   /// they arrive, eliminating one full main-loop-wakeup cycle of latency.
   void set_rx_callback(std::function<void()> cb) { this->rx_callback_ = std::move(cb); }
 
+  /// Channel index on the bridge (interface number on multi-port bridges)
+  uint8_t get_index() const { return this->index_; }
+
  protected:
   // Not directly instantiable; construct a concrete channel type instead.
   USBUartChannelBase(uint8_t index, uint16_t buffer_size) : input_buffer_(RingBuffer(buffer_size)), index_(index) {}

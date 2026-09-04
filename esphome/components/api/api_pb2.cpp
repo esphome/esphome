@@ -4278,6 +4278,44 @@ bool SerialProxySetModeRequest::decode_varint(uint32_t field_id, proto_varint_va
   }
   return true;
 }
+bool SerialProxyGetUsbInfoRequest::decode_varint(uint32_t field_id, proto_varint_value_t value) {
+  switch (field_id) {
+    case 1:
+      this->instance = value;
+      break;
+    default:
+      return false;
+  }
+  return true;
+}
+uint8_t *SerialProxyGetUsbInfoResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
+  uint8_t *__restrict__ pos = buffer.get_pos();
+  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 1, this->instance);
+  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 2, static_cast<uint32_t>(this->status));
+  ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 3, this->connected);
+  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 4, this->vendor_id);
+  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 5, this->product_id);
+  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 6, this->bcd_device);
+  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 7, this->interface_number);
+  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 8, this->manufacturer);
+  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 9, this->product);
+  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 10, this->serial_number);
+  return pos;
+}
+uint32_t SerialProxyGetUsbInfoResponse::calculate_size() const {
+  uint32_t size = 0;
+  size += ProtoSize::calc_uint32(1, this->instance);
+  size += this->status ? 2 : 0;
+  size += ProtoSize::calc_bool(1, this->connected);
+  size += ProtoSize::calc_uint32(1, this->vendor_id);
+  size += ProtoSize::calc_uint32(1, this->product_id);
+  size += ProtoSize::calc_uint32(1, this->bcd_device);
+  size += ProtoSize::calc_uint32(1, this->interface_number);
+  size += ProtoSize::calc_length(1, this->manufacturer.size());
+  size += ProtoSize::calc_length(1, this->product.size());
+  size += ProtoSize::calc_length(1, this->serial_number.size());
+  return size;
+}
 #endif
 #ifdef USE_BLUETOOTH_PROXY_CONNECTIONS
 bool BluetoothSetConnectionParamsRequest::decode_varint(uint32_t field_id, proto_varint_value_t value) {

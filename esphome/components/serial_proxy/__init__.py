@@ -18,9 +18,10 @@ from esphome import pins
 import esphome.codegen as cg
 from esphome.components import uart
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, CONF_NAME
+from esphome.const import CONF_ID, CONF_NAME, CONF_UART_ID
 from esphome.core import CORE, coroutine_with_priority
 from esphome.coroutine import CoroPriority
+import esphome.final_validate as fv
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@kbx81"]
@@ -34,11 +35,14 @@ SerialProxyTap = serial_proxy_ns.class_("SerialProxyTap")
 
 api_enums_ns = cg.esphome_ns.namespace("api").namespace("enums")
 SerialProxyPortType = api_enums_ns.enum("SerialProxyPortType")
+# User-selectable electrical types. USB_SERIAL is deliberately absent: it is derived
+# from the uart_id pointing at a usb_uart channel, never set by the user.
 SERIAL_PROXY_PORT_TYPES = {
     "TTL": SerialProxyPortType.SERIAL_PROXY_PORT_TYPE_TTL,
     "RS232": SerialProxyPortType.SERIAL_PROXY_PORT_TYPE_RS232,
     "RS485": SerialProxyPortType.SERIAL_PROXY_PORT_TYPE_RS485,
 }
+PORT_TYPE_USB_SERIAL = SerialProxyPortType.SERIAL_PROXY_PORT_TYPE_USB_SERIAL
 
 CONF_DTR_PIN = "dtr_pin"
 CONF_PORT_TYPE = "port_type"
@@ -63,7 +67,7 @@ CONFIG_SCHEMA = (
         {
             cv.GenerateID(): cv.declare_id(SerialProxy),
             cv.Required(CONF_NAME): cv.string_strict,
-            cv.Required(CONF_PORT_TYPE): cv.enum(SERIAL_PROXY_PORT_TYPES, upper=True),
+            cv.Optional(CONF_PORT_TYPE): cv.enum(SERIAL_PROXY_PORT_TYPES, upper=True),
             cv.Optional(CONF_RTS_PIN): pins.gpio_output_pin_schema,
             cv.Optional(CONF_DTR_PIN): pins.gpio_output_pin_schema,
         }
@@ -71,6 +75,26 @@ CONFIG_SCHEMA = (
     .extend(cv.COMPONENT_SCHEMA)
     .extend(uart.UART_DEVICE_SCHEMA)
 )
+
+
+def _uses_usb_uart(config: ConfigType, full_config: ConfigType) -> bool:
+    from esphome.components.usb_uart import is_usb_uart_channel
+
+    return is_usb_uart_channel(config[CONF_UART_ID], full_config)
+
+
+def _final_validate(config: ConfigType) -> ConfigType:
+    if _uses_usb_uart(config, fv.full_config.get()):
+        if CONF_PORT_TYPE in config:
+            raise cv.Invalid(
+                f"{CONF_PORT_TYPE} is set automatically for USB serial ports"
+            )
+    elif CONF_PORT_TYPE not in config:
+        raise cv.Invalid(f"{CONF_PORT_TYPE} is required")
+    return config
+
+
+FINAL_VALIDATE_SCHEMA = _final_validate
 
 
 @coroutine_with_priority(CoroPriority.FINAL)
@@ -87,7 +111,13 @@ async def to_code(config: ConfigType) -> None:
     await uart.register_uart_device(var, config)
     cg.add(cg.App.register_serial_proxy(var))
     cg.add(var.set_name(config[CONF_NAME]))
-    cg.add(var.set_port_type(config[CONF_PORT_TYPE]))
+    if _uses_usb_uart(config, CORE.config):
+        cg.add(var.set_port_type(PORT_TYPE_USB_SERIAL))
+        channel = await cg.get_variable(config[CONF_UART_ID])
+        cg.add(var.set_usb_channel(channel))
+        cg.add_define("USE_SERIAL_PROXY_USB_INFO")
+    else:
+        cg.add(var.set_port_type(config[CONF_PORT_TYPE]))
     cg.add_define("USE_SERIAL_PROXY")
 
     # Track instance count for the FINAL priority define

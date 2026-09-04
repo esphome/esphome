@@ -143,10 +143,8 @@ static void usb_client_print_config_descriptor(const usb_config_desc_t *cfg_desc
   } while (next_desc != NULL);
 }
 #endif
-// USB string descriptors: bLength (uint8_t, max 255) includes the 2-byte header (bLength and bDescriptorType).
-// Character count = (bLength - 2) / 2, max 126 chars + null terminator.
-static constexpr size_t DESC_STRING_BUF_SIZE = 128;
-
+// bLength (uint8_t, max 255) includes the 2-byte header (bLength and bDescriptorType),
+// so character count = (bLength - 2) / 2.
 static const char *get_descriptor_string(const usb_str_desc_t *desc, std::span<char, DESC_STRING_BUF_SIZE> buffer) {
   if (desc == nullptr || desc->bLength < 2)
     return "(unspecified)";
@@ -160,6 +158,41 @@ static const char *get_descriptor_string(const usb_str_desc_t *desc, std::span<c
   }
   *p = '\0';
   return buffer.data();
+}
+
+// A missing descriptor copies as an empty string, unlike the "(unspecified)"
+// placeholder the logging helper above uses
+static void copy_descriptor_string(const usb_str_desc_t *desc, std::span<char, DESC_STRING_BUF_SIZE> buffer) {
+  buffer[0] = '\0';
+  if (desc == nullptr || desc->bLength < 2)
+    return;
+  int char_count = (desc->bLength - 2) / 2;
+  char *p = buffer.data();
+  char *end = p + buffer.size() - 1;
+  for (int i = 0; i != char_count && p < end; i++) {
+    auto c = desc->wData[i];
+    if (c < 0x100)
+      *p++ = static_cast<char>(c);
+  }
+  *p = '\0';
+}
+
+bool USBClient::get_device_info(UsbDeviceInfo &info) const {
+  if (this->state_ != USB_CLIENT_CONNECTED)
+    return false;
+  const usb_device_desc_t *desc;
+  if (usb_host_get_device_descriptor(this->device_handle_, &desc) != ESP_OK)
+    return false;
+  info.vendor_id = desc->idVendor;
+  info.product_id = desc->idProduct;
+  info.bcd_device = desc->bcdDevice;
+  usb_device_info_t dev_info;
+  if (usb_host_device_info(this->device_handle_, &dev_info) != ESP_OK)
+    return false;
+  copy_descriptor_string(dev_info.str_desc_manufacturer, info.manufacturer);
+  copy_descriptor_string(dev_info.str_desc_product, info.product);
+  copy_descriptor_string(dev_info.str_desc_serial_num, info.serial_number);
+  return true;
 }
 
 // CALLBACK CONTEXT: USB task (called from usb_host_client_handle_events in USB task)

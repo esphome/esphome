@@ -117,6 +117,20 @@ struct UsbEvent {
 
 // callback function type.
 
+// USB string descriptors hold at most 126 characters; one more for the terminator
+static constexpr size_t DESC_STRING_BUF_SIZE = 128;
+
+/// Identity of a connected USB device, copied out of the descriptors the USB host
+/// stack caches for the lifetime of the connection
+struct UsbDeviceInfo {
+  uint16_t vendor_id;
+  uint16_t product_id;
+  uint16_t bcd_device;
+  char manufacturer[DESC_STRING_BUF_SIZE];
+  char product[DESC_STRING_BUF_SIZE];
+  char serial_number[DESC_STRING_BUF_SIZE];
+};
+
 enum ClientState {
   USB_CLIENT_INIT = 0,
   USB_CLIENT_OPEN,
@@ -143,6 +157,10 @@ class USBClient : public Component {
   trq_bitmask_t get_trq_in_use() const { return trq_in_use_; }
   bool control_transfer(uint8_t type, uint8_t request, uint16_t value, uint16_t index, const transfer_cb_t &callback,
                         const std::vector<uint8_t> &data = {});
+
+  /// Copy the connected device's identity out of the cached USB descriptors.
+  /// Returns false when no device is connected.
+  bool get_device_info(UsbDeviceInfo &info) const;
 
   // Lock-free event queue and pool for USB task to main loop communication
   // Must be public for access from static callbacks

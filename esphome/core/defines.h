@@ -395,6 +395,10 @@
 #define USB_HOST_MAX_REQUESTS 16
 #define USB_HOST_MAX_PACKET_SIZE 64
 #define USB_UART_OUTPUT_CHUNK_COUNT 5
+// USB identity on serial proxy ports needs the usb_host stack
+#ifdef USE_ESP32
+#define USE_SERIAL_PROXY_USB_INFO
+#endif
 
 #ifdef USE_ARDUINO
 #define USE_ARDUINO_VERSION_CODE VERSION_CODE(3, 3, 7)

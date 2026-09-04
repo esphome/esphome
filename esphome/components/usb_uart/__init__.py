@@ -16,7 +16,7 @@ from esphome.const import (
     CONF_DUMMY_RECEIVER,
     CONF_ID,
 )
-from esphome.core import CORE
+from esphome.core import CORE, ID
 from esphome.cpp_types import Component
 from esphome.types import ConfigType
 
@@ -26,6 +26,16 @@ CODEOWNERS = ["@clydebarrow"]
 usb_uart_ns = cg.esphome_ns.namespace("usb_uart")
 USBUartComponent = usb_uart_ns.class_("USBUartComponent", Component)
 USBUartChannel = usb_uart_ns.class_("USBUartChannel", UARTComponent)
+
+
+def is_usb_uart_channel(uart_id: ID, full_config: ConfigType) -> bool:
+    """Return True if the given ID refers to a channel of a configured usb_uart device."""
+    return any(
+        channel[CONF_ID] == uart_id
+        for device in full_config.get("usb_uart") or []
+        for channel in device[CONF_CHANNELS]
+    )
+
 
 UARTParityOptions = usb_uart_ns.enum("UARTParityOptions")
 UART_PARITY_OPTIONS = {

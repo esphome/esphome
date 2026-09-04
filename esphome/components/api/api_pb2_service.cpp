@@ -723,6 +723,17 @@ void APIConnection::read_message_(uint32_t msg_size, uint32_t msg_type, const ui
       break;
     }
 #endif
+#ifdef USE_SERIAL_PROXY
+    case SerialProxyGetUsbInfoRequest::MESSAGE_TYPE: {
+      SerialProxyGetUsbInfoRequest msg;
+      msg.decode(msg_data, msg_size);
+#ifdef HAS_PROTO_MESSAGE_DUMP
+      this->log_receive_message_(LOG_STR("on_serial_proxy_get_usb_info_request"), msg);
+#endif
+      this->on_serial_proxy_get_usb_info_request(msg);
+      break;
+    }
+#endif
 #ifdef USE_ZIGBEE_PROXY
     case ZigbeeProxyRequest::MESSAGE_TYPE: {
       ZigbeeProxyRequest msg;

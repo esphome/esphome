@@ -21,7 +21,6 @@ serial_proxy:
   - id: zigbee_usb_serial
     uart_id: zigbee_usb_channel
     name: Zigbee
-    port_type: TTL
 
 zigbee_proxy:
   serial_proxy_id: zigbee_usb_serial

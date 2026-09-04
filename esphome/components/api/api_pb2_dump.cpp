@@ -143,6 +143,8 @@ template<> const char *proto_enum_to_string<enums::SerialProxyPortType>(enums::S
       return ESPHOME_PSTR("SERIAL_PROXY_PORT_TYPE_RS232");
     case enums::SERIAL_PROXY_PORT_TYPE_RS485:
       return ESPHOME_PSTR("SERIAL_PROXY_PORT_TYPE_RS485");
+    case enums::SERIAL_PROXY_PORT_TYPE_USB_SERIAL:
+      return ESPHOME_PSTR("SERIAL_PROXY_PORT_TYPE_USB_SERIAL");
     default:
       return ESPHOME_PSTR("UNKNOWN");
   }
@@ -2837,6 +2839,25 @@ const char *SerialProxySetModeRequest::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, ESPHOME_PSTR("SerialProxySetModeRequest"));
   dump_field(out, ESPHOME_PSTR("instance"), this->instance);
   dump_field(out, ESPHOME_PSTR("mode"), static_cast<enums::SerialProxyMode>(this->mode));
+  return out.c_str();
+}
+const char *SerialProxyGetUsbInfoRequest::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("SerialProxyGetUsbInfoRequest"));
+  dump_field(out, ESPHOME_PSTR("instance"), this->instance);
+  return out.c_str();
+}
+const char *SerialProxyGetUsbInfoResponse::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("SerialProxyGetUsbInfoResponse"));
+  dump_field(out, ESPHOME_PSTR("instance"), this->instance);
+  dump_field(out, ESPHOME_PSTR("status"), static_cast<enums::SerialProxyStatus>(this->status));
+  dump_field(out, ESPHOME_PSTR("connected"), this->connected);
+  dump_field(out, ESPHOME_PSTR("vendor_id"), this->vendor_id);
+  dump_field(out, ESPHOME_PSTR("product_id"), this->product_id);
+  dump_field(out, ESPHOME_PSTR("bcd_device"), this->bcd_device);
+  dump_field(out, ESPHOME_PSTR("interface_number"), this->interface_number);
+  dump_field(out, ESPHOME_PSTR("manufacturer"), this->manufacturer);
+  dump_field(out, ESPHOME_PSTR("product"), this->product);
+  dump_field(out, ESPHOME_PSTR("serial_number"), this->serial_number);
   return out.c_str();
 }
 #endif

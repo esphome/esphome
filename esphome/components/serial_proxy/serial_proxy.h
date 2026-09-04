@@ -20,6 +20,15 @@
 #include "esphome/components/api/api_pb2.h"
 #endif
 
+#ifdef USE_SERIAL_PROXY_USB_INFO
+namespace esphome::usb_uart {
+class USBUartChannel;
+}  // namespace esphome::usb_uart
+namespace esphome::usb_host {
+struct UsbDeviceInfo;
+}  // namespace esphome::usb_host
+#endif
+
 // Forward-declare types needed outside the USE_API guard.
 namespace esphome::api {
 class APIConnection;
@@ -155,6 +164,17 @@ class SerialProxy final : public uart::UARTDevice, public Component {
   /// Set the DTR GPIO pin (from YAML configuration)
   void set_dtr_pin(GPIOPin *pin) { this->dtr_pin_ = pin; }
 
+#ifdef USE_SERIAL_PROXY_USB_INFO
+  /// Attach the USB UART channel behind this port (from code generation)
+  void set_usb_channel(usb_uart::USBUartChannel *channel) { this->usb_channel_ = channel; }
+
+#ifdef USE_API
+  /// Fill a USB info response for this port. The response's strings are views into
+  /// info, so info must outlive the send.
+  void get_usb_info(usb_host::UsbDeviceInfo &info, api::SerialProxyGetUsbInfoResponse &resp) const;
+#endif
+#endif
+
 #ifdef USE_SERIAL_PROXY_TAP
   /// Attach a traffic observer. At most one, set once at setup time.
   void set_tap(SerialProxyTap *tap) { this->tap_ = tap; }
@@ -250,6 +270,11 @@ class SerialProxy final : public uart::UARTDevice, public Component {
 
 #ifdef USE_SERIAL_PROXY_TAP
   SerialProxyTap *tap_{nullptr};
+#endif
+
+#ifdef USE_SERIAL_PROXY_USB_INFO
+  /// The USB UART channel behind this port; nullptr on non-USB ports
+  usb_uart::USBUartChannel *usb_channel_{nullptr};
 #endif
 };
 
