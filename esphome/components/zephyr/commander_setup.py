@@ -21,7 +21,7 @@ import sys
 import tarfile
 import urllib.request
 
-from esphome.core import CORE
+from esphome.build_helpers.tools_cache import SDK_SILABS_TOOLS_CACHE, tools_cache_path
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -45,7 +45,10 @@ DEFAULT_VERSION = "1.24.1"
 
 
 def _install_dir(version: str) -> Path:
-    return CORE.data_dir / "sdk-silabs" / "commander" / version
+    # Machine-global (OS user cache dir) so all silabs-framework projects share
+    # one Commander install; see build_helpers.tools_cache.tools_cache_path for
+    # the env-override and normalization rules.
+    return tools_cache_path(*SDK_SILABS_TOOLS_CACHE) / "commander" / version
 
 
 def check_and_install(version: str | None) -> Path:

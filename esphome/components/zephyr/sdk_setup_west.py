@@ -17,7 +17,7 @@ import sys
 import tarfile
 import urllib.request
 
-from esphome.core import CORE
+from .framework_west import _tools_path
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -36,7 +36,7 @@ def _read_sdk_version(framework_path: Path) -> str:
 
 
 def _sdk_install_dir(sdk_version: str) -> Path:
-    return CORE.data_dir / "sdk-zephyr" / "toolchains" / f"zephyr-sdk-{sdk_version}"
+    return _tools_path() / "toolchains" / f"zephyr-sdk-{sdk_version}"
 
 
 def _download_and_extract(

@@ -8,6 +8,7 @@ import time
 
 import yaml
 
+from esphome.build_helpers.tools_cache import SDK_ZEPHYR_TOOLS_CACHE, tools_cache_path
 from esphome.const import CONF_PATH, CONF_REF, CONF_TYPE, CONF_URL, TYPE_LOCAL
 from esphome.core import CORE, EsphomeError, TimePeriodSeconds
 from esphome.framework_helpers import (
@@ -22,14 +23,15 @@ from .variants import ZephyrModule, ZephyrSDK
 
 _LOGGER = logging.getLogger(__name__)
 
-_TOOLS_SUBDIR = "sdk-zephyr"
-
 # TimePeriodSeconds(seconds=-1) means "never refresh", mirroring esphome.git's NEVER_REFRESH.
 NEVER_REFRESH = TimePeriodSeconds(seconds=-1)
 
 
 def _tools_path() -> Path:
-    return CORE.data_dir / _TOOLS_SUBDIR
+    # Machine-global (OS user cache dir) so all Zephyr-based projects share one
+    # SDK/toolchain/west install; see build_helpers.tools_cache.tools_cache_path
+    # for the env-override and normalization rules.
+    return tools_cache_path(*SDK_ZEPHYR_TOOLS_CACHE)
 
 
 def _python_env_path(version: str) -> Path:
@@ -41,6 +43,7 @@ def _framework_path(cache_key: str) -> Path:
 
 
 def _source_cache_key(
+    sdk: ZephyrSDK,
     ver_tag: str,
     source: ConfigType | None,
     git_modules: list[ZephyrModule] | None = None,
@@ -49,18 +52,22 @@ def _source_cache_key(
     and from other sdk_source configs sharing the same version: value. A non-empty
     git_modules set also gets its own cache dir -- a different active module *set*
     changes what the generated manifest fetches, so it can't share a workspace with a
-    no-module build or a different combination."""
+    no-module build or a different combination.
+
+    sdk.tools_subdir prefixes the key so MAINLINE/NCS/SILABS -- which now share one
+    machine-global cache root -- can't collide on a matching version: string (e.g. NCS's
+    bundled Zephyr fork tracks close to mainline's own numbering)."""
     if source is None:
-        key = ver_tag
+        key = f"{sdk.tools_subdir}-{ver_tag}"
     elif source[CONF_TYPE] == TYPE_LOCAL:
         path_hash = hashlib.sha1(str(source[CONF_PATH]).encode()).hexdigest()[:8]
-        key = f"{ver_tag}-local-{path_hash}"
+        key = f"{sdk.tools_subdir}-{ver_tag}-local-{path_hash}"
     else:
         # TYPE_GIT
         ref = source.get(CONF_REF) or "HEAD"
         safe_ref = re.sub(r"[^A-Za-z0-9_.-]", "_", ref)
         url_hash = hashlib.sha1(source[CONF_URL].encode()).hexdigest()[:8]
-        key = f"{ver_tag}-{safe_ref}-{url_hash}"
+        key = f"{sdk.tools_subdir}-{ver_tag}-{safe_ref}-{url_hash}"
     if not git_modules:
         return key
     modules_id = "|".join(
@@ -260,7 +267,9 @@ def check_and_install(
         framework = local_path.parent
         zephyr_dir = local_path
     else:
-        framework = _framework_path(_source_cache_key(ver_tag, source, git_modules))
+        framework = _framework_path(
+            _source_cache_key(sdk, ver_tag, source, git_modules)
+        )
         zephyr_dir = framework / "zephyr"
 
     west_env = {

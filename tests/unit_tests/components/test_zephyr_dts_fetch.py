@@ -7,16 +7,19 @@ from pathlib import Path
 import subprocess
 from unittest.mock import patch
 
+import pytest
+
 from esphome.components.zephyr.dts_fetch import (
     _SPARSE_CHECKOUT_SCHEMA,
     _framework_base_version,
+    _native_dts_path,
     _resolve_boards_ref,
     _sdk_source_cache_key,
     _sparse_clone_dts,
     _sparse_clone_dts_from_source,
     _sparse_clone_hal_modules,
 )
-from esphome.components.zephyr.variants import MAINLINE, NCS
+from esphome.components.zephyr.variants import MAINLINE, NCS, SILABS, ZephyrSDK
 import esphome.config_validation as cv
 from esphome.const import KEY_CORE, KEY_FRAMEWORK_VERSION
 from esphome.core import CORE
@@ -34,6 +37,37 @@ def _set_framework_version(major: int, minor: int, patch: int) -> None:
 def test_framework_base_version_formats_major_minor_patch() -> None:
     _set_framework_version(4, 4, 1)
     assert _framework_base_version() == "4.4.1"
+
+
+# ---------------------------------------------------------------------------
+# _native_dts_path
+# ---------------------------------------------------------------------------
+
+
+def test_native_dts_path_none_when_tools_subdir_unset() -> None:
+    assert _native_dts_path(ZephyrSDK(manifest_url="x")) is None
+
+
+@pytest.mark.parametrize("sdk", [MAINLINE, NCS, SILABS])
+def test_native_dts_path_matches_the_machine_global_cache_key(
+    sdk, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Must land at the same directory framework_west._source_cache_key() would
+    # produce for the plain official-source (no sdk_source:, no modules) case --
+    # sdk.tools_subdir-prefixed, nested under the shared sdk-zephyr cache root.
+    monkeypatch.setenv("ESPHOME_SDK_ZEPHYR_PREFIX", str(tmp_path))
+    _set_framework_version(4, 4, 1)
+    expected = tmp_path / "frameworks" / f"{sdk.tools_subdir}-v4.4.1" / "zephyr"
+    expected.mkdir(parents=True)
+    assert _native_dts_path(sdk) == expected
+
+
+def test_native_dts_path_none_when_not_on_disk(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("ESPHOME_SDK_ZEPHYR_PREFIX", str(tmp_path))
+    _set_framework_version(4, 4, 1)
+    assert _native_dts_path(MAINLINE) is None
 
 
 # ---------------------------------------------------------------------------

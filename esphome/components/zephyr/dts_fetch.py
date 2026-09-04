@@ -9,6 +9,7 @@ import time
 
 import yaml
 
+from esphome.build_helpers.tools_cache import SDK_ZEPHYR_TOOLS_CACHE, tools_cache_path
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_PATH,
@@ -229,17 +230,19 @@ def _native_dts_path(sdk: ZephyrSDK) -> Path | None:
     """Return the zephyr/ subdirectory in the native SDK install if it is present on disk.
 
     Both mainline Zephyr and NCS check out the tree that owns boards/ under a sibling
-    directory literally named "zephyr" (NCS: <tools_subdir>/frameworks/v<ver>/zephyr,
-    the bundled sdk-zephyr fork project -- confirmed against a real local NCS install),
-    so this needs no per-sdk branching.
+    directory literally named "zephyr" (the bundled sdk-zephyr fork project -- confirmed
+    against a real local NCS install), so this needs no per-sdk branching beyond the cache
+    key. Only matches the plain official-source install (no sdk_source: override, no
+    modules) -- framework_west._source_cache_key()'s other branches aren't reproducible
+    here without the source/git_modules info this function doesn't have; those cases just
+    fall through to the caller's git-fetch fallback.
     """
     if sdk.tools_subdir is None:
         return None
     candidate = (
-        CORE.data_dir
-        / sdk.tools_subdir
+        tools_cache_path(*SDK_ZEPHYR_TOOLS_CACHE)
         / "frameworks"
-        / f"v{_framework_base_version()}"
+        / f"{sdk.tools_subdir}-v{_framework_base_version()}"
         / "zephyr"
     )
     return candidate if candidate.is_dir() else None
