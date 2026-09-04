@@ -41,7 +41,11 @@ MQTTClientComponent::MQTTClientComponent() {
   global_mqtt_client = this;
   char mac_addr[MAC_ADDRESS_BUFFER_SIZE];
   get_mac_address_into_buffer(mac_addr);
-  this->credentials_.client_id = make_name_with_suffix(App.get_name(), '-', mac_addr, MAC_ADDRESS_BUFFER_SIZE - 1);
+  const StringRef &name = App.get_name();
+  char client_id[MAX_NAME_WITH_SUFFIX_SIZE];
+  size_t len = make_name_with_suffix_to(client_id, sizeof(client_id), name.c_str(), name.size(), '-', mac_addr,
+                                        MAC_ADDRESS_BUFFER_SIZE - 1);
+  this->credentials_.client_id.assign(client_id, len);
 }
 
 // Connection
@@ -668,9 +672,7 @@ void MQTTClientComponent::on_message(const std::string &topic, const std::string
 // Setters
 void MQTTClientComponent::disable_log_message() { this->log_message_.topic = ""; }
 bool MQTTClientComponent::is_log_message_enabled() const { return !this->log_message_.topic.empty(); }
-void MQTTClientComponent::set_reboot_timeout(uint32_t reboot_timeout) { this->reboot_timeout_ = reboot_timeout; }
 void MQTTClientComponent::register_mqtt_component(MQTTComponent *component) { this->children_.push_back(component); }
-void MQTTClientComponent::set_log_level(int level) { this->log_level_ = level; }
 void MQTTClientComponent::set_keep_alive(uint16_t keep_alive_s) { this->mqtt_backend_.set_keep_alive(keep_alive_s); }
 void MQTTClientComponent::set_log_message_template(MQTTMessage &&message) { this->log_message_ = std::move(message); }
 const MQTTDiscoveryInfo &MQTTClientComponent::get_discovery_info() const { return this->discovery_info_; }
@@ -683,10 +685,6 @@ void MQTTClientComponent::set_topic_prefix(const std::string &topic_prefix, cons
   }
 }
 const std::string &MQTTClientComponent::get_topic_prefix() const { return this->topic_prefix_; }
-void MQTTClientComponent::set_publish_nan_as_none(bool publish_nan_as_none) {
-  this->publish_nan_as_none_ = publish_nan_as_none;
-}
-bool MQTTClientComponent::is_publish_nan_as_none() const { return this->publish_nan_as_none_; }
 void MQTTClientComponent::disable_birth_message() {
   this->birth_message_.topic = "";
   this->recalculate_availability_();
@@ -766,8 +764,6 @@ MQTTClientComponent *global_mqtt_client = nullptr;  // NOLINT(cppcoreguidelines-
 
 // MQTTMessageTrigger
 MQTTMessageTrigger::MQTTMessageTrigger(std::string topic) : topic_(std::move(topic)) {}
-void MQTTMessageTrigger::set_qos(uint8_t qos) { this->qos_ = qos; }
-void MQTTMessageTrigger::set_payload(const std::string &payload) { this->payload_ = payload; }
 void MQTTMessageTrigger::setup() {
   global_mqtt_client->subscribe(
       this->topic_,

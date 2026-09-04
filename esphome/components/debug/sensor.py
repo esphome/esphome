@@ -21,6 +21,7 @@ from esphome.const import (
     UNIT_MILLISECOND,
     UNIT_PERCENT,
 )
+from esphome.types import ConfigType
 
 from . import (  # noqa: F401  pylint: disable=unused-import
     CONF_DEBUG_ID,
@@ -51,12 +52,9 @@ CONFIG_SCHEMA = {
     ),
     cv.Optional(CONF_FRAGMENTATION): cv.All(
         cv.Any(
-            cv.All(
-                cv.only_on_esp8266,
-                cv.require_framework_version(esp8266_arduino=cv.Version(2, 5, 2)),
-            ),
+            cv.only_on_esp8266,
             cv.only_on_esp32,
-            msg="This feature is only available on ESP8266 (Arduino 2.5.2+) and ESP32",
+            msg="This feature is only available on ESP8266 and ESP32",
         ),
         sensor.sensor_schema(
             unit_of_measurement=UNIT_PERCENT,
@@ -111,7 +109,7 @@ CONFIG_SCHEMA = {
 }
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     debug_component = await cg.get_variable(config[CONF_DEBUG_ID])
 
     if free_conf := config.get(CONF_FREE):

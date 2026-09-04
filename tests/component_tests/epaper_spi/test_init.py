@@ -439,6 +439,23 @@ def test_enable_pin_multiple(
     assert all(pin["mode"]["output"] is True for pin in enable_pins)
 
 
+def test_uc8179_e1001_code_generation(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """Test that the reTerminal E1001 model generates the UC8179 driver and init sequence."""
+    main_cpp = generate_main(component_config_path("uc8179_e1001_test.yaml"))
+
+    # The model must instantiate the UC8179 driver class with the panel dimensions
+    assert "epaper_spi::EPaperUC8179" in main_cpp
+    assert re.search(r'"SEEED-RETERMINAL-E1001",\s*800,\s*480', main_cpp)
+
+    # The generated init sequence must contain the UC8179 resolution setting
+    # for 800x480: command 0x61, 4 data bytes 0x03 0x20 0x01 0xE0
+    # (rendered as decimal in the generated array)
+    assert "97, 4, 3, 32, 1, 224" in main_cpp
+
+
 def test_enable_pin_code_generation(
     generate_main: Callable[[str | Path], str],
     component_config_path: Callable[[str], Path],
@@ -462,3 +479,24 @@ def test_enable_pin_code_generation(
     # Both pin objects must be passed to the display via set_enable_pins() as a
     # std::vector initializer list, in the configured order.
     assert f"set_enable_pins({{{pin_25}, {pin_26}}});" in main_cpp
+
+
+def test_model_with_no_default_init_sequence_generates(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """Test that code generation succeeds for a model with no default init sequence.
+
+    The base "t133a01" model (used directly, not via one of its `.extend()`
+    variants) doesn't override `get_init_sequence()` or pass `initsequence` to
+    its constructor, and the user didn't supply `init_sequence:` either.
+    `EpaperModel.get_init_sequence()` used to default to `None` in this case,
+    which made `flatten_sequence()` raise a `TypeError` during code
+    generation. Regression test for that crash.
+    """
+    main_cpp = generate_main(component_config_path("t133a01_no_init_sequence.yaml"))
+
+    # The generated constructor call takes (name, width, height, init_sequence,
+    # init_sequence_length, ...); a length of 0 confirms the empty init
+    # sequence array was generated instead of raising during code generation.
+    assert re.search(r"epaper_spi::EPaperT133A01\([^;]*,\s*\w+,\s*0\);", main_cpp)

@@ -10,6 +10,7 @@ from esphome.const import (
     STATE_CLASS_MEASUREMENT,
     UNIT_METER_PER_SECOND_SQUARED,
 )
+from esphome.types import ConfigType
 
 from . import CONF_MSA3XX_ID, MSA_SENSOR_SCHEMA
 
@@ -34,7 +35,7 @@ CONFIG_SCHEMA = MSA_SENSOR_SCHEMA.extend(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     hub = await cg.get_variable(config[CONF_MSA3XX_ID])
     for accel_key in ACCELERATION_SENSORS:
         if accel_key in config:
