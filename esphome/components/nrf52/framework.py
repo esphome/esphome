@@ -5,23 +5,19 @@ from pathlib import Path
 import platform
 import shutil
 import sys
-import tempfile
 
-import platformdirs
-
+from esphome.build_helpers.tools_cache import SDK_NRF_TOOLS_CACHE, tools_cache_path
 import esphome.config_validation as cv
 from esphome.const import KEY_CORE, KEY_FRAMEWORK_VERSION
 from esphome.core import CORE, EsphomeError
 from esphome.framework_helpers import (
-    archive_extract_all,
     create_venv,
-    download_from_mirrors,
+    download_and_extract,
     get_python_env_executable_path,
     rmdir,
     run_command_ok,
     str_to_lst_of_str,
 )
-from esphome.helpers import get_str_env
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -51,15 +47,9 @@ SDK_NG_MINIMAL_MIRRORS = str_to_lst_of_str(
 
 
 def get_sdk_nrf_tools_path() -> Path:
-    # A blank ESPHOME_SDK_NRF_PREFIX must be treated as unset: Path("")
-    # resolves to the CWD, which clean-all would then delete.
-    if prefix := get_str_env("ESPHOME_SDK_NRF_PREFIX", "").strip():
-        path = Path(prefix).expanduser()
-    else:
-        # Machine-global (OS user cache dir) so all projects share one install;
-        # see espidf.framework.get_idf_tools_path for the location rationale.
-        path = Path(platformdirs.user_cache_dir("esphome", appauthor=False)) / "sdk-nrf"
-    return path.resolve()
+    # Machine-global (OS user cache dir) so all projects share one install;
+    # see espidf.framework.get_idf_tools_path for the location rationale.
+    return tools_cache_path(*SDK_NRF_TOOLS_CACHE)
 
 
 def _needs_venv_rebuild(
@@ -346,34 +336,37 @@ def check_and_install() -> None:
     if not sentinel.exists():
         rmdir(toolchains_dir, msg=f"Clean up {TOOLCHAIN_VERSION} toolchain environment")
         sysname, machine, extension = _get_toolchain_platform_info()
-        with tempfile.NamedTemporaryFile() as tmp:
-            _LOGGER.info("Downloading Zephyr SDK %s minimal ...", TOOLCHAIN_VERSION)
-            download_from_mirrors(
-                SDK_NG_MINIMAL_MIRRORS,
-                {
-                    "VERSION": TOOLCHAIN_VERSION,
-                    "sysname": sysname,
-                    "machine": machine,
-                    "extension": extension,
-                },
-                tmp.file,
-            )
-            archive_extract_all(tmp.file, toolchains_dir, progress_header="Extracting")
-        with tempfile.NamedTemporaryFile() as tmp:
-            _LOGGER.info("Downloading %s toolchain ...", TOOLCHAIN_VERSION)
-            download_from_mirrors(
+        substitutions = {
+            "VERSION": TOOLCHAIN_VERSION,
+            "sysname": sysname,
+            "machine": machine,
+            "extension": extension,
+        }
+        # Downloaded next to the destination (not a temp file) so an
+        # interrupted download's .part file resumes on the next run.
+        for mirrors, extract_dir, what, slug in (
+            (SDK_NG_MINIMAL_MIRRORS, toolchains_dir, "Zephyr SDK minimal", "minimal"),
+            (
                 SDK_NG_TOOLCHAIN_MIRRORS,
-                {
-                    "VERSION": TOOLCHAIN_VERSION,
-                    "sysname": sysname,
-                    "machine": machine,
-                    "extension": extension,
-                },
-                tmp.file,
-            )
-            archive_extract_all(
-                tmp.file,
                 toolchains_dir / "arm-zephyr-eabi",
+                "toolchain",
+                "toolchain",
+            ),
+        ):
+            _LOGGER.info("Downloading %s %s ...", TOOLCHAIN_VERSION, what)
+            download_and_extract(
+                mirrors,
+                substitutions,
+                toolchains_dir.with_name(f"{toolchains_dir.name}.{slug}.archive"),
+                extract_dir,
                 progress_header="Extracting",
             )
+        # Best-effort prune of resume leftovers, including a previous
+        # TOOLCHAIN_VERSION's orphans; the SDK archives are hundreds of MB.
+        # A locked file must not discard the just-completed install.
+        for leftover in toolchains_dir.parent.glob("*.archive.part*"):
+            try:
+                leftover.unlink()
+            except OSError as err:
+                _LOGGER.debug("Could not remove %s: %s", leftover, err)
         sentinel.touch()

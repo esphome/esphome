@@ -82,11 +82,11 @@ void SerialProxy::dump_config() {
                 "  RTS Pin: %s\n"
                 "  DTR Pin: %s",
                 this->instance_index_, this->name_ != nullptr ? this->name_ : "",
-                this->port_type_ == api::enums::SERIAL_PROXY_PORT_TYPE_RS485   ? "RS485"
-                : this->port_type_ == api::enums::SERIAL_PROXY_PORT_TYPE_RS232 ? "RS232"
-                                                                               : "TTL",
-                this->rts_pin_ != nullptr ? "configured" : "not configured",
-                this->dtr_pin_ != nullptr ? "configured" : "not configured");
+                this->port_type_ == api::enums::SERIAL_PROXY_PORT_TYPE_RS485   ? LOG_STR_LITERAL("RS485")
+                : this->port_type_ == api::enums::SERIAL_PROXY_PORT_TYPE_RS232 ? LOG_STR_LITERAL("RS232")
+                                                                               : LOG_STR_LITERAL("TTL"),
+                this->rts_pin_ != nullptr ? LOG_STR_LITERAL("configured") : LOG_STR_LITERAL("not configured"),
+                this->dtr_pin_ != nullptr ? LOG_STR_LITERAL("configured") : LOG_STR_LITERAL("not configured"));
 }
 
 SerialProxyResult SerialProxy::configure(api::APIConnection *api_connection, uint32_t baudrate, bool flow_control,
@@ -130,17 +130,26 @@ SerialProxyResult SerialProxy::configure(api::APIConnection *api_connection, uin
     return SerialProxyResult::SERIAL_PROXY_RESULT_NOT_SUPPORTED;
   }
 
-  // Apply validated parameters
-  uart_comp->set_baud_rate(baudrate);
-  uart_comp->set_stop_bits(stop_bits);
-  uart_comp->set_data_bits(data_size);
-
-  // Map parity value to UARTParityOptions
+  // Skip a no-op reconfigure. Clients routinely re-send identical settings on every
+  // port open, and on a USB UART each apply is a CDC SET_LINE_CODING control transfer.
+  // Some bridges watch line-coding changes as a signalling channel (a magic baud
+  // sequence to enter a bootloader, say), so redundant applies are not harmless.
   static const uart::UARTParityOptions PARITY_MAP[] = {
       uart::UART_CONFIG_PARITY_NONE,
       uart::UART_CONFIG_PARITY_EVEN,
       uart::UART_CONFIG_PARITY_ODD,
   };
+  if (uart_comp->get_baud_rate() == baudrate && uart_comp->get_stop_bits() == stop_bits &&
+      uart_comp->get_data_bits() == data_size && uart_comp->get_parity() == PARITY_MAP[parity]) {
+    ESP_LOGV(TAG, "Settings unchanged, skipping reconfigure [%" PRIu32 "]", this->instance_index_);
+    return SerialProxyResult::SERIAL_PROXY_RESULT_OK;
+  }
+
+  // Apply validated parameters
+  uart_comp->set_baud_rate(baudrate);
+  uart_comp->set_stop_bits(stop_bits);
+  uart_comp->set_data_bits(data_size);
+
   uart_comp->set_parity(PARITY_MAP[parity]);
 
   // load_settings() is available on ESP8266 and ESP32 platforms

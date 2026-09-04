@@ -10,7 +10,7 @@ from pathlib import Path
 
 import pytest
 
-from esphome.core import EsphomeError, Library
+from esphome.core import CORE, EsphomeError, Library
 import esphome.platformio.library as lib
 from esphome.platformio.library import (
     SOURCE_KIND_FOR_SUFFIX,
@@ -29,9 +29,13 @@ from esphome.platformio.library import (
 )
 
 
-def _backend(emit=lambda component: None) -> LibraryBackend:
+def _backend(emit=lambda component: None, provides=None) -> LibraryBackend:
     return LibraryBackend(
-        platform="espressif32", framework="espidf", emit=emit, cache_key="idf"
+        platform="espressif32",
+        framework="espidf",
+        emit=emit,
+        cache_key="idf",
+        provides=provides,
     )
 
 
@@ -158,16 +162,12 @@ def test_urlsource_download_extracts_then_reuses_marker(
 ):
     monkeypatch.setattr(lib, "rmdir", lambda path, msg="": None)
     dl_calls: list[list[str]] = []
-    monkeypatch.setattr(
-        lib,
-        "download_from_mirrors",
-        lambda urls, headers, f, progress=None: dl_calls.append(urls),
-    )
 
-    def fake_extract(fileobj, path):
-        Path(path).mkdir(parents=True, exist_ok=True)
+    def fake_download_and_extract(urls, subs, archive_path, extract_dir, **kwargs):
+        dl_calls.append(urls)
+        Path(extract_dir).mkdir(parents=True, exist_ok=True)
 
-    monkeypatch.setattr(lib, "archive_extract_all", fake_extract)
+    monkeypatch.setattr(lib, "download_and_extract", fake_download_and_extract)
 
     src = URLSource("http://example.test/lib.tar.gz")
     out = src.download("mylib")
@@ -185,6 +185,25 @@ def test_urlsource_download_extracts_then_reuses_marker(
     src.download("mylib-batch", progress=lambda done: None)
     assert len(dl_calls) == 2
     assert "Downloading" not in caplog.text
+
+
+def test_urlsource_downloads_to_sibling_archive_path(setup_core, monkeypatch):
+    """The archive downloads to a deterministic path next to the cache dir
+    (not a random temp file), so an interrupted download's .part file
+    resumes on the next run."""
+    monkeypatch.setattr(lib, "rmdir", lambda path, msg="": None)
+    targets: list[Path] = []
+
+    def fake_download_and_extract(urls, subs, archive_path, extract_dir, **kwargs):
+        targets.append(Path(archive_path))
+        Path(extract_dir).mkdir(parents=True, exist_ok=True)
+
+    monkeypatch.setattr(lib, "download_and_extract", fake_download_and_extract)
+
+    src = URLSource("http://example.test/lib.tar.gz")
+    out = src.download("mylib")
+
+    assert targets == [out.with_name(f"{out.name}.archive")]
 
 
 def test_resolve_registry_version_raises_without_pkg_file(monkeypatch):
@@ -619,7 +638,7 @@ def test_prefetch_wave_downloads_registry_archives_in_parallel(
     setup_core, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ) -> None:
     """Registry archives in one wave download concurrently, deduped by URL;
-    git/local sources and failures are left to the sequential call."""
+    local sources and failures are left to the sequential call."""
     calls: list[str] = []
 
     def fake_download(
@@ -639,7 +658,7 @@ def test_prefetch_wave_downloads_registry_archives_in_parallel(
         # into the same cache directory)
         ("b2", ConvertedLibrary("b2", "1.0", URLSource("https://x/b.tar.gz", 1))),
         ("c", ConvertedLibrary("c", "1.0", URLSource("https://x/boom.tar.gz", 1))),
-        ("g", ConvertedLibrary("g", "*", lib.GitSource("https://x/g.git", None))),
+        ("l", ConvertedLibrary("l", "*", LocalSource("/some/lib"))),
     ]
     lib._prefetch_wave(wave, "", "idf")
     assert sorted(calls) == [
@@ -649,6 +668,83 @@ def test_prefetch_wave_downloads_registry_archives_in_parallel(
     ]
     # The failure surfaces at default verbosity, after the bar
     assert "Prefetch of c failed (retrying sequentially)" in caplog.text
+
+
+def test_prefetch_wave_clones_git_sources_in_parallel(
+    setup_core, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Git sources join the same prefetch batch as the archives, deduped by
+    clone target; a clone failure warns and is left to the sequential call."""
+    caplog.set_level("INFO")
+    calls: list[str] = []
+
+    def fake_clone(self, dir_suffix, force=False, salt="", namespace=""):
+        calls.append(f"{self}/{dir_suffix}")
+        if "boom" in self.url:
+            raise RuntimeError("boom")
+
+    monkeypatch.setattr(GitSource, "download", fake_clone)
+    wave = [
+        ("a", ConvertedLibrary("a", "1.0", URLSource("https://x/a.tar.gz", 1))),
+        ("g", ConvertedLibrary("g", "*", GitSource("https://x/g.git", "v1"))),
+        # Same url@ref and target dir must clone once
+        ("g2", ConvertedLibrary("g", "*", GitSource("https://x/g.git", "v1"))),
+        ("h", ConvertedLibrary("h", "*", GitSource("https://x/boom.git", None))),
+    ]
+    monkeypatch.setattr(
+        URLSource, "download", lambda self, dir_suffix, progress=None, **kw: None
+    )
+    lib._prefetch_wave(wave, "", "idf")
+    assert sorted(calls) == ["https://x/boom.git/h", "https://x/g.git#v1/g"]
+    assert "Cloning 2 library repo(s): g, h" in caplog.text
+    assert "Prefetch of h failed (retrying sequentially)" in caplog.text
+
+
+def test_source_base_prefetch_defaults() -> None:
+    """The base Source is not prefetchable and reports cached (nothing to do)."""
+    source = Source()
+    assert source.prefetch_key("x") is None
+    assert source.is_cached("x") is True
+
+
+def test_prefetch_wave_single_clone_uses_the_batch(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A wave with only git sources still clones through the batch runner."""
+    caplog.set_level("INFO")
+    calls: list[str] = []
+    monkeypatch.setattr(GitSource, "is_cached", lambda self, *a, **kw: False)
+    monkeypatch.setattr(
+        GitSource,
+        "download",
+        lambda self, dir_suffix, force=False, salt="", namespace="": calls.append(
+            self.url
+        ),
+    )
+    lib._prefetch_wave(
+        [("g", ConvertedLibrary("g", "*", GitSource("https://x/g.git", None)))],
+        "",
+        "idf",
+    )
+    assert calls == ["https://x/g.git"]
+    assert "Cloning 1 library repo(s): g" in caplog.text
+    assert "Downloading" not in caplog.text
+
+
+def test_prefetch_wave_warm_git_cache_is_silent(
+    setup_core, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """An already-complete clone is neither re-fetched nor announced."""
+    caplog.set_level("INFO")
+    monkeypatch.setattr(
+        GitSource,
+        "download",
+        lambda self, dir_suffix, **kw: (_ for _ in ()).throw(AssertionError("cloned")),
+    )
+    monkeypatch.setattr(GitSource, "is_cached", lambda self, *a, **kw: True)
+    wave = [("g", ConvertedLibrary("g", "*", GitSource("https://x/g.git", None)))]
+    lib._prefetch_wave(wave, "", "idf")
+    assert "Cloning" not in caplog.text
 
 
 def test_prefetch_wave_unknown_size_left_to_sequential(
@@ -929,11 +1025,210 @@ def test_split_flag_entry_non_string_is_clean() -> None:
 
 
 def test_source_kind_map_shape() -> None:
-    """The kind values the native compile rules key on, and the deliberate
-    AS/ASPP merge (.s and .S both map to asm)."""
+    """The kind values the native compile rules key on; the AS/ASPP split
+    matches SCons (.S preprocessed, .s plain assembler)."""
 
-    assert set(SOURCE_KIND_FOR_SUFFIX.values()) == {"c", "cxx", "asm"}
+    assert set(SOURCE_KIND_FOR_SUFFIX.values()) == {"c", "cxx", "asm", "aspp"}
     assert SOURCE_KIND_FOR_SUFFIX[".s"] == "asm"
-    assert SOURCE_KIND_FOR_SUFFIX[".S"] == "asm"
+    assert SOURCE_KIND_FOR_SUFFIX[".S"] == "aspp"
     assert SOURCE_KIND_FOR_SUFFIX[".c"] == "c"
     assert SOURCE_KIND_FOR_SUFFIX[".cpp"] == "cxx"
+    # SCons's case-sensitive C++ suffixes: PIO compiles .C as C++
+    assert SOURCE_KIND_FOR_SUFFIX[".C"] == "cxx"
+    assert SOURCE_KIND_FOR_SUFFIX[".C++"] == "cxx"
+
+
+def test_versionless_platform_filtered_dependency_stays_quiet(
+    tmp_path, monkeypatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A version-less dependency the platform filter excludes is
+    deliberately absent, not a drop to warn about."""
+    _patch_download_with_manifests(
+        monkeypatch,
+        tmp_path,
+        {
+            "esphome/A": {
+                "name": "A",
+                "dependencies": [{"name": "Hash", "platforms": "espressif8266"}],
+            }
+        },
+    )
+    convert_libraries([Library("esphome/A", None, None)], _backend())
+    assert "has no version to resolve" not in caplog.text
+
+
+def test_versionless_ignored_dependency_stays_quiet(
+    tmp_path, monkeypatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A lib_ignore'd version-less dependency is deliberately excluded, not
+    a drop; no reconciliation warning."""
+    _patch_download_with_manifests(
+        monkeypatch,
+        tmp_path,
+        {"esphome/A": {"name": "A", "dependencies": [{"name": "Hash"}]}},
+    )
+    CORE.platformio_options = {"lib_ignore": ["Hash"]}
+    convert_libraries([Library("esphome/A", None, None)], _backend())
+    assert "has no version to resolve" not in caplog.text
+
+
+def test_versionless_dependency_without_provider_warns(
+    tmp_path, monkeypatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A backend whose tree could supply the name warns on the drop; one
+    without provides() can never act on it, so it stays at debug."""
+    _patch_download_with_manifests(
+        monkeypatch,
+        tmp_path,
+        {
+            "esphome/A": {
+                "name": "A",
+                # The duplicate entry warns once (reconciliation dedup)
+                "dependencies": [{"name": "Hash"}, {"name": "Hash"}],
+            }
+        },
+    )
+    convert_libraries(
+        [Library("esphome/A", None, None)], _backend(provides=lambda name: False)
+    )
+    assert (
+        caplog.text.count(
+            "Hash of esphome/A has no version to resolve and nothing provides it"
+        )
+        == 1
+    )
+    caplog.clear()
+    with caplog.at_level(logging.DEBUG):
+        convert_libraries([Library("esphome/A", None, None)], _backend())
+    records = [
+        r
+        for r in caplog.records
+        if "has no version to resolve and nothing provides it" in r.message
+    ]
+    assert records and all(r.levelno == logging.DEBUG for r in records)
+
+
+def test_url_version_dependency_is_not_substituted_by_provides(
+    tmp_path, monkeypatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A URL-valued version names one specific source; the backend-provided
+    skip must not replace it with the bundled copy."""
+    _patch_download_with_manifests(
+        monkeypatch,
+        tmp_path,
+        {
+            "esphome/A": {
+                "name": "A",
+                "dependencies": [
+                    {"name": "Hash", "version": "https://github.com/o/Hash.git"}
+                ],
+            },
+            "o/Hash": {"name": "Hash"},
+        },
+    )
+    emitted: list[str] = []
+    convert_libraries(
+        [Library("esphome/A", "1.0.0", None)],
+        _backend(emit=lambda c: emitted.append(c.name), provides=lambda name: True),
+    )
+    assert "Skip backend-provided" not in caplog.text
+    assert "using the library bundled" not in caplog.text
+    assert any("o/hash" in n.lower() for n in emitted)
+
+
+def test_versionless_owner_qualified_dependency_warns_despite_provides(
+    tmp_path, monkeypatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """An owner-qualified version-less dependency is not satisfied by
+    provides(); it must still warn."""
+    _patch_download_with_manifests(
+        monkeypatch,
+        tmp_path,
+        {
+            "esphome/A": {
+                "name": "A",
+                "dependencies": [{"name": "Wire", "owner": "Foo"}],
+            }
+        },
+    )
+    convert_libraries(
+        [Library("esphome/A", None, None)],
+        _backend(provides=lambda name: name == "Wire"),
+    )
+    assert "Wire of esphome/A has no version to resolve" in caplog.text
+
+
+def test_versionless_provided_dependency_stays_quiet(
+    tmp_path, monkeypatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """An owner-less version-less dependency the backend provides is added
+    by the backend after emit; no reconciliation warning."""
+    _patch_download_with_manifests(
+        monkeypatch,
+        tmp_path,
+        {"esphome/A": {"name": "A", "dependencies": [{"name": "Wire"}]}},
+    )
+    convert_libraries(
+        [Library("esphome/A", None, None)],
+        _backend(provides=lambda name: name == "Wire"),
+    )
+    assert "has no version to resolve" not in caplog.text
+
+
+def test_versionless_dependency_requested_top_level_stays_quiet(
+    tmp_path, monkeypatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A version-less dependency the config also requests top-level is in
+    the build; no drop warning even without a provides backend."""
+    _patch_download_with_manifests(
+        monkeypatch,
+        tmp_path,
+        {
+            "esphome/A": {"name": "A", "dependencies": [{"name": "Hash"}]},
+            "Hash": {"name": "Hash"},
+        },
+    )
+    convert_libraries(
+        [Library("esphome/A", None, None), Library("Hash", None, None)],
+        _backend(),
+    )
+    assert "has no version to resolve" not in caplog.text
+
+
+def test_versionless_url_ish_dependency_name_warns_cleanly(
+    tmp_path, monkeypatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A malformed URL-ish dependency name falls to the drop warning, never
+    a RuntimeError out of the key parser."""
+    _patch_download_with_manifests(
+        monkeypatch,
+        tmp_path,
+        {"esphome/A": {"name": "A", "dependencies": [{"name": "file://"}]}},
+    )
+    convert_libraries(
+        [Library("esphome/A", None, None)], _backend(provides=lambda name: False)
+    )
+    assert (
+        "file:// of esphome/A has no version to resolve and nothing provides it"
+        in caplog.text
+    )
+
+
+def test_versionless_dependency_matching_resolved_manifest_name_stays_quiet(
+    tmp_path, monkeypatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A bare name satisfied by an owner-qualified component's manifest
+    name is not a drop."""
+    _patch_download_with_manifests(
+        monkeypatch,
+        tmp_path,
+        {
+            "esphome/A": {"name": "A", "dependencies": [{"name": "B"}]},
+            "esphome/B": {"name": "B"},
+        },
+    )
+    convert_libraries(
+        [Library("esphome/A", None, None), Library("esphome/B", None, None)],
+        _backend(),
+    )
+    assert "has no version to resolve" not in caplog.text

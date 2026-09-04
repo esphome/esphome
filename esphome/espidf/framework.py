@@ -2,7 +2,6 @@
 
 from collections.abc import Callable
 from ctypes.util import find_library
-from functools import partial
 import json
 import logging
 import os
@@ -12,25 +11,31 @@ import re
 import shutil
 from typing import Any, NoReturn
 
-import platformdirs
-
-from esphome.core import CORE, Version
+from esphome.build_helpers.ccache import (
+    ccache_defaults_env,
+    parse_enable_env,
+    resolve_ccache_path,
+)
+from esphome.build_helpers.tools_cache import IDF_TOOLS_CACHE, tools_cache_path
+from esphome.core import Version
 from esphome.framework_helpers import (
     PathType,
-    archive_extract_all,
     create_venv,
+    download_and_extract,
     download_from_mirrors,
-    download_with_resume,
     failure_reason,
     get_python_env_executable_path,
     get_system_python_path,
+    resume_fetch_job,
     rmdir,
     run_batch_downloads,
     run_command,
     run_command_ok,
     str_to_lst_of_str,
+    tool_version_runs,
+    warn_prefetch_failures,
 )
-from esphome.helpers import get_bool_env, get_str_env, write_file_if_changed
+from esphome.helpers import write_file_if_changed
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -91,22 +96,10 @@ def get_idf_tools_path() -> Path:
     Returns:
         Path object pointing to the ESP-IDF tools directory
     """
-    # Treat an empty/whitespace ESPHOME_ESP_IDF_PREFIX as unset: Path("")
-    # resolves to the CWD, which would install into (and let clean-all delete)
-    # the working directory by accident.
-    if prefix := get_str_env("ESPHOME_ESP_IDF_PREFIX", "").strip():
-        path = Path(prefix).expanduser()
-    else:
-        # Machine-global so all projects share the multi-GB install instead of
-        # a per-config-directory copy. The user cache dir (not ~/.esphome)
-        # avoids colliding with data_dir when configs live in the home dir.
-        # appauthor=False drops the redundant <author>\ segment on Windows
-        # (which otherwise repeats "esphome\esphome\") to keep the path short.
-        path = Path(platformdirs.user_cache_dir("esphome", appauthor=False)) / "idf"
-    # Resolve so an unnormalized config path (e.g. compiling ``../config/x.yaml``)
-    # doesn't leave ``..`` segments in the IDF_TOOLS_PATH handed to idf.py, which
-    # otherwise warns that the venv interpreter path doesn't match the install.
-    return path.resolve()
+    # Machine-global so all projects share the multi-GB install instead of
+    # a per-config-directory copy; see build_helpers.tools_cache.tools_cache_path
+    # for the env-override and normalization rules.
+    return tools_cache_path(*IDF_TOOLS_CACHE)
 
 
 # Windows' default MAX_PATH is 260 characters. ESP-IDF toolchains nest deeply
@@ -693,18 +686,6 @@ def _patch_tools_json_demote_unused_tools(framework_path: Path) -> None:
     )
 
 
-def _download_tool(
-    dist_path: Path, entry: dict, tracker: Callable[[int], None]
-) -> None:
-    download_with_resume(
-        entry["url"],
-        dist_path / entry["dest"],
-        sha256=entry["sha256"],
-        size=entry["size"],
-        progress=tracker,
-    )
-
-
 def _prefetch_idf_tool_archives(
     framework_path: Path,
     targets_str: str,
@@ -782,15 +763,17 @@ def _prefetch_idf_tool_archives(
                 (
                     entry["name"],
                     entry["size"],
-                    partial(_download_tool, dist_path, entry),
+                    resume_fetch_job(
+                        entry["url"],
+                        dist_path / entry["dest"],
+                        sha256=entry["sha256"],
+                        size=entry["size"],
+                    ),
                 )
                 for entry in entries
             ],
         )
-        for name, e in failures:
-            # failure_reason: a message-less exception must not log blank
-            _LOGGER.warning("Could not prefetch %s: %s", name, failure_reason(e))
-            _LOGGER.debug("Prefetch failure detail", exc_info=e)
+        warn_prefetch_failures(failures)
         if len(failures) == len(entries):
             # A systematic fault, not one flaky mirror: the resume
             # workaround (#17703) is off for this whole install
@@ -909,20 +892,13 @@ def _check_esphome_idf_framework_install(
             # a temp file) so an interrupted download resumes on the next
             # run; the cache is pruned after a successful install anyway.
             tarball_path = get_idf_tools_path() / "dist" / f"esp-idf-{version}.tar.xz"
-            download_from_mirrors(mirrors, substitutions, tarball_path)
-
-            _LOGGER.info("Extracting ESP-IDF %s framework ...", version)
-            try:
-                with tarball_path.open("rb") as tarball:
-                    archive_extract_all(
-                        tarball, framework_path, progress_header="Extracting"
-                    )
-            finally:
-                # Success: drop the archive rather than caching ~70MB twice.
-                # Failure: a corrupt archive (e.g. torn by an unclean
-                # shutdown) must not be reused — without a checksum only a
-                # failed extraction can expose it, so force a re-download.
-                tarball_path.unlink(missing_ok=True)
+            download_and_extract(
+                mirrors,
+                substitutions,
+                tarball_path,
+                framework_path,
+                progress_header="Extracting",
+            )
         extracted_marker.touch()
 
     # Idempotent post-extract patch: written every invocation so a build
@@ -1077,15 +1053,28 @@ def _check_esp_idf_python_env_install(
             constraint_file_path,
         )
 
-        cmd_pip_install = [
-            str(env_python_path),
-            "-m",
-            "pip",
-            "install",
-            "--upgrade",
-            "--constraint",
-            constraint_file_path,
-        ]
+        # uv (much faster than pip) when available, e.g. in the docker image
+        if uv_path := shutil.which("uv"):
+            cmd_pip_install = [
+                uv_path,
+                "pip",
+                "install",
+                "--python",
+                str(env_python_path),
+                "--upgrade",
+                "--constraint",
+                str(constraint_file_path),
+            ]
+        else:
+            cmd_pip_install = [
+                str(env_python_path),
+                "-m",
+                "pip",
+                "install",
+                "--upgrade",
+                "--constraint",
+                str(constraint_file_path),
+            ]
 
         _LOGGER.info("Installing ESP-IDF %s Python dependencies ...", version)
         cmd = cmd_pip_install + [
@@ -1159,6 +1148,8 @@ def check_esp_idf_install(
     env = {}
     env["IDF_TOOLS_PATH"] = str(get_idf_tools_path())
     env["IDF_PATH"] = ""
+    # uv defaults to 3 HTTP retries; match the pioarduino penv's bump to 10
+    env["UV_HTTP_RETRIES"] = os.environ.get("UV_HTTP_RETRIES", "10")
 
     # An explicit ESPHOME_IDF_DEFAULT_TARGETS wins over the caller's
     # per-variant request (builder-image pre-warm); otherwise the caller's
@@ -1197,8 +1188,10 @@ def check_esp_idf_install(
 def _ccache_env() -> dict[str, str]:
     """Return ccache settings for ESP-IDF compiles.
 
-    Enabled by default whenever the ``ccache`` binary is on PATH; set
-    ``IDF_CCACHE_ENABLE=0`` in the environment to opt out. The cache lives under
+    Enabled by default whenever a runnable ``ccache`` binary is on PATH.
+    ``IDF_CCACHE_ENABLE=0`` opts out and ``=1`` forces it on; when that knob
+    is unset the shared ``ESPHOME_CCACHE_ENABLE`` applies (same 0/1 forms,
+    unrecognized values warn and count as unset). The cache lives under
     the IDF tools path (the machine-global cache dir, or
     ``ESPHOME_ESP_IDF_PREFIX``), so it is shared across all projects and removed
     by ``esphome clean-all`` along with the framework.
@@ -1213,33 +1206,44 @@ def _ccache_env() -> dict[str, str]:
     Only values the user has not already set in the environment are returned, so
     a custom ``CCACHE_DIR`` / ``CCACHE_MAXSIZE`` / etc. is respected.
     """
-    # Honor an explicit choice already in the environment (opt-out or opt-in).
-    if "IDF_CCACHE_ENABLE" in os.environ:
-        if not get_bool_env("IDF_CCACHE_ENABLE"):
-            return {}
-    elif shutil.which("ccache") is None:
-        # ESP-IDF silently skips ccache without the binary; don't enable it.
-        return {}
+    # IDF_CCACHE_ENABLE (the backend-native knob) wins over the shared
+    # ESPHOME_CCACHE_ENABLE.
+    idf_knob = parse_enable_env("IDF_CCACHE_ENABLE")
+    if idf_knob is False:
+        # The raw value (e.g. "disable") is still inherited by idf.py via
+        # os.environ, where a non-false-constant string reads as truthy;
+        # export the canonical off spelling instead
+        return {"IDF_CCACHE_ENABLE": "0"}
+    if idf_knob is True:
+        # Forced on ignores the runnability verdict, but the outcome is
+        # worth saying out loud. Probed directly (not via the resolver,
+        # whose failure message says "compiling without ccache" -- exactly
+        # what forced-on does NOT do): only the truly-missing case means
+        # idf.py compiles without ccache; a broken binary is still used,
+        # since idf.py does its own PATH lookup.
+        if (ccache := shutil.which("ccache")) is None:
+            _LOGGER.warning(
+                "IDF_CCACHE_ENABLE=1 but no ccache binary is on PATH; "
+                "idf.py will compile without ccache"
+            )
+        else:
+            # The probe warns with this message iff the binary fails
+            tool_version_runs(
+                ccache,
+                "IDF_CCACHE_ENABLE=1 forces on the ccache at %s even though "
+                "it failed to run; idf.py will use it anyway",
+            )
+    elif resolve_ccache_path() is None:
+        # ESP-IDF silently skips ccache without the binary; export the
+        # canonical off spelling so an unparsable inherited value (or a
+        # probe-rejected ccache idf.py would still find) cannot enable it
+        return {"IDF_CCACHE_ENABLE": "0"}
 
-    # ccache is enabled past here. build_path is set during preload for every
-    # config-loading command, so it being unset means a caller built the IDF env
-    # too early -- fail loudly rather than silently drop CCACHE_BASEDIR (which
-    # would quietly cost cross-device cache hits).
-    if CORE.build_path is None:
-        raise ValueError(
-            "CORE.build_path must be set before constructing the ESP-IDF build "
-            "environment"
-        )
-
-    defaults = {
-        "IDF_CCACHE_ENABLE": "1",
-        "CCACHE_DIR": str(get_idf_tools_path() / "ccache"),
-        "CCACHE_NOHASHDIR": "true",
-        "CCACHE_DEPEND": "1",
-        "CCACHE_BASEDIR": str(Path(CORE.build_path).resolve()),
-    }
-    # Don't override CCACHE_* values the user already set in their environment.
-    return {k: v for k, v in defaults.items() if k not in os.environ}
+    env = ccache_defaults_env(get_idf_tools_path() / "ccache")
+    # Exactly one canonical spelling ever reaches idf.py, whatever the
+    # accepted input spelling was ("enable", "yes", ...)
+    env["IDF_CCACHE_ENABLE"] = "1"
+    return env
 
 
 def get_framework_env(
