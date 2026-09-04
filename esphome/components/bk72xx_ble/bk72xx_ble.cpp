@@ -181,8 +181,9 @@ void BK72xxBLE::enable() {
       break;
     }
   }
-  if (!bdaddr_live)
+  if (!bdaddr_live) {
     ESP_LOGW(TAG, "Controller address still unset after init; BLE stack may not have started");
+  }
 #endif
 
   this->state_ = BLEComponentState::ACTIVE;
@@ -210,8 +211,9 @@ void BK72xxBLE::loop() {
     // Re-check a settled scan; scan_start() refills the bring-up budget.
     // WARN: the only report of a drop that recovers inside its budget.
     if (this->scan_start(this->requested_.interval, this->requested_.window, this->requested_.active) !=
-        ScanOpResult::SETTLED)
+        ScanOpResult::SETTLED) {
       ESP_LOGW(TAG, "Controller dropped the scan; restarting");
+    }
   }
 
   // Drain the lock-free ring filled by the BLE task; all per-report work runs
@@ -230,8 +232,9 @@ void BK72xxBLE::loop() {
   // Log dropped reports — only reachable when reports were processed; drops can
   // only occur while the queue is full, and only this loop drains it.
   uint16_t dropped = this->report_queue_.get_and_reset_dropped_count();
-  if (dropped > 0)
+  if (dropped > 0) {
     ESP_LOGW(TAG, "Dropped %u scan reports due to queue overflow", dropped);
+  }
 }
 
 void BK72xxBLE::get_mac_lsb_first(uint8_t out[MAC_ADDRESS_SIZE]) const {
@@ -449,8 +452,9 @@ ScanOpResult BK72xxBLE::advance_stop_(BdkActivityState state, bool ready) {
   if (!ready) {
     // Acting mid-operation could delete an activity whose start lands
     // afterwards, leaking the slot with the radio on; wait.
-    if (this->last_result_ == ScanOpResult::SETTLED)
+    if (this->last_result_ == ScanOpResult::SETTLED) {
       ESP_LOGD(TAG, "Scan stop deferred (controller busy)");
+    }
     return ScanOpResult::PENDING;
   }
   // Settled, so CREATED unambiguously means "never started".
@@ -474,8 +478,9 @@ ScanOpResult BK72xxBLE::advance_start_(BdkActivityState state, bool ready) {
     return ScanOpResult::PENDING;
   }
   if (!ready) {
-    if (this->last_result_ == ScanOpResult::SETTLED)
+    if (this->last_result_ == ScanOpResult::SETTLED) {
       ESP_LOGD(TAG, "Scan start deferred (controller busy)");
+    }
     return ScanOpResult::PENDING;
   }
   if (state == BdkActivityState::CREATED) {
