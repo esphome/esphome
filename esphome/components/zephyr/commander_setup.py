@@ -12,16 +12,14 @@ framework version.
 
 from __future__ import annotations
 
-import hashlib
 import logging
 from pathlib import Path
 import platform
 import shutil
 import sys
-import tarfile
-import urllib.request
 
 from esphome.build_helpers.tools_cache import SDK_SILABS_TOOLS_CACHE, tools_cache_path
+from esphome.framework_helpers import archive_extract_all, download_with_resume
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -90,38 +88,23 @@ def check_and_install(version: str | None) -> Path:
     url = f"{_BASE_URL}/{version}/{filename}"
 
     parent = install_dir.parent
-    parent.mkdir(parents=True, exist_ok=True)
-    tmp_file = parent / f"{filename}.tmp"
-    extract_tmp = parent / f"{version}.tmp"
+    # Downloaded next to the destination (not a temp dir) so an interrupted
+    # download's .part file resumes on the next run.
+    archive_path = parent / f"{filename}.archive"
 
     try:
         _LOGGER.info("Downloading Simplicity Commander v%s ...", version)
-        urllib.request.urlretrieve(url, tmp_file)
-
-        digest = hashlib.sha256(tmp_file.read_bytes()).hexdigest()
-        if digest != checksum:
-            raise RuntimeError(
-                f"Simplicity Commander v{version} download checksum mismatch: "
-                f"expected {checksum}, got {digest}"
-            )
-
-        extract_tmp.mkdir(parents=True, exist_ok=True)
-        with tarfile.open(tmp_file, "r:bz2") as tar:
-            tar.extractall(extract_tmp)
-
-        entries = list(extract_tmp.iterdir())
-        if len(entries) != 1 or not entries[0].is_dir():
-            raise RuntimeError(
-                f"Unexpected archive layout for Simplicity Commander v{version}"
-            )
-        shutil.rmtree(install_dir, ignore_errors=True)
-        entries[0].rename(install_dir)
+        download_with_resume(url, archive_path, sha256=checksum, timeout=30)
+        try:
+            # Extracted directly into install_dir -- archive_extract_all
+            # strips the archive's single top-level wrapper directory
+            # automatically.
+            archive_extract_all(archive_path, install_dir, progress_header="Extracting")
+        finally:
+            archive_path.unlink(missing_ok=True)
     except Exception:
         shutil.rmtree(install_dir, ignore_errors=True)
         raise
-    finally:
-        tmp_file.unlink(missing_ok=True)
-        shutil.rmtree(extract_tmp, ignore_errors=True)
 
     sentinel.touch()
     return install_dir
