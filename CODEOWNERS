@@ -395,6 +395,7 @@ esphome/components/openthread/* @mrene
 esphome/components/opt3001/* @ccutrer
 esphome/components/ota/* @esphome/core
 esphome/components/output/* @esphome/core
+esphome/components/oxt_dimmer/* @michau-krakow
 esphome/components/packet_transport/* @clydebarrow
 esphome/components/pca6416a/* @Mat931
 esphome/components/pca9554/* @bdraco @clydebarrow @hwstar
