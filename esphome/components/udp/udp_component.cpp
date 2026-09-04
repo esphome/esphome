@@ -19,9 +19,9 @@ void UDPComponent::setup() {
     }
     this->sockaddrs_.push_back(saddr);
   }
-  if (!this->addresses_.empty() && this->sockaddrs_.empty()) {
-    // Sending would be a silent no-op; surface the misconfiguration
-    this->status_set_warning(LOG_STR("no valid addresses"));
+  if (this->sockaddrs_.size() != this->addresses_.size()) {
+    // A dropped address silently receives nothing; surface the misconfiguration
+    this->status_set_warning(LOG_STR("invalid address"));
   }
   // set up broadcast socket
   if (this->should_broadcast_) {

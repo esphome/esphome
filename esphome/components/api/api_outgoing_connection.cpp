@@ -9,6 +9,7 @@
 #include "esphome/core/log.h"
 
 #include <cerrno>
+#include <cinttypes>
 #include <cstring>
 
 namespace esphome::api {
@@ -228,7 +229,7 @@ void OutgoingConnectionManager::dump_config() const {
   ESP_LOGCONFIG(TAG,
                 "  Outgoing connection port: %u\n"
                 "  Outgoing connection host: %s\n"
-                "  Outgoing connection boot delay: %ums",
+                "  Outgoing connection boot delay: %" PRIu32 "ms",
                 API_OUTGOING_CONNECTION_PORT, host, BOOT_WAIT_MS);
 }
 
