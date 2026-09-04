@@ -9,7 +9,7 @@
 
 namespace esphome::speaker_source {
 
-template<typename... Ts> class SetPlaylistDelayAction : public Action<Ts...> {
+template<typename... Ts> class SetPlaylistDelayAction final : public Action<Ts...> {
  public:
   explicit SetPlaylistDelayAction(SpeakerSourceMediaPlayer *parent) : parent_(parent) {}
 

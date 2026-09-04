@@ -46,7 +46,7 @@ const uint8_t FUJITSU_GENERAL_TEMP_MAX = 30;  // Celsius
  */
 // clang-format on
 
-class FujitsuGeneralClimate : public climate_ir::ClimateIR {
+class FujitsuGeneralClimate final : public climate_ir::ClimateIR {
  public:
   FujitsuGeneralClimate()
       : ClimateIR(FUJITSU_GENERAL_TEMP_MIN, FUJITSU_GENERAL_TEMP_MAX, 1.0f, true, true,

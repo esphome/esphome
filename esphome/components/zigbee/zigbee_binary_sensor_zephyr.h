@@ -28,7 +28,7 @@ extern "C" {
 
 namespace esphome::zigbee {
 
-class ZigbeeBinarySensor : public ZigbeeEntity, public Component {
+class ZigbeeBinarySensor final : public ZigbeeEntity, public Component {
  public:
   explicit ZigbeeBinarySensor(binary_sensor::BinarySensor *binary_sensor);
   void set_cluster_attributes(BinaryAttrs &cluster_attributes) { this->cluster_attributes_ = &cluster_attributes; }

@@ -32,7 +32,7 @@ class EzoCommand {
 };
 
 /// This class implements support for the EZO circuits in i2c mode
-class EZOSensor : public sensor::Sensor, public PollingComponent, public i2c::I2CDevice {
+class EZOSensor final : public sensor::Sensor, public PollingComponent, public i2c::I2CDevice {
  public:
   void loop() override;
   void dump_config() override;

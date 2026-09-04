@@ -430,7 +430,8 @@ class MeterType(WidgetType):
                         tvar, LV_PART.MAIN, await arc_style.get_var()
                     )
                     lw = Widget.create(iid, tvar, arc_indicator_type)
-                    await set_indicator_values(lw, v)
+                    lw.parent = scale_var
+                    await set_indicator_values(scale_var, lw, v)
 
                 if t == CONF_TICK_STYLE:
                     # No object created for this
@@ -482,7 +483,8 @@ class MeterType(WidgetType):
                         if option in v:
                             props["line_" + option] = v[option]
                     lw = await widget_to_code(props, line_indicator_type, scale_var)
-                    await set_indicator_values(lw, v)
+                    lw.parent = scale_var
+                    await set_indicator_values(scale_var, lw, v)
 
                 if t == CONF_IMAGE:
                     add_lv_use(CONF_IMAGE)
@@ -501,7 +503,8 @@ class MeterType(WidgetType):
                     }
                     iw = await widget_to_code(props, image_indicator_type, scale_var)
                     await iw.set_property(CONF_SRC, await lv_image.process(src))
-                    await set_indicator_values(iw, v)
+                    iw.parent = scale_var
+                    await set_indicator_values(scale_var, iw, v)
 
             # Hide the scale line
             lv.obj_set_style_arc_opa(scale_var, LV_OPA.TRANSP, LV_PART.MAIN)
@@ -607,27 +610,27 @@ async def indicator_update_to_code(config, action_id, template_arg, args):
     widget = await get_widgets(config)
 
     async def set_value(w: Widget):
-        await set_indicator_values(w, config)
+        await set_indicator_values(w.parent, w, config)
 
     return await action_to_code(
         widget, set_value, action_id, template_arg, args, config
     )
 
 
-async def set_indicator_values(indicator: Widget, config):
+async def set_indicator_values(scale: MockObj, indicator: Widget, config):
     """Update scale section values (replaces meter indicator values)"""
     start_value = await get_start_value(config)
     end_value = await get_end_value(config)
     if indicator.type is arc_indicator_type:
         # For scale sections, we update the range
         if start_value is not None and end_value is not None:
-            lv.scale_section_set_range(indicator.obj, start_value, end_value)
+            lv.scale_set_section_range(scale, indicator.obj, start_value, end_value)
         elif start_value is not None:
             # If only start value, use it as both start and end (single point)
-            lv.scale_section_set_range(indicator.obj, start_value, start_value)
+            lv.scale_set_section_range(scale, indicator.obj, start_value, start_value)
         elif end_value is not None:
             # If only end value, assume range from 0 to end_value
-            lv.scale_section_set_range(indicator.obj, 0, end_value)
+            lv.scale_set_section_range(scale, indicator.obj, 0, end_value)
         return
 
     if start_value is None:

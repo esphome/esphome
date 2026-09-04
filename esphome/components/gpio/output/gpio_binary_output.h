@@ -6,7 +6,7 @@
 
 namespace esphome::gpio {
 
-class GPIOBinaryOutput : public output::BinaryOutput, public Component {
+class GPIOBinaryOutput final : public output::BinaryOutput, public Component {
  public:
   void set_pin(GPIOPin *pin) { pin_ = pin; }
 

@@ -26,7 +26,7 @@ enum QMC5883LOversampling {
   QMC5883L_SAMPLING_64 = 0b11,
 };
 
-class QMC5883LComponent : public PollingComponent, public i2c::I2CDevice {
+class QMC5883LComponent final : public PollingComponent, public i2c::I2CDevice {
  public:
   void setup() override;
   void dump_config() override;

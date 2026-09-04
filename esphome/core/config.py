@@ -26,6 +26,7 @@ from esphome.const import (
     CONF_INCLUDES,
     CONF_INCLUDES_C,
     CONF_LIBRARIES,
+    CONF_MERGE_WARNINGS,
     CONF_MIN_VERSION,
     CONF_NAME,
     CONF_NAME_ADD_MAC_SUFFIX,
@@ -54,6 +55,7 @@ from esphome.helpers import (
     cpp_string_escape,
     fnv1a_32bit_hash,
     get_str_env,
+    get_usable_cpu_count,
     walk_files,
 )
 from esphome.types import ConfigType
@@ -204,16 +206,6 @@ def valid_project_name(value: str):
     return value
 
 
-def get_usable_cpu_count() -> int:
-    """Return the number of CPUs that can be used for processes.
-    On Python 3.13+ this is the number of CPUs that can be used for processes.
-    On older Python versions this is the number of CPUs.
-    """
-    return (
-        os.process_cpu_count() if hasattr(os, "process_cpu_count") else os.cpu_count()
-    )
-
-
 if "ESPHOME_DEFAULT_COMPILE_PROCESS_LIMIT" in os.environ:
     _compile_process_limit_default = min(
         int(os.environ["ESPHOME_DEFAULT_COMPILE_PROCESS_LIMIT"]), get_usable_cpu_count()
@@ -283,14 +275,24 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_COMMENT): cv.All(
                 cv.string, cv.ByteLength(max=COMMENT_MAX_LEN)
             ),
-            cv.Required(CONF_BUILD_PATH): cv.string,
-            cv.Optional(CONF_PLATFORMIO_OPTIONS, default={}): cv.Schema(
+            cv.Required(CONF_BUILD_PATH, visibility=cv.Visibility.YAML_ONLY): cv.string,
+            cv.Optional(
+                CONF_PLATFORMIO_OPTIONS,
+                default={},
+                visibility=cv.Visibility.YAML_ONLY,
+            ): cv.Schema(
                 {
                     cv.string_strict: cv.Any([cv.string], cv.string),
                 }
             ),
-            cv.Optional(CONF_BUILD_FLAGS, default=[]): cv.ensure_list(cv.string_strict),
-            cv.Optional(CONF_ENVIRONMENT_VARIABLES, default={}): cv.Schema(
+            cv.Optional(
+                CONF_BUILD_FLAGS, default=[], visibility=cv.Visibility.YAML_ONLY
+            ): cv.ensure_list(cv.string_strict),
+            cv.Optional(
+                CONF_ENVIRONMENT_VARIABLES,
+                default={},
+                visibility=cv.Visibility.YAML_ONLY,
+            ): cv.Schema(
                 {
                     cv.string_strict: cv.string,
                 }
@@ -312,11 +314,20 @@ CONFIG_SCHEMA = cv.All(
                     cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(LoopTrigger),
                 }
             ),
-            cv.Optional(CONF_INCLUDES, default=[]): cv.ensure_list(valid_include),
-            cv.Optional(CONF_INCLUDES_C, default=[]): cv.ensure_list(valid_include),
-            cv.Optional(CONF_LIBRARIES, default=[]): cv.ensure_list(cv.string_strict),
+            cv.Optional(
+                CONF_INCLUDES, default=[], visibility=cv.Visibility.YAML_ONLY
+            ): cv.ensure_list(valid_include),
+            cv.Optional(
+                CONF_INCLUDES_C, default=[], visibility=cv.Visibility.YAML_ONLY
+            ): cv.ensure_list(valid_include),
+            cv.Optional(
+                CONF_LIBRARIES, default=[], visibility=cv.Visibility.YAML_ONLY
+            ): cv.ensure_list(cv.string_strict),
             cv.Optional(CONF_NAME_ADD_MAC_SUFFIX, default=False): cv.boolean,
-            cv.Optional(CONF_DEBUG_SCHEDULER, default=False): cv.boolean,
+            cv.Optional(CONF_MERGE_WARNINGS, default=True): cv.boolean,
+            cv.Optional(
+                CONF_DEBUG_SCHEDULER, default=False, visibility=cv.Visibility.YAML_ONLY
+            ): cv.boolean,
             cv.Optional(CONF_PROJECT): cv.Schema(
                 {
                     cv.Required(CONF_NAME): cv.All(
@@ -336,11 +347,15 @@ CONFIG_SCHEMA = cv.All(
                     ),
                 }
             ),
-            cv.Optional(CONF_MIN_VERSION, default=ESPHOME_VERSION): cv.All(
-                cv.version_number, cv.validate_esphome_version
-            ),
             cv.Optional(
-                CONF_COMPILE_PROCESS_LIMIT, default=_compile_process_limit_default
+                CONF_MIN_VERSION,
+                default=ESPHOME_VERSION,
+                visibility=cv.Visibility.ADVANCED,
+            ): cv.All(cv.version_number, cv.validate_esphome_version),
+            cv.Optional(
+                CONF_COMPILE_PROCESS_LIMIT,
+                default=_compile_process_limit_default,
+                visibility=cv.Visibility.ADVANCED,
             ): cv.int_range(min=1, max=get_usable_cpu_count()),
             cv.Optional(CONF_AREAS, default=[]): cv.ensure_list(AREA_SCHEMA),
             cv.Optional(CONF_DEVICES, default=[]): cv.ensure_list(DEVICE_SCHEMA),
@@ -407,6 +422,17 @@ def preload_core_config(config, result) -> str:
 
     CORE.name = conf[CONF_NAME]
     CORE.friendly_name = conf.get(CONF_FRIENDLY_NAME)
+    # Record the node's area name now (substitutions are already resolved at this
+    # point). storage.json is written before to_code() runs, so deferring this to
+    # to_code() left the area as null in storage.json. The value here is the raw
+    # post-substitution form (a plain string or a {name: ...} mapping). Assign
+    # unconditionally (like friendly_name) so a config without an area never
+    # inherits a stale value from a previous load in a long-running process, and
+    # use .get() so a malformed mapping surfaces later as a proper validation
+    # error rather than a KeyError here. to_code() sets it again from the
+    # validated config, which yields the same name.
+    area = conf.get(CONF_AREA)
+    CORE.area = area.get(CONF_NAME) if isinstance(area, dict) else area
     CORE.data[KEY_CORE] = {}
 
     if CONF_BUILD_PATH not in conf:
@@ -503,8 +529,90 @@ async def add_includes(includes: list[str], is_c_header: bool = False) -> None:
             include_file(path, basename, is_c_header)
 
 
+def _add_library_str(lib: str) -> None:
+    if "@" in lib:
+        name, vers = lib.split("@", 1)
+        cg.add_library(name, vers)
+    elif "://" in lib or lib.split("=", 1)[-1].startswith("file:"):
+        # A repository or URL source. Also catch a ``file:`` source spelled with
+        # fewer than two slashes (e.g. ``file:lib_dev``) so it reaches the
+        # file:// handling and its clear error, rather than a registry lookup.
+        if "=" in lib:
+            name, repo = lib.split("=", 1)
+            cg.add_library(name, None, repo)
+        else:
+            cg.add_library(None, None, lib)
+    else:
+        cg.add_library(lib, None)
+
+
+# platformio_options keys the native ESP8266 Arduino generator (a later PR
+# in this chain) will honor; its ignored-option warning will consume the same
+# list so the two cannot drift
+NATIVE_ARDUINO_PIO_OPTIONS = frozenset({"board_build.f_cpu", "board_build.ldscript"})
+# The full set that survives into CORE.platformio_options under the native
+# arduino toolchain: lib_ignore is the only specially-translated key below
+# that is stored rather than translated away. Consumed by the esp8266 native
+# backend (later in this chain) for its ignored-option warning; defined here
+# so it stays adjacent to the routing.
+NATIVE_ARDUINO_CONSUMED_PIO_OPTIONS = NATIVE_ARDUINO_PIO_OPTIONS | {"lib_ignore"}
+
+
 @coroutine_with_priority(CoroPriority.FINAL)
-async def _add_platformio_options(pio_options):
+async def _add_platformio_options(pio_options: dict[str, str | list[str]]) -> None:
+    if CORE.using_native_toolchain:
+        # The native builds don't read platformio.ini; honor the options
+        # with a native equivalent and warn about the rest, which would
+        # otherwise be silently ignored.
+        for key, val in pio_options.items():
+            vals = [val] if isinstance(val, str) else val
+            if key == CONF_BUILD_FLAGS:
+                # Deprecated: esphome->build_flags is the native equivalent.
+                # Remove before 2026.12.0
+                _LOGGER.warning(
+                    "esphome->platformio_options->build_flags is deprecated; use "
+                    "esphome->build_flags instead. Support for it will be removed "
+                    "in 2026.12.0."
+                )
+                for flag in vals:
+                    cg.add_build_flag(flag)
+            elif key == "build_unflags":
+                # Native equivalent: add_build_unflag (honored token-level by
+                # the arduino generator; the IDF generator warns there)
+                for flag in vals:
+                    CORE.add_build_unflag(flag)
+            elif key == "lib_deps":
+                # Routed through the regular library mechanism so the
+                # libraries reach the native backend's converter (IDF
+                # components, or the ESP8266 native library resolution)
+                for lib in vals:
+                    _add_library_str(lib)
+            elif key == "lib_ignore":
+                # Read by the shared library conversion (lib_ignore_set in
+                # platformio/library.py); filters top-level libraries and
+                # discovered dependencies
+                cg.add_platformio_option(key, vals)
+            elif (
+                key in NATIVE_ARDUINO_PIO_OPTIONS
+                and CORE.using_toolchain_arduino
+                and vals
+            ):
+                # The esp8266 native generator reads these as scalars; the
+                # schema also permits the list form, where the last value
+                # wins like a later platformio.ini line (an empty list falls
+                # through to the ignored-option warning). Other native
+                # toolchains have no equivalent and fall through too.
+                cg.add_platformio_option(key, vals[-1])
+            elif key != "upload_speed":
+                # upload_speed needs no handling: it is read from the raw
+                # config at upload time (upload_using_esptool)
+                _LOGGER.warning(
+                    "esphome->platformio_options->%s is ignored when building with "
+                    "the native '%s' toolchain",
+                    key,
+                    CORE.toolchain.value,
+                )
+        return
     # Add includes at the very end, so that they override everything
     for key, val in pio_options.items():
         if key in ["build_flags", "lib_ignore"] and not isinstance(val, list):
@@ -655,23 +763,20 @@ async def to_code(config: ConfigType) -> None:
 
     # Libraries
     for lib in config[CONF_LIBRARIES]:
-        if "@" in lib:
-            name, vers = lib.split("@", 1)
-            cg.add_library(name, vers)
-        elif "://" in lib:
-            # Repository...
-            if "=" in lib:
-                name, repo = lib.split("=", 1)
-                cg.add_library(name, None, repo)
-            else:
-                cg.add_library(None, None, lib)
-
-        else:
-            cg.add_library(lib, None)
+        _add_library_str(lib)
 
     cg.add_build_flag("-Wno-unused-variable")
     cg.add_build_flag("-Wno-unused-but-set-variable")
     cg.add_build_flag("-Wno-sign-compare")
+    # C++20 deprecated ++/--, compound assignment, and chained assignment on
+    # volatile lvalues; GCC warns via -Wvolatile, on by default at gnu++20.
+    # C++23 (P2327R1) removed the deprecation for compound assignment, so the
+    # warning flags patterns that are valid again under newer standards.
+    # C++-only flag: GCC warns when it is passed on a C compile, hence
+    # add_cxx_build_flag. Skipped for host builds, where the compiler may be
+    # clang, which does not know this GCC option.
+    if not CORE.is_host:
+        cg.add_cxx_build_flag("-Wno-volatile")
     if config[CONF_DEBUG_SCHEDULER]:
         cg.add_define("ESPHOME_DEBUG_SCHEDULER")
 
@@ -808,8 +913,8 @@ FILTER_SOURCE_FILES = filter_source_files_from_platform(
         "wake/wake_esp8266.cpp": {
             PlatformFramework.ESP8266_ARDUINO,
         },
-        "wake/wake_rp2040.cpp": {
-            PlatformFramework.RP2040_ARDUINO,
+        "wake/wake_rp2.cpp": {
+            PlatformFramework.RP2_ARDUINO,
         },
         "wake/wake_host.cpp": {
             PlatformFramework.HOST_NATIVE,

@@ -165,6 +165,8 @@ void LEDCOutput::write_state(float state) {
 void LEDCOutput::setup() {
   if (!ledc_peripheral_reset_done) {
     ESP_LOGV(TAG, "Resetting LEDC peripheral to clear stale state after reboot");
+    // Skip under clang-tidy: the inlined HAL MMIO writes trip clang-analyzer-core.FixedAddressDereference
+#if !defined(CLANG_TIDY)
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 1, 0)
     PERIPH_RCC_ATOMIC() { ledc_ll_reset_register(0); }
 #elif ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
@@ -174,6 +176,7 @@ void LEDCOutput::setup() {
     }
 #else
     periph_module_reset(PERIPH_LEDC_MODULE);
+#endif
 #endif
     ledc_peripheral_reset_done = true;
   }

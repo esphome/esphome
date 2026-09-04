@@ -6,7 +6,7 @@
 
 namespace esphome::hrxl_maxsonar_wr {
 
-class HrxlMaxsonarWrComponent : public sensor::Sensor, public Component, public uart::UARTDevice {
+class HrxlMaxsonarWrComponent final : public sensor::Sensor, public Component, public uart::UARTDevice {
  public:
   // Nothing really public.
 

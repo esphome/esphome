@@ -90,10 +90,15 @@ def storage_should_clean(old: StorageJSON | None, new: StorageJSON) -> bool:
     """Return True when the build tree must be wiped before reuse.
 
     Predicate is True when *old* is missing (first build),
-    ``src_version`` differs, ``build_path`` differs, or a previously
-    loaded integration was removed in *new*. Adding integrations or
-    changing unrelated fields (friendly name, esphome version, etc.)
-    does not trigger a clean.
+    ``src_version`` differs, ``build_path`` differs, the build
+    ``toolchain`` differs (e.g. switching between the PlatformIO and
+    native ESP-IDF toolchains, which produce incompatible build trees),
+    the ``framework`` or ``framework_version`` differs (e.g. switching
+    arduino <-> esp-idf, or bumping the ESP-IDF version, which also
+    produce incompatible build trees), or a previously loaded
+    integration was removed in *new*. Adding integrations or changing
+    unrelated fields (friendly name, esphome version, etc.) does not
+    trigger a clean.
 
     Used by esphome-device-builder (esphome/device-builder) to gate
     its remote-build artifact materialiser so a local → remote → local
@@ -109,6 +114,12 @@ def storage_should_clean(old: StorageJSON | None, new: StorageJSON) -> bool:
         return True
     if old.build_path != new.build_path:
         return True
+    if old.toolchain != new.toolchain:
+        return True
+    if old.framework != new.framework:
+        return True
+    if old.framework_version != new.framework_version:
+        return True
     # Check if any components have been removed
     return bool(old.loaded_integrations - new.loaded_integrations)
 
@@ -122,6 +133,13 @@ def storage_should_update_cmake_cache(old: StorageJSON, new: StorageJSON) -> boo
 
 
 def update_storage_json() -> None:
+    """Refresh the storage sidecar and clean an incompatible build.
+
+    Runs at the start of ``write_cpp`` -- BEFORE any source/project files are
+    regenerated -- so the clean below can safely ``full``-wipe the whole build
+    directory (a switch of toolchain/framework/version also drops the stale
+    project scaffolding, not just the compiled objects).
+    """
     path = storage_path()
     old = StorageJSON.load(path)
     new = StorageJSON.from_esphome_core(CORE, old)
@@ -142,7 +160,7 @@ def update_storage_json() -> None:
             )
         else:
             _LOGGER.info("Core config or version changed, cleaning build files...")
-        clean_build(clear_pio_cache=False)
+        clean_build(clear_pio_cache=False, full=True)
     elif storage_should_update_cmake_cache(old, new):
         _LOGGER.info("Integrations changed, cleaning cmake cache...")
         clean_cmake_cache()
@@ -270,11 +288,13 @@ def copy_src_tree():
             # Source file removed, delete target
             p.unlink()
             if target not in generated_files:
+                _LOGGER.debug("Source removed: %s", target)
                 sources_changed = True
         else:
             src_file = source_files_copy.pop(target)
             with src_file.path() as src_path:
                 if copy_file_if_changed(src_path, p) and target not in generated_files:
+                    _LOGGER.debug("Source changed: %s", target)
                     sources_changed = True
 
     # Now copy new files
@@ -285,21 +305,25 @@ def copy_src_tree():
                 copy_file_if_changed(src_path, dst_path)
                 and target not in generated_files
             ):
+                _LOGGER.debug("Source added: %s", target)
                 sources_changed = True
 
     # Finally copy defines
     if write_file_if_changed(
         CORE.relative_src_path("esphome", "core", "defines.h"), generate_defines_h()
     ):
+        _LOGGER.debug("Source changed: esphome/core/defines.h")
         sources_changed = True
     write_file_if_changed(CORE.relative_build_path("README.txt"), ESPHOME_README_TXT)
     if write_file_if_changed(
         CORE.relative_src_path("esphome.h"), ESPHOME_H_FORMAT.format(include_s)
     ):
+        _LOGGER.debug("Source changed: esphome.h")
         sources_changed = True
     if write_file_if_changed(
         CORE.relative_src_path("esphome", "core", "version.h"), generate_version_h()
     ):
+        _LOGGER.debug("Source changed: esphome/core/version.h")
         sources_changed = True
 
     # Generate new build_info files if needed
@@ -314,18 +338,13 @@ def copy_src_tree():
 
     # Defensively force a rebuild if the build_info files don't exist, or if
     # there was a config change which didn't actually cause a source change
-    if not build_info_data_h_path.exists() or not build_info_data_cpp_path.exists():
+    if _build_info_stale(
+        build_info_data_h_path,
+        build_info_data_cpp_path,
+        build_info_json_path,
+        config_hash,
+    ):
         sources_changed = True
-    else:
-        try:
-            existing = json.loads(build_info_json_path.read_text(encoding="utf-8"))
-            if (
-                existing.get("config_hash") != config_hash
-                or existing.get("esphome_version") != __version__
-            ):
-                sources_changed = True
-        except (json.JSONDecodeError, KeyError, OSError):
-            sources_changed = True
 
     # Write build_info header and JSON metadata
     if sources_changed:
@@ -377,6 +396,54 @@ def generate_version_h():
     return VERSION_H_FORMAT.format(
         __version__, match.group(1), match.group(2), match.group(3)
     )
+
+
+def _build_info_stale(
+    h_path: Path, cpp_path: Path, json_path: Path, config_hash: int
+) -> bool:
+    """Whether the build-info sources must regenerate (missing or stale)."""
+    if not h_path.exists() or not cpp_path.exists():
+        _LOGGER.debug("Build info files missing; regenerating")
+        return True
+    try:
+        existing = json.loads(json_path.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        # An absent build_info.json is stale, not damaged; rebuild quietly
+        _LOGGER.debug("Build info JSON missing; regenerating")
+        return True
+    except (ValueError, OSError) as err:
+        # ValueError covers both JSONDecodeError and UnicodeDecodeError;
+        # unlink so the regenerating write never re-reads the bad copy.
+        # "Unreadable" not "damaged": EACCES/EISDIR land here too
+        _LOGGER.warning("Regenerating unreadable build_info.json: %s", err)
+        try:
+            # missing_ok: a concurrent clean may have removed it already
+            json_path.unlink(missing_ok=True)
+        except OSError as unlink_err:
+            # The later write re-reads the file, so a kept unreadable copy
+            # fails again with a misattributed error; name the real cause
+            _LOGGER.warning(
+                "Could not remove unreadable build_info.json: %s", unlink_err
+            )
+        return True
+    if not isinstance(existing, dict):
+        # Valid JSON that is not an object (truncated or hand-edited) is
+        # stale, not a traceback
+        _LOGGER.debug("Build info JSON malformed; regenerating")
+        return True
+    if (
+        existing.get("config_hash") != config_hash
+        or existing.get("esphome_version") != __version__
+    ):
+        _LOGGER.debug(
+            "Build info stale (config_hash %s -> %s, version %s -> %s)",
+            existing.get("config_hash"),
+            config_hash,
+            existing.get("esphome_version"),
+            __version__,
+        )
+        return True
+    return False
 
 
 def get_build_info() -> tuple[int, int, str, str]:
@@ -479,43 +546,88 @@ def write_cpp(code_s):
 
 
 def clean_cmake_cache():
-    pioenvs = CORE.relative_pioenvs_path()
-    if pioenvs.is_dir():
-        pioenvs_cmake_path = pioenvs / CORE.name / "CMakeCache.txt"
-        if pioenvs_cmake_path.is_file():
-            _LOGGER.info("Deleting %s", pioenvs_cmake_path)
-            pioenvs_cmake_path.unlink()
+    # Drop the CMake cache so a component-set change forces a reconfigure.
+    # PlatformIO keeps it under .pioenvs/<name>/; the native ESP-IDF toolchain
+    # keeps it under build/ (where espidf's has_outdated_files() treats a
+    # missing CMakeCache.txt as stale). Only one exists for a given build.
+    cmake_cache_paths = (
+        CORE.relative_pioenvs_path(CORE.name, "CMakeCache.txt"),
+        CORE.relative_build_path("build", "CMakeCache.txt"),
+    )
+    for cmake_cache_path in cmake_cache_paths:
+        if cmake_cache_path.is_file():
+            _LOGGER.info("Deleting %s", cmake_cache_path)
+            cmake_cache_path.unlink()
 
 
-def clean_build(clear_pio_cache: bool = True):
+def clean_build(clear_pio_cache: bool = True, *, full: bool = False):
+    """Remove build artifacts.
+
+    By default only the compiled outputs are removed (``.pioenvs`` /
+    ``.piolibdeps`` / the native ESP-IDF ``build`` and ``managed_components``
+    dirs) while the generated ``src/`` and project files are kept. This is what
+    in-build callers need: they regenerate a source/sdkconfig and then force a
+    rebuild without discarding the sources they just wrote.
+
+    ``full=True`` wipes the entire build directory instead. Used by the
+    ``esphome clean`` command and by the pre-build clean in
+    ``update_storage_json`` (which runs before sources are regenerated) -- in
+    both cases nothing is mid-regeneration, so the next compile rebuilds from
+    scratch. It also drops stale project scaffolding the allow-list keeps (e.g. a
+    leftover platformio.ini / CMakeLists.txt from the other toolchain), making a
+    toolchain switch reliable.
+    """
     # Allow skipping cache cleaning for integration tests
     if os.environ.get("ESPHOME_SKIP_CLEAN_BUILD"):
         _LOGGER.warning("Skipping build cleaning (ESPHOME_SKIP_CLEAN_BUILD set)")
         return
 
-    pioenvs = CORE.relative_pioenvs_path()
-    if pioenvs.is_dir():
-        _LOGGER.info("Deleting %s", pioenvs)
-        rmtree(pioenvs)
-    piolibdeps = CORE.relative_piolibdeps_path()
-    if piolibdeps.is_dir():
-        _LOGGER.info("Deleting %s", piolibdeps)
-        rmtree(piolibdeps)
-    dependencies_lock = CORE.relative_build_path("dependencies.lock")
-    if dependencies_lock.is_file():
-        _LOGGER.info("Deleting %s", dependencies_lock)
-        dependencies_lock.unlink()
-    # Native ESP-IDF toolchain artifacts: the IDF CMake/ninja build dir
-    # and the Component Manager's fetched managed components live under
-    # the project's build path, not under .pioenvs / .piolibdeps.
-    for name in ("build", "managed_components"):
-        idf_path = CORE.relative_build_path(name)
-        if idf_path.is_dir():
-            _LOGGER.info("Deleting %s", idf_path)
-            rmtree(idf_path)
+    if full:
+        if CORE.build_path is not None:
+            build_path = Path(CORE.build_path)
+            if build_path.is_dir():
+                _LOGGER.info("Deleting %s", build_path)
+                rmtree(build_path)
+    else:
+        pioenvs = CORE.relative_pioenvs_path()
+        if pioenvs.is_dir():
+            _LOGGER.info("Deleting %s", pioenvs)
+            rmtree(pioenvs)
+        piolibdeps = CORE.relative_piolibdeps_path()
+        if piolibdeps.is_dir():
+            _LOGGER.info("Deleting %s", piolibdeps)
+            rmtree(piolibdeps)
+        dependencies_lock = CORE.relative_build_path("dependencies.lock")
+        if dependencies_lock.is_file():
+            _LOGGER.info("Deleting %s", dependencies_lock)
+            dependencies_lock.unlink()
+        # Native ESP-IDF toolchain artifacts: the IDF CMake/ninja build dir
+        # and the Component Manager's fetched managed components live under
+        # the project's build path, not under .pioenvs / .piolibdeps.
+        for name in ("build", "managed_components"):
+            idf_path = CORE.relative_build_path(name)
+            if idf_path.is_dir():
+                _LOGGER.info("Deleting %s", idf_path)
+                rmtree(idf_path)
+
+    # The idedata cache is derived from the build but lives under the data dir,
+    # not the build path, so it must be removed separately in both modes.
+    idedata_cache = CORE.relative_internal_path("idedata", f"{CORE.name}.json")
+    if idedata_cache.is_file():
+        _LOGGER.info("Deleting %s", idedata_cache)
+        idedata_cache.unlink()
 
     if not clear_pio_cache:
         return
+
+    # The native ESP-IDF toolchain caches PlatformIO libraries converted to IDF
+    # components under <data_dir>/pio_components, shared across builds and keyed
+    # by source hash (the analog of PlatformIO's global package cache). Drop it
+    # on an explicit clean so a corrupt/stale converted lib is re-fetched.
+    pio_components = CORE.relative_internal_path("pio_components")
+    if pio_components.is_dir():
+        _LOGGER.info("Deleting %s", pio_components)
+        rmtree(pio_components)
 
     # Clean PlatformIO cache to resolve CMake compiler detection issues
     # This helps when toolchain paths change or get corrupted
@@ -590,19 +702,29 @@ def clean_all(configuration: list[str]):
                 elif item.is_dir() and item.name != "storage":
                     rmtree(item)
 
+    # The native toolchain installs live in a machine-global cache dir that
+    # the per-config loop above can't reach. Wipe the default cache root
+    # (also catches leftovers from older install layouts), then the resolved
+    # install paths for the ESPHOME_*_PREFIX overrides (docker/add-on/CI)
+    # that live outside it. Every backend's cache is listed in
+    # TOOLS_CACHE_SPECS, so registering one there is the only step.
+    import platformdirs
+
+    from esphome.build_helpers.tools_cache import TOOLS_CACHE_SPECS, tools_cache_path
+
+    cache_root = Path(platformdirs.user_cache_dir("esphome", appauthor=False)).resolve()
+    install_paths = [cache_root] + [
+        tools_cache_path(*spec) for spec in TOOLS_CACHE_SPECS
+    ]
+    for install_path in install_paths:
+        if install_path.is_dir():
+            _LOGGER.info("Deleting %s", install_path)
+            rmtree(install_path)
+
     # Clean PlatformIO project files
-    try:
-        from platformio.project.config import ProjectConfig
-    except ImportError:
-        # PlatformIO is not available, skip cleaning
-        pass
-    else:
-        config = ProjectConfig.get_instance()
-        for pio_dir in ["cache_dir", "packages_dir", "platforms_dir", "core_dir"]:
-            path = Path(config.get("platformio", pio_dir))
-            if path.is_dir():
-                _LOGGER.info("Deleting PlatformIO %s %s", pio_dir, path)
-                rmtree(path)
+    from esphome.platformio.toolchain import clean_platformio_cache
+
+    clean_platformio_cache()
 
 
 GITIGNORE_CONTENT = """# Gitignore settings for ESPHome

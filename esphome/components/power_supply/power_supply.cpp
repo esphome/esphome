@@ -21,7 +21,11 @@ void PowerSupply::dump_config() {
   LOG_PIN("  Pin: ", this->pin_);
 }
 
-float PowerSupply::get_setup_priority() const { return setup_priority::IO; }
+float PowerSupply::get_setup_priority() const {
+  if (this->pin_->is_internal() && this->enable_on_boot_)
+    return setup_priority::POWER;
+  return setup_priority::IO;
+}
 
 bool PowerSupply::is_enabled() const { return this->active_requests_ != 0; }
 

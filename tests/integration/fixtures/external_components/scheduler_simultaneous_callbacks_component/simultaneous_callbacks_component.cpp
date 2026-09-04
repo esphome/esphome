@@ -1,9 +1,9 @@
 #include "simultaneous_callbacks_component.h"
 #include "esphome/core/log.h"
+#include <cinttypes>
 #include <thread>
 #include <vector>
 #include <chrono>
-#include <sstream>
 
 namespace esphome::scheduler_simultaneous_callbacks_component {
 
@@ -41,13 +41,11 @@ void SchedulerSimultaneousCallbacksComponent::run_simultaneous_callbacks_test() 
       std::this_thread::sleep_until(start_time + std::chrono::microseconds(100));
 
       for (int i = 0; i < CALLBACKS_PER_THREAD; i++) {
-        // Create unique name for each callback
-        std::stringstream ss;
-        ss << "thread_" << thread_id << "_cb_" << i;
-        std::string name = ss.str();
+        // Unique numeric ID for each callback (zero heap allocation, no name collisions)
+        uint32_t callback_id = static_cast<uint32_t>(thread_id) * CALLBACKS_PER_THREAD + i;
 
         // Schedule callback for exactly DELAY_MS from now
-        this->set_timeout(name, DELAY_MS, [this, name]() {
+        this->set_timeout(callback_id, DELAY_MS, [this, callback_id]() {
           // Increment concurrent counter atomically
           int current = this->callbacks_at_once_.fetch_add(1) + 1;
 
@@ -57,7 +55,7 @@ void SchedulerSimultaneousCallbacksComponent::run_simultaneous_callbacks_test() 
             // Loop until we successfully update or someone else set a higher value
           }
 
-          ESP_LOGV(TAG, "Callback executed: %s (concurrent: %d)", name.c_str(), current);
+          ESP_LOGV(TAG, "Callback executed: id=%" PRIu32 " (concurrent: %d)", callback_id, current);
 
           // Simulate some minimal work
           std::atomic<int> work{0};
@@ -73,7 +71,7 @@ void SchedulerSimultaneousCallbacksComponent::run_simultaneous_callbacks_test() 
         });
 
         this->total_scheduled_.fetch_add(1);
-        ESP_LOGV(TAG, "Scheduled callback %s", name.c_str());
+        ESP_LOGV(TAG, "Scheduled callback id=%" PRIu32, callback_id);
       }
 
       ESP_LOGD(TAG, "Thread %d completed scheduling", thread_id);

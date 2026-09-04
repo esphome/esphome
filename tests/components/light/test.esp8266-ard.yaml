@@ -1,6 +1,6 @@
 output:
   - platform: gpio
-    id: test_binary
+    id: light_test_binary
     pin: 4
   - platform: esp8266_pwm
     id: test_ledc_1

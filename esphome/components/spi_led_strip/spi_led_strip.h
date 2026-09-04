@@ -8,9 +8,9 @@
 namespace esphome::spi_led_strip {
 
 static const char *const TAG = "spi_led_strip";
-class SpiLedStrip : public light::AddressableLight,
-                    public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_HIGH, spi::CLOCK_PHASE_TRAILING,
-                                          spi::DATA_RATE_1MHZ> {
+class SpiLedStrip final : public light::AddressableLight,
+                          public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_HIGH,
+                                                spi::CLOCK_PHASE_TRAILING, spi::DATA_RATE_1MHZ> {
  public:
   SpiLedStrip(uint16_t num_leds);
   void setup() override;

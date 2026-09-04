@@ -404,6 +404,8 @@ void I2SAudioSpeakerSPDIF::run_speaker_task() {
 
 esp_err_t I2SAudioSpeakerSPDIF::start_i2s_driver(audio::AudioStreamInfo &audio_stream_info) {
   this->current_stream_info_ = audio_stream_info;
+  // SPDIF never narrows the bit depth; the encoder consumes the input format directly.
+  this->output_stream_info_ = audio_stream_info;
 
   // SPDIF mode validation
   if (this->sample_rate_ != audio_stream_info.get_sample_rate()) {

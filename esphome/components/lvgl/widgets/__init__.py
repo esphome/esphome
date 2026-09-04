@@ -36,11 +36,10 @@ from ..defines import (
     CONF_SCALE,
     CONF_STYLES,
     CONF_WIDGETS,
+    LOGGER,
     OBJ_FLAGS,
     PARTS,
     STATES,
-    TYPE_FLEX,
-    TYPE_GRID,
     LValidator,
     add_lv_use,
     call_lambda,
@@ -191,18 +190,7 @@ class WidgetType:
             await self.on_create(var, config)
 
         w = Widget.create(wid, var, self, config)
-        if theme := get_theme_widget_map().get(self.name):
-            for part, states in theme.items():
-                part = "LV_PART_" + part.upper()
-                for state, style in states.items():
-                    state = "LV_STATE_" + state.upper()
-                    if state == "LV_STATE_DEFAULT":
-                        lv_state = literal(part)
-                    elif part == "LV_PART_MAIN":
-                        lv_state = literal(state)
-                    else:
-                        lv_state = join_enums((state, part))
-                    w.add_style(style, lv_state)
+        apply_theme_styles(w)
         await set_obj_properties(w, config)
         await add_widgets(w, config)
         await self.to_code(w, config)
@@ -231,7 +219,7 @@ class WidgetType:
         :param config: Its configuration
         """
 
-    def get_uses(self):
+    def get_uses(self) -> tuple:
         """
         Get a list of other widgets used by this one
         :return:
@@ -268,6 +256,21 @@ class WidgetType:
         """
 
 
+def apply_theme_styles(w: "Widget") -> None:
+    """Apply the current theme's styles for this widget's type"""
+    for part, states in get_theme_widget_map().get(w.type.name, {}).items():
+        part = "LV_PART_" + part.upper()
+        for state, style in states.items():
+            state = "LV_STATE_" + state.upper()
+            if state == "LV_STATE_DEFAULT":
+                lv_state = literal(part)
+            elif part == "LV_PART_MAIN":
+                lv_state = literal(state)
+            else:
+                lv_state = join_enums((state, part))
+            w.add_style(style, lv_state)
+
+
 class Widget:
     """
     Represents a Widget.
@@ -290,6 +293,7 @@ class Widget:
         # Properties for linear equations
         self.slope = None
         self.y_int = None
+        self.parent = None
 
     @staticmethod
     def create(name, var, wtype: WidgetType, config: dict = None):
@@ -540,44 +544,76 @@ def _size_to_str(value):
     return str(value)
 
 
+def _grid_descriptor_array(name: str, specs) -> MockObj:
+    """Generate a file-scope ``static const`` grid row/column descriptor array
+    and return a reference to it."""
+    values = ",".join(_size_to_str(x) for x in specs)
+    initializer = "{" + values + ", LV_GRID_TEMPLATE_LAST}"
+    arr_id = ID(name, is_declaration=True, type=lv_coord_t)
+    return cg.static_const_array(arr_id, cg.RawExpression(initializer))
+
+
+def _set_layout_options(w: Widget, layout: dict, base_name: str | None) -> None:
+    """Apply the layout options present in ``layout`` to ``w``.
+
+    Only options actually present are applied, so this works both for widget
+    creation (where every option is supplied) and for update actions (where the
+    layout ``type`` and grid structure are fixed and only the style options are
+    changed). ``base_name`` names the generated grid descriptor arrays and is
+    only required at creation, when ``grid_rows``/``grid_columns`` are present.
+    """
+    if (pad_row := layout.get(CONF_PAD_ROW)) is not None:
+        w.set_style(CONF_PAD_ROW, pad_row)
+    if (pad_column := layout.get(CONF_PAD_COLUMN)) is not None:
+        w.set_style(CONF_PAD_COLUMN, pad_column)
+    if (rows := layout.get(CONF_GRID_ROWS)) is not None:
+        w.set_style(
+            "grid_row_dsc_array", _grid_descriptor_array(f"{base_name}_row_dsc", rows)
+        )
+    if (columns := layout.get(CONF_GRID_COLUMNS)) is not None:
+        w.set_style(
+            "grid_column_dsc_array",
+            _grid_descriptor_array(f"{base_name}_column_dsc", columns),
+        )
+    if (align := layout.get(CONF_GRID_COLUMN_ALIGN)) is not None:
+        w.set_style(CONF_GRID_COLUMN_ALIGN, literal(align))
+    if (align := layout.get(CONF_GRID_ROW_ALIGN)) is not None:
+        w.set_style(CONF_GRID_ROW_ALIGN, literal(align))
+    if (flow := layout.get(CONF_FLEX_FLOW)) is not None:
+        lv_obj.set_flex_flow(w.obj, literal(flow))
+    if (main := layout.get(CONF_FLEX_ALIGN_MAIN)) is not None:
+        w.set_style("flex_main_place", literal(main))
+    if (cross := layout.get(CONF_FLEX_ALIGN_CROSS)) is not None:
+        # Stretch is implemented at creation time by sizing the children; at
+        # runtime we can only fall back to centering.
+        if cross == "LV_FLEX_ALIGN_STRETCH":
+            LOGGER.warning(
+                "Flex cross alignment 'stretch' is not supported at runtime; using 'center' instead"
+            )
+            cross = "LV_FLEX_ALIGN_CENTER"
+        w.set_style("flex_cross_place", literal(cross))
+    if (track := layout.get(CONF_FLEX_ALIGN_TRACK)) is not None:
+        w.set_style("flex_track_place", literal(track))
+
+
 async def set_obj_properties(w: Widget, config):
     """Generate a list of C++ statements to apply properties to an lv_obj_t"""
 
     from ..schemas import ALL_STYLES, OBJ_PROPERTIES, remap_property
 
     if layout := config.get(CONF_LAYOUT):
-        layout_type: str = layout[CONF_TYPE]
-        add_lv_use(layout_type)
-        lv_obj.set_layout(w.obj, literal(f"LV_LAYOUT_{layout_type.upper()}"))
-        if (pad_row := layout.get(CONF_PAD_ROW)) is not None:
-            w.set_style(CONF_PAD_ROW, pad_row)
-        if (pad_column := layout.get(CONF_PAD_COLUMN)) is not None:
-            w.set_style(CONF_PAD_COLUMN, pad_column)
-        if layout_type == TYPE_GRID:
-            wid = config[CONF_ID]
-            rows = [_size_to_str(x) for x in layout[CONF_GRID_ROWS]]
-            rows = "{" + ",".join(rows) + ", LV_GRID_TEMPLATE_LAST}"
-            row_id = ID(f"{wid}_row_dsc", is_declaration=True, type=lv_coord_t)
-            row_array = cg.static_const_array(row_id, cg.RawExpression(rows))
-            w.set_style("grid_row_dsc_array", row_array)
-            columns = [_size_to_str(x) for x in layout[CONF_GRID_COLUMNS]]
-            columns = "{" + ",".join(columns) + ", LV_GRID_TEMPLATE_LAST}"
-            column_id = ID(f"{wid}_column_dsc", is_declaration=True, type=lv_coord_t)
-            column_array = cg.static_const_array(column_id, cg.RawExpression(columns))
-            w.set_style("grid_column_dsc_array", column_array)
-            w.set_style(
-                CONF_GRID_COLUMN_ALIGN, literal(layout.get(CONF_GRID_COLUMN_ALIGN))
-            )
-            w.set_style(CONF_GRID_ROW_ALIGN, literal(layout.get(CONF_GRID_ROW_ALIGN)))
-        if layout_type == TYPE_FLEX:
-            lv_obj.set_flex_flow(w.obj, literal(layout[CONF_FLEX_FLOW]))
-            main = literal(layout[CONF_FLEX_ALIGN_MAIN])
-            cross = layout[CONF_FLEX_ALIGN_CROSS]
-            if cross == "LV_FLEX_ALIGN_STRETCH":
-                cross = "LV_FLEX_ALIGN_CENTER"
-            cross = literal(cross)
-            track = literal(layout[CONF_FLEX_ALIGN_TRACK])
-            lv_obj.set_flex_align(w.obj, main, cross, track)
+        # The layout `type` (and the grid row/column structure) is only present
+        # when a widget is created; update actions only change the layout style
+        # options, leaving the type and grid structure unchanged.
+        layout_type = layout.get(CONF_TYPE)
+        if layout_type is not None:
+            add_lv_use(layout_type)
+            lv_obj.set_layout(w.obj, literal(f"LV_LAYOUT_{layout_type.upper()}"))
+            # The widget's own id gives the grid descriptor arrays stable names.
+            base_name = str(config[CONF_ID])
+        else:
+            base_name = None
+        _set_layout_options(w, layout, base_name)
     parts = collect_parts(config)
     for part, states in parts.items():
         part = "LV_PART_" + part.upper()

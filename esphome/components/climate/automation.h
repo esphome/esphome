@@ -17,7 +17,7 @@ namespace esphome::climate {
 // (e.g. `const T & &` if Ts already carries a reference, or `const const
 // T &` if Ts already carries a const). This keeps trigger args no-copy
 // regardless of whether the trigger supplies `T`, `T &`, or `const T &`.
-template<typename... Ts> class ControlAction : public Action<Ts...> {
+template<typename... Ts> class ControlAction final : public Action<Ts...> {
  public:
   using ApplyFn = void (*)(ClimateCall &, const std::remove_cvref_t<Ts> &...);
   ControlAction(Climate *climate, ApplyFn apply) : climate_(climate), apply_(apply) {}
@@ -33,14 +33,14 @@ template<typename... Ts> class ControlAction : public Action<Ts...> {
   ApplyFn apply_;
 };
 
-class ControlTrigger : public Trigger<ClimateCall &> {
+class ControlTrigger final : public Trigger<ClimateCall &> {
  public:
   ControlTrigger(Climate *climate) {
     climate->add_on_control_callback([this](ClimateCall &x) { this->trigger(x); });
   }
 };
 
-class StateTrigger : public Trigger<Climate &> {
+class StateTrigger final : public Trigger<Climate &> {
  public:
   StateTrigger(Climate *climate) {
     climate->add_on_state_callback([this](Climate &x) { this->trigger(x); });

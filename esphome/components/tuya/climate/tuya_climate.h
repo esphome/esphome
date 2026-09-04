@@ -6,7 +6,7 @@
 
 namespace esphome::tuya {
 
-class TuyaClimate : public climate::Climate, public Component {
+class TuyaClimate final : public climate::Climate, public Component {
  public:
   void setup() override;
   void loop() override;

@@ -6,7 +6,7 @@
 
 namespace esphome::sfa30 {
 
-class SFA30Component : public PollingComponent, public sensirion_common::SensirionI2CDevice {
+class SFA30Component final : public PollingComponent, public sensirion_common::SensirionI2CDevice {
   enum ErrorCode { DEVICE_MARKING_READ_FAILED, MEASUREMENT_INIT_FAILED, UNKNOWN };
 
  public:

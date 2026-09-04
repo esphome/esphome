@@ -8,7 +8,7 @@
 namespace esphome::kmeteriso {
 
 /// This class implements support for the KMeterISO thermocouple sensor.
-class KMeterISOComponent : public PollingComponent, public i2c::I2CDevice {
+class KMeterISOComponent final : public PollingComponent, public i2c::I2CDevice {
  public:
   void set_temperature_sensor(sensor::Sensor *t) { this->temperature_sensor_ = t; }
   void set_internal_temperature_sensor(sensor::Sensor *t) { this->internal_temperature_sensor_ = t; }

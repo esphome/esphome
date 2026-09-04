@@ -8,7 +8,7 @@ namespace esphome::light {
 
 enum class LimitMode { CLAMP, DO_NOTHING };
 
-template<bool HasTransitionLength, typename... Ts> class ToggleAction : public Action<Ts...> {
+template<bool HasTransitionLength, typename... Ts> class ToggleAction final : public Action<Ts...> {
  public:
   explicit ToggleAction(LightState *state) : state_(state) {}
 
@@ -43,7 +43,7 @@ template<bool HasTransitionLength, typename... Ts> class ToggleAction : public A
 // (e.g. `const T & &` if Ts already carries a reference, or `const const
 // T &` if Ts already carries a const). This keeps trigger args no-copy
 // regardless of whether the trigger supplies `T`, `T &`, or `const T &`.
-template<typename... Ts> class LightControlAction : public Action<Ts...> {
+template<typename... Ts> class LightControlAction final : public Action<Ts...> {
  public:
   using ApplyFn = void (*)(LightState *, LightCall &, const std::remove_cvref_t<Ts> &...);
   LightControlAction(LightState *parent, ApplyFn apply) : parent_(parent), apply_(apply) {}
@@ -59,7 +59,7 @@ template<typename... Ts> class LightControlAction : public Action<Ts...> {
   ApplyFn apply_;
 };
 
-template<bool HasTransitionLength, typename... Ts> class DimRelativeAction : public Action<Ts...> {
+template<bool HasTransitionLength, typename... Ts> class DimRelativeAction final : public Action<Ts...> {
  public:
   explicit DimRelativeAction(LightState *parent) : parent_(parent) {}
 
@@ -108,7 +108,7 @@ template<bool HasTransitionLength, typename... Ts> class DimRelativeAction : pub
 // at compile time so the chosen branch is the only one that gets instantiated
 // per action site. `include_none` is runtime so a single set of templates
 // covers both the "wrap through None" and "skip None" variants.
-template<bool Forward, typename... Ts> class LightEffectCycleAction : public Action<Ts...> {
+template<bool Forward, typename... Ts> class LightEffectCycleAction final : public Action<Ts...> {
  public:
   explicit LightEffectCycleAction(LightState *parent) : parent_(parent) {}
 
@@ -145,7 +145,7 @@ template<bool Forward, typename... Ts> class LightEffectCycleAction : public Act
   bool include_none_{false};
 };
 
-template<typename... Ts> class LightIsOnCondition : public Condition<Ts...> {
+template<typename... Ts> class LightIsOnCondition final : public Condition<Ts...> {
  public:
   explicit LightIsOnCondition(LightState *state) : state_(state) {}
   bool check(const Ts &...x) override { return this->state_->current_values.is_on(); }
@@ -153,7 +153,7 @@ template<typename... Ts> class LightIsOnCondition : public Condition<Ts...> {
  protected:
   LightState *state_;
 };
-template<typename... Ts> class LightIsOffCondition : public Condition<Ts...> {
+template<typename... Ts> class LightIsOffCondition final : public Condition<Ts...> {
  public:
   explicit LightIsOffCondition(LightState *state) : state_(state) {}
   bool check(const Ts &...x) override { return !this->state_->current_values.is_on(); }
@@ -162,7 +162,7 @@ template<typename... Ts> class LightIsOffCondition : public Condition<Ts...> {
   LightState *state_;
 };
 
-class LightTurnOnTrigger : public Trigger<>, public LightRemoteValuesListener {
+class LightTurnOnTrigger final : public Trigger<>, public LightRemoteValuesListener {
  public:
   explicit LightTurnOnTrigger(LightState *a_light) : light_(a_light) {
     a_light->add_remote_values_listener(this);
@@ -187,7 +187,7 @@ class LightTurnOnTrigger : public Trigger<>, public LightRemoteValuesListener {
   bool last_on_;
 };
 
-class LightTurnOffTrigger : public Trigger<>, public LightTargetStateReachedListener {
+class LightTurnOffTrigger final : public Trigger<>, public LightTargetStateReachedListener {
  public:
   explicit LightTurnOffTrigger(LightState *a_light) : light_(a_light) {
     a_light->add_target_state_reached_listener(this);
@@ -205,7 +205,7 @@ class LightTurnOffTrigger : public Trigger<>, public LightTargetStateReachedList
   LightState *light_;
 };
 
-class LightStateTrigger : public Trigger<>, public LightRemoteValuesListener {
+class LightStateTrigger final : public Trigger<>, public LightRemoteValuesListener {
  public:
   explicit LightStateTrigger(LightState *a_light) { a_light->add_remote_values_listener(this); }
 
@@ -216,7 +216,7 @@ class LightStateTrigger : public Trigger<>, public LightRemoteValuesListener {
 // due to the template. It's just a temporary warning anyway.
 void addressableset_warn_about_scale(const char *field);
 
-template<typename... Ts> class AddressableSet : public Action<Ts...> {
+template<typename... Ts> class AddressableSet final : public Action<Ts...> {
  public:
   explicit AddressableSet(LightState *parent) : parent_(parent) {}
 

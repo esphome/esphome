@@ -1,8 +1,7 @@
 """ESP-IDF framework tools for ESPHome."""
 
-from collections.abc import Iterable
-from contextlib import ExitStack
-import io
+from collections.abc import Callable
+from ctypes.util import find_library
 import json
 import logging
 import os
@@ -10,37 +9,37 @@ from pathlib import Path
 import platform
 import re
 import shutil
-import subprocess
-import sys
-import tempfile
-from typing import IO
+from typing import Any, NoReturn
 
-import requests
-
-from esphome.config_validation import Version
-from esphome.core import CORE
-from esphome.helpers import ProgressBar, get_str_env, rmtree, write_file_if_changed
-
-PathType = str | os.PathLike
+from esphome.build_helpers.ccache import (
+    ccache_defaults_env,
+    parse_enable_env,
+    resolve_ccache_path,
+)
+from esphome.build_helpers.tools_cache import IDF_TOOLS_CACHE, tools_cache_path
+from esphome.core import Version
+from esphome.framework_helpers import (
+    PathType,
+    create_venv,
+    download_and_extract,
+    download_from_mirrors,
+    failure_reason,
+    get_python_env_executable_path,
+    get_system_python_path,
+    resume_fetch_job,
+    rmdir,
+    run_batch_downloads,
+    run_command,
+    run_command_ok,
+    str_to_lst_of_str,
+    tool_version_runs,
+    warn_prefetch_failures,
+)
+from esphome.helpers import write_file_if_changed
 
 _LOGGER = logging.getLogger(__name__)
 
 _SCRIPTS_DIR = Path(__file__).parent
-
-
-def _str_to_lst_of_str(a: str | list[str]) -> list[str]:
-    """
-    Convert a string to a list of string
-
-    Args:
-        a: A string containing semicolon-separated values, or an already-split list
-
-    Returns:
-        list of strings
-    """
-    if isinstance(a, list):
-        return a
-    return [f.strip() for f in a.split(";") if f.strip()]
 
 
 ESPHOME_STAMP_FILE = ".esphome.stamp.json"
@@ -54,31 +53,35 @@ ESPHOME_STAMP_FILE = ".esphome.stamp.json"
 # Bumping triggers a full reinstall on every user's next run.
 STAMP_SCHEMA_VERSION = "0"
 
-ESPHOME_IDF_DEFAULT_TARGETS = _str_to_lst_of_str(
+ESPHOME_IDF_DEFAULT_TARGETS = str_to_lst_of_str(
     os.environ.get("ESPHOME_IDF_DEFAULT_TARGETS", "all")
 )
+# An explicitly set ESPHOME_IDF_DEFAULT_TARGETS overrides the per-variant
+# targets a caller requests, so a builder image can still pre-warm every
+# target with one env var.
+_IDF_DEFAULT_TARGETS_EXPLICIT = bool(os.environ.get("ESPHOME_IDF_DEFAULT_TARGETS"))
 
-ESPHOME_IDF_DEFAULT_TOOLS = _str_to_lst_of_str(
+ESPHOME_IDF_DEFAULT_TOOLS = str_to_lst_of_str(
     os.environ.get("ESPHOME_IDF_DEFAULT_TOOLS", "cmake;ninja")
 )
 
-ESPHOME_IDF_DEFAULT_TOOLS_FORCE = _str_to_lst_of_str(
+ESPHOME_IDF_DEFAULT_TOOLS_FORCE = str_to_lst_of_str(
     os.environ.get("ESPHOME_IDF_DEFAULT_TOOLS_FORCE", "required")
 )
 
-ESPHOME_IDF_DEFAULT_FEATURES = _str_to_lst_of_str(
+ESPHOME_IDF_DEFAULT_FEATURES = str_to_lst_of_str(
     os.environ.get("ESPHOME_IDF_DEFAULT_FEATURES", "core")
 )
 
-ESPHOME_IDF_FRAMEWORK_MIRRORS = _str_to_lst_of_str(
+ESPHOME_IDF_FRAMEWORK_MIRRORS = str_to_lst_of_str(
     os.environ.get("ESPHOME_IDF_FRAMEWORK_MIRRORS")
     or [
         "https://github.com/esphome-libs/esp-idf/releases/download/v{VERSION}/esp-idf-v{VERSION}.tar.xz",
-        "https://github.com/esphome-libs/esp-idf/releases/download/v{MAJOR}.{MINOR}/esp-idf-v{MAJOR}.{MINOR}.tar.xz",
+        "https://github.com/esphome-libs/esp-idf/releases/download/v{SHORT_VERSION}/esp-idf-v{SHORT_VERSION}.tar.xz",
     ]
 )
 
-ESP_IDF_CONSTRAINTS_MIRRORS = _str_to_lst_of_str(
+ESP_IDF_CONSTRAINTS_MIRRORS = str_to_lst_of_str(
     os.environ.get(
         "ESP_IDF_CONSTRAINTS_MIRRORS",
         "https://dl.espressif.com/dl/esp-idf/espidf.constraints.v{VERSION}.txt",
@@ -86,16 +89,87 @@ ESP_IDF_CONSTRAINTS_MIRRORS = _str_to_lst_of_str(
 )
 
 
-def _get_idf_tools_path() -> Path:
+def get_idf_tools_path() -> Path:
     """
     Get the path to the ESP-IDF tools directory.
 
     Returns:
         Path object pointing to the ESP-IDF tools directory
     """
-    if "ESPHOME_ESP_IDF_PREFIX" in os.environ:
-        return Path(get_str_env("ESPHOME_ESP_IDF_PREFIX", None)).expanduser()
-    return CORE.data_dir / "idf"
+    # Machine-global so all projects share the multi-GB install instead of
+    # a per-config-directory copy; see build_helpers.tools_cache.tools_cache_path
+    # for the env-override and normalization rules.
+    return tools_cache_path(*IDF_TOOLS_CACHE)
+
+
+# Windows' default MAX_PATH is 260 characters. ESP-IDF toolchains nest deeply
+# below the IDF tools directory: the longest file on disk (picolibc C++
+# headers) sits ~209 characters down, but the operative number is worse -- gcc
+# probes its multilib include dirs via un-normalized self-relative paths
+# ("bin/../lib/gcc/<target>/<ver>/../../../../<target>/include/..."), and
+# Windows checks the path string as given, before collapsing "..". Measured
+# worst case (riscv32, esp-15.2.0, longest multilib + no-rtti, probing
+# bits/c++config.h): ~243 characters below the tools directory. Exceeding the
+# limit surfaces as cryptic build failures -- missing headers ("fatal error:
+# bits/c++config.h: No such file or directory") or partial extraction
+# ("cannot execute 'as'"). Warn up front so the user can shorten the path or
+# enable long path support.
+_WINDOWS_MAX_PATH = 260
+# Measured 243 plus a small safety margin for future toolchain growth.
+_TOOLCHAIN_NESTED_PATH_LEN = 245
+
+
+def _windows_long_paths_enabled() -> bool:
+    """Return True if Windows long path support is enabled in the registry."""
+    try:
+        import winreg  # pylint: disable=import-error  # Windows-only module
+
+        with winreg.OpenKey(
+            winreg.HKEY_LOCAL_MACHINE,
+            r"SYSTEM\CurrentControlSet\Control\FileSystem",
+        ) as key:
+            value, _ = winreg.QueryValueEx(key, "LongPathsEnabled")
+            return value == 1
+    except OSError:
+        return False
+
+
+def _check_windows_path_length() -> None:
+    """Warn when the install path is too long for Windows' MAX_PATH limit.
+
+    No-op off Windows or when long path support is enabled. Otherwise warns if
+    the deepest toolchain file would exceed the 260-character limit, which makes
+    ESP-IDF toolchains extract incompletely and fail to build.
+    """
+    if platform.system() != "Windows" or _windows_long_paths_enabled():
+        return
+    tools_path = str(get_idf_tools_path())
+    projected = len(tools_path) + _TOOLCHAIN_NESTED_PATH_LEN
+    if projected <= _WINDOWS_MAX_PATH:
+        return
+    _LOGGER.warning(
+        "ESP-IDF tools path is too long for the default Windows path limit:\n"
+        "  %s (%d characters)\n"
+        "ESP-IDF toolchain paths reach up to ~%d characters deeper (including the\n"
+        "compiler's internal 'bin/../lib/...' relative paths), projecting to ~%d\n"
+        "characters -- over the %d-character limit. This causes cryptic build\n"
+        "failures such as:\n"
+        "  fatal error: bits/c++config.h: No such file or directory\n"
+        "  cannot execute 'as': CreateProcess: No such file or directory\n"
+        "To fix, either:\n"
+        "  - Enable Windows long path support, then reboot. In an elevated\n"
+        "    PowerShell run:\n"
+        "      Set-ItemProperty 'HKLM:\\SYSTEM\\CurrentControlSet\\Control\\FileSystem' LongPathsEnabled 1\n"
+        "    Details: https://learn.microsoft.com/windows/win32/fileio/maximum-file-path-limitation\n"
+        "  - Or set ESPHOME_ESP_IDF_PREFIX to a shorter path (e.g. C:\\ESPHome\\idf)\n"
+        "Then delete the ESP-IDF tools directory above so the toolchain "
+        "reinstalls cleanly.",
+        tools_path,
+        len(tools_path),
+        _TOOLCHAIN_NESTED_PATH_LEN,
+        projected,
+        _WINDOWS_MAX_PATH,
+    )
 
 
 def _get_framework_path(version: str) -> Path:
@@ -108,7 +182,7 @@ def _get_framework_path(version: str) -> Path:
     Returns:
         Path object pointing to the framework directory
     """
-    return _get_idf_tools_path() / "frameworks" / f"{version}"
+    return get_idf_tools_path() / "frameworks" / f"{version}"
 
 
 def _get_python_env_path(version: str) -> Path:
@@ -121,63 +195,38 @@ def _get_python_env_path(version: str) -> Path:
     Returns:
         Path object pointing to the Python environment directory
     """
-    return _get_idf_tools_path() / "penvs" / f"{version}"
+    return get_idf_tools_path() / "penvs" / f"{version}"
 
 
-def rmdir(directory: PathType, msg: str | None = None):
+def _read_stamp(file: PathType) -> dict | None:
+    """Return a stamp file's dict contents, or None if missing or invalid.
+
+    A missing stamp is the normal first-install case and stays silent; the
+    other branches indicate a real fault that forces a full reinstall on
+    every build, so they warn.
     """
-    Remove a directory and its contents recursively if it exists.
-
-    Args:
-        directory: Path to the directory to be removed
-        msg: Optional debug message to log before removal or it an error occurs
-
-    Returns:
-        None
-
-    Raises:
-        RuntimeError: If directory removal fails
-    """
-    if Path(directory).is_dir():
-        try:
-            if msg:
-                _LOGGER.debug(msg)
-            rmtree(directory)
-        except OSError as e:
-            raise RuntimeError(
-                f"Error during {msg}: can't remove `{directory}`. Please remove it manually!"
-            ) from e
+    try:
+        with Path(file).open(encoding="utf-8") as f:
+            data = json.load(f)
+    except FileNotFoundError:
+        return None
+    except json.JSONDecodeError as e:
+        _LOGGER.warning("Ignoring corrupt stamp file %s: %s", file, e)
+        return None
+    except OSError as e:
+        _LOGGER.warning("Could not read stamp file %s: %s", file, e)
+        return None
+    if not isinstance(data, dict):
+        _LOGGER.warning(
+            "Ignoring stamp file %s with unexpected type %s",
+            file,
+            type(data).__name__,
+        )
+        return None
+    return data
 
 
-def _get_pythonexe_path() -> str:
-    """
-    Get the path to the Python executable.
-
-    Returns:
-        Path to Python executable as string
-    """
-    # Try to get PYTHONEXEPATH environment variable
-    # Fallback to sys.executable if not set
-    return os.environ.get("PYTHONEXEPATH", os.path.normpath(sys.executable))
-
-
-def _get_python_env_executable_path(root: PathType, binary: str) -> Path:
-    """
-    Get the path to a Python environment executable file.
-
-    Args:
-        root: Root directory of the Python environment
-        binary: Name of the executable binary
-
-    Returns:
-        Path object pointing to the executable file
-    """
-    if os.name == "nt":
-        return Path(root) / "Scripts" / f"{binary}.exe"
-    return Path(root) / "bin" / binary
-
-
-def _check_stamp(file: PathType, data: dict[str, str]) -> bool:
+def _check_stamp(file: PathType, data: dict[str, Any]) -> bool:
     """
     Check if a stamp file contains the expected data.
 
@@ -188,17 +237,43 @@ def _check_stamp(file: PathType, data: dict[str, str]) -> bool:
     Returns:
         True if file exists and contains expected data, False otherwise
     """
-    if not Path(file).is_file():
+    return _read_stamp(file) == data
+
+
+def _stamps_match_except_targets(stored: dict, requested: dict) -> bool:
+    """Whether two stamps agree on every field other than ``targets``.
+
+    Compares whole dicts (minus ``targets``) rather than named keys so any
+    stamp field added later participates in invalidation by default instead
+    of being silently ignored.
+    """
+
+    def _strip(stamp: dict) -> dict:
+        return {k: v for k, v in stamp.items() if k != "targets"}
+
+    return _strip(stored) == _strip(requested)
+
+
+def _stamp_covers(stored: dict | None, requested: dict) -> bool:
+    """Return True if a stored framework stamp already covers this request.
+
+    Every field except ``targets`` must match exactly. ``targets`` may be a
+    superset of the requested ones: ``idf_tools.py install`` accumulates
+    targets in idf-env.json across runs, so a framework installed for more
+    targets than this build needs is still valid. A stored ``all`` covers
+    every target.
+    """
+    if stored is None:
         return False
-
-    try:
-        with Path(file).open(encoding="utf-8") as f:
-            return json.load(f) == data
-    except (json.JSONDecodeError, OSError):
+    if not _stamps_match_except_targets(stored, requested):
         return False
+    stored_targets = stored.get("targets")
+    if not isinstance(stored_targets, list):
+        return False
+    return "all" in stored_targets or set(requested["targets"]) <= set(stored_targets)
 
 
-def _write_stamp(file: PathType, data: dict[str, str]):
+def _write_stamp(file: PathType, data: dict[str, Any]):
     """
     Write data to a stamp file in JSON format.
 
@@ -210,82 +285,38 @@ def _write_stamp(file: PathType, data: dict[str, str]):
         json.dump(data, fp)
 
 
-def _exec(
-    cmd: list[str],
-    msg: str | None = None,
+def _run_idf_tools_script(
+    idf_framework_root: PathType,
+    script_name: str,
+    msg: str,
+    args: list[str] | None = None,
     env: dict[str, str] | None = None,
-    stream_output: bool = False,
 ) -> tuple[bool, str | None, str | None]:
+    """Run one of the sibling idf_tools-backed helper scripts.
+
+    The script is executed with the framework's ``tools`` directory on
+    PYTHONPATH so it imports the framework's own ``idf_tools`` module.
     """
-    Execute a command and return results.
-
-    Args:
-        cmd: list of command arguments
-        msg: Optional custom message for logging
-        env: Optional dictionary of environment variables to set
-        stream_output: If True, inherit parent stdio so the subprocess prints
-            directly to the terminal (useful for commands that produce their
-            own progress output). stdout/stderr are not captured in this mode.
-
-    Returns:
-        tuple of (success: bool, stdout: str or None, stderr: str or None).
-        When stream_output is True, stdout and stderr are always None.
-    """
-    cmd_str = msg or " ".join(cmd)
-    try:
-        _LOGGER.debug("%s - running ...", cmd_str)
-
-        run_env = os.environ.copy()
-        if env:
-            run_env.update(env)
-
-        if stream_output:
-            result = subprocess.run(cmd, check=False, env=run_env)
-            stdout = stderr = None
-        else:
-            result = subprocess.run(
-                cmd,
-                capture_output=True,
-                text=True,
-                check=False,
-                env=run_env,
-            )
-            stdout = result.stdout
-            stderr = result.stderr
-
-        if result.returncode != 0:
-            if stream_output:
-                _LOGGER.error("%s - failed (returncode=%s)", cmd_str, result.returncode)
-            else:
-                tail = (stderr or stdout or "").strip()[-1000:]
-                _LOGGER.error(
-                    "%s - failed (returncode=%s). Tail:\n%s",
-                    cmd_str,
-                    result.returncode,
-                    tail,
-                )
-            return False, stdout, stderr
-
-        _LOGGER.debug("%s - executed successfully", cmd_str)
-        return True, stdout, stderr
-
-    except (subprocess.SubprocessError, OSError) as e:
-        _LOGGER.error("%s - error: %s", cmd_str, str(e))
-        return False, None, None
+    cmd = [
+        get_system_python_path(),
+        str(_SCRIPTS_DIR / script_name),
+        str(idf_framework_root),
+        *(args or []),
+    ]
+    return run_command(
+        cmd,
+        msg=msg,
+        env=(env or os.environ)
+        | {"PYTHONPATH": str(Path(idf_framework_root) / "tools")},
+    )
 
 
-def _exec_ok(*args, **kwargs) -> bool:
-    """
-    Execute a command and return only the success status.
-
-    Args:
-        *args: Positional arguments to pass to _exec function
-        **kwargs: Keyword arguments to pass to _exec function
-
-    Returns:
-        True if command executed successfully, False otherwise
-    """
-    return _exec(*args, **kwargs)[0]
+def _raise_script_failure(what: str, root: PathType, stderr: str | None) -> NoReturn:
+    """Raise RuntimeError for a failed helper script, appending stderr detail."""
+    detail = (stderr or "").strip()
+    raise RuntimeError(
+        f"Can't get {what} of {root}" + (f": {detail}" if detail else "")
+    )
 
 
 def _get_idf_version(
@@ -305,26 +336,13 @@ def _get_idf_version(
         RuntimeError: If ESP-IDF version cannot be determined
     """
 
-    cmd = [
-        _get_pythonexe_path(),
-        str(_SCRIPTS_DIR / "get_idf_version.py"),
-        str(idf_framework_root),
-    ]
-
-    success, stdout, stderr = _exec(
-        cmd,
-        msg="ESP-IDF version",
-        env=(env or os.environ)
-        | {"PYTHONPATH": str(Path(idf_framework_root) / "tools")},
+    success, stdout, stderr = _run_idf_tools_script(
+        idf_framework_root, "get_idf_version.py", "ESP-IDF version", env=env
     )
     if stdout:
         stdout = stdout.strip()
     if not success or not stdout:
-        detail = (stderr or "").strip()
-        raise RuntimeError(
-            f"Can't get ESP-IDF version of {idf_framework_root}"
-            + (f": {detail}" if detail else "")
-        )
+        _raise_script_failure("ESP-IDF version", idf_framework_root, stderr)
     return stdout
 
 
@@ -345,24 +363,11 @@ def _get_idf_tool_paths(
         RuntimeError: If ESP-IDF tool paths cannot be determined
     """
 
-    cmd = [
-        _get_pythonexe_path(),
-        str(_SCRIPTS_DIR / "get_idf_tool_paths.py"),
-        str(idf_framework_root),
-    ]
-
-    success, stdout, stderr = _exec(
-        cmd,
-        msg="ESP-IDF tool paths",
-        env=(env or os.environ)
-        | {"PYTHONPATH": str(Path(idf_framework_root) / "tools")},
+    success, stdout, stderr = _run_idf_tools_script(
+        idf_framework_root, "get_idf_tool_paths.py", "ESP-IDF tool paths", env=env
     )
     if not success or not stdout:
-        detail = (stderr or "").strip()
-        raise RuntimeError(
-            f"Can't get ESP-IDF tool paths of {idf_framework_root}"
-            + (f": {detail}" if detail else "")
-        )
+        _raise_script_failure("ESP-IDF tool paths", idf_framework_root, stderr)
 
     # Extract json values
     try:
@@ -397,7 +402,7 @@ print(".".join([str(x) for x in sys.version_info]))
 """
     cmd = [python_executable, "-c", script]
 
-    success, stdout, _ = _exec(cmd, msg="Python version", env=env)
+    success, stdout, _ = run_command(cmd, msg="Python version", env=env)
 
     if stdout:
         stdout = stdout.strip()
@@ -406,404 +411,20 @@ print(".".join([str(x) for x in sys.version_info]))
     return stdout
 
 
-def _create_venv(root: PathType, msg: str | None = None):
-    """
-    Create a Python virtual environment.
-
-    Args:
-        root: Path to the virtual environment directory
-        msg: Optional message for logging
-
-    Returns:
-        None
-
-    Raises:
-        Exception: If virtual environment creation fails
-    """
-    cmd = [_get_pythonexe_path(), "-m", "venv", "--clear", root]
-    if not _exec_ok(cmd, msg=f"Create Python virtual environment for {msg}"):
-        raise RuntimeError(f"Can't create Python virtual environment for {msg}")
-
-
-def _detect_archive_root(names: Iterable[str]) -> str | None:
-    """Detect a single top-level directory shared by all archive entries.
-
-    Returns the directory name if every non-empty entry sits under the same
-    top-level directory, else ``None``. Extraction helpers use this to strip
-    the wrapper directory commonly found in source archives during extraction
-    rather than renaming it afterwards — post-extraction renames are
-    unreliable on Windows because antivirus and the search indexer briefly
-    hold handles on freshly written files.
-    """
-    root: str | None = None
-    has_descendant = False
-    for raw in names:
-        name = raw.replace("\\", "/").strip("/")
-        if not name:
-            continue
-        first, sep, _ = name.partition("/")
-        if root is None:
-            root = first
-        elif root != first:
-            return None
-        if sep:
-            has_descendant = True
-    return root if has_descendant else None
-
-
-def _tar_extract_all(
-    data: io.BufferedIOBase,
-    extract_dir: PathType = ".",
-    progress_header: str | None = None,
-):
-    """
-    Extract a TAR archive to the specified directory.
-
-    Implementation is inspired by Python 3.12's tarfile data filtering logic.
-    This can be replaced with the standard library implementation once
-    support for Python 3.11 is no longer required.
-
-    Args:
-        data: File-like object containing the TAR archive
-        extract_dir: Directory to extract contents to
-        progress_header: If set, show a progress bar with this header
-    """
-    import stat
-    import tarfile
-
-    # Tar extraction safety: os.path.realpath / commonpath / normpath have no
-    # pathlib equivalents and Path.resolve() would follow symlinks unsafely.
-    # Use os.path for the security-sensitive parts; the simple checks move to
-    # Path.
-    extract_dir = os.fspath(extract_dir)
-    abs_dest = os.path.abspath(extract_dir)  # noqa: PTH100
-
-    with tarfile.open(fileobj=data, mode="r") as tar_ref:
-        all_members = tar_ref.getmembers()
-
-        # Detect a single common top-level directory and strip it during
-        # extraction so we don't have to flatten it via a rename afterwards.
-        strip_root = _detect_archive_root(m.name for m in all_members)
-        strip_prefix = f"{strip_root}/" if strip_root is not None else None
-
-        safe_members = []
-
-        for member in all_members:
-            name = member.name
-
-            # 1. Strip leading slashes
-            name = name.lstrip("/" + os.sep)
-
-            # 2. Reject absolute paths (incl. Windows drive)
-            if Path(name).is_absolute() or (
-                os.name == "nt" and ":" in name.split(os.sep)[0]  # noqa: PTH206
-            ):
-                continue
-
-            # 3. Strip wrapper directory if one was detected
-            if strip_prefix is not None:
-                norm = name.replace("\\", "/")
-                if norm in (strip_root, strip_prefix):
-                    continue
-                if not norm.startswith(strip_prefix):
-                    continue
-                name = norm[len(strip_prefix) :]
-
-            # 4. Compute final path
-            target_path = os.path.realpath(os.path.join(abs_dest, name))  # noqa: PTH118
-            if os.path.commonpath([abs_dest, target_path]) != abs_dest:
-                continue
-
-            # 5. Validate links properly
-            if member.issym() or member.islnk():
-                linkname = member.linkname
-
-                # Reject absolute link targets
-                if Path(linkname).is_absolute():
-                    continue
-
-                # Strip leading slashes
-                linkname = os.path.normpath(linkname)
-
-                if member.issym():
-                    link_target = os.path.join(  # noqa: PTH118
-                        abs_dest,
-                        os.path.dirname(name),  # noqa: PTH120
-                        linkname,
-                    )
-                else:
-                    link_target = os.path.join(abs_dest, linkname)  # noqa: PTH118
-                link_target = os.path.realpath(link_target)
-
-                if os.path.commonpath([abs_dest, link_target]) != abs_dest:
-                    continue
-
-                # write back normalized linkname
-                member.linkname = linkname
-
-            # 6. Sanitize permissions
-            mode = member.mode
-            if mode is not None:
-                # Strip high bits & group/other write bits
-                mode &= (
-                    stat.S_IRWXU
-                    | stat.S_IRGRP
-                    | stat.S_IXGRP
-                    | stat.S_IROTH
-                    | stat.S_IXOTH
-                )
-                if member.isfile() or member.islnk():
-                    # remove exec bits unless explicitly user-executable
-                    if not (mode & stat.S_IXUSR):
-                        mode &= ~(stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
-                    mode |= stat.S_IRUSR | stat.S_IWUSR
-                elif not (member.isdir() or member.issym()):
-                    # Block special files. Directories and symlinks keep
-                    # their masked-original mode — passing None here would
-                    # crash tarfile.extract on Python <3.12 (its chmod
-                    # path calls os.chmod unconditionally).
-                    continue
-
-                member.mode = mode
-
-            # 7. Strip ownership
-            member.uid = None
-            member.gid = None
-            member.uname = None
-            member.gname = None
-
-            # 8. Assign sanitized name back
-            member.name = name
-
-            safe_members.append(member)
-
-        total = len(safe_members)
-        progress = (
-            ProgressBar(progress_header) if progress_header and total > 0 else None
-        )
-        for i, member in enumerate(safe_members, 1):
-            tar_ref.extract(member, abs_dest)
-            if progress is not None:
-                progress.update(i / total)
-        if progress is not None:
-            progress.update(1)
-
-
-def _zip_extract_all(
-    data: io.BufferedIOBase,
-    extract_dir: PathType = ".",
-    progress_header: str | None = None,
-):
-    """
-    Extract a ZIP archive to the specified directory.
-
-    Args:
-        data: File-like object containing the ZIP archive
-        extract_dir: Directory to extract contents to
-        progress_header: If set, show a progress bar with this header
-    """
-    import zipfile
-
-    # See note in archive_extract_all_tar: os.path is used intentionally for
-    # the security-sensitive abspath/commonpath checks below.
-    extract_dir = os.path.abspath(extract_dir)  # noqa: PTH100
-
-    with zipfile.ZipFile(data, "r") as zip_ref:
-        all_members = zip_ref.infolist()
-
-        # Detect a single common top-level directory and strip it during
-        # extraction so we don't have to flatten it via a rename afterwards.
-        strip_root = _detect_archive_root(m.filename for m in all_members)
-        strip_prefix = f"{strip_root}/" if strip_root is not None else None
-
-        total = len(all_members)
-        progress = (
-            ProgressBar(progress_header) if progress_header and total > 0 else None
-        )
-
-        for i, member in enumerate(all_members, 1):
-            # 1. Normalize name
-            name = member.filename.lstrip("/\\")
-
-            # 2. Reject absolute paths / Windows drives
-            if Path(name).is_absolute() or (
-                os.name == "nt" and ":" in name.split(os.sep)[0]  # noqa: PTH206
-            ):
-                continue
-
-            # 3. Strip wrapper directory if one was detected
-            if strip_prefix is not None:
-                norm = name.replace("\\", "/")
-                if norm in (strip_root, strip_prefix):
-                    continue
-                if not norm.startswith(strip_prefix):
-                    continue
-                name = norm[len(strip_prefix) :]
-
-            # 4. Compute safe target path
-            target_path = os.path.abspath(os.path.join(extract_dir, name))  # noqa: PTH100, PTH118
-
-            if os.path.commonpath([extract_dir, target_path]) != extract_dir:
-                raise ValueError(f"Unsafe path detected: {member.filename}")
-
-            # 5. Assign sanitized name back
-            member.filename = name
-
-            # 6. Extract
-            zip_ref.extract(member, extract_dir)
-
-            if progress is not None:
-                progress.update(i / total)
-        if progress is not None:
-            progress.update(1)
-
-
-_ARCHIVE_MAGIC_MAP = {
-    b"\x1f\x8b\x08": _tar_extract_all,
-    b"\x42\x5a\x68": _tar_extract_all,
-    b"\xfd\x37\x7a\x58\x5a\x00": _tar_extract_all,
-    b"\x50\x4b\x03\x04": _zip_extract_all,
-}
-
-
-def archive_extract_all(
-    archive: PathType | io.RawIOBase | IO[bytes],
-    extract_dir: PathType = ".",
-    progress_header: str | None = None,
-):
-    """
-    Extract an archive file to the specified directory.
-
-    Args:
-        archive: Path to archive file or file-like object
-        extract_dir: Directory to extract contents to
-        progress_header: If set, show a progress bar with this header
-
-    Raises:
-        TypeError: If archive is not a valid type
-        ValueError: If archive format is unsupported
-    """
-
-    # 1. Handle different archive input types
-    with ExitStack() as stack:
-        archive_ref: io.BufferedIOBase
-        if isinstance(archive, (str, os.PathLike)):
-            archive_ref = stack.enter_context(Path(archive).open("rb"))
-        elif isinstance(archive, (io.BufferedReader, io.BufferedRandom)):
-            archive_ref = archive
-        elif isinstance(archive, io.RawIOBase):
-            archive_ref = io.BufferedReader(archive)
-        else:
-            raise TypeError(
-                f"archive must be str, Path, or file-like object: {type(archive)}"
-            )
-
-        # 2. Detect archive format and select appropriate extraction function
-        matched_fct = None
-        magic_len = max(len(k) for k in _ARCHIVE_MAGIC_MAP)
-        header = archive_ref.peek(magic_len)
-        for magic, fct in _ARCHIVE_MAGIC_MAP.items():
-            if header.startswith(magic):
-                matched_fct = fct
-                break
-        if matched_fct is None:
-            raise ValueError("Unsupported archive format")
-        matched_fct(archive_ref, extract_dir, progress_header=progress_header)
-
-
-def download_from_mirrors(
-    mirrors: list[str],
-    substitutions: dict[str, str],
-    target: io.RawIOBase | IO[bytes] | PathType,
-    timeout: int = 30,
-) -> str | None:
-    """
-    Download file from multiple mirrors with substitution support.
-
-    Args:
-        mirrors: list of mirror URLs
-        substitutions: Dictionary of substitutions to apply to URLs
-        target: Target file path or file-like object
-        timeout: Download timeout in seconds
-
-    Returns:
-        The source URL.
-
-    Raises:
-        Exception: If all download attempts fail
-    """
-    # 1. Open target file for writing if path given
-    with ExitStack() as stack:
-        if isinstance(target, (str, os.PathLike)):
-            f = stack.enter_context(Path(target).open("wb"))
-        elif isinstance(target, (io.RawIOBase, io.IOBase)):
-            f = target
-        else:
-            raise TypeError(
-                f"target must be str, Path, or file-like object: {type(target)}"
-            )
-
-        # 2. Try each mirror in order
-        last_exception = None
-
-        for mirror in mirrors:
-            # 3. Apply substitutions to URL
-            url = mirror.format(**substitutions)
-
-            _LOGGER.debug("Trying downloading from %s", url)
-
-            try:
-                # 4. Reset file pointer and download
-                f.seek(0)
-                f.truncate(0)
-
-                with requests.get(url, stream=True, timeout=timeout) as r:
-                    r.raise_for_status()
-
-                    total_size = int(r.headers.get("content-length", 0))
-                    downloaded = 0
-
-                    progress = ProgressBar("Downloading") if total_size > 0 else None
-
-                    for chunk in r.iter_content(chunk_size=8192):
-                        if chunk:
-                            f.write(chunk)
-
-                        downloaded += len(chunk)
-
-                        if progress is not None:
-                            progress.update(downloaded / total_size)
-
-                    if progress is not None:
-                        progress.update(1)
-
-                _LOGGER.debug("Downloaded successfully from: %s", url)
-
-                # 6. Reset file pointer and return
-                f.seek(0)
-                return url
-
-            except Exception as e:  # noqa: BLE001  # pylint: disable=broad-exception-caught
-                _LOGGER.debug("Failed to download %s: %s", url, str(e))
-                last_exception = e
-
-        # 7. Raise last exception if all mirrors failed
-        if last_exception:
-            raise last_exception
-        return None
-
-
 _GITHUB_SHORTHAND_RE = re.compile(
-    r"^github://([a-zA-Z0-9\-]+)/([a-zA-Z0-9\-\._]+?)(?:@([a-zA-Z0-9\-_.\./]+))?$"
+    r"^github://([a-zA-Z0-9\-]+)/([a-zA-Z0-9\-\._]+?)(?:[@#]([a-zA-Z0-9\-_.\./]+))?$"
 )
 _GITHUB_HTTPS_RE = re.compile(
-    r"^(https://github\.com/[a-zA-Z0-9\-]+/[a-zA-Z0-9\-\._]+?\.git)(?:@([a-zA-Z0-9\-_.\./]+))?$"
+    r"^(https://github\.com/[a-zA-Z0-9\-]+/[a-zA-Z0-9\-\._]+?\.git)(?:[@#]([a-zA-Z0-9\-_.\./]+))?$"
 )
 
 
 def _parse_git_source(source_url: str) -> tuple[str, str | None] | None:
     """Return ``(url, ref)`` for ``github://owner/repo[@ref]`` or
-    ``https://github.com/owner/repo.git[@ref]``, else ``None``."""
+    ``https://github.com/owner/repo.git[@ref]``, else ``None``.
+
+    The ref may be separated with ``@`` or ``#``; ``#`` matches the PlatformIO
+    convention used for ``platform_version`` URLs."""
     if m := _GITHUB_SHORTHAND_RE.match(source_url):
         owner, repo, ref = m.group(1), m.group(2), m.group(3)
         # Tolerate a trailing ".git" on the shorthand repo so the
@@ -829,38 +450,33 @@ def _clone_idf_with_submodules(
     handles branches, tags, and SHAs uniformly (mirrors the approach in
     ``esphome.git.clone_or_update``).
     """
-    from esphome.git import run_git_command
+    from esphome.git import run_git_command, update_submodules
 
-    _LOGGER.info("Cloning ESP-IDF from %s%s", git_url, f"@{ref}" if ref else "")
-    run_git_command(["git", "clone", "--depth=1", "--", git_url, str(framework_path)])
+    key = f"{git_url}@{ref}" if ref else git_url
+    _LOGGER.info("Cloning ESP-IDF from %s", key)
+    run_git_command(
+        ["git", "clone", "--depth=1", "--", git_url, str(framework_path)],
+        network=True,
+        retry_cleanup=framework_path,
+    )
     if ref:
         run_git_command(
             ["git", "fetch", "--depth=1", "--", "origin", ref],
             git_dir=framework_path,
+            network=True,
         )
         run_git_command(
             ["git", "reset", "--hard", "FETCH_HEAD"],
             git_dir=framework_path,
         )
-    run_git_command(
-        [
-            "git",
-            "submodule",
-            "update",
-            "--init",
-            "--recursive",
-            "--depth=1",
-        ],
-        git_dir=framework_path,
-    )
+    update_submodules(framework_path, key)
 
-    # Sanity-check the resulting tree. run_git_command only raises when
-    # stderr is non-empty, so a clone that silently produces no working
-    # tree would otherwise be marked extracted and stuck until
-    # ``esphome clean``.
+    # Sanity-check the resulting tree: a clone can exit 0 yet produce no
+    # usable ESP-IDF checkout, which would otherwise be marked extracted and
+    # stuck until ``esphome clean``.
     if not (framework_path / "tools" / "idf_tools.py").is_file():
         raise RuntimeError(
-            f"Clone of {git_url} produced no usable ESP-IDF tree at {framework_path}"
+            f"Clone of {key} produced no usable ESP-IDF tree at {framework_path}"
         )
 
 
@@ -909,17 +525,21 @@ _NINJA_ARM64_BACKPORT: dict[str, dict[str, str | int]] = {
 }
 
 
-def _patch_tools_json_for_linux_arm64(framework_path: Path) -> None:
-    """Inject ninja linux-arm64 entries into the framework's tools.json on aarch64.
+def _patch_tools_json(
+    framework_path: Path,
+    apply_patch: Callable[[dict], bool],
+    patched_log: str,
+) -> None:
+    """Apply an in-place fixup to the framework's tools/tools.json.
 
-    Idempotent: a tools.json that already has the entry, or a host that
-    isn't aarch64, is a no-op. Applied unconditionally on every install
-    check so a build dir extracted before the backport got fixed up
-    without forcing a clean.
+    Shared plumbing for the tools.json patches below: a missing file is a
+    no-op, an unparseable file logs a warning and skips, and when
+    ``apply_patch`` reports a change the file is written back atomically.
+    ``patched_log`` is the info log line, with a single ``%s`` placeholder
+    for the tools.json path. Patches are idempotent and applied on every
+    install check, so an already-extracted framework picks them up on the
+    next build without forcing a clean.
     """
-    if platform.machine() != "aarch64":
-        return
-
     tools_json = framework_path / "tools" / "tools.json"
     if not tools_json.is_file():
         return
@@ -927,37 +547,245 @@ def _patch_tools_json_for_linux_arm64(framework_path: Path) -> None:
     try:
         with tools_json.open(encoding="utf-8") as f:
             data = json.load(f)
-    except (json.JSONDecodeError, OSError) as e:
+        # apply_patch also raises inside the guard: a tools.json that is
+        # valid JSON but not the expected shape (e.g. a top-level list)
+        # must skip the patch, not crash the install check this patch is
+        # meant to recover.
+        changed = apply_patch(data)
+    except (json.JSONDecodeError, OSError, AttributeError, TypeError, KeyError) as e:
         _LOGGER.warning(
-            "Could not parse %s for linux-arm64 backport (%s); "
-            "skipping. A clean reinstall of the framework directory "
-            "may be needed.",
+            "Could not apply tools.json patch to %s (%s); skipping. A clean "
+            "reinstall of the framework directory may be needed.",
             tools_json,
             e,
         )
         return
-
-    changed = False
-    for tool in data.get("tools", []):
-        if tool.get("name") != "ninja":
-            continue
-        for ver in tool.get("versions", []):
-            entry = _NINJA_ARM64_BACKPORT.get(ver.get("name"))
-            if entry is None or ver.get("linux-arm64"):
-                continue
-            ver["linux-arm64"] = entry
-            changed = True
 
     if changed:
         # write_file_if_changed stages a tempfile in the destination dir
         # and atomically replaces — safe against mid-write interruption
         # and concurrent invocations.
         write_file_if_changed(tools_json, json.dumps(data, indent=2) + "\n")
-        _LOGGER.info(
-            "Patched %s to add ninja linux-arm64 download "
-            "(espressif/esp-idf#18272 backport).",
-            tools_json,
+        _LOGGER.info(patched_log, tools_json)
+
+
+def _patch_tools_json_for_linux_arm64(framework_path: Path) -> None:
+    """Inject ninja linux-arm64 entries into the framework's tools.json on aarch64.
+
+    A tools.json that already has the entry, or a host that isn't aarch64,
+    is a no-op.
+    """
+    if platform.machine() != "aarch64":
+        return
+
+    def apply_patch(data: dict) -> bool:
+        changed = False
+        for tool in data.get("tools", []):
+            if tool.get("name") != "ninja":
+                continue
+            for ver in tool.get("versions", []):
+                entry = _NINJA_ARM64_BACKPORT.get(ver.get("name"))
+                if entry is None or ver.get("linux-arm64"):
+                    continue
+                ver["linux-arm64"] = entry
+                changed = True
+        return changed
+
+    _patch_tools_json(
+        framework_path,
+        apply_patch,
+        "Patched %s to add ninja linux-arm64 download "
+        "(espressif/esp-idf#18272 backport).",
+    )
+
+
+# Tools marked ``install: always`` in tools.json that no ESPHome build ever
+# runs. openocd-esp32 is a JTAG debug server (its post-install check also
+# fails outright on systems without libusb-1.0, #17685). The gdb bundles are
+# debuggers used only by ``idf.py gdb``/``idf.py monitor`` flows ESPHome never
+# invokes; stack decoding uses addr2line from the compiler toolchains instead.
+# esp32ulp-elf is the ULP coprocessor toolchain, and ESPHome excludes the IDF
+# ``ulp`` component from every build. esp-rom-elfs stays required: the cmake
+# gdbinit generation reads ESP_ROM_ELF_DIR during every configure and warns
+# when it is missing.
+_UNUSED_IDF_TOOLS: tuple[str, ...] = (
+    "esp32ulp-elf",
+    "openocd-esp32",
+    "riscv32-esp-elf-gdb",
+    "xtensa-esp-elf-gdb",
+)
+
+# tools.json also lists riscv32-esp-elf as supported on the xtensa chips
+# because the S2/S3 ULP coprocessor is a RISC-V core, so installing for an
+# S2/S3 target pulls in the whole riscv compiler (~290MB download, 2GB disk)
+# just for ULP programs — which ESPHome never builds (the IDF ``ulp``
+# component is excluded by default; a user who re-enables it via
+# ``include_builtin_idf_components: [ulp]`` on an S2/S3 and hits a missing
+# riscv compiler can set ESPHOME_IDF_DEFAULT_TARGETS=all to install it).
+# Removing the xtensa chips from its supported targets keeps it out of
+# xtensa-only installs; building a RISC-V variant still installs it. Add any
+# future Xtensa chip here; a missing entry only costs the download, while a
+# wrongly listed RISC-V chip would strip its own compiler.
+_XTENSA_TARGETS: tuple[str, ...] = ("esp32", "esp32s2", "esp32s3")
+
+
+def _patch_tools_json_demote_unused_tools(framework_path: Path) -> None:
+    """Demote tools ESPHome never runs from ``install: always`` to ``on_request``.
+
+    ``idf_tools.py install required`` downloads every tool marked ``always``
+    in tools.json and validates each one after extraction by running its
+    version command. Demoting the tools in ``_UNUSED_IDF_TOOLS`` drops them
+    from the ``required`` set: they are no longer downloaded or validated,
+    and the tool-path export treats a missing ``on_request`` tool as fine.
+    Besides the download and disk savings, this makes the openocd libusb
+    validation failure (#17685) impossible; because this runs on every
+    install check, an install stuck in that failing state (which never wrote
+    its stamp file) heals on the next build without a clean. A user who
+    wants one of these tools can still name it explicitly in
+    ESPHOME_IDF_DEFAULT_TOOLS; explicit names bypass install-type filtering.
+
+    Also removes the xtensa chips from riscv32-esp-elf's supported targets
+    (see ``_XTENSA_TARGETS``) so xtensa-only installs don't pull in the
+    RISC-V compiler for ULP programs ESPHome never builds.
+    """
+
+    def apply_patch(data: dict) -> bool:
+        changed = False
+        for tool in data.get("tools", []):
+            if (
+                tool.get("name") in _UNUSED_IDF_TOOLS
+                and tool.get("install") == "always"
+            ):
+                tool["install"] = "on_request"
+                changed = True
+            if tool.get("name") == "riscv32-esp-elf":
+                targets = tool.get("supported_targets")
+                # Guard the type so unexpected JSON here cannot abort the
+                # other demotions; this patch is best-effort. Log it so a
+                # silently resumed riscv download is diagnosable.
+                if not isinstance(targets, list):
+                    _LOGGER.warning(
+                        "Unexpected supported_targets for riscv32-esp-elf "
+                        "in tools.json (%s); not excluding it from xtensa "
+                        "installs",
+                        type(targets).__name__,
+                    )
+                    continue
+                if any(t in targets for t in _XTENSA_TARGETS):
+                    tool["supported_targets"] = [
+                        t for t in targets if t not in _XTENSA_TARGETS
+                    ]
+                    changed = True
+        return changed
+
+    _patch_tools_json(
+        framework_path,
+        apply_patch,
+        "Patched %s to skip installing tools ESPHome does not use "
+        "(openocd, gdb, ULP toolchains).",
+    )
+
+
+def _prefetch_idf_tool_archives(
+    framework_path: Path,
+    targets_str: str,
+    tools: list[str],
+    env: dict[str, str] | None,
+) -> None:
+    """Pre-download the tool archives ``idf_tools.py install`` would fetch.
+
+    ``idf_tools.py``'s own downloader restarts from byte zero on every retry,
+    which makes large archives effectively impossible to fetch on unstable
+    connections (#17703). This asks the framework's idf_tools (via
+    ``get_tool_downloads.py``) which archives the coming install needs, then
+    downloads them into ``<IDF_TOOLS_PATH>/dist`` with
+    ``download_with_resume``, a few at a time under one combined progress
+    bar. The installer then finds the verified archives already in place
+    ("file ... is already downloaded") and never touches the network.
+
+    Strictly best-effort: any failure here just logs and returns, leaving
+    ``idf_tools.py install`` to download whatever is missing exactly as
+    before. Leftover ``.part`` files live in ``dist/`` and are removed by the
+    post-install cache prune.
+    """
+    try:
+        success, stdout, stderr = _run_idf_tools_script(
+            framework_path,
+            "get_tool_downloads.py",
+            "ESP-IDF tool download list",
+            args=[targets_str, *tools],
+            env=env,
         )
+        if not success or not stdout:
+            _LOGGER.warning(
+                "Could not determine ESP-IDF tool downloads: %s",
+                (stderr or "").strip(),
+            )
+            return
+        dist_path = get_idf_tools_path() / "dist"
+        entries = []
+        seen_dests: set[str] = set()
+        for entry in json.loads(stdout):
+            if (dist_path / entry["dest"]).is_file():
+                continue
+            # Never download unverified: an entry without sha256/size is
+            # left to the installer, which fails loudly on a bad archive.
+            # Checked before the dedupe so it cannot shadow a verifiable
+            # duplicate of the same dest.
+            if not (entry.get("sha256") and entry.get("size")):
+                _LOGGER.warning(
+                    "Tool %s has no sha256/size in the download list; "
+                    "leaving it to the installer",
+                    entry["name"],
+                )
+                continue
+            if entry["dest"] in seen_dests:
+                # Two workers on one .part file would interleave
+                # seek/truncate writes; mirror the library prefetch's dedupe
+                continue
+            seen_dests.add(entry["dest"])
+            entries.append(entry)
+        if not entries:
+            return
+        _LOGGER.info(
+            "Downloading %d ESP-IDF tool archive(s): %s",
+            len(entries),
+            ", ".join(entry["name"] for entry in entries),
+        )
+
+        # No sequential fallback here: skipping the prefetch would lose the
+        # resume workaround for #17703, and every entry has a size (above).
+        # A failed archive is retried by the installer itself (without
+        # resume); keep prefetching the rest.
+        failures = run_batch_downloads(
+            "Downloading ESP-IDF tools",
+            [
+                (
+                    entry["name"],
+                    entry["size"],
+                    resume_fetch_job(
+                        entry["url"],
+                        dist_path / entry["dest"],
+                        sha256=entry["sha256"],
+                        size=entry["size"],
+                    ),
+                )
+                for entry in entries
+            ],
+        )
+        warn_prefetch_failures(failures)
+        if len(failures) == len(entries):
+            # A systematic fault, not one flaky mirror: the resume
+            # workaround (#17703) is off for this whole install
+            _LOGGER.error(
+                "Every ESP-IDF tool prefetch failed; the installer will "
+                "download without resume"
+            )
+    except Exception as e:  # noqa: BLE001  # pylint: disable=broad-exception-caught
+        # The installer downloads anything missing itself; never let the
+        # prefetch become a new way for the install to fail.
+        _LOGGER.warning("ESP-IDF tool prefetch failed: %s", failure_reason(e))
+        _LOGGER.debug("Prefetch failure detail", exc_info=True)
 
 
 def _check_esphome_idf_framework_install(
@@ -979,12 +807,19 @@ def _check_esphome_idf_framework_install(
         env: Optional dictionary of environment variables to set
         source_url: Optional override URL for the framework tarball. Supports
             the same ``{VERSION}`` / ``{MAJOR}`` / ``{MINOR}`` / ``{PATCH}`` /
-            ``{EXTRA}`` substitutions as ESPHOME_IDF_FRAMEWORK_MIRRORS. When
-            set, it replaces the default mirror list — no implicit fallback,
-            so a misspelled URL fails loudly.
+            ``{EXTRA}`` / ``{SHORT_VERSION}`` substitutions as
+            ESPHOME_IDF_FRAMEWORK_MIRRORS (``{EXTRA}`` includes its leading
+            ``-``, e.g. ``-rc1``, or is empty; ``{SHORT_VERSION}`` is ``x.y``
+            plus any extra and only available for x.y.0 versions — a URL
+            referencing it is skipped for other versions). When set, it
+            replaces the default mirror list — no implicit fallback, so a
+            misspelled or skipped URL fails loudly with an EsphomeError naming
+            the URL.
 
     Returns:
-        tuple of (framework_path, install_flag)
+        tuple of (framework_path, fresh_extract_flag). The flag is True only
+        when the framework tree was downloaded and extracted this run, not
+        when tools were installed into an existing tree.
     """
 
     # Sanitize inputs
@@ -1004,7 +839,9 @@ def _check_esphome_idf_framework_install(
     idf_tools_path = framework_path / "tools" / "idf_tools.py"
     _LOGGER.info("Checking ESP-IDF %s framework ...", version)
     # Logged every invocation (not just on install) so the user can verify the
-    # override. A changed URL needs ``esphome clean`` to force a re-download.
+    # override. A changed URL needs ``esphome clean-all`` to force a re-download
+    # (``esphome clean`` only wipes the build dir, not the extracted framework
+    # under the global install dir's ``frameworks/<version>``).
     if source_url:
         _LOGGER.info("Using framework source override: %s", source_url)
 
@@ -1015,8 +852,8 @@ def _check_esphome_idf_framework_install(
     # avoids post-extraction renames that race with antivirus on Windows.
     # Tool install state is tracked separately by the stamp file in step 3,
     # so we only re-extract when extraction itself is missing or incomplete.
-    install = force or not extracted_marker.is_file()
-    if install:
+    fresh_extract = force or not extracted_marker.is_file()
+    if fresh_extract:
         rmdir(framework_path, msg=f"Clean up ESP-IDF {version} framework")
 
         git_source = _parse_git_source(source_url) if source_url else None
@@ -1024,28 +861,44 @@ def _check_esphome_idf_framework_install(
             git_url, ref = git_source
             _clone_idf_with_submodules(framework_path, git_url, ref)
         else:
-            # Download in temporary file
-            with tempfile.NamedTemporaryFile() as tmp:
-                _LOGGER.info("Downloading ESP-IDF %s framework ...", version)
+            _LOGGER.info("Downloading ESP-IDF %s framework ...", version)
 
-                # Create substitutions for the URLs
-                substitutions = {"VERSION": version}
-                try:
-                    ver = Version.parse(version)
-                    substitutions["MAJOR"] = str(ver.major)
-                    substitutions["MINOR"] = str(ver.minor)
-                    substitutions["PATCH"] = str(ver.patch)
-                    substitutions["EXTRA"] = ver.extra
-                except ValueError:
-                    pass
-
-                mirrors = [source_url] if source_url else ESPHOME_IDF_FRAMEWORK_MIRRORS
-                download_from_mirrors(mirrors, substitutions, tmp.file)
-
-                _LOGGER.info("Extracting ESP-IDF %s framework ...", version)
-                archive_extract_all(
-                    tmp.file, framework_path, progress_header="Extracting"
+            # Create substitutions for the URLs. SHORT_VERSION (x.y with
+            # optional -extra) is only provided for x.y.0 releases, since
+            # the vX.Y release tags only exist for those; templates that
+            # reference it are skipped for other versions by
+            # download_from_mirrors.
+            substitutions = {"VERSION": version}
+            try:
+                ver = Version.parse(version)
+                substitutions["MAJOR"] = str(ver.major)
+                substitutions["MINOR"] = str(ver.minor)
+                substitutions["PATCH"] = str(ver.patch)
+                substitutions["EXTRA"] = f"-{ver.extra}" if ver.extra else ""
+                if ver.patch == 0:
+                    substitutions["SHORT_VERSION"] = (
+                        f"{ver.major}.{ver.minor}{substitutions['EXTRA']}"
+                    )
+            except ValueError:
+                _LOGGER.warning(
+                    "ESP-IDF version '%s' is not a valid version number; "
+                    "only the {VERSION} substitution is available for "
+                    "mirror URLs",
+                    version,
                 )
+
+            mirrors = [source_url] if source_url else ESPHOME_IDF_FRAMEWORK_MIRRORS
+            # Download to a persistent file in the tool download cache (not
+            # a temp file) so an interrupted download resumes on the next
+            # run; the cache is pruned after a successful install anyway.
+            tarball_path = get_idf_tools_path() / "dist" / f"esp-idf-{version}.tar.xz"
+            download_and_extract(
+                mirrors,
+                substitutions,
+                tarball_path,
+                framework_path,
+                progress_header="Extracting",
+            )
         extracted_marker.touch()
 
     # Idempotent post-extract patch: written every invocation so a build
@@ -1058,42 +911,86 @@ def _check_esphome_idf_framework_install(
     # a pre-patch tools.json get fixed up without forcing a clean.
     _patch_tools_json_for_linux_arm64(framework_path)
 
+    # Drop tools ESPHome never runs from the required tool set on every
+    # invocation, so an install that previously failed on the openocd libusb
+    # check recovers on the next build.
+    _patch_tools_json_demote_unused_tools(framework_path)
+
     # 3. Check if the framework tools are the same and correctly installed
+    stored_stamp = None if fresh_extract else _read_stamp(env_stamp_file)
+    install = fresh_extract
     if not install:
         install = True
-        if _check_stamp(env_stamp_file, stamp_info):
+        if _stamp_covers(stored_stamp, stamp_info):
             _LOGGER.info("Checking ESP-IDF %s framework installation ...", version)
-            cmd = [
-                _get_pythonexe_path(),
-                str(idf_tools_path),
-                "--non-interactive",
-                "check",
-            ]
-            if _exec_ok(cmd, msg=f"ESP-IDF {version} check", env=env):
+            # Validate via the managed tool-path resolution, not ``idf_tools.py check``:
+            # ``check`` probes tools on the system PATH and aborts if any fail to run (e.g. a
+            # broken Homebrew openocd), which forced a toolchain reinstall on every build.
+            try:
+                _get_idf_tool_paths(framework_path, env)
                 install = False
+            except RuntimeError as err:
+                _LOGGER.debug(
+                    "ESP-IDF %s tool resolution failed, reinstalling: %s", version, err
+                )
 
     # 4. Install framework tools if not installed or needs update
     if install:
         _LOGGER.info("Installing ESP-IDF %s framework ...", version)
         targets_str = ",".join(targets)
+        _prefetch_idf_tool_archives(framework_path, targets_str, tools, env)
         cmd = [
-            _get_pythonexe_path(),
+            get_system_python_path(),
             str(idf_tools_path),
             "--non-interactive",
             "install",
             f"--targets={targets_str}",
         ] + tools
-        if not _exec_ok(
+        if not run_command_ok(
             cmd,
             msg=f"ESP-IDF {version} framework installation",
             env=env,
             stream_output=True,
         ):
+            if platform.system() == "Linux" and find_library("usb-1.0") is None:
+                _LOGGER.error(
+                    "libusb-1.0.so.0 was not found on this system. If the error "
+                    "above mentions it (openocd fails its install check without "
+                    "it), install the libusb 1.0 package, e.g. libusb-1.0-0 "
+                    "(Debian/Ubuntu), libusb1 (Fedora) or libusb (Alpine/Arch), "
+                    "then run the build again."
+                )
             raise RuntimeError(f"ESP-IDF {version} framework installation failure")
 
+        # idf_tools.py extracts tool archives from <IDF_TOOLS_PATH>/dist into tools/; the
+        # archives are not needed afterward and, already compressed, dominate the cached install.
+        # Best-effort: a failure to prune must not fail an otherwise successful install.
+        try:
+            rmdir(
+                get_idf_tools_path() / "dist", msg="Remove ESP-IDF tool download cache"
+            )
+        except RuntimeError as err:
+            _LOGGER.debug("Could not remove ESP-IDF tool download cache: %s", err)
+
+        # Record the union of every target installed so far, not just this
+        # build's. idf_tools.py accumulates targets in idf-env.json and the
+        # ``required`` metapackage installs tools for all of them, so the
+        # union is what is actually on disk — and it keeps two variants
+        # alternating between builds from re-running the installer each time.
+        # Merge only when everything except targets matches: a reinstall
+        # triggered by a schema or tools change ran the installer for this
+        # build's targets alone, so carrying the old targets forward would
+        # let later builds of those variants skip the reinstall they need.
+        if (
+            stored_stamp
+            and isinstance(stored_stamp.get("targets"), list)
+            and _stamps_match_except_targets(stored_stamp, stamp_info)
+        ):
+            merged = set(stamp_info["targets"]) | set(stored_stamp["targets"])
+            stamp_info["targets"] = ["all"] if "all" in merged else sorted(merged)
         _write_stamp(env_stamp_file, stamp_info)
 
-    return framework_path, install
+    return framework_path, fresh_extract
 
 
 def _check_esp_idf_python_env_install(
@@ -1125,7 +1022,7 @@ def _check_esp_idf_python_env_install(
     framework_path = _get_framework_path(version)
     python_env_path = _get_python_env_path(version)
     env_stamp_file = python_env_path / ESPHOME_STAMP_FILE
-    env_python_path = _get_python_env_executable_path(python_env_path, "python")
+    env_python_path = get_python_env_executable_path(python_env_path, "python")
 
     _LOGGER.info("Checking ESP-IDF %s Python environment ...", version)
     install = force or not python_env_path.is_dir() or not env_python_path.is_file()
@@ -1141,11 +1038,11 @@ def _check_esp_idf_python_env_install(
     if install:
         rmdir(python_env_path, msg=f"Clean up ESP-IDF {version} Python environment")
 
-        _create_venv(python_env_path, msg=f"ESP-IDF {version}")
+        create_venv(python_env_path, msg=f"ESP-IDF {version}")
 
         esp_idf_version = _get_idf_version(framework_path, env=env)
         constraint_file_path = (
-            _get_idf_tools_path() / f"espidf.constraints.v{esp_idf_version}.txt"
+            get_idf_tools_path() / f"espidf.constraints.v{esp_idf_version}.txt"
         )
         _LOGGER.debug("ESP-IDF version %s", esp_idf_version)
 
@@ -1156,22 +1053,35 @@ def _check_esp_idf_python_env_install(
             constraint_file_path,
         )
 
-        cmd_pip_install = [
-            str(env_python_path),
-            "-m",
-            "pip",
-            "install",
-            "--upgrade",
-            "--constraint",
-            constraint_file_path,
-        ]
+        # uv (much faster than pip) when available, e.g. in the docker image
+        if uv_path := shutil.which("uv"):
+            cmd_pip_install = [
+                uv_path,
+                "pip",
+                "install",
+                "--python",
+                str(env_python_path),
+                "--upgrade",
+                "--constraint",
+                str(constraint_file_path),
+            ]
+        else:
+            cmd_pip_install = [
+                str(env_python_path),
+                "-m",
+                "pip",
+                "install",
+                "--upgrade",
+                "--constraint",
+                str(constraint_file_path),
+            ]
 
         _LOGGER.info("Installing ESP-IDF %s Python dependencies ...", version)
         cmd = cmd_pip_install + [
             "pip",
             "setuptools",
         ]
-        if not _exec_ok(
+        if not run_command_ok(
             cmd,
             msg=f"Upgrade ESP-IDF {version} Python environment packages",
             env=env,
@@ -1191,7 +1101,7 @@ def _check_esp_idf_python_env_install(
                 "-r",
                 str(requirements_file),
             ]
-            if not _exec_ok(
+            if not run_command_ok(
                 cmd,
                 msg=f"Install ESP-IDF {version} Python dependencies for {feature}",
                 env=env,
@@ -1233,11 +1143,19 @@ def check_esp_idf_install(
     Returns:
         tuple of (framework_path, python_env_path)
     """
-    env = {}
-    env["IDF_TOOLS_PATH"] = str(_get_idf_tools_path())
-    env["IDF_PATH"] = ""
+    _check_windows_path_length()
 
-    targets = targets or ESPHOME_IDF_DEFAULT_TARGETS
+    env = {}
+    env["IDF_TOOLS_PATH"] = str(get_idf_tools_path())
+    env["IDF_PATH"] = ""
+    # uv defaults to 3 HTTP retries; match the pioarduino penv's bump to 10
+    env["UV_HTTP_RETRIES"] = os.environ.get("UV_HTTP_RETRIES", "10")
+
+    # An explicit ESPHOME_IDF_DEFAULT_TARGETS wins over the caller's
+    # per-variant request (builder-image pre-warm); otherwise the caller's
+    # targets are used, falling back to the default when none were given.
+    if _IDF_DEFAULT_TARGETS_EXPLICIT or not targets:
+        targets = ESPHOME_IDF_DEFAULT_TARGETS
 
     # Determine which tools need to be installed if not provided
     if tools is None:
@@ -1250,18 +1168,82 @@ def check_esp_idf_install(
                 tools.append(tool)
 
     # 1) Framework
-    framework_path, installed = _check_esphome_idf_framework_install(
+    framework_path, fresh_extract = _check_esphome_idf_framework_install(
         version, targets, tools, force=force, env=env, source_url=source_url
     )
 
     features = features or ESPHOME_IDF_DEFAULT_FEATURES
 
-    # 2) Python env
-    python_env_path, installed = _check_esp_idf_python_env_install(
-        version, features, force=force or installed, env=env
+    # 2) Python env. Only a freshly extracted framework forces a rebuild —
+    # the venv depends on the framework version and features, not on which
+    # toolchains are installed, so adding a target to an existing tree must
+    # not wipe it. It still self-validates against its own stamp.
+    python_env_path, _ = _check_esp_idf_python_env_install(
+        version, features, force=force or fresh_extract, env=env
     )
 
     return framework_path, python_env_path
+
+
+def _ccache_env() -> dict[str, str]:
+    """Return ccache settings for ESP-IDF compiles.
+
+    Enabled by default whenever a runnable ``ccache`` binary is on PATH.
+    ``IDF_CCACHE_ENABLE=0`` opts out and ``=1`` forces it on; when that knob
+    is unset the shared ``ESPHOME_CCACHE_ENABLE`` applies (same 0/1 forms,
+    unrecognized values warn and count as unset). The cache lives under
+    the IDF tools path (the machine-global cache dir, or
+    ``ESPHOME_ESP_IDF_PREFIX``), so it is shared across all projects and removed
+    by ``esphome clean-all`` along with the framework.
+
+    Depend mode keeps cache-miss overhead low (hashes the compiler's depfiles
+    instead of preprocessing). ``CCACHE_BASEDIR`` rewrites the per-build
+    absolute paths (generated ``sdkconfig`` include, etc.) so different devices
+    share framework cache entries; it is scoped to the build dir on purpose --
+    a broader base would also rewrite the shared IDF path under the cache dir
+    and lose those hits.
+
+    Only values the user has not already set in the environment are returned, so
+    a custom ``CCACHE_DIR`` / ``CCACHE_MAXSIZE`` / etc. is respected.
+    """
+    # IDF_CCACHE_ENABLE (the backend-native knob) wins over the shared
+    # ESPHOME_CCACHE_ENABLE.
+    idf_knob = parse_enable_env("IDF_CCACHE_ENABLE")
+    if idf_knob is False:
+        # The raw value (e.g. "disable") is still inherited by idf.py via
+        # os.environ, where a non-false-constant string reads as truthy;
+        # export the canonical off spelling instead
+        return {"IDF_CCACHE_ENABLE": "0"}
+    if idf_knob is True:
+        # Forced on ignores the runnability verdict, but the outcome is
+        # worth saying out loud. Probed directly (not via the resolver,
+        # whose failure message says "compiling without ccache" -- exactly
+        # what forced-on does NOT do): only the truly-missing case means
+        # idf.py compiles without ccache; a broken binary is still used,
+        # since idf.py does its own PATH lookup.
+        if (ccache := shutil.which("ccache")) is None:
+            _LOGGER.warning(
+                "IDF_CCACHE_ENABLE=1 but no ccache binary is on PATH; "
+                "idf.py will compile without ccache"
+            )
+        else:
+            # The probe warns with this message iff the binary fails
+            tool_version_runs(
+                ccache,
+                "IDF_CCACHE_ENABLE=1 forces on the ccache at %s even though "
+                "it failed to run; idf.py will use it anyway",
+            )
+    elif resolve_ccache_path() is None:
+        # ESP-IDF silently skips ccache without the binary; export the
+        # canonical off spelling so an unparsable inherited value (or a
+        # probe-rejected ccache idf.py would still find) cannot enable it
+        return {"IDF_CCACHE_ENABLE": "0"}
+
+    env = ccache_defaults_env(get_idf_tools_path() / "ccache")
+    # Exactly one canonical spelling ever reaches idf.py, whatever the
+    # accepted input spelling was ("enable", "yes", ...)
+    env["IDF_CCACHE_ENABLE"] = "1"
+    return env
 
 
 def get_framework_env(
@@ -1282,7 +1264,7 @@ def get_framework_env(
     """
     # 1. Initialize base environment with extra ESP-IDF environment variables
     env = env.copy() if env else {}
-    env["IDF_TOOLS_PATH"] = str(_get_idf_tools_path())
+    env["IDF_TOOLS_PATH"] = str(get_idf_tools_path())
     env["IDF_PATH"] = ""
 
     # 2. Get existing PATH from env or os.environ
@@ -1293,7 +1275,7 @@ def get_framework_env(
 
     # 3. If Python environment path is provided, add it to PATH and set IDF_PYTHON_ENV_PATH
     if python_env_path:
-        python_path = _get_python_env_executable_path(python_env_path, "python")
+        python_path = get_python_env_executable_path(python_env_path, "python")
         path_list.insert(0, str(python_path.parent))
         env["IDF_PYTHON_ENV_PATH"] = str(python_env_path)
 
@@ -1305,5 +1287,8 @@ def get_framework_env(
     paths_to_export, export_vars = _get_idf_tool_paths(framework_path, env)
     env.update(export_vars)
     env["PATH"] = os.pathsep.join(paths_to_export + path_list)
+
+    # 6. Enable ccache for the compile toolchain (default on when available).
+    env.update(_ccache_env())
 
     return env
