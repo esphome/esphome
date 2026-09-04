@@ -6,6 +6,7 @@ usb_uart:
     type: cdc_acm
     vid: 0x1234
     pid: 0x5678
+    claim_comm_interface: false
     channels:
       - id: channel_0_1
   - id: uart_1

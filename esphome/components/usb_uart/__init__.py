@@ -44,6 +44,7 @@ UART_STOP_BITS_OPTIONS = {
 }
 
 DEFAULT_BAUD_RATE = 9600
+CONF_CLAIM_COMM_INTERFACE = "claim_comm_interface"
 
 
 class Type:
@@ -102,6 +103,10 @@ uart_types = (
 def channel_schema(type_: "Type") -> cv.Schema:
     return cv.Schema(
         {
+            # The comm (interrupt) interface pins a host hardware channel per device;
+            # disable to save one on channel-poor hosts (some devices may need it
+            # claimed before enabling data flow).
+            cv.Optional(CONF_CLAIM_COMM_INTERFACE, default=True): cv.boolean,
             cv.Required(CONF_CHANNELS): cv.All(
                 cv.ensure_list(
                     cv.Schema(
@@ -139,7 +144,7 @@ def channel_schema(type_: "Type") -> cv.Schema:
                     max=type_.max_channels,
                     msg=f"Device type {type_.name} supports a maximum of {type_.max_channels} channels",
                 ),
-            )
+            ),
         }
     )
 
@@ -172,6 +177,7 @@ async def to_code(config: list[ConfigType]) -> None:
 
     for device in config:
         var = await register_usb_client(device)
+        cg.add(var.set_claim_comm_interface(device[CONF_CLAIM_COMM_INTERFACE]))
         for index, channel in enumerate(device[CONF_CHANNELS]):
             chvar = cg.new_Pvariable(channel[CONF_ID], index, channel[CONF_BUFFER_SIZE])
             await cg.register_parented(chvar, var)
