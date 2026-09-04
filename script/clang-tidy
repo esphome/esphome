@@ -646,8 +646,8 @@ def run_codechecker_zephyr(files: list[str], args: argparse.Namespace) -> int:
                 f"ERROR: CodeChecker failed to analyze {failed} file(s):",
                 file=sys.stderr,
             )
-            for path in sorted(failed_sources):
-                print(f"    {path}", file=sys.stderr)
+        for path in sorted(failed_sources):
+            print(f"    {path}", file=sys.stderr)
         invalidate_stale_cache()
         return 1
     if not covered:
