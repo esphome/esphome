@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+import contextlib
 import gzip
 import hashlib
 import io
@@ -8,7 +9,6 @@ import logging
 from pathlib import Path
 import secrets
 import socket
-import sys
 import time
 from typing import Any
 
@@ -53,6 +53,7 @@ RESPONSE_ERROR_PARTITION_TABLE_UPDATE = 0x90
 RESPONSE_ERROR_BOOTLOADER_VERIFY = 0x91
 RESPONSE_ERROR_BOOTLOADER_UPDATE = 0x92
 RESPONSE_ERROR_VERSION_DOWNGRADE = 0x93
+RESPONSE_ERROR_ENCRYPTION_REQUIRED = 0x94
 RESPONSE_ERROR_UNKNOWN = 0xFF
 
 OTA_VERSION_1_0 = 1
@@ -63,8 +64,20 @@ MAGIC_BYTES = [0x6C, 0x26, 0xF7, 0x5C, 0x45]
 CLIENT_FEATURE_SUPPORTS_COMPRESSION = 0x01
 CLIENT_FEATURE_SUPPORTS_SHA256_AUTH = 0x02
 CLIENT_FEATURE_SUPPORTS_EXTENDED_PROTOCOL = 0x04
+CLIENT_FEATURE_SUPPORTS_NOISE = 0x08
 SERVER_FEATURE_SUPPORTS_COMPRESSION = 0x01
 SERVER_FEATURE_SUPPORTS_PARTITION_ACCESS = 0x02
+SERVER_FEATURE_SUPPORTS_NOISE = 0x04
+
+NOISE_FRAME_INDICATOR = 0x01
+NOISE_HANDSHAKE_OK = 0x00
+# The device decrypts frames in its transfer buffer (OTA_BUFFER_SIZE, sized
+# as this plus the 16-byte ChaCha20-Poly1305 MAC). 1024 divides the 8192-byte
+# upload block exactly, so blocks tile into full frames with no runt.
+NOISE_MAX_PLAINTEXT = 1024
+# Wire contract: the device sends exactly this reject reason for a bad MAC
+NOISE_MAC_FAILURE_REASON = "Handshake MAC failure"
+NOISE_PROLOGUE_INIT = b"NoiseOTAInit"
 
 # OTA types this client knows how to send. Future PRs that add bootloader/partition
 # updates extend this set. Anything outside the set is rejected up front so callers
@@ -75,6 +88,14 @@ _SUPPORTED_OTA_TYPES: frozenset[int] = frozenset(
 
 UPLOAD_BLOCK_SIZE = 8192
 UPLOAD_BUFFER_SIZE = UPLOAD_BLOCK_SIZE * 8
+
+# Flaky Wi-Fi links often drop the first OTA attempt, and the device may need time
+# to clean up a half-open connection (its handshake watchdog runs at 20s) before it
+# accepts a new one, so wait between attempts instead of failing the upload outright.
+# Every resolved address is tried once, and this many extra attempts are shared
+# across the addresses on top of that.
+EXTRA_UPLOAD_ATTEMPTS = 2
+UPLOAD_RETRY_DELAY = 5.0
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -163,12 +184,35 @@ _ERROR_MESSAGES: dict[int, str] = {
         "enabled: the new firmware's version must be newer than the version the "
         "device is currently running."
     ),
+    RESPONSE_ERROR_ENCRYPTION_REQUIRED: (
+        "The device requires an encrypted OTA connection but this upload has no "
+        "encryption key. Add 'encryption:' to the 'ota: platform: esphome' section "
+        "of the YAML this upload uses, or update your esphome installation if it "
+        "predates OTA encryption."
+    ),
     RESPONSE_ERROR_UNKNOWN: "Unknown error from ESP",
 }
 
 
 class OTAError(EsphomeError):
     pass
+
+
+class OTANetworkError(OTAError):
+    """Network-level OTA failure (timeout, reset, closed connection); retrying may succeed."""
+
+
+def _committed_error(err: OTANetworkError) -> OTAError:
+    """Wrap a network failure that happened once the device had the full image.
+
+    Past that point the device commits and reboots on its own, so the failure
+    must not be retried; a re-upload could flash a device that already updated.
+    """
+    return OTAError(
+        f"{err} (the device may have already committed the update and "
+        f"be rebooting; check whether it comes back with the new "
+        f"firmware before uploading again)"
+    )
 
 
 def recv_decode(
@@ -209,19 +253,22 @@ def receive_exactly(
     try:
         data += recv_decode(sock, 1, decode=decode)  # type: ignore[operator]
     except OSError as err:
-        raise OTAError(f"receiving {msg} response: {err}") from err
+        raise OTANetworkError(f"receiving {msg} response: {err}") from err
 
     try:
         check_error(data, expect)
     except OTAError as err:
         sock.close()
-        raise OTAError(f"receiving {msg}: {err}") from err
+        # type(err) preserves OTANetworkError vs OTAError so callers can tell
+        # retryable network failures from device-reported errors; subclasses
+        # must accept a single message argument
+        raise type(err)(f"receiving {msg}: {err}") from err
 
     while len(data) < amount:
         try:
             data += recv_decode(sock, amount - len(data), decode=decode)  # type: ignore[operator]
         except OSError as err:
-            raise OTAError(f"receiving {msg}: {err}") from err
+            raise OTANetworkError(f"receiving {msg}: {err}") from err
     return data
 
 
@@ -237,7 +284,7 @@ def check_error(data: list[int] | bytes, expect: int | list[int] | None) -> None
     # accept-any-response reads (e.g. feature negotiation, auth nonces) would be
     # silently passed through and surface later as cryptic decode/timeout failures.
     if not data:
-        raise OTAError(
+        raise OTANetworkError(
             "Device closed connection without responding. "
             "This may indicate the device ran out of memory, "
             "a network issue, or the connection was interrupted."
@@ -274,7 +321,140 @@ def send_check(
 
         sock.sendall(data)
     except OSError as err:
-        raise OTAError(f"sending {msg}: {err}") from err
+        raise OTANetworkError(f"sending {msg}: {err}") from err
+
+
+class NoiseSocketWrapper:
+    """Runs the OTA session inside a Noise (ChaCha20-Poly1305) transport.
+
+    Exposes the socket subset perform_ota uses. Frames are indicator 0x01,
+    16-bit big-endian length, ciphertext; recv() drains one decrypted frame
+    at a time, sendall() keeps control units in one frame and splits data
+    at NOISE_MAX_PLAINTEXT.
+    """
+
+    def __init__(self, sock: socket.socket, psk: str, prologue: bytes) -> None:
+        # Deliberately lazy: the noise stack (noiseprotocol, cryptography) is
+        # only imported when an encrypted upload actually runs.
+        try:
+            from aioesphomeapi.noise import NoiseHandshake
+        except ImportError as err:
+            raise OTAError(
+                "OTA encryption requires a newer aioesphomeapi; update your "
+                "esphome installation (pip install -U esphome) and retry"
+            ) from err
+        # The aioesphomeapi import above already loaded cryptography; bind
+        # the exception once so recv() pays no per-frame import lookup
+        from cryptography.exceptions import InvalidTag
+
+        self._invalid_tag = InvalidTag
+        self._sock = sock
+        try:
+            self._handshake = NoiseHandshake(psk, prologue)
+        except ValueError as err:
+            raise OTAError(f"Invalid OTA encryption key: {err}") from err
+        self._encrypt = None
+        self._decrypt = None
+        self._buffer = b""
+
+    # Only harmless socket controls pass through; byte-moving methods are
+    # deliberately absent so plaintext cannot leak past the transport.
+    def settimeout(self, timeout: float | None) -> None:
+        self._sock.settimeout(timeout)
+
+    def setsockopt(self, level: int, optname: int, value: int) -> None:
+        self._sock.setsockopt(level, optname, value)
+
+    def close(self) -> None:
+        self._sock.close()
+
+    def do_handshake(self) -> None:
+        """Run the two-message NNpsk0 handshake and set up the transport ciphers."""
+        try:
+            self._send_frame(
+                bytes([NOISE_HANDSHAKE_OK]) + self._handshake.write_message()
+            )
+            payload = self._recv_frame()
+        except OSError as err:
+            raise OTANetworkError(f"noise handshake: {err}") from err
+        if not payload:
+            raise OTANetworkError("Device closed connection during the noise handshake")
+        if payload[0] != NOISE_HANDSHAKE_OK:
+            reason = payload[1:].decode("utf-8", "replace")
+            if reason == NOISE_MAC_FAILURE_REASON:
+                raise OTAError(
+                    "Device rejected the handshake; is the OTA encryption key correct?"
+                )
+            raise OTAError(f"Device rejected the noise handshake: {reason}")
+        try:
+            self._handshake.read_message(payload[1:])
+        except (ValueError, self._invalid_tag) as err:
+            # InvalidTag is a wrong key; ValueError covers a device sending an
+            # invalid curve point, which cryptography rejects during the DH
+            raise OTAError(
+                "Noise handshake failed; is the OTA encryption key correct?"
+            ) from err
+        self._encrypt, self._decrypt = self._handshake.get_ciphers()
+
+    def sendall(self, data: bytes) -> None:
+        frames: list[bytes] = []
+        for offset in range(0, len(data), NOISE_MAX_PLAINTEXT):
+            ciphertext = self._encrypt.encrypt(
+                data[offset : offset + NOISE_MAX_PLAINTEXT]
+            )
+            frames.append(self._frame_header(len(ciphertext)))
+            frames.append(ciphertext)
+        self._sock.sendall(b"".join(frames))
+
+    def recv(self, amount: int) -> bytes:
+        if not self._buffer:
+            ciphertext = self._recv_frame()
+            if not ciphertext:
+                return b""  # connection closed at a frame boundary
+            try:
+                self._buffer = self._decrypt.decrypt(ciphertext)
+            except self._invalid_tag as err:
+                # Retryable: a fresh connection renegotiates the session
+                raise OTANetworkError(
+                    "Noise decryption failed (MAC mismatch); frame corrupted or tampered"
+                ) from err
+            if not self._buffer:
+                # Reject MAC-only frames so b"" always means the peer closed
+                raise OTANetworkError("Device sent an empty noise frame")
+        data = self._buffer[:amount]
+        self._buffer = self._buffer[amount:]
+        return data
+
+    @staticmethod
+    def _frame_header(length: int) -> bytes:
+        return bytes([NOISE_FRAME_INDICATOR, (length >> 8) & 0xFF, length & 0xFF])
+
+    def _send_frame(self, payload: bytes) -> None:
+        self._sock.sendall(self._frame_header(len(payload)) + payload)
+
+    def _recv_frame(self) -> bytes:
+        header = self._recv_exact(3, closed_ok=True)
+        if not header:
+            return b""  # connection closed at a frame boundary
+        # A malformed frame is a broken transport, not a device error;
+        # retryable so a fresh session is tried
+        if header[0] != NOISE_FRAME_INDICATOR:
+            raise OTANetworkError(f"Bad noise frame indicator 0x{header[0]:02X}")
+        length = (header[1] << 8) | header[2]
+        if length == 0:
+            raise OTANetworkError("Device sent an empty noise frame")
+        return self._recv_exact(length)
+
+    def _recv_exact(self, amount: int, closed_ok: bool = False) -> bytes:
+        data = b""
+        while len(data) < amount:
+            chunk = self._sock.recv(amount - len(data))
+            if not chunk:
+                if closed_ok and not data:
+                    return b""
+                raise OSError("connection closed inside a noise frame")
+            data += chunk
+        return data
 
 
 def perform_ota(
@@ -283,10 +463,10 @@ def perform_ota(
     file_handle: io.IOBase,
     filename: Path,
     ota_type: int = OTA_TYPE_UPDATE_APP,
+    noise_psk: str | None = None,
 ) -> None:
-    # Validate ota_type up front. It travels as a single byte on the wire, and
-    # passing an out-of-range value would only surface as a ValueError from
-    # bytes([ota_type]) deep inside send_check, bypassing OTAError handling.
+    # Validate up front; an out-of-range value would only surface as a
+    # ValueError deep inside send_check, bypassing OTAError handling
     if not isinstance(ota_type, int) or not 0 <= ota_type <= 0xFF:
         raise OTAError(
             f"Invalid ota_type {ota_type!r}; expected an integer in range 0-255"
@@ -295,6 +475,11 @@ def perform_ota(
         supported = ", ".join(f"0x{t:02X}" for t in sorted(_SUPPORTED_OTA_TYPES))
         raise OTAError(
             f"Unsupported OTA type 0x{ota_type:02X}; this ESPHome supports: {supported}"
+        )
+
+    if noise_psk is not None and not noise_psk:
+        raise OTAError(
+            "An empty OTA encryption key was provided; refusing to upload in plaintext"
         )
 
     file_contents = file_handle.read()
@@ -306,7 +491,7 @@ def perform_ota(
     send_check(sock, MAGIC_BYTES, "magic bytes")
 
     _, version = receive_exactly(sock, 2, "version", RESPONSE_OK)
-    _LOGGER.debug("Device support OTA version: %s", version)
+    _LOGGER.info("Connection established; device supports OTA version %s", version)
     supported_versions = (OTA_VERSION_1_0, OTA_VERSION_2_0)
     if version not in supported_versions:
         raise OTAError(
@@ -319,6 +504,8 @@ def perform_ota(
         | CLIENT_FEATURE_SUPPORTS_SHA256_AUTH
         | CLIENT_FEATURE_SUPPORTS_EXTENDED_PROTOCOL
     )
+    if noise_psk:
+        features_to_send |= CLIENT_FEATURE_SUPPORTS_NOISE
     send_check(sock, features_to_send, "features")
     features = receive_exactly(
         sock,
@@ -340,6 +527,31 @@ def perform_ota(
         features = SERVER_FEATURE_SUPPORTS_COMPRESSION
     else:
         features = 0
+
+    if noise_psk:
+        # Fail closed: never fall back to a plaintext upload when an
+        # encryption key is configured, an active attacker could otherwise
+        # strip the feature flag and capture the image (it contains the wifi
+        # credentials and the api encryption key).
+        if not (extended_proto and features & SERVER_FEATURE_SUPPORTS_NOISE):
+            raise OTAError(
+                "An OTA encryption key is configured but the device did not "
+                "offer encryption; refusing to send the image in plaintext. "
+                "If the running firmware predates OTA encryption, first update "
+                "it without the 'ota: encryption:' block (over a trusted "
+                "network or via USB), then restore the block and upload again."
+            )
+        # The prologue binds every negotiation byte both sides saw, so any
+        # tampering with the plaintext preamble breaks the handshake.
+        prologue = (
+            NOISE_PROLOGUE_INIT
+            + bytes(MAGIC_BYTES)
+            + bytes([RESPONSE_OK, version, features_to_send])
+            + bytes([RESPONSE_FEATURE_FLAGS, features])
+        )
+        sock = NoiseSocketWrapper(sock, noise_psk, prologue)
+        sock.do_handshake()
+        _LOGGER.info("Encrypted connection established")
 
     if ota_type != OTA_TYPE_UPDATE_APP:
         # Any non-app OTA type requires the extended protocol and the
@@ -417,6 +629,8 @@ def perform_ota(
         hash_func, nonce_size, hash_name = _AUTH_METHODS[auth]
         perform_auth(sock, password, hash_func, nonce_size, hash_name)
 
+    _LOGGER.info("Handshake complete")
+
     # Timeout must match device-side OTA_SOCKET_TIMEOUT_DATA to prevent premature failures
     sock.settimeout(90.0)
 
@@ -430,8 +644,14 @@ def perform_ota(
         (upload_size >> 8) & 0xFF,
         (upload_size >> 0) & 0xFF,
     ]
+    # The device erases flash between receiving the size and acking the
+    # prepare, so this window shows the erase cost (near zero when the
+    # device erases lazily during the upload)
+    prepare_start = time.perf_counter()
     send_check(sock, upload_size_encoded, "binary size")
     receive_exactly(sock, 1, "update prepare result", RESPONSE_UPDATE_PREPARE_OK)
+    prepare_duration = time.perf_counter() - prepare_start
+    _LOGGER.info("Preparing for upload took %.2f seconds", prepare_duration)
 
     upload_md5 = hashlib.md5(upload_contents).hexdigest()
     _LOGGER.debug("MD5 of upload is %s", upload_md5)
@@ -449,21 +669,43 @@ def perform_ota(
 
     offset = 0
     progress = ProgressBar("Uploading")
-    while True:
-        chunk = upload_contents[offset : offset + UPLOAD_BLOCK_SIZE]
-        if not chunk:
-            break
-        offset += len(chunk)
+    try:
+        while True:
+            chunk = upload_contents[offset : offset + UPLOAD_BLOCK_SIZE]
+            if not chunk:
+                break
+            offset += len(chunk)
 
-        try:
-            sock.sendall(chunk)
+            try:
+                sock.sendall(chunk)
+            except OSError as err:
+                # A send failure can hide an error byte the device reported
+                # just before dropping the connection; surface that as the
+                # real, non-retryable cause when it is available
+                try:
+                    sock.settimeout(1.0)
+                    check_error(recv_decode(sock, 1), None)
+                except (OSError, OTANetworkError) as probe_err:
+                    _LOGGER.debug(
+                        "No device error behind the send failure: %s", probe_err
+                    )
+                raise OTANetworkError(f"sending data: {err}") from err
+
             if version >= OTA_VERSION_2_0:
-                receive_exactly(sock, 1, "chunk result", RESPONSE_CHUNK_OK)
-        except OSError as err:
-            sys.stderr.write("\n")
-            raise OTAError(f"sending data: {err}") from err
+                try:
+                    receive_exactly(sock, 1, "chunk result", RESPONSE_CHUNK_OK)
+                except OTANetworkError as err:
+                    if offset < upload_size:
+                        raise
+                    # The device already had the complete image when this ack
+                    # was lost, so it may be committing; do not retry
+                    raise _committed_error(err) from err
 
-        progress.update(offset / upload_size)
+            progress.update(offset / upload_size)
+    except OTAError:
+        # Terminate the progress bar line before the error is logged
+        progress.done()
+        raise
     progress.done()
 
     # Enable nodelay for last checks
@@ -472,11 +714,37 @@ def perform_ota(
 
     _LOGGER.info("Upload took %.2f seconds, waiting for result...", duration)
 
-    receive_exactly(sock, 1, "update receive result", RESPONSE_RECEIVE_OK)
-    receive_exactly(sock, 1, "update end result", RESPONSE_UPDATE_END_OK)
-    send_check(sock, RESPONSE_OK, "end acknowledgement")
+    # Once the device has the complete image it commits the update and
+    # reboots on its own; the exact commit point is not observable from
+    # here, so treat everything past the data phase as non-retryable. A
+    # re-upload could flash a device that already updated successfully.
+    commit_start = time.perf_counter()
+    try:
+        receive_exactly(sock, 1, "update receive result", RESPONSE_RECEIVE_OK)
+        receive_exactly(sock, 1, "update end result", RESPONSE_UPDATE_END_OK)
+    except OTANetworkError as err:
+        raise _committed_error(err) from err
+    commit_duration = time.perf_counter() - commit_start
 
-    _LOGGER.info("OTA successful")
+    # Sum of the named windows so the breakdown is self consistent; connect,
+    # handshake, auth, and the one MD5 round trip are not included
+    _LOGGER.info(
+        "Update took %.2f seconds (prepare %.2f, upload %.2f, commit %.2f)",
+        prepare_duration + duration + commit_duration,
+        prepare_duration,
+        duration,
+        commit_duration,
+    )
+
+    try:
+        send_check(sock, RESPONSE_OK, "end acknowledgement")
+    except OTANetworkError as err:
+        # The device treats a missing end acknowledgement as non-fatal and is
+        # already rebooting into the new firmware, so the update succeeded
+        _LOGGER.warning("Failed sending end acknowledgement: %s", err)
+        _LOGGER.info("OTA successful (end acknowledgement not delivered)")
+    else:
+        _LOGGER.info("OTA successful")
 
     # Do not connect logs until it is fully on
     time.sleep(1)
@@ -488,6 +756,7 @@ def run_ota_impl_(
     password: str | None,
     filename: Path,
     ota_type: int = OTA_TYPE_UPDATE_APP,
+    noise_psk: str | None = None,
 ) -> tuple[int, str | None]:
     from esphome.core import CORE
 
@@ -510,8 +779,33 @@ def run_ota_impl_(
         )
         raise OTAError(err) from err
 
-    for r in res:
-        af, socktype, _, _, sa = r
+    if not res:
+        _LOGGER.error("No addresses to connect to for %s", remote_host)
+        return 1, None
+
+    # Every address is tried at least once and EXTRA_UPLOAD_ATTEMPTS retries
+    # are shared across the addresses, cycling through them. Wait before an
+    # attempt when the previous one actually reached the device, or when
+    # revisiting an address, so a flaky link can recover and the device can
+    # clean up a half-open connection (its handshake watchdog runs at 20s);
+    # moving on to the next address family stays immediate. Known limitation:
+    # a silent mid-transfer drop with no reset can wedge the device until its
+    # 90s data timeout, which outlasts this budget; the retries target the
+    # common failures where the device resets or closes the link promptly.
+    total_attempts = len(res) + EXTRA_UPLOAD_ATTEMPTS
+    last_error = ""
+    reached_device = False
+    for attempt in range(total_attempts):
+        af, socktype, _, _, sa = res[attempt % len(res)]
+        if reached_device or attempt >= len(res):
+            _LOGGER.info(
+                "Retrying in %.0f seconds (attempt %d of %d)...",
+                UPLOAD_RETRY_DELAY,
+                attempt + 1,
+                total_attempts,
+            )
+            time.sleep(UPLOAD_RETRY_DELAY)
+        reached_device = False
         _LOGGER.info("Connecting to %s port %s...", sa[0], sa[1])
         sock = socket.socket(af, socktype)
         sock.settimeout(20.0)
@@ -519,23 +813,30 @@ def run_ota_impl_(
             sock.connect(sa)
         except OSError as err:
             sock.close()
-            _LOGGER.error("Connecting to %s port %s failed: %s", sa[0], sa[1], err)
+            _LOGGER.warning("Connecting to %s port %s failed: %s", sa[0], sa[1], err)
+            last_error = f"connecting to {sa[0]} failed: {err}"
             continue
 
         _LOGGER.info("Connected to %s", sa[0])
-        with Path(filename).open("rb") as file_handle:
+        reached_device = True
+        with contextlib.closing(sock), Path(filename).open("rb") as file_handle:
             try:
-                perform_ota(sock, password, file_handle, filename, ota_type)
+                perform_ota(sock, password, file_handle, filename, ota_type, noise_psk)
+            except OTANetworkError as err:
+                # Transient network failure; retry
+                last_error = str(err)
+                _LOGGER.warning("%s", last_error)
+                continue
             except OTAError as err:
+                # Device-reported error (wrong password, wrong flash size, ...);
+                # retrying cannot succeed, so fail immediately
                 _LOGGER.error(str(err))
                 return 1, None
-            finally:
-                sock.close()
 
         # Successfully uploaded to sa[0]
         return 0, sa[0]
 
-    _LOGGER.error("Connection failed.")
+    _LOGGER.error("Upload failed after %d attempts: %s", total_attempts, last_error)
     return 1, None
 
 
@@ -545,9 +846,12 @@ def run_ota(
     password: str | None,
     filename: Path,
     ota_type: int = OTA_TYPE_UPDATE_APP,
+    noise_psk: str | None = None,
 ) -> tuple[int, str | None]:
     try:
-        return run_ota_impl_(remote_host, remote_port, password, filename, ota_type)
+        return run_ota_impl_(
+            remote_host, remote_port, password, filename, ota_type, noise_psk
+        )
     except OTAError as err:
         _LOGGER.error(err)
         return 1, None

@@ -3,6 +3,7 @@
 #include <vector>
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include "uart_component.h"
 
@@ -66,6 +67,7 @@ class UARTDevice {
   }
 
   /// Check that the configuration of the UART bus matches the provided values and otherwise print a warning
+  ESPDEPRECATED("Use uart.final_validate_device_schema() in Python instead. Removed in 2027.3.0", "2026.9.0")
   void check_uart_settings(uint32_t baud_rate, uint8_t stop_bits = 1,
                            UARTParityOptions parity = UART_CONFIG_PARITY_NONE, uint8_t data_bits = 8);
 

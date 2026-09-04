@@ -46,7 +46,7 @@ static constexpr size_t MIN_BUFFER_SIZE = 256;
 
 namespace esphome::ota {
 
-static const char *const TAG = "ota.esp8266";
+static const char *const TAG = "ota";
 
 std::unique_ptr<ESP8266OTABackend> make_ota_backend() { return make_unique<ESP8266OTABackend>(); }
 
