@@ -5,6 +5,7 @@
 #include <openthread/cli.h>
 #include <openthread/instance.h>
 #include <openthread/ip6.h>
+#include <openthread/link.h>
 #include <openthread/logging.h>
 #include <openthread/netdata.h>
 #include <openthread/tasklet.h>
@@ -46,13 +47,57 @@ void OpenThreadComponent::dump_config() {
 }
 
 void OpenThreadComponent::on_state_changed(otChangedFlags flags, void *context) {
+  auto *self = static_cast<OpenThreadComponent *>(context);
+  // This runs on the OpenThread task thread with the OT lock held,
+  // so we can safely call otThreadGetDeviceRole directly.
+  otInstance *instance = self->get_openthread_instance_();
+
   if (flags & OT_CHANGED_THREAD_ROLE) {
-    auto *self = static_cast<OpenThreadComponent *>(context);
-    // This runs on the OpenThread task thread with the OT lock held,
-    // so we can safely call otThreadGetDeviceRole directly.
-    otInstance *instance = self->get_openthread_instance_();
     otDeviceRole role = otThreadGetDeviceRole(instance);
-    self->connected_ = role >= OT_DEVICE_ROLE_CHILD;
+    bool now_connected = role >= OT_DEVICE_ROLE_CHILD;
+    if (!self->connected_ && now_connected) {
+      self->print_connect_params_(instance, role);
+    }
+    self->connected_ = now_connected;
+  }
+
+  if (flags & OT_CHANGED_IP6_ADDRESS_ADDED) {
+    self->print_addresses_(instance);
+  }
+}
+
+void OpenThreadComponent::print_connect_params_(otInstance *instance, otDeviceRole role) {
+  ESP_LOGI(TAG, "Connected");
+  ESP_LOGCONFIG(TAG, "  Network: " LOG_SECRET("'%s'"), otThreadGetNetworkName(instance));
+  ESP_LOGCONFIG(TAG, "  Role: %s", otThreadDeviceRoleToString(role));
+  ESP_LOGCONFIG(TAG, "  Channel: %u", otLinkGetChannel(instance));
+  ESP_LOGCONFIG(TAG, "  PAN ID: " LOG_SECRET("0x%04X"), otLinkGetPanId(instance));
+}
+
+void OpenThreadComponent::print_addresses_(otInstance *instance) {
+  ESP_LOGI(TAG, "Addresses:");
+
+  const otNetifAddress *unicast_addresses = otIp6GetUnicastAddresses(instance);
+
+  for (const otNetifAddress *addr = unicast_addresses; addr; addr = addr->mNext) {
+    char addr_str[OT_IP6_ADDRESS_STRING_SIZE];
+    otIp6AddressToString(&addr->mAddress, addr_str, sizeof(addr_str));
+
+    // otIp6IsLinkLocalUnicast doesn't work for the zephyr platform
+    const uint8_t *address = addr->mAddress.mFields.m8;
+    const bool link_local = address[0] == 0xFE && (address[1] & 0xC0) == 0x80;
+
+    if (!addr->mPreferred) {
+      ESP_LOGV(TAG, "  %s (non-preferred)", addr_str);
+    } else if (link_local) {
+      ESP_LOGCONFIG(TAG, "  %s (link-local)", addr_str);
+    } else if (addr->mRloc) {
+      ESP_LOGCONFIG(TAG, "  %s (routing-locator)", addr_str);
+    } else if (addr->mMeshLocal) {
+      ESP_LOGCONFIG(TAG, "  %s (mesh-local)", addr_str);
+    } else {
+      ESP_LOGI(TAG, "  " LOG_SECRET("%s") " (off-mesh-routable)", addr_str);
+    }
   }
 }
 
