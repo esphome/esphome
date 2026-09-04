@@ -134,6 +134,8 @@ enum class RequestKind : uint8_t {
   CH_PUMP_OPERATION_HOURS,               // ID 121
   DHW_PUMP_VALVE_OPERATION_HOURS,        // ID 122
   DHW_BURNER_OPERATION_HOURS,            // ID 123
+  // ID 98 (RF sensor status information -- pairing a wireless room sensor's type/battery/signal to the
+  // boiler) is intentionally not implemented: skipped by decision, not an oversight.
 
   // §5.3.5 Class 5, ID 6: Remote-parameter transfer-enable + read/write flags for DHW Setpoint / max
   // CHsetpoint (HB and LB read in one conversation).
@@ -522,6 +524,16 @@ class OpenTherm42Hub : public Component {
   OT42_SET_SENSOR(sensor_and_informational_data_dhw_pump_valve_operation_hours, dhw_pump_valve_operation_hours_sensor_)
   OT42_SET_SENSOR(sensor_and_informational_data_dhw_burner_operation_hours, dhw_burner_operation_hours_sensor_)
 
+  // §5.3.4 Class 4: the 14 counter/hour ids above are all "R W" with reset-by-writing-zero optional for
+  // the boiler. Called by OpenTherm42ResetCounterButton::press_action() with the data-id its config
+  // maps to; queued on demand, same priority tier as Class 3's remote requests and Class 6's TSP
+  // writes. ID 98 (RF sensor status information) and ID 111 (Electricity production, read-only, can't
+  // be reset) are intentionally not part of this list.
+  void reset_counter(uint8_t data_id) {
+    this->reset_counter_pending_ = true;
+    this->reset_counter_data_id_ = data_id;
+  }
+
   // §5.3.5 Class 5, ID 6: Remote-parameter transfer-enable/read-write flags.
   OT42_FLAG_READ_BIT(pre_defined_remote_boiler_parameters_transfer_enable_flags_dhw_setpoint,
                      remote_parameter_transfer_enable_flags_read_, 0)
@@ -647,6 +659,9 @@ class OpenTherm42Hub : public Component {
   // the fallback every class after Class 1 dispatches "plain" reads through. Returns nullptr for kinds
   // with bespoke handling (bit-decomposed, write-only, dual-mode, ...).
   const SimpleSensorInfo *find_simple_sensor_(RequestKind kind) const;
+  // Same lookup, keyed by data-id instead of RequestKind -- reset_counter() only knows the id its
+  // button config maps to, not the RequestKind, so it needs this to find the matching table entry.
+  const SimpleSensorInfo *find_simple_sensor_by_id_(uint8_t id) const;
   // Defined (sized) in hub.cpp: its pointer-to-member entries need this class complete, and an
   // out-of-class member definition has the same access to protected members as a member function does.
   static const SimpleSensorInfo SIMPLE_SENSORS[];
@@ -784,6 +799,8 @@ class OpenTherm42Hub : public Component {
   sensor::Sensor *ch_pump_operation_hours_sensor_{nullptr};
   sensor::Sensor *dhw_pump_valve_operation_hours_sensor_{nullptr};
   sensor::Sensor *dhw_burner_operation_hours_sensor_{nullptr};
+  bool reset_counter_pending_{false};
+  uint8_t reset_counter_data_id_{0};
 
   // §5.3.5 Class 5 entities.
   FlagReadBits remote_parameter_transfer_enable_flags_read_;

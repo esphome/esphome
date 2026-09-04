@@ -64,6 +64,15 @@ const SimpleSensorInfo *OpenTherm42Hub::find_simple_sensor_(RequestKind kind) co
   return nullptr;
 }
 
+const SimpleSensorInfo *OpenTherm42Hub::find_simple_sensor_by_id_(uint8_t id) const {
+  for (auto const &info : SIMPLE_SENSORS) {
+    if (info.id == id) {
+      return &info;
+    }
+  }
+  return nullptr;
+}
+
 void OpenTherm42Hub::setup() {
   this->datalink_ = make_unique<OpenThermDataLink>(this->in_pin_, this->out_pin_);
   if (!this->datalink_->initialize()) {
@@ -312,6 +321,18 @@ Frame OpenTherm42Hub::build_next_request_() {
     // override" so this momentary push doesn't also set a persistent mode override.
     frame.value_hb = 0x10;
     frame.value_lb = 0x00;
+    return frame;
+  }
+  if (this->reset_counter_pending_) {
+    this->reset_counter_pending_ = false;
+    const SimpleSensorInfo *info = this->find_simple_sensor_by_id_(this->reset_counter_data_id_);
+    Frame frame{};
+    if (info != nullptr) {
+      this->pending_request_kind_ = info->kind;
+      frame.type = static_cast<uint8_t>(MessageType::WRITE_DATA);
+      frame.id = info->id;
+      frame.set_value_u16(0);
+    }
     return frame;
   }
 
@@ -1290,12 +1311,23 @@ void OpenTherm42Hub::handle_response_(const Frame &frame) {
       return;
 
     default: {
-      // Every plain read-only sensor (see the SIMPLE_SENSORS table) shares this one case.
+      // Every plain read-only sensor (see the SIMPLE_SENSORS table) shares this one case. A subset of
+      // these (the u16 counter/hour ids) also support an on-demand "reset by writing zero" via
+      // reset_counter() -- its WRITE_ACK response is distinguished from the periodic READ_ACK purely
+      // by message type, the same technique used for id=99's dual read/write handling.
       const SimpleSensorInfo *info = this->find_simple_sensor_(this->pending_request_kind_);
       if (info == nullptr) {
         return;  // startup-only kinds are handled by handle_response_()'s dedicated cases, unreachable here
       }
       sensor::Sensor *sensor_ptr = this->*(info->member);
+      if (type == MessageType::WRITE_ACK) {
+        // Response to an on-demand reset_counter() write -- trust whatever value the boiler echoes
+        // back (it may ignore or clamp the reset) rather than assuming it is now zero.
+        if (sensor_ptr != nullptr) {
+          sensor_ptr->publish_state(frame.value_u16());
+        }
+        return;
+      }
       if (type != MessageType::READ_ACK) {
         ESP_LOGW(TAG, "%s read was rejected (message type %u)", info->log_name, frame.type);
         if (sensor_ptr != nullptr) {

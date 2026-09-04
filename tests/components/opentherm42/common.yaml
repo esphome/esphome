@@ -336,6 +336,51 @@ button:
     # level and returns to the previous Operating Mode.
     control_of_special_applications_manual_dhw_push2:
       name: "Control of Special Applications: Manual DHW push2"
+    # §5.3.4 Class 4, ID 96: reset by writing zero (optional for the boiler to honor).
+    sensor_and_informational_data_cooling_operation_hours_reset:
+      name: "Sensor and Informational Data: Cooling Operation hours reset"
+    # §5.3.4 Class 4, ID 97: reset by writing zero (optional for the boiler to honor).
+    sensor_and_informational_data_power_cycles_reset:
+      name: "Sensor and Informational Data: Power Cycles reset"
+    # §5.3.4 Class 4, ID 109: reset by writing zero (optional for the boiler to honor).
+    sensor_and_informational_data_electricity_producer_starts_reset:
+      name: "Sensor and Informational Data: Electricity producer starts reset"
+    # §5.3.4 Class 4, ID 110: reset by writing zero (optional for the boiler to honor).
+    sensor_and_informational_data_electricity_producer_hours_reset:
+      name: "Sensor and Informational Data: Electricity producer hours reset"
+    # §5.3.4 Class 4, ID 112: reset by writing zero (optional for the boiler to honor).
+    sensor_and_informational_data_cumulative_electricity_production_reset:
+      name: "Sensor and Informational Data: Cumulative Electricity production reset"
+    # §5.3.4 Class 4, ID 113: reset by writing zero (optional for the boiler to honor).
+    sensor_and_informational_data_number_of_unsuccessful_burner_starts_reset:
+      name: "Sensor and Informational Data: Number of un-successful burner starts reset"
+    # §5.3.4 Class 4, ID 114: reset by writing zero (optional for the boiler to honor).
+    sensor_and_informational_data_number_of_times_flame_signal_too_low_reset:
+      name: "Sensor and Informational Data: Number of times flame signal too low reset"
+    # §5.3.4 Class 4, ID 116: reset by writing zero (optional for the boiler to honor).
+    sensor_and_informational_data_successful_burner_starts_reset:
+      name: "Sensor and Informational Data: Successful Burner starts reset"
+    # §5.3.4 Class 4, ID 117: reset by writing zero (optional for the boiler to honor).
+    sensor_and_informational_data_ch_pump_starts_reset:
+      name: "Sensor and Informational Data: CH pump starts reset"
+    # §5.3.4 Class 4, ID 118: reset by writing zero (optional for the boiler to honor).
+    sensor_and_informational_data_dhw_pump_valve_starts_reset:
+      name: "Sensor and Informational Data: DHW pump-valve starts reset"
+    # §5.3.4 Class 4, ID 119: reset by writing zero (optional for the boiler to honor).
+    sensor_and_informational_data_dhw_burner_starts_reset:
+      name: "Sensor and Informational Data: DHW burner starts reset"
+    # §5.3.4 Class 4, ID 120: reset by writing zero (optional for the boiler to honor).
+    sensor_and_informational_data_burner_operation_hours_reset:
+      name: "Sensor and Informational Data: Burner operation hours reset"
+    # §5.3.4 Class 4, ID 121: reset by writing zero (optional for the boiler to honor).
+    sensor_and_informational_data_ch_pump_operation_hours_reset:
+      name: "Sensor and Informational Data: CH pump operation hours reset"
+    # §5.3.4 Class 4, ID 122: reset by writing zero (optional for the boiler to honor).
+    sensor_and_informational_data_dhw_pump_valve_operation_hours_reset:
+      name: "Sensor and Informational Data: DHW pump-valve operation hours reset"
+    # §5.3.4 Class 4, ID 123: reset by writing zero (optional for the boiler to honor).
+    sensor_and_informational_data_dhw_burner_operation_hours_reset:
+      name: "Sensor and Informational Data: DHW burner operation hours reset"
 
 text_sensor:
   - platform: opentherm42
