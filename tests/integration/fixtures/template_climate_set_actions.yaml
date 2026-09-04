@@ -1,0 +1,89 @@
+esphome:
+  name: tmpl-clim-set-act
+host:
+api:
+logger:
+
+# Every settable field forwards its requested value to a set_*_action. supports_two_point and
+# supports_target_humidity are not declared here: they are derived from the low/high and humidity
+# set actions being present.
+climate:
+  - platform: template
+    id: test_climate
+    name: Test Set Actions
+    optimistic: false
+    restore_mode: NO_RESTORE
+    supported_modes:
+      - "OFF"
+      - HEAT
+      - COOL
+    supported_fan_modes:
+      - AUTO
+      - LOW
+    supported_swing_modes:
+      - "OFF"
+      - VERTICAL
+    supported_presets:
+      - NONE
+      - ECO
+    custom_fan_modes:
+      - turbo
+    custom_presets:
+      - eco_plus
+    visual:
+      min_temperature: 16.0
+      max_temperature: 30.0
+      temperature_step: 0.5
+    set_mode_action:
+      - logger.log:
+          format: "set_mode_action %d"
+          args: ["(int) x"]
+    set_target_temperature_low_action:
+      - logger.log:
+          format: "set_target_temperature_low_action %.1f"
+          args: ["x"]
+    set_target_temperature_high_action:
+      - logger.log:
+          format: "set_target_temperature_high_action %.1f"
+          args: ["x"]
+    set_target_humidity_action:
+      - logger.log:
+          format: "set_target_humidity_action %.0f"
+          args: ["x"]
+    set_fan_mode_action:
+      - logger.log:
+          format: "set_fan_mode_action %d"
+          args: ["(int) x"]
+    set_custom_fan_mode_action:
+      - logger.log:
+          format: "set_custom_fan_mode_action %s"
+          args: ["x.c_str()"]
+    set_swing_mode_action:
+      - logger.log:
+          format: "set_swing_mode_action %d"
+          args: ["(int) x"]
+    set_preset_action:
+      - logger.log:
+          format: "set_preset_action %d"
+          args: ["(int) x"]
+    set_custom_preset_action:
+      - logger.log:
+          format: "set_custom_preset_action %s"
+          args: ["x.c_str()"]
+
+button:
+  - platform: template
+    id: report_device_state
+    name: Report Device State
+    on_press:
+      - climate.template.publish:
+          id: test_climate
+          mode: HEAT
+
+  - platform: template
+    id: report_unsupported_mode
+    name: Report Unsupported Mode
+    on_press:
+      - climate.template.publish:
+          id: test_climate
+          mode: DRY

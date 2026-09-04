@@ -30,8 +30,7 @@ climate:
       - switch.turn_on: climate_heater_switch
       - switch.turn_off: climate_cooler_switch
   # Thermostat-based climate so climate.control: action variants get build
-  # coverage (bang_bang doesn't support fan modes, presets, etc.). Climate
-  # has no template platform, so thermostat is the right vehicle.
+  # coverage (bang_bang doesn't support fan modes, presets, etc.).
   - platform: thermostat
     id: climate_test_thermostat
     name: Test Thermostat
