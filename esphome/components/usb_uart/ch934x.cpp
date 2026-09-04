@@ -242,8 +242,9 @@ bool USBUartTypeCH934X::config_step(USBUartChannelBase *channel, uint8_t step, b
   const uint8_t start_idx = is_9344 ? 2 : 1;  // skip the mode write(s), reconfigure params + commit
 
   usb_host::transfer_cb_t callback = [](const usb_host::TransferStatus &status) {
-    if (!status.success)
+    if (!status.success) {
       ESP_LOGE(TAG, "Reload register write failed: %s", esp_err_to_name(status.error_code));
+    }
   };
 
   uint8_t buffer[MAX_CHANNEL_WRITE_LEN];
@@ -683,8 +684,9 @@ void USBUartTypeCH934X::dump_config() {
   ESP_LOGCONFIG(TAG, "  CH934x chip: %s", get_chiptype_string(this->chiptype_).c_str());
   ESP_LOGCONFIG(TAG, "  Ports: %u", this->num_ports_);
   uint8_t failed = this->init_failed_mask_.load();
-  if (failed != 0)
+  if (failed != 0) {
     ESP_LOGCONFIG(TAG, "  Failed port init mask: 0x%02X", failed);
+  }
 }
 
 void USBUartTypeCH934X::start_input(USBUartChannelBase *channel) {
