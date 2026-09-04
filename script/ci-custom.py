@@ -704,9 +704,11 @@ def lint_constants_usage():
     return errs
 
 
-# Maximum allowed CONF_ constants in esphome/const.py.
-# This file is frozen — new constants go in esphome/components/const/__init__.py.
-# Decrease this number when constants are moved out of const.py.
+# Number of allowed CONF_ constants in esphome/const.py.
+# This file is semi-frozen;
+# Any new component-only constants must go in esphome/components/const/__init__.py;
+# Constants used in core code may still be added to esphome/const.py
+# Update this value as needed for valid core changes.
 CONST_PY_MAX_CONF = 1019
 
 
@@ -717,7 +719,7 @@ def lint_const_py_frozen(fname, content):
     New constants should go in esphome/components/const/__init__.py instead.
     """
     count = sum(1 for line in content.splitlines() if line.startswith("CONF_"))
-    if count > CONST_PY_MAX_CONF:
+    if count != CONST_PY_MAX_CONF:
         return (
             "esphome/const.py is frozen. "
             "Add new constants to esphome/components/const/__init__.py instead."
