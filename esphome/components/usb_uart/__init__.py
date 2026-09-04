@@ -123,17 +123,8 @@ uart_types = (
 
 
 def channel_schema(type_: "Type") -> cv.Schema:
-    return cv.Schema(
+    schema = cv.Schema(
         {
-            # The comm (interrupt) interface pins a host hardware channel per device;
-            # disable to save one on channel-poor hosts (some devices may need it
-            # claimed before enabling data flow). Only offered on types that claim
-            # it in the first place — elsewhere the option would be a silent no-op.
-            **(
-                {cv.Optional(CONF_CLAIM_COMM_INTERFACE, default=True): cv.boolean}
-                if type_.has_comm_interface
-                else {}
-            ),
             cv.Required(CONF_CHANNELS): cv.All(
                 cv.ensure_list(
                     cv.Schema(
@@ -174,6 +165,23 @@ def channel_schema(type_: "Type") -> cv.Schema:
             ),
         }
     )
+    if type_.has_comm_interface:
+        # The comm (interrupt) interface pins a host hardware channel per device;
+        # disable to save one on channel-poor hosts (some devices may need it
+        # claimed before enabling data flow).
+        schema = schema.extend(
+            {cv.Optional(CONF_CLAIM_COMM_INTERFACE, default=True): cv.boolean}
+        )
+    else:
+        schema = schema.extend(
+            {
+                cv.Optional(CONF_CLAIM_COMM_INTERFACE): cv.invalid(
+                    f"'{CONF_CLAIM_COMM_INTERFACE}' is only supported on device types "
+                    f"that claim the CDC comm interface; {type_.name} never claims it"
+                )
+            }
+        )
+    return schema
 
 
 CONFIG_SCHEMA = cv.ensure_list(
@@ -204,8 +212,9 @@ async def to_code(config: list[ConfigType]) -> None:
 
     for device in config:
         var = await register_usb_client(device)
-        if CONF_CLAIM_COMM_INTERFACE in device:
-            cg.add(var.set_claim_comm_interface(device[CONF_CLAIM_COMM_INTERFACE]))
+        # The C++ default is true; only emit the override
+        if not device.get(CONF_CLAIM_COMM_INTERFACE, True):
+            cg.add(var.set_claim_comm_interface(False))
         for index, channel in enumerate(device[CONF_CHANNELS]):
             chvar = cg.new_Pvariable(channel[CONF_ID], index, channel[CONF_BUFFER_SIZE])
             await cg.register_parented(chvar, var)
