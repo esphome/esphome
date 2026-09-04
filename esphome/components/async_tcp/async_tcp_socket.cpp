@@ -43,11 +43,13 @@ bool AsyncClient::connect(const char *host, uint16_t port) {
   }
 
   if (socket_->setblocking(false) != 0) {
-    // A blocking connect()/read() would stall the whole loop
-    ESP_LOGE(TAG, "Failed to set nonblocking: errno %d", errno);
+    // Capture before the log and reset() below can clobber errno; a blocking
+    // connect()/read() would otherwise stall the whole loop
+    const int saved_errno = errno;
+    ESP_LOGE(TAG, "Failed to set nonblocking: errno %d", saved_errno);
     socket_.reset();
     if (error_cb_)
-      error_cb_(error_arg_, this, errno);
+      error_cb_(error_arg_, this, saved_errno);
     return false;
   }
 

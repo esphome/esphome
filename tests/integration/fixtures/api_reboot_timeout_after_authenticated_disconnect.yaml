@@ -2,6 +2,6 @@ esphome:
   name: api-reboot-test
 host:
 api:
-  reboot_timeout: 0.5s  # Very short timeout for fast testing
+  reboot_timeout: 2s  # Headroom to connect and authenticate a client first
 logger:
   level: DEBUG

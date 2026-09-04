@@ -59,6 +59,6 @@ async def test_api_reboot_timeout_after_authenticated_disconnect(
         async with api_client_connected() as client:
             await client.device_info()
         try:
-            await asyncio.wait_for(reboot_future, timeout=2.0)
+            await asyncio.wait_for(reboot_future, timeout=5.0)
         except TimeoutError:
             pytest.fail("Device did not reboot within expected timeout")
