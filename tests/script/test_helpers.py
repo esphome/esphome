@@ -20,6 +20,7 @@ changed_files = helpers.changed_files
 filter_changed = helpers.filter_changed
 get_changed_components = helpers.get_changed_components
 _get_changed_files_from_command = helpers._get_changed_files_from_command
+run_gh_command = helpers.run_gh_command
 _get_pr_number_from_github_env = helpers._get_pr_number_from_github_env
 _get_changed_files_github_actions = helpers._get_changed_files_github_actions
 _filter_changed_ci = helpers._filter_changed_ci
@@ -35,6 +36,8 @@ def clear_helpers_cache() -> None:
     helpers._get_github_event_data.cache_clear()
     helpers._get_changed_files_github_actions.cache_clear()
     helpers.get_components_per_integration_fixture.cache_clear()
+    helpers._get_test_config_components.cache_clear()
+    helpers._conflict_walk.cache_clear()
 
 
 @pytest.mark.parametrize(
@@ -75,6 +78,22 @@ def test_get_pr_number_from_github_env_event_file(
     result = _get_pr_number_from_github_env()
 
     assert result == "5678"
+
+
+def test_get_github_event_data_decodes_utf8_regardless_of_locale(
+    monkeypatch: MonkeyPatch, tmp_path: Path
+) -> None:
+    """The event payload is UTF-8; parsing must not depend on the platform
+    default encoding. On Windows the default is cp1252, which raised
+    UnicodeDecodeError as soon as a commit title carried non ASCII text."""
+    event_file = tmp_path / "event.json"
+    event_data = {"head_commit": {"message": "Answer UNPAIR with Response… é"}}
+    event_file.write_bytes(json.dumps(event_data, ensure_ascii=False).encode("utf-8"))
+    monkeypatch.setenv("GITHUB_EVENT_PATH", str(event_file))
+
+    result = helpers._get_github_event_data()
+
+    assert result == event_data
 
 
 def test_get_pr_number_from_github_env_no_pr(
@@ -217,6 +236,44 @@ def test_get_changed_files_github_actions_pull_request_large_pr(
                 "gh",
                 "api",
                 "repos/esphome/esphome/pulls/10214/files",
+                "--paginate",
+                "--jq",
+                ".[].filename",
+            ]
+        )
+        assert result == expected_files
+
+
+def test_get_changed_files_github_actions_pull_request_large_diff(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    """Test _get_changed_files_github_actions fallback for PRs with >20000 diff lines."""
+    monkeypatch.setenv("GITHUB_EVENT_NAME", "pull_request")
+
+    expected_files = ["file1.py", "file2.cpp"]
+
+    with (
+        patch("helpers._get_pr_number_from_github_env", return_value="17909"),
+        patch("helpers._get_changed_files_from_command") as mock_get,
+    ):
+        # First call fails with too many diff lines error, second succeeds with API method
+        mock_get.side_effect = [
+            Exception(
+                "could not find pull request diff: HTTP 406: Sorry, "
+                "the diff exceeded the maximum number of lines (20000)"
+            ),
+            expected_files,
+        ]
+
+        result = _get_changed_files_github_actions()
+
+        assert mock_get.call_count == 2
+        mock_get.assert_any_call(["gh", "pr", "diff", "17909", "--name-only"])
+        mock_get.assert_any_call(
+            [
+                "gh",
+                "api",
+                "repos/esphome/esphome/pulls/17909/files",
                 "--paginate",
                 "--jq",
                 ".[].filename",
@@ -1504,6 +1561,8 @@ def fake_components(tmp_path: Path) -> Path:
     write("callable_auto", "def AUTO_LOAD():\n    return ['beta']\n")
     write("broken", "this is not valid python !!!")
     helpers.parse_component_metadata.cache_clear()
+    helpers._get_test_config_components.cache_clear()
+    helpers._conflict_walk.cache_clear()
     return tmp_path
 
 
@@ -1622,6 +1681,47 @@ def test_split_conflicting_groups_preserves_original_signature_for_first_bucket(
     platform, signature = next(iter(extra))
     assert platform == "esp32"
     assert signature.startswith("i2c__conflict")
+
+
+def test_split_conflicting_groups_seeds_from_test_config(
+    fake_components: Path, monkeypatch: MonkeyPatch
+) -> None:
+    """A conflict reachable only via a component's test config splits the group.
+
+    ``host_user`` declares no static conflict with ``beta``, but its
+    ``test.<platform>.yaml`` pulls in ``beta_variant`` (which AUTO_LOADs
+    ``beta``). On that platform the group must split; on another platform
+    (no such test config) it must stay together.
+    """
+    monkeypatch.setattr(helpers, "root_path", str(fake_components))
+
+    # host_user has no static metadata, but its esp32 test config references
+    # beta_variant -> AUTO_LOAD beta, which conflicts with alpha.
+    tests_dir = fake_components / "tests" / "components" / "host_user"
+    tests_dir.mkdir(parents=True)
+    (tests_dir / "test.esp32.yaml").write_text("beta_variant:\n")
+    (fake_components / "esphome" / "components" / "host_user").mkdir()
+    (
+        fake_components / "esphome" / "components" / "host_user" / "__init__.py"
+    ).write_text("")
+
+    helpers.parse_component_metadata.cache_clear()
+    helpers._get_test_config_components.cache_clear()
+    helpers._conflict_walk.cache_clear()
+
+    # On esp32, host_user pulls in beta (via its test config) -> conflicts with alpha.
+    result = helpers.split_conflicting_groups(
+        {("esp32", "no_buses"): ["alpha", "host_user"]}
+    )
+    buckets = list(result.values())
+    for bucket in buckets:
+        assert not ({"alpha", "host_user"} <= set(bucket))
+
+    # On a platform without that test config, they stay grouped together.
+    result_other = helpers.split_conflicting_groups(
+        {("rp2040", "no_buses"): ["alpha", "host_user"]}
+    )
+    assert result_other == {("rp2040", "no_buses"): ["alpha", "host_user"]}
 
 
 # ---------------------------------------------------------------------------
@@ -1790,3 +1890,260 @@ def test_get_component_test_files_component_without_tests(
 )
 def test_is_validate_only_file(filename: str, expected: bool, tmp_path: Path) -> None:
     assert helpers.is_validate_only_file(tmp_path / filename) is expected
+
+
+@pytest.mark.parametrize(
+    ("files", "expected"),
+    [
+        (["esphome/config.py"], True),
+        (["esphome/yaml_util.py"], True),
+        (["esphome/__main__.py"], True),
+        (["esphome/const.pyi"], True),
+        (["README.md", "esphome/helpers.py"], True),
+        (["esphome/core/config.py"], False),
+        (["esphome/components/sensor/__init__.py"], False),
+        (["esphome/dashboard/web_server.py"], False),
+        (["esphome/idf_component.yml"], False),
+        (["tests/unit_tests/test_config.py"], False),
+        ([], False),
+    ],
+)
+def test_base_python_changed(files: list[str], expected: bool) -> None:
+    """Only Python modules directly in esphome/ count as base Python changes."""
+    assert helpers.base_python_changed(files) is expected
+
+
+def _gh_error(stderr: str) -> subprocess.CalledProcessError:
+    return subprocess.CalledProcessError(1, ["gh"], output="", stderr=stderr)
+
+
+def _gh_success(stdout: str = "ok\n") -> subprocess.CompletedProcess:
+    return subprocess.CompletedProcess(["gh"], 0, stdout=stdout, stderr="")
+
+
+def test_run_gh_command_success() -> None:
+    """A successful command returns without retrying."""
+    with patch("helpers.subprocess.run", return_value=_gh_success()) as mock_run:
+        result = run_gh_command(["gh", "pr", "diff", "123", "--name-only"])
+
+    assert result.stdout == "ok\n"
+    mock_run.assert_called_once()
+
+
+@pytest.mark.parametrize(
+    "second_error",
+    [
+        (
+            'Post "https://api.github.com/graphql": tls: failed to verify'
+            " certificate: x509: certificate is not valid for any names,"
+            " but wanted to match api.github.com"
+        ),
+        'Post "https://api.github.com/graphql": EOF',
+        (
+            "error connecting to api.github.com\n"
+            "check your internet connection or https://githubstatus.com"
+        ),
+    ],
+)
+def test_run_gh_command_retries_transient_error(second_error: str) -> None:
+    """Transient server errors are retried with 2s/4s backoff."""
+    with (
+        patch(
+            "helpers.subprocess.run",
+            side_effect=[
+                _gh_error("HTTP 502: 502 Bad Gateway (https://api.github.com/graphql)"),
+                _gh_error(second_error),
+                _gh_success(),
+            ],
+        ) as mock_run,
+        patch("helpers.time.sleep") as mock_sleep,
+    ):
+        result = run_gh_command(["gh", "pr", "diff", "123", "--name-only"])
+
+    assert result.stdout == "ok\n"
+    assert mock_run.call_count == 3
+    assert [call.args[0] for call in mock_sleep.call_args_list] == [2, 4]
+
+
+def test_run_gh_command_gives_up_after_max_attempts() -> None:
+    """A persistent transient error raises after the third attempt."""
+    with (
+        patch(
+            "helpers.subprocess.run",
+            side_effect=_gh_error("HTTP 503: Service Unavailable"),
+        ) as mock_run,
+        patch("helpers.time.sleep") as mock_sleep,
+        pytest.raises(subprocess.CalledProcessError),
+    ):
+        run_gh_command(["gh", "pr", "diff", "123", "--name-only"])
+
+    assert mock_run.call_count == 3
+    assert mock_sleep.call_count == 2
+
+
+@pytest.mark.parametrize(
+    "stderr",
+    [
+        "HTTP 404: Not Found (https://api.github.com/repos/x)",
+        "HTTP 401: Bad credentials",
+        "HTTP 403: API rate limit exceeded for installation ID 123.",
+        "diff exceeded the maximum number of changed files (300)",
+        (
+            "GraphQL: Could not resolve to a PullRequest with the number of 999999."
+            " (repository.pullRequest)"
+        ),
+    ],
+)
+def test_run_gh_command_permanent_error_not_retried(stderr: str) -> None:
+    """Permanent failures raise immediately without any retry."""
+    with (
+        patch("helpers.subprocess.run", side_effect=_gh_error(stderr)) as mock_run,
+        patch("helpers.time.sleep") as mock_sleep,
+        pytest.raises(subprocess.CalledProcessError),
+    ):
+        run_gh_command(["gh", "pr", "diff", "123", "--name-only"])
+
+    mock_run.assert_called_once()
+    mock_sleep.assert_not_called()
+
+
+def test_run_gh_command_no_retry_for_non_idempotent_commands() -> None:
+    """retry=False fails on the first error even when it looks transient."""
+    with (
+        patch(
+            "helpers.subprocess.run",
+            side_effect=_gh_error("HTTP 502: 502 Bad Gateway"),
+        ) as mock_run,
+        patch("helpers.time.sleep") as mock_sleep,
+        pytest.raises(subprocess.CalledProcessError),
+    ):
+        run_gh_command(["gh", "pr", "comment", "123", "--body", "x"], retry=False)
+
+    mock_run.assert_called_once()
+    mock_sleep.assert_not_called()
+
+
+def test_get_changed_files_from_command_gh_failure_keeps_stderr() -> None:
+    """Failures from gh surface stderr so callers can detect the 300-file limit."""
+    stderr = "diff exceeded the maximum number of changed files (300)"
+    with (
+        patch("helpers.subprocess.run", side_effect=_gh_error(stderr)),
+        pytest.raises(Exception, match="maximum number of changed files"),
+    ):
+        _get_changed_files_from_command(["gh", "pr", "diff", "123", "--name-only"])
+
+
+@pytest.mark.parametrize(
+    ("file_path", "expected"),
+    [
+        ("esphome/components/time/posix_tz.cpp", True),
+        ("esphome/components/time/posix_tz.h", True),
+        ("esphome/components/time/__init__.py", True),
+        ("esphome/components/sntp/time.py", True),
+        ("tests/components/time/posix_tz.cpp", True),
+        ("tests/components/time/__init__.py", True),
+        # Platform override: tests/components/<component>/<domain>/__init__.py
+        ("tests/components/template/sensor/__init__.py", True),
+        # pytest-only files do not shape the C++ test binary
+        ("tests/components/socket/conftest.py", False),
+        ("tests/components/socket/test_socket.py", False),
+        ("tests/components/time/test.esp32-idf.yaml", False),
+        ("esphome/core/time.cpp", False),
+        ("esphome/config.py", False),
+        ("script/helpers.py", False),
+        ("README.md", False),
+    ],
+)
+def test_filter_cpp_unit_test_files(file_path: str, expected: bool) -> None:
+    """Test which changed files can affect a component's C++ unit test build."""
+    assert helpers.filter_cpp_unit_test_files(file_path) is expected
+
+
+@pytest.fixture
+def cpp_unit_test_tree(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """Fake repo root where time, sntp and api have C++ unit tests.
+
+    homeassistant depends on time but has no C++ tests, so it must be
+    dropped from the selection; socket has only pytest files.
+    """
+    tests_dir = tmp_path / "tests" / "components"
+    for component in ("time", "sntp", "api"):
+        (tests_dir / component).mkdir(parents=True)
+        (tests_dir / component / f"{component}.cpp").write_text("")
+    (tests_dir / "homeassistant").mkdir()
+    (tests_dir / "homeassistant" / "__init__.py").write_text("")
+    (tests_dir / "socket").mkdir()
+    (tests_dir / "socket" / "conftest.py").write_text("")
+    monkeypatch.setattr(helpers, "root_path", str(tmp_path))
+    monkeypatch.setattr(
+        helpers,
+        "create_components_graph",
+        lambda: {"time": ["homeassistant", "sntp"]},
+    )
+    return tmp_path
+
+
+@pytest.mark.parametrize(
+    ("files", "expected"),
+    [
+        # Component changes expand to dependents with C++ tests
+        (["esphome/components/time/posix_tz.cpp"], ["sntp", "time"]),
+        (["esphome/components/time/__init__.py"], ["sntp", "time"]),
+        # Dependent without C++ tests is dropped
+        (["esphome/components/homeassistant/__init__.py"], []),
+        # Test changes select only that component
+        (["tests/components/time/posix_tz.cpp"], ["time"]),
+        (["tests/components/time/__init__.py"], ["time"]),
+        (["tests/components/homeassistant/__init__.py"], []),
+        (["tests/components/socket/conftest.py"], []),
+        (["tests/components/time/test.esp32-idf.yaml"], []),
+        (
+            ["esphome/components/time/__init__.py", "tests/components/api/api.cpp"],
+            ["api", "sntp", "time"],
+        ),
+        ([], []),
+    ],
+)
+@pytest.mark.usefixtures("cpp_unit_test_tree")
+def test_get_cpp_changed_components(files: list[str], expected: list[str]) -> None:
+    """Test that C++ and Python component changes select the right unit tests."""
+    assert helpers.get_cpp_changed_components(files) == expected
+
+
+def test_get_cpp_changed_components_independent_of_cwd(
+    cpp_unit_test_tree: Path,
+    tmp_path_factory: pytest.TempPathFactory,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Test directories resolve against root_path, not the current directory."""
+    monkeypatch.chdir(tmp_path_factory.mktemp("elsewhere"))
+    assert helpers.get_cpp_changed_components(
+        ["tests/components/time/__init__.py"]
+    ) == ["time"]
+
+
+def test_lpt_partition_balances_skewed_weights() -> None:
+    """Heavy items spread across groups instead of clustering."""
+    items = [f"i{n}" for n in range(6)]
+    weights = {"i0": 100.0, "i1": 90.0, "i2": 10.0, "i3": 10.0, "i4": 5.0, "i5": 5.0}
+    groups = helpers.lpt_partition(items, weights, 2)
+    group_weights = sorted(sum(weights[i] for i in g) for g in groups)
+    # Contiguous split would give 200 vs 20; LPT lands at 110 vs 110
+    assert group_weights == [110.0, 110.0]
+    assert sorted(i for g in groups for i in g) == items
+
+
+def test_lpt_partition_more_groups_than_items() -> None:
+    """Surplus groups come back empty; every item still lands somewhere."""
+    items = ["a", "b"]
+    groups = helpers.lpt_partition(items, {"a": 1.0, "b": 1.0}, 4)
+    assert len(groups) == 4
+    assert sorted(i for g in groups for i in g) == items
+    assert sum(not g for g in groups) == 2
+
+
+def test_lpt_partition_tie_determinism() -> None:
+    """Equal weights assign in input order, so output is reproducible."""
+    items = [f"i{n}" for n in range(4)]
+    weights = dict.fromkeys(items, 1.0)
+    assert helpers.lpt_partition(items, weights, 2) == [["i0", "i2"], ["i1", "i3"]]

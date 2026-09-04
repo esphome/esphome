@@ -1,3 +1,5 @@
+from typing import Any
+
 import esphome.codegen as cg
 from esphome.components import audio, psram, speaker
 import esphome.config_validation as cv
@@ -13,6 +15,7 @@ from esphome.const import (
     PLATFORM_ESP32,
 )
 from esphome.core.entity_helpers import inherit_property_from
+from esphome.types import ConfigType
 
 AUTO_LOAD = ["audio"]
 CODEOWNERS = ["@kahrendt"]
@@ -27,7 +30,7 @@ CONF_TAPS = "taps"
 PASSTHROUGH = "passthrough"
 
 
-def _set_stream_limits(config):
+def _set_stream_limits(config: ConfigType) -> ConfigType:
     audio.set_stream_limits(
         min_bits_per_sample=16,
         max_bits_per_sample=32,
@@ -36,7 +39,7 @@ def _set_stream_limits(config):
     return config
 
 
-def _validate_audio_compatibility(config):
+def _validate_audio_compatibility(config: ConfigType) -> None:
     inherit_property_from(CONF_NUM_CHANNELS, CONF_OUTPUT_SPEAKER)(config)
     inherit_property_from(CONF_SAMPLE_RATE, CONF_OUTPUT_SPEAKER)(config)
 
@@ -57,7 +60,7 @@ def _validate_audio_compatibility(config):
     )(config)
 
 
-def _validate_taps(taps):
+def _validate_taps(taps: Any) -> int:
     value = cv.int_range(min=16, max=128)(taps)
     if value % 4 != 0:
         raise cv.Invalid("Number of taps must be divisible by 4")
@@ -88,7 +91,7 @@ CONFIG_SCHEMA = cv.All(
 FINAL_VALIDATE_SCHEMA = _validate_audio_compatibility
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await speaker.register_speaker(var, config)

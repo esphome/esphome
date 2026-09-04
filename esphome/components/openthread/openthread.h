@@ -19,6 +19,12 @@ namespace esphome::openthread {
 
 class InstanceLock;
 
+enum class TeardownStage : uint8_t {
+  TEARDOWN_STAGE_NOT_STARTED = 0,
+  TEARDOWN_STAGE_STOP_IN_PROCESS,
+  TEARDOWN_STAGE_COMPLETED,
+};
+
 template<typename... Ts> class OpenThreadComponentPollPeriodAction;
 
 class OpenThreadComponent final : public Component {
@@ -39,6 +45,8 @@ class OpenThreadComponent final : public Component {
   void on_factory_reset(std::function<void()> callback);
   void defer_factory_reset_external_callback();
 
+  /// Returns nullptr when no explicit use_address is configured and the address is
+  /// derived at runtime from the device name (see network::get_use_address_to()).
   const char *get_use_address() const { return this->use_address_; }
   void set_use_address(const char *use_address) { this->use_address_ = use_address; }
 #if CONFIG_OPENTHREAD_MTD
@@ -69,14 +77,13 @@ class OpenThreadComponent final : public Component {
 #endif
   std::optional<int8_t> output_power_{};
   std::atomic<bool> lock_initialized_{false};
-  bool teardown_started_{false};
-  bool teardown_complete_{false};
-  bool connected_{false};
+  std::atomic<TeardownStage> teardown_stage_{TeardownStage::TEARDOWN_STAGE_NOT_STARTED};
+  std::atomic<bool> connected_{false};
 
  private:
   // Stores a pointer to a string literal (static storage duration).
   // ONLY set from Python-generated code with string literals - never dynamic strings.
-  const char *use_address_{""};
+  const char *use_address_{nullptr};
 };
 
 extern OpenThreadComponent *global_openthread_component;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
@@ -85,7 +92,7 @@ class OpenThreadSrpComponent final : public Component {
  public:
   void set_mdns(esphome::mdns::MDNSComponent *mdns);
   // This has to run after the mdns component or else no services are available to advertise
-  float get_setup_priority() const override { return this->mdns_->get_setup_priority() - 1.0; }
+  float get_setup_priority() const override { return this->mdns_->get_setup_priority() - 1.0f; }
   void setup() override;
   static void srp_callback(otError err, const otSrpClientHostInfo *host_info, const otSrpClientService *services,
                            const otSrpClientService *removed_services, void *context);

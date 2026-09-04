@@ -1,9 +1,9 @@
 #pragma once
 
-#if defined(USE_ESP32_VARIANT_ESP32S3) || defined(USE_ESP32_VARIANT_ESP32P4)
+#if defined(USE_ESP32_VARIANT_ESP32S3) || defined(USE_ESP32_VARIANT_ESP32P4) || defined(USE_ESP32_VARIANT_ESP32S31)
 #include "esphome/core/gpio.h"
 #include "esphome/components/display/display.h"
-#include "esp_lcd_panel_ops.h"
+#include <esp_lcd_panel_rgb.h>
 #ifdef USE_SPI
 #include "esphome/components/spi/spi.h"
 #endif
@@ -25,6 +25,12 @@ class MipiRgb : public display::Display {
  public:
   MipiRgb(int width, int height) : width_(width), height_(height) {}
   void setup() override;
+#ifdef USE_ESP32_VARIANT_ESP32S3
+  void loop() override {
+    if (this->handle_ != nullptr)
+      esp_lcd_rgb_panel_restart(this->handle_);
+  }
+#endif
   void update() override;
   void fill(Color color) override;
   void draw_pixels_at(int x_start, int y_start, int w, int h, const uint8_t *ptr, display::ColorOrder order,
@@ -97,9 +103,9 @@ class MipiRgb : public display::Display {
 };
 
 #ifdef USE_SPI
-class MipiRgbSpi : public MipiRgb,
-                   public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW, spi::CLOCK_PHASE_LEADING,
-                                         spi::DATA_RATE_1MHZ> {
+class MipiRgbSpi final : public MipiRgb,
+                         public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW,
+                                               spi::CLOCK_PHASE_LEADING, spi::DATA_RATE_1MHZ> {
  public:
   MipiRgbSpi(int width, int height) : MipiRgb(width, height) {}
 

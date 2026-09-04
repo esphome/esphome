@@ -10,7 +10,7 @@ static const char *const TAG = "msa3xx";
 const uint8_t MSA_3XX_PART_ID = 0x13;
 
 const float GRAVITY_EARTH = 9.80665f;
-const float LSB_COEFF = 1000.0f / (GRAVITY_EARTH * 3.9);  // LSB to 1 LSB = 3.9mg = 0.0039g
+const float LSB_COEFF = 1000.0f / (GRAVITY_EARTH * 3.9f);  // LSB to 1 LSB = 3.9mg = 0.0039g
 const float G_OFFSET_MIN = -4.5f;  // -127...127 LSB = +- 0.4953g = +- 4.857 m/s^2 => +- 4.5 for the safe
 const float G_OFFSET_MAX = 4.5f;   // -127...127 LSB = +- 0.4953g = +- 4.857 m/s^2 => +- 4.5 for the safe
 

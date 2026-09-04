@@ -8,6 +8,7 @@ extern "C" {
 #include "preferences.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+#include "esphome/core/preferences_rtc.h"
 
 #include <cstring>
 
@@ -80,16 +81,6 @@ static uint32_t get_esp8266_flash_sector() {
 }
 static uint32_t get_esp8266_flash_address() { return get_esp8266_flash_sector() * SPI_FLASH_SEC_SIZE; }
 
-static inline size_t bytes_to_words(size_t bytes) { return (bytes + 3) / 4; }
-
-template<class It> uint32_t calculate_crc(It first, It last, uint32_t type) {
-  uint32_t crc = type;
-  while (first != last) {
-    crc ^= (*first++ * 2654435769UL) >> 1;
-  }
-  return crc;
-}
-
 static bool save_to_flash(size_t offset, const uint32_t *data, size_t len) {
   for (uint32_t i = 0; i < len; i++) {
     uint32_t j = offset + i;
@@ -137,21 +128,19 @@ static constexpr size_t PREF_MAX_BUFFER_WORDS =
     ESP8266_FLASH_STORAGE_SIZE > RTC_NORMAL_REGION_WORDS ? ESP8266_FLASH_STORAGE_SIZE : RTC_NORMAL_REGION_WORDS;
 
 bool ESP8266PreferenceBackend::save(const uint8_t *data, size_t len) {
-  if (bytes_to_words(len) != this->length_words)
+  if (rtc_pref_bytes_to_words(len) != this->length_words)
     return false;
   const size_t buffer_size = static_cast<size_t>(this->length_words) + 1;
   if (buffer_size > PREF_MAX_BUFFER_WORDS)
     return false;
   uint32_t buffer[PREF_MAX_BUFFER_WORDS];
-  memset(buffer, 0, buffer_size * sizeof(uint32_t));
-  memcpy(buffer, data, len);
-  buffer[this->length_words] = calculate_crc(buffer, buffer + this->length_words, this->type);
+  rtc_pref_encode(buffer, this->type, this->length_words, data, len);
   return this->in_flash ? save_to_flash(this->offset, buffer, buffer_size)
                         : save_to_rtc(this->offset, buffer, buffer_size);
 }
 
 bool ESP8266PreferenceBackend::load(uint8_t *data, size_t len) {
-  if (bytes_to_words(len) != this->length_words)
+  if (rtc_pref_bytes_to_words(len) != this->length_words)
     return false;
   const size_t buffer_size = static_cast<size_t>(this->length_words) + 1;
   if (buffer_size > PREF_MAX_BUFFER_WORDS)
@@ -161,10 +150,7 @@ bool ESP8266PreferenceBackend::load(uint8_t *data, size_t len) {
                             : load_from_rtc(this->offset, buffer, buffer_size);
   if (!ret)
     return false;
-  if (buffer[this->length_words] != calculate_crc(buffer, buffer + this->length_words, this->type))
-    return false;
-  memcpy(data, buffer, len);
-  return true;
+  return rtc_pref_decode(buffer, this->type, this->length_words, data, len);
 }
 
 void ESP8266Preferences::setup() {
@@ -177,13 +163,13 @@ void ESP8266Preferences::setup() {
 }
 
 ESPPreferenceObject ESP8266Preferences::make_preference(size_t length, uint32_t type, bool in_flash) {
-  const uint32_t length_words = bytes_to_words(length);
+  const uint32_t length_words = rtc_pref_bytes_to_words(length);
   if (length_words > MAX_PREFERENCE_WORDS) {
     ESP_LOGE(TAG, "Preference too large: %u words", static_cast<unsigned int>(length_words));
     return {};
   }
 
-  const uint32_t total_words = length_words + 1;  // +1 for CRC
+  const uint32_t total_words = length_words + 1;  // +1 for checksum
   uint16_t offset;
 
   if (in_flash) {
