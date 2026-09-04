@@ -25,6 +25,12 @@ class ST7701S(RgbDriverChip):
         sequence.append((SDIR_CMD, sdir))
         return madctl
 
+    def get_sequence(
+        self, config, add_madctl=True, add_reset=False, reset_delay: int = 10
+    ) -> tuple[int, ...]:
+        # The ST7701S appears to need a longer delay after reset than the datasheet's stated 5ms, so extend it.
+        return super().get_sequence(config, add_madctl, add_reset, 50)
+
     @property
     def transforms(self) -> set[str]:
         """
