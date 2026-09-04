@@ -1331,6 +1331,97 @@ lvgl:
                     - 180, 60
                     - 240, 10
               - lvgl.page.next:
+        - chart:
+            # chart defaults to width/height 100%; this page stacks many widgets without a
+            # flex layout, so give it an explicit height to keep the demo page from overflowing.
+            id: chart_id
+            align: center
+            height: 120px
+            point_count: 20
+            update_interval: 5s
+            point_radius: 3px
+            y_axis:
+              format: "%.0f°"
+            series:
+              - sensor: indoor_temperature_sensor
+                color: 0xFF0000
+                format: "%.1f°"
+              - sensor: outdoor_temperature_sensor
+                format: "%.1f°"
+            on_click:
+              then:
+                - lvgl.chart.update:
+                    id: chart_id
+                    min_value: 0
+                    max_value: 40
+        - chart:
+            id: chart_persist_id
+            align: center
+            height: 120px
+            point_count: 20
+            update_interval: 10s
+            persist: true
+            time_id: sntp_time
+            series:
+              - sensor: indoor_temperature_sensor
+                color: 0x0000FF
+        - chart:
+            id: chart_bar_id
+            type: BAR
+            align: center
+            height: 120px
+            point_count: 20
+            # BAR/STACKED give each point a column with a pad_column-wide gap; with enough
+            # points this can exceed the chart's width and leave no room to draw any bars.
+            pad_column: 2px
+            y_axis:
+              format: "%.0f°"
+            series:
+              - sensor: indoor_temperature_sensor
+                color: 0xFF0000
+              - sensor: outdoor_temperature_sensor
+                color: 0x0000FF
+        - chart:
+            id: chart_stacked_id
+            type: STACKED
+            align: center
+            height: 120px
+            point_count: 20
+            min_value: 0
+            max_value: 100
+            series:
+              - sensor: indoor_temperature_sensor
+              - sensor: outdoor_temperature_sensor
+        - chart:
+            id: chart_none_id
+            type: NONE
+            align: center
+            height: 120px
+            point_count: 20
+            series:
+              - sensor: indoor_temperature_sensor
+        - chart:
+            id: chart_scatter_id
+            type: SCATTER
+            align: center
+            height: 120px
+            point_count: 20
+            point_radius: 3px
+            series:
+              - color: 0xFF0000
+              - color: 0x0000FF
+            on_click:
+              then:
+                - lvgl.chart.add_point:
+                    id: chart_scatter_id
+                    series: 0
+                    x: 12.5
+                    y: 34.0
+                - lvgl.chart.add_point:
+                    id: chart_scatter_id
+                    series: 1
+                    x: !lambda return random_uint32() % 100;
+                    y: !lambda return static_cast<float>(random_uint32() % 100);
         - switch:
             align: right_mid
         - checkbox:

@@ -11,6 +11,16 @@ sensor:
     pin_a: 3
     pin_b: 1
     internal: true
+  - platform: template
+    name: Indoor Temperature
+    id: indoor_temperature_sensor
+    lambda: return 21.3;
+    update_interval: 5s
+  - platform: template
+    name: Outdoor Temperature
+    id: outdoor_temperature_sensor
+    lambda: return 12.7;
+    update_interval: 5s
 
 binary_sensor:
   - platform: gpio

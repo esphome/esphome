@@ -686,6 +686,7 @@ LV_CHART_TYPES = (
     "NONE",
     "LINE",
     "BAR",
+    "STACKED",
     "SCATTER",
 )
 LV_CHART_AXES = (
@@ -694,6 +695,8 @@ LV_CHART_AXES = (
     "PRIMARY_X",
     "SECONDARY_X",
 )
+LV_CHART_TYPE = LvConstant("LV_CHART_TYPE_", *LV_CHART_TYPES)
+LV_CHART_AXIS = LvConstant("LV_CHART_AXIS_", *LV_CHART_AXES)
 
 CONF_ACCEPTED_CHARS = "accepted_chars"
 CONF_ADJUSTABLE = "adjustable"
@@ -712,6 +715,7 @@ CONF_BG_OPA = "bg_opa"
 CONF_BOTTOM_LAYER = "bottom_layer"
 CONF_BUTTON_STYLE = "button_style"
 CONF_DECIMAL_PLACES = "decimal_places"
+CONF_DECIMALS = "decimals"
 CONF_COLUMN = "column"
 CONF_DIGITS = "digits"
 CONF_DISP_BG_COLOR = "disp_bg_color"
@@ -795,9 +799,12 @@ CONF_PAGE = "page"
 CONF_PAGE_WRAP = "page_wrap"
 CONF_PASSWORD_MODE = "password_mode"
 CONF_PAUSED = "paused"
+CONF_PERSIST = "persist"
 CONF_PIVOT_X = "pivot_x"
 CONF_PIVOT_Y = "pivot_y"
 CONF_PLACEHOLDER_TEXT = "placeholder_text"
+CONF_POINT_COUNT = "point_count"
+CONF_POINT_RADIUS = "point_radius"
 CONF_POINTS = "points"
 CONF_PREVIOUS = "previous"
 CONF_RADIUS = "radius"
@@ -817,6 +824,7 @@ CONF_SCROLL_SNAP_X = "scroll_snap_x"
 CONF_SCROLL_SNAP_Y = "scroll_snap_y"
 CONF_SELECTED_INDEX = "selected_index"
 CONF_SELECTED_TEXT = "selected_text"
+CONF_SERIES = "series"
 CONF_SHOW_SNOW = "show_snow"
 CONF_SPIN_TIME = "spin_time"
 CONF_SRC = "src"
@@ -850,6 +858,7 @@ CONF_UPDATE_WHEN_DISPLAY_IDLE = "update_when_display_idle"
 CONF_VISIBLE_ROW_COUNT = "visible_row_count"
 CONF_WIDGET = "widget"
 CONF_WIDGETS = "widgets"
+CONF_Y_AXIS = "y_axis"
 CONF_ZOOM = "zoom"
 
 # Keypad keys
