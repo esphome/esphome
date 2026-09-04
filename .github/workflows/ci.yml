@@ -92,6 +92,7 @@ jobs:
     outputs:
       core-ci: ${{ steps.determine.outputs.core-ci }}
       integration-tests: ${{ steps.determine.outputs.integration-tests }}
+      integration-run-all: ${{ steps.determine.outputs.integration-run-all }}
       integration-test-buckets: ${{ steps.determine.outputs.integration-test-buckets }}
       clang-tidy: ${{ steps.determine.outputs.clang-tidy }}
       clang-tidy-mode: ${{ steps.determine.outputs.clang-tidy-mode }}
@@ -152,6 +153,9 @@ jobs:
           # Extract individual fields
           echo "core-ci=$(echo "$output" | jq -r '.core_ci')" >> $GITHUB_OUTPUT
           echo "integration-tests=$(echo "$output" | jq -r '.integration_tests')" >> $GITHUB_OUTPUT
+          # A missing key must fail here, not silently disable the junit upload
+          run_all=$(echo "$output" | jq -r 'if has("integration_run_all") then .integration_run_all else error("integration_run_all missing") end')
+          echo "integration-run-all=${run_all}" >> $GITHUB_OUTPUT
           echo "integration-test-buckets=$(echo "$output" | jq -c '.integration_test_buckets')" >> $GITHUB_OUTPUT
           echo "clang-tidy=$(echo "$output" | jq -r '.clang_tidy')" >> $GITHUB_OUTPUT
           echo "clang-tidy-mode=$(echo "$output" | jq -r '.clang_tidy_mode')" >> $GITHUB_OUTPUT
@@ -355,14 +359,24 @@ jobs:
       fail-fast: false
       matrix:
         bucket: ${{ fromJson(needs.determine-jobs.outputs.integration-test-buckets) }}
+    env:
+      # What the cache steps persist; libdeps is excluded (keyed per xdist
+      # worker and env, it never crosses runs).
+      INTEGRATION_PIO_CACHE_PATH: |
+        ~/.esphome-integration-tests/platformio/platforms
+        ~/.esphome-integration-tests/platformio/packages
+        ~/.esphome-integration-tests/platformio/appstate.json
+        ~/.esphome-integration-tests/platformio/.cache
+        ~/.esphome-integration-tests/platformio/.esphome.pio.stamp.json
     steps:
       - name: Check out code from GitHub
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Install apt packages (cached)
         # ccache speeds up the host compiles. A cache hit never touches apt
         # (mirror outages cannot hang the job); the timeout bounds the cold
-        # path. Packages and version must match seed-apt-cache exactly;
-        # libsdl2-dev is unused here and carried only for cache-key parity.
+        # path. Packages and version must match seed-apt-cache exactly.
+        # libsdl2-dev is needed by the headless display tests, which capture
+        # screenshots.
         timeout-minutes: 10
         uses: awalsh128/cache-apt-pkgs-action@553a35bb8ebd9fcabcb1c9451aa4c98e1b4ca8a9 # v1.6.3
         with:
@@ -373,6 +387,14 @@ jobs:
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.13"
+      - name: Restore integration PlatformIO cache
+        # Native platform + toolchain installed by shared_platformio_cache in
+        # tests/integration/conftest.py; a miss self-heals, so no restore-keys.
+        id: pio-cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ env.INTEGRATION_PIO_CACHE_PATH }}
+          key: integration-pio-v1-${{ runner.os }}-py${{ steps.python.outputs.python-version }}-${{ hashFiles('requirements.txt', 'tests/integration/fixtures/cache_init.yaml', 'esphome/components/host/__init__.py') }}
       - name: Restore Python virtual environment
         id: cache-venv
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -410,12 +432,46 @@ jobs:
         run: |
           . venv/bin/activate
           mapfile -t test_files < <(echo "$BUCKET_TESTS" | jq -r '.[]')
+          if [ "${#test_files[@]}" -eq 0 ]; then
+            echo "::error::Empty integration test bucket; pytest would collect the whole tree"
+            exit 1
+          fi
           echo "Bucket ${{ matrix.bucket.name }}: running ${#test_files[@]} integration tests"
-          pytest -vv --no-cov --tb=native --durations=30 -n auto "${test_files[@]}"
+          pytest -vv --no-cov --tb=native --durations=30 -n auto --dist worksteal \
+            --junitxml=junit-integration.xml "${test_files[@]}"
+      - name: Upload test artifacts
+        # Tests that compare rendered output write the image they actually got here, so a
+        # failure can be looked at without reproducing the whole build locally.
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: integration-test-artifacts-${{ matrix.bucket.name }}
+          path: test_artifacts/
+          if-no-files-found: ignore
+          retention-days: 7
+      - name: Upload junit timings
+        # Consumed by sync-integration-durations.yml through
+        # script/update_integration_test_durations.py; only full matrix dev
+        # runs produce usable data.
+        if: github.ref == 'refs/heads/dev' && needs.determine-jobs.outputs.integration-run-all == 'true'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: junit-integration-${{ strategy.job-index }}
+          path: junit-integration.xml
+          if-no-files-found: error
+          # A full cron period of margin for the weekly refresh
+          retention-days: 14
       - name: Print ccache statistics
         # esphome stores the PlatformIO ccache under the machine-global cache
         # dir (see _ccache_env() in esphome/platformio/toolchain.py).
         run: CCACHE_DIR="$HOME/.cache/esphome/platformio-ccache" ccache -s
+      - name: Save integration PlatformIO cache
+        # Bucket 0 only; the others would race the same immutable key.
+        if: success() && (github.ref == 'refs/heads/dev' || contains(github.event.pull_request.labels.*.name, 'ci-cache-write')) && strategy.job-index == 0 && steps.pio-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ env.INTEGRATION_PIO_CACHE_PATH }}
+          key: ${{ steps.pio-cache.outputs.cache-primary-key }}
 
   import-time:
     name: Check import esphome.__main__ time
@@ -649,6 +705,12 @@ jobs:
         with:
           framework: arduino
 
+      - name: Cache clang-tidy idedata
+        if: matrix.cache_idf
+        uses: ./.github/actions/cache-clang-tidy-idedata
+        with:
+          environment: esp32-arduino-tidy
+
       - name: Cache nRF Connect SDK install
         if: matrix.cache_sdk_nrf
         uses: ./.github/actions/cache-sdk-nrf
@@ -698,6 +760,10 @@ jobs:
           # Also cache libdeps, store them in a ~/.platformio subfolder
           PLATFORMIO_LIBDEPS_DIR: ~/.platformio/libdeps
 
+      - name: Prune ESP-IDF install before cache save
+        if: matrix.cache_idf && (github.ref == 'refs/heads/dev' || contains(github.event.pull_request.labels.*.name, 'ci-cache-write'))
+        uses: ./.github/actions/prune-esp-idf
+
       - name: Suggested changes
         run: script/ci-suggest-changes ${{ matrix.ignore_errors && '|| true' || '' }}
         # yamllint disable-line rule:line-length
@@ -729,6 +795,11 @@ jobs:
 
       - name: Cache ESP-IDF install
         uses: ./.github/actions/cache-esp-idf
+
+      - name: Cache clang-tidy idedata
+        uses: ./.github/actions/cache-clang-tidy-idedata
+        with:
+          environment: esp32-idf-tidy
 
       - name: Register problem matchers
         run: |
@@ -763,6 +834,10 @@ jobs:
         env:
           # Also cache libdeps, store them in a ~/.platformio subfolder
           PLATFORMIO_LIBDEPS_DIR: ~/.platformio/libdeps
+
+      - name: Prune ESP-IDF install before cache save
+        if: (github.ref == 'refs/heads/dev' || contains(github.event.pull_request.labels.*.name, 'ci-cache-write'))
+        uses: ./.github/actions/prune-esp-idf
 
       - name: Suggested changes
         run: script/ci-suggest-changes
@@ -809,6 +884,11 @@ jobs:
       - name: Cache ESP-IDF install
         uses: ./.github/actions/cache-esp-idf
 
+      - name: Cache clang-tidy idedata
+        uses: ./.github/actions/cache-clang-tidy-idedata
+        with:
+          environment: esp32-idf-tidy
+
       - name: Register problem matchers
         run: |
           echo "::add-matcher::.github/workflows/matchers/gcc.json"
@@ -843,6 +923,10 @@ jobs:
           # Also cache libdeps, store them in a ~/.platformio subfolder
           PLATFORMIO_LIBDEPS_DIR: ~/.platformio/libdeps
 
+      - name: Prune ESP-IDF install before cache save
+        if: (github.ref == 'refs/heads/dev' || contains(github.event.pull_request.labels.*.name, 'ci-cache-write'))
+        uses: ./.github/actions/prune-esp-idf
+
       - name: Suggested changes
         run: script/ci-suggest-changes
         if: always()
@@ -866,16 +950,19 @@ jobs:
             name: Run script/clang-tidy for ESP32 S3
             # yamllint disable-line rule:line-length
             options: --environment esp32s3-idf-tidy --grep SOC_TEMP_SENSOR_SUPPORTED --grep USE_ESP32_VARIANT_ESP32S3 --grep USE_LOGGER_USB_CDC
+            tidy_environment: esp32s3-idf-tidy
           - id: clang-tidy
             name: Run script/clang-tidy for ESP32 P4
             # P4 has no native Wi-Fi/BLE; those run over the hosted co-processor,
             # so their code paths differ -- lint them under the P4 build too.
             # yamllint disable-line rule:line-length
             options: --environment esp32p4-idf-tidy --grep USE_ESP32_VARIANT_ESP32P4 --grep USE_ESP32_HOSTED --grep USE_WIFI --grep USE_BLE
+            tidy_environment: esp32p4-idf-tidy
           - id: clang-tidy
             name: Run script/clang-tidy for ESP32 C6
             # yamllint disable-line rule:line-length
             options: --environment esp32c6-idf-tidy --grep SOC_LP_I2C_SUPPORTED --grep USE_ESP32_VARIANT_ESP32C6 --grep USE_OPENTHREAD --grep USE_ZIGBEE
+            tidy_environment: esp32c6-idf-tidy
 
     steps:
       - name: Check out code from GitHub
@@ -892,6 +979,11 @@ jobs:
 
       - name: Cache ESP-IDF install
         uses: ./.github/actions/cache-esp-idf
+
+      - name: Cache clang-tidy idedata
+        uses: ./.github/actions/cache-clang-tidy-idedata
+        with:
+          environment: ${{ matrix.tidy_environment }}
 
       - name: Register problem matchers
         run: |
@@ -925,6 +1017,10 @@ jobs:
             echo "Running clang-tidy on changed files only"
             script/clang-tidy --fix --changed ${{ matrix.options }}
           fi
+
+      - name: Prune ESP-IDF install before cache save
+        if: (github.ref == 'refs/heads/dev' || contains(github.event.pull_request.labels.*.name, 'ci-cache-write'))
+        uses: ./.github/actions/prune-esp-idf
 
       - name: Suggested changes
         run: script/ci-suggest-changes

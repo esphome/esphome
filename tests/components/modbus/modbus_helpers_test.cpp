@@ -427,14 +427,37 @@ TEST(ModbusHelpersTest, RegistersToNumberMatchesPayloadToNumber) {
   }
 }
 
+TEST(ModbusHelpersTest, RegistersToNumberMatchesPayloadToNumberForQwords) {
+  // The word shuffle the QWORD_R decode replaces is the least obvious code in the byte path, so pin
+  // it against that path rather than against registers_to_value(). The top bit is set, which is where
+  // U_QWORD's unsigned value and this function's int64_t return deliberately diverge.
+  const uint16_t registers[] = {0xF123, 0x4567, 0x89AB, 0xCDEF};
+  const std::vector<uint8_t> bytes{0xF1, 0x23, 0x45, 0x67, 0x89, 0xAB, 0xCD, 0xEF};
+  for (auto value_type :
+       {SensorValueType::U_QWORD, SensorValueType::S_QWORD, SensorValueType::U_QWORD_R, SensorValueType::S_QWORD_R}) {
+    EXPECT_EQ(registers_to_number(registers, 4, value_type),
+              payload_to_number(std::span<const uint8_t>(bytes), value_type, 0, 0xFFFFFFFF))
+        << "value_type=" << static_cast<int>(value_type);
+  }
+}
+
+TEST(ModbusHelpersTest, RegistersToNumberTreatsRawAndBitAsNothingToDecode) {
+  // Both have no fixed-width number, so they decode to 0 whatever the span holds - including none.
+  const uint16_t registers[] = {0x1234};
+  EXPECT_EQ(registers_to_number(registers, 1, SensorValueType::RAW), std::optional<int64_t>(0));
+  EXPECT_EQ(registers_to_number(registers, 0, SensorValueType::RAW), std::optional<int64_t>(0));
+  EXPECT_EQ(registers_to_number(registers, 0, SensorValueType::BIT), std::optional<int64_t>(0));
+}
+
 TEST(ModbusHelpersTest, RegistersToNumberRejectsTruncatedMultiRegisterValue) {
   const uint16_t registers[] = {0x1234};
   EXPECT_FALSE(registers_to_number(registers, 1, SensorValueType::U_DWORD).has_value());
 }
 
 // --- registers_to_value ----------------------------------------------------
-// The compile-time decoder must agree with the runtime one for every type it supports,
-// so the two implementations cannot drift apart.
+// registers_to_number() dispatches to registers_to_value(), so this checks the dispatch table picks
+// the right specialisation for each type, not that two implementations agree. The independent check
+// against the byte decoder is RegistersToNumberMatchesPayloadToNumber below.
 
 template<SensorValueType VALUE_TYPE> void expect_matches_registers_to_number(const uint16_t *registers) {
   const auto expected = registers_to_number(registers, register_width_for(VALUE_TYPE), VALUE_TYPE);
@@ -470,6 +493,64 @@ TEST(ModbusHelpersTest, RegistersToValueMatchesRegistersToNumber) {
 
 TEST(ModbusHelpersTest, RegistersToUint32CombinesWordsHighFirst) {
   EXPECT_EQ(registers_to_uint32(0x1234, 0x5678), 0x12345678u);
+}
+
+// --- value_at ---------------------------------------------------------------
+// Addresses are absolute; anything not wholly inside the response yields nullopt.
+
+TEST(ModbusHelpersTest, ValueAtDecodesByAbsoluteAddress) {
+  const uint16_t registers[] = {0x1111, 0x2222, 0x3333};
+  const std::span<const uint16_t> span(registers, 3);
+  EXPECT_EQ(value_at<SensorValueType::U_WORD>(span, 100, 100), std::optional<uint16_t>(0x1111));
+  EXPECT_EQ(value_at<SensorValueType::U_WORD>(span, 100, 102), std::optional<uint16_t>(0x3333));
+  EXPECT_EQ(value_at<SensorValueType::U_DWORD>(span, 100, 101), std::optional<uint32_t>(0x22223333u));
+  // Types whose RegisterValueType<> is not an unsigned integer, and the widest bounds check.
+  const uint16_t floats[] = {0x4048, 0xF5C3, 0xF5C3, 0x4048};
+  const std::span<const uint16_t> float_span(floats, 4);
+  EXPECT_FLOAT_EQ(value_at<SensorValueType::FP32>(float_span, 10, 10).value_or(0.0f), 3.14f);
+  EXPECT_FLOAT_EQ(value_at<SensorValueType::FP32_R>(float_span, 10, 12).value_or(0.0f), 3.14f);
+  EXPECT_EQ(value_at<SensorValueType::U_QWORD>(float_span, 10, 10), std::optional<uint64_t>(0x4048F5C3F5C34048ULL));
+  EXPECT_FALSE(value_at<SensorValueType::U_QWORD>(float_span, 10, 11).has_value());
+}
+
+TEST(ModbusHelpersTest, ValueAtIsUsableInAConstantExpression) {
+  static constexpr uint16_t REGISTERS[] = {0x1234, 0x5678};
+  static_assert(value_at<SensorValueType::U_DWORD>(REGISTERS, 7, 7).value_or(0) == 0x12345678u);
+  static_assert(!value_at<SensorValueType::U_DWORD>(REGISTERS, 7, 6).has_value());
+}
+
+TEST(ModbusHelpersTest, ValueAtRejectsAddressesOutsideTheResponse) {
+  const uint16_t registers[] = {0x1111, 0x2222, 0x3333};
+  const std::span<const uint16_t> span(registers, 3);
+  // Below the response: must not wrap when the subtraction would go negative.
+  EXPECT_FALSE(value_at<SensorValueType::U_WORD>(span, 100, 99).has_value());
+  EXPECT_FALSE(value_at<SensorValueType::U_WORD>(span, 100, 0).has_value());
+  // Past the end, and a multi-register value truncated by the end of the response.
+  EXPECT_FALSE(value_at<SensorValueType::U_WORD>(span, 100, 103).has_value());
+  EXPECT_FALSE(value_at<SensorValueType::U_DWORD>(span, 100, 102).has_value());
+  EXPECT_TRUE(value_at<SensorValueType::U_DWORD>(span, 100, 101).has_value());
+}
+
+TEST(ModbusHelpersTest, ValueAtHandlesAnEmptyResponse) {
+  EXPECT_FALSE(value_at<SensorValueType::U_WORD>(std::span<const uint16_t>(), 0, 0).has_value());
+}
+
+// --- QWORD decoding ---------------------------------------------------------
+
+TEST(ModbusHelpersTest, RegistersToValueDecodesQwordBothWordOrders) {
+  const uint16_t registers[] = {0x0123, 0x4567, 0x89AB, 0xCDEF};
+  EXPECT_EQ(registers_to_value<SensorValueType::U_QWORD>(registers), 0x0123456789ABCDEFULL);
+  const uint16_t reversed[] = {0xCDEF, 0x89AB, 0x4567, 0x0123};
+  EXPECT_EQ(registers_to_value<SensorValueType::U_QWORD_R>(reversed), 0x0123456789ABCDEFULL);
+  // Signed reading of the same bits, and the sign-extreme case.
+  EXPECT_EQ(registers_to_value<SensorValueType::S_QWORD>(registers), 0x0123456789ABCDEFLL);
+  const uint16_t negative[] = {0xFFFF, 0xFFFF, 0xFFFF, 0xFFFE};
+  EXPECT_EQ(registers_to_value<SensorValueType::S_QWORD>(negative), -2);
+  EXPECT_EQ(registers_to_value<SensorValueType::U_QWORD>(negative), 0xFFFFFFFFFFFFFFFEULL);
+}
+
+TEST(ModbusHelpersTest, RegistersToUint64CombinesWordsHighFirst) {
+  EXPECT_EQ(registers_to_uint64(0x0123, 0x4567, 0x89AB, 0xCDEF), 0x0123456789ABCDEFULL);
 }
 
 // --- packed bit helpers ------------------------------------------------------
