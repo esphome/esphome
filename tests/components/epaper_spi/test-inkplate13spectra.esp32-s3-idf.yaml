@@ -1,0 +1,19 @@
+packages:
+  spi: !include ../../test_build_components/common/spi/esp32-s3-idf.yaml
+
+# Soldered Inkplate 13 Spectra: dual-chip controller, 4bpp framebuffer (1200x1600/2
+# bytes ~ 937KB) doesn't fit in internal SRAM, hence its own psram-enabled test file
+# instead of the shared bus-grouped test.esp32-s3-idf.yaml.
+display:
+  - platform: epaper_spi
+    spi_id: spi_bus
+    model: inkplate13spectra
+    bs0_pin: GPIO8  # override: model default (GPIO6) collides with this file's mosi_pin
+    lambda: |-
+      it.fill(Color(255, 255, 255));
+      it.circle(it.get_width() / 2, it.get_height() / 2, 100, Color(0, 0, 0));
+      it.circle(it.get_width() / 2, it.get_height() / 2, 60, Color(255, 0, 0));
+
+psram:
+  mode: octal
+  speed: 80MHz
