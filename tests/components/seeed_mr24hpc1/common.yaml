@@ -1,5 +1,6 @@
 seeed_mr24hpc1:
   id: my_seeed_mr24hpc1
+  startup_delay: 5s
 
 sensor:
   - platform: seeed_mr24hpc1

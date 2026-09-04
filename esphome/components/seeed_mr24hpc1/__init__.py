@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 from esphome.components import uart
 import esphome.config_validation as cv
-from esphome.const import CONF_ID
+from esphome.const import CONF_ID, CONF_STARTUP_DELAY
 from esphome.types import ConfigType
 
 DEPENDENCIES = ["uart"]
@@ -24,6 +24,9 @@ CONFIG_SCHEMA = (
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(MR24HPC1Component),
+            cv.Optional(
+                CONF_STARTUP_DELAY, default="0s"
+            ): cv.positive_time_period_milliseconds,
         }
     )
     .extend(uart.UART_DEVICE_SCHEMA)
@@ -51,3 +54,4 @@ async def to_code(config: ConfigType) -> None:
     await cg.register_component(var, config)
     # This line of code registers the newly created Pvariable as a device.
     await uart.register_uart_device(var, config)
+    cg.add(var.set_startup_delay(config[CONF_STARTUP_DELAY]))
