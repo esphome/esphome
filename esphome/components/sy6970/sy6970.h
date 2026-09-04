@@ -73,7 +73,7 @@ class SY6970Listener {
   virtual void on_data(const SY6970Data &data) = 0;
 };
 
-class SY6970Component : public PollingComponent, public i2c::I2CDevice {
+class SY6970Component final : public PollingComponent, public i2c::I2CDevice {
  public:
   SY6970Component(bool led_enabled, uint16_t input_current_limit, uint16_t charge_voltage, uint16_t charge_current,
                   uint16_t precharge_current, bool charge_enabled, bool enable_adc)

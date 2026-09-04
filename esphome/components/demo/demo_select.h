@@ -5,7 +5,7 @@
 
 namespace esphome::demo {
 
-class DemoSelect : public select::Select, public Component {
+class DemoSelect final : public select::Select, public Component {
  protected:
   void control(size_t index) override { this->publish_state(index); }
 };

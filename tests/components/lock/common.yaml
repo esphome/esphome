@@ -7,7 +7,7 @@ esphome:
 
 output:
   - platform: gpio
-    id: test_binary
+    id: lock_test_binary
     pin: 4
 
 lock:
@@ -32,4 +32,4 @@ lock:
   - platform: output
     name: Generic Output Lock
     id: test_lock2
-    output: test_binary
+    output: lock_test_binary

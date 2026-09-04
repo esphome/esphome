@@ -25,15 +25,25 @@ def clear_host_prefs(device_name: str) -> None:
     host_prefs_path(device_name).unlink(missing_ok=True)
 
 
+def write_host_prefs(device_name: str, entries: dict[int, bytes]) -> Path:
+    """Write preference entries, replacing the file's contents.
+
+    Returns the path that was written.
+    """
+    payload = b""
+    for key, data in entries.items():
+        if len(data) > 255:
+            raise ValueError(f"Preference data too long: {len(data)} bytes (max 255)")
+        payload += struct.pack("<IB", key, len(data)) + data
+    path = host_prefs_path(device_name)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(payload)
+    return path
+
+
 def write_host_pref(device_name: str, key: int, data: bytes) -> Path:
     """Write a single preference entry, replacing the file's contents.
 
     Returns the path that was written.
     """
-    if len(data) > 255:
-        raise ValueError(f"Preference data too long: {len(data)} bytes (max 255)")
-    path = host_prefs_path(device_name)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    payload = struct.pack("<IB", key, len(data)) + data
-    path.write_bytes(payload)
-    return path
+    return write_host_prefs(device_name, {key: data})

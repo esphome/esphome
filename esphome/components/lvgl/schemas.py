@@ -1,12 +1,15 @@
 from collections.abc import Callable
+import functools
 from typing import Any
 
 from esphome import config_validation as cv
 from esphome.automation import Trigger, validate_automation
+from esphome.components.mapping import mapping_class
 from esphome.components.time import RealTimeClock
 from esphome.config_validation import prepend_path
 from esphome.const import (
     CONF_ARGS,
+    CONF_DEFAULT,
     CONF_FORMAT,
     CONF_GROUP,
     CONF_ID,
@@ -17,16 +20,22 @@ from esphome.const import (
     CONF_TEXT,
     CONF_TIME,
     CONF_TRIGGER_ID,
+    CONF_VALUE,
     CONF_X,
     CONF_Y,
 )
 from esphome.core import TimePeriod
 from esphome.core.config import StartupTrigger
-from esphome.schema_extractors import EnableSchemaExtraction
+from esphome.schema_extractors import (
+    SCHEMA_EXTRACT,
+    EnableSchemaExtraction,
+    schema_extractor,
+)
 
 from . import defines as df, lv_validation as lvalid
 from .defines import (
     CONF_EXT_CLICK_AREA,
+    CONF_MAPPING,
     CONF_SCROLL_DIR,
     CONF_SCROLL_SNAP_X,
     CONF_SCROLL_SNAP_Y,
@@ -48,6 +57,7 @@ from .layout import (
     GRID_CELL_SCHEMA,
     append_layout_schema,
     grid_alignments,
+    layout_validator,
 )
 from .lv_validation import lv_color, lv_font, lv_gradient, lv_image, opacity
 from .lvcode import UPDATE_EVENT, LvglComponent, lv_event_t_ptr
@@ -61,7 +71,7 @@ from .types import (
     lv_pseudo_button_t,
     lv_style_t,
 )
-from .widgets import WidgetType
+from .widgets import WidgetType, collect_parts
 
 # this will be populated later, in __init__.py to avoid circular imports.
 WIDGET_TYPES: dict = {}
@@ -85,6 +95,20 @@ PRINTF_TEXT_SCHEMA = cv.All(
     validate_printf,
 )
 
+MAPPING_TEXT_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_MAPPING): cv.use_id(mapping_class),
+        cv.Required(CONF_VALUE): cv.templatable(cv.string),
+    }
+)
+
+MAPPING_IMAGE_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_MAPPING): cv.use_id(mapping_class),
+        cv.Required(CONF_VALUE): cv.templatable(cv.string),
+    }
+)
+
 
 def _validate_text(value):
     """
@@ -98,6 +122,8 @@ def _validate_text(value):
             return TIME_TEXT_SCHEMA(value)
         if CONF_FORMAT in value:
             return PRINTF_TEXT_SCHEMA(value)
+        if CONF_MAPPING in value:
+            return MAPPING_TEXT_SCHEMA(value)
 
     return cv.templatable(cv.string)(value)
 
@@ -501,6 +527,7 @@ def base_update_schema(widget_type: WidgetType | LvType, parts):
                 )
             ),
             cv.Optional(CONF_STATE): SET_STATE_SCHEMA,
+            cv.Optional(df.CONF_LAYOUT): layout_validator,
         }
     )
 
@@ -567,6 +594,96 @@ def obj_schema(widget_type: WidgetType) -> cv.Schema:
     return schema
 
 
+@functools.cache
+def _build_theme_schema(
+    widget_types: tuple[tuple[str, WidgetType], ...],
+    include_dark_mode: bool = True,
+) -> cv.Schema:
+    # The theme schema is value-independent: it depends only on the set of
+    # registered widget types. Key the cache on a snapshot of WIDGET_TYPES so
+    # that an external component registering a new widget after the first
+    # validation (legal per any_widget_schema's lazy-evaluation contract)
+    # produces a fresh tuple, a cache miss, and a rebuilt schema -- the cache
+    # self-heals instead of stale-rejecting valid themes. See obj_dict() above
+    # for why chained .extend() is avoided here.
+    return cv.Schema(
+        {
+            **(
+                {cv.Optional(df.CONF_DARK_MODE, default=False): cv.boolean}
+                if include_dark_mode
+                else {}
+            ),
+            **{
+                cv.Optional(name): cv.Schema(
+                    {**obj_dict(w), **FULL_STYLE_SCHEMA.schema}
+                )
+                for name, w in widget_types
+            },
+        }
+    )
+
+
+def _reject_theme_styles_key(validated: dict) -> dict:
+    """
+    `styles:` (a list of already-declared named styles) is not allowed inside
+    `theme:` -- the hidden style objects theme: creates only carry direct
+    style properties, so a `styles:` reference there would be silently
+    dropped by `style_set`, which only walks `ALL_STYLES`.
+    """
+    for w_name, style in validated.items():
+        if w_name not in WIDGET_TYPES:
+            continue
+        for part, states in collect_parts(style).items():
+            for state, props in states.items():
+                if df.CONF_STYLES not in props:
+                    continue
+                path = [w_name]
+                if part != df.CONF_MAIN:
+                    path.append(part)
+                if state != CONF_DEFAULT:
+                    path.append(state)
+                path.append(df.CONF_STYLES)
+                raise cv.Invalid(
+                    "'styles:' is not allowed in LVGL theme styles. "
+                    "Set style properties directly instead.",
+                    path,
+                )
+    return validated
+
+
+def theme_schema(value: dict) -> dict:
+    return _reject_theme_styles_key(
+        _build_theme_schema(tuple(WIDGET_TYPES.items()))(value)
+    )
+
+
+def theme_update_schema(value: dict) -> dict:
+    """
+    Schema for `lvgl.theme.update`: same shape as `theme:` minus `dark_mode`.
+    As a validation side effect, records which (widget type, part, state)
+    combos are targeted so `theme_to_code` can make sure a hidden style
+    exists for each -- even ones never mentioned under `theme:` -- and gets
+    it attached to widgets at the same point real theme styles are.
+    """
+    validated = _reject_theme_styles_key(
+        _build_theme_schema(tuple(WIDGET_TYPES.items()), include_dark_mode=False)(value)
+    )
+    for w_name, style in validated.items():
+        for part, states in collect_parts(style).items():
+            for state, props in states.items():
+                # collect_parts() unconditionally seeds a main/default entry
+                # even when nothing was set for it (e.g. `{pressed: {...}}`
+                # alone) -- skip combos with no properties so a request for
+                # one state doesn't also create an unused, empty main/default
+                # style that gets attached to every widget of this type.
+                if not props:
+                    continue
+                df.get_theme_update_requests().setdefault(w_name, {})[(part, state)] = (
+                    None
+                )
+    return validated
+
+
 ALIGN_TO_SCHEMA = {
     cv.Optional(df.CONF_ALIGN_TO): cv.Schema(
         {
@@ -610,6 +727,26 @@ ALL_STYLES = {
 }
 
 
+def apply_style_driven_defines(props: set[str]) -> None:
+    """Given a set of style-property names in use, registers everything their use
+    drives: add_lv_use(image) if any of them is image-typed (per BASE_PROPS), and
+    the LV_COLOR_SCREEN_TRANSP / LV_DRAW_SW_SUPPORT_A8 defines. Shared between
+    __init__.py (driven by df.get_styles_used(), for statically-declared widgets)
+    and lv_list.py's _register_dynamic_widget_style_uses (driven by scanning a
+    dynamically-added widget's own config), so a future style-driven define added
+    to one can't be missed in the other.
+    """
+    # Local import: avoids a module-load-time cycle (widgets.img -> ... -> schemas).
+    from .widgets.img import CONF_IMAGE
+
+    if any(BASE_PROPS.get(prop) is lvalid.lv_image for prop in props):
+        df.add_lv_use(CONF_IMAGE)
+    if df.TRANSFORM_STYLE_PROPS & props:
+        df.add_define("LV_COLOR_SCREEN_TRANSP", "1")
+    if df.DROP_SHADOW_STYLE_PROPS & props:
+        df.add_define("LV_DRAW_SW_SUPPORT_A8", "1")
+
+
 def strip_defaults(schema: cv.Schema):
     """
     Take a schema and remove any default values, also convert Required to Optional.
@@ -626,6 +763,25 @@ def strip_defaults(schema: cv.Schema):
 _CONTAINER_SCHEMA_CACHE: dict[
     tuple[int, int], tuple[Any, Any, Callable[[Any], Any]]
 ] = {}
+
+
+def container_schema_value(widget_type: WidgetType, extras: Any = None) -> cv.Schema:
+    """
+    Build the static schema that :func:`container_schema` validates against, i.e.
+    everything except the value-dependent ``append_layout_schema`` applied at
+    validation time.
+
+    Factored out and exposed so the language-schema dumper can extract a
+    representative schema for a widget — and for the top-level ``lvgl:`` block,
+    whose ``CONFIG_SCHEMA`` is a callable that otherwise hides this behind the
+    :func:`container_schema` validator closure.
+    """
+    schema = obj_schema(widget_type).extend(
+        {cv.GenerateID(): cv.declare_id(widget_type.w_type)}
+    )
+    if extras:
+        schema = schema.extend(extras)
+    return schema.extend(widget_type.schema)
 
 
 def container_schema(
@@ -650,12 +806,7 @@ def container_schema(
     def get_schema() -> cv.Schema:
         nonlocal cached_schema
         if cached_schema is None:
-            schema = obj_schema(widget_type).extend(
-                {cv.GenerateID(): cv.declare_id(widget_type.w_type)}
-            )
-            if extras:
-                schema = schema.extend(extras)
-            cached_schema = schema.extend(widget_type.schema)
+            cached_schema = container_schema_value(widget_type, extras)
         return cached_schema
 
     def validator(value: Any) -> Any:
@@ -679,7 +830,23 @@ def any_widget_schema(extras=None):
     :return: A validator for the Widgets key
     """
 
+    @schema_extractor("schema")
     def validator(value):
+        if value is SCHEMA_EXTRACT:
+            # The widgets: list is built per-value at validation time, so the
+            # language-schema dumper sees nothing. Enumerate every registered
+            # widget type as an optional key (a widget item is really a
+            # single-key mapping; over-listing them lets editors complete any
+            # widget — `esphome config` enforces exactly one). extras carries the
+            # layout child options where applicable.
+            return cv.ensure_list(
+                cv.Schema(
+                    {
+                        cv.Optional(name): container_schema_value(widget_type, extras)
+                        for name, widget_type in WIDGET_TYPES.items()
+                    }
+                )
+            )
         if isinstance(value, dict):
             # Convert to list
             is_dict = True

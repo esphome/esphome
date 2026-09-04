@@ -10,7 +10,7 @@
 
 namespace esphome::mqtt {
 
-class MQTTAlarmControlPanelComponent : public mqtt::MQTTComponent {
+class MQTTAlarmControlPanelComponent final : public mqtt::MQTTComponent {
  public:
   explicit MQTTAlarmControlPanelComponent(alarm_control_panel::AlarmControlPanel *alarm_control_panel);
 

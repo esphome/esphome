@@ -57,8 +57,9 @@ void ST7701S::draw_pixels_at(int x_start, int y_start, int w, int h, const uint8
   // if color mapping is required, pass the buck.
   // note that endianness is not considered here - it is assumed to match!
   if (bitness != display::COLOR_BITNESS_565) {
-    return display::Display::draw_pixels_at(x_start, y_start, w, h, ptr, order, bitness, big_endian, x_offset, y_offset,
-                                            x_pad);
+    display::Display::draw_pixels_at(x_start, y_start, w, h, ptr, order, bitness, big_endian, x_offset, y_offset,
+                                     x_pad);
+    return;
   }
   x_start += this->offset_x_;
   y_start += this->offset_y_;
@@ -77,8 +78,9 @@ void ST7701S::draw_pixels_at(int x_start, int y_start, int w, int h, const uint8
         break;
     }
   }
-  if (err != ESP_OK)
+  if (err != ESP_OK) {
     esph_log_e(TAG, "lcd_lcd_panel_draw_bitmap failed: %s", esp_err_to_name(err));
+  }
 }
 
 void ST7701S::draw_pixel_at(int x, int y, Color color) {

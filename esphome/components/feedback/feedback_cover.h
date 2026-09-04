@@ -10,7 +10,7 @@
 
 namespace esphome::feedback {
 
-class FeedbackCover : public cover::Cover, public Component {
+class FeedbackCover final : public cover::Cover, public Component {
  public:
   void setup() override;
   void loop() override;

@@ -5,7 +5,7 @@ import importlib.util
 import json
 from pathlib import Path
 import sys
-from unittest.mock import Mock, call, patch
+from unittest.mock import Mock, patch
 
 import pytest
 
@@ -68,13 +68,13 @@ def mock_should_run_device_builder() -> Generator[Mock, None, None]:
 
 
 @pytest.fixture
-def mock_native_idf_components_to_test() -> Generator[Mock, None, None]:
-    """Mock native_idf_components_to_test from determine_jobs.
+def mock_esp32_platformio_components_to_test() -> Generator[Mock, None, None]:
+    """Mock esp32_platformio_components_to_test from determine_jobs.
 
-    main() drives both the ``native_idf`` boolean output and the
-    ``native_idf_components`` CSV from this one function.
+    main() drives both the ``esp32_platformio`` boolean output and the
+    ``esp32_platformio_components`` CSV from this one function.
     """
-    with patch.object(determine_jobs, "native_idf_components_to_test") as mock:
+    with patch.object(determine_jobs, "esp32_platformio_components_to_test") as mock:
         yield mock
 
 
@@ -115,7 +115,7 @@ def test_main_all_tests_should_run(
     mock_should_run_python_linters: Mock,
     mock_should_run_import_time: Mock,
     mock_should_run_device_builder: Mock,
-    mock_native_idf_components_to_test: Mock,
+    mock_esp32_platformio_components_to_test: Mock,
     mock_changed_files: Mock,
     mock_determine_cpp_unit_tests: Mock,
     capsys: pytest.CaptureFixture[str],
@@ -131,7 +131,7 @@ def test_main_all_tests_should_run(
     mock_should_run_python_linters.return_value = True
     mock_should_run_import_time.return_value = True
     mock_should_run_device_builder.return_value = True
-    mock_native_idf_components_to_test.return_value = ["api", "esp32"]
+    mock_esp32_platformio_components_to_test.return_value = ["api", "esp32"]
     mock_determine_cpp_unit_tests.return_value = (False, ["wifi", "api", "sensor"])
 
     # Mock changed_files to return non-component files (to avoid memory impact)
@@ -151,8 +151,13 @@ def test_main_all_tests_should_run(
         patch.object(determine_jobs, "_is_clang_tidy_full_scan", return_value=False),
         patch.object(
             determine_jobs,
-            "_all_integration_test_files",
+            "all_integration_test_files",
             return_value=fake_test_files,
+        ),
+        patch.object(
+            determine_jobs,
+            "load_integration_durations",
+            return_value=dict.fromkeys(fake_test_files, 200.0),
         ),
         patch.object(
             determine_jobs,
@@ -189,32 +194,20 @@ def test_main_all_tests_should_run(
     output = json.loads(captured.out)
 
     assert output["integration_tests"] is True
-    # run_all=True expands to the full glob and pre-buckets into 3 parts.
-    # Each bucket's `tests` is a JSON list of file paths.
+    assert output["integration_run_all"] is True
+    # run_all=True expands to the full glob; balance and naming are pinned
+    # by the unit tests, main() only needs to round-trip the structure
     assert isinstance(output["integration_test_buckets"], list)
-    assert len(output["integration_test_buckets"]) == 3
-    assert [b["name"] for b in output["integration_test_buckets"]] == [
-        "1/3",
-        "2/3",
-        "3/3",
-    ]
-    for bucket in output["integration_test_buckets"]:
-        assert isinstance(bucket["tests"], list)
-        for path in bucket["tests"]:
-            assert isinstance(path, str)
     bucket_files = [f for b in output["integration_test_buckets"] for f in b["tests"]]
-    assert bucket_files == fake_test_files
-    # Bucket sizes are balanced (max-min difference at most 1).
-    sizes = [len(b["tests"]) for b in output["integration_test_buckets"]]
-    assert max(sizes) - min(sizes) <= 1
+    assert sorted(bucket_files) == fake_test_files
     assert output["clang_tidy"] is True
     assert output["clang_tidy_mode"] in ["nosplit", "split"]
     assert output["clang_format"] is True
     assert output["python_linters"] is True
     assert output["import_time"] is True
     assert output["device_builder"] is True
-    assert output["native_idf"] is True
-    assert output["native_idf_components"] == "api,esp32"
+    assert output["esp32_platformio"] is True
+    assert output["esp32_platformio_components"] == "api,esp32"
     assert output["changed_components"] == ["wifi", "api", "sensor"]
     # changed_components_with_tests will only include components that actually have test files
     assert "changed_components_with_tests" in output
@@ -231,14 +224,16 @@ def test_main_all_tests_should_run(
     assert output["memory_impact"]["should_run"] == "false"
     assert output["cpp_unit_tests_run_all"] is False
     assert output["cpp_unit_tests_components"] == ["wifi", "api", "sensor"]
-    # component_test_batches should be present and be a list of space-separated strings
+    # component_test_batches should be a list of matrix entries carrying the
+    # space-separated component list and the toolchain-need flags
     assert "component_test_batches" in output
     assert isinstance(output["component_test_batches"], list)
-    # Each batch should be a space-separated string of component names
     for batch in output["component_test_batches"]:
-        assert isinstance(batch, str)
+        assert isinstance(batch, dict)
         # Should contain at least one component (no empty batches)
-        assert len(batch) > 0
+        assert len(batch["components"]) > 0
+        assert isinstance(batch["needs_idf"], bool)
+        assert isinstance(batch["needs_nrf"], bool)
 
 
 def test_main_no_tests_should_run(
@@ -248,7 +243,7 @@ def test_main_no_tests_should_run(
     mock_should_run_python_linters: Mock,
     mock_should_run_import_time: Mock,
     mock_should_run_device_builder: Mock,
-    mock_native_idf_components_to_test: Mock,
+    mock_esp32_platformio_components_to_test: Mock,
     mock_changed_files: Mock,
     mock_determine_cpp_unit_tests: Mock,
     capsys: pytest.CaptureFixture[str],
@@ -264,7 +259,7 @@ def test_main_no_tests_should_run(
     mock_should_run_python_linters.return_value = False
     mock_should_run_import_time.return_value = False
     mock_should_run_device_builder.return_value = False
-    mock_native_idf_components_to_test.return_value = []
+    mock_esp32_platformio_components_to_test.return_value = []
     mock_determine_cpp_unit_tests.return_value = (False, [])
 
     # Mock changed_files to return no component files
@@ -305,8 +300,8 @@ def test_main_no_tests_should_run(
     assert output["python_linters"] is False
     assert output["import_time"] is False
     assert output["device_builder"] is False
-    assert output["native_idf"] is False
-    assert output["native_idf_components"] == ""
+    assert output["esp32_platformio"] is False
+    assert output["esp32_platformio_components"] == ""
     assert output["changed_components"] == []
     assert output["changed_components_with_tests"] == []
     assert output["component_test_count"] == 0
@@ -322,6 +317,65 @@ def test_main_no_tests_should_run(
     assert output["component_test_batches"] == []
 
 
+def test_main_esp_idf_infra_change_folds_esp32(
+    mock_determine_integration_tests: Mock,
+    mock_should_run_clang_tidy: Mock,
+    mock_should_run_clang_format: Mock,
+    mock_should_run_python_linters: Mock,
+    mock_should_run_import_time: Mock,
+    mock_should_run_device_builder: Mock,
+    mock_esp32_platformio_components_to_test: Mock,
+    mock_changed_files: Mock,
+    mock_determine_cpp_unit_tests: Mock,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An ESP-IDF infra-only change folds the `esp32` component into the matrix,
+    so the default native-IDF build path is still compiled."""
+    monkeypatch.delenv("GITHUB_ACTIONS", raising=False)
+
+    mock_determine_integration_tests.return_value = (False, [])
+    mock_should_run_clang_tidy.return_value = False
+    mock_should_run_clang_format.return_value = False
+    mock_should_run_python_linters.return_value = False
+    mock_should_run_import_time.return_value = False
+    mock_should_run_device_builder.return_value = False
+    mock_esp32_platformio_components_to_test.return_value = []
+    mock_determine_cpp_unit_tests.return_value = (False, [])
+
+    # IDF build generator changed; no component changed.
+    mock_changed_files.return_value = ["esphome/build_gen/espidf.py"]
+
+    with (
+        patch("sys.argv", ["determine-jobs.py"]),
+        patch.object(determine_jobs, "get_changed_components", return_value=[]),
+        patch.object(
+            determine_jobs, "filter_component_and_test_files", return_value=False
+        ),
+        patch.object(
+            determine_jobs, "get_components_with_dependencies", return_value=[]
+        ),
+        # esp32 has tests on disk, but pin it so the fold-in isn't coupled to layout.
+        patch.object(determine_jobs, "_component_has_tests", return_value=True),
+        patch.object(
+            determine_jobs,
+            "detect_memory_impact_config",
+            return_value={"should_run": "false"},
+        ),
+        patch.object(
+            determine_jobs, "create_intelligent_batches", return_value=([], {})
+        ),
+    ):
+        determine_jobs.main()
+
+    output = json.loads(capsys.readouterr().out)
+    # Only `esp32` is folded in (not the whole representative set), and it's
+    # grouped, not isolated (infra changed, not the component).
+    assert output["changed_components_with_tests"] == ["esp32"]
+    assert output["directly_changed_components_with_tests"] == []
+    assert output["component_test_count"] == 1
+
+
 def test_main_with_branch_argument(
     mock_determine_integration_tests: Mock,
     mock_should_run_clang_tidy: Mock,
@@ -329,7 +383,7 @@ def test_main_with_branch_argument(
     mock_should_run_python_linters: Mock,
     mock_should_run_import_time: Mock,
     mock_should_run_device_builder: Mock,
-    mock_native_idf_components_to_test: Mock,
+    mock_esp32_platformio_components_to_test: Mock,
     mock_changed_files: Mock,
     mock_determine_cpp_unit_tests: Mock,
     capsys: pytest.CaptureFixture[str],
@@ -345,7 +399,7 @@ def test_main_with_branch_argument(
     mock_should_run_python_linters.return_value = True
     mock_should_run_import_time.return_value = True
     mock_should_run_device_builder.return_value = True
-    mock_native_idf_components_to_test.return_value = ["esp32"]
+    mock_esp32_platformio_components_to_test.return_value = ["esp32"]
     mock_determine_cpp_unit_tests.return_value = (False, ["mqtt"])
 
     # Mock changed_files to return non-component files (to avoid memory impact)
@@ -384,7 +438,7 @@ def test_main_with_branch_argument(
     mock_should_run_python_linters.assert_called_once_with("main")
     mock_should_run_import_time.assert_called_once_with("main")
     mock_should_run_device_builder.assert_called_once_with("main")
-    mock_native_idf_components_to_test.assert_called_once_with("main")
+    mock_esp32_platformio_components_to_test.assert_called_once_with("main")
 
     # Check output
     captured = capsys.readouterr()
@@ -398,8 +452,8 @@ def test_main_with_branch_argument(
     assert output["python_linters"] is True
     assert output["import_time"] is True
     assert output["device_builder"] is True
-    assert output["native_idf"] is True
-    assert output["native_idf_components"] == "esp32"
+    assert output["esp32_platformio"] is True
+    assert output["esp32_platformio_components"] == "esp32"
     assert output["changed_components"] == ["mqtt"]
     # changed_components_with_tests will only include components that actually have test files
     assert "changed_components_with_tests" in output
@@ -448,14 +502,24 @@ def test_compute_integration_test_buckets_at_threshold_stays_single() -> None:
 
 
 def test_compute_integration_test_buckets_just_over_threshold_splits() -> None:
-    """One file over the threshold triggers the 3-bucket fan-out, balanced."""
+    """One file over the threshold fans out fully when the weights demand it."""
     n = determine_jobs.INTEGRATION_TESTS_SPLIT_THRESHOLD + 1
     files = [f"tests/integration/test_{i:02d}.py" for i in range(n)]
-    run, buckets = determine_jobs._compute_integration_test_buckets(False, files)
+    with patch.object(
+        determine_jobs,
+        "load_integration_durations",
+        return_value=dict.fromkeys(files, 200.0),
+    ):
+        run, buckets = determine_jobs._compute_integration_test_buckets(False, files)
     assert run is True
-    assert [b["name"] for b in buckets] == ["1/3", "2/3", "3/3"]
-    union = [path for b in buckets for path in b["tests"]]
+    # threshold+1 files x 200s caps at the maximum bucket count.
+    n_buckets = determine_jobs.INTEGRATION_TESTS_SPLIT_BUCKETS
+    assert [b["name"] for b in buckets] == [
+        f"{i + 1}/{n_buckets}" for i in range(n_buckets)
+    ]
+    union = sorted(path for b in buckets for path in b["tests"])
     assert union == sorted(files)
+    # Equal weights => bucket sizes are balanced (difference at most 1).
     sizes = [len(b["tests"]) for b in buckets]
     assert max(sizes) - min(sizes) <= 1
 
@@ -465,7 +529,7 @@ def test_compute_integration_test_buckets_run_all_with_empty_glob_disables_run()
 ):
     """run_all=True but glob returns no files => run suppressed (otherwise
     pytest would collect tests outside tests/integration/)."""
-    with patch.object(determine_jobs, "_all_integration_test_files", return_value=[]):
+    with patch.object(determine_jobs, "all_integration_test_files", return_value=[]):
         run, buckets = determine_jobs._compute_integration_test_buckets(True, [])
     assert run is False
     assert buckets == []
@@ -491,6 +555,13 @@ def test_determine_integration_tests(
         assert run_all is True
         assert test_files == []
 
+    # Dependency pins and the session init fixture trigger run_all
+    for trigger in sorted(determine_jobs.INTEGRATION_TESTS_TRIGGER_FILES):
+        with patch.object(determine_jobs, "changed_files", return_value=[trigger]):
+            run_all, test_files = determine_jobs.determine_integration_tests()
+            assert run_all is True
+            assert test_files == []
+
     # Python files directly in esphome/ do NOT trigger tests
     with patch.object(
         determine_jobs, "changed_files", return_value=["esphome/config.py"]
@@ -503,7 +574,7 @@ def test_determine_integration_tests(
     with patch.object(
         determine_jobs,
         "changed_files",
-        return_value=["esphome/dashboard/web_server.py"],
+        return_value=["esphome/analyze_memory/helpers.py"],
     ):
         run_all, test_files = determine_jobs.determine_integration_tests()
         assert run_all is False
@@ -653,52 +724,38 @@ def test_determine_integration_tests_non_yaml_fixture_runs_all() -> None:
 
 
 @pytest.mark.parametrize(
-    ("check_returncode", "changed_files", "expected_result"),
+    ("changed_files", "expected_result"),
     [
-        (0, [], True),  # Hash changed - need full scan
-        (1, ["esphome/core.cpp"], True),  # C++ file changed
-        (1, ["README.md"], False),  # No C++ files changed
-        (1, [".clang-tidy.hash"], True),  # Hash file itself changed
-        (1, ["platformio.ini", ".clang-tidy.hash"], True),  # Config + hash changed
+        ([], False),  # Nothing changed
+        (["esphome/core.cpp"], True),  # C++ file changed
+        (["README.md"], False),  # No C++ files changed
+        ([".clang-tidy"], True),  # clang-tidy config changed - full scan
+        (["platformio.ini"], True),  # build config changed - full scan
+        (["requirements_dev.txt"], True),  # clang-tidy version source changed
+        (["sdkconfig.defaults"], True),  # sdkconfig changed - full scan
+        (["sdkconfig.defaults.esp32c6"], True),  # per-target sdkconfig changed
+        (["esphome/idf_component.yml"], True),  # idf managed deps changed
+        (["platformio.ini", "README.md"], True),  # config + non-C++
     ],
 )
 def test_should_run_clang_tidy(
-    check_returncode: int,
     changed_files: list[str],
     expected_result: bool,
 ) -> None:
     """Test should_run_clang_tidy function."""
-    with (
-        patch.object(determine_jobs, "changed_files", return_value=changed_files),
-        patch("subprocess.run") as mock_run,
-    ):
-        # Test with hash check returning specific code
-        mock_run.return_value = Mock(returncode=check_returncode)
+    with patch.object(determine_jobs, "changed_files", return_value=changed_files):
         result = determine_jobs.should_run_clang_tidy()
         assert result == expected_result
-
-
-def test_should_run_clang_tidy_hash_check_exception() -> None:
-    """Test should_run_clang_tidy when hash check fails with exception."""
-    # When hash check fails, clang-tidy should run as a safety measure
-    with (
-        patch.object(determine_jobs, "changed_files", return_value=["README.md"]),
-        patch("subprocess.run", side_effect=Exception("Hash check failed")),
-    ):
-        result = determine_jobs.should_run_clang_tidy()
-        assert result is True  # Fail safe - run clang-tidy
 
 
 def test_should_run_clang_tidy_with_branch() -> None:
     """Test should_run_clang_tidy with branch argument."""
     with patch.object(determine_jobs, "changed_files") as mock_changed:
         mock_changed.return_value = []
-        with patch("subprocess.run") as mock_run:
-            mock_run.return_value = Mock(returncode=1)  # Hash unchanged
-            determine_jobs.should_run_clang_tidy("release")
-            # Changed files is called twice now - once for hash check, once for .clang-tidy.hash check
-            assert mock_changed.call_count == 2
-            mock_changed.assert_has_calls([call("release"), call("release")])
+        determine_jobs.should_run_clang_tidy("release")
+        # changed_files is queried against the given branch by both the
+        # config-file full-scan check and the C++ extension check.
+        mock_changed.assert_called_with("release")
 
 
 @pytest.mark.parametrize(
@@ -869,7 +926,6 @@ def test_should_run_core_ci_with_branch() -> None:
         # picks them up because esphome's pyproject sets
         # include-package-data = true.
         (["esphome/idf_component.yml"], True),
-        (["esphome/dashboard/templates/index.html"], True),
         (["esphome/components/api/api_pb2_service.json"], True),
         # Mixed: any triggering file is enough
         (["docs/README.md", "esphome/config.py"], True),
@@ -930,23 +986,22 @@ def test_should_run_device_builder_skips_beta_release(target_branch: str) -> Non
         mock_changed.assert_not_called()
 
 
-_NATIVE_IDF_FULL_LIST_FILES = [
+_ESP32_PLATFORMIO_FULL_LIST_FILES = [
     # Core C++/Python changes -- caught by core_changed()
     ["esphome/core/component.cpp"],
     ["esphome/core/config.py"],
-    # Native IDF infrastructure paths
-    ["esphome/espidf/framework.py"],
-    ["esphome/espidf/component.py"],
-    ["esphome/espidf/api.py"],
-    ["esphome/build_gen/espidf.py"],
+    # PlatformIO subsystem (path-prefix trigger) + build generator
+    ["esphome/platformio/runner.py"],
+    ["esphome/platformio/toolchain.py"],
+    ["esphome/build_gen/platformio.py"],
     # Workflow / harness files
     ["script/test_build_components.py"],
     [".github/workflows/ci.yml"],
 ]
 
 
-@pytest.mark.parametrize("changed_files", _NATIVE_IDF_FULL_LIST_FILES)
-def test_native_idf_components_to_test_returns_full_list_on_infrastructure(
+@pytest.mark.parametrize("changed_files", _ESP32_PLATFORMIO_FULL_LIST_FILES)
+def test_esp32_platformio_components_to_test_returns_full_list_on_infrastructure(
     changed_files: list[str],
 ) -> None:
     """Infrastructure / core / harness changes fall back to the full component list."""
@@ -958,8 +1013,8 @@ def test_native_idf_components_to_test_returns_full_list_on_infrastructure(
             determine_jobs, "get_components_with_dependencies", return_value=["wifi"]
         ),
     ):
-        result = determine_jobs.native_idf_components_to_test()
-        assert result == sorted(determine_jobs.NATIVE_IDF_TEST_COMPONENTS)
+        result = determine_jobs.esp32_platformio_components_to_test()
+        assert result == sorted(determine_jobs.ESP32_PLATFORMIO_TEST_COMPONENTS)
 
 
 @pytest.mark.parametrize(
@@ -979,7 +1034,7 @@ def test_native_idf_components_to_test_returns_full_list_on_infrastructure(
             ["ble_scanner", "esp32_ble", "esp32_ble_tracker"],
         ),
         # api in the test set -- narrow to [api] even though the closure
-        # has other (unrelated to native-IDF coverage) entries.
+        # has other (unrelated to PlatformIO coverage) entries.
         (
             ["esphome/components/api/api_connection.cpp"],
             ["api", "logger"],
@@ -993,15 +1048,15 @@ def test_native_idf_components_to_test_returns_full_list_on_infrastructure(
         ),
         # Pure Python-only change outside trigger paths -> empty.
         (["esphome/yaml_util.py"], [], []),
-        # Non-IDF files in esphome/build_gen/ do NOT trigger the full
-        # list -- only esphome/build_gen/espidf.py is a trigger.
-        (["esphome/build_gen/platformio.py"], [], []),
+        # Non-PlatformIO files in esphome/build_gen/ do NOT trigger the
+        # full list -- only esphome/build_gen/platformio.py is a trigger.
+        (["esphome/build_gen/espidf.py"], [], []),
         # Docs / unrelated files -> empty.
         (["README.md"], [], []),
         ([], [], []),
     ],
 )
-def test_native_idf_components_to_test_narrowing(
+def test_esp32_platformio_components_to_test_narrowing(
     changed_files: list[str],
     dependency_closure: list[str],
     expected: list[str],
@@ -1015,12 +1070,12 @@ def test_native_idf_components_to_test_narrowing(
             return_value=dependency_closure,
         ),
     ):
-        result = determine_jobs.native_idf_components_to_test()
+        result = determine_jobs.esp32_platformio_components_to_test()
         assert result == expected
 
 
-def test_native_idf_components_to_test_with_branch() -> None:
-    """native_idf_components_to_test passes branch argument through.
+def test_esp32_platformio_components_to_test_with_branch() -> None:
+    """esp32_platformio_components_to_test passes branch argument through.
 
     Regression test: an earlier version called ``get_changed_components()``,
     which silently ignored the branch argument because that helper re-runs
@@ -1035,7 +1090,7 @@ def test_native_idf_components_to_test_with_branch() -> None:
         ),
     ):
         mock_changed.return_value = []
-        determine_jobs.native_idf_components_to_test("release")
+        determine_jobs.esp32_platformio_components_to_test("release")
         mock_changed.assert_called_once_with("release")
 
 
@@ -1047,23 +1102,61 @@ def test_native_idf_components_to_test_with_branch() -> None:
         (["esp32", "api"], True),
     ],
 )
-def test_should_run_native_idf(components_to_test: list[str], expected: bool) -> None:
-    """should_run_native_idf is a thin wrapper around the component list."""
+def test_should_run_esp32_platformio(
+    components_to_test: list[str], expected: bool
+) -> None:
+    """should_run_esp32_platformio is a thin wrapper around the component list."""
     with patch.object(
         determine_jobs,
-        "native_idf_components_to_test",
+        "esp32_platformio_components_to_test",
         return_value=components_to_test,
     ):
-        assert determine_jobs.should_run_native_idf() is expected
+        assert determine_jobs.should_run_esp32_platformio() is expected
 
 
-def test_should_run_native_idf_with_branch() -> None:
-    """Test should_run_native_idf passes branch argument through."""
+def test_should_run_esp32_platformio_with_branch() -> None:
+    """Test should_run_esp32_platformio passes branch argument through."""
     with patch.object(
-        determine_jobs, "native_idf_components_to_test", return_value=[]
+        determine_jobs, "esp32_platformio_components_to_test", return_value=[]
     ) as mock_inner:
-        determine_jobs.should_run_native_idf("release")
+        determine_jobs.should_run_esp32_platformio("release")
         mock_inner.assert_called_once_with("release")
+
+
+@pytest.mark.parametrize(
+    ("changed_files", "expected"),
+    [
+        # ESP-IDF runner / framework / build generator -> trigger
+        (["esphome/espidf/runner.py"], True),
+        (["esphome/espidf/framework.py"], True),
+        (["esphome/build_gen/espidf.py"], True),
+        # Shared native-build modules the IDF build imports -> trigger
+        (["esphome/build_helpers/idedata.py"], True),
+        (["esphome/platformio/library.py"], True),
+        (["esphome/framework_helpers.py"], True),
+        (["esphome/platformio/extra_script.py"], True),
+        # PlatformIO build gen, its toolchain, and the esp32 component are
+        # NOT IDF-infra triggers
+        (["esphome/platformio/toolchain.py"], False),
+        (["esphome/build_gen/platformio.py"], False),
+        (["esphome/components/esp32/__init__.py"], False),
+        (["README.md"], False),
+        ([], False),
+    ],
+)
+def test_esp_idf_infra_changed(changed_files: list[str], expected: bool) -> None:
+    """ESP-IDF build/runner infra paths are detected; other paths are not."""
+    assert determine_jobs._esp_idf_infra_changed(changed_files) is expected
+
+
+def test_esp_idf_infra_trigger_paths_exist() -> None:
+    """A renamed or moved trigger module must fail here, not silently stop
+    forcing the esp32 IDF compile."""
+    repo_root = Path(__file__).resolve().parents[2]
+    for file in determine_jobs.ESP_IDF_INFRA_TRIGGER_FILES:
+        assert (repo_root / file).is_file(), f"trigger file {file} moved or renamed"
+    for prefix in determine_jobs.ESP_IDF_INFRA_TRIGGER_PATH_PREFIXES:
+        assert (repo_root / prefix).is_dir(), f"trigger dir {prefix} moved or renamed"
 
 
 @pytest.mark.parametrize(
@@ -1129,6 +1222,56 @@ def test_count_changed_cpp_files_with_branch() -> None:
         mock_changed.return_value = []
         determine_jobs.count_changed_cpp_files("release")
         mock_changed.assert_called_once_with("release")
+
+
+@pytest.mark.parametrize(
+    ("changed_files", "expected"),
+    [
+        # Core C++ change runs everything
+        (["esphome/core/helpers.cpp"], (True, [])),
+        # Core Python change runs everything too
+        (["esphome/core/config.py"], (True, [])),
+        # Component C++ change: component plus dependents with C++ tests
+        (["esphome/components/time/posix_tz.cpp"], (False, ["sntp", "time"])),
+        # Component Python change shapes the host build (defines, source
+        # filters), so it must trigger the same tests as a C++ change
+        (["esphome/components/time/__init__.py"], (False, ["sntp", "time"])),
+        # Nothing to build when no selected component has C++ tests
+        (["esphome/components/homeassistant/__init__.py"], (False, [])),
+        # Test manifest override changes only that component
+        (["tests/components/time/__init__.py"], (False, ["time"])),
+        # Test source change only that component
+        (["tests/components/time/posix_tz.cpp"], (False, ["time"])),
+        # pytest files and YAML build tests do not affect the test binary
+        (["tests/components/socket/conftest.py"], (False, [])),
+        (["tests/components/time/test.esp32-idf.yaml"], (False, [])),
+        (["README.md", "script/helpers.py"], (False, [])),
+        ([], (False, [])),
+    ],
+)
+def test_determine_cpp_unit_tests(
+    changed_files: list[str],
+    expected: tuple[bool, list[str]],
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Test which C++ unit tests a set of changed files selects."""
+    tests_dir = tmp_path / "tests" / "components"
+    for component in ("time", "sntp"):
+        (tests_dir / component).mkdir(parents=True)
+        (tests_dir / component / f"{component}.cpp").write_text("")
+    (tests_dir / "homeassistant").mkdir()
+    (tests_dir / "socket").mkdir()
+    monkeypatch.setattr(helpers, "root_path", str(tmp_path))
+    with (
+        patch.object(determine_jobs, "changed_files", return_value=changed_files),
+        patch.object(
+            helpers,
+            "create_components_graph",
+            return_value={"time": ["homeassistant", "sntp"]},
+        ),
+    ):
+        assert determine_jobs.determine_cpp_unit_tests() == expected
 
 
 def test_main_filters_components_without_tests(
@@ -1426,7 +1569,15 @@ def test_detect_memory_impact_config_core_python_only_changes(tmp_path: Path) ->
 
 @pytest.mark.usefixtures("mock_target_branch_dev")
 def test_detect_memory_impact_config_no_common_platform(tmp_path: Path) -> None:
-    """Test memory impact detection when components have no common platform."""
+    """Test memory impact detection when components have no common platform.
+
+    The merged build runs with --base-only on a single platform, so components
+    without a base test on the selected platform cannot be built and must be
+    dropped. We build the largest subset that shares the selected platform
+    rather than handing the runner components it has nothing to compile for
+    (which previously produced "0 passed, 0 failed" and a failed memory
+    extraction).
+    """
     # Create test directory structure
     tests_dir = tmp_path / "tests" / "components"
 
@@ -1453,12 +1604,71 @@ def test_detect_memory_impact_config_no_common_platform(tmp_path: Path) -> None:
 
         result = determine_jobs.detect_memory_impact_config()
 
-    # Should pick the most frequently supported platform
+    # No common platform: pick the most preferred platform among those supported
+    # (esp8266-ard outranks esp32-idf in the preference list) and build only the
+    # components that have a base test on it. wifi (esp32-idf only) is dropped.
     assert result["should_run"] == "true"
-    assert set(result["components"]) == {"wifi", "logger"}
-    # When no common platform, picks most commonly supported
-    # esp8266-ard is preferred over esp32-idf in the preference list
-    assert result["platform"] in ["esp32-idf", "esp8266-ard"]
+    assert result["platform"] == "esp8266-ard"
+    assert result["components"] == ["logger"]
+    assert result["use_merged_config"] == "true"
+
+
+@pytest.mark.usefixtures("mock_target_branch_dev")
+def test_detect_memory_impact_config_variant_only_platform_excluded(
+    tmp_path: Path,
+) -> None:
+    """Regression test for the const + shelly_dimmer memory-impact failure.
+
+    Reproduces https://github.com/esphome/esphome/actions/runs/26746938473
+    where a platform hint selected esp32-idf even though neither changed
+    component had a base test.esp32-idf.yaml. The merged --base-only build then
+    found nothing to compile ("0 passed, 0 failed") and memory extraction
+    failed. Also covers a component whose only esp32-idf test is a *variant*
+    (test-*.esp32-idf.yaml): --base-only never compiles variants, so it must
+    not count toward platform availability.
+    """
+    tests_dir = tmp_path / "tests" / "components"
+
+    # const: base test only on esp32-s3-idf
+    const_dir = tests_dir / "const"
+    const_dir.mkdir(parents=True)
+    (const_dir / "test.esp32-s3-idf.yaml").write_text("test: const")
+
+    # shelly_dimmer: base test only on esp8266-ard
+    shelly_dir = tests_dir / "shelly_dimmer"
+    shelly_dir.mkdir(parents=True)
+    (shelly_dir / "test.esp8266-ard.yaml").write_text("test: shelly_dimmer")
+
+    # mdns: only a VARIANT test on esp32-idf (no base test.esp32-idf.yaml).
+    # --base-only would never build it, so it must be excluded entirely.
+    mdns_dir = tests_dir / "mdns"
+    mdns_dir.mkdir(parents=True)
+    (mdns_dir / "test-min.esp32-idf.yaml").write_text("test: mdns")
+
+    with (
+        patch.object(determine_jobs, "root_path", str(tmp_path)),
+        patch.object(helpers, "root_path", str(tmp_path)),
+        patch.object(determine_jobs, "changed_files") as mock_changed_files,
+    ):
+        # The "_esp32" filename yields an esp32-idf platform hint, reproducing
+        # the original bug where the hint picked a platform no component could
+        # build as a base test.
+        mock_changed_files.return_value = [
+            "esphome/components/const/const.cpp",
+            "esphome/components/shelly_dimmer/shelly_dimmer_esp32.cpp",
+            "esphome/components/mdns/mdns.cpp",
+        ]
+
+        result = determine_jobs.detect_memory_impact_config()
+
+    # The esp32-idf hint is unbuildable (no base test), so we fall back to the
+    # platform supported by the most components, broken by preference order:
+    # esp8266-ard (shelly_dimmer) outranks esp32-s3-idf (const). Only the
+    # component with a base test on the selected platform is returned; the
+    # variant-only mdns is excluded entirely.
+    assert result["should_run"] == "true"
+    assert result["platform"] == "esp8266-ard"
+    assert result["components"] == ["shelly_dimmer"]
     assert result["use_merged_config"] == "true"
 
 
@@ -1545,12 +1755,16 @@ def test_detect_memory_impact_config_includes_base_bus_components(
 
 
 @pytest.mark.usefixtures("mock_target_branch_dev")
-def test_detect_memory_impact_config_with_variant_tests(tmp_path: Path) -> None:
-    """Test memory impact detection for components with only variant test files.
+def test_detect_memory_impact_config_variant_only_components_skipped(
+    tmp_path: Path,
+) -> None:
+    """Components with only variant tests are skipped for memory impact.
 
-    This verifies that memory impact analysis works correctly for components like
-    improv_serial, ethernet, mdns, etc. which only have variant test files
-    (test-*.yaml) instead of base test files (test.*.yaml).
+    Components like improv_serial and ethernet only have variant test files
+    (test-*.yaml), no base test.<platform>.yaml. The memory-impact build runs
+    test_build_components.py with --base-only, which never compiles variants, so
+    these components have nothing buildable and must not be selected. Selecting
+    them previously produced "0 passed, 0 failed" and a failed memory extraction.
     """
     # Create test directory structure
     tests_dir = tmp_path / "tests" / "components"
@@ -1581,12 +1795,8 @@ def test_detect_memory_impact_config_with_variant_tests(tmp_path: Path) -> None:
 
         result = determine_jobs.detect_memory_impact_config()
 
-    # Should detect both components even though they only have variant tests
-    assert result["should_run"] == "true"
-    assert set(result["components"]) == {"improv_serial", "ethernet"}
-    # Both components support esp32-idf
-    assert result["platform"] == "esp32-idf"
-    assert result["use_merged_config"] == "true"
+    # Neither component has a base test, so nothing is buildable under --base-only
+    assert result["should_run"] == "false"
 
 
 # Tests for clang-tidy split mode logic
@@ -2092,15 +2302,33 @@ def test_detect_memory_impact_config_runs_at_component_limit(tmp_path: Path) -> 
             "esphome/components/libretiny/wifi_ln882x.cpp",
             determine_jobs.Platform.LN882X_ARD,
         ),
-        # RP2040 / Raspberry Pi Pico detection
+        # RP2 family detection — explicit chip names only.
+        # RP2040 chip: _rp2040.*, _pico.* (Pico / Pico W)
         ("esphome/components/gpio/gpio_rp2040.cpp", determine_jobs.Platform.RP2040_ARD),
         ("esphome/components/wifi/wifi_rp2040.cpp", determine_jobs.Platform.RP2040_ARD),
         ("esphome/components/i2c/i2c_pico.cpp", determine_jobs.Platform.RP2040_ARD),
         ("esphome/components/spi/spi_pico.cpp", determine_jobs.Platform.RP2040_ARD),
         (
-            "tests/components/rp2040/test.rp2040-ard.yaml",
+            "tests/components/rp2/test.rp2040-ard.yaml",
             determine_jobs.Platform.RP2040_ARD,
         ),
+        # RP2350 chip: _rp2350.*, _pico2.* (Pico 2 / Pico 2 W)
+        (
+            "esphome/components/foo/foo_rp2350.cpp",
+            determine_jobs.Platform.RP2350_ARD,
+        ),
+        (
+            "esphome/components/wifi/wifi_pico2.cpp",
+            determine_jobs.Platform.RP2350_ARD,
+        ),
+        (
+            "tests/components/rp2/test.rp2350-ard.yaml",
+            determine_jobs.Platform.RP2350_ARD,
+        ),
+        # Family-wide files (_rp2.*) intentionally do NOT get a hint —
+        # they apply to both RP2040 and RP2350 chips.
+        ("esphome/components/debug/debug_rp2.cpp", None),
+        ("esphome/components/logger/logger_rp2.h", None),
         # nRF52 / Zephyr detection
         (
             "tests/components/logger/test.nrf52-adafruit.yaml",
@@ -2147,6 +2375,11 @@ def test_detect_memory_impact_config_runs_at_component_limit(tmp_path: Path) -> 
         "pico_i2c",
         "pico_spi",
         "rp2040_test_yaml",
+        "rp2350_cpp",
+        "pico2_cpp",
+        "rp2350_test_yaml",
+        "rp2_family_debug_no_hint",
+        "rp2_family_logger_h_no_hint",
         "nrf52_test_yaml",
         "nrf52_gpio",
         "zephyr_core",
@@ -2286,16 +2519,16 @@ def test_component_batching_beta_branch_40_per_batch(
     assert len(batches) == 3, f"Expected 3 batches, got {len(batches)}"
 
     # Each batch should have approximately 40 components (all weight=1, groupable)
-    for i, batch_str in enumerate(batches):
-        batch_components = batch_str.split()
+    for i, batch in enumerate(batches):
+        batch_components = batch["components"].split()
         assert len(batch_components) == 40, (
             f"Batch {i} should have 40 components, got {len(batch_components)}"
         )
 
     # Verify all 120 components are in batches
     all_components = []
-    for batch_str in batches:
-        all_components.extend(batch_str.split())
+    for batch in batches:
+        all_components.extend(batch["components"].split())
     assert len(all_components) == 120
     assert set(all_components) == set(component_names)
 
@@ -2317,6 +2550,35 @@ def test_should_run_benchmarks_core_header_change() -> None:
         determine_jobs, "changed_files", return_value=["esphome/core/helpers.h"]
     ):
         assert determine_jobs.should_run_benchmarks() is True
+
+
+def test_should_run_benchmarks_top_level_python_change() -> None:
+    """Test benchmarks trigger on top-level esphome Python module changes.
+
+    The Python benchmarks exercise config loading, so changes to modules
+    like config.py and yaml_util.py must run them; a regression in #16718
+    went unnoticed because these files matched no trigger.
+    """
+    for py_file in [
+        "esphome/config.py",
+        "esphome/yaml_util.py",
+        "esphome/__main__.py",
+        "esphome/helpers.py",
+    ]:
+        with patch.object(determine_jobs, "changed_files", return_value=[py_file]):
+            assert determine_jobs.should_run_benchmarks() is True, (
+                f"Expected benchmarks to run for {py_file}"
+            )
+
+
+def test_should_run_benchmarks_nested_python_change() -> None:
+    """Test benchmarks do NOT trigger for nested non-core Python changes."""
+    with patch.object(
+        determine_jobs,
+        "changed_files",
+        return_value=["esphome/dashboard/web_server.py"],
+    ):
+        assert determine_jobs.should_run_benchmarks() is False
 
 
 def test_should_run_benchmarks_host_platform_change() -> None:
@@ -2698,7 +2960,7 @@ def test_main_force_all_overrides_detection(
     mock_should_run_python_linters: Mock,
     mock_should_run_import_time: Mock,
     mock_should_run_device_builder: Mock,
-    mock_native_idf_components_to_test: Mock,
+    mock_esp32_platformio_components_to_test: Mock,
     mock_determine_cpp_unit_tests: Mock,
     mock_changed_files: Mock,
     capsys: pytest.CaptureFixture[str],
@@ -2719,7 +2981,7 @@ def test_main_force_all_overrides_detection(
     mock_should_run_python_linters.return_value = False
     mock_should_run_import_time.return_value = False
     mock_should_run_device_builder.return_value = False
-    mock_native_idf_components_to_test.return_value = []
+    mock_esp32_platformio_components_to_test.return_value = []
     mock_determine_cpp_unit_tests.return_value = (False, [])
     mock_changed_files.return_value = []
 
@@ -2760,9 +3022,9 @@ def test_main_force_all_overrides_detection(
     assert output["python_linters"] is True
     assert output["import_time"] is True
     assert output["device_builder"] is True
-    assert output["native_idf"] is True
-    # native_idf_components is a CSV of NATIVE_IDF_TEST_COMPONENTS
-    assert "esp32" in output["native_idf_components"].split(",")
+    assert output["esp32_platformio"] is True
+    # esp32_platformio_components is a CSV of ESP32_PLATFORMIO_TEST_COMPONENTS
+    assert "esp32" in output["esp32_platformio_components"].split(",")
     assert output["cpp_unit_tests_run_all"] is True
     assert output["cpp_unit_tests_components"] == []
     assert output["benchmarks"] is True
@@ -2773,7 +3035,7 @@ def test_main_force_all_overrides_detection(
     mock_should_run_python_linters.assert_not_called()
     mock_should_run_import_time.assert_not_called()
     mock_should_run_device_builder.assert_not_called()
-    mock_native_idf_components_to_test.assert_not_called()
+    mock_esp32_platformio_components_to_test.assert_not_called()
     mock_determine_cpp_unit_tests.assert_not_called()
     # Component matrix is populated from disk (tests/components/ in the repo)
     assert output["component_test_count"] > 0
@@ -2787,7 +3049,7 @@ def test_main_force_all_off_uses_detection(
     mock_should_run_python_linters: Mock,
     mock_should_run_import_time: Mock,
     mock_should_run_device_builder: Mock,
-    mock_native_idf_components_to_test: Mock,
+    mock_esp32_platformio_components_to_test: Mock,
     mock_determine_cpp_unit_tests: Mock,
     mock_changed_files: Mock,
     capsys: pytest.CaptureFixture[str],
@@ -2802,7 +3064,7 @@ def test_main_force_all_off_uses_detection(
     mock_should_run_python_linters.return_value = False
     mock_should_run_import_time.return_value = False
     mock_should_run_device_builder.return_value = False
-    mock_native_idf_components_to_test.return_value = []
+    mock_esp32_platformio_components_to_test.return_value = []
     mock_determine_cpp_unit_tests.return_value = (False, [])
     mock_changed_files.return_value = []
 
@@ -2833,7 +3095,140 @@ def test_main_force_all_off_uses_detection(
     assert output["clang_tidy"] is False
     assert output["clang_format"] is False
     assert output["python_linters"] is False
-    assert output["native_idf"] is False
+    assert output["esp32_platformio"] is False
     assert output["component_test_count"] == 0
     mock_determine_integration_tests.assert_called_once()
     mock_should_run_clang_tidy.assert_called_once()
+
+
+# Every platform the memory impact analysis can select must produce an ELF that
+# find_elf_path knows how to locate. The analysis fails the job when it cannot
+# find one, so a platform with an unknown layout would turn a clean build red.
+_MEMORY_IMPACT_ELF_LAYOUTS = {
+    # Native ESP-IDF toolchain (the esp32 default): <build>/build/firmware.elf
+    "esp32-c6-idf": "build/firmware.elf",
+    "esp32-idf": "build/firmware.elf",
+    "esp32-c3-idf": "build/firmware.elf",
+    "esp32-s2-idf": "build/firmware.elf",
+    "esp32-s3-idf": "build/firmware.elf",
+    # PlatformIO: <build>/.pioenvs/<name>/firmware.elf
+    "esp8266-ard": ".pioenvs/{name}/firmware.elf",
+    "rp2040-ard": ".pioenvs/{name}/firmware.elf",
+    "rp2350-ard": ".pioenvs/{name}/firmware.elf",
+    # LibreTiny: <build>/.pioenvs/<name>/raw_firmware.elf
+    "bk72xx-ard": ".pioenvs/{name}/raw_firmware.elf",
+    "rtl87xx-ard": ".pioenvs/{name}/raw_firmware.elf",
+    "ln882x-ard": ".pioenvs/{name}/raw_firmware.elf",
+    # Zephyr: <build>/.pioenvs/<name>/zephyr/[zephyr/]zephyr.elf
+    "nrf52-adafruit": ".pioenvs/{name}/zephyr/zephyr/zephyr.elf",
+}
+
+
+def test_memory_impact_platforms_have_known_elf_layout() -> None:
+    """Every selectable memory impact platform has a documented ELF layout.
+
+    Adding a platform to the preference list without teaching find_elf_path
+    where its ELF lands would fail the memory impact job on a clean build.
+    """
+    selectable = {
+        platform.value for platform in determine_jobs.MEMORY_IMPACT_PLATFORM_PREFERENCE
+    }
+    selectable.add(determine_jobs.MEMORY_IMPACT_FALLBACK_PLATFORM.value)
+
+    assert selectable == set(_MEMORY_IMPACT_ELF_LAYOUTS)
+
+
+def test_memory_impact_elf_layouts_are_found(tmp_path: Path) -> None:
+    """find_elf_path locates the ELF each memory impact platform produces."""
+    from esphome.analyze_memory.toolchain import find_elf_path
+
+    for platform, layout in _MEMORY_IMPACT_ELF_LAYOUTS.items():
+        build_path = tmp_path / platform / ".esphome" / "build" / "mydevice"
+        elf = build_path / layout.format(name=build_path.name)
+        elf.parent.mkdir(parents=True)
+        elf.write_text("")
+
+        assert find_elf_path(build_path) == elf, f"{platform} ELF not found"
+
+
+def test_compute_integration_test_buckets_no_durations_full_fanout() -> None:
+    """Without recorded durations the fan-out stays at the maximum."""
+    files = [f"tests/integration/test_{i:03d}.py" for i in range(15)]
+    with patch.object(determine_jobs, "load_integration_durations", return_value={}):
+        run, buckets = determine_jobs._compute_integration_test_buckets(False, files)
+    assert run is True
+    assert len(buckets) == determine_jobs.INTEGRATION_TESTS_SPLIT_BUCKETS
+    assert sorted(f for b in buckets for f in b["tests"]) == files
+
+
+def test_compute_integration_test_buckets_adaptive_count() -> None:
+    """A small recorded total weight collapses to one bucket above the threshold."""
+    files = [f"tests/integration/test_{i:03d}.py" for i in range(15)]
+    with patch.object(
+        determine_jobs,
+        "load_integration_durations",
+        return_value=dict.fromkeys(files, 10.0),
+    ):
+        run, buckets = determine_jobs._compute_integration_test_buckets(False, files)
+    assert run is True
+    # 15 files x 10s recorded = 150s, under the per-bucket weight target.
+    assert [b["name"] for b in buckets] == ["1/1"]
+    assert buckets[0]["tests"] == files
+
+
+def test_compute_integration_test_buckets_duration_weighted() -> None:
+    """Heavy files spread across buckets instead of clustering by sorted name."""
+    files = [f"tests/integration/test_{i:03d}.py" for i in range(12)]
+    durations = dict.fromkeys(files, 10.0)
+    durations[files[0]] = 600.0
+    durations[files[1]] = 600.0
+    with patch.object(
+        determine_jobs, "load_integration_durations", return_value=durations
+    ):
+        run, buckets = determine_jobs._compute_integration_test_buckets(False, files)
+    assert run is True
+    assert len(buckets) >= 2
+    heavy_buckets = [b for b in buckets if set(files[:2]) & set(b["tests"])]
+    assert len(heavy_buckets) == 2, "heavy files should land in different buckets"
+    assert sorted(f for b in buckets for f in b["tests"]) == files
+
+
+def test_load_integration_durations_missing_or_corrupt(tmp_path: Path) -> None:
+    """Missing or unparsable durations data degrades to an empty mapping."""
+    with patch.object(helpers, "root_path", str(tmp_path)):
+        assert determine_jobs.load_integration_durations() == {}
+        durations_file = tmp_path / helpers.INTEGRATION_TEST_DURATIONS_FILE
+        durations_file.parent.mkdir(parents=True)
+        durations_file.write_text("not json")
+        assert determine_jobs.load_integration_durations() == {}
+        durations_file.write_text('{"tests/integration/test_a.py": 12.5}')
+        assert determine_jobs.load_integration_durations() == {
+            "tests/integration/test_a.py": 12.5
+        }
+        # Non-positive entries are dropped, valid ones survive
+        durations_file.write_text(
+            '{"tests/integration/test_a.py": 12.5, "tests/integration/test_b.py": -1}'
+        )
+        assert determine_jobs.load_integration_durations() == {
+            "tests/integration/test_a.py": 12.5
+        }
+        # One non-numeric entry cannot discard the whole recording
+        durations_file.write_text(
+            '{"tests/integration/test_a.py": 12.5, "tests/integration/test_b.py": null}'
+        )
+        assert determine_jobs.load_integration_durations() == {
+            "tests/integration/test_a.py": 12.5
+        }
+        # A non-dict top level degrades to empty
+        durations_file.write_text("[12.5]")
+        assert determine_jobs.load_integration_durations() == {}
+
+
+def test_committed_integration_durations_are_sane() -> None:
+    """The committed recording itself holds positive bounded floats."""
+    raw = json.loads(
+        (Path(helpers.root_path) / helpers.INTEGRATION_TEST_DURATIONS_FILE).read_text()
+    )
+    assert raw, "committed durations file missing or empty"
+    assert all(isinstance(v, (int, float)) and 0 < v < 86400 for v in raw.values())
+    assert all(k.startswith("tests/integration/test_") for k in raw)

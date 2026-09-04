@@ -19,7 +19,7 @@ enum LtrType : uint8_t {
   LTR_TYPE_ALS_AND_PS = 3,
 };
 
-class LTRAlsPs501Component : public PollingComponent, public i2c::I2CDevice {
+class LTRAlsPs501Component final : public PollingComponent, public i2c::I2CDevice {
  public:
   //
   // EspHome framework functions

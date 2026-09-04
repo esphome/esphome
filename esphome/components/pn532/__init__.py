@@ -9,6 +9,9 @@ from esphome.const import (
     CONF_ON_TAG_REMOVED,
     CONF_TRIGGER_ID,
 )
+from esphome.core import ID
+from esphome.cpp_generator import MockObj, TemplateArgsType
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@OttoWinter", "@jesserockz"]
 AUTO_LOAD = ["binary_sensor", "nfc"]
@@ -41,7 +44,7 @@ PN532_SCHEMA = cv.Schema(
 ).extend(cv.polling_component_schema("1s"))
 
 
-def CONFIG_SCHEMA(conf):
+def CONFIG_SCHEMA(conf: ConfigType) -> None:
     if conf:
         raise cv.Invalid(
             "This component has been moved in 1.16, please see the docs for updated "
@@ -56,7 +59,7 @@ _CALLBACK_AUTOMATIONS = (
 )
 
 
-async def setup_pn532(var, config):
+async def setup_pn532(var: MockObj, config: ConfigType) -> None:
     await cg.register_component(var, config)
 
     for conf in config.get(CONF_ON_TAG, []):
@@ -85,7 +88,12 @@ async def setup_pn532(var, config):
         }
     ),
 )
-async def pn532_is_writing_to_code(config, condition_id, template_arg, args):
+async def pn532_is_writing_to_code(
+    config: ConfigType,
+    condition_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     var = cg.new_Pvariable(condition_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
     return var

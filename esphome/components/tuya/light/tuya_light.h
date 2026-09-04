@@ -8,7 +8,7 @@ namespace esphome::tuya {
 
 enum TuyaColorType { RGB, HSV, RGBHSV };
 
-class TuyaLight : public Component, public light::LightOutput {
+class TuyaLight final : public Component, public light::LightOutput {
  public:
   void setup() override;
   void dump_config() override;

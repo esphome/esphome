@@ -6,7 +6,7 @@
 
 namespace esphome::number {
 
-class NumberSensor : public sensor::Sensor, public Component {
+class NumberSensor final : public sensor::Sensor, public Component {
  public:
   explicit NumberSensor(Number *source) : source_(source) {}
   void setup() override;
