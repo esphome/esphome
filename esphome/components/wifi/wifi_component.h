@@ -566,9 +566,7 @@ class WiFiComponent final : public Component {
   void set_post_connect_roaming(bool enabled) { this->post_connect_roaming_ = enabled; }
 
   /** Force an immediate post-connect roaming check, bypassing the periodic interval and the
-   * per-connection attempt limit. Does nothing if not connected, a roaming scan or connection is
-   * already in progress, or roaming is currently suppressed. The scan itself still requires a
-   * meaningfully stronger AP on the same SSID before it will actually roam.
+   * per-connection attempt limit.
    */
   void force_roam_check();
 
