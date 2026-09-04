@@ -100,21 +100,38 @@ void ESP32BLE::disable() {
 #ifdef USE_ESP32_BLE_ADVERTISING
 void ESP32BLE::advertising_start() {
   this->advertising_init_();
-  if (!this->is_active())
+  this->advertising_ref_count_++;
+  this->advertising_refresh();
+}
+
+void ESP32BLE::advertising_stop() {
+  if (this->advertising_ref_count_ == 0)
     return;
-  this->advertising_->start();
+  this->advertising_ref_count_--;
+  this->advertising_refresh();
+}
+
+void ESP32BLE::advertising_refresh() {
+  if (this->advertising_ == nullptr || !this->is_active())
+    return;
+  // Advertise while any component still needs it, otherwise stop
+  if (this->advertising_ref_count_ == 0) {
+    this->advertising_->stop();
+  } else {
+    this->advertising_->start();
+  }
 }
 
 void ESP32BLE::advertising_set_service_data(const std::vector<uint8_t> &data) {
   this->advertising_init_();
   this->advertising_->set_service_data(data);
-  this->advertising_start();
+  this->advertising_refresh();
 }
 
 void ESP32BLE::advertising_set_manufacturer_data(const std::vector<uint8_t> &data) {
   this->advertising_init_();
   this->advertising_->set_manufacturer_data(data);
-  this->advertising_start();
+  this->advertising_refresh();
 }
 
 void ESP32BLE::advertising_set_service_data_and_name(std::span<const uint8_t> data, bool include_name) {
@@ -136,7 +153,7 @@ void ESP32BLE::advertising_set_service_data_and_name(std::span<const uint8_t> da
     this->advertising_->set_service_data(data);
   }
 
-  this->advertising_start();
+  this->advertising_refresh();
 }
 
 void ESP32BLE::advertising_register_raw_advertisement_callback(std::function<void(bool)> &&callback) {
@@ -147,13 +164,13 @@ void ESP32BLE::advertising_register_raw_advertisement_callback(std::function<voi
 void ESP32BLE::advertising_add_service_uuid(ESPBTUUID uuid) {
   this->advertising_init_();
   this->advertising_->add_service_uuid(uuid);
-  this->advertising_start();
+  this->advertising_refresh();
 }
 
 void ESP32BLE::advertising_remove_service_uuid(ESPBTUUID uuid) {
   this->advertising_init_();
   this->advertising_->remove_service_uuid(uuid);
-  this->advertising_start();
+  this->advertising_refresh();
 }
 #endif
 
@@ -575,6 +592,10 @@ void ESP32BLE::loop_handle_state_transition_not_active_() {
     }
 
     this->state_ = BLE_COMPONENT_STATE_ACTIVE;
+#ifdef USE_ESP32_BLE_ADVERTISING
+    // Requests made before the stack was up (or before it was re-enabled) take effect now
+    this->advertising_refresh();
+#endif
   }
 }
 
