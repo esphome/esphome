@@ -30,6 +30,7 @@ from esphome.writer import (
     CPP_INCLUDE_BEGIN,
     CPP_INCLUDE_END,
     GITIGNORE_CONTENT,
+    check_build_tree_not_tracked,
     clean_all,
     clean_build,
     clean_cmake_cache,
@@ -837,6 +838,136 @@ def test_write_gitignore_skips_existing_file(
     # Verify file was not modified
     assert gitignore_path.exists()
     assert gitignore_path.read_text() == existing_content
+
+
+@patch("esphome.writer.subprocess.run")
+@patch("esphome.writer.CORE")
+def test_check_build_tree_not_tracked_warns_when_tracked(
+    mock_core: MagicMock,
+    mock_run: MagicMock,
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Test check_build_tree_not_tracked warns when the build dir is tracked by git."""
+    mock_core.config_dir = tmp_path
+    mock_core.data_dir = tmp_path / ".esphome"
+    mock_run.return_value = MagicMock(
+        returncode=0, stdout=b".esphome/build/node/main.cpp\0.esphome/node.json\0"
+    )
+
+    with caplog.at_level("WARNING"):
+        check_build_tree_not_tracked()
+
+    assert "is tracked by git" in caplog.text
+    assert "2 files" in caplog.text
+    mock_run.assert_called_once_with(
+        ["git", "ls-files", "-z", "--", ".esphome"],
+        cwd=tmp_path,
+        capture_output=True,
+        check=False,
+    )
+
+
+@patch("esphome.writer.subprocess.run")
+@patch("esphome.writer.CORE")
+def test_check_build_tree_not_tracked_silent_when_gitkeep_present(
+    mock_core: MagicMock,
+    mock_run: MagicMock,
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Test check_build_tree_not_tracked is skipped when .gitkeep opts in."""
+    data_dir = tmp_path / ".esphome"
+    data_dir.mkdir()
+    (data_dir / ".gitkeep").touch()
+    mock_core.config_dir = tmp_path
+    mock_core.data_dir = data_dir
+
+    with caplog.at_level("WARNING"):
+        check_build_tree_not_tracked()
+
+    mock_run.assert_not_called()
+    assert "tracked by git" not in caplog.text
+
+
+@patch("esphome.writer.subprocess.run")
+@patch("esphome.writer.CORE")
+def test_check_build_tree_not_tracked_silent_when_untracked(
+    mock_core: MagicMock,
+    mock_run: MagicMock,
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Test check_build_tree_not_tracked stays silent when nothing is tracked."""
+    mock_core.config_dir = tmp_path
+    mock_core.data_dir = tmp_path / ".esphome"
+    mock_run.return_value = MagicMock(returncode=0, stdout=b"")
+
+    with caplog.at_level("WARNING"):
+        check_build_tree_not_tracked()
+
+    assert "tracked by git" not in caplog.text
+
+
+@patch("esphome.writer.subprocess.run")
+@patch("esphome.writer.CORE")
+def test_check_build_tree_not_tracked_silent_outside_git_repo(
+    mock_core: MagicMock,
+    mock_run: MagicMock,
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Test check_build_tree_not_tracked stays silent when not inside a git repo."""
+    mock_core.config_dir = tmp_path
+    mock_core.data_dir = tmp_path / ".esphome"
+    mock_run.return_value = MagicMock(returncode=128, stdout=b"")
+
+    with caplog.at_level("WARNING"):
+        check_build_tree_not_tracked()
+
+    assert "tracked by git" not in caplog.text
+
+
+@patch("esphome.writer.subprocess.run")
+@patch("esphome.writer.CORE")
+def test_check_build_tree_not_tracked_silent_when_git_missing(
+    mock_core: MagicMock,
+    mock_run: MagicMock,
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Test check_build_tree_not_tracked stays silent when git isn't installed."""
+    mock_core.config_dir = tmp_path
+    mock_core.data_dir = tmp_path / ".esphome"
+    mock_run.side_effect = FileNotFoundError()
+
+    with caplog.at_level("WARNING"):
+        check_build_tree_not_tracked()
+
+    assert "tracked by git" not in caplog.text
+
+
+@patch("esphome.writer.subprocess.run")
+@patch("esphome.writer.CORE")
+def test_check_build_tree_not_tracked_silent_when_data_dir_outside_config_dir(
+    mock_core: MagicMock,
+    mock_run: MagicMock,
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Test check_build_tree_not_tracked skips the check for an external data dir.
+
+    Covers the Home Assistant add-on (/data) and ESPHOME_DATA_DIR cases, where
+    the build directory can't be part of the config's git repository.
+    """
+    mock_core.config_dir = tmp_path / "config"
+    mock_core.data_dir = tmp_path / "data"
+
+    with caplog.at_level("WARNING"):
+        check_build_tree_not_tracked()
+
+    mock_run.assert_not_called()
+    assert "tracked by git" not in caplog.text
 
 
 @patch("esphome.writer.write_file_if_changed")  # Mock to capture output
