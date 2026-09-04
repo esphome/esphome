@@ -101,6 +101,10 @@ def test_zephyr_setup_spi_allows_distinct_buses() -> None:
         "family": "esp32",
         "prj_conf": {},
         "overlay": {"": ""},
+        # resolve_zephyr_bus() -> validate_dts_label_exists() -> _get_edt() reads
+        # this key directly (not .get()); DTS auto-detection then no-ops since
+        # "dts_base_path" is unset here.
+        "board_edt_cache": {},
     }
     resolved: set[str] = set()
     _zephyr_setup_spi(_spi_conf("spi2", 6), resolved)
@@ -116,6 +120,7 @@ def test_zephyr_setup_spi_rejects_duplicate_resolved_bus() -> None:
         "family": "esp32",
         "prj_conf": {},
         "overlay": {"": ""},
+        "board_edt_cache": {},
     }
     resolved: set[str] = set()
     _zephyr_setup_spi(_spi_conf("spi2", 6), resolved)

@@ -250,10 +250,12 @@ def test_zephyr_add_overlay_appends_across_multiple_calls() -> None:
 
 
 def test_zephyr_setup_i2c_pinctrl_returns_explicit_pins_unchanged() -> None:
+    # zephyr_setup_i2c_pinctrl() returns (sda, scl) as dump_config *display*
+    # strings ("GPIO{n}"), not the raw pin numbers passed in.
     _set_non_nrf52_target_platform()
     CORE.data[KEY_ZEPHYR] = _empty_zephyr_data(variant="ESP32H2")
     sda, scl = zephyr_setup_i2c_pinctrl("some_board", "i2c0", sda=5, scl=6)
-    assert (sda, scl) == (5, 6)
+    assert (sda, scl) == ("GPIO5", "GPIO6")
 
 
 def test_zephyr_setup_i2c_pinctrl_uses_extractor_when_pins_not_given(
@@ -269,17 +271,24 @@ def test_zephyr_setup_i2c_pinctrl_uses_extractor_when_pins_not_given(
 
     fake_variant = ZephyrVariant(
         sdk=ZephyrSDK(manifest_url="http://dummy"),
+        # A recognized family is required for the extracted pins to reach the
+        # overlay-generation step at all; "esp32" is the simplest of the three.
+        family="esp32",
         pinctrl_extractors={"i2c": fake_extractor},
     )
     monkeypatch.setitem(VARIANTS, "FAKE_VARIANT", fake_variant)
+    CORE.data[KEY_ZEPHYR]["family"] = "esp32"
 
     sda, scl = zephyr_setup_i2c_pinctrl("some_board", "i2c0", sda=None, scl=None)
-    assert (sda, scl) == (6, 7)
+    assert (sda, scl) == ("GPIO6", "GPIO7")
 
 
-def test_zephyr_setup_i2c_pinctrl_raises_when_extractor_returns_none(
+def test_zephyr_setup_i2c_pinctrl_falls_back_to_board_default_when_extractor_returns_none(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    # No real pin number to report when the extractor can't resolve one -- the
+    # board's own pre-wired pinctrl default is left untouched (no overlay
+    # generated, no raise), per zephyr_setup_i2c_pinctrl()'s own docstring.
     CORE.data[KEY_ZEPHYR] = _empty_zephyr_data(variant="FAKE_VARIANT")
 
     fake_variant = ZephyrVariant(
@@ -288,15 +297,19 @@ def test_zephyr_setup_i2c_pinctrl_raises_when_extractor_returns_none(
     )
     monkeypatch.setitem(VARIANTS, "FAKE_VARIANT", fake_variant)
 
-    with pytest.raises(cv.Invalid, match="Could not determine I2C pin assignments"):
-        zephyr_setup_i2c_pinctrl("some_board", "i2c0", sda=None, scl=None)
+    sda, scl = zephyr_setup_i2c_pinctrl("some_board", "i2c0", sda=None, scl=None)
+    assert (sda, scl) == ("board default", "board default")
 
 
-def test_zephyr_setup_i2c_pinctrl_raises_when_no_extractor_and_no_pins() -> None:
+def test_zephyr_setup_i2c_pinctrl_falls_back_to_board_default_when_no_extractor_and_no_pins() -> (
+    None
+):
     CORE.data[KEY_ZEPHYR] = _empty_zephyr_data(variant="NATIVESIM")
     # native_sim's own entry has no "i2c" pinctrl_extractor and none were given.
-    with pytest.raises(cv.Invalid, match="Could not determine I2C pin assignments"):
-        zephyr_setup_i2c_pinctrl("native_sim/native/64", "i2c0", sda=None, scl=None)
+    sda, scl = zephyr_setup_i2c_pinctrl(
+        "native_sim/native/64", "i2c0", sda=None, scl=None
+    )
+    assert (sda, scl) == ("board default", "board default")
 
 
 def test_zephyr_setup_i2c_pinctrl_native_sim_adds_status_overlay_only() -> None:
