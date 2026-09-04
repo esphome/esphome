@@ -14,14 +14,24 @@ import platform
 import shutil
 import subprocess
 import sys
-import tarfile
-import urllib.request
+
+from esphome.framework_helpers import download_and_extract, str_to_lst_of_str
 
 from .framework_west import _tools_path
 
 _LOGGER = logging.getLogger(__name__)
 
-_SDK_BASE_URL = "https://github.com/zephyrproject-rtos/sdk-ng/releases/download"
+# Same upstream release as nrf52/framework.py's SDK_NG_MINIMAL_MIRRORS (both fetch the
+# zephyr-sdk-ng minimal archive), kept as an independent constant/env override rather
+# than imported from nrf52 -- the two platforms are architecturally independent (see
+# issue #132's discussion of why their caches aren't shared) and this avoids a
+# zephyr -> nrf52 import dependency.
+SDK_NG_MINIMAL_MIRRORS = str_to_lst_of_str(
+    os.environ.get(
+        "ESPHOME_ZEPHYR_SDK_NG_MINIMAL_MIRRORS",
+        "https://github.com/zephyrproject-rtos/sdk-ng/releases/download/v{VERSION}/zephyr-sdk-{VERSION}_{sysname}-{machine}_minimal.{extension}",
+    )
+)
 
 
 def _read_sdk_version(framework_path: Path) -> str:
@@ -37,24 +47,6 @@ def _read_sdk_version(framework_path: Path) -> str:
 
 def _sdk_install_dir(sdk_version: str) -> Path:
     return _tools_path() / "toolchains" / f"zephyr-sdk-{sdk_version}"
-
-
-def _download_and_extract(
-    url: str, tmp_file: Path, extract_tmp: Path, label: str
-) -> None:
-    try:
-        _LOGGER.info("Downloading %s ...", label)
-        urllib.request.urlretrieve(url, tmp_file)
-    except Exception as e:
-        tmp_file.unlink(missing_ok=True)
-        raise RuntimeError(f"Can't download {label}: {e}") from e
-    try:
-        with tarfile.open(tmp_file, "r:xz") as tar:
-            tar.extractall(extract_tmp)
-    except Exception as e:
-        raise RuntimeError(f"Can't extract {label}: {e}") from e
-    finally:
-        tmp_file.unlink(missing_ok=True)
 
 
 def check_and_install(framework_path: Path, toolchain: str | None = None) -> Path:
@@ -99,31 +91,31 @@ def check_and_install(framework_path: Path, toolchain: str | None = None) -> Pat
             raise RuntimeError(f"Unsupported OS for Zephyr SDK: {sys.platform}")
 
         toolchains_dir = sdk_path.parent
-        toolchains_dir.mkdir(parents=True, exist_ok=True)
-        extract_tmp = toolchains_dir / f"zephyr-sdk-{sdk_version}.tmp"
-        extract_tmp.mkdir(parents=True, exist_ok=True)
-
+        substitutions = {
+            "VERSION": sdk_version,
+            "sysname": os_tag,
+            "machine": arch,
+            "extension": "tar.xz",
+        }
+        _LOGGER.info("Downloading Zephyr SDK minimal v%s ...", sdk_version)
         try:
-            filename = f"zephyr-sdk-{sdk_version}_{os_tag}-{arch}_minimal.tar.xz"
-            url = f"{_SDK_BASE_URL}/v{sdk_version}/{filename}"
-            _download_and_extract(
-                url,
-                toolchains_dir / f"{filename}.tmp",
-                extract_tmp,
-                f"Zephyr SDK minimal v{sdk_version}",
+            # Downloaded next to the destination (not a temp dir) so an
+            # interrupted download's .part file resumes on the next run;
+            # extracted directly into sdk_path -- archive_extract_all strips
+            # the archive's single top-level wrapper directory automatically.
+            download_and_extract(
+                SDK_NG_MINIMAL_MIRRORS,
+                substitutions,
+                toolchains_dir / f"zephyr-sdk-{sdk_version}.minimal.archive",
+                sdk_path,
+                progress_header="Extracting",
             )
-
-            entries = list(extract_tmp.iterdir())
-            if len(entries) != 1 or not entries[0].is_dir():
-                raise RuntimeError(
-                    f"Unexpected archive layout in Zephyr SDK v{sdk_version}"
-                )
-            entries[0].rename(sdk_path)
         except Exception:
+            # sdk_path isn't wiped on the happy path elsewhere (other
+            # toolchains may share it), so a failed/partial extraction must
+            # not leave it looking complete to the next run's existence check.
             shutil.rmtree(sdk_path, ignore_errors=True)
             raise
-        finally:
-            shutil.rmtree(extract_tmp, ignore_errors=True)
 
     setup_script = sdk_path / "setup.sh"
     if setup_script.exists():
