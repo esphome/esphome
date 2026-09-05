@@ -187,7 +187,9 @@ async def to_code(config: ConfigType) -> None:
 # for the selected implementation.
 FILTER_SOURCE_FILES = filter_source_files_from_defines(
     {
+        "lwip_raw_common_impl.cpp": "USE_SOCKET_IMPL_LWIP_TCP",
         "lwip_raw_tcp_impl.cpp": "USE_SOCKET_IMPL_LWIP_TCP",
+        "lwip_raw_udp_impl.cpp": "USE_SOCKET_IMPL_LWIP_TCP",
         "bsd_sockets_impl.cpp": "USE_SOCKET_IMPL_BSD_SOCKETS",
         "lwip_sockets_impl.cpp": "USE_SOCKET_IMPL_LWIP_SOCKETS",
     }
