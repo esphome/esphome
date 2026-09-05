@@ -15,13 +15,11 @@ void UDPComponent::setup() {
     struct sockaddr saddr {};
     if (socket::set_sockaddr(&saddr, sizeof(saddr), address, this->broadcast_port_) == 0) {
       ESP_LOGW(TAG, "Invalid address %s", address);
+      // A dropped address silently receives nothing; surface the misconfiguration
+      this->status_set_warning(LOG_STR("invalid address"));
       continue;
     }
     this->sockaddrs_.push_back(saddr);
-  }
-  if (this->sockaddrs_.size() != this->addresses_.size()) {
-    // A dropped address silently receives nothing; surface the misconfiguration
-    this->status_set_warning(LOG_STR("invalid address"));
   }
   // set up broadcast socket
   if (this->should_broadcast_) {
@@ -103,12 +101,10 @@ void UDPComponent::setup() {
     auto ipaddr = IPAddress();
     if (!ipaddr.fromString(address)) {
       ESP_LOGW(TAG, "Invalid address %s", address);
+      this->status_set_warning(LOG_STR("invalid address"));
       continue;
     }
     this->ipaddrs_.push_back(ipaddr);
-  }
-  if (this->ipaddrs_.size() != this->addresses_.size()) {
-    this->status_set_warning(LOG_STR("invalid address"));
   }
   if (this->should_listen_)
     this->udp_client_.begin(this->listen_port_);

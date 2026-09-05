@@ -68,6 +68,9 @@ class LWIPRawCommon {
   static_assert(EINPROGRESS < 256 && ECONNREFUSED < 256 && ECONNRESET < 256 && ETIMEDOUT < 256,
                 "connect_err_ stores errno values in a byte");
 };
+// The connect state must stay inside the padding: no socket, listening or
+// accepted, pays RAM for it
+static_assert(sizeof(LWIPRawCommon) == sizeof(struct tcp_pcb *) + 4, "LWIPRawCommon grew past one word of flags");
 
 /// Connected socket implementation for LWIP raw TCP.
 /// No virtual methods — callers always use the concrete type.
@@ -154,6 +157,8 @@ class LWIPRawImpl : public LWIPRawCommon {
   size_t rx_buf_offset_ = 0;
   bool rx_closed_ = false;
 };
+static_assert(sizeof(LWIPRawImpl) == sizeof(LWIPRawCommon) + sizeof(pbuf *) + sizeof(size_t) + sizeof(void *),
+              "LWIPRawImpl layout changed");
 
 /// Listening socket implementation for LWIP raw TCP.
 /// Separate from LWIPRawImpl — no virtual dispatch needed.

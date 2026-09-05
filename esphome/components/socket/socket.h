@@ -149,7 +149,11 @@ socklen_t set_sockaddr_any(struct sockaddr *addr, socklen_t addrlen, uint16_t po
 /// CONNECT_POLL_ERROR, err_out holds the socket's SO_ERROR (or errno when the
 /// poll itself failed) on fd based implementations, and the failure recorded
 /// by the lwip callbacks on the raw lwip implementation.
+#ifdef USE_SOCKET_IMPL_LWIP_TCP
+inline ConnectPollResult poll_connect(Socket &sock, int &err_out) { return sock.poll_connect(err_out); }
+#else
 ConnectPollResult poll_connect(Socket &sock, int &err_out);
+#endif
 
 /// Format sockaddr into caller-provided buffer, returns length written (excluding null)
 size_t format_sockaddr_to(const struct sockaddr *addr_ptr, socklen_t len, std::span<char, SOCKADDR_STR_LEN> buf);

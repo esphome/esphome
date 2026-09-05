@@ -6,7 +6,6 @@
 #include "esphome/components/network/util.h"
 #include "esphome/core/log.h"
 #include <cerrno>
-#include <sys/select.h>
 
 namespace esphome::async_tcp {
 
@@ -47,7 +46,7 @@ bool AsyncClient::connect(const char *host, uint16_t port) {
     // connect()/read() would otherwise stall the whole loop
     const int saved_errno = errno;
     ESP_LOGE(TAG, "Failed to set nonblocking: errno %d", saved_errno);
-    socket_.reset();
+    close();
     if (error_cb_)
       error_cb_(error_arg_, this, saved_errno);
     return false;

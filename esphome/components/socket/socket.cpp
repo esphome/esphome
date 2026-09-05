@@ -226,7 +226,7 @@ ConnectPollResult poll_connect(Socket &sock, int &err_out) {
     err_out = errno;
     return ConnectPollResult::CONNECT_POLL_ERROR;
   }
-  if (ret == 0 || !FD_ISSET(fd, &writefds)) {
+  if (ret == 0) {
     return ConnectPollResult::CONNECT_POLL_PENDING;
   }
   int error = 0;
