@@ -105,6 +105,8 @@ esphome/components/button/* @esphome/core
 esphome/components/bytebuffer/* @clydebarrow
 esphome/components/camera/* @bdraco @DT-art1
 esphome/components/camera_encoder/* @DT-art1
+esphome/components/camera_h264/* @jvgelder
+esphome/components/camera_video/* @jvgelder
 esphome/components/canbus/* @danielschramm @mvturnho
 esphome/components/cap1188/* @mreditor97
 esphome/components/captive_portal/* @esphome/core
@@ -125,6 +127,7 @@ esphome/components/copy/* @OttoWinter
 esphome/components/cover/* @esphome/core
 esphome/components/cs5460a/* @balrog-kun
 esphome/components/cse7761/* @berfenger
+esphome/components/csi_camera/* @jvgelder
 esphome/components/cst226/* @clydebarrow
 esphome/components/cst328/* @latonita
 esphome/components/cst816/* @clydebarrow
@@ -450,6 +453,7 @@ esphome/components/rp2040_pwm/* @jesserockz
 esphome/components/rp2_ble_tracker/* @bdraco
 esphome/components/rpi_dpi_rgb/* @clydebarrow
 esphome/components/rtl87xx/* @kuba2k2
+esphome/components/rtsp_server/* @jvgelder
 esphome/components/rtttl/* @glmnet @ximex
 esphome/components/runtime_image/* @clydebarrow @guillempages @kahrendt
 esphome/components/runtime_stats/* @bdraco

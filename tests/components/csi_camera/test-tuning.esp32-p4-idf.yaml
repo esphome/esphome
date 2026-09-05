@@ -1,0 +1,36 @@
+packages:
+  i2c: !include ../../test_build_components/common/i2c/esp32-p4-idf.yaml
+  csi_camera: !include common.yaml
+
+esphome:
+  name: csi-camera-tuning-test
+
+esp32:
+  board: esp32-p4-evboard
+  variant: ESP32P4
+  framework:
+    type: esp-idf
+
+logger:
+
+csi_camera:
+  ccm: [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0]
+  hue: 0
+  wb_mode: sunny
+  aec_mode: auto
+  ae_level: 1
+  agc_mode: auto
+  sharpness: 1
+  denoise: 1
+  dead_pixel_correction: true
+  black_level_correction: true
+  lens_shading_correction: true
+  night_mode: false
+  test_pattern: false
+
+interval:
+  - interval: 30s
+    then:
+      - csi_camera.set_night_mode:
+          id: csi_cam
+          night_mode: true
