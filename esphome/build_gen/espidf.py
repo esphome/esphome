@@ -291,35 +291,10 @@ target_link_options(${{COMPONENT_LIB}} PUBLIC
 
 
 def _pch_cmake() -> str:
-    """The src component's precompiled-header block (C++ TUs only).
-
-    The -include stays relative (resolved from the compiler cwd, the build
-    dir); an absolute path would poison ccache keys.
-    """
-    if not pch_enabled():
-        return ""
-    # Strict inverts: a per-process consumer rejection reds the build.
-    # Baked at generation: a knob flip takes effect when the CMakeLists is
-    # rewritten (every esphome compile); a hand-run idf.py keeps the old one
-    escalation = pch.pch_consumer_escalation()
-    return f"""
-# ESPHome precompiled header (see esphome/build_helpers/pch.py).
-# OBJECT_DEPENDS is on the header, not the .gch: pch-baked headers drop
-# out of TU depfiles, and prepare_pch() touches the header on rebuild.
-target_compile_options(${{COMPONENT_LIB}} PRIVATE
-    "$<$<COMPILE_LANGUAGE:CXX>:-Winvalid-pch>"
-    "$<$<COMPILE_LANGUAGE:CXX>:{escalation}>"
-    "$<$<COMPILE_LANGUAGE:CXX>:-include>"
-    "$<$<COMPILE_LANGUAGE:CXX>:{PCH_HEADER_NAME}>"
-)
-set_source_files_properties(${{app_sources}} PROPERTIES
-    OBJECT_DEPENDS "${{CMAKE_BINARY_DIR}}/{PCH_HEADER_NAME}")
-"""
-
-
-def discard_pch() -> None:
-    """Drop the pch sidecars in the IDF build dir."""
-    pch.discard_pch(CORE.relative_build_path("build"))
+    """Consumer block for the component CMakeLists. Baked at generation:
+    a strict-knob flip takes effect on the next esphome compile; a
+    hand-run idf.py keeps the old one."""
+    return pch.pch_cmake_consumer("${COMPONENT_LIB}", "${app_sources}")
 
 
 def prepare_pch() -> None:

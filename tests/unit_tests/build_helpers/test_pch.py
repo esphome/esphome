@@ -232,6 +232,51 @@ def test_pch_strict(
     assert pch.pch_strict() is expected
 
 
+def test_pch_cmake_consumer_substitutes_target_and_sources(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("ESPHOME_PCH_ENABLE", raising=False)
+    monkeypatch.delenv("ESPHOME_PCH_STRICT", raising=False)
+    block = pch.pch_cmake_consumer("app", "${APP_SOURCES}")
+    assert "target_compile_options(app PRIVATE" in block
+    assert '"$<$<COMPILE_LANGUAGE:CXX>:-Winvalid-pch>"' in block
+    assert "-Wno-error=invalid-pch" in block
+    assert '"$<$<COMPILE_LANGUAGE:CXX>:esphome_pch.h>"' in block
+    assert "set_source_files_properties(${APP_SOURCES} PROPERTIES" in block
+    assert 'OBJECT_DEPENDS "${CMAKE_BINARY_DIR}/esphome_pch.h"' in block
+    # Placeholder guard: survives a build-system-side pristine wipe
+    assert 'file(TOUCH "${CMAKE_BINARY_DIR}/esphome_pch.h")' in block
+
+
+def test_pch_cmake_consumer_strict_escalates(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("ESPHOME_PCH_ENABLE", raising=False)
+    monkeypatch.setenv("ESPHOME_PCH_STRICT", "1")
+    assert "-Werror=invalid-pch" in pch.pch_cmake_consumer("app", "${APP_SOURCES}")
+
+
+def test_pch_cmake_consumer_empty_when_disabled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("ESPHOME_PCH_ENABLE", "0")
+    assert pch.pch_cmake_consumer("app", "${APP_SOURCES}") == ""
+
+
+def test_guarded_prepare_logs_placeholder_failure(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A failed placeholder touch must be traceable, not silent."""
+    monkeypatch.delenv("ESPHOME_PCH_STRICT", raising=False)
+
+    def boom() -> None:
+        raise RuntimeError("boom")
+
+    # Missing build dir: the touch raises and only warns
+    pch.guarded_prepare(tmp_path / "missing", boom)
+    assert "Could not create the pch placeholder" in caplog.text
+
+
 def test_pch_degraded_raises_only_in_strict(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

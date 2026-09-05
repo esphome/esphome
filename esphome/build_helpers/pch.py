@@ -7,7 +7,7 @@ it too; Arduino.h visibility there is intended (esphome#8693).
 
 from __future__ import annotations
 
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from contextlib import suppress
 from dataclasses import dataclass
 import hashlib
@@ -156,6 +156,32 @@ def pch_consumer_escalation() -> str:
     return "-Werror=invalid-pch" if pch_strict() else "-Wno-error=invalid-pch"
 
 
+def pch_cmake_consumer(target: str, sources_var: str) -> str:
+    """Emit the CMake block making ``target``'s C++ sources consume the
+    pch; empty when disabled. OBJECT_DEPENDS is on the header, not the
+    .gch (pch-baked headers drop out of TU depfiles); the -include stays
+    relative — an absolute path would poison ccache keys."""
+    if not pch_enabled():
+        return ""
+    escalation = pch_consumer_escalation()
+    return f"""
+# ESPHome precompiled header (see esphome/build_helpers/pch.py).
+# The touch keeps OBJECT_DEPENDS satisfiable when the build system itself
+# wiped the build dir after the header was written (west --pristine)
+if(NOT EXISTS "${{CMAKE_BINARY_DIR}}/{PCH_HEADER_NAME}")
+  file(TOUCH "${{CMAKE_BINARY_DIR}}/{PCH_HEADER_NAME}")
+endif()
+target_compile_options({target} PRIVATE
+    "$<$<COMPILE_LANGUAGE:CXX>:-Winvalid-pch>"
+    "$<$<COMPILE_LANGUAGE:CXX>:{escalation}>"
+    "$<$<COMPILE_LANGUAGE:CXX>:-include>"
+    "$<$<COMPILE_LANGUAGE:CXX>:{PCH_HEADER_NAME}>"
+)
+set_source_files_properties({sources_var} PROPERTIES
+    OBJECT_DEPENDS "${{CMAKE_BINARY_DIR}}/{PCH_HEADER_NAME}")
+"""
+
+
 def ccache_pch_env() -> dict[str, str]:
     """Settings ccache needs to cache compiles that consume the .gch;
     empty unless this build actually emitted one. User-set values win.
@@ -184,6 +210,30 @@ def ccache_pch_env() -> dict[str, str]:
             ",".join(missing),
         )
     return env
+
+
+def guarded_prepare(build_dir: Path, prepare: Callable[[], None]) -> None:
+    """Run a backend's pch preparation; an optional speedup must never
+    abort the build. Strict is read first so its own knob error cannot
+    mask the real failure; discard_pch raises if a stale .gch survives;
+    the header is ensured so OBJECT_DEPENDS stays satisfiable."""
+    try:
+        prepare()
+    except Exception:  # noqa: BLE001  # pylint: disable=broad-exception-caught
+        strict = pch_strict()
+        discard_pch(build_dir)
+        if strict:
+            raise
+        header = build_dir / PCH_HEADER_NAME
+        if not header.exists():
+            try:
+                header.touch()
+            except OSError as err:
+                # The coming OBJECT_DEPENDS error would hide the real cause
+                _LOGGER.warning("Could not create the pch placeholder: %s", err)
+        _LOGGER.warning(
+            "Precompiled header setup failed; compiling without it", exc_info=True
+        )
 
 
 def pch_extra_scripts() -> list[str]:
