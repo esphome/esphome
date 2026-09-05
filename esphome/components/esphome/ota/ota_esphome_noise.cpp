@@ -69,6 +69,8 @@ bool ESPHomeOTAComponent::noise_start_session_(uint8_t server_feature_flags) {
   int err = this->noise_ == nullptr ? NOISE_ERROR_NO_MEMORY
                                     : this->noise_->handshake.init(this->noise_context_(), prologue, sizeof(prologue));
   if (err != 0) {
+    // Raw noise codes throughout: the name table would cost flash in builds
+    // where only the OTA uses noise
     ESP_LOGW(TAG, "Session init: %d", err);
     this->cleanup_connection_();
     return false;

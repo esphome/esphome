@@ -161,11 +161,11 @@ The following are **not** vulnerabilities, by design:
   encryption, so turning on `ota: encryption:` is itself an encrypted upload.
   Older firmware needs one last plaintext upload of an offering build, with
   the pre-existing plaintext exposure.
-- The web OTA `/update` endpoint alongside encryption. The `web_server` OTA
-  platform keeps it always reachable and validation warns about that
-  combination; `captive_portal:` auto-loads that platform only for the
-  fallback AP window, which is the intended recovery path, so that alone is
-  not warned about.
+- The web OTA `/update` endpoint alongside encryption. With the `web_server`
+  or `prometheus` component the shared listener is always up, so the endpoint
+  stays reachable and validation warns about that combination;
+  `captive_portal:` alone brings the listener up only for the fallback AP
+  window, which is the intended recovery path, so that is not warned about.
 - CLI retry behavior on transport or MAC failures; every attempt renegotiates
   a fresh handshake with fresh ephemerals, so retrying does not weaken
   authentication.

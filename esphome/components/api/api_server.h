@@ -367,8 +367,8 @@ class APIServer final : public Component,
   noise::NoiseContext noise_ctx_;
 #ifndef USE_API_NOISE_PSK_FROM_YAML
   SavedNoisePsk saved_psk_{};  // backs noise_ctx_ for a runtime provisioned key
-  ESPPreferenceObject noise_pref_;
 #endif
+  ESPPreferenceObject noise_pref_;
 #endif  // USE_API_NOISE
 };
 

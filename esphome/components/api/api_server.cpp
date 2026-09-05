@@ -40,13 +40,17 @@ void APIServer::socket_failed_(const LogString *msg) {
 void APIServer::setup() {
   ControllerRegistry::register_controller(this);
 
-#if defined(USE_API_NOISE) && !defined(USE_API_NOISE_PSK_FROM_YAML)
+#ifdef USE_API_NOISE
+  // Always reserve the slot: flash preferences are positional on esp8266, so
+  // a yaml key build must keep the layout of a runtime key build
   uint32_t hash = 88491486UL;
   this->noise_pref_ = global_preferences->make_preference<SavedNoisePsk>(hash, true);
+#ifndef USE_API_NOISE_PSK_FROM_YAML
   // A cleared record loads fine but holds no key
   if (this->load_and_apply_noise_psk_() && this->noise_ctx_.has_psk()) {
     ESP_LOGD(TAG, "Loaded saved Noise PSK");
   }
+#endif
 #endif
 
   this->socket_ = socket::socket_ip_loop_monitored(SOCK_STREAM, 0).release();  // monitored for incoming connections
