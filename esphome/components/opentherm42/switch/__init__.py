@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 from esphome.components import switch
 import esphome.config_validation as cv
-from esphome.const import CONF_RESTORE_MODE
+from esphome.const import CONF_RESTORE_MODE, ENTITY_CATEGORY_CONFIG
 
 from .. import OpenTherm42Hub, opentherm42_ns
 from ..const import (
@@ -28,7 +28,13 @@ def _switch_schema() -> cv.Schema:
     # restore_mode has no schema default here (unlike core switch platforms, which default to
     # ALWAYS_OFF): every write-only switch must state explicitly what it sends on first boot / after
     # a factory reset, since that's a real value pushed to the boiler, not just a UI toggle.
-    return switch.switch_schema(OpenTherm42Switch).extend(
+    # entity_category defaults to CONFIG: every one of these switches changes how the boiler
+    # operates (an enable/mode flag sent by this master), not a device's primary function -- no
+    # device_class default is set since none of them are power outlets (the only non-generic
+    # switch device_class Home Assistant defines).
+    return switch.switch_schema(
+        OpenTherm42Switch, entity_category=ENTITY_CATEGORY_CONFIG
+    ).extend(
         {
             cv.Required(CONF_RESTORE_MODE): cv.enum(
                 switch.RESTORE_MODES, upper=True, space="_"
