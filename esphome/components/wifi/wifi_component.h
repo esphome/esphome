@@ -566,7 +566,8 @@ class WiFiComponent final : public Component {
   void set_post_connect_roaming(bool enabled) { this->post_connect_roaming_ = enabled; }
 
   /** Force an immediate post-connect roaming check, bypassing the periodic interval and the
-   * per-connection attempt limit.
+   * per-connection attempt limit. Does nothing (besides a debug log) if not connected, if a
+   * roam scan or connect is already in progress, or if roaming is currently suppressed.
    */
   void force_roam_check();
 

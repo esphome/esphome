@@ -31,7 +31,7 @@ template<typename... Ts> class WiFiDisableAction final : public Action<Ts...> {
   void play(const Ts &...x) override { global_wifi_component->disable(); }
 };
 
-template<typename... Ts> class WiFiRoamAction : public Action<Ts...> {
+template<typename... Ts> class WiFiRoamAction final : public Action<Ts...> {
  public:
   void play(const Ts &...x) override { global_wifi_component->force_roam_check(); }
 };
