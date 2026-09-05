@@ -1,0 +1,9 @@
+# tested with LOLIN D1 mini which has an esp8266ex
+substitutions:
+  uart_pin: GPIO2
+  cec_pin: GPIO14
+
+# UART0 has Tx on GPIO1, and creates a print-message during boot
+# UART1 has Tx on GPIO2, is a transmit-only uart, often used for logging
+
+<<: !include common_with_uart.yaml
