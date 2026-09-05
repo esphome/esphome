@@ -626,6 +626,29 @@ class RoundMultipleFilter : public Filter {
   float multiple_;
 };
 
+class HighPassFilter : public Filter {
+ public:
+  explicit HighPassFilter(float alpha);
+  optional<float> new_value(float value) override;
+  void set_alpha(float alpha);
+
+ protected:
+  float alpha_;
+  float last_input_{NAN};
+  float last_output_{NAN};
+};
+
+class LowPassFilter : public Filter {
+ public:
+  explicit LowPassFilter(float alpha);
+  optional<float> new_value(float value) override;
+  void set_alpha(float alpha);
+
+ protected:
+  float alpha_;
+  float last_output_{NAN};
+};
+
 template<uint8_t Digits> class RoundSignificantDigitsFilter : public Filter {
  public:
   optional<float> new_value(float value) override {
