@@ -31,6 +31,11 @@ output:
     type: float
     write_action:
       - lambda: ""
+  - platform: template
+    id: test_restore_default_initial_state_on_output
+    type: float
+    write_action:
+      - lambda: ""
 
 light:
   - platform: rgb
@@ -67,8 +72,24 @@ light:
     output: test_restore_default_initial_state_output
     restore_mode: RESTORE_DEFAULT_INITIAL_STATE
     # With nothing saved in flash to restore, RESTORE_DEFAULT_INITIAL_STATE must honor
-    # initial_state's "state: false" instead of forcing a hardcoded on/off value.
+    # initial_state's "state: OFF" -- unlike RESTORE_DEFAULT_ON/ALWAYS_ON, which would
+    # force the light on here regardless of what initial_state says.
     initial_state:
       color_mode: BRIGHTNESS
       state: OFF
       brightness: 100%
+
+  - platform: monochromatic
+    name: "Test Restore Default Initial State On Light"
+    id: test_restore_default_initial_state_on_light
+    output: test_restore_default_initial_state_on_output
+    restore_mode: RESTORE_DEFAULT_INITIAL_STATE
+    # The other half of the pass-through check above: with nothing saved, this must honor
+    # initial_state's "state: ON" -- unlike RESTORE_DEFAULT_OFF/ALWAYS_OFF, which would
+    # force the light off here regardless of what initial_state says. Together, these two
+    # lights prove RESTORE_DEFAULT_INITIAL_STATE passes initial_state's value through rather
+    # than reproducing the behavior of any pre-existing restore_mode.
+    initial_state:
+      color_mode: BRIGHTNESS
+      state: ON
+      brightness: 42%
