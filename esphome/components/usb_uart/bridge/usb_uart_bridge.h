@@ -42,14 +42,20 @@ class USBUARTBridge final : public Component {
    * already in flight is allowed to drain first, which at low baud rates can take
    * seconds; the framing is restored only after that, so poll is_paused() rather than
    * waiting a fixed interval. Host bytes not yet written to the UART are discarded.
+   * The DTR/RTS outputs hold their state while paused and follow the host again on
+   * resume().
    */
   void pause();
-  /// Re-apply the host's line coding, then resume forwarding. Main-loop only.
+  /**
+   * Re-apply the host's line coding and line state, then resume forwarding. Main-loop
+   * only. Deferred until any host write still draining has finished, so the reload
+   * never truncates it.
+   */
   void resume();
   /// True once both worker tasks are off the bus and the configured framing is restored.
   /// With no RX task (setup() failed or has not run) there is nothing to wait for.
   bool is_paused() const {
-    return this->paused_ != 0 && !this->framing_restore_pending_ &&
+    return this->paused_ != 0 && !this->framing_restore_pending_ && !this->resume_pending_ &&
            (this->uart_rx_task_handle_ == nullptr || this->rx_parked_ != 0);
   }
 
@@ -60,6 +66,10 @@ class USBUARTBridge final : public Component {
   void uart_tx_task_();
   void uart_settings_reload_();
   void restore_configured_framing_();
+  // True when the TX task has no write in flight and the UART TX FIFO has drained.
+  bool tx_idle_();
+  void finish_resume_();
+  void drive_line_state_();
   // Copy the host's line coding onto the UART settings; true if anything changed.
   bool sync_host_framing_();
 
@@ -97,6 +107,11 @@ class USBUARTBridge final : public Component {
   bool reload_pending_{false};
   // Set by pause(); loop() restores the configured framing once the TX side is idle.
   bool framing_restore_pending_{false};
+  // Set by resume() while a host write is still draining; loop() finishes the resume.
+  bool resume_pending_{false};
+  // Host line state, recorded even while paused so resume() can re-drive the pins.
+  bool host_dtr_{false};
+  bool host_rts_{false};
   // True once the host has sent any line coding; resume() then re-syncs to it.
   bool host_coding_seen_{false};
 };

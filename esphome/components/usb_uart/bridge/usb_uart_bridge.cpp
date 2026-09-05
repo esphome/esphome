@@ -161,15 +161,19 @@ void USBUARTBridge::dump_config() {
 }
 
 void USBUARTBridge::loop() {
-  if (this->framing_restore_pending_) {
-    // Let a host write that was in flight at pause() drain, FIFO included, before the
-    // restore flushes the FIFOs and truncates it.
-    const auto uart_num = static_cast<uart_port_t>(this->uart_parent_->get_hw_serial_number());
-    if (this->tx_busy_ != 0 || uart_wait_tx_done(uart_num, 0) != ESP_OK) {
+  if (this->framing_restore_pending_ || this->resume_pending_) {
+    // Let a host write that was in flight drain, FIFO included, before a reload flushes
+    // the FIFOs and truncates it.
+    if (!this->tx_idle_()) {
       return;
     }
-    this->framing_restore_pending_ = false;
-    this->restore_configured_framing_();
+    if (this->framing_restore_pending_) {
+      this->framing_restore_pending_ = false;
+      this->restore_configured_framing_();
+    } else {
+      this->resume_pending_ = false;
+      this->finish_resume_();
+    }
     this->disable_loop();
     return;
   }
@@ -245,7 +249,8 @@ bool USBUARTBridge::sync_host_framing_() {
 }
 
 void USBUARTBridge::pause() {
-  if (this->paused_ != 0) {
+  // A pause that lands while resume() is still waiting for the TX side cancels it.
+  if (this->paused_ != 0 && !this->resume_pending_) {
     return;
   }
   this->paused_ = 1;
@@ -255,6 +260,7 @@ void USBUARTBridge::pause() {
   if (this->uart_rx_task_handle_ == nullptr) {
     return;
   }
+  this->resume_pending_ = false;
   // A coalesced host reload must not land once another component owns the bus.
   this->reload_pending_ = false;
   // loop() performs the restore once any host write in flight has drained.
@@ -263,7 +269,7 @@ void USBUARTBridge::pause() {
 }
 
 void USBUARTBridge::resume() {
-  if (this->paused_ == 0) {
+  if (this->paused_ == 0 || this->resume_pending_) {
     return;
   }
   if (this->uart_rx_task_handle_ == nullptr) {
@@ -271,17 +277,30 @@ void USBUARTBridge::resume() {
     return;
   }
   // A restore still waiting on the TX side is moot: the host's framing is kept.
-  if (this->framing_restore_pending_) {
-    this->framing_restore_pending_ = false;
-    this->disable_loop();
+  this->framing_restore_pending_ = false;
+  if (!this->tx_idle_()) {
+    this->resume_pending_ = true;
+    this->enable_loop();
+    return;
   }
+  this->finish_resume_();
+  this->disable_loop();
+}
+
+void USBUARTBridge::finish_resume_() {
   // Re-apply the host's coding before either task runs again, so no traffic moves at
   // the YAML framing pause() restored.
   if (this->host_coding_seen_ && this->sync_host_framing_()) {
     this->uart_settings_reload_();
   }
   this->paused_ = 0;
+  this->drive_line_state_();
   xTaskNotifyGive(this->uart_rx_task_handle_);
+}
+
+bool USBUARTBridge::tx_idle_() {
+  const auto uart_num = static_cast<uart_port_t>(this->uart_parent_->get_hw_serial_number());
+  return this->tx_busy_ == 0 && uart_wait_tx_done(uart_num, 0) == ESP_OK;
 }
 
 void USBUARTBridge::restore_configured_framing_() {
@@ -300,11 +319,21 @@ void USBUARTBridge::restore_configured_framing_() {
 
 void USBUARTBridge::set_line_state(bool dtr, bool rts) {
   ESP_LOGV(TAG, "Line state: DTR=%d, RTS=%d", dtr, rts);
+  this->host_dtr_ = dtr;
+  this->host_rts_ = rts;
+  // Frozen while paused: a host opening the port must not reset a peer that another
+  // component is talking to.
+  if (this->paused_ == 0) {
+    this->drive_line_state_();
+  }
+}
+
+void USBUARTBridge::drive_line_state_() {
   if (this->dtr_pin_ != nullptr) {
-    this->dtr_pin_->digital_write(dtr);
+    this->dtr_pin_->digital_write(this->host_dtr_);
   }
   if (this->rts_pin_ != nullptr) {
-    this->rts_pin_->digital_write(rts);
+    this->rts_pin_->digital_write(this->host_rts_);
   }
 }
 
