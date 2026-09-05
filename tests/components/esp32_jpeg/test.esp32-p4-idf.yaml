@@ -1,0 +1,13 @@
+esphome:
+  name: esp32-jpeg-test
+
+esp32:
+  board: esp32-p4-evboard
+  variant: esp32p4
+  engineering_sample: true
+  framework:
+    type: esp-idf
+    advanced:
+      enable_idf_experimental_features: true
+
+<<: !include common.yaml
