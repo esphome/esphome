@@ -454,11 +454,17 @@ def test_uri_fetch_job_waits_out_a_briefly_held_lock(tmp_path: Path) -> None:
     assert dl_path.read_bytes() == b"data"
 
 
-def test_lock_deadline_leaves_download_to_the_holder(tmp_path: Path) -> None:
+@pytest.mark.parametrize("staged", [b"", b"ab"])
+def test_lock_deadline_leaves_download_to_the_holder(
+    tmp_path: Path, staged: bytes
+) -> None:
     """A lock held past the deadline means another process is fetching the
     same file; skipping cleanly beats a misleading failure warning. The
-    tracker is still polled so a parked worker observes cancellation."""
+    tracker is still polled so a parked worker observes cancellation, and
+    it reports what the holder has staged so far."""
     dl_path = tmp_path / "archive"
+    if staged:
+        (tmp_path / "archive.prefetch.part").write_bytes(staged)
     ticks: list[int] = []
     with (
         patch("esphome.framework_helpers.download_with_resume") as mock_download,
@@ -467,8 +473,71 @@ def test_lock_deadline_leaves_download_to_the_holder(tmp_path: Path) -> None:
     ):
         pf._uri_fetch_job(MagicMock(), "https://x/a.zip", dl_path, 4)(ticks.append)
     mock_download.assert_not_called()
-    assert ticks == [0]
+    assert ticks == [len(staged)]
     assert not dl_path.exists()
+
+
+def test_lock_wait_reports_the_holders_progress(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """While another process holds the lock the bar follows its part file,
+    and the job credits the full size once that process lands the archive
+    (the 0% bar of a build racing the dashboard for the same toolchain)."""
+    manager = MagicMock()
+    dl_path = tmp_path / "archive"
+    part = tmp_path / "archive.part"
+    ticks: list[int] = []
+    polls = iter([b"a", b"abc"])
+
+    def acquire(*args, **kwargs):
+        try:
+            part.write_bytes(next(polls))
+        except StopIteration:
+            part.unlink()
+            dl_path.write_bytes(b"abcd")
+            return
+        raise Timeout("held")
+
+    with (
+        patch("esphome.framework_helpers.download_with_resume") as mock_download,
+        patch("filelock.FileLock.acquire", side_effect=acquire),
+        patch("filelock.FileLock.release"),
+        caplog.at_level(logging.INFO),
+    ):
+        pf._registry_fetch_job(manager, "https://x/a.tar.gz", dl_path, "ab" * 32, 4)(
+            ticks.append
+        )
+    mock_download.assert_not_called()
+    assert ticks == [1, 3, 4]
+    assert caplog.text.count("Waiting for another process downloading archive") == 1
+    manager.set_download_utime.assert_called_once_with(str(dl_path))
+
+
+def test_uri_lock_wait_reads_the_staging_part(tmp_path: Path) -> None:
+    """A URL job's holder streams into the staging path, so the wait
+    reports that part file, not one beside the cache path."""
+    dl_path = tmp_path / "archive"
+    staging_part = tmp_path / "archive.prefetch.part"
+    ticks: list[int] = []
+    polls = iter([b"ab"])
+
+    def acquire(*args, **kwargs):
+        try:
+            staging_part.write_bytes(next(polls))
+        except StopIteration:
+            staging_part.unlink()
+            dl_path.write_bytes(b"abcd")
+            return
+        raise Timeout("held")
+
+    with (
+        patch("esphome.framework_helpers.download_with_resume") as mock_download,
+        patch("filelock.FileLock.acquire", side_effect=acquire),
+        patch("filelock.FileLock.release"),
+    ):
+        pf._uri_fetch_job(MagicMock(), "https://x/a.zip", dl_path, 4)(ticks.append)
+    mock_download.assert_not_called()
+    assert ticks == [2, 4]
 
 
 def test_registry_lock_deadline_skips_registration(tmp_path: Path) -> None:

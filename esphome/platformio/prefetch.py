@@ -35,6 +35,7 @@ from typing import Any, NamedTuple
 from esphome.framework_helpers import (
     content_length,
     discard_partial_download,
+    downloaded_bytes,
     failure_reason,
     resume_fetch_job,
     run_batch_downloads,
@@ -462,16 +463,22 @@ def _uri_jobs(
 
 
 def _serialized_fetch_job(
-    dl_path: Path, lock_path: str, body: Any, unlocked_ok: bool = True
+    dl_path: Path,
+    lock_path: str,
+    body: Any,
+    size: int,
+    stream_dest: Path,
+    unlocked_ok: bool = True,
 ) -> Any:
     """Wrap ``body`` so the shared destination is single-writer.
 
     Interleaved writers truncate each other's ``.part`` bytes (see
-    registry.py). The bounded poll observes Ctrl-C via the tracker; a
-    blown deadline is a clean skip (the holder's copy is what the build
-    needs). On a lock-less filesystem a sha256-verified body runs
-    unlocked with one warning; a checksum-less one
-    (``unlocked_ok=False``) is a counted failure instead.
+    registry.py). While the lock is held elsewhere the poll reports the
+    holder's bytes (streamed into ``stream_dest``) so the bar moves, and
+    observes Ctrl-C via the tracker; a blown deadline is a clean skip
+    (the holder's copy is what the build needs). On a lock-less
+    filesystem a sha256-verified body runs unlocked with one warning; a
+    checksum-less one (``unlocked_ok=False``) is a counted failure instead.
     """
 
     def run(tracker: Any) -> None:
@@ -481,12 +488,21 @@ def _serialized_fetch_job(
         # filesystems that blocks every later build (see git.py)
         lock = FileLock(lock_path, fallback_to_soft=False)
         deadline = time.monotonic() + _DOWNLOAD_LOCK_TIMEOUT
+        waiting = False
         while True:
             try:
                 lock.acquire(timeout=_URI_LOCK_POLL)
                 break
             except Timeout:
-                tracker(0)  # raises when the batch is cancelled
+                if not waiting:
+                    waiting = True
+                    _LOGGER.info(
+                        "Waiting for another process downloading %s", dl_path.name
+                    )
+                # Raises when the batch is cancelled
+                tracker(
+                    size if dl_path.is_file() else downloaded_bytes(stream_dest, size)
+                )
                 if time.monotonic() >= deadline:
                     # Another process is fetching this same file; its copy
                     # is what the build needs (a large framework archive
@@ -506,7 +522,8 @@ def _serialized_fetch_job(
                 break
         try:
             if dl_path.is_file():
-                return  # another process finished it while we waited
+                tracker(size)  # another process finished it while we waited
+                return
             body(tracker)
         finally:
             if lock is not None:
@@ -540,6 +557,8 @@ def _registry_fetch_job(
         dl_path,
         f"{dl_path}.esphome.lock",
         resume_fetch_job(url, dl_path, sha256=checksum, size=size),
+        size,
+        dl_path,
     )
 
     def run(tracker: Any) -> None:
@@ -571,9 +590,9 @@ def _uri_fetch_job(manager: Any, url: str, dl_path: Path, size: int) -> Any:
         tmp.replace(dl_path)
 
     def run(tracker: Any) -> None:
-        _serialized_fetch_job(dl_path, f"{tmp}.lock", promote, unlocked_ok=False)(
-            tracker
-        )
+        _serialized_fetch_job(
+            dl_path, f"{tmp}.lock", promote, size, tmp, unlocked_ok=False
+        )(tracker)
         if dl_path.is_file():
             # Won or lost, the race is over; staging files left behind
             # are dead weight PlatformIO's cache never prunes

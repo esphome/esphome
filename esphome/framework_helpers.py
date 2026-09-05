@@ -909,6 +909,17 @@ def _part_path(dest: Path) -> Path:
     return dest.with_name(dest.name + ".part")
 
 
+def downloaded_bytes(dest: Path, size: int) -> int:
+    """Bytes of ``dest`` on disk: ``size`` once it landed, else what its
+    ``.part`` holds so far (capped at ``size``), else 0."""
+    if dest.is_file():
+        return size
+    try:
+        return min(_part_path(dest).stat().st_size, size)
+    except OSError:
+        return 0
+
+
 def discard_partial_download(dest: Path) -> None:
     """Remove ``dest`` and the resume sidecars of an abandoned download."""
     part = _part_path(dest)
