@@ -874,6 +874,10 @@ def _format_framework_pio_espidf_version(
 ) -> str:
     # format the given espidf (https://github.com/pioarduino/esp-idf/releases) version to
     # a PIO platformio/framework-espidf value
+    # TEMP: pioarduino has no 6.1 package yet; pioarduino-style repack of
+    # espressif v6.1. Remove before merge.
+    if ver == cv.Version(6, 1, 0):
+        return "pioarduino/framework-espidf@https://github.com/bdraco/esp-idf/releases/download/v6.1.0/esp-idf-v6.1.0.tar.xz"
     if ver == cv.Version(5, 4, 3) or ver >= cv.Version(5, 5, 1):
         ext = "tar.xz"
     else:
@@ -964,12 +968,19 @@ ARDUINO_IDF_VERSION_LOOKUP = {
 # The default/recommended esp-idf framework version
 #  - https://github.com/espressif/esp-idf/releases
 ESP_IDF_FRAMEWORK_VERSION_LOOKUP = {
-    "recommended": cv.Version(5, 5, 5),
-    "latest": cv.Version(5, 5, 5),
-    "dev": cv.Version(5, 5, 5),
+    # TEMP: default to 6.1.0 for CI testing of Log V2; revert to 5.5.5 before merge
+    "recommended": cv.Version(6, 1, 0),
+    "latest": cv.Version(6, 1, 0),
+    "dev": cv.Version(6, 1, 0),
 }
 
 ESP_IDF_PLATFORM_VERSION_LOOKUP = {
+    # TEMP: prep_IDF6 plus the IDF 6.1 fixes (deps, bootloader ld, --wrap,
+    # tf-psa sublibs); only 6.1 has the Log V2 defines. Remove with the 6.1
+    # default once pioarduino publishes 6.1 support.
+    cv.Version(
+        6, 1, 0
+    ): "https://github.com/bdraco/platform-espressif32.git#idf61-test",
     cv.Version(
         6, 0, 1
     ): "https://github.com/pioarduino/platform-espressif32.git#prep_IDF6",
@@ -1064,6 +1075,14 @@ def _check_pio_versions(config: ConfigType) -> ConfigType:
         )
 
     version = _resolve_framework_version(value)
+
+    # TEMP: named versions take the platform from PLATFORM_VERSION_LOOKUP
+    # above, bypassing the per-IDF-version lookup; force the IDF 6 platform
+    # without disturbing Arduino (still on 5.5.5). Remove with the 6.1 default.
+    if value[CONF_TYPE] != FRAMEWORK_ARDUINO and version == cv.Version(6, 1, 0):
+        value[CONF_PLATFORM_VERSION] = _parse_pio_platform_version(
+            ESP_IDF_PLATFORM_VERSION_LOOKUP[version]
+        )
 
     if value[CONF_TYPE] == FRAMEWORK_ARDUINO:
         platform_lookup = ARDUINO_PLATFORM_VERSION_LOOKUP.get(version)

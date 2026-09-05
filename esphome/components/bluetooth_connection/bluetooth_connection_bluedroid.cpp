@@ -334,7 +334,7 @@ void BluedroidGattClient::set_disconnecting_() {
 
 esp_err_t BluedroidGattClient::update_conn_params_(uint16_t min_interval, uint16_t max_interval, uint16_t latency,
                                                    uint16_t timeout, const char *param_type) {
-  esp_ble_conn_update_params_t conn_params = {{0}};
+  esp_ble_conn_update_params_t conn_params = {};
   memcpy(conn_params.bda, this->remote_bda_, sizeof(esp_bd_addr_t));
   conn_params.min_int = min_interval;
   conn_params.max_int = max_interval;

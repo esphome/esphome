@@ -149,4 +149,64 @@ const LogString *Logger::get_uart_selection_() {
 }
 
 }  // namespace esphome::logger
+
+#ifdef USE_ESP32_LOG_V2
+#include <esp_private/log_message.h>
+#include <esp_log_write.h>
+#include <esp_rom_sys.h>
+
+namespace esphome::logger {
+
+// IDF levels NONE=0 E=1 W=2 I=3 D=4 V=5; ESPHome inserts CONFIG at 4
+static inline uint8_t idf_to_esphome_level(uint8_t idf_level) {
+  if (idf_level <= 3)
+    return idf_level;
+  return idf_level >= 5 ? ESPHOME_LOG_LEVEL_VERBOSE : ESPHOME_LOG_LEVEL_DEBUG;
+}
+
+// Console output without the logger hook: early boot and constrained env
+// (fwrite locks crash during PHY init on USB JTAG). Cold path.
+static void __attribute__((noinline)) esp_log_format_direct(esp_log_msg_t *message) {
+  // Constrained-env stacks are small; enough for IDF's own one-liners
+  char stack_buf[256];
+  LogBuffer buf{stack_buf, sizeof(stack_buf)};
+  buf.write_header(idf_to_esphome_level(message->config.opts.log_level), message->tag ? message->tag : "esp-idf", 0,
+                   nullptr);
+  buf.format_body(message->format, message->args);
+  esp_rom_printf("%s\n", stack_buf);
+}
+
+}  // namespace esphome::logger
+
+extern "C" {
+// Replaces liblog's formatter, which calls the vprintf hook 3x per message
+// (header, body, newline). --wrap because a strong definition collides:
+// liblog resolves the symbol within its own archive. Not IRAM_ATTR: cache-off
+// callers bypass esp_log() under CONSTRAINED_ENV_SAFE=n.
+void __wrap_esp_log_format(esp_log_msg_t *message) {  // NOLINT
+  extern vprintf_like_t esp_log_vprint_func;
+  if (esp_log_vprint_func == &esphome::esp_idf_log_vprintf_) [[likely]] {
+    if (message->config.opts.constrained_env) [[unlikely]] {
+      esphome::logger::esp_log_format_direct(message);
+      return;
+    }
+    // Call the logger directly with V2's separate tag and severity so lines
+    // render as e.g. "[E][wifi]:"; the hook signature cannot carry them.
+    // global_logger is set before the hook is installed (pre_setup above).
+    esphome::logger::global_logger->log_vprintf_(esphome::logger::idf_to_esphome_level(message->config.opts.log_level),
+                                                 message->tag ? message->tag : "esp-idf", 0, message->format,
+                                                 message->args);
+    return;
+  }
+  extern int vprintf(const char *, __gnuc_va_list);  // NOLINT
+  if (esp_log_vprint_func == &vprintf || message->config.opts.constrained_env) {
+    // No hook yet (early boot) or constrained env: direct console output
+    esphome::logger::esp_log_format_direct(message);
+    return;
+  }
+  // Custom hook via esp_log_set_vprintf: forward the body as-is
+  esp_log_vprint_func(message->format, message->args);
+}
+}  // extern "C"
+#endif  // USE_ESP32_LOG_V2
 #endif
