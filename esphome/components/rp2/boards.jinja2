@@ -14,6 +14,10 @@ RP2_BOARD_PINS = {
 {%- endfor %}
 }
 
+# RP2350 boards carry a {{ rp2350_die_key | repr }} key holding the die letter:
+# 'A' for the RP2350A (GPIO 0-29, 5 ADC channels), 'B' for the RP2350B
+# (GPIO 0-47, 9 ADC channels), and None when the die is a build-time menu
+# choice and so is not known here. The key is absent on non-RP2350 boards.
 BOARDS = {
 {%- for name, info in boards %}
     {{ name | repr }}: {

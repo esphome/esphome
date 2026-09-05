@@ -61,6 +61,13 @@ for path in components_dir.iterdir():
     codeowners[f"esphome/components/{name}/*"].extend(comp.codeowners)
 
     for platform_path in path.iterdir():
+        if platform_path.name == "__init__.py":
+            # `import pkg.__init__` is valid but distinct from `import pkg`: it re-executes
+            # the component's __init__.py as a second, separate module. That's harmless for
+            # components whose top-level code is idempotent, but not guaranteed in general
+            # (e.g. code that registers into a global registry with a duplicate check), so
+            # never treat __init__.py itself as a platform candidate.
+            continue
         platform_name = platform_path.stem
         platform = get_platform(platform_name, name)
         if platform is None:

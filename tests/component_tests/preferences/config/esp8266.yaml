@@ -1,0 +1,5 @@
+esphome:
+  name: preftest
+
+esp8266:
+  board: esp01_1m

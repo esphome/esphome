@@ -4,6 +4,9 @@ esphome:
 esp32:
   board: esp32s3box
 
+psram:
+  mode: octal
+
 image:
   defaults:
     type: rgb565
