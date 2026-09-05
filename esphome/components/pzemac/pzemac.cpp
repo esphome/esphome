@@ -8,6 +8,16 @@ static const char *const TAG = "pzemac";
 static const uint8_t PZEM_CMD_RESET_ENERGY = 0x42;
 static const uint8_t PZEM_REGISTER_COUNT = 10;  // 10x 16-bit registers
 
+// Register map, see https://github.com/esphome/feature-requests/issues/49#issuecomment-538636809
+// 32-bit values are two registers, low word first.
+static const uint16_t PZEM_REGISTER_VOLTAGE = 0;        // 1 register, 0.1 V
+static const uint16_t PZEM_REGISTER_CURRENT = 1;        // 2 registers, 0.001 A
+static const uint16_t PZEM_REGISTER_ACTIVE_POWER = 3;   // 2 registers, 0.1 W
+static const uint16_t PZEM_REGISTER_ACTIVE_ENERGY = 5;  // 2 registers, 1 Wh
+static const uint16_t PZEM_REGISTER_FREQUENCY = 7;      // 1 register, 0.1 Hz
+static const uint16_t PZEM_REGISTER_POWER_FACTOR = 8;   // 1 register, 0.01
+static const uint16_t PZEM_REGISTER_ALARM = 9;          // 1 register
+
 // Installation sanity limits, expressed in raw register units.
 // Voltage headroom allows recording an open-neutral fault in a 230/400 V system.
 static const uint16_t PZEM_MAX_VOLTAGE = 4500;         // 450.0 V
@@ -17,42 +27,39 @@ static const uint16_t PZEM_MIN_FREQUENCY = 450;        // 45.0 Hz
 static const uint16_t PZEM_MAX_FREQUENCY = 650;        // 65.0 Hz
 static const uint16_t PZEM_MAX_POWER_FACTOR = 100;     // 1.00
 
-void PZEMAC::on_response(std::span<const uint8_t> request_pdu, std::span<const uint8_t> response_pdu) {
-  auto data = modbus::helpers::server_pdu_payload(response_pdu);
-  if (data.size() < 20) {
-    ESP_LOGW(TAG, "Invalid size for PZEM AC!");
+void PZEMAC::on_read_input_registers(uint16_t start_address, std::span<const uint16_t> registers,
+                                     modbus::ResponseStatus status) {
+  if (!modbus::succeeded(status))
+    return;  // the hub already logs exception responses
+
+  // A complete frame is required because plausibility is checked across all readings before any are published.
+  if (start_address != 0 || registers.size() < PZEM_REGISTER_COUNT) {
+    ESP_LOGW(TAG, "PZEM AC Addr 0x%02X: Ignoring incomplete response", int(this->address_));
     return;
   }
 
-  // See https://github.com/esphome/feature-requests/issues/49#issuecomment-538636809
-  //  0  1  2  3  4  5  6  7  8  9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24
-  // 01 04 14 08 D1 00 6C 00 00 00 F4 00 00 00 26 00 00 01 F4 00 64 00 00 51 34
-  // Id Cc Sz Volt- Current---- Power------ Energy----- Frequ PFact Alarm Crc--
-  //           0     2           6          10          14    16
-
-  auto pzem_get_16bit = [&](size_t i) -> uint16_t {
-    return (uint16_t(data[i + 0]) << 8) | (uint16_t(data[i + 1]) << 0);
-  };
-  auto pzem_get_32bit = [&](size_t i) -> uint32_t {
-    return (uint32_t(pzem_get_16bit(i + 2)) << 16) | (uint32_t(pzem_get_16bit(i + 0)) << 0);
+  auto pzem_get_32bit = [&](uint16_t reg) -> uint32_t {
+    return (static_cast<uint32_t>(registers[reg + 1]) << 16) | registers[reg];
   };
 
-  uint16_t raw_voltage = pzem_get_16bit(0);
-  uint32_t raw_current = pzem_get_32bit(2);
-  uint32_t raw_active_power = pzem_get_32bit(6);
-  uint32_t raw_active_energy = pzem_get_32bit(10);
-  uint16_t raw_frequency = pzem_get_16bit(14);
-  uint16_t raw_power_factor = pzem_get_16bit(16);
-  uint16_t raw_alarm = pzem_get_16bit(18);
+  uint16_t raw_voltage = registers[PZEM_REGISTER_VOLTAGE];
+  uint32_t raw_current = pzem_get_32bit(PZEM_REGISTER_CURRENT);
+  uint32_t raw_active_power = pzem_get_32bit(PZEM_REGISTER_ACTIVE_POWER);
+  uint32_t raw_active_energy = pzem_get_32bit(PZEM_REGISTER_ACTIVE_ENERGY);
+  uint16_t raw_frequency = registers[PZEM_REGISTER_FREQUENCY];
+  uint16_t raw_power_factor = registers[PZEM_REGISTER_POWER_FACTOR];
+  uint16_t raw_alarm = registers[PZEM_REGISTER_ALARM];
 
   // The meter can return a CRC-valid but nonsensical frame while powering up.
   // Reject the whole frame so no sensor receives a mixture of fresh and stale data.
   if (raw_voltage > PZEM_MAX_VOLTAGE || raw_current > PZEM_MAX_CURRENT || raw_active_power > PZEM_MAX_ACTIVE_POWER ||
       raw_frequency < PZEM_MIN_FREQUENCY || raw_frequency > PZEM_MAX_FREQUENCY ||
       raw_power_factor > PZEM_MAX_POWER_FACTOR || (raw_alarm != 0 && raw_alarm != 0xFFFF)) {
-    ESP_LOGW(TAG, "Ignoring implausible PZEM AC response");
+    ESP_LOGW(TAG, "PZEM AC Addr 0x%02X: Ignoring implausible response", int(this->address_));
     return;
   }
+
+  this->last_update_time_ = millis();
 
   float voltage = raw_voltage / 10.0f;            // max 6553.5 V
   float current = raw_current / 1000.0f;          // max 4294967.295 A
@@ -77,7 +84,40 @@ void PZEMAC::on_response(std::span<const uint8_t> request_pdu, std::span<const u
     this->power_factor_sensor_->publish_state(power_factor);
 }
 
-void PZEMAC::update() { this->read_input_registers(0, PZEM_REGISTER_COUNT); }
+void PZEMAC::on_custom_response(std::span<const uint8_t> request_pdu, std::span<const uint8_t> response_pdu,
+                                modbus::ResponseStatus status) {
+  // The only custom request this component sends is the energy reset; acknowledge its echo here so
+  // the default unhandled-response warning stays meaningful.
+  if (!request_pdu.empty() && request_pdu[0] == PZEM_CMD_RESET_ENERGY) {
+    if (modbus::succeeded(status)) {
+      ESP_LOGD(TAG, "Energy reset acknowledged");
+    } else {
+      ESP_LOGW(TAG, "Energy reset rejected");
+    }
+    return;
+  }
+  modbus::ModbusClientDevice::on_custom_response(request_pdu, response_pdu, status);
+}
+
+void PZEMAC::update() {
+  this->read_input_registers(0, PZEM_REGISTER_COUNT);
+
+  if (this->get_update_interval() != SCHEDULER_DONT_RUN &&
+      (millis() - this->last_update_time_) > this->get_update_interval() * 2) {
+    ESP_LOGE(TAG, "PZEM AC Addr 0x%02X: Timeout!", int(this->address_));
+    if (this->voltage_sensor_ != nullptr)
+      this->voltage_sensor_->publish_state(0.0f);
+    if (this->current_sensor_ != nullptr)
+      this->current_sensor_->publish_state(0.0f);
+    if (this->power_sensor_ != nullptr)
+      this->power_sensor_->publish_state(0.0f);
+    if (this->frequency_sensor_ != nullptr)
+      this->frequency_sensor_->publish_state(0.0f);
+    if (this->power_factor_sensor_ != nullptr)
+      this->power_factor_sensor_->publish_state(0.0f);
+  }
+}
+
 void PZEMAC::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "PZEMAC:\n"
