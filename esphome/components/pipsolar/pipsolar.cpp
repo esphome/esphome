@@ -9,6 +9,10 @@ static const char *const TAG = "pipsolar";
 void Pipsolar::setup() {
   this->state_ = STATE_IDLE;
   this->command_start_millis_ = 0;
+  if (this->warnings_update_interval_ > 0) {
+    this->set_interval("warnings", this->warnings_update_interval_,
+                       [this]() { this->request_poll_update_(POLLING_QPIWS); });
+  }
 }
 
 void Pipsolar::empty_uart_buffer_() {
@@ -768,8 +772,24 @@ void Pipsolar::dump_config() {
 }
 void Pipsolar::update() {
   for (auto &enabled_polling_command : this->enabled_polling_commands_) {
-    if (enabled_polling_command.length != 0) {
+    if (enabled_polling_command.length == 0) {
+      continue;
+    }
+    if (this->warnings_update_interval_ > 0 && enabled_polling_command.identifier == POLLING_QPIWS) {
+      continue;
+    }
+    enabled_polling_command.needs_update = true;
+  }
+}
+
+void Pipsolar::request_poll_update_(ENUMPollingCommand polling_command) {
+  for (auto &enabled_polling_command : this->enabled_polling_commands_) {
+    if (enabled_polling_command.length == 0) {
+      continue;
+    }
+    if (enabled_polling_command.identifier == polling_command) {
       enabled_polling_command.needs_update = true;
+      return;
     }
   }
 }

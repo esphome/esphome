@@ -10,6 +10,7 @@ AUTO_LOAD = ["binary_sensor", "text_sensor", "sensor", "switch", "output"]
 MULTI_CONF = True
 
 CONF_PIPSOLAR_ID = "pipsolar_id"
+CONF_WARNINGS_UPDATE_INTERVAL = "warnings_update_interval"
 
 pipsolar_ns = cg.esphome_ns.namespace("pipsolar")
 PipsolarComponent = pipsolar_ns.class_("Pipsolar", cg.Component)
@@ -21,7 +22,14 @@ PIPSOLAR_COMPONENT_SCHEMA = cv.Schema(
 )
 
 CONFIG_SCHEMA = cv.All(
-    cv.Schema({cv.GenerateID(): cv.declare_id(PipsolarComponent)})
+    cv.Schema(
+        {
+            cv.GenerateID(): cv.declare_id(PipsolarComponent),
+            cv.Optional(
+                CONF_WARNINGS_UPDATE_INTERVAL
+            ): cv.positive_time_period_milliseconds,
+        }
+    )
     .extend(cv.polling_component_schema("1s"))
     .extend(uart.UART_DEVICE_SCHEMA)
 )
@@ -31,3 +39,5 @@ async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await uart.register_uart_device(var, config)
+    if warnings_update_interval := config.get(CONF_WARNINGS_UPDATE_INTERVAL):
+        cg.add(var.set_warnings_update_interval(warnings_update_interval))

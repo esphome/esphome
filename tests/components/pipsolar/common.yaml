@@ -7,6 +7,8 @@ esphome:
 
 pipsolar:
   id: inverter0
+  update_interval: 10s
+  warnings_update_interval: 2s
 
 binary_sensor:
   - platform: pipsolar
