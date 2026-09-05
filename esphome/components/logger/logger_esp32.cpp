@@ -15,7 +15,10 @@
 #include <driver/usb_serial_jtag_vfs.h>
 #endif
 #endif
-
+#if defined(CONFIG_PM_ENABLE) && defined(CONFIG_FREERTOS_USE_TICKLESS_IDLE) && \
+    (ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0))
+#include "esp_sleep.h"
+#endif
 #include "esp_idf_version.h"
 #include "freertos/FreeRTOS.h"
 
@@ -82,6 +85,12 @@ void init_uart(uart_port_t uart_num, uint32_t baud_rate, int tx_buffer_size) {
   // ESP-IDF requires rx_buffer_size > UART_HW_FIFO_LEN (128 bytes).
   const int min_rx_buffer_size = UART_HW_FIFO_LEN(uart_num) + 1;
   uart_driver_install(uart_num, min_rx_buffer_size, tx_buffer_size, 0, nullptr, 0);
+#if defined(CONFIG_PM_ENABLE) && defined(CONFIG_FREERTOS_USE_TICKLESS_IDLE) && \
+    (ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0))
+  // Always flush before going to light sleep. Could be disabled for devices
+  // without TOP_PD or if source_clk = UART_SCLK_RTC
+  esp_sleep_set_console_uart_handling_mode(ESP_SLEEP_ALWAYS_FLUSH_UART);
+#endif
 }
 
 void Logger::pre_setup() {
