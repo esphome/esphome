@@ -6,6 +6,7 @@
 #include "esphome/core/log.h"
 
 #include <cstring>
+#include <new>
 #include <sys/param.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/ringbuf.h"
@@ -123,6 +124,13 @@ void USBCDCACMInstance::setup() {
     return;
   }
 
+  this->usb_tx_staging_.reset(new (std::nothrow) uint8_t[CONFIG_TINYUSB_CDC_TX_BUFSIZE]);
+  if (this->usb_tx_staging_ == nullptr) {
+    ESP_LOGE(TAG, "USB TX staging buffer allocation failed for itf %d", this->itf_);
+    this->parent_->mark_failed();
+    return;
+  }
+
   // Configure this CDC interface
   const tinyusb_config_cdcacm_t acm_cfg = {
       .cdc_port = static_cast<tinyusb_cdcacm_itf_t>(this->itf_),
@@ -139,11 +147,9 @@ void USBCDCACMInstance::setup() {
     return;
   }
 
-  // Use a larger stack size for very verbose logging. The task also keeps a
-  // CONFIG_TINYUSB_CDC_TX_BUFSIZE staging array on its stack, so account for it.
+  // Use a larger stack size for very verbose logging
   constexpr size_t stack_size =
-      (ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERY_VERBOSE ? USB_TX_TASK_STACK_SIZE_VV : USB_TX_TASK_STACK_SIZE) +
-      CONFIG_TINYUSB_CDC_TX_BUFSIZE;
+      ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERY_VERBOSE ? USB_TX_TASK_STACK_SIZE_VV : USB_TX_TASK_STACK_SIZE;
 
   // Create a simple, unique task name per interface
   char task_name[] = "usb_tx_0";
@@ -170,7 +176,7 @@ void USBCDCACMInstance::usb_tx_task_fn(void *arg) {
 }
 
 void USBCDCACMInstance::usb_tx_task() {
-  uint8_t data[CONFIG_TINYUSB_CDC_TX_BUFSIZE] = {0};
+  uint8_t *data = this->usb_tx_staging_.get();
   size_t tx_data_size = 0;
   // Back-dated so a stall within the first LOG_THROTTLE_MS of uptime still logs
   // immediately (unsigned arithmetic keeps this wrap-safe).
