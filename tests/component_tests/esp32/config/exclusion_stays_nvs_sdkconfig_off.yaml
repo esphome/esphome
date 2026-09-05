@@ -5,9 +5,5 @@ esp32:
   board: esp32dev
   framework:
     type: esp-idf
-
-mdns:
-
-wifi:
-  ssid: "test_ssid"
-  password: "test_password"
+    sdkconfig_options:
+      CONFIG_NVS_ENCRYPTION: n
