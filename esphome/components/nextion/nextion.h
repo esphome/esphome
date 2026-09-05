@@ -1,6 +1,9 @@
 #pragma once
 
+// <list> only needed for the unlimited dynamic queue path.
+#ifndef USE_NEXTION_MAX_QUEUE_SIZE
 #include <list>
+#endif  // USE_NEXTION_MAX_QUEUE_SIZE
 #include <vector>
 
 #include "esphome/components/display/display.h"
@@ -97,17 +100,8 @@ class Nextion final : public NextionBase, public PollingComponent, public uart::
   inline uint16_t get_max_commands_per_loop() const { return this->max_commands_per_loop_; }
 #endif  // USE_NEXTION_MAX_COMMANDS_PER_LOOP
 #ifdef USE_NEXTION_MAX_QUEUE_SIZE
-  /**
-   * @brief Set the maximum allowed queue size
-   * @param size Max number of entries allowed in nextion_queue_
-   */
-  inline void set_max_queue_size(size_t size) { this->max_queue_size_ = size; }
-
-  /**
-   * @brief Get the maximum allowed queue size
-   * @return Current limit (0 = unlimited)
-   */
-  inline size_t get_max_queue_size() const { return this->max_queue_size_; }
+  /// Returns the compile-time fixed queue capacity.
+  static constexpr size_t get_max_queue_size() { return NEXTION_MAX_QUEUE_SIZE; }
 #endif  // USE_NEXTION_MAX_QUEUE_SIZE
 
 #ifdef USE_NEXTION_COMMAND_SPACING
@@ -1439,9 +1433,6 @@ class Nextion final : public NextionBase, public PollingComponent, public uart::
 #ifdef USE_NEXTION_MAX_COMMANDS_PER_LOOP
   uint16_t max_commands_per_loop_{1000};
 #endif  // USE_NEXTION_MAX_COMMANDS_PER_LOOP
-#ifdef USE_NEXTION_MAX_QUEUE_SIZE
-  size_t max_queue_size_{0};
-#endif  // USE_NEXTION_MAX_QUEUE_SIZE
 
 #ifdef USE_NEXTION_COMMAND_SPACING
   NextionCommandPacer command_pacer_{0};
@@ -1459,7 +1450,14 @@ class Nextion final : public NextionBase, public PollingComponent, public uart::
   void process_pending_in_queue_();
 #endif  // USE_NEXTION_COMMAND_SPACING
 
+#ifdef USE_NEXTION_MAX_QUEUE_SIZE
+  /// Compile-time fixed-size ring buffer — zero dynamic allocation.
+  StaticRingBuffer<NextionQueue *, NEXTION_MAX_QUEUE_SIZE> nextion_queue_;
+#else   // USE_NEXTION_MAX_QUEUE_SIZE
+  /// Unlimited dynamic queue — allocates per node via std::list.
   std::list<NextionQueue *> nextion_queue_;
+#endif  // USE_NEXTION_MAX_QUEUE_SIZE
+
 #ifdef USE_NEXTION_WAVEFORM
   /// Fixed-size ring buffer for waveform queue. Nextion supports at most 4 waveform
   /// channels (IDs 0-3), so 4 entries is both the correct maximum and a safe default.
