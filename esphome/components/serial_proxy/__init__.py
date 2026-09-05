@@ -30,6 +30,7 @@ MULTI_CONF = True
 
 serial_proxy_ns = cg.esphome_ns.namespace("serial_proxy")
 SerialProxy = serial_proxy_ns.class_("SerialProxy", cg.Component, uart.UARTDevice)
+SerialProxyTap = serial_proxy_ns.class_("SerialProxyTap")
 
 api_enums_ns = cg.esphome_ns.namespace("api").namespace("enums")
 SerialProxyPortType = api_enums_ns.enum("SerialProxyPortType")
