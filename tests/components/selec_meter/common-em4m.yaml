@@ -1,0 +1,129 @@
+sensor:
+  - platform: selec_meter
+    modbus_id: modbus_bus
+    model: em4m
+    byte_order: lsrf
+    phase_a:
+      voltage:
+        name: SelecEM4M Voltage L1
+      current:
+        name: SelecEM4M Current L1
+      active_power:
+        name: SelecEM4M Active Power L1
+      reactive_power:
+        name: SelecEM4M Reactive Power L1
+      apparent_power:
+        name: SelecEM4M Apparent Power L1
+      power_factor:
+        name: SelecEM4M Power Factor L1
+      import_active_energy:
+        name: SelecEM4M Import Active Energy L1
+      export_active_energy:
+        name: SelecEM4M Export Active Energy L1
+      import_reactive_energy:
+        name: SelecEM4M Import Reactive Energy L1
+      export_reactive_energy:
+        name: SelecEM4M Export Reactive Energy L1
+      apparent_energy:
+        name: SelecEM4M Apparent Energy L1
+    phase_b:
+      voltage:
+        name: SelecEM4M Voltage L2
+      current:
+        name: SelecEM4M Current L2
+      active_power:
+        name: SelecEM4M Active Power L2
+      reactive_power:
+        name: SelecEM4M Reactive Power L2
+      apparent_power:
+        name: SelecEM4M Apparent Power L2
+      power_factor:
+        name: SelecEM4M Power Factor L2
+      import_active_energy:
+        name: SelecEM4M Import Active Energy L2
+      export_active_energy:
+        name: SelecEM4M Export Active Energy L2
+      import_reactive_energy:
+        name: SelecEM4M Import Reactive Energy L2
+      export_reactive_energy:
+        name: SelecEM4M Export Reactive Energy L2
+      apparent_energy:
+        name: SelecEM4M Apparent Energy L2
+    phase_c:
+      voltage:
+        name: SelecEM4M Voltage L3
+      current:
+        name: SelecEM4M Current L3
+      active_power:
+        name: SelecEM4M Active Power L3
+      reactive_power:
+        name: SelecEM4M Reactive Power L3
+      apparent_power:
+        name: SelecEM4M Apparent Power L3
+      power_factor:
+        name: SelecEM4M Power Factor L3
+      import_active_energy:
+        name: SelecEM4M Import Active Energy L3
+      export_active_energy:
+        name: SelecEM4M Export Active Energy L3
+      import_reactive_energy:
+        name: SelecEM4M Import Reactive Energy L3
+      export_reactive_energy:
+        name: SelecEM4M Export Reactive Energy L3
+      apparent_energy:
+        name: SelecEM4M Apparent Energy L3
+    voltage_l12:
+      name: SelecEM4M Voltage L12
+    voltage_l23:
+      name: SelecEM4M Voltage L23
+    voltage_l31:
+      name: SelecEM4M Voltage L31
+    average_voltage_ll:
+      name: SelecEM4M Average Voltage LL
+    active_power:
+      name: SelecEM4M Active Power
+    reactive_power:
+      name: SelecEM4M Reactive Power
+    apparent_power:
+      name: SelecEM4M Apparent Power
+    voltage:
+      name: SelecEM4M Average Voltage
+    current:
+      name: SelecEM4M Average Current
+    power_factor:
+      name: SelecEM4M Average Power Factor
+    frequency:
+      name: SelecEM4M Frequency
+    import_active_energy:
+      name: SelecEM4M Total Import Active Energy
+    export_active_energy:
+      name: SelecEM4M Total Export Active Energy
+    import_reactive_energy:
+      name: SelecEM4M Total Import Reactive Energy
+    export_reactive_energy:
+      name: SelecEM4M Total Export Reactive Energy
+    net_active_energy_mains:
+      name: SelecEM4M Net Active Energy Mains
+    net_reactive_energy_mains:
+      name: SelecEM4M Net Reactive Energy Mains
+    net_apparent_energy_mains:
+      name: SelecEM4M Net Apparent Energy Mains
+    net_active_energy_dg:
+      name: SelecEM4M Net Active Energy DG
+    net_reactive_energy_dg:
+      name: SelecEM4M Net Reactive Energy DG
+    net_apparent_energy_dg:
+      name: SelecEM4M Net Apparent Energy DG
+    maximum_demand_active_power:
+      name: SelecEM4M Maximum Demand Active Power
+      disabled_by_default: true
+    maximum_demand_reactive_power:
+      name: SelecEM4M Maximum Demand Reactive Power
+      disabled_by_default: true
+    maximum_demand_apparent_power:
+      name: SelecEM4M Maximum Demand Apparent Power
+      disabled_by_default: true
+    serial_number:
+      name: SelecEM4M Serial Number
+    dg_sensing:
+      name: SelecEM4M DG Sensing
