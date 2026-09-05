@@ -457,6 +457,7 @@ esphome/components/rx8130/* @beormund
 esphome/components/safe_mode/* @jsuanet @kbx81 @paulmonigatti
 esphome/components/scd4x/* @martgras @sjtrny
 esphome/components/script/* @esphome/core
+esphome/components/sd_storage/* @p1ngb4ck
 esphome/components/sdl/* @bdm310 @clydebarrow
 esphome/components/sdm_meter/* @jesserockz @polyfaces
 esphome/components/sdp3x/* @Azimath
@@ -532,6 +533,7 @@ esphome/components/st7735/* @SenexCrenshaw
 esphome/components/st7789v/* @kbx81
 esphome/components/st7920/* @marsjan155
 esphome/components/statsd/* @Links2004
+esphome/components/storage/* @p1ngb4ck
 esphome/components/stts22h/* @B48D81EFCC
 esphome/components/substitutions/* @esphome/core
 esphome/components/sun/* @OttoWinter

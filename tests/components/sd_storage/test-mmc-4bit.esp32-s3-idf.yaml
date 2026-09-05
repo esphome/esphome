@@ -1,0 +1,2 @@
+packages:
+  sd_storage: !include common-mmc-4bit.yaml
