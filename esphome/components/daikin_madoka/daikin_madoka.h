@@ -53,10 +53,44 @@ static const espbt::ESPBTUUID NOTIFY_CHARACTERISTIC_UUID =
 static const espbt::ESPBTUUID WWR_CHARACTERISTIC_UUID =
     espbt::ESPBTUUID::from_raw("2141e112-213a-11e6-b67b-9e71128cae77");
 
+template<typename T> class VectorFIFO : std::vector<T> {
+ protected:
+  size_t pop_index_ = 0;
+
+  void compact_() {
+    this->erase(this->begin(), this->begin() + pop_index_);
+    pop_index_ = 0;
+  }
+
+ public:
+  bool empty() const { return pop_index_ >= this->size(); }
+
+  T &front() { return this->at(pop_index_); }
+  const T &front() const { return this->at(pop_index_); }
+
+  void clear() {
+    std::vector<T>::clear();
+    pop_index_ = 0;
+  }
+
+  void pop() {
+    if (this->empty()) {
+      return;
+    }
+    pop_index_++;
+    if (pop_index_ >= this->size() / 2) {
+      this->compact_();
+    }
+  }
+
+  void push(const T &value) { this->std::vector<T>::push_back(value); }
+  void push(T &&value) { this->std::vector<T>::push_back(std::move(value)); }
+};
+
 class DaikinMadoka : public climate::Climate, public esphome::ble_client::BLEClientNode, public PollingComponent {
  protected:
   bool should_update_ = false;
-  std::queue<std::vector<uint8_t>> received_chunks_ = {};
+  VectorFIFO<std::vector<uint8_t>> received_chunks_ = {};
   std::map<uint8_t, std::vector<uint8_t>> pending_chunks_ = {};
   std::queue<Query> query_queue_ = {};
   bool pending_message_ = false;

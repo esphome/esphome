@@ -49,7 +49,7 @@ void DaikinMadoka::loop() {
   std::vector<uint8_t> chk = {};
   if (xSemaphoreTake(this->receive_semaphore_, 0L)) {
     if (!this->received_chunks_.empty()) {
-      chk = this->received_chunks_.front();
+      chk = std::move(this->received_chunks_.front());
       this->received_chunks_.pop();
     }
     xSemaphoreGive(this->receive_semaphore_);
@@ -232,7 +232,7 @@ void DaikinMadoka::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t
       std::vector<uint8_t> chk =
           std::vector<uint8_t>{param->notify.value, param->notify.value + param->notify.value_len};
       xSemaphoreTake(this->receive_semaphore_, portMAX_DELAY);
-      this->received_chunks_.push(chk);
+      this->received_chunks_.push(std::move(chk));
       xSemaphoreGive(this->receive_semaphore_);
       break;
     }
