@@ -202,6 +202,49 @@ class OTANetworkError(OTAError):
     """Network-level OTA failure (timeout, reset, closed connection); retrying may succeed."""
 
 
+# Remove before 2027.3.0
+class OTAEncryptionFallback(OTAError):
+    """The encrypted attempt failed and the caller may retry in plaintext."""
+
+
+# Remove before 2027.3.0
+PLAINTEXT_FALLBACK_NOTICE = (
+    "A device with an api encryption key offers encryption after this "
+    "install; add 'encryption:' under 'ota: platform: esphome' to require it. "
+    "This plaintext fallback is removed in 2027.3.0."
+)
+
+
+# Remove before 2027.3.0
+class _EncryptionAttempt:
+    """The key an upload tries and whether it may fall back to plaintext;
+    a rejected handshake falls back at once, a transport fault only on repeat."""
+
+    def __init__(self, noise_psk: str | None, plaintext_fallback: bool) -> None:
+        self.noise_psk = noise_psk
+        self.plaintext_fallback = plaintext_fallback
+        self.handshake_faults = 0
+
+    def handshake_fault_falls_back(self) -> bool:
+        self.handshake_faults += 1
+        return self.plaintext_fallback and self.handshake_faults >= 2
+
+    def downgrade(self, reason: str) -> None:
+        _LOGGER.warning(
+            "%s. Retrying in plaintext; a device that requires encryption "
+            "refuses it. %s",
+            reason,
+            PLAINTEXT_FALLBACK_NOTICE,
+        )
+        self.noise_psk = None
+        self.plaintext_fallback = False
+
+
+# Remove before 2027.3.0: only the fallback decision needs this distinction
+class OTAHandshakeNetworkError(OTANetworkError):
+    """A transport failure inside the noise handshake; retrying encrypted may succeed."""
+
+
 def _committed_error(err: OTANetworkError) -> OTAError:
     """Wrap a network failure that happened once the device had the full image.
 
@@ -464,6 +507,7 @@ def perform_ota(
     filename: Path,
     ota_type: int = OTA_TYPE_UPDATE_APP,
     noise_psk: str | None = None,
+    plaintext_fallback: bool = False,
 ) -> None:
     # Validate up front; an out-of-range value would only surface as a
     # ValueError deep inside send_check, bypassing OTAError handling
@@ -528,19 +572,28 @@ def perform_ota(
     else:
         features = 0
 
-    if noise_psk:
-        # Fail closed: never fall back to a plaintext upload when an
-        # encryption key is configured, an active attacker could otherwise
-        # strip the feature flag and capture the image (it contains the wifi
-        # credentials and the api encryption key).
-        if not (extended_proto and features & SERVER_FEATURE_SUPPORTS_NOISE):
+    if noise_psk and not (extended_proto and features & SERVER_FEATURE_SUPPORTS_NOISE):
+        if plaintext_fallback:
+            # Remove before 2027.3.0: older firmware that cannot encrypt still
+            # gets its update on this connection
+            _LOGGER.warning(
+                "The device did not offer OTA encryption; continuing in plaintext. %s",
+                PLAINTEXT_FALLBACK_NOTICE,
+            )
+            noise_psk = None
+        else:
+            # Fail closed: an attacker could otherwise strip the offer and
+            # capture the image (wifi credentials, api key)
             raise OTAError(
                 "An OTA encryption key is configured but the device did not "
                 "offer encryption; refusing to send the image in plaintext. "
-                "If the running firmware predates OTA encryption, first update "
-                "it without the 'ota: encryption:' block (over a trusted "
-                "network or via USB), then restore the block and upload again."
+                "The running firmware predates ESPHome 2026.9.0 or has no "
+                "'api: encryption: key'. With an api key, install once "
+                "without the 'ota: encryption:' block (that build offers "
+                "encryption), then restore it; otherwise flash by serial or "
+                "the web_server OTA platform."
             )
+    if noise_psk:
         # The prologue binds every negotiation byte both sides saw, so any
         # tampering with the plaintext preamble breaks the handshake.
         prologue = (
@@ -549,8 +602,18 @@ def perform_ota(
             + bytes([RESPONSE_OK, version, features_to_send])
             + bytes([RESPONSE_FEATURE_FLAGS, features])
         )
+        # Built outside the try: a local failure must never downgrade the upload
         sock = NoiseSocketWrapper(sock, noise_psk, prologue)
-        sock.do_handshake()
+        try:
+            sock.do_handshake()
+        except OTANetworkError as err:
+            # A transport fault: retry encrypted before considering plaintext
+            raise OTAHandshakeNetworkError(str(err)) from err
+        except OTAError as err:
+            # Remove before 2027.3.0
+            if plaintext_fallback:
+                raise OTAEncryptionFallback(str(err)) from err
+            raise
         _LOGGER.info("Encrypted connection established")
 
     if ota_type != OTA_TYPE_UPDATE_APP:
@@ -757,6 +820,7 @@ def run_ota_impl_(
     filename: Path,
     ota_type: int = OTA_TYPE_UPDATE_APP,
     noise_psk: str | None = None,
+    plaintext_fallback: bool = False,
 ) -> tuple[int, str | None]:
     from esphome.core import CORE
 
@@ -795,7 +859,9 @@ def run_ota_impl_(
     total_attempts = len(res) + EXTRA_UPLOAD_ATTEMPTS
     last_error = ""
     reached_device = False
-    for attempt in range(total_attempts):
+    attempt = 0
+    encryption = _EncryptionAttempt(noise_psk, plaintext_fallback)
+    while attempt < total_attempts:
         af, socktype, _, _, sa = res[attempt % len(res)]
         if reached_device or attempt >= len(res):
             _LOGGER.info(
@@ -815,17 +881,40 @@ def run_ota_impl_(
             sock.close()
             _LOGGER.warning("Connecting to %s port %s failed: %s", sa[0], sa[1], err)
             last_error = f"connecting to {sa[0]} failed: {err}"
+            attempt += 1
             continue
 
         _LOGGER.info("Connected to %s", sa[0])
         reached_device = True
         with contextlib.closing(sock), Path(filename).open("rb") as file_handle:
             try:
-                perform_ota(sock, password, file_handle, filename, ota_type, noise_psk)
+                perform_ota(
+                    sock,
+                    password,
+                    file_handle,
+                    filename,
+                    ota_type,
+                    encryption.noise_psk,
+                    encryption.plaintext_fallback,
+                )
+            except OTAEncryptionFallback as err:
+                # Same address and attempt budget: not a network retry
+                last_error = str(err)
+                encryption.downgrade(last_error)
+                continue
+            except OTAHandshakeNetworkError as err:
+                last_error = str(err)
+                if encryption.handshake_fault_falls_back():
+                    encryption.downgrade(last_error)
+                    continue
+                _LOGGER.warning("%s", last_error)
+                attempt += 1
+                continue
             except OTANetworkError as err:
                 # Transient network failure; retry
                 last_error = str(err)
                 _LOGGER.warning("%s", last_error)
+                attempt += 1
                 continue
             except OTAError as err:
                 # Device-reported error (wrong password, wrong flash size, ...);
@@ -847,10 +936,17 @@ def run_ota(
     filename: Path,
     ota_type: int = OTA_TYPE_UPDATE_APP,
     noise_psk: str | None = None,
+    plaintext_fallback: bool = False,
 ) -> tuple[int, str | None]:
     try:
         return run_ota_impl_(
-            remote_host, remote_port, password, filename, ota_type, noise_psk
+            remote_host,
+            remote_port,
+            password,
+            filename,
+            ota_type,
+            noise_psk,
+            plaintext_fallback,
         )
     except OTAError as err:
         _LOGGER.error(err)

@@ -1,0 +1,10 @@
+esphome:
+  name: host-ota-test
+host:
+api:
+  encryption:
+ota:
+  - platform: esphome
+    port: __OTA_PORT__
+logger:
+  level: DEBUG
