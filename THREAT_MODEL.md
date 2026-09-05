@@ -150,7 +150,9 @@ The following are **not** vulnerabilities, by design:
 - Plaintext OTA on a device with no `ota: encryption:` block, including one
   that offers encryption because it has an api key. That is the documented
   default, authenticated (if at all) by the OTA password. An uploader that
-  takes the offer skips the password; the key authenticates it.
+  takes the offer skips the password; the key authenticates it. With a
+  runtime provisioned key and no `provisioning:` window, whoever provisions
+  the key gains that upload path too; validation warns about the pair.
 - The CLI plaintext fallback until 2027.3.0: without `ota: encryption:` an
   active attacker who strips the offer or breaks the handshake can make a
   keyed CLI upload plaintext, with the pre-existing plaintext exposure. A

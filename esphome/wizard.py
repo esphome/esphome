@@ -532,13 +532,9 @@ def wizard(path: Path) -> int:
         safe_print()
         safe_print("You'll need this key when adding the device to Home Assistant.")
         sleep(1)
-
-        # The api key also secures OTA updates; no password prompt
-        ota_password = ""
     else:
         ssid, psk = "", ""
         api_encryption_key = None
-        ota_password = ""
 
     kwargs = {
         "path": path,
@@ -549,10 +545,9 @@ def wizard(path: Path) -> int:
         "psk": psk,
         "type": "basic",
     }
+    # The api key also secures OTA updates, so the wizard sets no OTA password
     if api_encryption_key:
         kwargs["api_encryption_key"] = api_encryption_key
-    if ota_password:
-        kwargs["ota_password"] = ota_password
 
     if not wizard_write(**kwargs):
         return 1

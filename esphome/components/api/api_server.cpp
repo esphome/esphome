@@ -43,7 +43,8 @@ void APIServer::setup() {
 #if defined(USE_API_NOISE) && !defined(USE_API_NOISE_PSK_FROM_YAML)
   uint32_t hash = 88491486UL;
   this->noise_pref_ = global_preferences->make_preference<SavedNoisePsk>(hash, true);
-  if (this->load_and_apply_noise_psk_()) {
+  // A cleared record loads fine but holds no key
+  if (this->load_and_apply_noise_psk_() && this->noise_ctx_.has_psk()) {
     ESP_LOGD(TAG, "Loaded saved Noise PSK");
   }
 #endif

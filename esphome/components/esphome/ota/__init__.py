@@ -155,11 +155,14 @@ def ota_esphome_final_validate(config: ConfigType) -> None:
             and not api_conf[CONF_ENCRYPTION].get(CONF_KEY)
         ):
             # A runtime provisioned key: the CLI still needs the password, but
-            # whoever holds the key Home Assistant provisions skips it
+            # whoever holds the key skips it, and without a provisioning window
+            # anyone on the network can be the one to provision it
             _LOGGER.warning(
                 "The '%s' %s %s provisioned at runtime also authenticates OTA "
                 "uploads once provisioned; '%s' %s then only guards plaintext "
-                "uploads",
+                "uploads. Whoever provisions the key can upload firmware "
+                "without the password, so add a 'provisioning:' block to limit "
+                "when that is possible",
                 CONF_API,
                 CONF_ENCRYPTION,
                 CONF_KEY,

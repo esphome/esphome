@@ -41,6 +41,15 @@ ESPHomeOTAComponent::NoiseSession::~NoiseSession() {
  *   "NoiseOTAInit" | magic(5) | OK,version | client_features | FEATURE_FLAGS,server_flags
  */
 bool ESPHomeOTAComponent::noise_start_session_(uint8_t server_feature_flags) {
+#ifdef USE_OTA_ENCRYPTION_PROVISIONED
+  // The key can be cleared between the offer and the client taking it; a
+  // missing key must not turn into a handshake on the all-zeros key
+  if (!this->noise_context_().has_psk()) {
+    ESP_LOGW(TAG, "Key cleared");
+    this->cleanup_connection_();
+    return false;
+  }
+#endif
   // Default-init: the frame buffer is always written before it is read, so
   // skip zeroing its 132 bytes
   // NOLINTNEXTLINE(clang-analyzer-cplusplus.NewDeleteLeaks)
