@@ -183,6 +183,13 @@ SIGNED_OTA_V1_ECDSA_VARIANTS = {
     VARIANT_ESP32,
 }
 
+# Variants that support execution from PSRAM
+PSRAM_XIP_VARIANTS = {
+    VARIANT_ESP32S3,
+    VARIANT_ESP32P4,
+    VARIANT_ESP32S31,
+}
+
 # NVS encryption (HMAC peripheral scheme) is only available on variants that
 # expose the HMAC peripheral (SOC_HMAC_SUPPORTED in soc_caps.h). The original
 # ESP32 and ESP32-C2 do not have it. New variants with an HMAC peripheral
@@ -247,7 +254,11 @@ DEFAULT_EXCLUDED_IDF_COMPONENTS = (
     "esp_https_server",  # HTTPS server - ESPHome has its own web server
     "esp_lcd",  # LCD controller drivers - only needed by display component
     "esp_local_ctrl",  # Local control over HTTPS/BLE - ESPHome has native API
+<<<<<<< HEAD
     "esp_phy",  # RF PHY - esp_wifi/bt/ieee802154 pull it back when they are in the build
+=======
+    "esp_phy",  # RF PHY - re-included by internal_temperature on the original ESP32; esp_wifi/bt/ieee802154 pull it back
+>>>>>>> d1829c495d2c982eb2f2845406ccfe5b74bd2f64
     "esp_wifi",  # WiFi stack - re-included by request_wifi(), espnow; bt pulls it back for BLE builds
     "espcoredump",  # Core dump support - ESPHome has its own debug component
     "fatfs",  # FAT filesystem - ESPHome doesn't use filesystem storage
@@ -659,6 +670,7 @@ class RawSdkconfigValue:
 SdkconfigValueType = bool | int | HexInt | str | RawSdkconfigValue
 
 
+<<<<<<< HEAD
 def sdkconfig_option_is_true(opts: dict[str, SdkconfigValueType], name: str) -> bool:
     """Whether an sdkconfig option is set to a Kconfig-true value.
 
@@ -674,6 +686,8 @@ def sdkconfig_option_is_true(opts: dict[str, SdkconfigValueType], name: str) -> 
     return str(getattr(raw, "value", raw)).strip().lower() in ("y", "true", "1")
 
 
+=======
+>>>>>>> d1829c495d2c982eb2f2845406ccfe5b74bd2f64
 def is_idf_sdkconfig_option_enabled(name: str) -> bool:
     """Return True when a bool sdkconfig option resolves to ``y``.
 
@@ -1539,7 +1553,7 @@ def final_validate(config) -> None:
             )
         )
     if advanced[CONF_EXECUTE_FROM_PSRAM]:
-        if config[CONF_VARIANT] not in {VARIANT_ESP32S3, VARIANT_ESP32P4}:
+        if config[CONF_VARIANT] not in PSRAM_XIP_VARIANTS:
             errs.append(
                 cv.Invalid(
                     f"'{CONF_EXECUTE_FROM_PSRAM}' is not available on this esp32 variant",
@@ -2428,6 +2442,7 @@ async def _reconcile_vfs_fatfs_sdkconfig(
             set_idf_sdkconfig_default("CONFIG_FATFS_LFN_HEAP", True)
             set_idf_sdkconfig_default("CONFIG_FATFS_MAX_LFN", 255)
         set_idf_sdkconfig_default("CONFIG_FATFS_VOLUME_COUNT", 4)
+<<<<<<< HEAD
     elif enable_exfat:
         # FATFS is not in the build, so tear down any stale patched copy before failing --
         # otherwise the error state also leaves the override behind until enable_exfat is
@@ -2441,11 +2456,14 @@ async def _reconcile_vfs_fatfs_sdkconfig(
             f"'{CONF_ENABLE_EXFAT}' has no effect here: no component in this configuration "
             f"mounts a FAT filesystem, so the FatFs library is not part of the build"
         )
+=======
+>>>>>>> d1829c495d2c982eb2f2845406ccfe5b74bd2f64
     elif disable_fatfs:
         if not user_picked_lfn:
             set_idf_sdkconfig_default("CONFIG_FATFS_LFN_NONE", True)
         # Kconfig range is [1,10]; 0 gets clamped to the default.
         set_idf_sdkconfig_default("CONFIG_FATFS_VOLUME_COUNT", 1)
+<<<<<<< HEAD
 
     # Reconcile the project-local FatFs override on every run, not only when FATFS is required,
     # so a stale patched copy is removed once exFAT is no longer active (e.g. the SD component was
@@ -2456,6 +2474,8 @@ async def _reconcile_vfs_fatfs_sdkconfig(
         str(CORE.data[KEY_ESP32][KEY_IDF_VERSION]),
         get_esp32_variant(),
     )
+=======
+>>>>>>> d1829c495d2c982eb2f2845406ccfe5b74bd2f64
 
 
 @coroutine_with_priority(CoroPriority.FINAL - 1)
@@ -2776,13 +2796,7 @@ async def to_code(config):
     _configure_lwip_max_sockets(conf)
 
     if advanced[CONF_EXECUTE_FROM_PSRAM]:
-        if variant == VARIANT_ESP32S3:
-            add_idf_sdkconfig_option("CONFIG_SPIRAM_FETCH_INSTRUCTIONS", True)
-            add_idf_sdkconfig_option("CONFIG_SPIRAM_RODATA", True)
-        elif variant == VARIANT_ESP32P4:
-            add_idf_sdkconfig_option("CONFIG_SPIRAM_XIP_FROM_PSRAM", True)
-        else:
-            raise ValueError("Unhandled ESP32 variant")
+        add_idf_sdkconfig_option("CONFIG_SPIRAM_XIP_FROM_PSRAM", True)
 
     # Apply LWIP core locking for better socket performance
     # This is already enabled by default in Arduino framework, where it provides
@@ -3394,7 +3408,13 @@ def _write_sdkconfig():
     if write_file_if_changed(internal_path, contents):
         # internal changed, update real one
         write_file_if_changed(sdk_path, contents)
-        clean_build(clear_pio_cache=False)
+        if not CORE.using_toolchain_esp_idf:
+            # PIO's dependency tracking under-declares sdkconfig inputs
+            # (ldgen, linker scripts); without a clean the image can be
+            # unbootable (esphome#15336). The esp-idf toolchain tracks
+            # sdkconfig via IDF's cmake and has_outdated_files(), so a
+            # reconfigure suffices there; everything else fails safe.
+            clean_build(clear_pio_cache=False)
 
 
 def _write_idf_component_yml():
