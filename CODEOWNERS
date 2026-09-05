@@ -315,6 +315,8 @@ esphome/components/lvgl/* @clydebarrow
 esphome/components/m5stack_8angle/* @rnauber
 esphome/components/mapping/* @clydebarrow
 esphome/components/matrix_keypad/* @ssieb
+esphome/components/matter/* @gtjadsonsantos
+esphome/components/matter/button/* @gtjadsonsantos
 esphome/components/max17043/* @blacknell
 esphome/components/max31865/* @DAVe3283
 esphome/components/max44009/* @berfenger

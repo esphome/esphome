@@ -1,0 +1,146 @@
+# Config-only test: exercises every entity platform the matter scanner
+# supports (cover, fan, lock, valve, select, light, climate, plus switch/
+# binary_sensor/sensor/button already in test.esp32-s3-idf.yaml). Skipping
+# compile lets the config-validation coverage grow without ballooning CI
+# time — the scanner runs at setup(), which is exercised on the actual
+# hardware; config-time enforcement is what we care about here.
+packages:
+  matter_network: !include common.yaml
+
+matter:
+  vendor_id: 0xFFF1
+  product_id: 0x8000
+  setup_code: "20202021"
+  discriminator: 0x0F0F
+  vendor_name: ESPHome
+  product_name: Matter Full Coverage Test
+
+output:
+  - platform: template
+    id: relay_out
+    type: binary
+    write_action:
+      - lambda: 'return;'
+  - platform: template
+    id: cover_out
+    type: binary
+    write_action:
+      - lambda: 'return;'
+
+switch:
+  - platform: template
+    id: matter_test_switch
+    name: Matter Switch
+    optimistic: true
+
+binary_sensor:
+  - platform: template
+    name: Matter Contact
+    device_class: door
+    lambda: return false;
+  - platform: template
+    name: Matter Motion
+    device_class: motion
+    lambda: return false;
+
+sensor:
+  - platform: template
+    id: matter_room_temperature
+    name: Matter Room Temperature
+    device_class: temperature
+    unit_of_measurement: "°C"
+    lambda: return 22.5;
+  - platform: template
+    name: Matter Humidity
+    device_class: humidity
+    unit_of_measurement: "%"
+    lambda: return 55.0;
+  - platform: template
+    name: Matter Pressure
+    device_class: pressure
+    unit_of_measurement: "hPa"
+    lambda: return 1013.0;
+  - platform: template
+    name: Matter Illuminance
+    device_class: illuminance
+    unit_of_measurement: "lx"
+    lambda: return 300.0;
+
+button:
+  - platform: matter
+    name: Matter Pair
+    action: open_commissioning_window
+    timeout: 300s
+
+cover:
+  - platform: template
+    name: Matter Blind
+    optimistic: true
+    open_action:
+      - output.turn_on: cover_out
+    close_action:
+      - output.turn_off: cover_out
+    stop_action:
+      - output.turn_off: cover_out
+
+fan:
+  - platform: template
+    name: Matter Fan
+    speed_count: 3
+
+lock:
+  - platform: template
+    name: Matter Lock
+    optimistic: true
+    lock_action:
+      - logger.log: "lock"
+    unlock_action:
+      - logger.log: "unlock"
+
+valve:
+  - platform: template
+    name: Matter Valve
+    optimistic: true
+    open_action:
+      - logger.log: "valve open"
+    close_action:
+      - logger.log: "valve close"
+
+select:
+  - platform: template
+    name: Matter Mode
+    optimistic: true
+    options:
+      - one
+      - two
+      - three
+    initial_option: one
+    set_action:
+      - logger.log:
+          format: "select set to %s"
+          args: ['x.c_str()']
+
+light:
+  - platform: binary
+    name: Matter Light
+    output: relay_out
+
+climate:
+  - platform: thermostat
+    name: Matter Thermostat
+    sensor: matter_room_temperature
+    heat_action:
+      - logger.log: "heat on"
+    cool_action:
+      - logger.log: "cool on"
+    idle_action:
+      - logger.log: "idle"
+    min_heating_off_time: 300s
+    min_heating_run_time: 300s
+    min_cooling_off_time: 300s
+    min_cooling_run_time: 300s
+    min_idle_time: 30s
+    preset:
+      - name: Home
+        default_target_temperature_low: 20
+        default_target_temperature_high: 24
