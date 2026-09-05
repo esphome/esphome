@@ -23,6 +23,7 @@ from esphome.net_retry import (
 )
 
 if TYPE_CHECKING:
+    from filelock import FileLock
     import requests
 
 PathType = str | os.PathLike
@@ -909,6 +910,61 @@ def _part_path(dest: Path) -> Path:
     return dest.with_name(dest.name + ".part")
 
 
+def downloaded_bytes(dest: Path, size: int | None = None) -> int:
+    """Bytes of ``dest`` on disk (its ``.part`` while streaming), capped at ``size``."""
+    done = 0
+    for candidate in (_part_path(dest), dest):
+        try:
+            done = candidate.stat().st_size
+            break
+        except FileNotFoundError:
+            continue
+    return done if size is None else min(done, size)
+
+
+# Short lock-acquire slices so a waiting worker still observes Ctrl-C
+_DOWNLOAD_LOCK_POLL = 1
+
+# Waiting on another process's download; past this the caller leaves the
+# file to its holder (the later sequential install waits on the same lock)
+DOWNLOAD_LOCK_TIMEOUT = 60
+
+
+class DownloadLockUnavailable(OSError):
+    """The lock file cannot be used at all (a lock-less filesystem)."""
+
+
+def wait_for_download_lock(
+    lock: "FileLock",
+    tracker: Callable[[int], None],
+    on_disk: Callable[[], int],
+    name: str,
+) -> None:
+    """Acquire ``lock``, reporting ``on_disk()`` to ``tracker`` each poll so the
+    bar follows the holder's download. Raises filelock's ``Timeout`` once
+    ``DOWNLOAD_LOCK_TIMEOUT`` seconds pass."""
+    from filelock import Timeout
+
+    deadline = time.monotonic() + DOWNLOAD_LOCK_TIMEOUT
+    waiting = False
+    while True:
+        try:
+            lock.acquire(timeout=_DOWNLOAD_LOCK_POLL)
+            return
+        except Timeout:
+            pass
+        except OSError as err:
+            # Distinct from an OSError out of on_disk(), which must not
+            # read as "locks unsupported"
+            raise DownloadLockUnavailable(*err.args) from err
+        if not waiting:
+            waiting = True
+            _LOGGER.info("Waiting for another process downloading %s", name)
+        tracker(on_disk())  # raises when the batch is cancelled
+        if time.monotonic() >= deadline:
+            raise Timeout(lock.lock_file)
+
+
 def discard_partial_download(dest: Path) -> None:
     """Remove ``dest`` and the resume sidecars of an abandoned download."""
     part = _part_path(dest)
@@ -1319,10 +1375,7 @@ def download_from_mirrors(
             )
             # Tick with the bytes already on disk so a combined bar holds
             # steady during the backoff instead of rewinding to zero
-            done = 0
-            if progress is not None:
-                part = _part_path(path_target)
-                done = part.stat().st_size if part.is_file() else 0
+            done = downloaded_bytes(path_target) if progress is not None else 0
             _cancellable_sleep(delay, progress, done)
 
     # 3. Report every attempted URL if all mirrors failed. failures spans
