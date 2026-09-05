@@ -13,6 +13,7 @@ from esphome.components.esp32 import (
 import esphome.config_validation as cv
 from esphome.const import CONF_DEVICES, CONF_ID
 from esphome.core import CORE
+from esphome.coroutine import CoroPriority, coroutine_with_priority
 from esphome.cpp_generator import MockObj
 from esphome.cpp_types import Component
 from esphome.types import ConfigType
