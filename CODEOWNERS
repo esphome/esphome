@@ -306,6 +306,8 @@ esphome/components/ln882x/* @lamauny
 esphome/components/lock/* @esphome/core
 esphome/components/logger/* @esphome/core
 esphome/components/logger/select/* @clydebarrow
+esphome/components/loki/* @jzucker2
+esphome/components/loki/switch/* @jzucker2
 esphome/components/lps22/* @nagisa
 esphome/components/lsm6ds/* @clydebarrow
 esphome/components/ltr390/* @latonita @sjtrny
