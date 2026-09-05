@@ -103,6 +103,8 @@ class MQTTClientComponent final : public Component {
  public:
   MQTTClientComponent();
 
+  void check_topic_prefix(std::string &topic, const std::string &check_topic_prefix);
+
   /// Set the last will testament message.
   void set_last_will(MQTTMessage &&message);
   /// Remove the last will testament message.
@@ -153,7 +155,7 @@ class MQTTClientComponent final : public Component {
    *
    * @param topic_prefix The topic prefix. The last "/" is appended automatically.
    */
-  void set_topic_prefix(const std::string &topic_prefix, const std::string &check_topic_prefix);
+  void set_topic_prefix(const std::string &topic_prefix);
   /// Get the topic prefix of this device, using default if necessary
   const std::string &get_topic_prefix() const;
 

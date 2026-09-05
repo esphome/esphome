@@ -413,7 +413,7 @@ async def to_code(config):
             )
         )
 
-    cg.add(var.set_topic_prefix(config[CONF_TOPIC_PREFIX], CORE.name))
+    cg.add(var.set_topic_prefix(config[CONF_TOPIC_PREFIX]))
 
     if config[CONF_USE_ABBREVIATIONS]:
         cg.add_define("USE_MQTT_ABBREVIATIONS")
