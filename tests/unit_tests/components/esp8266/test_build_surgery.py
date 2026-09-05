@@ -12,8 +12,10 @@ from esphome.components.esp8266 import build_surgery
 from esphome.components.esp8266.boards import BOARDS, ESP8266_BOARD_BUILD
 from esphome.components.esp8266.build_surgery import (
     RATETABLE_RULE,
+    SODIUM_SHA256_RULE,
     apply_testing_memory_patches,
     relocate_ratetable,
+    relocate_sodium_sha256,
     segment_length,
 )
 
@@ -26,6 +28,17 @@ _COMMON_LD_SNIPPET = """\
   {
     _data_start = ABSOLUTE(.);
     *(.data)
+  } >dram0_0_seg :dram0_0_phdr
+  .irom0.text : ALIGN(4)
+  {
+    _irom0_text_start = ABSOLUTE(.);
+    *(.rodata._ZTV*) /* C++ vtables */
+  } >irom0_0_seg :irom0_0_phdr
+  .rodata : ALIGN(4)
+  {
+    _rodata_start = ABSOLUTE(.);
+    *(.rodata)
+    *(.rodata.*)
   } >dram0_0_seg :dram0_0_phdr
 """
 
@@ -59,6 +72,21 @@ def test_relocate_ratetable_inserts_after_data_start() -> None:
     assert patched.index(RATETABLE_RULE) < patched.index("*(.data)")
     # Idempotent on an already-patched script
     assert relocate_ratetable(patched) == patched
+
+
+def test_relocate_sodium_sha256_inserts_in_irom0_text() -> None:
+    patched = relocate_sodium_sha256(_COMMON_LD_SNIPPET)
+    assert SODIUM_SHA256_RULE in patched
+    # Inside .irom0.text, ahead of the DRAM .rodata rules that would win otherwise
+    assert patched.index("_irom0_text_start") < patched.index(SODIUM_SHA256_RULE)
+    assert patched.index(SODIUM_SHA256_RULE) < patched.index("*(.rodata)")
+    # Idempotent on an already-patched script
+    assert relocate_sodium_sha256(patched) == patched
+
+
+def test_relocate_sodium_sha256_requires_anchor() -> None:
+    with pytest.raises(RuntimeError, match="_irom0_text_start"):
+        relocate_sodium_sha256("SECTIONS { }")
 
 
 def test_relocate_ratetable_requires_anchor() -> None:

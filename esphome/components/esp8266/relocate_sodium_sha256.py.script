@@ -1,0 +1,57 @@
+# pylint: disable=E0602
+Import("env")  # noqa
+
+# Move libsodium's SHA-256 round constants from DRAM to flash
+#
+# The Arduino core linker script keeps every .rodata input section in DRAM,
+# because flash-mapped memory only allows aligned 32-bit reads and most
+# tables are read byte-wise. libsodium's Krnd (crypto_hash/sha256) is a
+# uint32_t[64] that SHA256_Transform only reads word-wise, so it is safe in
+# flash; every build that links libsodium (api or ota encryption) gets 256
+# bytes of DRAM back. The rule is placed inside the .irom0.text output
+# section, which the linker script lists before the DRAM .rodata rules, so it
+# claims the section first. Mirrored in build_surgery.py for the native
+# toolchain; keep both in sync.
+
+import re
+from os.path import join
+
+RULE = "*hash_sha256_cp.c.o(.rodata.Krnd)"
+ANCHOR = re.compile(r"^\s*_irom0_text_start = ABSOLUTE\(\.\);", re.MULTILINE)
+
+
+def relocate_sodium_sha256(source, target, env):
+    """Insert the flash rule into the generated linker script.
+
+    Runs as a pre-action of the link step; the linker script is a declared
+    dependency of the elf, so it has already been generated at this point.
+    """
+    ld_path = join(env.subst("$BUILD_DIR"), "ld", "local.eagle.app.v6.common.ld")
+    with open(ld_path, encoding="utf-8") as f:
+        contents = f.read()
+
+    if RULE in contents:
+        return  # Already patched (incremental build)
+
+    match = ANCHOR.search(contents)
+    if match is None:
+        raise RuntimeError(
+            f"ESPHome: '_irom0_text_start' anchor not found in {ld_path}; "
+            "cannot move the libsodium SHA-256 constants to flash "
+            "(has the Arduino core linker script changed?)"
+        )
+
+    insert_pos = match.end()
+    patched = (
+        contents[:insert_pos]
+        + "\n    /* ESPHome: libsodium SHA-256 round constants are read word-wise, keep them in flash */"
+        + f"\n    {RULE}"
+        + contents[insert_pos:]
+    )
+    with open(ld_path, "w", encoding="utf-8") as f:
+        f.write(patched)
+    print("ESPHome: Moved libsodium SHA-256 constants to flash (256 bytes of DRAM)")
+
+
+# Register the callback to run before the link step
+env.AddPreAction("$BUILD_DIR/${PROGNAME}.elf", relocate_sodium_sha256)

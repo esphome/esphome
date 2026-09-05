@@ -24,6 +24,40 @@ _RATETABLE_COMMENT = (
 # "_dport0_data_start" line in the earlier .dport0.data section
 _RATETABLE_ANCHOR = re.compile(r"^\s*_data_start = ABSOLUTE\(\.\);", re.MULTILINE)
 
+# Move libsodium's SHA-256 round constants from DRAM to flash. The Arduino
+# core keeps .rodata in DRAM because flash only allows aligned 32-bit reads,
+# but Krnd is a uint32_t[64] that the transform only ever reads word-wise, so
+# it is safe in flash and frees 256 bytes of DRAM on every build that links
+# libsodium (api or ota encryption). The rule goes inside .irom0.text, which
+# the linker script places before the DRAM .rodata rules, so it wins.
+SODIUM_SHA256_RULE = "*hash_sha256_cp.c.o(.rodata.Krnd)"
+_SODIUM_SHA256_COMMENT = "/* ESPHome: libsodium SHA-256 round constants are read word-wise, keep them in flash */"
+_SODIUM_SHA256_ANCHOR = re.compile(
+    r"^\s*_irom0_text_start = ABSOLUTE\(\.\);", re.MULTILINE
+)
+
+
+def relocate_sodium_sha256(content: str) -> str:
+    """Insert the libsodium round-constant flash rule into a generated common
+    linker script."""
+    if SODIUM_SHA256_RULE in content:
+        return content
+    match = _SODIUM_SHA256_ANCHOR.search(content)
+    if match is None:
+        raise RuntimeError(
+            "'_irom0_text_start' anchor not found in the generated linker script; "
+            "cannot move the libsodium SHA-256 constants to flash "
+            "(has the Arduino core linker script changed?)"
+        )
+    insert_pos = match.end()
+    return (
+        content[:insert_pos]
+        + f"\n    {_SODIUM_SHA256_COMMENT}"
+        + f"\n    {SODIUM_SHA256_RULE}"
+        + content[insert_pos:]
+    )
+
+
 # Memory sizes for testing mode (allow larger builds for CI component grouping)
 TESTING_IRAM_SIZE = "0x200000"  # 2MB
 TESTING_DRAM_SIZE = "0x200000"  # 2MB
