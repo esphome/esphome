@@ -21,11 +21,9 @@ void ICNT86Touchscreen::setup() {
   // Perform reset if necessary
   if (this->reset_pin_ != nullptr) {
     this->reset_pin_->setup();
-    if (this->reset_pin_ != nullptr) {
-      this->reset_pin_->digital_write(false);
-      delay(10);
-      this->reset_pin_->digital_write(true);
-    }
+    this->reset_pin_->digital_write(false);
+    delay(10);
+    this->reset_pin_->digital_write(true);
   }
 
   if (this->x_raw_max_ == this->x_raw_min_) {
