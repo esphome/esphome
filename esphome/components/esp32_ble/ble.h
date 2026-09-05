@@ -114,7 +114,17 @@ class ESP32BLE final : public Component {
   void set_name(const char *name) { this->name_ = name; }
 
 #ifdef USE_ESP32_BLE_ADVERTISING
+  /** Request advertising on behalf of a component.
+   *
+   * Requests are reference counted: advertising runs until every component that called
+   * advertising_start() has released it again with advertising_stop(). Each component must
+   * pair its calls, so nothing advertises until something actually asks for it.
+   */
   void advertising_start();
+  /// Release a request made with advertising_start(); advertising stops at the last release.
+  void advertising_stop();
+  /// Apply the current payload and request count: advertise while requested, otherwise stop.
+  void advertising_refresh();
   void advertising_set_service_data(const std::vector<uint8_t> &data);
   void advertising_set_manufacturer_data(const std::vector<uint8_t> &data);
   void advertising_set_appearance(uint16_t appearance) { this->appearance_ = appearance; }
@@ -226,6 +236,9 @@ class ESP32BLE final : public Component {
   // 1-byte aligned members (grouped together to minimize padding)
   BLEComponentState state_{BLE_COMPONENT_STATE_OFF};  // 1 byte (uint8_t enum)
   bool enable_on_boot_{};                             // 1 byte
+#ifdef USE_ESP32_BLE_ADVERTISING
+  uint8_t advertising_ref_count_{0};  // 1 byte, number of components requesting advertising
+#endif
 
 #ifdef ESPHOME_ESP32_BLE_EXTENDED_AUTH_PARAMS
   optional<esp_ble_auth_req_t> auth_req_mode_;
