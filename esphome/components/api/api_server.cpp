@@ -34,12 +34,6 @@ APIServer::APIServer() { global_api_server = this; }
 void APIServer::socket_failed_(const LogString *msg) {
   ESP_LOGW(TAG, "Socket %s: errno %d", LOG_STR_ARG(msg), errno);
   this->destroy_socket_();
-#ifdef USE_API_OUTGOING_CONNECTION
-  // Dial-out needs no listener; degrade instead of stopping the component
-  this->status_set_error(LOG_STR("listen socket failed"));
-#else
-  this->mark_failed();
-#endif
 }
 
 bool APIServer::create_listen_socket_() {
@@ -98,14 +92,15 @@ void APIServer::setup() {
 #endif
 #endif
 
-#ifdef USE_API_OUTGOING_CONNECTION
-  // A dead listener degrades to an error status; dial-out still runs
-  this->create_listen_socket_();
-#else
   if (!this->create_listen_socket_()) {
+#ifdef USE_API_OUTGOING_CONNECTION
+    // Dial-out needs no listener; degrade instead of stopping the component
+    this->status_set_error(LOG_STR("listen socket failed"));
+#else
+    this->mark_failed();
     return;
-  }
 #endif
+  }
 
 #ifdef USE_LOGGER
   if (logger::global_logger != nullptr) {
@@ -309,7 +304,8 @@ void __attribute__((flatten)) APIServer::accept_new_connections_() {
 
 bool APIServer::add_client_(APIConnection *conn) {
   if (this->at_client_limit_()) {
-    // Callers check first; enforce the array bound where the write happens
+    // The accept path checks first to skip the allocation; the outgoing
+    // handoff relies on this check
     ESP_LOGW(TAG, "Max connections (%d), dropping client", MAX_API_CONNECTIONS);
     delete conn;
     return false;
@@ -328,11 +324,11 @@ bool APIServer::add_client_(APIConnection *conn) {
 
 #ifdef USE_API_OUTGOING_CONNECTION
 APIConnection *APIServer::add_outgoing_client_(std::unique_ptr<socket::Socket> sock) {
-  // Re-check at the handoff: inbound clients may have filled the slots and
-  // the PSK may have been cleared (mark_outgoing() needs the noise helper)
-  const bool at_limit = this->at_client_limit_();
-  if (at_limit || !this->noise_ctx_.has_psk()) {
-    ESP_LOGW(TAG, "Dropping outgoing connection (%s)", at_limit ? "max connections" : "no key");
+  // Re-check at the handoff: the PSK may have been cleared since the dial
+  // started (mark_outgoing() needs the noise helper); add_client_ re-checks
+  // the slot limit
+  if (!this->noise_ctx_.has_psk()) {
+    ESP_LOGW(TAG, "Dropping outgoing connection (no key)");
     return nullptr;
   }
   auto *conn = new APIConnection(std::move(sock), this);

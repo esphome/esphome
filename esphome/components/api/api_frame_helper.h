@@ -18,7 +18,7 @@
 namespace esphome::api {
 
 // uncomment to log raw packets
-// #define HELPER_LOG_PACKETS
+//#define HELPER_LOG_PACKETS
 
 // Maximum message size limits to prevent OOM on constrained devices
 // Handshake messages are limited to a small size for security

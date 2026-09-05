@@ -178,13 +178,12 @@ void OutgoingConnectionManager::on_client_removed(APIConnection *conn, bool was_
     return;
   }
   this->dialed_conn_ = nullptr;
-  const uint32_t now = App.get_loop_component_start_time();
   if (was_authenticated) {
     // A working peer (e.g. a host: target that never sends the flag)
     // disconnected normally; state is IDLE, so loop() applies the delay
     this->backoff_ = BACKOFF_MIN_MS;
   } else {
-    this->schedule_retry_(now);
+    this->schedule_retry_(App.get_loop_component_start_time());
   }
 }
 

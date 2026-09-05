@@ -81,25 +81,24 @@ def test_outgoing_connection_requires_encryption(
 
 
 @pytest.mark.parametrize(
-    "platform_framework",
-    [PlatformFramework.ESP8266_ARDUINO, PlatformFramework.RP2040_ARDUINO],
+    ("platform_framework", "platform_data"),
+    [
+        # The platform default on these two
+        (PlatformFramework.ESP8266_ARDUINO, None),
+        (PlatformFramework.RP2040_ARDUINO, None),
+        # An explicit selection elsewhere
+        (PlatformFramework.ESP32_IDF, ESP32_PLATFORM_DATA),
+    ],
 )
-def test_outgoing_connection_rejected_on_raw_lwip_platforms(
+def test_outgoing_connection_rejects_lwip_tcp(
     set_core_config: SetCoreConfigCallable,
     platform_framework: PlatformFramework,
+    platform_data: ConfigType | None,
 ) -> None:
-    set_core_config(platform_framework)
-    with pytest.raises(cv.Invalid, match="not supported on this platform"):
-        CONFIG_SCHEMA(_api_config({"host": "192.168.1.2"}))
-
-
-def test_outgoing_connection_rejects_lwip_tcp_selected_on_esp32(
-    set_core_config: SetCoreConfigCallable,
-) -> None:
-    """An explicit lwip_tcp selection is caught at final validate."""
+    """The resolved lwip_tcp socket is rejected at final validate."""
     set_core_config(
-        PlatformFramework.ESP32_IDF,
-        platform_data=ESP32_PLATFORM_DATA,
+        platform_framework,
+        platform_data=platform_data,
         full_config={"socket": {"implementation": "lwip_tcp"}},
     )
     config = CONFIG_SCHEMA(_api_config({"host": "192.168.1.2"}))
