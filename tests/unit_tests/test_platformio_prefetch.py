@@ -588,7 +588,8 @@ def test_registry_jobs_one_bad_spec_keeps_the_rest(tmp_path: Path) -> None:
 
 
 def test_uri_jobs_head_sizes_the_bar(tmp_path: Path) -> None:
-    """HEAD sizes direct-URL specs; git and unreachable URLs are skipped."""
+    """HEAD sizes direct-URL specs; VCS specs skip the download but are
+    still installable (the pre-install clones them in parallel)."""
     m = _fake_manager(tmp_path)
     resp = MagicMock()
     resp.headers = {"content-length": "2222"}
@@ -597,21 +598,81 @@ def test_uri_jobs_head_sizes_the_bar(tmp_path: Path) -> None:
             m,
             [
                 _FakeSpec(uri="https://x/big.zip", name="big", custom_name=True),
-                _FakeSpec(uri="git+https://x/repo.git", name="repo"),
-                _FakeSpec(uri="https://x/repo.git#v1", name="barevcs"),
+                _FakeSpec(uri="git+https://x/repo.git", name="repo", custom_name=True),
                 _FakeSpec(name="registry"),
             ],
             set(),
         )
     assert failed == 0
     assert [(n, s) for n, s, _ in jobs] == [("big", 2222)]
-    assert [n for n, _ in installable] == ["big"]
+    assert [n for n, _ in installable] == ["repo", "big"]
     # a successful HEAD with no Content-Length is a clean skip
     resp.headers = {}
     with patch("esphome.net_retry.http_request", return_value=resp):
         assert pf._uri_jobs(
             m, [_FakeSpec(uri="https://x/nolen.zip", name="nolen")], set()
         ) == ([], 0, [])
+
+
+def test_uri_jobs_vcs_specs_installable_without_probe(tmp_path: Path) -> None:
+    """VCS specs never probe the network; custom-named uninstalled ones
+    pre-install, everything else is left to pio run."""
+    m = _fake_manager(tmp_path)
+    with patch("esphome.net_retry.http_request") as mock_head:
+        jobs, failed, installable = pf._uri_jobs(
+            m,
+            [
+                _FakeSpec(
+                    uri="git+https://x/tool.git#1.0", name="tool", custom_name=True
+                ),
+                _FakeSpec(uri="hg+https://x/old", name="mercurial", custom_name=True),
+                _FakeSpec(uri="git+https://x/derived.git", name="derived"),
+                # An un-normalized repo URL classifies as VCS (never as a
+                # downloadable archive), then drops here as derived-name
+                _FakeSpec(uri="https://x/unnorm.git", name="unnorm"),
+                _FakeSpec(uri="file:///local/dir", name="local"),
+                # A local .git path is copied in place, never cloned
+                _FakeSpec(uri="file:///local/repo.git", name="localgit"),
+                _FakeSpec(uri="symlink:///local/dir", name="link"),
+            ],
+            set(),
+        )
+    mock_head.assert_not_called()
+    assert (jobs, failed) == ([], 0)
+    assert [n for n, _ in installable] == ["tool", "mercurial"]
+    # Positive classification: an unknown scheme is left to pio run
+    with patch("esphome.net_retry.http_request") as mock_head:
+        assert pf._uri_jobs(
+            m, [_FakeSpec(uri="weird://x/pkg", name="weird")], set()
+        ) == ([], 0, [])
+    mock_head.assert_not_called()
+
+    m.get_package.return_value = object()  # already installed: warm and silent
+    with patch("esphome.net_retry.http_request"):
+        assert pf._uri_jobs(
+            m,
+            [
+                _FakeSpec(
+                    uri="git+https://x/tool.git#1.0", name="tool", custom_name=True
+                )
+            ],
+            set(),
+        ) == ([], 0, [])
+
+
+def test_clones_first_orders_vcs_before_archives() -> None:
+    """The pre-install pool receives clones first: they wait on the
+    network and must not queue behind CPU-bound archive extractions."""
+    archive = ("zip", _FakeSpec(uri="https://x/a.zip", name="zip"))
+    registry = ("reg", _FakeSpec(uri=None, name="reg"))
+    clone = ("repo", _FakeSpec(uri="git+https://x/repo.git", name="repo"))
+    ordered = pf._clones_first([archive, registry, clone])
+    assert ordered[0] == clone
+    # Stable partition: non-clone relative order is preserved
+    assert ordered[1:] == [archive, registry]
+    assert pf._entry_is_vcs(clone)
+    assert not pf._entry_is_vcs(archive)
+    assert not pf._entry_is_vcs(registry)
 
 
 def test_uri_jobs_head_failure_counts_as_unresolved(
@@ -1600,12 +1661,9 @@ def test_preinstall_dependency_wave_skips_seen_names(tmp_path: Path) -> None:
     assert installed == ["noise-c"]
 
 
-def test_preinstall_uses_distinct_managers_in_parallel(tmp_path: Path) -> None:
-    """Each worker thread gets its own pre-built manager and installs
-    genuinely overlap (the barrier deadlocks a serial pool). The worker
-    count is pinned so a 1-CPU host cannot serialize the pool."""
-    barrier = threading.Barrier(2, timeout=5)
-    used: set = set()
+def _wave_manager(tmp_path, on_install):
+    """A minimal pio-manager stand-in for _preinstall pool tests;
+    ``on_install(manager, spec)`` observes each _install call."""
 
     class _WaveManager:
         package_dir = str(tmp_path)
@@ -1636,20 +1694,59 @@ def test_preinstall_uses_distinct_managers_in_parallel(tmp_path: Path) -> None:
             return None
 
         def _install(self, spec, skip_dependencies, compatibility=None) -> None:
-            used.add(id(self))
-            barrier.wait()
+            on_install(self, spec)
 
-    seed = _WaveManager(str(tmp_path))
-    with patch.object(pf, "get_usable_cpu_count", return_value=2):
+    return _WaveManager
+
+
+@pytest.mark.parametrize(
+    ("cpu_count", "entries"),
+    [
+        (2, [("a@1", _FakeSpec(name="a")), ("b@1", _FakeSpec(name="b"))]),
+        # The clone floor: network-bound clones run wide on a 1-CPU host
+        (
+            1,
+            [
+                (f"r{i}", _FakeSpec(uri=f"git+https://x/r{i}.git", name=f"r{i}"))
+                for i in range(4)
+            ],
+        ),
+    ],
+    ids=("cpu-sized", "clone-floor"),
+)
+def test_preinstall_pool_width(tmp_path: Path, cpu_count: int, entries: list) -> None:
+    """The barrier deadlocks unless every entry gets its own manager
+    and runs concurrently."""
+    barrier = threading.Barrier(len(entries), timeout=5)
+    used: set = set()
+
+    def on_install(mgr, spec) -> None:
+        used.add(id(mgr))
+        barrier.wait()
+
+    cls = _wave_manager(tmp_path, on_install)
+    seed = cls(str(tmp_path))
+    with patch.object(pf, "get_usable_cpu_count", return_value=cpu_count):
+        pf._preinstall(seed, entries)
+    assert len(used) == len(entries)
+    assert id(seed) not in used
+
+
+def test_preinstall_orders_clones_before_extractions(tmp_path: Path) -> None:
+    """With one worker, the clone installs before the archive
+    regardless of caller order."""
+    order: list[str] = []
+    cls = _wave_manager(tmp_path, lambda mgr, spec: order.append(spec.name))
+    seed = cls(str(tmp_path))
+    with patch.object(pf, "get_usable_cpu_count", return_value=1):
         pf._preinstall(
             seed,
             [
-                ("a@1", _FakeSpec(name="a")),
-                ("b@1", _FakeSpec(name="b")),
+                ("zip", _FakeSpec(uri="https://x/a.zip", name="zip")),
+                ("repo", _FakeSpec(uri="git+https://x/repo.git", name="repo")),
             ],
         )
-    assert len(used) == 2
-    assert id(seed) not in used
+    assert order == ["repo", "zip"]
 
 
 def test_sibling_manager_and_sigterm() -> None:
@@ -1803,3 +1900,13 @@ def test_platformio_private_api_contract() -> None:
     derived = PackageSpec("https://x/y/archive/master.zip")
     assert derived.name and not derived.has_custom_name()
     assert PackageSpec("Foo=https://x/y/archive/master.zip").has_custom_name()
+    # _is_vcs_spec_uri relies on bare .git URLs normalizing to git+, on
+    # both parse paths (raw string, and requirements= for platform tools)
+    assert PackageSpec("https://github.com/x/y.git#v1").uri.startswith("git+")
+    platform_tool = PackageSpec(
+        owner="o", name="tool-x", requirements="https://github.com/x/y.git"
+    )
+    assert platform_tool.uri.startswith("git+")
+    # A URL requirement re-parses as name=url, marking the name custom;
+    # this is what keeps platform tool clones in the parallel pre-install
+    assert platform_tool.has_custom_name()

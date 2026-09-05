@@ -16,7 +16,7 @@ name and promote with an atomic rename.
 
 from __future__ import annotations
 
-from collections.abc import Iterator
+from collections.abc import Iterable, Iterator
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager, suppress
 import hashlib
@@ -55,8 +55,8 @@ def _preserved_sys_path() -> Iterator[None]:
         sys.path[:] = saved
 
 
-# Concurrent registry resolutions / HEAD probes (each is network-bound)
-_RESOLVE_WORKERS = 8
+# Cap for network-bound work: resolutions, HEAD probes, clone floor
+_NETWORK_WORKERS = 8
 
 # A hung child must not block the build; downloads resume on the next run
 _PREFETCH_TIMEOUT = 20 * 60
@@ -341,7 +341,7 @@ def _registry_jobs(
     if not pending:
         return [], 0, []
     # Serial resolutions (registry GET + mirror HEAD each) dominate
-    with ThreadPoolExecutor(max_workers=min(_RESOLVE_WORKERS, len(pending))) as ex:
+    with ThreadPoolExecutor(max_workers=min(_NETWORK_WORKERS, len(pending))) as ex:
         results = list(ex.map(_resolve, pending))
     jobs: list[tuple[str, int, Any]] = []
     installable: list[tuple[str, Any]] = []
@@ -374,14 +374,47 @@ def _registry_jobs(
     return jobs, failed, installable
 
 
+# The schemes pio's VCSClientFactory dispatches on (Git/Hg/SvnClient)
+_VCS_URI_PREFIXES = ("git+", "hg+", "svn+", "git://", "hg://", "svn://")
+
+
+def _is_vcs_spec_uri(url: str | None) -> bool:
+    """Whether pio's ``install_from_uri`` would clone this URI (PackageSpec
+    normalizes git URLs to ``git+``). The .git check runs first so an
+    un-normalized repo URL fails as a clone, not as an archive download."""
+    if not url or url.startswith(("file://", "symlink://")):
+        return False
+    if url.split("#", 1)[0].endswith(".git"):
+        return True
+    if url.startswith(("http://", "https://")):
+        return False
+    return url.startswith(_VCS_URI_PREFIXES)
+
+
+# (name, spec) from wave 1, (name, spec, compatibility) from dep waves
+_Entry = tuple[str, Any] | tuple[str, Any, Any]
+
+
+def _entry_is_vcs(entry: _Entry) -> bool:
+    """Whether this pre-install entry is cloned rather than unpacked."""
+    return _is_vcs_spec_uri(entry[1].uri)
+
+
+def _clones_first(entries: Iterable[_Entry]) -> list[_Entry]:
+    """Clones first: they wait on the network, so they must not queue
+    behind CPU-bound archive extractions in the pre-install pool."""
+    return sorted(entries, key=lambda entry: not _entry_is_vcs(entry))
+
+
 def _uri_jobs(
     manager: Any, specs: list[Any], seen: set[str]
 ) -> tuple[list[tuple[str, int, Any]], int, list[tuple[str, Any]]]:
     """Jobs for direct-URL specs; a HEAD sizes each for the combined bar.
 
     Also returns how many HEAD probes errored (an absent length is not an
-    error) and the ``(name, spec)`` pairs whose archives will be
-    installable.
+    error) and the ``(name, spec)`` pairs to pre-install: downloaded
+    archives, plus VCS specs, which have no archive -- the pre-install
+    itself clones them, in parallel instead of one at a time in pio run.
     """
     from esphome.net_retry import fetch_with_retry, http_request
 
@@ -389,13 +422,25 @@ def _uri_jobs(
     installable: list[tuple[str, Any]] = []
     for spec in specs:
         url = spec.uri
-        if not url or not url.startswith(("http://", "https://")):
-            continue  # git+/file specs are cloned/copied, not downloaded
-        if url.split("#", 1)[0].endswith(".git"):
-            continue  # bare-URL VCS spec; PlatformIO clones it
+        if not url:
+            continue
+        is_vcs = _is_vcs_spec_uri(url)
+        if not is_vcs and not url.startswith(("http://", "https://")):
+            if not url.startswith(("file://", "symlink://")):
+                _LOGGER.debug(
+                    "Unrecognized package URI, leaving it to pio run: %s", url
+                )
+            continue  # file/symlink specs are copied in place by pio run
         if manager.get_package(spec):
             continue
         name = spec.name or url.rsplit("/", 1)[-1]
+        if is_vcs:
+            # The pre-install clones it, gated like the cached-archive
+            # branch below: only a custom name is the destination dir.
+            # Platform tool specs always parse as custom-named
+            if spec.has_custom_name():
+                installable.append((name, spec))
+            continue
         # PlatformIO downloads URL specs with no checksum
         dl_path = Path(manager.compute_download_path(url, ""))
         if dl_path.is_file():
@@ -409,7 +454,7 @@ def _uri_jobs(
         if str(dl_path) in seen:
             continue  # another spec already claimed this .part
         seen.add(str(dl_path))
-        candidates.append((spec.name, url, dl_path, spec))
+        candidates.append((name, url, dl_path, spec))
 
     errors: list[str] = []
 
@@ -435,7 +480,7 @@ def _uri_jobs(
 
     if not candidates:
         return [], 0, installable
-    with ThreadPoolExecutor(max_workers=min(_RESOLVE_WORKERS, len(candidates))) as ex:
+    with ThreadPoolExecutor(max_workers=min(_NETWORK_WORKERS, len(candidates))) as ex:
         sizes = list(ex.map(_head_size, [url for _, url, _, _ in candidates]))
     jobs: list[tuple[str, int, Any]] = []
     failed = 0
@@ -583,10 +628,6 @@ def _uri_fetch_job(manager: Any, url: str, dl_path: Path, size: int) -> Any:
     return run
 
 
-# (name, spec) from wave 1, (name, spec, compatibility) from dep waves
-_Entry = tuple[str, Any] | tuple[str, Any, Any]
-
-
 def _dependency_entries(
     manager: Any, entries: list[_Entry], seen_names: set[str]
 ) -> list[_Entry]:
@@ -701,7 +742,14 @@ def _preinstall(
     would hang, not fail). Waves skip dependencies; the installed
     manifests feed the next wave. Any failure falls back to pio run.
     """
-    workers = min(get_usable_cpu_count(), len(entries))
+    entries = _clones_first(entries)
+    clones = sum(1 for entry in entries if _entry_is_vcs(entry))
+    # Network-bound clones run wide even on small-core runners; capped
+    # since each worker builds a sibling manager and may run a
+    # postinstall, and a mixed wave's extractions inherit the width
+    workers = min(
+        max(get_usable_cpu_count(), min(clones, _NETWORK_WORKERS)), len(entries)
+    )
     # One manager per worker (_install mutates instance state); built
     # serially because construction rewires the shared manager logger
     managers: SimpleQueue = SimpleQueue()
@@ -733,7 +781,7 @@ def _preinstall(
             raise
 
     _LOGGER.info(
-        "Installing %d PlatformIO package(s) with %d extraction worker(s): %s",
+        "Installing %d PlatformIO package(s) with %d worker(s): %s",
         len(entries),
         workers,
         ", ".join(name for name, *_ in entries),
