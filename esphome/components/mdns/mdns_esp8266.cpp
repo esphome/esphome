@@ -19,25 +19,21 @@ namespace esphome::mdns {
 // from the main loop afterwards.
 class GuardedMDNSResponder : public ::esp8266::MDNSImplementation::MDNSResponder {
  public:
-  void update_guarded() {
-    this->run_guarded_([this]() { this->update(); });
-  }
-  void close_guarded() {
-    this->run_guarded_([this]() { this->close(); });
-  }
+  void update_guarded() { this->run_guarded_(&GuardedMDNSResponder::update); }
+  void close_guarded() { this->run_guarded_(&GuardedMDNSResponder::close); }
 
  private:
-  template<typename F> void run_guarded_(F &&fn) {
+  void run_guarded_(bool (GuardedMDNSResponder::*fn)()) {
     UdpContext *ctx = this->m_pUDPContext;
     if (ctx == nullptr) {
-      fn();
+      (this->*fn)();
       return;
     }
     // Set every time: a restart replaces the context together with its stock handler
     ctx->onRx([this]() { this->on_rx_(); });
     this->pending_rx_ = 0;
     this->in_loop_call_ = true;
-    fn();
+    (this->*fn)();
     // Still counting here, so packets arriving during a yield in the drain queue behind it
     while (this->pending_rx_ > 0) {
       this->pending_rx_--;
