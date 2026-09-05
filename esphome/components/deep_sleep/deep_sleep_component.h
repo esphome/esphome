@@ -60,6 +60,11 @@ struct WakeupCauseToRunDuration {
 
 #endif  // USE_ESP32
 
+#ifdef USE_GPIO_HOLD
+/// Return if the device woke from deep sleep or started normally. Implemented per platform.
+bool woken_from_deepsleep();
+#endif
+
 #ifdef USE_DEEP_SLEEP_ON_WAKE
 
 /// Why the device woke from deep sleep. Passed to on_wake automations.
