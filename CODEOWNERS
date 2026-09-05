@@ -640,6 +640,7 @@ esphome/components/xiaomi_xmwsdj04mmc/* @medusalix
 esphome/components/xl9535/* @mreditor97
 esphome/components/xpt2046/touchscreen/* @nielsnl68 @numo68
 esphome/components/xxtea/* @clydebarrow
+esphome/components/ze15_co/* @maikeljkwak
 esphome/components/zephyr/* @tomaszduda23
 esphome/components/zephyr_mcumgr/ota/* @tomaszduda23
 esphome/components/zephyr_pwm/* @wiomoc
