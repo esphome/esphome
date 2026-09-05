@@ -9,6 +9,7 @@ import os
 from pathlib import Path
 import re
 import stat
+import subprocess
 from typing import Any
 from unittest.mock import MagicMock, patch
 
@@ -849,25 +850,39 @@ def test_check_build_tree_not_tracked_warns_when_tracked(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     """Test check_build_tree_not_tracked warns when the build dir is tracked by git."""
+    data_dir = tmp_path / ".esphome"
     mock_core.config_dir = tmp_path
-    mock_core.data_dir = tmp_path / ".esphome"
+    mock_core.data_dir = data_dir
     mock_run.return_value = MagicMock(
-        returncode=0, stdout=b".esphome/build/node/main.cpp\0.esphome/node.json\0"
+        returncode=0,
+        stdout=b".esphome/build/node/main.cpp\0.esphome/node.json\0",
+        stderr=b"",
     )
 
-    with caplog.at_level("WARNING"):
+    with (
+        patch.dict(os.environ, {"GIT_DIR": "/somewhere/else/.git"}),
+        caplog.at_level("WARNING"),
+    ):
         check_build_tree_not_tracked()
 
     assert "is tracked by git" in caplog.text
     assert "2 files" in caplog.text
     assert "secrets" in caplog.text
     assert ".gitkeep" in caplog.text
-    mock_run.assert_called_once_with(
-        ["git", "ls-files", "-z", "--", ".esphome"],
-        cwd=tmp_path,
-        capture_output=True,
-        check=False,
-    )
+    # The remediation command must use the absolute path so it also works
+    # when pasted from the repository root of a nested config layout.
+    assert f"git rm -r --cached {data_dir}" in caplog.text
+
+    mock_run.assert_called_once()
+    args, kwargs = mock_run.call_args
+    assert args[0] == ["git", "ls-files", "-z", "--", ".esphome"]
+    assert kwargs["cwd"] == tmp_path
+    assert kwargs["capture_output"] is True
+    assert kwargs["check"] is False
+    assert kwargs["timeout"] == 5
+    # Repo-scoping env vars must be stripped so a hook/CI wrapper can't
+    # redirect this read-only query to a different repository.
+    assert "GIT_DIR" not in kwargs["env"]
 
 
 @patch("esphome.writer.subprocess.run")
@@ -903,7 +918,7 @@ def test_check_build_tree_not_tracked_silent_when_untracked(
     """Test check_build_tree_not_tracked stays silent when nothing is tracked."""
     mock_core.config_dir = tmp_path
     mock_core.data_dir = tmp_path / ".esphome"
-    mock_run.return_value = MagicMock(returncode=0, stdout=b"")
+    mock_run.return_value = MagicMock(returncode=0, stdout=b"", stderr=b"")
 
     with caplog.at_level("WARNING"):
         check_build_tree_not_tracked()
@@ -922,7 +937,9 @@ def test_check_build_tree_not_tracked_silent_outside_git_repo(
     """Test check_build_tree_not_tracked stays silent when not inside a git repo."""
     mock_core.config_dir = tmp_path
     mock_core.data_dir = tmp_path / ".esphome"
-    mock_run.return_value = MagicMock(returncode=128, stdout=b"")
+    mock_run.return_value = MagicMock(
+        returncode=128, stdout=b"", stderr=b"fatal: not a git repository\n"
+    )
 
     with caplog.at_level("WARNING"):
         check_build_tree_not_tracked()
@@ -942,6 +959,44 @@ def test_check_build_tree_not_tracked_silent_when_git_missing(
     mock_core.config_dir = tmp_path
     mock_core.data_dir = tmp_path / ".esphome"
     mock_run.side_effect = FileNotFoundError()
+
+    with caplog.at_level("WARNING"):
+        check_build_tree_not_tracked()
+
+    assert "tracked by git" not in caplog.text
+
+
+@patch("esphome.writer.subprocess.run")
+@patch("esphome.writer.CORE")
+def test_check_build_tree_not_tracked_silent_on_other_os_error(
+    mock_core: MagicMock,
+    mock_run: MagicMock,
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A non-executable git on PATH (PermissionError) must not abort the build."""
+    mock_core.config_dir = tmp_path
+    mock_core.data_dir = tmp_path / ".esphome"
+    mock_run.side_effect = PermissionError("git is not executable")
+
+    with caplog.at_level("WARNING"):
+        check_build_tree_not_tracked()
+
+    assert "tracked by git" not in caplog.text
+
+
+@patch("esphome.writer.subprocess.run")
+@patch("esphome.writer.CORE")
+def test_check_build_tree_not_tracked_silent_on_timeout(
+    mock_core: MagicMock,
+    mock_run: MagicMock,
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A hung git process must not block the build indefinitely."""
+    mock_core.config_dir = tmp_path
+    mock_core.data_dir = tmp_path / ".esphome"
+    mock_run.side_effect = subprocess.TimeoutExpired(cmd="git", timeout=5)
 
     with caplog.at_level("WARNING"):
         check_build_tree_not_tracked()
@@ -1423,6 +1478,7 @@ def test_clean_all(
     build_dir2.mkdir()
     (build_dir1 / "dummy.txt").write_text("x")
     (build_dir2 / "dummy.txt").write_text("x")
+    (build_dir1 / ".gitkeep").touch()
 
     # Create PlatformIO directories
     pio_cache = tmp_path / "pio_cache"
@@ -1465,6 +1521,10 @@ def test_clean_all(
     # Verify that files in .esphome were removed
     assert not (build_dir1 / "dummy.txt").exists()
     assert not (build_dir2 / "dummy.txt").exists()
+
+    # .gitkeep is the opt-out check_build_tree_not_tracked() advertises; it
+    # must survive clean-all or the warning comes right back on next compile.
+    assert (build_dir1 / ".gitkeep").exists()
     assert not pio_cache.exists()
     assert not pio_packages.exists()
     assert not pio_platforms.exists()

@@ -17,6 +17,7 @@ from esphome.const import (
     __version__,
 )
 from esphome.core import CORE, EsphomeError
+from esphome.git import _GIT_REPO_SCOPING_ENV
 from esphome.helpers import (
     copy_file_if_changed,
     cpp_string_escape,
@@ -698,7 +699,11 @@ def clean_all(configuration: list[str]):
             _LOGGER.info("Cleaning %s", dir)
             # Don't remove storage or .json files which are needed by the dashboard
             for item in dir.iterdir():
-                if item.is_file() and not item.name.endswith(".json"):
+                if (
+                    item.is_file()
+                    and not item.name.endswith(".json")
+                    and item.name != ".gitkeep"
+                ):
                     item.unlink()
                 elif item.is_dir() and item.name != "storage":
                     rmtree(item)
@@ -766,17 +771,35 @@ def check_build_tree_not_tracked() -> None:
         # this repository.
         return
 
+    # Strip the same repo-scoping variables run_git_command() strips (see
+    # esphome/git.py): a git hook or CI wrapper exporting GIT_DIR/GIT_INDEX_FILE
+    # would otherwise redirect this read-only query to its own repository.
+    env = {k: v for k, v in os.environ.items() if k not in _GIT_REPO_SCOPING_ENV}
     try:
         result = subprocess.run(
             ["git", "ls-files", "-z", "--", str(relative_data_dir)],
             cwd=CORE.config_dir,
             capture_output=True,
             check=False,
+            env=env,
+            timeout=5,
         )
-    except FileNotFoundError:
-        # git is not installed.
+    except (OSError, subprocess.TimeoutExpired) as err:
+        # This is a purely advisory check -- git missing, unreadable, or slow
+        # must never turn into a hard failure of the build itself.
+        _LOGGER.debug(
+            "Could not check whether %s is tracked by git: %s", relative_data_dir, err
+        )
         return
-    if result.returncode != 0 or not result.stdout:
+    if result.returncode != 0:
+        if result.stderr:
+            _LOGGER.debug(
+                "git ls-files failed (%d): %s",
+                result.returncode,
+                result.stderr.decode("utf-8", errors="replace").strip(),
+            )
+        return
+    if not result.stdout:
         return
 
     tracked_count = sum(1 for name in result.stdout.split(b"\0") if name)
@@ -791,5 +814,5 @@ def check_build_tree_not_tracked() -> None:
         relative_data_dir,
         tracked_count,
         "" if tracked_count == 1 else "s",
-        relative_data_dir,
+        data_dir,
     )
