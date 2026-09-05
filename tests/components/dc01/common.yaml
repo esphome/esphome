@@ -1,0 +1,5 @@
+sensor:
+  - platform: dc01
+    uart_id: uart_bus
+    pm_2_5:
+      name: Particulate Matter 2.5µm Concentration
