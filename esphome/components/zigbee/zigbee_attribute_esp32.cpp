@@ -86,6 +86,21 @@ void ZigbeeAttribute::loop() {
   }
 }
 
+void ZigbeeAttribute::on_remote_write(const void *value) {
+#ifdef USE_SWITCH
+  if (this->switch_ != nullptr) {
+    bool val = *static_cast<const uint8_t *>(value) != 0;
+    this->defer([this, val]() {
+      if (val) {
+        this->switch_->turn_on();
+      } else {
+        this->switch_->turn_off();
+      }
+    });
+  }
+#endif
+}
+
 }  // namespace esphome::zigbee
 
 #endif

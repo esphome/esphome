@@ -224,6 +224,13 @@ def validate_binary_sensor_esp32(config: ConfigType) -> ConfigType:
     return config
 
 
+def validate_switch_esp32(config: ConfigType) -> ConfigType:
+    ep = copy.deepcopy(ep_configs["on_off_output"])
+    setup_attributes(config, ep[CONF_CLUSTERS])
+    add_ep(ep, config.get(CONF_ENDPOINT), config.get(CONF_USE_DEVICE_TYPE))
+    return config
+
+
 def zigbee_require_vfs_select(config: ConfigType) -> ConfigType:
     """Register VFS select requirement during config validation."""
     # Zigbee uses esp_vfs_eventfd which requires VFS select support

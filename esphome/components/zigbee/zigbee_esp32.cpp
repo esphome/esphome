@@ -158,6 +158,10 @@ static void zb_attribute_handler(ezb_zcl_set_attr_value_message_t *message) {
   ESP_LOGD(TAG, "ZCL SetAttributeValue message for endpoint(%d) cluster(0x%04x) %s with status(0x%02x)",
            message->info.dst_ep, message->info.cluster_id,
            message->info.cluster_role == EZB_ZCL_CLUSTER_SERVER ? "server" : "client", message->info.status);
+  if (global_zigbee) {
+    global_zigbee->handle_attr_write(message->info.dst_ep, message->info.cluster_id, message->info.cluster_role,
+                                     message->in.attribute.id, message->in.attribute.data.value);
+  }
 }
 
 static void zb_action_handler(ezb_zcl_core_action_callback_id_t callback_id, void *message) {
@@ -353,6 +357,15 @@ void ZigbeeComponent::loop() {
     this->factory_new_ = false;
   }
   this->disable_loop();
+}
+
+void ZigbeeComponent::handle_attr_write(uint8_t endpoint, uint16_t cluster_id, uint8_t role, uint16_t attr_id,
+                                        const void *value) {
+  auto key = std::make_tuple(endpoint, cluster_id, role, attr_id);
+  auto it = this->attributes_.find(key);
+  if (it != this->attributes_.end() && it->second != nullptr) {
+    it->second->on_remote_write(value);
+  }
 }
 
 void ZigbeeComponent::dump_config() {
