@@ -240,6 +240,7 @@ class _EncryptionAttempt:
         self.plaintext_fallback = False
 
 
+# Remove before 2027.3.0: only the fallback decision needs this distinction
 class OTAHandshakeNetworkError(OTANetworkError):
     """A transport failure inside the noise handshake; retrying encrypted may succeed."""
 

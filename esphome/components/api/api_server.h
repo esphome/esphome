@@ -79,6 +79,17 @@ class APIServer final : public Component,
 #ifndef USE_API_NOISE_PSK_FROM_YAML
   bool save_noise_psk(noise::psk_t psk, bool make_active = true);
   bool clear_noise_psk(bool make_active = true);
+#else
+  // Stubs so a lambda calling these with a yaml key gets a clear error; only
+  // fire if instantiated
+  template<bool B = false> bool save_noise_psk(noise::psk_t, bool = true) {
+    static_assert(B, "save_noise_psk() needs a runtime provisioned key; remove the 'key' from 'api: encryption:'");
+    return false;
+  }
+  template<bool B = false> bool clear_noise_psk(bool = true) {
+    static_assert(B, "clear_noise_psk() needs a runtime provisioned key; remove the 'key' from 'api: encryption:'");
+    return false;
+  }
 #endif
   /// psk points at 32 bytes that live in flash for the life of the program
   void set_noise_psk(const uint8_t *psk) { this->noise_ctx_.set_psk(psk); }

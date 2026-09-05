@@ -266,13 +266,14 @@ def test_encryption_explicit_key_with_runtime_provisioned_api_accepted() -> None
         fv.full_config.reset(token)
 
 
+@pytest.mark.parametrize("component", ["web_server", "prometheus"])
 def test_encryption_with_web_server_ota_warns(
-    caplog: pytest.LogCaptureFixture,
+    caplog: pytest.LogCaptureFixture, component: str
 ) -> None:
-    """With the web_server component the plaintext /update endpoint is always
-    on; the combination validates with a warning."""
+    """web_server and prometheus keep the shared listener up, so the
+    plaintext /update endpoint is always on and the combination warns."""
     full_conf = {
-        "web_server": {},
+        component: {},
         CONF_OTA: [
             _make_ota_config(port=3232, **{CONF_ENCRYPTION: {CONF_KEY: OTHER_KEY}}),
             {CONF_PLATFORM: "web_server", CONF_ID: ID("ota_ws", is_manual=False)},

@@ -165,10 +165,10 @@ def ota_esphome_final_validate(config: ConfigType) -> None:
                 CONF_OTA,
                 CONF_PASSWORD,
             )
-    # Only the web_server component keeps the listener up; the captive
-    # portal's copy is the recovery path
+    # web_server and prometheus keep the shared listener up; the captive
+    # portal's copy only exists on the fallback AP and is the recovery path
     if (
-        CONF_WEB_SERVER in full_conf
+        (CONF_WEB_SERVER in full_conf or "prometheus" in full_conf)
         and any(conf.get(CONF_PLATFORM) == CONF_WEB_SERVER for conf in full_ota_conf)
         and any(
             CONF_ENCRYPTION in conf
