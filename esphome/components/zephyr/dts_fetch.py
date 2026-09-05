@@ -24,7 +24,7 @@ from esphome.const import (
 from esphome.core import CORE, TimePeriodSeconds
 from esphome.types import ConfigType
 
-from .const import KEY_ZEPHYR
+from .const import KEY_SDK_SOURCE_RESOLVED_REF, KEY_ZEPHYR
 from .variants import ZephyrSDK
 
 _LOGGER = logging.getLogger(__name__)
@@ -180,11 +180,34 @@ def _sdk_source_cache_key(url: str, ref: str | None) -> str:
     return hashlib.sha1(f"{url}@{ref or 'HEAD'}".encode()).hexdigest()[:16]
 
 
+def _resolve_git_head(dest: Path) -> str:
+    """Return the exact commit SHA checked out at dest."""
+    try:
+        result = subprocess.run(
+            ["git", "-C", str(dest), "rev-parse", "HEAD"],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+    except subprocess.CalledProcessError as exc:
+        raise cv.Invalid(
+            f"Can't resolve sdk_source commit: {exc.stderr.strip()}"
+        ) from exc
+    return result.stdout.strip()
+
+
 def resolve_sdk_source_version(source: ConfigType, refresh: TimePeriodSeconds) -> str:
     """Return the 'major.minor.patch' version of a zephyr: sdk_source:, read directly from
     its VERSION file rather than guessed -- several places elsewhere in the codebase (build
     output layout, sysbuild mode, DTS lookups) branch on the exact semver, so this can't just
-    default to the variant's own baseline when a custom source is in play."""
+    default to the variant's own baseline when a custom source is in play.
+
+    For a git source, also resolves the moving ref (branch, or an omitted ref: meaning
+    "default branch") to one concrete commit SHA and stashes it onto source under
+    KEY_SDK_SOURCE_RESOLVED_REF -- the single authoritative resolution the rest of the
+    build (fetch_board_dts(), framework_west's SDK install) pins to, instead of each
+    independently re-resolving the same moving ref against its own timer.
+    """
     if source[CONF_TYPE] == TYPE_LOCAL:
         # Points at the zephyr manifest repo itself, not a workspace root -- matches
         # framework_west.py's local_path/"west.yml" check.
@@ -236,6 +259,7 @@ def resolve_sdk_source_version(source: ConfigType, refresh: TimePeriodSeconds) -
                 "is this really a Zephyr repository?"
             )
 
+    source[KEY_SDK_SOURCE_RESOLVED_REF] = _resolve_git_head(dest)
     return _parse_zephyr_version_file(version_file)
 
 
@@ -491,7 +515,7 @@ def _sparse_clone_dts(
 
 
 def _sparse_clone_dts_from_source(
-    source: ConfigType, refresh: TimePeriodSeconds, family: str | None = None
+    source: ConfigType, family: str | None = None
 ) -> Path | None:
     """Sparse-clone boards/, dts/, and include/zephyr/ from a git sdk_source:.
 
@@ -500,34 +524,35 @@ def _sparse_clone_dts_from_source(
     matching tag on the plain upstream repo, so DTS lookups must come from the same
     fork/ref the rest of the build uses. Cached under the machine-global sdk-zephyr
     cache root's dts_cache/<url-ref-hash>/, keyed the same way as
-    resolve_sdk_source_version()'s cache. Unlike the upstream-tag path (an immutable
-    tag never needs re-fetching), a fork/branch is a moving ref -- respects the same
-    `refresh:` window as resolve_sdk_source_version()/framework_west.py's SDK install,
-    so a new commit pushed to the fork doesn't silently sit stale here indefinitely
-    while the rest of the build correctly picks it up.
+    resolve_sdk_source_version()'s cache. Freshness is decided once, up front, by
+    resolve_sdk_source_version() -- which resolves the moving ref (a fork/branch, or an
+    omitted ref: meaning "default branch") to source[KEY_SDK_SOURCE_RESOLVED_REF] --
+    so this only has to compare the cached content's own resolved-ref marker against
+    that single value, not poll a `refresh:` timer of its own.
     """
     url = source[CONF_URL]
-    ref = source.get(CONF_REF)
+    ref = source.get(CONF_REF)  # only for the cache-dir name and the log line below
+    resolved_ref = source[KEY_SDK_SOURCE_RESOLVED_REF]
     dest = _dts_cache_root() / _sdk_source_cache_key(url, ref)
     schema_marker = dest / ".sparse_schema"
+    resolved_marker = dest / ".resolved_ref"
 
     zephyr_dir = dest / "zephyr" if (dest / "zephyr").is_dir() else dest
     if (zephyr_dir / "boards").is_dir():
         # A cache from before _SPARSE_CHECKOUT_SCHEMA's current value (e.g. one
         # predating snippets/ being added to the sparse-checkout set below) is
-        # missing paths this schema version expects -- refetch immediately,
-        # independent of the refresh: window, the same way _sparse_clone_dts()'s
-        # own marker check does for the upstream-tag path.
+        # missing paths this schema version expects -- refetch immediately, the
+        # same way _sparse_clone_dts()'s own marker check does for the
+        # upstream-tag path.
         schema_stale = (
             not schema_marker.is_file()
             or schema_marker.read_text().strip() != _SPARSE_CHECKOUT_SCHEMA
         )
-        stale = schema_stale or (
-            refresh is not None
-            and not CORE.skip_external_update
-            and (time.time() - dest.stat().st_mtime) > refresh.total_seconds
+        ref_stale = (
+            not resolved_marker.is_file()
+            or resolved_marker.read_text().strip() != resolved_ref
         )
-        if not stale:
+        if not (schema_stale or ref_stale):
             _sparse_clone_hal_modules(zephyr_dir, family)
             return zephyr_dir  # cache hit
         shutil.rmtree(dest, ignore_errors=True)
@@ -539,32 +564,13 @@ def _sparse_clone_dts_from_source(
     )
     dest.mkdir(parents=True, exist_ok=True)
     try:
-        if ref:
-            _git_sparse_fetch(url, ref, dest)
-        else:
-            subprocess.run(
-                [
-                    "git",
-                    "clone",
-                    "--depth=1",
-                    "--filter=blob:none",
-                    "--sparse",
-                    url,
-                    str(dest),
-                ],
-                check=True,
-                capture_output=True,
-                text=True,
-            )
-            subprocess.run(
-                ["git", "-C", str(dest), "sparse-checkout", "set", *_DTS_SPARSE_PATHS],
-                check=True,
-                capture_output=True,
-                text=True,
-            )
+        # resolved_ref is always a concrete commit SHA -- always takes
+        # _git_sparse_fetch()'s SHA-fetch branch, unlike a raw branch/tag name.
+        _git_sparse_fetch(url, resolved_ref, dest)
         zephyr_dir = dest / "zephyr" if (dest / "zephyr").is_dir() else dest
         if (zephyr_dir / "boards").is_dir():
             schema_marker.write_text(_SPARSE_CHECKOUT_SCHEMA)
+            resolved_marker.write_text(resolved_ref)
             _sparse_clone_hal_modules(zephyr_dir, family)
             return zephyr_dir
         return None
@@ -582,7 +588,6 @@ async def fetch_board_dts(
     sdk_name: str,
     sdk: ZephyrSDK,
     sdk_source: ConfigType | None,
-    refresh: TimePeriodSeconds,
     family: str | None = None,
 ) -> None:
     """Populate ZephyrData dts_base_path with the local Zephyr tree.
@@ -610,7 +615,7 @@ async def fetch_board_dts(
         return
 
     if sdk_source is not None and sdk_source[CONF_TYPE] == TYPE_GIT:
-        zephyr_dir = _sparse_clone_dts_from_source(sdk_source, refresh, family)
+        zephyr_dir = _sparse_clone_dts_from_source(sdk_source, family)
         if zephyr_dir is not None:
             zd["dts_base_path"] = str(zephyr_dir)
             _LOGGER.debug("[zephyr] DTS base path: %s (git sdk_source)", zephyr_dir)

@@ -4,13 +4,12 @@ import os
 from pathlib import Path
 import re
 import subprocess
-import time
 
 import yaml
 
 from esphome.build_helpers.tools_cache import SDK_ZEPHYR_TOOLS_CACHE, tools_cache_path
 from esphome.const import CONF_PATH, CONF_REF, CONF_TYPE, CONF_URL, TYPE_LOCAL
-from esphome.core import CORE, EsphomeError, TimePeriodSeconds
+from esphome.core import EsphomeError
 from esphome.framework_helpers import (
     create_venv,
     get_python_env_executable_path,
@@ -19,12 +18,10 @@ from esphome.framework_helpers import (
 )
 from esphome.types import ConfigType
 
+from .const import KEY_SDK_SOURCE_RESOLVED_REF
 from .variants import ZephyrModule, ZephyrSDK
 
 _LOGGER = logging.getLogger(__name__)
-
-# TimePeriodSeconds(seconds=-1) means "never refresh", mirroring esphome.git's NEVER_REFRESH.
-NEVER_REFRESH = TimePeriodSeconds(seconds=-1)
 
 
 def _tools_path() -> Path:
@@ -95,31 +92,6 @@ def _effective_requirements(overrides: dict[str, str | None]) -> str:
         override = overrides.get(pkg)
         lines.append(f"{pkg}=={override}" if override else line)
     return "\n".join(lines) + "\n"
-
-
-def _refresh_manifest_repo(zephyr_dir: Path, ref: str | None, label: str) -> None:
-    """Re-fetch and reset the manifest repository (the Zephyr checkout itself) to the
-    latest commit on `ref`.
-
-    `west update` only clones/fetches/checks out the *projects* listed in the manifest
-    to match the revisions recorded in the manifest repository's currently checked-out
-    manifest file -- per west's own documentation it "does not alter the manifest
-    repository's contents". For a `sdk_source: type: git` pointing at a moving ref
-    (e.g. a branch), that leaves the manifest repository (`framework/zephyr`, which is
-    where files like Kconfig.esp32 live) pinned forever to whatever commit `west init`
-    happened to check out, no matter how often `west update` subsequently runs on the
-    stated `refresh:` interval.
-    """
-    _LOGGER.info("Refreshing Zephyr manifest repository (%s) ...", label)
-    cmd = ["git", "fetch", "--depth=1", "--", "origin"]
-    if ref:
-        cmd.append(ref)
-    if not run_command_ok(cmd, cwd=str(zephyr_dir)):
-        raise EsphomeError(f"Can't fetch Zephyr manifest repository ({label})")
-    if not run_command_ok(
-        ["git", "reset", "--hard", "FETCH_HEAD"], cwd=str(zephyr_dir)
-    ):
-        raise EsphomeError(f"Can't update Zephyr manifest repository ({label})")
 
 
 def _generate_synthetic_manifest(
@@ -205,7 +177,6 @@ def check_and_install(
     west_version: str | None = None,
     ninja_version: str | None = None,
     source: ConfigType | None = None,
-    refresh: TimePeriodSeconds | None = None,
     modules: list[ZephyrModule] | None = None,
 ) -> tuple[Path, Path, dict[str, str]]:
     """Install west and Zephyr SDK.
@@ -231,10 +202,12 @@ def check_and_install(
     for the write-up this needs once real docs exist (recommend a dedicated directory per
     checkout, not reusing an existing unrelated working tree).
 
-    refresh controls how often a git source's moving ref is re-checked; `local:` always
-    re-runs `west update` (cheap/no-op if nothing changed, since the user's checkout can move
-    between builds) and the official source never needs it (always pinned to an immutable
-    tag).
+    A git source is pinned to one resolved commit SHA before this function ever runs (see
+    dts_fetch.resolve_sdk_source_version(), which stashes it onto source under
+    KEY_SDK_SOURCE_RESOLVED_REF) -- like the official source, pinned to an immutable tag,
+    it never needs an independent re-check here. `local:` is the one case that always
+    re-runs `west update` (cheap/no-op if nothing changed, since the user's checkout can
+    move between builds).
 
     Returns (python_bin, framework_path, west_env) where:
       - python_bin      — Python executable inside the managed venv
@@ -315,28 +288,19 @@ def check_and_install(
         source[CONF_URL] if (source is not None and not is_local) else sdk.manifest_url
     )
     manifest_rev = (
-        source.get(CONF_REF) if (source is not None and not is_local) else ver_tag
+        source.get(KEY_SDK_SOURCE_RESOLVED_REF, source.get(CONF_REF))
+        if (source is not None and not is_local)
+        else ver_tag
     )
     label = str(source[CONF_PATH]) if is_local else (manifest_rev or "default branch")
 
     sentinel = framework / ".ready"
     needs_init = install_venv or not (framework / ".west").is_dir()
-    # A git source: (moving ref) or local: source (user-edited checkout) can change
-    # between builds, so always re-run `west update` -- cheap/no-op if unchanged. The
-    # official source is pinned to an immutable tag and never needs this.
-    needs_refresh = (
-        is_local
-        or (
-            not needs_init
-            and source is not None
-            and refresh not in (None, NEVER_REFRESH)
-            and not CORE.skip_external_update
-            and (
-                not sentinel.is_file()  # e.g. a prior update was interrupted before completing
-                or (time.time() - sentinel.stat().st_mtime) > refresh.total_seconds
-            )
-        )
-    )
+    # local: (a user-edited checkout) can change between builds, so always re-run
+    # `west update` -- cheap/no-op if unchanged. A git source: is pinned to an exact
+    # resolved commit before this function runs (dts_fetch.resolve_sdk_source_version()),
+    # so -- like the official source, pinned to an immutable tag -- it never needs this.
+    needs_refresh = is_local
 
     if needs_init:
         if is_local:
@@ -380,12 +344,6 @@ def check_and_install(
             cmd.append(str(framework))
             if not run_command_ok(cmd):
                 raise EsphomeError(f"Can't initialize Zephyr SDK {ver_tag} ({label})")
-
-    if needs_refresh and not needs_init and not is_local:
-        # Git source with a moving ref: bring the manifest repository itself up to date
-        # before `west update` -- see _refresh_manifest_repo for why that step is
-        # otherwise silently skipped.
-        _refresh_manifest_repo(zephyr_dir, manifest_rev, label)
 
     if needs_init or needs_refresh:
         _LOGGER.info(

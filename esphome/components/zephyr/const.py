@@ -43,6 +43,13 @@ KEY_USER: Final = "user"
 KEY_FRAMEWORK_TYPE: Final = "framework_type"
 KEY_MODULE_REQUESTS: Final = "module_requests"
 KEY_MODULE_OVERRIDES: Final = "module_overrides"
+# Stashed onto the `zephyr: framework: source:` dict itself (not ZephyrData) by
+# dts_fetch.resolve_sdk_source_version(), which resolves a moving git ref (branch,
+# or an omitted ref: meaning "default branch") to one concrete commit SHA per run.
+# The to_code()-time consumers (dts_fetch.fetch_board_dts(), framework_west's SDK
+# install) read this instead of independently re-resolving the moving ref against
+# their own timer, so a single build can't silently mix commits across the three.
+KEY_SDK_SOURCE_RESOLVED_REF: Final = "resolved_ref"
 
 zephyr_ns = cg.esphome_ns.namespace("zephyr")
 CdcAcm = zephyr_ns.class_("CdcAcm", cg.Component)

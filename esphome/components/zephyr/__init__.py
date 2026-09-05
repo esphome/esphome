@@ -1872,7 +1872,6 @@ async def to_code(config: ConfigType) -> None:
         sdk_name,
         sdk,
         zephyr_data()["sdk_source"],
-        config[CONF_FRAMEWORK][CONF_REFRESH],
         family=zephyr_variant_family(),
     )
 
@@ -2228,7 +2227,6 @@ def upload_program(config: ConfigType, args, host: str) -> bool:
             zephyr_data()["west_version"],
             zephyr_data()["ninja_version"],
             zephyr_data()["sdk_source"],
-            config[CORE.target_platform][CONF_FRAMEWORK][CONF_REFRESH],
             modules=resolve_zephyr_modules(),
         )
         build_dir = CORE.relative_build_path(".west_build")
@@ -2281,7 +2279,6 @@ def upload_program(config: ConfigType, args, host: str) -> bool:
             zephyr_data()["west_version"],
             zephyr_data()["ninja_version"],
             zephyr_data()["sdk_source"],
-            config[CORE.target_platform][CONF_FRAMEWORK][CONF_REFRESH],
             modules=resolve_zephyr_modules(),
         )
 
@@ -2320,7 +2317,6 @@ def upload_program(config: ConfigType, args, host: str) -> bool:
         zephyr_data()["west_version"],
         zephyr_data()["ninja_version"],
         zephyr_data()["sdk_source"],
-        config[CORE.target_platform][CONF_FRAMEWORK][CONF_REFRESH],
         modules=resolve_zephyr_modules(),
     )
     build_dir = CORE.relative_build_path(".west_build")
@@ -2377,7 +2373,6 @@ def run_compile(args, config: ConfigType) -> bool:
         zephyr_data()["west_version"],
         zephyr_data()["ninja_version"],
         zephyr_data()["sdk_source"],
-        config[CORE.target_platform][CONF_FRAMEWORK][CONF_REFRESH],
         modules=modules,
     )
     if sdk_name == "silabs":

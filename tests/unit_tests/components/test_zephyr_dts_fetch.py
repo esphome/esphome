@@ -9,6 +9,7 @@ from unittest.mock import patch
 
 import pytest
 
+from esphome.components.zephyr.const import KEY_SDK_SOURCE_RESOLVED_REF
 from esphome.components.zephyr.dts_fetch import (
     _SPARSE_CHECKOUT_SCHEMA,
     _dts_cache_root,
@@ -16,11 +17,13 @@ from esphome.components.zephyr.dts_fetch import (
     _manifest_revision_cache_root,
     _native_dts_path,
     _resolve_boards_ref,
+    _resolve_git_head,
     _sdk_source_cache_key,
     _sdk_source_version_cache_root,
     _sparse_clone_dts,
     _sparse_clone_dts_from_source,
     _sparse_clone_hal_modules,
+    resolve_sdk_source_version,
 )
 from esphome.components.zephyr.variants import MAINLINE, NCS, SILABS, ZephyrSDK
 import esphome.config_validation as cv
@@ -40,6 +43,73 @@ def _set_framework_version(major: int, minor: int, patch: int) -> None:
 def test_framework_base_version_formats_major_minor_patch() -> None:
     _set_framework_version(4, 4, 1)
     assert _framework_base_version() == "4.4.1"
+
+
+# ---------------------------------------------------------------------------
+# _resolve_git_head / resolve_sdk_source_version -- single ref resolution
+# (issue: a moving git sdk_source: ref was independently re-resolved by three
+# different consumers; resolve_sdk_source_version() now resolves it once and
+# stashes it onto source[KEY_SDK_SOURCE_RESOLVED_REF] for the others to reuse)
+# ---------------------------------------------------------------------------
+
+
+def test_resolve_git_head_returns_rev_parse_output(tmp_path: Path) -> None:
+    with patch("subprocess.run") as mock_run:
+        mock_run.return_value = subprocess.CompletedProcess(
+            [], 0, stdout=f"{_FAKE_RESOLVED_SHA}\n", stderr=""
+        )
+        assert _resolve_git_head(tmp_path) == _FAKE_RESOLVED_SHA
+    mock_run.assert_called_once_with(
+        ["git", "-C", str(tmp_path), "rev-parse", "HEAD"],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+
+def test_resolve_git_head_raises_cv_invalid_on_git_failure(tmp_path: Path) -> None:
+    with (
+        patch(
+            "subprocess.run",
+            side_effect=subprocess.CalledProcessError(
+                1, ["git"], stderr="not a git repository"
+            ),
+        ),
+        pytest.raises(cv.Invalid, match="Can't resolve sdk_source commit"),
+    ):
+        _resolve_git_head(tmp_path)
+
+
+def test_resolve_sdk_source_version_sets_resolved_ref_on_cache_hit(
+    tmp_path: Path,
+) -> None:
+    """Even when the cached VERSION file is fresh enough to skip re-cloning,
+    the resolved commit must still be captured from the existing checkout --
+    it's the single value the other two consumers pin to for this run."""
+    source = {"type": "git", "url": "https://example.invalid/zephyr", "ref": "main"}
+    dest = tmp_path / _sdk_source_cache_key(source["url"], source["ref"])
+    dest.mkdir(parents=True)
+    (dest / "VERSION").write_text(
+        "VERSION_MAJOR = 4\nVERSION_MINOR = 4\nPATCHLEVEL = 1\n"
+    )
+
+    with (
+        patch(
+            "esphome.components.zephyr.dts_fetch._sdk_source_version_cache_root",
+            return_value=tmp_path,
+        ),
+        patch("subprocess.run") as mock_run,
+    ):
+        mock_run.return_value = subprocess.CompletedProcess(
+            [], 0, stdout=f"{_FAKE_RESOLVED_SHA}\n", stderr=""
+        )
+        version = resolve_sdk_source_version(source, refresh=None)
+
+    assert version == "4.4.1"
+    assert source[KEY_SDK_SOURCE_RESOLVED_REF] == _FAKE_RESOLVED_SHA
+    # No clone attempted -- only the rev-parse for the resolved ref.
+    mock_run.assert_called_once()
+    assert mock_run.call_args.args[0][-2:] == ["rev-parse", "HEAD"]
 
 
 # ---------------------------------------------------------------------------
@@ -314,10 +384,17 @@ def test_sparse_clone_dts_self_heals_when_resolved_ref_changed(
 # ---------------------------------------------------------------------------
 
 
-def test_sparse_clone_dts_from_source_cache_hit_with_current_schema_marker(
+_FAKE_RESOLVED_SHA = "a" * 40
+
+
+def test_sparse_clone_dts_from_source_cache_hit_with_current_markers(
     tmp_path: Path,
 ) -> None:
-    source = {"url": "https://example.invalid/zephyr", "ref": "my-branch"}
+    source = {
+        "url": "https://example.invalid/zephyr",
+        "ref": "my-branch",
+        KEY_SDK_SOURCE_RESOLVED_REF: _FAKE_RESOLVED_SHA,
+    }
     dest = (
         tmp_path
         / "zephyr_dts_cache"
@@ -325,6 +402,7 @@ def test_sparse_clone_dts_from_source_cache_hit_with_current_schema_marker(
     )
     (dest / "boards").mkdir(parents=True)
     (dest / ".sparse_schema").write_text(_SPARSE_CHECKOUT_SCHEMA)
+    (dest / ".resolved_ref").write_text(_FAKE_RESOLVED_SHA)
 
     with (
         patch(
@@ -333,7 +411,7 @@ def test_sparse_clone_dts_from_source_cache_hit_with_current_schema_marker(
         ),
         patch("subprocess.run") as mock_run,
     ):
-        result = _sparse_clone_dts_from_source(source, refresh=None)
+        result = _sparse_clone_dts_from_source(source)
 
     mock_run.assert_not_called()
     assert result == dest
@@ -344,21 +422,25 @@ def test_sparse_clone_dts_from_source_refetches_when_schema_marker_missing(
 ) -> None:
     """A cache dir from before the snippets/ sparse-checkout addition has no
     .sparse_schema marker at all -- must be treated as stale and re-fetched
-    immediately, independent of the refresh: window (refresh=None here)."""
-    source = {"url": "https://example.invalid/zephyr", "ref": "my-branch"}
+    immediately, even though the resolved-ref marker (added below) matches."""
+    source = {
+        "url": "https://example.invalid/zephyr",
+        "ref": "my-branch",
+        KEY_SDK_SOURCE_RESOLVED_REF: _FAKE_RESOLVED_SHA,
+    }
     dest = (
         tmp_path
         / "zephyr_dts_cache"
         / _sdk_source_cache_key(source["url"], source["ref"])
     )
     (dest / "boards").mkdir(parents=True)
+    (dest / ".resolved_ref").write_text(_FAKE_RESOLVED_SHA)
     (dest / "stale-marker-file").write_text("leftover from the old checkout")
 
     def fake_run(cmd, **kwargs):
         result = subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
-        if cmd[:2] == ["git", "clone"]:
-            new_dest = Path(cmd[-1])
-            (new_dest / "boards").mkdir(parents=True, exist_ok=True)
+        if cmd[:2] == ["git", "init"]:
+            Path(cmd[-1], "boards").mkdir(parents=True, exist_ok=True)
         return result
 
     with (
@@ -368,10 +450,52 @@ def test_sparse_clone_dts_from_source_refetches_when_schema_marker_missing(
         ),
         patch("subprocess.run", side_effect=fake_run) as mock_run,
     ):
-        result = _sparse_clone_dts_from_source(source, refresh=None)
+        result = _sparse_clone_dts_from_source(source)
 
     assert mock_run.call_args_list  # re-fetched, not trusted as a cache hit
     assert not (dest / "stale-marker-file").exists()  # old checkout wiped
+    assert result == dest
+
+
+def test_sparse_clone_dts_from_source_refetches_when_resolved_ref_changed(
+    tmp_path: Path,
+) -> None:
+    """A cache dir matching the current schema but a stale resolved_ref marker
+    (upstream moved since the last resolution) must be re-fetched -- this
+    replaces the old mtime/refresh: based staleness check with a direct
+    comparison against the single ref resolve_sdk_source_version() resolved."""
+    source = {
+        "url": "https://example.invalid/zephyr",
+        "ref": "my-branch",
+        KEY_SDK_SOURCE_RESOLVED_REF: _FAKE_RESOLVED_SHA,
+    }
+    dest = (
+        tmp_path
+        / "zephyr_dts_cache"
+        / _sdk_source_cache_key(source["url"], source["ref"])
+    )
+    (dest / "boards").mkdir(parents=True)
+    (dest / ".sparse_schema").write_text(_SPARSE_CHECKOUT_SCHEMA)
+    (dest / ".resolved_ref").write_text("b" * 40)  # a different, now-stale commit
+
+    def fake_run(cmd, **kwargs):
+        result = subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
+        if cmd[:2] == ["git", "init"]:
+            Path(cmd[-1], "boards").mkdir(parents=True, exist_ok=True)
+        return result
+
+    with (
+        patch(
+            "esphome.components.zephyr.dts_fetch._dts_cache_root",
+            return_value=tmp_path / "zephyr_dts_cache",
+        ),
+        patch("subprocess.run", side_effect=fake_run) as mock_run,
+    ):
+        result = _sparse_clone_dts_from_source(source)
+
+    assert mock_run.call_args_list
+    assert result == dest
+    assert (dest / ".resolved_ref").read_text() == _FAKE_RESOLVED_SHA
     assert result == dest
     assert (dest / ".sparse_schema").read_text() == _SPARSE_CHECKOUT_SCHEMA
 
