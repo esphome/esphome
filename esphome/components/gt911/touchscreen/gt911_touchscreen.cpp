@@ -69,10 +69,12 @@ void GT911Touchscreen::setup_internal_() {
           // Direct MCU pin: attach a hardware interrupt, no polling needed.
           this->attach_interrupt_(static_cast<InternalGPIOPin *>(this->interrupt_pin_),
                                   active_high ? gpio::INTERRUPT_RISING_EDGE : gpio::INTERRUPT_FALLING_EDGE);
-          ESP_LOGD(TAG, "Interrupt pin: hardware interrupt, active %s", active_high ? "HIGH" : "LOW");
+          ESP_LOGD(TAG, "Interrupt pin: hardware interrupt, active %s",
+                   active_high ? LOG_STR_LITERAL("HIGH") : LOG_STR_LITERAL("LOW"));
         } else {
           // IO expander pin: leave as output for configuration only.
-          ESP_LOGD(TAG, "Interrupt pin: IO expander polling mode, active %s", active_high ? "HIGH" : "LOW");
+          ESP_LOGD(TAG, "Interrupt pin: IO expander polling mode, active %s",
+                   active_high ? LOG_STR_LITERAL("HIGH") : LOG_STR_LITERAL("LOW"));
         }
       }
     }
