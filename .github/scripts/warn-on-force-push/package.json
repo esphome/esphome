@@ -1,0 +1,7 @@
+{
+  "name": "warn-on-force-push",
+  "private": true,
+  "scripts": {
+    "test": "node --test tests/*.test.js"
+  }
+}
