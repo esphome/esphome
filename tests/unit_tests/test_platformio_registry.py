@@ -8,6 +8,7 @@ import os
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+from filelock import Timeout
 import pytest
 
 from esphome.core import EsphomeError
@@ -564,9 +565,16 @@ def test_prefetch_packages_waits_with_the_holders_progress(
     dest = tmp_path / "a"
     dest.mkdir()
     ticks: list[int] = []
+    part = tmp_path / "dl" / "a-1.0.part"
+
+    def installed_and_pruned() -> None:
+        # install_package touches the marker, then unlinks the archive
+        (dest / ".esphome_extracted").touch()
+        part.unlink()
+
     acquire = held_lock(
-        tmp_path / "dl" / "a-1.0.part",
-        [b"abc"],
+        part,
+        [lambda: None, b"abc", installed_and_pruned],
         (dest / ".esphome_extracted").touch,
     )
 
@@ -588,8 +596,28 @@ def test_prefetch_packages_waits_with_the_holders_progress(
             [("a", "1.0", dest, []), ("b", "2.0", tmp_path / "b", [])],
             tmp_path / "dl",
         )
-    assert ticks == [3, 10]
+    assert ticks == [0, 3, 10, 10]
     mock_download.assert_called_once()
+
+
+def test_prefetch_packages_leaves_a_long_held_lock_to_its_holder(
+    tmp_path: Path,
+) -> None:
+    """Past the deadline the worker skips; install_package waits on the same
+    lock later and verifies whatever the holder produced."""
+    with (
+        patch("filelock.FileLock.acquire", side_effect=Timeout("held")),
+        patch("esphome.framework_helpers.DOWNLOAD_LOCK_TIMEOUT", 0),
+        patch.object(registry, "download_with_resume") as mock_download,
+        patch.object(
+            registry, "registry_download", side_effect=_resolve_for({"a": 10, "b": 5})
+        ),
+    ):
+        registry.prefetch_packages(
+            [("a", "1.0", tmp_path / "a", []), ("b", "2.0", tmp_path / "b", [])],
+            tmp_path / "dl",
+        )
+    mock_download.assert_not_called()
 
 
 def test_already_installed_probe(tmp_path: Path) -> None:

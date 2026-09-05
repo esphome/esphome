@@ -911,19 +911,27 @@ def _part_path(dest: Path) -> Path:
 
 
 def downloaded_bytes(dest: Path, size: int | None = None) -> int:
-    """Bytes of ``dest`` on disk: its ``.part`` so far (capped at ``size``),
-    else the landed file, else 0."""
-    try:
-        done = _part_path(dest).stat().st_size
-    except OSError:
-        if not dest.is_file():
-            return 0
-        done = dest.stat().st_size if size is None else size
+    """Bytes of ``dest`` on disk (its ``.part`` while streaming), capped at ``size``."""
+    done = 0
+    for candidate in (_part_path(dest), dest):
+        try:
+            done = candidate.stat().st_size
+            break
+        except FileNotFoundError:
+            continue
     return done if size is None else min(done, size)
 
 
 # Short lock-acquire slices so a waiting worker still observes Ctrl-C
 _DOWNLOAD_LOCK_POLL = 1
+
+# Waiting on another process's download; past this the caller leaves the
+# file to its holder (the later sequential install waits on the same lock)
+DOWNLOAD_LOCK_TIMEOUT = 60
+
+
+class DownloadLockUnavailable(OSError):
+    """The lock file cannot be used at all (a lock-less filesystem)."""
 
 
 def wait_for_download_lock(
@@ -931,25 +939,30 @@ def wait_for_download_lock(
     tracker: Callable[[int], None],
     on_disk: Callable[[], int],
     name: str,
-    timeout: float | None = None,
-) -> bool:
+) -> None:
     """Acquire ``lock``, reporting ``on_disk()`` to ``tracker`` each poll so the
-    bar follows the holder's download. False once ``timeout`` seconds pass."""
+    bar follows the holder's download. Raises filelock's ``Timeout`` once
+    ``DOWNLOAD_LOCK_TIMEOUT`` seconds pass."""
     from filelock import Timeout
 
-    deadline = None if timeout is None else time.monotonic() + timeout
+    deadline = time.monotonic() + DOWNLOAD_LOCK_TIMEOUT
     waiting = False
     while True:
         try:
             lock.acquire(timeout=_DOWNLOAD_LOCK_POLL)
-            return True
+            return
         except Timeout:
-            if not waiting:
-                waiting = True
-                _LOGGER.info("Waiting for another process downloading %s", name)
-            tracker(on_disk())  # raises when the batch is cancelled
-            if deadline is not None and time.monotonic() >= deadline:
-                return False
+            pass
+        except OSError as err:
+            # Distinct from an OSError out of on_disk(), which must not
+            # read as "locks unsupported"
+            raise DownloadLockUnavailable(*err.args) from err
+        if not waiting:
+            waiting = True
+            _LOGGER.info("Waiting for another process downloading %s", name)
+        tracker(on_disk())  # raises when the batch is cancelled
+        if time.monotonic() >= deadline:
+            raise Timeout(lock.lock_file)
 
 
 def discard_partial_download(dest: Path) -> None:

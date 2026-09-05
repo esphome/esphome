@@ -189,7 +189,7 @@ def prefetch_packages(
     lock as ``install_package``: the archive's ``.part`` file is shared, and
     two concurrent writers would truncate each other's bytes.
     """
-    from filelock import FileLock
+    from filelock import FileLock, Timeout
 
     pending: list[_PendingArchive] = []
     seen: set[str] = set()
@@ -233,7 +233,13 @@ def prefetch_packages(
             return entry.size if _already_installed(entry.dest) else 0
 
         lock = FileLock(f"{entry.dest}.lock", fallback_to_soft=False)
-        wait_for_download_lock(lock, tracker, on_disk, entry.name)
+        try:
+            wait_for_download_lock(lock, tracker, on_disk, entry.name)
+        except Timeout:
+            # install_package waits on this same lock and verifies the
+            # holder's copy
+            _LOGGER.debug("Leaving %s to its current downloader", entry.name)
+            return
         try:
             if _already_installed(entry.dest):
                 # A concurrent build installed it while we waited; a

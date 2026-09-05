@@ -143,14 +143,17 @@ def mock_get_component() -> Generator[Mock, None, None]:
 def held_lock() -> Callable[..., Callable[..., None]]:
     """Factory for a ``FileLock.acquire`` fake held by another downloader.
 
-    Each poll writes the next chunk to ``part`` and raises ``Timeout``; when
-    the chunks run out the part is removed, ``land()`` runs, and the acquire
-    succeeds (also for any later job, so ``land`` must be idempotent).
+    Each poll writes the next chunk to ``part`` (or runs it, for a callable)
+    and raises ``Timeout``; when the chunks run out the part is removed,
+    ``land()`` runs, and the acquire succeeds (also for any later job, so
+    ``land`` must be idempotent).
     """
     from filelock import Timeout
 
     def make(
-        part: Path, chunks: list[bytes], land: Callable[[], None]
+        part: Path,
+        chunks: list[bytes | Callable[[], None]],
+        land: Callable[[], None],
     ) -> Callable[..., None]:
         polls = iter(chunks)
 
@@ -161,8 +164,11 @@ def held_lock() -> Callable[..., Callable[..., None]]:
                 part.unlink(missing_ok=True)
                 land()
                 return
-            part.parent.mkdir(parents=True, exist_ok=True)
-            part.write_bytes(chunk)
+            if callable(chunk):
+                chunk()
+            else:
+                part.parent.mkdir(parents=True, exist_ok=True)
+                part.write_bytes(chunk)
             raise Timeout("held")
 
         return acquire

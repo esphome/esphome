@@ -19,7 +19,6 @@ from __future__ import annotations
 from collections.abc import Iterator
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager, suppress
-from functools import partial
 import hashlib
 import json
 import logging
@@ -34,6 +33,7 @@ import time
 from typing import Any, NamedTuple
 
 from esphome.framework_helpers import (
+    DownloadLockUnavailable,
     content_length,
     discard_partial_download,
     downloaded_bytes,
@@ -63,9 +63,6 @@ _RESOLVE_WORKERS = 8
 
 # A hung child must not block the build; downloads resume on the next run
 _PREFETCH_TIMEOUT = 20 * 60
-
-# Waiting on another process's URL download; past this, leave it to pio
-_DOWNLOAD_LOCK_TIMEOUT = 60
 
 # Child exit for a handled, already-warned failure; 1 would collide with
 # the interpreter's own import-failure exit
@@ -474,25 +471,29 @@ def _serialized_fetch_job(
     is a clean skip. On a lock-less filesystem a sha256-verified body runs
     unlocked with one warning; a checksum-less one (``unlocked_ok=False``) fails.
     """
-    # The holder's part file sits beside dl_path, or beside the staging
-    # path a URL job promotes from
-    on_disk = partial(downloaded_bytes, stream_dest or dl_path, size)
+
+    def on_disk() -> int:
+        # A URL job's holder streams beside the staging path until it
+        # promotes; after that only dl_path is left
+        done = downloaded_bytes(dl_path, size)
+        if not done and stream_dest is not None:
+            done = downloaded_bytes(stream_dest, size)
+        return done
 
     def run(tracker: Any) -> None:
-        from filelock import FileLock
+        from filelock import FileLock, Timeout
 
         # fallback_to_soft would leave a stale marker on lock-less
         # filesystems that blocks every later build (see git.py)
         lock = FileLock(lock_path, fallback_to_soft=False)
         try:
-            if not wait_for_download_lock(
-                lock, tracker, on_disk, dl_path.name, _DOWNLOAD_LOCK_TIMEOUT
-            ):
-                # The holder's copy is what the build needs (a large
-                # framework archive can outlast this deadline)
-                _LOGGER.debug("Leaving %s to its current downloader", dl_path.name)
-                return
-        except OSError as err:
+            wait_for_download_lock(lock, tracker, on_disk, dl_path.name)
+        except Timeout:
+            # The holder's copy is what the build needs (a large
+            # framework archive can outlast this deadline)
+            _LOGGER.debug("Leaving %s to its current downloader", dl_path.name)
+            return
+        except DownloadLockUnavailable as err:
             if not unlocked_ok:
                 # A body with no checksum to catch interleaved corruption
                 raise

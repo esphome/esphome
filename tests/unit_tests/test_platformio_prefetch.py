@@ -466,7 +466,7 @@ def test_lock_deadline_leaves_download_to_the_holder(
     with (
         patch("esphome.framework_helpers.download_with_resume") as mock_download,
         patch("filelock.FileLock.acquire", side_effect=Timeout("held")),
-        patch.object(pf, "_DOWNLOAD_LOCK_TIMEOUT", 0),
+        patch("esphome.framework_helpers.DOWNLOAD_LOCK_TIMEOUT", 0),
     ):
         pf._uri_fetch_job(MagicMock(), "https://x/a.zip", dl_path, 4)(ticks.append)
     mock_download.assert_not_called()
@@ -524,6 +524,26 @@ def test_lock_wait_reports_the_holders_progress(
     assert caplog.text.count("Waiting for another process downloading archive") == 1
 
 
+def test_uri_lock_wait_prefers_the_landed_archive(tmp_path: Path, held_lock) -> None:
+    """Between the holder's promotion rename and its release the staging
+    part is gone; the landed cache file is credited instead of 0."""
+    dl_path = tmp_path / "archive"
+    ticks: list[int] = []
+    acquire = held_lock(
+        tmp_path / "archive.prefetch.part",
+        [b"ab", lambda: dl_path.write_bytes(b"abcd")],
+        lambda: None,
+    )
+    with (
+        patch("esphome.framework_helpers.download_with_resume") as mock_download,
+        patch("filelock.FileLock.acquire", side_effect=acquire),
+        patch("filelock.FileLock.release"),
+    ):
+        pf._uri_fetch_job(MagicMock(), "https://x/a.zip", dl_path, 4)(ticks.append)
+    mock_download.assert_not_called()
+    assert ticks == [2, 4, 4]
+
+
 def test_registry_lock_deadline_skips_registration(tmp_path: Path) -> None:
     """A registry job that lost the download race to another process
     must not stamp a nonexistent archive into pio's usage.db."""
@@ -532,7 +552,7 @@ def test_registry_lock_deadline_skips_registration(tmp_path: Path) -> None:
     with (
         patch("esphome.framework_helpers.download_with_resume") as mock_download,
         patch("filelock.FileLock.acquire", side_effect=Timeout("held")),
-        patch.object(pf, "_DOWNLOAD_LOCK_TIMEOUT", 0),
+        patch("esphome.framework_helpers.DOWNLOAD_LOCK_TIMEOUT", 0),
     ):
         pf._registry_fetch_job(manager, "https://x/a.tar.gz", dl_path, "ab" * 32, 4)(
             lambda done: None
