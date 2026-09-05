@@ -80,6 +80,10 @@ void LightState::setup() {
     case LIGHT_ALWAYS_ON:
       recovered.state = true;
       break;
+    case LIGHT_ALWAYS_INITIAL_STATE:
+      // Skip the restore step entirely -- recovered already holds initial_state's
+      // values from the initial_state_callback_ applied above.
+      break;
   }
 
   // A light coming up on boot must never end up on-but-invisible: if the resolved restore
@@ -403,6 +407,16 @@ void LightState::disable_loop_if_idle_() {
 }
 
 void LightState::save_remote_values_() {
+  switch (this->restore_mode_) {
+    case LIGHT_ALWAYS_OFF:
+    case LIGHT_ALWAYS_ON:
+    case LIGHT_ALWAYS_INITIAL_STATE:
+      // These modes never restore, so there is nothing to save.
+      return;
+    default:
+      break;
+  }
+
   LightStateRTCState saved;
   saved.color_mode = this->remote_values.get_color_mode();
   switch (this->restore_mode_) {

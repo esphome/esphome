@@ -329,6 +329,13 @@ FINAL_VALIDATE_SCHEMA = _final_validate
 
 
 RESTORE_MODE_DEFAULT_INITIAL_STATE = "RESTORE_DEFAULT_INITIAL_STATE"
+RESTORE_MODE_ALWAYS_INITIAL_STATE = "ALWAYS_INITIAL_STATE"
+# Modes that fall back to (or always use) initial_state's configured value, and so
+# require initial_state.state to be set -- otherwise they have nothing to fall back on.
+RESTORE_MODES_REQUIRING_INITIAL_STATE = {
+    RESTORE_MODE_DEFAULT_INITIAL_STATE,
+    RESTORE_MODE_ALWAYS_INITIAL_STATE,
+}
 
 LightRestoreMode = light_ns.enum("LightRestoreMode")
 RESTORE_MODES = {
@@ -341,6 +348,7 @@ RESTORE_MODES = {
     "RESTORE_AND_OFF": LightRestoreMode.LIGHT_RESTORE_AND_OFF,
     "RESTORE_AND_ON": LightRestoreMode.LIGHT_RESTORE_AND_ON,
     RESTORE_MODE_DEFAULT_INITIAL_STATE: LightRestoreMode.LIGHT_RESTORE_DEFAULT_INITIAL_STATE,
+    RESTORE_MODE_ALWAYS_INITIAL_STATE: LightRestoreMode.LIGHT_ALWAYS_INITIAL_STATE,
 }
 
 LIGHT_SCHEMA = (
@@ -377,20 +385,22 @@ LIGHT_SCHEMA = (
 
 
 def _validate_restore_mode(config: ConfigType) -> ConfigType:
-    """RESTORE_DEFAULT_INITIAL_STATE has nothing to fall back on without an initial_state:
-    state: configured -- it would otherwise silently behave like RESTORE_DEFAULT_OFF.
+    """RESTORE_DEFAULT_INITIAL_STATE and ALWAYS_INITIAL_STATE have nothing to fall back
+    on without an initial_state: state: configured -- they would otherwise silently
+    behave like RESTORE_DEFAULT_OFF/ALWAYS_OFF.
 
     Note: cv.enum() validates CONF_RESTORE_MODE to the (EnumValue-tagged) string key,
     not the LightRestoreMode expression, so it must be compared as a plain string here.
     """
+    restore_mode = config[CONF_RESTORE_MODE]
     initial_state = config.get(CONF_INITIAL_STATE, {})
     if (
-        config[CONF_RESTORE_MODE] == RESTORE_MODE_DEFAULT_INITIAL_STATE
+        restore_mode in RESTORE_MODES_REQUIRING_INITIAL_STATE
         and CONF_STATE not in initial_state
     ):
         raise cv.Invalid(
-            "restore_mode: RESTORE_DEFAULT_INITIAL_STATE requires an 'initial_state' "
-            "block with a 'state' key",
+            f"restore_mode: {restore_mode} requires an 'initial_state' block with a "
+            "'state' key",
             path=[CONF_RESTORE_MODE],
         )
     return config

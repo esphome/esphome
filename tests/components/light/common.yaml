@@ -275,6 +275,20 @@ light:
       red: 100%
       green: 50%
       blue: 50%
+  # Test restore_mode: ALWAYS_INITIAL_STATE, which skips restoring from flash entirely
+  - platform: rgb
+    id: test_rgb_light_always_initial_state
+    name: RGB Light Always Initial State
+    red: test_ledc_1
+    green: test_ledc_2
+    blue: test_ledc_3
+    restore_mode: ALWAYS_INITIAL_STATE
+    initial_state:
+      color_mode: rgb
+      state: "ON"
+      red: 100%
+      green: 50%
+      blue: 50%
   # Test StrobeLightEffect with multiple colors
   - platform: monochromatic
     id: test_strobe_multiple
