@@ -169,6 +169,10 @@ async def to_code(config: list[ConfigType]) -> None:
     )
     output_chunk_count = max(max_buffer_size // get_max_packet_size(), 2) + 1
     cg.add_define("USB_UART_OUTPUT_CHUNK_COUNT", output_chunk_count)
+    # The refactored usb_host compiles its bulk/interrupt and control transfer paths only
+    # when a consumer requests them (Linux-URB-style submission engine); usb_uart needs both.
+    cg.add_define("USE_USB_BULK_TRANSFERS")
+    cg.add_define("USE_USB_CONTROL_TRANSFERS")
 
     for device in config:
         var = await register_usb_client(device)

@@ -1,0 +1,15 @@
+usb_host:
+
+usb_storage:
+  id: usb_storage_0
+  devices:
+    - id: usb_drive_0
+      mount_path: /usb
+    - id: usb_drive_1
+      mount_path: /usb2
+      vid: 0x0781
+      pid: 0x5583
+      on_mounted:
+        - logger.log:
+            format: "USB drive mounted at %s"
+            args: [mount_path]
