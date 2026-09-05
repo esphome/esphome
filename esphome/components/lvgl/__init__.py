@@ -64,14 +64,14 @@ from .defines import (
 )
 from .encoders import (
     ENCODERS_CONFIG,
+    encoder_initial_focus_to_code,
     encoders_to_code,
     get_default_group,
-    initial_focus_to_code,
 )
 from .gradient import GRADIENT_SCHEMA, gradients_to_code
-from .keypads import KEYPADS_CONFIG, keypads_to_code
+from .keypads import KEYPADS_CONFIG, keypad_initial_focus_to_code, keypads_to_code
 from .lv_validation import lv_bool
-from .lvcode import LvContext, LvglComponent, lv_event_t_ptr, lvgl_static
+from .lvcode import LvContext, LvglComponent, lv_event_t_ptr, lv_expr, lvgl_static
 from .schemas import (
     DISP_BG_SCHEMA,
     FULL_STYLE_SCHEMA,
@@ -385,6 +385,7 @@ async def to_code(configs):
     else:
         df.add_define("LV_FONT_DEFAULT", await lvalid.lv_font.process(default_font))
     cg.add(lvgl_static.esphome_lvgl_init())
+
     default_group = get_default_group(config_0)
 
     for config in configs:
@@ -433,6 +434,9 @@ async def to_code(configs):
             cg.add(lv_component.set_refresh_interval(refr_time.total_milliseconds))
         Widget.create(config[CONF_ID], lv_component, LvScrActType(), config)
 
+        for group_name in config.get(df.CONF_GROUPS, []):
+            cg.Pvariable(group_name, lv_expr.group_create())
+
         lv_scr_act = get_screen_active(lv_component)
         async with LvContext():
             cg.add(lv_component.set_big_endian(config[CONF_BYTE_ORDER] == "big_endian"))
@@ -468,7 +472,8 @@ async def to_code(configs):
             lv_component = await cg.get_variable(config[CONF_ID])
             await add_animation_triggers(config.get(CONF_ANIMATIONS, []))
             await generate_page_triggers(config)
-            await initial_focus_to_code(config)
+            await encoder_initial_focus_to_code(config)
+            await keypad_initial_focus_to_code(config)
             for conf in config.get(CONF_ON_IDLE, ()):
                 templ = await cg.templatable(conf[CONF_TIMEOUT], [], cg.uint32)
                 idle_trigger = cg.new_Pvariable(
@@ -622,6 +627,7 @@ LVGL_TOP_LEVEL_SCHEMA = (
             cv.Optional(df.CONF_THEME): theme_schema,
             cv.Optional(df.CONF_GRADIENTS): GRADIENT_SCHEMA,
             cv.Optional(df.CONF_TOUCHSCREENS, default=None): touchscreen_schema,
+            cv.Optional(df.CONF_GROUPS): cv.ensure_list(cv.declare_id(lv_group_t)),
             cv.Optional(df.CONF_ENCODERS, default=None): ENCODERS_CONFIG,
             cv.Optional(df.CONF_KEYPADS, default=None): KEYPADS_CONFIG,
             cv.GenerateID(df.CONF_DEFAULT_GROUP): cv.declare_id(lv_group_t),

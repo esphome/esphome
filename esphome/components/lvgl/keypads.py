@@ -1,10 +1,9 @@
-import esphome.codegen as cg
+from esphome import automation, codegen as cg
 from esphome.components.binary_sensor import BinarySensor
 import esphome.config_validation as cv
 from esphome.const import CONF_GROUP, CONF_ID
 
 from .defines import (
-    CONF_ENCODERS,
     CONF_INITIAL_FOCUS,
     CONF_KEYPADS,
     CONF_LONG_PRESS_REPEAT_TIME,
@@ -12,9 +11,11 @@ from .defines import (
     add_lv_use,
     literal,
 )
+from .encoders import set_group_to_code
 from .lvcode import lv, lv_assign, lv_expr, lv_Pvariable
-from .schemas import ENCODER_SCHEMA
-from .types import lv_group_t, lv_indev_type_t
+from .schemas import ENCODER_SCHEMA, SET_GROUP_ACTION_SCHEMA
+from .types import LvglAction, lv_group_t, lv_indev_type_t
+from .widgets import get_widgets
 
 KEYPAD_KEYS = (
     "up",
@@ -62,6 +63,7 @@ async def keypads_to_code(var, config, default_group):
         for key in [x for x in enc_conf if x in KEYPAD_KEYS]:
             b_sensor = await cg.get_variable(enc_conf[key])
             cg.add(listener.add_button(b_sensor, literal(f"LV_KEY_{key.upper()}")))
+
         if group := enc_conf.get(CONF_GROUP):
             group = lv_Pvariable(lv_group_t, group)
             lv_assign(group, lv_expr.group_create())
@@ -70,8 +72,13 @@ async def keypads_to_code(var, config, default_group):
         lv.indev_set_group(listener.get_drv(), group)
 
 
-async def initial_focus_to_code(config):
-    for enc_conf in config[CONF_ENCODERS]:
-        if default_focus := enc_conf.get(CONF_INITIAL_FOCUS):
-            obj = await cg.get_variable(default_focus)
-            lv.group_focus_obj(obj)
+async def keypad_initial_focus_to_code(config):
+    for keyp_conf in config[CONF_KEYPADS]:
+        if default_focus := keyp_conf.get(CONF_INITIAL_FOCUS):
+            widget = await get_widgets(default_focus)
+            lv.group_focus_obj(widget[0].obj)
+
+
+automation.register_action(
+    "lvgl.keypad.set_group", LvglAction, SET_GROUP_ACTION_SCHEMA
+)(set_group_to_code)
