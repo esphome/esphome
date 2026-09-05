@@ -55,6 +55,7 @@ from esphome.core import CORE, EsphomeError, HexInt
 from esphome.core.config import BOARD_MAX_LENGTH
 from esphome.coroutine import CoroPriority, coroutine_with_priority
 from esphome.espidf.component import generate_idf_components
+from esphome.espidf.toolchain import _get_idf_path
 import esphome.final_validate as fv
 from esphome.helpers import copy_file_if_changed, rmtree, write_file_if_changed
 from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
@@ -663,6 +664,21 @@ class RawSdkconfigValue:
 
 
 SdkconfigValueType = bool | int | HexInt | str | RawSdkconfigValue
+
+
+def sdkconfig_option_is_true(opts: dict[str, SdkconfigValueType], name: str) -> bool:
+    """Whether an sdkconfig option is set to a Kconfig-true value.
+
+    User-supplied `sdkconfig_options` reach the registry as RawSdkconfigValue, a plain
+    dataclass with no __bool__/__len__, so every entry -- including the "n" that turns a
+    symbol OFF -- is truthy. Unwrap and read the text instead of testing the object.
+    """
+    raw = opts.get(name)
+    if raw is None:
+        return False
+    if isinstance(raw, bool):
+        return raw
+    return str(getattr(raw, "value", raw)).strip().lower() in ("y", "true", "1")
 
 
 def is_idf_sdkconfig_option_enabled(name: str) -> bool:
@@ -1734,6 +1750,7 @@ CONF_DISABLE_MBEDTLS_PEER_CERT = "disable_mbedtls_peer_cert"
 CONF_DISABLE_MBEDTLS_PKCS7 = "disable_mbedtls_pkcs7"
 CONF_DISABLE_REGI2C_IN_IRAM = "disable_regi2c_in_iram"
 CONF_DISABLE_FATFS = "disable_fatfs"
+CONF_ENABLE_EXFAT = "enable_exfat"
 CONF_ADC_ONESHOT_IN_IRAM = "adc_oneshot_in_iram"
 
 # VFS requirement tracking
@@ -1949,6 +1966,7 @@ FRAMEWORK_SCHEMA = cv.Schema(
                 cv.Optional(CONF_DISABLE_VFS_SUPPORT_TERMIOS, default=True): cv.boolean,
                 cv.Optional(CONF_DISABLE_VFS_SUPPORT_SELECT, default=True): cv.boolean,
                 cv.Optional(CONF_DISABLE_VFS_SUPPORT_DIR, default=True): cv.boolean,
+                cv.Optional(CONF_ENABLE_EXFAT, default=False): cv.boolean,
                 cv.Optional(CONF_FREERTOS_IN_IRAM, default=False): cv.boolean,
                 cv.Optional(CONF_RINGBUF_IN_IRAM, default=False): cv.boolean,
                 cv.Optional(CONF_HEAP_IN_IRAM, default=False): cv.boolean,
@@ -2371,6 +2389,7 @@ async def _reconcile_vfs_fatfs_sdkconfig(
     disable_vfs_select: bool,
     disable_vfs_dir: bool,
     disable_fatfs: bool,
+    enable_exfat: bool,
 ) -> None:
     """Reconcile VFS/FATFS sdkconfig flags after all require_*() calls; user sdkconfig_options win."""
     opts = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
@@ -2403,17 +2422,47 @@ async def _reconcile_vfs_fatfs_sdkconfig(
         "CONFIG_FATFS_LFN_STACK",
     )
     user_picked_lfn = any(k in opts for k in lfn_keys)
-    if CORE.data[KEY_ESP32].get(KEY_FATFS_REQUIRED, False):
+    fatfs_required = CORE.data[KEY_ESP32].get(KEY_FATFS_REQUIRED, False)
+    if fatfs_required:
+        if enable_exfat and sdkconfig_option_is_true(opts, "CONFIG_FATFS_LFN_NONE"):
+            raise EsphomeError(
+                f"'{CONF_ENABLE_EXFAT}' needs long filename support, but 'CONFIG_FATFS_LFN_NONE' "
+                "is set in the esp32 framework sdkconfig_options -- exFAT cannot be built with "
+                "FF_USE_LFN == 0. Remove CONFIG_FATFS_LFN_NONE, or unset enable_exfat."
+            )
         if not user_picked_lfn:
             set_idf_sdkconfig_default("CONFIG_FATFS_LFN_NONE", False)
             set_idf_sdkconfig_default("CONFIG_FATFS_LFN_HEAP", True)
             set_idf_sdkconfig_default("CONFIG_FATFS_MAX_LFN", 255)
         set_idf_sdkconfig_default("CONFIG_FATFS_VOLUME_COUNT", 4)
+    elif enable_exfat:
+        # FATFS is not in the build, so tear down any stale patched copy before failing --
+        # otherwise the error state also leaves the override behind until enable_exfat is
+        # removed too, the exact state the unconditional reconcile below is meant to prevent.
+        _sync_exfat_fatfs_override(
+            False,
+            str(CORE.data[KEY_ESP32][KEY_IDF_VERSION]),
+            get_esp32_variant(),
+        )
+        raise EsphomeError(
+            f"'{CONF_ENABLE_EXFAT}' has no effect here: no component in this configuration "
+            f"mounts a FAT filesystem, so the FatFs library is not part of the build"
+        )
     elif disable_fatfs:
         if not user_picked_lfn:
             set_idf_sdkconfig_default("CONFIG_FATFS_LFN_NONE", True)
         # Kconfig range is [1,10]; 0 gets clamped to the default.
         set_idf_sdkconfig_default("CONFIG_FATFS_VOLUME_COUNT", 1)
+
+    # Reconcile the project-local FatFs override on every run, not only when FATFS is required,
+    # so a stale patched copy is removed once exFAT is no longer active (e.g. the SD component was
+    # dropped from the YAML). _sync_exfat_fatfs_override() early-returns and cleans up when
+    # disabled, so this both installs and tears down.
+    _sync_exfat_fatfs_override(
+        fatfs_required and enable_exfat,
+        str(CORE.data[KEY_ESP32][KEY_IDF_VERSION]),
+        get_esp32_variant(),
+    )
 
 
 @coroutine_with_priority(CoroPriority.FINAL - 1)
@@ -2999,6 +3048,7 @@ async def to_code(config):
         advanced[CONF_DISABLE_VFS_SUPPORT_SELECT],
         advanced[CONF_DISABLE_VFS_SUPPORT_DIR],
         advanced[CONF_DISABLE_FATFS],
+        advanced[CONF_ENABLE_EXFAT],
     )
 
     # Disable regi2c control functions in IRAM
@@ -3040,6 +3090,101 @@ async def to_code(config):
 
 
 KEY_CUSTOM_PARTITIONS = "custom_partitions"
+
+
+_EXFAT_PATCHES = (
+    ("FF_FS_EXFAT", "1"),
+    # exFAT's media sizes make 32-bit LBA pointless (ends at 2 TiB, predates GPT).
+    ("FF_LBA64", "1"),
+    # exFAT on a card driven over SPI trips the TRIM path (ESP_ERR_INVALID_RESPONSE);
+    # TRIM is an optimisation for the medium, not a feature anything depends on.
+    ("FF_USE_TRIM", "0"),
+)
+_EXFAT_MARKER = ".esphome_exfat_override"
+
+
+def _sync_exfat_fatfs_override(enabled: bool, idf_ver: str, variant: str) -> None:
+    """Patch a project-local copy of FatFs so exFAT is compiled in."""
+    import shutil
+
+    dest = Path(CORE.build_path) / "components" / "fatfs"
+    marker = dest / _EXFAT_MARKER
+    stamp = f"v4:{idf_ver}:" + ",".join(f"{k}={v}" for k, v in _EXFAT_PATCHES)
+    if not enabled:
+        # Only remove what is provably ours.
+        if marker.is_file():
+            rmtree(dest)
+        return
+    if not CORE.using_toolchain_esp_idf:
+        raise EsphomeError(
+            f"'{CONF_ENABLE_EXFAT}' requires the esp-idf toolchain: the FatFs sources are "
+            "copied from the esp-idf install, which is the only framework tree that actually "
+            "builds the project. Use 'toolchain: esp-idf', or unset enable_exfat."
+        )
+    if (
+        marker.is_file()
+        and marker.read_text(encoding="utf-8", errors="replace") == stamp
+    ):
+        return  # current copy is up to date
+    src = _get_idf_path(idf_ver) / "components" / "fatfs"
+    if not src.is_dir():
+        raise EsphomeError(
+            "enable_exfat: cannot locate the ESP-IDF fatfs component to patch "
+            f"(looked in {src})"
+        )
+    if dest.exists():
+        if not marker.is_file():
+            raise EsphomeError(
+                f"enable_exfat: refusing to overwrite {dest}, which exists but was not "
+                "created by ESPHome (no exFAT marker). Remove it manually if unneeded."
+            )
+        rmtree(dest)
+    shutil.copytree(src, dest)
+    # Claim the copy immediately: if the patching below raises, the cleanup path (which only
+    # removes marked copies) can still remove this one instead of leaving it to shadow the IDF
+    # component forever. Overwritten with the real stamp once patching succeeds.
+    marker.write_text("partial", encoding="utf-8", errors="replace")
+    ffconf = dest / "src" / "ffconf.h"
+    text = ffconf.read_text(encoding="utf-8", errors="replace")
+    for key, value in _EXFAT_PATCHES:
+        text, n = re.subn(
+            rf"#define[ \t]+{key}[ \t]+\S+", f"#define {key} {value}", text
+        )
+        if n != 1:
+            raise EsphomeError(
+                f"enable_exfat: patching {key} in the IDF's ffconf.h failed -- "
+                f"unexpected FatFs layout in IDF {idf_ver}"
+            )
+    # Kconfig bool symbols that are disabled produce no #define, yet ff.c uses several of
+    # them in plain C expressions (e.g. `if (FF_USE_LABEL && vol)`) -- inside the original
+    # IDF component that resolves, in a project-component copy it surfaced as 'undeclared
+    # identifier'. Default every CONFIG_ symbol the header references to 0 when undefined
+    probed = set()
+    skip_dirs = {"test_apps", "host_test", "fatfs_utils"}
+    for f in dest.rglob("*"):
+        if f.suffix not in (".c", ".h") or skip_dirs & {
+            part.name for part in f.parents
+        }:
+            continue
+        for line in f.read_text(encoding="utf-8", errors="replace").splitlines():
+            if re.search(r"#\s*if(n?def)?\b", line) or "defined" in line:
+                probed.update(re.findall(r"\bCONFIG_[A-Z0-9_]+\b", line))
+    symbols = sorted(set(re.findall(r"\bCONFIG_[A-Z0-9_]+\b", text)) - probed)
+    guards = "".join(f"#ifndef {sym}\n#define {sym} 0\n#endif\n" for sym in symbols)
+    include_line = '#include "sdkconfig.h"\n'
+    if include_line not in text:
+        raise EsphomeError(
+            "enable_exfat: unexpected ffconf.h layout -- no sdkconfig.h include to anchor on"
+        )
+    text = text.replace(
+        include_line,
+        include_line
+        + "\n/* ESPHome exFAT override: undefined-symbol guards, see codegen */\n"
+        + guards,
+        1,
+    )
+    ffconf.write_text(text, encoding="utf-8", errors="replace")
+    marker.write_text(stamp, encoding="utf-8", errors="replace")
 
 
 @dataclass
@@ -3293,7 +3438,9 @@ def _write_idf_component_yml():
             stub_path.mkdir(exist_ok=True)
             stub_cmake = stub_path / "CMakeLists.txt"
             if not stub_cmake.exists():
-                stub_cmake.write_text("idf_component_register()\n")
+                stub_cmake.write_text(
+                    "idf_component_register()\n", encoding="utf-8", errors="replace"
+                )
             dependencies[_idf_component_dep_name(component_name)] = {
                 "version": "*",
                 "override_path": str(stub_path),

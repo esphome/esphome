@@ -6,6 +6,7 @@ import asyncio
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
+from unittest.mock import patch
 
 import pytest
 
@@ -25,6 +26,7 @@ from esphome.components.esp32 import (
 from esphome.components.esp32.const import (
     KEY_ESP32,
     KEY_EXCLUDE_COMPONENTS,
+    KEY_IDF_VERSION,
     KEY_NETWORK_SDKCONFIG,
     KEY_SDKCONFIG_OPTIONS,
     KEY_VARIANT,
@@ -38,7 +40,7 @@ from esphome.const import (
     PlatformFramework,
     Toolchain,
 )
-from esphome.core import CORE
+from esphome.core import CORE, EsphomeError
 from tests.component_tests.types import SetCoreConfigCallable
 
 
@@ -826,7 +828,7 @@ def test_reconcile_network_sdkconfig(
 
 
 @pytest.mark.parametrize(
-    ("requires", "fatfs_required", "disables", "preset", "expected"),
+    ("requires", "fatfs_required", "disables", "preset", "expected", "enable_exfat"),
     [
         # Nothing required and every disable_* flag off (NOT the shipped defaults, which
         # disable everything): VFS enabled, FATFS left untouched entirely.
@@ -840,6 +842,7 @@ def test_reconcile_network_sdkconfig(
                 "CONFIG_VFS_SUPPORT_SELECT": True,
                 "CONFIG_VFS_SUPPORT_DIR": True,
             },
+            False,
             id="nothing_disabled_nothing_required",
         ),
         # The shipped out-of-the-box path: every disable_* flag defaults to True and nothing
@@ -856,6 +859,7 @@ def test_reconcile_network_sdkconfig(
                 "CONFIG_FATFS_LFN_NONE": True,
                 "CONFIG_FATFS_VOLUME_COUNT": 1,
             },
+            False,
             id="all_disabled_fatfs_fallback",
         ),
         # A component's require_* beats the user's disable_* flag for every VFS feature.
@@ -873,6 +877,7 @@ def test_reconcile_network_sdkconfig(
                 "CONFIG_VFS_SUPPORT_SELECT": True,
                 "CONFIG_VFS_SUPPORT_DIR": True,
             },
+            False,
             id="require_beats_disable",
         ),
         # A user sdkconfig_options preset wins over a require (the set_opt guard).
@@ -886,6 +891,7 @@ def test_reconcile_network_sdkconfig(
                 "CONFIG_VFS_SUPPORT_SELECT": False,
                 "CONFIG_VFS_SUPPORT_DIR": True,
             },
+            False,
             id="user_preset_wins_over_require",
         ),
         # require_fatfs() with no user preset: long filenames on the heap, 255 chars,
@@ -904,6 +910,7 @@ def test_reconcile_network_sdkconfig(
                 "CONFIG_FATFS_MAX_LFN": 255,
                 "CONFIG_FATFS_VOLUME_COUNT": 4,
             },
+            False,
             id="fatfs_required_defaults",
         ),
         # CONFIG_FATFS_LONG_FILENAMES is a Kconfig choice: a user picking any member
@@ -920,6 +927,7 @@ def test_reconcile_network_sdkconfig(
                 "CONFIG_FATFS_LFN_STACK": "y",
                 "CONFIG_FATFS_VOLUME_COUNT": 4,
             },
+            False,
             id="fatfs_user_lfn_stack_untouched",
         ),
         # disable_fatfs (the shipped default) with a user LFN pick: the choice group is the
@@ -936,6 +944,7 @@ def test_reconcile_network_sdkconfig(
                 "CONFIG_FATFS_LFN_HEAP": "y",
                 "CONFIG_FATFS_VOLUME_COUNT": 1,
             },
+            False,
             id="disable_fatfs_user_lfn_untouched",
         ),
         # Same for an explicit LFN_NONE preset: the group is the user's, only the volume
@@ -952,6 +961,7 @@ def test_reconcile_network_sdkconfig(
                 "CONFIG_FATFS_LFN_NONE": "y",
                 "CONFIG_FATFS_VOLUME_COUNT": 4,
             },
+            False,
             id="fatfs_user_lfn_none_untouched",
         ),
     ],
@@ -963,20 +973,117 @@ def test_reconcile_vfs_fatfs_sdkconfig(
     disables: tuple[bool, bool, bool, bool],
     preset: dict[str, Any],
     expected: dict[str, Any],
+    enable_exfat: bool,
 ) -> None:
     """The FINAL-priority reconciler resolves the VFS feature flags and the FATFS
     defaults from the recorded require_* calls, with user sdkconfig_options winning
     and the LFN Kconfig choice treated as one group."""
     set_core_config(PlatformFramework.ESP32_IDF)
-    CORE.data[KEY_ESP32] = {KEY_SDKCONFIG_OPTIONS: dict(preset)}
+    CORE.data[KEY_ESP32] = {
+        KEY_SDKCONFIG_OPTIONS: dict(preset),
+        # The FATFS branch hands the exFAT FatFs-override the active IDF version and variant (used
+        # to locate and version-stamp the component it patches), so both must be present even for
+        # the enable_exfat=False cases, where the override only evaluates the arguments.
+        KEY_IDF_VERSION: cv.Version(5, 5, 1),
+        KEY_VARIANT: VARIANT_ESP32,
+    }
     if fatfs_required:
         CORE.data[KEY_ESP32][KEY_FATFS_REQUIRED] = True
     for key, value in requires.items():
         CORE.data[key] = value
 
-    asyncio.run(_reconcile_vfs_fatfs_sdkconfig(*disables))
+    # exFAT patches a project-local FatFs copy on disk; that side effect is not what this test
+    # covers (it checks the reconciled sdkconfig flags), so stub it out to keep the test CI-safe.
+    with patch("esphome.components.esp32._sync_exfat_fatfs_override"):
+        asyncio.run(_reconcile_vfs_fatfs_sdkconfig(*disables, enable_exfat))
 
     assert CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS] == expected
+
+
+def _run_exfat_reconcile(
+    set_core_config: SetCoreConfigCallable,
+    fatfs_required: bool,
+    preset: dict[str, Any] | None = None,
+):
+    """Run the reconciler with enable_exfat on, returning the stubbed override mock."""
+    set_core_config(PlatformFramework.ESP32_IDF)
+    CORE.data[KEY_ESP32] = {
+        KEY_SDKCONFIG_OPTIONS: dict(preset or {}),
+        KEY_IDF_VERSION: cv.Version(5, 5, 1),
+        KEY_VARIANT: VARIANT_ESP32,
+    }
+    if fatfs_required:
+        CORE.data[KEY_ESP32][KEY_FATFS_REQUIRED] = True
+    with patch("esphome.components.esp32._sync_exfat_fatfs_override") as sync_mock:
+        asyncio.run(_reconcile_vfs_fatfs_sdkconfig(True, True, True, False, True))
+    return sync_mock
+
+
+def test_enable_exfat_without_fatfs_is_rejected(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    """enable_exfat with no FAT-mounting component is a config error, and the stale
+    project-local FatFs override is torn down before the error is raised."""
+    set_core_config(PlatformFramework.ESP32_IDF)
+    CORE.data[KEY_ESP32] = {
+        KEY_SDKCONFIG_OPTIONS: {},
+        KEY_IDF_VERSION: cv.Version(5, 5, 1),
+        KEY_VARIANT: VARIANT_ESP32,
+    }
+    with (
+        patch("esphome.components.esp32._sync_exfat_fatfs_override") as sync_mock,
+        pytest.raises(EsphomeError, match="has no effect here"),
+    ):
+        asyncio.run(_reconcile_vfs_fatfs_sdkconfig(True, True, True, False, True))
+    # Teardown call: first positional argument is the "enabled" flag.
+    assert sync_mock.call_count == 1
+    assert sync_mock.call_args.args[0] is False
+
+
+def test_enable_exfat_with_fatfs_syncs_the_override(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    """With FATFS in the build, the override is synced with enabled=True."""
+    sync_mock = _run_exfat_reconcile(set_core_config, fatfs_required=True)
+    assert sync_mock.call_count == 1
+    assert sync_mock.call_args.args[0] is True
+
+
+def test_enable_exfat_rejects_user_lfn_none(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    """CONFIG_FATFS_LFN_NONE: "y" is incompatible with exFAT and must be rejected."""
+    set_core_config(PlatformFramework.ESP32_IDF)
+    CORE.data[KEY_ESP32] = {
+        KEY_SDKCONFIG_OPTIONS: {"CONFIG_FATFS_LFN_NONE": RawSdkconfigValue("y")},
+        KEY_IDF_VERSION: cv.Version(5, 5, 1),
+        KEY_VARIANT: VARIANT_ESP32,
+        KEY_FATFS_REQUIRED: True,
+    }
+    with (
+        patch("esphome.components.esp32._sync_exfat_fatfs_override"),
+        pytest.raises(EsphomeError, match="CONFIG_FATFS_LFN_NONE"),
+    ):
+        asyncio.run(_reconcile_vfs_fatfs_sdkconfig(True, True, True, False, True))
+
+
+def test_enable_exfat_accepts_user_lfn_none_set_to_n(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    """CONFIG_FATFS_LFN_NONE: "n" turns the symbol OFF, so it must not be rejected.
+
+    RawSdkconfigValue has no __bool__, so a plain truthiness test on the registry entry
+    would reject this -- the exact opposite of what the user configured.
+    """
+    sync_mock = _run_exfat_reconcile(
+        set_core_config,
+        fatfs_required=True,
+        preset={
+            "CONFIG_FATFS_LFN_NONE": RawSdkconfigValue("n"),
+            "CONFIG_FATFS_LFN_HEAP": RawSdkconfigValue("y"),
+        },
+    )
+    assert sync_mock.call_args.args[0] is True
 
 
 def test_network_wifi_only_reconciles_end_to_end(

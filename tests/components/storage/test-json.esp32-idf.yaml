@@ -1,0 +1,29 @@
+packages:
+  storage: !include common.yaml
+
+# The storage option that costs real flash, kept out of the base test so the memory-impact
+# job measures what the component costs rather than what its most expensive corner costs.
+#
+#   json:         pulls in ArduinoJson (bblanchon/ArduinoJson), added to the build only when a
+#                 config uses a json: step (the schema requires an explicit json: block)
+#
+# It is opt-in: codegen only sets USE_STORAGE_JSON_EXTRACT when a config actually asks for it,
+# so a node that copies files and reads a key=value file pays nothing. This variant exists so it
+# still gets compiled on every run -- ``test-*`` files are part of the normal test set and only
+# skipped by ``--base-only`` builds, which the memory job uses.
+
+json:
+
+globals:
+  - id: g_json_value
+    type: std::string
+    restore_value: false
+
+script:
+  - id: exercise_json_extract
+    then:
+      - storage.file_read:
+          path: /storage/state.json
+          extract:
+            - json: sensor/value
+          to_global: g_json_value

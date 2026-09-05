@@ -1,0 +1,11 @@
+esp32:
+  framework:
+    advanced:
+      enable_exfat: true
+
+packages:
+  spi: !include ../../test_build_components/common/spi/esp32-p4-idf.yaml
+  sd_storage: !include common-spi.yaml
+
+sd_storage:
+  file_system: exfat
