@@ -842,14 +842,29 @@ def test_write_gitignore_skips_existing_file(
 
 
 @patch("esphome.writer.subprocess.run")
+def test_check_build_tree_not_tracked_silent_in_ci(
+    mock_run: MagicMock,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """CI builds fixture configs, not a user's repo -- skip the git spawn entirely."""
+    monkeypatch.setenv("CI", "true")
+
+    check_build_tree_not_tracked()
+
+    mock_run.assert_not_called()
+
+
+@patch("esphome.writer.subprocess.run")
 @patch("esphome.writer.CORE")
 def test_check_build_tree_not_tracked_warns_when_tracked(
     mock_core: MagicMock,
     mock_run: MagicMock,
     tmp_path: Path,
     caplog: pytest.LogCaptureFixture,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Test check_build_tree_not_tracked warns when the build dir is tracked by git."""
+    monkeypatch.delenv("CI", raising=False)
     data_dir = tmp_path / ".esphome"
     mock_core.config_dir = tmp_path
     mock_core.data_dir = data_dir
@@ -892,8 +907,10 @@ def test_check_build_tree_not_tracked_silent_when_gitkeep_present(
     mock_run: MagicMock,
     tmp_path: Path,
     caplog: pytest.LogCaptureFixture,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Test check_build_tree_not_tracked is skipped when .gitkeep opts in."""
+    monkeypatch.delenv("CI", raising=False)
     data_dir = tmp_path / ".esphome"
     data_dir.mkdir()
     (data_dir / ".gitkeep").touch()
@@ -914,8 +931,10 @@ def test_check_build_tree_not_tracked_silent_when_untracked(
     mock_run: MagicMock,
     tmp_path: Path,
     caplog: pytest.LogCaptureFixture,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Test check_build_tree_not_tracked stays silent when nothing is tracked."""
+    monkeypatch.delenv("CI", raising=False)
     mock_core.config_dir = tmp_path
     mock_core.data_dir = tmp_path / ".esphome"
     mock_run.return_value = MagicMock(returncode=0, stdout=b"", stderr=b"")
@@ -933,8 +952,10 @@ def test_check_build_tree_not_tracked_silent_outside_git_repo(
     mock_run: MagicMock,
     tmp_path: Path,
     caplog: pytest.LogCaptureFixture,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Test check_build_tree_not_tracked stays silent when not inside a git repo."""
+    monkeypatch.delenv("CI", raising=False)
     mock_core.config_dir = tmp_path
     mock_core.data_dir = tmp_path / ".esphome"
     mock_run.return_value = MagicMock(
@@ -954,8 +975,10 @@ def test_check_build_tree_not_tracked_silent_on_failure_without_stderr(
     mock_run: MagicMock,
     tmp_path: Path,
     caplog: pytest.LogCaptureFixture,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """A non-zero exit with no stderr must not raise trying to log the reason."""
+    monkeypatch.delenv("CI", raising=False)
     mock_core.config_dir = tmp_path
     mock_core.data_dir = tmp_path / ".esphome"
     mock_run.return_value = MagicMock(returncode=1, stdout=b"", stderr=b"")
@@ -973,8 +996,10 @@ def test_check_build_tree_not_tracked_silent_when_git_missing(
     mock_run: MagicMock,
     tmp_path: Path,
     caplog: pytest.LogCaptureFixture,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Test check_build_tree_not_tracked stays silent when git isn't installed."""
+    monkeypatch.delenv("CI", raising=False)
     mock_core.config_dir = tmp_path
     mock_core.data_dir = tmp_path / ".esphome"
     mock_run.side_effect = FileNotFoundError()
@@ -992,8 +1017,10 @@ def test_check_build_tree_not_tracked_silent_on_other_os_error(
     mock_run: MagicMock,
     tmp_path: Path,
     caplog: pytest.LogCaptureFixture,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """A non-executable git on PATH (PermissionError) must not abort the build."""
+    monkeypatch.delenv("CI", raising=False)
     mock_core.config_dir = tmp_path
     mock_core.data_dir = tmp_path / ".esphome"
     mock_run.side_effect = PermissionError("git is not executable")
@@ -1011,8 +1038,10 @@ def test_check_build_tree_not_tracked_silent_on_timeout(
     mock_run: MagicMock,
     tmp_path: Path,
     caplog: pytest.LogCaptureFixture,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """A hung git process must not block the build indefinitely."""
+    monkeypatch.delenv("CI", raising=False)
     mock_core.config_dir = tmp_path
     mock_core.data_dir = tmp_path / ".esphome"
     mock_run.side_effect = subprocess.TimeoutExpired(cmd="git", timeout=5)
@@ -1030,12 +1059,14 @@ def test_check_build_tree_not_tracked_silent_when_data_dir_outside_config_dir(
     mock_run: MagicMock,
     tmp_path: Path,
     caplog: pytest.LogCaptureFixture,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Test check_build_tree_not_tracked skips the check for an external data dir.
 
     Covers the Home Assistant add-on (/data) and ESPHOME_DATA_DIR cases, where
     the build directory can't be part of the config's git repository.
     """
+    monkeypatch.delenv("CI", raising=False)
     mock_core.config_dir = tmp_path / "config"
     mock_core.data_dir = tmp_path / "data"
 

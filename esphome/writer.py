@@ -757,6 +757,11 @@ def check_build_tree_not_tracked() -> None:
     Every subsequent build would then keep changing the regenerated files
     under version control.
     """
+    if os.environ.get("CI"):
+        # CI checkouts build fixture configs, not a user's own repository, so
+        # there is nothing meaningful to warn about -- skip the extra process
+        # spawn on every single build.
+        return
     data_dir = CORE.data_dir
     if (data_dir / ".gitkeep").is_file():
         # The user deliberately placed a .gitkeep file, opting the build
