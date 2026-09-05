@@ -669,6 +669,52 @@ def test_get_core_framework_version_from_core_data():
     assert toolchain._get_core_framework_version() == "5.5.4"
 
 
+def test_run_compile_aborts_when_stale_pch_survives_discard(
+    setup_core: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An undiscardable stale .gch means silently wrong output: abort."""
+    from esphome.core import EsphomeError
+
+    monkeypatch.setenv("ESPHOME_PCH_ENABLE", "1")
+    _setup_build(setup_core)
+
+    with (
+        patch.object(toolchain, "need_reconfigure", return_value=False),
+        patch.object(toolchain, "run_idf_py", return_value=0),
+        patch.object(toolchain, "print_summary"),
+        patch("esphome.build_gen.espidf.prepare_pch", side_effect=RuntimeError("boom")),
+        patch(
+            "esphome.build_gen.espidf.discard_pch",
+            side_effect=EsphomeError("Could not discard the stale precompiled header"),
+        ),
+        pytest.raises(EsphomeError, match="Could not discard"),
+    ):
+        toolchain.run_compile({CONF_ESPHOME: {}}, verbose=False)
+
+
+def test_run_compile_strict_reraises_pch_failure(
+    setup_core: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """ESPHOME_PCH_STRICT must reach through the real compile flow."""
+    from esphome.core import EsphomeError
+
+    monkeypatch.setenv("ESPHOME_PCH_ENABLE", "1")
+    monkeypatch.setenv("ESPHOME_PCH_STRICT", "1")
+    _setup_build(setup_core)
+
+    with (
+        patch.object(toolchain, "need_reconfigure", return_value=False),
+        patch.object(toolchain, "run_idf_py", return_value=0),
+        patch.object(toolchain, "print_summary"),
+        patch(
+            "esphome.build_gen.espidf.prepare_pch",
+            side_effect=EsphomeError("ESPHOME_PCH_STRICT: no usable compile command"),
+        ),
+        pytest.raises(EsphomeError, match="no usable compile command"),
+    ):
+        toolchain.run_compile({CONF_ESPHOME: {}}, verbose=False)
+
+
 def test_run_compile_invokes_prepare_pch_and_survives_failure(
     setup_core: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

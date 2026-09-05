@@ -100,12 +100,14 @@ def _fake_cxx(
         body += f"echo {fail_msg or 'boom'} >&2\nexit 1\n"
     else:
         # Only the c++-header compile has a -o; the load probe has none
-        body += 'out=""; prev=""; mf=0; dep=0\nfor a in "$@"; do [ "$prev" = "-o" ] && out="$a"; prev="$a"; [ "$a" = "-MF" ] && mf=1; case "$a" in -M|-MM|-MD|-MMD) dep=1;; esac; done\n'
+        body += 'out=""; prev=""; mf=0; dep=0; inc=0\nfor a in "$@"; do [ "$prev" = "-o" ] && out="$a"; prev="$a"; [ "$a" = "-MF" ] && mf=1; [ "$a" = "-include" ] && inc=1; case "$a" in -M|-MM|-MD|-MMD) dep=1;; esac; done\n'
         # Real cc1plus rejects -MF without a dependency flag
         body += 'if [ "$mf" = 1 ] && [ "$dep" = 0 ]; then echo "cc1plus: error: to generate dependencies you must specify either \x27-M\x27 or \x27-MM\x27" >&2; exit 1; fi\n'
         body += '[ -n "$out" ] && echo gch > "$out"\n'
         if reject_pch:
-            body += 'case " $* " in *c++-header*) ;; *) echo "warning: esphome_pch.h.gch: had text segment at different address" >&2;; esac\n'
+            # -Werror=invalid-pch makes rejection a nonzero exit; the
+            # baseline (no -include) still passes
+            body += 'case " $* " in *c++-header*) ;; *) if [ "$inc" = 1 ]; then echo "error: esphome_pch.h.gch: had text segment at different address" >&2; exit 1; fi;; esac\n'
         body += f'case " $* " in *c++-header*) exit 0;; *) exit {probe_exit};; esac\n'
     cxx.write_text("#!/bin/sh\n" + body)
     cxx.chmod(cxx.stat().st_mode | stat.S_IEXEC)
@@ -293,13 +295,17 @@ def test_pch_script_spawn_failure_is_transient(
     assert "did not run" in capsys.readouterr().out
 
 
-def test_pch_script_probe_nonzero_exit_falls_back(tmp_path: Path) -> None:
-    """A probe failure whose stderr never mentions .gch must still count."""
+def test_pch_script_probe_baseline_failure_latches_with_honest_label(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Probe AND baseline failing is a deterministic environment problem:
+    latch, but blame the environment rather than the pch."""
     scons_env = _run_script(tmp_path, probe_exit=1)
     proj = tmp_path / "dev"
     assert not (proj / "esphome_pch.h.gch").exists()
     assert (proj / "esphome_pch.h.gch.failed").is_file()
     assert scons_env.prepended == []
+    assert "probe cannot run at all" in capsys.readouterr().out
 
 
 def test_pch_script_unresolved_package_version_skips_pch(tmp_path: Path) -> None:
@@ -458,3 +464,118 @@ def test_pch_script_unreadable_local_header_skips_pch(
     assert not (proj / "esphome_pch.h.gch.sum").exists()
     assert scons_env.prepended == []
     assert "skipping precompiled header" in capsys.readouterr().out
+
+
+def test_pch_script_rejects_unrecognized_strict_value(tmp_path: Path) -> None:
+    """A typo'd knob must fail the build, not silently disable the gate."""
+    with pytest.raises(RuntimeError, match="Unrecognized ESPHOME_PCH_STRICT"):
+        _run_script(tmp_path, env_vars={"ESPHOME_PCH_STRICT": "yolo"})
+
+
+def test_pch_script_strict_tables_match_helpers(tmp_path: Path) -> None:
+    """The script's mirrored spelling tables must not drift."""
+    from esphome.helpers import FALSY_ENV_STRINGS, TRUTHY_ENV_STRINGS
+
+    proj = tmp_path / "dev"
+    (proj / "src").mkdir(parents=True)
+    # Hermetic: the constants are module-level, but the exec still runs
+    # _setup_pch, which must not touch the host toolchain
+    cxx = _fake_cxx(tmp_path)
+    env = _FakeSConsEnv(proj, proj / "src", str(cxx), ["-DX=1"])
+    namespace = {"Import": lambda *_names: None, "env": env, "projenv": env}
+    with patch.dict(os.environ, {}, clear=True):
+        exec(compile(_SCRIPT.read_text(), "pch.py", "exec"), namespace)  # noqa: S102
+    assert set(namespace["_TRUTHY"]) == set(TRUTHY_ENV_STRINGS)
+    # parse_enable_env handles the empty string separately
+    assert set(namespace["_FALSY"]) - {""} == set(FALSY_ENV_STRINGS)
+
+
+def test_pch_script_strict_reprobes_cached_gch(tmp_path: Path) -> None:
+    """Rejection is per-process: strict re-proves a cached .gch loads."""
+    _run_script(tmp_path)
+    proj = tmp_path / "dev"
+    assert (proj / "esphome_pch.h.gch").is_file()
+    (tmp_path / "fake-gxx.argv").unlink(missing_ok=True)
+    # Second run: cache fresh, but the toolchain now rejects loads
+    with pytest.raises(RuntimeError, match="not used"):
+        _run_script(tmp_path, reject_pch=True, env_vars={"ESPHOME_PCH_STRICT": "1"})
+    assert not (proj / "esphome_pch.h.gch").exists()
+
+
+def test_pch_script_strict_raises_when_pch_not_used(tmp_path: Path) -> None:
+    """ESPHOME_PCH_STRICT fails the build instead of degrading."""
+    with pytest.raises(RuntimeError, match="ESPHOME_PCH_STRICT"):
+        _run_script(tmp_path, fail=True, env_vars={"ESPHOME_PCH_STRICT": "1"})
+
+
+def test_pch_script_strict_fails_without_scons(tmp_path: Path) -> None:
+    """No SCons under PlatformIO is an anomaly; strict must not pass."""
+    proj = tmp_path / "dev"
+    (proj / "src").mkdir(parents=True)
+
+    def strict_import(*names: str) -> None:
+        if "projenv" in names:
+            raise RuntimeError("Import of non-existent variable 'projenv'")
+
+    import sys
+
+    env = _FakeSConsEnv(proj, proj / "src", "g++", ["-DX=1"])
+    with (
+        # None forces ImportError even where SCons is installed
+        patch.dict(sys.modules, {"SCons.Script": None}),
+        patch.dict(os.environ, {"ESPHOME_PCH_STRICT": "1"}, clear=True),
+        pytest.raises(RuntimeError, match="not used"),
+    ):
+        exec(  # noqa: S102
+            compile(_SCRIPT.read_text(), "pch.py", "exec"),
+            {"Import": strict_import, "env": env},
+        )
+
+
+def test_pch_script_strict_reraises_internal_errors(tmp_path: Path) -> None:
+    """The catch-all must not swallow programming errors in strict mode."""
+    with pytest.raises(TypeError):
+        _run_script(tmp_path, env_vars={"ESPHOME_PCH_STRICT": "1"}, platform_cls=None)
+
+
+@pytest.mark.parametrize(("targets", "passes"), [(["nobuild"], True), ([], False)])
+def test_pch_script_strict_projenv_skip_gated_on_nobuild(
+    tmp_path: Path, targets: list[str], passes: bool
+) -> None:
+    """-t nobuild compiles nothing, so the skip passes strict; a missing
+    projenv on a real compile must not."""
+    import sys
+    import types
+
+    proj = tmp_path / "dev"
+    (proj / "src").mkdir(parents=True)
+
+    def strict_import(*names: str) -> None:
+        if "projenv" in names:
+            raise RuntimeError("Import of non-existent variable 'projenv'")
+
+    scons = types.ModuleType("SCons")
+    scons_script = types.ModuleType("SCons.Script")
+    scons_script.COMMAND_LINE_TARGETS = targets
+    env = _FakeSConsEnv(proj, proj / "src", "g++", ["-DX=1"])
+    with (
+        patch.dict(sys.modules, {"SCons": scons, "SCons.Script": scons_script}),
+        patch.dict(os.environ, {"ESPHOME_PCH_STRICT": "1"}, clear=True),
+    ):
+        run = lambda: exec(  # noqa: S102, E731
+            compile(_SCRIPT.read_text(), "pch.py", "exec"),
+            {"Import": strict_import, "env": env},
+        )
+        if passes:
+            run()
+        else:
+            with pytest.raises(RuntimeError, match="not used"):
+                run()
+    assert not (proj / "esphome_pch.h").exists()
+
+
+def test_pch_script_strict_passes_on_success(tmp_path: Path) -> None:
+    scons_env = _run_script(tmp_path, env_vars={"ESPHOME_PCH_STRICT": "1"})
+    # Strict escalates the consumer edges too
+    assert "-Werror=invalid-pch" in scons_env.prepended
+    assert "-Wno-error=invalid-pch" not in scons_env.prepended

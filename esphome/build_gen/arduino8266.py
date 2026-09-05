@@ -39,8 +39,13 @@ from esphome.build_helpers.pch import (
     PCH_HEADER_NAME,
     mark_pch_emitted,
     pch_checksum,
+    pch_consumer_escalation,
+    pch_degraded,
+    pch_disabled_degraded,
     pch_enabled,
     pch_header_text,
+    pch_probe_args,
+    pch_strict,
 )
 from esphome.components.esp8266 import build_surgery
 from esphome.components.esp8266.boards import (
@@ -1231,6 +1236,7 @@ def write_project(paths: InstalledPaths, ccache: str | None) -> bool:
             "A -include in build_flags prevents the precompiled header from "
             "loading; compiling without it"
         )
+        pch_degraded("a user -include precedes the pch")
     elif pch_enabled():
         # C++ src edges swap the force-includes for one precompiled prefix
         # header (same content plus defines.h); C/assembly keep srcflags
@@ -1264,6 +1270,7 @@ def write_project(paths: InstalledPaths, ccache: str | None) -> bool:
             _LOGGER.warning(
                 "Could not establish the pch identity; compiling without it: %s", err
             )
+            pch_degraded(f"identity unknown: {err}")
         else:
             _LOGGER.info(
                 "Compiling with a precompiled header "
@@ -1283,13 +1290,37 @@ def write_project(paths: InstalledPaths, ccache: str | None) -> bool:
             if src_other:
                 lines.append(f"  flags = {' '.join(src_other)}")
             # Relative -include: absolute would break cross-device ccache.
-            # -Wno-error keeps a rejected .gch a warning under user -Werror
+            # -Wno-error keeps a rejected .gch a warning under user -Werror;
+            # strict inverts it so any consumer rejection reds the build
+            # (rejection is per-process, so the probe alone cannot prove
+            # the consumers)
+            escalation = pch_consumer_escalation()
             cxx_parts = src_other + [
-                f"-Winvalid-pch -Wno-error=invalid-pch -include {PCH_HEADER_NAME}"
+                f"-Winvalid-pch {escalation} -include {PCH_HEADER_NAME}"
             ]
             lines.append(f"srccxxflags = {' '.join(cxx_parts)}")
-            src_cxx_override = ("$srccxxflags", gch)
+            pch_dep = gch
+            if pch_strict():
+                # Consumers wait on the probe stamp, so an unloadable .gch
+                # reds the build here instead of warning ~100 times
+                probe = " ".join(pch_probe_args(PCH_HEADER_NAME, source=os.devnull))
+                lines.append("rule pchprobe")
+                # $out only expands in rule text, hence the inline stamp
+                lines.append(
+                    f"  command = $cxx $cxxflags $flags {probe}"
+                    " && $python $buildtool touch $out"
+                )
+                lines.append("  description = PCHPROBE $out")
+                # Runs when the .gch is (re)built; strict consumer -Werror
+                # covers a cached .gch this process cannot load
+                lines.append(f"build esphome_pch.probe: pchprobe {gch}")
+                if src_other:
+                    lines.append(f"  flags = {' '.join(src_other)}")
+                pch_dep = f"{gch} esphome_pch.probe"
+            src_cxx_override = ("$srccxxflags", pch_dep)
             mark_pch_emitted()
+    else:
+        pch_disabled_degraded()
     src_objs = _ninja_compile_edges(
         lines,
         _collect_sources(src_dir),

@@ -1,6 +1,5 @@
 """ESP-IDF direct build API for ESPHome."""
 
-from contextlib import suppress
 from dataclasses import dataclass, field
 import hashlib
 import json
@@ -536,9 +535,14 @@ def run_compile(config, verbose: bool) -> int:
     try:
         prepare_pch()
     except Exception:  # noqa: BLE001  # pylint: disable=broad-exception-caught
-        # Discard so a stale .gch can never be consumed
-        with suppress(OSError):
-            discard_pch()
+        from esphome.build_helpers.pch import pch_strict
+
+        # Strict first: its own knob error must not mask the real failure
+        strict = pch_strict()
+        # Raises itself if a stale .gch survives (silently wrong output)
+        discard_pch()
+        if strict:
+            raise
         _LOGGER.warning(
             "Precompiled header setup failed; compiling without it", exc_info=True
         )
