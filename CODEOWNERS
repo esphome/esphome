@@ -602,6 +602,8 @@ esphome/components/veml3235/* @kbx81
 esphome/components/veml7700/* @latonita
 esphome/components/version/* @esphome/core
 esphome/components/voice_assistant/* @jesserockz @kahrendt
+esphome/components/vornado_ir/* @jzucker2
+esphome/components/vornado_ir/button/* @jzucker2
 esphome/components/wake_on_lan/* @clydebarrow @willwill2will54
 esphome/components/watchdog/* @oarcher
 esphome/components/water_heater/* @dhoeben
