@@ -30,7 +30,9 @@ class GuardedMDNSResponder : public ::esp8266::MDNSImplementation::MDNSResponder
       (this->*fn)();
       return;
     }
-    // Set every time: a restart replaces the context together with its stock handler
+    // Set every time: a restart replaces the context together with its stock handler. Only
+    // begin() and the scheduled netif callback restart, never update() or close(), so the
+    // context cannot change underneath this call.
     ctx->onRx([this]() {
       if (!this->in_loop_call_) {
         this->_callProcess();
