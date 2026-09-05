@@ -8,6 +8,10 @@ from esphome.core import CORE
 
 CODEOWNERS = ["@fornellas"]
 MULTI_CONF = True
+# hub.h unconditionally declares fields of each of these types (e.g. every possible boiler sensor,
+# even ones the user hasn't configured), so their headers must always be compiled in -- regardless
+# of whether the user's YAML happens to configure any entities under these domains.
+AUTO_LOAD = ["binary_sensor", "number", "sensor", "switch", "text_sensor", "time"]
 
 CONF_IN_PIN = "in_pin"
 CONF_OUT_PIN = "out_pin"
