@@ -69,7 +69,7 @@ void ICNT86Touchscreen::update_touches() {
     // A zero-pressure report just means this point is no longer touched; skipping it here leaves is_touched_
     // false (when no other point is active) so send_touches_() reports the release as normal.
     if (pressure != 0) {
-        this->add_raw_touch_position_(touch_id, x, y, pressure);
+      this->add_raw_touch_position_(touch_id, x, y, pressure);
     }
   }
 }
