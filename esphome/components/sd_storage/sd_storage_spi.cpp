@@ -99,10 +99,12 @@ void SdSpi::dump_config() {
   if (this->is_mounted_) {
     ESP_LOGCONFIG(TAG_SPI, "  Card Type: %s", SdStorageBase::card_type_to_string(this->card_type_));
     ESP_LOGCONFIG(TAG_SPI, "  Total bytes: %" PRIu64, this->total_bytes_);
-    if (this->update_card_info())
+    if (this->update_card_info()) {
       ESP_LOGCONFIG(TAG_SPI, "  Used bytes: %" PRIu64, this->used_bytes_);
-    else
+    }
+    else {
       ESP_LOGCONFIG(TAG_SPI, "  Used bytes: unavailable");
+    }
   }
   if (this->is_failed()) {
     ESP_LOGE(TAG_SPI, "Setup failed: %s", SdSpi::error_code_to_str(this->init_error_));
@@ -298,8 +300,9 @@ StorageError SdSpi::mount() {
     // card-detect retry re-enters mount() on top of it. Idempotent: sdspi_host_deinit()
     // walks its slot table and returns ESP_OK when the wrapper already tore the host down
     // on its own failure path.
-    if (sdspi_host_deinit() != ESP_OK)
+    if (sdspi_host_deinit() != ESP_OK) {
       ESP_LOGW(TAG_SPI, "sdspi_host_deinit() after failed mount failed");
+    }
     this->init_error_ = (mount_error == ESP_FAIL || mount_error == ESP_ERR_INVALID_CRC) ? ErrorCode::ERROR_CODE_MOUNT
                                                                                         : ErrorCode::ERROR_CODE_NO_CARD;
     return StorageError::STORAGE_ERROR_NOT_READY;
@@ -322,8 +325,9 @@ StorageError SdSpi::mount() {
 #endif
 
   BYTE pdrv = ff_diskio_get_pdrv_card(this->card_);
-  if (pdrv == 0xFF)
+  if (pdrv == 0xFF) {
     ESP_LOGE(TAG_SPI, "No diskio binding for card (pdrv lookup failed); direct FATFS path operations will fail");
+  }
   this->set_fatfs_drive_(pdrv);
   this->update_card_info();
 
@@ -365,10 +369,12 @@ StorageError SdSpi::unmount() {
   // Closes any handles still open from user/lambda code, while the VFS is still mounted to
   // receive the flush/close calls.
   StorageError flush_err = this->flush_open_handles_();
-  if (flush_err == StorageError::STORAGE_ERROR_OK)
+  if (flush_err == StorageError::STORAGE_ERROR_OK) {
     ESP_LOGD(TAG_SPI, "All data flushed");
-  else
+  }
+  else {
     ESP_LOGW(TAG_SPI, "Flush before unmount failed: %s", storage::error_to_string(flush_err));
+  }
 
   StorageError unmount_err = StorageError::STORAGE_ERROR_OK;
   bool manual = false;

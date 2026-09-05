@@ -293,8 +293,9 @@ storage::StorageError SdMmc::mount() {
 #endif
 
   BYTE pdrv = ff_diskio_get_pdrv_card(this->card_);
-  if (pdrv == 0xFF)
+  if (pdrv == 0xFF) {
     ESP_LOGE(TAG, "No diskio binding for card (pdrv lookup failed); direct FATFS path operations will fail");
+  }
   this->set_fatfs_drive_(pdrv);
   this->update_card_info();
 
@@ -363,10 +364,12 @@ storage::StorageError SdMmc::unmount() {
 #endif
 
   // Report the flush and teardown results so a failed unmount does not look clean.
-  if (flush_err != storage::StorageError::STORAGE_ERROR_OK)
+  if (flush_err != storage::StorageError::STORAGE_ERROR_OK) {
     return flush_err;
-  if (unmount_err != storage::StorageError::STORAGE_ERROR_OK)
+  }
+  if (unmount_err != storage::StorageError::STORAGE_ERROR_OK) {
     return unmount_err;
+  }
 
   ESP_LOGI(TAG, "SD/MMC card unmounted safely");
   return storage::StorageError::STORAGE_ERROR_OK;
