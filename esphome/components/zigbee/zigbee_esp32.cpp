@@ -178,13 +178,8 @@ static void zb_action_handler(ezb_zcl_core_action_callback_id_t callback_id, voi
 }
 
 void ZigbeeComponent::create_default_cluster(uint8_t endpoint_id, uint16_t device_id) {
-  ezb_af_ep_config_t config = {
-      .ep_id = endpoint_id,
-      .app_profile_id = EZB_AF_HA_PROFILE_ID,
-      .app_device_id = device_id,
-      .app_device_version = 0,
-  };
-  ezb_af_ep_desc_t ep_desc = ezb_af_create_endpoint_desc(&config);
+  ezb_af_ep_desc_t ep_desc =
+      esphome_zb_zha_default_ep_desc_create(endpoint_id, device_id, this->basic_cluster_data_.power_source);
   if (ezb_af_device_add_endpoint_desc(this->dev_desc_, ep_desc) != EZB_ERR_NONE) {
     ESP_LOGE(TAG, "Could not create endpoint %u", endpoint_id);
   }
@@ -229,13 +224,13 @@ void ZigbeeComponent::update_basic_cluster_(ezb_af_ep_desc_t ep_desc) {
         .power_source = this->basic_cluster_data_.power_source,
     };
     cluster_desc = ezb_zcl_basic_create_cluster_desc(&basic_cluster_cfg, EZB_ZCL_CLUSTER_SERVER);
+    ezb_af_endpoint_add_cluster_desc(ep_desc, cluster_desc);
   }
   ezb_zcl_basic_cluster_desc_add_attr(cluster_desc, EZB_ZCL_ATTR_BASIC_MANUFACTURER_NAME_ID,
                                       this->basic_cluster_data_.manufacturer);
   ezb_zcl_basic_cluster_desc_add_attr(cluster_desc, EZB_ZCL_ATTR_BASIC_MODEL_IDENTIFIER_ID,
                                       this->basic_cluster_data_.model);
   ezb_zcl_basic_cluster_desc_add_attr(cluster_desc, EZB_ZCL_ATTR_BASIC_DATE_CODE_ID, this->basic_cluster_data_.date);
-  ezb_af_endpoint_add_cluster_desc(ep_desc, cluster_desc);
 }
 
 bool ZigbeeComponent::register_device() {
