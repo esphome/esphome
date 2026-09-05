@@ -18,21 +18,6 @@ namespace esphome::daikin_madoka {
 
 static const char *const TAG = "daikin_madoka";
 
-struct Setpoint {
-  uint16_t cooling;
-  uint16_t heating;
-};
-
-struct FanSpeed {
-  uint8_t cooling;
-  uint8_t heating;
-};
-
-struct SensorReading {
-  uint8_t indoor;
-  uint8_t outdoor;
-};
-
 struct Status {
   bool status;
   uint8_t mode;
