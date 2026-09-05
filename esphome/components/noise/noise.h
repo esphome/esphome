@@ -23,11 +23,9 @@ class NoiseContext {
     }
     return acc == 0;
   }
-  /// psk points at 32 bytes that outlive the context: a PROGMEM array from
-  /// codegen, or RAM owned by the caller for a runtime provisioned key;
-  /// nullptr means no key. A key from yaml is never the reserved all-zeros
-  /// key (validation rejects it); a caller loading a runtime key must map
-  /// that key to nullptr itself.
+  /// psk points at 32 bytes that outlive the context (PROGMEM or caller owned
+  /// RAM); nullptr means no key. Runtime callers map the all-zeros key to
+  /// nullptr themselves; validation keeps it out of yaml.
   void set_psk(const uint8_t *psk) { this->psk_ = psk; }
   /// Copy the key out (flash-aware on ESP8266); all zeros when none is set.
   void load_psk(psk_t &out) const;

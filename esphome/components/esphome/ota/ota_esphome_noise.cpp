@@ -41,12 +41,9 @@ ESPHomeOTAComponent::NoiseSession::~NoiseSession() {
  *   "NoiseOTAInit" | magic(5) | OK,version | client_features | FEATURE_FLAGS,server_flags
  */
 bool ESPHomeOTAComponent::noise_start_session_(uint8_t server_feature_flags) {
-  // Not guarded against a provisioned key being cleared between the offer and
-  // here: the clear is deferred 100 ms and the ack write rarely blocks, and a
-  // session on the zero key that load_psk then fills in fails the real
-  // client's MAC. Yaml keys cannot change, so no check is needed there.
-  // Default-init: the frame buffer is always written before it is read, so
-  // skip zeroing its 132 bytes
+  // A provisioned key cleared between the offer and here is not guarded: the
+  // session runs on the zero key load_psk fills in and fails the client's MAC.
+  // Default-init: the frame buffer is written before it is read
   // NOLINTNEXTLINE(clang-analyzer-cplusplus.NewDeleteLeaks)
   this->noise_ = std::unique_ptr<NoiseSession>(new (std::nothrow) NoiseSession);
   static constexpr size_t PROLOGUE_ACK_LEN = 2;  // OTA_RESPONSE_OK + version

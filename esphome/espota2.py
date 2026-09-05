@@ -217,11 +217,8 @@ PLAINTEXT_FALLBACK_NOTICE = (
 
 # Remove before 2027.3.0
 class _EncryptionAttempt:
-    """The key an upload tries and whether it may fall back to plaintext.
-
-    A rejected handshake falls back at once; a transport fault inside the
-    handshake is retried encrypted first and only a repeat falls back.
-    """
+    """The key an upload tries and whether it may fall back to plaintext;
+    a rejected handshake falls back at once, a transport fault only on repeat."""
 
     def __init__(self, noise_psk: str | None, plaintext_fallback: bool) -> None:
         self.noise_psk = noise_psk
@@ -576,19 +573,16 @@ def perform_ota(
 
     if noise_psk and not (extended_proto and features & SERVER_FEATURE_SUPPORTS_NOISE):
         if plaintext_fallback:
-            # Remove before 2027.3.0: the api key is tried opportunistically
-            # without an 'ota: encryption:' block, so an older firmware that
-            # cannot encrypt still gets its update on this connection
+            # Remove before 2027.3.0: older firmware that cannot encrypt still
+            # gets its update on this connection
             _LOGGER.warning(
                 "The device did not offer OTA encryption; continuing in plaintext. %s",
                 PLAINTEXT_FALLBACK_NOTICE,
             )
             noise_psk = None
         else:
-            # Fail closed: never fall back to a plaintext upload when an
-            # encryption key is configured, an active attacker could otherwise
-            # strip the feature flag and capture the image (it contains the wifi
-            # credentials and the api encryption key).
+            # Fail closed: an attacker could otherwise strip the offer and
+            # capture the image (wifi credentials, api key)
             raise OTAError(
                 "An OTA encryption key is configured but the device did not "
                 "offer encryption; refusing to send the image in plaintext. "
@@ -607,14 +601,12 @@ def perform_ota(
             + bytes([RESPONSE_OK, version, features_to_send])
             + bytes([RESPONSE_FEATURE_FLAGS, features])
         )
-        # Built outside the try: a missing noise library or a malformed key
-        # is a local problem and must never downgrade the upload
+        # Built outside the try: a local failure must never downgrade the upload
         sock = NoiseSocketWrapper(sock, noise_psk, prologue)
         try:
             sock.do_handshake()
         except OTANetworkError as err:
-            # A transport fault, not a key problem: the retry loop tries
-            # encrypted again before it considers plaintext
+            # A transport fault: retry encrypted before considering plaintext
             raise OTAHandshakeNetworkError(str(err)) from err
         except OTAError as err:
             # Remove before 2027.3.0
@@ -905,8 +897,7 @@ def run_ota_impl_(
                     encryption.plaintext_fallback,
                 )
             except OTAEncryptionFallback as err:
-                # Same address, same attempt budget: the plaintext retry does
-                # not count as a network retry
+                # Same address and attempt budget: not a network retry
                 last_error = str(err)
                 encryption.downgrade(last_error)
                 continue

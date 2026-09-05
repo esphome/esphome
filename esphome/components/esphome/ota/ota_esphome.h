@@ -86,8 +86,7 @@ class ESPHomeOTAComponent final : public ota::OTAComponent {
     bool writing{false};    // a produced handshake frame is still being flushed
     uint8_t frame_buf[noise::FRAME_HEADER_SIZE + 1 + noise::MAX_HANDSHAKE_SIZE];
   };
-  // The key the offer and the handshake use: the api server's live context
-  // when the api has encryption, otherwise the component's own
+  // The api server's live context when the api has encryption, else our own
   const noise::NoiseContext &noise_context_() const;
   bool noise_start_session_(uint8_t server_feature_flags);
   bool handle_noise_handshake_();
@@ -173,22 +172,8 @@ class ESPHomeOTAComponent final : public ota::OTAComponent {
                 "OTA_BUFFER_SIZE must fit a full encrypted data frame");
 #endif
   static constexpr uint8_t MAGIC_BYTES[5] = {0x6C, 0x26, 0xF7, 0x5C, 0x45};
-  static constexpr uint8_t CLIENT_FEATURE_SUPPORTS_EXTENDED_PROTOCOL = 0x04;
-  static constexpr uint8_t CLIENT_FEATURE_SUPPORTS_NOISE = 0x08;
-  // Noise needs the extended protocol: the prologue binds the 2-byte feature ack
-  static constexpr uint8_t CLIENT_NOISE_FEATURES =
-      CLIENT_FEATURE_SUPPORTS_NOISE | CLIENT_FEATURE_SUPPORTS_EXTENDED_PROTOCOL;
-  // Derived from the feature byte rather than stored, which keeps the
-  // trailing byte members at a multiple of four
-  inline bool extended_proto_() const {
-#ifdef USE_OTA_ENCRYPTION_REQUIRED
-    // Encryption needs the extended protocol and FEATURE_READ has already
-    // refused every client without it, so the legacy paths cannot be reached
-    return true;
-#else
-    return (this->ota_features_ & CLIENT_FEATURE_SUPPORTS_EXTENDED_PROTOCOL) != 0;
-#endif
-  }
+  // Derived from the feature byte; storing it would pad the trailing bytes
+  bool extended_proto_() const;
 #ifdef USE_OTA_PARTITIONS
   uint32_t running_app_offset_{0};
   size_t running_app_size_{0};

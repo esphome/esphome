@@ -63,9 +63,8 @@ ENCRYPTION_SCHEMA = cv.Schema(
 
 
 def static_encryption_key(conf: ConfigType) -> str | None:
-    """The encryption key of a component config when it is fixed at build
-    time; None when there is no encryption block or the key is provisioned at
-    runtime (validation already rejects the all-zeros key)."""
+    """The build time key of a component config; None without one or when
+    the key is provisioned at runtime."""
     return (conf.get(CONF_ENCRYPTION) or {}).get(CONF_KEY) or None
 
 

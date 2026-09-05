@@ -148,8 +148,7 @@ def wizard_file(**kwargs: Unpack[WizardFileKwargs]) -> str:
     if "api_encryption_key" in kwargs:
         config += f'  encryption:\n    key: "{kwargs["api_encryption_key"]}"\n'
 
-    # Configure OTA: the api key also secures OTA updates, a password is only
-    # for uploaders that do not support encryption
+    # The api key also secures OTA; a password only serves older uploaders
     config += "\nota:\n"
     config += "  - platform: esphome\n"
     if "ota_password" in kwargs:

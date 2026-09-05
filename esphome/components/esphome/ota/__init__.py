@@ -40,12 +40,10 @@ DEPENDENCIES = ["network"]
 
 
 def AUTO_LOAD(config: ConfigType) -> list[str]:
-    """Auto-load noise only when encryption is configured. The api key offer
-    path inherits noise from the api component's own AUTO_LOAD."""
+    """Auto-load noise only when encryption is configured; the api key offer
+    inherits it from the api component."""
     base = ["sha256", "socket"]
-    # A falsy config is a tooling probe for the maximal set (None from
-    # dependency resolution, {} from the components-graph platform probe);
-    # a validated config always carries defaults, never empty
+    # A falsy config is a tooling probe for the maximal set
     if not config or CONF_ENCRYPTION in config:
         return base + ["noise"]
     return base
@@ -154,9 +152,7 @@ def ota_esphome_final_validate(config: ConfigType) -> None:
             and CONF_ENCRYPTION in api_conf
             and not api_conf[CONF_ENCRYPTION].get(CONF_KEY)
         ):
-            # A runtime provisioned key: the CLI still needs the password, but
-            # whoever holds the key skips it, and without a provisioning window
-            # anyone on the network can be the one to provision it
+            # The CLI still needs the password; whoever provisions the key skips it
             _LOGGER.warning(
                 "The '%s' %s %s provisioned at runtime also authenticates OTA "
                 "uploads once provisioned; '%s' %s then only guards plaintext "
@@ -169,9 +165,8 @@ def ota_esphome_final_validate(config: ConfigType) -> None:
                 CONF_OTA,
                 CONF_PASSWORD,
             )
-    # Only the web_server component starts the shared listener permanently;
-    # the captive portal brings it up just for the fallback AP, which is the
-    # intended recovery path, so only the component plus the platform warns
+    # Only the web_server component keeps the listener up; the captive
+    # portal's copy is the recovery path
     if (
         CONF_WEB_SERVER in full_conf
         and any(conf.get(CONF_PLATFORM) == CONF_WEB_SERVER for conf in full_ota_conf)
@@ -310,10 +305,8 @@ async def to_code(config: ConfigType) -> None:
     if config.get(CONF_ALLOW_PARTITION_ACCESS):
         cg.add_define("USE_OTA_PARTITIONS")
 
-    # One key per device: with an api encryption block the device uses the api
-    # server's key (static, or provisioned at runtime) and offers encryption
-    # while still accepting plaintext; the ota block is what requires it.
-    # An ota key of its own only exists without api encryption.
+    # One key per device: an api encryption block supplies it (static or
+    # runtime) and offers; the ota block only adds the requirement
     api_conf = CORE.config.get(CONF_API) or {}
     encryption_conf = config.get(CONF_ENCRYPTION)
     own_key = None

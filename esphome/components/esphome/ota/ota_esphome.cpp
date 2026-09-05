@@ -177,9 +177,23 @@ void ESPHomeOTAComponent::loop() {
 
 static constexpr uint8_t CLIENT_FEATURE_SUPPORTS_COMPRESSION = 0x01;
 static constexpr uint8_t CLIENT_FEATURE_SUPPORTS_SHA256_AUTH = 0x02;
+static constexpr uint8_t CLIENT_FEATURE_SUPPORTS_EXTENDED_PROTOCOL = 0x04;
+static constexpr uint8_t CLIENT_FEATURE_SUPPORTS_NOISE = 0x08;
+// Noise needs the extended protocol: the prologue binds the 2-byte feature ack
+static constexpr uint8_t CLIENT_NOISE_FEATURES =
+    CLIENT_FEATURE_SUPPORTS_NOISE | CLIENT_FEATURE_SUPPORTS_EXTENDED_PROTOCOL;
 static constexpr uint8_t SERVER_FEATURE_SUPPORTS_COMPRESSION = 0x01;
 static constexpr uint8_t SERVER_FEATURE_SUPPORTS_PARTITION_ACCESS = 0x02;
 static constexpr uint8_t SERVER_FEATURE_SUPPORTS_NOISE = 0x04;
+
+inline bool ESPHomeOTAComponent::extended_proto_() const {
+#ifdef USE_OTA_ENCRYPTION_REQUIRED
+  // FEATURE_READ already refused every client without the extended protocol
+  return true;
+#else
+  return (this->ota_features_ & CLIENT_FEATURE_SUPPORTS_EXTENDED_PROTOCOL) != 0;
+#endif
+}
 
 void ESPHomeOTAComponent::handle_handshake_() {
   /// Handle the OTA handshake and authentication.
@@ -265,8 +279,7 @@ void ESPHomeOTAComponent::handle_handshake_() {
       ESP_LOGV(TAG, "Features: 0x%02X", this->ota_features_);
 
 #ifdef USE_OTA_ENCRYPTION_REQUIRED
-      // Fail closed: an explicit `ota: encryption:` block means the client must
-      // negotiate encryption; refuse plaintext uploads
+      // `ota: encryption:` requires the client to negotiate encryption
       if ((this->ota_features_ & CLIENT_NOISE_FEATURES) != CLIENT_NOISE_FEATURES) {
         ESP_LOGW(TAG, "Client does not support encryption");
         this->send_error_and_cleanup_(ota::OTA_RESPONSE_ERROR_ENCRYPTION_REQUIRED);
@@ -313,9 +326,6 @@ void ESPHomeOTAComponent::handle_handshake_() {
         return;
       }
 #ifdef USE_OTA_ENCRYPTION
-      // The client took the encryption offer: the rest of the session runs
-      // inside the noise transport, which also authenticates it. Nothing to
-      // do until its first handshake frame arrives.
       // Latch the offer actually sent: a key activating between the two
       // states must not start a session the client never expects
       if ((this->handshake_buf_[1] & SERVER_FEATURE_SUPPORTS_NOISE) != 0 &&

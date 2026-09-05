@@ -1354,8 +1354,7 @@ def _upload_via_native_api(
         # It arrives here as a SensitiveStr which aioesphomeapi rejects.
         noise_psk = str(noise_psk)
     elif api_key := static_encryption_key(config.get(CONF_API) or {}):
-        # Remove before 2027.3.0: without an ota block the api key is tried
-        # when the device offers encryption, falling back to plaintext
+        # Remove before 2027.3.0: the api key is tried, falling back to plaintext
         noise_psk = str(api_key)
         plaintext_fallback = True
 
