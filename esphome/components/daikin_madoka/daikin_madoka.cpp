@@ -160,14 +160,14 @@ void DaikinMadoka::control(const ClimateCall &call) {
 void DaikinMadoka::gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param) {
   switch (event) {
     case ESP_GAP_BLE_SEC_REQ_EVT:
-      if (!this->parent()->check_addr(param->ble_security.auth_cmpl.bd_addr))
+      if (!this->parent()->check_addr(param->ble_security.ble_req.bd_addr))
         return;
       esp_ble_gap_security_rsp(param->ble_security.ble_req.bd_addr, true);
       break;
     case ESP_GAP_BLE_NC_REQ_EVT:
-      if (!this->parent()->check_addr(param->ble_security.auth_cmpl.bd_addr))
+      if (!this->parent()->check_addr(param->ble_security.key_notif.bd_addr))
         return;
-      esp_ble_confirm_reply(param->ble_security.ble_req.bd_addr, true);
+      esp_ble_confirm_reply(param->ble_security.key_notif.bd_addr, true);
       ESP_LOGI(TAG, "ESP_GAP_BLE_NC_REQ_EVT, the passkey Notify number: %06u", param->ble_security.key_notif.passkey);
       break;
     case ESP_GAP_BLE_AUTH_CMPL_EVT: {
