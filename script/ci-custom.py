@@ -3,6 +3,7 @@
 import argparse
 import codecs
 import collections
+from collections.abc import Iterator
 import fnmatch
 import functools
 import os.path
@@ -1120,7 +1121,56 @@ def lint_no_std_bind(fname, match):
     )
 
 
-LOG_MULTILINE_RE = re.compile(r"ESP_LOG\w+\s*\(.*?;", re.DOTALL)
+LOG_CALL_START_RE = re.compile(r"ESP_LOG\w+\s*\(")
+# Comments, raw/plain string literals and single char literals are consumed whole so ; ( ) ? :
+# inside them are never seen. A char literal is exactly one (escaped) char so a digit separator
+# like 1'000'000 cannot open one.
+CPP_COMMENT_RE = r"//[^\n]*|/\*.*?\*/"
+CPP_SKIP_RE = (
+    CPP_COMMENT_RE
+    + r'|R"(?P<raw_delim>[^(\s]*)\(.*?\)(?P=raw_delim)"|"(?:[^"\\]|\\.)*"|\'(?:[^\'\\\n]|\\.)\''
+)
+LOG_CALL_TOKEN_RE = re.compile(CPP_SKIP_RE + r"|[()]", re.DOTALL)
+# The last alternative matches a ? or : followed (after spaces or comments) by an opening quote,
+# i.e. a string literal used as a ternary branch.
+LOG_TERNARY_LITERAL_RE = re.compile(
+    CPP_SKIP_RE + r"|[?:](?:\s|" + CPP_COMMENT_RE + r')*(?=")', re.DOTALL
+)
+# A bare NOLINT; a clang-tidy NOLINT(check-name) is aimed at a different tool.
+NOLINT_RE = re.compile(r"\bNOLINT\b(?!\()")
+
+
+def _line_col(content: str, pos: int) -> tuple[int, int]:
+    """1-based line and column of an offset in content."""
+    return content.count("\n", 0, pos) + 1, pos - content.rfind("\n", 0, pos)
+
+
+def _iter_log_calls(content: str) -> Iterator[tuple[int, str | None]]:
+    """Yield (start, text) for every ESP_LOG*(...) call, text running to the matching close paren.
+    text is None when no matching paren exists so callers can report the call instead of skipping it."""
+    for head in LOG_CALL_START_RE.finditer(content):
+        depth = 1
+        for tok in LOG_CALL_TOKEN_RE.finditer(content, head.end()):
+            if tok.group(0) == "(":
+                depth += 1
+            elif tok.group(0) == ")":
+                depth -= 1
+                if depth == 0:
+                    yield head.start(), content[head.start() : tok.end()]
+                    break
+        else:
+            yield head.start(), None
+
+
+def _unbalanced_log_call_error(content: str, pos: int) -> tuple[int, int, str]:
+    lineno, col = _line_col(content, pos)
+    return (
+        lineno,
+        col,
+        "ESP_LOG call has no matching closing parenthesis, so it cannot be checked.",
+    )
+
+
 LOG_BAD_CONTINUATION_RE = re.compile(r'\\n(?:[^ \\"\r\n\t]|"\s*\n\s*"[^ \\])')
 LOG_PERCENT_S_CONTINUATION_RE = re.compile(r'\\n(?:%s|"\s*\n\s*"%s)')
 
@@ -1128,16 +1178,16 @@ LOG_PERCENT_S_CONTINUATION_RE = re.compile(r'\\n(?:%s|"\s*\n\s*"%s)')
 @lint_content_check(include=cpp_include)
 def lint_log_multiline_continuation(fname, content):
     errs = []
-    for log_match in LOG_MULTILINE_RE.finditer(content):
-        log_text = log_match.group(0)
+    for log_start, log_text in _iter_log_calls(content):
+        if log_text is None:
+            errs.append(_unbalanced_log_call_error(content, log_start))
+            continue
         for bad_match in LOG_BAD_CONTINUATION_RE.finditer(log_text):
             # %s may expand to a whitespace prefix at runtime, skip those
             if LOG_PERCENT_S_CONTINUATION_RE.match(log_text, bad_match.start()):
                 continue
             # Calculate line number from position in full content
-            abs_pos = log_match.start() + bad_match.start()
-            lineno = content.count("\n", 0, abs_pos) + 1
-            col = abs_pos - content.rfind("\n", 0, abs_pos)
+            lineno, col = _line_col(content, log_start + bad_match.start())
             errs.append(
                 (
                     lineno,
@@ -1149,6 +1199,90 @@ def lint_log_multiline_continuation(fname, content):
                         f"log tag prefix (e.g. {highlight('[C][component:042]:')}).\n"
                         "Either start the continuation with a space/indent, or "
                         "split into separate ESP_LOG* calls."
+                    ),
+                )
+            )
+    return errs
+
+
+def _find_ternary_literals(text: str) -> Iterator[tuple[int, str]]:
+    """Yield (offset, literal) for every string literal used as a ternary branch."""
+    branch = False
+    for m in LOG_TERNARY_LITERAL_RE.finditer(text):
+        tok = m.group(0)
+        # An empty literal is merged with every other string's terminator, so it costs no RAM,
+        # while a PSTR("") would add its own flash array; leave it alone.
+        if branch and tok[0] == '"' and tok != '""':
+            yield m.start(), tok
+        branch = tok[0] in "?:"
+
+
+# LOG_STR_LITERAL is a no op everywhere except ESP8266, so code that never builds there is skipped
+# to avoid churn: platform specific sources and components for ESP32, LibreTiny, RP2 and Zephyr only.
+# A component belongs here only if it has no tests/components/<name>/test.esp8266-ard.yaml.
+LOG_LITERAL_LINT_EXCLUDE = [
+    "*_esp32.cpp",
+    "*_esp32_*.cpp",
+    "*_esp_idf.cpp",
+    "*_rmt.cpp",
+    "*_zephyr.cpp",
+    "*_bk72xx.cpp",
+    "*_libretiny.cpp",
+    "*_pico_w.cpp",
+    "*_host.cpp",
+    "esphome/components/esp32*/*",
+    "esphome/components/bk72xx*/*",
+    "esphome/components/ln882h*/*",
+    "esphome/components/ln882x*/*",
+    "esphome/components/rp2*/*",
+    "esphome/components/zephyr*/*",
+    "esphome/components/host/*",
+    "esphome/components/libretiny*/*",
+    "esphome/components/bluetooth_proxy/*",
+    "esphome/components/bluetooth_connection/*",
+    "esphome/components/ble_client/*",
+    "esphome/components/bedjet/*",
+    "esphome/components/anova/*",
+    "esphome/components/xiaomi_ble/*",
+    "esphome/components/bthome_mithermometer/*",
+    "esphome/components/usb_host/*",
+    "esphome/components/zigbee/*",
+    "esphome/components/lvgl/*",
+    # Test fixtures and host only unit tests - not production embedded code
+    "tests/integration/fixtures/*",
+    "tests/components/*",
+]
+
+
+@lint_content_check(include=cpp_include, exclude=LOG_LITERAL_LINT_EXCLUDE)
+def lint_log_no_bare_literal_ternary(
+    fname: Path, content: str
+) -> list[tuple[int, int, str]]:
+    errs = []
+    for log_start, log_text in _iter_log_calls(content):
+        if log_text is None:
+            continue  # reported by lint_log_multiline_continuation, which sees every file
+        # A NOLINT anywhere on the lines the call spans silences every branch in it
+        first_line = content.rfind("\n", 0, log_start) + 1
+        last_line = content.find("\n", log_start + len(log_text))
+        if NOLINT_RE.search(
+            content[first_line : last_line if last_line != -1 else None]
+        ):
+            continue
+        for offset, literal in _find_ternary_literals(log_text):
+            lineno, col = _line_col(content, log_start + offset)
+            errs.append(
+                (
+                    lineno,
+                    col,
+                    (
+                        "String literal used as a ternary branch in a log call. On ESP8266 the "
+                        "log macro moves the format string to flash, but bare literal arguments "
+                        "stay in RAM. Wrap each branch passed straight to the log call in "
+                        f"{highlight('LOG_STR_LITERAL(...)')}:\n"
+                        f"  Before: {highlight(literal)}\n"
+                        f"  After:  {highlight(f'LOG_STR_LITERAL({literal})')}\n"
+                        f"(If strictly necessary, add `{highlight('// NOLINT')}` to the end of the line)"
                     ),
                 )
             )
