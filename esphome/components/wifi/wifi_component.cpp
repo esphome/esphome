@@ -846,17 +846,18 @@ void WiFiComponent::loop() {
           this->notify_connect_state_listeners_();
 #endif
 
-          // Post-connect roaming: check for better AP
-          if (this->post_connect_roaming_) {
-            if (this->is_roaming_scan_active()) {
-              if (this->scan_done_) {
-                this->process_roaming_scan_();
-              }
-              // else: scan in progress, wait
-            } else if (this->roaming_state_ == RoamingState::IDLE && this->roaming_attempts_ < ROAMING_MAX_ATTEMPTS &&
-                       now - this->roaming_last_check_ >= ROAMING_CHECK_INTERVAL && !this->roaming_suppressed_()) {
-              this->check_roaming_(now);
+          // Post-connect roaming: check for better AP. A scan may have been started by an
+          // explicit force_roam_check() even when post_connect_roaming_ is disabled, so the
+          // scan must always be consumed here to avoid leaving roaming_state_ stuck.
+          if (this->is_roaming_scan_active()) {
+            if (this->scan_done_) {
+              this->process_roaming_scan_();
             }
+            // else: scan in progress, wait
+          } else if (this->post_connect_roaming_ && this->roaming_state_ == RoamingState::IDLE &&
+                     this->roaming_attempts_ < ROAMING_MAX_ATTEMPTS &&
+                     now - this->roaming_last_check_ >= ROAMING_CHECK_INTERVAL && !this->roaming_suppressed_()) {
+            this->check_roaming_(now);
           }
         }
         break;
