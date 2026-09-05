@@ -184,6 +184,7 @@ esphome/components/esp32_rmt/* @jesserockz
 esphome/components/esp32_rmt_led_strip/* @jesserockz
 esphome/components/esp8266/* @esphome/core
 esphome/components/esp_ldo/* @clydebarrow
+esphome/components/esp_video_camera/* @youkorr
 esphome/components/espnow/* @jesserockz
 esphome/components/espnow/packet_transport/* @EasilyBoredEngineer
 esphome/components/ethernet_info/* @gtjadsonsantos
