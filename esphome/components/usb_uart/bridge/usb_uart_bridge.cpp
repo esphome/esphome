@@ -79,6 +79,11 @@ void USBUARTBridge::setup() {
     return;
   }
 
+  this->configured_baud_rate_ = this->uart_parent_->get_baud_rate();
+  this->configured_parity_ = this->uart_parent_->get_parity();
+  this->configured_stop_bits_ = this->uart_parent_->get_stop_bits();
+  this->configured_data_bits_ = this->uart_parent_->get_data_bits();
+
   this->uart_rx_buffer_.reset(new (std::nothrow) uint8_t[this->uart_rx_buffer_size_]);
   if (this->uart_rx_buffer_ == nullptr) {
     ESP_LOGE(TAG, "UART RX buffer allocation failed");
@@ -134,8 +139,10 @@ void USBUARTBridge::setup() {
   // Only register callbacks once both tasks exist, so a failed setup never drives
   // DTR/RTS from a dead bridge.
   this->usb_cdc_parent_->set_line_state_callback([this](bool dtr, bool rts) { this->set_line_state(dtr, rts); });
-  this->usb_cdc_parent_->set_line_coding_callback(
-      [this](uint32_t, uint8_t, uint8_t, uint8_t) { this->set_line_coding(); });
+  this->usb_cdc_parent_->set_line_coding_callback([this](uint32_t, uint8_t, uint8_t, uint8_t) {
+    this->host_coding_seen_ = true;
+    this->set_line_coding();
+  });
 
   // loop() only services line-coding reloads; stay off the main loop until one is
   // scheduled.
@@ -164,6 +171,11 @@ void USBUARTBridge::loop() {
 }
 
 void USBUARTBridge::set_line_coding() {
+  // Another component owns the UART's framing while paused; resume() re-syncs.
+  if (this->paused_ != 0) {
+    return;
+  }
+
   // usb_cdc_acm has already translated the wire coding onto the CDC instance (main
   // loop); mirror it here so the framing translation has a single source of truth.
   bool changed = false;
@@ -214,6 +226,50 @@ void USBUARTBridge::set_line_coding() {
   }
 }
 
+void USBUARTBridge::pause() {
+  if (this->paused_ != 0) {
+    return;
+  }
+  this->paused_ = 1;
+  // A null RX task means setup() has not completed (or failed): nothing to stop, and
+  // the framing snapshot does not exist yet. The RX task starts parked.
+  if (this->uart_rx_task_handle_ == nullptr) {
+    return;
+  }
+  // A coalesced host reload must not land once another component owns the bus.
+  this->reload_pending_ = false;
+  this->disable_loop();
+  this->restore_configured_framing_();
+}
+
+void USBUARTBridge::resume() {
+  if (this->paused_ == 0) {
+    return;
+  }
+  this->paused_ = 0;
+  if (this->uart_rx_task_handle_ == nullptr) {
+    return;
+  }
+  xTaskNotifyGive(this->uart_rx_task_handle_);
+  if (this->host_coding_seen_) {
+    this->set_line_coding();
+  }
+}
+
+void USBUARTBridge::restore_configured_framing_() {
+  if (this->uart_parent_->get_baud_rate() == this->configured_baud_rate_ &&
+      this->uart_parent_->get_parity() == this->configured_parity_ &&
+      this->uart_parent_->get_stop_bits() == this->configured_stop_bits_ &&
+      this->uart_parent_->get_data_bits() == this->configured_data_bits_) {
+    return;
+  }
+  this->uart_parent_->set_baud_rate(this->configured_baud_rate_);
+  this->uart_parent_->set_parity(this->configured_parity_);
+  this->uart_parent_->set_stop_bits(this->configured_stop_bits_);
+  this->uart_parent_->set_data_bits(this->configured_data_bits_);
+  this->uart_settings_reload_();
+}
+
 void USBUARTBridge::set_line_state(bool dtr, bool rts) {
   ESP_LOGV(TAG, "Line state: DTR=%d, RTS=%d", dtr, rts);
   if (this->dtr_pin_ != nullptr) {
@@ -246,8 +302,15 @@ void USBUARTBridge::uart_rx_task_() {
   const size_t buf_size = this->uart_rx_buffer_size_;
 
   while (true) {
+    if (this->paused_ != 0) {
+      // Parked until resume() notifies; nothing is read, so the other owner sees
+      // every byte.
+      ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+      continue;
+    }
+
     // Block until at least one byte is available from UART.
-    int total_rx_size = uart_read_bytes(uart_num, data, 1, portMAX_DELAY);
+    int total_rx_size = uart_read_bytes(uart_num, data, 1, pdMS_TO_TICKS(UART_RX_WAIT_MS));
     if (total_rx_size < 0) {
       if (should_log_now(&err_log_ms, LOG_THROTTLE_MS)) {
         ESP_LOGE(TAG, "UART read failed: %d", total_rx_size);
@@ -256,6 +319,10 @@ void USBUARTBridge::uart_rx_task_() {
       continue;
     }
     if (total_rx_size == 0) {
+      continue;
+    }
+    // pause() landed during the read: don't forward a byte to a host that is gone.
+    if (this->paused_ != 0) {
       continue;
     }
 
@@ -293,6 +360,7 @@ void USBUARTBridge::uart_tx_task_() {
   size_t rx_size;
   // Back-dated so a problem within the first LOG_THROTTLE_MS of uptime still logs.
   uint32_t err_log_ms = millis() - LOG_THROTTLE_MS;
+  uint32_t drop_log_ms = millis() - LOG_THROTTLE_MS;
 
   while (true) {
     ESP_LOGV(TAG, "Waiting for data to send to UART");
@@ -305,6 +373,14 @@ void USBUARTBridge::uart_tx_task_() {
       // Yield: this task runs above the main loop, so a persistent failure must not
       // become a tight loop.
       vTaskDelay(pdMS_TO_TICKS(10));
+      continue;
+    }
+
+    // Another component owns the UART; host bytes must not interleave with its traffic.
+    if (this->paused_ != 0) {
+      if (should_log_now(&drop_log_ms, LOG_THROTTLE_MS)) {
+        ESP_LOGW(TAG, "Paused; dropping %zu bytes from host", rx_size);
+      }
       continue;
     }
 
