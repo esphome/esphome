@@ -909,14 +909,14 @@ def _is_framework_url(source: str) -> bool:
 # The default/recommended arduino framework version
 #  - https://github.com/espressif/arduino-esp32/releases
 ARDUINO_FRAMEWORK_VERSION_LOOKUP = {
-    "recommended": cv.Version(3, 3, 11),
+    "recommended": cv.Version(4, 0, 0, "alpha1"),
     "latest": cv.Version(3, 3, 11),
     "dev": cv.Version(3, 3, 11),
 }
 ARDUINO_PLATFORM_VERSION_LOOKUP = {
     cv.Version(
         4, 0, 0, "alpha1"
-    ): "https://github.com/pioarduino/platform-espressif32.git#prep_IDF6",
+    ): "https://github.com/swoboda1337/platform-espressif32.git#prep_IDF6",
     cv.Version(3, 3, 11): cv.Version(55, 3, 311),
     cv.Version(3, 3, 10): cv.Version(55, 3, 39),
     cv.Version(3, 3, 9): cv.Version(55, 3, 39),
@@ -940,7 +940,7 @@ ARDUINO_PLATFORM_VERSION_LOOKUP = {
 # These versions correspond to pioarduino/esp-idf releases
 # See: https://github.com/pioarduino/esp-idf/releases
 ARDUINO_IDF_VERSION_LOOKUP = {
-    cv.Version(4, 0, 0, "alpha1"): cv.Version(6, 0, 1),
+    cv.Version(4, 0, 0, "alpha1"): cv.Version(6, 0, 2),
     cv.Version(3, 3, 11): cv.Version(5, 5, 5),
     cv.Version(3, 3, 10): cv.Version(5, 5, 5),
     cv.Version(3, 3, 9): cv.Version(5, 5, 4),
@@ -964,12 +964,20 @@ ARDUINO_IDF_VERSION_LOOKUP = {
 # The default/recommended esp-idf framework version
 #  - https://github.com/espressif/esp-idf/releases
 ESP_IDF_FRAMEWORK_VERSION_LOOKUP = {
-    "recommended": cv.Version(5, 5, 5),
+    "recommended": cv.Version(6, 1, 0),
     "latest": cv.Version(5, 5, 5),
     "dev": cv.Version(5, 5, 5),
 }
 
 ESP_IDF_PLATFORM_VERSION_LOOKUP = {
+    # Fork with the IDF 6.0.2 bootloader linker script fix, switch back to
+    # pioarduino once https://github.com/pioarduino/platform-espressif32 takes it
+    cv.Version(
+        6, 1, 0
+    ): "https://github.com/swoboda1337/platform-espressif32.git#prep_IDF6",
+    cv.Version(
+        6, 0, 2
+    ): "https://github.com/swoboda1337/platform-espressif32.git#prep_IDF6",
     cv.Version(
         6, 0, 1
     ): "https://github.com/pioarduino/platform-espressif32.git#prep_IDF6",
@@ -997,7 +1005,7 @@ ESP_IDF_PLATFORM_VERSION_LOOKUP = {
 # The platform-espressif32 version
 #  - https://github.com/pioarduino/platform-espressif32/releases
 PLATFORM_VERSION_LOOKUP = {
-    "recommended": cv.Version(55, 3, 311),
+    "recommended": "https://github.com/swoboda1337/platform-espressif32.git#prep_IDF6",
     "latest": cv.Version(55, 3, 311),
     "dev": "https://github.com/pioarduino/platform-espressif32.git#develop",
 }
