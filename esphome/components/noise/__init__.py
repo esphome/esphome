@@ -4,7 +4,9 @@ from typing import Any
 
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome.const import CONF_KEY
+from esphome.const import CONF_ENCRYPTION, CONF_KEY
+from esphome.core import ID
+from esphome.cpp_generator import MockObj
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@esphome/core"]
@@ -23,6 +25,14 @@ def validate_encryption_key(value: Any) -> str:
 
     if len(decoded) != 32:
         raise cv.Invalid("Encryption key must be base64 and 32 bytes long")
+    if not any(decoded):
+        # The device treats the all-zeros key as no key at all (it is the
+        # provisioning sentinel), so it must never reach a build
+        raise cv.Invalid(
+            f"The all-zeros {CONF_KEY} is reserved and provides no protection; "
+            f"omit the {CONF_KEY} to provision it at runtime, or generate a real "
+            "key with: openssl rand -base64 32"
+        )
 
     # Return original data for roundtrip conversion
     return value
@@ -45,20 +55,27 @@ def decode_encryption_key(value: str) -> bytes:
     return decoded
 
 
-def is_reserved_key(value: str) -> bool:
-    """Whether the key is the reserved all-zeros provisioning sentinel.
-
-    The device treats it as no key configured, so consumers that require a
-    real key must reject it.
-    """
-    return not any(decode_encryption_key(value))
-
-
 ENCRYPTION_SCHEMA = cv.Schema(
     {
         cv.Optional(CONF_KEY): cv.sensitive(validate_encryption_key),
     }
 )
+
+
+def static_encryption_key(conf: ConfigType) -> str | None:
+    """The encryption key of a component config when it is fixed at build
+    time; None when there is no encryption block or the key is provisioned at
+    runtime (validation already rejects the all-zeros key)."""
+    return (conf.get(CONF_ENCRYPTION) or {}).get(CONF_KEY) or None
+
+
+def new_psk_progmem(parent_id: ID, key: str) -> MockObj:
+    """Emit the decoded key as a PROGMEM array; the component keeps a pointer
+    so the key never occupies RAM."""
+    return cg.progmem_array(
+        ID(f"{parent_id.id}_psk", is_declaration=True, type=cg.uint8),
+        list(decode_encryption_key(key)),
+    )
 
 
 def encryption_schema(config: ConfigType | None) -> ConfigType:

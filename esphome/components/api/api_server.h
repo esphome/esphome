@@ -76,9 +76,12 @@ class APIServer final : public Component,
   APIBuffer &get_shared_buffer_ref() { return shared_write_buffer_; }
 
 #ifdef USE_API_NOISE
+#ifndef USE_API_NOISE_PSK_FROM_YAML
   bool save_noise_psk(noise::psk_t psk, bool make_active = true);
   bool clear_noise_psk(bool make_active = true);
-  void set_noise_psk(noise::psk_t psk) { this->noise_ctx_.set_psk(psk); }
+#endif
+  /// psk points at 32 bytes that live in flash for the life of the program
+  void set_noise_psk(const uint8_t *psk) { this->noise_ctx_.set_psk(psk); }
   noise::NoiseContext &get_noise_ctx() { return this->noise_ctx_; }
 #endif  // USE_API_NOISE
 
@@ -275,10 +278,12 @@ class APIServer final : public Component,
 #endif
 
 #ifdef USE_API_NOISE
+#ifndef USE_API_NOISE_PSK_FROM_YAML
   bool update_noise_psk_(const SavedNoisePsk &new_psk, const LogString *save_log_msg, const LogString *fail_log_msg,
                          bool make_active);
   // Load saved PSK from preferences and apply it. Returns true on success.
   bool load_and_apply_noise_psk_();
+#endif  // USE_API_NOISE_PSK_FROM_YAML
 #endif  // USE_API_NOISE
 #ifdef USE_API_HOMEASSISTANT_STATES
   // Helper methods to reduce code duplication
@@ -358,7 +363,10 @@ class APIServer final : public Component,
 
 #ifdef USE_API_NOISE
   noise::NoiseContext noise_ctx_;
+#ifndef USE_API_NOISE_PSK_FROM_YAML
+  SavedNoisePsk saved_psk_{};  // backs noise_ctx_ for a runtime provisioned key
   ESPPreferenceObject noise_pref_;
+#endif
 #endif  // USE_API_NOISE
 };
 

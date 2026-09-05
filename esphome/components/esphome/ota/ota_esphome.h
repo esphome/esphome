@@ -44,8 +44,9 @@ class ESPHomeOTAComponent final : public ota::OTAComponent {
   }
 #endif  // USE_OTA_PASSWORD
 
-#ifdef USE_OTA_ENCRYPTION
-  void set_noise_psk(noise::psk_t psk) { this->noise_ctx_.set_psk(psk); }
+#if defined(USE_OTA_ENCRYPTION) && !defined(USE_OTA_ENCRYPTION_FROM_API)
+  /// psk points at 32 bytes that live in flash for the life of the program
+  void set_noise_psk(const uint8_t *psk) { this->noise_ctx_.set_psk(psk); }
 #endif
 
   /// Manually set the port OTA should listen on
@@ -85,9 +86,13 @@ class ESPHomeOTAComponent final : public ota::OTAComponent {
     bool writing{false};    // a produced handshake frame is still being flushed
     uint8_t frame_buf[noise::FRAME_HEADER_SIZE + 1 + noise::MAX_HANDSHAKE_SIZE];
   };
+  // The key the offer and the handshake use: the api server's live context
+  // when the api has encryption, otherwise the component's own
+  const noise::NoiseContext &noise_context_() const;
   bool noise_start_session_(uint8_t server_feature_flags);
   bool handle_noise_handshake_();
   bool noise_try_read_frame_();
+  size_t noise_frame_payload_len_(const uint8_t *header, size_t min_len, size_t max_len);
   bool noise_try_write_frame_();
   void noise_send_reject_(const LogString *reason);
   ssize_t noise_decrypt_(uint8_t *buf, size_t len);
@@ -144,7 +149,9 @@ class ESPHomeOTAComponent final : public ota::OTAComponent {
   std::unique_ptr<uint8_t[]> auth_buf_;
 #endif  // USE_OTA_PASSWORD
 #ifdef USE_OTA_ENCRYPTION
+#ifndef USE_OTA_ENCRYPTION_FROM_API
   noise::NoiseContext noise_ctx_;
+#endif
   std::unique_ptr<NoiseSession> noise_;
 #endif  // USE_OTA_ENCRYPTION
 
@@ -166,6 +173,22 @@ class ESPHomeOTAComponent final : public ota::OTAComponent {
                 "OTA_BUFFER_SIZE must fit a full encrypted data frame");
 #endif
   static constexpr uint8_t MAGIC_BYTES[5] = {0x6C, 0x26, 0xF7, 0x5C, 0x45};
+  static constexpr uint8_t CLIENT_FEATURE_SUPPORTS_EXTENDED_PROTOCOL = 0x04;
+  static constexpr uint8_t CLIENT_FEATURE_SUPPORTS_NOISE = 0x08;
+  // Noise needs the extended protocol: the prologue binds the 2-byte feature ack
+  static constexpr uint8_t CLIENT_NOISE_FEATURES =
+      CLIENT_FEATURE_SUPPORTS_NOISE | CLIENT_FEATURE_SUPPORTS_EXTENDED_PROTOCOL;
+  // Derived from the feature byte rather than stored, which keeps the
+  // trailing byte members at a multiple of four
+  inline bool extended_proto_() const {
+#ifdef USE_OTA_ENCRYPTION_REQUIRED
+    // Encryption needs the extended protocol and FEATURE_READ has already
+    // refused every client without it, so the legacy paths cannot be reached
+    return true;
+#else
+    return (this->ota_features_ & CLIENT_FEATURE_SUPPORTS_EXTENDED_PROTOCOL) != 0;
+#endif
+  }
 #ifdef USE_OTA_PARTITIONS
   uint32_t running_app_offset_{0};
   size_t running_app_size_{0};
@@ -179,7 +202,6 @@ class ESPHomeOTAComponent final : public ota::OTAComponent {
   uint8_t auth_buf_pos_{0};
   uint8_t auth_type_{0};  // Store auth type to know which hasher to use
 #endif                    // USE_OTA_PASSWORD
-  bool extended_proto_{false};
 };
 
 }  // namespace esphome

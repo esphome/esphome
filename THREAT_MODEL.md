@@ -125,30 +125,45 @@ design is optimal or that it will not change.
 ## OTA update encryption
 
 The `esphome` OTA platform optionally encrypts updates with the same Noise
-`NNpsk0` pattern the native API uses; one key protects the device. With an
-`encryption:` block configured the guarantees are: the firmware image is
-confidential in transit, the uploader is authenticated by the pre-shared key,
-and the plaintext negotiation preceding the handshake is bound into the
-handshake prologue, so stripping or tampering with it fails the first MAC.
-Both ends fail closed with no override: a device built with a key refuses
+`NNpsk0` pattern the native API uses; one key protects the device. A device
+whose `api:` block has an encryption key, static in the YAML or provisioned at
+runtime, compiles in the transport and offers it on every OTA connection once
+it holds a key, so an uploader presenting that key gets the guarantees below
+even without an `ota: encryption:` block; only that block makes the device
+require encryption. The guarantees are: the firmware image is confidential in
+transit, the uploader is authenticated by the pre-shared key, and the plaintext
+negotiation preceding the handshake is bound into the handshake prologue, so
+stripping or tampering with it fails the first MAC. With `ota: encryption:`
+configured both ends fail closed with no override: the device refuses
 plaintext uploads, and the CLI refuses to send plaintext when a key is
-configured.
+configured. Without that block the CLI tries a static api key when the device
+offers and, until 2027.3.0, falls back to plaintext with a warning when the
+offer is missing or the handshake fails; a runtime provisioned key never
+reaches the CLI, so those uploads stay plaintext.
 
-Defeating any of that without the key is in scope: a keyed device accepting a
-plaintext or downgraded upload, getting past the MAC, or recovering image
-contents from captured traffic.
+Defeating any of that without the key is in scope: a device that requires
+encryption accepting a plaintext or downgraded upload, getting past the MAC,
+or recovering image contents from captured traffic.
 
 The following are **not** vulnerabilities, by design:
 
-- Plaintext OTA on a device with no `encryption:` block. That is the
-  documented default, authenticated (if at all) by the OTA password.
-- The enablement window: turning encryption on takes one last upload of the
-  encryption-enabled firmware over the existing plaintext channel, with the
-  pre-existing plaintext exposure.
-- The web OTA `/update` endpoint alongside encryption. The `web_server`
-  component keeps it always reachable, and `captive_portal:` auto-loads it
-  for the fallback AP window; validation warns about both combinations, and
-  the operator keeps the recovery path.
+- Plaintext OTA on a device with no `ota: encryption:` block, including one
+  that offers encryption because it has an api key. That is the documented
+  default, authenticated (if at all) by the OTA password. An uploader that
+  takes the offer skips the password; the key authenticates it.
+- The CLI plaintext fallback until 2027.3.0: without `ota: encryption:` an
+  active attacker who strips the offer or breaks the handshake can make a
+  keyed CLI upload plaintext, with the pre-existing plaintext exposure. A
+  device that requires encryption still refuses that upload.
+- The enablement window: firmware built with a static api key already offers
+  encryption, so turning on `ota: encryption:` is itself an encrypted upload.
+  Older firmware needs one last plaintext upload of an offering build, with
+  the pre-existing plaintext exposure.
+- The web OTA `/update` endpoint alongside encryption. The `web_server` OTA
+  platform keeps it always reachable and validation warns about that
+  combination; `captive_portal:` auto-loads that platform only for the
+  fallback AP window, which is the intended recovery path, so that alone is
+  not warned about.
 - CLI retry behavior on transport or MAC failures; every attempt renegotiates
   a fresh handshake with fresh ephemerals, so retrying does not weaken
   authentication.

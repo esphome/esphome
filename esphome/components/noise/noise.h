@@ -23,16 +23,18 @@ class NoiseContext {
     }
     return acc == 0;
   }
-  void set_psk(psk_t psk) {
-    this->psk_ = psk;
-    this->has_psk_ = !is_all_zeros(psk);
-  }
-  const psk_t &get_psk() const { return this->psk_; }
-  bool has_psk() const { return this->has_psk_; }
+  /// psk points at 32 bytes that outlive the context: a PROGMEM array from
+  /// codegen, or RAM owned by the caller for a runtime provisioned key;
+  /// nullptr means no key. A key from yaml is never the reserved all-zeros
+  /// key (validation rejects it); a caller loading a runtime key must map
+  /// that key to nullptr itself.
+  void set_psk(const uint8_t *psk) { this->psk_ = psk; }
+  /// Copy the key out (flash-aware on ESP8266); all zeros when none is set.
+  void load_psk(psk_t &out) const;
+  bool has_psk() const { return this->psk_ != nullptr; }
 
  protected:
-  psk_t psk_{};
-  bool has_psk_{false};
+  const uint8_t *psk_{nullptr};
 };
 
 /// Convert a noise error code to a readable error
