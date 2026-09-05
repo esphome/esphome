@@ -1678,6 +1678,22 @@ def test_templatable_schema_extract() -> None:
     assert cv.templatable(cv.int_)(SCHEMA_EXTRACT) is cv.int_
 
 
+@pytest.mark.parametrize(
+    ("validator", "unit"),
+    [
+        (cv.float_with_unit("frequency", "(Hz|HZ|hz)?"), "Hz"),
+        (cv.frequency, "Hz"),
+        (cv.voltage, "V"),
+        (cv.current, "A"),
+        (cv.decibel, "dB"),
+    ],
+)
+def test_float_with_unit_schema_extract(validator: object, unit: str) -> None:
+    # For the SCHEMA_EXTRACT sentinel the validator returns its canonical unit
+    # (not the parsed value) so build_language_schema can label the float field.
+    assert validator(SCHEMA_EXTRACT) == unit
+
+
 def test_templatable_lambda() -> None:
     result = cv.templatable(cv.int_)(Lambda("return 5;"))
     assert isinstance(result, Lambda)

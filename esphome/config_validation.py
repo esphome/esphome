@@ -1344,8 +1344,15 @@ def float_with_unit(quantity, regex_suffix, optional_unit=False):
     pattern = re.compile(
         f"^([-+]?[0-9]*\\.?[0-9]*)\\s*(\\w*?){regex_suffix}$", re.UNICODE
     )
+    # First alternative of the accepted-units regex is the canonical unit
+    # (e.g. "(Hz|HZ|hz)?" -> "Hz"); reported to the schema dump so editors can
+    # label the numeric field with its unit. None for an empty suffix.
+    unit = regex_suffix.lstrip("(").split(")", 1)[0].split("|", 1)[0] or None
 
+    @schema_extractor("float")
     def validator(value):
+        if value is SCHEMA_EXTRACT:
+            return unit
         if optional_unit:
             try:
                 return float_(value)
@@ -1369,8 +1376,8 @@ def float_with_unit(quantity, regex_suffix, optional_unit=False):
 bps = float_with_unit("bits per second", "(bps|bits/s|bit/s)?")
 frequency = float_with_unit("frequency", "(Hz|HZ|hz)?")
 resistance = float_with_unit("resistance", "(Ω|Ω|ohm|Ohm|OHM)?")
-current = float_with_unit("current", "(a|A|amp|Amp|amps|Amps|ampere|Ampere)?")
-voltage = float_with_unit("voltage", "(v|V|volt|Volts)?")
+current = float_with_unit("current", "(A|a|amp|Amp|amps|Amps|ampere|Ampere)?")
+voltage = float_with_unit("voltage", "(V|v|volt|Volts)?")
 distance = float_with_unit("distance", "(m)")
 framerate = float_with_unit("framerate", "(FPS|fps|Fps|FpS|Hz)")
 angle = float_with_unit("angle", "(°|deg)", optional_unit=True)
