@@ -671,6 +671,9 @@ SdkconfigValueType = bool | int | HexInt | str | RawSdkconfigValue
 
 
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> 105308b9ae82d5b8a5fc7145cc0f44e0579678e2
 def sdkconfig_option_is_true(opts: dict[str, SdkconfigValueType], name: str) -> bool:
     """Whether an sdkconfig option is set to a Kconfig-true value.
 
@@ -686,8 +689,11 @@ def sdkconfig_option_is_true(opts: dict[str, SdkconfigValueType], name: str) -> 
     return str(getattr(raw, "value", raw)).strip().lower() in ("y", "true", "1")
 
 
+<<<<<<< HEAD
 =======
 >>>>>>> d1829c495d2c982eb2f2845406ccfe5b74bd2f64
+=======
+>>>>>>> 105308b9ae82d5b8a5fc7145cc0f44e0579678e2
 def is_idf_sdkconfig_option_enabled(name: str) -> bool:
     """Return True when a bool sdkconfig option resolves to ``y``.
 
@@ -2443,6 +2449,9 @@ async def _reconcile_vfs_fatfs_sdkconfig(
             set_idf_sdkconfig_default("CONFIG_FATFS_MAX_LFN", 255)
         set_idf_sdkconfig_default("CONFIG_FATFS_VOLUME_COUNT", 4)
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> 105308b9ae82d5b8a5fc7145cc0f44e0579678e2
     elif enable_exfat:
         # FATFS is not in the build, so tear down any stale patched copy before failing --
         # otherwise the error state also leaves the override behind until enable_exfat is
@@ -2456,8 +2465,11 @@ async def _reconcile_vfs_fatfs_sdkconfig(
             f"'{CONF_ENABLE_EXFAT}' has no effect here: no component in this configuration "
             f"mounts a FAT filesystem, so the FatFs library is not part of the build"
         )
+<<<<<<< HEAD
 =======
 >>>>>>> d1829c495d2c982eb2f2845406ccfe5b74bd2f64
+=======
+>>>>>>> 105308b9ae82d5b8a5fc7145cc0f44e0579678e2
     elif disable_fatfs:
         if not user_picked_lfn:
             set_idf_sdkconfig_default("CONFIG_FATFS_LFN_NONE", True)
