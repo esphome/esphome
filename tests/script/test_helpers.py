@@ -1233,6 +1233,13 @@ def test_parse_list_components_output(output: str, expected: list[str]) -> None:
         ("esphome/components/uart/uart.h", "uart"),
         ("esphome/components/api/api_server.cpp", "api"),
         ("esphome/components/sensor/sensor.cpp", "sensor"),
+        # Platform sources under another component's directory that the platform
+        # domain's own fixtures compile (tests/components/bridge selects usb_uart)
+        ("esphome/components/usb_uart/bridge/usb_uart_bridge.cpp", "bridge"),
+        ("esphome/components/usb_uart/bridge/__init__.py", "bridge"),
+        # Sub-directory platforms covered by the parent component's fixtures stay put
+        ("esphome/components/adc128s102/sensor/adc128s102_sensor.cpp", "adc128s102"),
+        ("esphome/components/usb_uart/usb_uart.cpp", "usb_uart"),
         # Test files
         ("tests/components/uart/test.esp32-idf.yaml", "uart"),
         ("tests/components/wifi/test.esp8266-ard.yaml", "wifi"),

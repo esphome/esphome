@@ -141,8 +141,29 @@ def parse_test_filename(test_file: Path) -> tuple[str, str]:
     return parts[0], "all"
 
 
+@cache
+def _fixture_platforms(domain: str) -> frozenset[str]:
+    """Return the platforms selected by the fixtures under tests/components/<domain>/."""
+    tests_dir = Path(root_path) / ESPHOME_TESTS_COMPONENTS_PATH / domain
+    if not tests_dir.is_dir():
+        return frozenset()
+    platforms: set[str] = set()
+    for fixture in tests_dir.glob("*.yaml"):
+        platforms.update(
+            re.findall(
+                r"^\s*-?\s*platform:\s*(\w+)\s*$", fixture.read_text(), re.MULTILINE
+            )
+        )
+    return frozenset(platforms)
+
+
 def get_component_from_path(file_path: str) -> str | None:
     """Extract component name from a file path.
+
+    Sources of a platform that live under another component's directory (for
+    example esphome/components/usb_uart/bridge/) are attributed to the platform
+    domain (bridge) when that domain's own fixtures select the platform, since
+    those are the fixtures that compile them.
 
     Args:
         file_path: Path to a file (e.g., "esphome/components/wifi/wifi.cpp"
@@ -158,6 +179,13 @@ def get_component_from_path(file_path: str) -> str | None:
             # like .gitignore or README.md in the components directory itself
             component_name = parts[2]
             if "." not in component_name:
+                if (
+                    file_path.startswith(ESPHOME_COMPONENTS_PATH)
+                    and len(parts) >= 5
+                    and "." not in parts[3]
+                    and component_name in _fixture_platforms(parts[3])
+                ):
+                    return parts[3]
                 return component_name
     return None
 
