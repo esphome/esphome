@@ -1,9 +1,12 @@
+import logging
+
 import esphome.codegen as cg
 from esphome.components.const import CONF_DATA_BITS, CONF_PARITY, CONF_STOP_BITS
 from esphome.components.esp32 import VARIANT_ESP32P4, get_esp32_variant
 from esphome.components.uart import CONF_DEBUG_PREFIX, CONF_FLUSH_TIMEOUT, UARTComponent
 from esphome.components.usb_host import (
     get_max_packet_size,
+    get_max_transfer_requests,
     register_usb_client,
     usb_device_schema,
 )
@@ -15,10 +18,13 @@ from esphome.const import (
     CONF_DEBUG,
     CONF_DUMMY_RECEIVER,
     CONF_ID,
+    CONF_TYPE,
 )
 from esphome.core import CORE
 from esphome.cpp_types import Component
 from esphome.types import ConfigType
+
+_LOGGER = logging.getLogger(__name__)
 
 AUTO_LOAD = ["uart", "usb_host", "bytebuffer"]
 CODEOWNERS = ["@clydebarrow"]
@@ -26,6 +32,7 @@ CODEOWNERS = ["@clydebarrow"]
 usb_uart_ns = cg.esphome_ns.namespace("usb_uart")
 USBUartComponent = usb_uart_ns.class_("USBUartComponent", Component)
 USBUartChannel = usb_uart_ns.class_("USBUartChannel", UARTComponent)
+CH934XChannel = usb_uart_ns.class_("CH934XChannel", UARTComponent)
 
 UARTParityOptions = usb_uart_ns.enum("UARTParityOptions")
 UART_PARITY_OPTIONS = {
@@ -44,6 +51,9 @@ UART_STOP_BITS_OPTIONS = {
 }
 
 DEFAULT_BAUD_RATE = 9600
+CH934X_TX_HEADER_SIZE = 3
+# LockFreeQueue/EventPool index their slots with a uint8_t.
+MAX_OUTPUT_CHUNK_COUNT = 255
 
 
 class Type:
@@ -55,6 +65,7 @@ class Type:
         cls: str | None,
         max_channels: int = 1,
         baud_rate_required: bool = True,
+        channel_cls=None,
         max_baud: int = 1_000_000,
     ) -> None:
         self.name = name
@@ -64,22 +75,61 @@ class Type:
         self.cls = usb_uart_ns.class_(f"USBUartType{cls}", USBUartComponent)
         self._max_channels = max_channels
         self.baud_rate_required = baud_rate_required
+        self.channel_cls = channel_cls or USBUartChannel
         self.max_baud = max_baud
+
+    # CDC-style devices use one bulk IN + one bulk OUT endpoint per channel.
+    ENDPOINTS_PER_CHANNEL = 2
+    # USB endpoints the host controller provides: 15 on the ESP32-P4, 7 elsewhere.
+    ENDPOINTS_ESP32P4 = 15
+    ENDPOINTS_DEFAULT = 7
 
     @property
     def max_channels(self) -> int:
-        return (
-            3
-            if (
-                CORE.is_esp32
-                and get_esp32_variant() != VARIANT_ESP32P4
-                and self._max_channels > 3
-            )
-            else self._max_channels
+        total_endpoints = (
+            self.ENDPOINTS_ESP32P4
+            if CORE.is_esp32 and get_esp32_variant() == VARIANT_ESP32P4
+            else self.ENDPOINTS_DEFAULT
+        )
+        # One endpoint always stays reserved for enumeration, so it cannot carry a channel.
+        return min(
+            self._max_channels, (total_endpoints - 1) // self.ENDPOINTS_PER_CHANNEL
         )
 
 
+class MpxType(Type):
+    """A multiplexed device: every channel shares one bulk IN/OUT pair.
+
+    CH934x parts carry all ports over a single data endpoint pair plus one command
+    pair, so the device costs four endpoints no matter how many ports it exposes.
+    The endpoint budget in Type.max_channels does not apply, which is why an
+    8-port ch348 validates on variants with only 7 endpoints.
+    """
+
+    @property
+    def max_channels(self) -> int:
+        return self._max_channels
+
+
 uart_types = (
+    MpxType(
+        "CH9344",
+        0x1A86,
+        0xE018,
+        "CH934X",
+        4,
+        channel_cls=CH934XChannel,
+        max_baud=12_000_000,
+    ),
+    MpxType(
+        "CH348",
+        0x1A86,
+        0x55D9,
+        "CH934X",
+        8,
+        channel_cls=CH934XChannel,
+        max_baud=12_000_000,
+    ),
     Type("CDC_ACM", 0, 0, "CdcAcm", 1, baud_rate_required=False),
     Type("CH34X", 0x1A86, 0x55D5, "CH34X", 4, max_baud=2_000_000),
     Type("CH340", 0x1A86, 0x7523, "CH34X", 1, max_baud=2_000_000),
@@ -106,7 +156,7 @@ def channel_schema(type_: "Type") -> cv.Schema:
                 cv.ensure_list(
                     cv.Schema(
                         {
-                            cv.GenerateID(): cv.declare_id(USBUartChannel),
+                            cv.GenerateID(): cv.declare_id(type_.channel_cls),
                             cv.Optional(CONF_BUFFER_SIZE, default=256): cv.int_range(
                                 min=64, max=8192
                             ),
@@ -136,8 +186,9 @@ def channel_schema(type_: "Type") -> cv.Schema:
                     )
                 ),
                 cv.Length(
+                    min=1,
                     max=type_.max_channels,
-                    msg=f"Device type {type_.name} supports a maximum of {type_.max_channels} channels",
+                    msg=f"Device type {type_.name} supports 1 to {type_.max_channels} channels",
                 ),
             )
         }
@@ -158,20 +209,62 @@ CONFIG_SCHEMA = cv.ensure_list(
 
 
 async def to_code(config: list[ConfigType]) -> None:
-    # The output chunk pool/queue are compile-time-sized templates shared by all
-    # USBUartChannel instances, so use the largest buffer_size across every channel
-    # of every device. Add one extra slot because LockFreeQueue<T,N> is a ring
-    # buffer that wastes one entry.
-    max_buffer_size = max(
-        channel[CONF_BUFFER_SIZE]
-        for device in config
-        for channel in device[CONF_CHANNELS]
-    )
-    output_chunk_count = max(max_buffer_size // get_max_packet_size(), 2) + 1
+    type_by_name = {t.name: t for t in uart_types}
+    mps = get_max_packet_size()
+
+    payload = mps - CH934X_TX_HEADER_SIZE
+    output_chunk_count = 3
+    for device in config:
+        device_type = type_by_name.get(device[CONF_TYPE])
+        if isinstance(device_type, MpxType) and payload > 0:
+            # ceil(buffer / payload) chunks per channel, summed so every channel can hold a
+            # full buffer_size at once: they all allocate from channel 0's shared pool, and
+            # write_array() drops the remainder when it runs dry. The queue does drain
+            # asynchronously (start_output()'s callback re-arms from the USB task), but one
+            # chunk per completed transfer, which a simultaneous burst across N channels
+            # outruns.
+            need = (
+                sum(
+                    -(-channel[CONF_BUFFER_SIZE] // payload)
+                    for channel in device[CONF_CHANNELS]
+                )
+                + 1
+            )
+        else:
+            device_max = max(
+                channel[CONF_BUFFER_SIZE] for channel in device[CONF_CHANNELS]
+            )
+            need = max(device_max // mps, 2) + 1
+        if need > MAX_OUTPUT_CHUNK_COUNT:
+            _LOGGER.warning(
+                "usb_uart device %s would need %d output chunk slots to hold every "
+                "channel's buffer_size at once, but the pool is capped at %d. Writes "
+                "beyond that are dropped at runtime ('Output pool full'); lower "
+                "buffer_size to stay within the cap.",
+                device[CONF_ID],
+                need,
+                MAX_OUTPUT_CHUNK_COUNT,
+            )
+        output_chunk_count = max(output_chunk_count, need)
+    # LockFreeQueue/EventPool index slots with a uint8_t, so the count cannot exceed 255.
+    output_chunk_count = min(output_chunk_count, MAX_OUTPUT_CHUNK_COUNT)
     cg.add_define("USB_UART_OUTPUT_CHUNK_COUNT", output_chunk_count)
+    # Pinned to CH934XChannel::TX_HEADER_SIZE by a static_assert in usb_uart.h. The
+    # default lives in esphome/core/defines.h so the assert also builds under the
+    # checked-in defines used by CI clang-tidy.
+    cg.add_define("USB_UART_CH934X_TX_HEADER_SIZE", CH934X_TX_HEADER_SIZE)
+
+    # Multiplexed (CH934x) drivers initialise their channels in parallel over a single
+    # shared command endpoint. Cap the number of concurrent channel-init "lanes" at
+    # the configured pool size to avoid exhausting it
+    max_init_lanes = get_max_transfer_requests()
 
     for device in config:
         var = await register_usb_client(device)
+        device_type = type_by_name.get(device[CONF_TYPE])
+        if isinstance(device_type, MpxType):
+            lanes = min(len(device[CONF_CHANNELS]), max_init_lanes)
+            cg.add(var.set_init_lanes(lanes))
         for index, channel in enumerate(device[CONF_CHANNELS]):
             chvar = cg.new_Pvariable(channel[CONF_ID], index, channel[CONF_BUFFER_SIZE])
             await cg.register_parented(chvar, var)
