@@ -35,8 +35,11 @@ void MipiDsi::setup() {
       .bus_id = 0,  // index from 0, specify the DSI host to use
       .num_data_lanes =
           this->lanes_,  // Number of data lanes to use, can't set a value that exceeds the chip's capability
-      .phy_clk_src = MIPI_DSI_PHY_CLK_SRC_DEFAULT,  // Clock source for the DPHY
-      .lane_bit_rate_mbps = this->lane_bit_rate_,   // Bit rate of the data lanes, in Mbps
+      // phy_clk_src is deliberately left unset (0). esp_lcd_new_dsi_bus() then picks the
+      // revision-correct DPHY PLL reference clock itself: PLL_F20M below ESP32-P4 rev 3.0,
+      // XTAL at rev 3.0 and above. Naming either macro here aborts in mipi_dsi_ll.h on the
+      // other silicon revision.
+      .lane_bit_rate_mbps = this->lane_bit_rate_,  // Bit rate of the data lanes, in Mbps
   };
   auto err = esp_lcd_new_dsi_bus(&bus_config, &this->bus_handle_);
   if (err != ESP_OK) {
