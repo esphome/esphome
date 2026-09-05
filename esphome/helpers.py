@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from collections.abc import Iterable, MutableMapping
+from collections.abc import Callable, Iterable, MutableMapping
 from contextlib import suppress
 import ipaddress
 import logging
@@ -30,6 +30,14 @@ IPv6SockAddr = tuple[str, int, int, int]  # (host, port, flowinfo, scope_id)
 SockAddr = IPv4SockAddr | IPv6SockAddr
 
 _LOGGER = logging.getLogger(__name__)
+
+# cv.boolean's closed spelling tables, shared with the strict env-knob
+# parser (build_helpers.ccache.parse_enable_env)
+TRUTHY_BOOL_STRINGS = frozenset({"true", "yes", "on", "enable"})
+FALSY_BOOL_STRINGS = frozenset({"false", "no", "off", "disable"})
+# cv.boolean's spelling tables plus the 1/0 env convention
+TRUTHY_ENV_STRINGS = TRUTHY_BOOL_STRINGS | {"1"}
+FALSY_ENV_STRINGS = FALSY_BOOL_STRINGS | {"0"}
 
 IS_MACOS = platform.system() == "Darwin"
 IS_WINDOWS = platform.system() == "Windows"
@@ -91,13 +99,8 @@ def fnv1a_32bit_hash(string: str) -> int:
 def fnv1_hash_object_id(name: str) -> int:
     """Compute FNV-1 hash of name with snake_case + sanitize transformations.
 
-    IMPORTANT: Must produce same result as C++ fnv1_hash_object_id() in helpers.h
-    with per_code_point set. This is the OLD entity hash; it computes preference
-    keys that existing devices already have stored (see
-    https://github.com/esphome/backlog/issues/85) and is also still used for live
-    keys derived from config IDs (see the motion component's calibration key).
-    Note: lower() here is Unicode aware while the C++ reconstruction is not; see
-    the known limitation note on the C++ function.
+    IMPORTANT: Must produce same result as C++ fnv1_hash_object_id() in helpers.h.
+    If you modify this function, update the C++ version and tests in both places.
     """
     return fnv1_hash(sanitize(snake_case(name)))
 
@@ -105,9 +108,9 @@ def fnv1_hash_object_id(name: str) -> int:
 def fnv1_hash_name(name: str) -> int:
     """Compute FNV-1 hash of the raw entity name (UTF-8 bytes, no transformations).
 
-    IMPORTANT: Must produce same result as C++ fnv1_hash_bytes() in helpers.h,
-    which hashes the name bytes as stored on the device.
-    Used for pre-computing entity keys at code generation time.
+    2026.8 beta firmware stored preferences under keys derived from this hash;
+    a future key migration must reconstruct those keys to recover that data
+    (see https://github.com/esphome/backlog/issues/85).
     """
     return _fnv1_hash(name.encode("utf-8"))
 
@@ -357,6 +360,24 @@ def resolve_ip_address(
     return res
 
 
+def format_ip_url(family: int, sockaddr: tuple, port: int, path: str) -> str:
+    """Build an ``http://host:port/path`` URL for a resolved address.
+
+    ``family``/``sockaddr`` come from a :func:`resolve_ip_address` entry. IPv6
+    literals must be wrapped in brackets in URLs; link-local addresses need a
+    percent-encoded zone index per RFC 6874.
+    """
+    import socket
+
+    ip = sockaddr[0]
+    if family == socket.AF_INET6:
+        scope = sockaddr[3] if len(sockaddr) >= 4 else 0
+        host_part = f"[{ip}%25{scope}]" if scope else f"[{ip}]"
+    else:
+        host_part = ip
+    return f"http://{host_part}:{port}{path}"
+
+
 def sort_ip_addresses(address_list: list[str]) -> list[str]:
     """Takes a list of IP addresses in string form, e.g. from mDNS or MQTT,
     and sorts them into the best order to actually try connecting to them.
@@ -381,13 +402,24 @@ def sort_ip_addresses(address_list: list[str]) -> list[str]:
     return [socket.getnameinfo(r[4], socket.NI_NUMERICHOST)[0] for r in res]
 
 
+def get_usable_cpu_count() -> int:
+    """Return the number of CPUs usable by this process (affinity-aware
+    on Python 3.13+); 1 when the count is undeterminable."""
+    count = (
+        os.process_cpu_count() if hasattr(os, "process_cpu_count") else os.cpu_count()
+    )
+    return count or 1
+
+
 def get_bool_env(var, default=False):
+    """Read a boolean env var: the ``cv.boolean`` spellings plus ``1``/``0``;
+    anything else falls through to ``bool(value)``."""
     value = os.getenv(var, default)
     if isinstance(value, str):
         value = value.lower()
-        if value in ["1", "true"]:
+        if value in TRUTHY_ENV_STRINGS:
             return True
-        if value in ["0", "false"]:
+        if value in FALSY_ENV_STRINGS:
             return False
     return bool(value)
 
@@ -424,23 +456,55 @@ def add_git_ceiling_directory(env: MutableMapping[str, str], directory: Path) ->
         env["GIT_CEILING_DIRECTORIES"] = os.pathsep.join(parts)
 
 
-def rmtree(path: Path | str) -> None:
-    """Remove a directory tree, handling read-only files on Windows.
+# Deletion attempts when a directory keeps being repopulated mid-delete
+RMTREE_MAX_ATTEMPTS = 3
 
-    On Windows, git pack files and other files may be marked read-only,
-    causing shutil.rmtree to fail. This handles that by removing the
-    read-only flag and retrying.
+
+def rmtree(path: Path | str) -> None:
+    """Remove a directory tree, tolerating common filesystem races.
+
+    Read-only files (e.g. git pack files on Windows) get the read-only flag
+    removed and are retried. Paths that are already gone, whether the target
+    itself or entries vanishing mid-delete, are treated as removed.
+    Directories repopulated mid-delete (e.g. Finder recreating .DS_Store on
+    macOS) are retried a few times.
     """
 
+    import errno
     import shutil
+    import time
 
-    def _onexc(func, path, exc):
+    def _onexc(func: Callable[..., object], path: str | Path, exc: OSError) -> None:
+        if isinstance(exc, FileNotFoundError):
+            _LOGGER.debug("rmtree: %s already gone", path)
+            return
         if os.access(path, os.W_OK):
             raise exc
         Path(path).chmod(stat.S_IWUSR | stat.S_IRUSR)
         func(path)
 
-    shutil.rmtree(path, onexc=_onexc)
+    last_err: OSError | None = None
+    for attempt in range(RMTREE_MAX_ATTEMPTS - 1):
+        try:
+            shutil.rmtree(path, onexc=_onexc)
+            return
+        except OSError as err:
+            if err.errno not in (errno.ENOTEMPTY, errno.EEXIST):
+                raise
+            _LOGGER.debug(
+                "rmtree: %s repopulated mid-delete (attempt %d): %s",
+                path,
+                attempt + 1,
+                err,
+            )
+            last_err = err
+            # Give the racing writer (e.g. Finder) time to settle
+            time.sleep(0.05 * (attempt + 1))
+    try:
+        shutil.rmtree(path, onexc=_onexc)
+    except OSError as err:
+        # Keep the earlier races visible in the traceback
+        raise err from last_err
 
 
 def walk_files(path: Path):
@@ -539,7 +603,18 @@ def write_file_if_changed(path: Path, text: str) -> bool:
     """
     src_content = None
     if path.is_file():
-        src_content = read_file(path)
+        try:
+            src_content = path.read_text(encoding="utf-8")
+        except UnicodeDecodeError as err:
+            # Replace a damaged file rather than abort the regeneration that
+            # fixes it; an OSError may hide an intact file, so it still raises
+            _LOGGER.warning("Replacing damaged file %s: %s", path, err)
+            with suppress(OSError):
+                path.unlink(missing_ok=True)
+        except OSError as err:
+            from esphome.core import EsphomeError
+
+            raise EsphomeError(f"Error reading file {path}: {err}") from err
     if src_content == text:
         return False
     write_file(path, text)
@@ -705,10 +780,21 @@ class ProgressBar:
         sys.stderr.flush()
 
     def done(self) -> None:
-        if not self.enabled:
+        # No frame drawn, or the 100% frame already ended its own line
+        if not self.enabled or self.last_progress is None or self.last_progress == 100:
             return
         sys.stderr.write("\n")
         sys.stderr.flush()
+
+    def interrupt(self) -> None:
+        """End a mid-row frame so the next write starts on its own row.
+
+        The next ``update()`` redraws the bar; a finished bar stays done.
+        """
+        if self.last_progress == 100:
+            return
+        self.done()
+        self.last_progress = None
 
 
 def docs_url(path: str) -> str:

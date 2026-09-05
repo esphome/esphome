@@ -62,6 +62,8 @@ class IDFUARTComponent final : public UARTComponent, public Component {
    */
   void apply_settings_live();
 
+  void on_shutdown() override;
+
  protected:
   void check_logger_conflict() override;
   // Signal-inversion flags derived from the configured pins' inverted markers.
@@ -69,7 +71,7 @@ class IDFUARTComponent final : public UARTComponent, public Component {
   // (Re)apply the settings that uart_param_config() resets: line inversion, RX full
   // threshold, RX timeout, and port mode. Returns the first error, already logged.
   esp_err_t apply_line_settings_();
-  uart_port_t uart_num_;
+  uart_port_t uart_num_{UART_NUM_MAX};
   // Fallback for a failed live reconfiguration (unachievable requested rate).
   uint32_t last_good_baud_{0};
   uart_config_t get_config_();

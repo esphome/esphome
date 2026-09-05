@@ -9,6 +9,7 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 
 import esphome.codegen as cg
+from esphome.components import rp2040_ble
 from esphome.config_helpers import (
     filter_source_files_from_platform,
     frameworks_for_platforms,
@@ -36,9 +37,12 @@ CODEOWNERS = ["@bdraco", "@jesserockz"]
 
 bluetooth_connection_ns = cg.esphome_ns.namespace("bluetooth_connection")
 
-# arduino-pico's prebuilt BTstack is compiled with MAX_NR_GATT_CLIENTS 1;
-# raising this needs an upstream change (the layer itself supports N).
-RP2_MAX_CONNECTIONS = 1
+# arduino-pico's prebuilt BTstack is compiled with MAX_NR_GATT_CLIENTS 1 and
+# MAX_NR_HCI_CONNECTIONS 2; for more than one backend, rp2040_ble's
+# btstack_memory.cpp replaces those pools via linker --wrap (requested by
+# _rp2_register), sized from ESPHOME_BLE_GATT_CLIENT_COUNT. The cap itself
+# belongs to the platform stack that owns the pools.
+RP2_MAX_CONNECTIONS = rp2040_ble.MAX_CONNECTIONS
 
 # Slot limits for the hub platforms running the connection-capable proxy;
 # the backend registry itself is _PLATFORM_BACKENDS below.
@@ -53,6 +57,19 @@ BluedroidGattClient = bluetooth_connection_ns.class_(
 
 CONF_BACKEND_ID = "backend_id"
 
+DOMAIN = "bluetooth_connection"
+
+
+@dataclass
+class _ConnectionData:
+    rp2_backend_count: int = 0
+
+
+def _get_data() -> _ConnectionData:
+    if DOMAIN not in CORE.data:
+        CORE.data[DOMAIN] = _ConnectionData()
+    return CORE.data[DOMAIN]
+
 
 def _esp32_schema_fragment() -> cv.Schema:
     from esphome.components import esp32_ble_tracker
@@ -61,8 +78,6 @@ def _esp32_schema_fragment() -> cv.Schema:
 
 
 def _rp2_schema_fragment() -> cv.Schema:
-    from esphome.components import rp2040_ble
-
     return cv.Schema(
         {cv.GenerateID(rp2040_ble.CONF_RP2040_BLE_ID): cv.use_id(rp2040_ble.RP2040BLE)}
     )
@@ -77,15 +92,29 @@ async def _esp32_register(backend: cg.MockObj, config: ConfigType) -> None:
 
 
 async def _rp2_register(backend: cg.MockObj, config: ConfigType) -> None:
-    from esphome.components import rp2040_ble
+    from esphome.components import ota
 
+    # The backend drops its link when an OTA starts (esp32 tracker parity).
+    ota.request_ota_state_listeners()
+    # More than one backend outgrows the prebuilt BTstack pools: swap them for
+    # the ESPHOME_BLE_GATT_CLIENT_COUNT-sized ones in rp2040_ble's
+    # btstack_memory.cpp. Keyed to backend registrations (the same event that
+    # grows the count that sizes the pools), so single-backend builds emit no
+    # flags and stay byte-identical to previous releases.
+    data = _get_data()
+    data.rp2_backend_count += 1
+    if data.rp2_backend_count == 2:
+        rp2040_ble.add_btstack_pool_overrides()
     await cg.register_parented(backend, config[rp2040_ble.CONF_RP2040_BLE_ID])
 
 
 @dataclass(frozen=True)
 class _PlatformBackend:
-    """One platform's backend: codegen class, extra schema keys (lazy so the
-    platform stack is only imported when targeted), and stack registration."""
+    """One platform's backend: codegen class, extra schema keys, and stack
+    registration. The esp32 fragments import their stack lazily because those
+    imports register esp32-only automations as a side effect; rp2040_ble is
+    side-effect-free, so it is imported at module scope (the cap constant
+    needs it there anyway)."""
 
     backend_class: cg.MockObjClass
     schema_fragment: Callable[[], cv.Schema]
