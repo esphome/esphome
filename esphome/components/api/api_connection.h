@@ -375,6 +375,21 @@ class APIConnection final : public APIServerConnectionBase {
     return this->helper_->get_peername_to(buf);
   }
 
+#ifdef USE_API_OUTGOING_CONNECTION
+  /// Outgoing connection: send our server hello immediately so the peer can
+  /// pick the matching key. Outgoing connections are only dialed when a PSK
+  /// is set, so the helper is always the noise helper. Call after start().
+  void mark_outgoing() {
+    if (this->flags_.remove) {
+      return;  // start() failed; the connection is already being torn down
+    }
+    APIError err = static_cast<APINoiseFrameHelper *>(this->helper_.get())->send_server_hello_first();
+    if (err != APIError::OK) {
+      this->fatal_error_with_log_(LOG_STR("Server hello failed"), err);
+    }
+  }
+#endif
+
  protected:
   bool try_to_clear_buffer_slow_(bool log_out_of_space);
 
@@ -745,6 +760,9 @@ class APIConnection final : public APIServerConnectionBase {
     uint8_t batch_first_message : 1;          // For batch buffer allocation
     uint8_t should_try_send_immediately : 1;  // True after initial states are sent
     uint8_t may_have_remaining_data : 1;      // Read loop hit limit, retry without ready check
+#ifdef USE_API_OUTGOING_CONNECTION
+    uint8_t outgoing_connection_target : 1;  // Client declared itself a dial-back target in its hello
+#endif
 #ifdef HAS_PROTO_MESSAGE_DUMP
     uint8_t log_only_mode : 1;
 #endif

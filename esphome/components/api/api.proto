@@ -112,6 +112,11 @@ message HelloRequest {
   string client_info = 1;
   uint32 api_version_major = 2;
   uint32 api_version_minor = 3;
+
+  // Set by clients that can accept connections the device opens to them
+  // (see api: outgoing_connection:). The device remembers this client's
+  // address as the target to dial when no such client is connected.
+  bool outgoing_connection_target = 4 [(field_ifdef) = "USE_API_OUTGOING_CONNECTION"];
 }
 
 // Confirmation of successful connection request.
@@ -331,6 +336,10 @@ message DeviceInfoResponse {
   // all-zeros PSK, so the api encryption key can be provisioned without being
   // sent in plaintext (protects against passive sniffing, not active MITM)
   bool api_encryption_provisionable = 26 [(field_ifdef) = "USE_API_NOISE"];
+
+  // Device is built with the api outgoing_connection option and can open
+  // the TCP connection to a dial-back target itself
+  bool api_outgoing_connection_supported = 27 [(field_ifdef) = "USE_API_OUTGOING_CONNECTION"];
 }
 
 // ==================== DEVICE CAPABILITIES ====================

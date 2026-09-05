@@ -34,7 +34,46 @@ APIServer::APIServer() { global_api_server = this; }
 void APIServer::socket_failed_(const LogString *msg) {
   ESP_LOGW(TAG, "Socket %s: errno %d", LOG_STR_ARG(msg), errno);
   this->destroy_socket_();
-  this->mark_failed();
+}
+
+bool APIServer::create_listen_socket_() {
+  this->socket_ = socket::socket_ip_loop_monitored(SOCK_STREAM, 0).release();  // monitored for incoming connections
+  if (this->socket_ == nullptr) {
+    this->socket_failed_(LOG_STR("creation"));
+    return false;
+  }
+  int enable = 1;
+  int err = this->socket_->setsockopt(SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(int));
+  if (err != 0) {
+    ESP_LOGW(TAG, "Socket reuseaddr: errno %d", errno);
+    // we can still continue
+  }
+  err = this->socket_->setblocking(false);
+  if (err != 0) {
+    this->socket_failed_(LOG_STR("nonblocking"));
+    return false;
+  }
+
+  struct sockaddr_storage server;
+
+  socklen_t sl = socket::set_sockaddr_any((struct sockaddr *) &server, sizeof(server), this->port_);
+  if (sl == 0) {
+    this->socket_failed_(LOG_STR("set sockaddr"));
+    return false;
+  }
+
+  err = this->socket_->bind((struct sockaddr *) &server, sl);
+  if (err != 0) {
+    this->socket_failed_(LOG_STR("bind"));
+    return false;
+  }
+
+  err = this->socket_->listen(this->listen_backlog_);
+  if (err != 0) {
+    this->socket_failed_(LOG_STR("listen"));
+    return false;
+  }
+  return true;
 }
 
 void APIServer::setup() {
@@ -53,41 +92,14 @@ void APIServer::setup() {
 #endif
 #endif
 
-  this->socket_ = socket::socket_ip_loop_monitored(SOCK_STREAM, 0).release();  // monitored for incoming connections
-  if (this->socket_ == nullptr) {
-    this->socket_failed_(LOG_STR("creation"));
+  if (!this->create_listen_socket_()) {
+#ifdef USE_API_OUTGOING_CONNECTION
+    // Dial-out needs no listener; degrade instead of stopping the component
+    this->status_set_error(LOG_STR("listen socket failed"));
+#else
+    this->mark_failed();
     return;
-  }
-  int enable = 1;
-  int err = this->socket_->setsockopt(SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(int));
-  if (err != 0) {
-    ESP_LOGW(TAG, "Socket reuseaddr: errno %d", errno);
-    // we can still continue
-  }
-  err = this->socket_->setblocking(false);
-  if (err != 0) {
-    this->socket_failed_(LOG_STR("nonblocking"));
-    return;
-  }
-
-  struct sockaddr_storage server;
-
-  socklen_t sl = socket::set_sockaddr_any((struct sockaddr *) &server, sizeof(server), this->port_);
-  if (sl == 0) {
-    this->socket_failed_(LOG_STR("set sockaddr"));
-    return;
-  }
-
-  err = this->socket_->bind((struct sockaddr *) &server, sl);
-  if (err != 0) {
-    this->socket_failed_(LOG_STR("bind"));
-    return;
-  }
-
-  err = this->socket_->listen(this->listen_backlog_);
-  if (err != 0) {
-    this->socket_failed_(LOG_STR("listen"));
-    return;
+#endif
   }
 
 #ifdef USE_LOGGER
@@ -135,6 +147,9 @@ void APIServer::setup() {
   if (this->reboot_timeout_ != 0 && !this->provisioning_pending_()) {
     this->status_set_warning(LOG_STR("waiting for client connection"));
   }
+#ifdef USE_API_OUTGOING_CONNECTION
+  this->outgoing_conn_.setup();
+#endif
 }
 
 void APIServer::loop() {
@@ -142,6 +157,12 @@ void APIServer::loop() {
   if (this->socket_ && this->socket_->ready()) {
     this->accept_new_connections_();
   }
+
+#ifdef USE_API_OUTGOING_CONNECTION
+  if (!this->shutting_down_) {
+    this->outgoing_conn_.loop(this);
+  }
+#endif
 
   if (this->api_connection_count_ == 0) {
     // Check reboot timeout - done in loop to avoid scheduler heap churn
@@ -151,7 +172,12 @@ void APIServer::loop() {
     if (this->reboot_timeout_ != 0 && !this->provisioning_pending_()) {
       const uint32_t now = App.get_loop_component_start_time();
       if (now - this->last_connected_ > this->reboot_timeout_) {
-        ESP_LOGE(TAG, "No clients; rebooting");
+        // Distinguish a wrong-key peer from nothing connecting at all
+        if (this->saw_unauthenticated_client_) {
+          ESP_LOGE(TAG, "Clients connected but none authenticated; rebooting");
+        } else {
+          ESP_LOGE(TAG, "No clients; rebooting");
+        }
         App.reboot();
       }
     }
@@ -203,6 +229,15 @@ void APIServer::remove_client_(uint8_t client_index) {
   std::string client_peername(client->get_peername_to(peername_buf));
 #endif
 
+  // Read before the swap-and-reset below destroys the connection
+  const bool was_authenticated = client->is_authenticated();
+#ifdef USE_API_OUTGOING_CONNECTION
+  if (client->flags_.outgoing_connection_target) {
+    this->outgoing_target_count_--;
+  }
+  this->outgoing_conn_.on_client_removed(client.get(), was_authenticated);
+#endif
+
   // Close socket now (was deferred from on_fatal_error to allow getpeername)
   client->helper_->close();
 
@@ -221,9 +256,18 @@ void APIServer::remove_client_(uint8_t client_index) {
 
   // Last client disconnected - set warning and start tracking for reboot timeout
   // (suppressed while provisioning is pending - see loop()).
+  // Refresh on every authenticated removal, not just the last one, so an
+  // unauthenticated straggler removed later (e.g. a port scan, or a dial to
+  // a host that accepts TCP but never speaks the API) cannot discard a
+  // healthy session's timestamp and trigger a spurious reboot
+  if (was_authenticated) {
+    this->last_connected_ = App.get_loop_component_start_time();
+    this->saw_unauthenticated_client_ = false;
+  } else {
+    this->saw_unauthenticated_client_ = true;
+  }
   if (this->api_connection_count_ == 0 && this->reboot_timeout_ != 0 && !this->provisioning_pending_()) {
     this->status_set_warning(LOG_STR("waiting for client connection"));
-    this->last_connected_ = App.get_loop_component_start_time();
   }
 
 #ifdef USE_API_CLIENT_DISCONNECTED_TRIGGER
@@ -245,7 +289,7 @@ void __attribute__((flatten)) APIServer::accept_new_connections_() {
     sock->getpeername_to(peername);
 
     // Check if we're at the connection limit
-    if (this->api_connection_count_ >= MAX_API_CONNECTIONS) {
+    if (this->at_client_limit_()) {
       ESP_LOGW(TAG, "Max connections (%d), rejecting %s", MAX_API_CONNECTIONS, peername);
       // Immediately close - socket destructor will handle cleanup
       sock.reset();
@@ -254,17 +298,53 @@ void __attribute__((flatten)) APIServer::accept_new_connections_() {
 
     ESP_LOGD(TAG, "Accept %s", peername);
 
-    auto *conn = new APIConnection(std::move(sock), this);
-    this->clients_[this->api_connection_count_++].reset(conn);
-    conn->start();
-
-    // First client connected - clear warning and update timestamp
-    if (this->api_connection_count_ == 1 && this->reboot_timeout_ != 0 && !this->provisioning_pending_()) {
-      this->status_clear_warning();
-      this->last_connected_ = App.get_loop_component_start_time();
-    }
+    this->add_client_(new APIConnection(std::move(sock), this));
   }
 }
+
+bool APIServer::add_client_(APIConnection *conn) {
+  if (this->at_client_limit_()) {
+    // The accept path checks first to skip the allocation; the outgoing
+    // handoff relies on this check
+    ESP_LOGW(TAG, "Max connections (%d), dropping client", MAX_API_CONNECTIONS);
+    delete conn;
+    return false;
+  }
+  this->clients_[this->api_connection_count_++].reset(conn);
+  conn->start();
+
+  // First client connected - clear warning. The reboot watchdog timestamp is
+  // refreshed when an authenticated client is removed (see remove_client_),
+  // never on bare TCP connects.
+  if (this->api_connection_count_ == 1 && this->reboot_timeout_ != 0 && !this->provisioning_pending_()) {
+    this->status_clear_warning();
+  }
+  return true;
+}
+
+#ifdef USE_API_OUTGOING_CONNECTION
+APIConnection *APIServer::add_outgoing_client_(std::unique_ptr<socket::Socket> sock) {
+  // Re-check at the handoff: the PSK may have been cleared since the dial
+  // started (mark_outgoing() needs the noise helper); add_client_ re-checks
+  // the slot limit
+  if (!this->noise_ctx_.has_psk()) {
+    ESP_LOGW(TAG, "Dropping outgoing connection (no key)");
+    return nullptr;
+  }
+  auto *conn = new APIConnection(std::move(sock), this);
+  if (!this->add_client_(conn)) {
+    return nullptr;
+  }
+  // After start(): sends our server hello first so the peer can pick the key
+  conn->mark_outgoing();
+  return conn;
+}
+
+void APIServer::on_outgoing_target_client(APIConnection *conn) {
+  this->outgoing_target_count_++;
+  this->outgoing_conn_.on_target_client(conn);
+}
+#endif
 
 void APIServer::dump_config() {
   char addr_buf[network::USE_ADDRESS_BUFFER_SIZE];
@@ -281,6 +361,9 @@ void APIServer::dump_config() {
   }
 #else
   ESP_LOGCONFIG(TAG, "  Noise encryption: NO");
+#endif
+#ifdef USE_API_OUTGOING_CONNECTION
+  this->outgoing_conn_.dump_config();
 #endif
 }
 
@@ -576,6 +659,8 @@ bool APIServer::update_noise_psk_(const SavedNoisePsk &new_psk, const LogString 
         if (!c->send_message(req)) {
           API_LOG_MSG_DROPPED(TAG, "Disconnect request");
         }
+        // Force it: a session from before the key was active must not survive
+        c->flags_.next_close = true;
       }
     });
   }
@@ -687,6 +772,9 @@ void APIServer::on_shutdown() {
 
   // Close the listening socket to prevent new connections
   this->destroy_socket_();
+#ifdef USE_API_OUTGOING_CONNECTION
+  this->outgoing_conn_.on_shutdown();
+#endif
 
   // Change batch delay to 5ms for quick flushing during shutdown
   this->batch_delay_ = 5;
