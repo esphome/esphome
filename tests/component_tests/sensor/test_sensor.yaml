@@ -13,3 +13,9 @@ sensor:
     sampling_mode: min
     update_interval: 60s
     device_class: voltage
+binary_sensor:
+  - platform: analog_threshold
+    id: threshold_id
+    sensor_id: s_1
+    threshold:
+      entity_state: s_1

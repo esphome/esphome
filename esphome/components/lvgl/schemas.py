@@ -120,9 +120,10 @@ def _validate_text(value):
     if isinstance(value, dict):
         if CONF_TIME_FORMAT in value:
             return TIME_TEXT_SCHEMA(value)
+        if CONF_FORMAT in value:
+            return PRINTF_TEXT_SCHEMA(value)
         if CONF_MAPPING in value:
             return MAPPING_TEXT_SCHEMA(value)
-        return PRINTF_TEXT_SCHEMA(value)
 
     return cv.templatable(cv.string)(value)
 

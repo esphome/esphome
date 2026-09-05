@@ -22,7 +22,9 @@ from esphome.components.esp32 import (
 )
 from esphome.config_validation import Invalid
 from esphome.const import (
+    CONF_ARGUMENT,
     CONF_DAY,
+    CONF_ENTITY_STATE,
     CONF_HOUR,
     CONF_ID,
     CONF_INTERNAL,
@@ -2573,6 +2575,37 @@ def test_returning_lambda_return_only_in_comment() -> None:
 def test_returning_lambda_missing_semicolon_is_accepted() -> None:
     """A forgotten semicolon is left for the C++ compiler to report."""
     assert isinstance(cv.returning_lambda(Lambda("return x")), Lambda)
+
+
+def test_templatable_entity_state_shorthand() -> None:
+    result = cv.templatable(cv.float_)({CONF_ENTITY_STATE: "some_sensor"})
+    assert isinstance(result, Lambda)
+    assert result.value == "return id(some_sensor).state;"
+
+
+def test_templatable_argument_shorthand() -> None:
+    result = cv.templatable(cv.float_)({CONF_ARGUMENT: "x"})
+    assert isinstance(result, Lambda)
+    assert result.value == "return x;"
+
+
+def test_templatable_shorthand_requires_exactly_one_key() -> None:
+    with pytest.raises(Invalid):
+        cv.templatable(cv.float_)(
+            {CONF_ENTITY_STATE: "some_sensor", CONF_ARGUMENT: "x"}
+        )
+
+
+def test_lambda_entity_state_shorthand() -> None:
+    result = cv.lambda_({CONF_ENTITY_STATE: "some_sensor"})
+    assert isinstance(result, Lambda)
+    assert result.value == "return id(some_sensor).state;"
+
+
+def test_returning_lambda_argument_shorthand() -> None:
+    result = cv.returning_lambda({CONF_ARGUMENT: "x"})
+    assert isinstance(result, Lambda)
+    assert result.value == "return x;"
 
 
 @pytest.mark.parametrize(

@@ -235,9 +235,7 @@ class LValidator:
     def __call__(self, value):
         if self.requires:
             value = cv.requires_component(self.requires)(value)
-        if isinstance(value, cv.Lambda):
-            return cv.returning_lambda(value)
-        return self.validator(value)
+        return cv.templatable(self.validator)(value)
 
     async def process(
         self,
