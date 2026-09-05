@@ -1,0 +1,110 @@
+#pragma once
+
+#include "esphome/core/defines.h"
+#ifdef USE_WIFI_TWT
+
+#include <atomic>
+
+#include "esphome/core/component.h"
+#include "esphome/core/helpers.h"
+#include "esphome/components/wifi/wifi_component.h"
+#ifdef USE_OTA_STATE_LISTENER
+#include "esphome/components/ota/ota_backend.h"
+#endif
+
+namespace esphome::wifi_twt {
+
+class WiFiTWT : public Component,
+                public wifi::WiFiIPStateListener,
+                public wifi::WiFiConnectStateListener
+#ifdef USE_OTA_STATE_LISTENER
+    ,
+                public ota::OTAGlobalStateListener
+#endif
+{
+ public:
+  void setup() override;
+  void dump_config() override;
+  float get_setup_priority() const override { return setup_priority::AFTER_WIFI; }
+
+  void on_ip_state(const network::IPAddresses &ips, const network::IPAddress &dns1,
+                   const network::IPAddress &dns2) override;
+  void on_wifi_connect_state(StringRef ssid, std::span<const uint8_t, 6> bssid) override;
+
+  void start_twt();
+  void stop_twt();
+  void disable_twt();
+  void enable_twt();
+
+  // Platform event notification interface — called from the ESP-IDF event task.
+  // Each method defers callback dispatch to the main loop via defer().
+  void twt_setup_success(uint8_t flow_id);
+  void twt_setup_failed();
+  void twt_teardown_received(uint8_t flow_id);
+  void twt_wakeup_received();
+
+#ifdef USE_OTA_STATE_LISTENER
+  void on_ota_global_state(ota::OTAState state, float progress, uint8_t error, ota::OTAComponent *component) override;
+#endif
+
+  void set_wake_interval_ms(uint32_t ms) { this->wake_interval_ms_ = ms; }
+  void set_wake_duration_ms(uint32_t ms) { this->wake_duration_ms_ = ms; }
+  void set_setup_cmd(uint8_t cmd) { this->setup_cmd_ = cmd; }
+  void set_flow_type(uint8_t flow_type) { this->flow_type_ = flow_type; }
+  void set_auto_setup(bool auto_setup) { this->auto_setup_ = auto_setup; }
+
+  bool is_active() const { return this->active_flow_id_.load() != UINT8_MAX; }
+
+  // Callback registration — templated to accept both std::function and forwarder structs
+  template<typename F> void add_on_start_callback(F &&cb) { this->start_callback_.add(std::forward<F>(cb)); }
+  template<typename F> void add_on_stop_callback(F &&cb) { this->stop_callback_.add(std::forward<F>(cb)); }
+  template<typename F> void add_on_wakeup_callback(F &&cb) { this->wakeup_callback_.add(std::forward<F>(cb)); }
+
+ protected:
+  // Config — human-readable values; platform impl converts to wire format in start_twt()
+  uint32_t wake_interval_ms_{15000};
+  uint32_t wake_duration_ms_{10};
+  uint8_t setup_cmd_{0};  // ordinals match wifi_twt_setup_cmds_t: REQUEST=0, SUGGEST=1, DEMAND=2
+  uint8_t flow_type_{0};  // 0=announced, 1=unannounced
+  bool auto_setup_{true};
+
+  // Set on disconnect only if TWT was active, so on_ip_state renegotiates on reconnect even
+  // when auto_setup_ is false, without reviving a session that was stopped manually.
+  bool reconfigure_pending_{false};
+
+  // Set when esp_wifi_sta_itwt_setup() is called, cleared on success or failure.
+  // Guards against duplicate calls before the async event fires.
+  bool setup_pending_{false};
+
+  // Consecutive setup-rejection count; drives retry backoff in twt_setup_failed(), capped at
+  // 5 (where the delay itself hits its ceiling) so retries keep going without growing forever.
+  uint8_t setup_retry_count_{0};
+
+  // When true, blocks auto-setup and reconnect restart; explicit start_twt() logs a warning and overrides.
+  bool disabled_{false};
+  // Tracks whether TWT was active when disable_twt() was called, so enable_twt() can resume it.
+  bool was_active_before_disable_{false};
+
+#ifdef USE_OTA_STATE_LISTENER
+  // Tracks whether TWT was active when an OTA started, so it can be restarted on completion.
+  bool twt_active_before_ota_{false};
+#endif
+
+  // Written by event task (twt_setup_success / twt_teardown_received), read by main task.
+  std::atomic<uint8_t> active_flow_id_{UINT8_MAX};
+
+  // esp_event_handler_instance_t (void * per ESP-IDF typedef); stored to unregister on
+  // partial setup failure.
+  void *itwt_setup_handle_{nullptr};
+  void *itwt_teardown_handle_{nullptr};
+  void *twt_wakeup_handle_{nullptr};
+  void *itwt_probe_handle_{nullptr};
+
+  LazyCallbackManager<void()> start_callback_;
+  LazyCallbackManager<void()> stop_callback_;
+  LazyCallbackManager<void()> wakeup_callback_;
+};
+
+}  // namespace esphome::wifi_twt
+
+#endif  // USE_WIFI_TWT
