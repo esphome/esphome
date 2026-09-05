@@ -11,18 +11,20 @@ static const char *const TAG = "cse7761";
  *
  * Based on Tasmota source code
  * See https://github.com/arendst/Tasmota/discussions/10793
- * https://github.com/arendst/Tasmota/blob/development/tasmota/xnrg_19_cse7761.ino
+ * https://github.com/arendst/Tasmota/blob/development/tasmota/tasmota_xnrg_energy/xnrg_19_cse7761.ino
 \*********************************************************************************************/
 
-static constexpr int CSE7761_UREF = 42563;  // RmsUc
-static constexpr int CSE7761_IREF = 52241;  // RmsIAC
-static constexpr int CSE7761_PREF = 44513;  // PowerPAC
+static constexpr int CSE7761_UREF = 42563;    // RmsUc
+static constexpr int CSE7761_IREF = 52241;    // RmsIAC
+static constexpr int CSE7761_PREF = 44513;    // PowerPAC
+static constexpr int CSE7761_FREF = 3579545;  // System clock (3.579545MHz) as used in frequency calculation
 
 static constexpr uint8_t CSE7761_REG_SYSCON = 0x00;     // (2) System Control Register (0x0A04)
 static constexpr uint8_t CSE7761_REG_EMUCON = 0x01;     // (2) Metering control register (0x0000)
 static constexpr uint8_t CSE7761_REG_EMUCON2 = 0x13;    // (2) Metering control register 2 (0x0001)
 static constexpr uint8_t CSE7761_REG_PULSE1SEL = 0x1D;  // (2) Pin function output select register (0x3210)
 
+static constexpr uint8_t CSE7761_REG_UFREQ = 0x23;      // (2) Voltage Frequency (0x0000)
 static constexpr uint8_t CSE7761_REG_RMSIA = 0x24;      // (3) The effective value of channel A current (0x000000)
 static constexpr uint8_t CSE7761_REG_RMSIB = 0x25;      // (3) The effective value of channel B current (0x000000)
 static constexpr uint8_t CSE7761_REG_RMSU = 0x26;       // (3) Voltage RMS (0x000000)
@@ -32,11 +34,20 @@ static constexpr uint8_t CSE7761_REG_SYSSTATUS = 0x43;  // (1) System status reg
 
 static constexpr uint8_t CSE7761_REG_COEFFCHKSUM = 0x6F;  // (2) Coefficient checksum
 static constexpr uint8_t CSE7761_REG_RMSIAC = 0x70;       // (2) Channel A effective current conversion coefficient
+static constexpr uint8_t CSE7761_REG_RMSIBC = 0x71;       // (2) Channel B effective current conversion coefficient
+static constexpr uint8_t CSE7761_REG_RMSUC = 0x72;        // (2) Effective voltage conversion coefficient
+static constexpr uint8_t CSE7761_REG_POWERPAC = 0x73;     // (2) Channel A active power conversion coefficient
+static constexpr uint8_t CSE7761_REG_POWERPBC = 0x74;     // (2) Channel B active power conversion coefficient
+static constexpr uint8_t CSE7761_REG_POWERSC = 0x75;      // (2) Apparent power conversion coefficient
+static constexpr uint8_t CSE7761_REG_ENERGYAC = 0x76;     // (2) Channel A energy conversion coefficient
+static constexpr uint8_t CSE7761_REG_ENERGYBC = 0x77;     // (2) Channel B energy conversion coefficient
 
 static constexpr uint8_t CSE7761_SPECIAL_COMMAND = 0xEA;  // Start special command
 static constexpr uint8_t CSE7761_CMD_RESET = 0x96;        // Reset command, after receiving the command, the chip resets
-static constexpr uint8_t CSE7761_CMD_CLOSE_WRITE = 0xDC;  // Close write operation
-static constexpr uint8_t CSE7761_CMD_ENABLE_WRITE = 0xE5;  // Enable write operation
+static constexpr uint8_t CSE7761_CMD_CHAN_A_SELECT = 0x5A;  // Current channel A setting command
+static constexpr uint8_t CSE7761_CMD_CHAN_B_SELECT = 0xA5;  // Current channel B setting command
+static constexpr uint8_t CSE7761_CMD_CLOSE_WRITE = 0xDC;    // Close write operation
+static constexpr uint8_t CSE7761_CMD_ENABLE_WRITE = 0xE5;   // Enable write operation
 
 enum CSE7761 { RMS_IAC, RMS_IBC, RMS_UC, POWER_PAC, POWER_PBC, POWER_SC, ENERGY_AC, ENERGY_BC };
 
@@ -60,6 +71,8 @@ void CSE7761Component::dump_config() {
   LOG_UPDATE_INTERVAL(this);
 }
 
+float CSE7761Component::get_setup_priority() const { return setup_priority::DATA; }
+
 void CSE7761Component::update() {
   if (this->data_.ready) {
     this->get_data_();
@@ -73,7 +86,7 @@ void CSE7761Component::write_(uint8_t reg, uint16_t data) {
   buffer[1] = reg;
   uint32_t len = 2;
   if (data) {
-    if (data < 0xFF) {
+    if (data <= 0xFF) {
       buffer[2] = data & 0xFF;
       len = 3;
     } else {
@@ -103,9 +116,9 @@ bool CSE7761Component::read_once_(uint8_t reg, uint8_t size, uint32_t *value) {
   uint32_t rcvd = 0;
 
   for (uint32_t i = 0; i <= size; i++) {
-    int value = this->read();
-    if (value > -1 && rcvd < sizeof(buffer) - 1) {
-      buffer[rcvd++] = value;
+    int byte = this->read();
+    if (byte > -1 && rcvd < sizeof(buffer) - 1) {
+      buffer[rcvd++] = byte;
     }
   }
 
@@ -145,17 +158,17 @@ uint32_t CSE7761Component::read_(uint8_t reg, uint8_t size) {
 }
 
 uint32_t CSE7761Component::coefficient_by_unit_(uint32_t unit) {
-  uint32_t coeff = 0;
+  uint32_t coeff = 1;
+  if (this->data_.model == CSE7761_MODEL_SONOFF_POWCT) {
+    coeff = 5;
+  }
   switch (unit) {
     case RMS_UC:
-      coeff = this->data_.coefficient[RMS_UC];
-      return coeff ? 0x400000 * 100 / coeff : 0;
+      return 0x400000 * 100 / this->data_.coefficient[RMS_UC];
     case RMS_IAC:
-      coeff = this->data_.coefficient[RMS_IAC];
-      return coeff ? (0x800000 * 100 / coeff) * 10 : 0;  // Stay within 32 bits
+      return (0x800000 * 100 / (this->data_.coefficient[RMS_IAC] * coeff)) * 10;  // Stay within 32 bits
     case POWER_PAC:
-      coeff = this->data_.coefficient[POWER_PAC];
-      return coeff ? 0x80000000 / coeff : 0;
+      return 0x80000000 / (this->data_.coefficient[POWER_PAC] * coeff);
   }
   return 0;
 }
@@ -179,10 +192,30 @@ bool CSE7761Component::chip_init_() {
 
   uint8_t sys_status = this->read_(CSE7761_REG_SYSSTATUS, 1);
   if (sys_status & 0x10) {  // Write enable to protected registers (WREN)
-    this->write_(CSE7761_REG_SYSCON | 0x80, 0xFF04);
+
+    // SYSCON (0x00): See cse7761_registers.md for full bit-field reference.
+    // Dual R3:  0xFF04 -- ADC2ON=1, PGAIB=16x, PGAU=1x, PGAIA=16x (shunt resistor, needs amplification)
+    // POW CT:   0xFE00 -- ADC2ON=1, PGAIB=1x,  PGAU=1x, PGAIA=1x  (current transformer, no amplification)
+    if (this->data_.model == CSE7761_MODEL_SONOFF_POWCT) {
+      this->write_(CSE7761_REG_SYSCON | 0x80, 0xFE00);
+    } else {
+      this->write_(CSE7761_REG_SYSCON | 0x80, 0xFF04);
+    }
+
+    // EMUCON (0x01): See cse7761_registers.md for full bit-field reference.
+    // 0x1183 -- Tsensor off, comparator off, Pmode=00 (algebraic sum), ZXD1=1 (both zero crossings),
+    //           ZXD0=0 (positive), HPF enabled for all channels, PBRUN=1, PARUN=1
     this->write_(CSE7761_REG_EMUCON | 0x80, 0x1183);
-    this->write_(CSE7761_REG_EMUCON2 | 0x80, 0x0FC1);
-    this->write_(CSE7761_REG_PULSE1SEL | 0x80, 0x3290);
+
+    // EMUCON2 (0x13): See cse7761_registers.md for full bit-field reference.
+    // 0x0FE5 -- Energy not cleared after read (UART mode), DUPSEL=27.3Hz, CHS_IB=current,
+    //           PfactorEN=1, WaveEN=1, ZxEN=1 (required for frequency measurement)
+    this->write_(CSE7761_REG_EMUCON2 | 0x80, 0x0FE5);
+
+    // PULSE1SEL (0x1D): Left at default 0x3210. Not written.
+    // Uncomment below to output voltage zero-crossing signal on Pulse2 pin (P2Sel=0x9):
+    // this->write_(CSE7761_REG_PULSE1SEL | 0x80, 0x3290);
+
   } else {
     ESP_LOGD(TAG, "Write failed at chip_init");
     return false;
@@ -194,10 +227,13 @@ void CSE7761Component::get_data_() {
   // The effective value of current and voltage Rms is a 24-bit signed number,
   // the highest bit is 0 for valid data,
   //   and when the highest bit is 1, the reading will be processed as zero
-  // The active power parameter PowerA/B is in two’s complement format, 32-bit
+  // The active power parameter PowerA/B is in two's complement format, 32-bit
   // data, the highest bit is Sign bit.
   uint32_t value = this->read_(CSE7761_REG_RMSU, 3);
   this->data_.voltage_rms = (value >= 0x800000) ? 0 : value;
+
+  value = this->read_(CSE7761_REG_UFREQ, 2);
+  this->data_.frequency = (value >= 0x8000) ? 0 : value;
 
   value = this->read_(CSE7761_REG_RMSIA, 3);
   this->data_.current_rms[0] = ((value >= 0x800000) || (value < 1600)) ? 0 : value;  // No load threshold of 10mA
@@ -216,6 +252,11 @@ void CSE7761Component::get_data_() {
   float voltage = static_cast<float>(this->data_.voltage_rms) / this->coefficient_by_unit_(RMS_UC);
   if (this->voltage_sensor_ != nullptr) {
     this->voltage_sensor_->publish_state(voltage);
+  }
+
+  if (this->frequency_sensor_ != nullptr) {
+    float freq = (this->data_.frequency) ? ((float) CSE7761_FREF / 8 / this->data_.frequency) : 0;  // Hz
+    this->frequency_sensor_->publish_state(freq);
   }
 
   for (uint8_t channel = 0; channel < 2; channel++) {
