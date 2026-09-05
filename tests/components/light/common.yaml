@@ -260,6 +260,20 @@ light:
       red: 100%
       green: 50%
       blue: 50%
+  # Test restore_mode: RESTORE_DEFAULT_INITIAL_STATE and the "ON"/"OFF" state schema
+  - platform: rgb
+    id: test_rgb_light_restore_default_initial_state
+    name: RGB Light Restore Default Initial State
+    red: test_ledc_1
+    green: test_ledc_2
+    blue: test_ledc_3
+    restore_mode: RESTORE_DEFAULT_INITIAL_STATE
+    initial_state:
+      color_mode: rgb
+      state: OFF
+      red: 100%
+      green: 50%
+      blue: 50%
   # Test StrobeLightEffect with multiple colors
   - platform: monochromatic
     id: test_strobe_multiple

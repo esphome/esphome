@@ -26,6 +26,11 @@ output:
     type: float
     write_action:
       - lambda: ""
+  - platform: template
+    id: test_restore_default_initial_state_output
+    type: float
+    write_action:
+      - lambda: ""
 
 light:
   - platform: rgb
@@ -55,3 +60,15 @@ light:
       color_mode: BRIGHTNESS
       state: false
       brightness: 0%
+
+  - platform: monochromatic
+    name: "Test Restore Default Initial State Light"
+    id: test_restore_default_initial_state_light
+    output: test_restore_default_initial_state_output
+    restore_mode: RESTORE_DEFAULT_INITIAL_STATE
+    # With nothing saved in flash to restore, RESTORE_DEFAULT_INITIAL_STATE must honor
+    # initial_state's "state: false" instead of forcing a hardcoded on/off value.
+    initial_state:
+      color_mode: BRIGHTNESS
+      state: OFF
+      brightness: 100%

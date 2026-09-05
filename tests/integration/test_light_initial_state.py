@@ -51,3 +51,13 @@ async def test_light_initial_state(
         restore_and_on_state = helper.initial_states[restore_and_on_light.key]
         assert restore_and_on_state.state is True
         assert restore_and_on_state.brightness == pytest.approx(1.0)
+
+        # restore_mode: RESTORE_DEFAULT_INITIAL_STATE must honor initial_state's "state: OFF"
+        # when there is nothing saved in flash to restore, instead of forcing a hardcoded value.
+        restore_default_initial_state_light = require_entity(
+            entities, "test_restore_default_initial_state_light"
+        )
+        restore_default_initial_state = helper.initial_states[
+            restore_default_initial_state_light.key
+        ]
+        assert restore_default_initial_state.state is False
