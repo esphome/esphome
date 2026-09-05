@@ -2470,6 +2470,7 @@ void WiFiComponent::force_roam_check() {
     return;
   }
   // Reset the attempt counter so a prior run of failed roams doesn't block this explicit request
+  // Note that this re-arms automatic roaming if enabled.
   this->roaming_attempts_ = 0;
   this->check_roaming_(millis());
 }
