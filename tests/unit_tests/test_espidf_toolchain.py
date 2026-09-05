@@ -93,6 +93,13 @@ def test_get_configured_targets_ci_installs_all(monkeypatch: pytest.MonkeyPatch)
     assert toolchain._get_configured_targets() is None
 
 
+@pytest.fixture(autouse=True)
+def _no_ccache(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Deterministic run_compile: no host ccache probe, no pch work."""
+    monkeypatch.setenv("IDF_CCACHE_ENABLE", "0")
+    monkeypatch.setenv("ESPHOME_PCH_ENABLE", "0")
+
+
 def _setup_build(setup_core: Path) -> tuple[Path, Path]:
     """Point CORE at a build dir; return (compile_commands, idedata cache) paths."""
     CORE.name = "test"
@@ -660,3 +667,29 @@ def test_get_core_framework_version_from_core_data():
 
     CORE.data = {KEY_ESP32: {KEY_IDF_VERSION: cv.Version(5, 5, 4)}}
     assert toolchain._get_core_framework_version() == "5.5.4"
+
+
+def test_run_compile_invokes_prepare_pch_and_survives_failure(
+    setup_core: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The pch hook runs before the build and a failure never aborts it."""
+    monkeypatch.setenv("ESPHOME_PCH_ENABLE", "1")
+    _setup_build(setup_core)
+    # A stale .gch must be discarded on the failure path, never consumed
+    build = setup_core / "build" / "test" / "build"
+    build.mkdir(parents=True, exist_ok=True)
+    (build / "esphome_pch.h").write_text("")
+    stale_gch = build / "esphome_pch.h.gch"
+    stale_gch.write_bytes(b"stale")
+
+    with (
+        patch.object(toolchain, "need_reconfigure", return_value=False),
+        patch.object(toolchain, "run_idf_py", return_value=0),
+        patch.object(toolchain, "print_summary"),
+        patch(
+            "esphome.build_gen.espidf.prepare_pch", side_effect=RuntimeError("boom")
+        ) as prepare,
+    ):
+        assert toolchain.run_compile({CONF_ESPHOME: {}}, verbose=False) == 0
+    prepare.assert_called_once()
+    assert not stale_gch.exists()

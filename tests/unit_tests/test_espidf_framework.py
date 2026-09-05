@@ -19,6 +19,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from esphome.build_helpers.pch import _PCHData
 from esphome.espidf.framework import (
     ESPHOME_STAMP_FILE,
     STAMP_SCHEMA_VERSION,
@@ -1592,10 +1593,14 @@ def _ccache_patches(tmp_path: Path, which: str | None, build_path: Path | None):
             "esphome.espidf.framework.get_idf_tools_path",
             return_value=tmp_path / "tools",
         ),
-        # ccache_defaults_env (build_helpers.ccache) reads CORE at call time
+        # ccache_defaults_env and the pch emission flag read CORE at call time
         patch(
             "esphome.core.CORE",
-            SimpleNamespace(build_path=build_path),
+            SimpleNamespace(
+                build_path=build_path,
+                # Pre-marked: these env tests model a pch-emitting build
+                data={"pch": _PCHData(emitted=True)},
+            ),
         ),
     )
 
@@ -1609,6 +1614,9 @@ def test_ccache_env_default_enabled_when_available(tmp_path: Path) -> None:
     assert env["CCACHE_NOHASHDIR"] == "true"
     assert env["CCACHE_DEPEND"] == "1"
     assert env["CCACHE_BASEDIR"] == str((tmp_path / "build").resolve())
+    # The pch cannot cache under ccache without these
+    assert env["CCACHE_SLOPPINESS"] == "pch_defines,time_macros"
+    assert env["CCACHE_PCH_EXTSUM"] == "true"
 
 
 def test_ccache_env_disabled_when_binary_missing(tmp_path: Path) -> None:

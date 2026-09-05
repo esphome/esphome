@@ -4,6 +4,14 @@ import json
 import logging
 from pathlib import Path
 
+from esphome.build_helpers import pch
+from esphome.build_helpers.pch import (
+    PCH_DEFAULT_HEADERS,
+    PCH_HEADER_NAME,
+    mark_pch_emitted,
+    pch_enabled,
+    pch_header_text,
+)
 from esphome.components.esp32 import (
     get_esp32_variant,
     get_excluded_builtin_components,
@@ -279,7 +287,65 @@ idf_component_register(
 target_link_options(${{COMPONENT_LIB}} PUBLIC
     {link_opts_str}
 )
+{_pch_cmake()}"""
+
+
+def _pch_cmake() -> str:
+    """The src component's precompiled-header block (C++ TUs only).
+
+    The -include stays relative (resolved from the compiler cwd, the build
+    dir); an absolute path would poison ccache keys.
+    """
+    if not pch_enabled():
+        return ""
+    return f"""
+# ESPHome precompiled header (see esphome/build_helpers/pch.py).
+# OBJECT_DEPENDS is on the header, not the .gch: pch-baked headers drop
+# out of TU depfiles, and prepare_pch() touches the header on rebuild.
+target_compile_options(${{COMPONENT_LIB}} PRIVATE
+    "$<$<COMPILE_LANGUAGE:CXX>:-Winvalid-pch>"
+    "$<$<COMPILE_LANGUAGE:CXX>:-include>"
+    "$<$<COMPILE_LANGUAGE:CXX>:{PCH_HEADER_NAME}>"
+)
+set_source_files_properties(${{app_sources}} PROPERTIES
+    OBJECT_DEPENDS "${{CMAKE_BINARY_DIR}}/{PCH_HEADER_NAME}")
 """
+
+
+def discard_pch() -> None:
+    """Drop the pch sidecars in the IDF build dir."""
+    pch.discard_pch(CORE.relative_build_path("build"))
+
+
+def prepare_pch() -> None:
+    """Build the .gch right before ninja, after every reconfigure, so the
+    compile_commands.json flags and the sdkconfig are the settled ones."""
+    if not pch_enabled():
+        # Self-cleaning escape hatch: drop any previously built .gch
+        pch.discard_pch(CORE.relative_build_path("build"))
+        return
+    sdkconfig_path = CORE.relative_build_path(f"sdkconfig.{CORE.name}")
+    try:
+        sdkconfig = sdkconfig_path.read_text(encoding="utf-8")
+    except OSError as err:
+        # Fail closed: the sdkconfig is the .sum's only config identity for
+        # sdkconfig.h-only options; a stand-in marker would collide
+        _LOGGER.warning(
+            "Could not read %s; compiling without the pch: %s", sdkconfig_path, err
+        )
+        pch.discard_pch(CORE.relative_build_path("build"))
+        return
+    pch.prepare_pch(
+        CORE.relative_build_path("build"),
+        PCH_DEFAULT_HEADERS,
+        (
+            str(idf_version()),
+            CORE.cpp_standard or "",
+            sdkconfig,
+            *get_project_compile_flags(),
+            *get_project_cxx_compile_flags(),
+        ),
+    )
 
 
 def write_project(
@@ -300,6 +366,14 @@ def write_project(
         CORE.relative_src_path("CMakeLists.txt"),
         get_component_cmakelists(),
     )
+
+    if pch_enabled():
+        write_file_if_changed(
+            CORE.relative_build_path("build", PCH_HEADER_NAME),
+            pch_header_text(PCH_DEFAULT_HEADERS),
+        )
+        # Consumers carry the -include; gate the ccache relaxation on it
+        mark_pch_emitted()
 
     # Snapshot the exclusion set so has_outdated_files() can trigger a
     # discovery reconfigure when it changes. Excluded components never
