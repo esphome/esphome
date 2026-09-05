@@ -141,8 +141,22 @@ def parse_test_filename(test_file: Path) -> tuple[str, str]:
     return parts[0], "all"
 
 
+# Platform sources that live under another component's directory but are compiled
+# only by the fixtures of their own domain: (parent directory, sub-directory) -> the
+# component whose tests cover them. Kept explicit on purpose: base-domain fixtures
+# routinely instantiate generic platforms (tests/components/sensor uses template and
+# copy), so any rule derived from fixture contents reroutes unrelated components.
+SUBDIR_PLATFORM_TEST_COMPONENTS: dict[tuple[str, str], str] = {
+    ("usb_uart", "bridge"): "bridge",
+}
+
+
 def get_component_from_path(file_path: str) -> str | None:
     """Extract component name from a file path.
+
+    Sources listed in SUBDIR_PLATFORM_TEST_COMPONENTS (for example
+    esphome/components/usb_uart/bridge/) are attributed to the component whose
+    fixtures compile them (bridge) rather than the parent directory (usb_uart).
 
     Args:
         file_path: Path to a file (e.g., "esphome/components/wifi/wifi.cpp"
@@ -158,6 +172,10 @@ def get_component_from_path(file_path: str) -> str | None:
             # like .gitignore or README.md in the components directory itself
             component_name = parts[2]
             if "." not in component_name:
+                if file_path.startswith(ESPHOME_COMPONENTS_PATH) and len(parts) >= 5:
+                    return SUBDIR_PLATFORM_TEST_COMPONENTS.get(
+                        (component_name, parts[3]), component_name
+                    )
                 return component_name
     return None
 

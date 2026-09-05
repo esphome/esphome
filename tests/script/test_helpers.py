@@ -1233,6 +1233,20 @@ def test_parse_list_components_output(output: str, expected: list[str]) -> None:
         ("esphome/components/uart/uart.h", "uart"),
         ("esphome/components/api/api_server.cpp", "api"),
         ("esphome/components/sensor/sensor.cpp", "sensor"),
+        # Platform sources under another component's directory that only the
+        # platform domain's fixtures compile (SUBDIR_PLATFORM_TEST_COMPONENTS)
+        ("esphome/components/usb_uart/bridge/usb_uart_bridge.cpp", "bridge"),
+        ("esphome/components/usb_uart/bridge/__init__.py", "bridge"),
+        ("esphome/components/usb_uart/usb_uart.cpp", "usb_uart"),
+        # Sub-directory platforms stay with their parent component, including the
+        # generic ones that base-domain fixtures instantiate (sensor uses template
+        # and copy; light uses binary; ota uses esphome)
+        ("esphome/components/adc128s102/sensor/adc128s102_sensor.cpp", "adc128s102"),
+        ("esphome/components/template/sensor/template_sensor.cpp", "template"),
+        ("esphome/components/copy/sensor/copy_sensor.cpp", "copy"),
+        ("esphome/components/binary/light/binary_light_output.h", "binary"),
+        ("esphome/components/esphome/ota/ota_esphome.cpp", "esphome"),
+        ("esphome/components/gpio/one_wire/gpio_one_wire.cpp", "gpio"),
         # Test files
         ("tests/components/uart/test.esp32-idf.yaml", "uart"),
         ("tests/components/wifi/test.esp8266-ard.yaml", "wifi"),

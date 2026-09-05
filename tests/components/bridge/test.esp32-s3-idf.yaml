@@ -1,0 +1,17 @@
+packages:
+  bridge: !include common.yaml
+  bridge_dual: !include common_dual.yaml
+
+bridge:
+  - platform: usb_uart
+    uart_id: uart_0
+    usb_cdc_acm_id: cdc_acm_1
+    dtr_pin: 40
+    rts_pin: 41
+  - platform: usb_uart
+    uart_id: uart_1
+    usb_cdc_acm_id: cdc_acm_2
+    # GPIO19/20 are USB D-/D+ on the S3 (which the CDC side itself uses); use
+    # unrelated free pins here.
+    dtr_pin: 17
+    rts_pin: 18

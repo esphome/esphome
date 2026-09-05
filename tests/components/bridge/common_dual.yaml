@@ -1,0 +1,12 @@
+# Second UART/CDC pair for a two-bridge setup. Kept out of common.yaml because the
+# ESP32-S2 has only two UART controllers and the logger occupies one, so a second
+# uart there would fail at runtime.
+uart:
+  - id: uart_1
+    tx_pin: 15
+    rx_pin: 16
+    baud_rate: 115200
+
+usb_cdc_acm:
+  interfaces:
+    - id: cdc_acm_2

@@ -94,7 +94,16 @@ def set_core_config() -> Generator[SetCoreConfigCallable]:
             CORE.data[platform.value] = platform_data
 
         config.path_context.set([])
-        final_validate.full_config.set(full_config or Config())
+        # Always install a real Config: in production fv.full_config is always a
+        # FinalValidateConfig (with, for example, a .data attribute), never a plain
+        # dict like most tests pass in. Tests that construct their own Config (to
+        # populate declare_ids and the like) keep it as-is.
+        if not isinstance(full_config, Config):
+            full = Config()
+            if full_config:
+                full.update(full_config)
+            full_config = full
+        final_validate.full_config.set(full_config)
 
     yield setter
 

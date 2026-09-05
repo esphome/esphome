@@ -8,13 +8,43 @@
 #include "esphome/components/uart/uart_component.h"
 
 #include <atomic>
+#include <cstring>
 #include <functional>
+#include <memory>
 #include "freertos/ringbuf.h"
+#include "esp_err.h"
 #include "tinyusb_cdc_acm.h"
 
 namespace esphome::usb_cdc_acm {
 
 static const uint8_t EVENT_QUEUE_SIZE = 12;
+
+// Drain up to out_buf_sz bytes from a byte ring buffer, handling FreeRTOS's wrapped
+// case with a second read. Shared with the usb_uart bridge platform, whose worker
+// tasks drain the same ring buffers.
+inline esp_err_t ringbuf_read_bytes(RingbufHandle_t ring_buf, uint8_t *out_buf, size_t out_buf_sz, size_t *rx_data_size,
+                                    TickType_t x_ticks_to_wait) {
+  size_t read_sz;
+  uint8_t *buf = static_cast<uint8_t *>(xRingbufferReceiveUpTo(ring_buf, &read_sz, x_ticks_to_wait, out_buf_sz));
+
+  if (buf == nullptr) {
+    return ESP_FAIL;
+  }
+
+  memcpy(out_buf, buf, read_sz);
+  vRingbufferReturnItem(ring_buf, (void *) buf);
+  *rx_data_size = read_sz;
+
+  // Buffer's data can be wrapped, in which case we should perform another read
+  buf = static_cast<uint8_t *>(xRingbufferReceiveUpTo(ring_buf, &read_sz, 0, out_buf_sz - *rx_data_size));
+  if (buf != nullptr) {
+    memcpy(out_buf + *rx_data_size, buf, read_sz);
+    vRingbufferReturnItem(ring_buf, (void *) buf);
+    *rx_data_size += read_sz;
+  }
+
+  return ESP_OK;
+}
 
 // Callback types for line coding and line state changes
 using LineCodingCallback = std::function<void(uint32_t bit_rate, uint8_t stop_bits, uint8_t parity, uint8_t data_bits)>;
@@ -103,6 +133,8 @@ class USBCDCACMInstance final : public uart::UARTComponent, public Parented<USBC
 
   RingbufHandle_t usb_tx_ringbuf_{nullptr};
   RingbufHandle_t usb_rx_ringbuf_{nullptr};
+  // TX task staging buffer; heap-allocated so its size does not inflate the task stack.
+  std::unique_ptr<uint8_t[]> usb_tx_staging_{nullptr};
   // Non-zero while the TX task holds bytes it has pulled from the ring buffer but not
   // yet handed to TinyUSB; lets flush() account for data that is in neither the ring
   // buffer nor TinyUSB's FIFO.

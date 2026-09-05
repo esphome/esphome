@@ -6,6 +6,7 @@
 #include "esphome/core/log.h"
 
 #include <cstring>
+#include <new>
 #include <sys/param.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/ringbuf.h"
@@ -104,30 +105,6 @@ static void tinyusb_cdc_line_coding_changed_callback(int itf, cdcacm_event_t *ev
   instance->queue_line_coding_event(bit_rate, stop_bits, parity, data_bits);
 }
 
-static esp_err_t ringbuf_read_bytes(RingbufHandle_t ring_buf, uint8_t *out_buf, size_t out_buf_sz, size_t *rx_data_size,
-                                    TickType_t x_ticks_to_wait) {
-  size_t read_sz;
-  uint8_t *buf = static_cast<uint8_t *>(xRingbufferReceiveUpTo(ring_buf, &read_sz, x_ticks_to_wait, out_buf_sz));
-
-  if (buf == nullptr) {
-    return ESP_FAIL;
-  }
-
-  memcpy(out_buf, buf, read_sz);
-  vRingbufferReturnItem(ring_buf, (void *) buf);
-  *rx_data_size = read_sz;
-
-  // Buffer's data can be wrapped, in which case we should perform another read
-  buf = static_cast<uint8_t *>(xRingbufferReceiveUpTo(ring_buf, &read_sz, 0, out_buf_sz - *rx_data_size));
-  if (buf != nullptr) {
-    memcpy(out_buf + *rx_data_size, buf, read_sz);
-    vRingbufferReturnItem(ring_buf, (void *) buf);
-    *rx_data_size += read_sz;
-  }
-
-  return ESP_OK;
-}
-
 //==============================================================================
 // USBCDCACMInstance Implementation
 //==============================================================================
@@ -143,6 +120,13 @@ void USBCDCACMInstance::setup() {
   this->usb_rx_ringbuf_ = xRingbufferCreate(CONFIG_TINYUSB_CDC_RX_BUFSIZE, RINGBUF_TYPE_BYTEBUF);
   if (this->usb_rx_ringbuf_ == nullptr) {
     ESP_LOGE(TAG, "USB RX buffer creation error for itf %d", this->itf_);
+    this->parent_->mark_failed();
+    return;
+  }
+
+  this->usb_tx_staging_.reset(new (std::nothrow) uint8_t[CONFIG_TINYUSB_CDC_TX_BUFSIZE]);
+  if (this->usb_tx_staging_ == nullptr) {
+    ESP_LOGE(TAG, "USB TX staging buffer allocation failed for itf %d", this->itf_);
     this->parent_->mark_failed();
     return;
   }
@@ -192,7 +176,7 @@ void USBCDCACMInstance::usb_tx_task_fn(void *arg) {
 }
 
 void USBCDCACMInstance::usb_tx_task() {
-  uint8_t data[CONFIG_TINYUSB_CDC_TX_BUFSIZE] = {0};
+  uint8_t *data = this->usb_tx_staging_.get();
   size_t tx_data_size = 0;
   // Back-dated so a stall within the first LOG_THROTTLE_MS of uptime still logs
   // immediately (unsigned arithmetic keeps this wrap-safe).

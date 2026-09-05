@@ -160,6 +160,7 @@ void IDFUARTComponent::load_settings(bool dump_config) {
     this->mark_failed();
     return;
   }
+  this->last_good_baud_ = this->baud_rate_;
 
   int8_t tx = this->tx_pin_ != nullptr ? this->tx_pin_->get_pin() : -1;
   int8_t rx = this->rx_pin_ != nullptr ? this->rx_pin_->get_pin() : -1;
@@ -189,18 +190,10 @@ void IDFUARTComponent::load_settings(bool dump_config) {
     setup_pin_if_needed(this->tx_pin_);
   }
 
-  uint32_t invert = 0;
-  if (this->tx_pin_ != nullptr && this->tx_pin_->is_inverted()) {
-    invert |= UART_SIGNAL_TXD_INV;
-  }
-  if (this->rx_pin_ != nullptr && this->rx_pin_->is_inverted()) {
-    invert |= UART_SIGNAL_RXD_INV;
-  }
-  if (this->flow_control_pin_ != nullptr && this->flow_control_pin_->is_inverted()) {
-    invert |= UART_SIGNAL_RTS_INV;
-  }
-
-  err = uart_set_line_inverse(this->uart_num_, invert);
+  // apply_line_settings_() re-applies inversion below; this earlier write is the
+  // load-bearing one -- it sets the idle level before uart_set_pin() attaches the
+  // pins, so an inverted TX line never briefly presents the wrong idle level.
+  err = uart_set_line_inverse(this->uart_num_, this->line_inversion_mask_());
   if (err != ESP_OK) {
     ESP_LOGW(TAG, "uart_set_line_inverse failed: %s", esp_err_to_name(err));
     this->mark_failed();
@@ -214,25 +207,7 @@ void IDFUARTComponent::load_settings(bool dump_config) {
     return;
   }
 
-  err = uart_set_rx_full_threshold(this->uart_num_, this->rx_full_threshold_);
-  if (err != ESP_OK) {
-    ESP_LOGW(TAG, "uart_set_rx_full_threshold failed: %s", esp_err_to_name(err));
-    this->mark_failed();
-    return;
-  }
-
-  err = uart_set_rx_timeout(this->uart_num_, this->rx_timeout_);
-  if (err != ESP_OK) {
-    ESP_LOGW(TAG, "uart_set_rx_timeout failed: %s", esp_err_to_name(err));
-    this->mark_failed();
-    return;
-  }
-
-  // Per ESP-IDF docs, uart_set_mode() must be called only after uart_driver_install().
-  auto mode = this->flow_control_pin_ != nullptr ? UART_MODE_RS485_HALF_DUPLEX : UART_MODE_UART;
-  err = uart_set_mode(this->uart_num_, mode);
-  if (err != ESP_OK) {
-    ESP_LOGW(TAG, "uart_set_mode failed: %s", esp_err_to_name(err));
+  if (this->apply_line_settings_() != ESP_OK) {
     this->mark_failed();
     return;
   }
@@ -248,6 +223,84 @@ void IDFUARTComponent::load_settings(bool dump_config) {
     ESP_LOGCONFIG(TAG, "Reloaded UART %u", this->uart_num_);
     this->dump_config();
   }
+}
+
+uint32_t IDFUARTComponent::line_inversion_mask_() {
+  uint32_t invert = 0;
+  if (this->tx_pin_ != nullptr && this->tx_pin_->is_inverted()) {
+    invert |= UART_SIGNAL_TXD_INV;
+  }
+  if (this->rx_pin_ != nullptr && this->rx_pin_->is_inverted()) {
+    invert |= UART_SIGNAL_RXD_INV;
+  }
+  if (this->flow_control_pin_ != nullptr && this->flow_control_pin_->is_inverted()) {
+    invert |= UART_SIGNAL_RTS_INV;
+  }
+  return invert;
+}
+
+esp_err_t IDFUARTComponent::apply_line_settings_() {
+  // uart_param_config()'s internal uart_hal_init() resets these, so re-apply after
+  // every uart_param_config() call (driver install and live reconfiguration alike).
+  esp_err_t err = uart_set_line_inverse(this->uart_num_, this->line_inversion_mask_());
+  if (err != ESP_OK) {
+    ESP_LOGW(TAG, "uart_set_line_inverse failed: %s", esp_err_to_name(err));
+    return err;
+  }
+
+  err = uart_set_rx_full_threshold(this->uart_num_, this->rx_full_threshold_);
+  if (err != ESP_OK) {
+    ESP_LOGW(TAG, "uart_set_rx_full_threshold failed: %s", esp_err_to_name(err));
+    return err;
+  }
+
+  err = uart_set_rx_timeout(this->uart_num_, this->rx_timeout_);
+  if (err != ESP_OK) {
+    ESP_LOGW(TAG, "uart_set_rx_timeout failed: %s", esp_err_to_name(err));
+    return err;
+  }
+
+  // Per ESP-IDF docs, uart_set_mode() must be called only after uart_driver_install().
+  auto mode = this->flow_control_pin_ != nullptr ? UART_MODE_RS485_HALF_DUPLEX : UART_MODE_UART;
+  err = uart_set_mode(this->uart_num_, mode);
+  if (err != ESP_OK) {
+    ESP_LOGW(TAG, "uart_set_mode failed: %s", esp_err_to_name(err));
+    return err;
+  }
+
+  return ESP_OK;
+}
+
+void IDFUARTComponent::apply_settings_live() {
+  // If the driver isn't installed yet there are no live registers to update; do a
+  // full reload (which installs the driver) instead.
+  if (!uart_is_driver_installed(this->uart_num_)) {
+    this->load_settings(false);
+    return;
+  }
+  // Leaves the driver ring buffers alone (blocked read/write tasks are undisturbed)
+  // but flushes both hardware FIFOs, discarding in-flight bytes -- inherent to live
+  // reconfiguration; hosts normally re-code the line at port-open before data flows.
+  uart_config_t uart_config = this->get_config_();
+  esp_err_t err = uart_param_config(this->uart_num_, &uart_config);
+  if (err != ESP_OK) {
+    // Unachievable baud rates land here with the registers already reset (via the
+    // internal uart_hal_init()). Restore the last framing that worked; if that also
+    // fails (or none is recorded yet) the port is left reset -- mark failed.
+    ESP_LOGW(TAG, "uart_param_config (live) failed: %s; restoring %" PRIu32 " baud", esp_err_to_name(err),
+             this->last_good_baud_);
+    this->baud_rate_ = this->last_good_baud_;
+    uart_config = this->get_config_();
+    if (this->last_good_baud_ == 0 || uart_param_config(this->uart_num_, &uart_config) != ESP_OK) {
+      ESP_LOGE(TAG, "UART left unconfigured after failed live reconfigure");
+      this->mark_failed();
+      return;
+    }
+  } else {
+    this->last_good_baud_ = this->baud_rate_;
+  }
+  // Re-apply what uart_param_config() clobbered; errors are logged inside.
+  this->apply_line_settings_();
 }
 
 void IDFUARTComponent::dump_config() {

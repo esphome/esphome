@@ -100,6 +100,7 @@ esphome/components/bmp581_i2c/* @danielkent-net @kahrendt
 esphome/components/bmp581_spi/* @danielkent-net @kahrendt
 esphome/components/bp1658cj/* @Cossid
 esphome/components/bp5758d/* @Cossid
+esphome/components/bridge/* @kbx81
 esphome/components/bthome_mithermometer/* @nagyrobi
 esphome/components/button/* @esphome/core
 esphome/components/bytebuffer/* @clydebarrow
@@ -596,6 +597,7 @@ esphome/components/uponor_smatrix/* @kroimon
 esphome/components/usb_cdc_acm/* @kbx81
 esphome/components/usb_host/* @clydebarrow
 esphome/components/usb_uart/* @clydebarrow
+esphome/components/usb_uart/bridge/* @kbx81
 esphome/components/valve/* @esphome/core
 esphome/components/vbus/* @ssieb
 esphome/components/veml3235/* @kbx81
