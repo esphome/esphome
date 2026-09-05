@@ -25,9 +25,9 @@ static const size_t DATA_TIMEOUT_MS = 50;
 
 static const uint32_t RING_BUFFER_DURATION_MS = 120;
 
-#ifdef CONFIG_IDF_TARGET_ESP32P4
-// ESP32-P4 PIE-optimized esp-nn kernels (e.g. depthwise_conv_s8_ch1_pie) require
-// significantly more stack than other variants, causing stack protection faults at 3072.
+#if defined(CONFIG_IDF_TARGET_ESP32P4) || defined(CONFIG_ESP_SR_EXTERNAL_MODEL_PATH)
+// ESP32-P4 inference and ESP-SR can require vector context to be saved on the
+// inference task's stack during a context switch.
 static const uint32_t INFERENCE_TASK_STACK_SIZE = 8192;
 #else
 static const uint32_t INFERENCE_TASK_STACK_SIZE = 3072;
