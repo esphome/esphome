@@ -275,8 +275,8 @@ async def random_effect_to_code(config, effect_id):
         cv.Optional(
             CONF_COLORS,
             default=[
-                {CONF_STATE: True, CONF_DURATION: "0.5s"},
-                {CONF_STATE: False, CONF_DURATION: "0.5s"},
+                {CONF_STATE: "ON", CONF_DURATION: "0.5s"},
+                {CONF_STATE: "OFF", CONF_DURATION: "0.5s"},
             ],
         ): cv.All(
             cv.ensure_list(

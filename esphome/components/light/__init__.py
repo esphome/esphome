@@ -403,10 +403,10 @@ def _validate_initial_state(config: ConfigType) -> ConfigType:
     """
     if (initial_state_config := config.get(CONF_INITIAL_STATE)) is not None:
         for key, value in initial_state_config.items():
+            # check_not_templatable() can't be used since it doesn't take a path.
             if isinstance(value, Lambda):
                 raise cv.Invalid(
-                    "initial_state values must be constants, templates (!lambda) "
-                    "are not supported here",
+                    "initial_state values may not be lambdas",
                     path=[CONF_INITIAL_STATE, key],
                 )
     return config

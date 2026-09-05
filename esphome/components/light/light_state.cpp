@@ -58,7 +58,7 @@ void LightState::setup() {
           case LIGHT_RESTORE_DEFAULT_INITIAL_STATE:
             // Leave `recovered.state` as initial_state's configured value
             break;
-          default:
+          default:  // default used here since only a subset of cases are handled in this inner switch
             recovered.state = false;
             break;
         }
