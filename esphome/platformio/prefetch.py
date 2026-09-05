@@ -950,8 +950,10 @@ def main(argv: list[str]) -> int:
     """Subprocess entry point: ``prefetch <build_dir> <env_name>``."""
     from esphome.core import CORE
     from esphome.log import setup_log
+    from esphome.platformio.runner import patch_registry_private_packages
 
     signal.signal(signal.SIGTERM, _sigterm)
+    patch_registry_private_packages()
     raw_level = os.environ.get("ESPHOME_PREFETCH_LOG_LEVEL")
     try:
         level = int(raw_level) if raw_level is not None else logging.INFO
