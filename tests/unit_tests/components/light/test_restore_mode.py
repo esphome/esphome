@@ -5,7 +5,7 @@ import pytest
 from esphome.components.light import LIGHT_SCHEMA
 from esphome.components.light.types import LightState
 import esphome.config_validation as cv
-from esphome.core import ID
+from esphome.core import ID, Lambda
 
 
 def _base_config() -> dict:
@@ -45,3 +45,10 @@ def test_other_restore_modes_do_not_require_initial_state(restore_mode: str) -> 
     config = _base_config()
     config["restore_mode"] = restore_mode
     LIGHT_SCHEMA(config)
+
+
+def test_initial_state_rejects_lambda() -> None:
+    config = _base_config()
+    config["initial_state"] = {"state": Lambda("return true;")}
+    with pytest.raises(cv.Invalid, match="templates .!lambda. are not supported"):
+        LIGHT_SCHEMA(config)

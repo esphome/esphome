@@ -396,8 +396,25 @@ def _validate_restore_mode(config: ConfigType) -> ConfigType:
     return config
 
 
+def _validate_initial_state(config: ConfigType) -> ConfigType:
+    """initial_state's values are baked into a compile-time constant at setup(), so a
+    templated (!lambda) value isn't supported here -- reject it with a clear config
+    error instead of failing later in codegen with an opaque ValueError.
+    """
+    if (initial_state_config := config.get(CONF_INITIAL_STATE)) is not None:
+        for key, value in initial_state_config.items():
+            if isinstance(value, Lambda):
+                raise cv.Invalid(
+                    "initial_state values must be constants, templates (!lambda) "
+                    "are not supported here",
+                    path=[CONF_INITIAL_STATE, key],
+                )
+    return config
+
+
 LIGHT_SCHEMA.add_extra(entity_duplicate_validator("light"))
 LIGHT_SCHEMA.add_extra(_validate_restore_mode)
+LIGHT_SCHEMA.add_extra(_validate_initial_state)
 
 BINARY_LIGHT_SCHEMA = LIGHT_SCHEMA.extend(
     {

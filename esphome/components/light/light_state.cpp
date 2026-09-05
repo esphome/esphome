@@ -50,12 +50,17 @@ void LightState::setup() {
       this->rtc_ = this->make_entity_preference<LightStateRTCState>();
       // Attempt to load from preferences, else fall back to default values
       if (!this->rtc_.load(&recovered)) {
-        if (this->restore_mode_ == LIGHT_RESTORE_DEFAULT_ON ||
-            this->restore_mode_ == LIGHT_RESTORE_INVERTED_DEFAULT_ON) {
-          recovered.state = true;
-        } else if (this->restore_mode_ != LIGHT_RESTORE_DEFAULT_INITIAL_STATE) {
-          // LIGHT_RESTORE_DEFAULT_INITIAL_STATE leaves `recovered.state` as initial state, others are default off
-          recovered.state = false;
+        switch (this->restore_mode_) {
+          case LIGHT_RESTORE_DEFAULT_ON:
+          case LIGHT_RESTORE_INVERTED_DEFAULT_ON:
+            recovered.state = true;
+            break;
+          case LIGHT_RESTORE_DEFAULT_INITIAL_STATE:
+            // Leave `recovered.state` as initial_state's configured value
+            break;
+          default:
+            recovered.state = false;
+            break;
         }
       } else if (this->restore_mode_ == LIGHT_RESTORE_INVERTED_DEFAULT_OFF ||
                  this->restore_mode_ == LIGHT_RESTORE_INVERTED_DEFAULT_ON) {
