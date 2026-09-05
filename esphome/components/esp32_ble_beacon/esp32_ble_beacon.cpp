@@ -67,6 +67,8 @@ void ESP32BLEBeacon::setup() {
       this->on_advertise_();
     }
   });
+  // A beacon always needs the device to advertise, and never releases the request
+  global_ble->advertising_start();
 }
 
 void ESP32BLEBeacon::on_advertise_() {
