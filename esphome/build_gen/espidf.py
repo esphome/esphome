@@ -18,7 +18,7 @@ from esphome.framework_helpers import (
     get_project_cxx_compile_flags,
     get_project_link_flags,
 )
-from esphome.helpers import mkdir_p, write_file_if_changed
+from esphome.helpers import get_bool_env, mkdir_p, write_file_if_changed
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -32,6 +32,46 @@ idf_build_get_property(esphome_cxx_compile_options CXX_COMPILE_OPTIONS)
 list(FILTER esphome_cxx_compile_options EXCLUDE REGEX "^-std=")
 list(APPEND esphome_cxx_compile_options "-std={standard}")
 idf_build_set_property(CXX_COMPILE_OPTIONS "${{esphome_cxx_compile_options}}")"""
+
+# Drops the app archive from ldgen's inputs so app-only edits skip the
+# sections.ld regeneration. Safe: no mapping fragment references it
+# (run_compile re-checks each build). Filters only the top-level call;
+# the prior definition stays reachable with an underscore prefix.
+_LDGEN_OVERRIDE = """\
+if(COMMAND __ldgen_get_lib_deps_of_target)
+    set_property(GLOBAL PROPERTY ESPHOME_LDGEN_ARMED 1)
+    function(__ldgen_get_lib_deps_of_target target out_list_var)
+        if(NOT COMMAND ___ldgen_get_lib_deps_of_target)
+            message(FATAL_ERROR "ESPHome ldgen override lost the original "
+                "implementation; set ESPHOME_LDGEN_FULL_DEPS=1 and rebuild.")
+        endif()
+        ___ldgen_get_lib_deps_of_target(${target} ${out_list_var})
+        if(out_list_var STREQUAL "ldgen_libraries")
+            set_property(GLOBAL PROPERTY ESPHOME_LDGEN_FILTERED 1)
+            list(LENGTH ${out_list_var} esphome_ldgen_before)
+            list(REMOVE_ITEM ${out_list_var} idf::src __idf_src)
+            list(LENGTH ${out_list_var} esphome_ldgen_after)
+            if(esphome_ldgen_before EQUAL esphome_ldgen_after)
+                message(@SEVERITY@ "ESPHome ldgen app archive exclusion matched "
+                    "nothing; app edits will regenerate sections.ld.")
+            endif()
+        endif()
+        set(${out_list_var} "${${out_list_var}}" PARENT_SCOPE)
+    endfunction()
+else()
+    message(@MISSING@ "ESPHome ldgen override target not found; "
+        "app edits will regenerate sections.ld.")
+endif()"""
+
+# Runs after project() so the walk has happened; catches the remaining
+# silent path where the top-level out-var was renamed.
+_LDGEN_OVERRIDE_CHECK = """\
+get_property(esphome_ldgen_armed GLOBAL PROPERTY ESPHOME_LDGEN_ARMED)
+get_property(esphome_ldgen_filtered GLOBAL PROPERTY ESPHOME_LDGEN_FILTERED)
+if(esphome_ldgen_armed AND NOT esphome_ldgen_filtered)
+    message(@SEVERITY@ "ESPHome ldgen override never filtered the app "
+        "archive; app edits will regenerate sections.ld.")
+endif()"""
 
 
 def get_available_components() -> list[str] | None:
@@ -122,6 +162,22 @@ def get_project_cmakelists(
         else ""
     )
 
+    # Stops the ~3s sections.ld regeneration on app-only edits; see
+    # _LDGEN_OVERRIDE. ESPHOME_LDGEN_FULL_DEPS=1 restores stock behavior;
+    # ESPHOME_LDGEN_STRICT=1 (CI) fails the configure when an IDF bump
+    # breaks the override instead of degrading to stock deps.
+    if get_bool_env("ESPHOME_LDGEN_FULL_DEPS"):
+        ldgen_override = ""
+        ldgen_override_check = ""
+    else:
+        strict = get_bool_env("ESPHOME_LDGEN_STRICT")
+        severity = "FATAL_ERROR" if strict else "WARNING"
+        missing = "FATAL_ERROR" if strict else "STATUS"
+        ldgen_override = _LDGEN_OVERRIDE.replace("@SEVERITY@", severity).replace(
+            "@MISSING@", missing
+        )
+        ldgen_override_check = _LDGEN_OVERRIDE_CHECK.replace("@SEVERITY@", severity)
+
     # CMake variables registered via cg.add_cmake_arg(). Emitted before
     # include(project.cmake) so values like EXCLUDE_COMPONENTS are already
     # set when project.cmake seeds the component list, and on minimal
@@ -199,6 +255,8 @@ set(EXTRA_COMPONENT_DIRS ${{CMAKE_SOURCE_DIR}}/src)
 
 include($ENV{{IDF_PATH}}/tools/cmake/project.cmake)
 
+{ldgen_override}
+
 {cpp_standard_options}
 
 {cxx_compile_options}
@@ -210,6 +268,8 @@ include($ENV{{IDF_PATH}}/tools/cmake/project.cmake)
 {builtin_components_property}
 
 project({CORE.name})
+
+{ldgen_override_check}
 
 # Emit raw JSON size data for ESPHome to read post-build.
 add_custom_command(

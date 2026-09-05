@@ -163,6 +163,53 @@ def test_has_discovered_components_after_configure(tmp_path: Path) -> None:
     assert has_discovered_components()
 
 
+@pytest.mark.parametrize("minimal", [False, True])
+def test_get_project_cmakelists_emits_ldgen_override(
+    minimal: bool, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Both renders override the ldgen dep walker to drop the app archive,
+    after include(project.cmake) which defines the original."""
+    monkeypatch.delenv("ESPHOME_LDGEN_FULL_DEPS", raising=False)
+    monkeypatch.delenv("ESPHOME_LDGEN_STRICT", raising=False)
+    content = _render(minimal=minimal)
+    assert "REMOVE_ITEM ${out_list_var} idf::src __idf_src" in content
+    # Quoted so spaced elements survive and an empty list stays defined
+    assert 'set(${out_list_var} "${${out_list_var}}" PARENT_SCOPE)' in content
+    assert 'message(WARNING "ESPHome ldgen app archive exclusion' in content
+    assert 'message(STATUS "ESPHome ldgen override target not found' in content
+    assert 'message(WARNING "ESPHome ldgen override never filtered' in content
+    assert content.index("tools/cmake/project.cmake") < content.index(
+        "function(__ldgen_get_lib_deps_of_target"
+    )
+    # The never-filtered check must run after project() has walked the deps
+    assert content.index("project(test)") < content.index("esphome_ldgen_armed GLOBAL")
+
+
+def test_get_project_cmakelists_ldgen_strict_fails_closed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """ESPHOME_LDGEN_STRICT turns both degradation paths into hard errors so
+    CI fails right away when an IDF bump breaks the override."""
+    monkeypatch.delenv("ESPHOME_LDGEN_FULL_DEPS", raising=False)
+    monkeypatch.setenv("ESPHOME_LDGEN_STRICT", "1")
+    content = _render()
+    assert 'message(FATAL_ERROR "ESPHome ldgen app archive exclusion' in content
+    assert 'message(FATAL_ERROR "ESPHome ldgen override target not found' in content
+    assert 'message(FATAL_ERROR "ESPHome ldgen override never filtered' in content
+    assert "@SEVERITY@" not in content
+    assert "@MISSING@" not in content
+
+
+def test_get_project_cmakelists_ldgen_full_deps_escape_hatch(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """ESPHOME_LDGEN_FULL_DEPS restores stock ldgen behavior."""
+    monkeypatch.setenv("ESPHOME_LDGEN_FULL_DEPS", "true")
+    content = _render()
+    assert "__ldgen_get_lib_deps_of_target" not in content
+    assert "esphome_ldgen_armed" not in content
+
+
 def test_get_project_cmakelists_uses_supplied_builtin_components() -> None:
     """A cached list replaces project_description.json and is still filtered
     by EXCLUDE_COMPONENTS."""
