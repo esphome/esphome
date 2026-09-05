@@ -5,6 +5,8 @@ from esphome.components.uart import CONF_DEBUG_PREFIX, CONF_FLUSH_TIMEOUT, UARTC
 from esphome.components.usb_host import (
     get_max_packet_size,
     register_usb_client,
+    require_bulk_transfers,
+    require_control_transfers,
     usb_device_schema,
 )
 import esphome.config_validation as cv
@@ -169,6 +171,10 @@ async def to_code(config: list[ConfigType]) -> None:
     )
     output_chunk_count = max(max_buffer_size // get_max_packet_size(), 2) + 1
     cg.add_define("USB_UART_OUTPUT_CHUNK_COUNT", output_chunk_count)
+    # The refactored usb_host compiles its transfer paths only when a consumer requests
+    # them (Linux-URB-style submission engine); usb_uart needs bulk and control.
+    require_bulk_transfers()
+    require_control_transfers()
 
     for device in config:
         var = await register_usb_client(device)
