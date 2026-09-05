@@ -28,6 +28,7 @@ from esphome.const import (
 )
 from esphome.core import CORE, ID, EsphomeError, Lambda
 from esphome.cpp_generator import LambdaExpression, MockObj, TemplateArgsType
+from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 from esphome.types import ConfigType
 
 from .types import (
@@ -47,6 +48,19 @@ from .types import (
 )
 
 CONF_INCLUDE_NONE = "include_none"
+
+
+@schema_extractor("one_of")
+def validate_light_state(value):
+    """Validate a light on/off state.
+
+    Presented as 'ON'/'OFF' to schema consumers (e.g. the dashboard), but cv.boolean
+    already accepts those spellings too, along with 'true'/'false', 'yes'/'no' and
+    'enable'/'disable'.
+    """
+    if value == SCHEMA_EXTRACT:
+        return "ON", "OFF"
+    return cv.boolean(value)
 
 
 @automation.register_action(
@@ -78,7 +92,7 @@ async def light_toggle_to_code(config, action_id, template_arg, args):
 LIGHT_STATE_SCHEMA = cv.Schema(
     {
         cv.Optional(CONF_COLOR_MODE): cv.enum(COLOR_MODES, upper=True, space="_"),
-        cv.Optional(CONF_STATE): cv.templatable(cv.boolean),
+        cv.Optional(CONF_STATE): cv.templatable(validate_light_state),
         cv.Optional(CONF_BRIGHTNESS): cv.templatable(cv.percentage),
         cv.Optional(CONF_COLOR_BRIGHTNESS): cv.templatable(cv.percentage),
         cv.Optional(CONF_RED): cv.templatable(cv.percentage),

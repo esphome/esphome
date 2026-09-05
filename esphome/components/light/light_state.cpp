@@ -46,11 +46,22 @@ void LightState::setup() {
     case LIGHT_RESTORE_DEFAULT_ON:
     case LIGHT_RESTORE_INVERTED_DEFAULT_OFF:
     case LIGHT_RESTORE_INVERTED_DEFAULT_ON:
+    case LIGHT_RESTORE_DEFAULT_INITIAL_STATE:
       this->rtc_ = this->make_entity_preference<LightStateRTCState>();
       // Attempt to load from preferences, else fall back to default values
       if (!this->rtc_.load(&recovered)) {
-        recovered.state = (this->restore_mode_ == LIGHT_RESTORE_DEFAULT_ON ||
-                           this->restore_mode_ == LIGHT_RESTORE_INVERTED_DEFAULT_ON);
+        switch (this->restore_mode_) {
+          case LIGHT_RESTORE_DEFAULT_ON:
+          case LIGHT_RESTORE_INVERTED_DEFAULT_ON:
+            recovered.state = true;
+            break;
+          case LIGHT_RESTORE_DEFAULT_INITIAL_STATE:
+            // Leave `recovered.state` as initial_state's configured value
+            break;
+          default:  // default used here since only a subset of cases are handled in this inner switch
+            recovered.state = false;
+            break;
+        }
       } else if (this->restore_mode_ == LIGHT_RESTORE_INVERTED_DEFAULT_OFF ||
                  this->restore_mode_ == LIGHT_RESTORE_INVERTED_DEFAULT_ON) {
         // Inverted restore state
@@ -68,6 +79,10 @@ void LightState::setup() {
       break;
     case LIGHT_ALWAYS_ON:
       recovered.state = true;
+      break;
+    case LIGHT_ALWAYS_INITIAL_STATE:
+      // Skip the restore step entirely -- recovered already holds initial_state's
+      // values from the initial_state_callback_ applied above.
       break;
   }
 
@@ -392,6 +407,16 @@ void LightState::disable_loop_if_idle_() {
 }
 
 void LightState::save_remote_values_() {
+  switch (this->restore_mode_) {
+    case LIGHT_ALWAYS_OFF:
+    case LIGHT_ALWAYS_ON:
+    case LIGHT_ALWAYS_INITIAL_STATE:
+      // These modes never restore, so there is nothing to save.
+      return;
+    default:
+      break;
+  }
+
   LightStateRTCState saved;
   saved.color_mode = this->remote_values.get_color_mode();
   switch (this->restore_mode_) {
