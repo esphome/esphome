@@ -60,3 +60,4 @@ ICON_SOLAR_POWER = "mdi:solar-power"
 KEY_METADATA = "metadata"
 
 UNIT_AMPERE_HOUR = "Ah"
+UNIT_MILLIAMPERE_HOUR = "mAh"

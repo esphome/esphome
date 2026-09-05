@@ -1,0 +1,22 @@
+sensor:
+  - platform: bq27220
+    id: bq27220_id
+    i2c_id: i2c_bus
+    address: 0x55
+    update_interval: 60s
+    voltage:
+      name: "Battery Voltage"
+    current:
+      name: "Battery Current"
+    battery_level:
+      name: "Battery"
+    temperature:
+      name: "Battery Temperature"
+    remaining_capacity:
+      name: "Battery Remaining"
+    full_charge_capacity:
+      name: "Battery Full Capacity"
+    time_to_empty:
+      name: "Time to Empty"
+    state_of_health:
+      name: "Battery Health"
