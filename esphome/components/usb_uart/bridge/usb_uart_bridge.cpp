@@ -160,6 +160,18 @@ void USBUARTBridge::dump_config() {
   ESP_LOGCONFIG(TAG, "  USB CDC Interface: %u", static_cast<uint8_t>(this->usb_cdc_parent_->get_itf()));
 }
 
+void USBUARTBridge::on_shutdown() {
+  // The UART (BUS) shuts down after this component (HARDWARE) and deletes its driver,
+  // freeing the ring buffer and mutexes the worker tasks block on. Suspending the
+  // tasks unlinks them from those objects first.
+  if (this->uart_rx_task_handle_ != nullptr) {
+    vTaskSuspend(this->uart_rx_task_handle_);
+  }
+  if (this->uart_tx_task_handle_ != nullptr) {
+    vTaskSuspend(this->uart_tx_task_handle_);
+  }
+}
+
 void USBUARTBridge::loop() {
   if (this->framing_restore_pending_ || this->resume_pending_) {
     // Let a host write that was in flight drain, FIFO included, before a reload flushes
@@ -185,6 +197,8 @@ void USBUARTBridge::loop() {
     return;
   }
 
+  // Deliberately not gated on tx_idle_(): a host that re-codes the line mid-stream
+  // wants the new framing now, and its own in-flight bytes are its concern.
   this->reload_pending_ = false;
   this->uart_settings_reload_();
   this->disable_loop();
