@@ -13,8 +13,56 @@
 
 namespace esphome::mdns {
 
+// Main-loop calls into LEAmDNS (update(), close()) can yield inside UdpContext::sendTimeout();
+// a packet arriving then re-enters LEAmDNS from lwIP on the same UdpContext and both sides free
+// the same tx pbufs (#18760). Received packets are only counted during such a call and drained
+// from the main loop afterwards.
+class GuardedMDNSResponder : public ::esp8266::MDNSImplementation::MDNSResponder {
+ public:
+  void update_guarded() {
+    this->run_guarded_([this]() { this->update(); });
+  }
+  void close_guarded() {
+    this->run_guarded_([this]() { this->close(); });
+  }
+
+ private:
+  template<typename F> void run_guarded_(F &&fn) {
+    UdpContext *ctx = this->m_pUDPContext;
+    if (ctx == nullptr) {
+      fn();
+      return;
+    }
+    // Set every time: a restart replaces the context together with its stock handler
+    ctx->onRx([this]() { this->on_rx_(); });
+    this->pending_rx_ = 0;
+    this->in_loop_call_ = true;
+    fn();
+    // Still counting here, so packets arriving during a yield in the drain queue behind it
+    while (this->pending_rx_ > 0) {
+      this->pending_rx_--;
+      this->_process(false);
+    }
+    this->in_loop_call_ = false;
+  }
+
+  // lwIP receive callback (SYS context)
+  void on_rx_() {
+    if (this->in_loop_call_) {
+      this->pending_rx_++;
+    } else {
+      this->_callProcess();
+    }
+  }
+
+  volatile bool in_loop_call_{false};
+  volatile uint8_t pending_rx_{0};
+};
+
+static GuardedMDNSResponder mdns_responder;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+
 static void register_esp8266(MDNSComponent *, StaticVector<MDNSService, MDNS_SERVICE_COUNT> &services) {
-  MDNS.begin(App.get_name().c_str());
+  mdns_responder.begin(App.get_name().c_str());
 
   for (const auto &service : services) {
     // Strip the leading underscore from the proto and service_type. While it is
@@ -30,10 +78,10 @@ static void register_esp8266(MDNSComponent *, StaticVector<MDNSService, MDNS_SER
       service_type++;
     }
     uint16_t port = service.port.value();
-    MDNS.addService(FPSTR(service_type), FPSTR(proto), port);
+    mdns_responder.addService(FPSTR(service_type), FPSTR(proto), port);
     for (const auto &record : service.txt_records) {
-      MDNS.addServiceTxt(FPSTR(service_type), FPSTR(proto), FPSTR(MDNS_STR_ARG(record.key)),
-                         FPSTR(MDNS_STR_ARG(record.value)));
+      mdns_responder.addServiceTxt(FPSTR(service_type), FPSTR(proto), FPSTR(MDNS_STR_ARG(record.key)),
+                                   FPSTR(MDNS_STR_ARG(record.value)));
     }
   }
 }
@@ -41,19 +89,7 @@ static void register_esp8266(MDNSComponent *, StaticVector<MDNSService, MDNS_SER
 #ifdef USE_MDNS_EVENT_DRIVEN_POLLING
 void MDNSComponent::start_polling_window_() {
   // uint32_t-ID set_interval/set_timeout already does atomic cancel-and-add.
-  this->set_interval(MDNS_POLL_ID, MDNS_UPDATE_INTERVAL_MS, []() {
-#ifdef USE_MDNS_WIFI_LISTENER
-    // MDNS.update() can suspend the loop in UdpContext::sendTimeout() while a send is
-    // failing (radio off-channel during a roam scan, or mid reconnect); an incoming
-    // packet then re-enters LEAmDNS from lwIP and corrupts shared UdpContext state.
-    // Skip the tick while the radio cannot transmit (#18760), but keep polling while
-    // the AP is serving clients (AP-only or fallback AP with the STA down).
-    auto *wifi = wifi::global_wifi_component;
-    if (wifi->is_roaming() || (!wifi->is_connected() && !wifi->is_ap_active()))
-      return;
-#endif
-    MDNS.update();
-  });
+  this->set_interval(MDNS_POLL_ID, MDNS_UPDATE_INTERVAL_MS, []() { mdns_responder.update_guarded(); });
   this->set_timeout(MDNS_POLL_STOP_ID, MDNS_POLL_WINDOW_MS, [this]() { this->cancel_interval(MDNS_POLL_ID); });
 }
 #endif
@@ -81,7 +117,7 @@ void MDNSComponent::on_ip_state(const network::IPAddresses &ips, const network::
 #endif
 
 void MDNSComponent::on_shutdown() {
-  MDNS.close();
+  mdns_responder.close_guarded();
   delay(10);
 }
 
