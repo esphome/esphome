@@ -12,7 +12,7 @@ namespace esphome::ms8607 {
  */
 class MS8607HumidityDevice final : public i2c::I2CDevice {
  public:
-  uint8_t get_address() { return address_; }
+  uint8_t get_address() const { return this->address_; }
 };
 
 /**
@@ -78,7 +78,7 @@ class MS8607Component final : public PollingComponent, public i2c::I2CDevice {
    */
   MS8607HumidityDevice *humidity_device_{nullptr};
 
-  /// This device's pressure & temperature calibration values, read from PROM
+ public:  // for testability
   struct CalibrationValues {
     /// Pressure sensitivity | SENS-T1. [C1]
     uint16_t pressure_sensitivity;
@@ -92,19 +92,76 @@ class MS8607Component final : public PollingComponent, public i2c::I2CDevice {
     uint16_t reference_temperature;
     /// Temperature coefficient of the temperature | TEMPSENS. [C6]
     uint16_t temperature_coefficient_of_temperature;
-  } calibration_values_;
+  };
+
+ protected:
+  /// This device's pressure & temperature calibration values, read from PROM
+  CalibrationValues calibration_values_{};
 
   /// Possible failure reasons of this component
-  enum class ErrorCode;
-  /// Keep track of the reason why this component failed, to augment the dumped config
-  ErrorCode error_code_;
+  enum class ErrorCode {
+    /// Component hasn't failed (yet?)
+    ERROR_CODE_NONE = 0,
+    /// Both the Pressure/Temperature address and the Humidity address failed to reset
+    ERROR_CODE_PTH_RESET_FAILED = 1,
+    /// Asking the Pressure/Temperature sensor to reset failed
+    ERROR_CODE_PT_RESET_FAILED = 2,
+    /// Asking the Humidity sensor to reset failed
+    ERROR_CODE_H_RESET_FAILED = 3,
+    /// Reading the PROM calibration values failed
+    ERROR_CODE_PROM_READ_FAILED = 4,
+    /// The PROM calibration values failed the CRC check
+    ERROR_CODE_PROM_CRC_FAILED = 5,
+  };
 
   /// Current progress through required component setup
-  enum class SetupStatus;
+  enum class SetupStatus {
+    /// This component has not successfully reset the PT & H devices
+    SETUP_STATUS_NEEDS_RESET,
+    /// Reset commands succeeded, need to wait >= 15ms to read PROM
+    SETUP_STATUS_NEEDS_PROM_READ,
+    /// Successfully read PROM and ready to update sensors
+    SETUP_STATUS_SUCCESSFUL,
+  };
+
+  /// Keep track of the reason why this component failed, to augment the dumped config
+  ErrorCode error_code_{ErrorCode::ERROR_CODE_NONE};
+
   /// Current step in the multi-step & possibly delayed setup() process
-  SetupStatus setup_status_;
+  SetupStatus setup_status_{SetupStatus::SETUP_STATUS_NEEDS_RESET};
   uint32_t reset_interval_{5};
-  uint8_t reset_attempts_remaining_{0};
+  uint8_t reset_attempts_remaining_{3};
+  /// for each update() call, track whether or not there was a non-terminal status_set_warning call during its
+  /// execution. Some places that set the warning are terminal, others allow proceeding, and will publish partial
+  /// results. This variable is used to know whether or not the warning should be cleared when publishing those
+  /// partial results, or if the warning status should stick around because it's only partially working.
+  bool nonterminal_warning_generated_this_update_{false};
+
+ public:  // for testability
+  struct CompensatedTemperature {
+    /// difference between actual and reference temperature
+    int32_t d_t;
+    /// temperature as hundredths of degree celsius in range [-4000, 8500], after first order
+    /// temperature calculation
+    int32_t first_order_temperature;
+    /// actual temperature, after 2nd order temperature calculation, in degrees celsius as a float
+    float temperature_float;
+  };
+
+  /// use raw temperature and calibration values to figure out actual temperature value
+  /// return value includes some intermediate values needed by the pressure compensation algorithm
+  /// Precondition: values must be within typical values from the device to avoid Undefined Behavior.
+  static struct CompensatedTemperature compensated_temperature(
+      uint32_t d2_raw_temperature, const struct MS8607Component::CalibrationValues &calibration_values);
+
+  /// use raw pressure, calibration values, and current temperature to figure out actual pressure
+  /// Precondition: calibration_values & temperature_values must be within typical values for the device.
+  /// Unbounded values can cause Undefined Behavior.
+  static float compensated_pressure(uint32_t d1_raw_pressure, const struct CalibrationValues &calibration_values,
+                                    const struct CompensatedTemperature &temperature_values);
+
+  /// convert raw humidity value into correct range & apply temperature compensation calculation
+  static float compensated_humidity(float humidity_float, float temperature_float);
 };
 
 }  // namespace esphome::ms8607
