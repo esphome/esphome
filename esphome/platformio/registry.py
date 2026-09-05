@@ -166,9 +166,15 @@ class _PendingArchive(NamedTuple):
     name: str
     version: str
     dest: Path
+    archive: Path
     url: str
     sha256: str
     size: int
+
+
+def _archive_path(downloads_dir: Path, name: str, version: str) -> Path:
+    """The one archive path the prefetch and the sequential install share."""
+    return downloads_dir / f"{name}-{version}"
 
 
 def _already_installed(dest: Path) -> bool:
@@ -192,15 +198,15 @@ def prefetch_packages(
     from filelock import FileLock, Timeout
 
     pending: list[_PendingArchive] = []
-    seen: set[str] = set()
+    seen: set[Path] = set()
     for name, version, dest, mirrors in packages:
         if mirrors or (dest / ".esphome_extracted").is_file():
             continue
-        archive_name = f"{name}-{version}"
-        if archive_name in seen:
+        archive = _archive_path(downloads_dir, name, version)
+        if archive in seen:
             # A duplicate entry would race itself between two workers
             continue
-        seen.add(archive_name)
+        seen.add(archive)
         try:
             url, sha256, size = registry_download(name, version)
         except EsphomeError as err:
@@ -209,10 +215,9 @@ def prefetch_packages(
             continue
         if not size:
             continue
-        archive = downloads_dir / archive_name
         if archive.is_file() and archive.stat().st_size == size:
             continue
-        pending.append(_PendingArchive(name, version, dest, url, sha256, size))
+        pending.append(_PendingArchive(name, version, dest, archive, url, sha256, size))
     if len(pending) < 2:
         return
     downloads_dir.mkdir(parents=True, exist_ok=True)
@@ -224,10 +229,9 @@ def prefetch_packages(
 
     def _fetch(entry: _PendingArchive, tracker: Callable[[int], None]) -> None:
         entry.dest.parent.mkdir(parents=True, exist_ok=True)
-        archive = downloads_dir / f"{entry.name}-{entry.version}"
 
         def on_disk() -> int:
-            if done := downloaded_bytes(archive, entry.size):
+            if done := downloaded_bytes(entry.archive, entry.size):
                 return done
             # The holder deletes the archive once it has installed it
             return entry.size if _already_installed(entry.dest) else 0
@@ -248,7 +252,7 @@ def prefetch_packages(
                 return
             download_with_resume(
                 entry.url,
-                archive,
+                entry.archive,
                 sha256=entry.sha256,
                 size=entry.size,
                 progress=tracker,
@@ -307,7 +311,7 @@ def install_package(
         rmdir(dest, msg=f"Clean up incomplete {name} install")
         # Persistent location so an interrupted download resumes across runs.
         downloads_dir.mkdir(parents=True, exist_ok=True)
-        archive = downloads_dir / f"{name}-{version}"
+        archive = _archive_path(downloads_dir, name, version)
         _LOGGER.info("Downloading %s %s ...", name, version)
         if mirrors:
             _LOGGER.warning(
