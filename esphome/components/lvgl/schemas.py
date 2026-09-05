@@ -16,6 +16,7 @@ from esphome.const import (
     CONF_ON_BOOT,
     CONF_ON_UPDATE,
     CONF_ON_VALUE,
+    CONF_PATH,
     CONF_STATE,
     CONF_TEXT,
     CONF_TIME,
@@ -506,6 +507,72 @@ def _update_widget(widget_type: WidgetType) -> Callable[[dict], dict]:
     return validator
 
 
+CONF_PARENT = "parent"
+# Internal-only key on a validated widget-child-ref, never present in user YAML. Holds
+# the target WidgetType's *name* (a plain string, looked up in WIDGET_TYPES at codegen
+# time) rather than the WidgetType instance itself, since this value sits in the
+# validated config tree and `esphome config` dumps that tree back out as YAML --
+# embedding a raw Python object there would break that (yaml.representer.RepresenterError).
+_REF_WIDGET_TYPE_KEY = "widget_type"
+
+
+def is_widget_child_ref(value: Any) -> bool:
+    """
+    True if `value` (an already-validated entry from an update action's `id:` list) is a
+    widget-child-ref -- `{parent: <id>, path: [...]}` -- rather than a plain declared id.
+    """
+    return isinstance(value, dict) and CONF_PARENT in value
+
+
+def _update_id_item_schema(
+    widget_type: WidgetType, id_schema: Callable[[Any], Any]
+) -> Callable[[Any], Any]:
+    """
+    Wraps the plain per-widget-type `id:` item schema to also recognise a widget-child-ref
+    -- `{parent: <id>, path: [<index>, ...]}`, a reference to a widget that has no `id:`
+    of its own, reached by walking child indices from a widget that does. `parent` can be
+    any widget with children (not just a `list`) -- the walk is a plain
+    `lv_obj_get_child()` chain, agnostic to what kind of widget it starts from.
+
+    Branches manually on the raw value's shape, rather than via `cv.Any(ref_schema,
+    id_schema)`, so a rejection (see below) always surfaces its own clear message: `cv.Any`
+    picks whichever branch's error has the deepest path, not necessarily the one that
+    actually explains the mistake.
+    """
+    ref_schema = cv.Schema(
+        {
+            cv.Required(CONF_PARENT): cv.use_id(lv_obj_t),
+            cv.Required(CONF_PATH): cv.All(
+                cv.ensure_list(cv.templatable(cv.positive_int)), cv.Length(min=1)
+            ),
+        }
+    )
+
+    def validate(value):
+        if not (isinstance(value, dict) and CONF_PARENT in value):
+            return id_schema(value)
+        if widget_type.is_compound():
+            # Compound widgets (dropdown, page, msgbox, ...) need their C++ wrapper
+            # object, not just a raw `lv_obj_t*` -- not supported by this mechanism.
+            raise cv.Invalid(
+                f"Referencing a widget nested in another widget by 'parent'/'path' is "
+                f"not supported for compound widget type '{widget_type.name}' (e.g. "
+                f"dropdown, page, msgbox)."
+            )
+        if not widget_type.supports_child_ref():
+            raise cv.Invalid(
+                f"Referencing a widget nested in another widget by 'parent'/'path' is "
+                f"not supported for widget type '{widget_type.name}': its update logic "
+                f"needs configuration only available when it is created with its own "
+                f"'id:'."
+            )
+        value = ref_schema(value)
+        value[_REF_WIDGET_TYPE_KEY] = widget_type.name
+        return {CONF_ID: value}
+
+    return validate
+
+
 def base_update_schema(widget_type: WidgetType | LvType, parts):
     """
     Create a schema for updating a widget's style properties, states and flags.
@@ -515,16 +582,18 @@ def base_update_schema(widget_type: WidgetType | LvType, parts):
     """
 
     w_type = widget_type.w_type if isinstance(widget_type, WidgetType) else widget_type
+    item_schema = cv.maybe_simple_value(
+        {
+            cv.Required(CONF_ID): cv.use_id(w_type),
+        },
+        key=CONF_ID,
+    )
+    if isinstance(widget_type, WidgetType):
+        item_schema = _update_id_item_schema(widget_type, item_schema)
+
     schema = part_schema(parts).extend(
         {
-            cv.Required(CONF_ID): cv.ensure_list(
-                cv.maybe_simple_value(
-                    {
-                        cv.Required(CONF_ID): cv.use_id(w_type),
-                    },
-                    key=CONF_ID,
-                )
-            ),
+            cv.Required(CONF_ID): cv.ensure_list(item_schema),
             cv.Optional(CONF_STATE): SET_STATE_SCHEMA,
             cv.Optional(df.CONF_LAYOUT): layout_validator,
         }

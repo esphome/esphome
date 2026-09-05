@@ -145,13 +145,31 @@ async def action_to_code(
 
 async def update_to_code(config, action_id, template_arg, args):
     async def do_update(widget: Widget):
-        await set_obj_properties(widget, config)
-        await widget.type.to_code(widget, config)
-        if (
-            widget.type.w_type.value_property is not None
-            and widget.type.w_type.value_property in config
-        ):
-            lv_obj.send_event(widget.obj, UPDATE_EVENT, nullptr)
+        async def apply():
+            await set_obj_properties(widget, config)
+            await widget.type.to_code(widget, config)
+            if (
+                widget.type.w_type.value_property is not None
+                and widget.type.w_type.value_property in config
+            ):
+                lv_obj.send_event(widget.obj, UPDATE_EVENT, nullptr)
+
+        if widget.from_ref:
+            # widget.obj is a computed lv_obj_get_child() chain here (see
+            # widgets/__init__.py::_resolve_widget_ref), which can resolve to NULL at
+            # runtime if the referenced path no longer exists (e.g. the widget it used
+            # to point to was removed) -- materialize it into a local var once and skip
+            # the update entirely rather than risk a null-pointer dereference.
+            with (
+                LocalVariable(
+                    f"dyn_{widget.type.name}", lv_obj_t, widget.obj
+                ) as target,
+                LvConditional(target),
+            ):
+                widget.obj = target
+                await apply()
+        else:
+            await apply()
 
     widgets = await get_widgets(config[CONF_ID])
     return await action_to_code(

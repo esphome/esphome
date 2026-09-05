@@ -821,6 +821,32 @@ lvgl:
                     time: !lambda |-
                         ESP_LOGD("label", "multi-line lambda");
                         return id(sntp_time).now();
+              # Update a nested widget that has no id: of its own, via a widget-child-ref
+              # (parent + child-index path) instead of a declared id.
+              - lvgl.label.update:
+                  id:
+                    parent: button_button
+                    path: [0]
+                  text: "Updated via ref"
+              - lvgl.image.update:
+                  id:
+                    parent: button_button
+                    path: [1]
+                  src: dog_image
+              # A ref that can never resolve (button_button only has 2 children) --
+              # proves the null-safety guard compiles and is skipped harmlessly.
+              - lvgl.label.update:
+                  id:
+                    parent: button_button
+                    path: [5]
+                  text: "Never runs"
+              # First path element already out of range -- checks the multi-level
+              # walk doesn't feed a null intermediate into the next lookup.
+              - lvgl.label.update:
+                  id:
+                    parent: button_button
+                    path: [5, 0]
+                  text: "Never runs either"
             on_value:
               logger.log:
                 format: "state now %d"
