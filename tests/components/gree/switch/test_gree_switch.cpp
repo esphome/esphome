@@ -106,7 +106,7 @@ TEST(GreeFeatureSwitch, EnablingYB1FATurboSetsEffectiveFanHigh) {
   EXPECT_TRUE(turbo.state);
   EXPECT_TRUE(device.get_feature_state(GREE_FEATURE_TURBO));
   ASSERT_TRUE(device.fan_mode.has_value());
-  EXPECT_EQ(*device.fan_mode, climate::CLIMATE_FAN_HIGH);
+  EXPECT_EQ(device.fan_mode.value_or(climate::CLIMATE_FAN_ON), climate::CLIMATE_FAN_HIGH);
   const auto transmitted = decode_transmission(transmitter.last_raw);
   EXPECT_EQ(transmitted.fan_mode, climate::CLIMATE_FAN_HIGH);
   EXPECT_TRUE(transmitted.feature_bits & GREE_FAN_TURBO_BIT);
@@ -125,7 +125,7 @@ TEST(GreeFeatureSwitch, ReceivingYB1FATurboSetsSwitchAndEffectiveFanHigh) {
   EXPECT_TRUE(turbo.state);
   EXPECT_TRUE(device.get_feature_state(GREE_FEATURE_TURBO));
   ASSERT_TRUE(device.fan_mode.has_value());
-  EXPECT_EQ(*device.fan_mode, climate::CLIMATE_FAN_HIGH);
+  EXPECT_EQ(device.fan_mode.value_or(climate::CLIMATE_FAN_ON), climate::CLIMATE_FAN_HIGH);
 }
 
 TEST(GreeFeatureSwitch, FanChangeAfterEnablingYB1FATurboClearsTurbo) {

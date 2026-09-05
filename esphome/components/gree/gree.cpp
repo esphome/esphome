@@ -462,7 +462,7 @@ void GreeClimate::publish_feature_state_(GreeFeature feature) {
 }
 
 void GreeClimate::publish_feature_states_() {
-  for (uint8_t feature = 0; feature < this->feature_switches_.size(); feature++)
+  for (size_t feature = 0; feature < this->feature_switches_.size(); feature++)
     this->publish_feature_state_(static_cast<GreeFeature>(feature));
 }
 #endif

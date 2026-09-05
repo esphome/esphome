@@ -579,8 +579,9 @@ TEST(GreeYX1FF, ClimateChangePreservesReceivedLightState) {
   auto transmitted = GreeProtocol(GREE_YX1FF)
                          .decode(RemoteReceiveData(transmitter.last_raw, 25, remote_base::TOLERANCE_MODE_PERCENTAGE));
   ASSERT_TRUE(transmitted.has_value());
-  EXPECT_EQ((*transmitted)[1], 3);
-  EXPECT_EQ((*transmitted)[2] & GREE_LIGHT_BIT, 0);
+  const GreeState transmitted_state = transmitted.value_or(GreeState{});
+  EXPECT_EQ(transmitted_state[1], 3);
+  EXPECT_EQ(transmitted_state[2] & GREE_LIGHT_BIT, 0);
 }
 
 }  // namespace esphome::gree
