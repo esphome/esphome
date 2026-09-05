@@ -107,15 +107,15 @@ void AsyncClient::loop() {
   if (connecting_) {
     int err = 0;
     switch (socket::poll_connect(*socket_, err)) {
-      case socket::ConnectPollResult::CONNECT_POLL_PENDING:
+      case socket::ConnectPollResult::CONNECT_POLL_RESULT_PENDING:
         break;
-      case socket::ConnectPollResult::CONNECT_POLL_CONNECTED:
+      case socket::ConnectPollResult::CONNECT_POLL_RESULT_CONNECTED:
         connecting_ = false;
         connected_ = true;
         if (connect_cb_)
           connect_cb_(connect_arg_, this);
         break;
-      case socket::ConnectPollResult::CONNECT_POLL_ERROR:
+      case socket::ConnectPollResult::CONNECT_POLL_RESULT_ERROR:
         ESP_LOGW(TAG, "Connection failed: %d", err);
         close();
         if (error_cb_)

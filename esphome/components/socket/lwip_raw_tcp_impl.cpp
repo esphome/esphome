@@ -496,21 +496,23 @@ int LWIPRawImpl::connect(const struct sockaddr *addr, socklen_t addrlen) {
 ConnectPollResult LWIPRawImpl::poll_connect(int &err_out) const {
   // pcb_ first; see the ordering note on the declaration
   if (this->pcb_ == nullptr) {
-    err_out = this->connect_err_ == 0 || this->connect_err_ == EINPROGRESS ? ECONNRESET : this->connect_err_;
-    return ConnectPollResult::CONNECT_POLL_ERROR;
+    // Only a recorded connect failure carries its own reason
+    const bool failed = this->connect_err_ == ECONNREFUSED || this->connect_err_ == ETIMEDOUT;
+    err_out = failed ? this->connect_err_ : ECONNRESET;
+    return ConnectPollResult::CONNECT_POLL_RESULT_ERROR;
   }
   switch (this->connect_err_) {
     case EINPROGRESS:
       yield_to_sys();  // so the SYN-ACK is processed between polls
-      return ConnectPollResult::CONNECT_POLL_PENDING;
+      return ConnectPollResult::CONNECT_POLL_RESULT_PENDING;
     case EISCONN:
-      return ConnectPollResult::CONNECT_POLL_CONNECTED;
+      return ConnectPollResult::CONNECT_POLL_RESULT_CONNECTED;
     case 0:
       err_out = EINVAL;  // no connect was started
-      return ConnectPollResult::CONNECT_POLL_ERROR;
+      return ConnectPollResult::CONNECT_POLL_RESULT_ERROR;
     default:
       err_out = this->connect_err_;
-      return ConnectPollResult::CONNECT_POLL_ERROR;
+      return ConnectPollResult::CONNECT_POLL_RESULT_ERROR;
   }
 }
 

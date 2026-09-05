@@ -207,9 +207,9 @@ static constexpr size_t SOCKADDR_STR_LEN = 16;  // INET_ADDRSTRLEN
 
 /// Outcome of polling a non-blocking connect(); see socket::poll_connect().
 enum class ConnectPollResult : uint8_t {
-  CONNECT_POLL_PENDING,
-  CONNECT_POLL_CONNECTED,
-  CONNECT_POLL_ERROR,
+  CONNECT_POLL_RESULT_PENDING,
+  CONNECT_POLL_RESULT_CONNECTED,
+  CONNECT_POLL_RESULT_ERROR,
 };
 
 }  // namespace esphome::socket

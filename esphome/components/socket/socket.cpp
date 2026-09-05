@@ -208,7 +208,7 @@ ConnectPollResult poll_connect(Socket &sock, int &err_out) {
   if (fd < 0 || fd >= FD_SETSIZE) {
     // FD_SET on either is undefined behavior
     err_out = EBADF;
-    return ConnectPollResult::CONNECT_POLL_ERROR;
+    return ConnectPollResult::CONNECT_POLL_RESULT_ERROR;
   }
   // Connect completion is a write event; the main loop only selects on reads
   fd_set writefds;
@@ -224,22 +224,22 @@ ConnectPollResult poll_connect(Socket &sock, int &err_out) {
 #endif
   if (ret < 0) {
     err_out = errno;
-    return ConnectPollResult::CONNECT_POLL_ERROR;
+    return ConnectPollResult::CONNECT_POLL_RESULT_ERROR;
   }
   if (ret == 0) {
-    return ConnectPollResult::CONNECT_POLL_PENDING;
+    return ConnectPollResult::CONNECT_POLL_RESULT_PENDING;
   }
   int error = 0;
   socklen_t len = sizeof(error);
   if (sock.getsockopt(SOL_SOCKET, SO_ERROR, &error, &len) != 0) {
     err_out = errno;
-    return ConnectPollResult::CONNECT_POLL_ERROR;
+    return ConnectPollResult::CONNECT_POLL_RESULT_ERROR;
   }
   if (error != 0) {
     err_out = error;
-    return ConnectPollResult::CONNECT_POLL_ERROR;
+    return ConnectPollResult::CONNECT_POLL_RESULT_ERROR;
   }
-  return ConnectPollResult::CONNECT_POLL_CONNECTED;
+  return ConnectPollResult::CONNECT_POLL_RESULT_CONNECTED;
 }
 #endif
 

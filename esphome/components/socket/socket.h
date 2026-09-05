@@ -147,7 +147,7 @@ socklen_t set_sockaddr_any(struct sockaddr *addr, socklen_t addrlen, uint16_t po
 
 /// Check a non-blocking connect() for completion without blocking. Only
 /// meaningful after connect() returned -1 with errno EINPROGRESS. On
-/// CONNECT_POLL_ERROR, err_out holds the socket's SO_ERROR (or errno when the
+/// CONNECT_POLL_RESULT_ERROR, err_out holds the socket's SO_ERROR (or errno when the
 /// poll itself failed) on fd based implementations, and the failure recorded
 /// by the lwip callbacks on the raw lwip implementation.
 #ifdef USE_SOCKET_IMPL_LWIP_TCP
