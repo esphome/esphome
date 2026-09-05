@@ -13,6 +13,7 @@ from esphome.components.esp32 import (
     get_esp32_variant,
     include_builtin_idf_component,
     only_on_variant,
+    require_mbedtls_ecp,
     require_vfs_select,
 )
 from esphome.components.mdns import MDNSComponent, enable_mdns_storage
@@ -282,6 +283,8 @@ async def to_code(config: ConfigType) -> None:
     # Re-enable openthread IDF component (excluded by default)
     if CORE.is_esp32:
         include_builtin_idf_component("openthread")
+        # OPENTHREAD_CONFIG_ECDSA_ENABLE: the SRP client host key uses mbedtls_ecdsa_*
+        require_mbedtls_ecp()
 
     cg.add_define("USE_OPENTHREAD")
     if config.get(CONF_FORCE_DATASET):

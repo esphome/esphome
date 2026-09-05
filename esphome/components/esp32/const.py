@@ -30,6 +30,7 @@ KEY_EXTRA_BUILD_FILES = "extra_build_files"
 KEY_CERT_BUNDLE = "cert_bundle"
 KEY_FULL_CERT_BUNDLE = "full_cert_bundle"
 KEY_NETWORK_SDKCONFIG = "network_sdkconfig"
+KEY_MBEDTLS_SDKCONFIG = "mbedtls_sdkconfig"
 
 VARIANT_ESP32 = "ESP32"
 VARIANT_ESP32C2 = "ESP32C2"
