@@ -1143,13 +1143,14 @@ class EsphomeCore:
     def add_platformio_option(
         self, key: str, value: str | list[str], *, replace: bool = False
     ) -> None:
-        """Set a platformio.ini option; list values append to an existing list
-        unless ``replace`` is True, which overwrites any existing value."""
+        """Set a platformio.ini option; values append to an existing list
+        (a string as one element) unless ``replace`` is True, which
+        overwrites any existing value."""
         new_val = value
         old_val = self.platformio_options.get(key)
         if not replace and isinstance(old_val, list):
-            assert isinstance(value, list)
-            new_val = old_val + value
+            # A user platformio_options string must merge, not assert
+            new_val = old_val + ([value] if isinstance(value, str) else value)
         self.platformio_options[key] = new_val
 
     def _get_variable_generator(self, id):

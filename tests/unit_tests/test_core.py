@@ -568,6 +568,16 @@ class TestEsphomeCore:
         target.config_path = Path("foo/config")
         return target
 
+    def test_add_platformio_option_merges_string_into_list(self, target) -> None:
+        """A user platformio_options string lands after a component's list
+        (FINAL priority) and must merge as one element, not assert."""
+        target.add_platformio_option("extra_scripts", ["post:pch.py"])
+        target.add_platformio_option("extra_scripts", "pre:mine.py")
+        assert target.platformio_options["extra_scripts"] == [
+            "post:pch.py",
+            "pre:mine.py",
+        ]
+
     def test_reset(self, target):
         """Call reset on target and compare to new instance"""
         other = core.EsphomeCore().__dict__
