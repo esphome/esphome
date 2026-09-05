@@ -801,6 +801,12 @@ def _filter_source_files() -> list[str]:
         excluded += ["i2c_emulator.cpp", "i2c_emulator.h"]
     if "uart_emulator.cpp" not in extra_build_files:
         excluded += ["uart_emulator.cpp", "uart_emulator.h"]
+    # cpp_atomics_rp2040.c completes Zephyr's ATOMIC_OPERATIONS_C __atomic_* shim, only
+    # needed on RP2040 (Cortex-M0+/ARMv6-M lacks LDREX/STREX). RP2350 (Cortex-M33) and
+    # every other supported variant has native atomic instructions, so the file is
+    # excluded there to avoid defining these symbols where they're not needed.
+    if zephyr_variant() != ZEPHYR_VARIANT_RP2040:
+        excluded += ["cpp_atomics_rp2040.c"]
     return excluded
 
 
