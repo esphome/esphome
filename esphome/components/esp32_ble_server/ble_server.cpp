@@ -81,6 +81,7 @@ void BLEServer::loop() {
       if (this->device_information_service_->is_running()) {
         this->state_ = RUNNING;
         this->restart_advertising_();
+        this->request_advertising_();
         ESP_LOGD(TAG, "BLE server setup successfully");
       } else if (this->device_information_service_->is_created()) {
         this->device_information_service_->start();
@@ -96,6 +97,20 @@ void BLEServer::restart_advertising_() {
   if (this->is_running()) {
     this->parent_->advertising_set_manufacturer_data(this->manufacturer_data_);
   }
+}
+
+void BLEServer::request_advertising_() {
+  if (!this->advertising_required_ || this->advertising_requested_)
+    return;
+  this->advertising_requested_ = true;
+  this->parent_->advertising_start();
+}
+
+void BLEServer::release_advertising_() {
+  if (!this->advertising_requested_)
+    return;
+  this->advertising_requested_ = false;
+  this->parent_->advertising_stop();
 }
 
 BLEService *BLEServer::create_service(ESPBTUUID uuid, bool advertise, uint16_t num_handles) {
@@ -170,7 +185,7 @@ void BLEServer::gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t ga
       this->add_client_(param->connect.conn_id);
       // Resume advertising so additional clients can discover and connect
       if (this->client_count_ < this->max_clients_) {
-        this->parent_->advertising_start();
+        this->parent_->advertising_refresh();
       }
       this->dispatch_callbacks_(CallbackType::ON_CONNECT, param->connect.conn_id);
       break;
@@ -178,7 +193,7 @@ void BLEServer::gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t ga
     case ESP_GATTS_DISCONNECT_EVT: {
       ESP_LOGD(TAG, "BLE Client disconnected");
       this->remove_client_(param->disconnect.conn_id);
-      this->parent_->advertising_start();
+      this->parent_->advertising_refresh();
       this->dispatch_callbacks_(CallbackType::ON_DISCONNECT, param->disconnect.conn_id);
       break;
     }
@@ -226,6 +241,8 @@ void BLEServer::remove_client_(uint16_t conn_id) {
 }
 
 void BLEServer::ble_before_disabled_event_handler() {
+  // Advertising is re-requested once the server is running again after BLE is re-enabled
+  this->release_advertising_();
   // Delete all clients
   this->client_count_ = 0;
   // Delete all services
