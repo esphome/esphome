@@ -49,13 +49,15 @@ int LwIPSocketImpl::close() {
 
 int LwIPSocketImpl::setblocking(bool blocking) {
   int fl = lwip_fcntl(this->fd_, F_GETFL, 0);
+  if (fl < 0) {
+    return fl;
+  }
   if (blocking) {
     fl &= ~O_NONBLOCK;
   } else {
     fl |= O_NONBLOCK;
   }
-  lwip_fcntl(this->fd_, F_SETFL, fl);
-  return 0;
+  return lwip_fcntl(this->fd_, F_SETFL, fl);
 }
 
 size_t LwIPSocketImpl::getpeername_to(std::span<char, SOCKADDR_STR_LEN> buf) {

@@ -63,7 +63,8 @@ static constexpr uint32_t ESP8266_YIELD_INTERVAL_US = 1000;
 // tcp_abort() triggers the err callback synchronously, which would
 // otherwise call back into a partially-destroyed object.
 // tcp_sent/tcp_poll are not cleared because this implementation
-// never registers them.
+// never registers them, and the tcp_connect callback only fires on
+// SYN_SENT -> ESTABLISHED, which cannot follow an abort or close.
 static void pcb_detach_abort(struct tcp_pcb *pcb) {
   tcp_arg(pcb, nullptr);
   tcp_recv(pcb, nullptr);
@@ -76,8 +77,8 @@ static void pcb_detach_abort(struct tcp_pcb *pcb) {
 // After tcp_close(), the PCB remains alive during the TCP close handshake
 // (FIN_WAIT, TIME_WAIT states). Without clearing callbacks first, LWIP
 // would call recv/err on a destroyed socket object, corrupting the heap.
-// tcp_sent/tcp_poll are not cleared because this implementation
-// never registers them.
+// tcp_sent/tcp_poll and the tcp_connect callback are not cleared for the
+// same reasons as in pcb_detach_abort().
 // Returns ERR_OK on success; on failure the PCB is aborted instead.
 static err_t pcb_detach_close(struct tcp_pcb *pcb) {
   tcp_arg(pcb, nullptr);
@@ -101,53 +102,61 @@ LWIPRawCommon::~LWIPRawCommon() {
   }
 }
 
+bool LWIPRawCommon::sockaddr2ip_(const struct sockaddr *name, socklen_t addrlen, ip_addr_t *ip, uint16_t *port) const {
+  if (name == nullptr) {
+    errno = EINVAL;
+    return false;
+  }
+#if LWIP_IPV6
+  if (this->family_ == AF_INET) {
+    if (addrlen < sizeof(sockaddr_in)) {
+      errno = EINVAL;
+      return false;
+    }
+    auto *addr4 = reinterpret_cast<const sockaddr_in *>(name);
+    *port = ntohs(addr4->sin_port);
+    ip->type = IPADDR_TYPE_V4;
+    ip->u_addr.ip4.addr = addr4->sin_addr.s_addr;
+    return true;
+  }
+  if (this->family_ == AF_INET6) {
+    if (addrlen < sizeof(sockaddr_in6)) {
+      errno = EINVAL;
+      return false;
+    }
+    auto *addr6 = reinterpret_cast<const sockaddr_in6 *>(name);
+    *port = ntohs(addr6->sin6_port);
+    // ANY lets bind() accept both families; connect() picks the concrete type
+    ip->type = IPADDR_TYPE_ANY;
+    memcpy(&ip->u_addr.ip6.addr, &addr6->sin6_addr.un.u8_addr, 16);
+    return true;
+  }
+  errno = EINVAL;
+  return false;
+#else
+  if (this->family_ != AF_INET || addrlen < sizeof(sockaddr_in)) {
+    errno = EINVAL;
+    return false;
+  }
+  auto *addr4 = reinterpret_cast<const sockaddr_in *>(name);
+  *port = ntohs(addr4->sin_port);
+  ip->addr = addr4->sin_addr.s_addr;
+  return true;
+#endif
+}
+
 int LWIPRawCommon::bind(const struct sockaddr *name, socklen_t addrlen) {
   LWIP_LOCK();
   if (this->pcb_ == nullptr) {
     errno = EBADF;
     return -1;
   }
-  if (name == nullptr) {
-    errno = EINVAL;
-    return -1;
-  }
   ip_addr_t ip;
-  in_port_t port;
-#if LWIP_IPV6
-  if (this->family_ == AF_INET) {
-    if (addrlen < sizeof(sockaddr_in)) {
-      errno = EINVAL;
-      return -1;
-    }
-    auto *addr4 = reinterpret_cast<const sockaddr_in *>(name);
-    port = ntohs(addr4->sin_port);
-    ip.type = IPADDR_TYPE_V4;
-    ip.u_addr.ip4.addr = addr4->sin_addr.s_addr;
-    LWIP_LOG("tcp_bind(%p ip=%s port=%u)", this->pcb_, ip4addr_ntoa(&ip.u_addr.ip4), port);
-  } else if (this->family_ == AF_INET6) {
-    if (addrlen < sizeof(sockaddr_in6)) {
-      errno = EINVAL;
-      return -1;
-    }
-    auto *addr6 = reinterpret_cast<const sockaddr_in6 *>(name);
-    port = ntohs(addr6->sin6_port);
-    ip.type = IPADDR_TYPE_ANY;
-    memcpy(&ip.u_addr.ip6.addr, &addr6->sin6_addr.un.u8_addr, 16);
-    LWIP_LOG("tcp_bind(%p ip=%s port=%u)", this->pcb_, ip6addr_ntoa(&ip.u_addr.ip6), port);
-  } else {
-    errno = EINVAL;
+  uint16_t port;
+  if (!this->sockaddr2ip_(name, addrlen, &ip, &port)) {
     return -1;
   }
-#else
-  if (this->family_ != AF_INET) {
-    errno = EINVAL;
-    return -1;
-  }
-  auto *addr4 = reinterpret_cast<const sockaddr_in *>(name);
-  port = ntohs(addr4->sin_port);
-  ip.addr = addr4->sin_addr.s_addr;
-  LWIP_LOG("tcp_bind(%p ip=%u port=%u)", this->pcb_, ip.addr, port);
-#endif
+  LWIP_LOG("tcp_bind(%p ip=%s port=%u)", this->pcb_, ipaddr_ntoa(&ip), port);
   err_t err = tcp_bind(this->pcb_, &ip, port);
   if (err == ERR_USE) {
     LWIP_LOG("  -> err ERR_USE");
@@ -425,8 +434,103 @@ void LWIPRawImpl::s_err_fn(void *arg, err_t err) {
   // ERR_ABRT: aborted through tcp_abort or TCP timer
   auto *arg_this = reinterpret_cast<LWIPRawImpl *>(arg);
   ESP_LOGVV(TAG, "socket %p: err(err=%d)", arg_this, err);
+  if (arg_this->connect_err_ == EINPROGRESS) {
+    // A connect that never established: RST is a refusal, anything else is
+    // the SYN retransmits giving up. Written before pcb_ so poll_connect()
+    // never sees a dead pcb without its reason.
+    arg_this->connect_err_ = err == ERR_RST ? ECONNREFUSED : ETIMEDOUT;
+  }
   arg_this->pcb_ = nullptr;
+  esphome::wake_loop_any_context();
 }
+
+err_t LWIPRawImpl::s_connected_fn(void *arg, struct tcp_pcb *pcb, err_t err) {
+  // LWIP CALLBACK — same constraints as s_err_fn. lwip always passes ERR_OK
+  // here; a failed connect arrives through s_err_fn instead.
+  auto *arg_this = reinterpret_cast<LWIPRawImpl *>(arg);
+  arg_this->connect_err_ = err == ERR_OK ? 0 : ECONNRESET;
+  esphome::wake_loop_any_context();
+  return ERR_OK;
+}
+
+int LWIPRawImpl::connect(const struct sockaddr *addr, socklen_t addrlen) {
+  LWIP_LOCK();
+  if (this->pcb_ == nullptr) {
+    errno = EBADF;
+    return -1;
+  }
+  if (this->connect_err_ != 0) {
+    errno = EALREADY;
+    return -1;
+  }
+  ip_addr_t ip;
+  uint16_t port;
+  if (!this->sockaddr2ip_(addr, addrlen, &ip, &port)) {
+    return -1;
+  }
+#if LWIP_IPV6
+  // tcp_connect needs a concrete address type. A remembered IPv4 peer on an
+  // IPv6 build arrives as a v4-mapped address and must be dialed as IPv4.
+  if (IP_IS_ANY_TYPE_VAL(ip)) {
+    if (ip6_addr_isipv4mappedipv6(ip_2_ip6(&ip))) {
+      unmap_ipv4_mapped_ipv6(ip_2_ip4(&ip), ip_2_ip6(&ip));
+      IP_SET_TYPE_VAL(ip, IPADDR_TYPE_V4);
+    } else {
+      IP_SET_TYPE_VAL(ip, IPADDR_TYPE_V6);
+    }
+  }
+#endif
+  LWIP_LOG("tcp_connect(%p ip=%s port=%u)", this->pcb_, ipaddr_ntoa(&ip), port);
+  err_t err = tcp_connect(this->pcb_, &ip, port, LWIPRawImpl::s_connected_fn);
+  switch (err) {
+    case ERR_OK:
+      this->connect_err_ = EINPROGRESS;
+      errno = EINPROGRESS;
+      return -1;
+    case ERR_RTE:
+      errno = EHOSTUNREACH;  // no route or no address yet; callers retry
+      break;
+    case ERR_USE:
+      errno = EADDRINUSE;
+      break;
+    case ERR_ISCONN:
+      errno = EISCONN;
+      break;
+    case ERR_BUF:
+      errno = EAGAIN;  // no free local port
+      break;
+    case ERR_MEM:
+      errno = ENOMEM;
+      break;
+    default:
+      errno = EINVAL;
+      break;
+  }
+  LWIP_LOG("  -> err %d", err);
+  return -1;
+}
+
+ConnectPollResult LWIPRawImpl::poll_connect(int &err_out) const {
+  // pcb_ first: s_err_fn records the reason before it clears the pcb
+  if (this->pcb_ == nullptr) {
+    err_out = this->connect_err_ == 0 || this->connect_err_ == EINPROGRESS ? ECONNRESET : this->connect_err_;
+    return ConnectPollResult::CONNECT_POLL_ERROR;
+  }
+  if (this->connect_err_ == EINPROGRESS) {
+#ifdef USE_ESP8266
+    // Let SYS process the SYN-ACK between polls; see read()
+    optimistic_yield(ESP8266_YIELD_INTERVAL_US);
+#endif
+    return ConnectPollResult::CONNECT_POLL_PENDING;
+  }
+  if (this->connect_err_ != 0) {
+    err_out = this->connect_err_;
+    return ConnectPollResult::CONNECT_POLL_ERROR;
+  }
+  return ConnectPollResult::CONNECT_POLL_CONNECTED;
+}
+
+ConnectPollResult poll_connect(Socket &sock, int &err_out) { return sock.poll_connect(err_out); }
 
 err_t LWIPRawImpl::s_recv_fn(void *arg, struct tcp_pcb *pcb, struct pbuf *pb, err_t err) {
   auto *arg_this = reinterpret_cast<LWIPRawImpl *>(arg);

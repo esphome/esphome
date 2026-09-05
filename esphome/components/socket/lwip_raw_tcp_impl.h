@@ -50,6 +50,9 @@ class LWIPRawCommon {
 
  protected:
   int ip2sockaddr_(ip_addr_t *ip, uint16_t port, struct sockaddr *name, socklen_t *addrlen);
+  /// Convert a sockaddr of this socket's family to an lwip address and port.
+  /// Returns false with errno set on a family or length mismatch.
+  bool sockaddr2ip_(const struct sockaddr *name, socklen_t addrlen, ip_addr_t *ip, uint16_t *port) const;
 
   // Member ordering optimized to minimize padding on 32-bit systems
   struct tcp_pcb *pcb_;
@@ -58,6 +61,12 @@ class LWIPRawCommon {
   bool nodelay_ = false;
   sa_family_t family_ = 0;
   uint8_t recv_timeout_cs_ = 0;  // SO_RCVTIMEO in centiseconds (0 = no timeout, max 2.55s)
+  // State of a connect() started on this socket: 0 when none is pending (or
+  // it completed), EINPROGRESS while the SYN is out, otherwise the errno the
+  // lwip callbacks recorded for its failure. Fits the padding byte here.
+  uint8_t connect_err_ = 0;
+  static_assert(EINPROGRESS < 256 && ECONNREFUSED < 256 && ECONNRESET < 256 && ETIMEDOUT < 256,
+                "connect_err_ stores errno values in a byte");
 };
 
 /// Connected socket implementation for LWIP raw TCP.
@@ -83,6 +92,13 @@ class LWIPRawImpl : public LWIPRawCommon {
     errno = EOPNOTSUPP;
     return -1;
   }
+  /// Start a non-blocking connect. Always returns -1 with errno EINPROGRESS
+  /// when the SYN was queued; completion is reported by poll_connect().
+  int connect(const struct sockaddr *addr, socklen_t addrlen);
+  // Intentionally unlocked like ready(): reads one pointer and one byte that
+  // the callbacks write in the order the checks depend on (error byte first,
+  // then pcb_), so a torn read only costs one extra poll.
+  ConnectPollResult poll_connect(int &err_out) const;
   ssize_t read(void *buf, size_t len);
   ssize_t readv(const struct iovec *iov, int iovcnt);
   ssize_t recvfrom(void *, size_t, sockaddr *, socklen_t *) {
@@ -120,6 +136,7 @@ class LWIPRawImpl : public LWIPRawCommon {
 
   static void s_err_fn(void *arg, err_t err);
   static err_t s_recv_fn(void *arg, struct tcp_pcb *pcb, struct pbuf *pb, err_t err);
+  static err_t s_connected_fn(void *arg, struct tcp_pcb *pcb, err_t err);
 
  protected:
   // True when the socket could receive data but none has arrived yet.

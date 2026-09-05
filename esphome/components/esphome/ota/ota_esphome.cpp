@@ -407,7 +407,10 @@ void ESPHomeOTAComponent::handle_data_() {
   tv.tv_usec = 0;
   this->client_->setsockopt(SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
   this->client_->setsockopt(SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv));
-  this->client_->setblocking(true);
+  if (this->client_->setblocking(true) != 0) {
+    this->log_socket_error_(LOG_STR("blocking"));
+    goto error;  // NOLINT(cppcoreguidelines-avoid-goto)
+  }
 
   // Acknowledge auth OK - 1 byte
   this->data_write_byte_(ota::OTA_RESPONSE_AUTH_OK);
