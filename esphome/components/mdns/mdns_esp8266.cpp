@@ -13,10 +13,11 @@
 
 namespace esphome::mdns {
 
-// Main-loop calls into LEAmDNS (update(), close()) can yield inside UdpContext::sendTimeout();
-// a packet arriving then re-enters LEAmDNS from lwIP on the same UdpContext and both sides free
-// the same tx pbufs (#18760). Received packets are only counted during such a call and drained
-// from the main loop afterwards.
+// Main-loop calls into LEAmDNS that send (update() and close(); begin(), addService() and
+// the scheduled restart never reach a send) can yield inside UdpContext::sendTimeout(); a
+// packet arriving then re-enters LEAmDNS from lwIP on the same UdpContext and both sides
+// free the same tx pbufs (#18760). Received packets stay queued during such a call and are
+// processed from the main loop afterwards.
 class GuardedMDNSResponder : public ::esp8266::MDNSImplementation::MDNSResponder {
  public:
   void update_guarded() { this->run_guarded_(&GuardedMDNSResponder::update); }
@@ -29,28 +30,22 @@ class GuardedMDNSResponder : public ::esp8266::MDNSImplementation::MDNSResponder
       (this->*fn)();
       return;
     }
-    // Set every time: a restart replaces the context together with its stock handler.
-    // Runs from lwIP in the SYS context.
+    // Set every time: a restart replaces the context together with its stock handler
     ctx->onRx([this]() {
-      if (this->in_loop_call_) {
-        this->pending_rx_++;
-      } else {
+      if (!this->in_loop_call_) {
         this->_callProcess();
       }
     });
-    this->pending_rx_ = 0;
     this->in_loop_call_ = true;
     (this->*fn)();
-    // Still counting here, so packets arriving during a yield in the drain queue behind it
-    while (this->pending_rx_ > 0) {
-      this->pending_rx_--;
-      this->_process(false);
+    // close() releases the context; a yield in here queues further packets for this loop too
+    while (this->m_pUDPContext != nullptr && this->m_pUDPContext->next()) {
+      this->_parseMessage();
     }
     this->in_loop_call_ = false;
   }
 
   volatile bool in_loop_call_{false};
-  volatile uint8_t pending_rx_{0};
 };
 
 static GuardedMDNSResponder mdns_responder;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)

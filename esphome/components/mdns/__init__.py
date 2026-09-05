@@ -192,7 +192,7 @@ async def to_code(config: ConfigType) -> None:
     if CORE.using_arduino:
         if CORE.is_esp8266:
             cg.add_library("ESP8266mDNS", None)
-            # mdns_esp8266.cpp owns a guarded MDNSResponder instead of the library global
+            # No MDNS global in the build; mdns_esp8266.cpp owns a guarded MDNSResponder
             cg.add_build_flag("-DNO_GLOBAL_MDNS")
         elif CORE.is_rp2:
             cg.add_library("LEAmDNS", None)
