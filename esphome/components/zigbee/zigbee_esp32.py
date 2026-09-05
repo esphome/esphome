@@ -16,9 +16,9 @@ import esphome.config_validation as cv
 from esphome.const import (
     CONF_ACCURACY_DECIMALS,
     CONF_AP,
-    CONF_DEVICE,
     CONF_DEVICE_CLASS,
     CONF_ID,
+    CONF_LAMBDA,
     CONF_MAX_LENGTH,
     CONF_MODEL,
     CONF_NAME,
@@ -26,6 +26,7 @@ from esphome.const import (
     CONF_UNIT_OF_MEASUREMENT,
     CONF_VALUE,
     CONF_WIFI,
+    DEVICE_CLASS_OUTLET,
 )
 from esphome.core import CORE
 from esphome.coroutine import CoroPriority, coroutine_with_priority
@@ -37,6 +38,7 @@ from .const import (
     ANALOG_INPUT_APPTYPE,
     BACNET_UNIT_NO_UNITS,
     BACNET_UNITS,
+    CONF_CLUSTER,
     CONF_ENDPOINT,
     CONF_POWER_SOURCE,
     CONF_REPORT,
@@ -47,19 +49,31 @@ from .const import (
     ZigbeeAttribute,
 )
 from .const_esp32 import (
+    ALLOWED_UNITS,
     ATTR_TYPE,
     CLUSTER_ID,
     CLUSTER_ROLE,
     CONF_ATTRIBUTE_ID,
     CONF_ATTRIBUTES,
     CONF_CLUSTERS,
+    CONNECT,
     DEVICE_ID,
     DEVICE_TYPE,
+    KEY_ZIGBEE_ATTRIBUTES,
     KEY_ZIGBEE_EP,
     ROLE,
     SCALE,
 )
-from .zigbee_ep_esp32 import add_ep, create_ep, ep_configs
+from .zigbee_ep_esp32 import (
+    ANALOG_INPUT_EP,
+    BINARY_INPUT_EP,
+    BINARY_OUTPUT_EP,
+    BINARY_SENSOR_EP_CONFIGS,
+    SENSOR_EP_CONFIGS,
+    SWITCH_EP_CONFIGS,
+    add_ep,
+    create_ep,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -78,8 +92,11 @@ def get_c_type(attr_type: str) -> Any | None:
     if "STRING" in attr_type:
         return cg.std_string
     test = re.match(r"^(DATA|UINT|MAP|ENUM)(\d{1,2})$", attr_type)
-    if test and test.group(2):
+    if test:
         return getattr(cg, "uint" + get_c_size(test.group(2), [8, 16, 32, 64]))
+    test = re.match(r"^INT(\d{1,2})$", attr_type)
+    if test:
+        return getattr(cg, "int" + get_c_size(test.group(1), [8, 16, 32, 64]))
     return None
 
 
@@ -91,8 +108,11 @@ def get_cv_by_type(attr_type: str) -> Any | None:
     if "STRING" in attr_type:
         return cv.string
     test = re.match(r"^(DATA|UINT|MAP|ENUM)(\d{1,2})$", attr_type)
-    if test and test.group(2):
+    if test:
         return cv.positive_int
+    test = re.match(r"^INT(\d{1,2})$", attr_type)
+    if test:
+        return cv.int_
     raise cv.Invalid(f"Zigbee: type {attr_type} not supported or implemented")
 
 
@@ -103,6 +123,14 @@ def get_default_by_type(attr_type: str) -> str | bool | int | float:
         return False
     if attr_type in ["SINGLE", "DOUBLE"]:
         return float("nan")
+    test = re.match(r"^(UINT|ENUM)(\d{1,2})$", attr_type)
+    if test:
+        # ZCL "invalid value" sentinel for unsigned ints is the maximum (0xFFFF for UINT16)
+        return 2 ** (int(test.group(2))) - 1
+    test = re.match(r"^INT(\d{1,2})$", attr_type)
+    if test:
+        # ZCL "invalid value" sentinel for signed ints is the minimum (0x8000 for INT16)
+        return -(1 << (int(test.group(1)) - 1))
     return 0
 
 
@@ -166,59 +194,96 @@ def setup_attributes(config: ConfigType, clusters: list[dict[str, Any]]) -> None
                 )  # or use unidecode
                 attr[CONF_VALUE] = str(name)
                 attr[CONF_MAX_LENGTH] = len(str(name))
-            if CONF_DEVICE in attr:  # connect device
-                attr[CONF_DEVICE] = config[CONF_ID]
+            if attr.get(CONNECT):  # connect device
                 if CONF_REPORT in config:
                     attr[CONF_REPORT] = config[CONF_REPORT]
                 attr[CONF_ID] = cv.declare_id(ZigbeeAttribute)(None)
-                if "zb_attr_ids" not in config:
-                    config["zb_attr_ids"] = []
-                config["zb_attr_ids"].append(attr[CONF_ID])
+                attr_list = config.setdefault(KEY_ZIGBEE_ATTRIBUTES, [])
+                attr_list.append(attr)
             else:
                 attr[CONF_ID] = None
             validate_attributes(attr)
 
 
 def validate_sensor_esp32(config: ConfigType) -> ConfigType:
-    ep = copy.deepcopy(ep_configs["analog_input"])
     # get application type from device class and meas unit
     # if none get BACNET unit from meas unit
     dev_class = config.get(CONF_DEVICE_CLASS)
     unit = config.get(CONF_UNIT_OF_MEASUREMENT)
-    apptype = ANALOG_INPUT_APPTYPE.get((dev_class, unit))
-    bacunit = BACNET_UNITS.get(unit, BACNET_UNIT_NO_UNITS)
-    accuracy = config.get(CONF_ACCURACY_DECIMALS)
-    if apptype is not None:
+    if config[CONF_CLUSTER] == "device_class":
+        if dev_class not in SENSOR_EP_CONFIGS:
+            raise cv.Invalid(
+                "'cluster: device_class' requires a supported 'device_class'. "
+                f"Supported: {', '.join(SENSOR_EP_CONFIGS)}. Use 'cluster: generic' otherwise."
+            )
+        ep = copy.deepcopy(SENSOR_EP_CONFIGS[dev_class])
+        if unit not in ep[ALLOWED_UNITS]:
+            raise cv.Invalid(
+                f"Device class '{dev_class}' requires one of units {', '.join(ep[ALLOWED_UNITS])}."
+            )
+        for attr in ep[CONF_CLUSTERS][0][CONF_ATTRIBUTES]:
+            if isinstance(attr.get(SCALE), dict):
+                attr[SCALE] = attr[SCALE][unit]
+            if isinstance(attr.get(CONF_LAMBDA), dict):
+                attr[CONF_LAMBDA] = attr[CONF_LAMBDA][unit]
+    else:
+        ep = copy.deepcopy(ANALOG_INPUT_EP)
+        apptype = ANALOG_INPUT_APPTYPE.get((dev_class, unit))
+        bacunit = BACNET_UNITS.get(unit, BACNET_UNIT_NO_UNITS)
+        accuracy = config.get(CONF_ACCURACY_DECIMALS)
+        if apptype is not None:
+            ep[CONF_CLUSTERS][0][CONF_ATTRIBUTES].append(
+                {
+                    CONF_ATTRIBUTE_ID: 0x100,
+                    CONF_VALUE: (apptype << 16) | 0xFFFF,
+                    CONF_TYPE: "UINT32",
+                },
+            )
         ep[CONF_CLUSTERS][0][CONF_ATTRIBUTES].append(
             {
-                CONF_ATTRIBUTE_ID: 0x100,
-                CONF_VALUE: (apptype << 16) | 0xFFFF,
-                CONF_TYPE: "UINT32",
+                CONF_ATTRIBUTE_ID: 0x75,
+                CONF_VALUE: bacunit,
+                CONF_TYPE: "ENUM16",
             },
         )
-    ep[CONF_CLUSTERS][0][CONF_ATTRIBUTES].append(
-        {
-            CONF_ATTRIBUTE_ID: 0x75,
-            CONF_VALUE: bacunit,
-            CONF_TYPE: "ENUM16",
-        },
-    )
-    if accuracy is not None:
-        # Analog Input Resolution (0x006A): smallest reportable change
-        ep[CONF_CLUSTERS][0][CONF_ATTRIBUTES].append(
-            {
-                CONF_ATTRIBUTE_ID: 0x6A,
-                CONF_VALUE: 10**-accuracy,
-                CONF_TYPE: "SINGLE",
-            },
-        )
+        if accuracy is not None:
+            # Analog Input Resolution (0x006A): smallest reportable change
+            ep[CONF_CLUSTERS][0][CONF_ATTRIBUTES].append(
+                {
+                    CONF_ATTRIBUTE_ID: 0x6A,
+                    CONF_VALUE: 10**-accuracy,
+                    CONF_TYPE: "SINGLE",
+                },
+            )
     setup_attributes(config, ep[CONF_CLUSTERS])
     add_ep(ep, config.get(CONF_ENDPOINT), config.get(CONF_USE_DEVICE_TYPE))
     return config
 
 
 def validate_binary_sensor_esp32(config: ConfigType) -> ConfigType:
-    ep = copy.deepcopy(ep_configs["binary_input"])
+    dev_class = config.get(CONF_DEVICE_CLASS)
+    if config[CONF_CLUSTER] == "device_class":
+        if dev_class in BINARY_SENSOR_EP_CONFIGS:
+            ep = copy.deepcopy(BINARY_SENSOR_EP_CONFIGS[dev_class])
+        else:
+            raise cv.Invalid(
+                "'cluster: device_class' requires a supported 'device_class'. "
+                f"Supported: {', '.join(BINARY_SENSOR_EP_CONFIGS)}. Use 'cluster: generic' otherwise."
+            )
+    else:
+        ep = copy.deepcopy(BINARY_INPUT_EP)
+    setup_attributes(config, ep[CONF_CLUSTERS])
+    add_ep(ep, config.get(CONF_ENDPOINT), config.get(CONF_USE_DEVICE_TYPE))
+    return config
+
+
+def validate_switch_esp32(config: ConfigType) -> ConfigType:
+    if config[CONF_CLUSTER] == "on_off":
+        ep = copy.deepcopy(SWITCH_EP_CONFIGS["on_off"])
+        if config.get(CONF_DEVICE_CLASS) == DEVICE_CLASS_OUTLET:
+            ep[DEVICE_TYPE] = "MAINS_POWER_OUTLET"
+    else:
+        ep = copy.deepcopy(BINARY_OUTPUT_EP)
     setup_attributes(config, ep[CONF_CLUSTERS])
     add_ep(ep, config.get(CONF_ENDPOINT), config.get(CONF_USE_DEVICE_TYPE))
     return config
@@ -273,14 +338,10 @@ async def attributes_to_code(
         )
         await cg.register_component(attr_var, attr)
 
-        cg.add(attr_var.add_attr(attr[CONF_VALUE]))
+        template_arg = cg.TemplateArguments(get_c_type(attr[CONF_TYPE]))
+        cg.add(attr_var.add_attr(template_arg, attr[CONF_VALUE]))
         if CONF_REPORT in attr:
             cg.add(attr_var.set_report(attr[CONF_REPORT]))
-
-        if CONF_DEVICE in attr:
-            device = await cg.get_variable(attr[CONF_DEVICE])
-            template_arg = cg.TemplateArguments(get_c_type(attr[CONF_TYPE]))
-            cg.add(attr_var.connect(template_arg, device))
 
 
 async def esp32_to_code(config: ConfigType) -> "MockObj":
@@ -325,3 +386,19 @@ async def esp32_to_code(config: ConfigType) -> "MockObj":
             )
             await attributes_to_code(var, ep_num, cl)
     return var
+
+
+async def add_component(entity: cg.MockObj, config: ConfigType) -> None:
+    attrs = config.get(KEY_ZIGBEE_ATTRIBUTES, [])
+    for attr in attrs:
+        zb_attr = await cg.get_variable(attr[CONF_ID])
+        template_arg = cg.TemplateArguments(get_c_type(attr[CONF_TYPE]))
+        if attr.get(CONF_LAMBDA) is not None:
+            lambda_ = await cg.process_lambda(
+                attr[CONF_LAMBDA],
+                [(cg.float_, "x")],
+                return_type=get_c_type(attr[CONF_TYPE]),
+            )
+            cg.add(zb_attr.connect(template_arg, entity, lambda_))
+        else:
+            cg.add(zb_attr.connect(template_arg, entity))
