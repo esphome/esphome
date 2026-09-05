@@ -319,7 +319,7 @@ std::vector<std::vector<uint8_t>> DaikinMadoka::split_payload_(std::vector<uint8
   for (size_t i = 0; i <= len / (MAX_CHUNK_SIZE - 1); i++) {
     std::vector<uint8_t> chunk{(uint8_t) i};
     chunk.insert(chunk.end(), buf.begin() + (i * (MAX_CHUNK_SIZE - 1)),
-                 std::min(buf.end(), buf.begin() + ((i + 1) * (MAX_CHUNK_SIZE - 1))));
+                 buf.begin() + std::min(buf.size(), (i + 1) * (MAX_CHUNK_SIZE - 1)));
 
     result.push_back(chunk);
   }
@@ -339,14 +339,13 @@ void DaikinMadoka::query_(uint16_t cmd, std::vector<uint8_t> &args) {
   if (this->node_state != espbt::ClientState::ESTABLISHED) {
     return;
   }
-  const auto chunks = this->split_payload_(payload);
+  auto chunks = this->split_payload_(payload);
   const char *addr = this->parent_->address_str();
-  for (const auto &chk : chunks) {
+  for (auto &chk : chunks) {
     esp_err_t status = ESP_OK;
     for (int j = 0; j < BLE_SEND_MAX_RETRIES; j++) {
       status = esp_ble_gattc_write_char(this->parent_->get_gattc_if(), this->parent_->get_conn_id(), this->wwr_handle_,
-                                        chk.size(), (uint8_t *) chk.data(), ESP_GATT_WRITE_TYPE_NO_RSP,
-                                        ESP_GATT_AUTH_REQ_NONE);
+                                        chk.size(), chk.data(), ESP_GATT_WRITE_TYPE_NO_RSP, ESP_GATT_AUTH_REQ_NONE);
       if (!status) {
         break;
       }
@@ -399,7 +398,6 @@ void DaikinMadoka::parse_cb_(std::vector<uint8_t> &msg) {
       } else if (function_id == CMD_GET_OPERATION_MODE) {
         this->cur_status_.mode = arg->second[0];
       }
-      // ESP_LOGI(TAG, "status: %d, mode: %d", this->cur_status_.status, this->cur_status_.mode);
       if (this->cur_status_.status) {
         switch (this->cur_status_.mode) {
           case 0:
