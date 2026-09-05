@@ -89,7 +89,16 @@ static void register_esp8266(MDNSComponent *, StaticVector<MDNSService, MDNS_SER
 #ifdef USE_MDNS_EVENT_DRIVEN_POLLING
 void MDNSComponent::start_polling_window_() {
   // uint32_t-ID set_interval/set_timeout already does atomic cancel-and-add.
-  this->set_interval(MDNS_POLL_ID, MDNS_UPDATE_INTERVAL_MS, []() { mdns_responder.update_guarded(); });
+  this->set_interval(MDNS_POLL_ID, MDNS_UPDATE_INTERVAL_MS, []() {
+#ifdef USE_MDNS_WIFI_LISTENER
+    // Every send fails while the radio is off channel or no interface is up, and each one
+    // spins sendTimeout() for 50 ms; skip the tick rather than stall the loop for nothing.
+    auto *wifi = wifi::global_wifi_component;
+    if (wifi->is_roaming_scan_active() || (!wifi->is_connected() && !wifi->is_ap_active()))
+      return;
+#endif
+    mdns_responder.update_guarded();
+  });
   this->set_timeout(MDNS_POLL_STOP_ID, MDNS_POLL_WINDOW_MS, [this]() { this->cancel_interval(MDNS_POLL_ID); });
 }
 #endif
