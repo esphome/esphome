@@ -797,6 +797,12 @@ class WiFiComponent final : public Component {
   network::IPAddress wifi_dns_ip_(int num);
 
   bool is_captive_portal_active_();
+  /// captive_portal or the web_server AP mode is serving a user on the access point
+  bool is_ap_portal_active_();
+#ifdef USE_WIFI_AP
+  void start_ap_portal_();
+  void end_ap_portal_();
+#endif
   bool is_esp32_improv_active_();
 
 #ifdef USE_WIFI_FAST_CONNECT

@@ -4,6 +4,9 @@
 
 #include "esphome/components/json/json_util.h"
 #include "esphome/components/web_server_base/web_server_base.h"
+#ifdef USE_WEBSERVER_CAPTIVE
+#include "esphome/components/web_server_base/captive_dns.h"
+#endif
 #ifdef USE_WEBSERVER
 #include "esphome/core/component.h"
 #include "esphome/core/controller.h"
@@ -275,6 +278,18 @@ class WebServer final : public Controller, public Component, public AsyncWebHand
 
   /// Handle an index request under '/'.
   void handle_index_request(AsyncWebServerRequest *request);
+
+#ifdef USE_WEBSERVER_CAPTIVE
+  /** AP mode: run a DNS server that answers every name with the AP address and redirect any
+   * unknown URL to the interface, so a phone joining the AP opens it through the OS captive
+   * portal check. Started and ended by the wifi component with the access point. start may run
+   * before setup() (wifi sets up first): safe because enable_loop() is a no-op before setup;
+   * nothing but the DNS server may be touched, in particular not base_ or the handlers.
+   */
+  void start_captive();
+  void end_captive();
+  bool is_captive() const { return this->dns_.is_running(); }
+#endif
 
   /// Return the webserver configuration as JSON.
   json::SerializationBuffer<> get_config_json();
@@ -597,6 +612,10 @@ class WebServer final : public Controller, public Component, public AsyncWebHand
 #elif USE_ARDUINO
   DeferredUpdateEventSourceList events_;
 #endif
+#ifdef USE_WEBSERVER_CAPTIVE
+  void handle_not_found_(AsyncWebServerRequest *request);
+  web_server_base::CaptiveDNS dns_;
+#endif
 
 #if USE_WEBSERVER_VERSION == 1
   const char *css_url_{nullptr};
@@ -695,6 +714,10 @@ class WebServer final : public Controller, public Component, public AsyncWebHand
   json::SerializationBuffer<> update_json_(update::UpdateEntity *obj, JsonDetail start_config);
 #endif
 };
+
+#ifdef USE_WEBSERVER_CAPTIVE
+extern WebServer *global_web_server;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+#endif
 
 }  // namespace esphome::web_server
 #endif
