@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from contextlib import contextmanager
 import json
+import logging
 import os
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -307,7 +308,11 @@ def test_install_package_downloads_via_registry(tmp_path: Path) -> None:
             "pkg", "1.0.0", dest, [], tmp_path / "dl", expect=("payload",)
         )
     assert mock_download.call_args[0][0] == "http://x/pkg.tar.gz"
-    assert mock_download.call_args[1] == {"sha256": "abc123", "size": 42}
+    assert mock_download.call_args[1] == {
+        "sha256": "abc123",
+        "size": 42,
+        "progress": None,
+    }
 
 
 def test_install_package_validates_expected_layout(tmp_path: Path) -> None:
@@ -723,3 +728,255 @@ def test_prefetch_packages_unexpected_failure_warns(
             tmp_path / "dl",
         )
     assert "TypeError" in caplog.text
+
+
+def _spec(name: str, version: str, dest: Path, mirrors=None, expect=("payload",)):
+    return (name, version, dest, mirrors or [], expect)
+
+
+def test_install_packages_extracts_verified_archives_in_parallel(
+    tmp_path: Path,
+) -> None:
+    """Two prefetched archives install concurrently under one shared bar."""
+    dl = tmp_path / "dl"
+    dl.mkdir()
+    (dl / "a-1.0").write_bytes(b"x" * 10)
+    (dl / "b-2.0").write_bytes(b"y" * 20)
+    with patch.object(registry, "install_package") as mock_install:
+        registry.install_packages(
+            [_spec("a", "1.0", tmp_path / "a"), _spec("b", "2.0", tmp_path / "b")], dl
+        )
+    assert mock_install.call_count == 2
+    calls = sorted(mock_install.call_args_list, key=lambda c: c[0][0])
+    for c, (name, version) in zip(calls, [("a", "1.0"), ("b", "2.0")], strict=True):
+        assert c[0][:3] == (name, version, tmp_path / name)
+        assert c[1]["expect"] == ("payload",)
+        assert callable(c[1]["extract_progress"])
+        # Driving the tracker exercises the fraction-to-bytes scaling
+        c[1]["extract_progress"](0.5)
+        c[1]["extract_progress"](1.0)
+
+
+def test_install_packages_single_archive_stays_sequential(tmp_path: Path) -> None:
+    """One verified archive has nothing to parallelize; original order kept."""
+    dl = tmp_path / "dl"
+    dl.mkdir()
+    (dl / "a-1.0").write_bytes(b"x")
+    specs = [_spec("a", "1.0", tmp_path / "a"), _spec("b", "2.0", tmp_path / "b")]
+    with patch.object(registry, "install_package") as mock_install:
+        registry.install_packages(specs, dl)
+    assert [c[0][0] for c in mock_install.call_args_list] == ["a", "b"]
+    for c in mock_install.call_args_list:
+        assert "extract_progress" not in c[1]
+
+
+def test_install_packages_mirror_and_marker_stay_sequential(tmp_path: Path) -> None:
+    """Mirror overrides and marker hits never enter the parallel batch."""
+    dl = tmp_path / "dl"
+    dl.mkdir()
+    for name, ver in (("a", "1.0"), ("b", "2.0"), ("c", "3.0"), ("d", "4.0")):
+        (dl / f"{name}-{ver}").write_bytes(b"x")
+    marked = tmp_path / "c"
+    marked.mkdir()
+    (marked / ".esphome_extracted").touch()
+    specs = [
+        _spec("a", "1.0", tmp_path / "a"),
+        _spec("b", "2.0", tmp_path / "b", mirrors=["http://m"]),
+        _spec("c", "3.0", marked),
+        _spec("d", "4.0", tmp_path / "d"),
+    ]
+    with patch.object(registry, "install_package") as mock_install:
+        registry.install_packages(specs, dl)
+    sequential = [
+        c for c in mock_install.call_args_list if "extract_progress" not in c[1]
+    ]
+    batched = [c for c in mock_install.call_args_list if "extract_progress" in c[1]]
+    assert sorted(c[0][0] for c in sequential) == ["b", "c"]
+    assert sorted(c[0][0] for c in batched) == ["a", "d"]
+
+
+def test_install_packages_first_failure_reraised(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Installs are mandatory: the first failure propagates, extras are logged."""
+    dl = tmp_path / "dl"
+    dl.mkdir()
+    (dl / "a-1.0").write_bytes(b"x")
+    (dl / "b-2.0").write_bytes(b"y")
+    boom = EsphomeError("bad layout")
+
+    def _fail(name: str, *_a, **_kw) -> None:
+        raise boom if name == "a" else EsphomeError("also bad")
+
+    with (
+        patch.object(registry, "install_package", side_effect=_fail),
+        pytest.raises(EsphomeError),
+    ):
+        registry.install_packages(
+            [_spec("a", "1.0", tmp_path / "a"), _spec("b", "2.0", tmp_path / "b")], dl
+        )
+    # Every failure is named, including the re-raised one: its exception
+    # message may not identify the package
+    assert "Could not install a" in caplog.text
+    assert "Could not install b" in caplog.text
+
+
+@contextmanager
+def _batched_install(tmp_path: Path, extract_progress, prefill_archive: bool = True):
+    """Run a batched install_package of pkg@1.0.0; yields the download mock."""
+    dest = tmp_path / "pkg"
+    if prefill_archive:
+        (tmp_path / "dl").mkdir()
+        (tmp_path / "dl" / "pkg-1.0.0").write_bytes(b"x")
+    with (
+        patch.object(registry, "download_with_resume") as mock_download,
+        patch.object(registry, "archive_extract_all") as mock_extract,
+        patch.object(
+            registry,
+            "registry_download",
+            return_value=("http://x/pkg.tar.gz", "abc123", 42),
+        ),
+    ):
+        mock_extract.side_effect = lambda *_a, **_kw: (dest / "payload").mkdir(
+            parents=True
+        )
+        registry.install_package(
+            "pkg",
+            "1.0.0",
+            dest,
+            [],
+            tmp_path / "dl",
+            expect=("payload",),
+            extract_progress=extract_progress,
+        )
+        yield mock_download, mock_extract
+
+
+def test_install_package_extract_progress_suppresses_bars(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A batched install routes extraction fractions to the caller and keeps
+    both private bars and per-package INFO lines off the shared bar."""
+    fractions: list[float] = []
+    with (
+        caplog.at_level(logging.INFO),
+        _batched_install(tmp_path, fractions.append) as (mock_download, mock_extract),
+    ):
+        pass
+    assert mock_extract.call_args[1]["progress"] == fractions.append
+    # The download tracker reports zero bytes, keeping the shared bar honest
+    download_progress = mock_download.call_args[1]["progress"]
+    assert callable(download_progress)
+    download_progress(42)
+    assert fractions == [0.0]
+    assert "Downloading pkg" not in caplog.text
+    assert "Extracting pkg" not in caplog.text
+
+
+def test_install_package_batched_missing_archive_keeps_info_log(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A batched archive that unexpectedly needs a real download keeps the
+    INFO line; the shared bar shows no progress for it."""
+    with (
+        caplog.at_level(logging.INFO),
+        _batched_install(tmp_path, lambda _frac: None, prefill_archive=False),
+    ):
+        pass
+    assert "Downloading pkg 1.0.0" in caplog.text
+
+
+def test_install_packages_dedupes_duplicate_specs(tmp_path: Path) -> None:
+    """Duplicate (name, version) entries share one archive and would race
+    each other; the duplicate takes the sequential path."""
+    dl = tmp_path / "dl"
+    dl.mkdir()
+    (dl / "a-1.0").write_bytes(b"x")
+    (dl / "b-2.0").write_bytes(b"y")
+    specs = [
+        _spec("a", "1.0", tmp_path / "a"),
+        _spec("a", "1.0", tmp_path / "a2"),
+        _spec("b", "2.0", tmp_path / "b"),
+    ]
+    with patch.object(registry, "install_package") as mock_install:
+        registry.install_packages(specs, dl)
+    sequential = [
+        c for c in mock_install.call_args_list if "extract_progress" not in c[1]
+    ]
+    batched = [c for c in mock_install.call_args_list if "extract_progress" in c[1]]
+    assert [(c[0][0], c[0][2]) for c in sequential] == [("a", tmp_path / "a2")]
+    assert sorted(c[0][0] for c in batched) == ["a", "b"]
+    # The duplicate runs after the batch, which unlinks their shared archive
+    assert mock_install.call_args_list[-1] == sequential[0]
+
+
+def test_install_packages_caps_workers(tmp_path: Path) -> None:
+    """A high core count is capped; the workers share one disk."""
+    dl = tmp_path / "dl"
+    dl.mkdir()
+    specs = []
+    for i in range(12):
+        (dl / f"p{i}-1.0").write_bytes(b"x")
+        specs.append(_spec(f"p{i}", "1.0", tmp_path / f"p{i}"))
+    with (
+        patch.object(registry, "get_usable_cpu_count", return_value=64),
+        patch.object(registry, "run_batch_downloads", return_value=[]) as batch,
+        patch.object(registry, "install_package"),
+    ):
+        registry.install_packages(specs, dl)
+    assert batch.call_args.kwargs["max_workers"] == 10
+
+
+def test_install_package_batched_refetch_announced_once(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A batched archive that fails verification and refetches is announced;
+    a verify no-op (full size credited immediately) stays silent."""
+    with (
+        caplog.at_level(logging.INFO),
+        _batched_install(tmp_path, lambda _frac: None) as (mock_download, _),
+    ):
+        progress = mock_download.call_args[1]["progress"]
+        progress(42)
+        assert "Re-downloading pkg 1.0.0" not in caplog.text
+        progress(10)
+        progress(20)
+    assert caplog.text.count("Re-downloading pkg 1.0.0") == 1
+
+
+def test_install_package_batched_refetch_announced_without_size(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A size-less registry entry still announces its refetch on the first
+    streaming tick."""
+    with (
+        caplog.at_level(logging.INFO),
+        patch.object(registry, "download_with_resume") as mock_download,
+        patch.object(registry, "archive_extract_all") as mock_extract,
+        patch.object(
+            registry,
+            "registry_download",
+            return_value=("http://x/pkg.tar.gz", "abc123", None),
+        ),
+    ):
+        dest = tmp_path / "pkg"
+        (tmp_path / "dl").mkdir()
+        (tmp_path / "dl" / "pkg-1.0.0").write_bytes(b"x")
+        mock_extract.side_effect = lambda *_a, **_kw: (dest / "payload").mkdir(
+            parents=True
+        )
+        registry.install_package(
+            "pkg",
+            "1.0.0",
+            dest,
+            [],
+            tmp_path / "dl",
+            expect=("payload",),
+            extract_progress=lambda _frac: None,
+        )
+        progress = mock_download.call_args[1]["progress"]
+        # A verify no-op credits the whole (nonempty) file in one tick
+        progress(1)
+        assert "Re-downloading pkg 1.0.0" not in caplog.text
+        progress(0)
+    assert "Re-downloading pkg 1.0.0" in caplog.text
