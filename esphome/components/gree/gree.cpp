@@ -17,6 +17,26 @@ static constexpr uint8_t GREE_TIMER_HOURS_MASK = 0x0F;
 static constexpr uint8_t GREE_BYTE5_FIXED_MASK = 0xB8;
 static constexpr uint8_t GREE_BYTE5_FIXED_VALUE = 0x20;
 
+static constexpr uint8_t supported_feature_mask(Model model) {
+  switch (model) {
+    case GREE_YAN:
+    case GREE_YAA:
+    case GREE_YAC:
+    case GREE_YAC1FB9:
+      return GREE_FAN_TURBO_BIT | GREE_LIGHT_BIT | GREE_MODEL_A_BIT | GREE_XFAN_BIT;
+    case GREE_YB1FA:
+      return GREE_FAN_TURBO_BIT | GREE_LIGHT_BIT | GREE_XFAN_BIT;
+    case GREE_YX1FF:
+      return GREE_LIGHT_BIT;
+    default:
+      return 0;
+  }
+}
+
+static constexpr uint8_t default_feature_bits(Model model) {
+  return model == GREE_YB1FA || model == GREE_YX1FF ? GREE_LIGHT_BIT : 0;
+}
+
 static bool is_valid_timer(const GreeState &state) {
   const uint8_t timer_hours = state[2] & GREE_TIMER_HOURS_MASK;
   const uint8_t timer_tens_hours = (state[1] & GREE_TIMER_TENS_HOUR_MASK) >> 5;
@@ -131,8 +151,9 @@ bool GreeProtocol::valid_checksum(const GreeState &state) {
   return (state[GREE_STATE_FRAME_SIZE - 1] & 0xF0) == GreeProtocol::calculate_checksum(state);
 }
 
-GreeState GreeClimateCodec::encode(Model model, const GreeClimateData &data, uint8_t mode_bits) {
+GreeState GreeClimateCodec::encode(Model model, const GreeClimateData &data) {
   GreeState state{0x00, 0x00, 0x00, 0x00, 0x00, 0x20, 0x00, 0x00};
+  const uint8_t feature_bits = data.feature_bits & supported_feature_mask(model);
 
   state[0] =
       GreeClimateCodec::encode_fan_mode(model, data.fan_mode) | GreeClimateCodec::encode_operation_mode(data.mode);
@@ -146,7 +167,6 @@ GreeState GreeClimateCodec::encode(Model model, const GreeClimateData &data, uin
   }
 
   if (model == GREE_YB1FA || model == GREE_YX1FF) {
-    state[2] = GREE_LIGHT_BIT;
     if (data.mode != climate::CLIMATE_MODE_OFF)
       state[2] |= GREE_MODEL_A_BIT;
     state[3] = 0x50;
@@ -194,7 +214,9 @@ GreeState GreeClimateCodec::encode(Model model, const GreeClimateData &data, uin
   }
 
   if (model == GREE_YAN || model == GREE_YAA || model == GREE_YAC || model == GREE_YAC1FB9)
-    state[2] = (state[2] & 0x0F) | mode_bits;
+    state[2] = (state[2] & 0x0F) | feature_bits;
+  if (model == GREE_YB1FA || model == GREE_YX1FF)
+    state[2] |= feature_bits;
 
   state[GREE_STATE_FRAME_SIZE - 1] = GreeProtocol::calculate_checksum(state);
   return state;
@@ -294,8 +316,8 @@ optional<GreeClimateData> GreeClimateCodec::decode_model_a(Model model, const Gr
   const bool turbo = state[2] & GREE_FAN_TURBO_BIT;
   const uint8_t temperature = state[1] & GREE_TEMP_MASK;
 
-  // Timer, Turbo, Light, X-Fan, display temperature, I-Feel, and WiFi are independent features that are not
-  // represented by Climate. Validate their encodings where possible, then ignore them when publishing state.
+  // Validate fields that are not represented by Climate where possible. Supported independent feature state is
+  // returned separately so the parent can synchronize its feature switches.
   if (mode > GREE_MODE_HEAT || temperature > GREE_TEMP_MAX - GREE_TEMP_MIN || !is_valid_timer(state) ||
       static_cast<bool>(state[2] & GREE_MODEL_A_BIT) != power || state[3] != 0x50 || !is_valid_swing(model, state) ||
       (state[5] & GREE_BYTE5_FIXED_MASK) != GREE_BYTE5_FIXED_VALUE || state[6] != 0x00 || (state[7] & 0x0F) != 0x00 ||
@@ -310,6 +332,7 @@ optional<GreeClimateData> GreeClimateCodec::decode_model_a(Model model, const Gr
       .swing_mode = swing ? climate::CLIMATE_SWING_VERTICAL : climate::CLIMATE_SWING_OFF,
       .preset = model == GREE_YX1FF && state[0] & GREE_SLEEP_MASK ? climate::CLIMATE_PRESET_SLEEP
                                                                   : climate::CLIMATE_PRESET_NONE,
+      .feature_bits = static_cast<uint8_t>(state[2] & supported_feature_mask(model)),
   };
 
   if (power) {
@@ -394,15 +417,67 @@ void GreeClimate::set_model(Model model) {
   }
 
   this->model_ = model;
+  this->feature_bits_ = default_feature_bits(model);
 }
 
-void GreeClimate::set_mode_bit(uint8_t bit_mask, bool enabled) {
+void GreeClimate::set_feature_state(GreeFeature feature, bool enabled) {
+  const uint8_t bit = gree_feature_bit(feature);
+  if (!(supported_feature_mask(this->model_) & bit))
+    return;
+
+  // YB1FA reports Turbo as effective HIGH fan. Keep the Climate and feature entities consistent when Turbo is enabled.
+  const bool fan_changed = this->model_ == GREE_YB1FA && feature == GREE_FEATURE_TURBO && enabled &&
+                           this->fan_mode.value_or(climate::CLIMATE_FAN_AUTO) != climate::CLIMATE_FAN_HIGH;
+  if (fan_changed)
+    this->fan_mode = climate::CLIMATE_FAN_HIGH;
+
   if (enabled) {
-    this->mode_bits_ |= bit_mask;
+    this->feature_bits_ |= bit;
   } else {
-    this->mode_bits_ &= ~bit_mask;
+    this->feature_bits_ &= ~bit;
   }
   this->transmit_state();
+#ifdef USE_SWITCH
+  this->publish_feature_state_(feature);
+#endif
+  if (fan_changed)
+    this->publish_state();
+}
+
+bool GreeClimate::get_feature_state(GreeFeature feature) const {
+  return this->feature_bits_ & gree_feature_bit(feature);
+}
+
+bool GreeClimate::supports_feature_state_rx() const { return this->model_ == GREE_YB1FA || this->model_ == GREE_YX1FF; }
+
+#ifdef USE_SWITCH
+void GreeClimate::register_feature_switch(GreeFeature feature, switch_::Switch *feature_switch) {
+  this->feature_switches_[static_cast<uint8_t>(feature)] = feature_switch;
+}
+
+void GreeClimate::publish_feature_state_(GreeFeature feature) {
+  auto *feature_switch = this->feature_switches_[static_cast<uint8_t>(feature)];
+  if (feature_switch != nullptr)
+    feature_switch->publish_state(this->get_feature_state(feature));
+}
+
+void GreeClimate::publish_feature_states_() {
+  for (uint8_t feature = 0; feature < this->feature_switches_.size(); feature++)
+    this->publish_feature_state_(static_cast<GreeFeature>(feature));
+}
+#endif
+
+void GreeClimate::control(const climate::ClimateCall &call) {
+  // An explicit fan selection exits YB1FA Turbo. Disabling Turbo itself leaves the effective HIGH fan selected.
+  const bool clear_turbo =
+      this->model_ == GREE_YB1FA && call.get_fan_mode().has_value() && this->get_feature_state(GREE_FEATURE_TURBO);
+  if (clear_turbo) {
+    this->feature_bits_ &= ~GREE_FAN_TURBO_BIT;
+#ifdef USE_SWITCH
+    this->publish_feature_state_(GREE_FEATURE_TURBO);
+#endif
+  }
+  climate_ir::ClimateIR::control(call);
 }
 
 void GreeClimate::transmit_state() {
@@ -413,8 +488,9 @@ void GreeClimate::transmit_state() {
       .fan_mode = this->fan_mode.value_or(climate::CLIMATE_FAN_AUTO),
       .swing_mode = this->swing_mode,
       .preset = this->preset.value_or(climate::CLIMATE_PRESET_NONE),
+      .feature_bits = this->feature_bits_,
   };
-  const GreeState state = GreeClimateCodec::encode(this->model_, climate_data, this->mode_bits_);
+  const GreeState state = GreeClimateCodec::encode(this->model_, climate_data);
 
   auto transmit = this->transmitter_->transmit();
   GreeProtocol(this->model_).encode(transmit.get_data(), state);
@@ -437,6 +513,10 @@ bool GreeClimate::on_receive(remote_base::RemoteReceiveData data) {
   this->fan_mode = decoded->fan_mode;
   this->swing_mode = decoded->swing_mode;
   this->preset = decoded->preset;
+  this->feature_bits_ = decoded->feature_bits;
+#ifdef USE_SWITCH
+  this->publish_feature_states_();
+#endif
   this->publish_state();
   return true;
 }

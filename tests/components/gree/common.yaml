@@ -30,3 +30,17 @@ switch:
       name: "AC Health"
     xfan:
       name: "AC X-Fan"
+
+  - platform: gree
+    gree_id: my_gree_yb1fa_ac
+    light:
+      name: "YB1FA AC Lights"
+    turbo:
+      name: "YB1FA AC Turbo"
+    xfan:
+      name: "YB1FA AC X-Fan"
+
+  - platform: gree
+    gree_id: my_gree_yx1ff_ac
+    light:
+      name: "YX1FF AC Lights"

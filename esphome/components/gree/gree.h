@@ -3,6 +3,9 @@
 #include <array>
 
 #include "esphome/components/climate_ir/climate_ir.h"
+#ifdef USE_SWITCH
+#include "esphome/components/switch/switch.h"
+#endif
 
 namespace esphome::gree {
 
@@ -87,6 +90,28 @@ static constexpr uint8_t GREE_PRESET_SLEEP_BIT = 0x80;
 // Model codes
 enum Model { GREE_GENERIC, GREE_YAN, GREE_YAA, GREE_YAC, GREE_YAC1FB9, GREE_YB1FA, GREE_YX1FF, GREE_YAG };
 
+enum GreeFeature : uint8_t {
+  GREE_FEATURE_TURBO = 0,
+  GREE_FEATURE_LIGHT = 1,
+  GREE_FEATURE_HEALTH = 2,
+  GREE_FEATURE_XFAN = 3,
+};
+
+static constexpr uint8_t gree_feature_bit(GreeFeature feature) {
+  switch (feature) {
+    case GREE_FEATURE_TURBO:
+      return GREE_FAN_TURBO_BIT;
+    case GREE_FEATURE_LIGHT:
+      return GREE_LIGHT_BIT;
+    case GREE_FEATURE_HEALTH:
+      return GREE_MODEL_A_BIT;
+    case GREE_FEATURE_XFAN:
+      return GREE_XFAN_BIT;
+    default:
+      return 0;
+  }
+}
+
 using GreeState = std::array<uint8_t, GREE_STATE_FRAME_SIZE>;
 
 struct GreeClimateData {
@@ -95,6 +120,7 @@ struct GreeClimateData {
   climate::ClimateFanMode fan_mode;
   climate::ClimateSwingMode swing_mode;
   climate::ClimatePreset preset;
+  uint8_t feature_bits{0};
 };
 
 class GreeProtocol {
@@ -115,7 +141,7 @@ class GreeProtocol {
 
 class GreeClimateCodec {
  public:
-  static GreeState encode(Model model, const GreeClimateData &data, uint8_t mode_bits = 0);
+  static GreeState encode(Model model, const GreeClimateData &data);
   static optional<GreeClimateData> decode(Model model, const GreeState &state);
 
  protected:
@@ -136,16 +162,29 @@ class GreeClimate final : public climate_ir::ClimateIR {
                                climate::CLIMATE_SWING_HORIZONTAL, climate::CLIMATE_SWING_BOTH}) {}
 
   void set_model(Model model);
-  void set_mode_bit(uint8_t bit_mask, bool enabled);
+  void set_feature_state(GreeFeature feature, bool enabled);
+  bool get_feature_state(GreeFeature feature) const;
+  bool supports_feature_state_rx() const;
+#ifdef USE_SWITCH
+  void register_feature_switch(GreeFeature feature, switch_::Switch *feature_switch);
+#endif
 
  protected:
+  void control(const climate::ClimateCall &call) override;
   // Transmit via IR the state of this climate controller.
   void transmit_state() override;
   bool on_receive(remote_base::RemoteReceiveData data) override;
   climate::ClimateTraits traits() override;
 
+#ifdef USE_SWITCH
+  void publish_feature_state_(GreeFeature feature);
+  void publish_feature_states_();
+
+  std::array<switch_::Switch *, 4> feature_switches_{};
+#endif
+
   Model model_{};
-  uint8_t mode_bits_{0};  // Combined mode bits for remote_state[2]
+  uint8_t feature_bits_{0};
 };
 
 }  // namespace esphome::gree
