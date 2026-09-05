@@ -1393,6 +1393,10 @@ const char *NoiseEncryptionSetKeyResponse::dump_to(DumpBuffer &out) const {
   dump_field(out, ESPHOME_PSTR("success"), this->success);
   return out.c_str();
 }
+const char *NoiseResumeTicket::dump_to(DumpBuffer &out) const {
+  out.append_p(ESPHOME_PSTR("NoiseResumeTicket {}"));
+  return out.c_str();
+}
 #endif
 #ifdef USE_API_HOMEASSISTANT_SERVICES
 const char *HomeassistantServiceMap::dump_to(DumpBuffer &out) const {

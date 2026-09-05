@@ -1779,12 +1779,36 @@ void APIConnection::complete_authentication_() {
     this->send_time_request();
   }
 #endif
+#ifdef USE_API_NOISE
+  this->send_resume_ticket_();
+#endif
 #ifdef USE_ZWAVE_PROXY
   if (zwave_proxy::global_zwave_proxy != nullptr) {
     zwave_proxy::global_zwave_proxy->api_connection_authenticated(this);
   }
 #endif
 }
+
+#ifdef USE_API_NOISE
+void APIConnection::send_resume_ticket_() {
+#ifdef USE_API_PLAINTEXT
+  // Only encrypted transports get a ticket: on dual-mode builds a plaintext
+  // connection has no frame footer
+  if (this->helper_->frame_footer_size() == 0) {
+    return;
+  }
+#endif
+  noise::ResumeTicket ticket;
+  if (!this->parent_->get_noise_ctx().resume_cache().issue(ticket)) {
+    return;
+  }
+  NoiseResumeTicket msg;
+  msg.set_ticket(reinterpret_cast<const uint8_t *>(&ticket), sizeof(ticket));
+  // A dropped ticket is harmless: the client does a full handshake next time
+  static_cast<void>(this->send_message(msg));
+  noise_clean(&ticket, sizeof(ticket));
+}
+#endif
 
 bool APIConnection::send_hello_response_(const HelloRequest &msg) {
   // Copy client name with truncation if needed (set_client_name handles truncation)

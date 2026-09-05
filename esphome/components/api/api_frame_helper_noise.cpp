@@ -271,8 +271,8 @@ APIError APINoiseFrameHelper::state_action_client_hello_() {
   if (aerr != APIError::OK) {
     return handle_handshake_frame_error_(aerr);
   }
-  // ignore contents, may be used in future for flags
-  // Resize for: existing prologue + 2 size bytes + frame data
+  // Contents are extension flags (today: the resume offer); mixed into the
+  // prologue either way. Resize for: existing prologue + 2 size bytes + frame data
   size_t old_size = this->prologue_.size();
   size_t rx_size = this->rx_buf_.size();
   if (!this->prologue_.resize(old_size + 2 + rx_size)) [[unlikely]] {
@@ -289,6 +289,8 @@ APIError APINoiseFrameHelper::state_action_client_hello_() {
   return APIError::OK;
 }
 APIError APINoiseFrameHelper::state_action_server_hello_() {
+  // A verified resume offer (still in rx_buf_ from the client hello step)
+  // replaces the whole handshake; any failure falls back to the full one.
   // send server hello
   const auto &name = App.get_name();
   char mac[MAC_ADDRESS_BUFFER_SIZE];
@@ -302,7 +304,9 @@ APIError APINoiseFrameHelper::state_action_server_hello_() {
 
   // 1 (proto) + name (max ESPHOME_DEVICE_NAME_MAX_LEN) + 1 (name null)
   // + mac (MAC_ADDRESS_BUFFER_SIZE - 1) + 1 (mac null)
-  constexpr size_t max_msg_size = 1 + ESPHOME_DEVICE_NAME_MAX_LEN + 1 + MAC_ADDRESS_BUFFER_SIZE;
+  // + optional resume accept extension
+  constexpr size_t max_msg_size =
+      1 + ESPHOME_DEVICE_NAME_MAX_LEN + 1 + MAC_ADDRESS_BUFFER_SIZE + noise::RESUME_ACCEPT_SIZE;
   uint8_t msg[max_msg_size];
 
   // chosen proto
@@ -313,16 +317,32 @@ APIError APINoiseFrameHelper::state_action_server_hello_() {
   // node mac, terminated by null byte
   std::memcpy(msg + mac_offset, mac, MAC_ADDRESS_BUFFER_SIZE);
 
+  // The accept extension, if any, is written straight after the mac
+  size_t ext_len = this->ctx_.resume_cache().try_accept(
+      this->rx_buf_.data(), this->rx_buf_.size(), this->prologue_.data(), this->prologue_.size(), msg + total_size,
+      sizeof(msg) - total_size, send_cipher_, recv_cipher_);
+  bool resume = ext_len != 0;
+  total_size += ext_len;
+
   APIError aerr = write_frame_(msg, total_size);
   if (aerr != APIError::OK)
     return aerr;
 
-  // start handshake
-  aerr = init_handshake_();
-  if (aerr != APIError::OK)
-    return aerr;
-
-  state_ = State::HANDSHAKE;
+  if (resume) {
+    // A resuming client waits for this hello instead of pipelining
+    // handshake message 1, so the transport is ready now
+    this->frame_footer_size_ = noise_cipherstate_get_mac_length(this->send_cipher_);
+    HELPER_LOG("Session resumed!");
+    state_ = State::DATA;
+  } else {
+    aerr = init_handshake_();
+    if (aerr != APIError::OK)
+      return aerr;
+    state_ = State::HANDSHAKE;
+  }
+  // init_handshake_ copied the prologue into the handshake state; the resume
+  // path is done with it too
+  this->prologue_.release();
   return APIError::OK;
 }
 APIError APINoiseFrameHelper::state_action_handshake_() {
@@ -552,8 +572,6 @@ APIError APINoiseFrameHelper::init_handshake_() {
   APIError aerr = handle_noise_error_(err, LOG_STR("noise_handshake_init"), APIError::HANDSHAKESTATE_SETUP_FAILED);
   if (aerr != APIError::OK)
     return aerr;
-  // init copies the prologue into the handshakestate, so we can get rid of it now
-  prologue_.release();
   return APIError::OK;
 }
 
