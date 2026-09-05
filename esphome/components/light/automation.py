@@ -49,21 +49,18 @@ from .types import (
 
 CONF_INCLUDE_NONE = "include_none"
 
-_STATE_ON_OFF = cv.one_of("ON", "OFF", upper=True)
-
 
 @schema_extractor("one_of")
 def validate_light_state(value):
     """Validate a light on/off state.
 
-    Documented as 'ON'/'OFF', but accepts all boolean forms for backward compatibility.
+    Presented as 'ON'/'OFF' to schema consumers (e.g. the dashboard), but cv.boolean
+    already accepts those spellings too, along with 'true'/'false', 'yes'/'no' and
+    'enable'/'disable'.
     """
     if value == SCHEMA_EXTRACT:
         return "ON", "OFF"
-    try:
-        return _STATE_ON_OFF(value) == "ON"
-    except cv.Invalid:
-        return cv.boolean(value)
+    return cv.boolean(value)
 
 
 @automation.register_action(

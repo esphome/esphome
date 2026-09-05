@@ -328,6 +328,8 @@ def _final_validate(config: ConfigType) -> None:
 FINAL_VALIDATE_SCHEMA = _final_validate
 
 
+RESTORE_MODE_DEFAULT_INITIAL_STATE = "RESTORE_DEFAULT_INITIAL_STATE"
+
 LightRestoreMode = light_ns.enum("LightRestoreMode")
 RESTORE_MODES = {
     "RESTORE_DEFAULT_OFF": LightRestoreMode.LIGHT_RESTORE_DEFAULT_OFF,
@@ -338,7 +340,7 @@ RESTORE_MODES = {
     "RESTORE_INVERTED_DEFAULT_ON": LightRestoreMode.LIGHT_RESTORE_INVERTED_DEFAULT_ON,
     "RESTORE_AND_OFF": LightRestoreMode.LIGHT_RESTORE_AND_OFF,
     "RESTORE_AND_ON": LightRestoreMode.LIGHT_RESTORE_AND_ON,
-    "RESTORE_DEFAULT_INITIAL_STATE": LightRestoreMode.LIGHT_RESTORE_DEFAULT_INITIAL_STATE,
+    RESTORE_MODE_DEFAULT_INITIAL_STATE: LightRestoreMode.LIGHT_RESTORE_DEFAULT_INITIAL_STATE,
 }
 
 LIGHT_SCHEMA = (
@@ -373,7 +375,27 @@ LIGHT_SCHEMA = (
     )
 )
 
+
+def _validate_restore_mode(config: ConfigType) -> ConfigType:
+    """RESTORE_DEFAULT_INITIAL_STATE has nothing to fall back on without initial_state:
+    configured -- it would otherwise silently behave like RESTORE_DEFAULT_OFF.
+
+    Note: cv.enum() validates CONF_RESTORE_MODE to the (EnumValue-tagged) string key,
+    not the LightRestoreMode expression, so it must be compared as a plain string here.
+    """
+    if (
+        config[CONF_RESTORE_MODE] == RESTORE_MODE_DEFAULT_INITIAL_STATE
+        and CONF_INITIAL_STATE not in config
+    ):
+        raise cv.Invalid(
+            "restore_mode: RESTORE_DEFAULT_INITIAL_STATE requires an 'initial_state' block",
+            path=[CONF_RESTORE_MODE],
+        )
+    return config
+
+
 LIGHT_SCHEMA.add_extra(entity_duplicate_validator("light"))
+LIGHT_SCHEMA.add_extra(_validate_restore_mode)
 
 BINARY_LIGHT_SCHEMA = LIGHT_SCHEMA.extend(
     {

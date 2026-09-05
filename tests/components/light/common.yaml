@@ -260,7 +260,8 @@ light:
       red: 100%
       green: 50%
       blue: 50%
-  # Test restore_mode: RESTORE_DEFAULT_INITIAL_STATE and the "ON"/"OFF" state schema
+  # Test restore_mode: RESTORE_DEFAULT_INITIAL_STATE and the quoted "OFF" state string
+  # (unquoted OFF parses as a YAML boolean, which wouldn't exercise the string path)
   - platform: rgb
     id: test_rgb_light_restore_default_initial_state
     name: RGB Light Restore Default Initial State
@@ -270,7 +271,7 @@ light:
     restore_mode: RESTORE_DEFAULT_INITIAL_STATE
     initial_state:
       color_mode: rgb
-      state: OFF
+      state: "OFF"
       red: 100%
       green: 50%
       blue: 50%
