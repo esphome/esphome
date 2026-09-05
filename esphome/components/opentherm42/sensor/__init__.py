@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 from esphome.components import sensor
 import esphome.config_validation as cv
-from esphome.const import CONF_INDEX
+from esphome.const import CONF_INDEX, UNIT_REVOLUTIONS_PER_MINUTE
 
 from .. import OpenTherm42Hub
 from ..const import (
@@ -230,11 +230,15 @@ TYPES: dict[str, cv.Schema] = {
     CONF_SENSOR_AND_INFORMATIONAL_DATA_EXHAUST_OUTLET_TEMPERATURE: _TEMPERATURE_SCHEMA,
     # §5.3.4 Class 4, ID 84: Actual exhaust fan speed (rpm, 0..6000).
     CONF_SENSOR_AND_INFORMATIONAL_DATA_ACTUAL_EXHAUST_FAN_SPEED: sensor.sensor_schema(
-        unit_of_measurement="rpm", accuracy_decimals=0, state_class="measurement"
+        unit_of_measurement=UNIT_REVOLUTIONS_PER_MINUTE,
+        accuracy_decimals=0,
+        state_class="measurement",
     ),
     # §5.3.4 Class 4, ID 85: Actual inlet fan speed (rpm, 0..6000).
     CONF_SENSOR_AND_INFORMATIONAL_DATA_ACTUAL_INLET_FAN_SPEED: sensor.sensor_schema(
-        unit_of_measurement="rpm", accuracy_decimals=0, state_class="measurement"
+        unit_of_measurement=UNIT_REVOLUTIONS_PER_MINUTE,
+        accuracy_decimals=0,
+        state_class="measurement",
     ),
     # §5.3.4 Class 4, ID 96: Number of hours the boiler is in Cooling Mode. Reset by zero is optional
     # for the boiler -- this component only reads it.
