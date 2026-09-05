@@ -1,5 +1,7 @@
+import functools
+
 import esphome.codegen as cg
-from esphome.components import button
+from esphome.components import button, network
 import esphome.config_validation as cv
 from esphome.const import CONF_ID
 from esphome.core import CORE
@@ -20,14 +22,15 @@ wake_on_lan_ns = cg.esphome_ns.namespace("wake_on_lan")
 
 WakeOnLanButton = wake_on_lan_ns.class_("WakeOnLanButton", button.Button, cg.Component)
 
-CONFIG_SCHEMA = (
+CONFIG_SCHEMA = cv.All(
     button.button_schema(WakeOnLanButton)
     .extend(cv.COMPONENT_SCHEMA)
     .extend(
         {
             cv.Required(CONF_TARGET_MAC_ADDRESS): cv.mac_address,
         }
-    )
+    ),
+    functools.partial(network.require_ipv4, name="wake_on_lan"),
 )
 
 

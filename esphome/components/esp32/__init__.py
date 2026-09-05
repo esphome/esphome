@@ -567,6 +567,18 @@ def set_core_data(config):
     return config
 
 
+def _require_ip_on_arduino(config):
+    """Arduino's esp-idf core requires IPv4; its lwIP is prebuilt with IPv6
+    support too, but that's pinned directly in network's to_code(), not via
+    require_ipv6(), so enable_ipv6 stays user-controlled.
+    """
+    if CORE.using_arduino:
+        from esphome.components import network
+
+        network.require_ipv4(config, name=PLATFORM_ESP32)
+    return config
+
+
 def get_esp32_variant(core_obj=None):
     return (core_obj or CORE).data[KEY_ESP32][KEY_VARIANT]
 
@@ -2132,6 +2144,7 @@ CONFIG_SCHEMA = cv.All(
     _set_default_framework,
     _check_versions,
     set_core_data,
+    _require_ip_on_arduino,
     cv.has_at_least_one_key(CONF_BOARD, CONF_VARIANT),
 )
 
