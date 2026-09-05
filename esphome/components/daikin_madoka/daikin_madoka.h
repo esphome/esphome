@@ -1,7 +1,6 @@
 #pragma once
 
 #include <vector>
-#include <queue>
 #include <map>
 
 #include "esphome/core/component.h"
@@ -85,6 +84,9 @@ template<typename T> class VectorFIFO : std::vector<T> {
 
   void push(const T &value) { this->std::vector<T>::push_back(value); }
   void push(T &&value) { this->std::vector<T>::push_back(std::move(value)); }
+  template<typename... Args> void emplace(Args &&...args) {
+    this->std::vector<T>::emplace_back(std::forward<Args>(args)...);
+  }
 };
 
 class DaikinMadoka : public climate::Climate, public esphome::ble_client::BLEClientNode, public PollingComponent {
@@ -92,7 +94,7 @@ class DaikinMadoka : public climate::Climate, public esphome::ble_client::BLECli
   bool should_update_ = false;
   VectorFIFO<std::vector<uint8_t>> received_chunks_ = {};
   std::map<uint8_t, std::vector<uint8_t>> pending_chunks_ = {};
-  std::queue<Query> query_queue_ = {};
+  VectorFIFO<Query> query_queue_ = {};
   bool pending_message_ = false;
   uint16_t notify_handle_{0};
   uint16_t wwr_handle_{0};
