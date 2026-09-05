@@ -19,6 +19,7 @@ from __future__ import annotations
 from collections.abc import Iterator
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager, suppress
+from functools import partial
 import hashlib
 import json
 import logging
@@ -39,6 +40,7 @@ from esphome.framework_helpers import (
     failure_reason,
     resume_fetch_job,
     run_batch_downloads,
+    wait_for_download_lock,
     warn_prefetch_failures,
 )
 from esphome.helpers import get_bool_env, get_usable_cpu_count, rmtree
@@ -68,9 +70,6 @@ _DOWNLOAD_LOCK_TIMEOUT = 60
 # Child exit for a handled, already-warned failure; 1 would collide with
 # the interpreter's own import-failure exit
 _EXIT_HANDLED = 3
-
-# Short lock-acquire slices so a waiting worker still observes Ctrl-C
-_URI_LOCK_POLL = 1
 
 # Resolution errored (vs a clean skip); suppresses the warm sentinel
 _RESOLVE_FAILED = object()
@@ -467,59 +466,42 @@ def _serialized_fetch_job(
     lock_path: str,
     body: Any,
     size: int,
-    stream_dest: Path,
+    stream_dest: Path | None = None,
     unlocked_ok: bool = True,
 ) -> Any:
-    """Wrap ``body`` so the shared destination is single-writer.
-
-    Interleaved writers truncate each other's ``.part`` bytes (see
-    registry.py). While the lock is held elsewhere the poll reports the
-    holder's bytes (streamed into ``stream_dest``) so the bar moves, and
-    observes Ctrl-C via the tracker; a blown deadline is a clean skip
-    (the holder's copy is what the build needs). On a lock-less
-    filesystem a sha256-verified body runs unlocked with one warning; a
-    checksum-less one (``unlocked_ok=False``) is a counted failure instead.
+    """Wrap ``body`` so the shared destination is single-writer (interleaved
+    writers truncate each other's ``.part``, see registry.py). A blown deadline
+    is a clean skip. On a lock-less filesystem a sha256-verified body runs
+    unlocked with one warning; a checksum-less one (``unlocked_ok=False``) fails.
     """
+    # The holder's part file sits beside dl_path, or beside the staging
+    # path a URL job promotes from
+    on_disk = partial(downloaded_bytes, stream_dest or dl_path, size)
 
     def run(tracker: Any) -> None:
-        from filelock import FileLock, Timeout
+        from filelock import FileLock
 
         # fallback_to_soft would leave a stale marker on lock-less
         # filesystems that blocks every later build (see git.py)
         lock = FileLock(lock_path, fallback_to_soft=False)
-        deadline = time.monotonic() + _DOWNLOAD_LOCK_TIMEOUT
-        waiting = False
-        while True:
-            try:
-                lock.acquire(timeout=_URI_LOCK_POLL)
-                break
-            except Timeout:
-                if not waiting:
-                    waiting = True
-                    _LOGGER.info(
-                        "Waiting for another process downloading %s", dl_path.name
-                    )
-                # Raises when the batch is cancelled
-                tracker(
-                    size if dl_path.is_file() else downloaded_bytes(stream_dest, size)
-                )
-                if time.monotonic() >= deadline:
-                    # Another process is fetching this same file; its copy
-                    # is what the build needs (a large framework archive
-                    # can hold the lock far longer than this deadline)
-                    _LOGGER.debug("Leaving %s to its current downloader", dl_path.name)
-                    return
-            except OSError as err:
-                if not unlocked_ok:
-                    # A body with no checksum to catch interleaved corruption
-                    raise
-                lock = None
-                _LOGGER.warning(
-                    "Could not lock %s (%s); downloading unlocked",
-                    dl_path.name,
-                    err,
-                )
-                break
+        try:
+            if not wait_for_download_lock(
+                lock, tracker, on_disk, dl_path.name, _DOWNLOAD_LOCK_TIMEOUT
+            ):
+                # The holder's copy is what the build needs (a large
+                # framework archive can outlast this deadline)
+                _LOGGER.debug("Leaving %s to its current downloader", dl_path.name)
+                return
+        except OSError as err:
+            if not unlocked_ok:
+                # A body with no checksum to catch interleaved corruption
+                raise
+            lock = None
+            _LOGGER.warning(
+                "Could not lock %s (%s); downloading unlocked",
+                dl_path.name,
+                err,
+            )
         try:
             if dl_path.is_file():
                 tracker(size)  # another process finished it while we waited
@@ -558,7 +540,6 @@ def _registry_fetch_job(
         f"{dl_path}.esphome.lock",
         resume_fetch_job(url, dl_path, sha256=checksum, size=size),
         size,
-        dl_path,
     )
 
     def run(tracker: Any) -> None:

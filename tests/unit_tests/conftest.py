@@ -9,7 +9,7 @@ not be part of a unit test suite.
 
 """
 
-from collections.abc import Generator
+from collections.abc import Callable, Generator
 import os
 from pathlib import Path
 import sys
@@ -137,3 +137,34 @@ def mock_get_component() -> Generator[Mock, None, None]:
     """Mock get_component for config module."""
     with patch("esphome.config.get_component") as mock:
         yield mock
+
+
+@pytest.fixture
+def held_lock() -> Callable[..., Callable[..., None]]:
+    """Factory for a ``FileLock.acquire`` fake held by another downloader.
+
+    Each poll writes the next chunk to ``part`` and raises ``Timeout``; when
+    the chunks run out the part is removed, ``land()`` runs, and the acquire
+    succeeds (also for any later job, so ``land`` must be idempotent).
+    """
+    from filelock import Timeout
+
+    def make(
+        part: Path, chunks: list[bytes], land: Callable[[], None]
+    ) -> Callable[..., None]:
+        polls = iter(chunks)
+
+        def acquire(*args, **kwargs) -> None:
+            try:
+                chunk = next(polls)
+            except StopIteration:
+                part.unlink(missing_ok=True)
+                land()
+                return
+            part.parent.mkdir(parents=True, exist_ok=True)
+            part.write_bytes(chunk)
+            raise Timeout("held")
+
+        return acquire
+
+    return make

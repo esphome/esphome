@@ -17,8 +17,10 @@ from esphome.framework_helpers import (
     archive_extract_all,
     download_from_mirrors,
     download_with_resume,
+    downloaded_bytes,
     rmdir,
     run_batch_downloads,
+    wait_for_download_lock,
 )
 from esphome.net_retry import fetch_with_retry, http_request
 
@@ -222,20 +224,31 @@ def prefetch_packages(
 
     def _fetch(entry: _PendingArchive, tracker: Callable[[int], None]) -> None:
         entry.dest.parent.mkdir(parents=True, exist_ok=True)
-        with FileLock(f"{entry.dest}.lock", fallback_to_soft=False):
-            # Marker re-check: a concurrent build may have installed (and
-            # deleted the archive of) this package while we waited;
-            # re-downloading would orphan a fresh copy in downloads_dir
-            # no branch: the thread tracer misses the skip edge; both
-            # arms of _already_installed are pinned directly
-            if not _already_installed(entry.dest):  # pragma: no branch
-                download_with_resume(
-                    entry.url,
-                    downloads_dir / f"{entry.name}-{entry.version}",
-                    sha256=entry.sha256,
-                    size=entry.size,
-                    progress=tracker,
-                )
+        archive = downloads_dir / f"{entry.name}-{entry.version}"
+
+        def on_disk() -> int:
+            if done := downloaded_bytes(archive, entry.size):
+                return done
+            # The holder deletes the archive once it has installed it
+            return entry.size if _already_installed(entry.dest) else 0
+
+        lock = FileLock(f"{entry.dest}.lock", fallback_to_soft=False)
+        wait_for_download_lock(lock, tracker, on_disk, entry.name)
+        try:
+            if _already_installed(entry.dest):
+                # A concurrent build installed it while we waited; a
+                # re-download would orphan a fresh copy in downloads_dir
+                tracker(entry.size)
+                return
+            download_with_resume(
+                entry.url,
+                archive,
+                sha256=entry.sha256,
+                size=entry.size,
+                progress=tracker,
+            )
+        finally:
+            lock.release()
 
     failures = run_batch_downloads(
         "Downloading packages",

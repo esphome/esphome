@@ -540,16 +540,13 @@ def test_prefetch_packages_skips_freshly_installed_dest(tmp_path: Path) -> None:
     dest = tmp_path / "a"
     dest.mkdir()
 
-    from contextlib import contextmanager
-
-    @contextmanager
-    def marker_appears_under_lock(path, **kwargs):
+    def marker_appears_under_lock(*args, **kwargs):
         # Simulates the concurrent build finishing while we waited
         (dest / ".esphome_extracted").touch()
-        yield
 
     with (
-        patch("filelock.FileLock", side_effect=marker_appears_under_lock),
+        patch("filelock.FileLock.acquire", side_effect=marker_appears_under_lock),
+        patch("filelock.FileLock.release"),
         patch.object(registry, "download_with_resume") as mock_download,
         patch.object(
             registry, "registry_download", side_effect=_resolve_for({"a": 10})
@@ -557,6 +554,42 @@ def test_prefetch_packages_skips_freshly_installed_dest(tmp_path: Path) -> None:
     ):
         registry.prefetch_packages([("a", "1.0", dest, [])], tmp_path / "dl")
     mock_download.assert_not_called()
+
+
+def test_prefetch_packages_waits_with_the_holders_progress(
+    tmp_path: Path, held_lock
+) -> None:
+    """A worker parked on another build's lock reports that build's part
+    file, then the full size once the marker appears."""
+    dest = tmp_path / "a"
+    dest.mkdir()
+    ticks: list[int] = []
+    acquire = held_lock(
+        tmp_path / "dl" / "a-1.0.part",
+        [b"abc"],
+        (dest / ".esphome_extracted").touch,
+    )
+
+    def fake_batch(header, jobs):
+        for _name, _size, fetch in jobs:
+            fetch(ticks.append)
+        return []
+
+    with (
+        patch("filelock.FileLock.acquire", side_effect=acquire),
+        patch("filelock.FileLock.release"),
+        patch.object(registry, "run_batch_downloads", side_effect=fake_batch),
+        patch.object(registry, "download_with_resume") as mock_download,
+        patch.object(
+            registry, "registry_download", side_effect=_resolve_for({"a": 10, "b": 5})
+        ),
+    ):
+        registry.prefetch_packages(
+            [("a", "1.0", dest, []), ("b", "2.0", tmp_path / "b", [])],
+            tmp_path / "dl",
+        )
+    assert ticks == [3, 10]
+    mock_download.assert_called_once()
 
 
 def test_already_installed_probe(tmp_path: Path) -> None:

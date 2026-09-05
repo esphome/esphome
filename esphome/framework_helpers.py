@@ -23,6 +23,7 @@ from esphome.net_retry import (
 )
 
 if TYPE_CHECKING:
+    from filelock import FileLock
     import requests
 
 PathType = str | os.PathLike
@@ -909,15 +910,46 @@ def _part_path(dest: Path) -> Path:
     return dest.with_name(dest.name + ".part")
 
 
-def downloaded_bytes(dest: Path, size: int) -> int:
-    """Bytes of ``dest`` on disk: ``size`` once it landed, else what its
-    ``.part`` holds so far (capped at ``size``), else 0."""
-    if dest.is_file():
-        return size
+def downloaded_bytes(dest: Path, size: int | None = None) -> int:
+    """Bytes of ``dest`` on disk: its ``.part`` so far (capped at ``size``),
+    else the landed file, else 0."""
     try:
-        return min(_part_path(dest).stat().st_size, size)
+        done = _part_path(dest).stat().st_size
     except OSError:
-        return 0
+        if not dest.is_file():
+            return 0
+        done = dest.stat().st_size if size is None else size
+    return done if size is None else min(done, size)
+
+
+# Short lock-acquire slices so a waiting worker still observes Ctrl-C
+_DOWNLOAD_LOCK_POLL = 1
+
+
+def wait_for_download_lock(
+    lock: "FileLock",
+    tracker: Callable[[int], None],
+    on_disk: Callable[[], int],
+    name: str,
+    timeout: float | None = None,
+) -> bool:
+    """Acquire ``lock``, reporting ``on_disk()`` to ``tracker`` each poll so the
+    bar follows the holder's download. False once ``timeout`` seconds pass."""
+    from filelock import Timeout
+
+    deadline = None if timeout is None else time.monotonic() + timeout
+    waiting = False
+    while True:
+        try:
+            lock.acquire(timeout=_DOWNLOAD_LOCK_POLL)
+            return True
+        except Timeout:
+            if not waiting:
+                waiting = True
+                _LOGGER.info("Waiting for another process downloading %s", name)
+            tracker(on_disk())  # raises when the batch is cancelled
+            if deadline is not None and time.monotonic() >= deadline:
+                return False
 
 
 def discard_partial_download(dest: Path) -> None:
@@ -1330,10 +1362,7 @@ def download_from_mirrors(
             )
             # Tick with the bytes already on disk so a combined bar holds
             # steady during the backoff instead of rewinding to zero
-            done = 0
-            if progress is not None:
-                part = _part_path(path_target)
-                done = part.stat().st_size if part.is_file() else 0
+            done = downloaded_bytes(path_target) if progress is not None else 0
             _cancellable_sleep(delay, progress, done)
 
     # 3. Report every attempted URL if all mirrors failed. failures spans

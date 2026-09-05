@@ -2356,8 +2356,7 @@ def test_discard_partial_download_logs_undeletable(
 
 
 def test_downloaded_bytes_reports_what_is_on_disk(tmp_path: Path) -> None:
-    """A landed file counts in full, a part file counts what it holds
-    (never more than the size), and nothing on disk counts zero."""
+    """Landed file: size; part file: its bytes, capped at size; nothing: 0."""
     dest = tmp_path / "archive"
     assert framework_helpers.downloaded_bytes(dest, 4) == 0
     part = tmp_path / "archive.part"
@@ -2367,3 +2366,5 @@ def test_downloaded_bytes_reports_what_is_on_disk(tmp_path: Path) -> None:
     assert framework_helpers.downloaded_bytes(dest, 4) == 4
     dest.write_bytes(b"abcd")
     assert framework_helpers.downloaded_bytes(dest, 4) == 4
+    part.unlink()
+    assert framework_helpers.downloaded_bytes(dest) == 4
