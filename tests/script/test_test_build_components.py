@@ -236,3 +236,98 @@ def test_run_grouped_test_closes_group_when_subprocess_raises(
         )
 
     assert "::endgroup::" in capsys.readouterr().out
+
+
+def test_components_empty_match_fails_with_flag(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Under --fail-on-no-tests, a real component filtered to a platform
+    with no matching test file must not pass CI as a green zero-component
+    compile."""
+    rc = tbc.test_components(
+        ["logger"],
+        "zz-none",
+        "compile",
+        False,
+        enable_grouping=False,
+        fail_on_no_tests=True,
+    )
+    assert rc == 1
+    assert "No tests ran for requested pattern(s): logger" in (capsys.readouterr().out)
+
+
+def test_components_component_with_no_base_file_fails_with_flag(
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A component whose fixture matches the platform but whose platform has
+    no base file builds nothing; under the flag that silent zero fails by
+    component name instead of hiding behind other components."""
+    monkeypatch.setattr(tbc, "get_platform_base_files", lambda base_dir: {})
+    rc = tbc.test_components(
+        ["logger"],
+        "esp8266-ard",
+        "compile",
+        False,
+        enable_grouping=False,
+        fail_on_no_tests=True,
+    )
+    assert rc == 1
+    assert "No tests ran for requested pattern(s): logger" in (capsys.readouterr().out)
+
+
+def test_components_blank_list_fails_with_flag(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A fully blank component list must not slide into the baseline
+    fallback and exit green under the flag."""
+    rc = tbc.test_components(
+        [""], "esp8266-ard", "compile", False, fail_on_no_tests=True
+    )
+    assert rc == 1
+    assert "blank component list" in capsys.readouterr().out
+
+
+def test_components_wildcard_no_match_fails_with_flag(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A wildcard matching nothing must not degrade to the synthetic
+    baseline build and exit green under the flag."""
+    rc = tbc.test_components(
+        ["zz_no_such*"],
+        "esp8266-ard",
+        "compile",
+        False,
+        enable_grouping=False,
+        fail_on_no_tests=True,
+    )
+    assert rc == 1
+    assert "No components found matching" in capsys.readouterr().out
+
+
+def test_components_empty_match_tolerated_without_flag() -> None:
+    """The esp32-ard smoke leg deliberately builds only the subset with a
+    matching fixture; without the flag an empty match stays green."""
+    assert (
+        tbc.test_components(
+            ["logger"], "zz-none", "compile", False, enable_grouping=False
+        )
+        == 0
+    )
+
+
+def test_components_unknown_component_fails_with_flag(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A renamed smoke-test component must shrink coverage loudly, not fall
+    into the reference-baseline build."""
+    rc = tbc.test_components(
+        ["no_such_component_xyz"],
+        "esp8266-ard",
+        "compile",
+        False,
+        enable_grouping=False,
+        fail_on_no_tests=True,
+    )
+    assert rc == 1
+    assert "No components found matching" in capsys.readouterr().out
