@@ -1,7 +1,6 @@
 #pragma once
 
 #include <vector>
-#include <map>
 
 #include "esphome/core/component.h"
 #include "esphome/components/ble_client/ble_client.h"
@@ -93,7 +92,10 @@ class DaikinMadoka : public climate::Climate, public esphome::ble_client::BLECli
  protected:
   bool should_update_ = false;
   VectorFIFO<std::vector<uint8_t>> received_chunks_ = {};
-  std::map<uint8_t, std::vector<uint8_t>> pending_chunks_ = {};
+  struct {
+    std::vector<uint8_t> data = {};
+    size_t expected_chunk_id = 0;
+  } partial_incoming_message_ = {};
   VectorFIFO<Query> query_queue_ = {};
   bool pending_message_ = false;
   uint16_t notify_handle_{0};

@@ -200,7 +200,8 @@ void DaikinMadoka::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t
       this->current_temperature = NAN;
       this->target_temperature = NAN;
       this->publish_state();
-      this->pending_chunks_.clear();
+      this->partial_incoming_message_.data.clear();
+      this->partial_incoming_message_.expected_chunk_id = 0;
       this->should_update_ = false;
       this->query_queue_.clear();
       this->pending_message_ = false;
@@ -255,8 +256,6 @@ void DaikinMadoka::update() {
   }
 }
 
-static bool validate_buffer(std::vector<uint8_t> &buffer) { return !buffer.empty() && buffer[0] == buffer.size(); }
-
 void DaikinMadoka::process_incoming_chunk_(std::vector<uint8_t> &chk) {
   if (chk.size() < 2) {
     ESP_LOGI(TAG, "Chunk discarded: invalid length.");
@@ -264,34 +263,38 @@ void DaikinMadoka::process_incoming_chunk_(std::vector<uint8_t> &chk) {
   }
   uint8_t chunk_id = chk[0];
   std::vector<uint8_t> stripped{chk.begin() + 1, chk.end()};
-  if (chunk_id == 0 && validate_buffer(stripped)) {
+  if (chunk_id == 0 && stripped.size() == stripped[0]) {
     this->parse_cb_(stripped);
     return;
   }
-  if (chunk_id == 0 && !this->pending_chunks_.empty()) {
-    ESP_LOGW(TAG, "Buffer is not empty, but new message started. Clearing buffer.");
-    this->pending_chunks_.clear();
-  }
-  if (this->pending_chunks_.contains(chunk_id)) {
-    ESP_LOGE(TAG, "Another packet with the same chunk ID is already in the buffer.");
-    ESP_LOGD(TAG, "Chunk ID: %d.", chunk_id);
-    return;
-  }
-  this->pending_chunks_[chunk_id] = chk;
 
-  if (this->pending_chunks_.size() != this->pending_chunks_.rbegin()->first + 1) {
-    ESP_LOGW(TAG, "Buffer is missing packets");
-    return;
+  if (chunk_id != this->partial_incoming_message_.expected_chunk_id) {
+    ESP_LOGW(TAG, "Chunk discarded: invalid chunk id.");
+    ESP_LOGD(TAG, "Expected chunk id: %u, got: %u", this->partial_incoming_message_.expected_chunk_id, chunk_id);
+    this->partial_incoming_message_.data.clear();
+    this->partial_incoming_message_.expected_chunk_id = 0;
+    if (chunk_id != 0)
+      return;
   }
 
-  std::vector<uint8_t> msg;
-  int lim = this->pending_chunks_.size();
-  for (int i = 0; i < lim; i++) {
-    msg.insert(msg.end(), this->pending_chunks_[i].begin() + 1, this->pending_chunks_[i].end());
+  if (chunk_id == 0) {
+    this->partial_incoming_message_.data.reserve(stripped[0]);
   }
-  if (validate_buffer(msg)) {
-    this->pending_chunks_.clear();
-    this->parse_cb_(msg);
+
+  this->partial_incoming_message_.data.insert(this->partial_incoming_message_.data.end(), stripped.begin(),
+                                              stripped.end());
+  this->partial_incoming_message_.expected_chunk_id++;
+
+  if (this->partial_incoming_message_.data.size() > this->partial_incoming_message_.data[0]) {
+    ESP_LOGW(TAG, "Chunk discarded: message too long.");
+    this->partial_incoming_message_.data.clear();
+    this->partial_incoming_message_.expected_chunk_id = 0;
+    return;
+  }
+  if (this->partial_incoming_message_.data.size() == this->partial_incoming_message_.data[0]) {
+    this->parse_cb_(this->partial_incoming_message_.data);
+    this->partial_incoming_message_.data.clear();
+    this->partial_incoming_message_.expected_chunk_id = 0;
   }
 }
 
