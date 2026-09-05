@@ -1,0 +1,10 @@
+esphome:
+  name: test-equitherm-climate-rp2040
+
+rp2040:
+  board: rpipicow
+
+logger:
+  level: DEBUG
+
+<<: !include common.yaml
