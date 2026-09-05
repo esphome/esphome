@@ -37,15 +37,17 @@ class USBUARTBridge final : public Component {
 
   /**
    * Stop forwarding in both directions and hand the UART back to its configured
-   * framing, so another component may use the bus. Bytes the host sends while paused
-   * are discarded. Main-loop only. The worker tasks stop within UART_RX_WAIT_MS; poll
-   * is_paused() before touching the bus.
+   * framing, so another component may use the bus. Main-loop only. The RX task parks
+   * within UART_RX_WAIT_MS (a byte it was already reading is discarded). A host write
+   * already in flight is allowed to drain first, which at low baud rates can take
+   * seconds; the framing is restored only after that, so poll is_paused() rather than
+   * waiting a fixed interval. Host bytes not yet written to the UART are discarded.
    */
   void pause();
   /// Re-apply the host's line coding, then resume forwarding. Main-loop only.
   void resume();
-  /// True once pause() was called and both worker tasks have stopped touching the UART.
-  bool is_paused() const { return this->paused_ != 0 && this->rx_parked_ != 0 && this->tx_busy_ == 0; }
+  /// True once both worker tasks are off the bus and the configured framing is restored.
+  bool is_paused() const { return this->paused_ != 0 && this->rx_parked_ != 0 && !this->framing_restore_pending_; }
 
  protected:
   static void uart_rx_task_fn(void *arg);
@@ -85,10 +87,12 @@ class USBUARTBridge final : public Component {
   // GCC on Xtensa emits an out-of-line call for atomic<bool>.
   std::atomic<uint8_t> paused_{0};
   // Raised by the RX task while parked and by the TX task around each UART write, so
-  // is_paused() reports when the bus is actually free.
+  // the pause hand-off knows when the bus is actually free.
   std::atomic<uint8_t> rx_parked_{0};
   std::atomic<uint8_t> tx_busy_{0};
   bool reload_pending_{false};
+  // Set by pause(); loop() restores the configured framing once the TX side is idle.
+  bool framing_restore_pending_{false};
   // True once the host has sent any line coding; resume() then re-syncs to it.
   bool host_coding_seen_{false};
 };
