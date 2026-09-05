@@ -1,9 +1,4 @@
-"""Integration test for the socket::set_sockaddr failure contract.
-
-Callers skip an address when set_sockaddr returns 0, so text that is not an
-address must return 0 while a real address, including the broadcast address
-that inet_addr() would have reported as a failure, returns its length.
-"""
+"""Integration test for the socket::set_sockaddr failure contract."""
 
 import asyncio
 import re

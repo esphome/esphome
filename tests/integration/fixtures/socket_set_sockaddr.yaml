@@ -3,8 +3,7 @@ esphome:
   on_boot:
     then:
       - lambda: |-
-          // Exercise the contract callers rely on: 0 for text that is not an
-          // address, the sockaddr length otherwise, broadcast included
+          // 0 for text that is not an address, the length otherwise, broadcast included
           struct sockaddr_storage addr;
           auto *sa = reinterpret_cast<struct sockaddr *>(&addr);
           ESP_LOGI("test", "SET_SOCKADDR invalid=%u valid=%u broadcast=%u",

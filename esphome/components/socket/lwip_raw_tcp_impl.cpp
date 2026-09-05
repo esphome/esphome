@@ -87,9 +87,8 @@ static int lwip_err_to_errno(err_t err) {
 // Must be called before destroying the object that tcp_arg points to —
 // tcp_abort() triggers the err callback synchronously, which would
 // otherwise call back into a partially-destroyed object.
-// tcp_sent/tcp_poll are not cleared because this implementation
-// never registers them, and the tcp_connect callback only fires on
-// SYN_SENT -> ESTABLISHED, which cannot follow an abort or close.
+// tcp_sent/tcp_poll are never registered and the connect callback cannot
+// fire after abort or close, so neither is cleared.
 static void pcb_detach_abort(struct tcp_pcb *pcb) {
   tcp_arg(pcb, nullptr);
   tcp_recv(pcb, nullptr);
@@ -102,8 +101,7 @@ static void pcb_detach_abort(struct tcp_pcb *pcb) {
 // After tcp_close(), the PCB remains alive during the TCP close handshake
 // (FIN_WAIT, TIME_WAIT states). Without clearing callbacks first, LWIP
 // would call recv/err on a destroyed socket object, corrupting the heap.
-// tcp_sent/tcp_poll and the tcp_connect callback are not cleared for the
-// same reasons as in pcb_detach_abort().
+// Callbacks are left as in pcb_detach_abort().
 // Returns ERR_OK on success; on failure the PCB is aborted instead.
 static err_t pcb_detach_close(struct tcp_pcb *pcb) {
   tcp_arg(pcb, nullptr);
@@ -436,9 +434,8 @@ void LWIPRawImpl::s_err_fn(void *arg, err_t err) {
   auto *arg_this = reinterpret_cast<LWIPRawImpl *>(arg);
   ESP_LOGVV(TAG, "socket %p: err(err=%d)", arg_this, err);
   if (arg_this->connect_err_ == EINPROGRESS) {
-    // A connect that never established: RST is a refusal, anything else is
-    // the SYN retransmits giving up. Written before pcb_ so poll_connect()
-    // never sees a dead pcb without its reason.
+    // Refused (RST) or SYN retries exhausted; written before pcb_ so
+    // poll_connect() never sees a dead pcb without its reason
     arg_this->connect_err_ = err == ERR_RST ? ECONNREFUSED : ETIMEDOUT;
   }
   arg_this->pcb_ = nullptr;
@@ -446,8 +443,7 @@ void LWIPRawImpl::s_err_fn(void *arg, err_t err) {
 }
 
 err_t LWIPRawImpl::s_connected_fn(void *arg, struct tcp_pcb *pcb, err_t err) {
-  // LWIP CALLBACK — same constraints as s_err_fn. err is always ERR_OK; a
-  // failed connect arrives through s_err_fn instead.
+  // LWIP CALLBACK, same constraints as s_err_fn; err is always ERR_OK
   auto *arg_this = reinterpret_cast<LWIPRawImpl *>(arg);
   arg_this->connect_err_ = EISCONN;
   esphome::wake_loop_any_context();
@@ -470,8 +466,7 @@ int LWIPRawImpl::connect(const struct sockaddr *addr, socklen_t addrlen) {
     return -1;
   }
 #if LWIP_IPV6
-  // tcp_connect needs a concrete address type. A remembered IPv4 peer on an
-  // IPv6 build arrives as a v4-mapped address and must be dialed as IPv4.
+  // tcp_connect needs a concrete type; a remembered IPv4 peer arrives v4-mapped
   if (IP_IS_ANY_TYPE_VAL(ip)) {
     if (ip6_addr_isipv4mappedipv6(ip_2_ip6(&ip))) {
       unmap_ipv4_mapped_ipv6(ip_2_ip4(&ip), ip_2_ip6(&ip));
@@ -628,9 +623,8 @@ ssize_t LWIPRawImpl::read_locked_(void *buf, size_t len) {
 }
 
 ssize_t LWIPRawImpl::read(void *buf, size_t len) {
-  // Would block: let queued WiFi RX reach lwip first so this read may
-  // succeed; otherwise inbound segments can sit unprocessed for seconds
-  // while the main loop polls
+  // Let queued WiFi RX reach lwip first; otherwise inbound segments can
+  // sit unprocessed for seconds while the main loop polls
   if (this->waiting_for_data_()) {
     yield_to_sys();
   }

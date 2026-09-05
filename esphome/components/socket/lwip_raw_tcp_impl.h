@@ -50,8 +50,7 @@ class LWIPRawCommon {
 
  protected:
   int ip2sockaddr_(ip_addr_t *ip, uint16_t port, struct sockaddr *name, socklen_t *addrlen);
-  /// Convert a sockaddr of this socket's family to an lwip address and port.
-  /// Returns false with errno set on a family or length mismatch.
+  /// sockaddr of this socket's family to lwip address and port; false with errno on mismatch
   bool sockaddr2ip_(const struct sockaddr *name, socklen_t addrlen, ip_addr_t *ip, uint16_t *port) const;
 
   // Member ordering optimized to minimize padding on 32-bit systems
@@ -61,15 +60,13 @@ class LWIPRawCommon {
   bool nodelay_ = false;
   sa_family_t family_ = 0;
   uint8_t recv_timeout_cs_ = 0;  // SO_RCVTIMEO in centiseconds (0 = no timeout, max 2.55s)
-  // State of connect() on this socket: 0 before one was started, EINPROGRESS
-  // while the SYN is out, EISCONN once established, otherwise the errno the
-  // lwip callbacks recorded for its failure. Fits the padding byte here.
+  // 0 before connect(), EINPROGRESS while pending, EISCONN once established,
+  // else the failure errno the callbacks recorded; fills the padding byte
   uint8_t connect_err_ = 0;
   static_assert(EINPROGRESS < 256 && EISCONN < 256 && ECONNREFUSED < 256 && ECONNRESET < 256 && ETIMEDOUT < 256,
                 "connect_err_ stores errno values in a byte");
 };
-// The connect state must stay inside the padding: no socket, listening or
-// accepted, pays RAM for it
+// The connect state must stay in the padding so no socket pays RAM for it
 static_assert(sizeof(LWIPRawCommon) == sizeof(struct tcp_pcb *) + 4, "LWIPRawCommon grew past one word of flags");
 
 /// Connected socket implementation for LWIP raw TCP.
@@ -95,14 +92,11 @@ class LWIPRawImpl : public LWIPRawCommon {
     errno = EOPNOTSUPP;
     return -1;
   }
-  /// Start a non-blocking connect. Always returns -1 with errno EINPROGRESS
-  /// when the SYN was queued; completion is reported by poll_connect().
-  /// addr must be of the family the socket was created with; an IPv4 peer
-  /// on an AF_INET6 socket arrives as a v4-mapped sockaddr_in6.
+  /// Non-blocking: returns -1/EINPROGRESS once the SYN is queued, see poll_connect().
+  /// addr must match the socket family; an IPv4 peer on AF_INET6 arrives v4-mapped.
   int connect(const struct sockaddr *addr, socklen_t addrlen);
-  // Intentionally unlocked like ready(): reads one pointer and one byte that
-  // the callbacks write in the order the checks depend on (error byte first,
-  // then pcb_), so a torn read only costs one extra poll.
+  // Unlocked like ready(): the callbacks write the error byte before pcb_,
+  // so a torn read only costs one extra poll
   ConnectPollResult poll_connect(int &err_out) const;
   ssize_t read(void *buf, size_t len);
   ssize_t readv(const struct iovec *iov, int iovcnt);
