@@ -1262,8 +1262,15 @@ async def raw_action(var, config, args):
 DRAYTON_SCHEMA = cv.Schema(
     {
         cv.Required(CONF_ADDRESS): cv.All(cv.hex_int, cv.Range(min=0, max=0xFFFF)),
-        cv.Required(CONF_CHANNEL): cv.All(cv.hex_int, cv.Range(min=0, max=0x1F)),
-        cv.Required(CONF_COMMAND): cv.All(cv.hex_int, cv.Range(min=0, max=0x7F)),
+        cv.Optional(CONF_DATA, default=0x00): cv.All(
+            cv.hex_int, cv.Range(min=0, max=0xF)
+        ),
+        cv.Optional(CONF_CHANNEL, default=0x00): cv.All(
+            cv.hex_int, cv.Range(min=0, max=0x1F)
+        ),
+        cv.Optional(CONF_COMMAND, default=0x00): cv.All(
+            cv.hex_int, cv.Range(min=0, max=0xFF)
+        ),
     }
 )
 
@@ -1275,6 +1282,7 @@ def drayton_binary_sensor(var, config):
             cg.StructInitializer(
                 DraytonData,
                 ("address", config[CONF_ADDRESS]),
+                ("data", config[CONF_DATA]),
                 ("channel", config[CONF_CHANNEL]),
                 ("command", config[CONF_COMMAND]),
             )
@@ -1296,6 +1304,8 @@ def drayton_dumper(var, config):
 async def drayton_action(var, config, args):
     template_ = await cg.templatable(config[CONF_ADDRESS], args, cg.uint16)
     cg.add(var.set_address(template_))
+    template_ = await cg.templatable(config[CONF_DATA], args, cg.uint8)
+    cg.add(var.set_data(template_))
     template_ = await cg.templatable(config[CONF_CHANNEL], args, cg.uint8)
     cg.add(var.set_channel(template_))
     template_ = await cg.templatable(config[CONF_COMMAND], args, cg.uint8)

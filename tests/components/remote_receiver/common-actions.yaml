@@ -51,8 +51,8 @@ on_dooya:
 on_drayton:
   then:
     - logger.log:
-        format: "on_drayton: %u %u %u"
-        args: ["x.address", "x.channel", "x.command"]
+        format: "on_drayton: %u %u %u %u"
+        args: ["x.address", "x.channel", "x.command", "x.data"]
 on_dyson:
   then:
     - logger.log:
