@@ -1,6 +1,7 @@
 import esphome.codegen as cg
 from esphome.components import button
 import esphome.config_validation as cv
+from esphome.const import ENTITY_CATEGORY_CONFIG, ENTITY_CATEGORY_DIAGNOSTIC
 
 from .. import OpenTherm42Hub, opentherm42_ns
 from ..const import (
@@ -48,38 +49,48 @@ OpenTherm42ResetCounterButton = opentherm42_ns.class_(
 
 # §5.3.3 Class 3, ID 4 HB: Request-Code. Pressing a button sends WRITE-DATA(id=4, code, 00); the
 # boiler's WRITE-ACK reports acceptance via the remote_request_last_response_code sensor.
-CODES: dict[str, int] = {
-    # 0: Back to Normal operation mode
-    CONF_REMOTE_REQUEST_BACK_TO_NORMAL_OPERATION_MODE: 0,
+#
+# Each entry maps to (request_code, entity_category). The "Service mode ..." requests and their
+# "back to normal" counterpart exist solely for a technician to run and then exit a diagnostic test
+# procedure (e.g. CO2 measurement, spark test, fan speed test) -- DIAGNOSTIC. The remaining requests
+# perform a lasting corrective/maintenance action on the boiler (resetting a lockout or flag, or
+# running a commissioning procedure) -- CONFIG.
+CODES: dict[str, tuple[int, str]] = {
+    # 0: Back to Normal operation mode -- exits whichever "Service mode ..." test below was entered.
+    CONF_REMOTE_REQUEST_BACK_TO_NORMAL_OPERATION_MODE: (0, ENTITY_CATEGORY_DIAGNOSTIC),
     # 1: "BLOR" = Boiler Lock-out Reset request
-    CONF_REMOTE_REQUEST_BOILER_LOCKOUT_RESET: 1,
+    CONF_REMOTE_REQUEST_BOILER_LOCKOUT_RESET: (1, ENTITY_CATEGORY_CONFIG),
     # 2: "CHWF" = CH water filling request
-    CONF_REMOTE_REQUEST_CH_WATER_FILLING: 2,
+    CONF_REMOTE_REQUEST_CH_WATER_FILLING: (2, ENTITY_CATEGORY_CONFIG),
     # 3: Service mode maximum power request (for instance for CO2 measurement during Chimney Sweep Function)
-    CONF_REMOTE_REQUEST_SERVICE_MODE_MAXIMUM_POWER: 3,
+    CONF_REMOTE_REQUEST_SERVICE_MODE_MAXIMUM_POWER: (3, ENTITY_CATEGORY_DIAGNOSTIC),
     # 4: Service mode minimum power request (CO2 measurement)
-    CONF_REMOTE_REQUEST_SERVICE_MODE_MINIMUM_POWER: 4,
+    CONF_REMOTE_REQUEST_SERVICE_MODE_MINIMUM_POWER: (4, ENTITY_CATEGORY_DIAGNOSTIC),
     # 5: Service mode spark test request (no gas)
-    CONF_REMOTE_REQUEST_SERVICE_MODE_SPARK_TEST: 5,
+    CONF_REMOTE_REQUEST_SERVICE_MODE_SPARK_TEST: (5, ENTITY_CATEGORY_DIAGNOSTIC),
     # 6: Service mode fan maximum speed request (no flame)
-    CONF_REMOTE_REQUEST_SERVICE_MODE_FAN_MAXIMUM_SPEED: 6,
+    CONF_REMOTE_REQUEST_SERVICE_MODE_FAN_MAXIMUM_SPEED: (6, ENTITY_CATEGORY_DIAGNOSTIC),
     # 7: Service mode fan to minimum speed request (no flame)
-    CONF_REMOTE_REQUEST_SERVICE_MODE_FAN_MINIMUM_SPEED: 7,
+    CONF_REMOTE_REQUEST_SERVICE_MODE_FAN_MINIMUM_SPEED: (7, ENTITY_CATEGORY_DIAGNOSTIC),
     # 8: Service mode 3-way valve to CH request (no pump, no flame)
-    CONF_REMOTE_REQUEST_SERVICE_MODE_3_WAY_VALVE_TO_CH: 8,
+    CONF_REMOTE_REQUEST_SERVICE_MODE_3_WAY_VALVE_TO_CH: (8, ENTITY_CATEGORY_DIAGNOSTIC),
     # 9: Service mode 3-way valve to DHW request (no pump, no flame)
-    CONF_REMOTE_REQUEST_SERVICE_MODE_3_WAY_VALVE_TO_DHW: 9,
+    CONF_REMOTE_REQUEST_SERVICE_MODE_3_WAY_VALVE_TO_DHW: (
+        9,
+        ENTITY_CATEGORY_DIAGNOSTIC,
+    ),
     # 10: Request to reset service request flag
-    CONF_REMOTE_REQUEST_RESET_SERVICE_REQUEST_FLAG: 10,
+    CONF_REMOTE_REQUEST_RESET_SERVICE_REQUEST_FLAG: (10, ENTITY_CATEGORY_CONFIG),
     # 11: Service test 1. This is an OEM specific test.
-    CONF_REMOTE_REQUEST_SERVICE_TEST_1: 11,
+    CONF_REMOTE_REQUEST_SERVICE_TEST_1: (11, ENTITY_CATEGORY_DIAGNOSTIC),
     # 12: Automatic hydronic air purge.
-    CONF_REMOTE_REQUEST_AUTOMATIC_HYDRONIC_AIR_PURGE: 12,
+    CONF_REMOTE_REQUEST_AUTOMATIC_HYDRONIC_AIR_PURGE: (12, ENTITY_CATEGORY_CONFIG),
 }
 
 # §5.3.4 Class 4: these 14 counter/hour ids are all "R W" with reset-by-writing-zero optional for the
 # boiler; pressing a button sends WRITE-DATA(id, 0x0000, 0x0000). ID 111 (Electricity production) is
-# read-only and has no reset button.
+# read-only and has no reset button. Clearing a stored statistic is a maintenance action, not
+# something read day-to-day -- CONFIG (matching e.g. the core `factory_reset` button).
 RESETTABLE_COUNTERS: dict[str, int] = {
     CONF_SENSOR_AND_INFORMATIONAL_DATA_COOLING_OPERATION_HOURS_RESET: 96,
     CONF_SENSOR_AND_INFORMATIONAL_DATA_POWER_CYCLES_RESET: 97,
@@ -103,12 +114,14 @@ CONFIG_SCHEMA = cv.Schema(
         cv.GenerateID(CONF_OPENTHERM42_ID): cv.use_id(OpenTherm42Hub),
         **{
             cv.Optional(marker): button.button_schema(
-                OpenTherm42RemoteRequestButton
+                OpenTherm42RemoteRequestButton, entity_category=entity_category
             ).extend(cv.COMPONENT_SCHEMA)
-            for marker in CODES
+            for marker, (_code, entity_category) in CODES.items()
         },
         # §5.3.8.3 Class 8, ID 99 HB bit 4: Manual DHW push2 -- rises the DHW temperature once to
-        # Comfort level and returns to the previous Operating Mode.
+        # Comfort level and returns to the previous Operating Mode. Left as a primary entity (no
+        # entity_category): a "boost my hot water now" action a user presses as part of normal use,
+        # not a maintenance/admin action.
         cv.Optional(
             CONF_CONTROL_OF_SPECIAL_APPLICATIONS_MANUAL_DHW_PUSH2
         ): button.button_schema(OpenTherm42ManualDhwPush2Button).extend(
@@ -116,7 +129,7 @@ CONFIG_SCHEMA = cv.Schema(
         ),
         **{
             cv.Optional(marker): button.button_schema(
-                OpenTherm42ResetCounterButton
+                OpenTherm42ResetCounterButton, entity_category=ENTITY_CATEGORY_CONFIG
             ).extend(cv.COMPONENT_SCHEMA)
             for marker in RESETTABLE_COUNTERS
         },
@@ -126,7 +139,7 @@ CONFIG_SCHEMA = cv.Schema(
 
 async def to_code(config: dict) -> None:
     hub = await cg.get_variable(config[CONF_OPENTHERM42_ID])
-    for marker, code in CODES.items():
+    for marker, (code, _entity_category) in CODES.items():
         if (marker_config := config.get(marker)) is not None:
             var = await button.new_button(marker_config, hub, code)
             await cg.register_component(var, marker_config)
