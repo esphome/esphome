@@ -1,0 +1,54 @@
+esphome:
+  name: test-device
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+uart:
+  id: uart_bus
+  tx_pin: GPIO17
+  rx_pin: GPIO16
+  baud_rate: 9600
+
+rs485_frame:
+  id: hub
+  uart_id: uart_bus
+  framing:
+    escape:
+      mode: escape_byte
+      byte: 0x00
+  crc:
+    type: sum16_big_endian
+  tx:
+    gate:
+      frame_type: [0x01, 0x01]
+  command_format:
+    preamble: [0x00, 0x83, 0x01]
+    value_element_bytes: 4
+    postamble: [0x00]
+  response_fields:
+    display_text:
+      frame_type: [0x01, 0x03]
+      offset: 2
+      length: 36
+  response_monitor:
+    # display_text is 36 bytes -- longer than the 4-byte window mask:/bit: can address.
+    # 'changed' already compares the field's full byte range for fields this long, so a
+    # mask: here would silently do nothing and must be rejected instead.
+    - name: menu_confirm
+      trigger:
+        button_id: menu_button
+      window: 200ms
+      signature:
+        - field: display_text
+          type: changed
+          mask: 0xFF
+
+button:
+  - platform: rs485_frame
+    id: menu_button
+    rs485_frame_id: hub
+    name: "Menu"
+    value: 0x00020000

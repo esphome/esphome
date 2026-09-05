@@ -1,0 +1,52 @@
+esphome:
+  name: test-device
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+uart:
+  id: uart_bus
+  tx_pin: GPIO17
+  rx_pin: GPIO16
+  baud_rate: 9600
+
+rs485_frame:
+  id: hub
+  uart_id: uart_bus
+  framing:
+    escape:
+      mode: escape_byte
+      byte: 0x00
+  crc:
+    type: sum16_big_endian
+  tx:
+    gate:
+      frame_type: [0x01, 0x01]
+  # Deliberately no command_format: on the hub -- my_button's `value:` form has no wire
+  # encoding, and its own button/__init__.py _final_validate would normally catch this with
+  # a friendly cv.Invalid. This hub's own response_monitor final_validate must not crash on
+  # config[CONF_COMMAND_FORMAT] first.
+  response_fields:
+    led_mask:
+      frame_type: [0x01, 0x02]
+      offset: 2
+      length: 4
+      endian: little
+  response_monitor:
+    - name: bad_trigger
+      trigger:
+        button_id: my_button
+      window: 200ms
+      signature:
+        - field: led_mask
+          type: changed
+          mask: 0x40
+
+button:
+  - platform: rs485_frame
+    id: my_button
+    rs485_frame_id: hub
+    name: "Lights"
+    value: 0x01

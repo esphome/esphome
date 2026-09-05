@@ -1,0 +1,36 @@
+esphome:
+  name: test-device
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+uart:
+  id: uart_bus
+  tx_pin: GPIO17
+  rx_pin: GPIO16
+  baud_rate: 9600
+
+rs485_frame:
+  id: hub
+  uart_id: uart_bus
+  framing:
+    escape:
+      mode: escape_byte
+      byte: 0x00
+  crc:
+    type: sum16_big_endian
+  tx:
+    gate:
+      frame_type: [0x01, 0x01]
+  # Non-default values, exercising the schema's full field set.
+  frame_trace:
+    size: 8
+    capture_bytes: 12
+    include_invalid: false
+
+script:
+  - id: dump_trace
+    then:
+      - rs485_frame.dump_frame_trace: hub
