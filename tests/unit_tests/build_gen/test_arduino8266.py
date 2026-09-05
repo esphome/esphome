@@ -410,7 +410,7 @@ def test_write_project_pch_identity_unknown_skips_pch(
     paths = _make_framework(tmp_path)
     _set_flags("-DPIO_FRAMEWORK_ARDUINO_LWIP2_HIGHER_BANDWIDTH_LOW_FLASH")
     with patch(
-        "esphome.build_gen.arduino8266.pch_checksum",
+        "esphome.build_helpers.pch.pch_checksum",
         side_effect=OSError("stat failed"),
     ):
         content = _write_ninja(paths, ccache="/usr/bin/ccache")
