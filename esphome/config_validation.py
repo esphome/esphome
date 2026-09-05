@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from contextlib import contextmanager, suppress
+import copy
 from datetime import datetime
 from ipaddress import (
     AddressValueError,
@@ -416,6 +417,37 @@ class Required(vol.Required):
     ):
         super().__init__(key, msg=msg)
         self.visibility: Visibility | None = visibility
+
+
+def with_visibility(schema: Schema, visibility: Visibility, *keys: str) -> Schema:
+    """Return a copy of ``schema`` with the given ``keys`` re-marked at ``visibility``.
+
+    Lets a platform override the editor :class:`Visibility` of fields it
+    inherits from a shared schema builder — without that builder needing a
+    visibility parameter of its own. The canonical use is a ``template``
+    platform promoting the value metadata its user is expected to define
+    (``device_class``, ``unit_of_measurement``, …) onto the main form:
+
+        CONFIG_SCHEMA = cv.with_visibility(
+            sensor.sensor_schema(TemplateSensor),
+            cv.Visibility.UI,
+            CONF_DEVICE_CLASS, CONF_UNIT_OF_MEASUREMENT,
+        )
+
+    The original marker's key, default and validator are preserved; only the
+    visibility changes, and the input ``schema`` is left untouched. Raises if
+    a requested key is not present so typos fail at schema-build time.
+    """
+    wanted = {str(k) for k in keys}
+    overrides = {}
+    for marker, validator in schema.schema.items():
+        if str(marker) in wanted:
+            marker = copy.copy(marker)
+            marker.visibility = visibility
+            overrides[marker] = validator
+    if missing := wanted - {str(m) for m in overrides}:
+        raise ValueError(f"with_visibility: keys not in schema: {sorted(missing)}")
+    return schema.extend(overrides)
 
 
 class FinalExternalInvalid(Invalid):
