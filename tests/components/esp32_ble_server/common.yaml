@@ -5,12 +5,20 @@ esp32_ble_server:
   appearance: 0x1
   model: Test
   passkey: 123456
+  pairing_enabled: false
   on_connect:
     - lambda: |-
         ESP_LOGD("BLE", "Connection from %d", id);
+    - ble_server.disable_pairing:
+        id: ble_server
   on_disconnect:
     - lambda: |-
         ESP_LOGD("BLE", "Disconnection from %d", id);
+    - ble_server.remove_bond:
+        id: ble_server
+        address: "11:22:33:44:55:66"
+    - ble_server.enable_pairing:
+        id: ble_server
   on_numeric_comparison_request:
     - logger.log:
         format: "Compare this passkey with the one on your BLE device: %06ld"
