@@ -238,6 +238,17 @@ def _parse_lib_deps(platformio_ini: Path, framework: str):
     return libs
 
 
+def _esphome_manifest_deps() -> set[str]:
+    """Names of the managed components declared in ``esphome/idf_component.yml``."""
+    import yaml
+
+    esphome_dir = Path(__file__).resolve().parent.parent
+    manifest = yaml.safe_load(
+        (esphome_dir / "idf_component.yml").read_text(encoding="utf-8")
+    )
+    return set(manifest.get("dependencies") or {})
+
+
 def _convert_pio_libs(
     platformio_ini: Path, framework: str
 ) -> dict[str, dict[str, str]]:
@@ -250,12 +261,20 @@ def _convert_pio_libs(
     The whole library set is resolved as a single batch so a shared transitive
     dependency (e.g. esphome/libsodium pulled by both noise-c and esp_wireguard)
     is deduplicated to one component instead of clashing override_path entries.
+
+    Libraries ESPHome's own manifest already provides as managed components
+    (noise-c, libsodium, ...) are skipped, mirroring what the real esp32 build
+    does -- converting them too would make IDF see the same requirement twice.
+    On Arduino those entries are rule-disabled in the manifest (arduino-esp32
+    brings its own libsodium), so nothing provides them there and they have to
+    go through the converter as before.
     """
     from esphome.espidf.component import generate_idf_components
 
     libraries = _parse_lib_deps(platformio_ini, framework)
+    managed = set() if framework == "arduino" else _esphome_manifest_deps()
     deps: dict[str, dict[str, str]] = {}
-    for component in generate_idf_components(libraries):
+    for component in generate_idf_components(libraries, managed=managed):
         deps[component.get_sanitized_name()] = {"override_path": str(component.path)}
     return deps
 
@@ -273,19 +292,13 @@ def _arduino_excluded_stubs(work_dir: Path) -> dict[str, dict]:
     ethernet) are NOT stubbed -- those are real deps we need, and arduino-esp32
     resolves to the same component rather than conflicting.
     """
-    import yaml
-
     from esphome.components.esp32 import (
         ARDUINO_EXCLUDED_IDF_COMPONENTS,
         _idf_component_dep_name,
         _idf_component_stub_name,
     )
 
-    esphome_dir = Path(__file__).resolve().parent.parent
-    base_manifest = yaml.safe_load(
-        (esphome_dir / "idf_component.yml").read_text(encoding="utf-8")
-    )
-    esphome_deps = set(base_manifest.get("dependencies") or {})
+    esphome_deps = _esphome_manifest_deps()
 
     stubs_dir = work_dir / "component_stubs"
     stubs_dir.mkdir(parents=True, exist_ok=True)

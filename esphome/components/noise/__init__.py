@@ -5,11 +5,17 @@ from typing import Any
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.const import CONF_KEY
+from esphome.core import CORE
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@esphome/core"]
 
 noise_ns = cg.esphome_ns.namespace("noise")
+
+# Keep in sync with platformio.ini and esphome/idf_component.yml.
+# LIBSODIUM_VERSION must match the version noise-c pins in its manifests.
+NOISE_C_VERSION = "0.1.21"
+LIBSODIUM_VERSION = "1.10021.4"
 
 CONFIG_SCHEMA = cv.Schema({})
 
@@ -72,12 +78,31 @@ def encryption_schema(config: ConfigType | None) -> ConfigType:
 
 async def to_code(config: ConfigType) -> None:
     cg.add_define("USE_NOISE")
-    cg.add_library("esphome/noise-c", "0.1.21")
-    # noise-c depends on libsodium, but declaring it here too lets the
-    # library manager see the full set up front instead of discovering
-    # libsodium only after noise-c has downloaded, so the two can download
-    # in parallel. The version must match noise-c's library.json.
-    cg.add_library("esphome/libsodium", "1.10021.4")
+    # Both libraries build themselves as ESP-IDF components, so on ESP32 they
+    # are pulled straight from the component registry instead of going through
+    # ESPHome's PlatformIO-library converter. Deliberately not conditional on
+    # the toolchain: wireguard splits on the same condition, and if the two
+    # disagree one of them converts a second libsodium next to the managed one.
+    #
+    # Not on the Arduino framework though: arduino-esp32 depends on
+    # espressif/libsodium of its own (on IDF < 6.0), so the component manager
+    # would see two managed components whose names match once the namespace is
+    # stripped, and refuse to pick between them.
+    #
+    # libsodium is declared alongside noise-c rather than left to noise-c's own
+    # manifest either way: it lets the library manager see the full set up front
+    # instead of discovering libsodium only after noise-c has downloaded, and it
+    # keeps other components that depend on it (wireguard) from converting a
+    # second copy next to the managed one. The version must match the one
+    # noise-c pins.
+    if CORE.is_esp32 and not CORE.using_arduino:
+        from esphome.components.esp32 import add_idf_component
+
+        add_idf_component(name="esphome/noise-c", ref=NOISE_C_VERSION)
+        add_idf_component(name="esphome/libsodium", ref=LIBSODIUM_VERSION)
+    else:
+        cg.add_library("esphome/noise-c", NOISE_C_VERSION)
+        cg.add_library("esphome/libsodium", LIBSODIUM_VERSION)
     # Enable optimized memzero/memcmp in libsodium instead of volatile byte loops
     cg.add_build_flag("-DHAVE_WEAK_SYMBOLS=1")
     cg.add_build_flag("-DHAVE_INLINE_ASM=1")
