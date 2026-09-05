@@ -1,6 +1,5 @@
 #include "esphome/core/defines.h"
 #if defined(USE_OPENTHREAD) && defined(USE_ESP32)
-#include <openthread/logging.h>
 #include "openthread.h"
 
 #include "esp_log.h"
@@ -13,14 +12,9 @@
 #include "esphome/core/log.h"
 
 #include "esp_err.h"
-#include "esp_event.h"
 #include "esp_netif.h"
-#include "esp_netif_types.h"
-#include "esp_openthread_cli.h"
 #include "esp_openthread_netif_glue.h"
 #include "esp_vfs_eventfd.h"
-#include "freertos/FreeRTOS.h"
-#include "freertos/task.h"
 #include "nvs_flash.h"
 
 static const char *const TAG = "openthread";
@@ -39,140 +33,94 @@ void OpenThreadComponent::setup() {
   ESP_ERROR_CHECK(nvs_flash_init());
   ESP_ERROR_CHECK(esp_vfs_eventfd_register(&eventfd_config));
 
-  xTaskCreate(
-      [](void *arg) {
-        static_cast<OpenThreadComponent *>(arg)->ot_main();
-        vTaskDelete(nullptr);
-      },
-      "ot_main", 10240, this, 5, nullptr);
-}
+  esp_openthread_config_t config = {.netif_config = ESP_NETIF_DEFAULT_OPENTHREAD(),
+                                    .platform_config = {
+                                        .radio_config =
+                                            {
+                                                .radio_mode = RADIO_MODE_NATIVE,
+                                                .radio_uart_config = {},
+                                            },
+                                        .host_config =
+                                            {
+                                                // There is a conflict between esphome's logger which also
+                                                // claims the usb serial jtag device.
+                                                // .host_connection_mode = HOST_CONNECTION_MODE_CLI_USB,
+                                                // .host_usb_config = USB_SERIAL_JTAG_DRIVER_CONFIG_DEFAULT(),
+                                            },
+                                        .port_config =
+                                            {
+                                                .storage_partition_name = "nvs",
+                                                .netif_queue_size = 10,
+                                                .task_queue_size = 10,
+                                            },
+                                    }};
 
-static esp_netif_t *init_openthread_netif(const esp_openthread_platform_config_t *config) {
-  esp_netif_config_t cfg = ESP_NETIF_DEFAULT_OPENTHREAD();
-  esp_netif_t *netif = esp_netif_new(&cfg);
-  assert(netif != nullptr);
-  ESP_ERROR_CHECK(esp_netif_attach(netif, esp_openthread_netif_glue_init(config)));
-
-  return netif;
-}
-
-void OpenThreadComponent::ot_main() {
-  esp_openthread_platform_config_t config = {
-      .radio_config =
-          {
-              .radio_mode = RADIO_MODE_NATIVE,
-              .radio_uart_config = {},
-          },
-      .host_config =
-          {
-              // There is a conflict between esphome's logger which also
-              // claims the usb serial jtag device.
-              // .host_connection_mode = HOST_CONNECTION_MODE_CLI_USB,
-              // .host_usb_config = USB_SERIAL_JTAG_DRIVER_CONFIG_DEFAULT(),
-          },
-      .port_config =
-          {
-              .storage_partition_name = "nvs",
-              .netif_queue_size = 10,
-              .task_queue_size = 10,
-          },
-  };
-
-  // Initialize the OpenThread stack
-  // otLoggingSetLevel(OT_LOG_LEVEL_DEBG);
-  ESP_ERROR_CHECK(esp_openthread_init(&config));
+  ESP_ERROR_CHECK(esp_openthread_start(&config));
   // Mark lock as initialized so InstanceLock callers know it's safe to acquire.
-  // Must be set after esp_openthread_init() which creates the internal semaphore.
+  // Must be set after esp_openthread_start() which creates the internal semaphore.
   this->lock_initialized_ = true;
   // Fetch OT instance once to avoid repeated call into OT stack
   otInstance *instance = esp_openthread_get_instance();
+  {
+    InstanceLock lock = InstanceLock::acquire();
 
-#if CONFIG_OPENTHREAD_STATE_INDICATOR_ENABLE
-  ESP_ERROR_CHECK(esp_openthread_state_indicator_init(instance));
-#endif
+    this->apply_linkmode_(instance);
 
-#if CONFIG_OPENTHREAD_LOG_LEVEL_DYNAMIC
-  // The OpenThread log level directly matches ESP log level
-  (void) otLoggingSetLevel(CONFIG_LOG_DEFAULT_LEVEL);
-#endif
-  // Initialize the OpenThread cli
-#if CONFIG_OPENTHREAD_CLI
-  esp_openthread_cli_init();
-#endif
-
-  esp_netif_t *openthread_netif;
-  // Initialize the esp_netif bindings
-  openthread_netif = init_openthread_netif(&config);
-  esp_netif_set_default_netif(openthread_netif);
-
-#if CONFIG_OPENTHREAD_CLI_ESP_EXTENSION
-  esp_cli_custom_command_init();
-#endif  // CONFIG_OPENTHREAD_CLI_ESP_EXTENSION
-
-  ESP_LOGD(TAG, "Thread Version: %" PRIu16, otThreadGetVersion());
-
-  this->apply_linkmode_(instance);
-
-  if (this->output_power_.has_value()) {
-    if (const auto err = otPlatRadioSetTransmitPower(instance, *this->output_power_); err != OT_ERROR_NONE) {
-      ESP_LOGE(TAG, "Failed to set power: %s", otThreadErrorToString(err));
+    if (this->output_power_.has_value()) {
+      if (const auto err = otPlatRadioSetTransmitPower(instance, *this->output_power_); err != OT_ERROR_NONE) {
+        ESP_LOGE(TAG, "Failed to set power: %s", otThreadErrorToString(err));
+      }
     }
-  }
-
-  // Run the main loop
-#if CONFIG_OPENTHREAD_CLI
-  esp_openthread_cli_create_task();
-#endif
-  ESP_LOGI(TAG, "Activating dataset...");
-  otOperationalDatasetTlvs dataset = {};
+    ESP_LOGI(TAG, "Activating dataset...");
+    otOperationalDatasetTlvs dataset = {};
 
 #ifndef USE_OPENTHREAD_FORCE_DATASET
-  // Check if openthread has a valid dataset from a previous execution
-  otError error = otDatasetGetActiveTlvs(instance, &dataset);
-  if (error != OT_ERROR_NONE) {
-    // Make sure the length is 0 so we fallback to the configuration
-    dataset.mLength = 0;
-  } else {
-    ESP_LOGI(TAG, "Found existing dataset, ignoring config (force_dataset: true to override)");
-  }
+    // Check if openthread has a valid dataset from a previous execution
+    otError error = otDatasetGetActiveTlvs(instance, &dataset);
+    if (error != OT_ERROR_NONE) {
+      // Make sure the length is 0 so we fallback to the configuration
+      dataset.mLength = 0;
+    } else {
+      ESP_LOGI(TAG, "Found existing dataset, ignoring config (force_dataset: true to override)");
+    }
 #endif
 
 #ifdef USE_OPENTHREAD_TLVS
-  if (dataset.mLength == 0) {
-    // If we didn't have an active dataset, and we have tlvs, parse it and pass it to esp_openthread_auto_start
-    size_t len = (sizeof(USE_OPENTHREAD_TLVS) - 1) / 2;
-    if (len > sizeof(dataset.mTlvs)) {
-      ESP_LOGW(TAG, "TLV buffer too small, truncating");
-      len = sizeof(dataset.mTlvs);
+    if (dataset.mLength == 0) {
+      // If we didn't have an active dataset, and we have tlvs, parse it and pass it to esp_openthread_auto_start
+      size_t len = (sizeof(USE_OPENTHREAD_TLVS) - 1) / 2;
+      if (len > sizeof(dataset.mTlvs)) {
+        ESP_LOGW(TAG, "TLV buffer too small, truncating");
+        len = sizeof(dataset.mTlvs);
+      }
+      parse_hex(USE_OPENTHREAD_TLVS, sizeof(USE_OPENTHREAD_TLVS) - 1, dataset.mTlvs, len);
+      dataset.mLength = len;
     }
-    parse_hex(USE_OPENTHREAD_TLVS, sizeof(USE_OPENTHREAD_TLVS) - 1, dataset.mTlvs, len);
-    dataset.mLength = len;
-  }
 #endif
 
-  // Pass the existing dataset, or NULL which will use the preprocessor definitions
-  ESP_ERROR_CHECK(esp_openthread_auto_start(dataset.mLength > 0 ? &dataset : nullptr));
+    // Pass the existing dataset, or NULL which will use the preprocessor definitions
+    ESP_ERROR_CHECK(esp_openthread_auto_start(dataset.mLength > 0 ? &dataset : nullptr));
 
-  // Register state change callback to update connected_ reactively instead of polling
-  otError ot_err = otSetStateChangedCallback(instance, OpenThreadComponent::on_state_changed, this);
-  if (ot_err != OT_ERROR_NONE) {
-    ESP_LOGW(TAG, "Failed to register state change callback: %d", ot_err);
+    // Register state change callback to update connected_ reactively instead of polling
+    otError ot_err = otSetStateChangedCallback(instance, OpenThreadComponent::on_state_changed, this);
+    if (ot_err != OT_ERROR_NONE) {
+      ESP_LOGW(TAG, "Failed to register state change callback: %d", ot_err);
+    }
   }
 
-  esp_openthread_launch_mainloop();
-
-  // Clean up - reset lock flag before deinit destroys the semaphore
-  this->lock_initialized_ = false;
-  esp_openthread_deinit();
-  esp_openthread_netif_glue_deinit();
-  esp_netif_destroy(openthread_netif);
-
-  esp_vfs_eventfd_unregister();
-  this->teardown_stage_ = TeardownStage::TEARDOWN_STAGE_COMPLETED;
-  vTaskDelete(NULL);
+  ESP_LOGD(TAG, "Thread Version: %" PRIu16, otThreadGetVersion());
 }
 
-int OpenThreadComponent::openthread_stop_() { return esp_openthread_mainloop_exit(); }
+int OpenThreadComponent::openthread_stop_() {
+  // Clean up - reset lock flag before deinit destroys the semaphore
+  this->lock_initialized_ = false;
+  int error = esp_openthread_stop();
+  // Mark complete even on failure: we're already mid-shutdown/reboot, so there's no
+  // recovery path to retry into -- leaving the stage stuck would only burn the full
+  // teardown timeout for no benefit.
+  this->teardown_stage_ = TeardownStage::TEARDOWN_STAGE_COMPLETED;
+  return error;
+}
 
 network::IPAddresses OpenThreadComponent::get_ip_addresses() {
   network::IPAddresses addresses;
@@ -199,8 +147,14 @@ InstanceLock InstanceLock::try_acquire(int delay) {
 }
 
 InstanceLock InstanceLock::acquire() {
-  // Wait for the lock to be created by ot_main() before attempting to acquire it.
-  // esp_openthread_lock_acquire() will assert-crash if called before esp_openthread_init().
+  // teardown() clears global_openthread_component before the stack fully stops; a caller
+  // racing teardown would otherwise dereference a null pointer below.
+  if (global_openthread_component == nullptr) {
+    ESP_LOGE(TAG, "OpenThread component torn down, cannot acquire instance lock");
+    abort();
+  }
+  // Wait for the lock to be created before attempting to acquire it.
+  // esp_openthread_lock_acquire() will assert-crash if called before esp_openthread_start().
   constexpr uint32_t lock_init_timeout_ms = 10000;
   uint32_t start = millis();
   while (!global_openthread_component->is_lock_initialized()) {

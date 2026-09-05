@@ -3,3 +3,16 @@ network:
 
 openthread:
   tlv: 0E080000000000010000
+  on_state:
+    then:
+      - logger.log:
+          format: "on_state: state is %d"
+          args: [x]
+  on_state_change:
+    then:
+      - logger.log:
+          format: "on_state_change: new state is %d, old state is %d"
+          args: [x, x_previous]
+  on_leader:
+    then:
+      - logger.log: "on_leader"

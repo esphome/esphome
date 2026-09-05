@@ -2,6 +2,9 @@ from typing import Any
 
 from esphome import automation
 import esphome.codegen as cg
+from esphome.components.const import (
+    CONF_ON_STATE_CHANGE,  # not in esphome.const; shared across components
+)
 from esphome.components.esp32 import (
     VARIANT_ESP32C5,
     VARIANT_ESP32C6,
@@ -26,6 +29,7 @@ from esphome.const import (
     CONF_FRAMEWORK,
     CONF_ID,
     CONF_LOG_LEVEL,
+    CONF_ON_STATE,
     CONF_OUTPUT_POWER,
     CONF_USE_ADDRESS,
     PLATFORM_ESP32,
@@ -50,6 +54,10 @@ from .const import (
     CONF_MESH_LOCAL_PREFIX,
     CONF_NETWORK_KEY,
     CONF_NETWORK_NAME,
+    CONF_ON_CHILD,
+    CONF_ON_DETACHED,
+    CONF_ON_LEADER,
+    CONF_ON_ROUTER,
     CONF_PAN_ID,
     CONF_POLL_PERIOD,
     CONF_PSKC,
@@ -148,6 +156,8 @@ def set_sdkconfig_options(config: ConfigType) -> None:
 openthread_ns = cg.esphome_ns.namespace("openthread")
 OpenThreadComponent = openthread_ns.class_("OpenThreadComponent", cg.Component)
 OpenThreadSrpComponent = openthread_ns.class_("OpenThreadSrpComponent", cg.Component)
+StateEnterForwarder = openthread_ns.class_("StateEnterForwarder")
+ot_device_role = cg.global_ns.enum("otDeviceRole")
 
 _CONNECTION_SCHEMA = cv.Schema(
     {
@@ -237,12 +247,49 @@ CONFIG_SCHEMA = cv.All(
                 _validate_txpower,
             ),
             cv.Optional(CONF_POLL_PERIOD): cv.positive_time_period_milliseconds,
+            cv.Optional(CONF_ON_STATE): automation.validate_automation({}),
+            cv.Optional(CONF_ON_STATE_CHANGE): automation.validate_automation({}),
+            cv.Optional(CONF_ON_DETACHED): automation.validate_automation({}),
+            cv.Optional(CONF_ON_CHILD): automation.validate_automation({}),
+            cv.Optional(CONF_ON_ROUTER): automation.validate_automation({}),
+            cv.Optional(CONF_ON_LEADER): automation.validate_automation({}),
         }
     ).extend(_CONNECTION_SCHEMA),
     cv.has_exactly_one_key(CONF_NETWORK_KEY, CONF_TLV),
     _validate_platform,
     _validate,
     _require_vfs_select,
+)
+
+_CALLBACK_AUTOMATIONS = (
+    automation.CallbackAutomation(
+        CONF_ON_STATE, "add_on_state_callback", [(ot_device_role, "x")]
+    ),
+    automation.CallbackAutomation(
+        CONF_ON_STATE_CHANGE,
+        "add_full_state_callback",
+        [(ot_device_role, "x_previous"), (ot_device_role, "x")],
+    ),
+    automation.CallbackAutomation(
+        CONF_ON_DETACHED,
+        "add_on_state_callback",
+        forwarder=StateEnterForwarder.template(ot_device_role.OT_DEVICE_ROLE_DETACHED),
+    ),
+    automation.CallbackAutomation(
+        CONF_ON_CHILD,
+        "add_on_state_callback",
+        forwarder=StateEnterForwarder.template(ot_device_role.OT_DEVICE_ROLE_CHILD),
+    ),
+    automation.CallbackAutomation(
+        CONF_ON_ROUTER,
+        "add_on_state_callback",
+        forwarder=StateEnterForwarder.template(ot_device_role.OT_DEVICE_ROLE_ROUTER),
+    ),
+    automation.CallbackAutomation(
+        CONF_ON_LEADER,
+        "add_on_state_callback",
+        forwarder=StateEnterForwarder.template(ot_device_role.OT_DEVICE_ROLE_LEADER),
+    ),
 )
 
 
@@ -315,6 +362,8 @@ async def to_code(config: ConfigType) -> None:
         )
         zephyr_add_prj_conf(f"OPENTHREAD_{config.get(CONF_DEVICE_TYPE)}", True)
         zephyr_add_prj_conf("MAIN_STACK_SIZE", 4096)
+
+    await automation.build_callback_automations(ot, config, _CALLBACK_AUTOMATIONS)
 
 
 # Actions
