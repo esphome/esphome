@@ -57,7 +57,7 @@ void ICNT86Touchscreen::update_touches() {
     return;
   }
   this->write_register16(REG_TOUCH_NUM, mask, 1);
-  ESP_LOGD(TAG, "Touch count: %d", touch_count);
+  ESP_LOGV(TAG, "Touch count: %d", touch_count);
   this->status_clear_warning();
 
   for (uint8_t i = 0; i < touch_count; i++) {
