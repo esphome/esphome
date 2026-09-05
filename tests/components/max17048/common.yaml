@@ -1,0 +1,10 @@
+sensor:
+  - platform: max17048
+    i2c_id: i2c_bus
+    battery_voltage:
+      name: "Battery Voltage"
+    battery_level:
+      name: Battery
+    rate:
+      name: "Battery rate"
+    update_interval: 10s
