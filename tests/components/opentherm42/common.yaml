@@ -37,30 +37,39 @@ switch:
     # §5.3.1 Class 1, ID 0 HB bit 2: Cooling enable [ Cooling is disabled, Cooling is enabled ]
     control_and_status_information_master_status_cooling_enable:
       name: "Control and Status Information: Master status: Cooling enable"
+      restore_mode: RESTORE_DEFAULT_OFF
     # §5.3.1 Class 1, ID 0 HB bit 3: OTC active [ OTC not active, OTC is active ]
     control_and_status_information_master_status_otc_active:
       name: "Control and Status Information: Master status: OTC active"
+      restore_mode: RESTORE_DEFAULT_OFF
     # §5.3.1 Class 1, ID 0 HB bit 4: CH2 enable [ CH2 is disabled, CH2 is enabled ]
     control_and_status_information_master_status_ch2_enable:
       name: "Control and Status Information: Master status: CH2 enable"
+      restore_mode: RESTORE_DEFAULT_OFF
     # §5.3.1 Class 1, ID 0 HB bit 5: Summer/winter mode [ winter mode active, summer mode active ]
     control_and_status_information_master_status_summer_winter_mode:
       name: "Control and Status Information: Master status: Summer-winter mode"
+      restore_mode: RESTORE_DEFAULT_OFF
     # §5.3.1 Class 1, ID 0 HB bit 6: DHW blocking [ DHW unblocked, DHW blocked ]
     control_and_status_information_master_status_dhw_blocking:
       name: "Control and Status Information: Master status: DHW blocking"
+      restore_mode: RESTORE_DEFAULT_OFF
     # §5.3.1 Class 1, ID 70 HB bit 0: Ventilation enable [ disabled, enabled ]
     control_and_status_information_master_status_for_ventilation_heat_recovery_ventilation_enable:
       name: "Control and Status Information: Master status for ventilation-heat-recovery: Ventilation enable"
+      restore_mode: RESTORE_DEFAULT_OFF
     # §5.3.1 Class 1, ID 70 HB bit 1: Bypass position (only bypass manual mode) [ close bypass, open bypass ]
     control_and_status_information_master_status_for_ventilation_heat_recovery_bypass_position:
       name: "Control and Status Information: Master status for ventilation-heat-recovery: Bypass position"
+      restore_mode: RESTORE_DEFAULT_OFF
     # §5.3.1 Class 1, ID 70 HB bit 2: Bypass mode [ manual, automatic ]
     control_and_status_information_master_status_for_ventilation_heat_recovery_bypass_mode:
       name: "Control and Status Information: Master status for ventilation-heat-recovery: Bypass mode"
+      restore_mode: RESTORE_DEFAULT_OFF
     # §5.3.1 Class 1, ID 70 HB bit 3: Free ventilation mode [ not active, active ]
     control_and_status_information_master_status_for_ventilation_heat_recovery_free_ventilation_mode:
       name: "Control and Status Information: Master status for ventilation-heat-recovery: Free ventilation mode"
+      restore_mode: RESTORE_DEFAULT_OFF
 
 number:
   - platform: opentherm42
@@ -142,6 +151,7 @@ number:
     # §5.3.8.1 Class 8, ID 7: Cooling control signal -- signal for the cooling plant (0..100%).
     control_of_special_applications_cooling_control_signal:
       name: "Control of Special Applications: Cooling control signal"
+      initial_value: 0
     # §5.3.8.2 Class 8, ID 14: Maximum relative modulation level setting, for sequencer and
     # off-low&pump control applications (0..100%).
     control_of_special_applications_maximum_relative_modulation_level_setting:
