@@ -101,8 +101,14 @@ void UDPComponent::setup() {
   // 8266 and RP2040 `Duino
   for (const auto &address : this->addresses_) {
     auto ipaddr = IPAddress();
-    ipaddr.fromString(address);
+    if (!ipaddr.fromString(address)) {
+      ESP_LOGW(TAG, "Invalid address %s", address);
+      continue;
+    }
     this->ipaddrs_.push_back(ipaddr);
+  }
+  if (this->ipaddrs_.size() != this->addresses_.size()) {
+    this->status_set_warning(LOG_STR("invalid address"));
   }
   if (this->should_listen_)
     this->udp_client_.begin(this->listen_port_);

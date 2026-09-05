@@ -5,6 +5,7 @@ from pathlib import Path
 
 import pytest
 
+from esphome.components import socket
 from esphome.components.api import (
     CONFIG_SCHEMA,
     _validate_outgoing_host_ipv6,
@@ -14,6 +15,7 @@ from esphome.components.esp32 import KEY_BOARD, KEY_VARIANT, VARIANT_ESP32
 import esphome.config_validation as cv
 from esphome.const import PlatformFramework
 from esphome.core import CORE
+import esphome.final_validate as fv
 from esphome.types import ConfigType
 from tests.component_tests.types import SetCoreConfigCallable
 
@@ -81,26 +83,28 @@ def test_outgoing_connection_requires_encryption(
 
 
 @pytest.mark.parametrize(
-    ("platform_framework", "platform_data"),
+    ("platform_framework", "platform_data", "socket_conf"),
     [
-        # The platform default on these two
-        (PlatformFramework.ESP8266_ARDUINO, None),
-        (PlatformFramework.RP2040_ARDUINO, None),
+        # The platform default on these two, resolved like AUTO_LOAD does
+        (PlatformFramework.ESP8266_ARDUINO, None, None),
+        (PlatformFramework.RP2040_ARDUINO, None, None),
         # An explicit selection elsewhere
-        (PlatformFramework.ESP32_IDF, ESP32_PLATFORM_DATA),
+        (
+            PlatformFramework.ESP32_IDF,
+            ESP32_PLATFORM_DATA,
+            {"implementation": "lwip_tcp"},
+        ),
     ],
 )
 def test_outgoing_connection_rejects_lwip_tcp(
     set_core_config: SetCoreConfigCallable,
     platform_framework: PlatformFramework,
     platform_data: ConfigType | None,
+    socket_conf: ConfigType | None,
 ) -> None:
     """The resolved lwip_tcp socket is rejected at final validate."""
-    set_core_config(
-        platform_framework,
-        platform_data=platform_data,
-        full_config={"socket": {"implementation": "lwip_tcp"}},
-    )
+    set_core_config(platform_framework, platform_data=platform_data)
+    fv.full_config.set({"socket": socket_conf or socket.CONFIG_SCHEMA({})})
     config = CONFIG_SCHEMA(_api_config({"host": "192.168.1.2"}))
     with pytest.raises(cv.Invalid, match="lwip_tcp"):
         _validate_outgoing_socket_implementation(config)
