@@ -949,6 +949,25 @@ def test_check_build_tree_not_tracked_silent_outside_git_repo(
 
 @patch("esphome.writer.subprocess.run")
 @patch("esphome.writer.CORE")
+def test_check_build_tree_not_tracked_silent_on_failure_without_stderr(
+    mock_core: MagicMock,
+    mock_run: MagicMock,
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A non-zero exit with no stderr must not raise trying to log the reason."""
+    mock_core.config_dir = tmp_path
+    mock_core.data_dir = tmp_path / ".esphome"
+    mock_run.return_value = MagicMock(returncode=1, stdout=b"", stderr=b"")
+
+    with caplog.at_level("WARNING"):
+        check_build_tree_not_tracked()
+
+    assert "tracked by git" not in caplog.text
+
+
+@patch("esphome.writer.subprocess.run")
+@patch("esphome.writer.CORE")
 def test_check_build_tree_not_tracked_silent_when_git_missing(
     mock_core: MagicMock,
     mock_run: MagicMock,
