@@ -1,0 +1,21 @@
+battery_gauge:
+  id: battery_gauge_1
+  voltage_source: battery_voltage
+  current_source: battery_current
+  capacity: 3.0Ah
+  cell_count: 4
+  chemistry: lifepo4
+
+sensor:
+  - platform: template
+    id: battery_voltage
+    lambda: |-
+      return 4.0;
+  - platform: template
+    id: battery_current
+    lambda: |-
+      return 0.5;
+  - platform: battery_gauge
+    battery_gauge_id: battery_gauge_1
+    type: state_of_charge
+    name: Battery Level

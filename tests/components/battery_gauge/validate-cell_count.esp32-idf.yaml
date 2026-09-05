@@ -1,0 +1,2 @@
+packages:
+  battery_gauge: !include cell_count.yaml
