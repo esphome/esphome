@@ -50,5 +50,5 @@ def test_other_restore_modes_do_not_require_initial_state(restore_mode: str) -> 
 def test_initial_state_rejects_lambda() -> None:
     config = _base_config()
     config["initial_state"] = {"state": Lambda("return true;")}
-    with pytest.raises(cv.Invalid, match="templates .!lambda. are not supported"):
+    with pytest.raises(cv.Invalid, match="initial_state values may not be lambdas"):
         LIGHT_SCHEMA(config)
