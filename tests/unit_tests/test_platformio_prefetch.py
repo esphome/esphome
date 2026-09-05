@@ -1576,7 +1576,7 @@ def test_preinstall_runs_dependency_waves(tmp_path: Path) -> None:
         {"name": "SPI"},
     ]
     m.dependency_to_spec.side_effect = lambda dep: _FakeSpec(name=dep["name"])
-    pf._preinstall(m, [("noise-c@0.1.21", _FakeSpec(name="noise-c"))])
+    pf._preinstall(m, [("noise-c@0.1.22", _FakeSpec(name="noise-c"))])
     assert installed == ["noise-c", "libsodium"]  # dep deduped, SPI left out
     # The dep wave carries its compatibility so _install searches qualified
     dep_call = m._install.call_args_list[-1]
@@ -1596,7 +1596,7 @@ def test_preinstall_dependency_wave_skips_seen_names(tmp_path: Path) -> None:
     m._install.side_effect = lambda spec, skip_dependencies, compatibility=None: (
         installed.append(getattr(spec, "name", str(spec)))
     )
-    pf._preinstall(m, [("noise-c@0.1.21", _FakeSpec(name="noise-c"))])
+    pf._preinstall(m, [("noise-c@0.1.22", _FakeSpec(name="noise-c"))])
     assert installed == ["noise-c"]
 
 

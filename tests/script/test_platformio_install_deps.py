@@ -35,8 +35,8 @@ def _load_script():
 def test_spec_key_collapses_destinations() -> None:
     """Two specs delivering one package share a directory and one key."""
     mod = _load_script()
-    assert mod.spec_key("esphome/noise-c @ 0.1.21") == "noise-c"
-    assert mod.spec_key("esphome/noise-c@0.1.21") == "noise-c"
+    assert mod.spec_key("esphome/noise-c @ 0.1.22") == "noise-c"
+    assert mod.spec_key("esphome/noise-c@0.1.22") == "noise-c"
     assert mod.spec_key("ESP32Async/AsyncTCP @ ^3.4.10") == mod.spec_key(
         "esp32async/asynctcp @ 3.5.0"
     )
@@ -54,23 +54,23 @@ def test_parse_specs_and_cli_args(tmp_path: Path) -> None:
         "[env:a]\n"
         "platform = fake/platform@1\n"
         "lib_deps =\n"
-        "    esphome/noise-c @ 0.1.21\n"
+        "    esphome/noise-c @ 0.1.22\n"
         "    ${common.lib_deps}\n"
         "    internal_lib\n"
         "[env:b]\n"
         "lib_deps =\n"
-        "    esphome/noise-c @ 0.1.21\n"
+        "    esphome/noise-c @ 0.1.22\n"
     )
     mod = _load_script()
     args = Namespace(libraries=True, platforms=True, tools=False)
     libs, platforms, tools = mod.parse_specs(str(ini), args)
     # exact-string duplicates collapse; distinct version pins survive
-    assert libs == ["esphome/noise-c @ 0.1.21"]
+    assert libs == ["esphome/noise-c @ 0.1.22"]
     assert platforms == ["fake/platform@1"]
     assert tools == []
     assert mod.build_cli_args(libs, platforms, tools) == [
         "-l",
-        "esphome/noise-c @ 0.1.21",
+        "esphome/noise-c @ 0.1.22",
         "-p",
         "fake/platform@1",
     ]
@@ -162,13 +162,13 @@ def test_parallel_install_behavior(tmp_path: Path) -> None:
     mod.parallel_install(
         cls,
         [
-            "esphome/noise-c @ 0.1.21",
-            "esphome/noise-c @ 0.1.21",
+            "esphome/noise-c @ 0.1.22",
+            "esphome/noise-c @ 0.1.22",
             "esphome/already @ 1.0",
             "https://x/framework.tar.xz",
         ],
     )
-    assert cls.calls == ["esphome/noise-c @ 0.1.21"]
+    assert cls.calls == ["esphome/noise-c @ 0.1.22"]
     assert cls.lock_events == ["lock", "unlock"]
 
 
@@ -205,7 +205,7 @@ def test_parallel_install_runs_dependency_waves(tmp_path: Path) -> None:
     mod = _load_script()
     cls = _reset_fake(str(tmp_path))
     cls.deps = {
-        "esphome/noise-c @ 0.1.21": [
+        "esphome/noise-c @ 0.1.22": [
             {"owner": "esphome", "name": "libsodium", "version": "^1.0"},
             {"name": "SPI"},
         ],
@@ -213,12 +213,12 @@ def test_parallel_install_runs_dependency_waves(tmp_path: Path) -> None:
             {"owner": "esphome", "name": "libsodium", "version": "^1.0"},
         ],
     }
-    mod.parallel_install(cls, ["esphome/noise-c @ 0.1.21", "esphome/wg @ 1.0"])
+    mod.parallel_install(cls, ["esphome/noise-c @ 0.1.22", "esphome/wg @ 1.0"])
     assert len(cls.calls) == 3  # the shared dep installs exactly once
     assert {mod.spec_key(c) for c in cls.calls} == {"noise-c", "wg", "libsodium"}
     # Wave-1 strings carry no compatibility; the dependency wave does
     compats = dict(cls.compat_calls)
-    assert compats["esphome/noise-c @ 0.1.21"] is None
+    assert compats["esphome/noise-c @ 0.1.22"] is None
     dep_compat = next(v for k, v in cls.compat_calls if "libsodium" in k)
     assert dep_compat is not None  # mirrors pio's install_dependency
 
@@ -229,11 +229,11 @@ def test_dependency_wave_excludes_url_specs(tmp_path: Path) -> None:
     mod = _load_script()
     cls = _reset_fake(str(tmp_path))
     cls.deps = {
-        "esphome/noise-c @ 0.1.21": [
+        "esphome/noise-c @ 0.1.22": [
             {"name": "vendored", "version": "https://github.com/x/y.git"},
         ],
     }
-    mod.parallel_install(cls, ["esphome/noise-c @ 0.1.21"])
+    mod.parallel_install(cls, ["esphome/noise-c @ 0.1.22"])
     assert {mod.spec_key(c) for c in cls.calls} == {"noise-c"}
 
 
@@ -348,13 +348,13 @@ def test_warm_store_still_walks_dependencies(tmp_path: Path) -> None:
     """Already-installed top-level packages still feed the dependency
     wave; a warm store can be missing a transitive dep."""
     mod = _load_script()
-    cls = _reset_fake(str(tmp_path), installed={"esphome/noise-c @ 0.1.21"})
+    cls = _reset_fake(str(tmp_path), installed={"esphome/noise-c @ 0.1.22"})
     cls.deps = {
-        "esphome/noise-c @ 0.1.21": [
+        "esphome/noise-c @ 0.1.22": [
             {"owner": "esphome", "name": "libsodium", "version": "^1.0"},
         ],
     }
-    mod.parallel_install(cls, ["esphome/noise-c @ 0.1.21"])
+    mod.parallel_install(cls, ["esphome/noise-c @ 0.1.22"])
     assert [mod.spec_key(c) for c in cls.calls] == ["libsodium"]
 
 
