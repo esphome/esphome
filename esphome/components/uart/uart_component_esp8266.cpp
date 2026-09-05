@@ -15,6 +15,11 @@
 namespace esphome::uart {
 
 static const char *const TAG = "uart";
+// Edge decoder up to this baud rate, start bit sampler above it. The cutoff is
+// a deliberate tradeoff: the decoder tolerates ~0.25 bit of ISR latency jitter
+// (~6.5us at 38400), too tight for higher rates where the sampler's whole byte
+// ISR block is short anyway.
+static constexpr uint32_t SW_SERIAL_EDGE_MODE_MAX_BAUD = 38400;
 bool ESP8266UartComponent::serial0_in_use = false;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 uint32_t ESP8266UartComponent::get_config() {
@@ -157,6 +162,10 @@ void ESP8266UartComponent::dump_config() {
                        "\n  Wake on data RX: ENABLED"
 #endif
     );
+    if (this->rx_pin_ != nullptr) {
+      ESP_LOGCONFIG(TAG, "  RX decoder: %s",
+                    this->baud_rate_ <= SW_SERIAL_EDGE_MODE_MAX_BAUD ? "edge" : "start bit sampler");
+    }
   }
   this->check_logger_conflict();
 }
@@ -232,8 +241,10 @@ UARTFlushResult ESP8266UartComponent::flush() {
 void ESP8266SoftwareSerial::setup(InternalGPIOPin *tx_pin, InternalGPIOPin *rx_pin, uint32_t baud_rate,
                                   uint8_t stop_bits, uint32_t data_bits, UARTParityOptions parity,
                                   size_t rx_buffer_size) {
+  // load_settings() re-enters here: detach the ISR before touching its state.
+  if (this->gpio_rx_pin_ != nullptr)
+    this->gpio_rx_pin_->detach_interrupt();
   this->bit_time_ = F_CPU / baud_rate;
-  this->rx_buffer_size_ = rx_buffer_size;
   this->stop_bits_ = stop_bits;
   this->data_bits_ = data_bits;
   this->parity_ = parity;
@@ -247,8 +258,22 @@ void ESP8266SoftwareSerial::setup(InternalGPIOPin *tx_pin, InternalGPIOPin *rx_p
     gpio_rx_pin_ = rx_pin;
     gpio_rx_pin_->setup();
     rx_pin_ = gpio_rx_pin_->to_isr();
-    rx_buffer_ = new uint8_t[this->rx_buffer_size_];  // NOLINT
-    gpio_rx_pin_->attach_interrupt(ESP8266SoftwareSerial::gpio_intr, this, gpio::INTERRUPT_FALLING_EDGE);
+    if (this->rx_buffer_ != nullptr && this->rx_buffer_size_ != rx_buffer_size) {
+      delete[] this->rx_buffer_;  // NOLINT
+      this->rx_buffer_ = nullptr;
+    }
+    this->rx_buffer_size_ = rx_buffer_size;
+    if (this->rx_buffer_ == nullptr) {
+      this->rx_buffer_ = new uint8_t[rx_buffer_size];  // NOLINT
+    }
+    this->rx_.setup(this->bit_time_, data_bits, parity != UART_CONFIG_PARITY_NONE, stop_bits, this->rx_buffer_,
+                    rx_buffer_size);
+    this->rx_.reset(arch_get_cpu_cycle_count(), this->rx_pin_.digital_read());
+    if (baud_rate <= SW_SERIAL_EDGE_MODE_MAX_BAUD) {
+      gpio_rx_pin_->attach_interrupt(ESP8266SoftwareSerial::gpio_intr_edge, this, gpio::INTERRUPT_ANY_EDGE);
+    } else {
+      gpio_rx_pin_->attach_interrupt(ESP8266SoftwareSerial::gpio_intr, this, gpio::INTERRUPT_FALLING_EDGE);
+    }
   }
 }
 void IRAM_ATTR ESP8266SoftwareSerial::gpio_intr(ESP8266SoftwareSerial *arg) {
@@ -269,8 +294,7 @@ void IRAM_ATTR ESP8266SoftwareSerial::gpio_intr(ESP8266SoftwareSerial *arg) {
   if (arg->stop_bits_ == 2)
     arg->wait_(&wait, start);
 
-  arg->rx_buffer_[arg->rx_in_pos_] = rec;
-  arg->rx_in_pos_ = (arg->rx_in_pos_ + 1) % arg->rx_buffer_size_;
+  arg->rx_.push_byte(rec);
   // Clear RX pin so that the interrupt doesn't re-trigger right away again.
   arg->rx_pin_.clear_interrupt();
 #ifdef USE_UART_WAKE_LOOP_ON_RX
@@ -279,6 +303,28 @@ void IRAM_ATTR ESP8266SoftwareSerial::gpio_intr(ESP8266SoftwareSerial *arg) {
   // sensitive setups that poll read() in a tight loop (e.g. fingerprint_grow).
   wake_loop_isrsafe();
 #endif
+}
+void IRAM_ATTR ESP8266SoftwareSerial::gpio_intr_edge(ESP8266SoftwareSerial *arg) {
+  const uint32_t now = arch_get_cpu_cycle_count();
+  const bool level = arg->rx_pin_.digital_read();
+#ifdef USE_UART_WAKE_LOOP_ON_RX
+  if (arg->rx_.on_edge(now, level))
+    wake_loop_isrsafe();
+#else
+  arg->rx_.on_edge(now, level);
+#endif
+}
+void ESP8266SoftwareSerial::rx_finalize_pending_() {
+  if (!this->rx_.finalize_due(arch_get_cpu_cycle_count())) {
+#ifdef USE_UART_WAKE_LOOP_ON_RX
+    // Byte not old enough yet: re-run the loop once the buffer is drained.
+    if (this->rx_.available() == 0)
+      wake_loop_threadsafe();
+#endif
+    return;
+  }
+  InterruptLock lock;
+  this->rx_.finalize(arch_get_cpu_cycle_count());
 }
 void IRAM_ATTR HOT ESP8266SoftwareSerial::write_byte(uint8_t data) {
   if (this->gpio_tx_pin_ == nullptr) {
@@ -329,28 +375,19 @@ void IRAM_ATTR ESP8266SoftwareSerial::write_bit_(bool bit, uint32_t *wait, const
   this->wait_(wait, start);
 }
 uint8_t ESP8266SoftwareSerial::read_byte() {
-  if (this->rx_in_pos_ == this->rx_out_pos_)
-    return 0;
-  uint8_t data = this->rx_buffer_[this->rx_out_pos_];
-  this->rx_out_pos_ = (this->rx_out_pos_ + 1) % this->rx_buffer_size_;
-  return data;
+  this->rx_sync_();
+  return this->rx_.read_byte();
 }
 uint8_t ESP8266SoftwareSerial::peek_byte() {
-  if (this->rx_in_pos_ == this->rx_out_pos_)
-    return 0;
-  return this->rx_buffer_[this->rx_out_pos_];
+  this->rx_sync_();
+  return this->rx_.peek_byte();
 }
 void ESP8266SoftwareSerial::flush() {
   // Flush is a NO-OP with software serial, all bytes are written immediately.
 }
 size_t ESP8266SoftwareSerial::available() {
-  // Read volatile rx_in_pos_ once to avoid TOCTOU race with ISR.
-  // When in >= out, data is contiguous: [out..in).
-  // When in < out, data wraps: [out..buf_size) + [0..in).
-  size_t in = this->rx_in_pos_;
-  if (in >= this->rx_out_pos_)
-    return in - this->rx_out_pos_;
-  return this->rx_buffer_size_ - this->rx_out_pos_ + in;
+  this->rx_sync_();
+  return this->rx_.available();
 }
 
 }  // namespace esphome::uart
