@@ -12,8 +12,13 @@ void PCF8574Component::setup() {
     return;
   }
 
-  this->write_gpio_();
-  this->read_gpio_();
+  // Keep the current latch levels. An immediate write_gpio_() here runs with
+  // mode_mask_ still 0, so ~mode_mask_ forces every pin HIGH and drops
+  // active-low loads for a moment before LightState restore. Copy the read
+  // value into output_mask_ so the first real write (after pin modes are set)
+  // can preserve ON outputs across ESP reboot.
+  // See https://github.com/esphome/issues/issues/4127
+  this->output_mask_ = this->input_mask_;
 
   if (this->interrupt_pin_ != nullptr) {
     this->interrupt_pin_->setup();
@@ -65,10 +70,10 @@ void PCF8574Component::digital_write_hw(uint8_t pin, bool value) {
 }
 void PCF8574Component::pin_mode(uint8_t pin, gpio::Flags flags) {
   if (flags == gpio::FLAG_INPUT) {
-    // Clear mode mask bit
+    // Clear mode mask bit. Do not write yet: an early write_gpio_() while other
+    // pins are still unregistered (mode_mask_ bit 0 → treated as input/HIGH)
+    // can force active-low outputs off before LightState restore.
     this->mode_mask_ &= ~(1 << pin);
-    // Write GPIO to enable input mode
-    this->write_gpio_();
     // Enable polling loop for input pins (not needed for interrupt-driven mode
     // where the ISR handles re-enabling loop)
     if (this->interrupt_pin_ == nullptr) {

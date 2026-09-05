@@ -11,9 +11,12 @@ class GPIOBinaryOutput final : public output::BinaryOutput, public Component {
   void set_pin(GPIOPin *pin) { pin_ = pin; }
 
   void setup() override {
-    this->turn_off();
+    // Only configure the pin mode here. Do not force the pin off: LightState (and
+    // similar consumers) restore the intended level shortly after setup. Forcing
+    // OFF first causes a visible off→on flash when the previous state was ON
+    // (especially with PCF857x expanders that keep latch state across ESP reset).
+    // See https://github.com/esphome/issues/issues/5390
     this->pin_->setup();
-    this->turn_off();
   }
   void dump_config() override;
   float get_setup_priority() const override { return setup_priority::HARDWARE; }
