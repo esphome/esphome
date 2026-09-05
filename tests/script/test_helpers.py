@@ -2122,6 +2122,34 @@ def test_get_cpp_changed_components_independent_of_cwd(
     ) == ["time"]
 
 
+def test_fixture_map_includes_shared_yaml_markers() -> None:
+    """Fixtures named only by shared_yaml markers must map to their test file."""
+    helpers.get_fixture_to_test_files.cache_clear()
+    mapping = helpers.get_fixture_to_test_files()
+    for fixture in (
+        "uart_mock_modbus_loopback",
+        "uart_mock_modbus_mesh",
+        "uart_mock_modbus_server_injected",
+    ):
+        assert mapping[fixture] == frozenset(
+            {"tests/integration/test_uart_mock_modbus.py"}
+        )
+
+
+def test_no_orphan_integration_fixtures() -> None:
+    """Every fixture must reach CI test selection; an orphan selects nothing."""
+    helpers.get_fixture_to_test_files.cache_clear()
+    mapping = helpers.get_fixture_to_test_files()
+    fixtures_dir = (Path(__file__).parent.parent / "integration" / "fixtures").resolve()
+    fixtures = list(fixtures_dir.glob("*.yaml"))
+    assert fixtures, f"no fixtures found under {fixtures_dir}"
+    # cache_init is covered via INTEGRATION_TESTS_TRIGGER_FILES instead
+    orphans = [
+        f.stem for f in fixtures if f.stem != "cache_init" and f.stem not in mapping
+    ]
+    assert not orphans, f"fixtures invisible to CI test selection: {orphans}"
+
+
 def test_lpt_partition_balances_skewed_weights() -> None:
     """Heavy items spread across groups instead of clustering."""
     items = [f"i{n}" for n in range(6)]

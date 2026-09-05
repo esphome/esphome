@@ -173,6 +173,7 @@ async def test_uart_mock_modbus_no_threshold(
         _assert_no_modbus_errors(error_log_lines, warning_log_lines)
 
 
+@pytest.mark.shared_yaml("uart_mock_modbus_server_injected")
 @pytest.mark.asyncio
 async def test_uart_mock_modbus_server(
     yaml_config: str,
@@ -203,6 +204,7 @@ async def test_uart_mock_modbus_server(
         _assert_no_modbus_errors(error_log_lines, warning_log_lines)
 
 
+@pytest.mark.shared_yaml("uart_mock_modbus_server_injected")
 @pytest.mark.asyncio
 async def test_uart_mock_modbus_server_read_write(
     yaml_config: str,
@@ -231,8 +233,8 @@ async def test_uart_mock_modbus_server_read_write(
             "rw_write_1": 4660,  # 0x1234 written to reg 0x0001
             "rw_read_1": 4660,  # reg 0x0001 reads back the just-written value
             "rw_read_2": 170,  # 0x00AA read from reg 0x0002 in the same request
-            "rw_write_3": 22136,  # 0x5678 written to reg 0x0003
-            "rw_read_3": 22136,  # reg 0x0003 reads back the just-written value
+            "rw_write_3": 22136,  # 0x5678 written to reg 0x0006
+            "rw_read_3": 22136,  # reg 0x0006 reads back the just-written value
         }
     )
 
@@ -241,7 +243,8 @@ async def test_uart_mock_modbus_server_read_write(
         api_client_connected() as client,
     ):
         await tracker.setup_and_start_scenario(client)
-        await tracker.await_all(futures)
+        # The FC 0x17 injections fire last, behind four earlier 100ms delays
+        await tracker.await_all(futures, timeout=4.0)
         _assert_no_modbus_errors(error_log_lines, warning_log_lines)
 
 
@@ -296,6 +299,7 @@ async def test_uart_mock_modbus_server_read_write_invalid(
     )
 
 
+@pytest.mark.shared_yaml("uart_mock_modbus_mesh")
 @pytest.mark.asyncio
 async def test_uart_mock_modbus_server_controller(
     yaml_config: str,
@@ -485,6 +489,7 @@ async def test_uart_mock_modbus_server_controller_bits(
         _assert_no_modbus_errors(error_log_lines, warning_log_lines)
 
 
+@pytest.mark.shared_yaml("uart_mock_modbus_mesh")
 @pytest.mark.asyncio
 async def test_uart_mock_modbus_server_controller_multiple(
     yaml_config: str,
@@ -495,7 +500,7 @@ async def test_uart_mock_modbus_server_controller_multiple(
 
     line_callback, error_log_lines, warning_log_lines = _make_modbus_line_callback()
 
-    expected_values = {"reg_u_word": 919, "reg_u_word_2": 929}
+    expected_values = {"multi_reg_a": 919, "multi_reg_b": 929}
     tracker = SensorTracker(list(expected_values.keys()))
     futures = tracker.expect_all(expected_values)
 
@@ -706,6 +711,7 @@ async def test_uart_mock_modbus_shared_address(
         _assert_no_modbus_errors(error_log_lines, warning_log_lines)
 
 
+@pytest.mark.shared_yaml("uart_mock_modbus_loopback")
 @pytest.mark.asyncio
 async def test_uart_mock_modbus_custom_pdu(
     yaml_config: str,
@@ -932,6 +938,7 @@ async def test_uart_mock_modbus_broadcast_write(
         _assert_no_modbus_errors(error_log_lines, warning_log_lines)
 
 
+@pytest.mark.shared_yaml("uart_mock_modbus_mesh")
 @pytest.mark.asyncio
 async def test_uart_mock_modbus_client_read_write(
     yaml_config: str,
@@ -947,9 +954,7 @@ async def test_uart_mock_modbus_client_read_write(
     """
     line_callback, error_log_lines, warning_log_lines = _make_modbus_line_callback()
 
-    tracker = SensorTracker(
-        ["srv_write_1", "srv_read_1", "client_read_0", "client_read_1"]
-    )
+    tracker = SensorTracker(["srv_write_1", "client_read_0", "client_read_1"])
     futures = tracker.expect_all(
         {
             "srv_write_1": 4660,  # server wrote 0x1234 to reg 0x0001
@@ -967,6 +972,7 @@ async def test_uart_mock_modbus_client_read_write(
         _assert_no_modbus_errors(error_log_lines, warning_log_lines)
 
 
+@pytest.mark.shared_yaml("uart_mock_modbus_loopback")
 @pytest.mark.asyncio
 async def test_uart_mock_modbus_register_offset(
     yaml_config: str,
@@ -1022,6 +1028,7 @@ async def test_uart_mock_modbus_register_offset(
         )
 
 
+@pytest.mark.shared_yaml("uart_mock_modbus_loopback")
 @pytest.mark.asyncio
 async def test_uart_mock_modbus_lambda_write(
     yaml_config: str,
@@ -1058,6 +1065,7 @@ async def test_uart_mock_modbus_lambda_write(
         await tracker.await_change(wrote_30, "reg_30", timeout=4.0)
 
 
+@pytest.mark.shared_yaml("uart_mock_modbus_loopback")
 @pytest.mark.asyncio
 async def test_uart_mock_modbus_lambda_invert(
     yaml_config: str,
@@ -1113,6 +1121,7 @@ async def test_uart_mock_modbus_lambda_invert(
         )
 
 
+@pytest.mark.shared_yaml("uart_mock_modbus_loopback")
 @pytest.mark.asyncio
 async def test_uart_mock_modbus_deprecated_write_buffer(
     yaml_config: str,

@@ -1104,6 +1104,10 @@ def get_components_per_integration_fixture() -> dict[str, set[str]]:
 
 
 _TEST_FUNC_RE = re.compile(r"async def (test_\w+)")
+# Any usage form (decorator, pytestmark assignment or list element); only
+# test_*.py files are scanned, so the marker docs elsewhere cannot false-hit
+_SHARED_YAML_USE_RE = re.compile(r"\bmark\.shared_yaml")
+_SHARED_YAML_ARG_RE = re.compile(r"\(\s*[\"'](\w+)[\"']\s*\)")
 
 
 @cache
@@ -1123,6 +1127,19 @@ def get_fixture_to_test_files() -> dict[str, frozenset[str]]:
         for func in _TEST_FUNC_RE.findall(content):
             base_name = func.replace("test_", "").partition("[")[0]
             result.setdefault(base_name, set()).add(rel_path)
+        # Shared fixtures are named by marker, not by a test function; each
+        # decorator must carry a string literal or its fixture would silently
+        # map to no tests
+        for use in _SHARED_YAML_USE_RE.finditer(content):
+            arg = _SHARED_YAML_ARG_RE.match(content, use.end())
+            if arg is None:
+                line = content.count("\n", 0, use.start()) + 1
+                raise ValueError(
+                    f"{rel_path}:{line}: shared_yaml marker must take a "
+                    "single-line string literal so CI test selection can map "
+                    "its fixture"
+                )
+            result.setdefault(arg.group(1), set()).add(rel_path)
 
     return {k: frozenset(v) for k, v in result.items()}
 

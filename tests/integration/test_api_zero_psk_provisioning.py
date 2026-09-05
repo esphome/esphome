@@ -24,12 +24,6 @@ NEW_KEY = base64.b64encode(b"n" * 32)
 KEY_ACTIVATION_DELAY = 0.5
 
 
-@pytest.fixture(autouse=True)
-def isolated_preferences(monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:
-    """Keep host preferences per-test so every run starts unprovisioned."""
-    monkeypatch.setenv("ESPHOME_PREFDIR", str(tmp_path / "prefs"))
-
-
 @pytest.mark.asyncio
 async def test_api_zero_psk_provisioning(
     yaml_config: str,
