@@ -61,11 +61,11 @@ class LWIPRawCommon {
   bool nodelay_ = false;
   sa_family_t family_ = 0;
   uint8_t recv_timeout_cs_ = 0;  // SO_RCVTIMEO in centiseconds (0 = no timeout, max 2.55s)
-  // State of a connect() started on this socket: 0 when none is pending (or
-  // it completed), EINPROGRESS while the SYN is out, otherwise the errno the
+  // State of connect() on this socket: 0 before one was started, EINPROGRESS
+  // while the SYN is out, EISCONN once established, otherwise the errno the
   // lwip callbacks recorded for its failure. Fits the padding byte here.
   uint8_t connect_err_ = 0;
-  static_assert(EINPROGRESS < 256 && ECONNREFUSED < 256 && ECONNRESET < 256 && ETIMEDOUT < 256,
+  static_assert(EINPROGRESS < 256 && EISCONN < 256 && ECONNREFUSED < 256 && ECONNRESET < 256 && ETIMEDOUT < 256,
                 "connect_err_ stores errno values in a byte");
 };
 // The connect state must stay inside the padding: no socket, listening or
@@ -97,6 +97,8 @@ class LWIPRawImpl : public LWIPRawCommon {
   }
   /// Start a non-blocking connect. Always returns -1 with errno EINPROGRESS
   /// when the SYN was queued; completion is reported by poll_connect().
+  /// addr must be of the family the socket was created with; an IPv4 peer
+  /// on an AF_INET6 socket arrives as a v4-mapped sockaddr_in6.
   int connect(const struct sockaddr *addr, socklen_t addrlen);
   // Intentionally unlocked like ready(): reads one pointer and one byte that
   // the callbacks write in the order the checks depend on (error byte first,
@@ -157,7 +159,8 @@ class LWIPRawImpl : public LWIPRawCommon {
   size_t rx_buf_offset_ = 0;
   bool rx_closed_ = false;
 };
-static_assert(sizeof(LWIPRawImpl) == sizeof(LWIPRawCommon) + sizeof(pbuf *) + sizeof(size_t) + sizeof(void *),
+// rx_buf_, rx_buf_offset_, then rx_closed_ padded to a word
+static_assert(sizeof(LWIPRawImpl) == sizeof(LWIPRawCommon) + sizeof(pbuf *) + sizeof(size_t) + 4,
               "LWIPRawImpl layout changed");
 
 /// Listening socket implementation for LWIP raw TCP.

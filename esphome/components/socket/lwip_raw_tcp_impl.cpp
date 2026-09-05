@@ -60,9 +60,9 @@ static int lwip_err_to_errno(err_t err) {
     case ERR_MEM:
       return ENOMEM;
     case ERR_BUF:
-      return EAGAIN;  // no free local port
+      return EAGAIN;  // transient, e.g. no free local port
     case ERR_RTE:
-      return EHOSTUNREACH;  // no route or no address yet
+      return EHOSTUNREACH;  // no route, e.g. no address yet
     case ERR_VAL:
     case ERR_ARG:
       return EINVAL;
@@ -449,7 +449,7 @@ err_t LWIPRawImpl::s_connected_fn(void *arg, struct tcp_pcb *pcb, err_t err) {
   // LWIP CALLBACK — same constraints as s_err_fn. err is always ERR_OK; a
   // failed connect arrives through s_err_fn instead.
   auto *arg_this = reinterpret_cast<LWIPRawImpl *>(arg);
-  arg_this->connect_err_ = 0;
+  arg_this->connect_err_ = EISCONN;
   esphome::wake_loop_any_context();
   return ERR_OK;
 }
@@ -460,8 +460,8 @@ int LWIPRawImpl::connect(const struct sockaddr *addr, socklen_t addrlen) {
     errno = EBADF;
     return -1;
   }
-  if (this->connect_err_ != 0) {
-    errno = EALREADY;
+  if (this->connect_err_ == EINPROGRESS || this->connect_err_ == EISCONN) {
+    errno = this->connect_err_ == EINPROGRESS ? EALREADY : EISCONN;
     return -1;
   }
   ip_addr_t ip;
@@ -499,15 +499,19 @@ ConnectPollResult LWIPRawImpl::poll_connect(int &err_out) const {
     err_out = this->connect_err_ == 0 || this->connect_err_ == EINPROGRESS ? ECONNRESET : this->connect_err_;
     return ConnectPollResult::CONNECT_POLL_ERROR;
   }
-  if (this->connect_err_ == EINPROGRESS) {
-    yield_to_sys();  // so the SYN-ACK is processed between polls
-    return ConnectPollResult::CONNECT_POLL_PENDING;
+  switch (this->connect_err_) {
+    case EINPROGRESS:
+      yield_to_sys();  // so the SYN-ACK is processed between polls
+      return ConnectPollResult::CONNECT_POLL_PENDING;
+    case EISCONN:
+      return ConnectPollResult::CONNECT_POLL_CONNECTED;
+    case 0:
+      err_out = EINVAL;  // no connect was started
+      return ConnectPollResult::CONNECT_POLL_ERROR;
+    default:
+      err_out = this->connect_err_;
+      return ConnectPollResult::CONNECT_POLL_ERROR;
   }
-  if (this->connect_err_ != 0) {
-    err_out = this->connect_err_;
-    return ConnectPollResult::CONNECT_POLL_ERROR;
-  }
-  return ConnectPollResult::CONNECT_POLL_CONNECTED;
 }
 
 err_t LWIPRawImpl::s_recv_fn(void *arg, struct tcp_pcb *pcb, struct pbuf *pb, err_t err) {

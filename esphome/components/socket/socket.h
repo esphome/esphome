@@ -145,7 +145,8 @@ inline socklen_t set_sockaddr(struct sockaddr *addr, socklen_t addrlen, const st
 /// Set a sockaddr to the any address and specified port for the IP version used by socket_ip().
 socklen_t set_sockaddr_any(struct sockaddr *addr, socklen_t addrlen, uint16_t port);
 
-/// Check a non-blocking connect() for completion without blocking. On
+/// Check a non-blocking connect() for completion without blocking. Only
+/// meaningful after connect() returned -1 with errno EINPROGRESS. On
 /// CONNECT_POLL_ERROR, err_out holds the socket's SO_ERROR (or errno when the
 /// poll itself failed) on fd based implementations, and the failure recorded
 /// by the lwip callbacks on the raw lwip implementation.
