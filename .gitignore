@@ -146,6 +146,7 @@ sdkconfig.*
 !sdkconfig.defaults.*
 
 .tests/
+.worktrees/
 
 /components
 /managed_components
