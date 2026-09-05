@@ -48,7 +48,8 @@ void ICNT86Touchscreen::update_touches() {
   }
   uint8_t touch_count = buf[0];
 
-  if (touch_count == 0x00 || (touch_count > MAX_TOUCHES || touch_count < 1)) {  // No new touch
+  if (touch_count == 0x00 || touch_count > MAX_TOUCHES) {  // No new touch
+    this->status_clear_warning();
     return;
   }
   if (this->read_register16(REG_POINT1, buf, touch_count * POINT_SIZE) != i2c::ERROR_OK) {
