@@ -26,6 +26,11 @@ output:
     type: float
     write_action:
       - lambda: ""
+  - platform: template
+    id: test_effect_output
+    type: float
+    write_action:
+      - lambda: ""
 
 light:
   - platform: rgb
@@ -55,3 +60,19 @@ light:
       color_mode: BRIGHTNESS
       state: false
       brightness: 0%
+
+  - platform: monochromatic
+    name: "Test Effect Light"
+    id: test_effect_light
+    output: test_effect_output
+    # ALWAYS_ON so the light resolves to on at boot: an effect is cleared when the
+    # light is turning off ("cannot start effect when turning off"), so initial_state's
+    # effect is only meaningful for a boot state that ends up on.
+    restore_mode: ALWAYS_ON
+    initial_state:
+      color_mode: BRIGHTNESS
+      brightness: 60%
+      effect: "Test Pulse"
+    effects:
+      - pulse:
+          name: "Test Pulse"
