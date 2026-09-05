@@ -198,8 +198,12 @@ void DaikinMadoka::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t
     case ESP_GATTC_DISCONNECT_EVT: {
       this->node_state = espbt::ClientState::IDLE;
       this->current_temperature = NAN;
-      this->target_temperature = NAN;
+      this->target_temperature_high = NAN;
+      this->target_temperature_low = NAN;
+      this->mode = climate::CLIMATE_MODE_OFF;
+      this->fan_mode.reset();
       this->publish_state();
+
       this->partial_incoming_message_.data.clear();
       this->partial_incoming_message_.expected_chunk_id = 0;
       this->should_update_ = false;
