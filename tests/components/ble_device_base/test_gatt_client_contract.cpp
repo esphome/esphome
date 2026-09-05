@@ -79,4 +79,54 @@ TEST(BleGattClientContract, MinimalImplementerCompilesAndRoutesEvents) {
   EXPECT_EQ(table.descriptor_count, 0);
 }
 
+// A radon_eye_rd200-shaped table: two services, the second holding a
+// notifying characteristic with a CCCD and a bare write characteristic.
+class ServiceTableLookup : public ::testing::Test {
+ protected:
+  void SetUp() override {
+    this->services_[0] = {ESPBTUUID::from_uint16(0x1800), 0x0001, 0x0005, 0, 1};
+    this->services_[1] = {ESPBTUUID::from_uint16(0x1523), 0x0010, 0x0020, 1, 2};
+    this->characteristics_[0] = {ESPBTUUID::from_uint16(0x2A00), 0x0003, 0x0003, 0x02, 0, 0};
+    this->characteristics_[1] = {ESPBTUUID::from_uint16(0x1525), 0x0012, 0x0014, 0x10, 0, 1};
+    this->characteristics_[2] = {ESPBTUUID::from_uint16(0x1524), 0x0016, 0x0016, 0x04, 1, 0};
+    this->descriptors_[0] = {ESPBTUUID::from_uint16(0x2902), 0x0013};
+    this->table_ = {this->services_, this->characteristics_, this->descriptors_, 2, 3, 1};
+  }
+
+  GattService services_[2];
+  GattCharacteristic characteristics_[3];
+  GattDescriptor descriptors_[1];
+  GattServiceTable table_;
+};
+
+TEST_F(ServiceTableLookup, FindsServicesAndCharacteristicsByUuid) {
+  const GattService *service = find_service(this->table_, ESPBTUUID::from_uint16(0x1523));
+  ASSERT_NE(service, nullptr);
+  EXPECT_EQ(service->start_handle, 0x0010);
+  EXPECT_EQ(find_service(this->table_, ESPBTUUID::from_uint16(0xFFFF)), nullptr);
+
+  const GattCharacteristic *characteristic =
+      find_characteristic(this->table_, *service, ESPBTUUID::from_uint16(0x1525));
+  ASSERT_NE(characteristic, nullptr);
+  EXPECT_EQ(characteristic->value_handle, 0x0012);
+  // The lookup is scoped to the service: 0x2A00 lives in the other service.
+  EXPECT_EQ(find_characteristic(this->table_, *service, ESPBTUUID::from_uint16(0x2A00)), nullptr);
+}
+
+TEST_F(ServiceTableLookup, FindsTheCccdAndReportsItsAbsence) {
+  const GattService *service = find_service(this->table_, ESPBTUUID::from_uint16(0x1523));
+  const GattCharacteristic *notify_char = find_characteristic(this->table_, *service, ESPBTUUID::from_uint16(0x1525));
+  EXPECT_EQ(find_cccd(this->table_, *notify_char), 0x0013);
+  const GattCharacteristic *write_char = find_characteristic(this->table_, *service, ESPBTUUID::from_uint16(0x1524));
+  EXPECT_EQ(find_cccd(this->table_, *write_char), 0);
+}
+
+TEST_F(ServiceTableLookup, RejectsRangesThatOverrunTheTable) {
+  // A corrupt index range must fail the lookup, not walk out of bounds.
+  GattService bad_service = {ESPBTUUID::from_uint16(0x1523), 0x0010, 0x0020, 2, 5};
+  EXPECT_EQ(find_characteristic(this->table_, bad_service, ESPBTUUID::from_uint16(0x1524)), nullptr);
+  GattCharacteristic bad_char = {ESPBTUUID::from_uint16(0x1525), 0x0012, 0x0014, 0x10, 0, 9};
+  EXPECT_EQ(find_cccd(this->table_, bad_char), 0);
+}
+
 }  // namespace esphome::ble_device_base::testing

@@ -1,0 +1,6 @@
+# The neutral engine: the BTstack backend and rp2040_ble come in through
+# bluetooth_connection's auto-load; the tracker hub supplies the sightings.
+packages:
+  common: !include common-gatt.yaml
+
+rp2_ble_tracker:
