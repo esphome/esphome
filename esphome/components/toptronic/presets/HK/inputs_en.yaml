@@ -1,0 +1,390 @@
+number:
+  - platform: toptronic
+    name: Normal room temp. heating oper. (1)
+    device_type: HKW
+    function_group: 1
+    function_number: 0
+    datapoint: 3051
+    id: HKW_1_0_3051_set
+    type: S16
+    min_value: 100
+    max_value: 300
+    step: 5
+    decimal: 1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+  - platform: toptronic
+    name: Conservation room temp. heating oper. (1)
+    device_type: HKW
+    function_group: 1
+    function_number: 0
+    datapoint: 3053
+    id: HKW_1_0_3053_set
+    type: S16
+    min_value: 50
+    max_value: 200
+    step: 5
+    decimal: 1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+  - platform: toptronic
+    name: Normal room temp. heating oper. (2)
+    device_type: HKW
+    function_group: 1
+    function_number: 1
+    datapoint: 3051
+    id: HKW_1_1_3051_set
+    type: S16
+    min_value: 100
+    max_value: 300
+    step: 5
+    decimal: 1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+  - platform: toptronic
+    name: Conservation room temp. heating oper. (2)
+    device_type: HKW
+    function_group: 1
+    function_number: 1
+    datapoint: 3053
+    id: HKW_1_1_3053_set
+    type: S16
+    min_value: 50
+    max_value: 200
+    step: 5
+    decimal: 1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+  - platform: toptronic
+    name: Normal room temp. heating oper. (3)
+    device_type: HKW
+    function_group: 1
+    function_number: 2
+    datapoint: 3051
+    id: HKW_1_2_3051_set
+    type: S16
+    min_value: 100
+    max_value: 300
+    step: 5
+    decimal: 1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+  - platform: toptronic
+    name: Conservation room temp. heating oper. (3)
+    device_type: HKW
+    function_group: 1
+    function_number: 2
+    datapoint: 3053
+    id: HKW_1_2_3053_set
+    type: S16
+    min_value: 50
+    max_value: 200
+    step: 5
+    decimal: 1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+  - platform: toptronic
+    name: Manual mode set temperature (1)
+    device_type: HKW
+    function_group: 1
+    function_number: 0
+    datapoint: 7009
+    id: HKW_1_0_7009_set
+    type: S16
+    min_value: 100
+    max_value: 900
+    step: 5
+    decimal: 1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+  - platform: toptronic
+    name: Manual mode set temperature (2)
+    device_type: HKW
+    function_group: 1
+    function_number: 1
+    datapoint: 7009
+    id: HKW_1_1_7009_set
+    type: S16
+    min_value: 100
+    max_value: 900
+    step: 5
+    decimal: 1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+  - platform: toptronic
+    name: Manual mode set temperature (3)
+    device_type: HKW
+    function_group: 1
+    function_number: 2
+    datapoint: 7009
+    id: HKW_1_2_7009_set
+    type: S16
+    min_value: 100
+    max_value: 900
+    step: 5
+    decimal: 1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+  - platform: toptronic
+    name: Flow setpoint constant req. heating (1)
+    device_type: HKW
+    function_group: 1
+    function_number: 0
+    datapoint: 7036
+    id: HKW_1_0_7036_set
+    type: S16
+    min_value: 0
+    max_value: 1100
+    step: 10
+    decimal: 1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+  - platform: toptronic
+    name: Flow setpoint constant req. heating (2)
+    device_type: HKW
+    function_group: 1
+    function_number: 1
+    datapoint: 7036
+    id: HKW_1_1_7036_set
+    type: S16
+    min_value: 0
+    max_value: 1100
+    step: 10
+    decimal: 1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+  - platform: toptronic
+    name: Flow setpoint constant req. heating (3)
+    device_type: HKW
+    function_group: 1
+    function_number: 2
+    datapoint: 7036
+    id: HKW_1_2_7036_set
+    type: S16
+    min_value: 0
+    max_value: 1100
+    step: 10
+    decimal: 1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+  - platform: toptronic
+    name: Normal hot water temp.
+    device_type: HKW
+    function_group: 2
+    function_number: 0
+    datapoint: 5051
+    id: HKW_2_0_5051_set
+    type: S16
+    min_value: 100
+    max_value: 700
+    step: 10
+    decimal: 1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+  - platform: toptronic
+    name: Conservation hot water temp.
+    device_type: HKW
+    function_group: 2
+    function_number: 0
+    datapoint: 5086
+    id: HKW_2_0_5086_set
+    type: U8
+    min_value: 10
+    max_value: 70
+    step: 1
+    decimal: 0
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+  - platform: toptronic
+    name: Room actual (1)
+    device_type: HKW
+    function_group: 1
+    function_number: 0
+    datapoint: 1
+    id: HKW_1_0_1_set
+    type: S16
+    min_value: 0
+    max_value: 0
+    step: 1
+    decimal: 1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+  - platform: toptronic
+    name: Room actual (2)
+    device_type: HKW
+    function_group: 1
+    function_number: 1
+    datapoint: 1
+    id: HKW_1_1_1_set
+    type: S16
+    min_value: 0
+    max_value: 0
+    step: 1
+    decimal: 1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+  - platform: toptronic
+    name: Room actual (3)
+    device_type: HKW
+    function_group: 1
+    function_number: 2
+    datapoint: 1
+    id: HKW_1_2_1_set
+    type: S16
+    min_value: 0
+    max_value: 0
+    step: 1
+    decimal: 1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+  - platform: toptronic
+    name: Flow setpoint constant req. cooling (1)
+    device_type: HKW
+    function_group: 1
+    function_number: 0
+    datapoint: 7047
+    id: HKW_1_0_7047_set
+    type: S16
+    min_value: 0
+    max_value: 300
+    step: 10
+    decimal: 1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+  - platform: toptronic
+    name: Flow setpoint constant req. cooling (2)
+    device_type: HKW
+    function_group: 1
+    function_number: 1
+    datapoint: 7047
+    id: HKW_1_1_7047_set
+    type: S16
+    min_value: 0
+    max_value: 300
+    step: 10
+    decimal: 1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+  - platform: toptronic
+    name: Flow setpoint constant req. cooling (3)
+    device_type: HKW
+    function_group: 1
+    function_number: 2
+    datapoint: 7047
+    id: HKW_1_2_7047_set
+    type: S16
+    min_value: 0
+    max_value: 300
+    step: 10
+    decimal: 1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+select:
+  - platform: toptronic
+    name: Heating operation choice (1)
+    device_type: HKW
+    function_group: 1
+    function_number: 0
+    datapoint: 3050
+    id: HKW_1_0_3050_set
+    options:
+      - Standby
+      - week 1
+      - week 2
+      - constant
+      - Eco mode
+      - Manual operating mode heating
+      - Manual operating mode cooling
+    values:
+      - 0
+      - 1
+      - 2
+      - 4
+      - 5
+      - 7
+      - 8
+  - platform: toptronic
+    name: Heating operation choice (2)
+    device_type: HKW
+    function_group: 1
+    function_number: 1
+    datapoint: 3050
+    id: HKW_1_1_3050_set
+    options:
+      - Standby
+      - week 1
+      - week 2
+      - constant
+      - Eco mode
+      - Manual operating mode heating
+      - Manual operating mode cooling
+    values:
+      - 0
+      - 1
+      - 2
+      - 4
+      - 5
+      - 7
+      - 8
+  - platform: toptronic
+    name: Heating operation choice (3)
+    device_type: HKW
+    function_group: 1
+    function_number: 2
+    datapoint: 3050
+    id: HKW_1_2_3050_set
+    options:
+      - Standby
+      - week 1
+      - week 2
+      - constant
+      - Eco mode
+      - Manual operating mode heating
+      - Manual operating mode cooling
+    values:
+      - 0
+      - 1
+      - 2
+      - 4
+      - 5
+      - 7
+      - 8
+  - platform: toptronic
+    name: Hot water operation choice
+    device_type: HKW
+    function_group: 2
+    function_number: 0
+    datapoint: 5050
+    id: HKW_2_0_5050_set
+    options:
+      - Standby
+      - 'week 1 '
+      - week 2
+      - Constant
+      - Eco mode
+    values:
+      - 0
+      - 1
+      - 2
+      - 4
+      - 6

@@ -1,0 +1,181 @@
+sensor:
+  - platform: toptronic
+    name: Richiesta temperatura riscaldamento
+    device_type: GLT
+    function_group: 0
+    function_number: 0
+    datapoint: 21106
+    id: GLT_0_0_21106
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: Richiesta temperatura raffrescamento
+    device_type: GLT
+    function_group: 0
+    function_number: 0
+    datapoint: 21107
+    id: GLT_0_0_21107
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: Richiesta temperatura acqua calda
+    device_type: GLT
+    function_group: 0
+    function_number: 0
+    datapoint: 21108
+    id: GLT_0_0_21108
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: Valore nominale potenza riscaldamento
+    device_type: GLT
+    function_group: 0
+    function_number: 0
+    datapoint: 21109
+    id: GLT_0_0_21109
+    type: S16
+    unit_of_measurement: '%'
+    icon: mdi:percent
+    device_class: power_factor
+    state_class: measurement
+  - platform: toptronic
+    name: 'Valore nominale potenza raffrescamento '
+    device_type: GLT
+    function_group: 0
+    function_number: 0
+    datapoint: 21110
+    id: GLT_0_0_21110
+    type: S16
+    unit_of_measurement: '%'
+    icon: mdi:percent
+    device_class: power_factor
+    state_class: measurement
+  - platform: toptronic
+    name: Valore nominale potenza acqua calda
+    device_type: GLT
+    function_group: 0
+    function_number: 0
+    datapoint: 21111
+    id: GLT_0_0_21111
+    type: S16
+    unit_of_measurement: '%'
+    icon: mdi:percent
+    device_class: power_factor
+    state_class: measurement
+  - platform: toptronic
+    name: Informazione 1 0-10V
+    device_type: GLT
+    function_group: 0
+    function_number: 0
+    datapoint: 21125
+    id: GLT_0_0_21125
+    type: S16
+  - platform: toptronic
+    name: Informazione 2 0-10V
+    device_type: GLT
+    function_group: 0
+    function_number: 0
+    datapoint: 21126
+    id: GLT_0_0_21126
+    type: S16
+  - platform: toptronic
+    name: Informazione 3 0-10V
+    device_type: GLT
+    function_group: 0
+    function_number: 0
+    datapoint: 21127
+    id: GLT_0_0_21127
+    type: S16
+  - platform: toptronic
+    name: Info 1
+    device_type: GLT
+    function_group: 0
+    function_number: 0
+    datapoint: 21120
+    id: GLT_0_0_21120
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: Info 2
+    device_type: GLT
+    function_group: 0
+    function_number: 0
+    datapoint: 21121
+    id: GLT_0_0_21121
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: Info 3
+    device_type: GLT
+    function_group: 0
+    function_number: 0
+    datapoint: 21122
+    id: GLT_0_0_21122
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: Info 4
+    device_type: GLT
+    function_group: 0
+    function_number: 0
+    datapoint: 21123
+    id: GLT_0_0_21123
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: Info 5
+    device_type: GLT
+    function_group: 0
+    function_number: 0
+    datapoint: 21124
+    id: GLT_0_0_21124
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement

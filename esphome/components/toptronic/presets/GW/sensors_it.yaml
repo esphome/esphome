@@ -1,0 +1,62 @@
+sensor:
+  - platform: toptronic
+    name: AFG1 sistema-sensore esterno 1
+    device_type: GW
+    function_group: 0
+    function_number: 0
+    datapoint: 21101
+    id: GW_0_0_21101
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: AFG2 sistema-sensore esterno 2
+    device_type: GW
+    function_group: 0
+    function_number: 0
+    datapoint: 21102
+    id: GW_0_0_21102
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: Irraggiamento globale previsto (W/m2)
+    device_type: GW
+    function_group: 0
+    function_number: 1
+    datapoint: 45
+    id: GW_0_1_45
+    type: S16
+  - platform: toptronic
+    name: unixtime
+    device_type: GW
+    function_group: 0
+    function_number: 1
+    datapoint: 20
+    id: GW_0_1_20
+    type: U32
+  - platform: toptronic
+    name: Potenza efficace PV
+    device_type: GW
+    function_group: 6
+    function_number: 0
+    datapoint: 44168
+    id: GW_6_0_44168
+    type: U32
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: W
+    icon: mdi:lightning-bolt
+    device_class: power
+    state_class: measurement

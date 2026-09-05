@@ -1,0 +1,390 @@
+number:
+  - platform: toptronic
+    name: "temp\xE9rature local normale mode chauffage (1)"
+    device_type: HKW
+    function_group: 1
+    function_number: 0
+    datapoint: 3051
+    id: HKW_1_0_3051_set
+    type: S16
+    min_value: 100
+    max_value: 300
+    step: 5
+    decimal: 1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+  - platform: toptronic
+    name: "temp\xE9rature local \xE9co mode chauffage (1)"
+    device_type: HKW
+    function_group: 1
+    function_number: 0
+    datapoint: 3053
+    id: HKW_1_0_3053_set
+    type: S16
+    min_value: 50
+    max_value: 200
+    step: 5
+    decimal: 1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+  - platform: toptronic
+    name: "temp\xE9rature local normale mode chauffage (2)"
+    device_type: HKW
+    function_group: 1
+    function_number: 1
+    datapoint: 3051
+    id: HKW_1_1_3051_set
+    type: S16
+    min_value: 100
+    max_value: 300
+    step: 5
+    decimal: 1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+  - platform: toptronic
+    name: "temp\xE9rature local \xE9co mode chauffage (2)"
+    device_type: HKW
+    function_group: 1
+    function_number: 1
+    datapoint: 3053
+    id: HKW_1_1_3053_set
+    type: S16
+    min_value: 50
+    max_value: 200
+    step: 5
+    decimal: 1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+  - platform: toptronic
+    name: "temp\xE9rature local normale mode chauffage (3)"
+    device_type: HKW
+    function_group: 1
+    function_number: 2
+    datapoint: 3051
+    id: HKW_1_2_3051_set
+    type: S16
+    min_value: 100
+    max_value: 300
+    step: 5
+    decimal: 1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+  - platform: toptronic
+    name: "temp\xE9rature local \xE9co mode chauffage (3)"
+    device_type: HKW
+    function_group: 1
+    function_number: 2
+    datapoint: 3053
+    id: HKW_1_2_3053_set
+    type: S16
+    min_value: 50
+    max_value: 200
+    step: 5
+    decimal: 1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+  - platform: toptronic
+    name: temp. consigne comm. man. (1)
+    device_type: HKW
+    function_group: 1
+    function_number: 0
+    datapoint: 7009
+    id: HKW_1_0_7009_set
+    type: S16
+    min_value: 100
+    max_value: 900
+    step: 5
+    decimal: 1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+  - platform: toptronic
+    name: temp. consigne comm. man. (2)
+    device_type: HKW
+    function_group: 1
+    function_number: 1
+    datapoint: 7009
+    id: HKW_1_1_7009_set
+    type: S16
+    min_value: 100
+    max_value: 900
+    step: 5
+    decimal: 1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+  - platform: toptronic
+    name: temp. consigne comm. man. (3)
+    device_type: HKW
+    function_group: 1
+    function_number: 2
+    datapoint: 7009
+    id: HKW_1_2_7009_set
+    type: S16
+    min_value: 100
+    max_value: 900
+    step: 5
+    decimal: 1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+  - platform: toptronic
+    name: "D\xE9p. consigne demande const. chauffer (1)"
+    device_type: HKW
+    function_group: 1
+    function_number: 0
+    datapoint: 7036
+    id: HKW_1_0_7036_set
+    type: S16
+    min_value: 0
+    max_value: 1100
+    step: 10
+    decimal: 1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+  - platform: toptronic
+    name: "D\xE9p. consigne demande const. chauffer (2)"
+    device_type: HKW
+    function_group: 1
+    function_number: 1
+    datapoint: 7036
+    id: HKW_1_1_7036_set
+    type: S16
+    min_value: 0
+    max_value: 1100
+    step: 10
+    decimal: 1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+  - platform: toptronic
+    name: "D\xE9p. consigne demande const. chauffer (3)"
+    device_type: HKW
+    function_group: 1
+    function_number: 2
+    datapoint: 7036
+    id: HKW_1_2_7036_set
+    type: S16
+    min_value: 0
+    max_value: 1100
+    step: 10
+    decimal: 1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+  - platform: toptronic
+    name: "temp\xE9rature d'eau chaude normale"
+    device_type: HKW
+    function_group: 2
+    function_number: 0
+    datapoint: 5051
+    id: HKW_2_0_5051_set
+    type: S16
+    min_value: 100
+    max_value: 700
+    step: 10
+    decimal: 1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+  - platform: toptronic
+    name: "temp\xE9rature eau chaude \xE9co"
+    device_type: HKW
+    function_group: 2
+    function_number: 0
+    datapoint: 5086
+    id: HKW_2_0_5086_set
+    type: U8
+    min_value: 10
+    max_value: 70
+    step: 1
+    decimal: 0
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+  - platform: toptronic
+    name: "Valeur r\xE9elle pi\xE8ce (1)"
+    device_type: HKW
+    function_group: 1
+    function_number: 0
+    datapoint: 1
+    id: HKW_1_0_1_set
+    type: S16
+    min_value: 0
+    max_value: 0
+    step: 1
+    decimal: 1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+  - platform: toptronic
+    name: "Valeur r\xE9elle pi\xE8ce (2)"
+    device_type: HKW
+    function_group: 1
+    function_number: 1
+    datapoint: 1
+    id: HKW_1_1_1_set
+    type: S16
+    min_value: 0
+    max_value: 0
+    step: 1
+    decimal: 1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+  - platform: toptronic
+    name: "Valeur r\xE9elle pi\xE8ce (3)"
+    device_type: HKW
+    function_group: 1
+    function_number: 2
+    datapoint: 1
+    id: HKW_1_2_1_set
+    type: S16
+    min_value: 0
+    max_value: 0
+    step: 1
+    decimal: 1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+  - platform: toptronic
+    name: "D\xE9p. consigne demande const. refroid. (1)"
+    device_type: HKW
+    function_group: 1
+    function_number: 0
+    datapoint: 7047
+    id: HKW_1_0_7047_set
+    type: S16
+    min_value: 0
+    max_value: 300
+    step: 10
+    decimal: 1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+  - platform: toptronic
+    name: "D\xE9p. consigne demande const. refroid. (2)"
+    device_type: HKW
+    function_group: 1
+    function_number: 1
+    datapoint: 7047
+    id: HKW_1_1_7047_set
+    type: S16
+    min_value: 0
+    max_value: 300
+    step: 10
+    decimal: 1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+  - platform: toptronic
+    name: "D\xE9p. consigne demande const. refroid. (3)"
+    device_type: HKW
+    function_group: 1
+    function_number: 2
+    datapoint: 7047
+    id: HKW_1_2_7047_set
+    type: S16
+    min_value: 0
+    max_value: 300
+    step: 10
+    decimal: 1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+select:
+  - platform: toptronic
+    name: "S\xE9lection fonctionnement chauffage (1)"
+    device_type: HKW
+    function_group: 1
+    function_number: 0
+    datapoint: 3050
+    id: HKW_1_0_3050_set
+    options:
+      - Stand-by
+      - Semaine 1
+      - Semaine 2
+      - Constant
+      - "Mode \xE9co"
+      - Commande manuelle chauffage
+      - Commande manuelle refroid
+    values:
+      - 0
+      - 1
+      - 2
+      - 4
+      - 5
+      - 7
+      - 8
+  - platform: toptronic
+    name: "S\xE9lection fonctionnement chauffage (2)"
+    device_type: HKW
+    function_group: 1
+    function_number: 1
+    datapoint: 3050
+    id: HKW_1_1_3050_set
+    options:
+      - Stand-by
+      - Semaine 1
+      - Semaine 2
+      - Constant
+      - "Mode \xE9co"
+      - Commande manuelle chauffage
+      - Commande manuelle refroid
+    values:
+      - 0
+      - 1
+      - 2
+      - 4
+      - 5
+      - 7
+      - 8
+  - platform: toptronic
+    name: "S\xE9lection fonctionnement chauffage (3)"
+    device_type: HKW
+    function_group: 1
+    function_number: 2
+    datapoint: 3050
+    id: HKW_1_2_3050_set
+    options:
+      - Stand-by
+      - Semaine 1
+      - Semaine 2
+      - Constant
+      - "Mode \xE9co"
+      - Commande manuelle chauffage
+      - Commande manuelle refroid
+    values:
+      - 0
+      - 1
+      - 2
+      - 4
+      - 5
+      - 7
+      - 8
+  - platform: toptronic
+    name: "S\xE9lection fonct. eau chaude"
+    device_type: HKW
+    function_group: 2
+    function_number: 0
+    datapoint: 5050
+    id: HKW_2_0_5050_set
+    options:
+      - Stand-by
+      - Semaine 1
+      - Semaine 2
+      - Constant
+      - "Mode \xE9co"
+    values:
+      - 0
+      - 1
+      - 2
+      - 4
+      - 6

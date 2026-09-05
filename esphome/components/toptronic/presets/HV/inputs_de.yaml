@@ -1,0 +1,94 @@
+number:
+  - platform: toptronic
+    name: "Normal-L\xFCftungsmodulation "
+    device_type: HV
+    device_addr: ${TT_HV_addr}
+    function_group: 50
+    function_number: 0
+    datapoint: 40651
+    id: HV_50_0_40651_set
+    type: U8
+    min_value: 15
+    max_value: 100
+    step: 1
+    decimal: 0
+    unit_of_measurement: '%'
+    icon: mdi:percent
+    device_class: power_factor
+  - platform: toptronic
+    name: "Spar-L\xFCftungsmodulation "
+    device_type: HV
+    device_addr: ${TT_HV_addr}
+    function_group: 50
+    function_number: 0
+    datapoint: 40686
+    id: HV_50_0_40686_set
+    type: U8
+    min_value: 15
+    max_value: 100
+    step: 1
+    decimal: 0
+    unit_of_measurement: '%'
+    icon: mdi:percent
+    device_class: power_factor
+  - platform: toptronic
+    name: Feuchte Sollwert
+    device_type: HV
+    device_addr: ${TT_HV_addr}
+    function_group: 50
+    function_number: 0
+    datapoint: 40687
+    id: HV_50_0_40687_set
+    type: U8
+    min_value: 30
+    max_value: 65
+    step: 1
+    decimal: 0
+    unit_of_measurement: '%'
+    icon: mdi:water-percent
+    device_class: humidity
+select:
+  - platform: toptronic
+    name: "Betriebswahl L\xFCftung"
+    device_type: HV
+    device_addr: ${TT_HV_addr}
+    function_group: 50
+    function_number: 0
+    datapoint: 40650
+    id: HV_50_0_40650_set
+    options:
+      - Standby
+      - Woche 1
+      - Woche 2
+      - Konstantbetrieb, Sollwert 40651
+      - Sparbetrieb, Sollwert DAP40686
+    values:
+      - 0
+      - 1
+      - 2
+      - 4
+      - 5
+  - platform: toptronic
+    name: Partymodus
+    device_type: HV
+    device_addr: ${TT_HV_addr}
+    function_group: 50
+    function_number: 0
+    datapoint: 2010                  # 0x07DA duration register
+    id: HV_party_mode_set
+    type: U16
+    icon: mdi:party-popper
+    options:
+      - "1h 100%"
+      - "2h 100%"
+      - "3h 100%"
+      - "5h 100%"
+      - "8h 100%"
+      - "10h 100%"
+    values:
+      - 10
+      - 20
+      - 30
+      - 50
+      - 80
+      - 100
