@@ -5,7 +5,7 @@ import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_INTERRUPT_PIN, CONF_RESET_PIN
 from esphome.types import ConfigType
 
-CODEOWNERS = ["@siemon-geeroms"]
+CODEOWNERS = ["@danepowell"]
 DEPENDENCIES = ["i2c"]
 
 icnt86_ns = cg.esphome_ns.namespace("icnt86")
