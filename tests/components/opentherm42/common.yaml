@@ -1,0 +1,683 @@
+api:
+wifi:
+  ap:
+    ssid: "Thermostat"
+    password: "MySecretThemostat"
+
+time:
+  - platform: sntp
+    id: my_time
+
+opentherm42:
+  id: my_opentherm42
+  in_pin: 4
+  out_pin: 5
+  # §5.3.2 Class 2, ID 2 LB: this master's own MemberID code (0..255). A value of 0 signifies a
+  # customer non-specific device.
+  controller_member_id_code: 0
+  # §5.3.2 Class 2, ID 124: this master's own OpenTherm protocol version (0..127).
+  controller_opentherm_version: 4.2
+  # §5.3.2 Class 2, ID 126 HB: this master's own product type (0..255), as defined by the manufacturer.
+  controller_product_type: 0
+  # §5.3.2 Class 2, ID 126 LB: this master's own product version (0..255), as defined by the manufacturer.
+  controller_product_version: 0
+  # §5.3.4 Class 4, IDs 20/21/22: keeps the boiler's clock synced to this time source.
+  time_id: my_time
+
+switch:
+  - platform: opentherm42
+    # §5.3.1 Class 1, ID 0 HB bit 0: CH enable [ CH is disabled, CH is enabled ]
+    control_and_status_information_master_status_ch_enable:
+      name: "Control and Status Information: Master status: CH enable"
+      restore_mode: RESTORE_DEFAULT_ON
+    # §5.3.1 Class 1, ID 0 HB bit 1: DHW enable [ DHW is disabled, DHW is enabled ]
+    control_and_status_information_master_status_dhw_enable:
+      name: "Control and Status Information: Master status: DHW enable"
+      restore_mode: RESTORE_DEFAULT_ON
+    # §5.3.1 Class 1, ID 0 HB bit 2: Cooling enable [ Cooling is disabled, Cooling is enabled ]
+    control_and_status_information_master_status_cooling_enable:
+      name: "Control and Status Information: Master status: Cooling enable"
+      restore_mode: RESTORE_DEFAULT_OFF
+    # §5.3.1 Class 1, ID 0 HB bit 3: OTC active [ OTC not active, OTC is active ]
+    control_and_status_information_master_status_otc_active:
+      name: "Control and Status Information: Master status: OTC active"
+      restore_mode: RESTORE_DEFAULT_OFF
+    # §5.3.1 Class 1, ID 0 HB bit 4: CH2 enable [ CH2 is disabled, CH2 is enabled ]
+    control_and_status_information_master_status_ch2_enable:
+      name: "Control and Status Information: Master status: CH2 enable"
+      restore_mode: RESTORE_DEFAULT_OFF
+    # §5.3.1 Class 1, ID 0 HB bit 5: Summer/winter mode [ winter mode active, summer mode active ]
+    control_and_status_information_master_status_summer_winter_mode:
+      name: "Control and Status Information: Master status: Summer-winter mode"
+      restore_mode: RESTORE_DEFAULT_OFF
+    # §5.3.1 Class 1, ID 0 HB bit 6: DHW blocking [ DHW unblocked, DHW blocked ]
+    control_and_status_information_master_status_dhw_blocking:
+      name: "Control and Status Information: Master status: DHW blocking"
+      restore_mode: RESTORE_DEFAULT_OFF
+    # §5.3.1 Class 1, ID 70 HB bit 0: Ventilation enable [ disabled, enabled ]
+    control_and_status_information_master_status_for_ventilation_heat_recovery_ventilation_enable:
+      name: "Control and Status Information: Master status for ventilation-heat-recovery: Ventilation enable"
+      restore_mode: RESTORE_DEFAULT_OFF
+    # §5.3.1 Class 1, ID 70 HB bit 1: Bypass position (only bypass manual mode) [ close bypass, open bypass ]
+    control_and_status_information_master_status_for_ventilation_heat_recovery_bypass_position:
+      name: "Control and Status Information: Master status for ventilation-heat-recovery: Bypass position"
+      restore_mode: RESTORE_DEFAULT_OFF
+    # §5.3.1 Class 1, ID 70 HB bit 2: Bypass mode [ manual, automatic ]
+    control_and_status_information_master_status_for_ventilation_heat_recovery_bypass_mode:
+      name: "Control and Status Information: Master status for ventilation-heat-recovery: Bypass mode"
+      restore_mode: RESTORE_DEFAULT_OFF
+    # §5.3.1 Class 1, ID 70 HB bit 3: Free ventilation mode [ not active, active ]
+    control_and_status_information_master_status_for_ventilation_heat_recovery_free_ventilation_mode:
+      name: "Control and Status Information: Master status for ventilation-heat-recovery: Free ventilation mode"
+      restore_mode: RESTORE_DEFAULT_OFF
+
+number:
+  - platform: opentherm42
+    # §5.3.1 Class 1, ID 1: Control Setpoint, i.e. CH water temperature setpoint (degrees C, 0..100).
+    # The CHenable bit has priority: the boiler must ignore this value while CH is disabled.
+    control_and_status_information_control_setpoint:
+      name: "Control and Status Information: Control Setpoint"
+      initial_value: 40.0
+    # §5.3.1 Class 1, ID 8: Control Setpoint 2 (TsetCH2), setpoint for the 2nd CH circuit (degrees C, 0..100).
+    control_and_status_information_control_setpoint_2_tsetch2:
+      name: "Control and Status Information: Control Setpoint 2 (TsetCH2)"
+      initial_value: 40.0
+    # §5.3.1 Class 1, ID 71 LB: Control Setpoint ventilation/heat-recovery. Relative ventilation
+    # position (0-100%): 0% is the minimum set ventilation, 100% is the maximum set ventilation.
+    control_and_status_information_control_setpoint_ventilation_heat_recovery:
+      name: "Control and Status Information: Control Setpoint ventilation-heat-recovery"
+      initial_value: 0
+    # §5.3.4 Class 4, ID 16: Room Setpoint -- current room temperature setpoint (degrees C, -40..127).
+    sensor_and_informational_data_room_setpoint:
+      name: "Sensor and Informational Data: Room Setpoint"
+      initial_value: 20.0
+    # §5.3.4 Class 4, ID 23: Room Setpoint CH2 -- current room setpoint for the 2nd CH circuit
+    # (degrees C, -40..127).
+    sensor_and_informational_data_room_setpoint_ch2:
+      name: "Sensor and Informational Data: Room Setpoint CH2"
+      initial_value: 20.0
+    # §5.3.4 Class 4, ID 24: Room temperature -- this master's own sensed room temperature
+    # (degrees C, -40..127), pushed to the boiler.
+    sensor_and_informational_data_room_temperature:
+      name: "Sensor and Informational Data: Room temperature"
+      initial_value: 20.0
+    # §5.3.4 Class 4, ID 37: TrCH2 -- room temperature for the 2nd CH circuit (degrees C, -40..127).
+    sensor_and_informational_data_trch2:
+      name: "Sensor and Informational Data: TrCH2"
+      initial_value: 20.0
+    # §5.3.4 Class 4, ID 27: Outside temperature (degrees C, -40..127), provided by this master. Takes
+    # priority over the sensor platform's plain outside_temperature (reading the boiler's own value).
+    sensor_and_informational_data_outside_temperature_set:
+      name: "Sensor and Informational Data: Outside temperature (set)"
+      initial_value: 10.0
+    # §5.3.4 Class 4, ID 38: Relative Humidity (0..100%), provided by this master.
+    sensor_and_informational_data_relative_humidity_set:
+      name: "Sensor and Informational Data: Relative Humidity (set)"
+      initial_value: 50.0
+    # §5.3.4 Class 4, ID 78 LB: Relative humidity exhaust air (0..100%), provided by this master.
+    sensor_and_informational_data_relative_humidity_exhaust_air_set:
+      name: "Sensor and Informational Data: Relative humidity exhaust air (set)"
+      initial_value: 50.0
+    # §5.3.4 Class 4, ID 79: CO2 level exhaust air (0..2000 ppm), provided by this master.
+    sensor_and_informational_data_co2_level_set:
+      name: "Sensor and Informational Data: CO2 level (set)"
+      initial_value: 0
+    # §5.3.5 Class 5, ID 56: DHW Setpoint -- domestic hot water temperature setpoint (degrees C, 0..127).
+    # Takes priority over the sensor platform's plain dhw_setpoint (reading the boiler's own value).
+    pre_defined_remote_boiler_parameters_dhw_setpoint_set:
+      name: "Pre-Defined Remote Boiler Parameters: DHW Setpoint (set)"
+      initial_value: 60.0
+    # §5.3.5 Class 5, ID 57: max CH water Setpoint -- maximum allowable CH water Setpoint (degrees C, 0..127).
+    pre_defined_remote_boiler_parameters_max_ch_water_setpoint_set:
+      name: "Pre-Defined Remote Boiler Parameters: max CH water Setpoint (set)"
+      initial_value: 80.0
+    # §5.3.5 Class 5, ID 87 HB: Nominal ventilation value -- nominal relative value for ventilation
+    # (0-100%), i.e. the value for the mid position in case of a 3-speed ventilation system.
+    pre_defined_remote_boiler_parameters_nominal_ventilation_value_set:
+      name: "Pre-Defined Remote Boiler Parameters: Nominal ventilation value (set)"
+      initial_value: 50
+    # §5.3.6 Class 6, IDs 11/89/106: TSP values are opaque and manufacturer-specific, so unlike every
+    # other option here there's no spec-provided name/description -- name and index come from whatever
+    # the boiler's own documentation says slot N means.
+    transparent_boiler_parameters:
+      - index: 5
+        name: "Transparent Boiler Parameters: TSP 5"
+    transparent_boiler_parameters_ventilation_heat_recovery:
+      - index: 3
+        name: "Transparent Boiler Parameters: TSP 3 ventilation-heat-recovery"
+    transparent_boiler_parameters_solar_storage:
+      - index: 1
+        name: "Transparent Boiler Parameters: TSP 1 Solar Storage"
+    # §5.3.8.1 Class 8, ID 7: Cooling control signal -- signal for the cooling plant (0..100%).
+    control_of_special_applications_cooling_control_signal:
+      name: "Control of Special Applications: Cooling control signal"
+      initial_value: 0
+    # §5.3.8.2 Class 8, ID 14: Maximum relative modulation level setting, for sequencer and
+    # off-low&pump control applications (0..100%).
+    control_of_special_applications_maximum_relative_modulation_level_setting:
+      name: "Control of Special Applications: Maximum relative modulation level setting"
+      initial_value: 100
+
+binary_sensor:
+  - platform: opentherm42
+    # §5.3.1 Class 1, ID 0 LB bit 0: fault indication [ no fault, fault ]
+    control_and_status_information_boiler_status_fault_indication:
+      name: "Control and Status Information: Boiler status: Fault indication"
+    # §5.3.1 Class 1, ID 0 LB bit 1: CH mode [ CH not active, CH active ]
+    control_and_status_information_boiler_status_ch_mode:
+      name: "Control and Status Information: Boiler status: CH mode"
+    # §5.3.1 Class 1, ID 0 LB bit 2: DHW mode [ DHW not active, DHW active ]
+    control_and_status_information_boiler_status_dhw_mode:
+      name: "Control and Status Information: Boiler status: DHW mode"
+    # §5.3.1 Class 1, ID 0 LB bit 3: Flame status [ flame off, flame on ]
+    control_and_status_information_boiler_status_flame_status:
+      name: "Control and Status Information: Boiler status: Flame status"
+    # §5.3.1 Class 1, ID 0 LB bit 4: Cooling status [ cooling mode not active, cooling mode active ]
+    control_and_status_information_boiler_status_cooling_status:
+      name: "Control and Status Information: Boiler status: Cooling status"
+    # §5.3.1 Class 1, ID 0 LB bit 5: CH2 mode [ CH2 not active, CH2 active ]
+    control_and_status_information_boiler_status_ch2_mode:
+      name: "Control and Status Information: Boiler status: CH2 mode"
+    # §5.3.1 Class 1, ID 0 LB bit 6: diagnostic/service indication [no diagnostic/service, diagnostic/service event]
+    control_and_status_information_boiler_status_diagnostic_service_indication:
+      name: "Control and Status Information: Boiler status: Diagnostic-service indication"
+    # §5.3.1 Class 1, ID 0 LB bit 7: Electricity production [off, on]
+    control_and_status_information_boiler_status_electricity_production:
+      name: "Control and Status Information: Boiler status: Electricity production"
+    # §5.3.1 Class 1, ID 70 LB bit 0: Fault indication [ no fault, fault ]
+    control_and_status_information_status_ventilation_heat_recovery_fault_indication:
+      name: "Control and Status Information: Status ventilation-heat-recovery: Fault indication"
+    # §5.3.1 Class 1, ID 70 LB bit 1: Ventilation mode [ not active, active ]
+    control_and_status_information_status_ventilation_heat_recovery_ventilation_mode:
+      name: "Control and Status Information: Status ventilation-heat-recovery: Ventilation mode"
+    # §5.3.1 Class 1, ID 70 LB bit 2: Bypass status [ closed, open ]
+    control_and_status_information_status_ventilation_heat_recovery_bypass_status:
+      name: "Control and Status Information: Status ventilation-heat-recovery: Bypass status"
+    # §5.3.1 Class 1, ID 70 LB bit 3: Bypass automatic status [ manual, automatic ]
+    control_and_status_information_status_ventilation_heat_recovery_bypass_automatic_status:
+      name: "Control and Status Information: Status ventilation-heat-recovery: Bypass automatic status"
+    # §5.3.1 Class 1, ID 70 LB bit 4: Free ventilation status [ not active, active ]
+    control_and_status_information_status_ventilation_heat_recovery_free_ventilation_status:
+      name: "Control and Status Information: Status ventilation-heat-recovery: Free ventilation status"
+    # §5.3.1 Class 1, ID 70 LB bit 6: Diagnostic indication [ no diagnostics, diagnostic event ]
+    control_and_status_information_status_ventilation_heat_recovery_diagnostic_indication:
+      name: "Control and Status Information: Status ventilation-heat-recovery: Diagnostic indication"
+    # §5.3.1 Class 1, ID 5 HB bit 0: Service request [ service not req'd, service required ]
+    control_and_status_information_application_specific_fault_flags_service_request:
+      name: "Control and Status Information: Application-specific fault flags: Service request"
+    # §5.3.1 Class 1, ID 5 HB bit 1: Lockout-reset [ remote reset disabled, remote reset enabled ]
+    control_and_status_information_application_specific_fault_flags_lockout_reset:
+      name: "Control and Status Information: Application-specific fault flags: Lockout-reset"
+    # §5.3.1 Class 1, ID 5 HB bit 2: Low water press [ no WP fault, water pressure fault ]
+    control_and_status_information_application_specific_fault_flags_low_water_press:
+      name: "Control and Status Information: Application-specific fault flags: Low water press"
+    # §5.3.1 Class 1, ID 5 HB bit 3: Gas/flame fault [ no G/F fault, gas/flame fault ]
+    control_and_status_information_application_specific_fault_flags_gas_flame_fault:
+      name: "Control and Status Information: Application-specific fault flags: Gas-flame fault"
+    # §5.3.1 Class 1, ID 5 HB bit 4: Air press fault [ no AP fault, air pressure fault ]
+    control_and_status_information_application_specific_fault_flags_air_press_fault:
+      name: "Control and Status Information: Application-specific fault flags: Air press fault"
+    # §5.3.1 Class 1, ID 5 HB bit 5: Water over-temp [ no OvT fault, over-temperature fault ]
+    control_and_status_information_application_specific_fault_flags_water_over_temp:
+      name: "Control and Status Information: Application-specific fault flags: Water over-temp"
+    # §5.3.1 Class 1, ID 72 HB bit 0: Service request, ventilation/heat-recovery
+    control_and_status_information_application_specific_fault_flags_ventilation_heat_recovery_service_request:
+      name: "Control and Status Information: Application-specific fault flags ventilation-heat-recovery: Service request"
+    # §5.3.1 Class 1, ID 72 HB bit 1: Exhaust fan fault [ no fault, fault ]
+    control_and_status_information_application_specific_fault_flags_ventilation_heat_recovery_exhaust_fan_fault:
+      name: "Control and Status Information: Application-specific fault flags ventilation-heat-recovery: Exhaust fan fault"
+    # §5.3.1 Class 1, ID 72 HB bit 2: Inlet fan fault [ no fault, fault ]
+    control_and_status_information_application_specific_fault_flags_ventilation_heat_recovery_inlet_fan_fault:
+      name: "Control and Status Information: Application-specific fault flags ventilation-heat-recovery: Inlet fan fault"
+    # §5.3.1 Class 1, ID 72 HB bit 3: Frost protection [ not active, active ]
+    control_and_status_information_application_specific_fault_flags_ventilation_heat_recovery_frost_protection:
+      name: "Control and Status Information: Application-specific fault flags ventilation-heat-recovery: Frost protection"
+    # §5.3.1 Class 1, ID 101 LB bit 0: fault indication
+    control_and_status_information_solar_storage_mode_and_status_fault_indication:
+      name: "Control and Status Information: Solar Storage mode and status: Fault indication"
+    # §5.3.2 Class 2, ID 3 HB bit 0: DHW present [ dhw not present, dhw is present ]
+    configuration_information_boiler_configuration_dhw_present:
+      name: "Configuration Information: Boiler configuration: DHW present"
+    # §5.3.2 Class 2, ID 3 HB bit 1: Control type [ modulating, on/off ]
+    configuration_information_boiler_configuration_control_type:
+      name: "Configuration Information: Boiler configuration: Control type"
+    # §5.3.2 Class 2, ID 3 HB bit 2: Cooling config [ cooling not supported, cooling supported ]
+    configuration_information_boiler_configuration_cooling_config:
+      name: "Configuration Information: Boiler configuration: Cooling config"
+    # §5.3.2 Class 2, ID 3 HB bit 3: DHW config [ instantaneous or not-specified, storage tank ]
+    configuration_information_boiler_configuration_dhw_config:
+      name: "Configuration Information: Boiler configuration: DHW config"
+    # §5.3.2 Class 2, ID 3 HB bit 4: Master low-off&pump control function [ allowed, not allowed ]
+    configuration_information_boiler_configuration_master_low_off_and_pump_control_function:
+      name: "Configuration Information: Boiler configuration: Master low-off&pump control function"
+    # §5.3.2 Class 2, ID 3 HB bit 5: CH2 present [ CH2 not present, CH2 present ]
+    configuration_information_boiler_configuration_ch2_present:
+      name: "Configuration Information: Boiler configuration: CH2 present"
+    # §5.3.2 Class 2, ID 3 HB bit 6: Remote water filling function [ available or unknown, not available ].
+    # Unknown for applications with protocol version 2.2 or older.
+    configuration_information_boiler_configuration_remote_water_filling_function:
+      name: "Configuration Information: Boiler configuration: Remote water filling function"
+    # §5.3.2 Class 2, ID 3 HB bit 7: Heat/cool mode control [ switching done by master, switching done by boiler ]
+    configuration_information_boiler_configuration_heat_cool_mode_control:
+      name: "Configuration Information: Boiler configuration: Heat-cool mode control"
+    # §5.3.2 Class 2, ID 74 HB bit 0: System type [ 0 = central exhaust ventilation, 1 = heat-recovery ventilation ]
+    configuration_information_configuration_ventilation_heat_recovery_system_type:
+      name: "Configuration Information: Configuration ventilation-heat-recovery: System type"
+    # §5.3.2 Class 2, ID 74 HB bit 1: Bypass [ not present, present ]
+    configuration_information_configuration_ventilation_heat_recovery_bypass:
+      name: "Configuration Information: Configuration ventilation-heat-recovery: Bypass"
+    # §5.3.2 Class 2, ID 74 HB bit 2: Speed control [ 3-speed, variable ]
+    configuration_information_configuration_ventilation_heat_recovery_speed_control:
+      name: "Configuration Information: Configuration ventilation-heat-recovery: Speed control"
+    # §5.3.2 Class 2, ID 103 HB bit 0: Solar Storage configuration: system type
+    # [ 0 = DHW preheat system, 1 = DHW parallel system ]
+    configuration_information_solar_storage_configuration_system_type:
+      name: "Configuration Information: Solar Storage configuration: System type"
+    # §5.3.5 Class 5, ID 6 HB bit 0: DHW Setpoint [ transfer disabled, transfer enabled ]
+    pre_defined_remote_boiler_parameters_transfer_enable_flags_dhw_setpoint:
+      name: "Pre-Defined Remote Boiler Parameters: Remote-parameter transfer-enable flags: DHW Setpoint"
+    # §5.3.5 Class 5, ID 6 HB bit 1: max CHsetpoint [ transfer disabled, transfer enabled ]
+    pre_defined_remote_boiler_parameters_transfer_enable_flags_max_chsetpoint:
+      name: "Pre-Defined Remote Boiler Parameters: Remote-parameter transfer-enable flags: max CHsetpoint"
+    # §5.3.5 Class 5, ID 6 LB bit 0: DHW Setpoint [ read-only, read/write ]
+    pre_defined_remote_boiler_parameters_read_write_flags_dhw_setpoint:
+      name: "Pre-Defined Remote Boiler Parameters: Remote-parameter read-write flags: DHW Setpoint"
+    # §5.3.5 Class 5, ID 6 LB bit 1: max CHsetpoint [ read-only, read/write ]
+    pre_defined_remote_boiler_parameters_read_write_flags_max_chsetpoint:
+      name: "Pre-Defined Remote Boiler Parameters: Remote-parameter read-write flags: max CHsetpoint"
+    # §5.3.5 Class 5, ID 86 HB bit 0: Nominal ventilation value [ transfer disabled, transfer enabled ]
+    pre_defined_remote_boiler_parameters_transfer_enable_flags_ventilation_heat_recovery_nominal_ventilation_value:
+      name: "Pre-Defined Remote Boiler Parameters: Transfer-enable flags ventilation-heat-recovery: Nominal ventilation value"
+    # §5.3.5 Class 5, ID 86 LB bit 0: Nominal ventilation value [ read-only, read/write ]
+    pre_defined_remote_boiler_parameters_read_write_flags_ventilation_heat_recovery_nominal_ventilation_value:
+      name: "Pre-Defined Remote Boiler Parameters: Read-write flags ventilation-heat-recovery: Nominal ventilation value"
+    # §5.3.8.3 Class 8, ID 100 LB bit 0: Manual change priority [ disable overruling remote Setpoint
+    # by manual Setpoint change, enable overruling remote Setpoint by manual Setpoint change ]
+    control_of_special_applications_remote_override_room_setpoint_function_manual_change_priority:
+      name: "Control of Special Applications: Remote Override Room Setpoint function: Manual change priority"
+    # §5.3.8.3 Class 8, ID 100 LB bit 1: Program change priority [ disable overruling remote Setpoint
+    # by program Setpoint change, enable overruling remote Setpoint by program Setpoint change ]
+    control_of_special_applications_remote_override_room_setpoint_function_program_change_priority:
+      name: "Control of Special Applications: Remote Override Room Setpoint function: Program change priority"
+
+button:
+  - platform: opentherm42
+    # §5.3.3 Class 3, ID 4 HB = 0: Back to Normal operation mode
+    remote_request_back_to_normal_operation_mode:
+      name: "Remote Request: Back to Normal operation mode"
+    # §5.3.3 Class 3, ID 4 HB = 1: "BLOR" = Boiler Lock-out Reset request
+    remote_request_boiler_lockout_reset:
+      name: "Remote Request: Boiler Lock-out Reset"
+    # §5.3.3 Class 3, ID 4 HB = 2: "CHWF" = CH water filling request
+    remote_request_ch_water_filling:
+      name: "Remote Request: CH water filling"
+    # §5.3.3 Class 3, ID 4 HB = 3: Service mode maximum power request
+    # (for instance for CO2 measurement during Chimney Sweep Function)
+    remote_request_service_mode_maximum_power:
+      name: "Remote Request: Service mode maximum power"
+    # §5.3.3 Class 3, ID 4 HB = 4: Service mode minimum power request (CO2 measurement)
+    remote_request_service_mode_minimum_power:
+      name: "Remote Request: Service mode minimum power"
+    # §5.3.3 Class 3, ID 4 HB = 5: Service mode spark test request (no gas)
+    remote_request_service_mode_spark_test:
+      name: "Remote Request: Service mode spark test"
+    # §5.3.3 Class 3, ID 4 HB = 6: Service mode fan maximum speed request (no flame)
+    remote_request_service_mode_fan_maximum_speed:
+      name: "Remote Request: Service mode fan maximum speed"
+    # §5.3.3 Class 3, ID 4 HB = 7: Service mode fan to minimum speed request (no flame)
+    remote_request_service_mode_fan_minimum_speed:
+      name: "Remote Request: Service mode fan minimum speed"
+    # §5.3.3 Class 3, ID 4 HB = 8: Service mode 3-way valve to CH request (no pump, no flame)
+    remote_request_service_mode_3_way_valve_to_ch:
+      name: "Remote Request: Service mode 3-way valve to CH"
+    # §5.3.3 Class 3, ID 4 HB = 9: Service mode 3-way valve to DHW request (no pump, no flame)
+    remote_request_service_mode_3_way_valve_to_dhw:
+      name: "Remote Request: Service mode 3-way valve to DHW"
+    # §5.3.3 Class 3, ID 4 HB = 10: Request to reset service request flag
+    remote_request_reset_service_request_flag:
+      name: "Remote Request: Reset service request flag"
+    # §5.3.3 Class 3, ID 4 HB = 11: Service test 1. This is an OEM specific test.
+    remote_request_service_test_1:
+      name: "Remote Request: Service test 1"
+    # §5.3.3 Class 3, ID 4 HB = 12: Automatic hydronic air purge.
+    remote_request_automatic_hydronic_air_purge:
+      name: "Remote Request: Automatic hydronic air purge"
+    # §5.3.8.3 Class 8, ID 99 HB bit 4: Manual DHW push2 -- rises the DHW temperature once to Comfort
+    # level and returns to the previous Operating Mode.
+    control_of_special_applications_manual_dhw_push2:
+      name: "Control of Special Applications: Manual DHW push2"
+    # §5.3.4 Class 4, ID 96: reset by writing zero (optional for the boiler to honor).
+    sensor_and_informational_data_cooling_operation_hours_reset:
+      name: "Sensor and Informational Data: Cooling Operation hours reset"
+    # §5.3.4 Class 4, ID 97: reset by writing zero (optional for the boiler to honor).
+    sensor_and_informational_data_power_cycles_reset:
+      name: "Sensor and Informational Data: Power Cycles reset"
+    # §5.3.4 Class 4, ID 109: reset by writing zero (optional for the boiler to honor).
+    sensor_and_informational_data_electricity_producer_starts_reset:
+      name: "Sensor and Informational Data: Electricity producer starts reset"
+    # §5.3.4 Class 4, ID 110: reset by writing zero (optional for the boiler to honor).
+    sensor_and_informational_data_electricity_producer_hours_reset:
+      name: "Sensor and Informational Data: Electricity producer hours reset"
+    # §5.3.4 Class 4, ID 112: reset by writing zero (optional for the boiler to honor).
+    sensor_and_informational_data_cumulative_electricity_production_reset:
+      name: "Sensor and Informational Data: Cumulative Electricity production reset"
+    # §5.3.4 Class 4, ID 113: reset by writing zero (optional for the boiler to honor).
+    sensor_and_informational_data_number_of_unsuccessful_burner_starts_reset:
+      name: "Sensor and Informational Data: Number of un-successful burner starts reset"
+    # §5.3.4 Class 4, ID 114: reset by writing zero (optional for the boiler to honor).
+    sensor_and_informational_data_number_of_times_flame_signal_too_low_reset:
+      name: "Sensor and Informational Data: Number of times flame signal too low reset"
+    # §5.3.4 Class 4, ID 116: reset by writing zero (optional for the boiler to honor).
+    sensor_and_informational_data_successful_burner_starts_reset:
+      name: "Sensor and Informational Data: Successful Burner starts reset"
+    # §5.3.4 Class 4, ID 117: reset by writing zero (optional for the boiler to honor).
+    sensor_and_informational_data_ch_pump_starts_reset:
+      name: "Sensor and Informational Data: CH pump starts reset"
+    # §5.3.4 Class 4, ID 118: reset by writing zero (optional for the boiler to honor).
+    sensor_and_informational_data_dhw_pump_valve_starts_reset:
+      name: "Sensor and Informational Data: DHW pump-valve starts reset"
+    # §5.3.4 Class 4, ID 119: reset by writing zero (optional for the boiler to honor).
+    sensor_and_informational_data_dhw_burner_starts_reset:
+      name: "Sensor and Informational Data: DHW burner starts reset"
+    # §5.3.4 Class 4, ID 120: reset by writing zero (optional for the boiler to honor).
+    sensor_and_informational_data_burner_operation_hours_reset:
+      name: "Sensor and Informational Data: Burner operation hours reset"
+    # §5.3.4 Class 4, ID 121: reset by writing zero (optional for the boiler to honor).
+    sensor_and_informational_data_ch_pump_operation_hours_reset:
+      name: "Sensor and Informational Data: CH pump operation hours reset"
+    # §5.3.4 Class 4, ID 122: reset by writing zero (optional for the boiler to honor).
+    sensor_and_informational_data_dhw_pump_valve_operation_hours_reset:
+      name: "Sensor and Informational Data: DHW pump-valve operation hours reset"
+    # §5.3.4 Class 4, ID 123: reset by writing zero (optional for the boiler to honor).
+    sensor_and_informational_data_dhw_burner_operation_hours_reset:
+      name: "Sensor and Informational Data: DHW burner operation hours reset"
+
+text_sensor:
+  - platform: opentherm42
+    # §5.3.2 Class 2, ID 93: Brand -- the boiler manufacturer's brand name, read one ASCII character
+    # at a time (index in HB, character in LB) until the boiler-reported character count is reached.
+    configuration_information_brand:
+      name: "Configuration Information: Brand"
+    # §5.3.2 Class 2, ID 94: Brand version, read the same way as ID 93.
+    configuration_information_brand_version:
+      name: "Configuration Information: Brand version"
+    # §5.3.2 Class 2, ID 95: Brand serial number, read the same way as ID 93.
+    configuration_information_brand_serial_number:
+      name: "Configuration Information: Brand serial number"
+
+sensor:
+  - platform: opentherm42
+    # §5.3.1 Class 1, ID 5 LB: OEM fault code (0..255) -- an OEM-specific fault/error code.
+    control_and_status_information_oem_fault_code:
+      name: "Control and Status Information: OEM fault code"
+    # §5.3.1 Class 1, ID 72 LB: OEM fault code ventilation/heat-recovery (0..255).
+    control_and_status_information_oem_fault_code_ventilation_heat_recovery:
+      name: "Control and Status Information: OEM fault code ventilation-heat-recovery"
+    # §5.3.1 Class 1, ID 102 LB: OEM fault code Solar Storage (0..255). HB is entirely reserved.
+    control_and_status_information_oem_fault_code_solar_storage:
+      name: "Control and Status Information: OEM fault code Solar Storage"
+    # §5.3.1 Class 1, ID 115: OEM diagnostic code (0..65535) -- an OEM-specific diagnostic/service code.
+    control_and_status_information_oem_diagnostic_code:
+      name: "Control and Status Information: OEM diagnostic code"
+    # §5.3.1 Class 1, ID 73: OEM diagnostic code ventilation/heat-recovery (0..65535).
+    control_and_status_information_oem_diagnostic_code_ventilation_heat_recovery:
+      name: "Control and Status Information: OEM diagnostic code ventilation-heat-recovery"
+    # §5.3.1 Class 1, ID 101 HB bits 2,1,0: Master Solar Storage status: Solar mode.
+    # 0=off, 1=DHW eco, 2=DHW comfort, 3=DHW single boost, 4=DHW continuous boost.
+    control_and_status_information_master_solar_storage_status_solar_mode:
+      name: "Control and Status Information: Master Solar Storage status: Solar mode"
+    # §5.3.1 Class 1, ID 101 LB bits 3,2,1: Solar Storage mode and status: Solar mode (same encoding as above).
+    control_and_status_information_solar_storage_mode_and_status_solar_mode:
+      name: "Control and Status Information: Solar Storage mode and status: Solar mode"
+    # §5.3.1 Class 1, ID 101 LB bits 5,4: Solar Storage mode and status: Solar status.
+    # 0=standby, 1=loading of solar storage tank by the sun, 2=loading by the boiler, 3=anti-legionella mode active.
+    control_and_status_information_solar_storage_mode_and_status_solar_status:
+      name: "Control and Status Information: Solar Storage mode and status: Solar status"
+    # §5.3.2 Class 2, ID 3 LB: Boiler MemberID code (0..255) -- identifies the boiler's manufacturer.
+    configuration_information_boiler_member_id_code:
+      name: "Configuration Information: Boiler MemberID code"
+    # §5.3.2 Class 2, ID 125: OpenTherm protocol version implemented by the boiler.
+    configuration_information_opentherm_version_boiler:
+      name: "Configuration Information: OpenTherm version Boiler"
+    # §5.3.2 Class 2, ID 127 HB: Boiler product version number and type: product type (0..255).
+    configuration_information_boiler_product_version_number_and_type_product_type:
+      name: "Configuration Information: Boiler product version number and type: Product type"
+    # §5.3.2 Class 2, ID 127 LB: Boiler product version number and type: product version (0..255).
+    configuration_information_boiler_product_version_number_and_type_product_version:
+      name: "Configuration Information: Boiler product version number and type: Product version"
+    # §5.3.2 Class 2, ID 74 LB: MemberID code ventilation/heat-recovery (0..255).
+    configuration_information_member_id_code_ventilation_heat_recovery:
+      name: "Configuration Information: MemberID code ventilation-heat-recovery"
+    # §5.3.2 Class 2, ID 75: OpenTherm protocol version implemented by the ventilation/heat-recovery system.
+    configuration_information_opentherm_version_ventilation_heat_recovery:
+      name: "Configuration Information: OpenTherm version ventilation-heat-recovery"
+    # §5.3.2 Class 2, ID 76 HB: Ventilation/heat-recovery product version number and type: product type.
+    configuration_information_ventilation_heat_recovery_product_version_number_and_type_product_type:
+      name: "Configuration Information: Ventilation-heat-recovery product version number and type: Product type"
+    # §5.3.2 Class 2, ID 76 LB: Ventilation/heat-recovery product version number and type: product version.
+    configuration_information_ventilation_heat_recovery_product_version_number_and_type_product_version:
+      name: "Configuration Information: Ventilation-heat-recovery product version number and type: Product version"
+    # §5.3.2 Class 2, ID 103 LB: Solar Storage member ID (0..255).
+    configuration_information_solar_storage_member_id:
+      name: "Configuration Information: Solar Storage member ID"
+    # §5.3.2 Class 2, ID 104 HB: Solar Storage product version number and type: product type (0..255).
+    configuration_information_solar_storage_product_version_number_and_type_product_type:
+      name: "Configuration Information: Solar Storage product version number and type: Product type"
+    # §5.3.2 Class 2, ID 104 LB: Solar Storage product version number and type: product version (0..255).
+    configuration_information_solar_storage_product_version_number_and_type_product_version:
+      name: "Configuration Information: Solar Storage product version number and type: Product version"
+    # §5.3.3 Class 3, ID 4 LB: Req-Response-Code of the most recent remote request
+    # (0..127 = request refused, 128..255 = request accepted).
+    remote_request_last_response_code:
+      name: "Remote Request: Last response code"
+    # §5.3.4 Class 4, ID 17: Relative Modulation Level (0..100%). 0% = minimum modulation level,
+    # 100% = maximum modulation level.
+    sensor_and_informational_data_relative_modulation_level:
+      name: "Sensor and Informational Data: Relative Modulation Level"
+    # §5.3.4 Class 4, ID 18: CH water pressure -- water pressure of the boiler CH circuit (bar, 0..5).
+    sensor_and_informational_data_ch_water_pressure:
+      name: "Sensor and Informational Data: CH water pressure"
+    # §5.3.4 Class 4, ID 19: DHW flow rate -- water flow rate through the DHW circuit (l/min, 0..16).
+    sensor_and_informational_data_dhw_flow_rate:
+      name: "Sensor and Informational Data: DHW flow rate"
+    # §5.3.4 Class 4, ID 25: Boiler water temp. -- flow water temperature from the boiler (degrees C).
+    sensor_and_informational_data_boiler_water_temperature:
+      name: "Sensor and Informational Data: Boiler water temp."
+    # §5.3.4 Class 4, ID 26: DHW temperature -- domestic hot water temperature (degrees C).
+    sensor_and_informational_data_dhw_temperature:
+      name: "Sensor and Informational Data: DHW temperature"
+    # §5.3.4 Class 4, ID 27: Outside temperature (degrees C), read from the boiler. Only used if the
+    # number platform's outside_temperature_set is NOT configured.
+    sensor_and_informational_data_outside_temperature:
+      name: "Sensor and Informational Data: Outside temperature"
+    # §5.3.4 Class 4, ID 28: Return water temperature to the boiler (degrees C).
+    sensor_and_informational_data_return_water_temperature:
+      name: "Sensor and Informational Data: Return water temperature"
+    # §5.3.4 Class 4, ID 29: Solar storage temperature (degrees C).
+    sensor_and_informational_data_solar_storage_temperature:
+      name: "Sensor and Informational Data: Solar storage temperature"
+    # §5.3.4 Class 4, ID 30: Solar collector temperature (degrees C, -40..250).
+    sensor_and_informational_data_solar_collector_temperature:
+      name: "Sensor and Informational Data: Solar collector temperature"
+    # §5.3.4 Class 4, ID 31: Flow temperature CH2 -- flow water temperature of the 2nd CH circuit (degrees C).
+    sensor_and_informational_data_flow_temperature_ch2:
+      name: "Sensor and Informational Data: Flow temperature CH2"
+    # §5.3.4 Class 4, ID 32: DHW2 temperature -- domestic hot water temperature 2 (degrees C).
+    sensor_and_informational_data_dhw2_temperature:
+      name: "Sensor and Informational Data: DHW2 temperature"
+    # §5.3.4 Class 4, ID 33: Exhaust temperature (degrees C, -40..500).
+    sensor_and_informational_data_exhaust_temperature:
+      name: "Sensor and Informational Data: Exhaust temperature"
+    # §5.3.4 Class 4, ID 34: Boiler heat exchanger temperature (degrees C).
+    sensor_and_informational_data_boiler_heat_exchanger_temperature:
+      name: "Sensor and Informational Data: Boiler heat exchanger temperature"
+    # §5.3.4 Class 4, ID 35 HB: Actual boiler fan speed Setpoint in Hz (RPM/60), 0..255.
+    sensor_and_informational_data_boiler_fan_speed_setpoint:
+      name: "Sensor and Informational Data: Boiler fan speed Setpoint"
+    # §5.3.4 Class 4, ID 35 LB: Actual boiler fan speed in Hz (RPM/60), 0..255.
+    sensor_and_informational_data_boiler_fan_speed:
+      name: "Sensor and Informational Data: Boiler fan speed"
+    # §5.3.4 Class 4, ID 36: Flame current -- electrical current through the burner flame (uA, 0..127).
+    sensor_and_informational_data_flame_current:
+      name: "Sensor and Informational Data: Flame current"
+    # §5.3.4 Class 4, ID 38: Relative Humidity (0..100%), read from the boiler. Only used if the number
+    # platform's relative_humidity_set is NOT configured.
+    sensor_and_informational_data_relative_humidity:
+      name: "Sensor and Informational Data: Relative Humidity"
+    # §5.3.4 Class 4, ID 77 LB: Relative ventilation (0-100%). 0% is minimum set value, 100% is maximum.
+    sensor_and_informational_data_relative_ventilation:
+      name: "Sensor and Informational Data: Relative ventilation"
+    # §5.3.4 Class 4, ID 78 LB: Relative humidity exhaust air (0..100%), read from the boiler. Only used
+    # if the number platform's relative_humidity_exhaust_air_set is NOT configured.
+    sensor_and_informational_data_relative_humidity_exhaust_air:
+      name: "Sensor and Informational Data: Relative humidity exhaust air"
+    # §5.3.4 Class 4, ID 79: CO2 level exhaust air (0..2000 ppm), read from the boiler. Only used if the
+    # number platform's co2_level_set is NOT configured.
+    sensor_and_informational_data_co2_level:
+      name: "Sensor and Informational Data: CO2 level"
+    # §5.3.4 Class 4, ID 80: Supply inlet temperature (degrees C).
+    sensor_and_informational_data_supply_inlet_temperature:
+      name: "Sensor and Informational Data: Supply inlet temperature"
+    # §5.3.4 Class 4, ID 81: Supply outlet temperature (degrees C).
+    sensor_and_informational_data_supply_outlet_temperature:
+      name: "Sensor and Informational Data: Supply outlet temperature"
+    # §5.3.4 Class 4, ID 82: Exhaust inlet temperature (degrees C).
+    sensor_and_informational_data_exhaust_inlet_temperature:
+      name: "Sensor and Informational Data: Exhaust inlet temperature"
+    # §5.3.4 Class 4, ID 83: Exhaust outlet temperature (degrees C).
+    sensor_and_informational_data_exhaust_outlet_temperature:
+      name: "Sensor and Informational Data: Exhaust outlet temperature"
+    # §5.3.4 Class 4, ID 84: Actual exhaust fan speed (rpm, 0..6000).
+    sensor_and_informational_data_actual_exhaust_fan_speed:
+      name: "Sensor and Informational Data: Actual exhaust fan speed"
+    # §5.3.4 Class 4, ID 85: Actual inlet fan speed (rpm, 0..6000).
+    sensor_and_informational_data_actual_inlet_fan_speed:
+      name: "Sensor and Informational Data: Actual inlet fan speed"
+    # §5.3.4 Class 4, ID 96: Number of hours the boiler is in Cooling Mode.
+    sensor_and_informational_data_cooling_operation_hours:
+      name: "Sensor and Informational Data: Cooling Operation hours"
+    # §5.3.4 Class 4, ID 97: Number of Power Cycles of the boiler (wake-up after Reset).
+    sensor_and_informational_data_power_cycles:
+      name: "Sensor and Informational Data: Power Cycles"
+    # §5.3.4 Class 4, ID 109: Number of starts of the electricity producer.
+    sensor_and_informational_data_electricity_producer_starts:
+      name: "Sensor and Informational Data: Electricity producer starts"
+    # §5.3.4 Class 4, ID 110: Number of hours the electricity producer is in operation.
+    sensor_and_informational_data_electricity_producer_hours:
+      name: "Sensor and Informational Data: Electricity producer hours"
+    # §5.3.4 Class 4, ID 111: Current electricity production (W).
+    sensor_and_informational_data_electricity_production:
+      name: "Sensor and Informational Data: Electricity production"
+    # §5.3.4 Class 4, ID 112: Cumulative Electricity production (kWh).
+    sensor_and_informational_data_cumulative_electricity_production:
+      name: "Sensor and Informational Data: Cumulative Electricity production"
+    # §5.3.4 Class 4, ID 113: Number of un-successful burner starts.
+    sensor_and_informational_data_number_of_unsuccessful_burner_starts:
+      name: "Sensor and Informational Data: Number of un-successful burner starts"
+    # §5.3.4 Class 4, ID 114: Number of times the flame signal was too low.
+    sensor_and_informational_data_number_of_times_flame_signal_too_low:
+      name: "Sensor and Informational Data: Number of times flame signal was too low"
+    # §5.3.4 Class 4, ID 116: Successful Burner starts.
+    sensor_and_informational_data_successful_burner_starts:
+      name: "Sensor and Informational Data: Successful Burner starts"
+    # §5.3.4 Class 4, ID 117: Number of starts of the CH pump.
+    sensor_and_informational_data_ch_pump_starts:
+      name: "Sensor and Informational Data: CH pump starts"
+    # §5.3.4 Class 4, ID 118: Number of starts of the DHW pump/valve.
+    sensor_and_informational_data_dhw_pump_valve_starts:
+      name: "Sensor and Informational Data: DHW pump-valve starts"
+    # §5.3.4 Class 4, ID 119: Number of starts of the burner in DHW mode.
+    sensor_and_informational_data_dhw_burner_starts:
+      name: "Sensor and Informational Data: DHW burner starts"
+    # §5.3.4 Class 4, ID 120: Number of hours the burner is in operation (i.e. flame on).
+    sensor_and_informational_data_burner_operation_hours:
+      name: "Sensor and Informational Data: Burner operation hours"
+    # §5.3.4 Class 4, ID 121: Number of hours the CH pump has been running.
+    sensor_and_informational_data_ch_pump_operation_hours:
+      name: "Sensor and Informational Data: CH pump operation hours"
+    # §5.3.4 Class 4, ID 122: Number of hours the DHW pump has been running or the DHW valve has been open.
+    sensor_and_informational_data_dhw_pump_valve_operation_hours:
+      name: "Sensor and Informational Data: DHW pump-valve operation hours"
+    # §5.3.4 Class 4, ID 123: Number of hours the burner is in operation during DHW mode.
+    sensor_and_informational_data_dhw_burner_operation_hours:
+      name: "Sensor and Informational Data: DHW burner operation hours"
+    # §5.3.5 Class 5, ID 48 HB: DHWsetp upp-bound -- upper bound for adjustment of DHW setp (degrees C).
+    pre_defined_remote_boiler_parameters_dhwsetp_upper_bound:
+      name: "Pre-Defined Remote Boiler Parameters: DHWsetp upp-bound"
+    # §5.3.5 Class 5, ID 48 LB: DHWsetp low-bound -- lower bound for adjustment of DHW setp (degrees C).
+    pre_defined_remote_boiler_parameters_dhwsetp_lower_bound:
+      name: "Pre-Defined Remote Boiler Parameters: DHWsetp low-bound"
+    # §5.3.5 Class 5, ID 49 HB: max CHsetp upp-bound -- upper bound for adjustment of maxCHsetp (degrees C).
+    pre_defined_remote_boiler_parameters_max_chsetp_upper_bound:
+      name: "Pre-Defined Remote Boiler Parameters: max CHsetp upp-bound"
+    # §5.3.5 Class 5, ID 49 LB: max CHsetp low-bnd -- lower bound for adjustment of maxCHsetp (degrees C).
+    pre_defined_remote_boiler_parameters_max_chsetp_lower_bound:
+      name: "Pre-Defined Remote Boiler Parameters: max CHsetp low-bnd"
+    # §5.3.5 Class 5, ID 56: DHW Setpoint -- domestic hot water temperature Setpoint (degrees C), read
+    # from the boiler. Only used if the number platform's dhw_setpoint_set is NOT configured.
+    pre_defined_remote_boiler_parameters_dhw_setpoint:
+      name: "Pre-Defined Remote Boiler Parameters: DHW Setpoint"
+    # §5.3.5 Class 5, ID 57: max CH water Setpoint (degrees C), read from the boiler. Only used if the
+    # number platform's max_ch_water_setpoint_set is NOT configured.
+    pre_defined_remote_boiler_parameters_max_ch_water_setpoint:
+      name: "Pre-Defined Remote Boiler Parameters: max CH water Setpoint"
+    # §5.3.5 Class 5, ID 87 HB: Nominal ventilation value (0-100%), read from the boiler. Only used if
+    # the number platform's nominal_ventilation_value_set is NOT configured.
+    pre_defined_remote_boiler_parameters_nominal_ventilation_value:
+      name: "Pre-Defined Remote Boiler Parameters: Nominal ventilation value"
+    # §5.3.6 Class 6, ID 10 HB: Number of transparent-boiler-parameter's supported by the boiler.
+    transparent_boiler_parameters_number_of_tsps:
+      name: "Transparent Boiler Parameters: Number of TSP's"
+    # §5.3.6 Class 6, ID 88 HB: Number of TSPs supported by the ventilation/heat-recovery system.
+    transparent_boiler_parameters_number_of_tsps_ventilation_heat_recovery:
+      name: "Transparent Boiler Parameters: Number of TSP's ventilation-heat-recovery"
+    # §5.3.6 Class 6, ID 105 HB: Number of TSPs supported by the Solar Storage.
+    transparent_boiler_parameters_number_of_tsps_solar_storage:
+      name: "Transparent Boiler Parameters: Number of TSP's Solar Storage"
+    # §5.3.7 Class 7, ID 12 HB: Size of the fault history buffer supported by the boiler.
+    fault_history_data_size_of_fault_buffer:
+      name: "Fault History Data: Size of Fault Buffer"
+    # §5.3.7 Class 7, ID 90 HB: Size of the fault history buffer for the ventilation/heat-recovery system.
+    fault_history_data_size_of_fault_buffer_ventilation_heat_recovery:
+      name: "Fault History Data: Size of Fault Buffer ventilation-heat-recovery"
+    # §5.3.7 Class 7, ID 107 HB: Size of the fault history buffer for the Solar Storage.
+    fault_history_data_size_of_fault_buffer_solar_storage:
+      name: "Fault History Data: Size of Fault Buffer Solar Storage"
+    # §5.3.7 Class 7, IDs 13/91/108: fault history entries are opaque and manufacturer-specific, so
+    # unlike every other option here there's no spec-provided name/description -- name and index come
+    # from whatever the boiler's own documentation says entry N means.
+    fault_history_data_fault_buffer:
+      - index: 0
+        name: "Fault History Data: Fault Buffer 0"
+    fault_history_data_fault_buffer_ventilation_heat_recovery:
+      - index: 0
+        name: "Fault History Data: Fault Buffer 0 ventilation-heat-recovery"
+    fault_history_data_fault_buffer_solar_storage:
+      - index: 0
+        name: "Fault History Data: Fault Buffer 0 Solar Storage"
+    # §5.3.8.2 Class 8, ID 15 HB: Maximum boiler capacity (0..255 kW), expressed as a percentage of
+    # the maximum capacity.
+    control_of_special_applications_maximum_boiler_capacity:
+      name: "Control of Special Applications: Maximum boiler capacity"
+    # §5.3.8.2 Class 8, ID 15 LB: Minimum modulation level (0..100%).
+    control_of_special_applications_minimum_modulation_level:
+      name: "Control of Special Applications: Minimum modulation level"
+    # §5.3.8.3 Class 8, ID 9: Remote Override Room Setpoint (degrees C, 0..30).
+    # 0 = No override, 1..30 = Remote override room Setpoint.
+    control_of_special_applications_remote_override_room_setpoint:
+      name: "Control of Special Applications: Remote Override Room Setpoint"
+    # §5.3.8.3 Class 8, ID 39: Remote Override Room Setpoint 2 (degrees C, 0..30), same encoding.
+    control_of_special_applications_remote_override_room_setpoint_2:
+      name: "Control of Special Applications: Remote Override Room Setpoint 2"
+    # §5.3.8.3 Class 8, ID 99 HB bits 0-3: Remote Override Operating Mode DHW (0..15).
+    # 0=No override, 1=Auto, 2=Anti-Legionella, 3=Comfort, 4=Reduced, 5=Protection, 6=Off, 7..15=reserved.
+    control_of_special_applications_remote_override_operating_mode_dhw:
+      name: "Control of Special Applications: Remote Override Operating Mode DHW"
+    # §5.3.8.3 Class 8, ID 99 LB bits 0-3: Remote Override Operating Mode Heating HC1 (0..15).
+    # 0=No override, 1=Auto, 2=Comfort, 3=Precomfort, 4=Reduced, 5=Protection, 6=Off, 7..15=reserved.
+    control_of_special_applications_remote_override_operating_mode_heating_hc1:
+      name: "Control of Special Applications: Remote Override Operating Mode Heating HC1"
+    # §5.3.8.3 Class 8, ID 99 LB bits 4-7: Remote Override Operating Mode Heating HC2 (0..15), same
+    # encoding as HC1.
+    control_of_special_applications_remote_override_operating_mode_heating_hc2:
+      name: "Control of Special Applications: Remote Override Operating Mode Heating HC2"
