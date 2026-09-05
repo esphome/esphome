@@ -141,7 +141,10 @@ void USBUARTBridge::setup() {
   this->usb_cdc_parent_->set_line_state_callback([this](bool dtr, bool rts) { this->set_line_state(dtr, rts); });
   this->usb_cdc_parent_->set_line_coding_callback([this](uint32_t, uint8_t, uint8_t, uint8_t) {
     this->host_coding_seen_ = true;
-    this->set_line_coding();
+    // Another component owns the UART's framing while paused; resume() re-syncs.
+    if (this->paused_ == 0) {
+      this->set_line_coding();
+    }
   });
 
   // loop() only services line-coding reloads; stay off the main loop until one is
@@ -161,7 +164,7 @@ void USBUARTBridge::loop() {
   if (!this->reload_pending_) {
     return;
   }
-  if ((millis() - this->reload_requested_at_) < UART_RELOAD_SETTLE_MS) {
+  if ((App.get_loop_component_start_time() - this->reload_requested_at_) < UART_RELOAD_SETTLE_MS) {
     return;
   }
 
@@ -171,11 +174,17 @@ void USBUARTBridge::loop() {
 }
 
 void USBUARTBridge::set_line_coding() {
-  // Another component owns the UART's framing while paused; resume() re-syncs.
-  if (this->paused_ != 0) {
+  if (!this->sync_host_framing_()) {
     return;
   }
+  // Coalesce rapid line-coding updates from the host.
+  this->reload_requested_at_ = millis();
+  this->reload_pending_ = true;
+  // Main-loop context (via USBCDCACMInstance::process_events_).
+  this->enable_loop();
+}
 
+bool USBUARTBridge::sync_host_framing_() {
   // usb_cdc_acm has already translated the wire coding onto the CDC instance (main
   // loop); mirror it here so the framing translation has a single source of truth.
   bool changed = false;
@@ -218,12 +227,8 @@ void USBUARTBridge::set_line_coding() {
     ESP_LOGV(TAG, "Line coding: baud=%" PRIu32 ", data_bits=%u, stop_bits=%u, parity=%u",
              this->uart_parent_->get_baud_rate(), this->uart_parent_->get_data_bits(),
              this->uart_parent_->get_stop_bits(), static_cast<uint8_t>(this->uart_parent_->get_parity()));
-    // Coalesce rapid line-coding updates from the host.
-    this->reload_requested_at_ = millis();
-    this->reload_pending_ = true;
-    // Main-loop context (via USBCDCACMInstance::process_events_).
-    this->enable_loop();
   }
+  return changed;
 }
 
 void USBUARTBridge::pause() {
@@ -246,14 +251,17 @@ void USBUARTBridge::resume() {
   if (this->paused_ == 0) {
     return;
   }
-  this->paused_ = 0;
   if (this->uart_rx_task_handle_ == nullptr) {
+    this->paused_ = 0;
     return;
   }
-  xTaskNotifyGive(this->uart_rx_task_handle_);
-  if (this->host_coding_seen_) {
-    this->set_line_coding();
+  // Re-apply the host's coding before either task runs again, so no traffic moves at
+  // the YAML framing pause() restored.
+  if (this->host_coding_seen_ && this->sync_host_framing_()) {
+    this->uart_settings_reload_();
   }
+  this->paused_ = 0;
+  xTaskNotifyGive(this->uart_rx_task_handle_);
 }
 
 void USBUARTBridge::restore_configured_framing_() {
@@ -305,7 +313,9 @@ void USBUARTBridge::uart_rx_task_() {
     if (this->paused_ != 0) {
       // Parked until resume() notifies; nothing is read, so the other owner sees
       // every byte.
+      this->rx_parked_ = 1;
       ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+      this->rx_parked_ = 0;
       continue;
     }
 
@@ -377,7 +387,10 @@ void USBUARTBridge::uart_tx_task_() {
     }
 
     // Another component owns the UART; host bytes must not interleave with its traffic.
+    // tx_busy_ goes up before the check so is_paused() cannot miss a write in flight.
+    this->tx_busy_ = 1;
     if (this->paused_ != 0) {
+      this->tx_busy_ = 0;
       if (should_log_now(&drop_log_ms, LOG_THROTTLE_MS)) {
         ESP_LOGW(TAG, "Paused; dropping %zu bytes from host", rx_size);
       }
@@ -387,6 +400,7 @@ void USBUARTBridge::uart_tx_task_() {
     ESP_LOGV(TAG, "Sending %zu bytes to UART", rx_size);
     // Signed: uart_write_bytes() returns -1 on error.
     int xfer_size = uart_write_bytes(uart_num, data_to_uart, rx_size);
+    this->tx_busy_ = 0;
 
     if (xfer_size < 0) {
       if (should_log_now(&err_log_ms, LOG_THROTTLE_MS)) {

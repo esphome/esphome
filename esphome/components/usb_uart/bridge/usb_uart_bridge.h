@@ -38,12 +38,14 @@ class USBUARTBridge final : public Component {
   /**
    * Stop forwarding in both directions and hand the UART back to its configured
    * framing, so another component may use the bus. Bytes the host sends while paused
-   * are discarded. Main-loop only. Takes effect within UART_RX_WAIT_MS.
+   * are discarded. Main-loop only. The worker tasks stop within UART_RX_WAIT_MS; poll
+   * is_paused() before touching the bus.
    */
   void pause();
-  /// Resume forwarding and re-apply the host's line coding. Main-loop only.
+  /// Re-apply the host's line coding, then resume forwarding. Main-loop only.
   void resume();
-  bool is_paused() const { return this->paused_ != 0; }
+  /// True once pause() was called and both worker tasks have stopped touching the UART.
+  bool is_paused() const { return this->paused_ != 0 && this->rx_parked_ != 0 && this->tx_busy_ == 0; }
 
  protected:
   static void uart_rx_task_fn(void *arg);
@@ -52,6 +54,8 @@ class USBUARTBridge final : public Component {
   void uart_tx_task_();
   void uart_settings_reload_();
   void restore_configured_framing_();
+  // Copy the host's line coding onto the UART settings; true if anything changed.
+  bool sync_host_framing_();
 
   TaskHandle_t uart_rx_task_handle_{nullptr};
   TaskHandle_t uart_tx_task_handle_{nullptr};
@@ -80,6 +84,10 @@ class USBUARTBridge final : public Component {
   // Written on the main loop, read by both worker tasks. uint8_t rather than bool:
   // GCC on Xtensa emits an out-of-line call for atomic<bool>.
   std::atomic<uint8_t> paused_{0};
+  // Raised by the RX task while parked and by the TX task around each UART write, so
+  // is_paused() reports when the bus is actually free.
+  std::atomic<uint8_t> rx_parked_{0};
+  std::atomic<uint8_t> tx_busy_{0};
   bool reload_pending_{false};
   // True once the host has sent any line coding; resume() then re-syncs to it.
   bool host_coding_seen_{false};
