@@ -17,12 +17,25 @@ CONF_HEALTH = "health"
 CONF_XFAN = "xfan"
 CONF_GREE_ID = "gree_id"
 
-# Switch configurations: (config_key, display_name, bit_mask, icon)
+# Switch configurations: (config_key, display_name, bit_mask, icon, default_restore_mode)
+# LIGHT defaults to ON to match pre-#12160 behavior.
 SWITCH_CONFIGS = (
-    (CONF_TURBO, "Gree Turbo Switch", 0x10, "mdi:car-turbocharger"),
-    (CONF_LIGHT, "Gree Light Switch", 0x20, "mdi:led-outline"),
-    (CONF_HEALTH, "Gree Health Switch", 0x40, "mdi:pine-tree"),
-    (CONF_XFAN, "Gree X-FAN Switch", 0x80, "mdi:wall-sconce-flat"),
+    (
+        CONF_TURBO,
+        "Gree Turbo Switch",
+        0x10,
+        "mdi:car-turbocharger",
+        "RESTORE_DEFAULT_OFF",
+    ),
+    (CONF_LIGHT, "Gree Light Switch", 0x20, "mdi:led-outline", "RESTORE_DEFAULT_ON"),
+    (CONF_HEALTH, "Gree Health Switch", 0x40, "mdi:pine-tree", "RESTORE_DEFAULT_OFF"),
+    (
+        CONF_XFAN,
+        "Gree X-FAN Switch",
+        0x80,
+        "mdi:wall-sconce-flat",
+        "RESTORE_DEFAULT_OFF",
+    ),
 )
 
 SUPPORTED_MODELS = {
@@ -39,11 +52,11 @@ CONFIG_SCHEMA = cv.Schema(
             cv.Optional(key): switch.switch_schema(
                 GreeModeBitSwitch,
                 icon=icon,
-                default_restore_mode="RESTORE_DEFAULT_OFF",
+                default_restore_mode=restore_mode,
                 device_class=DEVICE_CLASS_SWITCH,
                 entity_category=ENTITY_CATEGORY_CONFIG,
             )
-            for key, _, _, icon in SWITCH_CONFIGS
+            for key, _, _, icon, restore_mode in SWITCH_CONFIGS
         },
     }
 )
@@ -67,7 +80,7 @@ FINAL_VALIDATE_SCHEMA = _validate_model
 async def to_code(config: ConfigType) -> None:
     parent = await cg.get_variable(config[CONF_GREE_ID])
 
-    for conf_key, name, bit_mask, _ in SWITCH_CONFIGS:
+    for conf_key, name, bit_mask, _, _ in SWITCH_CONFIGS:
         if switch_conf := config.get(conf_key):
             sw = cg.new_Pvariable(switch_conf[cv.CONF_ID], name, bit_mask)
             await switch.register_switch(sw, switch_conf)
