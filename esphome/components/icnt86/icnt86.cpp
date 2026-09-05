@@ -66,19 +66,10 @@ void ICNT86Touchscreen::update_touches() {
     uint8_t pressure = buf[5 + 7 * i];
     uint8_t touch_id = buf[6 + 7 * i];
 
-    if (i == 0) {
-      // The controller keeps reporting a lone zero-pressure point for a while after a release. Once one such
-      // point has already been reported, drop the repeats so we don't keep re-sending the same release event.
-      // Don't set skip_update_ here: the previous cycle's touch data is still valid, and send_touches_() must
-      // still run this cycle (with is_touched_ left false) so the pending release is actually sent.
-      if (touch_count == 1 && x == this->x_old_ && y == this->y_old_ && pressure == 0 && this->pressure_was_zero_) {
-        return;
-      }
-      this->x_old_ = x;
-      this->y_old_ = y;
-      this->pressure_was_zero_ = (pressure == 0);
-    } else if (pressure > 0) {
-      this->pressure_was_zero_ = false;
+    // A zero-pressure report just means this point is no longer touched; skipping it here leaves is_touched_
+    // false (when no other point is active) so send_touches_() reports the release as normal.
+    if (pressure == 0) {
+      continue;
     }
     this->add_raw_touch_position_(touch_id, x, y, pressure);
   }

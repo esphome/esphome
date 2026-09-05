@@ -19,10 +19,6 @@ class ICNT86Touchscreen : public touchscreen::Touchscreen, public i2c::I2CDevice
   void update_touches() override;
   InternalGPIOPin *interrupt_pin_{};
   GPIOPin *reset_pin_{nullptr};
-
-  uint16_t x_old_ = 0;
-  uint16_t y_old_ = 0;
-  bool pressure_was_zero_ = false;
 };
 
 }  // namespace esphome::icnt86
