@@ -29,8 +29,15 @@ class GuardedMDNSResponder : public ::esp8266::MDNSImplementation::MDNSResponder
       (this->*fn)();
       return;
     }
-    // Set every time: a restart replaces the context together with its stock handler
-    ctx->onRx([this]() { this->on_rx_(); });
+    // Set every time: a restart replaces the context together with its stock handler.
+    // Runs from lwIP in the SYS context.
+    ctx->onRx([this]() {
+      if (this->in_loop_call_) {
+        this->pending_rx_++;
+      } else {
+        this->_callProcess();
+      }
+    });
     this->pending_rx_ = 0;
     this->in_loop_call_ = true;
     (this->*fn)();
@@ -40,15 +47,6 @@ class GuardedMDNSResponder : public ::esp8266::MDNSImplementation::MDNSResponder
       this->_process(false);
     }
     this->in_loop_call_ = false;
-  }
-
-  // lwIP receive callback (SYS context)
-  void on_rx_() {
-    if (this->in_loop_call_) {
-      this->pending_rx_++;
-    } else {
-      this->_callProcess();
-    }
   }
 
   volatile bool in_loop_call_{false};
