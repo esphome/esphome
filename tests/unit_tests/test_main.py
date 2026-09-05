@@ -68,6 +68,7 @@ from esphome.__main__ import (
     upload_using_esptool,
     upload_using_picotool,
     upload_using_platformio,
+    write_cpp,
 )
 from esphome.address_cache import AddressCache
 from esphome.bundle import BUNDLE_EXTENSION, BundleFile, BundleResult
@@ -108,6 +109,7 @@ from esphome.const import (
     CONF_VERSION,
     CONF_WEB_SERVER,
     CONF_WIFI,
+    ENV_NOGITIGNORE,
     KEY_CORE,
     KEY_TARGET_FRAMEWORK,
     KEY_TARGET_PLATFORM,
@@ -4248,6 +4250,52 @@ def test_run_esphome_dashboard_redirects_to_device_builder(
 
     assert result == 1
     assert "esphome-device-builder" in caplog.text
+
+
+def test_write_cpp_writes_gitignore_and_checks_build_tree(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """write_cpp writes the .gitignore and checks the build tree isn't tracked."""
+    monkeypatch.delenv(ENV_NOGITIGNORE, raising=False)
+
+    with (
+        patch("esphome.writer.update_storage_json") as mock_update_storage,
+        patch("esphome.writer.write_gitignore") as mock_write_gitignore,
+        patch("esphome.writer.check_build_tree_not_tracked") as mock_check_tracked,
+        patch("esphome.__main__.generate_cpp_contents") as mock_generate,
+        patch("esphome.__main__.write_cpp_file", return_value=0) as mock_write_file,
+    ):
+        result = write_cpp({})
+
+    assert result == 0
+    mock_update_storage.assert_called_once()
+    mock_write_gitignore.assert_called_once()
+    mock_check_tracked.assert_called_once()
+    mock_generate.assert_called_once_with({})
+    mock_write_file.assert_called_once()
+
+
+def test_write_cpp_skips_gitignore_but_still_checks_build_tree(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """ESPHOME_NOGITIGNORE skips writing .gitignore.
+
+    The (read-only) tracked-file check still runs -- it isn't tied to
+    whether ESPHome is allowed to write files.
+    """
+    monkeypatch.setenv(ENV_NOGITIGNORE, "true")
+
+    with (
+        patch("esphome.writer.update_storage_json"),
+        patch("esphome.writer.write_gitignore") as mock_write_gitignore,
+        patch("esphome.writer.check_build_tree_not_tracked") as mock_check_tracked,
+        patch("esphome.__main__.generate_cpp_contents"),
+        patch("esphome.__main__.write_cpp_file", return_value=0),
+    ):
+        write_cpp({})
+
+    mock_write_gitignore.assert_not_called()
+    mock_check_tracked.assert_called_once()
 
 
 def test_command_config_hash(
