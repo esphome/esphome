@@ -364,7 +364,118 @@ def test_write_project_link_line_and_exclusions(tmp_path: Path) -> None:
         line for line in content.splitlines() if line.startswith("  flags = ")
     ]
     assert flags_lines
-    assert all(line == "  flags = $srcflags" for line in flags_lines)
+    # C++ src edges consume the precompiled header; C/assembly keep srcflags
+    assert set(flags_lines) == {"  flags = $srcflags", "  flags = $srccxxflags"}
+
+
+def test_write_project_pch(tmp_path: Path) -> None:
+    paths = _make_framework(tmp_path)
+    _set_flags("-DPIO_FRAMEWORK_ARDUINO_LWIP2_HIGHER_BANDWIDTH_LOW_FLASH")
+    content = _write_ninja(paths, ccache="/usr/bin/ccache")
+    build_dir = CORE.relative_pioenvs_path(CORE.name)
+    assert "rule pch" in content
+    assert "build esphome_pch.h.gch: pch" in content
+    for line in content.splitlines():
+        # C++ edges wait on the .gch; the C edge must not reference it
+        if line.startswith("build obj/src/main.cpp.o:"):
+            assert line.endswith("| esphome_pch.h.gch")
+        if line.startswith("build obj/src/esphome/vendor.c.o:"):
+            assert "esphome_pch" not in line
+    assert (build_dir / "esphome_pch.h").read_text().splitlines() == [
+        '#include "esphome/components/esp8266/throw_stubs.h"',
+        '#include "esphome/core/defines.h"',
+    ]
+    assert (build_dir / "esphome_pch.h.gch.sum").read_text().strip()
+    # Emission recorded so the framework env exports the ccache settings
+    from esphome.build_helpers.pch import ccache_pch_env
+
+    assert "CCACHE_PCH_EXTSUM" in ccache_pch_env()
+
+
+def test_write_project_pch_sum_only_with_ccache(tmp_path: Path) -> None:
+    """The .sum sidecar exists solely for ccache; skip it when disabled."""
+    paths = _make_framework(tmp_path)
+    _set_flags("-DPIO_FRAMEWORK_ARDUINO_LWIP2_HIGHER_BANDWIDTH_LOW_FLASH")
+    content = _write_ninja(paths)
+    build_dir = CORE.relative_pioenvs_path(CORE.name)
+    assert "build esphome_pch.h.gch: pch" in content
+    assert not (build_dir / "esphome_pch.h.gch.sum").exists()
+
+
+def test_write_project_pch_identity_unknown_skips_pch(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """An OSError from the checksum means the .sum cannot vouch for the
+    .gch: the build must fall back to plain srcflags."""
+    paths = _make_framework(tmp_path)
+    _set_flags("-DPIO_FRAMEWORK_ARDUINO_LWIP2_HIGHER_BANDWIDTH_LOW_FLASH")
+    with patch(
+        "esphome.build_gen.arduino8266.pch_checksum",
+        side_effect=OSError("stat failed"),
+    ):
+        content = _write_ninja(paths, ccache="/usr/bin/ccache")
+    assert "esphome_pch" not in content
+    assert "srccxxflags" not in content
+    assert "  flags = $srcflags" in content
+    assert "Could not establish the pch identity" in caplog.text
+
+
+def test_write_project_pch_folds_joined_src_force_include(
+    tmp_path: Path,
+) -> None:
+    """-includefoo.h in build_src_flags must fold into the pch like the
+    separated spelling, not precede and defeat it."""
+    paths = _make_framework(tmp_path)
+    _set_flags("-DPIO_FRAMEWORK_ARDUINO_LWIP2_HIGHER_BANDWIDTH_LOW_FLASH")
+    CORE.platformio_options["build_src_flags"] = "-includeesphome/core/defines.h"
+    content = _write_ninja(paths, ccache="/usr/bin/ccache")
+    assert "build esphome_pch.h.gch: pch" in content
+    assert "srccxxflags" in content
+    assert "-includeesphome" not in content
+
+
+def test_write_project_pch_skipped_for_joined_force_include_spelling(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """GCC also accepts -includefoo.h as one token; the guard must see it."""
+    paths = _make_framework(tmp_path)
+    _set_flags(
+        "-DPIO_FRAMEWORK_ARDUINO_LWIP2_HIGHER_BANDWIDTH_LOW_FLASH", "-includefoo.h"
+    )
+    content = _write_ninja(paths, ccache="/usr/bin/ccache")
+    assert "esphome_pch" not in content
+    assert "prevents the precompiled header" in caplog.text
+
+
+def test_write_project_pch_skipped_when_user_force_include_precedes(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A -include in build_flags lands ahead of the pch include, so GCC
+    would never load the .gch; skip it and say so."""
+    paths = _make_framework(tmp_path)
+    _set_flags(
+        "-DPIO_FRAMEWORK_ARDUINO_LWIP2_HIGHER_BANDWIDTH_LOW_FLASH", "-include foo.h"
+    )
+    content = _write_ninja(paths, ccache="/usr/bin/ccache")
+    assert "esphome_pch" not in content
+    assert "srccxxflags" not in content
+    assert "prevents the precompiled header" in caplog.text
+    # No pch emitted: the ccache relaxation must stay off
+    from esphome.build_helpers.pch import ccache_pch_env
+
+    assert ccache_pch_env() == {}
+
+
+def test_write_project_pch_disabled(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("ESPHOME_PCH_ENABLE", "0")
+    paths = _make_framework(tmp_path)
+    _set_flags("-DPIO_FRAMEWORK_ARDUINO_LWIP2_HIGHER_BANDWIDTH_LOW_FLASH")
+    content = _write_ninja(paths)
+    assert "esphome_pch" not in content
+    assert "srccxxflags" not in content
+    assert "  flags = $srcflags" in content
 
 
 def test_write_project_scanf_float_and_waveform_kept(tmp_path: Path) -> None:
@@ -1711,3 +1822,23 @@ def test_write_project_rejects_spaced_ldscript_override(tmp_path: Path) -> None:
     _set_flags()
     with pytest.raises(EsphomeError, match="Invalid flash linker script name"):
         arduino8266.write_project(paths, None)
+
+
+def test_write_project_pch_no_device_path_poison(tmp_path: Path) -> None:
+    """Regression: the -include stays relative and the .sum carries no
+    per-device path, or cross-device ccache sharing breaks."""
+    paths = _make_framework(tmp_path / "shared")
+    sums = []
+    for name in ("dev_a", "dev_b"):
+        CORE.name = name
+        CORE.build_path = tmp_path / name
+        _set_flags("-DPIO_FRAMEWORK_ARDUINO_LWIP2_HIGHER_BANDWIDTH_LOW_FLASH")
+        content = _write_ninja(paths, ccache="/usr/bin/ccache")
+        assert (
+            "srccxxflags = -Winvalid-pch -Wno-error=invalid-pch "
+            "-include esphome_pch.h" in content
+        )
+        sums.append(
+            (CORE.relative_pioenvs_path(name) / "esphome_pch.h.gch.sum").read_text()
+        )
+    assert sums[0] == sums[1]

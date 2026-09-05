@@ -6,6 +6,7 @@ import subprocess
 import time
 from typing import Any
 
+from esphome.build_helpers.pch import pch_extra_scripts
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.const import (
@@ -34,7 +35,7 @@ from esphome.core import (
 )
 from esphome.core.config import BOARD_MAX_LENGTH
 from esphome.helpers import IS_MACOS, copy_file_if_changed
-from esphome.platformio.toolchain import copy_ccache_script
+from esphome.platformio.toolchain import copy_ccache_script, copy_pch_script
 from esphome.storage_json import StorageJSON
 from esphome.types import ConfigType
 
@@ -398,6 +399,7 @@ async def to_code(config: ConfigType) -> None:
         ]
         if not enable_scanf_float:
             extra_scripts.append("pre:remove_float_scanf.py")
+        extra_scripts.extend(pch_extra_scripts())
         extra_scripts.append("post:post_build.py")
         cg.add_platformio_option("extra_scripts", extra_scripts)
 
@@ -563,6 +565,7 @@ def copy_files() -> None:
             CORE.relative_build_path(f"{script}.py"),
         )
     copy_ccache_script()
+    copy_pch_script()
 
 
 # ESP logs stack trace decoder, based on https://github.com/me-no-dev/EspExceptionDecoder
