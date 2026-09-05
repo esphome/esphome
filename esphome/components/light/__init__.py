@@ -377,18 +377,20 @@ LIGHT_SCHEMA = (
 
 
 def _validate_restore_mode(config: ConfigType) -> ConfigType:
-    """RESTORE_DEFAULT_INITIAL_STATE has nothing to fall back on without initial_state:
-    configured -- it would otherwise silently behave like RESTORE_DEFAULT_OFF.
+    """RESTORE_DEFAULT_INITIAL_STATE has nothing to fall back on without an initial_state:
+    state: configured -- it would otherwise silently behave like RESTORE_DEFAULT_OFF.
 
     Note: cv.enum() validates CONF_RESTORE_MODE to the (EnumValue-tagged) string key,
     not the LightRestoreMode expression, so it must be compared as a plain string here.
     """
+    initial_state = config.get(CONF_INITIAL_STATE, {})
     if (
         config[CONF_RESTORE_MODE] == RESTORE_MODE_DEFAULT_INITIAL_STATE
-        and CONF_INITIAL_STATE not in config
+        and CONF_STATE not in initial_state
     ):
         raise cv.Invalid(
-            "restore_mode: RESTORE_DEFAULT_INITIAL_STATE requires an 'initial_state' block",
+            "restore_mode: RESTORE_DEFAULT_INITIAL_STATE requires an 'initial_state' "
+            "block with a 'state' key",
             path=[CONF_RESTORE_MODE],
         )
     return config

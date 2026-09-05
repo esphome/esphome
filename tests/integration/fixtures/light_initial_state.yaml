@@ -47,7 +47,7 @@ light:
     restore_mode: ALWAYS_OFF
     initial_state:
       color_mode: RGB
-      state: true
+      state: "ON"
       brightness: 0.75
       red: 1.0
       green: 0.5
@@ -63,7 +63,7 @@ light:
     # leave the light on-but-invisible.
     initial_state:
       color_mode: BRIGHTNESS
-      state: false
+      state: "OFF"
       brightness: 0%
 
   - platform: monochromatic

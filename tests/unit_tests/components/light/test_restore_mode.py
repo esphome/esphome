@@ -22,6 +22,14 @@ def test_restore_default_initial_state_requires_initial_state() -> None:
         LIGHT_SCHEMA(config)
 
 
+def test_restore_default_initial_state_requires_state_key() -> None:
+    config = _base_config()
+    config["restore_mode"] = "RESTORE_DEFAULT_INITIAL_STATE"
+    config["initial_state"] = {"brightness": "50%"}
+    with pytest.raises(cv.Invalid, match="requires an 'initial_state' block"):
+        LIGHT_SCHEMA(config)
+
+
 def test_restore_default_initial_state_with_initial_state_is_valid() -> None:
     config = _base_config()
     config["restore_mode"] = "RESTORE_DEFAULT_INITIAL_STATE"
