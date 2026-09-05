@@ -1,0 +1,8 @@
+packages:
+  sharp_ac_common: !include common.yaml
+
+esphome:
+  name: sharp-ac-esp8266
+
+esp8266:
+  board: esp01_1m
