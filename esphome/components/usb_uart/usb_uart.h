@@ -271,12 +271,16 @@ class USBUartComponent : public usb_host::USBClient {
 class USBUartTypeCdcAcm : public USBUartComponent {
  public:
   USBUartTypeCdcAcm(uint16_t vid, uint16_t pid) : USBUartComponent(vid, pid) {}
+  void set_claim_comm_interface(bool claim) { this->claim_comm_interface_ = claim; }
 
  protected:
   virtual std::vector<CdcEps> parse_descriptors(usb_device_handle_t dev_hdl);
   void on_connected() override;
   void on_disconnected() override;
   bool config_step(USBUartChannelBase *channel, uint8_t step, bool reload, bool ok, const uint8_t *response) override;
+  // Each claimed interface pins one host hardware channel per endpoint; skipping
+  // the comm (interrupt) interface frees one on channel-poor hosts (ESP32-S3: 8).
+  bool claim_comm_interface_{true};
 };
 
 class USBUartTypeCP210X : public USBUartTypeCdcAcm {
