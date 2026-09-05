@@ -47,7 +47,11 @@ class USBUARTBridge final : public Component {
   /// Re-apply the host's line coding, then resume forwarding. Main-loop only.
   void resume();
   /// True once both worker tasks are off the bus and the configured framing is restored.
-  bool is_paused() const { return this->paused_ != 0 && this->rx_parked_ != 0 && !this->framing_restore_pending_; }
+  /// With no RX task (setup() failed or has not run) there is nothing to wait for.
+  bool is_paused() const {
+    return this->paused_ != 0 && !this->framing_restore_pending_ &&
+           (this->uart_rx_task_handle_ == nullptr || this->rx_parked_ != 0);
+  }
 
  protected:
   static void uart_rx_task_fn(void *arg);

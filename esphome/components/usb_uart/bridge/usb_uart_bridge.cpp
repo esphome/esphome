@@ -250,7 +250,8 @@ void USBUARTBridge::pause() {
   }
   this->paused_ = 1;
   // A null RX task means setup() has not completed (or failed): nothing to stop, and
-  // the framing snapshot does not exist yet. The RX task starts parked.
+  // the framing snapshot does not exist yet. Should setup() run later, the RX task
+  // starts parked.
   if (this->uart_rx_task_handle_ == nullptr) {
     return;
   }
