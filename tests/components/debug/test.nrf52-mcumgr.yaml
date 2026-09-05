@@ -1,1 +1,8 @@
 <<: !include common.yaml
+
+text_sensor:
+  - platform: debug
+    stack_usage:
+      name: Stack
+    uicr:
+      name: Uicr
