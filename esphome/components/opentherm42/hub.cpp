@@ -351,7 +351,6 @@ Frame OpenTherm42Hub::build_next_request_() {
     static const RequestKind kinds[] = {RequestKind::DAY_TIME, RequestKind::DATE, RequestKind::YEAR};
     this->pending_request_kind_ = kinds[this->time_sync_step_];
     Frame frame{};
-    frame.type = static_cast<uint8_t>(MessageType::WRITE_DATA);
     this->build_time_sync_frame_(this->time_sync_step_, frame);
     this->time_sync_step_++;
     if (this->time_sync_step_ >= 3) {
@@ -473,15 +472,12 @@ Frame OpenTherm42Hub::build_next_request_() {
       break;
 
     case RequestKind::DAY_TIME:
-      frame.type = static_cast<uint8_t>(MessageType::WRITE_DATA);
       this->build_time_sync_frame_(0, frame);
       break;
     case RequestKind::DATE:
-      frame.type = static_cast<uint8_t>(MessageType::WRITE_DATA);
       this->build_time_sync_frame_(1, frame);
       break;
     case RequestKind::YEAR:
-      frame.type = static_cast<uint8_t>(MessageType::WRITE_DATA);
       this->build_time_sync_frame_(2, frame);
       break;
 
@@ -697,30 +693,33 @@ Frame OpenTherm42Hub::build_startup_request_() {
 }
 
 void OpenTherm42Hub::build_time_sync_frame_(uint8_t step, Frame &frame) {
+  static constexpr uint8_t kDataIds[] = {20, 21, 22};
+  frame.id = kDataIds[step];
+
+  ESPTime const now = this->time_id_ != nullptr ? this->time_id_->now() : ESPTime{};
+  if (!now.is_valid()) {
+    // §4.4.3 "Writing Invalid Data": the configured time source (e.g. sntp) hasn't produced a real
+    // time yet -- INVALID-DATA lets this turn be skipped without writing a bogus date/time (e.g.
+    // the 1970 epoch) into the boiler's clock. The boiler's DATA-INVALID/UNKNOWN-DATAID reply is
+    // handled the same as any other non-WRITE-ACK outcome by handle_response_()/invalidate_response_().
+    frame.type = static_cast<uint8_t>(MessageType::INVALID_DATA);
+    return;
+  }
+  frame.type = static_cast<uint8_t>(MessageType::WRITE_DATA);
   switch (step) {
-    case 0:
-      frame.id = 20;
-      if (this->time_id_ != nullptr) {
-        ESPTime const now = this->time_id_->now();
-        // §5.3.4 ID 20: day of week is Monday=1..Sunday=7; ESPTime's is Sunday=1..Saturday=7.
-        uint8_t const day_of_week = now.day_of_week == 1 ? 7 : now.day_of_week - 1;
-        frame.value_hb = (day_of_week << 5) | (now.hour & 0x1F);
-        frame.value_lb = now.minute;
-      }
+    case 0: {
+      // §5.3.4 ID 20: day of week is Monday=1..Sunday=7; ESPTime's is Sunday=1..Saturday=7.
+      uint8_t const day_of_week = now.day_of_week == 1 ? 7 : now.day_of_week - 1;
+      frame.value_hb = (day_of_week << 5) | (now.hour & 0x1F);
+      frame.value_lb = now.minute;
       return;
+    }
     case 1:
-      frame.id = 21;
-      if (this->time_id_ != nullptr) {
-        ESPTime const now = this->time_id_->now();
-        frame.value_hb = now.month;
-        frame.value_lb = now.day_of_month;
-      }
+      frame.value_hb = now.month;
+      frame.value_lb = now.day_of_month;
       return;
     default:
-      frame.id = 22;
-      if (this->time_id_ != nullptr) {
-        frame.set_value_u16(this->time_id_->now().year);
-      }
+      frame.set_value_u16(now.year);
       return;
   }
 }
