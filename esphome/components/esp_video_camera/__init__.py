@@ -12,7 +12,7 @@ import logging
 
 from esphome import pins
 import esphome.codegen as cg
-from esphome.components import i2c
+from esphome.components import i2c, network
 from esphome.components.esp32 import (
     VARIANT_ESP32P4,
     add_idf_component,
@@ -230,6 +230,19 @@ def _validate_resolution_for_sensor(config):
     return config
 
 
+def _request_high_performance_networking(config):
+    """A camera is a streaming component, so ask for the streaming defaults.
+
+    Every frame leaves over TCP, and a 720p JPEG is 60-100 kB -- more than ten
+    times lwip's default send buffer. Each of those windows costs a round trip
+    to the access point before the next can go out, which puts a ceiling on the
+    frame rate that has nothing to do with the sensor or the encoder, and that
+    no camera setting can lift.
+    """
+    network.require_high_performance_networking()
+    return config
+
+
 def _warn_about_idf_log_level(config):
     """esp_video's ISP task logs per frame at IDF debug level.
 
@@ -293,6 +306,7 @@ CONFIG_SCHEMA = cv.All(
     _validate_uvc_device,
     _validate_i2c_bus,
     _validate_xclk,
+    _request_high_performance_networking,
     # Frames are copied into PSRAM and the V4L2 buffers themselves are sized for
     # it: a 1280x720 RGB565 capture buffer alone is 1.8 MB, well past what
     # internal RAM can hold.
