@@ -212,6 +212,31 @@ bool parse_resolution(const std::string &res, uint32_t &width, uint32_t &height)
   return true;
 }
 
+// What a failed esp_video ioctl actually means.
+//
+// esp_video flattens its own error codes onto errno (esp_video_vfs.c) in a way
+// strerror() does not convey: EBUSY is ESP_ERR_INVALID_STATE, ESRCH is
+// ESP_ERR_NOT_SUPPORTED, ENODEV is ESP_ERR_NOT_FOUND, and EPERM is everything
+// it did not classify. Read plainly, a rejected STREAMON says only "Invalid
+// argument", which sends people looking at their YAML for a mistake that is
+// not there.
+const char *esp_video_errno_means(int err) {
+  switch (err) {
+    case EINVAL:
+      return "a size, geometry or format the driver will not accept";
+    case EBUSY:
+      return "already streaming, or the last run left the hardware claimed";
+    case ENOMEM:
+      return "not enough memory for the buffers";
+    case ESRCH:
+      return "the driver does not implement this";
+    case ENODEV:
+      return "no free CSI controller or ISP processor";
+    default:
+      return "the driver failed without classifying why";
+  }
+}
+
 // Render a V4L2 fourcc for logging, e.g. V4L2_PIX_FMT_MJPEG -> "MJPG".
 std::string fourcc_to_string(uint32_t fourcc) {
   std::string out(4, ' ');
@@ -292,10 +317,11 @@ void ESPVideoCameraImageReader::return_image() {
 // ESPVideoCamera — setup / pipeline init
 // ===========================================================================
 void ESPVideoCamera::setup() {
-  // Raising esp32 -> framework -> advanced -> log_level to DEBUG overflows
-  // esp_video's 4 KB ISP task stack on its per-frame stats dump. Nothing here
-  // can stop that: ESPHome builds with CONFIG_LOG_TAG_LEVEL_IMPL_NONE, so
-  // esp_log_level_set() is compiled out and every tag follows the one level.
+  // Raising esp32 -> framework -> log_level to DEBUG has esp_video's ISP task
+  // print statistics for every frame, on its own 4 KB stack, which collapses
+  // the frame rate and can overflow that stack. Nothing here can stop it:
+  // ESPHome builds with CONFIG_LOG_TAG_LEVEL_IMPL_NONE, so esp_log_level_set()
+  // is compiled out and one tag cannot be quietened. to_code() warns instead.
 
   // Resolve the device alias to a concrete /dev/videoN path. This runs before
   // init_pipeline_() because is_uvc_device_() reads the resolved path, and the
@@ -1053,7 +1079,9 @@ bool ESPVideoCamera::start_direct_capture_() {
     return false;
   int type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
   if (ioctl(this->capture_fd_, VIDIOC_STREAMON, &type) < 0) {
-    ESP_LOGE(TAG, "VIDIOC_STREAMON failed: %s", strerror(errno));
+    ESP_LOGE(TAG, "Could not start '%s' at %ux%u: %s (%s)", this->resolved_device_.c_str(),
+             (unsigned) this->capture_width_, (unsigned) this->capture_height_, strerror(errno),
+             esp_video_errno_means(errno));
     return false;
   }
   return true;
@@ -1073,7 +1101,13 @@ bool ESPVideoCamera::start_jpeg_pipeline_() {
     return false;
   int ctype = V4L2_BUF_TYPE_VIDEO_CAPTURE;
   if (ioctl(this->capture_fd_, VIDIOC_STREAMON, &ctype) < 0) {
-    ESP_LOGE(TAG, "capture STREAMON failed: %s", strerror(errno));
+    // Everything the CSI and ISP drivers reject here they first log themselves,
+    // under the "csi" and "ISP" tags and at error level, so the line above this
+    // one names the actual check that failed -- the frame size, the lane count,
+    // the ISP clock. Point at it, because this line alone cannot say.
+    ESP_LOGE(TAG, "Could not start the sensor at %ux%u: %s (%s). The csi/ISP error just above says which check failed.",
+             (unsigned) this->capture_width_, (unsigned) this->capture_height_, strerror(errno),
+             esp_video_errno_means(errno));
     return false;
   }
 
@@ -1171,7 +1205,7 @@ bool ESPVideoCamera::start_jpeg_pipeline_() {
   int jtype = V4L2_BUF_TYPE_VIDEO_CAPTURE;
   int otype = V4L2_BUF_TYPE_VIDEO_OUTPUT;
   if (ioctl(this->jpeg_fd_, VIDIOC_STREAMON, &jtype) < 0 || ioctl(this->jpeg_fd_, VIDIOC_STREAMON, &otype) < 0) {
-    ESP_LOGE(TAG, "JPEG STREAMON failed: %s", strerror(errno));
+    ESP_LOGE(TAG, "JPEG STREAMON failed: %s (%s)", strerror(errno), esp_video_errno_means(errno));
     return false;
   }
   return true;

@@ -8,6 +8,8 @@ All Espressif sources are pulled through the IDF component manager (managed
 components) — nothing is vendored.
 """
 
+import logging
+
 from esphome import pins
 import esphome.codegen as cg
 from esphome.components import i2c
@@ -19,8 +21,19 @@ from esphome.components.esp32 import (
 )
 from esphome.components.psram import DOMAIN as PSRAM_DOMAIN
 import esphome.config_validation as cv
-from esphome.const import CONF_DEVICE, CONF_I2C_ID, CONF_ID, CONF_RESOLUTION
+from esphome.const import (
+    CONF_DEVICE,
+    CONF_FRAMEWORK,
+    CONF_I2C_ID,
+    CONF_ID,
+    CONF_LOG_LEVEL,
+    CONF_RESOLUTION,
+    PLATFORM_ESP32,
+)
 from esphome.core.entity_helpers import setup_entity
+import esphome.final_validate as fv
+
+_LOGGER = logging.getLogger(__name__)
 
 CODEOWNERS = ["@youkorr"]
 # Not "i2c": a USB camera is not on a bus, and a UVC-only board has no reason to
@@ -217,6 +230,27 @@ def _validate_resolution_for_sensor(config):
     return config
 
 
+def _warn_about_idf_log_level(config):
+    """esp_video's ISP task logs per frame at IDF debug level.
+
+    It prints several lines of auto-exposure and denoise statistics for every
+    frame, each formatted on its own 4 KB stack from outside the main task. The
+    frame rate collapses, and the stack can overflow outright. There is nothing
+    the component can do about it at run time -- ESPHome builds with
+    CONFIG_LOG_TAG_LEVEL_IMPL_NONE, so a single tag cannot be quietened -- so
+    say it here, where it can still be changed.
+    """
+    framework = fv.full_config.get()[PLATFORM_ESP32].get(CONF_FRAMEWORK, {})
+    if (level := framework.get(CONF_LOG_LEVEL)) in ("DEBUG", "VERBOSE"):
+        _LOGGER.warning(
+            "esp32 -> framework -> log_level is %s. esp_video's ISP task logs several "
+            "lines per frame at that level, which will slow the camera to a crawl. "
+            "Use ERROR unless you are chasing a driver problem.",
+            level,
+        )
+    return config
+
+
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
@@ -270,6 +304,10 @@ CONFIG_SCHEMA = cv.All(
         extra_message="esp_video_camera requires the esp-idf framework.",
     ),
 )
+
+# The log level lives in another component's config, so it can only be read
+# once every component has been validated.
+FINAL_VALIDATE_SCHEMA = _warn_about_idf_log_level
 
 
 async def to_code(config):
