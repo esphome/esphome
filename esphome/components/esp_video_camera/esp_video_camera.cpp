@@ -527,6 +527,10 @@ bool ESPVideoCamera::start_pipeline_init_() {
     if (!this->usb_host_started_) {
       esp_err_t host_ret = usb_host_install(&host_config);
       if (host_ret == ESP_OK) {
+        // Recorded before the pump is started, not after: if the task fails to
+        // start we return, and a retry that tried to install again would be
+        // told the library is already there and blame another component.
+        this->usb_host_started_ = true;
         // Priority 10, the same as Espressif's own board support code: nothing
         // enumerates unless this task keeps draining the library's events, so it
         // has to outrank the work it is feeding.
@@ -694,8 +698,15 @@ void ESPVideoCamera::loop() {
   } else if (!this->warned_no_frames_ && this->stats_frames_ == 0 &&
              (millis() - this->stats_since_ms_) >= NO_FRAME_WARNING_MS) {
     this->warned_no_frames_ = true;
-    ESP_LOGW(TAG, "Streaming from %s for %us without a single frame; the source accepted the format but sends nothing",
+    ESP_LOGW(TAG,
+             "Streaming from %s for %us without a single frame; restarting the capture. esp_video reports several "
+             "unrelated failures as EPERM, which is indistinguishable from \"no frame yet\", so a device that has "
+             "really gone can look like this.",
              this->resolved_device_.c_str(), (unsigned) (NO_FRAME_WARNING_MS / 1000));
+    this->stop_capture_();
+    this->capture_retry_pending_ = true;
+    this->capture_retry_at_ms_ = millis() + this->capture_retry_interval_ms_();
+    return;
   }
 
   // Keep dequeuing and re-queuing while idle so the buffers stay in flight;
@@ -704,7 +715,13 @@ void ESPVideoCamera::loop() {
   if (wanted) {
     this->idle_since_ms_ = 0;
   } else if (this->idle_since_ms_ == 0) {
-    this->idle_since_ms_ = millis() | 1u;  // never 0, that is the "not idle" marker
+    // Zero is the "not idle" marker, so a genuine zero has to become something
+    // else -- but rounding *up* would put the stamp a millisecond in the
+    // future, and the next iteration's unsigned subtraction would wrap to
+    // ~49 days and tear the pipeline down at once. Round down instead.
+    this->idle_since_ms_ = millis();
+    if (this->idle_since_ms_ == 0)
+      this->idle_since_ms_ = 1;
   } else if ((millis() - this->idle_since_ms_) >= CAPTURE_IDLE_TIMEOUT_MS) {
     this->stop_capture_();
   }
@@ -820,6 +837,12 @@ void ESPVideoCamera::loop_jpeg_pipeline_() {
   const bool wanted = (this->stream_requesters_ != 0) || (this->single_requesters_ != 0);
   const bool due = this->min_interval_ms_ == 0 || (millis() - this->last_frame_ms_) >= this->min_interval_ms_;
 
+  if (cap_buf.index >= (uint32_t) this->num_capture_buffers_ && !this->warned_stray_buffer_) {
+    this->warned_stray_buffer_ = true;
+    ESP_LOGW(TAG, "The driver returned buffer %u; only %d are mapped", (unsigned) cap_buf.index,
+             this->num_capture_buffers_);
+  }
+
   bool encoder_broken = false;
   if (wanted && due && cap_buf.index < (uint32_t) this->num_capture_buffers_ && cap_buf.bytesused > 0) {
     // M2M encode in the order of Espressif's examples/m2m: queue the raw frame on
@@ -893,21 +916,27 @@ void ESPVideoCamera::loop_jpeg_pipeline_() {
     }
   }
 
-  // Return the raw frame to the sensor/ISP device.
-  if (ioctl(this->capture_fd_, VIDIOC_QBUF, &cap_buf) < 0) {
-    ESP_LOGW(TAG, "capture QBUF failed: %s", strerror(errno));
-  }
-
-  // Do this last: it may tear the capture down, invalidating capture_fd_.
+  // Settle the encoder first. A broken one may still be reading this buffer
+  // through its USERPTR, and handing it back to the sensor now would let CSI
+  // DMA write into it underneath the encoder. STREAMOFF inside
+  // reset_jpeg_encoder_() is what reclaims it.
+  bool capture_alive = true;
   if (encoder_broken && !this->reset_jpeg_encoder_()) {
     ESP_LOGE(TAG, "JPEG encoder is unrecoverable; stopping capture");
     this->stop_capture_();
+    capture_alive = false;
     // stop_capture_() clears any pending retry, and loop() would otherwise
     // start the whole pipeline again on its very next iteration -- two opens,
     // an S_FMT, a REQBUFS, three mmaps and a STREAMON, torn down again the
     // moment the encoder wedges on the first frame. Space the attempts out.
     this->capture_retry_pending_ = true;
     this->capture_retry_at_ms_ = millis() + this->capture_retry_interval_ms_();
+  }
+
+  // Return the raw frame to the sensor/ISP device, unless the teardown above
+  // already closed it.
+  if (capture_alive && ioctl(this->capture_fd_, VIDIOC_QBUF, &cap_buf) < 0) {
+    ESP_LOGW(TAG, "capture QBUF failed: %s", strerror(errno));
   }
 }
 
@@ -1311,6 +1340,11 @@ void ESPVideoCamera::stop_capture_() {
   this->num_capture_buffers_ = 0;
   this->streaming_ = false;
   this->idle_since_ms_ = 0;
+  // A pending snapshot cannot be answered by a capture that no longer exists,
+  // and left set it keeps wanted true for ever, so the pipeline never idles
+  // down and every retry looks like someone is watching. The requester asks
+  // again if it still wants one.
+  this->single_requesters_ = 0;
   // Let go of the last frame. Listeners hold their own shared_ptr, so this
   // frees nothing early -- but without it the final JPEG of a capture stays in
   // PSRAM for the life of the device, which at 1080p is a few hundred kilobytes

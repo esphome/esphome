@@ -319,23 +319,27 @@ CONFIG_SCHEMA = cv.All(
     )
     .extend(cv.ENTITY_BASE_SCHEMA)
     .extend(cv.COMPONENT_SCHEMA),
-    # The camera pipeline (MIPI-CSI, ISP, hardware JPEG) is ESP32-P4 silicon,
-    # and esp_video 2.3.0 requires ESP-IDF 5.4 or newer. Reject both at
-    # validation time rather than at code generation.
-    _validate_uvc_device,
-    _validate_i2c_bus,
-    _validate_xclk,
-    _request_high_performance_networking,
-    # Frames are copied into PSRAM and the V4L2 buffers themselves are sized for
-    # it: a 1280x720 RGB565 capture buffer alone is 1.8 MB, well past what
-    # internal RAM can hold.
-    cv.requires_component(PSRAM_DOMAIN),
-    _validate_resolution_for_sensor,
+    # Platform first. The camera pipeline (MIPI-CSI, ISP, hardware JPEG) is
+    # ESP32-P4 silicon and esp_video 2.3.0 needs ESP-IDF 5.4, so on anything
+    # else every later check is beside the point -- being told to add PSRAM is
+    # a poor way to learn the chip is wrong.
     only_on_variant(supported=[VARIANT_ESP32P4], msg_prefix="esp_video_camera"),
     cv.require_framework_version(
         esp_idf=cv.Version(5, 4, 0),
         extra_message="esp_video_camera requires the esp-idf framework.",
     ),
+    # Frames are copied into PSRAM and the V4L2 buffers themselves are sized for
+    # it: a 1280x720 RGB565 capture buffer alone is 1.8 MB, well past what
+    # internal RAM can hold.
+    cv.requires_component(PSRAM_DOMAIN),
+    _validate_uvc_device,
+    _validate_i2c_bus,
+    _validate_xclk,
+    _validate_resolution_for_sensor,
+    # Last, because unlike the others it changes state outside this component:
+    # a configuration that is going to be rejected must not have moved the
+    # network settings on its way out.
+    _request_high_performance_networking,
 )
 
 # The log level lives in another component's config, so it can only be read
