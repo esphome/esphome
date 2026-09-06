@@ -783,12 +783,28 @@ void OpenTherm42Hub::handle_response_(const Frame &frame) {
     case RequestKind::CONTROL_SETPOINT:
       if (type != MessageType::WRITE_ACK) {
         ESP_LOGW(TAG, "Control setpoint (id=1) write was rejected (message type %u)", frame.type);
+        if (this->control_setpoint_number_ != nullptr) {
+          this->control_setpoint_number_->set_has_state(false);
+        }
+        return;
+      }
+      // §4.4.2/§5.1: WRITE-ACK echoes the value the boiler actually accepted -- always trust that
+      // over whatever was requested, in case the boiler clamped or otherwise modified it.
+      if (this->control_setpoint_number_ != nullptr) {
+        this->control_setpoint_number_->publish_state(frame.value_f88());
       }
       return;
 
     case RequestKind::CONTROL_SETPOINT_2:
       if (type != MessageType::WRITE_ACK) {
         ESP_LOGW(TAG, "Control setpoint 2 (id=8) write was rejected (message type %u)", frame.type);
+        if (this->control_setpoint_2_number_ != nullptr) {
+          this->control_setpoint_2_number_->set_has_state(false);
+        }
+        return;
+      }
+      if (this->control_setpoint_2_number_ != nullptr) {
+        this->control_setpoint_2_number_->publish_state(frame.value_f88());
       }
       return;
 
@@ -805,6 +821,13 @@ void OpenTherm42Hub::handle_response_(const Frame &frame) {
       if (type != MessageType::WRITE_ACK) {
         ESP_LOGW(TAG, "Control setpoint ventilation/heat-recovery (id=71) write was rejected (message type %u)",
                  frame.type);
+        if (this->control_setpoint_ventilation_number_ != nullptr) {
+          this->control_setpoint_ventilation_number_->set_has_state(false);
+        }
+        return;
+      }
+      if (this->control_setpoint_ventilation_number_ != nullptr) {
+        this->control_setpoint_ventilation_number_->publish_state(frame.value_lb);
       }
       return;
 
@@ -1014,24 +1037,52 @@ void OpenTherm42Hub::handle_response_(const Frame &frame) {
     case RequestKind::ROOM_SETPOINT:
       if (type != MessageType::WRITE_ACK) {
         ESP_LOGW(TAG, "Room Setpoint (id=16) write was rejected (message type %u)", frame.type);
+        if (this->room_setpoint_number_ != nullptr) {
+          this->room_setpoint_number_->set_has_state(false);
+        }
+        return;
+      }
+      if (this->room_setpoint_number_ != nullptr) {
+        this->room_setpoint_number_->publish_state(frame.value_f88());
       }
       return;
 
     case RequestKind::ROOM_SETPOINT_CH2:
       if (type != MessageType::WRITE_ACK) {
         ESP_LOGW(TAG, "Room Setpoint CH2 (id=23) write was rejected (message type %u)", frame.type);
+        if (this->room_setpoint_ch2_number_ != nullptr) {
+          this->room_setpoint_ch2_number_->set_has_state(false);
+        }
+        return;
+      }
+      if (this->room_setpoint_ch2_number_ != nullptr) {
+        this->room_setpoint_ch2_number_->publish_state(frame.value_f88());
       }
       return;
 
     case RequestKind::ROOM_TEMPERATURE:
       if (type != MessageType::WRITE_ACK) {
         ESP_LOGW(TAG, "Room temperature (id=24) write was rejected (message type %u)", frame.type);
+        if (this->room_temperature_number_ != nullptr) {
+          this->room_temperature_number_->set_has_state(false);
+        }
+        return;
+      }
+      if (this->room_temperature_number_ != nullptr) {
+        this->room_temperature_number_->publish_state(frame.value_f88());
       }
       return;
 
     case RequestKind::TRCH2:
       if (type != MessageType::WRITE_ACK) {
         ESP_LOGW(TAG, "TrCH2 (id=37) write was rejected (message type %u)", frame.type);
+        if (this->trch2_number_ != nullptr) {
+          this->trch2_number_->set_has_state(false);
+        }
+        return;
+      }
+      if (this->trch2_number_ != nullptr) {
+        this->trch2_number_->publish_state(frame.value_f88());
       }
       return;
 
@@ -1063,7 +1114,10 @@ void OpenTherm42Hub::handle_response_(const Frame &frame) {
       if (this->outside_temperature_number_ != nullptr) {
         if (type != MessageType::WRITE_ACK) {
           ESP_LOGW(TAG, "Outside temperature (id=27) write was rejected (message type %u)", frame.type);
+          this->outside_temperature_number_->set_has_state(false);
+          return;
         }
+        this->outside_temperature_number_->publish_state(frame.value_f88());
         return;
       }
       if (type != MessageType::READ_ACK) {
@@ -1080,7 +1134,10 @@ void OpenTherm42Hub::handle_response_(const Frame &frame) {
       if (this->relative_humidity_number_ != nullptr) {
         if (type != MessageType::WRITE_ACK) {
           ESP_LOGW(TAG, "Relative Humidity (id=38) write was rejected (message type %u)", frame.type);
+          this->relative_humidity_number_->set_has_state(false);
+          return;
         }
+        this->relative_humidity_number_->publish_state(frame.value_f88());
         return;
       }
       if (type != MessageType::READ_ACK) {
@@ -1097,7 +1154,10 @@ void OpenTherm42Hub::handle_response_(const Frame &frame) {
       if (this->relative_humidity_exhaust_air_number_ != nullptr) {
         if (type != MessageType::WRITE_ACK) {
           ESP_LOGW(TAG, "Relative humidity exhaust air (id=78) write was rejected (message type %u)", frame.type);
+          this->relative_humidity_exhaust_air_number_->set_has_state(false);
+          return;
         }
+        this->relative_humidity_exhaust_air_number_->publish_state(frame.value_lb);
         return;
       }
       if (type != MessageType::READ_ACK) {
@@ -1114,7 +1174,10 @@ void OpenTherm42Hub::handle_response_(const Frame &frame) {
       if (this->co2_level_number_ != nullptr) {
         if (type != MessageType::WRITE_ACK) {
           ESP_LOGW(TAG, "CO2 level (id=79) write was rejected (message type %u)", frame.type);
+          this->co2_level_number_->set_has_state(false);
+          return;
         }
+        this->co2_level_number_->publish_state(frame.value_u16());
         return;
       }
       if (type != MessageType::READ_ACK) {
@@ -1198,7 +1261,10 @@ void OpenTherm42Hub::handle_response_(const Frame &frame) {
       if (this->dhw_setpoint_number_ != nullptr) {
         if (type != MessageType::WRITE_ACK) {
           ESP_LOGW(TAG, "DHW Setpoint (id=56) write was rejected (message type %u)", frame.type);
+          this->dhw_setpoint_number_->set_has_state(false);
+          return;
         }
+        this->dhw_setpoint_number_->publish_state(frame.value_f88());
         return;
       }
       if (type != MessageType::READ_ACK) {
@@ -1215,7 +1281,10 @@ void OpenTherm42Hub::handle_response_(const Frame &frame) {
       if (this->max_ch_water_setpoint_number_ != nullptr) {
         if (type != MessageType::WRITE_ACK) {
           ESP_LOGW(TAG, "max CH water Setpoint (id=57) write was rejected (message type %u)", frame.type);
+          this->max_ch_water_setpoint_number_->set_has_state(false);
+          return;
         }
+        this->max_ch_water_setpoint_number_->publish_state(frame.value_f88());
         return;
       }
       if (type != MessageType::READ_ACK) {
@@ -1232,7 +1301,10 @@ void OpenTherm42Hub::handle_response_(const Frame &frame) {
       if (this->nominal_ventilation_value_number_ != nullptr) {
         if (type != MessageType::WRITE_ACK) {
           ESP_LOGW(TAG, "Nominal ventilation value (id=87) write was rejected (message type %u)", frame.type);
+          this->nominal_ventilation_value_number_->set_has_state(false);
+          return;
         }
+        this->nominal_ventilation_value_number_->publish_state(frame.value_hb);
         return;
       }
       if (type != MessageType::READ_ACK) {
@@ -1288,6 +1360,13 @@ void OpenTherm42Hub::handle_response_(const Frame &frame) {
     case RequestKind::COOLING_CONTROL_SIGNAL:
       if (type != MessageType::WRITE_ACK) {
         ESP_LOGW(TAG, "Cooling control signal (id=7) write was rejected (message type %u)", frame.type);
+        if (this->cooling_control_signal_number_ != nullptr) {
+          this->cooling_control_signal_number_->set_has_state(false);
+        }
+        return;
+      }
+      if (this->cooling_control_signal_number_ != nullptr) {
+        this->cooling_control_signal_number_->publish_state(frame.value_f88());
       }
       return;
 
@@ -1295,6 +1374,13 @@ void OpenTherm42Hub::handle_response_(const Frame &frame) {
       if (type != MessageType::WRITE_ACK) {
         ESP_LOGW(TAG, "Maximum relative modulation level setting (id=14) write was rejected (message type %u)",
                  frame.type);
+        if (this->max_rel_mod_level_setting_number_ != nullptr) {
+          this->max_rel_mod_level_setting_number_->set_has_state(false);
+        }
+        return;
+      }
+      if (this->max_rel_mod_level_setting_number_ != nullptr) {
+        this->max_rel_mod_level_setting_number_->publish_state(frame.value_f88());
       }
       return;
 
@@ -1430,9 +1516,22 @@ void OpenTherm42Hub::invalidate_response_(RequestKind kind) {
       return;  // retried indefinitely on failure -- see StartupPhase, do not advance past it here
 
     case RequestKind::CONTROL_SETPOINT:
+      if (this->control_setpoint_number_ != nullptr) {
+        this->control_setpoint_number_->set_has_state(false);
+      }
+      return;
+
     case RequestKind::CONTROL_SETPOINT_2:
+      if (this->control_setpoint_2_number_ != nullptr) {
+        this->control_setpoint_2_number_->set_has_state(false);
+      }
+      return;
+
     case RequestKind::CONTROL_SETPOINT_VENTILATION:
-      return;  // write-only kinds have no read-only entity to invalidate
+      if (this->control_setpoint_ventilation_number_ != nullptr) {
+        this->control_setpoint_ventilation_number_->set_has_state(false);
+      }
+      return;
 
     case RequestKind::MASTER_CONFIG:
     case RequestKind::MASTER_OPENTHERM_VERSION:
@@ -1568,10 +1667,28 @@ void OpenTherm42Hub::invalidate_response_(RequestKind kind) {
       return;
 
     case RequestKind::ROOM_SETPOINT:
+      if (this->room_setpoint_number_ != nullptr) {
+        this->room_setpoint_number_->set_has_state(false);
+      }
+      return;
+
     case RequestKind::ROOM_SETPOINT_CH2:
+      if (this->room_setpoint_ch2_number_ != nullptr) {
+        this->room_setpoint_ch2_number_->set_has_state(false);
+      }
+      return;
+
     case RequestKind::ROOM_TEMPERATURE:
+      if (this->room_temperature_number_ != nullptr) {
+        this->room_temperature_number_->set_has_state(false);
+      }
+      return;
+
     case RequestKind::TRCH2:
-      return;  // write-only, nothing to invalidate
+      if (this->trch2_number_ != nullptr) {
+        this->trch2_number_->set_has_state(false);
+      }
+      return;
 
     case RequestKind::DAY_TIME:
       this->day_time_write_ok_ = false;
@@ -1589,26 +1706,33 @@ void OpenTherm42Hub::invalidate_response_(RequestKind kind) {
       return;
 
     case RequestKind::OUTSIDE_TEMPERATURE:
-      if (this->outside_temperature_number_ == nullptr && this->outside_temperature_sensor_ != nullptr) {
+      if (this->outside_temperature_number_ != nullptr) {
+        this->outside_temperature_number_->set_has_state(false);
+      } else if (this->outside_temperature_sensor_ != nullptr) {
         this->outside_temperature_sensor_->set_has_state(false);
       }
       return;
 
     case RequestKind::RELATIVE_HUMIDITY:
-      if (this->relative_humidity_number_ == nullptr && this->relative_humidity_sensor_ != nullptr) {
+      if (this->relative_humidity_number_ != nullptr) {
+        this->relative_humidity_number_->set_has_state(false);
+      } else if (this->relative_humidity_sensor_ != nullptr) {
         this->relative_humidity_sensor_->set_has_state(false);
       }
       return;
 
     case RequestKind::RELATIVE_HUMIDITY_EXHAUST_AIR:
-      if (this->relative_humidity_exhaust_air_number_ == nullptr &&
-          this->relative_humidity_exhaust_air_sensor_ != nullptr) {
+      if (this->relative_humidity_exhaust_air_number_ != nullptr) {
+        this->relative_humidity_exhaust_air_number_->set_has_state(false);
+      } else if (this->relative_humidity_exhaust_air_sensor_ != nullptr) {
         this->relative_humidity_exhaust_air_sensor_->set_has_state(false);
       }
       return;
 
     case RequestKind::CO2_LEVEL:
-      if (this->co2_level_number_ == nullptr && this->co2_level_sensor_ != nullptr) {
+      if (this->co2_level_number_ != nullptr) {
+        this->co2_level_number_->set_has_state(false);
+      } else if (this->co2_level_sensor_ != nullptr) {
         this->co2_level_sensor_->set_has_state(false);
       }
       return;
@@ -1651,19 +1775,25 @@ void OpenTherm42Hub::invalidate_response_(RequestKind kind) {
       return;
 
     case RequestKind::DHW_SETPOINT:
-      if (this->dhw_setpoint_number_ == nullptr && this->dhw_setpoint_sensor_ != nullptr) {
+      if (this->dhw_setpoint_number_ != nullptr) {
+        this->dhw_setpoint_number_->set_has_state(false);
+      } else if (this->dhw_setpoint_sensor_ != nullptr) {
         this->dhw_setpoint_sensor_->set_has_state(false);
       }
       return;
 
     case RequestKind::MAX_CH_WATER_SETPOINT:
-      if (this->max_ch_water_setpoint_number_ == nullptr && this->max_ch_water_setpoint_sensor_ != nullptr) {
+      if (this->max_ch_water_setpoint_number_ != nullptr) {
+        this->max_ch_water_setpoint_number_->set_has_state(false);
+      } else if (this->max_ch_water_setpoint_sensor_ != nullptr) {
         this->max_ch_water_setpoint_sensor_->set_has_state(false);
       }
       return;
 
     case RequestKind::NOMINAL_VENTILATION_VALUE:
-      if (this->nominal_ventilation_value_number_ == nullptr && this->nominal_ventilation_value_sensor_ != nullptr) {
+      if (this->nominal_ventilation_value_number_ != nullptr) {
+        this->nominal_ventilation_value_number_->set_has_state(false);
+      } else if (this->nominal_ventilation_value_sensor_ != nullptr) {
         this->nominal_ventilation_value_sensor_->set_has_state(false);
       }
       return;
@@ -1687,8 +1817,16 @@ void OpenTherm42Hub::invalidate_response_(RequestKind kind) {
       return;
 
     case RequestKind::COOLING_CONTROL_SIGNAL:
+      if (this->cooling_control_signal_number_ != nullptr) {
+        this->cooling_control_signal_number_->set_has_state(false);
+      }
+      return;
+
     case RequestKind::MAX_REL_MOD_LEVEL_SETTING:
-      return;  // write-only, nothing to invalidate
+      if (this->max_rel_mod_level_setting_number_ != nullptr) {
+        this->max_rel_mod_level_setting_number_->set_has_state(false);
+      }
+      return;
 
     case RequestKind::MAX_CAPACITY_MIN_MOD_LEVEL:
       if (this->maximum_boiler_capacity_sensor_ != nullptr) {
