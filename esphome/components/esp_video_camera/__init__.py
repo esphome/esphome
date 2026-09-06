@@ -190,6 +190,16 @@ def _validate_uvc_device(config):
             "USB-UVC host driver is not compiled in and the device never appears.",
             path=[CONF_DEVICE],
         )
+    if config[CONF_ENABLE_UVC] and not _is_uvc(config[CONF_DEVICE]):
+        # esp_video brings up every device it was configured for as one unit, so
+        # a USB camera that is asked for and never plugged in fails the whole
+        # pipeline -- and the retry that exists for a late-arriving camera then
+        # keeps a perfectly good MIPI sensor waiting forever.
+        raise cv.Invalid(
+            f"enable_uvc: true is for a USB camera, but device: is "
+            f"{config[CONF_DEVICE]}. Remove enable_uvc, or set device: uvc.",
+            path=[CONF_ENABLE_UVC],
+        )
     return config
 
 
@@ -377,19 +387,14 @@ async def to_code(config):
         add_idf_sdkconfig_option(opt, True)
     if config[CONF_ENABLE_UVC]:
         add_idf_sdkconfig_option("CONFIG_ESP_VIDEO_ENABLE_USB_UVC_VIDEO_DEVICE", True)
-        # A UVC configuration descriptor runs to several hundred bytes, and the
-        # 256-byte default truncates it into "Configuration descriptor larger
-        # than control transfer max length" -- the camera never appears.
+        # 2048: a UVC configuration descriptor overruns the 256-byte default and
+        # the camera never appears. 500 ms: the enumeration wait blocks whichever
+        # task opened the device, and it is the Kconfig minimum. 0: size the URBs
+        # from the endpoint, since esp_video's fixed 10240 is not a multiple of
+        # any real packet size and a torn isochronous transfer loses the rest of
+        # the microframe.
         add_idf_sdkconfig_option("CONFIG_USB_HOST_CONTROL_TRANSFER_MAX_SIZE", 2048)
-        # esp_video waits for enumeration on whichever task opened the device.
-        # Upstream's 10 s is 10 s of stalled main loop whenever no camera is
-        # plugged in; an already-enumerated one costs nothing either way. 500 is
-        # the Kconfig minimum.
         add_idf_sdkconfig_option("CONFIG_USB_UVC_INIT_TIMEOUT_MS", 500)
-        # 0 means "four times the endpoint's maximum packet size". esp_video
-        # hardcodes 10240, which is not a multiple of that for any camera in
-        # particular, and an isochronous transfer off a packet boundary loses
-        # the rest of the microframe -- a torn picture, or none at all.
         add_idf_sdkconfig_option("CONFIG_USB_UVC_VIDEO_DEVICE_URB_SIZE", 0)
 
     # Auto-detection walks the esp_cam_sensor_detect_fn section, which only holds

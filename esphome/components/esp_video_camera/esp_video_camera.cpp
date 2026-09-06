@@ -130,11 +130,21 @@ void video_init_task_core0(void *param) {
 // Pump USB Host Library events when we installed it ourselves; when it is
 // shared with another component, its existing owner pumps them.
 void usb_host_lib_daemon_task(void *param) {
+  bool complained = false;
   while (true) {
     uint32_t event_flags;
-    if (usb_host_lib_handle_events(portMAX_DELAY, &event_flags) == ESP_OK) {
+    const esp_err_t err = usb_host_lib_handle_events(portMAX_DELAY, &event_flags);
+    if (err == ESP_OK) {
+      complained = false;
       if (event_flags & USB_HOST_LIB_EVENT_FLAGS_NO_CLIENTS)
         usb_host_device_free_all();
+      continue;
+    }
+    // Nothing enumerates while this is failing, so it must not be silent. Once
+    // per run of failures, because a broken pump fails every time round.
+    if (!complained) {
+      complained = true;
+      ESP_LOGE(TAG, "USB host event pump failed: %s; devices will not enumerate", esp_err_to_name(err));
     }
   }
 }
@@ -259,13 +269,20 @@ bool errno_means_no_frame(int err) { return err == EAGAIN || err == EPERM; }
 // Bound how long VIDIOC_DQBUF may block. O_NONBLOCK does nothing here:
 // esp_video_vfs_open() ignores its flags and the default wait is portMAX_DELAY,
 // which in the main loop means the task watchdog fires.
-void set_dqbuf_timeout(int fd, uint32_t timeout_ms, const char *what) {
+//
+// So failing to set it is not a warning: streaming on would hand the main loop
+// an unbounded wait, and the device would take the whole firmware down with it
+// the first time a frame did not arrive.
+bool set_dqbuf_timeout(int fd, uint32_t timeout_ms, const char *what) {
   struct timeval timeout;
   timeout.tv_sec = timeout_ms / 1000;
   timeout.tv_usec = (timeout_ms % 1000) * 1000;
   if (ioctl(fd, VIDIOC_S_DQBUF_TIMEOUT, &timeout) < 0) {
-    ESP_LOGW(TAG, "Could not bound the %s DQBUF wait: %s", what, strerror(errno));
+    ESP_LOGE(TAG, "Could not bound the %s DQBUF wait (%s); refusing to stream with an unbounded one", what,
+             strerror(errno));
+    return false;
   }
+  return true;
 }
 
 }  // namespace
@@ -421,9 +438,9 @@ bool ESPVideoCamera::start_pipeline_init_() {
       ESP_LOGE(TAG, "No I2C bus set");
       return false;
     }
-    i2c_handle = get_i2c_bus_handle(this->i2c_bus_);
-    if (i2c_handle == nullptr) {
-      ESP_LOGE(TAG, "Could not obtain the ESP-IDF I2C bus handle");
+    const esp_err_t err = get_i2c_bus_handle(this->i2c_bus_, &i2c_handle);
+    if (err != ESP_OK || i2c_handle == nullptr) {
+      ESP_LOGE(TAG, "No ESP-IDF I2C bus on port %d: %s", (int) this->i2c_bus_->get_port(), esp_err_to_name(err));
       return false;
     }
 #else
@@ -437,8 +454,10 @@ bool ESPVideoCamera::start_pipeline_init_() {
   // leave it NULL for a USB-only board.
   // Start XCLK via LEDC if requested (MIPI sensors need it before init).
   if (!uvc_only && this->enable_xclk_init_ && this->xclk_pin_ != (gpio_num_t) -1) {
-    if (init_xclk_ledc(this->xclk_pin_, this->xclk_freq_) != ESP_OK) {
-      ESP_LOGE(TAG, "XCLK init failed");
+    const esp_err_t err = init_xclk_ledc(this->xclk_pin_, this->xclk_freq_);
+    if (err != ESP_OK) {
+      ESP_LOGE(TAG, "Could not generate the sensor clock on GPIO%d at %u Hz: %s", (int) this->xclk_pin_,
+               (unsigned) this->xclk_freq_, esp_err_to_name(err));
       return false;
     }
     vTaskDelay(pdMS_TO_TICKS(50));
@@ -507,7 +526,13 @@ bool ESPVideoCamera::start_pipeline_init_() {
         // Priority 10, the same as Espressif's own board support code: nothing
         // enumerates unless this task keeps draining the library's events, so it
         // has to outrank the work it is feeding.
-        xTaskCreatePinnedToCore(usb_host_lib_daemon_task, "usb_lib", 4096, nullptr, 10, nullptr, tskNO_AFFINITY);
+        if (xTaskCreatePinnedToCore(usb_host_lib_daemon_task, "usb_lib", 4096, nullptr, 10, nullptr, tskNO_AFFINITY) !=
+            pdPASS) {
+          ESP_LOGE(TAG, "Could not start the USB host event pump; no USB camera will enumerate");
+          ctx->refs.store(1);  // no init task was started
+          ctx->release();
+          return false;
+        }
         ESP_LOGI(TAG, "USB Host installed (peripheral map 0x%X)", (unsigned) this->usb_peripheral_map_);
       } else if (host_ret == ESP_ERR_INVALID_STATE) {
         // Whoever installed it owns the event pump too. If they are not draining
@@ -624,7 +649,9 @@ void ESPVideoCamera::loop() {
     if (!wanted || (int32_t) (millis() - this->pipeline_retry_at_ms_) < 0)
       return;
     this->pipeline_retry_at_ms_ = millis() + PIPELINE_RETRY_INTERVAL_MS;
-    this->start_pipeline_init_();
+    // A failed start is already covered: the retry above is armed either way,
+    // and start_pipeline_init_() has logged why.
+    (void) this->start_pipeline_init_();
     return;
   }
 
@@ -750,8 +777,18 @@ void ESPVideoCamera::loop_direct_capture_() {
     return;
   }
 
-  if (buf.index < (uint32_t) this->num_capture_buffers_)
+  if (buf.index < (uint32_t) this->num_capture_buffers_) {
     this->deliver_frame_((const uint8_t *) this->capture_buffers_[buf.index].start, buf.bytesused);
+  } else {
+    // Not a frame this component mapped. Dropping it silently would look like a
+    // camera that simply sends nothing, so say it once and carry on: the buffer
+    // still has to go back to the driver below.
+    if (!this->warned_stray_buffer_) {
+      this->warned_stray_buffer_ = true;
+      ESP_LOGW(TAG, "The driver returned buffer %u; only %d are mapped", (unsigned) buf.index,
+               this->num_capture_buffers_);
+    }
+  }
 
   if (ioctl(this->capture_fd_, VIDIOC_QBUF, &buf) < 0) {
     ESP_LOGW(TAG, "VIDIOC_QBUF failed: %s", strerror(errno));
@@ -1032,6 +1069,13 @@ bool ESPVideoCamera::setup_capture_buffers_() {
       return false;
     }
   }
+  // REQBUFS is allowed to grant fewer buffers than asked for, including none,
+  // and it reports that in req.count rather than as an error. Streaming with an
+  // empty queue gets no frames and says nothing about why.
+  if (this->num_capture_buffers_ == 0) {
+    ESP_LOGE(TAG, "The device granted no capture buffers; there is nothing to stream into");
+    return false;
+  }
   return true;
 }
 
@@ -1053,6 +1097,7 @@ bool ESPVideoCamera::start_capture_() {
   this->stats_frames_ = 0;
   this->stats_bytes_ = 0;
   this->logged_qbuf_failure_ = false;
+  this->warned_stray_buffer_ = false;
   this->warned_no_frames_ = false;
   return true;
 }
@@ -1074,7 +1119,8 @@ bool ESPVideoCamera::start_direct_capture_() {
     }
     return false;
   }
-  set_dqbuf_timeout(this->capture_fd_, CAPTURE_DQBUF_POLL_MS, "capture");
+  if (!set_dqbuf_timeout(this->capture_fd_, CAPTURE_DQBUF_POLL_MS, "capture"))
+    return false;
   // JPEG, not MJPEG: esp_video's UVC driver maps a camera's MJPEG stream onto
   // V4L2_PIX_FMT_JPEG and rejects V4L2_PIX_FMT_MJPEG outright, so asking for
   // MJPEG loses the S_FMT and leaves the stream unnegotiated. The payload is
@@ -1100,7 +1146,8 @@ bool ESPVideoCamera::start_jpeg_pipeline_() {
     ESP_LOGE(TAG, "open(%s) failed: %s", ESP_VIDEO_MIPI_CSI_DEVICE_NAME, strerror(errno));
     return false;
   }
-  set_dqbuf_timeout(this->capture_fd_, CAPTURE_DQBUF_POLL_MS, "capture");
+  if (!set_dqbuf_timeout(this->capture_fd_, CAPTURE_DQBUF_POLL_MS, "capture"))
+    return false;
   if (!this->configure_capture_format_(V4L2_PIX_FMT_RGB565))
     return false;
   if (!this->setup_capture_buffers_())
@@ -1128,7 +1175,8 @@ bool ESPVideoCamera::start_jpeg_pipeline_() {
   // ...but bound that wait. A 720p hardware encode takes single-digit
   // milliseconds, so this only fires when the encoder is wedged -- and the DQBUF
   // error path then resets its queues (see reset_jpeg_encoder_).
-  set_dqbuf_timeout(this->jpeg_fd_, JPEG_DQBUF_TIMEOUT_MS, "JPEG encoder");
+  if (!set_dqbuf_timeout(this->jpeg_fd_, JPEG_DQBUF_TIMEOUT_MS, "JPEG encoder"))
+    return false;
 
   struct v4l2_format fmt;
   memset(&fmt, 0, sizeof(fmt));

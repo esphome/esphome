@@ -20,13 +20,15 @@ namespace esphome::esp_video_camera {
 /// The ESPHome I2C bus is already created with the new `i2c_master` driver, so
 /// the handle is fetched from the port that bus reports. The configured bus is
 /// honoured, instead of returning whichever bus happens to sit on port 0.
-inline i2c_master_bus_handle_t get_i2c_bus_handle(i2c::InternalI2CBus *bus) {
+///
+/// Returns the driver's own error rather than just a null handle: which port
+/// was asked for, and why it had no bus, is the whole of the diagnosis. The
+/// caller reports it, because a header cannot log.
+inline esp_err_t get_i2c_bus_handle(i2c::InternalI2CBus *bus, i2c_master_bus_handle_t *handle) {
+  *handle = nullptr;
   if (bus == nullptr)
-    return nullptr;
-  i2c_master_bus_handle_t handle = nullptr;
-  if (i2c_master_get_bus_handle((i2c_port_num_t) bus->get_port(), &handle) != ESP_OK)
-    return nullptr;
-  return handle;
+    return ESP_ERR_INVALID_ARG;
+  return i2c_master_get_bus_handle((i2c_port_num_t) bus->get_port(), handle);
 }
 
 }  // namespace esphome::esp_video_camera
