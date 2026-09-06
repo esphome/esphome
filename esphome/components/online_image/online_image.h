@@ -21,9 +21,9 @@ using t_http_codes = enum {
  * The image will then be stored in a buffer, so that it can be re-displayed without the
  * need to re-download or re-decode.
  */
-class OnlineImage : public PollingComponent,
-                    public runtime_image::RuntimeImage,
-                    public Parented<esphome::http_request::HttpRequestComponent> {
+class OnlineImage final : public PollingComponent,
+                          public runtime_image::RuntimeImage,
+                          public Parented<esphome::http_request::HttpRequestComponent> {
  public:
   /**
    * @brief Construct a new OnlineImage object.
@@ -104,7 +104,7 @@ class OnlineImage : public PollingComponent,
   uint32_t start_time_{0};
 };
 
-template<typename... Ts> class OnlineImageSetUrlAction : public Action<Ts...> {
+template<typename... Ts> class OnlineImageSetUrlAction final : public Action<Ts...> {
  public:
   OnlineImageSetUrlAction(OnlineImage *parent) : parent_(parent) {}
   TEMPLATABLE_VALUE(std::string, url)
@@ -120,7 +120,7 @@ template<typename... Ts> class OnlineImageSetUrlAction : public Action<Ts...> {
   OnlineImage *parent_;
 };
 
-template<typename... Ts> class OnlineImageReleaseAction : public Action<Ts...> {
+template<typename... Ts> class OnlineImageReleaseAction final : public Action<Ts...> {
  public:
   OnlineImageReleaseAction(OnlineImage *parent) : parent_(parent) {}
   void play(const Ts &...x) override { this->parent_->release(); }

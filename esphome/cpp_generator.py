@@ -699,21 +699,28 @@ def add_build_flag(build_flag: str):
     CORE.add_build_flag(build_flag)
 
 
+def add_cmake_arg(name: str, value: str) -> None:
+    """Add a CMake arg for CMake-based toolchains; see ``EsphomeCore.add_cmake_arg``."""
+    CORE.add_cmake_arg(name, value)
+
+
+def add_cxx_build_flag(build_flag: str) -> None:
+    """Add a global build flag that applies to C++ compiles only.
+
+    Use for flags GCC rejects or warns about when passed on C compiles
+    (e.g. ``-Wno-volatile``).
+    """
+    CORE.add_cxx_build_flag(build_flag)
+
+
 def add_build_unflag(build_unflag: str) -> None:
     """Add a global build unflag to the compiler flags."""
     CORE.add_build_unflag(build_unflag)
 
 
 def set_cpp_standard(standard: str) -> None:
-    """Set C++ standard with compiler flag `-std={standard}`."""
-    CORE.add_build_unflag("-std=gnu++11")
-    CORE.add_build_unflag("-std=gnu++14")
-    CORE.add_build_unflag("-std=gnu++17")
-    CORE.add_build_unflag("-std=gnu++23")
-    CORE.add_build_unflag("-std=gnu++2a")
-    CORE.add_build_unflag("-std=gnu++2b")
-    CORE.add_build_unflag("-std=gnu++2c")
-    CORE.add_build_flag(f"-std={standard}")
+    """Set the C++ language standard for the build (e.g. ``gnu++20``)."""
+    CORE.cpp_standard = standard
 
 
 def add_define(name: str, value: SafeExpType = None):

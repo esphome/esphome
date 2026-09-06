@@ -38,7 +38,7 @@ enum VerticalDirection {
   VERTICAL_DIRECTION_DOWN = 0x28,
 };
 
-class MitsubishiClimate : public climate_ir::ClimateIR {
+class MitsubishiClimate final : public climate_ir::ClimateIR {
  public:
   MitsubishiClimate()
       : climate_ir::ClimateIR(MITSUBISHI_TEMP_MIN, MITSUBISHI_TEMP_MAX, 1.0f, true, true,

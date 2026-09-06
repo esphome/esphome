@@ -6,7 +6,7 @@
 
 namespace esphome::template_ {
 
-template<typename... Ts> class TemplateValvePublishAction : public Action<Ts...>, public Parented<TemplateValve> {
+template<typename... Ts> class TemplateValvePublishAction final : public Action<Ts...>, public Parented<TemplateValve> {
   TEMPLATABLE_VALUE(float, position)
   TEMPLATABLE_VALUE(valve::ValveOperation, current_operation)
 

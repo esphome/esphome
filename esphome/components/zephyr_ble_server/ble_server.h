@@ -6,7 +6,7 @@
 
 namespace esphome::zephyr_ble_server {
 
-class BLEServer : public Component {
+class BLEServer final : public Component {
  public:
   void setup() override;
   void dump_config() override;
@@ -21,7 +21,7 @@ class BLEServer : public Component {
   CallbackManager<void(uint32_t)> passkey_cb_;
 };
 
-template<typename... Ts> class BLENumericComparisonReplyAction : public Action<Ts...> {
+template<typename... Ts> class BLENumericComparisonReplyAction final : public Action<Ts...> {
  public:
   explicit BLENumericComparisonReplyAction(BLEServer *parent) : parent_(parent) {}
 

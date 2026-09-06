@@ -123,26 +123,18 @@ lv_image_dsc_t *Image::get_lv_image_dsc() {
         break;
 
       case IMAGE_TYPE_RGB:
-#if LV_COLOR_DEPTH == 32
         switch (this->transparency_) {
           case TRANSPARENCY_ALPHA_CHANNEL:
-            this->dsc_.header.cf = LV_IMG_CF_TRUE_COLOR_ALPHA;
+            this->dsc_.header.cf = LV_COLOR_FORMAT_ARGB8888;
             break;
           case TRANSPARENCY_CHROMA_KEY:
-            this->dsc_.header.cf = LV_IMG_CF_TRUE_COLOR_CHROMA_KEYED;
-            break;
           default:
-            this->dsc_.header.cf = LV_IMG_CF_TRUE_COLOR;
+            this->dsc_.header.cf = LV_COLOR_FORMAT_RGB888;
             break;
         }
-#else
-        this->dsc_.header.cf =
-            this->transparency_ == TRANSPARENCY_ALPHA_CHANNEL ? LV_COLOR_FORMAT_ARGB8888 : LV_COLOR_FORMAT_RGB888;
-#endif
         break;
 
       case IMAGE_TYPE_RGB565:
-#if LV_COLOR_DEPTH == 16
         switch (this->transparency_) {
           case TRANSPARENCY_ALPHA_CHANNEL:
             this->dsc_.header.cf = LV_COLOR_FORMAT_RGB565A8;
@@ -150,10 +142,6 @@ lv_image_dsc_t *Image::get_lv_image_dsc() {
           default:
             this->dsc_.header.cf = LV_COLOR_FORMAT_RGB565;
         }
-#else
-        this->dsc_.header.cf =
-            this->transparency_ == TRANSPARENCY_ALPHA_CHANNEL ? LV_IMG_CF_RGB565A8 : LV_IMG_CF_RGB565;
-#endif
         break;
     }
   }

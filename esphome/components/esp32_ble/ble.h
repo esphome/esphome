@@ -87,7 +87,7 @@ enum BLEComponentState : uint8_t {
   BLE_COMPONENT_STATE_ACTIVE,
 };
 
-class ESP32BLE : public Component {
+class ESP32BLE final : public Component {
  public:
   void set_io_capability(IoCapability io_capability) { this->io_cap_ = (esp_ble_io_cap_t) io_capability; }
 
@@ -108,11 +108,23 @@ class ESP32BLE : public Component {
   void setup() override;
   void loop() override;
   void dump_config() override;
+  /// Adapter MAC in printable (MSB-first) order; all-zero until the stack is up.
+  void get_mac_msb_first(uint8_t out[MAC_ADDRESS_SIZE]) const;
   float get_setup_priority() const override;
   void set_name(const char *name) { this->name_ = name; }
 
 #ifdef USE_ESP32_BLE_ADVERTISING
+  /** Request advertising on behalf of a component.
+   *
+   * Requests are reference counted: advertising runs until every component that called
+   * advertising_start() has released it again with advertising_stop(). Each component must
+   * pair its calls, so nothing advertises until something actually asks for it.
+   */
   void advertising_start();
+  /// Release a request made with advertising_start(); advertising stops at the last release.
+  void advertising_stop();
+  /// Apply the current payload and request count: advertise while requested, otherwise stop.
+  void advertising_refresh();
   void advertising_set_service_data(const std::vector<uint8_t> &data);
   void advertising_set_manufacturer_data(const std::vector<uint8_t> &data);
   void advertising_set_appearance(uint16_t appearance) { this->appearance_ = appearance; }
@@ -224,6 +236,9 @@ class ESP32BLE : public Component {
   // 1-byte aligned members (grouped together to minimize padding)
   BLEComponentState state_{BLE_COMPONENT_STATE_OFF};  // 1 byte (uint8_t enum)
   bool enable_on_boot_{};                             // 1 byte
+#ifdef USE_ESP32_BLE_ADVERTISING
+  uint8_t advertising_ref_count_{0};  // 1 byte, number of components requesting advertising
+#endif
 
 #ifdef ESPHOME_ESP32_BLE_EXTENDED_AUTH_PARAMS
   optional<esp_ble_auth_req_t> auth_req_mode_;
@@ -236,12 +251,12 @@ class ESP32BLE : public Component {
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
 extern ESP32BLE *global_ble;
 
-template<typename... Ts> class BLEEnabledCondition : public Condition<Ts...> {
+template<typename... Ts> class BLEEnabledCondition final : public Condition<Ts...> {
  public:
   bool check(const Ts &...x) override { return global_ble != nullptr && global_ble->is_active(); }
 };
 
-template<typename... Ts> class BLEEnableAction : public Action<Ts...> {
+template<typename... Ts> class BLEEnableAction final : public Action<Ts...> {
  public:
   void play(const Ts &...x) override {
     if (global_ble != nullptr)
@@ -249,7 +264,7 @@ template<typename... Ts> class BLEEnableAction : public Action<Ts...> {
   }
 };
 
-template<typename... Ts> class BLEDisableAction : public Action<Ts...> {
+template<typename... Ts> class BLEDisableAction final : public Action<Ts...> {
  public:
   void play(const Ts &...x) override {
     if (global_ble != nullptr)

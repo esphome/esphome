@@ -4,7 +4,7 @@
 
 namespace esphome::bmp3xx_i2c {
 
-class BMP3XXI2CComponent : public bmp3xx_base::BMP3XXComponent, public i2c::I2CDevice {
+class BMP3XXI2CComponent final : public bmp3xx_base::BMP3XXComponent, public i2c::I2CDevice {
   bool read_byte(uint8_t a_register, uint8_t *data) override;
   bool write_byte(uint8_t a_register, uint8_t data) override;
   bool read_bytes(uint8_t a_register, uint8_t *data, size_t len) override;

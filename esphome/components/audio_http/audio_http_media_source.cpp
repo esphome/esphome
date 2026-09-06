@@ -30,8 +30,9 @@ void AudioHTTPMediaSource::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "Audio HTTP Media Source:\n"
                 "  Buffer Size: %zu bytes\n"
+                "  Persistent Ring Buffer: %s\n"
                 "  Decoder Task Stack in PSRAM: %s",
-                this->buffer_size_, YESNO(this->decoder_task_stack_in_psram_));
+                this->buffer_size_, YESNO(this->persistent_ring_buffer_), YESNO(this->decoder_task_stack_in_psram_));
 }
 
 void AudioHTTPMediaSource::setup() {
@@ -39,6 +40,7 @@ void AudioHTTPMediaSource::setup() {
 
   micro_decoder::DecoderConfig config;
   config.ring_buffer_size = this->buffer_size_;
+  config.persistent_ring_buffer = this->persistent_ring_buffer_;
   // Keep the transfer buffer smaller than the ring buffer so the reader can top up the ring
   // while the decoder is still draining it, instead of oscillating between empty and full.
   config.transfer_buffer_size = std::min(DEFAULT_TRANSFER_BUFFER_SIZE, this->buffer_size_ / 2);

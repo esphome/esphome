@@ -1,5 +1,5 @@
 sensor:
-  - id: my_sensor
+  - id: adc_my_sensor
     platform: adc
     pin: A5
     name: ADC Test sensor

@@ -7,7 +7,7 @@
 
 namespace esphome::sds011 {
 
-class SDS011Component : public Component, public uart::UARTDevice {
+class SDS011Component final : public Component, public uart::UARTDevice {
  public:
   SDS011Component() = default;
 

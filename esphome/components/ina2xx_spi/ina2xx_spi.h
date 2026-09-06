@@ -6,9 +6,9 @@
 
 namespace esphome::ina2xx_spi {
 
-class INA2XXSPI : public ina2xx_base::INA2XX,
-                  public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW, spi::CLOCK_PHASE_TRAILING,
-                                        spi::DATA_RATE_1MHZ> {
+class INA2XXSPI final : public ina2xx_base::INA2XX,
+                        public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW,
+                                              spi::CLOCK_PHASE_TRAILING, spi::DATA_RATE_1MHZ> {
  public:
   void setup() override;
   void dump_config() override;

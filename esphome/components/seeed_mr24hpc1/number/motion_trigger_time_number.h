@@ -5,7 +5,7 @@
 
 namespace esphome::seeed_mr24hpc1 {
 
-class MotionTriggerTimeNumber : public number::Number, public Parented<MR24HPC1Component> {
+class MotionTriggerTimeNumber final : public number::Number, public Parented<MR24HPC1Component> {
  public:
   MotionTriggerTimeNumber() = default;
 

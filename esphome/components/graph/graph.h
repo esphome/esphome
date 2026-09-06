@@ -42,7 +42,7 @@ enum ValuePositionType {
   VALUE_POSITION_TYPE_BELOW
 };
 
-class GraphLegend {
+class GraphLegend final {
  public:
   void init(Graph *g);
   void set_name_font(display::BaseFont *font) { this->font_label_ = font; }
@@ -105,7 +105,7 @@ class HistoryData {
   std::vector<float> samples_;
 };
 
-class GraphTrace {
+class GraphTrace final {
  public:
   void init(Graph *g);
   void set_name(std::string name) { name_ = std::move(name); }
@@ -134,7 +134,7 @@ class GraphTrace {
   friend GraphLegend;
 };
 
-class Graph : public Component {
+class Graph final : public Component {
  public:
   void draw(display::Display *buff, uint16_t x_offset, uint16_t y_offset, Color color);
   void draw_legend(display::Display *buff, uint16_t x_offset, uint16_t y_offset, Color color);

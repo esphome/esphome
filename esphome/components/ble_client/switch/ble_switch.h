@@ -12,7 +12,7 @@ namespace esphome::ble_client {
 
 namespace espbt = esphome::esp32_ble_tracker;
 
-class BLEClientSwitch : public switch_::Switch, public Component, public BLEClientNode {
+class BLEClientSwitch final : public switch_::Switch, public Component, public BLEClientNode {
  public:
   void dump_config() override;
   void loop() override {}

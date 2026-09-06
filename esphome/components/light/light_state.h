@@ -109,7 +109,7 @@ class LightState : public EntityBase, public Component {
   void dump_config() override;
   void loop() override;
   /// Shortly after HARDWARE.
-  float get_setup_priority() const override;
+  float get_setup_priority() const override { return setup_priority::HARDWARE - 1.0f; }
 
   /** The current values of the light as outputted to the light.
    *
@@ -157,15 +157,19 @@ class LightState : public EntityBase, public Component {
   void add_target_state_reached_listener(LightTargetStateReachedListener *listener);
 
   /// Set the default transition length, i.e. the transition length when no transition is provided.
-  void set_default_transition_length(uint32_t default_transition_length);
-  uint32_t get_default_transition_length() const;
+  void set_default_transition_length(uint32_t default_transition_length) {
+    this->default_transition_length_ = default_transition_length;
+  }
+  uint32_t get_default_transition_length() const { return this->default_transition_length_; }
 
   /// Set the flash transition length
-  void set_flash_transition_length(uint32_t flash_transition_length);
-  uint32_t get_flash_transition_length() const;
+  void set_flash_transition_length(uint32_t flash_transition_length) {
+    this->flash_transition_length_ = flash_transition_length;
+  }
+  uint32_t get_flash_transition_length() const { return this->flash_transition_length_; }
 
   /// Set the gamma correction factor
-  void set_gamma_correct(float gamma_correct);
+  void set_gamma_correct(float gamma_correct) { this->gamma_correct_ = gamma_correct; }
   float get_gamma_correct() const { return this->gamma_correct_; }
 
 #ifdef USE_LIGHT_GAMMA_LUT
@@ -186,17 +190,17 @@ class LightState : public EntityBase, public Component {
 #endif  // USE_LIGHT_GAMMA_LUT
 
   /// Set the restore mode of this light
-  void set_restore_mode(LightRestoreMode restore_mode);
+  void set_restore_mode(LightRestoreMode restore_mode) { this->restore_mode_ = restore_mode; }
 
   /// Set a callback to populate the initial state defaults during setup.
   /// The callback is called once, then cleared. Values live in flash as code.
-  void set_initial_state(void (*callback)(LightStateRTCState &));
+  void set_initial_state(void (*callback)(LightStateRTCState &)) { this->initial_state_callback_ = callback; }
 
   /// Return whether the light has any effects that meet the trait requirements.
-  bool supports_effects();
+  bool supports_effects() const { return !this->effects_.empty(); }
 
   /// Get all effects for this light state.
-  const FixedVector<LightEffect *> &get_effects() const;
+  const FixedVector<LightEffect *> &get_effects() const { return this->effects_; }
 
   /// Add effects for this light state.
   void add_effects(const std::initializer_list<LightEffect *> &effects);
@@ -254,7 +258,7 @@ class LightState : public EntityBase, public Component {
   }
 
   /// The result of all the current_values_as_* methods have gamma correction applied.
-  void current_values_as_binary(bool *binary);
+  void current_values_as_binary(bool *binary) { this->current_values.as_binary(binary); }
 
   void current_values_as_brightness(float *brightness);
 
@@ -281,7 +285,7 @@ class LightState : public EntityBase, public Component {
    *   return;
    * }
    */
-  bool is_transformer_active();
+  bool is_transformer_active() const { return this->is_transformer_active_; }
 
  protected:
   friend LightOutput;

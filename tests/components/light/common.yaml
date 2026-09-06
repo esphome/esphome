@@ -156,7 +156,7 @@ light:
   - platform: binary
     id: test_binary_light
     name: Binary Light
-    output: test_binary
+    output: light_test_binary
     effects:
       - strobe:
     on_state:

@@ -9,7 +9,7 @@
 
 namespace esphome::esp32_improv {
 
-class ESP32ImprovProvisionedTrigger : public Trigger<> {
+class ESP32ImprovProvisionedTrigger final : public Trigger<> {
  public:
   explicit ESP32ImprovProvisionedTrigger(ESP32ImprovComponent *parent) : parent_(parent) {
     parent->add_on_state_callback([this](improv::State state, improv::Error error) {
@@ -23,7 +23,7 @@ class ESP32ImprovProvisionedTrigger : public Trigger<> {
   ESP32ImprovComponent *parent_;
 };
 
-class ESP32ImprovProvisioningTrigger : public Trigger<> {
+class ESP32ImprovProvisioningTrigger final : public Trigger<> {
  public:
   explicit ESP32ImprovProvisioningTrigger(ESP32ImprovComponent *parent) : parent_(parent) {
     parent->add_on_state_callback([this](improv::State state, improv::Error error) {
@@ -37,7 +37,7 @@ class ESP32ImprovProvisioningTrigger : public Trigger<> {
   ESP32ImprovComponent *parent_;
 };
 
-class ESP32ImprovStartTrigger : public Trigger<> {
+class ESP32ImprovStartTrigger final : public Trigger<> {
  public:
   explicit ESP32ImprovStartTrigger(ESP32ImprovComponent *parent) : parent_(parent) {
     parent->add_on_state_callback([this](improv::State state, improv::Error error) {
@@ -52,7 +52,7 @@ class ESP32ImprovStartTrigger : public Trigger<> {
   ESP32ImprovComponent *parent_;
 };
 
-class ESP32ImprovStateTrigger : public Trigger<improv::State, improv::Error> {
+class ESP32ImprovStateTrigger final : public Trigger<improv::State, improv::Error> {
  public:
   explicit ESP32ImprovStateTrigger(ESP32ImprovComponent *parent) : parent_(parent) {
     parent->add_on_state_callback([this](improv::State state, improv::Error error) {
@@ -66,7 +66,7 @@ class ESP32ImprovStateTrigger : public Trigger<improv::State, improv::Error> {
   ESP32ImprovComponent *parent_;
 };
 
-class ESP32ImprovStoppedTrigger : public Trigger<> {
+class ESP32ImprovStoppedTrigger final : public Trigger<> {
  public:
   explicit ESP32ImprovStoppedTrigger(ESP32ImprovComponent *parent) : parent_(parent) {
     parent->add_on_state_callback([this](improv::State state, improv::Error error) {

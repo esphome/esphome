@@ -67,7 +67,7 @@ using qmp6988_data_t = struct Qmp6988Data {
   qmp6988_ik_data_t ik;
 };
 
-class QMP6988Component : public PollingComponent, public i2c::I2CDevice {
+class QMP6988Component final : public PollingComponent, public i2c::I2CDevice {
  public:
   void set_temperature_sensor(sensor::Sensor *temperature_sensor) { this->temperature_sensor_ = temperature_sensor; }
   void set_pressure_sensor(sensor::Sensor *pressure_sensor) { this->pressure_sensor_ = pressure_sensor; }

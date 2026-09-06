@@ -16,7 +16,7 @@ class HttpContainerHost : public HttpContainer {
   std::vector<uint8_t> response_body_{};
 };
 
-class HttpRequestHost : public HttpRequestComponent {
+class HttpRequestHost final : public HttpRequestComponent {
  public:
   std::shared_ptr<HttpContainer> perform(const std::string &url, const std::string &method, const std::string &body,
                                          const std::vector<Header> &request_headers,

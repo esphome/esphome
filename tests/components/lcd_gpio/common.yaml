@@ -1,6 +1,6 @@
 display:
   - platform: lcd_gpio
-    id: my_lcd_gpio
+    id: lcd_gpio_my_lcd_gpio
     dimensions: 18x4
     data_pins:
       - number: ${d0_pin}

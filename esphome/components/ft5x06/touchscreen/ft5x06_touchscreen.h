@@ -34,7 +34,7 @@ enum FTMode : uint8_t {
 
 static const size_t MAX_TOUCHES = 5;  // max number of possible touches reported
 
-class FT5x06Touchscreen : public touchscreen::Touchscreen, public i2c::I2CDevice {
+class FT5x06Touchscreen final : public touchscreen::Touchscreen, public i2c::I2CDevice {
  public:
   void setup() override;
   void dump_config() override;

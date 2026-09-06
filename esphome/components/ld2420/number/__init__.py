@@ -12,6 +12,7 @@ from esphome.const import (
     ICON_TIMELAPSE,
     UNIT_SECOND,
 )
+from esphome.types import ConfigType
 
 from .. import CONF_LD2420_ID, LD2420Component, ld2420_ns
 
@@ -113,7 +114,7 @@ CONFIG_SCHEMA = CONFIG_SCHEMA.extend(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     LD2420_component = await cg.get_variable(config[CONF_LD2420_ID])
     if gate_timeout_config := config.get(CONF_PRESENCE_TIMEOUT):
         n = await number.new_number(

@@ -6,7 +6,7 @@
 
 namespace esphome::max6956 {
 
-template<typename... Ts> class SetCurrentGlobalAction : public Action<Ts...> {
+template<typename... Ts> class SetCurrentGlobalAction final : public Action<Ts...> {
  public:
   SetCurrentGlobalAction(MAX6956 *max6956) : max6956_(max6956) {}
 
@@ -21,7 +21,7 @@ template<typename... Ts> class SetCurrentGlobalAction : public Action<Ts...> {
   MAX6956 *max6956_;
 };
 
-template<typename... Ts> class SetCurrentModeAction : public Action<Ts...> {
+template<typename... Ts> class SetCurrentModeAction final : public Action<Ts...> {
  public:
   SetCurrentModeAction(MAX6956 *max6956) : max6956_(max6956) {}
 

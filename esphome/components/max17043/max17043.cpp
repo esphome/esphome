@@ -23,7 +23,7 @@ void MAX17043Component::update() {
     if (!this->read_byte_16(MAX17043_VCELL, &raw_voltage)) {
       this->status_set_warning(LOG_STR("Unable to read MAX17043_VCELL"));
     } else {
-      float voltage = (1.25 * (float) (raw_voltage >> 4)) / 1000.0;
+      float voltage = (1.25f * (float) (raw_voltage >> 4)) / 1000.0f;
       this->voltage_sensor_->publish_state(voltage);
       this->status_clear_warning();
     }

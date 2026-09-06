@@ -6,7 +6,7 @@
 
 namespace esphome::hyt271 {
 
-class HYT271Component : public PollingComponent, public i2c::I2CDevice {
+class HYT271Component final : public PollingComponent, public i2c::I2CDevice {
  public:
   void set_temperature(sensor::Sensor *temperature) { temperature_ = temperature; }
   void set_humidity(sensor::Sensor *humidity) { humidity_ = humidity; }

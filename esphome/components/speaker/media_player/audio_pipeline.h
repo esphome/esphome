@@ -56,7 +56,7 @@ struct InfoErrorEvent {
   optional<DecodingError> decoding_err;
 };
 
-class AudioPipeline {
+class AudioPipeline final {
  public:
   /// @param speaker ESPHome speaker component for pipeline's audio output
   /// @param buffer_size Size of the buffer in bytes between the reader and decoder

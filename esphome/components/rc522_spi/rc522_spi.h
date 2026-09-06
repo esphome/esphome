@@ -14,9 +14,9 @@
  */
 namespace esphome::rc522_spi {
 
-class RC522Spi : public rc522::RC522,
-                 public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW, spi::CLOCK_PHASE_LEADING,
-                                       spi::DATA_RATE_4MHZ> {
+class RC522Spi final : public rc522::RC522,
+                       public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW,
+                                             spi::CLOCK_PHASE_LEADING, spi::DATA_RATE_4MHZ> {
  public:
   void setup() override;
 

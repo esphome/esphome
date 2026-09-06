@@ -5,7 +5,7 @@
 
 namespace esphome::copy {
 
-class CopyNumber : public number::Number, public Component {
+class CopyNumber final : public number::Number, public Component {
  public:
   void set_source(number::Number *source) { source_ = source; }
   void setup() override;

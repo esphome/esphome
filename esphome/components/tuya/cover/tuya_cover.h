@@ -12,7 +12,7 @@ enum TuyaCoverRestoreMode {
   COVER_RESTORE_AND_CALL,
 };
 
-class TuyaCover : public cover::Cover, public Component {
+class TuyaCover final : public cover::Cover, public Component {
  public:
   void setup() override;
   void dump_config() override;

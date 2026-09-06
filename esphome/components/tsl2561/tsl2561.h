@@ -26,7 +26,7 @@ enum TSL2561Gain {
 };
 
 /// This class includes support for the TSL2561 i2c ambient light sensor.
-class TSL2561Sensor : public sensor::Sensor, public PollingComponent, public i2c::I2CDevice {
+class TSL2561Sensor final : public sensor::Sensor, public PollingComponent, public i2c::I2CDevice {
  public:
   /** Set the time that sensor values should be accumulated for.
    *

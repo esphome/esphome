@@ -10,7 +10,7 @@
 
 namespace esphome::mqtt {
 
-class MQTTButtonComponent : public mqtt::MQTTComponent {
+class MQTTButtonComponent final : public mqtt::MQTTComponent {
  public:
   explicit MQTTButtonComponent(button::Button *button);
 

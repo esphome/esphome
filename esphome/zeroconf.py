@@ -62,14 +62,12 @@ TXT_RECORD_VERSION = b"version"
 class DiscoveredImport:
     """An importable device discovered via mDNS ``_esphomelib._tcp.local.``.
 
-    Used by:
-    - esphome.dashboard (legacy dashboard)
-    - device-builder (esphome/device-builder) — surfaces these as
-      "discovered devices" on the new dashboard's adoption flow.
+    Used by device-builder (esphome/device-builder), which surfaces these as
+    "discovered devices" on its adoption flow.
 
     Fields are populated from TXT records on the broadcast service
     info (see :class:`DashboardImportDiscovery`). Coordinate before
-    adding/removing fields — both consumers persist them.
+    adding/removing fields — the consumer persists them.
     """
 
     friendly_name: str | None
@@ -87,11 +85,9 @@ class DashboardBrowser(AsyncServiceBrowser):
 class DashboardImportDiscovery:
     """Track importable devices announcing on ``_esphomelib._tcp.local.``.
 
-    Used by:
-    - esphome.dashboard (legacy dashboard)
-    - device-builder (esphome/device-builder) — wired up alongside
-      the dashboard's own ``ServiceBrowser`` to populate the
-      "Discovered devices" panel and the adoption flow.
+    Used by device-builder (esphome/device-builder), which wires it up
+    alongside its own ``ServiceBrowser`` to populate the
+    "Discovered devices" panel and the adoption flow.
 
     The class maintains ``import_state: dict[str, DiscoveredImport]``
     keyed by the mDNS service name. ``on_update`` is invoked with
@@ -262,11 +258,9 @@ async def async_resolve_hosts(
 class AsyncEsphomeZeroconf(AsyncZeroconf):
     """ESPHome-tuned ``AsyncZeroconf`` with a hostname-resolve helper.
 
-    Used by:
-    - esphome.dashboard (legacy dashboard)
-    - device-builder (esphome/device-builder) — drives both the live
-      mDNS browser and the per-sweep ``async_resolve_host`` fallback
-      for non-API devices that don't broadcast esphomelib.
+    Used by device-builder (esphome/device-builder), which drives both the live
+    mDNS browser and the per-sweep ``async_resolve_host`` fallback
+    for non-API devices that don't broadcast esphomelib.
 
     Coordinate before adding required constructor args or changing
     the ``async_resolve_host`` signature — device-builder calls it

@@ -5,7 +5,7 @@
 
 namespace esphome::libretiny {
 
-class ArduinoInternalGPIOPin : public InternalGPIOPin {
+class ArduinoInternalGPIOPin final : public InternalGPIOPin {
  public:
   void set_pin(uint8_t pin) { pin_ = pin; }
   void set_inverted(bool inverted) { inverted_ = inverted; }

@@ -9,7 +9,7 @@
 
 namespace esphome::pmwcs3 {
 
-class PMWCS3Component : public PollingComponent, public i2c::I2CDevice {
+class PMWCS3Component final : public PollingComponent, public i2c::I2CDevice {
  public:
   void update() override;
   void dump_config() override;
@@ -32,7 +32,7 @@ class PMWCS3Component : public PollingComponent, public i2c::I2CDevice {
   sensor::Sensor *vwc_sensor_{nullptr};
 };
 
-template<typename... Ts> class PMWCS3AirCalibrationAction : public Action<Ts...> {
+template<typename... Ts> class PMWCS3AirCalibrationAction final : public Action<Ts...> {
  public:
   PMWCS3AirCalibrationAction(PMWCS3Component *parent) : parent_(parent) {}
 
@@ -42,7 +42,7 @@ template<typename... Ts> class PMWCS3AirCalibrationAction : public Action<Ts...>
   PMWCS3Component *parent_;
 };
 
-template<typename... Ts> class PMWCS3WaterCalibrationAction : public Action<Ts...> {
+template<typename... Ts> class PMWCS3WaterCalibrationAction final : public Action<Ts...> {
  public:
   PMWCS3WaterCalibrationAction(PMWCS3Component *parent) : parent_(parent) {}
 
@@ -52,7 +52,7 @@ template<typename... Ts> class PMWCS3WaterCalibrationAction : public Action<Ts..
   PMWCS3Component *parent_;
 };
 
-template<typename... Ts> class PMWCS3NewI2cAddressAction : public Action<Ts...> {
+template<typename... Ts> class PMWCS3NewI2cAddressAction final : public Action<Ts...> {
  public:
   PMWCS3NewI2cAddressAction(PMWCS3Component *parent) : parent_(parent) {}
   TEMPLATABLE_VALUE(int, new_address)

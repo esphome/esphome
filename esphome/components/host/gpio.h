@@ -6,7 +6,7 @@
 
 namespace esphome::host {
 
-class HostGPIOPin : public InternalGPIOPin {
+class HostGPIOPin final : public InternalGPIOPin {
  public:
   void set_pin(uint8_t pin) { pin_ = pin; }
   void set_inverted(bool inverted) { inverted_ = inverted; }

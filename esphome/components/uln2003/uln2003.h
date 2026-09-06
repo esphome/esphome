@@ -12,7 +12,7 @@ enum ULN2003StepMode {
   ULN2003_STEP_MODE_WAVE_DRIVE,
 };
 
-class ULN2003 : public stepper::Stepper, public Component {
+class ULN2003 final : public stepper::Stepper, public Component {
  public:
   void set_pin_a(GPIOPin *pin_a) { pin_a_ = pin_a; }
   void set_pin_b(GPIOPin *pin_b) { pin_b_ = pin_b; }

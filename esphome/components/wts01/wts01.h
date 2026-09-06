@@ -8,7 +8,7 @@ namespace esphome::wts01 {
 
 constexpr uint8_t PACKET_SIZE = 9;
 
-class WTS01Sensor : public sensor::Sensor, public uart::UARTDevice, public Component {
+class WTS01Sensor final : public sensor::Sensor, public uart::UARTDevice, public Component {
  public:
   void loop() override;
   void dump_config() override;

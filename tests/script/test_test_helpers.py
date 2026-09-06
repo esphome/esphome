@@ -266,11 +266,13 @@ def _make_component_stub(
     *,
     multi_conf: bool = False,
     is_platform_component: bool = False,
+    is_target_platform: bool = False,
     config_schema=None,
 ) -> MagicMock:
     stub = MagicMock()
     stub.multi_conf = multi_conf
     stub.is_platform_component = is_platform_component
+    stub.is_target_platform = is_target_platform
     stub.config_schema = config_schema
     return stub
 

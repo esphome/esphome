@@ -195,10 +195,7 @@ void RFBridgeComponent::learn() {
   this->flush();
 }
 
-void RFBridgeComponent::dump_config() {
-  ESP_LOGCONFIG(TAG, "RF_Bridge:");
-  this->check_uart_settings(19200);
-}
+void RFBridgeComponent::dump_config() { ESP_LOGCONFIG(TAG, "RF_Bridge:"); }
 
 void RFBridgeComponent::start_advanced_sniffing() {
   ESP_LOGI(TAG, "Advanced Sniffing on");

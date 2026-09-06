@@ -35,7 +35,7 @@ enum TCS34725Gain {
   TCS34725_GAIN_60X = 0x03,
 };
 
-class TCS34725Component : public PollingComponent, public i2c::I2CDevice {
+class TCS34725Component final : public PollingComponent, public i2c::I2CDevice {
  public:
   void set_integration_time(TCS34725IntegrationTime integration_time);
   void set_gain(TCS34725Gain gain);

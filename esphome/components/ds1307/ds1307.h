@@ -6,7 +6,7 @@
 
 namespace esphome::ds1307 {
 
-class DS1307Component : public time::RealTimeClock, public i2c::I2CDevice {
+class DS1307Component final : public time::RealTimeClock, public i2c::I2CDevice {
  public:
   void setup() override;
   void update() override;
@@ -55,12 +55,12 @@ class DS1307Component : public time::RealTimeClock, public i2c::I2CDevice {
   } ds1307_;
 };
 
-template<typename... Ts> class WriteAction : public Action<Ts...>, public Parented<DS1307Component> {
+template<typename... Ts> class WriteAction final : public Action<Ts...>, public Parented<DS1307Component> {
  public:
   void play(const Ts &...x) override { this->parent_->write_time(); }
 };
 
-template<typename... Ts> class ReadAction : public Action<Ts...>, public Parented<DS1307Component> {
+template<typename... Ts> class ReadAction final : public Action<Ts...>, public Parented<DS1307Component> {
  public:
   void play(const Ts &...x) override { this->parent_->read_time(); }
 };

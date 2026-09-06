@@ -41,6 +41,7 @@ from esphome.const import (
     UNIT_WATT,
     UNIT_WATT_HOURS,
 )
+from esphome.types import ConfigType
 
 from . import atm90e32_ns
 
@@ -342,7 +343,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     cg.add(var.set_instance_id(str(config[CONF_ID])))
     await cg.register_component(var, config)

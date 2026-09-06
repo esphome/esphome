@@ -4,7 +4,7 @@
 
 namespace esphome::safe_mode {
 
-template<typename... Ts> class MarkSuccessfulAction : public Action<Ts...>, public Parented<SafeModeComponent> {
+template<typename... Ts> class MarkSuccessfulAction final : public Action<Ts...>, public Parented<SafeModeComponent> {
  public:
   void play(const Ts &...x) override { this->parent_->mark_successful(); }
 };

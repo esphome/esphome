@@ -8,7 +8,7 @@ namespace esphome::tca9548a {
 static const uint8_t TCA9548A_DISABLE_CHANNELS_COMMAND = 0x00;
 
 class TCA9548AComponent;
-class TCA9548AChannel : public i2c::I2CBus {
+class TCA9548AChannel final : public i2c::I2CBus {
  public:
   void set_channel(uint8_t channel) { channel_ = channel; }
   void set_parent(TCA9548AComponent *parent) { parent_ = parent; }
@@ -21,7 +21,7 @@ class TCA9548AChannel : public i2c::I2CBus {
   TCA9548AComponent *parent_;
 };
 
-class TCA9548AComponent : public Component, public i2c::I2CDevice {
+class TCA9548AComponent final : public Component, public i2c::I2CDevice {
  public:
   void setup() override;
   void dump_config() override;

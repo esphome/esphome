@@ -5,7 +5,7 @@
 
 namespace esphome::seeed_mr24hpc1 {
 
-class MotionBoundarySelect : public select::Select, public Parented<MR24HPC1Component> {
+class MotionBoundarySelect final : public select::Select, public Parented<MR24HPC1Component> {
  public:
   MotionBoundarySelect() = default;
 

@@ -1,0 +1,7 @@
+# Exercises the dict form of fast_connect with RTC-backed preference storage.
+wifi:
+  ssid: MySSID
+  password: password1
+  fast_connect:
+    enabled: true
+    storage: rtc

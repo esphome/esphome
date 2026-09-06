@@ -6,7 +6,7 @@
 
 namespace esphome::ssd1327_i2c {
 
-class I2CSSD1327 : public ssd1327_base::SSD1327, public i2c::I2CDevice {
+class I2CSSD1327 final : public ssd1327_base::SSD1327, public i2c::I2CDevice {
  public:
   void setup() override;
   void dump_config() override;

@@ -59,6 +59,7 @@ from esphome.const import (
     DEVICE_CLASS_PRECIPITATION,
     DEVICE_CLASS_PRECIPITATION_INTENSITY,
     DEVICE_CLASS_PRESSURE,
+    DEVICE_CLASS_RADON,
     DEVICE_CLASS_REACTIVE_ENERGY,
     DEVICE_CLASS_REACTIVE_POWER,
     DEVICE_CLASS_SIGNAL_STRENGTH,
@@ -131,6 +132,7 @@ DEVICE_CLASSES = [
     DEVICE_CLASS_PRECIPITATION,
     DEVICE_CLASS_PRECIPITATION_INTENSITY,
     DEVICE_CLASS_PRESSURE,
+    DEVICE_CLASS_RADON,
     DEVICE_CLASS_REACTIVE_ENERGY,
     DEVICE_CLASS_REACTIVE_POWER,
     DEVICE_CLASS_SIGNAL_STRENGTH,
@@ -210,9 +212,15 @@ _NUMBER_SCHEMA = (
                 },
                 cv.has_at_least_one_key(CONF_ABOVE, CONF_BELOW),
             ),
-            cv.Optional(CONF_UNIT_OF_MEASUREMENT): validate_unit_of_measurement,
-            cv.Optional(CONF_MODE, default="AUTO"): cv.enum(NUMBER_MODES, upper=True),
-            cv.Optional(CONF_DEVICE_CLASS): validate_device_class,
+            cv.Optional(
+                CONF_UNIT_OF_MEASUREMENT, visibility=cv.Visibility.ADVANCED
+            ): validate_unit_of_measurement,
+            cv.Optional(
+                CONF_MODE, default="AUTO", visibility=cv.Visibility.ADVANCED
+            ): cv.enum(NUMBER_MODES, upper=True),
+            cv.Optional(
+                CONF_DEVICE_CLASS, visibility=cv.Visibility.ADVANCED
+            ): validate_device_class,
         }
     )
 )

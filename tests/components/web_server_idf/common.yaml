@@ -12,7 +12,7 @@ network:
 sensor:
   - platform: template
     name: "Test Sensor"
-    id: test_sensor
+    id: web_server_idf_test_sensor
     update_interval: 60s
     lambda: "return 42.5;"
 
@@ -25,5 +25,5 @@ binary_sensor:
 switch:
   - platform: template
     name: "Test Switch"
-    id: test_switch
+    id: web_server_idf_test_switch
     optimistic: true

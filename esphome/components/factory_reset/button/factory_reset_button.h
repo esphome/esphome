@@ -7,7 +7,7 @@
 
 namespace esphome::factory_reset {
 
-class FactoryResetButton : public button::Button, public Component {
+class FactoryResetButton final : public button::Button, public Component {
  public:
   void dump_config() override;
 #ifdef USE_OPENTHREAD

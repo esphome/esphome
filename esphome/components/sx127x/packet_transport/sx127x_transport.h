@@ -7,7 +7,7 @@
 
 namespace esphome::sx127x {
 
-class SX127xTransport : public packet_transport::PacketTransport, public Parented<SX127x>, public SX127xListener {
+class SX127xTransport final : public packet_transport::PacketTransport, public Parented<SX127x>, public SX127xListener {
  public:
   void setup() override;
   void on_packet(const std::vector<uint8_t> &packet, float rssi, float snr) override;

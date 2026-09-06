@@ -5,7 +5,7 @@
 
 namespace esphome::status {
 
-class StatusBinarySensor : public binary_sensor::BinarySensor, public PollingComponent {
+class StatusBinarySensor final : public binary_sensor::BinarySensor, public PollingComponent {
  public:
   void update() override;
 

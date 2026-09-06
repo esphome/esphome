@@ -6,7 +6,7 @@
 
 namespace esphome::smt100 {
 
-class SMT100Component : public PollingComponent, public uart::UARTDevice {
+class SMT100Component final : public PollingComponent, public uart::UARTDevice {
   static const uint16_t MAX_LINE_LENGTH = 31;
 
  public:

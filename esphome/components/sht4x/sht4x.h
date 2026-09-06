@@ -14,7 +14,7 @@ enum SHT4XHEATERPOWER { SHT4X_HEATERPOWER_HIGH, SHT4X_HEATERPOWER_MED, SHT4X_HEA
 
 enum SHT4XHEATERTIME : uint16_t { SHT4X_HEATERTIME_LONG = 1100, SHT4X_HEATERTIME_SHORT = 110 };
 
-class SHT4XComponent : public PollingComponent, public sensirion_common::SensirionI2CDevice {
+class SHT4XComponent final : public PollingComponent, public sensirion_common::SensirionI2CDevice {
  public:
   void setup() override;
   void dump_config() override;

@@ -13,7 +13,7 @@ speaker:
       - id: media_mixer_speaker_id
 
 audio_file:
-  - id: test_audio
+  - id: speaker_source_test_audio
     file:
       type: local
       path: $component_dir/test.wav

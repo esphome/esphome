@@ -6,7 +6,7 @@
 
 namespace esphome::pipsolar {
 class Pipsolar;
-class PipsolarSwitch : public switch_::Switch, public Component {
+class PipsolarSwitch final : public switch_::Switch, public Component {
  public:
   void set_parent(Pipsolar *parent) { this->parent_ = parent; }
   void set_on_command(const char *command) { this->on_command_ = command; }

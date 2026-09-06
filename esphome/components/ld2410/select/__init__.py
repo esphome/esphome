@@ -10,6 +10,7 @@ from esphome.const import (
     ICON_SCALE,
     ICON_THERMOMETER,
 )
+from esphome.types import ConfigType
 
 from .. import CONF_LD2410_ID, LD2410Component, ld2410_ns
 
@@ -48,7 +49,7 @@ CONFIG_SCHEMA = {
 }
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     ld2410_component = await cg.get_variable(config[CONF_LD2410_ID])
     if distance_resolution_config := config.get(CONF_DISTANCE_RESOLUTION):
         s = await select.new_select(

@@ -6,7 +6,7 @@
 
 namespace esphome::pulse_meter {
 
-template<typename... Ts> class SetTotalPulsesAction : public Action<Ts...> {
+template<typename... Ts> class SetTotalPulsesAction final : public Action<Ts...> {
  public:
   SetTotalPulsesAction(PulseMeterSensor *pulse_meter) : pulse_meter_(pulse_meter) {}
 

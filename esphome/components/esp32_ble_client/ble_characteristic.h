@@ -17,7 +17,7 @@ namespace espbt = esphome::esp32_ble_tracker;
 
 class BLEService;
 
-class BLECharacteristic {
+class BLECharacteristic final {
  public:
   ~BLECharacteristic();
   bool parsed = false;

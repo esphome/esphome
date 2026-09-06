@@ -5,7 +5,7 @@
 
 namespace esphome::host {
 
-class HostTime : public time::RealTimeClock {
+class HostTime final : public time::RealTimeClock {
  public:
   void update() override {}
 };

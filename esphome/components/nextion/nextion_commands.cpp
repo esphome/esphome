@@ -176,7 +176,7 @@ void Nextion::goto_page(const char *page) { this->add_no_result_to_queue_with_pr
 void Nextion::goto_page(uint8_t page) { this->add_no_result_to_queue_with_printf_("page", "page %i", page); }
 
 void Nextion::set_backlight_brightness(float brightness) {
-  if (brightness < 0 || brightness > 1.0) {
+  if (brightness < 0 || brightness > 1.0f) {
     ESP_LOGD(TAG, "Brightness out of bounds (0-1.0)");
     return;
   }

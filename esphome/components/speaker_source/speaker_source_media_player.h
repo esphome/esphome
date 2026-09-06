@@ -146,7 +146,7 @@ struct VolumeRestoreState {
   bool is_muted;
 };
 
-class SpeakerSourceMediaPlayer : public Component, public media_player::MediaPlayer {
+class SpeakerSourceMediaPlayer final : public Component, public media_player::MediaPlayer {
   friend struct SourceBinding;
 
  public:

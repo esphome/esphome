@@ -6,7 +6,7 @@
 
 namespace esphome::interval {
 
-class IntervalTrigger : public Trigger<>, public PollingComponent {
+class IntervalTrigger final : public Trigger<>, public PollingComponent {
  public:
   void update() override { this->trigger(); }
 

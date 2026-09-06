@@ -1,6 +1,6 @@
 #pragma once
 
-#if defined(USE_ARDUINO) && !defined(USE_ESP32)
+#if defined(USE_ARDUINO) && !defined(USE_ESP32) && !defined(USE_LIBRETINY)
 
 #include <Wire.h>
 #include "esphome/core/component.h"
@@ -14,7 +14,7 @@ enum RecoveryCode {
   RECOVERY_COMPLETED,
 };
 
-class ArduinoI2CBus : public InternalI2CBus, public Component {
+class ArduinoI2CBus final : public InternalI2CBus, public Component {
  public:
   void setup() override;
   void dump_config() override;

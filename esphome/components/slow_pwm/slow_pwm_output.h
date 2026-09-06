@@ -6,7 +6,7 @@
 
 namespace esphome::slow_pwm {
 
-class SlowPWMOutput : public output::FloatOutput, public Component {
+class SlowPWMOutput final : public output::FloatOutput, public Component {
  public:
   void set_pin(GPIOPin *pin) { pin_ = pin; };
   void set_period(unsigned int period) { period_ = period; };

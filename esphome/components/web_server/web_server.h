@@ -76,7 +76,7 @@ struct UrlMatch {
   bool method_equals(const __FlashStringHelper *str) const { return this->method == str; }
 #endif
 
-  /// Match entity by name first, then fall back to object_id with deprecation warning
+  /// Match entity by name
   /// Returns EntityMatchResult with match status and whether action segment is empty
   EntityMatchResult match_entity(EntityBase *entity) const;
 };
@@ -160,7 +160,8 @@ class DeferredUpdateEventSource final : public AsyncEventSource {
   void loop();
 
   void deferrable_send_state(void *source, const char *event_type, message_generator_t *message_generator);
-  void try_send_nodefer(const char *message, const char *event = nullptr, uint32_t id = 0, uint32_t reconnect = 0);
+  void try_send_nodefer(const char *message, size_t message_len, const char *event = nullptr, uint32_t id = 0,
+                        uint32_t reconnect = 0);
 };
 
 class DeferredUpdateEventSourceList final : public std::list<DeferredUpdateEventSource *> {
@@ -173,7 +174,8 @@ class DeferredUpdateEventSourceList final : public std::list<DeferredUpdateEvent
   bool loop();
 
   void deferrable_send_state(void *source, const char *event_type, message_generator_t *message_generator);
-  void try_send_nodefer(const char *message, const char *event = nullptr, uint32_t id = 0, uint32_t reconnect = 0);
+  void try_send_nodefer(const char *message, size_t message_len, const char *event = nullptr, uint32_t id = 0,
+                        uint32_t reconnect = 0);
 
   void add_new_client(WebServer *ws, AsyncWebServerRequest *request);
 };
@@ -239,6 +241,22 @@ class WebServer final : public Controller, public Component, public AsyncWebHand
    * @param expose_log.
    */
   void set_expose_log(bool expose_log) { this->expose_log_ = expose_log; }
+
+#ifdef USE_WEBSERVER_ALLOWED_ORIGINS
+  /** Set the origins that browsers are allowed to make cross-origin requests from.
+   *
+   * Requests without an `Origin` header (e.g. non-browser clients like curl or the native API)
+   * are always allowed. Requests whose `Origin` matches the address the device is served on
+   * (same-origin) are always allowed. Any other browser origin must appear in this list, or the
+   * request is rejected. A single "*" entry allows any origin. Each other entry must exactly match
+   * the requesting page's `Origin` header (e.g. "https://example.com").
+   *
+   * This list is also used to authorize Private Network Access requests when that feature is enabled.
+   *
+   * @param origins The list of allowed origins.
+   */
+  void set_allowed_origins(std::initializer_list<const char *> origins) { this->allowed_origins_ = origins; }
+#endif
 
   // ========== INTERNAL METHODS ==========
   // (In most use cases you won't need these)
@@ -591,6 +609,16 @@ class WebServer final : public Controller, public Component, public AsyncWebHand
   const char *js_include_{nullptr};
 #endif
   bool expose_log_{true};
+#ifdef USE_WEBSERVER_ALLOWED_ORIGINS
+  // Extra origins allowed to make cross-origin browser requests ("*" means any origin).
+  // Only compiled when allowed_origins is configured; same-origin is always allowed regardless.
+  FixedVector<const char *> allowed_origins_;
+#endif
+
+  /// Check whether the given request Origin is permitted. Same-origin (matching the Host the
+  /// request was sent to) and requests without an Origin header are always allowed; any other
+  /// origin must be listed in allowed_origins. The caller passes the already-read Origin header.
+  bool is_request_origin_allowed_(AsyncWebServerRequest *request, const std::string &origin);
 
  private:
 #ifdef USE_SENSOR

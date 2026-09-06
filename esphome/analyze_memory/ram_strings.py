@@ -8,7 +8,7 @@ memory-constrained platforms like ESP8266.
 from __future__ import annotations
 
 from collections import defaultdict
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import logging
 from pathlib import Path
 import re
@@ -65,6 +65,7 @@ class RamSymbol:
     size: int
     section: str
     demangled: str = ""  # Demangled name, set after batch demangling
+    aliases: list[str] = field(default_factory=list)  # Other names at same address
 
 
 class RamStringsAnalyzer:
@@ -235,6 +236,11 @@ class RamStringsAnalyzer:
         except (subprocess.CalledProcessError, FileNotFoundError):
             return
 
+        # Track symbols by address so aliases (multiple names for the same
+        # object, e.g. the newlib __lock___* mutexes that all alias one
+        # StaticSemaphore_t) are reported once instead of once per name.
+        symbols_by_addr: dict[int, RamSymbol] = {}
+
         for line in output.split("\n"):
             parts = line.split()
             if len(parts) < 4:
@@ -253,6 +259,18 @@ class RamStringsAnalyzer:
             if sym_type not in DATA_SYMBOL_TYPES:
                 continue
 
+            if (existing := symbols_by_addr.get(addr)) is not None:
+                # Prefer a global (uppercase type) name as the primary so
+                # nm output order can't hide it behind a local alias.
+                if sym_type.isupper() and existing.sym_type.islower():
+                    existing.aliases.append(existing.name)
+                    existing.name = name
+                    existing.sym_type = sym_type
+                else:
+                    existing.aliases.append(name)
+                existing.size = max(existing.size, size)
+                continue
+
             # Check if symbol is in a RAM section
             for section_name in self.ram_sections:
                 if section_name not in self.sections:
@@ -260,15 +278,15 @@ class RamStringsAnalyzer:
 
                 section = self.sections[section_name]
                 if section.address <= addr < section.address + section.size:
-                    self.ram_symbols.append(
-                        RamSymbol(
-                            name=name,
-                            sym_type=sym_type,
-                            address=addr,
-                            size=size,
-                            section=section_name,
-                        )
+                    symbol = RamSymbol(
+                        name=name,
+                        sym_type=sym_type,
+                        address=addr,
+                        size=size,
+                        section=section_name,
                     )
+                    symbols_by_addr[addr] = symbol
+                    self.ram_symbols.append(symbol)
                     break
 
     def _demangle_symbols(self) -> None:
@@ -436,7 +454,13 @@ class RamStringsAnalyzer:
         for symbol in largest_symbols:
             # Use demangled name if available, otherwise raw name
             display_name = symbol.demangled or symbol.name
-            name_display = display_name[:49] if len(display_name) > 49 else display_name
+            # Truncate the name, not the alias note, so merged aliases stay
+            # visible even for long demangled C++ names.
+            alias_note = f" (+{len(symbol.aliases)} aliases)" if symbol.aliases else ""
+            max_name_len = 49 - len(alias_note)
+            if len(display_name) > max_name_len:
+                display_name = display_name[:max_name_len]
+            name_display = display_name + alias_note
             lines.append(
                 f"{name_display:<50} {symbol.sym_type:<6} {symbol.size:>8} B  {symbol.section}"
             )

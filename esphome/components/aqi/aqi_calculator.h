@@ -11,10 +11,12 @@ namespace esphome::aqi {
 
 class AQICalculator : public AbstractAQICalculator {
  public:
-  uint16_t get_aqi(float pm2_5_value, float pm10_0_value) override {
-    float pm2_5_index = calculate_index(pm2_5_value, PM2_5_GRID);
-    float pm10_0_index = calculate_index(pm10_0_value, PM10_0_GRID);
+  uint16_t get_aqi(float pm2_5_value, float pm10_0_value, bool extended_range) override {
+    float pm2_5_index = calculate_index(pm2_5_value, PM2_5_GRID, extended_range);
+    float pm10_0_index = calculate_index(pm10_0_value, PM10_0_GRID, extended_range);
     float aqi = std::max({pm2_5_index, pm10_0_index, 0.0f});
+    // extended_range lets the index run past the standard maximum, so clamp to the sensor's range.
+    aqi = std::min(aqi, static_cast<float>(std::numeric_limits<uint16_t>::max()));
     return static_cast<uint16_t>(std::lround(aqi));
   }
 
@@ -30,7 +32,7 @@ class AQICalculator : public AbstractAQICalculator {
       {35.5f, 55.5f},
       {55.5f, 125.5f},
       {125.5f, 225.5f},
-      {225.5f, std::numeric_limits<float>::max()}
+      {225.5f, 500.4f}  // EPA 2024: AQI 301-500 maps to PM2.5 225.5-500.4 ug/m3
       // clang-format on
   };
 
@@ -41,11 +43,11 @@ class AQICalculator : public AbstractAQICalculator {
       {155.0f, 255.0f},
       {255.0f, 355.0f},
       {355.0f, 425.0f},
-      {425.0f, std::numeric_limits<float>::max()}
+      {425.0f, 604.0f}  // EPA: AQI 301-500 maps to PM10 425-604 ug/m3 (top of the 401-500 band)
       // clang-format on
   };
 
-  static float calculate_index(float value, const float array[NUM_LEVELS][2]) {
+  static float calculate_index(float value, const float array[NUM_LEVELS][2], bool extended_range) {
     int grid_index = get_grid_index(value, array);
     if (grid_index == -1) {
       return -1.0f;
@@ -55,14 +57,22 @@ class AQICalculator : public AbstractAQICalculator {
     float conc_lo = array[grid_index][0];
     float conc_hi = array[grid_index][1];
 
-    return (value - conc_lo) * (aqi_hi - aqi_lo) / (conc_hi - conc_lo) + aqi_lo;
+    float index = (value - conc_lo) * (aqi_hi - aqi_lo) / (conc_hi - conc_lo) + aqi_lo;
+
+    // Concentrations above the highest breakpoint run the linear fit past aqi_hi. By default we
+    // clamp to the standard maximum; with extended_range we keep the extrapolated "over-range"
+    // value so heavy pollution reports numbers beyond what the standard defines.
+    if (grid_index == NUM_LEVELS - 1 && !extended_range && index > aqi_hi) {
+      return aqi_hi;
+    }
+    return index;
   }
 
   static int get_grid_index(float value, const float array[NUM_LEVELS][2]) {
     for (int i = 0; i < NUM_LEVELS; i++) {
-      const bool in_range =
-          (value >= array[i][0]) && ((i == NUM_LEVELS - 1) ? (value <= array[i][1])   // last bucket inclusive
-                                                           : (value < array[i][1]));  // others exclusive on hi
+      // The top band is open-ended: any value at or above its lower breakpoint falls into it,
+      // and calculate_index() decides whether to clamp or extrapolate.
+      const bool in_range = (value >= array[i][0]) && (i == NUM_LEVELS - 1 || value < array[i][1]);
       if (in_range) {
         return i;
       }

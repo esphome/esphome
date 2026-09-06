@@ -53,18 +53,6 @@ def is_remote_package(package_config: dict) -> bool:
     return CONF_URL in package_config
 
 
-def is_package_definition(value: object) -> bool:
-    """Returns True if the value looks like a package definition rather than a config fragment.
-
-    Package definitions are IncludeFile objects, git URL shorthand strings, or
-    remote package dicts (containing a ``url:`` key).  Config fragments are
-    plain dicts that represent component configuration.
-    """
-    return isinstance(value, (yaml_util.IncludeFile, str)) or (
-        isinstance(value, dict) and is_remote_package(value)
-    )
-
-
 def valid_package_contents(package_config: dict) -> dict:
     """Validate that a package looks like a plausible ESPHome config fragment.
 
@@ -100,7 +88,7 @@ def valid_package_contents(package_config: dict) -> dict:
     return package_config
 
 
-def expand_file_to_files(config: dict):
+def expand_file_to_files(config: dict) -> dict:
     if CONF_FILE in config:
         new_config = config
         new_config[CONF_FILES] = [config[CONF_FILE]]
@@ -109,7 +97,7 @@ def expand_file_to_files(config: dict):
     return config
 
 
-def validate_yaml_filename(value):
+def validate_yaml_filename(value: Any) -> str:
     value = cv.string(value)
 
     if not value.endswith((".yaml", ".yml")):
@@ -118,7 +106,7 @@ def validate_yaml_filename(value):
     return value
 
 
-def validate_source_shorthand(value):
+def validate_source_shorthand(value: Any) -> dict:
     if not isinstance(value, str):
         raise cv.Invalid("Git URL shorthand only for strings")
 
@@ -132,22 +120,6 @@ def validate_source_shorthand(value):
         conf[CONF_REF] = git_file.ref
 
     return REMOTE_PACKAGE_SCHEMA(conf)
-
-
-def deprecate_single_package(config: dict) -> dict:
-    _LOGGER.warning(
-        """
-        Including a single package under `packages:`, i.e., `packages: !include mypackage.yaml` is deprecated.
-        This method for including packages will go away in 2026.7.0
-        Please use a list instead:
-
-        packages:
-          - !include mypackage.yaml
-
-        See https://github.com/esphome/esphome/pull/12116
-        """
-    )
-    return config
 
 
 REMOTE_PACKAGE_SCHEMA = cv.All(
@@ -198,10 +170,7 @@ CONFIG_SCHEMA = cv.Any(  # under `packages:` we can have either:
             str: PACKAGE_SCHEMA,  # a named dict of package definitions, or
         }
     ),
-    [PACKAGE_SCHEMA],  # a list of package definitions, or
-    cv.All(  # a single package definition (deprecated)
-        cv.ensure_list(PACKAGE_SCHEMA), deprecate_single_package
-    ),
+    [PACKAGE_SCHEMA],  # a list of package definitions
 )
 
 
@@ -231,6 +200,14 @@ def _process_remote_package(config: dict[str, Any]) -> dict[str, Any]:
     repo_dir = repo_root
     if base_path := config.get(CONF_PATH):
         repo_dir = repo_dir / base_path
+
+    # Deferred import: keeps esphome.bundle off the device builder's
+    # startup path, since packages is loaded on every config parse.
+    from esphome.bundle import add_secret_scan_dir
+
+    # Register the path-narrowed dir, not repo_root, so example configs
+    # elsewhere in the repo do not widen the shipped secrets.
+    add_secret_scan_dir(repo_dir)
 
     for file in config[CONF_FILES]:
         if isinstance(file, str):
@@ -301,8 +278,23 @@ def _process_remote_package(config: dict[str, Any]) -> dict[str, Any]:
         # If loading fails, the cached checkout may be stale — revert and retry once.
         try:
             return {CONF_PACKAGES: get_packages(files)}
-        except cv.Invalid:
-            revert()
+        except cv.Invalid as err:
+            if not revert():
+                # The pre-update content is out of reach (lock timeout, the
+                # checkout moved, or the reset failed; see the log), so a
+                # retry could not see it.
+                raise cv.Invalid(
+                    f"Failed to load packages and could not revert the cached "
+                    f"checkout to retry. {err}",
+                    path=err.path,
+                ) from err
+            # If the retry succeeds this is the only trace that the
+            # refreshed upstream content was broken.
+            _LOGGER.warning(
+                "Loading packages failed (%s), reverted the cached checkout "
+                "and retrying",
+                err,
+            )
         try:
             return {CONF_PACKAGES: get_packages(files)}
         except cv.Invalid as err:
@@ -348,7 +340,6 @@ def _walk_packages(
     config: dict,
     callback: PackageCallback,
     context: ContextVars | None = None,
-    validate_deprecated: bool = True,
     path: yaml_util.DocumentPath | None = None,
 ) -> dict:
     """Walks the packages structure in priority order, invoking ``callback`` on each package definition found.
@@ -378,17 +369,7 @@ def _walk_packages(
         elif (
             result := _walk_package_dict(packages, callback, context, packages_path)
         ) is not None:
-            if not validate_deprecated or any(
-                is_package_definition(v) for v in packages.values()
-            ):
-                raise result
-            # Fallback: treat the dict as a single deprecated package.
-            # This block can be removed once the single-package
-            # deprecation period (2026.7.0) is over.
-            config[CONF_PACKAGES] = [packages]
-            return _walk_packages(
-                deprecate_single_package(config), callback, context, path=path
-            )
+            raise result
 
     config[CONF_PACKAGES] = packages
     return config
@@ -588,9 +569,6 @@ class _PackageProcessor:
         path: yaml_util.DocumentPath,
     ) -> dict:
         """Resolve a single package and recurse into any nested packages."""
-        from_remote = isinstance(package_config, dict) and is_remote_package(
-            package_config
-        )
         package_config = self.resolve_package(package_config, context_vars, path)
         context_vars = self.collect_substitutions(package_config, context_vars)
 
@@ -600,17 +578,10 @@ class _PackageProcessor:
         # Push context from !include vars on the packages key (the package root
         # was already pushed in collect_substitutions above).
         context_vars = push_context(package_config[CONF_PACKAGES], context_vars)
-        # Disable the deprecated single-package fallback for remote
-        # packages.  _process_remote_package returns dicts with
-        # already-resolved values that is_package_definition cannot
-        # distinguish from config fragments, so the fallback would
-        # always fire and mask real errors with wrong paths
-        # (packages->0 instead of packages-><name>).
         return _walk_packages(
             package_config,
             self.process_package,
             context_vars,
-            validate_deprecated=not from_remote,
             path=path,
         )
 
@@ -673,7 +644,7 @@ def merge_packages(config: dict) -> dict:
         merge_list.append(package_config)
         return _walk_packages(package_config, process_package_callback, path=path)
 
-    _walk_packages(config, process_package_callback, validate_deprecated=False)
+    _walk_packages(config, process_package_callback)
     # Merge all packages into the main config:
     config = reduce(lambda new, old: merge_config(old, new), merge_list, config)
     del config[CONF_PACKAGES]

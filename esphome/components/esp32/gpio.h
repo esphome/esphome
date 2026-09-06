@@ -10,7 +10,7 @@ namespace esphome::esp32 {
 static_assert(GPIO_NUM_MAX <= 256, "gpio_num_t has too many values for uint8_t");
 static_assert(GPIO_DRIVE_CAP_MAX <= 4, "gpio_drive_cap_t has too many values for 2-bit field");
 
-class ESP32InternalGPIOPin : public InternalGPIOPin {
+class ESP32InternalGPIOPin final : public InternalGPIOPin {
  public:
   void set_pin(gpio_num_t pin) { this->pin_ = static_cast<uint8_t>(pin); }
   void set_inverted(bool inverted) { this->pin_flags_.inverted = inverted; }

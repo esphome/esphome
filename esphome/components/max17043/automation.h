@@ -5,7 +5,7 @@
 
 namespace esphome::max17043 {
 
-template<typename... Ts> class SleepAction : public Action<Ts...> {
+template<typename... Ts> class SleepAction final : public Action<Ts...> {
  public:
   explicit SleepAction(MAX17043Component *max17043) : max17043_(max17043) {}
 

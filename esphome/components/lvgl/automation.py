@@ -4,9 +4,15 @@ from typing import Any
 from esphome import automation
 from esphome.automation import StatelessLambdaAction
 import esphome.codegen as cg
-from esphome.components.display import validate_rotation
 import esphome.config_validation as cv
-from esphome.const import CONF_ACTION, CONF_GROUP, CONF_ID, CONF_ROTATION, CONF_TIMEOUT
+from esphome.const import (
+    CONF_ACTION,
+    CONF_GROUP,
+    CONF_ID,
+    CONF_POSITION,
+    CONF_ROTATION,
+    CONF_TIMEOUT,
+)
 from esphome.core import Lambda
 from esphome.cpp_generator import TemplateArguments, get_variable
 from esphome.cpp_types import nullptr
@@ -16,6 +22,7 @@ from .defines import (
     CONF_BOTTOM_LAYER,
     CONF_EDITING,
     CONF_FREEZE,
+    CONF_LAYOUT,
     CONF_LVGL_ID,
     CONF_MAIN,
     CONF_OBJ,
@@ -28,13 +35,16 @@ from .defines import (
     get_focused_widgets,
     get_options,
     get_refreshed_widgets,
+    literal,
 )
-from .lv_validation import lv_bool, lv_milliseconds
+from .layout import layout_validator
+from .lv_validation import lv_bool, lv_milliseconds, lv_rotation
 from .lvcode import (
     LVGL_COMP_ARG,
     UPDATE_EVENT,
     LambdaContext,
     LocalVariable,
+    LvConditional,
     LvglComponent,
     ReturnStatement,
     add_line_marks,
@@ -199,7 +209,7 @@ async def lvgl_is_idle(config, condition_id, template_arg, args):
 def _validate_rotation(value):
     # Note that we need rotation
     get_options()[CONF_ROTATION] = True
-    return validate_rotation(value)
+    return lv_rotation(value)
 
 
 @automation.register_action(
@@ -218,7 +228,8 @@ def _validate_rotation(value):
 async def lvgl_set_rotation(config, action_id, template_arg, args):
     lv_comp = await cg.get_variable(config[CONF_LVGL_ID])
     async with LambdaContext(args, where=action_id) as context:
-        lv_add(lv_comp.set_rotation(config[CONF_ROTATION]))
+        rotation = await lv_rotation.process(config[CONF_ROTATION])
+        lv_add(lv_comp.set_rotation(rotation))
     return cg.new_Pvariable(action_id, template_arg, await context.get_lambda())
 
 
@@ -254,6 +265,13 @@ layer_spec = WidgetType(CONF_OBJ, lv_obj_t, (CONF_MAIN, CONF_SCROLLBAR), is_mock
 DISP_PROPS = {str(x) for x in DISP_BG_SCHEMA.schema}
 
 
+def _layer_update_schema() -> cv.Schema:
+    """Schema for updating a display layer's styling and layout options."""
+    return part_schema(layer_spec.parts).extend(
+        {cv.Optional(CONF_LAYOUT): layout_validator}
+    )
+
+
 @automation.register_action(
     "lvgl.update",
     LvglAction,
@@ -262,8 +280,9 @@ DISP_PROPS = {str(x) for x in DISP_BG_SCHEMA.schema}
     .extend(DISP_BG_SCHEMA)
     .extend(
         {
-            cv.Optional(CONF_TOP_LAYER): part_schema(layer_spec.parts),
-            cv.Optional(CONF_BOTTOM_LAYER): part_schema(layer_spec.parts),
+            cv.Optional(CONF_LAYOUT): layout_validator,
+            cv.Optional(CONF_TOP_LAYER): _layer_update_schema(),
+            cv.Optional(CONF_BOTTOM_LAYER): _layer_update_schema(),
         }
     ),
     synchronous=True,
@@ -272,7 +291,12 @@ async def lvgl_update_to_code(config, action_id, template_arg, args):
     widgets = await get_widgets(config, CONF_LVGL_ID)
     w = widgets[0]
     async with LambdaContext(LVGL_COMP_ARG, where=action_id) as context:
+        # Apply the top-level properties (styles and layout) to the active screen...
+        await set_obj_properties(get_screen_active(w.var), config)
+        # ...the deprecated flat `disp_*` background properties...
         await lvgl_update(w.var, config)
+        # ...and the `top_layer`/`bottom_layer` keys (styling and layout updates).
+        await layers_to_code(w.var, config)
     var = cg.new_Pvariable(action_id, template_arg, await context.get_lambda())
     await cg.register_parented(var, w.var)
     return var
@@ -359,6 +383,48 @@ async def obj_show_to_code(config, action_id, template_arg, args):
 
     widgets = [widget.outer or widget for widget in await get_widgets(config)]
     return await action_to_code(widgets, do_show, action_id, template_arg, args)
+
+
+SET_Z_INDEX_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_ID): cv.ensure_list(
+            cv.maybe_simple_value(
+                {cv.Required(CONF_ID): cv.use_id(lv_obj_t)},
+                key=CONF_ID,
+            )
+        ),
+        cv.Required(CONF_POSITION): cv.Any(
+            cv.one_of("TOP", "BOTTOM", "UP", "DOWN", upper=True), cv.int_
+        ),
+    }
+)
+
+
+@automation.register_action(
+    "lvgl.widget.set_z_index", ObjUpdateAction, SET_Z_INDEX_SCHEMA, synchronous=True
+)
+async def obj_set_z_index_to_code(config, action_id, template_arg, args):
+    position = config[CONF_POSITION]
+
+    async def do_set_z_index(widget: Widget):
+        if position == "TOP":
+            lv_obj.move_foreground(widget.obj)
+        elif position == "BOTTOM":
+            lv_obj.move_background(widget.obj)
+        elif position == "UP":
+            lv_obj.move_to_index(
+                widget.obj, literal(f"{lv_expr.obj_get_index(widget.obj)} + 1")
+            )
+        elif position == "DOWN":
+            with LvConditional(literal(f"{lv_expr.obj_get_index(widget.obj)} > 0")):
+                lv_obj.move_to_index(
+                    widget.obj, literal(f"{lv_expr.obj_get_index(widget.obj)} - 1")
+                )
+        else:
+            lv_obj.move_to_index(widget.obj, position)
+
+    widgets = [widget.outer or widget for widget in await get_widgets(config[CONF_ID])]
+    return await action_to_code(widgets, do_set_z_index, action_id, template_arg, args)
 
 
 def focused_id(value):

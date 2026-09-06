@@ -12,7 +12,7 @@ enum TM1651Brightness : uint8_t {
   TM1651_BRIGHTEST = 3,
 };
 
-class TM1651Display : public Component {
+class TM1651Display final : public Component {
  public:
   void set_clk_pin(InternalGPIOPin *pin) { clk_pin_ = pin; }
   void set_dio_pin(InternalGPIOPin *pin) { dio_pin_ = pin; }
@@ -56,7 +56,7 @@ class TM1651Display : public Component {
   uint8_t level_{0};
 };
 
-template<typename... Ts> class SetBrightnessAction : public Action<Ts...>, public Parented<TM1651Display> {
+template<typename... Ts> class SetBrightnessAction final : public Action<Ts...>, public Parented<TM1651Display> {
  public:
   TEMPLATABLE_VALUE(uint8_t, brightness)
 
@@ -66,7 +66,7 @@ template<typename... Ts> class SetBrightnessAction : public Action<Ts...>, publi
   }
 };
 
-template<typename... Ts> class SetLevelAction : public Action<Ts...>, public Parented<TM1651Display> {
+template<typename... Ts> class SetLevelAction final : public Action<Ts...>, public Parented<TM1651Display> {
  public:
   TEMPLATABLE_VALUE(uint8_t, level)
 
@@ -76,7 +76,7 @@ template<typename... Ts> class SetLevelAction : public Action<Ts...>, public Par
   }
 };
 
-template<typename... Ts> class SetLevelPercentAction : public Action<Ts...>, public Parented<TM1651Display> {
+template<typename... Ts> class SetLevelPercentAction final : public Action<Ts...>, public Parented<TM1651Display> {
  public:
   TEMPLATABLE_VALUE(uint8_t, level_percent)
 
@@ -86,12 +86,12 @@ template<typename... Ts> class SetLevelPercentAction : public Action<Ts...>, pub
   }
 };
 
-template<typename... Ts> class TurnOnAction : public Action<Ts...>, public Parented<TM1651Display> {
+template<typename... Ts> class TurnOnAction final : public Action<Ts...>, public Parented<TM1651Display> {
  public:
   void play(const Ts &...x) override { this->parent_->turn_on(); }
 };
 
-template<typename... Ts> class TurnOffAction : public Action<Ts...>, public Parented<TM1651Display> {
+template<typename... Ts> class TurnOffAction final : public Action<Ts...>, public Parented<TM1651Display> {
  public:
   void play(const Ts &...x) override { this->parent_->turn_off(); }
 };

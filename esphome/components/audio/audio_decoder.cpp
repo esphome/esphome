@@ -326,14 +326,8 @@ FileDecoderState AudioDecoder::decode_mp3_() {
   } else if (result == micro_mp3::MP3_NEED_MORE_DATA) {
     return FileDecoderState::MORE_TO_PROCESS;
   } else if (result == micro_mp3::MP3_OUTPUT_BUFFER_TOO_SMALL) {
-    // Reallocate to decode the frame on the next call
-    if (this->mp3_decoder_->get_channels() > 0) {
-      this->free_buffer_required_ =
-          this->mp3_decoder_->get_samples_per_frame() * this->mp3_decoder_->get_channels() * sizeof(int16_t);
-    } else {
-      // Fallback to worst-case size if channel info isn't available
-      this->free_buffer_required_ = this->mp3_decoder_->get_min_output_buffer_bytes();
-    }
+    // Fallback to worst-case size
+    this->free_buffer_required_ = this->mp3_decoder_->get_min_output_buffer_bytes();
     if (!this->output_transfer_buffer_->reallocate(this->free_buffer_required_)) {
       return FileDecoderState::FAILED;
     }

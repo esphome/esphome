@@ -1,4 +1,4 @@
-from collections.abc import Callable
+from collections.abc import Callable, Collection
 
 from esphome.const import (
     CONF_LEVEL,
@@ -98,6 +98,19 @@ def merge_config(old, new):
     return new
 
 
+def frameworks_for_platforms(platforms: Collection[str]) -> set[PlatformFramework]:
+    """All PlatformFramework members whose platform is in `platforms`.
+
+    For FILTER_SOURCE_FILES maps that must stay in sync with a platform
+    registry: deriving the framework set here means a platform added to the
+    registry cannot validate and then fail at link on a filtered-out file.
+    """
+    known = {pf.value[0].value for pf in PlatformFramework}
+    if unknown := set(platforms) - known:
+        raise ValueError(f"unknown platform(s): {sorted(unknown)}")
+    return {pf for pf in PlatformFramework if pf.value[0].value in platforms}
+
+
 def filter_source_files_from_platform(
     files_map: dict[str, set[PlatformFramework]],
 ) -> Callable[[], list[str]]:
@@ -133,6 +146,31 @@ def filter_source_files_from_platform(
             filename
             for filename, platforms in files_map.items()
             if current_platform_framework not in platforms
+        ]
+
+    return filter_source_files
+
+
+def filter_source_files_from_defines(
+    files_map: dict[str, str | tuple[str, ...]],
+) -> Callable[[], list[str]]:
+    """Helper to build a FILTER_SOURCE_FILES function from a define mapping.
+
+    Args:
+        files_map: Dict mapping filename to the define name (or tuple of
+            define names) that keeps the file in the build; the file is
+            excluded when none of its defines is set for the current config.
+
+    Returns:
+        Function that returns the files to exclude for the current config.
+    """
+
+    def filter_source_files() -> list[str]:
+        defines = {define.name for define in CORE.defines}
+        return [
+            filename
+            for filename, needed in files_map.items()
+            if defines.isdisjoint((needed,) if isinstance(needed, str) else needed)
         ]
 
     return filter_source_files

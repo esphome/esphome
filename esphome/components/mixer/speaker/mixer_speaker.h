@@ -44,7 +44,7 @@ namespace esphome::mixer_speaker {
 
 class MixerSpeaker;
 
-class SourceSpeaker : public speaker::Speaker, public Component {
+class SourceSpeaker final : public speaker::Speaker, public Component {
  public:
   void dump_config() override;
   void setup() override;
@@ -118,7 +118,7 @@ class SourceSpeaker : public speaker::Speaker, public Component {
   uint32_t stopping_start_ms_{0};
 };
 
-class MixerSpeaker : public Component {
+class MixerSpeaker final : public Component {
  public:
   void dump_config() override;
   void setup() override;

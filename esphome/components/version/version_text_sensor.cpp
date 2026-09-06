@@ -48,8 +48,6 @@ void VersionTextSensor::setup() {
   version_str[sizeof(version_str) - 1] = '\0';
   this->publish_state(version_str);
 }
-void VersionTextSensor::set_hide_hash(bool hide_hash) { this->hide_hash_ = hide_hash; }
-void VersionTextSensor::set_hide_timestamp(bool hide_timestamp) { this->hide_timestamp_ = hide_timestamp; }
 void VersionTextSensor::dump_config() { LOG_TEXT_SENSOR("", "Version Text Sensor", this); }
 
 }  // namespace esphome::version

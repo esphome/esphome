@@ -22,7 +22,7 @@ enum MeasurementMode : uint8_t {
   SINGLE_SHOT_RHT_ONLY,
 };
 
-class SCD4XComponent : public PollingComponent, public sensirion_common::SensirionI2CDevice {
+class SCD4XComponent final : public PollingComponent, public sensirion_common::SensirionI2CDevice {
  public:
   void setup() override;
   void dump_config() override;

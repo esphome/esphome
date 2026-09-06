@@ -5,7 +5,7 @@
 
 namespace esphome::copy {
 
-class CopyCover : public cover::Cover, public Component {
+class CopyCover final : public cover::Cover, public Component {
  public:
   void set_source(cover::Cover *source) { source_ = source; }
   void setup() override;

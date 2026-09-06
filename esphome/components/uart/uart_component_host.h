@@ -8,7 +8,7 @@
 
 namespace esphome::uart {
 
-class HostUartComponent : public UARTComponent, public Component {
+class HostUartComponent final : public UARTComponent, public Component {
  public:
   virtual ~HostUartComponent();
   void setup() override;

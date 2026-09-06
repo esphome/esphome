@@ -9,7 +9,7 @@
 
 namespace esphome::espnow {
 
-template<typename... Ts> class SendAction : public Action<Ts...>, public Parented<ESPNowComponent> {
+template<typename... Ts> class SendAction final : public Action<Ts...>, public Parented<ESPNowComponent> {
   TEMPLATABLE_VALUE(peer_address_t, address);
   TEMPLATABLE_VALUE(std::vector<uint8_t>, data);
 
@@ -86,7 +86,7 @@ template<typename... Ts> class SendAction : public Action<Ts...>, public Parente
   } flags_{0};
 };
 
-template<typename... Ts> class AddPeerAction : public Action<Ts...>, public Parented<ESPNowComponent> {
+template<typename... Ts> class AddPeerAction final : public Action<Ts...>, public Parented<ESPNowComponent> {
   TEMPLATABLE_VALUE(peer_address_t, address);
 
  protected:
@@ -96,7 +96,7 @@ template<typename... Ts> class AddPeerAction : public Action<Ts...>, public Pare
   }
 };
 
-template<typename... Ts> class DeletePeerAction : public Action<Ts...>, public Parented<ESPNowComponent> {
+template<typename... Ts> class DeletePeerAction final : public Action<Ts...>, public Parented<ESPNowComponent> {
   TEMPLATABLE_VALUE(peer_address_t, address);
 
  protected:
@@ -106,7 +106,7 @@ template<typename... Ts> class DeletePeerAction : public Action<Ts...>, public P
   }
 };
 
-template<typename... Ts> class SetChannelAction : public Action<Ts...>, public Parented<ESPNowComponent> {
+template<typename... Ts> class SetChannelAction final : public Action<Ts...>, public Parented<ESPNowComponent> {
   TEMPLATABLE_VALUE(uint8_t, channel)
 
  protected:
@@ -119,8 +119,8 @@ template<typename... Ts> class SetChannelAction : public Action<Ts...>, public P
   }
 };
 
-class OnReceiveTrigger : public Trigger<const ESPNowRecvInfo &, const uint8_t *, uint8_t>,
-                         public ESPNowReceivedPacketHandler {
+class OnReceiveTrigger final : public Trigger<const ESPNowRecvInfo &, const uint8_t *, uint16_t>,
+                               public ESPNowReceivedPacketHandler {
  public:
   explicit OnReceiveTrigger(std::array<uint8_t, ESP_NOW_ETH_ALEN> address) : has_address_(true) {
     memcpy(this->address_, address.data(), ESP_NOW_ETH_ALEN);
@@ -128,7 +128,7 @@ class OnReceiveTrigger : public Trigger<const ESPNowRecvInfo &, const uint8_t *,
 
   explicit OnReceiveTrigger() {}
 
-  bool on_receive(const ESPNowRecvInfo &info, const uint8_t *data, uint8_t size) override {
+  bool on_receive(const ESPNowRecvInfo &info, const uint8_t *data, uint16_t size) override {
     bool match = !this->has_address_ || (memcmp(this->address_, info.src_addr, ESP_NOW_ETH_ALEN) == 0);
     if (!match)
       return false;
@@ -141,23 +141,23 @@ class OnReceiveTrigger : public Trigger<const ESPNowRecvInfo &, const uint8_t *,
   bool has_address_{false};
   uint8_t address_[ESP_NOW_ETH_ALEN]{};
 };
-class OnUnknownPeerTrigger : public Trigger<const ESPNowRecvInfo &, const uint8_t *, uint8_t>,
-                             public ESPNowUnknownPeerHandler {
+class OnUnknownPeerTrigger final : public Trigger<const ESPNowRecvInfo &, const uint8_t *, uint16_t>,
+                                   public ESPNowUnknownPeerHandler {
  public:
-  bool on_unknown_peer(const ESPNowRecvInfo &info, const uint8_t *data, uint8_t size) override {
+  bool on_unknown_peer(const ESPNowRecvInfo &info, const uint8_t *data, uint16_t size) override {
     this->trigger(info, data, size);
     return false;  // Return false to continue processing other internal handlers
   }
 };
-class OnBroadcastTrigger : public Trigger<const ESPNowRecvInfo &, const uint8_t *, uint8_t>,
-                           public ESPNowBroadcastHandler {
+class OnBroadcastTrigger final : public Trigger<const ESPNowRecvInfo &, const uint8_t *, uint16_t>,
+                                 public ESPNowBroadcastHandler {
  public:
   explicit OnBroadcastTrigger(std::array<uint8_t, ESP_NOW_ETH_ALEN> address) : has_address_(true) {
     memcpy(this->address_, address.data(), ESP_NOW_ETH_ALEN);
   }
   explicit OnBroadcastTrigger() {}
 
-  bool on_broadcast(const ESPNowRecvInfo &info, const uint8_t *data, uint8_t size) override {
+  bool on_broadcast(const ESPNowRecvInfo &info, const uint8_t *data, uint16_t size) override {
     bool match = !this->has_address_ || (memcmp(this->address_, info.src_addr, ESP_NOW_ETH_ALEN) == 0);
     if (!match)
       return false;

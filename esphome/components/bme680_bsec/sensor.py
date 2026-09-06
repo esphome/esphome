@@ -1,5 +1,10 @@
 import esphome.codegen as cg
 from esphome.components import sensor
+from esphome.components.const import (
+    CONF_BREATH_VOC_EQUIVALENT,
+    CONF_CO2_EQUIVALENT,
+    CONF_IAQ,
+)
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_GAS_RESISTANCE,
@@ -24,14 +29,13 @@ from esphome.const import (
     UNIT_PARTS_PER_MILLION,
     UNIT_PERCENT,
 )
+from esphome.cpp_generator import MockObj
+from esphome.types import ConfigType
 
 from . import CONF_BME680_BSEC_ID, SAMPLE_RATE_OPTIONS, BME680BSECComponent
 
 DEPENDENCIES = ["bme680_bsec"]
 
-CONF_BREATH_VOC_EQUIVALENT = "breath_voc_equivalent"
-CONF_CO2_EQUIVALENT = "co2_equivalent"
-CONF_IAQ = "iaq"
 ICON_ACCURACY = "mdi:checkbox-marked-circle-outline"
 UNIT_IAQ = "IAQ"
 
@@ -108,7 +112,7 @@ CONFIG_SCHEMA = cv.Schema(
 )
 
 
-async def setup_conf(config, key, hub):
+async def setup_conf(config: ConfigType, key: str, hub: MockObj) -> None:
     if sensor_config := config.get(key):
         sens = await sensor.new_sensor(sensor_config)
         cg.add(getattr(hub, f"set_{key}_sensor")(sens))
@@ -118,7 +122,7 @@ async def setup_conf(config, key, hub):
             )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     hub = await cg.get_variable(config[CONF_BME680_BSEC_ID])
     for key in TYPES:
         await setup_conf(config, key, hub)

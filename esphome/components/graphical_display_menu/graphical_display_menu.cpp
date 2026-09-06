@@ -35,18 +35,20 @@ void GraphicalDisplayMenu::setup() {
 }
 
 void GraphicalDisplayMenu::dump_config() {
-  ESP_LOGCONFIG(TAG,
-                "Graphical Display Menu\n"
-                "  Has Display: %s\n"
-                "  Popup Mode: %s\n"
-                "  Advanced Drawing Mode: %s\n"
-                "  Has Font: %s\n"
-                "  Mode: %s\n"
-                "  Active: %s\n"
-                "  Menu items:",
-                YESNO(this->display_ != nullptr), YESNO(this->display_ != nullptr), YESNO(this->display_ == nullptr),
-                YESNO(this->font_ != nullptr),
-                this->mode_ == display_menu_base::MENU_MODE_ROTARY ? "Rotary" : "Joystick", YESNO(this->active_));
+  ESP_LOGCONFIG(
+      TAG,
+      "Graphical Display Menu\n"
+      "  Has Display: %s\n"
+      "  Popup Mode: %s\n"
+      "  Advanced Drawing Mode: %s\n"
+      "  Has Font: %s\n"
+      "  Mode: %s\n"
+      "  Active: %s\n"
+      "  Menu items:",
+      YESNO(this->display_ != nullptr), YESNO(this->display_ != nullptr), YESNO(this->display_ == nullptr),
+      YESNO(this->font_ != nullptr),
+      this->mode_ == display_menu_base::MENU_MODE_ROTARY ? LOG_STR_LITERAL("Rotary") : LOG_STR_LITERAL("Joystick"),
+      YESNO(this->active_));
   for (size_t i = 0; i < this->displayed_item_->items_size(); i++) {
     auto *item = this->displayed_item_->get_item(i);
     ESP_LOGCONFIG(TAG, "  %i: %s (Type: %s, Immediate Edit: %s)", i, item->get_text().c_str(),
@@ -118,7 +120,7 @@ void GraphicalDisplayMenu::draw_menu_internal_(display::Display *display, const 
   for (size_t i = 0; max_item_index >= 0 && i <= static_cast<size_t>(max_item_index); i++) {
     const auto *item = this->displayed_item_->get_item(i);
     const bool selected = i == this->cursor_index_;
-    const display::Rect item_dimensions = this->measure_item(display, item, bounds, selected);
+    const display::Rect item_dimensions = this->measure_item_(display, item, bounds, selected);
 
     menu_dimensions.push_back(item_dimensions);
     total_height += item_dimensions.h + (i == 0 ? 0 : y_padding);
@@ -181,7 +183,7 @@ void GraphicalDisplayMenu::draw_menu_internal_(display::Display *display, const 
 
     dimensions.y = y_offset;
     dimensions.x = bounds->x;
-    this->draw_item(display, item, &dimensions, selected);
+    this->draw_item_(display, item, &dimensions, selected);
 
     y_offset += dimensions.h + y_padding;
   }
@@ -189,8 +191,8 @@ void GraphicalDisplayMenu::draw_menu_internal_(display::Display *display, const 
   display->end_clipping();
 }
 
-display::Rect GraphicalDisplayMenu::measure_item(display::Display *display, const display_menu_base::MenuItem *item,
-                                                 const display::Rect *bounds, const bool selected) {
+display::Rect GraphicalDisplayMenu::measure_item_(display::Display *display, const display_menu_base::MenuItem *item,
+                                                  const display::Rect *bounds, const bool selected) {
   display::Rect dimensions(0, 0, 0, 0);
 
   if (selected) {
@@ -218,8 +220,8 @@ display::Rect GraphicalDisplayMenu::measure_item(display::Display *display, cons
   return dimensions;
 }
 
-inline void GraphicalDisplayMenu::draw_item(display::Display *display, const display_menu_base::MenuItem *item,
-                                            const display::Rect *bounds, const bool selected) {
+inline void GraphicalDisplayMenu::draw_item_(display::Display *display, const display_menu_base::MenuItem *item,
+                                             const display::Rect *bounds, const bool selected) {
   const auto background_color = selected ? this->foreground_color_ : this->background_color_;
   const auto foreground_color = selected ? this->background_color_ : this->foreground_color_;
 

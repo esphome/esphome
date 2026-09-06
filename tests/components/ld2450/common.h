@@ -18,6 +18,9 @@ class MockUARTComponent : public uart::UARTComponent {
   MOCK_METHOD(size_t, available, (), (override));
   MOCK_METHOD(uart::UARTFlushResult, flush, (), (override));
   MOCK_METHOD(void, check_logger_conflict, (), (override));
+#if defined(USE_ESP8266) || defined(USE_ESP32)
+  void load_settings(bool dump_config) override {}
+#endif  // USE_ESP8266 || USE_ESP32
 };
 
 // Expose protected members for testing.

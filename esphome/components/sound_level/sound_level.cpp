@@ -121,7 +121,7 @@ void SoundLevelComponent::loop() {
   if (this->sample_count_ == samples_in_window) {
     // Processed enough samples for the measurement window, compute and publish the sensor values
     if (this->peak_sensor_ != nullptr) {
-      const float peak_db = 10.0f * log10(static_cast<float>(this->squared_peak_) / MAX_SAMPLE_SQUARED_DENOMINATOR);
+      const float peak_db = 10.0f * log10f(static_cast<float>(this->squared_peak_) / MAX_SAMPLE_SQUARED_DENOMINATOR);
       this->peak_sensor_->publish_state(peak_db);
 
       this->squared_peak_ = 0;  // reset accumulator

@@ -256,7 +256,7 @@ template<typename T> class RemoteReceiverBinarySensor : public RemoteReceiverBin
 };
 
 template<typename T>
-class RemoteReceiverTrigger : public Trigger<typename T::ProtocolData>, public RemoteReceiverListener {
+class RemoteReceiverTrigger final : public Trigger<typename T::ProtocolData>, public RemoteReceiverListener {
  protected:
   bool on_receive(RemoteReceiveData src) override {
     auto proto = T();

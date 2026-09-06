@@ -5,7 +5,7 @@
 
 namespace esphome::copy {
 
-class CopyFan : public fan::Fan, public Component {
+class CopyFan final : public fan::Fan, public Component {
  public:
   void set_source(fan::Fan *source) { source_ = source; }
   void setup() override;

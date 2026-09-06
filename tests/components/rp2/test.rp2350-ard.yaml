@@ -1,0 +1,6 @@
+rp2:
+  variant: rp2350
+  enable_full_printf: false
+
+logger:
+  level: VERBOSE

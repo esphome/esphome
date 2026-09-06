@@ -10,7 +10,7 @@
 
 namespace esphome::mqtt {
 
-class MQTTTextComponent : public mqtt::MQTTComponent {
+class MQTTTextComponent final : public mqtt::MQTTComponent {
  public:
   /** Construct this MQTTTextComponent instance with the provided friendly_name and text
    *

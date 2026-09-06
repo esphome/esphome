@@ -52,7 +52,7 @@ enum EAlertFunction {
   ALERT_INTERRUPT = 1,
 };
 
-class TMP1075Sensor : public PollingComponent, public sensor::Sensor, public i2c::I2CDevice {
+class TMP1075Sensor final : public PollingComponent, public sensor::Sensor, public i2c::I2CDevice {
  public:
   void setup() override;
   void update() override;

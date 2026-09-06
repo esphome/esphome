@@ -4,6 +4,9 @@ import esphome.codegen as cg
 from esphome.components import uart
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_PASSWORD, CONF_THROTTLE, CONF_TIMEOUT
+from esphome.core import ID
+from esphome.cpp_generator import MockObj, TemplateArgsType
+from esphome.types import ConfigType
 
 AUTO_LOAD = ["ld24xx"]
 DEPENDENCIES = ["uart"]
@@ -69,7 +72,7 @@ FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await uart.register_uart_device(var, config)
@@ -102,7 +105,12 @@ BLUETOOTH_PASSWORD_SET_SCHEMA = cv.Schema(
     BLUETOOTH_PASSWORD_SET_SCHEMA,
     synchronous=True,
 )
-async def bluetooth_password_set_to_code(config, action_id, template_arg, args):
+async def bluetooth_password_set_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
     template_ = await cg.templatable(config[CONF_PASSWORD], args, cg.std_string)

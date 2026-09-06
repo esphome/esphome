@@ -9,11 +9,11 @@ esphome:
 
 sensor:
   - platform: adc
-    id: my_sensor
+    id: integration_my_sensor
     pin: ${pin}
     attenuation: 12db
   - platform: integration
     id: integration_sensor
-    sensor: my_sensor
+    sensor: integration_my_sensor
     name: Integration Sensor
     time_unit: s

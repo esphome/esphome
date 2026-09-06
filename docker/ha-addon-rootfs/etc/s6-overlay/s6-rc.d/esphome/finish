@@ -2,7 +2,7 @@
 # shellcheck shell=bash
 # ==============================================================================
 # Home Assistant Community Add-on: ESPHome
-# Take down the S6 supervision tree when ESPHome dashboard fails
+# Take down the S6 supervision tree when ESPHome Device Builder fails
 # ==============================================================================
 declare exit_code
 readonly exit_code_container=$(</run/s6-linux-init-container-results/exitcode)
@@ -10,7 +10,7 @@ readonly exit_code_service="${1}"
 readonly exit_code_signal="${2}"
 
 bashio::log.info \
-  "Service ESPHome dashboard exited with code ${exit_code_service}" \
+  "Service ESPHome Device Builder exited with code ${exit_code_service}" \
   "(by signal ${exit_code_signal})"
 
 if [[ "${exit_code_service}" -eq 256 ]]; then

@@ -16,7 +16,7 @@ namespace esphome {
 
 // Friend-gated accessor for a fast millis() variant intended only for
 // known task-context callers on the main loop hot path (Application::loop()
-// and WarnIfComponentBlockingGuard::finish()). It skips the ISR-context
+// and LoopBlockingGuard::finish()). It skips the ISR-context
 // dispatch that the public esphome::millis() pays on ESP32 and libretiny.
 //
 // MUST NOT be called from ISR context: on ESP32 and libretiny it calls the
@@ -50,7 +50,7 @@ class MillisInternal {
 #endif
   }
   friend class Application;
-  friend class WarnIfComponentBlockingGuard;
+  friend class LoopBlockingGuard;
 };
 
 }  // namespace esphome

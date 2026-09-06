@@ -1,0 +1,30 @@
+esphome:
+  name: scheduler-blocking-generic
+
+host:
+api:
+logger:
+  level: DEBUG
+
+globals:
+  - id: done
+    type: bool
+    restore_value: false
+    initial_value: "false"
+
+# A delay in a plain (non-script) automation has no owning script, so the block must log the
+# generic "a scheduled task" label, not a script name.
+interval:
+  - interval: 100ms
+    id: gen_interval
+    then:
+      - if:
+          condition:
+            lambda: "return !id(done);"
+          then:
+            - lambda: "id(done) = true;"
+            - delay: 10ms
+            - lambda: |-
+                const uint32_t start = millis();
+                while (millis() - start < 80) {
+                }

@@ -1,0 +1,10 @@
+esphome:
+  name: docker-test-esp32-ard-pio
+
+esp32:
+  variant: esp32
+  framework:
+    type: arduino
+  toolchain: platformio
+
+logger:

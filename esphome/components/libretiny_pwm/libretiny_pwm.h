@@ -9,7 +9,7 @@
 
 namespace esphome::libretiny_pwm {
 
-class LibreTinyPWM : public output::FloatOutput, public Component {
+class LibreTinyPWM final : public output::FloatOutput, public Component {
  public:
   explicit LibreTinyPWM(InternalGPIOPin *pin) : pin_(pin) {}
 
@@ -34,7 +34,7 @@ class LibreTinyPWM : public output::FloatOutput, public Component {
   bool initialized_ = false;
 };
 
-template<typename... Ts> class SetFrequencyAction : public Action<Ts...> {
+template<typename... Ts> class SetFrequencyAction final : public Action<Ts...> {
  public:
   SetFrequencyAction(LibreTinyPWM *parent) : parent_(parent) {}
   TEMPLATABLE_VALUE(float, frequency);

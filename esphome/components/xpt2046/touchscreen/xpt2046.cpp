@@ -6,6 +6,13 @@
 
 namespace esphome::xpt2046 {
 
+static constexpr uint8_t XPT_READ_Z1 = 0xB0;
+static constexpr uint8_t XPT_READ_Z2 = 0xC0;
+static constexpr uint8_t XPT_READ_X = 0xD0;
+static constexpr uint8_t XPT_READ_Y = 0x90;
+static constexpr uint8_t XPT_ADC_ON = 0x01;
+static constexpr uint8_t XPT_VREF_ON = 0x02;
+
 static const char *const TAG = "xpt2046";
 
 void XPT2046Component::setup() {
@@ -20,7 +27,7 @@ void XPT2046Component::setup() {
     this->attach_interrupt_(this->irq_pin_, gpio::INTERRUPT_FALLING_EDGE);
   }
   this->spi_setup();
-  this->read_adc_(0xD0);  // ADC powerdown, enable PENIRQ pin
+  this->read_adc_(XPT_READ_X);  // ADC powerdown, enable PENIRQ pin
 }
 
 void XPT2046Component::update_touches() {
@@ -29,21 +36,22 @@ void XPT2046Component::update_touches() {
 
   enable();
 
-  int16_t touch_pressure_1 = this->read_adc_(0xB1 /* touch_pressure_1 */);
-  int16_t touch_pressure_2 = this->read_adc_(0xC1 /* touch_pressure_2 */);
+  int16_t touch_pressure_1 = this->read_adc_(XPT_READ_Z1 | XPT_ADC_ON);
+  int16_t touch_pressure_2 = this->read_adc_(XPT_READ_Z2 | XPT_ADC_ON);
   z_raw = touch_pressure_1 + 0xfff - touch_pressure_2;
   ESP_LOGVV(TAG, "Touchscreen Update z = %d", z_raw);
   touch = (z_raw >= this->threshold_);
   if (touch) {
-    read_adc_(0xD1 /* X */);  // dummy Y measure, 1st is always noisy
-    data[0] = this->read_adc_(0x91 /* Y */);
-    data[1] = this->read_adc_(0xD1 /* X */);  // make 3 x-y measurements
-    data[2] = this->read_adc_(0x91 /* Y */);
-    data[3] = this->read_adc_(0xD1 /* X */);
-    data[4] = this->read_adc_(0x91 /* Y */);
+    read_adc_(XPT_READ_X | XPT_ADC_ON);  // dummy X measure, 1st is always noisy
+    // make 3 x-y measurements
+    data[0] = this->read_adc_(XPT_READ_Y | XPT_ADC_ON);
+    data[1] = this->read_adc_(XPT_READ_X | XPT_ADC_ON);
+    data[2] = this->read_adc_(XPT_READ_Y | XPT_ADC_ON);
+    data[3] = this->read_adc_(XPT_READ_X | XPT_ADC_ON);
+    data[4] = this->read_adc_(XPT_READ_Y | XPT_ADC_ON);
   }
 
-  data[5] = this->read_adc_(0xD0 /* X */);  // Last X touch power down
+  data[5] = this->read_adc_(XPT_READ_X);  // Last X touch power down
 
   disable();
 
@@ -95,15 +103,16 @@ int16_t XPT2046Component::best_two_avg(int16_t value1, int16_t value2, int16_t v
   return reta;
 }
 
-int16_t XPT2046Component::read_adc_(uint8_t ctrl) {  // NOLINT
-  uint8_t data[2];
+int16_t XPT2046Component::read_adc_(uint8_t ctrl) {
+  uint8_t data[3];
 
-  this->write_byte(ctrl);
-  delay(1);
-  data[0] = this->read_byte();
-  data[1] = this->read_byte();
+  data[0] = ctrl;
+  data[1] = 0;
+  data[2] = 0;
 
-  return ((data[0] << 8) | data[1]) >> 3;
+  this->transfer_array(data, sizeof(data));
+
+  return ((data[1] << 8) | data[2]) >> 3;
 }
 
 }  // namespace esphome::xpt2046

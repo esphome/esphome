@@ -20,7 +20,7 @@ enum MHZ19DetectionRange {
   MHZ19_DETECTION_RANGE_0_10000PPM,
 };
 
-class MHZ19Component : public PollingComponent, public uart::UARTDevice {
+class MHZ19Component final : public PollingComponent, public uart::UARTDevice {
  public:
   void setup() override;
   void update() override;
@@ -49,22 +49,23 @@ class MHZ19Component : public PollingComponent, public uart::UARTDevice {
   MHZ19DetectionRange detection_range_{MHZ19_DETECTION_RANGE_DEFAULT};
 };
 
-template<typename... Ts> class MHZ19CalibrateZeroAction : public Action<Ts...>, public Parented<MHZ19Component> {
+template<typename... Ts> class MHZ19CalibrateZeroAction final : public Action<Ts...>, public Parented<MHZ19Component> {
  public:
   void play(const Ts &...x) override { this->parent_->calibrate_zero(); }
 };
 
-template<typename... Ts> class MHZ19ABCEnableAction : public Action<Ts...>, public Parented<MHZ19Component> {
+template<typename... Ts> class MHZ19ABCEnableAction final : public Action<Ts...>, public Parented<MHZ19Component> {
  public:
   void play(const Ts &...x) override { this->parent_->abc_enable(); }
 };
 
-template<typename... Ts> class MHZ19ABCDisableAction : public Action<Ts...>, public Parented<MHZ19Component> {
+template<typename... Ts> class MHZ19ABCDisableAction final : public Action<Ts...>, public Parented<MHZ19Component> {
  public:
   void play(const Ts &...x) override { this->parent_->abc_disable(); }
 };
 
-template<typename... Ts> class MHZ19DetectionRangeSetAction : public Action<Ts...>, public Parented<MHZ19Component> {
+template<typename... Ts>
+class MHZ19DetectionRangeSetAction final : public Action<Ts...>, public Parented<MHZ19Component> {
  public:
   TEMPLATABLE_VALUE(MHZ19DetectionRange, detection_range)
 

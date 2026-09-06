@@ -11,7 +11,7 @@
 
 namespace esphome::pid {
 
-class PIDClimate : public climate::Climate, public Component {
+class PIDClimate final : public climate::Climate, public Component {
  public:
   PIDClimate() = default;
   void setup() override;
@@ -108,7 +108,7 @@ class PIDClimate : public climate::Climate, public Component {
   bool do_publish_ = false;
 };
 
-template<typename... Ts> class PIDAutotuneAction : public Action<Ts...> {
+template<typename... Ts> class PIDAutotuneAction final : public Action<Ts...> {
  public:
   PIDAutotuneAction(PIDClimate *parent) : parent_(parent) {}
 
@@ -131,7 +131,7 @@ template<typename... Ts> class PIDAutotuneAction : public Action<Ts...> {
   PIDClimate *parent_;
 };
 
-template<typename... Ts> class PIDResetIntegralTermAction : public Action<Ts...> {
+template<typename... Ts> class PIDResetIntegralTermAction final : public Action<Ts...> {
  public:
   PIDResetIntegralTermAction(PIDClimate *parent) : parent_(parent) {}
 
@@ -141,7 +141,7 @@ template<typename... Ts> class PIDResetIntegralTermAction : public Action<Ts...>
   PIDClimate *parent_;
 };
 
-template<typename... Ts> class PIDSetControlParametersAction : public Action<Ts...> {
+template<typename... Ts> class PIDSetControlParametersAction final : public Action<Ts...> {
  public:
   PIDSetControlParametersAction(PIDClimate *parent) : parent_(parent) {}
 

@@ -1,0 +1,111 @@
+esphome:
+  name: uart-mock-modbus-cli-rw
+
+host:
+api:
+logger:
+  level: VERBOSE
+
+external_components:
+  - source:
+      type: local
+      path: EXTERNAL_COMPONENT_PATH
+
+# Dummy uart entry to satisfy modbus's DEPENDENCIES = ["uart"]
+# The actual UART bus used is the uart_mock component below
+uart:
+  baud_rate: 115200
+  port: /dev/null
+
+# Two virtual buses looped back to each other: the client's transmissions reach the server and the
+# server's replies reach the client. auto_start so forwarding is active before the button fires.
+uart_mock:
+  - id: virtual_uart_server
+    baud_rate: 9600
+    auto_start: true
+    debug:
+    on_tx:
+      - then:
+          - uart_mock.inject_rx:
+              id: virtual_uart_client
+              data: !lambda return data;
+  - id: virtual_uart_client
+    baud_rate: 9600
+    auto_start: true
+    debug:
+    on_tx:
+      - then:
+          - uart_mock.inject_rx:
+              id: virtual_uart_server
+              data: !lambda return data;
+
+globals:
+  - id: stored_1
+    type: uint16_t
+    initial_value: "0"
+
+modbus:
+  - uart_id: virtual_uart_server
+    id: virtual_modbus_server
+    role: server
+  - uart_id: virtual_uart_client
+    id: virtual_modbus_client
+    role: client
+    turnaround_time: 10ms
+
+modbus_server:
+  - address: 1
+    modbus_id: virtual_modbus_server
+    registers:
+      # Writable + readable register: the read publishes what it returns, so the test can confirm the
+      # write half of the 0x17 ran before the read half (Modbus 6.17).
+      - address: 0x01
+        value_type: U_WORD
+        read_lambda: |-
+          id(srv_read_1).publish_state(id(stored_1));
+          return id(stored_1);
+        write_lambda: |-
+          id(stored_1) = x;
+          id(srv_write_1).publish_state(x);
+          return true;
+      # Read-only register, returned together with 0x01 by the 2-register read half.
+      - address: 0x02
+        value_type: U_WORD
+        read_lambda: return 0x00AA;
+
+sensor:
+  # Server-side observations.
+  - platform: template
+    name: "srv_write_1"
+    id: srv_write_1
+  - platform: template
+    name: "srv_read_1"
+    id: srv_read_1
+  # Client-side read-back: the values the client's on_response received.
+  - platform: template
+    name: "client_read_0"
+    id: client_read_0
+  - platform: template
+    name: "client_read_1"
+    id: client_read_1
+
+button:
+  - platform: template
+    name: "Start Scenario"
+    id: start_scenario_btn
+    on_press:
+      # FC 0x17: write reg 0x0001 = 0x1234, then read regs 0x0001..0x0002 back in the same transaction.
+      - modbus_client.read_write_multiple_registers:
+          address: 0x01
+          read_address: 0x0001
+          read_count: 2
+          write_address: 0x0001
+          values: [0x1234]
+          on_response:
+            then:
+              - lambda: |-
+                  // values is the read-back block: reg 0x0001 (must be the just-written 0x1234) and reg 0x0002.
+                  if (values.size() >= 2) {
+                    id(client_read_0).publish_state(values[0]);
+                    id(client_read_1).publish_state(values[1]);
+                  }

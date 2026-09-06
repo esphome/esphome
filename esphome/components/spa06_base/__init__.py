@@ -15,6 +15,8 @@ from esphome.const import (
     UNIT_CELSIUS,
     UNIT_PASCAL,
 )
+from esphome.cpp_generator import MockObj
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@danielkent-net"]
 
@@ -55,7 +57,7 @@ OVERSAMPLING_OPTIONS = {
 SPA06Component = spa06_ns.class_("SPA06Component", cg.PollingComponent)
 
 
-def spa_oversample_time(oversample):
+def spa_oversample_time(oversample: str) -> float:
     # Pressure oversampling conversion times are listed on datasheet Pg. 26
     # Datasheet does not have a table for temperature oversampling;
     # assumption is that it is the same as pressure
@@ -72,7 +74,7 @@ def spa_oversample_time(oversample):
     return OVERSAMPLING_CONVERSION_TIMES[oversample]
 
 
-def spa_sample_rate(rate):
+def spa_sample_rate(rate: str) -> float:
     SAMPLE_RATE_OPTIONS_HZ = {
         "1": 1.0,
         "2": 2.0,
@@ -94,7 +96,7 @@ def spa_sample_rate(rate):
     return SAMPLE_RATE_OPTIONS_HZ[rate]
 
 
-def compute_measurement_conversion_time(config):
+def compute_measurement_conversion_time(config: ConfigType) -> int:
     # - adds up sensor conversion time based on temperature and pressure oversampling rates given in datasheet
     # - returns a rounded up time in ms
 
@@ -115,7 +117,7 @@ def compute_measurement_conversion_time(config):
     return math.ceil(1.05 * (pressure_conversion_time + temperature_conversion_time))
 
 
-def measurement_timing_check(config):
+def measurement_timing_check(config: ConfigType) -> ConfigType:
 
     temp_time = 0.0
     if temperature_config := config.get(CONF_TEMPERATURE):
@@ -176,7 +178,7 @@ CONFIG_SCHEMA_BASE = cv.Schema(
 CONFIG_SCHEMA_BASE.add_extra(measurement_timing_check)
 
 
-async def to_code_base(config):
+async def to_code_base(config: ConfigType) -> MockObj:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     if temperature_config := config.get(CONF_TEMPERATURE):

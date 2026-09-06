@@ -75,8 +75,8 @@ esp32:
     type: esp-idf
 """
 
-RP2040_CONFIG = """
-rp2040:
+RP2_CONFIG = """
+rp2:
   board: {board}
 """
 
@@ -98,7 +98,7 @@ rtl87xx:
 HARDWARE_BASE_CONFIGS = {
     "ESP8266": ESP8266_CONFIG,
     "ESP32": ESP32_CONFIG,
-    "RP2040": RP2040_CONFIG,
+    "RP2": RP2_CONFIG,
     "BK72XX": BK72XX_CONFIG,
     "LN882X": LN882X_CONFIG,
     "RTL87XX": RTL87XX_CONFIG,
@@ -113,7 +113,7 @@ class WizardFileKwargs(TypedDict):
     """Keyword arguments for wizard_file function."""
 
     name: str
-    platform: Literal["ESP8266", "ESP32", "RP2040", "BK72XX", "LN882X", "RTL87XX"]
+    platform: Literal["ESP8266", "ESP32", "RP2", "BK72XX", "LN882X", "RTL87XX"]
     board: str
     ssid: NotRequired[str]
     psk: NotRequired[str]
@@ -213,7 +213,7 @@ def wizard_write(path: Path, **kwargs: Unpack[WizardWriteKwargs]) -> bool:
     from esphome.components.esp32 import boards as esp32_boards
     from esphome.components.esp8266 import boards as esp8266_boards
     from esphome.components.ln882x import boards as ln882x_boards
-    from esphome.components.rp2040 import boards as rp2040_boards
+    from esphome.components.rp2 import boards as rp2_boards
     from esphome.components.rtl87xx import boards as rtl87xx_boards
 
     name = kwargs["name"]
@@ -235,8 +235,8 @@ def wizard_write(path: Path, **kwargs: Unpack[WizardWriteKwargs]) -> bool:
                 platform = "ESP8266"
             elif board in esp32_boards.BOARDS:
                 platform = "ESP32"
-            elif board in rp2040_boards.BOARDS:
-                platform = "RP2040"
+            elif board in rp2_boards.BOARDS:
+                platform = "RP2"
             elif board in bk72xx_boards.BOARDS:
                 platform = "BK72XX"
             elif board in ln882x_boards.BOARDS:
@@ -301,7 +301,7 @@ def wizard(path: Path) -> int:
     from esphome.components.esp32 import boards as esp32_boards
     from esphome.components.esp8266 import boards as esp8266_boards
     from esphome.components.ln882x import boards as ln882x_boards
-    from esphome.components.rp2040 import boards as rp2040_boards
+    from esphome.components.rp2 import boards as rp2_boards
     from esphome.components.rtl87xx import boards as rtl87xx_boards
 
     if path.suffix not in (".yaml", ".yml"):
@@ -373,7 +373,7 @@ def wizard(path: Path) -> int:
         "firmwares for it."
     )
 
-    wizard_platforms = ["ESP32", "ESP8266", "BK72XX", "LN882X", "RTL87XX", "RP2040"]
+    wizard_platforms = ["ESP32", "ESP8266", "BK72XX", "LN882X", "RTL87XX", "RP2"]
     safe_print(
         "Please choose one of the supported microcontrollers "
         "(Use ESP8266 for Sonoff devices)."
@@ -405,7 +405,7 @@ def wizard(path: Path) -> int:
         board_link = (
             "https://docs.platformio.org/en/latest/platforms/espressif8266.html#boards"
         )
-    elif platform == "RP2040":
+    elif platform == "RP2":
         board_link = "https://www.raspberrypi.com/documentation/microcontrollers/silicon.html#rp2040"
     elif platform in ["BK72XX", "LN882X", "RTL87XX"]:
         board_link = "https://docs.libretiny.eu/docs/status/supported/"
@@ -421,27 +421,21 @@ def wizard(path: Path) -> int:
         safe_print(f"(Type {color(AnsiFore.GREEN, 'esp01_1m')} for Sonoff devices)")
     safe_print()
     # Don't sleep because user needs to copy link
-    if platform == "ESP32":
-        safe_print(f'For example "{color(AnsiFore.BOLD_WHITE, "nodemcu-32s")}".')
-        boards_list = esp32_boards.BOARDS.items()
-    elif platform == "ESP8266":
-        safe_print(f'For example "{color(AnsiFore.BOLD_WHITE, "nodemcuv2")}".')
-        boards_list = esp8266_boards.BOARDS.items()
-    elif platform == "BK72XX":
-        safe_print(f'For example "{color(AnsiFore.BOLD_WHITE, "cb2s")}".')
-        boards_list = bk72xx_boards.BOARDS.items()
-    elif platform == "LN882X":
-        safe_print(f'For example "{color(AnsiFore.BOLD_WHITE, "wl2s")}".')
-        boards_list = ln882x_boards.BOARDS.items()
-    elif platform == "RTL87XX":
-        safe_print(f'For example "{color(AnsiFore.BOLD_WHITE, "wr3")}".')
-        boards_list = rtl87xx_boards.BOARDS.items()
-    elif platform == "RP2040":
-        safe_print(f'For example "{color(AnsiFore.BOLD_WHITE, "rpipicow")}".')
-        boards_list = rp2040_boards.BOARDS.items()
-
-    else:
-        raise NotImplementedError("Unknown platform!")
+    # Platform-to-(example board, boards module) lookup. Dict-driven so the
+    # set of supported platforms has a single source of truth and the elif
+    # chain — which left the last entry's "False" branch structurally
+    # unreachable in tests — is gone.
+    example_boards = {
+        "ESP32": ("nodemcu-32s", esp32_boards),
+        "ESP8266": ("nodemcuv2", esp8266_boards),
+        "BK72XX": ("cb2s", bk72xx_boards),
+        "LN882X": ("wl2s", ln882x_boards),
+        "RTL87XX": ("wr3", rtl87xx_boards),
+        "RP2": ("rpipicow", rp2_boards),
+    }
+    example, boards_module = example_boards[platform]
+    safe_print(f'For example "{color(AnsiFore.BOLD_WHITE, example)}".')
+    boards_list = boards_module.BOARDS.items()
 
     boards = []
     safe_print("Options:")

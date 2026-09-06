@@ -7,7 +7,7 @@
 
 namespace esphome::htu31d {
 
-class HTU31DComponent : public PollingComponent, public i2c::I2CDevice {
+class HTU31DComponent final : public PollingComponent, public i2c::I2CDevice {
  public:
   void setup() override;        /// Setup (reset) the sensor and check connection.
   void update() override;       /// Update the sensor values (temperature+humidity).

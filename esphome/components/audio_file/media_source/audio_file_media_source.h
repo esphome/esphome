@@ -23,7 +23,9 @@ namespace esphome::audio_file {
 //     (the orchestrator calls set_listener() on us with a MediaSourceListener*).
 //   - micro_decoder::DecoderListener: the underlying decoder calls back *into* us with decoded
 //     audio and state changes (we call decoder_->set_listener(this) in setup()).
-class AudioFileMediaSource : public Component, public media_source::MediaSource, public micro_decoder::DecoderListener {
+class AudioFileMediaSource final : public Component,
+                                   public media_source::MediaSource,
+                                   public micro_decoder::DecoderListener {
  public:
   void setup() override;
   void loop() override;

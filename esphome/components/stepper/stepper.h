@@ -37,7 +37,7 @@ class Stepper {
   uint32_t last_step_{0};
 };
 
-template<typename... Ts> class SetTargetAction : public Action<Ts...> {
+template<typename... Ts> class SetTargetAction final : public Action<Ts...> {
  public:
   explicit SetTargetAction(Stepper *parent) : parent_(parent) {}
 
@@ -49,7 +49,7 @@ template<typename... Ts> class SetTargetAction : public Action<Ts...> {
   Stepper *parent_;
 };
 
-template<typename... Ts> class ReportPositionAction : public Action<Ts...> {
+template<typename... Ts> class ReportPositionAction final : public Action<Ts...> {
  public:
   explicit ReportPositionAction(Stepper *parent) : parent_(parent) {}
 
@@ -61,7 +61,7 @@ template<typename... Ts> class ReportPositionAction : public Action<Ts...> {
   Stepper *parent_;
 };
 
-template<typename... Ts> class SetSpeedAction : public Action<Ts...> {
+template<typename... Ts> class SetSpeedAction final : public Action<Ts...> {
  public:
   explicit SetSpeedAction(Stepper *parent) : parent_(parent) {}
 
@@ -77,7 +77,7 @@ template<typename... Ts> class SetSpeedAction : public Action<Ts...> {
   Stepper *parent_;
 };
 
-template<typename... Ts> class SetAccelerationAction : public Action<Ts...> {
+template<typename... Ts> class SetAccelerationAction final : public Action<Ts...> {
  public:
   explicit SetAccelerationAction(Stepper *parent) : parent_(parent) {}
 
@@ -92,7 +92,7 @@ template<typename... Ts> class SetAccelerationAction : public Action<Ts...> {
   Stepper *parent_;
 };
 
-template<typename... Ts> class SetDecelerationAction : public Action<Ts...> {
+template<typename... Ts> class SetDecelerationAction final : public Action<Ts...> {
  public:
   explicit SetDecelerationAction(Stepper *parent) : parent_(parent) {}
 

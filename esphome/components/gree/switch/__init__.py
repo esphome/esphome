@@ -3,6 +3,7 @@ from esphome.components import switch
 import esphome.config_validation as cv
 from esphome.const import CONF_LIGHT, DEVICE_CLASS_SWITCH, ENTITY_CATEGORY_CONFIG
 import esphome.final_validate as fv
+from esphome.types import ConfigType
 
 from .. import gree_ns
 from ..climate import CONF_MODEL, GreeClimate
@@ -48,7 +49,7 @@ CONFIG_SCHEMA = cv.Schema(
 )
 
 
-def _validate_model(config):
+def _validate_model(config: ConfigType) -> None:
     full_config = fv.full_config.get()
     climate_path = full_config.get_path_for_id(config[CONF_GREE_ID])[:-1]
     climate_conf = full_config.get_config_for_path(climate_path)
@@ -63,7 +64,7 @@ def _validate_model(config):
 FINAL_VALIDATE_SCHEMA = _validate_model
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     parent = await cg.get_variable(config[CONF_GREE_ID])
 
     for conf_key, name, bit_mask, _ in SWITCH_CONFIGS:

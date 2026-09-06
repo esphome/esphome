@@ -6,7 +6,7 @@
 
 namespace esphome::bh1900nux {
 
-class BH1900NUXSensor : public sensor::Sensor, public PollingComponent, public i2c::I2CDevice {
+class BH1900NUXSensor final : public sensor::Sensor, public PollingComponent, public i2c::I2CDevice {
  public:
   void setup() override;
   void update() override;

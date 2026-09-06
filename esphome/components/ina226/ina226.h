@@ -40,7 +40,7 @@ union ConfigurationRegister {
   } __attribute__((packed));
 };
 
-class INA226Component : public PollingComponent, public i2c::I2CDevice {
+class INA226Component final : public PollingComponent, public i2c::I2CDevice {
  public:
   void setup() override;
   void dump_config() override;

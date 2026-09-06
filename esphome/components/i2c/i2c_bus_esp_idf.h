@@ -14,7 +14,7 @@ enum RecoveryCode {
   RECOVERY_COMPLETED,
 };
 
-class IDFI2CBus : public InternalI2CBus, public Component {
+class IDFI2CBus final : public InternalI2CBus, public Component {
  public:
   void setup() override;
   void dump_config() override;

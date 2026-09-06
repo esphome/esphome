@@ -5,7 +5,10 @@
 #include "api_buffer.h"
 // Must precede clients_ so APIConnection is complete for default_delete (libc++).
 #include "api_connection.h"
-#include "api_noise_context.h"
+#ifdef USE_API_NOISE
+// Only present in the build when the noise component is loaded
+#include "esphome/components/noise/noise.h"
+#endif
 #include "api_pb2.h"
 #include "api_pb2_service.h"
 #include "esphome/components/socket/socket.h"
@@ -14,6 +17,9 @@
 #include "esphome/core/controller.h"
 #include "esphome/core/log.h"
 #include "esphome/core/string_ref.h"
+#ifdef USE_PROVISIONING
+#include "esphome/components/provisioning/provisioning.h"
+#endif
 #ifdef USE_LOGGER
 #include "esphome/components/logger/logger.h"
 #endif
@@ -34,7 +40,7 @@ class UserServiceDescriptor;
 
 #ifdef USE_API_NOISE
 struct SavedNoisePsk {
-  psk_t psk;
+  noise::psk_t psk;
 } PACKED;  // NOLINT
 #endif
 
@@ -48,8 +54,8 @@ class APIServer final : public Component,
  public:
   APIServer();
   void setup() override;
-  uint16_t get_port() const;
-  float get_setup_priority() const override;
+  uint16_t get_port() const { return this->port_; }
+  float get_setup_priority() const override { return setup_priority::AFTER_WIFI; }
   void loop() override;
   void dump_config() override;
   void on_shutdown() override;
@@ -60,9 +66,9 @@ class APIServer final : public Component,
 #ifdef USE_CAMERA
   void on_camera_image(const std::shared_ptr<camera::CameraImage> &image) override;
 #endif
-  void set_port(uint16_t port);
-  void set_reboot_timeout(uint32_t reboot_timeout);
-  void set_batch_delay(uint16_t batch_delay);
+  void set_port(uint16_t port) { this->port_ = port; }
+  void set_reboot_timeout(uint32_t reboot_timeout) { this->reboot_timeout_ = reboot_timeout; }
+  void set_batch_delay(uint16_t batch_delay) { this->batch_delay_ = batch_delay; }
   uint16_t get_batch_delay() const { return batch_delay_; }
   void set_listen_backlog(uint8_t listen_backlog) { this->listen_backlog_ = listen_backlog; }
 
@@ -70,10 +76,10 @@ class APIServer final : public Component,
   APIBuffer &get_shared_buffer_ref() { return shared_write_buffer_; }
 
 #ifdef USE_API_NOISE
-  bool save_noise_psk(psk_t psk, bool make_active = true);
+  bool save_noise_psk(noise::psk_t psk, bool make_active = true);
   bool clear_noise_psk(bool make_active = true);
-  void set_noise_psk(psk_t psk) { this->noise_ctx_.set_psk(psk); }
-  APINoiseContext &get_noise_ctx() { return this->noise_ctx_; }
+  void set_noise_psk(noise::psk_t psk) { this->noise_ctx_.set_psk(psk); }
+  noise::NoiseContext &get_noise_ctx() { return this->noise_ctx_; }
 #endif  // USE_API_NOISE
 
   void handle_disconnect(APIConnection *conn);
@@ -255,6 +261,19 @@ class APIServer final : public Component,
   // Remove a disconnected client by index. Swaps with the last populated slot and resets it.
   void __attribute__((noinline)) remove_client_(uint8_t client_index);
 
+#ifdef USE_PROVISIONING
+  // True while a configured provisioning window is still pending (the device is
+  // unprovisioned). Suppresses the reboot timeout and its warning so the device is
+  // not auto-rebooted while waiting to be provisioned. False when no provisioning
+  // window is configured.
+  bool provisioning_pending_() const {
+    return provisioning::global_provisioning_manager != nullptr &&
+           provisioning::global_provisioning_manager->window_pending();
+  }
+#else
+  bool provisioning_pending_() const { return false; }
+#endif
+
 #ifdef USE_API_NOISE
   bool update_noise_psk_(const SavedNoisePsk &new_psk, const LogString *save_log_msg, const LogString *fail_log_msg,
                          bool make_active);
@@ -332,17 +351,20 @@ class APIServer final : public Component,
   uint8_t listen_backlog_{4};
   bool shutting_down_ = false;
   uint8_t api_connection_count_{0};
-  // 7 bytes used, 1 byte padding
+#if defined(USE_PROVISIONING) && defined(USE_API_NOISE)
+  // Index assigned by the provisioning manager for reporting this transport's state.
+  uint8_t provisioning_source_{0};
+#endif
 
 #ifdef USE_API_NOISE
-  APINoiseContext noise_ctx_;
+  noise::NoiseContext noise_ctx_;
   ESPPreferenceObject noise_pref_;
 #endif  // USE_API_NOISE
 };
 
 extern APIServer *global_api_server;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
-template<typename... Ts> class APIConnectedCondition : public Condition<Ts...> {
+template<typename... Ts> class APIConnectedCondition final : public Condition<Ts...> {
   TEMPLATABLE_VALUE(bool, state_subscription_only)
  public:
   bool check(const Ts &...x) override {

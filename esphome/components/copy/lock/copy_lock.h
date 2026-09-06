@@ -5,7 +5,7 @@
 
 namespace esphome::copy {
 
-class CopyLock : public lock::Lock, public Component {
+class CopyLock final : public lock::Lock, public Component {
  public:
   void set_source(lock::Lock *source) { source_ = source; }
   void setup() override;

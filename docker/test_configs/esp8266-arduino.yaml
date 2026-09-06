@@ -1,0 +1,7 @@
+esphome:
+  name: docker-test-esp8266-arduino
+
+esp8266:
+  board: d1_mini
+
+logger:

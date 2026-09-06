@@ -17,6 +17,15 @@ cc1101:
   sync0: 0x91
   sync1: 0xD3
   num_preamble: 2
+  foc_bs_cs_gate: true
+  foc_pre_k: "2K"
+  foc_post_k: "K/2"
+  foc_limit: "BW/4"
+  bs_pre_ki: "3KI"
+  bs_pre_kp: "4KP"
+  bs_post_ki: "KI/2"
+  bs_post_kp: "KP"
+  bs_limit: "12.5%"
   on_packet:
     then:
       - lambda: |-

@@ -6,7 +6,7 @@
 
 namespace esphome::mmc5983 {
 
-class MMC5983Component : public PollingComponent, public i2c::I2CDevice {
+class MMC5983Component final : public PollingComponent, public i2c::I2CDevice {
  public:
   void update() override;
   void setup() override;

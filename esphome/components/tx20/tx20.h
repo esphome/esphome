@@ -21,7 +21,7 @@ struct Tx20ComponentStore {
 };
 
 /// This class implements support for the Tx20 Wind sensor.
-class Tx20Component : public Component {
+class Tx20Component final : public Component {
  public:
   /// Get the textual representation of the wind direction ('N', 'SSE', ..).
   std::string get_wind_cardinal_direction() const;

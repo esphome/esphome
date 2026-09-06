@@ -6,7 +6,7 @@
 
 namespace esphome::binary {
 
-class BinaryLightOutput : public light::LightOutput {
+class BinaryLightOutput final : public light::LightOutput {
  public:
   void set_output(output::BinaryOutput *output) { output_ = output; }
   light::LightTraits get_traits() override {

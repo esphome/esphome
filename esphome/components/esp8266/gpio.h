@@ -7,7 +7,7 @@
 
 namespace esphome::esp8266 {
 
-class ESP8266GPIOPin : public InternalGPIOPin {
+class ESP8266GPIOPin final : public InternalGPIOPin {
  public:
   void set_pin(uint8_t pin) { pin_ = pin; }
   void set_inverted(bool inverted) { inverted_ = inverted; }

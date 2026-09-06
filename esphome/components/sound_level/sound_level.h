@@ -12,7 +12,7 @@
 
 namespace esphome::sound_level {
 
-class SoundLevelComponent : public Component {
+class SoundLevelComponent final : public Component {
  public:
   void dump_config() override;
   void setup() override;
@@ -59,12 +59,12 @@ class SoundLevelComponent : public Component {
   uint32_t measurement_duration_ms_;
 };
 
-template<typename... Ts> class StartAction : public Action<Ts...>, public Parented<SoundLevelComponent> {
+template<typename... Ts> class StartAction final : public Action<Ts...>, public Parented<SoundLevelComponent> {
  public:
   void play(const Ts &...x) override { this->parent_->start(); }
 };
 
-template<typename... Ts> class StopAction : public Action<Ts...>, public Parented<SoundLevelComponent> {
+template<typename... Ts> class StopAction final : public Action<Ts...>, public Parented<SoundLevelComponent> {
  public:
   void play(const Ts &...x) override { this->parent_->stop(); }
 };

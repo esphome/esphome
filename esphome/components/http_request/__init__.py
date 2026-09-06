@@ -1,4 +1,5 @@
 from pathlib import Path
+from typing import Any
 
 from esphome import automation
 import esphome.codegen as cg
@@ -16,12 +17,16 @@ from esphome.const import (
     CONF_TIMEOUT,
     CONF_URL,
     CONF_WATCHDOG_TIMEOUT,
+    PLATFORM_ESP32,
     PLATFORM_HOST,
     PlatformFramework,
     __version__,
 )
-from esphome.core import CORE, Lambda
+from esphome.core import CORE, ID, Lambda, TimePeriodMilliseconds
+from esphome.cpp_generator import MockObj, TemplateArgsType
+import esphome.final_validate as fv
 from esphome.helpers import IS_MACOS
+from esphome.types import ConfigType
 
 DEPENDENCIES = ["network"]
 AUTO_LOAD = ["json", "watchdog"]
@@ -63,17 +68,17 @@ CONF_BODY = "body"
 CONF_JSON = "json"
 
 
-def validate_url(value):
+def validate_url(value: Any) -> str:
     value = cv.url(value)
     if value.startswith(("http://", "https://")):
         return value
     raise cv.Invalid("URL must start with 'http://' or 'https://'")
 
 
-def validate_ssl_verification(config):
+def validate_ssl_verification(config: ConfigType) -> ConfigType:
     error_message = ""
 
-    if CORE.is_rp2040 and config[CONF_VERIFY_SSL]:
+    if CORE.is_rp2 and config[CONF_VERIFY_SSL]:
         error_message = "ESPHome does not support certificate verification on RP2040"
 
     if (
@@ -91,12 +96,40 @@ def validate_ssl_verification(config):
     return config
 
 
-def _declare_request_class(value):
+# esp_http_client_open() runs DNS, TCP connect and the TLS handshake with no
+# watchdog feed in between; each can take up to `timeout` on ESP-IDF.
+WATCHDOG_TIMEOUT_MULTIPLIER = 3
+# Headroom over the exact worst case so a fully stalled open does not land on
+# the watchdog deadline.
+WATCHDOG_TIMEOUT_MARGIN_MS = 1000
+
+
+def default_watchdog_timeout(config: ConfigType) -> None:
+    """Arm the request watchdog on ESP32 when the user did not set it.
+
+    The default never goes below the platform task watchdog, so a user who
+    widened `esp32.watchdog_timeout` keeps that window during requests.
+    """
+    if not CORE.is_esp32 or CONF_WATCHDOG_TIMEOUT in config:
+        return
+    derived_ms = (
+        config[CONF_TIMEOUT].total_milliseconds * WATCHDOG_TIMEOUT_MULTIPLIER
+        + WATCHDOG_TIMEOUT_MARGIN_MS
+    )
+    platform_ms = fv.full_config.get()[PLATFORM_ESP32][
+        CONF_WATCHDOG_TIMEOUT
+    ].total_milliseconds
+    config[CONF_WATCHDOG_TIMEOUT] = TimePeriodMilliseconds(
+        milliseconds=max(derived_ms, platform_ms)
+    )
+
+
+def _declare_request_class(value: Any) -> ID:
     if CORE.is_host:
         return cv.declare_id(HttpRequestHost)(value)
     if CORE.is_esp32:
         return cv.declare_id(HttpRequestIDF)(value)
-    if CORE.is_esp8266 or CORE.is_rp2040:
+    if CORE.is_esp8266 or CORE.is_rp2:
         return cv.declare_id(HttpRequestArduino)(value)
     return NotImplementedError
 
@@ -118,7 +151,7 @@ CONFIG_SCHEMA = cv.All(
             ),
             cv.Optional(CONF_VERIFY_SSL, default=True): cv.boolean,
             cv.Optional(CONF_WATCHDOG_TIMEOUT): cv.All(
-                cv.Any(cv.only_on_esp32, cv.only_on_rp2040),
+                cv.Any(cv.only_on_esp32, cv.only_on_rp2),
                 cv.positive_not_null_time_period,
                 cv.positive_time_period_milliseconds,
             ),
@@ -144,14 +177,16 @@ CONFIG_SCHEMA = cv.All(
         esp8266_arduino=cv.Version(2, 5, 1),
         esp32_arduino=cv.Version(0, 0, 0),
         esp_idf=cv.Version(0, 0, 0),
-        rp2040_arduino=cv.Version(0, 0, 0),
+        rp2_arduino=cv.Version(0, 0, 0),
         host=cv.Version(0, 0, 0),
     ),
     validate_ssl_verification,
 )
 
+FINAL_VALIDATE_SCHEMA = default_watchdog_timeout
 
-async def to_code(config):
+
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     cg.add(var.set_timeout(config[CONF_TIMEOUT]))
     cg.add(var.set_useragent(config[CONF_USERAGENT]))
@@ -167,8 +202,11 @@ async def to_code(config):
         cg.add(var.set_watchdog_timeout(timeout_ms))
 
     if CORE.is_esp32:
-        # Re-enable ESP-IDF's HTTP client (excluded by default to save compile time)
+        # Re-enable ESP-IDF's HTTP client (excluded by default to save compile time).
+        # esp-tls is re-enabled too because http_request includes <esp_tls.h>
+        # directly and esp_http_client only pulls it in as a private dependency.
         esp32.include_builtin_idf_component("esp_http_client")
+        esp32.include_builtin_idf_component("esp-tls")
 
         cg.add(var.set_buffer_size_rx(config[CONF_BUFFER_SIZE_RX]))
         cg.add(var.set_buffer_size_tx(config[CONF_BUFFER_SIZE_TX]))
@@ -190,9 +228,7 @@ async def to_code(config):
                 #     framework:
                 #       advanced:
                 #         use_full_certificate_bundle: true
-                esp32.add_idf_sdkconfig_option(
-                    "CONFIG_MBEDTLS_CERTIFICATE_BUNDLE", True
-                )
+                esp32.require_certificate_bundle()
 
         esp32.add_idf_sdkconfig_option(
             "CONFIG_ESP_TLS_INSECURE",
@@ -204,7 +240,7 @@ async def to_code(config):
         )
     if CORE.is_esp8266:
         cg.add_library("ESP8266HTTPClient", None)
-    if CORE.is_rp2040 and CORE.using_arduino:
+    if CORE.is_rp2 and CORE.using_arduino:
         cg.add_library("HTTPClient", None)
     if CORE.is_host:
         if IS_MACOS:
@@ -298,7 +334,12 @@ HTTP_REQUEST_SEND_ACTION_SCHEMA = HTTP_REQUEST_ACTION_SCHEMA.extend(
     HTTP_REQUEST_SEND_ACTION_SCHEMA,
     synchronous=True,
 )
-async def http_request_action_to_code(config, action_id, template_arg, args):
+async def http_request_action_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
 
@@ -368,7 +409,7 @@ FILTER_SOURCE_FILES = filter_source_files_from_platform(
         "http_request_host.cpp": {PlatformFramework.HOST_NATIVE},
         "http_request_arduino.cpp": {
             PlatformFramework.ESP8266_ARDUINO,
-            PlatformFramework.RP2040_ARDUINO,
+            PlatformFramework.RP2_ARDUINO,
             PlatformFramework.BK72XX_ARDUINO,
             PlatformFramework.RTL87XX_ARDUINO,
             PlatformFramework.LN882X_ARDUINO,

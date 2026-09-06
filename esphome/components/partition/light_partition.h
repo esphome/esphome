@@ -31,7 +31,7 @@ class AddressableSegment {
   bool reversed_;
 };
 
-class PartitionLightOutput : public light::AddressableLight {
+class PartitionLightOutput final : public light::AddressableLight {
  public:
   explicit PartitionLightOutput(std::vector<AddressableSegment> segments) : segments_(std::move(segments)) {
     int32_t off = 0;

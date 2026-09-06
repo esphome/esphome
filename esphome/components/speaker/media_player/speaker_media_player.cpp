@@ -612,7 +612,7 @@ void SpeakerMediaPlayer::set_volume_(float volume, bool publish) {
   }
 
   // Turn on the mute state if the volume is effectively zero, off otherwise
-  if (volume < 0.001) {
+  if (volume < 0.001f) {
     this->set_mute_state_(true);
   } else {
     this->set_mute_state_(false);

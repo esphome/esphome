@@ -1,0 +1,34 @@
+packages:
+  ln882h_ble_tracker: !include common.yaml
+
+esphome:
+  on_boot:
+    then:
+      - ln882h_ble_tracker.start_scan
+      - ln882h_ble_tracker.start_scan:
+          continuous: true
+      - ln882h_ble_tracker.start_scan:
+          continuous: !lambda return false;
+      - ln882h_ble_tracker.stop_scan
+
+ln882h_ble_tracker:
+  on_ble_advertise:
+    - mac_address: AC:37:43:77:5F:4C
+      then:
+        - lambda: |-
+            char addr[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
+            ESP_LOGD("main", "The device address is %s", x.address_str_to(addr));
+  on_ble_service_data_advertise:
+    - service_uuid: ABCD
+      then:
+        - lambda: |-
+            ESP_LOGD("main", "Length of service data is %zu", x.size());
+  on_ble_manufacturer_data_advertise:
+    - manufacturer_id: ABCD
+      then:
+        - lambda: |-
+            ESP_LOGD("main", "Length of manufacturer data is %zu", x.size());
+  on_scan_end:
+    - then:
+        - lambda: |-
+            ESP_LOGD("main", "Scan ended");

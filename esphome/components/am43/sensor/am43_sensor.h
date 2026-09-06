@@ -14,7 +14,7 @@ namespace esphome::am43 {
 
 namespace espbt = esphome::esp32_ble_tracker;
 
-class Am43 : public esphome::ble_client::BLEClientNode, public PollingComponent {
+class Am43 final : public esphome::ble_client::BLEClientNode, public PollingComponent {
  public:
   void setup() override;
   void update() override;

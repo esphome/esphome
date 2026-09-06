@@ -7,7 +7,7 @@
 
 namespace esphome::ags10 {
 
-class AGS10Component : public PollingComponent, public i2c::I2CDevice {
+class AGS10Component final : public PollingComponent, public i2c::I2CDevice {
  public:
   /**
    * Sets TVOC sensor.
@@ -100,7 +100,7 @@ class AGS10Component : public PollingComponent, public i2c::I2CDevice {
   template<size_t N> optional<std::array<uint8_t, N>> read_and_check_(uint8_t a_register);
 };
 
-template<typename... Ts> class AGS10NewI2cAddressAction : public Action<Ts...>, public Parented<AGS10Component> {
+template<typename... Ts> class AGS10NewI2cAddressAction final : public Action<Ts...>, public Parented<AGS10Component> {
  public:
   TEMPLATABLE_VALUE(uint8_t, new_address)
 
@@ -116,7 +116,7 @@ enum AGS10SetZeroPointActionMode {
   CUSTOM_VALUE,
 };
 
-template<typename... Ts> class AGS10SetZeroPointAction : public Action<Ts...>, public Parented<AGS10Component> {
+template<typename... Ts> class AGS10SetZeroPointAction final : public Action<Ts...>, public Parented<AGS10Component> {
  public:
   TEMPLATABLE_VALUE(uint16_t, value)
   TEMPLATABLE_VALUE(AGS10SetZeroPointActionMode, mode)

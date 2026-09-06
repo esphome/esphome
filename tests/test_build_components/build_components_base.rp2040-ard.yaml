@@ -2,7 +2,7 @@ esphome:
   name: componenttestrp2040ard
   friendly_name: $component_name
 
-rp2040:
+rp2:
   board: rpipicow
 
 logger:

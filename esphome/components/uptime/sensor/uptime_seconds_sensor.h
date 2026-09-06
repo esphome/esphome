@@ -5,7 +5,7 @@
 
 namespace esphome::uptime {
 
-class UptimeSecondsSensor : public sensor::Sensor, public PollingComponent {
+class UptimeSecondsSensor final : public sensor::Sensor, public PollingComponent {
  public:
   void update() override;
   void dump_config() override;

@@ -5,7 +5,7 @@
 
 namespace esphome::haier {
 
-class SteriCleaningButton : public button::Button, public Parented<HonClimate> {
+class SteriCleaningButton final : public button::Button, public Parented<HonClimate> {
  public:
   SteriCleaningButton() = default;
 

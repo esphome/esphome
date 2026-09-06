@@ -21,7 +21,7 @@ class PylontechListener {
   virtual void dump_config();
 };
 
-class PylontechComponent : public PollingComponent, public uart::UARTDevice {
+class PylontechComponent final : public PollingComponent, public uart::UARTDevice {
  public:
   PylontechComponent();
 

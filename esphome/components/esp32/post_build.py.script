@@ -224,6 +224,17 @@ def merge_factory_bin(source, target, env):
     flash_size = env.BoardConfig().get("upload.flash_size", "4MB")
     chip = env.BoardConfig().get("build.mcu", "esp32")
 
+    # PlatformIO's esp-idf builder already creates a correct firmware.factory.bin (right
+    # artifact names and partition offsets, including custom partition tables). The merge
+    # below is only a fallback and cannot honor custom layouts, so don't overwrite an image
+    # PlatformIO already produced. Post-build actions only run when firmware.bin is rebuilt,
+    # and PlatformIO's combined-image builder runs before us in that batch, so an existing
+    # file here is current.
+    output_path = firmware_path.with_suffix(".factory.bin")
+    if output_path.exists():
+        print(f"{output_path.name} already created by PlatformIO - skipping merge")
+        return
+
     sections = []
     flasher_args_path = build_dir / "flasher_args.json"
 
@@ -291,7 +302,6 @@ def merge_factory_bin(source, target, env):
         print("No valid flash sections found — skipping .factory.bin creation.")
         return
 
-    output_path = firmware_path.with_suffix(".factory.bin")
     python_exe = f'"{env.subst("$PYTHONEXE")}"'
     cmd = [
         python_exe,

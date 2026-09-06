@@ -8,7 +8,7 @@
 
 namespace esphome::i2c {
 
-class HostI2CBus : public I2CBus, public Component {
+class HostI2CBus final : public I2CBus, public Component {
  public:
   ~HostI2CBus() override;
 

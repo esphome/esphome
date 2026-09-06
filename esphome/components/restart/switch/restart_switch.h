@@ -5,7 +5,7 @@
 
 namespace esphome::restart {
 
-class RestartSwitch : public switch_::Switch, public Component {
+class RestartSwitch final : public switch_::Switch, public Component {
  public:
   void dump_config() override;
 
