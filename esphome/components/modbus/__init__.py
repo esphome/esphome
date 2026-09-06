@@ -89,9 +89,8 @@ _WRITE_FUNCTION_CODES = frozenset({0x05, 0x06, 0x0F, 0x10, 0x16, 0x17})
 
 def is_function_code_write(function_code: int) -> bool:
     """True if the Modbus function code writes (mutates). The exception bit (0x80) is masked off first,
-    so an exception-flagged code still classifies by its base code - stricter than the runtime hub,
-    whose classify() treats an exception-flagged code as a read. Keep in sync with
-    modbus::helpers::is_function_code_write()."""
+    so an exception-flagged code still classifies by its base code (the runtime hub never queues one:
+    queue_pdu() refuses them). Keep in sync with modbus::helpers::is_function_code_write()."""
     return function_code & 0x7F in _WRITE_FUNCTION_CODES
 
 

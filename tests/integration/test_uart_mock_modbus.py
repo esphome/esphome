@@ -21,7 +21,7 @@ import asyncio
 from collections.abc import Callable
 from dataclasses import dataclass
 
-from aioesphomeapi import ButtonInfo, NumberInfo, SwitchInfo
+from aioesphomeapi import ButtonInfo, NumberInfo, SwitchInfo, TextSensorState
 import pytest
 
 from .state_utils import SensorTracker, find_entity, wait_for_state
@@ -967,13 +967,6 @@ async def test_uart_mock_modbus_client_read_write(
         _assert_no_modbus_errors(error_log_lines, warning_log_lines)
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="Byte-accurate register-offset writes require the modbus_controller "
-    "entity-device change; on dev the byte offset is folded into the address "
-    "(writes 0x12 instead of 0x11). The write and read assertions both flip via "
-    "the same switch-constructor fold. Remove this marker when that change merges.",
-)
 @pytest.mark.asyncio
 async def test_uart_mock_modbus_register_offset(
     yaml_config: str,
@@ -1029,14 +1022,97 @@ async def test_uart_mock_modbus_register_offset(
         )
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="The deprecated write buffer requires the modbus_controller "
-    "entity-device change; on dev a nullopt-returning write_lambda early-returns "
-    "before the buffer is used, so the write never happens. The warn-once "
-    "assertion matches the log substring 'write_lambda buffer'. Remove this "
-    "marker when that change merges.",
-)
+@pytest.mark.asyncio
+async def test_uart_mock_modbus_lambda_write(
+    yaml_config: str,
+    run_compiled: RunCompiledFunction,
+    api_client_connected: APIClientConnectedFactory,
+) -> None:
+    """Test a write_lambda that drives the write through the entity itself (item is the command).
+
+    `cross_switch` is a coil-type switch whose write_lambda ignores its own type and calls
+    item->write_single_register(0x30, ...) - a register write issued from a coil entity. The lambda
+    returns an empty optional, so the write path detects the lambda already dispatched a frame and does
+    not fall back to the default coil write. Success is reg_30 reading back the value the lambda wrote,
+    which proves both the new item->write_* path and cross-type flexibility.
+    """
+
+    tracker = SensorTracker(["reg_30"])
+    initial = tracker.expect("reg_30", 0)
+    wrote_30 = tracker.expect("reg_30", 1234)
+
+    async with (
+        run_compiled(yaml_config),
+        api_client_connected() as client,
+    ):
+        entities = await tracker.setup_and_start_scenario(client)
+        await tracker.await_change(initial, "reg_30", timeout=4.0)
+
+        switch = find_entity(entities, "cross_switch", SwitchInfo)
+        assert switch is not None, "cross_switch not found"
+        client.switch_command(switch.key, True)
+
+        # The coil switch's lambda wrote register 0x30 via item->write_single_register(); reg_30 must
+        # read back 1234. If the entity-as-command dispatch were broken, no register write would go out
+        # and this would time out.
+        await tracker.await_change(wrote_30, "reg_30", timeout=4.0)
+
+
+@pytest.mark.asyncio
+async def test_uart_mock_modbus_lambda_invert(
+    yaml_config: str,
+    run_compiled: RunCompiledFunction,
+    api_client_connected: APIClientConnectedFactory,
+) -> None:
+    """Test that a write_lambda's return value is the wire value only.
+
+    `invert_switch` is an active-low holding switch whose write_lambda returns !x. Turning it ON must
+    write 0x0000 to the register (observed through the independent reg_40 sensor) while the entity
+    reports ON - the requested state, not the inverted wire value. Turning it OFF writes 0xFFFF and
+    reports OFF. The switch is assumed_state, so the published state comes only from write_state().
+    """
+
+    tracker = SensorTracker(["reg_40"])
+    initial = tracker.expect("reg_40", 5)
+    wrote_on = tracker.expect("reg_40", 0)
+    wrote_off = tracker.expect("reg_40", 65535)
+
+    async with (
+        run_compiled(yaml_config),
+        api_client_connected() as client,
+    ):
+        entities = await tracker.setup_and_start_scenario(client)
+        await tracker.await_change(initial, "reg_40", timeout=4.0)
+
+        switch = find_entity(entities, "invert_switch", SwitchInfo)
+        assert switch is not None, "invert_switch not found"
+
+        client.switch_command(switch.key, True)
+        # The wire byte carries the inverted value...
+        await tracker.await_change(wrote_on, "reg_40", timeout=4.0)
+        # ...while the entity reports the requested state. Switch states are deduped, so this relies on
+        # wait_for_state's fresh subscribe_states re-dumping every entity's current state.
+        await wait_for_state(
+            client,
+            lambda s: (
+                getattr(s, "key", None) == switch.key
+                and getattr(s, "state", None) is True
+            ),
+            timeout=6.0,
+        )
+
+        client.switch_command(switch.key, False)
+        await tracker.await_change(wrote_off, "reg_40", timeout=4.0)
+        await wait_for_state(
+            client,
+            lambda s: (
+                getattr(s, "key", None) == switch.key
+                and getattr(s, "state", None) is False
+            ),
+            timeout=6.0,
+        )
+
+
 @pytest.mark.asyncio
 async def test_uart_mock_modbus_deprecated_write_buffer(
     yaml_config: str,
@@ -1046,9 +1122,9 @@ async def test_uart_mock_modbus_deprecated_write_buffer(
     """Test the deprecated write_lambda buffer path still works, and warns once per entity.
 
     buf_number's write_lambda fills the old `payload` buffer with a legacy raw frame as words (device
-    address + function code + data) instead of calling item->write_*. Two writes must both land with the
-    legacy raw-frame semantics, and the one-time deprecation warning must fire exactly once per entity
-    regardless of how many writes happen.
+    address + function code + data) and returns {} instead of calling item->write_*. Both writes must
+    land - a filled buffer is sent, as the docs have always described - and the one-time deprecation
+    warning must fire exactly once per entity regardless of how many writes happen.
     """
 
     warn_count = 0
@@ -1082,3 +1158,78 @@ async def test_uart_mock_modbus_deprecated_write_buffer(
     assert warn_count == 1, (
         f"deprecation warning should fire exactly once per entity, got {warn_count}"
     )
+
+
+@pytest.mark.asyncio
+async def test_uart_mock_modbus_ranges(
+    yaml_config: str,
+    run_compiled: RunCompiledFunction,
+    api_client_connected: APIClientConnectedFactory,
+) -> None:
+    """Wire-level test of the range builder's reuse_previous_range semantics.
+
+    Every expect_tx in the fixture pins the exact read request the controller emits, so a
+    wrongly merged or split range fails on the mock before any value arrives. Covers: auto
+    adjacency merging, auto gap splitting, reuse:true bridging a gap (with correct data
+    offsets past the gap), reuse:false splitting adjacent registers while staying open for
+    later auto items, two sensors sharing one register, a text block read sized by
+    response_size with a following word, response_size surplus shifting a later reuse:true
+    sensor's bytes while an auto sensor refuses to join past the surplus, and a RAW block
+    read of ceil(response_size / 2) registers.
+    """
+
+    line_callback, error_log_lines, warning_log_lines = _make_modbus_line_callback()
+
+    expected_values = {
+        "adjacent_a": 1,
+        "adjacent_b": 2,
+        "adjacent_c": 3,
+        "gap_a": 4,
+        "gap_b": 5,
+        "bridge_a": 6,
+        "bridge_b": 9,
+        "split_a": 10,
+        "split_b": 11,
+        "open_prev": 12,
+        "open_never": 13,
+        "open_tagalong": 14,
+        "shared_lo": 0x34,
+        "shared_hi": 0x12,
+        "after_text": 15,
+        "surplus": 16,
+        "after_surplus": 17,
+        "surplus_split": 24,
+        "after_surplus_split": 25,
+        "raw_block": 8,  # the RAW lambda publishes data.size(): 4 registers = 8 bytes
+    }
+    tracker = SensorTracker(list(expected_values.keys()))
+    futures = tracker.expect_all(expected_values)
+
+    # The tracker only handles numeric sensors; capture the text block separately.
+    text_future: asyncio.Future = asyncio.get_running_loop().create_future()
+    tracker_on_state = tracker.on_state
+
+    def on_state(state) -> None:
+        if (
+            isinstance(state, TextSensorState)
+            and not state.missing_state
+            and state.state == "ABCDEF"
+            and not text_future.done()
+        ):
+            text_future.set_result(True)
+        tracker_on_state(state)
+
+    tracker.on_state = on_state
+
+    async with (
+        run_compiled(yaml_config, line_callback=line_callback),
+        api_client_connected() as client,
+    ):
+        await tracker.setup_and_start_scenario(client)
+        await tracker.await_all(futures)
+        # text_block is not tracker-registered (non-numeric), so time out explicitly.
+        try:
+            await asyncio.wait_for(text_future, timeout=5.0)
+        except TimeoutError:
+            pytest.fail("text_block never published 'ABCDEF'")
+        _assert_no_modbus_errors(error_log_lines, warning_log_lines)

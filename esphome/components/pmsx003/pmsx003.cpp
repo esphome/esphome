@@ -46,8 +46,6 @@ void PMSX003Component::dump_config() {
   } else {
     ESP_LOGCONFIG(TAG, "  Mode: passive with sleep/wake cycles");
   }
-
-  this->check_uart_settings(9600);
 }
 
 void PMSX003Component::loop() {

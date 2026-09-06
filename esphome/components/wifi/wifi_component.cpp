@@ -530,7 +530,7 @@ void WiFiComponent::log_discarded_scan_result_(const char *ssid, const uint8_t *
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
   // Skip logging during roaming scans to avoid log buffer overflow
   // (roaming scans typically find many networks but only care about same-SSID APs)
-  if (this->roaming_state_ == RoamingState::SCANNING) {
+  if (this->is_roaming_scan_active()) {
     return;
   }
   char bssid_s[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
@@ -631,6 +631,21 @@ void WiFiComponent::setup() {
 
   // Store the configured power save mode as baseline
   this->configured_power_save_ = this->power_save_;
+#endif
+
+#if defined(USE_PROVISIONING) && defined(USE_WIFI_AP)
+  // The access point is a provisioning surface: once the provisioning window has
+  // closed, shut it down (mirrors the teardown done on a successful connection).
+  // The captive portal registers its own closed-callback, and the fallback block
+  // in loop() is gated so neither is started again afterwards.
+  if (provisioning::global_provisioning_manager != nullptr) {
+    provisioning::global_provisioning_manager->add_on_closed_callback([this]() {
+      if (this->ap_setup_) {
+        ESP_LOGD(TAG, "Provisioning window closed; disabling AP");
+        this->wifi_mode_({}, false);
+      }
+    });
+  }
 #endif
 
   if (this->enable_on_boot_) {
@@ -831,17 +846,18 @@ void WiFiComponent::loop() {
           this->notify_connect_state_listeners_();
 #endif
 
-          // Post-connect roaming: check for better AP
-          if (this->post_connect_roaming_) {
-            if (this->roaming_state_ == RoamingState::SCANNING) {
-              if (this->scan_done_) {
-                this->process_roaming_scan_();
-              }
-              // else: scan in progress, wait
-            } else if (this->roaming_state_ == RoamingState::IDLE && this->roaming_attempts_ < ROAMING_MAX_ATTEMPTS &&
-                       now - this->roaming_last_check_ >= ROAMING_CHECK_INTERVAL && !this->roaming_suppressed_()) {
-              this->check_roaming_(now);
+          // Post-connect roaming: check for better AP. A scan may have been started by an
+          // explicit force_roam_check() even when post_connect_roaming_ is disabled, so the
+          // scan must always be consumed here to avoid leaving roaming_state_ stuck.
+          if (this->is_roaming_scan_active()) {
+            if (this->scan_done_) {
+              this->process_roaming_scan_();
             }
+            // else: scan in progress, wait
+          } else if (this->post_connect_roaming_ && this->roaming_state_ == RoamingState::IDLE &&
+                     this->roaming_attempts_ < ROAMING_MAX_ATTEMPTS &&
+                     now - this->roaming_last_check_ >= ROAMING_CHECK_INTERVAL && !this->roaming_suppressed_()) {
+            this->check_roaming_(now);
           }
         }
         break;
@@ -854,7 +870,15 @@ void WiFiComponent::loop() {
     }
 
 #ifdef USE_WIFI_AP
-    if (this->has_ap() && !this->ap_setup_) {
+    bool provisioning_closed = false;
+#ifdef USE_PROVISIONING
+    // Once the provisioning window has closed, don't bring up the fallback AP (or
+    // the captive portal on it) - the device must stay unprovisionable until it is
+    // power-cycled.
+    provisioning_closed =
+        provisioning::global_provisioning_manager != nullptr && provisioning::global_provisioning_manager->closed();
+#endif
+    if (this->has_ap() && !this->ap_setup_ && !provisioning_closed) {
       if (this->ap_timeout_ != 0 && (now - this->last_connected_ > this->ap_timeout_)) {
         ESP_LOGI(TAG, "Starting fallback AP");
         this->setup_ap_config_();
@@ -910,7 +934,7 @@ void WiFiComponent::loop() {
     if (semaphore_count > 0 && !this->is_high_performance_mode_) {
       // Transition to high-performance mode (no power save)
       ESP_LOGV(TAG, "Switching to high-performance mode (%" PRIu32 " active %s)", (uint32_t) semaphore_count,
-               semaphore_count == 1 ? "request" : "requests");
+               semaphore_count == 1 ? LOG_STR_LITERAL("request") : LOG_STR_LITERAL("requests"));
       this->power_save_ = WIFI_POWER_SAVE_NONE;
       if (this->wifi_apply_power_save_()) {
         this->is_high_performance_mode_ = true;
@@ -1158,8 +1182,9 @@ void WiFiComponent::start_connecting(const WiFiAP &ap) {
              "    CA Cert:     %s\n"
              "    Client Cert: %s\n"
              "    Client Key:  %s",
-             ca_cert_present ? "present" : "not present", client_cert_present ? "present" : "not present",
-             client_key_present ? "present" : "not present");
+             ca_cert_present ? LOG_STR_LITERAL("present") : LOG_STR_LITERAL("not present"),
+             client_cert_present ? LOG_STR_LITERAL("present") : LOG_STR_LITERAL("not present"),
+             client_key_present ? LOG_STR_LITERAL("present") : LOG_STR_LITERAL("not present"));
   } else {
 #endif
     ESP_LOGV(TAG, "  Password: " LOG_SECRET("'%s'"), ap.password_.c_str());
@@ -1293,7 +1318,8 @@ void WiFiComponent::print_connect_params_() {
   ESP_LOGCONFIG(TAG,
                 "  BTM: %s\n"
                 "  RRM: %s",
-                this->btm_ ? "enabled" : "disabled", this->rrm_ ? "enabled" : "disabled");
+                this->btm_ ? LOG_STR_LITERAL("enabled") : LOG_STR_LITERAL("disabled"),
+                this->rrm_ ? LOG_STR_LITERAL("enabled") : LOG_STR_LITERAL("disabled"));
 #endif
 }
 
@@ -2144,7 +2170,7 @@ void WiFiComponent::retry_connect() {
     // Roam connection failed - transition to reconnecting
     ESP_LOGD(TAG, "Roam failed, reconnecting (attempt %u/%u)", this->roaming_attempts_, ROAMING_MAX_ATTEMPTS);
     this->roaming_state_ = RoamingState::RECONNECTING;
-  } else if (this->roaming_state_ == RoamingState::SCANNING) {
+  } else if (this->is_roaming_scan_active()) {
     // Disconnected during roam scan - transition to RECONNECTING so the attempts
     // counter is preserved when reconnection succeeds (IDLE would reset it)
     ESP_LOGD(TAG, "Disconnected during roam scan (attempt %u/%u)", this->roaming_attempts_, ROAMING_MAX_ATTEMPTS);
@@ -2438,6 +2464,17 @@ void WiFiComponent::notify_scan_results_listeners_() {
 }
 #endif  // USE_WIFI_SCAN_RESULTS_LISTENERS
 
+void WiFiComponent::force_roam_check() {
+  if (!this->is_connected() || this->roaming_state_ != RoamingState::IDLE || this->roaming_suppressed_()) {
+    ESP_LOGD(TAG, "Roam check requested, but not able to check now");
+    return;
+  }
+  // Reset the attempt counter so a prior run of failed roams doesn't block this explicit request
+  // Note that this re-arms automatic roaming if enabled.
+  this->roaming_attempts_ = 0;
+  this->check_roaming_(millis());
+}
+
 void WiFiComponent::check_roaming_(uint32_t now) {
   // Guard: not for hidden networks (may not appear in scan)
   const WiFiAP *selected = this->get_selected_sta_();
@@ -2459,7 +2496,11 @@ void WiFiComponent::check_roaming_(uint32_t now) {
 
   ESP_LOGD(TAG, "Roam scan (%d dBm, attempt %u/%u)", rssi, this->roaming_attempts_, ROAMING_MAX_ATTEMPTS);
   this->roaming_state_ = RoamingState::SCANNING;
-  this->wifi_scan_start_(this->passive_scan_);
+  if (!this->wifi_scan_start_(this->passive_scan_)) {
+    // Scan failed to start (e.g. busy) - don't get stuck in SCANNING forever
+    ESP_LOGD(TAG, "Roam scan failed to start");
+    this->roaming_state_ = RoamingState::IDLE;
+  }
 }
 
 void WiFiComponent::process_roaming_scan_() {

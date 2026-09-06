@@ -3,6 +3,7 @@
 #include "esphome/core/log.h"
 
 #include <cstring>
+#include <limits>
 
 namespace esphome::modbus_controller {
 
@@ -10,6 +11,119 @@ static const char *const TAG = "modbus_controller";
 
 void ModbusController::setup() { this->create_polling_commands_(); }
 
+void WriterDevice::warn_write_buffer_deprecated(const LogString *platform, uint16_t address) {
+  if (this->write_buffer_deprecated_warned_)
+    return;
+  this->write_buffer_deprecated_warned_ = true;
+  ESP_LOGW(TAG,
+           "Modbus %s (address 0x%X): filling the write_lambda buffer parameter is deprecated; call a write helper / "
+           "queue_pdu() on the entity (item) instead. The buffer parameter is removed in 2027.3.0",
+           LOG_STR_ARG(platform), address);
+}
+
+bool WriterDevice::send_raw_frame_deprecated(std::span<const uint8_t> frame) {
+  if (frame.empty())
+    return false;
+  return this->parent_->queue_pdu(frame[0], frame.subspan(1), this);
+}
+
+void ControllerDevice::set_controller(ModbusController *controller) {
+  this->controller_ = controller;
+  this->set_parent(controller->hub());
+  this->set_address(controller->device_address());
+}
+
+// A request whose layout carries no start address (a custom PDU) reports -1; 0 stays a real address.
+static int trigger_address(std::span<const uint8_t> request_pdu) {
+  const auto addr = modbus::helpers::client_pdu_start_address(request_pdu);
+  return addr.has_value() ? *addr : -1;
+}
+
+void ControllerDevice::notify_online_(std::span<const uint8_t> request_pdu) {
+  if (this->controller_ != nullptr) {
+    this->controller_->set_online(true, modbus::helpers::pdu_function_code(request_pdu), trigger_address(request_pdu));
+  }
+}
+
+void ControllerDevice::on_response(std::span<const uint8_t> request_pdu, std::span<const uint8_t> response_pdu) {
+  this->notify_online_(request_pdu);
+}
+
+void ControllerDevice::on_error(std::span<const uint8_t> request_pdu, modbus::ExceptionCode exception_code) {
+  ESP_LOGW(TAG, "Modbus error function code: 0x%X register %d exception: %d",
+           modbus::helpers::pdu_function_code(request_pdu), trigger_address(request_pdu),
+           static_cast<uint8_t>(exception_code));
+  this->notify_online_(request_pdu);  // an exception is still a legitimate reply -> device is online
+}
+
+void WriterDevice::on_response(std::span<const uint8_t> request_pdu, std::span<const uint8_t> response_pdu) {
+  ControllerDevice::on_response(request_pdu, response_pdu);
+  this->dispatch_response_(request_pdu, response_pdu, std::nullopt);
+}
+
+void WriterDevice::on_error(std::span<const uint8_t> request_pdu, modbus::ExceptionCode exception_code) {
+  ControllerDevice::on_error(request_pdu, exception_code);
+  this->dispatch_response_(request_pdu, {}, exception_code);
+}
+
+// Fired once per wire transmission (including hub re-queues from a retry), so the on_command_sent trigger
+// reflects when the frame actually went out, not when it was queued.
+void ControllerDevice::on_sent(std::span<const uint8_t> request_pdu) {
+  if (this->controller_ != nullptr) {
+    this->controller_->command_sent(modbus::helpers::pdu_function_code(request_pdu), trigger_address(request_pdu));
+  }
+}
+
+void ControllerDevice::on_not_sent(std::span<const uint8_t> request_pdu) {
+  const uint8_t fc = modbus::helpers::pdu_function_code(request_pdu);
+  const int addr = trigger_address(request_pdu);
+  // Only the offline teardown reaches this (a supersede retires silently), so the frame is genuinely
+  // lost; a dropped write was already published optimistically, so surface it.
+  if (modbus::helpers::is_function_code_write(fc)) {
+    ESP_LOGW(TAG, "Write not sent: function 0x%X register %d", fc, addr);
+  } else {
+    ESP_LOGD(TAG, "Request not sent: function 0x%X register %d", fc, addr);
+  }
+}
+
+bool ControllerDevice::on_no_response(std::span<const uint8_t> request_pdu) {
+  if (this->controller_ == nullptr)
+    return false;
+  this->controller_->increment_non_response_count();
+  if (this->controller_->can_send())
+    return true;  // the hub re-queues the frame it is holding; on_sent fires again on the retry
+  this->controller_->set_online(false, modbus::helpers::pdu_function_code(request_pdu), trigger_address(request_pdu));
+  return false;
+}
+
+PollingDevice::PollingDevice(ModbusController &controller, RegisterRange &&range)
+    : ControllerDevice(&controller), range_(std::move(range)) {}
+
+bool PollingDevice::queue(modbus::CommandOptions options) {
+  bool accepted;
+  if (this->range_.custom_pdu != nullptr) {
+    accepted = this->queue_pdu(std::span<const uint8_t>(*this->range_.custom_pdu), options);
+  } else {
+    accepted = this->read_entities(this->range_.register_type, this->range_.start_address, this->range_.register_count,
+                                   options);
+  }
+  if (accepted) {
+    ESP_LOGV(TAG, "Poll queued type=%u 0x%X %d", static_cast<uint8_t>(this->range_.register_type),
+             this->range_.start_address, this->range_.register_count);
+  }
+  return accepted;
+}
+
+void PollingDevice::on_response(std::span<const uint8_t> request_pdu, std::span<const uint8_t> response_pdu) {
+  this->notify_online_(request_pdu);
+  auto data = modbus::helpers::server_pdu_payload(response_pdu);
+  for (auto *sensor : this->range_.sensors)
+    sensor->parse_and_publish(data);
+}
+
+// ModbusCommandItem's machinery stays as-is until its removal in 2027.3.0; silence its self-references.
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
 ModbusCommandItem::ModbusCommandItem(ModbusController &controller, modbus::ModbusClientHub *parent, uint8_t address,
                                      RegisterRange &&range)
     : modbus::ModbusClientDevice(parent, address),
@@ -24,7 +138,7 @@ ModbusCommandItem::ModbusCommandItem(ModbusController &controller, modbus::Modbu
                                      SensorItem *sensor)
     : modbus::ModbusClientDevice(parent, address),
       start_address_(sensor->start_address),
-      register_count_(sensor->register_count),
+      register_count_(sensor->entity_count()),
       custom_pdu_(&sensor->custom_pdu),
       controller_(&controller) {
   // The PDU's first byte is its real function code; carry it so dump_config, the on_command_sent
@@ -140,6 +254,8 @@ bool ModbusCommandItem::on_no_response(std::span<const uint8_t> request_pdu) {
   return false;
 }
 
+#pragma GCC diagnostic pop
+
 void ModbusController::set_online(bool online, int function_code, int register_address) {
   if (online) {
     this->cmd_non_responses_ = 0;
@@ -161,6 +277,8 @@ void ModbusController::set_online(bool online, int function_code, int register_a
   }
 }
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
 void ModbusController::queue_command(ModbusCommandItem command) {
   this->sweep_completed_one_shots_();  // reclaim finished one-shots before adding a new one
   // Duplicates are the caller's to manage; the controller only holds the item until its terminal callback.
@@ -195,6 +313,8 @@ void ModbusController::sweep_completed_one_shots_() {
       [](const std::unique_ptr<ModbusCommandItem> &item) { return item->pending_removal; });
 }
 
+#pragma GCC diagnostic pop
+
 void ModbusController::update() {
   this->sweep_completed_one_shots_();  // reclaim one-shots deferred out of their own callbacks
   if (this->module_offline_) {
@@ -203,11 +323,11 @@ void ModbusController::update() {
     if (offline_retry_due(this->update_counter_, this->module_offline_at_, this->offline_skip_updates_)) {
       ESP_LOGV(TAG, "Module offline - retrying");
       this->cmd_non_responses_ = 0;  // allow the probe through can_send()
-      for (auto &cmd : this->polling_command_items_) {
+      for (auto &poll : this->polling_devices_) {
         // Probes carry the read-side options too, so a recovering device resumes streaming on the
         // probe itself rather than waiting for the next update_interval.
-        if (!cmd.send(this->read_options_)) {
-          ESP_LOGD(TAG, "Probe refused by hub for range 0x%X", cmd.register_address());
+        if (!poll.queue(this->read_options_)) {
+          ESP_LOGD(TAG, "Probe refused by hub for range 0x%X", poll.register_address());
         }
       }
     } else {
@@ -218,12 +338,12 @@ void ModbusController::update() {
   }
 
   if (this->can_send()) {
-    for (auto &cmd : this->polling_command_items_) {
-      ESP_LOGVV(TAG, "Updating range 0x%X", cmd.register_address());
+    for (auto &poll : this->polling_devices_) {
+      ESP_LOGVV(TAG, "Updating range 0x%X", poll.register_address());
       // read_options_ carries the controller's continuous flag (the offline probe above sends it too).
       // A refusal is already logged by the hub; note the affected range for controller-level diagnostics.
-      if (!cmd.send(this->read_options_)) {
-        ESP_LOGD(TAG, "Poll refused by hub for range 0x%X", cmd.register_address());
+      if (!poll.queue(this->read_options_)) {
+        ESP_LOGD(TAG, "Poll refused by hub for range 0x%X", poll.register_address());
       }
     }
   }
@@ -231,125 +351,180 @@ void ModbusController::update() {
 }
 
 // walk through the sensors and determine the register ranges to read
+namespace {
+
+class RangeBuilder {
+ public:
+  explicit RangeBuilder(FixedVector<RegisterRange> &ranges) : ranges_(ranges) {}
+
+  bool can_join(const SensorItem *curr) const {
+    return this->have_range_ && curr->reuse_previous_range != RangeReuse::NEVER &&
+           this->r_.register_type == curr->register_type && curr->register_type != modbus::EntityType::CUSTOM;
+  }
+
+  // A sensor that joined mid-range must never anchor this - hence both address tests.
+  bool try_reuse_register(SensorItem *curr) {
+    const uint32_t range_end = this->range_end_();
+    if (curr->start_address != range_end - this->prev_->entity_count() ||
+        this->prev_->start_address + this->prev_->entity_count() != range_end ||
+        curr->entity_count() != this->prev_->entity_count() ||
+        curr->get_register_size() != this->prev_->get_register_size()) {
+      return false;
+    }
+    if (!place_offset(curr, static_cast<uint32_t>(this->prev_->offset) + curr->offset_from_start_address))
+      return false;
+    ESP_LOGV(TAG, "Re-use previous register 0x%X", curr->start_address);
+    return true;
+  }
+
+  bool try_extend(SensorItem *curr) {
+    const uint32_t range_end = this->range_end_();
+    const bool reachable =
+        curr->reuse_previous_range == RangeReuse::ALWAYS
+            ? curr->start_address >= range_end
+            : curr->start_address == range_end && (curr->addresses_bits() || !this->range_custom_size_);
+    if (!reachable)
+      return false;
+    const uint16_t gap = static_cast<uint16_t>(curr->start_address - range_end);
+    const uint32_t new_count = this->r_.register_count + gap + curr->entity_count();
+    const uint16_t max_quantity =
+        curr->addresses_bits() ? modbus::MAX_NUM_OF_COILS_TO_READ : modbus::MAX_NUM_OF_REGISTERS_TO_READ;
+    const uint32_t prospective_offset =
+        (curr->addresses_bits() ? static_cast<uint32_t>(curr->start_address - this->r_.start_address)
+                                : static_cast<uint32_t>(this->range_bytes_) + gap * 2) +
+        curr->offset_from_start_address;
+    if (new_count > max_quantity || !place_offset(curr, prospective_offset)) {
+      return false;
+    }
+    if (!curr->addresses_bits())
+      this->range_bytes_ += static_cast<size_t>(gap) * 2;
+    this->range_bytes_ += curr->get_register_size();
+    this->range_custom_size_ = this->range_custom_size_ || has_custom_size(curr);
+    this->r_.register_count = static_cast<uint16_t>(new_count);
+    ESP_LOGV(TAG, "Extend range to include 0x%X", curr->start_address);
+    return true;
+  }
+
+  bool try_cover(SensorItem *curr) {
+    if (!this->range_shared_ || this->range_forced_ || curr->start_address < this->r_.start_address ||
+        curr->start_address + curr->entity_count() > this->range_end_() || this->range_custom_size_ ||
+        has_custom_size(curr)) {
+      return false;
+    }
+    const uint32_t addr_delta = curr->start_address - this->r_.start_address;
+    if (!place_offset(curr, (curr->addresses_bits() ? addr_delta : addr_delta * 2) + curr->offset_from_start_address))
+      return false;
+    ESP_LOGV(TAG, "Register 0x%X already covered by range 0x%X", curr->start_address, this->r_.start_address);
+    return true;
+  }
+
+  // A response dispatches to a single range per (start address, register type), so same-address items
+  // must share - even reuse_previous_range: false and custom entities.
+  bool try_share(SensorItem *curr) {
+    if (!this->have_range_ || this->r_.register_type != curr->register_type ||
+        this->r_.start_address != curr->start_address) {
+      return false;
+    }
+    curr->offset = curr->offset_from_start_address;
+    this->r_.register_count = std::max(this->r_.register_count, curr->entity_count());
+    this->range_bytes_ = std::max(this->range_bytes_, curr->get_register_size());
+    this->range_custom_size_ = this->range_custom_size_ || has_custom_size(curr);
+    this->range_shared_ = true;
+    this->range_forced_ = this->range_forced_ || curr->reuse_previous_range == RangeReuse::NEVER;
+    ESP_LOGV(TAG, "Share range start 0x%X", curr->start_address);
+    return true;
+  }
+
+  bool always_declined(const SensorItem *curr) const {
+    return this->have_range_ && curr->reuse_previous_range == RangeReuse::ALWAYS &&
+           this->r_.register_type == curr->register_type && curr->start_address != this->r_.start_address;
+  }
+
+  void open(SensorItem *curr) {
+    this->close();
+    this->r_ = {};
+    this->range_bytes_ = curr->get_register_size();
+    this->range_custom_size_ = has_custom_size(curr);
+    this->range_forced_ = curr->reuse_previous_range == RangeReuse::NEVER;
+    this->range_shared_ = false;
+    curr->offset = curr->offset_from_start_address;
+    this->r_.start_address = curr->start_address;
+    this->r_.register_count = curr->entity_count();
+    this->r_.register_type = curr->register_type;
+    if (curr->register_type == modbus::EntityType::CUSTOM)
+      this->r_.custom_pdu = &curr->custom_pdu;
+    this->have_range_ = true;
+  }
+
+  void record(SensorItem *curr) {
+    curr->range_start_address = this->r_.start_address;
+    this->r_.sensors.insert(curr);
+    this->prev_ = curr;
+  }
+
+  void close() {
+    if (!this->have_range_)
+      return;
+    ESP_LOGV(TAG, "Add range 0x%X %d", this->r_.start_address, this->r_.register_count);
+    this->ranges_.push_back(std::move(this->r_));
+    this->have_range_ = false;
+  }
+
+ private:
+  uint32_t range_end_() const { return this->r_.start_address + this->r_.register_count; }
+  // The resolved offset must fit its uint8_t field or the sensor would parse the wrong slice.
+  static bool place_offset(SensorItem *curr, uint32_t offset) {
+    if (offset > std::numeric_limits<uint8_t>::max())
+      return false;
+    curr->offset = static_cast<uint8_t>(offset);
+    return true;
+  }
+  static bool has_custom_size(const SensorItem *item) {
+    return item->get_register_size() != static_cast<size_t>(item->entity_count()) * 2;
+  }
+  FixedVector<RegisterRange> &ranges_;
+  RegisterRange r_ = {};
+  bool have_range_ = false;
+  bool range_forced_ = false;  // a reuse: false member blocks the coverage join
+  bool range_shared_ = false;  // only a share-widened range absorbs by coverage
+  size_t range_bytes_ = 0;
+  bool range_custom_size_ = false;
+  SensorItem *prev_ = nullptr;
+};
+
+}  // namespace
+
 void ModbusController::create_polling_commands_() {
   if (this->sensorset_.empty()) {
     ESP_LOGW(TAG, "No sensors registered");
     return;
   }
 
-  // Sensors are walked in the sensor set's order (see SensorItemsComparator): register type, then
-  // force_new_range ahead of the rest, then address - so the walk is not purely address-ordered.
-  // Each keeps the address it was configured with; what is resolved here is its `offset`, the position
-  // of its data within the response of whichever range it ends up in.
-  RegisterRange r = {};
-  bool have_range = false;
-  // Set while the open range belongs to a force_new_range sensor: a range the user asked to keep
-  // separate must not quietly absorb other sensors.
-  bool range_forced = false;
-  // Set once a sensor has joined by sharing the range's start address, which widens the read. Only a
-  // widened range can absorb a later sensor by coverage: ranges that were kept apart before stay apart,
-  // so their frames and polling rates are untouched.
-  bool range_shared = false;
-  // Bytes the range's registers have consumed so far. An extending sensor starts after them, so a
-  // register that returns more bytes than its count implies pushes the sensors after it along.
-  // range_custom_size records whether any of them returns something other than two bytes per register,
-  // which is what makes a position inside the range impossible to work out from addresses alone. Coils
-  // count as such: they carry one bit per address, so bit ranges never take the coverage join.
-  size_t range_bytes = 0;
-  bool range_custom_size = false;
-  SensorItem *prev = nullptr;
+  // At most one range closes per sensor plus one final close, so sensorset_.size() bounds the pushes
+  // (FixedVector silently drops past capacity).
+  FixedVector<RegisterRange> ranges;
+  ranges.init(this->sensorset_.size());
+  RangeBuilder builder(ranges);
   for (SensorItem *curr : this->sensorset_) {
-    ESP_LOGV(TAG, "Register: 0x%X count=%d size=%zu offset=%u addr=%p", curr->start_address, curr->register_count,
+    ESP_LOGV(TAG, "Register: 0x%X width=%u size=%zu offset=%u addr=%p", curr->start_address, curr->entity_count(),
              curr->get_register_size(), curr->offset, curr);
-
-    const bool custom_size = curr->get_register_size() != static_cast<size_t>(curr->register_count) * 2;
-
-    bool join = false;
-    if (have_range && !curr->force_new_range && r.register_type == curr->register_type &&
-        curr->register_type != modbus::EntityType::CUSTOM) {
-      if (curr->start_address == (r.start_address + r.register_count - prev->register_count) &&
-          prev->start_address + prev->register_count == r.start_address + r.register_count &&
-          curr->register_count == prev->register_count && curr->get_register_size() == prev->get_register_size()) {
-        // A second sensor on the register(s) the previous one covers: it reads those same bytes,
-        // starting where that sensor's offset pointed, so a chain configured 0/2/4 resolves to 0/2/6.
-        // Both address tests matter. The first identifies the previous sensor's register by working back
-        // from the range's end, which only describes it while it actually sits there - hence the second.
-        // A sensor that joined mid-range must never anchor this, or the next one inherits its offset.
-        curr->offset = static_cast<uint8_t>(prev->offset + curr->offset_from_start_address);
-        join = true;
-        ESP_LOGV(TAG, "Re-use previous register 0x%X", curr->start_address);
-      } else if (curr->start_address == (r.start_address + r.register_count)) {
-        // The next contiguous register(s): the data begins after what the range has consumed so far -
-        // the byte cursor for registers, the distance in bits for coils.
-        curr->offset =
-            static_cast<uint8_t>((curr->addresses_bits() ? curr->start_address - r.start_address : range_bytes) +
-                                 curr->offset_from_start_address);
-        range_bytes += curr->get_register_size();
-        range_custom_size = range_custom_size || custom_size;
-        r.register_count += curr->register_count;
-        join = true;
-        ESP_LOGV(TAG, "Extend range to include 0x%X", curr->start_address);
-      } else if (range_shared && !range_forced && curr->start_address >= r.start_address &&
-                 curr->start_address + curr->register_count <= r.start_address + r.register_count &&
-                 !range_custom_size && !custom_size) {
-        // The registers already fall inside a range that a shared-address join widened, so this sensor
-        // reads its slice of that response instead of adding an overlapping second poll. The guards keep
-        // it narrow: only a widened range, never a force-isolated one; only where every register in the
-        // range returns two bytes, so interior positions follow from the addresses; only sensors genuinely
-        // inside it, which is why the lower bound is needed given the walk is not address-ordered.
-        const uint16_t addr_delta = curr->start_address - r.start_address;
-        curr->offset = static_cast<uint8_t>((curr->addresses_bits() ? addr_delta : addr_delta * 2) +
-                                            curr->offset_from_start_address);
-        join = true;
-        ESP_LOGV(TAG, "Register 0x%X already covered by range 0x%X", curr->start_address, r.start_address);
-      }
+    bool join = builder.can_join(curr) &&
+                (builder.try_reuse_register(curr) || builder.try_extend(curr) || builder.try_cover(curr));
+    if (!join && builder.always_declined(curr)) {
+      ESP_LOGW(TAG, "reuse_previous_range on 0x%X cannot join the previous range; starting a new range",
+               curr->start_address);
     }
-
-    // Sensors on the same start address have to share one range: a response is dispatched to a single
-    // range per (start_address, register_type), so a second range with that key would never receive
-    // data. This holds for force_new_range and custom entities too. The read widens to cover whichever
-    // sensor needs the most registers, which also fixes a short read for coils that use offset.
-    if (!join && have_range && r.register_type == curr->register_type && r.start_address == curr->start_address) {
-      curr->offset = curr->offset_from_start_address;  // shares the range start
-      r.register_count = std::max(r.register_count, curr->register_count);
-      range_bytes = std::max(range_bytes, curr->get_register_size());
-      range_custom_size = range_custom_size || custom_size;
-      range_shared = true;
-      range_forced = range_forced || curr->force_new_range;
-      join = true;
-      ESP_LOGV(TAG, "Share range start 0x%X", curr->start_address);
-    }
-
-    if (!join) {
-      if (have_range) {
-        ESP_LOGV(TAG, "Add range 0x%X %d", r.start_address, r.register_count);
-        this->create_polling_command_(std::move(r));
-      }
-      r = {};
-      range_bytes = curr->get_register_size();
-      range_custom_size = custom_size;
-      range_forced = curr->force_new_range;
-      range_shared = false;
-      curr->offset = curr->offset_from_start_address;
-      r.start_address = curr->start_address;
-      r.register_count = curr->register_count;
-      r.register_type = curr->register_type;
-      have_range = true;
-    }
-
-    // Every member records its range's first register. The resolved offset is relative to it, so the
-    // two together give the sensor's real position, and the address a write entity targets.
-    curr->range_start_address = r.start_address;
-    r.sensors.insert(curr);
-    prev = curr;
+    join = join || builder.try_share(curr);
+    if (!join)
+      builder.open(curr);
+    builder.record(curr);
   }
-  if (have_range) {
-    ESP_LOGV(TAG, "Add last range 0x%X %d", r.start_address, r.register_count);
-    this->create_polling_command_(std::move(r));
+  builder.close();
+
+  this->polling_devices_.init(ranges.size());
+  for (auto &range : ranges) {
+    this->polling_devices_.emplace_back(*this, std::move(range));
   }
-  // Reclaim growth slack; safe here because nothing has registered with the hub yet (see the
-  // lifetime note on polling_command_items_).
-  this->polling_command_items_.shrink_to_fit();
 }
 
 void ModbusController::dump_config() {
@@ -363,18 +538,20 @@ void ModbusController::dump_config() {
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
   ESP_LOGCONFIG(TAG, "sensormap");
   for (auto &it : this->sensorset_) {
-    ESP_LOGCONFIG(TAG, " Sensor type=%u start=0x%X offset=0x%X count=%d size=%zu",
-                  static_cast<uint8_t>(it->register_type), it->start_address, it->offset, it->register_count,
+    ESP_LOGCONFIG(TAG, " Sensor type=%u start=0x%X offset=0x%X width=%u size=%zu",
+                  static_cast<uint8_t>(it->register_type), it->start_address, it->offset, it->entity_count(),
                   it->get_register_size());
   }
   ESP_LOGCONFIG(TAG, "ranges");
-  for (auto &it : this->polling_command_items_) {
+  for (auto &it : this->polling_devices_) {
     ESP_LOGCONFIG(TAG, "  Range type=%u start=0x%X count=%d", static_cast<uint8_t>(it.register_type()),
                   it.register_address(), it.register_count());
   }
 #endif
 }
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
 void ModbusController::on_write_register_response(EntityType register_type, uint16_t start_address,
                                                   std::span<const uint8_t> data) {
   // A well-formed write ACK echoes address and value, but a truncated PDU yields a short/empty span.
@@ -531,5 +708,6 @@ bool ModbusCommandItem::send(modbus::CommandOptions options) {
   }
   return accepted;
 }
+#pragma GCC diagnostic pop
 
 }  // namespace esphome::modbus_controller

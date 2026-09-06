@@ -10,6 +10,7 @@ from __future__ import annotations
 import asyncio
 from collections.abc import Generator
 from contextlib import contextmanager
+import functools
 import socket
 
 import pytest
@@ -108,6 +109,62 @@ async def test_host_ota_self_update(
             )
             assert rc == 0, "second OTA failed -- listener leaked across execv"
             await _wait_for_port(LOCALHOST, api_port, PORT_WAIT_TIMEOUT)
+            assert proc.pid == pid_before
+
+
+@pytest.mark.asyncio
+async def test_host_ota_encrypted(
+    yaml_config: str,
+    write_yaml_config: ConfigWriter,
+    compile_esphome: CompileFunction,
+    reserved_tcp_port: tuple[int, socket.socket],
+) -> None:
+    """Encrypted self-OTA succeeds; a plaintext upload to the same device fails."""
+    pytest.importorskip("aioesphomeapi.noise")
+    noise_psk = "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="
+    api_port, api_socket = reserved_tcp_port
+    with _reserve_port() as (ota_port, ota_socket):
+        yaml_config = yaml_config.replace("__OTA_PORT__", str(ota_port))
+        config_path = await write_yaml_config(yaml_config)
+        binary_path = await compile_esphome(config_path)
+        api_socket.close()
+        ota_socket.close()
+
+        loop = asyncio.get_running_loop()
+        rebooted = loop.create_future()
+
+        def on_log(line: str) -> None:
+            if not rebooted.done() and "Rebooting safely" in line:
+                rebooted.set_result(True)
+
+        async with run_binary(binary_path, line_callback=on_log) as (proc, _lines):
+            await _wait_for_port(LOCALHOST, api_port, PORT_WAIT_TIMEOUT)
+            pid_before = proc.pid
+
+            # A plaintext upload must be refused with the device unharmed
+            rc, _ = await loop.run_in_executor(
+                None, espota2.run_ota, LOCALHOST, ota_port, None, binary_path
+            )
+            assert rc == 1, "plaintext upload to an encrypted device must fail"
+            await asyncio.sleep(0.5)
+            assert proc.returncode is None, "process died on rejected plaintext OTA"
+
+            # The encrypted upload goes through and the device re-execs
+            rc, _ = await loop.run_in_executor(
+                None,
+                functools.partial(
+                    espota2.run_ota,
+                    LOCALHOST,
+                    ota_port,
+                    None,
+                    binary_path,
+                    noise_psk=noise_psk,
+                ),
+            )
+            assert rc == 0, "encrypted OTA reported failure"
+            await asyncio.wait_for(rebooted, timeout=10.0)
+            await _wait_for_port(LOCALHOST, api_port, PORT_WAIT_TIMEOUT)
+            assert proc.returncode is None, "process exited instead of execing"
             assert proc.pid == pid_before
 
 

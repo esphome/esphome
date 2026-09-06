@@ -268,9 +268,6 @@ char *str_sanitize_to(char *buffer, size_t buffer_size, const char *str) {
 
 // str_sanitize, str_snprintf, str_sprintf moved to alloc_helpers.cpp
 
-// Maximum size for name with suffix: 120 (max friendly name) + 1 (separator) + 6 (MAC suffix) + 1 (null term)
-static constexpr size_t MAX_NAME_WITH_SUFFIX_SIZE = 128;
-
 size_t make_name_with_suffix_to(char *buffer, size_t buffer_size, const char *name, size_t name_len, char sep,
                                 const char *suffix_ptr, size_t suffix_len) {
   size_t total_len = name_len + 1 + suffix_len;
@@ -289,17 +286,6 @@ size_t make_name_with_suffix_to(char *buffer, size_t buffer_size, const char *na
   memcpy(buffer + name_len + 1, suffix_ptr, suffix_len);
   buffer[total_len] = '\0';
   return total_len;
-}
-
-std::string make_name_with_suffix(const char *name, size_t name_len, char sep, const char *suffix_ptr,
-                                  size_t suffix_len) {
-  char buffer[MAX_NAME_WITH_SUFFIX_SIZE];
-  size_t len = make_name_with_suffix_to(buffer, sizeof(buffer), name, name_len, sep, suffix_ptr, suffix_len);
-  return std::string(buffer, len);
-}
-
-std::string make_name_with_suffix(const std::string &name, char sep, const char *suffix_ptr, size_t suffix_len) {
-  return make_name_with_suffix(name.c_str(), name.size(), sep, suffix_ptr, suffix_len);
 }
 
 // Parsing & formatting
@@ -582,7 +568,7 @@ size_t value_accuracy_to_buf(std::span<char, VALUE_ACCURACY_MAX_LEN> buf, float 
   }
 
   // Fallback for NaN/Inf/high accuracy/out-of-range
-  int len = snprintf(buf.data(), buf.size(), "%.*f", accuracy_decimals, value);
+  int len = snprintf(buf.data(), buf.size(), "%.*f", accuracy_decimals, static_cast<double>(value));
   if (len < 0)
     return 0;
   return static_cast<size_t>(len) >= buf.size() ? buf.size() - 1 : static_cast<size_t>(len);
@@ -600,16 +586,30 @@ size_t value_accuracy_with_uom_to_buf(std::span<char, VALUE_ACCURACY_MAX_LEN> bu
 }
 
 int8_t step_to_accuracy_decimals(float step) {
-  // use printf %g to find number of digits based on temperature step
-  char buf[32];
-  snprintf(buf, sizeof buf, "%.5g", step);
-
-  std::string str{buf};
-  size_t dot_pos = str.find('.');
-  if (dot_pos == std::string::npos)
+  // Decimals needed to show the step at five significant digits, trailing zeros dropped.
+  if (!std::isfinite(step) || step == 0.0f)
     return 0;
-
-  return str.length() - dot_pos - 1;
+  float mantissa = std::fabs(step);
+  int8_t decimals = 4;  // decimals needed for five significant digits when mantissa is in [1, 10)
+  while (mantissa >= 10.0f) {
+    mantissa /= 10.0f;
+    decimals--;
+  }
+  while (mantissa < 1.0f) {
+    mantissa *= 10.0f;
+    decimals++;
+  }
+  if (decimals <= 0)
+    return 0;
+  float scaled = mantissa * 10000.0f;
+  auto digits = static_cast<uint32_t>(scaled);
+  if (scaled - static_cast<float>(digits) >= 0.5f)
+    digits++;
+  while (decimals > 0 && digits % 10 == 0) {
+    digits /= 10;
+    decimals--;
+  }
+  return decimals;
 }
 
 // Map a base64/base64url character to its 6-bit value (0-63) arithmetically.

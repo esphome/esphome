@@ -2,7 +2,7 @@ from contextlib import ExitStack
 
 from esphome import automation
 import esphome.codegen as cg
-from esphome.components.const import CONF_ROWS
+from esphome.components.const import CONF_COLUMNS, CONF_ROWS
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_ITEMS, CONF_ROW, CONF_TEXT, CONF_WIDTH
 from esphome.core import ID
@@ -20,7 +20,6 @@ from .label import CONF_LABEL
 
 CONF_TABLE = "table"
 CONF_CELLS = "cells"
-CONF_COLUMNS = "columns"
 CONF_ROW_COUNT = "row_count"
 CONF_COLUMN_COUNT = "column_count"
 CONF_MERGE_RIGHT = "merge_right"

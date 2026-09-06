@@ -1,5 +1,5 @@
 import esphome.codegen as cg
-from esphome.components.esp32 import add_idf_component
+from esphome.components.esp32 import add_idf_component, add_idf_sdkconfig_option
 from esphome.config_helpers import filter_source_files_from_platform, get_logger_level
 import esphome.config_validation as cv
 from esphome.const import (
@@ -9,6 +9,7 @@ from esphome.const import (
     CONF_PROTOCOL,
     CONF_SERVICE,
     CONF_SERVICES,
+    CONF_WIFI,
     PlatformFramework,
 )
 from esphome.core import CORE, Lambda, coroutine_with_priority
@@ -208,7 +209,16 @@ async def to_code(config: ConfigType) -> None:
                 ethernet.request_ethernet_ip_state_listener()
 
     if CORE.is_esp32:
-        add_idf_component(name="espressif/mdns", ref="1.11.3")
+        add_idf_component(name="espressif/mdns", ref="1.12.0")
+        # ESPHome only advertises; the browse APIs are unused
+        add_idf_sdkconfig_option("CONFIG_MDNS_ENABLE_BROWSE", False)
+        # The mdns console CLI is never used by ESPHome
+        add_idf_sdkconfig_option("CONFIG_MDNS_ENABLE_CONSOLE_CLI", False)
+        if CONF_WIFI not in CORE.config:
+            # Without WiFi the predefined STA/AP interface handlers are dead
+            # code; disabling them lets mdns build without the WiFi stack.
+            add_idf_sdkconfig_option("CONFIG_MDNS_PREDEF_NETIF_STA", False)
+            add_idf_sdkconfig_option("CONFIG_MDNS_PREDEF_NETIF_AP", False)
 
     cg.add_define("USE_MDNS")
 

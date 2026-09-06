@@ -100,7 +100,7 @@ switch:
     offset: 2
     assumed_state: true
   # A holding-register switch that READS its state. Byte offset 6 -> register 0x10 + 6/2 = 0x13. Post-fix
-  # the switch itself resolves to 0x13 (whole registers fold into the address, residual byte stays) and
+  # the switch itself resolves to 0x13 (the even byte offset folds into the address as whole registers) and
   # joins the 0x10..0x13 range, so no separate 0x13 sensor is needed. Pre-fix the whole byte offset folds
   # into the address (0x16), where the server answers ILLEGAL_DATA_ADDRESS and the switch never publishes.
   - platform: modbus_controller

@@ -23,7 +23,8 @@ For this repository there are two trusted inputs by design:
 1. **The configuration.** Anyone who can supply or edit a YAML config is trusted
    (see below).
 2. **Authenticated peers of a running device** — clients holding the device's
-   API encryption key / password, OTA password, or web server credentials.
+   API/OTA encryption key, API password, OTA password, or web server
+   credentials.
 
 The security boundary is therefore **unauthenticated network traffic vs. those
 trusted inputs.** A bug that lets an unauthenticated attacker cross it is a
@@ -76,8 +77,8 @@ These *are* security bugs in this repo, and we want to hear about them privately
   captive portal, etc.) **without** valid credentials.
 - Authentication or encryption bypass on the device — reaching API calls, OTA
   updates, or the web server without the configured key/password.
-- Flaws that weaken the device's API encryption (Noise), OTA, or web server auth
-  below their documented guarantees.
+- Flaws that weaken the device's API or OTA encryption (Noise), OTA auth, or
+  web server auth below their documented guarantees.
 
 ## The web server is an open HTTP API by design
 
@@ -120,6 +121,37 @@ and any memory-safety or protocol bug in the server reachable without credential
 
 This section documents the current design and scope; it is not a judgment that the
 design is optimal or that it will not change.
+
+## OTA update encryption
+
+The `esphome` OTA platform optionally encrypts updates with the same Noise
+`NNpsk0` pattern the native API uses; one key protects the device. With an
+`encryption:` block configured the guarantees are: the firmware image is
+confidential in transit, the uploader is authenticated by the pre-shared key,
+and the plaintext negotiation preceding the handshake is bound into the
+handshake prologue, so stripping or tampering with it fails the first MAC.
+Both ends fail closed with no override: a device built with a key refuses
+plaintext uploads, and the CLI refuses to send plaintext when a key is
+configured.
+
+Defeating any of that without the key is in scope: a keyed device accepting a
+plaintext or downgraded upload, getting past the MAC, or recovering image
+contents from captured traffic.
+
+The following are **not** vulnerabilities, by design:
+
+- Plaintext OTA on a device with no `encryption:` block. That is the
+  documented default, authenticated (if at all) by the OTA password.
+- The enablement window: turning encryption on takes one last upload of the
+  encryption-enabled firmware over the existing plaintext channel, with the
+  pre-existing plaintext exposure.
+- The web OTA `/update` endpoint alongside encryption. The `web_server`
+  component keeps it always reachable, and `captive_portal:` auto-loads it
+  for the fallback AP window; validation warns about both combinations, and
+  the operator keeps the recovery path.
+- CLI retry behavior on transport or MAC failures; every attempt renegotiates
+  a fresh handshake with fresh ephemerals, so retrying does not weaken
+  authentication.
 
 ## Explicitly out of scope
 

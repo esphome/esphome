@@ -48,6 +48,9 @@ def validate_interval_uart(config: ConfigType) -> None:
         baud_rate=9600,
         require_rx=True,
         require_tx=interval.total_milliseconds != SCHEDULER_DONT_RUN,
+        data_bits=8,
+        parity="NONE",
+        stop_bits=1,
     )(config)
 
 

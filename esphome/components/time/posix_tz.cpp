@@ -178,7 +178,8 @@ static int __attribute__((noinline)) days_from_year_start(int year, int month, i
 }
 
 time_t __attribute__((noinline)) calculate_dst_transition(int year, const DSTRule &rule, int32_t base_offset_seconds) {
-  int month, day;
+  int month = 1;
+  int day = 1;
 
   switch (rule.type) {
     case DSTRuleType::MONTH_WEEK_DAY: {

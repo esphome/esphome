@@ -1,0 +1,7 @@
+substitutions:
+  tx_pin: GPIO1
+  rx_pin: GPIO3
+
+packages:
+  uart: !include ../../test_build_components/common/uart/esp32-idf.yaml
+  ds1603l: !include common.yaml

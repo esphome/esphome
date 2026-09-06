@@ -11,12 +11,14 @@ enum ImageFormat {
   /** Format is supplied per decode, e.g. detected from the Content-Type header
    *  by online_image; sniffing the image data is not implemented. */
   AUTO,
+  /** BMP format. */
+  BMP,
   /** JPEG format. */
   JPEG,
   /** PNG format. */
   PNG,
-  /** BMP format. */
-  BMP,
+  /** QOI format. */
+  QOI,
 };
 
 /// Canonical MIME type for a format; "image/*" for AUTO/unknown

@@ -333,8 +333,9 @@ void LN882HBLE::loop() {
   // the queue empty — from the very first report on. Checking here keeps that
   // failure visible instead of producing a scanner that is silently dead.
   uint16_t dropped = this->report_queue_.get_and_reset_dropped_count();
-  if (dropped > 0)
+  if (dropped > 0) {
     ESP_LOGW(TAG, "Dropped %u scan reports (queue full or out of memory for a report slot)", dropped);
+  }
   // Drain the lock-free ring filled by the rw task; all per-report work runs
   // here on the main task, then the report returns to the pool.
   BLEScanReport *report = this->report_queue_.pop();

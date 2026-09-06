@@ -93,7 +93,8 @@ void FeedbackCover::set_open_sensor(binary_sensor::BinarySensor *open_feedback) 
 
   // setup callbacks to react to sensor changes
   open_feedback->add_on_state_callback([this](bool state) {
-    ESP_LOGD(TAG, "'%s' - Open feedback '%s'.", this->name_.c_str(), state ? "STARTED" : "ENDED");
+    ESP_LOGD(TAG, "'%s' - Open feedback '%s'.", this->name_.c_str(),
+             state ? LOG_STR_LITERAL("STARTED") : LOG_STR_LITERAL("ENDED"));
     this->recompute_position_();
     if (!state && this->infer_endstop_ && this->current_trigger_operation_ == COVER_OPERATION_OPENING) {
       this->endstop_reached_(true);
@@ -106,7 +107,8 @@ void FeedbackCover::set_close_sensor(binary_sensor::BinarySensor *close_feedback
   this->close_feedback_ = close_feedback;
 
   close_feedback->add_on_state_callback([this](bool state) {
-    ESP_LOGD(TAG, "'%s' - Close feedback '%s'.", this->name_.c_str(), state ? "STARTED" : "ENDED");
+    ESP_LOGD(TAG, "'%s' - Close feedback '%s'.", this->name_.c_str(),
+             state ? LOG_STR_LITERAL("STARTED") : LOG_STR_LITERAL("ENDED"));
     this->recompute_position_();
     if (!state && this->infer_endstop_ && this->current_trigger_operation_ == COVER_OPERATION_CLOSING) {
       this->endstop_reached_(false);
@@ -144,7 +146,8 @@ void FeedbackCover::endstop_reached_(bool open_endstop) {
   // from a position slightly past the endpoint
   if (this->current_trigger_operation_ == (open_endstop ? COVER_OPERATION_OPENING : COVER_OPERATION_CLOSING)) {
     float dur = (now - this->start_dir_time_) / 1e3f;
-    ESP_LOGD(TAG, "'%s' - %s endstop reached. Took %.1fs.", this->name_.c_str(), open_endstop ? "Open" : "Close", dur);
+    ESP_LOGD(TAG, "'%s' - %s endstop reached. Took %.1fs.", this->name_.c_str(),
+             open_endstop ? LOG_STR_LITERAL("Open") : LOG_STR_LITERAL("Close"), dur);
 
     // if there is no external mechanism, stop the cover
     if (!this->has_built_in_endstop_) {
@@ -366,7 +369,7 @@ void FeedbackCover::start_direction_(CoverOperation dir) {
   // the case when an obstacle appears while moving is handled in the callback
   if (obstacle != nullptr && obstacle->state) {
     ESP_LOGD(TAG, "'%s' - %s obstacle detected. Action not started.", this->name_.c_str(),
-             dir == COVER_OPERATION_OPENING ? "Open" : "Close");
+             dir == COVER_OPERATION_OPENING ? LOG_STR_LITERAL("Open") : LOG_STR_LITERAL("Close"));
     return;
   }
 #endif
@@ -383,9 +386,9 @@ void FeedbackCover::start_direction_(CoverOperation dir) {
     this->set_current_operation_(dir, true);
     this->prev_command_trigger_ = trig;
     ESP_LOGD(TAG, "'%s' - Firing '%s' trigger.", this->name_.c_str(),
-             dir == COVER_OPERATION_OPENING   ? "OPEN"
-             : dir == COVER_OPERATION_CLOSING ? "CLOSE"
-                                              : "STOP");
+             dir == COVER_OPERATION_OPENING   ? LOG_STR_LITERAL("OPEN")
+             : dir == COVER_OPERATION_CLOSING ? LOG_STR_LITERAL("CLOSE")
+                                              : LOG_STR_LITERAL("STOP"));
     trig->trigger();
   }
 }

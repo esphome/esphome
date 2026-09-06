@@ -45,6 +45,15 @@ def decode_encryption_key(value: str) -> bytes:
     return decoded
 
 
+def is_reserved_key(value: str) -> bool:
+    """Whether the key is the reserved all-zeros provisioning sentinel.
+
+    The device treats it as no key configured, so consumers that require a
+    real key must reject it.
+    """
+    return not any(decode_encryption_key(value))
+
+
 ENCRYPTION_SCHEMA = cv.Schema(
     {
         cv.Optional(CONF_KEY): cv.sensitive(validate_encryption_key),

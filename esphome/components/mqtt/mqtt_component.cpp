@@ -39,10 +39,12 @@ inline char *append_char(char *p, char c) {
 // Function implementation of LOG_MQTT_COMPONENT macro to reduce code size
 void log_mqtt_component(const char *tag, MQTTComponent *obj, bool state_topic, bool command_topic) {
   char buf[MQTT_DEFAULT_TOPIC_MAX_LEN];
-  if (state_topic)
+  if (state_topic) {
     ESP_LOGCONFIG(tag, "  State Topic: '%s'", obj->get_state_topic_to_(buf).c_str());
-  if (command_topic)
+  }
+  if (command_topic) {
     ESP_LOGCONFIG(tag, "  Command Topic: '%s'", obj->get_command_topic_to_(buf).c_str());
+  }
 }
 
 void MQTTComponent::set_qos(uint8_t qos) { this->qos_ = qos; }
