@@ -548,7 +548,7 @@ APIError APINoiseFrameHelper::write_frame_(const uint8_t *data, uint16_t len) {
  * @return 0 on success, -1 on error (check errno)
  */
 APIError APINoiseFrameHelper::init_handshake_() {
-  int err = this->handshake_.init(this->ctx_.get_psk(), prologue_.data(), prologue_.size());
+  int err = this->handshake_.init(this->ctx_, prologue_.data(), prologue_.size());
   APIError aerr = handle_noise_error_(err, LOG_STR("noise_handshake_init"), APIError::HANDSHAKESTATE_SETUP_FAILED);
   if (aerr != APIError::OK)
     return aerr;

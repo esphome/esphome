@@ -52,12 +52,9 @@ CONFIG_SCHEMA = {
     ),
     cv.Optional(CONF_FRAGMENTATION): cv.All(
         cv.Any(
-            cv.All(
-                cv.only_on_esp8266,
-                cv.require_framework_version(esp8266_arduino=cv.Version(2, 5, 2)),
-            ),
+            cv.only_on_esp8266,
             cv.only_on_esp32,
-            msg="This feature is only available on ESP8266 (Arduino 2.5.2+) and ESP32",
+            msg="This feature is only available on ESP8266 and ESP32",
         ),
         sensor.sensor_schema(
             unit_of_measurement=UNIT_PERCENT,

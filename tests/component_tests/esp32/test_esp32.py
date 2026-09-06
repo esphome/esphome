@@ -205,6 +205,18 @@ def test_esp32_rejects_unsupported_cli_toolchain(
         ),
         pytest.param(
             {
+                "variant": "esp32s31",
+                "board": "esp32-s31-devkitc",
+                "framework": {
+                    "type": "esp-idf",
+                    "advanced": {"execute_from_psram": True},
+                },
+            },
+            r"'execute_from_psram' requires PSRAM to be configured @ data\['framework'\]\['advanced'\]\['execute_from_psram'\]",
+            id="execute_from_psram_requires_psram_s31_config",
+        ),
+        pytest.param(
+            {
                 "variant": "esp32s3",
                 "framework": {
                     "type": "esp-idf",
@@ -422,12 +434,12 @@ def test_execute_from_psram_s3_sdkconfig(
     generate_main: Callable[[str | Path], str],
     component_config_path: Callable[[str], Path],
 ) -> None:
-    """Test that execute_from_psram on ESP32-S3 sets the correct sdkconfig options."""
+    """Test that execute_from_psram on ESP32-S3 sets the correct sdkconfig option."""
     generate_main(component_config_path("execute_from_psram_s3.yaml"))
     sdkconfig = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
-    assert sdkconfig.get("CONFIG_SPIRAM_FETCH_INSTRUCTIONS") is True
-    assert sdkconfig.get("CONFIG_SPIRAM_RODATA") is True
-    assert "CONFIG_SPIRAM_XIP_FROM_PSRAM" not in sdkconfig
+    assert sdkconfig.get("CONFIG_SPIRAM_XIP_FROM_PSRAM") is True
+    assert "CONFIG_SPIRAM_FETCH_INSTRUCTIONS" not in sdkconfig
+    assert "CONFIG_SPIRAM_RODATA" not in sdkconfig
 
 
 def test_execute_from_psram_p4_sdkconfig(
@@ -436,6 +448,18 @@ def test_execute_from_psram_p4_sdkconfig(
 ) -> None:
     """Test that execute_from_psram on ESP32-P4 sets the correct sdkconfig options."""
     generate_main(component_config_path("execute_from_psram_p4.yaml"))
+    sdkconfig = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
+    assert sdkconfig.get("CONFIG_SPIRAM_XIP_FROM_PSRAM") is True
+    assert "CONFIG_SPIRAM_FETCH_INSTRUCTIONS" not in sdkconfig
+    assert "CONFIG_SPIRAM_RODATA" not in sdkconfig
+
+
+def test_execute_from_psram_s31_sdkconfig(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """Test that execute_from_psram on ESP32-S31 sets the correct sdkconfig option."""
+    generate_main(component_config_path("execute_from_psram_s31.yaml"))
     sdkconfig = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
     assert sdkconfig.get("CONFIG_SPIRAM_XIP_FROM_PSRAM") is True
     assert "CONFIG_SPIRAM_FETCH_INSTRUCTIONS" not in sdkconfig

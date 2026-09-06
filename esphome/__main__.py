@@ -26,7 +26,9 @@ from esphome.const import (
     CONF_DEASSERT_RTS_DTR,
     CONF_DISABLED,
     CONF_DISCOVER_IP,
+    CONF_ENCRYPTION,
     CONF_ESPHOME,
+    CONF_KEY,
     CONF_LEVEL,
     CONF_LOG,
     CONF_LOG_TOPIC,
@@ -1333,9 +1335,28 @@ def _upload_via_native_api(
             break
 
     from esphome import espota2
+    from esphome.components.noise import static_encryption_key
 
     remote_port = int(ota_conf[CONF_PORT])
     password = ota_conf.get(CONF_PASSWORD)
+    # Fail closed: an encryption block whose key did not resolve must never
+    # fall back to a plaintext upload
+    noise_psk = None
+    plaintext_fallback = False
+    if (encryption_conf := ota_conf.get(CONF_ENCRYPTION)) is not None:
+        noise_psk = encryption_conf.get(CONF_KEY)
+        if not noise_psk:
+            raise EsphomeError(
+                "OTA encryption is configured but no key was resolved; "
+                "set the key under 'ota: encryption:' or 'api: encryption:'"
+            )
+        # Ensure the key is a string, as required by the underlying OTA implementation.
+        # It arrives here as a SensitiveStr which aioesphomeapi rejects.
+        noise_psk = str(noise_psk)
+    elif api_key := static_encryption_key(config.get(CONF_API) or {}):
+        # Remove before 2027.3.0: the api key is tried, falling back to plaintext
+        noise_psk = str(api_key)
+        plaintext_fallback = True
 
     def check_partition_access(option_string: str) -> None:
         if not ota_conf.get("allow_partition_access"):
@@ -1366,7 +1387,15 @@ def _upload_via_native_api(
     if ota_type == espota2.OTA_TYPE_UPDATE_BOOTLOADER:
         _validate_bootloader_binary(binary)
 
-    return espota2.run_ota(network_devices, remote_port, password, binary, ota_type)
+    return espota2.run_ota(
+        network_devices,
+        remote_port,
+        password,
+        binary,
+        ota_type,
+        noise_psk,
+        plaintext_fallback=plaintext_fallback,
+    )
 
 
 def _upload_via_web_server(
@@ -1375,6 +1404,16 @@ def _upload_via_web_server(
     from esphome import web_server_ota
     from esphome.web_server_helpers import get_web_server_connection
 
+    if any(
+        ota_item.get(CONF_PLATFORM) == CONF_ESPHOME
+        and ota_item.get(CONF_ENCRYPTION) is not None
+        for ota_item in config.get(CONF_OTA, [])
+    ):
+        _LOGGER.warning(
+            "This config has OTA encryption, but the web_server OTA path sends "
+            "the image over plaintext HTTP; use the esphome OTA platform to "
+            "keep it confidential"
+        )
     remote_port, username, password = get_web_server_connection(config)
     return web_server_ota.run_ota(
         network_devices, remote_port, username, password, binary

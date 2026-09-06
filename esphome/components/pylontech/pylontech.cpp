@@ -33,7 +33,6 @@ static const uint8_t ASCII_LF = 0x0A;
 PylontechComponent::PylontechComponent() {}
 
 void PylontechComponent::dump_config() {
-  this->check_uart_settings(115200, 1, esphome::uart::UART_CONFIG_PARITY_NONE, 8);
   ESP_LOGCONFIG(TAG, "pylontech:");
   if (this->is_failed()) {
     ESP_LOGE(TAG, "Connection with pylontech failed!");

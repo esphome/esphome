@@ -374,8 +374,9 @@ jobs:
       - name: Install apt packages (cached)
         # ccache speeds up the host compiles. A cache hit never touches apt
         # (mirror outages cannot hang the job); the timeout bounds the cold
-        # path. Packages and version must match seed-apt-cache exactly;
-        # libsdl2-dev is unused here and carried only for cache-key parity.
+        # path. Packages and version must match seed-apt-cache exactly.
+        # libsdl2-dev is needed by the headless display tests, which capture
+        # screenshots.
         timeout-minutes: 10
         uses: awalsh128/cache-apt-pkgs-action@553a35bb8ebd9fcabcb1c9451aa4c98e1b4ca8a9 # v1.6.3
         with:
@@ -438,6 +439,16 @@ jobs:
           echo "Bucket ${{ matrix.bucket.name }}: running ${#test_files[@]} integration tests"
           pytest -vv --no-cov --tb=native --durations=30 -n auto --dist worksteal \
             --junitxml=junit-integration.xml "${test_files[@]}"
+      - name: Upload test artifacts
+        # Tests that compare rendered output write the image they actually got here, so a
+        # failure can be looked at without reproducing the whole build locally.
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: integration-test-artifacts-${{ matrix.bucket.name }}
+          path: test_artifacts/
+          if-no-files-found: ignore
+          retention-days: 7
       - name: Upload junit timings
         # Consumed by sync-integration-durations.yml through
         # script/update_integration_test_durations.py; only full matrix dev

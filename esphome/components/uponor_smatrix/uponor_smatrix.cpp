@@ -29,8 +29,6 @@ void UponorSmatrixComponent::dump_config() {
   }
 #endif
 
-  this->check_uart_settings(19200);
-
   if (!this->unknown_devices_.empty()) {
     ESP_LOGCONFIG(TAG, "  Detected unknown device addresses:");
     for (auto device_address : this->unknown_devices_) {
