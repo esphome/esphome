@@ -101,8 +101,7 @@ void SdSpi::dump_config() {
     ESP_LOGCONFIG(TAG_SPI, "  Total bytes: %" PRIu64, this->total_bytes_);
     if (this->update_card_info()) {
       ESP_LOGCONFIG(TAG_SPI, "  Used bytes: %" PRIu64, this->used_bytes_);
-    }
-    else {
+    } else {
       ESP_LOGCONFIG(TAG_SPI, "  Used bytes: unavailable");
     }
   }
@@ -371,8 +370,7 @@ StorageError SdSpi::unmount() {
   StorageError flush_err = this->flush_open_handles_();
   if (flush_err == StorageError::STORAGE_ERROR_OK) {
     ESP_LOGD(TAG_SPI, "All data flushed");
-  }
-  else {
+  } else {
     ESP_LOGW(TAG_SPI, "Flush before unmount failed: %s", storage::error_to_string(flush_err));
   }
 
