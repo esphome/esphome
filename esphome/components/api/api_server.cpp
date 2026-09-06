@@ -196,14 +196,15 @@ void APIServer::loop() {
 }
 
 #ifdef USE_API_NOISE
-// Refill only while no api client waits on a noise handshake; an OTA
-// handshake is not visible here and just pays the refill it triggered.
+// Refill only while no api client is still connecting; an OTA handshake is
+// not visible here and just pays the refill it triggered.
 void APIServer::prepare_spare_ephemeral_() {
   if (noise::has_spare_ephemeral() || !network::is_connected()) {
     return;
   }
+  const uint32_t now = App.get_loop_component_start_time();
   for (auto &client : this->active_clients()) {
-    if (!client->is_handshake_complete()) {
+    if (client->is_still_connecting(now)) {
       return;
     }
   }

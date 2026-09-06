@@ -118,8 +118,6 @@ class APIFrameHelper {
   virtual APIError loop() = 0;
   virtual APIError read_packet(ReadPacketBuffer *buffer) = 0;
   bool can_write_without_blocking() { return this->state_ == State::DATA && this->overflow_buf_.empty(); }
-  /// Transport handshake done (immediately for plaintext)
-  bool is_handshake_complete() const { return this->state_ == State::DATA; }
   int getpeername(struct sockaddr *addr, socklen_t *addrlen) { return socket_->getpeername(addr, addrlen); }
   APIError close() {
     if (state_ == State::CLOSED)

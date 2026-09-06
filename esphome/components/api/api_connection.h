@@ -316,10 +316,15 @@ class APIConnection final : public APIServerConnectionBase {
   void on_noise_encryption_set_key_request(const NoiseEncryptionSetKeyRequest &msg);
 #endif
 
+  static constexpr uint32_t CONNECT_GRACE_MS = 1000;
   bool is_authenticated() {
     return static_cast<ConnectionState>(this->flags_.connection_state) == ConnectionState::AUTHENTICATED;
   }
-  bool is_handshake_complete() const { return this->helper_->is_handshake_complete(); }
+  // A connection that is still setting up within its grace period; an older
+  // unauthenticated one is a stale half open client and no longer counts
+  bool is_still_connecting(uint32_t now) {
+    return !this->is_authenticated() && now - this->last_traffic_ < CONNECT_GRACE_MS;
+  }
   bool is_connection_setup() {
     return static_cast<ConnectionState>(this->flags_.connection_state) == ConnectionState::CONNECTED ||
            this->is_authenticated();
