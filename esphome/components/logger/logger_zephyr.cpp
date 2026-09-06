@@ -117,6 +117,9 @@ void Logger::pre_setup() {
         uart_dev = DEVICE_DT_GET_OR_NULL(DT_NODELABEL(usb_serial));
         break;
 #endif
+      default:
+        // Suppresses -Wswitch for enum values #ifdef'd out of this build.
+        break;
     }
     if (device_is_ready(uart_dev)) {
       this->uart_dev_ = uart_dev;
