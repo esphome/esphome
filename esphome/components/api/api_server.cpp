@@ -42,8 +42,9 @@ void APIServer::setup() {
 
 #ifdef USE_API_NOISE
 #ifdef USE_ESP8266
-  // The spare ephemeral refill blocks ~60 ms here; keep it under the warning
-  this->warn_if_blocking_over_ = 8;  // centiseconds
+  // The spare ephemeral refill blocks ~60 ms here and shares the pass with
+  // the client loops; keep the whole pass under the blocking warning
+  this->warn_if_blocking_over_ = 10;  // centiseconds
 #endif
   // Always reserve the slot: flash preferences are positional on esp8266, so
   // a yaml key build must keep the layout of a runtime key build
