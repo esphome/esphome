@@ -290,7 +290,7 @@ storage::StorageError SdMmc::mount() {
   // automation), the browser's change poll must see it -- including recovery after an error.
   if (storage::global_storage_registry != nullptr) {
     storage::global_storage_registry->note_dir_changed("");
-  }    
+  }
 #endif
 
   BYTE pdrv = ff_diskio_get_pdrv_card(this->card_);
