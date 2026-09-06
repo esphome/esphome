@@ -33,6 +33,8 @@ static bool spare_ephemeral_ready = false;               // NOLINT(cppcoreguidel
 bool has_spare_ephemeral() { return spare_ephemeral_ready; }
 
 void prepare_spare_ephemeral() {
+  // A partial fill must never look ready
+  spare_ephemeral_ready = false;
   uint8_t *private_key = spare_ephemeral;
   uint8_t *public_key = spare_ephemeral + EPHEMERAL_PRIVATE_KEY_SIZE;
   // Same generation as noise-c's curve25519 backend: random bytes, X25519

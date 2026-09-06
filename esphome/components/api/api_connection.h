@@ -319,6 +319,7 @@ class APIConnection final : public APIServerConnectionBase {
   bool is_authenticated() {
     return static_cast<ConnectionState>(this->flags_.connection_state) == ConnectionState::AUTHENTICATED;
   }
+  bool is_handshake_complete() const { return this->helper_->is_handshake_complete(); }
   bool is_connection_setup() {
     return static_cast<ConnectionState>(this->flags_.connection_state) == ConnectionState::CONNECTED ||
            this->is_authenticated();

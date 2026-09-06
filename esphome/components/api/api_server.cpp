@@ -41,6 +41,12 @@ void APIServer::setup() {
   ControllerRegistry::register_controller(this);
 
 #ifdef USE_API_NOISE
+#ifdef USE_ESP8266
+  // Refilling the spare ephemeral key blocks the loop for about 60 ms on
+  // this core; the same generation used to run inside every handshake.
+  // Cover it so the first refill does not log a blocking warning at boot.
+  this->warn_if_blocking_over_ = 8;  // centiseconds
+#endif
   // Always reserve the slot: flash preferences are positional on esp8266, so
   // a yaml key build must keep the layout of a runtime key build
   uint32_t hash = 88491486UL;
@@ -193,19 +199,15 @@ void APIServer::loop() {
 
 #ifdef USE_API_NOISE
 // Refill the spare ephemeral key while nobody is waiting for it: not before
-// the network is up, and not while an api client is still in its handshake
-// (an OTA handshake is not visible here; it took the previous spare and
-// pays the refill instead, no worse than generating its own key). The
-// generation blocks the loop for about 60 ms on ESP8266, over the 50 ms
-// blocking warning, so the api component's warning threshold ratchets up
-// on the first refill; the same generation used to run inside the
-// handshake, where it tripped the warning for longer.
+// the network is up, and not while an api client is still in its noise
+// handshake (an OTA handshake is not visible here; it took the previous
+// spare and pays the refill instead, no worse than generating its own key).
 void APIServer::prepare_spare_ephemeral_() {
   if (noise::has_spare_ephemeral() || !network::is_connected()) {
     return;
   }
   for (auto &client : this->active_clients()) {
-    if (!client->is_connection_setup()) {
+    if (!client->is_handshake_complete()) {
       return;
     }
   }
