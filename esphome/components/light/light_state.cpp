@@ -372,6 +372,9 @@ void LightState::save_remote_values_() {
     return;
   LightStateRTCState saved;
   saved.color_mode = this->remote_values.get_color_mode();
+  // Always the real on/off status (RESTORE_AND_ON/OFF used to persist a hardcoded
+  // true/false here instead; harmless, since those modes force `state` again on
+  // every load regardless of what was saved -- see _legacy_restore_statements).
   saved.state = this->remote_values.is_on();
   saved.brightness = this->remote_values.get_brightness();
   saved.color_brightness = this->remote_values.get_color_brightness();

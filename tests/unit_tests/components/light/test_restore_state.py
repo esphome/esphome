@@ -8,6 +8,7 @@ from esphome.components.light.restore_state import (
     RESTORE_STATE_KEEP,
     RESTORE_STATE_NONE,
     RESTORE_STATE_SCHEMA,
+    StateStatement,
     _initial_state_overridden_by_legacy_mode,
     _legacy_cold_boot_statements,
     _partition_state_statements,
@@ -168,7 +169,7 @@ def test_restore_state_fields_reject_lambda(field: str, value: Lambda) -> None:
     ],
 )
 def test_legacy_cold_boot_statements_skips_redundant_defaults(
-    mode: str, initial_state_config: dict | None, expected: list[str]
+    mode: str, initial_state_config: dict | None, expected: list[StateStatement]
 ) -> None:
     legacy = LEGACY_RESTORE_MODES[mode]
     assert _legacy_cold_boot_statements(legacy, initial_state_config) == expected
