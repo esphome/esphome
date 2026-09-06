@@ -256,9 +256,12 @@ def _warn_about_idf_log_level(config):
     framework = fv.full_config.get()[PLATFORM_ESP32].get(CONF_FRAMEWORK, {})
     if (level := framework.get(CONF_LOG_LEVEL)) in ("DEBUG", "VERBOSE"):
         _LOGGER.warning(
-            "esp32 -> framework -> log_level is %s. esp_video's ISP task logs several "
-            "lines per frame at that level, which will slow the camera to a crawl. "
-            "Use ERROR unless you are chasing a driver problem.",
+            "esp32 -> framework -> log_level is %s. At that level esp_video's image "
+            "tuning prints several lines for every frame from its own task, which "
+            "buries the camera's own log lines and slows it to a crawl. Set "
+            "'esp32: framework: log_level: ERROR'. This is not the same setting as "
+            "'logger: level:', which controls ESPHome's own logs and can stay at "
+            "DEBUG.",
             level,
         )
     return config
