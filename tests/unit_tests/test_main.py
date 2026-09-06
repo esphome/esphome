@@ -2108,7 +2108,13 @@ def test_upload_program_ota_success(
         tmp_path / ".esphome" / "build" / "test" / ".pioenvs" / "test" / "firmware.bin"
     )
     mock_run_ota.assert_called_once_with(
-        ["192.168.1.100"], 3232, "secret", expected_firmware, OTA_TYPE_UPDATE_APP, None
+        ["192.168.1.100"],
+        3232,
+        "secret",
+        expected_firmware,
+        OTA_TYPE_UPDATE_APP,
+        None,
+        plaintext_fallback=False,
     )
 
 
@@ -2140,8 +2146,75 @@ def test_upload_program_ota_encryption_key(
         tmp_path / ".esphome" / "build" / "test" / ".pioenvs" / "test" / "firmware.bin"
     )
     mock_run_ota.assert_called_once_with(
-        ["192.168.1.100"], 3232, None, expected_firmware, OTA_TYPE_UPDATE_APP, key
+        ["192.168.1.100"],
+        3232,
+        None,
+        expected_firmware,
+        OTA_TYPE_UPDATE_APP,
+        key,
+        plaintext_fallback=False,
     )
+
+
+def test_upload_program_ota_api_key_opportunistic(
+    mock_run_ota: Mock,
+    mock_get_port_type: Mock,
+    tmp_path: Path,
+) -> None:
+    """Without an ota encryption block the api key is tried with a plaintext
+    fallback (removed in 2027.3.0)."""
+    setup_core(platform=PLATFORM_ESP32, tmp_path=tmp_path)
+    mock_get_port_type.return_value = "NETWORK"
+    mock_run_ota.return_value = (0, "192.168.1.100")
+
+    key = "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="
+    config = {
+        CONF_API: {CONF_ENCRYPTION: {CONF_KEY: key}},
+        CONF_OTA: [{CONF_PLATFORM: CONF_ESPHOME, CONF_PORT: 3232}],
+    }
+    exit_code, _ = upload_program(config, MockArgs(), ["192.168.1.100"])
+
+    assert exit_code == 0
+    expected_firmware = (
+        tmp_path / ".esphome" / "build" / "test" / ".pioenvs" / "test" / "firmware.bin"
+    )
+    mock_run_ota.assert_called_once_with(
+        ["192.168.1.100"],
+        3232,
+        None,
+        expected_firmware,
+        OTA_TYPE_UPDATE_APP,
+        key,
+        plaintext_fallback=True,
+    )
+
+
+@pytest.mark.parametrize(
+    "api_conf",
+    [{}, {CONF_ENCRYPTION: {}}],
+    ids=["no_encryption", "runtime_key"],
+)
+def test_upload_program_ota_no_usable_api_key_stays_plaintext(
+    mock_run_ota: Mock,
+    mock_get_port_type: Mock,
+    tmp_path: Path,
+    api_conf: dict[str, Any],
+) -> None:
+    """A missing or runtime provisioned api key gives the uploader nothing
+    to try."""
+    setup_core(platform=PLATFORM_ESP32, tmp_path=tmp_path)
+    mock_get_port_type.return_value = "NETWORK"
+    mock_run_ota.return_value = (0, "192.168.1.100")
+
+    config = {
+        CONF_API: api_conf,
+        CONF_OTA: [{CONF_PLATFORM: CONF_ESPHOME, CONF_PORT: 3232}],
+    }
+    exit_code, _ = upload_program(config, MockArgs(), ["192.168.1.100"])
+
+    assert exit_code == 0
+    assert mock_run_ota.call_args.args[5] is None
+    assert mock_run_ota.call_args.kwargs == {"plaintext_fallback": False}
 
 
 def test_upload_program_ota_encryption_without_key_fails_closed(
@@ -2194,7 +2267,13 @@ def test_upload_program_ota_with_file_arg(
     assert exit_code == 0
     assert host == "192.168.1.100"
     mock_run_ota.assert_called_once_with(
-        ["192.168.1.100"], 3232, None, Path("custom.bin"), OTA_TYPE_UPDATE_APP, None
+        ["192.168.1.100"],
+        3232,
+        None,
+        Path("custom.bin"),
+        OTA_TYPE_UPDATE_APP,
+        None,
+        plaintext_fallback=False,
     )
 
 
@@ -2250,6 +2329,7 @@ def test_upload_program_ota_partition_table_with_file_arg(
         partition_file,
         OTA_TYPE_UPDATE_PARTITION_TABLE,
         None,
+        plaintext_fallback=False,
     )
 
 
@@ -2312,6 +2392,7 @@ def test_upload_program_ota_partition_table_mqttip(
         partition_file,
         OTA_TYPE_UPDATE_PARTITION_TABLE,
         None,
+        plaintext_fallback=False,
     )
 
 
@@ -2500,6 +2581,7 @@ def test_upload_program_ota_bootloader_with_file_arg(
         bootloader_file,
         OTA_TYPE_UPDATE_BOOTLOADER,
         None,
+        plaintext_fallback=False,
     )
 
 
@@ -2988,7 +3070,13 @@ def test_upload_program_ota_with_mqtt_resolution(
         tmp_path / ".esphome" / "build" / "test" / ".pioenvs" / "test" / "firmware.bin"
     )
     mock_run_ota.assert_called_once_with(
-        ["192.168.1.100"], 3232, None, expected_firmware, OTA_TYPE_UPDATE_APP, None
+        ["192.168.1.100"],
+        3232,
+        None,
+        expected_firmware,
+        OTA_TYPE_UPDATE_APP,
+        None,
+        plaintext_fallback=False,
     )
 
 
@@ -3038,7 +3126,13 @@ def test_upload_program_ota_with_mqtt_empty_broker(
         tmp_path / ".esphome" / "build" / "test" / ".pioenvs" / "test" / "firmware.bin"
     )
     mock_run_ota.assert_called_once_with(
-        ["192.168.1.50"], 3232, None, expected_firmware, OTA_TYPE_UPDATE_APP, None
+        ["192.168.1.50"],
+        3232,
+        None,
+        expected_firmware,
+        OTA_TYPE_UPDATE_APP,
+        None,
+        plaintext_fallback=False,
     )
     # Verify warning was logged
     assert "MQTT IP discovery failed" in caplog.text
@@ -5211,6 +5305,7 @@ def test_upload_program_ota_static_ip_with_mqttip(
         expected_firmware,
         OTA_TYPE_UPDATE_APP,
         None,
+        plaintext_fallback=False,
     )
 
 
@@ -5261,6 +5356,7 @@ def test_upload_program_ota_multiple_mqttip_resolves_once(
         expected_firmware,
         OTA_TYPE_UPDATE_APP,
         None,
+        plaintext_fallback=False,
     )
 
 
@@ -5438,7 +5534,13 @@ def test_upload_program_ota_mqtt_timeout_fallback(
         tmp_path / ".esphome" / "build" / "test" / ".pioenvs" / "test" / "firmware.bin"
     )
     mock_run_ota.assert_called_once_with(
-        ["192.168.1.100"], 3232, None, expected_firmware, OTA_TYPE_UPDATE_APP, None
+        ["192.168.1.100"],
+        3232,
+        None,
+        expected_firmware,
+        OTA_TYPE_UPDATE_APP,
+        None,
+        plaintext_fallback=False,
     )
 
 
