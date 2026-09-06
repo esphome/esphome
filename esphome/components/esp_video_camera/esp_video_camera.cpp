@@ -263,8 +263,9 @@ void set_dqbuf_timeout(int fd, uint32_t timeout_ms, const char *what) {
   struct timeval timeout;
   timeout.tv_sec = timeout_ms / 1000;
   timeout.tv_usec = (timeout_ms % 1000) * 1000;
-  if (ioctl(fd, VIDIOC_S_DQBUF_TIMEOUT, &timeout) < 0)
+  if (ioctl(fd, VIDIOC_S_DQBUF_TIMEOUT, &timeout) < 0) {
     ESP_LOGW(TAG, "Could not bound the %s DQBUF wait: %s", what, strerror(errno));
+  }
 }
 
 }  // namespace
@@ -560,8 +561,9 @@ int ESPVideoCamera::poll_pipeline_init_(uint32_t wait_ms) {
 
   if (xSemaphoreTake(ctx->done, pdMS_TO_TICKS(wait_ms)) == pdTRUE) {
     const bool ok = ctx->result == ESP_OK;
-    if (!ok)
+    if (!ok) {
       ESP_LOGE(TAG, "esp_video_init() failed: %s", esp_err_to_name(ctx->result));
+    }
     ctx->release();
     this->init_ctx_ = nullptr;
     this->pipeline_ready_ = ok;
@@ -742,16 +744,18 @@ void ESPVideoCamera::loop_direct_capture_() {
 
   if (ioctl(this->capture_fd_, VIDIOC_DQBUF, &buf) < 0) {
     int err = errno;
-    if (!errno_means_no_frame(err) && !this->handle_device_gone_(err))
+    if (!errno_means_no_frame(err) && !this->handle_device_gone_(err)) {
       ESP_LOGW(TAG, "VIDIOC_DQBUF failed: %s", strerror(err));
+    }
     return;
   }
 
   if (buf.index < (uint32_t) this->num_capture_buffers_)
     this->deliver_frame_((const uint8_t *) this->capture_buffers_[buf.index].start, buf.bytesused);
 
-  if (ioctl(this->capture_fd_, VIDIOC_QBUF, &buf) < 0)
+  if (ioctl(this->capture_fd_, VIDIOC_QBUF, &buf) < 0) {
     ESP_LOGW(TAG, "VIDIOC_QBUF failed: %s", strerror(errno));
+  }
 }
 
 void ESPVideoCamera::loop_jpeg_pipeline_() {
@@ -762,8 +766,9 @@ void ESPVideoCamera::loop_jpeg_pipeline_() {
   cap_buf.memory = V4L2_MEMORY_MMAP;
   if (ioctl(this->capture_fd_, VIDIOC_DQBUF, &cap_buf) < 0) {
     int err = errno;
-    if (!errno_means_no_frame(err) && !this->handle_device_gone_(err))
+    if (!errno_means_no_frame(err) && !this->handle_device_gone_(err)) {
       ESP_LOGW(TAG, "capture DQBUF failed: %s", strerror(err));
+    }
     return;
   }
 
@@ -848,8 +853,9 @@ void ESPVideoCamera::loop_jpeg_pipeline_() {
   }
 
   // Return the raw frame to the sensor/ISP device.
-  if (ioctl(this->capture_fd_, VIDIOC_QBUF, &cap_buf) < 0)
+  if (ioctl(this->capture_fd_, VIDIOC_QBUF, &cap_buf) < 0) {
     ESP_LOGW(TAG, "capture QBUF failed: %s", strerror(errno));
+  }
 
   // Do this last: it may tear the capture down, invalidating capture_fd_.
   if (encoder_broken && !this->reset_jpeg_encoder_()) {
@@ -1158,8 +1164,9 @@ bool ESPVideoCamera::start_jpeg_pipeline_() {
   ext_ctrls.ctrl_class = V4L2_CID_JPEG_CLASS;
   ext_ctrls.count = 1;
   ext_ctrls.controls = &ext_ctrl;
-  if (ioctl(this->jpeg_fd_, VIDIOC_S_EXT_CTRLS, &ext_ctrls) < 0)
+  if (ioctl(this->jpeg_fd_, VIDIOC_S_EXT_CTRLS, &ext_ctrls) < 0) {
     ESP_LOGW(TAG, "Could not set JPEG quality to %d: %s", this->jpeg_quality_, strerror(errno));
+  }
 
   struct v4l2_requestbuffers req;
   memset(&req, 0, sizeof(req));
@@ -1271,8 +1278,9 @@ void ESPVideoCamera::dump_config() {
                 "  Max framerate: %.1f fps",
                 this->get_name().c_str(), this->device_.c_str(), this->resolved_device_.c_str(),
                 this->resolution_.c_str(), this->max_framerate_);
-  if (this->is_hw_jpeg_)
+  if (this->is_hw_jpeg_) {
     ESP_LOGCONFIG(TAG, "  JPEG quality: %d", this->jpeg_quality_);
+  }
 
   // Neither of the next two means anything for a USB camera: it has no sensor
   // clock to generate and is not probed over SCCB.
@@ -1304,8 +1312,9 @@ void ESPVideoCamera::dump_config() {
                   xclk, drivers.empty() ? " none" : drivers.c_str());
   }
 
-  if (this->is_failed())
+  if (this->is_failed()) {
     ESP_LOGCONFIG(TAG, "  State: FAILED");
+  }
 }
 
 }  // namespace esphome::esp_video_camera
