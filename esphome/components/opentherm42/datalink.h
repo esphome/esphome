@@ -66,13 +66,16 @@ const char *data_link_error_to_string(DataLinkError error);
 // Which specific timer operation failed when DataLinkError::TIMER_ERROR is reported. ESP32-only (the
 // ESP8266 timer API doesn't return per-operation error codes).
 enum class TimerError : uint8_t {
-  NONE = 0,
-  CREATE,
-  REGISTER_CALLBACK,
-  ENABLE,
-  SET_ALARM,
-  START,
-  STOP,
+  // Bare words like ENABLE/START/STOP are common vendor-SDK macro names (e.g. LibreTiny's Realtek
+  // SDK) -- the preprocessor would replace the enumerator before the compiler ever sees it, so every
+  // value is prefixed (see CLAUDE.md's enumerator naming rule).
+  TIMER_ERROR_NONE = 0,
+  TIMER_ERROR_CREATE,
+  TIMER_ERROR_REGISTER_CALLBACK,
+  TIMER_ERROR_ENABLE,
+  TIMER_ERROR_SET_ALARM,
+  TIMER_ERROR_START,
+  TIMER_ERROR_STOP,
 };
 
 const char *timer_error_to_string(TimerError error);
@@ -170,7 +173,7 @@ class OpenThermDataLink {
 
   DataLinkState state_{DataLinkState::IDLE};
   DataLinkError error_{DataLinkError::NONE};
-  TimerError timer_error_{TimerError::NONE};
+  TimerError timer_error_{TimerError::TIMER_ERROR_NONE};
 
   Frame frame_;
 

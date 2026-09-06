@@ -3,7 +3,7 @@ import esphome.codegen as cg
 from esphome.components import time as time_
 from esphome.components.esp32 import include_builtin_idf_component
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, CONF_TIME_ID
+from esphome.const import CONF_ID, CONF_TIME_ID, PLATFORM_ESP32, PLATFORM_ESP8266
 from esphome.core import CORE
 import esphome.final_validate as fv
 from esphome.types import ConfigType
@@ -54,30 +54,36 @@ def validate_requires_time_id(marker: str):
     return _validate
 
 
-CONFIG_SCHEMA = cv.Schema(
-    {
-        cv.GenerateID(): cv.declare_id(OpenTherm42Hub),
-        cv.Required(CONF_IN_PIN): pins.internal_gpio_input_pin_schema,
-        cv.Required(CONF_OUT_PIN): pins.internal_gpio_output_pin_schema,
-        # §5.2.1 Note 2: a MemberID code of 0 signifies a customer non-specific device.
-        cv.Optional(CONF_CONTROLLER_MEMBER_ID_CODE, default=0): cv.int_range(
-            min=0, max=255
-        ),
-        # Defaults to the protocol version this component implements.
-        cv.Optional(CONF_CONTROLLER_OPENTHERM_VERSION, default=4.2): cv.float_range(
-            min=0, max=127
-        ),
-        cv.Optional(CONF_CONTROLLER_PRODUCT_TYPE, default=0): cv.int_range(
-            min=0, max=255
-        ),
-        cv.Optional(CONF_CONTROLLER_PRODUCT_VERSION, default=0): cv.int_range(
-            min=0, max=255
-        ),
-        # §5.3.4 Class 4, IDs 20/21/22: if set, this master keeps the boiler's Day-of-week/Time, Date
-        # and Year synced to this clock. Left unset, those three ids are never sent.
-        cv.Optional(CONF_TIME_ID): cv.use_id(time_.RealTimeClock),
-    }
-).extend(cv.COMPONENT_SCHEMA)
+CONFIG_SCHEMA = cv.All(
+    cv.Schema(
+        {
+            cv.GenerateID(): cv.declare_id(OpenTherm42Hub),
+            cv.Required(CONF_IN_PIN): pins.internal_gpio_input_pin_schema,
+            cv.Required(CONF_OUT_PIN): pins.internal_gpio_output_pin_schema,
+            # §5.2.1 Note 2: a MemberID code of 0 signifies a customer non-specific device.
+            cv.Optional(CONF_CONTROLLER_MEMBER_ID_CODE, default=0): cv.int_range(
+                min=0, max=255
+            ),
+            # Defaults to the protocol version this component implements.
+            cv.Optional(CONF_CONTROLLER_OPENTHERM_VERSION, default=4.2): cv.float_range(
+                min=0, max=127
+            ),
+            cv.Optional(CONF_CONTROLLER_PRODUCT_TYPE, default=0): cv.int_range(
+                min=0, max=255
+            ),
+            cv.Optional(CONF_CONTROLLER_PRODUCT_VERSION, default=0): cv.int_range(
+                min=0, max=255
+            ),
+            # §5.3.4 Class 4, IDs 20/21/22: if set, this master keeps the boiler's Day-of-week/Time,
+            # Date and Year synced to this clock. Left unset, those three ids are never sent.
+            cv.Optional(CONF_TIME_ID): cv.use_id(time_.RealTimeClock),
+        }
+    ).extend(cv.COMPONENT_SCHEMA),
+    # datalink.cpp only implements a hardware-timer backend for ESP32 (gptimer) and ESP8266 (Arduino
+    # Timer1) -- RP2040 and LibreTiny have no backend, so this matches the same restriction the
+    # earlier opentherm component uses.
+    cv.only_on([PLATFORM_ESP32, PLATFORM_ESP8266]),
+)
 
 
 async def to_code(config: dict) -> None:

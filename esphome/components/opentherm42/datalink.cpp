@@ -30,13 +30,13 @@ const char *data_link_error_to_string(DataLinkError error) {
 
 const char *timer_error_to_string(TimerError error) {
   switch (error) {
-    TO_STRING_CASE(TimerError::NONE)
-    TO_STRING_CASE(TimerError::CREATE)
-    TO_STRING_CASE(TimerError::REGISTER_CALLBACK)
-    TO_STRING_CASE(TimerError::ENABLE)
-    TO_STRING_CASE(TimerError::SET_ALARM)
-    TO_STRING_CASE(TimerError::START)
-    TO_STRING_CASE(TimerError::STOP)
+    TO_STRING_CASE(TimerError::TIMER_ERROR_NONE)
+    TO_STRING_CASE(TimerError::TIMER_ERROR_CREATE)
+    TO_STRING_CASE(TimerError::TIMER_ERROR_REGISTER_CALLBACK)
+    TO_STRING_CASE(TimerError::TIMER_ERROR_ENABLE)
+    TO_STRING_CASE(TimerError::TIMER_ERROR_SET_ALARM)
+    TO_STRING_CASE(TimerError::TIMER_ERROR_START)
+    TO_STRING_CASE(TimerError::TIMER_ERROR_STOP)
     default:
       return "<INVALID>";
   }
@@ -69,14 +69,14 @@ bool OpenThermDataLink::initialize() {
       .resolution_hz = 1000000,  // 1 µs per tick
   };
   if (gptimer_new_timer(&config, &this->timer_handle_) != ESP_OK) {
-    this->timer_error_ = TimerError::CREATE;
+    this->timer_error_ = TimerError::TIMER_ERROR_CREATE;
     this->state_ = DataLinkState::ERROR;
     this->error_ = DataLinkError::TIMER_ERROR;
     return false;
   }
   gptimer_event_callbacks_t const callbacks = {.on_alarm = OpenThermDataLink::timer_isr};
   if (gptimer_register_event_callbacks(this->timer_handle_, &callbacks, this) != ESP_OK) {
-    this->timer_error_ = TimerError::REGISTER_CALLBACK;
+    this->timer_error_ = TimerError::TIMER_ERROR_REGISTER_CALLBACK;
     this->state_ = DataLinkState::ERROR;
     this->error_ = DataLinkError::TIMER_ERROR;
     gptimer_del_timer(this->timer_handle_);
@@ -84,7 +84,7 @@ bool OpenThermDataLink::initialize() {
     return false;
   }
   if (gptimer_enable(this->timer_handle_) != ESP_OK) {
-    this->timer_error_ = TimerError::ENABLE;
+    this->timer_error_ = TimerError::TIMER_ERROR_ENABLE;
     this->state_ = DataLinkState::ERROR;
     this->error_ = DataLinkError::TIMER_ERROR;
     gptimer_del_timer(this->timer_handle_);
@@ -105,17 +105,17 @@ void OpenThermDataLink::listen(uint32_t response_timeout_ms) {
 #ifdef USE_ESP32
   gptimer_alarm_config_t const alarm = {.alarm_count = 200, .flags = {.auto_reload_on_alarm = true}};
   if (gptimer_set_alarm_action(this->timer_handle_, &alarm) != ESP_OK) {
-    this->timer_error_ = TimerError::SET_ALARM;
+    this->timer_error_ = TimerError::TIMER_ERROR_SET_ALARM;
     this->state_ = DataLinkState::ERROR;
     this->error_ = DataLinkError::TIMER_ERROR;
     return;
   }
   if (gptimer_start(this->timer_handle_) != ESP_OK) {
-    this->timer_error_ = TimerError::START;
+    this->timer_error_ = TimerError::TIMER_ERROR_START;
     this->state_ = DataLinkState::ERROR;
     this->error_ = DataLinkError::TIMER_ERROR;
   }
-#else
+#elif defined(ESP8266)
   timer1_attachInterrupt(OpenThermDataLink::timer_isr);
   timer1_enable(TIM_DIV16, TIM_EDGE, TIM_LOOP);  // 5 MHz base (5 ticks/µs)
   timer1_write(1000);                            // 5 kHz: fires every 200 µs
@@ -138,17 +138,17 @@ void OpenThermDataLink::send(const Frame &frame) {
 #ifdef USE_ESP32
   gptimer_alarm_config_t const alarm = {.alarm_count = 500, .flags = {.auto_reload_on_alarm = true}};
   if (gptimer_set_alarm_action(this->timer_handle_, &alarm) != ESP_OK) {
-    this->timer_error_ = TimerError::SET_ALARM;
+    this->timer_error_ = TimerError::TIMER_ERROR_SET_ALARM;
     this->state_ = DataLinkState::ERROR;
     this->error_ = DataLinkError::TIMER_ERROR;
     return;
   }
   if (gptimer_start(this->timer_handle_) != ESP_OK) {
-    this->timer_error_ = TimerError::START;
+    this->timer_error_ = TimerError::TIMER_ERROR_START;
     this->state_ = DataLinkState::ERROR;
     this->error_ = DataLinkError::TIMER_ERROR;
   }
-#else
+#elif defined(ESP8266)
   timer1_attachInterrupt(OpenThermDataLink::timer_isr);
   timer1_enable(TIM_DIV16, TIM_EDGE, TIM_LOOP);
   timer1_write(2500);  // 2 kHz: fires every 500 µs
@@ -162,10 +162,10 @@ void OpenThermDataLink::stop_timer_() {
     // gptimer_stop() short-circuits gptimer_set_raw_count() on failure -- matches the original
     // if/else-if control flow (only reset the count once the timer has actually stopped).
     if (gptimer_stop(this->timer_handle_) != ESP_OK || gptimer_set_raw_count(this->timer_handle_, 0) != ESP_OK) {
-      this->timer_error_ = TimerError::STOP;
+      this->timer_error_ = TimerError::TIMER_ERROR_STOP;
     }
   }
-#else
+#elif defined(ESP8266)
   timer1_disable();
   timer1_detachInterrupt();
 #endif
@@ -188,7 +188,7 @@ bool IRAM_ATTR OpenThermDataLink::timer_isr(gptimer_handle_t timer, const gptime
   static_cast<OpenThermDataLink *>(user_ctx)->on_timer_tick_();
   return false;
 }
-#else
+#elif defined(ESP8266)
 void IRAM_ATTR OpenThermDataLink::timer_isr() { instance->on_timer_tick_(); }
 #endif
 
