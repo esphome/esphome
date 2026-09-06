@@ -405,6 +405,14 @@ CONF_SENSOR_AND_INFORMATIONAL_DATA_DHW_BURNER_OPERATION_HOURS = (
     "sensor_and_informational_data_dhw_burner_operation_hours"
 )
 
+# §5.3.4 Class 4, IDs 20/21/22: synthetic diagnostic entities -- not defined by the spec itself -- for
+# the Day-of-week/Time, Date and Year writes described by opentherm42/__init__.py's time_id option:
+# whether the boiler is currently accepting them, and a button to force an immediate resync attempt.
+CONF_SENSOR_AND_INFORMATIONAL_DATA_TIME_SYNCHRONIZED = (
+    "sensor_and_informational_data_time_synchronized"
+)
+CONF_SENSOR_AND_INFORMATIONAL_DATA_SYNC_TIME = "sensor_and_informational_data_sync_time"
+
 # §5.3.4 Class 4: reset-by-writing-zero buttons for the 14 counter/hour ids above (optional for the
 # boiler to honor). ID 111 (Electricity production) is read-only and has no reset.
 CONF_SENSOR_AND_INFORMATIONAL_DATA_COOLING_OPERATION_HOURS_RESET = (

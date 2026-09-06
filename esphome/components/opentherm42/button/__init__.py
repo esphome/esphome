@@ -3,7 +3,7 @@ from esphome.components import button
 import esphome.config_validation as cv
 from esphome.const import ENTITY_CATEGORY_CONFIG, ENTITY_CATEGORY_DIAGNOSTIC
 
-from .. import OpenTherm42Hub, opentherm42_ns
+from .. import OpenTherm42Hub, opentherm42_ns, validate_requires_time_id
 from ..const import (
     CONF_CONTROL_OF_SPECIAL_APPLICATIONS_MANUAL_DHW_PUSH2,
     CONF_OPENTHERM42_ID,
@@ -35,6 +35,7 @@ from ..const import (
     CONF_SENSOR_AND_INFORMATIONAL_DATA_NUMBER_OF_UNSUCCESSFUL_BURNER_STARTS_RESET,
     CONF_SENSOR_AND_INFORMATIONAL_DATA_POWER_CYCLES_RESET,
     CONF_SENSOR_AND_INFORMATIONAL_DATA_SUCCESSFUL_BURNER_STARTS_RESET,
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_SYNC_TIME,
 )
 
 OpenTherm42RemoteRequestButton = opentherm42_ns.class_(
@@ -45,6 +46,9 @@ OpenTherm42ManualDhwPush2Button = opentherm42_ns.class_(
 )
 OpenTherm42ResetCounterButton = opentherm42_ns.class_(
     "OpenTherm42ResetCounterButton", button.Button, cg.Component
+)
+OpenTherm42SyncTimeButton = opentherm42_ns.class_(
+    "OpenTherm42SyncTimeButton", button.Button, cg.Component
 )
 
 # §5.3.3 Class 3, ID 4 HB: Request-Code. Pressing a button sends WRITE-DATA(id=4, code, 00); the
@@ -133,7 +137,17 @@ CONFIG_SCHEMA = cv.Schema(
             ).extend(cv.COMPONENT_SCHEMA)
             for marker in RESETTABLE_COUNTERS
         },
+        # §5.3.4 Class 4, IDs 20/21/22: forces an immediate time-sync attempt, ahead of the essential
+        # rotation's own periodic writes -- see opentherm42/__init__.py's time_id option. A maintenance/
+        # troubleshooting action, not something pressed as part of normal use, so CONFIG.
+        cv.Optional(CONF_SENSOR_AND_INFORMATIONAL_DATA_SYNC_TIME): button.button_schema(
+            OpenTherm42SyncTimeButton, entity_category=ENTITY_CATEGORY_CONFIG
+        ).extend(cv.COMPONENT_SCHEMA),
     }
+)
+
+FINAL_VALIDATE_SCHEMA = validate_requires_time_id(
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_SYNC_TIME
 )
 
 
@@ -156,3 +170,9 @@ async def to_code(config: dict) -> None:
         if (marker_config := config.get(marker)) is not None:
             var = await button.new_button(marker_config, hub, data_id)
             await cg.register_component(var, marker_config)
+
+    if (
+        marker_config := config.get(CONF_SENSOR_AND_INFORMATIONAL_DATA_SYNC_TIME)
+    ) is not None:
+        var = await button.new_button(marker_config, hub)
+        await cg.register_component(var, marker_config)

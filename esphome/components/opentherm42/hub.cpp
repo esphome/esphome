@@ -337,6 +337,20 @@ Frame OpenTherm42Hub::build_next_request_() {
     }
     return frame;
   }
+  if (this->time_sync_pending_) {
+    // Steps through Day-of-week/Time (0), Date (1), Year (2) one conversation at a time, same as the
+    // essential rotation, just without waiting for its turn.
+    static const RequestKind kinds[] = {RequestKind::DAY_TIME, RequestKind::DATE, RequestKind::YEAR};
+    this->pending_request_kind_ = kinds[this->time_sync_step_];
+    Frame frame{};
+    frame.type = static_cast<uint8_t>(MessageType::WRITE_DATA);
+    this->build_time_sync_frame_(this->time_sync_step_, frame);
+    this->time_sync_step_++;
+    if (this->time_sync_step_ >= 3) {
+      this->time_sync_pending_ = false;
+    }
+    return frame;
+  }
 
   Frame frame{};
   RequestKind kind;
@@ -450,33 +464,17 @@ Frame OpenTherm42Hub::build_next_request_() {
       frame.set_value_f88(this->trch2_number_ != nullptr ? this->trch2_number_->state : 0.0f);
       break;
 
-    case RequestKind::DAY_TIME: {
+    case RequestKind::DAY_TIME:
       frame.type = static_cast<uint8_t>(MessageType::WRITE_DATA);
-      frame.id = 20;
-      if (this->time_id_ != nullptr) {
-        ESPTime const now = this->time_id_->now();
-        // §5.3.4 ID 20: day of week is Monday=1..Sunday=7; ESPTime's is Sunday=1..Saturday=7.
-        uint8_t const day_of_week = now.day_of_week == 1 ? 7 : now.day_of_week - 1;
-        frame.value_hb = (day_of_week << 5) | (now.hour & 0x1F);
-        frame.value_lb = now.minute;
-      }
+      this->build_time_sync_frame_(0, frame);
       break;
-    }
     case RequestKind::DATE:
       frame.type = static_cast<uint8_t>(MessageType::WRITE_DATA);
-      frame.id = 21;
-      if (this->time_id_ != nullptr) {
-        ESPTime const now = this->time_id_->now();
-        frame.value_hb = now.month;
-        frame.value_lb = now.day_of_month;
-      }
+      this->build_time_sync_frame_(1, frame);
       break;
     case RequestKind::YEAR:
       frame.type = static_cast<uint8_t>(MessageType::WRITE_DATA);
-      frame.id = 22;
-      if (this->time_id_ != nullptr) {
-        frame.set_value_u16(this->time_id_->now().year);
-      }
+      this->build_time_sync_frame_(2, frame);
       break;
 
     case RequestKind::OUTSIDE_TEMPERATURE:
@@ -681,6 +679,35 @@ Frame OpenTherm42Hub::build_startup_request_() {
       break;  // guarded by the caller, unreachable here
   }
   return frame;
+}
+
+void OpenTherm42Hub::build_time_sync_frame_(uint8_t step, Frame &frame) {
+  switch (step) {
+    case 0:
+      frame.id = 20;
+      if (this->time_id_ != nullptr) {
+        ESPTime const now = this->time_id_->now();
+        // §5.3.4 ID 20: day of week is Monday=1..Sunday=7; ESPTime's is Sunday=1..Saturday=7.
+        uint8_t const day_of_week = now.day_of_week == 1 ? 7 : now.day_of_week - 1;
+        frame.value_hb = (day_of_week << 5) | (now.hour & 0x1F);
+        frame.value_lb = now.minute;
+      }
+      return;
+    case 1:
+      frame.id = 21;
+      if (this->time_id_ != nullptr) {
+        ESPTime const now = this->time_id_->now();
+        frame.value_hb = now.month;
+        frame.value_lb = now.day_of_month;
+      }
+      return;
+    default:
+      frame.id = 22;
+      if (this->time_id_ != nullptr) {
+        frame.set_value_u16(this->time_id_->now().year);
+      }
+      return;
+  }
 }
 
 bool OpenTherm42Hub::startup_phase_actionable_(StartupPhase phase) const {
@@ -1009,21 +1036,27 @@ void OpenTherm42Hub::handle_response_(const Frame &frame) {
       return;
 
     case RequestKind::DAY_TIME:
-      if (type != MessageType::WRITE_ACK) {
+      this->day_time_write_ok_ = type == MessageType::WRITE_ACK;
+      if (!this->day_time_write_ok_) {
         ESP_LOGW(TAG, "Day of Week & Time of Day (id=20) write was rejected (message type %u)", frame.type);
       }
+      this->publish_time_synchronized_();
       return;
 
     case RequestKind::DATE:
-      if (type != MessageType::WRITE_ACK) {
+      this->date_write_ok_ = type == MessageType::WRITE_ACK;
+      if (!this->date_write_ok_) {
         ESP_LOGW(TAG, "Date (id=21) write was rejected (message type %u)", frame.type);
       }
+      this->publish_time_synchronized_();
       return;
 
     case RequestKind::YEAR:
-      if (type != MessageType::WRITE_ACK) {
+      this->year_write_ok_ = type == MessageType::WRITE_ACK;
+      if (!this->year_write_ok_) {
         ESP_LOGW(TAG, "Year (id=22) write was rejected (message type %u)", frame.type);
       }
+      this->publish_time_synchronized_();
       return;
 
     case RequestKind::OUTSIDE_TEMPERATURE:
@@ -1384,6 +1417,13 @@ void OpenTherm42Hub::handle_brand_response_(const Frame &frame, BrandRead &brand
   }
 }
 
+void OpenTherm42Hub::publish_time_synchronized_() {
+  if (this->time_synchronized_binary_sensor_ != nullptr) {
+    this->time_synchronized_binary_sensor_->publish_state(this->day_time_write_ok_ && this->date_write_ok_ &&
+                                                          this->year_write_ok_);
+  }
+}
+
 void OpenTherm42Hub::invalidate_response_(RequestKind kind) {
   switch (kind) {
     case RequestKind::BOILER_CONFIG:
@@ -1531,10 +1571,22 @@ void OpenTherm42Hub::invalidate_response_(RequestKind kind) {
     case RequestKind::ROOM_SETPOINT_CH2:
     case RequestKind::ROOM_TEMPERATURE:
     case RequestKind::TRCH2:
-    case RequestKind::DAY_TIME:
-    case RequestKind::DATE:
-    case RequestKind::YEAR:
       return;  // write-only, nothing to invalidate
+
+    case RequestKind::DAY_TIME:
+      this->day_time_write_ok_ = false;
+      this->publish_time_synchronized_();
+      return;
+
+    case RequestKind::DATE:
+      this->date_write_ok_ = false;
+      this->publish_time_synchronized_();
+      return;
+
+    case RequestKind::YEAR:
+      this->year_write_ok_ = false;
+      this->publish_time_synchronized_();
+      return;
 
     case RequestKind::OUTSIDE_TEMPERATURE:
       if (this->outside_temperature_number_ == nullptr && this->outside_temperature_sensor_ != nullptr) {

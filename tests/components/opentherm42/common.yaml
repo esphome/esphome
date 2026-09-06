@@ -299,6 +299,10 @@ binary_sensor:
     # by program Setpoint change, enable overruling remote Setpoint by program Setpoint change ]
     control_of_special_applications_remote_override_room_setpoint_function_program_change_priority:
       name: "Control of Special Applications: Remote Override Room Setpoint function: Program change priority"
+    # §5.3.4 Class 4, IDs 20/21/22: synthetic diagnostic entity -- true only once the most recent
+    # Day-of-week/Time, Date and Year writes (see time_id above) all succeeded. Requires time_id.
+    sensor_and_informational_data_time_synchronized:
+      name: "Sensor and Informational Data: Time synchronized"
 
 button:
   - platform: opentherm42
@@ -391,6 +395,10 @@ button:
     # §5.3.4 Class 4, ID 123: reset by writing zero (optional for the boiler to honor).
     sensor_and_informational_data_dhw_burner_operation_hours_reset:
       name: "Sensor and Informational Data: DHW burner operation hours reset"
+    # §5.3.4 Class 4, IDs 20/21/22: forces an immediate time-sync attempt (see time_id above).
+    # Requires time_id.
+    sensor_and_informational_data_sync_time:
+      name: "Sensor and Informational Data: Sync time"
 
 text_sensor:
   - platform: opentherm42

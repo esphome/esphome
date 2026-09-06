@@ -460,6 +460,17 @@ class OpenTherm42Hub : public Component {
   // §5.3.4 Class 4, IDs 20/21/22: the clock this master's Day-of-week/Time, Date and Year writes are
   // sourced from. Left unset (nullptr), those three ids are simply never sent.
   void set_time_id(time::RealTimeClock *time_id) { this->time_id_ = time_id; }
+  // Synthetic diagnostic entities for the time-sync writes above -- see const.py's comment on
+  // CONF_SENSOR_AND_INFORMATIONAL_DATA_TIME_SYNCHRONIZED/_SYNC_TIME for why these aren't real
+  // spec-defined data-ids. True only once the most recent attempt at all three writes succeeded.
+  OT42_SET_BINARY_SENSOR(sensor_and_informational_data_time_synchronized, time_synchronized_binary_sensor_)
+  // Queues an immediate Day-of-week/Time/Date/Year resync, ahead of the essential rotation's own
+  // periodic writes -- same priority tier as Class 3's remote requests. Called by
+  // OpenTherm42SyncTimeButton::press_action().
+  void push_time_sync() {
+    this->time_sync_pending_ = true;
+    this->time_sync_step_ = 0;
+  }
 
   // §5.3.4 Class 4: write-only numbers.
   OT42_SET_NUMBER(sensor_and_informational_data_room_setpoint, room_setpoint_number_)
@@ -644,6 +655,12 @@ class OpenTherm42Hub : public Component {
   Frame build_next_request_();
   // The startup_phase_-specific half of build_next_request_().
   Frame build_startup_request_();
+  // Fills in a Day-of-week/Time (step 0), Date (step 1), or Year (step 2) WRITE_DATA frame's id and
+  // value from time_id_ -- shared by the essential rotation and push_time_sync()'s on-demand burst.
+  void build_time_sync_frame_(uint8_t step, Frame &frame);
+  // Recomputes and publishes time_synchronized_binary_sensor_ from day_time_write_ok_/
+  // date_write_ok_/year_write_ok_ -- called after each of the three writes' response.
+  void publish_time_synchronized_();
   // Moves startup_phase_ to the next phase, skipping any BRAND* phase with no text_sensor configured.
   void advance_startup_phase_();
   bool startup_phase_actionable_(StartupPhase phase) const;
@@ -745,6 +762,13 @@ class OpenTherm42Hub : public Component {
 
   // §5.3.4 Class 4 entities.
   time::RealTimeClock *time_id_{nullptr};
+  // Synthetic time-sync status/action entities -- see set_time_id()'s neighboring setters.
+  binary_sensor::BinarySensor *time_synchronized_binary_sensor_{nullptr};
+  bool day_time_write_ok_{false};
+  bool date_write_ok_{false};
+  bool year_write_ok_{false};
+  bool time_sync_pending_{false};
+  uint8_t time_sync_step_{0};
 
   number::Number *room_setpoint_number_{nullptr};
   number::Number *room_setpoint_ch2_number_{nullptr};

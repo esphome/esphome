@@ -5,6 +5,10 @@ from esphome.components.esp32 import include_builtin_idf_component
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_TIME_ID
 from esphome.core import CORE
+import esphome.final_validate as fv
+from esphome.types import ConfigType
+
+from .const import CONF_OPENTHERM42_ID
 
 CODEOWNERS = ["@fornellas"]
 MULTI_CONF = True
@@ -26,6 +30,29 @@ CONF_CONTROLLER_PRODUCT_VERSION = "controller_product_version"
 
 opentherm42_ns = cg.esphome_ns.namespace("opentherm42")
 OpenTherm42Hub = opentherm42_ns.class_("OpenTherm42Hub", cg.Component)
+
+
+def validate_requires_time_id(marker: str):
+    """FINAL_VALIDATE_SCHEMA factory for a platform entity that only makes sense when the opentherm42
+    hub it references has time_id set (e.g. the time-sync status binary_sensor and button): fails
+    config validation, rather than silently doing nothing at runtime, if marker is configured but the
+    hub's time_id is not.
+    """
+
+    def _validate(config: ConfigType) -> None:
+        if marker not in config:
+            return
+        full_config = fv.full_config.get()
+        hub_path = full_config.get_path_for_id(config[CONF_OPENTHERM42_ID])[:-1]
+        hub_config = full_config.get_config_for_path(hub_path)
+        if CONF_TIME_ID not in hub_config:
+            raise cv.Invalid(
+                f"'{marker}' requires the opentherm42 hub to have 'time_id' set",
+                path=[marker],
+            )
+
+    return _validate
+
 
 CONFIG_SCHEMA = cv.Schema(
     {

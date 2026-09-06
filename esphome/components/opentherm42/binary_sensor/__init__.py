@@ -3,7 +3,7 @@ from esphome.components import binary_sensor
 import esphome.config_validation as cv
 from esphome.const import ENTITY_CATEGORY_DIAGNOSTIC
 
-from .. import OpenTherm42Hub
+from .. import OpenTherm42Hub, validate_requires_time_id
 from ..const import (
     CONF_CONFIGURATION_INFORMATION_BOILER_CONFIGURATION_CH2_PRESENT,
     CONF_CONFIGURATION_INFORMATION_BOILER_CONFIGURATION_CONTROL_TYPE,
@@ -51,6 +51,7 @@ from ..const import (
     CONF_PRE_DEFINED_REMOTE_BOILER_PARAMETERS_TRANSFER_ENABLE_FLAGS_DHW_SETPOINT,
     CONF_PRE_DEFINED_REMOTE_BOILER_PARAMETERS_TRANSFER_ENABLE_FLAGS_MAX_CHSETPOINT,
     CONF_PRE_DEFINED_REMOTE_BOILER_PARAMETERS_TRANSFER_ENABLE_FLAGS_VENTILATION_HEAT_RECOVERY_NOMINAL_VENTILATION_VALUE,
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_TIME_SYNCHRONIZED,
 )
 
 # All of Class 1's binary_sensors are boiler-reported status bits: on a failed conversation, every
@@ -283,6 +284,15 @@ DESCRIPTIONS: dict[str, tuple[str | None, str | None]] = {
         None,
         ENTITY_CATEGORY_DIAGNOSTIC,
     ),
+    # §5.3.4 Class 4, IDs 20/21/22: synthetic diagnostic entity (not a real spec data-id) -- true only
+    # once the most recent Day-of-week/Time, Date and Year writes described by opentherm42/__init__.py's
+    # time_id option all succeeded. No device_class fits "sync succeeded" semantics (HA's closest,
+    # "problem", is inverted: on would mean a problem, not success), so the entity's name alone conveys
+    # the state. A troubleshooting indicator, not something watched day-to-day, so DIAGNOSTIC.
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_TIME_SYNCHRONIZED: (
+        None,
+        ENTITY_CATEGORY_DIAGNOSTIC,
+    ),
 }
 
 TYPES: dict[str, cv.Schema] = {
@@ -298,6 +308,10 @@ CONFIG_SCHEMA = cv.Schema(
         cv.GenerateID(CONF_OPENTHERM42_ID): cv.use_id(OpenTherm42Hub),
         **{cv.Optional(marker): schema for marker, schema in TYPES.items()},
     }
+)
+
+FINAL_VALIDATE_SCHEMA = validate_requires_time_id(
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_TIME_SYNCHRONIZED
 )
 
 
