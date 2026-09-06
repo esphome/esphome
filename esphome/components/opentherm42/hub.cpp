@@ -52,6 +52,8 @@ const SimpleSensorInfo OpenTherm42Hub::SIMPLE_SENSORS[] = {
     {RequestKind::FAULT_HISTORY_BUFFER_SIZE_SOLAR_STORAGE, 107, SimpleValueKind::U8_HB, &OpenTherm42Hub::fault_history_buffer_size_solar_storage_sensor_, "Size of Fault Buffer Solar Storage (id=107)"},
     {RequestKind::REMOTE_OVERRIDE_ROOM_SETPOINT, 9, SimpleValueKind::F88, &OpenTherm42Hub::remote_override_room_setpoint_sensor_, "Remote Override Room Setpoint (id=9)"},
     {RequestKind::REMOTE_OVERRIDE_ROOM_SETPOINT_2, 39, SimpleValueKind::F88, &OpenTherm42Hub::remote_override_room_setpoint_2_sensor_, "Remote Override Room Setpoint 2 (id=39)"},
+    {RequestKind::OPENTHERM_VERSION_BOILER, 125, SimpleValueKind::F88, &OpenTherm42Hub::opentherm_version_boiler_sensor_, "OpenTherm version Boiler (id=125)"},
+    {RequestKind::OPENTHERM_VERSION_VENTILATION, 75, SimpleValueKind::F88, &OpenTherm42Hub::opentherm_version_ventilation_sensor_, "OpenTherm version ventilation/heat-recovery (id=75)"},
 };
 // clang-format on
 
@@ -403,6 +405,26 @@ Frame OpenTherm42Hub::build_next_request_() {
     case RequestKind::OEM_DIAGNOSTIC_CODE_VENTILATION:
       frame.type = static_cast<uint8_t>(MessageType::READ_DATA);
       frame.id = 73;
+      break;
+    case RequestKind::VENTILATION_CONFIGURATION:
+      frame.type = static_cast<uint8_t>(MessageType::READ_DATA);
+      frame.id = 74;
+      break;
+    case RequestKind::SOLAR_STORAGE_CONFIGURATION:
+      frame.type = static_cast<uint8_t>(MessageType::READ_DATA);
+      frame.id = 103;
+      break;
+    case RequestKind::PRODUCT_VERSION_BOILER:
+      frame.type = static_cast<uint8_t>(MessageType::READ_DATA);
+      frame.id = 127;
+      break;
+    case RequestKind::PRODUCT_VERSION_VENTILATION:
+      frame.type = static_cast<uint8_t>(MessageType::READ_DATA);
+      frame.id = 76;
+      break;
+    case RequestKind::PRODUCT_VERSION_SOLAR_STORAGE:
+      frame.type = static_cast<uint8_t>(MessageType::READ_DATA);
+      frame.id = 104;
       break;
     case RequestKind::REMOTE_REQUEST:
       break;  // built directly in build_next_request_() before this switch, unreachable here
@@ -891,17 +913,6 @@ void OpenTherm42Hub::handle_response_(const Frame &frame) {
       }
       return;
 
-    case RequestKind::OPENTHERM_VERSION_BOILER:
-      if (type != MessageType::READ_ACK) {
-        ESP_LOGW(TAG, "OpenTherm version Boiler (id=125) read was rejected (message type %u)", frame.type);
-        this->invalidate_response_(RequestKind::OPENTHERM_VERSION_BOILER);
-        return;
-      }
-      if (this->opentherm_version_boiler_sensor_ != nullptr) {
-        this->opentherm_version_boiler_sensor_->publish_state(frame.value_f88());
-      }
-      return;
-
     case RequestKind::PRODUCT_VERSION_BOILER:
       if (type != MessageType::READ_ACK) {
         ESP_LOGW(TAG, "Boiler product version number and type (id=127) read was rejected (message type %u)",
@@ -914,18 +925,6 @@ void OpenTherm42Hub::handle_response_(const Frame &frame) {
       }
       if (this->boiler_product_version_sensor_ != nullptr) {
         this->boiler_product_version_sensor_->publish_state(frame.value_lb);
-      }
-      return;
-
-    case RequestKind::OPENTHERM_VERSION_VENTILATION:
-      if (type != MessageType::READ_ACK) {
-        ESP_LOGW(TAG, "OpenTherm version ventilation/heat-recovery (id=75) read was rejected (message type %u)",
-                 frame.type);
-        this->invalidate_response_(RequestKind::OPENTHERM_VERSION_VENTILATION);
-        return;
-      }
-      if (this->opentherm_version_ventilation_sensor_ != nullptr) {
-        this->opentherm_version_ventilation_sensor_->publish_state(frame.value_f88());
       }
       return;
 
@@ -1494,24 +1493,12 @@ void OpenTherm42Hub::invalidate_response_(RequestKind kind) {
       }
       return;
 
-    case RequestKind::OPENTHERM_VERSION_BOILER:
-      if (this->opentherm_version_boiler_sensor_ != nullptr) {
-        this->opentherm_version_boiler_sensor_->set_has_state(false);
-      }
-      return;
-
     case RequestKind::PRODUCT_VERSION_BOILER:
       if (this->boiler_product_type_sensor_ != nullptr) {
         this->boiler_product_type_sensor_->set_has_state(false);
       }
       if (this->boiler_product_version_sensor_ != nullptr) {
         this->boiler_product_version_sensor_->set_has_state(false);
-      }
-      return;
-
-    case RequestKind::OPENTHERM_VERSION_VENTILATION:
-      if (this->opentherm_version_ventilation_sensor_ != nullptr) {
-        this->opentherm_version_ventilation_sensor_->set_has_state(false);
       }
       return;
 
