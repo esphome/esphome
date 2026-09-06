@@ -36,8 +36,6 @@ cover::CoverTraits Tormatic::get_traits() {
 
 void Tormatic::dump_config() {
   LOG_COVER("", "Tormatic Cover", this);
-  this->check_uart_settings(9600, 1, uart::UART_CONFIG_PARITY_NONE, 8);
-
   ESP_LOGCONFIG(TAG,
                 "  Open Duration: %.1fs\n"
                 "  Close Duration: %.1fs",

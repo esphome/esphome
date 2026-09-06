@@ -3,6 +3,7 @@ mitsubishi_cn105:
   uart_id: uart_bus
   update_interval: 30s
   telemetry_request_min_interval: 120s
+  use_fahrenheit: true
   vane:
     on_state:
       - logger.log:

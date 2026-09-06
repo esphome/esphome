@@ -5,6 +5,7 @@ import io
 import logging
 from pathlib import Path
 import re
+from typing import Any
 
 from PIL import Image, UnidentifiedImageError
 
@@ -23,6 +24,7 @@ from esphome.components.image import (
     get_image_type_enum,
     get_transparency_enum,
     is_svg_file,
+    validate_byte_order,
     validate_settings,
     validate_transparency,
     validate_type,
@@ -74,12 +76,12 @@ def compute_local_image_path(value: str | ConfigType) -> Path:
     return external_files.compute_local_file_path(DOMAIN, url)
 
 
-def local_path(value):
+def local_path(value: str | ConfigType) -> str:
     value = value[CONF_PATH] if isinstance(value, dict) else value
     return str(CORE.relative_config_path(value))
 
 
-def download_file(url, path):
+def download_file(url: str, path: Path) -> str:
     # The shared NETWORK_TIMEOUT applies; a per-caller timeout would be
     # silently ignored on a per-run memo hit anyway (memos key by path).
     external_files.download_content(url, path)
@@ -97,7 +99,7 @@ def download_gh_svg(value: str | ConfigType, source: str) -> str:
     return download_file(url, path)
 
 
-def download_image(value):
+def download_image(value: str | ConfigType) -> str:
     value = value[CONF_URL] if isinstance(value, dict) else value
     return download_file(value, compute_local_image_path(value))
 
@@ -145,7 +147,7 @@ def _extract_entry_ref(entry: ConfigType) -> RemoteFile | None:
 PREFETCH_FILES = external_files.single_stage_prefetch(_extract_entry_ref)
 
 
-def validate_file_shorthand(value):
+def validate_file_shorthand(value: Any) -> str:
     value = cv.string_strict(value)
     if (remote := _parse_remote_shorthand(value)) is not None:
         return download_file(remote.url, remote.path)
@@ -162,8 +164,8 @@ LOCAL_SCHEMA = cv.All(
 )
 
 
-def mdi_schema(source):
-    def validate_mdi(value):
+def mdi_schema(source: str) -> cv.All:
+    def validate_mdi(value: ConfigType) -> str:
         return download_gh_svg(value, source)
 
     return cv.All(
@@ -200,7 +202,7 @@ OPTIONS_SCHEMA = {
         "NONE", "FLOYDSTEINBERG", upper=True
     ),
     cv.Optional(CONF_INVERT_ALPHA, default=False): cv.boolean,
-    cv.Optional(CONF_BYTE_ORDER): cv.one_of("BIG_ENDIAN", "LITTLE_ENDIAN", upper=True),
+    cv.Optional(CONF_BYTE_ORDER): validate_byte_order,
     cv.Optional(CONF_TRANSPARENCY, default=CONF_OPAQUE): validate_transparency(),
 }
 
@@ -225,7 +227,7 @@ def image_schema(class_: MockObjClass = Image_) -> cv.Schema:
     )
 
 
-def validate_image_final(config: ConfigType) -> ConfigType:
+def validate_image_final(config: ConfigType) -> None:
     """Per-entry final validation, shared by file-backed image platforms.
 
     For LVGL 9 the default byte order for RGB565 images is little-endian, so
@@ -240,7 +242,6 @@ def validate_image_final(config: ConfigType) -> ConfigType:
             )
     else:
         config[CONF_BYTE_ORDER] = "LITTLE_ENDIAN"
-    return config
 
 
 async def new_image(config: ConfigType) -> MockObj:
@@ -259,7 +260,9 @@ async def new_image(config: ConfigType) -> MockObj:
     return var
 
 
-async def write_image(config, all_frames=False):
+async def write_image(
+    config: ConfigType, all_frames: bool = False
+) -> tuple[MockObj, int, int, MockObj, MockObj, int]:
     path = Path(config[CONF_FILE])
     if not path.is_file():
         raise core.EsphomeError(f"Could not load image file {path}")

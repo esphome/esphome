@@ -220,6 +220,39 @@ bool str_endswith_ignore_case(const char *str, size_t str_len, const char *suffi
   return strncasecmp(str + str_len - suffix_len, suffix, suffix_len) == 0;
 }
 
+bool str_contains_ignore_case_fallback(const char *haystack, const char *needle) {
+  const size_t needle_len = strlen(needle);
+  if (needle_len == 0) {
+    return true;
+  }
+  for (const char *p = haystack; *p != '\0'; p++) {
+    if (strncasecmp(p, needle, needle_len) == 0) {
+      return true;
+    }
+  }
+  return false;
+}
+
+#ifdef USE_ESP8266
+// _P mirror of str_contains_ignore_case_fallback above; host tests cover only the fallback,
+// so keep the two bodies in sync.
+bool str_contains_ignore_case_p(const char *haystack, PGM_P needle) {
+  if (haystack == nullptr || needle == nullptr) {
+    return false;
+  }
+  const size_t needle_len = strlen_P(needle);
+  if (needle_len == 0) {
+    return true;
+  }
+  for (const char *p = haystack; *p != '\0'; p++) {
+    if (strncasecmp_P(p, needle, needle_len) == 0) {
+      return true;
+    }
+  }
+  return false;
+}
+#endif  // USE_ESP8266
+
 // str_truncate, str_until, str_lower_case, str_upper_case, str_snake_case moved to alloc_helpers.cpp
 char *str_sanitize_to(char *buffer, size_t buffer_size, const char *str) {
   if (buffer_size == 0) {
@@ -234,9 +267,6 @@ char *str_sanitize_to(char *buffer, size_t buffer_size, const char *str) {
 }
 
 // str_sanitize, str_snprintf, str_sprintf moved to alloc_helpers.cpp
-
-// Maximum size for name with suffix: 120 (max friendly name) + 1 (separator) + 6 (MAC suffix) + 1 (null term)
-static constexpr size_t MAX_NAME_WITH_SUFFIX_SIZE = 128;
 
 size_t make_name_with_suffix_to(char *buffer, size_t buffer_size, const char *name, size_t name_len, char sep,
                                 const char *suffix_ptr, size_t suffix_len) {
@@ -256,17 +286,6 @@ size_t make_name_with_suffix_to(char *buffer, size_t buffer_size, const char *na
   memcpy(buffer + name_len + 1, suffix_ptr, suffix_len);
   buffer[total_len] = '\0';
   return total_len;
-}
-
-std::string make_name_with_suffix(const char *name, size_t name_len, char sep, const char *suffix_ptr,
-                                  size_t suffix_len) {
-  char buffer[MAX_NAME_WITH_SUFFIX_SIZE];
-  size_t len = make_name_with_suffix_to(buffer, sizeof(buffer), name, name_len, sep, suffix_ptr, suffix_len);
-  return std::string(buffer, len);
-}
-
-std::string make_name_with_suffix(const std::string &name, char sep, const char *suffix_ptr, size_t suffix_len) {
-  return make_name_with_suffix(name.c_str(), name.size(), sep, suffix_ptr, suffix_len);
 }
 
 // Parsing & formatting
@@ -549,7 +568,7 @@ size_t value_accuracy_to_buf(std::span<char, VALUE_ACCURACY_MAX_LEN> buf, float 
   }
 
   // Fallback for NaN/Inf/high accuracy/out-of-range
-  int len = snprintf(buf.data(), buf.size(), "%.*f", accuracy_decimals, value);
+  int len = snprintf(buf.data(), buf.size(), "%.*f", accuracy_decimals, static_cast<double>(value));
   if (len < 0)
     return 0;
   return static_cast<size_t>(len) >= buf.size() ? buf.size() - 1 : static_cast<size_t>(len);
@@ -567,25 +586,34 @@ size_t value_accuracy_with_uom_to_buf(std::span<char, VALUE_ACCURACY_MAX_LEN> bu
 }
 
 int8_t step_to_accuracy_decimals(float step) {
-  // use printf %g to find number of digits based on temperature step
-  char buf[32];
-  snprintf(buf, sizeof buf, "%.5g", step);
-
-  std::string str{buf};
-  size_t dot_pos = str.find('.');
-  if (dot_pos == std::string::npos)
+  // Decimals needed to show the step at five significant digits, trailing zeros dropped.
+  if (!std::isfinite(step) || step == 0.0f)
     return 0;
-
-  return str.length() - dot_pos - 1;
+  float mantissa = std::fabs(step);
+  int8_t decimals = 4;  // decimals needed for five significant digits when mantissa is in [1, 10)
+  while (mantissa >= 10.0f) {
+    mantissa /= 10.0f;
+    decimals--;
+  }
+  while (mantissa < 1.0f) {
+    mantissa *= 10.0f;
+    decimals++;
+  }
+  if (decimals <= 0)
+    return 0;
+  float scaled = mantissa * 10000.0f;
+  auto digits = static_cast<uint32_t>(scaled);
+  if (scaled - static_cast<float>(digits) >= 0.5f)
+    digits++;
+  while (decimals > 0 && digits % 10 == 0) {
+    digits /= 10;
+    decimals--;
+  }
+  return decimals;
 }
 
-// Use C-style string constant to store in ROM instead of RAM (saves 24 bytes)
-static constexpr const char *BASE64_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-                                            "abcdefghijklmnopqrstuvwxyz"
-                                            "0123456789+/";
-
-// Helper function to find the index of a base64/base64url character in the lookup table.
-// Returns the character's position (0-63) if found, or 0 if not found.
+// Map a base64/base64url character to its 6-bit value (0-63) arithmetically.
+// No lookup table: a table would occupy RAM on ESP8266 (.rodata lives in DRAM there).
 // Supports both standard base64 (+/) and base64url (-_) alphabets.
 // NOTE: This returns 0 for both 'A' (valid base64 char at index 0) and invalid characters.
 // This is safe because is_base64() is ALWAYS checked before calling this function,
@@ -593,13 +621,18 @@ static constexpr const char *BASE64_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
 // stops processing at the first invalid character due to the is_base64() check in its
 // while loop condition, making this edge case harmless in practice.
 static inline uint8_t base64_find_char(char c) {
-  // Handle base64url variants: '-' maps to '+' (index 62), '_' maps to '/' (index 63)
-  if (c == '-')
+  if (c >= 'A' && c <= 'Z')
+    return c - 'A';
+  if (c >= 'a' && c <= 'z')
+    return c - 'a' + 26;
+  if (c >= '0' && c <= '9')
+    return c - '0' + 52;
+  // base64url variants: '-' maps to '+' (index 62), '_' maps to '/' (index 63)
+  if (c == '+' || c == '-')
     return 62;
-  if (c == '_')
+  if (c == '/' || c == '_')
     return 63;
-  const char *pos = strchr(BASE64_CHARS, c);
-  return pos ? (pos - BASE64_CHARS) : 0;
+  return 0;
 }
 
 // Check if character is valid base64 or base64url
@@ -709,23 +742,6 @@ bool base64_decode_int32_vector(const std::string &base64, std::vector<int32_t> 
 }
 
 // Colors
-
-float gamma_correct(float value, float gamma) {
-  if (value <= 0.0f)
-    return 0.0f;
-  if (gamma <= 0.0f)
-    return value;
-
-  return powf(value, gamma);  // NOLINT - deprecated, removal 2026.9.0
-}
-float gamma_uncorrect(float value, float gamma) {
-  if (value <= 0.0f)
-    return 0.0f;
-  if (gamma <= 0.0f)
-    return value;
-
-  return powf(value, 1 / gamma);  // NOLINT - deprecated, removal 2026.9.0
-}
 
 void rgb_to_hsv(float red, float green, float blue, int &hue, float &saturation, float &value) {
   float max_color_value = std::max({red, green, blue});

@@ -8,7 +8,10 @@ from esphome.components.esp32 import (
     idf_version,
     include_builtin_idf_component,
 )
-from esphome.config_helpers import filter_source_files_from_platform
+from esphome.config_helpers import (
+    filter_source_files_from_defines,
+    filter_source_files_from_platform,
+)
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_AVAILABILITY,
@@ -361,6 +364,8 @@ async def to_code(config):
             add_idf_component(name="espressif/mqtt", ref="1.0.0")
         else:
             include_builtin_idf_component("mqtt")
+        # mqtt_client.h drags in esp_tls types; esp-tls is excluded by default
+        include_builtin_idf_component("esp-tls")
 
     cg.add_define("USE_MQTT")
     cg.add_global(mqtt_ns.using)
@@ -638,7 +643,7 @@ async def mqtt_disable_to_code(config, action_id, template_arg, args):
     return cg.new_Pvariable(action_id, template_arg, paren)
 
 
-FILTER_SOURCE_FILES = filter_source_files_from_platform(
+_platform_filter = filter_source_files_from_platform(
     {
         "mqtt_backend_esp32.cpp": {
             PlatformFramework.ESP32_ARDUINO,
@@ -646,3 +651,34 @@ FILTER_SOURCE_FILES = filter_source_files_from_platform(
         },
     }
 )
+
+# Each entity file is fully #ifdef'd on the USE_<ENTITY> define the core
+# emits for entity platforms present in the config.
+_define_filter = filter_source_files_from_defines(
+    {
+        "mqtt_alarm_control_panel.cpp": "USE_ALARM_CONTROL_PANEL",
+        "mqtt_binary_sensor.cpp": "USE_BINARY_SENSOR",
+        "mqtt_button.cpp": "USE_BUTTON",
+        "mqtt_climate.cpp": "USE_CLIMATE",
+        "mqtt_cover.cpp": "USE_COVER",
+        "mqtt_date.cpp": "USE_DATETIME_DATE",
+        "mqtt_datetime.cpp": "USE_DATETIME_DATETIME",
+        "mqtt_event.cpp": "USE_EVENT",
+        "mqtt_fan.cpp": "USE_FAN",
+        "mqtt_light.cpp": "USE_LIGHT",
+        "mqtt_lock.cpp": "USE_LOCK",
+        "mqtt_number.cpp": "USE_NUMBER",
+        "mqtt_select.cpp": "USE_SELECT",
+        "mqtt_sensor.cpp": "USE_SENSOR",
+        "mqtt_switch.cpp": "USE_SWITCH",
+        "mqtt_text.cpp": "USE_TEXT",
+        "mqtt_text_sensor.cpp": "USE_TEXT_SENSOR",
+        "mqtt_time.cpp": "USE_DATETIME_TIME",
+        "mqtt_update.cpp": "USE_UPDATE",
+        "mqtt_valve.cpp": "USE_VALVE",
+    }
+)
+
+
+def FILTER_SOURCE_FILES() -> list[str]:
+    return _platform_filter() + _define_filter()

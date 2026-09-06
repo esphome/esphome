@@ -125,10 +125,8 @@ def set_core_data(config: ConfigType) -> ConfigType:
     return config
 
 
-def _resolve_toolchain(config: ConfigType) -> ConfigType:
-    if CORE.toolchain is None:
-        CORE.toolchain = config.get(CONF_TOOLCHAIN, Toolchain.SDK_NRF)
-    return config
+_TOOLCHAINS = (Toolchain.PLATFORMIO, Toolchain.SDK_NRF)
+_resolve_toolchain = cv.resolve_toolchain("nRF52", _TOOLCHAINS, Toolchain.SDK_NRF)
 
 
 def set_framework(config: ConfigType) -> ConfigType:
@@ -170,10 +168,7 @@ BOOTLOADERS = [
 ]
 
 
-def _validate_toolchain(value) -> Toolchain:
-    return Toolchain(
-        cv.one_of(Toolchain.PLATFORMIO, Toolchain.SDK_NRF, lower=True)(value)
-    )
+_validate_toolchain = cv.toolchain_enum(_TOOLCHAINS)
 
 
 def _detect_bootloader(config: ConfigType) -> ConfigType:

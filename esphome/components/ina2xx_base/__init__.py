@@ -1,3 +1,5 @@
+from typing import Any
+
 import esphome.codegen as cg
 from esphome.components import sensor
 from esphome.components.const import UNIT_AMPERE_HOUR
@@ -26,6 +28,9 @@ from esphome.const import (
     UNIT_WATT,
     UNIT_WATT_HOURS,
 )
+from esphome.core import EnumValue
+from esphome.cpp_generator import MockObj
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@latonita"]
 
@@ -76,7 +81,7 @@ SENSOR_MODEL_OPTIONS = {
 }
 
 
-def validate_model_config(config):
+def validate_model_config(config: ConfigType) -> ConfigType:
     model = config[CONF_MODEL]
 
     for key in config:
@@ -92,7 +97,7 @@ def validate_model_config(config):
     return config
 
 
-def validate_adc_time(value):
+def validate_adc_time(value: Any) -> EnumValue:
     value = cv.positive_time_period_microseconds(value).total_microseconds
     return cv.enum(ADC_TIMES, int=True)(value)
 
@@ -198,7 +203,7 @@ INA2XX_SCHEMA = cv.Schema(
 ).extend(cv.polling_component_schema("60s"))
 
 
-async def setup_ina2xx(var, config):
+async def setup_ina2xx(var: MockObj, config: ConfigType) -> None:
     await cg.register_component(var, config)
 
     cg.add(var.set_model(config[CONF_MODEL]))

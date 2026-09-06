@@ -1,1 +1,2 @@
-<<: !include common-media_source.yaml
+packages:
+  sendspin: !include common-media_source.yaml

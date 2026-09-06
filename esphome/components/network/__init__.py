@@ -26,6 +26,16 @@ _LOGGER = logging.getLogger(__name__)
 # Components can request high performance networking and this configures lwip and WiFi settings
 KEY_HIGH_PERFORMANCE_NETWORKING = "high_performance_networking"
 CONF_ENABLE_HIGH_PERFORMANCE = "enable_high_performance"
+CONF_TCP_SEND_BUFFER = "tcp_send_buffer"
+
+# lwIP queues at most this many unsent/unacked bytes per TCP socket; the
+# stock ESP-IDF default (5744 bytes) stalls bursty senders like a Bluetooth
+# proxy streaming GATT notifications. Bounds follow the lwIP guidance for the
+# default 1440 byte MSS: at least 2 x MSS, at most 65535 without window
+# scaling. The cap is kept even when window scaling is on (high performance
+# with PSRAM) as a deliberate conservative bound.
+TCP_SEND_BUFFER_MIN = 2880
+TCP_SEND_BUFFER_MAX = 65535
 
 # Network priority tracking infrastructure
 # Components can query this to determine their relative setup priority.
@@ -306,6 +316,11 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_ENABLE_HIGH_PERFORMANCE): cv.All(
                 cv.boolean, cv.only_on_esp32
             ),
+            cv.Optional(CONF_TCP_SEND_BUFFER): cv.All(
+                cv.validate_bytes,
+                cv.int_range(min=TCP_SEND_BUFFER_MIN, max=TCP_SEND_BUFFER_MAX),
+                cv.only_on_esp32,
+            ),
             cv.Optional(CONF_PRIORITY): _validate_priority_list,
         }
     ),
@@ -349,7 +364,7 @@ FINAL_VALIDATE_SCHEMA = _final_validate
 
 
 @coroutine_with_priority(CoroPriority.NETWORK)
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     cg.add_define("USE_NETWORK")
     # ESP32 with Arduino uses ESP-IDF network APIs directly, no Arduino Network library needed
 
@@ -445,6 +460,16 @@ async def to_code(config):
             add_idf_sdkconfig_option("CONFIG_LWIP_TCP_WND_DEFAULT", 65534)
             add_idf_sdkconfig_option("CONFIG_LWIP_TCP_RECVMBOX_SIZE", 64)
             add_idf_sdkconfig_option("CONFIG_LWIP_TCPIP_RECVMBOX_SIZE", 64)
+
+    # After the high performance block so an explicit size wins over the
+    # bundle's 65534 (last write wins in the sdkconfig store).
+    if (tcp_send_buffer := config.get(CONF_TCP_SEND_BUFFER)) is not None:
+        if CORE.is_esp32 and should_enable:
+            _LOGGER.info(
+                "TCP send buffer set to %d bytes by configuration (overriding high performance value)",
+                tcp_send_buffer,
+            )
+        add_idf_sdkconfig_option("CONFIG_LWIP_TCP_SND_BUF_DEFAULT", tcp_send_buffer)
 
     if CORE.is_nrf52:
         zephyr_add_prj_conf("NETWORKING", True)

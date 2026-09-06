@@ -2,6 +2,7 @@ import esphome.codegen as cg
 from esphome.components import binary_sensor
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, DEVICE_CLASS_COLD, DEVICE_CLASS_PROBLEM
+from esphome.types import ConfigType
 
 from . import HydreonRGxxComponent, hydreon_rgxx_ns
 
@@ -32,7 +33,7 @@ CONFIG_SCHEMA = cv.Schema(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     main_sensor = await cg.get_variable(config[CONF_HYDREON_RGXX_ID])
     bin_component = cg.new_Pvariable(config[CONF_ID], main_sensor)
     await cg.register_component(bin_component, config)

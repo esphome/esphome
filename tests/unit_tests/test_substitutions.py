@@ -744,6 +744,25 @@ def test_include_filename_substitution_undefined_var(tmp_path: Path) -> None:
         substitutions.do_substitution_pass(config)
 
 
+def test_include_filename_jinja_expression_with_path_separator(
+    tmp_path: Path,
+) -> None:
+    """A jinja !include whose string literals contain "/" resolves correctly (issue #18545)."""
+    main_file = tmp_path / "main.yaml"
+    main_file.write_text(
+        "substitutions:\n"
+        "  enable_bluetooth_proxy: true\n"
+        "result: !include "
+        '${ "bluetooth/proxy.yaml" if enable_bluetooth_proxy else "../empty.yaml" }\n'
+    )
+    (tmp_path / "bluetooth").mkdir()
+    (tmp_path / "bluetooth" / "proxy.yaml").write_text("value: 42\n")
+
+    config = yaml_util.load_yaml(main_file)
+    config = substitutions.do_substitution_pass(config)
+    assert config["result"] == {"value": 42}
+
+
 def test_raise_first_undefined_logs_extras_at_debug(
     caplog: pytest.LogCaptureFixture,
 ) -> None:

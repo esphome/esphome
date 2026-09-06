@@ -9,6 +9,7 @@ from esphome.const import (
     STATE_CLASS_MEASUREMENT,
     UNIT_METER,
 )
+from esphome.types import ConfigType
 
 from . import LD6002BComponent
 from .const import (
@@ -150,7 +151,7 @@ CONFIG_SCHEMA = (
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     hub = await cg.get_variable(config[CONF_LD6002B_ID])
 
     if target_count_config := config.get(CONF_TARGET_COUNT):

@@ -9,7 +9,8 @@ from esphome.const import (
     CONF_SUPPORTS_COOL,
     CONF_SUPPORTS_HEAT,
 )
-from esphome.cpp_generator import MockObjClass
+from esphome.cpp_generator import MockObj, MockObjClass
+from esphome.types import ConfigType, SafeExpType
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -57,7 +58,7 @@ def climate_ir_with_receiver_schema(
     )
 
 
-async def register_climate_ir(var, config):
+async def register_climate_ir(var: MockObj, config: ConfigType) -> None:
     await cg.register_component(var, config)
     await remote_base.register_transmittable(var, config)
     cg.add(var.set_supports_cool(config[CONF_SUPPORTS_COOL]))
@@ -72,7 +73,7 @@ async def register_climate_ir(var, config):
         cg.add(var.set_humidity_sensor(sens))
 
 
-async def new_climate_ir(config, *args):
+async def new_climate_ir(config: ConfigType, *args: SafeExpType) -> MockObj:
     var = await climate.new_climate(config, *args)
     await register_climate_ir(var, config)
     return var

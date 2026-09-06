@@ -4,7 +4,7 @@ from esphome.components.text_sensor import TextSensor
 import esphome.config_validation as cv
 from esphome.const import CONF_ID
 from esphome.cpp_generator import literal
-from esphome.types import TemplateArgsType
+from esphome.types import ConfigType, TemplateArgsType
 
 from .. import CONF_ON_RESULT, CONF_SOURCE_ID, TRIGGER_TYPES, KeyCollector
 
@@ -15,7 +15,7 @@ CONFIG_SCHEMA = text_sensor.text_sensor_schema(TextSensor).extend(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     parent = await cg.get_variable(config[CONF_SOURCE_ID])
     var = cg.new_Pvariable(config[CONF_ID])
     await text_sensor.register_text_sensor(var, config)

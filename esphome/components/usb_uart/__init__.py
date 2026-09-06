@@ -18,6 +18,7 @@ from esphome.const import (
 )
 from esphome.core import CORE
 from esphome.cpp_types import Component
+from esphome.types import ConfigType
 
 AUTO_LOAD = ["uart", "usb_host", "bytebuffer"]
 CODEOWNERS = ["@clydebarrow"]
@@ -48,14 +49,14 @@ DEFAULT_BAUD_RATE = 9600
 class Type:
     def __init__(
         self,
-        name,
-        vid,
-        pid,
-        cls,
-        max_channels=1,
-        baud_rate_required=True,
-        max_baud=1_000_000,
-    ):
+        name: str,
+        vid: int,
+        pid: int,
+        cls: str | None,
+        max_channels: int = 1,
+        baud_rate_required: bool = True,
+        max_baud: int = 1_000_000,
+    ) -> None:
         self.name = name
         cls = cls or name
         self.vid = vid
@@ -156,7 +157,7 @@ CONFIG_SCHEMA = cv.ensure_list(
 )
 
 
-async def to_code(config):
+async def to_code(config: list[ConfigType]) -> None:
     # The output chunk pool/queue are compile-time-sized templates shared by all
     # USBUartChannel instances, so use the largest buffer_size across every channel
     # of every device. Add one extra slot because LockFreeQueue<T,N> is a ring

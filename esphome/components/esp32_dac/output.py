@@ -9,6 +9,7 @@ from esphome.components.esp32 import (
 )
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_NUMBER, CONF_PIN
+from esphome.types import ConfigType
 
 DEPENDENCIES = ["esp32"]
 
@@ -18,7 +19,7 @@ DAC_PINS = {
 }
 
 
-def valid_dac_pin(value):
+def valid_dac_pin(value: ConfigType) -> ConfigType:
     variant = get_esp32_variant()
     try:
         valid_pins = DAC_PINS[variant]
@@ -42,7 +43,7 @@ CONFIG_SCHEMA = output.FLOAT_OUTPUT_SCHEMA.extend(
 ).extend(cv.COMPONENT_SCHEMA)
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     include_builtin_idf_component("esp_driver_dac")
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)

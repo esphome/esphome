@@ -180,11 +180,11 @@ void ZWaveProxy::process_uart_slow_() {
 
 void ZWaveProxy::dump_config() {
   char hex_buf[format_hex_pretty_size(ZWAVE_HOME_ID_SIZE)];
-  ESP_LOGCONFIG(
-      TAG,
-      "Z-Wave Proxy:\n"
-      "  Home ID: %s",
-      this->home_id_ready_ ? format_hex_pretty_to(hex_buf, this->home_id_.data(), this->home_id_.size()) : "unknown");
+  ESP_LOGCONFIG(TAG,
+                "Z-Wave Proxy:\n"
+                "  Home ID: %s",
+                this->home_id_ready_ ? format_hex_pretty_to(hex_buf, this->home_id_.data(), this->home_id_.size())
+                                     : LOG_STR_LITERAL("unknown"));
 }
 
 void ZWaveProxy::api_connection_authenticated(api::APIConnection *conn) {
@@ -194,12 +194,13 @@ void ZWaveProxy::api_connection_authenticated(api::APIConnection *conn) {
   }
 }
 
-void ZWaveProxy::zwave_proxy_request(api::APIConnection *api_connection, api::enums::ZWaveProxyRequestType type) {
+api::enums::ZWaveProxyStatus ZWaveProxy::zwave_proxy_request(api::APIConnection *api_connection,
+                                                             api::enums::ZWaveProxyRequestType type) {
   switch (type) {
     case api::enums::ZWAVE_PROXY_REQUEST_TYPE_SUBSCRIBE:
       if (this->api_connection_ == api_connection) {
         ESP_LOGV(TAG, "API connection is already subscribed");
-        return;
+        return api::enums::ZWAVE_PROXY_STATUS_OK;
       }
       if (this->api_connection_ != nullptr) {
         // A living subscriber keeps exclusive access. Its connection may be dead without
@@ -207,25 +208,26 @@ void ZWaveProxy::zwave_proxy_request(api::APIConnection *api_connection, api::en
         // in that case let the new client take over instead of locking it out.
         if (this->api_connection_->is_connection_setup()) {
           ESP_LOGE(TAG, "Only one API subscription is allowed at a time");
-          return;
+          return api::enums::ZWAVE_PROXY_STATUS_IN_USE;
         }
         ESP_LOGW(TAG, "Previous subscriber disconnected; taking over subscription");
       }
       this->api_connection_ = api_connection;
       ESP_LOGV(TAG, "API connection is now subscribed");
-      break;
+      return api::enums::ZWAVE_PROXY_STATUS_OK;
 
     case api::enums::ZWAVE_PROXY_REQUEST_TYPE_UNSUBSCRIBE:
+      // Unsubscribe is idempotent: not being subscribed is not an error
       if (this->api_connection_ != api_connection) {
         ESP_LOGV(TAG, "API connection is not subscribed");
-        return;
+        return api::enums::ZWAVE_PROXY_STATUS_OK;
       }
       this->api_connection_ = nullptr;
-      break;
+      return api::enums::ZWAVE_PROXY_STATUS_OK;
 
     default:
       ESP_LOGW(TAG, "Unknown request type: %" PRIu32, static_cast<uint32_t>(type));
-      break;
+      return api::enums::ZWAVE_PROXY_STATUS_NOT_SUPPORTED;
   }
 }
 
@@ -508,7 +510,8 @@ bool ZWaveProxy::response_handler_slow_() {
       return false;  // No response handled
   }
 
-  ESP_LOGVV(TAG, "Sending %s (0x%02X)", this->last_response_ == ZWAVE_FRAME_TYPE_ACK ? "ACK" : "NAK/CAN",
+  ESP_LOGVV(TAG, "Sending %s (0x%02X)",
+            this->last_response_ == ZWAVE_FRAME_TYPE_ACK ? LOG_STR_LITERAL("ACK") : LOG_STR_LITERAL("NAK/CAN"),
             this->last_response_);
   this->write_byte(this->last_response_);
   this->parsing_state_ = ZWAVE_PARSING_STATE_WAIT_START;

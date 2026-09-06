@@ -20,7 +20,7 @@
 
 namespace esphome::bluetooth_connection {
 
-static const char *const TAG = "bluetooth_connection.bluedroid";
+static const char *const TAG = "bluetooth_connection";
 
 using ble_device_base::FAST_CONN_TIMEOUT;
 using ble_device_base::FAST_MAX_CONN_INTERVAL;
