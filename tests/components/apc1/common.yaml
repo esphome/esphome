@@ -1,0 +1,61 @@
+sensor:
+  - platform: apc1
+    id: apc1_sensor
+    set_pin: ${set_pin}
+    reset_pin: ${reset_pin}
+    update_interval: 10s
+    pm_1_0:
+      name: "APC1 PM1.0"
+    pm_2_5:
+      name: "APC1 PM2.5"
+    pm_10_0:
+      name: "APC1 PM10"
+    pm_1_0_std:
+      name: "APC1 PM1.0 Std"
+    pm_2_5_std:
+      name: "APC1 PM2.5 Std"
+    pm_10_0_std:
+      name: "APC1 PM10 Std"
+    pm_0_3um:
+      name: "APC1 Particles >0.3um"
+    pm_0_5um:
+      name: "APC1 Particles >0.5um"
+    pm_1_0um:
+      name: "APC1 Particles >1.0um"
+    pm_2_5um:
+      name: "APC1 Particles >2.5um"
+    pm_5_0um:
+      name: "APC1 Particles >5.0um"
+    pm_10_0um:
+      name: "APC1 Particles >10um"
+    tvoc:
+      name: "APC1 TVOC"
+    eco2:
+      name: "APC1 eCO2"
+    aqi:
+      name: "APC1 AQI"
+    temperature:
+      name: "APC1 Temperature"
+    humidity:
+      name: "APC1 Humidity"
+    raw_temperature:
+      name: "APC1 Raw Temperature"
+    raw_humidity:
+      name: "APC1 Raw Humidity"
+    rs0:
+      name: "APC1 RS0"
+    rs2:
+      name: "APC1 MOX RS2"
+    rs3:
+      name: "APC1 MOX RS3"
+    error_code:
+      name: "APC1 Error Code"
+
+interval:
+  - interval: 60s
+    then:
+      - apc1.set_active_mode: apc1_sensor
+      - apc1.set_passive_mode: apc1_sensor
+      - apc1.request_measurement: apc1_sensor
+      - apc1.set_idle_mode: apc1_sensor
+      - apc1.set_measurement_mode: apc1_sensor

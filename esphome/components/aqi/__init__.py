@@ -1,11 +1,10 @@
 import esphome.codegen as cg
+from esphome.components.const import CONF_AQI  # noqa: F401
 
 CODEOWNERS = ["@jasstrong", "@ximex", "@freekode"]
 
 aqi_ns = cg.esphome_ns.namespace("aqi")
 AQICalculatorType = aqi_ns.enum("AQICalculatorType")
-
-CONF_AQI = "aqi"
 CONF_CALCULATION_TYPE = "calculation_type"
 CONF_EXTENDED_RANGE = "extended_range"
 
