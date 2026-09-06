@@ -62,6 +62,7 @@ from esphome.helpers import rmtree, write_file_if_changed
 from esphome.storage_json import StorageJSON
 from esphome.types import ConfigType
 
+from . import partitions as nrf52_partitions
 from .boards import BOARDS_ZEPHYR, BOOTLOADER_CONFIG
 from .const import (
     BOOTLOADER_ADAFRUIT,
@@ -87,7 +88,7 @@ _LOGGER = logging.getLogger(__name__)
 # Default framework versions per toolchain. The sdk-nrf one also keys the CI
 # sdk-nrf install cache and pins the clang-tidy project's SDK.
 RECOMMENDED_PLATFORMIO_VERSION = "2.6.1-b"
-RECOMMENDED_SDK_NRF_VERSION = "2.9.2"
+RECOMMENDED_SDK_NRF_VERSION = "3.4.0"
 
 FAKE_BOARD_MANIFEST = """
 {
@@ -376,6 +377,28 @@ async def to_code(config: ConfigType) -> None:
     if dfu_config := config.get(CONF_DFU):
         CORE.add_job(_dfu_to_code, dfu_config)
     framework_ver: cv.Version = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
+    if (
+        "zigbee" in CORE.loaded_integrations
+        and CORE.using_toolchain_sdk_nrf
+        and framework_ver >= cv.Version(3, 4, 0)
+    ):
+        # ncs-zigbee (R23) hard-requires zboss_nvram/zboss_product_config as real
+        # devicetree fixed-partitions when Partition Manager is disabled (see the
+        # BUILD_ASSERT(FIXED_PARTITION_EXISTS(...)) calls in zb_nrf_nvram.c). See
+        # partitions.py for why this is split by devicetree scheme and coordinated
+        # with ota/zephyr_mcumgr's own partition rebuild instead of computed here
+        # in isolation.
+        if config[KEY_BOOTLOADER] == BOOTLOADER_MCUBOOT:
+            zephyr_add_overlay(nrf52_partitions.native_scheme_zigbee_overlay())
+        elif "ota" not in CORE.loaded_integrations:
+            zephyr_add_overlay(
+                nrf52_partitions.uf2_scheme_code_partition_overlay(
+                    BOOTLOADER_CONFIG[config[KEY_BOOTLOADER]]
+                )
+            )
+            # else: UF2 scheme + ota both present -- ota/zephyr_mcumgr's own
+            # to_code() (zephyr_mcumgr/ota/__init__.py) plans the whole rebuilt
+            # partition table, zboss included, in one place to avoid overlap.
     if CONF_DCDC in config:
         if framework_ver < cv.Version(2, 9, 2):
             zephyr_add_prj_conf("BOARD_ENABLE_DCDC", config[CONF_DCDC])
@@ -544,6 +567,7 @@ def upload_program(config: ConfigType, args, host: str) -> bool:
         set_core_data(platform_config)
         set_framework(platform_config)
 
+    zigbee = "zigbee" in config
     mcumgr_device: str | None = None
 
     if get_port_type(host) == PortType.SERIAL:
@@ -560,9 +584,9 @@ def upload_program(config: ConfigType, args, host: str) -> bool:
                     BOOTLOADER_ADAFRUIT_NRF52_SD140_V7,
                 ):
                     raise EsphomeError("Not implemented yet")
-                check_and_install()
-                paths = get_build_paths()
-                env = get_build_env()
+                check_and_install(zigbee=zigbee)
+                paths = get_build_paths(zigbee=zigbee)
+                env = get_build_env(zigbee=zigbee)
                 build_dir = CORE.relative_pioenvs_path(CORE.name)
                 dfu_package = build_dir / "firmware.zip"
                 if not dfu_package.is_file():
@@ -642,9 +666,9 @@ def upload_program(config: ConfigType, args, host: str) -> bool:
 
     if host == "PYOCD":
         if not CORE.using_toolchain_platformio:
-            check_and_install()
-            paths = get_build_paths()
-            env = get_build_env()
+            check_and_install(zigbee=zigbee)
+            paths = get_build_paths(zigbee=zigbee)
+            env = get_build_env(zigbee=zigbee)
             build_dir = CORE.relative_pioenvs_path(CORE.name)
             west_cmd = [
                 str(paths["python_executable"]),
@@ -836,10 +860,11 @@ def run_compile(args, config: ConfigType) -> bool:
             "Unsupported toolchain for nRF52. "
             "Supported toolchains are 'platformio' and 'sdk-nrf'."
         )
-    check_and_install()
+    zigbee = "zigbee" in config
+    check_and_install(zigbee=zigbee)
 
-    paths = get_build_paths()
-    env = get_build_env()
+    paths = get_build_paths(zigbee=zigbee)
+    env = get_build_env(zigbee=zigbee)
 
     cmake_lists_changed = _generate_cmake_lists()
 
@@ -905,14 +930,23 @@ def run_compile(args, config: ConfigType) -> bool:
         west_out = zephyr_dir / "zephyr"
         _copy_if_exists(west_out / "zephyr.uf2", zephyr_dir / "zephyr.uf2")
         _copy_if_exists(west_out / "zephyr.signed.bin", zephyr_dir / "app_update.bin")
-        _copy_if_exists(build_dir / "merged.hex", zephyr_dir / "merged.hex")
 
-    # For Adafruit bootloader builds, regenerate the UF2 from merged.hex,
-    # whose records carry the correct flash addresses. The build's own
-    # zephyr.uf2 uses the board's default offset, which is wrong in some cases.
-    merged_hex = zephyr_dir / "merged.hex"
-    if bootloader in _UF2_FAMILY_IDS and merged_hex.is_file():
-        # Drop the build's own wrong-offset UF2 so it isn't shipped alongside.
+    # NCS 3.4.0 deprecated Partition Manager (defaults it off), which is what used to
+    # generate a physically-merged SoftDevice+app "merged.hex" at build_dir root. There
+    # was never a real SoftDevice binary in that merge though -- the reserved SoftDevice
+    # region (see the board's own devicetree, e.g. nrf52840_partition_uf2_sdv6.dtsi) is
+    # just a placeholder so the app doesn't collide with a real Adafruit UF2 bootloader
+    # already flashed on the device; it's not something ESPHome's build ever supplies
+    # content for. zephyr.hex (west_out / "zephyr.hex") is already correctly offset past
+    # that reserved region via the board's own devicetree partition table, so it's what
+    # "merged.hex" conceptually needed to be all along -- just the app image, nothing to
+    # merge it with.
+    app_hex = west_out / "zephyr.hex"
+
+    # For Adafruit bootloader builds, regenerate the UF2 with the correct family ID tag
+    # the Adafruit UF2 bootloader expects -- the build's own zephyr.uf2 doesn't carry it.
+    if bootloader in _UF2_FAMILY_IDS and app_hex.is_file():
+        # Drop the build's own untagged UF2 so it isn't shipped alongside.
         app_uf2 = west_out / "zephyr.uf2"
         if app_uf2.is_file():
             app_uf2.unlink()
@@ -928,12 +962,12 @@ def run_compile(args, config: ConfigType) -> bool:
                 "-c",
                 "-o",
                 str(zephyr_dir / "zephyr.uf2"),
-                str(merged_hex),
+                str(app_hex),
             ],
             env=env,
             stream_output=True,
         ):
-            raise EsphomeError("Failed to generate UF2 from merged hex")
+            raise EsphomeError("Failed to generate UF2 from app hex")
 
     if bootloader in (
         BOOTLOADER_ADAFRUIT,
@@ -941,9 +975,9 @@ def run_compile(args, config: ConfigType) -> bool:
         BOOTLOADER_ADAFRUIT_NRF52_SD140_V6,
         BOOTLOADER_ADAFRUIT_NRF52_SD140_V7,
     ):
-        # no fallback is needed for adafruit case. merged merged.hex is always generated.
+        # no fallback is needed for adafruit case. zephyr.hex is always generated.
         # get_download_types needs fallback for mcuboot (non adafruit)
-        hex_file = zephyr_dir / "merged.hex"
+        hex_file = app_hex
         dfu_package = build_dir / "firmware.zip"
         genpkg_cmd = [
             str(paths["python_executable"]),

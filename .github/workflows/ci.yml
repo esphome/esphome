@@ -657,6 +657,10 @@ jobs:
             options: --environment nrf52-tidy --grep USE_ZEPHYR --grep USE_NRF52
             cache_sdk_nrf: true
             ignore_errors: false
+            # script/clang-tidy routes any "nrf" environment through CodeChecker
+            # (see `"nrf" in args.environment` in script/clang-tidy), whose
+            # `parse` output needs this differently-shaped matcher.
+            matcher: clang-tidy-codechecker
           - id: clang-tidy
             name: Run script/clang-tidy for RP2
             options: --environment rp2-tidy --grep USE_RP2
@@ -705,6 +709,16 @@ jobs:
         with:
           framework: arduino
 
+      - name: Install nrf52 apt packages (cached)
+        # Only the ZEPHYR/nrf52 matrix entry needs these; this runner is
+        # non-root so framework.py's own self-install can't run.
+        if: matrix.cache_sdk_nrf
+        timeout-minutes: 10
+        uses: awalsh128/cache-apt-pkgs-action@553a35bb8ebd9fcabcb1c9451aa4c98e1b4ca8a9 # v1.6.3
+        with:
+          packages: pkg-config libusb-1.0-0-dev libudev-dev
+          version: 1.0
+
       - name: Cache clang-tidy idedata
         if: matrix.cache_idf
         uses: ./.github/actions/cache-clang-tidy-idedata
@@ -715,10 +729,34 @@ jobs:
         if: matrix.cache_sdk_nrf
         uses: ./.github/actions/cache-sdk-nrf
 
+      - name: Install CodeChecker
+        # Only the Zephyr/nrf52 leg needs CodeChecker; keep its dependency
+        # union (sqlalchemy, alembic, thrift, ...) out of the shared venv
+        # every other job restores.
+        if: matrix.cache_sdk_nrf
+        run: |
+          . venv/bin/activate
+          pip install -c requirements.txt -c requirements_dev.txt -c requirements_test.txt -r requirements_codechecker.txt
+
+      - name: Verify problem matcher matches CodeChecker's report format
+        # ESPHOME_REQUIRE_CODECHECKER makes the matcher test fail loudly
+        # instead of skipping if codechecker_report_converter isn't
+        # importable here -- this leg's venv always has it installed above.
+        if: matrix.cache_sdk_nrf
+        env:
+          ESPHOME_REQUIRE_CODECHECKER: "1"
+        run: |
+          . venv/bin/activate
+          pytest tests/script/test_clang_tidy_codechecker.py -k matcher -q
+
       - name: Register problem matchers
         run: |
           echo "::add-matcher::.github/workflows/matchers/gcc.json"
-          echo "::add-matcher::.github/workflows/matchers/clang-tidy.json"
+          matcher_file=".github/workflows/matchers/${{ matrix.matcher || 'clang-tidy' }}.json"
+          # ::add-matcher:: silently no-ops on a missing path -- fail loudly
+          # instead of losing inline annotations without any signal.
+          test -f "$matcher_file" || { echo "::error::Missing problem matcher file: $matcher_file"; exit 1; }
+          echo "::add-matcher::$matcher_file"
 
       - name: Check if full clang-tidy scan needed
         id: check_full_scan
@@ -1065,6 +1103,16 @@ jobs:
           packages: libsdl2-dev ccache
           version: 1.1
 
+      - name: Install nrf52 apt packages (cached)
+        # Only batches whose test platforms include nrf52 need these;
+        # mirrors the needs_nrf gate already used for cache-sdk-nrf below.
+        if: matrix.batch.needs_nrf
+        timeout-minutes: 10
+        uses: awalsh128/cache-apt-pkgs-action@553a35bb8ebd9fcabcb1c9451aa4c98e1b4ca8a9 # v1.6.3
+        with:
+          packages: pkg-config libusb-1.0-0-dev libudev-dev
+          version: 1.0
+
       - name: Check out code from GitHub
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Restore Python
@@ -1307,6 +1355,16 @@ jobs:
       cache_hit: ${{ steps.cache-memory-analysis.outputs.cache-hit }}
       skip: ${{ steps.check-script.outputs.skip || steps.check-tests.outputs.skip }}
     steps:
+      - name: Install nrf52 apt packages (cached)
+        # Dynamically-selected platform can be nrf52-adafruit
+        # (Platform.NRF52_ZEPHYR); this runner is non-root/no-Docker.
+        if: contains(fromJSON(needs.determine-jobs.outputs.memory_impact).platform, 'nrf52')
+        timeout-minutes: 10
+        uses: awalsh128/cache-apt-pkgs-action@553a35bb8ebd9fcabcb1c9451aa4c98e1b4ca8a9 # v1.6.3
+        with:
+          packages: pkg-config libusb-1.0-0-dev libudev-dev
+          version: 1.0
+
       - name: Check out target branch
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -1489,6 +1547,16 @@ jobs:
       ram_usage: ${{ steps.extract.outputs.ram_usage }}
       flash_usage: ${{ steps.extract.outputs.flash_usage }}
     steps:
+      - name: Install nrf52 apt packages (cached)
+        # Dynamically-selected platform can be nrf52-adafruit
+        # (Platform.NRF52_ZEPHYR); this runner is non-root/no-Docker.
+        if: contains(fromJSON(needs.determine-jobs.outputs.memory_impact).platform, 'nrf52')
+        timeout-minutes: 10
+        uses: awalsh128/cache-apt-pkgs-action@553a35bb8ebd9fcabcb1c9451aa4c98e1b4ca8a9 # v1.6.3
+        with:
+          packages: pkg-config libusb-1.0-0-dev libudev-dev
+          version: 1.0
+
       - name: Check out PR branch
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Restore Python

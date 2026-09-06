@@ -166,7 +166,7 @@ void Logger::dump_crash_() {
   }
 }
 
-void k_sys_fatal_error_handler(unsigned int reason, const z_arch_esf_t *esf) {
+void k_sys_fatal_error_handler(unsigned int reason, const arch_esf *esf) {
   crash_buf.magic = App.get_config_hash();
   crash_buf.reason = reason;
   if (esf) {
@@ -190,7 +190,7 @@ void k_sys_fatal_error_handler(unsigned int reason, const z_arch_esf_t *esf) {
 
 extern "C" {
 
-void k_sys_fatal_error_handler(unsigned int reason, const z_arch_esf_t *esf) {
+void k_sys_fatal_error_handler(unsigned int reason, const arch_esf *esf) {
   esphome::logger::k_sys_fatal_error_handler(reason, esf);
 }
 }

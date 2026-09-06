@@ -11,13 +11,14 @@ static const char *const TAG = "openthread";
 
 namespace esphome::openthread {
 
-static void on_thread_state_changed(otChangedFlags flags, struct openthread_context *ot_context, void *user_data) {
+static void on_thread_state_changed(otChangedFlags flags, void *user_data) {
   // Delegate connection status tracking to common callback
   if (global_openthread_component != nullptr) {
     OpenThreadComponent::on_state_changed(flags, global_openthread_component);
   }
+  otInstance *instance = openthread_get_default_instance();
   if (flags & OT_CHANGED_THREAD_ROLE) {
-    otDeviceRole role = otThreadGetDeviceRole(ot_context->instance);
+    otDeviceRole role = otThreadGetDeviceRole(instance);
     ESP_LOGI(TAG, "Thread role changed to %s", otThreadDeviceRoleToString(role));
   }
   if (flags & OT_CHANGED_THREAD_NETDATA) {
@@ -25,22 +26,22 @@ static void on_thread_state_changed(otChangedFlags flags, struct openthread_cont
   }
   if (flags & (OT_CHANGED_THREAD_ROLE | OT_CHANGED_THREAD_NETDATA)) {
     char buf[NET_IPV6_ADDR_LEN];
-    for (const otNetifAddress *addr = otIp6GetUnicastAddresses(ot_context->instance); addr != nullptr;
-         addr = addr->mNext) {
+    for (const otNetifAddress *addr = otIp6GetUnicastAddresses(instance); addr != nullptr; addr = addr->mNext) {
       ESP_LOGI(TAG, "  Address: %s", net_addr_ntop(AF_INET6, &addr->mAddress, buf, sizeof(buf)));
     }
   }
 }
 
-static struct openthread_state_changed_cb ot_state_changed_cb = {.state_changed_cb = on_thread_state_changed};
+// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
+static struct openthread_state_changed_callback ot_state_changed_cb = {.otCallback = on_thread_state_changed};
 
 void OpenThreadComponent::setup() {
-  struct openthread_context *context = openthread_get_default_context();
+  otInstance *instance = openthread_get_default_instance();
   this->lock_initialized_ = true;
   otOperationalDatasetTlvs dataset = {};
 
 #ifndef USE_OPENTHREAD_FORCE_DATASET
-  otError error = otDatasetGetActiveTlvs(context->instance, &dataset);
+  otError error = otDatasetGetActiveTlvs(instance, &dataset);
   if (error != OT_ERROR_NONE) {
     dataset.mLength = 0;
   } else {
@@ -74,15 +75,15 @@ void OpenThreadComponent::setup() {
   }
 #endif
   if (dataset.mLength > 0) {
-    otError error = otDatasetSetActiveTlvs(context->instance, &dataset);
+    otError error = otDatasetSetActiveTlvs(instance, &dataset);
     if (error != OT_ERROR_NONE) {
       ESP_LOGE(TAG, "Failed to set active dataset: %s", otThreadErrorToString(error));
       this->mark_failed();
       return;
     }
   }
-  openthread_state_changed_cb_register(context, &ot_state_changed_cb);
-  openthread_start(context);
+  openthread_state_changed_callback_register(&ot_state_changed_cb);
+  openthread_run();
 }
 
 void OpenThreadComponent::ot_main() {}
@@ -113,16 +114,20 @@ InstanceLock InstanceLock::try_acquire(int delay) {
   if (global_openthread_component == nullptr || !global_openthread_component->is_lock_initialized()) {
     return InstanceLock(false);
   }
-  struct openthread_context *ot_context = openthread_get_default_context();
-  if (k_mutex_lock(&ot_context->api_lock, K_MSEC(delay)) == 0) {
-    return InstanceLock(true);
-  }
+  // No timed-wait variant of the real lock is exposed publicly, so poll it for `delay` ms
+  // instead -- fine given how infrequently/briefly this lock is actually contended.
+  int64_t deadline = k_uptime_get() + delay;
+  do {
+    if (openthread_mutex_try_lock() == 0) {
+      return InstanceLock(true);
+    }
+    k_msleep(1);
+  } while (k_uptime_get() < deadline);
   return InstanceLock(false);
 }
 
 InstanceLock InstanceLock::acquire() {
-  struct openthread_context *ot_context = openthread_get_default_context();
-  k_mutex_lock(&ot_context->api_lock, K_FOREVER);
+  openthread_mutex_lock();
   return InstanceLock(true);
 }
 
@@ -130,8 +135,7 @@ otInstance *InstanceLock::get_instance() { return openthread_get_default_instanc
 
 InstanceLock::~InstanceLock() {
   if (this->owns_) {
-    struct openthread_context *ot_context = openthread_get_default_context();
-    k_mutex_unlock(&ot_context->api_lock);
+    openthread_mutex_unlock();
   }
 }
 

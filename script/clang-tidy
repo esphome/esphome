@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import argparse
+import json
 import os
 from pathlib import Path
 import queue
@@ -27,6 +28,7 @@ from helpers import (
     print_error_for_file,
     print_file_list,
     root_path,
+    temp_folder,
     temp_header_file,
 )
 
@@ -110,24 +112,11 @@ def clang_options(idedata, environment):
         "-mthumb-interwork",
     )
 
-    if "zephyr" in triplet:
-        omit_flags += (
-            "-fno-reorder-functions",
-            "-mfp16-format=ieee",
-            "--param=min-pagesize=0",
-        )
-    else:
-        cmd.extend(
-            [
-                # disable built-in include directories from the host
-                "-nostdinc++",
-            ]
-        )
-
     # set flags
     cmd.extend(
         [
             # disable built-in include directories from the host
+            "-nostdinc++",
             "-nostdinc",
             # allow to condition code on the presence of clang-tidy
             "-DCLANG_TIDY",
@@ -260,14 +249,7 @@ def clang_options(idedata, environment):
         ):
             build_includes.extend(["-isystem", directory])
 
-    if "zephyr" in triplet:
-        # Zephyr's POSIX layer shadows libc headers (sys/select.h, ...) with
-        # coherently-guarded versions; the real build searches the Zephyr
-        # include dirs before the toolchain's, and the shadowed headers clash
-        # (e.g. newlib's sigset_t vs Zephyr's) in the opposite order.
-        cmd.extend(build_includes + toolchain_includes)
-    else:
-        cmd.extend(toolchain_includes + build_includes)
+    cmd.extend(toolchain_includes + build_includes)
 
     # add the esphome include directory using -I
     cmd.extend(["-I", root_path])
@@ -276,6 +258,30 @@ def clang_options(idedata, environment):
 
 
 pids = set()
+
+# Checks disabled for "rp2", "bk72xx", "ln882h", "rtl87xx"
+TIDY_DISABLED_CHECKS = [
+    # MMIO peripheral access on these bare-metal platforms is all
+    # fixed-address.
+    # bugprone-pointer-arithmetic-on-polymorphic-object (and its
+    # cert-ctr56-cpp alias) crashes clang-tidy 22 with infinite matcher
+    # recursion on lvgl_esphome.h under the RP2 defines.
+    "clang-analyzer-core.FixedAddressDereference",
+    "bugprone-pointer-arithmetic-on-polymorphic-object",
+    "cert-ctr56-cpp",
+]
+
+# Checks disabled for zephyr -- see run_codechecker_zephyr() below.
+CODECHECKER_DISABLED_CHECKS = [
+    # Zephyr's generated autoconf.h and ZBOSS's own headers define
+    # unparenthesized macro values (e.g. `-1`); not source we control.
+    "bugprone-macro-parentheses",
+    # MMIO peripheral access on this platform is all fixed-address
+    "clang-analyzer-core.FixedAddressDereference",
+    # Circular includes inside Zephyr/ZBOSS's own SDK headers -- not ours to
+    # restructure.
+    "misc-header-include-cycle",
+]
 
 
 def run_tidy(executable, args, options, tmpdir, path_queue, lock, failed_files):
@@ -297,15 +303,12 @@ def run_tidy(executable, args, options, tmpdir, path_queue, lock, failed_files):
         if sys.stdout.isatty():
             invocation.append("--use-color")
 
-        if args.environment.startswith(("rp2", "bk72xx", "ln882h", "rtl87xx")):
-            # MMIO peripheral access on these bare-metal platforms is all
-            # fixed-address.
-            # bugprone-pointer-arithmetic-on-polymorphic-object (and its
-            # cert-ctr56-cpp alias) crashes clang-tidy 22 with infinite matcher
-            # recursion on lvgl_esphome.h under the RP2 defines.
+        if (
+            args.environment.startswith(("rp2", "bk72xx", "ln882h", "rtl87xx"))
+            and TIDY_DISABLED_CHECKS
+        ):
             invocation.append(
-                "--checks=-clang-analyzer-core.FixedAddressDereference,"
-                "-bugprone-pointer-arithmetic-on-polymorphic-object,-cert-ctr56-cpp"
+                "--checks=" + ",".join(f"-{c}" for c in TIDY_DISABLED_CHECKS)
             )
         invocation.append(f"--header-filter={Path(basepath).resolve()}/.*")
         invocation.append(str(Path(path).resolve()))
@@ -330,6 +333,407 @@ def progress_bar_show(value):
     if value is None:
         return ""
     return None
+
+
+def _mark_vendor_includes_as_isystem(compile_commands_path: Path) -> Path:
+    """Rewrite every -I except our own root_path to -isystem.
+
+    CMake always emits -I; Clang only suppresses diagnostics from vendor
+    headers reached via -isystem, same as clang_options() does for every
+    other environment.
+    """
+    data = json.loads(compile_commands_path.read_text(encoding="utf-8"))
+
+    def rewrite(match: re.Match) -> str:
+        path = match.group(1)
+        return match.group(0) if path == root_path else f"-isystem {path}"
+
+    for entry in data:
+        entry["command"] = re.sub(r"-I(\S+)", rewrite, entry["command"])
+
+    isystem_path = compile_commands_path.with_name("compile_commands.isystem.json")
+    isystem_path.write_text(json.dumps(data), encoding="utf-8")
+    return isystem_path
+
+
+def _read_pinned_version(requirements_path: Path, package: str) -> tuple[int, int]:
+    """Read the major.minor version pinned for ``package`` in a requirements file."""
+    match = re.search(
+        rf"^{re.escape(package)}==(\d+)\.(\d+)",
+        requirements_path.read_text(encoding="utf-8"),
+        re.MULTILINE,
+    )
+    if match is None:
+        raise RuntimeError(
+            f"Could not find a '{package}==<version>' pin in {requirements_path}"
+        )
+    return int(match.group(1)), int(match.group(2))
+
+
+def _codechecker_pinned_version() -> tuple[int, int]:
+    return _read_pinned_version(
+        Path(root_path) / "requirements_codechecker.txt", "codechecker"
+    )
+
+
+def _clang_tidy_pinned_major() -> int:
+    return _read_pinned_version(Path(root_path) / "requirements_dev.txt", "clang-tidy")[
+        0
+    ]
+
+
+def _format_version(version: tuple[int, int] | int | None) -> str:
+    """Format a parsed version for an error message, or "unknown" if unparseable."""
+    if version is None:
+        return "unknown"
+    if isinstance(version, tuple):
+        return ".".join(str(part) for part in version)
+    return str(version)
+
+
+def _get_codechecker_binary(pinned_version: tuple[int, int]) -> str:
+    """Verify the installed CodeChecker analyzer package version is pin-compatible.
+
+    Hard-pins the major version, soft-pins the minor version (installed must be
+    >= pinned), and does not pin the patch version at all. Raises
+    FileNotFoundError if the binary itself is missing (propagated from
+    subprocess.run), or RuntimeError if it ran but didn't report a
+    pin-compatible analyzer version.
+    """
+    pinned_major, pinned_minor = pinned_version
+    result = subprocess.run(
+        ["CodeChecker", "version"], text=True, capture_output=True, check=False
+    )
+    section_match = re.search(
+        r"CodeChecker analyzer version:(.*?)(?:CodeChecker web version:|\Z)",
+        result.stdout,
+        re.IGNORECASE | re.DOTALL,
+    )
+    found_version = None
+    if section_match and (
+        field_match := re.search(
+            r"Base package version\s*\|\s*(\d+)\.(\d+)", section_match.group(1)
+        )
+    ):
+        found_version = (int(field_match.group(1)), int(field_match.group(2)))
+    if (
+        result.returncode == 0
+        and found_version is not None
+        and found_version[0] == pinned_major
+        and found_version[1] >= pinned_minor
+    ):
+        return "CodeChecker"
+
+    stderr = result.stderr.strip()
+    raise RuntimeError(
+        f"CodeChecker analyzer version {_format_version(found_version)} found, expected "
+        f"{pinned_major}.{pinned_minor} or later within major version {pinned_major} "
+        f"(exit code {result.returncode})" + (f": {stderr}" if stderr else "")
+    )
+
+
+def _verify_codechecker_clang_tidy(pinned_major: int) -> None:
+    """Verify the plain ``clang-tidy`` on PATH matches the pinned major version.
+
+    CodeChecker always resolves its analyzer via env.get_binary_in_path(['clang-tidy'],
+    ...) -- unlike get_binary(), it never tries a versioned ``clang-tidy-<N>`` name -- so
+    this checks that exact unversioned binary rather than reusing get_binary(). Raises
+    FileNotFoundError if clang-tidy itself is missing (propagated from subprocess.run).
+    """
+    result = subprocess.run(
+        ["clang-tidy", "--version"], text=True, capture_output=True, check=False
+    )
+    found_major = (
+        int(version_match.group(1))
+        if (version_match := re.search(r"version (\d+)", result.stdout))
+        else None
+    )
+    if result.returncode == 0 and found_major == pinned_major:
+        return
+
+    stderr = result.stderr.strip()
+    raise RuntimeError(
+        f"clang-tidy on PATH is version {_format_version(found_major)}, expected "
+        f"major version {pinned_major} (CodeChecker resolves clang-tidy from PATH, not "
+        f"a versioned binary name) (exit code {result.returncode})"
+        + (f": {stderr}" if stderr else "")
+    )
+
+
+def run_codechecker_zephyr(files: list[str], args: argparse.Namespace) -> int:
+    """Analyze ``files`` for a zephyr/nrf52 environment via CodeChecker.
+
+    CodeChecker ingests the real, unmodified GCC compile commands from a west
+    build and does its own GCC->Clang toolchain/flag translation -- reuse that
+    instead of reimplementing it in clang_options() below.
+
+    ``ESPHOME_ZEPHYR_COMPILE_COMMANDS`` may point at a previously generated
+    tidy ``compile_commands.json`` (same source list) to skip regeneration
+    (fast iteration) -- not a real firmware build's database, which lacks a
+    per-file compile command for each requested source and would fail the
+    coverage check below.
+    """
+    from esphome.components.nrf52.clang_tidy import generate_compile_commands
+
+    try:
+        # clang-tidy is what CodeChecker invokes as its analyzer, so its pin
+        # is read first.
+        clang_tidy_pin = _clang_tidy_pinned_major()
+        codechecker_pin = _codechecker_pinned_version()
+    except (FileNotFoundError, RuntimeError) as err:
+        # Read before the binary-presence checks below so a missing/renamed
+        # requirements file isn't misattributed to a missing binary.
+        print(f"Could not determine pinned tool versions: {err}", file=sys.stderr)
+        return 1
+
+    try:
+        executable = _get_codechecker_binary(codechecker_pin)
+    except FileNotFoundError:
+        # CodeChecker is deliberately kept out of requirements_dev.txt (see
+        # requirements_codechecker.txt), so script/setup won't install it.
+        print(
+            "CodeChecker is not installed in this venv. Activate the venv and install it with:\n"
+            "  pip install -r requirements_codechecker.txt",
+            file=sys.stderr,
+        )
+        return 1
+    except RuntimeError as err:
+        print(f"CodeChecker version check failed: {err}", file=sys.stderr)
+        return 1
+
+    try:
+        _verify_codechecker_clang_tidy(clang_tidy_pin)
+    except FileNotFoundError:
+        print(
+            "clang-tidy is not installed in this venv. Activate the venv and install it with:\n"
+            "  pip install -r requirements_dev.txt",
+            file=sys.stderr,
+        )
+        return 1
+    except RuntimeError as err:
+        print(f"clang-tidy version check failed: {err}", file=sys.stderr)
+        return 1
+
+    work_dir = Path(temp_folder) / f"zephyr-{args.environment}"
+    platformio_ini = Path(root_path) / "platformio.ini"
+
+    from clang_tidy_hash import cache_key, is_cached, update_cache
+
+    requested_sources = {Path(f).resolve() for f in files}
+
+    cache_key_path = None
+    key = None
+    regenerated = False
+    if explicit := os.environ.get("ESPHOME_ZEPHYR_COMPILE_COMMANDS"):
+        compile_commands_path = Path(explicit)
+    else:
+        sorted_sources = sorted(str(p) for p in requested_sources)
+        extra = "\n".join(sorted_sources)
+        compile_commands_path = work_dir / "build" / "compile_commands.json"
+        cache_key_path = work_dir / ".compile_commands.hash"
+        # Snapshotted now, before the west configure/CodeChecker analyze
+        # below -- see cache_key()'s docstring for why.
+        key = cache_key(extra)
+        # Skip the west/CMake reconfigure if nothing that affects the
+        # generated compile commands has changed since the last run.
+        if not compile_commands_path.is_file() or not is_cached(cache_key_path, key):
+            compile_commands_path = generate_compile_commands(
+                work_dir, platformio_ini, sorted_sources
+            )
+            regenerated = True
+    if not compile_commands_path.is_file():
+        print(
+            f"compile_commands.json not found: {compile_commands_path}",
+            file=sys.stderr,
+        )
+        return 1
+    compile_commands_path = _mark_vendor_includes_as_isystem(compile_commands_path)
+
+    output_dir = Path(temp_folder) / f"codechecker-{args.environment}"
+    if output_dir.is_dir():
+        shutil.rmtree(output_dir)
+    output_dir.mkdir(parents=True)
+
+    # Scope findings to our own sources; take-config-from-directory makes
+    # CodeChecker honor .clang-tidy instead of its own default check profile.
+    tidy_args = [
+        f"--header-filter={basepath}/.*",
+        # Cancels .clang-tidy's WarningsAsErrors (appends, doesn't override) so a
+        # finding books the file successful, not failed; parse's exit code still fails CI.
+        "--warnings-as-errors=-*",
+    ]
+    if CODECHECKER_DISABLED_CHECKS:
+        tidy_args.append(
+            "--checks=" + ",".join(f"-{c}" for c in CODECHECKER_DISABLED_CHECKS)
+        )
+    # Written into output_dir (recreated above) so it doesn't leak into the
+    # system temp directory across runs.
+    tidy_args_path = output_dir / "tidy_args.txt"
+    tidy_args_path.write_text("\n".join(tidy_args) + "\n", encoding="utf-8")
+
+    file_patterns = [f"*{os.path.relpath(f, root_path)}" for f in files]
+
+    result = subprocess.run(
+        [
+            executable,
+            "analyze",
+            str(compile_commands_path),
+            "--analyzers",
+            "clang-tidy",
+            "--analyzer-config",
+            "clang-tidy:take-config-from-directory=true",
+            f"clang-tidy:cc-verbatim-args-file={tidy_args_path}",
+            "-j",
+            str(args.jobs),
+            "-o",
+            str(output_dir),
+            "--file",
+            *file_patterns,
+        ],
+        check=False,
+    )
+
+    # Report findings regardless of coverage below -- files that did analyze
+    # successfully still have real findings worth surfacing even if others
+    # crashed.
+    parse_result = subprocess.run([executable, "parse", str(output_dir)], check=False)
+    if parse_result.returncode not in (0, 2):
+        # 0 = no reports, 2 = reports found -- anything else is parse/rendering
+        # itself failing, which means findings went unreported, not that there
+        # were none.
+        print(
+            f"CodeChecker parse failed (exit {parse_result.returncode})",
+            file=sys.stderr,
+        )
+
+    def invalidate_stale_cache() -> None:
+        """Drop a reused cache entry on failure; a regenerated database failing is not a cache problem."""
+        if cache_key_path is not None and not regenerated:
+            cache_key_path.unlink(missing_ok=True)
+
+    try:
+        metadata = json.loads((output_dir / "metadata.json").read_text())
+    except (OSError, json.JSONDecodeError) as err:
+        print(
+            f"CodeChecker analyze failed (exit {result.returncode}): {err}",
+            file=sys.stderr,
+        )
+        invalidate_stale_cache()
+        return result.returncode or 1
+
+    try:
+        stats = metadata["tools"][0]["analyzers"]["clang-tidy"]["analyzer_statistics"]
+        failed = stats["failed"]
+        # successful_sources/failed_sources verified present (as absolute paths) against
+        # the pinned CodeChecker 6.28.2; undocumented internal schema, not a stable API.
+        failed_sources = {Path(p).resolve() for p in stats["failed_sources"]}
+        analyzed_sources = failed_sources | {
+            Path(p).resolve() for p in stats["successful_sources"]
+        }
+    except (KeyError, IndexError, TypeError) as err:
+        # Distinct from the file-level failure above: metadata.json parsed fine,
+        # but its internal shape (undocumented, tied to the pinned version) no
+        # longer matches what this script expects -- most likely a CodeChecker
+        # version bump renamed/restructured a key, not an analysis failure.
+        print(
+            f"metadata.json has an unexpected shape ({err!r}) -- "
+            "CodeChecker's internal metadata format may have changed",
+            file=sys.stderr,
+        )
+        invalidate_stale_cache()
+        return 1
+
+    # A count alone can't catch an over-match/under-match that cancels out.
+    missing = requested_sources - analyzed_sources
+    # file_patterns is an unanchored suffix glob (see its definition above), so
+    # a short/non-distinctive relative path can match extra files elsewhere in
+    # the compile database -- files these same patterns then let fixit --apply
+    # mutate in place. requested subset of analyzed alone can't catch that.
+    extra = analyzed_sources - requested_sources
+    covered = not missing and not extra
+
+    if failed or failed_sources:
+        # failed_sources is folded into analyzed_sources unconditionally, so a
+        # count/list mismatch (undocumented schema) must not let a crashed
+        # file slip through the coverage check as analyzed.
+        if failed != len(failed_sources):
+            print(
+                f"metadata.json's analyzer_statistics is inconsistent: "
+                f"failed={failed} but failed_sources has {len(failed_sources)} "
+                "entries -- CodeChecker's internal metadata format may have changed",
+                file=sys.stderr,
+            )
+        else:
+            print(
+                f"ERROR: CodeChecker failed to analyze {failed} file(s):",
+                file=sys.stderr,
+            )
+            for path in sorted(failed_sources):
+                print(f"    {path}", file=sys.stderr)
+        invalidate_stale_cache()
+        return 1
+    if not covered:
+        # A --file/compile-database mismatch can analyze the wrong files and
+        # exit 0 -- don't let that read as a clean run.
+        if missing:
+            print(
+                "ERROR: CodeChecker never analyzed these requested files -- "
+                "--file patterns may not match the compile database:",
+                file=sys.stderr,
+            )
+            for path in sorted(missing):
+                print(f"    {path}", file=sys.stderr)
+        if extra:
+            print(
+                "ERROR: CodeChecker analyzed files that were never requested "
+                "-- an over-matching --file pattern; fixit --apply would "
+                "mutate these:",
+                file=sys.stderr,
+            )
+            for path in sorted(extra):
+                print(f"    {path}", file=sys.stderr)
+        invalidate_stale_cache()
+        return 1
+
+    fixit_returncode = 0
+    if args.fix:
+        # Only reached once analyze is confirmed complete (failed == 0) and
+        # covered above -- fixit --apply mutates source files in place, and
+        # must never run against a partial/incomplete result set.
+        # Apply serially (like run_tidy() below) instead of passing --fix to
+        # CodeChecker's parallel workers, which would race on shared headers.
+        # stdin=DEVNULL: fixit reads a `CodeChecker cmd diff` JSON from stdin
+        # when present; we never want that here and don't want to inherit a
+        # pipe that could block waiting for a writer that never closes.
+        fixit_result = subprocess.run(
+            [
+                executable,
+                "fixit",
+                "--apply",
+                str(output_dir),
+                "--file",
+                *file_patterns,
+            ],
+            stdin=subprocess.DEVNULL,
+            check=False,
+        )
+        fixit_returncode = fixit_result.returncode
+        if fixit_returncode != 0:
+            print(
+                f"CodeChecker fixit --apply failed (exit {fixit_returncode})",
+                file=sys.stderr,
+            )
+
+    # Only recorded once analyze exited clean and coverage is confirmed --
+    # otherwise a regenerated database that produced failures would be
+    # cached as good.
+    if regenerated and result.returncode == 0:
+        update_cache(cache_key_path, key)
+
+    # Does not return the number of failed files, just pass/fail
+    return (
+        1 if (fixit_returncode or result.returncode or parse_result.returncode) else 0
+    )
 
 
 def split_list(a, n):
@@ -448,6 +852,11 @@ def main():
 
     # Print final file list before loading idedata
     print_file_list(files, "Final files to process:")
+
+    # Zephyr/nrf52 goes through CodeChecker instead of this script's manual
+    # GCC->Clang flag translation -- see run_codechecker_zephyr().
+    if "nrf" in args.environment:
+        return run_codechecker_zephyr(files, args)
 
     # Load idedata and options only if we have files to check
     idedata = load_idedata(args.environment)

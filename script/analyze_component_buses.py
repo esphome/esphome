@@ -97,6 +97,7 @@ ISOLATED_COMPONENTS = {
     "packages": "cannot merge packages",
     "tinyusb": "Conflicts with usb_host component - cannot be used together",
     "usb_cdc_acm": "Depends on tinyusb which conflicts with usb_host",
+    "zigbee": "Defines zigbee: which conflicts with network: used by most components on nrf52",
 }
 
 
