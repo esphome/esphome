@@ -117,6 +117,12 @@ void Logger::pre_setup() {
         uart_dev = DEVICE_DT_GET_OR_NULL(DT_NODELABEL(usb_serial));
         break;
 #endif
+      default:
+        // Whichever case labels above survive preprocessing depends on this build's
+        // hardware_uart selection -- the enum type itself still declares every variant's
+        // values, so -Wswitch would otherwise warn about the ones #ifdef'd out here even
+        // though this->uart_ can never actually hold one of them in this build.
+        break;
     }
     if (device_is_ready(uart_dev)) {
       this->uart_dev_ = uart_dev;
