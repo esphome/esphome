@@ -68,7 +68,6 @@ class ESPVideoCamera : public camera::Camera {
   void setup() override;
   void loop() override;
   void dump_config() override;
-  float get_setup_priority() const override { return setup_priority::DATA; }
 
   // Pipeline configuration -----------------------------------------------------
 #ifdef USE_I2C

@@ -396,22 +396,26 @@ void ESPVideoCamera::setup() {
     close(csi_fd);
   }
 
+  // Never probe a USB camera by opening it. Opening that node is what runs
+  // esp_video's uvc_video_init(), which waits CONFIG_USB_UVC_INIT_TIMEOUT_MS
+  // for a camera to enumerate -- so a probe here pays that wait, closes the
+  // node again, and start_direct_capture_() pays it a second time moments
+  // later. Nothing is learned either way: a camera that is absent now is
+  // expected to be, and loop() retries on a timer regardless.
+  if (this->is_uvc_device_()) {
+    // The device count is the useful half of this: none at all this early is
+    // normal, but it stays at none when the host port is not carrying data.
+    ESP_LOGI(TAG, "Waiting for the USB camera on %s to enumerate (%d USB device(s) so far)",
+             this->resolved_device_.c_str(), count_usb_devices());
+    this->capture_retry_pending_ = true;
+    this->capture_retry_at_ms_ = millis() + this->capture_retry_interval_ms_();
+    return;
+  }
+
+  // A MIPI sensor, by contrast, is either detected by now or never will be, so
+  // its absence is worth failing on rather than retrying forever.
   int test_fd = open(this->resolved_device_.c_str(), O_RDWR | O_NONBLOCK);
   if (test_fd < 0) {
-    // A USB camera enumerates on its own schedule and is routinely still absent
-    // here, a second or two after esp_video_init(). Failing the component would
-    // make that permanent, so leave it to loop(), which already retries a
-    // missing device on a timer. A MIPI sensor is either detected by now or
-    // never will be.
-    if (this->is_uvc_device_()) {
-      // The device count is the useful half of this: none at all this early is
-      // normal, but it stays at none when the host port is not carrying data.
-      ESP_LOGI(TAG, "%s is not there yet; waiting for the USB camera to enumerate (%d USB device(s) so far)",
-               this->resolved_device_.c_str(), count_usb_devices());
-      this->capture_retry_pending_ = true;
-      this->capture_retry_at_ms_ = millis() + this->capture_retry_interval_ms_();
-      return;
-    }
     ESP_LOGE(TAG, "V4L2 device '%s' unavailable (errno=%d: %s)", this->resolved_device_.c_str(), errno,
              strerror(errno));
     this->mark_failed();
