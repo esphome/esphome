@@ -38,24 +38,20 @@ class NoiseContext {
 /// Convert a noise error code to a readable error
 const LogString *noise_err_to_logstr(int err);
 
-// An X25519 key pair as the spare ephemeral hands it out: private key first
+// Spare key pair layout: private key then public key
 static constexpr size_t EPHEMERAL_PRIVATE_KEY_SIZE = 32;
 static constexpr size_t EPHEMERAL_PUBLIC_KEY_SIZE = 32;
 static constexpr size_t EPHEMERAL_KEYPAIR_SIZE = EPHEMERAL_PRIVATE_KEY_SIZE + EPHEMERAL_PUBLIC_KEY_SIZE;
 using ephemeral_keypair_t = std::array<uint8_t, EPHEMERAL_KEYPAIR_SIZE>;
 
 #ifdef USE_API_NOISE
-// A responder ephemeral key pair generated ahead of time. The base point
-// multiply behind one costs about 60 ms on ESP8266, so the api server fills
-// the slot while idle and a connecting client does not wait for it. One slot
-// serves every noise transport; a handshake that finds it empty generates
-// its own key as before. The api server is the only refiller, so the slot
-// only exists in builds with an encrypted api.
+// One responder ephemeral key pair generated ahead of time (about 60 ms on
+// ESP8266), refilled by the api server while idle, shared by every noise
+// transport; an empty slot means the handshake generates its own key.
 bool has_spare_ephemeral();
-/// Generate a key pair into the slot; blocks for the base point multiply.
+/// Fill the slot; blocks for the base point multiply
 void prepare_spare_ephemeral();
-/// Move the slot's key pair into out and empty the slot. Returns false,
-/// leaving out untouched, when the slot is empty.
+/// Move the slot into out and empty it; false (out untouched) when empty
 bool take_spare_ephemeral(ephemeral_keypair_t &out);
 #endif
 

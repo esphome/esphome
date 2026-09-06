@@ -66,7 +66,7 @@ bool ESPHomeOTAComponent::noise_start_session_(uint8_t server_feature_flags) {
   *p++ = ota::OTA_RESPONSE_FEATURE_FLAGS;
   *p++ = server_feature_flags;
 
-  // The api server keeps the spare; without an encrypted api there is none
+  // Only the api server refills the spare
   const uint8_t *ephemeral = nullptr;
 #ifdef USE_API_NOISE
   noise::ephemeral_keypair_t spare;

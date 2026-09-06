@@ -62,7 +62,7 @@ int NoiseResponderHandshake::init(const NoiseContext &ctx, const uint8_t *prolog
     err = noise_handshakestate_set_local_ephemeral(this->handshake_, ephemeral_keypair, EPHEMERAL_PRIVATE_KEY_SIZE,
                                                    ephemeral_keypair + EPHEMERAL_PRIVATE_KEY_SIZE,
                                                    EPHEMERAL_PUBLIC_KEY_SIZE);
-    // Not fatal: the handshake generates its own key when the spare is refused
+    // Not fatal: the handshake generates its own key instead
     if (err != 0) {
       HANDSHAKE_STEP_LOG("noise_handshakestate_set_local_ephemeral", err);
     }

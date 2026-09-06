@@ -37,9 +37,8 @@ void prepare_spare_ephemeral() {
   spare_ephemeral_ready = false;
   uint8_t *private_key = spare_ephemeral;
   uint8_t *public_key = spare_ephemeral + EPHEMERAL_PRIVATE_KEY_SIZE;
-  // Same generation as noise-c's curve25519 backend: random bytes, X25519
-  // clamping, then the public key. A random source failure leaves the slot
-  // empty; the handshake then generates its own key.
+  // Same steps as noise-c's curve25519 keygen; on RNG failure the slot stays
+  // empty and the handshake generates its own key
   if (!random_bytes(private_key, EPHEMERAL_PRIVATE_KEY_SIZE)) {
     return;
   }

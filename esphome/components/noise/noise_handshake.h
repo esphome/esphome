@@ -38,10 +38,8 @@ class NoiseResponderHandshake {
 
   /// Create and start the handshake with the context's PSK and the prologue.
   /// A repeated call frees the previous handshake state and starts over.
-  /// ephemeral_keypair, when not null, is a key pair from
-  /// take_spare_ephemeral() that the handshake uses as its ephemeral key
-  /// instead of generating one; if noise-c refuses it the handshake
-  /// generates its own key and init() still succeeds.
+  /// ephemeral_keypair, when set, is a take_spare_ephemeral() key pair used
+  /// instead of generating one; a refused pair falls back to generating.
   [[nodiscard]] int init(const NoiseContext &ctx, const uint8_t *prologue, size_t prologue_len,
                          const uint8_t *ephemeral_keypair = nullptr);
   /// ACTION_FAILED is the catch-all: returned before init(), after split()
