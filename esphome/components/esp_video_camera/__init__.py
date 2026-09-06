@@ -9,12 +9,14 @@ components) — nothing is vendored.
 """
 
 import logging
+from pathlib import Path
 
 from esphome import pins
 import esphome.codegen as cg
 from esphome.components import i2c, network
 from esphome.components.esp32 import (
     VARIANT_ESP32P4,
+    add_extra_build_file,
     add_idf_component,
     add_idf_sdkconfig_option,
     only_on_variant,
@@ -30,6 +32,7 @@ from esphome.const import (
     CONF_RESOLUTION,
     PLATFORM_ESP32,
 )
+from esphome.core import CORE
 from esphome.core.entity_helpers import setup_entity
 import esphome.final_validate as fv
 
@@ -411,3 +414,26 @@ async def to_code(config):
         sensor = config[CONF_SENSOR_MODEL].upper()
         add_idf_sdkconfig_option(f"CONFIG_CAMERA_{sensor}_MIPI_{fmt}", True)
         add_idf_sdkconfig_option(f"CONFIG_CAMERA_{sensor}_MIPI_DEFAULT_FMT_{fmt}", True)
+
+    # Colour tuning for the SC202CS, which the SC2356 module (M5Stack Tab5,
+    # reTerminal) is the same silicon as. The image processing algorithms read
+    # their gamma, colour matrix and white balance from a JSON file, and the
+    # sensor's stock one renders noticeably less faithful colour than the file
+    # below, which was measured against these boards.
+    #
+    # Only for a configuration that names this sensor. It replaces the tuning
+    # for the whole build, so a board carrying something else must not silently
+    # get an SC202CS colour matrix, and neither should a USB camera.
+    if config.get(CONF_SENSOR_MODEL) == "sc202cs":
+        tuning = "esp_video_camera/sc202cs_ipa.json"
+        add_extra_build_file(tuning, Path(__file__).parent / "cfg" / "sc202cs.json")
+        add_idf_sdkconfig_option(
+            "CONFIG_CAMERA_SC202CS_DEFAULT_IPA_JSON_CONFIGURATION_FILE", False
+        )
+        add_idf_sdkconfig_option(
+            "CONFIG_CAMERA_SC202CS_CUSTOMIZED_IPA_JSON_CONFIGURATION_FILE", True
+        )
+        add_idf_sdkconfig_option(
+            "CONFIG_CAMERA_SC202CS_CUSTOMIZED_IPA_JSON_CONFIGURATION_FILE_PATH",
+            str(CORE.relative_build_path(tuning)),
+        )
