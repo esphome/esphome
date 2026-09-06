@@ -115,7 +115,6 @@ static inline bool validate_header_footer(const uint8_t *expected, const uint8_t
   return std::memcmp(expected, buffer, HEADER_FOOTER_SIZE) == 0;
 }
 
-
 void LD2460Component::setup() {
   ESP_LOGCONFIG(TAG, "Setting up LD2460...");
   this->read_all_info();
@@ -347,7 +346,8 @@ bool LD2460Component::handle_ack_data_() {
       uint16_t angle_x100 = this->buffer_data_[9] | (this->buffer_data_[10] << 8);
       this->installation_height_ = height_cm / 100.0f;
       this->installation_angle_ = angle_x100 / 100.0f;
-      ESP_LOGV(TAG, "Installation height: %.2fm, angle: %.2f deg", this->installation_height_, this->installation_angle_);
+      ESP_LOGV(TAG, "Installation height: %.2fm, angle: %.2f deg", this->installation_height_,
+               this->installation_angle_);
 #ifdef USE_NUMBER
       if (this->installation_height_number_ != nullptr) {
         this->installation_height_number_->publish_state(this->installation_height_);
@@ -406,7 +406,8 @@ bool LD2460Component::handle_ack_data_() {
 #ifdef USE_SELECT
       if (this->baud_rate_select_ != nullptr && success) {
         auto baud = this->baud_rate_select_->current_option();
-        ESP_LOGI(TAG, "Baud rate changed to %.*s; restart module to apply", static_cast<int>(baud.size()), baud.c_str());
+        ESP_LOGI(TAG, "Baud rate changed to %.*s; restart module to apply", static_cast<int>(baud.size()),
+                 baud.c_str());
       }
 #endif
       break;
@@ -434,8 +435,8 @@ bool LD2460Component::handle_ack_data_() {
       this->detection_distance_ = dist_01 / 10.0f;
       this->detection_angle_min_ = min_angle_01 / 10.0f;
       this->detection_angle_max_ = max_angle_01 / 10.0f;
-      ESP_LOGV(TAG, "Detection range: dist=%.1fm, min_angle=%.1f deg, max_angle=%.1f deg",
-               this->detection_distance_, this->detection_angle_min_, this->detection_angle_max_);
+      ESP_LOGV(TAG, "Detection range: dist=%.1fm, min_angle=%.1f deg, max_angle=%.1f deg", this->detection_distance_,
+               this->detection_angle_min_, this->detection_angle_max_);
 #ifdef USE_NUMBER
       if (this->detection_distance_number_ != nullptr) {
         this->detection_distance_number_->publish_state(this->detection_distance_);

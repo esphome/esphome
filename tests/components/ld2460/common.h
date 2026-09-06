@@ -45,10 +45,7 @@ class TestableLD2460 : public LD2460Component {
 inline std::vector<uint8_t> make_periodic_frame(uint8_t num_targets = 1) {
   uint16_t len = 11 + num_targets * 4;
   std::vector<uint8_t> frame = {
-      0xF4, 0xF3, 0xF2, 0xF1,
-      0x04,
-      static_cast<uint8_t>(len & 0xFF),
-      static_cast<uint8_t>((len >> 8) & 0xFF),
+      0xF4, 0xF3, 0xF2, 0xF1, 0x04, static_cast<uint8_t>(len & 0xFF), static_cast<uint8_t>((len >> 8) & 0xFF),
   };
   for (int i = 0; i < num_targets; i++) {
     // Target X = 15 (1.5m), Target Y = 23 (2.3m)
