@@ -246,11 +246,14 @@ def _validate_resolution_for_sensor(config):
 def _request_high_performance_networking(config):
     """A camera is a streaming component, so ask for the streaming defaults.
 
-    Every frame leaves over TCP, and a 720p JPEG is 60-100 kB -- more than ten
-    times lwip's default send buffer. Each of those windows costs a round trip
-    to the access point before the next can go out, which puts a ceiling on the
-    frame rate that has nothing to do with the sensor or the encoder, and that
-    no camera setting can lift.
+    A 720p JPEG is 60-100 kB against lwip's default 5744-byte send buffer, and
+    people were writing the lwip and Wi-Fi sizes out by hand in
+    sdkconfig_options to compensate. This is the supported way to ask, and what
+    speaker.media_player and sendspin do for the same reason.
+
+    Headroom rather than a measured fix, though: on an M5Stack Tab5 and a
+    Waveshare board the frame rate is the same with and without it, both
+    sustaining 7-14 Mbit/s. What limits those two is the pipeline, not the link.
     """
     network.require_high_performance_networking()
     return config
