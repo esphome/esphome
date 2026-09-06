@@ -27,8 +27,13 @@ def AUTO_LOAD() -> list[str]:
     # Every backend computes an MD5 over the transferred image, except: nrf52 (its
     # zephyr_mcumgr OTA path doesn't use this component's backend at all) and zephyr
     # (ota_backend_zephyr.cpp uses SHA256 instead -- NCS's PSA crypto drivers can't do MD5).
+    # The hash component is loaded here rather than by each ota platform: the backend
+    # header lands in every platform's build through ota_backend_factory.h, so a platform
+    # that doesn't happen to request sha256 itself would otherwise fail to compile.
     components = ["safe_mode"]
-    if not CORE.is_nrf52 and not CORE.is_zephyr:
+    if CORE.is_zephyr:
+        components.append("sha256")
+    elif not CORE.is_nrf52:
         components.append("md5")
     if CORE.is_esp32:
         components.extend(["watchdog"])
