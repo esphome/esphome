@@ -81,7 +81,7 @@ VARIANT = ZephyrVariant(
     swap_methods=frozenset({"move", "offset"}),
     adc_ain_map=_ADC_AIN_MAP,
     # Only usart0 exists at SoC level on this board -- no usart1/UART1.
-    uart_node_labels={"UART0": "usart0"},
+    uart_node_labels={},
 )
 
 
