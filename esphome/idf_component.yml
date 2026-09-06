@@ -106,3 +106,16 @@ dependencies:
     version: d44c800a9e876a8394caefc2ce4915dd96dac77b
     rules:
       - if: "$ESPHOME_ARDUINO_COMPONENT == 1"
+  # api. Not on Arduino: arduino-esp32 pulls espressif/libsodium, and IDF
+  # refuses to build two managed components whose names differ only by
+  # namespace. The Arduino envs get noise-c as a PlatformIO library instead.
+  esphome/noise-c:
+    version: 0.1.21
+    rules:
+      - if: "$ESPHOME_ARDUINO_COMPONENT == 0"
+  # Declared even though noise-c depends on it, so that the PlatformIO-library
+  # converter knows to skip the copy esp_wireguard would otherwise pull in.
+  esphome/libsodium:
+    version: 1.10021.4
+    rules:
+      - if: "$ESPHOME_ARDUINO_COMPONENT == 0"

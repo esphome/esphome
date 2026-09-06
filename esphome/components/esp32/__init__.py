@@ -3343,7 +3343,12 @@ def _write_idf_component_yml():
             # Don't process arduino libraries
             if name not in ARDUINO_DISABLED_LIBRARIES
         ]
-        for component in generate_idf_components(libraries):
+        # A library that is also declared as a managed component must not be
+        # converted as well, or IDF sees the same requirement from two
+        # components and refuses to build. Converted components still link
+        # against it via ${ESPHOME_PROJECT_MANAGED_COMPONENTS}.
+        managed = set(CORE.data[KEY_ESP32].get(KEY_COMPONENTS, {}))
+        for component in generate_idf_components(libraries, managed=managed):
             dependencies[component.get_sanitized_name()] = {
                 "override_path": str(component.path)
             }
