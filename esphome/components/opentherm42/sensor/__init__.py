@@ -399,27 +399,29 @@ TYPES: dict[str, cv.Schema] = {
     CONF_SENSOR_AND_INFORMATIONAL_DATA_DHW_BURNER_OPERATION_HOURS: _hours_schema(
         entity_category=ENTITY_CATEGORY_DIAGNOSTIC
     ),
-    # §5.3.4 Class 4, ID 27: Outside temperature (degrees C), read from the boiler. Only used if the
-    # number platform's outside_temperature_set is NOT configured -- see that option's description.
+    # §5.3.4 Class 4, ID 27: Outside temperature (degrees C), read from the boiler. Independent of
+    # the number platform's outside_temperature_set -- both may be configured at once, see hub.h's
+    # RequestKind::OUTSIDE_TEMPERATURE_READ comment.
     CONF_SENSOR_AND_INFORMATIONAL_DATA_OUTSIDE_TEMPERATURE: _TEMPERATURE_SCHEMA,
-    # §5.3.4 Class 4, ID 38: Relative Humidity (0..100%), read from the boiler. Only used if the number
-    # platform's relative_humidity_set is NOT configured.
+    # §5.3.4 Class 4, ID 38: Relative Humidity (0..100%), read from the boiler. Independent of the
+    # number platform's relative_humidity_set -- both may be configured at once.
     CONF_SENSOR_AND_INFORMATIONAL_DATA_RELATIVE_HUMIDITY: sensor.sensor_schema(
         unit_of_measurement="%",
         accuracy_decimals=1,
         device_class=DEVICE_CLASS_HUMIDITY,
         state_class="measurement",
     ),
-    # §5.3.4 Class 4, ID 78 LB: Relative humidity exhaust air (0..100%), read from the boiler. Only used
-    # if the number platform's relative_humidity_exhaust_air_set is NOT configured.
+    # §5.3.4 Class 4, ID 78 LB: Relative humidity exhaust air (0..100%), read from the boiler.
+    # Independent of the number platform's relative_humidity_exhaust_air_set -- both may be
+    # configured at once.
     CONF_SENSOR_AND_INFORMATIONAL_DATA_RELATIVE_HUMIDITY_EXHAUST_AIR: sensor.sensor_schema(
         unit_of_measurement="%",
         accuracy_decimals=1,
         device_class=DEVICE_CLASS_HUMIDITY,
         state_class="measurement",
     ),
-    # §5.3.4 Class 4, ID 79: CO2 level exhaust air (0..2000 ppm), read from the boiler. Only used if the
-    # number platform's co2_level_set is NOT configured.
+    # §5.3.4 Class 4, ID 79: CO2 level exhaust air (0..2000 ppm), read from the boiler. Independent
+    # of the number platform's co2_level_set -- both may be configured at once.
     CONF_SENSOR_AND_INFORMATIONAL_DATA_CO2_LEVEL: sensor.sensor_schema(
         unit_of_measurement="ppm",
         accuracy_decimals=0,
@@ -446,20 +448,20 @@ TYPES: dict[str, cv.Schema] = {
         entity_category=ENTITY_CATEGORY_DIAGNOSTIC
     ),
     # §5.3.5 Class 5, ID 56: DHW Setpoint -- domestic hot water temperature Setpoint (degrees C), read
-    # from the boiler. Only used if the number platform's dhw_setpoint_set is NOT configured. The
-    # actual operating target (what temperature the hot water is set to), so primary -- unlike the
-    # bounds/limits above.
+    # from the boiler. Independent of the number platform's dhw_setpoint_set -- both may be
+    # configured at once. The actual operating target (what temperature the hot water is set to), so
+    # primary -- unlike the bounds/limits above.
     CONF_PRE_DEFINED_REMOTE_BOILER_PARAMETERS_DHW_SETPOINT: _TEMPERATURE_SCHEMA,
     # §5.3.5 Class 5, ID 57: max CH water Setpoint -- maximum allowable CH water Setpoint (degrees C),
-    # read from the boiler. Only used if the number platform's max_ch_water_setpoint_set is NOT
-    # configured. An installation-time ceiling on the Control Setpoint, not something adjusted
-    # day-to-day, so DIAGNOSTIC.
+    # read from the boiler. Independent of the number platform's max_ch_water_setpoint_set -- both
+    # may be configured at once. An installation-time ceiling on the Control Setpoint, not something
+    # adjusted day-to-day, so DIAGNOSTIC.
     CONF_PRE_DEFINED_REMOTE_BOILER_PARAMETERS_MAX_CH_WATER_SETPOINT: _temperature_schema(
         entity_category=ENTITY_CATEGORY_DIAGNOSTIC
     ),
-    # §5.3.5 Class 5, ID 87 HB: Nominal ventilation value (0-100%), read from the boiler. Only used if
-    # the number platform's nominal_ventilation_value_set is NOT configured. A fixed system parameter
-    # rather than a live demand, so DIAGNOSTIC.
+    # §5.3.5 Class 5, ID 87 HB: Nominal ventilation value (0-100%), read from the boiler. Independent
+    # of the number platform's nominal_ventilation_value_set -- both may be configured at once. A
+    # fixed system parameter rather than a live demand, so DIAGNOSTIC.
     CONF_PRE_DEFINED_REMOTE_BOILER_PARAMETERS_NOMINAL_VENTILATION_VALUE: _percent_schema(
         entity_category=ENTITY_CATEGORY_DIAGNOSTIC
     ),

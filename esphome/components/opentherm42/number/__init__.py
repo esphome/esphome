@@ -129,9 +129,10 @@ TYPES: dict[str, tuple[cv.Schema, dict]] = {
         ),
         {"min_value": -40, "max_value": 127, "step": 0.1},
     ),
-    # §5.3.4 Class 4, ID 27: Outside temperature (degrees C, -40..127), provided by this master. Only
-    # written if configured -- see the sensor platform's plain outside_temperature for reading it from
-    # the boiler instead. A sensor-value feed, so CONFIG.
+    # §5.3.4 Class 4, ID 27: Outside temperature (degrees C, -40..127), provided by this master.
+    # Independent of the sensor platform's plain outside_temperature -- both may be configured at
+    # once; a successful write also updates that sensor immediately (see hub.h's RequestKind
+    # comment). A sensor-value feed, so CONFIG.
     CONF_SENSOR_AND_INFORMATIONAL_DATA_OUTSIDE_TEMPERATURE_SET: (
         _number_schema(
             "°C",
@@ -179,7 +180,7 @@ TYPES: dict[str, tuple[cv.Schema, dict]] = {
         {"min_value": 0, "max_value": 2000, "step": 1},
     ),
     # §5.3.5 Class 5, ID 56: DHW Setpoint -- domestic hot water temperature setpoint (degrees C, 0..127).
-    # Takes priority over the sensor platform's plain dhw_setpoint (reading the boiler's own value).
+    # Independent of the sensor platform's plain dhw_setpoint -- both may be configured at once.
     CONF_PRE_DEFINED_REMOTE_BOILER_PARAMETERS_DHW_SETPOINT_SET: (
         _number_schema("°C", 0, 127, device_class=DEVICE_CLASS_TEMPERATURE),
         {"min_value": 0, "max_value": 127, "step": 0.1},

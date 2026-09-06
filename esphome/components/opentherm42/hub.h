@@ -86,12 +86,21 @@ enum class RequestKind : uint8_t {
   DAY_TIME,
   DATE,
   YEAR,
-  // §5.3.4 Class 4, IDs 27/38/78/79: R/W ids -- WRITE_DATA if the "_set" number is configured,
-  // otherwise READ_DATA if the plain sensor is configured (see build_next_request_()).
-  OUTSIDE_TEMPERATURE,            // ID 27
-  RELATIVE_HUMIDITY,              // ID 38
-  RELATIVE_HUMIDITY_EXHAUST_AIR,  // ID 78
-  CO2_LEVEL,                      // ID 79
+  // §5.3.4 Class 4, IDs 27/38/78/79: R/W ids -- the "_set" number and the plain sensor can be
+  // configured independently and simultaneously: the number is WRITE_DATA'd every essential
+  // rotation if configured, and the sensor is READ_DATA'd every informational rotation if
+  // configured, each as its own separate RequestKind (see build_schedule_()). A successful
+  // WRITE-ACK also feeds the sensor immediately, since it echoes exactly the value a READ-ACK
+  // would return -- but the sensor's own periodic READ is what keeps it correct independently of
+  // whether the write ever happens or is rejected (see handle_response_()).
+  OUTSIDE_TEMPERATURE,                 // ID 27 (write)
+  OUTSIDE_TEMPERATURE_READ,            // ID 27 (read)
+  RELATIVE_HUMIDITY,                   // ID 38 (write)
+  RELATIVE_HUMIDITY_READ,              // ID 38 (read)
+  RELATIVE_HUMIDITY_EXHAUST_AIR,       // ID 78 (write)
+  RELATIVE_HUMIDITY_EXHAUST_AIR_READ,  // ID 78 (read)
+  CO2_LEVEL,                           // ID 79 (write)
+  CO2_LEVEL_READ,                      // ID 79 (read)
   // §5.3.4 Class 4, ID 35: HB Boiler fan speed Setpoint + LB Boiler fan speed -- two sensors from one
   // conversation, so it doesn't fit the single-sensor SimpleSensorInfo table below.
   BOILER_FAN_SPEED,
@@ -146,11 +155,14 @@ enum class RequestKind : uint8_t {
   DHWSETP_BOUNDS,
   // §5.3.5 Class 5, ID 49: HB max CHsetp upp-bound, LB max CHsetp low-bnd.
   MAX_CHSETP_BOUNDS,
-  // §5.3.5 Class 5, IDs 56/57/87: R/W ids -- WRITE_DATA if the "_set" number is configured, otherwise
-  // READ_DATA if the plain sensor is configured (same pattern as Class 4's IDs 27/38/78/79).
-  DHW_SETPOINT,
-  MAX_CH_WATER_SETPOINT,
-  NOMINAL_VENTILATION_VALUE,
+  // §5.3.5 Class 5, IDs 56/57/87: R/W ids -- same independently-schedulable write/read split as
+  // Class 4's IDs 27/38/78/79 above.
+  DHW_SETPOINT,                    // ID 56 (write)
+  DHW_SETPOINT_READ,               // ID 56 (read)
+  MAX_CH_WATER_SETPOINT,           // ID 57 (write)
+  MAX_CH_WATER_SETPOINT_READ,      // ID 57 (read)
+  NOMINAL_VENTILATION_VALUE,       // ID 87 (write)
+  NOMINAL_VENTILATION_VALUE_READ,  // ID 87 (read)
 
   // §5.3.6 Class 6, IDs 10/88/105 HB: number of TSPs supported, one per family.
   NUMBER_OF_TSPS,
