@@ -127,7 +127,7 @@ void OpenThermDataLink::send(const Frame &frame) {
   // §4.2: P(1) MSG-TYPE(3) SPARE(4) | DATA-ID(8) | DATA-VALUE(16), MSB-first.
   this->tx_data_ = (static_cast<uint32_t>(frame.type) << 28) | (static_cast<uint32_t>(frame.id) << 16) |
                    (static_cast<uint32_t>(frame.value_hb) << 8) | frame.value_lb;
-  if (!check_parity_(this->tx_data_)) {
+  if (!check_parity(this->tx_data_)) {
     this->tx_data_ |= 0x80000000;  // set P so the total '1' count across the 32 bits is even
   }
 
@@ -159,9 +159,9 @@ void OpenThermDataLink::stop_timer_() {
   InterruptLock const lock;
 #ifdef USE_ESP32
   if (this->timer_handle_ != nullptr) {
-    if (gptimer_stop(this->timer_handle_) != ESP_OK) {
-      this->timer_error_ = TimerError::STOP;
-    } else if (gptimer_set_raw_count(this->timer_handle_, 0) != ESP_OK) {
+    // gptimer_stop() short-circuits gptimer_set_raw_count() on failure -- matches the original
+    // if/else-if control flow (only reset the count once the timer has actually stopped).
+    if (gptimer_stop(this->timer_handle_) != ESP_OK || gptimer_set_raw_count(this->timer_handle_, 0) != ESP_OK) {
       this->timer_error_ = TimerError::STOP;
     }
   }
@@ -285,7 +285,7 @@ DataLinkError IRAM_ATTR OpenThermDataLink::check_stop_bit_(uint8_t value) {
   if (!value) {
     return DataLinkError::INVALID_STOP_BIT;
   }
-  return check_parity_(this->data_) ? DataLinkError::NONE : DataLinkError::PARITY_ERROR;
+  return check_parity(this->data_) ? DataLinkError::NONE : DataLinkError::PARITY_ERROR;
 }
 
 void IRAM_ATTR OpenThermDataLink::write_bit_(uint8_t high, uint8_t clock) {
@@ -298,7 +298,7 @@ void IRAM_ATTR OpenThermDataLink::write_bit_(uint8_t high, uint8_t clock) {
 
 // §4.2.1: the parity bit is set/cleared such that the total number of '1' bits across the whole 32-bit
 // frame is even. https://graphics.stanford.edu/~seander/bithacks.html#ParityParallel
-bool OpenThermDataLink::check_parity_(uint32_t frame_bits) {
+bool OpenThermDataLink::check_parity(uint32_t frame_bits) {
   frame_bits ^= frame_bits >> 16;
   frame_bits ^= frame_bits >> 8;
   frame_bits ^= frame_bits >> 4;

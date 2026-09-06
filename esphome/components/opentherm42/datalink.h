@@ -148,7 +148,7 @@ class OpenThermDataLink {
   void record_bit_(uint8_t value);
   DataLinkError check_stop_bit_(uint8_t value);
   void write_bit_(uint8_t high, uint8_t clock);
-  static bool check_parity_(uint32_t frame_bits);
+  static bool check_parity(uint32_t frame_bits);
   // Sets state_ to ERROR and records which error -- callers must follow this with stop_timer_(), not
   // stop() (which would immediately overwrite state_ back to IDLE).
   void set_error_(DataLinkError error);

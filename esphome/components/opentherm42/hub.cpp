@@ -348,8 +348,8 @@ Frame OpenTherm42Hub::build_next_request_() {
   if (this->time_sync_pending_) {
     // Steps through Day-of-week/Time (0), Date (1), Year (2) one conversation at a time, same as the
     // essential rotation, just without waiting for its turn.
-    static const RequestKind kinds[] = {RequestKind::DAY_TIME, RequestKind::DATE, RequestKind::YEAR};
-    this->pending_request_kind_ = kinds[this->time_sync_step_];
+    static const RequestKind KINDS[] = {RequestKind::DAY_TIME, RequestKind::DATE, RequestKind::YEAR};
+    this->pending_request_kind_ = KINDS[this->time_sync_step_];
     Frame frame{};
     this->build_time_sync_frame_(this->time_sync_step_, frame);
     this->time_sync_step_++;
@@ -693,8 +693,8 @@ Frame OpenTherm42Hub::build_startup_request_() {
 }
 
 void OpenTherm42Hub::build_time_sync_frame_(uint8_t step, Frame &frame) {
-  static constexpr uint8_t kDataIds[] = {20, 21, 22};
-  frame.id = kDataIds[step];
+  static constexpr uint8_t DATA_IDS[] = {20, 21, 22};
+  frame.id = DATA_IDS[step];
 
   ESPTime const now = this->time_id_ != nullptr ? this->time_id_->now() : ESPTime{};
   if (!now.is_valid()) {
