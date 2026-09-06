@@ -288,8 +288,9 @@ storage::StorageError SdMmc::mount() {
 #ifdef USE_STORAGE_CHANGE_FEED
   // Mount state is part of the roots listing: whoever flipped it (CD pin, hotplug, HTTP,
   // automation), the browser's change poll must see it -- including recovery after an error.
-  if (storage::global_storage_registry != nullptr)
+  if (storage::global_storage_registry != nullptr) {
     storage::global_storage_registry->note_dir_changed("");
+  }    
 #endif
 
   BYTE pdrv = ff_diskio_get_pdrv_card(this->card_);
@@ -336,10 +337,11 @@ storage::StorageError SdMmc::unmount() {
   // Closes any handles still open from user/lambda code, while the VFS is still mounted to
   // receive the flush/close calls.
   storage::StorageError flush_err = this->flush_open_handles_();
-  if (flush_err == storage::StorageError::STORAGE_ERROR_OK)
+  if (flush_err == storage::StorageError::STORAGE_ERROR_OK) {
     ESP_LOGD(TAG, "All data flushed");
-  else
+  } else {
     ESP_LOGW(TAG, "Flush before unmount failed: %s", storage::error_to_string(flush_err));
+  }
 
   storage::StorageError unmount_err = storage::StorageError::STORAGE_ERROR_OK;
   bool manual = false;
