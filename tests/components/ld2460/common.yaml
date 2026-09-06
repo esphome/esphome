@@ -94,8 +94,8 @@ number:
       name: Installation Height
     installation_angle:
       name: Installation Angle
-    detection_distance:
-      name: Detection Distance
+    max_detection_distance:
+      name: Max Detection Distance
     detection_angle_min:
       name: Detection Angle Min
     detection_angle_max:

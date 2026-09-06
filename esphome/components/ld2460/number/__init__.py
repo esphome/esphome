@@ -15,7 +15,7 @@ from .. import CONF_LD2460_ID, LD2460Component, ld2460_ns
 
 CONF_INSTALLATION_HEIGHT = "installation_height"
 CONF_INSTALLATION_ANGLE = "installation_angle"
-CONF_DETECTION_DISTANCE = "detection_distance"
+CONF_MAX_DETECTION_DISTANCE = "max_detection_distance"
 CONF_DETECTION_ANGLE_MIN = "detection_angle_min"
 CONF_DETECTION_ANGLE_MAX = "detection_angle_max"
 
@@ -41,7 +41,7 @@ CONFIG_SCHEMA = cv.Schema(
             unit_of_measurement=UNIT_DEGREES,
             entity_category=ENTITY_CATEGORY_CONFIG,
         ),
-        cv.Optional(CONF_DETECTION_DISTANCE): number.number_schema(
+        cv.Optional(CONF_MAX_DETECTION_DISTANCE): number.number_schema(
             DetectionDistanceNumber,
             device_class=DEVICE_CLASS_DISTANCE,
             unit_of_measurement=UNIT_METER,
@@ -85,7 +85,7 @@ async def to_code(config: ConfigType) -> None:
         await cg.register_parented(n, config[CONF_LD2460_ID])
         cg.add(ld2460_component.set_installation_angle_number(n))
 
-    if det_dist_config := config.get(CONF_DETECTION_DISTANCE):
+    if det_dist_config := config.get(CONF_MAX_DETECTION_DISTANCE):
         n = await number.new_number(
             det_dist_config,
             min_value=0.1,

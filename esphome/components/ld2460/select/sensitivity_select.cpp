@@ -4,7 +4,7 @@ namespace esphome::ld2460 {
 
 void SensitivitySelect::control(size_t index) {
   this->publish_state(index);
-  this->parent_->set_sensitivity(this->at(index)->c_str());
+  this->parent_->set_sensitivity(this->option_at(index));
 }
 
 }  // namespace esphome::ld2460

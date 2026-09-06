@@ -4,7 +4,7 @@ namespace esphome::ld2460 {
 
 void BaudRateSelect::control(size_t index) {
   this->publish_state(index);
-  this->parent_->set_baud_rate(this->at(index)->c_str());
+  this->parent_->set_baud_rate(this->option_at(index));
 }
 
 }  // namespace esphome::ld2460
