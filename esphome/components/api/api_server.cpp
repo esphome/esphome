@@ -138,6 +138,9 @@ void APIServer::setup() {
 }
 
 void APIServer::loop() {
+#ifdef USE_API_NOISE
+  this->prepare_spare_ephemeral_();
+#endif
   // Accept new clients only if the socket exists and has incoming connections
   if (this->socket_ && this->socket_->ready()) {
     this->accept_new_connections_();
@@ -187,6 +190,28 @@ void APIServer::loop() {
     }
   }
 }
+
+#ifdef USE_API_NOISE
+// Refill the spare ephemeral key while nobody is waiting for it: not before
+// the network is up, and not while an api client is still in its handshake
+// (an OTA handshake is not visible here; it took the previous spare and
+// pays the refill instead, no worse than generating its own key). The
+// generation blocks the loop for about 60 ms on ESP8266, over the 50 ms
+// blocking warning, so the api component's warning threshold ratchets up
+// on the first refill; the same generation used to run inside the
+// handshake, where it tripped the warning for longer.
+void APIServer::prepare_spare_ephemeral_() {
+  if (noise::has_spare_ephemeral() || !network::is_connected()) {
+    return;
+  }
+  for (auto &client : this->active_clients()) {
+    if (!client->is_connection_setup()) {
+      return;
+    }
+  }
+  noise::prepare_spare_ephemeral();
+}
+#endif
 
 void APIServer::remove_client_(uint8_t client_index) {
   auto &client = this->clients_[client_index];

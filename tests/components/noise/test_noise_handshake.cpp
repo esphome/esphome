@@ -3,6 +3,7 @@
 #include <cstring>
 
 #include <noise/protocol.h>
+#include <sodium.h>
 
 #include "esphome/components/noise/noise.h"
 #include "esphome/components/noise/noise_handshake.h"
@@ -153,6 +154,61 @@ TEST(NoiseResponderHandshakeTest, FullHandshakeAndTransportRoundTrip) {
   ASSERT_EQ(mbuf.size, sizeof(PLAINTEXT));
   EXPECT_EQ(std::memcmp(frame, PLAINTEXT, sizeof(PLAINTEXT)), 0);
 
+  noise_cipherstate_free(send_cipher);
+  noise_cipherstate_free(recv_cipher);
+}
+
+TEST(SpareEphemeralTest, EmptySlotHandsOutNothing) {
+  ephemeral_keypair_t out;
+  // Drain whatever an earlier test left behind, then the slot must stay empty
+  take_spare_ephemeral(out);
+  EXPECT_FALSE(has_spare_ephemeral());
+  EXPECT_FALSE(take_spare_ephemeral(out));
+}
+
+TEST(SpareEphemeralTest, KeyPairIsHandedOutExactlyOnce) {
+  ephemeral_keypair_t out;
+  take_spare_ephemeral(out);
+  prepare_spare_ephemeral();
+  ASSERT_TRUE(has_spare_ephemeral());
+  ASSERT_TRUE(take_spare_ephemeral(out));
+  // Taken once: the slot is empty and a second take gets nothing
+  EXPECT_FALSE(has_spare_ephemeral());
+  EXPECT_FALSE(take_spare_ephemeral(out));
+
+  // The pair is consistent: the public half is the base point multiple of the private half
+  uint8_t check[EPHEMERAL_PUBLIC_KEY_SIZE];
+  ASSERT_EQ(crypto_scalarmult_curve25519_base(check, out.data()), 0);
+  EXPECT_EQ(std::memcmp(check, out.data() + EPHEMERAL_PRIVATE_KEY_SIZE, EPHEMERAL_PUBLIC_KEY_SIZE), 0);
+}
+
+TEST(SpareEphemeralTest, SuppliedKeyPairCompletesHandshakeAndIsTheKeyOnTheWire) {
+  ephemeral_keypair_t spare;
+  take_spare_ephemeral(spare);
+  prepare_spare_ephemeral();
+  ASSERT_TRUE(take_spare_ephemeral(spare));
+
+  const psk_t psk = make_psk(7);
+  NoiseResponderHandshake responder;
+  ASSERT_EQ(responder.init(ctx_for(psk), PROLOGUE, sizeof(PROLOGUE), spare.data()), 0);
+
+  Initiator initiator(psk, PROLOGUE, sizeof(PROLOGUE));
+  uint8_t msg[MAX_HANDSHAKE_SIZE];
+  size_t msg_len = initiator.write_message(msg, sizeof(msg));
+  ASSERT_EQ(responder.read_message(msg, msg_len), 0);
+
+  size_t reply_len = 0;
+  ASSERT_EQ(responder.write_message(msg, sizeof(msg), reply_len), 0);
+  // The responder's message starts with its ephemeral public key
+  ASSERT_GE(reply_len, static_cast<size_t>(EPHEMERAL_PUBLIC_KEY_SIZE));
+  EXPECT_EQ(std::memcmp(msg, spare.data() + EPHEMERAL_PRIVATE_KEY_SIZE, EPHEMERAL_PUBLIC_KEY_SIZE), 0);
+
+  ASSERT_EQ(initiator.read_message(msg, reply_len), 0);
+  initiator.split();
+  NoiseCipherState *send_cipher = nullptr;
+  NoiseCipherState *recv_cipher = nullptr;
+  ASSERT_EQ(responder.split(send_cipher, recv_cipher), 0);
+  ASSERT_NE(send_cipher, nullptr);
   noise_cipherstate_free(send_cipher);
   noise_cipherstate_free(recv_cipher);
 }

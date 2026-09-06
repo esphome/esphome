@@ -20,7 +20,8 @@ NoiseResponderHandshake::~NoiseResponderHandshake() {
   }
 }
 
-int NoiseResponderHandshake::init(const NoiseContext &ctx, const uint8_t *prologue, size_t prologue_len) {
+int NoiseResponderHandshake::init(const NoiseContext &ctx, const uint8_t *prologue, size_t prologue_len,
+                                  const uint8_t *ephemeral_keypair) {
   if (this->handshake_ != nullptr) {
     noise_handshakestate_free(this->handshake_);
     this->handshake_ = nullptr;
@@ -56,6 +57,15 @@ int NoiseResponderHandshake::init(const NoiseContext &ctx, const uint8_t *prolog
   if (err != 0) {
     HANDSHAKE_STEP_LOG("noise_handshakestate_set_prologue", err);
     return this->fail_init_(err);
+  }
+  if (ephemeral_keypair != nullptr) {
+    err = noise_handshakestate_set_local_ephemeral(this->handshake_, ephemeral_keypair, EPHEMERAL_PRIVATE_KEY_SIZE,
+                                                   ephemeral_keypair + EPHEMERAL_PRIVATE_KEY_SIZE,
+                                                   EPHEMERAL_PUBLIC_KEY_SIZE);
+    // Not fatal: the handshake generates its own key when the spare is refused
+    if (err != 0) {
+      HANDSHAKE_STEP_LOG("noise_handshakestate_set_local_ephemeral", err);
+    }
   }
   err = noise_handshakestate_start(this->handshake_);
   if (err != 0) {

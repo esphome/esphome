@@ -1,12 +1,14 @@
 #include "noise.h"
 #ifdef USE_NOISE
 #include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 #include <algorithm>
 #include <cstring>
 
 #include <noise/protocol.h>
+#include <sodium.h>
 
 #ifdef USE_ESP8266
 #include <pgmspace.h>
@@ -23,6 +25,38 @@ void NoiseContext::load_psk(psk_t &out) const {
   }
   progmem_memcpy(out.data(), this->psk_, out.size());
 }
+
+#ifdef USE_API_NOISE
+static uint8_t spare_ephemeral[EPHEMERAL_KEYPAIR_SIZE];  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+static bool spare_ephemeral_ready = false;               // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+
+bool has_spare_ephemeral() { return spare_ephemeral_ready; }
+
+void prepare_spare_ephemeral() {
+  uint8_t *private_key = spare_ephemeral;
+  uint8_t *public_key = spare_ephemeral + EPHEMERAL_PRIVATE_KEY_SIZE;
+  // Same generation as noise-c's curve25519 backend: random bytes, X25519
+  // clamping, then the public key. A random source failure leaves the slot
+  // empty; the handshake then generates its own key.
+  if (!random_bytes(private_key, EPHEMERAL_PRIVATE_KEY_SIZE)) {
+    return;
+  }
+  private_key[0] &= 0xF8;
+  private_key[EPHEMERAL_PRIVATE_KEY_SIZE - 1] = (private_key[EPHEMERAL_PRIVATE_KEY_SIZE - 1] & 0x7F) | 0x40;
+  crypto_scalarmult_curve25519_base(public_key, private_key);
+  spare_ephemeral_ready = true;
+}
+
+bool take_spare_ephemeral(ephemeral_keypair_t &out) {
+  if (!spare_ephemeral_ready) {
+    return false;
+  }
+  std::memcpy(out.data(), spare_ephemeral, EPHEMERAL_KEYPAIR_SIZE);
+  sodium_memzero(spare_ephemeral, EPHEMERAL_KEYPAIR_SIZE);
+  spare_ephemeral_ready = false;
+  return true;
+}
+#endif  // USE_API_NOISE
 
 const LogString *noise_err_to_logstr(int err) {
   if (err == NOISE_ERROR_NO_MEMORY)

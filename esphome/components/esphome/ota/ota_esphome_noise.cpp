@@ -8,6 +8,7 @@
 
 #include <cstring>
 #include <new>
+#include <sodium.h>
 
 #ifdef USE_ESP8266
 #include <pgmspace.h>
@@ -65,9 +66,21 @@ bool ESPHomeOTAComponent::noise_start_session_(uint8_t server_feature_flags) {
   *p++ = ota::OTA_RESPONSE_FEATURE_FLAGS;
   *p++ = server_feature_flags;
 
+  // The api server keeps the spare; without an encrypted api there is none
+  const uint8_t *ephemeral = nullptr;
+#ifdef USE_API_NOISE
+  noise::ephemeral_keypair_t spare;
+  if (this->noise_ != nullptr && noise::take_spare_ephemeral(spare)) {
+    ephemeral = spare.data();
+  }
+#endif
   // The caller only starts a session when the context holds a key
-  int err = this->noise_ == nullptr ? NOISE_ERROR_NO_MEMORY
-                                    : this->noise_->handshake.init(this->noise_context_(), prologue, sizeof(prologue));
+  int err = this->noise_ == nullptr
+                ? NOISE_ERROR_NO_MEMORY
+                : this->noise_->handshake.init(this->noise_context_(), prologue, sizeof(prologue), ephemeral);
+#ifdef USE_API_NOISE
+  sodium_memzero(spare.data(), spare.size());
+#endif
   if (err != 0) {
     // Raw noise codes throughout: the name table would cost flash in builds
     // where only the OTA uses noise
