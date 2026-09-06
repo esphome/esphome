@@ -1100,11 +1100,12 @@ void OpenTherm42Hub::handle_response_(const Frame &frame) {
         this->invalidate_response_(RequestKind::BOILER_FAN_SPEED);
         return;
       }
+      // §5.3.4 ID 35: wire value is in Hz (RPM/60); convert to RPM to match the sensor's unit.
       if (this->boiler_fan_speed_setpoint_sensor_ != nullptr) {
-        this->boiler_fan_speed_setpoint_sensor_->publish_state(frame.value_hb);
+        this->boiler_fan_speed_setpoint_sensor_->publish_state(frame.value_hb * 60);
       }
       if (this->boiler_fan_speed_sensor_ != nullptr) {
-        this->boiler_fan_speed_sensor_->publish_state(frame.value_lb);
+        this->boiler_fan_speed_sensor_->publish_state(frame.value_lb * 60);
       }
       return;
 

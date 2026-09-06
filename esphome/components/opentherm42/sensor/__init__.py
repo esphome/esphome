@@ -5,7 +5,6 @@ from esphome.const import (
     CONF_INDEX,
     DEVICE_CLASS_CURRENT,
     DEVICE_CLASS_DURATION,
-    DEVICE_CLASS_FREQUENCY,
     DEVICE_CLASS_HUMIDITY,
     DEVICE_CLASS_POWER,
     DEVICE_CLASS_VOLUME_FLOW_RATE,
@@ -283,18 +282,19 @@ TYPES: dict[str, cv.Schema] = {
     ),
     # §5.3.4 Class 4, ID 34: Boiler heat exchanger temperature (degrees C).
     CONF_SENSOR_AND_INFORMATIONAL_DATA_BOILER_HEAT_EXCHANGER_TEMPERATURE: _TEMPERATURE_SCHEMA,
-    # §5.3.4 Class 4, ID 35 HB: Actual boiler fan speed Setpoint in Hz (RPM/60), 0..255.
+    # §5.3.4 Class 4, ID 35 HB: Actual boiler fan speed Setpoint, wire value in Hz (RPM/60) converted to
+    # RPM in hub.cpp -- 0..255 Hz -> 0..15300 RPM. No device_class: HA's number/sensor device classes
+    # don't accept RPM as a valid unit (same reasoning as ids 84/85 below).
     CONF_SENSOR_AND_INFORMATIONAL_DATA_BOILER_FAN_SPEED_SETPOINT: sensor.sensor_schema(
-        unit_of_measurement="Hz",
+        unit_of_measurement=UNIT_REVOLUTIONS_PER_MINUTE,
         accuracy_decimals=0,
-        device_class=DEVICE_CLASS_FREQUENCY,
         state_class="measurement",
     ),
-    # §5.3.4 Class 4, ID 35 LB: Actual boiler fan speed in Hz (RPM/60), 0..255.
+    # §5.3.4 Class 4, ID 35 LB: Actual boiler fan speed, same Hz (RPM/60) -> RPM conversion as the
+    # Setpoint above.
     CONF_SENSOR_AND_INFORMATIONAL_DATA_BOILER_FAN_SPEED: sensor.sensor_schema(
-        unit_of_measurement="Hz",
+        unit_of_measurement=UNIT_REVOLUTIONS_PER_MINUTE,
         accuracy_decimals=0,
-        device_class=DEVICE_CLASS_FREQUENCY,
         state_class="measurement",
     ),
     # §5.3.4 Class 4, ID 36: Flame current -- electrical current through the burner flame (uA, 0..127).
