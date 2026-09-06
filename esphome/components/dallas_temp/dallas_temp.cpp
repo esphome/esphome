@@ -156,9 +156,12 @@ float DallasTemperatureSensor::get_temp_c_() {
       break;
   }
   // undocumented test for powerup measurement of 85
+  // https://github.com/cpetrich/counterfeit_DS18B20#solution-to-the-85-c-problem
   if ((this->address_ & 0xff) == DALLAS_MODEL_DS18B20) {
-    if ((temp == 85 * 16) && (this->scratch_pad_[6] == 0xc))
+    if ((temp == 85 * 16) && (this->scratch_pad_[6] == 0xc)) {
+      ESP_LOGD(TAG, "dropping reading caused by sensor reset");
       return NAN;
+    }
   }
   return temp / 16.0f;
 }
