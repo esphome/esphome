@@ -1,0 +1,331 @@
+"""Translate `restore_mode:`/`restore_state:` config into the single runtime state
+callback that `LightState` actually understands: a `[](LightStateRTCState &s, bool
+restored)` lambda, plus a `save_enabled` flag. `restored` is true only when a
+persisted state actually loaded, in which case `s` already holds the loaded values;
+otherwise `s` is freshly default-constructed. Both the 8 legacy `restore_mode:`
+values and the new `restore_state:` key are just different ways to build the
+statements that go in each branch of that one callback.
+"""
+
+from collections.abc import Callable
+from dataclasses import dataclass
+from typing import Any
+
+import esphome.codegen as cg
+import esphome.config_validation as cv
+from esphome.const import (
+    CONF_BLUE,
+    CONF_BRIGHTNESS,
+    CONF_COLD_WHITE,
+    CONF_COLOR_BRIGHTNESS,
+    CONF_COLOR_MODE,
+    CONF_COLOR_TEMPERATURE,
+    CONF_GREEN,
+    CONF_RED,
+    CONF_STATE,
+    CONF_WARM_WHITE,
+    CONF_WHITE,
+)
+from esphome.core import Lambda
+from esphome.types import ConfigType
+
+from .automation import validate_light_state
+from .types import COLOR_MODES, ColorMode, LightStateRTCState
+
+RESTORE_STATE_KEEP = "KEEP"
+RESTORE_STATE_INVERT = "INVERT"
+RESTORE_STATE_INITIAL = "INITIAL"
+RESTORE_STATE_ALL = "ALL"
+RESTORE_STATE_NONE = "NONE"
+
+
+@dataclass(frozen=True)
+class LegacyRestoreMode:
+    cold_boot_state: bool
+    restore_action: bool | str | None  # None = no override, "INVERT", or force-to-bool
+    save_enabled: bool
+
+
+LEGACY_RESTORE_MODES: dict[str, LegacyRestoreMode] = {
+    "RESTORE_DEFAULT_OFF": LegacyRestoreMode(False, None, True),
+    "RESTORE_DEFAULT_ON": LegacyRestoreMode(True, None, True),
+    "ALWAYS_OFF": LegacyRestoreMode(False, None, False),
+    "ALWAYS_ON": LegacyRestoreMode(True, None, False),
+    "RESTORE_INVERTED_DEFAULT_OFF": LegacyRestoreMode(
+        False, RESTORE_STATE_INVERT, True
+    ),
+    "RESTORE_INVERTED_DEFAULT_ON": LegacyRestoreMode(True, RESTORE_STATE_INVERT, True),
+    "RESTORE_AND_OFF": LegacyRestoreMode(False, False, True),
+    "RESTORE_AND_ON": LegacyRestoreMode(True, True, True),
+}
+
+# Config key -> LightStateRTCState member, for every field other than `state`
+# (config key differs from the struct member only for color_temperature -> color_temp).
+_STATE_STRUCT_FIELDS: tuple[tuple[str, str], ...] = (
+    (CONF_COLOR_MODE, "color_mode"),
+    (CONF_BRIGHTNESS, "brightness"),
+    (CONF_COLOR_BRIGHTNESS, "color_brightness"),
+    (CONF_RED, "red"),
+    (CONF_GREEN, "green"),
+    (CONF_BLUE, "blue"),
+    (CONF_WHITE, "white"),
+    (CONF_COLOR_TEMPERATURE, "color_temp"),
+    (CONF_COLD_WHITE, "cold_white"),
+    (CONF_WARM_WHITE, "warm_white"),
+)
+_ALL_STATE_FIELDS: tuple[tuple[str, str], ...] = (
+    (CONF_STATE, "state"),
+    *_STATE_STRUCT_FIELDS,
+)
+# Canonical struct-member order, used only to make generated code deterministic --
+# these are independent field assignments, so the actual order never affects behavior.
+_MEMBER_ORDER: tuple[str, ...] = tuple(member for _, member in _ALL_STATE_FIELDS)
+
+# LightStateRTCState's own member-initializer defaults, used to resolve
+# restore_state:'s INITIAL sentinel for a field initial_state: doesn't set either.
+_STRUCT_DEFAULTS: dict[str, Any] = {
+    "state": False,
+    "color_mode": ColorMode.UNKNOWN,
+    "brightness": 1.0,
+    "color_brightness": 1.0,
+    "red": 1.0,
+    "green": 1.0,
+    "blue": 1.0,
+    "white": 1.0,
+    "color_temp": 1.0,
+    "cold_white": 1.0,
+    "warm_white": 1.0,
+}
+
+# A pending `s.<member> = <value>;` statement, tagged with the member it writes.
+StateStatement = tuple[str, str]
+
+
+def _partition_state_statements(
+    initial_statements: list[StateStatement], restore_statements: list[StateStatement]
+) -> list[str]:
+    """Split initial/restore statements into what must run unconditionally versus what
+    depends on `restored`, and render the resulting lambda body lines.
+
+    Fields whose statement is identical in both branches (e.g. RESTORE_AND_ON's
+    cold-boot and restore-time statements are both "s.state = true;") are hoisted out
+    of the `restored` branch entirely, so only the fields that actually depend on
+    `restored` end up inside it -- down to no branch at all when every field overlaps.
+    A member appearing more than once in the same list keeps only its last statement
+    (a plain, side-effect-free assignment): matches sequential-execution semantics,
+    since an earlier write to the same member is always fully overwritten by a later
+    one in the original code this replaces.
+    """
+    # dict() over (member, statement) pairs keeps the *last* entry per member.
+    initial_map = dict(initial_statements)
+    restore_map = dict(restore_statements)
+
+    common: list[str] = []
+    only_initial: list[str] = []
+    only_restore: list[str] = []
+    for member in _MEMBER_ORDER:
+        initial_stmt = initial_map.get(member)
+        restore_stmt = restore_map.get(member)
+        if initial_stmt is not None and initial_stmt == restore_stmt:
+            common.append(initial_stmt)
+            continue
+        if initial_stmt is not None:
+            only_initial.append(initial_stmt)
+        if restore_stmt is not None:
+            only_restore.append(restore_stmt)
+
+    body = common
+    if only_restore and only_initial:
+        body += ["if (restored) {", *only_restore, "} else {", *only_initial, "}"]
+    elif only_restore:
+        body += ["if (restored) {", *only_restore, "}"]
+    elif only_initial:
+        body += ["if (!restored) {", *only_initial, "}"]
+    return body
+
+
+async def _build_state_lambda(
+    initial_statements: list[StateStatement], restore_statements: list[StateStatement]
+) -> Lambda | None:
+    """A stateless `[](LightStateRTCState &s, bool restored) { ... }` for setup()-time
+    state mutation, or None if there's nothing to apply in either branch.
+
+    `restored` is true only when a persisted state actually loaded -- `s` then already
+    holds the loaded values, and `restore_statements` overrides specific fields on top
+    of them. Otherwise `s` is freshly default-constructed and `initial_statements` sets
+    the cold-boot defaults. Combining both into one function (rather than two separate
+    callbacks) saves one function pointer's worth of RAM per light.
+    """
+    if not initial_statements and not restore_statements:
+        return None
+    body = _partition_state_statements(initial_statements, restore_statements)
+    args = [(LightStateRTCState.operator("ref"), "s"), (cg.bool_, "restored")]
+    return await cg.process_lambda(Lambda("\n".join(body)), args, return_type=cg.void)
+
+
+def _initial_state_statements(
+    initial_state_config: ConfigType | None,
+) -> list[StateStatement]:
+    """One `s.<member> = <value>;` per field the user actually set in `initial_state:`.
+
+    Fields the user didn't set are skipped: they already equal LightStateRTCState's own
+    member-initializer defaults.
+    """
+    if not initial_state_config:
+        return []
+    return [
+        (member, f"s.{member} = {cg.safe_exp(value)};")
+        for conf_key, member in _ALL_STATE_FIELDS
+        if (value := initial_state_config.get(conf_key)) is not None
+    ]
+
+
+def _resolve_initial_value(
+    conf_key: str, member: str, initial_state_config: ConfigType | None
+) -> Any:
+    """The value `restore_state:`'s `INITIAL` sentinel resolves to for one field:
+    whatever `initial_state:` sets for it, or `LightStateRTCState`'s own
+    member-initializer default if `initial_state:` doesn't set it either."""
+    if (
+        initial_state_config is not None
+        and (value := initial_state_config.get(conf_key)) is not None
+    ):
+        return value
+    return _STRUCT_DEFAULTS[member]
+
+
+def _restore_state_statements(
+    restore_state_config: ConfigType, initial_state_config: ConfigType | None
+) -> list[StateStatement]:
+    """One `s.<member> = <value>;` per field the user overrode in `restore_state:`
+    (i.e. didn't leave as `KEEP`). `INITIAL` resolves to the same value `initial_state:`
+    would apply at cold boot, so it always wins regardless of what was restored.
+    """
+    statements: list[StateStatement] = []
+    state = restore_state_config[CONF_STATE]
+    if state == RESTORE_STATE_INVERT:
+        statements.append(("state", "s.state = !s.state;"))
+    elif state == RESTORE_STATE_INITIAL:
+        value = _resolve_initial_value(CONF_STATE, "state", initial_state_config)
+        statements.append(("state", f"s.state = {cg.safe_exp(value)};"))
+    elif state != RESTORE_STATE_KEEP:
+        statements.append(("state", f"s.state = {cg.safe_exp(state)};"))
+    for conf_key, member in _STATE_STRUCT_FIELDS:
+        value = restore_state_config[conf_key]
+        if value == RESTORE_STATE_INITIAL:
+            value = _resolve_initial_value(conf_key, member, initial_state_config)
+        elif value == RESTORE_STATE_KEEP:
+            continue
+        statements.append((member, f"s.{member} = {cg.safe_exp(value)};"))
+    return statements
+
+
+def _legacy_restore_statements(mode: LegacyRestoreMode) -> list[StateStatement]:
+    if mode.restore_action is None:
+        return []
+    if mode.restore_action == RESTORE_STATE_INVERT:
+        return [("state", "s.state = !s.state;")]
+    return [("state", f"s.state = {str(mode.restore_action).lower()};")]
+
+
+def _legacy_cold_boot_statements(
+    mode: LegacyRestoreMode, initial_state_config: ConfigType | None
+) -> list[StateStatement]:
+    """The cold-boot `s.state = ...;` override, appended after the user's own
+    `initial_state:` statements so it wins at cold boot (matching the original
+    switch-based behavior).
+
+    Skipped when it would be a no-op: `LightStateRTCState`'s own member-initializer
+    already defaults `state` to `False`, so forcing it to `False` again only matters
+    when `initial_state:` explicitly set a different value that must be overridden.
+    """
+    existing_state = (
+        initial_state_config.get(CONF_STATE) if initial_state_config else None
+    )
+    if existing_state is None:
+        if not mode.cold_boot_state:
+            return []  # already matches LightStateRTCState's own default
+    elif existing_state == mode.cold_boot_state:
+        return []  # initial_state: already set exactly this value
+    return [("state", f"s.state = {str(mode.cold_boot_state).lower()};")]
+
+
+def _initial_state_overridden_by_legacy_mode(
+    mode: LegacyRestoreMode, initial_state_config: ConfigType | None
+) -> bool:
+    """Whether the user explicitly set `initial_state: {state: ...}` to a value this
+    legacy mode's cold-boot force will silently override -- worth a warning, since
+    `restore_mode:` (unlike `restore_state:`) always wins regardless of what the user
+    asked `initial_state:` for."""
+    if initial_state_config is None or CONF_STATE not in initial_state_config:
+        return False
+    return initial_state_config[CONF_STATE] != mode.cold_boot_state
+
+
+def _keep_or(validator: Callable[[Any], Any]) -> Callable[[Any], Any]:
+    """Wrap a plain (non-templatable) validator to also accept the case-insensitive
+    `KEEP`/`INITIAL` sentinels, meaning "leave this field as loaded" and "use
+    initial_state: (or its own default) for this field" respectively."""
+
+    def validate(value: Any) -> Any:
+        if isinstance(value, str):
+            upper = value.strip().upper()
+            if upper in (RESTORE_STATE_KEEP, RESTORE_STATE_INITIAL):
+                return upper
+        return validator(value)
+
+    return validate
+
+
+def _validate_restore_state_state(value: Any) -> str | bool:
+    if isinstance(value, str):
+        upper = value.strip().upper()
+        if upper in (RESTORE_STATE_KEEP, RESTORE_STATE_INVERT, RESTORE_STATE_INITIAL):
+            return upper
+    return validate_light_state(value)
+
+
+_RESTORE_STATE_FIELDS_SCHEMA = cv.Schema(
+    {
+        cv.Optional(
+            CONF_STATE, default=RESTORE_STATE_KEEP
+        ): _validate_restore_state_state,
+        cv.Optional(CONF_COLOR_MODE, default=RESTORE_STATE_KEEP): _keep_or(
+            cv.enum(COLOR_MODES, upper=True, space="_")
+        ),
+        cv.Optional(CONF_BRIGHTNESS, default=RESTORE_STATE_KEEP): _keep_or(
+            cv.percentage
+        ),
+        cv.Optional(CONF_COLOR_BRIGHTNESS, default=RESTORE_STATE_KEEP): _keep_or(
+            cv.percentage
+        ),
+        cv.Optional(CONF_RED, default=RESTORE_STATE_KEEP): _keep_or(cv.percentage),
+        cv.Optional(CONF_GREEN, default=RESTORE_STATE_KEEP): _keep_or(cv.percentage),
+        cv.Optional(CONF_BLUE, default=RESTORE_STATE_KEEP): _keep_or(cv.percentage),
+        cv.Optional(CONF_WHITE, default=RESTORE_STATE_KEEP): _keep_or(cv.percentage),
+        cv.Optional(CONF_COLOR_TEMPERATURE, default=RESTORE_STATE_KEEP): _keep_or(
+            cv.color_temperature
+        ),
+        cv.Optional(CONF_COLD_WHITE, default=RESTORE_STATE_KEEP): _keep_or(
+            cv.percentage
+        ),
+        cv.Optional(CONF_WARM_WHITE, default=RESTORE_STATE_KEEP): _keep_or(
+            cv.percentage
+        ),
+    }
+)
+
+
+def RESTORE_STATE_SCHEMA(value: Any) -> ConfigType | str:
+    """`restore_state:` accepts a mapping of per-field overrides, or one of two
+    case-insensitive shorthands: `all` (equivalent to `{}` -- restore every field
+    as-is, with no overrides) or `none` (equivalent to omitting `restore_state:`
+    entirely -- no persistence at all, same as not configuring restoring at all).
+    """
+    if isinstance(value, str):
+        upper = value.strip().upper()
+        if upper == RESTORE_STATE_ALL:
+            value = {}
+        elif upper == RESTORE_STATE_NONE:
+            return RESTORE_STATE_NONE
+    return _RESTORE_STATE_FIELDS_SCHEMA(value)

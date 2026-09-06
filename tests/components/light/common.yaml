@@ -157,10 +157,43 @@ light:
     id: test_binary_light
     name: Binary Light
     output: light_test_binary
+    restore_mode: RESTORE_AND_ON
     effects:
       - strobe:
     on_state:
       - logger.log: Binary light state changed
+  # Test restore_state: all (shorthand for {} -- restore everything, no overrides)
+  - platform: binary
+    id: test_restore_state_keep
+    name: Restore State Keep
+    output: light_test_restore_state_keep
+    restore_state: all
+  # Test restore_state: with explicit overrides
+  - platform: binary
+    id: test_restore_state_override
+    name: Restore State Override
+    output: light_test_restore_state_override
+    restore_state:
+      state: INVERT
+      brightness: 50%
+  # Test restore_state: none (explicit shorthand for "no restoring at all")
+  - platform: binary
+    id: test_restore_state_none
+    name: Restore State None
+    output: light_test_restore_state_none
+    restore_state: none
+    initial_state:
+      state: true
+  # Test restore_state: with INITIAL fields (copy initial_state:'s value on restore)
+  - platform: binary
+    id: test_restore_state_initial
+    name: Restore State Initial
+    output: light_test_restore_state_initial
+    initial_state:
+      state: true
+    restore_state:
+      state: INITIAL
+      brightness: INITIAL
   - platform: monochromatic
     id: test_monochromatic_light
     name: Monochromatic Light

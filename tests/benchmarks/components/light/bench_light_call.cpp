@@ -39,7 +39,6 @@ static void setup_rgbww_light(BenchLightOutput &output, TestLightState &light) {
   light.set_default_transition_length(0);
   light.set_gamma_correct(2.8f);
   light.set_gamma_table(bench_gamma_2_8_fwd);
-  light.set_restore_mode(light::LIGHT_ALWAYS_OFF);
 }
 
 // --- LightCall::perform() with instant RGB color change (Home Assistant API path) ---
