@@ -54,17 +54,18 @@ TEST(UnavoidableBlockingScope, NestedScopesExcuseTheOuterSpanOnce) {
 }
 
 namespace {
-// Static: the guard publishes the component to App and nothing clears it
+// Static: the guard publishes the component to App and nothing clears it.
+// One instance per test, since a ratcheted threshold is permanent
 class DummyComponent : public Component {};
-DummyComponent &blocking_test_component() {
-  static DummyComponent component;
-  return component;
+DummyComponent &blocking_test_component(size_t index) {
+  static DummyComponent components[2];
+  return components[index];
 }
 }  // namespace
 
 // The excused stretch must neither warn nor ratchet the component's threshold
 TEST(UnavoidableBlockingScope, ExcusedStretchDoesNotRatchetTheThreshold) {
-  DummyComponent &component = blocking_test_component();
+  DummyComponent &component = blocking_test_component(0);
   uint32_t threshold_before = 0;
   component.should_warn_of_blocking(0, threshold_before);
   {
@@ -78,6 +79,25 @@ TEST(UnavoidableBlockingScope, ExcusedStretchDoesNotRatchetTheThreshold) {
   uint32_t threshold_after = 0;
   component.should_warn_of_blocking(0, threshold_after);
   EXPECT_EQ(threshold_after, threshold_before);
+}
+
+// Work outside the scope is still measured and still ratchets
+TEST(UnavoidableBlockingScope, WorkOutsideTheScopeStillRatchetsTheThreshold) {
+  DummyComponent &component = blocking_test_component(1);
+  uint32_t threshold_before = 0;
+  component.should_warn_of_blocking(0, threshold_before);
+  {
+    LoopBlockingGuard guard(&component, nullptr, millis());
+    {
+      UnavoidableBlockingScope scope;
+      delay(20);
+    }
+    delay(WARN_IF_BLOCKING_OVER_CS * 10U + 20);
+    guard.finish();
+  }
+  uint32_t threshold_after = 0;
+  component.should_warn_of_blocking(0, threshold_after);
+  EXPECT_GT(threshold_after, threshold_before);
 }
 
 }  // namespace esphome
