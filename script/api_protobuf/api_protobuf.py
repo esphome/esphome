@@ -804,7 +804,7 @@ class BoolType(VarintTypeMixin, TypeInfo):
     _varint_max_bits = 1
     cpp_type = "bool"
     default_value = "false"
-    decode_expr = "value.as_varint() != 0"
+    decode_expr = "value.as_bool()"
     encode_func = "encode_bool"
     wire_type = WireType.VARINT  # Uses wire type 0
 
@@ -2658,16 +2658,16 @@ def build_message_type(
 
     cpp = ""
     if decode:
-        o = f"bool {desc.name}::decode_field(uint32_t tag, const uint8_t *data, proto_varint_value_t scalar) {{\n"
+        o = f"void {desc.name}::decode_field(uint32_t tag, const uint8_t *data, proto_varint_value_t scalar) {{\n"
         o += "  const ProtoFieldValue value(data, scalar);\n"
         o += "  switch (tag) {\n"
         o += indent("\n".join(decode), "    ") + "\n"
-        o += "    default: return false;\n"
+        o += "    default:\n"
+        o += "      break;\n"
         o += "  }\n"
-        o += "  return true;\n"
         o += "}\n"
         cpp += o
-        prot = "bool decode_field(uint32_t tag, const uint8_t *data, proto_varint_value_t scalar) override;"
+        prot = "void decode_field(uint32_t tag, const uint8_t *data, proto_varint_value_t scalar) override;"
         protected_content.insert(0, prot)
 
     # Generate custom decode() override for messages with FixedVector fields

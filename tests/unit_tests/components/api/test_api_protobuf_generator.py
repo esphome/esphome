@@ -199,7 +199,7 @@ def _decode_case(field_type: int, number: int) -> str:
     ("field_type", "number", "wire_type", "accessor"),
     [
         (UINT32, 2, "WIRE_TYPE_VARINT", "value.as_varint()"),
-        (BOOL, 3, "WIRE_TYPE_VARINT", "value.as_varint() != 0"),
+        (BOOL, 3, "WIRE_TYPE_VARINT", "value.as_bool()"),
         (STRING, 1, "WIRE_TYPE_LENGTH_DELIMITED", "value.data()"),
         (FLOAT, 4, "WIRE_TYPE_FIXED32", "value.as_float()"),
         (FIXED32, 5, "WIRE_TYPE_FIXED32", "value.as_fixed32()"),
@@ -223,12 +223,12 @@ def test_message_gets_a_single_decode_field_override() -> None:
     desc.field.add(name="count", number=2, type=UINT32)
     desc.field.add(name="level", number=3, type=FLOAT)
     header, cpp, _ = build_message_type(desc, {}, {"Mixed": SOURCE_CLIENT})
-    decl = "bool decode_field(uint32_t tag, const uint8_t *data, proto_varint_value_t scalar) override;"
+    decl = "void decode_field(uint32_t tag, const uint8_t *data, proto_varint_value_t scalar) override;"
     assert header.count(decl) == 1
     assert "decode_varint" not in header and "decode_length" not in header
     assert (
         cpp.count(
-            "bool Mixed::decode_field(uint32_t tag, const uint8_t *data, proto_varint_value_t scalar) {"
+            "void Mixed::decode_field(uint32_t tag, const uint8_t *data, proto_varint_value_t scalar) {"
         )
         == 1
     )
