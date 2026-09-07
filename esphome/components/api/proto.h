@@ -597,6 +597,7 @@ class ProtoEncode {
     return buffer.get_pos();
   }
 };
+#undef PROTO_OUTLINE_FOR_SIZE
 
 #ifdef HAS_PROTO_MESSAGE_DUMP
 /**
