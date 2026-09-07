@@ -1,5 +1,6 @@
 #include "hub.h"
 #include <algorithm>
+#include <cmath>
 #include "esphome/core/controller_registry.h"
 #include "esphome/core/helpers.h"
 
@@ -24,8 +25,12 @@ static void invalidate_entity(number::Number *entity) {
   if (entity == nullptr) {
     return;
   }
-  entity->set_has_state(false);
-  ControllerRegistry::notify_number_update(entity);
+  // number::Number isn't wired into ControllerRegistry in every ESPHome version this component
+  // needs to build against (confirmed missing in a real user's build even though it's present for
+  // sensor/binary_sensor/text_sensor/select) -- NaN is the long-standing, version-independent
+  // convention for "no value" on a float-based entity, and goes through the normal publish_state()
+  // path, which always notifies already-connected clients regardless of ESPHome version.
+  entity->publish_state(NAN);
 }
 static void invalidate_entity(text_sensor::TextSensor *entity) {
   if (entity == nullptr) {
