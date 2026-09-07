@@ -413,14 +413,8 @@ class ProtoEncode {
   }
   /// Unaligned little-endian store; __builtin_memcpy stays inline even under -fno-builtin-memcpy.
   static inline void ESPHOME_ALWAYS_INLINE write_fixed32_le(uint8_t *__restrict__ pos, uint32_t value) {
-#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
-    __builtin_memcpy(pos, &value, 4);
-#else
-    pos[0] = static_cast<uint8_t>(value);
-    pos[1] = static_cast<uint8_t>(value >> 8);
-    pos[2] = static_cast<uint8_t>(value >> 16);
-    pos[3] = static_cast<uint8_t>(value >> 24);
-#endif
+    const uint32_t le = convert_little_endian(value);
+    __builtin_memcpy(pos, &le, 4);
   }
   /// Write a precomputed tag byte + 32-bit value. Outlined on embedded: one copy beats inline stores per field.
   static PROTO_OUTLINE_FOR_SIZE uint8_t *write_tag_and_fixed32(uint8_t *__restrict__ pos PROTO_ENCODE_DEBUG_PARAM,
