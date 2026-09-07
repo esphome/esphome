@@ -752,10 +752,8 @@ class ProtoDecodableMessage : public ProtoMessage {
   ~ProtoDecodableMessage() = default;
   /// Store one decoded field. \p tag is the wire tag (field number and wire type), \p data points at
   /// the field payload and \p scalar is the varint or fixed32 value, or the payload length for a
-  /// length-delimited field. Three register arguments keep the shared loop free of spills; the
-  /// generated override wraps them in a ProtoFieldValue and keys its switch through
-  /// PROTO_DECODE_KEY. Overrides reject a field that arrived with a wire type other than the one it
-  /// declares. Return false for unknown or mismatched fields.
+  /// length-delimited field. Three register arguments keep the shared loop free of spills. Return
+  /// false for an unknown field or one that arrived with a wire type it does not declare.
   /// One virtual instead of one per wire type keeps each message's vtable at a single slot.
   // NOTE: wire type 1 (64-bit fixed) is not supported
   virtual bool decode_field(uint32_t tag, const uint8_t *data, proto_varint_value_t scalar) { return false; }
