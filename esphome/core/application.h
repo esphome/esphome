@@ -649,8 +649,10 @@ class LoopBlockingGuard {
 /// Only work timed by a LoopBlockingGuard is affected, that is a component's
 /// loop() or a scheduler callback; setup() is not timed, so the scope does
 /// nothing there. Main loop task only. The watchdog is not fed inside the
-/// scope, so the work must still finish within the watchdog timeout. Scopes
-/// may nest; the outermost one decides how much of the pass is left out.
+/// scope, so the work must finish within the watchdog timeout, or be paired
+/// with a watchdog::WatchdogManager that raises the timeout for the same
+/// stretch. Scopes may nest; the outermost one decides how much of the pass
+/// is left out.
 /// App.get_loop_component_start_time() reads later in the same pass return
 /// the moved start, so elapsed time across the scope needs millis().
 ///
