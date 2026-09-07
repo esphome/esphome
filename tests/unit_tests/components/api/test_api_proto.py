@@ -387,6 +387,6 @@ def test_generated_encode_calls_keep_the_cursor() -> None:
     dropped = [
         line
         for line in CPP_TEXT.splitlines()
-        if line.lstrip().startswith("ProtoEncode::")
+        if "ProtoEncode::" in line and "pos = ProtoEncode::" not in line
     ]
     assert not dropped, dropped[:5]
