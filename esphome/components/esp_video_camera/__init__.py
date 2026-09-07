@@ -22,6 +22,7 @@ from esphome.components.esp32 import (
     only_on_variant,
 )
 from esphome.components.psram import DOMAIN as PSRAM_DOMAIN
+from esphome.components.usb_host import DOMAIN as USB_HOST_DOMAIN
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_DEVICE,
@@ -342,9 +343,39 @@ CONFIG_SCHEMA = cv.All(
     _request_high_performance_networking,
 )
 
-# The log level lives in another component's config, so it can only be read
-# once every component has been validated.
-FINAL_VALIDATE_SCHEMA = _warn_about_idf_log_level
+
+def _reject_uvc_beside_usb_host(config):
+    """USB-UVC and the usb_host component cannot both be in one firmware yet.
+
+    esp_video's UVC driver needs usb_host_lib_handle_events() called
+    continuously. On its own this component installs the USB host library and
+    runs a dedicated task for that. When usb_host is present it installs first,
+    so this component steps aside and does not start its task -- and the only
+    remaining pump is usb_host's loop(). But VIDIOC_STREAMON on the UVC node
+    blocks the main loop, so that pump never runs: the device deadlocks and the
+    task watchdog reboots it five seconds later.
+
+    Letting usb_host own the interface is not enough on its own to fix this; a
+    pump that runs in the main loop cannot service a blocking call made from
+    the main loop. Sharing it properly is being worked out separately.
+
+    Only enable_uvc builds are affected -- a MIPI-CSI camera never touches the
+    USB host, so it is free to sit beside usb_uart and the rest.
+    """
+    if config[CONF_ENABLE_UVC] and USB_HOST_DOMAIN in fv.full_config.get():
+        raise cv.Invalid(
+            "enable_uvc: true cannot be used in the same configuration as the "
+            "usb_host component (which usb_uart also pulls in): both want to own "
+            "the USB host library, and the result is a boot loop rather than a "
+            "clear failure. Use one or the other for now.",
+            path=[CONF_ENABLE_UVC],
+        )
+    return config
+
+
+# Both of these read other components' configuration, so they can only run once
+# everything has been validated.
+FINAL_VALIDATE_SCHEMA = cv.All(_warn_about_idf_log_level, _reject_uvc_beside_usb_host)
 
 
 async def to_code(config):
