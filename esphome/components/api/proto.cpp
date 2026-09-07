@@ -214,45 +214,57 @@ void ProtoDecodableMessage::decode(const uint8_t *buffer, size_t length) {
   const uint8_t *ptr = buffer;
   const uint8_t *end = buffer + length;
 
-  while (ptr < end) {
-    // Parse field header - ptr < end guarantees len >= 1
+  // Single-byte varints dominate real messages (tags, small lengths, bools, enums), so that case
+  // advances the cursor inline; a merged path would materialize the consumed count and add it.
+  auto read_varint = [&](proto_varint_value_t &value) ESPHOME_ALWAYS_INLINE {
+    if (ptr == end)
+      return false;
+    if ((*ptr & 0x80) == 0) [[likely]] {
+      value = *ptr++;
+      return true;
+    }
     auto res = ProtoVarInt::parse_non_empty(ptr, end - ptr);
-    if (!res.has_value()) {
+    if (!res.has_value())
+      return false;
+    value = res.value;
+    ptr += res.consumed;
+    return true;
+  };
+
+  while (ptr < end) {
+    proto_varint_value_t tag_value;
+    if (!read_varint(tag_value)) {
       ESP_LOGV(TAG, "Invalid field start at offset %ld", (long) (ptr - buffer));
       return;
     }
 
-    uint32_t tag = static_cast<uint32_t>(res.value);
+    uint32_t tag = static_cast<uint32_t>(tag_value);
     uint32_t field_type = tag & WIRE_TYPE_MASK;
-    uint32_t field_id = tag >> 3;
-    ptr += res.consumed;
-    ProtoFieldValue value;
+    // Payload start for scalar wire types; length-delimited fields advance it past the length.
+    const uint8_t *data = ptr;
+    proto_varint_value_t scalar;
 
     switch (field_type) {
       case WIRE_TYPE_VARINT: {  // VarInt
-        res = ProtoVarInt::parse(ptr, end - ptr);
-        if (!res.has_value()) {
+        if (!read_varint(scalar)) {
           ESP_LOGV(TAG, "Invalid VarInt at offset %ld", (long) (ptr - buffer));
           return;
         }
-        value.varint_ = res.value;
-        ptr += res.consumed;
         break;
       }
       case WIRE_TYPE_LENGTH_DELIMITED: {  // Length-delimited
-        res = ProtoVarInt::parse(ptr, end - ptr);
-        if (!res.has_value()) {
+        proto_varint_value_t length_value;
+        if (!read_varint(length_value)) {
           ESP_LOGV(TAG, "Invalid Length Delimited at offset %ld", (long) (ptr - buffer));
           return;
         }
-        uint32_t field_length = static_cast<uint32_t>(res.value);
-        ptr += res.consumed;
+        uint32_t field_length = static_cast<uint32_t>(length_value);
         if (field_length > static_cast<size_t>(end - ptr)) {
           ESP_LOGV(TAG, "Out-of-bounds Length Delimited at offset %ld", (long) (ptr - buffer));
           return;
         }
-        value.ld_.data = ptr;
-        value.ld_.len = field_length;
+        data = ptr;
+        scalar = field_length;
         ptr += field_length;
         break;
       }
@@ -261,12 +273,14 @@ void ProtoDecodableMessage::decode(const uint8_t *buffer, size_t length) {
           ESP_LOGV(TAG, "Out-of-bounds Fixed32-bit at offset %ld", (long) (ptr - buffer));
           return;
         }
+        uint32_t val;
 #if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
         // Protobuf fixed32 is little-endian — direct load on LE platforms
-        memcpy(&value.fixed32_, ptr, 4);
+        memcpy(&val, ptr, 4);
 #else
-        value.fixed32_ = encode_uint32(ptr[3], ptr[2], ptr[1], ptr[0]);
+        val = encode_uint32(ptr[3], ptr[2], ptr[1], ptr[0]);
 #endif
+        scalar = val;
         ptr += 4;
         break;
       }
@@ -274,8 +288,8 @@ void ProtoDecodableMessage::decode(const uint8_t *buffer, size_t length) {
         ESP_LOGV(TAG, "Invalid field type %" PRIu32 " at offset %ld", field_type, (long) (ptr - buffer));
         return;
     }
-    if (!this->decode_field(tag, field_id, field_type, value)) {
-      ESP_LOGV(TAG, "Cannot decode field %" PRIu32 " with wire type %" PRIu32 "!", field_id, field_type);
+    if (!this->decode_field(tag, data, scalar)) {
+      ESP_LOGV(TAG, "Cannot decode field %" PRIu32 " with wire type %" PRIu32 "!", tag >> 3, field_type);
     }
   }
 }

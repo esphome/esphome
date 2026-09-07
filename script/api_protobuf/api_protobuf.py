@@ -237,7 +237,7 @@ class TypeInfo(ABC):
         """Emit one decode_field() case for a field and the wire type it expects."""
         return (
             f"case PROTO_DECODE_CASE({self.number}, {int(wire_type)}):\n"
-            f"  PROTO_DECODE_GUARD(wire_type, {int(wire_type)});\n"
+            f"  PROTO_DECODE_GUARD(tag, {self.number}, {int(wire_type)});\n"
             f"  {body}\n"
             f"  break;"
         )
@@ -2741,15 +2741,16 @@ def build_message_type(
     if decode:
         # One virtual per message: the shared decode loop parses the payload for the wire
         # type and hands it over with the tag, so a single switch covers every field.
-        o = f"bool {desc.name}::decode_field(uint32_t tag, uint32_t field_id, uint32_t wire_type, ProtoFieldValue value) {{\n"
-        o += "  switch (PROTO_DECODE_KEY(tag, field_id)) {\n"
+        o = f"bool {desc.name}::decode_field(uint32_t tag, const uint8_t *data, proto_varint_value_t scalar) {{\n"
+        o += "  const ProtoFieldValue value(data, scalar);\n"
+        o += "  switch (PROTO_DECODE_KEY(tag)) {\n"
         o += indent("\n".join(decode), "    ") + "\n"
         o += "    default: return false;\n"
         o += "  }\n"
         o += "  return true;\n"
         o += "}\n"
         cpp += o
-        prot = "bool decode_field(uint32_t tag, uint32_t field_id, uint32_t wire_type, ProtoFieldValue value) override;"
+        prot = "bool decode_field(uint32_t tag, const uint8_t *data, proto_varint_value_t scalar) override;"
         protected_content.insert(0, prot)
 
     # Generate custom decode() override for messages with FixedVector fields

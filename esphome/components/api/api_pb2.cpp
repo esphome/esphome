@@ -7,18 +7,19 @@
 
 namespace esphome::api {
 
-bool HelloRequest::decode_field(uint32_t tag, uint32_t field_id, uint32_t wire_type, ProtoFieldValue value) {
-  switch (PROTO_DECODE_KEY(tag, field_id)) {
+bool HelloRequest::decode_field(uint32_t tag, const uint8_t *data, proto_varint_value_t scalar) {
+  const ProtoFieldValue value(data, scalar);
+  switch (PROTO_DECODE_KEY(tag)) {
     case PROTO_DECODE_CASE(1, 2):
-      PROTO_DECODE_GUARD(wire_type, 2);
+      PROTO_DECODE_GUARD(tag, 1, 2);
       this->client_info = StringRef(reinterpret_cast<const char *>(value.data()), value.size());
       break;
     case PROTO_DECODE_CASE(2, 0):
-      PROTO_DECODE_GUARD(wire_type, 0);
+      PROTO_DECODE_GUARD(tag, 2, 0);
       this->api_version_major = value.as_varint();
       break;
     case PROTO_DECODE_CASE(3, 0):
-      PROTO_DECODE_GUARD(wire_type, 0);
+      PROTO_DECODE_GUARD(tag, 3, 0);
       this->api_version_minor = value.as_varint();
       break;
     default:
@@ -44,10 +45,11 @@ uint32_t HelloResponse::calc_size_msg(const void *self) {
   size += 2 + msg.name.size();
   return size;
 }
-bool DisconnectRequest::decode_field(uint32_t tag, uint32_t field_id, uint32_t wire_type, ProtoFieldValue value) {
-  switch (PROTO_DECODE_KEY(tag, field_id)) {
+bool DisconnectRequest::decode_field(uint32_t tag, const uint8_t *data, proto_varint_value_t scalar) {
+  const ProtoFieldValue value(data, scalar);
+  switch (PROTO_DECODE_KEY(tag)) {
     case PROTO_DECODE_CASE(1, 0):
-      PROTO_DECODE_GUARD(wire_type, 0);
+      PROTO_DECODE_GUARD(tag, 1, 0);
       this->reason = static_cast<enums::DisconnectReason>(value.as_varint());
       break;
     default:
@@ -467,35 +469,36 @@ uint32_t CoverStateResponse::calc_size_msg(const void *self) {
 #endif
   return size;
 }
-bool CoverCommandRequest::decode_field(uint32_t tag, uint32_t field_id, uint32_t wire_type, ProtoFieldValue value) {
-  switch (PROTO_DECODE_KEY(tag, field_id)) {
+bool CoverCommandRequest::decode_field(uint32_t tag, const uint8_t *data, proto_varint_value_t scalar) {
+  const ProtoFieldValue value(data, scalar);
+  switch (PROTO_DECODE_KEY(tag)) {
     case PROTO_DECODE_CASE(1, 5):
-      PROTO_DECODE_GUARD(wire_type, 5);
+      PROTO_DECODE_GUARD(tag, 1, 5);
       this->key = value.as_fixed32();
       break;
     case PROTO_DECODE_CASE(4, 0):
-      PROTO_DECODE_GUARD(wire_type, 0);
+      PROTO_DECODE_GUARD(tag, 4, 0);
       this->has_position = value.as_varint() != 0;
       break;
     case PROTO_DECODE_CASE(5, 5):
-      PROTO_DECODE_GUARD(wire_type, 5);
+      PROTO_DECODE_GUARD(tag, 5, 5);
       this->position = value.as_float();
       break;
     case PROTO_DECODE_CASE(6, 0):
-      PROTO_DECODE_GUARD(wire_type, 0);
+      PROTO_DECODE_GUARD(tag, 6, 0);
       this->has_tilt = value.as_varint() != 0;
       break;
     case PROTO_DECODE_CASE(7, 5):
-      PROTO_DECODE_GUARD(wire_type, 5);
+      PROTO_DECODE_GUARD(tag, 7, 5);
       this->tilt = value.as_float();
       break;
     case PROTO_DECODE_CASE(8, 0):
-      PROTO_DECODE_GUARD(wire_type, 0);
+      PROTO_DECODE_GUARD(tag, 8, 0);
       this->stop = value.as_varint() != 0;
       break;
 #ifdef USE_DEVICES
     case PROTO_DECODE_CASE(9, 0):
-      PROTO_DECODE_GUARD(wire_type, 0);
+      PROTO_DECODE_GUARD(tag, 9, 0);
       this->device_id = value.as_varint();
       break;
 #endif
@@ -582,55 +585,56 @@ uint32_t FanStateResponse::calc_size_msg(const void *self) {
 #endif
   return size;
 }
-bool FanCommandRequest::decode_field(uint32_t tag, uint32_t field_id, uint32_t wire_type, ProtoFieldValue value) {
-  switch (PROTO_DECODE_KEY(tag, field_id)) {
+bool FanCommandRequest::decode_field(uint32_t tag, const uint8_t *data, proto_varint_value_t scalar) {
+  const ProtoFieldValue value(data, scalar);
+  switch (PROTO_DECODE_KEY(tag)) {
     case PROTO_DECODE_CASE(1, 5):
-      PROTO_DECODE_GUARD(wire_type, 5);
+      PROTO_DECODE_GUARD(tag, 1, 5);
       this->key = value.as_fixed32();
       break;
     case PROTO_DECODE_CASE(2, 0):
-      PROTO_DECODE_GUARD(wire_type, 0);
+      PROTO_DECODE_GUARD(tag, 2, 0);
       this->has_state = value.as_varint() != 0;
       break;
     case PROTO_DECODE_CASE(3, 0):
-      PROTO_DECODE_GUARD(wire_type, 0);
+      PROTO_DECODE_GUARD(tag, 3, 0);
       this->state = value.as_varint() != 0;
       break;
     case PROTO_DECODE_CASE(6, 0):
-      PROTO_DECODE_GUARD(wire_type, 0);
+      PROTO_DECODE_GUARD(tag, 6, 0);
       this->has_oscillating = value.as_varint() != 0;
       break;
     case PROTO_DECODE_CASE(7, 0):
-      PROTO_DECODE_GUARD(wire_type, 0);
+      PROTO_DECODE_GUARD(tag, 7, 0);
       this->oscillating = value.as_varint() != 0;
       break;
     case PROTO_DECODE_CASE(8, 0):
-      PROTO_DECODE_GUARD(wire_type, 0);
+      PROTO_DECODE_GUARD(tag, 8, 0);
       this->has_direction = value.as_varint() != 0;
       break;
     case PROTO_DECODE_CASE(9, 0):
-      PROTO_DECODE_GUARD(wire_type, 0);
+      PROTO_DECODE_GUARD(tag, 9, 0);
       this->direction = static_cast<enums::FanDirection>(value.as_varint());
       break;
     case PROTO_DECODE_CASE(10, 0):
-      PROTO_DECODE_GUARD(wire_type, 0);
+      PROTO_DECODE_GUARD(tag, 10, 0);
       this->has_speed_level = value.as_varint() != 0;
       break;
     case PROTO_DECODE_CASE(11, 0):
-      PROTO_DECODE_GUARD(wire_type, 0);
+      PROTO_DECODE_GUARD(tag, 11, 0);
       this->speed_level = static_cast<int32_t>(value.as_varint());
       break;
     case PROTO_DECODE_CASE(12, 0):
-      PROTO_DECODE_GUARD(wire_type, 0);
+      PROTO_DECODE_GUARD(tag, 12, 0);
       this->has_preset_mode = value.as_varint() != 0;
       break;
     case PROTO_DECODE_CASE(13, 2):
-      PROTO_DECODE_GUARD(wire_type, 2);
+      PROTO_DECODE_GUARD(tag, 13, 2);
       this->preset_mode = StringRef(reinterpret_cast<const char *>(value.data()), value.size());
       break;
 #ifdef USE_DEVICES
     case PROTO_DECODE_CASE(14, 0):
-      PROTO_DECODE_GUARD(wire_type, 0);
+      PROTO_DECODE_GUARD(tag, 14, 0);
       this->device_id = value.as_varint();
       break;
 #endif
@@ -755,119 +759,120 @@ uint32_t LightStateResponse::calc_size_msg(const void *self) {
 #endif
   return size;
 }
-bool LightCommandRequest::decode_field(uint32_t tag, uint32_t field_id, uint32_t wire_type, ProtoFieldValue value) {
-  switch (PROTO_DECODE_KEY(tag, field_id)) {
+bool LightCommandRequest::decode_field(uint32_t tag, const uint8_t *data, proto_varint_value_t scalar) {
+  const ProtoFieldValue value(data, scalar);
+  switch (PROTO_DECODE_KEY(tag)) {
     case PROTO_DECODE_CASE(1, 5):
-      PROTO_DECODE_GUARD(wire_type, 5);
+      PROTO_DECODE_GUARD(tag, 1, 5);
       this->key = value.as_fixed32();
       break;
     case PROTO_DECODE_CASE(2, 0):
-      PROTO_DECODE_GUARD(wire_type, 0);
+      PROTO_DECODE_GUARD(tag, 2, 0);
       this->has_state = value.as_varint() != 0;
       break;
     case PROTO_DECODE_CASE(3, 0):
-      PROTO_DECODE_GUARD(wire_type, 0);
+      PROTO_DECODE_GUARD(tag, 3, 0);
       this->state = value.as_varint() != 0;
       break;
     case PROTO_DECODE_CASE(4, 0):
-      PROTO_DECODE_GUARD(wire_type, 0);
+      PROTO_DECODE_GUARD(tag, 4, 0);
       this->has_brightness = value.as_varint() != 0;
       break;
     case PROTO_DECODE_CASE(5, 5):
-      PROTO_DECODE_GUARD(wire_type, 5);
+      PROTO_DECODE_GUARD(tag, 5, 5);
       this->brightness = value.as_float();
       break;
     case PROTO_DECODE_CASE(22, 0):
-      PROTO_DECODE_GUARD(wire_type, 0);
+      PROTO_DECODE_GUARD(tag, 22, 0);
       this->has_color_mode = value.as_varint() != 0;
       break;
     case PROTO_DECODE_CASE(23, 0):
-      PROTO_DECODE_GUARD(wire_type, 0);
+      PROTO_DECODE_GUARD(tag, 23, 0);
       this->color_mode = static_cast<enums::ColorMode>(value.as_varint());
       break;
     case PROTO_DECODE_CASE(20, 0):
-      PROTO_DECODE_GUARD(wire_type, 0);
+      PROTO_DECODE_GUARD(tag, 20, 0);
       this->has_color_brightness = value.as_varint() != 0;
       break;
     case PROTO_DECODE_CASE(21, 5):
-      PROTO_DECODE_GUARD(wire_type, 5);
+      PROTO_DECODE_GUARD(tag, 21, 5);
       this->color_brightness = value.as_float();
       break;
     case PROTO_DECODE_CASE(6, 0):
-      PROTO_DECODE_GUARD(wire_type, 0);
+      PROTO_DECODE_GUARD(tag, 6, 0);
       this->has_rgb = value.as_varint() != 0;
       break;
     case PROTO_DECODE_CASE(7, 5):
-      PROTO_DECODE_GUARD(wire_type, 5);
+      PROTO_DECODE_GUARD(tag, 7, 5);
       this->red = value.as_float();
       break;
     case PROTO_DECODE_CASE(8, 5):
-      PROTO_DECODE_GUARD(wire_type, 5);
+      PROTO_DECODE_GUARD(tag, 8, 5);
       this->green = value.as_float();
       break;
     case PROTO_DECODE_CASE(9, 5):
-      PROTO_DECODE_GUARD(wire_type, 5);
+      PROTO_DECODE_GUARD(tag, 9, 5);
       this->blue = value.as_float();
       break;
     case PROTO_DECODE_CASE(10, 0):
-      PROTO_DECODE_GUARD(wire_type, 0);
+      PROTO_DECODE_GUARD(tag, 10, 0);
       this->has_white = value.as_varint() != 0;
       break;
     case PROTO_DECODE_CASE(11, 5):
-      PROTO_DECODE_GUARD(wire_type, 5);
+      PROTO_DECODE_GUARD(tag, 11, 5);
       this->white = value.as_float();
       break;
     case PROTO_DECODE_CASE(12, 0):
-      PROTO_DECODE_GUARD(wire_type, 0);
+      PROTO_DECODE_GUARD(tag, 12, 0);
       this->has_color_temperature = value.as_varint() != 0;
       break;
     case PROTO_DECODE_CASE(13, 5):
-      PROTO_DECODE_GUARD(wire_type, 5);
+      PROTO_DECODE_GUARD(tag, 13, 5);
       this->color_temperature = value.as_float();
       break;
     case PROTO_DECODE_CASE(24, 0):
-      PROTO_DECODE_GUARD(wire_type, 0);
+      PROTO_DECODE_GUARD(tag, 24, 0);
       this->has_cold_white = value.as_varint() != 0;
       break;
     case PROTO_DECODE_CASE(25, 5):
-      PROTO_DECODE_GUARD(wire_type, 5);
+      PROTO_DECODE_GUARD(tag, 25, 5);
       this->cold_white = value.as_float();
       break;
     case PROTO_DECODE_CASE(26, 0):
-      PROTO_DECODE_GUARD(wire_type, 0);
+      PROTO_DECODE_GUARD(tag, 26, 0);
       this->has_warm_white = value.as_varint() != 0;
       break;
     case PROTO_DECODE_CASE(27, 5):
-      PROTO_DECODE_GUARD(wire_type, 5);
+      PROTO_DECODE_GUARD(tag, 27, 5);
       this->warm_white = value.as_float();
       break;
     case PROTO_DECODE_CASE(14, 0):
-      PROTO_DECODE_GUARD(wire_type, 0);
+      PROTO_DECODE_GUARD(tag, 14, 0);
       this->has_transition_length = value.as_varint() != 0;
       break;
     case PROTO_DECODE_CASE(15, 0):
-      PROTO_DECODE_GUARD(wire_type, 0);
+      PROTO_DECODE_GUARD(tag, 15, 0);
       this->transition_length = value.as_varint();
       break;
     case PROTO_DECODE_CASE(16, 0):
-      PROTO_DECODE_GUARD(wire_type, 0);
+      PROTO_DECODE_GUARD(tag, 16, 0);
       this->has_flash_length = value.as_varint() != 0;
       break;
     case PROTO_DECODE_CASE(17, 0):
-      PROTO_DECODE_GUARD(wire_type, 0);
+      PROTO_DECODE_GUARD(tag, 17, 0);
       this->flash_length = value.as_varint();
       break;
     case PROTO_DECODE_CASE(18, 0):
-      PROTO_DECODE_GUARD(wire_type, 0);
+      PROTO_DECODE_GUARD(tag, 18, 0);
       this->has_effect = value.as_varint() != 0;
       break;
     case PROTO_DECODE_CASE(19, 2):
-      PROTO_DECODE_GUARD(wire_type, 2);
+      PROTO_DECODE_GUARD(tag, 19, 2);
       this->effect = StringRef(reinterpret_cast<const char *>(value.data()), value.size());
       break;
 #ifdef USE_DEVICES
     case PROTO_DECODE_CASE(28, 0):
-      PROTO_DECODE_GUARD(wire_type, 0);
+      PROTO_DECODE_GUARD(tag, 28, 0);
       this->device_id = value.as_varint();
       break;
 #endif
@@ -1006,19 +1011,20 @@ uint32_t SwitchStateResponse::calc_size_msg(const void *self) {
 #endif
   return size;
 }
-bool SwitchCommandRequest::decode_field(uint32_t tag, uint32_t field_id, uint32_t wire_type, ProtoFieldValue value) {
-  switch (PROTO_DECODE_KEY(tag, field_id)) {
+bool SwitchCommandRequest::decode_field(uint32_t tag, const uint8_t *data, proto_varint_value_t scalar) {
+  const ProtoFieldValue value(data, scalar);
+  switch (PROTO_DECODE_KEY(tag)) {
     case PROTO_DECODE_CASE(1, 5):
-      PROTO_DECODE_GUARD(wire_type, 5);
+      PROTO_DECODE_GUARD(tag, 1, 5);
       this->key = value.as_fixed32();
       break;
     case PROTO_DECODE_CASE(2, 0):
-      PROTO_DECODE_GUARD(wire_type, 0);
+      PROTO_DECODE_GUARD(tag, 2, 0);
       this->state = value.as_varint() != 0;
       break;
 #ifdef USE_DEVICES
     case PROTO_DECODE_CASE(3, 0):
-      PROTO_DECODE_GUARD(wire_type, 0);
+      PROTO_DECODE_GUARD(tag, 3, 0);
       this->device_id = value.as_varint();
       break;
 #endif
@@ -1087,14 +1093,15 @@ uint32_t TextSensorStateResponse::calc_size_msg(const void *self) {
   return size;
 }
 #endif
-bool SubscribeLogsRequest::decode_field(uint32_t tag, uint32_t field_id, uint32_t wire_type, ProtoFieldValue value) {
-  switch (PROTO_DECODE_KEY(tag, field_id)) {
+bool SubscribeLogsRequest::decode_field(uint32_t tag, const uint8_t *data, proto_varint_value_t scalar) {
+  const ProtoFieldValue value(data, scalar);
+  switch (PROTO_DECODE_KEY(tag)) {
     case PROTO_DECODE_CASE(1, 0):
-      PROTO_DECODE_GUARD(wire_type, 0);
+      PROTO_DECODE_GUARD(tag, 1, 0);
       this->level = static_cast<enums::LogLevel>(value.as_varint());
       break;
     case PROTO_DECODE_CASE(2, 0):
-      PROTO_DECODE_GUARD(wire_type, 0);
+      PROTO_DECODE_GUARD(tag, 2, 0);
       this->dump_config = value.as_varint() != 0;
       break;
     default:
@@ -1123,11 +1130,11 @@ SubscribeLogsResponse::calc_size_msg(const void *self) {
   return size;
 }
 #ifdef USE_API_NOISE
-bool NoiseEncryptionSetKeyRequest::decode_field(uint32_t tag, uint32_t field_id, uint32_t wire_type,
-                                                ProtoFieldValue value) {
-  switch (PROTO_DECODE_KEY(tag, field_id)) {
+bool NoiseEncryptionSetKeyRequest::decode_field(uint32_t tag, const uint8_t *data, proto_varint_value_t scalar) {
+  const ProtoFieldValue value(data, scalar);
+  switch (PROTO_DECODE_KEY(tag)) {
     case PROTO_DECODE_CASE(1, 2):
-      PROTO_DECODE_GUARD(wire_type, 2);
+      PROTO_DECODE_GUARD(tag, 1, 2);
       this->key = value.data();
       this->key_len = value.size();
       break;
@@ -1223,24 +1230,24 @@ uint32_t HomeassistantActionRequest::calc_size_msg(const void *self) {
 }
 #endif
 #ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES
-bool HomeassistantActionResponse::decode_field(uint32_t tag, uint32_t field_id, uint32_t wire_type,
-                                               ProtoFieldValue value) {
-  switch (PROTO_DECODE_KEY(tag, field_id)) {
+bool HomeassistantActionResponse::decode_field(uint32_t tag, const uint8_t *data, proto_varint_value_t scalar) {
+  const ProtoFieldValue value(data, scalar);
+  switch (PROTO_DECODE_KEY(tag)) {
     case PROTO_DECODE_CASE(1, 0):
-      PROTO_DECODE_GUARD(wire_type, 0);
+      PROTO_DECODE_GUARD(tag, 1, 0);
       this->call_id = value.as_varint();
       break;
     case PROTO_DECODE_CASE(2, 0):
-      PROTO_DECODE_GUARD(wire_type, 0);
+      PROTO_DECODE_GUARD(tag, 2, 0);
       this->success = value.as_varint() != 0;
       break;
     case PROTO_DECODE_CASE(3, 2):
-      PROTO_DECODE_GUARD(wire_type, 2);
+      PROTO_DECODE_GUARD(tag, 3, 2);
       this->error_message = StringRef(reinterpret_cast<const char *>(value.data()), value.size());
       break;
 #ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES_JSON
     case PROTO_DECODE_CASE(4, 2):
-      PROTO_DECODE_GUARD(wire_type, 2);
+      PROTO_DECODE_GUARD(tag, 4, 2);
       this->response_data = value.data();
       this->response_data_len = value.size();
       break;
@@ -1269,19 +1276,19 @@ uint32_t SubscribeHomeAssistantStateResponse::calc_size_msg(const void *self) {
   size += ProtoSize::calc_bool(1, msg.once);
   return size;
 }
-bool HomeAssistantStateResponse::decode_field(uint32_t tag, uint32_t field_id, uint32_t wire_type,
-                                              ProtoFieldValue value) {
-  switch (PROTO_DECODE_KEY(tag, field_id)) {
+bool HomeAssistantStateResponse::decode_field(uint32_t tag, const uint8_t *data, proto_varint_value_t scalar) {
+  const ProtoFieldValue value(data, scalar);
+  switch (PROTO_DECODE_KEY(tag)) {
     case PROTO_DECODE_CASE(1, 2):
-      PROTO_DECODE_GUARD(wire_type, 2);
+      PROTO_DECODE_GUARD(tag, 1, 2);
       this->entity_id = StringRef(reinterpret_cast<const char *>(value.data()), value.size());
       break;
     case PROTO_DECODE_CASE(2, 2):
-      PROTO_DECODE_GUARD(wire_type, 2);
+      PROTO_DECODE_GUARD(tag, 2, 2);
       this->state = StringRef(reinterpret_cast<const char *>(value.data()), value.size());
       break;
     case PROTO_DECODE_CASE(3, 2):
-      PROTO_DECODE_GUARD(wire_type, 2);
+      PROTO_DECODE_GUARD(tag, 3, 2);
       this->attribute = StringRef(reinterpret_cast<const char *>(value.data()), value.size());
       break;
     default:
@@ -1290,30 +1297,31 @@ bool HomeAssistantStateResponse::decode_field(uint32_t tag, uint32_t field_id, u
   return true;
 }
 #endif
-bool DSTRule::decode_field(uint32_t tag, uint32_t field_id, uint32_t wire_type, ProtoFieldValue value) {
-  switch (PROTO_DECODE_KEY(tag, field_id)) {
+bool DSTRule::decode_field(uint32_t tag, const uint8_t *data, proto_varint_value_t scalar) {
+  const ProtoFieldValue value(data, scalar);
+  switch (PROTO_DECODE_KEY(tag)) {
     case PROTO_DECODE_CASE(1, 0):
-      PROTO_DECODE_GUARD(wire_type, 0);
+      PROTO_DECODE_GUARD(tag, 1, 0);
       this->time_seconds = decode_zigzag32(static_cast<uint32_t>(value.as_varint()));
       break;
     case PROTO_DECODE_CASE(2, 0):
-      PROTO_DECODE_GUARD(wire_type, 0);
+      PROTO_DECODE_GUARD(tag, 2, 0);
       this->day = value.as_varint();
       break;
     case PROTO_DECODE_CASE(3, 0):
-      PROTO_DECODE_GUARD(wire_type, 0);
+      PROTO_DECODE_GUARD(tag, 3, 0);
       this->type = static_cast<enums::DSTRuleType>(value.as_varint());
       break;
     case PROTO_DECODE_CASE(4, 0):
-      PROTO_DECODE_GUARD(wire_type, 0);
+      PROTO_DECODE_GUARD(tag, 4, 0);
       this->month = value.as_varint();
       break;
     case PROTO_DECODE_CASE(5, 0):
-      PROTO_DECODE_GUARD(wire_type, 0);
+      PROTO_DECODE_GUARD(tag, 5, 0);
       this->week = value.as_varint();
       break;
     case PROTO_DECODE_CASE(6, 0):
-      PROTO_DECODE_GUARD(wire_type, 0);
+      PROTO_DECODE_GUARD(tag, 6, 0);
       this->day_of_week = value.as_varint();
       break;
     default:
@@ -1321,22 +1329,23 @@ bool DSTRule::decode_field(uint32_t tag, uint32_t field_id, uint32_t wire_type, 
   }
   return true;
 }
-bool ParsedTimezone::decode_field(uint32_t tag, uint32_t field_id, uint32_t wire_type, ProtoFieldValue value) {
-  switch (PROTO_DECODE_KEY(tag, field_id)) {
+bool ParsedTimezone::decode_field(uint32_t tag, const uint8_t *data, proto_varint_value_t scalar) {
+  const ProtoFieldValue value(data, scalar);
+  switch (PROTO_DECODE_KEY(tag)) {
     case PROTO_DECODE_CASE(1, 0):
-      PROTO_DECODE_GUARD(wire_type, 0);
+      PROTO_DECODE_GUARD(tag, 1, 0);
       this->std_offset_seconds = decode_zigzag32(static_cast<uint32_t>(value.as_varint()));
       break;
     case PROTO_DECODE_CASE(2, 0):
-      PROTO_DECODE_GUARD(wire_type, 0);
+      PROTO_DECODE_GUARD(tag, 2, 0);
       this->dst_offset_seconds = decode_zigzag32(static_cast<uint32_t>(value.as_varint()));
       break;
     case PROTO_DECODE_CASE(3, 2):
-      PROTO_DECODE_GUARD(wire_type, 2);
+      PROTO_DECODE_GUARD(tag, 3, 2);
       value.decode_to_message(this->dst_start);
       break;
     case PROTO_DECODE_CASE(4, 2):
-      PROTO_DECODE_GUARD(wire_type, 2);
+      PROTO_DECODE_GUARD(tag, 4, 2);
       value.decode_to_message(this->dst_end);
       break;
     default:
@@ -1344,14 +1353,15 @@ bool ParsedTimezone::decode_field(uint32_t tag, uint32_t field_id, uint32_t wire
   }
   return true;
 }
-bool GetTimeResponse::decode_field(uint32_t tag, uint32_t field_id, uint32_t wire_type, ProtoFieldValue value) {
-  switch (PROTO_DECODE_KEY(tag, field_id)) {
+bool GetTimeResponse::decode_field(uint32_t tag, const uint8_t *data, proto_varint_value_t scalar) {
+  const ProtoFieldValue value(data, scalar);
+  switch (PROTO_DECODE_KEY(tag)) {
     case PROTO_DECODE_CASE(1, 5):
-      PROTO_DECODE_GUARD(wire_type, 5);
+      PROTO_DECODE_GUARD(tag, 1, 5);
       this->epoch_seconds = value.as_fixed32();
       break;
     case PROTO_DECODE_CASE(3, 2):
-      PROTO_DECODE_GUARD(wire_type, 2);
+      PROTO_DECODE_GUARD(tag, 3, 2);
       value.decode_to_message(this->parsed_timezone);
       this->has_parsed_timezone = true;
       break;
@@ -1417,42 +1427,43 @@ uint32_t ListEntitiesServicesResponse::calc_size_msg(const void *self) {
 #endif
   return size;
 }
-bool ExecuteServiceArgument::decode_field(uint32_t tag, uint32_t field_id, uint32_t wire_type, ProtoFieldValue value) {
-  switch (PROTO_DECODE_KEY(tag, field_id)) {
+bool ExecuteServiceArgument::decode_field(uint32_t tag, const uint8_t *data, proto_varint_value_t scalar) {
+  const ProtoFieldValue value(data, scalar);
+  switch (PROTO_DECODE_KEY(tag)) {
     case PROTO_DECODE_CASE(1, 0):
-      PROTO_DECODE_GUARD(wire_type, 0);
+      PROTO_DECODE_GUARD(tag, 1, 0);
       this->bool_ = value.as_varint() != 0;
       break;
     case PROTO_DECODE_CASE(2, 0):
-      PROTO_DECODE_GUARD(wire_type, 0);
+      PROTO_DECODE_GUARD(tag, 2, 0);
       this->legacy_int = static_cast<int32_t>(value.as_varint());
       break;
     case PROTO_DECODE_CASE(3, 5):
-      PROTO_DECODE_GUARD(wire_type, 5);
+      PROTO_DECODE_GUARD(tag, 3, 5);
       this->float_ = value.as_float();
       break;
     case PROTO_DECODE_CASE(4, 2):
-      PROTO_DECODE_GUARD(wire_type, 2);
+      PROTO_DECODE_GUARD(tag, 4, 2);
       this->string_ = StringRef(reinterpret_cast<const char *>(value.data()), value.size());
       break;
     case PROTO_DECODE_CASE(5, 0):
-      PROTO_DECODE_GUARD(wire_type, 0);
+      PROTO_DECODE_GUARD(tag, 5, 0);
       this->int_ = decode_zigzag32(static_cast<uint32_t>(value.as_varint()));
       break;
     case PROTO_DECODE_CASE(6, 0):
-      PROTO_DECODE_GUARD(wire_type, 0);
+      PROTO_DECODE_GUARD(tag, 6, 0);
       this->bool_array.push_back(value.as_varint() != 0);
       break;
     case PROTO_DECODE_CASE(7, 0):
-      PROTO_DECODE_GUARD(wire_type, 0);
+      PROTO_DECODE_GUARD(tag, 7, 0);
       this->int_array.push_back(decode_zigzag32(static_cast<uint32_t>(value.as_varint())));
       break;
     case PROTO_DECODE_CASE(8, 5):
-      PROTO_DECODE_GUARD(wire_type, 5);
+      PROTO_DECODE_GUARD(tag, 8, 5);
       this->float_array.push_back(value.as_float());
       break;
     case PROTO_DECODE_CASE(9, 2):
-      PROTO_DECODE_GUARD(wire_type, 2);
+      PROTO_DECODE_GUARD(tag, 9, 2);
       this->string_array.push_back(value.as_string());
       break;
     default:
@@ -1471,26 +1482,27 @@ void ExecuteServiceArgument::decode(const uint8_t *buffer, size_t length) {
   this->string_array.init(count_string_array);
   ProtoDecodableMessage::decode(buffer, length);
 }
-bool ExecuteServiceRequest::decode_field(uint32_t tag, uint32_t field_id, uint32_t wire_type, ProtoFieldValue value) {
-  switch (PROTO_DECODE_KEY(tag, field_id)) {
+bool ExecuteServiceRequest::decode_field(uint32_t tag, const uint8_t *data, proto_varint_value_t scalar) {
+  const ProtoFieldValue value(data, scalar);
+  switch (PROTO_DECODE_KEY(tag)) {
     case PROTO_DECODE_CASE(1, 5):
-      PROTO_DECODE_GUARD(wire_type, 5);
+      PROTO_DECODE_GUARD(tag, 1, 5);
       this->key = value.as_fixed32();
       break;
     case PROTO_DECODE_CASE(2, 2):
-      PROTO_DECODE_GUARD(wire_type, 2);
+      PROTO_DECODE_GUARD(tag, 2, 2);
       this->args.emplace_back();
       value.decode_to_message(this->args.back());
       break;
 #ifdef USE_API_USER_DEFINED_ACTION_RESPONSES
     case PROTO_DECODE_CASE(3, 0):
-      PROTO_DECODE_GUARD(wire_type, 0);
+      PROTO_DECODE_GUARD(tag, 3, 0);
       this->call_id = value.as_varint();
       break;
 #endif
 #ifdef USE_API_USER_DEFINED_ACTION_RESPONSES
     case PROTO_DECODE_CASE(4, 0):
-      PROTO_DECODE_GUARD(wire_type, 0);
+      PROTO_DECODE_GUARD(tag, 4, 0);
       this->return_response = value.as_varint() != 0;
       break;
 #endif
@@ -1584,14 +1596,15 @@ uint32_t CameraImageResponse::calc_size_msg(const void *self) {
 #endif
   return size;
 }
-bool CameraImageRequest::decode_field(uint32_t tag, uint32_t field_id, uint32_t wire_type, ProtoFieldValue value) {
-  switch (PROTO_DECODE_KEY(tag, field_id)) {
+bool CameraImageRequest::decode_field(uint32_t tag, const uint8_t *data, proto_varint_value_t scalar) {
+  const ProtoFieldValue value(data, scalar);
+  switch (PROTO_DECODE_KEY(tag)) {
     case PROTO_DECODE_CASE(1, 0):
-      PROTO_DECODE_GUARD(wire_type, 0);
+      PROTO_DECODE_GUARD(tag, 1, 0);
       this->single = value.as_varint() != 0;
       break;
     case PROTO_DECODE_CASE(2, 0):
-      PROTO_DECODE_GUARD(wire_type, 0);
+      PROTO_DECODE_GUARD(tag, 2, 0);
       this->stream = value.as_varint() != 0;
       break;
     default:
@@ -1761,95 +1774,96 @@ uint32_t ClimateStateResponse::calc_size_msg(const void *self) {
 #endif
   return size;
 }
-bool ClimateCommandRequest::decode_field(uint32_t tag, uint32_t field_id, uint32_t wire_type, ProtoFieldValue value) {
-  switch (PROTO_DECODE_KEY(tag, field_id)) {
+bool ClimateCommandRequest::decode_field(uint32_t tag, const uint8_t *data, proto_varint_value_t scalar) {
+  const ProtoFieldValue value(data, scalar);
+  switch (PROTO_DECODE_KEY(tag)) {
     case PROTO_DECODE_CASE(1, 5):
-      PROTO_DECODE_GUARD(wire_type, 5);
+      PROTO_DECODE_GUARD(tag, 1, 5);
       this->key = value.as_fixed32();
       break;
     case PROTO_DECODE_CASE(2, 0):
-      PROTO_DECODE_GUARD(wire_type, 0);
+      PROTO_DECODE_GUARD(tag, 2, 0);
       this->has_mode = value.as_varint() != 0;
       break;
     case PROTO_DECODE_CASE(3, 0):
-      PROTO_DECODE_GUARD(wire_type, 0);
+      PROTO_DECODE_GUARD(tag, 3, 0);
       this->mode = static_cast<enums::ClimateMode>(value.as_varint());
       break;
     case PROTO_DECODE_CASE(4, 0):
-      PROTO_DECODE_GUARD(wire_type, 0);
+      PROTO_DECODE_GUARD(tag, 4, 0);
       this->has_target_temperature = value.as_varint() != 0;
       break;
     case PROTO_DECODE_CASE(5, 5):
-      PROTO_DECODE_GUARD(wire_type, 5);
+      PROTO_DECODE_GUARD(tag, 5, 5);
       this->target_temperature = value.as_float();
       break;
     case PROTO_DECODE_CASE(6, 0):
-      PROTO_DECODE_GUARD(wire_type, 0);
+      PROTO_DECODE_GUARD(tag, 6, 0);
       this->has_target_temperature_low = value.as_varint() != 0;
       break;
     case PROTO_DECODE_CASE(7, 5):
-      PROTO_DECODE_GUARD(wire_type, 5);
+      PROTO_DECODE_GUARD(tag, 7, 5);
       this->target_temperature_low = value.as_float();
       break;
     case PROTO_DECODE_CASE(8, 0):
-      PROTO_DECODE_GUARD(wire_type, 0);
+      PROTO_DECODE_GUARD(tag, 8, 0);
       this->has_target_temperature_high = value.as_varint() != 0;
       break;
     case PROTO_DECODE_CASE(9, 5):
-      PROTO_DECODE_GUARD(wire_type, 5);
+      PROTO_DECODE_GUARD(tag, 9, 5);
       this->target_temperature_high = value.as_float();
       break;
     case PROTO_DECODE_CASE(12, 0):
-      PROTO_DECODE_GUARD(wire_type, 0);
+      PROTO_DECODE_GUARD(tag, 12, 0);
       this->has_fan_mode = value.as_varint() != 0;
       break;
     case PROTO_DECODE_CASE(13, 0):
-      PROTO_DECODE_GUARD(wire_type, 0);
+      PROTO_DECODE_GUARD(tag, 13, 0);
       this->fan_mode = static_cast<enums::ClimateFanMode>(value.as_varint());
       break;
     case PROTO_DECODE_CASE(14, 0):
-      PROTO_DECODE_GUARD(wire_type, 0);
+      PROTO_DECODE_GUARD(tag, 14, 0);
       this->has_swing_mode = value.as_varint() != 0;
       break;
     case PROTO_DECODE_CASE(15, 0):
-      PROTO_DECODE_GUARD(wire_type, 0);
+      PROTO_DECODE_GUARD(tag, 15, 0);
       this->swing_mode = static_cast<enums::ClimateSwingMode>(value.as_varint());
       break;
     case PROTO_DECODE_CASE(16, 0):
-      PROTO_DECODE_GUARD(wire_type, 0);
+      PROTO_DECODE_GUARD(tag, 16, 0);
       this->has_custom_fan_mode = value.as_varint() != 0;
       break;
     case PROTO_DECODE_CASE(17, 2):
-      PROTO_DECODE_GUARD(wire_type, 2);
+      PROTO_DECODE_GUARD(tag, 17, 2);
       this->custom_fan_mode = StringRef(reinterpret_cast<const char *>(value.data()), value.size());
       break;
     case PROTO_DECODE_CASE(18, 0):
-      PROTO_DECODE_GUARD(wire_type, 0);
+      PROTO_DECODE_GUARD(tag, 18, 0);
       this->has_preset = value.as_varint() != 0;
       break;
     case PROTO_DECODE_CASE(19, 0):
-      PROTO_DECODE_GUARD(wire_type, 0);
+      PROTO_DECODE_GUARD(tag, 19, 0);
       this->preset = static_cast<enums::ClimatePreset>(value.as_varint());
       break;
     case PROTO_DECODE_CASE(20, 0):
-      PROTO_DECODE_GUARD(wire_type, 0);
+      PROTO_DECODE_GUARD(tag, 20, 0);
       this->has_custom_preset = value.as_varint() != 0;
       break;
     case PROTO_DECODE_CASE(21, 2):
-      PROTO_DECODE_GUARD(wire_type, 2);
+      PROTO_DECODE_GUARD(tag, 21, 2);
       this->custom_preset = StringRef(reinterpret_cast<const char *>(value.data()), value.size());
       break;
     case PROTO_DECODE_CASE(22, 0):
-      PROTO_DECODE_GUARD(wire_type, 0);
+      PROTO_DECODE_GUARD(tag, 22, 0);
       this->has_target_humidity = value.as_varint() != 0;
       break;
     case PROTO_DECODE_CASE(23, 5):
-      PROTO_DECODE_GUARD(wire_type, 5);
+      PROTO_DECODE_GUARD(tag, 23, 5);
       this->target_humidity = value.as_float();
       break;
 #ifdef USE_DEVICES
     case PROTO_DECODE_CASE(24, 0):
-      PROTO_DECODE_GUARD(wire_type, 0);
+      PROTO_DECODE_GUARD(tag, 24, 0);
       this->device_id = value.as_varint();
       break;
 #endif
@@ -1953,41 +1967,41 @@ uint32_t WaterHeaterStateResponse::calc_size_msg(const void *self) {
   size += ProtoSize::calc_float(1, msg.target_temperature_high);
   return size;
 }
-bool WaterHeaterCommandRequest::decode_field(uint32_t tag, uint32_t field_id, uint32_t wire_type,
-                                             ProtoFieldValue value) {
-  switch (PROTO_DECODE_KEY(tag, field_id)) {
+bool WaterHeaterCommandRequest::decode_field(uint32_t tag, const uint8_t *data, proto_varint_value_t scalar) {
+  const ProtoFieldValue value(data, scalar);
+  switch (PROTO_DECODE_KEY(tag)) {
     case PROTO_DECODE_CASE(1, 5):
-      PROTO_DECODE_GUARD(wire_type, 5);
+      PROTO_DECODE_GUARD(tag, 1, 5);
       this->key = value.as_fixed32();
       break;
     case PROTO_DECODE_CASE(2, 0):
-      PROTO_DECODE_GUARD(wire_type, 0);
+      PROTO_DECODE_GUARD(tag, 2, 0);
       this->has_fields = value.as_varint();
       break;
     case PROTO_DECODE_CASE(3, 0):
-      PROTO_DECODE_GUARD(wire_type, 0);
+      PROTO_DECODE_GUARD(tag, 3, 0);
       this->mode = static_cast<enums::WaterHeaterMode>(value.as_varint());
       break;
     case PROTO_DECODE_CASE(4, 5):
-      PROTO_DECODE_GUARD(wire_type, 5);
+      PROTO_DECODE_GUARD(tag, 4, 5);
       this->target_temperature = value.as_float();
       break;
 #ifdef USE_DEVICES
     case PROTO_DECODE_CASE(5, 0):
-      PROTO_DECODE_GUARD(wire_type, 0);
+      PROTO_DECODE_GUARD(tag, 5, 0);
       this->device_id = value.as_varint();
       break;
 #endif
     case PROTO_DECODE_CASE(6, 0):
-      PROTO_DECODE_GUARD(wire_type, 0);
+      PROTO_DECODE_GUARD(tag, 6, 0);
       this->state = value.as_varint();
       break;
     case PROTO_DECODE_CASE(7, 5):
-      PROTO_DECODE_GUARD(wire_type, 5);
+      PROTO_DECODE_GUARD(tag, 7, 5);
       this->target_temperature_low = value.as_float();
       break;
     case PROTO_DECODE_CASE(8, 5):
-      PROTO_DECODE_GUARD(wire_type, 5);
+      PROTO_DECODE_GUARD(tag, 8, 5);
       this->target_temperature_high = value.as_float();
       break;
     default:
@@ -2071,19 +2085,20 @@ uint32_t NumberStateResponse::calc_size_msg(const void *self) {
 #endif
   return size;
 }
-bool NumberCommandRequest::decode_field(uint32_t tag, uint32_t field_id, uint32_t wire_type, ProtoFieldValue value) {
-  switch (PROTO_DECODE_KEY(tag, field_id)) {
+bool NumberCommandRequest::decode_field(uint32_t tag, const uint8_t *data, proto_varint_value_t scalar) {
+  const ProtoFieldValue value(data, scalar);
+  switch (PROTO_DECODE_KEY(tag)) {
     case PROTO_DECODE_CASE(1, 5):
-      PROTO_DECODE_GUARD(wire_type, 5);
+      PROTO_DECODE_GUARD(tag, 1, 5);
       this->key = value.as_fixed32();
       break;
     case PROTO_DECODE_CASE(2, 5):
-      PROTO_DECODE_GUARD(wire_type, 5);
+      PROTO_DECODE_GUARD(tag, 2, 5);
       this->state = value.as_float();
       break;
 #ifdef USE_DEVICES
     case PROTO_DECODE_CASE(3, 0):
-      PROTO_DECODE_GUARD(wire_type, 0);
+      PROTO_DECODE_GUARD(tag, 3, 0);
       this->device_id = value.as_varint();
       break;
 #endif
@@ -2156,19 +2171,20 @@ uint32_t SelectStateResponse::calc_size_msg(const void *self) {
 #endif
   return size;
 }
-bool SelectCommandRequest::decode_field(uint32_t tag, uint32_t field_id, uint32_t wire_type, ProtoFieldValue value) {
-  switch (PROTO_DECODE_KEY(tag, field_id)) {
+bool SelectCommandRequest::decode_field(uint32_t tag, const uint8_t *data, proto_varint_value_t scalar) {
+  const ProtoFieldValue value(data, scalar);
+  switch (PROTO_DECODE_KEY(tag)) {
     case PROTO_DECODE_CASE(1, 5):
-      PROTO_DECODE_GUARD(wire_type, 5);
+      PROTO_DECODE_GUARD(tag, 1, 5);
       this->key = value.as_fixed32();
       break;
     case PROTO_DECODE_CASE(2, 2):
-      PROTO_DECODE_GUARD(wire_type, 2);
+      PROTO_DECODE_GUARD(tag, 2, 2);
       this->state = StringRef(reinterpret_cast<const char *>(value.data()), value.size());
       break;
 #ifdef USE_DEVICES
     case PROTO_DECODE_CASE(3, 0):
-      PROTO_DECODE_GUARD(wire_type, 0);
+      PROTO_DECODE_GUARD(tag, 3, 0);
       this->device_id = value.as_varint();
       break;
 #endif
@@ -2243,47 +2259,48 @@ uint32_t SirenStateResponse::calc_size_msg(const void *self) {
 #endif
   return size;
 }
-bool SirenCommandRequest::decode_field(uint32_t tag, uint32_t field_id, uint32_t wire_type, ProtoFieldValue value) {
-  switch (PROTO_DECODE_KEY(tag, field_id)) {
+bool SirenCommandRequest::decode_field(uint32_t tag, const uint8_t *data, proto_varint_value_t scalar) {
+  const ProtoFieldValue value(data, scalar);
+  switch (PROTO_DECODE_KEY(tag)) {
     case PROTO_DECODE_CASE(1, 5):
-      PROTO_DECODE_GUARD(wire_type, 5);
+      PROTO_DECODE_GUARD(tag, 1, 5);
       this->key = value.as_fixed32();
       break;
     case PROTO_DECODE_CASE(2, 0):
-      PROTO_DECODE_GUARD(wire_type, 0);
+      PROTO_DECODE_GUARD(tag, 2, 0);
       this->has_state = value.as_varint() != 0;
       break;
     case PROTO_DECODE_CASE(3, 0):
-      PROTO_DECODE_GUARD(wire_type, 0);
+      PROTO_DECODE_GUARD(tag, 3, 0);
       this->state = value.as_varint() != 0;
       break;
     case PROTO_DECODE_CASE(4, 0):
-      PROTO_DECODE_GUARD(wire_type, 0);
+      PROTO_DECODE_GUARD(tag, 4, 0);
       this->has_tone = value.as_varint() != 0;
       break;
     case PROTO_DECODE_CASE(5, 2):
-      PROTO_DECODE_GUARD(wire_type, 2);
+      PROTO_DECODE_GUARD(tag, 5, 2);
       this->tone = StringRef(reinterpret_cast<const char *>(value.data()), value.size());
       break;
     case PROTO_DECODE_CASE(6, 0):
-      PROTO_DECODE_GUARD(wire_type, 0);
+      PROTO_DECODE_GUARD(tag, 6, 0);
       this->has_duration = value.as_varint() != 0;
       break;
     case PROTO_DECODE_CASE(7, 0):
-      PROTO_DECODE_GUARD(wire_type, 0);
+      PROTO_DECODE_GUARD(tag, 7, 0);
       this->duration = value.as_varint();
       break;
     case PROTO_DECODE_CASE(8, 0):
-      PROTO_DECODE_GUARD(wire_type, 0);
+      PROTO_DECODE_GUARD(tag, 8, 0);
       this->has_volume = value.as_varint() != 0;
       break;
     case PROTO_DECODE_CASE(9, 5):
-      PROTO_DECODE_GUARD(wire_type, 5);
+      PROTO_DECODE_GUARD(tag, 9, 5);
       this->volume = value.as_float();
       break;
 #ifdef USE_DEVICES
     case PROTO_DECODE_CASE(10, 0):
-      PROTO_DECODE_GUARD(wire_type, 0);
+      PROTO_DECODE_GUARD(tag, 10, 0);
       this->device_id = value.as_varint();
       break;
 #endif
@@ -2354,27 +2371,28 @@ uint32_t LockStateResponse::calc_size_msg(const void *self) {
 #endif
   return size;
 }
-bool LockCommandRequest::decode_field(uint32_t tag, uint32_t field_id, uint32_t wire_type, ProtoFieldValue value) {
-  switch (PROTO_DECODE_KEY(tag, field_id)) {
+bool LockCommandRequest::decode_field(uint32_t tag, const uint8_t *data, proto_varint_value_t scalar) {
+  const ProtoFieldValue value(data, scalar);
+  switch (PROTO_DECODE_KEY(tag)) {
     case PROTO_DECODE_CASE(1, 5):
-      PROTO_DECODE_GUARD(wire_type, 5);
+      PROTO_DECODE_GUARD(tag, 1, 5);
       this->key = value.as_fixed32();
       break;
     case PROTO_DECODE_CASE(2, 0):
-      PROTO_DECODE_GUARD(wire_type, 0);
+      PROTO_DECODE_GUARD(tag, 2, 0);
       this->command = static_cast<enums::LockCommand>(value.as_varint());
       break;
     case PROTO_DECODE_CASE(3, 0):
-      PROTO_DECODE_GUARD(wire_type, 0);
+      PROTO_DECODE_GUARD(tag, 3, 0);
       this->has_code = value.as_varint() != 0;
       break;
     case PROTO_DECODE_CASE(4, 2):
-      PROTO_DECODE_GUARD(wire_type, 2);
+      PROTO_DECODE_GUARD(tag, 4, 2);
       this->code = StringRef(reinterpret_cast<const char *>(value.data()), value.size());
       break;
 #ifdef USE_DEVICES
     case PROTO_DECODE_CASE(5, 0):
-      PROTO_DECODE_GUARD(wire_type, 0);
+      PROTO_DECODE_GUARD(tag, 5, 0);
       this->device_id = value.as_varint();
       break;
 #endif
@@ -2419,15 +2437,16 @@ uint32_t ListEntitiesButtonResponse::calc_size_msg(const void *self) {
 #endif
   return size;
 }
-bool ButtonCommandRequest::decode_field(uint32_t tag, uint32_t field_id, uint32_t wire_type, ProtoFieldValue value) {
-  switch (PROTO_DECODE_KEY(tag, field_id)) {
+bool ButtonCommandRequest::decode_field(uint32_t tag, const uint8_t *data, proto_varint_value_t scalar) {
+  const ProtoFieldValue value(data, scalar);
+  switch (PROTO_DECODE_KEY(tag)) {
     case PROTO_DECODE_CASE(1, 5):
-      PROTO_DECODE_GUARD(wire_type, 5);
+      PROTO_DECODE_GUARD(tag, 1, 5);
       this->key = value.as_fixed32();
       break;
 #ifdef USE_DEVICES
     case PROTO_DECODE_CASE(2, 0):
-      PROTO_DECODE_GUARD(wire_type, 0);
+      PROTO_DECODE_GUARD(tag, 2, 0);
       this->device_id = value.as_varint();
       break;
 #endif
@@ -2527,48 +2546,48 @@ uint32_t MediaPlayerStateResponse::calc_size_msg(const void *self) {
 #endif
   return size;
 }
-bool MediaPlayerCommandRequest::decode_field(uint32_t tag, uint32_t field_id, uint32_t wire_type,
-                                             ProtoFieldValue value) {
-  switch (PROTO_DECODE_KEY(tag, field_id)) {
+bool MediaPlayerCommandRequest::decode_field(uint32_t tag, const uint8_t *data, proto_varint_value_t scalar) {
+  const ProtoFieldValue value(data, scalar);
+  switch (PROTO_DECODE_KEY(tag)) {
     case PROTO_DECODE_CASE(1, 5):
-      PROTO_DECODE_GUARD(wire_type, 5);
+      PROTO_DECODE_GUARD(tag, 1, 5);
       this->key = value.as_fixed32();
       break;
     case PROTO_DECODE_CASE(2, 0):
-      PROTO_DECODE_GUARD(wire_type, 0);
+      PROTO_DECODE_GUARD(tag, 2, 0);
       this->has_command = value.as_varint() != 0;
       break;
     case PROTO_DECODE_CASE(3, 0):
-      PROTO_DECODE_GUARD(wire_type, 0);
+      PROTO_DECODE_GUARD(tag, 3, 0);
       this->command = static_cast<enums::MediaPlayerCommand>(value.as_varint());
       break;
     case PROTO_DECODE_CASE(4, 0):
-      PROTO_DECODE_GUARD(wire_type, 0);
+      PROTO_DECODE_GUARD(tag, 4, 0);
       this->has_volume = value.as_varint() != 0;
       break;
     case PROTO_DECODE_CASE(5, 5):
-      PROTO_DECODE_GUARD(wire_type, 5);
+      PROTO_DECODE_GUARD(tag, 5, 5);
       this->volume = value.as_float();
       break;
     case PROTO_DECODE_CASE(6, 0):
-      PROTO_DECODE_GUARD(wire_type, 0);
+      PROTO_DECODE_GUARD(tag, 6, 0);
       this->has_media_url = value.as_varint() != 0;
       break;
     case PROTO_DECODE_CASE(7, 2):
-      PROTO_DECODE_GUARD(wire_type, 2);
+      PROTO_DECODE_GUARD(tag, 7, 2);
       this->media_url = StringRef(reinterpret_cast<const char *>(value.data()), value.size());
       break;
     case PROTO_DECODE_CASE(8, 0):
-      PROTO_DECODE_GUARD(wire_type, 0);
+      PROTO_DECODE_GUARD(tag, 8, 0);
       this->has_announcement = value.as_varint() != 0;
       break;
     case PROTO_DECODE_CASE(9, 0):
-      PROTO_DECODE_GUARD(wire_type, 0);
+      PROTO_DECODE_GUARD(tag, 9, 0);
       this->announcement = value.as_varint() != 0;
       break;
 #ifdef USE_DEVICES
     case PROTO_DECODE_CASE(10, 0):
-      PROTO_DECODE_GUARD(wire_type, 0);
+      PROTO_DECODE_GUARD(tag, 10, 0);
       this->device_id = value.as_varint();
       break;
 #endif
@@ -2579,11 +2598,12 @@ bool MediaPlayerCommandRequest::decode_field(uint32_t tag, uint32_t field_id, ui
 }
 #endif
 #ifdef USE_BLUETOOTH_PROXY
-bool SubscribeBluetoothLEAdvertisementsRequest::decode_field(uint32_t tag, uint32_t field_id, uint32_t wire_type,
-                                                             ProtoFieldValue value) {
-  switch (PROTO_DECODE_KEY(tag, field_id)) {
+bool SubscribeBluetoothLEAdvertisementsRequest::decode_field(uint32_t tag, const uint8_t *data,
+                                                             proto_varint_value_t scalar) {
+  const ProtoFieldValue value(data, scalar);
+  switch (PROTO_DECODE_KEY(tag)) {
     case PROTO_DECODE_CASE(1, 0):
-      PROTO_DECODE_GUARD(wire_type, 0);
+      PROTO_DECODE_GUARD(tag, 1, 0);
       this->flags = value.as_varint();
       break;
     default:
@@ -2633,22 +2653,23 @@ BluetoothLERawAdvertisementsResponse::calc_size_msg(const void *self) {
 }
 #endif
 #ifdef USE_BLUETOOTH_PROXY_CONNECTIONS
-bool BluetoothDeviceRequest::decode_field(uint32_t tag, uint32_t field_id, uint32_t wire_type, ProtoFieldValue value) {
-  switch (PROTO_DECODE_KEY(tag, field_id)) {
+bool BluetoothDeviceRequest::decode_field(uint32_t tag, const uint8_t *data, proto_varint_value_t scalar) {
+  const ProtoFieldValue value(data, scalar);
+  switch (PROTO_DECODE_KEY(tag)) {
     case PROTO_DECODE_CASE(1, 0):
-      PROTO_DECODE_GUARD(wire_type, 0);
+      PROTO_DECODE_GUARD(tag, 1, 0);
       this->address = value.as_varint();
       break;
     case PROTO_DECODE_CASE(2, 0):
-      PROTO_DECODE_GUARD(wire_type, 0);
+      PROTO_DECODE_GUARD(tag, 2, 0);
       this->request_type = static_cast<enums::BluetoothDeviceRequestType>(value.as_varint());
       break;
     case PROTO_DECODE_CASE(3, 0):
-      PROTO_DECODE_GUARD(wire_type, 0);
+      PROTO_DECODE_GUARD(tag, 3, 0);
       this->has_address_type = value.as_varint() != 0;
       break;
     case PROTO_DECODE_CASE(4, 0):
-      PROTO_DECODE_GUARD(wire_type, 0);
+      PROTO_DECODE_GUARD(tag, 4, 0);
       this->address_type = value.as_varint();
       break;
     default:
@@ -2675,11 +2696,11 @@ uint32_t BluetoothDeviceConnectionResponse::calc_size_msg(const void *self) {
   size += ProtoSize::calc_int32(1, msg.error);
   return size;
 }
-bool BluetoothGATTGetServicesRequest::decode_field(uint32_t tag, uint32_t field_id, uint32_t wire_type,
-                                                   ProtoFieldValue value) {
-  switch (PROTO_DECODE_KEY(tag, field_id)) {
+bool BluetoothGATTGetServicesRequest::decode_field(uint32_t tag, const uint8_t *data, proto_varint_value_t scalar) {
+  const ProtoFieldValue value(data, scalar);
+  switch (PROTO_DECODE_KEY(tag)) {
     case PROTO_DECODE_CASE(1, 0):
-      PROTO_DECODE_GUARD(wire_type, 0);
+      PROTO_DECODE_GUARD(tag, 1, 0);
       this->address = value.as_varint();
       break;
     default:
@@ -2805,15 +2826,15 @@ uint32_t BluetoothGATTGetServicesDoneResponse::calc_size_msg(const void *self) {
   size += ProtoSize::calc_uint64(1, msg.address);
   return size;
 }
-bool BluetoothGATTReadRequest::decode_field(uint32_t tag, uint32_t field_id, uint32_t wire_type,
-                                            ProtoFieldValue value) {
-  switch (PROTO_DECODE_KEY(tag, field_id)) {
+bool BluetoothGATTReadRequest::decode_field(uint32_t tag, const uint8_t *data, proto_varint_value_t scalar) {
+  const ProtoFieldValue value(data, scalar);
+  switch (PROTO_DECODE_KEY(tag)) {
     case PROTO_DECODE_CASE(1, 0):
-      PROTO_DECODE_GUARD(wire_type, 0);
+      PROTO_DECODE_GUARD(tag, 1, 0);
       this->address = value.as_varint();
       break;
     case PROTO_DECODE_CASE(2, 0):
-      PROTO_DECODE_GUARD(wire_type, 0);
+      PROTO_DECODE_GUARD(tag, 2, 0);
       this->handle = value.as_varint();
       break;
     default:
@@ -2837,23 +2858,23 @@ uint32_t BluetoothGATTReadResponse::calc_size_msg(const void *self) {
   size += ProtoSize::calc_length(1, msg.data_len_);
   return size;
 }
-bool BluetoothGATTWriteRequest::decode_field(uint32_t tag, uint32_t field_id, uint32_t wire_type,
-                                             ProtoFieldValue value) {
-  switch (PROTO_DECODE_KEY(tag, field_id)) {
+bool BluetoothGATTWriteRequest::decode_field(uint32_t tag, const uint8_t *data, proto_varint_value_t scalar) {
+  const ProtoFieldValue value(data, scalar);
+  switch (PROTO_DECODE_KEY(tag)) {
     case PROTO_DECODE_CASE(1, 0):
-      PROTO_DECODE_GUARD(wire_type, 0);
+      PROTO_DECODE_GUARD(tag, 1, 0);
       this->address = value.as_varint();
       break;
     case PROTO_DECODE_CASE(2, 0):
-      PROTO_DECODE_GUARD(wire_type, 0);
+      PROTO_DECODE_GUARD(tag, 2, 0);
       this->handle = value.as_varint();
       break;
     case PROTO_DECODE_CASE(3, 0):
-      PROTO_DECODE_GUARD(wire_type, 0);
+      PROTO_DECODE_GUARD(tag, 3, 0);
       this->response = value.as_varint() != 0;
       break;
     case PROTO_DECODE_CASE(4, 2):
-      PROTO_DECODE_GUARD(wire_type, 2);
+      PROTO_DECODE_GUARD(tag, 4, 2);
       this->data = value.data();
       this->data_len = value.size();
       break;
@@ -2862,15 +2883,15 @@ bool BluetoothGATTWriteRequest::decode_field(uint32_t tag, uint32_t field_id, ui
   }
   return true;
 }
-bool BluetoothGATTReadDescriptorRequest::decode_field(uint32_t tag, uint32_t field_id, uint32_t wire_type,
-                                                      ProtoFieldValue value) {
-  switch (PROTO_DECODE_KEY(tag, field_id)) {
+bool BluetoothGATTReadDescriptorRequest::decode_field(uint32_t tag, const uint8_t *data, proto_varint_value_t scalar) {
+  const ProtoFieldValue value(data, scalar);
+  switch (PROTO_DECODE_KEY(tag)) {
     case PROTO_DECODE_CASE(1, 0):
-      PROTO_DECODE_GUARD(wire_type, 0);
+      PROTO_DECODE_GUARD(tag, 1, 0);
       this->address = value.as_varint();
       break;
     case PROTO_DECODE_CASE(2, 0):
-      PROTO_DECODE_GUARD(wire_type, 0);
+      PROTO_DECODE_GUARD(tag, 2, 0);
       this->handle = value.as_varint();
       break;
     default:
@@ -2878,19 +2899,19 @@ bool BluetoothGATTReadDescriptorRequest::decode_field(uint32_t tag, uint32_t fie
   }
   return true;
 }
-bool BluetoothGATTWriteDescriptorRequest::decode_field(uint32_t tag, uint32_t field_id, uint32_t wire_type,
-                                                       ProtoFieldValue value) {
-  switch (PROTO_DECODE_KEY(tag, field_id)) {
+bool BluetoothGATTWriteDescriptorRequest::decode_field(uint32_t tag, const uint8_t *data, proto_varint_value_t scalar) {
+  const ProtoFieldValue value(data, scalar);
+  switch (PROTO_DECODE_KEY(tag)) {
     case PROTO_DECODE_CASE(1, 0):
-      PROTO_DECODE_GUARD(wire_type, 0);
+      PROTO_DECODE_GUARD(tag, 1, 0);
       this->address = value.as_varint();
       break;
     case PROTO_DECODE_CASE(2, 0):
-      PROTO_DECODE_GUARD(wire_type, 0);
+      PROTO_DECODE_GUARD(tag, 2, 0);
       this->handle = value.as_varint();
       break;
     case PROTO_DECODE_CASE(3, 2):
-      PROTO_DECODE_GUARD(wire_type, 2);
+      PROTO_DECODE_GUARD(tag, 3, 2);
       this->data = value.data();
       this->data_len = value.size();
       break;
@@ -2899,19 +2920,19 @@ bool BluetoothGATTWriteDescriptorRequest::decode_field(uint32_t tag, uint32_t fi
   }
   return true;
 }
-bool BluetoothGATTNotifyRequest::decode_field(uint32_t tag, uint32_t field_id, uint32_t wire_type,
-                                              ProtoFieldValue value) {
-  switch (PROTO_DECODE_KEY(tag, field_id)) {
+bool BluetoothGATTNotifyRequest::decode_field(uint32_t tag, const uint8_t *data, proto_varint_value_t scalar) {
+  const ProtoFieldValue value(data, scalar);
+  switch (PROTO_DECODE_KEY(tag)) {
     case PROTO_DECODE_CASE(1, 0):
-      PROTO_DECODE_GUARD(wire_type, 0);
+      PROTO_DECODE_GUARD(tag, 1, 0);
       this->address = value.as_varint();
       break;
     case PROTO_DECODE_CASE(2, 0):
-      PROTO_DECODE_GUARD(wire_type, 0);
+      PROTO_DECODE_GUARD(tag, 2, 0);
       this->handle = value.as_varint();
       break;
     case PROTO_DECODE_CASE(3, 0):
-      PROTO_DECODE_GUARD(wire_type, 0);
+      PROTO_DECODE_GUARD(tag, 3, 0);
       this->enable = value.as_varint() != 0;
       break;
     default:
@@ -3075,11 +3096,11 @@ uint32_t BluetoothScannerStateResponse::calc_size_msg(const void *self) {
   size += msg.configured_mode ? 2 : 0;
   return size;
 }
-bool BluetoothScannerSetModeRequest::decode_field(uint32_t tag, uint32_t field_id, uint32_t wire_type,
-                                                  ProtoFieldValue value) {
-  switch (PROTO_DECODE_KEY(tag, field_id)) {
+bool BluetoothScannerSetModeRequest::decode_field(uint32_t tag, const uint8_t *data, proto_varint_value_t scalar) {
+  const ProtoFieldValue value(data, scalar);
+  switch (PROTO_DECODE_KEY(tag)) {
     case PROTO_DECODE_CASE(1, 0):
-      PROTO_DECODE_GUARD(wire_type, 0);
+      PROTO_DECODE_GUARD(tag, 1, 0);
       this->mode = static_cast<enums::BluetoothScannerMode>(value.as_varint());
       break;
     default:
@@ -3089,15 +3110,15 @@ bool BluetoothScannerSetModeRequest::decode_field(uint32_t tag, uint32_t field_i
 }
 #endif
 #ifdef USE_VOICE_ASSISTANT
-bool SubscribeVoiceAssistantRequest::decode_field(uint32_t tag, uint32_t field_id, uint32_t wire_type,
-                                                  ProtoFieldValue value) {
-  switch (PROTO_DECODE_KEY(tag, field_id)) {
+bool SubscribeVoiceAssistantRequest::decode_field(uint32_t tag, const uint8_t *data, proto_varint_value_t scalar) {
+  const ProtoFieldValue value(data, scalar);
+  switch (PROTO_DECODE_KEY(tag)) {
     case PROTO_DECODE_CASE(1, 0):
-      PROTO_DECODE_GUARD(wire_type, 0);
+      PROTO_DECODE_GUARD(tag, 1, 0);
       this->subscribe = value.as_varint() != 0;
       break;
     case PROTO_DECODE_CASE(2, 0):
-      PROTO_DECODE_GUARD(wire_type, 0);
+      PROTO_DECODE_GUARD(tag, 2, 0);
       this->flags = value.as_varint();
       break;
     default:
@@ -3143,14 +3164,15 @@ uint32_t VoiceAssistantRequest::calc_size_msg(const void *self) {
   size += ProtoSize::calc_length(1, msg.wake_word_phrase.size());
   return size;
 }
-bool VoiceAssistantResponse::decode_field(uint32_t tag, uint32_t field_id, uint32_t wire_type, ProtoFieldValue value) {
-  switch (PROTO_DECODE_KEY(tag, field_id)) {
+bool VoiceAssistantResponse::decode_field(uint32_t tag, const uint8_t *data, proto_varint_value_t scalar) {
+  const ProtoFieldValue value(data, scalar);
+  switch (PROTO_DECODE_KEY(tag)) {
     case PROTO_DECODE_CASE(1, 0):
-      PROTO_DECODE_GUARD(wire_type, 0);
+      PROTO_DECODE_GUARD(tag, 1, 0);
       this->port = value.as_varint();
       break;
     case PROTO_DECODE_CASE(2, 0):
-      PROTO_DECODE_GUARD(wire_type, 0);
+      PROTO_DECODE_GUARD(tag, 2, 0);
       this->error = value.as_varint() != 0;
       break;
     default:
@@ -3158,14 +3180,15 @@ bool VoiceAssistantResponse::decode_field(uint32_t tag, uint32_t field_id, uint3
   }
   return true;
 }
-bool VoiceAssistantEventData::decode_field(uint32_t tag, uint32_t field_id, uint32_t wire_type, ProtoFieldValue value) {
-  switch (PROTO_DECODE_KEY(tag, field_id)) {
+bool VoiceAssistantEventData::decode_field(uint32_t tag, const uint8_t *data, proto_varint_value_t scalar) {
+  const ProtoFieldValue value(data, scalar);
+  switch (PROTO_DECODE_KEY(tag)) {
     case PROTO_DECODE_CASE(1, 2):
-      PROTO_DECODE_GUARD(wire_type, 2);
+      PROTO_DECODE_GUARD(tag, 1, 2);
       this->name = StringRef(reinterpret_cast<const char *>(value.data()), value.size());
       break;
     case PROTO_DECODE_CASE(2, 2):
-      PROTO_DECODE_GUARD(wire_type, 2);
+      PROTO_DECODE_GUARD(tag, 2, 2);
       this->value = StringRef(reinterpret_cast<const char *>(value.data()), value.size());
       break;
     default:
@@ -3173,15 +3196,15 @@ bool VoiceAssistantEventData::decode_field(uint32_t tag, uint32_t field_id, uint
   }
   return true;
 }
-bool VoiceAssistantEventResponse::decode_field(uint32_t tag, uint32_t field_id, uint32_t wire_type,
-                                               ProtoFieldValue value) {
-  switch (PROTO_DECODE_KEY(tag, field_id)) {
+bool VoiceAssistantEventResponse::decode_field(uint32_t tag, const uint8_t *data, proto_varint_value_t scalar) {
+  const ProtoFieldValue value(data, scalar);
+  switch (PROTO_DECODE_KEY(tag)) {
     case PROTO_DECODE_CASE(1, 0):
-      PROTO_DECODE_GUARD(wire_type, 0);
+      PROTO_DECODE_GUARD(tag, 1, 0);
       this->event_type = static_cast<enums::VoiceAssistantEvent>(value.as_varint());
       break;
     case PROTO_DECODE_CASE(2, 2):
-      PROTO_DECODE_GUARD(wire_type, 2);
+      PROTO_DECODE_GUARD(tag, 2, 2);
       this->data.emplace_back();
       value.decode_to_message(this->data.back());
       break;
@@ -3190,19 +3213,20 @@ bool VoiceAssistantEventResponse::decode_field(uint32_t tag, uint32_t field_id, 
   }
   return true;
 }
-bool VoiceAssistantAudio::decode_field(uint32_t tag, uint32_t field_id, uint32_t wire_type, ProtoFieldValue value) {
-  switch (PROTO_DECODE_KEY(tag, field_id)) {
+bool VoiceAssistantAudio::decode_field(uint32_t tag, const uint8_t *data, proto_varint_value_t scalar) {
+  const ProtoFieldValue value(data, scalar);
+  switch (PROTO_DECODE_KEY(tag)) {
     case PROTO_DECODE_CASE(1, 2):
-      PROTO_DECODE_GUARD(wire_type, 2);
+      PROTO_DECODE_GUARD(tag, 1, 2);
       this->data = value.data();
       this->data_len = value.size();
       break;
     case PROTO_DECODE_CASE(2, 0):
-      PROTO_DECODE_GUARD(wire_type, 0);
+      PROTO_DECODE_GUARD(tag, 2, 0);
       this->end = value.as_varint() != 0;
       break;
     case PROTO_DECODE_CASE(3, 2):
-      PROTO_DECODE_GUARD(wire_type, 2);
+      PROTO_DECODE_GUARD(tag, 3, 2);
       this->data2 = value.data();
       this->data2_len = value.size();
       break;
@@ -3227,31 +3251,31 @@ uint32_t VoiceAssistantAudio::calc_size_msg(const void *self) {
   size += ProtoSize::calc_length(1, msg.data2_len);
   return size;
 }
-bool VoiceAssistantTimerEventResponse::decode_field(uint32_t tag, uint32_t field_id, uint32_t wire_type,
-                                                    ProtoFieldValue value) {
-  switch (PROTO_DECODE_KEY(tag, field_id)) {
+bool VoiceAssistantTimerEventResponse::decode_field(uint32_t tag, const uint8_t *data, proto_varint_value_t scalar) {
+  const ProtoFieldValue value(data, scalar);
+  switch (PROTO_DECODE_KEY(tag)) {
     case PROTO_DECODE_CASE(1, 0):
-      PROTO_DECODE_GUARD(wire_type, 0);
+      PROTO_DECODE_GUARD(tag, 1, 0);
       this->event_type = static_cast<enums::VoiceAssistantTimerEvent>(value.as_varint());
       break;
     case PROTO_DECODE_CASE(2, 2):
-      PROTO_DECODE_GUARD(wire_type, 2);
+      PROTO_DECODE_GUARD(tag, 2, 2);
       this->timer_id = StringRef(reinterpret_cast<const char *>(value.data()), value.size());
       break;
     case PROTO_DECODE_CASE(3, 2):
-      PROTO_DECODE_GUARD(wire_type, 2);
+      PROTO_DECODE_GUARD(tag, 3, 2);
       this->name = StringRef(reinterpret_cast<const char *>(value.data()), value.size());
       break;
     case PROTO_DECODE_CASE(4, 0):
-      PROTO_DECODE_GUARD(wire_type, 0);
+      PROTO_DECODE_GUARD(tag, 4, 0);
       this->total_seconds = value.as_varint();
       break;
     case PROTO_DECODE_CASE(5, 0):
-      PROTO_DECODE_GUARD(wire_type, 0);
+      PROTO_DECODE_GUARD(tag, 5, 0);
       this->seconds_left = value.as_varint();
       break;
     case PROTO_DECODE_CASE(6, 0):
-      PROTO_DECODE_GUARD(wire_type, 0);
+      PROTO_DECODE_GUARD(tag, 6, 0);
       this->is_active = value.as_varint() != 0;
       break;
     default:
@@ -3259,23 +3283,23 @@ bool VoiceAssistantTimerEventResponse::decode_field(uint32_t tag, uint32_t field
   }
   return true;
 }
-bool VoiceAssistantAnnounceRequest::decode_field(uint32_t tag, uint32_t field_id, uint32_t wire_type,
-                                                 ProtoFieldValue value) {
-  switch (PROTO_DECODE_KEY(tag, field_id)) {
+bool VoiceAssistantAnnounceRequest::decode_field(uint32_t tag, const uint8_t *data, proto_varint_value_t scalar) {
+  const ProtoFieldValue value(data, scalar);
+  switch (PROTO_DECODE_KEY(tag)) {
     case PROTO_DECODE_CASE(1, 2):
-      PROTO_DECODE_GUARD(wire_type, 2);
+      PROTO_DECODE_GUARD(tag, 1, 2);
       this->media_id = StringRef(reinterpret_cast<const char *>(value.data()), value.size());
       break;
     case PROTO_DECODE_CASE(2, 2):
-      PROTO_DECODE_GUARD(wire_type, 2);
+      PROTO_DECODE_GUARD(tag, 2, 2);
       this->text = StringRef(reinterpret_cast<const char *>(value.data()), value.size());
       break;
     case PROTO_DECODE_CASE(3, 2):
-      PROTO_DECODE_GUARD(wire_type, 2);
+      PROTO_DECODE_GUARD(tag, 3, 2);
       this->preannounce_media_id = StringRef(reinterpret_cast<const char *>(value.data()), value.size());
       break;
     case PROTO_DECODE_CASE(4, 0):
-      PROTO_DECODE_GUARD(wire_type, 0);
+      PROTO_DECODE_GUARD(tag, 4, 0);
       this->start_conversation = value.as_varint() != 0;
       break;
     default:
@@ -3318,35 +3342,35 @@ uint32_t VoiceAssistantWakeWord::calc_size_msg(const void *self) {
   }
   return size;
 }
-bool VoiceAssistantExternalWakeWord::decode_field(uint32_t tag, uint32_t field_id, uint32_t wire_type,
-                                                  ProtoFieldValue value) {
-  switch (PROTO_DECODE_KEY(tag, field_id)) {
+bool VoiceAssistantExternalWakeWord::decode_field(uint32_t tag, const uint8_t *data, proto_varint_value_t scalar) {
+  const ProtoFieldValue value(data, scalar);
+  switch (PROTO_DECODE_KEY(tag)) {
     case PROTO_DECODE_CASE(1, 2):
-      PROTO_DECODE_GUARD(wire_type, 2);
+      PROTO_DECODE_GUARD(tag, 1, 2);
       this->id = StringRef(reinterpret_cast<const char *>(value.data()), value.size());
       break;
     case PROTO_DECODE_CASE(2, 2):
-      PROTO_DECODE_GUARD(wire_type, 2);
+      PROTO_DECODE_GUARD(tag, 2, 2);
       this->wake_word = StringRef(reinterpret_cast<const char *>(value.data()), value.size());
       break;
     case PROTO_DECODE_CASE(3, 2):
-      PROTO_DECODE_GUARD(wire_type, 2);
+      PROTO_DECODE_GUARD(tag, 3, 2);
       this->trained_languages.push_back(value.as_string());
       break;
     case PROTO_DECODE_CASE(4, 2):
-      PROTO_DECODE_GUARD(wire_type, 2);
+      PROTO_DECODE_GUARD(tag, 4, 2);
       this->model_type = StringRef(reinterpret_cast<const char *>(value.data()), value.size());
       break;
     case PROTO_DECODE_CASE(5, 0):
-      PROTO_DECODE_GUARD(wire_type, 0);
+      PROTO_DECODE_GUARD(tag, 5, 0);
       this->model_size = value.as_varint();
       break;
     case PROTO_DECODE_CASE(6, 2):
-      PROTO_DECODE_GUARD(wire_type, 2);
+      PROTO_DECODE_GUARD(tag, 6, 2);
       this->model_hash = StringRef(reinterpret_cast<const char *>(value.data()), value.size());
       break;
     case PROTO_DECODE_CASE(7, 2):
-      PROTO_DECODE_GUARD(wire_type, 2);
+      PROTO_DECODE_GUARD(tag, 7, 2);
       this->url = StringRef(reinterpret_cast<const char *>(value.data()), value.size());
       break;
     default:
@@ -3354,11 +3378,11 @@ bool VoiceAssistantExternalWakeWord::decode_field(uint32_t tag, uint32_t field_i
   }
   return true;
 }
-bool VoiceAssistantConfigurationRequest::decode_field(uint32_t tag, uint32_t field_id, uint32_t wire_type,
-                                                      ProtoFieldValue value) {
-  switch (PROTO_DECODE_KEY(tag, field_id)) {
+bool VoiceAssistantConfigurationRequest::decode_field(uint32_t tag, const uint8_t *data, proto_varint_value_t scalar) {
+  const ProtoFieldValue value(data, scalar);
+  switch (PROTO_DECODE_KEY(tag)) {
     case PROTO_DECODE_CASE(1, 2):
-      PROTO_DECODE_GUARD(wire_type, 2);
+      PROTO_DECODE_GUARD(tag, 1, 2);
       this->external_wake_words.emplace_back();
       value.decode_to_message(this->external_wake_words.back());
       break;
@@ -3396,11 +3420,11 @@ uint32_t VoiceAssistantConfigurationResponse::calc_size_msg(const void *self) {
   size += ProtoSize::calc_uint32(1, msg.max_active_wake_words);
   return size;
 }
-bool VoiceAssistantSetConfiguration::decode_field(uint32_t tag, uint32_t field_id, uint32_t wire_type,
-                                                  ProtoFieldValue value) {
-  switch (PROTO_DECODE_KEY(tag, field_id)) {
+bool VoiceAssistantSetConfiguration::decode_field(uint32_t tag, const uint8_t *data, proto_varint_value_t scalar) {
+  const ProtoFieldValue value(data, scalar);
+  switch (PROTO_DECODE_KEY(tag)) {
     case PROTO_DECODE_CASE(1, 2):
-      PROTO_DECODE_GUARD(wire_type, 2);
+      PROTO_DECODE_GUARD(tag, 1, 2);
       this->active_wake_words.push_back(value.as_string());
       break;
     default:
@@ -3470,24 +3494,24 @@ uint32_t AlarmControlPanelStateResponse::calc_size_msg(const void *self) {
 #endif
   return size;
 }
-bool AlarmControlPanelCommandRequest::decode_field(uint32_t tag, uint32_t field_id, uint32_t wire_type,
-                                                   ProtoFieldValue value) {
-  switch (PROTO_DECODE_KEY(tag, field_id)) {
+bool AlarmControlPanelCommandRequest::decode_field(uint32_t tag, const uint8_t *data, proto_varint_value_t scalar) {
+  const ProtoFieldValue value(data, scalar);
+  switch (PROTO_DECODE_KEY(tag)) {
     case PROTO_DECODE_CASE(1, 5):
-      PROTO_DECODE_GUARD(wire_type, 5);
+      PROTO_DECODE_GUARD(tag, 1, 5);
       this->key = value.as_fixed32();
       break;
     case PROTO_DECODE_CASE(2, 0):
-      PROTO_DECODE_GUARD(wire_type, 0);
+      PROTO_DECODE_GUARD(tag, 2, 0);
       this->command = static_cast<enums::AlarmControlPanelStateCommand>(value.as_varint());
       break;
     case PROTO_DECODE_CASE(3, 2):
-      PROTO_DECODE_GUARD(wire_type, 2);
+      PROTO_DECODE_GUARD(tag, 3, 2);
       this->code = StringRef(reinterpret_cast<const char *>(value.data()), value.size());
       break;
 #ifdef USE_DEVICES
     case PROTO_DECODE_CASE(4, 0):
-      PROTO_DECODE_GUARD(wire_type, 0);
+      PROTO_DECODE_GUARD(tag, 4, 0);
       this->device_id = value.as_varint();
       break;
 #endif
@@ -3560,19 +3584,20 @@ uint32_t TextStateResponse::calc_size_msg(const void *self) {
 #endif
   return size;
 }
-bool TextCommandRequest::decode_field(uint32_t tag, uint32_t field_id, uint32_t wire_type, ProtoFieldValue value) {
-  switch (PROTO_DECODE_KEY(tag, field_id)) {
+bool TextCommandRequest::decode_field(uint32_t tag, const uint8_t *data, proto_varint_value_t scalar) {
+  const ProtoFieldValue value(data, scalar);
+  switch (PROTO_DECODE_KEY(tag)) {
     case PROTO_DECODE_CASE(1, 5):
-      PROTO_DECODE_GUARD(wire_type, 5);
+      PROTO_DECODE_GUARD(tag, 1, 5);
       this->key = value.as_fixed32();
       break;
     case PROTO_DECODE_CASE(2, 2):
-      PROTO_DECODE_GUARD(wire_type, 2);
+      PROTO_DECODE_GUARD(tag, 2, 2);
       this->state = StringRef(reinterpret_cast<const char *>(value.data()), value.size());
       break;
 #ifdef USE_DEVICES
     case PROTO_DECODE_CASE(3, 0):
-      PROTO_DECODE_GUARD(wire_type, 0);
+      PROTO_DECODE_GUARD(tag, 3, 0);
       this->device_id = value.as_varint();
       break;
 #endif
@@ -3641,27 +3666,28 @@ uint32_t DateStateResponse::calc_size_msg(const void *self) {
 #endif
   return size;
 }
-bool DateCommandRequest::decode_field(uint32_t tag, uint32_t field_id, uint32_t wire_type, ProtoFieldValue value) {
-  switch (PROTO_DECODE_KEY(tag, field_id)) {
+bool DateCommandRequest::decode_field(uint32_t tag, const uint8_t *data, proto_varint_value_t scalar) {
+  const ProtoFieldValue value(data, scalar);
+  switch (PROTO_DECODE_KEY(tag)) {
     case PROTO_DECODE_CASE(1, 5):
-      PROTO_DECODE_GUARD(wire_type, 5);
+      PROTO_DECODE_GUARD(tag, 1, 5);
       this->key = value.as_fixed32();
       break;
     case PROTO_DECODE_CASE(2, 0):
-      PROTO_DECODE_GUARD(wire_type, 0);
+      PROTO_DECODE_GUARD(tag, 2, 0);
       this->year = value.as_varint();
       break;
     case PROTO_DECODE_CASE(3, 0):
-      PROTO_DECODE_GUARD(wire_type, 0);
+      PROTO_DECODE_GUARD(tag, 3, 0);
       this->month = value.as_varint();
       break;
     case PROTO_DECODE_CASE(4, 0):
-      PROTO_DECODE_GUARD(wire_type, 0);
+      PROTO_DECODE_GUARD(tag, 4, 0);
       this->day = value.as_varint();
       break;
 #ifdef USE_DEVICES
     case PROTO_DECODE_CASE(5, 0):
-      PROTO_DECODE_GUARD(wire_type, 0);
+      PROTO_DECODE_GUARD(tag, 5, 0);
       this->device_id = value.as_varint();
       break;
 #endif
@@ -3730,27 +3756,28 @@ uint32_t TimeStateResponse::calc_size_msg(const void *self) {
 #endif
   return size;
 }
-bool TimeCommandRequest::decode_field(uint32_t tag, uint32_t field_id, uint32_t wire_type, ProtoFieldValue value) {
-  switch (PROTO_DECODE_KEY(tag, field_id)) {
+bool TimeCommandRequest::decode_field(uint32_t tag, const uint8_t *data, proto_varint_value_t scalar) {
+  const ProtoFieldValue value(data, scalar);
+  switch (PROTO_DECODE_KEY(tag)) {
     case PROTO_DECODE_CASE(1, 5):
-      PROTO_DECODE_GUARD(wire_type, 5);
+      PROTO_DECODE_GUARD(tag, 1, 5);
       this->key = value.as_fixed32();
       break;
     case PROTO_DECODE_CASE(2, 0):
-      PROTO_DECODE_GUARD(wire_type, 0);
+      PROTO_DECODE_GUARD(tag, 2, 0);
       this->hour = value.as_varint();
       break;
     case PROTO_DECODE_CASE(3, 0):
-      PROTO_DECODE_GUARD(wire_type, 0);
+      PROTO_DECODE_GUARD(tag, 3, 0);
       this->minute = value.as_varint();
       break;
     case PROTO_DECODE_CASE(4, 0):
-      PROTO_DECODE_GUARD(wire_type, 0);
+      PROTO_DECODE_GUARD(tag, 4, 0);
       this->second = value.as_varint();
       break;
 #ifdef USE_DEVICES
     case PROTO_DECODE_CASE(5, 0):
-      PROTO_DECODE_GUARD(wire_type, 0);
+      PROTO_DECODE_GUARD(tag, 5, 0);
       this->device_id = value.as_varint();
       break;
 #endif
@@ -3889,27 +3916,28 @@ uint32_t ValveStateResponse::calc_size_msg(const void *self) {
 #endif
   return size;
 }
-bool ValveCommandRequest::decode_field(uint32_t tag, uint32_t field_id, uint32_t wire_type, ProtoFieldValue value) {
-  switch (PROTO_DECODE_KEY(tag, field_id)) {
+bool ValveCommandRequest::decode_field(uint32_t tag, const uint8_t *data, proto_varint_value_t scalar) {
+  const ProtoFieldValue value(data, scalar);
+  switch (PROTO_DECODE_KEY(tag)) {
     case PROTO_DECODE_CASE(1, 5):
-      PROTO_DECODE_GUARD(wire_type, 5);
+      PROTO_DECODE_GUARD(tag, 1, 5);
       this->key = value.as_fixed32();
       break;
     case PROTO_DECODE_CASE(2, 0):
-      PROTO_DECODE_GUARD(wire_type, 0);
+      PROTO_DECODE_GUARD(tag, 2, 0);
       this->has_position = value.as_varint() != 0;
       break;
     case PROTO_DECODE_CASE(3, 5):
-      PROTO_DECODE_GUARD(wire_type, 5);
+      PROTO_DECODE_GUARD(tag, 3, 5);
       this->position = value.as_float();
       break;
     case PROTO_DECODE_CASE(4, 0):
-      PROTO_DECODE_GUARD(wire_type, 0);
+      PROTO_DECODE_GUARD(tag, 4, 0);
       this->stop = value.as_varint() != 0;
       break;
 #ifdef USE_DEVICES
     case PROTO_DECODE_CASE(5, 0):
-      PROTO_DECODE_GUARD(wire_type, 0);
+      PROTO_DECODE_GUARD(tag, 5, 0);
       this->device_id = value.as_varint();
       break;
 #endif
@@ -3976,19 +4004,20 @@ uint32_t DateTimeStateResponse::calc_size_msg(const void *self) {
 #endif
   return size;
 }
-bool DateTimeCommandRequest::decode_field(uint32_t tag, uint32_t field_id, uint32_t wire_type, ProtoFieldValue value) {
-  switch (PROTO_DECODE_KEY(tag, field_id)) {
+bool DateTimeCommandRequest::decode_field(uint32_t tag, const uint8_t *data, proto_varint_value_t scalar) {
+  const ProtoFieldValue value(data, scalar);
+  switch (PROTO_DECODE_KEY(tag)) {
     case PROTO_DECODE_CASE(1, 5):
-      PROTO_DECODE_GUARD(wire_type, 5);
+      PROTO_DECODE_GUARD(tag, 1, 5);
       this->key = value.as_fixed32();
       break;
     case PROTO_DECODE_CASE(2, 5):
-      PROTO_DECODE_GUARD(wire_type, 5);
+      PROTO_DECODE_GUARD(tag, 2, 5);
       this->epoch_seconds = value.as_fixed32();
       break;
 #ifdef USE_DEVICES
     case PROTO_DECODE_CASE(3, 0):
-      PROTO_DECODE_GUARD(wire_type, 0);
+      PROTO_DECODE_GUARD(tag, 3, 0);
       this->device_id = value.as_varint();
       break;
 #endif
@@ -4071,19 +4100,20 @@ uint32_t UpdateStateResponse::calc_size_msg(const void *self) {
 #endif
   return size;
 }
-bool UpdateCommandRequest::decode_field(uint32_t tag, uint32_t field_id, uint32_t wire_type, ProtoFieldValue value) {
-  switch (PROTO_DECODE_KEY(tag, field_id)) {
+bool UpdateCommandRequest::decode_field(uint32_t tag, const uint8_t *data, proto_varint_value_t scalar) {
+  const ProtoFieldValue value(data, scalar);
+  switch (PROTO_DECODE_KEY(tag)) {
     case PROTO_DECODE_CASE(1, 5):
-      PROTO_DECODE_GUARD(wire_type, 5);
+      PROTO_DECODE_GUARD(tag, 1, 5);
       this->key = value.as_fixed32();
       break;
     case PROTO_DECODE_CASE(2, 0):
-      PROTO_DECODE_GUARD(wire_type, 0);
+      PROTO_DECODE_GUARD(tag, 2, 0);
       this->command = static_cast<enums::UpdateCommand>(value.as_varint());
       break;
 #ifdef USE_DEVICES
     case PROTO_DECODE_CASE(3, 0):
-      PROTO_DECODE_GUARD(wire_type, 0);
+      PROTO_DECODE_GUARD(tag, 3, 0);
       this->device_id = value.as_varint();
       break;
 #endif
@@ -4094,10 +4124,11 @@ bool UpdateCommandRequest::decode_field(uint32_t tag, uint32_t field_id, uint32_
 }
 #endif
 #ifdef USE_ZWAVE_PROXY
-bool ZWaveProxyFrame::decode_field(uint32_t tag, uint32_t field_id, uint32_t wire_type, ProtoFieldValue value) {
-  switch (PROTO_DECODE_KEY(tag, field_id)) {
+bool ZWaveProxyFrame::decode_field(uint32_t tag, const uint8_t *data, proto_varint_value_t scalar) {
+  const ProtoFieldValue value(data, scalar);
+  switch (PROTO_DECODE_KEY(tag)) {
     case PROTO_DECODE_CASE(1, 2):
-      PROTO_DECODE_GUARD(wire_type, 2);
+      PROTO_DECODE_GUARD(tag, 1, 2);
       this->data = value.data();
       this->data_len = value.size();
       break;
@@ -4122,14 +4153,15 @@ ZWaveProxyFrame::calc_size_msg(const void *self) {
   size += ProtoSize::calc_length(1, msg.data_len);
   return size;
 }
-bool ZWaveProxyRequest::decode_field(uint32_t tag, uint32_t field_id, uint32_t wire_type, ProtoFieldValue value) {
-  switch (PROTO_DECODE_KEY(tag, field_id)) {
+bool ZWaveProxyRequest::decode_field(uint32_t tag, const uint8_t *data, proto_varint_value_t scalar) {
+  const ProtoFieldValue value(data, scalar);
+  switch (PROTO_DECODE_KEY(tag)) {
     case PROTO_DECODE_CASE(1, 0):
-      PROTO_DECODE_GUARD(wire_type, 0);
+      PROTO_DECODE_GUARD(tag, 1, 0);
       this->type = static_cast<enums::ZWaveProxyRequestType>(value.as_varint());
       break;
     case PROTO_DECODE_CASE(2, 2):
-      PROTO_DECODE_GUARD(wire_type, 2);
+      PROTO_DECODE_GUARD(tag, 2, 2);
       this->data = value.data();
       this->data_len = value.size();
       break;
@@ -4206,35 +4238,35 @@ uint32_t ListEntitiesInfraredResponse::calc_size_msg(const void *self) {
 }
 #endif
 #if defined(USE_IR_RF) || defined(USE_RADIO_FREQUENCY)
-bool InfraredRFTransmitRawTimingsRequest::decode_field(uint32_t tag, uint32_t field_id, uint32_t wire_type,
-                                                       ProtoFieldValue value) {
-  switch (PROTO_DECODE_KEY(tag, field_id)) {
+bool InfraredRFTransmitRawTimingsRequest::decode_field(uint32_t tag, const uint8_t *data, proto_varint_value_t scalar) {
+  const ProtoFieldValue value(data, scalar);
+  switch (PROTO_DECODE_KEY(tag)) {
 #ifdef USE_DEVICES
     case PROTO_DECODE_CASE(1, 0):
-      PROTO_DECODE_GUARD(wire_type, 0);
+      PROTO_DECODE_GUARD(tag, 1, 0);
       this->device_id = value.as_varint();
       break;
 #endif
     case PROTO_DECODE_CASE(2, 5):
-      PROTO_DECODE_GUARD(wire_type, 5);
+      PROTO_DECODE_GUARD(tag, 2, 5);
       this->key = value.as_fixed32();
       break;
     case PROTO_DECODE_CASE(3, 0):
-      PROTO_DECODE_GUARD(wire_type, 0);
+      PROTO_DECODE_GUARD(tag, 3, 0);
       this->carrier_frequency = value.as_varint();
       break;
     case PROTO_DECODE_CASE(4, 0):
-      PROTO_DECODE_GUARD(wire_type, 0);
+      PROTO_DECODE_GUARD(tag, 4, 0);
       this->repeat_count = value.as_varint();
       break;
     case PROTO_DECODE_CASE(5, 2):
-      PROTO_DECODE_GUARD(wire_type, 2);
+      PROTO_DECODE_GUARD(tag, 5, 2);
       this->timings_data_ = value.data();
       this->timings_length_ = value.size();
       this->timings_count_ = count_packed_varints(value.data(), value.size());
       break;
     case PROTO_DECODE_CASE(6, 0):
-      PROTO_DECODE_GUARD(wire_type, 0);
+      PROTO_DECODE_GUARD(tag, 6, 0);
       this->modulation = value.as_varint();
       break;
     default:
@@ -4317,31 +4349,31 @@ uint32_t ListEntitiesRadioFrequencyResponse::calc_size_msg(const void *self) {
 }
 #endif
 #ifdef USE_SERIAL_PROXY
-bool SerialProxyConfigureRequest::decode_field(uint32_t tag, uint32_t field_id, uint32_t wire_type,
-                                               ProtoFieldValue value) {
-  switch (PROTO_DECODE_KEY(tag, field_id)) {
+bool SerialProxyConfigureRequest::decode_field(uint32_t tag, const uint8_t *data, proto_varint_value_t scalar) {
+  const ProtoFieldValue value(data, scalar);
+  switch (PROTO_DECODE_KEY(tag)) {
     case PROTO_DECODE_CASE(1, 0):
-      PROTO_DECODE_GUARD(wire_type, 0);
+      PROTO_DECODE_GUARD(tag, 1, 0);
       this->instance = value.as_varint();
       break;
     case PROTO_DECODE_CASE(2, 0):
-      PROTO_DECODE_GUARD(wire_type, 0);
+      PROTO_DECODE_GUARD(tag, 2, 0);
       this->baudrate = value.as_varint();
       break;
     case PROTO_DECODE_CASE(3, 0):
-      PROTO_DECODE_GUARD(wire_type, 0);
+      PROTO_DECODE_GUARD(tag, 3, 0);
       this->flow_control = value.as_varint() != 0;
       break;
     case PROTO_DECODE_CASE(4, 0):
-      PROTO_DECODE_GUARD(wire_type, 0);
+      PROTO_DECODE_GUARD(tag, 4, 0);
       this->parity = static_cast<enums::SerialProxyParity>(value.as_varint());
       break;
     case PROTO_DECODE_CASE(5, 0):
-      PROTO_DECODE_GUARD(wire_type, 0);
+      PROTO_DECODE_GUARD(tag, 5, 0);
       this->stop_bits = value.as_varint();
       break;
     case PROTO_DECODE_CASE(6, 0):
-      PROTO_DECODE_GUARD(wire_type, 0);
+      PROTO_DECODE_GUARD(tag, 6, 0);
       this->data_size = value.as_varint();
       break;
     default:
@@ -4367,14 +4399,15 @@ SerialProxyDataReceived::calc_size_msg(const void *self) {
   size += ProtoSize::calc_length(1, msg.data_len_);
   return size;
 }
-bool SerialProxyWriteRequest::decode_field(uint32_t tag, uint32_t field_id, uint32_t wire_type, ProtoFieldValue value) {
-  switch (PROTO_DECODE_KEY(tag, field_id)) {
+bool SerialProxyWriteRequest::decode_field(uint32_t tag, const uint8_t *data, proto_varint_value_t scalar) {
+  const ProtoFieldValue value(data, scalar);
+  switch (PROTO_DECODE_KEY(tag)) {
     case PROTO_DECODE_CASE(1, 0):
-      PROTO_DECODE_GUARD(wire_type, 0);
+      PROTO_DECODE_GUARD(tag, 1, 0);
       this->instance = value.as_varint();
       break;
     case PROTO_DECODE_CASE(2, 2):
-      PROTO_DECODE_GUARD(wire_type, 2);
+      PROTO_DECODE_GUARD(tag, 2, 2);
       this->data = value.data();
       this->data_len = value.size();
       break;
@@ -4383,15 +4416,15 @@ bool SerialProxyWriteRequest::decode_field(uint32_t tag, uint32_t field_id, uint
   }
   return true;
 }
-bool SerialProxySetModemPinsRequest::decode_field(uint32_t tag, uint32_t field_id, uint32_t wire_type,
-                                                  ProtoFieldValue value) {
-  switch (PROTO_DECODE_KEY(tag, field_id)) {
+bool SerialProxySetModemPinsRequest::decode_field(uint32_t tag, const uint8_t *data, proto_varint_value_t scalar) {
+  const ProtoFieldValue value(data, scalar);
+  switch (PROTO_DECODE_KEY(tag)) {
     case PROTO_DECODE_CASE(1, 0):
-      PROTO_DECODE_GUARD(wire_type, 0);
+      PROTO_DECODE_GUARD(tag, 1, 0);
       this->instance = value.as_varint();
       break;
     case PROTO_DECODE_CASE(2, 0):
-      PROTO_DECODE_GUARD(wire_type, 0);
+      PROTO_DECODE_GUARD(tag, 2, 0);
       this->line_states = value.as_varint();
       break;
     default:
@@ -4399,11 +4432,11 @@ bool SerialProxySetModemPinsRequest::decode_field(uint32_t tag, uint32_t field_i
   }
   return true;
 }
-bool SerialProxyGetModemPinsRequest::decode_field(uint32_t tag, uint32_t field_id, uint32_t wire_type,
-                                                  ProtoFieldValue value) {
-  switch (PROTO_DECODE_KEY(tag, field_id)) {
+bool SerialProxyGetModemPinsRequest::decode_field(uint32_t tag, const uint8_t *data, proto_varint_value_t scalar) {
+  const ProtoFieldValue value(data, scalar);
+  switch (PROTO_DECODE_KEY(tag)) {
     case PROTO_DECODE_CASE(1, 0):
-      PROTO_DECODE_GUARD(wire_type, 0);
+      PROTO_DECODE_GUARD(tag, 1, 0);
       this->instance = value.as_varint();
       break;
     default:
@@ -4428,14 +4461,15 @@ uint32_t SerialProxyGetModemPinsResponse::calc_size_msg(const void *self) {
   size += msg.status ? 2 : 0;
   return size;
 }
-bool SerialProxyRequest::decode_field(uint32_t tag, uint32_t field_id, uint32_t wire_type, ProtoFieldValue value) {
-  switch (PROTO_DECODE_KEY(tag, field_id)) {
+bool SerialProxyRequest::decode_field(uint32_t tag, const uint8_t *data, proto_varint_value_t scalar) {
+  const ProtoFieldValue value(data, scalar);
+  switch (PROTO_DECODE_KEY(tag)) {
     case PROTO_DECODE_CASE(1, 0):
-      PROTO_DECODE_GUARD(wire_type, 0);
+      PROTO_DECODE_GUARD(tag, 1, 0);
       this->instance = value.as_varint();
       break;
     case PROTO_DECODE_CASE(2, 0):
-      PROTO_DECODE_GUARD(wire_type, 0);
+      PROTO_DECODE_GUARD(tag, 2, 0);
       this->type = static_cast<enums::SerialProxyRequestType>(value.as_varint());
       break;
     default:
@@ -4476,27 +4510,27 @@ bool SerialProxySetModeRequest::decode_varint(uint32_t field_id, proto_varint_va
 }
 #endif
 #ifdef USE_BLUETOOTH_PROXY_CONNECTIONS
-bool BluetoothSetConnectionParamsRequest::decode_field(uint32_t tag, uint32_t field_id, uint32_t wire_type,
-                                                       ProtoFieldValue value) {
-  switch (PROTO_DECODE_KEY(tag, field_id)) {
+bool BluetoothSetConnectionParamsRequest::decode_field(uint32_t tag, const uint8_t *data, proto_varint_value_t scalar) {
+  const ProtoFieldValue value(data, scalar);
+  switch (PROTO_DECODE_KEY(tag)) {
     case PROTO_DECODE_CASE(1, 0):
-      PROTO_DECODE_GUARD(wire_type, 0);
+      PROTO_DECODE_GUARD(tag, 1, 0);
       this->address = value.as_varint();
       break;
     case PROTO_DECODE_CASE(2, 0):
-      PROTO_DECODE_GUARD(wire_type, 0);
+      PROTO_DECODE_GUARD(tag, 2, 0);
       this->min_interval = value.as_varint();
       break;
     case PROTO_DECODE_CASE(3, 0):
-      PROTO_DECODE_GUARD(wire_type, 0);
+      PROTO_DECODE_GUARD(tag, 3, 0);
       this->max_interval = value.as_varint();
       break;
     case PROTO_DECODE_CASE(4, 0):
-      PROTO_DECODE_GUARD(wire_type, 0);
+      PROTO_DECODE_GUARD(tag, 4, 0);
       this->latency = value.as_varint();
       break;
     case PROTO_DECODE_CASE(5, 0):
-      PROTO_DECODE_GUARD(wire_type, 0);
+      PROTO_DECODE_GUARD(tag, 5, 0);
       this->timeout = value.as_varint();
       break;
     default:
