@@ -199,8 +199,8 @@ void APIServer::loop() {
 #ifdef USE_API_NOISE
 // Refill only while no api client is still connecting; an OTA handshake is
 // not visible here and just pays the refill it triggered.
-void APIServer::prepare_spare_ephemeral_() {
-  if (noise::has_spare_ephemeral() || !network::is_connected()) {
+void APIServer::prepare_spare_ephemeral_slow_() {
+  if (!network::is_connected()) {
     return;
   }
   const uint32_t now = App.get_loop_component_start_time();
