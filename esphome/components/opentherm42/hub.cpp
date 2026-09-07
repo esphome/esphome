@@ -1,6 +1,5 @@
 #include "hub.h"
 #include <algorithm>
-#include <cmath>
 #include "esphome/core/controller_registry.h"
 #include "esphome/core/helpers.h"
 
@@ -13,7 +12,9 @@ static const char *const TAG = "opentherm42";
 // already-subscribed client would otherwise keep showing the last known value forever after a
 // rejected write or failed conversation, so the notification has to be triggered explicitly here.
 // One overload per entity type used below, so every set_has_state(false) call site in this file
-// can go through this instead of the bare call.
+// can go through this instead of the bare call. Requires ESPHome >= 2026.5.0 (e7194dce75), which
+// is when number::Number/switch_::Switch were wired into ControllerRegistry alongside the other
+// four types here.
 static void invalidate_entity(sensor::Sensor *entity) {
   if (entity == nullptr) {
     return;
@@ -25,12 +26,8 @@ static void invalidate_entity(number::Number *entity) {
   if (entity == nullptr) {
     return;
   }
-  // number::Number isn't wired into ControllerRegistry in every ESPHome version this component
-  // needs to build against (confirmed missing in a real user's build even though it's present for
-  // sensor/binary_sensor/text_sensor/select) -- NaN is the long-standing, version-independent
-  // convention for "no value" on a float-based entity, and goes through the normal publish_state()
-  // path, which always notifies already-connected clients regardless of ESPHome version.
-  entity->publish_state(NAN);
+  entity->set_has_state(false);
+  ControllerRegistry::notify_number_update(entity);
 }
 static void invalidate_entity(text_sensor::TextSensor *entity) {
   if (entity == nullptr) {
