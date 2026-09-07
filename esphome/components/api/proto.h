@@ -287,11 +287,12 @@ class ProtoWriteBuffer {
   uint8_t *pos_;
 };
 
-// Outlined on embedded targets to save flash; on the host the write is a single store.
-#ifdef USE_HOST
-#define PROTO_OUTLINE_FOR_SIZE inline
-#else
+// ESP32 builds pass -fno-builtin-memcpy, so the inline write was already a memcpy call there and
+// one shared copy is both smaller and faster. Elsewhere memcpy inlines to a single store, so keep it.
+#ifdef USE_ESP32
 #define PROTO_OUTLINE_FOR_SIZE __attribute__((noinline))
+#else
+#define PROTO_OUTLINE_FOR_SIZE inline
 #endif
 
 // Varint encoding thresholds — used by both proto_encode_* free functions and ProtoSize.
