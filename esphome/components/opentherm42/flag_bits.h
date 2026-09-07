@@ -63,15 +63,18 @@ struct FlagWriteBits {
 
   // Called when the boiler has definitively rejected (DATA-INVALID/UNKNOWN-DATAID) the
   // conversation that carries this byte -- unlike a transient datalink error, this means the
-  // underlying feature genuinely isn't present on this hardware, so every configured switch must
-  // show unknown rather than keep presenting a control that can never have any effect. Requires
-  // ESPHome >= 2026.5.0 (e7194dce75), which is when switch::Switch was wired into
-  // ControllerRegistry -- see FlagReadBits::invalidate() above for why that call is needed at all.
+  // underlying feature genuinely isn't present on this hardware. Unlike FlagReadBits::invalidate()
+  // above, this can't also call ControllerRegistry: switch_::Switch isn't reliably available there
+  // across the ESPHome versions this component needs to build against (a real user's build failed
+  // on 2026.8.2 despite entity_types.h having the entry as of that exact tag -- not fully
+  // understood, so avoided rather than re-guessed at), and unlike a float-based entity there's no
+  // NaN-equivalent sentinel for a boolean. So this only updates already-configured switches for a
+  // client that reconnects or freshly subscribes afterwards -- an already-connected client keeps
+  // showing the last value.
   void invalidate() {
     for (auto *b : this->bits) {
       if (b != nullptr) {
         b->set_has_state(false);
-        ControllerRegistry::notify_switch_update(b);
       }
     }
   }

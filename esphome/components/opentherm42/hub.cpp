@@ -1,5 +1,6 @@
 #include "hub.h"
 #include <algorithm>
+#include <cmath>
 #include "esphome/core/controller_registry.h"
 #include "esphome/core/helpers.h"
 
@@ -12,9 +13,14 @@ static const char *const TAG = "opentherm42";
 // already-subscribed client would otherwise keep showing the last known value forever after a
 // rejected write or failed conversation, so the notification has to be triggered explicitly here.
 // One overload per entity type used below, so every set_has_state(false) call site in this file
-// can go through this instead of the bare call. Requires ESPHome >= 2026.5.0 (e7194dce75), which
-// is when number::Number/switch_::Switch were wired into ControllerRegistry alongside the other
-// four types here.
+// can go through this instead of the bare call.
+//
+// number::Number and switch_::Switch are deliberately NOT wired to ControllerRegistry here (see
+// their own overload/FlagWriteBits::invalidate() below): a real user's build failed with
+// 'notify_switch_update'/'notify_number_update' is not a member of ControllerRegistry on ESPHome
+// 2026.8.2, despite esphome/core/entity_types.h having both entries as of that exact tag in this
+// repository's history -- the discrepancy isn't understood, so don't keep re-guessing at a fix
+// that depends on this API for these two types; use a version-independent approach instead.
 static void invalidate_entity(sensor::Sensor *entity) {
   if (entity == nullptr) {
     return;
@@ -26,8 +32,11 @@ static void invalidate_entity(number::Number *entity) {
   if (entity == nullptr) {
     return;
   }
-  entity->set_has_state(false);
-  ControllerRegistry::notify_number_update(entity);
+  // NaN is ESPHome's long-standing, version-independent "no value" convention for a float-based
+  // entity (Sensor::state/Number::state default to NAN before the first publish_state()), and
+  // goes through the normal publish_state() path, which always notifies already-connected clients
+  // regardless of ESPHome version.
+  entity->publish_state(NAN);
 }
 static void invalidate_entity(text_sensor::TextSensor *entity) {
   if (entity == nullptr) {
