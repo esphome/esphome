@@ -27,10 +27,11 @@ async def test_api_empty_message_roundtrip(
         await client.send_message(api_pb2.DeviceInfoRequest())
         await client.read_until_frame(MESSAGE_TYPE_OF[api_pb2.DeviceInfoResponse])
         await client.send_message(api_pb2.ListEntitiesRequest())
-        await client.read_until_frame(
-            MESSAGE_TYPE_OF[api_pb2.ListEntitiesSwitchResponse]
-        )
         await client.read_until_frame(MESSAGE_TYPE_OF[api_pb2.ListEntitiesDoneResponse])
+        assert (
+            client.frame_counts[MESSAGE_TYPE_OF[api_pb2.ListEntitiesSwitchResponse]]
+            == 1
+        )
 
         await client.send_message(api_pb2.DisconnectRequest())
         await client.read_until_frame(MESSAGE_TYPE_OF[api_pb2.DisconnectResponse])
