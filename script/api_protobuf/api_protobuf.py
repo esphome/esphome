@@ -566,11 +566,11 @@ def create_field_type_info(
         # For messages that decode (SOURCE_CLIENT or SOURCE_BOTH), use pointer
         # for zero-copy access to the receive buffer
         if needs_decode:
-            return PointerToBytesBufferType(field)
+            return PointerToBytesBufferType(field, needs_decode)
 
         # For SOURCE_SERVER (encode only), explicit annotation is still needed
         if get_field_opt(field, pb.pointer_to_buffer, False):
-            return PointerToBytesBufferType(field)
+            return PointerToBytesBufferType(field, needs_decode)
 
         return BytesType(field, needs_decode, needs_encode)
 
@@ -1135,7 +1135,7 @@ class PointerToBufferTypeBase(TypeInfo):
         return False
 
     def __init__(
-        self, field: descriptor.FieldDescriptorProto, needs_decode: bool = True
+        self, field: descriptor.FieldDescriptorProto, needs_decode: bool
     ) -> None:
         super().__init__(field, needs_decode)
         self.array_size = 0
@@ -1250,6 +1250,9 @@ class PointerToStringBufferType(PointerToBufferTypeBase):
             f"this->{self.field_name}.c_str()",
             f"this->{self.field_name}.size()",
         ):
+            assert not self._starts_null, (
+                "unconditional copy of a field that may start null"
+            )
             return result
         return _encode_call(
             "encode_string",
