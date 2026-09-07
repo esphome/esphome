@@ -45,7 +45,8 @@ const LogString *noise_err_to_logstr(int err);
 // One responder ephemeral key pair generated ahead of time (about 60 ms on
 // ESP8266), refilled by the api server while idle and consumed by the next
 // handshake of any noise transport; an empty slot means the handshake
-// generates its own key. The private key stays in RAM until consumed.
+// generates its own key. The private key stays in RAM until consumed; it is
+// not wiped on shutdown.
 // Private key then public key; zero when empty
 static constexpr size_t SPARE_EPHEMERAL_KEY_SIZE = 32;
 static constexpr size_t SPARE_EPHEMERAL_SIZE = 2 * SPARE_EPHEMERAL_KEY_SIZE;
