@@ -48,7 +48,9 @@ using ephemeral_keypair_t = std::array<uint8_t, EPHEMERAL_KEYPAIR_SIZE>;
 // One responder ephemeral key pair generated ahead of time (about 60 ms on
 // ESP8266), refilled by the api server while idle, shared by every noise
 // transport; an empty slot means the handshake generates its own key.
-bool has_spare_ephemeral();
+extern bool spare_ephemeral_ready;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+// Polled every api loop tick, so it must inline
+inline bool has_spare_ephemeral() { return spare_ephemeral_ready; }
 /// Fill the slot; blocks for the base point multiply
 void prepare_spare_ephemeral();
 /// Move the slot into out and empty it; false (out untouched) when empty

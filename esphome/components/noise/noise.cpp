@@ -28,9 +28,7 @@ void NoiseContext::load_psk(psk_t &out) const {
 
 #ifdef USE_API_NOISE
 static uint8_t spare_ephemeral[EPHEMERAL_KEYPAIR_SIZE];  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-static bool spare_ephemeral_ready = false;               // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-
-bool has_spare_ephemeral() { return spare_ephemeral_ready; }
+bool spare_ephemeral_ready = false;                      // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 void prepare_spare_ephemeral() {
   // A partial fill must never look ready
@@ -44,7 +42,10 @@ void prepare_spare_ephemeral() {
   }
   private_key[0] &= 0xF8;
   private_key[EPHEMERAL_PRIVATE_KEY_SIZE - 1] = (private_key[EPHEMERAL_PRIVATE_KEY_SIZE - 1] & 0x7F) | 0x40;
-  crypto_scalarmult_curve25519_base(public_key, private_key);
+  if (crypto_scalarmult_curve25519_base(public_key, private_key) != 0) {
+    sodium_memzero(spare_ephemeral, EPHEMERAL_KEYPAIR_SIZE);
+    return;
+  }
   spare_ephemeral_ready = true;
 }
 
