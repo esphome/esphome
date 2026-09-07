@@ -145,7 +145,9 @@ class ProtoVarInt {
     // (booleans, small enums, field tags, small message sizes/types).
     if ((buffer[0] & 0x80) == 0) [[likely]]
       return {buffer[0], 1};
-    return parse_slow(buffer, len);
+    ProtoVarIntResult res;
+    res.consumed = parse_slow(buffer, len, res.value);
+    return res;
   }
 
   /// Parse a varint from buffer (safe for empty buffers).
@@ -156,13 +158,16 @@ class ProtoVarInt {
     return parse_non_empty(buffer, len);
   }
 
- protected:
-  // Slow path for multi-byte varints (>= 128), outlined to keep fast path small
-  static ProtoVarIntResult parse_slow(const uint8_t *buffer, uint32_t len) __attribute__((noinline));
+  /// Multi-byte varint (first byte has the high bit set), outlined to keep the fast path small.
+  /// Writes the value and returns the bytes consumed, PROTO_VARINT_PARSE_FAILED when truncated.
+  static uint32_t parse_slow(const uint8_t *buffer, uint32_t len, proto_varint_value_t &value)
+      __attribute__((noinline));
 
+ protected:
 #ifdef USE_API_VARINT64
   /// Continue parsing varint bytes 4-9 with 64-bit arithmetic.
-  static ProtoVarIntResult parse_wide(const uint8_t *buffer, uint32_t len, uint32_t result32) __attribute__((noinline));
+  static uint32_t parse_wide(const uint8_t *buffer, uint32_t len, uint32_t result32, uint64_t &value)
+      __attribute__((noinline));
 #endif
 };
 
@@ -181,6 +186,8 @@ class ProtoFieldValue {
   ProtoFieldValue(const uint8_t *data, proto_varint_value_t scalar) : data_(data), scalar_(scalar) {}
 
   proto_varint_value_t as_varint() const { return this->scalar_; }
+  // A bool is sent as 0 or 1, so the low word is enough and saves a second compare with 64 bit varints
+  bool as_bool() const { return static_cast<uint32_t>(this->scalar_) != 0; }
 
   // Length-delimited accessors
   const uint8_t *data() const { return this->data_; }
@@ -734,10 +741,10 @@ class ProtoDecodableMessage : public ProtoMessage {
  protected:
   ~ProtoDecodableMessage() = default;
   /// Store one decoded field; \p scalar is the varint or fixed32 value, or the length of the
-  /// length-delimited payload at \p data. Return false for an unknown field or wrong wire type.
+  /// length-delimited payload at \p data. An unknown field or wrong wire type matches no case and is skipped.
   /// Three register arguments keep the decode loop free of spills.
   // NOTE: wire type 1 (64-bit fixed) is not supported
-  virtual bool decode_field(uint32_t tag, const uint8_t *data, proto_varint_value_t scalar) { return false; }
+  virtual void decode_field(uint32_t tag, const uint8_t *data, proto_varint_value_t scalar) {}
 };
 
 class ProtoSize {

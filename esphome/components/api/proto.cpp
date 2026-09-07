@@ -20,7 +20,7 @@ void ProtoWriteBuffer::encode_varint_raw_slow_(uint32_t value) {
   *this->pos_++ = static_cast<uint8_t>(value);
 }
 
-ProtoVarIntResult ProtoVarInt::parse_slow(const uint8_t *buffer, uint32_t len) {
+uint32_t ProtoVarInt::parse_slow(const uint8_t *buffer, uint32_t len, proto_varint_value_t &value) {
   // Multi-byte varint: first byte already checked to have high bit set
   uint32_t result32 = buffer[0] & 0x7F;
 #ifdef USE_API_VARINT64
@@ -32,28 +32,30 @@ ProtoVarIntResult ProtoVarInt::parse_slow(const uint8_t *buffer, uint32_t len) {
     uint8_t val = buffer[i];
     result32 |= uint32_t(val & 0x7F) << (i * 7);
     if ((val & 0x80) == 0) {
-      return {result32, i + 1};
+      value = result32;
+      return i + 1;
     }
   }
 #ifdef USE_API_VARINT64
-  return parse_wide(buffer, len, result32);
+  return parse_wide(buffer, len, result32, value);
 #else
-  return {0, PROTO_VARINT_PARSE_FAILED};
+  return PROTO_VARINT_PARSE_FAILED;
 #endif
 }
 
 #ifdef USE_API_VARINT64
-ProtoVarIntResult ProtoVarInt::parse_wide(const uint8_t *buffer, uint32_t len, uint32_t result32) {
+uint32_t ProtoVarInt::parse_wide(const uint8_t *buffer, uint32_t len, uint32_t result32, uint64_t &value) {
   uint64_t result64 = result32;
   uint32_t limit = std::min(len, uint32_t(10));
   for (uint32_t i = 4; i < limit; i++) {
     uint8_t val = buffer[i];
     result64 |= uint64_t(val & 0x7F) << (i * 7);
     if ((val & 0x80) == 0) {
-      return {result64, i + 1};
+      value = result64;
+      return i + 1;
     }
   }
-  return {0, PROTO_VARINT_PARSE_FAILED};
+  return PROTO_VARINT_PARSE_FAILED;
 }
 #endif
 
@@ -222,11 +224,13 @@ void ProtoDecodableMessage::decode(const uint8_t *buffer, size_t length) {
       value = *ptr++;
       return true;
     }
-    auto res = ProtoVarInt::parse_non_empty(ptr, end - ptr);
-    if (!res.has_value())
+    // Separate out variable so the fast path above keeps `value` in a register
+    proto_varint_value_t wide;
+    uint32_t consumed = ProtoVarInt::parse_slow(ptr, end - ptr, wide);
+    if (consumed == PROTO_VARINT_PARSE_FAILED)
       return false;
-    value = res.value;
-    ptr += res.consumed;
+    value = wide;
+    ptr += consumed;
     return true;
   };
 
@@ -281,9 +285,7 @@ void ProtoDecodableMessage::decode(const uint8_t *buffer, size_t length) {
           return;
       }
     }
-    if (!this->decode_field(tag, data, scalar)) {
-      ESP_LOGV(TAG, "Cannot decode field %" PRIu32 " with wire type %" PRIu32 "!", tag >> 3, field_type);
-    }
+    this->decode_field(tag, data, scalar);
   }
 }
 
