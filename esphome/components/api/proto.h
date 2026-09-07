@@ -692,17 +692,11 @@ class DumpBuffer {
 
 class ProtoMessage {
  public:
-  // Non-virtual defaults for messages with no fields.
-  // Concrete message classes hide these with their own implementations.
-  // All call sites use templates to preserve the concrete type, so virtual
-  // dispatch is not needed. This eliminates per-message vtable entries for
-  // encode/calculate_size, saving ~1.3 KB of flash across all message types.
-  //
-  // encode_msg/calc_size_msg are the type-erased entry points: generated messages define them as
-  // static functions over const void *, so &T::encode_msg is passed directly where a function
-  // pointer is needed and no per-type thunk exists. Generated classes also define encode() and
-  // calculate_size() as inline forwarders to their statics; the four defaults here are independent
-  // no-ops for messages without fields.
+  // Non-virtual defaults for messages with no fields; generated message classes hide all four.
+  // encode_msg/calc_size_msg are the type-erased entry points (static over const void *), so
+  // &T::encode_msg is a MessageEncodeFn with no per-type thunk; encode()/calculate_size() serve
+  // direct callers and forward to the statics in generated classes. No virtual dispatch: every
+  // call site knows the concrete type, which keeps these out of the per-message vtables.
   static uint8_t *encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) {
     return buffer.get_pos();
   }
