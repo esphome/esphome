@@ -226,7 +226,9 @@ def test_decode_cases_carry_field_number_and_wire_type(
     assert len(cases) == 1, cases
     lines = cases[0].splitlines()
     assert lines[0] == f"case PROTO_DECODE_CASE({number}, {wire_type}):", cases[0]
-    assert lines[1].strip() == f"PROTO_DECODE_GUARD(wire_type, {wire_type});", cases[0]
+    assert lines[1].strip() == f"PROTO_DECODE_GUARD(tag, {number}, {wire_type});", (
+        cases[0]
+    )
     assert accessor in cases[0], cases[0]
 
 
@@ -237,15 +239,16 @@ def test_message_gets_a_single_decode_field_override() -> None:
     desc.field.add(name="count", number=2, type=UINT32_T)
     desc.field.add(name="level", number=3, type=FLOAT)
     header, cpp, _ = build_message_type(desc, {}, {"Mixed": SOURCE_CLIENT})
-    decl = "bool decode_field(uint32_t tag, uint32_t field_id, uint32_t wire_type, ProtoFieldValue value) override;"
+    decl = "bool decode_field(uint32_t tag, const uint8_t *data, proto_varint_value_t scalar) override;"
     assert header.count(decl) == 1
     assert "decode_varint" not in header and "decode_length" not in header
     assert (
         cpp.count(
-            "bool Mixed::decode_field(uint32_t tag, uint32_t field_id, uint32_t wire_type, ProtoFieldValue value) {"
+            "bool Mixed::decode_field(uint32_t tag, const uint8_t *data, proto_varint_value_t scalar) {"
         )
         == 1
     )
-    assert "switch (PROTO_DECODE_KEY(tag, field_id)) {" in cpp
+    assert "switch (PROTO_DECODE_KEY(tag)) {" in cpp
+    assert "const ProtoFieldValue value(data, scalar);" in cpp
     for number, wire_type in ((1, 2), (2, 0), (3, 5)):
         assert f"case PROTO_DECODE_CASE({number}, {wire_type}):" in cpp, cpp
