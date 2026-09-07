@@ -576,7 +576,7 @@ def create_field_type_info(
 
     # Special handling for string fields - use StringRef for zero-copy
     if field.type == 9:
-        return PointerToStringBufferType(field, None)
+        return PointerToStringBufferType(field, needs_decode)
 
     validate_field_type(field.type, field.name)
     if field.type == 11:
@@ -1215,12 +1215,22 @@ class PointerToStringBufferType(PointerToBufferTypeBase):
     reference_type = "StringRef &"
     const_reference_type = "const StringRef &"
 
+    def __init__(
+        self, field: descriptor.FieldDescriptorProto, needs_decode: bool
+    ) -> None:
+        super().__init__(field, None)
+        self._needs_decode = needs_decode
+
     @classmethod
     def can_use_dump_field(cls) -> bool:
         return True
 
     @property
     def public_content(self) -> list[str]:
+        # A field that is only ever encoded and skipped when empty never has its pointer read, so a
+        # null default lets the whole message construct as one zero fill
+        if not self._needs_decode and not self.force:
+            return [f"StringRef {self.field_name}{{nullptr, 0}};"]
         return [f"StringRef {self.field_name}{{}};"]
 
     @property
