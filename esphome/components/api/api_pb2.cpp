@@ -1133,12 +1133,11 @@ SubscribeLogsResponse::calc_size_msg(const void *self) {
 bool NoiseEncryptionSetKeyRequest::decode_field(uint32_t tag, const uint8_t *data, proto_varint_value_t scalar) {
   const ProtoFieldValue value(data, scalar);
   switch (PROTO_DECODE_KEY(tag)) {
-    case PROTO_DECODE_CASE(1, 2): {
+    case PROTO_DECODE_CASE(1, 2):
       PROTO_DECODE_GUARD(tag, 1, 2);
       this->key = value.data();
       this->key_len = value.size();
       break;
-    }
     default:
       return false;
   }
@@ -1247,12 +1246,11 @@ bool HomeassistantActionResponse::decode_field(uint32_t tag, const uint8_t *data
       this->error_message = StringRef(reinterpret_cast<const char *>(value.data()), value.size());
       break;
 #ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES_JSON
-    case PROTO_DECODE_CASE(4, 2): {
+    case PROTO_DECODE_CASE(4, 2):
       PROTO_DECODE_GUARD(tag, 4, 2);
       this->response_data = value.data();
       this->response_data_len = value.size();
       break;
-    }
 #endif
     default:
       return false;
@@ -1362,12 +1360,11 @@ bool GetTimeResponse::decode_field(uint32_t tag, const uint8_t *data, proto_vari
       PROTO_DECODE_GUARD(tag, 1, 5);
       this->epoch_seconds = value.as_fixed32();
       break;
-    case PROTO_DECODE_CASE(3, 2): {
+    case PROTO_DECODE_CASE(3, 2):
       PROTO_DECODE_GUARD(tag, 3, 2);
       value.decode_to_message(this->parsed_timezone);
       this->has_parsed_timezone = true;
       break;
-    }
     default:
       return false;
   }
@@ -1492,12 +1489,11 @@ bool ExecuteServiceRequest::decode_field(uint32_t tag, const uint8_t *data, prot
       PROTO_DECODE_GUARD(tag, 1, 5);
       this->key = value.as_fixed32();
       break;
-    case PROTO_DECODE_CASE(2, 2): {
+    case PROTO_DECODE_CASE(2, 2):
       PROTO_DECODE_GUARD(tag, 2, 2);
       this->args.emplace_back();
       value.decode_to_message(this->args.back());
       break;
-    }
 #ifdef USE_API_USER_DEFINED_ACTION_RESPONSES
     case PROTO_DECODE_CASE(3, 0):
       PROTO_DECODE_GUARD(tag, 3, 0);
@@ -2877,12 +2873,11 @@ bool BluetoothGATTWriteRequest::decode_field(uint32_t tag, const uint8_t *data, 
       PROTO_DECODE_GUARD(tag, 3, 0);
       this->response = value.as_varint() != 0;
       break;
-    case PROTO_DECODE_CASE(4, 2): {
+    case PROTO_DECODE_CASE(4, 2):
       PROTO_DECODE_GUARD(tag, 4, 2);
       this->data = value.data();
       this->data_len = value.size();
       break;
-    }
     default:
       return false;
   }
@@ -2915,12 +2910,11 @@ bool BluetoothGATTWriteDescriptorRequest::decode_field(uint32_t tag, const uint8
       PROTO_DECODE_GUARD(tag, 2, 0);
       this->handle = value.as_varint();
       break;
-    case PROTO_DECODE_CASE(3, 2): {
+    case PROTO_DECODE_CASE(3, 2):
       PROTO_DECODE_GUARD(tag, 3, 2);
       this->data = value.data();
       this->data_len = value.size();
       break;
-    }
     default:
       return false;
   }
@@ -3209,12 +3203,11 @@ bool VoiceAssistantEventResponse::decode_field(uint32_t tag, const uint8_t *data
       PROTO_DECODE_GUARD(tag, 1, 0);
       this->event_type = static_cast<enums::VoiceAssistantEvent>(value.as_varint());
       break;
-    case PROTO_DECODE_CASE(2, 2): {
+    case PROTO_DECODE_CASE(2, 2):
       PROTO_DECODE_GUARD(tag, 2, 2);
       this->data.emplace_back();
       value.decode_to_message(this->data.back());
       break;
-    }
     default:
       return false;
   }
@@ -3223,22 +3216,20 @@ bool VoiceAssistantEventResponse::decode_field(uint32_t tag, const uint8_t *data
 bool VoiceAssistantAudio::decode_field(uint32_t tag, const uint8_t *data, proto_varint_value_t scalar) {
   const ProtoFieldValue value(data, scalar);
   switch (PROTO_DECODE_KEY(tag)) {
-    case PROTO_DECODE_CASE(1, 2): {
+    case PROTO_DECODE_CASE(1, 2):
       PROTO_DECODE_GUARD(tag, 1, 2);
       this->data = value.data();
       this->data_len = value.size();
       break;
-    }
     case PROTO_DECODE_CASE(2, 0):
       PROTO_DECODE_GUARD(tag, 2, 0);
       this->end = value.as_varint() != 0;
       break;
-    case PROTO_DECODE_CASE(3, 2): {
+    case PROTO_DECODE_CASE(3, 2):
       PROTO_DECODE_GUARD(tag, 3, 2);
       this->data2 = value.data();
       this->data2_len = value.size();
       break;
-    }
     default:
       return false;
   }
@@ -3390,12 +3381,11 @@ bool VoiceAssistantExternalWakeWord::decode_field(uint32_t tag, const uint8_t *d
 bool VoiceAssistantConfigurationRequest::decode_field(uint32_t tag, const uint8_t *data, proto_varint_value_t scalar) {
   const ProtoFieldValue value(data, scalar);
   switch (PROTO_DECODE_KEY(tag)) {
-    case PROTO_DECODE_CASE(1, 2): {
+    case PROTO_DECODE_CASE(1, 2):
       PROTO_DECODE_GUARD(tag, 1, 2);
       this->external_wake_words.emplace_back();
       value.decode_to_message(this->external_wake_words.back());
       break;
-    }
     default:
       return false;
   }
@@ -4137,12 +4127,11 @@ bool UpdateCommandRequest::decode_field(uint32_t tag, const uint8_t *data, proto
 bool ZWaveProxyFrame::decode_field(uint32_t tag, const uint8_t *data, proto_varint_value_t scalar) {
   const ProtoFieldValue value(data, scalar);
   switch (PROTO_DECODE_KEY(tag)) {
-    case PROTO_DECODE_CASE(1, 2): {
+    case PROTO_DECODE_CASE(1, 2):
       PROTO_DECODE_GUARD(tag, 1, 2);
       this->data = value.data();
       this->data_len = value.size();
       break;
-    }
     default:
       return false;
   }
@@ -4171,12 +4160,11 @@ bool ZWaveProxyRequest::decode_field(uint32_t tag, const uint8_t *data, proto_va
       PROTO_DECODE_GUARD(tag, 1, 0);
       this->type = static_cast<enums::ZWaveProxyRequestType>(value.as_varint());
       break;
-    case PROTO_DECODE_CASE(2, 2): {
+    case PROTO_DECODE_CASE(2, 2):
       PROTO_DECODE_GUARD(tag, 2, 2);
       this->data = value.data();
       this->data_len = value.size();
       break;
-    }
     default:
       return false;
   }
@@ -4271,13 +4259,12 @@ bool InfraredRFTransmitRawTimingsRequest::decode_field(uint32_t tag, const uint8
       PROTO_DECODE_GUARD(tag, 4, 0);
       this->repeat_count = value.as_varint();
       break;
-    case PROTO_DECODE_CASE(5, 2): {
+    case PROTO_DECODE_CASE(5, 2):
       PROTO_DECODE_GUARD(tag, 5, 2);
       this->timings_data_ = value.data();
       this->timings_length_ = value.size();
       this->timings_count_ = count_packed_varints(value.data(), value.size());
       break;
-    }
     case PROTO_DECODE_CASE(6, 0):
       PROTO_DECODE_GUARD(tag, 6, 0);
       this->modulation = value.as_varint();
@@ -4419,12 +4406,11 @@ bool SerialProxyWriteRequest::decode_field(uint32_t tag, const uint8_t *data, pr
       PROTO_DECODE_GUARD(tag, 1, 0);
       this->instance = value.as_varint();
       break;
-    case PROTO_DECODE_CASE(2, 2): {
+    case PROTO_DECODE_CASE(2, 2):
       PROTO_DECODE_GUARD(tag, 2, 2);
       this->data = value.data();
       this->data_len = value.size();
       break;
-    }
     default:
       return false;
   }

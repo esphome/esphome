@@ -188,11 +188,10 @@ def test_multi_byte_tag_fixed32_falls_back_to_the_generic_helper(
 
 def _decode_case(field_type: int, number: int) -> str:
     """Return the decode_field() case the generator emits for one decoded field."""
-    field = descriptor_pb2.FieldDescriptorProto(
-        name="value", number=number, type=field_type
-    )
-    ti = create_field_type_info(field, needs_decode=True, needs_encode=False)
-    return ti.decode_content
+    field = _field(field_type, number)
+    return create_field_type_info(
+        field, needs_decode=True, needs_encode=False
+    ).decode_content
 
 
 @pytest.mark.parametrize(
@@ -236,12 +235,3 @@ def test_message_gets_a_single_decode_field_override() -> None:
     assert "const ProtoFieldValue value(data, scalar);" in cpp
     for number, wire_type in ((1, 2), (2, 0), (3, 5)):
         assert f"case PROTO_DECODE_CASE({number}, {wire_type}):" in cpp, cpp
-
-
-def test_multi_statement_decode_cases_are_scoped() -> None:
-    """Bodies with several statements or locals get their own block so no jump crosses an initialization."""
-    case = _decode_case(BYTES, 4)
-    lines = case.splitlines()
-    assert lines[0] == "case PROTO_DECODE_CASE(4, 2): {", case
-    assert lines[-1] == "}", case
-    assert "value.data();" in case and "value.size();" in case
