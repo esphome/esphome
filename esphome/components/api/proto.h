@@ -170,40 +170,59 @@ class ProtoVarInt {
 class ProtoMessage;
 class ProtoSize;
 
-class ProtoLengthDelimited {
- public:
-  explicit ProtoLengthDelimited(const uint8_t *value, size_t length) : value_(value), length_(length) {}
-  std::string as_string() const { return std::string(reinterpret_cast<const char *>(this->value_), this->length_); }
+// Generated decode_field() bodies switch on PROTO_DECODE_KEY and label each case with
+// PROTO_DECODE_CASE. Embedded targets compile switches to compare chains (ESP-IDF passes
+// -fno-jump-tables), so keying on the full wire tag costs one compare per field and needs no
+// separate wire type check. The host compiler turns the dense field number switch into a jump
+// table, so there the key is the field number and PROTO_DECODE_GUARD rejects the wrong wire type
+// before the field is read. Both forms drop a field that arrives with a wire type it does not
+// declare, which is what the per wire type virtuals did before.
+#ifdef USE_HOST
+#define PROTO_DECODE_KEY(tag, field_id) (field_id)
+#define PROTO_DECODE_CASE(field_id, wire_type) (field_id)
+#define PROTO_DECODE_GUARD(wire_type, expected) \
+  if ((wire_type) != (expected)) \
+  return false
+#else
+#define PROTO_DECODE_KEY(tag, field_id) (tag)
+#define PROTO_DECODE_CASE(field_id, wire_type) (((field_id) << 3) | (wire_type))
+#define PROTO_DECODE_GUARD(wire_type, expected) (void) 0
+#endif
 
-  // Direct access to raw data without string allocation
-  const uint8_t *data() const { return this->value_; }
-  size_t size() const { return this->length_; }
+/// Payload of one decoded field, handed to ProtoDecodableMessage::decode_field() together with
+/// the field number and wire type. The wire type says which member is live; the accessors do not check.
+/// Eight bytes with or without USE_API_VARINT64, so it travels in two registers on every target.
+struct ProtoFieldValue {
+  union {
+    proto_varint_value_t varint_;
+    struct {
+      const uint8_t *data;
+      uint32_t len;
+    } ld_;
+    uint32_t fixed32_;
+  };
 
-  /// Decode the length-delimited data into a message instance.
+  proto_varint_value_t as_varint() const { return this->varint_; }
+
+  // Length-delimited accessors
+  const uint8_t *data() const { return this->ld_.data; }
+  size_t size() const { return this->ld_.len; }
+  std::string as_string() const { return std::string(reinterpret_cast<const char *>(this->ld_.data), this->ld_.len); }
+  /// Decode the length-delimited payload into a message instance.
   /// Template preserves concrete type so decode() resolves statically.
-  template<typename T> void decode_to_message(T &msg) const;
+  template<typename T> void decode_to_message(T &msg) const { msg.decode(this->ld_.data, this->ld_.len); }
 
- protected:
-  const uint8_t *const value_;
-  const size_t length_;
-};
-
-class Proto32Bit {
- public:
-  explicit Proto32Bit(uint32_t value) : value_(value) {}
-  uint32_t as_fixed32() const { return this->value_; }
-  int32_t as_sfixed32() const { return static_cast<int32_t>(this->value_); }
+  // Fixed32 accessors
+  uint32_t as_fixed32() const { return this->fixed32_; }
+  int32_t as_sfixed32() const { return static_cast<int32_t>(this->fixed32_); }
   float as_float() const {
     union {
       uint32_t raw;
       float value;
     } s{};
-    s.raw = this->value_;
+    s.raw = this->fixed32_;
     return s.value;
   }
-
- protected:
-  const uint32_t value_;
 };
 
 // NOTE: Proto64Bit class removed - wire type 1 (64-bit fixed) not supported
@@ -732,10 +751,16 @@ class ProtoDecodableMessage : public ProtoMessage {
 
  protected:
   ~ProtoDecodableMessage() = default;
-  virtual bool decode_varint(uint32_t field_id, proto_varint_value_t value) { return false; }
-  virtual bool decode_length(uint32_t field_id, ProtoLengthDelimited value) { return false; }
-  virtual bool decode_32bit(uint32_t field_id, Proto32Bit value) { return false; }
-  // NOTE: decode_64bit removed - wire type 1 not supported
+  /// Store one decoded field. \p field_id and \p wire_type are \p tag split in two; the loop has all
+  /// three at hand, so passing them costs nothing and the generated switch keys on whichever form is
+  /// cheapest for the target (see PROTO_DECODE_KEY). \p wire_type selects the live ProtoFieldValue
+  /// member; overrides reject a field that arrived with a wire type other than the one it declares.
+  /// Return false for unknown or mismatched fields.
+  /// One virtual instead of one per wire type keeps each message's vtable at a single slot.
+  // NOTE: wire type 1 (64-bit fixed) is not supported
+  virtual bool decode_field(uint32_t tag, uint32_t field_id, uint32_t wire_type, ProtoFieldValue value) {
+    return false;
+  }
 };
 
 class ProtoSize {
@@ -953,11 +978,6 @@ template<typename T> inline void ProtoWriteBuffer::encode_sub_message(uint32_t f
 // Thin template wrapper; delegates to non-template core.
 template<typename T> inline void ProtoWriteBuffer::encode_optional_sub_message(uint32_t field_id, const T &value) {
   this->encode_optional_sub_message(field_id, T::calc_size_msg(&value), &value, &T::encode_msg);
-}
-
-// Template decode_to_message - preserves concrete type so decode() resolves statically
-template<typename T> void ProtoLengthDelimited::decode_to_message(T &msg) const {
-  msg.decode(this->value_, this->length_);
 }
 
 template<typename T> const char *proto_enum_to_string(T value);
