@@ -287,13 +287,16 @@ class ProtoWriteBuffer {
   uint8_t *pos_;
 };
 
-// ESP32 builds pass -fno-builtin-memcpy, so the inline write was already a memcpy call there and
-// one shared copy is both smaller and faster. Elsewhere the write inlines to a few stores, which is
-// still cheaper than a call (measured on ESP8266), so keep it inline.
-#ifdef USE_ESP32
+// A four byte unaligned store is a memcpy call on ESP-IDF (-fno-builtin-memcpy) and on ARM cores without
+// unaligned access (Cortex-M0+, ARM9), so those targets share one outlined byte store helper per fixed32
+// field. Elsewhere the write inlines to a single store, or on ESP8266 to a few stores that measured
+// faster than a call, so it stays inline.
+#if defined(USE_ESP32) || (defined(__arm__) && !defined(__ARM_FEATURE_UNALIGNED))
 #define PROTO_OUTLINE_FOR_SIZE __attribute__((noinline))
+#define PROTO_FIXED32_BYTE_STORES true
 #else
 #define PROTO_OUTLINE_FOR_SIZE inline
+#define PROTO_FIXED32_BYTE_STORES false
 #endif
 
 // Varint encoding thresholds — used by both proto_encode_* free functions and ProtoSize.
@@ -417,8 +420,16 @@ class ProtoEncode {
   }
   /// Unaligned little-endian store; __builtin_memcpy stays inline even under -fno-builtin-memcpy.
   static inline void ESPHOME_ALWAYS_INLINE write_fixed32_le(uint8_t *__restrict__ pos, uint32_t value) {
-    const uint32_t le = convert_little_endian(value);
-    __builtin_memcpy(pos, &le, 4);
+    if constexpr (PROTO_FIXED32_BYTE_STORES) {
+      // Spelled out so the outlined helper does not itself become a memcpy call
+      pos[0] = static_cast<uint8_t>(value);
+      pos[1] = static_cast<uint8_t>(value >> 8);
+      pos[2] = static_cast<uint8_t>(value >> 16);
+      pos[3] = static_cast<uint8_t>(value >> 24);
+    } else {
+      const uint32_t le = convert_little_endian(value);
+      __builtin_memcpy(pos, &le, 4);
+    }
   }
   /// Write a precomputed tag byte + 32-bit value. Outlined on embedded: one copy beats inline stores per field.
   [[nodiscard]] static PROTO_OUTLINE_FOR_SIZE uint8_t *write_tag_and_fixed32(
@@ -585,6 +596,7 @@ class ProtoEncode {
   }
 };
 #undef PROTO_OUTLINE_FOR_SIZE
+#undef PROTO_FIXED32_BYTE_STORES
 
 #ifdef HAS_PROTO_MESSAGE_DUMP
 /**
