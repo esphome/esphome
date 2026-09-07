@@ -651,6 +651,8 @@ class LoopBlockingGuard {
 /// nothing there. Main loop task only. The watchdog is not fed inside the
 /// scope, so the work must still finish within the watchdog timeout. Scopes
 /// may nest; the outermost one decides how much of the pass is left out.
+/// App.get_loop_component_start_time() reads later in the same pass return
+/// the moved start, so elapsed time across the scope needs millis().
 ///
 ///   void MyComponent::loop() {
 ///     if (this->needs_key_) {
