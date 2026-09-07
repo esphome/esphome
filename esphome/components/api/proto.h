@@ -418,19 +418,6 @@ class ProtoEncode {
     std::memcpy(pos + 2, ref.c_str(), ref.size());
     return pos + 2 + ref.size();
   }
-  /// Unaligned little-endian store; __builtin_memcpy stays inline even under -fno-builtin-memcpy.
-  static inline void ESPHOME_ALWAYS_INLINE write_fixed32_le(uint8_t *__restrict__ pos, uint32_t value) {
-    if constexpr (PROTO_FIXED32_BYTE_STORES) {
-      // Spelled out so the outlined helper does not itself become a memcpy call
-      pos[0] = static_cast<uint8_t>(value);
-      pos[1] = static_cast<uint8_t>(value >> 8);
-      pos[2] = static_cast<uint8_t>(value >> 16);
-      pos[3] = static_cast<uint8_t>(value >> 24);
-    } else {
-      const uint32_t le = convert_little_endian(value);
-      __builtin_memcpy(pos, &le, 4);
-    }
-  }
   /// Write a precomputed tag byte + 32-bit value. Outlined on embedded: one copy beats inline stores per field.
   [[nodiscard]] static PROTO_OUTLINE_FOR_SIZE uint8_t *write_tag_and_fixed32(
       uint8_t *__restrict__ pos PROTO_ENCODE_DEBUG_PARAM, uint8_t tag, uint32_t value) {
@@ -593,6 +580,23 @@ class ProtoEncode {
     buffer.set_pos(pos);
     buffer.encode_optional_sub_message(field_id, value);
     return buffer.get_pos();
+  }
+
+ private:
+  /// Unaligned little endian store of four bytes: byte stores where the outlined helper lives (ESP-IDF, ARM
+  /// without unaligned access), otherwise a memcpy the compiler folds into one store. Callers bounds check
+  /// and advance the cursor themselves.
+  static inline void ESPHOME_ALWAYS_INLINE write_fixed32_le(uint8_t *__restrict__ pos, uint32_t value) {
+    if constexpr (PROTO_FIXED32_BYTE_STORES) {
+      // Spelled out so the outlined helper does not itself become a memcpy call
+      pos[0] = static_cast<uint8_t>(value);
+      pos[1] = static_cast<uint8_t>(value >> 8);
+      pos[2] = static_cast<uint8_t>(value >> 16);
+      pos[3] = static_cast<uint8_t>(value >> 24);
+    } else {
+      const uint32_t le = convert_little_endian(value);
+      __builtin_memcpy(pos, &le, 4);
+    }
   }
 };
 #undef PROTO_OUTLINE_FOR_SIZE

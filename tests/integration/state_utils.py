@@ -78,7 +78,10 @@ class StateWaiter:
                 future.set_result(state)
 
     async def expect(
-        self, predicate: Callable[[EntityState], bool], timeout: float = 5.0
+        self,
+        predicate: Callable[[EntityState], bool],
+        timeout: float = 5.0,
+        label: str | None = None,
     ) -> EntityState:
         """Wait for the next state matching ``predicate``; states seen before this call do not count."""
         entry = (predicate, asyncio.get_running_loop().create_future())
@@ -88,7 +91,7 @@ class StateWaiter:
                 return await entry[1]
         except TimeoutError:
             raise TimeoutError(
-                f"no state matched {predicate} within {timeout}s"
+                f"no state matched {label or predicate} within {timeout}s"
             ) from None
         finally:
             self._waiters.remove(entry)

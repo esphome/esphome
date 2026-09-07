@@ -64,13 +64,15 @@ async def test_api_encode_boundaries(
                     isinstance(s, SensorState)
                     and s.key == sensor.key
                     and s.state == 12.5
-                )
+                ),
+                label="sensor 12.5",
             ),
             waiter.expect(
                 lambda s: (
                     isinstance(s, TextSensorState)
                     and s.key == text.key
                     and s.state == "y" * 200
-                )
+                ),
+                label="text 200 x y",
             ),
         )
