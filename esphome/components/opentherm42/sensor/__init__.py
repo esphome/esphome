@@ -136,10 +136,12 @@ def _temperature_schema(
     )
 
 
-def _percent_schema(*, entity_category: str = cv.UNDEFINED) -> cv.Schema:
+def _percent_schema(
+    *, accuracy_decimals: int = 1, entity_category: str = cv.UNDEFINED
+) -> cv.Schema:
     return sensor.sensor_schema(
         unit_of_measurement="%",
-        accuracy_decimals=1,
+        accuracy_decimals=accuracy_decimals,
         state_class="measurement",
         entity_category=entity_category,
     )
@@ -289,8 +291,12 @@ TYPES: dict[str, cv.Schema] = {
         device_class=DEVICE_CLASS_CURRENT,
         state_class="measurement",
     ),
-    # §5.3.4 Class 4, ID 77 LB: Relative ventilation (0-100%). 0% is minimum set value, 100% is maximum.
-    CONF_SENSOR_AND_INFORMATIONAL_DATA_RELATIVE_VENTILATION: _PERCENT_SCHEMA,
+    # §5.3.4 Class 4, ID 77 LB: Relative ventilation (0-100%). 0% is minimum set value, 100% is
+    # maximum. Wire value is a plain u8, not f8.8 like ID 17's Relative Modulation Level, so no
+    # fractional part is ever possible -- accuracy_decimals=0.
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_RELATIVE_VENTILATION: _percent_schema(
+        accuracy_decimals=0
+    ),
     # §5.3.4 Class 4, ID 80: Supply inlet temperature (degrees C).
     CONF_SENSOR_AND_INFORMATIONAL_DATA_SUPPLY_INLET_TEMPERATURE: _TEMPERATURE_SCHEMA,
     # §5.3.4 Class 4, ID 81: Supply outlet temperature (degrees C).
@@ -398,10 +404,11 @@ TYPES: dict[str, cv.Schema] = {
     ),
     # §5.3.4 Class 4, ID 78 LB: Relative humidity exhaust air (0..100%), read from the boiler.
     # Independent of the number platform's relative_humidity_exhaust_air_set -- both may be
-    # configured at once.
+    # configured at once. Wire value is a plain u8, not f8.8 like ID 38's Relative Humidity, so no
+    # fractional part is ever possible -- accuracy_decimals=0.
     CONF_SENSOR_AND_INFORMATIONAL_DATA_RELATIVE_HUMIDITY_EXHAUST_AIR: sensor.sensor_schema(
         unit_of_measurement="%",
-        accuracy_decimals=1,
+        accuracy_decimals=0,
         device_class=DEVICE_CLASS_HUMIDITY,
         state_class="measurement",
     ),
@@ -416,21 +423,24 @@ TYPES: dict[str, cv.Schema] = {
     # §5.3.5 Class 5, IDs 48/49: fixed installation-time adjustment bounds for the DHW Setpoint / max
     # CH water Setpoint, not something the user watches change -- DIAGNOSTIC.
     #
-    # §5.3.5 Class 5, ID 48 HB: DHWsetp upp-bound -- upper bound for adjustment of DHW setp (degrees C).
+    # §5.3.5 Class 5, ID 48 HB: DHWsetp upp-bound -- upper bound for adjustment of DHW setp
+    # (degrees C). Wire value is a plain s8, not f8.8 like ID 56's DHW Setpoint itself, so no
+    # fractional part is ever possible -- accuracy_decimals=0.
     CONF_PRE_DEFINED_REMOTE_BOILER_PARAMETERS_DHWSETP_UPPER_BOUND: _temperature_schema(
-        entity_category=ENTITY_CATEGORY_DIAGNOSTIC
+        accuracy_decimals=0, entity_category=ENTITY_CATEGORY_DIAGNOSTIC
     ),
     # §5.3.5 Class 5, ID 48 LB: DHWsetp low-bound -- lower bound for adjustment of DHW setp (degrees C).
     CONF_PRE_DEFINED_REMOTE_BOILER_PARAMETERS_DHWSETP_LOWER_BOUND: _temperature_schema(
-        entity_category=ENTITY_CATEGORY_DIAGNOSTIC
+        accuracy_decimals=0, entity_category=ENTITY_CATEGORY_DIAGNOSTIC
     ),
-    # §5.3.5 Class 5, ID 49 HB: max CHsetp upp-bound -- upper bound for adjustment of maxCHsetp (degrees C).
+    # §5.3.5 Class 5, ID 49 HB: max CHsetp upp-bound -- upper bound for adjustment of maxCHsetp
+    # (degrees C), same plain-s8 reasoning as ID 48 above.
     CONF_PRE_DEFINED_REMOTE_BOILER_PARAMETERS_MAX_CHSETP_UPPER_BOUND: _temperature_schema(
-        entity_category=ENTITY_CATEGORY_DIAGNOSTIC
+        accuracy_decimals=0, entity_category=ENTITY_CATEGORY_DIAGNOSTIC
     ),
     # §5.3.5 Class 5, ID 49 LB: max CHsetp low-bnd -- lower bound for adjustment of maxCHsetp (degrees C).
     CONF_PRE_DEFINED_REMOTE_BOILER_PARAMETERS_MAX_CHSETP_LOWER_BOUND: _temperature_schema(
-        entity_category=ENTITY_CATEGORY_DIAGNOSTIC
+        accuracy_decimals=0, entity_category=ENTITY_CATEGORY_DIAGNOSTIC
     ),
     # §5.3.5 Class 5, ID 56: DHW Setpoint -- domestic hot water temperature Setpoint (degrees C), read
     # from the boiler. Independent of the number platform's dhw_setpoint_set -- both may be
@@ -446,9 +456,10 @@ TYPES: dict[str, cv.Schema] = {
     ),
     # §5.3.5 Class 5, ID 87 HB: Nominal ventilation value (0-100%), read from the boiler. Independent
     # of the number platform's nominal_ventilation_value_set -- both may be configured at once. A
-    # fixed system parameter rather than a live demand, so DIAGNOSTIC.
+    # fixed system parameter rather than a live demand, so DIAGNOSTIC. Wire value is a plain u8, so
+    # no fractional part is ever possible -- accuracy_decimals=0.
     CONF_PRE_DEFINED_REMOTE_BOILER_PARAMETERS_NOMINAL_VENTILATION_VALUE: _percent_schema(
-        entity_category=ENTITY_CATEGORY_DIAGNOSTIC
+        accuracy_decimals=0, entity_category=ENTITY_CATEGORY_DIAGNOSTIC
     ),
     # §5.3.6 Class 6, IDs 10/88/105: static capability counts (how many parameters the boiler/
     # ventilation/Solar Storage system supports), not something that changes -- DIAGNOSTIC.
@@ -490,9 +501,10 @@ TYPES: dict[str, cv.Schema] = {
         entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
     ),
     # §5.3.8.2 Class 8, ID 15 LB: Minimum modulation level (0..100%) -- a fixed installation rating,
-    # same reasoning as Maximum boiler capacity above, so DIAGNOSTIC.
+    # same reasoning as Maximum boiler capacity above, so DIAGNOSTIC. Wire value is a plain u8
+    # (same "Max-Capacity/Min-Mod-Level u8/u8" pair as ID 15 HB), so accuracy_decimals=0.
     CONF_CONTROL_OF_SPECIAL_APPLICATIONS_MINIMUM_MODULATION_LEVEL: _percent_schema(
-        entity_category=ENTITY_CATEGORY_DIAGNOSTIC
+        accuracy_decimals=0, entity_category=ENTITY_CATEGORY_DIAGNOSTIC
     ),
     # §5.3.8.3 Class 8, ID 9: Remote Override Room Setpoint (degrees C, 0..30).
     # 0 = No override, 1..30 = Remote override room Setpoint.
