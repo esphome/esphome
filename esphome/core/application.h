@@ -634,11 +634,11 @@ class LoopBlockingGuard {
 
 /// Leaves a stretch of the current loop pass out of the blocking warning.
 ///
-/// Only for work that cannot be made shorter and cannot be split across
-/// passes: enabling a radio, the initial connect of a network stack, a key
-/// generation whose cost is the algorithm itself. The warning then keeps
-/// reporting everything else in the pass, and the component's threshold does
-/// not ratchet up over the one step nothing can be done about.
+/// Only for work done from a loop pass that cannot be made shorter and
+/// cannot be split across passes: turning on a radio, the first Wi-Fi
+/// connect, a key generation whose cost is the algorithm itself. The warning
+/// then keeps reporting everything else in the pass, and the component's
+/// threshold does not ratchet up over the one step nothing can be done about.
 ///
 /// Never use it to paper over a problem that can be solved. A slow driver
 /// call, a loop that could be a state machine, a computation that could be
