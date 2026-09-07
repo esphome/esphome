@@ -252,3 +252,14 @@ def test_message_gets_a_single_decode_field_override() -> None:
     assert "const ProtoFieldValue value(data, scalar);" in cpp
     for number, wire_type in ((1, 2), (2, 0), (3, 5)):
         assert f"case PROTO_DECODE_CASE({number}, {wire_type}):" in cpp, cpp
+
+
+def test_multi_statement_decode_cases_are_scoped() -> None:
+    """Bodies with several statements or locals get their own block so no jump crosses an initialization."""
+    bytes_type = descriptor_pb2.FieldDescriptorProto.TYPE_BYTES
+    cases = _decode_cases(bytes_type, 4)
+    assert len(cases) == 1, cases
+    lines = cases[0].splitlines()
+    assert lines[0] == "case PROTO_DECODE_CASE(4, 2): {", cases[0]
+    assert lines[-1] == "}", cases[0]
+    assert "value.data();" in cases[0] and "value.size();" in cases[0]
