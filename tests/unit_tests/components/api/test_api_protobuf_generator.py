@@ -197,22 +197,22 @@ def _decode_case(field_type: int, number: int) -> str:
 @pytest.mark.parametrize(
     ("field_type", "number", "wire_type", "accessor"),
     [
-        (UINT32, 2, 0, "value.as_varint()"),
-        (BOOL, 3, 0, "value.as_varint() != 0"),
-        (STRING, 1, 2, "value.data()"),
-        (FLOAT, 4, 5, "value.as_float()"),
-        (FIXED32, 5, 5, "value.as_fixed32()"),
+        (UINT32, 2, "WIRE_TYPE_VARINT", "value.as_varint()"),
+        (BOOL, 3, "WIRE_TYPE_VARINT", "value.as_varint() != 0"),
+        (STRING, 1, "WIRE_TYPE_LENGTH_DELIMITED", "value.data()"),
+        (FLOAT, 4, "WIRE_TYPE_FIXED32", "value.as_float()"),
+        (FIXED32, 5, "WIRE_TYPE_FIXED32", "value.as_fixed32()"),
     ],
 )
 def test_decode_cases_carry_field_number_and_wire_type(
-    field_type: int, number: int, wire_type: int, accessor: str
+    field_type: int, number: int, wire_type: str, accessor: str
 ) -> None:
     """Each decoded field yields one case keyed on its number and declared wire type."""
     case = _decode_case(field_type, number)
     lines = case.splitlines()
-    assert lines[0] == f"case PROTO_DECODE_CASE({number}, {wire_type}):", case
-    assert lines[1].strip() == f"PROTO_DECODE_GUARD(tag, {number}, {wire_type});", case
-    assert accessor in case, case
+    assert lines[0] == f"case proto_tag({number}, {wire_type}):", case
+    assert accessor in lines[1], case
+    assert lines[-1].strip() == "break;", case
 
 
 def test_message_gets_a_single_decode_field_override() -> None:
@@ -231,7 +231,11 @@ def test_message_gets_a_single_decode_field_override() -> None:
         )
         == 1
     )
-    assert "switch (PROTO_DECODE_KEY(tag)) {" in cpp
+    assert "switch (tag) {" in cpp
     assert "const ProtoFieldValue value(data, scalar);" in cpp
-    for number, wire_type in ((1, 2), (2, 0), (3, 5)):
-        assert f"case PROTO_DECODE_CASE({number}, {wire_type}):" in cpp, cpp
+    for number, wire_type in (
+        (1, "WIRE_TYPE_LENGTH_DELIMITED"),
+        (2, "WIRE_TYPE_VARINT"),
+        (3, "WIRE_TYPE_FIXED32"),
+    ):
+        assert f"case proto_tag({number}, {wire_type}):" in cpp, cpp

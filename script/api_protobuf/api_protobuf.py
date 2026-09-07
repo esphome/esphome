@@ -28,6 +28,11 @@ class WireType(IntEnum):
     END_GROUP = 4  # groups (deprecated)
     FIXED32 = 5  # fixed32, sfixed32, float
 
+    @property
+    def cpp_name(self) -> str:
+        """The matching constant in proto.h."""
+        return f"WIRE_TYPE_{self.name}"
+
 
 # Generate with
 # protoc --python_out=script/api_protobuf -I esphome/components/api/ api_options.proto
@@ -230,10 +235,9 @@ class TypeInfo(ABC):
         return f"{self.cpp_type} {self.field_name}{{{self.default_value}}};"
 
     def decode_case(self, body: str) -> str:
-        """Emit one decode_field() case, keyed through the PROTO_DECODE_* macros in proto.h."""
-        wire_type = int(self.wire_type)
-        return f"case PROTO_DECODE_CASE({self.number}, {wire_type}):\n" + indent(
-            f"PROTO_DECODE_GUARD(tag, {self.number}, {wire_type});\n{body}\nbreak;"
+        """Emit one decode_field() case, keyed on the field's wire tag."""
+        return f"case proto_tag({self.number}, {self.wire_type.cpp_name}):\n" + indent(
+            f"{body}\nbreak;"
         )
 
     # Decode expression per wire type; a decodable type sets exactly one.
@@ -2685,7 +2689,7 @@ def build_message_type(
     if decode:
         o = f"bool {desc.name}::decode_field(uint32_t tag, const uint8_t *data, proto_varint_value_t scalar) {{\n"
         o += "  const ProtoFieldValue value(data, scalar);\n"
-        o += "  switch (PROTO_DECODE_KEY(tag)) {\n"
+        o += "  switch (tag) {\n"
         o += indent("\n".join(decode), "    ") + "\n"
         o += "    default: return false;\n"
         o += "  }\n"

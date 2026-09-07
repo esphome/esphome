@@ -170,20 +170,9 @@ class ProtoVarInt {
 class ProtoMessage;
 class ProtoSize;
 
-// Switch key for generated decode_field() bodies. Embedded builds use compare chains
-// (-fno-jump-tables), so the full tag is one compare per field with no guard. The host gets a
-// jump table from the dense field number switch plus a tag compare that rejects the wrong wire type.
-#ifdef USE_HOST
-#define PROTO_DECODE_KEY(tag) ((tag) >> 3)
-#define PROTO_DECODE_CASE(field_id, wire_type) (field_id)
-#define PROTO_DECODE_GUARD(tag, field_id, wire_type) \
-  if ((tag) != (((field_id) << 3) | (wire_type))) \
-  return false
-#else
-#define PROTO_DECODE_KEY(tag) (tag)
-#define PROTO_DECODE_CASE(field_id, wire_type) (((field_id) << 3) | (wire_type))
-#define PROTO_DECODE_GUARD(tag, field_id, wire_type) (void) 0
-#endif
+/// Case label for decode_field(): the wire tag of a field, so a field that arrives with another wire
+/// type matches no case.
+constexpr uint32_t proto_tag(uint32_t field_id, uint32_t wire_type) { return (field_id << 3) | wire_type; }
 
 /// One decoded field: the payload pointer and a scalar holding the varint or fixed32 value, or the
 /// length of a length-delimited field. The wire type in the tag says which applies; accessors do not check.
