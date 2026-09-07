@@ -389,6 +389,7 @@ class Application {
   friend Component;
   friend class Scheduler;
   friend class LoopBlockingGuard;
+  friend class UnavoidableBlockingScope;
 #ifdef USE_RUNTIME_STATS
   friend class runtime_stats::RuntimeStatsCollector;
 #endif
@@ -629,6 +630,35 @@ class LoopBlockingGuard {
  private:
   // Cold path; defined in component.cpp. Reads the current component/source from App to name the culprit.
   static void __attribute__((noinline, cold)) warn_blocking(uint32_t blocking_time);
+};
+
+/// Leaves a stretch of the current loop pass out of the blocking warning.
+///
+/// For work that cannot be made shorter or split across passes, such as
+/// bringing up a radio, the initial connect of a network stack, or a key
+/// generation whose cost is the algorithm itself; the warning then keeps
+/// reporting everything else in the pass, and the component's threshold does
+/// not ratchet up over such an operation. It must never wrap work that could
+/// be made faster or moved off the loop: that is exactly what the warning
+/// exists to find.
+///
+///   {
+///     UnavoidableBlockingScope scope;
+///     bring_up_radio();
+///   }
+class UnavoidableBlockingScope {
+ public:
+  UnavoidableBlockingScope() : started_(millis()) {}
+  ~UnavoidableBlockingScope() {
+    // Move the pass start forward by the time spent here; the guard measures
+    // from that start, and components reading it as "now" get a fresher value
+    App.set_loop_component_start_time_(App.get_loop_component_start_time() + (millis() - this->started_));
+  }
+  UnavoidableBlockingScope(const UnavoidableBlockingScope &) = delete;
+  UnavoidableBlockingScope &operator=(const UnavoidableBlockingScope &) = delete;
+
+ private:
+  uint32_t started_;
 };
 
 // Phase A: drain wake notifications and run the scheduler. Invoked on every
