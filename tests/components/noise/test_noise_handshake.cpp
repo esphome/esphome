@@ -177,6 +177,7 @@ static void run_handshake(NoiseResponderHandshake &responder, uint8_t responder_
 }
 
 TEST(SpareEphemeralTest, EmptySlotLeavesHandshakeToGenerate) {
+  ASSERT_FALSE(has_spare_ephemeral());
   NoiseResponderHandshake responder;
   uint8_t responder_e[32];
   run_handshake(responder, responder_e);
