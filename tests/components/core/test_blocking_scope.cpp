@@ -27,8 +27,46 @@ TEST(UnavoidableBlockingScope, ExcludesItsDurationFromThePass) {
 TEST(UnavoidableBlockingScope, ZeroLengthScopeLeavesTheStartAlone) {
   const uint32_t pass_start = millis();
   LoopBlockingGuard guard(nullptr, nullptr, pass_start);
+  const uint32_t before = millis();
   { UnavoidableBlockingScope scope; }
-  EXPECT_LE(App.get_loop_component_start_time() - pass_start, 1u);
+  EXPECT_LE(App.get_loop_component_start_time() - pass_start, millis() - before);
+}
+
+// Nesting counts the inner stretch twice; the start must still never pass now
+TEST(UnavoidableBlockingScope, NestedScopesNeverMoveTheStartPastNow) {
+  const uint32_t pass_start = millis();
+  LoopBlockingGuard guard(nullptr, nullptr, pass_start);
+  {
+    UnavoidableBlockingScope outer;
+    {
+      UnavoidableBlockingScope inner;
+      delay(30);
+    }
+    delay(5);
+  }
+  const uint32_t now = millis();
+  EXPECT_GE(static_cast<int32_t>(now - App.get_loop_component_start_time()), 0);
+  EXPECT_GE(App.get_loop_component_start_time() - pass_start, 35u);
+}
+
+class DummyComponent : public Component {};
+
+// The excused stretch must neither warn nor ratchet the component's threshold
+TEST(UnavoidableBlockingScope, ExcusedStretchDoesNotRatchetTheThreshold) {
+  DummyComponent component;
+  uint32_t threshold_before = 0;
+  component.should_warn_of_blocking(0, threshold_before);
+  {
+    LoopBlockingGuard guard(&component, nullptr, millis());
+    {
+      UnavoidableBlockingScope scope;
+      delay(WARN_IF_BLOCKING_OVER_CS * 10U + 20);
+    }
+    guard.finish();
+  }
+  uint32_t threshold_after = 0;
+  component.should_warn_of_blocking(0, threshold_after);
+  EXPECT_EQ(threshold_after, threshold_before);
 }
 
 }  // namespace esphome

@@ -646,6 +646,9 @@ class LoopBlockingGuard {
 /// the warning exists to find, and wrapping them in this scope hides the
 /// bug instead of fixing it. If in doubt, leave the warning in.
 ///
+/// Main loop task only. The watchdog is not fed inside the scope, so the
+/// work must still finish within the watchdog timeout.
+///
 ///   {
 ///     UnavoidableBlockingScope scope;
 ///     bring_up_radio();
@@ -654,9 +657,12 @@ class UnavoidableBlockingScope {
  public:
   UnavoidableBlockingScope() : started_(millis()) {}
   ~UnavoidableBlockingScope() {
-    // Move the pass start forward by the time spent here; the guard measures
-    // from that start, and components reading it as "now" get a fresher value
-    App.set_loop_component_start_time_(App.get_loop_component_start_time() + (millis() - this->started_));
+    // Move the pass start forward by the time spent here, but never past now:
+    // nested scopes count the inner stretch twice, and a start in the future
+    // would underflow the guard's subtraction
+    const uint32_t now = millis();
+    const uint32_t moved = App.get_loop_component_start_time() + (now - this->started_);
+    App.set_loop_component_start_time_(static_cast<int32_t>(now - moved) < 0 ? now : moved);
   }
   UnavoidableBlockingScope(const UnavoidableBlockingScope &) = delete;
   UnavoidableBlockingScope &operator=(const UnavoidableBlockingScope &) = delete;
