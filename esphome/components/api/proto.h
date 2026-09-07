@@ -300,7 +300,7 @@ class ProtoWriteBuffer {
 constexpr uint32_t VARINT_MAX_1_BYTE = 1 << 7;   // 128
 constexpr uint32_t VARINT_MAX_2_BYTE = 1 << 14;  // 16384
 
-/// Static encode helpers for generated encode() functions. Each takes the write cursor by value and
+/// Static encode helpers for the generated encode bodies. Each takes the write cursor by value and
 /// returns it advanced, so outlined calls at -Os chain through the return register instead of a
 /// stack slot. Helpers without a _force suffix skip fields holding the proto3 default.
 class ProtoEncode {
@@ -318,8 +318,8 @@ class ProtoEncode {
     *pos++ = static_cast<uint8_t>(value);
     return pos;
   }
-  static inline uint8_t *ESPHOME_ALWAYS_INLINE encode_varint_raw(uint8_t *__restrict__ pos PROTO_ENCODE_DEBUG_PARAM,
-                                                                 uint32_t value) {
+  [[nodiscard]] static inline uint8_t *ESPHOME_ALWAYS_INLINE
+  encode_varint_raw(uint8_t *__restrict__ pos PROTO_ENCODE_DEBUG_PARAM, uint32_t value) {
     if (value < VARINT_MAX_1_BYTE) [[likely]] {
       PROTO_ENCODE_CHECK_BOUNDS(pos, 1);
       *pos++ = static_cast<uint8_t>(value);
@@ -343,8 +343,8 @@ class ProtoEncode {
     }
     return encode_varint_raw_loop(pos PROTO_ENCODE_DEBUG_ARG, value);
   }
-  static inline uint8_t *ESPHOME_ALWAYS_INLINE encode_varint_raw_64(uint8_t *__restrict__ pos PROTO_ENCODE_DEBUG_PARAM,
-                                                                    uint64_t value) {
+  [[nodiscard]] static inline uint8_t *ESPHOME_ALWAYS_INLINE
+  encode_varint_raw_64(uint8_t *__restrict__ pos PROTO_ENCODE_DEBUG_PARAM, uint64_t value) {
     if (value < VARINT_MAX_1_BYTE) [[likely]] {
       PROTO_ENCODE_CHECK_BOUNDS(pos, 1);
       *pos++ = static_cast<uint8_t>(value);
@@ -377,26 +377,27 @@ class ProtoEncode {
     }
     return encode_varint_raw_64(pos PROTO_ENCODE_DEBUG_ARG, value);
   }
-  static inline uint8_t *ESPHOME_ALWAYS_INLINE encode_field_raw(uint8_t *__restrict__ pos PROTO_ENCODE_DEBUG_PARAM,
-                                                                uint32_t field_id, uint32_t type) {
+  [[nodiscard]] static inline uint8_t *ESPHOME_ALWAYS_INLINE
+  encode_field_raw(uint8_t *__restrict__ pos PROTO_ENCODE_DEBUG_PARAM, uint32_t field_id, uint32_t type) {
     return encode_varint_raw(pos PROTO_ENCODE_DEBUG_ARG, (field_id << 3) | type);
   }
   /// Write a single precomputed tag byte. Tag must be < 128.
-  static inline uint8_t *ESPHOME_ALWAYS_INLINE write_raw_byte(uint8_t *__restrict__ pos PROTO_ENCODE_DEBUG_PARAM,
-                                                              uint8_t b) {
+  [[nodiscard]] static inline uint8_t *ESPHOME_ALWAYS_INLINE
+  write_raw_byte(uint8_t *__restrict__ pos PROTO_ENCODE_DEBUG_PARAM, uint8_t b) {
     PROTO_ENCODE_CHECK_BOUNDS(pos, 1);
     *pos++ = b;
     return pos;
   }
   /// Reserve one byte for later backpatch (e.g., sub-message length).
   /// Advances pos past the reserved byte without writing a value.
-  static inline uint8_t *ESPHOME_ALWAYS_INLINE reserve_byte(uint8_t *__restrict__ pos PROTO_ENCODE_DEBUG_PARAM) {
+  [[nodiscard]] static inline uint8_t *ESPHOME_ALWAYS_INLINE
+  reserve_byte(uint8_t *__restrict__ pos PROTO_ENCODE_DEBUG_PARAM) {
     PROTO_ENCODE_CHECK_BOUNDS(pos, 1);
     return pos + 1;
   }
   /// Write raw bytes to the buffer (no tag, no length prefix).
-  static inline uint8_t *ESPHOME_ALWAYS_INLINE encode_raw(uint8_t *__restrict__ pos PROTO_ENCODE_DEBUG_PARAM,
-                                                          const void *data, size_t len) {
+  [[nodiscard]] static inline uint8_t *ESPHOME_ALWAYS_INLINE
+  encode_raw(uint8_t *__restrict__ pos PROTO_ENCODE_DEBUG_PARAM, const void *data, size_t len) {
     PROTO_ENCODE_CHECK_BOUNDS(pos, len);
     std::memcpy(pos, data, len);
     return pos + len;

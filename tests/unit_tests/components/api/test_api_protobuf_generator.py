@@ -156,21 +156,6 @@ SCALAR_TYPES = [
 
 
 @pytest.mark.parametrize("field_type", SCALAR_TYPES)
-@pytest.mark.parametrize("force", [False, True])
-@pytest.mark.parametrize("repeated", [False, True])
-def test_encode_statements_assign_the_returned_cursor(
-    field_type: int, force: bool, repeated: bool
-) -> None:
-    """Every ProtoEncode call must take pos by value and store the returned cursor."""
-    content = _encode_field(field_type, force=force, repeated=repeated)
-    calls = [line.strip() for line in content.splitlines() if "ProtoEncode::" in line]
-    assert calls, content
-    for call in calls:
-        assert call.startswith("pos = ProtoEncode::"), call
-    assert ", true)" not in content, content
-
-
-@pytest.mark.parametrize("field_type", SCALAR_TYPES)
 def test_forced_fields_use_the_force_overload_or_raw_writes(field_type: int) -> None:
     content = _encode_field(field_type, force=True)
     assert (
