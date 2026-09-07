@@ -202,7 +202,7 @@ def _decode_case(field_type: int, number: int, *, repeated: bool = False) -> str
 @pytest.mark.parametrize(
     ("needs_decode", "force", "member"),
     [
-        (False, False, "StringRef value{nullptr, 0};"),
+        (False, False, "StringRef value{nullptr, 0};  // null until set, encode only"),
         (True, False, "StringRef value{};"),
         (False, True, "StringRef value{};"),
     ],

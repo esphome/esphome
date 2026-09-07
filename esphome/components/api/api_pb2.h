@@ -382,7 +382,7 @@ class InfoResponseProtoMessage : public ProtoMessage {
   StringRef name{};
   bool disabled_by_default{false};
 #ifdef USE_ENTITY_ICON
-  StringRef icon{nullptr, 0};
+  StringRef icon{nullptr, 0};  // null until set, encode only
 #endif
   enums::EntityCategory entity_category{};
 #ifdef USE_DEVICES
@@ -554,7 +554,7 @@ class DeviceInfo final : public ProtoMessage {
 #ifdef USE_SERIAL_PROXY
 class SerialProxyInfo final : public ProtoMessage {
  public:
-  StringRef name{nullptr, 0};
+  StringRef name{nullptr, 0};  // null until set, encode only
   enums::SerialProxyPortType port_type{};
   uint32_t configured_line_states{0};
   static uint8_t *encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM);
@@ -749,7 +749,7 @@ class ListEntitiesBinarySensorResponse final : public InfoResponseProtoMessage {
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const LogString *message_name() const override { return LOG_STR("list_entities_binary_sensor_response"); }
 #endif
-  StringRef device_class{nullptr, 0};
+  StringRef device_class{nullptr, 0};  // null until set, encode only
   bool is_status_binary_sensor{false};
   static uint8_t *encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM);
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
@@ -796,7 +796,7 @@ class ListEntitiesCoverResponse final : public InfoResponseProtoMessage {
   bool assumed_state{false};
   bool supports_position{false};
   bool supports_tilt{false};
-  StringRef device_class{nullptr, 0};
+  StringRef device_class{nullptr, 0};  // null until set, encode only
   bool supports_stop{false};
   static uint8_t *encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM);
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
@@ -888,7 +888,7 @@ class FanStateResponse final : public StateResponseProtoMessage {
   bool oscillating{false};
   enums::FanDirection direction{};
   int32_t speed_level{0};
-  StringRef preset_mode{nullptr, 0};
+  StringRef preset_mode{nullptr, 0};  // null until set, encode only
   static uint8_t *encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM);
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
     return encode_msg(this, buffer PROTO_ENCODE_DEBUG_ARG);
@@ -968,7 +968,7 @@ class LightStateResponse final : public StateResponseProtoMessage {
   float color_temperature{0.0f};
   float cold_white{0.0f};
   float warm_white{0.0f};
-  StringRef effect{nullptr, 0};
+  StringRef effect{nullptr, 0};  // null until set, encode only
   static uint8_t *encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM);
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
     return encode_msg(this, buffer PROTO_ENCODE_DEBUG_ARG);
@@ -1030,10 +1030,10 @@ class ListEntitiesSensorResponse final : public InfoResponseProtoMessage {
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const LogString *message_name() const override { return LOG_STR("list_entities_sensor_response"); }
 #endif
-  StringRef unit_of_measurement{nullptr, 0};
+  StringRef unit_of_measurement{nullptr, 0};  // null until set, encode only
   int32_t accuracy_decimals{0};
   bool force_update{false};
-  StringRef device_class{nullptr, 0};
+  StringRef device_class{nullptr, 0};  // null until set, encode only
   enums::SensorStateClass state_class{};
   static uint8_t *encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM);
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
@@ -1078,7 +1078,7 @@ class ListEntitiesSwitchResponse final : public InfoResponseProtoMessage {
   const LogString *message_name() const override { return LOG_STR("list_entities_switch_response"); }
 #endif
   bool assumed_state{false};
-  StringRef device_class{nullptr, 0};
+  StringRef device_class{nullptr, 0};  // null until set, encode only
   static uint8_t *encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM);
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
     return encode_msg(this, buffer PROTO_ENCODE_DEBUG_ARG);
@@ -1135,7 +1135,7 @@ class ListEntitiesTextSensorResponse final : public InfoResponseProtoMessage {
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const LogString *message_name() const override { return LOG_STR("list_entities_text_sensor_response"); }
 #endif
-  StringRef device_class{nullptr, 0};
+  StringRef device_class{nullptr, 0};  // null until set, encode only
   static uint8_t *encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM);
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
     return encode_msg(this, buffer PROTO_ENCODE_DEBUG_ARG);
@@ -1155,7 +1155,7 @@ class TextSensorStateResponse final : public StateResponseProtoMessage {
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const LogString *message_name() const override { return LOG_STR("text_sensor_state_response"); }
 #endif
-  StringRef state{nullptr, 0};
+  StringRef state{nullptr, 0};  // null until set, encode only
   bool missing_state{false};
   static uint8_t *encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM);
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
@@ -1253,8 +1253,8 @@ class NoiseEncryptionSetKeyResponse final : public ProtoMessage {
 #ifdef USE_API_HOMEASSISTANT_SERVICES
 class HomeassistantServiceMap final : public ProtoMessage {
  public:
-  StringRef key{nullptr, 0};
-  StringRef value{nullptr, 0};
+  StringRef key{nullptr, 0};    // null until set, encode only
+  StringRef value{nullptr, 0};  // null until set, encode only
   static uint8_t *encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM);
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
     return encode_msg(this, buffer PROTO_ENCODE_DEBUG_ARG);
@@ -1274,7 +1274,7 @@ class HomeassistantActionRequest final : public ProtoMessage {
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const LogString *message_name() const override { return LOG_STR("homeassistant_action_request"); }
 #endif
-  StringRef service{nullptr, 0};
+  StringRef service{nullptr, 0};  // null until set, encode only
   FixedVector<HomeassistantServiceMap> data{};
   FixedVector<HomeassistantServiceMap> data_template{};
   FixedVector<HomeassistantServiceMap> variables{};
@@ -1286,7 +1286,7 @@ class HomeassistantActionRequest final : public ProtoMessage {
   bool wants_response{false};
 #endif
 #ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES_JSON
-  StringRef response_template{nullptr, 0};
+  StringRef response_template{nullptr, 0};  // null until set, encode only
 #endif
   static uint8_t *encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM);
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
@@ -1332,8 +1332,8 @@ class SubscribeHomeAssistantStateResponse final : public ProtoMessage {
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const LogString *message_name() const override { return LOG_STR("subscribe_home_assistant_state_response"); }
 #endif
-  StringRef entity_id{nullptr, 0};
-  StringRef attribute{nullptr, 0};
+  StringRef entity_id{nullptr, 0};  // null until set, encode only
+  StringRef attribute{nullptr, 0};  // null until set, encode only
   bool once{false};
   static uint8_t *encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM);
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
@@ -1426,13 +1426,13 @@ class GetTimeResponse final : public ProtoDecodableMessage {
 #ifdef USE_API_USER_DEFINED_ACTIONS
 class ListEntitiesServicesArgument final : public ProtoMessage {
  public:
-  StringRef name{nullptr, 0};
+  StringRef name{nullptr, 0};  // null until set, encode only
   enums::ServiceArgType type{};
 #ifdef USE_API_USER_DEFINED_ACTION_METADATA
-  StringRef description{nullptr, 0};
+  StringRef description{nullptr, 0};  // null until set, encode only
 #endif
 #ifdef USE_API_USER_DEFINED_ACTION_METADATA
-  StringRef example{nullptr, 0};
+  StringRef example{nullptr, 0};  // null until set, encode only
 #endif
   static uint8_t *encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM);
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
@@ -1453,12 +1453,12 @@ class ListEntitiesServicesResponse final : public ProtoMessage {
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const LogString *message_name() const override { return LOG_STR("list_entities_services_response"); }
 #endif
-  StringRef name{nullptr, 0};
+  StringRef name{nullptr, 0};  // null until set, encode only
   uint32_t key{0};
   FixedVector<ListEntitiesServicesArgument> args{};
   enums::SupportsResponseType supports_response{};
 #ifdef USE_API_USER_DEFINED_ACTION_METADATA
-  StringRef description{nullptr, 0};
+  StringRef description{nullptr, 0};  // null until set, encode only
 #endif
   static uint8_t *encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM);
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
@@ -1525,7 +1525,7 @@ class ExecuteServiceResponse final : public ProtoMessage {
 #endif
   uint32_t call_id{0};
   bool success{false};
-  StringRef error_message{nullptr, 0};
+  StringRef error_message{nullptr, 0};  // null until set, encode only
 #ifdef USE_API_USER_DEFINED_ACTION_RESPONSES_JSON
   const uint8_t *response_data{nullptr};
   uint16_t response_data_len{0};
@@ -1660,9 +1660,9 @@ class ClimateStateResponse final : public StateResponseProtoMessage {
   enums::ClimateAction action{};
   enums::ClimateFanMode fan_mode{};
   enums::ClimateSwingMode swing_mode{};
-  StringRef custom_fan_mode{nullptr, 0};
+  StringRef custom_fan_mode{nullptr, 0};  // null until set, encode only
   enums::ClimatePreset preset{};
-  StringRef custom_preset{nullptr, 0};
+  StringRef custom_preset{nullptr, 0};  // null until set, encode only
   float current_humidity{0.0f};
   float target_humidity{0.0f};
   static uint8_t *encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM);
@@ -1795,9 +1795,9 @@ class ListEntitiesNumberResponse final : public InfoResponseProtoMessage {
   float min_value{0.0f};
   float max_value{0.0f};
   float step{0.0f};
-  StringRef unit_of_measurement{nullptr, 0};
+  StringRef unit_of_measurement{nullptr, 0};  // null until set, encode only
   enums::NumberMode mode{};
-  StringRef device_class{nullptr, 0};
+  StringRef device_class{nullptr, 0};  // null until set, encode only
   static uint8_t *encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM);
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
     return encode_msg(this, buffer PROTO_ENCODE_DEBUG_ARG);
@@ -1875,7 +1875,7 @@ class SelectStateResponse final : public StateResponseProtoMessage {
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const LogString *message_name() const override { return LOG_STR("select_state_response"); }
 #endif
-  StringRef state{nullptr, 0};
+  StringRef state{nullptr, 0};  // null until set, encode only
   bool missing_state{false};
   static uint8_t *encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM);
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
@@ -1982,7 +1982,7 @@ class ListEntitiesLockResponse final : public InfoResponseProtoMessage {
   bool assumed_state{false};
   bool supports_open{false};
   bool requires_code{false};
-  StringRef code_format{nullptr, 0};
+  StringRef code_format{nullptr, 0};  // null until set, encode only
   static uint8_t *encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM);
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
     return encode_msg(this, buffer PROTO_ENCODE_DEBUG_ARG);
@@ -2041,7 +2041,7 @@ class ListEntitiesButtonResponse final : public InfoResponseProtoMessage {
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const LogString *message_name() const override { return LOG_STR("list_entities_button_response"); }
 #endif
-  StringRef device_class{nullptr, 0};
+  StringRef device_class{nullptr, 0};  // null until set, encode only
   static uint8_t *encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM);
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
     return encode_msg(this, buffer PROTO_ENCODE_DEBUG_ARG);
@@ -2072,7 +2072,7 @@ class ButtonCommandRequest final : public CommandProtoMessage {
 #ifdef USE_MEDIA_PLAYER
 class MediaPlayerSupportedFormat final : public ProtoMessage {
  public:
-  StringRef format{nullptr, 0};
+  StringRef format{nullptr, 0};  // null until set, encode only
   uint32_t sample_rate{0};
   uint32_t num_channels{0};
   enums::MediaPlayerFormatPurpose purpose{};
@@ -2732,10 +2732,10 @@ class VoiceAssistantRequest final : public ProtoMessage {
   const LogString *message_name() const override { return LOG_STR("voice_assistant_request"); }
 #endif
   bool start{false};
-  StringRef conversation_id{nullptr, 0};
+  StringRef conversation_id{nullptr, 0};  // null until set, encode only
   uint32_t flags{0};
   VoiceAssistantAudioSettings audio_settings{};
-  StringRef wake_word_phrase{nullptr, 0};
+  StringRef wake_word_phrase{nullptr, 0};  // null until set, encode only
   static uint8_t *encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM);
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
     return encode_msg(this, buffer PROTO_ENCODE_DEBUG_ARG);
@@ -2876,8 +2876,8 @@ class VoiceAssistantAnnounceFinished final : public ProtoMessage {
 };
 class VoiceAssistantWakeWord final : public ProtoMessage {
  public:
-  StringRef id{nullptr, 0};
-  StringRef wake_word{nullptr, 0};
+  StringRef id{nullptr, 0};         // null until set, encode only
+  StringRef wake_word{nullptr, 0};  // null until set, encode only
   std::vector<std::string> trained_languages{};
   static uint8_t *encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM);
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
@@ -3030,7 +3030,7 @@ class ListEntitiesTextResponse final : public InfoResponseProtoMessage {
 #endif
   uint32_t min_length{0};
   uint32_t max_length{0};
-  StringRef pattern{nullptr, 0};
+  StringRef pattern{nullptr, 0};  // null until set, encode only
   enums::TextMode mode{};
   static uint8_t *encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM);
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
@@ -3051,7 +3051,7 @@ class TextStateResponse final : public StateResponseProtoMessage {
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const LogString *message_name() const override { return LOG_STR("text_state_response"); }
 #endif
-  StringRef state{nullptr, 0};
+  StringRef state{nullptr, 0};  // null until set, encode only
   bool missing_state{false};
   static uint8_t *encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM);
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
@@ -3211,7 +3211,7 @@ class ListEntitiesEventResponse final : public InfoResponseProtoMessage {
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const LogString *message_name() const override { return LOG_STR("list_entities_event_response"); }
 #endif
-  StringRef device_class{nullptr, 0};
+  StringRef device_class{nullptr, 0};  // null until set, encode only
   const FixedVector<const char *> *event_types{};
   static uint8_t *encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM);
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
@@ -3232,7 +3232,7 @@ class EventResponse final : public StateResponseProtoMessage {
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const LogString *message_name() const override { return LOG_STR("event_response"); }
 #endif
-  StringRef event_type{nullptr, 0};
+  StringRef event_type{nullptr, 0};  // null until set, encode only
   static uint8_t *encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM);
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
     return encode_msg(this, buffer PROTO_ENCODE_DEBUG_ARG);
@@ -3254,7 +3254,7 @@ class ListEntitiesValveResponse final : public InfoResponseProtoMessage {
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const LogString *message_name() const override { return LOG_STR("list_entities_valve_response"); }
 #endif
-  StringRef device_class{nullptr, 0};
+  StringRef device_class{nullptr, 0};  // null until set, encode only
   bool assumed_state{false};
   bool supports_position{false};
   bool supports_stop{false};
@@ -3374,7 +3374,7 @@ class ListEntitiesUpdateResponse final : public InfoResponseProtoMessage {
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const LogString *message_name() const override { return LOG_STR("list_entities_update_response"); }
 #endif
-  StringRef device_class{nullptr, 0};
+  StringRef device_class{nullptr, 0};  // null until set, encode only
   static uint8_t *encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM);
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
     return encode_msg(this, buffer PROTO_ENCODE_DEBUG_ARG);
@@ -3398,11 +3398,11 @@ class UpdateStateResponse final : public StateResponseProtoMessage {
   bool in_progress{false};
   bool has_progress{false};
   float progress{0.0f};
-  StringRef current_version{nullptr, 0};
-  StringRef latest_version{nullptr, 0};
-  StringRef title{nullptr, 0};
-  StringRef release_summary{nullptr, 0};
-  StringRef release_url{nullptr, 0};
+  StringRef current_version{nullptr, 0};  // null until set, encode only
+  StringRef latest_version{nullptr, 0};   // null until set, encode only
+  StringRef title{nullptr, 0};            // null until set, encode only
+  StringRef release_summary{nullptr, 0};  // null until set, encode only
+  StringRef release_url{nullptr, 0};      // null until set, encode only
   static uint8_t *encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM);
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
     return encode_msg(this, buffer PROTO_ENCODE_DEBUG_ARG);
@@ -3740,7 +3740,7 @@ class SerialProxyRequestResponse final : public ProtoMessage {
   uint32_t instance{0};
   enums::SerialProxyRequestType type{};
   enums::SerialProxyStatus status{};
-  StringRef error_message{nullptr, 0};
+  StringRef error_message{nullptr, 0};  // null until set, encode only
   static uint8_t *encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM);
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
     return encode_msg(this, buffer PROTO_ENCODE_DEBUG_ARG);
