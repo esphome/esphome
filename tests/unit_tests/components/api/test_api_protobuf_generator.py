@@ -18,7 +18,9 @@ sys.path.insert(0, str(Path(__file__).parents[4] / "script" / "api_protobuf"))
 import aioesphomeapi.api_options_pb2 as pb  # noqa: E402
 from api_protobuf import (  # noqa: E402
     MAX_MESSAGE_ID,
+    SOURCE_CLIENT,
     _make_ifdef_line,
+    build_message_type,
     create_field_type_info,
     get_varint64_ifdef,
     validate_message_id,
@@ -182,3 +184,68 @@ def test_multi_byte_tag_fixed32_falls_back_to_the_generic_helper(
     content = _encode_field(field_type, number=16)
     assert "write_tag_and_fixed32" not in content, content
     assert content.startswith("pos = ProtoEncode::encode_"), content
+
+
+def _decode_cases(field_type: int, number: int) -> list[str]:
+    """Return the decode_field() case lines the generator emits for one decoded field."""
+    field = descriptor_pb2.FieldDescriptorProto(
+        name="value", number=number, type=field_type
+    )
+    ti = create_field_type_info(field, needs_decode=True, needs_encode=False)
+    return [
+        case
+        for case in (
+            ti.decode_varint_content,
+            ti.decode_length_content,
+            ti.decode_32bit_content,
+        )
+        if case
+    ]
+
+
+UINT32_T = descriptor_pb2.FieldDescriptorProto.TYPE_UINT32
+STRING_T = descriptor_pb2.FieldDescriptorProto.TYPE_STRING
+BOOL_T = descriptor_pb2.FieldDescriptorProto.TYPE_BOOL
+
+
+@pytest.mark.parametrize(
+    ("field_type", "number", "wire_type", "accessor"),
+    [
+        (UINT32_T, 2, 0, "value.as_varint()"),
+        (BOOL_T, 3, 0, "value.as_varint() != 0"),
+        (STRING_T, 1, 2, "value.data()"),
+        (FLOAT, 4, 5, "value.as_float()"),
+        (FIXED32, 5, 5, "value.as_fixed32()"),
+    ],
+)
+def test_decode_cases_carry_field_number_and_wire_type(
+    field_type: int, number: int, wire_type: int, accessor: str
+) -> None:
+    """Each decoded field yields one case keyed on its number and declared wire type."""
+    cases = _decode_cases(field_type, number)
+    assert len(cases) == 1, cases
+    lines = cases[0].splitlines()
+    assert lines[0] == f"case PROTO_DECODE_CASE({number}, {wire_type}):", cases[0]
+    assert lines[1].strip() == f"PROTO_DECODE_GUARD(wire_type, {wire_type});", cases[0]
+    assert accessor in cases[0], cases[0]
+
+
+def test_message_gets_a_single_decode_field_override() -> None:
+    """All wire types of a decoded message land in one decode_field() switch."""
+    desc = descriptor_pb2.DescriptorProto(name="Mixed")
+    desc.field.add(name="name", number=1, type=STRING_T)
+    desc.field.add(name="count", number=2, type=UINT32_T)
+    desc.field.add(name="level", number=3, type=FLOAT)
+    header, cpp, _ = build_message_type(desc, {}, {"Mixed": SOURCE_CLIENT})
+    decl = "bool decode_field(uint32_t tag, uint32_t field_id, uint32_t wire_type, ProtoFieldValue value) override;"
+    assert header.count(decl) == 1
+    assert "decode_varint" not in header and "decode_length" not in header
+    assert (
+        cpp.count(
+            "bool Mixed::decode_field(uint32_t tag, uint32_t field_id, uint32_t wire_type, ProtoFieldValue value) {"
+        )
+        == 1
+    )
+    assert "switch (PROTO_DECODE_KEY(tag, field_id)) {" in cpp
+    for number, wire_type in ((1, 2), (2, 0), (3, 5)):
+        assert f"case PROTO_DECODE_CASE({number}, {wire_type}):" in cpp, cpp

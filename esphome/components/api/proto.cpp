@@ -226,6 +226,7 @@ void ProtoDecodableMessage::decode(const uint8_t *buffer, size_t length) {
     uint32_t field_type = tag & WIRE_TYPE_MASK;
     uint32_t field_id = tag >> 3;
     ptr += res.consumed;
+    ProtoFieldValue value;
 
     switch (field_type) {
       case WIRE_TYPE_VARINT: {  // VarInt
@@ -234,10 +235,7 @@ void ProtoDecodableMessage::decode(const uint8_t *buffer, size_t length) {
           ESP_LOGV(TAG, "Invalid VarInt at offset %ld", (long) (ptr - buffer));
           return;
         }
-        if (!this->decode_varint(field_id, res.value)) {
-          ESP_LOGV(TAG, "Cannot decode VarInt field %" PRIu32 " with value %" PRIu64 "!", field_id,
-                   static_cast<uint64_t>(res.value));
-        }
+        value.varint_ = res.value;
         ptr += res.consumed;
         break;
       }
@@ -253,9 +251,8 @@ void ProtoDecodableMessage::decode(const uint8_t *buffer, size_t length) {
           ESP_LOGV(TAG, "Out-of-bounds Length Delimited at offset %ld", (long) (ptr - buffer));
           return;
         }
-        if (!this->decode_length(field_id, ProtoLengthDelimited(ptr, field_length))) {
-          ESP_LOGV(TAG, "Cannot decode Length Delimited field %" PRIu32 "!", field_id);
-        }
+        value.ld_.data = ptr;
+        value.ld_.len = field_length;
         ptr += field_length;
         break;
       }
@@ -264,22 +261,21 @@ void ProtoDecodableMessage::decode(const uint8_t *buffer, size_t length) {
           ESP_LOGV(TAG, "Out-of-bounds Fixed32-bit at offset %ld", (long) (ptr - buffer));
           return;
         }
-        uint32_t val;
 #if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
         // Protobuf fixed32 is little-endian — direct load on LE platforms
-        memcpy(&val, ptr, 4);
+        memcpy(&value.fixed32_, ptr, 4);
 #else
-        val = encode_uint32(ptr[3], ptr[2], ptr[1], ptr[0]);
+        value.fixed32_ = encode_uint32(ptr[3], ptr[2], ptr[1], ptr[0]);
 #endif
-        if (!this->decode_32bit(field_id, Proto32Bit(val))) {
-          ESP_LOGV(TAG, "Cannot decode 32-bit field %" PRIu32 " with value %" PRIu32 "!", field_id, val);
-        }
         ptr += 4;
         break;
       }
       default:
         ESP_LOGV(TAG, "Invalid field type %" PRIu32 " at offset %ld", field_type, (long) (ptr - buffer));
         return;
+    }
+    if (!this->decode_field(tag, field_id, field_type, value)) {
+      ESP_LOGV(TAG, "Cannot decode field %" PRIu32 " with wire type %" PRIu32 "!", field_id, field_type);
     }
   }
 }
