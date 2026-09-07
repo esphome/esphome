@@ -87,22 +87,30 @@ async def test_api_decode_wire_types(
         await raw.send_raw(
             SWITCH_COMMAND, tag(1, WIRE_VARINT) + encode_varint(switch.key) + on
         )
-        # A later command on the same connection proves the bad frames were fully consumed;
-        # the number state arriving means any switch state from them would already be here
-        client.number_command(number.key, -77.5)
-        await waiter.expect(number_is(-77.5))
-        assert len(switch_states) == seen
+        # Ordered on the raw socket itself: this frame cannot be parsed before the bad ones, so
+        # the only switch state since the marker must be the one it produces
+        await raw.send_raw(SWITCH_COMMAND, key + on)
+        await waiter.expect(switch_is(True), label="switch on after wrong wire types")
+        assert switch_states[seen:] == [True]
+        await raw.send_raw(SWITCH_COMMAND, key + off)
+        await waiter.expect(switch_is(False))
 
         # Truncated bodies stop the decode loop without taking the connection down: a tag with its
         # continuation bit set and nothing after it, a length prefix past the end of the payload,
         # and a fixed32 with two of its four bytes
+        seen = len(switch_states)
         await raw.send_raw(SWITCH_COMMAND, key + b"\x80")
         await raw.send_raw(SWITCH_COMMAND, key + tag(2, WIRE_LENGTH) + b"\x7f" + b"ab")
         await raw.send_raw(SWITCH_COMMAND, tag(1, WIRE_FIXED32) + b"\x01\x02")
         await raw.send_raw(SWITCH_COMMAND, key + on)
         await waiter.expect(switch_is(True), label="switch on after truncated frames")
+        assert switch_states[seen:] == [True]
         await raw.send_raw(SWITCH_COMMAND, key + off)
         await waiter.expect(switch_is(False))
+
+        # A negative number goes through the fixed32 float path of a normal client
+        client.number_command(number.key, -77.5)
+        await waiter.expect(number_is(-77.5))
 
         # An unknown field ahead of the known ones is skipped; field 200 needs a two byte tag
         await raw.send_raw(
