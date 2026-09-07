@@ -1138,7 +1138,6 @@ class PointerToBufferTypeBase(TypeInfo):
         self, field: descriptor.FieldDescriptorProto, needs_decode: bool
     ) -> None:
         super().__init__(field, needs_decode)
-        self.array_size = 0
 
     @property
     def wire_type(self) -> WireType:
