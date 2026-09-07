@@ -10,12 +10,15 @@ when the installed aioesphomeapi predates the noise module.
 from __future__ import annotations
 
 import base64
+from collections.abc import Callable
 import hashlib
 import io
+import logging
 from pathlib import Path
 import socket
 import sys
 import threading
+from typing import Any
 from unittest.mock import Mock, patch
 
 import pytest
@@ -65,8 +68,12 @@ class FakeEncryptedDevice(threading.Thread):
         offer_noise: bool = True,
         require_noise: bool = True,
         prologue_features_override: int | None = None,
+        connections: int = 1,
+        drop_handshakes: int = 0,
     ) -> None:
         super().__init__(daemon=True)
+        self.connections = connections
+        self.drop_handshakes = drop_handshakes  # hang up mid-handshake this many times
         self.psk = psk
         self.version = version
         self.offer_noise = offer_noise
@@ -81,10 +88,11 @@ class FakeEncryptedDevice(threading.Thread):
 
     def run(self) -> None:
         try:
-            sock, _ = self.listener.accept()
-            sock.settimeout(10)
-            with sock:
-                self._serve(sock)
+            for _ in range(self.connections):
+                sock, _ = self.listener.accept()
+                sock.settimeout(10)
+                with sock:
+                    self._serve(sock)
         except Exception as err:  # noqa: BLE001 - surfaced via join_and_check
             self.error = err
         finally:
@@ -109,8 +117,23 @@ class FakeEncryptedDevice(threading.Thread):
             return
         server_flags = espota2.SERVER_FEATURE_SUPPORTS_NOISE if self.offer_noise else 0
         sock.sendall(bytes([espota2.RESPONSE_FEATURE_FLAGS, server_flags]))
-        if not (self.offer_noise and noise_negotiated):
-            return  # the client fails closed; nothing further arrives
+        if not (noise_negotiated and self.offer_noise):
+            # A device that does not require encryption continues in
+            # plaintext whatever the client asked for, like older firmware
+            try:
+                self._transfer(
+                    lambda byte: sock.sendall(bytes([byte])),
+                    lambda length: _recv_exact(sock, length),
+                    lambda remaining: _recv_exact(
+                        sock, min(remaining, espota2.UPLOAD_BLOCK_SIZE)
+                    ),
+                )
+            except ConnectionError:
+                # A keyed client without fallback fails closed and hangs up
+                if noise_negotiated and not self.offer_noise:
+                    return
+                raise
+            return
 
         from cryptography.exceptions import InvalidTag
         from noise.connection import NoiseConnection
@@ -134,6 +157,9 @@ class FakeEncryptedDevice(threading.Thread):
 
         msg1 = _recv_frame(sock)
         assert msg1[0] == 0x00
+        if self.drop_handshakes > 0:
+            self.drop_handshakes -= 1
+            return  # a transport fault: the socket closes with no reply
         try:
             proto.read_message(msg1[1:])
         except InvalidTag:
@@ -149,6 +175,20 @@ class FakeEncryptedDevice(threading.Thread):
             assert len(plaintext) == length, "control units must be one per frame"
             return plaintext
 
+        def recv_data(_remaining: int) -> bytes:
+            plaintext = proto.decrypt(_recv_frame(sock))
+            assert 0 < len(plaintext) <= espota2.NOISE_MAX_PLAINTEXT
+            return plaintext
+
+        self._transfer(send_byte, recv_unit, recv_data)
+
+    def _transfer(
+        self,
+        send_byte: Callable[[int], None],
+        recv_unit: Callable[[int], bytes],
+        recv_data: Callable[[int], bytes],
+    ) -> None:
+        """The post-handshake exchange, identical over both transports."""
         send_byte(espota2.RESPONSE_AUTH_OK)
         recv_unit(1)  # ota type
         size = int.from_bytes(recv_unit(4), "big")
@@ -159,9 +199,7 @@ class FakeEncryptedDevice(threading.Thread):
         received = b""
         acked = 0
         while len(received) < size:
-            plaintext = proto.decrypt(_recv_frame(sock))
-            assert 0 < len(plaintext) <= espota2.NOISE_MAX_PLAINTEXT
-            received += plaintext
+            received += recv_data(size - len(received))
             if self.version >= espota2.OTA_VERSION_2_0:
                 while acked + espota2.UPLOAD_BLOCK_SIZE <= len(received) or (
                     len(received) == size and acked < size
@@ -176,7 +214,10 @@ class FakeEncryptedDevice(threading.Thread):
 
 
 def _upload(
-    device: FakeEncryptedDevice, firmware: bytes, noise_psk: str | None
+    device: FakeEncryptedDevice,
+    firmware: bytes,
+    noise_psk: str | None,
+    plaintext_fallback: bool = False,
 ) -> None:
     device.start()
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -184,10 +225,33 @@ def _upload(
     sock.connect(("127.0.0.1", device.port))
     try:
         espota2.perform_ota(
-            sock, None, io.BytesIO(firmware), Path("firmware.bin"), noise_psk=noise_psk
+            sock,
+            None,
+            io.BytesIO(firmware),
+            Path("firmware.bin"),
+            noise_psk=noise_psk,
+            plaintext_fallback=plaintext_fallback,
         )
     finally:
         sock.close()
+
+
+def _run_ota(
+    device: FakeEncryptedDevice, firmware: bytes, tmp_path: Path, noise_psk: str
+) -> int:
+    """Drive the retry loop, which is where the plaintext fallback reconnects."""
+    path = tmp_path / "firmware.bin"
+    path.write_bytes(firmware)
+    device.start()
+    rc, _ = espota2.run_ota(
+        "127.0.0.1",
+        device.port,
+        None,
+        path,
+        noise_psk=noise_psk,
+        plaintext_fallback=True,
+    )
+    return rc
 
 
 def test_encrypted_upload_success() -> None:
@@ -238,6 +302,56 @@ def test_client_fails_closed_when_device_lacks_encryption() -> None:
     with pytest.raises(espota2.OTAError, match="refusing to send the image"):
         _upload(device, b"firmware", PSK)
     device.join_and_check()
+
+
+# Remove before 2027.3.0
+def test_fallback_when_device_does_not_offer(caplog: pytest.LogCaptureFixture) -> None:
+    """The api key is tried opportunistically; an older device that cannot
+    encrypt still gets its update, with a warning."""
+    firmware = b"firmware"
+    device = FakeEncryptedDevice(offer_noise=False, require_noise=False)
+    with patch("time.sleep"), caplog.at_level(logging.WARNING):
+        _upload(device, firmware, PSK, plaintext_fallback=True)
+    device.join_and_check()
+    assert device.received == firmware
+    assert any("fallback is removed in 2027.3.0" in r.message for r in caplog.records)
+
+
+# Remove before 2027.3.0
+@pytest.mark.parametrize(
+    ("device_kwargs", "expected_rc", "fell_back"),
+    [
+        # A wrong key against an offering device reconnects in plaintext
+        ({"psk": OTHER_PSK, "require_noise": False, "connections": 2}, 0, True),
+        # The plaintext retry is refused by a device that requires encryption
+        ({"psk": OTHER_PSK, "require_noise": True, "connections": 2}, 1, True),
+        # A dropped connection inside the handshake is retried encrypted
+        ({"require_noise": False, "connections": 2, "drop_handshakes": 1}, 0, False),
+        # A second transport fault inside the handshake falls back
+        ({"require_noise": False, "connections": 3, "drop_handshakes": 2}, 0, True),
+    ],
+    ids=["wrong_key", "wrong_key_required", "one_fault", "two_faults"],
+)
+def test_fallback_through_the_retry_loop(
+    caplog: pytest.LogCaptureFixture,
+    tmp_path: Path,
+    device_kwargs: dict[str, Any],
+    expected_rc: int,
+    fell_back: bool,
+) -> None:
+    pytest.importorskip("aioesphomeapi.noise")
+    firmware = b"firmware"
+    device = FakeEncryptedDevice(**device_kwargs)
+    with patch("time.sleep"), caplog.at_level(logging.WARNING):
+        rc = _run_ota(device, firmware, tmp_path, PSK)
+    device.join_and_check()
+    assert rc == expected_rc
+    assert (device.received == firmware) is (expected_rc == 0)
+    assert (
+        any("Retrying in plaintext" in r.message for r in caplog.records) is fell_back
+    )
+    if expected_rc == 1:
+        assert any("requires an encrypted OTA" in r.message for r in caplog.records)
 
 
 def test_plaintext_client_gets_encryption_required_error() -> None:

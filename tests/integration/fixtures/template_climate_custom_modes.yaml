@@ -1,0 +1,47 @@
+esphome:
+  name: tmpl-clim-custom
+host:
+api:
+logger:
+
+climate:
+  - platform: template
+    id: test_climate
+    name: Test Custom Mode Climate
+    optimistic: true
+    sensor: test_climate_current_temperature
+    supported_modes:
+      - "OFF"
+      - HEAT
+      - COOL
+    custom_fan_modes:
+      - turbo
+      - silent
+      - eco
+    custom_presets:
+      - eco_plus
+      - power_save
+      - max
+    on_control:
+      - lambda: |-
+          if (x.has_custom_fan_mode())
+            ESP_LOGD("test", "on_control custom_fan_mode=%s", x.get_custom_fan_mode().c_str());
+          if (x.has_custom_preset())
+            ESP_LOGD("test", "on_control custom_preset=%s", x.get_custom_preset().c_str());
+
+sensor:
+  - platform: template
+    id: test_climate_current_temperature
+    name: Test Climate Current Temperature
+    lambda: "return 22.5f;"
+    update_interval: 10ms
+
+button:
+  - platform: template
+    id: simulate_device_report
+    name: Simulate Device Report
+    on_press:
+      - climate.template.publish:
+          id: test_climate
+          custom_fan_mode: "eco"
+          custom_preset: "max"
