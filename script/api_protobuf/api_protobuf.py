@@ -325,10 +325,7 @@ class TypeInfo(ABC):
         )
 
     def _encode_fixed32_with_precomputed_tag(self, value_expr: str) -> str | None:
-        """Emit a fixed32 field through the shared tag+value writer when the tag is one byte.
-
-        Returns None for multi-byte tags, which go through the generic helper.
-        """
+        """Single-byte tag fixed32 write, or None for multi-byte tags."""
         tag = self.calculate_tag()
         if tag >= 128:
             return None
