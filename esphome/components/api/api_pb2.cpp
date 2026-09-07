@@ -11,15 +11,13 @@ void HelloRequest::decode_field(uint32_t tag, const uint8_t *data, proto_varint_
   const ProtoFieldValue value(data, scalar);
   switch (tag) {
     case proto_tag(1, WIRE_TYPE_LENGTH_DELIMITED):
-      this->client_info = StringRef(reinterpret_cast<const char *>(value.data()), value.size());
+      this->client_info = StringRef(value.data(), value.size());
       break;
     case proto_tag(2, WIRE_TYPE_VARINT):
       this->api_version_major = value.as_varint();
       break;
     case proto_tag(3, WIRE_TYPE_VARINT):
       this->api_version_minor = value.as_varint();
-      break;
-    default:
       break;
   }
 }
@@ -46,8 +44,6 @@ void DisconnectRequest::decode_field(uint32_t tag, const uint8_t *data, proto_va
   switch (tag) {
     case proto_tag(1, WIRE_TYPE_VARINT):
       this->reason = static_cast<enums::DisconnectReason>(value.as_varint());
-      break;
-    default:
       break;
   }
 }
@@ -489,8 +485,6 @@ void CoverCommandRequest::decode_field(uint32_t tag, const uint8_t *data, proto_
       this->device_id = value.as_varint();
       break;
 #endif
-    default:
-      break;
   }
 }
 #endif
@@ -605,15 +599,13 @@ void FanCommandRequest::decode_field(uint32_t tag, const uint8_t *data, proto_va
       this->has_preset_mode = value.as_bool();
       break;
     case proto_tag(13, WIRE_TYPE_LENGTH_DELIMITED):
-      this->preset_mode = StringRef(reinterpret_cast<const char *>(value.data()), value.size());
+      this->preset_mode = StringRef(value.data(), value.size());
       break;
 #ifdef USE_DEVICES
     case proto_tag(14, WIRE_TYPE_VARINT):
       this->device_id = value.as_varint();
       break;
 #endif
-    default:
-      break;
   }
 }
 #endif
@@ -814,15 +806,13 @@ void LightCommandRequest::decode_field(uint32_t tag, const uint8_t *data, proto_
       this->has_effect = value.as_bool();
       break;
     case proto_tag(19, WIRE_TYPE_LENGTH_DELIMITED):
-      this->effect = StringRef(reinterpret_cast<const char *>(value.data()), value.size());
+      this->effect = StringRef(value.data(), value.size());
       break;
 #ifdef USE_DEVICES
     case proto_tag(28, WIRE_TYPE_VARINT):
       this->device_id = value.as_varint();
       break;
 #endif
-    default:
-      break;
   }
 }
 #endif
@@ -969,8 +959,6 @@ void SwitchCommandRequest::decode_field(uint32_t tag, const uint8_t *data, proto
       this->device_id = value.as_varint();
       break;
 #endif
-    default:
-      break;
   }
 }
 #endif
@@ -1042,8 +1030,6 @@ void SubscribeLogsRequest::decode_field(uint32_t tag, const uint8_t *data, proto
     case proto_tag(2, WIRE_TYPE_VARINT):
       this->dump_config = value.as_bool();
       break;
-    default:
-      break;
   }
 }
 __attribute__((optimize("O2")))  // NOLINT(clang-diagnostic-unknown-attributes)
@@ -1073,8 +1059,6 @@ void NoiseEncryptionSetKeyRequest::decode_field(uint32_t tag, const uint8_t *dat
     case proto_tag(1, WIRE_TYPE_LENGTH_DELIMITED):
       this->key = value.data();
       this->key_len = value.size();
-      break;
-    default:
       break;
   }
 }
@@ -1175,7 +1159,7 @@ void HomeassistantActionResponse::decode_field(uint32_t tag, const uint8_t *data
       this->success = value.as_bool();
       break;
     case proto_tag(3, WIRE_TYPE_LENGTH_DELIMITED):
-      this->error_message = StringRef(reinterpret_cast<const char *>(value.data()), value.size());
+      this->error_message = StringRef(value.data(), value.size());
       break;
 #ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES_JSON
     case proto_tag(4, WIRE_TYPE_LENGTH_DELIMITED):
@@ -1183,8 +1167,6 @@ void HomeassistantActionResponse::decode_field(uint32_t tag, const uint8_t *data
       this->response_data_len = value.size();
       break;
 #endif
-    default:
-      break;
   }
 }
 #endif
@@ -1210,15 +1192,13 @@ void HomeAssistantStateResponse::decode_field(uint32_t tag, const uint8_t *data,
   const ProtoFieldValue value(data, scalar);
   switch (tag) {
     case proto_tag(1, WIRE_TYPE_LENGTH_DELIMITED):
-      this->entity_id = StringRef(reinterpret_cast<const char *>(value.data()), value.size());
+      this->entity_id = StringRef(value.data(), value.size());
       break;
     case proto_tag(2, WIRE_TYPE_LENGTH_DELIMITED):
-      this->state = StringRef(reinterpret_cast<const char *>(value.data()), value.size());
+      this->state = StringRef(value.data(), value.size());
       break;
     case proto_tag(3, WIRE_TYPE_LENGTH_DELIMITED):
-      this->attribute = StringRef(reinterpret_cast<const char *>(value.data()), value.size());
-      break;
-    default:
+      this->attribute = StringRef(value.data(), value.size());
       break;
   }
 }
@@ -1244,8 +1224,6 @@ void DSTRule::decode_field(uint32_t tag, const uint8_t *data, proto_varint_value
     case proto_tag(6, WIRE_TYPE_VARINT):
       this->day_of_week = value.as_varint();
       break;
-    default:
-      break;
   }
 }
 void ParsedTimezone::decode_field(uint32_t tag, const uint8_t *data, proto_varint_value_t scalar) {
@@ -1263,8 +1241,6 @@ void ParsedTimezone::decode_field(uint32_t tag, const uint8_t *data, proto_varin
     case proto_tag(4, WIRE_TYPE_LENGTH_DELIMITED):
       value.decode_to_message(this->dst_end);
       break;
-    default:
-      break;
   }
 }
 void GetTimeResponse::decode_field(uint32_t tag, const uint8_t *data, proto_varint_value_t scalar) {
@@ -1276,8 +1252,6 @@ void GetTimeResponse::decode_field(uint32_t tag, const uint8_t *data, proto_vari
     case proto_tag(3, WIRE_TYPE_LENGTH_DELIMITED):
       value.decode_to_message(this->parsed_timezone);
       this->has_parsed_timezone = true;
-      break;
-    default:
       break;
   }
 }
@@ -1351,7 +1325,7 @@ void ExecuteServiceArgument::decode_field(uint32_t tag, const uint8_t *data, pro
       this->float_ = value.as_float();
       break;
     case proto_tag(4, WIRE_TYPE_LENGTH_DELIMITED):
-      this->string_ = StringRef(reinterpret_cast<const char *>(value.data()), value.size());
+      this->string_ = StringRef(value.data(), value.size());
       break;
     case proto_tag(5, WIRE_TYPE_VARINT):
       this->int_ = decode_zigzag32(static_cast<uint32_t>(value.as_varint()));
@@ -1367,8 +1341,6 @@ void ExecuteServiceArgument::decode_field(uint32_t tag, const uint8_t *data, pro
       break;
     case proto_tag(9, WIRE_TYPE_LENGTH_DELIMITED):
       this->string_array.push_back(value.as_string());
-      break;
-    default:
       break;
   }
 }
@@ -1403,8 +1375,6 @@ void ExecuteServiceRequest::decode_field(uint32_t tag, const uint8_t *data, prot
       this->return_response = value.as_bool();
       break;
 #endif
-    default:
-      break;
   }
 }
 void ExecuteServiceRequest::decode(const uint8_t *buffer, size_t length) {
@@ -1500,8 +1470,6 @@ void CameraImageRequest::decode_field(uint32_t tag, const uint8_t *data, proto_v
       break;
     case proto_tag(2, WIRE_TYPE_VARINT):
       this->stream = value.as_bool();
-      break;
-    default:
       break;
   }
 }
@@ -1713,7 +1681,7 @@ void ClimateCommandRequest::decode_field(uint32_t tag, const uint8_t *data, prot
       this->has_custom_fan_mode = value.as_bool();
       break;
     case proto_tag(17, WIRE_TYPE_LENGTH_DELIMITED):
-      this->custom_fan_mode = StringRef(reinterpret_cast<const char *>(value.data()), value.size());
+      this->custom_fan_mode = StringRef(value.data(), value.size());
       break;
     case proto_tag(18, WIRE_TYPE_VARINT):
       this->has_preset = value.as_bool();
@@ -1725,7 +1693,7 @@ void ClimateCommandRequest::decode_field(uint32_t tag, const uint8_t *data, prot
       this->has_custom_preset = value.as_bool();
       break;
     case proto_tag(21, WIRE_TYPE_LENGTH_DELIMITED):
-      this->custom_preset = StringRef(reinterpret_cast<const char *>(value.data()), value.size());
+      this->custom_preset = StringRef(value.data(), value.size());
       break;
     case proto_tag(22, WIRE_TYPE_VARINT):
       this->has_target_humidity = value.as_bool();
@@ -1738,8 +1706,6 @@ void ClimateCommandRequest::decode_field(uint32_t tag, const uint8_t *data, prot
       this->device_id = value.as_varint();
       break;
 #endif
-    default:
-      break;
   }
 }
 #endif
@@ -1866,8 +1832,6 @@ void WaterHeaterCommandRequest::decode_field(uint32_t tag, const uint8_t *data, 
     case proto_tag(8, WIRE_TYPE_FIXED32):
       this->target_temperature_high = value.as_float();
       break;
-    default:
-      break;
   }
 }
 #endif
@@ -1960,8 +1924,6 @@ void NumberCommandRequest::decode_field(uint32_t tag, const uint8_t *data, proto
       this->device_id = value.as_varint();
       break;
 #endif
-    default:
-      break;
   }
 }
 #endif
@@ -2035,15 +1997,13 @@ void SelectCommandRequest::decode_field(uint32_t tag, const uint8_t *data, proto
       this->key = value.as_fixed32();
       break;
     case proto_tag(2, WIRE_TYPE_LENGTH_DELIMITED):
-      this->state = StringRef(reinterpret_cast<const char *>(value.data()), value.size());
+      this->state = StringRef(value.data(), value.size());
       break;
 #ifdef USE_DEVICES
     case proto_tag(3, WIRE_TYPE_VARINT):
       this->device_id = value.as_varint();
       break;
 #endif
-    default:
-      break;
   }
 }
 #endif
@@ -2128,7 +2088,7 @@ void SirenCommandRequest::decode_field(uint32_t tag, const uint8_t *data, proto_
       this->has_tone = value.as_bool();
       break;
     case proto_tag(5, WIRE_TYPE_LENGTH_DELIMITED):
-      this->tone = StringRef(reinterpret_cast<const char *>(value.data()), value.size());
+      this->tone = StringRef(value.data(), value.size());
       break;
     case proto_tag(6, WIRE_TYPE_VARINT):
       this->has_duration = value.as_bool();
@@ -2147,8 +2107,6 @@ void SirenCommandRequest::decode_field(uint32_t tag, const uint8_t *data, proto_
       this->device_id = value.as_varint();
       break;
 #endif
-    default:
-      break;
   }
 }
 #endif
@@ -2226,15 +2184,13 @@ void LockCommandRequest::decode_field(uint32_t tag, const uint8_t *data, proto_v
       this->has_code = value.as_bool();
       break;
     case proto_tag(4, WIRE_TYPE_LENGTH_DELIMITED):
-      this->code = StringRef(reinterpret_cast<const char *>(value.data()), value.size());
+      this->code = StringRef(value.data(), value.size());
       break;
 #ifdef USE_DEVICES
     case proto_tag(5, WIRE_TYPE_VARINT):
       this->device_id = value.as_varint();
       break;
 #endif
-    default:
-      break;
   }
 }
 #endif
@@ -2284,8 +2240,6 @@ void ButtonCommandRequest::decode_field(uint32_t tag, const uint8_t *data, proto
       this->device_id = value.as_varint();
       break;
 #endif
-    default:
-      break;
   }
 }
 #endif
@@ -2401,7 +2355,7 @@ void MediaPlayerCommandRequest::decode_field(uint32_t tag, const uint8_t *data, 
       this->has_media_url = value.as_bool();
       break;
     case proto_tag(7, WIRE_TYPE_LENGTH_DELIMITED):
-      this->media_url = StringRef(reinterpret_cast<const char *>(value.data()), value.size());
+      this->media_url = StringRef(value.data(), value.size());
       break;
     case proto_tag(8, WIRE_TYPE_VARINT):
       this->has_announcement = value.as_bool();
@@ -2414,8 +2368,6 @@ void MediaPlayerCommandRequest::decode_field(uint32_t tag, const uint8_t *data, 
       this->device_id = value.as_varint();
       break;
 #endif
-    default:
-      break;
   }
 }
 #endif
@@ -2426,8 +2378,6 @@ void SubscribeBluetoothLEAdvertisementsRequest::decode_field(uint32_t tag, const
   switch (tag) {
     case proto_tag(1, WIRE_TYPE_VARINT):
       this->flags = value.as_varint();
-      break;
-    default:
       break;
   }
 }
@@ -2488,8 +2438,6 @@ void BluetoothDeviceRequest::decode_field(uint32_t tag, const uint8_t *data, pro
     case proto_tag(4, WIRE_TYPE_VARINT):
       this->address_type = value.as_varint();
       break;
-    default:
-      break;
   }
 }
 uint8_t *BluetoothDeviceConnectionResponse::encode_msg(const void *self,
@@ -2516,8 +2464,6 @@ void BluetoothGATTGetServicesRequest::decode_field(uint32_t tag, const uint8_t *
   switch (tag) {
     case proto_tag(1, WIRE_TYPE_VARINT):
       this->address = value.as_varint();
-      break;
-    default:
       break;
   }
 }
@@ -2648,8 +2594,6 @@ void BluetoothGATTReadRequest::decode_field(uint32_t tag, const uint8_t *data, p
     case proto_tag(2, WIRE_TYPE_VARINT):
       this->handle = value.as_varint();
       break;
-    default:
-      break;
   }
 }
 uint8_t *BluetoothGATTReadResponse::encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) {
@@ -2684,8 +2628,6 @@ void BluetoothGATTWriteRequest::decode_field(uint32_t tag, const uint8_t *data, 
       this->data = value.data();
       this->data_len = value.size();
       break;
-    default:
-      break;
   }
 }
 void BluetoothGATTReadDescriptorRequest::decode_field(uint32_t tag, const uint8_t *data, proto_varint_value_t scalar) {
@@ -2696,8 +2638,6 @@ void BluetoothGATTReadDescriptorRequest::decode_field(uint32_t tag, const uint8_
       break;
     case proto_tag(2, WIRE_TYPE_VARINT):
       this->handle = value.as_varint();
-      break;
-    default:
       break;
   }
 }
@@ -2714,8 +2654,6 @@ void BluetoothGATTWriteDescriptorRequest::decode_field(uint32_t tag, const uint8
       this->data = value.data();
       this->data_len = value.size();
       break;
-    default:
-      break;
   }
 }
 void BluetoothGATTNotifyRequest::decode_field(uint32_t tag, const uint8_t *data, proto_varint_value_t scalar) {
@@ -2729,8 +2667,6 @@ void BluetoothGATTNotifyRequest::decode_field(uint32_t tag, const uint8_t *data,
       break;
     case proto_tag(3, WIRE_TYPE_VARINT):
       this->enable = value.as_bool();
-      break;
-    default:
       break;
   }
 }
@@ -2896,8 +2832,6 @@ void BluetoothScannerSetModeRequest::decode_field(uint32_t tag, const uint8_t *d
     case proto_tag(1, WIRE_TYPE_VARINT):
       this->mode = static_cast<enums::BluetoothScannerMode>(value.as_varint());
       break;
-    default:
-      break;
   }
 }
 #endif
@@ -2910,8 +2844,6 @@ void SubscribeVoiceAssistantRequest::decode_field(uint32_t tag, const uint8_t *d
       break;
     case proto_tag(2, WIRE_TYPE_VARINT):
       this->flags = value.as_varint();
-      break;
-    default:
       break;
   }
 }
@@ -2962,20 +2894,16 @@ void VoiceAssistantResponse::decode_field(uint32_t tag, const uint8_t *data, pro
     case proto_tag(2, WIRE_TYPE_VARINT):
       this->error = value.as_bool();
       break;
-    default:
-      break;
   }
 }
 void VoiceAssistantEventData::decode_field(uint32_t tag, const uint8_t *data, proto_varint_value_t scalar) {
   const ProtoFieldValue value(data, scalar);
   switch (tag) {
     case proto_tag(1, WIRE_TYPE_LENGTH_DELIMITED):
-      this->name = StringRef(reinterpret_cast<const char *>(value.data()), value.size());
+      this->name = StringRef(value.data(), value.size());
       break;
     case proto_tag(2, WIRE_TYPE_LENGTH_DELIMITED):
-      this->value = StringRef(reinterpret_cast<const char *>(value.data()), value.size());
-      break;
-    default:
+      this->value = StringRef(value.data(), value.size());
       break;
   }
 }
@@ -2988,8 +2916,6 @@ void VoiceAssistantEventResponse::decode_field(uint32_t tag, const uint8_t *data
     case proto_tag(2, WIRE_TYPE_LENGTH_DELIMITED):
       this->data.emplace_back();
       value.decode_to_message(this->data.back());
-      break;
-    default:
       break;
   }
 }
@@ -3006,8 +2932,6 @@ void VoiceAssistantAudio::decode_field(uint32_t tag, const uint8_t *data, proto_
     case proto_tag(3, WIRE_TYPE_LENGTH_DELIMITED):
       this->data2 = value.data();
       this->data2_len = value.size();
-      break;
-    default:
       break;
   }
 }
@@ -3034,10 +2958,10 @@ void VoiceAssistantTimerEventResponse::decode_field(uint32_t tag, const uint8_t 
       this->event_type = static_cast<enums::VoiceAssistantTimerEvent>(value.as_varint());
       break;
     case proto_tag(2, WIRE_TYPE_LENGTH_DELIMITED):
-      this->timer_id = StringRef(reinterpret_cast<const char *>(value.data()), value.size());
+      this->timer_id = StringRef(value.data(), value.size());
       break;
     case proto_tag(3, WIRE_TYPE_LENGTH_DELIMITED):
-      this->name = StringRef(reinterpret_cast<const char *>(value.data()), value.size());
+      this->name = StringRef(value.data(), value.size());
       break;
     case proto_tag(4, WIRE_TYPE_VARINT):
       this->total_seconds = value.as_varint();
@@ -3048,26 +2972,22 @@ void VoiceAssistantTimerEventResponse::decode_field(uint32_t tag, const uint8_t 
     case proto_tag(6, WIRE_TYPE_VARINT):
       this->is_active = value.as_bool();
       break;
-    default:
-      break;
   }
 }
 void VoiceAssistantAnnounceRequest::decode_field(uint32_t tag, const uint8_t *data, proto_varint_value_t scalar) {
   const ProtoFieldValue value(data, scalar);
   switch (tag) {
     case proto_tag(1, WIRE_TYPE_LENGTH_DELIMITED):
-      this->media_id = StringRef(reinterpret_cast<const char *>(value.data()), value.size());
+      this->media_id = StringRef(value.data(), value.size());
       break;
     case proto_tag(2, WIRE_TYPE_LENGTH_DELIMITED):
-      this->text = StringRef(reinterpret_cast<const char *>(value.data()), value.size());
+      this->text = StringRef(value.data(), value.size());
       break;
     case proto_tag(3, WIRE_TYPE_LENGTH_DELIMITED):
-      this->preannounce_media_id = StringRef(reinterpret_cast<const char *>(value.data()), value.size());
+      this->preannounce_media_id = StringRef(value.data(), value.size());
       break;
     case proto_tag(4, WIRE_TYPE_VARINT):
       this->start_conversation = value.as_bool();
-      break;
-    default:
       break;
   }
 }
@@ -3110,27 +3030,25 @@ void VoiceAssistantExternalWakeWord::decode_field(uint32_t tag, const uint8_t *d
   const ProtoFieldValue value(data, scalar);
   switch (tag) {
     case proto_tag(1, WIRE_TYPE_LENGTH_DELIMITED):
-      this->id = StringRef(reinterpret_cast<const char *>(value.data()), value.size());
+      this->id = StringRef(value.data(), value.size());
       break;
     case proto_tag(2, WIRE_TYPE_LENGTH_DELIMITED):
-      this->wake_word = StringRef(reinterpret_cast<const char *>(value.data()), value.size());
+      this->wake_word = StringRef(value.data(), value.size());
       break;
     case proto_tag(3, WIRE_TYPE_LENGTH_DELIMITED):
       this->trained_languages.push_back(value.as_string());
       break;
     case proto_tag(4, WIRE_TYPE_LENGTH_DELIMITED):
-      this->model_type = StringRef(reinterpret_cast<const char *>(value.data()), value.size());
+      this->model_type = StringRef(value.data(), value.size());
       break;
     case proto_tag(5, WIRE_TYPE_VARINT):
       this->model_size = value.as_varint();
       break;
     case proto_tag(6, WIRE_TYPE_LENGTH_DELIMITED):
-      this->model_hash = StringRef(reinterpret_cast<const char *>(value.data()), value.size());
+      this->model_hash = StringRef(value.data(), value.size());
       break;
     case proto_tag(7, WIRE_TYPE_LENGTH_DELIMITED):
-      this->url = StringRef(reinterpret_cast<const char *>(value.data()), value.size());
-      break;
-    default:
+      this->url = StringRef(value.data(), value.size());
       break;
   }
 }
@@ -3140,8 +3058,6 @@ void VoiceAssistantConfigurationRequest::decode_field(uint32_t tag, const uint8_
     case proto_tag(1, WIRE_TYPE_LENGTH_DELIMITED):
       this->external_wake_words.emplace_back();
       value.decode_to_message(this->external_wake_words.back());
-      break;
-    default:
       break;
   }
 }
@@ -3179,8 +3095,6 @@ void VoiceAssistantSetConfiguration::decode_field(uint32_t tag, const uint8_t *d
   switch (tag) {
     case proto_tag(1, WIRE_TYPE_LENGTH_DELIMITED):
       this->active_wake_words.push_back(value.as_string());
-      break;
-    default:
       break;
   }
 }
@@ -3256,15 +3170,13 @@ void AlarmControlPanelCommandRequest::decode_field(uint32_t tag, const uint8_t *
       this->command = static_cast<enums::AlarmControlPanelStateCommand>(value.as_varint());
       break;
     case proto_tag(3, WIRE_TYPE_LENGTH_DELIMITED):
-      this->code = StringRef(reinterpret_cast<const char *>(value.data()), value.size());
+      this->code = StringRef(value.data(), value.size());
       break;
 #ifdef USE_DEVICES
     case proto_tag(4, WIRE_TYPE_VARINT):
       this->device_id = value.as_varint();
       break;
 #endif
-    default:
-      break;
   }
 }
 #endif
@@ -3338,15 +3250,13 @@ void TextCommandRequest::decode_field(uint32_t tag, const uint8_t *data, proto_v
       this->key = value.as_fixed32();
       break;
     case proto_tag(2, WIRE_TYPE_LENGTH_DELIMITED):
-      this->state = StringRef(reinterpret_cast<const char *>(value.data()), value.size());
+      this->state = StringRef(value.data(), value.size());
       break;
 #ifdef USE_DEVICES
     case proto_tag(3, WIRE_TYPE_VARINT):
       this->device_id = value.as_varint();
       break;
 #endif
-    default:
-      break;
   }
 }
 #endif
@@ -3429,8 +3339,6 @@ void DateCommandRequest::decode_field(uint32_t tag, const uint8_t *data, proto_v
       this->device_id = value.as_varint();
       break;
 #endif
-    default:
-      break;
   }
 }
 #endif
@@ -3513,8 +3421,6 @@ void TimeCommandRequest::decode_field(uint32_t tag, const uint8_t *data, proto_v
       this->device_id = value.as_varint();
       break;
 #endif
-    default:
-      break;
   }
 }
 #endif
@@ -3667,8 +3573,6 @@ void ValveCommandRequest::decode_field(uint32_t tag, const uint8_t *data, proto_
       this->device_id = value.as_varint();
       break;
 #endif
-    default:
-      break;
   }
 }
 #endif
@@ -3743,8 +3647,6 @@ void DateTimeCommandRequest::decode_field(uint32_t tag, const uint8_t *data, pro
       this->device_id = value.as_varint();
       break;
 #endif
-    default:
-      break;
   }
 }
 #endif
@@ -3835,8 +3737,6 @@ void UpdateCommandRequest::decode_field(uint32_t tag, const uint8_t *data, proto
       this->device_id = value.as_varint();
       break;
 #endif
-    default:
-      break;
   }
 }
 #endif
@@ -3847,8 +3747,6 @@ void ZWaveProxyFrame::decode_field(uint32_t tag, const uint8_t *data, proto_vari
     case proto_tag(1, WIRE_TYPE_LENGTH_DELIMITED):
       this->data = value.data();
       this->data_len = value.size();
-      break;
-    default:
       break;
   }
 }
@@ -3877,8 +3775,6 @@ void ZWaveProxyRequest::decode_field(uint32_t tag, const uint8_t *data, proto_va
     case proto_tag(2, WIRE_TYPE_LENGTH_DELIMITED):
       this->data = value.data();
       this->data_len = value.size();
-      break;
-    default:
       break;
   }
 }
@@ -3974,8 +3870,6 @@ void InfraredRFTransmitRawTimingsRequest::decode_field(uint32_t tag, const uint8
       break;
     case proto_tag(6, WIRE_TYPE_VARINT):
       this->modulation = value.as_varint();
-      break;
-    default:
       break;
   }
 }
@@ -4075,8 +3969,6 @@ void SerialProxyConfigureRequest::decode_field(uint32_t tag, const uint8_t *data
     case proto_tag(6, WIRE_TYPE_VARINT):
       this->data_size = value.as_varint();
       break;
-    default:
-      break;
   }
 }
 __attribute__((optimize("O2")))  // NOLINT(clang-diagnostic-unknown-attributes)
@@ -4107,8 +3999,6 @@ void SerialProxyWriteRequest::decode_field(uint32_t tag, const uint8_t *data, pr
       this->data = value.data();
       this->data_len = value.size();
       break;
-    default:
-      break;
   }
 }
 void SerialProxySetModemPinsRequest::decode_field(uint32_t tag, const uint8_t *data, proto_varint_value_t scalar) {
@@ -4120,8 +4010,6 @@ void SerialProxySetModemPinsRequest::decode_field(uint32_t tag, const uint8_t *d
     case proto_tag(2, WIRE_TYPE_VARINT):
       this->line_states = value.as_varint();
       break;
-    default:
-      break;
   }
 }
 void SerialProxyGetModemPinsRequest::decode_field(uint32_t tag, const uint8_t *data, proto_varint_value_t scalar) {
@@ -4129,8 +4017,6 @@ void SerialProxyGetModemPinsRequest::decode_field(uint32_t tag, const uint8_t *d
   switch (tag) {
     case proto_tag(1, WIRE_TYPE_VARINT):
       this->instance = value.as_varint();
-      break;
-    default:
       break;
   }
 }
@@ -4159,8 +4045,6 @@ void SerialProxyRequest::decode_field(uint32_t tag, const uint8_t *data, proto_v
       break;
     case proto_tag(2, WIRE_TYPE_VARINT):
       this->type = static_cast<enums::SerialProxyRequestType>(value.as_varint());
-      break;
-    default:
       break;
   }
 }
@@ -4214,8 +4098,6 @@ void BluetoothSetConnectionParamsRequest::decode_field(uint32_t tag, const uint8
       break;
     case proto_tag(5, WIRE_TYPE_VARINT):
       this->timeout = value.as_varint();
-      break;
-    default:
       break;
   }
 }

@@ -321,11 +321,12 @@ class TypeInfo(ABC):
             )
         )
 
-    def _encode_fixed32_with_precomputed_tag(self, value_expr: str) -> str | None:
-        """Single-byte tag fixed32 write, or None for multi-byte tags."""
+    def _encode_fixed32_with_precomputed_tag(self, value: str) -> str | None:
+        """Single-byte tag fixed32 write, or None for other types and multi-byte tags."""
         tag = self.calculate_tag()
-        if tag >= 128:
+        if self.fixed32_value_template is None or tag >= 128:
             return None
+        value_expr = self.fixed32_value_template.format(value=value)
         if self.force:
             return _encode_call("write_tag_and_fixed32", str(tag), value_expr)
         return (
@@ -339,13 +340,13 @@ class TypeInfo(ABC):
         value = f"this->{self.field_name}"
         if result := self._encode_with_precomputed_tag(value):
             return result
-        if self.fixed32_value_template is not None and (
-            result := self._encode_fixed32_with_precomputed_tag(
-                self.fixed32_value_template.format(value=value)
-            )
-        ):
+        if result := self._encode_fixed32_with_precomputed_tag(value):
             return result
         return _encode_call(self.encode_func, str(self.number), value, force=self.force)
+
+    def encode_element(self, number: int, element: str) -> str:
+        """Encode one element of a repeated field; elements are always written."""
+        return _encode_call(self.encode_func, str(number), element, force=True)
 
     encode_func = None
 
@@ -939,6 +940,9 @@ class MessageType(TypeInfo):
     def can_use_dump_field(cls) -> bool:
         return False
 
+    def encode_element(self, number: int, element: str) -> str:
+        return _encode_call("encode_sub_message", "buffer", str(number), element)
+
     @property
     def cpp_type(self) -> str:
         return self._field.type_name[1:]
@@ -981,7 +985,6 @@ class MessageType(TypeInfo):
 
     @property
     def decode_content(self) -> str:
-        # Custom decode that doesn't use templates
         body = f"value.decode_to_message(this->{self.field_name});"
         if self._track_presence:
             # decode_to_message() cannot report failure, so setting the flag
@@ -1244,7 +1247,7 @@ class PointerToStringBufferType(PointerToBufferTypeBase):
     @property
     def decode_content(self) -> str:
         return self.decode_case(
-            f"this->{self.field_name} = StringRef(reinterpret_cast<const char *>(value.data()), value.size());",
+            f"this->{self.field_name} = StringRef(value.data(), value.size());",
         )
 
     def dump(self, name: str) -> str:
@@ -1494,6 +1497,14 @@ class UInt32Type(VarintTypeMixin, TypeInfo):
 @register_type(14)
 class EnumType(VarintTypeMixin, TypeInfo):
     _varint_max_bits = 32
+
+    def encode_element(self, number: int, element: str) -> str:
+        return _encode_call(
+            self.encode_func,
+            str(number),
+            f"static_cast<uint32_t>({element})",
+            force=True,
+        )
 
     @property
     def cpp_type(self) -> str:
@@ -1774,23 +1785,11 @@ class FixedArrayRepeatedType(TypeInfo):
 
     def _encode_element(self, element: str) -> str:
         """Helper to generate encode statement for a single element."""
-        if isinstance(self._ti, EnumType):
-            return _encode_call(
-                self._ti.encode_func,
-                str(self.number),
-                f"static_cast<uint32_t>({element})",
-                force=True,
+        if isinstance(self._ti, MessageType) and _is_inline_encode(self._ti.cpp_type):
+            return _generate_inline_encode_block(
+                self.number, self._ti.cpp_type, element
             )
-        # Repeated message elements use encode_sub_message (force=true is default)
-        if isinstance(self._ti, MessageType):
-            if _is_inline_encode(self._ti.cpp_type):
-                return _generate_inline_encode_block(
-                    self.number, self._ti.cpp_type, element
-                )
-            return _encode_call(
-                "encode_sub_message", "buffer", str(self.number), element
-            )
-        return _encode_call(self._ti.encode_func, str(self.number), element, force=True)
+        return self._ti.encode_element(self.number, element)
 
     @property
     def cpp_type(self) -> str:
@@ -2096,7 +2095,6 @@ class RepeatedTypeInfo(TypeInfo):
         if self._use_pointer:
             return None
         if isinstance(self._ti, MessageType):
-            # Special handling for non-template message decoding
             return self.decode_case(
                 f"this->{self.field_name}.emplace_back();\n"
                 f"value.decode_to_message(this->{self.field_name}.back());"
@@ -2109,20 +2107,7 @@ class RepeatedTypeInfo(TypeInfo):
         return isinstance(self._ti, BoolType)
 
     def _encode_element_call(self, element: str) -> str:
-        """Helper to generate encode call for a single element."""
-        if isinstance(self._ti, EnumType):
-            return _encode_call(
-                self._ti.encode_func,
-                str(self.number),
-                f"static_cast<uint32_t>({element})",
-                force=True,
-            )
-        # Repeated message elements use encode_sub_message (force=true is default)
-        if isinstance(self._ti, MessageType):
-            return _encode_call(
-                "encode_sub_message", "buffer", str(self.number), element
-            )
-        return _encode_call(self._ti.encode_func, str(self.number), element, force=True)
+        return self._ti.encode_element(self.number, element)
 
     @property
     def encode_content(self) -> str:
@@ -2662,8 +2647,6 @@ def build_message_type(
         o += "  const ProtoFieldValue value(data, scalar);\n"
         o += "  switch (tag) {\n"
         o += indent("\n".join(decode), "    ") + "\n"
-        o += "    default:\n"
-        o += "      break;\n"
         o += "  }\n"
         o += "}\n"
         cpp += o
