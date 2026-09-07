@@ -32,10 +32,12 @@ TEST(UnavoidableBlockingScope, ZeroLengthScopeLeavesTheStartAlone) {
   EXPECT_LE(App.get_loop_component_start_time() - pass_start, millis() - before);
 }
 
-// Nesting counts the inner stretch twice; the start must still never pass now
-TEST(UnavoidableBlockingScope, NestedScopesNeverMoveTheStartPastNow) {
+// Nested scopes leave out the outer span exactly once, and never move the
+// start past now
+TEST(UnavoidableBlockingScope, NestedScopesExcuseTheOuterSpanOnce) {
   const uint32_t pass_start = millis();
   LoopBlockingGuard guard(nullptr, nullptr, pass_start);
+  const uint32_t before = millis();
   {
     UnavoidableBlockingScope outer;
     {
@@ -44,16 +46,25 @@ TEST(UnavoidableBlockingScope, NestedScopesNeverMoveTheStartPastNow) {
     }
     delay(5);
   }
-  const uint32_t now = millis();
-  EXPECT_GE(static_cast<int32_t>(now - App.get_loop_component_start_time()), 0);
-  EXPECT_GE(App.get_loop_component_start_time() - pass_start, 35u);
+  const uint32_t excused = millis() - before;
+  const uint32_t moved = App.get_loop_component_start_time() - pass_start;
+  EXPECT_GE(moved, 35u);
+  EXPECT_LE(moved, excused);
+  EXPECT_GE(static_cast<int32_t>(millis() - App.get_loop_component_start_time()), 0);
 }
 
+namespace {
+// Static: the guard publishes the component to App and nothing clears it
 class DummyComponent : public Component {};
+DummyComponent &blocking_test_component() {
+  static DummyComponent component;
+  return component;
+}
+}  // namespace
 
 // The excused stretch must neither warn nor ratchet the component's threshold
 TEST(UnavoidableBlockingScope, ExcusedStretchDoesNotRatchetTheThreshold) {
-  DummyComponent component;
+  DummyComponent &component = blocking_test_component();
   uint32_t threshold_before = 0;
   component.should_warn_of_blocking(0, threshold_before);
   {
