@@ -94,8 +94,7 @@ void I2SAudioSpeakerBase::loop() {
     // ALL_BITS includes COMMAND_START. Take the bits from the clear itself, not from the snapshot at
     // the top of loop(): the audio source's task can raise a start at any point above, including
     // during stop_i2s_driver_(), and nothing would ever re-issue it.
-    const EventBits_t bits_before_clear =
-        xEventGroupClearBits(this->event_group_, SpeakerEventGroupBits::ALL_BITS);
+    const EventBits_t bits_before_clear = xEventGroupClearBits(this->event_group_, SpeakerEventGroupBits::ALL_BITS);
     if (bits_before_clear & SpeakerEventGroupBits::COMMAND_START) {
       ESP_LOGD(TAG, "Start requested while stopping; keeping the request");
       xEventGroupSetBits(this->event_group_, SpeakerEventGroupBits::COMMAND_START);
