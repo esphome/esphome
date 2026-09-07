@@ -265,12 +265,12 @@ class TypeInfo(ABC):
     # eliminating the zero-check branch and encode_field_raw indirection.
     # {value} is replaced with the actual field expression.
     RAW_ENCODE_MAP: dict[str, str] = {
-        "encode_uint32": "ProtoEncode::encode_varint_raw(pos, {value});",
-        "encode_uint64": "ProtoEncode::encode_varint_raw_64(pos, {value});",
-        "encode_sint32": "ProtoEncode::encode_varint_raw_short(pos, encode_zigzag32({value}));",
-        "encode_sint64": "ProtoEncode::encode_varint_raw_64(pos, encode_zigzag64({value}));",
-        "encode_int64": "ProtoEncode::encode_varint_raw_64(pos, static_cast<uint64_t>({value}));",
-        "encode_bool": "ProtoEncode::write_raw_byte(pos, {value} ? 0x01 : 0x00);",
+        "encode_uint32": "pos = ProtoEncode::encode_varint_raw(pos, {value});",
+        "encode_uint64": "pos = ProtoEncode::encode_varint_raw_64(pos, {value});",
+        "encode_sint32": "pos = ProtoEncode::encode_varint_raw_short(pos, encode_zigzag32({value}));",
+        "encode_sint64": "pos = ProtoEncode::encode_varint_raw_64(pos, encode_zigzag64({value}));",
+        "encode_int64": "pos = ProtoEncode::encode_varint_raw_64(pos, static_cast<uint64_t>({value}));",
+        "encode_bool": "pos = ProtoEncode::write_raw_byte(pos, {value} ? 0x01 : 0x00);",
     }
 
     def _encode_with_precomputed_tag(self, value_expr: str) -> str | None:
@@ -293,7 +293,7 @@ class TypeInfo(ABC):
             raw_expr = self.RAW_ENCODE_MAP.get(self.encode_func)
         if raw_expr is None:
             return None
-        body = f"ProtoEncode::write_raw_byte(pos, {tag});\n{raw_expr.format(value=value_expr)}"
+        body = f"pos = ProtoEncode::write_raw_byte(pos, {tag});\n{raw_expr.format(value=value_expr)}"
         if self.force:
             return body
         # Non-forced with max_value: inline zero-check + raw encode
@@ -314,14 +314,14 @@ class TypeInfo(ABC):
             return None
         # When max_len < 128, length varint is always 1 byte
         len_encode = (
-            f"ProtoEncode::write_raw_byte(pos, static_cast<uint8_t>({len_expr}));"
+            f"pos = ProtoEncode::write_raw_byte(pos, static_cast<uint8_t>({len_expr}));"
             if max_len is not None and max_len < 128
-            else f"ProtoEncode::encode_varint_raw(pos, {len_expr});"
+            else f"pos = ProtoEncode::encode_varint_raw(pos, {len_expr});"
         )
         return (
-            f"ProtoEncode::write_raw_byte(pos, {tag});\n"
+            f"pos = ProtoEncode::write_raw_byte(pos, {tag});\n"
             f"{len_encode}\n"
-            f"ProtoEncode::encode_raw(pos, {data_expr}, {len_expr});"
+            f"pos = ProtoEncode::encode_raw(pos, {data_expr}, {len_expr});"
         )
 
     @property
@@ -329,8 +329,8 @@ class TypeInfo(ABC):
         if result := self._encode_with_precomputed_tag(f"this->{self.field_name}"):
             return result
         if self.force:
-            return f"ProtoEncode::{self.encode_func}(pos, {self.number}, this->{self.field_name}, true);"
-        return f"ProtoEncode::{self.encode_func}(pos, {self.number}, this->{self.field_name});"
+            return f"pos = ProtoEncode::{self.encode_func}_force(pos, {self.number}, this->{self.field_name});"
+        return f"pos = ProtoEncode::{self.encode_func}(pos, {self.number}, this->{self.field_name});"
 
     encode_func = None
 
@@ -635,6 +635,21 @@ class FloatType(FixedSizeTypeMixin, TypeInfo):
     encode_func = "encode_float"
     wire_type = WireType.FIXED32  # Uses wire type 5
 
+    @property
+    def encode_content(self) -> str:
+        tag = self.calculate_tag()
+        if tag >= 128:
+            return super().encode_content
+        # Single-byte tag: share the outlined tag+fixed32 writer instead of the generic helper
+        value = f"float_to_raw(this->{self.field_name})"
+        if self.force:
+            return f"pos = ProtoEncode::write_tag_and_fixed32(pos, {tag}, {value});"
+        return (
+            f"if (uint32_t raw = {value}; raw != 0) [[likely]] {{\n"
+            f"  pos = ProtoEncode::write_tag_and_fixed32(pos, {tag}, raw);\n"
+            "}"
+        )
+
     def dump(self, name: str) -> str:
         o = f'snprintf(buffer, sizeof(buffer), "%g", {name});\n'
         o += "out.append(buffer);"
@@ -701,7 +716,7 @@ class UInt64Type(VarintTypeMixin, TypeInfo):
         if self.mac_address:
             return {
                 **TypeInfo.RAW_ENCODE_MAP,
-                "encode_uint64": "ProtoEncode::encode_varint_raw_48bit(pos, {value});",
+                "encode_uint64": "pos = ProtoEncode::encode_varint_raw_48bit(pos, {value});",
             }
         return TypeInfo.RAW_ENCODE_MAP
 
@@ -772,12 +787,16 @@ class Fixed32Type(FixedSizeTypeMixin, TypeInfo):
     @property
     def encode_content(self) -> str:
         tag = self.calculate_tag()
-        if self.force and tag < 128:
-            # Emit combined tag+value write: precomputed tag + direct memcpy
-            return f"ProtoEncode::write_tag_and_fixed32(pos, {tag}, this->{self.field_name});"
+        if tag >= 128:
+            return super().encode_content
+        # Single-byte tag: share the outlined tag+fixed32 writer instead of the generic helper
         if self.force:
-            return f"ProtoEncode::{self.encode_func}(pos, {self.number}, this->{self.field_name}, true);"
-        return f"ProtoEncode::{self.encode_func}(pos, {self.number}, this->{self.field_name});"
+            return f"pos = ProtoEncode::write_tag_and_fixed32(pos, {tag}, this->{self.field_name});"
+        return (
+            f"if (this->{self.field_name} != 0) [[likely]] {{\n"
+            f"  pos = ProtoEncode::write_tag_and_fixed32(pos, {tag}, this->{self.field_name});\n"
+            "}"
+        )
 
     def get_size_calculation(self, name: str, force: bool = False) -> str:
         field_id_size = self.calculate_field_id_size()
@@ -852,8 +871,8 @@ class StringType(TypeInfo):
         ):
             return result
         if self.force:
-            return f"ProtoEncode::encode_string(pos, {self.number}, this->{self.field_name}_ref_, true);"
-        return f"ProtoEncode::encode_string(pos, {self.number}, this->{self.field_name}_ref_);"
+            return f"pos = ProtoEncode::encode_string_force(pos, {self.number}, this->{self.field_name}_ref_);"
+        return f"pos = ProtoEncode::encode_string(pos, {self.number}, this->{self.field_name}_ref_);"
 
     def dump(self, name):
         # If name is 'it', this is a repeated field element - always use string
@@ -951,7 +970,7 @@ class MessageType(TypeInfo):
     @property
     def encode_content(self) -> str:
         # Sub-message encoding needs buffer for backpatch/sync
-        return f"ProtoEncode::{self.encode_func}(pos, buffer, {self.number}, this->{self.field_name});"
+        return f"pos = ProtoEncode::{self.encode_func}(pos, buffer, {self.number}, this->{self.field_name});"
 
     @property
     def decode_length(self) -> str:
@@ -1059,8 +1078,8 @@ class BytesType(TypeInfo):
         ):
             return result
         if self.force:
-            return f"ProtoEncode::encode_bytes(pos, {self.number}, this->{self.field_name}_ptr_, this->{self.field_name}_len_, true);"
-        return f"ProtoEncode::encode_bytes(pos, {self.number}, this->{self.field_name}_ptr_, this->{self.field_name}_len_);"
+            return f"pos = ProtoEncode::encode_bytes_force(pos, {self.number}, this->{self.field_name}_ptr_, this->{self.field_name}_len_);"
+        return f"pos = ProtoEncode::encode_bytes(pos, {self.number}, this->{self.field_name}_ptr_, this->{self.field_name}_len_);"
 
     def dump(self, name: str) -> str:
         ptr_dump = f"format_hex_pretty(this->{self.field_name}_ptr_, this->{self.field_name}_len_)"
@@ -1171,8 +1190,8 @@ class PointerToBytesBufferType(PointerToBufferTypeBase):
         ):
             return result
         if self.force:
-            return f"ProtoEncode::encode_bytes(pos, {self.number}, this->{self.field_name}, this->{self.field_name}_len, true);"
-        return f"ProtoEncode::encode_bytes(pos, {self.number}, this->{self.field_name}, this->{self.field_name}_len);"
+            return f"pos = ProtoEncode::encode_bytes_force(pos, {self.number}, this->{self.field_name}, this->{self.field_name}_len);"
+        return f"pos = ProtoEncode::encode_bytes(pos, {self.number}, this->{self.field_name}, this->{self.field_name}_len);"
 
     @property
     def decode_length_content(self) -> str | None:
@@ -1224,17 +1243,15 @@ class PointerToStringBufferType(PointerToBufferTypeBase):
         if max_len is not None and max_len < 128 and self.force:
             tag = self.calculate_tag()
             if tag < 128:
-                return f"ProtoEncode::encode_short_string_force(pos, {tag}, this->{self.field_name});"
+                return f"pos = ProtoEncode::encode_short_string_force(pos, {tag}, this->{self.field_name});"
         if result := self._encode_bytes_with_precomputed_tag(
             f"this->{self.field_name}.c_str()",
             f"this->{self.field_name}.size()",
         ):
             return result
         if self.force:
-            return f"ProtoEncode::encode_string(pos, {self.number}, this->{self.field_name}, true);"
-        return (
-            f"ProtoEncode::encode_string(pos, {self.number}, this->{self.field_name});"
-        )
+            return f"pos = ProtoEncode::encode_string_force(pos, {self.number}, this->{self.field_name});"
+        return f"pos = ProtoEncode::encode_string(pos, {self.number}, this->{self.field_name});"
 
     @property
     def decode_length_content(self) -> str | None:
@@ -1422,8 +1439,8 @@ class FixedArrayBytesType(TypeInfo):
         ):
             return result
         if self.force:
-            return f"ProtoEncode::encode_bytes(pos, {self.number}, this->{self.field_name}, this->{self.field_name}_len, true);"
-        return f"ProtoEncode::encode_bytes(pos, {self.number}, this->{self.field_name}, this->{self.field_name}_len);"
+            return f"pos = ProtoEncode::encode_bytes_force(pos, {self.number}, this->{self.field_name}, this->{self.field_name}_len);"
+        return f"pos = ProtoEncode::encode_bytes(pos, {self.number}, this->{self.field_name}, this->{self.field_name}_len);"
 
     def dump(self, name: str) -> str:
         return f"out.append(format_hex_pretty({name}, {name}_len));"
@@ -1521,8 +1538,10 @@ class EnumType(VarintTypeMixin, TypeInfo):
     def encode_content(self) -> str:
         value_expr = f"static_cast<uint32_t>(this->{self.field_name})"
         if self.force:
-            return f"ProtoEncode::{self.encode_func}(pos, {self.number}, {value_expr}, true);"
-        return f"ProtoEncode::{self.encode_func}(pos, {self.number}, {value_expr});"
+            return f"pos = ProtoEncode::{self.encode_func}_force(pos, {self.number}, {value_expr});"
+        return (
+            f"pos = ProtoEncode::{self.encode_func}(pos, {self.number}, {value_expr});"
+        )
 
     def dump(self, name: str) -> str:
         return f"out.append_p(proto_enum_to_string<{self.cpp_type}>({name}));"
@@ -1701,9 +1720,9 @@ def _generate_inline_encode_block(
 
     lines = []
     lines.append(f"auto &sub_msg = {element};")
-    lines.append(f"ProtoEncode::write_raw_byte(pos, {tag});")
+    lines.append(f"pos = ProtoEncode::write_raw_byte(pos, {tag});")
     lines.append("uint8_t *len_pos = pos;")
-    lines.append("ProtoEncode::reserve_byte(pos);")
+    lines.append("pos = ProtoEncode::reserve_byte(pos);")
 
     # Generate inline field encoding for each sub-message field
     for field in sub_desc.field:
@@ -1775,17 +1794,15 @@ class FixedArrayRepeatedType(TypeInfo):
     def _encode_element(self, element: str) -> str:
         """Helper to generate encode statement for a single element."""
         if isinstance(self._ti, EnumType):
-            return f"ProtoEncode::{self._ti.encode_func}(pos, {self.number}, static_cast<uint32_t>({element}), true);"
+            return f"pos = ProtoEncode::{self._ti.encode_func}_force(pos, {self.number}, static_cast<uint32_t>({element}));"
         # Repeated message elements use encode_sub_message (force=true is default)
         if isinstance(self._ti, MessageType):
             if _is_inline_encode(self._ti.cpp_type):
                 return _generate_inline_encode_block(
                     self.number, self._ti.cpp_type, element
                 )
-            return f"ProtoEncode::encode_sub_message(pos, buffer, {self.number}, {element});"
-        return (
-            f"ProtoEncode::{self._ti.encode_func}(pos, {self.number}, {element}, true);"
-        )
+            return f"pos = ProtoEncode::encode_sub_message(pos, buffer, {self.number}, {element});"
+        return f"pos = ProtoEncode::{self._ti.encode_func}_force(pos, {self.number}, {element});"
 
     @property
     def cpp_type(self) -> str:
@@ -2137,13 +2154,11 @@ class RepeatedTypeInfo(TypeInfo):
     def _encode_element_call(self, element: str) -> str:
         """Helper to generate encode call for a single element."""
         if isinstance(self._ti, EnumType):
-            return f"ProtoEncode::{self._ti.encode_func}(pos, {self.number}, static_cast<uint32_t>({element}), true);"
+            return f"pos = ProtoEncode::{self._ti.encode_func}_force(pos, {self.number}, static_cast<uint32_t>({element}));"
         # Repeated message elements use encode_sub_message (force=true is default)
         if isinstance(self._ti, MessageType):
-            return f"ProtoEncode::encode_sub_message(pos, buffer, {self.number}, {element});"
-        return (
-            f"ProtoEncode::{self._ti.encode_func}(pos, {self.number}, {element}, true);"
-        )
+            return f"pos = ProtoEncode::encode_sub_message(pos, buffer, {self.number}, {element});"
+        return f"pos = ProtoEncode::{self._ti.encode_func}_force(pos, {self.number}, {element});"
 
     @property
     def encode_content(self) -> str:
@@ -2152,7 +2167,7 @@ class RepeatedTypeInfo(TypeInfo):
             # Special handling for const char* elements (when container_no_template contains "const char")
             if "const char" in self._container_no_template:
                 o = f"for (const char *it : *this->{self.field_name}) {{\n"
-                o += f"  ProtoEncode::{self._ti.encode_func}(pos, {self.number}, it, strlen(it), true);\n"
+                o += f"  pos = ProtoEncode::{self._ti.encode_func}_force(pos, {self.number}, it, strlen(it));\n"
             else:
                 o = f"for (const auto &it : *this->{self.field_name}) {{\n"
                 o += f"  {self._encode_element_call('it')}\n"
