@@ -15,9 +15,11 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).parents[4] / "script" / "api_protobuf"))
 
+import aioesphomeapi.api_options_pb2 as pb  # noqa: E402
 from api_protobuf import (  # noqa: E402
     MAX_MESSAGE_ID,
     _make_ifdef_line,
+    create_field_type_info,
     get_varint64_ifdef,
     validate_message_id,
 )
@@ -107,3 +109,80 @@ def test_message_id_at_maximum_is_accepted() -> None:
 def test_message_id_above_maximum_is_rejected() -> None:
     with pytest.raises(ValueError, match="exceeds the plaintext"):
         validate_message_id(MAX_MESSAGE_ID + 1, "TooBigMessage")
+
+
+def _encode_field(
+    field_type: int, number: int = 1, force: bool = False, repeated: bool = False
+) -> str:
+    """Return the encode statement the generator emits for one encode-only field."""
+    field = descriptor_pb2.FieldDescriptorProto(
+        name="value", number=number, type=field_type
+    )
+    if repeated:
+        field.label = descriptor_pb2.FieldDescriptorProto.LABEL_REPEATED
+    if force:
+        field.options.Extensions[pb.force] = True
+    ti = create_field_type_info(field, needs_decode=False, needs_encode=True)
+    return ti.encode_content
+
+
+SCALAR_TYPES = [
+    descriptor_pb2.FieldDescriptorProto.TYPE_BOOL,
+    descriptor_pb2.FieldDescriptorProto.TYPE_UINT32,
+    descriptor_pb2.FieldDescriptorProto.TYPE_INT32,
+    descriptor_pb2.FieldDescriptorProto.TYPE_UINT64,
+    descriptor_pb2.FieldDescriptorProto.TYPE_INT64,
+    descriptor_pb2.FieldDescriptorProto.TYPE_SINT32,
+    descriptor_pb2.FieldDescriptorProto.TYPE_FLOAT,
+    descriptor_pb2.FieldDescriptorProto.TYPE_FIXED32,
+    descriptor_pb2.FieldDescriptorProto.TYPE_STRING,
+    descriptor_pb2.FieldDescriptorProto.TYPE_BYTES,
+]
+
+
+@pytest.mark.parametrize("field_type", SCALAR_TYPES)
+@pytest.mark.parametrize("force", [False, True])
+@pytest.mark.parametrize("repeated", [False, True])
+def test_encode_statements_assign_the_returned_cursor(
+    field_type: int, force: bool, repeated: bool
+) -> None:
+    """Every ProtoEncode call must take pos by value and store the returned cursor."""
+    content = _encode_field(field_type, force=force, repeated=repeated)
+    calls = [line.strip() for line in content.splitlines() if "ProtoEncode::" in line]
+    assert calls, content
+    for call in calls:
+        assert call.startswith("pos = ProtoEncode::"), call
+    assert ", true)" not in content, content
+
+
+@pytest.mark.parametrize("field_type", SCALAR_TYPES)
+def test_forced_fields_use_the_force_overload_or_raw_writes(field_type: int) -> None:
+    content = _encode_field(field_type, force=True)
+    assert (
+        "_force(" in content
+        or "write_raw_byte(" in content
+        or "write_tag_and_fixed32(" in content
+    ), content
+
+
+FLOAT = descriptor_pb2.FieldDescriptorProto.TYPE_FLOAT
+FIXED32 = descriptor_pb2.FieldDescriptorProto.TYPE_FIXED32
+
+
+@pytest.mark.parametrize("field_type", [FLOAT, FIXED32])
+def test_single_byte_tag_fixed32_shares_the_outlined_writer(field_type: int) -> None:
+    unconditional = _encode_field(field_type, force=True)
+    assert unconditional.count("write_tag_and_fixed32(pos, 13,") == 1, unconditional
+    guarded = _encode_field(field_type, force=False)
+    assert guarded.startswith("if ("), guarded
+    assert "[[likely]]" in guarded
+    assert "write_tag_and_fixed32(pos, 13," in guarded
+
+
+@pytest.mark.parametrize("field_type", [FLOAT, FIXED32])
+def test_multi_byte_tag_fixed32_falls_back_to_the_generic_helper(
+    field_type: int,
+) -> None:
+    content = _encode_field(field_type, number=16)
+    assert "write_tag_and_fixed32" not in content, content
+    assert content.startswith("pos = ProtoEncode::encode_"), content
