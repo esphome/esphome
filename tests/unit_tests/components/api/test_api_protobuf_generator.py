@@ -45,6 +45,7 @@ def _file_with_messages(
 
 
 UINT64 = descriptor_pb2.FieldDescriptorProto.TYPE_UINT64
+MESSAGE = descriptor_pb2.FieldDescriptorProto.TYPE_MESSAGE
 INT64 = descriptor_pb2.FieldDescriptorProto.TYPE_INT64
 SINT64 = descriptor_pb2.FieldDescriptorProto.TYPE_SINT64
 UINT32 = descriptor_pb2.FieldDescriptorProto.TYPE_UINT32
@@ -187,9 +188,11 @@ def test_multi_byte_tag_fixed32_falls_back_to_the_generic_helper(
     assert content.startswith("pos = ProtoEncode::encode_"), content
 
 
-def _decode_case(field_type: int, number: int) -> str:
+def _decode_case(field_type: int, number: int, *, repeated: bool = False) -> str:
     """Return the decode_field() case the generator emits for one decoded field."""
-    field = _field(field_type, number)
+    field = _field(field_type, number, repeated=repeated)
+    if field_type == MESSAGE:
+        field.type_name = ".Sub"
     return create_field_type_info(
         field, needs_decode=True, needs_encode=False
     ).decode_content
@@ -213,6 +216,43 @@ def test_decode_cases_carry_field_number_and_wire_type(
     lines = case.splitlines()
     assert lines[0] == f"case proto_tag({number}, {wire_type}):", case
     assert accessor in lines[1], case
+    assert lines[-1].strip() == "break;", case
+
+
+@pytest.mark.parametrize(
+    ("field_type", "repeated", "wire_type", "store"),
+    [
+        (UINT32, True, "WIRE_TYPE_VARINT", "this->value.push_back(value.as_varint());"),
+        (
+            STRING,
+            True,
+            "WIRE_TYPE_LENGTH_DELIMITED",
+            "this->value.push_back(value.as_string());",
+        ),
+        (
+            MESSAGE,
+            False,
+            "WIRE_TYPE_LENGTH_DELIMITED",
+            "value.decode_to_message(this->value);",
+        ),
+        (
+            MESSAGE,
+            True,
+            "WIRE_TYPE_LENGTH_DELIMITED",
+            "value.decode_to_message(this->value.back());",
+        ),
+    ],
+)
+def test_repeated_and_message_fields_decode_through_the_same_case_shape(
+    field_type: int, repeated: bool, wire_type: str, store: str
+) -> None:
+    """Repeated and sub message fields land in the one switch with their own store."""
+    case = _decode_case(field_type, 7, repeated=repeated)
+    lines = case.splitlines()
+    assert lines[0] == f"case proto_tag(7, {wire_type}):", case
+    assert store in case, case
+    if field_type == MESSAGE and repeated:
+        assert "this->value.emplace_back();" in case, case
     assert lines[-1].strip() == "break;", case
 
 
