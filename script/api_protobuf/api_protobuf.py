@@ -566,11 +566,11 @@ def create_field_type_info(
         # For messages that decode (SOURCE_CLIENT or SOURCE_BOTH), use pointer
         # for zero-copy access to the receive buffer
         if needs_decode:
-            return PointerToBytesBufferType(field, None)
+            return PointerToBytesBufferType(field)
 
         # For SOURCE_SERVER (encode only), explicit annotation is still needed
         if get_field_opt(field, pb.pointer_to_buffer, False):
-            return PointerToBytesBufferType(field, None)
+            return PointerToBytesBufferType(field)
 
         return BytesType(field, needs_decode, needs_encode)
 
@@ -1135,9 +1135,9 @@ class PointerToBufferTypeBase(TypeInfo):
         return False
 
     def __init__(
-        self, field: descriptor.FieldDescriptorProto, size: int | None = None
+        self, field: descriptor.FieldDescriptorProto, needs_decode: bool = True
     ) -> None:
-        super().__init__(field)
+        super().__init__(field, needs_decode)
         self.array_size = 0
 
     @property
@@ -1215,28 +1215,32 @@ class PointerToStringBufferType(PointerToBufferTypeBase):
     reference_type = "StringRef &"
     const_reference_type = "const StringRef &"
 
-    def __init__(
-        self, field: descriptor.FieldDescriptorProto, needs_decode: bool
-    ) -> None:
-        super().__init__(field, None)
-        self._needs_decode = needs_decode
-
     @classmethod
     def can_use_dump_field(cls) -> bool:
         return True
 
     @property
+    def _starts_null(self) -> bool:
+        """A field that is only encoded, and skipped when empty, never has its pointer read
+        before it is set, so it can default to a null StringRef and the message constructs as
+        one zero fill. Any encode path that copies unconditionally must check this."""
+        return not self._needs_decode and not self.force
+
+    @property
     def public_content(self) -> list[str]:
-        # A field that is only ever encoded and skipped when empty never has its pointer read, so a
-        # null default lets the whole message construct as one zero fill
-        if not self._needs_decode and not self.force:
-            return [f"StringRef {self.field_name}{{nullptr, 0}};"]
+        if self._starts_null:
+            return [
+                f"StringRef {self.field_name}{{nullptr, 0}};  // null until set, encode only"
+            ]
         return [f"StringRef {self.field_name}{{}};"]
 
     @property
     def encode_content(self) -> str:
         max_len = self.max_data_length
         if max_len is not None and max_len < 128 and self.force:
+            assert not self._starts_null, (
+                "unconditional copy of a field that may start null"
+            )
             tag = self.calculate_tag()
             if tag < 128:
                 return _encode_call(
