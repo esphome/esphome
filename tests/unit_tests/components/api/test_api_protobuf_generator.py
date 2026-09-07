@@ -200,6 +200,24 @@ def _decode_case(field_type: int, number: int, *, repeated: bool = False) -> str
 
 
 @pytest.mark.parametrize(
+    ("needs_decode", "force", "member"),
+    [
+        (False, False, "StringRef value{nullptr, 0};"),
+        (True, False, "StringRef value{};"),
+        (False, True, "StringRef value{};"),
+    ],
+)
+def test_string_fields_default_to_null_only_when_never_read(
+    needs_decode: bool, force: bool, member: str
+) -> None:
+    """Only a string that is neither decoded nor force encoded may start as a null StringRef."""
+    ti = create_field_type_info(
+        _field(STRING, force=force), needs_decode=needs_decode, needs_encode=True
+    )
+    assert ti.public_content == [member]
+
+
+@pytest.mark.parametrize(
     ("field_type", "number", "wire_type", "accessor"),
     [
         (UINT32, 2, "WIRE_TYPE_VARINT", "value.as_varint()"),
