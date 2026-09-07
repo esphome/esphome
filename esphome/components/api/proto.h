@@ -255,7 +255,7 @@ class ProtoWriteBuffer {
    *
    * Following https://protobuf.dev/programming-guides/encoding/#structure
    */
-  void encode_field_raw(uint32_t field_id, uint32_t type) { this->encode_varint_raw((field_id << 3) | type); }
+  void encode_field_raw(uint32_t field_id, uint32_t type) { this->encode_varint_raw(proto_tag(field_id, type)); }
   /// Single-pass encode for repeated submessage elements.
   /// Thin template wrapper; all buffer work is in the non-template core.
   template<typename T> void encode_sub_message(uint32_t field_id, const T &value);
@@ -385,7 +385,7 @@ class ProtoEncode {
   }
   [[nodiscard]] static inline uint8_t *ESPHOME_ALWAYS_INLINE
   encode_field_raw(uint8_t *__restrict__ pos PROTO_ENCODE_DEBUG_PARAM, uint32_t field_id, uint32_t type) {
-    return encode_varint_raw(pos PROTO_ENCODE_DEBUG_ARG, (field_id << 3) | type);
+    return encode_varint_raw(pos PROTO_ENCODE_DEBUG_ARG, proto_tag(field_id, type));
   }
   /// Write a single precomputed tag byte. Tag must be < 128.
   [[nodiscard]] static inline uint8_t *ESPHOME_ALWAYS_INLINE
@@ -738,7 +738,6 @@ class ProtoDecodableMessage : public ProtoMessage {
   /// Store one decoded field; \p scalar is the varint or fixed32 value, or the length of the
   /// length-delimited payload at \p data. An unknown field or wrong wire type matches no case and is skipped.
   /// Three register arguments keep the decode loop free of spills.
-  // NOTE: wire type 1 (64-bit fixed) is not supported
   virtual void decode_field(uint32_t tag, const uint8_t *data, proto_varint_value_t scalar) {}
 };
 
@@ -865,7 +864,7 @@ class ProtoSize {
    * @return The number of bytes needed to encode the field ID and wire type
    */
   static constexpr uint32_t field(uint32_t field_id, uint32_t type) {
-    uint32_t tag = (field_id << 3) | (type & WIRE_TYPE_MASK);
+    uint32_t tag = proto_tag(field_id, type & WIRE_TYPE_MASK);
     return varint(tag);
   }
 

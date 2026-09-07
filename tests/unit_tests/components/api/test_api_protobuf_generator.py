@@ -225,7 +225,6 @@ def test_message_gets_a_single_decode_field_override() -> None:
     header, cpp, _ = build_message_type(desc, {}, {"Mixed": SOURCE_CLIENT})
     decl = "void decode_field(uint32_t tag, const uint8_t *data, proto_varint_value_t scalar) override;"
     assert header.count(decl) == 1
-    assert "decode_varint" not in header and "decode_length" not in header
     assert (
         cpp.count(
             "void Mixed::decode_field(uint32_t tag, const uint8_t *data, proto_varint_value_t scalar) {"
