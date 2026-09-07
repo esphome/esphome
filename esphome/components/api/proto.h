@@ -145,9 +145,7 @@ class ProtoVarInt {
     // (booleans, small enums, field tags, small message sizes/types).
     if ((buffer[0] & 0x80) == 0) [[likely]]
       return {buffer[0], 1};
-    ProtoVarIntResult res;
-    res.consumed = parse_slow(buffer, len, res.value);
-    return res;
+    return parse_slow(buffer, len);
   }
 
   /// Parse a varint from buffer (safe for empty buffers).
@@ -158,16 +156,13 @@ class ProtoVarInt {
     return parse_non_empty(buffer, len);
   }
 
-  /// Multi-byte varint (first byte has the high bit set), outlined to keep the fast path small.
-  /// Writes the value and returns the bytes consumed, PROTO_VARINT_PARSE_FAILED when truncated.
-  static uint32_t parse_slow(const uint8_t *buffer, uint32_t len, proto_varint_value_t &value)
-      __attribute__((noinline));
-
  protected:
+  // Slow path for multi-byte varints (>= 128), outlined to keep fast path small
+  static ProtoVarIntResult parse_slow(const uint8_t *buffer, uint32_t len) __attribute__((noinline));
+
 #ifdef USE_API_VARINT64
   /// Continue parsing varint bytes 4-9 with 64-bit arithmetic.
-  static uint32_t parse_wide(const uint8_t *buffer, uint32_t len, uint32_t result32, uint64_t &value)
-      __attribute__((noinline));
+  static ProtoVarIntResult parse_wide(const uint8_t *buffer, uint32_t len, uint32_t result32) __attribute__((noinline));
 #endif
 };
 
