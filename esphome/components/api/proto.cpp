@@ -218,7 +218,7 @@ void ProtoDecodableMessage::decode(const uint8_t *buffer, size_t length) {
   auto read_varint = [&](proto_varint_value_t &value) ESPHOME_ALWAYS_INLINE {
     if (ptr == end)
       return false;
-    if ((*ptr & 0x80) == 0) [[likely]] {
+    if (*ptr < 0x80) [[likely]] {
       value = *ptr++;
       return true;
     }
@@ -243,49 +243,43 @@ void ProtoDecodableMessage::decode(const uint8_t *buffer, size_t length) {
     const uint8_t *data = ptr;
     proto_varint_value_t scalar;
 
-    switch (field_type) {
-      case WIRE_TYPE_VARINT: {  // VarInt
-        if (!read_varint(scalar)) {
-          ESP_LOGV(TAG, "Invalid VarInt at offset %ld", (long) (ptr - buffer));
-          return;
-        }
-        break;
-      }
-      case WIRE_TYPE_LENGTH_DELIMITED: {  // Length-delimited
-        proto_varint_value_t length_value;
-        if (!read_varint(length_value)) {
-          ESP_LOGV(TAG, "Invalid Length Delimited at offset %ld", (long) (ptr - buffer));
-          return;
-        }
-        uint32_t field_length = static_cast<uint32_t>(length_value);
-        if (field_length > static_cast<size_t>(end - ptr)) {
-          ESP_LOGV(TAG, "Out-of-bounds Length Delimited at offset %ld", (long) (ptr - buffer));
-          return;
-        }
-        data = ptr;
-        scalar = field_length;
-        ptr += field_length;
-        break;
-      }
-      case WIRE_TYPE_FIXED32: {  // 32-bit
-        if (end - ptr < 4) {
-          ESP_LOGV(TAG, "Out-of-bounds Fixed32-bit at offset %ld", (long) (ptr - buffer));
-          return;
-        }
-        uint32_t val;
-#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
-        // Protobuf fixed32 is little-endian — direct load on LE platforms
-        memcpy(&val, ptr, 4);
-#else
-        val = encode_uint32(ptr[3], ptr[2], ptr[1], ptr[0]);
-#endif
-        scalar = val;
-        ptr += 4;
-        break;
-      }
-      default:
-        ESP_LOGV(TAG, "Invalid field type %" PRIu32 " at offset %ld", field_type, (long) (ptr - buffer));
+    if (field_type == WIRE_TYPE_VARINT) [[likely]] {
+      if (!read_varint(scalar)) {
+        ESP_LOGV(TAG, "Invalid VarInt at offset %ld", (long) (ptr - buffer));
         return;
+      }
+    } else {
+      switch (field_type) {
+        case WIRE_TYPE_LENGTH_DELIMITED: {
+          proto_varint_value_t length_value;
+          if (!read_varint(length_value)) {
+            ESP_LOGV(TAG, "Invalid Length Delimited at offset %ld", (long) (ptr - buffer));
+            return;
+          }
+          uint32_t field_length = static_cast<uint32_t>(length_value);
+          if (field_length > static_cast<size_t>(end - ptr)) {
+            ESP_LOGV(TAG, "Out-of-bounds Length Delimited at offset %ld", (long) (ptr - buffer));
+            return;
+          }
+          data = ptr;
+          scalar = field_length;
+          ptr += field_length;
+          break;
+        }
+        case WIRE_TYPE_FIXED32: {
+          if (end - ptr < 4) {
+            ESP_LOGV(TAG, "Out-of-bounds Fixed32-bit at offset %ld", (long) (ptr - buffer));
+            return;
+          }
+          // Byte loads instead of memcpy: ESP-IDF passes -fno-builtin-memcpy, which made this a call
+          scalar = encode_uint32(ptr[3], ptr[2], ptr[1], ptr[0]);
+          ptr += 4;
+          break;
+        }
+        default:
+          ESP_LOGV(TAG, "Invalid field type %" PRIu32 " at offset %ld", field_type, (long) (ptr - buffer));
+          return;
+      }
     }
     if (!this->decode_field(tag, data, scalar)) {
       ESP_LOGV(TAG, "Cannot decode field %" PRIu32 " with wire type %" PRIu32 "!", tag >> 3, field_type);
