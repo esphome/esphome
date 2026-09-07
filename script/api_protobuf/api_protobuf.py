@@ -732,7 +732,7 @@ class UInt64Type(VarintTypeMixin, TypeInfo):
         return self._get_simple_size_calculation(name, force, "uint64")
 
     @property
-    def RAW_ENCODE_MAP(self) -> dict[str, str]:  # noqa: N802
+    def RAW_ENCODE_MAP(self) -> dict[str, tuple[str, str]]:  # noqa: N802
         if self.mac_address:
             return {
                 **TypeInfo.RAW_ENCODE_MAP,

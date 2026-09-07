@@ -380,3 +380,13 @@ def test_api_version_minor_is_at_least_15() -> None:
         "clients to see api_version >= 1.15 in HelloResponse before they will "
         "ever request it."
     )
+
+
+def test_generated_encode_calls_keep_the_cursor() -> None:
+    """No generated ProtoEncode call may drop the returned cursor."""
+    dropped = [
+        line
+        for line in CPP_TEXT.splitlines()
+        if line.lstrip().startswith("ProtoEncode::")
+    ]
+    assert not dropped, dropped[:5]
