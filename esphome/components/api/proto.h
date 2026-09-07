@@ -328,7 +328,7 @@ class ProtoEncode {
     return encode_varint_raw_loop(pos PROTO_ENCODE_DEBUG_ARG, value);
   }
   /// Encode a varint that is expected to be 1-2 bytes (e.g. zigzag RSSI, small lengths).
-  static inline uint8_t *ESPHOME_ALWAYS_INLINE
+  [[nodiscard]] static inline uint8_t *ESPHOME_ALWAYS_INLINE
   encode_varint_raw_short(uint8_t *__restrict__ pos PROTO_ENCODE_DEBUG_PARAM, uint32_t value) {
     if (value < VARINT_MAX_1_BYTE) [[likely]] {
       PROTO_ENCODE_CHECK_BOUNDS(pos, 1);
@@ -357,7 +357,7 @@ class ProtoEncode {
   /// fast path -- any non-zero bit in the top 6 of 48 -- emits exactly 7 bytes
   /// with no per-byte branch. Falls back to the general loop otherwise.
   /// Caller must guarantee value fits in 48 bits (checked in debug builds).
-  static inline uint8_t *ESPHOME_ALWAYS_INLINE
+  [[nodiscard]] static inline uint8_t *ESPHOME_ALWAYS_INLINE
   encode_varint_raw_48bit(uint8_t *__restrict__ pos PROTO_ENCODE_DEBUG_PARAM, uint64_t value) {
 #ifdef ESPHOME_DEBUG_API
     assert(value < (1ULL << (MAC_ADDRESS_SIZE * 8)) && "encode_varint_raw_48bit: value exceeds 48 bits");
