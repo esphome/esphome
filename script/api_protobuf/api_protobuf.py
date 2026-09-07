@@ -2841,7 +2841,6 @@ def build_message_type(
             )
             for line in encode
         ]
-        # Static over const void * so &T::encode_msg is a MessageEncodeFn without a thunk.
         o = f"{speed_attr}uint8_t *{desc.name}::encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) {{\n"
         o += f"  const auto &msg = *static_cast<const {desc.name} *>(self);\n"
         o += "  uint8_t *__restrict__ pos = buffer.get_pos();\n"
