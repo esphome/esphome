@@ -1,4 +1,7 @@
 #include "ota_esphome.h"
+#ifdef USE_OTA_ENCRYPTION_FROM_API
+#include "esphome/components/api/api_server.h"
+#endif
 #ifdef USE_OTA
 #ifdef USE_OTA_PASSWORD
 #include "esphome/components/sha256/sha256.h"
@@ -26,6 +29,16 @@
 namespace esphome {
 
 static const char *const TAG = "esphome.ota";
+
+#ifdef USE_OTA_ENCRYPTION
+const noise::NoiseContext &ESPHomeOTAComponent::noise_context_() const {
+#ifdef USE_OTA_ENCRYPTION_FROM_API
+  return api::global_api_server->get_noise_ctx();
+#else
+  return this->noise_ctx_;
+#endif
+}
+#endif
 static constexpr uint16_t OTA_BLOCK_SIZE = 8192;
 static constexpr uint32_t OTA_SOCKET_TIMEOUT_HANDSHAKE = 20000;  // milliseconds for initial handshake
 static constexpr uint32_t OTA_SOCKET_TIMEOUT_DATA = 90000;       // milliseconds for data transfer
@@ -97,16 +110,28 @@ void ESPHomeOTAComponent::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "Over-The-Air updates:\n"
                 "  Address: %s:%u\n"
-                "  Version: %d",
-                network::get_use_address_to(addr_buf), this->port_, USE_OTA_VERSION);
+                "  Version: %d"
+#ifdef USE_OTA_ENCRYPTION
+                "\n  Encryption: %s"
+#endif
+                ,
+                network::get_use_address_to(addr_buf), this->port_, USE_OTA_VERSION
+#ifdef USE_OTA_ENCRYPTION_REQUIRED
+                ,
+                LOG_STR_LITERAL("required")
+#elif defined(USE_OTA_ENCRYPTION_PROVISIONED)
+                // A runtime provisioned key may not exist yet
+                ,
+                this->noise_context_().has_psk() ? LOG_STR_LITERAL("offered, plaintext accepted")
+                                                 : LOG_STR_LITERAL("offered once the api key is provisioned")
+#elif defined(USE_OTA_ENCRYPTION)
+                ,
+                LOG_STR_LITERAL("offered, plaintext accepted")
+#endif
+  );
 #ifdef USE_OTA_PASSWORD
   if (!this->password_.empty()) {
     ESP_LOGCONFIG(TAG, "  Password configured");
-  }
-#endif
-#ifdef USE_OTA_ENCRYPTION
-  if (this->noise_ctx_.has_psk()) {
-    ESP_LOGCONFIG(TAG, "  Encryption configured");
   }
 #endif
 #ifdef USE_OTA_PARTITIONS
@@ -154,9 +179,21 @@ static constexpr uint8_t CLIENT_FEATURE_SUPPORTS_COMPRESSION = 0x01;
 static constexpr uint8_t CLIENT_FEATURE_SUPPORTS_SHA256_AUTH = 0x02;
 static constexpr uint8_t CLIENT_FEATURE_SUPPORTS_EXTENDED_PROTOCOL = 0x04;
 static constexpr uint8_t CLIENT_FEATURE_SUPPORTS_NOISE = 0x08;
+// Noise needs the extended protocol: the prologue binds the 2-byte feature ack
+static constexpr uint8_t CLIENT_NOISE_FEATURES =
+    CLIENT_FEATURE_SUPPORTS_NOISE | CLIENT_FEATURE_SUPPORTS_EXTENDED_PROTOCOL;
 static constexpr uint8_t SERVER_FEATURE_SUPPORTS_COMPRESSION = 0x01;
 static constexpr uint8_t SERVER_FEATURE_SUPPORTS_PARTITION_ACCESS = 0x02;
 static constexpr uint8_t SERVER_FEATURE_SUPPORTS_NOISE = 0x04;
+
+inline bool ESPHomeOTAComponent::extended_proto_() const {
+#ifdef USE_OTA_ENCRYPTION_REQUIRED
+  // FEATURE_READ already refused every client without the extended protocol
+  return true;
+#else
+  return (this->ota_features_ & CLIENT_FEATURE_SUPPORTS_EXTENDED_PROTOCOL) != 0;
+#endif
+}
 
 void ESPHomeOTAComponent::handle_handshake_() {
   /// Handle the OTA handshake and authentication.
@@ -241,12 +278,9 @@ void ESPHomeOTAComponent::handle_handshake_() {
       this->ota_features_ = this->handshake_buf_[0];
       ESP_LOGV(TAG, "Features: 0x%02X", this->ota_features_);
 
-#ifdef USE_OTA_ENCRYPTION
-      // Fail closed: with a PSK configured the client must negotiate encryption
-      // (which requires the extended protocol); refuse plaintext uploads.
-      static constexpr uint8_t NOISE_REQUIRED_FEATURES =
-          CLIENT_FEATURE_SUPPORTS_NOISE | CLIENT_FEATURE_SUPPORTS_EXTENDED_PROTOCOL;
-      if (this->noise_ctx_.has_psk() && (this->ota_features_ & NOISE_REQUIRED_FEATURES) != NOISE_REQUIRED_FEATURES) {
+#ifdef USE_OTA_ENCRYPTION_REQUIRED
+      // `ota: encryption:` requires the client to negotiate encryption
+      if ((this->ota_features_ & CLIENT_NOISE_FEATURES) != CLIENT_NOISE_FEATURES) {
         ESP_LOGW(TAG, "Client does not support encryption");
         this->send_error_and_cleanup_(ota::OTA_RESPONSE_ERROR_ENCRYPTION_REQUIRED);
         return;
@@ -261,18 +295,21 @@ void ESPHomeOTAComponent::handle_handshake_() {
       // Compose the feature-ack response. When the client negotiates the extended protocol we emit
       // a 2-byte response (marker + server feature flags); otherwise we emit the single-byte
       // legacy response.
-      this->extended_proto_ = (this->ota_features_ & CLIENT_FEATURE_SUPPORTS_EXTENDED_PROTOCOL) != 0;
-      if (this->extended_proto_) {
+      if (this->extended_proto_()) {
         static_assert(HANDSHAKE_BUF_SIZE >= 2, "handshake_buf_ must hold the 2-byte extended-protocol feature ack");
         this->handshake_buf_[0] = ota::OTA_RESPONSE_FEATURE_FLAGS;
         this->handshake_buf_[1] = (supports_compression ? SERVER_FEATURE_SUPPORTS_COMPRESSION : 0);
 #ifdef USE_OTA_PARTITIONS
         this->handshake_buf_[1] |= SERVER_FEATURE_SUPPORTS_PARTITION_ACCESS;
 #endif
-#ifdef USE_OTA_ENCRYPTION
-        if (this->noise_ctx_.has_psk()) {
+#ifdef USE_OTA_ENCRYPTION_PROVISIONED
+        // A runtime provisioned key may not exist yet
+        if (this->noise_context_().has_psk()) {
           this->handshake_buf_[1] |= SERVER_FEATURE_SUPPORTS_NOISE;
         }
+#elif defined(USE_OTA_ENCRYPTION)
+        // A yaml key always exists: validation rejects the all-zeros key
+        this->handshake_buf_[1] |= SERVER_FEATURE_SUPPORTS_NOISE;
 #endif
       } else {
         this->handshake_buf_[0] =
@@ -284,15 +321,15 @@ void ESPHomeOTAComponent::handle_handshake_() {
     case OTAState::FEATURE_ACK: {
       static constexpr size_t STANDARD_PROTO_ACK_SIZE = 1;
       static constexpr size_t EXTENDED_PROTO_ACK_SIZE = 2;
-      const size_t ack_size = this->extended_proto_ ? EXTENDED_PROTO_ACK_SIZE : STANDARD_PROTO_ACK_SIZE;
+      const size_t ack_size = this->extended_proto_() ? EXTENDED_PROTO_ACK_SIZE : STANDARD_PROTO_ACK_SIZE;
       if (!this->try_write_(ack_size, LOG_STR("ack feature"))) {
         return;
       }
 #ifdef USE_OTA_ENCRYPTION
-      // With a PSK configured the rest of the session runs inside the noise
-      // transport; the client sends the first handshake frame next, so there
-      // is nothing to do until data arrives.
-      if (this->noise_ctx_.has_psk()) {
+      // Latch the offer actually sent: a key activating between the two
+      // states must not start a session the client never expects
+      if ((this->handshake_buf_[1] & SERVER_FEATURE_SUPPORTS_NOISE) != 0 &&
+          (this->ota_features_ & CLIENT_NOISE_FEATURES) == CLIENT_NOISE_FEATURES) {
         // handshake_buf_ still holds the feature ack composed above; a
         // would-block re-entry lands here without rebuilding it
         if (!this->noise_start_session_(this->handshake_buf_[1])) {
@@ -412,7 +449,7 @@ void ESPHomeOTAComponent::handle_data_() {
   // Acknowledge auth OK - 1 byte
   this->data_write_byte_(ota::OTA_RESPONSE_AUTH_OK);
 
-  if (this->extended_proto_) {
+  if (this->extended_proto_()) {
     // Read ota type, 1 byte
     if (!this->data_readall_(buf, 1)) {
       this->log_read_error_(LOG_STR("OTA type"));

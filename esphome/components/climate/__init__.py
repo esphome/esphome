@@ -125,6 +125,19 @@ CLIMATE_SWING_MODES = {
 
 validate_climate_swing_mode = cv.enum(CLIMATE_SWING_MODES, upper=True)
 
+ClimateAction = climate_ns.enum("ClimateAction")
+CLIMATE_ACTIONS = {
+    "OFF": ClimateAction.CLIMATE_ACTION_OFF,
+    "COOLING": ClimateAction.CLIMATE_ACTION_COOLING,
+    "HEATING": ClimateAction.CLIMATE_ACTION_HEATING,
+    "IDLE": ClimateAction.CLIMATE_ACTION_IDLE,
+    "DRYING": ClimateAction.CLIMATE_ACTION_DRYING,
+    "FAN": ClimateAction.CLIMATE_ACTION_FAN,
+    "DEFROSTING": ClimateAction.CLIMATE_ACTION_DEFROSTING,
+}
+
+validate_climate_action = cv.enum(CLIMATE_ACTIONS, upper=True)
+
 CONF_MIN_HUMIDITY = "min_humidity"
 CONF_MAX_HUMIDITY = "max_humidity"
 CONF_TARGET_HUMIDITY = "target_humidity"
