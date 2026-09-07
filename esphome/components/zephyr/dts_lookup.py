@@ -61,6 +61,24 @@ def dts_node_label_exists(board: str, label: str) -> bool:
     return any(label in node.labels for node in _iter_nodes(edt))
 
 
+def has_pinctrl_configured(board: str, label: str) -> bool:
+    """Return True if the node with devicetree label `label`, or an ancestor, has a
+    pinctrl-<N> property. Checks ancestors because some vendors (e.g. Renesas RA's
+    sci<N>/uart<N> split) put pinctrl on a parent node, not the node a port label
+    resolves to -- no Zephyr binding guarantees a `<label>_default` name exists."""
+    edt = _get_edt(board)
+    if edt is None:
+        return False
+    for node in _iter_nodes(edt):
+        if label in node.labels:
+            while node is not None:
+                if node.pinctrls:
+                    return True
+                node = node.parent
+            return False
+    return False
+
+
 def resolve_zephyr_bus(
     platform: str, board: str, override_key: str, override: str | None = None
 ) -> str:
