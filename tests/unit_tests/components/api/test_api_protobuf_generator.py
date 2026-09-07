@@ -38,7 +38,8 @@ def _file_with_messages(
     file_desc = descriptor_pb2.FileDescriptorProto(name="test.proto")
     for name, field_type, deprecated in messages:
         msg = file_desc.message_type.add(name=name)
-        field = msg.field.add(name="value", number=1, type=field_type)
+        field = msg.field.add()
+        field.CopyFrom(_field(field_type))
         field.options.deprecated = deprecated
     return file_desc
 

@@ -131,11 +131,6 @@ def camel_to_snake(name: str) -> str:
     return re.sub("([a-z0-9])([A-Z])", r"\1_\2", s1).lower()
 
 
-def force_str(force: bool) -> str:
-    """Convert a boolean force value to string format for C++ code."""
-    return str(force).lower()
-
-
 def _encode_call(func: str, *args: str, force: bool = False) -> str:
     """Emit one ProtoEncode call; every helper takes the cursor and returns it advanced."""
     suffix = "_force" if force else ""
@@ -240,20 +235,8 @@ class TypeInfo(ABC):
             f"{body}\nbreak;"
         )
 
-    # Decode expression per wire type; a decodable type sets exactly one.
-    decode_varint = None
-    decode_length = None
-    decode_32bit = None
-
-    def _decode_expr(self) -> str | None:
-        return next(
-            (
-                expr
-                for expr in (self.decode_varint, self.decode_length, self.decode_32bit)
-                if expr is not None
-            ),
-            None,
-        )
+    # Expression that reads this field from `value`; None when the type is never decoded.
+    decode_expr: str | None = None
 
     def _decode_store(self, expr: str) -> str:
         return f"this->{self.field_name} = {expr};"
@@ -261,7 +244,7 @@ class TypeInfo(ABC):
     @property
     def decode_content(self) -> str | None:
         """The decode_field() case for this field, or None when it is never decoded."""
-        expr = self._decode_expr()
+        expr = self.decode_expr
         return None if expr is None else self.decode_case(self._decode_store(expr))
 
     # Mapping from encode_func to raw encode expression template.
@@ -662,7 +645,7 @@ class DoubleType(FixedSizeTypeMixin, TypeInfo):
 class FloatType(FixedSizeTypeMixin, TypeInfo):
     cpp_type = "float"
     default_value = "0.0f"
-    decode_32bit = "value.as_float()"
+    decode_expr = "value.as_float()"
     encode_func = "encode_float"
     wire_type = WireType.FIXED32  # Uses wire type 5
 
@@ -691,7 +674,7 @@ class Int64Type(VarintTypeMixin, TypeInfo):
     cpp_type = "int64_t"
     _varint_max_bits = 64
     default_value = "0"
-    decode_varint = "static_cast<int64_t>(value.as_varint())"
+    decode_expr = "static_cast<int64_t>(value.as_varint())"
     encode_func = "encode_int64"
     wire_type = WireType.VARINT  # Uses wire type 0
 
@@ -712,7 +695,7 @@ class UInt64Type(VarintTypeMixin, TypeInfo):
     cpp_type = "uint64_t"
     _varint_max_bits = 64
     default_value = "0"
-    decode_varint = "value.as_varint()"
+    decode_expr = "value.as_varint()"
     encode_func = "encode_uint64"
     wire_type = WireType.VARINT  # Uses wire type 0
 
@@ -747,7 +730,7 @@ class Int32Type(VarintTypeMixin, TypeInfo):
     cpp_type = "int32_t"
     _varint_max_bits = 64  # int32 is sign-extended to 64 bits in protobuf
     default_value = "0"
-    decode_varint = "static_cast<int32_t>(value.as_varint())"
+    decode_expr = "static_cast<int32_t>(value.as_varint())"
     encode_func = "encode_int32"
     wire_type = WireType.VARINT  # Uses wire type 0
 
@@ -792,7 +775,7 @@ class Fixed64Type(FixedSizeTypeMixin, TypeInfo):
 class Fixed32Type(FixedSizeTypeMixin, TypeInfo):
     cpp_type = "uint32_t"
     default_value = "0"
-    decode_32bit = "value.as_fixed32()"
+    decode_expr = "value.as_fixed32()"
     encode_func = "encode_fixed32"
     wire_type = WireType.FIXED32  # Uses wire type 5
 
@@ -821,7 +804,7 @@ class BoolType(VarintTypeMixin, TypeInfo):
     _varint_max_bits = 1
     cpp_type = "bool"
     default_value = "false"
-    decode_varint = "value.as_varint() != 0"
+    decode_expr = "value.as_varint() != 0"
     encode_func = "encode_bool"
     wire_type = WireType.VARINT  # Uses wire type 0
 
@@ -841,7 +824,7 @@ class StringType(TypeInfo):
     default_value = ""
     reference_type = "std::string &"
     const_reference_type = "const std::string &"
-    decode_length = "value.as_string()"
+    decode_expr = "value.as_string()"
     encode_func = "encode_string"
     wire_type = WireType.LENGTH_DELIMITED  # Uses wire type 2
 
@@ -983,14 +966,6 @@ class MessageType(TypeInfo):
         )
 
     @property
-    def decode_length(self) -> str:
-        # Override to return None for message types because we can't use template-based
-        # decoding when the specific message type isn't known at compile time.
-        # Instead, we use the non-template decode_to_message() method which allows
-        # runtime polymorphism through virtual function calls.
-        return None
-
-    @property
     def public_content(self) -> list[str]:
         content = [self.class_member]
         if self._track_presence:
@@ -1052,7 +1027,7 @@ class BytesType(TypeInfo):
     reference_type = "std::string &"
     const_reference_type = "const std::string &"
     encode_func = "encode_bytes"
-    decode_length = "value.as_string()"
+    decode_expr = "value.as_string()"
     wire_type = WireType.LENGTH_DELIMITED  # Uses wire type 2
 
     @property
@@ -1161,11 +1136,6 @@ class PointerToBufferTypeBase(TypeInfo):
     ) -> None:
         super().__init__(field)
         self.array_size = 0
-
-    @property
-    def decode_length(self) -> str | None:
-        # This is handled in decode_content
-        return None
 
     @property
     def wire_type(self) -> WireType:
@@ -1502,7 +1472,7 @@ class UInt32Type(VarintTypeMixin, TypeInfo):
     cpp_type = "uint32_t"
     _varint_max_bits = 32
     default_value = "0"
-    decode_varint = "value.as_varint()"
+    decode_expr = "value.as_varint()"
     encode_func = "encode_uint32"
     wire_type = WireType.VARINT  # Uses wire type 0
 
@@ -1530,7 +1500,7 @@ class EnumType(VarintTypeMixin, TypeInfo):
         return f"enums::{self._field.type_name[1:]}"
 
     @property
-    def decode_varint(self) -> str:
+    def decode_expr(self) -> str:
         return f"static_cast<{self.cpp_type}>(value.as_varint())"
 
     default_value = ""
@@ -1578,7 +1548,7 @@ class EnumType(VarintTypeMixin, TypeInfo):
 class SFixed32Type(FixedSizeTypeMixin, TypeInfo):
     cpp_type = "int32_t"
     default_value = "0"
-    decode_32bit = "value.as_sfixed32()"
+    decode_expr = "value.as_sfixed32()"
     encode_func = "encode_sfixed32"
     wire_type = WireType.FIXED32  # Uses wire type 5
 
@@ -1630,7 +1600,7 @@ class SInt32Type(VarintTypeMixin, TypeInfo):
     cpp_type = "int32_t"
     _varint_max_bits = 32  # zigzag encoding keeps it 32-bit
     default_value = "0"
-    decode_varint = "decode_zigzag32(static_cast<uint32_t>(value.as_varint()))"
+    decode_expr = "decode_zigzag32(static_cast<uint32_t>(value.as_varint()))"
     encode_func = "encode_sint32"
     wire_type = WireType.VARINT  # Uses wire type 0
 
@@ -1651,7 +1621,7 @@ class SInt64Type(VarintTypeMixin, TypeInfo):
     cpp_type = "int64_t"
     _varint_max_bits = 64
     default_value = "0"
-    decode_varint = "decode_zigzag64(value.as_varint())"
+    decode_expr = "decode_zigzag64(value.as_varint())"
     encode_func = "encode_sint64"
     wire_type = WireType.VARINT  # Uses wire type 0
 
@@ -2113,8 +2083,9 @@ class RepeatedTypeInfo(TypeInfo):
         """
         return self._ti.wire_type
 
-    def _decode_expr(self) -> str | None:
-        return self._ti._decode_expr()
+    @property
+    def decode_expr(self) -> str | None:
+        return self._ti.decode_expr
 
     def _decode_store(self, expr: str) -> str:
         return f"this->{self.field_name}.push_back({expr});"
