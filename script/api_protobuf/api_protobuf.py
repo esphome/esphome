@@ -229,54 +229,45 @@ class TypeInfo(ABC):
     def class_member(self) -> str:
         return f"{self.cpp_type} {self.field_name}{{{self.default_value}}};"
 
-    # decode_field() cases are keyed through the PROTO_DECODE_* macros in proto.h: embedded
-    # targets switch on the full wire tag, the host switches on the field number and guards
-    # the wire type. Either way a field that arrives with the wrong wire type falls through
-    # to "return false" instead of being read from the wrong ProtoFieldValue member.
-    def decode_case(self, wire_type: WireType, body: str, scoped: bool = False) -> str:
+    # Cases are keyed through the PROTO_DECODE_* macros in proto.h, which is where the
+    # host and embedded switch shapes are explained.
+    def decode_case(self, wire_type: WireType, body: str) -> str:
         """Emit one decode_field() case for a field and the wire type it expects.
 
-        Bodies that declare locals must be scoped so the jump to the next case label
-        does not cross an initialization.
+        Multi-statement bodies get their own block so a local in one case cannot be
+        jumped over by a later case label.
         """
         label = f"case PROTO_DECODE_CASE({self.number}, {int(wire_type)}):"
         guard = f"PROTO_DECODE_GUARD(tag, {self.number}, {int(wire_type)});"
-        if scoped:
+        if "\n" in body:
             return f"{label} {{\n" + indent(f"{guard}\n{body}\nbreak;") + "\n}"
         return f"{label}\n" + indent(f"{guard}\n{body}\nbreak;")
 
-    @property
-    def decode_varint_content(self) -> str:
-        content = self.decode_varint
-        if content is None:
-            return None
-        return self.decode_case(
-            WireType.VARINT, f"this->{self.field_name} = {content};"
-        )
-
+    # Value expression that decodes this type from the ProtoFieldValue, per wire type.
+    # A type sets exactly one of them; None everywhere means the field is never decoded.
     decode_varint = None
-
-    @property
-    def decode_length_content(self) -> str:
-        content = self.decode_length
-        if content is None:
-            return None
-        return self.decode_case(
-            WireType.LENGTH_DELIMITED, f"this->{self.field_name} = {content};"
-        )
-
     decode_length = None
+    decode_32bit = None
+
+    def decode_expr(self) -> tuple[WireType, str] | None:
+        """Wire type and value expression for decoding this field, or None."""
+        for wire_type, content in (
+            (WireType.VARINT, self.decode_varint),
+            (WireType.LENGTH_DELIMITED, self.decode_length),
+            (WireType.FIXED32, self.decode_32bit),
+        ):
+            if content is not None:
+                return wire_type, content
+        return None
 
     @property
-    def decode_32bit_content(self) -> str:
-        content = self.decode_32bit
-        if content is None:
+    def decode_content(self) -> str | None:
+        """The decode_field() case for this field, or None when it is never decoded."""
+        expr = self.decode_expr()
+        if expr is None:
             return None
-        return self.decode_case(
-            WireType.FIXED32, f"this->{self.field_name} = {content};"
-        )
-
-    decode_32bit = None
+        wire_type, content = expr
+        return self.decode_case(wire_type, f"this->{self.field_name} = {content};")
 
     # Mapping from encode_func to raw encode expression template.
     # When a forced field has a single-byte tag, the code generator emits
@@ -1019,7 +1010,7 @@ class MessageType(TypeInfo):
         )
 
     @property
-    def decode_length_content(self) -> str:
+    def decode_content(self) -> str:
         # Custom decode that doesn't use templates
         if self._track_presence:
             # decode_to_message() cannot report failure, so setting the flag
@@ -1029,7 +1020,6 @@ class MessageType(TypeInfo):
                 WireType.LENGTH_DELIMITED,
                 f"value.decode_to_message(this->{self.field_name});\n"
                 f"this->has_{self.name} = true;",
-                scoped=True,
             )
         return self.decode_case(
             WireType.LENGTH_DELIMITED,
@@ -1185,7 +1175,7 @@ class PointerToBufferTypeBase(TypeInfo):
 
     @property
     def decode_length(self) -> str | None:
-        # This is handled in decode_length_content
+        # This is handled in decode_content
         return None
 
     @property
@@ -1229,12 +1219,11 @@ class PointerToBytesBufferType(PointerToBufferTypeBase):
         )
 
     @property
-    def decode_length_content(self) -> str | None:
+    def decode_content(self) -> str:
         return self.decode_case(
             WireType.LENGTH_DELIMITED,
             f"this->{self.field_name} = value.data();\n"
             f"this->{self.field_name}_len = value.size();",
-            scoped=True,
         )
 
     def dump(self, name: str) -> str:
@@ -1295,7 +1284,7 @@ class PointerToStringBufferType(PointerToBufferTypeBase):
         )
 
     @property
-    def decode_length_content(self) -> str | None:
+    def decode_content(self) -> str:
         return self.decode_case(
             WireType.LENGTH_DELIMITED,
             f"this->{self.field_name} = StringRef(reinterpret_cast<const char *>(value.data()), value.size());",
@@ -1368,14 +1357,13 @@ class PackedBufferTypeInfo(TypeInfo):
         ]
 
     @property
-    def decode_length_content(self) -> str:
+    def decode_content(self) -> str:
         """Store pointer to buffer and calculate count of packed varints."""
         return self.decode_case(
             WireType.LENGTH_DELIMITED,
             f"this->{self.field_name}_data_ = value.data();\n"
             f"this->{self.field_name}_length_ = value.size();\n"
             f"this->{self.field_name}_count_ = count_packed_varints(value.data(), value.size());",
-            scoped=True,
         )
 
     @property
@@ -1461,14 +1449,12 @@ class FixedArrayBytesType(TypeInfo):
         ]
 
     @property
-    def decode_length_content(self) -> str:
-        body = "const std::string &data_str = value.as_string();\n"
-        body += f"this->{self.field_name}_len = data_str.size();\n"
-        body += f"if (this->{self.field_name}_len > {self.array_size}) {{\n"
-        body += f"  this->{self.field_name}_len = {self.array_size};\n"
-        body += "}\n"
-        body += f"memcpy(this->{self.field_name}, data_str.data(), this->{self.field_name}_len);"
-        return self.decode_case(WireType.LENGTH_DELIMITED, body, scoped=True)
+    def decode_content(self) -> str:
+        return self.decode_case(
+            WireType.LENGTH_DELIMITED,
+            f"this->{self.field_name}_len = std::min<size_t>(value.size(), {self.array_size});\n"
+            f"memcpy(this->{self.field_name}, value.data(), this->{self.field_name}_len);",
+        )
 
     @property
     def encode_content(self) -> str:
@@ -2143,47 +2129,23 @@ class RepeatedTypeInfo(TypeInfo):
         return self._ti.wire_type
 
     @property
-    def decode_varint_content(self) -> str:
+    def decode_content(self) -> str | None:
         # Pointer fields don't support decoding
         if self._use_pointer:
             return None
-        content = self._ti.decode_varint
-        if content is None:
-            return None
-        return self.decode_case(
-            WireType.VARINT, f"this->{self.field_name}.push_back({content});"
-        )
-
-    @property
-    def decode_length_content(self) -> str:
-        # Pointer fields don't support decoding
-        if self._use_pointer:
-            return None
-        content = self._ti.decode_length
-        if content is None and isinstance(self._ti, MessageType):
+        if isinstance(self._ti, MessageType):
             # Special handling for non-template message decoding
             return self.decode_case(
                 WireType.LENGTH_DELIMITED,
                 f"this->{self.field_name}.emplace_back();\n"
                 f"value.decode_to_message(this->{self.field_name}.back());",
-                scoped=True,
             )
-        if content is None:
+        expr = self._ti.decode_expr()
+        if expr is None:
             return None
+        wire_type, content = expr
         return self.decode_case(
-            WireType.LENGTH_DELIMITED, f"this->{self.field_name}.push_back({content});"
-        )
-
-    @property
-    def decode_32bit_content(self) -> str:
-        # Pointer fields don't support decoding
-        if self._use_pointer:
-            return None
-        content = self._ti.decode_32bit
-        if content is None:
-            return None
-        return self.decode_case(
-            WireType.FIXED32, f"this->{self.field_name}.push_back({content});"
+            wire_type, f"this->{self.field_name}.push_back({content});"
         )
 
     @property
@@ -2729,13 +2691,8 @@ def build_message_type(
             if field.options.HasExtension(pb.field_ifdef):
                 field_ifdef = field.options.Extensions[pb.field_ifdef]
 
-            for case in (
-                ti.decode_varint_content,
-                ti.decode_length_content,
-                ti.decode_32bit_content,
-            ):
-                if case:
-                    decode.extend(wrap_with_ifdef(case, field_ifdef))
+            if case := ti.decode_content:
+                decode.extend(wrap_with_ifdef(case, field_ifdef))
         if ti.dump_content:
             # Check for field_ifdef option for dump as well
             field_ifdef = None
