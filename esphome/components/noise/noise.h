@@ -7,7 +7,7 @@
 #include "esphome/core/log.h"
 
 // noise-c handshake state; the full definition lives in <noise/protocol.h>
-typedef struct NoiseHandshakeState_s NoiseHandshakeState;
+using NoiseHandshakeState = struct NoiseHandshakeState_s;
 
 namespace esphome::noise {
 
