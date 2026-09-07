@@ -1,4 +1,3 @@
 packages:
   ble: !include ../../test_build_components/common/ble/esp32-idf.yaml
-
-<<: !include common.yaml
+  radon_eye_rd200: !include common.yaml
