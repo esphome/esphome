@@ -229,13 +229,10 @@ class TypeInfo(ABC):
     def class_member(self) -> str:
         return f"{self.cpp_type} {self.field_name}{{{self.default_value}}};"
 
-    # Cases are keyed through the PROTO_DECODE_* macros in proto.h, which is where the
-    # host and embedded switch shapes are explained.
     def decode_case(self, wire_type: WireType, body: str) -> str:
-        """Emit one decode_field() case for a field and the wire type it expects.
+        """Emit one decode_field() case, keyed through the PROTO_DECODE_* macros in proto.h.
 
-        Multi-statement bodies get their own block so a local in one case cannot be
-        jumped over by a later case label.
+        Multi-statement bodies get a block so a case label never jumps over a local.
         """
         label = f"case PROTO_DECODE_CASE({self.number}, {int(wire_type)}):"
         guard = f"PROTO_DECODE_GUARD(tag, {self.number}, {int(wire_type)});"
@@ -243,8 +240,7 @@ class TypeInfo(ABC):
             return f"{label} {{\n" + indent(f"{guard}\n{body}\nbreak;") + "\n}"
         return f"{label}\n" + indent(f"{guard}\n{body}\nbreak;")
 
-    # Value expression that decodes this type from the ProtoFieldValue, per wire type.
-    # A type sets exactly one of them; None everywhere means the field is never decoded.
+    # Decode expression per wire type; a decodable type sets exactly one.
     decode_varint = None
     decode_length = None
     decode_32bit = None
@@ -2703,8 +2699,6 @@ def build_message_type(
 
     cpp = ""
     if decode:
-        # One virtual per message: the shared decode loop parses the payload for the wire
-        # type and hands it over with the tag, so a single switch covers every field.
         o = f"bool {desc.name}::decode_field(uint32_t tag, const uint8_t *data, proto_varint_value_t scalar) {{\n"
         o += "  const ProtoFieldValue value(data, scalar);\n"
         o += "  switch (PROTO_DECODE_KEY(tag)) {\n"
