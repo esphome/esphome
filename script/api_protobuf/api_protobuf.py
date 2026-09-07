@@ -324,6 +324,24 @@ class TypeInfo(ABC):
             f"pos = ProtoEncode::encode_raw(pos, {data_expr}, {len_expr});"
         )
 
+    def _encode_fixed32_with_precomputed_tag(self, value_expr: str) -> str | None:
+        """Emit a fixed32 field through the shared tag+value writer when the tag is one byte.
+
+        Returns None for multi-byte tags, which go through the generic helper.
+        """
+        tag = self.calculate_tag()
+        if tag >= 128:
+            return None
+        if self.force:
+            return (
+                f"pos = ProtoEncode::write_tag_and_fixed32(pos, {tag}, {value_expr});"
+            )
+        return (
+            f"if (uint32_t raw = {value_expr}; raw != 0) [[likely]] {{\n"
+            f"  pos = ProtoEncode::write_tag_and_fixed32(pos, {tag}, raw);\n"
+            "}"
+        )
+
     @property
     def encode_content(self) -> str:
         if result := self._encode_with_precomputed_tag(f"this->{self.field_name}"):
@@ -637,18 +655,11 @@ class FloatType(FixedSizeTypeMixin, TypeInfo):
 
     @property
     def encode_content(self) -> str:
-        tag = self.calculate_tag()
-        if tag >= 128:
-            return super().encode_content
-        # Single-byte tag: share the outlined tag+fixed32 writer instead of the generic helper
-        value = f"float_to_raw(this->{self.field_name})"
-        if self.force:
-            return f"pos = ProtoEncode::write_tag_and_fixed32(pos, {tag}, {value});"
-        return (
-            f"if (uint32_t raw = {value}; raw != 0) [[likely]] {{\n"
-            f"  pos = ProtoEncode::write_tag_and_fixed32(pos, {tag}, raw);\n"
-            "}"
-        )
+        if result := self._encode_fixed32_with_precomputed_tag(
+            f"float_to_raw(this->{self.field_name})"
+        ):
+            return result
+        return super().encode_content
 
     def dump(self, name: str) -> str:
         o = f'snprintf(buffer, sizeof(buffer), "%g", {name});\n'
@@ -786,17 +797,11 @@ class Fixed32Type(FixedSizeTypeMixin, TypeInfo):
 
     @property
     def encode_content(self) -> str:
-        tag = self.calculate_tag()
-        if tag >= 128:
-            return super().encode_content
-        # Single-byte tag: share the outlined tag+fixed32 writer instead of the generic helper
-        if self.force:
-            return f"pos = ProtoEncode::write_tag_and_fixed32(pos, {tag}, this->{self.field_name});"
-        return (
-            f"if (this->{self.field_name} != 0) [[likely]] {{\n"
-            f"  pos = ProtoEncode::write_tag_and_fixed32(pos, {tag}, this->{self.field_name});\n"
-            "}"
-        )
+        if result := self._encode_fixed32_with_precomputed_tag(
+            f"this->{self.field_name}"
+        ):
+            return result
+        return super().encode_content
 
     def get_size_calculation(self, name: str, force: bool = False) -> str:
         field_id_size = self.calculate_field_id_size()
