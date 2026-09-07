@@ -1,0 +1,5 @@
+esphome:
+  name: platformtest
+
+bk72xx:
+  board: generic-bk7252

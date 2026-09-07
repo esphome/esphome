@@ -15,7 +15,7 @@
 #if USE_ARDUINO
 #include <Arduino.h>
 #include <IPAddress.h>
-#endif /* USE_ADRDUINO */
+#endif /* USE_ARDUINO */
 
 #ifdef USE_HOST
 #include <arpa/inet.h>
@@ -55,9 +55,26 @@ using ip4_addr_t = in_addr;
 #include <zephyr/net/net_ip.h>
 #include <zephyr/net/socket.h>
 #include <zephyr/posix/arpa/inet.h>
+#if defined(CONFIG_NET_IPV6)
 using ip_addr_t = struct in6_addr;
-static inline int ipaddr_aton(const char *cp, ip_addr_t *addr) { return inet_pton(AF_INET6, cp, addr) == 1 ? 1 : 0; }
-#endif
+static inline int ipaddr_aton(const char *cp, ip_addr_t *addr) {
+#if defined(CONFIG_NET_IPV4)
+  // Dual-stack: a plain IPv4 literal must still parse -- store it as a v4-mapped
+  // IPv6 address (::ffff:a.b.c.d), matching the 4-octet constructor below.
+  struct in_addr addr4;
+  if (inet_pton(AF_INET, cp, &addr4) == 1) {
+    net_ipv6_addr_create_v4_mapped(&addr4, addr);
+    return 1;
+  }
+#endif /* CONFIG_NET_IPV4 */
+  return inet_pton(AF_INET6, cp, addr) == 1 ? 1 : 0;
+}
+#else
+using ip_addr_t = struct in_addr;
+using ip4_addr_t = struct in_addr;
+static inline int ipaddr_aton(const char *cp, ip_addr_t *addr) { return inet_pton(AF_INET, cp, addr) == 1 ? 1 : 0; }
+#endif /* CONFIG_NET_IPV6 */
+#endif /* USE_ZEPHYR */
 
 #if USE_ESP32_FRAMEWORK_ARDUINO
 #define arduino_ns Arduino_h
@@ -65,16 +82,24 @@ static inline int ipaddr_aton(const char *cp, ip_addr_t *addr) { return inet_pto
 #define arduino_ns arduino
 #elif USE_ARDUINO
 #define arduino_ns
-#endif
+#endif /* USE_ESP32_FRAMEWORK_ARDUINO */
 
 #ifdef USE_ESP32
 #include <esp_netif.h>
-#endif
+#endif /* USE_ESP32 */
 
 namespace esphome::network {
 
 /// Buffer size for IP address string (IPv6 max: 39 chars + null)
-static constexpr size_t IP_ADDRESS_BUFFER_SIZE = 40;
+static constexpr size_t IP_ADDRESS_BUFFER_SIZE =
+#if defined(USE_ZEPHYR)
+    // Mainline Zephyr's inet_ntop() (net_addr_ntop() in subsys/net/ip/utils.c) never checks
+    // its size argument, so an undersized buffer overflows instead of failing cleanly. Size
+    // for the worst case: an IPv4-mapped IPv6 address needs up to INET6_ADDRSTRLEN (46).
+    46;
+#else
+    40;
+#endif
 
 /// Lowercase hex digits in IP address string (A-F -> a-f for IPv6 per RFC 5952)
 inline void lowercase_ip_str(char *buf) {
@@ -86,25 +111,90 @@ inline void lowercase_ip_str(char *buf) {
 
 struct IPAddress {
  public:
-#ifdef USE_ZEPHYR
+#if defined(USE_ZEPHYR)
+// nRF52 (the only Zephyr platform) always requires IPv6, so CONFIG_NET_IPV6 is always set here --
+// the CONFIG_NET_IPV4-only #else branch below is dead on nRF52, kept for a future Zephyr platform
+// without that invariant. CONFIG_NET_IPV4 itself is reachable: any component that calls
+// network.require_ipv4() (udp, mqtt, wake_on_lan, ...) turns on dual-stack alongside it.
+#if defined(CONFIG_NET_IPV6)
   IPAddress() { memset(&ip_addr_, 0, sizeof(ip_addr_)); }
+#if defined(CONFIG_NET_IPV4)
+  IPAddress(uint8_t first, uint8_t second, uint8_t third, uint8_t fourth) {
+    struct in_addr addr4 {
+      .s_addr = htonl(((uint32_t) first << 24) | ((uint32_t) second << 16) | ((uint32_t) third << 8) | fourth)
+    };
+    net_ipv6_addr_create_v4_mapped(&addr4, &ip_addr_);
+  }
+#endif /* CONFIG_NET_IPV4 */
   IPAddress(const std::string &in_address) : ip_addr_{} { ipaddr_aton(in_address.c_str(), &ip_addr_); }
   IPAddress(const struct in6_addr *other_ip) { ip_addr_ = *other_ip; }
   IPAddress(const struct sockaddr_in6 *addr) { ip_addr_ = addr->sin6_addr; }
 
   operator struct in6_addr() const { return ip_addr_; }
 
-  bool is_set() const { return !net_ipv6_is_addr_unspecified(&ip_addr_); }
+  bool is_set() const {
+#if defined(CONFIG_NET_IPV4)
+    if (net_ipv6_addr_is_v4_mapped(&ip_addr_))
+      return ip_addr_.s6_addr32[3] != 0;
+#endif /* CONFIG_NET_IPV4 */
+    return !net_ipv6_is_addr_unspecified(&ip_addr_);
+  }
+#if defined(CONFIG_NET_IPV4)
+  // V4-mapped (::ffff:a.b.c.d) addresses represent IPv4 traffic carried over the AF_INET6 socket
+  // Zephyr always uses when CONFIG_NET_IPV6 is on; anything else is real IPv6.
+  bool is_ip4() const { return this->is_set() && net_ipv6_addr_is_v4_mapped(&ip_addr_); }
+  bool is_ip6() const { return this->is_set() && !net_ipv6_addr_is_v4_mapped(&ip_addr_); }
+#else
   bool is_ip4() const { return false; }
   bool is_ip6() const { return this->is_set(); }
-  bool is_multicast() const { return net_ipv6_is_addr_mcast(&ip_addr_); }
+#endif /* CONFIG_NET_IPV4 */
+  bool is_multicast() const {
+#if defined(CONFIG_NET_IPV4)
+    if (this->is_ip4())
+      return (ntohl(ip_addr_.s6_addr32[3]) & 0xF0000000) == 0xE0000000;
+#endif /* CONFIG_NET_IPV4 */
+    return net_ipv6_is_addr_mcast(&ip_addr_);
+  }
   char *str_to(char *buf) const {
+#if defined(CONFIG_NET_IPV4)
+    if (this->is_ip4()) {
+      struct in_addr addr4 {};
+      addr4.s_addr = ip_addr_.s6_addr32[3];
+      if (inet_ntop(AF_INET, &addr4, buf, IP_ADDRESS_BUFFER_SIZE) == nullptr)
+        buf[0] = '\0';
+      return buf;
+    }
+#endif /* CONFIG_NET_IPV4 */
     if (inet_ntop(AF_INET6, &ip_addr_, buf, IP_ADDRESS_BUFFER_SIZE) == nullptr)
       buf[0] = '\0';
     return buf;
   }
   bool operator==(const IPAddress &other) const { return net_ipv6_addr_cmp(&ip_addr_, &other.ip_addr_); }
   bool operator!=(const IPAddress &other) const { return !net_ipv6_addr_cmp(&ip_addr_, &other.ip_addr_); }
+
+#else  // only CONFIG_NET_IPV4 branch
+  // enable_ipv6: false -- plain in_addr, not the IPv6-only in6_addr container the branch above
+  // uses for the dual-stack (V4-mapped) and IPv6-only cases.
+  IPAddress() { ip_addr_.s_addr = 0; }
+  IPAddress(uint8_t first, uint8_t second, uint8_t third, uint8_t fourth) {
+    this->ip_addr_.s_addr =
+        htonl(((uint32_t) first << 24) | ((uint32_t) second << 16) | ((uint32_t) third << 8) | fourth);
+  }
+  IPAddress(const std::string &in_address) : ip_addr_{} { ipaddr_aton(in_address.c_str(), &ip_addr_); }
+  IPAddress(const ip_addr_t *other_ip) { ip_addr_ = *other_ip; }
+  char *str_to(char *buf) const {
+    if (inet_ntop(AF_INET, &ip_addr_, buf, IP_ADDRESS_BUFFER_SIZE) == nullptr)
+      buf[0] = '\0';
+    return buf;
+  }
+  bool is_set() const { return ip_addr_.s_addr != 0; }
+  bool is_ip4() const { return true; }
+  bool is_ip6() const { return false; }
+  // 224.0.0.0/4 (RFC 5771)
+  bool is_multicast() const { return (ntohl(ip_addr_.s_addr) & 0xF0000000) == 0xE0000000; }
+  bool operator==(const IPAddress &other) const { return ip_addr_.s_addr == other.ip_addr_.s_addr; }
+  bool operator!=(const IPAddress &other) const { return ip_addr_.s_addr != other.ip_addr_.s_addr; }
+#endif /* CONFIG_NET_IPV6 */
 
 #elif defined(USE_HOST)
 #if USE_NETWORK_IPV6
@@ -196,59 +286,78 @@ struct IPAddress {
     return buf;  // IPv4 only, no hex letters to lowercase
   }
 #endif  // USE_NETWORK_IPV6
-#else
+#else   // LWIP
   IPAddress() { ip_addr_set_zero(&ip_addr_); }
+#if LWIP_IPV4
   IPAddress(uint8_t first, uint8_t second, uint8_t third, uint8_t fourth) {
     IP_ADDR4(&ip_addr_, first, second, third, fourth);
   }
+#endif /* LWIP_IPV4 */
   IPAddress(const ip_addr_t *other_ip) { ip_addr_copy(ip_addr_, *other_ip); }
   IPAddress(const char *in_address) { ipaddr_aton(in_address, &ip_addr_); }
   IPAddress(const std::string &in_address) { ipaddr_aton(in_address.c_str(), &ip_addr_); }
+#if LWIP_IPV4
   IPAddress(ip4_addr_t *other_ip) {
     memcpy((void *) &ip_addr_, (void *) other_ip, sizeof(ip4_addr_t));
 #if LWIP_IPV6
     ip_addr_.type = IPADDR_TYPE_V4;
-#endif
+#endif /* LWIP_IPV6 */
   }
+#endif /* LWIP_IPV4 */
 #if USE_ARDUINO
   IPAddress(const arduino_ns::IPAddress &other_ip) { ip_addr_set_ip4_u32(&ip_addr_, other_ip); }
-#endif
+#endif /* USE_ARDUINO */
 #if LWIP_IPV6
   IPAddress(ip6_addr_t *other_ip) {
     memcpy((void *) &ip_addr_, (void *) other_ip, sizeof(ip6_addr_t));
+#if LWIP_IPV4
     ip_addr_.type = IPADDR_TYPE_V6;
+#endif /* LWIP_IPV4 */
   }
 #endif /* LWIP_IPV6 */
 
 #ifdef USE_ESP32
 #if LWIP_IPV6
   IPAddress(esp_ip6_addr_t *other_ip) {
+#if LWIP_IPV4
     memcpy((void *) &ip_addr_.u_addr.ip6, (void *) other_ip, sizeof(esp_ip6_addr_t));
     ip_addr_.type = IPADDR_TYPE_V6;
+#else
+    memcpy((void *) &ip_addr_, (void *) other_ip, sizeof(esp_ip6_addr_t));
+#endif /* LWIP_IPV4 */
   }
 #endif /* LWIP_IPV6 */
+#if LWIP_IPV4
   IPAddress(esp_ip4_addr_t *other_ip) {
     memcpy((void *) &ip_addr_, (void *) other_ip, sizeof(esp_ip4_addr_t));
 #if LWIP_IPV6
     ip_addr_.type = IPADDR_TYPE_V4;
-#endif
+#endif /* LWIP_IPV6 */
   }
+#endif /* LWIP_IPV4 */
   IPAddress(esp_ip_addr_t *other_ip) {
 #if LWIP_IPV6
     memcpy((void *) &ip_addr_, (void *) other_ip, sizeof(ip_addr_));
-#else
+#elif LWIP_IPV4
     memcpy((void *) &ip_addr_, (void *) &other_ip->u_addr.ip4, sizeof(ip_addr_));
-#endif
+#endif /* LWIP_IPV6 */
   }
   operator esp_ip_addr_t() const {
-    esp_ip_addr_t tmp;
+    esp_ip_addr_t tmp{};
 #if LWIP_IPV6
     memcpy((void *) &tmp, (void *) &ip_addr_, sizeof(ip_addr_));
-#else
+#if !LWIP_IPV4
+    tmp.type = IPADDR_TYPE_V6;
+#endif /* !LWIP_IPV4 */
+#elif LWIP_IPV4
     memcpy((void *) &tmp.u_addr.ip4, (void *) &ip_addr_, sizeof(ip_addr_));
+    tmp.type = IPADDR_TYPE_V4;
+#else
+#error "Neither LWIP_IPV4 nor LWIP_IPV6 is enabled"
 #endif /* LWIP_IPV6 */
     return tmp;
   }
+#if LWIP_IPV4
   operator esp_ip4_addr_t() const {
     esp_ip4_addr_t tmp;
 #if LWIP_IPV6
@@ -258,16 +367,17 @@ struct IPAddress {
 #endif /* LWIP_IPV6 */
     return tmp;
   }
+#endif /* LWIP_IPV4 */
 #endif /* USE_ESP32 */
 
   operator ip_addr_t() const { return ip_addr_; }
-#if LWIP_IPV6
+#if LWIP_IPV6 && LWIP_IPV4
   operator ip4_addr_t() const { return *ip_2_ip4(&ip_addr_); }
-#endif /* LWIP_IPV6 */
+#endif /* LWIP_IPV6 && LWIP_IPV4 */
 
 #if USE_ARDUINO
   operator arduino_ns::IPAddress() const { return ip_addr_get_ip4_u32(&ip_addr_); }
-#endif
+#endif /* USE_ARDUINO */
 
   bool is_set() const { return !ip_addr_isany(&ip_addr_); }  // NOLINT(readability-simplify-boolean-expr)
   bool is_ip4() const { return IP_IS_V4(&ip_addr_); }
@@ -282,17 +392,19 @@ struct IPAddress {
   }
   bool operator==(const IPAddress &other) const { return ip_addr_cmp(&ip_addr_, &other.ip_addr_); }
   bool operator!=(const IPAddress &other) const { return !ip_addr_cmp(&ip_addr_, &other.ip_addr_); }
+#if LWIP_IPV4
   IPAddress &operator+=(uint8_t increase) {
     if (IP_IS_V4(&ip_addr_)) {
 #if LWIP_IPV6
       (((u8_t *) (&ip_addr_.u_addr.ip4))[3]) += increase;
 #else
       (((u8_t *) (&ip_addr_.addr))[3]) += increase;
-#endif /* LWIP_IPV6 */
+#endif  /* LWIP_IPV6 */
     }
     return *this;
   }
-#endif
+#endif  /* LWIP_IPV4 */
+#endif  // LWIP
 
  protected:
   ip_addr_t ip_addr_;
@@ -301,4 +413,4 @@ struct IPAddress {
 using IPAddresses = std::array<IPAddress, 5>;
 
 }  // namespace esphome::network
-#endif
+#endif /* NETWORK */

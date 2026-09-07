@@ -1,4 +1,5 @@
 from collections.abc import Callable
+import functools
 import logging
 from pathlib import Path
 import re
@@ -7,6 +8,7 @@ import subprocess
 from typing import Any
 
 import esphome.codegen as cg
+from esphome.components import network
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BOARD,
@@ -314,6 +316,7 @@ CONFIG_SCHEMA = cv.All(
     _detect_variant,
     cv.require_platformio_toolchain("RP2"),
     set_core_data,
+    functools.partial(network.require_ipv4, name=PLATFORM_RP2),
 )
 
 

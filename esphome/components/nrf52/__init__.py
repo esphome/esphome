@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import functools
 import logging
 from pathlib import Path
 import re
@@ -9,6 +10,7 @@ import subprocess
 
 from esphome import pins
 import esphome.codegen as cg
+from esphome.components import network
 from esphome.components.zephyr import (
     add_extra_script,
     copy_files as zephyr_copy_files,
@@ -267,6 +269,8 @@ CONFIG_SCHEMA = cv.All(
     ),
     _resolve_toolchain,
     set_framework,
+    functools.partial(network.require_ipv6, name=PLATFORM_NRF52),
+    functools.partial(network.request_ipv4_off, name=PLATFORM_NRF52),
 )
 
 
