@@ -1,0 +1,58 @@
+esphome:
+  name: api-encode-boundaries-test
+  # Top-level area fills DeviceInfoResponse.suggested_area (field 16, a two-byte tag)
+  area:
+    id: kitchen_area
+    name: Kitchen
+  on_boot:
+    - sensor.template.publish:
+        id: zero_then_value
+        state: 0.0
+
+host:
+api:
+logger:
+  level: DEBUG
+
+sensor:
+  - platform: template
+    name: "Zero Then Value"
+    id: zero_then_value
+    # Negative int32 takes the ten byte varint path
+    accuracy_decimals: -2
+    update_interval: never
+
+text_sensor:
+  - platform: template
+    name: "Long Text"
+    id: long_text
+    update_interval: never
+
+number:
+  - platform: template
+    name: "Negative Number"
+    optimistic: true
+    min_value: -1000
+    max_value: 1000
+    step: 0.5
+    initial_value: -123.5
+
+select:
+  - platform: template
+    name: "Long Option Select"
+    optimistic: true
+    options:
+      - short
+      - "option-with-a-name-long-enough-that-its-length-prefix-needs-two-varint-bytes-when-the-list-entities-response-is-encoded-xxxxxxxxxx"
+    initial_option: short
+
+button:
+  - platform: template
+    name: "Publish Values"
+    on_press:
+      - sensor.template.publish:
+          id: zero_then_value
+          state: 12.5
+      - text_sensor.template.publish:
+          id: long_text
+          state: !lambda return std::string(200, 'y');
