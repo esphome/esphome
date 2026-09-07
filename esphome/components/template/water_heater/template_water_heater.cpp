@@ -1,6 +1,8 @@
 #include "template_water_heater.h"
 #include "esphome/core/log.h"
 
+#include <cmath>
+
 namespace esphome::template_ {
 
 static const char *const TAG = "template.water_heater";
@@ -45,9 +47,12 @@ water_heater::WaterHeaterTraits TemplateWaterHeater::traits() {
 void TemplateWaterHeater::loop() {
   bool changed = false;
 
+  // NAN is passed through so a source that has no value yet shows as unknown, but NAN never
+  // equals NAN, so an already-NAN value must not count as a change or it would republish forever.
   auto curr_temp = this->current_temperature_f_.call();
   if (curr_temp.has_value()) {
-    if (*curr_temp != this->current_temperature_) {
+    if (*curr_temp != this->current_temperature_ &&
+        !(std::isnan(*curr_temp) && std::isnan(this->current_temperature_))) {
       this->current_temperature_ = *curr_temp;
       changed = true;
     }
@@ -55,7 +60,8 @@ void TemplateWaterHeater::loop() {
 
   auto target_temp = this->target_temperature_f_.call();
   if (target_temp.has_value()) {
-    if (*target_temp != this->target_temperature_) {
+    if (*target_temp != this->target_temperature_ &&
+        !(std::isnan(*target_temp) && std::isnan(this->target_temperature_))) {
       this->target_temperature_ = *target_temp;
       changed = true;
     }
