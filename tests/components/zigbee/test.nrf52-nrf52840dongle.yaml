@@ -1,0 +1,7 @@
+<<: !include common_nrf52.yaml
+
+zigbee:
+  id: zigbee_hub
+  router: true
+  power_source: DC_SOURCE
+  ieee802154_vendor_oui: random
