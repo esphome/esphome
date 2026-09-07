@@ -7,6 +7,7 @@
 #include "esphome/core/hal.h"
 #include "esphome/components/binary_sensor/binary_sensor.h"
 #include "esphome/components/number/number.h"
+#include "esphome/components/select/select.h"
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/switch/switch.h"
 #include "esphome/components/text_sensor/text_sensor.h"
@@ -272,16 +273,24 @@ struct FhbSlot {
   void set_##name##_switch(switch_::Switch *s) { this->byte.bits[bit] = s; }
 #define OT42_FLAG_READ_BIT(name, byte, bit) \
   void set_##name##_binary_sensor(binary_sensor::BinarySensor *s) { this->byte.bits[bit] = s; }
-// Declares set_<name>_number()/set_<name>_sensor()/set_<name>_binary_sensor() for a standalone
-// (non-flag-byte) entity backed by a single named member pointer.
+// Declares set_<name>_number()/set_<name>_sensor()/set_<name>_binary_sensor()/set_<name>_select()
+// for a standalone (non-flag-byte) entity backed by a single named member pointer.
 #define OT42_SET_NUMBER(name, member) \
   void set_##name##_number(number::Number *n) { this->member = n; }
 #define OT42_SET_SENSOR(name, member) \
   void set_##name##_sensor(sensor::Sensor *s) { this->member = s; }
 #define OT42_SET_BINARY_SENSOR(name, member) \
   void set_##name##_binary_sensor(binary_sensor::BinarySensor *s) { this->member = s; }
+#define OT42_SET_SELECT(name, member) \
+  void set_##name##_select(select::Select *s) { this->member = s; }
+// For the indexed-character-read accumulator struct (see IndexedStringRead below) used by the
+// Class 2 brand-identification strings.
 #define OT42_SET_TEXT_SENSOR(name, member) \
   void set_##name##_text_sensor(text_sensor::TextSensor *s) { this->member.sensor = s; }
+// For a plain, standalone text_sensor pointer -- e.g. a small named-enum code shown as its spec
+// name instead of a raw integer.
+#define OT42_SET_PLAIN_TEXT_SENSOR(name, member) \
+  void set_##name##_text_sensor(text_sensor::TextSensor *s) { this->member = s; }
 
 // OpenTherm 4.2 master. Talks directly to a single boiler -- see the OpenTherm Protocol
 // Specification v4.2, §4.3.2: this component implements the master role only, not the optional
@@ -386,15 +395,17 @@ class OpenTherm42Hub : public Component {
                   oem_fault_code_ventilation_sensor_)
 
   // §5.3.1 Class 1, ID 101: Master/boiler solar storage status (HB and LB each carry their own Solar
-  // mode sub-field, at different bit offsets -- see handle_response_()).
+  // mode sub-field, at different bit offsets -- see handle_response_()). HB is master-authored
+  // (same "R -" idiom as ID 0/70's master status) with no readback, so it's a select, not a
+  // sensor; LB's own Solar mode/status sub-fields are small named enums, shown as text_sensors.
   OT42_SET_BINARY_SENSOR(control_and_status_information_solar_storage_mode_and_status_fault_indication,
                          solar_storage_fault_indication_binary_sensor_)
-  OT42_SET_SENSOR(control_and_status_information_master_solar_storage_status_solar_mode,
-                  master_solar_storage_status_solar_mode_sensor_)
-  OT42_SET_SENSOR(control_and_status_information_solar_storage_mode_and_status_solar_mode,
-                  solar_storage_mode_and_status_solar_mode_sensor_)
-  OT42_SET_SENSOR(control_and_status_information_solar_storage_mode_and_status_solar_status,
-                  solar_storage_mode_and_status_solar_status_sensor_)
+  OT42_SET_SELECT(control_and_status_information_master_solar_storage_status_solar_mode,
+                  master_solar_storage_status_solar_mode_select_)
+  OT42_SET_PLAIN_TEXT_SENSOR(control_and_status_information_solar_storage_mode_and_status_solar_mode,
+                             solar_storage_mode_and_status_solar_mode_text_sensor_)
+  OT42_SET_PLAIN_TEXT_SENSOR(control_and_status_information_solar_storage_mode_and_status_solar_status,
+                             solar_storage_mode_and_status_solar_status_text_sensor_)
 
   // §5.3.1 Class 1, ID 102 LB: OEM fault code Solar Storage (HB is entirely reserved -- no entity).
   OT42_SET_SENSOR(control_and_status_information_oem_fault_code_solar_storage, oem_fault_code_solar_storage_sensor_)
@@ -633,13 +644,14 @@ class OpenTherm42Hub : public Component {
   OT42_SET_SENSOR(control_of_special_applications_remote_override_room_setpoint, remote_override_room_setpoint_sensor_)
   OT42_SET_SENSOR(control_of_special_applications_remote_override_room_setpoint_2,
                   remote_override_room_setpoint_2_sensor_)
-  // §5.3.8.3 Class 8, ID 99: Remote Override Operating Modes.
-  OT42_SET_SENSOR(control_of_special_applications_remote_override_operating_mode_dhw,
-                  remote_override_operating_mode_dhw_sensor_)
-  OT42_SET_SENSOR(control_of_special_applications_remote_override_operating_mode_heating_hc1,
-                  remote_override_operating_mode_heating_hc1_sensor_)
-  OT42_SET_SENSOR(control_of_special_applications_remote_override_operating_mode_heating_hc2,
-                  remote_override_operating_mode_heating_hc2_sensor_)
+  // §5.3.8.3 Class 8, ID 99: Remote Override Operating Modes -- small named enums, shown as
+  // text_sensors rather than raw codes.
+  OT42_SET_PLAIN_TEXT_SENSOR(control_of_special_applications_remote_override_operating_mode_dhw,
+                             remote_override_operating_mode_dhw_text_sensor_)
+  OT42_SET_PLAIN_TEXT_SENSOR(control_of_special_applications_remote_override_operating_mode_heating_hc1,
+                             remote_override_operating_mode_heating_hc1_text_sensor_)
+  OT42_SET_PLAIN_TEXT_SENSOR(control_of_special_applications_remote_override_operating_mode_heating_hc2,
+                             remote_override_operating_mode_heating_hc2_text_sensor_)
   // §5.3.8.3 Class 8, ID 99 HB bit 4: Manual DHW push2 -- queued on demand, serviced ahead of the
   // essential/informational rotation, same priority tier as Class 3's remote requests and Class 6's
   // TSP writes.
@@ -736,9 +748,9 @@ class OpenTherm42Hub : public Component {
   sensor::Sensor *oem_fault_code_solar_storage_sensor_{nullptr};
   sensor::Sensor *oem_diagnostic_code_sensor_{nullptr};
   sensor::Sensor *oem_diagnostic_code_ventilation_sensor_{nullptr};
-  sensor::Sensor *master_solar_storage_status_solar_mode_sensor_{nullptr};
-  sensor::Sensor *solar_storage_mode_and_status_solar_mode_sensor_{nullptr};
-  sensor::Sensor *solar_storage_mode_and_status_solar_status_sensor_{nullptr};
+  select::Select *master_solar_storage_status_solar_mode_select_{nullptr};
+  text_sensor::TextSensor *solar_storage_mode_and_status_solar_mode_text_sensor_{nullptr};
+  text_sensor::TextSensor *solar_storage_mode_and_status_solar_status_text_sensor_{nullptr};
   binary_sensor::BinarySensor *solar_storage_fault_indication_binary_sensor_{nullptr};
 
   // §5.3.2 Class 2 entities.
@@ -889,9 +901,9 @@ class OpenTherm42Hub : public Component {
   sensor::Sensor *minimum_modulation_level_sensor_{nullptr};
   sensor::Sensor *remote_override_room_setpoint_sensor_{nullptr};
   sensor::Sensor *remote_override_room_setpoint_2_sensor_{nullptr};
-  sensor::Sensor *remote_override_operating_mode_dhw_sensor_{nullptr};
-  sensor::Sensor *remote_override_operating_mode_heating_hc1_sensor_{nullptr};
-  sensor::Sensor *remote_override_operating_mode_heating_hc2_sensor_{nullptr};
+  text_sensor::TextSensor *remote_override_operating_mode_dhw_text_sensor_{nullptr};
+  text_sensor::TextSensor *remote_override_operating_mode_heating_hc1_text_sensor_{nullptr};
+  text_sensor::TextSensor *remote_override_operating_mode_heating_hc2_text_sensor_{nullptr};
   bool manual_dhw_push2_pending_{false};
   FlagReadBits remote_override_room_setpoint_function_read_;
 };

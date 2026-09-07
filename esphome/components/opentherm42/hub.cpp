@@ -57,6 +57,86 @@ const SimpleSensorInfo OpenTherm42Hub::SIMPLE_SENSORS[] = {
 };
 // clang-format on
 
+// §5.3.1 Class 1, ID 101 LB bits 3,2,1 (Solar Storage mode and status: Solar mode) -- same 5-state
+// enum as the select platform's ID 101 HB (Master Solar Storage status), but this is the boiler's
+// own independently-reported value, not a readback of HB.
+static const char *solar_mode_to_string(uint8_t code) {
+  switch (code) {
+    case 0:
+      return "Off";
+    case 1:
+      return "DHW Eco";
+    case 2:
+      return "DHW Comfort";
+    case 3:
+      return "DHW Single Boost";
+    case 4:
+      return "DHW Continuous Boost";
+    default:
+      return "Reserved";
+  }
+}
+
+// §5.3.1 Class 1, ID 101 LB bits 5,4: Solar Storage mode and status: Solar status.
+static const char *solar_status_to_string(uint8_t code) {
+  switch (code) {
+    case 0:
+      return "Standby";
+    case 1:
+      return "Loading By Sun";
+    case 2:
+      return "Loading By Boiler";
+    default:
+      return "Anti-Legionella";
+  }
+}
+
+// §5.3.8.3 Class 8, ID 99 HB bits 0-3: Remote Override Operating Mode DHW. Read-only -- distinct
+// enum from the HC1/HC2 heating variant below (Anti-Legionella here, not Comfort, is state 2).
+static const char *dhw_operating_mode_to_string(uint8_t code) {
+  switch (code) {
+    case 0:
+      return "No Override";
+    case 1:
+      return "Auto";
+    case 2:
+      return "Anti-Legionella";
+    case 3:
+      return "Comfort";
+    case 4:
+      return "Reduced";
+    case 5:
+      return "Protection";
+    case 6:
+      return "Off";
+    default:
+      return "Reserved";
+  }
+}
+
+// §5.3.8.3 Class 8, ID 99 LB bits 0-3/4-7: Remote Override Operating Mode Heating HC1/HC2 -- same
+// enum shared by both zones.
+static const char *heating_operating_mode_to_string(uint8_t code) {
+  switch (code) {
+    case 0:
+      return "No Override";
+    case 1:
+      return "Auto";
+    case 2:
+      return "Comfort";
+    case 3:
+      return "Precomfort";
+    case 4:
+      return "Reduced";
+    case 5:
+      return "Protection";
+    case 6:
+      return "Off";
+    default:
+      return "Reserved";
+  }
+}
+
 const SimpleSensorInfo *OpenTherm42Hub::find_simple_sensor_(RequestKind kind) const {
   for (auto const &info : SIMPLE_SENSORS) {
     if (info.kind == kind) {
@@ -135,10 +215,14 @@ void OpenTherm42Hub::build_schedule_() {
   if (this->ventilation_fault_flags_read_.any_configured() || this->oem_fault_code_ventilation_sensor_ != nullptr) {
     this->informational_requests_.push_back(RequestKind::VENTILATION_FAULT_FLAGS);
   }
-  if (this->solar_storage_fault_indication_binary_sensor_ != nullptr ||
-      this->master_solar_storage_status_solar_mode_sensor_ != nullptr ||
-      this->solar_storage_mode_and_status_solar_mode_sensor_ != nullptr ||
-      this->solar_storage_mode_and_status_solar_status_sensor_ != nullptr) {
+  // The select is an active control input (like the Class 1 setpoints below), so it's essential;
+  // read-only consumers alone only need informational polling -- see build_next_request_()/
+  // handle_response_() for how the select's HB and the sensors' LB stay independent.
+  if (this->master_solar_storage_status_solar_mode_select_ != nullptr) {
+    this->essential_requests_.push_back(RequestKind::SOLAR_STORAGE_STATUS);
+  } else if (this->solar_storage_fault_indication_binary_sensor_ != nullptr ||
+             this->solar_storage_mode_and_status_solar_mode_text_sensor_ != nullptr ||
+             this->solar_storage_mode_and_status_solar_status_text_sensor_ != nullptr) {
     this->informational_requests_.push_back(RequestKind::SOLAR_STORAGE_STATUS);
   }
   if (this->oem_fault_code_solar_storage_sensor_ != nullptr) {
@@ -285,9 +369,9 @@ void OpenTherm42Hub::build_schedule_() {
   if (this->maximum_boiler_capacity_sensor_ != nullptr || this->minimum_modulation_level_sensor_ != nullptr) {
     this->informational_requests_.push_back(RequestKind::MAX_CAPACITY_MIN_MOD_LEVEL);
   }
-  if (this->remote_override_operating_mode_dhw_sensor_ != nullptr ||
-      this->remote_override_operating_mode_heating_hc1_sensor_ != nullptr ||
-      this->remote_override_operating_mode_heating_hc2_sensor_ != nullptr) {
+  if (this->remote_override_operating_mode_dhw_text_sensor_ != nullptr ||
+      this->remote_override_operating_mode_heating_hc1_text_sensor_ != nullptr ||
+      this->remote_override_operating_mode_heating_hc2_text_sensor_ != nullptr) {
     this->informational_requests_.push_back(RequestKind::REMOTE_OVERRIDE_OPERATING_MODES);
   }
   if (this->remote_override_room_setpoint_function_read_.any_configured()) {
@@ -414,6 +498,12 @@ Frame OpenTherm42Hub::build_next_request_() {
     case RequestKind::SOLAR_STORAGE_STATUS:
       frame.type = static_cast<uint8_t>(MessageType::READ_DATA);
       frame.id = 101;
+      // §5.3.1 ID 101 HB: master-authored (see hub.h's RequestKind comment) -- send whatever the
+      // select last published, exactly like the STATUS/VENTILATION_STATUS master-status bytes.
+      frame.value_hb =
+          this->master_solar_storage_status_solar_mode_select_ != nullptr
+              ? static_cast<uint8_t>(this->master_solar_storage_status_solar_mode_select_->active_index().value_or(0))
+              : 0;
       break;
     case RequestKind::SOLAR_STORAGE_FAULT_FLAGS:
       frame.type = static_cast<uint8_t>(MessageType::READ_DATA);
@@ -880,17 +970,18 @@ void OpenTherm42Hub::handle_response_(const Frame &frame) {
       }
       // HB bits 2,1,0 and LB bits 3,2,1 both encode "Solar mode" (same 5-value enum, different byte);
       // LB bit 0 is a fault flag and LB bits 5,4 are "Solar status" -- see the spec's ID 101 table.
-      if (this->master_solar_storage_status_solar_mode_sensor_ != nullptr) {
-        this->master_solar_storage_status_solar_mode_sensor_->publish_state(frame.value_hb & 0x7);
-      }
+      // HB is never read back into the select here -- same precedent as STATUS/VENTILATION_STATUS,
+      // whose master-status bytes are one-way (local state, resent every turn, never confirmed).
       if (this->solar_storage_fault_indication_binary_sensor_ != nullptr) {
         this->solar_storage_fault_indication_binary_sensor_->publish_state(frame.value_lb & 0x1);
       }
-      if (this->solar_storage_mode_and_status_solar_mode_sensor_ != nullptr) {
-        this->solar_storage_mode_and_status_solar_mode_sensor_->publish_state((frame.value_lb >> 1) & 0x7);
+      if (this->solar_storage_mode_and_status_solar_mode_text_sensor_ != nullptr) {
+        this->solar_storage_mode_and_status_solar_mode_text_sensor_->publish_state(
+            solar_mode_to_string((frame.value_lb >> 1) & 0x7));
       }
-      if (this->solar_storage_mode_and_status_solar_status_sensor_ != nullptr) {
-        this->solar_storage_mode_and_status_solar_status_sensor_->publish_state((frame.value_lb >> 4) & 0x3);
+      if (this->solar_storage_mode_and_status_solar_status_text_sensor_ != nullptr) {
+        this->solar_storage_mode_and_status_solar_status_text_sensor_->publish_state(
+            solar_status_to_string((frame.value_lb >> 4) & 0x3));
       }
       return;
 
@@ -1474,14 +1565,17 @@ void OpenTherm42Hub::handle_response_(const Frame &frame) {
         this->invalidate_response_(RequestKind::REMOTE_OVERRIDE_OPERATING_MODES);
         return;
       }
-      if (this->remote_override_operating_mode_dhw_sensor_ != nullptr) {
-        this->remote_override_operating_mode_dhw_sensor_->publish_state(frame.value_hb & 0x0F);
+      if (this->remote_override_operating_mode_dhw_text_sensor_ != nullptr) {
+        this->remote_override_operating_mode_dhw_text_sensor_->publish_state(
+            dhw_operating_mode_to_string(frame.value_hb & 0x0F));
       }
-      if (this->remote_override_operating_mode_heating_hc1_sensor_ != nullptr) {
-        this->remote_override_operating_mode_heating_hc1_sensor_->publish_state(frame.value_lb & 0x0F);
+      if (this->remote_override_operating_mode_heating_hc1_text_sensor_ != nullptr) {
+        this->remote_override_operating_mode_heating_hc1_text_sensor_->publish_state(
+            heating_operating_mode_to_string(frame.value_lb & 0x0F));
       }
-      if (this->remote_override_operating_mode_heating_hc2_sensor_ != nullptr) {
-        this->remote_override_operating_mode_heating_hc2_sensor_->publish_state((frame.value_lb >> 4) & 0x0F);
+      if (this->remote_override_operating_mode_heating_hc2_text_sensor_ != nullptr) {
+        this->remote_override_operating_mode_heating_hc2_text_sensor_->publish_state(
+            heating_operating_mode_to_string((frame.value_lb >> 4) & 0x0F));
       }
       return;
 
@@ -1651,17 +1745,16 @@ void OpenTherm42Hub::invalidate_response_(RequestKind kind) {
       return;
 
     case RequestKind::SOLAR_STORAGE_STATUS:
+      // The select is not invalidated -- like a switch, it survives conversation errors and is
+      // simply resent next turn; only the LB-derived read entities go unknown.
       if (this->solar_storage_fault_indication_binary_sensor_ != nullptr) {
         this->solar_storage_fault_indication_binary_sensor_->set_has_state(false);
       }
-      if (this->master_solar_storage_status_solar_mode_sensor_ != nullptr) {
-        this->master_solar_storage_status_solar_mode_sensor_->set_has_state(false);
+      if (this->solar_storage_mode_and_status_solar_mode_text_sensor_ != nullptr) {
+        this->solar_storage_mode_and_status_solar_mode_text_sensor_->set_has_state(false);
       }
-      if (this->solar_storage_mode_and_status_solar_mode_sensor_ != nullptr) {
-        this->solar_storage_mode_and_status_solar_mode_sensor_->set_has_state(false);
-      }
-      if (this->solar_storage_mode_and_status_solar_status_sensor_ != nullptr) {
-        this->solar_storage_mode_and_status_solar_status_sensor_->set_has_state(false);
+      if (this->solar_storage_mode_and_status_solar_status_text_sensor_ != nullptr) {
+        this->solar_storage_mode_and_status_solar_status_text_sensor_->set_has_state(false);
       }
       return;
 
@@ -1932,14 +2025,14 @@ void OpenTherm42Hub::invalidate_response_(RequestKind kind) {
       return;
 
     case RequestKind::REMOTE_OVERRIDE_OPERATING_MODES:
-      if (this->remote_override_operating_mode_dhw_sensor_ != nullptr) {
-        this->remote_override_operating_mode_dhw_sensor_->set_has_state(false);
+      if (this->remote_override_operating_mode_dhw_text_sensor_ != nullptr) {
+        this->remote_override_operating_mode_dhw_text_sensor_->set_has_state(false);
       }
-      if (this->remote_override_operating_mode_heating_hc1_sensor_ != nullptr) {
-        this->remote_override_operating_mode_heating_hc1_sensor_->set_has_state(false);
+      if (this->remote_override_operating_mode_heating_hc1_text_sensor_ != nullptr) {
+        this->remote_override_operating_mode_heating_hc1_text_sensor_->set_has_state(false);
       }
-      if (this->remote_override_operating_mode_heating_hc2_sensor_ != nullptr) {
-        this->remote_override_operating_mode_heating_hc2_sensor_->set_has_state(false);
+      if (this->remote_override_operating_mode_heating_hc2_text_sensor_ != nullptr) {
+        this->remote_override_operating_mode_heating_hc2_text_sensor_->set_has_state(false);
       }
       return;
 

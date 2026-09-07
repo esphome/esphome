@@ -414,6 +414,31 @@ text_sensor:
     # §5.3.2 Class 2, ID 95: Brand serial number, read the same way as ID 93.
     configuration_information_brand_serial_number:
       name: "Configuration Information: Brand serial number"
+    # §5.3.1 Class 1, ID 101 LB bits 3,2,1: Solar Storage mode and status: Solar mode -- the
+    # boiler's own reported mode, independent of the select platform's ID 101 HB below.
+    control_and_status_information_solar_storage_mode_and_status_solar_mode:
+      name: "Control and Status Information: Solar Storage mode and status: Solar mode"
+    # §5.3.1 Class 1, ID 101 LB bits 5,4: Solar Storage mode and status: Solar status.
+    control_and_status_information_solar_storage_mode_and_status_solar_status:
+      name: "Control and Status Information: Solar Storage mode and status: Solar status"
+    # §5.3.8.3 Class 8, ID 99 HB bits 0-3: Remote Override Operating Mode DHW -- read-only.
+    control_of_special_applications_remote_override_operating_mode_dhw:
+      name: "Control of Special Applications: Remote Override Operating Mode DHW"
+    # §5.3.8.3 Class 8, ID 99 LB bits 0-3: Remote Override Operating Mode Heating HC1 -- read-only.
+    control_of_special_applications_remote_override_operating_mode_heating_hc1:
+      name: "Control of Special Applications: Remote Override Operating Mode Heating HC1"
+    # §5.3.8.3 Class 8, ID 99 LB bits 4-7: Remote Override Operating Mode Heating HC2, same
+    # encoding as HC1.
+    control_of_special_applications_remote_override_operating_mode_heating_hc2:
+      name: "Control of Special Applications: Remote Override Operating Mode Heating HC2"
+
+select:
+  - platform: opentherm42
+    # §5.3.1 Class 1, ID 101 HB bits 2,1,0: Master Solar Storage status: Solar mode --
+    # master-authored, same "R -" idiom as ID 0/70's master status, no readback (see hub.h).
+    control_and_status_information_master_solar_storage_status_solar_mode:
+      name: "Control and Status Information: Master Solar Storage status: Solar mode"
+      initial_option: "Off"
 
 sensor:
   - platform: opentherm42
@@ -432,17 +457,6 @@ sensor:
     # §5.3.1 Class 1, ID 73: OEM diagnostic code ventilation/heat-recovery (0..65535).
     control_and_status_information_oem_diagnostic_code_ventilation_heat_recovery:
       name: "Control and Status Information: OEM diagnostic code ventilation-heat-recovery"
-    # §5.3.1 Class 1, ID 101 HB bits 2,1,0: Master Solar Storage status: Solar mode.
-    # 0=off, 1=DHW eco, 2=DHW comfort, 3=DHW single boost, 4=DHW continuous boost.
-    control_and_status_information_master_solar_storage_status_solar_mode:
-      name: "Control and Status Information: Master Solar Storage status: Solar mode"
-    # §5.3.1 Class 1, ID 101 LB bits 3,2,1: Solar Storage mode and status: Solar mode (same encoding as above).
-    control_and_status_information_solar_storage_mode_and_status_solar_mode:
-      name: "Control and Status Information: Solar Storage mode and status: Solar mode"
-    # §5.3.1 Class 1, ID 101 LB bits 5,4: Solar Storage mode and status: Solar status.
-    # 0=standby, 1=loading of solar storage tank by the sun, 2=loading by the boiler, 3=anti-legionella mode active.
-    control_and_status_information_solar_storage_mode_and_status_solar_status:
-      name: "Control and Status Information: Solar Storage mode and status: Solar status"
     # §5.3.2 Class 2, ID 3 LB: Boiler MemberID code (0..255) -- identifies the boiler's manufacturer.
     configuration_information_boiler_member_id_code:
       name: "Configuration Information: Boiler MemberID code"
@@ -679,15 +693,3 @@ sensor:
     # §5.3.8.3 Class 8, ID 39: Remote Override Room Setpoint 2 (degrees C, 0..30), same encoding.
     control_of_special_applications_remote_override_room_setpoint_2:
       name: "Control of Special Applications: Remote Override Room Setpoint 2"
-    # §5.3.8.3 Class 8, ID 99 HB bits 0-3: Remote Override Operating Mode DHW (0..15).
-    # 0=No override, 1=Auto, 2=Anti-Legionella, 3=Comfort, 4=Reduced, 5=Protection, 6=Off, 7..15=reserved.
-    control_of_special_applications_remote_override_operating_mode_dhw:
-      name: "Control of Special Applications: Remote Override Operating Mode DHW"
-    # §5.3.8.3 Class 8, ID 99 LB bits 0-3: Remote Override Operating Mode Heating HC1 (0..15).
-    # 0=No override, 1=Auto, 2=Comfort, 3=Precomfort, 4=Reduced, 5=Protection, 6=Off, 7..15=reserved.
-    control_of_special_applications_remote_override_operating_mode_heating_hc1:
-      name: "Control of Special Applications: Remote Override Operating Mode Heating HC1"
-    # §5.3.8.3 Class 8, ID 99 LB bits 4-7: Remote Override Operating Mode Heating HC2 (0..15), same
-    # encoding as HC1.
-    control_of_special_applications_remote_override_operating_mode_heating_hc2:
-      name: "Control of Special Applications: Remote Override Operating Mode Heating HC2"
