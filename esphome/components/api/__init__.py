@@ -13,6 +13,7 @@ from esphome.components.logger import request_log_listener
 from esphome.components.noise import (  # noqa: F401
     ENCRYPTION_SCHEMA,
     decode_encryption_key,
+    enable_spare_ephemeral,
     encryption_schema,
     new_psk_progmem,
     validate_encryption_key,
@@ -603,6 +604,7 @@ async def to_code(config: ConfigType) -> None:
             # and plaintext disabled. Only a factory reset can remove it.
             cg.add_define("USE_API_PLAINTEXT")
         cg.add_define("USE_API_NOISE")
+        enable_spare_ephemeral()
     else:
         cg.add_define("USE_API_PLAINTEXT")
 

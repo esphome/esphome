@@ -144,7 +144,10 @@ void APIServer::setup() {
 
 void APIServer::loop() {
 #ifdef USE_API_NOISE
-  this->prepare_spare_ephemeral_();
+  // Only the flag test is inline; refilling is the rare path
+  if (!noise::has_spare_ephemeral()) {
+    this->refill_spare_ephemeral_();
+  }
 #endif
   // Accept new clients only if the socket exists and has incoming connections
   if (this->socket_ && this->socket_->ready()) {
@@ -199,7 +202,7 @@ void APIServer::loop() {
 #ifdef USE_API_NOISE
 // Refill only while no api client is still connecting; an OTA handshake is
 // not visible here and just pays the refill it triggered.
-void APIServer::prepare_spare_ephemeral_slow_() {
+void APIServer::refill_spare_ephemeral_() {
   if (!network::is_connected()) {
     return;
   }

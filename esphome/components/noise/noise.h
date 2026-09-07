@@ -6,6 +6,9 @@
 #include <cstdint>
 #include "esphome/core/log.h"
 
+// noise-c handshake state; the full definition lives in <noise/protocol.h>
+typedef struct NoiseHandshakeState_s NoiseHandshakeState;
+
 namespace esphome::noise {
 
 using psk_t = std::array<uint8_t, 32>;
@@ -38,23 +41,19 @@ class NoiseContext {
 /// Convert a noise error code to a readable error
 const LogString *noise_err_to_logstr(int err);
 
-// Spare key pair layout: private key then public key
-static constexpr size_t EPHEMERAL_PRIVATE_KEY_SIZE = 32;
-static constexpr size_t EPHEMERAL_PUBLIC_KEY_SIZE = 32;
-static constexpr size_t EPHEMERAL_KEYPAIR_SIZE = EPHEMERAL_PRIVATE_KEY_SIZE + EPHEMERAL_PUBLIC_KEY_SIZE;
-using ephemeral_keypair_t = std::array<uint8_t, EPHEMERAL_KEYPAIR_SIZE>;
-
-#ifdef USE_API_NOISE
+#ifdef USE_NOISE_SPARE_EPHEMERAL
 // One responder ephemeral key pair generated ahead of time (about 60 ms on
-// ESP8266), refilled by the api server while idle, shared by every noise
-// transport; an empty slot means the handshake generates its own key.
+// ESP8266), refilled by the api server while idle and consumed by the next
+// handshake of any noise transport; an empty slot means the handshake
+// generates its own key.
 extern bool spare_ephemeral_ready;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 // Polled every api loop tick, so it must inline
 inline bool has_spare_ephemeral() { return spare_ephemeral_ready; }
 /// Fill the slot; blocks for the base point multiply
 void prepare_spare_ephemeral();
-/// Move the slot into out and empty it; false (out untouched) when empty
-bool take_spare_ephemeral(ephemeral_keypair_t &out);
+/// Hand the slot's key pair to a handshake that has not started and wipe the
+/// slot; 0 when the slot was empty or the key was taken, else the noise-c error
+int consume_spare_ephemeral(NoiseHandshakeState *state);
 #endif
 
 // Shared wire format for the noise transports (api and ota): every frame is

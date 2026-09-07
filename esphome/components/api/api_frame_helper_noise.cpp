@@ -10,7 +10,6 @@
 #include "proto.h"
 #include <cstring>
 #include <cinttypes>
-#include <sodium.h>
 
 #ifdef USE_ESP8266
 #include <pgmspace.h>
@@ -549,10 +548,7 @@ APIError APINoiseFrameHelper::write_frame_(const uint8_t *data, uint16_t len) {
  * @return 0 on success, -1 on error (check errno)
  */
 APIError APINoiseFrameHelper::init_handshake_() {
-  noise::ephemeral_keypair_t spare;
-  const uint8_t *ephemeral = noise::take_spare_ephemeral(spare) ? spare.data() : nullptr;
-  int err = this->handshake_.init(this->ctx_, prologue_.data(), prologue_.size(), ephemeral);
-  sodium_memzero(spare.data(), spare.size());
+  int err = this->handshake_.init(this->ctx_, prologue_.data(), prologue_.size());
   APIError aerr = handle_noise_error_(err, LOG_STR("noise_handshake_init"), APIError::HANDSHAKESTATE_SETUP_FAILED);
   if (aerr != APIError::OK)
     return aerr;

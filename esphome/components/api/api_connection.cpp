@@ -77,6 +77,8 @@ static constexpr uint32_t KEEPALIVE_DISCONNECT_TIMEOUT = (KEEPALIVE_TIMEOUT_MS *
 // WiFi (-70 dBm+), TCP retransmissions push real-world handshake times to
 // 28-30s. See https://github.com/esphome/esphome/issues/14999
 static constexpr uint32_t HANDSHAKE_TIMEOUT_MS = 60000;
+// How long a new connection holds off the spare ephemeral refill
+static constexpr uint32_t CONNECT_GRACE_MS = 1000;
 
 static constexpr auto ESPHOME_VERSION_REF = StringRef::from_lit(ESPHOME_VERSION);
 
@@ -248,6 +250,10 @@ void APIConnection::begin_iterator_(ActiveIterator type) {
     new (&this->iterator_storage_.initial_state) InitialStateIterator(this);
     this->iterator_storage_.initial_state.begin();
   }
+}
+
+bool APIConnection::is_still_connecting(uint32_t now) {
+  return !this->is_authenticated() && now - this->last_traffic_ < CONNECT_GRACE_MS;
 }
 
 void APIConnection::loop() {

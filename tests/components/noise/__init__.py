@@ -10,7 +10,6 @@ def override_manifest(manifest: ComponentManifestOverride) -> None:
 
     async def to_code_testing(config):
         await real_to_code(config)
-        # The spare ephemeral slot only exists in builds with an encrypted api
-        cg.add_define("USE_API_NOISE")
+        cg.add_define("USE_NOISE_SPARE_EPHEMERAL")
 
     manifest.to_code = to_code_testing

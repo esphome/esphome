@@ -26,39 +26,45 @@ void NoiseContext::load_psk(psk_t &out) const {
   progmem_memcpy(out.data(), this->psk_, out.size());
 }
 
-#ifdef USE_API_NOISE
-static uint8_t spare_ephemeral[EPHEMERAL_KEYPAIR_SIZE];  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-bool spare_ephemeral_ready = false;                      // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+#ifdef USE_NOISE_SPARE_EPHEMERAL
+static constexpr size_t PRIVATE_KEY_SIZE = 32;
+static constexpr size_t PUBLIC_KEY_SIZE = 32;
+// Private key then public key
+static uint8_t
+    spare_ephemeral[PRIVATE_KEY_SIZE + PUBLIC_KEY_SIZE];  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+bool spare_ephemeral_ready = false;                       // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 void prepare_spare_ephemeral() {
   // A partial fill must never look ready
   spare_ephemeral_ready = false;
   uint8_t *private_key = spare_ephemeral;
-  uint8_t *public_key = spare_ephemeral + EPHEMERAL_PRIVATE_KEY_SIZE;
-  // Same steps as noise-c's curve25519 keygen; on RNG failure the slot stays
+  uint8_t *public_key = spare_ephemeral + PRIVATE_KEY_SIZE;
+  // Same steps as noise-c's curve25519 keygen; on failure the slot stays
   // empty and the handshake generates its own key
-  if (!random_bytes(private_key, EPHEMERAL_PRIVATE_KEY_SIZE)) {
+  if (!random_bytes(private_key, PRIVATE_KEY_SIZE)) {
     return;
   }
   private_key[0] &= 0xF8;
-  private_key[EPHEMERAL_PRIVATE_KEY_SIZE - 1] = (private_key[EPHEMERAL_PRIVATE_KEY_SIZE - 1] & 0x7F) | 0x40;
+  private_key[PRIVATE_KEY_SIZE - 1] = (private_key[PRIVATE_KEY_SIZE - 1] & 0x7F) | 0x40;
   if (crypto_scalarmult_curve25519_base(public_key, private_key) != 0) {
-    sodium_memzero(spare_ephemeral, EPHEMERAL_KEYPAIR_SIZE);
+    sodium_memzero(spare_ephemeral, sizeof(spare_ephemeral));
     return;
   }
   spare_ephemeral_ready = true;
 }
 
-bool take_spare_ephemeral(ephemeral_keypair_t &out) {
+int consume_spare_ephemeral(NoiseHandshakeState *state) {
   if (!spare_ephemeral_ready) {
-    return false;
+    return 0;
   }
-  std::memcpy(out.data(), spare_ephemeral, EPHEMERAL_KEYPAIR_SIZE);
-  sodium_memzero(spare_ephemeral, EPHEMERAL_KEYPAIR_SIZE);
+  // noise-c keeps its own copy, so the slot is wiped either way
+  int err = noise_handshakestate_set_local_ephemeral(state, spare_ephemeral, PRIVATE_KEY_SIZE,
+                                                     spare_ephemeral + PRIVATE_KEY_SIZE, PUBLIC_KEY_SIZE);
+  sodium_memzero(spare_ephemeral, sizeof(spare_ephemeral));
   spare_ephemeral_ready = false;
-  return true;
+  return err;
 }
-#endif  // USE_API_NOISE
+#endif  // USE_NOISE_SPARE_EPHEMERAL
 
 const LogString *noise_err_to_logstr(int err) {
   if (err == NOISE_ERROR_NO_MEMORY)
