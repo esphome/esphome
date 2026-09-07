@@ -46,9 +46,12 @@ const LogString *noise_err_to_logstr(int err);
 // ESP8266), refilled by the api server while idle and consumed by the next
 // handshake of any noise transport; an empty slot means the handshake
 // generates its own key.
-extern bool spare_ephemeral_ready;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-// Polled every api loop tick, so it must inline
-inline bool has_spare_ephemeral() { return spare_ephemeral_ready; }
+// Private key then public key; zero when empty
+static constexpr size_t SPARE_EPHEMERAL_SIZE = 64;
+extern uint8_t spare_ephemeral[SPARE_EPHEMERAL_SIZE];  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+// Polled every api loop tick, so it must inline. A clamped X25519 private key
+// always has bit 254 set, so that byte doubles as the ready flag.
+inline bool has_spare_ephemeral() { return (spare_ephemeral[31] & 0x40) != 0; }
 /// Fill the slot; blocks for the base point multiply
 void prepare_spare_ephemeral();
 /// Hand the slot's key pair to a handshake that has not started and wipe the

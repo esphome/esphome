@@ -29,39 +29,33 @@ void NoiseContext::load_psk(psk_t &out) const {
 #ifdef USE_NOISE_SPARE_EPHEMERAL
 static constexpr size_t PRIVATE_KEY_SIZE = 32;
 static constexpr size_t PUBLIC_KEY_SIZE = 32;
-// Private key then public key
-static uint8_t
-    spare_ephemeral[PRIVATE_KEY_SIZE + PUBLIC_KEY_SIZE];  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-bool spare_ephemeral_ready = false;                       // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+static_assert(PRIVATE_KEY_SIZE + PUBLIC_KEY_SIZE == SPARE_EPHEMERAL_SIZE);
+uint8_t spare_ephemeral[SPARE_EPHEMERAL_SIZE];  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 void prepare_spare_ephemeral() {
-  // A partial fill must never look ready
-  spare_ephemeral_ready = false;
   uint8_t *private_key = spare_ephemeral;
   uint8_t *public_key = spare_ephemeral + PRIVATE_KEY_SIZE;
-  // Same steps as noise-c's curve25519 keygen; on failure the slot stays
-  // empty and the handshake generates its own key
+  // Same steps as noise-c's curve25519 keygen; the clamp sets the ready bit,
+  // a failure wipes the slot so the handshake generates its own key
   if (!random_bytes(private_key, PRIVATE_KEY_SIZE)) {
+    sodium_memzero(spare_ephemeral, sizeof(spare_ephemeral));
     return;
   }
   private_key[0] &= 0xF8;
   private_key[PRIVATE_KEY_SIZE - 1] = (private_key[PRIVATE_KEY_SIZE - 1] & 0x7F) | 0x40;
   if (crypto_scalarmult_curve25519_base(public_key, private_key) != 0) {
     sodium_memzero(spare_ephemeral, sizeof(spare_ephemeral));
-    return;
   }
-  spare_ephemeral_ready = true;
 }
 
 int consume_spare_ephemeral(NoiseHandshakeState *state) {
-  if (!spare_ephemeral_ready) {
+  if (!has_spare_ephemeral()) {
     return 0;
   }
   // noise-c keeps its own copy, so the slot is wiped either way
   int err = noise_handshakestate_set_local_ephemeral(state, spare_ephemeral, PRIVATE_KEY_SIZE,
                                                      spare_ephemeral + PRIVATE_KEY_SIZE, PUBLIC_KEY_SIZE);
   sodium_memzero(spare_ephemeral, sizeof(spare_ephemeral));
-  spare_ephemeral_ready = false;
   return err;
 }
 #endif  // USE_NOISE_SPARE_EPHEMERAL
