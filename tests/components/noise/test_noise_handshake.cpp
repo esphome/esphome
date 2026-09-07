@@ -157,8 +157,11 @@ TEST(NoiseResponderHandshakeTest, FullHandshakeAndTransportRoundTrip) {
   noise_cipherstate_free(recv_cipher);
 }
 
-// Drive one full NNpsk0 handshake between a fresh initiator and responder
-static void run_handshake(NoiseResponderHandshake &responder) {
+// Drive one full NNpsk0 handshake between a fresh initiator and responder;
+// responder_e receives the ephemeral public key the responder put on the
+// wire (the clear text start of its message, taken before the initiator
+// consumes the buffer in place)
+static void run_handshake(NoiseResponderHandshake &responder, uint8_t responder_e[32]) {
   const psk_t psk = make_psk(7);
   ASSERT_EQ(responder.init(ctx_for(psk), PROLOGUE, sizeof(PROLOGUE)), 0);
   Initiator initiator(psk, PROLOGUE, sizeof(PROLOGUE));
@@ -167,25 +170,57 @@ static void run_handshake(NoiseResponderHandshake &responder) {
   ASSERT_EQ(responder.read_message(msg, msg_len), 0);
   size_t reply_len = 0;
   ASSERT_EQ(responder.write_message(msg, sizeof(msg), reply_len), 0);
+  ASSERT_GE(reply_len, 32u);
+  std::memcpy(responder_e, msg, 32);
   ASSERT_EQ(initiator.read_message(msg, reply_len), 0);
   ASSERT_EQ(responder.action(), Action::ACTION_SPLIT);
 }
 
 TEST(SpareEphemeralTest, EmptySlotLeavesHandshakeToGenerate) {
   NoiseResponderHandshake responder;
-  run_handshake(responder);
+  uint8_t responder_e[32];
+  run_handshake(responder, responder_e);
   EXPECT_FALSE(has_spare_ephemeral());
 }
 
-TEST(SpareEphemeralTest, SlotIsConsumedByExactlyOneHandshake) {
+TEST(SpareEphemeralTest, ConsumeHandsTheKeyToANewState) {
   prepare_spare_ephemeral();
   ASSERT_TRUE(has_spare_ephemeral());
-  NoiseResponderHandshake first;
-  run_handshake(first);
-  // Consumed: the next handshake finds no spare and still completes
+  const NoiseProtocolId nid = {
+      .prefix_id = NOISE_PREFIX_STANDARD,
+      .pattern_id = NOISE_PATTERN_NN,
+      .modifier_ids = {NOISE_MODIFIER_PSK0},
+      .dh_id = NOISE_DH_CURVE25519,
+      .cipher_id = NOISE_CIPHER_CHACHAPOLY,
+      .hash_id = NOISE_HASH_SHA256,
+      .hybrid_id = NOISE_DH_NONE,
+  };
+  NoiseHandshakeState *state = nullptr;
+  ASSERT_EQ(noise_handshakestate_new_by_id(&state, &nid, NOISE_ROLE_RESPONDER), 0);
+  const psk_t psk = make_psk(7);
+  ASSERT_EQ(noise_handshakestate_set_pre_shared_key(state, psk.data(), psk.size()), 0);
+  ASSERT_EQ(noise_handshakestate_set_prologue(state, PROLOGUE, sizeof(PROLOGUE)), 0);
+  EXPECT_EQ(consume_spare_ephemeral(state), 0);
   EXPECT_FALSE(has_spare_ephemeral());
+  noise_handshakestate_free(state);
+}
+
+TEST(SpareEphemeralTest, SlotKeyIsOnTheWireAndConsumedOnce) {
+  prepare_spare_ephemeral();
+  ASSERT_TRUE(has_spare_ephemeral());
+  uint8_t expected_pub[32];
+  std::memcpy(expected_pub, spare_ephemeral + 32, sizeof(expected_pub));
+
+  NoiseResponderHandshake first;
+  uint8_t responder_e[32];
+  run_handshake(first, responder_e);
+  // The spare, not a generated key, went out; and it went out once
+  EXPECT_EQ(std::memcmp(responder_e, expected_pub, sizeof(expected_pub)), 0);
+  EXPECT_FALSE(has_spare_ephemeral());
+
   NoiseResponderHandshake second;
-  run_handshake(second);
+  run_handshake(second, responder_e);
+  EXPECT_NE(std::memcmp(responder_e, expected_pub, sizeof(expected_pub)), 0);
   EXPECT_FALSE(has_spare_ephemeral());
 }
 

@@ -363,8 +363,10 @@ class APIServer final : public Component,
   uint8_t provisioning_source_{0};
 #endif
 
-#ifdef USE_API_NOISE
+#ifdef USE_NOISE_SPARE_EPHEMERAL
   void refill_spare_ephemeral_();
+#endif
+#ifdef USE_API_NOISE
   noise::NoiseContext noise_ctx_;
 #ifndef USE_API_NOISE_PSK_FROM_YAML
   SavedNoisePsk saved_psk_{};  // backs noise_ctx_ for a runtime provisioned key

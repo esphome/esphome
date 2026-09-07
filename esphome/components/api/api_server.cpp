@@ -41,11 +41,6 @@ void APIServer::setup() {
   ControllerRegistry::register_controller(this);
 
 #ifdef USE_API_NOISE
-#ifdef USE_ESP8266
-  // The spare ephemeral refill blocks ~60 ms here and shares the pass with
-  // the client loops; keep the whole pass under the blocking warning
-  this->warn_if_blocking_over_ = 10;  // centiseconds
-#endif
   // Always reserve the slot: flash preferences are positional on esp8266, so
   // a yaml key build must keep the layout of a runtime key build
   uint32_t hash = 88491486UL;
@@ -150,7 +145,7 @@ void APIServer::loop() {
 
   // Checked once per pass for the refill and for the clients below
   const bool connected = network::is_connected();
-#ifdef USE_API_NOISE
+#ifdef USE_NOISE_SPARE_EPHEMERAL
   // Only the flag test is inline; refilling is the rare path
   if (connected && !noise::has_spare_ephemeral()) {
     this->refill_spare_ephemeral_();
@@ -201,7 +196,7 @@ void APIServer::loop() {
   }
 }
 
-#ifdef USE_API_NOISE
+#ifdef USE_NOISE_SPARE_EPHEMERAL
 // Called with the network up; refill only while no api client is still
 // connecting (an OTA handshake is not visible here and just pays the refill
 // it triggered).
