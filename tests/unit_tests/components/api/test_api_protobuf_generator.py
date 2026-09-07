@@ -45,7 +45,14 @@ UINT64 = descriptor_pb2.FieldDescriptorProto.TYPE_UINT64
 INT64 = descriptor_pb2.FieldDescriptorProto.TYPE_INT64
 SINT64 = descriptor_pb2.FieldDescriptorProto.TYPE_SINT64
 UINT32 = descriptor_pb2.FieldDescriptorProto.TYPE_UINT32
+INT32 = descriptor_pb2.FieldDescriptorProto.TYPE_INT32
+SINT32 = descriptor_pb2.FieldDescriptorProto.TYPE_SINT32
 FIXED64 = descriptor_pb2.FieldDescriptorProto.TYPE_FIXED64
+FIXED32 = descriptor_pb2.FieldDescriptorProto.TYPE_FIXED32
+FLOAT = descriptor_pb2.FieldDescriptorProto.TYPE_FLOAT
+BOOL = descriptor_pb2.FieldDescriptorProto.TYPE_BOOL
+STRING = descriptor_pb2.FieldDescriptorProto.TYPE_STRING
+BYTES = descriptor_pb2.FieldDescriptorProto.TYPE_BYTES
 
 
 def test_no_varint64_fields() -> None:
@@ -127,16 +134,16 @@ def _encode_field(
 
 
 SCALAR_TYPES = [
-    descriptor_pb2.FieldDescriptorProto.TYPE_BOOL,
-    descriptor_pb2.FieldDescriptorProto.TYPE_UINT32,
-    descriptor_pb2.FieldDescriptorProto.TYPE_INT32,
-    descriptor_pb2.FieldDescriptorProto.TYPE_UINT64,
-    descriptor_pb2.FieldDescriptorProto.TYPE_INT64,
-    descriptor_pb2.FieldDescriptorProto.TYPE_SINT32,
-    descriptor_pb2.FieldDescriptorProto.TYPE_FLOAT,
-    descriptor_pb2.FieldDescriptorProto.TYPE_FIXED32,
-    descriptor_pb2.FieldDescriptorProto.TYPE_STRING,
-    descriptor_pb2.FieldDescriptorProto.TYPE_BYTES,
+    BOOL,
+    UINT32,
+    INT32,
+    UINT64,
+    INT64,
+    SINT32,
+    FLOAT,
+    FIXED32,
+    STRING,
+    BYTES,
 ]
 
 
@@ -163,10 +170,6 @@ def test_forced_fields_use_the_force_overload_or_raw_writes(field_type: int) -> 
         or "write_raw_byte(" in content
         or "write_tag_and_fixed32(" in content
     ), content
-
-
-FLOAT = descriptor_pb2.FieldDescriptorProto.TYPE_FLOAT
-FIXED32 = descriptor_pb2.FieldDescriptorProto.TYPE_FIXED32
 
 
 @pytest.mark.parametrize("field_type", [FLOAT, FIXED32])

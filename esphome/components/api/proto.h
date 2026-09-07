@@ -457,10 +457,6 @@ class ProtoEncode {
       return pos;
     return encode_string_force(pos PROTO_ENCODE_DEBUG_ARG, field_id, string, len);
   }
-  static inline uint8_t *encode_string(uint8_t *__restrict__ pos PROTO_ENCODE_DEBUG_PARAM, uint32_t field_id,
-                                       const std::string &value) {
-    return encode_string(pos PROTO_ENCODE_DEBUG_ARG, field_id, value.data(), value.size());
-  }
   static inline uint8_t *encode_string_force(uint8_t *__restrict__ pos PROTO_ENCODE_DEBUG_PARAM, uint32_t field_id,
                                              const std::string &value) {
     return encode_string_force(pos PROTO_ENCODE_DEBUG_ARG, field_id, value.data(), value.size());

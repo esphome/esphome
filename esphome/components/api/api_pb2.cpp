@@ -3838,8 +3838,8 @@ uint8_t *DateTimeStateResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEB
   uint8_t *__restrict__ pos = buffer.get_pos();
   pos = ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 13, this->key);
   pos = ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 2, this->missing_state);
-  if (this->epoch_seconds != 0) [[likely]] {
-    pos = ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 29, this->epoch_seconds);
+  if (uint32_t raw = this->epoch_seconds; raw != 0) [[likely]] {
+    pos = ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 29, raw);
   }
 #ifdef USE_DEVICES
   pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 4, this->device_id);
