@@ -426,6 +426,15 @@ bool Nextion::remove_from_q_(bool report_empty) {
   }
   NextionComponentBase *component = nb->component;
 
+#ifdef USE_NEXTION_COMMAND_SPACING
+  if (!nb->pending_command.empty()) {
+    // Not sent yet, so this response cannot belong to it. Dropping the
+    // response leaves the command queued instead of losing it.
+    ESP_LOGW(TAG, "Response for a command not yet sent, ignoring");
+    return false;
+  }
+#endif  // USE_NEXTION_COMMAND_SPACING
+
   ESP_LOGN(TAG, "Removed: %s", component->get_variable_name().c_str());
 
   if (component->get_queue_type() == NextionQueueType::NO_RESULT) {
