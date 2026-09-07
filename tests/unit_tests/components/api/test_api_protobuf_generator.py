@@ -46,6 +46,7 @@ def _file_with_messages(
 
 UINT64 = descriptor_pb2.FieldDescriptorProto.TYPE_UINT64
 MESSAGE = descriptor_pb2.FieldDescriptorProto.TYPE_MESSAGE
+DOUBLE = descriptor_pb2.FieldDescriptorProto.TYPE_DOUBLE
 INT64 = descriptor_pb2.FieldDescriptorProto.TYPE_INT64
 SINT64 = descriptor_pb2.FieldDescriptorProto.TYPE_SINT64
 UINT32 = descriptor_pb2.FieldDescriptorProto.TYPE_UINT32
@@ -254,6 +255,16 @@ def test_repeated_and_message_fields_decode_through_the_same_case_shape(
     if field_type == MESSAGE and repeated:
         assert "this->value.emplace_back();" in case, case
     assert lines[-1].strip() == "break;", case
+
+
+def test_a_fixed64_field_fails_at_generation_time() -> None:
+    """The decode loop has no 64 bit wire type path, so such a field must never reach it silently."""
+    desc = descriptor_pb2.DescriptorProto(name="Wide")
+    desc.field.add(name="ratio", number=1, type=DOUBLE)
+    with pytest.raises(
+        ValueError, match="64-bit type 'double' .*ratio.* not supported"
+    ):
+        build_message_type(desc, {}, {"Wide": SOURCE_CLIENT})
 
 
 def test_message_gets_a_single_decode_field_override() -> None:

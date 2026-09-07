@@ -93,6 +93,17 @@ async def test_api_decode_wire_types(
         await waiter.expect(number_is(-77.5))
         assert len(switch_states) == seen
 
+        # Truncated bodies stop the decode loop without taking the connection down: a tag with its
+        # continuation bit set and nothing after it, a length prefix past the end of the payload,
+        # and a fixed32 with two of its four bytes
+        await raw.send_raw(SWITCH_COMMAND, key + b"\x80")
+        await raw.send_raw(SWITCH_COMMAND, key + tag(2, WIRE_LENGTH) + b"\x7f" + b"ab")
+        await raw.send_raw(SWITCH_COMMAND, tag(1, WIRE_FIXED32) + b"\x01\x02")
+        await raw.send_raw(SWITCH_COMMAND, key + on)
+        await waiter.expect(switch_is(True), label="switch on after truncated frames")
+        await raw.send_raw(SWITCH_COMMAND, key + off)
+        await waiter.expect(switch_is(False))
+
         # An unknown field ahead of the known ones is skipped; field 200 needs a two byte tag
         await raw.send_raw(
             SWITCH_COMMAND, tag(200, WIRE_VARINT) + encode_varint(300) + key + on
