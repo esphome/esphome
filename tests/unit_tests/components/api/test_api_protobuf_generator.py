@@ -186,34 +186,21 @@ def test_multi_byte_tag_fixed32_falls_back_to_the_generic_helper(
     assert content.startswith("pos = ProtoEncode::encode_"), content
 
 
-def _decode_cases(field_type: int, number: int) -> list[str]:
-    """Return the decode_field() case lines the generator emits for one decoded field."""
+def _decode_case(field_type: int, number: int) -> str:
+    """Return the decode_field() case the generator emits for one decoded field."""
     field = descriptor_pb2.FieldDescriptorProto(
         name="value", number=number, type=field_type
     )
     ti = create_field_type_info(field, needs_decode=True, needs_encode=False)
-    return [
-        case
-        for case in (
-            ti.decode_varint_content,
-            ti.decode_length_content,
-            ti.decode_32bit_content,
-        )
-        if case
-    ]
-
-
-UINT32_T = descriptor_pb2.FieldDescriptorProto.TYPE_UINT32
-STRING_T = descriptor_pb2.FieldDescriptorProto.TYPE_STRING
-BOOL_T = descriptor_pb2.FieldDescriptorProto.TYPE_BOOL
+    return ti.decode_content
 
 
 @pytest.mark.parametrize(
     ("field_type", "number", "wire_type", "accessor"),
     [
-        (UINT32_T, 2, 0, "value.as_varint()"),
-        (BOOL_T, 3, 0, "value.as_varint() != 0"),
-        (STRING_T, 1, 2, "value.data()"),
+        (UINT32, 2, 0, "value.as_varint()"),
+        (BOOL, 3, 0, "value.as_varint() != 0"),
+        (STRING, 1, 2, "value.data()"),
         (FLOAT, 4, 5, "value.as_float()"),
         (FIXED32, 5, 5, "value.as_fixed32()"),
     ],
@@ -222,21 +209,18 @@ def test_decode_cases_carry_field_number_and_wire_type(
     field_type: int, number: int, wire_type: int, accessor: str
 ) -> None:
     """Each decoded field yields one case keyed on its number and declared wire type."""
-    cases = _decode_cases(field_type, number)
-    assert len(cases) == 1, cases
-    lines = cases[0].splitlines()
-    assert lines[0] == f"case PROTO_DECODE_CASE({number}, {wire_type}):", cases[0]
-    assert lines[1].strip() == f"PROTO_DECODE_GUARD(tag, {number}, {wire_type});", (
-        cases[0]
-    )
-    assert accessor in cases[0], cases[0]
+    case = _decode_case(field_type, number)
+    lines = case.splitlines()
+    assert lines[0] == f"case PROTO_DECODE_CASE({number}, {wire_type}):", case
+    assert lines[1].strip() == f"PROTO_DECODE_GUARD(tag, {number}, {wire_type});", case
+    assert accessor in case, case
 
 
 def test_message_gets_a_single_decode_field_override() -> None:
     """All wire types of a decoded message land in one decode_field() switch."""
     desc = descriptor_pb2.DescriptorProto(name="Mixed")
-    desc.field.add(name="name", number=1, type=STRING_T)
-    desc.field.add(name="count", number=2, type=UINT32_T)
+    desc.field.add(name="name", number=1, type=STRING)
+    desc.field.add(name="count", number=2, type=UINT32)
     desc.field.add(name="level", number=3, type=FLOAT)
     header, cpp, _ = build_message_type(desc, {}, {"Mixed": SOURCE_CLIENT})
     decl = "bool decode_field(uint32_t tag, const uint8_t *data, proto_varint_value_t scalar) override;"
@@ -256,10 +240,8 @@ def test_message_gets_a_single_decode_field_override() -> None:
 
 def test_multi_statement_decode_cases_are_scoped() -> None:
     """Bodies with several statements or locals get their own block so no jump crosses an initialization."""
-    bytes_type = descriptor_pb2.FieldDescriptorProto.TYPE_BYTES
-    cases = _decode_cases(bytes_type, 4)
-    assert len(cases) == 1, cases
-    lines = cases[0].splitlines()
-    assert lines[0] == "case PROTO_DECODE_CASE(4, 2): {", cases[0]
-    assert lines[-1] == "}", cases[0]
-    assert "value.data();" in cases[0] and "value.size();" in cases[0]
+    case = _decode_case(BYTES, 4)
+    lines = case.splitlines()
+    assert lines[0] == "case PROTO_DECODE_CASE(4, 2): {", case
+    assert lines[-1] == "}", case
+    assert "value.data();" in case and "value.size();" in case
