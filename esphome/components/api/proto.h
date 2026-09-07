@@ -287,8 +287,7 @@ class ProtoWriteBuffer {
   uint8_t *pos_;
 };
 
-// Helpers that trade a call for flash on embedded targets. The host keeps them inline: there the
-// fixed32 write is a single store, so outlining would only add a call (and CodSpeed counts it).
+// Outlined on embedded targets to save flash; on the host the write is a single store.
 #ifdef USE_HOST
 #define PROTO_OUTLINE_FOR_SIZE inline
 #else
@@ -299,13 +298,9 @@ class ProtoWriteBuffer {
 constexpr uint32_t VARINT_MAX_1_BYTE = 1 << 7;   // 128
 constexpr uint32_t VARINT_MAX_2_BYTE = 1 << 14;  // 16384
 
-/// Static encode helpers for generated encode() functions.
-/// Generated code hoists buffer.pos_ into a local uint8_t *__restrict__ pos and threads it through
-/// these helpers by value: each one takes the cursor and returns the advanced cursor. At -Os the
-/// compiler outlines most helpers, and returning the cursor lets consecutive calls chain through the
-/// return register instead of spilling pos to a stack slot that a by-reference parameter would need.
-/// Helpers without a _force suffix skip fields holding the proto3 default (zero or empty).
-/// For sub-messages, pos is synced to the buffer before the call and read back after.
+/// Static encode helpers for generated encode() functions. Each takes the write cursor by value and
+/// returns it advanced, so outlined calls at -Os chain through the return register instead of a
+/// stack slot. Helpers without a _force suffix skip fields holding the proto3 default.
 class ProtoEncode {
  public:
   /// Write a multi-byte varint directly through a pos pointer.
@@ -416,8 +411,7 @@ class ProtoEncode {
     std::memcpy(pos + 2, ref.c_str(), ref.size());
     return pos + 2 + ref.size();
   }
-  /// Store a 32-bit value little-endian at an unaligned position. __builtin_memcpy stays a builtin even
-  /// under ESP-IDF's -fno-builtin-memcpy, so xtensa expands it to byte stores and the host to one store.
+  /// Unaligned little-endian store; __builtin_memcpy stays inline even under -fno-builtin-memcpy.
   static inline void ESPHOME_ALWAYS_INLINE write_fixed32_le(uint8_t *__restrict__ pos, uint32_t value) {
 #if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
     __builtin_memcpy(pos, &value, 4);
@@ -428,8 +422,7 @@ class ProtoEncode {
     pos[3] = static_cast<uint8_t>(value >> 24);
 #endif
   }
-  /// Write a precomputed tag byte + 32-bit little-endian value.
-  /// Outlined on embedded targets: one shared copy beats five inline stores at every fixed32/float field.
+  /// Write a precomputed tag byte + 32-bit value. Outlined on embedded: one copy beats inline stores per field.
   static PROTO_OUTLINE_FOR_SIZE uint8_t *write_tag_and_fixed32(uint8_t *__restrict__ pos PROTO_ENCODE_DEBUG_PARAM,
                                                                uint8_t tag, uint32_t value) {
     PROTO_ENCODE_CHECK_BOUNDS(pos, 5);
@@ -512,8 +505,7 @@ class ProtoEncode {
       return pos;
     return encode_bool_force(pos PROTO_ENCODE_DEBUG_ARG, field_id, value);
   }
-  /// Generic tag + fixed32 writer for tags that need more than one byte; single-byte tags use
-  /// write_tag_and_fixed32. Outlined under -Os for the same reason.
+  /// Tag + fixed32 for multi-byte tags; single-byte tags use write_tag_and_fixed32.
   static PROTO_OUTLINE_FOR_SIZE uint8_t *encode_fixed32_force(uint8_t *__restrict__ pos PROTO_ENCODE_DEBUG_PARAM,
                                                               uint32_t field_id, uint32_t value) {
     pos = encode_field_raw(pos PROTO_ENCODE_DEBUG_ARG, field_id, 5);
