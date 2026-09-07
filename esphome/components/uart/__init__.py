@@ -485,6 +485,7 @@ async def to_code(config):
             )
             from esphome.components.zephyr.dts_lookup import (
                 dts_node_label_exists,
+                has_pinctrl_configured,
                 resolve_uart_node_label,
                 validate_dts_label_exists,
             )
@@ -566,17 +567,15 @@ async def to_code(config):
             else:
                 # Without this, a board with no pre-wired pinctrl-0 fails with a
                 # confusing low-level binding-schema error instead of a clear one.
-                if not dts_node_label_exists(
-                    zephyr_data()[KEY_BOARD], f"{port_label}_default"
-                ):
+                if not has_pinctrl_configured(zephyr_data()[KEY_BOARD], port_label):
                     _LOGGER.warning(
-                        "Board '%s' has no '%s_default' devicetree node -- port '%s' "
-                        "has no pre-wired pinctrl. Assuming you've configured it "
-                        "yourself via `zephyr: overlays:`. If not, this will fail at "
+                        "Board '%s' has no pinctrl configured for port '%s' (node "
+                        "'%s') -- assuming you've configured it yourself via "
+                        "`zephyr: overlays:`. If not, this will fail at "
                         "devicetree-compile time.",
                         zephyr_data()[KEY_BOARD],
-                        port_label,
                         port_value,
+                        port_label,
                     )
                 zephyr_add_overlay(f'&{port_label} {{ status = "okay"; }};')
         else:

@@ -28,6 +28,7 @@ from esphome.components.zephyr.dts_lookup import (
     get_i2c_pinctrl_esp32,
     get_spi_controller_labels,
     get_uart_controller_labels,
+    has_pinctrl_configured,
     log_board_capabilities,
     resolve_zephyr_bus,
     validate_board_revision,
@@ -63,6 +64,7 @@ class _FakeNode:
         regs: list[_FakeReg] | None = None,
         parent: _FakeNode | None = None,
         buses: list[str] | None = None,
+        pinctrls: list[object] | None = None,
     ) -> None:
         self.labels = labels or []
         self.status = status
@@ -71,6 +73,7 @@ class _FakeNode:
         self.regs = regs or []
         self.parent = parent
         self.buses = buses or []
+        self.pinctrls = pinctrls or []
 
 
 class _FakeEdt:
@@ -589,6 +592,43 @@ def test_get_uart_controller_labels_returns_disabled_when_none_enabled(
     ]
     monkeypatch.setattr(dts_lookup, "_get_edt", lambda board: _FakeEdt(nodes))
     assert get_uart_controller_labels("some_board") == ["uart0", "uart1"]
+
+
+def test_has_pinctrl_configured_true_on_node_itself(monkeypatch) -> None:
+    CORE.data[KEY_ZEPHYR] = _empty_zd()
+    nodes = [_FakeNode(labels=["uart0"], pinctrls=[object()])]
+    monkeypatch.setattr(dts_lookup, "_get_edt", lambda board: _FakeEdt(nodes))
+    assert has_pinctrl_configured("some_board", "uart0") is True
+
+
+def test_has_pinctrl_configured_true_on_ancestor(monkeypatch) -> None:
+    # Renesas RA shape: pinctrl-0 lives on the sci<N> parent, not the uart<N>
+    # child label a numbered port resolves to.
+    CORE.data[KEY_ZEPHYR] = _empty_zd()
+    sci2 = _FakeNode(labels=["sci2"], pinctrls=[object()])
+    uart2 = _FakeNode(labels=["uart2"], parent=sci2)
+    monkeypatch.setattr(dts_lookup, "_get_edt", lambda board: _FakeEdt([sci2, uart2]))
+    assert has_pinctrl_configured("some_board", "uart2") is True
+
+
+def test_has_pinctrl_configured_false_when_absent(monkeypatch) -> None:
+    CORE.data[KEY_ZEPHYR] = _empty_zd()
+    nodes = [_FakeNode(labels=["uart0"])]
+    monkeypatch.setattr(dts_lookup, "_get_edt", lambda board: _FakeEdt(nodes))
+    assert has_pinctrl_configured("some_board", "uart0") is False
+
+
+def test_has_pinctrl_configured_false_for_unknown_label(monkeypatch) -> None:
+    CORE.data[KEY_ZEPHYR] = _empty_zd()
+    nodes = [_FakeNode(labels=["uart0"], pinctrls=[object()])]
+    monkeypatch.setattr(dts_lookup, "_get_edt", lambda board: _FakeEdt(nodes))
+    assert has_pinctrl_configured("some_board", "uart9") is False
+
+
+def test_has_pinctrl_configured_false_without_dts(monkeypatch) -> None:
+    CORE.data[KEY_ZEPHYR] = _empty_zd()
+    monkeypatch.setattr(dts_lookup, "_get_edt", lambda board: None)
+    assert has_pinctrl_configured("some_board", "uart0") is False
 
 
 def test_get_can_controller_labels_returns_disabled_nodes(monkeypatch) -> None:
