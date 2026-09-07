@@ -118,10 +118,9 @@ def test_message_id_above_maximum_is_rejected() -> None:
         validate_message_id(MAX_MESSAGE_ID + 1, "TooBigMessage")
 
 
-def _encode_field(
-    field_type: int, number: int = 1, force: bool = False, repeated: bool = False
-) -> str:
-    """Return the encode statement the generator emits for one encode-only field."""
+def _field(
+    field_type: int, number: int = 1, *, force: bool = False, repeated: bool = False
+) -> descriptor_pb2.FieldDescriptorProto:
     field = descriptor_pb2.FieldDescriptorProto(
         name="value", number=number, type=field_type
     )
@@ -129,8 +128,17 @@ def _encode_field(
         field.label = descriptor_pb2.FieldDescriptorProto.LABEL_REPEATED
     if force:
         field.options.Extensions[pb.force] = True
-    ti = create_field_type_info(field, needs_decode=False, needs_encode=True)
-    return ti.encode_content
+    return field
+
+
+def _encode_field(
+    field_type: int, number: int = 1, force: bool = False, repeated: bool = False
+) -> str:
+    """Return the encode statement the generator emits for one encode-only field."""
+    field = _field(field_type, number, force=force, repeated=repeated)
+    return create_field_type_info(
+        field, needs_decode=False, needs_encode=True
+    ).encode_content
 
 
 SCALAR_TYPES = [
