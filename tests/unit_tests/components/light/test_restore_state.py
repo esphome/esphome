@@ -2,7 +2,14 @@
 
 import pytest
 
-from esphome.components.light import CONF_RESTORE_MODE, CONF_RESTORE_STATE, LIGHT_SCHEMA
+import esphome.codegen as cg
+from esphome.components.light import (
+    CONF_RESTORE_MODE,
+    CONF_RESTORE_STATE,
+    LIGHT_SCHEMA,
+    LightType,
+    light_schema,
+)
 from esphome.components.light.restore_state import (
     LEGACY_RESTORE_MODES,
     RESTORE_STATE_KEEP,
@@ -77,6 +84,41 @@ def test_restore_state_all_shorthand_is_case_insensitive(value: str) -> None:
 def test_restore_state_rejects_other_strings() -> None:
     with pytest.raises(cv.Invalid):
         RESTORE_STATE_SCHEMA("everything")
+
+
+_DummyLight = cg.esphome_ns.class_("DummyLight")
+
+
+def test_default_restore_mode_applies_when_neither_key_given() -> None:
+    schema = light_schema(
+        _DummyLight, LightType.BINARY, default_restore_mode="RESTORE_DEFAULT_ON"
+    )
+    config = schema({"id": "light1"})
+    assert config[CONF_RESTORE_MODE] == "RESTORE_DEFAULT_ON"
+    assert CONF_RESTORE_STATE not in config
+
+
+def test_default_restore_mode_is_dropped_when_restore_state_given() -> None:
+    schema = light_schema(
+        _DummyLight, LightType.BINARY, default_restore_mode="RESTORE_DEFAULT_ON"
+    )
+    config = schema({"id": "light1", "restore_state": {"state": "INVERT"}})
+    assert CONF_RESTORE_MODE not in config
+    assert config[CONF_RESTORE_STATE][CONF_STATE] == "INVERT"
+
+
+def test_default_restore_mode_still_exclusive_with_explicit_restore_state() -> None:
+    schema = light_schema(
+        _DummyLight, LightType.BINARY, default_restore_mode="RESTORE_DEFAULT_ON"
+    )
+    with pytest.raises(cv.Invalid, match="restore"):
+        schema(
+            {
+                "id": "light1",
+                CONF_RESTORE_MODE: "ALWAYS_ON",
+                CONF_RESTORE_STATE: {},
+            }
+        )
 
 
 @pytest.mark.parametrize("value", ["none", "None", "NONE"])

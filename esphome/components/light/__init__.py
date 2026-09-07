@@ -410,6 +410,25 @@ class LightType(enum.IntEnum):
     ADDRESSABLE = 3
 
 
+def _apply_default_restore_mode(default_restore_mode: str) -> Callable[[dict], dict]:
+    # cv.Exclusive (unlike cv.Optional) has no `default` parameter, and the exclusivity
+    # check runs against the raw input before any default would be filled in anyway. So
+    # apply the platform's default here, before LIGHT_SCHEMA's cv.Exclusive("restore")
+    # marker runs, and only when the user gave neither restore_mode nor restore_state --
+    # that keeps a user-provided restore_state from being silently overridden, and keeps
+    # a user providing both restore_mode and restore_state an exclusivity error.
+    def validator(config):
+        if (
+            isinstance(config, dict)
+            and CONF_RESTORE_MODE not in config
+            and CONF_RESTORE_STATE not in config
+        ):
+            config = {**config, CONF_RESTORE_MODE: default_restore_mode}
+        return config
+
+    return validator
+
+
 def light_schema(
     class_: MockObjClass,
     type_: LightType,
@@ -418,11 +437,6 @@ def light_schema(
     icon: str = cv.UNDEFINED,
     default_restore_mode: str = cv.UNDEFINED,
 ) -> cv.Schema:
-    # NOTE: default_restore_mode overrides CONF_RESTORE_MODE with a plain cv.Optional
-    # default, bypassing the cv.Exclusive("restore") marker on LIGHT_SCHEMA. That marker
-    # only rejects restore_mode+restore_state given together when neither has a schema
-    # default of its own, so a platform passing default_restore_mode could combine it with
-    # restore_state without error. No in-tree platform currently does this.
     schema = {
         cv.GenerateID(CONF_OUTPUT_ID): cv.declare_id(class_),
     }
@@ -430,25 +444,25 @@ def light_schema(
     for key, default, validator in [
         (CONF_ENTITY_CATEGORY, entity_category, cv.entity_category),
         (CONF_ICON, icon, cv.icon),
-        (
-            CONF_RESTORE_MODE,
-            default_restore_mode,
-            cv.one_of(*LEGACY_RESTORE_MODES, upper=True, space="_"),
-        ),
     ]:
         if default is not cv.UNDEFINED:
             schema[cv.Optional(key, default=default)] = validator
 
     if type_ == LightType.BINARY:
-        return BINARY_LIGHT_SCHEMA.extend(schema)
-    if type_ == LightType.BRIGHTNESS_ONLY:
-        return BRIGHTNESS_ONLY_LIGHT_SCHEMA.extend(schema)
-    if type_ == LightType.RGB:
-        return RGB_LIGHT_SCHEMA.extend(schema)
-    if type_ == LightType.ADDRESSABLE:
-        return ADDRESSABLE_LIGHT_SCHEMA.extend(schema)
+        base_schema = BINARY_LIGHT_SCHEMA
+    elif type_ == LightType.BRIGHTNESS_ONLY:
+        base_schema = BRIGHTNESS_ONLY_LIGHT_SCHEMA
+    elif type_ == LightType.RGB:
+        base_schema = RGB_LIGHT_SCHEMA
+    elif type_ == LightType.ADDRESSABLE:
+        base_schema = ADDRESSABLE_LIGHT_SCHEMA
+    else:
+        raise ValueError(f"Invalid light type: {type_}")
 
-    raise ValueError(f"Invalid light type: {type_}")
+    result = base_schema.extend(schema)
+    if default_restore_mode is not cv.UNDEFINED:
+        result = cv.All(_apply_default_restore_mode(default_restore_mode), result)
+    return result
 
 
 def validate_color_temperature_channels(value):
