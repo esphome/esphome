@@ -143,16 +143,19 @@ void APIServer::setup() {
 }
 
 void APIServer::loop() {
-#ifdef USE_API_NOISE
-  // Only the flag test is inline; refilling is the rare path
-  if (!noise::has_spare_ephemeral()) {
-    this->refill_spare_ephemeral_();
-  }
-#endif
   // Accept new clients only if the socket exists and has incoming connections
   if (this->socket_ && this->socket_->ready()) {
     this->accept_new_connections_();
   }
+
+  // Checked once per pass for the refill and for the clients below
+  const bool connected = network::is_connected();
+#ifdef USE_API_NOISE
+  // Only the flag test is inline; refilling is the rare path
+  if (connected && !noise::has_spare_ephemeral()) {
+    this->refill_spare_ephemeral_();
+  }
+#endif
 
   if (this->api_connection_count_ == 0) {
     // Check reboot timeout - done in loop to avoid scheduler heap churn
@@ -170,8 +173,7 @@ void APIServer::loop() {
   }
 
   // Process clients and remove disconnected ones in a single pass
-  // Check network connectivity once for all clients
-  if (!network::is_connected()) {
+  if (!connected) {
     // Network is down - disconnect all clients
     for (auto &client : this->active_clients()) {
       client->on_fatal_error();
@@ -200,12 +202,10 @@ void APIServer::loop() {
 }
 
 #ifdef USE_API_NOISE
-// Refill only while no api client is still connecting; an OTA handshake is
-// not visible here and just pays the refill it triggered.
+// Called with the network up; refill only while no api client is still
+// connecting (an OTA handshake is not visible here and just pays the refill
+// it triggered).
 void APIServer::refill_spare_ephemeral_() {
-  if (!network::is_connected()) {
-    return;
-  }
   const uint32_t now = App.get_loop_component_start_time();
   for (auto &client : this->active_clients()) {
     if (client->is_still_connecting(now)) {
