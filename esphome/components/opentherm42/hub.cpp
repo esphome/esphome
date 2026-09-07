@@ -915,6 +915,11 @@ void OpenTherm42Hub::handle_response_(const Frame &frame) {
     case RequestKind::VENTILATION_STATUS:
       if (type != MessageType::READ_ACK) {
         ESP_LOGW(TAG, "Ventilation/heat-recovery status exchange (id=70) was rejected (message type %u)", frame.type);
+        // Reaching handle_response_() at all means a valid frame was received -- unlike a
+        // transient datalink error, a non-ACK type here is the boiler's definitive answer that it
+        // has no ventilation/heat-recovery system, so the master-status switches can never have
+        // any real effect either.
+        this->ventilation_status_write_.invalidate();
         this->invalidate_response_(RequestKind::VENTILATION_STATUS);
         return;
       }
@@ -965,6 +970,12 @@ void OpenTherm42Hub::handle_response_(const Frame &frame) {
     case RequestKind::SOLAR_STORAGE_STATUS:
       if (type != MessageType::READ_ACK) {
         ESP_LOGW(TAG, "Solar storage status (id=101) read was rejected (message type %u)", frame.type);
+        // Reaching handle_response_() at all means a valid frame was received -- unlike a
+        // transient datalink error, a non-ACK type here is the boiler's definitive answer that it
+        // has no Solar Storage feature, so the select can never have any real effect either.
+        if (this->master_solar_storage_status_solar_mode_select_ != nullptr) {
+          this->master_solar_storage_status_solar_mode_select_->set_has_state(false);
+        }
         this->invalidate_response_(RequestKind::SOLAR_STORAGE_STATUS);
         return;
       }

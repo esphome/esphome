@@ -56,6 +56,18 @@ struct FlagWriteBits {
     return value;
   }
 
+  // Called when the boiler has definitively rejected (DATA-INVALID/UNKNOWN-DATAID) the
+  // conversation that carries this byte -- unlike a transient datalink error, this means the
+  // underlying feature genuinely isn't present on this hardware, so every configured switch must
+  // show unknown rather than keep presenting a control that can never have any effect.
+  void invalidate() {
+    for (auto *b : this->bits) {
+      if (b != nullptr) {
+        b->set_has_state(false);
+      }
+    }
+  }
+
   // Whether any bit has a configured entity -- used to decide whether this byte's conversation is
   // worth scheduling at all.
   bool any_configured() const {
