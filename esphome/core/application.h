@@ -634,13 +634,17 @@ class LoopBlockingGuard {
 
 /// Leaves a stretch of the current loop pass out of the blocking warning.
 ///
-/// For work that cannot be made shorter or split across passes, such as
-/// bringing up a radio, the initial connect of a network stack, or a key
-/// generation whose cost is the algorithm itself; the warning then keeps
+/// Only for work that cannot be made shorter and cannot be split across
+/// passes: bringing up a radio, the initial connect of a network stack, a
+/// key generation whose cost is the algorithm itself. The warning then keeps
 /// reporting everything else in the pass, and the component's threshold does
-/// not ratchet up over such an operation. It must never wrap work that could
-/// be made faster or moved off the loop: that is exactly what the warning
-/// exists to find.
+/// not ratchet up over the one step nothing can be done about.
+///
+/// Never use it to paper over a problem that can be solved. A slow driver
+/// call, a loop that could be a state machine, a computation that could be
+/// cached or deferred, a blocking read that could be polled: those are what
+/// the warning exists to find, and wrapping them in this scope hides the
+/// bug instead of fixing it. If in doubt, leave the warning in.
 ///
 ///   {
 ///     UnavoidableBlockingScope scope;
