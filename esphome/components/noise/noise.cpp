@@ -27,9 +27,8 @@ void NoiseContext::load_psk(psk_t &out) const {
 }
 
 #ifdef USE_NOISE_SPARE_EPHEMERAL
-static constexpr size_t PRIVATE_KEY_SIZE = 32;
-static constexpr size_t PUBLIC_KEY_SIZE = 32;
-static_assert(PRIVATE_KEY_SIZE + PUBLIC_KEY_SIZE == SPARE_EPHEMERAL_SIZE);
+static constexpr size_t PRIVATE_KEY_SIZE = SPARE_EPHEMERAL_KEY_SIZE;
+static constexpr size_t PUBLIC_KEY_SIZE = SPARE_EPHEMERAL_KEY_SIZE;
 uint8_t spare_ephemeral[SPARE_EPHEMERAL_SIZE];  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 void prepare_spare_ephemeral() {

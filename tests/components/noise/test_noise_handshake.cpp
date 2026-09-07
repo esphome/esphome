@@ -161,7 +161,7 @@ TEST(NoiseResponderHandshakeTest, FullHandshakeAndTransportRoundTrip) {
 // responder_e receives the ephemeral public key the responder put on the
 // wire (the clear text start of its message, taken before the initiator
 // consumes the buffer in place)
-static void run_handshake(NoiseResponderHandshake &responder, uint8_t responder_e[32]) {
+static void run_handshake(NoiseResponderHandshake &responder, uint8_t responder_e[SPARE_EPHEMERAL_KEY_SIZE]) {
   const psk_t psk = make_psk(7);
   ASSERT_EQ(responder.init(ctx_for(psk), PROLOGUE, sizeof(PROLOGUE)), 0);
   Initiator initiator(psk, PROLOGUE, sizeof(PROLOGUE));
@@ -170,8 +170,8 @@ static void run_handshake(NoiseResponderHandshake &responder, uint8_t responder_
   ASSERT_EQ(responder.read_message(msg, msg_len), 0);
   size_t reply_len = 0;
   ASSERT_EQ(responder.write_message(msg, sizeof(msg), reply_len), 0);
-  ASSERT_GE(reply_len, 32u);
-  std::memcpy(responder_e, msg, 32);
+  ASSERT_GE(reply_len, SPARE_EPHEMERAL_KEY_SIZE);
+  std::memcpy(responder_e, msg, SPARE_EPHEMERAL_KEY_SIZE);
   ASSERT_EQ(initiator.read_message(msg, reply_len), 0);
   ASSERT_EQ(responder.action(), Action::ACTION_SPLIT);
 }
@@ -179,7 +179,7 @@ static void run_handshake(NoiseResponderHandshake &responder, uint8_t responder_
 TEST(SpareEphemeralTest, EmptySlotLeavesHandshakeToGenerate) {
   ASSERT_FALSE(has_spare_ephemeral());
   NoiseResponderHandshake responder;
-  uint8_t responder_e[32];
+  uint8_t responder_e[SPARE_EPHEMERAL_KEY_SIZE];
   run_handshake(responder, responder_e);
   EXPECT_FALSE(has_spare_ephemeral());
 }
@@ -209,11 +209,11 @@ TEST(SpareEphemeralTest, ConsumeHandsTheKeyToANewState) {
 TEST(SpareEphemeralTest, SlotKeyIsOnTheWireAndConsumedOnce) {
   prepare_spare_ephemeral();
   ASSERT_TRUE(has_spare_ephemeral());
-  uint8_t expected_pub[32];
-  std::memcpy(expected_pub, spare_ephemeral + 32, sizeof(expected_pub));
+  uint8_t expected_pub[SPARE_EPHEMERAL_KEY_SIZE];
+  std::memcpy(expected_pub, spare_ephemeral + SPARE_EPHEMERAL_KEY_SIZE, sizeof(expected_pub));
 
   NoiseResponderHandshake first;
-  uint8_t responder_e[32];
+  uint8_t responder_e[SPARE_EPHEMERAL_KEY_SIZE];
   run_handshake(first, responder_e);
   // The spare, not a generated key, went out; and it went out once
   EXPECT_EQ(std::memcmp(responder_e, expected_pub, sizeof(expected_pub)), 0);
