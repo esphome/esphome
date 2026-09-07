@@ -10,6 +10,9 @@ def override_manifest(manifest: ComponentManifestOverride) -> None:
     # and the listener vector it dispatches into (codegen-sized by consumers).
     async def to_code_testing(config):
         cg.add_define("USE_BLE_DEVICE_IRK")
+        # The gatt contract test exercises the gated lookup helpers; compile
+        # their definitions (ble_gatt_client.cpp) into the test build.
+        cg.add_define("USE_BLE_GATT_CLIENT")
         cg.add_define("USE_BLE_SCAN_RESPONSE_MERGER")
         cg.add_define("ESPHOME_BLE_DEVICE_BASE_LISTENER_COUNT", 4)
 

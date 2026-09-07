@@ -11,13 +11,16 @@
 // interface. All listener calls are delivered on the ESPHome main loop;
 // borrowed data pointers are valid only for the duration of the call.
 //
-// Error domain (plain int, forwarded to the API without translation):
+// Error domain (plain int, forwarded to the API without translation, so the
+// values are wire-frozen - API clients interpret them):
 //   0            success
-//   1..0x11      ATT error codes (Bluetooth spec; BTstack and Bluedroid agree)
+//   1..0x11      ATT error codes (Bluetooth spec) - reserved; a backend whose
+//                native error codes land in this window must remap them out
 //   GATT_ERR_NOT_CONNECTED (-1)  no connection to the peer (on esp32 a raw
 //                ESP_FAIL from the stack shares this value; both read as a
 //                failed, unusable connection on the client side)
 //   GATT_ERR_NO_MEMORY (-2)      backend storage exhausted
+//   -1..-15      reserved for future contract sentinels
 //   anything else: platform stack error/status code, surfaced opaquely.
 // Connection events carry HCI status/disconnect reason codes (same code
 // space on every controller).
@@ -99,9 +102,18 @@ class GattClientListener {
 // The BLEGattConnection op surface, asserted where the alias binds
 // (bluetooth_connection_gatt_backend.h). Operations return 0 when accepted (completion arrives
 // through the listener) or a synchronous error (busy, not connected, stack
-// rejection); one operation may be outstanding at a time. Semantics beyond
-// the signatures:
+// rejection); one operation may be outstanding at a time. An accepted
+// operation's completion is delivered from the event loop, NEVER
+// synchronously from inside the op call - a synchronous terminal
+// on_connection_state from within gatt_disconnect() would re-enter the
+// consumer mid-teardown. Semantics beyond the signatures:
 // - connect: addr_type is a BLE_ADDR_TYPE_* constant (ble_device.h).
+//   Returning 0 means the request is accepted, not that the radio acted: the
+//   backend owns integration with its platform's scan/connect arbitration
+//   (Bluedroid parks the request for the tracker's promote loop, which owns
+//   scan-stop/coex/one-connect-at-a-time; the rp2 backend opens immediately
+//   and relies on sighting-gated consumers). Consumers must not assume
+//   connect timing.
 // - gatt_disconnect: also cancels a connect in progress (named to coexist
 //   with a platform stack's own void disconnect() on one backend class).
 //   Nonzero means nothing to tear down and no completion will follow; an
@@ -142,6 +154,41 @@ concept BLEGattConnectionContract = requires(T conn, GattClientListener *listene
   // carry an inline no-op.
   { conn.set_connection_type(ConnectionType{}) } -> std::same_as<void>;
 };
+
+// ---- service table lookup helpers ----
+//
+// Neutral, bounds-checked walks over a materialized GattServiceTable for
+// direct consumers that resolve a known device's handles by UUID (streaming
+// consumers forward the raw database and never need these). Linear search:
+// the table exists only between discovery and release_services(), for one
+// small known device.
+
+/// Client Characteristic Configuration descriptor UUID (Bluetooth spec).
+static constexpr uint16_t CCCD_UUID = 0x2902;
+
+// Characteristic property bits (the Bluetooth-spec declaration byte carried
+// in GattCharacteristic::properties; the ESP-IDF macros for these do not
+// exist on the other platforms).
+static constexpr uint8_t GATT_CHAR_PROP_WRITE_NO_RSP = 0x04;
+static constexpr uint8_t GATT_CHAR_PROP_WRITE = 0x08;
+
+inline const GattService *find_service(const GattServiceTable &table, const ESPBTUUID &uuid) {
+  for (uint16_t i = 0; i < table.service_count; i++) {
+    if (table.services[i].uuid == uuid)
+      return &table.services[i];
+  }
+  return nullptr;
+}
+
+const GattCharacteristic *find_characteristic(const GattServiceTable &table, const GattService &service,
+                                              const ESPBTUUID &uuid);
+
+const GattDescriptor *find_descriptor(const GattServiceTable &table, const GattCharacteristic &characteristic,
+                                      const ESPBTUUID &uuid);
+
+/// Handle of the characteristic's Client Characteristic Configuration
+/// descriptor (0x2902), or 0 when it has none.
+uint16_t find_cccd(const GattServiceTable &table, const GattCharacteristic &characteristic);
 
 }  // namespace esphome::ble_device_base
 

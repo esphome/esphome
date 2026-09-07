@@ -2,10 +2,11 @@
 
 #if defined(USE_ESP32_BLE) && defined(USE_BLE_GATT_CLIENT)
 
+#include "bluetooth_connection.h"
+
 // The in-place streamer serves the proxy's service-discovery API; backend-only
 // builds compile without the proxy headers or the streamer.
 #ifdef USE_BLUETOOTH_PROXY_CONNECTIONS
-#include "bluetooth_connection.h"
 #include "bluetooth_connection_hub.h"
 
 #include "esphome/components/bluetooth_proxy/bluetooth_proxy.h"
@@ -300,6 +301,9 @@ int BluedroidGattClient::update_connection_params(uint16_t min_interval, uint16_
 
 void BluedroidGattClient::release_services() {
   this->service_total_ = 0;
+#ifdef USE_BLUEDROID_GATT_SERVICE_TABLE
+  this->table_.free();
+#endif
   // Always set: terminates any in-flight stream on every cache config.
   this->services_released_ = true;
 #ifndef CONFIG_BT_GATTC_CACHE_NVS_FLASH
@@ -311,6 +315,24 @@ void BluedroidGattClient::release_services() {
   }
 #endif
 }
+
+#ifdef USE_BLUEDROID_GATT_SERVICE_TABLE
+ble_device_base::GattServiceTable BluedroidGattClient::get_service_table() {
+  // Lifetime: every teardown path (CLOSE_EVT, the safety timeout, stack-down,
+  // passive DISCONNECT) routes through release_services(), so a materialized
+  // table cannot outlive its link.
+  if (this->table_.empty() &&
+      (this->services_released_ || this->service_total_ == 0 ||
+       !this->table_.build(this->gattc_if_, this->conn_id_, this->service_total_, this->connection_index_))) {
+    // Released / no services / failed build all collapse to empty; the
+    // build failures warned above, log the quiet two.
+    ESP_LOGD(TAG, "[%d] No service table (released=%d, services=%u)", this->connection_index_, this->services_released_,
+             this->service_total_);
+    return {};
+  }
+  return this->table_.view();
+}
+#endif  // USE_BLUEDROID_GATT_SERVICE_TABLE
 
 // ---- internals ----
 
@@ -358,6 +380,11 @@ void BluedroidGattClient::log_gattc_warning_(const char *operation, int code) {
 // ---- service streaming ----
 
 int BluedroidGattClient::handle_search_cmpl_(esp_gatt_status_t status) {
+#ifdef USE_BLUEDROID_GATT_SERVICE_TABLE
+  // Re-discovery moves the counts the table view derives offsets from; free
+  // the stale table.
+  this->table_.free();
+#endif
   // Step down from the fast discovery params.
   this->update_conn_params_(MEDIUM_MIN_CONN_INTERVAL, MEDIUM_MAX_CONN_INTERVAL, 0, MEDIUM_CONN_TIMEOUT, "medium");
   if (status != ESP_GATT_OK) {

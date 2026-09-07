@@ -11,6 +11,9 @@
 
 #if defined(USE_ESP32_BLE) && defined(USE_BLE_GATT_CLIENT)
 
+#include "bluetooth_connection.h"
+#include "gatt_service_table_bluedroid.h"
+
 #include "esphome/components/ble_device_base/ble_gatt_client.h"
 #include "esphome/components/esp32_ble_tracker/esp32_ble_tracker.h"
 #include "esphome/core/component.h"
@@ -72,11 +75,16 @@ class BluedroidGattClient final : public esp32_ble_tracker::ESPBTClient, public 
   int notify_characteristic(uint16_t handle, bool enable);
   int pair();
   int update_connection_params(uint16_t min_interval, uint16_t max_interval, uint16_t latency, uint16_t timeout);
-  // Contract stub: the proxy streams in place; the on-demand materializer
-  // for direct consumers lands with #18205. NOTE: a direct consumer reaching
-  // this stub gets an empty table indistinguishable from a service-less
-  // peer - do not ship one against this backend before the materializer.
+  // On-demand table for direct consumers; the proxy streams instead, so the
+  // materializer compiles only under USE_BLUEDROID_GATT_SERVICE_TABLE (emitted by
+  // direct-consumer codegen, never by the proxy).
+#ifdef USE_BLUEDROID_GATT_SERVICE_TABLE
+  ble_device_base::GattServiceTable get_service_table();
+#else
+  // A direct consumer reaching this stub misconfigured its codegen
+  // (service_table=False): the empty table reads as a service-less peer.
   ble_device_base::GattServiceTable get_service_table() { return {}; }
+#endif
   void release_services();
 
 #ifdef USE_BLUETOOTH_PROXY_CONNECTIONS
@@ -105,6 +113,9 @@ class BluedroidGattClient final : public esp32_ble_tracker::ESPBTClient, public 
 
   // Group 1: pointers / composed objects
   ble_device_base::GattClientListener *listener_{nullptr};
+#ifdef USE_BLUEDROID_GATT_SERVICE_TABLE
+  BluedroidServiceTable table_;
+#endif
   // Group 2: 4-byte types
   uint32_t disconnecting_started_{0};
 
