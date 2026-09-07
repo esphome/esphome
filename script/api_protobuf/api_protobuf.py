@@ -2841,28 +2841,39 @@ def build_message_type(
             )
             for line in encode
         ]
-        o = f"{speed_attr}uint8_t *{desc.name}::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {{\n"
+        # The body is a static function taking the message as const void *, so its address is
+        # already a MessageEncodeFn and callers need no per-type thunk. The member encode() below
+        # forwards to it for direct callers.
+        o = f"{speed_attr}uint8_t *{desc.name}::encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) {{\n"
+        o += f"  const auto &msg = *static_cast<const {desc.name} *>(self);\n"
         o += "  uint8_t *__restrict__ pos = buffer.get_pos();\n"
-        o += indent("\n".join(encode_debug)) + "\n"
+        o += indent("\n".join(encode_debug)).replace("this->", "msg.") + "\n"
         o += "  return pos;\n"
         o += "}\n"
         cpp += o
-        prot = (
-            "uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const;"
+        public_content.append(
+            "static uint8_t *encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM);"
         )
-        public_content.append(prot)
+        public_content.append(
+            "uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {\n"
+            "  return encode_msg(this, buffer PROTO_ENCODE_DEBUG_ARG);\n"
+            "}"
+        )
     # If no fields to encode or message doesn't need encoding, the default implementation in ProtoMessage will be used
 
     # Add calculate_size method only if this message needs encoding and has fields
     if needs_encode and size_calc and not is_inline_only:
-        o = f"{speed_attr}uint32_t {desc.name}::calculate_size() const {{\n"
+        o = f"{speed_attr}uint32_t {desc.name}::calc_size_msg(const void *self) {{\n"
+        o += f"  const auto &msg = *static_cast<const {desc.name} *>(self);\n"
         o += "  uint32_t size = 0;\n"
-        o += indent("\n".join(size_calc)) + "\n"
+        o += indent("\n".join(size_calc)).replace("this->", "msg.") + "\n"
         o += "  return size;\n"
         o += "}\n"
         cpp += o
-        prot = "uint32_t calculate_size() const;"
-        public_content.append(prot)
+        public_content.append("static uint32_t calc_size_msg(const void *self);")
+        public_content.append(
+            "uint32_t calculate_size() const { return calc_size_msg(this); }"
+        )
     # If no fields to calculate size for or message doesn't need encoding, the default implementation in ProtoMessage will be used
 
     # dump_to method declaration in header

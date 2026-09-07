@@ -697,6 +697,14 @@ class ProtoMessage {
   // All call sites use templates to preserve the concrete type, so virtual
   // dispatch is not needed. This eliminates per-message vtable entries for
   // encode/calculate_size, saving ~1.3 KB of flash across all message types.
+  //
+  // encode_msg/calc_size_msg are the type-erased entry points: generated messages define them as
+  // static functions over const void *, so &T::encode_msg is passed directly where a function
+  // pointer is needed and no per-type thunk exists. The member forms forward to them.
+  static uint8_t *encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) {
+    return buffer.get_pos();
+  }
+  static uint32_t calc_size_msg(const void *self) { return 0; }
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const { return buffer.get_pos(); }
   uint32_t calculate_size() const { return 0; }
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -944,19 +952,14 @@ class ProtoSize {
 
 // Implementation of methods that depend on ProtoSize being fully defined
 
-// Encode thunk — converts void* back to concrete type for direct encode() call
-template<typename T> uint8_t *proto_encode_msg(const void *msg, ProtoWriteBuffer &buf PROTO_ENCODE_DEBUG_PARAM) {
-  return static_cast<const T *>(msg)->encode(buf PROTO_ENCODE_DEBUG_ARG);
-}
-
 // Thin template wrapper; delegates to non-template core in proto.cpp.
 template<typename T> inline void ProtoWriteBuffer::encode_sub_message(uint32_t field_id, const T &value) {
-  this->encode_sub_message(field_id, &value, &proto_encode_msg<T>);
+  this->encode_sub_message(field_id, &value, &T::encode_msg);
 }
 
 // Thin template wrapper; delegates to non-template core.
 template<typename T> inline void ProtoWriteBuffer::encode_optional_sub_message(uint32_t field_id, const T &value) {
-  this->encode_optional_sub_message(field_id, value.calculate_size(), &value, &proto_encode_msg<T>);
+  this->encode_optional_sub_message(field_id, T::calc_size_msg(&value), &value, &T::encode_msg);
 }
 
 // Template decode_to_message - preserves concrete type so decode() resolves statically
