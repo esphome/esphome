@@ -3,6 +3,7 @@
 #include <array>
 #include "esphome/components/binary_sensor/binary_sensor.h"
 #include "esphome/components/switch/switch.h"
+#include "esphome/core/controller_registry.h"
 
 namespace esphome::opentherm42 {
 
@@ -20,11 +21,15 @@ struct FlagReadBits {
   }
 
   // Called when the conversation that would have supplied this byte failed -- every configured bit
-  // must show unknown rather than keep stale data.
+  // must show unknown rather than keep stale data. set_has_state(false) alone doesn't notify
+  // already-connected API/web_server clients (only publish_state() does, via each domain's own
+  // internal call to ControllerRegistry) -- an already-subscribed client would otherwise keep
+  // showing the last known value forever, so that notification has to be triggered explicitly here.
   void invalidate() {
     for (auto *b : this->bits) {
       if (b != nullptr) {
         b->set_has_state(false);
+        ControllerRegistry::notify_binary_sensor_update(b);
       }
     }
   }
@@ -59,11 +64,13 @@ struct FlagWriteBits {
   // Called when the boiler has definitively rejected (DATA-INVALID/UNKNOWN-DATAID) the
   // conversation that carries this byte -- unlike a transient datalink error, this means the
   // underlying feature genuinely isn't present on this hardware, so every configured switch must
-  // show unknown rather than keep presenting a control that can never have any effect.
+  // show unknown rather than keep presenting a control that can never have any effect. See
+  // FlagReadBits::invalidate() above for why ControllerRegistry has to be called explicitly here.
   void invalidate() {
     for (auto *b : this->bits) {
       if (b != nullptr) {
         b->set_has_state(false);
+        ControllerRegistry::notify_switch_update(b);
       }
     }
   }
