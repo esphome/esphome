@@ -233,14 +233,17 @@ class TypeInfo(ABC):
     # targets switch on the full wire tag, the host switches on the field number and guards
     # the wire type. Either way a field that arrives with the wrong wire type falls through
     # to "return false" instead of being read from the wrong ProtoFieldValue member.
-    def decode_case(self, wire_type: WireType, body: str) -> str:
-        """Emit one decode_field() case for a field and the wire type it expects."""
-        return (
-            f"case PROTO_DECODE_CASE({self.number}, {int(wire_type)}):\n"
-            f"  PROTO_DECODE_GUARD(tag, {self.number}, {int(wire_type)});\n"
-            f"  {body}\n"
-            f"  break;"
-        )
+    def decode_case(self, wire_type: WireType, body: str, scoped: bool = False) -> str:
+        """Emit one decode_field() case for a field and the wire type it expects.
+
+        Bodies that declare locals must be scoped so the jump to the next case label
+        does not cross an initialization.
+        """
+        label = f"case PROTO_DECODE_CASE({self.number}, {int(wire_type)}):"
+        guard = f"PROTO_DECODE_GUARD(tag, {self.number}, {int(wire_type)});"
+        if scoped:
+            return f"{label} {{\n" + indent(f"{guard}\n{body}\nbreak;") + "\n}"
+        return f"{label}\n" + indent(f"{guard}\n{body}\nbreak;")
 
     @property
     def decode_varint_content(self) -> str:
@@ -1025,7 +1028,8 @@ class MessageType(TypeInfo):
             return self.decode_case(
                 WireType.LENGTH_DELIMITED,
                 f"value.decode_to_message(this->{self.field_name});\n"
-                f"  this->has_{self.name} = true;",
+                f"this->has_{self.name} = true;",
+                scoped=True,
             )
         return self.decode_case(
             WireType.LENGTH_DELIMITED,
@@ -1229,7 +1233,8 @@ class PointerToBytesBufferType(PointerToBufferTypeBase):
         return self.decode_case(
             WireType.LENGTH_DELIMITED,
             f"this->{self.field_name} = value.data();\n"
-            f"  this->{self.field_name}_len = value.size();",
+            f"this->{self.field_name}_len = value.size();",
+            scoped=True,
         )
 
     def dump(self, name: str) -> str:
@@ -1368,8 +1373,9 @@ class PackedBufferTypeInfo(TypeInfo):
         return self.decode_case(
             WireType.LENGTH_DELIMITED,
             f"this->{self.field_name}_data_ = value.data();\n"
-            f"  this->{self.field_name}_length_ = value.size();\n"
-            f"  this->{self.field_name}_count_ = count_packed_varints(value.data(), value.size());",
+            f"this->{self.field_name}_length_ = value.size();\n"
+            f"this->{self.field_name}_count_ = count_packed_varints(value.data(), value.size());",
+            scoped=True,
         )
 
     @property
@@ -1457,12 +1463,12 @@ class FixedArrayBytesType(TypeInfo):
     @property
     def decode_length_content(self) -> str:
         body = "const std::string &data_str = value.as_string();\n"
-        body += f"  this->{self.field_name}_len = data_str.size();\n"
-        body += f"  if (this->{self.field_name}_len > {self.array_size}) {{\n"
-        body += f"    this->{self.field_name}_len = {self.array_size};\n"
-        body += "  }\n"
-        body += f"  memcpy(this->{self.field_name}, data_str.data(), this->{self.field_name}_len);"
-        return self.decode_case(WireType.LENGTH_DELIMITED, body)
+        body += f"this->{self.field_name}_len = data_str.size();\n"
+        body += f"if (this->{self.field_name}_len > {self.array_size}) {{\n"
+        body += f"  this->{self.field_name}_len = {self.array_size};\n"
+        body += "}\n"
+        body += f"memcpy(this->{self.field_name}, data_str.data(), this->{self.field_name}_len);"
+        return self.decode_case(WireType.LENGTH_DELIMITED, body, scoped=True)
 
     @property
     def encode_content(self) -> str:
@@ -2159,7 +2165,8 @@ class RepeatedTypeInfo(TypeInfo):
             return self.decode_case(
                 WireType.LENGTH_DELIMITED,
                 f"this->{self.field_name}.emplace_back();\n"
-                f"  value.decode_to_message(this->{self.field_name}.back());",
+                f"value.decode_to_message(this->{self.field_name}.back());",
+                scoped=True,
             )
         if content is None:
             return None
