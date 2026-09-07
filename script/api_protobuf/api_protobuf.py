@@ -1134,6 +1134,8 @@ class PointerToBufferTypeBase(TypeInfo):
     def can_use_dump_field(cls) -> bool:
         return False
 
+    # Only here to make needs_decode required: the null string default keys off it, so a call
+    # site must not fall back on the base class default
     def __init__(
         self, field: descriptor.FieldDescriptorProto, needs_decode: bool
     ) -> None:
