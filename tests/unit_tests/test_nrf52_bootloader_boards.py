@@ -13,8 +13,8 @@ from esphome.components.nrf52 import _detect_bootloader, set_core_data
 from esphome.components.nrf52.boards import BOOTLOADER_CONFIG
 from esphome.components.nrf52.const import BOOTLOADER_NRF
 from esphome.components.zephyr.const import KEY_PM_STATIC, KEY_ZEPHYR
-from esphome.const import KEY_CORE, KEY_TARGET_PLATFORM
 import esphome.config_validation as cv
+from esphome.const import KEY_CORE, KEY_TARGET_PLATFORM
 from esphome.core import CORE
 
 # addresses from the PCA10059 memory map / Nordic Open DFU Bootloader
