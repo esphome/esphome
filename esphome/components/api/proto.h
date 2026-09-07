@@ -170,13 +170,9 @@ class ProtoVarInt {
 class ProtoMessage;
 class ProtoSize;
 
-// Generated decode_field() bodies switch on PROTO_DECODE_KEY and label each case with
-// PROTO_DECODE_CASE. Embedded targets compile switches to compare chains (ESP-IDF passes
-// -fno-jump-tables), so keying on the full wire tag costs one compare per field and needs no
-// separate wire type check. The host compiler turns the dense field number switch into a jump
-// table, so there the key is the field number and PROTO_DECODE_GUARD compares the tag against the
-// one the case declares, which rejects the wrong wire type in a single compare. Both forms drop a
-// field that arrives with a wire type it does not declare, as the per wire type virtuals did.
+// Switch key for generated decode_field() bodies. Embedded builds use compare chains
+// (-fno-jump-tables), so the full tag is one compare per field with no guard. The host gets a
+// jump table from the dense field number switch plus a tag compare that rejects the wrong wire type.
 #ifdef USE_HOST
 #define PROTO_DECODE_KEY(tag) ((tag) >> 3)
 #define PROTO_DECODE_CASE(field_id, wire_type) (field_id)
@@ -189,10 +185,8 @@ class ProtoSize;
 #define PROTO_DECODE_GUARD(tag, field_id, wire_type) (void) 0
 #endif
 
-/// Payload of one decoded field as decode_field() receives it: the payload pointer and one scalar
-/// that holds the varint or fixed32 value, or the byte length of a length-delimited field. The
-/// wire type in the tag says which reading applies; the accessors do not check. Built by the
-/// generated decode_field() from its two register arguments, so it never exists in memory.
+/// One decoded field: the payload pointer and a scalar holding the varint or fixed32 value, or the
+/// length of a length-delimited field. The wire type in the tag says which applies; accessors do not check.
 class ProtoFieldValue {
  public:
   ProtoFieldValue(const uint8_t *data, proto_varint_value_t scalar) : data_(data), scalar_(scalar) {}
@@ -750,11 +744,9 @@ class ProtoDecodableMessage : public ProtoMessage {
 
  protected:
   ~ProtoDecodableMessage() = default;
-  /// Store one decoded field. \p tag is the wire tag (field number and wire type), \p data points at
-  /// the field payload and \p scalar is the varint or fixed32 value, or the payload length for a
-  /// length-delimited field. Three register arguments keep the shared loop free of spills. Return
-  /// false for an unknown field or one that arrived with a wire type it does not declare.
-  /// One virtual instead of one per wire type keeps each message's vtable at a single slot.
+  /// Store one decoded field; \p scalar is the varint or fixed32 value, or the length of the
+  /// length-delimited payload at \p data. Return false for an unknown field or wrong wire type.
+  /// Three register arguments keep the decode loop free of spills.
   // NOTE: wire type 1 (64-bit fixed) is not supported
   virtual bool decode_field(uint32_t tag, const uint8_t *data, proto_varint_value_t scalar) { return false; }
 };

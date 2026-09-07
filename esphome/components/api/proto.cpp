@@ -214,8 +214,7 @@ void ProtoDecodableMessage::decode(const uint8_t *buffer, size_t length) {
   const uint8_t *ptr = buffer;
   const uint8_t *end = buffer + length;
 
-  // Single-byte varints dominate real messages (tags, small lengths, bools, enums), so that case
-  // advances the cursor inline; a merged path would materialize the consumed count and add it.
+  // Single-byte varints dominate, so that case advances the cursor inline.
   auto read_varint = [&](proto_varint_value_t &value) ESPHOME_ALWAYS_INLINE {
     if (ptr == end)
       return false;
@@ -240,7 +239,7 @@ void ProtoDecodableMessage::decode(const uint8_t *buffer, size_t length) {
 
     uint32_t tag = static_cast<uint32_t>(tag_value);
     uint32_t field_type = tag & WIRE_TYPE_MASK;
-    // Payload start for scalar wire types; length-delimited fields advance it past the length.
+    // Length-delimited fields move this past the length prefix
     const uint8_t *data = ptr;
     proto_varint_value_t scalar;
 
