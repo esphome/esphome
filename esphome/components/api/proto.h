@@ -700,7 +700,9 @@ class ProtoMessage {
   //
   // encode_msg/calc_size_msg are the type-erased entry points: generated messages define them as
   // static functions over const void *, so &T::encode_msg is passed directly where a function
-  // pointer is needed and no per-type thunk exists. The member forms forward to them.
+  // pointer is needed and no per-type thunk exists. Generated classes also define encode() and
+  // calculate_size() as inline forwarders to their statics; the four defaults here are independent
+  // no-ops for messages without fields.
   static uint8_t *encode_msg(const void *self, ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) {
     return buffer.get_pos();
   }
