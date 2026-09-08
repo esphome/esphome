@@ -26,13 +26,14 @@ static const uint8_t MLX90614_ID4 = 0x3F;
 
 static const char *const TAG = "mlx90614";
 
+// SMBus packet error code: CRC-8 with polynomial 0x07, MSB first
+static uint8_t crc8_pec(const uint8_t *data, uint8_t len) { return crc8(data, len, 0x00, 0x07, true); }
+
 void MLX90614Component::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up MLX90614...");
   this->emissivity_write_ec_ = this->write_emissivity_();
   if (this->emissivity_write_ec_ != i2c::ERROR_OK) {
     ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
     this->status_set_warning("Setup failed to set emissivity. Will retry later");
-    return;
   }
 }
 
@@ -41,69 +42,64 @@ i2c::ErrorCode MLX90614Component::write_emissivity_() {
     return i2c::ERROR_OK;
   }
 
-  uint16_t read_emissivity;
-  const auto ec = read_register_(MLX90614_EMISSIVITY, read_emissivity);
-  if (i2c::ERROR_OK != ec) {
+  // Skip the write when the EEPROM already holds the desired value to save write cycles
+  uint16_t current_emissivity;
+  const auto ec = this->read_register_(MLX90614_EMISSIVITY, current_emissivity);
+  if (ec != i2c::ERROR_OK) {
     return ec;
   }
 
-  const auto desired_emissivity = uint16_t(this->emissivity_ * 0xFFFF);
-  if (read_emissivity == desired_emissivity) {
-    return ec;
+  const auto desired_emissivity = static_cast<uint16_t>(this->emissivity_ * 0xFFFF);
+  if (current_emissivity == desired_emissivity) {
+    return i2c::ERROR_OK;
   }
 
   return this->write_register_(MLX90614_EMISSIVITY, desired_emissivity);
 }
 
-uint8_t crc8_pec(const uint8_t *data, uint8_t len) { return crc8(data, len, 0x00, 0x07, true); }
-
 i2c::ErrorCode MLX90614Component::write_register_(uint8_t reg, uint16_t data) {
+  // The PEC covers the whole write transaction: SLA+W, command, data low, data high
   uint8_t buf[5];
-  i2c::ErrorCode ec = i2c::ERROR_UNKNOWN;
-
-  // See 8.3.3.1. ERPROM write sequence
-  // 1. Power up the device
-  const uint8_t delay_ms = 10;
   buf[0] = this->address_ << 1;
   buf[1] = reg;
 
-  // 2. Write 0x0000 into the cell of interest (effectively erasing the cell)
+  // See datasheet 8.3.3.1 EEPROM write sequence
+  // 1. Write 0x0000 into the cell of interest (erases the cell)
   buf[2] = buf[3] = 0;
   buf[4] = crc8_pec(buf, 4);
-  ec = this->write_register(reg, buf + 2, 3);
-  if (i2c::ERROR_OK != ec) {
-    ESP_LOGW(TAG, "Can't clean register %x, error %d", reg, ec);
+  auto ec = this->write_register(reg, buf + 2, 3);
+  if (ec != i2c::ERROR_OK) {
+    ESP_LOGW(TAG, "Can't erase register 0x%02X, error %d", reg, ec);
     return ec;
   }
 
-  // 3. Wait at least 5ms (10ms to be on the safe side)
-  delay(delay_ms);
+  // 2. Wait at least 5ms
+  delay(10);
 
-  // 4. Write the new value
+  // 3. Write the new value
   if (data != 0) {
     buf[2] = data & 0xFF;
     buf[3] = data >> 8;
     buf[4] = crc8_pec(buf, 4);
     ec = this->write_register(reg, buf + 2, 3);
-    if (i2c::ERROR_OK != ec) {
-      ESP_LOGW(TAG, "Can't write register %x, error %d", reg, ec);
+    if (ec != i2c::ERROR_OK) {
+      ESP_LOGW(TAG, "Can't write register 0x%02X, error %d", reg, ec);
       return ec;
     }
-    // 5. Wait at least 5ms (10ms to be on the safe side)
-    delay(delay_ms);
+    // 4. Wait at least 5ms
+    delay(10);
   }
 
-  uint8_t read_buf[3];
-  // 6. Read back and compare if the write was successful
-  ec = this->read_register(reg, read_buf, 3, false);
-  if (i2c::ERROR_OK != ec) {
-    ESP_LOGW(TAG, "Can't check register %x value", reg);
+  // 5. Read back to confirm the value was stored
+  uint16_t read_back;
+  ec = this->read_register_(reg, read_back);
+  if (ec != i2c::ERROR_OK) {
+    ESP_LOGW(TAG, "Can't check register 0x%02X value", reg);
     return ec;
   }
 
-  if (read_buf[0] != buf[2] || read_buf[1] != buf[3] || read_buf[2] != buf[4]) {
-    ESP_LOGW(TAG, "Read back value is not the same. Expected %x%x%x. Actual %x%x%x", buf[2], buf[3], buf[4],
-             read_buf[0], read_buf[1], read_buf[2]);
+  if (read_back != data) {
+    ESP_LOGW(TAG, "Read back mismatch on register 0x%02X. Expected 0x%04X, got 0x%04X", reg, data, read_back);
     return i2c::ERROR_CRC;
   }
 
@@ -111,23 +107,21 @@ i2c::ErrorCode MLX90614Component::write_register_(uint8_t reg, uint16_t data) {
 }
 
 i2c::ErrorCode MLX90614Component::read_register_(uint8_t reg, uint16_t &data) {
+  // The PEC covers the whole read transaction: SLA+W, command, SLA+R, data low, data high
   uint8_t buf[6];
-  // master write
   buf[0] = this->address_ << 1;
   buf[1] = reg;
-  // master read
   buf[2] = (this->address_ << 1) | 0x01;
 
-  const auto ec = this->read_register(reg, buf + 3, 3, false);
-
-  if (i2c::ERROR_OK != ec) {
+  const auto ec = this->read_register(reg, buf + 3, 3);
+  if (ec != i2c::ERROR_OK) {
     ESP_LOGW(TAG, "i2c read error %d", ec);
     return ec;
   }
 
   const auto expected_pec = crc8_pec(buf, 5);
   if (buf[5] != expected_pec) {
-    ESP_LOGW(TAG, "i2c CRC error. Expected %x. Actual %x", expected_pec, buf[5]);
+    ESP_LOGW(TAG, "i2c CRC error. Expected 0x%02X, got 0x%02X", expected_pec, buf[5]);
     return i2c::ERROR_CRC;
   }
 
@@ -138,52 +132,47 @@ i2c::ErrorCode MLX90614Component::read_register_(uint8_t reg, uint16_t &data) {
 void MLX90614Component::dump_config() {
   ESP_LOGCONFIG(TAG, "MLX90614:");
   LOG_I2C_DEVICE(this);
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-  }
-
-  if (i2c::ERROR_OK != this->emissivity_write_ec_) {
+  if (this->emissivity_write_ec_ != i2c::ERROR_OK) {
     ESP_LOGE(TAG, "Emissivity update error %d", this->emissivity_write_ec_);
   }
-
-  if (i2c::ERROR_OK != this->object_read_ec_) {
-    ESP_LOGE(TAG, "Object temperature read error %d", this->object_read_ec_);
-  }
-
-  if (i2c::ERROR_OK != this->ambient_read_ec_) {
-    ESP_LOGE(TAG, "Ambient temperature read error %d", this->ambient_read_ec_);
-  }
-
   LOG_UPDATE_INTERVAL(this);
   LOG_SENSOR("  ", "Ambient", this->ambient_sensor_);
   LOG_SENSOR("  ", "Object", this->object_sensor_);
 }
 
 void MLX90614Component::update() {
-  if (i2c::ERROR_OK != this->emissivity_write_ec_) {
+  if (this->emissivity_write_ec_ != i2c::ERROR_OK) {
     this->emissivity_write_ec_ = this->write_emissivity_();
-    if (i2c::ERROR_OK != this->emissivity_write_ec_) {
+    if (this->emissivity_write_ec_ != i2c::ERROR_OK) {
       this->status_set_warning("Failed to write emissivity");
       return;
     }
   }
 
-  auto publish_sensor = [&](sensor::Sensor *sensor, uint8_t reg) {
-    if (nullptr == sensor) {
+  // Publishes NAN on a bus or CRC failure so a stuck reading is visible instead of silently stale
+  auto publish_sensor = [this](sensor::Sensor *sensor, uint8_t reg) {
+    if (sensor == nullptr) {
       return i2c::ERROR_OK;
     }
 
     uint16_t raw;
-    const auto ec = read_register_(reg, raw);
-    sensor->publish_state(ec != i2c::ERROR_OK || (raw & 0x8000) ? NAN : float(raw) * 0.02f - 273.15f);
+    const auto ec = this->read_register_(reg, raw);
+    if (ec != i2c::ERROR_OK) {
+      sensor->publish_state(NAN);
+      return ec;
+    }
+
+    // Bit 15 set means the device flagged the reading as invalid
+    const float temperature = (raw & 0x8000) ? NAN : raw * 0.02f - 273.15f;
+    ESP_LOGD(TAG, "'%s': Got temperature=%.1f°C", sensor->get_name().c_str(), temperature);
+    sensor->publish_state(temperature);
     return ec;
   };
 
-  this->object_read_ec_ = publish_sensor(this->object_sensor_, MLX90614_TEMPERATURE_OBJECT_1);
-  this->ambient_read_ec_ = publish_sensor(this->ambient_sensor_, MLX90614_TEMPERATURE_AMBIENT);
+  const auto object_ec = publish_sensor(this->object_sensor_, MLX90614_TEMPERATURE_OBJECT_1);
+  const auto ambient_ec = publish_sensor(this->ambient_sensor_, MLX90614_TEMPERATURE_AMBIENT);
 
-  if (this->ambient_read_ec_ == i2c::ERROR_OK && this->object_read_ec_ == i2c::ERROR_OK &&
-      this->emissivity_write_ec_ == i2c::ERROR_OK) {
+  if (object_ec == i2c::ERROR_OK && ambient_ec == i2c::ERROR_OK) {
     this->status_clear_warning();
   } else {
     this->status_set_warning("Failed to read some sensors");
