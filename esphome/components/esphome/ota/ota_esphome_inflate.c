@@ -45,8 +45,8 @@
 #define TINF_DONE OTA_INFLATE_DONE
 #define TINF_DATA_ERROR OTA_INFLATE_DATA_ERROR
 #define TINF_DICT_ERROR OTA_INFLATE_DICT_ERROR
-#define TINF_DATA struct ota_inflate_state
-#define TINF_TREE ota_inflate_tree_t
+#define TINF_DATA struct OtaInflateState
+#define TINF_TREE struct OtaInflateTree
 #define TINF_ARRAY_SIZE(arr) (sizeof(arr) / sizeof(*(arr)))
 
 /* every output byte also goes into the ring window */

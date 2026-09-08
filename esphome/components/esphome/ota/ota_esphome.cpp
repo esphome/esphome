@@ -44,6 +44,8 @@ const noise::NoiseContext &ESPHomeOTAComponent::noise_context_() const {
 static constexpr uint16_t OTA_BLOCK_SIZE = 8192;
 static constexpr uint32_t OTA_SOCKET_TIMEOUT_HANDSHAKE = 20000;  // milliseconds for initial handshake
 static constexpr uint32_t OTA_SOCKET_TIMEOUT_DATA = 90000;       // milliseconds for data transfer
+static constexpr uint32_t OTA_PROGRESS_INTERVAL_MS = 1000;
+static constexpr size_t OTA_SIZE_FIELD_BYTES = 4;  // sizes on the wire are 4 bytes MSB first
 
 // Single-instance pointer — multi-port configs are rejected in final_validate.
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
@@ -472,24 +474,13 @@ void ESPHomeOTAComponent::handle_data_() {
   }
   ESP_LOGV(TAG, "OTA type is 0x%02x", ota_type);
 
-  // Read size, 4 bytes MSB first
-  if (!this->data_readall_(buf, 4)) {
-    this->log_read_error_(LOG_STR("size"));
+  if (!this->read_size_(buf, xfer.ota_size, LOG_STR("size")))
     goto error;  // NOLINT(cppcoreguidelines-avoid-goto)
-  }
-  xfer.ota_size = encode_uint32(buf[0], buf[1], buf[2], buf[3]);
-  ESP_LOGV(TAG, "Size is %zu bytes", xfer.ota_size);
   image_size = xfer.ota_size;
 #ifdef USE_OTA_DEFLATE
-  if (this->inflate_ != nullptr) {
-    // A deflate upload also announces the inflated size, 4 bytes MSB first
-    if (!this->data_readall_(buf, 4)) {
-      this->log_read_error_(LOG_STR("image size"));
-      goto error;  // NOLINT(cppcoreguidelines-avoid-goto)
-    }
-    image_size = encode_uint32(buf[0], buf[1], buf[2], buf[3]);
-    ESP_LOGV(TAG, "Inflated size is %zu bytes", image_size);
-  }
+  // A deflate upload also announces the inflated size
+  if (this->inflate_ != nullptr && !this->read_size_(buf, image_size, LOG_STR("image size")))
+    goto error;  // NOLINT(cppcoreguidelines-avoid-goto)
 #endif
 
 #ifndef USE_OTA_PARTITIONS
@@ -746,6 +737,16 @@ bool ESPHomeOTAComponent::try_write_(size_t to_write, const LogString *desc) {
   return this->handshake_buf_pos_ >= to_write;
 }
 
+bool ESPHomeOTAComponent::read_size_(uint8_t *buf, size_t &size, const LogString *desc) {
+  if (!this->data_readall_(buf, OTA_SIZE_FIELD_BYTES)) {
+    this->log_read_error_(desc);
+    return false;
+  }
+  size = encode_uint32(buf[0], buf[1], buf[2], buf[3]);
+  ESP_LOGV(TAG, "%s is %zu bytes", LOG_STR_ARG(desc), size);
+  return true;
+}
+
 ssize_t ESPHomeOTAComponent::receive_data_(uint8_t *buf, DataTransfer &xfer) {
   const size_t remaining = xfer.ota_size - xfer.total;
   const size_t requested = std::min(remaining, OTA_BUFFER_SIZE);
@@ -795,7 +796,7 @@ ssize_t ESPHomeOTAComponent::receive_data_(uint8_t *buf, DataTransfer &xfer) {
     xfer.acknowledged += OTA_BLOCK_SIZE;
   }
 #endif
-  if (now - xfer.last_progress > 1000) {
+  if (now - xfer.last_progress > OTA_PROGRESS_INTERVAL_MS) {
     xfer.last_progress = now;
     float percentage = (xfer.total * 100.0f) / xfer.ota_size;
     ESP_LOGD(TAG, "Progress: %0.1f%%", percentage);
@@ -809,29 +810,27 @@ ssize_t ESPHomeOTAComponent::receive_data_(uint8_t *buf, DataTransfer &xfer) {
 }
 
 #ifdef USE_OTA_DEFLATE
-int ESPHomeOTAComponent::inflate_read_cb_(ota_inflate_state *d) {
-  // state is the first member, so the session is the same address (checked below)
-  auto *session = reinterpret_cast<InflateSession *>(d);
-  ssize_t read = session->self->receive_data_(session->in, *session->xfer);
-  if (read <= 0)
-    return -1;
-  d->source = session->in + 1;
-  d->source_limit = session->in + read;
-  return session->in[0];
-}
-
 // The window doubles as the output buffer: the decoder fills it, we flush it to
 // the backend, and its bytes remain available as the back-reference history for
 // the next windowful.
 ota::OTAResponseTypes ESPHomeOTAComponent::inflate_data_(uint8_t *in, size_t image_size, DataTransfer &xfer) {
-  static_assert(offsetof(InflateSession, state) == 0, "inflate_read_cb_ recovers the session from &state");
+  static_assert(offsetof(InflateSession, state) == 0, "the read callback recovers the session from &state");
   InflateSession &session = *this->inflate_;
-  ota_inflate_state &state = session.state;
+  OtaInflateState &state = session.state;
   session.self = this;
   session.xfer = &xfer;
   session.in = in;
   ota_inflate_init(&state, session.window, OTA_INFLATE_WINDOW_SIZE);
-  state.source_read_cb = &ESPHomeOTAComponent::inflate_read_cb_;
+  // Pulls the next compressed chunk when the decoder runs dry
+  state.source_read_cb = [](OtaInflateState *d) -> int {
+    auto *s = reinterpret_cast<InflateSession *>(d);
+    ssize_t read = s->self->receive_data_(s->in, *s->xfer);
+    if (read <= 0)
+      return -1;
+    d->source = s->in + 1;
+    d->source_limit = s->in + read;
+    return s->in[0];
+  };
 
   size_t written = 0;
   int res;

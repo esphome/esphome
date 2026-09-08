@@ -94,6 +94,9 @@ _SUPPORTED_OTA_TYPES: frozenset[int] = frozenset(
 )
 
 UPLOAD_BLOCK_SIZE = 8192
+# Sizes on the wire are 4 bytes MSB first
+SIZE_FIELD_BYTES = 4
+COMPRESS_LEVEL = 9
 UPLOAD_BUFFER_SIZE = UPLOAD_BLOCK_SIZE * 8
 
 # Flaky Wi-Fi links often drop the first OTA attempt, and the device may need time
@@ -651,11 +654,13 @@ def perform_ota(
     deflate = False
     if features & SERVER_FEATURE_SUPPORTS_COMPRESSION:
         # The device stores the gzip file and inflates it when it reboots
-        upload_contents = gzip.compress(file_contents, compresslevel=9)
+        upload_contents = gzip.compress(file_contents, compresslevel=COMPRESS_LEVEL)
         _LOGGER.info("Compressed to %s bytes", len(upload_contents))
     elif extended_proto and features & SERVER_FEATURE_SUPPORTS_DEFLATE:
         # The device inflates while receiving through a small ring window
-        compressor = zlib.compressobj(9, zlib.DEFLATED, -DEFLATE_WINDOW_BITS)
+        compressor = zlib.compressobj(
+            COMPRESS_LEVEL, zlib.DEFLATED, -DEFLATE_WINDOW_BITS
+        )
         upload_contents = compressor.compress(file_contents) + compressor.flush()
         deflate = True
         _LOGGER.info("Compressed to %s bytes (deflate)", len(upload_contents))
@@ -717,7 +722,7 @@ def perform_ota(
         send_check(sock, ota_type, "ota type")
 
     upload_size = len(upload_contents)
-    upload_size_encoded = upload_size.to_bytes(4, "big")
+    upload_size_encoded = upload_size.to_bytes(SIZE_FIELD_BYTES, "big")
     # The device erases flash between receiving the size and acking the
     # prepare, so this window shows the erase cost (near zero when the
     # device erases lazily during the upload)
@@ -726,7 +731,9 @@ def perform_ota(
     if deflate:
         # The device sizes the partition by the inflated image; its own frame,
         # as an encrypted session carries one field per frame
-        send_check(sock, len(file_contents).to_bytes(4, "big"), "image size")
+        send_check(
+            sock, len(file_contents).to_bytes(SIZE_FIELD_BYTES, "big"), "image size"
+        )
     receive_exactly(sock, 1, "update prepare result", RESPONSE_UPDATE_PREPARE_OK)
     prepare_duration = time.perf_counter() - prepare_start
     _LOGGER.info("Preparing for upload took %.2f seconds", prepare_duration)
