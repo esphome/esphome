@@ -92,6 +92,9 @@ class ESPHomeOTAComponent final : public ota::OTAComponent {
   // The api server's live context when it exists, otherwise our own (a build
   // time key, or the saved key loaded in safe mode)
   const noise::NoiseContext &noise_context_() const;
+  // True once the feature ack offers noise and the client asked for it
+  bool noise_offered_() const;
+  void noise_reserve_session_();
   bool noise_start_session_(uint8_t server_feature_flags);
   bool handle_noise_handshake_();
   bool noise_try_read_frame_();
