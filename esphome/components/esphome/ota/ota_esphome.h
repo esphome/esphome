@@ -143,7 +143,7 @@ class ESPHomeOTAComponent final : public ota::OTAComponent {
 #else
   static constexpr bool ACK_AFTER_WRITE = false;
 #endif
-  inline void send_chunk_acks_(DataTransfer &xfer);
+  void send_chunk_acks_(DataTransfer &xfer);
   inline void ack_received_(DataTransfer &xfer) {
     if (!ACK_AFTER_WRITE)
       this->send_chunk_acks_(xfer);
