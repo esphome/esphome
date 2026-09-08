@@ -308,9 +308,10 @@ async def to_code(config: ConfigType) -> None:
     if config.get(CONF_ALLOW_PARTITION_ACCESS):
         cg.add_define("USE_OTA_PARTITIONS")
 
-    # ESP8266 inflates gzip in its bootloader; every other platform inflates
-    # a deflate stream on the fly while it receives the image
-    if not CORE.is_esp8266:
+    # ESP8266 and RP2040 inflate a gzip image at reboot from their bootloader
+    # or OTA stub; every other platform inflates a deflate stream on the fly
+    # while it receives the image
+    if not (CORE.is_esp8266 or CORE.is_rp2):
         cg.add_define("USE_OTA_DEFLATE")
 
     # One key per device: an api encryption block supplies it (static or
