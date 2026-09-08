@@ -1,0 +1,25 @@
+---
+esphome:
+  name: test-device
+  name_add_mac_suffix: true
+
+esp8266:
+  board: d1_mini_lite
+
+wifi:
+  ssid: MySSID
+  password: password1
+
+mqtt:
+  broker: 192.168.1.2
+  topic_prefix: test-device2
+  log_topic: test-device/log
+  birth_message:
+    topic: other/status
+    payload: online
+  will_message:
+    topic: other/status
+    payload: offline
+  shutdown_message:
+    topic: test-device
+    payload: offline

@@ -31,10 +31,12 @@ from esphome.const import (
     CONF_DISCOVERY_RETAIN,
     CONF_DISCOVERY_UNIQUE_ID_GENERATOR,
     CONF_ENABLE_ON_BOOT,
+    CONF_ESPHOME,
     CONF_ID,
     CONF_KEEPALIVE,
     CONF_LEVEL,
     CONF_LOG_TOPIC,
+    CONF_NAME_ADD_MAC_SUFFIX,
     CONF_ON_CONNECT,
     CONF_ON_DISCONNECT,
     CONF_ON_JSON_MESSAGE,
@@ -335,12 +337,28 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
+def _topic_expression(topic: str) -> cg.MockObj | str:
+    """Return the codegen value for an MQTT topic.
+
+    ``CORE.name`` never includes the MAC suffix, so when ``name_add_mac_suffix``
+    is enabled a topic that starts with the device name is rebuilt at runtime
+    from ``App.get_name()``, which does include the suffix.
+    """
+    if not CORE.config[CONF_ESPHOME][CONF_NAME_ADD_MAC_SUFFIX]:
+        return topic
+    if topic == CORE.name:
+        return cg.App.get_name()
+    if topic.startswith(f"{CORE.name}/"):
+        return cg.App.get_name() + topic[len(CORE.name) :]
+    return topic
+
+
 def exp_mqtt_message(config):
     if config is None:
         return cg.optional(cg.TemplateArguments(MQTTMessage))
     return cg.StructInitializer(
         MQTTMessage,
-        ("topic", config[CONF_TOPIC]),
+        ("topic", _topic_expression(config[CONF_TOPIC])),
         ("payload", config.get(CONF_PAYLOAD, "")),
         ("qos", config[CONF_QOS]),
         ("retain", config[CONF_RETAIN]),
@@ -413,7 +431,7 @@ async def to_code(config):
             )
         )
 
-    cg.add(var.set_topic_prefix(config[CONF_TOPIC_PREFIX]))
+    cg.add(var.set_topic_prefix(_topic_expression(config[CONF_TOPIC_PREFIX])))
 
     if config[CONF_USE_ABBREVIATIONS]:
         cg.add_define("USE_MQTT_ABBREVIATIONS")
