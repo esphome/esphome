@@ -537,7 +537,7 @@ void ESPHomeOTAComponent::handle_data_() {
       error_code = this->write_flash_(buf, read);
       if (error_code != ota::OTA_RESPONSE_OK)
         goto error;  // NOLINT(cppcoreguidelines-avoid-goto)
-      this->send_chunk_acks_(xfer);
+      this->ack_written_(xfer);
     }
   }
 
@@ -794,6 +794,7 @@ ssize_t ESPHomeOTAComponent::receive_data_(uint8_t *buf, DataTransfer &xfer) {
   const uint32_t now = millis();
   xfer.last_data_ms = now;
   xfer.total += read;
+  this->ack_received_(xfer);
   if (now - xfer.last_progress > OTA_PROGRESS_INTERVAL_MS) {
     xfer.last_progress = now;
     float percentage = (xfer.total * 100.0f) / xfer.ota_size;
@@ -850,14 +851,14 @@ ota::OTAResponseTypes ESPHomeOTAComponent::inflate_data_(uint8_t *in, size_t ima
   session.error = ota::OTA_RESPONSE_OK;
   ota_inflate_init(&session, session.window, OTA_INFLATE_WINDOW_SIZE);
   // Pulls the next compressed chunk when the decoder runs dry. Everything
-  // received so far is decoded by then, so it is written and acked first,
-  // keeping a chunk ack meaning "in flash" as on the uncompressed path.
+  // received so far is decoded by then, so it is written first and, on the
+  // platforms that ack after the write, acked.
   session.source_read_cb = [](OtaInflateState *d) -> int {
     auto *s = static_cast<InflateSession *>(d);
     s->error = s->self->inflate_flush_(*s);
     if (s->error != ota::OTA_RESPONSE_OK)
       return -1;
-    s->self->send_chunk_acks_(*s->xfer);
+    s->self->ack_written_(*s->xfer);
     if (s->xfer->total >= s->xfer->ota_size) {
       ESP_LOGW(TAG, "Inflate size mismatch");
       return -1;
@@ -889,7 +890,7 @@ ota::OTAResponseTypes ESPHomeOTAComponent::inflate_data_(uint8_t *in, size_t ima
     ota::OTAResponseTypes flush_result = this->inflate_flush_(session);
     if (flush_result != ota::OTA_RESPONSE_OK)
       return flush_result;
-    this->send_chunk_acks_(xfer);
+    this->ack_written_(xfer);
   } while (res != OTA_INFLATE_DONE);
 
   if (session.written != image_size || xfer.total != xfer.ota_size) {

@@ -135,8 +135,23 @@ class ESPHomeOTAComponent final : public ota::OTAComponent {
   // Receives up to OTA_BUFFER_SIZE bytes of upload data into buf, waiting up to
   // the data timeout, and updates xfer. Returns bytes read, -1 on failure (logged).
   inline ssize_t receive_data_(uint8_t *buf, DataTransfer &xfer);
-  // Acks every received block once it is in flash, so an ack means written
+  // When lwIP runs in this loop the radio is deaf while a sector is written, so
+  // the client is kept quiet until the block is in flash; with a socket task the
+  // ack goes out on receipt so the next block arrives while this one is written
+#ifdef USE_SOCKET_IMPL_LWIP_TCP
+  static constexpr bool ACK_AFTER_WRITE = true;
+#else
+  static constexpr bool ACK_AFTER_WRITE = false;
+#endif
   inline void send_chunk_acks_(DataTransfer &xfer);
+  inline void ack_received_(DataTransfer &xfer) {
+    if (!ACK_AFTER_WRITE)
+      this->send_chunk_acks_(xfer);
+  }
+  inline void ack_written_(DataTransfer &xfer) {
+    if (ACK_AFTER_WRITE)
+      this->send_chunk_acks_(xfer);
+  }
   // Reads a 4 byte MSB first size field into size
   inline bool read_size_(uint8_t *buf, size_t &size, const LogString *desc);
   // Writes to the backend and logs a failure
