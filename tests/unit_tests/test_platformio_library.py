@@ -7,6 +7,7 @@ exercised in their own test modules)."""
 import json
 import logging
 from pathlib import Path
+from unittest.mock import Mock
 
 import pytest
 
@@ -226,6 +227,24 @@ def test_resolve_registry_version_raises_without_pkg_file(monkeypatch):
 
     with pytest.raises(RuntimeError, match="No package file"):
         _resolve_registry_version("owner", "pkg", set())
+
+
+def test_make_registry_client_skips_private_package_probe(monkeypatch):
+    """Our client answers the probe locally without patching PlatformIO's class."""
+    from platformio.account.client import AccountClient
+    from platformio.registry.client import RegistryClient
+
+    pio_probe = RegistryClient.__dict__["allowed_private_packages"]
+    monkeypatch.setattr(
+        AccountClient,
+        "get_account_info",
+        Mock(side_effect=AssertionError("account probe must not run")),
+    )
+
+    client = lib._make_registry_client().get_registry_client_instance()
+
+    assert client.allowed_private_packages() is False
+    assert RegistryClient.__dict__["allowed_private_packages"] is pio_probe
 
 
 def _patch_registry_resolve(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -638,7 +657,7 @@ def test_prefetch_wave_downloads_registry_archives_in_parallel(
     setup_core, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ) -> None:
     """Registry archives in one wave download concurrently, deduped by URL;
-    git/local sources and failures are left to the sequential call."""
+    local sources and failures are left to the sequential call."""
     calls: list[str] = []
 
     def fake_download(
@@ -658,7 +677,7 @@ def test_prefetch_wave_downloads_registry_archives_in_parallel(
         # into the same cache directory)
         ("b2", ConvertedLibrary("b2", "1.0", URLSource("https://x/b.tar.gz", 1))),
         ("c", ConvertedLibrary("c", "1.0", URLSource("https://x/boom.tar.gz", 1))),
-        ("g", ConvertedLibrary("g", "*", lib.GitSource("https://x/g.git", None))),
+        ("l", ConvertedLibrary("l", "*", LocalSource("/some/lib"))),
     ]
     lib._prefetch_wave(wave, "", "idf")
     assert sorted(calls) == [
@@ -668,6 +687,83 @@ def test_prefetch_wave_downloads_registry_archives_in_parallel(
     ]
     # The failure surfaces at default verbosity, after the bar
     assert "Prefetch of c failed (retrying sequentially)" in caplog.text
+
+
+def test_prefetch_wave_clones_git_sources_in_parallel(
+    setup_core, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Git sources join the same prefetch batch as the archives, deduped by
+    clone target; a clone failure warns and is left to the sequential call."""
+    caplog.set_level("INFO")
+    calls: list[str] = []
+
+    def fake_clone(self, dir_suffix, force=False, salt="", namespace=""):
+        calls.append(f"{self}/{dir_suffix}")
+        if "boom" in self.url:
+            raise RuntimeError("boom")
+
+    monkeypatch.setattr(GitSource, "download", fake_clone)
+    wave = [
+        ("a", ConvertedLibrary("a", "1.0", URLSource("https://x/a.tar.gz", 1))),
+        ("g", ConvertedLibrary("g", "*", GitSource("https://x/g.git", "v1"))),
+        # Same url@ref and target dir must clone once
+        ("g2", ConvertedLibrary("g", "*", GitSource("https://x/g.git", "v1"))),
+        ("h", ConvertedLibrary("h", "*", GitSource("https://x/boom.git", None))),
+    ]
+    monkeypatch.setattr(
+        URLSource, "download", lambda self, dir_suffix, progress=None, **kw: None
+    )
+    lib._prefetch_wave(wave, "", "idf")
+    assert sorted(calls) == ["https://x/boom.git/h", "https://x/g.git#v1/g"]
+    assert "Cloning 2 library repo(s): g, h" in caplog.text
+    assert "Prefetch of h failed (retrying sequentially)" in caplog.text
+
+
+def test_source_base_prefetch_defaults() -> None:
+    """The base Source is not prefetchable and reports cached (nothing to do)."""
+    source = Source()
+    assert source.prefetch_key("x") is None
+    assert source.is_cached("x") is True
+
+
+def test_prefetch_wave_single_clone_uses_the_batch(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A wave with only git sources still clones through the batch runner."""
+    caplog.set_level("INFO")
+    calls: list[str] = []
+    monkeypatch.setattr(GitSource, "is_cached", lambda self, *a, **kw: False)
+    monkeypatch.setattr(
+        GitSource,
+        "download",
+        lambda self, dir_suffix, force=False, salt="", namespace="": calls.append(
+            self.url
+        ),
+    )
+    lib._prefetch_wave(
+        [("g", ConvertedLibrary("g", "*", GitSource("https://x/g.git", None)))],
+        "",
+        "idf",
+    )
+    assert calls == ["https://x/g.git"]
+    assert "Cloning 1 library repo(s): g" in caplog.text
+    assert "Downloading" not in caplog.text
+
+
+def test_prefetch_wave_warm_git_cache_is_silent(
+    setup_core, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """An already-complete clone is neither re-fetched nor announced."""
+    caplog.set_level("INFO")
+    monkeypatch.setattr(
+        GitSource,
+        "download",
+        lambda self, dir_suffix, **kw: (_ for _ in ()).throw(AssertionError("cloned")),
+    )
+    monkeypatch.setattr(GitSource, "is_cached", lambda self, *a, **kw: True)
+    wave = [("g", ConvertedLibrary("g", "*", GitSource("https://x/g.git", None)))]
+    lib._prefetch_wave(wave, "", "idf")
+    assert "Cloning" not in caplog.text
 
 
 def test_prefetch_wave_unknown_size_left_to_sequential(

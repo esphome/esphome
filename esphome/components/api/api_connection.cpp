@@ -2177,7 +2177,10 @@ void APIConnection::on_homeassistant_action_response(const HomeassistantActionRe
 bool APIConnection::send_noise_encryption_set_key_response_(const NoiseEncryptionSetKeyRequest &msg) {
   NoiseEncryptionSetKeyResponse resp;
   resp.success = false;
-
+#ifdef USE_API_NOISE_PSK_FROM_YAML
+  // A yaml key cannot be changed at runtime, so no decode or save path is built
+  ESP_LOGW(TAG, "Key set in YAML");
+#else
 #ifdef USE_PROVISIONING
   // Refuse to set a key once the provisioning window has closed (defense in depth;
   // such connections are already rejected at hello).
@@ -2212,6 +2215,7 @@ bool APIConnection::send_noise_encryption_set_key_response_(const NoiseEncryptio
     }
 #endif
   }
+#endif  // USE_API_NOISE_PSK_FROM_YAML
 
   return this->send_message(resp);
 }
@@ -2407,8 +2411,9 @@ void APIConnection::process_batch_() {
     } else if (payload_size == 0) {
       // payload_size == 0 with remove set means encoding hit OOM and the
       // connection is being dropped; warn only for a genuinely oversized message
-      if (!this->flags_.remove)
+      if (!this->flags_.remove) {
         ESP_LOGW(TAG, "Message too large to send: type=%u", item.message_type);
+      }
       this->clear_batch_();
     }
     return;

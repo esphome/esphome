@@ -1,0 +1,94 @@
+# Keeps pre-commit hook revs in sync with the requirements files.
+#
+# Dependabot only bumps the pins in requirements*.txt. Some of those tools
+# are pinned again as hook revs in .pre-commit-config.yaml. This workflow
+# runs script/sync_dependency_versions.py against the pull request branch
+# and pushes a commit with the revs updated.
+
+name: Sync dependency versions
+
+on:
+  # pull_request_target rather than pull_request so the App secret is
+  # available on Dependabot pull requests (pull_request runs opened by
+  # Dependabot only see Dependabot secrets). The job below only touches
+  # branches in this repository and only ever executes the script from the
+  # base branch checkout, so fork code never runs with the token.
+  pull_request_target:
+    types: [opened, synchronize, reopened]
+    paths:
+      - requirements_dev.txt
+      - requirements_test.txt
+      - .pre-commit-config.yaml
+      - script/sync_dependency_versions.py
+
+# The push to the pull request branch uses the App token minted below, so
+# the workflow's GITHUB_TOKEN does not need any scopes.
+permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  sync:
+    name: Sync pinned versions
+    runs-on: ubuntu-latest
+    # Same-repository branches only: a push to a fork is not possible with
+    # this token, and it keeps untrusted heads out of a privileged job.
+    if: >-
+      github.repository == 'esphome/esphome'
+      && github.event.pull_request.head.repo.full_name == github.repository
+    steps:
+      - name: Generate a token
+        id: generate-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ vars.ESPHOME_GITHUB_APP_CLIENT_ID }}
+          private-key: ${{ secrets.ESPHOME_GITHUB_APP_PRIVATE_KEY }}
+          # A push made with the workflow's own GITHUB_TOKEN would not start
+          # CI on the new commit; a push with the App token does.
+          permission-contents: write  # git push of the sync commit to the pull request branch
+
+      - name: Check out base branch
+        # Provides the script that runs below. Deliberately the base branch
+        # so the pull request cannot change what executes here.
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          persist-credentials: false
+
+      - name: Check out pull request branch
+        # No allow-unsafe-pr-checkout here on purpose: checkout v7 only
+        # refuses heads that live in a different repository, and the job
+        # condition above already limits runs to same-repository branches.
+        # Leaving it off keeps that refusal as a backstop for fork heads.
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          path: pull-request
+          token: ${{ steps.generate-token.outputs.token }}
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+
+      - name: Install yamlrocks
+        # The script edits YAML through yamlrocks. Take the pin from the
+        # base branch requirements so this workflow has no copy of its own.
+        run: pip install "$(grep -E '^yamlrocks==' requirements_test.txt | cut -d'#' -f1)"
+
+      - name: Sync pinned versions
+        run: python script/sync_dependency_versions.py --root pull-request
+
+      - name: Push changes
+        working-directory: pull-request
+        run: |
+          if git diff --quiet; then
+            echo "All pinned versions already match the requirements files."
+            exit 0
+          fi
+          git config user.name "esphome[bot]"
+          git config user.email "115708604+esphome[bot]@users.noreply.github.com"
+          git commit -am "Sync pinned tool versions with requirements files"
+          git push

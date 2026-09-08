@@ -348,14 +348,18 @@ size_t WeikaiChannel::rx_in_fifo_() {
   uint8_t const fsr = this->reg(WKREG_FSR);
   if (fsr & (FSR_RFOE | FSR_RFLB | FSR_RFFE | FSR_RFPE)) {
     char bin_buf[9];
-    if (fsr & FSR_RFOE)
+    if (fsr & FSR_RFOE) {
       ESP_LOGE(TAG, "Receive data overflow FSR=%s", format_bin_to(bin_buf, fsr));
-    if (fsr & FSR_RFLB)
+    }
+    if (fsr & FSR_RFLB) {
       ESP_LOGE(TAG, "Receive line break FSR=%s", format_bin_to(bin_buf, fsr));
-    if (fsr & FSR_RFFE)
+    }
+    if (fsr & FSR_RFFE) {
       ESP_LOGE(TAG, "Receive frame error FSR=%s", format_bin_to(bin_buf, fsr));
-    if (fsr & FSR_RFPE)
+    }
+    if (fsr & FSR_RFPE) {
       ESP_LOGE(TAG, "Receive parity error FSR=%s", format_bin_to(bin_buf, fsr));
+    }
   }
   if ((available == 0) && (fsr & FSR_RFDAT)) {
     // here we should be very careful because we can have something like this:
@@ -495,8 +499,9 @@ void print_buffer(std::vector<uint8_t> buffer) {
   hex_buffer[(3 * 32) + 1] = 0;
   for (size_t i = 0; i < buffer.size(); i++) {
     snprintf(&hex_buffer[3 * (i % 32)], sizeof(hex_buffer), "%02X ", buffer[i]);
-    if (i % 32 == 31)
+    if (i % 32 == 31) {
       ESP_LOGI(TAG, "   %s", hex_buffer);
+    }
   }
   if (buffer.size() % 32) {
     // null terminate if incomplete line

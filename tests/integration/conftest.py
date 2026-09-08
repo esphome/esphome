@@ -163,6 +163,13 @@ def integration_test_dir() -> Generator[Path]:
 
 
 @pytest.fixture
+def isolated_preferences(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """Host preferences persist per device name; give the test its own so a
+    provisioned key never leaks into another run."""
+    monkeypatch.setenv("ESPHOME_PREFDIR", str(tmp_path / "prefs"))
+
+
+@pytest.fixture
 def reserved_tcp_port() -> Generator[tuple[int, socket.socket]]:
     """Reserve an unused TCP port by holding the socket open."""
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -702,11 +709,3 @@ async def run_compiled(
         )
 
     yield _run_compiled
-
-
-@pytest.fixture
-def isolated_preferences(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    """Point host preferences at a per-test dir so every run starts clean
-    (host preferences otherwise persist to ~/.esphome/prefs, keyed only by
-    device name)."""
-    monkeypatch.setenv("ESPHOME_PREFDIR", str(tmp_path / "prefs"))

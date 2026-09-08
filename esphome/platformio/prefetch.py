@@ -33,11 +33,14 @@ import time
 from typing import Any, NamedTuple
 
 from esphome.framework_helpers import (
+    DownloadLockUnavailable,
     content_length,
     discard_partial_download,
+    downloaded_bytes,
     failure_reason,
     resume_fetch_job,
     run_batch_downloads,
+    wait_for_download_lock,
     warn_prefetch_failures,
 )
 from esphome.helpers import get_bool_env, get_usable_cpu_count, rmtree
@@ -61,15 +64,9 @@ _RESOLVE_WORKERS = 8
 # A hung child must not block the build; downloads resume on the next run
 _PREFETCH_TIMEOUT = 20 * 60
 
-# Waiting on another process's URL download; past this, leave it to pio
-_DOWNLOAD_LOCK_TIMEOUT = 60
-
 # Child exit for a handled, already-warned failure; 1 would collide with
 # the interpreter's own import-failure exit
 _EXIT_HANDLED = 3
-
-# Short lock-acquire slices so a waiting worker still observes Ctrl-C
-_URI_LOCK_POLL = 1
 
 # Resolution errored (vs a clean skip); suppresses the warm sentinel
 _RESOLVE_FAILED = object()
@@ -462,17 +459,26 @@ def _uri_jobs(
 
 
 def _serialized_fetch_job(
-    dl_path: Path, lock_path: str, body: Any, unlocked_ok: bool = True
+    dl_path: Path,
+    lock_path: str,
+    body: Any,
+    size: int,
+    stream_dest: Path | None = None,
+    unlocked_ok: bool = True,
 ) -> Any:
-    """Wrap ``body`` so the shared destination is single-writer.
-
-    Interleaved writers truncate each other's ``.part`` bytes (see
-    registry.py). The bounded poll observes Ctrl-C via the tracker; a
-    blown deadline is a clean skip (the holder's copy is what the build
-    needs). On a lock-less filesystem a sha256-verified body runs
-    unlocked with one warning; a checksum-less one
-    (``unlocked_ok=False``) is a counted failure instead.
+    """Wrap ``body`` so the shared destination is single-writer (interleaved
+    writers truncate each other's ``.part``, see registry.py). A blown deadline
+    is a clean skip. On a lock-less filesystem a sha256-verified body runs
+    unlocked with one warning; a checksum-less one (``unlocked_ok=False``) fails.
     """
+
+    def on_disk() -> int:
+        # A URL job's holder streams beside the staging path until it
+        # promotes; after that only dl_path is left
+        done = downloaded_bytes(dl_path, size)
+        if not done and stream_dest is not None:
+            done = downloaded_bytes(stream_dest, size)
+        return done
 
     def run(tracker: Any) -> None:
         from filelock import FileLock, Timeout
@@ -480,33 +486,27 @@ def _serialized_fetch_job(
         # fallback_to_soft would leave a stale marker on lock-less
         # filesystems that blocks every later build (see git.py)
         lock = FileLock(lock_path, fallback_to_soft=False)
-        deadline = time.monotonic() + _DOWNLOAD_LOCK_TIMEOUT
-        while True:
-            try:
-                lock.acquire(timeout=_URI_LOCK_POLL)
-                break
-            except Timeout:
-                tracker(0)  # raises when the batch is cancelled
-                if time.monotonic() >= deadline:
-                    # Another process is fetching this same file; its copy
-                    # is what the build needs (a large framework archive
-                    # can hold the lock far longer than this deadline)
-                    _LOGGER.debug("Leaving %s to its current downloader", dl_path.name)
-                    return
-            except OSError as err:
-                if not unlocked_ok:
-                    # A body with no checksum to catch interleaved corruption
-                    raise
-                lock = None
-                _LOGGER.warning(
-                    "Could not lock %s (%s); downloading unlocked",
-                    dl_path.name,
-                    err,
-                )
-                break
+        try:
+            wait_for_download_lock(lock, tracker, on_disk, dl_path.name)
+        except Timeout:
+            # The holder's copy is what the build needs (a large
+            # framework archive can outlast this deadline)
+            _LOGGER.debug("Leaving %s to its current downloader", dl_path.name)
+            return
+        except DownloadLockUnavailable as err:
+            if not unlocked_ok:
+                # A body with no checksum to catch interleaved corruption
+                raise
+            lock = None
+            _LOGGER.warning(
+                "Could not lock %s (%s); downloading unlocked",
+                dl_path.name,
+                err,
+            )
         try:
             if dl_path.is_file():
-                return  # another process finished it while we waited
+                tracker(size)  # another process finished it while we waited
+                return
             body(tracker)
         finally:
             if lock is not None:
@@ -540,6 +540,7 @@ def _registry_fetch_job(
         dl_path,
         f"{dl_path}.esphome.lock",
         resume_fetch_job(url, dl_path, sha256=checksum, size=size),
+        size,
     )
 
     def run(tracker: Any) -> None:
@@ -571,9 +572,9 @@ def _uri_fetch_job(manager: Any, url: str, dl_path: Path, size: int) -> Any:
         tmp.replace(dl_path)
 
     def run(tracker: Any) -> None:
-        _serialized_fetch_job(dl_path, f"{tmp}.lock", promote, unlocked_ok=False)(
-            tracker
-        )
+        _serialized_fetch_job(
+            dl_path, f"{tmp}.lock", promote, size, tmp, unlocked_ok=False
+        )(tracker)
         if dl_path.is_file():
             # Won or lost, the race is over; staging files left behind
             # are dead weight PlatformIO's cache never prunes
@@ -832,16 +833,16 @@ def _prefetch(build_dir: Path, env: str) -> None:
         for name, opts in p.packages.items()
         if not opts.get("optional")
     ]
-    # PIO's build engine installs outside the platform package list;
-    # skipped when the platform lists it itself
-    if not any(s.name == "tool-scons" for s in specs):
-        specs.append(
-            PackageSpec(
-                owner="platformio",
-                name="tool-scons",
-                requirements=get_core_dependencies()["tool-scons"],
-            )
+    # PIO's build engine installs tool-scons by its own registry spec at build
+    # start; a platform URL copy has no owner to match it, so prefetch that spec
+    specs = [s for s in specs if s.name != "tool-scons"]
+    specs.append(
+        PackageSpec(
+            owner="platformio",
+            name="tool-scons",
+            requirements=get_core_dependencies()["tool-scons"],
         )
+    )
     lib_deps = config.get(f"env:{env}", "lib_deps", [])
     # pio run's storage dir for this env, with its compatibility
     # qualifiers: an unqualified library install could land a different
@@ -950,8 +951,10 @@ def main(argv: list[str]) -> int:
     """Subprocess entry point: ``prefetch <build_dir> <env_name>``."""
     from esphome.core import CORE
     from esphome.log import setup_log
+    from esphome.platformio.runner import patch_registry_private_packages
 
     signal.signal(signal.SIGTERM, _sigterm)
+    patch_registry_private_packages()
     raw_level = os.environ.get("ESPHOME_PREFETCH_LOG_LEVEL")
     try:
         level = int(raw_level) if raw_level is not None else logging.INFO

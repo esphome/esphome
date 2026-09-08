@@ -130,6 +130,14 @@ CONFIG_SCHEMA = cv.All(
     _validate,
 )
 
+FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema(
+    "hydreon_rgxx",
+    baud_rate=9600,
+    data_bits=8,
+    parity="NONE",
+    stop_bits=1,
+)
+
 
 async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
