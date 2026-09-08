@@ -1,5 +1,10 @@
 """Tests for esp32_ble_server configuration helpers."""
 
+from __future__ import annotations
+
+from collections.abc import Callable
+from pathlib import Path
+
 import pytest
 
 from esphome.components.esp32_ble_server import (
@@ -45,3 +50,26 @@ def test_uuid_is_matches_descriptor_short_strings(uuid16) -> None:
     assert uuid_is(uuid16, uuid16)
     assert uuid_is(f"{uuid16:04X}", uuid16)
     assert uuid_is(f"{uuid16:08X}", uuid16)
+
+
+@pytest.mark.parametrize(
+    ("config_file", "required"),
+    [
+        # Auto-loaded by esp32_improv only: nothing to find until Improv asks for it
+        ("improv_only.yaml", False),
+        # The configuration defines a service clients are meant to connect to
+        ("own_service.yaml", True),
+        # Manufacturer data is only useful if it is actually broadcast
+        ("manufacturer_data_only.yaml", True),
+    ],
+)
+def test_advertising_required(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+    config_file: str,
+    required: bool,
+) -> None:
+    """The server only requests advertising when the configuration needs it."""
+    main_cpp = generate_main(component_config_path(config_file))
+
+    assert f"set_advertising_required({str(required).lower()})" in main_cpp

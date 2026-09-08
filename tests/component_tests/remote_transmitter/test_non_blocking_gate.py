@@ -26,7 +26,7 @@ from ..types import SetCoreConfigCallable
         (PlatformFramework.ESP32_IDF, None, True),
         (PlatformFramework.RTL87XX_ARDUINO, FAMILY_RTL8720C, True),
         (PlatformFramework.RTL87XX_ARDUINO, FAMILY_RTL8710B, False),
-        (PlatformFramework.BK72XX_ARDUINO, FAMILY_BK7231N, True),
+        (PlatformFramework.BK72XX_ARDUINO, FAMILY_BK7231N, False),
         (PlatformFramework.BK72XX_ARDUINO, FAMILY_BK7238, True),
         (PlatformFramework.BK72XX_ARDUINO, FAMILY_BK7231T, False),
         (PlatformFramework.ESP8266_ARDUINO, None, False),

@@ -1,0 +1,29 @@
+# Tuya without any network component (no wifi/ethernet/api), as used on
+# serial-only or BLE-only Tuya MCU boards. Regression test for
+# https://github.com/esphome/esphome/issues/18942
+substitutions:
+  status_pin: P6
+
+packages:
+  uart: !include ../../test_build_components/common/uart/bk72xx-ard.yaml
+
+tuya:
+  status_pin: ${status_pin}
+
+binary_sensor:
+  - platform: tuya
+    id: tuya_presence
+    sensor_datapoint: 101
+
+sensor:
+  - platform: tuya
+    id: tuya_light_intensity
+    sensor_datapoint: 103
+
+number:
+  - platform: tuya
+    id: tuya_far_detection
+    number_datapoint: 109
+    min_value: 0
+    max_value: 600
+    step: 1

@@ -595,7 +595,8 @@ void Nextion::process_nextion_commands_() {
         uint8_t page_id = to_process[0];
         uint8_t component_id = to_process[1];
         uint8_t touch_event = to_process[2];  // 0 -> release, 1 -> press
-        ESP_LOGV(TAG, "Touch %s: page %u comp %u", touch_event ? "PRESS" : "RELEASE", page_id, component_id);
+        ESP_LOGV(TAG, "Touch %s: page %u comp %u", touch_event ? LOG_STR_LITERAL("PRESS") : LOG_STR_LITERAL("RELEASE"),
+                 page_id, component_id);
         for (auto *touch : this->touch_) {
           touch->process_touch(page_id, component_id, touch_event != 0);
         }
@@ -628,7 +629,7 @@ void Nextion::process_nextion_commands_() {
         const uint16_t x = (uint16_t(to_process[0]) << 8) | to_process[1];
         const uint16_t y = (uint16_t(to_process[2]) << 8) | to_process[3];
         const uint8_t touch_event = to_process[4];  // 0 -> release, 1 -> press
-        ESP_LOGV(TAG, "Touch %s at %u,%u", touch_event ? "PRESS" : "RELEASE", x, y);
+        ESP_LOGV(TAG, "Touch %s at %u,%u", touch_event ? LOG_STR_LITERAL("PRESS") : LOG_STR_LITERAL("RELEASE"), x, y);
         break;
       }
 

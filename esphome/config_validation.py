@@ -133,6 +133,7 @@ Upper = vol.Upper
 Length = vol.Length
 Exclusive = vol.Exclusive
 Inclusive = vol.Inclusive
+Unique = vol.Unique
 ALLOW_EXTRA = vol.ALLOW_EXTRA
 UNDEFINED = vol.UNDEFINED
 RequiredFieldInvalid = vol.RequiredFieldInvalid
@@ -1462,7 +1463,7 @@ def hostname(value):
     Maximum length is 63 characters per RFC 1035.
 
     Note: If this limit is changed, update MAX_NAME_WITH_SUFFIX_SIZE in
-    esphome/core/helpers.cpp to accommodate the new maximum length.
+    esphome/core/helpers.h to accommodate the new maximum length.
     """
     value = string(value)
     if re.match(r"^[a-z0-9-]{1,63}$", value, re.IGNORECASE) is not None:
