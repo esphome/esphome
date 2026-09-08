@@ -20,6 +20,12 @@ HoermannHcp = hoermann_hcp_ns.class_(
 AnnouncePauseAction = hoermann_hcp_ns.class_(
     "AnnouncePauseAction", automation.Action, cg.Parented.template(HoermannHcp)
 )
+VentAction = hoermann_hcp_ns.class_(
+    "VentAction", automation.Action, cg.Parented.template(HoermannHcp)
+)
+HalfOpenAction = hoermann_hcp_ns.class_(
+    "HalfOpenAction", automation.Action, cg.Parented.template(HoermannHcp)
+)
 
 # The Hoermann UAP module answers on Modbus server address 2.
 CONFIG_SCHEMA = (
@@ -33,13 +39,24 @@ FINAL_VALIDATE_SCHEMA = modbus.final_validate_modbus_device(
 )
 
 
+HUB_ACTION_SCHEMA = automation.maybe_simple_id(
+    {cv.GenerateID(): cv.use_id(HoermannHcp)}
+)
+
+
 @automation.register_action(
     "hoermann_hcp.announce_pause",
     AnnouncePauseAction,
-    automation.maybe_simple_id({cv.GenerateID(): cv.use_id(HoermannHcp)}),
+    HUB_ACTION_SCHEMA,
     synchronous=True,
 )
-async def announce_pause_action_to_code(
+@automation.register_action(
+    "hoermann_hcp.vent", VentAction, HUB_ACTION_SCHEMA, synchronous=True
+)
+@automation.register_action(
+    "hoermann_hcp.half_open", HalfOpenAction, HUB_ACTION_SCHEMA, synchronous=True
+)
+async def hub_action_to_code(
     config: ConfigType,
     action_id: ID,
     template_arg: cg.TemplateArguments,
