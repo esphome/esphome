@@ -38,7 +38,6 @@ CoverTraits HE60rCover::get_traits() {
 
 void HE60rCover::dump_config() {
   LOG_COVER("", "HE60R Cover", this);
-  this->check_uart_settings(1200, 1, uart::UART_CONFIG_PARITY_EVEN, 8);
   ESP_LOGCONFIG(TAG,
                 "  Open Duration: %.1fs\n"
                 "  Close Duration: %.1fs",
