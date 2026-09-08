@@ -148,11 +148,13 @@ def wizard_file(**kwargs: Unpack[WizardFileKwargs]) -> str:
     if "api_encryption_key" in kwargs:
         config += f'  encryption:\n    key: "{kwargs["api_encryption_key"]}"\n'
 
-    # Configure OTA
+    # The api key also secures OTA; a password only serves older uploaders
     config += "\nota:\n"
     config += "  - platform: esphome\n"
     if "ota_password" in kwargs:
         config += f'    password: "{kwargs["ota_password"]}"'
+    elif "api_encryption_key" in kwargs:
+        config += "    encryption:"
 
     # Configuring wifi
     config += "\n\nwifi:\n"
@@ -529,20 +531,9 @@ def wizard(path: Path) -> int:
         safe_print()
         safe_print("You'll need this key when adding the device to Home Assistant.")
         sleep(1)
-
-        safe_print()
-        safe_print(
-            f"Do you want to set a {color(AnsiFore.GREEN, 'password')} for OTA updates? "
-            "This can be insecure if you do not trust the WiFi network."
-        )
-        safe_print()
-        sleep(0.25)
-        safe_print("Press ENTER for no password")
-        ota_password = safe_input(color(AnsiFore.BOLD_WHITE, "(password): "))
     else:
         ssid, psk = "", ""
         api_encryption_key = None
-        ota_password = ""
 
     kwargs = {
         "path": path,
@@ -553,10 +544,9 @@ def wizard(path: Path) -> int:
         "psk": psk,
         "type": "basic",
     }
+    # The api key also secures OTA updates, so the wizard sets no OTA password
     if api_encryption_key:
         kwargs["api_encryption_key"] = api_encryption_key
-    if ota_password:
-        kwargs["ota_password"] = ota_password
 
     if not wizard_write(**kwargs):
         return 1
