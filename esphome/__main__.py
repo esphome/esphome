@@ -1289,10 +1289,9 @@ def _choose_ota_platform(config: ConfigType, requested: str | None) -> str:
     The native API uses challenge-response auth with MD5/SHA256 hashing of a
     server-issued nonce, so the password is never sent over the wire; the
     ``web_server`` path uses HTTP Basic auth which transmits credentials in
-    cleartext over the LAN. (The native path also supports gzip compression
-    on ESP8266, where flash space is tight; on ESP32/RP2040/LibreTiny the
-    backend reports ``supports_compression() == false`` and the firmware is
-    sent uncompressed regardless of which platform is used.) Falls back to
+    cleartext over the LAN. (The native path also compresses the upload:
+    gzip on ESP8266 and RP2040, which inflate it at reboot, and a deflate
+    stream on ESP32/LibreTiny, which inflate it as it arrives.) Falls back to
     ``web_server`` only when that is the only available platform.
     """
     # Use a dict (insertion-ordered) instead of a list so error messages and

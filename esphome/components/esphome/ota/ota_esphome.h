@@ -135,9 +135,11 @@ class ESPHomeOTAComponent final : public ota::OTAComponent {
   // Receives up to OTA_BUFFER_SIZE bytes of upload data into buf, waiting up to
   // the data timeout; updates xfer and sends chunk acks. Returns bytes read, -1
   // on failure (logged).
-  ssize_t receive_data_(uint8_t *buf, DataTransfer &xfer);
-  // Reads a 4 byte MSB first size field; buf must hold OTA_BUFFER_SIZE bytes
-  bool read_size_(uint8_t *buf, size_t &size, const LogString *desc);
+  inline ssize_t receive_data_(uint8_t *buf, DataTransfer &xfer);
+  // Reads a 4 byte MSB first size field into size
+  inline bool read_size_(uint8_t *buf, size_t &size, const LogString *desc);
+  // Writes to the backend and logs a failure
+  inline ota::OTAResponseTypes write_flash_(uint8_t *data, size_t len);
 
   bool try_read_(size_t to_read, const LogString *desc);
   bool try_write_(size_t to_write, const LogString *desc);
@@ -196,14 +198,16 @@ class ESPHomeOTAComponent final : public ota::OTAComponent {
   // ring window must be at least that. It also serves as the inflate output
   // buffer, so it is flushed to the backend one windowful at a time.
   static constexpr size_t OTA_INFLATE_WINDOW_SIZE = 4096;
-  // Heap-allocated only while a deflate-compressed upload is negotiated.
-  struct InflateSession {
-    OtaInflateState state;  // first member: the read callback casts back from it
+  // Heap-allocated only while a deflate-compressed upload is negotiated; the
+  // decoder state is the base so its read callback can recover the session
+  struct InflateSession : OtaInflateState {
     ESPHomeOTAComponent *self;
     DataTransfer *xfer;
     uint8_t *in;  // caller's buffer for the compressed input, valid during inflate_data_
     uint8_t window[OTA_INFLATE_WINDOW_SIZE];
   };
+  static_assert(!ota::OTABackendPtr::element_type::supports_compression(),
+                "USE_OTA_DEFLATE is for backends that cannot store a gzip image");
   ota::OTAResponseTypes inflate_data_(uint8_t *in, size_t image_size, DataTransfer &xfer);
   std::unique_ptr<InflateSession> inflate_;
 #endif
