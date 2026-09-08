@@ -70,6 +70,8 @@ CLIENT_FEATURE_SUPPORTS_DEFLATE = 0x10
 SERVER_FEATURE_SUPPORTS_COMPRESSION = 0x01
 SERVER_FEATURE_SUPPORTS_PARTITION_ACCESS = 0x02
 SERVER_FEATURE_SUPPORTS_NOISE = 0x04
+# Binding once offered: the device then expects the image size frame and a
+# deflate stream, so there is no opting out per upload
 SERVER_FEATURE_SUPPORTS_DEFLATE = 0x08
 
 # Window of the raw deflate stream sent to a device that inflates on the fly.
