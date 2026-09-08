@@ -8,11 +8,7 @@
 
 namespace esphome::testing {
 
-// The plaintext below, as built by build_plain(): repeated text, a pseudo random
-// run, a zero run and the text again, so literals, short and long back references
-// and stored data are all exercised across the 4 KB window. Regenerate with the
-// window the CLI uses (espota2.DEFLATE_WINDOW_BITS):
-//   plain = build_plain() written out by the same recipe in Python
+// build_plain() compressed with the CLI's window (espota2.DEFLATE_WINDOW_BITS):
 //   DEFLATED = zlib.compress(plain, 9, wbits=-12)
 //   STORED = zlib.compress(plain[:300], 0, wbits=-12)
 static const uint8_t DEFLATED[] = {
@@ -185,7 +181,6 @@ static const uint8_t DEFLATED[] = {
     0x90, 0x3b, 0x14, 0x38, 0xe0, 0x80, 0x03, 0x0e, 0x38, 0xe0, 0x80, 0xfb, 0xff, 0xba, 0xff, 0x00,
 };
 
-// The first 300 bytes of the same plaintext as a stored (uncompressed) block
 static const uint8_t STORED[] = {
     0x01, 0x2c, 0x01, 0xd3, 0xfe, 0x65, 0x73, 0x70, 0x68, 0x6f, 0x6d, 0x65, 0x20, 0x6f, 0x74, 0x61, 0x20, 0x64,
     0x65, 0x66, 0x6c, 0x61, 0x74, 0x65, 0x20, 0x65, 0x73, 0x70, 0x68, 0x6f, 0x6d, 0x65, 0x20, 0x6f, 0x74, 0x61,
@@ -209,7 +204,6 @@ static const uint8_t STORED[] = {
 static constexpr size_t WINDOW = 4096;
 static constexpr size_t PLAIN_SIZE = 16000;
 
-// Pseudo random bytes reproducible from Python for the vectors above
 static uint8_t lcg_next(uint32_t &x) {
   x = (x * 1103515245u + 12345u) & 0x7fffffffu;
   return (x >> 16) & 0xff;
@@ -229,8 +223,7 @@ static std::vector<uint8_t> build_plain() {
   return plain;
 }
 
-// Mirrors the OTA session: the state is the base, input arrives through the
-// read callback in chunks, the window doubles as the output buffer.
+// Mirrors the OTA session: chunked input through the read callback, window as output
 struct Session : OtaInflateState {
   const uint8_t *in;
   size_t in_len;
@@ -310,9 +303,7 @@ TEST(OtaInflate, TruncatedStoredBlockFails) {
 }
 
 TEST(OtaInflate, CorruptStreamsNeverEscapeTheWindow) {
-  // Every third byte of the stream flipped in turn, plus pseudo random garbage:
-  // the sanitizers check that the decoder never reads or writes out of bounds
-  // whatever it returns.
+  // Flipped bytes and garbage; the sanitizers check the decoder stays in bounds
   auto s = std::make_unique<Session>();
   std::vector<uint8_t> bad(DEFLATED, DEFLATED + sizeof(DEFLATED));
   for (size_t i = 0; i < bad.size(); i += 3) {

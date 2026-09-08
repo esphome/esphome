@@ -185,7 +185,7 @@ async def test_host_ota_self_update(
     def on_log(line: str) -> None:
         if "OTA staged at" in line:
             staged.set()
-        # The host backend has no gzip support, so the upload negotiates deflate
+        # The host backend cannot store gzip, so the upload negotiates deflate
         if "Inflated " in line and " bytes from " in line:
             inflated.set()
         dev.on_log(line)
