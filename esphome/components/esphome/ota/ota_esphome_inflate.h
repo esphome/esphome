@@ -1,0 +1,63 @@
+#pragma once
+// Raw deflate decoder for compressed OTA uploads, cut down from uzlib
+// (https://github.com/pfalcon/uzlib, zlib licence, see the .c file).
+// Kept in C so it stays close to upstream; the decoder writes through a
+// ring window so the image never has to be held in RAM.
+
+#include <stdbool.h>
+#include <stdint.h>
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+enum ota_inflate_result {
+  OTA_INFLATE_OK = 0,   /* more data produced, call again */
+  OTA_INFLATE_DONE = 1, /* end of compressed stream reached */
+  OTA_INFLATE_DATA_ERROR = -3,
+  OTA_INFLATE_DICT_ERROR = -5,
+};
+
+typedef struct {
+  unsigned short table[16];  /* table of code length counts */
+  unsigned short trans[288]; /* code -> symbol translation table */
+} ota_inflate_tree_t;
+
+struct ota_inflate_state {
+  /* Next byte in the input buffer and one past its end */
+  const unsigned char *source;
+  const unsigned char *source_limit;
+  /* Called when source is exhausted; returns the next byte or -1 at EOF.
+     It may refill source/source_limit for buffered operation. */
+  int (*source_read_cb)(struct ota_inflate_state *d);
+
+  unsigned int tag;
+  unsigned int bitcount;
+
+  /* Output cursor and one past the end of the output buffer */
+  unsigned char *dest;
+  unsigned char *dest_limit;
+
+  bool eof;
+
+  int btype;
+  int bfinal;
+  unsigned int curlen;
+  int lz_off;
+  /* Ring window holding the last dict_size output bytes for back references */
+  unsigned char *dict_ring;
+  unsigned int dict_size;
+  unsigned int dict_idx;
+
+  ota_inflate_tree_t ltree; /* dynamic length/symbol tree */
+  ota_inflate_tree_t dtree; /* dynamic distance tree */
+};
+
+/* dict must be at least as large as the window the encoder used (its max back reference distance) */
+void ota_inflate_init(struct ota_inflate_state *d, unsigned char *dict, unsigned int dict_len);
+/* Produce output until dest reaches dest_limit (OK), the stream ends (DONE) or an error occurs */
+int ota_inflate(struct ota_inflate_state *d);
+
+#ifdef __cplusplus
+}
+#endif
