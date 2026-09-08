@@ -263,7 +263,14 @@ inline double stod(const StringRef &str, size_t *pos = nullptr) {
 
 #ifdef USE_JSON
 // NOLINTNEXTLINE(readability-identifier-naming)
-inline void convertToJson(const StringRef &src, JsonVariant dst) { dst.set(src.empty() ? "" : src.c_str()); }
+inline void convertToJson(const StringRef &src, JsonVariant dst) {
+  // Bounded by the view length; a null, empty view becomes "" rather than JSON null
+  if (src.empty()) {
+    dst.set("");
+    return;
+  }
+  dst.set(JsonString(src.c_str(), src.size()));
+}
 #endif  // USE_JSON
 
 }  // namespace esphome
