@@ -823,6 +823,8 @@ def lint_relative_py_import(fname: Path, line, col, content):
         # neither can live in a C++ namespace.
         "esphome/components/esp32_hosted/esp_now_hosted.cpp",
         "esphome/components/esp32_hosted/esp_now_hosted_rpc.h",
+        # C header shared with the vendored decoder
+        "esphome/components/esphome/ota/ota_esphome_inflate.h",
     ],
 )
 def lint_namespace(fname: Path, content: str) -> str | None:

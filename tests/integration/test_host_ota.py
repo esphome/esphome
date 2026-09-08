@@ -180,10 +180,14 @@ async def test_host_ota_self_update(
         )
     )
     staged = asyncio.Event()
+    inflated = asyncio.Event()
 
     def on_log(line: str) -> None:
         if "OTA staged at" in line:
             staged.set()
+        # The host backend has no gzip support, so the upload negotiates deflate
+        if "Inflated " in line:
+            inflated.set()
         dev.on_log(line)
 
     async with run_binary(dev.binary_path, line_callback=on_log) as (proc, _lines):
@@ -195,6 +199,7 @@ async def test_host_ota_self_update(
 
         await dev.ota(None, None, "espota2 reported failure")
         assert staged.is_set()
+        assert inflated.is_set(), "upload was not deflate compressed"
 
         async with wait_and_connect_api_client(port=dev.api_port) as client:
             info_after = await client.device_info()

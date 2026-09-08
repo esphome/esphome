@@ -283,7 +283,10 @@ FINAL_VALIDATE_SCHEMA = ota_esphome_final_validate
 
 
 FILTER_SOURCE_FILES = filter_source_files_from_defines(
-    {"ota_esphome_noise.cpp": "USE_OTA_ENCRYPTION"}
+    {
+        "ota_esphome_noise.cpp": "USE_OTA_ENCRYPTION",
+        "ota_esphome_inflate.c": "USE_OTA_DEFLATE",
+    }
 )
 
 
@@ -304,6 +307,11 @@ async def to_code(config: ConfigType) -> None:
 
     if config.get(CONF_ALLOW_PARTITION_ACCESS):
         cg.add_define("USE_OTA_PARTITIONS")
+
+    # ESP8266 inflates gzip in its bootloader; every other platform inflates
+    # a deflate stream on the fly while it receives the image
+    if not CORE.is_esp8266:
+        cg.add_define("USE_OTA_DEFLATE")
 
     # One key per device: an api encryption block supplies it (static or
     # runtime) and offers; the ota block only adds the requirement
