@@ -122,6 +122,7 @@ class _Device:
     binary_path: Path
     proc: asyncio.subprocess.Process | None = None
     reboots: int = 0
+    inflates: int = 0
 
     def __post_init__(self) -> None:
         self._rebooted = asyncio.Event()
@@ -130,6 +131,8 @@ class _Device:
         if "Rebooting safely" in line:
             self.reboots += 1
             self._rebooted.set()
+        if "Inflated " in line and " bytes from " in line:
+            self.inflates += 1
 
     async def wait_reboot(self, count: int, timeout: float = 10.0) -> None:
         async with asyncio.timeout(timeout):
@@ -180,14 +183,10 @@ async def test_host_ota_self_update(
         )
     )
     staged = asyncio.Event()
-    inflated = asyncio.Event()
 
     def on_log(line: str) -> None:
         if "OTA staged at" in line:
             staged.set()
-        # The host backend cannot store gzip, so the upload negotiates deflate
-        if "Inflated " in line and " bytes from " in line:
-            inflated.set()
         dev.on_log(line)
 
     async with run_binary(dev.binary_path, line_callback=on_log) as (proc, _lines):
@@ -199,7 +198,6 @@ async def test_host_ota_self_update(
 
         await dev.ota(None, None, "espota2 reported failure")
         assert staged.is_set()
-        assert inflated.is_set(), "upload was not deflate compressed"
 
         async with wait_and_connect_api_client(port=dev.api_port) as client:
             info_after = await client.device_info()
@@ -224,13 +222,15 @@ async def test_host_ota_deflate(
             yaml_config, write_yaml_config, compile_esphome, reserved_tcp_port
         )
     )
-    inflated: list[str] = []
     errors: list[str] = []
 
     def on_log(line: str) -> None:
-        if "Inflated " in line and " bytes from " in line:
-            inflated.append(line)
-        if "Inflate err" in line or "End update err" in line:
+        # A corrupt stream is caught by the decoder, by the size check or by
+        # the MD5 at the end, depending on where the damage lands
+        if any(
+            text in line
+            for text in ("Inflate err", "Inflate overrun", "End update err")
+        ):
             errors.append(line)
         dev.on_log(line)
 
@@ -247,12 +247,12 @@ async def test_host_ota_deflate(
 
         # Default: the host backend cannot store gzip, so the CLI sends deflate
         await dev.ota(None, None, "deflate upload failed")
-        assert len(inflated) == 1, "device did not inflate the upload"
+        assert dev.inflates == 1, "device did not inflate the upload"
 
         # A client that does not offer deflate is served uncompressed
         monkeypatch.setattr(espota2, "CLIENT_FEATURE_SUPPORTS_DEFLATE", 0)
         await dev.ota(None, None, "uncompressed upload failed")
-        assert len(inflated) == 1, "device inflated without a client offer"
+        assert dev.inflates == 1, "device inflated without a client offer"
         monkeypatch.undo()
 
         # A corrupt stream fails the upload and leaves the device running
@@ -262,9 +262,8 @@ async def test_host_ota_deflate(
         assert errors, "device did not report the corrupt stream"
 
         # and it still takes a good upload afterwards
-        inflated_before = len(inflated)
         await dev.ota(None, None, "upload after a rejected stream failed")
-        assert len(inflated) == inflated_before + 1
+        assert dev.inflates == 2
 
 
 @pytest.mark.asyncio
