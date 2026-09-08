@@ -51,5 +51,4 @@ async def to_code(config):
         cg.add(var.set_oscillation_id(config[CONF_OSCILLATION_DATAPOINT]))
     if CONF_DIRECTION_DATAPOINT in config:
         cg.add(var.set_direction_id(config[CONF_DIRECTION_DATAPOINT]))
-    if CONF_OPTIMISTIC in config:
-        cg.add(var.set_optimistic(config[CONF_OPTIMISTIC]))
+    cg.add(var.set_optimistic(config[CONF_OPTIMISTIC]))
