@@ -19,8 +19,9 @@ enum OtaInflateResult {
 };
 
 struct OtaInflateTree {
-  uint16_t table[16];  /* table of code length counts */
-  uint16_t trans[288]; /* code -> symbol translation table */
+  uint16_t table[16]; /* table of code length counts */
+  uint16_t *trans;    /* code -> symbol translation table, size entries */
+  uint16_t size;
 };
 
 struct OtaInflateState {
@@ -51,6 +52,8 @@ struct OtaInflateState {
 
   struct OtaInflateTree ltree; /* dynamic length/symbol tree */
   struct OtaInflateTree dtree; /* dynamic distance tree */
+  uint16_t ltrans[288];
+  uint16_t dtrans[32]; /* the distance alphabet has 30 symbols, so the tree is kept small */
 };
 
 /* dict must be at least as large as the window the encoder used (its max back reference distance) */
