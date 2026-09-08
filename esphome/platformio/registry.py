@@ -18,9 +18,11 @@ from esphome.framework_helpers import (
     archive_extract_all,
     download_from_mirrors,
     download_with_resume,
+    downloaded_bytes,
     is_expected_fetch_error,
     rmdir,
     run_batch_downloads,
+    wait_for_download_lock,
     warn_batch_failures,
 )
 from esphome.helpers import get_usable_cpu_count
@@ -168,17 +170,19 @@ def _check_layout(name: str, dest: Path, expect: Collection[str]) -> None:
 PackageSpec = tuple[str, str, Path, list[str], Collection[str]]
 
 
-def _archive_path(downloads_dir: Path, name: str, version: str) -> Path:
-    return downloads_dir / f"{name}-{version}"
-
-
 class _PendingArchive(NamedTuple):
     name: str
     version: str
     dest: Path
+    archive: Path
     url: str
     sha256: str
     size: int
+
+
+def _archive_path(downloads_dir: Path, name: str, version: str) -> Path:
+    """The one archive path the prefetch and the sequential install share."""
+    return downloads_dir / f"{name}-{version}"
 
 
 def _already_installed(dest: Path) -> bool:
@@ -219,18 +223,18 @@ def prefetch_packages(
     lock as ``install_package``: the archive's ``.part`` file is shared, and
     two concurrent writers would truncate each other's bytes.
     """
-    from filelock import FileLock
+    from filelock import FileLock, Timeout
 
     pending: list[_PendingArchive] = []
-    seen: set[str] = set()
+    seen: set[Path] = set()
     for name, version, dest, mirrors in packages:
         if mirrors or (dest / ".esphome_extracted").is_file():
             continue
-        archive_name = f"{name}-{version}"
-        if archive_name in seen:
+        archive = _archive_path(downloads_dir, name, version)
+        if archive in seen:
             # A duplicate entry would race itself between two workers
             continue
-        seen.add(archive_name)
+        seen.add(archive)
         try:
             url, sha256, size = registry_download(name, version)
         except EsphomeError as err:
@@ -239,10 +243,9 @@ def prefetch_packages(
             continue
         if not size:
             continue
-        archive = downloads_dir / archive_name
         if archive.is_file() and archive.stat().st_size == size:
             continue
-        pending.append(_PendingArchive(name, version, dest, url, sha256, size))
+        pending.append(_PendingArchive(name, version, dest, archive, url, sha256, size))
     if len(pending) < 2:
         return
     downloads_dir.mkdir(parents=True, exist_ok=True)
@@ -254,20 +257,36 @@ def prefetch_packages(
 
     def _fetch(entry: _PendingArchive, tracker: Callable[[int], None]) -> None:
         entry.dest.parent.mkdir(parents=True, exist_ok=True)
-        with FileLock(f"{entry.dest}.lock", fallback_to_soft=False):
-            # Marker re-check: a concurrent build may have installed (and
-            # deleted the archive of) this package while we waited;
-            # re-downloading would orphan a fresh copy in downloads_dir
-            # no branch: the thread tracer misses the skip edge; both
-            # arms of _already_installed are pinned directly
-            if not _already_installed(entry.dest):  # pragma: no branch
-                download_with_resume(
-                    entry.url,
-                    downloads_dir / f"{entry.name}-{entry.version}",
-                    sha256=entry.sha256,
-                    size=entry.size,
-                    progress=tracker,
-                )
+
+        def on_disk() -> int:
+            if done := downloaded_bytes(entry.archive, entry.size):
+                return done
+            # The holder deletes the archive once it has installed it
+            return entry.size if _already_installed(entry.dest) else 0
+
+        lock = FileLock(f"{entry.dest}.lock", fallback_to_soft=False)
+        try:
+            wait_for_download_lock(lock, tracker, on_disk, entry.name)
+        except Timeout:
+            # install_package waits on this same lock and verifies the
+            # holder's copy
+            _LOGGER.debug("Leaving %s to its current downloader", entry.name)
+            return
+        try:
+            if _already_installed(entry.dest):
+                # A concurrent build installed it while we waited; a
+                # re-download would orphan a fresh copy in downloads_dir
+                tracker(entry.size)
+                return
+            download_with_resume(
+                entry.url,
+                entry.archive,
+                sha256=entry.sha256,
+                size=entry.size,
+                progress=tracker,
+            )
+        finally:
+            lock.release()
 
     failures = run_batch_downloads(
         "Downloading packages",
