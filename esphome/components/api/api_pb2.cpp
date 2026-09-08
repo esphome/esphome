@@ -1275,12 +1275,24 @@ uint8_t *ListEntitiesServicesArgument::encode(ProtoWriteBuffer &buffer PROTO_ENC
   uint8_t *__restrict__ pos = buffer.get_pos();
   ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 1, this->name);
   ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 2, static_cast<uint32_t>(this->type));
+#ifdef USE_API_USER_DEFINED_ACTION_METADATA
+  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 3, this->description);
+#endif
+#ifdef USE_API_USER_DEFINED_ACTION_METADATA
+  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 4, this->example);
+#endif
   return pos;
 }
 uint32_t ListEntitiesServicesArgument::calculate_size() const {
   uint32_t size = 0;
   size += ProtoSize::calc_length(1, this->name.size());
   size += this->type ? 2 : 0;
+#ifdef USE_API_USER_DEFINED_ACTION_METADATA
+  size += ProtoSize::calc_length(1, this->description.size());
+#endif
+#ifdef USE_API_USER_DEFINED_ACTION_METADATA
+  size += ProtoSize::calc_length(1, this->example.size());
+#endif
   return size;
 }
 uint8_t *ListEntitiesServicesResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
@@ -1291,6 +1303,9 @@ uint8_t *ListEntitiesServicesResponse::encode(ProtoWriteBuffer &buffer PROTO_ENC
     ProtoEncode::encode_sub_message(pos PROTO_ENCODE_DEBUG_ARG, buffer, 3, it);
   }
   ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 4, static_cast<uint32_t>(this->supports_response));
+#ifdef USE_API_USER_DEFINED_ACTION_METADATA
+  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 5, this->description);
+#endif
   return pos;
 }
 uint32_t ListEntitiesServicesResponse::calculate_size() const {
@@ -1303,6 +1318,9 @@ uint32_t ListEntitiesServicesResponse::calculate_size() const {
     }
   }
   size += this->supports_response ? 2 : 0;
+#ifdef USE_API_USER_DEFINED_ACTION_METADATA
+  size += ProtoSize::calc_length(1, this->description.size());
+#endif
   return size;
 }
 bool ExecuteServiceArgument::decode_varint(uint32_t field_id, proto_varint_value_t value) {

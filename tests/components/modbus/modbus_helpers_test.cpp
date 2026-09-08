@@ -63,6 +63,12 @@ TEST(ModbusClientFrameLength, TooShortReturnsMinimum) {
   EXPECT_EQ(client_frame_length(frame, 1), MIN_FRAME_SIZE);
 }
 
+TEST(ModbusClientFrameLength, ExceptionFlaggedIsTheExceptionShape) {
+  // Sized at 2 so an exception-flagged request fails its CRC at once instead of being scanned for.
+  const uint8_t exception_request[] = {0x83, 0x02};
+  EXPECT_EQ(client_pdu_length(exception_request, sizeof(exception_request)), 2);
+}
+
 TEST(ModbusClientFrameLength, ReadAndWriteSingleAreFixed) {
   // basic_register request fixture is a read-holding request -> 8 bytes
   const uint8_t read[] = {0x01, 0x03, 0x00, 0x03, 0x00, 0x01, 0x74, 0x0A};
@@ -421,9 +427,130 @@ TEST(ModbusHelpersTest, RegistersToNumberMatchesPayloadToNumber) {
   }
 }
 
+TEST(ModbusHelpersTest, RegistersToNumberMatchesPayloadToNumberForQwords) {
+  // The word shuffle the QWORD_R decode replaces is the least obvious code in the byte path, so pin
+  // it against that path rather than against registers_to_value(). The top bit is set, which is where
+  // U_QWORD's unsigned value and this function's int64_t return deliberately diverge.
+  const uint16_t registers[] = {0xF123, 0x4567, 0x89AB, 0xCDEF};
+  const std::vector<uint8_t> bytes{0xF1, 0x23, 0x45, 0x67, 0x89, 0xAB, 0xCD, 0xEF};
+  for (auto value_type :
+       {SensorValueType::U_QWORD, SensorValueType::S_QWORD, SensorValueType::U_QWORD_R, SensorValueType::S_QWORD_R}) {
+    EXPECT_EQ(registers_to_number(registers, 4, value_type),
+              payload_to_number(std::span<const uint8_t>(bytes), value_type, 0, 0xFFFFFFFF))
+        << "value_type=" << static_cast<int>(value_type);
+  }
+}
+
+TEST(ModbusHelpersTest, RegistersToNumberTreatsRawAndBitAsNothingToDecode) {
+  // Both have no fixed-width number, so they decode to 0 whatever the span holds - including none.
+  const uint16_t registers[] = {0x1234};
+  EXPECT_EQ(registers_to_number(registers, 1, SensorValueType::RAW), std::optional<int64_t>(0));
+  EXPECT_EQ(registers_to_number(registers, 0, SensorValueType::RAW), std::optional<int64_t>(0));
+  EXPECT_EQ(registers_to_number(registers, 0, SensorValueType::BIT), std::optional<int64_t>(0));
+}
+
 TEST(ModbusHelpersTest, RegistersToNumberRejectsTruncatedMultiRegisterValue) {
   const uint16_t registers[] = {0x1234};
   EXPECT_FALSE(registers_to_number(registers, 1, SensorValueType::U_DWORD).has_value());
+}
+
+// --- registers_to_value ----------------------------------------------------
+// registers_to_number() dispatches to registers_to_value(), so this checks the dispatch table picks
+// the right specialisation for each type, not that two implementations agree. The independent check
+// against the byte decoder is RegistersToNumberMatchesPayloadToNumber below.
+
+template<SensorValueType VALUE_TYPE> void expect_matches_registers_to_number(const uint16_t *registers) {
+  const auto expected = registers_to_number(registers, register_width_for(VALUE_TYPE), VALUE_TYPE);
+  // Plain control flow rather than ASSERT_TRUE: the optional analysis does not see through the macro.
+  if (!expected.has_value()) {
+    ADD_FAILURE() << "registers_to_number() returned no value for value_type=" << static_cast<int>(VALUE_TYPE);
+    return;
+  }
+  const int64_t number = expected.value();
+  if constexpr (VALUE_TYPE == SensorValueType::FP32 || VALUE_TYPE == SensorValueType::FP32_R) {
+    EXPECT_FLOAT_EQ(registers_to_value<VALUE_TYPE>(registers), bit_cast<float>(static_cast<uint32_t>(number)))
+        << "value_type=" << static_cast<int>(VALUE_TYPE);
+  } else {
+    EXPECT_EQ(static_cast<int64_t>(registers_to_value<VALUE_TYPE>(registers)), number)
+        << "value_type=" << static_cast<int>(VALUE_TYPE);
+  }
+}
+
+TEST(ModbusHelpersTest, RegistersToValueMatchesRegistersToNumber) {
+  // A high bit in each word exercises sign handling and word order together.
+  const uint16_t registers[] = {0x8001, 0xFE02};
+  expect_matches_registers_to_number<SensorValueType::U_WORD>(registers);
+  expect_matches_registers_to_number<SensorValueType::S_WORD>(registers);
+  expect_matches_registers_to_number<SensorValueType::U_WORD_S>(registers);
+  expect_matches_registers_to_number<SensorValueType::S_WORD_S>(registers);
+  expect_matches_registers_to_number<SensorValueType::U_DWORD>(registers);
+  expect_matches_registers_to_number<SensorValueType::U_DWORD_R>(registers);
+  expect_matches_registers_to_number<SensorValueType::S_DWORD>(registers);
+  expect_matches_registers_to_number<SensorValueType::S_DWORD_R>(registers);
+  expect_matches_registers_to_number<SensorValueType::FP32>(registers);
+  expect_matches_registers_to_number<SensorValueType::FP32_R>(registers);
+}
+
+TEST(ModbusHelpersTest, RegistersToUint32CombinesWordsHighFirst) {
+  EXPECT_EQ(registers_to_uint32(0x1234, 0x5678), 0x12345678u);
+}
+
+// --- value_at ---------------------------------------------------------------
+// Addresses are absolute; anything not wholly inside the response yields nullopt.
+
+TEST(ModbusHelpersTest, ValueAtDecodesByAbsoluteAddress) {
+  const uint16_t registers[] = {0x1111, 0x2222, 0x3333};
+  const std::span<const uint16_t> span(registers, 3);
+  EXPECT_EQ(value_at<SensorValueType::U_WORD>(span, 100, 100), std::optional<uint16_t>(0x1111));
+  EXPECT_EQ(value_at<SensorValueType::U_WORD>(span, 100, 102), std::optional<uint16_t>(0x3333));
+  EXPECT_EQ(value_at<SensorValueType::U_DWORD>(span, 100, 101), std::optional<uint32_t>(0x22223333u));
+  // Types whose RegisterValueType<> is not an unsigned integer, and the widest bounds check.
+  const uint16_t floats[] = {0x4048, 0xF5C3, 0xF5C3, 0x4048};
+  const std::span<const uint16_t> float_span(floats, 4);
+  EXPECT_FLOAT_EQ(value_at<SensorValueType::FP32>(float_span, 10, 10).value_or(0.0f), 3.14f);
+  EXPECT_FLOAT_EQ(value_at<SensorValueType::FP32_R>(float_span, 10, 12).value_or(0.0f), 3.14f);
+  EXPECT_EQ(value_at<SensorValueType::U_QWORD>(float_span, 10, 10), std::optional<uint64_t>(0x4048F5C3F5C34048ULL));
+  EXPECT_FALSE(value_at<SensorValueType::U_QWORD>(float_span, 10, 11).has_value());
+}
+
+TEST(ModbusHelpersTest, ValueAtIsUsableInAConstantExpression) {
+  static constexpr uint16_t REGISTERS[] = {0x1234, 0x5678};
+  static_assert(value_at<SensorValueType::U_DWORD>(REGISTERS, 7, 7).value_or(0) == 0x12345678u);
+  static_assert(!value_at<SensorValueType::U_DWORD>(REGISTERS, 7, 6).has_value());
+}
+
+TEST(ModbusHelpersTest, ValueAtRejectsAddressesOutsideTheResponse) {
+  const uint16_t registers[] = {0x1111, 0x2222, 0x3333};
+  const std::span<const uint16_t> span(registers, 3);
+  // Below the response: must not wrap when the subtraction would go negative.
+  EXPECT_FALSE(value_at<SensorValueType::U_WORD>(span, 100, 99).has_value());
+  EXPECT_FALSE(value_at<SensorValueType::U_WORD>(span, 100, 0).has_value());
+  // Past the end, and a multi-register value truncated by the end of the response.
+  EXPECT_FALSE(value_at<SensorValueType::U_WORD>(span, 100, 103).has_value());
+  EXPECT_FALSE(value_at<SensorValueType::U_DWORD>(span, 100, 102).has_value());
+  EXPECT_TRUE(value_at<SensorValueType::U_DWORD>(span, 100, 101).has_value());
+}
+
+TEST(ModbusHelpersTest, ValueAtHandlesAnEmptyResponse) {
+  EXPECT_FALSE(value_at<SensorValueType::U_WORD>(std::span<const uint16_t>(), 0, 0).has_value());
+}
+
+// --- QWORD decoding ---------------------------------------------------------
+
+TEST(ModbusHelpersTest, RegistersToValueDecodesQwordBothWordOrders) {
+  const uint16_t registers[] = {0x0123, 0x4567, 0x89AB, 0xCDEF};
+  EXPECT_EQ(registers_to_value<SensorValueType::U_QWORD>(registers), 0x0123456789ABCDEFULL);
+  const uint16_t reversed[] = {0xCDEF, 0x89AB, 0x4567, 0x0123};
+  EXPECT_EQ(registers_to_value<SensorValueType::U_QWORD_R>(reversed), 0x0123456789ABCDEFULL);
+  // Signed reading of the same bits, and the sign-extreme case.
+  EXPECT_EQ(registers_to_value<SensorValueType::S_QWORD>(registers), 0x0123456789ABCDEFLL);
+  const uint16_t negative[] = {0xFFFF, 0xFFFF, 0xFFFF, 0xFFFE};
+  EXPECT_EQ(registers_to_value<SensorValueType::S_QWORD>(negative), -2);
+  EXPECT_EQ(registers_to_value<SensorValueType::U_QWORD>(negative), 0xFFFFFFFFFFFFFFFEULL);
+}
+
+TEST(ModbusHelpersTest, RegistersToUint64CombinesWordsHighFirst) {
+  EXPECT_EQ(registers_to_uint64(0x0123, 0x4567, 0x89AB, 0xCDEF), 0x0123456789ABCDEFULL);
 }
 
 // --- packed bit helpers ------------------------------------------------------
@@ -481,6 +608,28 @@ TEST(ModbusTypedBuilders, WriteRegistersPduRejectsOverLimit) {
   EXPECT_TRUE(create_write_registers_pdu(0x0000, values).empty());
   values.pop_back();
   EXPECT_FALSE(create_write_registers_pdu(0x0000, values).empty());
+}
+
+TEST(ModbusTypedBuilders, WriteFewRegistersPduMatchesFullSizeBuilder) {
+  static_assert(sizeof(WriteFewRegistersPdu) < sizeof(PduBuffer) / 4,
+                "WriteFewRegistersPdu must be meaningfully smaller");
+  const uint16_t values[] = {0x000B, 0x0016, 0xABCD, 0xFF00};
+  for (size_t count = 1; count <= MAX_FEW_REGISTERS; count++) {
+    auto small = create_write_few_registers_pdu(0x0102, std::span<const uint16_t>(values, count));
+    auto full = create_write_registers_pdu(0x0102, std::span<const uint16_t>(values, count));
+    EXPECT_EQ(std::vector<uint8_t>(small.begin(), small.end()), std::vector<uint8_t>(full.begin(), full.end()))
+        << count << " registers";
+    EXPECT_EQ(small.size(), 6u + 2 * count);
+    EXPECT_TRUE(is_client_pdu_standard(small.data(), small.size()));
+  }
+}
+
+TEST(ModbusTypedBuilders, WriteFewRegistersPduRejectsInvalidInput) {
+  const uint16_t values[MAX_FEW_REGISTERS + 1] = {0xAAAA, 0xAAAA, 0xAAAA, 0xAAAA, 0xAAAA};
+  EXPECT_TRUE(create_write_few_registers_pdu(0x0000, values).empty());
+  EXPECT_FALSE(create_write_few_registers_pdu(0x0000, std::span<const uint16_t>(values, MAX_FEW_REGISTERS)).empty());
+  EXPECT_TRUE(create_write_few_registers_pdu(0x0000, std::span<const uint16_t>()).empty());
+  EXPECT_TRUE(create_write_few_registers_pdu(0xFFFF, std::span<const uint16_t>(values, 2)).empty());
 }
 
 TEST(ModbusTypedBuilders, ReadWriteMultipleRegistersPduWireBytes) {

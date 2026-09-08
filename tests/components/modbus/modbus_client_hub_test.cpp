@@ -775,7 +775,7 @@ TEST(ModbusClientHubBroadcast, DeliversNoTerminalToTypedDevice) {
 
 // A broadcast is only meaningful for a command that changes state; a broadcast READ could never be
 // answered, so the hub refuses it at the door (false return, no entry queued) rather than silently
-// retiring it. Writes, 0x17, and custom codes still go through (covered above).
+// retiring it. Writes and custom/unknown codes still go through (covered in the neighboring tests).
 TEST(ModbusClientHubBroadcast, RefusesReadBroadcast) {
   NullUART uart;
   NoResponseProbeHub hub;
@@ -814,9 +814,8 @@ TEST(ModbusClientHubBroadcast, AcceptsCustomBroadcast) {
   EXPECT_EQ(hub.entries(), 0u);  // the entry is gone
 }
 
-// An exception-flagged custom code (0x80 bit set) is not a real request: is_function_code_custom() masks
-// the bit away and would accept it, but the broadcast guard excludes it, matching classify()'s handling
-// of an exception-flagged write.
+// An exception-flagged code (0x80 bit set) is never a valid request - that bit is response-only - so
+// queue_pdu refuses it up front, before the broadcast guard, whatever its base code.
 TEST(ModbusClientHubBroadcast, RefusesExceptionFlaggedCustomBroadcast) {
   NullUART uart;
   NoResponseProbeHub hub;
@@ -831,6 +830,50 @@ TEST(ModbusClientHubBroadcast, RefusesExceptionFlaggedCustomBroadcast) {
 
   hub.send_next_for_test();          // nothing to send
   EXPECT_EQ(device.sent_count_, 0);  // never transmitted
+}
+
+// FC23 (read/write multiple) has a read half that expects a reply, so the Modbus spec does not allow it
+// as a broadcast. is_function_code_read() covers it, so the broadcast guard refuses it despite its write
+// half.
+TEST(ModbusClientHubBroadcast, RefusesReadWriteMultipleBroadcast) {
+  NullUART uart;
+  NoResponseProbeHub hub;
+  hub.set_uart_parent(&uart);
+  hub.setup();
+  BroadcastProbeDevice device(&hub, BROADCAST_ADDRESS);
+
+  // fc, read start+qty, write start+qty, byte count, one data word.
+  const uint8_t read_write_multiple[] = {0x17, 0x00, 0x00, 0x00, 0x01, 0x00, 0x10, 0x00, 0x01, 0x02, 0xBE, 0xEF};
+  EXPECT_FALSE(device.queue_pdu(read_write_multiple));  // its read half could never be answered
+  EXPECT_EQ(hub.entries(), 0u);
+}
+
+// FC 0x18 (read FIFO queue) is not a "read" by is_function_code_read(), but the hub has an explicit
+// response-length rule for it - it demonstrably expects a reply, so it cannot broadcast.
+TEST(ModbusClientHubBroadcast, RefusesKnownLengthNonWriteBroadcast) {
+  NullUART uart;
+  NoResponseProbeHub hub;
+  hub.set_uart_parent(&uart);
+  hub.setup();
+  BroadcastProbeDevice device(&hub, BROADCAST_ADDRESS);
+
+  const uint8_t read_fifo[] = {0x18, 0x00, 0x10};  // fc, FIFO pointer address
+  EXPECT_FALSE(device.queue_pdu(read_fifo));
+  EXPECT_EQ(hub.entries(), 0u);
+}
+
+// A code that is neither a read nor exception-flagged (here 0x63, unassigned) is fire-and-forget on a
+// broadcast: the hub can't know it isn't a vendor write, so it is accepted and delivered to all devices.
+TEST(ModbusClientHubBroadcast, AcceptsNonReadUnknownBroadcast) {
+  NullUART uart;
+  NoResponseProbeHub hub;
+  hub.set_uart_parent(&uart);
+  hub.setup();
+  BroadcastProbeDevice device(&hub, BROADCAST_ADDRESS);
+
+  const uint8_t unknown[] = {0x63, 0x00, 0x01};
+  EXPECT_TRUE(device.queue_pdu(unknown));  // not a read, so not refused
+  EXPECT_EQ(hub.entries(), 1u);
 }
 
 namespace {
@@ -1882,30 +1925,20 @@ TEST(ModbusClientHubPriority, ResendFromOnResponseAbsorbsIntoCompletingCommand) 
   EXPECT_FALSE(hub.queued(0).options.continuous);  // the one-shot re-send downgraded the poll
 }
 
-// An exception-flagged function code is never silently re-sendable, even though the read check
-// masks the exception bit: its duplicate takes the drop path like any other non-read.
-TEST(ModbusClientHubPriority, ExceptionFlaggedDuplicateDroppedNotPromoted) {
+// The exception bit marks a response, so a request carrying it is refused outright.
+TEST(ModbusClientHubPriority, ExceptionFlaggedPduRefused) {
   NoResponseProbeHub hub;
   SentCountingDevice device(&hub, 0x02);
 
-  const uint8_t weird[] = {0x83, 0x01, 0x00, 0x00, 0x02};  // read-shaped but exception-flagged
-  EXPECT_TRUE(device.queue_pdu(weird));
-  EXPECT_FALSE(device.queue_pdu(weird));  // non-requeueable: cap of one, so the duplicate is refused
+  // The 0x80 exception flag is a response-only bit; a request must never set it. queue_pdu refuses an
+  // exception-flagged PDU up front - nothing is queued - whether its base code reads (0x83 = 0x03 | 0x80)
+  // or writes (0x86 = 0x06 | 0x80).
+  const uint8_t read_shaped[] = {0x83, 0x01, 0x00, 0x00, 0x02};
+  const uint8_t write_shaped[] = {0x86, 0x00, 0x10, 0xBE, 0xEF};
+  EXPECT_FALSE(device.queue_pdu(read_shaped));
+  EXPECT_FALSE(device.queue_pdu(write_shaped));
   hub.sweep_for_test();
-
-  ASSERT_EQ(hub.queued_frames(), 1u);
-  EXPECT_EQ(hub.queued(0).pending, 1u);
-  EXPECT_EQ(device.not_sent_count_, 0);
-
-  // The write-shaped twin (0x86 masks to WRITE_SINGLE_REGISTER) must not take WRITE-class
-  // ordering either: exception-flagged codes are excluded from the mutates classification.
-  const uint8_t weird_write[] = {0x86, 0x00, 0x10, 0xBE, 0xEF};
-  device.queue_pdu(weird_write);
-  ASSERT_EQ(hub.queued_frames(), 2u);
-  EXPECT_EQ(hub.queued(1).priority(), CommandPriority::READ);  // not WRITE
-  const ModbusDeviceCommand *next = hub.next_ready();
-  ASSERT_NE(next, nullptr);
-  EXPECT_EQ(next->frame.pdu()[0], 0x83);  // FIFO by age: it did not jump the older entry
+  EXPECT_EQ(hub.queued_frames(), 0u);
 }
 
 namespace {

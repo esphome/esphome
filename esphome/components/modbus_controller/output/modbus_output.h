@@ -10,13 +10,12 @@ namespace esphome::modbus_controller {
 
 class ModbusFloatOutput final : public output::FloatOutput, public Component, public SensorItem, public WriterEntity {
  public:
-  ModbusFloatOutput(uint16_t start_address, uint8_t offset, SensorValueType value_type, int register_count) {
+  ModbusFloatOutput(uint16_t start_address, uint8_t offset, SensorValueType value_type) {
     this->register_type = modbus::EntityType::HOLDING;
     // A byte offset folds into the address as whole registers; odd offsets are rejected at validation.
     this->set_address(start_address + offset / 2);
     this->set_offset_from_start_address(0);
     this->bitmask = 0xFFFFFFFF;
-    this->register_count = register_count;
     this->sensor_value_type = value_type;
   }
   void dump_config() override;
@@ -46,7 +45,6 @@ class ModbusBinaryOutput final : public output::BinaryOutput, public Component, 
     this->set_address(start_address + offset);
     this->bitmask = 0xFFFFFFFF;
     this->sensor_value_type = SensorValueType::BIT;
-    this->register_count = 1;
     this->set_offset_from_start_address(0);
   }
   void dump_config() override;

@@ -265,8 +265,8 @@ uint8_t PN7160::reset_core_(const bool reset_config, const bool power) {
   }
 
   ESP_LOGD(TAG, "Configuration %s, NCI version: %s, Manufacturer ID: 0x%02X",
-           rx.get_message()[4] ? "reset" : "retained", rx.get_message()[5] == 0x20 ? "2.0" : "1.0",
-           rx.get_message()[6]);
+           rx.get_message()[4] ? LOG_STR_LITERAL("reset") : LOG_STR_LITERAL("retained"),
+           rx.get_message()[5] == 0x20 ? LOG_STR_LITERAL("2.0") : LOG_STR_LITERAL("1.0"), rx.get_message()[6]);
   rx.get_message().erase(rx.get_message().begin(), rx.get_message().begin() + 8);
   char mfr_buf[nfc::FORMAT_BYTES_BUFFER_SIZE];
   ESP_LOGD(TAG, "Manufacturer info: %s", nfc::format_bytes_to(mfr_buf, rx.get_message()));

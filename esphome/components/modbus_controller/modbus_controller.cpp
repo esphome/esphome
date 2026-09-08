@@ -3,6 +3,7 @@
 #include "esphome/core/log.h"
 
 #include <cstring>
+#include <limits>
 
 namespace esphome::modbus_controller {
 
@@ -137,7 +138,7 @@ ModbusCommandItem::ModbusCommandItem(ModbusController &controller, modbus::Modbu
                                      SensorItem *sensor)
     : modbus::ModbusClientDevice(parent, address),
       start_address_(sensor->start_address),
-      register_count_(sensor->register_count),
+      register_count_(sensor->entity_count()),
       custom_pdu_(&sensor->custom_pdu),
       controller_(&controller) {
   // The PDU's first byte is its real function code; carry it so dump_config, the on_command_sent
@@ -350,129 +351,176 @@ void ModbusController::update() {
 }
 
 // walk through the sensors and determine the register ranges to read
+namespace {
+
+class RangeBuilder {
+ public:
+  explicit RangeBuilder(FixedVector<RegisterRange> &ranges) : ranges_(ranges) {}
+
+  bool can_join(const SensorItem *curr) const {
+    return this->have_range_ && curr->reuse_previous_range != RangeReuse::NEVER &&
+           this->r_.register_type == curr->register_type && curr->register_type != modbus::EntityType::CUSTOM;
+  }
+
+  // A sensor that joined mid-range must never anchor this - hence both address tests.
+  bool try_reuse_register(SensorItem *curr) {
+    const uint32_t range_end = this->range_end_();
+    if (curr->start_address != range_end - this->prev_->entity_count() ||
+        this->prev_->start_address + this->prev_->entity_count() != range_end ||
+        curr->entity_count() != this->prev_->entity_count() ||
+        curr->get_register_size() != this->prev_->get_register_size()) {
+      return false;
+    }
+    if (!place_offset(curr, static_cast<uint32_t>(this->prev_->offset) + curr->offset_from_start_address))
+      return false;
+    ESP_LOGV(TAG, "Re-use previous register 0x%X", curr->start_address);
+    return true;
+  }
+
+  bool try_extend(SensorItem *curr) {
+    const uint32_t range_end = this->range_end_();
+    const bool reachable =
+        curr->reuse_previous_range == RangeReuse::ALWAYS
+            ? curr->start_address >= range_end
+            : curr->start_address == range_end && (curr->addresses_bits() || !this->range_custom_size_);
+    if (!reachable)
+      return false;
+    const uint16_t gap = static_cast<uint16_t>(curr->start_address - range_end);
+    const uint32_t new_count = this->r_.register_count + gap + curr->entity_count();
+    const uint16_t max_quantity =
+        curr->addresses_bits() ? modbus::MAX_NUM_OF_COILS_TO_READ : modbus::MAX_NUM_OF_REGISTERS_TO_READ;
+    const uint32_t prospective_offset =
+        (curr->addresses_bits() ? static_cast<uint32_t>(curr->start_address - this->r_.start_address)
+                                : static_cast<uint32_t>(this->range_bytes_) + gap * 2) +
+        curr->offset_from_start_address;
+    if (new_count > max_quantity || !place_offset(curr, prospective_offset)) {
+      return false;
+    }
+    if (!curr->addresses_bits())
+      this->range_bytes_ += static_cast<size_t>(gap) * 2;
+    this->range_bytes_ += curr->get_register_size();
+    this->range_custom_size_ = this->range_custom_size_ || has_custom_size(curr);
+    this->r_.register_count = static_cast<uint16_t>(new_count);
+    ESP_LOGV(TAG, "Extend range to include 0x%X", curr->start_address);
+    return true;
+  }
+
+  bool try_cover(SensorItem *curr) {
+    if (!this->range_shared_ || this->range_forced_ || curr->start_address < this->r_.start_address ||
+        curr->start_address + curr->entity_count() > this->range_end_() || this->range_custom_size_ ||
+        has_custom_size(curr)) {
+      return false;
+    }
+    const uint32_t addr_delta = curr->start_address - this->r_.start_address;
+    if (!place_offset(curr, (curr->addresses_bits() ? addr_delta : addr_delta * 2) + curr->offset_from_start_address))
+      return false;
+    ESP_LOGV(TAG, "Register 0x%X already covered by range 0x%X", curr->start_address, this->r_.start_address);
+    return true;
+  }
+
+  // A response dispatches to a single range per (start address, register type), so same-address items
+  // must share - even reuse_previous_range: false and custom entities.
+  bool try_share(SensorItem *curr) {
+    if (!this->have_range_ || this->r_.register_type != curr->register_type ||
+        this->r_.start_address != curr->start_address) {
+      return false;
+    }
+    curr->offset = curr->offset_from_start_address;
+    this->r_.register_count = std::max(this->r_.register_count, curr->entity_count());
+    this->range_bytes_ = std::max(this->range_bytes_, curr->get_register_size());
+    this->range_custom_size_ = this->range_custom_size_ || has_custom_size(curr);
+    this->range_shared_ = true;
+    this->range_forced_ = this->range_forced_ || curr->reuse_previous_range == RangeReuse::NEVER;
+    ESP_LOGV(TAG, "Share range start 0x%X", curr->start_address);
+    return true;
+  }
+
+  bool always_declined(const SensorItem *curr) const {
+    return this->have_range_ && curr->reuse_previous_range == RangeReuse::ALWAYS &&
+           this->r_.register_type == curr->register_type && curr->start_address != this->r_.start_address;
+  }
+
+  void open(SensorItem *curr) {
+    this->close();
+    this->r_ = {};
+    this->range_bytes_ = curr->get_register_size();
+    this->range_custom_size_ = has_custom_size(curr);
+    this->range_forced_ = curr->reuse_previous_range == RangeReuse::NEVER;
+    this->range_shared_ = false;
+    curr->offset = curr->offset_from_start_address;
+    this->r_.start_address = curr->start_address;
+    this->r_.register_count = curr->entity_count();
+    this->r_.register_type = curr->register_type;
+    if (curr->register_type == modbus::EntityType::CUSTOM)
+      this->r_.custom_pdu = &curr->custom_pdu;
+    this->have_range_ = true;
+  }
+
+  void record(SensorItem *curr) {
+    curr->range_start_address = this->r_.start_address;
+    this->r_.sensors.insert(curr);
+    this->prev_ = curr;
+  }
+
+  void close() {
+    if (!this->have_range_)
+      return;
+    ESP_LOGV(TAG, "Add range 0x%X %d", this->r_.start_address, this->r_.register_count);
+    this->ranges_.push_back(std::move(this->r_));
+    this->have_range_ = false;
+  }
+
+ private:
+  uint32_t range_end_() const { return this->r_.start_address + this->r_.register_count; }
+  // The resolved offset must fit its uint8_t field or the sensor would parse the wrong slice.
+  static bool place_offset(SensorItem *curr, uint32_t offset) {
+    if (offset > std::numeric_limits<uint8_t>::max())
+      return false;
+    curr->offset = static_cast<uint8_t>(offset);
+    return true;
+  }
+  static bool has_custom_size(const SensorItem *item) {
+    return item->get_register_size() != static_cast<size_t>(item->entity_count()) * 2;
+  }
+  FixedVector<RegisterRange> &ranges_;
+  RegisterRange r_ = {};
+  bool have_range_ = false;
+  bool range_forced_ = false;  // a reuse: false member blocks the coverage join
+  bool range_shared_ = false;  // only a share-widened range absorbs by coverage
+  size_t range_bytes_ = 0;
+  bool range_custom_size_ = false;
+  SensorItem *prev_ = nullptr;
+};
+
+}  // namespace
+
 void ModbusController::create_polling_commands_() {
   if (this->sensorset_.empty()) {
     ESP_LOGW(TAG, "No sensors registered");
     return;
   }
 
-  // Sensors are walked in the sensor set's order (see SensorItemsComparator): register type, then
-  // force_new_range ahead of the rest, then address - so the walk is not purely address-ordered.
-  // Each keeps the address it was configured with; what is resolved here is its `offset`, the position
-  // of its data within the response of whichever range it ends up in.
-  // One range per sensor is a strict upper bound: each walk step closes at most one range, plus one
-  // closed after the walk. Sized to that bound so no push is ever silently dropped, then handed on by move.
+  // At most one range closes per sensor plus one final close, so sensorset_.size() bounds the pushes
+  // (FixedVector silently drops past capacity).
   FixedVector<RegisterRange> ranges;
   ranges.init(this->sensorset_.size());
-  RegisterRange r = {};
-  bool have_range = false;
-  // Set while the open range belongs to a force_new_range sensor: a range the user asked to keep
-  // separate must not quietly absorb other sensors.
-  bool range_forced = false;
-  // Set once a sensor has joined by sharing the range's start address, which widens the read. Only a
-  // widened range can absorb a later sensor by coverage: ranges that were kept apart before stay apart,
-  // so their frames and polling rates are untouched.
-  bool range_shared = false;
-  // Bytes the range's registers have consumed so far. An extending sensor starts after them, so a
-  // register that returns more bytes than its count implies pushes the sensors after it along.
-  // range_custom_size records whether any of them returns something other than two bytes per register,
-  // which is what makes a position inside the range impossible to work out from addresses alone. Coils
-  // count as such: they carry one bit per address, so bit ranges never take the coverage join.
-  size_t range_bytes = 0;
-  bool range_custom_size = false;
-  SensorItem *prev = nullptr;
+  RangeBuilder builder(ranges);
   for (SensorItem *curr : this->sensorset_) {
-    ESP_LOGV(TAG, "Register: 0x%X count=%d size=%zu offset=%u addr=%p", curr->start_address, curr->register_count,
+    ESP_LOGV(TAG, "Register: 0x%X width=%u size=%zu offset=%u addr=%p", curr->start_address, curr->entity_count(),
              curr->get_register_size(), curr->offset, curr);
-
-    const bool custom_size = curr->get_register_size() != static_cast<size_t>(curr->register_count) * 2;
-
-    bool join = false;
-    if (have_range && !curr->force_new_range && r.register_type == curr->register_type &&
-        curr->register_type != modbus::EntityType::CUSTOM) {
-      if (curr->start_address == (r.start_address + r.register_count - prev->register_count) &&
-          prev->start_address + prev->register_count == r.start_address + r.register_count &&
-          curr->register_count == prev->register_count && curr->get_register_size() == prev->get_register_size()) {
-        // A second sensor on the register(s) the previous one covers: it reads those same bytes,
-        // starting where that sensor's offset pointed, so a chain configured 0/2/4 resolves to 0/2/6.
-        // Both address tests matter. The first identifies the previous sensor's register by working back
-        // from the range's end, which only describes it while it actually sits there - hence the second.
-        // A sensor that joined mid-range must never anchor this, or the next one inherits its offset.
-        curr->offset = static_cast<uint8_t>(prev->offset + curr->offset_from_start_address);
-        join = true;
-        ESP_LOGV(TAG, "Re-use previous register 0x%X", curr->start_address);
-      } else if (curr->start_address == (r.start_address + r.register_count)) {
-        // The next contiguous register(s): the data begins after what the range has consumed so far -
-        // the byte cursor for registers, the distance in bits for coils.
-        curr->offset =
-            static_cast<uint8_t>((curr->addresses_bits() ? curr->start_address - r.start_address : range_bytes) +
-                                 curr->offset_from_start_address);
-        range_bytes += curr->get_register_size();
-        range_custom_size = range_custom_size || custom_size;
-        r.register_count += curr->register_count;
-        join = true;
-        ESP_LOGV(TAG, "Extend range to include 0x%X", curr->start_address);
-      } else if (range_shared && !range_forced && curr->start_address >= r.start_address &&
-                 curr->start_address + curr->register_count <= r.start_address + r.register_count &&
-                 !range_custom_size && !custom_size) {
-        // The registers already fall inside a range that a shared-address join widened, so this sensor
-        // reads its slice of that response instead of adding an overlapping second poll. The guards keep
-        // it narrow: only a widened range, never a force-isolated one; only where every register in the
-        // range returns two bytes, so interior positions follow from the addresses; only sensors genuinely
-        // inside it, which is why the lower bound is needed given the walk is not address-ordered.
-        const uint16_t addr_delta = curr->start_address - r.start_address;
-        curr->offset = static_cast<uint8_t>((curr->addresses_bits() ? addr_delta : addr_delta * 2) +
-                                            curr->offset_from_start_address);
-        join = true;
-        ESP_LOGV(TAG, "Register 0x%X already covered by range 0x%X", curr->start_address, r.start_address);
-      }
+    bool join = builder.can_join(curr) &&
+                (builder.try_reuse_register(curr) || builder.try_extend(curr) || builder.try_cover(curr));
+    if (!join && builder.always_declined(curr)) {
+      ESP_LOGW(TAG, "reuse_previous_range on 0x%X cannot join the previous range; starting a new range",
+               curr->start_address);
     }
-
-    // Sensors on the same start address have to share one range: a response is dispatched to a single
-    // range per (start_address, register_type), so a second range with that key would never receive
-    // data. This holds for force_new_range and custom entities too. The read widens to cover whichever
-    // sensor needs the most registers, which also fixes a short read for coils that use offset.
-    if (!join && have_range && r.register_type == curr->register_type && r.start_address == curr->start_address) {
-      curr->offset = curr->offset_from_start_address;  // shares the range start
-      r.register_count = std::max(r.register_count, curr->register_count);
-      range_bytes = std::max(range_bytes, curr->get_register_size());
-      range_custom_size = range_custom_size || custom_size;
-      range_shared = true;
-      range_forced = range_forced || curr->force_new_range;
-      join = true;
-      ESP_LOGV(TAG, "Share range start 0x%X", curr->start_address);
-    }
-
-    if (!join) {
-      if (have_range) {
-        ESP_LOGV(TAG, "Add range 0x%X %d", r.start_address, r.register_count);
-        ranges.push_back(std::move(r));
-      }
-      r = {};
-      range_bytes = curr->get_register_size();
-      range_custom_size = custom_size;
-      range_forced = curr->force_new_range;
-      range_shared = false;
-      curr->offset = curr->offset_from_start_address;
-      r.start_address = curr->start_address;
-      r.register_count = curr->register_count;
-      r.register_type = curr->register_type;
-      if (curr->register_type == modbus::EntityType::CUSTOM)
-        r.custom_pdu = &curr->custom_pdu;
-      have_range = true;
-    }
-
-    // Every member records its range's first register. The resolved offset is relative to it, so the
-    // two together give the sensor's real position, and the address a write entity targets.
-    curr->range_start_address = r.start_address;
-    r.sensors.insert(curr);
-    prev = curr;
+    join = join || builder.try_share(curr);
+    if (!join)
+      builder.open(curr);
+    builder.record(curr);
   }
-  if (have_range) {
-    ESP_LOGV(TAG, "Add last range 0x%X %d", r.start_address, r.register_count);
-    ranges.push_back(std::move(r));
-  }
-  // Staged in a setup-time vector so the device storage can be sized exactly (see polling_devices_).
+  builder.close();
+
   this->polling_devices_.init(ranges.size());
   for (auto &range : ranges) {
     this->polling_devices_.emplace_back(*this, std::move(range));
@@ -490,8 +538,8 @@ void ModbusController::dump_config() {
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
   ESP_LOGCONFIG(TAG, "sensormap");
   for (auto &it : this->sensorset_) {
-    ESP_LOGCONFIG(TAG, " Sensor type=%u start=0x%X offset=0x%X count=%d size=%zu",
-                  static_cast<uint8_t>(it->register_type), it->start_address, it->offset, it->register_count,
+    ESP_LOGCONFIG(TAG, " Sensor type=%u start=0x%X offset=0x%X width=%u size=%zu",
+                  static_cast<uint8_t>(it->register_type), it->start_address, it->offset, it->entity_count(),
                   it->get_register_size());
   }
   ESP_LOGCONFIG(TAG, "ranges");

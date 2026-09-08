@@ -11,13 +11,12 @@ namespace esphome::modbus_controller {
 class ModbusSwitch final : public Component, public switch_::Switch, public SensorItem, public WriterEntity {
  public:
   ModbusSwitch(modbus::EntityType register_type, uint16_t start_address, uint8_t offset, uint32_t bitmask,
-               bool force_new_range) {
+               RangeReuse reuse_previous_range) {
     this->register_type = register_type;
     this->set_address(start_address);
     this->set_offset_from_start_address(offset);
     this->bitmask = bitmask;
     this->sensor_value_type = SensorValueType::BIT;
-    this->register_count = 1;
     // A holding byte offset folds into the address as whole registers (odd offsets are rejected at
     // validation: a 16-bit register write cannot target half a register); a coil offset is a coil count.
     if (register_type == modbus::EntityType::HOLDING) {
@@ -27,7 +26,7 @@ class ModbusSwitch final : public Component, public switch_::Switch, public Sens
       this->set_address(start_address + offset);
       this->set_offset_from_start_address(0);
     }
-    this->force_new_range = force_new_range;
+    this->reuse_previous_range = reuse_previous_range;
   };
   void setup() override;
   void write_state(bool state) override;

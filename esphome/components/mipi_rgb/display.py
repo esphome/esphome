@@ -12,7 +12,12 @@ from esphome.components.const import (
     CONF_DRAW_ROUNDING,
 )
 from esphome.components.display import CONF_SHOW_TEST_CARD
-from esphome.components.esp32 import VARIANT_ESP32P4, VARIANT_ESP32S3, only_on_variant
+from esphome.components.esp32 import (
+    VARIANT_ESP32P4,
+    VARIANT_ESP32S3,
+    VARIANT_ESP32S31,
+    only_on_variant,
+)
 from esphome.components.mipi import (
     COLOR_ORDERS,
     CONF_DE_PIN,
@@ -226,7 +231,7 @@ def _config_schema(config: ConfigType) -> ConfigType:
     config = cv.All(
         schema,
         cv.only_on_esp32,
-        only_on_variant(supported=[VARIANT_ESP32S3, VARIANT_ESP32P4]),
+        only_on_variant(supported=[VARIANT_ESP32S3, VARIANT_ESP32P4, VARIANT_ESP32S31]),
     )(config)
     model = MODELS[config[CONF_MODEL].upper()]
     model.check_requirements()
