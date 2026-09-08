@@ -836,19 +836,20 @@ void ESPHomeOTAComponent::send_chunk_acks_(DataTransfer &xfer) {
 ota::OTAResponseTypes ESPHomeOTAComponent::inflate_flush_(InflateSession &session) {
   const size_t produced = session.dest - session.window;
   const size_t pending = produced - session.flushed;
-  if (pending == 0)
-    return ota::OTA_RESPONSE_OK;
-  if (pending > session.image_size - session.written) {
-    ESP_LOGW(TAG, "Inflate overrun");
-    return ota::OTA_RESPONSE_ERROR_UNKNOWN;
+  if (pending != 0) {
+    if (pending > session.image_size - session.written) {
+      ESP_LOGW(TAG, "Inflate overrun");
+      return ota::OTA_RESPONSE_ERROR_UNKNOWN;
+    }
+    ota::OTAResponseTypes result = this->write_flash_(session.window + session.flushed, pending);
+    if (result != ota::OTA_RESPONSE_OK)
+      return result;
+    session.flushed = produced;
+    session.written += pending;
+    // A compressible region yields many windows per socket read
+    App.feed_wdt();
   }
-  ota::OTAResponseTypes result = this->write_flash_(session.window + session.flushed, pending);
-  if (result != ota::OTA_RESPONSE_OK)
-    return result;
-  session.flushed = produced;
-  session.written += pending;
-  // A compressible region yields many windows per socket read
-  App.feed_wdt();
+  // Even with nothing new written: a block boundary can fall inside a header
   this->ack_written_(*session.xfer);
   return ota::OTA_RESPONSE_OK;
 }
@@ -905,7 +906,8 @@ ota::OTAResponseTypes ESPHomeOTAComponent::inflate_data_(uint8_t *in, size_t ima
   if (session.error != ota::OTA_RESPONSE_OK)
     return session.error;
   if (res != OTA_INFLATE_DONE || session.written != image_size || xfer.total != xfer.ota_size) {
-    ESP_LOGW(TAG, "Inflate err %d", res);
+    ESP_LOGW(TAG, "Inflate err %d, %zu of %zu B from %zu of %zu", res, session.written, image_size, xfer.total,
+             xfer.ota_size);
     return ota::OTA_RESPONSE_ERROR_UNKNOWN;
   }
   ESP_LOGD(TAG, "Inflated %zu bytes from %zu", session.written, xfer.total);
