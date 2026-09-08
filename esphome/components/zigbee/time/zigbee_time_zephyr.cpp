@@ -47,6 +47,7 @@ void ZigbeeTime::set_epoch_time(uint32_t epoch) {
     this->synchronize_epoch_(epoch);
     this->has_time_ = true;
   });
+  App.wake_loop_threadsafe();
 }
 
 void ZigbeeTime::zcl_device_cb_(zb_bufid_t bufid) {
@@ -63,10 +64,12 @@ void ZigbeeTime::zcl_device_cb_(zb_bufid_t bufid) {
           zb_uint32_t value = p_device_cb_param->cb_param.set_attr_value_param.values.data32;
           ESP_LOGI(TAG, "Synchronize time to %u", value);
           this->defer([this, value]() { synchronize_epoch_(value + EPOCH_2000); });
+          App.wake_loop_threadsafe();
         } else if (attr_id == ZB_ZCL_ATTR_TIME_TIME_STATUS_ID) {
           zb_uint8_t value = p_device_cb_param->cb_param.set_attr_value_param.values.data8;
           ESP_LOGI(TAG, "Time status %hd", value);
           this->defer([this, value]() { this->has_time_ = ZB_ZCL_TIME_TIME_STATUS_SYNCHRONIZED_BIT_IS_SET(value); });
+          App.wake_loop_threadsafe();
         }
       } else {
         /* other clusters attribute handled here */

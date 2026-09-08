@@ -138,6 +138,7 @@ void ZigbeeComponent::on_join_(bool factory_new) {
     ESP_LOGD(TAG, "Joined the network");
     this->join_cb_.call(factory_new);
   });
+  App.wake_loop_threadsafe();
 }
 
 void ZigbeeComponent::on_start_() {
@@ -145,6 +146,7 @@ void ZigbeeComponent::on_start_() {
     ESP_LOGD(TAG, "Started zigbee stack");
     this->start_cb_.call();
   });
+  App.wake_loop_threadsafe();
 }
 
 #ifdef USE_ZIGBEE_WIPE_ON_BOOT
