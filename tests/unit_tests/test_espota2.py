@@ -1567,7 +1567,8 @@ def test_perform_ota_gzip_wins_over_deflate(mock_socket: Mock) -> None:
     espota2.perform_ota(mock_socket, None, io.BytesIO(original_content), "test.bin")
 
     sent = [c[0][0] for c in mock_socket.sendall.call_args_list]
-    compressed = gzip.compress(original_content, compresslevel=9)
-    assert sent[3] == len(compressed).to_bytes(4, "big")
-    assert sent[4] == hashlib.md5(compressed).hexdigest().encode()
-    assert sent[5] == compressed
+    # gzip output embeds the time of compression, so compare what it holds
+    payload = sent[5]
+    assert gzip.decompress(payload) == original_content
+    assert sent[3] == len(payload).to_bytes(4, "big")
+    assert sent[4] == hashlib.md5(payload).hexdigest().encode()

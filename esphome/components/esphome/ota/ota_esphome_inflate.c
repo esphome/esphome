@@ -41,6 +41,8 @@
 
 #include "ota_esphome_inflate.h"
 
+#include <stddef.h>
+
 #define TINF_OK OTA_INFLATE_OK
 #define TINF_DONE OTA_INFLATE_DONE
 #define TINF_DATA_ERROR OTA_INFLATE_DATA_ERROR
@@ -353,7 +355,7 @@ static int tinf_inflate_block_data(TINF_DATA *d, TINF_TREE *lt, TINF_TREE *dt) {
     d->curlen = tinf_read_bits(d, LENGTH_BITS[sym], LENGTH_BASE[sym]);
 
     dist = tinf_decode_symbol(d, dt);
-    if (dist >= 30) {
+    if (dist < 0 || dist >= 30) {
       return TINF_DATA_ERROR;
     }
 
@@ -425,8 +427,12 @@ static int tinf_inflate_uncompressed_block(TINF_DATA *d) {
 
 /* initialize decompression structure */
 void ota_inflate_init(TINF_DATA *d, unsigned char *dict, unsigned int dict_len) {
+  d->source = NULL;
+  d->source_limit = NULL;
+  d->tag = 0;
   d->eof = 0;
   d->bitcount = 0;
+  d->lz_off = 0;
   d->bfinal = 0;
   d->btype = -1;
   d->dict_size = dict_len;
