@@ -88,11 +88,14 @@ struct ServerFixture {
 }  // namespace
 
 // Registration is what hands a device its hub, and a device that has one can turn it: the injected frame is
-// answered from service_bus_() alone, with no call to the hub's loop() from the test.
-TEST(ModbusServerService, ServiceBusRunsAPassForARegisteredDevice) {
+// answered from service_bus_() alone, with no call to the hub's loop() from the test. Every registered device
+// gets its own hub, not just the first one.
+TEST(ModbusServerService, ServiceBusRunsAPassForEveryRegisteredDevice) {
   ServerFixture f;
   ServicingDevice device(0x02);
+  ServicingDevice second(0x03);
   f.hub.register_device(&device);
+  f.hub.register_device(&second);
 
   f.uart.inject_frame(0x02, READ_HOLDING_PDU);
   EXPECT_TRUE(device.pump());
@@ -104,6 +107,7 @@ TEST(ModbusServerService, ServiceBusRunsAPassForARegisteredDevice) {
   EXPECT_EQ(f.uart.written[2], 0x02);
   EXPECT_EQ(f.uart.written[3], 0x12);
   EXPECT_EQ(f.uart.written[4], 0x34);
+  EXPECT_TRUE(second.pump());
 }
 
 // A device that was never registered has no hub to turn, and says so instead of reaching through a null
@@ -113,21 +117,10 @@ TEST(ModbusServerService, ServiceBusIsRefusedWithoutAHub) {
   EXPECT_FALSE(device.pump());
 }
 
-// Each registered device gets its own hub, not just the first one.
-TEST(ModbusServerService, EveryRegisteredDeviceCanTurnTheHub) {
-  ServerFixture f;
-  ServicingDevice first(0x02);
-  ServicingDevice second(0x03);
-  f.hub.register_device(&first);
-  f.hub.register_device(&second);
-
-  EXPECT_TRUE(first.pump());
-  EXPECT_TRUE(second.pump());
-}
-
 // Turning the hub from inside a handler would answer a later frame before the one being handled. The second
-// frame below is what a re-entrant pass would reach for, and it has to wait its turn.
-TEST(ModbusServerService, ServiceBusIsRefusedFromInsideAHandler) {
+// frame below is what a re-entrant pass would reach for, and it has to wait its turn. The refusal lasts only
+// as long as the dispatch: a hub left marked as dispatching would be deaf to every later call.
+TEST(ModbusServerService, ServiceBusIsRefusedFromInsideAHandlerOnly) {
   ServerFixture f;
   ServicingDevice device(0x02);
   device.service_from_handler = true;
@@ -140,38 +133,14 @@ TEST(ModbusServerService, ServiceBusIsRefusedFromInsideAHandler) {
   // Both frames are answered by this one pass, but one after the other rather than one inside the other.
   EXPECT_EQ(device.reads, 2);
   EXPECT_FALSE(device.reentered);
-}
-
-// The refusal lasts only as long as the dispatch. A hub left marked as dispatching would be deaf to every
-// later call, which is the whole feature gone.
-TEST(ModbusServerService, ServiceBusWorksAgainOnceTheDispatchEnded) {
-  ServerFixture f;
-  ServicingDevice device(0x02);
-  device.service_from_handler = true;
-  f.hub.register_device(&device);
-
-  f.uart.inject_frame(0x02, READ_HOLDING_PDU);
-  f.hub.loop();
-  ASSERT_FALSE(device.serviced_from_handler);
 
   device.service_from_handler = false;
   EXPECT_TRUE(device.pump());
 }
 
-// A reply held back for a busy wire is normally sent by the scheduler, which does not run during the waits
-// service_bus_() exists for. It goes out on the pass instead of being lost.
-TEST(ModbusServerService, HeldBackReplyGoesOutOnThePass) {
-  ServerFixture f;
-  ServicingDevice device(0x02);
-  f.hub.register_device(&device);
-  f.hub.stash_deferred_for_test(0x02, READ_HOLDING_PDU);
-
-  EXPECT_TRUE(device.pump());
-  EXPECT_FALSE(f.uart.written.empty());
-}
-
-// What held the reply back is usually bytes still arriving, and a pass does not drain them. The reply is kept
-// for the next one rather than spending its only attempt on a wire that cannot take it.
+// What held a reply back is usually bytes still arriving, and a pass does not drain them. The reply is kept
+// for the next one rather than spending its only attempt on a wire that cannot take it, and goes out there:
+// the scheduler that would otherwise send it does not run during the waits service_bus_() exists for.
 TEST(ModbusServerService, HeldBackReplyIsKeptWhileTheWireIsBusy) {
   ServerFixture f;
   ServicingDevice device(0x02);
