@@ -12,6 +12,7 @@ from esphome.const import (
     ICON_CHIP,
     ICON_SIGN_DIRECTION,
 )
+from esphome.types import ConfigType
 
 from . import CONF_LD2450_ID, LD2450Component
 
@@ -49,7 +50,7 @@ CONFIG_SCHEMA = CONFIG_SCHEMA.extend(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     ld2450_component = await cg.get_variable(config[CONF_LD2450_ID])
     if version_config := config.get(CONF_VERSION):
         sens = await text_sensor.new_text_sensor(version_config)

@@ -15,6 +15,13 @@ inline void ESPHOME_ALWAYS_INLINE wake_loop_impl() {
   // Set the wake-requested flag BEFORE esp_schedule so the consumer is
   // guaranteed to see it on its next gate check.
   wake_request_set();
+  // Skip the post when a wake was already signalled and not yet consumed by
+  // wakeable_delay(): esp_schedule() -> ets_post() can enter SDK WiFi pm code,
+  // which must not be poked per-byte from the software serial RX ISR (see
+  // esphome#18409). The flag can stay latched while the loop is awake, which
+  // is intentional; posts are only needed to cut a suspend short.
+  if (g_main_loop_woke)
+    return;
   g_main_loop_woke = true;
   esp_schedule();
 }

@@ -1,5 +1,6 @@
 import logging
 import re
+from typing import Any
 
 import esphome.codegen as cg
 from esphome.components import esp32, uart
@@ -12,6 +13,7 @@ from esphome.const import (
     CONF_RECEIVE_TIMEOUT,
 )
 from esphome.core import CORE
+from esphome.types import ConfigType
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -33,13 +35,13 @@ DlmsMeterComponent = dlms_meter_component_ns.class_(
 )
 
 
-def obis_code(value):
+def obis_code(value: Any) -> str:
     # Normalize the OBIS code to the strict A.B.C.D.E.F format
     bytes_list = parse_obis_code_bytes(value)
     return ".".join(str(b) for b in bytes_list)
 
 
-def parse_obis_code_bytes(value):
+def parse_obis_code_bytes(value: Any) -> list[int]:
     value = cv.string(value)
     normalized = re.sub(r"[\-\:\*]", ".", value)
     parts = normalized.split(".")
@@ -57,19 +59,19 @@ def parse_obis_code_bytes(value):
     return bytes_list
 
 
-def custom_pattern_dict(value):
+def custom_pattern_dict(value: Any) -> ConfigType:
     if isinstance(value, str):
         return {CONF_PATTERN: value}
     return value
 
 
-def validate_custom_pattern(value):
+def validate_custom_pattern(value: ConfigType) -> ConfigType:
     if CONF_DEFAULT_OBIS in value and CONF_NAME not in value:
         raise cv.Invalid(f"'{CONF_DEFAULT_OBIS}' requires '{CONF_NAME}' to be set")
     return value
 
 
-def validate_provider_deprecation(config):
+def validate_provider_deprecation(config: ConfigType) -> ConfigType:
     if CONF_PROVIDER in config:
         provider = str(config[CONF_PROVIDER]).lower()
         if provider == "netznoe":
@@ -154,7 +156,7 @@ CONFIG_SCHEMA = cv.All(
 FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema("dlms_meter", require_rx=True)
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     dec_key_expr = cg.RawExpression("std::nullopt")
     if dec_key := config.get(CONF_DECRYPTION_KEY):
         key_bytes = [str(int(dec_key[i : i + 2], 16)) for i in range(0, 32, 2)]

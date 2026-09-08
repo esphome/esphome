@@ -1,11 +1,11 @@
 import collections
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 import io
 import logging
+import os
 from pathlib import Path
 import re
-import subprocess
 import sys
 from typing import TYPE_CHECKING, Any
 
@@ -88,8 +88,11 @@ def safe_print(message="", end="\n"):
         except UnicodeEncodeError:
             pass
 
+    # Always flush: stdout is block buffered when it is a pipe (the dashboard
+    # runs us that way), so live log lines would otherwise sit in the buffer
+    # for a long time instead of streaming out.
     try:
-        print(message, end=end)
+        print(message, end=end, flush=True)
         return
     except UnicodeEncodeError:
         pass
@@ -105,6 +108,7 @@ def safe_print(message="", end="\n"):
         print(
             message.encode(encoding, "backslashreplace").decode(encoding),
             end=end,
+            flush=True,
         )
         return
     except UnicodeEncodeError:
@@ -114,9 +118,10 @@ def safe_print(message="", end="\n"):
         print(
             message.encode("ascii", "backslashreplace").decode("ascii"),
             end=end,
+            flush=True,
         )
     except UnicodeEncodeError:
-        print("Cannot print line because of invalid locale!")
+        print("Cannot print line because of invalid locale!", flush=True)
 
 
 def safe_input(prompt=""):
@@ -136,6 +141,10 @@ def shlex_quote(s: str | Path) -> str:
 
     return "'" + s.replace("'", "'\"'\"'") + "'"
 
+
+# Tells the PlatformIO runner subprocess, which has no configured CORE, that
+# this is an ESP32 Arduino build.
+ESP32_ARDUINO_ENV = "ESPHOME_ESP32_ARDUINO_BUILD"
 
 ANSI_ESCAPE = re.compile(r"\033[@-_][0-?]*[ -/]*[@-~]")
 
@@ -170,6 +179,51 @@ class RedirectText:
             s = s.replace("\033", "\\033")
         self._out.write(s)
 
+    def _emit_line(self, line: str) -> None:
+        line_without_ansi = ANSI_ESCAPE.sub("", line)
+        line_without_end = line_without_ansi.rstrip()
+        if (
+            self._filter_pattern is not None
+            and self._filter_pattern.match(line_without_end) is not None
+        ):
+            # Filter pattern matched, ignore the line
+            return
+
+        self._write_color_replace(line)
+        # Check for flash size error and provide helpful guidance
+        if (
+            "Error: The program size" in line
+            and "is greater than maximum allowed" in line
+            and (help_msg := get_esp32_arduino_flash_error_help())
+        ):
+            self._write_color_replace(help_msg)
+        for callback in self._line_callbacks:
+            if msg := callback(line_without_end):
+                self._write_color_replace(msg)
+
+    def drain(self) -> None:
+        """Write out a held-back line that never got its terminator.
+
+        A tool that dies part way through a line, or ends its output without
+        a final newline, would otherwise have that text sit in the buffer
+        and never reach the user.
+        """
+        if not self._line_buffer:
+            return
+        line, self._line_buffer = self._line_buffer, ""
+        try:
+            # Add the terminator the line never got, so whatever ESPHome
+            # prints next does not run onto the same line.
+            self._emit_line(line + "\n")
+            self._out.flush()
+        except (OSError, ValueError) as err:
+            # Every caller drains from a cleanup path, where the command's
+            # real result is already on its way out; raising here would
+            # replace it with an unrelated traceback. Carry the line into
+            # the warning, since the stream we were told to write it to is
+            # the one that just failed.
+            _LOGGER.warning("Could not write out remaining output (%s): %s", err, line)
+
     def write(self, s: str | bytes) -> int:
         # s is usually a str already (self._out is of type TextIOWrapper)
         # However, s is sometimes also a bytes object in python3. Let's make sure it's a
@@ -180,37 +234,29 @@ class RedirectText:
             s = s.decode()
 
         if self._filter_pattern is not None or self._line_callbacks:
-            self._line_buffer += s
-            lines = self._line_buffer.splitlines(True)
-            for line in lines:
-                if "\n" not in line and "\r" not in line:
-                    # Not a complete line, set line buffer
-                    self._line_buffer = line
-                    break
+            lines = (self._line_buffer + s).splitlines(True)
+            # Every piece but the last ends with something
+            # ``str.splitlines`` treats as a break, so only the last one can
+            # still be waiting for more text. Hold that one, write out the
+            # rest.
+            #
+            # Some of those breaks are not line endings to us, a form feed
+            # for one, so a piece can go out without ending in a newline.
+            # That beats what we did before, which was to stop at the first
+            # such piece and drop every complete line behind it.
+            if lines and not lines[-1].endswith(("\n", "\r")):
+                self._line_buffer = lines.pop()
+            else:
                 self._line_buffer = ""
-
-                line_without_ansi = ANSI_ESCAPE.sub("", line)
-                line_without_end = line_without_ansi.rstrip()
-                if (
-                    self._filter_pattern is not None
-                    and self._filter_pattern.match(line_without_end) is not None
-                ):
-                    # Filter pattern matched, ignore the line
-                    continue
-
-                self._write_color_replace(line)
-                # Check for flash size error and provide helpful guidance
-                if (
-                    "Error: The program size" in line
-                    and "is greater than maximum allowed" in line
-                    and (help_msg := get_esp32_arduino_flash_error_help())
-                ):
-                    self._write_color_replace(help_msg)
-                for callback in self._line_callbacks:
-                    if msg := callback(line_without_end):
-                        self._write_color_replace(msg)
+            for line in lines:
+                self._emit_line(line)
         else:
             self._write_color_replace(s)
+
+        # Same reason as safe_print: the dashboard gives us a pipe, which is
+        # block buffered, so in-process esptool progress would not show up
+        # until the buffer filled.
+        self._out.flush()
 
         # write() returns the number of characters written
         # Let's print the number of characters of the original string in order to not confuse
@@ -252,11 +298,11 @@ def run_external_command(
     _LOGGER.debug("Running:  %s", full_cmd)
 
     orig_stdout = sys.stdout
-    sys.stdout = RedirectText(
+    stdout_redirect = sys.stdout = RedirectText(
         sys.stdout, filter_lines=filter_lines, line_callbacks=line_callbacks
     )
     orig_stderr = sys.stderr
-    sys.stderr = RedirectText(
+    stderr_redirect = sys.stderr = RedirectText(
         sys.stderr, filter_lines=filter_lines, line_callbacks=line_callbacks
     )
 
@@ -282,6 +328,18 @@ def run_external_command(
         sys.stdout = orig_stdout
         sys.stderr = orig_stderr
 
+        # Release a last line that never got its terminator. This runs after
+        # the real streams are back, and uses the wrappers we made rather
+        # than whatever the command left in sys.stdout, so it cannot strand
+        # them. With capture_stdout the stdout wrapper was never written to,
+        # so draining it does nothing. Drain stderr from a finally so a
+        # surprise from the first one cannot strand the second; a real bug
+        # still propagates, it just does not take the other line with it.
+        try:
+            stdout_redirect.drain()
+        finally:
+            stderr_redirect.drain()
+
     if capture_stdout:
         return cap_stdout.getvalue()
 
@@ -289,6 +347,9 @@ def run_external_command(
 
 
 def run_external_process(*cmd: str, **kwargs: Any) -> int | str:
+    # Deferred: an OTA upload/logs run never spawns an external process.
+    import subprocess
+
     full_cmd = " ".join(shlex_quote(x) for x in cmd)
     _LOGGER.debug("Running:  %s", full_cmd)
     filter_lines = kwargs.get("filter_lines")
@@ -314,6 +375,7 @@ def run_external_process(*cmd: str, **kwargs: Any) -> int | str:
             encoding="utf-8",
             check=False,
             close_fds=False,
+            env=kwargs.get("env"),
         )
         return proc.stdout if capture_stdout else proc.returncode
     except KeyboardInterrupt:  # pylint: disable=try-except-raise
@@ -328,11 +390,18 @@ def is_dev_esphome_version():
     return "dev" in const.__version__
 
 
+# Remove before 2027.2.0
 def parse_esphome_version() -> tuple[int, int, int]:
-    match = re.match(r"^(\d+).(\d+).(\d+)(-dev\d*|b\d*)?$", const.__version__)
-    if match is None:
-        raise ValueError(f"Failed to parse ESPHome version '{const.__version__}'")
-    return int(match.group(1)), int(match.group(2)), int(match.group(3))
+    """Deprecated: use esphome.config_validation.require_esphome_version instead."""
+    from esphome.core import Version
+
+    _LOGGER.warning(
+        "parse_esphome_version() is deprecated. Use "
+        "cv.require_esphome_version to gate on a minimum version. "
+        "Removed in 2027.2.0"
+    )
+    version = Version.parse(const.__version__)
+    return version.major, version.minor, version.patch
 
 
 # Custom OrderedDict with nicer repr method for debugging
@@ -355,7 +424,7 @@ def list_yaml_files(configs: list[str | Path]) -> list[Path]:
     return sorted(files)
 
 
-def filter_yaml_files(files: list[Path]) -> list[Path]:
+def filter_yaml_files(files: Iterable[Path]) -> list[Path]:
     return [
         f
         for f in files
@@ -449,6 +518,8 @@ def detect_rp2040_bootsel(picotool_path: str | Path) -> BootselResult:
     Returns a BootselResult with the number of devices found (by counting
     'type:' lines in output), and whether a permission error was detected.
     """
+    import subprocess
+
     try:
         result = subprocess.run(
             [str(picotool_path), "info", "-d"],
@@ -468,11 +539,24 @@ def detect_rp2040_bootsel(picotool_path: str | Path) -> BootselResult:
         return BootselResult(0)
 
 
-def get_esp32_arduino_flash_error_help() -> str | None:
-    """Returns helpful message when ESP32 with Arduino runs out of flash space."""
+def is_esp32_arduino_build() -> bool:
+    """Whether the build targets ESP32 with the Arduino framework.
+
+    The PlatformIO runner subprocess has no configured CORE, so the parent
+    passes the answer in the environment.
+    """
     from esphome.core import CORE
 
-    if not (CORE.is_esp32 and CORE.using_arduino):
+    if not CORE.is_configured:
+        # The runner subprocess. A half filled in CORE still counts as
+        # configured, so reading from it raises instead of landing here.
+        return os.environ.get(ESP32_ARDUINO_ENV) == "1"
+    return CORE.is_esp32 and CORE.using_arduino
+
+
+def get_esp32_arduino_flash_error_help() -> str | None:
+    """Returns helpful message when ESP32 with Arduino runs out of flash space."""
+    if not is_esp32_arduino_build():
         return None
 
     from esphome.log import AnsiFore, color

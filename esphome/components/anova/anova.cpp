@@ -13,13 +13,22 @@ void Anova::dump_config() { LOG_CLIMATE("", "Anova BLE Cooker", this); }
 
 void Anova::setup() {
   this->codec_ = make_unique<AnovaCodec>();
-  this->current_request_ = 0;
+  this->poll_step_ = PollStep::IDLE;
 }
 
 void Anova::loop() {
   // Parent BLEClientNode has a loop() method, but this component uses
   // polling via update() and BLE callbacks so loop isn't needed
   this->disable_loop();
+}
+
+void Anova::write_request_(AnovaPacket *pkt) {
+  auto status =
+      esp_ble_gattc_write_char(this->parent_->get_gattc_if(), this->parent_->get_conn_id(), this->char_handle_,
+                               pkt->length, pkt->data, ESP_GATT_WRITE_TYPE_NO_RSP, ESP_GATT_AUTH_REQ_NONE);
+  if (status) {
+    ESP_LOGW(TAG, "[%s] esp_ble_gattc_write_char failed, status=%d", this->parent_->address_str(), status);
+  }
 }
 
 void Anova::control(const ClimateCall &call) {
@@ -38,22 +47,11 @@ void Anova::control(const ClimateCall &call) {
         ESP_LOGW(TAG, "Unsupported mode: %d", mode);
         return;
     }
-    auto status =
-        esp_ble_gattc_write_char(this->parent_->get_gattc_if(), this->parent_->get_conn_id(), this->char_handle_,
-                                 pkt->length, pkt->data, ESP_GATT_WRITE_TYPE_NO_RSP, ESP_GATT_AUTH_REQ_NONE);
-    if (status) {
-      ESP_LOGW(TAG, "[%s] esp_ble_gattc_write_char failed, status=%d", this->parent_->address_str(), status);
-    }
+    this->write_request_(pkt);
   }
   auto target_temp = call.get_target_temperature();
   if (target_temp.has_value()) {
-    auto *pkt = this->codec_->get_set_target_temp_request(*target_temp);
-    auto status =
-        esp_ble_gattc_write_char(this->parent_->get_gattc_if(), this->parent_->get_conn_id(), this->char_handle_,
-                                 pkt->length, pkt->data, ESP_GATT_WRITE_TYPE_NO_RSP, ESP_GATT_AUTH_REQ_NONE);
-    if (status) {
-      ESP_LOGW(TAG, "[%s] esp_ble_gattc_write_char failed, status=%d", this->parent_->address_str(), status);
-    }
+    this->write_request_(this->codec_->get_set_target_temp_request(*target_temp));
   }
 }
 
@@ -62,6 +60,7 @@ void Anova::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_
     case ESP_GATTC_DISCONNECT_EVT: {
       this->current_temperature = NAN;
       this->target_temperature = NAN;
+      this->poll_step_ = PollStep::IDLE;
       this->publish_state();
       break;
     }
@@ -83,8 +82,8 @@ void Anova::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_
     }
     case ESP_GATTC_REG_FOR_NOTIFY_EVT: {
       this->node_state = espbt::ClientState::ESTABLISHED;
-      this->current_request_ = 0;
-      this->update();
+      this->poll_step_ = PollStep::IDLE;
+      this->update();  // begin the first poll cycle immediately
       break;
     }
     case ESP_GATTC_NOTIFY_EVT: {
@@ -101,33 +100,30 @@ void Anova::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_
         this->mode = this->codec_->running_ ? climate::CLIMATE_MODE_HEAT : climate::CLIMATE_MODE_OFF;
       }
       if (this->codec_->has_unit()) {
-        this->fahrenheit_ = (this->codec_->unit_ == 'f');
-        ESP_LOGD(TAG, "Anova units is %s", this->fahrenheit_ ? "fahrenheit" : "celsius");
-        this->current_request_++;
+        ESP_LOGD(TAG, "Anova units is %s", (this->codec_->unit_ == 'f') ? "fahrenheit" : "celsius");
       }
       this->publish_state();
 
-      if (this->current_request_ > 1) {
-        AnovaPacket *pkt = nullptr;
-        switch (this->current_request_++) {
-          case 2:
-            pkt = this->codec_->get_read_target_temp_request();
-            break;
-          case 3:
-            pkt = this->codec_->get_read_current_temp_request();
-            break;
-          default:
-            this->current_request_ = 1;
-            break;
-        }
-        if (pkt != nullptr) {
-          auto status =
-              esp_ble_gattc_write_char(this->parent_->get_gattc_if(), this->parent_->get_conn_id(), this->char_handle_,
-                                       pkt->length, pkt->data, ESP_GATT_WRITE_TYPE_NO_RSP, ESP_GATT_AUTH_REQ_NONE);
-          if (status) {
-            ESP_LOGW(TAG, "[%s] esp_ble_gattc_write_char failed, status=%d", this->parent_->address_str(), status);
-          }
-        }
+      // Advance the poll cycle to its next request based on the reply we got.
+      switch (this->poll_step_) {
+        case PollStep::SET_UNIT:
+          this->poll_step_ = PollStep::STATUS;
+          this->write_request_(this->codec_->get_read_device_status_request());
+          break;
+        case PollStep::STATUS:
+          this->poll_step_ = PollStep::TARGET;
+          this->write_request_(this->codec_->get_read_target_temp_request());
+          break;
+        case PollStep::TARGET:
+          this->poll_step_ = PollStep::CURRENT;
+          this->write_request_(this->codec_->get_read_current_temp_request());
+          break;
+        case PollStep::CURRENT:
+          this->poll_step_ = PollStep::IDLE;  // full cycle complete
+          break;
+        default:
+          // A reply to an ad-hoc control() write, outside a managed cycle.
+          break;
       }
       break;
     }
@@ -136,27 +132,26 @@ void Anova::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_
   }
 }
 
-void Anova::set_unit_of_measurement(const char *unit) { this->fahrenheit_ = !strncmp(unit, "f", 1); }
+void Anova::set_unit_of_measurement(const char *unit) { this->want_fahrenheit_ = !strncmp(unit, "f", 1); }
 
 void Anova::update() {
   if (this->node_state != espbt::ClientState::ESTABLISHED)
     return;
-
-  if (this->current_request_ < 2) {
-    AnovaPacket *pkt;
-    if (this->current_request_ == 0) {
-      pkt = this->codec_->get_set_unit_request(this->fahrenheit_ ? 'f' : 'c');
-    } else {
-      pkt = this->codec_->get_read_device_status_request();
-    }
-    auto status =
-        esp_ble_gattc_write_char(this->parent_->get_gattc_if(), this->parent_->get_conn_id(), this->char_handle_,
-                                 pkt->length, pkt->data, ESP_GATT_WRITE_TYPE_NO_RSP, ESP_GATT_AUTH_REQ_NONE);
-    if (status) {
-      ESP_LOGW(TAG, "[%s] esp_ble_gattc_write_char failed, status=%d", this->parent_->address_str(), status);
-    }
-    this->current_request_++;
+  if (this->poll_step_ != PollStep::IDLE) {
+    // The previous cycle never finished within a full polling interval -- a
+    // reply was missed or a write failed. Restart the cycle rather than stall;
+    // the polling interval itself acts as the timeout. A late reply from the
+    // abandoned cycle is harmless: state decoding happens on every notify
+    // regardless of step, and each notify sends at most one follow-up request.
+    ESP_LOGW(TAG, "[%s] Poll cycle incomplete (step %u); restarting cycle", this->parent_->address_str(),
+             static_cast<uint8_t>(this->poll_step_));
   }
+  // Re-assert the configured unit at the start of every poll cycle, then fall
+  // through the status/temperature reads via the notification handler. Always
+  // command the configured unit (want_fahrenheit_) -- never the last value the
+  // device reported, or a drift to 'c' would lock itself in.
+  this->poll_step_ = PollStep::SET_UNIT;
+  this->write_request_(this->codec_->get_set_unit_request(this->want_fahrenheit_ ? 'f' : 'c'));
 }
 
 }  // namespace esphome::anova

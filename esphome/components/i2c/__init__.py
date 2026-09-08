@@ -1,6 +1,7 @@
 import logging
 import re
 import sys
+from typing import Any
 
 from esphome import pins
 import esphome.codegen as cg
@@ -52,9 +53,10 @@ from esphome.const import (
     PLATFORM_RP2,
     PlatformFramework,
 )
-from esphome.core import CORE, CoroPriority, coroutine_with_priority
+from esphome.core import CORE, ID, CoroPriority, coroutine_with_priority
 from esphome.cpp_generator import MockObj
 import esphome.final_validate as fv
+from esphome.types import ConfigType
 
 LOGGER = logging.getLogger(__name__)
 CODEOWNERS = ["@esphome/core"]
@@ -96,13 +98,13 @@ CONF_SCL_PULLUP_ENABLED = "scl_pullup_enabled"
 MULTI_CONF = True
 
 
-def validate_device(value):
+def validate_device(value: str) -> str:
     if not re.match(r"^/(?:[^/]+/)*[^/]+$", value):
         raise cv.Invalid("Device must be an absolute device path (e.g., /dev/i2c-0)")
     return value
 
 
-def _bus_declare_type(value):
+def _bus_declare_type(value: Any) -> ID:
     if CORE.is_esp32:
         return cv.declare_id(IDFI2CBus)(value)
     if CORE.using_arduino:
@@ -114,7 +116,7 @@ def _bus_declare_type(value):
     raise NotImplementedError
 
 
-def _rp2040_i2c_controller(pin):
+def _rp2040_i2c_controller(pin: int) -> int:
     """Return the I2C controller number (0 or 1) for a given RP2040/RP2350 GPIO pin.
 
     See RP2040 datasheet Table 2 (section 1.4.3, "GPIO Functions"):
@@ -125,7 +127,7 @@ def _rp2040_i2c_controller(pin):
     return (pin // 2) % 2
 
 
-def validate_config(config):
+def validate_config(config: ConfigType) -> ConfigType:
     if CORE.is_esp32:
         return cv.require_framework_version(
             esp_idf=cv.Version(5, 4, 2), esp32_arduino=cv.Version(3, 2, 1)
@@ -142,7 +144,7 @@ def validate_config(config):
     return config
 
 
-def validate_host_config(config):
+def validate_host_config(config: ConfigType) -> ConfigType:
     if CORE.is_host:
         # Host I2C is currently only supported on Linux
         if not sys.platform.lower().startswith("linux"):
@@ -229,7 +231,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-def _final_validate(config):
+def _final_validate(config: ConfigType) -> None:
     full_config = fv.full_config.get()[CONF_I2C]
     if CORE.using_zephyr and len(full_config) > 1:
         raise cv.Invalid("Second i2c is not implemented on Zephyr yet")
@@ -281,9 +283,14 @@ FINAL_VALIDATE_SCHEMA = _final_validate
 
 
 @coroutine_with_priority(CoroPriority.BUS)
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     cg.add_global(i2c_ns.using)
     cg.add_define("USE_I2C")
+    if CORE.is_esp32:
+        from esphome.components.esp32 import include_builtin_idf_component
+
+        # Re-enable the I2C driver (excluded by default to save compile time)
+        include_builtin_idf_component("esp_driver_i2c")
     if CORE.is_host:
         var = cg.new_Pvariable(config[CONF_ID])
         await cg.register_component(var, config)
@@ -353,7 +360,7 @@ async def to_code(config):
             cg.add(var.set_lp_mode(bool(config[CONF_LOW_POWER_MODE])))
 
 
-def i2c_device_schema(default_address):
+def i2c_device_schema(default_address: int | None) -> cv.Schema:
     """Create a schema for a i2c device.
 
     :param default_address: The default address of the i2c device, can be None to represent
@@ -370,7 +377,7 @@ def i2c_device_schema(default_address):
     return cv.Schema(schema)
 
 
-async def register_i2c_device(var, config):
+async def register_i2c_device(var: MockObj, config: ConfigType) -> None:
     """Register an i2c device with the given config.
 
     Sets the i2c bus to use and the i2c address.
@@ -385,11 +392,11 @@ async def register_i2c_device(var, config):
 def final_validate_device_schema(
     name: str,
     *,
-    min_frequency: cv.frequency = None,
-    max_frequency: cv.frequency = None,
-    min_timeout: cv.time_period = None,
-    max_timeout: cv.time_period = None,
-):
+    min_frequency: Any = None,
+    max_frequency: Any = None,
+    min_timeout: Any = None,
+    max_timeout: Any = None,
+) -> cv.Schema:
     hub_schema = {}
     if (min_frequency is not None) and (max_frequency is not None):
         hub_schema[cv.Required(CONF_FREQUENCY)] = cv.Range(

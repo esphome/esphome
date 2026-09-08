@@ -367,7 +367,7 @@ def run_esphome_test(
     output_file = build_dir / f"{component}.{test_name}.{platform_with_version}.yaml"
 
     # Copy base file and substitute component test file reference
-    base_content = base_file.read_text()
+    base_content = base_file.read_text(encoding="utf-8")
     # Get relative path from build dir to test file
     repo_root = Path(__file__).parent.parent
     component_test_ref = f"../../{test_file.relative_to(repo_root / 'tests')}"
@@ -524,7 +524,7 @@ def run_grouped_test(
 
     # Create test file that includes merged config
     output_file = build_dir / f"test_{group_name}.{platform_with_version}.yaml"
-    base_content = base_file.read_text()
+    base_content = base_file.read_text(encoding="utf-8")
     merged_ref = merged_config_file.name
     output_content = base_content.replace("$component_test_file", merged_ref)
     output_file.write_text(output_content)

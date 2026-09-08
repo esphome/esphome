@@ -52,12 +52,6 @@ static int draw_callback(JPEGDRAW *jpeg) {
   return 1;
 }
 
-int JpegDecoder::prepare(size_t expected_size) {
-  ImageDecoder::prepare(expected_size);
-  // JPEG decoder needs complete data before decoding
-  return 0;
-}
-
 int HOT JpegDecoder::decode(uint8_t *buffer, size_t size) {
   // JPEG decoder requires complete data
   // If we know the expected size, wait for it

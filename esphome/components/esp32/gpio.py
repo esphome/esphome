@@ -257,6 +257,7 @@ ESP32_PIN_SCHEMA = cv.All(
 
 @pins.PIN_SCHEMA_REGISTRY.register(PLATFORM_ESP32, ESP32_PIN_SCHEMA)
 async def esp32_pin_to_code(config):
+    cg.add_define("USE_ESP32_INTERNAL_GPIO")
     var = cg.new_Pvariable(config[CONF_ID])
     num = config[CONF_NUMBER]
     cg.add(var.set_pin(getattr(gpio_num_t, f"GPIO_NUM_{num}")))

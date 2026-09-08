@@ -1,0 +1,17 @@
+esphome:
+  name: scan-window-raised
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+wifi:
+  ssid: MySSID
+
+esp32_ble_tracker:
+
+bluetooth_proxy:
+  active: true
+
+api:

@@ -52,6 +52,7 @@ COMMON_BUS_PATH = (
 # the packages on the right as well
 PACKAGE_DEPENDENCIES = {
     "modbus": ["uart"],  # modbus packages include uart packages
+    "modbus_server": ["uart"],  # modbus_server packages include uart packages
     # Add more package dependencies here as needed
 }
 

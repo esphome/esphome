@@ -39,7 +39,7 @@ lvgl:
         timing:
           - round_trip
           - type: ease_in_out
-            weight: 3
+            weight: 0.5
         on_start:
           - logger.log: anim started
         on_stop:

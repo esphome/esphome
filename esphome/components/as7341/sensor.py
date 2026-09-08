@@ -5,10 +5,11 @@ from esphome.const import (
     CONF_CLEAR,
     CONF_GAIN,
     CONF_ID,
-    DEVICE_CLASS_ILLUMINANCE,
+    DEVICE_CLASS_EMPTY,
     ICON_BRIGHTNESS_5,
     STATE_CLASS_MEASUREMENT,
 )
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@mrgnr"]
 DEPENDENCIES = ["i2c"]
@@ -54,7 +55,7 @@ SENSOR_SCHEMA = sensor.sensor_schema(
     unit_of_measurement=UNIT_COUNTS,
     icon=ICON_BRIGHTNESS_5,
     accuracy_decimals=0,
-    device_class=DEVICE_CLASS_ILLUMINANCE,
+    device_class=DEVICE_CLASS_EMPTY,
     state_class=STATE_CLASS_MEASUREMENT,
 )
 
@@ -96,7 +97,7 @@ SENSORS = {
 }
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)

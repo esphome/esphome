@@ -1,25 +1,31 @@
 from __future__ import annotations
 
 import binascii
-from datetime import datetime
 import json
 import logging
 import os
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from esphome import const
 from esphome.const import (
     CONF_DISABLED,
     CONF_MDNS,
     KEY_CORE,
+    KEY_ESP32,
     KEY_FRAMEWORK_VERSION,
+    KEY_IDF_VERSION,
     KEY_TARGET_FRAMEWORK,
     KEY_TARGET_PLATFORM,
+    KEY_VARIANT,
     Toolchain,
 )
-from esphome.core import CORE, EsphomeError
+from esphome.core import CORE, EsphomeError, Version
 from esphome.helpers import write_file_if_changed
 from esphome.types import CoreType
+
+if TYPE_CHECKING:
+    from datetime import datetime
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -65,8 +71,22 @@ def archive_storage_path() -> Path:
 
 
 def _to_path_if_not_none(value: str | None) -> Path | None:
-    """Convert a string to Path if it's not None."""
-    return Path(value) if value is not None else None
+    """Convert a string to Path; None and the legacy "None" both map to None.
+
+    Sidecars written before as_dict skipped unset paths hold str(None).
+    """
+    return Path(value) if value is not None and value != "None" else None
+
+
+def _parse_framework_version(framework_version: str) -> Version:
+    try:
+        return Version.parse(framework_version)
+    except ValueError as err:
+        raise EsphomeError(
+            f"Could not parse the framework version "
+            f"{framework_version!r} from {storage_path()}. "
+            f"Please clean the build files and recompile."
+        ) from err
 
 
 class StorageJSON:
@@ -153,8 +173,10 @@ class StorageJSON:
             "address": self.address,
             "web_port": self.web_port,
             "esp_platform": self.target_platform,
-            "build_path": str(self.build_path),
-            "firmware_bin_path": str(self.firmware_bin_path),
+            "build_path": str(self.build_path) if self.build_path else None,
+            "firmware_bin_path": (
+                str(self.firmware_bin_path) if self.firmware_bin_path else None
+            ),
             "loaded_integrations": sorted(self.loaded_integrations),
             "loaded_platforms": sorted(self.loaded_platforms),
             "no_mdns": self.no_mdns,
@@ -172,7 +194,18 @@ class StorageJSON:
         write_file_if_changed(path, self.to_json())
 
     @staticmethod
-    def from_esphome_core(esph: CoreType, old: StorageJSON | None) -> StorageJSON:
+    def from_esphome_core(
+        esph: CoreType, old: StorageJSON | None, *, claim_build: bool = True
+    ) -> StorageJSON:
+        """Build a sidecar from post-validation CORE state.
+
+        claim_build=False (the upload/logs fallback, which runs no build)
+        carries the build-artifact fields (esphome_version,
+        firmware_bin_path) from *old* instead of asserting this run built
+        firmware. Validation-derived fields (platform, framework_version,
+        toolchain, build_path) always stamp; storage_should_clean compares
+        them against the next compile.
+        """
         hardware = esph.target_platform.upper()
         framework_version: str | None = None
         if esph.is_esp32:
@@ -187,13 +220,21 @@ class StorageJSON:
             name=esph.name,
             friendly_name=esph.friendly_name,
             comment=esph.comment,
-            esphome_version=const.__version__,
+            esphome_version=(
+                const.__version__
+                if claim_build
+                else (old.esphome_version if old else None)
+            ),
             src_version=1,
             address=esph.address,
             web_port=esph.web_port,
             target_platform=hardware,
             build_path=esph.build_path,
-            firmware_bin_path=esph.firmware_bin,
+            firmware_bin_path=(
+                esph.firmware_bin
+                if claim_build
+                else (old.firmware_bin_path if old else None)
+            ),
             loaded_integrations=esph.loaded_integrations,
             loaded_platforms=esph.loaded_platforms,
             no_mdns=(
@@ -285,11 +326,27 @@ class StorageJSON:
         except Exception:  # noqa: BLE001  # pylint: disable=broad-except
             return None
 
+    @staticmethod
+    def load_strict(path: Path) -> StorageJSON | None:
+        """Like load, but None only means missing; an unreadable file raises."""
+        if not path.is_file():
+            return None
+        return StorageJSON._load_impl(path)
+
+    def can_apply_to_core(self) -> bool:
+        """True when the sidecar carries everything apply_to_core hands CORE.
+
+        Wizard-written sidecars leave build_path unset (older wizards also
+        the platform fields) and can't drive upload/logs.
+        """
+        return bool((self.core_platform or self.target_platform) and self.build_path)
+
     def apply_to_core(self) -> None:
         """Populate CORE with the metadata upload/logs read.
 
         Inverse of :meth:`from_esphome_core`. Keep paired -- a new
-        attribute upload/logs needs has to be captured there too.
+        attribute upload/logs needs has to be captured there too and
+        reflected in :meth:`can_apply_to_core`.
         Validator-only fields (loaded_integrations/platforms,
         friendly_name) are skipped; the fast path doesn't run
         validation and CORE.__init__ defaults them.
@@ -315,41 +372,20 @@ class StorageJSON:
         }
         # The compile pipeline populates CORE.data[KEY_ESP32] when esp32's
         # validator runs; on the cache fast path that validator is skipped,
-        # so populate the variant upload_using_esptool reads via
-        # esp32.get_esp32_variant(). target_platform on disk is the variant
-        # (e.g. "ESP32S3"); core_platform is the family (e.g. "esp32").
+        # so populate the variant upload_using_esptool reads from
+        # CORE.data[KEY_ESP32][KEY_VARIANT]. target_platform on disk is the
+        # variant (e.g. "ESP32S3"); core_platform is the family (e.g. "esp32").
         if target_platform == const.PLATFORM_ESP32:
-            from esphome.components.esp32.const import KEY_ESP32, KEY_IDF_VERSION
-            from esphome.const import KEY_VARIANT
-
             esp32_data = {KEY_VARIANT: self.target_platform}
             if self.framework_version:
-                import esphome.config_validation as cv
-
-                try:
-                    esp32_data[KEY_IDF_VERSION] = cv.Version.parse(
-                        self.framework_version
-                    )
-                except ValueError as err:
-                    raise EsphomeError(
-                        f"Could not parse the framework version "
-                        f"{self.framework_version!r} from {storage_path()}. "
-                        f"Please clean the build files and recompile."
-                    ) from err
-            CORE.data[KEY_ESP32] = esp32_data
-        elif target_platform == const.PLATFORM_NRF52 and self.framework_version:
-            import esphome.config_validation as cv
-
-            try:
-                CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION] = cv.Version.parse(
+                esp32_data[KEY_IDF_VERSION] = _parse_framework_version(
                     self.framework_version
                 )
-            except ValueError as err:
-                raise EsphomeError(
-                    f"Could not parse the framework version "
-                    f"{self.framework_version!r} from {storage_path()}. "
-                    f"Please clean the build files and recompile."
-                ) from err
+            CORE.data[KEY_ESP32] = esp32_data
+        elif target_platform == const.PLATFORM_NRF52 and self.framework_version:
+            CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION] = _parse_framework_version(
+                self.framework_version
+            )
 
     def __eq__(self, o) -> bool:
         return isinstance(o, StorageJSON) and self.as_dict() == o.as_dict()
@@ -379,6 +415,10 @@ class EsphomeStorageJSON:
 
     @property
     def last_update_check(self) -> datetime | None:
+        # Deferred: this module is on the upload/logs fast path; only the
+        # dashboard's update check touches these accessors.
+        from datetime import datetime
+
         try:
             # Stored format is naive ISO without %z; preserved for backward compat.
             return datetime.strptime(  # noqa: DTZ007

@@ -30,6 +30,25 @@ namespace esphome::deep_sleep {
 
 static const char *const TAG = "deep_sleep";
 
+#ifdef USE_DEEP_SLEEP_ON_WAKE
+WakeupCause get_wakeup_cause() {
+  switch (esp_sleep_get_wakeup_cause()) {
+    case ESP_SLEEP_WAKEUP_EXT0:
+    case ESP_SLEEP_WAKEUP_EXT1:
+    case ESP_SLEEP_WAKEUP_GPIO:
+      return WAKEUP_CAUSE_GPIO;
+    case ESP_SLEEP_WAKEUP_TIMER:
+      return WAKEUP_CAUSE_TIMER;
+    case ESP_SLEEP_WAKEUP_TOUCHPAD:
+      return WAKEUP_CAUSE_TOUCH;
+    case ESP_SLEEP_WAKEUP_UNDEFINED:
+      return WAKEUP_CAUSE_NONE;
+    default:
+      return WAKEUP_CAUSE_UNKNOWN;
+  }
+}
+#endif  // USE_DEEP_SLEEP_ON_WAKE
+
 optional<uint32_t> DeepSleepComponent::get_run_duration_() const {
   if (this->wakeup_cause_to_run_duration_.has_value()) {
     esp_sleep_wakeup_cause_t wakeup_cause = esp_sleep_get_wakeup_cause();
@@ -53,12 +72,6 @@ void DeepSleepComponent::set_wakeup_pin_mode(WakeupPinMode wakeup_pin_mode) {
 
 #if !defined(USE_ESP32_VARIANT_ESP32C2) && !defined(USE_ESP32_VARIANT_ESP32C3)
 void DeepSleepComponent::set_ext1_wakeup(Ext1Wakeup ext1_wakeup) { this->ext1_wakeup_ = ext1_wakeup; }
-#endif
-
-#if !defined(USE_ESP32_VARIANT_ESP32C2) && !defined(USE_ESP32_VARIANT_ESP32C3) && \
-    !defined(USE_ESP32_VARIANT_ESP32C5) && !defined(USE_ESP32_VARIANT_ESP32C6) && \
-    !defined(USE_ESP32_VARIANT_ESP32C61) && !defined(USE_ESP32_VARIANT_ESP32H2)
-void DeepSleepComponent::set_touch_wakeup(bool touch_wakeup) { this->touch_wakeup_ = touch_wakeup; }
 #endif
 
 void DeepSleepComponent::set_run_duration(WakeupCauseToRunDuration wakeup_cause_to_run_duration) {

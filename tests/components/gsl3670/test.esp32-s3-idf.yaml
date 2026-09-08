@@ -1,32 +1,20 @@
 packages:
   i2c: !include ../../test_build_components/common/i2c/esp32-s3-idf.yaml
-  spi: !include ../../test_build_components/common/spi/esp32-s3-idf.yaml
+  test_display: !include ../../test_build_components/common/test_display/test_display.yaml
 
 xl9535:
   id: expander
-
-display:
-  - platform: mipi_spi
-    id: gsl3670_display
-    spi_id: spi_bus
-    model: t-display-s3-pro
-    # The model's default DC pin (GPIO9) clashes with the shared i2c bus SCL
-    # pin, so override it onto a free pin for this test.
-    dc_pin: GPIO5
-
-psram:
-  mode: quad
 
 touchscreen:
   # Firmware downloaded from the model's default release URL and cached.
   - platform: gsl3670
     model: seeed-reterminal-d1001
-    display: gsl3670_display
+    display: test_display_screen
     interrupt_pin: 18
   # Explicit firmware URL + SHA-256 override.
   - platform: gsl3670
     model: seeed-reterminal-d1001
-    display: gsl3670_display
+    display: test_display_screen
     reset_pin: 10
     interrupt_pin: 11
     firmware:
