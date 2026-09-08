@@ -66,11 +66,15 @@ const char *DebugComponent::get_reset_reason_(std::span<char, RESET_REASON_BUFFE
 
   unsigned reason = esp_reset_reason();
   if (reason < sizeof(RESET_REASONS) / sizeof(RESET_REASONS[0])) {
-    if (reason == ESP_RST_SW) {
+    if (reason == ESP_RST_SW || reason == ESP_RST_WDT) {
+      // On some ESP32-S3 configurations (e.g. SPIRAM with fetch-instructions/rodata),
+      // esp_restart() intermittently produces RTCWDT_RTC_RST (ESP_RST_WDT) instead of
+      // ESP_RST_SW. Check the stored reboot source for both reset reasons so a software
+      // reboot that ends up as WDT still reports the correct source.
       auto pref = global_preferences->make_preference(REBOOT_MAX_LEN,
                                                       fnv1_hash_extend(fnv1_hash(REBOOT_KEY), App.get_name().c_str()));
       char reboot_source[REBOOT_MAX_LEN]{};
-      if (pref.load(&reboot_source)) {
+      if (pref.load(&reboot_source) && reboot_source[0] != '\0') {
         reboot_source[REBOOT_MAX_LEN - 1] = '\0';
         snprintf(buf, size, "Reboot request from %s", reboot_source);
       } else {
