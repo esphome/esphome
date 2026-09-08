@@ -10,13 +10,7 @@ static const char *const TAG = "zigbee_proxy";
 
 void ZigbeeProxy::setup() { this->parent_->set_tap(this); }
 
-void ZigbeeProxy::dump_config() {
-  ESP_LOGCONFIG(TAG,
-                "Zigbee Proxy:\n"
-                "  Port: %s\n"
-                "  Buffer Size: %u bytes",
-                this->parent_->get_name(), MAX_ASH_FRAME_SIZE);
-}
+void ZigbeeProxy::dump_config() { ESP_LOGCONFIG(TAG, "Zigbee Proxy:\n  Port: %s", this->parent_->get_name()); }
 
 void ZigbeeProxy::on_device_rx(const uint8_t *data, size_t len) {
   for (size_t i = 0; i < len; i++) {

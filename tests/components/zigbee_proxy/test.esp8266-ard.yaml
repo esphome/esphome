@@ -9,4 +9,3 @@ esp8266:
 
 zigbee_proxy:
   serial_proxy_id: zigbee_serial
-  buffer_size: 512

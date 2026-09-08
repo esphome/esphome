@@ -1,7 +1,5 @@
 #pragma once
 
-#include "esphome/core/defines.h"
-
 #include <cstddef>
 #include <cstdint>
 
@@ -31,16 +29,12 @@ inline bool ash_is_reserved(uint8_t byte) {
 // 0x7E framing, so Spinel frames systematically fail this check.
 uint16_t ash_crc16(const uint8_t *data, size_t length, uint16_t init = 0xFFFF);
 
-// Buffer size configuration
-#ifdef ZIGBEE_PROXY_BUFFER_SIZE
-static constexpr size_t MAX_ASH_FRAME_SIZE = ZIGBEE_PROXY_BUFFER_SIZE;
-#else
-#ifdef USE_ESP8266
-static constexpr size_t MAX_ASH_FRAME_SIZE = 512;  // Limited RAM on ESP8266
-#else
-static constexpr size_t MAX_ASH_FRAME_SIZE = 1024;  // Full buffer on ESP32/RP2040
-#endif
-#endif
+// ASH bounds a frame's Data Field at 128 bytes, so the largest body a scanner has to
+// hold is that field plus the control byte and the two CRC bytes ahead of the closing
+// delimiter. Byte stuffing happens on the wire only and is undone as bytes arrive, so it
+// does not enlarge this.
+static constexpr size_t ASH_MAX_DATA_FIELD_SIZE = 128;
+static constexpr size_t MAX_ASH_FRAME_SIZE = 1 + ASH_MAX_DATA_FIELD_SIZE + 2;
 
 // Protocol limits
 static constexpr uint8_t ASH_MAX_SEQUENCE = 7;    // 3-bit sequence number (0-7)

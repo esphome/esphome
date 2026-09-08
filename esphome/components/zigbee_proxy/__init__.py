@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 from esphome.components import serial_proxy
 import esphome.config_validation as cv
-from esphome.const import CONF_BUFFER_SIZE, CONF_ID, CONF_POWER_SAVE_MODE, CONF_WIFI
+from esphome.const import CONF_ID, CONF_POWER_SAVE_MODE, CONF_WIFI
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
@@ -31,11 +31,6 @@ CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(ZigbeeProxy),
         cv.Required(CONF_SERIAL_PROXY_ID): cv.use_id(serial_proxy.SerialProxy),
-        cv.Optional(CONF_BUFFER_SIZE): cv.SplitDefault(
-            cv.int_range(min=256, max=2048),
-            esp8266=512,
-            default=1024,
-        ),
     }
 ).extend(cv.COMPONENT_SCHEMA)
 
@@ -50,7 +45,3 @@ async def to_code(config: ConfigType) -> None:
     cg.add_define("USE_ZIGBEE_PROXY")
     # Compiles the tap interface into serial_proxy; without it the port is a plain byte pipe
     cg.add_define("USE_SERIAL_PROXY_TAP")
-
-    # Set buffer size via define for compile-time allocation
-    if (buffer_size := config.get(CONF_BUFFER_SIZE)) is not None:
-        cg.add_define("ZIGBEE_PROXY_BUFFER_SIZE", buffer_size)
