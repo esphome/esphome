@@ -202,8 +202,15 @@ AudioPipelineState AudioPipeline::process_state() {
     if (!this->is_playing_) {
       // The tasks have been stopped for two ``process_state`` calls in a row, so delete the tasks
       if (this->read_task_.is_created() || this->decode_task_.is_created()) {
-        this->read_task_.deallocate();
-        this->decode_task_.deallocate();
+        // Both are attempted every time; a task that is still running on the other core is freed by a
+        // subsequent call, and freeing an already freed task succeeds without doing anything
+        bool read_task_freed = this->read_task_.deallocate();
+        bool decode_task_freed = this->decode_task_.deallocate();
+        if (!read_task_freed || !decode_task_freed) {
+          // A task is still running on the other core, so keep the pipeline in its current state and try
+          // again on the next call
+          return AudioPipelineState::PLAYING;
+        }
         if (this->hard_stop_) {
           // Stop command was sent, so immediately end the playback
           this->speaker_->stop();
