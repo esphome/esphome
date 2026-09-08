@@ -10,6 +10,7 @@ from esphome.core import (
     ID,
     Define,
     EnumValue,
+    EsphomeError,
     HexInt,
     Lambda,
     Library,
@@ -764,6 +765,95 @@ async def get_variable_with_full_id(id_: ID) -> tuple[ID, "MockObj"]:
     return await CORE.get_variable_with_full_id(id_)
 
 
+# Coarse category for an `argument:` parameter's or a field's return C++ type. Used only
+# to catch a shorthand reference that's guaranteed not to compile (a std::string parameter
+# fed into a numeric field, or vice versa) -- not to police every stylistic mismatch.
+_ARG_KIND_NUMERIC = "numeric"
+_ARG_KIND_BOOLEAN = "boolean"
+_ARG_KIND_STRING = "string"
+
+# C++ type names (as a MockObjClass renders via str()) recognized well enough to
+# sanity-check `argument:` against the field's expected return type. Anything else
+# (enums, custom classes, ...) is left unchecked, so the shorthand stays lenient rather
+# than risking a false-positive rejection.
+_CPP_NUMERIC_TYPE_NAMES = {
+    "float",
+    "double",
+    "int",
+    "int8_t",
+    "uint8_t",
+    "uint16_t",
+    "uint32_t",
+    "uint64_t",
+    "int16_t",
+    "int32_t",
+    "int64_t",
+    "size_t",
+}
+_CPP_BOOLEAN_TYPE_NAMES = {"bool"}
+_CPP_STRING_TYPE_NAMES = {"std::string", "std::string &", "const char *"}
+
+
+def _arg_kind(type_: Any) -> str | None:
+    # Python builtin type objects turn up directly in some `args` lists (e.g. sensor's
+    # `on_value` uses `[(float, "x")]`); compare by identity, never `==`/`in`, since
+    # MockObj overloads `==` to build a C++ expression rather than compare equality.
+    if type_ is bool:
+        return _ARG_KIND_BOOLEAN
+    if type_ is float or type_ is int:
+        return _ARG_KIND_NUMERIC
+    if type_ is str:
+        return _ARG_KIND_STRING
+    type_str = str(type_)
+    if type_str in _CPP_NUMERIC_TYPE_NAMES:
+        return _ARG_KIND_NUMERIC
+    if type_str in _CPP_BOOLEAN_TYPE_NAMES:
+        return _ARG_KIND_BOOLEAN
+    if type_str in _CPP_STRING_TYPE_NAMES:
+        return _ARG_KIND_STRING
+    return None
+
+
+def _arg_kinds_compatible(arg_kind: str, return_kind: str) -> bool:
+    # bool <-> numeric both implicitly convert in C++; a string converts to neither.
+    if arg_kind == return_kind:
+        return True
+    numeric_ish = {_ARG_KIND_NUMERIC, _ARG_KIND_BOOLEAN}
+    return arg_kind in numeric_ish and return_kind in numeric_ish
+
+
+def _check_argument_shorthand(
+    value: Lambda, parameters: TemplateArgsType, return_type: SafeExpType
+) -> None:
+    """Validate an `argument:` shorthand lambda against the parameters actually available
+    at this call site. Only known here (not at config-validation time, which has no
+    visibility into the call site's parameter list).
+    """
+    name = value.argument_name
+    if name is None:
+        return
+    match = next((t for t, pname in parameters if pname == name), None)
+    if match is None:
+        available = ", ".join(f"'{pname}'" for _, pname in parameters)
+        raise EsphomeError(
+            f"'argument: {name}' does not match any available parameter "
+            f"({available or 'none available here'})."
+        )
+    if return_type is None:
+        return
+    arg_kind = _arg_kind(match)
+    return_kind = _arg_kind(return_type)
+    if (
+        arg_kind is not None
+        and return_kind is not None
+        and not _arg_kinds_compatible(arg_kind, return_kind)
+    ):
+        raise EsphomeError(
+            f"'argument: {name}' has type '{match}', which is not compatible with the "
+            f"expected type '{return_type}'."
+        )
+
+
 async def process_lambda(
     value: Lambda | Expression,
     parameters: TemplateArgsType,
@@ -796,6 +886,7 @@ async def process_lambda(
     )
     if isinstance(value, Expression):
         value = Lambda(value)
+    _check_argument_shorthand(value, parameters, return_type)
 
     parts = value.parts[:]
     for i, id in enumerate(value.requires_ids):

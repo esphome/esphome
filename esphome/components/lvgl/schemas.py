@@ -120,10 +120,16 @@ def _validate_text(value):
     if isinstance(value, dict):
         if CONF_TIME_FORMAT in value:
             return TIME_TEXT_SCHEMA(value)
-        if CONF_FORMAT in value:
-            return PRINTF_TEXT_SCHEMA(value)
         if CONF_MAPPING in value:
             return MAPPING_TEXT_SCHEMA(value)
+        if CONF_FORMAT in value or not any(
+            k in value for k in cv.LAMBDA_SHORTHAND_KEYS
+        ):
+            # Neither a recognized text form nor the `entity_state:`/`argument:`
+            # shorthand: let the printf schema's `format` requirement produce a clear
+            # "required key not provided" error instead of falling through to
+            # cv.templatable(cv.string), which would just say "expected string".
+            return PRINTF_TEXT_SCHEMA(value)
 
     return cv.templatable(cv.string)(value)
 

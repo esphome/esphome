@@ -337,6 +337,14 @@ class Lambda:
             self._value = value
         self._parts = None
         self._requires_ids = None
+        # IDs that a validator (e.g. the `entity_state:` shorthand) already knows this lambda
+        # references, carrying a type so the id-resolution pass can check it. Separate from
+        # `requires_ids`, which is derived from the source text and always untyped.
+        self.explicit_ids: list[ID] = []
+        # Set by the `argument:` shorthand to the raw parameter name it referenced, so
+        # `process_lambda` can check it against the parameters actually available at the
+        # call site (only known there, not at config-validation time).
+        self.argument_name: str | None = None
 
     # https://stackoverflow.com/a/241506/229052
     @staticmethod

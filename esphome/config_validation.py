@@ -114,7 +114,7 @@ from esphome.schema_extractors import (
 # pylint: disable-next=unused-import
 from esphome.util import parse_esphome_version  # noqa: F401
 from esphome.voluptuous_schema import _Schema
-from esphome.yaml_util import SensitiveStr, make_data_base
+from esphome.yaml_util import ESPHomeDataBase, SensitiveStr, make_data_base
 
 if typing.TYPE_CHECKING:
     from esphome.types import ConfigType
@@ -796,29 +796,166 @@ def declare_id(type):
     return validator
 
 
-LAMBDA_SHORTHAND_KEYS = {
-    CONF_ARGUMENT,
-    CONF_ENTITY_STATE,
+# A tuple, not a set: it's unpacked into `has_exactly_one_key(*LAMBDA_SHORTHAND_KEYS)`,
+# whose error message joins the keys in this order -- a set would make that message's key
+# order vary with PYTHONHASHSEED.
+LAMBDA_SHORTHAND_KEYS = (CONF_ARGUMENT, CONF_ENTITY_STATE)
+
+# Coarse category for a `.state` field's C++ type, and for the value a templatable
+# field's own (non-templated) validator expects. Used only to catch `entity_state:`
+# references that are guaranteed not to compile (e.g. a std::string state feeding a
+# float field) -- not to police every stylistic mismatch.
+_KIND_NUMERIC = "numeric"
+_KIND_BOOLEAN = "boolean"
+_KIND_STRING = "string"
+
+# Validators recognized well enough to narrow which `entity_state:` types are accepted.
+# Anything not listed here (composed schemas, custom validators, ...) is left unchecked,
+# so the shorthand stays lenient rather than risking false positives. Built lazily (not at
+# module-load time) since `percentage` is defined later in this file.
+_VALIDATOR_KINDS = None
+
+
+def _validator_kinds() -> dict:
+    global _VALIDATOR_KINDS  # noqa: PLW0603
+    if _VALIDATOR_KINDS is None:
+        _VALIDATOR_KINDS = {
+            boolean: _KIND_BOOLEAN,
+            string: _KIND_STRING,
+            string_strict: _KIND_STRING,
+        }
+        for numeric_validator in (
+            float_,
+            int_,
+            positive_float,
+            positive_int,
+            positive_not_null_int,
+            positive_not_null_float,
+            percentage,
+            zero_to_one_float,
+            negative_one_to_one_float,
+        ):
+            _VALIDATOR_KINDS[numeric_validator] = _KIND_NUMERIC
+    return _VALIDATOR_KINDS
+
+
+# bool <-> numeric both implicitly convert in C++; std::string converts to neither.
+_KIND_COMPATIBLE = {
+    frozenset({_KIND_NUMERIC}): {_KIND_NUMERIC, _KIND_BOOLEAN},
+    frozenset({_KIND_BOOLEAN}): {_KIND_NUMERIC, _KIND_BOOLEAN},
+    frozenset({_KIND_STRING}): {_KIND_STRING},
 }
 
+_STATE_BEARING_TYPES = None
 
-def convert_id_state_to_lambda(value) -> Lambda | None:
+
+def _state_bearing_types() -> list:
+    """Declared-id types with a public, directly-usable `.state` C++ field, and the
+    kind of that field, as a list of `(type, kind)` pairs -- `MockObjClass` isn't
+    hashable, so this can't be a dict keyed by type. Lazily imported: importing
+    component modules at this module's top level would be circular, since every
+    component module imports this one.
     """
-    Convert an ID state to a lambda that returns the state of the ID, or the value of an argument.
-    If not well-formed, return None.
+    global _STATE_BEARING_TYPES  # noqa: PLW0603
+    if _STATE_BEARING_TYPES is None:
+        from esphome.components.binary_sensor import BinarySensor
+        from esphome.components.fan import Fan
+        from esphome.components.light.types import LightState
+        from esphome.components.number import Number
+        from esphome.components.sensor import Sensor
+        from esphome.components.switch import Switch
+        from esphome.components.text_sensor import TextSensor
+
+        _STATE_BEARING_TYPES = [
+            (Sensor, _KIND_NUMERIC),
+            (Number, _KIND_NUMERIC),
+            (BinarySensor, _KIND_BOOLEAN),
+            (Switch, _KIND_BOOLEAN),
+            (Fan, _KIND_BOOLEAN),
+            (LightState, _KIND_BOOLEAN),
+            (TextSensor, _KIND_STRING),
+        ]
+    return _STATE_BEARING_TYPES
+
+
+def _entity_state_allowed_types(other_validators) -> tuple:
+    """The declared-id types `entity_state:` may point at, narrowed to those whose
+    `.state` kind is compatible with `other_validators` when that validator is
+    recognized; otherwise every known state-bearing type is accepted.
     """
-    if isinstance(value, dict) and LAMBDA_SHORTHAND_KEYS & value.keys():
-        value = has_exactly_one_key(*LAMBDA_SHORTHAND_KEYS)(
-            Schema(
-                {Optional(x): validate_id_name for x in LAMBDA_SHORTHAND_KEYS},
-            )(value)
+    types_by_kind = _state_bearing_types()
+    try:
+        field_kind = _validator_kinds().get(other_validators)
+    except TypeError:
+        # other_validators is a dict/list schema (unhashable) rather than a single
+        # recognized validator function.
+        field_kind = None
+    if field_kind is None:
+        return tuple(t for t, _ in types_by_kind)
+    compatible_kinds = _KIND_COMPATIBLE[frozenset({field_kind})]
+    return tuple(t for t, kind in types_by_kind if kind in compatible_kinds)
+
+
+def convert_id_state_to_lambda(value, allowed_types: tuple = None) -> Lambda | None:
+    """
+    Recognize the `entity_state:`/`argument:` lambda shorthand and expand it into the
+    equivalent hand-written lambda: `{entity_state: some_id}` becomes a lambda returning
+    `id(some_id).state`, and `{argument: x}` becomes a lambda returning `x`. Returns None
+    if `value` isn't a dict using this shorthand, so callers can fall through to their
+    normal handling.
+
+    The returned lambda carries extra metadata a plain hand-written one wouldn't:
+    - `entity_state:` attaches a typed `core.ID` (see `explicit_ids` on `Lambda`) so the
+      id-resolution pass rejects both a nonexistent id and one whose declared type has no
+      `.state` field, instead of only failing later at C++ compile time.
+    - `argument:` attaches the raw parameter name (see `argument_name` on `Lambda`) so
+      `process_lambda` can check it against the parameters actually available at the call
+      site -- information only known there, not here.
+
+    `allowed_types`, if given, restricts which declared-id types `entity_state:` may point
+    at (see `_entity_state_allowed_types`); the id-resolution pass then rejects a reference
+    to a declared id of any other type. Defaults to every known state-bearing type.
+    """
+    if not isinstance(value, dict) or not any(
+        k in value for k in LAMBDA_SHORTHAND_KEYS
+    ):
+        return None
+    source = value
+    value = has_exactly_one_key(*LAMBDA_SHORTHAND_KEYS)(
+        Schema(
+            {Optional(x): validate_id_name for x in LAMBDA_SHORTHAND_KEYS},
+        )(value)
+    )
+    # has_exactly_one_key guarantees exactly one of these keys is present and, per
+    # validate_id_name, non-empty.
+    if entity_state := value.get(CONF_ENTITY_STATE):
+        state_lambda = _lambda_at_source(f"return id({entity_state}).state;", source)
+        types = (
+            tuple(t for t, _ in _state_bearing_types())
+            if allowed_types is None
+            else allowed_types
         )
-        # has_exactly_one_key guarantees exactly one of these keys is present and, per
-        # validate_id_name, non-empty.
-        if entity_state := value.get(CONF_ENTITY_STATE):
-            return Lambda(f"return id({entity_state}).state;")
-        return Lambda(f"return {value[CONF_ARGUMENT]};")
-    return None
+        state_lambda.explicit_ids = [
+            core.ID(entity_state, is_declaration=False, type=types)
+        ]
+        return state_lambda
+    argument = value[CONF_ARGUMENT]
+    argument_lambda = _lambda_at_source(f"return {argument};", source)
+    argument_lambda.argument_name = argument
+    return argument_lambda
+
+
+def _lambda_at_source(code: str, source) -> Lambda:
+    """Build a synthetic lambda tagged with `source`'s YAML location, so a compile error
+    this validation doesn't catch points at the offending YAML line instead of the
+    generated main.cpp. `source` may lack that location (e.g. a plain dict built directly
+    in a test rather than loaded from YAML); make_data_base's own location lookup isn't
+    tolerant of that, so skip tagging rather than fail.
+    """
+    result = Lambda(code)
+    if isinstance(source, ESPHomeDataBase):
+        result = make_data_base(result, source)
+    return result
 
 
 def templatable(other_validators):
@@ -835,7 +972,9 @@ def templatable(other_validators):
         if value == SCHEMA_EXTRACT:
             return other_validators
 
-        if id_state := convert_id_state_to_lambda(value):
+        if id_state := convert_id_state_to_lambda(
+            value, _entity_state_allowed_types(other_validators)
+        ):
             return id_state
         if isinstance(value, Lambda):
             return returning_lambda(value)

@@ -1694,6 +1694,19 @@ def test_templatable_dict_validators() -> None:
     assert validator({"x": 5}) == {"x": 5}
 
 
+def test_templatable_dict_without_shorthand_keys_falls_through() -> None:
+    """Regression test: `convert_id_state_to_lambda` used to run its
+    `has_exactly_one_key(CONF_ARGUMENT, CONF_ENTITY_STATE)` check against *any* dict
+    value, not just ones actually attempting the shorthand -- so an ordinary templatable
+    dict value with neither key present was wrongly rejected with "Must contain exactly
+    one of argument, entity_state." This dict (no `argument`/`entity_state` key at all)
+    must validate normally instead.
+    """
+    validator = cv.templatable({cv.Required("y"): cv.string})
+    assert validator({"y": "hello"}) == {"y": "hello"}
+    assert cv.convert_id_state_to_lambda({"y": "hello"}) is None
+
+
 # ---------------------------------------------------------------------------
 # only_on / only_with_framework
 # ---------------------------------------------------------------------------
@@ -2587,6 +2600,9 @@ def test_templatable_argument_shorthand() -> None:
     result = cv.templatable(cv.float_)({CONF_ARGUMENT: "x"})
     assert isinstance(result, Lambda)
     assert result.value == "return x;"
+    # `argument_name` is what lets process_lambda check this against the parameters
+    # actually available at the call site (see test_cpp_generator.py).
+    assert result.argument_name == "x"
 
 
 def test_templatable_shorthand_requires_exactly_one_key() -> None:
@@ -2600,6 +2616,63 @@ def test_lambda_entity_state_shorthand() -> None:
     result = cv.lambda_({CONF_ENTITY_STATE: "some_sensor"})
     assert isinstance(result, Lambda)
     assert result.value == "return id(some_sensor).state;"
+
+
+def _contains_type(types, target) -> bool:
+    # MockObjClass overloads `==` to build a C++ expression rather than compare
+    # equality, so `in`/`not in` can't be used on a tuple of these -- compare by
+    # identity instead.
+    return any(t is target for t in types)
+
+
+def test_templatable_entity_state_shorthand_attaches_typed_id() -> None:
+    """The id embedded by `entity_state:` must carry a type, not just a name, so the
+    id-resolution pass can reject a reference to an id with no `.state` member.
+    """
+    from esphome.components.sensor import Sensor
+    from esphome.components.text_sensor import TextSensor
+
+    result = cv.templatable(cv.float_)({CONF_ENTITY_STATE: "some_sensor"})
+    assert len(result.explicit_ids) == 1
+    explicit_id = result.explicit_ids[0]
+    assert explicit_id.id == "some_sensor"
+    assert not explicit_id.is_declaration
+    assert _contains_type(explicit_id.type, Sensor)
+    assert not _contains_type(explicit_id.type, TextSensor)
+
+
+def test_templatable_entity_state_shorthand_narrows_by_validator_kind() -> None:
+    """A float-typed field should not accept a std::string state, and vice versa --
+    both would fail to compile."""
+    from esphome.components.sensor import Sensor
+    from esphome.components.text_sensor import TextSensor
+
+    numeric_types = (
+        cv.templatable(cv.float_)({CONF_ENTITY_STATE: "x"}).explicit_ids[0].type
+    )
+    assert _contains_type(numeric_types, Sensor)
+    assert not _contains_type(numeric_types, TextSensor)
+
+    string_types = (
+        cv.templatable(cv.string)({CONF_ENTITY_STATE: "x"}).explicit_ids[0].type
+    )
+    assert _contains_type(string_types, TextSensor)
+    assert not _contains_type(string_types, Sensor)
+
+
+def test_templatable_entity_state_shorthand_unrestricted_for_unknown_validator() -> (
+    None
+):
+    """A composed/custom validator isn't recognized, so the shorthand stays lenient
+    rather than risking a false-positive rejection."""
+    from esphome.components.sensor import Sensor
+    from esphome.components.text_sensor import TextSensor
+
+    result = cv.templatable(cv.All(cv.float_, cv.Range(min=0)))(
+        {CONF_ENTITY_STATE: "x"}
+    )
+    assert _contains_type(result.explicit_ids[0].type, Sensor)
+    assert _contains_type(result.explicit_ids[0].type, TextSensor)
 
 
 def test_returning_lambda_argument_shorthand() -> None:

@@ -419,6 +419,8 @@ def iter_ids(config, path=None):
     elif isinstance(config, core.Lambda):
         for id in config.requires_ids:
             yield id, path
+        for id in config.explicit_ids:
+            yield id, path
     elif isinstance(config, list):
         for i, item in enumerate(config):
             yield from iter_ids(item, path + [i])
@@ -1109,13 +1111,25 @@ class IDPassValidationStep(ConfigValidationStep):
                         error += f" These IDs look similar: {matches_s}."
                     result.add_str_error(error, path)
                     continue
-                if not isinstance(match.type, MockObjClass) or not isinstance(
-                    id.type, MockObjClass
-                ):
+                if not isinstance(match.type, MockObjClass):
                     continue
-                if not match.type.inherits_from(id.type):
+                # id.type may be a single accepted type, or a tuple of acceptable
+                # alternatives (e.g. from the `entity_state:` shorthand).
+                allowed_types = id.type if isinstance(id.type, tuple) else (id.type,)
+                allowed_types = tuple(
+                    t for t in allowed_types if isinstance(t, MockObjClass)
+                )
+                if not allowed_types:
+                    continue
+                if not any(match.type.inherits_from(t) for t in allowed_types):
+                    types_s = ", ".join(str(t) for t in allowed_types)
+                    verb = (
+                        "doesn't inherit from"
+                        if len(allowed_types) == 1
+                        else ("is not one of")
+                    )
                     result.add_str_error(
-                        f"ID '{id.id}' of type {match.type} doesn't inherit from {id.type}. "
+                        f"ID '{id.id}' of type {match.type} {verb} {types_s}. "
                         "Please double check your ID is pointing to the correct value",
                         path,
                     )

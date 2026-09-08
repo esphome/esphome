@@ -631,6 +631,69 @@ class TestProcessLambda:
         with pytest.raises(AssertionError):
             await cg.process_lambda(lambda_obj, [(int,)])
 
+    async def test_process_lambda__argument_shorthand_matches_parameter(self):
+        """`argument: x` succeeds when `x` is one of the available parameters."""
+        from esphome.core import Lambda
+
+        lambda_obj = Lambda("return x;")
+        lambda_obj.argument_name = "x"
+        result = await cg.process_lambda(lambda_obj, [(float, "x")])
+
+        assert isinstance(result, cg.LambdaExpression)
+
+    async def test_process_lambda__argument_shorthand_unknown_name_raises(self):
+        """`argument: y` must fail when the call site only offers `x` -- this would
+        otherwise only surface as a C++ 'y' was not declared in this scope error."""
+        from esphome.core import EsphomeError, Lambda
+
+        lambda_obj = Lambda("return y;")
+        lambda_obj.argument_name = "y"
+        with pytest.raises(
+            EsphomeError, match="does not match any available parameter"
+        ):
+            await cg.process_lambda(lambda_obj, [(float, "x")])
+
+    async def test_process_lambda__argument_shorthand_no_parameters_raises(self):
+        """`argument: x` must fail when the call site offers no parameters at all."""
+        from esphome.core import EsphomeError, Lambda
+
+        lambda_obj = Lambda("return x;")
+        lambda_obj.argument_name = "x"
+        with pytest.raises(EsphomeError, match="none available here"):
+            await cg.process_lambda(lambda_obj, [])
+
+    async def test_process_lambda__argument_shorthand_incompatible_type_raises(self):
+        """A std::string parameter fed into a float-returning field would fail to
+        compile; `argument:` should catch that at config-generation time instead."""
+        from esphome.core import EsphomeError, Lambda
+        from esphome.cpp_types import std_string
+
+        lambda_obj = Lambda("return x;")
+        lambda_obj.argument_name = "x"
+        with pytest.raises(EsphomeError, match="not compatible"):
+            await cg.process_lambda(lambda_obj, [(std_string, "x")], return_type=float)
+
+    async def test_process_lambda__argument_shorthand_bool_to_numeric_allowed(self):
+        """A bool parameter and a numeric field are mutually compatible in C++, so this
+        must not raise even though the kinds differ."""
+        from esphome.core import Lambda
+
+        lambda_obj = Lambda("return x;")
+        lambda_obj.argument_name = "x"
+        result = await cg.process_lambda(lambda_obj, [(bool, "x")], return_type=float)
+
+        assert isinstance(result, cg.LambdaExpression)
+
+    async def test_process_lambda__non_shorthand_lambda_unaffected(self):
+        """A hand-written lambda (argument_name unset) is never subject to this check,
+        even when its source text happens to reference a name absent from parameters."""
+        from esphome.core import Lambda
+
+        lambda_obj = Lambda("return not_a_parameter + 1;")
+        result = await cg.process_lambda(lambda_obj, [(float, "x")])
+
+        assert isinstance(result, cg.LambdaExpression)
+
 
 @pytest.mark.asyncio
 async def test_templatable__string_with_std_string_returns_flash_literal() -> None:
