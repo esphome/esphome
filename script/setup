@@ -52,6 +52,30 @@ if [ -n "$common_dir" ] && [ "$git_dir" = "$common_dir" ]; then
   fi
 fi
 
+# Wrap the esphome console script so running `esphome` from a different git
+# checkout (e.g. a worktree) uses that tree's sources. An editable install
+# pins the tree it was installed from; without this, `esphome` run from
+# another worktree silently compiles the wrong tree's code.
+esphome_bin="$(command -v esphome || true)"
+if [ -z "$esphome_bin" ]; then
+  echo "esphome console script not found on PATH after install; cannot install the tree-aware wrapper" >&2
+  exit 1
+fi
+venv_bin="$(dirname "$esphome_bin")"
+if ! grep -q "esphome-tree-aware-shim" "$esphome_bin" 2>/dev/null; then
+  mv "$esphome_bin" "$venv_bin/esphome-dist"
+fi
+cat > "$esphome_bin" <<SHIM
+#!/bin/sh
+# esphome-tree-aware-shim: run the esphome checkout the cwd is inside, if any.
+root=\$(git -C "\$PWD" rev-parse --show-toplevel 2>/dev/null)
+if [ -n "\$root" ] && [ -f "\$root/esphome/__main__.py" ]; then
+  PYTHONPATH="\$root\${PYTHONPATH:+:\$PYTHONPATH}" exec "$venv_bin/python" -m esphome "\$@"
+fi
+exec "$venv_bin/esphome-dist" "\$@"
+SHIM
+chmod +x "$esphome_bin"
+
 mkdir -p .temp
 
 echo
