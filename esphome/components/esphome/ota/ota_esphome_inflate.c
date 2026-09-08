@@ -61,7 +61,7 @@
   }
 
 /* --------------------------------------------------- *
- * -- uninitialized global data (static structures) -- *
+ * -- constant tables (upstream builds them at runtime) -- *
  * --------------------------------------------------- */
 
 static const unsigned char LENGTH_BITS[30] = {0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 2, 2,
@@ -127,7 +127,7 @@ static unsigned char uzlib_get_byte(TINF_DATA *d) {
   /* Otherwise if there's callback and we haven't seen EOF yet, try to
      read next byte using it. (Note: the callback can also update ->source
      and ->source_limit). */
-  if (d->source_read_cb && !d->eof) {
+  if (!d->eof) {
     int val = d->source_read_cb(d);
     if (val >= 0) {
       return (unsigned char) val;
