@@ -128,6 +128,11 @@ on_rc5:
     - logger.log:
         format: "on_rc5: %u %u"
         args: ["x.address", "x.command"]
+on_rc5x:
+  then:
+    - logger.log:
+        format: "on_rc5x: %u %u %u"
+        args: ["x.address", "x.command", "x.extension"]
 on_rc6:
   then:
     - logger.log:
