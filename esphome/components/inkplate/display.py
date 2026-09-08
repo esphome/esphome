@@ -19,6 +19,7 @@ from esphome.const import (
     PLATFORM_ESP32,
 )
 import esphome.final_validate as fv
+from esphome.types import ConfigType
 
 from .const import INKPLATE_10_CUSTOM_WAVEFORMS, WAVEFORMS
 
@@ -68,7 +69,7 @@ MODELS = {
 CONF_CUSTOM_WAVEFORM = "custom_waveform"
 
 
-def _validate_custom_waveform(config):
+def _validate_custom_waveform(config: ConfigType) -> ConfigType:
     if CONF_CUSTOM_WAVEFORM in config and config[CONF_MODEL] != "inkplate_10":
         raise cv.Invalid("Custom waveforms are only supported on the Inkplate 10")
     return config
@@ -146,7 +147,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-def _validate_cpu_frequency(config) -> None:
+def _validate_cpu_frequency(config: ConfigType) -> None:
     esp32_config = fv.full_config.get()[PLATFORM_ESP32]
     if esp32_config[CONF_CPU_FREQUENCY] != "240MHZ":
         raise cv.Invalid(
@@ -157,7 +158,7 @@ def _validate_cpu_frequency(config) -> None:
 FINAL_VALIDATE_SCHEMA = _validate_cpu_frequency
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
 
     await display.register_display(var, config)

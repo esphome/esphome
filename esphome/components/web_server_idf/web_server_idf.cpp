@@ -889,7 +889,7 @@ void AsyncEventSourceResponse::request_close_() {
     this->deferred_queue_.clear();
     this->event_buffer_.clear();
     this->event_bytes_sent_ = 0;
-    this->next_close_attempt_ms_ = 0;
+    this->next_close_attempt_ms_ = millis();
   }
 
   this->process_close_();
@@ -905,7 +905,7 @@ void AsyncEventSourceResponse::process_close_() {
   }
 
   const uint32_t now = millis();
-  if (this->next_close_attempt_ms_ != 0 && static_cast<int32_t>(now - this->next_close_attempt_ms_) < 0) {
+  if (static_cast<int32_t>(now - this->next_close_attempt_ms_) < 0) {
     return;
   }
 
@@ -913,14 +913,13 @@ void AsyncEventSourceResponse::process_close_() {
   // httpd_sess_trigger_close() queues only a reusable fd/session slot and can
   // therefore close a new client if the original peer disconnects meanwhile.
   this->close_work_queued_.store(true, std::memory_order_release);
-  this->next_close_attempt_ms_ = now + CLOSE_CONFIRM_INTERVAL_MS;
   const esp_err_t err = httpd_queue_work(this->hd_, &AsyncEventSourceResponse::close_session_work, this);
+  this->next_close_attempt_ms_ = now + (err == ESP_OK ? CLOSE_CONFIRM_INTERVAL_MS : CLOSE_RETRY_INTERVAL_MS);
   if (err == ESP_OK) {
     return;
   }
 
   this->close_work_queued_.store(false, std::memory_order_release);
-  this->next_close_attempt_ms_ = now + CLOSE_RETRY_INTERVAL_MS;
   if (!this->close_retry_warning_logged_) {
     ESP_LOGW(TAG, "Failed to queue EventSource close (%s); retrying", esp_err_to_name(err));
     this->close_retry_warning_logged_ = true;
@@ -929,10 +928,6 @@ void AsyncEventSourceResponse::process_close_() {
 
 void AsyncEventSourceResponse::close_session_work(void *arg) {
   auto *response = static_cast<AsyncEventSourceResponse *>(arg);
-  if (response == nullptr) {
-    return;
-  }
-
   const int fd = response->fd_.load();
   if (fd != 0 && httpd_sess_get_ctx(response->hd_, fd) == response) {
     // The HTTPD task remains the session owner. Shutting the socket down makes
@@ -962,11 +957,8 @@ void AsyncEventSourceResponse::process_buffer_() {
     // NOTE: Similar logic exists in web_server/web_server.cpp in DeferredUpdateEventSource::process_deferred_queue_().
     // The IDF path is intentionally time-based and closes through HTTPD to preserve session ownership.
     const uint32_t now = millis();
-    if (this->consecutive_send_failures_ == 0) {
-      this->send_failure_started_ms_ = now;
-    }
-    if (this->consecutive_send_failures_ != UINT16_MAX) {
-      this->consecutive_send_failures_++;
+    if (this->send_failure_started_ms_ == 0) {
+      this->send_failure_started_ms_ = now != 0 ? now : 1;  // Reserve zero for no stall.
     }
     if (static_cast<int32_t>(now - (this->send_failure_started_ms_ + SEND_STALL_TIMEOUT_MS)) >= 0) {
       ESP_LOGW(TAG, "Closing stuck EventSource connection after %" PRIu32 " ms without send progress",
@@ -987,8 +979,7 @@ void AsyncEventSourceResponse::process_buffer_() {
     return;
   }
 
-  // Successful send - reset failure counter
-  this->consecutive_send_failures_ = 0;
+  // Successful send - reset stall tracking
   this->send_failure_started_ms_ = 0;
   event_bytes_sent_ += bytes_sent;
 
@@ -1015,8 +1006,8 @@ void AsyncEventSourceResponse::loop() {
   process_deferred_queue_();
   if (this->close_requested_)
     return;
-  if (!this->entities_iterator_.completed())
-    this->entities_iterator_.advance();
+  // One step per loop; refusals retry next pass
+  this->entities_iterator_.try_advance(1);
 }
 
 bool AsyncEventSourceResponse::try_send_nodefer(const char *message, size_t message_len, const char *event, uint32_t id,

@@ -2,6 +2,7 @@ import esphome.codegen as cg
 from esphome.components import ble_client, cover
 import esphome.config_validation as cv
 from esphome.const import CONF_PIN
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@buxtronix"]
 DEPENDENCIES = ["ble_client"]
@@ -27,7 +28,7 @@ CONFIG_SCHEMA = (
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = await cover.new_cover(config)
     cg.add(var.set_pin(config[CONF_PIN]))
     cg.add(var.set_invert_position(config[CONF_INVERT_POSITION]))

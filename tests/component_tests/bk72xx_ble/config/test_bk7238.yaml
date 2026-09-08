@@ -1,0 +1,7 @@
+esphome:
+  name: bk-family-gate-7238
+
+bk72xx:
+  board: generic-bk7238
+
+bk72xx_ble:

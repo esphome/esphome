@@ -7,6 +7,7 @@ from esphome.components import modbus
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ADDRESS,
+    CONF_CONTINUOUS,
     CONF_COUNT,
     CONF_ID,
     CONF_ON_ERROR,
@@ -156,16 +157,39 @@ _ACTION_BASE_SCHEMA = cv.Schema(
     }
 )
 
-MODBUS_CLIENT_SEND_SCHEMA = _ACTION_BASE_SCHEMA.extend(
-    {
-        cv.Required(CONF_PDU): cv.templatable(
-            cv.All(
-                cv.ensure_list(cv.hex_uint8_t),
-                cv.Length(min=1, max=modbus.MAX_PDU_SIZE),
-            )
-        ),
-        cv.Optional(CONF_ON_RESPONSE): _handler_schema(),
-    }
+
+def _no_continuous_on_write(config: ConfigType) -> ConfigType:
+    """Reject `continuous: true` on a static write PDU: continuous polling only applies to reads.
+    Only the fully-static case is decidable here; the hub strips the flag from mutating PDUs at
+    runtime, so a templated pdu or continuous falls through to that backstop."""
+    pdu = config[CONF_PDU]
+    if (
+        isinstance(pdu, list)
+        and config.get(CONF_CONTINUOUS) is True
+        and modbus.is_function_code_write(pdu[0])
+    ):
+        raise cv.Invalid(
+            f"'{CONF_CONTINUOUS}: true' does not apply to a write PDU (function code "
+            f"0x{pdu[0]:02X}); continuous polling only applies to reads",
+            path=[CONF_CONTINUOUS],
+        )
+    return config
+
+
+MODBUS_CLIENT_SEND_SCHEMA = cv.All(
+    _ACTION_BASE_SCHEMA.extend(
+        {
+            cv.Required(CONF_PDU): cv.templatable(
+                cv.All(
+                    cv.ensure_list(cv.hex_uint8_t),
+                    cv.Length(min=1, max=modbus.MAX_PDU_SIZE),
+                )
+            ),
+            **modbus.command_options_schema(direction="read", templatable=True),
+            cv.Optional(CONF_ON_RESPONSE): _handler_schema(),
+        }
+    ),
+    _no_continuous_on_write,
 )
 
 
@@ -174,6 +198,7 @@ async def register_client_action(
     config: ConfigType,
     args: TemplateArgsType,
     response_args: TemplateArgsType,
+    command_direction: str = "read",
 ) -> cg.MockObj:
     """Wire the shared action plumbing: hub parent, templated device address, outcome triggers.
 
@@ -235,6 +260,12 @@ async def register_client_action(
         await automation.build_automation(
             var.get_not_sent_trigger(), [(_PDU_SPAN, "request")], not_sent_conf
         )
+    # Wire any command options the action's schema opted into (e.g. continuous on reads). Pass the
+    # matching direction so a write action never generates a read option's setter; the write side
+    # has no options yet, so this is a no-op there.
+    await modbus.register_templatable_command_options(
+        var, config, args, command_direction
+    )
     return var
 
 
@@ -318,6 +349,7 @@ def _read_schema(max_count: int) -> cv.All:
                 cv.Optional(CONF_COUNT, default=1): cv.templatable(
                     cv.int_range(min=1, max=max_count)
                 ),
+                **modbus.command_options_schema(direction="read", templatable=True),
             }
         ),
         _no_address_overflow(CONF_COUNT),
@@ -379,7 +411,9 @@ async def read_input_registers_to_code(config, action_id, template_arg, args):
 async def _write_single_to_code(config, action_id, template_arg, args, value_type):
     var = cg.new_Pvariable(action_id, template_arg)
     cg.add(var.set_value(await cg.templatable(config[CONF_VALUE], args, value_type)))
-    return await register_client_action(var, config, args, [])
+    return await register_client_action(
+        var, config, args, [], command_direction="write"
+    )
 
 
 @automation.register_action(
@@ -458,7 +492,9 @@ async def write_multiple_registers_to_code(config, action_id, template_arg, args
         arr_id = ID(f"{action_id}_values", is_declaration=True, type=cg.uint16)
         arr = cg.static_const_array(arr_id, cg.ArrayInitializer(*values))
         cg.add(var.set_values_static(arr, len(values)))
-    return await register_client_action(var, config, args, [])
+    return await register_client_action(
+        var, config, args, [], command_direction="write"
+    )
 
 
 @automation.register_action(
@@ -482,7 +518,9 @@ async def write_multiple_coils_to_code(config, action_id, template_arg, args):
         arr_id = ID(f"{action_id}_values", is_declaration=True, type=cg.uint8)
         arr = cg.static_const_array(arr_id, cg.ArrayInitializer(*packed))
         cg.add(var.set_values_static(arr, len(values)))
-    return await register_client_action(var, config, args, [])
+    return await register_client_action(
+        var, config, args, [], command_direction="write"
+    )
 
 
 # Read/write multiple registers (FC 0x17) writes one register block and reads another in a single

@@ -146,18 +146,19 @@ void Wireguard::dump_config() {
       "  Peer Pre-shared Key: " LOG_SECRET("%s"),
       this->address_, this->netmask_, private_key_masked,
       this->peer_endpoint_, this->peer_port_, this->peer_public_key_,
-      (this->preshared_key_ != nullptr ? preshared_key_masked : "NOT IN USE"));
+      (this->preshared_key_ != nullptr ? preshared_key_masked : LOG_STR_LITERAL("NOT IN USE")));
   // clang-format on
   ESP_LOGCONFIG(TAG, "  Peer Allowed IPs:");
   for (const AllowedIP &allowed_ip : this->allowed_ips_) {
     ESP_LOGCONFIG(TAG, "    - %s/%s", allowed_ip.ip, allowed_ip.netmask);
   }
   ESP_LOGCONFIG(TAG, "  Peer Persistent Keepalive: %d%s", this->keepalive_,
-                (this->keepalive_ > 0 ? "s" : " (DISABLED)"));
+                (this->keepalive_ > 0 ? LOG_STR_LITERAL("s") : LOG_STR_LITERAL(" (DISABLED)")));
   ESP_LOGCONFIG(TAG, "  Reboot Timeout: %" PRIu32 "%s", (this->reboot_timeout_ / 1000),
-                (this->reboot_timeout_ != 0 ? "s" : " (DISABLED)"));
+                (this->reboot_timeout_ != 0 ? LOG_STR_LITERAL("s") : LOG_STR_LITERAL(" (DISABLED)")));
   // be careful: if proceed_allowed_ is true, require connection is false
-  ESP_LOGCONFIG(TAG, "  Require Connection to Proceed: %s", (this->proceed_allowed_ ? "NO" : "YES"));
+  ESP_LOGCONFIG(TAG, "  Require Connection to Proceed: %s",
+                (this->proceed_allowed_ ? LOG_STR_LITERAL("NO") : LOG_STR_LITERAL("YES")));
   LOG_UPDATE_INTERVAL(this);
 }
 
@@ -177,25 +178,6 @@ time_t Wireguard::get_latest_handshake() const {
   }
   return result;
 }
-
-void Wireguard::set_keepalive(const uint16_t seconds) { this->keepalive_ = seconds; }
-void Wireguard::set_reboot_timeout(const uint32_t seconds) { this->reboot_timeout_ = seconds; }
-void Wireguard::set_srctime(time::RealTimeClock *srctime) { this->srctime_ = srctime; }
-
-#ifdef USE_BINARY_SENSOR
-void Wireguard::set_status_sensor(binary_sensor::BinarySensor *sensor) { this->status_sensor_ = sensor; }
-void Wireguard::set_enabled_sensor(binary_sensor::BinarySensor *sensor) { this->enabled_sensor_ = sensor; }
-#endif
-
-#ifdef USE_SENSOR
-void Wireguard::set_handshake_sensor(sensor::Sensor *sensor) { this->handshake_sensor_ = sensor; }
-#endif
-
-#ifdef USE_TEXT_SENSOR
-void Wireguard::set_address_sensor(text_sensor::TextSensor *sensor) { this->address_sensor_ = sensor; }
-#endif
-
-void Wireguard::disable_auto_proceed() { this->proceed_allowed_ = false; }
 
 void Wireguard::enable() {
   this->enabled_ = true;
@@ -217,8 +199,6 @@ void Wireguard::publish_enabled_state() {
   }
 #endif
 }
-
-bool Wireguard::is_enabled() { return this->enabled_; }
 
 void Wireguard::start_connection_() {
   if (!this->enabled_) {

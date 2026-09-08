@@ -3,6 +3,7 @@ import esphome.codegen as cg
 from esphome.components import i2c
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_RESET_PIN
+from esphome.types import ConfigType
 
 CONF_TOUCH_THRESHOLD = "touch_threshold"
 CONF_ALLOW_MULTIPLE_TOUCHES = "allow_multiple_touches"
@@ -32,7 +33,7 @@ CONFIG_SCHEMA = (
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     cg.add(var.set_touch_threshold(config[CONF_TOUCH_THRESHOLD]))
     cg.add(var.set_allow_multiple_touches(config[CONF_ALLOW_MULTIPLE_TOUCHES]))

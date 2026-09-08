@@ -1,3 +1,5 @@
+from typing import Any
+
 import esphome.codegen as cg
 from esphome.components import ble_device_base, sensor
 import esphome.config_validation as cv
@@ -21,6 +23,7 @@ from esphome.const import (
     UNIT_MILLIMETER,
     UNIT_PERCENT,
 )
+from esphome.types import ConfigType
 
 CONF_TANK_TYPE = "tank_type"
 CONF_CUSTOM_DISTANCE_FULL = "custom_distance_full"
@@ -34,7 +37,7 @@ ICON_PROPANE_TANK = "mdi:propane-tank"
 TANK_TYPE_CUSTOM = "CUSTOM"
 
 
-def small_distance(value):
+def small_distance(value: Any) -> float:
     """small_distance is stored in mm"""
     meters = cv.distance(value)
     return meters * 1000
@@ -128,7 +131,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await ble_device_base.register_ble_device(var, config)

@@ -211,7 +211,7 @@ bool rsa_pss_verify(uint8_t *block, const uint8_t *digest) {
 bool IDFOTABackend::verify_signed_image_(const esp_partition_t *incoming) {
   // Verification re-hashes the full image (after esp_ota_end already did one
   // pass), which can approach the task WDT budget on a large app. Extend it for
-  // the duration, mirroring the erase budget in begin().
+  // the duration, scaled to the image size over a 15 s floor.
   const uint32_t verify_budget_ms = 15000 + (incoming->size >> 10) * 10;
   watchdog::WatchdogManager watchdog(verify_budget_ms);
 

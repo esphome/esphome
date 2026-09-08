@@ -11,6 +11,7 @@ from esphome.const import (
     CONF_RGB_ORDER,
     Framework,
 )
+from esphome.types import ConfigType
 
 AUTO_LOAD = ["fastled_base"]
 
@@ -52,7 +53,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = await fastled_base.new_fastled_light(config)
 
     rgb_order = cg.RawExpression(config.get(CONF_RGB_ORDER, "RGB"))

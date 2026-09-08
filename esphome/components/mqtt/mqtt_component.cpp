@@ -39,10 +39,12 @@ inline char *append_char(char *p, char c) {
 // Function implementation of LOG_MQTT_COMPONENT macro to reduce code size
 void log_mqtt_component(const char *tag, MQTTComponent *obj, bool state_topic, bool command_topic) {
   char buf[MQTT_DEFAULT_TOPIC_MAX_LEN];
-  if (state_topic)
+  if (state_topic) {
     ESP_LOGCONFIG(tag, "  State Topic: '%s'", obj->get_state_topic_to_(buf).c_str());
-  if (command_topic)
+  }
+  if (command_topic) {
     ESP_LOGCONFIG(tag, "  Command Topic: '%s'", obj->get_command_topic_to_(buf).c_str());
+  }
 }
 
 void MQTTComponent::set_qos(uint8_t qos) { this->qos_ = qos; }
@@ -339,10 +341,6 @@ bool MQTTComponent::send_discovery_() {
       this->qos_, discovery_info.retain);
   // NOLINTEND(clang-analyzer-cplusplus.NewDeleteLeaks)
 }
-
-uint8_t MQTTComponent::get_qos() const { return this->qos_; }
-
-bool MQTTComponent::get_retain() const { return this->retain_; }
 
 bool MQTTComponent::is_discovery_enabled() const {
   return this->discovery_enabled_ && global_mqtt_client->is_discovery_enabled();

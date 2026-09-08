@@ -1,0 +1,28 @@
+esphome:
+  name: online-image-bmp
+
+host:
+
+http_request:
+
+display:
+
+image:
+  - platform: online_image
+    url: http://127.0.0.1:HTTP_PORT/foo.bmp
+    format: AUTO
+    id: myimg
+    type: RGB
+    on_download_finished:
+      logger.log:
+        format: "download finished. cache hit: %u"
+        args: [cached]
+
+api:
+  actions:
+    - action: fetch_image
+      then:
+        - component.update: myimg
+
+logger:
+  level: DEBUG

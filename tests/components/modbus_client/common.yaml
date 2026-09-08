@@ -51,6 +51,7 @@ button:
       # A pdu lambda can hand-assemble bytes or return a modbus::helpers::create_*_pdu() builder result.
       - modbus_client.send:
           address: 0x01
+          continuous: true
           pdu: !lambda "return modbus::helpers::create_read_pdu(modbus::FunctionCode::READ_HOLDING_REGISTERS, 0x0010, 1);"
       - modbus_client.send:
           address: !lambda "return 1;"
@@ -91,6 +92,7 @@ button:
           address: !lambda "return 1;"
           start_address: 0x10
           count: 2
+          continuous: true
           on_response:
             then:
               - lambda: 'ESP_LOGI("modbus_client.test", "first=%u n=%u", values[0], (unsigned) values.size());'
@@ -98,6 +100,7 @@ button:
             then:
               - logger.log: "typed read timeout"
       - modbus_client.read_input_registers:
+          continuous: !lambda "return false;"
           address: 0x01
           start_address: 0x20
           on_custom_response:
@@ -113,12 +116,14 @@ button:
           address: 0x01
           start_address: 0x03
           count: 16
+          continuous: true
           on_response:
             then:
               - lambda: 'ESP_LOGI("modbus_client.test", "coil0=%d n=%u", bits[0], (unsigned) bits.size());'
       - modbus_client.read_discrete_inputs:
           address: 0x01
           start_address: 0x00
+          continuous: true
           on_error:
             then:
               - lambda: 'ESP_LOGW("modbus_client.test", "fc 0x%X exception %d", request.empty() ? 0 : request[0], (int) exception_code);'

@@ -16,6 +16,7 @@ from esphome.const import (
     UNIT_CELSIUS,
     UNIT_PERCENT,
 )
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@vevsvevs"]
 AUTO_LOAD = ["ble_device_base", "xiaomi_ble"]
@@ -58,7 +59,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await ble_device_base.register_ble_device(var, config)

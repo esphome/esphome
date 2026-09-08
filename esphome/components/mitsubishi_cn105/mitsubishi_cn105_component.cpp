@@ -27,6 +27,13 @@ void MitsubishiCN105Component::setup() { this->hp_.initialize(); }
 
 void MitsubishiCN105Component::loop() {
   if (this->hp_.update()) {
+    // Encoding A only supports whole °C values and cannot represent native °F setpoints accurately.
+    // See https://github.com/esphome/esphome/pull/15488#issuecomment-5268304343
+    if (this->temperature_mapping_.get_use_fahrenheit() && !this->hp_.is_temperature_encoding_b()) {
+      ESP_LOGE(TAG, "Unit reports encoding A, which cannot accurately convert °F setpoints; disable 'use_fahrenheit'");
+      this->mark_failed();
+      return;
+    }
     this->notify_status_listeners_();
   }
 }

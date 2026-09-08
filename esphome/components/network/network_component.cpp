@@ -6,6 +6,7 @@
 #include "esp_err.h"
 #include "esp_netif.h"
 #include "esp_event.h"
+#include "lwip/opt.h"
 
 #ifdef USE_NETWORK_DEFAULT_ROUTE
 #include "esphome/core/application.h"
@@ -41,6 +42,15 @@ void NetworkComponent::setup() {
     this->mark_failed();
     return;
   }
+}
+
+void NetworkComponent::dump_config() {
+  // The effective compile-time lwIP value, so the log reflects tcp_send_buffer
+  // or the high performance bundle when either changed it.
+  ESP_LOGCONFIG(TAG,
+                "Network:\n"
+                "  TCP send buffer: %d bytes",
+                TCP_SND_BUF);
 }
 
 #ifdef USE_NETWORK_DEFAULT_ROUTE

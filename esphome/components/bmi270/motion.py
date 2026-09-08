@@ -8,6 +8,7 @@ from esphome.components.const import (
 )
 from esphome.components.motion import motion_schema, new_motion_component
 import esphome.config_validation as cv
+from esphome.types import ConfigType
 
 from . import BMI270Component, bmi270_ns
 
@@ -79,7 +80,7 @@ CONFIG_SCHEMA = (
 
 
 #  Code generation
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = await new_motion_component(config)
     await i2c.register_i2c_device(var, config)
 

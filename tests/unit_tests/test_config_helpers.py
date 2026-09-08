@@ -6,6 +6,7 @@ from unittest.mock import patch
 import pytest
 
 from esphome.config_helpers import (
+    filter_source_files_from_defines,
     filter_source_files_from_platform,
     frameworks_for_platforms,
     get_logger_level,
@@ -18,6 +19,7 @@ from esphome.const import (
     KEY_TARGET_PLATFORM,
     PlatformFramework,
 )
+from esphome.core import Define
 
 
 def test_filter_source_files_from_platform_esp32() -> None:
@@ -148,3 +150,25 @@ def test_frameworks_for_platforms_derives_and_rejects_unknown() -> None:
     }
     with pytest.raises(ValueError, match="unknown platform"):
         frameworks_for_platforms(["esp32", "not_a_platform"])
+
+
+def test_filter_source_files_from_defines() -> None:
+    """Files are excluded unless one of their defines is set."""
+    files_map: dict[str, str | tuple[str, ...]] = {
+        "filter.cpp": "USE_SENSOR_FILTER",
+        "automation.cpp": ("USE_CLICK", "USE_MULTI_CLICK"),
+    }
+    filter_func: Callable[[], list[str]] = filter_source_files_from_defines(files_map)
+
+    with patch("esphome.config_helpers.CORE") as mock_core:
+        mock_core.defines = {Define("USE_SENSOR_FILTER")}
+        assert filter_func() == ["automation.cpp"]
+
+        mock_core.defines = {Define("USE_MULTI_CLICK")}
+        assert filter_func() == ["filter.cpp"]
+
+        mock_core.defines = {Define("USE_SENSOR_FILTER"), Define("USE_CLICK")}
+        assert filter_func() == []
+
+        mock_core.defines = set()
+        assert sorted(filter_func()) == ["automation.cpp", "filter.cpp"]

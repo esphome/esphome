@@ -57,7 +57,6 @@ from .defines import (
     CONF_ALIGN_TO_LAMBDA_ID,
     CONF_ANIMATIONS,
     LOGGER,
-    add_lv_use,
     get_focused_widgets,
     get_lv_images_used,
     get_refreshed_widgets,
@@ -74,7 +73,6 @@ from .keypads import KEYPADS_CONFIG, keypads_to_code
 from .lv_validation import lv_bool
 from .lvcode import LvContext, LvglComponent, lv_event_t_ptr, lvgl_static
 from .schemas import (
-    BASE_PROPS,
     DISP_BG_SCHEMA,
     FULL_STYLE_SCHEMA,
     SET_STATE_SCHEMA,
@@ -83,6 +81,7 @@ from .schemas import (
     STYLE_SCHEMA,
     WIDGET_TYPES,
     any_widget_schema,
+    apply_style_driven_defines,
     container_schema,
     container_schema_value,
     theme_schema,
@@ -108,7 +107,6 @@ from .widgets import (
     get_screen_active,
     set_obj_properties,
 )
-from .widgets.img import CONF_IMAGE
 
 # Import only what we actually use directly in this file
 from .widgets.msgbox import MSGBOX_SCHEMA, msgboxes_to_code
@@ -455,6 +453,15 @@ async def to_code(configs):
     # Mark all widgets as completed so awaiters of ``wait_for_widgets`` proceed.
     set_widgets_completed(True)
     async with LvContext():
+        # Local import: lv_list imports meter, which imports obj_spec/set_obj_properties
+        # from this module's own namespace - a top-level import here would be circular.
+        from .widgets.lv_list import finish_list_triggers
+
+        # Must run before generate_triggers(): that's what actually processes other
+        # widgets' on_click etc. automations, which can include lvgl.list.add/remove/
+        # clear actions that fire a list's on_add/on_remove triggers - those need to
+        # already exist by then, not still be pending.
+        await finish_list_triggers()
         await generate_triggers()
         await generate_align_tos(configs[0])
         for config in configs:
@@ -481,34 +488,16 @@ async def to_code(configs):
 
     # This must be done after all widgets are created
     styles_used = df.get_styles_used()
-    if any(BASE_PROPS.get(x) is lvalid.lv_image for x in styles_used):
-        add_lv_use(CONF_IMAGE)
+    apply_style_driven_defines(styles_used)
     for use in df.get_lv_uses():
         df.add_define(f"LV_USE_{use.upper()}")
         cg.add_define(f"USE_LVGL_{use.upper()}")
-
-    if {
-        "transform_rotation",
-        "transform_scale",
-        "transform_scale_x",
-        "transform_scale_y",
-    } & styles_used:
-        df.add_define("LV_COLOR_SCREEN_TRANSP", "1")
 
     if configs[0].get(df.CONF_THEME, {}).get(df.CONF_DARK_MODE):
         df.add_define("LV_THEME_DEFAULT_DARK", "1")
 
     # Currently always need RGB565 for the display buffer, and ARGB8888 is used for layer blending
     lv_image_formats = {"RGB565", "ARGB8888"}
-    if {
-        "drop_shadow_color",
-        "drop_shadow_offset_x",
-        "drop_shadow_offset_y",
-        "drop_shadow_opa",
-        "drop_shadow_quality",
-        "drop_shadow_radius",
-    } & styles_used:
-        lv_image_formats.add("A8")
 
     for image_id in get_lv_images_used():
         await cg.get_variable(image_id)

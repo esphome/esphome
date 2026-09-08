@@ -2,26 +2,19 @@
 
 #include "esphome/core/preferences.h"
 #include "esphome/core/component.h"
+// Include for ESPDEPRECATED, Remove before 2027.3.0
+#include "esphome/core/helpers.h"
 
 namespace esphome::preferences {
 
-class IntervalSyncer final : public Component {
+class IntervalSyncer final : public PollingComponent {
  public:
-#ifdef USE_PREFERENCES_SYNC_EVERY_LOOP
-  void loop() override { global_preferences->sync(); }
-#else
-  void set_write_interval(uint32_t write_interval) { this->write_interval_ = write_interval; }
-  void setup() override {
-    this->set_interval(this->write_interval_, []() { global_preferences->sync(); });
-  }
-#endif
+  // Remove before 2027.3.0
+  ESPDEPRECATED("Use set_update_interval() instead. Removed in 2027.3.0", "2026.9.0")
+  void set_write_interval(uint32_t write_interval) { this->set_update_interval(write_interval); }
+  void update() override { global_preferences->sync(); }
   void on_shutdown() override { global_preferences->sync(); }
   float get_setup_priority() const override { return setup_priority::BUS; }
-
-#ifndef USE_PREFERENCES_SYNC_EVERY_LOOP
- protected:
-  uint32_t write_interval_{60000};
-#endif
 };
 
 }  // namespace esphome::preferences
