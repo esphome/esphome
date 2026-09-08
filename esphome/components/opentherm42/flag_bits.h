@@ -63,18 +63,21 @@ struct FlagWriteBits {
 
   // Called when the boiler has definitively rejected (DATA-INVALID/UNKNOWN-DATAID) the
   // conversation that carries this byte -- unlike a transient datalink error, this means the
-  // underlying feature genuinely isn't present on this hardware. Unlike FlagReadBits::invalidate()
-  // above, this can't also call ControllerRegistry: switch_::Switch isn't reliably available there
-  // across the ESPHome versions this component needs to build against (a real user's build failed
-  // on 2026.8.2 despite entity_types.h having the entry as of that exact tag -- not fully
-  // understood, so avoided rather than re-guessed at), and unlike a float-based entity there's no
-  // NaN-equivalent sentinel for a boolean. So this only updates already-configured switches for a
-  // client that reconnects or freshly subscribes afterwards -- an already-connected client keeps
-  // showing the last value.
+  // underlying feature genuinely isn't present on this hardware. set_has_state(false) alone
+  // doesn't notify already-connected API/web_server clients, so notify_switch_update() is called
+  // explicitly (see hub.cpp's invalidate_entity() helpers for the same pattern on other domains).
+  // It's guarded by #ifdef USE_SWITCH: entity_types.h only generates that ControllerRegistry
+  // member when at least one switch entity exists anywhere in the device's config. A device with
+  // none at all (not just none in opentherm42) would otherwise fail to compile, even though a
+  // non-null bit here can only occur when a switch was actually configured -- which itself
+  // requires USE_SWITCH to be defined.
   void invalidate() {
     for (auto *b : this->bits) {
       if (b != nullptr) {
         b->set_has_state(false);
+#ifdef USE_SWITCH
+        ControllerRegistry::notify_switch_update(b);
+#endif
       }
     }
   }
