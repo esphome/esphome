@@ -802,9 +802,9 @@ class DisplayPage final {
   void show();
   void show_next();
   void show_prev();
-  void set_parent(Display *parent);
-  void set_prev(DisplayPage *prev);
-  void set_next(DisplayPage *next);
+  void set_parent(Display *parent) { this->parent_ = parent; }
+  void set_prev(DisplayPage *prev) { this->prev_ = prev; }
+  void set_next(DisplayPage *next) { this->next_ = next; }
   const display_writer_t &get_writer() const;
 
  protected:
@@ -813,6 +813,9 @@ class DisplayPage final {
   DisplayPage *prev_{nullptr};
   DisplayPage *next_{nullptr};
 };
+
+inline void Display::show_next_page() { this->page_->show_next(); }
+inline void Display::show_prev_page() { this->page_->show_prev(); }
 
 template<typename... Ts> class DisplayPageShowAction final : public Action<Ts...> {
  public:

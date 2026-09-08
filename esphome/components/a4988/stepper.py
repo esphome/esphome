@@ -3,6 +3,7 @@ import esphome.codegen as cg
 from esphome.components import stepper
 import esphome.config_validation as cv
 from esphome.const import CONF_DIR_PIN, CONF_ID, CONF_SLEEP_PIN, CONF_STEP_PIN
+from esphome.types import ConfigType
 
 a4988_ns = cg.esphome_ns.namespace("a4988")
 A4988 = a4988_ns.class_("A4988", stepper.Stepper, cg.Component)
@@ -17,7 +18,7 @@ CONFIG_SCHEMA = stepper.STEPPER_SCHEMA.extend(
 ).extend(cv.COMPONENT_SCHEMA)
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await stepper.register_stepper(var, config)

@@ -90,6 +90,7 @@ def main() -> int:
         sys.path.pop(0)
     # ---- end sys.path fix-up -----------------------------------------------
 
+    import contextlib
     import os
     from pathlib import Path
     import re
@@ -143,12 +144,14 @@ def main() -> int:
 
         * ``isatty()`` unconditionally returns True, tricking downstream
           code into emitting TTY-format output.
-        * Input is split on ``\\n`` / ``\\r`` via
-          ``str.splitlines(keepends=True)`` and any complete line whose
+        * Input is split with ``str.splitlines(keepends=True)``, which
+          breaks on more than ``\\n`` and ``\\r``; form feed and a few
+          other control characters count too. Any piece whose
           ANSI-stripped, right-stripped form matches one of
           ``filter_lines`` is dropped.
-        * Incomplete trailing chunks are held in a buffer until a
-          terminator arrives.
+        * Only the final piece can still be waiting for more text, so
+          that one is held until a ``\\n`` or ``\\r`` arrives. A piece
+          that ended on one of the other breaks goes out as it is.
 
         Mirrors the matching semantics of ``esphome.util.RedirectText``
         so filter patterns behave identically in both the PlatformIO
@@ -179,6 +182,44 @@ def main() -> int:
         def flush(self) -> None:
             self._stream.flush()
 
+        def _emit(self, line: str) -> None:
+            if self._filter_pattern is not None:
+                stripped = ansi_escape.sub("", line).rstrip()
+                if self._filter_pattern.match(stripped) is not None:
+                    return
+            self._stream.write(line)
+
+        def drain(self) -> None:
+            """Write out a held-back line that never got its terminator.
+
+            idf.py and CMake do not always end their last line with a
+            newline, and a build that dies part way through can stop mid
+            line. Without this the user is left staring at a build that
+            ended with no explanation.
+            """
+            if not self._line_buffer:
+                return
+            line, self._line_buffer = self._line_buffer, ""
+            try:
+                # Add the terminator the line never got, so whatever ESPHome
+                # prints next does not run onto the same line.
+                self._emit(line + "\n")
+                self._stream.flush()
+            except (OSError, ValueError) as err:
+                # We are called from cleanup, so raising would replace the
+                # build's real exit code. Saying so must not raise either:
+                # under the dashboard our stdout and stderr are the same
+                # pipe, so whatever broke the write has most likely broken
+                # the report, and ``sys.__stderr__`` is None on some
+                # interpreters. Carry the line along; it is usually the
+                # message saying why the build failed.
+                if (real_stderr := sys.__stderr__) is not None:
+                    with contextlib.suppress(OSError, ValueError):
+                        print(
+                            f"Could not write out remaining output ({err}): {line}",
+                            file=real_stderr,
+                        )
+
         def write(self, data) -> int:
             # Text streams normally hand us ``str``; decode in case
             # somebody writes bytes directly.
@@ -186,21 +227,32 @@ def main() -> int:
                 data = data.decode(errors="replace")
 
             if self._filter_pattern is None:
-                self._stream.write(data)
-                return len(data)
+                # Nothing to match against, so no need to wait for a full line.
+                self._emit(data)
+            else:
+                lines = (self._line_buffer + data).splitlines(keepends=True)
+                # Every piece but the last ends with something
+                # ``str.splitlines`` treats as a break, so only the last one
+                # can still be waiting for more text. Hold that one, write
+                # out the rest.
+                #
+                # Some of those breaks are not line endings to us, a form
+                # feed for one, so a piece can go out without ending in a
+                # newline. That beats what we did before, which was to stop
+                # at the first such piece and drop every complete line
+                # behind it.
+                if lines and not lines[-1].endswith(("\n", "\r")):
+                    self._line_buffer = lines.pop()
+                else:
+                    self._line_buffer = ""
+                for line in lines:
+                    self._emit(line)
 
-            self._line_buffer += data
-            for line in self._line_buffer.splitlines(keepends=True):
-                if "\n" not in line and "\r" not in line:
-                    # Incomplete — hold until we see a terminator.
-                    self._line_buffer = line
-                    break
-                self._line_buffer = ""
-
-                stripped = ansi_escape.sub("", line).rstrip()
-                if self._filter_pattern.match(stripped) is not None:
-                    continue
-                self._stream.write(line)
+            # We tell idf.py it is talking to a terminal, so it sends progress
+            # bars and cursor moves. Our own stdout is usually a pipe, which is
+            # block buffered, so without this the build looks frozen until
+            # 8 KiB of output piles up.
+            self._stream.flush()
             return len(data)
 
     if len(sys.argv) < 2:
@@ -217,8 +269,8 @@ def main() -> int:
     is_verbose = any(arg in ("-v", "--verbose") for arg in sys.argv[2:])
     filter_lines = None if is_verbose else FILTER_IDF_LINES or None
 
-    sys.stdout = _FilteringTTYStream(sys.stdout, filter_lines)  # type: ignore[assignment]
-    sys.stderr = _FilteringTTYStream(sys.stderr, filter_lines)  # type: ignore[assignment]
+    stdout_shim = sys.stdout = _FilteringTTYStream(sys.stdout, filter_lines)  # type: ignore[assignment]
+    stderr_shim = sys.stderr = _FilteringTTYStream(sys.stderr, filter_lines)  # type: ignore[assignment]
 
     # Shift argv so the target script sees its own path as argv[0] and
     # its own arguments starting at argv[1]. runpy.run_path does not
@@ -236,8 +288,19 @@ def main() -> int:
 
     # If idf.py calls sys.exit(), SystemExit propagates out of run_path
     # and carries the exit code back to our caller. For normal returns,
-    # fall through and exit with 0.
-    runpy.run_path(script_path, run_name="__main__")
+    # fall through and exit with 0. Either way the streams get a chance to
+    # release a last line that never got its terminator. Drain the shims we
+    # made rather than sys.stdout, which the script is free to replace, and
+    # report instead of raising so cleanup cannot bury the real exit code.
+    try:
+        runpy.run_path(script_path, run_name="__main__")
+    finally:
+        # Drain stderr from a finally so a surprise from the first one cannot
+        # strand the second.
+        try:
+            stdout_shim.drain()
+        finally:
+            stderr_shim.drain()
     return 0
 
 

@@ -243,8 +243,8 @@ uint8_t PN7150::reset_core_(const bool reset_config, const bool power) {
   }
 
   ESP_LOGD(TAG, "Configuration %s, NCI version: %s",
-           rx.get_message()[nfc::NCI_PKT_PAYLOAD_OFFSET + 2] ? "reset" : "retained",
-           rx.get_message()[nfc::NCI_PKT_PAYLOAD_OFFSET + 1] == 0x20 ? "2.0" : "1.0");
+           rx.get_message()[nfc::NCI_PKT_PAYLOAD_OFFSET + 2] ? LOG_STR_LITERAL("reset") : LOG_STR_LITERAL("retained"),
+           rx.get_message()[nfc::NCI_PKT_PAYLOAD_OFFSET + 1] == 0x20 ? LOG_STR_LITERAL("2.0") : LOG_STR_LITERAL("1.0"));
 
   return nfc::STATUS_OK;
 }

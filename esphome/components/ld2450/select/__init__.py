@@ -7,6 +7,7 @@ from esphome.const import (
     ENTITY_CATEGORY_CONFIG,
     ICON_THERMOMETER,
 )
+from esphome.types import ConfigType
 
 from .. import CONF_LD2450_ID, LD2450Component, ld2450_ns
 
@@ -31,7 +32,7 @@ CONFIG_SCHEMA = {
 }
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     ld2450_component = await cg.get_variable(config[CONF_LD2450_ID])
     if baud_rate_config := config.get(CONF_BAUD_RATE):
         s = await select.new_select(

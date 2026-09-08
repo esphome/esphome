@@ -2,6 +2,7 @@ import esphome.codegen as cg
 from esphome.components import switch
 import esphome.config_validation as cv
 from esphome.const import CONF_LED
+from esphome.types import ConfigType
 
 from ..display import CONF_TM1638_ID, TM1638Component, tm1638_ns
 
@@ -20,7 +21,7 @@ CONFIG_SCHEMA = (
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = await switch.new_switch(config)
     await cg.register_component(var, config)
     cg.add(var.set_lednum(config[CONF_LED]))

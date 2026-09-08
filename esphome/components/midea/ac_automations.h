@@ -1,6 +1,6 @@
 #pragma once
 
-#if defined(USE_ARDUINO) && !defined(USE_RP2) && !defined(USE_LIBRETINY)
+#if (defined(USE_ARDUINO) && !defined(USE_RP2) && !defined(USE_LIBRETINY)) || defined(USE_ESP_IDF)
 
 #include "esphome/core/automation.h"
 #include "air_conditioner.h"
@@ -63,4 +63,4 @@ template<typename... Ts> class PowerToggleAction : public MideaActionBase<Ts...>
 
 }  // namespace esphome::midea::ac
 
-#endif  // USE_ARDUINO
+#endif  // USE_ARDUINO || USE_ESP_IDF

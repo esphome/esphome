@@ -18,6 +18,8 @@ from esphome.const import (
     UNIT_PARTS_PER_BILLION,
     UNIT_PARTS_PER_MILLION,
 )
+from esphome.cpp_generator import MockObj
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@vincentscode", "@latonita"]
 
@@ -57,7 +59,7 @@ CONFIG_SCHEMA_BASE = cv.Schema(
 ).extend(cv.polling_component_schema("60s"))
 
 
-async def to_code_base(config):
+async def to_code_base(config: ConfigType) -> MockObj:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
 

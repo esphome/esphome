@@ -3,6 +3,7 @@ import esphome.codegen as cg
 from esphome.components import sensor
 import esphome.config_validation as cv
 from esphome.const import CONF_PIN, ICON_PERCENT, STATE_CLASS_MEASUREMENT, UNIT_PERCENT
+from esphome.types import ConfigType
 
 duty_cycle_ns = cg.esphome_ns.namespace("duty_cycle")
 DutyCycleSensor = duty_cycle_ns.class_(
@@ -22,7 +23,7 @@ CONFIG_SCHEMA = (
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = await sensor.new_sensor(config)
     await cg.register_component(var, config)
 

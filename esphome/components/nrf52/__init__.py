@@ -125,10 +125,8 @@ def set_core_data(config: ConfigType) -> ConfigType:
     return config
 
 
-def _resolve_toolchain(config: ConfigType) -> ConfigType:
-    if CORE.toolchain is None:
-        CORE.toolchain = config.get(CONF_TOOLCHAIN, Toolchain.SDK_NRF)
-    return config
+_TOOLCHAINS = (Toolchain.PLATFORMIO, Toolchain.SDK_NRF)
+_resolve_toolchain = cv.resolve_toolchain("nRF52", _TOOLCHAINS, Toolchain.SDK_NRF)
 
 
 def set_framework(config: ConfigType) -> ConfigType:
@@ -170,10 +168,7 @@ BOOTLOADERS = [
 ]
 
 
-def _validate_toolchain(value) -> Toolchain:
-    return Toolchain(
-        cv.one_of(Toolchain.PLATFORMIO, Toolchain.SDK_NRF, lower=True)(value)
-    )
+_validate_toolchain = cv.toolchain_enum(_TOOLCHAINS)
 
 
 def _detect_bootloader(config: ConfigType) -> ConfigType:
@@ -473,6 +468,9 @@ def copy_files() -> None:
 
 def get_download_types(storage_json: StorageJSON) -> list[dict[str, str]]:
     """Get the download types for the firmware."""
+    # No recorded firmware path means nothing was built; no downloads.
+    if storage_json.firmware_bin_path is None:
+        return []
     types = []
     UF2_PATH = "zephyr/zephyr.uf2"
     DFU_PATH = "firmware.zip"
@@ -722,11 +720,17 @@ def _addr2line(addr2line: str, elf: Path, addr: str) -> str:
     return ""
 
 
+# The PC bound matches the gate in platform_hooks.STACKTRACE_GATES;
+# the logger prints both registers with %08x, so a real PC is always
+# 8 digits. tests/unit_tests/test_stacktrace.py guards against drift.
+STACKTRACE_NRF52_PC_LR_RE = re.compile(r"PC=(0x[0-9a-fA-F]{3,})\s+LR=(0x[0-9a-fA-F]+)")
+
+
 def process_stacktrace(config: ConfigType, line: str, backtrace_state: bool) -> bool:
     if "Last crash:" in line:
         return True
     if backtrace_state:
-        match = re.search(r"PC=(0x[0-9a-fA-F]+)\s+LR=(0x[0-9a-fA-F]+)", line)
+        match = STACKTRACE_NRF52_PC_LR_RE.search(line)
         if match:
             pc = match.group(1)
             lr = match.group(2)

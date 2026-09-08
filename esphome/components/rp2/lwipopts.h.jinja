@@ -20,12 +20,23 @@
 #undef TCP_WND
 #define TCP_WND                       {{ TCP_WND }}
 
-// Queued segment limits: derived from 4xMSS buffer size, matching ESP32
+// Per-PCB send queue: derived from 4xMSS buffer size, matching ESP32
 #undef TCP_SND_QUEUELEN
 #define TCP_SND_QUEUELEN              {{ TCP_SND_QUEUELEN }}
 
+// Segment pool: global across every PCB, so it is sized above the per-PCB
+// queue length rather than equal to it. lwIP's sanity check only requires
+// >= TCP_SND_QUEUELEN, which is the floor for a single connection.
 #undef MEMP_NUM_TCP_SEG
 #define MEMP_NUM_TCP_SEG              {{ MEMP_NUM_TCP_SEG }}
+
+// lwIP heap backing PBUF_RAM, which is what tcp_write() copies into.
+// Raised from arduino-pico's 16KB: TCP_OVERSIZE is TCP_MSS, so a single PCB
+// at a full TCP_SND_BUF pins about 6KB. Two of those left the 16KB heap at
+// 75%, and mem.c is first-fit, so the largest contiguous run ran out well
+// before the total did.
+#undef MEM_SIZE
+#define MEM_SIZE                      {{ MEM_SIZE }}
 
 // Packet buffer pool: 16 matches ESP32 (down from 24)
 #undef PBUF_POOL_SIZE

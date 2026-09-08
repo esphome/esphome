@@ -4,6 +4,9 @@ from esphome.components import i2c
 from esphome.components.audio_dac import AudioDac
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_MODE
+from esphome.core import ID
+from esphome.cpp_generator import MockObj, TemplateArgsType
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@kbx81"]
 DEPENDENCIES = ["i2c"]
@@ -39,7 +42,12 @@ SET_AUTO_MUTE_ACTION_SCHEMA = cv.maybe_simple_value(
     SET_AUTO_MUTE_ACTION_SCHEMA,
     synchronous=True,
 )
-async def aic3204_set_volume_to_code(config, action_id, template_arg, args):
+async def aic3204_set_volume_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
 
@@ -49,7 +57,7 @@ async def aic3204_set_volume_to_code(config, action_id, template_arg, args):
     return var
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)

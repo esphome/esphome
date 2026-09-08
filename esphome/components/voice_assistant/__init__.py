@@ -14,6 +14,9 @@ from esphome.const import (
     CONF_ON_START,
     CONF_SPEAKER,
 )
+from esphome.core import ID
+from esphome.cpp_generator import MockObj, TemplateArgsType
+from esphome.types import ConfigType
 
 AUTO_LOAD = ["audio", "ring_buffer", "socket"]
 DEPENDENCIES = ["api", "microphone"]
@@ -78,7 +81,7 @@ ConnectedCondition = voice_assistant_ns.class_(
 Timer = voice_assistant_ns.struct("Timer")
 
 
-def tts_stream_validate(config):
+def tts_stream_validate(config: ConfigType) -> ConfigType:
     if CONF_SPEAKER not in config and (
         CONF_ON_TTS_STREAM_START in config or CONF_ON_TTS_STREAM_END in config
     ):
@@ -199,7 +202,7 @@ FINAL_VALIDATE_SCHEMA = cv.All(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
 
@@ -420,7 +423,12 @@ VOICE_ASSISTANT_ACTION_SCHEMA = cv.Schema({cv.GenerateID(): cv.use_id(VoiceAssis
     ),
     synchronous=True,
 )
-async def voice_assistant_listen_to_code(config, action_id, template_arg, args):
+async def voice_assistant_listen_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
     if CONF_SILENCE_DETECTION in config:
@@ -434,7 +442,12 @@ async def voice_assistant_listen_to_code(config, action_id, template_arg, args):
 @register_action(
     "voice_assistant.stop", StopAction, VOICE_ASSISTANT_ACTION_SCHEMA, synchronous=True
 )
-async def voice_assistant_stop_to_code(config, action_id, template_arg, args):
+async def voice_assistant_stop_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
     return var
@@ -443,7 +456,12 @@ async def voice_assistant_stop_to_code(config, action_id, template_arg, args):
 @register_condition(
     "voice_assistant.is_running", IsRunningCondition, VOICE_ASSISTANT_ACTION_SCHEMA
 )
-async def voice_assistant_is_running_to_code(config, condition_id, template_arg, args):
+async def voice_assistant_is_running_to_code(
+    config: ConfigType,
+    condition_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     var = cg.new_Pvariable(condition_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
     return var
@@ -452,7 +470,12 @@ async def voice_assistant_is_running_to_code(config, condition_id, template_arg,
 @register_condition(
     "voice_assistant.connected", ConnectedCondition, VOICE_ASSISTANT_ACTION_SCHEMA
 )
-async def voice_assistant_connected_to_code(config, condition_id, template_arg, args):
+async def voice_assistant_connected_to_code(
+    config: ConfigType,
+    condition_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     var = cg.new_Pvariable(condition_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
     return var

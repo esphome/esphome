@@ -3,6 +3,8 @@
 #include "esphome/core/automation.h"
 #include "esphome/components/esp32_ble_tracker/esp32_ble_tracker.h"
 
+#include <vector>
+
 #ifdef USE_ESP32
 
 namespace esphome::esp32_ble_tracker {
