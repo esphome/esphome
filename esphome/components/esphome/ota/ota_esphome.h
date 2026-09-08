@@ -136,6 +136,8 @@ class ESPHomeOTAComponent final : public ota::OTAComponent {
   // the data timeout; updates xfer and sends chunk acks. Returns bytes read, -1
   // on failure (logged).
   ssize_t receive_data_(uint8_t *buf, DataTransfer &xfer);
+  // Reads a 4 byte MSB first size field; buf must hold OTA_BUFFER_SIZE bytes
+  bool read_size_(uint8_t *buf, size_t &size, const LogString *desc);
 
   bool try_read_(size_t to_read, const LogString *desc);
   bool try_write_(size_t to_write, const LogString *desc);
@@ -196,13 +198,12 @@ class ESPHomeOTAComponent final : public ota::OTAComponent {
   static constexpr size_t OTA_INFLATE_WINDOW_SIZE = 4096;
   // Heap-allocated only while a deflate-compressed upload is negotiated.
   struct InflateSession {
-    ota_inflate_state state;  // first member: the read callback casts back from it
+    OtaInflateState state;  // first member: the read callback casts back from it
     ESPHomeOTAComponent *self;
     DataTransfer *xfer;
     uint8_t *in;  // caller's buffer for the compressed input, valid during inflate_data_
     uint8_t window[OTA_INFLATE_WINDOW_SIZE];
   };
-  static int inflate_read_cb_(ota_inflate_state *d);
   ota::OTAResponseTypes inflate_data_(uint8_t *in, size_t image_size, DataTransfer &xfer);
   std::unique_ptr<InflateSession> inflate_;
 #endif
