@@ -1,5 +1,6 @@
 #include "epaper_waveshare_2p9_v2.h"
 
+#include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
@@ -8,32 +9,24 @@ namespace esphome::epaper_spi {
 static const char *const TAG = "epaper_spi.waveshare_2p9_v2";
 
 bool EpaperWaveshare2P9V2::reset() {
-  // Partial updates need the previous frame in controller RAM. Skip SWRESET (0x12);
-  // pin reset only, matching WaveshareEPaper2P9InV2R2::reset_/display().
+  // Partial updates need the previous frame in controller RAM, so skip the software reset (0x12)
+  // that EPaperMono::reset() sends and only pulse the reset pin.
   if (this->update_count_ != 0) {
-    if (this->reset_pin_ == nullptr) {
-      return true;
-    }
-    if (this->state_ == EPaperState::RESET) {
-      this->reset_pin_->digital_write(false);
-      return false;
-    }
-    this->reset_pin_->digital_write(true);
-    return true;
+    return EPaperBase::reset();  // NOLINT(bugprone-parent-virtual-call)
   }
   return EPaperMono::reset();
 }
 
 bool EpaperWaveshare2P9V2::initialise(bool partial) {
   if (!partial) {
-    // Full update: OTP waveform only (legacy r2), no registered full LUT.
-    this->send_init_sequence_(this->init_sequence_, this->init_sequence_length_);
+    // Full update: OTP waveform only, no full LUT is sent.
+    EPaperBase::initialise(false);
     this->write_prev_plane_ = true;
     this->transferring_prev_plane_ = false;
     return true;
   }
 
-  // Pin reset already done in reset(); load partial LUT + 0x37 (SDK Rev 2.1).
+  // Pin reset already done in reset(); load partial LUT + 0x37 as in the Waveshare SDK.
   this->cmd_data(0x32, this->partial_lut_, this->partial_lut_length_);
   this->cmd_data(0x37, {0x00, 0x00, 0x00, 0x00, 0x00, 0x40, 0x00, 0x00, 0x00, 0x00});
   this->cmd_data(0x3C, {0x80});
@@ -43,6 +36,21 @@ bool EpaperWaveshare2P9V2::initialise(bool partial) {
   this->write_prev_plane_ = false;
   this->transferring_prev_plane_ = false;
   return true;
+}
+
+void EpaperWaveshare2P9V2::set_window() {
+  // This controller takes single-byte X addresses, unlike EPaperMono::set_window().
+  this->x_low_ &= ~7;
+  this->x_high_ += 7;
+  this->x_high_ &= ~7;
+  uint16_t x_start = this->x_low_ / 8;
+  uint16_t x_end = (this->x_high_ - 1) / 8;
+  this->cmd_data(0x44, {(uint8_t) x_start, (uint8_t) (x_end)});
+  this->cmd_data(0x4E, {(uint8_t) x_start});
+  this->cmd_data(0x45, {(uint8_t) this->y_low_, (uint8_t) (this->y_low_ / 256), (uint8_t) (this->y_high_ - 1),
+                        (uint8_t) ((this->y_high_ - 1) / 256)});
+  this->cmd_data(0x4F, {(uint8_t) this->y_low_, (uint8_t) (this->y_low_ / 256)});
+  ESP_LOGV(TAG, "Set window X: %u-%u, Y: %u-%u", this->x_low_, this->x_high_, this->y_low_, this->y_high_);
 }
 
 void EpaperWaveshare2P9V2::refresh_screen(bool partial) {

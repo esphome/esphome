@@ -1,5 +1,8 @@
+from typing import Any
+
 import esphome.codegen as cg
 from esphome.core import ID
+from esphome.types import ConfigType
 
 from ..display import CONF_INIT_SEQUENCE_ID
 from . import EpaperModel
@@ -7,36 +10,59 @@ from . import EpaperModel
 
 class WaveshareModel(EpaperModel):
     def __init__(
-        self, name, lut=None, lut_partial=None, class_name="EpaperWaveshare", **defaults
+        self,
+        name: str,
+        lut: tuple[int, ...],
+        lut_partial: tuple[int, ...] | None = None,
+        **defaults,
     ):
-        super().__init__(name, class_name, **defaults)
+        super().__init__(name=name, class_name="EpaperWaveshare", **defaults)
         self.lut = lut
         self.lut_partial = lut_partial
 
-    def get_constructor_args(self, config) -> tuple:
-        if not self.lut:
-            lut = cg.nullptr, 0
-        else:
-            lut = (
-                cg.static_const_array(
-                    ID(config[CONF_INIT_SEQUENCE_ID].id + "_lut", type=cg.uint8),
-                    self.lut,
-                ),
-                len(self.lut),
-            )
+    def get_constructor_args(self, config: ConfigType) -> tuple:
+        sequence_id: ID = config[CONF_INIT_SEQUENCE_ID]
+        lut = (
+            cg.static_const_array(ID(sequence_id.id + "_lut", type=cg.uint8), self.lut),
+            len(self.lut),
+        )
         if self.lut_partial is None:
             lut_partial = cg.nullptr, 0
         else:
             lut_partial = (
                 cg.static_const_array(
-                    ID(
-                        config[CONF_INIT_SEQUENCE_ID].id + "_lut_partial", type=cg.uint8
-                    ),
+                    ID(sequence_id.id + "_lut_partial", type=cg.uint8),
                     self.lut_partial,
                 ),
                 len(self.lut_partial),
             )
         return *lut, *lut_partial
+
+
+class WaveshareOtpModel(EpaperModel):
+    """A Waveshare panel whose full refresh uses the controller's built-in OTP waveform.
+
+    Only a partial-refresh LUT is sent to the panel, so no full LUT is carried.
+    """
+
+    def __init__(
+        self,
+        name: str,
+        lut_partial: tuple[int, ...],
+        class_name: str = "EpaperWaveshare2P9V2",
+        **defaults: Any,
+    ) -> None:
+        super().__init__(name, class_name, **defaults)
+        self.lut_partial = lut_partial
+
+    def get_constructor_args(self, config: ConfigType) -> tuple:
+        return (
+            cg.static_const_array(
+                ID(config[CONF_INIT_SEQUENCE_ID].id + "_lut_partial", type=cg.uint8),
+                self.lut_partial,
+            ),
+            len(self.lut_partial),
+        )
 
 
 # fmt: off
@@ -95,9 +121,8 @@ WaveshareModel(
 
 # Waveshare 2.9" V2 Rev 2.1 mono (128x296, SSD1680-class).
 # Full refresh uses OTP (0xF7); partial LUT matches WaveshareEPaper2P9InV2R2 (159 bytes).
-WaveshareModel(
+WaveshareOtpModel(
     "waveshare-2.9in-v2",
-    class_name="EpaperWaveshare2P9V2",
     width=128,
     height=296,
     data_rate="10MHz",
@@ -112,7 +137,6 @@ WaveshareModel(
         (0x4E, 0x00),
         (0x4F, 0x00, 0x00),
     ),
-    lut=None,
     lut_partial=(
         # PARTIAL_UPD_2IN9_LUT from waveshare_epaper WaveshareEPaper2P9InV2R2
         0x00, 0x40, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,

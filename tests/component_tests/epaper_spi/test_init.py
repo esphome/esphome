@@ -456,6 +456,25 @@ def test_uc8179_e1001_code_generation(
     assert "97, 4, 3, 32, 1, 224" in main_cpp
 
 
+def test_waveshare_2p9_v2_code_generation(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """Test that the Waveshare 2.9in V2 model generates EpaperWaveshare2P9V2 with only a partial LUT."""
+    main_cpp = generate_main(component_config_path("waveshare_2p9_v2_test.yaml"))
+
+    # The model must instantiate EpaperWaveshare2P9V2 with the panel dimensions, the init
+    # sequence array and length, and the partial LUT array and its length (159 bytes).
+    assert re.search(
+        r'epaper_spi::EpaperWaveshare2P9V2\("WAVESHARE-2\.9IN-V2",\s*128,\s*296,\s*'
+        r"\w+,\s*\d+,\s*\w+_lut_partial,\s*159\)",
+        main_cpp,
+    )
+
+    # No full LUT is carried for this model, only the partial one.
+    assert re.search(r"_lut\b", main_cpp) is None
+
+
 def test_enable_pin_code_generation(
     generate_main: Callable[[str | Path], str],
     component_config_path: Callable[[str], Path],
