@@ -7,6 +7,7 @@
 #include <concepts>
 #include <cstddef>
 #include <cstdint>
+#include <type_traits>
 
 #ifdef USE_OTA_STATE_LISTENER
 #include <vector>
@@ -102,6 +103,9 @@ enum OTAType : uint8_t {
 // - set_update_md5: expected digest of the incoming image, hex string.
 // - write: consume the next chunk; end: finalize and mark bootable.
 // - abort: safe to call in any state, including after end().
+// - supports_compression: static constexpr, whether a gzip image can be stored
+//   as is and inflated at reboot; the esphome platform asserts it at compile
+//   time when it builds its own inflater.
 template<typename T>
 concept OTABackendContract = requires(T backend, size_t image_size, uint8_t *data, size_t len, const char *md5) {
   { backend.begin(image_size, OTA_TYPE_UPDATE_APP) } -> std::same_as<OTAResponseTypes>;
@@ -110,7 +114,8 @@ concept OTABackendContract = requires(T backend, size_t image_size, uint8_t *dat
   { backend.write(data, len) } -> std::same_as<OTAResponseTypes>;
   { backend.end() } -> std::same_as<OTAResponseTypes>;
   backend.abort();
-  { backend.supports_compression() } -> std::same_as<bool>;
+  { T::supports_compression() } -> std::same_as<bool>;
+  requires std::bool_constant<T::supports_compression()>::value || true;
 };
 
 /** Listener interface for OTA state changes.
