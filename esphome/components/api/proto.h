@@ -10,6 +10,7 @@
 
 #include <cassert>
 #include <cstring>
+#include <type_traits>
 #include <vector>
 
 #ifdef ESPHOME_LOG_HAS_VERY_VERBOSE
@@ -741,6 +742,10 @@ class ProtoDecodableMessage : public ProtoMessage {
    */
   static uint32_t count_repeated_field(const uint8_t *buffer, size_t length, uint32_t target_field_id);
 };
+#ifndef HAS_PROTO_MESSAGE_DUMP
+// decode() passes decode_field explicitly, so nothing here may add a vtable
+static_assert(!std::is_polymorphic_v<ProtoDecodableMessage>, "decodable messages carry no vtable");
+#endif
 
 class ProtoSize {
  public:

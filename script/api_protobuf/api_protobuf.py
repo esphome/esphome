@@ -3385,6 +3385,7 @@ static void dump_bytes_field(DumpBuffer &out, const char *field_name, const uint
 
     # Generate message types with base class information
     # Simple grouping by ifdef
+    decodable_messages: list[tuple[str, str | None]] = []
     current_ifdef = None
 
     for m in mt:
@@ -3401,6 +3402,8 @@ static void dump_bytes_field(DumpBuffer &out, const char *field_name, const uint
             continue
 
         s, c, dc = build_message_type(m, base_class_fields, message_source_map)
+        if message_source_map[m.name] in (SOURCE_BOTH, SOURCE_CLIENT):
+            decodable_messages.append((m.name, message_ifdef_map.get(m.name)))
         msg_ifdef = message_ifdef_map.get(m.name)
 
         # Handle ifdef changes
@@ -3426,6 +3429,14 @@ static void dump_bytes_field(DumpBuffer &out, const char *field_name, const uint
         content += "#endif\n"
         cpp += "#endif\n"
         dump_cpp += "#endif\n"
+
+    # decode() passes decode_field explicitly, so without the dump virtuals no decodable message
+    # may carry a vtable; a build at any level below VERY_VERBOSE proves it
+    cpp += "#ifndef HAS_PROTO_MESSAGE_DUMP\n"
+    for name, msg_ifdef in decodable_messages:
+        line = f'static_assert(!std::is_polymorphic_v<{name}>, "decodable messages carry no vtable");'
+        cpp += "\n".join(wrap_with_ifdef(line, msg_ifdef)) + "\n"
+    cpp += "#endif\n"
 
     content += """\
 
