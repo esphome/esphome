@@ -140,6 +140,8 @@ class HoermannHcp : public PollingComponent, public modbus::ModbusServerDevice {
 
   // The command waiting for the controller's next fetch. There is one slot: the controller takes one per poll.
   const HoermannHcpCommand *next_command_{nullptr};
+  // The command the controller has just fetched, waiting to be logged off the answer path.
+  const HoermannHcpCommand *sent_command_{nullptr};
   uint32_t command_queued_at_{0};
   // Separate from command_queued_at_ so an unrelated command cannot extend the target's start deadline.
   uint32_t target_queued_at_{0};

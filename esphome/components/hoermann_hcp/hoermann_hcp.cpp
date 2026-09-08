@@ -77,6 +77,10 @@ static bool is_moving(DoorState state) {
 
 void HoermannHcp::update() {
   const uint32_t now = millis();
+  if (this->sent_command_ != nullptr) {
+    ESP_LOGI(TAG, "Sent '%s' command to door", this->sent_command_->name);
+    this->sent_command_ = nullptr;
+  }
   // Time out the connection flag if the bus controller stopped polling.
   if (this->valid_ && now - this->last_response_ > this->connection_timeout_ms_)
     this->set_valid_(false);
@@ -215,7 +219,9 @@ void HoermannHcp::push_command_registers_(modbus::RegisterValues &registers) {
     push_zeros(registers, 2);
     return;
   }
-  ESP_LOGI(TAG, "Sending '%s' command to door", command->name);
+  // Recorded rather than logged: this builds the answer the bus controller is timing, and a console line can
+  // outlast that window. update() says it a moment later.
+  this->sent_command_ = command;
   // Spent as soon as it is fetched. Nothing puts it back, so the door sees each command exactly once.
   this->next_command_ = nullptr;
   if (is_light_command(command))
@@ -431,17 +437,16 @@ bool HoermannHcp::vent_door() { return this->queue_command_(COMMAND_VENT); }
 bool HoermannHcp::half_open_door() { return this->queue_command_(COMMAND_HALF_OPEN); }
 bool HoermannHcp::set_light(bool on) {
   const HoermannHcpCommand &command = on ? COMMAND_LIGHT_ON : COMMAND_LIGHT_OFF;
-  // A lamp request the controller has not fetched is replaced: the newer one says what is wanted now, and
-  // nothing has reached the door yet. One that only takes back the first is withdrawn outright.
+  // A lamp request the controller has not fetched can be taken back: the newer one says what is wanted now,
+  // and nothing has reached the door yet. Withdrawn outright when it only asks for the lamp as it already is.
+  // Emptying the slot rather than writing over it keeps the request going through the checks below.
   if (is_light_command(this->next_command_)) {
-    if (on == this->light_on_) {
-      this->drop_unsent_command_();
+    this->drop_unsent_command_();
+    if (on == this->light_on_)
       return true;
-    }
-    this->next_command_ = &command;
-  } else if (!this->queue_command_(command)) {
-    return false;
   }
+  if (!this->queue_command_(command))
+    return false;
   this->light_request_pending_ = true;
   this->light_request_on_ = on;
   this->light_request_sent_at_ = 0;
