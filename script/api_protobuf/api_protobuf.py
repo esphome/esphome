@@ -2964,11 +2964,11 @@ def build_base_class(
 
     # Determine if any message using this base class needs decoding/encoding
     needs_decode = any(
-        message_source_map.get(msg.name, SOURCE_BOTH) in (SOURCE_BOTH, SOURCE_CLIENT)
+        message_needs_decode(message_source_map.get(msg.name, SOURCE_BOTH))
         for msg in messages
     )
     needs_encode = any(
-        message_source_map.get(msg.name, SOURCE_BOTH) in (SOURCE_BOTH, SOURCE_SERVER)
+        message_needs_encode(message_source_map.get(msg.name, SOURCE_BOTH))
         for msg in messages
     )
 
