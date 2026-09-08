@@ -1,0 +1,20 @@
+esphome:
+  on_boot:
+    priority: -100
+    then:
+      # Just the defined configuration
+      - bq25186.apply_configuration: bq25186_charger
+      # Just the defined configuration with some overrides
+      - bq25186.apply_configuration:
+          id: bq25186_charger
+          battery_regulation_voltage: 4100
+          fast_charge_current: 200
+
+bq25186:
+  id: bq25186_charger
+  configure_on_boot: false
+  fast_charge_current: 150
+  battery_regulation_voltage: 4200
+  input_current_limit: 500ma
+  system_regulation: 4.5v
+  charge_enabled: true
