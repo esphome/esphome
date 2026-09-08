@@ -2120,3 +2120,30 @@ def test_get_cpp_changed_components_independent_of_cwd(
     assert helpers.get_cpp_changed_components(
         ["tests/components/time/__init__.py"]
     ) == ["time"]
+
+
+def test_lpt_partition_balances_skewed_weights() -> None:
+    """Heavy items spread across groups instead of clustering."""
+    items = [f"i{n}" for n in range(6)]
+    weights = {"i0": 100.0, "i1": 90.0, "i2": 10.0, "i3": 10.0, "i4": 5.0, "i5": 5.0}
+    groups = helpers.lpt_partition(items, weights, 2)
+    group_weights = sorted(sum(weights[i] for i in g) for g in groups)
+    # Contiguous split would give 200 vs 20; LPT lands at 110 vs 110
+    assert group_weights == [110.0, 110.0]
+    assert sorted(i for g in groups for i in g) == items
+
+
+def test_lpt_partition_more_groups_than_items() -> None:
+    """Surplus groups come back empty; every item still lands somewhere."""
+    items = ["a", "b"]
+    groups = helpers.lpt_partition(items, {"a": 1.0, "b": 1.0}, 4)
+    assert len(groups) == 4
+    assert sorted(i for g in groups for i in g) == items
+    assert sum(not g for g in groups) == 2
+
+
+def test_lpt_partition_tie_determinism() -> None:
+    """Equal weights assign in input order, so output is reproducible."""
+    items = [f"i{n}" for n in range(4)]
+    weights = dict.fromkeys(items, 1.0)
+    assert helpers.lpt_partition(items, weights, 2) == [["i0", "i2"], ["i1", "i3"]]

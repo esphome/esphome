@@ -1059,8 +1059,9 @@ static void *lv_alloc_draw_buf(size_t size, bool internal) {
   void *buffer;
   size = LV_ROUND_UP(size, LV_DRAW_BUF_ALIGN);
   buffer = heap_caps_aligned_alloc(LV_DRAW_BUF_ALIGN, size, internal ? MALLOC_CAP_8BIT : cap_bits);  // NOLINT
-  if (buffer == nullptr)
+  if (buffer == nullptr) {
     ESP_LOGW(esphome::lvgl::TAG, "Failed to allocate %zu bytes for %sdraw buffer", size, internal ? "internal " : "");
+  }
   return buffer;
 }
 

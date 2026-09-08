@@ -1034,6 +1034,8 @@ message ListEntitiesServicesArgument {
   option (ifdef) = "USE_API_USER_DEFINED_ACTIONS";
   string name = 1;
   ServiceArgType type = 2;
+  string description = 3 [(field_ifdef) = "USE_API_USER_DEFINED_ACTION_METADATA"];
+  string example = 4 [(field_ifdef) = "USE_API_USER_DEFINED_ACTION_METADATA"];
 }
 message ListEntitiesServicesResponse {
   option (id) = 41;
@@ -1044,6 +1046,7 @@ message ListEntitiesServicesResponse {
   fixed32 key = 2 [(force) = true];
   repeated ListEntitiesServicesArgument args = 3 [(fixed_vector) = true];
   SupportsResponseType supports_response = 4;
+  string description = 5 [(field_ifdef) = "USE_API_USER_DEFINED_ACTION_METADATA"];
 }
 message ExecuteServiceArgument {
   option (ifdef) = "USE_API_USER_DEFINED_ACTIONS";
