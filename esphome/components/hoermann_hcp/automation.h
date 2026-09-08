@@ -14,4 +14,15 @@ template<typename... Ts> class AnnouncePauseAction final : public Action<Ts...>,
   void play(const Ts &...x) override { this->parent_->announce_pause(); }
 };
 
+// The intermediate positions as automation actions, for a config that wants them without a button entity.
+template<typename... Ts> class VentAction final : public Action<Ts...>, public Parented<HoermannHcp> {
+ public:
+  void play(const Ts &...x) override { this->parent_->vent_door(); }
+};
+
+template<typename... Ts> class HalfOpenAction final : public Action<Ts...>, public Parented<HoermannHcp> {
+ public:
+  void play(const Ts &...x) override { this->parent_->half_open_door(); }
+};
+
 }  // namespace esphome::hoermann_hcp

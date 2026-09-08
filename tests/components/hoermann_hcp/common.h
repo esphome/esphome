@@ -26,9 +26,6 @@ constexpr uint16_t RESPONSE_PAUSE = 0x0029;
 constexpr uint16_t TRANSFER_ACK_ANSWER = 0x04FD;
 constexpr uint16_t TRANSFER_NAK_ANSWER = 0x04FE;
 
-// The tests shorten the key-press delay to zero, so the release only needs the millis() clock to tick on.
-constexpr auto KEY_PRESS_ELAPSED = std::chrono::milliseconds(2);
-
 inline RegisterValues make_registers(std::initializer_list<uint16_t> values) {
   RegisterValues registers;
   for (uint16_t value : values)
@@ -46,7 +43,7 @@ inline void connect_controller(HoermannHcp &door) {
   door.on_write_registers(COMMAND_REG, make_registers({0x0000, 0x0000}));
 }
 
-// Runs one command poll (write 2 / read 8) and returns both key-press registers.
+// Runs one command poll (write 2 / read 8) and returns both command registers.
 inline std::pair<uint16_t, uint16_t> poll_command(HoermannHcp &door) {
   door.on_write_registers(COMMAND_REG, make_registers({0x0000, 0x0000}));
   RegisterValues response;
@@ -57,22 +54,15 @@ inline std::pair<uint16_t, uint16_t> poll_command(HoermannHcp &door) {
   return {response[2], response[3]};
 }
 
-// Presents and then releases the queued command, leaving the slot free.
-inline void consume_command(HoermannHcp &door) {
-  poll_command(door);
-  std::this_thread::sleep_for(KEY_PRESS_ELAPSED);
-  poll_command(door);
-}
+// Lets the controller fetch the queued command, leaving the slot free.
+inline void consume_command(HoermannHcp &door) { poll_command(door); }
 
 // Exposes the internal timings and the connection bookkeeping, so no test has to wait out a real delay.
 class TestableHoermannHcp : public HoermannHcp {
  public:
-  TestableHoermannHcp() { this->key_press_delay_ms_ = 0; }
-
   using HoermannHcp::connection_timeout_ms_;
-  using HoermannHcp::is_light_toggle_pending_;
-  using HoermannHcp::light_toggle_released_at_;
-  using HoermannHcp::light_toggles_in_flight_;
+  using HoermannHcp::light_request_pending_;
+  using HoermannHcp::light_request_sent_at_;
   using HoermannHcp::announcing_;
   using HoermannHcp::pause_ack_timeout_ms_;
   using HoermannHcp::pause_confirmed_;
