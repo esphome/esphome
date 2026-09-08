@@ -964,16 +964,18 @@ def zephyr_to_code(config: ConfigType) -> None:
             zephyr_add_prj_conf("WATCHDOG", True)
             zephyr_add_prj_conf("WDT_DISABLE_AT_BOOT", False)
             cg.add_define("USE_ZEPHYR_WATCHDOG_TIMEOUT_MS", timeout_ms)
-            # Every STM32 family member's iwdg node (dts/arm/st/*/stm32*.dtsi, "st,stm32-watchdog")
-            # ships status = "disabled" -- CONFIG_WATCHDOG alone doesn't enable it. hal.cpp
-            # resolves the watchdog device via DT_ALIAS(watchdog0), same as every other
-            # family's stock board -- but unlike nrf52/esp32 boards, STM32 boards don't
-            # define that alias themselves (watchdog wasn't previously used on this family),
-            # so it has to be added here too, not just the node's status.
-            if zephyr_variant_family() == "stm32":
+            # hal.cpp needs DT_ALIAS(watchdog0); some boards never define it
+            # themselves -- found generically, not per-family, so new vendors
+            # with the same gap are covered without new code here.
+            from .dts_lookup import get_watchdog_node_label
+
+            wdt_label, wdt_already_working = get_watchdog_node_label(
+                zephyr_data()[KEY_BOARD]
+            )
+            if wdt_label is not None and not wdt_already_working:
                 zephyr_add_overlay(
-                    '&iwdg { status = "okay"; };\n'
-                    "/ { aliases { watchdog0 = &iwdg; }; };"
+                    f'&{wdt_label} {{ status = "okay"; }};\n'
+                    f"/ {{ aliases {{ watchdog0 = &{wdt_label}; }}; }};"
                 )
             # Identifies the stalled thread on the console from the watchdog callback (see
             # hal.cpp) -- without THREAD_NAME, k_thread_name_get() just returns NULL.

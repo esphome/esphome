@@ -79,6 +79,28 @@ def has_pinctrl_configured(board: str, label: str) -> bool:
     return False
 
 
+def get_watchdog_node_label(board: str) -> tuple[str | None, bool]:
+    """Return (label, already_working) for this board's watchdog -- found by
+    binding path under `.../bindings/watchdog/`, not a per-family list, so any
+    vendor's board is covered. already_working is True if a `watchdog0` alias
+    already points at an enabled node (nothing to fix)."""
+    edt = _get_edt(board)
+    if edt is None:
+        return None, False
+    for node in _iter_nodes(edt):
+        if "watchdog0" in node.aliases and node.status == "okay":
+            return (node.labels[0] if node.labels else None), True
+    for node in _iter_nodes(edt):
+        binding_path = node.binding_path
+        if (
+            binding_path
+            and Path(binding_path).parent.name == "watchdog"
+            and node.labels
+        ):
+            return node.labels[0], False
+    return None, False
+
+
 def resolve_zephyr_bus(
     platform: str, board: str, override_key: str, override: str | None = None
 ) -> str:
@@ -463,16 +485,10 @@ def _get_edt(board: str):
         cache[cache_key] = _NOT_FOUND
         return None
 
-    preprocessed = _preprocess_dts(dts_file, zephyr_base, board_dir)
-    if preprocessed is None:
-        cache[cache_key] = _NOT_FOUND
-        return None
-
-    # Shields/snippets contribute overlay fragments on top of the base board tree --
-    # concatenated after the base dts text, mirroring Zephyr's own build (cmake/
-    # modules/dts.cmake), so `&label { ... };` overlay-override syntax resolves
-    # against the preceding base tree exactly as it would for real.
-    overlay_texts = [preprocessed]
+    # Raw paths, not pre-processed individually -- an overlay's macros (e.g. a
+    # pinctrl helper) may only be in scope via the base tree's own #includes,
+    # so everything needs one shared cpp pass, matching Zephyr's own build.
+    raw_files = [dts_file]
 
     # A `board@revision` overlay is applied first so shields/snippets below can
     # still override anything it sets.
@@ -484,9 +500,7 @@ def _get_edt(board: str):
         if declares_revisions and resolved_revision is not None:
             overlay_file = _find_revision_overlay(board_dir, board, resolved_revision)
             if overlay_file is not None:
-                text = _preprocess_dts_file(overlay_file, zephyr_base, [str(board_dir)])
-                if text is not None:
-                    overlay_texts.append(text)
+                raw_files.append(overlay_file)
             else:
                 _LOGGER.debug(
                     "[zephyr] No revision overlay file found for '%s' (resolved "
@@ -515,10 +529,7 @@ def _get_edt(board: str):
                 shield,
             )
             continue
-        for overlay_file in _shield_overlay_files(shield_dir, board):
-            text = _preprocess_dts_file(overlay_file, zephyr_base, [str(shield_dir)])
-            if text is not None:
-                overlay_texts.append(text)
+        raw_files.extend(_shield_overlay_files(shield_dir, board))
 
     snippet_root = zd.get(KEY_SNIPPET_ROOT)
     snippet_search_roots = (
@@ -533,17 +544,23 @@ def _get_edt(board: str):
                 snippet,
             )
             continue
-        for overlay_file in _snippet_overlay_files(snippet_dir, board):
-            text = _preprocess_dts_file(
-                overlay_file, zephyr_base, [str(overlay_file.parent)]
-            )
-            if text is not None:
-                overlay_texts.append(text)
+        raw_files.extend(_snippet_overlay_files(snippet_dir, board))
 
     with tempfile.NamedTemporaryFile(
         suffix=".dts", mode="w", delete=False, encoding="utf-8"
     ) as f:
-        f.write("\n".join(overlay_texts))
+        f.write("\n".join(f'#include "{path}"' for path in raw_files))
+        wrapper_path = Path(f.name)
+
+    preprocessed = _preprocess_dts_file(wrapper_path, zephyr_base, [str(board_dir)])
+    if preprocessed is None:
+        cache[cache_key] = _NOT_FOUND
+        return None
+
+    with tempfile.NamedTemporaryFile(
+        suffix=".dts", mode="w", delete=False, encoding="utf-8"
+    ) as f:
+        f.write(preprocessed)
         tmp_path = Path(f.name)
 
     try:
@@ -700,7 +717,7 @@ def _read_dts_with_includes(
 ) -> str:
     """Read dts_file, inlining quoted #includes from the same directory, with
     macro names left intact -- needed by extractors that read a pin number back
-    out of a macro name itself (unlike _preprocess_dts's full cpp expansion)."""
+    out of a macro name itself (unlike _preprocess_dts_file's full cpp expansion)."""
     if _seen is None:
         _seen = set()
     abs_file = dts_file.resolve()
@@ -751,10 +768,6 @@ def _preprocess_dts_file(
             "[zephyr] cpp failed on %s: %s", src_file.name, exc.stderr.strip()
         )
         return None
-
-
-def _preprocess_dts(dts_file: Path, zephyr_base: Path, board_dir: Path) -> str | None:
-    return _preprocess_dts_file(dts_file, zephyr_base, [str(board_dir)])
 
 
 def _find_in_search_roots(

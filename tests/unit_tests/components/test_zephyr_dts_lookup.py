@@ -28,6 +28,7 @@ from esphome.components.zephyr.dts_lookup import (
     get_i2c_pinctrl_esp32,
     get_spi_controller_labels,
     get_uart_controller_labels,
+    get_watchdog_node_label,
     has_pinctrl_configured,
     log_board_capabilities,
     resolve_zephyr_bus,
@@ -65,6 +66,8 @@ class _FakeNode:
         parent: _FakeNode | None = None,
         buses: list[str] | None = None,
         pinctrls: list[object] | None = None,
+        aliases: list[str] | None = None,
+        binding_path: str | None = None,
     ) -> None:
         self.labels = labels or []
         self.status = status
@@ -74,6 +77,8 @@ class _FakeNode:
         self.parent = parent
         self.buses = buses or []
         self.pinctrls = pinctrls or []
+        self.aliases = aliases or []
+        self.binding_path = binding_path
 
 
 class _FakeEdt:
@@ -631,6 +636,58 @@ def test_has_pinctrl_configured_false_without_dts(monkeypatch) -> None:
     assert has_pinctrl_configured("some_board", "uart0") is False
 
 
+def test_get_watchdog_node_label_already_working(monkeypatch) -> None:
+    # nRF52/ESP32 shape: board already aliases watchdog0 to an enabled node.
+    CORE.data[KEY_ZEPHYR] = _empty_zd()
+    nodes = [_FakeNode(labels=["wdt0"], aliases=["watchdog0"], status="okay")]
+    monkeypatch.setattr(dts_lookup, "_get_edt", lambda board: _FakeEdt(nodes))
+    assert get_watchdog_node_label("some_board") == ("wdt0", True)
+
+
+def test_get_watchdog_node_label_found_but_not_aliased(monkeypatch) -> None:
+    # STM32/Renesas shape: a real watchdog-class node exists (found by binding
+    # path, not a hardcoded compat/family list) but isn't enabled or aliased.
+    CORE.data[KEY_ZEPHYR] = _empty_zd()
+    nodes = [
+        _FakeNode(
+            labels=["wdt"],
+            status="disabled",
+            binding_path="/zephyr/dts/bindings/watchdog/renesas,ra-wdt.yaml",
+        )
+    ]
+    monkeypatch.setattr(dts_lookup, "_get_edt", lambda board: _FakeEdt(nodes))
+    assert get_watchdog_node_label("some_board") == ("wdt", False)
+
+
+def test_get_watchdog_node_label_ignores_disabled_alias_target(monkeypatch) -> None:
+    # An alias pointing at a disabled node doesn't count as already-working --
+    # falls through to the generic binding-path search instead.
+    CORE.data[KEY_ZEPHYR] = _empty_zd()
+    nodes = [
+        _FakeNode(
+            labels=["wdt"],
+            aliases=["watchdog0"],
+            status="disabled",
+            binding_path="/zephyr/dts/bindings/watchdog/renesas,ra-wdt.yaml",
+        )
+    ]
+    monkeypatch.setattr(dts_lookup, "_get_edt", lambda board: _FakeEdt(nodes))
+    assert get_watchdog_node_label("some_board") == ("wdt", False)
+
+
+def test_get_watchdog_node_label_none_when_absent(monkeypatch) -> None:
+    CORE.data[KEY_ZEPHYR] = _empty_zd()
+    nodes = [_FakeNode(labels=["uart0"], status="okay")]
+    monkeypatch.setattr(dts_lookup, "_get_edt", lambda board: _FakeEdt(nodes))
+    assert get_watchdog_node_label("some_board") == (None, False)
+
+
+def test_get_watchdog_node_label_none_without_dts(monkeypatch) -> None:
+    CORE.data[KEY_ZEPHYR] = _empty_zd()
+    monkeypatch.setattr(dts_lookup, "_get_edt", lambda board: None)
+    assert get_watchdog_node_label("some_board") == (None, False)
+
+
 def test_get_can_controller_labels_returns_disabled_nodes(monkeypatch) -> None:
     """Every STM32 SoC dtsi ships its CAN node disabled, so a disabled-only board
     must still report it -- zephyr_can is what enables the node."""
@@ -1035,6 +1092,20 @@ def test_snippet_overlay_files_handles_list_valued_overlay_file(
 # ---------------------------------------------------------------------------
 
 
+def _fake_preprocess_dts_file(src_file, zephyr_base, extra_include_dirs):
+    """Stand-in for cpp -- resolves `#include "<path>"` by reading the file,
+    no macro expansion (tests only care which files got merged)."""
+    lines = src_file.read_text(encoding="utf-8").splitlines()
+    parts = []
+    for line in lines:
+        stripped = line.strip()
+        if stripped.startswith('#include "') and stripped.endswith('"'):
+            parts.append(Path(stripped[10:-1]).read_text(encoding="utf-8"))
+        else:
+            parts.append(line)
+    return "\n".join(parts)
+
+
 def test_get_edt_cache_key_varies_with_shields(monkeypatch, tmp_path: Path) -> None:
     """Same board, different shields: selection must not share a cached EDT --
     otherwise a config change (adding/removing a shield) would silently keep
@@ -1044,13 +1115,10 @@ def test_get_edt_cache_key_varies_with_shields(monkeypatch, tmp_path: Path) -> N
         "/ { };"
     )
 
-    def _fake_preprocess_dts(dts_file, zephyr_base, board_dir):
-        return "/* base */"
-
     def _fake_edt_ctor(path, bindings_dirs, **kwargs):
         return object()  # a fresh, distinct object each call
 
-    monkeypatch.setattr(dts_lookup, "_preprocess_dts", _fake_preprocess_dts)
+    monkeypatch.setattr(dts_lookup, "_preprocess_dts_file", _fake_preprocess_dts_file)
     monkeypatch.setattr(
         dts_lookup,
         "_load_edtlib",
@@ -1078,9 +1146,6 @@ def test_get_edt_merges_shield_overlay_text(monkeypatch, tmp_path: Path) -> None
     shield_dir = tmp_path / "boards" / "shields" / "nrf7002ek"
     shield_dir.mkdir(parents=True)
     (shield_dir / "nrf7002ek.overlay").write_text('&spi0 { status = "okay"; };')
-
-    def _fake_preprocess_dts_file(src_file, zephyr_base, extra_include_dirs):
-        return src_file.read_text()
 
     seen_texts: list[str] = []
 
@@ -1162,19 +1227,12 @@ def test_find_revision_overlay_no_qualifiers(tmp_path: Path) -> None:
 def test_get_edt_merges_revision_overlay_text(monkeypatch, tmp_path: Path) -> None:
     _revisioned_board_dir(tmp_path)
 
-    def _fake_preprocess_dts(dts_file, zephyr_base, board_dir_arg):
-        return dts_file.read_text()
-
-    def _fake_preprocess_dts_file(src_file, zephyr_base, extra_include_dirs):
-        return src_file.read_text()
-
     seen_texts: list[str] = []
 
     def _fake_edt_ctor(path, bindings_dirs, **kwargs):
         seen_texts.append(Path(path).read_text(encoding="utf-8"))
         return object()
 
-    monkeypatch.setattr(dts_lookup, "_preprocess_dts", _fake_preprocess_dts)
     monkeypatch.setattr(dts_lookup, "_preprocess_dts_file", _fake_preprocess_dts_file)
     monkeypatch.setattr(
         dts_lookup,
@@ -1201,16 +1259,13 @@ def test_get_edt_ignores_revision_when_board_has_none(
         "/* base */"
     )
 
-    def _fake_preprocess_dts(dts_file, zephyr_base, board_dir_arg):
-        return "/* base */"
-
     seen_texts: list[str] = []
 
     def _fake_edt_ctor(path, bindings_dirs, **kwargs):
         seen_texts.append(Path(path).read_text(encoding="utf-8"))
         return object()
 
-    monkeypatch.setattr(dts_lookup, "_preprocess_dts", _fake_preprocess_dts)
+    monkeypatch.setattr(dts_lookup, "_preprocess_dts_file", _fake_preprocess_dts_file)
     monkeypatch.setattr(
         dts_lookup,
         "_load_edtlib",
