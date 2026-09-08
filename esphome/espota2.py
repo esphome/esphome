@@ -694,8 +694,10 @@ def perform_ota(
 
     _LOGGER.info("Handshake complete")
 
-    # Timeout must match device-side OTA_SOCKET_TIMEOUT_DATA to prevent premature failures
-    sock.settimeout(90.0)
+    # Longer than the device's OTA_SOCKET_TIMEOUT_DATA (105 s) so a stalled
+    # session is gone before a retry, and long enough for lwIP to get a lost
+    # chunk ack through after six retransmissions
+    sock.settimeout(160.0)
 
     if extended_proto:
         send_check(sock, ota_type, "ota type")
@@ -854,7 +856,7 @@ def run_ota_impl_(
     # clean up a half-open connection (its handshake watchdog runs at 20s);
     # moving on to the next address family stays immediate. Known limitation:
     # a silent mid-transfer drop with no reset can wedge the device until its
-    # 90s data timeout, which outlasts this budget; the retries target the
+    # 105s data timeout, which outlasts this budget; the retries target the
     # common failures where the device resets or closes the link promptly.
     total_attempts = len(res) + EXTRA_UPLOAD_ATTEMPTS
     last_error = ""
