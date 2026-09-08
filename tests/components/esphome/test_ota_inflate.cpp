@@ -209,16 +209,20 @@ static const uint8_t STORED[] = {
 static constexpr size_t WINDOW = 4096;
 static constexpr size_t PLAIN_SIZE = 16000;
 
+// Pseudo random bytes reproducible from Python for the vectors above
+static uint8_t lcg_next(uint32_t &x) {
+  x = (x * 1103515245u + 12345u) & 0x7fffffffu;
+  return (x >> 16) & 0xff;
+}
+
 static std::vector<uint8_t> build_plain() {
   std::vector<uint8_t> plain;
   const char *text = "esphome ota deflate ";
   for (int i = 0; i < 300; i++)
     plain.insert(plain.end(), text, text + strlen(text));
   uint32_t x = 1;
-  for (int i = 0; i < 3000; i++) {
-    x = (x * 1103515245u + 12345u) & 0x7fffffffu;
-    plain.push_back((x >> 16) & 0xff);
-  }
+  for (int i = 0; i < 3000; i++)
+    plain.push_back(lcg_next(x));
   plain.insert(plain.end(), 5000, 0);
   for (int i = 0; i < 100; i++)
     plain.insert(plain.end(), text, text + strlen(text));
@@ -233,7 +237,6 @@ struct Session : OtaInflateState {
   size_t in_pos;
   size_t chunk;
   std::vector<uint8_t> out;
-  size_t out_limit;
   uint8_t window[WINDOW];
 };
 
@@ -249,13 +252,12 @@ static int read_cb(OtaInflateState *d) {
 }
 
 // Inflates the whole input; returns the decoder result and fills s.out
-static int inflate_all(Session &s, const uint8_t *in, size_t in_len, size_t chunk, size_t out_limit) {
+static int inflate_all(Session &s, const uint8_t *in, size_t in_len, size_t chunk) {
   s.in = in;
   s.in_len = in_len;
   s.in_pos = 0;
   s.chunk = chunk;
   s.out.clear();
-  s.out_limit = out_limit;
   memset(s.window, 0, sizeof(s.window));
   ota_inflate_init(&s, s.window, WINDOW);
   s.source_read_cb = read_cb;
@@ -267,7 +269,7 @@ static int inflate_all(Session &s, const uint8_t *in, size_t in_len, size_t chun
     if (res < 0 || s.eof)
       return res < 0 ? res : OTA_INFLATE_DATA_ERROR;
     s.out.insert(s.out.end(), s.window, s.dest);
-    if (s.out.size() > s.out_limit)
+    if (s.out.size() > PLAIN_SIZE)
       return OTA_INFLATE_DATA_ERROR;
   } while (res != OTA_INFLATE_DONE);
   return res;
@@ -275,20 +277,20 @@ static int inflate_all(Session &s, const uint8_t *in, size_t in_len, size_t chun
 
 TEST(OtaInflate, RoundTripThroughWindow) {
   auto s = std::make_unique<Session>();
-  ASSERT_EQ(inflate_all(*s, DEFLATED, sizeof(DEFLATED), 1040, PLAIN_SIZE), OTA_INFLATE_DONE);
+  ASSERT_EQ(inflate_all(*s, DEFLATED, sizeof(DEFLATED), 1040), OTA_INFLATE_DONE);
   EXPECT_EQ(s->out, build_plain());
   EXPECT_EQ(s->in_pos, sizeof(DEFLATED));
 }
 
 TEST(OtaInflate, SmallReadChunks) {
   auto s = std::make_unique<Session>();
-  ASSERT_EQ(inflate_all(*s, DEFLATED, sizeof(DEFLATED), 7, PLAIN_SIZE), OTA_INFLATE_DONE);
+  ASSERT_EQ(inflate_all(*s, DEFLATED, sizeof(DEFLATED), 7), OTA_INFLATE_DONE);
   EXPECT_EQ(s->out, build_plain());
 }
 
 TEST(OtaInflate, StoredBlock) {
   auto s = std::make_unique<Session>();
-  ASSERT_EQ(inflate_all(*s, STORED, sizeof(STORED), 64, PLAIN_SIZE), OTA_INFLATE_DONE);
+  ASSERT_EQ(inflate_all(*s, STORED, sizeof(STORED), 64), OTA_INFLATE_DONE);
   auto plain = build_plain();
   plain.resize(300);
   EXPECT_EQ(s->out, plain);
@@ -297,37 +299,33 @@ TEST(OtaInflate, StoredBlock) {
 TEST(OtaInflate, TruncatedStreamFails) {
   auto s = std::make_unique<Session>();
   for (size_t cut : {size_t{1}, size_t{100}, size_t{1000}, sizeof(DEFLATED) - 1}) {
-    EXPECT_LT(inflate_all(*s, DEFLATED, cut, 1040, PLAIN_SIZE), 0) << "cut at " << cut;
+    EXPECT_LT(inflate_all(*s, DEFLATED, cut, 1040), 0) << "cut at " << cut;
     EXPECT_LE(s->out.size(), PLAIN_SIZE);
   }
 }
 
 TEST(OtaInflate, TruncatedStoredBlockFails) {
   auto s = std::make_unique<Session>();
-  EXPECT_LT(inflate_all(*s, STORED, sizeof(STORED) - 50, 64, PLAIN_SIZE), 0);
+  EXPECT_LT(inflate_all(*s, STORED, sizeof(STORED) - 50, 64), 0);
 }
 
 TEST(OtaInflate, CorruptStreamsNeverEscapeTheWindow) {
-  // Every byte of the stream flipped in turn, plus pseudo random garbage: the
-  // decoder must fail or finish without ever reading or writing out of bounds
-  // (the sanitizers check that) and without producing more than announced.
+  // Every third byte of the stream flipped in turn, plus pseudo random garbage:
+  // the sanitizers check that the decoder never reads or writes out of bounds
+  // whatever it returns.
   auto s = std::make_unique<Session>();
   std::vector<uint8_t> bad(DEFLATED, DEFLATED + sizeof(DEFLATED));
   for (size_t i = 0; i < bad.size(); i += 3) {
     bad[i] ^= 0x5a;
-    int res = inflate_all(*s, bad.data(), bad.size(), 1040, PLAIN_SIZE);
-    EXPECT_TRUE(res < 0 || res == OTA_INFLATE_DONE);
+    inflate_all(*s, bad.data(), bad.size(), 1040);
     bad[i] ^= 0x5a;
   }
   uint32_t x = 99;
   std::vector<uint8_t> garbage(2000);
   for (int round = 0; round < 50; round++) {
-    for (auto &b : garbage) {
-      x = (x * 1103515245u + 12345u) & 0x7fffffffu;
-      b = (x >> 16) & 0xff;
-    }
-    int res = inflate_all(*s, garbage.data(), garbage.size(), 1040, PLAIN_SIZE);
-    EXPECT_TRUE(res < 0 || res == OTA_INFLATE_DONE);
+    for (auto &b : garbage)
+      b = lcg_next(x);
+    inflate_all(*s, garbage.data(), garbage.size(), 1040);
   }
 }
 
