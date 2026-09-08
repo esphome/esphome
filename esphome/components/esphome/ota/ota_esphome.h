@@ -133,9 +133,10 @@ class ESPHomeOTAComponent final : public ota::OTAComponent {
     uint32_t last_progress{0};
   };
   // Receives up to OTA_BUFFER_SIZE bytes of upload data into buf, waiting up to
-  // the data timeout; updates xfer and sends chunk acks. Returns bytes read, -1
-  // on failure (logged).
+  // the data timeout, and updates xfer. Returns bytes read, -1 on failure (logged).
   inline ssize_t receive_data_(uint8_t *buf, DataTransfer &xfer);
+  // Acks every received block once it is in flash, so an ack means written
+  inline void send_chunk_acks_(DataTransfer &xfer);
   // Reads a 4 byte MSB first size field into size
   inline bool read_size_(uint8_t *buf, size_t &size, const LogString *desc);
   // Writes to the backend and logs a failure
@@ -204,10 +205,18 @@ class ESPHomeOTAComponent final : public ota::OTAComponent {
     ESPHomeOTAComponent *self;
     DataTransfer *xfer;
     uint8_t *in;  // caller's buffer for the compressed input, valid during inflate_data_
+    size_t image_size;
+    size_t written;               // inflated bytes in flash
+    size_t flushed;               // bytes of the current window already in flash
+    ota::OTAResponseTypes error;  // first failure inside the read callback
     uint8_t window[OTA_INFLATE_WINDOW_SIZE];
   };
+#ifndef CLANG_TIDY  // static analysis sets every define at once
   static_assert(!ota::OTABackendPtr::element_type::supports_compression(),
                 "USE_OTA_DEFLATE is for backends that cannot store a gzip image");
+#endif
+  // Writes the decoded bytes not yet in flash; dest stays put so the ring history is intact
+  ota::OTAResponseTypes inflate_flush_(InflateSession &session);
   ota::OTAResponseTypes inflate_data_(uint8_t *in, size_t image_size, DataTransfer &xfer);
   std::unique_ptr<InflateSession> inflate_;
 #endif
