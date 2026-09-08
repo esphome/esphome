@@ -382,8 +382,8 @@ void MixerSpeaker::loop() {
     ESP_LOGV(TAG, "Stopping");
     xEventGroupClearBits(this->event_group_, MIXER_TASK_STATE_STOPPING);
   }
-  if (event_group_bits & MIXER_TASK_STATE_STOPPED) {
-    this->task_.deallocate();
+  // Retries on a subsequent loop if the task is still running on the other core
+  if ((event_group_bits & MIXER_TASK_STATE_STOPPED) && this->task_.deallocate()) {
     ESP_LOGD(TAG, "Stopped");
     xEventGroupClearBits(this->event_group_, MIXER_TASK_ALL_BITS);
     this->all_stopped_since_ms_ = 0;
