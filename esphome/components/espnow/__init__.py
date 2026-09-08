@@ -3,6 +3,7 @@ from typing import Any
 from esphome import automation, core
 import esphome.codegen as cg
 from esphome.components import wifi
+from esphome.components.esp32 import VARIANT_ESP32P4, get_esp32_variant
 from esphome.components.udp import CONF_ON_RECEIVE
 import esphome.config_validation as cv
 from esphome.const import (
@@ -17,6 +18,7 @@ from esphome.const import (
 )
 from esphome.core import CORE, HexInt
 from esphome.cpp_generator import MockObj, TemplateArgsType
+import esphome.final_validate as fv
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@jesserockz"]
@@ -130,6 +132,24 @@ CONFIG_SCHEMA = cv.All(
     ).extend(cv.COMPONENT_SCHEMA),
     cv.only_on_esp32,
 )
+
+
+def _validate_variant(config: ConfigType) -> ConfigType:
+    # ESP-NOW rides the Wi-Fi PHY. Radio-less esp32 variants have no native
+    # ESP-NOW; only the ESP32-P4 has a path, via the esp32_hosted shim that
+    # supplies the esp_now_* symbols. Fail here with a clear message instead of
+    # letting the build reach an "undefined reference to esp_now_*" link error.
+    variant = get_esp32_variant()
+    if wifi.variant_has_wifi(variant):
+        return config
+    if variant != VARIANT_ESP32P4:
+        raise cv.Invalid(f"ESP-NOW is not supported on {variant} (no Wi-Fi radio)")
+    if "esp32_hosted" not in fv.full_config.get():
+        raise cv.Invalid(f"ESP-NOW on {variant} requires the esp32_hosted component")
+    return config
+
+
+FINAL_VALIDATE_SCHEMA = _validate_variant
 
 
 async def _trigger_to_code(config: ConfigType) -> MockObj:
