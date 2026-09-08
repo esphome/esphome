@@ -295,8 +295,8 @@ void ESPHomeOTAComponent::handle_handshake_() {
 
       this->transition_ota_state_(OTAState::FEATURE_ACK);
 
-      const bool supports_compression =
-          (this->ota_features_ & CLIENT_FEATURE_SUPPORTS_COMPRESSION) != 0 && this->backend_->supports_compression();
+      const bool supports_compression = (this->ota_features_ & CLIENT_FEATURE_SUPPORTS_COMPRESSION) != 0 &&
+                                        ota::OTABackendPtr::element_type::supports_compression();
 
       // Compose the feature-ack response. When the client negotiates the extended protocol we emit
       // a 2-byte response (marker + server feature flags); otherwise we emit the single-byte
