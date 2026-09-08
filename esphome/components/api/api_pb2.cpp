@@ -4202,9 +4202,6 @@ uint32_t BluetoothSetConnectionParamsResponse::calc_size_msg(const void *self) {
 #ifndef HAS_PROTO_MESSAGE_DUMP
 static_assert(!std::is_polymorphic_v<HelloRequest>, "decodable messages carry no vtable");
 static_assert(!std::is_polymorphic_v<DisconnectRequest>, "decodable messages carry no vtable");
-static_assert(!std::is_polymorphic_v<DisconnectResponse>, "decodable messages carry no vtable");
-static_assert(!std::is_polymorphic_v<PingRequest>, "decodable messages carry no vtable");
-static_assert(!std::is_polymorphic_v<PingResponse>, "decodable messages carry no vtable");
 #ifdef USE_COVER
 static_assert(!std::is_polymorphic_v<CoverCommandRequest>, "decodable messages carry no vtable");
 #endif
@@ -4232,8 +4229,6 @@ static_assert(!std::is_polymorphic_v<ParsedTimezone>, "decodable messages carry 
 static_assert(!std::is_polymorphic_v<GetTimeResponse>, "decodable messages carry no vtable");
 #ifdef USE_API_USER_DEFINED_ACTIONS
 static_assert(!std::is_polymorphic_v<ExecuteServiceArgument>, "decodable messages carry no vtable");
-#endif
-#ifdef USE_API_USER_DEFINED_ACTIONS
 static_assert(!std::is_polymorphic_v<ExecuteServiceRequest>, "decodable messages carry no vtable");
 #endif
 #ifdef USE_CAMERA
@@ -4268,23 +4263,11 @@ static_assert(!std::is_polymorphic_v<SubscribeBluetoothLEAdvertisementsRequest>,
 #endif
 #ifdef USE_BLUETOOTH_PROXY_CONNECTIONS
 static_assert(!std::is_polymorphic_v<BluetoothDeviceRequest>, "decodable messages carry no vtable");
-#endif
-#ifdef USE_BLUETOOTH_PROXY_CONNECTIONS
 static_assert(!std::is_polymorphic_v<BluetoothGATTGetServicesRequest>, "decodable messages carry no vtable");
-#endif
-#ifdef USE_BLUETOOTH_PROXY_CONNECTIONS
 static_assert(!std::is_polymorphic_v<BluetoothGATTReadRequest>, "decodable messages carry no vtable");
-#endif
-#ifdef USE_BLUETOOTH_PROXY_CONNECTIONS
 static_assert(!std::is_polymorphic_v<BluetoothGATTWriteRequest>, "decodable messages carry no vtable");
-#endif
-#ifdef USE_BLUETOOTH_PROXY_CONNECTIONS
 static_assert(!std::is_polymorphic_v<BluetoothGATTReadDescriptorRequest>, "decodable messages carry no vtable");
-#endif
-#ifdef USE_BLUETOOTH_PROXY_CONNECTIONS
 static_assert(!std::is_polymorphic_v<BluetoothGATTWriteDescriptorRequest>, "decodable messages carry no vtable");
-#endif
-#ifdef USE_BLUETOOTH_PROXY_CONNECTIONS
 static_assert(!std::is_polymorphic_v<BluetoothGATTNotifyRequest>, "decodable messages carry no vtable");
 #endif
 #ifdef USE_BLUETOOTH_PROXY
@@ -4292,32 +4275,14 @@ static_assert(!std::is_polymorphic_v<BluetoothScannerSetModeRequest>, "decodable
 #endif
 #ifdef USE_VOICE_ASSISTANT
 static_assert(!std::is_polymorphic_v<SubscribeVoiceAssistantRequest>, "decodable messages carry no vtable");
-#endif
-#ifdef USE_VOICE_ASSISTANT
 static_assert(!std::is_polymorphic_v<VoiceAssistantResponse>, "decodable messages carry no vtable");
-#endif
-#ifdef USE_VOICE_ASSISTANT
 static_assert(!std::is_polymorphic_v<VoiceAssistantEventData>, "decodable messages carry no vtable");
-#endif
-#ifdef USE_VOICE_ASSISTANT
 static_assert(!std::is_polymorphic_v<VoiceAssistantEventResponse>, "decodable messages carry no vtable");
-#endif
-#ifdef USE_VOICE_ASSISTANT
 static_assert(!std::is_polymorphic_v<VoiceAssistantAudio>, "decodable messages carry no vtable");
-#endif
-#ifdef USE_VOICE_ASSISTANT
 static_assert(!std::is_polymorphic_v<VoiceAssistantTimerEventResponse>, "decodable messages carry no vtable");
-#endif
-#ifdef USE_VOICE_ASSISTANT
 static_assert(!std::is_polymorphic_v<VoiceAssistantAnnounceRequest>, "decodable messages carry no vtable");
-#endif
-#ifdef USE_VOICE_ASSISTANT
 static_assert(!std::is_polymorphic_v<VoiceAssistantExternalWakeWord>, "decodable messages carry no vtable");
-#endif
-#ifdef USE_VOICE_ASSISTANT
 static_assert(!std::is_polymorphic_v<VoiceAssistantConfigurationRequest>, "decodable messages carry no vtable");
-#endif
-#ifdef USE_VOICE_ASSISTANT
 static_assert(!std::is_polymorphic_v<VoiceAssistantSetConfiguration>, "decodable messages carry no vtable");
 #endif
 #ifdef USE_ALARM_CONTROL_PANEL
@@ -4343,8 +4308,6 @@ static_assert(!std::is_polymorphic_v<UpdateCommandRequest>, "decodable messages 
 #endif
 #ifdef USE_ZWAVE_PROXY
 static_assert(!std::is_polymorphic_v<ZWaveProxyFrame>, "decodable messages carry no vtable");
-#endif
-#ifdef USE_ZWAVE_PROXY
 static_assert(!std::is_polymorphic_v<ZWaveProxyRequest>, "decodable messages carry no vtable");
 #endif
 #if defined(USE_IR_RF) || defined(USE_RADIO_FREQUENCY)
@@ -4352,17 +4315,9 @@ static_assert(!std::is_polymorphic_v<InfraredRFTransmitRawTimingsRequest>, "deco
 #endif
 #ifdef USE_SERIAL_PROXY
 static_assert(!std::is_polymorphic_v<SerialProxyConfigureRequest>, "decodable messages carry no vtable");
-#endif
-#ifdef USE_SERIAL_PROXY
 static_assert(!std::is_polymorphic_v<SerialProxyWriteRequest>, "decodable messages carry no vtable");
-#endif
-#ifdef USE_SERIAL_PROXY
 static_assert(!std::is_polymorphic_v<SerialProxySetModemPinsRequest>, "decodable messages carry no vtable");
-#endif
-#ifdef USE_SERIAL_PROXY
 static_assert(!std::is_polymorphic_v<SerialProxyGetModemPinsRequest>, "decodable messages carry no vtable");
-#endif
-#ifdef USE_SERIAL_PROXY
 static_assert(!std::is_polymorphic_v<SerialProxyRequest>, "decodable messages carry no vtable");
 #endif
 #ifdef USE_BLUETOOTH_PROXY_CONNECTIONS
