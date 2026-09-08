@@ -56,7 +56,9 @@ struct OtaInflateState {
 
 /* dict must cover the encoder's window (its largest back reference) */
 void ota_inflate_init(struct OtaInflateState *d, unsigned char *dict, unsigned int dict_len);
-/* Fills dest up to dest_limit (OK) or to the end of the stream (DONE) */
+/* Fills dest up to dest_limit (OK) or to the end of the stream (DONE). dest may
+   alias dict only if dest_limit - dest == dict_len and dest is reset to dict
+   exactly when a call returns OK, so the ring index and dest stay in lockstep */
 int ota_inflate(struct OtaInflateState *d);
 
 #ifdef __cplusplus

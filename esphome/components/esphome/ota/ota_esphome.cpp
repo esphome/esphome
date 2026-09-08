@@ -824,8 +824,10 @@ ota::OTAResponseTypes ESPHomeOTAComponent::inflate_flush_(InflateSession &sessio
   const size_t pending = produced - session.flushed;
   if (pending == 0)
     return ota::OTA_RESPONSE_OK;
-  if (pending > session.image_size - session.written)
+  if (pending > session.image_size - session.written) {
+    ESP_LOGW(TAG, "Inflate overrun");
     return ota::OTA_RESPONSE_ERROR_UNKNOWN;
+  }
   ota::OTAResponseTypes result = this->write_flash_(session.window + session.flushed, pending);
   if (result != ota::OTA_RESPONSE_OK)
     return result;
