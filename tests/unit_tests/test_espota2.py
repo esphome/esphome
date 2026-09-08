@@ -754,8 +754,12 @@ def test_run_ota_impl_successful(
     assert result_code == 0
     assert result_host == "192.168.1.100"
 
-    # Verify socket was configured correctly
-    mock_socket.settimeout.assert_called_with(20.0)
+    # Verify socket was configured correctly: connect timeout first, then the
+    # data phase timeout, which must outlast the device's 105 s data timeout
+    timeouts = [c.args[0] for c in mock_socket.settimeout.call_args_list]
+    assert timeouts[0] == 20.0
+    assert espota2.DATA_PHASE_TIMEOUT in timeouts
+    assert espota2.DATA_PHASE_TIMEOUT > 105.0
     mock_socket.connect.assert_called_once_with(("192.168.1.100", 3232))
     mock_socket.close.assert_called_once()
 

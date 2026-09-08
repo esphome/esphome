@@ -96,6 +96,10 @@ UPLOAD_BUFFER_SIZE = UPLOAD_BLOCK_SIZE * 8
 # across the addresses on top of that.
 EXTRA_UPLOAD_ATTEMPTS = 2
 UPLOAD_RETRY_DELAY = 5.0
+# Data phase timeout; must stay longer than the device's OTA_SOCKET_TIMEOUT_DATA
+# (105 s) so a stalled session is gone before a retry, and long enough for lwIP
+# to get a lost chunk ack through after the retransmit run seen in practice
+DATA_PHASE_TIMEOUT = 160.0
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -694,10 +698,7 @@ def perform_ota(
 
     _LOGGER.info("Handshake complete")
 
-    # Longer than the device's OTA_SOCKET_TIMEOUT_DATA (105 s) so a stalled
-    # session is gone before a retry, and long enough for lwIP to get a lost
-    # chunk ack through after six retransmissions
-    sock.settimeout(160.0)
+    sock.settimeout(DATA_PHASE_TIMEOUT)
 
     if extended_proto:
         send_check(sock, ota_type, "ota type")
