@@ -115,7 +115,8 @@ concept OTABackendContract = requires(T backend, size_t image_size, uint8_t *dat
   { backend.end() } -> std::same_as<OTAResponseTypes>;
   backend.abort();
   { T::supports_compression() } -> std::same_as<bool>;
-  requires std::bool_constant<T::supports_compression()>::value || true;
+  // The value must be a constant expression
+  typename std::bool_constant<T::supports_compression()>;
 };
 
 /** Listener interface for OTA state changes.
