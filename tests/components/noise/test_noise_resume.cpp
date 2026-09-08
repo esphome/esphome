@@ -174,7 +174,7 @@ TEST(NoiseResumeCache, SetPskForgetsTickets) {
 
   psk_t psk{};
   psk[0] = 1;
-  ctx.set_psk(psk);
+  ctx.set_psk(psk.data());
 
   uint8_t offer[RESUME_OFFER_SIZE];
   build_offer_for_ticket(offer, ticket, KAT_CLIENT_NONCE);
