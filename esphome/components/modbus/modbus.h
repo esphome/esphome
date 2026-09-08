@@ -318,13 +318,15 @@ class ModbusServerHub : public Modbus {
   ModbusServerHub() = default;
   void dump_config() override;
   void register_device(ModbusServerDevice *device);
+
+ protected:
   /// Runs one pass of the bus and sends anything a device is still owed. For a device that has to keep
   /// answering during a bounded wait the main loop does not cover, such as announcing a restart.
   /// Returns false without doing anything while the hub is dispatching a frame, so a handler cannot
-  /// re-enter it.
+  /// re-enter it. Reached through ModbusServerDevice::service_bus_() only.
   bool service();
+  friend class ModbusServerDevice;
 
- protected:
   void parse_modbus_frames() override;
   bool parse_modbus_client_frame_();
   void process_modbus_server_frame(uint8_t address, std::span<const uint8_t> pdu) override;

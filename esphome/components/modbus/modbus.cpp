@@ -420,8 +420,9 @@ bool ModbusServerHub::service() {
   // the single reply this hub can hold back.
   if (this->in_dispatch_)
     return false;
-  // Owed first, so a reply held back earlier cannot end up on the wire behind one this pass produces. The
-  // scheduler that would otherwise send it does not run during the waits this method exists for.
+  // Owed first, so a reply held back earlier goes out ahead of one this pass produces, unless the wire cannot
+  // take it yet; then it waits for the next pass. The scheduler that would otherwise send it does not run
+  // during the waits this method exists for.
   this->send_deferred_(false);
   this->loop();
   return true;
@@ -1248,8 +1249,12 @@ void ModbusServerHub::send_deferred_(bool drop_if_blocked) {
   // is still a busy wire rather than a reply the controller has stopped waiting for.
   if (sent || drop_if_blocked)
     this->deferred_payload_len_ = 0;
-  if (!sent) {
-    ESP_LOGE(TAG, "Deferred server reply %s: transmission still blocked", drop_if_blocked ? "dropped" : "held");
+  if (sent)
+    return;
+  if (drop_if_blocked) {
+    ESP_LOGE(TAG, "Deferred server reply dropped: transmission still blocked");
+  } else {
+    ESP_LOGV(TAG, "Deferred server reply held: a byte arrived during the send delay, next pass retries");
   }
 }
 

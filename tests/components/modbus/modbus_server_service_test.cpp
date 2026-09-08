@@ -56,7 +56,13 @@ class ServicingDevice : public ModbusServerDevice {
 // host test binary faults on an uninitialised lock.
 class TestServerHub : public ModbusServerHub {
  public:
-  bool tx_blocked() override { return this->blocked; }
+  // With block_on_recheck the wire is free at the first check and busy at send_frame_'s own re-check, which
+  // is a byte arriving during the send delay.
+  bool tx_blocked() override {
+    if (this->block_on_recheck)
+      return this->checks_++ > 0;
+    return this->blocked;
+  }
 
   void stash_deferred_for_test(uint8_t address, std::span<const uint8_t> pdu) {
     this->deferred_payload_[0] = address;
@@ -64,21 +70,22 @@ class TestServerHub : public ModbusServerHub {
     this->deferred_payload_len_ = static_cast<uint16_t>(pdu.size() + 1);
   }
 
-  // Without this every reply waits out the real interframe delay.
-  void prime_send_timestamps_for_test() {
-    const uint32_t now = millis();
-    this->last_modbus_byte_ = now;
-    this->last_send_ = now;
-  }
+  // What the scheduler timeout does, without the scheduler.
+  void drop_deferred_for_test() { this->send_deferred_(true); }
+
+  bool has_deferred() const { return this->deferred_payload_len_ != 0; }
 
   bool blocked{false};
+  bool block_on_recheck{false};
+
+ private:
+  int checks_{0};
 };
 
 struct ServerFixture {
   ServerFixture() {
     hub.set_uart_parent(&uart);
     hub.setup();
-    hub.prime_send_timestamps_for_test();
   }
 
   InjectableUART uart;
@@ -156,6 +163,42 @@ TEST(ModbusServerService, HeldBackReplyIsKeptWhileTheWireIsBusy) {
   EXPECT_FALSE(f.uart.written.empty());
 }
 
+// The wire can also turn busy between the pass's own check and the send: a byte arriving during the send
+// delay. That is still a busy wire, not a reply nobody waits for, so it is kept as well.
+TEST(ModbusServerService, ReplyBlockedDuringTheSendDelayIsKept) {
+  ServerFixture f;
+  ServicingDevice device(0x02);
+  f.hub.register_device(&device);
+  f.hub.stash_deferred_for_test(0x02, READ_HOLDING_PDU);
+
+  f.hub.block_on_recheck = true;
+  EXPECT_TRUE(device.pump());
+  EXPECT_TRUE(f.uart.written.empty());
+  EXPECT_TRUE(f.hub.has_deferred());
+
+  f.hub.block_on_recheck = false;
+  EXPECT_TRUE(device.pump());
+  EXPECT_FALSE(f.uart.written.empty());
+}
+
+// The scheduler gives the reply its one chance and lets it go. A pass afterwards must not find it and put a
+// reply the controller has stopped waiting for on the wire behind newer traffic.
+TEST(ModbusServerService, ReplyDroppedByTheSchedulerIsNotSentByALaterPass) {
+  ServerFixture f;
+  ServicingDevice device(0x02);
+  f.hub.register_device(&device);
+  f.hub.stash_deferred_for_test(0x02, READ_HOLDING_PDU);
+
+  f.hub.blocked = true;
+  f.hub.drop_deferred_for_test();
+  EXPECT_TRUE(f.uart.written.empty());
+  EXPECT_FALSE(f.hub.has_deferred());
+
+  f.hub.blocked = false;
+  EXPECT_TRUE(device.pump());
+  EXPECT_TRUE(f.uart.written.empty());
+}
+
 // The held-back reply belongs to one request. Sending it twice would put a stale answer on the wire behind a
 // newer one.
 TEST(ModbusServerService, HeldBackReplyIsSentOnlyOnce) {
@@ -194,10 +237,12 @@ TEST(ModbusServerService, HeldBackReplyGoesOutBeforeTheNewOne) {
   f.uart.inject_frame(0x02, READ_HOLDING_PDU);
 
   EXPECT_TRUE(device.pump());
-  ASSERT_GE(f.uart.written.size(), 8u);
-  // The stashed frame is the request echoed back, so its third byte is 0x00; the pass's own reply carries a
-  // byte count of 0x02 there.
+  // The stashed frame is the request echoed back (8 bytes, third byte 0x00); the pass's own reply follows it
+  // (7 bytes, byte count 0x02 in its third byte).
+  ASSERT_EQ(f.uart.written.size(), 15u);
   EXPECT_EQ(f.uart.written[2], 0x00);
+  EXPECT_EQ(f.uart.written[8], 0x02);
+  EXPECT_EQ(f.uart.written[10], 0x02);
 }
 
 // The guard is restored rather than cleared, so a nested pass through the public loop() cannot release the
@@ -211,6 +256,8 @@ TEST(ModbusServerService, ANestedPassDoesNotReleaseTheOuterDispatch) {
   f.uart.inject_frame(0x02, READ_HOLDING_PDU);
   f.uart.inject_frame(0x02, READ_HOLDING_PDU);
   f.hub.loop();
+  // The nested pass did dispatch the second frame, so the guard was really re-entered rather than left alone.
+  EXPECT_EQ(device.reads, 2);
   EXPECT_FALSE(device.serviced_after_nested_loop);
 }
 
