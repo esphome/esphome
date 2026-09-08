@@ -235,7 +235,7 @@ size_t ResamplerSpeaker::play(const uint8_t *data, size_t length, TickType_t tic
     bytes_written = this->output_speaker_->play(data, length, ticks_to_wait);
   } else {
     std::shared_ptr<ring_buffer::RingBuffer> temp_ring_buffer = this->ring_buffer_.lock();
-    if (temp_ring_buffer) {
+    if (temp_ring_buffer != nullptr) {
       // Only write to the ring buffer if the reference is valid
       bytes_written = temp_ring_buffer->write_without_replacement(data, length, ticks_to_wait);
     } else {
@@ -299,7 +299,7 @@ bool ResamplerSpeaker::has_buffered_data() const {
   bool has_ring_buffer_data = false;
   if (this->requires_resampling_()) {
     std::shared_ptr<ring_buffer::RingBuffer> temp_ring_buffer = this->ring_buffer_.lock();
-    if (temp_ring_buffer) {
+    if (temp_ring_buffer != nullptr) {
       has_ring_buffer_data = (temp_ring_buffer->available() > 0);
     }
   }
@@ -342,7 +342,7 @@ void ResamplerSpeaker::resample_task(void *params) {
       std::shared_ptr<ring_buffer::RingBuffer> temp_ring_buffer = ring_buffer::RingBuffer::create(
           this_resampler->audio_stream_info_.ms_to_bytes(this_resampler->buffer_duration_ms_));
 
-      if (!temp_ring_buffer) {
+      if (temp_ring_buffer == nullptr) {
         err = ESP_ERR_NO_MEM;
       } else {
         this_resampler->ring_buffer_ = temp_ring_buffer;

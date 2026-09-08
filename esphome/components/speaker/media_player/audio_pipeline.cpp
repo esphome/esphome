@@ -322,17 +322,17 @@ void AudioPipeline::read_task(void *params) {
       if (err == ESP_OK) {
         size_t file_ring_buffer_size = this_pipeline->buffer_size_;
 
-        std::shared_ptr<ring_buffer::RingBuffer> temp_ring_buffer;
+        std::shared_ptr<ring_buffer::RingBuffer> temp_ring_buffer = this_pipeline->raw_file_ring_buffer_.lock();
 
-        if (!this_pipeline->raw_file_ring_buffer_.use_count()) {
+        if (temp_ring_buffer == nullptr) {
           temp_ring_buffer = ring_buffer::RingBuffer::create(file_ring_buffer_size);
           this_pipeline->raw_file_ring_buffer_ = temp_ring_buffer;
         }
 
-        if (!this_pipeline->raw_file_ring_buffer_.use_count()) {
+        if (temp_ring_buffer == nullptr) {
           err = ESP_ERR_NO_MEM;
         } else {
-          reader->add_sink(this_pipeline->raw_file_ring_buffer_);
+          err = reader->add_sink(temp_ring_buffer);
         }
       }
 
@@ -403,7 +403,9 @@ void AudioPipeline::decode_task(void *params) {
           make_unique<audio::AudioDecoder>(this_pipeline->transfer_buffer_size_, this_pipeline->transfer_buffer_size_);
 
       esp_err_t err = decoder->start(this_pipeline->current_audio_file_type_);
-      decoder->add_source(this_pipeline->raw_file_ring_buffer_);
+      if (err == ESP_OK) {
+        err = decoder->add_source(this_pipeline->raw_file_ring_buffer_);
+      }
 
       if (err != ESP_OK) {
         // Send specific error message
