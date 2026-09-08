@@ -12,6 +12,7 @@ from pathlib import Path
 import socket
 import struct
 from unittest.mock import Mock, call, patch
+import zlib
 
 import pytest
 from pytest import CaptureFixture
@@ -354,6 +355,7 @@ def test_perform_ota_successful_md5_auth(
                 espota2.CLIENT_FEATURE_SUPPORTS_COMPRESSION
                 | espota2.CLIENT_FEATURE_SUPPORTS_SHA256_AUTH
                 | espota2.CLIENT_FEATURE_SUPPORTS_EXTENDED_PROTOCOL
+                | espota2.CLIENT_FEATURE_SUPPORTS_DEFLATE
             ]
         )
     )
@@ -1051,6 +1053,7 @@ def test_perform_ota_successful_sha256_auth(
                 espota2.CLIENT_FEATURE_SUPPORTS_COMPRESSION
                 | espota2.CLIENT_FEATURE_SUPPORTS_SHA256_AUTH
                 | espota2.CLIENT_FEATURE_SUPPORTS_EXTENDED_PROTOCOL
+                | espota2.CLIENT_FEATURE_SUPPORTS_DEFLATE
             ]
         )
     )
@@ -1107,6 +1110,7 @@ def test_perform_ota_sha256_fallback_to_md5(
                 espota2.CLIENT_FEATURE_SUPPORTS_COMPRESSION
                 | espota2.CLIENT_FEATURE_SUPPORTS_SHA256_AUTH
                 | espota2.CLIENT_FEATURE_SUPPORTS_EXTENDED_PROTOCOL
+                | espota2.CLIENT_FEATURE_SUPPORTS_DEFLATE
             ]
         )
     )
@@ -1216,6 +1220,7 @@ def test_perform_ota_extended_protocol_app(
                 espota2.CLIENT_FEATURE_SUPPORTS_COMPRESSION
                 | espota2.CLIENT_FEATURE_SUPPORTS_SHA256_AUTH
                 | espota2.CLIENT_FEATURE_SUPPORTS_EXTENDED_PROTOCOL
+                | espota2.CLIENT_FEATURE_SUPPORTS_DEFLATE
             ]
         )
     )
@@ -1276,6 +1281,7 @@ def test_perform_ota_successful_partition_table(
                 espota2.CLIENT_FEATURE_SUPPORTS_COMPRESSION
                 | espota2.CLIENT_FEATURE_SUPPORTS_SHA256_AUTH
                 | espota2.CLIENT_FEATURE_SUPPORTS_EXTENDED_PROTOCOL
+                | espota2.CLIENT_FEATURE_SUPPORTS_DEFLATE
             ]
         )
     )
@@ -1504,3 +1510,57 @@ def test_check_error_passes_non_error_when_expect_is_none() -> None:
     espota2.check_error([espota2.RESPONSE_OK], None)
     espota2.check_error([espota2.RESPONSE_HEADER_OK], None)
     espota2.check_error([espota2.RESPONSE_FEATURE_FLAGS], None)
+
+
+def _deflate_handshake(server_features: int) -> list[bytes]:
+    return [
+        bytes([espota2.RESPONSE_OK]),
+        bytes([espota2.OTA_VERSION_2_0]),
+        bytes([espota2.RESPONSE_FEATURE_FLAGS]),
+        bytes([server_features]),
+        bytes([espota2.RESPONSE_AUTH_OK]),
+        bytes([espota2.RESPONSE_UPDATE_PREPARE_OK]),
+        bytes([espota2.RESPONSE_BIN_MD5_OK]),
+        bytes([espota2.RESPONSE_CHUNK_OK]),
+        bytes([espota2.RESPONSE_RECEIVE_OK]),
+        bytes([espota2.RESPONSE_UPDATE_END_OK]),
+    ]
+
+
+@pytest.mark.usefixtures("mock_time")
+def test_perform_ota_with_deflate(mock_socket: Mock) -> None:
+    """A device that inflates on the fly gets a raw deflate stream, both sizes and the image MD5."""
+    original_content = b"firmware" * 100
+    mock_socket.recv.side_effect = _deflate_handshake(
+        espota2.SERVER_FEATURE_SUPPORTS_DEFLATE
+    )
+
+    espota2.perform_ota(mock_socket, None, io.BytesIO(original_content), "test.bin")
+
+    sent = [c[0][0] for c in mock_socket.sendall.call_args_list]
+    # magic, features, ota type, size, image size, md5, data, end ack
+    sent_size = struct.unpack(">I", sent[3])[0]
+    assert sent[4] == len(original_content).to_bytes(4, "big")
+    payload = sent[6]
+    assert len(payload) == sent_size < len(original_content)
+    # The device decodes through a window of 1 << DEFLATE_WINDOW_BITS bytes
+    assert zlib.decompress(payload, -espota2.DEFLATE_WINDOW_BITS) == original_content
+    assert sent[5] == hashlib.md5(original_content).hexdigest().encode()
+
+
+@pytest.mark.usefixtures("mock_time")
+def test_perform_ota_gzip_wins_over_deflate(mock_socket: Mock) -> None:
+    """A device that can store gzip keeps getting gzip even when it also offers deflate."""
+    original_content = b"firmware" * 100
+    mock_socket.recv.side_effect = _deflate_handshake(
+        espota2.SERVER_FEATURE_SUPPORTS_COMPRESSION
+        | espota2.SERVER_FEATURE_SUPPORTS_DEFLATE
+    )
+
+    espota2.perform_ota(mock_socket, None, io.BytesIO(original_content), "test.bin")
+
+    sent = [c[0][0] for c in mock_socket.sendall.call_args_list]
+    compressed = gzip.compress(original_content, compresslevel=9)
+    assert sent[3] == len(compressed).to_bytes(4, "big")
+    assert sent[4] == hashlib.md5(compressed).hexdigest().encode()
+    assert sent[5] == compressed

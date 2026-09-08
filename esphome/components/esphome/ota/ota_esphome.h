@@ -7,6 +7,9 @@
 #ifdef USE_OTA_ENCRYPTION
 #include "esphome/components/noise/noise_handshake.h"
 #endif
+#ifdef USE_OTA_DEFLATE
+#include "ota_esphome_inflate.h"
+#endif
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include "esphome/core/preferences.h"
@@ -119,6 +122,21 @@ class ESPHomeOTAComponent final : public ota::OTAComponent {
     return this->readall_(buf, len);
   }
 
+  // Upload accounting shared by the data loop and the inflate read callback
+  struct DataTransfer {
+    size_t ota_size;  // bytes the client sends
+    size_t total{0};  // bytes received so far
+#if USE_OTA_VERSION == 2
+    size_t acknowledged{0};
+#endif
+    uint32_t last_data_ms;
+    uint32_t last_progress{0};
+  };
+  // Receives up to OTA_BUFFER_SIZE bytes of upload data into buf, waiting up to
+  // the data timeout; updates xfer and sends chunk acks. Returns bytes read, -1
+  // on failure (logged).
+  ssize_t receive_data_(uint8_t *buf, DataTransfer &xfer);
+
   bool try_read_(size_t to_read, const LogString *desc);
   bool try_write_(size_t to_write, const LogString *desc);
 
@@ -171,6 +189,24 @@ class ESPHomeOTAComponent final : public ota::OTAComponent {
   static_assert(OTA_BUFFER_SIZE >= NOISE_CLIENT_MAX_PLAINTEXT + noise::MAC_SIZE,
                 "OTA_BUFFER_SIZE must fit a full encrypted data frame");
 #endif
+#ifdef USE_OTA_DEFLATE
+  // Deflate back references reach 1 << espota2.DEFLATE_WINDOW_BITS bytes; the
+  // ring window must be at least that. It also serves as the inflate output
+  // buffer, so it is flushed to the backend one windowful at a time.
+  static constexpr size_t OTA_INFLATE_WINDOW_SIZE = 4096;
+  // Heap-allocated only while a deflate-compressed upload is negotiated.
+  struct InflateSession {
+    ota_inflate_state state;  // first member: the read callback casts back from it
+    ESPHomeOTAComponent *self;
+    DataTransfer *xfer;
+    uint8_t *in;  // caller's buffer for the compressed input, valid during inflate_data_
+    uint8_t window[OTA_INFLATE_WINDOW_SIZE];
+  };
+  static int inflate_read_cb_(ota_inflate_state *d);
+  ota::OTAResponseTypes inflate_data_(uint8_t *in, size_t image_size, DataTransfer &xfer);
+  std::unique_ptr<InflateSession> inflate_;
+#endif
+
   static constexpr uint8_t MAGIC_BYTES[5] = {0x6C, 0x26, 0xF7, 0x5C, 0x45};
   // Derived from the feature byte; storing it would pad the trailing bytes
   bool extended_proto_() const;

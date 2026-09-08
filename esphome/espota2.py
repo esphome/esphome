@@ -11,6 +11,7 @@ import secrets
 import socket
 import time
 from typing import Any
+import zlib
 
 from esphome.core import EsphomeError
 from esphome.helpers import ProgressBar, resolve_ip_address
@@ -65,9 +66,15 @@ CLIENT_FEATURE_SUPPORTS_COMPRESSION = 0x01
 CLIENT_FEATURE_SUPPORTS_SHA256_AUTH = 0x02
 CLIENT_FEATURE_SUPPORTS_EXTENDED_PROTOCOL = 0x04
 CLIENT_FEATURE_SUPPORTS_NOISE = 0x08
+CLIENT_FEATURE_SUPPORTS_DEFLATE = 0x10
 SERVER_FEATURE_SUPPORTS_COMPRESSION = 0x01
 SERVER_FEATURE_SUPPORTS_PARTITION_ACCESS = 0x02
 SERVER_FEATURE_SUPPORTS_NOISE = 0x04
+SERVER_FEATURE_SUPPORTS_DEFLATE = 0x08
+
+# Window of the raw deflate stream sent to a device that inflates on the fly;
+# the device's OTA_INFLATE_WINDOW_SIZE (4 KB) must be at least 1 << this
+DEFLATE_WINDOW_BITS = 12
 
 NOISE_FRAME_INDICATOR = 0x01
 NOISE_HANDSHAKE_OK = 0x00
@@ -547,6 +554,7 @@ def perform_ota(
         CLIENT_FEATURE_SUPPORTS_COMPRESSION
         | CLIENT_FEATURE_SUPPORTS_SHA256_AUTH
         | CLIENT_FEATURE_SUPPORTS_EXTENDED_PROTOCOL
+        | CLIENT_FEATURE_SUPPORTS_DEFLATE
     )
     if noise_psk:
         features_to_send |= CLIENT_FEATURE_SUPPORTS_NOISE
@@ -640,9 +648,17 @@ def perform_ota(
                 f"retry {flag_name}."
             )
 
+    deflate = False
     if features & SERVER_FEATURE_SUPPORTS_COMPRESSION:
+        # The device stores the gzip file and inflates it when it reboots
         upload_contents = gzip.compress(file_contents, compresslevel=9)
         _LOGGER.info("Compressed to %s bytes", len(upload_contents))
+    elif extended_proto and features & SERVER_FEATURE_SUPPORTS_DEFLATE:
+        # The device inflates while receiving through a small ring window
+        compressor = zlib.compressobj(9, zlib.DEFLATED, -DEFLATE_WINDOW_BITS)
+        upload_contents = compressor.compress(file_contents) + compressor.flush()
+        deflate = True
+        _LOGGER.info("Compressed to %s bytes (deflate)", len(upload_contents))
     else:
         upload_contents = file_contents
 
@@ -701,22 +717,23 @@ def perform_ota(
         send_check(sock, ota_type, "ota type")
 
     upload_size = len(upload_contents)
-    upload_size_encoded = [
-        (upload_size >> 24) & 0xFF,
-        (upload_size >> 16) & 0xFF,
-        (upload_size >> 8) & 0xFF,
-        (upload_size >> 0) & 0xFF,
-    ]
+    upload_size_encoded = upload_size.to_bytes(4, "big")
     # The device erases flash between receiving the size and acking the
     # prepare, so this window shows the erase cost (near zero when the
     # device erases lazily during the upload)
     prepare_start = time.perf_counter()
     send_check(sock, upload_size_encoded, "binary size")
+    if deflate:
+        # The device sizes the partition by the inflated image; its own frame,
+        # as an encrypted session carries one field per frame
+        send_check(sock, len(file_contents).to_bytes(4, "big"), "image size")
     receive_exactly(sock, 1, "update prepare result", RESPONSE_UPDATE_PREPARE_OK)
     prepare_duration = time.perf_counter() - prepare_start
     _LOGGER.info("Preparing for upload took %.2f seconds", prepare_duration)
 
-    upload_md5 = hashlib.md5(upload_contents).hexdigest()
+    # The device hashes what it writes to flash: the inflated image for a
+    # deflate upload, the received bytes otherwise (the gzip file on ESP8266)
+    upload_md5 = hashlib.md5(file_contents if deflate else upload_contents).hexdigest()
     _LOGGER.debug("MD5 of upload is %s", upload_md5)
 
     send_check(sock, upload_md5, "file checksum")
