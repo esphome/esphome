@@ -6,7 +6,9 @@ from collections.abc import Callable
 import io
 import sys
 from types import ModuleType
+from unittest.mock import Mock
 
+from platformio.registry.client import RegistryClient
 import pytest
 
 from esphome.platformio import runner
@@ -30,6 +32,7 @@ def _prepare_main(
     monkeypatch.setattr(sys, "stderr", stream)
     monkeypatch.setattr(runner, "patch_structhash", lambda: None)
     monkeypatch.setattr(runner, "patch_file_downloader", lambda: None)
+    monkeypatch.setattr(runner, "patch_registry_private_packages", lambda: None)
 
     platformio = ModuleType("platformio")
     platformio_main = ModuleType("platformio.__main__")
@@ -91,3 +94,40 @@ def test_main_still_filters_a_drained_partial_line(
 
     assert runner.main() == 0
     assert buf.getvalue() == b""
+
+
+def test_main_applies_registry_private_packages_patch(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The probe is patched before PlatformIO runs."""
+    order: list[str] = []
+    _prepare_main(monkeypatch, lambda: order.append("pio") or 0)
+    monkeypatch.setattr(
+        runner, "patch_registry_private_packages", lambda: order.append("patch")
+    )
+
+    assert runner.main() == 0
+    assert order == ["patch", "pio"]
+
+
+# Snapshot PlatformIO's own probe at import, before any test can patch it
+_PIO_PROBE = RegistryClient.__dict__["allowed_private_packages"]
+
+
+def test_patch_registry_private_packages_skips_account_probe(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Answers False without touching the account client."""
+    from platformio.account.client import AccountClient
+
+    monkeypatch.setattr(RegistryClient, "allowed_private_packages", _PIO_PROBE)
+    monkeypatch.setattr(
+        AccountClient,
+        "get_account_info",
+        Mock(side_effect=AssertionError("account probe must not run")),
+    )
+
+    runner.patch_registry_private_packages()
+
+    assert RegistryClient.allowed_private_packages() is False
+    assert RegistryClient().allowed_private_packages() is False
