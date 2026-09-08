@@ -1,0 +1,17 @@
+---
+esphome:
+  name: test
+
+esp32:
+  board: nodemcu-32s
+  framework:
+    type: esp-idf
+
+wifi:
+  ssid: MySSID
+  password: password1
+
+web_server:
+  auth:
+    username: admin
+    password: password

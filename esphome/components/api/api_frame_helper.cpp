@@ -97,6 +97,8 @@ const LogString *api_error_to_logstr(APIError err) {
     return LOG_STR("BAD_HANDSHAKE_ERROR_BYTE");
   }
 #endif
+  // PROTOCOL_SWITCH_TO_NOISE is intercepted in APIConnection::loop() before
+  // any logging can happen, so it intentionally has no entry here.
   return LOG_STR("UNKNOWN");
 }
 
@@ -170,7 +172,7 @@ APIError APIFrameHelper::write_raw_iov_(const struct iovec *iov, int iovcnt, uin
 
   // Queue unsent data into overflow buffer
   if (!this->overflow_buf_.enqueue_iov(iov, iovcnt, total_write_len, static_cast<uint16_t>(sent))) {
-    HELPER_LOG("Overflow buffer full, dropping connection");
+    HELPER_LOG("Overflow buffer full or out of memory, dropping connection");
     this->state_ = State::FAILED;
     return APIError::SOCKET_WRITE_FAILED;
   }

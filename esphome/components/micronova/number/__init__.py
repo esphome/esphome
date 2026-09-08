@@ -2,6 +2,7 @@ import esphome.codegen as cg
 from esphome.components import number
 import esphome.config_validation as cv
 from esphome.const import CONF_STEP, DEVICE_CLASS_TEMPERATURE, UNIT_CELSIUS
+from esphome.types import ConfigType
 
 from .. import (
     CONF_MICRONOVA_ID,
@@ -56,7 +57,7 @@ CONFIG_SCHEMA = cv.Schema(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     mv = await cg.get_variable(config[CONF_MICRONOVA_ID])
 
     if thermostat_temperature_config := config.get(CONF_THERMOSTAT_TEMPERATURE):

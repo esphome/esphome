@@ -8,6 +8,7 @@ from esphome.const import (
     ENTITY_CATEGORY_DIAGNOSTIC,
     ENTITY_CATEGORY_NONE,
 )
+from esphome.types import ConfigType
 
 from .. import CONF_MR60FDA2_ID, MR60FDA2Component, mr60fda2_ns
 
@@ -33,7 +34,7 @@ CONFIG_SCHEMA = {
 }
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     mr60fda2_component = await cg.get_variable(config[CONF_MR60FDA2_ID])
     if get_radar_parameters_config := config.get(CONF_GET_RADAR_PARAMETERS):
         b = await button.new_button(get_radar_parameters_config)

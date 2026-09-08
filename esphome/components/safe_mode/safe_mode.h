@@ -42,6 +42,9 @@ class SafeModeComponent final : public Component {
  protected:
   void write_rtc_(uint32_t val);
   uint32_t read_rtc_();
+#ifdef USE_OTA_ROLLBACK
+  void confirm_app_image_();
+#endif
 
   // Group all 4-byte aligned members together to avoid padding
   uint32_t safe_mode_boot_is_good_after_{60000};  ///< The amount of time after which the boot is considered successful

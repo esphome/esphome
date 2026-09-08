@@ -1,3 +1,5 @@
+from esphome.components.image import INSTANCE_TYPE as IMAGE_TYPE
+from esphome.components.mapping import get_mapping_metadata
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ANGLE,
@@ -9,7 +11,9 @@ from esphome.const import (
 
 from ..defines import (
     CONF_ANTIALIAS,
+    CONF_IMAGE,
     CONF_MAIN,
+    CONF_MAPPING,
     CONF_PIVOT_X,
     CONF_PIVOT_Y,
     CONF_SCALE,
@@ -20,8 +24,6 @@ from ..lv_validation import lv_angle, lv_bool, lv_image, scale, size
 from ..types import lv_image_t
 from . import Widget, WidgetType
 from .label import CONF_LABEL
-
-CONF_IMAGE = "image"
 
 BASE_IMG_SCHEMA = cv.Schema(
     {
@@ -68,6 +70,17 @@ class ImgType(WidgetType):
         await w.set_property(CONF_SRC, await lv_image.process(config.get(CONF_SRC)))
         for prop, validator in BASE_IMG_SCHEMA.schema.items():
             await w.set_property(prop, config, processor=validator)
+
+    def final_validate(self, widget, update_config, widget_config, path):
+        src = update_config.get(CONF_SRC)
+        if isinstance(src, dict) and CONF_MAPPING in src:
+            mapping_id = src[CONF_MAPPING]
+            metadata = get_mapping_metadata(mapping_id.id)
+            if str(metadata.to_.data_type) != str(IMAGE_TYPE):
+                raise cv.Invalid(
+                    f"Mapping '{mapping_id}' does not map to an image type, but '{metadata.to_.data_type}'",
+                    path=path + [CONF_SRC, CONF_MAPPING],
+                )
 
 
 img_spec = ImgType()

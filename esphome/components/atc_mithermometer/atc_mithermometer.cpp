@@ -1,8 +1,6 @@
 #include "atc_mithermometer.h"
 #include "esphome/core/log.h"
 
-#ifdef USE_ESP32
-
 namespace esphome::atc_mithermometer {
 
 static const char *const TAG = "atc_mithermometer";
@@ -15,7 +13,7 @@ void ATCMiThermometer::dump_config() {
   LOG_SENSOR("  ", "Battery Voltage", this->battery_voltage_);
 }
 
-bool ATCMiThermometer::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
+bool ATCMiThermometer::parse_device(const ble_device_base::ESPBTDevice &device) {
   if (device.address_uint64() != this->address_) {
     ESP_LOGVV(TAG, "parse_device(): unknown MAC address.");
     return false;
@@ -52,7 +50,7 @@ bool ATCMiThermometer::parse_device(const esp32_ble_tracker::ESPBTDevice &device
   return success;
 }
 
-optional<ParseResult> ATCMiThermometer::parse_header_(const esp32_ble_tracker::ServiceData &service_data) {
+optional<ParseResult> ATCMiThermometer::parse_header_(const ble_device_base::ServiceData &service_data) {
   ParseResult result;
   if (!service_data.uuid.contains(0x1A, 0x18)) {
     ESP_LOGVV(TAG, "parse_header(): no service data UUID magic bytes.");
@@ -65,12 +63,11 @@ optional<ParseResult> ATCMiThermometer::parse_header_(const esp32_ble_tracker::S
     return {};
   }
 
-  static uint8_t last_frame_count = 0;
-  if (last_frame_count == raw[12]) {
-    ESP_LOGVV(TAG, "parse_header(): duplicate data packet received (%hhu).", last_frame_count);
+  if (this->last_frame_count_ == raw[12]) {
+    ESP_LOGVV(TAG, "parse_header(): duplicate data packet received (%hhu).", this->last_frame_count_);
     return {};
   }
-  last_frame_count = raw[12];
+  this->last_frame_count_ = raw[12];
 
   return result;
 }
@@ -133,5 +130,3 @@ bool ATCMiThermometer::report_results_(const optional<ParseResult> &result, cons
 }
 
 }  // namespace esphome::atc_mithermometer
-
-#endif

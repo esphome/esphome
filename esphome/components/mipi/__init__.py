@@ -26,15 +26,21 @@ from esphome.const import (
     CONF_OFFSET_HEIGHT,
     CONF_OFFSET_WIDTH,
     CONF_PAGES,
+    CONF_RESET_PIN,
     CONF_ROTATION,
     CONF_SWAP_XY,
     CONF_TRANSFORM,
     CONF_WIDTH,
 )
-from esphome.core import TimePeriod
+from esphome.core import CORE, TimePeriod
 from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 
 LOGGER = cv.logging.getLogger(__name__)
+
+CONF_TRANSFORMS = "transforms"
+
+# All axis transforms a model may support, in the order they appear in the schema.
+ALL_TRANSFORMS = (CONF_MIRROR_X, CONF_MIRROR_Y, CONF_SWAP_XY)
 
 ColorOrder = display_ns.enum("ColorMode")
 
@@ -302,7 +308,8 @@ class DriverChip:
     """
     A class representing a MIPI DBI driver chip model.
     The parameters supplied as defaults will be used to provide default values for the display configuration.
-    Setting swap_xy to cv.UNDEFINED will indicate that the model does not support swapping X and Y axes.
+    Pass a ``transforms`` set to restrict which axis transforms (mirror_x, mirror_y, swap_xy) the model
+    supports; by default all three are available.
     """
 
     models: dict[str, Self] = {}
@@ -387,11 +394,15 @@ class DriverChip:
         """
         Return the available transforms for this model.
         """
+        if (transforms := self.get_default(CONF_TRANSFORMS, None)) is not None:
+            return transforms
         if self.get_default("no_transform", False):
             return set()
         if self.get_default(CONF_SWAP_XY) != cv.UNDEFINED:
             return {CONF_MIRROR_X, CONF_MIRROR_Y, CONF_SWAP_XY}
-        return {CONF_MIRROR_X, CONF_MIRROR_Y}
+        raise ValueError(
+            "Setting 'swap_xy' to 'cv.UNDEFINED' is no longer supported; set 'transforms' instead"
+        )
 
     def has_hardware_transform(self, config) -> bool:
         """
@@ -533,17 +544,31 @@ class DriverChip:
         transform[CONF_TRANSFORM] = self.rotation_as_transform(config)
         return transform
 
-    def swap_xy_schema(self):
-        uses_swap = self.get_default(CONF_SWAP_XY, None) != cv.UNDEFINED
+    def transform_schema(self):
+        """
+        Build the schema for the ``transform`` config option of this model.
 
-        def validator(value):
-            if value:
-                raise cv.Invalid("Axis swapping not supported by this model")
-            return cv.boolean(value)
+        Each transform the model supports is a required boolean. A transform the model does not
+        support may be omitted or set to ``false``; setting it to ``true`` reports a clear error
+        naming the unsupported transform instead of a generic "extra keys not allowed".
+        """
+        supported = self.transforms
 
-        if uses_swap:
-            return {cv.Required(CONF_SWAP_XY): cv.boolean}
-        return {cv.Optional(CONF_SWAP_XY, default=False): validator}
+        def unsupported(name):
+            def validator(value):
+                if cv.boolean(value):
+                    raise cv.Invalid(f"'{name}' is not supported by this model")
+                return False
+
+            return validator
+
+        schema = {}
+        for name in ALL_TRANSFORMS:
+            if name in supported:
+                schema[cv.Required(name)] = cv.boolean
+            else:
+                schema[cv.Optional(name, default=False)] = unsupported(name)
+        return cv.Any(cv.Schema(schema), cv.one_of(CONF_DISABLED, lower=True))
 
     def get_madctl(self, transform: dict, config: dict) -> int:
         """
@@ -577,12 +602,15 @@ class DriverChip:
         """
         return self.get_default(f"no_{command.lower()}", False)
 
-    def get_sequence(self, config, add_madctl=True) -> tuple[int, ...]:
+    def get_sequence(self, config, add_madctl=True, add_reset=False) -> tuple[int, ...]:
         """
         Create the init sequence for the display.
         Use the default sequence from the model, if any, and append any custom sequence provided in the config.
         Append SLPOUT (if not already in the sequence) and DISPON to the end of the sequence
         MADCTL will be set if add_madctl is True
+        If add_reset is True, a reset is prepended: a software reset when no reset pin
+        is configured (and the model doesn't skip it), followed by a settling delay that
+        both a software and a hardware reset require.
         Returns the init sequence
         """
         sequence = list(self.initsequence or ())
@@ -590,6 +618,15 @@ class DriverChip:
         sequence.extend(custom_sequence)
         # Ensure each command is a tuple
         sequence = [x if isinstance(x, tuple) else (x,) for x in sequence]
+
+        if add_reset:
+            reset: list = []
+            # A software reset is only needed when there is no hardware reset pin.
+            if CONF_RESET_PIN not in config and not self.skip_command("SWRESET"):
+                reset.append((SWRESET,))
+            # Both a software and a hardware reset need a settling delay before further commands.
+            reset.append(delay(10))
+            sequence = reset + sequence
 
         # Set pixel format if not already in the custom sequence
         pixel_mode = config[CONF_PIXEL_MODE]
@@ -611,12 +648,46 @@ class DriverChip:
             sequence.append((BRIGHTNESS, brightness))
         # Add a SLPOUT command if required.
         if not self.skip_command("SLPOUT"):
+            # A zero delay will delay until 120ms after reset
+            sequence.append(delay(0))
             sequence.append((SLPOUT,))
+            sequence.append(delay(10))
         sequence.append((DISPON,))
+        # Add a delay here because additional commands may be added after this at runtime.
+        sequence.append(delay(10))
 
         # Flatten the sequence into a list of bytes, with the length of each command
         # or the delay flag inserted where needed
         return flatten_sequence(sequence)
+
+    def check_requirements(self) -> None:
+        """
+        Raise a friendly error if any component this model requires is not configured.
+
+        This runs during schema validation (before ID references are resolved) so that a
+        model whose default pins live on a pin expander reports the missing expander clearly
+        instead of a cryptic "Couldn't find ID" from the unresolved pin reference.
+
+        Also logs a warning if the model is deprecated.
+        """
+        if deprecation_reason := self.get_default("deprecation_reason"):
+            LOGGER.warning(
+                "Display model %s is deprecated: %s", self.name, deprecation_reason
+            )
+        if requirements := self.get_default("requires", set()):
+            # ``raw_config`` is populated before any component schema runs during a real
+            # validation, so presence of a required component is simply a top-level key.
+            # When it is absent (e.g. a unit test that invokes the schema directly) there
+            # is no config to check against, so skip.
+            global_config = CORE.raw_config
+            if global_config is None:
+                return
+            missing = {x for x in requirements if x not in global_config}
+            if missing:
+                reqstr = ", ".join(f"'{x}'" for x in sorted(missing))
+                raise cv.Invalid(
+                    f"{self.name} requires component{'s' if len(missing) > 1 else ''} {reqstr} to be configured"
+                )
 
 
 def requires_buffer(config) -> bool:

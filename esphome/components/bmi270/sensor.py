@@ -11,6 +11,7 @@ from esphome.const import (
     UNIT_CELSIUS,
 )
 from esphome.cpp_generator import MockObj
+from esphome.types import ConfigType
 
 from . import CONF_BMI270_ID, BMI270Component
 
@@ -30,7 +31,7 @@ CONFIG_SCHEMA = sensor.sensor_schema(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = await sensor.new_sensor(config)
     parent = await cg.get_variable(config[CONF_BMI270_ID])
     data = MockObj("data")

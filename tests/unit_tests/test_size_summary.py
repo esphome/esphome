@@ -126,3 +126,20 @@ def test_print_summary_handles_no_memory_types(
     size_json = _write_size_json(tmp_path, {"image_size": 0})
     print_summary(size_json, partitions_csv=None)
     assert capsys.readouterr().out == ""
+
+
+def test_print_summary_flash_line(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A partition table with an app row yields the Flash line in the exact
+    padded shape script/ci_memory_impact_extract.py greps."""
+    size_json = _write_size_json(tmp_path, _esp32_size_data())
+    partitions = tmp_path / "partitions.csv"
+    partitions.write_text(
+        "# name, type, subtype, offset, size, flags\n"
+        "app0, app, ota_0, 0x10000, 0x1C0000,\n"
+    )
+    print_summary(size_json, partitions)
+    out = capsys.readouterr().out
+    assert "Flash: " in out
+    assert "(used 827455 bytes from 1835008 bytes)" in out

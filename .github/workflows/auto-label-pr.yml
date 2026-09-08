@@ -24,7 +24,7 @@ jobs:
     if: github.event.pull_request.state == 'open' && (github.event.action != 'labeled' || github.event.sender.type != 'Bot')
     steps:
       - name: Checkout
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Generate a token
         id: generate-token
@@ -35,7 +35,7 @@ jobs:
           # Scope the minted App token to the minimum needed by auto-label-pr/*.js.
           permission-contents: read       # repos.getContent for CODEOWNERS and file lookups in detectors.js
           permission-issues: write        # listLabelsOnIssue, addLabels, removeLabel, list/createComment
-          permission-pull-requests: write  # pulls.listFiles, list/create/update/dismissReview
+          permission-pull-requests: write  # pulls.get, pulls.listFiles, list/create/update/dismissReview
 
       - name: Auto Label PR
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0

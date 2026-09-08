@@ -10,6 +10,7 @@ from esphome.const import (
     CONF_SPEED,
     CONF_SPEED_COUNT,
 )
+from esphome.types import ConfigType
 
 from .. import speed_ns
 
@@ -33,7 +34,7 @@ CONFIG_SCHEMA = (
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = await fan.new_fan(config, config[CONF_SPEED_COUNT])
     await cg.register_component(var, config)
 

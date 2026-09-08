@@ -23,6 +23,7 @@ from esphome.const import (
     UNIT_VOLT,
     UNIT_WATT,
 )
+from esphome.types import ConfigType
 
 from . import bl0940_ns
 
@@ -69,27 +70,29 @@ DEFAULT_BL0940_LEGACY_EREF = 3.6e6 / 297
 
 
 # methods to calculate voltage and current reference values
-def calculate_voltage_reference(vref, r_one, r_two):
+def calculate_voltage_reference(vref: float, r_one: float, r_two: float) -> float:
     # formula: 79931 / Vref * (R1 * 1000) / (R1 + R2)
     return 79931 / vref * (r_one * 1000) / (r_one + r_two)
 
 
-def calculate_current_reference(vref, r_shunt):
+def calculate_current_reference(vref: float, r_shunt: float) -> float:
     # formula: 324004 * RL / Vref
     return 324004 * r_shunt / vref
 
 
-def calculate_power_reference(voltage_reference, current_reference):
+def calculate_power_reference(
+    voltage_reference: float, current_reference: float
+) -> float:
     # calculate power reference based on voltage and current reference
     return voltage_reference * current_reference * 4046 / 324004 / 79931
 
 
-def calculate_energy_reference(power_reference):
+def calculate_energy_reference(power_reference: float) -> float:
     # formula: power_reference * 3600000 / (1638.4 * 256)
     return power_reference * 3600000 / (1638.4 * 256)
 
 
-def validate_legacy_mode(config):
+def validate_legacy_mode(config: ConfigType) -> ConfigType:
     # Only allow schematic calibration options if legacy_mode is False
     if config.get(CONF_LEGACY_MODE, True):
         forbidden = [
@@ -106,7 +109,7 @@ def validate_legacy_mode(config):
     return config
 
 
-def set_command_defaults(config):
+def set_command_defaults(config: ConfigType) -> ConfigType:
     # Set defaults for read_command and write_command based on legacy_mode
     legacy = config.get(CONF_LEGACY_MODE, True)
     if legacy:
@@ -118,7 +121,7 @@ def set_command_defaults(config):
     return config
 
 
-def set_reference_values(config):
+def set_reference_values(config: ConfigType) -> ConfigType:
     # Set default reference values based on legacy_mode
     if config.get(CONF_LEGACY_MODE, True):
         config.setdefault(CONF_VOLTAGE_REFERENCE, DEFAULT_BL0940_LEGACY_UREF)
@@ -223,7 +226,7 @@ FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await uart.register_uart_device(var, config)

@@ -21,6 +21,11 @@ output:
     type: float
     write_action:
       - lambda: ""
+  - platform: template
+    id: test_restore_and_on_output
+    type: float
+    write_action:
+      - lambda: ""
 
 light:
   - platform: rgb
@@ -37,3 +42,16 @@ light:
       red: 1.0
       green: 0.5
       blue: 0.0
+
+  - platform: monochromatic
+    name: "Test Restore And On Light"
+    id: test_restore_and_on_light
+    output: test_restore_and_on_output
+    restore_mode: RESTORE_AND_ON
+    # Simulates a stale/persisted zero brightness: RESTORE_AND_ON always forces the light
+    # on at boot regardless of the recovered state, so a leftover brightness of 0 must not
+    # leave the light on-but-invisible.
+    initial_state:
+      color_mode: BRIGHTNESS
+      state: false
+      brightness: 0%

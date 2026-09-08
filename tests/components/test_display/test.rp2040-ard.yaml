@@ -1,0 +1,3 @@
+packages:
+  test_display: !include ../../test_build_components/common/test_display/test_display.yaml
+  test_display_extra: !include common.yaml

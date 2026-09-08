@@ -7,6 +7,7 @@ This directory contains end-to-end integration tests for ESPHome, focusing on te
 - `conftest.py` - Common fixtures and utilities
 - `const.py` - Constants used throughout the integration tests
 - `types.py` - Type definitions for fixtures and functions
+- `raw_api_client.py` - Minimal plaintext api client whose reads happen only on request (for backpressure tests)
 - `state_utils.py` - State handling utilities (e.g., `InitialStateHelper`, `find_entity`, `require_entity`)
 - `fixtures/` - YAML configuration files for tests
 - `test_*.py` - Individual test files
@@ -187,6 +188,7 @@ loop = asyncio.get_running_loop()
 states: dict[int, EntityState] = {}
 state_future: asyncio.Future[EntityState] = loop.create_future()
 
+
 def on_state(state: EntityState) -> None:
     """This callback only receives NEW state changes, not initial states."""
     states[state.key] = state
@@ -194,6 +196,7 @@ def on_state(state: EntityState) -> None:
     if isinstance(state, SensorState) and state.state == expected_value:
         if not state_future.done():
             state_future.set_result(state)
+
 
 # Get entities and set up state synchronization
 entities, services = await client.list_entities_services()
@@ -228,12 +231,14 @@ loop = asyncio.get_running_loop()
 states: dict[int, EntityState] = {}
 state_future: asyncio.Future[EntityState] = loop.create_future()
 
+
 def on_state(state: EntityState) -> None:
     states[state.key] = state
     # Check for specific condition using isinstance
     if isinstance(state, SensorState) and state.state == expected_value:
         if not state_future.done():
             state_future.set_result(state)
+
 
 client.subscribe_states(on_state)
 
@@ -263,10 +268,12 @@ entity_count = 50
 received_states: set[int] = set()
 all_states_future: asyncio.Future[bool] = loop.create_future()
 
+
 def on_state(state: EntityState) -> None:
     received_states.add(state.key)
     if len(received_states) >= entity_count and not all_states_future.done():
         all_states_future.set_result(True)
+
 
 client.subscribe_states(on_state)
 await asyncio.wait_for(all_states_future, timeout=10.0)
@@ -341,6 +348,7 @@ Create C++ components in `fixtures/external_components/` for:
 - Custom entity behaviors
 - Scheduler testing
 - Memory management tests
+- Deterministic network backpressure (`sndbuf_pin_component` pins socket send buffers; assert on its log line to prove the pin took effect)
 
 ##### Log Line Monitoring
 ```python
@@ -367,12 +375,14 @@ service_future = loop.create_future()
 connected_pattern = re.compile(r"Client .* connected from")
 service_pattern = re.compile(r"Service called")
 
+
 def check_output(line: str) -> None:
     """Check log output for expected messages."""
     if not connected_future.done() and connected_pattern.search(line):
         connected_future.set_result(True)
     elif not service_future.done() and service_pattern.search(line):
         service_future.set_result(True)
+
 
 async with run_compiled(yaml_config, line_callback=check_output):
     async with api_client_connected() as client:

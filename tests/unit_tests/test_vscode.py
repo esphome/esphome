@@ -3,6 +3,8 @@ from pathlib import Path
 from unittest.mock import Mock, patch
 
 from esphome import vscode
+import esphome.config_validation as cv
+from esphome.core import EsphomeError
 
 
 def _run_repl_test(input_data):
@@ -126,3 +128,67 @@ packages:
     assert range["start_col"] == 2
     assert range["end_line"] == 1
     assert range["end_col"] == 7
+
+
+def _explode(*_args: object, **_kwargs: object) -> None:
+    raise AttributeError("'NoneType' object has no attribute 'get'")
+
+
+def test_unexpected_error_reports_origin() -> None:
+    source_path = str(Path("dir_path", "x.yaml"))
+    with patch("esphome.vscode.validate_config", _explode):
+        output_lines = _run_repl_test(
+            [
+                _validate(source_path),
+                _file_response("""esphome:
+  name: test1
+"""),
+            ]
+        )
+
+    result = json.loads(output_lines[-1])
+    assert result["validation_errors"] == []
+    (error,) = result["yaml_errors"]
+    assert error["message"].startswith(
+        "Unexpected error while validating: AttributeError: "
+        "'NoneType' object has no attribute 'get' ("
+    )
+    assert "test_vscode.py" in error["message"]
+    assert error["message"].endswith(" in _explode)")
+
+
+def test_esphome_error_stays_plain() -> None:
+    source_path = str(Path("dir_path", "x.yaml"))
+    with patch("esphome.vscode.validate_config", side_effect=EsphomeError("boom")):
+        output_lines = _run_repl_test(
+            [
+                _validate(source_path),
+                _file_response("""esphome:
+  name: test1
+"""),
+            ]
+        )
+
+    result = json.loads(output_lines[-1])
+    assert result["yaml_errors"] == [{"message": "boom"}]
+
+
+def test_invalid_stays_plain() -> None:
+    source_path = str(Path("dir_path", "x.yaml"))
+    with patch("esphome.vscode.validate_config", side_effect=cv.Invalid("bad value")):
+        output_lines = _run_repl_test(
+            [
+                _validate(source_path),
+                _file_response("""esphome:
+  name: test1
+"""),
+            ]
+        )
+
+    result = json.loads(output_lines[-1])
+    assert result["yaml_errors"] == [{"message": "bad value"}]
+
+
+def test_format_unexpected_error_without_traceback() -> None:
+    message = vscode._format_unexpected_error(ValueError("boom"))
+    assert message == "Unexpected error while validating: ValueError: boom"

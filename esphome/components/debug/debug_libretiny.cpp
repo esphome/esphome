@@ -28,7 +28,7 @@ size_t DebugComponent::get_device_info_(std::span<char, DEVICE_INFO_BUFFER_SIZE>
   ESP_LOGD(TAG,
            "LibreTiny debug info:\n"
            "  Version: %s\n"
-           "  Chip: %s (%04x) @ %u MHz\n"
+           "  Chip: %s (%04x) @ %" PRIu32 " MHz\n"
            "  Chip ID: 0x%06" PRIX32 "\n"
            "  Board: %s\n"
            "  Flash: %" PRIu32 " KiB\n"
@@ -38,7 +38,7 @@ size_t DebugComponent::get_device_info_(std::span<char, DEVICE_INFO_BUFFER_SIZE>
            lt_get_board_code(), flash_kib, ram_kib, reset_reason);
 
   pos = buf_append_str(buf, size, pos, "|Version: ");
-  pos = buf_append_str(buf, size, pos, LT_BANNER_STR + 10);
+  pos = buf_append_str(buf, size, pos, &LT_BANNER_STR[10]);
   pos = buf_append_str(buf, size, pos, "|Reset Reason: ");
   pos = buf_append_str(buf, size, pos, reset_reason);
   pos = buf_append_str(buf, size, pos, "|Chip Name: ");

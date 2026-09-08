@@ -4,6 +4,9 @@ packages:
 web_server:
   port: 8080
   version: 3
+  # allowed_origins can be set independently of Private Network Access
+  allowed_origins:
+    - https://app.esphome.io
   sorting_groups:
     - id: sorting_group_1
       name: "Group 1 Diplayed Last"

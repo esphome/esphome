@@ -1,0 +1,2 @@
+bk72xx_ble:
+  enable_on_boot: true

@@ -15,6 +15,7 @@ from esphome.const import (
     UNIT_MICROSILVERTS_PER_HOUR,
     UNIT_SECOND,
 )
+from esphome.types import ConfigType
 
 from . import CONF_GDK101_ID, GDK101Component
 
@@ -59,7 +60,7 @@ CONFIG_SCHEMA = cv.Schema(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     hub = await cg.get_variable(config[CONF_GDK101_ID])
 
     if radiation_dose_per_1m := config.get(CONF_RADIATION_DOSE_PER_1M):

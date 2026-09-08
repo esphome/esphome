@@ -9,10 +9,12 @@ from esphome.components.esp32 import (
     add_idf_component,
     add_idf_sdkconfig_option,
     add_partition,
+    include_builtin_idf_component,
     require_vfs_select,
 )
 import esphome.config_validation as cv
 from esphome.const import (
+    CONF_ACCURACY_DECIMALS,
     CONF_AP,
     CONF_DEVICE,
     CONF_DEVICE_CLASS,
@@ -35,9 +37,11 @@ from .const import (
     ANALOG_INPUT_APPTYPE,
     BACNET_UNIT_NO_UNITS,
     BACNET_UNITS,
+    CONF_ENDPOINT,
     CONF_POWER_SOURCE,
     CONF_REPORT,
     CONF_ROUTER,
+    CONF_USE_DEVICE_TYPE,
     KEY_ZIGBEE,
     POWER_SOURCE,
     ZigbeeAttribute,
@@ -45,18 +49,17 @@ from .const import (
 from .const_esp32 import (
     ATTR_TYPE,
     CLUSTER_ID,
+    CLUSTER_ROLE,
     CONF_ATTRIBUTE_ID,
     CONF_ATTRIBUTES,
     CONF_CLUSTERS,
-    CONF_NUM,
     DEVICE_ID,
     DEVICE_TYPE,
-    KEY_BS_EP,
-    KEY_SENSOR_EP,
+    KEY_ZIGBEE_EP,
     ROLE,
     SCALE,
 )
-from .zigbee_ep_esp32 import create_ep, ep_configs
+from .zigbee_ep_esp32 import add_ep, create_ep, ep_configs
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -146,6 +149,7 @@ def final_validate_esp32(config: ConfigType) -> ConfigType:
                     raise cv.Invalid(
                         f"Partition '{partition}' in your custom partition table has wrong format. It should be: '{partition}, {types['type']}, {types['subtype']},   , {types['size']},'"
                     )
+    create_ep(config.get(CONF_ROUTER))
     return config
 
 
@@ -183,6 +187,7 @@ def validate_sensor_esp32(config: ConfigType) -> ConfigType:
     unit = config.get(CONF_UNIT_OF_MEASUREMENT)
     apptype = ANALOG_INPUT_APPTYPE.get((dev_class, unit))
     bacunit = BACNET_UNITS.get(unit, BACNET_UNIT_NO_UNITS)
+    accuracy = config.get(CONF_ACCURACY_DECIMALS)
     if apptype is not None:
         ep[CONF_CLUSTERS][0][CONF_ATTRIBUTES].append(
             {
@@ -198,19 +203,24 @@ def validate_sensor_esp32(config: ConfigType) -> ConfigType:
             CONF_TYPE: "ENUM16",
         },
     )
+    if accuracy is not None:
+        # Analog Input Resolution (0x006A): smallest reportable change
+        ep[CONF_CLUSTERS][0][CONF_ATTRIBUTES].append(
+            {
+                CONF_ATTRIBUTE_ID: 0x6A,
+                CONF_VALUE: 10**-accuracy,
+                CONF_TYPE: "SINGLE",
+            },
+        )
     setup_attributes(config, ep[CONF_CLUSTERS])
-    zb_data = CORE.data.setdefault(KEY_ZIGBEE, {})
-    sensor_ep: list[dict] = zb_data.setdefault(KEY_SENSOR_EP, [])
-    sensor_ep.append(ep)
+    add_ep(ep, config.get(CONF_ENDPOINT), config.get(CONF_USE_DEVICE_TYPE))
     return config
 
 
 def validate_binary_sensor_esp32(config: ConfigType) -> ConfigType:
     ep = copy.deepcopy(ep_configs["binary_input"])
     setup_attributes(config, ep[CONF_CLUSTERS])
-    zb_data = CORE.data.setdefault(KEY_ZIGBEE, {})
-    binary_sensor_ep: list[dict] = zb_data.setdefault(KEY_BS_EP, [])
-    binary_sensor_ep.append(ep)
+    add_ep(ep, config.get(CONF_ENDPOINT), config.get(CONF_USE_DEVICE_TYPE))
     return config
 
 
@@ -243,7 +253,7 @@ async def attributes_to_code(
                 var.add_attr(
                     ep_num,
                     CLUSTER_ID.get(cl[CONF_ID], cl[CONF_ID]),
-                    cl[ROLE],
+                    CLUSTER_ROLE[cl[ROLE]],
                     attr[CONF_ATTRIBUTE_ID],
                     attr.get(CONF_MAX_LENGTH, 0),
                     attr[CONF_VALUE],
@@ -255,7 +265,7 @@ async def attributes_to_code(
             var,
             ep_num,
             CLUSTER_ID.get(cl[CONF_ID], cl[CONF_ID]),
-            cl[ROLE],
+            CLUSTER_ROLE[cl[ROLE]],
             attr[CONF_ATTRIBUTE_ID],
             ATTR_TYPE[attr[CONF_TYPE]],
             attr.get(SCALE, 1),
@@ -276,8 +286,12 @@ async def attributes_to_code(
 async def esp32_to_code(config: ConfigType) -> "MockObj":
     add_idf_component(
         name="espressif/esp-zigbee-lib",
-        ref="2.0.2",
+        ref="2.0.4",
     )
+
+    if CONF_WIFI in CORE.config:
+        # zigbee_esp32.cpp uses esp_coexist.h when WiFi is present
+        include_builtin_idf_component("esp_coex")
 
     # add sdkconfigs later so they can overwrite esp32 defaults
     CORE.add_job(_zigbee_add_sdkconfigs, config)
@@ -287,9 +301,7 @@ async def esp32_to_code(config: ConfigType) -> "MockObj":
 
     # create endpoints
     zb_data = CORE.data.get(KEY_ZIGBEE, {})
-    sensor_ep: list[dict] = zb_data.get(KEY_SENSOR_EP, [])
-    binary_sensor_ep: list[dict] = zb_data.get(KEY_BS_EP, [])
-    ep_list = create_ep(sensor_ep + binary_sensor_ep, config.get(CONF_ROUTER))
+    ep_dict: dict[int, dict] = zb_data.get(KEY_ZIGBEE_EP, {})
 
     # setup zigbee components
     var = cg.new_Pvariable(config[CONF_ID])
@@ -301,15 +313,15 @@ async def esp32_to_code(config: ConfigType) -> "MockObj":
             POWER_SOURCE[config[CONF_POWER_SOURCE]],
         )
     )
-    for ep in ep_list:
-        cg.add(var.create_default_cluster(ep[CONF_NUM], DEVICE_ID[ep[DEVICE_TYPE]]))
+    for ep_num, ep in ep_dict.items():
+        cg.add(var.create_default_cluster(ep_num, DEVICE_ID[ep[DEVICE_TYPE]]))
         for cl in ep.get(CONF_CLUSTERS, []):
             cg.add(
                 var.add_cluster(
-                    ep[CONF_NUM],
+                    ep_num,
                     CLUSTER_ID.get(cl[CONF_ID], cl[CONF_ID]),
-                    cl[ROLE],
+                    CLUSTER_ROLE[cl[ROLE]],
                 )
             )
-            await attributes_to_code(var, ep[CONF_NUM], cl)
+            await attributes_to_code(var, ep_num, cl)
     return var

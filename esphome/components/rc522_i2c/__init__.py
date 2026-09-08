@@ -2,6 +2,7 @@ import esphome.codegen as cg
 from esphome.components import i2c, rc522
 import esphome.config_validation as cv
 from esphome.const import CONF_ID
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@glmnet"]
 DEPENDENCIES = ["i2c"]
@@ -16,11 +17,11 @@ CONFIG_SCHEMA = cv.All(
         {
             cv.GenerateID(): cv.declare_id(RC522I2C),
         }
-    ).extend(i2c.i2c_device_schema(0x2C))
+    ).extend(i2c.i2c_device_schema(0x28))
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await rc522.setup_rc522(var, config)
     await i2c.register_i2c_device(var, config)

@@ -1,0 +1,33 @@
+# New `image:` `platform: online_image` form. Exercises online_image/image.py
+# through the real platform loader and codegen pipeline.
+esphome:
+  name: test
+
+esp32:
+  board: esp32s3box
+
+wifi:
+  ssid: MySSID
+  password: password1
+
+http_request:
+  verify_ssl: false
+
+image:
+  - platform: online_image
+    id: test_online_image
+    url: http://example.com/image.png
+    format: png
+    type: rgb565
+
+spi:
+  mosi_pin: 6
+  clk_pin: 7
+
+psram:
+  mode: quad
+
+display:
+  - platform: mipi_spi
+    id: lcd_display
+    model: s3box

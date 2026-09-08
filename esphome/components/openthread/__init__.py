@@ -1,3 +1,5 @@
+from typing import Any
+
 from esphome import automation
 import esphome.codegen as cg
 from esphome.components.esp32 import (
@@ -31,10 +33,12 @@ from esphome.const import (
 )
 from esphome.core import (
     CORE,
+    ID,
     CoroPriority,
     TimePeriodMilliseconds,
     coroutine_with_priority,
 )
+from esphome.cpp_generator import MockObj, TemplateArgsType
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
@@ -76,7 +80,7 @@ CONF_DEVICE_TYPES = [
 ]
 
 
-def _validate_txpower(value):
+def _validate_txpower(value: Any) -> int | float:
     if CORE.is_esp32:
         variant = get_esp32_variant()
 
@@ -90,7 +94,7 @@ def _validate_txpower(value):
     return value  # Unsupported, fail later with clear error
 
 
-def set_sdkconfig_options(config):
+def set_sdkconfig_options(config: ConfigType) -> None:
     # and expose options for using SPI/UART RCPs
     add_idf_sdkconfig_option("CONFIG_IEEE802154_ENABLED", True)
     add_idf_sdkconfig_option("CONFIG_OPENTHREAD_RADIO_NATIVE", True)
@@ -180,7 +184,7 @@ def _validate(config: ConfigType) -> ConfigType:
     return config
 
 
-def _require_vfs_select(config):
+def _require_vfs_select(config: ConfigType) -> ConfigType:
     """Register VFS select requirement during config validation."""
     # OpenThread uses esp_vfs_eventfd which requires VFS select support (ESP32 only)
     if CORE.is_esp32:
@@ -188,7 +192,7 @@ def _require_vfs_select(config):
     return config
 
 
-def _validate_platform(config):
+def _validate_platform(config: ConfigType) -> ConfigType:
     if CORE.using_zephyr:
         return config
     return only_on_variant(
@@ -203,7 +207,7 @@ def _validate_platform(config):
     )(config)
 
 
-def _validate_tlv_hex(value):
+def _validate_tlv_hex(value: Any) -> str:
     s = cv.string_strict(value)
     if len(s) % 2 != 0:
         raise cv.Invalid("TLV must have an even number of hex characters")
@@ -242,7 +246,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-def _final_validate(_):
+def _final_validate(_: ConfigType) -> None:
     full_config = fv.full_config.get()
     network_config = full_config.get("network", {})
     if not network_config.get(CONF_ENABLE_IPV6, False):
@@ -274,7 +278,7 @@ FILTER_SOURCE_FILES = filter_source_files_from_platform(
 
 
 @coroutine_with_priority(CoroPriority.COMMUNICATION)
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     # Re-enable openthread IDF component (excluded by default)
     if CORE.is_esp32:
         include_builtin_idf_component("openthread")
@@ -339,7 +343,12 @@ POLL_PERIOD_ACTION_SCHEMA = automation.maybe_conf(
     POLL_PERIOD_ACTION_SCHEMA,
     synchronous=True,
 )
-async def openthread_poll_period_action_to_code(config, action_id, template_arg, args):
+async def openthread_poll_period_action_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
     template_ = await cg.templatable(config[CONF_POLL_PERIOD], args, cg.uint32)

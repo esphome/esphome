@@ -1,0 +1,92 @@
+esphome:
+  name: test
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+spi:
+  - id: spi_bus
+    clk_pin: GPIO18
+    mosi_pin: GPIO23
+
+display:
+  - platform: mipi_spi
+    spi_id: spi_bus
+    model: st7789v
+    id: tft_display
+    dimensions:
+      width: 240
+      height: 320
+    cs_pin: GPIO22
+    dc_pin: GPIO21
+    auto_clear_enabled: false
+    invert_colors: false
+    update_interval: never
+
+lvgl:
+  id: lvgl_id
+  displays: tft_display
+  pages:
+    - id: main_page
+      widgets:
+        # A flex container whose layout options are changed at runtime.
+        - obj:
+            id: flex_box
+            layout:
+              type: flex
+              flex_flow: row
+            widgets:
+              - label:
+                  text: a
+              - label:
+                  text: b
+
+        # A grid container whose alignment options are changed at runtime.
+        # The grid structure (rows/columns) is fixed here at creation.
+        - obj:
+            id: grid_box
+            layout:
+              type: grid
+              grid_rows: [content, content]
+              grid_columns: [fr(1), fr(1)]
+            widgets:
+              - label:
+                  text: c
+              - label:
+                  text: d
+
+        # Button hosting all of the update actions under test.
+        - button:
+            id: btn_actions
+            on_click:
+              # Update flex container options (type unchanged).
+              - lvgl.widget.update:
+                  id: flex_box
+                  layout:
+                    flex_flow: column
+                    flex_align_main: center
+                    flex_align_cross: end
+                    pad_row: 7px
+              # Update grid container alignment options (structure unchanged).
+              - lvgl.widget.update:
+                  id: grid_box
+                  layout:
+                    grid_column_align: space_between
+                    grid_row_align: center
+              # Top-level layout applies to the active screen.
+              - lvgl.update:
+                  layout:
+                    flex_flow: column
+                    pad_column: 5px
+              # Layout applied to the top display layer.
+              - lvgl.update:
+                  top_layer:
+                    layout:
+                      flex_flow: row
+              # Styling applied to the bottom display layer (exercises the
+              # layers code path that previously generated no code).
+              - lvgl.update:
+                  bottom_layer:
+                    bg_color: 0x123456

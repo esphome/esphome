@@ -38,14 +38,17 @@ void SPISSD1306::command(uint8_t value) {
 }
 void HOT SPISSD1306::write_display_data() {
   if (this->is_sh1106_() || this->is_sh1107_()) {
+    // Some panels wire their visible columns to a window of the controller RAM
+    // that does not start at column 0 (e.g. SH1107 M5Stack Unit OLED needs offset_x: 32).
+    // SH1106 keeps its historical 0x02 base column on top of any offset.
+    uint8_t start_column = this->offset_x_;
+    if (this->is_sh1106_()) {
+      start_column += 0x02;
+    }
     for (uint8_t y = 0; y < (uint8_t) this->get_height_internal() / 8; y++) {
       this->command(0xB0 + y);
-      if (this->is_sh1106_()) {
-        this->command(0x02);
-      } else {
-        this->command(0x00);
-      }
-      this->command(0x10);
+      this->command(start_column & 0x0F);         // lower column
+      this->command(0x10 | (start_column >> 4));  // higher column
       this->dc_pin_->digital_write(true);
       for (uint8_t x = 0; x < (uint8_t) this->get_width_internal(); x++) {
         this->enable();

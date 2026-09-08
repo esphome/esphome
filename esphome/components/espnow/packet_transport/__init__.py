@@ -9,6 +9,7 @@ from esphome.components.packet_transport import (
 import esphome.config_validation as cv
 from esphome.core import HexInt
 from esphome.cpp_types import PollingComponent
+from esphome.types import ConfigType
 
 from .. import ESPNowComponent, espnow_ns
 
@@ -28,7 +29,7 @@ CONFIG_SCHEMA = transport_schema(ESPNowTransport).extend(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     """Set up the ESP-NOW transport component."""
     var, _ = await new_packet_transport(config)
 
