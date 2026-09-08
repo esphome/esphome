@@ -24,6 +24,7 @@
 
 #include <cerrno>
 #include <cstdio>
+#include <cstring>
 #include <new>
 #include <sys/time.h>
 
@@ -857,6 +858,9 @@ ota::OTAResponseTypes ESPHomeOTAComponent::inflate_data_(uint8_t *in, size_t ima
   session.image_size = image_size;
   session.written = 0;
   session.error = ota::OTA_RESPONSE_OK;
+  // A corrupt stream may back reference the window before it is filled; zero it
+  // so such a read copies zeros, never stale memory
+  std::memset(session.window, 0, sizeof(session.window));
   ota_inflate_init(&session, session.window, OTA_INFLATE_WINDOW_SIZE);
   // Where the ack must follow the write, flush and ack before waiting for
   // input, or the client waits for an ack while the decoder waits for data
