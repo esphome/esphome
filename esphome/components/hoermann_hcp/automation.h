@@ -7,9 +7,8 @@
 
 namespace esphome::hoermann_hcp {
 
-// Tells the bus controller the accessory is about to go quiet. An ordinary restart announces itself during
-// teardown; an update has to say so when the transfer starts, because by the time teardown runs the image
-// has been written and the controller has been unanswered throughout.
+// For the ota on_begin trigger. An ordinary restart announces itself from on_shutdown, but an update is
+// written to flash long before that runs, so it has to say so when the transfer starts.
 template<typename... Ts> class AnnouncePauseAction final : public Action<Ts...>, public Parented<HoermannHcp> {
  public:
   void play(const Ts &...x) override { this->parent_->announce_pause(); }
