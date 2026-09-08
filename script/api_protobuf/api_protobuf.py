@@ -2536,8 +2536,8 @@ def build_message_type(
 
     # Get source direction to determine if we need decode/encode methods
     source = message_source_map[desc.name]
-    needs_decode = source in (SOURCE_BOTH, SOURCE_CLIENT)
-    needs_encode = source in (SOURCE_BOTH, SOURCE_SERVER)
+    needs_decode = message_needs_decode(source)
+    needs_encode = message_needs_encode(source)
 
     # Add MESSAGE_TYPE method if this is a service message
     if message_id is not None:
@@ -2844,6 +2844,23 @@ def get_field_opt(
     if not field.options.HasExtension(opt):
         return default
     return field.options.Extensions[opt]
+
+
+def message_needs_decode(source: int) -> bool:
+    return source in (SOURCE_BOTH, SOURCE_CLIENT)
+
+
+def message_needs_encode(source: int) -> bool:
+    return source in (SOURCE_BOTH, SOURCE_SERVER)
+
+
+def is_decodable_class(desc: descriptor.DescriptorProto, source: int) -> bool:
+    """Whether the generated class derives from ProtoDecodableMessage: decoded, and either on a
+    decodable base class or with at least one live field."""
+    return message_needs_decode(source) and (
+        get_base_class(desc) is not None
+        or any(not field.options.deprecated for field in desc.field)
+    )
 
 
 def get_base_class(desc: descriptor.DescriptorProto) -> str | None:
@@ -3402,7 +3419,7 @@ static void dump_bytes_field(DumpBuffer &out, const char *field_name, const uint
             continue
 
         s, c, dc = build_message_type(m, base_class_fields, message_source_map)
-        if message_source_map[m.name] in (SOURCE_BOTH, SOURCE_CLIENT):
+        if is_decodable_class(m, message_source_map[m.name]):
             decodable_messages.append((m.name, message_ifdef_map.get(m.name)))
         msg_ifdef = message_ifdef_map.get(m.name)
 
@@ -3433,9 +3450,17 @@ static void dump_bytes_field(DumpBuffer &out, const char *field_name, const uint
     # decode() passes decode_field explicitly, so without the dump virtuals no decodable message
     # may carry a vtable; a build at any level below VERY_VERBOSE proves it
     cpp += "#ifndef HAS_PROTO_MESSAGE_DUMP\n"
+    assert_ifdef = None
     for name, msg_ifdef in decodable_messages:
-        line = f'static_assert(!std::is_polymorphic_v<{name}>, "decodable messages carry no vtable");'
-        cpp += "\n".join(wrap_with_ifdef(line, msg_ifdef)) + "\n"
+        if msg_ifdef != assert_ifdef:
+            if assert_ifdef is not None:
+                cpp += "#endif\n"
+            if msg_ifdef is not None:
+                cpp += _make_ifdef_line(msg_ifdef) + "\n"
+            assert_ifdef = msg_ifdef
+        cpp += f'static_assert(!std::is_polymorphic_v<{name}>, "decodable messages carry no vtable");\n'
+    if assert_ifdef is not None:
+        cpp += "#endif\n"
     cpp += "#endif\n"
 
     content += """\

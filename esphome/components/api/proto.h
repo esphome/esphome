@@ -728,8 +728,6 @@ class ProtoDecodableMessage : public ProtoMessage {
   /// Walk \p buffer and hand every field to \p field. The generated decode() passes the message's
   /// own decode_field, so decodable messages carry no vtable.
   static void decode_fields(void *msg, const uint8_t *buffer, size_t length, DecodeFieldFn field);
-  /// A decodable message without fields has nothing to read
-  void decode(const uint8_t *buffer, size_t length) {}
 
   /**
    * Count occurrences of a repeated field in a protobuf buffer.
