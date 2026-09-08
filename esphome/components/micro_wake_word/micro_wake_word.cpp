@@ -446,9 +446,9 @@ void MicroWakeWord::loop() {
     xEventGroupClearBits(this->event_group_, EventGroupBits::TASK_STOPPING);
   }
 
-  if ((event_group_bits & EventGroupBits::TASK_STOPPED)) {
+  // Retries on a subsequent loop if the task is still running on the other core
+  if ((event_group_bits & EventGroupBits::TASK_STOPPED) && this->inference_task_.deallocate()) {
     ESP_LOGD(TAG, "Inference task is finished, freeing task resources");
-    this->inference_task_.deallocate();
     xEventGroupClearBits(this->event_group_, ALL_BITS);
     xQueueReset(this->detection_queue_);
     this->set_state_(State::STOPPED);
