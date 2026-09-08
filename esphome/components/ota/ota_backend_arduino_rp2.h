@@ -16,7 +16,9 @@ class ArduinoRP2OTABackend final {
   OTAResponseTypes end();
   void abort();
   // A gzip image is staged on LittleFS as is; the core's OTA stub inflates it
-  // into the app region at reboot, the same way the ESP8266 bootloader does
+  // into the app region at reboot, the same way the ESP8266 bootloader does.
+  // begin() then sees the gzip size, so only the staging space is checked up
+  // front; the inflated size is not known until the stub reads the trailer.
   static constexpr bool supports_compression() { return true; }
 
  private:
