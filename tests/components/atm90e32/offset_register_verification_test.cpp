@@ -1,6 +1,9 @@
 #include <gtest/gtest.h>
 
+#define protected public
 #include "esphome/components/atm90e32/atm90e32.h"
+#undef protected
+#include "esphome/components/logger/logger.h"
 
 namespace esphome::atm90e32::testing {
 
@@ -73,6 +76,53 @@ TEST(ATM90E32GainPersistence, RollsBackStoredValuesOrZeroSentinel) {
   for (const auto &phase : rollback) {
     EXPECT_EQ(phase.voltage_gain, 0);
     EXPECT_EQ(phase.current_gain, 0);
+  }
+}
+
+class FailedGainRollbackDelegate final : public spi::SPIDelegate {
+ public:
+  uint8_t transfer(uint8_t data) override { return 0; }
+};
+
+TEST(ATM90E32GainCalibration, FailedRollbackDoesNotReportVerifiedGainsOnReconnect) {
+  for (const bool mismatch : {false, true}) {
+    for (uint8_t offsets = 0; offsets < 4; offsets++) {
+      SCOPED_TRACE(::testing::Message() << "mismatch=" << mismatch << ", offsets=" << +offsets);
+      FailedGainRollbackDelegate delegate;
+      ATM90E32Component component;
+      component.delegate_ = &delegate;
+      component.instance_id_ = "test";
+      component.enable_gain_calibration_ = true;
+      component.enable_offset_calibration_ = true;
+      component.restored_gain_calibration_ = true;
+      component.has_stored_gain_calibration_ = true;
+      component.using_saved_calibrations_ = true;
+      component.restored_offset_calibration_ = (offsets & 1) != 0;
+      component.restored_power_offset_calibration_ = (offsets & 2) != 0;
+      for (bool &phase : component.gain_calibration_mismatch_)
+        phase = mismatch;
+      const GainCalibration previous[3]{{7305, 27518}, {7305, 27518}, {7305, 27518}};
+
+      component.finish_gain_calibration_(previous, true, true);
+
+      EXPECT_FALSE(component.restored_gain_calibration_);
+      EXPECT_TRUE(component.has_stored_gain_calibration_);
+      EXPECT_EQ(component.using_saved_calibrations_, offsets != 0);
+      EXPECT_EQ(component.restored_offset_calibration_, (offsets & 1) != 0);
+      EXPECT_EQ(component.restored_power_offset_calibration_, (offsets & 2) != 0);
+      for (const bool phase : component.gain_calibration_mismatch_)
+        EXPECT_FALSE(phase);
+
+      const auto previous_baud_rate = logger::global_logger->get_baud_rate();
+      ::testing::internal::CaptureStdout();
+      logger::global_logger->set_baud_rate(115200);
+      component.dump_config();
+      logger::global_logger->set_baud_rate(previous_baud_rate);
+      const auto output = ::testing::internal::GetCapturedStdout();
+      EXPECT_EQ(output.find("Gain calibration loaded and verified successfully."), std::string::npos);
+      EXPECT_EQ(output.find("Gain mismatch: using flash values"), std::string::npos);
+      EXPECT_EQ(output.find("Restoring saved gain calibrations to registers"), std::string::npos);
+    }
   }
 }
 

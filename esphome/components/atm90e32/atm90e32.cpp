@@ -786,6 +786,10 @@ void ATM90E32Component::finish_gain_calibration_(const GainCalibration (&previou
     this->has_stored_gain_calibration_ = previous_restored;
   this->using_saved_calibrations_ = previous_using_saved;
   if (!rollback_verified) {
+    this->restored_gain_calibration_ = false;
+    this->using_saved_calibrations_ = this->restored_offset_calibration_ || this->restored_power_offset_calibration_;
+    for (bool &phase : this->gain_calibration_mismatch_)
+      phase = false;
     ESP_LOGE(TAG, "[CALIBRATION][%s] Gain calibration failed; rollback readback verification failed.", cs);
     return;
   }
