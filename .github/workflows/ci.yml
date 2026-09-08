@@ -274,11 +274,20 @@ jobs:
     steps:
       - name: Check out code from GitHub
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Read prek version from requirements_test.txt
+        id: prek
+        # requirements_test.txt is the only place the version is pinned, so a
+        # Dependabot bump there is picked up here without a second edit.
+        run: |
+          if ! version=$(sed -nE 's/^prek==([^[:space:]#]+).*/\1/p' requirements_test.txt) || [ -z "$version" ]; then
+            echo "::error::No prek== pin found in requirements_test.txt."
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
       - name: Run prek
         uses: j178/prek-action@4e14d07f9231acabce116ccfca13b13dd9755ece # v3.0.0
         with:
-          # Keep in sync with requirements_test.txt.
-          prek-version: "0.4.11"
+          prek-version: ${{ steps.prek.outputs.version }}
           # This job only runs on pull requests, so nothing ever populates
           # the cache on dev. Every run would miss and then write a per-pull
           # request copy, which is what the old seed-cache job existed to
