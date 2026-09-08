@@ -658,10 +658,9 @@ def perform_ota(
         _LOGGER.info("Compressed to %s bytes", len(upload_contents))
     elif extended_proto and features & SERVER_FEATURE_SUPPORTS_DEFLATE:
         # The device inflates while receiving through a small ring window
-        compressor = zlib.compressobj(
-            COMPRESS_LEVEL, zlib.DEFLATED, -DEFLATE_WINDOW_BITS
+        upload_contents = zlib.compress(
+            file_contents, COMPRESS_LEVEL, wbits=-DEFLATE_WINDOW_BITS
         )
-        upload_contents = compressor.compress(file_contents) + compressor.flush()
         deflate = True
         _LOGGER.info("Compressed to %s bytes (deflate)", len(upload_contents))
     else:
@@ -722,12 +721,11 @@ def perform_ota(
         send_check(sock, ota_type, "ota type")
 
     upload_size = len(upload_contents)
-    upload_size_encoded = upload_size.to_bytes(SIZE_FIELD_BYTES, "big")
     # The device erases flash between receiving the size and acking the
     # prepare, so this window shows the erase cost (near zero when the
     # device erases lazily during the upload)
     prepare_start = time.perf_counter()
-    send_check(sock, upload_size_encoded, "binary size")
+    send_check(sock, upload_size.to_bytes(SIZE_FIELD_BYTES, "big"), "binary size")
     if deflate:
         # The device sizes the partition by the inflated image; its own frame,
         # as an encrypted session carries one field per frame

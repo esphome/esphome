@@ -25,7 +25,7 @@ struct StubOTABackend {
   OTAResponseTypes write(uint8_t *data, size_t len) { return OTA_RESPONSE_ERROR_UNKNOWN; }
   OTAResponseTypes end() { return OTA_RESPONSE_ERROR_UNKNOWN; }
   void abort() {}
-  bool supports_compression() { return false; }
+  static constexpr bool supports_compression() { return false; }
 };
 std::unique_ptr<StubOTABackend> make_ota_backend();
 }  // namespace esphome::ota

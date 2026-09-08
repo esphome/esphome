@@ -600,12 +600,19 @@ def test_perform_ota_upload_error(mock_socket: Mock, mock_file: io.BytesIO) -> N
         espota2.perform_ota(mock_socket, None, mock_file, "test.bin")
 
 
-def _no_auth_handshake(version: int) -> list[bytes]:
-    """Recv responses for a handshake without auth, up to the MD5 check."""
+def _no_auth_handshake(version: int, server_features: int | None = None) -> list[bytes]:
+    """Recv responses for a handshake without auth, up to the MD5 check.
+
+    With server_features the device answers with the extended feature flags.
+    """
+    if server_features is None:
+        features = [bytes([espota2.RESPONSE_HEADER_OK])]
+    else:
+        features = [bytes([espota2.RESPONSE_FEATURE_FLAGS]), bytes([server_features])]
     return [
         bytes([espota2.RESPONSE_OK]),  # First byte of version response
         bytes([version]),  # Version number
-        bytes([espota2.RESPONSE_HEADER_OK]),  # Features response
+        *features,
         bytes([espota2.RESPONSE_AUTH_OK]),  # No auth required
         bytes([espota2.RESPONSE_UPDATE_PREPARE_OK]),  # Binary size OK
         bytes([espota2.RESPONSE_BIN_MD5_OK]),  # MD5 checksum OK
@@ -1512,27 +1519,23 @@ def test_check_error_passes_non_error_when_expect_is_none() -> None:
     espota2.check_error([espota2.RESPONSE_FEATURE_FLAGS], None)
 
 
-def _deflate_handshake(server_features: int) -> list[bytes]:
-    return [
-        bytes([espota2.RESPONSE_OK]),
-        bytes([espota2.OTA_VERSION_2_0]),
-        bytes([espota2.RESPONSE_FEATURE_FLAGS]),
-        bytes([server_features]),
-        bytes([espota2.RESPONSE_AUTH_OK]),
-        bytes([espota2.RESPONSE_UPDATE_PREPARE_OK]),
-        bytes([espota2.RESPONSE_BIN_MD5_OK]),
-        bytes([espota2.RESPONSE_CHUNK_OK]),
-        bytes([espota2.RESPONSE_RECEIVE_OK]),
-        bytes([espota2.RESPONSE_UPDATE_END_OK]),
-    ]
+# Device replies after the MD5 check for a one-chunk upload
+_UPLOAD_TAIL = [
+    bytes([espota2.RESPONSE_CHUNK_OK]),
+    bytes([espota2.RESPONSE_RECEIVE_OK]),
+    bytes([espota2.RESPONSE_UPDATE_END_OK]),
+]
 
 
 @pytest.mark.usefixtures("mock_time")
 def test_perform_ota_with_deflate(mock_socket: Mock) -> None:
     """A device that inflates on the fly gets a raw deflate stream, both sizes and the image MD5."""
     original_content = b"firmware" * 100
-    mock_socket.recv.side_effect = _deflate_handshake(
-        espota2.SERVER_FEATURE_SUPPORTS_DEFLATE
+    mock_socket.recv.side_effect = (
+        _no_auth_handshake(
+            espota2.OTA_VERSION_2_0, espota2.SERVER_FEATURE_SUPPORTS_DEFLATE
+        )
+        + _UPLOAD_TAIL
     )
 
     espota2.perform_ota(mock_socket, None, io.BytesIO(original_content), "test.bin")
@@ -1552,9 +1555,13 @@ def test_perform_ota_with_deflate(mock_socket: Mock) -> None:
 def test_perform_ota_gzip_wins_over_deflate(mock_socket: Mock) -> None:
     """A device that can store gzip keeps getting gzip even when it also offers deflate."""
     original_content = b"firmware" * 100
-    mock_socket.recv.side_effect = _deflate_handshake(
-        espota2.SERVER_FEATURE_SUPPORTS_COMPRESSION
-        | espota2.SERVER_FEATURE_SUPPORTS_DEFLATE
+    mock_socket.recv.side_effect = (
+        _no_auth_handshake(
+            espota2.OTA_VERSION_2_0,
+            espota2.SERVER_FEATURE_SUPPORTS_COMPRESSION
+            | espota2.SERVER_FEATURE_SUPPORTS_DEFLATE,
+        )
+        + _UPLOAD_TAIL
     )
 
     espota2.perform_ota(mock_socket, None, io.BytesIO(original_content), "test.bin")

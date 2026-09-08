@@ -24,7 +24,6 @@
 
 #include <cerrno>
 #include <cstdio>
-#include <cstddef>
 #include <new>
 #include <sys/time.h>
 
@@ -319,15 +318,14 @@ void ESPHomeOTAComponent::handle_handshake_() {
         this->handshake_buf_[1] |= SERVER_FEATURE_SUPPORTS_NOISE;
 #endif
 #ifdef USE_OTA_DEFLATE
-        // The backend cannot store gzip here (USE_OTA_DEFLATE is not set on the
-        // one that can), so inflate on the fly when the client offers it and the
-        // session memory (a few KB) is in hand; otherwise stay uncompressed
-        if ((this->ota_features_ & CLIENT_FEATURE_SUPPORTS_DEFLATE) != 0 && !supports_compression) {
+        // Offer to inflate on the fly once the session memory (a few KB) is in
+        // hand; otherwise the upload stays uncompressed
+        if ((this->ota_features_ & CLIENT_FEATURE_SUPPORTS_DEFLATE) != 0) {
           this->inflate_.reset(new (std::nothrow) InflateSession());
           if (this->inflate_ != nullptr) {
             this->handshake_buf_[1] |= SERVER_FEATURE_SUPPORTS_DEFLATE;
           } else {
-            ESP_LOGW(TAG, "No memory to inflate, upload will be uncompressed");
+            ESP_LOGW(TAG, "No memory to inflate");
           }
         }
 #endif
@@ -536,11 +534,9 @@ void ESPHomeOTAComponent::handle_data_() {
         error_code = ota::OTA_RESPONSE_ERROR_UNKNOWN;
         goto error;  // NOLINT(cppcoreguidelines-avoid-goto)
       }
-      error_code = this->backend_->write(buf, read);
-      if (error_code != ota::OTA_RESPONSE_OK) {
-        ESP_LOGW(TAG, "Flash write err %d", error_code);
+      error_code = this->write_flash_(buf, read);
+      if (error_code != ota::OTA_RESPONSE_OK)
         goto error;  // NOLINT(cppcoreguidelines-avoid-goto)
-      }
     }
   }
 
@@ -747,6 +743,14 @@ bool ESPHomeOTAComponent::read_size_(uint8_t *buf, size_t &size, const LogString
   return true;
 }
 
+ota::OTAResponseTypes ESPHomeOTAComponent::write_flash_(uint8_t *data, size_t len) {
+  ota::OTAResponseTypes result = this->backend_->write(data, len);
+  if (result != ota::OTA_RESPONSE_OK) {
+    ESP_LOGW(TAG, "Flash write err %d", result);
+  }
+  return result;
+}
+
 ssize_t ESPHomeOTAComponent::receive_data_(uint8_t *buf, DataTransfer &xfer) {
   const size_t remaining = xfer.ota_size - xfer.total;
   const size_t requested = std::min(remaining, OTA_BUFFER_SIZE);
@@ -814,16 +818,14 @@ ssize_t ESPHomeOTAComponent::receive_data_(uint8_t *buf, DataTransfer &xfer) {
 // the backend, and its bytes remain available as the back-reference history for
 // the next windowful.
 ota::OTAResponseTypes ESPHomeOTAComponent::inflate_data_(uint8_t *in, size_t image_size, DataTransfer &xfer) {
-  static_assert(offsetof(InflateSession, state) == 0, "the read callback recovers the session from &state");
   InflateSession &session = *this->inflate_;
-  OtaInflateState &state = session.state;
   session.self = this;
   session.xfer = &xfer;
   session.in = in;
-  ota_inflate_init(&state, session.window, OTA_INFLATE_WINDOW_SIZE);
+  ota_inflate_init(&session, session.window, OTA_INFLATE_WINDOW_SIZE);
   // Pulls the next compressed chunk when the decoder runs dry
-  state.source_read_cb = [](OtaInflateState *d) -> int {
-    auto *s = reinterpret_cast<InflateSession *>(d);
+  session.source_read_cb = [](OtaInflateState *d) -> int {
+    auto *s = static_cast<InflateSession *>(d);
     ssize_t read = s->self->receive_data_(s->in, *s->xfer);
     if (read <= 0)
       return -1;
@@ -835,31 +837,28 @@ ota::OTAResponseTypes ESPHomeOTAComponent::inflate_data_(uint8_t *in, size_t ima
   size_t written = 0;
   int res;
   do {
-    state.dest = session.window;
-    state.dest_limit = session.window + OTA_INFLATE_WINDOW_SIZE;
-    res = ota_inflate(&state);
+    session.dest = session.window;
+    session.dest_limit = session.window + OTA_INFLATE_WINDOW_SIZE;
+    res = ota_inflate(&session);
     if (res < 0) {
       // eof means the read callback failed, which is already logged
-      if (!state.eof) {
+      if (!session.eof) {
         ESP_LOGW(TAG, "Inflate err %d", res);
       }
       return ota::OTA_RESPONSE_ERROR_UNKNOWN;
     }
-    const size_t produced = state.dest - session.window;
-    if (produced > image_size - written) {
-      ESP_LOGW(TAG, "Image exceeds announced size");
-      return ota::OTA_RESPONSE_ERROR_UNKNOWN;
-    }
-    ota::OTAResponseTypes write_result = this->backend_->write(session.window, produced);
-    if (write_result != ota::OTA_RESPONSE_OK) {
-      ESP_LOGW(TAG, "Flash write err %d", write_result);
+    const size_t produced = session.dest - session.window;
+    // More output than announced: stop before the write and report it below
+    if (produced > image_size - written)
+      break;
+    ota::OTAResponseTypes write_result = this->write_flash_(session.window, produced);
+    if (write_result != ota::OTA_RESPONSE_OK)
       return write_result;
-    }
     written += produced;
   } while (res != OTA_INFLATE_DONE);
 
   if (written != image_size || xfer.total != xfer.ota_size) {
-    ESP_LOGW(TAG, "Inflated %zu of %zu bytes from %zu of %zu", written, image_size, xfer.total, xfer.ota_size);
+    ESP_LOGW(TAG, "Inflate size mismatch");
     return ota::OTA_RESPONSE_ERROR_UNKNOWN;
   }
   ESP_LOGD(TAG, "Inflated %zu bytes from %zu", written, xfer.total);
