@@ -17,6 +17,7 @@ from esphome.const import (
     STATE_CLASS_MEASUREMENT,
     UNIT_MICROGRAMS_PER_CUBIC_METER,
 )
+from esphome.types import ConfigType
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -32,7 +33,7 @@ HM3301Component = hm3301_ns.class_(
 UNIT_INDEX = "index"
 
 
-def _validate(config):
+def _validate(config: ConfigType) -> ConfigType:
     if CONF_AQI in config and CONF_PM_2_5 not in config:
         raise cv.Invalid("AQI sensor requires PM 2.5")
     if CONF_AQI in config and CONF_PM_10_0 not in config:
@@ -86,7 +87,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)

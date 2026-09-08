@@ -182,6 +182,9 @@ def get_download_types(storage_json: StorageJSON = None):
     the shape stable so the download panel
     doesn't have to special-case per-platform schemas.
     """
+    # No recorded firmware path means nothing was built; no downloads.
+    if storage_json.firmware_bin_path is None:
+        return []
     types = [
         {
             "title": "UF2 package (recommended)",
@@ -297,7 +300,7 @@ FRAMEWORK_SCHEMA = cv.All(
     _check_debug_order,
 )
 
-CONFIG_SCHEMA = cv.All(_notify_old_style)
+CONFIG_SCHEMA = cv.All(_notify_old_style, cv.require_platformio_toolchain("LibreTiny"))
 
 BASE_SCHEMA = cv.Schema(
     {
@@ -311,6 +314,7 @@ BASE_SCHEMA = cv.Schema(
 )
 
 BASE_SCHEMA.add_extra(_detect_variant)
+BASE_SCHEMA.add_extra(cv.require_platformio_toolchain("LibreTiny"))
 BASE_SCHEMA.add_extra(_update_core_data)
 
 
@@ -461,6 +465,8 @@ async def component_to_code(config):
     # setup board config
     cg.add_platformio_option("board", config[CONF_BOARD])
     cg.add_build_flag("-DUSE_LIBRETINY")
+    # FlashDB finds stored preferences by key, so preference key migration is possible
+    cg.add_define("USE_PREFERENCE_KEY_LOOKUP")
     cg.add_build_flag(f"-DUSE_{config[CONF_COMPONENT_ID].upper()}")
     cg.add_build_flag(f"-DUSE_LIBRETINY_VARIANT_{config[CONF_FAMILY]}")
     cg.add_define("ESPHOME_BOARD", config[CONF_BOARD])

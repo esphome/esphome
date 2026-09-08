@@ -1,0 +1,25 @@
+esphome:
+  name: test-script-queued-idle
+
+host:
+api:
+  actions:
+    # Execute twice: the first runs immediately, the second gets queued,
+    # which must re-enable the loop; draining must disable it again
+    - action: run_twice
+      then:
+        - script.execute: idle_script
+        - script.execute: idle_script
+
+# VERY_VERBOSE exposes the component framework's "loop disabled" and
+# "loop enabled" messages that this test asserts on
+logger:
+  level: VERY_VERBOSE
+
+script:
+  - id: idle_script
+    mode: queued
+    then:
+      - logger.log: "idle_script: START"
+      - delay: 50ms
+      - logger.log: "idle_script: END"

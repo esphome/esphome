@@ -266,8 +266,6 @@ DriverChip(
     "JC3636W518V2",
     height=360,
     width=360,
-    offset_height=1,
-    draw_rounding=1,
     cs_pin=10,
     reset_pin=47,
     invert_colors=True,

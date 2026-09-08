@@ -1,0 +1,14 @@
+esphome:
+  name: test
+
+esp8266:
+  board: d1_mini
+
+wifi:
+  ssid: MySSID
+  password: password1
+
+logger:
+
+packages:
+  api: !include test_action_metadata_common.yaml

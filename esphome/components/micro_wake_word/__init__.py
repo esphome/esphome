@@ -166,12 +166,7 @@ MANIFEST_SCHEMA_V2 = cv.Schema(
 
 
 def _compute_local_file_path(config: dict) -> Path:
-    url = config[CONF_URL]
-    h = hashlib.new("sha256")
-    h.update(url.encode())
-    key = h.hexdigest()[:8]
-    base_dir = external_files.compute_local_file_dir(DOMAIN)
-    return base_dir / key
+    return external_files.compute_local_file_path(DOMAIN, config[CONF_URL])
 
 
 def _convert_manifest_v1_to_v2(v1_manifest):
@@ -389,11 +384,14 @@ def _download_http_models(config: ConfigType) -> ConfigType:
         return config
 
     external_files.download_content_many(
-        ((url, path / "manifest.json") for path, url in http_models.items()),
+        (
+            external_files.RemoteFile(url, path / "manifest.json")
+            for path, url in http_models.items()
+        ),
         description="wake word manifest(s)",
     )
 
-    model_files: list[tuple[str, Path]] = []
+    model_files: list[external_files.RemoteFile] = []
     errors: list[cv.Invalid] = []
     for path, url in http_models.items():
         try:
@@ -412,7 +410,7 @@ def _download_http_models(config: ConfigType) -> ConfigType:
                 cv.Invalid(f"Manifest file at {url} is missing the 'model' key")
             )
             continue
-        model_files.append((urljoin(url, model), path / model))
+        model_files.append(external_files.RemoteFile(urljoin(url, model), path / model))
     if errors:
         raise cv.MultipleInvalid(errors)
 
@@ -432,7 +430,7 @@ CONFIG_SCHEMA = cv.All(
                 min_channels=1,
                 max_channels=1,
             ),
-            cv.Required(CONF_MODELS): cv.ensure_list(
+            cv.Optional(CONF_MODELS, default=[]): cv.ensure_list(
                 cv.maybe_simple_value(MODEL_SCHEMA, key=CONF_MODEL)
             ),
             cv.Optional(CONF_ON_WAKE_WORD_DETECTED): automation.validate_automation(
@@ -555,6 +553,9 @@ async def to_code(config):
         # Use the general model loading code for the VAD codegen
         config[CONF_MODELS].append(vad_model)
 
+    # Default feature step size for runtime models
+    feature_step_size = 10
+
     for i, model_parameters in enumerate(config[CONF_MODELS]):
         model_config = model_parameters.get(CONF_MODEL)
         data = []
@@ -572,6 +573,9 @@ async def to_code(config):
             CONF_SLIDING_WINDOW_SIZE,
             manifest[KEY_MICRO][CONF_SLIDING_WINDOW_SIZE],
         )
+
+        # Update feature step size from manifest
+        feature_step_size = manifest[KEY_MICRO][CONF_FEATURE_STEP_SIZE]
 
         if manifest[KEY_WAKE_WORD] == "vad":
             cg.add(
@@ -602,7 +606,7 @@ async def to_code(config):
 
             cg.add(var.add_wake_word_model(wake_word_model))
 
-    cg.add(var.set_features_step_size(manifest[KEY_MICRO][CONF_FEATURE_STEP_SIZE]))
+    cg.add(var.set_features_step_size(feature_step_size))
     cg.add(var.set_stop_after_detection(config[CONF_STOP_AFTER_DETECTION]))
 
     if on_wake_word_detection_config := config.get(CONF_ON_WAKE_WORD_DETECTED):

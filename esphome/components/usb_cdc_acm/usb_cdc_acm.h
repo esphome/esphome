@@ -7,6 +7,7 @@
 #include "esphome/core/lock_free_queue.h"
 #include "esphome/components/uart/uart_component.h"
 
+#include <atomic>
 #include <functional>
 #include "freertos/ringbuf.h"
 #include "tinyusb_cdc_acm.h"
@@ -96,10 +97,26 @@ class USBCDCACMInstance final : public uart::UARTComponent, public Parented<USBC
 
   // Process queued events and invoke callbacks (called from main loop)
   void process_events_();
+  // True while TX bytes are still in the ring buffer or held by the TX task
+  bool tx_pending_();
   TaskHandle_t usb_tx_task_handle_{nullptr};
 
   RingbufHandle_t usb_tx_ringbuf_{nullptr};
   RingbufHandle_t usb_rx_ringbuf_{nullptr};
+  // Non-zero while the TX task holds bytes it has pulled from the ring buffer but not
+  // yet handed to TinyUSB; lets flush() account for data that is in neither the ring
+  // buffer nor TinyUSB's FIFO.
+  // Threading: written only by usb_tx_task(); read by flush()'s bounded wait on the
+  // caller's task (typically the main loop).
+  // std::atomic<uint8_t> rather than std::atomic<bool> because GCC on Xtensa
+  // generates an indirect function call for atomic<bool> ops instead of inlining
+  // them; atomic<uint8_t> inlines correctly on all platforms.
+  std::atomic<uint8_t> usb_tx_busy_{0};
+  // Running total of bytes dropped by write_array() (never reset), and the timestamp
+  // of the last "buffer full" log line (throttled so a sustained host stall doesn't
+  // flood the log).
+  uint32_t tx_dropped_bytes_{0};
+  uint32_t tx_dropped_log_ms_{0};
   // RX buffer for peek functionality
   uint8_t peek_buffer_{0};
   bool has_peek_{false};

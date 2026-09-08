@@ -3,8 +3,9 @@ from tests.testing_helpers import ComponentManifestOverride
 
 
 def override_manifest(manifest: ComponentManifestOverride) -> None:
-    # api must run its to_code to define USE_API, USE_API_PLAINTEXT,
-    # and add the noise-c library dependency.
+    # api must run its to_code to define USE_API and USE_API_NOISE. The
+    # AUTO_LOADed noise component runs its own to_code via the override in
+    # tests/benchmarks/components/noise/__init__.py.
     manifest.enable_codegen()
 
     original_to_code = manifest.to_code
@@ -15,6 +16,7 @@ def override_manifest(manifest: ComponentManifestOverride) -> None:
         # components have hardware dependencies (BLE/UART/RMT); lightweight
         # stub headers in tests/benchmarks/stubs/ satisfy the includes.
         cg.add_define("USE_BLUETOOTH_PROXY")
+        cg.add_define("USE_BLUETOOTH_PROXY_CONNECTIONS")
         cg.add_define("BLUETOOTH_PROXY_MAX_CONNECTIONS", 3)
         cg.add_define("BLUETOOTH_PROXY_ADVERTISEMENT_BATCH_SIZE", 16)
         cg.add_define("USE_ZWAVE_PROXY")

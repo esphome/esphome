@@ -2,6 +2,7 @@ import esphome.codegen as cg
 from esphome.components import text_sensor
 import esphome.config_validation as cv
 from esphome.const import ENTITY_CATEGORY_DIAGNOSTIC
+from esphome.types import ConfigType
 
 from . import CONF_MR24HPC1_ID, MR24HPC1Component
 
@@ -47,7 +48,7 @@ CONFIG_SCHEMA = {
 }
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     mr24hpc1_component = await cg.get_variable(config[CONF_MR24HPC1_ID])
     if heartbeat_config := config.get(CONF_HEART_BEAT):
         sens = await text_sensor.new_text_sensor(heartbeat_config)

@@ -1,10 +1,13 @@
 """Tests for esphome.espidf.clang_tidy tidy-project generation."""
 
+import json
 import os
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 
+from esphome.espidf import clang_tidy
 from esphome.espidf.clang_tidy import _Settings, _setup_core, _write_tidy_project
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -64,3 +67,35 @@ def test_setup_core_sets_arduino_env(
     _setup_core(tmp_path / "proj", _settings(target_framework=target_framework))
 
     assert os.environ["ESPHOME_ARDUINO_COMPONENT"] == expected
+
+
+def test_idedata_from_tidy_project(tmp_path) -> None:
+    """The tidy TU's compile entry is assembled into consumer-shaped idedata."""
+    compile_commands = tmp_path / "compile_commands.json"
+    compile_commands.write_text(
+        json.dumps(
+            [
+                {
+                    "directory": str(tmp_path),
+                    "file": str(tmp_path / "main" / "tidy.cpp"),
+                    "command": "/tc/xtensa-esp32-elf-g++ -DUSE_ESP32 "
+                    f"-I{tmp_path}/inc -c main/tidy.cpp -o tidy.o",
+                }
+            ]
+        )
+    )
+    with patch(
+        "esphome.espidf.clang_tidy.get_toolchain_includes", return_value=["/tc/inc"]
+    ):
+        data = clang_tidy._idedata_from_tidy_project(compile_commands)
+    assert data["cxx_path"] == "/tc/xtensa-esp32-elf-g++"
+    assert data["defines"] == ["USE_ESP32"]
+    assert data["includes"]["toolchain"] == ["/tc/inc"]
+    assert any(inc.endswith("/inc") for inc in data["includes"]["build"])
+
+
+def test_idedata_from_tidy_project_missing_tu_raises(tmp_path) -> None:
+    compile_commands = tmp_path / "compile_commands.json"
+    compile_commands.write_text(json.dumps([]))
+    with pytest.raises(RuntimeError, match="tidy.cpp not found"):
+        clang_tidy._idedata_from_tidy_project(compile_commands)
