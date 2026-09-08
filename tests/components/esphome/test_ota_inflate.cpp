@@ -10,7 +10,11 @@ namespace esphome::testing {
 
 // The plaintext below, as built by build_plain(): repeated text, a pseudo random
 // run, a zero run and the text again, so literals, short and long back references
-// and stored data are all exercised across the 4 KB window.
+// and stored data are all exercised across the 4 KB window. Regenerate with the
+// window the CLI uses (espota2.DEFLATE_WINDOW_BITS):
+//   plain = build_plain() written out by the same recipe in Python
+//   DEFLATED = zlib.compress(plain, 9, wbits=-12)
+//   STORED = zlib.compress(plain[:300], 0, wbits=-12)
 static const uint8_t DEFLATED[] = {
     0xed, 0xc8, 0xf7, 0x3f, 0xd4, 0x0f, 0x03, 0x00, 0x70, 0x67, 0xaf, 0x4b, 0x67, 0x66, 0x9f, 0x90, 0x91, 0x11, 0xc2,
     0x11, 0x91, 0xb8, 0xb3, 0xf7, 0x3a, 0xd9, 0x5f, 0x4e, 0x99, 0x67, 0x1e, 0xce, 0x8a, 0xac, 0xec, 0x59, 0xb8, 0xc2,

@@ -655,17 +655,18 @@ def perform_ota(
             )
 
     deflate = False
-    if features & SERVER_FEATURE_SUPPORTS_COMPRESSION:
-        # The device stores the gzip file and inflates it when it reboots
-        upload_contents = gzip.compress(file_contents, compresslevel=COMPRESS_LEVEL)
-        _LOGGER.info("Compressed to %s bytes", len(upload_contents))
-    elif extended_proto and features & SERVER_FEATURE_SUPPORTS_DEFLATE:
-        # The device inflates while receiving through a small ring window
+    if extended_proto and features & SERVER_FEATURE_SUPPORTS_DEFLATE:
+        # The device inflates while receiving through a small ring window; the
+        # offer is binding, so it wins over gzip should a device set both bits
         upload_contents = zlib.compress(
             file_contents, COMPRESS_LEVEL, wbits=-DEFLATE_WINDOW_BITS
         )
         deflate = True
         _LOGGER.info("Compressed to %s bytes (deflate)", len(upload_contents))
+    elif features & SERVER_FEATURE_SUPPORTS_COMPRESSION:
+        # The device stores the gzip file and inflates it when it reboots
+        upload_contents = gzip.compress(file_contents, compresslevel=COMPRESS_LEVEL)
+        _LOGGER.info("Compressed to %s bytes", len(upload_contents))
     else:
         upload_contents = file_contents
 

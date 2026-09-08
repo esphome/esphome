@@ -1552,8 +1552,8 @@ def test_perform_ota_with_deflate(mock_socket: Mock) -> None:
 
 
 @pytest.mark.usefixtures("mock_time")
-def test_perform_ota_gzip_wins_over_deflate(mock_socket: Mock) -> None:
-    """A device that can store gzip keeps getting gzip even when it also offers deflate."""
+def test_perform_ota_deflate_wins_over_gzip(mock_socket: Mock) -> None:
+    """A deflate offer is binding on the device, so it wins should a device set both bits."""
     original_content = b"firmware" * 100
     mock_socket.recv.side_effect = (
         _no_auth_handshake(
@@ -1567,8 +1567,5 @@ def test_perform_ota_gzip_wins_over_deflate(mock_socket: Mock) -> None:
     espota2.perform_ota(mock_socket, None, io.BytesIO(original_content), "test.bin")
 
     sent = [c[0][0] for c in mock_socket.sendall.call_args_list]
-    # gzip output embeds the time of compression, so compare what it holds
-    payload = sent[5]
-    assert gzip.decompress(payload) == original_content
-    assert sent[3] == len(payload).to_bytes(4, "big")
-    assert sent[4] == hashlib.md5(payload).hexdigest().encode()
+    assert sent[4] == len(original_content).to_bytes(4, "big")
+    assert zlib.decompress(sent[6], -espota2.DEFLATE_WINDOW_BITS) == original_content
