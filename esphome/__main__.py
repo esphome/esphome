@@ -1335,12 +1335,14 @@ def _upload_via_native_api(
             break
 
     from esphome import espota2
+    from esphome.components.noise import static_encryption_key
 
     remote_port = int(ota_conf[CONF_PORT])
     password = ota_conf.get(CONF_PASSWORD)
     # Fail closed: an encryption block whose key did not resolve must never
     # fall back to a plaintext upload
     noise_psk = None
+    plaintext_fallback = False
     if (encryption_conf := ota_conf.get(CONF_ENCRYPTION)) is not None:
         noise_psk = encryption_conf.get(CONF_KEY)
         if not noise_psk:
@@ -1351,6 +1353,10 @@ def _upload_via_native_api(
         # Ensure the key is a string, as required by the underlying OTA implementation.
         # It arrives here as a SensitiveStr which aioesphomeapi rejects.
         noise_psk = str(noise_psk)
+    elif api_key := static_encryption_key(config.get(CONF_API) or {}):
+        # Remove before 2027.3.0: the api key is tried, falling back to plaintext
+        noise_psk = str(api_key)
+        plaintext_fallback = True
 
     def check_partition_access(option_string: str) -> None:
         if not ota_conf.get("allow_partition_access"):
@@ -1382,7 +1388,13 @@ def _upload_via_native_api(
         _validate_bootloader_binary(binary)
 
     return espota2.run_ota(
-        network_devices, remote_port, password, binary, ota_type, noise_psk
+        network_devices,
+        remote_port,
+        password,
+        binary,
+        ota_type,
+        noise_psk,
+        plaintext_fallback=plaintext_fallback,
     )
 
 
