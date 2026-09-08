@@ -189,7 +189,9 @@ static constexpr uint8_t CLIENT_NOISE_FEATURES =
 static constexpr uint8_t SERVER_FEATURE_SUPPORTS_COMPRESSION = 0x01;
 static constexpr uint8_t SERVER_FEATURE_SUPPORTS_PARTITION_ACCESS = 0x02;
 static constexpr uint8_t SERVER_FEATURE_SUPPORTS_NOISE = 0x04;
-// The device inflates a raw deflate stream (window <= OTA_INFLATE_WINDOW_SIZE)
+// The device inflates a raw deflate stream (window <= OTA_INFLATE_WINDOW_SIZE).
+// The offer is binding: a client that asked for it must then send the inflated
+// size frame and a deflate stream, the device does not check again.
 static constexpr uint8_t SERVER_FEATURE_SUPPORTS_DEFLATE = 0x08;
 
 inline bool ESPHomeOTAComponent::extended_proto_() const {
