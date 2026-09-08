@@ -846,17 +846,18 @@ void WiFiComponent::loop() {
           this->notify_connect_state_listeners_();
 #endif
 
-          // Post-connect roaming: check for better AP
-          if (this->post_connect_roaming_) {
-            if (this->is_roaming_scan_active()) {
-              if (this->scan_done_) {
-                this->process_roaming_scan_();
-              }
-              // else: scan in progress, wait
-            } else if (this->roaming_state_ == RoamingState::IDLE && this->roaming_attempts_ < ROAMING_MAX_ATTEMPTS &&
-                       now - this->roaming_last_check_ >= ROAMING_CHECK_INTERVAL && !this->roaming_suppressed_()) {
-              this->check_roaming_(now);
+          // Post-connect roaming: check for better AP. A scan may have been started by an
+          // explicit force_roam_check() even when post_connect_roaming_ is disabled, so the
+          // scan must always be consumed here to avoid leaving roaming_state_ stuck.
+          if (this->is_roaming_scan_active()) {
+            if (this->scan_done_) {
+              this->process_roaming_scan_();
             }
+            // else: scan in progress, wait
+          } else if (this->post_connect_roaming_ && this->roaming_state_ == RoamingState::IDLE &&
+                     this->roaming_attempts_ < ROAMING_MAX_ATTEMPTS &&
+                     now - this->roaming_last_check_ >= ROAMING_CHECK_INTERVAL && !this->roaming_suppressed_()) {
+            this->check_roaming_(now);
           }
         }
         break;
@@ -2463,6 +2464,17 @@ void WiFiComponent::notify_scan_results_listeners_() {
 }
 #endif  // USE_WIFI_SCAN_RESULTS_LISTENERS
 
+void WiFiComponent::force_roam_check() {
+  if (!this->is_connected() || this->roaming_state_ != RoamingState::IDLE || this->roaming_suppressed_()) {
+    ESP_LOGD(TAG, "Roam check requested, but not able to check now");
+    return;
+  }
+  // Reset the attempt counter so a prior run of failed roams doesn't block this explicit request
+  // Note that this re-arms automatic roaming if enabled.
+  this->roaming_attempts_ = 0;
+  this->check_roaming_(millis());
+}
+
 void WiFiComponent::check_roaming_(uint32_t now) {
   // Guard: not for hidden networks (may not appear in scan)
   const WiFiAP *selected = this->get_selected_sta_();
@@ -2484,7 +2496,11 @@ void WiFiComponent::check_roaming_(uint32_t now) {
 
   ESP_LOGD(TAG, "Roam scan (%d dBm, attempt %u/%u)", rssi, this->roaming_attempts_, ROAMING_MAX_ATTEMPTS);
   this->roaming_state_ = RoamingState::SCANNING;
-  this->wifi_scan_start_(this->passive_scan_);
+  if (!this->wifi_scan_start_(this->passive_scan_)) {
+    // Scan failed to start (e.g. busy) - don't get stuck in SCANNING forever
+    ESP_LOGD(TAG, "Roam scan failed to start");
+    this->roaming_state_ = RoamingState::IDLE;
+  }
 }
 
 void WiFiComponent::process_roaming_scan_() {

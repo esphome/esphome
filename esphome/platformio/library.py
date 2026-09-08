@@ -616,11 +616,15 @@ def _make_registry_client() -> Any:
     elsewhere, not by the PlatformIO registry.
     """
     from platformio.package.manager._registry import PackageManagerRegistryMixin
+    from platformio.registry.client import RegistryClient
 
     class _Registry(PackageManagerRegistryMixin):
         def __init__(self) -> None:
-            self._registry_client = None
             self.pkg_type = "library"
+            self._registry_client = RegistryClient()
+            # The probe sleeps ~500 ms per lookup (see runner.patch_registry_private_packages);
+            # instance-level so the ESPHome process never patches PlatformIO's class
+            self._registry_client.allowed_private_packages = lambda: False
 
         @staticmethod
         def is_system_compatible(value: Any, custom_system: Any = None) -> bool:
