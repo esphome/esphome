@@ -30,10 +30,6 @@ HA_CLIENT_INFO = "Home Assistant 2026.8.0"
 HELLO_TARGET_FLAG = b"\x20\x01"
 
 
-# Every run must start with no saved peer
-pytestmark = pytest.mark.usefixtures("isolated_preferences")
-
-
 def _frame(payload: bytes) -> bytes:
     return bytes((0x01, len(payload) >> 8, len(payload) & 0xFF)) + payload
 
