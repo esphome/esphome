@@ -15,6 +15,7 @@ from esphome.components.esp32 import (
     VARIANT_ESP32P4,
     VARIANT_ESP32S2,
     VARIANT_ESP32S3,
+    VARIANT_ESP32S31,
     only_on_variant,
 )
 from esphome.config_helpers import filter_source_files_from_platform
@@ -126,6 +127,7 @@ CONF_FORCE_SW = "force_sw"
 CONF_INTERFACE = "interface"
 CONF_INTERFACE_INDEX = "interface_index"
 CONF_RELEASE_DEVICE = "release_device"
+CONF_PSRAM_DMA = "psram_dma"
 TYPE_SINGLE = "single"
 TYPE_QUAD = "quad"
 TYPE_OCTAL = "octal"
@@ -135,6 +137,29 @@ TYPE_CLASS = {
     TYPE_QUAD: QuadSPIComponent,
     TYPE_OCTAL: OctalSPIComponent,
 }
+
+
+def _validate_psram_dma(value: Any) -> bool:
+    value = cv.boolean(value)
+    if not value:
+        return value
+    return cv.All(
+        cv.only_on_esp32,
+        cv.only_with_framework("esp-idf"),
+        only_on_variant(
+            supported=[
+                VARIANT_ESP32C5,
+                VARIANT_ESP32C61,
+                VARIANT_ESP32P4,
+                VARIANT_ESP32S31,
+                VARIANT_ESP32S3,
+            ],
+            msg_prefix="PSRAM DMA",
+        ),
+        cv.require_framework_version(esp_idf=cv.Version(5, 5, 3)),
+        cv.requires_component("psram"),
+    )(value)
+
 
 # RP2040 SPI pin assignments are complicated;
 # refer to GPIO function select table in https://datasheets.raspberrypi.com/rp2040/rp2040-datasheet.pdf
@@ -450,6 +475,7 @@ def spi_device_schema(
                 SPI_MODE_OPTIONS, upper=True
             ),
             cv.Optional(CONF_RELEASE_DEVICE): cv.All(cv.boolean, cv.only_on_esp32),
+            cv.Optional(CONF_PSRAM_DMA): _validate_psram_dma,
             cs_pin_option(CONF_CS_PIN): pins.gpio_output_pin_schema,
         }
     )
@@ -471,6 +497,9 @@ async def register_spi_device(
         cg.add(var.set_mode(spi_mode))
     if release_device := config.get(CONF_RELEASE_DEVICE):
         cg.add(var.set_release_device(release_device))
+    if psram_dma := config.get(CONF_PSRAM_DMA):
+        cg.add_define("USE_SPI_PSRAM_DMA")
+        cg.add(var.set_psram_dma(psram_dma))
 
 
 def final_validate_device_schema(
@@ -496,6 +525,36 @@ def final_validate_device_schema(
         {cv.Required(CONF_SPI_ID): fv.id_declaration_match_schema(hub_schema)},
         extra=cv.ALLOW_EXTRA,
     )
+
+
+def _walk_config(value: Any, path: tuple[Any, ...] = ()):
+    if isinstance(value, dict):
+        yield value, path
+        for key, child in value.items():
+            yield from _walk_config(child, (*path, key))
+    elif isinstance(value, list):
+        for index, child in enumerate(value):
+            yield from _walk_config(child, (*path, index))
+
+
+def _final_validate(config: Any) -> Any:
+    buses = config if isinstance(config, list) else [config]
+    software_bus_ids = {
+        bus[CONF_ID] for bus in buses if CONF_INTERFACE_INDEX not in bus
+    }
+    if not software_bus_ids:
+        return config
+    for candidate, path in _walk_config(fv.full_config.get()):
+        if (
+            candidate.get(CONF_PSRAM_DMA)
+            and candidate.get(CONF_SPI_ID) in software_bus_ids
+        ):
+            with cv.prepend_path([cv.ROOT_CONFIG_PATH, *path, CONF_PSRAM_DMA]):
+                raise cv.Invalid("psram_dma requires a hardware SPI interface")
+    return config
+
+
+FINAL_VALIDATE_SCHEMA = _final_validate
 
 
 FILTER_SOURCE_FILES = filter_source_files_from_platform(

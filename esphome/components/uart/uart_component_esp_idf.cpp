@@ -393,5 +393,16 @@ void IRAM_ATTR IDFUARTComponent::uart_rx_isr_callback(uart_port_t uart_num, uart
 }
 #endif  // USE_UART_WAKE_LOOP_ON_RX
 
+void IDFUARTComponent::on_shutdown() {
+  if (this->uart_num_ == UART_NUM_MAX || !uart_is_driver_installed(this->uart_num_))
+    return;
+  uart_wait_tx_done(this->uart_num_, pdMS_TO_TICKS(100));
+  // Keep the peripheral quiet across a soft reset so ROM output does not reach the attached device (#15472)
+  esp_err_t err = uart_driver_delete(this->uart_num_);
+  if (err != ESP_OK) {
+    ESP_LOGW(TAG, "uart_driver_delete failed: %s", esp_err_to_name(err));
+  }
+}
+
 }  // namespace esphome::uart
 #endif  // USE_ESP32

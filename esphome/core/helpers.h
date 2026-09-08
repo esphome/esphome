@@ -290,6 +290,7 @@ template<typename T, size_t N> class StaticVector {
   }
 
   size_t size() const { return count_; }
+  static constexpr size_t capacity() { return N; }
   bool empty() const { return count_ == 0; }
 
   // Direct access to underlying data
@@ -984,6 +985,15 @@ inline bool str_endswith_ignore_case(const std::string &str, const char *suffix)
 /// Fallback implementation for case insensitive substring comparison.
 bool str_contains_ignore_case_fallback(const char *haystack, const char *needle);
 
+#ifdef USE_ESP8266
+/// ESP8266 internal implementation reading the needle from flash — prefer the
+/// `str_contains_ignore_case` macro which wraps needle literals with PSTR() automatically.
+bool str_contains_ignore_case_p(const char *haystack, PGM_P needle);
+/// Case-insensitive check if needle string is contained in haystack (no heap allocation).
+/// On ESP8266 the needle is wrapped with PSTR() so it stays in flash, which requires it to be
+/// a string literal; a runtime needle needs str_contains_ignore_case_p behind #ifdef USE_ESP8266.
+#define str_contains_ignore_case(haystack, needle) str_contains_ignore_case_p(haystack, PSTR(needle))
+#else
 /// Case-insensitive check if needle string is contained in haystack (no heap allocation).
 inline bool str_contains_ignore_case(const char *haystack, const char *needle) {
   if (!needle || !haystack) {
@@ -991,7 +1001,7 @@ inline bool str_contains_ignore_case(const char *haystack, const char *needle) {
   }
 
 // strcasestr is a GNU extension: newlib only declares it when _GNU_SOURCE is set.
-// ESP32/ESP8266/host builds get it from their framework or from g++ on Linux;
+// ESP32/host builds get it from their framework or from g++ on Linux;
 // LibreTiny, RP2 and Zephyr do not, so they use the hand-rolled fallback.
 #if defined(USE_LIBRETINY) || defined(USE_RP2) || defined(USE_ZEPHYR)
   return str_contains_ignore_case_fallback(haystack, needle);
@@ -999,6 +1009,7 @@ inline bool str_contains_ignore_case(const char *haystack, const char *needle) {
   return strcasestr(haystack, needle) != nullptr;
 #endif  // defined(USE_LIBRETINY) || defined(USE_RP2) || defined(USE_ZEPHYR)
 }
+#endif  // USE_ESP8266
 
 // str_truncate moved to alloc_helpers.h - remove this include before 2026.11.0
 
@@ -1143,28 +1154,10 @@ inline size_t buf_append_str(char *buf, size_t size, size_t pos, const char *str
 }
 #endif
 
-/// Concatenate a name with a separator and suffix using an efficient stack-based approach.
-/// This avoids multiple heap allocations during string construction.
-/// Maximum name length supported is 120 characters for friendly names.
-/// @param name The base name string
-/// @param sep The separator character (e.g., '-', ' ', or '.')
-/// @param suffix_ptr Pointer to the suffix characters
-/// @param suffix_len Length of the suffix
-/// @return The concatenated string: name + sep + suffix
-std::string make_name_with_suffix(const std::string &name, char sep, const char *suffix_ptr, size_t suffix_len);
+/// Maximum size for name with suffix: 120 (max friendly name) + 1 (separator) + 6 (MAC suffix) + 1 (null term)
+static constexpr size_t MAX_NAME_WITH_SUFFIX_SIZE = 128;
 
-/// Optimized string concatenation: name + separator + suffix (const char* overload)
-/// Uses a fixed stack buffer to avoid heap allocations.
-/// @param name The base name string
-/// @param name_len Length of the name
-/// @param sep Single character separator
-/// @param suffix_ptr Pointer to the suffix characters
-/// @param suffix_len Length of the suffix
-/// @return The concatenated string: name + sep + suffix
-std::string make_name_with_suffix(const char *name, size_t name_len, char sep, const char *suffix_ptr,
-                                  size_t suffix_len);
-
-/// Zero-allocation version: format name + separator + suffix directly into buffer.
+/// Format name + separator + suffix directly into buffer without heap allocation.
 /// @param buffer Output buffer (must have space for result + null terminator)
 /// @param buffer_size Size of the output buffer
 /// @param name The base name string
@@ -1646,15 +1639,6 @@ bool base64_decode_int32_vector(const std::string &base64, std::vector<int32_t> 
 /// @name Colors
 ///@{
 
-/// Applies gamma correction of \p gamma to \p value.
-// Remove before 2026.9.0
-ESPDEPRECATED("Use LightState::gamma_correct_lut() instead. Removed in 2026.9.0.", "2026.3.0")
-float gamma_correct(float value, float gamma);
-/// Reverts gamma correction of \p gamma to \p value.
-// Remove before 2026.9.0
-ESPDEPRECATED("Use LightState::gamma_uncorrect_lut() instead. Removed in 2026.9.0.", "2026.3.0")
-float gamma_uncorrect(float value, float gamma);
-
 /// Convert \p red, \p green and \p blue (all 0-1) values to \p hue (0-360), \p saturation (0-1) and \p value (0-1).
 void rgb_to_hsv(float red, float green, float blue, int &hue, float &saturation, float &value);
 /// Convert \p hue (0-360), \p saturation (0-1) and \p value (0-1) to \p red, \p green and \p blue (all 0-1).
@@ -2088,6 +2072,11 @@ const char *get_mac_address_pretty_into_buffer(std::span<char, MAC_ADDRESS_PRETT
 #ifdef USE_ESP32
 /// Set the MAC address to use from the provided byte array (6 bytes).
 void set_mac_address(uint8_t *mac);
+
+/// Read the custom MAC address from eFuse into the provided byte array (6 bytes).
+/// Must not use the ESPHome logger (may run before it is initialized); IDF itself may still log.
+/// @return True if a valid custom MAC address was read; on false, the contents of mac are undefined.
+bool get_custom_mac_address(uint8_t *mac);
 #endif
 
 /// Check if a custom MAC address is set (ESP32 & variants)

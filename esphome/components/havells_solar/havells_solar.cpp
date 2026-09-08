@@ -1,124 +1,71 @@
 #include "havells_solar.h"
 #include "havells_solar_registers.h"
-#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 namespace esphome::havells_solar {
+
+namespace helpers = modbus::helpers;
 
 static const char *const TAG = "havells_solar";
 
 static const uint8_t MODBUS_REGISTER_COUNT = 48;  // 48 x 16-bit registers
 
-void HavellsSolar::on_response(std::span<const uint8_t> request_pdu, std::span<const uint8_t> response_pdu) {
-  auto data = modbus::helpers::server_pdu_payload(response_pdu);
-  if (data.size() < MODBUS_REGISTER_COUNT * 2) {
-    ESP_LOGW(TAG, "Invalid size for HavellsSolar!");
-    return;
-  }
+void HavellsSolar::on_read_holding_registers(uint16_t start_address, std::span<const uint16_t> registers,
+                                             modbus::ResponseStatus status) {
+  if (!modbus::succeeded(status))
+    return;  // the hub already logs exception responses
 
-  /* Usage: returns the float value of 1 register read by modbus
-            Arg1: Register address * number of bytes per register
-            Arg2: Multiplier for final register value
-  */
-  auto havells_solar_get_2_registers = [&](size_t i, float unit) -> float {
-    uint32_t temp = encode_uint32(data[i], data[i + 1], data[i + 2], data[i + 3]);
-    return temp * unit;
+  // Publish a sensor if its register(s) are in this response; skipping absent registers keeps this
+  // correct for any read range, so the poll may be split into multiple requests.
+  auto publish_1_register = [&](sensor::Sensor *sensor, uint16_t reg, float unit) -> void {
+    if (sensor == nullptr)
+      return;
+    if (auto value = helpers::value_at<helpers::SensorValueType::U_WORD>(registers, start_address, reg))
+      sensor->publish_state(*value * unit);
   };
 
-  /* Usage: returns the float value of 2 registers read by modbus
-            Arg1: Register address * number of bytes per register
-            Arg2: Multiplier for final register value
-  */
-  auto havells_solar_get_1_register = [&](size_t i, float unit) -> float {
-    uint16_t temp = encode_uint16(data[i], data[i + 1]);
-    return temp * unit;
+  auto publish_2_registers = [&](sensor::Sensor *sensor, uint16_t reg, float unit) -> void {
+    if (sensor == nullptr)
+      return;
+    if (auto value = helpers::value_at<helpers::SensorValueType::U_DWORD>(registers, start_address, reg))
+      sensor->publish_state(*value * unit);
   };
 
   for (uint8_t i = 0; i < 3; i++) {
-    auto phase = this->phases_[i];
+    auto &phase = this->phases_[i];
     if (!phase.setup)
       continue;
-
-    float voltage = havells_solar_get_1_register(HAVELLS_PHASE_1_VOLTAGE * 2 + (i * 4), ONE_DEC_UNIT);
-    float current = havells_solar_get_1_register(HAVELLS_PHASE_1_CURRENT * 2 + (i * 4), TWO_DEC_UNIT);
-
-    if (phase.voltage_sensor_ != nullptr)
-      phase.voltage_sensor_->publish_state(voltage);
-    if (phase.current_sensor_ != nullptr)
-      phase.current_sensor_->publish_state(current);
+    publish_1_register(phase.voltage_sensor_, HAVELLS_PHASE_1_VOLTAGE + i * 2, ONE_DEC_UNIT);
+    publish_1_register(phase.current_sensor_, HAVELLS_PHASE_1_CURRENT + i * 2, TWO_DEC_UNIT);
   }
 
   for (uint8_t i = 0; i < 2; i++) {
-    auto pv = this->pvs_[i];
+    auto &pv = this->pvs_[i];
     if (!pv.setup)
       continue;
-
-    float voltage = havells_solar_get_1_register(HAVELLS_PV_1_VOLTAGE * 2 + (i * 4), ONE_DEC_UNIT);
-    float current = havells_solar_get_1_register(HAVELLS_PV_1_CURRENT * 2 + (i * 4), TWO_DEC_UNIT);
-    float active_power = havells_solar_get_1_register(HAVELLS_PV_1_POWER * 2 + (i * 2), MULTIPLY_TEN_UNIT);
-    float voltage_sampled_by_secondary_cpu =
-        havells_solar_get_1_register(HAVELLS_PV1_VOLTAGE_SAMPLED_BY_SECONDARY_CPU * 2 + (i * 2), ONE_DEC_UNIT);
-    float insulation_of_p_to_ground =
-        havells_solar_get_1_register(HAVELLS_PV1_INSULATION_OF_P_TO_GROUND * 2 + (i * 2), NO_DEC_UNIT);
-
-    if (pv.voltage_sensor_ != nullptr)
-      pv.voltage_sensor_->publish_state(voltage);
-    if (pv.current_sensor_ != nullptr)
-      pv.current_sensor_->publish_state(current);
-    if (pv.active_power_sensor_ != nullptr)
-      pv.active_power_sensor_->publish_state(active_power);
-    if (pv.voltage_sampled_by_secondary_cpu_sensor_ != nullptr)
-      pv.voltage_sampled_by_secondary_cpu_sensor_->publish_state(voltage_sampled_by_secondary_cpu);
-    if (pv.insulation_of_p_to_ground_sensor_ != nullptr)
-      pv.insulation_of_p_to_ground_sensor_->publish_state(insulation_of_p_to_ground);
+    publish_1_register(pv.voltage_sensor_, HAVELLS_PV_1_VOLTAGE + i * 2, ONE_DEC_UNIT);
+    publish_1_register(pv.current_sensor_, HAVELLS_PV_1_CURRENT + i * 2, TWO_DEC_UNIT);
+    publish_1_register(pv.active_power_sensor_, HAVELLS_PV_1_POWER + i, MULTIPLY_TEN_UNIT);
+    publish_1_register(pv.voltage_sampled_by_secondary_cpu_sensor_, HAVELLS_PV1_VOLTAGE_SAMPLED_BY_SECONDARY_CPU + i,
+                       ONE_DEC_UNIT);
+    publish_1_register(pv.insulation_of_p_to_ground_sensor_, HAVELLS_PV1_INSULATION_OF_P_TO_GROUND + i, NO_DEC_UNIT);
   }
 
-  float frequency = havells_solar_get_1_register(HAVELLS_GRID_FREQUENCY * 2, TWO_DEC_UNIT);
-  float active_power = havells_solar_get_1_register(HAVELLS_SYSTEM_ACTIVE_POWER * 2, MULTIPLY_TEN_UNIT);
-  float reactive_power = havells_solar_get_1_register(HAVELLS_SYSTEM_REACTIVE_POWER * 2, TWO_DEC_UNIT);
-  float today_production = havells_solar_get_1_register(HAVELLS_TODAY_PRODUCTION * 2, TWO_DEC_UNIT);
-  float total_energy_production = havells_solar_get_2_registers(HAVELLS_TOTAL_ENERGY_PRODUCTION * 2, NO_DEC_UNIT);
-  float total_generation_time = havells_solar_get_2_registers(HAVELLS_TOTAL_GENERATION_TIME * 2, NO_DEC_UNIT);
-  float today_generation_time = havells_solar_get_1_register(HAVELLS_TODAY_GENERATION_TIME * 2, NO_DEC_UNIT);
-  float inverter_module_temp = havells_solar_get_1_register(HAVELLS_INVERTER_MODULE_TEMP * 2, NO_DEC_UNIT);
-  float inverter_inner_temp = havells_solar_get_1_register(HAVELLS_INVERTER_INNER_TEMP * 2, NO_DEC_UNIT);
-  float inverter_bus_voltage = havells_solar_get_1_register(HAVELLS_INVERTER_BUS_VOLTAGE * 2, NO_DEC_UNIT);
-  float insulation_pv_n_to_ground = havells_solar_get_1_register(HAVELLS_INSULATION_OF_PV_N_TO_GROUND * 2, NO_DEC_UNIT);
-  float gfci_value = havells_solar_get_1_register(HAVELLS_GFCI_VALUE * 2, NO_DEC_UNIT);
-  float dci_of_r = havells_solar_get_1_register(HAVELLS_DCI_OF_R * 2, NO_DEC_UNIT);
-  float dci_of_s = havells_solar_get_1_register(HAVELLS_DCI_OF_S * 2, NO_DEC_UNIT);
-  float dci_of_t = havells_solar_get_1_register(HAVELLS_DCI_OF_T * 2, NO_DEC_UNIT);
-
-  if (this->frequency_sensor_ != nullptr)
-    this->frequency_sensor_->publish_state(frequency);
-  if (this->active_power_sensor_ != nullptr)
-    this->active_power_sensor_->publish_state(active_power);
-  if (this->reactive_power_sensor_ != nullptr)
-    this->reactive_power_sensor_->publish_state(reactive_power);
-  if (this->today_production_sensor_ != nullptr)
-    this->today_production_sensor_->publish_state(today_production);
-  if (this->total_energy_production_sensor_ != nullptr)
-    this->total_energy_production_sensor_->publish_state(total_energy_production);
-  if (this->total_generation_time_sensor_ != nullptr)
-    this->total_generation_time_sensor_->publish_state(total_generation_time);
-  if (this->today_generation_time_sensor_ != nullptr)
-    this->today_generation_time_sensor_->publish_state(today_generation_time);
-  if (this->inverter_module_temp_sensor_ != nullptr)
-    this->inverter_module_temp_sensor_->publish_state(inverter_module_temp);
-  if (this->inverter_inner_temp_sensor_ != nullptr)
-    this->inverter_inner_temp_sensor_->publish_state(inverter_inner_temp);
-  if (this->inverter_bus_voltage_sensor_ != nullptr)
-    this->inverter_bus_voltage_sensor_->publish_state(inverter_bus_voltage);
-  if (this->insulation_pv_n_to_ground_sensor_ != nullptr)
-    this->insulation_pv_n_to_ground_sensor_->publish_state(insulation_pv_n_to_ground);
-  if (this->gfci_value_sensor_ != nullptr)
-    this->gfci_value_sensor_->publish_state(gfci_value);
-  if (this->dci_of_r_sensor_ != nullptr)
-    this->dci_of_r_sensor_->publish_state(dci_of_r);
-  if (this->dci_of_s_sensor_ != nullptr)
-    this->dci_of_s_sensor_->publish_state(dci_of_s);
-  if (this->dci_of_t_sensor_ != nullptr)
-    this->dci_of_t_sensor_->publish_state(dci_of_t);
+  publish_1_register(this->frequency_sensor_, HAVELLS_GRID_FREQUENCY, TWO_DEC_UNIT);
+  publish_1_register(this->active_power_sensor_, HAVELLS_SYSTEM_ACTIVE_POWER, MULTIPLY_TEN_UNIT);
+  publish_1_register(this->reactive_power_sensor_, HAVELLS_SYSTEM_REACTIVE_POWER, TWO_DEC_UNIT);
+  publish_1_register(this->today_production_sensor_, HAVELLS_TODAY_PRODUCTION, TWO_DEC_UNIT);
+  publish_2_registers(this->total_energy_production_sensor_, HAVELLS_TOTAL_ENERGY_PRODUCTION, NO_DEC_UNIT);
+  publish_2_registers(this->total_generation_time_sensor_, HAVELLS_TOTAL_GENERATION_TIME, NO_DEC_UNIT);
+  publish_1_register(this->today_generation_time_sensor_, HAVELLS_TODAY_GENERATION_TIME, NO_DEC_UNIT);
+  publish_1_register(this->inverter_module_temp_sensor_, HAVELLS_INVERTER_MODULE_TEMP, NO_DEC_UNIT);
+  publish_1_register(this->inverter_inner_temp_sensor_, HAVELLS_INVERTER_INNER_TEMP, NO_DEC_UNIT);
+  publish_1_register(this->inverter_bus_voltage_sensor_, HAVELLS_INVERTER_BUS_VOLTAGE, NO_DEC_UNIT);
+  publish_1_register(this->insulation_pv_n_to_ground_sensor_, HAVELLS_INSULATION_OF_PV_N_TO_GROUND, NO_DEC_UNIT);
+  publish_1_register(this->gfci_value_sensor_, HAVELLS_GFCI_VALUE, NO_DEC_UNIT);
+  publish_1_register(this->dci_of_r_sensor_, HAVELLS_DCI_OF_R, NO_DEC_UNIT);
+  publish_1_register(this->dci_of_s_sensor_, HAVELLS_DCI_OF_S, NO_DEC_UNIT);
+  publish_1_register(this->dci_of_t_sensor_, HAVELLS_DCI_OF_T, NO_DEC_UNIT);
 }
 
 void HavellsSolar::update() { this->read_holding_registers(0, MODBUS_REGISTER_COUNT); }

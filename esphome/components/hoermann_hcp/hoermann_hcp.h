@@ -22,7 +22,8 @@ enum class DoorState : uint8_t {
 };
 
 // A HCP command is a simulated key press: the pressed value is presented to the bus controller, then after a
-// short delay the released value. Each half also carries a second register, which only the lamp command uses.
+// short delay the released value. Each half also carries a second register, which names the buttons that do
+// not fit into the first.
 struct HoermannHcpCommand {
   const char *name;
   uint16_t pressed_value;
@@ -54,6 +55,9 @@ class HoermannHcp : public PollingComponent, public modbus::ModbusServerDevice {
   bool open_door();
   bool close_door();
   bool impulse_door();
+  // The door drives to these intermediate positions on its own, so neither takes a target to be stopped at.
+  bool vent_door();
+  bool half_open_door();
   bool stop_door();
   bool set_position(float position);
   bool toggle_light();

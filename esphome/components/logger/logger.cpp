@@ -201,16 +201,9 @@ void Logger::process_messages_() {
 #endif  // USE_ESPHOME_TASK_LOG_BUFFER
 }
 
-void Logger::set_baud_rate(uint32_t baud_rate) { this->baud_rate_ = baud_rate; }
 #ifdef USE_LOGGER_RUNTIME_TAG_LEVELS
 void Logger::set_log_level(const char *tag, uint8_t log_level) { this->log_levels_[tag] = log_level; }
 #endif
-
-#if defined(USE_ESP32) || defined(USE_ESP8266) || defined(USE_RP2) || defined(USE_LIBRETINY) || defined(USE_ZEPHYR)
-UARTSelection Logger::get_uart() const { return this->uart_; }
-#endif
-
-float Logger::get_setup_priority() const { return setup_priority::BUS + 500.0f; }
 
 // Log level strings - packed into flash on ESP8266, indexed by log level (0-7)
 PROGMEM_STRING_TABLE(LogLevelStrings, "NONE", "ERROR", "WARN", "INFO", "CONFIG", "DEBUG", "VERBOSE", "VERY_VERBOSE");

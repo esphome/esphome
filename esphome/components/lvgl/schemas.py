@@ -726,6 +726,26 @@ ALL_STYLES = {
 }
 
 
+def apply_style_driven_defines(props: set[str]) -> None:
+    """Given a set of style-property names in use, registers everything their use
+    drives: add_lv_use(image) if any of them is image-typed (per BASE_PROPS), and
+    the LV_COLOR_SCREEN_TRANSP / LV_DRAW_SW_SUPPORT_A8 defines. Shared between
+    __init__.py (driven by df.get_styles_used(), for statically-declared widgets)
+    and lv_list.py's _register_dynamic_widget_style_uses (driven by scanning a
+    dynamically-added widget's own config), so a future style-driven define added
+    to one can't be missed in the other.
+    """
+    # Local import: avoids a module-load-time cycle (widgets.img -> ... -> schemas).
+    from .widgets.img import CONF_IMAGE
+
+    if any(BASE_PROPS.get(prop) is lvalid.lv_image for prop in props):
+        df.add_lv_use(CONF_IMAGE)
+    if df.TRANSFORM_STYLE_PROPS & props:
+        df.add_define("LV_COLOR_SCREEN_TRANSP", "1")
+    if df.DROP_SHADOW_STYLE_PROPS & props:
+        df.add_define("LV_DRAW_SW_SUPPORT_A8", "1")
+
+
 def strip_defaults(schema: cv.Schema):
     """
     Take a schema and remove any default values, also convert Required to Optional.

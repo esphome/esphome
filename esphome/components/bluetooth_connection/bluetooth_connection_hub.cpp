@@ -275,10 +275,15 @@ void BluetoothConnection::send_ack_(PendingAck kind, uint16_t handle, conn_err_t
   if (this->try_send_ack_(kind, handle, error))
     return;
   // Report a newly owed reply and a displaced one; displacing is the case
-  // that loses a reply. Re-refusing the same one stays quiet.
+  // that loses a reply. Re-refusing the same one stays quiet, and so does a
+  // fresh deferral for the handle already warned about: a congested bulk
+  // transfer re-asks the same handle every cycle and each ack would warn.
   if (!this->has_pending_ack_()) {
-    ESP_LOGW(TAG, "[%d] [%s] GATT reply for handle 0x%04X deferred, TCP buffer full", this->connection_index_,
-             this->address_str_, handle);
+    if (!this->ack_deferred_warned_ || this->pending_ack_handle_ != handle) {
+      ESP_LOGW(TAG, "[%d] [%s] GATT reply for handle 0x%04X deferred, TCP buffer full", this->connection_index_,
+               this->address_str_, handle);
+      this->ack_deferred_warned_ = true;
+    }
   } else if (this->pending_ack_handle_ != handle || this->pending_ack_ != kind) {
     ESP_LOGW(TAG, "[%d] [%s] GATT reply for handle 0x%04X dropped for handle 0x%04X", this->connection_index_,
              this->address_str_, this->pending_ack_handle_, handle);
@@ -365,8 +370,16 @@ void BluetoothConnection::on_notify_data(uint16_t handle, const uint8_t *data, u
   resp.set_data(data, len);
   if (!api_connection->send_message(resp)) {
     // Not latched, same reason as the read reply. Notify data is lossy: the
-    // peripheral will not resend it.
-    ESP_LOGW(TAG, "[%d] [%s] Failed to send notify data response", this->connection_index_, this->address_str_);
+    // peripheral will not resend it. Warn on the first drop only; a congested
+    // link drops a whole stream and one line per notify floods the log.
+    if (!this->notify_drop_warned_) {
+      ESP_LOGW(TAG, "[%d] [%s] Failed to send notify data response, handle 0x%04X", this->connection_index_,
+               this->address_str_, handle);
+      this->notify_drop_warned_ = true;
+    } else {
+      ESP_LOGV(TAG, "[%d] [%s] Failed to send notify data response, handle 0x%04X", this->connection_index_,
+               this->address_str_, handle);
+    }
   }
 }
 

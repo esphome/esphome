@@ -13,6 +13,9 @@
 #include "esp_eth.h"
 #ifdef USE_ETHERNET_SPI
 #include "hal/spi_types.h"
+#ifdef USE_SPI
+#include "esphome/components/spi/spi.h"
+#endif
 #endif
 #include "esp_eth_mac.h"
 #include "esp_eth_mac_esp.h"
@@ -125,7 +128,7 @@ class EthernetComponent final : public Component {
   void setup() override;
   void loop() override;
   void dump_config() override;
-  float get_setup_priority() const override;
+  float get_setup_priority() const override { return setup_priority::ETHERNET; }
   void on_powerdown() override { powerdown(); }
   bool is_connected() { return this->state_ == EthernetComponentState::CONNECTED; }
 
@@ -146,9 +149,9 @@ class EthernetComponent final : public Component {
   esp_netif_t *get_esp_netif() { return this->eth_netif_; }
 #endif
 
-  void set_type(EthernetType type);
+  void set_type(EthernetType type) { this->type_ = type; }
 #ifdef USE_ETHERNET_MANUAL_IP
-  void set_manual_ip(const ManualIP &manual_ip);
+  void set_manual_ip(const ManualIP &manual_ip) { this->manual_ip_ = manual_ip; }
 #endif
   void set_fixed_mac(const std::array<uint8_t, MAC_ADDRESS_SIZE> &mac) { this->fixed_mac_ = mac; }
 
@@ -159,9 +162,6 @@ class EthernetComponent final : public Component {
   const char *get_use_address() const { return this->use_address_; }
   void set_use_address(const char *use_address) { this->use_address_ = use_address; }
   void get_eth_mac_address_raw(uint8_t *mac);
-  // Remove before 2026.9.0
-  ESPDEPRECATED("Use get_eth_mac_address_pretty_into_buffer() instead. Removed in 2026.9.0", "2026.3.0")
-  std::string get_eth_mac_address_pretty();
   const char *get_eth_mac_address_pretty_into_buffer(std::span<char, MAC_ADDRESS_PRETTY_BUFFER_SIZE> buf);
   eth_duplex_t get_duplex_mode();
   eth_speed_t get_link_speed();
@@ -171,35 +171,38 @@ class EthernetComponent final : public Component {
   esp_eth_handle_t get_eth_handle() const { return this->eth_handle_; }
 
 #ifdef USE_ETHERNET_SPI
-  void set_clk_pin(uint8_t clk_pin);
-  void set_miso_pin(uint8_t miso_pin);
-  void set_mosi_pin(uint8_t mosi_pin);
-  void set_cs_pin(uint8_t cs_pin);
-  void set_interrupt_pin(uint8_t interrupt_pin);
-  void set_reset_pin(uint8_t reset_pin);
-  void set_clock_speed(int clock_speed);
-  void set_interface(spi_host_device_t interface);
+  void set_clk_pin(uint8_t clk_pin) { this->clk_pin_ = clk_pin; }
+  void set_miso_pin(uint8_t miso_pin) { this->miso_pin_ = miso_pin; }
+  void set_mosi_pin(uint8_t mosi_pin) { this->mosi_pin_ = mosi_pin; }
+  void set_cs_pin(uint8_t cs_pin) { this->cs_pin_ = cs_pin; }
+  void set_interrupt_pin(uint8_t interrupt_pin) { this->interrupt_pin_ = interrupt_pin; }
+  void set_reset_pin(uint8_t reset_pin) { this->reset_pin_ = reset_pin; }
+  void set_clock_speed(int clock_speed) { this->clock_speed_ = clock_speed; }
+  void set_interface(spi_host_device_t interface) { this->interface_ = interface; }
+#ifdef USE_SPI
+  void set_spi_parent(spi::SPIComponent *parent) { this->spi_parent_ = parent; }
+#endif
 #ifdef USE_ETHERNET_SPI_POLLING_SUPPORT
-  void set_polling_interval(uint32_t polling_interval);
+  void set_polling_interval(uint32_t polling_interval) { this->polling_interval_ = polling_interval; }
 #endif
 #else
-  void set_phy_addr(uint8_t phy_addr);
-  void set_power_pin(int power_pin);
-  void set_mdc_pin(uint8_t mdc_pin);
-  void set_mdio_pin(uint8_t mdio_pin);
-  void set_clk_pin(uint8_t clk_pin);
-  void set_clk_mode(emac_rmii_clock_mode_t clk_mode);
+  void set_phy_addr(uint8_t phy_addr) { this->phy_addr_ = phy_addr; }
+  void set_power_pin(int power_pin) { this->power_pin_ = power_pin; }
+  void set_mdc_pin(uint8_t mdc_pin) { this->mdc_pin_ = mdc_pin; }
+  void set_mdio_pin(uint8_t mdio_pin) { this->mdio_pin_ = mdio_pin; }
+  void set_clk_pin(uint8_t clk_pin) { this->clk_pin_ = clk_pin; }
+  void set_clk_mode(emac_rmii_clock_mode_t clk_mode) { this->clk_mode_ = clk_mode; }
   void add_phy_register(PHYRegister register_value);
 #endif  // USE_ETHERNET_SPI
 #endif  // USE_ESP32
 
 #ifdef USE_RP2
-  void set_clk_pin(uint8_t clk_pin);
-  void set_miso_pin(uint8_t miso_pin);
-  void set_mosi_pin(uint8_t mosi_pin);
-  void set_cs_pin(uint8_t cs_pin);
-  void set_interrupt_pin(int8_t interrupt_pin);
-  void set_reset_pin(int8_t reset_pin);
+  void set_clk_pin(uint8_t clk_pin) { this->clk_pin_ = clk_pin; }
+  void set_miso_pin(uint8_t miso_pin) { this->miso_pin_ = miso_pin; }
+  void set_mosi_pin(uint8_t mosi_pin) { this->mosi_pin_ = mosi_pin; }
+  void set_cs_pin(uint8_t cs_pin) { this->cs_pin_ = cs_pin; }
+  void set_interrupt_pin(int8_t interrupt_pin) { this->interrupt_pin_ = interrupt_pin; }
+  void set_reset_pin(int8_t reset_pin) { this->reset_pin_ = reset_pin; }
 #endif  // USE_RP2
 
 #ifdef USE_ETHERNET_IP_STATE_LISTENERS
@@ -261,6 +264,11 @@ class EthernetComponent final : public Component {
   int phy_addr_spi_{-1};
   int clock_speed_;
   spi_host_device_t interface_{SPI2_HOST};
+#ifdef USE_SPI
+  // When set, the SPI bus is owned and initialized by this spi component
+  // and the ethernet chip only adds a device to it.
+  spi::SPIComponent *spi_parent_{nullptr};
+#endif
 #ifdef USE_ETHERNET_SPI_POLLING_SUPPORT
   uint32_t polling_interval_{0};
 #endif

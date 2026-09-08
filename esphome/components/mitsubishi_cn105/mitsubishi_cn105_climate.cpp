@@ -74,7 +74,7 @@ climate::ClimateTraits MitsubishiCN105Climate::traits() {
     traits.add_supported_fan_mode(p.second);
   }
 
-  traits.set_supported_swing_modes(this->supported_swing_modes_);
+  traits.set_supported_swing_modes(this->swing_mode_manager_.supported_swing_modes());
 
   const bool use_fahrenheit = this->parent_->get_temperature_mapping().get_use_fahrenheit();
   traits.set_temperature_unit(use_fahrenheit ? TemperatureUnit::FAHRENHEIT : TemperatureUnit::CELSIUS);
@@ -109,33 +109,11 @@ void MitsubishiCN105Climate::control(const climate::ClimateCall &call) {
   }
 
   if (const auto swing_mode = call.get_swing_mode()) {
-    auto vane = this->last_non_swing_vane_mode_;
-    auto wide = this->last_non_swing_wide_vane_mode_;
-
-    switch (*swing_mode) {
-      case climate::CLIMATE_SWING_BOTH:
-        vane = MitsubishiCN105::VaneMode::SWING;
-        wide = MitsubishiCN105::WideVaneMode::SWING;
-        break;
-
-      case climate::CLIMATE_SWING_VERTICAL:
-        vane = MitsubishiCN105::VaneMode::SWING;
-        break;
-
-      case climate::CLIMATE_SWING_HORIZONTAL:
-        wide = MitsubishiCN105::WideVaneMode::SWING;
-        break;
-
-      case climate::CLIMATE_SWING_OFF:
-      default:
-        break;
+    if (const auto vane = this->swing_mode_manager_.vane_from(*swing_mode)) {
+      this->parent_->set_vane_mode(*vane);
     }
-
-    if (this->supported_swing_modes_.count(climate::CLIMATE_SWING_VERTICAL)) {
-      this->parent_->set_vane_mode(vane);
-    }
-    if (this->supported_swing_modes_.count(climate::CLIMATE_SWING_HORIZONTAL)) {
-      this->parent_->set_wide_vane_mode(wide);
+    if (const auto wide = this->swing_mode_manager_.wide_vane_from(*swing_mode)) {
+      this->parent_->set_wide_vane_mode(*wide);
     }
   }
 
@@ -166,64 +144,39 @@ void MitsubishiCN105Climate::apply_values_() {
     ESP_LOGD(TAG, "Unable to map fan mode");
   }
 
-  if (!this->supported_swing_modes_.empty()) {
-    bool vertical_swinging = false;
-    bool horizontal_swinging = false;
-
-    if (this->supported_swing_modes_.count(climate::CLIMATE_SWING_VERTICAL)) {
-      if (status.vane_mode == MitsubishiCN105::VaneMode::SWING) {
-        vertical_swinging = true;
-      } else if (status.vane_mode != MitsubishiCN105::VaneMode::UNKNOWN) {
-        this->last_non_swing_vane_mode_ = status.vane_mode;
-      }
-    }
-
-    if (this->supported_swing_modes_.count(climate::CLIMATE_SWING_HORIZONTAL)) {
-      if (status.wide_vane_mode == MitsubishiCN105::WideVaneMode::SWING) {
-        horizontal_swinging = true;
-      } else if (status.wide_vane_mode != MitsubishiCN105::WideVaneMode::UNKNOWN) {
-        this->last_non_swing_wide_vane_mode_ = status.wide_vane_mode;
-      }
-    }
-
-    if (vertical_swinging && horizontal_swinging) {
-      this->swing_mode = climate::CLIMATE_SWING_BOTH;
-    } else if (vertical_swinging) {
-      this->swing_mode = climate::CLIMATE_SWING_VERTICAL;
-    } else if (horizontal_swinging) {
-      this->swing_mode = climate::CLIMATE_SWING_HORIZONTAL;
-    } else {
-      this->swing_mode = climate::CLIMATE_SWING_OFF;
-    }
+  if (const auto swing_mode =
+          this->swing_mode_manager_.update_and_get_swing_mode(status.vane_mode, status.wide_vane_mode)) {
+    this->swing_mode = *swing_mode;
   }
 
   this->publish_state();
 }
 
 void MitsubishiCN105Climate::set_supported_swing_mode(climate::ClimateSwingMode mode) {
-  this->supported_swing_modes_.clear();
+  climate::ClimateSwingModeMask supported_swing_modes;
   switch (mode) {
     case climate::CLIMATE_SWING_VERTICAL:
-      this->supported_swing_modes_.insert(climate::CLIMATE_SWING_OFF);
-      this->supported_swing_modes_.insert(climate::CLIMATE_SWING_VERTICAL);
+      supported_swing_modes.insert(climate::CLIMATE_SWING_OFF);
+      supported_swing_modes.insert(climate::CLIMATE_SWING_VERTICAL);
       break;
 
     case climate::CLIMATE_SWING_HORIZONTAL:
-      this->supported_swing_modes_.insert(climate::CLIMATE_SWING_OFF);
-      this->supported_swing_modes_.insert(climate::CLIMATE_SWING_HORIZONTAL);
+      supported_swing_modes.insert(climate::CLIMATE_SWING_OFF);
+      supported_swing_modes.insert(climate::CLIMATE_SWING_HORIZONTAL);
       break;
 
     case climate::CLIMATE_SWING_BOTH:
-      this->supported_swing_modes_.insert(climate::CLIMATE_SWING_OFF);
-      this->supported_swing_modes_.insert(climate::CLIMATE_SWING_VERTICAL);
-      this->supported_swing_modes_.insert(climate::CLIMATE_SWING_HORIZONTAL);
-      this->supported_swing_modes_.insert(climate::CLIMATE_SWING_BOTH);
+      supported_swing_modes.insert(climate::CLIMATE_SWING_OFF);
+      supported_swing_modes.insert(climate::CLIMATE_SWING_VERTICAL);
+      supported_swing_modes.insert(climate::CLIMATE_SWING_HORIZONTAL);
+      supported_swing_modes.insert(climate::CLIMATE_SWING_BOTH);
       break;
 
     case climate::CLIMATE_SWING_OFF:
     default:
       break;
   }
+  this->swing_mode_manager_.set_supported_swing_modes(supported_swing_modes);
 }
 
 }  // namespace esphome::mitsubishi_cn105
