@@ -9,6 +9,8 @@ from esphome.const import (
     CONF_FORMAT,
     CONF_HEIGHT,
     CONF_ID,
+    CONF_ON_CONNECT,
+    CONF_ON_DISCONNECT,
     CONF_SAMPLE_RATE,
     CONF_SOURCE,
     CONF_TASK_STACK_IN_PSRAM,
@@ -183,6 +185,10 @@ CONFIG_SCHEMA = cv.All(
         {
             cv.GenerateID(): cv.declare_id(SendspinHub),
             cv.Optional(CONF_TASK_STACK_IN_PSRAM): psram.validate_task_stack_in_psram,
+            cv.Optional(CONF_ON_CONNECT): automation.validate_automation(single=True),
+            cv.Optional(CONF_ON_DISCONNECT): automation.validate_automation(
+                single=True
+            ),
         }
     ),
     cv.only_on_esp32,
@@ -232,6 +238,15 @@ async def to_code(config: ConfigType) -> None:
     if config.get(CONF_TASK_STACK_IN_PSRAM):
         cg.add(var.set_task_stack_in_psram(True))
         psram.request_external_task_stack()
+
+    if on_connect_config := config.get(CONF_ON_CONNECT):
+        await automation.build_automation(
+            var.get_connect_trigger(), [], on_connect_config
+        )
+    if on_disconnect_config := config.get(CONF_ON_DISCONNECT):
+        await automation.build_automation(
+            var.get_disconnect_trigger(), [], on_disconnect_config
+        )
 
     # sendspin-cpp library
     esp32.add_idf_component(name="sendspin/sendspin-cpp", ref="0.7.2")

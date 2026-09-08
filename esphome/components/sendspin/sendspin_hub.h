@@ -90,6 +90,11 @@ class SendspinHub final : public Component,
   void loop() override;
   void dump_config() override;
 
+  /// @brief Trigger fired when the client establishes a connection to a Sendspin server.
+  Trigger<> *get_connect_trigger() { return &this->connect_trigger_; }
+  /// @brief Trigger fired when the client loses its connection to a Sendspin server.
+  Trigger<> *get_disconnect_trigger() { return &this->disconnect_trigger_; }
+
   /// @brief Connects the underlying client to the given Sendspin server.
   ///
   /// No-op if the hub's client is not ready (e.g. setup() has not completed).
@@ -268,6 +273,12 @@ class SendspinHub final : public Component,
   CallbackManager<void(const sendspin::GroupUpdateObject &)> group_update_callbacks_{};
 
   bool task_stack_in_psram_{false};
+
+  // sendspin-cpp has no push-based "connected" event, so loop() polls is_connected() and
+  // edge-detects transitions against this to fire connect_trigger_/disconnect_trigger_.
+  Trigger<> connect_trigger_{};
+  Trigger<> disconnect_trigger_{};
+  bool was_connected_{false};
 };
 
 /// @brief Base class for all sendspin subcomponents.

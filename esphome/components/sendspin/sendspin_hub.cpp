@@ -69,7 +69,19 @@ void SendspinHub::setup() {
   }
 }
 
-void SendspinHub::loop() { this->client_->loop(); }
+void SendspinHub::loop() {
+  this->client_->loop();
+  // No push-based "connected" event exists in sendspin-cpp, so poll and edge-detect here.
+  bool is_connected = this->client_->is_connected();
+  if (is_connected != this->was_connected_) {
+    this->was_connected_ = is_connected;
+    if (is_connected) {
+      this->connect_trigger_.trigger();
+    } else {
+      this->disconnect_trigger_.trigger();
+    }
+  }
+}
 
 void SendspinHub::dump_config() {
   char mac_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
