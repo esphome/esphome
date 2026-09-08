@@ -22,6 +22,7 @@
 #include "esphome/core/lwip_fast_select.h"
 #endif
 
+#include <algorithm>
 #include <cerrno>
 #include <cstdio>
 #include <cstring>
@@ -197,6 +198,13 @@ static constexpr uint8_t SERVER_FEATURE_SUPPORTS_NOISE = 0x04;
 // client must then send the image size frame and a deflate stream.
 static constexpr uint8_t SERVER_FEATURE_SUPPORTS_DEFLATE = 0x08;
 
+#ifdef USE_OTA_ENCRYPTION
+inline bool ESPHomeOTAComponent::noise_offered_() const {
+  return (this->handshake_buf_[1] & SERVER_FEATURE_SUPPORTS_NOISE) != 0 &&
+         (this->ota_features_ & CLIENT_NOISE_FEATURES) == CLIENT_NOISE_FEATURES;
+}
+#endif
+
 inline bool ESPHomeOTAComponent::extended_proto_() const {
 #ifdef USE_OTA_ENCRYPTION_REQUIRED
   // FEATURE_READ already refused every client without the extended protocol
@@ -324,17 +332,16 @@ void ESPHomeOTAComponent::handle_handshake_() {
 #endif
 #ifdef USE_OTA_ENCRYPTION
         // Reserve the noise session before the optional inflate buffer, so the
-        // required allocation is not starved by the compression window. Gated
-        // on the same condition that starts the session in FEATURE_ACK.
-        if ((this->handshake_buf_[1] & SERVER_FEATURE_SUPPORTS_NOISE) != 0 &&
-            (this->ota_features_ & CLIENT_NOISE_FEATURES) == CLIENT_NOISE_FEATURES) {
-          // NOLINTNEXTLINE(clang-analyzer-cplusplus.NewDeleteLeaks)
-          this->noise_ = std::unique_ptr<NoiseSession>(new (std::nothrow) NoiseSession);
+        // required allocation is not starved by the compression window
+        if (this->noise_offered_()) {
+          this->noise_reserve_session_();
         }
 #endif
 #ifdef USE_OTA_DEFLATE
         // Offered only once the session memory is in hand; else uncompressed
         if ((this->ota_features_ & CLIENT_FEATURE_SUPPORTS_DEFLATE) != 0) {
+          // Value initialized: a corrupt stream that back references the
+          // window before it is filled then copies zeros, never stale memory
           this->inflate_.reset(new (std::nothrow) InflateSession());
           if (this->inflate_ != nullptr) {
             this->handshake_buf_[1] |= SERVER_FEATURE_SUPPORTS_DEFLATE;
@@ -360,8 +367,7 @@ void ESPHomeOTAComponent::handle_handshake_() {
 #ifdef USE_OTA_ENCRYPTION
       // Latch the offer actually sent: a key activating between the two
       // states must not start a session the client never expects
-      if ((this->handshake_buf_[1] & SERVER_FEATURE_SUPPORTS_NOISE) != 0 &&
-          (this->ota_features_ & CLIENT_NOISE_FEATURES) == CLIENT_NOISE_FEATURES) {
+      if (this->noise_offered_()) {
         // handshake_buf_ still holds the feature ack composed above; a
         // would-block re-entry lands here without rebuilding it
         if (!this->noise_start_session_(this->handshake_buf_[1])) {
@@ -862,9 +868,6 @@ ota::OTAResponseTypes ESPHomeOTAComponent::inflate_data_(uint8_t *in, size_t ima
   session.image_size = image_size;
   session.written = 0;
   session.error = ota::OTA_RESPONSE_OK;
-  // A corrupt stream may back reference the window before it is filled; zero it
-  // so such a read copies zeros, never stale memory
-  std::memset(session.window, 0, sizeof(session.window));
   ota_inflate_init(&session, session.window, OTA_INFLATE_WINDOW_SIZE);
   // Where the ack must follow the write, flush and ack before waiting for
   // input, or the client waits for an ack while the decoder waits for data

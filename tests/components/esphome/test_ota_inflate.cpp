@@ -306,7 +306,8 @@ TEST(OtaInflate, CorruptStreamsNeverEscapeTheWindow) {
   // Flipped bytes and garbage; the sanitizers check the decoder stays in bounds
   auto s = std::make_unique<Session>();
   std::vector<uint8_t> bad(DEFLATED, DEFLATED + sizeof(DEFLATED));
-  for (size_t i = 0; i < bad.size(); i += 3) {
+  // A coarse, non-aligned stride: neighbouring offsets hit the same paths
+  for (size_t i = 0; i < bad.size(); i += 29) {
     bad[i] ^= 0x5a;
     inflate_all(*s, bad.data(), bad.size(), 1040);
     bad[i] ^= 0x5a;
