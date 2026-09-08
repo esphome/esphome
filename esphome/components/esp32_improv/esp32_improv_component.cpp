@@ -112,6 +112,7 @@ void ESP32ImprovComponent::loop() {
       this->state_callback_.call(this->state_, this->error_state_);
 #endif
     }
+    this->release_advertising_();
     this->incoming_data_.clear();
     return;
   }
@@ -143,8 +144,9 @@ void ESP32ImprovComponent::loop() {
           ESP_LOGV(TAG, "Starting with device name advertising");
           this->advertising_device_name_ = true;
           this->last_name_adv_time_ = App.get_loop_component_start_time();
+          // Set the payload before requesting, so advertising starts exactly once
           esp32_ble::global_ble->advertising_set_service_data_and_name(std::span<const uint8_t>{}, true);
-          esp32_ble::global_ble->advertising_start();
+          this->request_advertising_();
 
           // Set initial state based on whether we have an authorizer
           this->set_state_(this->get_initial_state_(), false);
@@ -326,6 +328,8 @@ void ESP32ImprovComponent::stop() {
   this->set_timeout("end-service", STOP_ADVERTISING_DELAY, [this] {
     if (this->state_ == improv::STATE_STOPPED || this->service_ == nullptr)
       return;
+    // Release first so removing the service UUID does not restart advertising on the way out
+    this->release_advertising_();
     this->service_->stop();
     this->set_state_(improv::STATE_STOPPED);
   });
@@ -518,6 +522,20 @@ void ESP32ImprovComponent::update_advertising_type_() {
     // Atomically clear service data and enable name in advertising data
     esp32_ble::global_ble->advertising_set_service_data_and_name(std::span<const uint8_t>{}, true);
   }
+}
+
+void ESP32ImprovComponent::request_advertising_() {
+  if (this->advertising_requested_)
+    return;
+  this->advertising_requested_ = true;
+  esp32_ble::global_ble->advertising_start();
+}
+
+void ESP32ImprovComponent::release_advertising_() {
+  if (!this->advertising_requested_)
+    return;
+  this->advertising_requested_ = false;
+  esp32_ble::global_ble->advertising_stop();
 }
 
 improv::State ESP32ImprovComponent::get_initial_state_() const {
