@@ -210,6 +210,64 @@ async def test_host_ota_self_update(
 
 
 @pytest.mark.asyncio
+async def test_host_ota_deflate(
+    yaml_config: str,
+    write_yaml_config: ConfigWriter,
+    compile_esphome: CompileFunction,
+    reserved_tcp_port: tuple[int, socket.socket],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Deflate is negotiated by default, an old client gets an uncompressed
+    upload, and a corrupt stream is rejected without taking the device down."""
+    dev = _Device(
+        *await _build(
+            yaml_config, write_yaml_config, compile_esphome, reserved_tcp_port
+        )
+    )
+    inflated: list[str] = []
+    errors: list[str] = []
+
+    def on_log(line: str) -> None:
+        if "Inflated " in line and " bytes from " in line:
+            inflated.append(line)
+        if "Inflate err" in line or "End update err" in line:
+            errors.append(line)
+        dev.on_log(line)
+
+    real_compress = espota2.zlib.compress
+
+    def corrupt_compress(data: bytes, *args: object, **kwargs: object) -> bytes:
+        out = bytearray(real_compress(data, *args, **kwargs))
+        out[len(out) // 2] ^= 0x55
+        return bytes(out)
+
+    async with run_binary(dev.binary_path, line_callback=on_log) as (proc, _lines):
+        dev.proc = proc
+        await _wait_for_port(LOCALHOST, dev.api_port, PORT_WAIT_TIMEOUT)
+
+        # Default: the host backend cannot store gzip, so the CLI sends deflate
+        await dev.ota(None, None, "deflate upload failed")
+        assert len(inflated) == 1, "device did not inflate the upload"
+
+        # A client that does not offer deflate is served uncompressed
+        monkeypatch.setattr(espota2, "CLIENT_FEATURE_SUPPORTS_DEFLATE", 0)
+        await dev.ota(None, None, "uncompressed upload failed")
+        assert len(inflated) == 1, "device inflated without a client offer"
+        monkeypatch.undo()
+
+        # A corrupt stream fails the upload and leaves the device running
+        monkeypatch.setattr(espota2.zlib, "compress", corrupt_compress)
+        await dev.refused_ota(None, None, "corrupt deflate stream was accepted")
+        monkeypatch.undo()
+        assert errors, "device did not report the corrupt stream"
+
+        # and it still takes a good upload afterwards
+        inflated_before = len(inflated)
+        await dev.ota(None, None, "upload after a rejected stream failed")
+        assert len(inflated) == inflated_before + 1
+
+
+@pytest.mark.asyncio
 async def test_host_ota_encrypted(
     yaml_config: str,
     write_yaml_config: ConfigWriter,
