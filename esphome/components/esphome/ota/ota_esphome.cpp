@@ -318,6 +318,16 @@ void ESPHomeOTAComponent::handle_handshake_() {
         // A yaml key always exists: validation rejects the all-zeros key
         this->handshake_buf_[1] |= SERVER_FEATURE_SUPPORTS_NOISE;
 #endif
+#ifdef USE_OTA_ENCRYPTION
+        // Reserve the noise session before the optional inflate buffer, so the
+        // required allocation is not starved by the compression window. Gated
+        // on the same condition that starts the session in FEATURE_ACK.
+        if ((this->handshake_buf_[1] & SERVER_FEATURE_SUPPORTS_NOISE) != 0 &&
+            (this->ota_features_ & CLIENT_NOISE_FEATURES) == CLIENT_NOISE_FEATURES) {
+          // NOLINTNEXTLINE(clang-analyzer-cplusplus.NewDeleteLeaks)
+          this->noise_ = std::unique_ptr<NoiseSession>(new (std::nothrow) NoiseSession);
+        }
+#endif
 #ifdef USE_OTA_DEFLATE
         // Offered only once the session memory is in hand; else uncompressed
         if ((this->ota_features_ & CLIENT_FEATURE_SUPPORTS_DEFLATE) != 0) {
