@@ -840,7 +840,7 @@ file does, and it is the authority when they disagree. The most useful starting 
         cv.rename_key(
             CONF_OLD_KEY, CONF_NEW_KEY, removed_in="2026.6.0", component="my_component"
         ),
-        cv.Schema({ ... }),
+        cv.Schema({...}),
     )
     ```
     For other deprecations, warn manually during validation:
