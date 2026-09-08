@@ -3,6 +3,7 @@
 
 #include "esphome/components/esp32/crash_handler.h"
 #include <esp_log.h>
+#include <esp_idf_version.h>
 
 #include <driver/uart.h>
 
@@ -19,7 +20,6 @@
     (ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0))
 #include "esp_sleep.h"
 #endif
-#include "esp_idf_version.h"
 #include "freertos/FreeRTOS.h"
 
 #include <fcntl.h>
