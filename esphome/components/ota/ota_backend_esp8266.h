@@ -20,7 +20,7 @@ class ESP8266OTABackend final {
   OTAResponseTypes end();
   void abort();
   // Compression supported in all ESP8266 Arduino versions ESPHome supports (>= 2.7.0)
-  bool supports_compression() { return true; }
+  static constexpr bool supports_compression() { return true; }
 
  protected:
   /// Erase flash sector if current address is at sector boundary
