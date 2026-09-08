@@ -334,6 +334,10 @@ static int tinf_inflate_block_data(TINF_DATA *d, TINF_TREE *lt, TINF_TREE *dt) {
       return TINF_DATA_ERROR;
     }
 
+    if (sym < 0) {
+      return sym;
+    }
+
     /* literal byte */
     if (sym < 256) {
       TINF_PUT(d, sym);

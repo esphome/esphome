@@ -72,8 +72,9 @@ SERVER_FEATURE_SUPPORTS_PARTITION_ACCESS = 0x02
 SERVER_FEATURE_SUPPORTS_NOISE = 0x04
 SERVER_FEATURE_SUPPORTS_DEFLATE = 0x08
 
-# Window of the raw deflate stream sent to a device that inflates on the fly;
-# the device's OTA_INFLATE_WINDOW_SIZE (4 KB) must be at least 1 << this
+# Window of the raw deflate stream sent to a device that inflates on the fly.
+# Part of the protocol: the server's deflate bit promises a 4 KB ring window
+# (OTA_INFLATE_WINDOW_SIZE), so a larger window needs a new feature bit
 DEFLATE_WINDOW_BITS = 12
 
 NOISE_FRAME_INDICATOR = 0x01
