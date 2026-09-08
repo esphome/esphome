@@ -454,21 +454,94 @@ def test_uri_fetch_job_waits_out_a_briefly_held_lock(tmp_path: Path) -> None:
     assert dl_path.read_bytes() == b"data"
 
 
-def test_lock_deadline_leaves_download_to_the_holder(tmp_path: Path) -> None:
-    """A lock held past the deadline means another process is fetching the
-    same file; skipping cleanly beats a misleading failure warning. The
-    tracker is still polled so a parked worker observes cancellation."""
+@pytest.mark.parametrize("staged", [b"", b"ab"])
+def test_lock_deadline_leaves_download_to_the_holder(
+    tmp_path: Path, staged: bytes
+) -> None:
+    """A lock held past the deadline is another process's download; skip
+    cleanly, polling the tracker with what the holder has staged so far."""
     dl_path = tmp_path / "archive"
+    (tmp_path / "archive.prefetch.part").write_bytes(staged)
     ticks: list[int] = []
     with (
         patch("esphome.framework_helpers.download_with_resume") as mock_download,
         patch("filelock.FileLock.acquire", side_effect=Timeout("held")),
-        patch.object(pf, "_DOWNLOAD_LOCK_TIMEOUT", 0),
+        patch("esphome.framework_helpers.DOWNLOAD_LOCK_TIMEOUT", 0),
     ):
         pf._uri_fetch_job(MagicMock(), "https://x/a.zip", dl_path, 4)(ticks.append)
     mock_download.assert_not_called()
-    assert ticks == [0]
+    assert ticks == [len(staged)]
     assert not dl_path.exists()
+
+
+@pytest.mark.parametrize(
+    ("job", "part_name", "chunks", "expected"),
+    [
+        (
+            lambda dl_path: pf._registry_fetch_job(
+                MagicMock(), "https://x/a.tar.gz", dl_path, "ab" * 32, 4
+            ),
+            "archive.part",
+            [b"a", b"abc"],
+            [1, 3, 4],
+        ),
+        (
+            lambda dl_path: pf._uri_fetch_job(
+                MagicMock(), "https://x/a.zip", dl_path, 4
+            ),
+            "archive.prefetch.part",
+            [b"ab"],
+            [2, 4],
+        ),
+    ],
+    ids=["registry", "uri"],
+)
+def test_lock_wait_reports_the_holders_progress(
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+    held_lock,
+    job,
+    part_name: str,
+    chunks: list[bytes],
+    expected: list[int],
+) -> None:
+    """A waiting job reports the holder's part file (the staging one for a
+    URL job), then the full size once the holder lands the archive."""
+    dl_path = tmp_path / "archive"
+    ticks: list[int] = []
+    acquire = held_lock(
+        tmp_path / part_name, chunks, lambda: dl_path.write_bytes(b"abcd")
+    )
+    with (
+        patch("esphome.framework_helpers.download_with_resume") as mock_download,
+        patch("filelock.FileLock.acquire", side_effect=acquire),
+        patch("filelock.FileLock.release"),
+        caplog.at_level(logging.INFO),
+    ):
+        job(dl_path)(ticks.append)
+    mock_download.assert_not_called()
+    assert ticks == expected
+    assert caplog.text.count("Waiting for another process downloading archive") == 1
+
+
+def test_uri_lock_wait_prefers_the_landed_archive(tmp_path: Path, held_lock) -> None:
+    """Between the holder's promotion rename and its release the staging
+    part is gone; the landed cache file is credited instead of 0."""
+    dl_path = tmp_path / "archive"
+    ticks: list[int] = []
+    acquire = held_lock(
+        tmp_path / "archive.prefetch.part",
+        [b"ab", lambda: dl_path.write_bytes(b"abcd")],
+        lambda: None,
+    )
+    with (
+        patch("esphome.framework_helpers.download_with_resume") as mock_download,
+        patch("filelock.FileLock.acquire", side_effect=acquire),
+        patch("filelock.FileLock.release"),
+    ):
+        pf._uri_fetch_job(MagicMock(), "https://x/a.zip", dl_path, 4)(ticks.append)
+    mock_download.assert_not_called()
+    assert ticks == [2, 4, 4]
 
 
 def test_registry_lock_deadline_skips_registration(tmp_path: Path) -> None:
@@ -479,7 +552,7 @@ def test_registry_lock_deadline_skips_registration(tmp_path: Path) -> None:
     with (
         patch("esphome.framework_helpers.download_with_resume") as mock_download,
         patch("filelock.FileLock.acquire", side_effect=Timeout("held")),
-        patch.object(pf, "_DOWNLOAD_LOCK_TIMEOUT", 0),
+        patch("esphome.framework_helpers.DOWNLOAD_LOCK_TIMEOUT", 0),
     ):
         pf._registry_fetch_job(manager, "https://x/a.tar.gz", dl_path, "ab" * 32, 4)(
             lambda done: None
@@ -1152,6 +1225,20 @@ def test_main_runs_prefetch(tmp_path: Path) -> None:
     mock_prefetch.assert_called_once_with(tmp_path, "testenv")
 
 
+def test_main_skips_private_package_probe_before_prefetch(tmp_path: Path) -> None:
+    """The registry probe patch is applied before any package manager runs."""
+    order: list[str] = []
+    with (
+        patch.object(pf, "_prefetch", side_effect=lambda *_: order.append("prefetch")),
+        patch(
+            "esphome.platformio.runner.patch_registry_private_packages",
+            side_effect=lambda: order.append("patch"),
+        ),
+    ):
+        assert pf.main([str(tmp_path), "testenv"]) == 0
+    assert order == ["patch", "prefetch"]
+
+
 def test_main_bad_argv_is_a_distinct_exit(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
@@ -1576,7 +1663,7 @@ def test_preinstall_runs_dependency_waves(tmp_path: Path) -> None:
         {"name": "SPI"},
     ]
     m.dependency_to_spec.side_effect = lambda dep: _FakeSpec(name=dep["name"])
-    pf._preinstall(m, [("noise-c@0.1.24", _FakeSpec(name="noise-c"))])
+    pf._preinstall(m, [("noise-c@0.1.26", _FakeSpec(name="noise-c"))])
     assert installed == ["noise-c", "libsodium"]  # dep deduped, SPI left out
     # The dep wave carries its compatibility so _install searches qualified
     dep_call = m._install.call_args_list[-1]
@@ -1596,7 +1683,7 @@ def test_preinstall_dependency_wave_skips_seen_names(tmp_path: Path) -> None:
     m._install.side_effect = lambda spec, skip_dependencies, compatibility=None: (
         installed.append(getattr(spec, "name", str(spec)))
     )
-    pf._preinstall(m, [("noise-c@0.1.24", _FakeSpec(name="noise-c"))])
+    pf._preinstall(m, [("noise-c@0.1.26", _FakeSpec(name="noise-c"))])
     assert installed == ["noise-c"]
 
 
