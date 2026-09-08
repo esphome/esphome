@@ -96,7 +96,7 @@ class StringRef {
     return actual;
   }
 
-  std::string str() const { return len_ == 0 ? std::string() : std::string(base_, len_); }
+  std::string str() const { return std::string(base_, len_); }  // fine for {nullptr, 0}: nothing is read
   const uint8_t *byte() const { return reinterpret_cast<const uint8_t *>(base_); }
 
   operator std::string() const { return str(); }
