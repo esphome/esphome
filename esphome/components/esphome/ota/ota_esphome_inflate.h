@@ -11,25 +11,25 @@
 extern "C" {
 #endif
 
-enum ota_inflate_result {
+enum OtaInflateResult {
   OTA_INFLATE_OK = 0,   /* more data produced, call again */
   OTA_INFLATE_DONE = 1, /* end of compressed stream reached */
   OTA_INFLATE_DATA_ERROR = -3,
   OTA_INFLATE_DICT_ERROR = -5,
 };
 
-typedef struct {
-  unsigned short table[16];  /* table of code length counts */
-  unsigned short trans[288]; /* code -> symbol translation table */
-} ota_inflate_tree_t;
+struct OtaInflateTree {
+  uint16_t table[16];  /* table of code length counts */
+  uint16_t trans[288]; /* code -> symbol translation table */
+};
 
-struct ota_inflate_state {
+struct OtaInflateState {
   /* Next byte in the input buffer and one past its end */
   const unsigned char *source;
   const unsigned char *source_limit;
   /* Called when source is exhausted; returns the next byte or -1 at EOF.
      It may refill source/source_limit for buffered operation. */
-  int (*source_read_cb)(struct ota_inflate_state *d);
+  int (*source_read_cb)(struct OtaInflateState *d);
 
   unsigned int tag;
   unsigned int bitcount;
@@ -49,14 +49,14 @@ struct ota_inflate_state {
   unsigned int dict_size;
   unsigned int dict_idx;
 
-  ota_inflate_tree_t ltree; /* dynamic length/symbol tree */
-  ota_inflate_tree_t dtree; /* dynamic distance tree */
+  struct OtaInflateTree ltree; /* dynamic length/symbol tree */
+  struct OtaInflateTree dtree; /* dynamic distance tree */
 };
 
 /* dict must be at least as large as the window the encoder used (its max back reference distance) */
-void ota_inflate_init(struct ota_inflate_state *d, unsigned char *dict, unsigned int dict_len);
+void ota_inflate_init(struct OtaInflateState *d, unsigned char *dict, unsigned int dict_len);
 /* Produce output until dest reaches dest_limit (OK), the stream ends (DONE) or an error occurs */
-int ota_inflate(struct ota_inflate_state *d);
+int ota_inflate(struct OtaInflateState *d);
 
 #ifdef __cplusplus
 }
