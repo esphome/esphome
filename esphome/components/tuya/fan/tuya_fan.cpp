@@ -142,8 +142,7 @@ void TuyaFan::control(const fan::FanCall &call) {
       }
     }
   }
-  if(should_publish)
-  {
+  if (should_publish) {
     this->publish_state();
   }
 }
