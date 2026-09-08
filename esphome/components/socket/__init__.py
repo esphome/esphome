@@ -4,8 +4,10 @@ from enum import StrEnum
 import logging
 
 import esphome.codegen as cg
+from esphome.config_helpers import filter_source_files_from_defines
 import esphome.config_validation as cv
 from esphome.core import CORE
+from esphome.types import ConfigType
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -161,7 +163,7 @@ CONFIG_SCHEMA = cv.Schema(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     impl = config[CONF_IMPLEMENTATION]
     if impl == IMPLEMENTATION_LWIP_TCP:
         cg.add_define("USE_SOCKET_IMPL_LWIP_TCP")
@@ -181,16 +183,12 @@ async def to_code(config):
         cg.add_build_flag("-DUSE_LWIP_FAST_SELECT")
 
 
-def FILTER_SOURCE_FILES() -> list[str]:
-    """Return list of socket implementation files that aren't selected by the user."""
-    impl = CORE.config["socket"][CONF_IMPLEMENTATION]
-
-    # Build list of files to exclude based on selected implementation
-    excluded = []
-    if impl != IMPLEMENTATION_LWIP_TCP:
-        excluded.append("lwip_raw_tcp_impl.cpp")
-    if impl != IMPLEMENTATION_BSD_SOCKETS:
-        excluded.append("bsd_sockets_impl.cpp")
-    if impl != IMPLEMENTATION_LWIP_SOCKETS:
-        excluded.append("lwip_sockets_impl.cpp")
-    return excluded
+# Each implementation file is fully #ifdef'd on the define set in to_code
+# for the selected implementation.
+FILTER_SOURCE_FILES = filter_source_files_from_defines(
+    {
+        "lwip_raw_tcp_impl.cpp": "USE_SOCKET_IMPL_LWIP_TCP",
+        "bsd_sockets_impl.cpp": "USE_SOCKET_IMPL_BSD_SOCKETS",
+        "lwip_sockets_impl.cpp": "USE_SOCKET_IMPL_LWIP_SOCKETS",
+    }
+)

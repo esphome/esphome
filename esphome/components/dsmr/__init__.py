@@ -60,7 +60,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     uart_component = await cg.get_variable(config[CONF_UART_ID])
     if CONF_REQUEST_PIN in config:
         request_pin = await cg.gpio_pin_expression(config[CONF_REQUEST_PIN])

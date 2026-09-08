@@ -336,10 +336,8 @@ void log_update_interval(const char *tag, PollingComponent *component) {
   uint32_t update_interval = component->get_update_interval();
   if (update_interval == SCHEDULER_DONT_RUN) {
     ESP_LOGCONFIG(tag, "  Update Interval: never");
-  } else if (update_interval < 100) {
-    ESP_LOGCONFIG(tag, "  Update Interval: %.3fs", update_interval / 1000.0f);
   } else {
-    ESP_LOGCONFIG(tag, "  Update Interval: %.1fs", update_interval / 1000.0f);
+    ESP_LOGCONFIG(tag, "  Update Interval: %" PRIu32 ".%03" PRIu32 "s", update_interval / 1000, update_interval % 1000);
   }
 }
 float Component::get_actual_setup_priority() const {

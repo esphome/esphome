@@ -11,6 +11,8 @@ from esphome.const import (
     CONF_NUMBER,
     CONF_OUTPUT,
 )
+from esphome.cpp_generator import MockObj
+from esphome.types import ConfigType
 
 AUTO_LOAD = ["gpio_expander"]
 DEPENDENCIES = ["i2c"]
@@ -33,7 +35,7 @@ CONFIG_SCHEMA = (
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)
@@ -41,7 +43,7 @@ async def to_code(config):
         cg.add(var.set_interrupt_pin(await cg.gpio_pin_expression(interrupt_pin)))
 
 
-def validate_mode(value):
+def validate_mode(value: ConfigType) -> ConfigType:
     if not (value[CONF_INPUT] or value[CONF_OUTPUT]):
         raise cv.Invalid("Mode must be either input or output")
     if value[CONF_INPUT] and value[CONF_OUTPUT]:
@@ -64,7 +66,7 @@ MCP23016_PIN_SCHEMA = pins.gpio_base_schema(
 
 
 @pins.PIN_SCHEMA_REGISTRY.register(CONF_MCP23016, MCP23016_PIN_SCHEMA)
-async def mcp23016_pin_to_code(config):
+async def mcp23016_pin_to_code(config: ConfigType) -> MockObj:
     var = cg.new_Pvariable(config[CONF_ID])
     parent = await cg.get_variable(config[CONF_MCP23016])
 

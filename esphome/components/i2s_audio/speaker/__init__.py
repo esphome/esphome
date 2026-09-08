@@ -1,6 +1,7 @@
 from esphome import pins
 import esphome.codegen as cg
 from esphome.components import audio, esp32, speaker
+from esphome.config_helpers import filter_source_files_from_defines
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BITS_PER_SAMPLE,
@@ -261,3 +262,13 @@ async def to_code(config: ConfigType) -> None:
     if config[CONF_TIMEOUT] != CONF_NEVER:
         cg.add(var.set_timeout(config[CONF_TIMEOUT]))
     cg.add(var.set_buffer_duration(config[CONF_BUFFER_DURATION]))
+
+
+# The SPDIF encoder and speaker are fully #ifdef'd on USE_I2S_AUDIO_SPDIF_MODE,
+# set only when spdif_mode is enabled.
+FILTER_SOURCE_FILES = filter_source_files_from_defines(
+    {
+        "spdif_encoder.cpp": "USE_I2S_AUDIO_SPDIF_MODE",
+        "i2s_audio_spdif.cpp": "USE_I2S_AUDIO_SPDIF_MODE",
+    }
+)

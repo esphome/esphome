@@ -10,6 +10,8 @@ from esphome.const import (
     CONF_RESET_PIN,
     CONF_TRANSFORM,
 )
+from esphome.cpp_generator import MockObj
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@latonita"]
 
@@ -34,7 +36,7 @@ ST7567_SCHEMA = display.FULL_DISPLAY_SCHEMA.extend(
 ).extend(cv.polling_component_schema("1s"))
 
 
-async def setup_st7567(var, config):
+async def setup_st7567(var: MockObj, config: ConfigType) -> None:
     await display.register_display(var, config)
 
     if CONF_RESET_PIN in config:

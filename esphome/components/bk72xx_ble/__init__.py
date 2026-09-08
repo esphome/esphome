@@ -4,9 +4,12 @@ The platform analog of esp32_ble / rp2040_ble: owns the Beken BDK BLE stack
 bring-up and the controller BLE address. Consumers (bk72xx_ble_tracker) build
 on this component and contain no SDK calls of their own.
 
-Supported SoCs (BLE 5.x): BK7231N/BK7236 (BLE 5.1), BK7238/BK7252N/BK7253
-(BLE 5.2), and any future BLE-5.x SoC. Known non-5.x families are rejected in
-to_code; unknown families are capability-checked at compile time via
+Supported SoCs (BLE 5.x): BK7231N/BK7236 (BLE 5.1), BK7252N/BK7253 (BLE 5.2),
+and any future BLE-5.x SoC. BK7238 (BLE 5.2) is blocked for now: with BLE
+compiled in, the Beken SDK erases the bootloader flash sector at boot because
+LibreTiny's partition table has no BLE bonding entry (esphome#18646,
+libretiny-eu/libretiny#408). Known non-5.x families and BK7238 are rejected in
+to_code. Unknown families are capability-checked at compile time via
 `__has_include("app_ble.h")`, a header only on the BLE 5.x include path
 (ble_api.h ships for every SoC, so it cannot be the probe). A non-5.x build
 fails with a clear #error.
@@ -65,6 +68,14 @@ def _unsupported_family_message(family: str) -> str | None:
         )
     if family == FAMILY_BK7231Q:
         return "bk72xx_ble does not support BK7231Q: this SoC has no BLE"
+    if family == FAMILY_BK7238:
+        return (
+            "bk72xx_ble is disabled on BK7238: with BLE compiled in, the Beken SDK "
+            "erases the bootloader flash sector at boot and the device can no longer "
+            "start (see https://github.com/esphome/esphome/issues/18646); support "
+            "returns once the LibreTiny partition table fix "
+            "(libretiny-eu/libretiny#408) is released"
+        )
     return None
 
 
@@ -113,18 +124,7 @@ async def to_code(config: ConfigType) -> None:
     # BK7231N, but NOT on BK7238 (its BLE stack has no such symbol; the address is
     # derived from the WiFi MAC instead — the BDK's own fallback). Tell the C++
     # which path is available so it doesn't reference a missing symbol.
-    family = libretiny.get_libretiny_family()
-    if family == FAMILY_BK7231N:
+    if libretiny.get_libretiny_family() == FAMILY_BK7231N:
         cg.add_define("BK72XX_BLE_HAS_COMMON_BDADDR")
-    elif family == FAMILY_BK7238:
-        # ESPHome's LibreTiny disables BLE on BK7238 because the SDK can hang at
-        # WiFi STA startup when BLE init runs. This component re-enables BLE, so
-        # warn loudly: BK7238 is accepted but not hardware-verified and may be
-        # WiFi-unstable with BLE on.
-        _LOGGER.warning(
-            "bk72xx_ble on BK7238: enabling BLE is known to risk a WiFi STA startup "
-            "hang on this family and is not yet hardware-verified. Expect possible "
-            "instability."
-        )
 
     cg.add_define("USE_BK72XX_BLE")
