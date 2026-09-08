@@ -88,6 +88,7 @@ fan::FanTraits TuyaFan::get_traits() {
 
 void TuyaFan::control(const fan::FanCall &call) {
   auto optimistic = this->optimistic_;
+  bool should_publish = false;
   auto switch_id = this->switch_id_;
   if (switch_id.has_value()) {
     auto state = call.get_state();
@@ -95,7 +96,7 @@ void TuyaFan::control(const fan::FanCall &call) {
       this->parent_->set_boolean_datapoint_value(*switch_id, *state);
       if (optimistic) {
         this->state = *state;
-        this->publish_state();
+        should_publish = true;
       }
     }
   }
@@ -110,7 +111,7 @@ void TuyaFan::control(const fan::FanCall &call) {
       }
       if (optimistic) {
         this->oscillating = *oscillating;
-        this->publish_state();
+        should_publish = true;
       }
     }
   }
@@ -122,7 +123,7 @@ void TuyaFan::control(const fan::FanCall &call) {
       this->parent_->set_enum_datapoint_value(*dir_id, enable);
       if (optimistic) {
         this->direction = *direction;
-        this->publish_state();
+        should_publish = true;
       }
     }
   }
@@ -137,9 +138,13 @@ void TuyaFan::control(const fan::FanCall &call) {
       }
       if (optimistic) {
         this->speed = *speed;
-        this->publish_state();
+        should_publish = true;
       }
     }
+  }
+  if(should_publish)
+  {
+    this->publish_state();
   }
 }
 
