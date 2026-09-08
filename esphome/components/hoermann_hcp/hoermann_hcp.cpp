@@ -140,7 +140,6 @@ modbus::ResponseStatus HoermannHcp::on_read_holding_registers(uint16_t start_add
   switch (number_of_registers) {
     case 8:
       if (this->announcing_pause_()) {
-        // Announced in place of the ordinary state, naming the address it applies to.
         registers.push_back(counter);
         registers.push_back(static_cast<uint16_t>(RESPONSE_PAUSE | command));
         registers.push_back(this->get_address());
@@ -329,9 +328,8 @@ bool HoermannHcp::advance_pause_() {
       return false;
 
     case PauseState::PAUSE_STATE_SETTLING:
-      // Wait for a gap in what the controller sends us, so the last exchange is finished rather than cut
-      // short. This measures frames addressed to us, not every byte on the wire, so it is a courtesy and
-      // not a guarantee. Give up rather than let a busy bus hold up the restart.
+      // A gap in what the controller sends us, so the last exchange is finished rather than cut short.
+      // Only frames addressed to us, so it is a courtesy rather than a guarantee, and it gives up.
       if (now - this->last_response_ > this->pause_quiet_ms_ ||
           now - this->pause_started_at_ >= this->pause_settle_ms_) {
         this->end_pause_();

@@ -48,11 +48,12 @@ class HoermannHcp : public PollingComponent, public modbus::ModbusServerDevice {
   void dump_config() override;
   void on_shutdown() override;
 
-  /** Tells the bus controller the accessory is about to go quiet and waits for it to agree.
+  /** Tells the bus controller the accessory is about to go quiet, then waits briefly for it to answer.
    *
    * The controller registered this accessory during its bus scan, so one that simply stops answering is a
    * fault to it rather than an absence. Blocks, serving the bus itself, because neither caller runs where
-   * the main loop would turn it. Returns whether it was acknowledged; the caller carries on either way.
+   * the main loop would turn it. Goes quiet either way; the return value only says whether it was
+   * acknowledged.
    */
   bool announce_pause();
 
@@ -159,7 +160,6 @@ class HoermannHcp : public PollingComponent, public modbus::ModbusServerDevice {
   // When the door was last handed a lamp key press. It reports the lamp a moment later, so this bounds the
   // wait. Queueing another toggle deliberately leaves it alone, so the one already sent keeps its deadline.
   uint32_t light_toggle_released_at_{0};
-  // When the current step of the announcement began.
   uint32_t pause_started_at_{0};
 
   // A command is "pressed" for this long before its end value is sent.
