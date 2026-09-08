@@ -9,12 +9,14 @@ from __future__ import annotations
 
 import asyncio
 import base64
-from collections.abc import Generator
+from collections.abc import Callable, Generator
 from contextlib import contextmanager
 from dataclasses import dataclass
 import functools
 from pathlib import Path
 import socket
+from types import SimpleNamespace
+import zlib
 
 import pytest
 
@@ -234,12 +236,19 @@ async def test_host_ota_deflate(
             errors.append(line)
         dev.on_log(line)
 
-    real_compress = espota2.zlib.compress
+    real_compress = zlib.compress
 
     def corrupt_compress(data: bytes, *args: object, **kwargs: object) -> bytes:
         out = bytearray(real_compress(data, *args, **kwargs))
         out[len(out) // 2] ^= 0x55
         return bytes(out)
+
+    def overlong_compress(data: bytes, *args: object, **kwargs: object) -> bytes:
+        """A stream that inflates past the size the client announced."""
+        return real_compress(data + bytes(8192), *args, **kwargs)
+
+    def patch_compress(func: Callable[..., bytes]) -> None:
+        monkeypatch.setattr(espota2, "zlib", SimpleNamespace(compress=func))
 
     async with run_binary(dev.binary_path, line_callback=on_log) as (proc, _lines):
         dev.proc = proc
@@ -256,10 +265,19 @@ async def test_host_ota_deflate(
         monkeypatch.undo()
 
         # A corrupt stream fails the upload and leaves the device running
-        monkeypatch.setattr(espota2.zlib, "compress", corrupt_compress)
+        patch_compress(corrupt_compress)
         await dev.refused_ota(None, None, "corrupt deflate stream was accepted")
         monkeypatch.undo()
         assert errors, "device did not report the corrupt stream"
+
+        # So does a stream that inflates past the announced image size
+        errors.clear()
+        patch_compress(overlong_compress)
+        await dev.refused_ota(None, None, "overlong deflate stream was accepted")
+        monkeypatch.undo()
+        assert any("Inflate overrun" in line for line in errors), (
+            "device wrote past the announced size"
+        )
 
         # and it still takes a good upload afterwards
         await dev.ota(None, None, "upload after a rejected stream failed")
