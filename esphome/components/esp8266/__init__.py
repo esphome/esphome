@@ -35,7 +35,7 @@ from esphome.platformio.toolchain import copy_ccache_script
 from esphome.storage_json import StorageJSON
 from esphome.types import ConfigType
 
-from .boards import BOARDS, ESP8266_LD_SCRIPTS, board_ld_script
+from .boards import BOARDS, board_ld_script
 from .const import (
     CONF_EARLY_PIN_INIT,
     CONF_ENABLE_SERIAL,
@@ -43,8 +43,6 @@ from .const import (
     CONF_RESTORE_FROM_FLASH,
     KEY_BOARD,
     KEY_ESP8266,
-    KEY_FLASH_SIZE,
-    KEY_LDSCRIPT,
     KEY_PIN_INITIAL_STATES,
     KEY_SERIAL1_REQUIRED,
     KEY_SERIAL_REQUIRED,
@@ -133,10 +131,6 @@ def _format_framework_arduino_version(ver: cv.Version) -> str:
     # format the given arduino (https://github.com/esp8266/Arduino/releases) version to
     # a PIO platformio/framework-arduinoespressif8266 value
     # List of package versions: https://api.registry.platformio.org/v3/packages/platformio/tool/framework-arduinoespressif8266
-    if ver <= cv.Version(2, 4, 1):
-        return f"~1.{ver.major}{ver.minor:02d}{ver.patch:02d}.0"
-    if ver <= cv.Version(2, 6, 2):
-        return f"~2.{ver.major}{ver.minor:02d}{ver.patch:02d}.0"
     # Same encoding the native toolchain uses for its package download, so a
     # version bump cannot drift between the two paths.
     from esphome.arduino8266.framework import framework_package_version
@@ -159,11 +153,9 @@ def _format_framework_arduino_version(ver: cv.Version) -> str:
 #  - https://github.com/esp8266/Arduino/releases
 #  - https://api.registry.platformio.org/v3/packages/platformio/tool/framework-arduinoespressif8266
 RECOMMENDED_ARDUINO_FRAMEWORK_VERSION = cv.Version(3, 1, 2)
-# The platformio/espressif8266 version to use for arduino 2 framework versions
+# The platformio/espressif8266 version to use for arduino 3 framework versions
 #  - https://github.com/platformio/platform-espressif8266/releases
 #  - https://api.registry.platformio.org/v3/packages/platformio/platform/espressif8266
-ARDUINO_2_PLATFORM_VERSION = cv.Version(2, 6, 3)
-# for arduino 3 framework versions
 ARDUINO_3_PLATFORM_VERSION = cv.Version(3, 2, 0)
 # for arduino 4 framework versions
 ARDUINO_4_PLATFORM_VERSION = cv.Version(4, 2, 1)
@@ -188,6 +180,14 @@ def _arduino_check_versions(value: ConfigType) -> ConfigType:
         version = cv.Version.parse(cv.version_number(value[CONF_VERSION]))
         source = value.get(CONF_SOURCE, None)
 
+    if version < cv.Version(3, 0, 0):
+        raise cv.Invalid(
+            f"Arduino framework {version} is no longer supported; ESPHome requires "
+            f"C++20, which needs Arduino core 3.x. Use the recommended version "
+            f"({RECOMMENDED_ARDUINO_FRAMEWORK_VERSION}).",
+            path=[CONF_VERSION],
+        )
+
     value[CONF_VERSION] = str(version)
     value[CONF_SOURCE] = source or _format_framework_arduino_version(version)
 
@@ -195,12 +195,8 @@ def _arduino_check_versions(value: ConfigType) -> ConfigType:
     if platform_version is None:
         if version >= cv.Version(3, 1, 0):
             platform_version = _parse_platform_version(str(ARDUINO_4_PLATFORM_VERSION))
-        elif version >= cv.Version(3, 0, 0):
-            platform_version = _parse_platform_version(str(ARDUINO_3_PLATFORM_VERSION))
-        elif version >= cv.Version(2, 5, 0):
-            platform_version = _parse_platform_version(str(ARDUINO_2_PLATFORM_VERSION))
         else:
-            platform_version = _parse_platform_version(str(cv.Version(1, 8, 0)))
+            platform_version = _parse_platform_version(str(ARDUINO_3_PLATFORM_VERSION))
     value[CONF_PLATFORM_VERSION] = platform_version
 
     if version != RECOMMENDED_ARDUINO_FRAMEWORK_VERSION:
@@ -289,29 +285,11 @@ def check_rosetta() -> None:
         )
 
 
-def _choose_ld_script(board: str, ver: cv.Version) -> str | None:
-    """The flash ld to pin for this board and core, or None for cores
-    without ld-script support."""
-    board_data = BOARDS[board]
-    ld_scripts = ESP8266_LD_SCRIPTS[board_data[KEY_FLASH_SIZE]]
-    if ver <= cv.Version(2, 3, 0):
-        # No ld script support
-        return None
-    if ver <= cv.Version(2, 4, 2):
-        # Old ld script path; the modern per-board override names do not
-        # exist in this core's SDK, so the override cannot be honored.
-        # Substituting the size default would move _FS_end and the
-        # preferences sector, wiping flash-backed state on flash.
-        if KEY_LDSCRIPT in board_data:
-            raise EsphomeError(
-                f"Board {board} requires its {board_data[KEY_LDSCRIPT]} "
-                f"flash layout, which Arduino core {ver} cannot honor; "
-                "use a core newer than 2.4.2"
-            )
-        return ld_scripts[0]
+def _choose_ld_script(board: str) -> str:
+    """The flash ld to pin for this board."""
     # A per-board override preserves a layout the board shipped with
     # (see d1_wroom_02 in boards.py)
-    return board_ld_script(board_data)
+    return board_ld_script(BOARDS[board])
 
 
 @coroutine_with_priority(CoroPriority.PLATFORM)
@@ -435,10 +413,9 @@ async def to_code(config: ConfigType) -> None:
     )
 
     if config[CONF_BOARD] in BOARDS:
-        ld_script = _choose_ld_script(config[CONF_BOARD], ver)
-
-        if ld_script is not None:
-            cg.add_platformio_option("board_build.ldscript", ld_script)
+        cg.add_platformio_option(
+            "board_build.ldscript", _choose_ld_script(config[CONF_BOARD])
+        )
 
     CORE.add_job(add_pin_initial_states_array)
     CORE.add_job(finalize_waveform_config)
