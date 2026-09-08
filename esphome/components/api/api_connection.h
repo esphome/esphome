@@ -223,10 +223,6 @@ class APIConnection final : public APIServerConnectionBase {
   void on_z_wave_proxy_request(const ZWaveProxyRequest &msg);
 #endif
 
-#ifdef USE_ZIGBEE_PROXY
-  void on_zigbee_proxy_request(const ZigbeeProxyRequest &msg);
-#endif
-
 #ifdef USE_ALARM_CONTROL_PANEL
   bool send_alarm_control_panel_state(alarm_control_panel::AlarmControlPanel *a_alarm_control_panel);
   void on_alarm_control_panel_command_request(const AlarmControlPanelCommandRequest &msg);

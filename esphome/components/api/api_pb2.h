@@ -373,11 +373,6 @@ enum SerialProxyMode : uint32_t {
   SERIAL_PROXY_MODE_PROTOCOL = 1,
 };
 #endif
-#ifdef USE_ZIGBEE_PROXY
-enum ZigbeeProxyRequestType : uint32_t {
-  ZIGBEE_PROXY_REQUEST_TYPE_NETWORK_INFO = 0,
-};
-#endif
 
 }  // namespace enums
 
@@ -560,7 +555,7 @@ class SerialProxyInfo final : public ProtoMessage {
 class DeviceInfoResponse final : public ProtoMessage {
  public:
   static constexpr uint16_t MESSAGE_TYPE = 10;
-  static constexpr uint16_t ESTIMATED_SIZE = 322;
+  static constexpr uint16_t ESTIMATED_SIZE = 312;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const LogString *message_name() const override { return LOG_STR("device_info_response"); }
 #endif
@@ -618,12 +613,6 @@ class DeviceInfoResponse final : public ProtoMessage {
 #endif
 #ifdef USE_API_NOISE
   bool api_encryption_provisionable{false};
-#endif
-#ifdef USE_ZIGBEE_PROXY
-  uint32_t zigbee_proxy_feature_flags{0};
-#endif
-#ifdef USE_ZIGBEE_PROXY
-  uint64_t zigbee_ieee_address{0};
 #endif
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const;
   uint32_t calculate_size() const;
@@ -3513,28 +3502,6 @@ class BluetoothSetConnectionParamsResponse final : public ProtoMessage {
 #endif
 
  protected:
-};
-#endif
-#ifdef USE_ZIGBEE_PROXY
-class ZigbeeProxyRequest final : public ProtoDecodableMessage {
- public:
-  static constexpr uint16_t MESSAGE_TYPE = 155;
-  static constexpr uint8_t ESTIMATED_SIZE = 21;
-#ifdef HAS_PROTO_MESSAGE_DUMP
-  const LogString *message_name() const override { return LOG_STR("zigbee_proxy_request"); }
-#endif
-  enums::ZigbeeProxyRequestType type{};
-  const uint8_t *data{nullptr};
-  uint16_t data_len{0};
-  uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const;
-  uint32_t calculate_size() const;
-#ifdef HAS_PROTO_MESSAGE_DUMP
-  const char *dump_to(DumpBuffer &out) const override;
-#endif
-
- protected:
-  bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
-  bool decode_varint(uint32_t field_id, proto_varint_value_t value) override;
 };
 #endif
 

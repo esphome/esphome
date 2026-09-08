@@ -48,9 +48,6 @@
 #ifdef USE_ZWAVE_PROXY
 #include "esphome/components/zwave_proxy/zwave_proxy.h"
 #endif
-#ifdef USE_ZIGBEE_PROXY
-#include "esphome/components/zigbee_proxy/zigbee_proxy.h"
-#endif
 #ifdef USE_SERIAL_PROXY_USB_INFO
 #include "esphome/components/usb_host/usb_host.h"
 #endif
@@ -1395,12 +1392,6 @@ void APIConnection::on_z_wave_proxy_request(const ZWaveProxyRequest &msg) {
 }
 #endif
 
-#ifdef USE_ZIGBEE_PROXY
-void APIConnection::on_zigbee_proxy_request(const ZigbeeProxyRequest &msg) {
-  zigbee_proxy::global_zigbee_proxy->zigbee_proxy_request(this, msg);
-}
-#endif
-
 #ifdef USE_ALARM_CONTROL_PANEL
 bool APIConnection::send_alarm_control_panel_state(alarm_control_panel::AlarmControlPanel *a_alarm_control_panel) {
   return this->send_message_smart_(a_alarm_control_panel, AlarmControlPanelStateResponse::MESSAGE_TYPE,
@@ -1831,11 +1822,6 @@ void APIConnection::complete_authentication_() {
     zwave_proxy::global_zwave_proxy->api_connection_authenticated(this);
   }
 #endif
-#ifdef USE_ZIGBEE_PROXY
-  if (zigbee_proxy::global_zigbee_proxy != nullptr) {
-    zigbee_proxy::global_zigbee_proxy->api_connection_authenticated(this);
-  }
-#endif
 }
 
 bool APIConnection::send_hello_response_(const HelloRequest &msg) {
@@ -1987,10 +1973,6 @@ bool APIConnection::send_device_info_response_() {
     info.port_type = proxy->get_port_type();
     info.configured_line_states = proxy->get_configured_modem_pins();
   }
-#endif
-#ifdef USE_ZIGBEE_PROXY
-  resp.zigbee_proxy_feature_flags = zigbee_proxy::global_zigbee_proxy->get_feature_flags();
-  resp.zigbee_ieee_address = zigbee_proxy::global_zigbee_proxy->get_ieee_address();
 #endif
 #ifdef USE_API_NOISE
   resp.api_encryption_supported = true;

@@ -70,8 +70,6 @@ service APIConnection {
   rpc zwave_proxy_frame(ZWaveProxyFrame) returns (void) {}
   rpc zwave_proxy_request(ZWaveProxyRequest) returns (void) {}
 
-  rpc zigbee_proxy_request(ZigbeeProxyRequest) returns (void) {}
-
   rpc infrared_rf_transmit_raw_timings(InfraredRFTransmitRawTimingsRequest) returns (void) {}
 
   rpc serial_proxy_configure(SerialProxyConfigureRequest) returns (void) {}
@@ -340,10 +338,6 @@ message DeviceInfoResponse {
   // all-zeros PSK, so the api encryption key can be provisioned without being
   // sent in plaintext (protects against passive sniffing, not active MITM)
   bool api_encryption_provisionable = 26 [(field_ifdef) = "USE_API_NOISE"];
-
-  // Indicates if Zigbee proxy support is available and features supported
-  uint32 zigbee_proxy_feature_flags = 27 [(field_ifdef) = "USE_ZIGBEE_PROXY"];
-  uint64 zigbee_ieee_address = 28 [(field_ifdef) = "USE_ZIGBEE_PROXY"];
 }
 
 // ==================== DEVICE CAPABILITIES ====================
@@ -2929,19 +2923,4 @@ message BluetoothSetConnectionParamsResponse {
 
   uint64 address = 1;
   int32 error = 2;
-}
-
-// ==================== ZIGBEE ====================
-
-enum ZigbeeProxyRequestType {
-  ZIGBEE_PROXY_REQUEST_TYPE_NETWORK_INFO = 0;
-}
-
-message ZigbeeProxyRequest {
-  option (id) = 155;
-  option (source) = SOURCE_BOTH;
-  option (ifdef) = "USE_ZIGBEE_PROXY";
-
-  ZigbeeProxyRequestType type = 1;
-  bytes data = 2;
 }

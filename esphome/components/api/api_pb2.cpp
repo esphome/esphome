@@ -176,12 +176,6 @@ uint8_t *DeviceInfoResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_
 #ifdef USE_API_NOISE
   ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 26, this->api_encryption_provisionable);
 #endif
-#ifdef USE_ZIGBEE_PROXY
-  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 27, this->zigbee_proxy_feature_flags);
-#endif
-#ifdef USE_ZIGBEE_PROXY
-  ProtoEncode::encode_uint64(pos PROTO_ENCODE_DEBUG_ARG, 28, this->zigbee_ieee_address);
-#endif
   return pos;
 }
 uint32_t DeviceInfoResponse::calculate_size() const {
@@ -246,12 +240,6 @@ uint32_t DeviceInfoResponse::calculate_size() const {
 #endif
 #ifdef USE_API_NOISE
   size += ProtoSize::calc_bool(2, this->api_encryption_provisionable);
-#endif
-#ifdef USE_ZIGBEE_PROXY
-  size += ProtoSize::calc_uint32(2, this->zigbee_proxy_feature_flags);
-#endif
-#ifdef USE_ZIGBEE_PROXY
-  size += ProtoSize::calc_uint64(2, this->zigbee_ieee_address);
 #endif
   return size;
 }
@@ -4350,42 +4338,6 @@ uint32_t BluetoothSetConnectionParamsResponse::calculate_size() const {
   uint32_t size = 0;
   size += ProtoSize::calc_uint64(1, this->address);
   size += ProtoSize::calc_int32(1, this->error);
-  return size;
-}
-#endif
-#ifdef USE_ZIGBEE_PROXY
-bool ZigbeeProxyRequest::decode_varint(uint32_t field_id, proto_varint_value_t value) {
-  switch (field_id) {
-    case 1:
-      this->type = static_cast<enums::ZigbeeProxyRequestType>(value);
-      break;
-    default:
-      return false;
-  }
-  return true;
-}
-bool ZigbeeProxyRequest::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
-  switch (field_id) {
-    case 2: {
-      this->data = value.data();
-      this->data_len = value.size();
-      break;
-    }
-    default:
-      return false;
-  }
-  return true;
-}
-uint8_t *ZigbeeProxyRequest::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
-  uint8_t *__restrict__ pos = buffer.get_pos();
-  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 1, static_cast<uint32_t>(this->type));
-  ProtoEncode::encode_bytes(pos PROTO_ENCODE_DEBUG_ARG, 2, this->data, this->data_len);
-  return pos;
-}
-uint32_t ZigbeeProxyRequest::calculate_size() const {
-  uint32_t size = 0;
-  size += this->type ? 2 : 0;
-  size += ProtoSize::calc_length(1, this->data_len);
   return size;
 }
 #endif

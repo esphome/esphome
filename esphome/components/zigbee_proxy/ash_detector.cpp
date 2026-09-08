@@ -14,10 +14,9 @@ static constexpr size_t ASH_MIN_FRAME_SIZE = 1 + ASH_CRC_SIZE;
 
 // The opening EZSP version command is a constant: control 0x00 (frmNum 0, ackNum 0)
 // followed by [seq=0][frameControl=0][frameId=0] randomized by 0x42 0x21 0xA8. Only the
-// requested version varies, as version ^ 0x54, so it can be recovered for free.
+// trailing requested-version byte varies, so the first four bytes pin the frame exactly.
 static constexpr uint8_t EZSP_VERSION_CMD_PREFIX[] = {0x00, 0x42, 0x21, 0xA8};
 static constexpr size_t EZSP_VERSION_CMD_SIZE = 5;
-static constexpr uint8_t EZSP_VERSION_RANDOM_MASK = 0x54;
 
 // Consecutive frames we could not accept, with neither a good frame nor a retransmission
 // in between, before concluding the peer is no longer speaking ASH. A real ASH peer must
@@ -25,7 +24,7 @@ static constexpr uint8_t EZSP_VERSION_RANDOM_MASK = 0x54;
 // here -- garbage on the line is not, since noise proves nothing either way.
 static constexpr uint8_t MAX_UNCONFIRMED_REJECTS = 4;
 
-bool ash_reset_code_is_known(uint8_t code) {
+static bool ash_reset_code_is_known(uint8_t code) {
   switch (code) {
     case 0x00:  // RESET_UNKNOWN
     case 0x01:  // RESET_EXTERNAL
@@ -138,13 +137,10 @@ void AshDetector::reset() {
   this->state_ = AshDetectState::IDLE;
   this->rx_sequence_ = 0;
   this->ack_owed_ = false;
-  this->data_frame_ready_ = false;
   this->unconfirmed_rejects_ = 0;
-  this->negotiated_version_ = 0;
 }
 
 void AshDetector::from_ncp(uint8_t byte) {
-  this->data_frame_ready_ = false;
   switch (this->ncp_scanner_.feed(byte)) {
     case ScanResult::FRAME:
       this->handle_ncp_frame_();
@@ -202,7 +198,6 @@ void AshDetector::handle_ncp_frame_() {
   this->rx_sequence_ = (this->rx_sequence_ + 1) & ASH_MAX_SEQUENCE;
   this->pending_ack_ = this->rx_sequence_;
   this->ack_owed_ = true;
-  this->data_frame_ready_ = true;
   this->unconfirmed_rejects_ = 0;
 }
 
@@ -235,7 +230,6 @@ void AshDetector::from_host(uint8_t byte) {
     }
   }
 
-  this->negotiated_version_ = body[4] ^ EZSP_VERSION_RANDOM_MASK;
   this->state_ = AshDetectState::ARMED;
   this->rx_sequence_ = 0;
   this->ack_owed_ = false;

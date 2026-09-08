@@ -893,16 +893,6 @@ template<> const char *proto_enum_to_string<enums::SerialProxyMode>(enums::Seria
   }
 }
 #endif
-#ifdef USE_ZIGBEE_PROXY
-template<> const char *proto_enum_to_string<enums::ZigbeeProxyRequestType>(enums::ZigbeeProxyRequestType value) {
-  switch (value) {
-    case enums::ZIGBEE_PROXY_REQUEST_TYPE_NETWORK_INFO:
-      return ESPHOME_PSTR("ZIGBEE_PROXY_REQUEST_TYPE_NETWORK_INFO");
-    default:
-      return ESPHOME_PSTR("UNKNOWN");
-  }
-}
-#endif
 
 const char *HelloRequest::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, ESPHOME_PSTR("HelloRequest"));
@@ -1032,12 +1022,6 @@ const char *DeviceInfoResponse::dump_to(DumpBuffer &out) const {
 #endif
 #ifdef USE_API_NOISE
   dump_field(out, ESPHOME_PSTR("api_encryption_provisionable"), this->api_encryption_provisionable);
-#endif
-#ifdef USE_ZIGBEE_PROXY
-  dump_field(out, ESPHOME_PSTR("zigbee_proxy_feature_flags"), this->zigbee_proxy_feature_flags);
-#endif
-#ifdef USE_ZIGBEE_PROXY
-  dump_field(out, ESPHOME_PSTR("zigbee_ieee_address"), this->zigbee_ieee_address);
 #endif
   return out.c_str();
 }
@@ -2875,14 +2859,6 @@ const char *BluetoothSetConnectionParamsResponse::dump_to(DumpBuffer &out) const
   MessageDumpHelper helper(out, ESPHOME_PSTR("BluetoothSetConnectionParamsResponse"));
   dump_field(out, ESPHOME_PSTR("address"), this->address);
   dump_field(out, ESPHOME_PSTR("error"), this->error);
-  return out.c_str();
-}
-#endif
-#ifdef USE_ZIGBEE_PROXY
-const char *ZigbeeProxyRequest::dump_to(DumpBuffer &out) const {
-  MessageDumpHelper helper(out, ESPHOME_PSTR("ZigbeeProxyRequest"));
-  dump_field(out, ESPHOME_PSTR("type"), static_cast<enums::ZigbeeProxyRequestType>(this->type));
-  dump_bytes_field(out, ESPHOME_PSTR("data"), this->data, this->data_len);
   return out.c_str();
 }
 #endif

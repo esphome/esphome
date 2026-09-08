@@ -86,18 +86,6 @@ class AshDetector {
   // An acknowledgement became owed after the last from_ncp() call. Clears the flag.
   bool take_pending_ack(uint8_t &ack_num);
 
-  // The EZSP frame carried by the DATA frame just accepted, for metadata sniffing. The
-  // ASH control byte is skipped, so offset 0 is the EZSP sequence number. Still
-  // randomized, and valid only until the next from_ncp() call.
-  const uint8_t *last_ezsp_frame() const { return this->ncp_scanner_.frame() + 1; }
-  size_t last_ezsp_frame_length() const {
-    const size_t length = this->ncp_scanner_.length();
-    return length > 0 ? length - 1 : 0;
-  }
-
-  AshDetectState state() const { return this->state_; }
-  uint8_t negotiated_version() const { return this->negotiated_version_; }
-
  protected:
   void handle_ncp_frame_();
   void reject_();
@@ -107,10 +95,8 @@ class AshDetector {
   AshDetectState state_{AshDetectState::IDLE};
   uint8_t rx_sequence_{0};
   uint8_t pending_ack_{0};
-  bool ack_owed_{false};
-  bool data_frame_ready_{false};
   uint8_t unconfirmed_rejects_{0};
-  uint8_t negotiated_version_{0};
+  bool ack_owed_{false};
 };
 
 }  // namespace esphome::zigbee_proxy

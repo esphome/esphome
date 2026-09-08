@@ -245,10 +245,6 @@ class APIServerConnectionBase {
 #ifdef USE_BLUETOOTH_PROXY_CONNECTIONS
   void on_bluetooth_set_connection_params_request(const BluetoothSetConnectionParamsRequest &value){};
 #endif
-
-#ifdef USE_ZIGBEE_PROXY
-  void on_zigbee_proxy_request(const ZigbeeProxyRequest &value){};
-#endif
 };
 
 }  // namespace esphome::api
