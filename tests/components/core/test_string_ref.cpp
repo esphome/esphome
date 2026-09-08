@@ -94,4 +94,12 @@ TEST(StringRefNullEmpty, ComparesAgainstText) {
   EXPECT_TRUE(text.starts_with(null_empty));
 }
 
+TEST(StringRefNullEmpty, TwoNullViewsAreEqual) {
+  const StringRef a{nullptr, 0};
+  const StringRef b{nullptr, 0};
+  EXPECT_TRUE(a == b);
+  EXPECT_EQ(a.compare(b), 0);
+  EXPECT_TRUE(a.starts_with(b));
+}
+
 }  // namespace esphome::core::testing
