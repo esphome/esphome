@@ -1,0 +1,7 @@
+esphome:
+  name: bk-family-gate-t
+
+bk72xx:
+  board: generic-bk7231t-qfn32-tuya
+
+bk72xx_ble:

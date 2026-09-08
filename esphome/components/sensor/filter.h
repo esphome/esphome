@@ -239,8 +239,8 @@ class ExponentialMovingAverageFilter : public Filter {
 
   optional<float> new_value(float value) override;
 
-  void set_send_every(uint16_t send_every);
-  void set_alpha(float alpha);
+  void set_send_every(uint16_t send_every) { this->send_every_ = send_every; }
+  void set_alpha(float alpha) { this->alpha_ = alpha; }
 
  protected:
   float accumulator_{NAN};

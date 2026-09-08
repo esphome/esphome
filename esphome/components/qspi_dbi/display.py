@@ -1,4 +1,5 @@
 import logging
+from typing import Any
 
 from esphome import pins
 import esphome.codegen as cg
@@ -26,6 +27,7 @@ from esphome.const import (
     CONF_WIDTH,
 )
 from esphome.core import TimePeriod
+from esphome.types import ConfigType
 
 from . import CONF_DRAW_FROM_ORIGIN
 from .models import DriverChip
@@ -49,14 +51,14 @@ DATA_PIN_SCHEMA = pins.internal_gpio_output_pin_schema
 DELAY_FLAG = 0xFF
 
 
-def validate_dimension(value):
+def validate_dimension(value: Any) -> int:
     value = cv.positive_int(value)
     if value % 2 != 0:
         raise cv.Invalid("Width/height/offset must be divisible by 2")
     return value
 
 
-def map_sequence(value):
+def map_sequence(value: Any) -> list[int]:
     """
     The format is a repeated sequence of [CMD, <data>] where <data> is s a sequence of bytes. The length is inferred
     from the length of the sequence and should not be explicit.
@@ -74,14 +76,14 @@ def map_sequence(value):
     return [value[0], len(params)] + list(params)
 
 
-def _validate(config):
+def _validate(config: ConfigType) -> ConfigType:
     chip = DriverChip.chips[config[CONF_MODEL]]
     if not chip.initsequence and CONF_INIT_SEQUENCE not in config:
         raise cv.Invalid(f"{chip.name} model requires init_sequence")
     return config
 
 
-def power_of_two(value):
+def power_of_two(value: Any) -> int:
     value = cv.int_range(1, 128)(value)
     if value & (value - 1) != 0:
         raise cv.Invalid("value must be a power of two")
@@ -122,11 +124,11 @@ BASE_SCHEMA = display.FULL_DISPLAY_SCHEMA.extend(
 )
 
 
-def model_property(name, defaults, fallback):
+def model_property(name: str, defaults: dict[str, Any], fallback: Any) -> cv.Optional:
     return cv.Optional(name, default=defaults.get(name, fallback))
 
 
-def model_schema(defaults):
+def model_schema(defaults: dict[str, Any]) -> cv.Schema:
     transform = cv.Schema(
         {
             cv.Optional(CONF_MIRROR_X, default=False): cv.boolean,
@@ -162,7 +164,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     LOGGER.warning(
         "The 'qspi_dbi' component is deprecated, it is recommended to use 'mipi_spi' instead."
     )

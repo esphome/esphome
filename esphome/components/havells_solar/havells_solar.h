@@ -4,7 +4,7 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/modbus/modbus.h"
 
-#include <vector>
+#include <span>
 
 namespace esphome::havells_solar {
 
@@ -77,7 +77,8 @@ class HavellsSolar final : public PollingComponent, public modbus::ModbusClientD
 
   void update() override;
 
-  void on_modbus_data(const std::vector<uint8_t> &data) override;
+  void on_read_holding_registers(uint16_t start_address, std::span<const uint16_t> registers,
+                                 modbus::ResponseStatus status) override;
 
   void dump_config() override;
 

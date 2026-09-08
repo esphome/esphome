@@ -5,11 +5,13 @@ import os
 from pathlib import Path
 import queue
 import re
+import shlex
 import shutil
 import subprocess
 import sys
 import tempfile
 import threading
+from typing import Any
 
 import click
 import colorama
@@ -27,6 +29,36 @@ from helpers import (
     root_path,
     temp_header_file,
 )
+
+
+def gcc_multilib_directory(idedata: dict[str, Any]) -> str | None:
+    """The toolchain's active multilib subdirectory (e.g. "thumb"), if any.
+
+    PlatformIO's idedata lists the generic toolchain include directories; GCC
+    resolves the active multilib subdirectory internally while searching them.
+    Toolchains without a default multilib (pico-quick-toolchain 5.0.0+) ship
+    the libstdc++ target config (bits/c++config.h) only inside the multilib
+    subdirectories, so clang needs the resolved directory spelled out.
+    """
+    machine_flags = [f for f in idedata["cxx_flags"] if f.startswith("-m")]
+    cmd = [idedata["cxx_path"], *machine_flags, "-print-multi-directory"]
+    try:
+        multilib = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.strip()
+    except (OSError, subprocess.CalledProcessError) as err:
+        # Without the multilib dir, toolchains lacking a default multilib fail
+        # later with "bits/c++config.h not found"; point at the probe instead.
+        stderr = getattr(err, "stderr", "") or ""
+        print(
+            f"WARNING: multilib probe failed ({shlex.join(cmd)}): {err} {stderr}".strip(),
+            file=sys.stderr,
+        )
+        return None
+    return None if multilib in ("", ".") else multilib
 
 
 def clang_options(idedata, environment):
@@ -74,6 +106,8 @@ def clang_options(idedata, environment):
         "-fno-jump-tables",
         "-fno-shrink-wrap",
         "-mno-target-align",
+        # GCC-only flag emitted by the LibreTiny build
+        "-mthumb-interwork",
     )
 
     if "zephyr" in triplet:
@@ -109,6 +143,23 @@ def clang_options(idedata, environment):
     if environment.startswith("rp2"):
         # clang's ARM backend doesn't know GCC's long_call attribute (IRAM_ATTR)
         cmd.append("-Wno-unknown-attributes")
+    elif environment.startswith(("bk72xx", "ln882h", "rtl87xx")):
+        cmd.extend(
+            [
+                # GCC on arm-none-eabi types (u)int32_t as (unsigned) long; clang
+                # types it as (unsigned) int, clashing with LibreTiny's lwip
+                # port typedefs. Match the GCC type model.
+                "-U__UINT32_TYPE__",
+                "-D__UINT32_TYPE__=long unsigned int",
+                "-U__INT32_TYPE__",
+                "-D__INT32_TYPE__=long int",
+                # newlib's machine/endian.h macroizes __bswap16 into
+                # __builtin_bswap16; the beken BDK then defines __bswap16 as a
+                # function, which GCC tolerates as a builtin redeclaration but
+                # clang rejects
+                "-D__MACHINE_ENDIAN_H__",
+            ]
+        )
     else:
         # replace pgmspace.h, as it uses GNU extensions clang doesn't support
         # https://github.com/earlephilhower/newlib-xtensa/pull/18
@@ -154,15 +205,42 @@ def clang_options(idedata, environment):
     )
     cmd.append("-std=gnu++20")
 
-    # defines
-    cmd.extend(f"-D{define}" for define in idedata["defines"])
+    if environment.startswith(("bk72xx", "ln882h", "rtl87xx")):
+        # LibreTiny leaves function-like macro values unparenthesized
+        # (bugprone-macro-parentheses); its SDK-internal FAL_PART_TABLE macro trips the same
+        # check. Assumes define values are always expressions (never type- or char-literal),
+        # which holds for the current LibreTiny idedata.
+        def sanitize_define(define):
+            name, sep, value = define.partition("=")
+            if (
+                sep
+                and value
+                and not value.startswith(("(", '"'))
+                and ("(" in name or not re.fullmatch(r"[\w.]+", value))
+            ):
+                value = f"({value})"
+            return f"-D{name}{sep}{value}"
+
+        # FAL_PART_TABLE and the delay() remap are library-scope LibreTiny flags that the real
+        # build never applies to esphome sources. Strip LibreTiny's shell quoting from define
+        # names first so the skip list matches regardless of which names it happens to quote.
+        for define in idedata["defines"]:
+            define = define.replace("'", "")
+            if define.startswith(("FAL_PART_TABLE", "delay(")):
+                continue
+            cmd.append(sanitize_define(define))
+    else:
+        cmd.extend(f"-D{define}" for define in idedata["defines"])
 
     # toolchain include directories, using -isystem to suppress their errors
     # idedata contains include directories for all toolchains of this platform, only use those from the one in use
     toolchain_dir = os.path.normpath(f"{idedata['cxx_path']}/../../")
+    multilib = gcc_multilib_directory(idedata)
     toolchain_includes = []
     for directory in idedata["includes"]["toolchain"]:
         if directory.startswith(toolchain_dir) and "picolibc" not in directory:
+            if multilib and (multilib_dir := Path(directory) / multilib).is_dir():
+                toolchain_includes.extend(["-isystem", str(multilib_dir)])
             toolchain_includes.extend(["-isystem", directory])
 
     # library include directories, using -isystem to suppress their errors
@@ -219,8 +297,9 @@ def run_tidy(executable, args, options, tmpdir, path_queue, lock, failed_files):
         if sys.stdout.isatty():
             invocation.append("--use-color")
 
-        if args.environment.startswith("rp2"):
-            # MMIO peripheral access on bare-metal RP2 is all fixed-address.
+        if args.environment.startswith(("rp2", "bk72xx", "ln882h", "rtl87xx")):
+            # MMIO peripheral access on these bare-metal platforms is all
+            # fixed-address.
             # bugprone-pointer-arithmetic-on-polymorphic-object (and its
             # cert-ctr56-cpp alias) crashes clang-tidy 22 with infinite matcher
             # recursion on lvgl_esphome.h under the RP2 defines.
@@ -439,7 +518,9 @@ def main():
             print("Error applying fixes.\n", file=sys.stderr)
             raise
 
-    return len(failed_files)
+    # Cap at 255: shells truncate exit codes to one byte, so 256 failures
+    # would otherwise report success
+    return min(len(failed_files), 255)
 
 
 if __name__ == "__main__":

@@ -1,0 +1,10 @@
+# Advertisement-only proxy on the ln882x BLE hub (active-scan-capable, in-tree
+# since #16691) — a target CI fully compiles. Same bare-hub arrangement as
+# test.rp2040-ard.yaml: no explicit ble_hub_id so a grouped build cannot
+# collide with ln882h_ble_tracker's own fixture id.
+packages:
+  common: !include common.yaml
+
+ln882h_ble_tracker:
+
+bluetooth_proxy:

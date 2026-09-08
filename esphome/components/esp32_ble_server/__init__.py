@@ -307,7 +307,7 @@ def create_device_information_service(config):
     return config
 
 
-def final_validate_config(config):
+def final_validate_config(config) -> None:
     # Validate max_clients does not exceed esp32_ble max_connections
     max_clients = config[CONF_MAX_CLIENTS]
     if max_clients > 1:
@@ -355,7 +355,6 @@ def final_validate_config(config):
             raise cv.Invalid(
                 f"Characteristic {char_config[CONF_UUID]} has both a set_value action and a templated value"
             )
-    return config
 
 
 def validate_value_type(value_config):
@@ -597,6 +596,18 @@ async def to_code(config):
     cg.add(var.set_parent(parent))
     cg.add(parent.advertising_set_appearance(config[CONF_APPEARANCE]))
     cg.add(var.set_max_clients(config[CONF_MAX_CLIENTS]))
+    # Only advertise for the server itself when the configuration gives clients something to
+    # find. A server that is auto-loaded purely to host a runtime service (esp32_improv) stays
+    # silent until that service asks for advertising.
+    cg.add(
+        var.set_advertising_required(
+            CONF_MANUFACTURER_DATA in config
+            or any(
+                not uuid_is(service_config[CONF_UUID], DEVICE_INFORMATION_SERVICE_UUID)
+                for service_config in config[CONF_SERVICES]
+            )
+        )
+    )
     if CONF_MANUFACTURER_DATA in config:
         cg.add(var.set_manufacturer_data(config[CONF_MANUFACTURER_DATA]))
     for service_config in config[CONF_SERVICES]:

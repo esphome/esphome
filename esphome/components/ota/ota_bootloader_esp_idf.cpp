@@ -1,6 +1,7 @@
 #ifdef USE_ESP32
 #include "ota_backend_esp_idf.h"
 
+#include "esphome/components/watchdog/watchdog.h"
 #include "esphome/core/defines.h"
 
 #ifdef USE_OTA_PARTITIONS
@@ -11,7 +12,7 @@
 
 namespace esphome::ota {
 
-static const char *const TAG = "ota.idf";
+static const char *const TAG = "ota";
 
 OTAResponseTypes IDFOTABackend::register_and_validate_bootloader_part_() {
   // Register the bootloader partition
@@ -69,12 +70,20 @@ OTAResponseTypes IDFOTABackend::setup_bootloader_staging_() {
     return OTA_RESPONSE_ERROR_BOOTLOADER_VERIFY;
   }
   // Erase full size of the bootloader partition in the staging partition
-  // to avoid copying old data to the bootloader partition later
+  // to avoid copying old data to the bootloader partition later. Up to
+  // ESP_BOOTLOADER_SIZE of blocking erase; widen the WDT for its duration.
+  watchdog::WatchdogManager watchdog(15000);
   esp_err_t err = esp_partition_erase_range(this->partition_, 0, this->bootloader_part_->size);
   if (err != ESP_OK) {
     ESP_LOGW(TAG, "esp_partition_erase_range failed (err=0x%X)", err);
     // No critical error, don't return
   }
+#ifdef USE_OTA_BLOCK_ERASE_AHEAD
+  if (err == ESP_OK) {
+    // Skip re-erasing the pre-erased staging region in erase_ahead_()
+    this->erased_end_ = this->bootloader_part_->size;
+  }
+#endif
   err = esp_ota_set_final_partition(this->update_handle_, this->bootloader_part_, false);
   if (err != ESP_OK) {
     esp_ota_abort(this->update_handle_);
@@ -94,6 +103,18 @@ OTAResponseTypes IDFOTABackend::finalize_bootloader_update_(esp_err_t ota_end_er
   if (ota_end_err != ESP_OK) {
     return OTA_RESPONSE_ERROR_BOOTLOADER_VERIFY;
   }
+#ifdef USE_OTA_SIGNED_VERIFICATION_MULTI_KEY
+  // The new bootloader is staged in partition_. IDF never signature-checks a
+  // bootloader image in this software-signed config -- esp_image_verify() skips
+  // it when is_bootloader() is true -- so without this a bootloader OTA would
+  // install unverified. Require a trusted signature, which means the bootloader
+  // must be externally signed and 4 KiB-padded, the same as the app.
+  if (!this->verify_signed_image_(this->partition_)) {
+    ESP_LOGE(TAG, "Bootloader image is not signed by a trusted key; a bootloader OTA requires an "
+                  "externally-signed, 4 KiB-padded bootloader.bin");
+    return OTA_RESPONSE_ERROR_BOOTLOADER_VERIFY;
+  }
+#endif
   esp_bootloader_desc_t bootloader_desc;
   esp_err_t desc_err = esp_ota_get_bootloader_description(this->partition_, &bootloader_desc);
 #ifdef USE_ESP32_SRAM1_AS_IRAM

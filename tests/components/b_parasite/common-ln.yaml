@@ -1,0 +1,7 @@
+sensor:
+  - platform: b_parasite
+    mac_address: F0:CA:F0:CA:01:01
+    humidity:
+      name: b-parasite Air Humidity
+    temperature:
+      name: b-parasite Air Temperature

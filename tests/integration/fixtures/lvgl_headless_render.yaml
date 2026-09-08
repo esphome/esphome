@@ -1,0 +1,53 @@
+esphome:
+  name: lvgl-headless-render-test
+host:
+
+api:
+  actions:
+    # The name comes from the test so it can capture more than once: a snapshot never writes over
+    # a file that is already there, so a fixed name could only ever be captured once.
+    - action: take_screenshot
+      variables:
+        name: string
+      then:
+        - snapshot.take:
+            id: lvgl_display
+            filename: !lambda return name;
+
+logger:
+  level: DEBUG
+
+display:
+  # A display with no screen, so what LVGL draws depends on LVGL alone - nothing about the machine
+  # running the test, and no graphics library outside this repository, can move the result.
+  - platform: snapshot
+    id: lvgl_display
+    auto_clear_enabled: false
+    dimensions:
+      width: 300
+      height: 300
+
+# The widgets are spelled out here rather than left to the built in "Hello World" screen, which
+# LVGL builds when nothing is configured: that screen contains a spinner, and an animation cannot
+# produce the same picture twice.
+#
+# Everything that affects the rendered pixels is set explicitly, so the expected hash in the test
+# depends only on the drawing code and the built in font. In particular the background comes from a
+# full screen object rather than from the theme, so adjusting a theme default does not break this.
+lvgl:
+  displays: lvgl_display
+  default_font: montserrat_14
+  widgets:
+    - obj:
+        width: 100%
+        height: 100%
+        bg_color: 0x000080
+        bg_opa: cover
+        border_width: 0
+        radius: 0
+        pad_all: 0
+        widgets:
+          - label:
+              align: center
+              text: "Hello World!"
+              text_color: 0xFFFFFF

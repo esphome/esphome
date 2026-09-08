@@ -2,16 +2,14 @@
 
 #include <vector>
 
-#include "esphome/components/esp32_ble_tracker/esp32_ble_tracker.h"
+#include "esphome/components/ble_device_base/ble_device.h"
 #include "esphome/core/component.h"
-
-#ifdef USE_ESP32
 
 namespace esphome::mopeka_ble {
 
-class MopekaListener final : public esp32_ble_tracker::ESPBTDeviceListener {
+class MopekaListener final : public ble_device_base::ESPBTDeviceListener {
  public:
-  bool parse_device(const esp32_ble_tracker::ESPBTDevice &device) override;
+  bool parse_device(const ble_device_base::ESPBTDevice &device) override;
   void set_show_sensors_without_sync(bool show_sensors_without_sync) {
     show_sensors_without_sync_ = show_sensors_without_sync;
   }
@@ -21,5 +19,3 @@ class MopekaListener final : public esp32_ble_tracker::ESPBTDeviceListener {
 };
 
 }  // namespace esphome::mopeka_ble
-
-#endif

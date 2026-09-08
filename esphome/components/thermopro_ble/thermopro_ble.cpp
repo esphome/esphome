@@ -2,8 +2,6 @@
 #include <cmath>
 #include "esphome/core/log.h"
 
-#ifdef USE_ESP32
-
 namespace esphome::thermopro_ble {
 
 // this size must be large enough to hold the largest data frame
@@ -34,7 +32,7 @@ void ThermoProBLE::dump_config() {
   LOG_SENSOR("  ", "Battery Level", this->battery_level_);
 }
 
-bool ThermoProBLE::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
+bool ThermoProBLE::parse_device(const ble_device_base::ESPBTDevice &device) {
   // check for matching mac address
   if (device.address_uint64() != this->address_) {
     ESP_LOGVV(TAG, "parse_device(): unknown MAC address.");
@@ -66,8 +64,8 @@ bool ThermoProBLE::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
     }
 
     // reconstruct whole record from 2 byte uuid and data
-    esp_bt_uuid_t uuid = service_data.uuid.get_uuid();
-    uint8_t data[MAX_DATA_SIZE] = {static_cast<uint8_t>(uuid.uuid.uuid16), static_cast<uint8_t>(uuid.uuid.uuid16 >> 8)};
+    uint16_t svc_uuid16 = service_data.uuid.uuid16();
+    uint8_t data[MAX_DATA_SIZE] = {static_cast<uint8_t>(svc_uuid16), static_cast<uint8_t>(svc_uuid16 >> 8)};
     std::copy(service_data.data.begin(), service_data.data.end(), std::begin(data) + 2);
 
     // dispatch data to parser
@@ -92,7 +90,7 @@ bool ThermoProBLE::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
   return success;
 }
 
-void ThermoProBLE::update_device_type_(const std::string &device_name) {
+void ThermoProBLE::update_device_type_(StringRef device_name) {
   // check for changed device name (should only happen on initial call)
   if (this->device_name_ == device_name) {
     return;
@@ -202,5 +200,3 @@ static optional<ParseResult> parse_tp3(const uint8_t *data, std::size_t data_siz
 }
 
 }  // namespace esphome::thermopro_ble
-
-#endif

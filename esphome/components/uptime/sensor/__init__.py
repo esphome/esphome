@@ -1,5 +1,6 @@
 import esphome.codegen as cg
 from esphome.components import sensor, time
+from esphome.config_helpers import filter_source_files_from_defines
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_TIME_ID,
@@ -10,6 +11,7 @@ from esphome.const import (
     STATE_CLASS_TOTAL_INCREASING,
     UNIT_SECOND,
 )
+from esphome.types import ConfigType
 
 uptime_ns = cg.esphome_ns.namespace("uptime")
 UptimeSecondsSensor = uptime_ns.class_(
@@ -53,9 +55,15 @@ CONFIG_SCHEMA = cv.typed_schema(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = await sensor.new_sensor(config)
     await cg.register_component(var, config)
     if time_id_config := config.get(CONF_TIME_ID):
         time_id = await cg.get_variable(time_id_config)
         cg.add(var.set_time(time_id))
+        cg.add_define("USE_UPTIME_TIMESTAMP")
+
+
+FILTER_SOURCE_FILES = filter_source_files_from_defines(
+    {"uptime_timestamp_sensor.cpp": "USE_UPTIME_TIMESTAMP"}
+)

@@ -44,6 +44,12 @@ class BLEClientBase : public espbt::ESPBTClient, public Component {
   void unconditional_disconnect();
   void release_services();
 
+  /// Register for notifications, holding the service release until the registration completes.
+  esp_err_t register_for_notify(uint16_t char_handle);
+
+  /// True while a register_for_notify() request has not completed.
+  bool notify_registration_pending() const { return this->pending_notify_regs_ > 0; }
+
   bool connected() { return this->state() == espbt::ClientState::ESTABLISHED; }
 
   void set_auto_connect(bool auto_connect) { this->auto_connect_ = auto_connect; }
@@ -86,6 +92,8 @@ class BLEClientBase : public espbt::ESPBTClient, public Component {
   uint16_t get_conn_id() const { return this->conn_id_; }
   uint64_t get_address() const { return this->address_; }
   bool is_paired() const { return this->paired_; }
+  // The proxy clears this when a bond is removed while the link is up.
+  void set_unpaired() { this->paired_ = false; }
 
   uint8_t get_connection_index() const { return this->connection_index_; }
 
@@ -125,9 +133,15 @@ class BLEClientBase : public espbt::ESPBTClient, public Component {
   espbt::ConnectionType connection_type_{espbt::ConnectionType::V1};
   uint8_t connection_index_;
   uint8_t service_count_{0};  // ESP32 has max handles < 255, typical devices have < 50 services
+  // Outstanding register_for_notify() requests
+  // A count, not per-request state, so a raw esp_ble_gattc_register_for_notify() on the same client can retire one
+  // services_released_ is the backstop if that ever lets the release run early
+  uint8_t pending_notify_regs_{0};
   bool auto_connect_{false};
   bool paired_{false};
-  // 6 bytes used, 2 bytes padding
+  // Set only when release_services() cleans the stack's GATT cache, which no API may then walk
+  bool services_released_{false};
+  // 8 bytes used, no padding
 
   void log_event_(const char *name);
   void log_gattc_lifecycle_event_(const char *name);

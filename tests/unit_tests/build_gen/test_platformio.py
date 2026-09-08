@@ -169,6 +169,7 @@ def clean_core(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(CORE, "platformio_libraries", {})
     monkeypatch.setattr(CORE, "build_flags", set())
     monkeypatch.setattr(CORE, "build_unflags", set())
+    monkeypatch.setattr(CORE, "cmake_args", {})
 
 
 def test_get_ini_content_pins_cpp_standard(
@@ -200,6 +201,49 @@ def test_get_ini_content_no_cpp_standard(
     content = platformio.get_ini_content()
 
     assert "-std=" not in content
+
+
+def test_get_ini_content_emits_cmake_args(
+    clean_core: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Registered args are space-joined into one option, sorted by name."""
+    monkeypatch.setattr(
+        CORE,
+        "cmake_args",
+        {"EXECUTABLE_COMPONENT_NAME": "src", "EXCLUDE_COMPONENTS": "unity"},
+    )
+
+    content = platformio.get_ini_content()
+
+    assert (
+        "board_build.cmake_extra_args = "
+        "-DEXCLUDE_COMPONENTS=unity -DEXECUTABLE_COMPONENT_NAME=src" in content
+    )
+
+
+def test_get_ini_content_no_cmake_option_when_no_args(clean_core: None) -> None:
+    """No board_build.cmake_extra_args line at all when nothing registered
+    (ESP8266/RP2040/LibreTiny builds must not get a blank option)."""
+    content = platformio.get_ini_content()
+
+    assert "board_build.cmake_extra_args" not in content
+
+
+def test_get_ini_content_overwrites_list_valued_user_cmake_option(
+    clean_core: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A user-supplied board_build.cmake_extra_args may be a list; the
+    registered args must replace it without tripping add_platformio_option's
+    list-append assert."""
+    monkeypatch.setattr(
+        CORE, "platformio_options", {"board_build.cmake_extra_args": ["-DFOO=1"]}
+    )
+    monkeypatch.setattr(CORE, "cmake_args", {"EXECUTABLE_COMPONENT_NAME": "src"})
+
+    content = platformio.get_ini_content()
+
+    assert "board_build.cmake_extra_args = -DEXECUTABLE_COMPONENT_NAME=src" in content
+    assert "-DFOO=1" not in content
 
 
 def test_write_cxx_flags_script_emits_registered_flags(

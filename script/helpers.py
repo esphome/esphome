@@ -43,6 +43,53 @@ ESPHOME_TESTS_COMPONENTS_PATH = "tests/components/"
 # Tuple of component and test paths for efficient startswith checks
 COMPONENT_AND_TESTS_PATHS = (ESPHOME_COMPONENTS_PATH, ESPHOME_TESTS_COMPONENTS_PATH)
 
+# Integration tests path prefix
+INTEGRATION_TESTS_PATH = "tests/integration/"
+
+# Per-file integration test durations from CI junit output; shared by the
+# reader (determine-jobs) and writer (update_integration_test_durations)
+INTEGRATION_TEST_DURATIONS_FILE = "tests/integration/integration_test_durations.json"
+
+
+def all_integration_test_files() -> list[str]:
+    """Return all integration test file paths, sorted, relative to repo root."""
+    return sorted(
+        p.relative_to(root_path).as_posix()
+        for p in (Path(root_path) / "tests" / "integration").glob("test_*.py")
+    )
+
+
+def load_integration_durations() -> dict[str, float]:
+    """Return recorded per-file pytest durations in seconds; empty when unavailable."""
+    try:
+        raw = json.loads(
+            (Path(root_path) / INTEGRATION_TEST_DURATIONS_FILE).read_text()
+        )
+        if not isinstance(raw, dict):
+            print(
+                f"integration durations unavailable: expected an object, "
+                f"got {type(raw).__name__}",
+                file=sys.stderr,
+            )
+            return {}
+    except (OSError, ValueError) as err:
+        # The file ships in the repo; degrade to unweighted bucketing, loudly
+        print(f"integration durations unavailable: {err}", file=sys.stderr)
+        return {}
+    durations = {
+        key: seconds
+        for key, value in raw.items()
+        if isinstance(value, (int, float)) and (seconds := float(value)) > 0
+    }
+    if len(durations) != len(raw):
+        # One bad entry must not discard the whole recording
+        print(
+            f"dropped {len(raw) - len(durations)} invalid duration entries",
+            file=sys.stderr,
+        )
+    return durations
+
+
 # Base bus components - these ARE the bus implementations and should not
 # be flagged as needing migration since they are the platform/base components
 BASE_BUS_COMPONENTS = {
@@ -421,7 +468,10 @@ def _get_github_event_data() -> dict | None:
     """
     github_event_path = os.environ.get("GITHUB_EVENT_PATH")
     if github_event_path and Path(github_event_path).exists():
-        with Path(github_event_path).open() as f:
+        # The event payload is UTF-8 JSON; without an explicit encoding
+        # Windows decodes it as cp1252 and any non ASCII byte (an ellipsis in
+        # a commit title is enough) raises UnicodeDecodeError.
+        with Path(github_event_path).open(encoding="utf-8") as f:
             return json.load(f)
     return None
 
@@ -466,6 +516,77 @@ def get_target_branch() -> str | None:
     return None
 
 
+# Substrings (matched case-insensitively against gh's stderr) that identify
+# transient failures worth retrying: server errors (HTTP 5xx) and dropped or
+# failed connections. Permanent failures (bad auth, missing PR, the 300-file
+# diff limit) never match so callers see them immediately. Phrases are
+# anchored so gh's GraphQL "Could not resolve to a PullRequest" (a missing
+# PR) never classifies as a DNS failure.
+_TRANSIENT_GH_ERROR_RE = re.compile(
+    r"http 5\d\d"
+    r"|timed out|timeout"
+    r"|connection (?:reset|refused|closed)"
+    r"|no such host|could not resolve host"
+    # gh intercepts DNS errors and prints its own "error connecting to
+    # <host>" text; the Go phrases above are kept as a hedge in case a
+    # future gh stops swallowing the underlying error
+    r"|error connecting to"
+    r"|failed to verify certificate"
+    # Go reports a server-closed connection as 'Post "<url>": EOF'; the
+    # quote-and-colon anchor keeps a URL or message body containing the
+    # letters from matching
+    r"|unexpected eof"
+    r'|": eof'
+    r"|network is unreachable"
+    r"|temporary failure"
+)
+
+# Same retry policy as git network commands in esphome/git.py: 3 attempts
+# with 2s/4s backoff.
+_GH_MAX_ATTEMPTS = 3
+
+
+def run_gh_command(
+    args: list[str], *, retry: bool = True
+) -> subprocess.CompletedProcess[str]:
+    """Run a gh CLI command, retrying transient network and server failures.
+
+    Args:
+        args: Full command line, including the leading "gh".
+        retry: Pass False for commands that are not idempotent (e.g. posting
+            a comment), where a retry after a dropped response could repeat
+            a write that already succeeded server-side.
+
+    Returns:
+        CompletedProcess with captured text output.
+
+    Raises:
+        subprocess.CalledProcessError: If the command fails with a permanent
+            error, or is still failing after the retries are exhausted.
+    """
+    attempts = _GH_MAX_ATTEMPTS if retry else 1
+    attempt = 0
+    while True:
+        try:
+            return subprocess.run(
+                args, check=True, capture_output=True, text=True, close_fds=False
+            )
+        except subprocess.CalledProcessError as err:
+            attempt += 1
+            stderr = err.stderr or ""
+            if attempt >= attempts or not _TRANSIENT_GH_ERROR_RE.search(stderr.lower()):
+                raise
+            delay = 2**attempt
+            # Only the leading arguments: comment-update calls carry the
+            # whole multi-KB comment body in the argument list
+            print(
+                f"WARNING: {' '.join(args[:3])} failed: {stderr.strip()}; "
+                f"retrying in {delay}s (attempt {attempt}/{attempts})",
+                file=sys.stderr,
+            )
+            time.sleep(delay)
+
+
 @cache
 def _get_changed_files_github_actions() -> list[str] | None:
     """Get changed files in GitHub Actions environment.
@@ -484,8 +605,9 @@ def _get_changed_files_github_actions() -> list[str] | None:
             try:
                 return _get_changed_files_from_command(cmd)
             except Exception as e:
-                # If it fails due to the 300 file limit, use the API method
-                if "maximum" in str(e) and "files" in str(e):
+                # If it fails due to a diff limit (300 files or 20000 lines),
+                # use the API method which only returns filenames
+                if "diff exceeded the maximum" in str(e):
                     cmd = [
                         "gh",
                         "api",
@@ -539,10 +661,22 @@ def changed_files(branch: str | None = None) -> list[str]:
 
 
 def _get_changed_files_from_command(command: list[str]) -> list[str]:
-    """Run a git command to get changed files and return them as a list."""
-    proc = subprocess.run(command, capture_output=True, text=True, check=False)
-    if proc.returncode != 0:
-        raise Exception(f"Command failed: {' '.join(command)}\nstderr: {proc.stderr}")
+    """Run a git or gh command to get changed files and return them as a list."""
+    if command[0] == "gh":
+        try:
+            proc = run_gh_command(command)
+        except subprocess.CalledProcessError as e:
+            raise Exception(
+                f"Command failed: {' '.join(command)}\nstderr: {e.stderr}"
+            ) from e
+    else:
+        proc = subprocess.run(
+            command, capture_output=True, text=True, check=False, close_fds=False
+        )
+        if proc.returncode != 0:
+            raise Exception(
+                f"Command failed: {' '.join(command)}\nstderr: {proc.stderr}"
+            )
 
     changed_files = splitlines_no_ends(proc.stdout)
     cwd = Path.cwd()
@@ -722,17 +856,14 @@ def load_idedata(environment: str) -> dict[str, Any]:
     start_time = time.time()
     print(f"Loading IDE data for environment '{environment}'...")
 
-    # Reuse the clang-tidy input hash as the cache key: it already covers every
-    # file baked into the generated idedata (platformio.ini, sdkconfig.defaults,
-    # esphome/idf_component.yml), so this can't drift from that file list. A
-    # content hash -- unlike an mtime comparison -- stays correct across git
-    # checkouts, which don't preserve mtimes.
-    from clang_tidy_hash import calculate_clang_tidy_hash
+    # Content hash of the idedata inputs (data files and the generator code); a
+    # content hash, unlike mtimes, stays correct across git checkouts.
+    from clang_tidy_hash import idedata_cache_hash
 
     temp_idedata = Path(temp_folder) / f"idedata-{environment}.json"
     temp_hash = Path(temp_folder) / f"idedata-{environment}.hash"
 
-    cache_key = calculate_clang_tidy_hash()
+    cache_key = idedata_cache_hash(environment)
     changed = (
         not temp_idedata.is_file()
         or not temp_hash.is_file()
@@ -1063,17 +1194,41 @@ def filter_component_and_test_files(file_path: str) -> bool:
     )
 
 
-def filter_component_and_test_cpp_files(file_path: str) -> bool:
-    """Check if a file is a C++ source file in component or test directories.
+def filter_cpp_unit_test_files(file_path: str) -> bool:
+    """Check if a file can affect a component's C++ unit test build.
+
+    Besides C++ sources, a component's Python code (defines, source file
+    filters, libraries) and the ``__init__.py`` manifest overrides under
+    ``tests/components/<component>/`` decide what the host test binary
+    compiles and links. Other Python files under ``tests/components/``
+    (pytest conftest.py, fixtures) do not.
 
     Args:
         file_path: Path to check
 
     Returns:
-        True if the file is a C++ source/header file in component or test directories
+        True if the file is a C++ or Python file in a component directory, or
+        a C++ file or ``__init__.py`` in a component test directory
     """
-    return file_path.endswith(CPP_FILE_EXTENSIONS) and file_path.startswith(
-        COMPONENT_AND_TESTS_PATHS
+    if file_path.startswith(ESPHOME_COMPONENTS_PATH):
+        return file_path.endswith(CPP_AND_PYTHON_FILE_EXTENSIONS)
+    if file_path.startswith(ESPHOME_TESTS_COMPONENTS_PATH):
+        return file_path.endswith(CPP_FILE_EXTENSIONS) or file_path.endswith(
+            "/__init__.py"
+        )
+    return False
+
+
+def has_cpp_unit_tests(component: str, tests_dir: Path) -> bool:
+    """Check if a component has C++ test or benchmark sources in ``tests_dir``.
+
+    Shared by CI job selection and the build itself
+    (``build_helpers.filter_components_with_files``) so both agree on
+    which components have something to build.
+    """
+    component_dir = tests_dir / component
+    return component_dir.is_dir() and (
+        any(component_dir.glob("*.cpp")) or any(component_dir.glob("*.h"))
     )
 
 
@@ -1377,42 +1532,81 @@ def core_changed(files: list[str]) -> bool:
     )
 
 
+def base_python_changed(files: list[str]) -> bool:
+    """Check if any Python file directly in esphome/ has changed.
+
+    Matches top-level modules and stubs (.py and .pyi) like esphome/config.py
+    and esphome/yaml_util.py but not files in subdirectories such as
+    esphome/components/ or esphome/dashboard/.
+
+    Args:
+        files: List of file paths to check
+
+    Returns:
+        True if any top-level esphome Python file has changed
+    """
+    return any(
+        f.startswith("esphome/")
+        and f.endswith(PYTHON_FILE_EXTENSIONS)
+        and "/" not in f.removeprefix("esphome/")
+        for f in files
+    )
+
+
 def get_cpp_changed_components(files: list[str]) -> list[str]:
-    """Get components that have changed C++ files or tests.
+    """Get components whose C++ unit tests are affected by changed files.
 
     This function analyzes a list of changed files and determines which components
     are affected. It handles two scenarios:
 
-    1. Test files changed (tests/components/<component>/*.cpp):
+    1. Test files changed (tests/components/<component>/*.cpp or __init__.py):
        - Adds the component to the affected list
        - Only that component needs to be tested
 
-    2. Component C++ files changed (esphome/components/<component>/*):
+    2. Component files changed (esphome/components/<component>/*.cpp or *.py):
        - Adds the component to the affected list
        - Also adds all components that depend on this component (recursively)
        - This ensures that changes propagate to dependent components
 
+    Python files count because a component's Python code decides which
+    sources and defines end up in the host test build. Components without
+    C++ test sources are dropped so CI does not schedule the job for nothing.
+
     Args:
-        files: List of file paths to analyze (should be C++ files)
+        files: List of changed file paths; irrelevant ones are ignored
 
     Returns:
         Sorted list of component names that need C++ unit tests run
     """
     components_graph = create_components_graph()
+    tests_dir = Path(root_path) / ESPHOME_TESTS_COMPONENTS_PATH
     affected: set[str] = set()
     for file in files:
-        if not file.endswith(CPP_FILE_EXTENSIONS):
+        if not filter_cpp_unit_test_files(file):
             continue
-        if file.startswith(ESPHOME_TESTS_COMPONENTS_PATH):
-            parts = file.split("/")
-            if len(parts) >= 4:
-                component_dir = Path(ESPHOME_TESTS_COMPONENTS_PATH) / parts[2]
-                if component_dir.is_dir():
-                    affected.add(parts[2])
-        elif file.startswith(ESPHOME_COMPONENTS_PATH):
-            parts = file.split("/")
-            if len(parts) >= 4:
-                component = parts[2]
-                affected.update(find_children_of_component(components_graph, component))
-                affected.add(component)
-    return sorted(affected)
+        parts = file.split("/")
+        if len(parts) < 4:
+            continue
+        component = parts[2]
+        affected.add(component)
+        if file.startswith(ESPHOME_COMPONENTS_PATH):
+            affected.update(find_children_of_component(components_graph, component))
+    return sorted(c for c in affected if has_cpp_unit_tests(c, tests_dir))
+
+
+def lpt_partition(
+    items: list[str], weights: dict[str, float], count: int
+) -> list[list[str]]:
+    """Partition items into `count` weight-balanced groups (LPT greedy).
+
+    Heaviest item first into the lightest group. Ties keep input order, so
+    pass pre-sorted items for deterministic output. script/clang-tidy's
+    split_list is the unweighted contiguous sibling.
+    """
+    groups: list[list[str]] = [[] for _ in range(count)]
+    group_weights = [0.0] * count
+    for item in sorted(items, key=lambda i: -weights[i]):
+        lightest = min(range(count), key=group_weights.__getitem__)
+        groups[lightest].append(item)
+        group_weights[lightest] += weights[item]
+    return groups

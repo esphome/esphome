@@ -1,0 +1,59 @@
+esphome:
+  name: ha-bs-initial
+
+host:
+
+api:
+
+logger:
+  level: DEBUG
+
+binary_sensor:
+  # trigger_on_initial_state: true must fire on_press for the first state from HA
+  - platform: homeassistant
+    name: Initial On
+    entity_id: binary_sensor.initial_on
+    trigger_on_initial_state: true
+    on_press:
+      - logger.log: "initial_on on_press"
+    on_release:
+      - logger.log: "initial_on on_release"
+
+  # Default (false) must not fire on the first state, only on later changes
+  - platform: homeassistant
+    name: Default
+    entity_id: binary_sensor.default
+    on_press:
+      - logger.log: "default on_press"
+    on_release:
+      - logger.log: "default on_release"
+
+  # Real HA startup shape: 'unavailable' arrives before the first real state
+  - platform: homeassistant
+    name: Unavailable First
+    entity_id: binary_sensor.unavailable_first
+    trigger_on_initial_state: true
+    on_press:
+      - logger.log: "unavailable_first on_press"
+    on_release:
+      - logger.log: "unavailable_first on_release"
+
+  # Initial 'off' must fire on_release when trigger_on_initial_state is set
+  - platform: homeassistant
+    name: Initial Off
+    entity_id: binary_sensor.initial_off
+    trigger_on_initial_state: true
+    on_press:
+      - logger.log: "initial_off on_press"
+    on_release:
+      - logger.log: "initial_off on_release"
+
+  # Same 'unavailable' first shape without the flag; must stay quiet on the
+  # first real state and only fire on the later change
+  - platform: homeassistant
+    name: Default Unavailable First
+    entity_id: binary_sensor.default_unavail
+    on_press:
+      - logger.log: "default_unavail on_press"
+    on_release:
+      - logger.log: "default_unavail on_release"
