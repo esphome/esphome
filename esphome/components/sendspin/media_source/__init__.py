@@ -113,7 +113,7 @@ CONFIG_SCHEMA = cv.All(
             ),
             cv.Optional(CONF_DECODE_MEMORY): cv.one_of(*MEMORY_LOCATIONS, lower=True),
             cv.Optional(CONF_CODECS): cv.All(
-                cv.ensure_list(cv.one_of(*CODECS, lower=True)), cv.Length(min=1)
+                cv.ensure_list(cv.enum(CODECS, lower=True)), cv.Length(min=1)
             ),
         }
     ),
