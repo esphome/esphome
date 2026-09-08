@@ -511,13 +511,17 @@ TEST(HoermannHcpPause, TransferOutsideAnAnnouncementIsLeftAlone) {
 }
 
 // A command taken while the pause is out could only be presented afterwards, to a door that has moved on.
+// A lamp request takes the same route, so it is refused there too rather than reaching the slot directly.
 TEST(HoermannHcpPause, CommandsAreRefusedWhileThePauseIsOut) {
   TestableHoermannHcp door;
   door.set_address(0x02);
   connect_controller(door);
+  door.on_write_registers(BROADCAST_REG, lamp_broadcast(0x0000));
   start_announcing(door);
 
   EXPECT_FALSE(door.open_door());
+  EXPECT_FALSE(door.set_light(true));
+  EXPECT_FALSE(door.light_request_pending_);
 }
 
 // A transfer too short to name an address is still answered. Leaving it open would strand the controller
