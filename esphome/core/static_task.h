@@ -11,6 +11,7 @@ namespace esphome {
 
 /** Helper for FreeRTOS static task management.
  * Bundles TaskHandle_t, StaticTask_t, and the stack buffer into one object with create/destroy methods.
+ * Call destroy() and deallocate() from another task: a task cannot free the stack it is still running on.
  */
 class StaticTask {
  public:
