@@ -2661,15 +2661,22 @@ def build_message_type(
 
     cpp = ""
     if decode:
-        o = f"void {desc.name}::decode_field(uint32_t tag, const uint8_t *data, proto_varint_value_t scalar) {{\n"
+        o = f"void {desc.name}::decode_field(void *self, uint32_t tag, const uint8_t *data, proto_varint_value_t scalar) {{\n"
+        o += f"  auto &msg = *static_cast<{desc.name} *>(self);\n"
         o += "  const ProtoFieldValue value(data, scalar);\n"
         o += "  switch (tag) {\n"
-        o += indent("\n".join(decode), "    ") + "\n"
+        o += indent("\n".join(decode), "    ").replace("this->", "msg.") + "\n"
         o += "  }\n"
         o += "}\n"
         cpp += o
-        prot = "void decode_field(uint32_t tag, const uint8_t *data, proto_varint_value_t scalar) override;"
+        prot = "static void decode_field(void *self, uint32_t tag, const uint8_t *data, proto_varint_value_t scalar);"
         protected_content.insert(0, prot)
+        if not fixed_vector_fields:
+            public_content.append(
+                "void decode(const uint8_t *buffer, size_t length) {\n"
+                "  ProtoDecodableMessage::decode_fields(this, buffer, length, &decode_field);\n"
+                "}"
+            )
 
     # Generate custom decode() override for messages with FixedVector fields
     if fixed_vector_fields:
@@ -2679,8 +2686,8 @@ def build_message_type(
         for field_name, field_number in fixed_vector_fields:
             o += f"  uint32_t count_{field_name} = ProtoDecodableMessage::count_repeated_field(buffer, length, {field_number});\n"
             o += f"  this->{field_name}.init(count_{field_name});\n"
-        # Call parent decode to populate the fields
-        o += "  ProtoDecodableMessage::decode(buffer, length);\n"
+        # Then the shared loop fills them
+        o += "  ProtoDecodableMessage::decode_fields(this, buffer, length, &decode_field);\n"
         o += "}\n"
         cpp += o
         # Generate the decode() declaration in header (public method)

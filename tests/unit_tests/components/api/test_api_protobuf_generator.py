@@ -292,11 +292,11 @@ def test_message_gets_a_single_decode_field_override() -> None:
     desc.field.add(name="count", number=2, type=UINT32)
     desc.field.add(name="level", number=3, type=FLOAT)
     header, cpp, _ = build_message_type(desc, {}, {"Mixed": SOURCE_CLIENT})
-    decl = "void decode_field(uint32_t tag, const uint8_t *data, proto_varint_value_t scalar) override;"
+    decl = "static void decode_field(void *self, uint32_t tag, const uint8_t *data, proto_varint_value_t scalar);"
     assert header.count(decl) == 1
     assert (
         cpp.count(
-            "void Mixed::decode_field(uint32_t tag, const uint8_t *data, proto_varint_value_t scalar) {"
+            "void Mixed::decode_field(void *self, uint32_t tag, const uint8_t *data, proto_varint_value_t scalar) {"
         )
         == 1
     )
