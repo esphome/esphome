@@ -385,4 +385,311 @@ TEST(HoermannHcpPosition, TargetIsDroppedWhenTheDoorNeverTurnsAround) {
   EXPECT_EQ(poll_command(door).first, 0x0000);
 }
 
+// Puts the device into the state where the next status poll carries the pause, without running the wait.
+inline void start_announcing(TestableHoermannHcp &door) { door.pause_state_ = PauseState::PAUSE_STATE_WAITING_FOR_ACK; }
+
+// While a pause is announced, the command poll carries the pause code and the address it applies to instead of
+// the state, and it keeps echoing the controller's counter and command byte as every other answer does.
+TEST(HoermannHcpPause, PausePollNamesOurAddressInsteadOfState) {
+  TestableHoermannHcp door;
+  door.set_address(0x02);
+  door.on_write_registers(COMMAND_REG, make_registers({0x3407, 0x0000}));
+  door.open_door();
+  start_announcing(door);
+
+  RegisterValues response;
+  ASSERT_FALSE(door.on_read_holding_registers(STATE_REG, 8, response).has_value());
+  ASSERT_EQ(response.size(), 8u);
+  EXPECT_EQ(response[0], 0x3400);  // the controller's counter, echoed as every answer echoes it
+  EXPECT_EQ(response[1], 0x0729);  // command byte echoed alongside RESPONSE_PAUSE
+  EXPECT_EQ(response[2], 0x0002);  // the address being paused
+  EXPECT_EQ(response[3], 0x0000);
+}
+
+// Other block lengths keep their ordinary answers, so a bus scan arriving mid announcement still identifies us.
+TEST(HoermannHcpPause, OnlyTheCommandPollCarriesThePause) {
+  TestableHoermannHcp door;
+  door.set_address(0x02);
+  connect_controller(door);
+  start_announcing(door);
+
+  RegisterValues response;
+  ASSERT_FALSE(door.on_read_holding_registers(STATE_REG, 2, response).has_value());
+  ASSERT_EQ(response.size(), 2u);
+  EXPECT_EQ(response[0], 0x0004);
+}
+
+// The controller confirms with a payload transfer naming the address it is pausing, which is answered on the
+// read half of the same request.
+TEST(HoermannHcpPause, AcknowledgementIsTakenAndAnswered) {
+  TestableHoermannHcp door;
+  door.set_address(0x02);
+  connect_controller(door);
+  start_announcing(door);
+
+  // Command 0x04 with running counter 0x81, sub code 0x19, and address 0x0002 astride the last two registers.
+  ASSERT_FALSE(door.on_write_registers(COMMAND_REG, make_registers({0x8104, 0x1900, 0x0200})).has_value());
+  EXPECT_TRUE(door.pause_confirmed_);
+
+  RegisterValues response;
+  ASSERT_FALSE(door.on_read_holding_registers(STATE_REG, 8, response).has_value());
+  ASSERT_EQ(response.size(), 8u);
+  EXPECT_EQ(response[0], 0x0100);  // counter echoed with the split-payload bit masked off
+  EXPECT_EQ(response[1], TRANSFER_ACK_ANSWER);
+}
+
+// The answer belongs to the request that asked for it. Left armed it would replace every later poll, and the
+// pause the controller is waiting on would never be sent again.
+TEST(HoermannHcpPause, TransferIsAnsweredOnlyOnce) {
+  TestableHoermannHcp door;
+  door.set_address(0x02);
+  connect_controller(door);
+  start_announcing(door);
+  door.on_write_registers(COMMAND_REG, make_registers({0x8104, 0x1900, 0x0200}));
+
+  RegisterValues first;
+  door.on_read_holding_registers(STATE_REG, 8, first);
+  ASSERT_EQ(first.size(), 8u);
+  ASSERT_EQ(first[1], TRANSFER_ACK_ANSWER);
+
+  RegisterValues second;
+  door.on_read_holding_registers(STATE_REG, 8, second);
+  ASSERT_EQ(second.size(), 8u);
+  // Back to announcing the pause, with the transfer's own command byte echoed as every answer echoes it.
+  EXPECT_EQ(second[1], 0x0429);
+}
+
+// A confirmation naming another accessory is still answered, but it is not ours to take.
+TEST(HoermannHcpPause, AcknowledgementForAnotherAddressIsAnsweredButNotTaken) {
+  TestableHoermannHcp door;
+  door.set_address(0x02);
+  connect_controller(door);
+  start_announcing(door);
+
+  ASSERT_FALSE(door.on_write_registers(COMMAND_REG, make_registers({0x0104, 0x1900, 0x0300})).has_value());
+  EXPECT_FALSE(door.pause_confirmed_);
+
+  RegisterValues response;
+  ASSERT_FALSE(door.on_read_holding_registers(STATE_REG, 8, response).has_value());
+  ASSERT_EQ(response.size(), 8u);
+  EXPECT_EQ(response[1], TRANSFER_ACK_ANSWER);
+}
+
+// The address straddles two registers. One whose high half is not ours names a different accessory even when
+// the low half matches.
+TEST(HoermannHcpPause, AcknowledgementWithANonZeroAddressHighHalfIsNotOurs) {
+  TestableHoermannHcp door;
+  door.set_address(0x02);
+  connect_controller(door);
+  start_announcing(door);
+
+  // Address 0x0102: the low half matches, the high half does not.
+  door.on_write_registers(COMMAND_REG, make_registers({0x0104, 0x1901, 0x0200}));
+  EXPECT_FALSE(door.pause_confirmed_);
+}
+
+// Payload transfers carry other sub codes. Only the pause acknowledgement is ours to take, but every transfer
+// is answered rather than left open.
+TEST(HoermannHcpPause, TransferWithAnotherSubCodeIsRefusedRatherThanIgnored) {
+  TestableHoermannHcp door;
+  door.set_address(0x02);
+  connect_controller(door);
+  start_announcing(door);
+
+  door.on_write_registers(COMMAND_REG, make_registers({0x8104, 0x2500, 0x0200}));
+  EXPECT_FALSE(door.pause_confirmed_);
+
+  RegisterValues response;
+  ASSERT_FALSE(door.on_read_holding_registers(STATE_REG, 8, response).has_value());
+  ASSERT_EQ(response.size(), 8u);
+  EXPECT_EQ(response[1], TRANSFER_NAK_ANSWER);
+}
+
+// Outside an announcement the command byte alone means nothing: the poll is answered with the ordinary state
+// and no transfer answer is armed to pre-empt the next read.
+TEST(HoermannHcpPause, TransferOutsideAnAnnouncementIsLeftAlone) {
+  TestableHoermannHcp door;
+  door.set_address(0x02);
+  connect_controller(door);
+
+  door.on_write_registers(COMMAND_REG, make_registers({0x8104, 0x1900, 0x0200}));
+  EXPECT_FALSE(door.pause_confirmed_);
+
+  RegisterValues response;
+  ASSERT_FALSE(door.on_read_holding_registers(STATE_REG, 8, response).has_value());
+  ASSERT_EQ(response.size(), 8u);
+  EXPECT_EQ(response[1], 0x0401);  // the ordinary state, with the command byte echoed
+}
+
+// A command taken while the pause is out could only be presented afterwards, to a door that has moved on.
+TEST(HoermannHcpPause, CommandsAreRefusedWhileThePauseIsOut) {
+  TestableHoermannHcp door;
+  door.set_address(0x02);
+  connect_controller(door);
+  start_announcing(door);
+
+  EXPECT_FALSE(door.open_door());
+}
+
+// A transfer too short to name an address is still answered. Leaving it open would strand the controller
+// waiting, and the announcement would then run to its timeout for nothing.
+TEST(HoermannHcpPause, AcknowledgementWithoutAnAddressIsStillAnswered) {
+  TestableHoermannHcp door;
+  door.set_address(0x02);
+  connect_controller(door);
+  start_announcing(door);
+
+  door.on_write_registers(COMMAND_REG, make_registers({0x8104, 0x1900}));
+  EXPECT_FALSE(door.pause_confirmed_);  // no address, so nothing to match ours against
+
+  RegisterValues response;
+  ASSERT_FALSE(door.on_read_holding_registers(STATE_REG, 8, response).has_value());
+  ASSERT_EQ(response.size(), 8u);
+  EXPECT_EQ(response[1], TRANSFER_ACK_ANSWER);
+}
+
+// An answer armed but never read must not survive into the next announcement, where it would pre-empt the
+// pause the controller is waiting for.
+TEST(HoermannHcpPause, AStaleTransferAnswerDoesNotSurviveIntoTheNextAnnouncement) {
+  TestableHoermannHcp door;
+  door.set_address(0x02);
+  connect_controller(door);
+  start_announcing(door);
+  door.on_write_registers(COMMAND_REG, make_registers({0x8104, 0x1900, 0x0200}));
+  ASSERT_TRUE(door.transfer_answer_pending_);
+
+  // A fresh announcement, without the armed answer ever having been read.
+  door.pause_state_ = PauseState::PAUSE_STATE_IDLE;
+  door.pause_ack_timeout_ms_ = 5;
+  door.pause_settle_ms_ = 5;
+  door.pause_total_timeout_ms_ = 20;
+  door.announce_pause();
+  EXPECT_FALSE(door.transfer_answer_pending_);
+}
+
+// Nor across a connection loss: it would be delivered on the first read after the controller returns, which
+// is the bus scan.
+TEST(HoermannHcpPause, AStaleTransferAnswerDoesNotSurviveAConnectionLoss) {
+  TestableHoermannHcp door;
+  door.set_address(0x02);
+  connect_controller(door);
+  start_announcing(door);
+  door.on_write_registers(COMMAND_REG, make_registers({0x8104, 0x1900, 0x0200}));
+  ASSERT_TRUE(door.transfer_answer_pending_);
+
+  door.set_valid_(false);
+  EXPECT_FALSE(door.transfer_answer_pending_);
+}
+
+// A read too short to carry the answer keeps it for the next one instead of swallowing it, and answers the
+// length that was asked for.
+TEST(HoermannHcpPause, AShortReadKeepsTheTransferAnswer) {
+  TestableHoermannHcp door;
+  door.set_address(0x02);
+  connect_controller(door);
+  start_announcing(door);
+  door.on_write_registers(COMMAND_REG, make_registers({0x8104, 0x1900, 0x0200}));
+
+  RegisterValues short_read;
+  ASSERT_FALSE(door.on_read_holding_registers(STATE_REG, 1, short_read).has_value());
+  EXPECT_EQ(short_read.size(), 1u);
+
+  RegisterValues response;
+  ASSERT_FALSE(door.on_read_holding_registers(STATE_REG, 8, response).has_value());
+  ASSERT_EQ(response.size(), 8u);
+  EXPECT_EQ(response[1], TRANSFER_ACK_ANSWER);
+}
+
+// With no bus controller there is nobody to tell, so the announcement returns at once rather than holding up
+// the restart for an answer that cannot come.
+TEST(HoermannHcpPause, AnnouncementWithoutControllerDoesNotWait) {
+  TestableHoermannHcp door;
+  const uint32_t started = millis();
+  EXPECT_FALSE(door.announce_pause());
+  EXPECT_LT(millis() - started, 50u);
+}
+
+// Unconfirmed, the announcement gives up rather than holding the restart for ever, and puts the device back to
+// answering normally so a restart that never happens does not leave it paused.
+TEST(HoermannHcpPause, UnconfirmedAnnouncementGivesUpAndStopsAnnouncing) {
+  TestableHoermannHcp door;
+  door.pause_ack_timeout_ms_ = 5;
+  door.pause_settle_ms_ = 5;
+  connect_controller(door);
+
+  EXPECT_FALSE(door.announce_pause());
+  door.update();
+
+  RegisterValues response;
+  door.on_read_holding_registers(STATE_REG, 8, response);
+  ASSERT_EQ(response.size(), 8u);
+  EXPECT_EQ(response[1], RESPONSE_STATUS);  // ordinary state again, not the pause
+}
+
+// A key press that was never shown to the controller is dropped, so it cannot fire after the restart.
+TEST(HoermannHcpPause, AnnouncementDropsTheUnsentKeyPress) {
+  TestableHoermannHcp door;
+  door.pause_ack_timeout_ms_ = 5;
+  door.pause_settle_ms_ = 5;
+  connect_controller(door);
+  door.open_door();
+
+  door.announce_pause();
+  door.update();
+  EXPECT_EQ(poll_command(door).first, 0x0000);
+}
+
+// A press already shown to the controller holds the announcement off, because the pause replaces the answer
+// that would carry its release value and the controller would be left holding a key that is never let go.
+TEST(HoermannHcpPause, AnnouncementIsHeldOffWhileAPressIsUnreleased) {
+  TestableHoermannHcp door;
+  door.pause_ack_timeout_ms_ = 5;
+  door.pause_settle_ms_ = 5;
+  door.pause_total_timeout_ms_ = 20;
+  connect_controller(door);
+  door.open_door();
+  ASSERT_EQ(poll_command(door).first, 0x0210);  // COMMAND_OPEN pressed, release still owed
+
+  EXPECT_FALSE(door.announce_pause());
+  // No pause was announced, so the poll still carries the release the controller is owed.
+  RegisterValues response;
+  door.on_read_holding_registers(STATE_REG, 8, response);
+  ASSERT_EQ(response.size(), 8u);
+  EXPECT_EQ(response[1], RESPONSE_STATUS);
+  EXPECT_EQ(response[2], 0x0110);  // COMMAND_OPEN released
+}
+
+// Running out of time must not leave the pause standing: it replaces the answer that carries key presses, so
+// the door would stop taking commands until the next restart.
+TEST(HoermannHcpPause, GivingUpDoesNotLeaveThePauseStanding) {
+  TestableHoermannHcp door;
+  door.pause_ack_timeout_ms_ = 5000;  // never reached within the ceiling below
+  door.pause_total_timeout_ms_ = 20;
+  connect_controller(door);
+
+  EXPECT_FALSE(door.announce_pause());
+  door.update();
+  door.open_door();
+  EXPECT_EQ(poll_command(door).first, 0x0210);  // commands are delivered again
+}
+
+// A position the door was told to travel to survives the announcement: without a restart the door still has to
+// be stopped where it was asked to stop.
+TEST(HoermannHcpPause, AnnouncementKeepsTheTravelTarget) {
+  TestableHoermannHcp door;
+  door.pause_ack_timeout_ms_ = 5;
+  door.pause_settle_ms_ = 5;
+  connect_controller(door);
+  door.set_position(0.5f);
+  consume_command(door);
+  // The door reports it is opening and passes the target, which has to still stop it.
+  door.on_write_registers(BROADCAST_REG, make_registers({0x0000, 0x0000, 0x0100}));
+
+  door.announce_pause();
+  door.update();
+
+  door.on_write_registers(BROADCAST_REG, make_registers({0x0000, 0x0080, 0x0100}));
+  EXPECT_EQ(poll_command(door).first, 0x0240);  // COMMAND_IMPULSE pressed, stopping the door
+}
+
 }  // namespace esphome::hoermann_hcp::testing
