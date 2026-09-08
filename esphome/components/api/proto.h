@@ -720,7 +720,15 @@ class ProtoMessage {
 // Base class for messages that support decoding
 class ProtoDecodableMessage : public ProtoMessage {
  public:
-  void decode(const uint8_t *buffer, size_t length);
+  /// Stores one decoded field into \p msg; generated per message type. \p scalar is the varint or
+  /// fixed32 value, or the length of the length-delimited payload at \p data. An unknown field or
+  /// wrong wire type matches no case and is skipped.
+  using DecodeFieldFn = void (*)(void *msg, uint32_t tag, const uint8_t *data, proto_varint_value_t scalar);
+  /// Walk \p buffer and hand every field to \p field. The generated decode() passes the message's
+  /// own decode_field, so decodable messages carry no vtable.
+  static void decode_fields(void *msg, const uint8_t *buffer, size_t length, DecodeFieldFn field);
+  /// A decodable message without fields has nothing to read
+  void decode(const uint8_t *buffer, size_t length) {}
 
   /**
    * Count occurrences of a repeated field in a protobuf buffer.
@@ -732,13 +740,6 @@ class ProtoDecodableMessage : public ProtoMessage {
    * @return Number of times the field appears in the buffer
    */
   static uint32_t count_repeated_field(const uint8_t *buffer, size_t length, uint32_t target_field_id);
-
- protected:
-  ~ProtoDecodableMessage() = default;
-  /// Store one decoded field; \p scalar is the varint or fixed32 value, or the length of the
-  /// length-delimited payload at \p data. An unknown field or wrong wire type matches no case and is skipped.
-  /// Three register arguments keep the decode loop free of spills.
-  virtual void decode_field(uint32_t tag, const uint8_t *data, proto_varint_value_t scalar) {}
 };
 
 class ProtoSize {

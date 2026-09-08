@@ -210,7 +210,7 @@ void ProtoWriteBuffer::debug_check_encode_size_(uint32_t field_id, uint32_t expe
 
 #endif
 
-void ProtoDecodableMessage::decode(const uint8_t *buffer, size_t length) {
+void ProtoDecodableMessage::decode_fields(void *msg, const uint8_t *buffer, size_t length, DecodeFieldFn field) {
   const uint8_t *ptr = buffer;
   const uint8_t *end = buffer + length;
 
@@ -281,7 +281,7 @@ void ProtoDecodableMessage::decode(const uint8_t *buffer, size_t length) {
           return;
       }
     }
-    this->decode_field(tag, data, scalar);
+    field(msg, tag, data, scalar);
   }
 }
 
