@@ -829,10 +829,8 @@ ota::OTAResponseTypes ESPHomeOTAComponent::inflate_flush_(InflateSession &sessio
   const size_t pending = produced - session.flushed;
   if (pending == 0)
     return ota::OTA_RESPONSE_OK;
-  if (pending > session.image_size - session.written) {
-    ESP_LOGW(TAG, "Inflate size mismatch");
+  if (pending > session.image_size - session.written)
     return ota::OTA_RESPONSE_ERROR_UNKNOWN;
-  }
   ota::OTAResponseTypes result = this->write_flash_(session.window + session.flushed, pending);
   if (result != ota::OTA_RESPONSE_OK)
     return result;
@@ -861,10 +859,9 @@ ota::OTAResponseTypes ESPHomeOTAComponent::inflate_data_(uint8_t *in, size_t ima
     if (s->error != ota::OTA_RESPONSE_OK)
       return -1;
     s->self->ack_written_(*s->xfer);
-    if (s->xfer->total >= s->xfer->ota_size) {
-      ESP_LOGW(TAG, "Inflate size mismatch");
+    // The stream wants more than announced; the size check below reports it
+    if (s->xfer->total >= s->xfer->ota_size)
       return -1;
-    }
     ssize_t read = s->self->receive_data_(s->in, *s->xfer);
     if (read <= 0)
       return -1;
@@ -882,22 +879,21 @@ ota::OTAResponseTypes ESPHomeOTAComponent::inflate_data_(uint8_t *in, size_t ima
     session.flushed = 0;
     res = ota_inflate(&session);
     // A stored block keeps decoding zeros after the read callback failed, so
-    // eof is checked as well; that failure is already logged
-    if (res < 0 || session.eof) {
-      if (!session.eof) {
-        ESP_LOGW(TAG, "Inflate err %d", res);
-      }
-      return session.error != ota::OTA_RESPONSE_OK ? session.error : ota::OTA_RESPONSE_ERROR_UNKNOWN;
-    }
-    ota::OTAResponseTypes flush_result = this->inflate_flush_(session);
-    if (flush_result != ota::OTA_RESPONSE_OK)
-      return flush_result;
+    // eof is checked as well
+    if (res < 0 || session.eof)
+      break;
+    session.error = this->inflate_flush_(session);
+    if (session.error != ota::OTA_RESPONSE_OK)
+      break;
     this->ack_written_(xfer);
   } while (res != OTA_INFLATE_DONE);
 
-  if (session.written != image_size || xfer.total != xfer.ota_size) {
-    ESP_LOGW(TAG, "Inflate size mismatch");
-    return ota::OTA_RESPONSE_ERROR_UNKNOWN;
+  if (res != OTA_INFLATE_DONE || session.written != image_size || xfer.total != xfer.ota_size) {
+    // A transport failure is already logged; a flash error is reported by write_flash_
+    if (session.error == ota::OTA_RESPONSE_OK && (!session.eof || xfer.total == xfer.ota_size)) {
+      ESP_LOGW(TAG, "Inflate err %d", res);
+    }
+    return session.error != ota::OTA_RESPONSE_OK ? session.error : ota::OTA_RESPONSE_ERROR_UNKNOWN;
   }
   ESP_LOGD(TAG, "Inflated %zu bytes from %zu", session.written, xfer.total);
   return ota::OTA_RESPONSE_OK;
