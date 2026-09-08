@@ -1,3 +1,9 @@
+esphome:
+  # Only so the action is compiled. Its place in a real configuration is the ota on_begin trigger.
+  on_boot:
+    then:
+      - hoermann_hcp.announce_pause: hoermann_hcp_hub
+
 hoermann_hcp:
   id: hoermann_hcp_hub
   modbus_id: modbus_server_bus
