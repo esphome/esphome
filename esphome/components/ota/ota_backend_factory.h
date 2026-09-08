@@ -33,6 +33,7 @@ std::unique_ptr<StubOTABackend> make_ota_backend();
 
 namespace esphome::ota {
 using OTABackendPtr = decltype(make_ota_backend());
-static_assert(OTABackendContract<OTABackendPtr::element_type>,
+using OTABackend = OTABackendPtr::element_type;
+static_assert(OTABackendContract<OTABackend>,
               "The platform's OTA backend is missing part of the backend surface (ota_backend.h)");
 }  // namespace esphome::ota
