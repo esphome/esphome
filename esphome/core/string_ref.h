@@ -263,7 +263,7 @@ inline double stod(const StringRef &str, size_t *pos = nullptr) {
 
 #ifdef USE_JSON
 // NOLINTNEXTLINE(readability-identifier-naming)
-inline void convertToJson(const StringRef &src, JsonVariant dst) { dst.set(src.c_str()); }
+inline void convertToJson(const StringRef &src, JsonVariant dst) { dst.set(src.empty() ? "" : src.c_str()); }
 #endif  // USE_JSON
 
 }  // namespace esphome
