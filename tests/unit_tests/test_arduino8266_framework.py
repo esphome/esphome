@@ -21,17 +21,12 @@ def _build_path(tmp_path: Path) -> None:
 def test_framework_package_version() -> None:
     assert framework.framework_package_version(cv.Version(3, 1, 2)) == "3.30102.0"
     assert framework.framework_package_version(cv.Version(3, 2, 0)) == "3.30200.0"
-    # 2.6.3+ cores use the same package-major-3 encoding (PlatformIO path)
-    assert framework.framework_package_version(cv.Version(2, 7, 4)) == "3.20704.0"
     # A future major bump needs its own encoding, not a doomed registry lookup
     with pytest.raises(EsphomeError, match="not supported yet"):
         framework.framework_package_version(cv.Version(4, 0, 0))
-    # The boundary matches the PlatformIO era guard; a 2.6.2 pre-release
-    # keeps this encoding
-    with pytest.raises(EsphomeError, match="older package encoding"):
-        framework.framework_package_version(cv.Version(2, 6, 2))
-    assert framework.framework_package_version(cv.Version(2, 6, 2, "b1")) == "3.20602.0"
-    assert framework.framework_package_version(cv.Version(2, 6, 3)) == "3.20603.0"
+    # Cores before 3.x cannot build ESPHome (C++20) and are rejected
+    with pytest.raises(EsphomeError, match="requires core 3"):
+        framework.framework_package_version(cv.Version(2, 7, 4))
 
 
 def test_format_framework_arduino_version_pins_all_series() -> None:
@@ -39,10 +34,10 @@ def test_format_framework_arduino_version_pins_all_series() -> None:
     era, including the 4.x rejection it now shares with the installer."""
     from esphome.components.esp8266 import _format_framework_arduino_version as fmt
 
-    assert fmt(cv.Version(2, 4, 1)) == "~1.20401.0"
-    assert fmt(cv.Version(2, 6, 2)) == "~2.20602.0"
-    assert fmt(cv.Version(2, 7, 4)) == "~3.20704.0"
     assert fmt(cv.Version(3, 1, 2)) == "~3.30102.0"
+    # Pre-3 cores are rejected with the version line anchored
+    with pytest.raises(cv.Invalid, match="requires core 3"):
+        fmt(cv.Version(2, 7, 4))
     # Anchored to the framework version line, not a bare EsphomeError
     with pytest.raises(cv.Invalid, match="not supported yet") as excinfo:
         fmt(cv.Version(4, 0, 0))
