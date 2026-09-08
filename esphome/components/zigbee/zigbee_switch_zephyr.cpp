@@ -52,7 +52,6 @@ void ZigbeeSwitch::zcl_device_cb_(zb_bufid_t bufid) {
             this->cluster_attributes_->present_value = value ? ZB_TRUE : ZB_FALSE;
             this->switch_->control(value);
           });
-          App.wake_loop_threadsafe();
         }
       } else {
         /* other clusters attribute handled here */

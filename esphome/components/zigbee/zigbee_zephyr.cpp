@@ -1,10 +1,10 @@
 #include "zigbee_zephyr.h"
 #if defined(USE_ZIGBEE) && defined(USE_NRF52)
 #include "esphome/core/log.h"
+#include "esphome/core/application.h"
 #include <zephyr/settings/settings.h>
 #include <zephyr/storage/flash_map.h>
 #include "esphome/core/hal.h"
-#include "esphome/core/wake.h"
 
 extern "C" {
 #include <zboss_api.h>
@@ -120,7 +120,7 @@ void ZigbeeComponent::zcl_device_cb(zb_bufid_t bufid) {
   /* Set default response value. */
   p_device_cb_param->status = RET_OK;
 
-  esphome::wake_loop_threadsafe();
+  App.wake_loop_threadsafe();
 
   // endpoints are enumerated from 1
   if (global_zigbee->callbacks_.size() >= endpoint) {

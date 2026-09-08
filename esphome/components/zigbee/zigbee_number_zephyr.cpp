@@ -52,7 +52,6 @@ void ZigbeeNumber::zcl_device_cb_(zb_bufid_t bufid) {
             call.set_value(value);
             call.perform();
           });
-          App.wake_loop_threadsafe();
         }
       } else {
         /* other clusters attribute handled here */
