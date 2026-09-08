@@ -124,12 +124,12 @@ class ESPHomeOTAComponent final : public ota::OTAComponent {
 
   // Upload accounting shared by the data loop and the inflate read callback
   struct DataTransfer {
-    size_t ota_size;  // bytes the client sends
-    size_t total{0};  // bytes received so far
+    size_t ota_size{0};  // bytes the client sends
+    size_t total{0};     // bytes received so far
 #if USE_OTA_VERSION == 2
     size_t acknowledged{0};
 #endif
-    uint32_t last_data_ms;
+    uint32_t last_data_ms{0};
     uint32_t last_progress{0};
   };
   // Receives up to OTA_BUFFER_SIZE bytes of upload data into buf, waiting up to
