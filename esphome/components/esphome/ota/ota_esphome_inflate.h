@@ -1,8 +1,6 @@
 #pragma once
-// Raw deflate decoder for compressed OTA uploads, cut down from uzlib
-// (https://github.com/pfalcon/uzlib, zlib licence, see the .c file).
-// Kept in C so it stays close to upstream; the decoder writes through a
-// ring window so the image never has to be held in RAM.
+// Raw deflate decoder cut down from uzlib (https://github.com/pfalcon/uzlib,
+// zlib licence, see the .c file); output goes through a ring window.
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -56,9 +54,9 @@ struct OtaInflateState {
   uint16_t dtrans[32]; /* the distance alphabet has 30 symbols, so the tree is kept small */
 };
 
-/* dict must be at least as large as the window the encoder used (its max back reference distance) */
+/* dict must cover the encoder's window (its largest back reference) */
 void ota_inflate_init(struct OtaInflateState *d, unsigned char *dict, unsigned int dict_len);
-/* Produce output until dest reaches dest_limit (OK), the stream ends (DONE) or an error occurs */
+/* Fills dest up to dest_limit (OK) or to the end of the stream (DONE) */
 int ota_inflate(struct OtaInflateState *d);
 
 #ifdef __cplusplus

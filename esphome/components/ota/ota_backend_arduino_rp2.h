@@ -15,11 +15,9 @@ class ArduinoRP2OTABackend final {
   OTAResponseTypes write(uint8_t *data, size_t len);
   OTAResponseTypes end();
   void abort();
-  // A gzip image is staged on LittleFS as is; the core's OTA stub inflates it
-  // into the app region at reboot (arduino-pico 2.4.0 and later, RP2350 from
-  // 4.0.3; ESPHome requires 6.0.0), the same way the ESP8266 bootloader does.
-  // begin() then sees the gzip size, so only the staging space is checked up
-  // front; the inflated size is not known until the stub reads the trailer.
+  // The core's OTA stub inflates a staged gzip image at reboot (arduino-pico
+  // 2.4.0, RP2350 4.0.3; ESPHome pins 6.0.0). begin() only sees the gzip
+  // size; the inflated size is known when the stub reads the trailer.
   static constexpr bool supports_compression() { return true; }
 
  private:

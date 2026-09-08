@@ -601,10 +601,7 @@ def test_perform_ota_upload_error(mock_socket: Mock, mock_file: io.BytesIO) -> N
 
 
 def _no_auth_handshake(version: int, server_features: int | None = None) -> list[bytes]:
-    """Recv responses for a handshake without auth, up to the MD5 check.
-
-    With server_features the device answers with the extended feature flags.
-    """
+    """Recv responses for a handshake without auth, up to the MD5 check."""
     if server_features is None:
         features = [bytes([espota2.RESPONSE_HEADER_OK])]
     else:
@@ -1532,13 +1529,13 @@ _UPLOAD_TAIL = [
     "server_features",
     [
         espota2.SERVER_FEATURE_SUPPORTS_DEFLATE,
-        # A deflate offer is binding, so it wins should a device set both bits
+        # Binding offer: deflate wins over gzip
         espota2.SERVER_FEATURE_SUPPORTS_DEFLATE
         | espota2.SERVER_FEATURE_SUPPORTS_COMPRESSION,
     ],
 )
 def test_perform_ota_with_deflate(mock_socket: Mock, server_features: int) -> None:
-    """A device that inflates on the fly gets a raw deflate stream, both sizes and the image MD5."""
+    """The device gets a raw deflate stream, both sizes and the image MD5."""
     original_content = b"firmware" * 100
     mock_socket.recv.side_effect = (
         _no_auth_handshake(espota2.OTA_VERSION_2_0, server_features) + _UPLOAD_TAIL
@@ -1552,6 +1549,5 @@ def test_perform_ota_with_deflate(mock_socket: Mock, server_features: int) -> No
     assert sent[4] == len(original_content).to_bytes(espota2.SIZE_FIELD_BYTES, "big")
     payload = sent[6]
     assert len(payload) == sent_size < len(original_content)
-    # The device decodes through a window of 1 << DEFLATE_WINDOW_BITS bytes
     assert zlib.decompress(payload, -espota2.DEFLATE_WINDOW_BITS) == original_content
     assert sent[5] == hashlib.md5(original_content).hexdigest().encode()

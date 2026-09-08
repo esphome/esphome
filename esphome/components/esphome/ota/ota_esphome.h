@@ -132,12 +132,10 @@ class ESPHomeOTAComponent final : public ota::OTAComponent {
     uint32_t last_data_ms{0};
     uint32_t last_progress{0};
   };
-  // Receives up to OTA_BUFFER_SIZE bytes of upload data into buf, waiting up to
-  // the data timeout, and updates xfer. Returns bytes read, -1 on failure (logged).
+  // Up to OTA_BUFFER_SIZE bytes into buf; returns bytes read, -1 on failure (logged)
   inline ssize_t receive_data_(uint8_t *buf, DataTransfer &xfer);
-  // When lwIP runs in this loop the radio is deaf while a sector is written, so
-  // the client is kept quiet until the block is in flash; with a socket task the
-  // ack goes out on receipt so the next block arrives while this one is written
+  // Raw lwIP cannot service the radio during a sector write, so the ack waits
+  // for the write there; a socket task lets the next block arrive meanwhile
 #ifdef USE_SOCKET_IMPL_LWIP_TCP
   static constexpr bool ACK_AFTER_WRITE = true;
 #else
@@ -209,12 +207,10 @@ class ESPHomeOTAComponent final : public ota::OTAComponent {
                 "OTA_BUFFER_SIZE must fit a full encrypted data frame");
 #endif
 #ifdef USE_OTA_DEFLATE
-  // Deflate back references reach 1 << espota2.DEFLATE_WINDOW_BITS bytes; the
-  // ring window must be at least that. It also serves as the inflate output
-  // buffer, so it is flushed to the backend one windowful at a time.
+  // At least 1 << espota2.DEFLATE_WINDOW_BITS; also the inflate output buffer
   static constexpr size_t OTA_INFLATE_WINDOW_SIZE = 4096;
-  // Heap-allocated only while a deflate-compressed upload is negotiated; the
-  // decoder state is the base so its read callback can recover the session
+  // Heap-allocated only while a deflate upload is negotiated; the decoder
+  // state is the base so the read callback can recover the session
   struct InflateSession : OtaInflateState {
     ESPHomeOTAComponent *self;
     DataTransfer *xfer;
@@ -229,7 +225,7 @@ class ESPHomeOTAComponent final : public ota::OTAComponent {
   static_assert(!ota::OTABackend::supports_compression(),
                 "USE_OTA_DEFLATE is for backends that cannot store a gzip image");
 #endif
-  // Writes the decoded bytes not yet in flash; dest stays put so the ring history is intact
+  // Writes the decoded bytes not yet in flash without moving dest
   ota::OTAResponseTypes inflate_flush_(InflateSession &session);
   ota::OTAResponseTypes inflate_data_(uint8_t *in, size_t image_size, DataTransfer &xfer);
   std::unique_ptr<InflateSession> inflate_;

@@ -189,9 +189,8 @@ static constexpr uint8_t CLIENT_NOISE_FEATURES =
 static constexpr uint8_t SERVER_FEATURE_SUPPORTS_COMPRESSION = 0x01;
 static constexpr uint8_t SERVER_FEATURE_SUPPORTS_PARTITION_ACCESS = 0x02;
 static constexpr uint8_t SERVER_FEATURE_SUPPORTS_NOISE = 0x04;
-// The device inflates a raw deflate stream (window <= OTA_INFLATE_WINDOW_SIZE).
-// The offer is binding: a client that asked for it must then send the inflated
-// size frame and a deflate stream, the device does not check again.
+// Raw deflate, window <= OTA_INFLATE_WINDOW_SIZE. Binding once offered: the
+// client must then send the image size frame and a deflate stream.
 static constexpr uint8_t SERVER_FEATURE_SUPPORTS_DEFLATE = 0x08;
 
 inline bool ESPHomeOTAComponent::extended_proto_() const {
@@ -320,8 +319,7 @@ void ESPHomeOTAComponent::handle_handshake_() {
         this->handshake_buf_[1] |= SERVER_FEATURE_SUPPORTS_NOISE;
 #endif
 #ifdef USE_OTA_DEFLATE
-        // Offer to inflate on the fly once the session memory (a few KB) is in
-        // hand; otherwise the upload stays uncompressed
+        // Offered only once the session memory is in hand; else uncompressed
         if ((this->ota_features_ & CLIENT_FEATURE_SUPPORTS_DEFLATE) != 0) {
           this->inflate_.reset(new (std::nothrow) InflateSession());
           if (this->inflate_ != nullptr) {
@@ -478,7 +476,6 @@ void ESPHomeOTAComponent::handle_data_() {
     goto error;  // NOLINT(cppcoreguidelines-avoid-goto)
   image_size = xfer.ota_size;
 #ifdef USE_OTA_DEFLATE
-  // A deflate upload also announces the inflated size
   if (this->inflate_ != nullptr && !this->read_size_(buf, image_size, LOG_STR("image size")))
     goto error;  // NOLINT(cppcoreguidelines-avoid-goto)
 #endif
@@ -820,9 +817,8 @@ void ESPHomeOTAComponent::send_chunk_acks_(DataTransfer &xfer) {
 }
 
 #ifdef USE_OTA_DEFLATE
-// The window doubles as the output buffer: the decoder fills it, we flush it to
-// the backend, and its bytes remain available as the back-reference history for
-// the next windowful.
+// The window doubles as the output buffer; flushed bytes stay as back
+// reference history for the next windowful.
 ota::OTAResponseTypes ESPHomeOTAComponent::inflate_flush_(InflateSession &session) {
   const size_t produced = session.dest - session.window;
   const size_t pending = produced - session.flushed;
@@ -850,9 +846,8 @@ ota::OTAResponseTypes ESPHomeOTAComponent::inflate_data_(uint8_t *in, size_t ima
   session.written = 0;
   session.error = ota::OTA_RESPONSE_OK;
   ota_inflate_init(&session, session.window, OTA_INFLATE_WINDOW_SIZE);
-  // Pulls the next compressed chunk when the decoder runs dry. Where the ack
-  // must follow the write, everything decoded so far is written and acked
-  // first, or the client would wait for an ack while the decoder waits for it.
+  // Where the ack must follow the write, flush and ack before waiting for
+  // input, or the client waits for an ack while the decoder waits for data
   session.source_read_cb = [](OtaInflateState *d) -> int {
     auto *s = static_cast<InflateSession *>(d);
     if (ACK_AFTER_WRITE) {
@@ -860,7 +855,7 @@ ota::OTAResponseTypes ESPHomeOTAComponent::inflate_data_(uint8_t *in, size_t ima
       if (s->error != ota::OTA_RESPONSE_OK)
         return -1;
     }
-    // The stream wants more than announced; the size check below reports it
+    // More input than announced; reported by the size check below
     if (s->xfer->total >= s->xfer->ota_size)
       return -1;
     ssize_t read = s->self->receive_data_(s->in, *s->xfer);
@@ -876,14 +871,12 @@ ota::OTAResponseTypes ESPHomeOTAComponent::inflate_data_(uint8_t *in, size_t ima
 
   int res;
   do {
-    // The ring index wrapped to 0 exactly when the window filled, so the
-    // window and the output cursor stay in lockstep
+    // The ring index wrapped to 0 exactly when the window filled
     session.dest = session.window;
     session.dest_limit = session.window + OTA_INFLATE_WINDOW_SIZE;
     session.flushed = 0;
     res = ota_inflate(&session);
-    // A stored block keeps decoding zeros after the read callback failed, so
-    // eof is checked as well
+    // A stored block keeps emitting zeros after a failed read, hence eof
     if (res < 0 || session.eof)
       break;
     session.error = this->inflate_flush_(session);

@@ -70,13 +70,10 @@ CLIENT_FEATURE_SUPPORTS_DEFLATE = 0x10
 SERVER_FEATURE_SUPPORTS_COMPRESSION = 0x01
 SERVER_FEATURE_SUPPORTS_PARTITION_ACCESS = 0x02
 SERVER_FEATURE_SUPPORTS_NOISE = 0x04
-# Binding once offered: the device then expects the image size frame and a
-# deflate stream, so there is no opting out per upload
+# Binding once offered: the device then expects the image size and a deflate stream
 SERVER_FEATURE_SUPPORTS_DEFLATE = 0x08
 
-# Window of the raw deflate stream sent to a device that inflates on the fly.
-# Part of the protocol: the server's deflate bit promises a 4 KB ring window
-# (OTA_INFLATE_WINDOW_SIZE), so a larger window needs a new feature bit
+# Wire constant: the deflate bit promises a 4 KB window (OTA_INFLATE_WINDOW_SIZE)
 DEFLATE_WINDOW_BITS = 12
 
 NOISE_FRAME_INDICATOR = 0x01
@@ -729,15 +726,13 @@ def perform_ota(
     prepare_start = time.perf_counter()
     send_check(sock, upload_size.to_bytes(SIZE_FIELD_BYTES, "big"), "binary size")
     if deflate:
-        # The device sizes the partition by the inflated image; its own frame,
-        # as an encrypted session carries one field per frame
+        # Own frame: an encrypted session carries one field per frame
         send_check(sock, file_size.to_bytes(SIZE_FIELD_BYTES, "big"), "image size")
     receive_exactly(sock, 1, "update prepare result", RESPONSE_UPDATE_PREPARE_OK)
     prepare_duration = time.perf_counter() - prepare_start
     _LOGGER.info("Preparing for upload took %.2f seconds", prepare_duration)
 
-    # The device hashes what it writes to flash: the inflated image for a
-    # deflate upload, the received bytes otherwise (the gzip file on ESP8266)
+    # The device hashes what it writes: the inflated image, else the received bytes
     upload_md5 = hashlib.md5(file_contents if deflate else upload_contents).hexdigest()
     _LOGGER.debug("MD5 of upload is %s", upload_md5)
 

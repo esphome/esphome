@@ -103,9 +103,8 @@ enum OTAType : uint8_t {
 // - set_update_md5: expected digest of the incoming image, hex string.
 // - write: consume the next chunk; end: finalize and mark bootable.
 // - abort: safe to call in any state, including after end().
-// - supports_compression: static constexpr, whether a gzip image can be stored
-//   as is and inflated at reboot; the esphome platform asserts it at compile
-//   time when it builds its own inflater.
+// - supports_compression: constexpr, whether a gzip image is stored as is and
+//   inflated at reboot.
 template<typename T>
 concept OTABackendContract = requires(T backend, size_t image_size, uint8_t *data, size_t len, const char *md5) {
   { backend.begin(image_size, OTA_TYPE_UPDATE_APP) } -> std::same_as<OTAResponseTypes>;
