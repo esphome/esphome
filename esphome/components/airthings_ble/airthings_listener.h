@@ -1,17 +1,13 @@
 #pragma once
 
-#ifdef USE_ESP32
-
 #include "esphome/core/component.h"
-#include "esphome/components/esp32_ble_tracker/esp32_ble_tracker.h"
+#include "esphome/components/ble_device_base/ble_device.h"
 
 namespace esphome::airthings_ble {
 
-class AirthingsListener final : public esp32_ble_tracker::ESPBTDeviceListener {
+class AirthingsListener final : public ble_device_base::ESPBTDeviceListener {
  public:
-  bool parse_device(const esp32_ble_tracker::ESPBTDevice &device) override;
+  bool parse_device(const ble_device_base::ESPBTDevice &device) override;
 };
 
 }  // namespace esphome::airthings_ble
-
-#endif

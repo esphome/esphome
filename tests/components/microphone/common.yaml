@@ -1,8 +1,3 @@
-i2s_audio:
-  i2s_bclk_pin: ${i2s_bclk_pin}
-  i2s_lrclk_pin: ${i2s_lrclk_pin}
-  i2s_mclk_pin: ${i2s_mclk_pin}
-
 microphone:
   - platform: i2s_audio
     id: mic_id_external
@@ -22,8 +17,3 @@ microphone:
           else:
             - microphone.mute:
                 id: mic_id_external
-  - platform: i2s_audio
-    id: mic_id_pdm
-    i2s_din_pin: ${i2s_din_pin2}
-    adc_type: external
-    pdm: true

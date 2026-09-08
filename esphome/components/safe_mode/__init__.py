@@ -10,8 +10,9 @@ from esphome.const import (
     CONF_STORAGE,
     KEY_PAST_SAFE_MODE,
 )
-from esphome.core import CORE, CoroPriority, coroutine_with_priority
-from esphome.cpp_generator import RawExpression
+from esphome.core import CORE, ID, CoroPriority, coroutine_with_priority
+from esphome.cpp_generator import MockObj, RawExpression, TemplateArgsType
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@paulmonigatti", "@jsuanet", "@kbx81"]
 
@@ -24,7 +25,7 @@ SafeModeComponent = safe_mode_ns.class_("SafeModeComponent", cg.Component)
 MarkSuccessfulAction = safe_mode_ns.class_("MarkSuccessfulAction", automation.Action)
 
 
-def _remove_id_if_disabled(value):
+def _remove_id_if_disabled(value: ConfigType) -> ConfigType:
     value = value.copy()
     if value[CONF_DISABLED]:
         value.pop(CONF_ID)
@@ -62,7 +63,12 @@ CONFIG_SCHEMA = cv.All(
     ),
     synchronous=True,
 )
-async def safe_mode_mark_successful_to_code(config, action_id, template_arg, args):
+async def safe_mode_mark_successful_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     parent = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg)
     cg.add(var.set_parent(parent))
@@ -75,7 +81,7 @@ _CALLBACK_AUTOMATIONS = (
 
 
 @coroutine_with_priority(CoroPriority.APPLICATION)
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     if not config[CONF_DISABLED]:
         var = cg.new_Pvariable(config[CONF_ID])
         await cg.register_component(var, config)

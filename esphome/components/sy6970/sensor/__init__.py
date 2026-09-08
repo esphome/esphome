@@ -9,6 +9,7 @@ from esphome.const import (
     UNIT_MILLIAMP,
     UNIT_VOLT,
 )
+from esphome.types import ConfigType
 
 from .. import CONF_SY6970_ID, SY6970Component, sy6970_ns
 
@@ -71,7 +72,7 @@ CONFIG_SCHEMA = cv.Schema(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     parent = await cg.get_variable(config[CONF_SY6970_ID])
 
     if vbus_voltage_config := config.get(CONF_VBUS_VOLTAGE):

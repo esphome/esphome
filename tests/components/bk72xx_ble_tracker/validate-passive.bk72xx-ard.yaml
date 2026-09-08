@@ -1,0 +1,8 @@
+# Passive scanning variant: the package merge keeps the shared parameters from
+# common.yaml and overrides only the mode.
+packages:
+  bk72xx_ble_tracker: !include common.yaml
+
+bk72xx_ble_tracker:
+  scan_parameters:
+    active: false

@@ -1,8 +1,6 @@
 #include "b_parasite.h"
 #include "esphome/core/log.h"
 
-#ifdef USE_ESP32
-
 namespace esphome::b_parasite {
 
 static const char *const TAG = "b_parasite";
@@ -16,7 +14,7 @@ void BParasite::dump_config() {
   LOG_SENSOR("  ", "Illuminance", this->illuminance_);
 }
 
-bool BParasite::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
+bool BParasite::parse_device(const ble_device_base::ESPBTDevice &device) {
   if (device.address_uint64() != address_) {
     ESP_LOGVV(TAG, "parse_device(): unknown MAC address.");
     return false;
@@ -113,5 +111,3 @@ bool BParasite::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
 }
 
 }  // namespace esphome::b_parasite
-
-#endif  // USE_ESP32

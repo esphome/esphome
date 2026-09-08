@@ -100,10 +100,11 @@ void WaterHeaterCall::perform() {
     ESP_LOGV(TAG, "  Target Temperature High: %.2f", this->target_temperature_high_);
   }
   if (this->state_mask_ & WATER_HEATER_STATE_AWAY) {
-    ESP_LOGV(TAG, "  Away: %s", (this->state_ & WATER_HEATER_STATE_AWAY) ? "YES" : "NO");
+    ESP_LOGV(TAG, "  Away: %s",
+             (this->state_ & WATER_HEATER_STATE_AWAY) ? LOG_STR_LITERAL("YES") : LOG_STR_LITERAL("NO"));
   }
   if (this->state_mask_ & WATER_HEATER_STATE_ON) {
-    ESP_LOGV(TAG, "  On: %s", (this->state_ & WATER_HEATER_STATE_ON) ? "YES" : "NO");
+    ESP_LOGV(TAG, "  On: %s", (this->state_ & WATER_HEATER_STATE_ON) ? LOG_STR_LITERAL("YES") : LOG_STR_LITERAL("NO"));
   }
   this->parent_->control(*this);
 }
@@ -178,7 +179,7 @@ void WaterHeater::publish_state() {
     ESP_LOGV(TAG, "  Away: YES");
   }
   if (traits.has_feature_flags(WATER_HEATER_SUPPORTS_ON_OFF)) {
-    ESP_LOGV(TAG, "  On: %s", (this->state_ & WATER_HEATER_STATE_ON) ? "YES" : "NO");
+    ESP_LOGV(TAG, "  On: %s", (this->state_ & WATER_HEATER_STATE_ON) ? LOG_STR_LITERAL("YES") : LOG_STR_LITERAL("NO"));
   }
 
 #if defined(USE_WATER_HEATER) && defined(USE_CONTROLLER_REGISTRY)
@@ -232,18 +233,6 @@ WaterHeaterTraits WaterHeater::get_traits() {
 #endif
   return traits;
 }
-
-#ifdef USE_WATER_HEATER_VISUAL_OVERRIDES
-void WaterHeater::set_visual_min_temperature_override(float min_temperature_override) {
-  this->visual_min_temperature_override_ = min_temperature_override;
-}
-void WaterHeater::set_visual_max_temperature_override(float max_temperature_override) {
-  this->visual_max_temperature_override_ = max_temperature_override;
-}
-void WaterHeater::set_visual_target_temperature_step_override(float visual_target_temperature_step_override) {
-  this->visual_target_temperature_step_override_ = visual_target_temperature_step_override;
-}
-#endif
 
 // Water heater mode strings indexed by WaterHeaterMode enum (0-6): OFF, ECO, ELECTRIC, PERFORMANCE, HIGH_DEMAND,
 // HEAT_PUMP, GAS

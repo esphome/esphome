@@ -23,6 +23,12 @@ from dataclasses import dataclass
 import os
 from pathlib import Path
 
+from esphome.build_helpers.idedata import (
+    get_toolchain_includes,
+    parse_entry,
+    reject_launcher_compiler,
+)
+
 TIDY_PROJECT_NAME = "esphome_tidy"
 
 # A do-nothing C++ app: just enough for IDF to configure a valid project. It's
@@ -141,10 +147,15 @@ idf_component_register(
 
 def _setup_core(work_dir: Path, settings: _Settings) -> None:
     """Point CORE at the tidy project + IDF version, without any YAML config."""
-    from esphome.components.esp32.const import KEY_ESP32, KEY_IDF_VERSION, KEY_VARIANT
-    import esphome.config_validation as cv
-    from esphome.const import KEY_CORE, KEY_TARGET_FRAMEWORK, KEY_TARGET_PLATFORM
-    from esphome.core import CORE
+    from esphome.const import (
+        KEY_CORE,
+        KEY_ESP32,
+        KEY_IDF_VERSION,
+        KEY_TARGET_FRAMEWORK,
+        KEY_TARGET_PLATFORM,
+        KEY_VARIANT,
+    )
+    from esphome.core import CORE, Version
 
     CORE.name = TIDY_PROJECT_NAME
     # config_path's parent is the data dir root for per-run artifacts (idedata,
@@ -153,7 +164,7 @@ def _setup_core(work_dir: Path, settings: _Settings) -> None:
     CORE.config_path = work_dir.parent / "tidy.yaml"
     CORE.build_path = work_dir
     esp32 = CORE.data.setdefault(KEY_ESP32, {})
-    esp32[KEY_IDF_VERSION] = cv.Version.parse(settings.idf_version)
+    esp32[KEY_IDF_VERSION] = Version.parse(settings.idf_version)
     esp32[KEY_VARIANT] = settings.variant
     # The target framework drives the PlatformIO-library -> IDF-component
     # converter and ESPHome's CORE.using_arduino / using_esp_idf helpers.
@@ -410,13 +421,12 @@ def _idedata_from_tidy_project(compile_commands: Path) -> dict:
     """
     import json
 
-    from esphome.espidf.idedata import _get_toolchain_includes, _parse_entry
-
     entries = json.loads(Path(compile_commands).read_text(encoding="utf-8"))
     entry = next((e for e in entries if e["file"].endswith("tidy.cpp")), None)
     if entry is None:
         raise RuntimeError(f"tidy.cpp not found in {compile_commands}")
-    cxx_path, defines, includes, cxx_flags = _parse_entry(entry)
+    cxx_path, defines, includes, cxx_flags = parse_entry(entry)
+    reject_launcher_compiler(cxx_path)
 
     return {
         "cxx_path": cxx_path,
@@ -424,7 +434,7 @@ def _idedata_from_tidy_project(compile_commands: Path) -> dict:
         "defines": defines,
         "includes": {
             "build": includes,
-            "toolchain": _get_toolchain_includes(cxx_path),
+            "toolchain": get_toolchain_includes(cxx_path),
         },
     }
 

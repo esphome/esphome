@@ -8,3 +8,6 @@ update:
     type: http
     source: https://esphome.github.io/esp-hosted-firmware/manifest/esp32c6.json
     update_interval: 6h
+    on_update_available:
+      then:
+        - logger.log: "Coprocessor update available"

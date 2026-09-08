@@ -150,7 +150,8 @@ void Lc709203f::dump_config() {
                 "  Pack Size: %d mAH\n"
                 "  Pack APA: 0x%02X\n"
                 "  Pack Rated Voltage: 3.%sV",
-                this->pack_size_, this->apa_, this->pack_voltage_ == 0x0000 ? "8" : "7");
+                this->pack_size_, this->apa_,
+                this->pack_voltage_ == 0x0000 ? LOG_STR_LITERAL("8") : LOG_STR_LITERAL("7"));
   LOG_I2C_DEVICE(this);
   LOG_UPDATE_INTERVAL(this);
   LOG_SENSOR("  ", "Voltage", this->voltage_sensor_);

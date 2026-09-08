@@ -9,6 +9,7 @@ from esphome.const import (
     STATE_CLASS_MEASUREMENT,
     UNIT_KILOMETER,
 )
+from esphome.types import ConfigType
 
 from . import AS3935, CONF_AS3935_ID
 
@@ -31,7 +32,7 @@ CONFIG_SCHEMA = cv.Schema(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     hub = await cg.get_variable(config[CONF_AS3935_ID])
 
     if distance_config := config.get(CONF_DISTANCE):

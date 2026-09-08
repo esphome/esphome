@@ -3,6 +3,7 @@ import esphome.codegen as cg
 from esphome.components import light, output
 import esphome.config_validation as cv
 from esphome.const import CONF_OUTPUT, CONF_OUTPUT_ID, CONF_PIN
+from esphome.types import ConfigType
 
 from .. import status_led_ns
 
@@ -24,7 +25,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_OUTPUT_ID])
     if CONF_PIN in config:
         pin = await cg.gpio_pin_expression(config[CONF_PIN])

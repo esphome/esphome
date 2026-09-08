@@ -1,6 +1,7 @@
 import esphome.codegen as cg
 from esphome.components import number
 import esphome.config_validation as cv
+from esphome.types import ConfigType
 
 from .. import (
     HOME_ASSISTANT_IMPORT_CONTROL_SCHEMA,
@@ -22,7 +23,7 @@ CONFIG_SCHEMA = (
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     cg.add_define("USE_API_HOMEASSISTANT_SERVICES")
     var = await number.new_number(
         config,

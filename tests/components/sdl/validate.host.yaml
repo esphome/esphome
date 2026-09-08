@@ -1,0 +1,29 @@
+# Config-only test for the headless and screenshot options. The combinations that must be
+# rejected are covered by tests/component_tests/sdl/test_sdl.py; this file checks that the
+# accepted forms validate together.
+host:
+  mac_address: "62:23:45:AF:B3:DD"
+
+display:
+  - platform: sdl
+    id: headless_display
+    headless: true
+    dimensions: 320x240
+
+  - platform: sdl
+    id: windowed_display
+    dimensions: 320x240
+    snapshot_key: SDLK_F12
+
+binary_sensor:
+  - platform: sdl
+    sdl_id: windowed_display
+    id: key_up
+    key: SDLK_UP
+
+interval:
+  - interval: 10s
+    then:
+      - snapshot.take:
+          id: headless_display
+          filename: periodic.bmp
