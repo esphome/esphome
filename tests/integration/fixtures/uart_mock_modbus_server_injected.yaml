@@ -1,5 +1,5 @@
 esphome:
-  name: uart-mock-modbus-srv-rw
+  name: uart-mock-modbus-srv-injected
 
 host:
 api:
@@ -17,6 +17,8 @@ uart:
   baud_rate: 115200
   port: /dev/null
 
+# Shared server-role fixture (see the shared_yaml markers in the test file);
+# the injections concatenate and each test waits only on its own sensors.
 uart_mock:
   - id: virtual_uart_dev
     baud_rate: 9600
@@ -25,18 +27,31 @@ uart_mock:
     auto_start: false
     debug:
     injections:
-      # FC 0x17 Read/Write Multiple Registers on device 1:
-      #   write reg 0x0001 = 0x1234 (qty 1), then read regs 0x0001..0x0002 (qty 2).
-      # Per Modbus 6.17 the write is performed before the read, so reg 0x0001 must
-      # read back the just-written 0x1234 in the same request.
+      - delay: 100ms
+        inject_rx: [0x01, 0x03, 0x00, 0x03, 0x00, 0x01, 0x74, 0x0A] #  Read holding register 3 on device 1 (basic_read)
+      - delay: 100ms
+        #  Read holding register 7 on device 2, its reply, then read holding
+        #  register 5 on device 1 (read_after_peer_response)
+        inject_rx: [0x02, 0x03, 0x00, 0x07, 0x00, 0x01, 0x35, 0xF8,
+                    0x02, 0x03, 0x02, 0x00, 0xF0, 0xFC,
+                    0x00, 0x01, 0x03, 0x00, 0x05, 0x00, 0x01, 0x94, 0x0B]
+      - delay: 100ms
+        inject_rx: [0x02, 0x03, 0x00, 0x07, 0x00, 0x01, 0x35, 0xF8] #  Read holding register 7 on device 2, with no response
+      - delay: 100ms
+        #  Read holding register 7 on device 2 with no response, then read
+        #  holding register A on device 1 (read_after_peer_timeout)
+        inject_rx: [0x02, 0x03, 0x00, 0x07, 0x00, 0x01, 0x35, 0xF8,
+                    0x01, 0x03, 0x00, 0x0A, 0x00, 0x01, 0xA4, 0x08]
+      # FC 0x17 on device 1: write reg 0x0001 = 0x1234 then read 0x0001..0x0002;
+      # per Modbus 6.17 the write runs first, so 0x0001 must read back 0x1234.
       - delay: 100ms
         inject_rx:
           [0x01, 0x17, 0x00, 0x01, 0x00, 0x02, 0x00, 0x01, 0x00, 0x01, 0x02, 0x12, 0x34, 0x49, 0xD8]
-      # FC 0x17: write reg 0x0003 = 0x5678 (qty 1), then read reg 0x0003 (qty 1) -
+      # FC 0x17: write reg 0x0006 = 0x5678 (qty 1), then read reg 0x0006 (qty 1) -
       # a write and read targeting a different register block.
       - delay: 100ms
         inject_rx:
-          [0x01, 0x17, 0x00, 0x03, 0x00, 0x01, 0x00, 0x03, 0x00, 0x01, 0x02, 0x56, 0x78, 0x9B, 0x10]
+          [0x01, 0x17, 0x00, 0x06, 0x00, 0x01, 0x00, 0x06, 0x00, 0x01, 0x02, 0x56, 0x78, 0x8B, 0x55]
 
 globals:
   - id: stored_1
@@ -70,8 +85,18 @@ modbus_server:
         read_lambda: |-
           id(rw_read_2).publish_state(0x00AA);
           return 0x00AA;
-      # Second writable + readable register, targeted by the second request.
       - address: 0x03
+        value_type: U_WORD
+        read_lambda: |-
+          id(basic_read).publish_state(1);
+          return 1;
+      - address: 0x05
+        value_type: U_WORD
+        read_lambda: |-
+          id(read_after_peer_response).publish_state(1);
+          return 1;
+      # Second writable + readable register, targeted by the second FC 0x17 request.
+      - address: 0x06
         value_type: U_WORD
         read_lambda: |-
           id(rw_read_3).publish_state(id(stored_3));
@@ -80,8 +105,22 @@ modbus_server:
           id(stored_3) = x;
           id(rw_write_3).publish_state(x);
           return true;
+      - address: 0x0A
+        value_type: U_WORD
+        read_lambda: |-
+          id(read_after_peer_timeout).publish_state(1);
+          return 1;
 
 sensor:
+  - platform: template
+    name: "basic_read"
+    id: basic_read
+  - platform: template
+    name: "read_after_peer_response"
+    id: read_after_peer_response
+  - platform: template
+    name: "read_after_peer_timeout"
+    id: read_after_peer_timeout
   - platform: template
     name: "rw_write_1"
     id: rw_write_1
