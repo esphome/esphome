@@ -42,8 +42,9 @@ class SPIDelegateHw : public SPIDelegate {
     if (this->release_device_)
       this->add_device_();
     if (this->is_ready()) {
-      if (spi_device_acquire_bus(this->handle_, portMAX_DELAY) != ESP_OK)
+      if (spi_device_acquire_bus(this->handle_, portMAX_DELAY) != ESP_OK) {
         ESP_LOGE(TAG, "Failed to acquire SPI bus");
+      }
       SPIDelegate::begin_transaction();
     } else {
       ESP_LOGW(TAG, "SPI device not ready, cannot begin transaction");
@@ -63,8 +64,9 @@ class SPIDelegateHw : public SPIDelegate {
 
   ~SPIDelegateHw() override {
     esp_err_t const err = spi_bus_remove_device(this->handle_);
-    if (err != ESP_OK)
+    if (err != ESP_OK) {
       ESP_LOGE(TAG, "Remove device failed - err %X", err);
+    }
   }
 
   // do a transfer. either txbuf or rxbuf (but not both) may be null.
@@ -284,8 +286,9 @@ class SPIBusHw : public SPIBus {
     }
     buscfg.max_transfer_sz = MAX_TRANSFER_SIZE;
     auto err = spi_bus_initialize(channel, &buscfg, SPI_DMA_CH_AUTO);
-    if (err != ESP_OK)
+    if (err != ESP_OK) {
       ESP_LOGE(TAG, "Bus init failed - err %X", err);
+    }
   }
 
   SPIDelegate *get_delegate(uint32_t data_rate, SPIBitOrder bit_order, SPIMode mode, GPIOPin *cs_pin,

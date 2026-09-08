@@ -3,62 +3,64 @@
 
 namespace esphome::pzemac {
 
+namespace helpers = modbus::helpers;
+
 static const char *const TAG = "pzemac";
 
 static const uint8_t PZEM_CMD_RESET_ENERGY = 0x42;
 static const uint8_t PZEM_REGISTER_COUNT = 10;  // 10x 16-bit registers
 
-void PZEMAC::on_response(std::span<const uint8_t> request_pdu, std::span<const uint8_t> response_pdu) {
-  auto data = modbus::helpers::server_pdu_payload(response_pdu);
-  if (data.size() < 20) {
-    ESP_LOGW(TAG, "Invalid size for PZEM AC!");
+// Register map, see https://github.com/esphome/feature-requests/issues/49#issuecomment-538636809
+// 32-bit values are two registers, low word first.
+static const uint16_t PZEM_REGISTER_VOLTAGE = 0;        // 1 register, 0.1 V
+static const uint16_t PZEM_REGISTER_CURRENT = 1;        // 2 registers, 0.001 A
+static const uint16_t PZEM_REGISTER_ACTIVE_POWER = 3;   // 2 registers, 0.1 W
+static const uint16_t PZEM_REGISTER_ACTIVE_ENERGY = 5;  // 2 registers, 1 Wh
+static const uint16_t PZEM_REGISTER_FREQUENCY = 7;      // 1 register, 0.1 Hz
+static const uint16_t PZEM_REGISTER_POWER_FACTOR = 8;   // 1 register, 0.01
+
+void PZEMAC::on_read_input_registers(uint16_t start_address, std::span<const uint16_t> registers,
+                                     modbus::ResponseStatus status) {
+  if (!modbus::succeeded(status))
+    return;  // the hub already logs exception responses
+
+  // Publish a sensor if its register(s) are in this response; skipping absent registers keeps this
+  // correct for any read range, so the poll may be split into multiple requests.
+  auto publish_1_register = [&](sensor::Sensor *sensor, uint16_t reg, float divisor) -> void {
+    if (sensor == nullptr)
+      return;
+    if (auto value = helpers::value_at<helpers::SensorValueType::U_WORD>(registers, start_address, reg))
+      sensor->publish_state(*value / divisor);
+  };
+
+  auto publish_2_registers = [&](sensor::Sensor *sensor, uint16_t reg, float divisor) -> void {
+    if (sensor == nullptr)
+      return;
+    if (auto value = helpers::value_at<helpers::SensorValueType::U_DWORD_R>(registers, start_address, reg))
+      sensor->publish_state(*value / divisor);
+  };
+
+  publish_1_register(this->voltage_sensor_, PZEM_REGISTER_VOLTAGE, 10.0f);
+  publish_2_registers(this->current_sensor_, PZEM_REGISTER_CURRENT, 1000.0f);
+  publish_2_registers(this->power_sensor_, PZEM_REGISTER_ACTIVE_POWER, 10.0f);
+  publish_2_registers(this->energy_sensor_, PZEM_REGISTER_ACTIVE_ENERGY, 1.0f);
+  publish_1_register(this->frequency_sensor_, PZEM_REGISTER_FREQUENCY, 10.0f);
+  publish_1_register(this->power_factor_sensor_, PZEM_REGISTER_POWER_FACTOR, 100.0f);
+}
+
+void PZEMAC::on_custom_response(std::span<const uint8_t> request_pdu, std::span<const uint8_t> response_pdu,
+                                modbus::ResponseStatus status) {
+  // The only custom request this component sends is the energy reset; acknowledge its echo here so
+  // the default unhandled-response warning stays meaningful.
+  if (!request_pdu.empty() && request_pdu[0] == PZEM_CMD_RESET_ENERGY) {
+    if (modbus::succeeded(status)) {
+      ESP_LOGD(TAG, "Energy reset acknowledged");
+    } else {
+      ESP_LOGW(TAG, "Energy reset rejected");
+    }
     return;
   }
-
-  // See https://github.com/esphome/feature-requests/issues/49#issuecomment-538636809
-  //  0  1  2  3  4  5  6  7  8  9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24
-  // 01 04 14 08 D1 00 6C 00 00 00 F4 00 00 00 26 00 00 01 F4 00 64 00 00 51 34
-  // Id Cc Sz Volt- Current---- Power------ Energy----- Frequ PFact Alarm Crc--
-  //           0     2           6          10          14    16
-
-  auto pzem_get_16bit = [&](size_t i) -> uint16_t {
-    return (uint16_t(data[i + 0]) << 8) | (uint16_t(data[i + 1]) << 0);
-  };
-  auto pzem_get_32bit = [&](size_t i) -> uint32_t {
-    return (uint32_t(pzem_get_16bit(i + 2)) << 16) | (uint32_t(pzem_get_16bit(i + 0)) << 0);
-  };
-
-  uint16_t raw_voltage = pzem_get_16bit(0);
-  float voltage = raw_voltage / 10.0f;  // max 6553.5 V
-
-  uint32_t raw_current = pzem_get_32bit(2);
-  float current = raw_current / 1000.0f;  // max 4294967.295 A
-
-  uint32_t raw_active_power = pzem_get_32bit(6);
-  float active_power = raw_active_power / 10.0f;  // max 429496729.5 W
-
-  float active_energy = static_cast<float>(pzem_get_32bit(10));
-
-  uint16_t raw_frequency = pzem_get_16bit(14);
-  float frequency = raw_frequency / 10.0f;
-
-  uint16_t raw_power_factor = pzem_get_16bit(16);
-  float power_factor = raw_power_factor / 100.0f;
-
-  ESP_LOGD(TAG, "PZEM AC: V=%.1f V, I=%.3f A, P=%.1f W, E=%.1f Wh, F=%.1f Hz, PF=%.2f", voltage, current, active_power,
-           active_energy, frequency, power_factor);
-  if (this->voltage_sensor_ != nullptr)
-    this->voltage_sensor_->publish_state(voltage);
-  if (this->current_sensor_ != nullptr)
-    this->current_sensor_->publish_state(current);
-  if (this->power_sensor_ != nullptr)
-    this->power_sensor_->publish_state(active_power);
-  if (this->energy_sensor_ != nullptr)
-    this->energy_sensor_->publish_state(active_energy);
-  if (this->frequency_sensor_ != nullptr)
-    this->frequency_sensor_->publish_state(frequency);
-  if (this->power_factor_sensor_ != nullptr)
-    this->power_factor_sensor_->publish_state(power_factor);
+  modbus::ModbusClientDevice::on_custom_response(request_pdu, response_pdu, status);
 }
 
 void PZEMAC::update() { this->read_input_registers(0, PZEM_REGISTER_COUNT); }

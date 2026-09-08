@@ -5,11 +5,14 @@ import esphome.config_validation as cv
 from esphome.const import CONF_INPUT, CONF_MODE, CONF_NUMBER, CONF_SCL, CONF_SDA
 from esphome.pins import check_strapping_pin
 
-# Per the ESP32-S31 datasheet (page 96):
+# Per the ESP32-S31 IDF DOCS and datasheet:
+# https://docs.espressif.com/projects/esp-idf/en/v6.1/esp32s31/api-reference/peripherals/gpio.html
 # https://documentation.espressif.com/esp32-s31_datasheet_en.pdf
-_ESP32S31_SPI_FLASH_PINS: set[int] = {27, 28, 29, 31, 32, 33}
-# GPIO60/GPIO61 set the boot mode; GPIO37 selects the JTAG signal source.
-_ESP32S31_STRAPPING_PINS: set[int] = {37, 60, 61}
+_ESP32S31_SPI_FLASH_PINS: set[int] = {26, 27, 28, 30, 31, 32}
+_ESP32S31_INVALID_PINS: set[int] = {29, 41}
+# GPIO60/GPIO61 set the boot mode; GPIO37 selects the JTAG signal source;
+# GPIO36 sets the VDD_SPI voltage.
+_ESP32S31_STRAPPING_PINS: set[int] = {36, 37, 60, 61}
 # LP I2C is fixed to GPIO6 (SCL) / GPIO7 (SDA) per the datasheet IO MUX table.
 _ESP32S31_I2C_LP_PINS = {"SDA": 7, "SCL": 6}
 
@@ -19,6 +22,8 @@ _LOGGER = logging.getLogger(__name__)
 def esp32_s31_validate_gpio_pin(value: int) -> int:
     if value < 0 or value > 61:
         raise cv.Invalid(f"Invalid pin number: {value} (must be 0-61)")
+    if value in _ESP32S31_INVALID_PINS:
+        raise cv.Invalid(f"GPIO{value} does not exist on ESP32-S31.")
     if value in _ESP32S31_SPI_FLASH_PINS:
         raise cv.Invalid(
             f"GPIO{value} is reserved for the SPI flash interface on ESP32-S31 and cannot be used."
@@ -33,6 +38,10 @@ def esp32_s31_validate_supports(value: dict[str, Any]) -> dict[str, Any]:
 
     if num < 0 or num > 61:
         raise cv.Invalid(f"Invalid pin number: {num} (must be 0-61)")
+    # Checked here as well so ignore_pin_validation_error cannot bypass it;
+    # these pins are not bonded and can never work
+    if num in _ESP32S31_INVALID_PINS:
+        raise cv.Invalid(f"GPIO{num} does not exist on ESP32-S31.")
     if is_input:
         # All ESP32 pins support input mode
         pass

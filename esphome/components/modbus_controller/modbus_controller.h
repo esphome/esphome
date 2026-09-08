@@ -126,6 +126,16 @@ inline std::vector<uint16_t> float_to_payload(float value, SensorValueType value
 
 class ModbusController;
 
+/// How an item relates to the register range built just before it (same register type, address order).
+/// The numeric order doubles as the comparator tiebreak for items at the same address (see
+/// SensorItemsComparator): AUTO items form the shared range first, so a NEVER item comes last and
+/// shares a range it did not start (items on one address must share, see create_polling_commands_()).
+enum class RangeReuse : uint8_t {
+  AUTO = 0,    // join when adjacent and the position in the reply is exact (no non-standard response_size ahead)
+  ALWAYS = 1,  // join unconditionally, reading across any address gap
+  NEVER = 2,   // never join backward (later items may still extend this item's range)
+};
+
 class SensorItem {
  public:
   /// Parse this sensor's slice out of its range's response and publish it. The span points into the
@@ -159,11 +169,26 @@ class SensorItem {
   }
 
   void set_custom_pdu(std::initializer_list<uint8_t> pdu) { this->custom_pdu.set(pdu.begin(), pdu.size()); }
+
+  /// Entities this item spans: one bit for bit-addressed types, ceil(bytes / 2) registers for RAW
+  /// with a response_size, else the value type's register width.
+  virtual uint16_t entity_count() const {
+    if (modbus::helpers::is_entity_type_binary(this->register_type)) {
+      return 1;
+    }
+    if (this->sensor_value_type == SensorValueType::RAW && this->response_bytes > 0) {
+      return (this->response_bytes + 1) / 2;
+    }
+    return modbus::helpers::register_width_for(this->sensor_value_type);
+  }
+
+  /// Bytes this item's registers occupy in a response: one per bit for bit-addressed types; response_size
+  /// when set (devices that answer more bytes per register than the standard two); else two per register.
   size_t virtual get_register_size() const {
     if (this->addresses_bits()) {
       return 1;
     } else {  // if CONF_RESPONSE_BYTES is used override the default
-      return response_bytes > 0 ? response_bytes : register_count * 2;
+      return response_bytes > 0 ? response_bytes : this->entity_count() * 2;
     }
   }
   // Override register size for modbus devices not using 1 register for one dword
@@ -177,7 +202,6 @@ class SensorItem {
   /// for the registers ahead of it (including wide response_size ones) and for any offset inherited
   /// from an earlier sensor sharing the same register.
   uint8_t offset{0};
-  uint8_t register_count{0};
   uint8_t response_bytes{0};
   /// The offset exactly as configured: measured from this sensor's own start_address, where `offset`
   /// is measured from the first register of the range it ends up polled in. Same units as `offset` -
@@ -188,7 +212,7 @@ class SensorItem {
   /// First register of the range this sensor is polled in; equals start_address for an unpolled item.
   uint16_t range_start_address{0};
   SmallInlineBuffer<8> custom_pdu{};
-  bool force_new_range{false};
+  RangeReuse reuse_previous_range{RangeReuse::AUTO};
 };
 
 // ModbusController::create_polling_commands_ tries to optimize register range
@@ -201,14 +225,15 @@ class SensorItemsComparator {
       return lhs->register_type < rhs->register_type;
     }
 
-    // ensure that sensor with force_new_range set are before the others
-    if (lhs->force_new_range != rhs->force_new_range) {
-      return lhs->force_new_range > rhs->force_new_range;
-    }
-
     // sort by start address
     if (lhs->start_address != rhs->start_address) {
       return lhs->start_address < rhs->start_address;
+    }
+
+    // at the same address: AUTO before ALWAYS before NEVER, so a NEVER item never starts the range
+    // the others at that address are then forced to share (see RangeReuse)
+    if (lhs->reuse_previous_range != rhs->reuse_previous_range) {
+      return lhs->reuse_previous_range < rhs->reuse_previous_range;
     }
 
     // sort by the offset as configured (ensures update of sensors in ascending order). The resolved
@@ -229,8 +254,8 @@ using SensorSet = std::set<SensorItem *, SensorItemsComparator>;
 struct RegisterRange {
   uint16_t start_address;
   modbus::EntityType register_type;
-  uint8_t register_count;
-  SensorSet sensors;  // all sensors of this range
+  uint16_t register_count;  // registers (or bits) the poll command reads; joins across gaps can exceed 255
+  SensorSet sensors;        // all sensors of this range
   /// A custom range polls this PDU, referenced from the sensor that opened the range.
   const SmallInlineBuffer<8> *custom_pdu{nullptr};
 };

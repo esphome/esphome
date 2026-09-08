@@ -1335,7 +1335,7 @@ void Sprinkler::all_valves_off_(const bool include_pump) {
       this->set_pump_state(this->valve_pump_switch(valve_index), false);
     }
   }
-  ESP_LOGD(TAG, "All valves stopped%s", include_pump ? ", including pumps" : "");
+  ESP_LOGD(TAG, "All valves stopped%s", include_pump ? LOG_STR_LITERAL(", including pumps") : "");
 }
 
 void Sprinkler::prep_full_cycle_() {

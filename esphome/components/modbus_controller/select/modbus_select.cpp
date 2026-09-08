@@ -83,19 +83,17 @@ void ModbusSelect::control(size_t index) {
     }
   }
 
-  // register_count declares the READ range width - it may pull neighboring registers into one poll -
-  // so a write covers exactly the registers the value occupies: the quantity comes from the payload,
-  // never from register_count (padding to it would zero registers the user only declared for reading).
-  // A payload wider than the declared range means the config and the lambda disagree - drop it.
-  if (data.size() > this->register_count) {
-    ESP_LOGE(TAG, "Payload has %zu registers but register_count is %u; dropping write", data.size(),
-             this->register_count);
+  // A write covers exactly the registers the value occupies: the quantity comes from the payload. A
+  // payload wider than the value type's register width means the config and the lambda disagree - drop it.
+  if (data.size() > this->entity_count()) {
+    ESP_LOGE(TAG, "Payload has %zu registers but the value type only spans %u; dropping write", data.size(),
+             this->entity_count());
     return;
   }
 
   const uint16_t write_address = this->write_address();
   bool queued;
-  if ((this->register_count == 1) && (!this->use_write_multiple_)) {
+  if ((this->entity_count() == 1) && (!this->use_write_multiple_)) {
     queued = this->write_single_register(write_address, data[0]);
   } else {
     queued = this->write_multiple_registers(write_address, data);

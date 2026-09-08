@@ -21,7 +21,7 @@ import asyncio
 from collections.abc import Callable
 from dataclasses import dataclass
 
-from aioesphomeapi import ButtonInfo, NumberInfo, SwitchInfo
+from aioesphomeapi import ButtonInfo, NumberInfo, SwitchInfo, TextSensorState
 import pytest
 
 from .state_utils import SensorTracker, find_entity, wait_for_state
@@ -1158,3 +1158,78 @@ async def test_uart_mock_modbus_deprecated_write_buffer(
     assert warn_count == 1, (
         f"deprecation warning should fire exactly once per entity, got {warn_count}"
     )
+
+
+@pytest.mark.asyncio
+async def test_uart_mock_modbus_ranges(
+    yaml_config: str,
+    run_compiled: RunCompiledFunction,
+    api_client_connected: APIClientConnectedFactory,
+) -> None:
+    """Wire-level test of the range builder's reuse_previous_range semantics.
+
+    Every expect_tx in the fixture pins the exact read request the controller emits, so a
+    wrongly merged or split range fails on the mock before any value arrives. Covers: auto
+    adjacency merging, auto gap splitting, reuse:true bridging a gap (with correct data
+    offsets past the gap), reuse:false splitting adjacent registers while staying open for
+    later auto items, two sensors sharing one register, a text block read sized by
+    response_size with a following word, response_size surplus shifting a later reuse:true
+    sensor's bytes while an auto sensor refuses to join past the surplus, and a RAW block
+    read of ceil(response_size / 2) registers.
+    """
+
+    line_callback, error_log_lines, warning_log_lines = _make_modbus_line_callback()
+
+    expected_values = {
+        "adjacent_a": 1,
+        "adjacent_b": 2,
+        "adjacent_c": 3,
+        "gap_a": 4,
+        "gap_b": 5,
+        "bridge_a": 6,
+        "bridge_b": 9,
+        "split_a": 10,
+        "split_b": 11,
+        "open_prev": 12,
+        "open_never": 13,
+        "open_tagalong": 14,
+        "shared_lo": 0x34,
+        "shared_hi": 0x12,
+        "after_text": 15,
+        "surplus": 16,
+        "after_surplus": 17,
+        "surplus_split": 24,
+        "after_surplus_split": 25,
+        "raw_block": 8,  # the RAW lambda publishes data.size(): 4 registers = 8 bytes
+    }
+    tracker = SensorTracker(list(expected_values.keys()))
+    futures = tracker.expect_all(expected_values)
+
+    # The tracker only handles numeric sensors; capture the text block separately.
+    text_future: asyncio.Future = asyncio.get_running_loop().create_future()
+    tracker_on_state = tracker.on_state
+
+    def on_state(state) -> None:
+        if (
+            isinstance(state, TextSensorState)
+            and not state.missing_state
+            and state.state == "ABCDEF"
+            and not text_future.done()
+        ):
+            text_future.set_result(True)
+        tracker_on_state(state)
+
+    tracker.on_state = on_state
+
+    async with (
+        run_compiled(yaml_config, line_callback=line_callback),
+        api_client_connected() as client,
+    ):
+        await tracker.setup_and_start_scenario(client)
+        await tracker.await_all(futures)
+        # text_block is not tracker-registered (non-numeric), so time out explicitly.
+        try:
+            await asyncio.wait_for(text_future, timeout=5.0)
+        except TimeoutError:
+            pytest.fail("text_block never published 'ABCDEF'")
+        _assert_no_modbus_errors(error_log_lines, warning_log_lines)
