@@ -30,6 +30,17 @@ static const uint8_t RF_CODE_BEEP = 0xC0;
 static const uint8_t RF_CODE_STOP = 0x55;
 static const uint8_t RF_DEBOUNCE = 200;
 static const size_t MAX_RX_BUFFER_SIZE = 512;
+// ~10 byte times at 19200 baud: long enough to prove the UART went quiet
+// after a possible bucket-frame terminator, short enough to finish well
+// before the next radio capture can be delivered.
+static const uint32_t BUCKET_CANDIDATE_QUIET_MS = 5;
+// Portisch drains a B1 frame's header, bucket table, and pulse data as
+// separate UART writes, so an in-progress bucket frame tolerates a longer
+// inter-region gap than the generic 50 ms inter-byte timeout.
+static const uint32_t BUCKET_FRAME_TIMEOUT_MS = 250;
+// Portisch's uart_put_RF_buckets sends at most 7 buckets plus the sync
+// bucket, so a B1 count byte above 8 (or 0) is malformed for any protocol.
+static const uint8_t B1_MAX_BUCKET_COUNT = 8;
 
 struct RFBridgeData {
   uint16_t sync;
@@ -67,10 +78,12 @@ class RFBridgeComponent final : public uart::UARTDevice, public Component {
   void ack_();
   void decode_();
   bool parse_bridge_byte_(uint8_t byte);
+  void finish_bucket_frame_();
   void write_byte_str_(const std::string &codes);
 
   std::vector<uint8_t> rx_buffer_;
   uint32_t last_bridge_byte_{0};
+  bool bucket_frame_candidate_{false};
 
   CallbackManager<void(RFBridgeData)> data_callback_;
   CallbackManager<void(RFBridgeAdvancedData)> advanced_data_callback_;

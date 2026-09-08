@@ -1225,6 +1225,20 @@ def test_main_runs_prefetch(tmp_path: Path) -> None:
     mock_prefetch.assert_called_once_with(tmp_path, "testenv")
 
 
+def test_main_skips_private_package_probe_before_prefetch(tmp_path: Path) -> None:
+    """The registry probe patch is applied before any package manager runs."""
+    order: list[str] = []
+    with (
+        patch.object(pf, "_prefetch", side_effect=lambda *_: order.append("prefetch")),
+        patch(
+            "esphome.platformio.runner.patch_registry_private_packages",
+            side_effect=lambda: order.append("patch"),
+        ),
+    ):
+        assert pf.main([str(tmp_path), "testenv"]) == 0
+    assert order == ["patch", "prefetch"]
+
+
 def test_main_bad_argv_is_a_distinct_exit(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
@@ -1649,7 +1663,7 @@ def test_preinstall_runs_dependency_waves(tmp_path: Path) -> None:
         {"name": "SPI"},
     ]
     m.dependency_to_spec.side_effect = lambda dep: _FakeSpec(name=dep["name"])
-    pf._preinstall(m, [("noise-c@0.1.24", _FakeSpec(name="noise-c"))])
+    pf._preinstall(m, [("noise-c@0.1.26", _FakeSpec(name="noise-c"))])
     assert installed == ["noise-c", "libsodium"]  # dep deduped, SPI left out
     # The dep wave carries its compatibility so _install searches qualified
     dep_call = m._install.call_args_list[-1]
@@ -1669,7 +1683,7 @@ def test_preinstall_dependency_wave_skips_seen_names(tmp_path: Path) -> None:
     m._install.side_effect = lambda spec, skip_dependencies, compatibility=None: (
         installed.append(getattr(spec, "name", str(spec)))
     )
-    pf._preinstall(m, [("noise-c@0.1.24", _FakeSpec(name="noise-c"))])
+    pf._preinstall(m, [("noise-c@0.1.26", _FakeSpec(name="noise-c"))])
     assert installed == ["noise-c"]
 
 
