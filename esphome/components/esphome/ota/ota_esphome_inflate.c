@@ -195,7 +195,7 @@ static int tinf_decode_symbol(TINF_DATA *d, TINF_TREE *t) {
   } while (cur >= 0);
 
   sum += cur;
-  if (sum < 0 || sum >= TINF_ARRAY_SIZE(t->trans)) {
+  if (sum < 0 || sum >= t->size) {
     return TINF_DATA_ERROR;
   }
 
@@ -433,6 +433,10 @@ void ota_inflate_init(TINF_DATA *d, unsigned char *dict, unsigned int dict_len) 
   d->dict_ring = dict;
   d->dict_idx = 0;
   d->curlen = 0;
+  d->ltree.trans = d->ltrans;
+  d->ltree.size = TINF_ARRAY_SIZE(d->ltrans);
+  d->dtree.trans = d->dtrans;
+  d->dtree.size = TINF_ARRAY_SIZE(d->dtrans);
 }
 
 /* inflate next output bytes from compressed stream */
