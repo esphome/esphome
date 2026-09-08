@@ -878,8 +878,9 @@ ota::OTAResponseTypes ESPHomeOTAComponent::inflate_data_(uint8_t *in, size_t ima
     session.dest_limit = session.window + OTA_INFLATE_WINDOW_SIZE;
     session.flushed = 0;
     res = ota_inflate(&session);
-    if (res < 0) {
-      // eof means the read callback failed, which is already logged
+    // A stored block keeps decoding zeros after the read callback failed, so
+    // eof is checked as well; that failure is already logged
+    if (res < 0 || session.eof) {
       if (!session.eof) {
         ESP_LOGW(TAG, "Inflate err %d", res);
       }
