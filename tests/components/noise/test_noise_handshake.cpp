@@ -68,6 +68,14 @@ class Initiator {
 
 static const uint8_t PROLOGUE[] = {'t', 'e', 's', 't', 'p', 'r', 'o', 'l', 'o', 'g', 'u', 'e'};
 
+// The context only points at the key and init() copies it before returning,
+// so a temporary context over a temporary key is safe within one call
+static NoiseContext ctx_for(const psk_t &psk) {
+  NoiseContext ctx;
+  ctx.set_psk(psk.data());
+  return ctx;
+}
+
 static psk_t make_psk(uint8_t seed) {
   psk_t psk;
   for (size_t i = 0; i < psk.size(); i++) {
@@ -102,7 +110,7 @@ TEST(NoiseResponderHandshakeTest, MessageMethodsErrorBeforeInit) {
 TEST(NoiseResponderHandshakeTest, FullHandshakeAndTransportRoundTrip) {
   const psk_t psk = make_psk(7);
   NoiseResponderHandshake responder;
-  ASSERT_EQ(responder.init(psk, PROLOGUE, sizeof(PROLOGUE)), 0);
+  ASSERT_EQ(responder.init(ctx_for(psk), PROLOGUE, sizeof(PROLOGUE)), 0);
   EXPECT_EQ(responder.action(), Action::ACTION_READ);
 
   Initiator initiator(psk, PROLOGUE, sizeof(PROLOGUE));
@@ -155,8 +163,8 @@ TEST(NoiseResponderHandshakeTest, ReInitRestartsHandshake) {
   // proves the restart took effect; the old state surviving would fail the
   // MAC here.
   NoiseResponderHandshake responder;
-  ASSERT_EQ(responder.init(make_psk(7), PROLOGUE, sizeof(PROLOGUE)), 0);
-  ASSERT_EQ(responder.init(make_psk(9), PROLOGUE, sizeof(PROLOGUE)), 0);
+  ASSERT_EQ(responder.init(ctx_for(make_psk(7)), PROLOGUE, sizeof(PROLOGUE)), 0);
+  ASSERT_EQ(responder.init(ctx_for(make_psk(9)), PROLOGUE, sizeof(PROLOGUE)), 0);
   EXPECT_EQ(responder.action(), Action::ACTION_READ);
 
   Initiator initiator(make_psk(9), PROLOGUE, sizeof(PROLOGUE));
@@ -168,7 +176,7 @@ TEST(NoiseResponderHandshakeTest, ReInitRestartsHandshake) {
 
 TEST(NoiseResponderHandshakeTest, WrongPskFailsWithMacFailure) {
   NoiseResponderHandshake responder;
-  ASSERT_EQ(responder.init(make_psk(7), PROLOGUE, sizeof(PROLOGUE)), 0);
+  ASSERT_EQ(responder.init(ctx_for(make_psk(7)), PROLOGUE, sizeof(PROLOGUE)), 0);
 
   Initiator initiator(make_psk(200), PROLOGUE, sizeof(PROLOGUE));
   uint8_t msg[MAX_HANDSHAKE_SIZE];
@@ -185,7 +193,7 @@ TEST(NoiseResponderHandshakeTest, MismatchedPrologueFailsWithMacFailure) {
   // tampered preamble must fail even with the right key.
   const psk_t psk = make_psk(7);
   NoiseResponderHandshake responder;
-  ASSERT_EQ(responder.init(psk, PROLOGUE, sizeof(PROLOGUE)), 0);
+  ASSERT_EQ(responder.init(ctx_for(psk), PROLOGUE, sizeof(PROLOGUE)), 0);
 
   static const uint8_t TAMPERED[] = {'x'};
   Initiator initiator(psk, TAMPERED, sizeof(TAMPERED));
