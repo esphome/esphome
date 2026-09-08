@@ -739,6 +739,9 @@ class ProtoDecodableMessage : public ProtoMessage {
    * @return Number of times the field appears in the buffer
    */
   static uint32_t count_repeated_field(const uint8_t *buffer, size_t length, uint32_t target_field_id);
+  // No protected destructor here: without virtuals nothing can be deleted through this class, and the
+  // generated messages are aggregates whose sub message members are brace initialised, which needs an
+  // accessible destructor on the base temporary. ProtoMessage keeps its guard for the dump builds.
 };
 #ifndef HAS_PROTO_MESSAGE_DUMP
 // decode() passes decode_field explicitly, so nothing here may add a vtable
