@@ -375,7 +375,7 @@ class ModbusServerHub : public Modbus {
   /// keep the reply for the next pass.
   void send_deferred_(bool drop_if_blocked);
   uint8_t expecting_peer_response_{0};
-  // Set while a frame is being handed to a device, so service() cannot be re-entered from a handler.
+  // Set while a frame is being handed to a device, so service_() cannot be re-entered from a handler.
   bool in_dispatch_{false};
   std::vector<ModbusServerDevice *> devices_;
 
@@ -666,8 +666,12 @@ class ModbusServerDevice {
   /// is registered.
   bool service_bus_();
 
-  ModbusServerHub *hub_{nullptr};
   uint8_t address_{0};
+
+ private:
+  // Private, not protected: the hub's loop() is public, so a device holding the pointer could dispatch a
+  // frame from inside a handler and answer a later one first. service_bus_() is the only way through.
+  ModbusServerHub *hub_{nullptr};
 
   friend class ModbusServerHub;
 };

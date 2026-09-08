@@ -30,7 +30,9 @@ class ServicingDevice : public ModbusServerDevice {
       this->serviced_from_handler = this->service_bus_();
     if (this->loop_from_handler) {
       this->loop_from_handler = false;  // one level only
-      this->hub_->loop();
+      // Deliberately the hostile route: a device cannot reach its own hub, so the test holds its own
+      // pointer to turn it through the public loop().
+      this->hostile_hub->loop();
       this->serviced_after_nested_loop = this->service_bus_();
     }
     // A pass that ran from here would have answered the next frame before this one returned.
@@ -49,6 +51,7 @@ class ServicingDevice : public ModbusServerDevice {
   // Turns the hub from inside the handler through the public loop(), then asks whether the guard still holds.
   bool loop_from_handler{false};
   bool serviced_after_nested_loop{true};
+  ModbusServerHub *hostile_hub{nullptr};
 };
 
 // Lets a test decide when the wire is free, and stash a reply the way send_raw_ does when it is not. Stashed
@@ -56,11 +59,14 @@ class ServicingDevice : public ModbusServerDevice {
 // host test binary faults on an uninitialised lock.
 class TestServerHub : public ModbusServerHub {
  public:
-  // With block_on_recheck the wire is free at the first check and busy at send_frame_'s own re-check, which
-  // is a byte arriving during the send delay.
+  // block_on_recheck: free at the first check, busy at send_frame_'s own re-check, which is a byte arriving
+  // during the send delay. block_first_check: the reverse, so a pass starts on a busy wire and frees up.
   bool tx_blocked() override {
+    const int check = this->checks_++;
     if (this->block_on_recheck)
-      return this->checks_++ > 0;
+      return check > 0;
+    if (this->block_first_check)
+      return check == 0;
     return this->blocked;
   }
 
@@ -77,6 +83,7 @@ class TestServerHub : public ModbusServerHub {
 
   bool blocked{false};
   bool block_on_recheck{false};
+  bool block_first_check{false};
 
  private:
   int checks_{0};
@@ -181,6 +188,29 @@ TEST(ModbusServerService, ReplyBlockedDuringTheSendDelayIsKept) {
   EXPECT_FALSE(f.uart.written.empty());
 }
 
+// A reply the pass itself produces goes out at once, and it is newer than anything still held back. The held
+// one must go with it, or a later pass would put a stale frame on the wire behind the reply it answered.
+TEST(ModbusServerService, AReplySentOnThePassDiscardsAnOlderHeldOne) {
+  ServerFixture f;
+  ServicingDevice device(0x02);
+  f.hub.register_device(&device);
+  f.hub.stash_deferred_for_test(0x02, READ_HOLDING_PDU);
+  f.uart.inject_frame(0x02, READ_HOLDING_PDU);
+
+  // Busy at the start of the pass, so the held reply is kept; free by the time the pass answers the frame.
+  f.hub.block_first_check = true;
+  EXPECT_TRUE(device.pump());
+  f.hub.block_first_check = false;
+  ASSERT_EQ(device.reads, 1);
+  const size_t after_pass = f.uart.written.size();
+  ASSERT_GT(after_pass, 0u);
+  EXPECT_FALSE(f.hub.has_deferred());
+
+  // Nothing is left over to be sent behind the reply that just went out.
+  EXPECT_TRUE(device.pump());
+  EXPECT_EQ(f.uart.written.size(), after_pass);
+}
+
 // The scheduler gives the reply its one chance and lets it go. A pass afterwards must not find it and put a
 // reply the controller has stopped waiting for on the wire behind newer traffic.
 TEST(ModbusServerService, ReplyDroppedByTheSchedulerIsNotSentByALaterPass) {
@@ -251,6 +281,7 @@ TEST(ModbusServerService, ANestedPassDoesNotReleaseTheOuterDispatch) {
   ServerFixture f;
   ServicingDevice device(0x02);
   device.loop_from_handler = true;
+  device.hostile_hub = &f.hub;
   f.hub.register_device(&device);
 
   f.uart.inject_frame(0x02, READ_HOLDING_PDU);

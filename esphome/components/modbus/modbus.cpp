@@ -1230,6 +1230,9 @@ void ModbusServerHub::send_raw_(const uint8_t *payload, uint16_t len) {
     return;
   }
 
+  // Anything still stashed is older than the reply going out now, and the controller has moved on to the
+  // request this one answers. Sending it later would put a stale frame on the wire behind a newer one.
+  this->deferred_payload_len_ = 0;
   ModbusFrame frame(payload[0], payload + 1, len - 1);
   if (!this->send_frame_(frame)) {
     ESP_LOGE(TAG, "Server reply dropped: a frame arrived during the send delay");
