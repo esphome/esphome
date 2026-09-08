@@ -66,13 +66,14 @@ from esphome.const import (
 )
 from esphome.core import (
     CORE,
+    ID,
     CoroPriority,
     EsphomeError,
     HexInt,
     coroutine_with_priority,
 )
 import esphome.final_validate as fv
-from esphome.types import ConfigType
+from esphome.types import ConfigType, TemplateArgsType
 
 from . import wpa2_eap
 
@@ -208,6 +209,7 @@ WiFiEnabledCondition = wifi_ns.class_("WiFiEnabledCondition", Condition)
 WiFiAPActiveCondition = wifi_ns.class_("WiFiAPActiveCondition", Condition)
 WiFiEnableAction = wifi_ns.class_("WiFiEnableAction", automation.Action)
 WiFiDisableAction = wifi_ns.class_("WiFiDisableAction", automation.Action)
+WiFiRoamAction = wifi_ns.class_("WiFiRoamAction", automation.Action)
 WiFiConfigureAction = wifi_ns.class_(
     "WiFiConfigureAction", automation.Action, cg.Component
 )
@@ -817,6 +819,18 @@ async def wifi_enable_to_code(config, action_id, template_arg, args):
     "wifi.disable", WiFiDisableAction, cv.Schema({}), synchronous=True
 )
 async def wifi_disable_to_code(config, action_id, template_arg, args):
+    return cg.new_Pvariable(action_id, template_arg)
+
+
+@automation.register_action(
+    "wifi.roam", WiFiRoamAction, cv.Schema({}), synchronous=True
+)
+async def wifi_roam_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> cg.MockObj:
     return cg.new_Pvariable(action_id, template_arg)
 
 
