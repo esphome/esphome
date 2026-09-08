@@ -129,7 +129,7 @@ void MicroWakeWord::setup() {
       return;
     }
     std::shared_ptr<ring_buffer::RingBuffer> temp_ring_buffer = this->ring_buffer_.lock();
-    if (this->ring_buffer_.use_count() > 1) {
+    if (temp_ring_buffer != nullptr) {
       // Producer-only write: never touches consumer state. If the buffer is full, ask the inference task
       // to drain it - reset() is a consumer operation and must run on the inference task's thread.
       // Disable partial writes so audio chunks are either fully accepted or rejected and handled below.
