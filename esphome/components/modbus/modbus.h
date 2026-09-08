@@ -324,7 +324,7 @@ class ModbusServerHub : public Modbus {
   /// answering during a bounded wait the main loop does not cover, such as announcing a restart.
   /// Returns false without doing anything while the hub is dispatching a frame, so a handler cannot
   /// re-enter it. Reached through ModbusServerDevice::service_bus_() only.
-  bool service();
+  bool service_();
   friend class ModbusServerDevice;
 
   void parse_modbus_frames() override;

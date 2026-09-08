@@ -412,10 +412,10 @@ void ModbusServerHub::register_device(ModbusServerDevice *device) {
 bool ModbusServerDevice::service_bus_() {
   if (this->hub_ == nullptr)
     return false;
-  return this->hub_->service();
+  return this->hub_->service_();
 }
 
-bool ModbusServerHub::service() {
+bool ModbusServerHub::service_() {
   // Re-entering from a handler would answer a later frame before the one being handled, and would overwrite
   // the single reply this hub can hold back.
   if (this->in_dispatch_)
