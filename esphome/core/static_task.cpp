@@ -45,6 +45,13 @@ bool StaticTask::destroy() {
     return true;
   }
 
+  // If called from the task itself, suspending would deadlock; delete self instead.
+  if (xTaskGetCurrentTaskHandle() == this->handle_) {
+    this->handle_ = nullptr;
+    vTaskDelete(nullptr);
+    return true;  // Unreachable
+  }
+
   // Suspending takes the task off the ready and event lists, so nothing can schedule it again. It only asks
   // the other core to yield though, so the task may still be running on it for a moment.
   vTaskSuspend(this->handle_);
