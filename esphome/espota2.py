@@ -654,14 +654,12 @@ def perform_ota(
                 f"retry {flag_name}."
             )
 
-    deflate = False
-    if extended_proto and features & SERVER_FEATURE_SUPPORTS_DEFLATE:
-        # The device inflates while receiving through a small ring window; the
-        # offer is binding, so it wins over gzip should a device set both bits
+    deflate = bool(extended_proto and features & SERVER_FEATURE_SUPPORTS_DEFLATE)
+    if deflate:
+        # The device inflates while receiving through a small ring window
         upload_contents = zlib.compress(
             file_contents, COMPRESS_LEVEL, wbits=-DEFLATE_WINDOW_BITS
         )
-        deflate = True
         _LOGGER.info("Compressed to %s bytes (deflate)", len(upload_contents))
     elif features & SERVER_FEATURE_SUPPORTS_COMPRESSION:
         # The device stores the gzip file and inflates it when it reboots
@@ -733,9 +731,7 @@ def perform_ota(
     if deflate:
         # The device sizes the partition by the inflated image; its own frame,
         # as an encrypted session carries one field per frame
-        send_check(
-            sock, len(file_contents).to_bytes(SIZE_FIELD_BYTES, "big"), "image size"
-        )
+        send_check(sock, file_size.to_bytes(SIZE_FIELD_BYTES, "big"), "image size")
     receive_exactly(sock, 1, "update prepare result", RESPONSE_UPDATE_PREPARE_OK)
     prepare_duration = time.perf_counter() - prepare_start
     _LOGGER.info("Preparing for upload took %.2f seconds", prepare_duration)

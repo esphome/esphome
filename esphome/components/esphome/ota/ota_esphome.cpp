@@ -297,8 +297,8 @@ void ESPHomeOTAComponent::handle_handshake_() {
 
       this->transition_ota_state_(OTAState::FEATURE_ACK);
 
-      const bool supports_compression = (this->ota_features_ & CLIENT_FEATURE_SUPPORTS_COMPRESSION) != 0 &&
-                                        ota::OTABackendPtr::element_type::supports_compression();
+      const bool supports_compression =
+          (this->ota_features_ & CLIENT_FEATURE_SUPPORTS_COMPRESSION) != 0 && ota::OTABackend::supports_compression();
 
       // Compose the feature-ack response. When the client negotiates the extended protocol we emit
       // a 2-byte response (marker + server feature flags); otherwise we emit the single-byte
@@ -781,12 +781,11 @@ ssize_t ESPHomeOTAComponent::receive_data_(uint8_t *buf, DataTransfer &xfer) {
     if (read > 0)
       break;
     if (read == 0) {
-      ESP_LOGW(TAG, "Remote closed");
+      this->log_remote_closed_(LOG_STR("data"));
       return -1;
     }
-    const int err = errno;
-    if (!this->would_block_(err)) {
-      ESP_LOGW(TAG, "Read err %d", err);
+    if (!this->would_block_(errno)) {
+      this->log_socket_error_(LOG_STR("data"));
       return -1;
     }
     // read() already waited up to SO_RCVTIMEO for data, just feed WDT
@@ -838,6 +837,7 @@ ota::OTAResponseTypes ESPHomeOTAComponent::inflate_flush_(InflateSession &sessio
   session.written += pending;
   // A compressible region yields many windows per socket read
   App.feed_wdt();
+  this->ack_written_(*session.xfer);
   return ota::OTA_RESPONSE_OK;
 }
 
@@ -850,21 +850,25 @@ ota::OTAResponseTypes ESPHomeOTAComponent::inflate_data_(uint8_t *in, size_t ima
   session.written = 0;
   session.error = ota::OTA_RESPONSE_OK;
   ota_inflate_init(&session, session.window, OTA_INFLATE_WINDOW_SIZE);
-  // Pulls the next compressed chunk when the decoder runs dry. Everything
-  // received so far is decoded by then, so it is written first and, on the
-  // platforms that ack after the write, acked.
+  // Pulls the next compressed chunk when the decoder runs dry. Where the ack
+  // must follow the write, everything decoded so far is written and acked
+  // first, or the client would wait for an ack while the decoder waits for it.
   session.source_read_cb = [](OtaInflateState *d) -> int {
     auto *s = static_cast<InflateSession *>(d);
-    s->error = s->self->inflate_flush_(*s);
-    if (s->error != ota::OTA_RESPONSE_OK)
-      return -1;
-    s->self->ack_written_(*s->xfer);
+    if (ACK_AFTER_WRITE) {
+      s->error = s->self->inflate_flush_(*s);
+      if (s->error != ota::OTA_RESPONSE_OK)
+        return -1;
+    }
     // The stream wants more than announced; the size check below reports it
     if (s->xfer->total >= s->xfer->ota_size)
       return -1;
     ssize_t read = s->self->receive_data_(s->in, *s->xfer);
-    if (read <= 0)
+    if (read <= 0) {
+      // Already logged by receive_data_
+      s->error = ota::OTA_RESPONSE_ERROR_UNKNOWN;
       return -1;
+    }
     d->source = s->in + 1;
     d->source_limit = s->in + read;
     return s->in[0];
@@ -883,17 +887,14 @@ ota::OTAResponseTypes ESPHomeOTAComponent::inflate_data_(uint8_t *in, size_t ima
     if (res < 0 || session.eof)
       break;
     session.error = this->inflate_flush_(session);
-    if (session.error != ota::OTA_RESPONSE_OK)
-      break;
-    this->ack_written_(xfer);
-  } while (res != OTA_INFLATE_DONE);
+  } while (res != OTA_INFLATE_DONE && session.error == ota::OTA_RESPONSE_OK);
 
+  // Transport and flash failures are logged where they happen
+  if (session.error != ota::OTA_RESPONSE_OK)
+    return session.error;
   if (res != OTA_INFLATE_DONE || session.written != image_size || xfer.total != xfer.ota_size) {
-    // A transport failure is already logged; a flash error is reported by write_flash_
-    if (session.error == ota::OTA_RESPONSE_OK && (!session.eof || xfer.total == xfer.ota_size)) {
-      ESP_LOGW(TAG, "Inflate err %d", res);
-    }
-    return session.error != ota::OTA_RESPONSE_OK ? session.error : ota::OTA_RESPONSE_ERROR_UNKNOWN;
+    ESP_LOGW(TAG, "Inflate err %d", res);
+    return ota::OTA_RESPONSE_ERROR_UNKNOWN;
   }
   ESP_LOGD(TAG, "Inflated %zu bytes from %zu", session.written, xfer.total);
   return ota::OTA_RESPONSE_OK;

@@ -1528,14 +1528,20 @@ _UPLOAD_TAIL = [
 
 
 @pytest.mark.usefixtures("mock_time")
-def test_perform_ota_with_deflate(mock_socket: Mock) -> None:
+@pytest.mark.parametrize(
+    "server_features",
+    [
+        espota2.SERVER_FEATURE_SUPPORTS_DEFLATE,
+        # A deflate offer is binding, so it wins should a device set both bits
+        espota2.SERVER_FEATURE_SUPPORTS_DEFLATE
+        | espota2.SERVER_FEATURE_SUPPORTS_COMPRESSION,
+    ],
+)
+def test_perform_ota_with_deflate(mock_socket: Mock, server_features: int) -> None:
     """A device that inflates on the fly gets a raw deflate stream, both sizes and the image MD5."""
     original_content = b"firmware" * 100
     mock_socket.recv.side_effect = (
-        _no_auth_handshake(
-            espota2.OTA_VERSION_2_0, espota2.SERVER_FEATURE_SUPPORTS_DEFLATE
-        )
-        + _UPLOAD_TAIL
+        _no_auth_handshake(espota2.OTA_VERSION_2_0, server_features) + _UPLOAD_TAIL
     )
 
     espota2.perform_ota(mock_socket, None, io.BytesIO(original_content), "test.bin")
@@ -1543,29 +1549,9 @@ def test_perform_ota_with_deflate(mock_socket: Mock) -> None:
     sent = [c[0][0] for c in mock_socket.sendall.call_args_list]
     # magic, features, ota type, size, image size, md5, data, end ack
     sent_size = struct.unpack(">I", sent[3])[0]
-    assert sent[4] == len(original_content).to_bytes(4, "big")
+    assert sent[4] == len(original_content).to_bytes(espota2.SIZE_FIELD_BYTES, "big")
     payload = sent[6]
     assert len(payload) == sent_size < len(original_content)
     # The device decodes through a window of 1 << DEFLATE_WINDOW_BITS bytes
     assert zlib.decompress(payload, -espota2.DEFLATE_WINDOW_BITS) == original_content
     assert sent[5] == hashlib.md5(original_content).hexdigest().encode()
-
-
-@pytest.mark.usefixtures("mock_time")
-def test_perform_ota_deflate_wins_over_gzip(mock_socket: Mock) -> None:
-    """A deflate offer is binding on the device, so it wins should a device set both bits."""
-    original_content = b"firmware" * 100
-    mock_socket.recv.side_effect = (
-        _no_auth_handshake(
-            espota2.OTA_VERSION_2_0,
-            espota2.SERVER_FEATURE_SUPPORTS_COMPRESSION
-            | espota2.SERVER_FEATURE_SUPPORTS_DEFLATE,
-        )
-        + _UPLOAD_TAIL
-    )
-
-    espota2.perform_ota(mock_socket, None, io.BytesIO(original_content), "test.bin")
-
-    sent = [c[0][0] for c in mock_socket.sendall.call_args_list]
-    assert sent[4] == len(original_content).to_bytes(4, "big")
-    assert zlib.decompress(sent[6], -espota2.DEFLATE_WINDOW_BITS) == original_content

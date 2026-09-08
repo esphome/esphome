@@ -152,7 +152,6 @@ class ESPHomeOTAComponent final : public ota::OTAComponent {
     if (ACK_AFTER_WRITE)
       this->send_chunk_acks_(xfer);
   }
-  // Reads a 4 byte MSB first size field into size
   inline bool read_size_(uint8_t *buf, size_t &size, const LogString *desc);
   // Writes to the backend and logs a failure
   inline ota::OTAResponseTypes write_flash_(uint8_t *data, size_t len);
@@ -227,7 +226,7 @@ class ESPHomeOTAComponent final : public ota::OTAComponent {
     uint8_t window[OTA_INFLATE_WINDOW_SIZE];
   };
 #ifndef CLANG_TIDY  // static analysis sets every define at once
-  static_assert(!ota::OTABackendPtr::element_type::supports_compression(),
+  static_assert(!ota::OTABackend::supports_compression(),
                 "USE_OTA_DEFLATE is for backends that cannot store a gzip image");
 #endif
   // Writes the decoded bytes not yet in flash; dest stays put so the ring history is intact
