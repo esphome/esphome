@@ -82,37 +82,6 @@ static const unsigned char CLCIDX[] = {16, 17, 18, 0, 8, 7, 9, 6, 10, 5, 11, 4, 
  * -- utility functions -- *
  * ----------------------- */
 
-/* build the fixed huffman trees */
-static void tinf_build_fixed_trees(TINF_TREE *lt, TINF_TREE *dt) {
-  int i;
-
-  /* build fixed length tree */
-  for (i = 0; i < 7; ++i)
-    lt->table[i] = 0;
-
-  lt->table[7] = 24;
-  lt->table[8] = 152;
-  lt->table[9] = 112;
-
-  for (i = 0; i < 24; ++i)
-    lt->trans[i] = 256 + i;
-  for (i = 0; i < 144; ++i)
-    lt->trans[24 + i] = i;
-  for (i = 0; i < 8; ++i)
-    lt->trans[24 + 144 + i] = 280 + i;
-  for (i = 0; i < 112; ++i)
-    lt->trans[24 + 144 + 8 + i] = 144 + i;
-
-  /* build fixed distance tree */
-  for (i = 0; i < 5; ++i)
-    dt->table[i] = 0;
-
-  dt->table[5] = 32;
-
-  for (i = 0; i < 32; ++i)
-    dt->trans[i] = i;
-}
-
 /* given an array of code lengths, build a tree */
 static void tinf_build_tree(TINF_TREE *t, const unsigned char *lengths, unsigned int num) {
   unsigned short offs[16];
@@ -317,6 +286,27 @@ static int tinf_decode_trees(TINF_DATA *d, TINF_TREE *lt, TINF_TREE *dt) {
   tinf_build_tree(dt, lengths + hlit, hdist);
 
   return TINF_OK;
+}
+
+/* build the fixed huffman trees (RFC 1951 3.2.6) through the generic tree
+   builder; altered from upstream, which unrolls them by hand */
+static void tinf_build_fixed_trees(TINF_TREE *lt, TINF_TREE *dt) {
+  unsigned char lengths[288];
+  unsigned int i;
+
+  for (i = 0; i < 144; ++i)
+    lengths[i] = 8;
+  for (; i < 256; ++i)
+    lengths[i] = 9;
+  for (; i < 280; ++i)
+    lengths[i] = 7;
+  for (; i < 288; ++i)
+    lengths[i] = 8;
+  tinf_build_tree(lt, lengths, 288);
+
+  for (i = 0; i < 32; ++i)
+    lengths[i] = 5;
+  tinf_build_tree(dt, lengths, 32);
 }
 
 /* ----------------------------- *
