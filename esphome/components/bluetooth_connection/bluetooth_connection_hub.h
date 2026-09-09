@@ -164,6 +164,8 @@ class BluetoothConnection final : public ble_device_base::GattClientListener {
     this->pending_ack_ = PendingAck::PENDING_ACK_NONE;
     this->batch_stalled_ = false;
     this->connected_reply_owed_ = false;
+    this->ack_deferred_warned_ = false;
+    this->notify_drop_warned_ = false;
   }
   /// Sole construction site for these replies, shared by send and retry.
   bool try_send_ack_(PendingAck kind, uint16_t handle, conn_err_t error);
@@ -238,7 +240,7 @@ class BluetoothConnection final : public ble_device_base::GattClientListener {
 
   // Group 5: bit-packed tail. The first two bytes were already full, so the
   // first added bit forced a third and took the 8-aligned object 48 -> 56;
-  // the handle, error and retry counter ride in that padding. Four bitfield
+  // the handle, error and retry counter ride in that padding. Two bitfield
   // bits left; another byte-sized member costs 8 per slot.
   static_assert(static_cast<uint8_t>(ClientState::ESTABLISHED) < (1 << 3), "state_ bitfield too narrow");
   static_assert(static_cast<uint8_t>(ConnectionType::V3_WITHOUT_CACHE) < (1 << 2),
@@ -258,6 +260,11 @@ class BluetoothConnection final : public ble_device_base::GattClientListener {
   bool batch_stalled_ : 1 {false};
   /// An owed connected=true reply; the proxy's paced drain re-offers it.
   bool connected_reply_owed_ : 1 {false};
+  /// Set once the deferred warn fired; with an unchanged pending_ack_handle_
+  /// it keeps re-deferrals of the same handle quiet (see send_ack_).
+  bool ack_deferred_warned_ : 1 {false};
+  /// Set on the first dropped notify; later drops log at verbose only.
+  bool notify_drop_warned_ : 1 {false};
   // Plain byte after the bitfields: takes the padding byte instead of
   // straddling pending_ack_'s storage unit and growing the object.
   static_assert(PENDING_ACK_RETRY_LIMIT <= 0xFF, "retry counter too narrow");

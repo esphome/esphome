@@ -1,8 +1,11 @@
+from typing import Any
+
 import esphome.codegen as cg
 from esphome.components import binary_sensor
 import esphome.config_validation as cv
 from esphome.const import CONF_UID
 from esphome.core import HexInt
+from esphome.types import ConfigType
 
 from .. import Nfcc, NfcTagListener, nfc_ns
 
@@ -21,7 +24,7 @@ NfcTagBinarySensor = nfc_ns.class_(
 )
 
 
-def validate_uid(value):
+def validate_uid(value: Any) -> str:
     value = cv.string_strict(value)
     for x in value.split("-"):
         if len(x) != 2:
@@ -56,7 +59,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = await binary_sensor.new_binary_sensor(config)
     await cg.register_component(var, config)
     await cg.register_parented(var, config[CONF_NFCC_ID])

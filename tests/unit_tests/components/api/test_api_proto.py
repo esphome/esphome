@@ -263,6 +263,17 @@ def test_device_capabilities_response_has_id_150() -> None:
     )
 
 
+def test_z_wave_proxy_request_response_has_id_151() -> None:
+    body = _extract_proto_message(PROTO_TEXT, "ZWaveProxyRequestResponse")
+    match = re.search(r"option \(id\) = (\d+);", body)
+    assert match is not None, "ZWaveProxyRequestResponse is missing `option (id)`"
+    assert int(match.group(1)) == 151, (
+        f"ZWaveProxyRequestResponse has id {match.group(1)}, expected 151. "
+        "Message ids are part of the wire protocol and must not change once "
+        "assigned."
+    )
+
+
 def test_superseded_fields_are_not_marked_deprecated_in_proto() -> None:
     """The six superseded fields must not carry `[deprecated = true]` in
     api.proto, or the generator drops them and old clients stop receiving

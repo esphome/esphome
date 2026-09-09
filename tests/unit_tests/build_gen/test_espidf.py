@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from pathlib import Path
 from unittest.mock import patch
 
@@ -35,22 +36,25 @@ def _reset_core(tmp_path: Path) -> None:
     }
 
 
-def _write_project_description(tmp_path: Path, components: dict[str, str]) -> None:
+def _write_project_description(
+    tmp_path: Path, components: dict[str, str], idf_path: str = "/idf"
+) -> None:
     """Stub a project_description.json with the given component_name -> dir map."""
     build_dir = tmp_path / "build"
     build_dir.mkdir(exist_ok=True)
     (build_dir / "project_description.json").write_text(
         json.dumps(
             {
+                "idf_path": idf_path,
                 "build_component_info": {
                     name: {"dir": dir_} for name, dir_ in components.items()
-                }
+                },
             }
         )
     )
 
 
-def _render(minimal: bool = False) -> str:
+def _render(minimal: bool = False, builtin_components: list[str] | None = None) -> str:
     """Render the top-level CMakeLists with the standard variant/name patches."""
     with (
         patch("esphome.build_gen.espidf.get_esp32_variant", return_value="ESP32"),
@@ -58,7 +62,9 @@ def _render(minimal: bool = False) -> str:
     ):
         from esphome.build_gen.espidf import get_project_cmakelists
 
-        return get_project_cmakelists(minimal=minimal)
+        return get_project_cmakelists(
+            minimal=minimal, builtin_components=builtin_components
+        )
 
 
 def test_get_available_components_returns_none_without_build_path() -> None:
@@ -77,8 +83,11 @@ def test_get_available_components_returns_none_without_project_description(
     assert get_available_components() is None
 
 
-def test_get_available_components_filters_src_managed_and_pio(tmp_path: Path) -> None:
-    """Built-ins are returned; src/, managed_components/, pio_components/ skipped."""
+def test_get_available_components_keeps_only_idf_tree_components(
+    tmp_path: Path,
+) -> None:
+    """Only components under idf_path/components are built-ins: src, managed,
+    converted PIO libs and Arduino component_stubs are all left out."""
     _write_project_description(
         tmp_path,
         {
@@ -86,12 +95,82 @@ def test_get_available_components_filters_src_managed_and_pio(tmp_path: Path) ->
             "esp_lcd": "/idf/components/esp_lcd",
             "espressif__arduino-esp32": f"{tmp_path}/managed_components/arduino",
             "JPEGDEC": f"{tmp_path}/pio_components/arduino/abc/bitbank2/JPEGDEC",
+            "cbor": f"{tmp_path}/component_stubs/cbor",
             "freertos": "/idf/components/freertos",
         },
     )
     from esphome.build_gen.espidf import get_available_components
 
     assert sorted(get_available_components()) == ["esp_lcd", "freertos"]
+
+
+def test_codegen_and_configure_writes_render_the_same_cmakelists(
+    tmp_path: Path,
+) -> None:
+    """write_project() at codegen time (no list) and the configure-time write
+    (discovered list) must agree, or ninja re-runs cmake on every build."""
+    _write_project_description(
+        tmp_path,
+        {
+            "lwip": "/idf/components/lwip",
+            "cbor": f"{tmp_path}/component_stubs/cbor",
+        },
+    )
+    from esphome.build_gen.espidf import get_available_components
+
+    assert _render() == _render(builtin_components=get_available_components())
+    assert "ESPHOME_PROJECT_BUILTIN_COMPONENTS cbor" not in _render()
+
+
+def test_get_available_components_warns_when_nothing_is_under_idf_path(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    _write_project_description(tmp_path, {"cbor": f"{tmp_path}/component_stubs/cbor"})
+    from esphome.build_gen.espidf import (
+        get_available_components,
+        has_discovered_components,
+    )
+
+    assert get_available_components() == []
+    assert "No ESP-IDF components found under" in caplog.text
+    # An empty discovery must not count as configured, or it would be latched in.
+    assert not has_discovered_components()
+
+
+def test_get_available_components_ignores_corrupt_or_unexpected_file(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    build_dir = tmp_path / "build"
+    build_dir.mkdir()
+    from esphome.build_gen.espidf import (
+        get_available_components,
+        has_discovered_components,
+    )
+
+    (build_dir / "project_description.json").write_text("{not json")
+    assert get_available_components() is None
+    assert not has_discovered_components()
+    (build_dir / "project_description.json").write_text('{"build_component_info": {}}')
+    with caplog.at_level(logging.DEBUG, logger="esphome.build_gen.espidf"):
+        assert get_available_components() is None
+    assert "Could not read" in caplog.text
+
+
+def test_has_discovered_components_after_configure(tmp_path: Path) -> None:
+    _write_project_description(tmp_path, {"lwip": "/idf/components/lwip"})
+    from esphome.build_gen.espidf import has_discovered_components
+
+    assert has_discovered_components()
+
+
+def test_get_project_cmakelists_uses_supplied_builtin_components() -> None:
+    """A cached list replaces project_description.json and is still filtered
+    by EXCLUDE_COMPONENTS."""
+    with patch.dict(CORE.cmake_args, {"EXCLUDE_COMPONENTS": "fatfs;unity"}):
+        content = _render(builtin_components=["lwip", "fatfs", "esp_timer"])
+    assert "ESPHOME_PROJECT_BUILTIN_COMPONENTS esp_timer APPEND" in content
+    assert "ESPHOME_PROJECT_BUILTIN_COMPONENTS lwip APPEND" in content
+    assert "ESPHOME_PROJECT_BUILTIN_COMPONENTS fatfs APPEND" not in content
 
 
 def test_get_project_cmakelists_minimal_omits_builtin_components_property(

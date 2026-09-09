@@ -39,7 +39,7 @@ void TuyaSelect::dump_config() {
                 "  Select has datapoint ID %u\n"
                 "  Data type: %s\n"
                 "  Options are:",
-                this->select_id_, this->is_int_ ? "int" : "enum");
+                this->select_id_, this->is_int_ ? LOG_STR_LITERAL("int") : LOG_STR_LITERAL("enum"));
   const auto &options = this->traits.get_options();
   for (size_t i = 0; i < this->mappings_.size(); i++) {
     ESP_LOGCONFIG(TAG, "    %i: %s", this->mappings_.at(i), options.at(i));

@@ -1,5 +1,6 @@
 import esphome.codegen as cg
 from esphome.components import climate_ir
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@E440QF"]
 AUTO_LOAD = ["climate_ir"]
@@ -10,5 +11,5 @@ EmmetiClimate = emmeti_ns.class_("EmmetiClimate", climate_ir.ClimateIR)
 CONFIG_SCHEMA = climate_ir.climate_ir_with_receiver_schema(EmmetiClimate)
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     await climate_ir.new_climate_ir(config)

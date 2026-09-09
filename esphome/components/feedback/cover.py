@@ -14,6 +14,7 @@ from esphome.const import (
     CONF_STOP_ACTION,
     CONF_UPDATE_INTERVAL,
 )
+from esphome.types import ConfigType
 
 CONF_OPEN_SENSOR = "open_sensor"
 CONF_CLOSE_SENSOR = "close_sensor"
@@ -29,7 +30,7 @@ endstop_ns = cg.esphome_ns.namespace("feedback")
 FeedbackCover = endstop_ns.class_("FeedbackCover", cover.Cover, cg.Component)
 
 
-def validate_infer_endstop(config):
+def validate_infer_endstop(config: ConfigType) -> ConfigType:
     if config[CONF_INFER_ENDSTOP_FROM_MOVEMENT] is True:
         if config[CONF_HAS_BUILT_IN_ENDSTOP] is False:
             raise cv.Invalid(
@@ -95,7 +96,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = await cover.new_cover(config)
     await cg.register_component(var, config)
 

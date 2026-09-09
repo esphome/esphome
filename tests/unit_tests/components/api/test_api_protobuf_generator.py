@@ -15,7 +15,12 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).parents[4] / "script" / "api_protobuf"))
 
-from api_protobuf import _make_ifdef_line, get_varint64_ifdef  # noqa: E402
+from api_protobuf import (  # noqa: E402
+    MAX_MESSAGE_ID,
+    _make_ifdef_line,
+    get_varint64_ifdef,
+    validate_message_id,
+)
 from google.protobuf import descriptor_pb2  # noqa: E402
 
 
@@ -91,3 +96,14 @@ def test_make_ifdef_line_conjunction_and_negation() -> None:
     assert (
         _make_ifdef_line("USE_X && !USE_Y") == "#if defined(USE_X) && !defined(USE_Y)"
     )
+
+
+def test_message_id_at_maximum_is_accepted() -> None:
+    # 16383 is the largest ID whose plaintext type varint fits the 2 bytes
+    # budgeted in HEADER_PADDING.
+    validate_message_id(MAX_MESSAGE_ID, "MaxMessage")
+
+
+def test_message_id_above_maximum_is_rejected() -> None:
+    with pytest.raises(ValueError, match="exceeds the plaintext"):
+        validate_message_id(MAX_MESSAGE_ID + 1, "TooBigMessage")

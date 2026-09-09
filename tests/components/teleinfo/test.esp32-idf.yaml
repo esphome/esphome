@@ -3,6 +3,6 @@ substitutions:
   rx_pin: GPIO5
 
 packages:
-  uart: !include ../../test_build_components/common/uart/esp32-idf.yaml
+  uart_1200_even_7bits: !include ../../test_build_components/common/uart_1200_even_7bits/esp32-idf.yaml
 
 <<: !include common.yaml

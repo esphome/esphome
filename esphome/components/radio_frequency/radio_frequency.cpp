@@ -81,8 +81,6 @@ void RadioFrequency::dump_config() {
   }
 }
 
-RadioFrequencyCall RadioFrequency::make_call() { return RadioFrequencyCall(this); }
-
 uint32_t RadioFrequency::get_capability_flags() const {
   uint32_t flags = 0;
   if (this->traits_.get_supports_transmitter())

@@ -483,6 +483,7 @@ LV_ANIM = LvConstant(
 
 LV_GRAD_DIR = LvConstant("LV_GRAD_DIR_", "NONE", "HOR", "VER")
 LV_DITHER = LvConstant("LV_DITHER_", "NONE", "ORDERED", "ERR_DIFF")
+LV_GRAD_EXTEND = LvConstant("LV_GRAD_EXTEND_", "PAD", "REPEAT", "REFLECT")
 
 LV_LOG_LEVELS = {
     "VERBOSE": "TRACE",
@@ -585,6 +586,21 @@ FLEX_FLOWS = LvConstant(
     "COLUMN_WRAP_REVERSE",
 )
 
+TRANSFORM_STYLE_PROPS = frozenset(
+    {"transform_rotation", "transform_scale", "transform_scale_x", "transform_scale_y"}
+)
+
+DROP_SHADOW_STYLE_PROPS = frozenset(
+    {
+        "drop_shadow_color",
+        "drop_shadow_offset_x",
+        "drop_shadow_offset_y",
+        "drop_shadow_opa",
+        "drop_shadow_quality",
+        "drop_shadow_radius",
+    }
+)
+
 OBJ_FLAGS = (
     "hidden",
     "clickable",
@@ -612,10 +628,6 @@ OBJ_FLAGS = (
     "send_draw_task_events",
     "widget_1",
     "widget_2",
-    "user_1",
-    "user_2",
-    "user_3",
-    "user_4",
 )
 LV_OBJ_FLAG = LvConstant("LV_OBJ_FLAG_", *OBJ_FLAGS)
 
@@ -889,7 +901,7 @@ LV_COLOR_FORMATS = (
 
 LV_DEFINES = (
     "LV_USE_FREERTOS_TASK_NOTIFY", "LV_DRAW_BUF_STRIDE_ALIGN", "LV_USE_DRAW_SW", "LV_DRAW_SW_DRAW_UNIT_CNT",
-    "LV_DRAW_SW_COMPLEX", "LV_USE_DRAW_PXP", "LV_USE_PXP_DRAW_THREAD", "LV_USE_DRAW_G2D",
+    "LV_DRAW_SW_COMPLEX", "LV_USE_DRAW_SW_COMPLEX_GRADIENTS", "LV_USE_DRAW_PXP", "LV_USE_PXP_DRAW_THREAD", "LV_USE_DRAW_G2D",
     "LV_USE_G2D_DRAW_THREAD", "LV_VG_LITE_USE_BOX_SHADOW", "LV_VG_LITE_THORVG_16PIXELS_ALIGN", "LV_LOG_USE_TIMESTAMP",
     "LV_LOG_USE_FILE_LINE", "LV_USE_OBJ_ID_BUILTIN", "LV_USE_OBJ_PROPERTY_NAME", "LV_ATTRIBUTE_MEM_ALIGN_SIZE",
     "LV_FONT_MONTSERRAT_14", "LV_USE_FONT_PLACEHOLDER", "LV_WIDGETS_HAS_DEFAULT_VALUE", "LV_USE_ARCLABEL",

@@ -269,7 +269,7 @@ uint32_t TSL2591Component::get_combined_illuminance() {
       break;
     }
     // we only log this if we need any delay, since normally we don't
-    ESP_LOGD(TAG, "   after %3d ms: ADC valid? %s", d, avalid ? "true" : "false");
+    ESP_LOGD(TAG, "   after %3d ms: ADC valid? %s", d, avalid ? LOG_STR_LITERAL("true") : LOG_STR_LITERAL("false"));
     delay(mini_delay);
   }
   if (!avalid) {

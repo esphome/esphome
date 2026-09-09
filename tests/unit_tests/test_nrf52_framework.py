@@ -7,8 +7,10 @@ import sys
 from types import SimpleNamespace
 from unittest.mock import patch
 
+import platformdirs
 import pytest
 
+from esphome.components.nrf52 import _resolve_toolchain
 from esphome.components.nrf52.framework import (
     _PLATFORMIO_PENV_REQUIREMENTS,
     _REQUIREMENTS,
@@ -22,8 +24,9 @@ from esphome.components.nrf52.framework import (
     get_sdk_nrf_tools_path,
     setup_platformio_python_env,
 )
+import esphome.config_validation as cv
 from esphome.config_validation import Version
-from esphome.const import KEY_CORE, KEY_FRAMEWORK_VERSION
+from esphome.const import KEY_CORE, KEY_FRAMEWORK_VERSION, Toolchain
 from esphome.core import CORE, EsphomeError
 from esphome.framework_helpers import get_python_env_executable_path
 
@@ -104,11 +107,13 @@ def mock_nrf52_ops():
         patch(
             "esphome.components.nrf52.framework.run_command_ok", return_value=True
         ) as mock_run_cmd,
+        # download_and_extract resolves its internals in framework_helpers,
+        # so the download/extract seams are patched there.
         patch(
-            "esphome.components.nrf52.framework.download_from_mirrors",
+            "esphome.framework_helpers.download_from_mirrors",
             return_value="https://example.com/tc.tar.xz",
         ) as mock_download,
-        patch("esphome.components.nrf52.framework.archive_extract_all") as mock_extract,
+        patch("esphome.framework_helpers.archive_extract_all") as mock_extract,
     ):
         yield SimpleNamespace(
             rmdir=mock_rmdir,
@@ -558,7 +563,6 @@ def testget_tools_path_blank_env_falls_back_to_default(
     Path("") would resolve to the working directory, which clean-all could
     then delete by accident.
     """
-    import platformdirs
 
     monkeypatch.setenv("ESPHOME_SDK_NRF_PREFIX", value)
     expected = (
@@ -570,7 +574,6 @@ def testget_tools_path_blank_env_falls_back_to_default(
 def testget_tools_path_default_is_global_cache(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    import platformdirs
 
     monkeypatch.delenv("ESPHOME_SDK_NRF_PREFIX", raising=False)
     expected = (
@@ -619,3 +622,11 @@ def test_needs_venv_rebuild_on_dangling_interpreter_symlink(tmp_path: Path) -> N
     assert not python.exists()
 
     assert _needs_venv_rebuild(python, sentinel, "abc123")
+
+
+def test_resolve_toolchain_rejects_unsupported() -> None:
+    """A --toolchain nRF52 cannot serve fails instead of degrading silently."""
+
+    CORE.toolchain = Toolchain.ARDUINO
+    with pytest.raises(cv.Invalid, match="Unsupported toolchain 'arduino'"):
+        _resolve_toolchain({})

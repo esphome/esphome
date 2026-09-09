@@ -28,6 +28,8 @@ from esphome.components.libretiny.const import (
     LibreTinyComponent,
 )
 from esphome.core import CORE
+from esphome.cpp_generator import MockObj
+from esphome.types import ConfigType
 
 from .boards import BK72XX_BOARD_PINS, BK72XX_BOARDS
 
@@ -45,7 +47,7 @@ COMPONENT_DATA = LibreTinyComponent(
 )
 
 
-def _set_core_data(config):
+def _set_core_data(config: ConfigType) -> ConfigType:
     CORE.data[KEY_LIBRETINY] = {}
     CORE.data[KEY_LIBRETINY][KEY_COMPONENT_DATA] = COMPONENT_DATA
     return config
@@ -62,12 +64,12 @@ PIN_SCHEMA = libretiny.gpio.BASE_PIN_SCHEMA
 CONFIG_SCHEMA.prepend_extra(_set_core_data)
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> MockObj:
     return await libretiny.component_to_code(config)
 
 
 @pins.PIN_SCHEMA_REGISTRY.register("bk72xx", PIN_SCHEMA)
-async def pin_to_code(config):
+async def pin_to_code(config: ConfigType) -> MockObj:
     return await libretiny.gpio.component_pin_to_code(config)
 
 

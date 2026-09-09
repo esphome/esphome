@@ -1,0 +1,9 @@
+esphome:
+  name: test
+  libraries:
+    - NetworkClientSecure
+
+esp32:
+  board: esp32dev
+  framework:
+    type: arduino
