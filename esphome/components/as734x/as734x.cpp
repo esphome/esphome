@@ -314,16 +314,16 @@ void AS734XComponent::calculate_basic_counts_() {
 float AS734XComponent::normalization_divisor_() const {
   float divisor = 1.0f;
   switch (this->normalization_) {
-    case Normalization::ALL:
+    case Normalization::NORMALIZATION_ALL:
       divisor = this->calculated_.max_basic_count;
       break;
-    case Normalization::BANDS:
+    case Normalization::NORMALIZATION_BANDS:
       divisor = this->calculated_.max_band_basic_count;
       break;
-    case Normalization::CLEAR:
+    case Normalization::NORMALIZATION_CLEAR:
       divisor = this->calculated_.clear_basic_count;
       break;
-    case Normalization::NONE:
+    case Normalization::NORMALIZATION_NONE:
       return 1.0f;
   }
   // In the dark the reference can be zero, and dividing by that would publish infinities.

@@ -39,10 +39,10 @@ constexpr uint8_t GAIN_COUNT = 13;
 // Dividing by the largest of every channel therefore leaves the visible bands squeezed into the
 // bottom of the range.
 enum class Normalization : uint8_t {
-  NONE,   // publish absolute basic counts
-  ALL,    // largest of every channel
-  BANDS,  // largest of the visible bands only
-  CLEAR,  // the wideband clear channel
+  NORMALIZATION_NONE,   // publish absolute basic counts
+  NORMALIZATION_ALL,    // largest of every channel
+  NORMALIZATION_BANDS,  // largest of the visible bands only
+  NORMALIZATION_CLEAR,  // the wideband clear channel
 };
 
 // Nominal centre wavelengths in nanometres bound the visible bands. The clear channel is wideband
@@ -169,7 +169,7 @@ class AS734XComponent : public PollingComponent, public i2c::I2CDevice {
   void set_glass_attenuation_factor(float factor) { this->glass_attenuation_factor_ = factor; }
 
   // Chooses what the published basic counts are divided by.
-  void set_normalize_basic_counts(Normalization normalization) { this->normalization_ = normalization; }
+  void set_basic_counts_normalization(Normalization normalization) { this->normalization_ = normalization; }
 
   SUB_SENSOR(saturation_level)
 
@@ -210,7 +210,7 @@ class AS734XComponent : public PollingComponent, public i2c::I2CDevice {
   uint8_t atime_{0};
 
   float glass_attenuation_factor_{1.0f};
-  Normalization normalization_{Normalization::NONE};
+  Normalization normalization_{Normalization::NORMALIZATION_NONE};
   ChannelValuesFloat dark_current_{};
   ChannelValuesFloat channel_correction_{};
 

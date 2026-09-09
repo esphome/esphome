@@ -55,10 +55,10 @@ AS734XComponent = as734x_ns.class_(
 
 Normalization = as734x_ns.enum("Normalization", True)
 NORMALIZATION_OPTIONS = {
-    "NONE": Normalization.NONE,
-    "ALL": Normalization.ALL,
-    "BANDS": Normalization.BANDS,
-    "CLEAR": Normalization.CLEAR,
+    "NONE": Normalization.NORMALIZATION_NONE,
+    "ALL": Normalization.NORMALIZATION_ALL,
+    "BANDS": Normalization.NORMALIZATION_BANDS,
+    "CLEAR": Normalization.NORMALIZATION_CLEAR,
 }
 
 AS734X_Models = as734x_ns.enum("Model", True)
@@ -277,7 +277,7 @@ async def to_code(config: ConfigType) -> None:
     cg.add(var.set_gain(config[CONF_GAIN]))
     cg.add(var.set_atime(config[CONF_ATIME]))
     cg.add(var.set_astep(config[CONF_ASTEP]))
-    cg.add(var.set_normalize_basic_counts(config[CONF_NORMALIZE_BASIC_COUNTS]))
+    cg.add(var.set_basic_counts_normalization(config[CONF_NORMALIZE_BASIC_COUNTS]))
 
     calibration = config[CONF_CALIBRATION]
     cg.add(var.set_dark_current(calibration[CONF_DARK_CURRENT]))
