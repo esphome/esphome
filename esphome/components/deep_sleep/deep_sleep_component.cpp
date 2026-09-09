@@ -13,11 +13,11 @@ bool global_has_deep_sleep = false;  // NOLINT(cppcoreguidelines-avoid-non-const
 void DeepSleepComponent::setup() {
   global_has_deep_sleep = true;
   this->schedule_sleep_();
-  this->disable_loop();
 }
 
 void DeepSleepComponent::schedule_sleep_() {
   this->next_enter_deep_sleep_ = false;
+  this->disable_loop();
   const optional<uint32_t> run_duration = get_run_duration_();
   if (run_duration.has_value()) {
     ESP_LOGI(TAG, "Scheduling in %" PRIu32 " ms", *run_duration);
@@ -46,16 +46,13 @@ void DeepSleepComponent::loop() {
 
 void DeepSleepComponent::begin_sleep(bool manual) {
   if (this->prevent_ && !manual) {
-    this->next_enter_deep_sleep_ = true;
-    this->enable_loop();
+    this->defer_sleep_();
     return;
   }
 
   if (!this->prepare_to_sleep_()) {
-    this->enable_loop();
     return;
   }
-  this->disable_loop();
 
   ESP_LOGI(TAG, "Beginning sleep");
   if (this->sleep_duration_.has_value()) {
