@@ -30,6 +30,11 @@ float integration_time_ms(uint8_t atime, uint16_t astep) { return (1.0f + atime)
 // The gain enum counts in powers of two starting at 0.5x, so the multiplier is 2^gain / 2.
 float gain_multiplier(Gain gain) { return static_cast<float>(1 << static_cast<uint8_t>(gain)) / 2.0f; }
 
+const LogString *band_name(Model model, uint8_t channel) {
+  return model == Model::AS7341 ? BandNames41::get_log_str(channel, BandNames41::LAST_INDEX)
+                                : BandNames43::get_log_str(channel, BandNames43::LAST_INDEX);
+}
+
 uint16_t maximum_spectral_adc(uint8_t atime, uint16_t astep) {
   static constexpr uint32_t MAX_ADC_COUNT = 65535;
   const uint32_t value = (atime + 1u) * (astep + 1u);
@@ -116,15 +121,31 @@ void AS734XComponent::dump_config() {
                 model_name(this->model_), gain_multiplier(this->gain_), this->atime_, this->astep_);
 
   if (this->device_ != nullptr) {
-    for (uint8_t i = 0; i < this->device_->get_number_of_channels(); i++) {
+    const uint8_t channels = this->device_->get_number_of_channels();
+    bool header = false;
+    for (uint8_t i = 0; i < channels; i++) {
       if (this->band_counts_sensors_[i] == nullptr) {
         continue;
       }
-      const LogString *band = this->model_ == Model::AS7341 ? BandNames41::get_log_str(i, BandNames41::LAST_INDEX)
-                                                            : BandNames43::get_log_str(i, BandNames43::LAST_INDEX);
-      sensor::log_sensor(TAG, "  ", LOG_STR_ARG(band), this->band_counts_sensors_[i]);
+      if (!header) {
+        ESP_LOGCONFIG(TAG, "  Counts:");
+        header = true;
+      }
+      sensor::log_sensor(TAG, "    ", LOG_STR_ARG(band_name(this->model_, i)), this->band_counts_sensors_[i]);
+    }
+    header = false;
+    for (uint8_t i = 0; i < channels; i++) {
+      if (this->band_basic_counts_sensors_[i] == nullptr) {
+        continue;
+      }
+      if (!header) {
+        ESP_LOGCONFIG(TAG, "  Basic counts:");
+        header = true;
+      }
+      sensor::log_sensor(TAG, "    ", LOG_STR_ARG(band_name(this->model_, i)), this->band_basic_counts_sensors_[i]);
     }
   }
+  LOG_SENSOR("  ", "Saturation level", this->saturation_level_sensor_);
 }
 
 void AS734XComponent::update() {

@@ -58,3 +58,25 @@ def test_as7343_band_keeps_its_channel_index(
     main_cpp = generate_main(CONFIG)
 
     assert f"chip_43->set_counts_sensor(chip_43_{band}, {channel});" in main_cpp
+
+
+@pytest.mark.parametrize(("band", "channel"), AS7341_CHANNELS)
+def test_as7341_basic_count_keeps_its_channel_index(
+    generate_main, band: str, channel: int
+) -> None:
+    main_cpp = generate_main(CONFIG)
+
+    assert (
+        f"chip_41->set_basic_counts_sensor(chip_41_bc_{band}, {channel});" in main_cpp
+    )
+
+
+@pytest.mark.parametrize(("band", "channel"), AS7343_CHANNELS)
+def test_as7343_basic_count_keeps_its_channel_index(
+    generate_main, band: str, channel: int
+) -> None:
+    main_cpp = generate_main(CONFIG)
+
+    assert (
+        f"chip_43->set_basic_counts_sensor(chip_43_bc_{band}, {channel});" in main_cpp
+    )
