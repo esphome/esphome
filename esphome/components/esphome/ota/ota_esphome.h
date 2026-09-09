@@ -215,9 +215,12 @@ class ESPHomeOTAComponent final : public ota::OTAComponent {
   // Heap-allocated only while a deflate upload is negotiated; the decoder
   // state is the base so the read callback can recover the session
   struct InflateSession : OtaInflateState {
+    // The session outlives the upload it serves, but these three are borrowed
+    // from inflate_data_'s caller and dangle once that call returns; only that
+    // call, and the flush and read callback it drives, may read them
     ESPHomeOTAComponent *self;
     DataTransfer *xfer;
-    uint8_t *in;  // caller's buffer for the compressed input, valid during inflate_data_
+    uint8_t *in;  // caller's buffer for the compressed input
     size_t image_size;
     size_t written;               // inflated bytes in flash
     size_t flushed;               // bytes of the current window already in flash
