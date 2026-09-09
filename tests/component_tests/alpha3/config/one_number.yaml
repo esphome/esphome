@@ -1,0 +1,25 @@
+esphome:
+  name: alpha3-test
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+logger:
+
+esp32_ble_tracker:
+
+ble_client:
+  - id: alpha3_blec
+    mac_address: 01:02:03:04:05:06
+
+sensor:
+  - platform: alpha3
+    id: alpha3_hub
+    ble_client_id: alpha3_blec
+
+number:
+  - platform: alpha3
+    alpha3_id: alpha3_hub
+    constant_speed_setpoint: {name: Constant Speed Setpoint, id: constant_speed}

@@ -1,0 +1,55 @@
+esphome:
+  name: alpha3-test
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+logger:
+
+esp32_ble_tracker:
+
+ble_client:
+  - id: alpha3_blec
+    mac_address: 01:02:03:04:05:06
+
+sensor:
+  - platform: alpha3
+    id: alpha3_hub
+    ble_client_id: alpha3_blec
+    flow: {name: Flow}
+    head: {name: Head}
+    speed: {name: Speed}
+    power: {name: Power}
+    voltage: {name: Voltage}
+    current: {name: Current}
+    operating_hours: {name: Operating Hours}
+    energy: {name: Energy}
+    starts: {name: Starts}
+    alarm_code: {name: Alarm Code}
+    warning_code: {name: Warning Code}
+
+binary_sensor:
+  - platform: alpha3
+    alpha3_id: alpha3_hub
+    ready: {name: Ready}
+
+text_sensor:
+  - platform: alpha3
+    alpha3_id: alpha3_hub
+    realized_operation: {name: Realized Operation}
+    active_control_source: {name: Active Control Source}
+
+select:
+  - platform: alpha3
+    alpha3_id: alpha3_hub
+    operating_mode: {name: Operating Mode, id: operating_mode}
+    control_mode: {name: Control Mode, id: control_mode}
+
+number:
+  - platform: alpha3
+    alpha3_id: alpha3_hub
+    constant_speed_setpoint: {name: Constant Speed Setpoint, id: constant_speed}
+    constant_pressure_setpoint: {name: Constant Pressure Setpoint, id: constant_pressure}
+    proportional_pressure_setpoint: {name: Proportional Pressure Setpoint, id: proportional_pressure}
