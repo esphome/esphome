@@ -75,8 +75,6 @@ void Infrared::dump_config() {
                 YESNO(this->traits_.get_supports_receiver()));
 }
 
-InfraredCall Infrared::make_call() { return InfraredCall(this); }
-
 void Infrared::control(const InfraredCall &call) {
   if (this->transmitter_ == nullptr) {
     ESP_LOGW(TAG, "No transmitter configured");

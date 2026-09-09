@@ -1,7 +1,10 @@
 esp32_ble_tracker:
+  id: ble_tracker_hub
 
 sensor:
+  # Explicit ble_hub_id: pins the neutral binding as a declared key.
   - platform: atc_mithermometer
+    ble_hub_id: ble_tracker_hub
     mac_address: A4:C1:38:4E:16:78
     temperature:
       name: ATC Temperature

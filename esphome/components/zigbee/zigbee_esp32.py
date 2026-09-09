@@ -9,10 +9,12 @@ from esphome.components.esp32 import (
     add_idf_component,
     add_idf_sdkconfig_option,
     add_partition,
+    include_builtin_idf_component,
     require_vfs_select,
 )
 import esphome.config_validation as cv
 from esphome.const import (
+    CONF_ACCURACY_DECIMALS,
     CONF_AP,
     CONF_DEVICE,
     CONF_DEVICE_CLASS,
@@ -185,6 +187,7 @@ def validate_sensor_esp32(config: ConfigType) -> ConfigType:
     unit = config.get(CONF_UNIT_OF_MEASUREMENT)
     apptype = ANALOG_INPUT_APPTYPE.get((dev_class, unit))
     bacunit = BACNET_UNITS.get(unit, BACNET_UNIT_NO_UNITS)
+    accuracy = config.get(CONF_ACCURACY_DECIMALS)
     if apptype is not None:
         ep[CONF_CLUSTERS][0][CONF_ATTRIBUTES].append(
             {
@@ -200,6 +203,15 @@ def validate_sensor_esp32(config: ConfigType) -> ConfigType:
             CONF_TYPE: "ENUM16",
         },
     )
+    if accuracy is not None:
+        # Analog Input Resolution (0x006A): smallest reportable change
+        ep[CONF_CLUSTERS][0][CONF_ATTRIBUTES].append(
+            {
+                CONF_ATTRIBUTE_ID: 0x6A,
+                CONF_VALUE: 10**-accuracy,
+                CONF_TYPE: "SINGLE",
+            },
+        )
     setup_attributes(config, ep[CONF_CLUSTERS])
     add_ep(ep, config.get(CONF_ENDPOINT), config.get(CONF_USE_DEVICE_TYPE))
     return config
@@ -274,8 +286,12 @@ async def attributes_to_code(
 async def esp32_to_code(config: ConfigType) -> "MockObj":
     add_idf_component(
         name="espressif/esp-zigbee-lib",
-        ref="2.0.3",
+        ref="2.0.4",
     )
+
+    if CONF_WIFI in CORE.config:
+        # zigbee_esp32.cpp uses esp_coexist.h when WiFi is present
+        include_builtin_idf_component("esp_coex")
 
     # add sdkconfigs later so they can overwrite esp32 defaults
     CORE.add_job(_zigbee_add_sdkconfigs, config)

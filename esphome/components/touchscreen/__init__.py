@@ -1,3 +1,7 @@
+from typing import Any
+
+import voluptuous as vol
+
 from esphome import automation
 import esphome.codegen as cg
 from esphome.components import display
@@ -14,6 +18,8 @@ from esphome.const import (
     CONF_TRANSFORM,
 )
 from esphome.core import CoroPriority, coroutine_with_priority
+from esphome.cpp_generator import MockObj
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@jesserockz", "@nielsnl68"]
 DEPENDENCIES = ["display"]
@@ -40,7 +46,7 @@ CONF_Y_MIN = "y_min"
 CONF_Y_MAX = "y_max"
 
 
-def validate_calibration(calibration_config):
+def validate_calibration(calibration_config: ConfigType) -> ConfigType:
     x_min = calibration_config[CONF_X_MIN]
     x_max = calibration_config[CONF_X_MAX]
     y_min = calibration_config[CONF_Y_MIN]
@@ -60,7 +66,9 @@ def validate_calibration(calibration_config):
     return calibration_config
 
 
-def option_with_default(option: str, defaults: dict, required: bool = False):
+def option_with_default(
+    option: str, defaults: dict, required: bool = False
+) -> vol.Marker:
     if option in defaults or not required:
         return cv.Optional(option, default=defaults.get(option, cv.UNDEFINED))
     return cv.Required(option)
@@ -119,9 +127,9 @@ def _transform_schema(defaults: dict) -> dict:
 
 
 def touchscreen_schema(
-    default_touch_timeout=cv.UNDEFINED,
-    calibration_required=False,
-    defaults: dict = None,
+    default_touch_timeout: Any = cv.UNDEFINED,
+    calibration_required: bool = False,
+    defaults: dict | None = None,
 ) -> cv.Schema:
     defaults = defaults or {}
     return cv.Schema(
@@ -143,7 +151,7 @@ def touchscreen_schema(
 TOUCHSCREEN_SCHEMA = touchscreen_schema(cv.UNDEFINED)
 
 
-async def register_touchscreen(var, config):
+async def register_touchscreen(var: MockObj, config: ConfigType) -> None:
     await cg.register_component(var, config)
 
     disp = await cg.get_variable(config[CONF_DISPLAY])
@@ -192,6 +200,6 @@ async def register_touchscreen(var, config):
 
 
 @coroutine_with_priority(CoroPriority.CORE)
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     cg.add_global(touchscreen_ns.using)
     cg.add_define("USE_TOUCHSCREEN")

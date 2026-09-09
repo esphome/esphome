@@ -4,6 +4,7 @@ from esphome.components.audio_dac import AudioDac
 import esphome.config_validation as cv
 from esphome.const import CONF_AUDIO_DAC, CONF_BITS_PER_SAMPLE, CONF_ID
 import esphome.final_validate as fv
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@kbx81"]
 DEPENDENCIES = ["i2c"]
@@ -22,7 +23,7 @@ CONFIG_SCHEMA = (
 )
 
 
-def _final_validate(config):
+def _final_validate(config: ConfigType) -> None:
     full_config = fv.full_config.get()
 
     # Check all speaker configurations for ones that reference this es8156
@@ -45,7 +46,7 @@ def _final_validate(config):
 FINAL_VALIDATE_SCHEMA = _final_validate
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)

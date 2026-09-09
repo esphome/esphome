@@ -7,6 +7,7 @@ from esphome.const import (
     STATE_CLASS_MEASUREMENT,
     UNIT_DECIBEL_MILLIWATT,
 )
+from esphome.types import ConfigType
 
 DEPENDENCIES = ["wifi"]
 wifi_signal_ns = cg.esphome_ns.namespace("wifi_signal")
@@ -24,7 +25,7 @@ CONFIG_SCHEMA = sensor.sensor_schema(
 ).extend(cv.polling_component_schema("60s"))
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     wifi.request_wifi_connect_state_listener()
     var = await sensor.new_sensor(config)
     await cg.register_component(var, config)

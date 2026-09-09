@@ -3,6 +3,7 @@ import esphome.codegen as cg
 from esphome.components import i2c
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_SLEEP_PIN, CONF_TYPE
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@tomwellnitz"]
 MULTI_CONF = True
@@ -35,7 +36,7 @@ ds248x_ns = cg.esphome_ns.namespace("ds248x")
 DS248xComponent = ds248x_ns.class_("DS248xComponent", cg.Component, i2c.I2CDevice)
 
 
-def _component_schema(*extras):
+def _component_schema(*extras: dict) -> cv.Schema:
     schema = cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(DS248xComponent),
@@ -79,11 +80,11 @@ CONFIG_SCHEMA = cv.typed_schema(
 )
 
 
-def get_channel_count(config):
+def get_channel_count(config: ConfigType) -> int:
     return CHANNEL_COUNTS[config[CONF_TYPE]]
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)

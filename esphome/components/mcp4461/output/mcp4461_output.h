@@ -36,6 +36,9 @@ class Mcp4461Wiper final : public output::FloatOutput, public Parented<Mcp4461Co
   /// @brief Disable given terminal
   /// @param[in] terminal single char parameter defining desired terminal to disable, one of { 'a', 'b', 'w', 'h' }
   void disable_terminal(char terminal);
+  /// @brief Immediately persist the current wiper level to the chip's nonvolatile register
+  ///        (independent of the deferred nonvolatile mirroring / its stability delay)
+  void store_nonvolatile();
 
  protected:
   void write_state(float state) override;

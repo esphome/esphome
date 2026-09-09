@@ -2,15 +2,13 @@
 #include "esphome/core/log.h"
 #include <cinttypes>
 
-#ifdef USE_ESP32
-
 namespace esphome::airthings_ble {
 
 static const char *const TAG = "airthings_ble";
 
-bool AirthingsListener::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
+bool AirthingsListener::parse_device(const ble_device_base::ESPBTDevice &device) {
   for (auto &it : device.get_manufacturer_datas()) {
-    if (it.uuid == esp32_ble_tracker::ESPBTUUID::from_uint32(0x0334)) {
+    if (it.uuid == ble_device_base::ESPBTUUID::from_uint32(0x0334)) {
       if (it.data.size() < 4)
         continue;
 
@@ -29,5 +27,3 @@ bool AirthingsListener::parse_device(const esp32_ble_tracker::ESPBTDevice &devic
 }
 
 }  // namespace esphome::airthings_ble
-
-#endif

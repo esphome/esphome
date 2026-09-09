@@ -1,0 +1,17 @@
+rp2_ble_tracker:
+  id: ble_tracker
+  scan_parameters:
+    interval: 100ms
+    window: 30ms
+    duration: 5min
+    active: true
+    continuous: true
+
+# Pulls in USE_OTA_STATE_LISTENER so the OTA scan-pause path compiles in CI
+# (same coverage arrangement as the esp32_ble_tracker tests).
+wifi:
+  ssid: MySSID
+  password: password1
+
+ota:
+  - platform: esphome

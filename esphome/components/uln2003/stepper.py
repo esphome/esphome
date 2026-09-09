@@ -11,6 +11,7 @@ from esphome.const import (
     CONF_SLEEP_WHEN_DONE,
     CONF_STEP_MODE,
 )
+from esphome.types import ConfigType
 
 uln2003_ns = cg.esphome_ns.namespace("uln2003")
 ULN2003StepMode = uln2003_ns.enum("ULN2003StepMode")
@@ -38,7 +39,7 @@ CONFIG_SCHEMA = stepper.STEPPER_SCHEMA.extend(
 ).extend(cv.COMPONENT_SCHEMA)
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await stepper.register_stepper(var, config)

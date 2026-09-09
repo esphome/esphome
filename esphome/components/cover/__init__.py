@@ -46,7 +46,7 @@ from esphome.core.entity_helpers import (
     setup_entity,
 )
 from esphome.cpp_generator import LambdaExpression, MockObj, MockObjClass
-from esphome.types import ConfigType, TemplateArgsType
+from esphome.types import ConfigType, SafeExpType, TemplateArgsType
 
 IS_PLATFORM_COMPONENT = True
 
@@ -162,7 +162,7 @@ _COVER_SCHEMA = (
 _COVER_SCHEMA.add_extra(entity_duplicate_validator("cover"))
 
 
-def _validate_mqtt_state_topics(config):
+def _validate_mqtt_state_topics(config: ConfigType) -> ConfigType:
     if config.get(CONF_MQTT_JSON_STATE_PAYLOAD):
         if CONF_POSITION_STATE_TOPIC in config:
             raise cv.Invalid(
@@ -201,7 +201,7 @@ def cover_schema(
 
 
 @setup_entity("cover")
-async def setup_cover_core_(var, config):
+async def setup_cover_core_(var: MockObj, config: ConfigType) -> None:
     setup_device_class(config)
 
     if CONF_ON_OPEN in config:
@@ -235,7 +235,7 @@ async def setup_cover_core_(var, config):
         await web_server.add_entity_config(var, web_server_config)
 
 
-async def register_cover(var, config):
+async def register_cover(var: MockObj, config: ConfigType) -> None:
     if not CORE.has_id(config[CONF_ID]):
         var = cg.Pvariable(config[CONF_ID], var)
     queue_entity_register("cover", config)
@@ -243,7 +243,7 @@ async def register_cover(var, config):
     await setup_cover_core_(var, config)
 
 
-async def new_cover(config, *args):
+async def new_cover(config: ConfigType, *args: SafeExpType) -> MockObj:
     var = cg.new_Pvariable(config[CONF_ID], *args)
     await register_cover(var, config)
     return var
@@ -259,7 +259,12 @@ COVER_ACTION_SCHEMA = maybe_simple_id(
 @automation.register_action(
     "cover.open", OpenAction, COVER_ACTION_SCHEMA, synchronous=True
 )
-async def cover_open_to_code(config, action_id, template_arg, args):
+async def cover_open_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     paren = await cg.get_variable(config[CONF_ID])
     return cg.new_Pvariable(action_id, template_arg, paren)
 
@@ -267,7 +272,12 @@ async def cover_open_to_code(config, action_id, template_arg, args):
 @automation.register_action(
     "cover.close", CloseAction, COVER_ACTION_SCHEMA, synchronous=True
 )
-async def cover_close_to_code(config, action_id, template_arg, args):
+async def cover_close_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     paren = await cg.get_variable(config[CONF_ID])
     return cg.new_Pvariable(action_id, template_arg, paren)
 
@@ -275,7 +285,12 @@ async def cover_close_to_code(config, action_id, template_arg, args):
 @automation.register_action(
     "cover.stop", StopAction, COVER_ACTION_SCHEMA, synchronous=True
 )
-async def cover_stop_to_code(config, action_id, template_arg, args):
+async def cover_stop_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     paren = await cg.get_variable(config[CONF_ID])
     return cg.new_Pvariable(action_id, template_arg, paren)
 
@@ -283,7 +298,12 @@ async def cover_stop_to_code(config, action_id, template_arg, args):
 @automation.register_action(
     "cover.toggle", ToggleAction, COVER_ACTION_SCHEMA, synchronous=True
 )
-async def cover_toggle_to_code(config, action_id, template_arg, args):
+async def cover_toggle_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     paren = await cg.get_variable(config[CONF_ID])
     return cg.new_Pvariable(action_id, template_arg, paren)
 
@@ -421,5 +441,5 @@ automation.register_condition(
 
 
 @coroutine_with_priority(CoroPriority.CORE)
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     cg.add_global(cover_ns.using)

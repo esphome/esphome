@@ -43,10 +43,6 @@ void DeepSleepComponent::loop() {
     this->begin_sleep();
 }
 
-void DeepSleepComponent::set_sleep_duration(uint32_t time_ms) { this->sleep_duration_ = uint64_t(time_ms) * 1000; }
-
-void DeepSleepComponent::set_run_duration(uint32_t time_ms) { this->run_duration_ = time_ms; }
-
 void DeepSleepComponent::begin_sleep(bool manual) {
   if (this->prevent_ && !manual) {
     this->next_enter_deep_sleep_ = true;
@@ -75,9 +71,5 @@ void DeepSleepComponent::begin_sleep(bool manual) {
 }
 
 float DeepSleepComponent::get_setup_priority() const { return setup_priority::LATE; }
-
-void DeepSleepComponent::prevent_deep_sleep() { this->prevent_ = true; }
-
-void DeepSleepComponent::allow_deep_sleep() { this->prevent_ = false; }
 
 }  // namespace esphome::deep_sleep

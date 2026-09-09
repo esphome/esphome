@@ -1,19 +1,23 @@
-esphome:
-  on_boot:
-    then:
-      - light.toggle: test_binary_light
-
 output:
   - platform: gpio
     id: light_test_binary
-    pin: 0
+    pin: 12
+  - platform: zephyr_pwm
+    id: test_ledc_1
+    pin: 13
+  - platform: zephyr_pwm
+    id: test_ledc_2
+    pin:
+      number: 14
+      inverted: true
+  - platform: zephyr_pwm
+    id: test_ledc_3
+    pin: 15
+  - platform: zephyr_pwm
+    id: test_ledc_4
+    pin: 16
+  - platform: zephyr_pwm
+    id: test_ledc_5
+    pin: 17
 
-light:
-  - platform: binary
-    id: test_binary_light
-    name: Binary Light
-    output: light_test_binary
-    effects:
-      - strobe:
-    on_state:
-      - logger.log: Binary light state changed
+<<: !include common.yaml

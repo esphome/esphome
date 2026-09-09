@@ -2,8 +2,6 @@
 
 #include "esphome/core/log.h"
 
-#ifdef USE_ESP32
-
 namespace esphome::mopeka_ble {
 
 static const char *const TAG = "mopeka_ble";
@@ -34,7 +32,7 @@ static const uint8_t MANUFACTURER_NRF52_DATA_LENGTH = 10;
  * - Bluetooth data frame size
  */
 
-bool MopekaListener::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
+bool MopekaListener::parse_device(const ble_device_base::ESPBTDevice &device) {
   char addr_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
   // Fetch information about BLE device.
   const auto &service_uuids = device.get_service_uuids();
@@ -50,8 +48,8 @@ bool MopekaListener::parse_device(const esp32_ble_tracker::ESPBTDevice &device) 
   const auto &manu_data = manu_datas[0];
 
   // Is the device maybe a Mopeka Std (CC2540) sensor.
-  if (service_uuid == esp32_ble_tracker::ESPBTUUID::from_uint16(SERVICE_UUID_CC2540)) {
-    if (manu_data.uuid != esp32_ble_tracker::ESPBTUUID::from_uint16(MANUFACTURER_CC2540_ID)) {
+  if (service_uuid == ble_device_base::ESPBTUUID::from_uint16(SERVICE_UUID_CC2540)) {
+    if (manu_data.uuid != ble_device_base::ESPBTUUID::from_uint16(MANUFACTURER_CC2540_ID)) {
       return false;
     }
 
@@ -66,8 +64,8 @@ bool MopekaListener::parse_device(const esp32_ble_tracker::ESPBTDevice &device) 
     }
 
     // Is the device maybe a Mopeka Pro (NRF52) sensor.
-  } else if (service_uuid == esp32_ble_tracker::ESPBTUUID::from_uint16(SERVICE_UUID_NRF52)) {
-    if (manu_data.uuid != esp32_ble_tracker::ESPBTUUID::from_uint16(MANUFACTURER_NRF52_ID)) {
+  } else if (service_uuid == ble_device_base::ESPBTUUID::from_uint16(SERVICE_UUID_NRF52)) {
+    if (manu_data.uuid != ble_device_base::ESPBTUUID::from_uint16(MANUFACTURER_NRF52_ID)) {
       return false;
     }
 
@@ -86,5 +84,3 @@ bool MopekaListener::parse_device(const esp32_ble_tracker::ESPBTDevice &device) 
 }
 
 }  // namespace esphome::mopeka_ble
-
-#endif

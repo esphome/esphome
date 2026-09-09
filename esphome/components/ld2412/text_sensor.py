@@ -9,6 +9,7 @@ from esphome.const import (
     ICON_BLUETOOTH,
     ICON_CHIP,
 )
+from esphome.types import ConfigType
 
 from . import CONF_LD2412_ID, LD2412Component
 
@@ -26,7 +27,7 @@ CONFIG_SCHEMA = {
 }
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     LD2412_component = await cg.get_variable(config[CONF_LD2412_ID])
     if version_config := config.get(CONF_VERSION):
         sens = await text_sensor.new_text_sensor(version_config)

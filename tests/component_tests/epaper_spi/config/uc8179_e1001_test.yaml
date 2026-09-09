@@ -1,0 +1,15 @@
+esphome:
+  name: test
+
+esp32:
+  board: esp32-s3-devkitc-1
+  variant: esp32s3
+
+spi:
+  clk_pin: GPIO7
+  mosi_pin: GPIO9
+
+display:
+  - platform: epaper_spi
+    id: epaper_display
+    model: seeed-reterminal-e1001

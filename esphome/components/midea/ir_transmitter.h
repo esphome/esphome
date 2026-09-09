@@ -1,6 +1,6 @@
 #pragma once
 
-#if defined(USE_ARDUINO) && !defined(USE_RP2) && !defined(USE_LIBRETINY)
+#if (defined(USE_ARDUINO) && !defined(USE_RP2) && !defined(USE_LIBRETINY)) || defined(USE_ESP_IDF)
 #ifdef USE_REMOTE_TRANSMITTER
 #include "esphome/components/remote_base/midea_protocol.h"
 
@@ -85,5 +85,5 @@ class IrTransmitter {
 
 }  // namespace esphome::midea
 
-#endif
-#endif  // USE_ARDUINO
+#endif  // USE_REMOTE_TRANSMITTER
+#endif  // USE_ARDUINO || USE_ESP_IDF

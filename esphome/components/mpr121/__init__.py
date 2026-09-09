@@ -12,7 +12,9 @@ from esphome.const import (
     CONF_NUMBER,
     CONF_OUTPUT,
 )
+from esphome.cpp_generator import MockObj
 import esphome.final_validate as fv
+from esphome.types import ConfigType
 
 CONF_TOUCH_THRESHOLD = "touch_threshold"
 CONF_RELEASE_THRESHOLD = "release_threshold"
@@ -49,7 +51,7 @@ CONFIG_SCHEMA = (
 )
 
 
-def _final_validate(config):
+def _final_validate(config: ConfigType) -> None:
     fconf = fv.full_config.get()
     max_touch_channel = 3
     if (binary_sensors := fconf.get(CONF_BINARY_SENSOR)) is not None:
@@ -71,7 +73,7 @@ def _final_validate(config):
 FINAL_VALIDATE_SCHEMA = _final_validate
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     cg.add(var.set_touch_debounce(config[CONF_TOUCH_DEBOUNCE]))
     cg.add(var.set_release_debounce(config[CONF_RELEASE_DEBOUNCE]))
@@ -82,7 +84,7 @@ async def to_code(config):
     await i2c.register_i2c_device(var, config)
 
 
-def validate_mode(value):
+def validate_mode(value: ConfigType) -> ConfigType:
     if bool(value[CONF_INPUT]) == bool(value[CONF_OUTPUT]):
         raise cv.Invalid("Mode must be either input or output")
     return value
@@ -105,7 +107,9 @@ MPR121_GPIO_PIN_SCHEMA = pins.gpio_base_schema(
 )
 
 
-def mpr121_pin_final_validate(pin_config, parent_config):
+def mpr121_pin_final_validate(
+    pin_config: ConfigType, parent_config: ConfigType
+) -> None:
     if pin_config[CONF_NUMBER] <= parent_config[CONF_MAX_TOUCH_CHANNEL]:
         raise cv.Invalid(
             "Pin number must be higher than the max touch channel of the MPR121 component",
@@ -115,7 +119,7 @@ def mpr121_pin_final_validate(pin_config, parent_config):
 @pins.PIN_SCHEMA_REGISTRY.register(
     CONF_MPR121, MPR121_GPIO_PIN_SCHEMA, mpr121_pin_final_validate
 )
-async def mpr121_gpio_pin_to_code(config):
+async def mpr121_gpio_pin_to_code(config: ConfigType) -> MockObj:
     var = cg.new_Pvariable(config[CONF_ID])
     parent = await cg.get_variable(config[CONF_MPR121])
 

@@ -11,6 +11,9 @@ from esphome.const import (
     CONF_OUTPUT,
     CONF_PULLUP,
 )
+from esphome.core import ID
+from esphome.cpp_generator import MockObj, TemplateArgsType
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@looping40"]
 
@@ -54,7 +57,7 @@ CONFIG_SCHEMA = (
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)
@@ -62,7 +65,7 @@ async def to_code(config):
     cg.add(var.set_brightness_global(config[CONF_BRIGHTNESS_GLOBAL]))
 
 
-def validate_mode(value):
+def validate_mode(value: ConfigType) -> ConfigType:
     if not (value[CONF_INPUT] or value[CONF_OUTPUT]):
         raise cv.Invalid("Mode must be either input or output")
     if value[CONF_INPUT] and value[CONF_OUTPUT]:
@@ -87,7 +90,7 @@ MAX6956_PIN_SCHEMA = pins.gpio_base_schema(
 
 
 @pins.PIN_SCHEMA_REGISTRY.register(CONF_MAX6956, MAX6956_PIN_SCHEMA)
-async def max6956_pin_to_code(config):
+async def max6956_pin_to_code(config: ConfigType) -> MockObj:
     var = cg.new_Pvariable(config[CONF_ID])
     parent = await cg.get_variable(config[CONF_MAX6956])
 
@@ -114,7 +117,12 @@ async def max6956_pin_to_code(config):
     ),
     synchronous=True,
 )
-async def max6956_set_brightness_global_to_code(config, action_id, template_arg, args):
+async def max6956_set_brightness_global_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
     template_ = await cg.templatable(config[CONF_BRIGHTNESS_GLOBAL], args, cg.uint8)
@@ -136,7 +144,12 @@ async def max6956_set_brightness_global_to_code(config, action_id, template_arg,
     ),
     synchronous=True,
 )
-async def max6956_set_brightness_mode_to_code(config, action_id, template_arg, args):
+async def max6956_set_brightness_mode_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
     template_ = await cg.templatable(

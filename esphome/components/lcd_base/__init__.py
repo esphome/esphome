@@ -1,7 +1,11 @@
+from typing import Any
+
 import esphome.codegen as cg
 from esphome.components import display
 import esphome.config_validation as cv
 from esphome.const import CONF_DATA, CONF_DIMENSIONS, CONF_POSITION
+from esphome.cpp_generator import MockObj
+from esphome.types import ConfigType
 
 CONF_USER_CHARACTERS = "user_characters"
 
@@ -9,7 +13,7 @@ lcd_base_ns = cg.esphome_ns.namespace("lcd_base")
 LCDDisplay = lcd_base_ns.class_("LCDDisplay", cg.PollingComponent)
 
 
-def validate_lcd_dimensions(value):
+def validate_lcd_dimensions(value: Any) -> list[int]:
     value = cv.dimensions(value)
     if value[0] > 0x40:
         raise cv.Invalid("LCD displays can't have more than 64 columns")
@@ -18,7 +22,7 @@ def validate_lcd_dimensions(value):
     return value
 
 
-def validate_user_characters(value):
+def validate_user_characters(value: list[ConfigType]) -> list[ConfigType]:
     positions = set()
     for conf in value:
         if conf[CONF_POSITION] in positions:
@@ -51,7 +55,7 @@ LCD_SCHEMA = display.BASIC_DISPLAY_SCHEMA.extend(
 ).extend(cv.polling_component_schema("1s"))
 
 
-async def setup_lcd_display(var, config):
+async def setup_lcd_display(var: MockObj, config: ConfigType) -> None:
     await display.register_display(var, config)
     cg.add(var.set_dimensions(config[CONF_DIMENSIONS][0], config[CONF_DIMENSIONS][1]))
     if CONF_USER_CHARACTERS in config:

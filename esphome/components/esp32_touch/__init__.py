@@ -1,4 +1,6 @@
+from collections.abc import Callable, Iterable
 import logging
+from typing import Any
 
 import esphome.codegen as cg
 from esphome.components import esp32
@@ -23,6 +25,7 @@ from esphome.const import (
     CONF_VOLTAGE_ATTENUATION,
 )
 from esphome.core import TimePeriod
+from esphome.types import ConfigType
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -181,7 +184,7 @@ EFFECTIVE_HIGH_VOLTAGE = {
 }
 
 
-def validate_touch_pad(value):
+def validate_touch_pad(value: Any) -> int:
     value = gpio.gpio_pin_number_validator(value)
     variant = get_esp32_variant()
     pads = TOUCH_PADS.get(variant)
@@ -192,7 +195,7 @@ def validate_touch_pad(value):
     return pads[value]  # Return integer channel ID
 
 
-def validate_variant_vars(config):
+def validate_variant_vars(config: ConfigType) -> ConfigType:
     variant = get_esp32_variant()
     invalid_vars = set()
     if variant == VARIANT_ESP32:
@@ -219,8 +222,8 @@ def validate_variant_vars(config):
     return config
 
 
-def validate_voltage(values):
-    def validator(value):
+def validate_voltage(values: Iterable[str]) -> Callable[[Any], str]:
+    def validator(value: Any) -> str:
         if isinstance(value, float) and value.is_integer():
             value = int(value)
         value = cv.string(value)
@@ -300,7 +303,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     # New unified touch sensor driver
     include_builtin_idf_component("esp_driver_touch_sens")
 
