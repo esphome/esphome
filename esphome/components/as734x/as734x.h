@@ -122,19 +122,14 @@ class AS734XComponent : public PollingComponent, public i2c::I2CDevice {
   void set_atime(uint8_t atime) { this->atime_ = atime; }
   void set_astep(uint16_t astep) { this->astep_ = astep; }
 
-#ifdef USE_SENSOR
- protected:
-  SensorArray band_counts_sensors_{};
-
- public:
   void set_counts_sensor(sensor::Sensor *sensor, uint8_t channel) {
     if (channel < this->band_counts_sensors_.size()) {
       this->band_counts_sensors_[channel] = sensor;
     }
   }
-#endif
 
  protected:
+  SensorArray band_counts_sensors_{};
   Model model_{Model::AS7343};
   AS734xBase *device_{nullptr};
 

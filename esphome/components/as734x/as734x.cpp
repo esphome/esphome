@@ -20,10 +20,8 @@ static const char *const TAG = "as734x";
 static constexpr uint32_t MIN_COLLECTION_TIMEOUT_MS = 30 * 1000;
 static constexpr uint8_t COLLECTION_TIMEOUT_MARGIN = 2;
 
-#ifdef USE_SENSOR
 PROGMEM_STRING_TABLE(BandNames41, "F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8", "NIR", "Clear");
 PROGMEM_STRING_TABLE(BandNames43, "F1", "F2", "FZ", "F3", "F4", "FY", "F5", "FXL", "F6", "F7", "F8", "NIR", "Clear");
-#endif
 
 namespace {
 
@@ -111,7 +109,6 @@ void AS734XComponent::dump_config() {
                 "  ASTEP: %u",
                 model_name(this->model_), gain_multiplier(this->gain_), this->atime_, this->astep_);
 
-#ifdef USE_SENSOR
   if (this->device_ != nullptr) {
     for (uint8_t i = 0; i < this->device_->get_number_of_channels(); i++) {
       if (this->band_counts_sensors_[i] == nullptr) {
@@ -122,7 +119,6 @@ void AS734XComponent::dump_config() {
       sensor::log_sensor(TAG, "  ", LOG_STR_ARG(band), this->band_counts_sensors_[i]);
     }
   }
-#endif
 }
 
 void AS734XComponent::update() {
@@ -230,7 +226,6 @@ void AS734XComponent::abort_measurement_(const char *reason) {
   this->disable_loop();
 }
 
-#ifdef USE_SENSOR
 void AS734XComponent::publish_channel_readings_() {
   for (uint8_t i = 0; i < this->device_->get_number_of_channels(); i++) {
     if (this->band_counts_sensors_[i] != nullptr) {
@@ -238,9 +233,6 @@ void AS734XComponent::publish_channel_readings_() {
     }
   }
 }
-#else
-void AS734XComponent::publish_channel_readings_() {}
-#endif
 
 AS734xBase::AS734xBase(i2c::I2CDevice *i2c_device, uint8_t number_of_channels)
     : i2c_device_(i2c_device), number_of_channels_(number_of_channels) {}
