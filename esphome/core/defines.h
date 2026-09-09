@@ -200,6 +200,7 @@
 #define USE_WATER_HEATER_VISUAL_OVERRIDES
 #define USE_ZIGBEE_PROXY
 #define USE_ZWAVE_PROXY
+#define USE_ZWAVE_PROXY_TAP
 
 // Feature flags which do not work for zephyr
 #ifndef USE_ZEPHYR
