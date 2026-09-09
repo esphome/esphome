@@ -9,6 +9,9 @@ updates:
     ignore:
       # Hypotehsis is only used for testing and is updated quite often
       - dependency-name: hypothesis
+      # PlatformIO 6.2.0 is not supported by the pioarduino ESP32 platform or
+      # LibreTiny yet, remove once both platforms support it
+      - dependency-name: platformio
   - package-ecosystem: github-actions
     labels:
       - "dependencies"
