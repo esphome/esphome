@@ -58,6 +58,41 @@ def usb_device_schema(
     )
 
 
+_validate_filters_complete = cv.has_none_or_all_keys(CONF_MANUFACTURER, CONF_PRODUCT)
+
+
+def validate_usb_clients(configs: list[ConfigType]) -> list[ConfigType]:
+    """Reject invalid USB configuration."""
+    for config in configs:
+        _validate_filters_complete(config)
+    for index, first in enumerate(configs):
+        # Ensure matching logic does not overlap between entries
+        for second in configs[index + 1 :]:
+            if (
+                not (first[CONF_VID] == 0 and first[CONF_PID] == 0)
+                and not (second[CONF_VID] == 0 and second[CONF_PID] == 0)
+                and (
+                    first[CONF_VID] != second[CONF_VID]
+                    or first[CONF_PID] != second[CONF_PID]
+                )
+            ):
+                continue
+
+            # An unset filter constrains nothing, so only a differing value separates them
+            if not all(
+                (a := first.get(key)) is None
+                or (b := second.get(key)) is None
+                or a == b
+                for key in (CONF_MANUFACTURER, CONF_PRODUCT)
+            ):
+                continue
+
+            raise cv.Invalid(
+                f"USB configs overlap: {first[CONF_ID]!r}, {second[CONF_ID]!r}"
+            )
+    return configs
+
+
 def _set_max_packet_size(config: dict) -> dict:
     CORE.data.setdefault(DOMAIN, {})[CONF_MAX_PACKET_SIZE] = config[
         CONF_MAX_PACKET_SIZE
@@ -80,7 +115,9 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_MAX_PACKET_SIZE, default=64): cv.one_of(
                 64, 128, 256, 512, 1024, int=True
             ),
-            cv.Optional(CONF_DEVICES): cv.ensure_list(usb_device_schema()),
+            cv.Optional(CONF_DEVICES): cv.All(
+                cv.ensure_list(usb_device_schema()), validate_usb_clients
+            ),
         }
     ),
     only_on_variant(

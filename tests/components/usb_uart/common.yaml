@@ -35,8 +35,10 @@ usb_uart:
         debug: true
         dummy_receiver: true
         debug_prefix: "[ESP_JTAG] "
+  # A CP2105, so it does not share 10C4:EA60 with uart_1 above
   - id: uart_5
     type: cp210x
+    pid: 0xEA70
     channels:
       - id: channel_5_1
         baud_rate: 9600
