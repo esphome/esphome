@@ -16,7 +16,6 @@ static constexpr uint8_t AS7341_CFG1 = 0xAA;
 static constexpr uint8_t AS7341_CFG6 = 0xAF;
 static constexpr uint8_t AS7341_CHIP_ID = 0x09;
 static constexpr uint8_t AS7341_CONFIG = 0x70;
-static constexpr uint8_t AS7341_DATA_0 = 0x95;
 static constexpr uint8_t AS7341_ENABLE = 0x80;
 static constexpr uint8_t AS7341_ENABLE_PON_BIT = 0;
 static constexpr uint8_t AS7341_ENABLE_SMUX_EN_BIT = 4;

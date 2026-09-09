@@ -1,6 +1,7 @@
 #include "as734x.h"
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/progmem.h"
 
 #include <algorithm>
 
@@ -19,12 +20,19 @@ static const char *const TAG = "as734x";
 static constexpr uint32_t MIN_COLLECTION_TIMEOUT_MS = 30 * 1000;
 static constexpr uint8_t COLLECTION_TIMEOUT_MARGIN = 2;
 
+#ifdef USE_SENSOR
+PROGMEM_STRING_TABLE(BandNames41, "F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8", "NIR", "Clear");
+PROGMEM_STRING_TABLE(BandNames43, "F1", "F2", "FZ", "F3", "F4", "FY", "F5", "FXL", "F6", "F7", "F8", "NIR", "Clear");
+#endif
+
 namespace {
 
 float integration_time_ms(uint8_t atime, uint16_t astep) { return (1.0f + atime) * (1.0f + astep) * 2.78e-3f; }
-float gain_multiplier(Gain gain) { return gain == GAIN_0_5X ? 0.5f : static_cast<float>(1 << (gain - 1)); }
+[[maybe_unused]] float gain_multiplier(Gain gain) {
+  return gain == GAIN_0_5X ? 0.5f : static_cast<float>(1 << (gain - 1));
+}
 
-const char *model_name(Model model) {
+[[maybe_unused]] const char *model_name(Model model) {
   switch (model) {
     case Model::AS7341:
       return "AS7341";
@@ -85,7 +93,7 @@ void AS734XComponent::setup() {
     return;
   }
 
-  this->state_ = State::IDLE;
+  this->state_ = State::STATE_IDLE;
   this->disable_loop();
 }
 
@@ -102,15 +110,28 @@ void AS734XComponent::dump_config() {
                 "  ATIME: %u\n"
                 "  ASTEP: %u",
                 model_name(this->model_), gain_multiplier(this->gain_), this->atime_, this->astep_);
+
+#ifdef USE_SENSOR
+  if (this->device_ != nullptr) {
+    for (uint8_t i = 0; i < this->device_->get_number_of_channels(); i++) {
+      if (this->band_counts_sensors_[i] == nullptr) {
+        continue;
+      }
+      const LogString *band = this->model_ == Model::AS7341 ? BandNames41::get_log_str(i, BandNames41::LAST_INDEX)
+                                                            : BandNames43::get_log_str(i, BandNames43::LAST_INDEX);
+      sensor::log_sensor(TAG, "  ", LOG_STR_ARG(band), this->band_counts_sensors_[i]);
+    }
+  }
+#endif
 }
 
 void AS734XComponent::update() {
   if (!this->is_ready()) {
     return;
   }
-  if (this->state_ == State::IDLE) {
+  if (this->state_ == State::STATE_IDLE) {
     ESP_LOGV(TAG, "Initiating new data collection");
-    this->state_ = State::START_MEASUREMENT;
+    this->state_ = State::STATE_START_MEASUREMENT;
     this->enable_loop();
   } else {
     ESP_LOGW(TAG, "Skipping update, previous measurement still running");
@@ -123,16 +144,16 @@ void AS734XComponent::loop() {
   }
 
   switch (this->state_) {
-    case State::NOT_INITIALIZED:
+    case State::STATE_NOT_INITIALIZED:
       // we shall not be here
       ESP_LOGE(TAG, "State machine not initialized");
       this->mark_failed();
       break;
 
-    case State::IDLE:
+    case State::STATE_IDLE:
       break;
 
-    case State::START_MEASUREMENT:
+    case State::STATE_START_MEASUREMENT:
       ESP_LOGVV(TAG, "START_MEASUREMENT");
       this->readings_.millis_start = millis();
       this->readings_.timeout_ms =
@@ -144,10 +165,10 @@ void AS734XComponent::loop() {
       this->device_->write_astep(this->astep_);
       this->device_->write_gain(this->gain_);
       this->readings_.smux_step = 0;
-      this->state_ = State::CONFIGURE_SMUX;
+      this->state_ = State::STATE_CONFIGURE_SMUX;
       break;
 
-    case State::CONFIGURE_SMUX:
+    case State::STATE_CONFIGURE_SMUX:
       ESP_LOGVV(TAG, "CONFIGURE_SMUX");
       this->device_->enable_spectral_measurement(false);
       delay(5);
@@ -155,20 +176,20 @@ void AS734XComponent::loop() {
         this->abort_measurement_("Failed to configure SMUX");
         break;
       }
-      this->state_ = State::WAIT_SMUX;
+      this->state_ = State::STATE_WAIT_SMUX;
       break;
 
-    case State::WAIT_SMUX:
+    case State::STATE_WAIT_SMUX:
       ESP_LOGVV(TAG, "WAIT_SMUX");
       if (!this->device_->is_smux_busy()) {
         this->device_->enable_spectral_measurement(true);
-        this->state_ = State::READ_DATA;
+        this->state_ = State::STATE_READ_DATA;
       } else if (millis() - this->readings_.millis_start > this->readings_.timeout_ms) {
         this->abort_measurement_("SMUX configuration timeout");
       }
       break;
 
-    case State::READ_DATA:
+    case State::STATE_READ_DATA:
       ESP_LOGVV(TAG, "READ_DATA");
       if (this->device_->is_data_ready()) {
         bool device_saturated = false;
@@ -182,20 +203,20 @@ void AS734XComponent::loop() {
         ++this->readings_.smux_step;
         if (this->readings_.smux_step == this->device_->get_number_of_smux_steps()) {
           this->device_->enable_spectral_measurement(false);
-          this->state_ = State::READY_TO_PUBLISH;
+          this->state_ = State::STATE_READY_TO_PUBLISH;
         } else {
-          this->state_ = State::CONFIGURE_SMUX;
+          this->state_ = State::STATE_CONFIGURE_SMUX;
         }
       } else if (millis() - this->readings_.millis_start > this->readings_.timeout_ms) {
         this->abort_measurement_("Data collection timeout");
       }
       break;
 
-    case State::READY_TO_PUBLISH:
+    case State::STATE_READY_TO_PUBLISH:
       ESP_LOGVV(TAG, "READY_TO_PUBLISH");
       this->publish_channel_readings_();
       this->status_clear_warning();
-      this->state_ = State::IDLE;
+      this->state_ = State::STATE_IDLE;
       this->disable_loop();
       break;
   }
@@ -205,7 +226,7 @@ void AS734XComponent::abort_measurement_(const char *reason) {
   ESP_LOGW(TAG, "%s", reason);
   this->device_->enable_spectral_measurement(false);
   this->status_set_warning(reason);
-  this->state_ = State::IDLE;
+  this->state_ = State::STATE_IDLE;
   this->disable_loop();
 }
 

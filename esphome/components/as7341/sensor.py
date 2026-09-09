@@ -11,6 +11,7 @@ from esphome.const import (
     ICON_BRIGHTNESS_5,
     STATE_CLASS_MEASUREMENT,
 )
+from esphome.types import ConfigType
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -63,7 +64,23 @@ SENSOR_SCHEMA = sensor.sensor_schema(
 )
 
 
-CONFIG_SCHEMA = (
+def _warn_deprecated(config: ConfigType) -> ConfigType:
+    # Remove before 2027.2.0
+    _LOGGER.warning(
+        "The 'as7341' component is deprecated and will be removed in 2027.2.0. "
+        "Migrate to the 'as734x' platform with 'type: AS7341', which supports the "
+        "AS7341, AS7343 and TCS3448 sensors. Two things change when you migrate. "
+        "First, the band sensors move under a 'counts:' block, so 'f1:' becomes "
+        "'counts:' with 'f1:' inside it. Second, the published values change: this "
+        "component reads the two bytes of every count in the wrong order, and 'as734x' "
+        "reads them correctly. Counts below 256 grow about 256 times, larger counts come "
+        "out byte swapped. Your Home Assistant history will jump, and any automation that "
+        "compares these counts with a number needs new limits."
+    )
+    return config
+
+
+CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(AS7341Component),
@@ -83,7 +100,8 @@ CONFIG_SCHEMA = (
         }
     )
     .extend(cv.polling_component_schema("60s"))
-    .extend(i2c.i2c_device_schema(0x39))
+    .extend(i2c.i2c_device_schema(0x39)),
+    _warn_deprecated,
 )
 
 SENSORS = {
@@ -101,13 +119,6 @@ SENSORS = {
 
 
 async def to_code(config):
-    # Remove before 2027.2.0
-    _LOGGER.warning(
-        "The 'as7341' component is deprecated and will be removed in 2027.2.0. "
-        "Migrate to the 'as734x' platform with 'type: AS7341', which supports both the "
-        "AS7341 and AS7343 sensors."
-    )
-
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)

@@ -143,14 +143,14 @@ class AS734XComponent : public PollingComponent, public i2c::I2CDevice {
   // small steps in loop() to make sure we are not blocking execution
   //
   enum class State : uint8_t {
-    NOT_INITIALIZED,
-    IDLE,
-    START_MEASUREMENT,
-    CONFIGURE_SMUX,
-    WAIT_SMUX,
-    READ_DATA,
-    READY_TO_PUBLISH,
-  } state_{State::NOT_INITIALIZED};
+    STATE_NOT_INITIALIZED,
+    STATE_IDLE,
+    STATE_START_MEASUREMENT,
+    STATE_CONFIGURE_SMUX,
+    STATE_WAIT_SMUX,
+    STATE_READ_DATA,
+    STATE_READY_TO_PUBLISH,
+  } state_{State::STATE_NOT_INITIALIZED};
 
   uint16_t astep_{0};
   Gain gain_{GAIN_1X};

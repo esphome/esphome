@@ -21,7 +21,6 @@ static constexpr uint8_t AS7343_CFG8 = 0xC9;
 static constexpr uint8_t AS7343_CHAIN_CMD = 0xE4;
 static constexpr uint8_t AS7343_CHAIN_SMUX = 0xE7;
 static constexpr uint8_t AS7343_CHIP_ID = 0b10000001;
-static constexpr uint8_t AS7343_DATA_0 = 0x95;
 static constexpr uint8_t AS7343_ENABLE = 0x80;
 static constexpr uint8_t AS7343_ENABLE_PON_BIT = 0;
 static constexpr uint8_t AS7343_ENABLE_SMUX_EN_BIT = 4;
@@ -149,10 +148,16 @@ bool AS7343::read_channels(uint8_t /*step*/, ChannelValuesUint16 &values, bool &
       AS7343_CHANNEL_CLEAR_0};
 
   RegStatus status{0};
-  this->read_byte_(AS7343_STATUS, &status.raw);
+  if (!this->read_byte_(AS7343_STATUS, &status.raw)) {
+    ESP_LOGW(TAG, "Could not read status register");
+    return false;
+  }
   ESP_LOGVV(TAG, "Status 0x%02x, sint %d, fint %d, aint %d, asat %d", status.raw, status.sint, status.fint, status.aint,
             status.asat);
-  this->write_byte_(AS7343_STATUS, status.raw);
+  if (!this->write_byte_(AS7343_STATUS, status.raw)) {
+    ESP_LOGW(TAG, "Could not clear status flags");
+    return false;
+  }
 
   // Reading ASTATUS latches the spectral data to that read, and the datasheet ties the guarantee
   // to one consecutive transaction over 0x94 to 0xB8, so status and data are fetched together.
