@@ -113,6 +113,26 @@ def get_pinctrl_states(board: str, label: str) -> list[tuple[str, list[str]]] | 
     return None
 
 
+def get_pinctrl_state_names(board: str, label: str) -> list[str] | None:
+    """Return the real pinctrl-names strings (e.g. ["default", "sleep"]), in
+    pinctrl-<N> order, for the node `label` (or an ancestor) -- or None if
+    unavailable. Needed because overriding pinctrl-0 must restate every state
+    with a matching pinctrl-names count, or it's a DTS compile error."""
+    edt = _get_edt(board)
+    if edt is None:
+        return None
+    for node in _iter_nodes(edt):
+        if label not in node.labels:
+            continue
+        while node is not None:
+            if node.pinctrls:
+                names = [p.name for p in node.pinctrls]
+                return names if all(name is not None for name in names) else None
+            node = node.parent
+        return None
+    return None
+
+
 def get_pinctrl_group_property(
     board: str, pinctrl_label: str, group_name: str, property_name: str
 ) -> list[int] | None:

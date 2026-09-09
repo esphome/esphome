@@ -12,6 +12,7 @@ from esphome.components.zephyr import (
     _build_uart_pinctrl_states_overlay,
     _esp32_uart_group_roles,
     _esp32_uart_signal_groups,
+    _nordic_uart_group_roles,
     _positional_uart_group_roles,
     _resolve_board_source,
     _resolve_i2c_pinctrl_states,
@@ -589,6 +590,73 @@ def test_esp32_uart_group_roles_resolver_binds_real_instance_signal_base() -> No
         }
 
 
+# NRF_PSEL(fun, port, pin), NRF_FUN_UART_{TX,RX,RTS,CTS}=0,1,2,3 (nrf-pinctrl.h).
+_NRF_TX_PSEL = 36  # NRF_PSEL(UART_TX, 1, 4)
+_NRF_RX_PSEL = 16777253  # NRF_PSEL(UART_RX, 1, 5)
+_NRF_RTS_PSEL = 33554470  # NRF_PSEL(UART_RTS, 1, 6)
+_NRF_CTS_PSEL = 50331687  # NRF_PSEL(UART_CTS, 1, 7)
+
+
+def test_nordic_uart_group_roles_identifies_tx_and_rx_from_real_values() -> None:
+    with patch(
+        "esphome.components.zephyr.dts_lookup.get_pinctrl_group_property",
+        side_effect=lambda board, label, group, prop: {
+            "group1": [_NRF_TX_PSEL],
+            "group2": [_NRF_RX_PSEL],
+        }[group],
+    ):
+        assert _nordic_uart_group_roles(
+            "b", "uart20_default", ["group1", "group2"]
+        ) == {"tx": "group1", "rx": "group2"}
+
+
+def test_nordic_uart_group_roles_identifies_swapped_order() -> None:
+    # nrf54lm20dk's uart20 really does swap group order between "default" and
+    # "sleep" -- confirms this reads content, not position.
+    with patch(
+        "esphome.components.zephyr.dts_lookup.get_pinctrl_group_property",
+        side_effect=lambda board, label, group, prop: {
+            "group1": [_NRF_RX_PSEL],
+            "group2": [_NRF_TX_PSEL],
+        }[group],
+    ):
+        assert _nordic_uart_group_roles(
+            "b", "uart20_default", ["group1", "group2"]
+        ) == {"tx": "group2", "rx": "group1"}
+
+
+def test_nordic_uart_group_roles_distinguishes_tx_from_rts() -> None:
+    with patch(
+        "esphome.components.zephyr.dts_lookup.get_pinctrl_group_property",
+        side_effect=lambda board, label, group, prop: {
+            "group1": [_NRF_TX_PSEL, _NRF_RTS_PSEL],
+            "group2": [_NRF_RX_PSEL, _NRF_CTS_PSEL],
+        }[group],
+    ):
+        assert _nordic_uart_group_roles(
+            "b", "uart20_default", ["group1", "group2"]
+        ) == {"tx": "group1", "rts": "group1", "rx": "group2", "cts": "group2"}
+
+
+def test_nordic_uart_group_roles_none_when_rx_missing() -> None:
+    with patch(
+        "esphome.components.zephyr.dts_lookup.get_pinctrl_group_property",
+        side_effect=lambda board, label, group, prop: {"group1": [_NRF_TX_PSEL]}[group],
+    ):
+        assert _nordic_uart_group_roles("b", "uart20_default", ["group1"]) is None
+
+
+def test_nordic_uart_group_roles_none_when_property_unavailable() -> None:
+    with patch(
+        "esphome.components.zephyr.dts_lookup.get_pinctrl_group_property",
+        return_value=None,
+    ):
+        assert (
+            _nordic_uart_group_roles("b", "uart20_default", ["group1", "group2"])
+            is None
+        )
+
+
 def test_resolve_uart_pinctrl_states_uses_default_positional_resolver() -> None:
     with patch(
         "esphome.components.zephyr.dts_lookup.get_pinctrl_states",
@@ -743,6 +811,33 @@ def test_zephyr_setup_uart_pinctrl_esp32_uses_gpio_macros_and_role_decode() -> N
     assert "pinmux = <UART0_TX_GPIO16>;" in overlay[group2_idx:]
     assert "current-speed = <115200>;" in overlay
     assert "pinctrl-0 = <&uart0_default>;" in overlay
+
+
+def test_zephyr_setup_uart_pinctrl_nordic_uses_nrf_psel_and_role_decode() -> None:
+    CORE.data[KEY_ZEPHYR] = _empty_zephyr_data(variant="NRF52")
+    with (
+        patch(
+            "esphome.components.zephyr.dts_lookup.get_pinctrl_states",
+            return_value=[("uart20_default", ["group1", "group2"])],
+        ),
+        patch(
+            "esphome.components.zephyr.dts_lookup.get_pinctrl_group_property",
+            side_effect=lambda board, label, group, prop: {
+                "group1": [_NRF_RX_PSEL],  # deliberately swapped from position
+                "group2": [_NRF_TX_PSEL],
+            }[group],
+        ),
+    ):
+        zephyr_setup_uart_pinctrl("some_board", "uart20", 36, 37, 115200)
+    overlay = CORE.data[KEY_ZEPHYR]["overlay"][""]
+    assert "NRF_PSEL(UART_TX, 1, 4)" in overlay
+    assert "NRF_PSEL(UART_RX, 1, 5)" in overlay
+    # Content-decoded role wins over position: TX value lands in group2, since
+    # group2 is the one whose real psels value decodes as UART_TX.
+    group2_idx = overlay.index("group2 {")
+    assert "psels = <NRF_PSEL(UART_TX, 1, 4)>;" in overlay[group2_idx:]
+    assert "current-speed = <115200>;" in overlay
+    assert "pinctrl-0 = <&uart20_default>;" in overlay
 
 
 def test_zephyr_setup_uart_pinctrl_rpi_pico_uses_p_suffix_and_position() -> None:

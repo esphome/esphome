@@ -85,6 +85,23 @@ VARIANT = ZephyrVariant(
     # nrf54lm20_a_b.dtsi defines pwm20/pwm21/pwm22 -- same peripheral-instance-number
     # convention as uart_node_labels above, not nRF52840's pwm0-pwm3 low-number scheme.
     pwm_node_labels=["pwm20", "pwm21", "pwm22"],
+    # nrf54lm20_a_b.dtsi: gpio0 (ngpios=<10>, flat 0-9), gpio1 (ngpios=<32>, flat
+    # 32-63), gpio2 (ngpios=<11>, flat 64-74), gpio3 (ngpios=<13>, flat 96-108).
+    # Free-mux via NRF_PSEL.
+    uart_valid_pins={
+        "tx": (
+            frozenset(range(10))
+            | frozenset(range(32, 64))
+            | frozenset(range(64, 75))
+            | frozenset(range(96, 109))
+        ),
+        "rx": (
+            frozenset(range(10))
+            | frozenset(range(32, 64))
+            | frozenset(range(64, 75))
+            | frozenset(range(96, 109))
+        ),
+    },
 )
 
 

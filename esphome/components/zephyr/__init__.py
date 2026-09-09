@@ -408,6 +408,32 @@ def _positional_uart_group_roles(
     return {"tx": groups[0], "rx": groups[1]}
 
 
+_NRF_PSEL_FUN_SHIFT = 24
+_NRF_PSEL_FUN_MASK = 0xFF
+# NRF_FUN_UART_{TX,RX,RTS,CTS} (nrf-pinctrl.h) -- fixed across every nRF chip,
+# unlike ESP32's per-instance signal IDs.
+_NRF_UART_SIGNAL_NAMES = {0: "tx", 1: "rx", 2: "rts", 3: "cts"}
+
+
+def _nordic_uart_group_roles(
+    board: str, label: str, groups: list[str]
+) -> dict[str, str] | None:
+    """group_role_resolver reading real psels content instead of assuming
+    position -- nrf54lm20dk's uart20 really does swap group order."""
+    from .dts_lookup import get_pinctrl_group_property
+
+    signals: dict[str, str] = {}
+    for group in groups:
+        for value in get_pinctrl_group_property(board, label, group, "psels") or []:
+            fun = (value >> _NRF_PSEL_FUN_SHIFT) & _NRF_PSEL_FUN_MASK
+            name = _NRF_UART_SIGNAL_NAMES.get(fun)
+            if name is not None:
+                signals[name] = group
+    if "tx" not in signals or "rx" not in signals:
+        return None
+    return signals
+
+
 _ESP32_PINMUX_SIGI_SHIFT = 6
 _ESP32_PINMUX_SIGO_SHIFT = 15
 _ESP32_PINMUX_SIG_MASK = 0x1FF
@@ -552,10 +578,10 @@ def _resolve_uart_pinctrl_states(
 def _build_uart_pinctrl_states_overlay(
     states: list[tuple[str, list[tuple[str, str]]]], property_name: str
 ) -> str:
-    """Build a `&pinctrl { <label> { <group> { <property_name> = <value>; }; ...
-    }; ... };` overlay from _resolve_uart_pinctrl_states()'s output -- one group
-    block per (group, value) pair per state, so TX/RX land together when a
-    state combines them into one group and separately when it splits them."""
+    """Build the `&pinctrl { ... }` overlay from _resolve_uart_pinctrl_states()'s
+    output. The `<label>:` prefix (re-)establishes the phandle even for a state
+    the board never pinctrl'd itself -- without it, `&<label>` in the bus-enable
+    overlay resolves to nothing and fails at DTS-compile time."""
     state_blocks = []
     for label, group_values in states:
         if not group_values:
@@ -570,7 +596,7 @@ def _build_uart_pinctrl_states_overlay(
         )
         state_blocks.append(
             f"""
-                {label} {{
+                {label}: {label} {{
                     {group_blocks}
                 }};
             """
@@ -611,27 +637,51 @@ def zephyr_setup_uart_pinctrl(
 
     prefix = port_label.upper()
     family = zephyr_variant_family()
-    # rp2040/rp2350 pinctrl macros are `_P{n}`, esp32-family is `_GPIO{n}`.
-    pin_suffix = "P" if family == "rpi_pico" else "GPIO"
-    tx_value = f"<{prefix}_TX_{pin_suffix}{tx_pin}>" if tx_pin is not None else None
-    rx_value = f"<{prefix}_RX_{pin_suffix}{rx_pin}>" if rx_pin is not None else None
-    # esp32's pinmux encoding lets group roles be read from real DTS content
-    # instead of assumed by position -- see _esp32_uart_signal_groups()'s
-    # docstring for why that matters.
-    group_role_resolver = (
-        _esp32_uart_group_roles(board, port_label) if family == "esp32" else None
-    )
+    if family == "nordic":
+        tx_value = (
+            f"<NRF_PSEL(UART_TX, {tx_pin // 32}, {tx_pin % 32})>"
+            if tx_pin is not None
+            else None
+        )
+        rx_value = (
+            f"<NRF_PSEL(UART_RX, {rx_pin // 32}, {rx_pin % 32})>"
+            if rx_pin is not None
+            else None
+        )
+        group_role_resolver = _nordic_uart_group_roles
+        property_name = "psels"
+    else:
+        # rp2040/rp2350 pinctrl macros are `_P{n}`, esp32-family is `_GPIO{n}`.
+        pin_suffix = "P" if family == "rpi_pico" else "GPIO"
+        tx_value = f"<{prefix}_TX_{pin_suffix}{tx_pin}>" if tx_pin is not None else None
+        rx_value = f"<{prefix}_RX_{pin_suffix}{rx_pin}>" if rx_pin is not None else None
+        group_role_resolver = (
+            _esp32_uart_group_roles(board, port_label) if family == "esp32" else None
+        )
+        property_name = "pinmux"
     states = _resolve_uart_pinctrl_states(
         board, port_label, tx_value, rx_value, group_role_resolver=group_role_resolver
     )
-    zephyr_add_overlay(_build_uart_pinctrl_states_overlay(states, "pinmux"))
-    default_label = states[0][0]
+    zephyr_add_overlay(_build_uart_pinctrl_states_overlay(states, property_name))
+    # A board whose stock node already declares >1 pinctrl state (e.g. "sleep" for
+    # PM) needs every pinctrl-<N> restated to match, or the now-uncovered old state
+    # is a pinctrl-names count mismatch at DTS-compile time.
+    from .dts_lookup import get_pinctrl_state_names
+
+    state_names = get_pinctrl_state_names(board, port_label)
+    if state_names is None or len(state_names) != len(states):
+        state_names = ["default"]
+        states = states[:1]
+    pinctrl_props = " ".join(
+        f"pinctrl-{i} = <&{label}>;" for i, (label, _) in enumerate(states)
+    )
+    names_prop = ", ".join(f'"{name}"' for name in state_names)
     # current-speed must exist in DT for the driver's init macro regardless of
     # value; the real baud rate is set at runtime by uart_configure().
     zephyr_add_overlay(
         f'&{port_label} {{ status = "okay"; '
         f"current-speed = <{baud_rate}>; "
-        f'pinctrl-0 = <&{default_label}>; pinctrl-names = "default"; }};'
+        f"{pinctrl_props} pinctrl-names = {names_prop}; }};"
     )
 
 
