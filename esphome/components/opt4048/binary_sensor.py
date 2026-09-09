@@ -4,7 +4,7 @@ import esphome.config_validation as cv
 from esphome.const import DEVICE_CLASS_PROBLEM
 from esphome.types import ConfigType
 
-from .sensor import OPT4048Component
+from .sensor import CONF_THRESHOLD_HIGH, CONF_THRESHOLD_LOW, OPT4048Component
 
 CODEOWNERS = ["@JS3910"]
 DEPENDENCIES = ["i2c"]
@@ -12,8 +12,6 @@ DEPENDENCIES = ["i2c"]
 CONF_OPT4048_ID = "opt4048_id"
 CONF_CONVERSION_READY = "conversion_ready"
 CONF_OVERLOAD = "overload"
-CONF_THRESHOLD_LOW = "threshold_low"
-CONF_THRESHOLD_HIGH = "threshold_high"
 
 CONFIG_SCHEMA = cv.Schema(
     {
