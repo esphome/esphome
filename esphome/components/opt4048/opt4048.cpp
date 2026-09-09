@@ -36,8 +36,8 @@ static const double M2X = 9.28619404e-05;
 static const double M2Y = -1.69739553e-05;
 static const double M2Z = 6.74021520e-04;
 
-static const uint32_t CONVERSION_TIME_US[] = {600,   1000,   1800,   3400,    6500,    12700,
-                                              25000, 50000,  100000, 200000,  400000,  800000};
+static const uint32_t CONVERSION_TIME_US[] = {600,   1000,  1800,   3400,   6500,   12700,
+                                              25000, 50000, 100000, 200000, 400000, 800000};
 
 float OPT4048Component::get_setup_priority() const { return setup_priority::DATA; }
 
@@ -188,8 +188,8 @@ void OPT4048Component::dump_config() {
                 "  Fault count: %u\n"
                 "  Threshold channel: %u",
                 static_cast<uint8_t>(this->range_), static_cast<uint8_t>(this->conversion_time_),
-                static_cast<uint8_t>(this->mode_), YESNO(this->quick_wake_),
-                static_cast<uint8_t>(this->fault_count_), this->threshold_channel_);
+                static_cast<uint8_t>(this->mode_), YESNO(this->quick_wake_), static_cast<uint8_t>(this->fault_count_),
+                this->threshold_channel_);
   LOG_PIN("  Interrupt pin: ", this->interrupt_pin_);
   LOG_SENSOR("  ", "Illuminance", this->illuminance_sensor_);
   LOG_SENSOR("  ", "CIE x", this->x_sensor_);
