@@ -16,6 +16,11 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
+#ifdef USE_OPENTHREAD_BORDER_ROUTER
+#include "esp_err.h"
+#include "esp_openthread_border_router.h"
+#endif
+
 static const char *const TAG = "openthread";
 
 namespace esphome::openthread {
@@ -26,13 +31,8 @@ OpenThreadComponent *global_openthread_component =  // NOLINT(cppcoreguidelines-
 OpenThreadComponent::OpenThreadComponent() { global_openthread_component = this; }
 
 #ifdef USE_OPENTHREAD_RCP_UART
-OpenThreadComponent::OpenThreadComponent(uint32_t rcp_baud_rate, int rcp_rx_pin, int rcp_tx_pin, int rcp_reset_pin,
-                                         bool rcp_reset_active_level)
-    : rcp_baud_rate_(rcp_baud_rate),
-      rcp_rx_pin_(rcp_rx_pin),
-      rcp_tx_pin_(rcp_tx_pin),
-      rcp_reset_pin_(rcp_reset_pin),
-      rcp_reset_active_level_(rcp_reset_active_level) {
+OpenThreadComponent::OpenThreadComponent(uint32_t rcp_baud_rate, int rcp_rx_pin, int rcp_tx_pin, GPIOPin *rcp_reset_pin)
+    : rcp_baud_rate_(rcp_baud_rate), rcp_rx_pin_(rcp_rx_pin), rcp_tx_pin_(rcp_tx_pin), rcp_reset_pin_(rcp_reset_pin) {
   global_openthread_component = this;
 }
 #endif
@@ -62,11 +62,16 @@ void OpenThreadComponent::dump_config() {
                 "  RX Pin: GPIO%d\n"
                 "  TX Pin: GPIO%d",
                 this->rcp_baud_rate_, this->rcp_rx_pin_, this->rcp_tx_pin_);
-  if (this->rcp_reset_pin_ >= 0) {
-    ESP_LOGCONFIG(TAG, "  RCP Reset Pin: GPIO%d", this->rcp_reset_pin_);
+  if (this->rcp_reset_pin_ != nullptr) {
+    LOG_PIN("  RCP Reset Pin: ", this->rcp_reset_pin_);
   }
 #else
   ESP_LOGCONFIG(TAG, "  Radio: Native 802.15.4");
+#endif
+#ifdef USE_OPENTHREAD_BORDER_ROUTER
+  ESP_LOGCONFIG(TAG, "  Border Router: ENABLED\n"
+                     "  Backbone: Wi-Fi STA\n"
+                     "  Experimental: YES");
 #endif
 }
 
@@ -257,6 +262,18 @@ void OpenThreadSrpComponent::set_mdns(esphome::mdns::MDNSComponent *mdns) { this
 #endif
 
 bool OpenThreadComponent::teardown() {
+#ifdef USE_OPENTHREAD_BORDER_ROUTER
+  if (this->border_router_started_) {
+    auto lock = InstanceLock::try_acquire(100);
+    if (!lock) {
+      return false;
+    }
+    if (const esp_err_t err = esp_openthread_border_router_deinit(); err != ESP_OK) {
+      ESP_LOGW(TAG, "Failed to deinitialize OpenThread Border Router: %s", esp_err_to_name(err));
+    }
+    this->border_router_started_ = false;
+  }
+#endif
   switch (this->teardown_stage_) {
     case TeardownStage::TEARDOWN_STAGE_NOT_STARTED: {
       auto lock = InstanceLock::try_acquire(100);

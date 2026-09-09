@@ -12,7 +12,6 @@
 #include "esphome/components/wifi/wifi_component.h"
 #endif
 #ifdef USE_OPENTHREAD_RCP_UART
-#include "driver/gpio.h"
 #include "esp_openthread_spinel.h"
 #endif
 #include "esp_log.h"
@@ -44,6 +43,7 @@ void OpenThreadComponent::setup() {
   esp_netif_t *backbone_netif = esp_netif_get_handle_from_ifkey("WIFI_STA_DEF");
   if (backbone_netif == nullptr) {
     ESP_LOGE(TAG, "Wi-Fi STA backbone netif is not initialized");
+    this->teardown_stage_ = TeardownStage::TEARDOWN_STAGE_COMPLETED;
     this->mark_failed();
     return;
   }
@@ -78,6 +78,7 @@ void OpenThreadComponent::setup() {
           "ot_main", 10240, this, 5, nullptr) != pdPASS) {
     ESP_LOGE(TAG, "Failed to create OpenThread task");
     esp_vfs_eventfd_unregister();
+    this->teardown_stage_ = TeardownStage::TEARDOWN_STAGE_COMPLETED;
     this->mark_failed();
   }
 }
@@ -134,7 +135,8 @@ void OpenThreadComponent::ot_main() {
   };
 
 #ifdef USE_OPENTHREAD_RCP_UART
-  if (this->rcp_reset_pin_ >= 0) {
+  if (this->rcp_reset_pin_ != nullptr) {
+    this->rcp_reset_pin_->setup();
     esp_openthread_register_rcp_failure_handler(OpenThreadComponent::rcp_failure_handler);
     esp_openthread_set_coprocessor_reset_failure_callback(OpenThreadComponent::rcp_failure_handler);
     this->reset_rcp_();
@@ -266,8 +268,12 @@ void OpenThreadComponent::ot_main() {
 
   if (launch_mainloop) {
     this->ready_ = true;
-    esp_openthread_launch_mainloop();
+    const esp_err_t err = esp_openthread_launch_mainloop();
     this->ready_ = false;
+    if (err != ESP_OK) {
+      ESP_LOGE(TAG, "OpenThread main loop failed: %s", esp_err_to_name(err));
+      this->mark_task_failed_();
+    }
   }
 
   // Clean up - reset lock flag before deinit destroys the semaphore
@@ -297,23 +303,9 @@ void OpenThreadComponent::rcp_failure_handler() {
 }
 
 void OpenThreadComponent::reset_rcp_() {
-  static constexpr uint8_t MAX_RESET_ATTEMPTS = 5;
-  if (++this->rcp_reset_attempts_ > MAX_RESET_ATTEMPTS) {
-    ESP_LOGE(TAG, "RCP failed to recover after %u reset attempts, giving up", MAX_RESET_ATTEMPTS);
-    this->mark_task_failed_();
-    return;
-  }
-  gpio_config_t reset_pin_config{};
-  reset_pin_config.pin_bit_mask = 1ULL << this->rcp_reset_pin_;
-  reset_pin_config.mode = GPIO_MODE_OUTPUT;
-  if (const esp_err_t err = gpio_config(&reset_pin_config); err != ESP_OK) {
-    ESP_LOGE(TAG, "Failed to configure RCP reset pin: %s", esp_err_to_name(err));
-    this->mark_task_failed_();
-    return;
-  }
-  gpio_set_level(static_cast<gpio_num_t>(this->rcp_reset_pin_), this->rcp_reset_active_level_);
+  this->rcp_reset_pin_->digital_write(true);
   vTaskDelay(pdMS_TO_TICKS(10));
-  gpio_set_level(static_cast<gpio_num_t>(this->rcp_reset_pin_), !this->rcp_reset_active_level_);
+  this->rcp_reset_pin_->digital_write(false);
   vTaskDelay(pdMS_TO_TICKS(30));
 }
 #endif
@@ -345,21 +337,15 @@ network::IPAddresses OpenThreadComponent::get_ip_addresses() {
 }
 
 #ifdef USE_OPENTHREAD_BORDER_ROUTER
-void OpenThreadBorderRouterComponent::setup() {
-  if (this->openthread_->is_failed()) {
-    this->mark_failed();
-  }
-}
-
-void OpenThreadBorderRouterComponent::loop() {
-  if (this->started_ || this->is_failed()) {
+void OpenThreadComponent::loop() {
+  if (this->border_router_started_ || this->is_failed()) {
     return;
   }
-  if (this->openthread_->is_failed() || this->openthread_->has_task_failed()) {
+  if (this->task_failed_) {
     this->mark_failed();
     return;
   }
-  if (!this->openthread_->is_ready() || !wifi::global_wifi_component->is_connected()) {
+  if (!this->ready_ || !wifi::global_wifi_component->is_connected()) {
     return;
   }
 
@@ -388,57 +374,7 @@ void OpenThreadBorderRouterComponent::loop() {
     this->mark_failed();
     return;
   }
-  this->started_ = true;
-}
-
-void OpenThreadBorderRouterComponent::dump_config() {
-  ESP_LOGCONFIG(TAG, "OpenThread Border Router:\n"
-                     "  Backbone: Wi-Fi STA\n"
-#ifdef USE_OPENTHREAD_RCP_UART
-                     "  Radio: External UART RCP\n"
-#else
-                     "  Radio: Native 802.15.4\n"
-#endif
-                     "  Startup: After Wi-Fi connection\n"
-                     "  Experimental: YES");
-}
-
-bool OpenThreadBorderRouterComponent::teardown() {
-  if (!this->started_) {
-    return true;
-  }
-  auto lock = InstanceLock::try_acquire(100);
-  if (!lock) {
-    return false;
-  }
-  if (const esp_err_t err = esp_openthread_border_router_deinit(); err != ESP_OK) {
-    ESP_LOGW(TAG, "Failed to deinitialize OpenThread Border Router: %s", esp_err_to_name(err));
-  }
-  this->started_ = false;
-  return true;
-}
-#endif
-
-#ifdef USE_OPENTHREAD_ANTENNA_SWITCH
-void OpenThreadAntennaSwitchComponent::setup() {
-  this->select_pin_->setup();
-  // Some boards (e.g. Seeed Studio XIAO ESP32-C6) gate the RF switch behind a separate
-  // enable line that must be driven active before the antenna-select pin has any effect.
-  // The reference vendor example waits after enabling the switch before driving the
-  // select pin, so mirror that here for reliable switching.
-  if (this->enable_pin_ != nullptr) {
-    this->enable_pin_->setup();
-    this->enable_pin_->digital_write(true);
-    delay(100);  // NOLINT - matches vendor RF-switch enable sequencing, runs once at setup
-  }
-  this->select_pin_->digital_write(this->external_antenna_);
-}
-
-void OpenThreadAntennaSwitchComponent::dump_config() {
-  ESP_LOGCONFIG(TAG,
-                "OpenThread Antenna Switch:\n"
-                "  Selected: %s antenna",
-                this->external_antenna_ ? "external" : "onboard");
+  this->border_router_started_ = true;
 }
 #endif
 

@@ -1,4 +1,3 @@
-from ipaddress import IPv6Network
 from typing import Any
 
 from esphome import automation, pins
@@ -31,7 +30,6 @@ from esphome.const import (
     CONF_CHANNEL,
     CONF_ENABLE_IPV6,
     CONF_ENABLE_ON_BOOT,
-    CONF_ENABLE_PIN,
     CONF_FRAMEWORK,
     CONF_HARDWARE_UART,
     CONF_ID,
@@ -60,11 +58,9 @@ import esphome.final_validate as fv
 from esphome.types import ConfigType
 
 from .const import (
-    CONF_ANTENNA_SWITCH,
     CONF_BORDER_ROUTER,
     CONF_DEVICE_TYPE,
     CONF_EXT_PAN_ID,
-    CONF_EXTERNAL_ANTENNA,
     CONF_FORCE_DATASET,
     CONF_MDNS_ID,
     CONF_MESH_LOCAL_PREFIX,
@@ -74,7 +70,6 @@ from .const import (
     CONF_POLL_PERIOD,
     CONF_PSKC,
     CONF_RCP,
-    CONF_SELECT_PIN,
     CONF_SRP_ID,
     CONF_TLV,
 )
@@ -148,7 +143,7 @@ def set_sdkconfig_options(config: ConfigType) -> None:
 
         if (network_key := config.get(CONF_NETWORK_KEY)) is not None:
             add_idf_sdkconfig_option(
-                "CONFIG_OPENTHREAD_NETWORK_MASTERKEY", f"{network_key:032x}"
+                "CONFIG_OPENTHREAD_NETWORK_MASTERKEY", f"{network_key:X}".lower()
             )
 
         if (network_name := config.get(CONF_NETWORK_NAME)) is not None:
@@ -156,14 +151,16 @@ def set_sdkconfig_options(config: ConfigType) -> None:
 
         if (ext_pan_id := config.get(CONF_EXT_PAN_ID)) is not None:
             add_idf_sdkconfig_option(
-                "CONFIG_OPENTHREAD_NETWORK_EXTPANID", f"{ext_pan_id:016x}"
+                "CONFIG_OPENTHREAD_NETWORK_EXTPANID", f"{ext_pan_id:X}".lower()
             )
         if (mesh_local_prefix := config.get(CONF_MESH_LOCAL_PREFIX)) is not None:
             add_idf_sdkconfig_option(
                 "CONFIG_OPENTHREAD_MESH_LOCAL_PREFIX", f"{mesh_local_prefix}".lower()
             )
         if (pskc := config.get(CONF_PSKC)) is not None:
-            add_idf_sdkconfig_option("CONFIG_OPENTHREAD_NETWORK_PSKC", f"{pskc:032x}")
+            add_idf_sdkconfig_option(
+                "CONFIG_OPENTHREAD_NETWORK_PSKC", f"{pskc:X}".lower()
+            )
 
     add_idf_sdkconfig_option("CONFIG_OPENTHREAD_DNS64_CLIENT", not border_router)
     add_idf_sdkconfig_option("CONFIG_OPENTHREAD_SRP_CLIENT", not border_router)
@@ -190,7 +187,6 @@ def set_sdkconfig_options(config: ConfigType) -> None:
         add_idf_sdkconfig_option("CONFIG_MBEDTLS_SSL_PROTO_DTLS", True)
         add_idf_sdkconfig_option("CONFIG_MBEDTLS_KEY_EXCHANGE_ECJPAKE", True)
         add_idf_sdkconfig_option("CONFIG_MBEDTLS_ECJPAKE_C", True)
-        add_idf_sdkconfig_option("CONFIG_MDNS_MAX_SERVICES", 50)
 
     # TODO: Add support for synchronized sleepy end devices (SSED)
     add_idf_sdkconfig_option(f"CONFIG_OPENTHREAD_{config.get(CONF_DEVICE_TYPE)}", True)
@@ -199,63 +195,6 @@ def set_sdkconfig_options(config: ConfigType) -> None:
 openthread_ns = cg.esphome_ns.namespace("openthread")
 OpenThreadComponent = openthread_ns.class_("OpenThreadComponent", cg.Component)
 OpenThreadSrpComponent = openthread_ns.class_("OpenThreadSrpComponent", cg.Component)
-OpenThreadBorderRouterComponent = openthread_ns.class_(
-    "OpenThreadBorderRouterComponent", cg.Component
-)
-OpenThreadAntennaSwitchComponent = openthread_ns.class_(
-    "OpenThreadAntennaSwitchComponent", cg.Component
-)
-
-
-def _validate_hex_128(value: object) -> int:
-    value = cv.hex_int(value)
-    if not 0 <= value < 1 << 128:
-        raise cv.Invalid("Value must fit in 128 bits")
-    return value
-
-
-def _validate_network_name(value: object) -> str:
-    value = cv.string_strict(value)
-    length = len(value.encode())
-    if not 1 <= length <= 16:
-        raise cv.Invalid("Thread network name must be between 1 and 16 bytes")
-    return value
-
-
-def _validate_mesh_local_prefix(value: object) -> IPv6Network:
-    value = cv.ipv6network(value)
-    if value.prefixlen != 64:
-        raise cv.Invalid("Thread mesh local prefix must use a /64 prefix")
-    return value
-
-
-def _validate_antenna_switch(config: ConfigType) -> ConfigType:
-    if (enable_pin := config.get(CONF_ENABLE_PIN)) is not None and (
-        enable_pin[CONF_NUMBER] == config[CONF_SELECT_PIN][CONF_NUMBER]
-    ):
-        raise cv.Invalid("Antenna switch enable_pin and select_pin must be different")
-    return config
-
-
-def _validate_antenna_enable_pin(value: object) -> ConfigType:
-    value = {CONF_NUMBER: value} if not isinstance(value, dict) else dict(value)
-    # Boards with a switch-enable line (e.g. the XIAO ESP32-C6) typically wire it
-    # active-low; default to that and let advanced users override it.
-    value.setdefault(CONF_INVERTED, True)
-    return pins.internal_gpio_output_pin_schema(value)
-
-
-_ANTENNA_SWITCH_SCHEMA = cv.All(
-    cv.Schema(
-        {
-            cv.GenerateID(): cv.declare_id(OpenThreadAntennaSwitchComponent),
-            cv.Optional(CONF_ENABLE_PIN): _validate_antenna_enable_pin,
-            cv.Required(CONF_SELECT_PIN): pins.internal_gpio_output_pin_schema,
-            cv.Optional(CONF_EXTERNAL_ANTENNA, default=False): cv.boolean,
-        }
-    ),
-    _validate_antenna_switch,
-)
 
 
 def _validate_border_router(value: object) -> ConfigType:
@@ -263,7 +202,6 @@ def _validate_border_router(value: object) -> ConfigType:
         value = {}
     return cv.Schema(
         {
-            cv.GenerateID(): cv.declare_id(OpenThreadBorderRouterComponent),
             cv.Optional(CONF_RCP): _RCP_SCHEMA,
         }
     )(value)
@@ -304,13 +242,13 @@ _RCP_SCHEMA = cv.All(
 
 _CONNECTION_SCHEMA = cv.Schema(
     {
-        cv.Optional(CONF_PAN_ID): cv.hex_int_range(min=0, max=0xFFFE),
+        cv.Optional(CONF_PAN_ID): cv.hex_int,
         cv.Optional(CONF_CHANNEL): cv.int_range(min=11, max=26),
-        cv.Optional(CONF_NETWORK_KEY): cv.sensitive(_validate_hex_128),
-        cv.Optional(CONF_EXT_PAN_ID): cv.hex_uint64_t,
-        cv.Optional(CONF_NETWORK_NAME): _validate_network_name,
-        cv.Optional(CONF_PSKC): cv.sensitive(_validate_hex_128),
-        cv.Optional(CONF_MESH_LOCAL_PREFIX): _validate_mesh_local_prefix,
+        cv.Optional(CONF_NETWORK_KEY): cv.hex_int,
+        cv.Optional(CONF_EXT_PAN_ID): cv.hex_int,
+        cv.Optional(CONF_NETWORK_NAME): cv.string_strict,
+        cv.Optional(CONF_PSKC): cv.hex_int,
+        cv.Optional(CONF_MESH_LOCAL_PREFIX): cv.ipv6network,
     }
 )
 
@@ -370,16 +308,15 @@ def _validate_platform(config: ConfigType) -> ConfigType:
 
 def _validate_tlv_hex(value: object) -> str:
     s = cv.string_strict(value)
-    if not s:
-        raise cv.Invalid("TLV must not be empty")
     if len(s) % 2 != 0:
         raise cv.Invalid("TLV must have an even number of hex characters")
-    if any(char not in "0123456789abcdefABCDEF" for char in s):
-        raise cv.Invalid("TLV must contain only hexadecimal characters")
-    raw = bytes.fromhex(s)
+    try:
+        raw = bytes.fromhex(s)
+    except ValueError as err:
+        raise cv.Invalid(f"TLV must be valid hex: {err}") from err
     if len(raw) > 254:  # sizeof(otOperationalDatasetTlvs::mTlvs)
         raise cv.Invalid(f"TLV too long ({len(raw)} bytes, max 254)")
-    return s.lower()
+    return s
 
 
 CONFIG_SCHEMA = cv.All(
@@ -389,12 +326,11 @@ CONFIG_SCHEMA = cv.All(
             cv.GenerateID(CONF_SRP_ID): cv.declare_id(OpenThreadSrpComponent),
             cv.GenerateID(CONF_MDNS_ID): cv.use_id(MDNSComponent),
             cv.Optional(CONF_BORDER_ROUTER): _validate_border_router,
-            cv.Optional(CONF_ANTENNA_SWITCH): _ANTENNA_SWITCH_SCHEMA,
             cv.Optional(CONF_DEVICE_TYPE, default="FTD"): cv.one_of(
                 *CONF_DEVICE_TYPES, upper=True
             ),
             cv.Optional(CONF_FORCE_DATASET): cv.boolean,
-            cv.Optional(CONF_TLV): cv.sensitive(_validate_tlv_hex),
+            cv.Optional(CONF_TLV): cv.All(cv.string_strict, _validate_tlv_hex),
             cv.Optional(CONF_USE_ADDRESS): cv.string_strict,
             cv.Optional(CONF_OUTPUT_POWER): cv.All(
                 cv.decibel,
@@ -517,9 +453,6 @@ async def to_code(config: ConfigType) -> None:
         cg.add_define("USE_OPENTHREAD_BORDER_ROUTER")
     if rcp is not None:
         cg.add_define("USE_OPENTHREAD_RCP_UART")
-    antenna_switch = config.get(CONF_ANTENNA_SWITCH)
-    if antenna_switch is not None:
-        cg.add_define("USE_OPENTHREAD_ANTENNA_SWITCH")
     if config.get(CONF_FORCE_DATASET):
         cg.add_define("USE_OPENTHREAD_FORCE_DATASET")
     if tlv := config.get(CONF_TLV):
@@ -532,39 +465,24 @@ async def to_code(config: ConfigType) -> None:
     if rcp is None:
         ot = cg.new_Pvariable(config[CONF_ID])
     else:
-        reset_pin = rcp.get(CONF_RESET_PIN)
+        reset_pin = (
+            await cg.gpio_pin_expression(rcp[CONF_RESET_PIN])
+            if CONF_RESET_PIN in rcp
+            else None
+        )
         ot = cg.new_Pvariable(
             config[CONF_ID],
             rcp[CONF_BAUD_RATE],
             rcp[CONF_RX_PIN][CONF_NUMBER],
             rcp[CONF_TX_PIN][CONF_NUMBER],
-            reset_pin[CONF_NUMBER] if reset_pin is not None else -1,
-            not reset_pin[CONF_INVERTED] if reset_pin is not None else False,
+            reset_pin,
         )
     add_use_address(ot, config[CONF_USE_ADDRESS])
     await cg.register_component(ot, config)
     if (poll_period := config.get(CONF_POLL_PERIOD)) is not None:
         cg.add(ot.set_poll_period(poll_period))
 
-    if antenna_switch is not None:
-        select_pin = await cg.gpio_pin_expression(antenna_switch[CONF_SELECT_PIN])
-        ant_args = [
-            antenna_switch[CONF_ID],
-            select_pin,
-            antenna_switch[CONF_EXTERNAL_ANTENNA],
-        ]
-        if CONF_ENABLE_PIN in antenna_switch:
-            ant_args.append(
-                await cg.gpio_pin_expression(antenna_switch[CONF_ENABLE_PIN])
-            )
-        ant = cg.new_Pvariable(*ant_args)
-        await cg.register_component(ant, antenna_switch)
-
-    if border_router:
-        border_router_config = config[CONF_BORDER_ROUTER]
-        br = cg.new_Pvariable(border_router_config[CONF_ID], ot)
-        await cg.register_component(br, border_router_config)
-    else:
+    if not border_router:
         mdns_component = await cg.get_variable(config[CONF_MDNS_ID])
         srp = cg.new_Pvariable(config[CONF_SRP_ID])
         cg.add(srp.set_mdns(mdns_component))
