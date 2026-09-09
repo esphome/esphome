@@ -1111,7 +1111,11 @@ class IDPassValidationStep(ConfigValidationStep):
                         error += f" These IDs look similar: {matches_s}."
                     result.add_str_error(error, path)
                     continue
-                if not isinstance(match.type, MockObjClass):
+                if not isinstance(match.type, MockObjClass):  # pragma: no cover
+                    # Defensive: every declared id's type comes from cv.declare_id(...),
+                    # which always supplies a real MockObjClass -- this never fires in
+                    # practice, but match.type.inherits_from(...) below would raise
+                    # AttributeError if it somehow weren't one.
                     continue
                 # id.type may be a single accepted type, or a tuple of acceptable
                 # alternatives (e.g. from the `entity_state:` shorthand).
