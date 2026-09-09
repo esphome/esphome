@@ -96,7 +96,7 @@ def _clean_platformio_python_env(config: "ProjectConfig", core_dir: Path) -> Non
         rmtree(penv)
 
 
-def _current_python_minor() -> str:
+def current_python_minor() -> str:
     """Return the running interpreter's ``major.minor`` (e.g. ``3.13``)."""
     return f"{sys.version_info.major}.{sys.version_info.minor}"
 
@@ -161,7 +161,7 @@ def heal_platformio_python_env() -> None:
 
 def _check_platformio_python_stamp(config: "ProjectConfig") -> None:
     """Compare the stamp to the running interpreter; wipe and restamp on mismatch."""
-    current = _current_python_minor()
+    current = current_python_minor()
     stamp_dir = _pio_stamp_dir(config)
     # Host the stamp/lock even before PlatformIO's first run creates the dir.
     stamp_dir.mkdir(parents=True, exist_ok=True)
@@ -289,6 +289,12 @@ def copy_ccache_script() -> None:
     )
 
 
+def default_libdeps_dir() -> str:
+    """The PLATFORMIO_LIBDEPS_DIR value a pio run defaults to; the package
+    prefetch must resolve installed libraries against the same dir."""
+    return str(CORE.relative_piolibdeps_path().absolute())
+
+
 def run_platformio_cli(*args, **kwargs) -> str | int:
     # Re-provision the PlatformIO cache if the interpreter's major.minor changed
     # since it was last built; a stale platform otherwise rejects the new Python
@@ -296,9 +302,7 @@ def run_platformio_cli(*args, **kwargs) -> str | int:
     heal_platformio_python_env()
     os.environ["PLATFORMIO_FORCE_COLOR"] = "true"
     os.environ["PLATFORMIO_BUILD_DIR"] = str(CORE.relative_pioenvs_path().absolute())
-    os.environ.setdefault(
-        "PLATFORMIO_LIBDEPS_DIR", str(CORE.relative_piolibdeps_path().absolute())
-    )
+    os.environ.setdefault("PLATFORMIO_LIBDEPS_DIR", default_libdeps_dir())
     # Suppress Python syntax warnings from third-party scripts during compilation
     os.environ.setdefault("PYTHONWARNINGS", "ignore::SyntaxWarning")
     # Increase uv retry count to handle transient network errors (default is 3)
@@ -346,6 +350,9 @@ def run_platformio_cli_run(config, verbose, *args, **kwargs) -> str | int:
 
 
 def run_compile(config, verbose):
+    from esphome.platformio.prefetch import prefetch_platformio_packages
+
+    prefetch_platformio_packages()
     args = []
     if CONF_COMPILE_PROCESS_LIMIT in config[CONF_ESPHOME]:
         args += [f"-j{config[CONF_ESPHOME][CONF_COMPILE_PROCESS_LIMIT]}"]

@@ -1,0 +1,44 @@
+#!/bin/sh
+# Prepare the dev environment for a new checkout or worktree.
+#
+# Installed into the git hooks directory by script/setup. Deliberately tiny and
+# self-contained: it stays valid on branches where script/setup does not exist,
+# and simply does nothing there.
+
+# $3 is 1 for a branch checkout, 0 for a file checkout.
+[ "$3" = "1" ] || exit 0
+
+top=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0
+
+# This also runs on ordinary branch switches, where there is nothing to do.
+[ -x "$top/venv/bin/python" ] && exit 0
+[ -x "$top/script/setup" ] || exit 0
+
+# Every worktree shares the hooks directory of the checkout it was created
+# from, and the script/setup run below is the one from whichever branch was just
+# checked out. Older branches install their own pre-commit hook without checking
+# for a worktree: that moves the shared hook aside as pre-commit.legacy and
+# replaces it with one tied to this worktree's virtual environment, so commits
+# break in every checkout. To rule that out, the hooks directory is copied
+# before script/setup runs and put back exactly as it was afterwards, including
+# removing any file script/setup added.
+hooks=$(git rev-parse --path-format=absolute --git-path hooks 2>/dev/null) || exit 0
+snap=$(mktemp -d "$hooks/.post-checkout.XXXXXX") || exit 0
+cp -p "$hooks"/* "$snap"/ 2>/dev/null
+
+# Clear VIRTUAL_ENV so a checkout made from a shell with an environment already
+# activated still gets its own, rather than having the active one repointed at
+# this working tree.
+env -u VIRTUAL_ENV "$top/script/setup"
+status=$?
+
+for f in "$hooks"/*; do
+  [ -e "$snap/${f##*/}" ] || rm -f "$f"
+done
+# Files are moved rather than copied so a hook that is still running, such as
+# this one, is swapped out atomically instead of being rewritten in place.
+for f in "$snap"/*; do
+  cmp -s "$f" "$hooks/${f##*/}" 2>/dev/null || mv -f "$f" "$hooks/${f##*/}"
+done
+rm -rf "$snap"
+exit $status

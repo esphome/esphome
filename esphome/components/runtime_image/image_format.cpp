@@ -21,6 +21,9 @@ static constexpr MimeLookup MIME_LOOKUP_TABLE[] = {
 #ifdef USE_RUNTIME_IMAGE_PNG
     {"image/png", ImageFormat::PNG},   {"image/x-png", ImageFormat::PNG},
 #endif
+#ifdef USE_RUNTIME_IMAGE_QOI
+    {"image/qoi", ImageFormat::QOI},   {"image/x-qoi", ImageFormat::QOI},
+#endif
 };
 
 const char *get_mime_type_for_format(ImageFormat format) {

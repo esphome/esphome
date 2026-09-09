@@ -54,7 +54,7 @@ static void verify_mac(uint64_t mac, size_t expected_bytes) {
   size_t ref_len = reference_encode(mac, ref_buf);
 
   APIBuffer api_buf;
-  api_buf.resize(16);
+  ASSERT_TRUE(api_buf.resize(16));
   uint8_t *pos = api_buf.data();
 #ifdef ESPHOME_DEBUG_API
   uint8_t *proto_debug_end_ = api_buf.data() + api_buf.size();

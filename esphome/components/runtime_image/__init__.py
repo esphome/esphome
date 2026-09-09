@@ -28,6 +28,7 @@ ImageDecoder = runtime_image_ns.class_("ImageDecoder")
 BmpDecoder = runtime_image_ns.class_("BmpDecoder", ImageDecoder)
 JpegDecoder = runtime_image_ns.class_("JpegDecoder", ImageDecoder)
 PngDecoder = runtime_image_ns.class_("PngDecoder", ImageDecoder)
+QoiDecoder = runtime_image_ns.class_("QoiDecoder", ImageDecoder)
 
 # Runtime image class
 RuntimeImage = runtime_image_ns.class_(
@@ -37,9 +38,10 @@ RuntimeImage = runtime_image_ns.class_(
 # Image format enum
 ImageFormat = runtime_image_ns.enum("ImageFormat")
 IMAGE_FORMAT_AUTO = ImageFormat.AUTO
+IMAGE_FORMAT_BMP = ImageFormat.BMP
 IMAGE_FORMAT_JPEG = ImageFormat.JPEG
 IMAGE_FORMAT_PNG = ImageFormat.PNG
-IMAGE_FORMAT_BMP = ImageFormat.BMP
+IMAGE_FORMAT_QOI = ImageFormat.QOI
 
 # Export enum for decode errors
 DecodeError = runtime_image_ns.enum("DecodeError")
@@ -115,14 +117,27 @@ class PNGFormat(Format):
         cg.add_library("pngle", "1.1.0")
 
 
+class QOIFormat(Format):
+    """QOI format decoder configuration."""
+
+    def __init__(self):
+        super().__init__("QOI", QoiDecoder)
+
+    def actions(self) -> None:
+        cg.add_define("USE_RUNTIME_IMAGE_QOI")
+
+
 # Decodable formats only; platforms that support runtime detection accept
 # "AUTO" in their own schema and get_format() resolves it
 _JPEG_FORMAT = JPEGFormat()
+
+# Registry of available formats
 IMAGE_FORMATS = {
     "BMP": BMPFormat(),
     "JPEG": _JPEG_FORMAT,
     "JPG": _JPEG_FORMAT,  # Alias for JPEG
     "PNG": PNGFormat(),
+    "QOI": QOIFormat(),
 }
 
 FILTER_SOURCE_FILES = filter_source_files_from_defines(

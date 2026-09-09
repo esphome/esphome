@@ -1,0 +1,18 @@
+api:
+  actions:
+    - action: play_buzzer
+      description: Play an RTTTL melody on the buzzer
+      variables:
+        song_str:
+          type: string
+          description: RTTTL melody string
+          example: "two_short:d=4,o=5,b=100:16e6,16e6"
+        volume:
+          type: int
+      then:
+        - logger.log: Action Called
+    - action: plain_action
+      variables:
+        value: int
+      then:
+        - logger.log: Action Called

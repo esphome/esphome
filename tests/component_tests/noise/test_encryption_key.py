@@ -35,3 +35,10 @@ def test_decode_encryption_key_rejects_short_decode() -> None:
     a zero padded PSK on the device."""
     with pytest.raises(cv.Invalid, match="32 bytes"):
         decode_encryption_key("AAECAw==")
+
+
+def test_validate_encryption_key_rejects_all_zeros() -> None:
+    """The all-zeros key is the provisioning sentinel the device treats as no
+    key, so it never reaches a build."""
+    with pytest.raises(cv.Invalid, match="all-zeros key is reserved"):
+        validate_encryption_key("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=")

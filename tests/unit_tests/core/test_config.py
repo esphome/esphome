@@ -3,7 +3,6 @@
 from collections.abc import Callable
 import os
 from pathlib import Path
-import types
 from typing import Any
 from unittest.mock import MagicMock, Mock, patch
 
@@ -705,33 +704,6 @@ def test_include_file_with_c_header(
         assert '#include "c_library.h"' in mock_raw_statement.text
 
 
-def test_get_usable_cpu_count() -> None:
-    """Test get_usable_cpu_count returns CPU count."""
-    count = config.get_usable_cpu_count()
-    assert isinstance(count, int)
-    assert count > 0
-
-
-def test_get_usable_cpu_count_with_process_cpu_count() -> None:
-    """Test get_usable_cpu_count uses process_cpu_count when available."""
-    # Test with process_cpu_count (Python 3.13+)
-    # Create a mock os module with process_cpu_count
-
-    mock_os = types.SimpleNamespace(process_cpu_count=lambda: 8, cpu_count=lambda: 4)
-
-    with patch("esphome.core.config.os", mock_os):
-        # When process_cpu_count exists, it should be used
-        count = config.get_usable_cpu_count()
-        assert count == 8
-
-    # Test fallback to cpu_count when process_cpu_count not available
-    mock_os_no_process = types.SimpleNamespace(cpu_count=lambda: 4)
-
-    with patch("esphome.core.config.os", mock_os_no_process):
-        count = config.get_usable_cpu_count()
-        assert count == 4
-
-
 def test_list_target_platforms(tmp_path: Path) -> None:
     """Test _list_target_platforms returns available platforms."""
     # Create mock components directory structure
@@ -1150,6 +1122,34 @@ def test_config_hash_same_for_different_config_dirs(tmp_path: Path) -> None:
     CORE.reset()
     CORE.config_path = dir2 / "device.yaml"
     CORE.config = {"esphome": {"name": "test"}, "file": dir2 / "fonts" / "arial.ttf"}
+    hash2 = CORE.config_hash
+
+    assert hash1 == hash2
+
+
+def test_config_hash_same_for_different_data_dirs(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Test that downloaded file paths hash the same wherever data_dir lives."""
+    config_dir = tmp_path / "config"
+    config_dir.mkdir()
+
+    CORE.reset()
+    CORE.config_path = config_dir / "device.yaml"
+    CORE.config = {
+        "esphome": {"name": "test"},
+        "file": config_dir / ".esphome" / "image" / "c44630d6",
+    }
+    hash1 = CORE.config_hash
+
+    other_data_dir = tmp_path / "data"
+    CORE.reset()
+    monkeypatch.setenv("ESPHOME_DATA_DIR", str(other_data_dir))
+    CORE.config_path = config_dir / "device.yaml"
+    CORE.config = {
+        "esphome": {"name": "test"},
+        "file": other_data_dir / "image" / "c44630d6",
+    }
     hash2 = CORE.config_hash
 
     assert hash1 == hash2
