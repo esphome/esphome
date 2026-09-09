@@ -1,0 +1,45 @@
+sensor:
+  - platform: opt4048
+    id: opt4048_hub
+    i2c_id: i2c_bus
+    update_interval: 15s
+    range: auto
+    conversion_time: 100ms
+    mode: oneshot
+    quick_wake: false
+    fault_count: 1
+    threshold_channel: y
+    interrupt_latch: true
+    interrupt_polarity: high
+    interrupt_direction: high
+    interrupt_config: data_ready_all
+    threshold_low: 1024
+    threshold_high: 2000000
+    illuminance:
+      name: Illuminance
+    x:
+      name: CIE x
+    y:
+      name: CIE y
+    color_temperature:
+      name: Color Temperature
+    channel_x:
+      name: Channel X
+    channel_y:
+      name: Channel Y
+    channel_z:
+      name: Channel Z
+    channel_w:
+      name: Channel W
+
+binary_sensor:
+  - platform: opt4048
+    opt4048_id: opt4048_hub
+    conversion_ready:
+      name: Conversion Ready
+    overload:
+      name: Overload
+    threshold_low:
+      name: Threshold Low
+    threshold_high:
+      name: Threshold High
