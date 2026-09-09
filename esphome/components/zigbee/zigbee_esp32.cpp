@@ -11,6 +11,9 @@
 #include "esphome/core/application.h"
 #include "esphome/core/log.h"
 #include "zigbee_helpers_esp32.h"
+#ifdef USE_XIAO_ESP32C6_RF_SWITCH
+#include "driver/gpio.h"
+#endif
 #ifdef USE_WIFI
 #include "esp_coexist.h"
 #endif

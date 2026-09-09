@@ -10,6 +10,7 @@ from esphome.components.esp32 import (
     add_idf_sdkconfig_option,
     add_partition,
     include_builtin_idf_component,
+    get_board,
     require_vfs_select,
 )
 import esphome.config_validation as cv
