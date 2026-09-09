@@ -88,7 +88,11 @@ void PMSA003IComponent::update() {
 bool PMSA003IComponent::read_data_(PM25AQIData *data) {
   uint8_t buffer[COUNT_DATA_BYTES];
 
-  this->read_bytes_raw(buffer, COUNT_DATA_BYTES);
+  const auto error = this->read(buffer, COUNT_DATA_BYTES);
+  if (error != esphome::i2c::ERROR_OK) {
+    ESP_LOGW(TAG, "Could not communicate with the device: I2C error code %d", error);
+    return false;
+  }
 
   // https://github.com/adafruit/Adafruit_PM25AQI
 
