@@ -145,7 +145,7 @@ bool AS7343::read_channels(uint8_t /*step*/, ChannelValuesUint16 &values, bool &
       AS7343_CHANNEL_405_F1, AS7343_CHANNEL_425_F2, AS7343_CHANNEL_450_FZ, AS7343_CHANNEL_475_F3,
       AS7343_CHANNEL_515_F4, AS7343_CHANNEL_555_FY, AS7343_CHANNEL_550_F5, AS7343_CHANNEL_600_FXL,
       AS7343_CHANNEL_640_F6, AS7343_CHANNEL_690_F7, AS7343_CHANNEL_745_F8, AS7343_CHANNEL_855_NIR,
-      AS7343_CHANNEL_CLEAR_0};
+      AS7343_CHANNEL_CLEAR_0};  // placeholder, values[12] is the two-cycle average below
 
   RegStatus status{0};
   if (!this->read_byte_(AS7343_STATUS, &status.raw)) {
