@@ -23,6 +23,8 @@ static constexpr uint8_t AS7341_ENABLE_SMUX_EN_BIT = 4;
 static constexpr uint8_t AS7341_ENABLE_SP_EN_BIT = 1;
 static constexpr uint8_t AS7341_ID = 0x92;
 static constexpr uint8_t AS7341_SMUX_CMD_WRITE = 2;  ///< Write SMUX configuration from RAM to SMUX chain
+static constexpr uint8_t AS7341_SMUX_RAM = 0x00;
+static constexpr uint8_t AS7341_SMUX_CONFIG_LEN = 20;
 static constexpr uint8_t AS7341_STATUS2 = 0xA3;
 static constexpr uint8_t AS7341_STATUS2_AVALID_BIT = 6;
 static constexpr uint8_t AS7341_CFG6_SMUX_CMD_SHIFT = 3;
@@ -63,20 +65,20 @@ bool AS7341::write_default_config() { return this->write_byte_(AS7341_CONFIG, AS
 
 bool AS7341::prepare_for_smux_step(uint8_t step) {
   // SMUX Config for F1,F2,F3,F4,NIR,Clear
-  static const uint8_t SMUX_CONFIG_STEP0[] = {0x30, 0x01, 0x00, 0x00, 0x00, 0x42, 0x00, 0x00, 0x50, 0x00,
-                                              0x00, 0x00, 0x20, 0x04, 0x00, 0x30, 0x01, 0x50, 0x00, 0x06};
+  static constexpr std::array<uint8_t, AS7341_SMUX_CONFIG_LEN> SMUX_CONFIG_STEP0 = {
+      0x30, 0x01, 0x00, 0x00, 0x00, 0x42, 0x00, 0x00, 0x50, 0x00,
+      0x00, 0x00, 0x20, 0x04, 0x00, 0x30, 0x01, 0x50, 0x00, 0x06};
   // SMUX Config for F5,F6,F7,F8,NIR,Clear
-  static const uint8_t SMUX_CONFIG_STEP1[] = {0x00, 0x00, 0x00, 0x40, 0x02, 0x00, 0x10, 0x03, 0x50, 0x10,
-                                              0x03, 0x00, 0x00, 0x00, 0x24, 0x00, 0x00, 0x50, 0x00, 0x06};
+  static constexpr std::array<uint8_t, AS7341_SMUX_CONFIG_LEN> SMUX_CONFIG_STEP1 = {
+      0x00, 0x00, 0x00, 0x40, 0x02, 0x00, 0x10, 0x03, 0x50, 0x10,
+      0x03, 0x00, 0x00, 0x00, 0x24, 0x00, 0x00, 0x50, 0x00, 0x06};
 
   // Set SMUX command to write
   bool ok = this->write_byte_(AS7341_CFG6, AS7341_SMUX_CMD_WRITE << AS7341_CFG6_SMUX_CMD_SHIFT);
 
   // Write SMUX configuration based on step
-  const uint8_t *config = (step == 0) ? SMUX_CONFIG_STEP0 : SMUX_CONFIG_STEP1;
-  for (uint8_t i = 0; i < 20; ++i) {
-    ok = this->write_byte_(i, config[i]) && ok;
-  }
+  const auto &config = (step == 0) ? SMUX_CONFIG_STEP0 : SMUX_CONFIG_STEP1;
+  ok = this->i2c_device_->write_bytes(AS7341_SMUX_RAM, config) && ok;
 
   // A failed enable leaves SMUX_EN clear, which is what is_smux_busy() reads, so the state machine
   // would take an unconfigured multiplexer for a finished one and publish the previous step's light.
