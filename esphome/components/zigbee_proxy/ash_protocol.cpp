@@ -2,13 +2,14 @@
 
 namespace esphome::zigbee_proxy {
 
+static const uint16_t CRC_NIBBLE_TABLE[16] = {0x0000, 0x1021, 0x2042, 0x3063, 0x4084, 0x50A5, 0x60C6, 0x70E7,
+                                              0x8108, 0x9129, 0xA14A, 0xB16B, 0xC18C, 0xD1AD, 0xE1CE, 0xF1EF};
+
 uint16_t ash_crc16(const uint8_t *data, size_t length, uint16_t init) {
   uint16_t crc = init;
   for (size_t i = 0; i < length; i++) {
-    crc ^= static_cast<uint16_t>(data[i]) << 8;
-    for (uint8_t bit = 0; bit < 8; bit++) {
-      crc = (crc & 0x8000) ? static_cast<uint16_t>((crc << 1) ^ 0x1021) : static_cast<uint16_t>(crc << 1);
-    }
+    crc = static_cast<uint16_t>(crc << 4) ^ CRC_NIBBLE_TABLE[(crc >> 12) ^ (data[i] >> 4)];
+    crc = static_cast<uint16_t>(crc << 4) ^ CRC_NIBBLE_TABLE[(crc >> 12) ^ (data[i] & 0x0F)];
   }
   return crc;
 }
