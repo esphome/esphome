@@ -26,6 +26,8 @@ USBClient = usb_host_ns.class_("USBClient", Component)
 DOMAIN = "usb_host"
 CONF_VID = "vid"
 CONF_PID = "pid"
+CONF_MANUFACTURER = "manufacturer"
+CONF_PRODUCT = "product"
 CONF_ENABLE_HUBS = "enable_hubs"
 CONF_MAX_TRANSFER_REQUESTS = "max_transfer_requests"
 CONF_MAX_PACKET_SIZE = "max_packet_size"
@@ -47,7 +49,13 @@ def usb_device_schema(
         schema = schema.extend({cv.Optional(CONF_PID, default=pid): cv.hex_uint16_t})
     else:
         schema = schema.extend({cv.Required(CONF_PID): cv.hex_uint16_t})
-    return schema
+
+    return schema.extend(
+        {
+            cv.Optional(CONF_MANUFACTURER): cv.string_strict,
+            cv.Optional(CONF_PRODUCT): cv.string_strict,
+        }
+    )
 
 
 def _set_max_packet_size(config: dict) -> dict:
@@ -91,6 +99,10 @@ CONFIG_SCHEMA = cv.All(
 async def register_usb_client(config: ConfigType) -> MockObj:
     var = cg.new_Pvariable(config[CONF_ID], config[CONF_VID], config[CONF_PID])
     await cg.register_component(var, config)
+    if (manufacturer := config.get(CONF_MANUFACTURER)) is not None:
+        cg.add(var.set_manufacturer_filter(manufacturer))
+    if (product := config.get(CONF_PRODUCT)) is not None:
+        cg.add(var.set_product_filter(product))
     return var
 
 

@@ -65,3 +65,20 @@ usb_uart:
         stop_bits: 2
         data_bits: 7
         parity: even
+  # A ZBT-2 and a ZWA-2 both enumerate as 303A:4001, so only iProduct separates them
+  - id: uart_9
+    type: cdc_acm
+    vid: 0x303A
+    pid: 0x4001
+    manufacturer: Nabu Casa
+    product: ZBT-2
+    channels:
+      - id: channel_9_1
+  - id: uart_10
+    type: cdc_acm
+    vid: 0x303A
+    pid: 0x4001
+    manufacturer: Nabu Casa
+    product: ZWA-2
+    channels:
+      - id: channel_10_1

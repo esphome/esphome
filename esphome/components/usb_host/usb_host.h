@@ -162,6 +162,11 @@ class USBClient : public Component {
   /// Returns false when no device is connected.
   bool get_device_info(UsbDeviceInfo &info) const;
 
+  /// Narrow which device this client claims, beyond the VID/PID it was constructed
+  /// with, by requiring a descriptor string to match exactly.
+  void set_manufacturer_filter(const char *manufacturer) { this->manufacturer_filter_ = manufacturer; }
+  void set_product_filter(const char *product) { this->product_filter_ = product; }
+
   // Lock-free event queue and pool for USB task to main loop communication
   // Must be public for access from static callbacks
   LockFreeQueue<UsbEvent, USB_EVENT_QUEUE_SIZE> event_queue;
@@ -179,6 +184,9 @@ class USBClient : public Component {
   TransferRequest *get_trq_();  // Lock-free allocation using atomic bitmask (multi-consumer safe)
   virtual void disconnect();
   virtual void on_connected() {}
+
+  /// Whether the device's descriptor strings satisfy every filter that is set.
+  bool descriptor_strings_match_(const usb_device_info_t &dev_info) const;
   virtual void on_disconnected() {
     // Reset all requests to available (all bits to 0)
     this->trq_in_use_.store(0);
@@ -199,6 +207,9 @@ class USBClient : public Component {
   // Bit i = 1: requests_[i] is in use, Bit i = 0: requests_[i] is available
   // Supports multiple concurrent consumers and producers (both threads can allocate/deallocate)
   std::atomic<trq_bitmask_t> trq_in_use_;
+  // Descriptor strings a device must report to be claimed; nullptr means no constraint
+  const char *manufacturer_filter_{nullptr};
+  const char *product_filter_{nullptr};
   uint16_t vid_{};
   uint16_t pid_{};
 };

@@ -177,6 +177,26 @@ static void copy_descriptor_string(const usb_str_desc_t *desc, std::span<char, D
   *p = '\0';
 }
 
+// Descriptor strings are UTF-16, so a character above Latin-1 can never match.
+static bool descriptor_string_equals(const usb_str_desc_t *desc, const char *expected) {
+  const int char_count = (desc == nullptr || desc->bLength < 2) ? 0 : (desc->bLength - 2) / 2;
+  for (int i = 0; i != char_count; i++) {
+    const uint16_t c = desc->wData[i];
+    if (c >= 0x100 || expected[i] == '\0' || static_cast<char>(c) != expected[i])
+      return false;
+  }
+  return expected[char_count] == '\0';
+}
+
+bool USBClient::descriptor_strings_match_(const usb_device_info_t &dev_info) const {
+  if (this->manufacturer_filter_ != nullptr &&
+      !descriptor_string_equals(dev_info.str_desc_manufacturer, this->manufacturer_filter_))
+    return false;
+  if (this->product_filter_ != nullptr && !descriptor_string_equals(dev_info.str_desc_product, this->product_filter_))
+    return false;
+  return true;
+}
+
 bool USBClient::get_device_info(UsbDeviceInfo &info) const {
   if (this->state_ != USB_CLIENT_CONNECTED)
     return false;
@@ -346,6 +366,16 @@ void USBClient::handle_open_state_() {
   err = usb_host_device_info(this->device_handle_, &dev_info);
   if (err != ESP_OK) {
     ESP_LOGW(TAG, "Device info failed: %s", esp_err_to_name(err));
+    this->disconnect();
+    return;
+  }
+  // Scoped so the buffers do not outlive this cold branch
+  if (!this->descriptor_strings_match_(dev_info)) {
+    char buf_manuf[DESC_STRING_BUF_SIZE];
+    char buf_product[DESC_STRING_BUF_SIZE];
+    ESP_LOGD(TAG, "Device does not match filter, closing. Manuf: %s; Prod: %s",
+             get_descriptor_string(dev_info.str_desc_manufacturer, buf_manuf),
+             get_descriptor_string(dev_info.str_desc_product, buf_product));
     this->disconnect();
     return;
   }
@@ -590,6 +620,12 @@ void USBClient::dump_config() {
                 "  Vendor id %04X\n"
                 "  Product id %04X",
                 this->vid_, this->pid_);
+  if (this->manufacturer_filter_ != nullptr) {
+    ESP_LOGCONFIG(TAG, "  Manufacturer %s", this->manufacturer_filter_);
+  }
+  if (this->product_filter_ != nullptr) {
+    ESP_LOGCONFIG(TAG, "  Product %s", this->product_filter_);
+  }
 }
 // THREAD CONTEXT: Called from both USB task and main loop threads
 // - USB task: Immediately after transfer callback completes
