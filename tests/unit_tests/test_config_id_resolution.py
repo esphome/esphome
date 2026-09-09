@@ -21,7 +21,7 @@ def _run_id_pass(declared_type, explicit_id_types: tuple) -> Config:
     config = Config()
     config["sensor"] = [{"id": ID("s1", is_declaration=True, type=declared_type)}]
     lambda_ = Lambda("return id(s1).state;")
-    lambda_.explicit_ids = [ID("s1", is_declaration=False, type=explicit_id_types)]
+    lambda_.set_requires_ids([ID("s1", is_declaration=False, type=explicit_id_types)])
     config["text_sensor"] = [{"text": lambda_}]
     IDPassValidationStep().run(config)
     return config
@@ -59,3 +59,19 @@ def test_id_pass_accepts_matching_type_in_tuple() -> None:
     config = _run_id_pass(declared_type=Sensor, explicit_id_types=(TextSensor, Sensor))
 
     assert not config.errors
+
+
+def test_id_pass_reports_missing_id_once() -> None:
+    """Regression: `entity_state:` used to attach a typed id via a separate
+    `explicit_ids` list on top of the untyped one `Lambda.requires_ids` parses out of
+    the generated source, so a nonexistent id was reported twice. `set_requires_ids`
+    replaces the parsed id instead of adding to it, so there is exactly one id here
+    and exactly one error.
+    """
+    config = Config()
+    lambda_ = Lambda("return id(missing).state;")
+    lambda_.set_requires_ids([ID("missing", is_declaration=False, type=(Sensor,))])
+    config["text_sensor"] = [{"text": lambda_}]
+    IDPassValidationStep().run(config)
+
+    assert sum("Couldn't find ID 'missing'" in str(err) for err in config.errors) == 1

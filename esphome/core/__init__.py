@@ -337,10 +337,6 @@ class Lambda:
             self._value = value
         self._parts = None
         self._requires_ids = None
-        # IDs that a validator (e.g. the `entity_state:` shorthand) already knows this lambda
-        # references, carrying a type so the id-resolution pass can check it. Separate from
-        # `requires_ids`, which is derived from the source text and always untyped.
-        self.explicit_ids: list[ID] = []
         # Set by the `argument:` shorthand to the raw parameter name it referenced, so
         # `process_lambda` can check it against the parameters actually available at the
         # call site (only known there, not at config-validation time).
@@ -374,6 +370,14 @@ class Lambda:
                 ID(self.parts[i]) for i in range(1, len(self.parts), 3)
             ]
         return self._requires_ids
+
+    def set_requires_ids(self, ids: list["ID"]) -> None:
+        """Override the ids this lambda requires, bypassing the normal parsing of
+        `id(...)` references out of the source text. Used by validators (e.g. the
+        `entity_state:` shorthand) that already know the single id this lambda
+        references, with a type the text-derived parse can't recover.
+        """
+        self._requires_ids = ids
 
     @property
     def value(self):

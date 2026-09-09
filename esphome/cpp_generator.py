@@ -832,14 +832,20 @@ def _check_argument_shorthand(
     name = value.argument_name
     if name is None:
         return
+    location = ""
+    if isinstance(value, ESPHomeDataBase) and value.esp_range is not None:
+        location = f" at {value.esp_range.start_mark}"
     match = next((t for t, pname in parameters if pname == name), None)
     if match is None:
         available = ", ".join(f"'{pname}'" for _, pname in parameters)
         raise EsphomeError(
             f"'argument: {name}' does not match any available parameter "
-            f"({available or 'none available here'})."
+            f"({available or 'none available here'}){location}."
         )
     if return_type is None:
+        # Most process_lambda() call sites don't pass return_type, so this check is
+        # skipped for them -- a mismatched argument: is only caught at those sites
+        # that do, otherwise it surfaces later as a C++ compile error.
         return
     arg_kind = _arg_kind(match)
     return_kind = _arg_kind(return_type)
@@ -850,7 +856,7 @@ def _check_argument_shorthand(
     ):
         raise EsphomeError(
             f"'argument: {name}' has type '{match}', which is not compatible with the "
-            f"expected type '{return_type}'."
+            f"expected type '{return_type}'{location}."
         )
 
 

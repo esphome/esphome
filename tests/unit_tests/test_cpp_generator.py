@@ -653,6 +653,25 @@ class TestProcessLambda:
         ):
             await cg.process_lambda(lambda_obj, [(float, "x")])
 
+    async def test_process_lambda__argument_shorthand_error_carries_location(self):
+        """The `argument:` shorthand attaches the YAML source location (see
+        `_lambda_at_source` in config_validation.py) for exactly this purpose --
+        `_check_argument_shorthand` must surface it in the error rather than leaving
+        the user to grep for `argument: y`."""
+        from esphome.core import DocumentLocation, DocumentRange, EsphomeError, Lambda
+        from esphome.yaml_util import make_data_base
+
+        source = make_data_base("dummy")
+        source._esp_range = DocumentRange(
+            DocumentLocation(document="test.yaml", line=3, column=5),
+            DocumentLocation(document="test.yaml", line=3, column=20),
+        )
+        lambda_obj = make_data_base(Lambda("return y;"), from_database=source)
+        lambda_obj.argument_name = "y"
+
+        with pytest.raises(EsphomeError, match=r"at test\.yaml 3:5"):
+            await cg.process_lambda(lambda_obj, [(float, "x")])
+
     async def test_process_lambda__argument_shorthand_no_parameters_raises(self):
         """`argument: x` must fail when the call site offers no parameters at all."""
         from esphome.core import EsphomeError, Lambda

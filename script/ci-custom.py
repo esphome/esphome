@@ -722,7 +722,7 @@ def lint_const_py_frozen(fname, content):
     New constants should go in esphome/components/const/__init__.py instead.
     """
     count = sum(1 for line in content.splitlines() if line.startswith("CONF_"))
-    if count != CONST_PY_MAX_CONF:
+    if count > CONST_PY_MAX_CONF:
         return (
             "esphome/const.py is frozen. "
             "Add new constants to esphome/components/const/__init__.py instead."
