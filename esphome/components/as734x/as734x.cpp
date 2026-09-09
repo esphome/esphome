@@ -441,7 +441,6 @@ void AS734XComponent::publish_basic_counts_() {
 }
 
 void AS734XComponent::publish_light_metrics_() {
-#ifdef USE_SENSOR
   if (this->illuminance_sensor_ != nullptr) {
     this->illuminance_sensor_->publish_state(this->calculated_.illuminance);
   }
@@ -457,7 +456,6 @@ void AS734XComponent::publish_light_metrics_() {
   if (this->color_temperature_sensor_ != nullptr) {
     this->color_temperature_sensor_->publish_state(this->calculated_.color_temperature);
   }
-#endif
 #ifdef USE_AS734X_RGB
   if (this->rgb_hex_sensor_ != nullptr) {
     this->rgb_hex_sensor_->publish_state(this->rgb_hex_);
