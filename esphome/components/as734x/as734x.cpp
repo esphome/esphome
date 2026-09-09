@@ -1,4 +1,5 @@
 #include "as734x.h"
+#include "esphome/core/application.h"
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/progmem.h"
@@ -151,7 +152,7 @@ void AS734XComponent::loop() {
 
     case State::STATE_START_MEASUREMENT:
       ESP_LOGVV(TAG, "START_MEASUREMENT");
-      this->readings_.millis_start = millis();
+      this->readings_.millis_start = App.get_loop_component_start_time();
       this->readings_.timeout_ms =
           std::max(MIN_COLLECTION_TIMEOUT_MS,
                    static_cast<uint32_t>(COLLECTION_TIMEOUT_MARGIN * this->device_->get_number_of_smux_steps() *
@@ -180,7 +181,7 @@ void AS734XComponent::loop() {
       if (!this->device_->is_smux_busy()) {
         this->device_->enable_spectral_measurement(true);
         this->state_ = State::STATE_READ_DATA;
-      } else if (millis() - this->readings_.millis_start > this->readings_.timeout_ms) {
+      } else if (App.get_loop_component_start_time() - this->readings_.millis_start > this->readings_.timeout_ms) {
         this->abort_measurement_("SMUX configuration timeout");
       }
       break;
@@ -203,7 +204,7 @@ void AS734XComponent::loop() {
         } else {
           this->state_ = State::STATE_CONFIGURE_SMUX;
         }
-      } else if (millis() - this->readings_.millis_start > this->readings_.timeout_ms) {
+      } else if (App.get_loop_component_start_time() - this->readings_.millis_start > this->readings_.timeout_ms) {
         this->abort_measurement_("Data collection timeout");
       }
       break;
