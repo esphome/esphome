@@ -9,10 +9,15 @@ import pytest
 
 from esphome.components.zephyr import (
     _MODULE_SCHEMA,
+    _build_uart_pinctrl_states_overlay,
+    _esp32_uart_group_roles,
+    _esp32_uart_signal_groups,
+    _positional_uart_group_roles,
     _resolve_board_source,
     _resolve_i2c_pinctrl_states,
     _resolve_shield_source,
     _resolve_snippet_source,
+    _resolve_uart_pinctrl_states,
     _variant_config_schema,
     add_extra_build_file,
     add_extra_script,
@@ -30,6 +35,7 @@ from esphome.components.zephyr import (
     zephyr_set_module_override,
     zephyr_setup_i2c_pinctrl,
     zephyr_setup_spi_pinctrl,
+    zephyr_setup_uart_pinctrl,
     zephyr_variant,
     zephyr_variant_family,
 )
@@ -469,6 +475,286 @@ def test_zephyr_setup_i2c_pinctrl_esp32_falls_back_when_multiple_groups() -> Non
     assert "i2c0_default {" in overlay
     assert "group1 {" in overlay
     assert "group2" not in overlay
+
+
+# ---------------------------------------------------------------------------
+# UART pinctrl state/group-role resolution
+# ---------------------------------------------------------------------------
+
+
+def test_positional_uart_group_roles_returns_group0_tx_group1_rx() -> None:
+    assert _positional_uart_group_roles("b", "uart0_default", ["group1", "group2"]) == {
+        "tx": "group1",
+        "rx": "group2",
+    }
+
+
+def test_positional_uart_group_roles_none_for_wrong_group_count() -> None:
+    assert _positional_uart_group_roles("b", "uart0_default", ["group1"]) is None
+    assert (
+        _positional_uart_group_roles(
+            "b", "uart0_default", ["group1", "group2", "group3"]
+        )
+        is None
+    )
+
+
+# ESP32_PINMUX(pin, sig_i, sig_o) with ESP_SIG_INVAL=0x1FF for "unset". Values
+# below are real, taken from a real esp32c6 compile (signal_base=6 on that
+# chip): UART0_TX_GPIO16 (sig_o=6), UART0_RX_GPIO17 (sig_i=6). RTS/CTS use
+# signal_base+1=7 in the same slots -- ESP_U0RTS_OUT/ESP_U0CTS_IN's real IDs.
+_ESP32_TX_PINMUX = 229328  # ESP32_PINMUX(16, NOSIG, 6)
+_ESP32_RX_PINMUX = 16744849  # ESP32_PINMUX(17, 6, NOSIG)
+_ESP32_RTS_PINMUX = 262080  # ESP32_PINMUX(0, NOSIG, 7)
+_ESP32_CTS_PINMUX = 16744897  # ESP32_PINMUX(1, 7, NOSIG)
+_ESP32_C6_UART0_SIGNAL_BASE = 6
+
+
+def test_esp32_uart_signal_groups_identifies_tx_and_rx_from_real_values() -> None:
+    with patch(
+        "esphome.components.zephyr.dts_lookup.get_pinctrl_group_property",
+        side_effect=lambda board, label, group, prop: {
+            "group1": [_ESP32_TX_PINMUX],
+            "group2": [_ESP32_RX_PINMUX],
+        }[group],
+    ):
+        assert _esp32_uart_signal_groups(
+            "b", "uart0_default", ["group1", "group2"], _ESP32_C6_UART0_SIGNAL_BASE
+        ) == {"tx": "group1", "rx": "group2"}
+
+
+def test_esp32_uart_signal_groups_identifies_swapped_order() -> None:
+    # Confirms this doesn't just assume group[0]=TX -- swap which group has
+    # which real value and the result follows the content, not the position.
+    with patch(
+        "esphome.components.zephyr.dts_lookup.get_pinctrl_group_property",
+        side_effect=lambda board, label, group, prop: {
+            "group1": [_ESP32_RX_PINMUX],
+            "group2": [_ESP32_TX_PINMUX],
+        }[group],
+    ):
+        assert _esp32_uart_signal_groups(
+            "b", "uart0_default", ["group1", "group2"], _ESP32_C6_UART0_SIGNAL_BASE
+        ) == {"tx": "group2", "rx": "group1"}
+
+
+def test_esp32_uart_signal_groups_distinguishes_tx_from_rts() -> None:
+    # TX and RTS are both output-role (sig_o populated) -- only the exact
+    # signal ID (base vs base+1) tells them apart, not direction alone.
+    with patch(
+        "esphome.components.zephyr.dts_lookup.get_pinctrl_group_property",
+        side_effect=lambda board, label, group, prop: {
+            "group1": [_ESP32_TX_PINMUX, _ESP32_RTS_PINMUX],
+            "group2": [_ESP32_RX_PINMUX, _ESP32_CTS_PINMUX],
+        }[group],
+    ):
+        assert _esp32_uart_signal_groups(
+            "b", "uart0_default", ["group1", "group2"], _ESP32_C6_UART0_SIGNAL_BASE
+        ) == {"tx": "group1", "rts": "group1", "rx": "group2", "cts": "group2"}
+
+
+def test_esp32_uart_signal_groups_empty_when_property_unavailable() -> None:
+    with patch(
+        "esphome.components.zephyr.dts_lookup.get_pinctrl_group_property",
+        return_value=None,
+    ):
+        assert (
+            _esp32_uart_signal_groups(
+                "b", "uart0_default", ["group1", "group2"], _ESP32_C6_UART0_SIGNAL_BASE
+            )
+            == {}
+        )
+
+
+def test_esp32_uart_group_roles_resolver_none_for_unknown_instance() -> None:
+    CORE.data[KEY_ZEPHYR] = _empty_zephyr_data(variant="ESP32C6")
+    # Instance 9 doesn't exist on ESP32C6 (only 0 and 1 are defined).
+    assert _esp32_uart_group_roles("some_board", "uart9") is None
+
+
+def test_esp32_uart_group_roles_resolver_binds_real_instance_signal_base() -> None:
+    CORE.data[KEY_ZEPHYR] = _empty_zephyr_data(variant="ESP32C6")
+    resolver = _esp32_uart_group_roles("some_board", "uart0")
+    assert resolver is not None
+    with patch(
+        "esphome.components.zephyr.dts_lookup.get_pinctrl_group_property",
+        side_effect=lambda board, label, group, prop: {
+            "group1": [_ESP32_TX_PINMUX],
+            "group2": [_ESP32_RX_PINMUX],
+        }[group],
+    ):
+        assert resolver("some_board", "uart0_default", ["group1", "group2"]) == {
+            "tx": "group1",
+            "rx": "group2",
+        }
+
+
+def test_resolve_uart_pinctrl_states_uses_default_positional_resolver() -> None:
+    with patch(
+        "esphome.components.zephyr.dts_lookup.get_pinctrl_states",
+        return_value=[("uart0_default", ["group1", "group2"])],
+    ):
+        assert _resolve_uart_pinctrl_states("b", "uart0", "<TX>", "<RX>") == [
+            ("uart0_default", [("group1", "<TX>"), ("group2", "<RX>")])
+        ]
+
+
+def test_resolve_uart_pinctrl_states_uses_injected_resolver() -> None:
+    def fake_resolver(board, label, groups):
+        return {"tx": groups[1], "rx": groups[0]}  # opposite of positional
+
+    with patch(
+        "esphome.components.zephyr.dts_lookup.get_pinctrl_states",
+        return_value=[("uart0_default", ["group1", "group2"])],
+    ):
+        assert _resolve_uart_pinctrl_states(
+            "b", "uart0", "<TX>", "<RX>", group_role_resolver=fake_resolver
+        ) == [("uart0_default", [("group2", "<TX>"), ("group1", "<RX>")])]
+
+
+def test_resolve_uart_pinctrl_states_combines_single_group() -> None:
+    with patch(
+        "esphome.components.zephyr.dts_lookup.get_pinctrl_states",
+        return_value=[("uart0_sleep", ["group1"])],
+    ):
+        assert _resolve_uart_pinctrl_states("b", "uart0", "<TX>", "<RX>") == [
+            ("uart0_sleep", [("group1", "<TX>, <RX>")])
+        ]
+
+
+def test_resolve_uart_pinctrl_states_falls_back_when_resolver_cant_determine() -> None:
+    with patch(
+        "esphome.components.zephyr.dts_lookup.get_pinctrl_states",
+        return_value=[("uart0_default", ["groupA", "groupB"])],
+    ):
+        assert _resolve_uart_pinctrl_states(
+            "b", "uart0", "<TX>", "<RX>", group_role_resolver=lambda *a: None
+        ) == [("uart0_default", [("group1", "<TX>"), ("group2", "<RX>")])]
+
+
+def test_resolve_uart_pinctrl_states_resolver_used_for_more_than_2_groups() -> None:
+    # Real shape confirmed on dptechnics/walter (esp32s3): TX/RX/RTS/CTS each
+    # get their own group, 4 total -- the positional guess can't handle this
+    # (only ever succeeds at exactly 2), but a content-aware resolver can.
+    def four_group_resolver(board, label, groups):
+        return {"tx": "group1", "rx": "group2", "rts": "group3", "cts": "group4"}
+
+    with patch(
+        "esphome.components.zephyr.dts_lookup.get_pinctrl_states",
+        return_value=[("uart1_default", ["group1", "group2", "group3", "group4"])],
+    ):
+        assert _resolve_uart_pinctrl_states(
+            "b", "uart1", "<TX>", "<RX>", group_role_resolver=four_group_resolver
+        ) == [("uart1_default", [("group1", "<TX>"), ("group2", "<RX>")])]
+
+
+def test_resolve_uart_pinctrl_states_positional_falls_back_for_4_groups() -> None:
+    # _positional_uart_group_roles only ever succeeds at exactly 2 groups --
+    # for 4, it correctly declines rather than guessing nonsense.
+    with patch(
+        "esphome.components.zephyr.dts_lookup.get_pinctrl_states",
+        return_value=[("uart1_default", ["group1", "group2", "group3", "group4"])],
+    ):
+        assert _resolve_uart_pinctrl_states("b", "uart1", "<TX>", "<RX>") == [
+            ("uart1_default", [("group1", "<TX>"), ("group2", "<RX>")])
+        ]
+
+
+def test_resolve_uart_pinctrl_states_falls_back_when_dts_unresolved() -> None:
+    with patch(
+        "esphome.components.zephyr.dts_lookup.get_pinctrl_states",
+        return_value=None,
+    ):
+        assert _resolve_uart_pinctrl_states("b", "uart0", "<TX>", "<RX>") == [
+            ("uart0_default", [("group1", "<TX>"), ("group2", "<RX>")])
+        ]
+
+
+def test_build_uart_pinctrl_states_overlay_emits_per_group_blocks() -> None:
+    overlay = _build_uart_pinctrl_states_overlay(
+        [("uart0_default", [("group1", "<TX>"), ("group2", "<RX>")])], "pinmux"
+    )
+    assert "uart0_default {" in overlay
+    assert "group1 {" in overlay
+    assert "pinmux = <TX>;" in overlay
+    assert "group2 {" in overlay
+    assert "pinmux = <RX>;" in overlay
+
+
+def test_build_uart_pinctrl_states_overlay_skips_empty_states() -> None:
+    overlay = _build_uart_pinctrl_states_overlay(
+        [("uart0_default", [("group1", "<TX>")]), ("uart0_sleep", [])], "pinmux"
+    )
+    assert "uart0_default {" in overlay
+    assert "uart0_sleep" not in overlay
+
+
+# ---------------------------------------------------------------------------
+# zephyr_setup_uart_pinctrl -- the public entry point uart/__init__.py calls;
+# owns family/group-role resolution internally so callers only pass real pins.
+# ---------------------------------------------------------------------------
+
+
+def test_zephyr_setup_uart_pinctrl_no_pins_enables_bus_only() -> None:
+    CORE.data[KEY_ZEPHYR] = _empty_zephyr_data(variant="ESP32C6")
+    with patch(
+        "esphome.components.zephyr.dts_lookup.has_pinctrl_configured",
+        return_value=True,
+    ):
+        zephyr_setup_uart_pinctrl("some_board", "uart0", None, None, 115200)
+    overlay = CORE.data[KEY_ZEPHYR]["overlay"][""]
+    assert '&uart0 { status = "okay"; };' in overlay
+    assert "current-speed" not in overlay
+
+
+def test_zephyr_setup_uart_pinctrl_no_pins_warns_when_board_has_no_pinctrl() -> None:
+    CORE.data[KEY_ZEPHYR] = _empty_zephyr_data(variant="ESP32C6")
+    with patch(
+        "esphome.components.zephyr.dts_lookup.has_pinctrl_configured",
+        return_value=False,
+    ):
+        zephyr_setup_uart_pinctrl("some_board", "uart0", None, None, 115200)
+    overlay = CORE.data[KEY_ZEPHYR]["overlay"][""]
+    assert '&uart0 { status = "okay"; };' in overlay
+
+
+def test_zephyr_setup_uart_pinctrl_esp32_uses_gpio_macros_and_role_decode() -> None:
+    CORE.data[KEY_ZEPHYR] = _empty_zephyr_data(variant="ESP32C6")
+    with (
+        patch(
+            "esphome.components.zephyr.dts_lookup.get_pinctrl_states",
+            return_value=[("uart0_default", ["group1", "group2"])],
+        ),
+        patch(
+            "esphome.components.zephyr.dts_lookup.get_pinctrl_group_property",
+            side_effect=lambda board, label, group, prop: {
+                "group1": [_ESP32_RX_PINMUX],  # deliberately swapped from position
+                "group2": [_ESP32_TX_PINMUX],
+            }[group],
+        ),
+    ):
+        zephyr_setup_uart_pinctrl("some_board", "uart0", 16, 17, 115200)
+    overlay = CORE.data[KEY_ZEPHYR]["overlay"][""]
+    assert "UART0_TX_GPIO16" in overlay
+    assert "UART0_RX_GPIO17" in overlay
+    # Content-decoded role wins over position: TX value lands in group2, since
+    # group2 is the one whose real pinmux value decodes as the output signal.
+    group2_idx = overlay.index("group2 {")
+    assert "pinmux = <UART0_TX_GPIO16>;" in overlay[group2_idx:]
+    assert "current-speed = <115200>;" in overlay
+    assert "pinctrl-0 = <&uart0_default>;" in overlay
+
+
+def test_zephyr_setup_uart_pinctrl_rpi_pico_uses_p_suffix_and_position() -> None:
+    CORE.data[KEY_ZEPHYR] = _empty_zephyr_data(variant="RP2040")
+    with patch(
+        "esphome.components.zephyr.dts_lookup.get_pinctrl_states",
+        return_value=None,
+    ):
+        zephyr_setup_uart_pinctrl("some_board", "uart1", 8, 9, 115200)
+    overlay = CORE.data[KEY_ZEPHYR]["overlay"][""]
+    assert "UART1_TX_P8" in overlay
+    assert "UART1_RX_P9" in overlay
 
 
 # ---------------------------------------------------------------------------

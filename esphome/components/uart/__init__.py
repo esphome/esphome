@@ -477,16 +477,12 @@ async def to_code(config):
             from esphome.components.zephyr import (
                 KEY_BOARD,
                 VARIANTS,
-                _build_uart_pinctrl_states_overlay,
-                _resolve_uart_pinctrl_states,
-                zephyr_add_overlay,
                 zephyr_add_prj_conf,
                 zephyr_data,
+                zephyr_setup_uart_pinctrl,
                 zephyr_variant,
-                zephyr_variant_family,
             )
             from esphome.components.zephyr.dts_lookup import (
-                has_pinctrl_configured,
                 resolve_uart_node_label,
                 validate_dts_label_exists,
             )
@@ -516,46 +512,13 @@ async def to_code(config):
                     port_label,
                 )
             )
-            if CONF_TX_PIN in config or CONF_RX_PIN in config:
-                prefix = port_label.upper()
-                # rp2040/rp2350 pinctrl macros are `_P{n}`, esp32-family is `_GPIO{n}`.
-                pin_suffix = "P" if zephyr_variant_family() == "rpi_pico" else "GPIO"
-                tx_value = (
-                    f"<{prefix}_TX_{pin_suffix}{config[CONF_TX_PIN][CONF_NUMBER]}>"
-                    if CONF_TX_PIN in config
-                    else None
-                )
-                rx_value = (
-                    f"<{prefix}_RX_{pin_suffix}{config[CONF_RX_PIN][CONF_NUMBER]}>"
-                    if CONF_RX_PIN in config
-                    else None
-                )
-                states = _resolve_uart_pinctrl_states(
-                    zephyr_data()[KEY_BOARD], port_label, tx_value, rx_value
-                )
-                zephyr_add_overlay(_build_uart_pinctrl_states_overlay(states, "pinmux"))
-                default_label = states[0][0]
-                # current-speed must exist in DT for the driver's init macro regardless
-                # of value; the real baud rate is set at runtime by uart_configure().
-                zephyr_add_overlay(
-                    f'&{port_label} {{ status = "okay"; '
-                    f"current-speed = <{config[CONF_BAUD_RATE]}>; "
-                    f'pinctrl-0 = <&{default_label}>; pinctrl-names = "default"; }};'
-                )
-            else:
-                # Without this, a board with no pre-wired pinctrl-0 fails with a
-                # confusing low-level binding-schema error instead of a clear one.
-                if not has_pinctrl_configured(zephyr_data()[KEY_BOARD], port_label):
-                    _LOGGER.warning(
-                        "Board '%s' has no pinctrl configured for port '%s' (node "
-                        "'%s') -- assuming you've configured it yourself via "
-                        "`zephyr: overlays:`. If not, this will fail at "
-                        "devicetree-compile time.",
-                        zephyr_data()[KEY_BOARD],
-                        port_value,
-                        port_label,
-                    )
-                zephyr_add_overlay(f'&{port_label} {{ status = "okay"; }};')
+            zephyr_setup_uart_pinctrl(
+                zephyr_data()[KEY_BOARD],
+                port_label,
+                config[CONF_TX_PIN][CONF_NUMBER] if CONF_TX_PIN in config else None,
+                config[CONF_RX_PIN][CONF_NUMBER] if CONF_RX_PIN in config else None,
+                config[CONF_BAUD_RATE],
+            )
         else:
             cg.add(var.set_name(config[CONF_PORT]))
     elif CONF_EMULATION in config:

@@ -113,6 +113,32 @@ def get_pinctrl_states(board: str, label: str) -> list[tuple[str, list[str]]] | 
     return None
 
 
+def get_pinctrl_group_property(
+    board: str, pinctrl_label: str, group_name: str, property_name: str
+) -> list[int] | None:
+    """Return the resolved integer values of `property_name` (e.g. "pinmux")
+    on the child node `group_name` of the devicetree node labeled
+    `pinctrl_label`, or None if unavailable. `pinctrl_label` is expected to be
+    a real label already resolved via get_pinctrl_states() -- this lets a
+    caller decode a family's own bit-encoding (e.g. ESP32's ESP32_PINMUX
+    sig_i/sig_o fields) to determine which group carries which signal from
+    real, already-parsed data, instead of assuming group order."""
+    edt = _get_edt(board)
+    if edt is None:
+        return None
+    for node in _iter_nodes(edt):
+        if pinctrl_label not in node.labels:
+            continue
+        group_node = node.children.get(group_name)
+        if group_node is None:
+            return None
+        prop = group_node.props.get(property_name)
+        if prop is None or not isinstance(prop.val, list):
+            return None
+        return prop.val
+    return None
+
+
 def get_watchdog_node_label(board: str) -> tuple[str | None, bool]:
     """Return (label, already_working) for this board's watchdog -- found by
     binding path under `.../bindings/watchdog/`, not a per-family list, so any

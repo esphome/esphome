@@ -397,31 +397,123 @@ def _build_i2c_pinctrl_states_overlay(
     """
 
 
+def _positional_uart_group_roles(
+    board: str, label: str, groups: list[str]
+) -> dict[str, str] | None:
+    """Default group-role guess: group[0]=TX, group[1]=RX by position. Not
+    universally safe -- nrf54lm20dk's uart20 swaps group order between its
+    "default" and "sleep" states -- used only where no better signal exists."""
+    if len(groups) != 2:
+        return None
+    return {"tx": groups[0], "rx": groups[1]}
+
+
+_ESP32_PINMUX_SIGI_SHIFT = 6
+_ESP32_PINMUX_SIGO_SHIFT = 15
+_ESP32_PINMUX_SIG_MASK = 0x1FF
+_ESP32_PINMUX_NOSIG = 0x1FF  # ESP_SIG_INVAL in esp-pinctrl-common.h
+
+# UART instance -> GPIO matrix signal ID shared by RXD_IN/TXD_OUT (CTS_IN/RTS_OUT
+# always use that ID + 1) -- verified against every esp32-family chip's own
+# <chip>-gpio-sigmap.h in scope. Direction (sig_i vs sig_o) alone can't tell TX
+# from RTS or RX from CTS (RXD_IN/TXD_OUT and CTS_IN/RTS_OUT are each a shared ID
+# used in different direction slots) -- this ID is what actually distinguishes them.
+_ESP32_UART_INSTANCE_SIGNAL_BASE = {
+    ZEPHYR_VARIANT_ESP32: {0: 14, 1: 17, 2: 198},
+    ZEPHYR_VARIANT_ESP32_C3: {0: 6, 1: 9},
+    ZEPHYR_VARIANT_ESP32_C5: {0: 6, 1: 9},
+    ZEPHYR_VARIANT_ESP32_C6: {0: 6, 1: 9},
+    ZEPHYR_VARIANT_ESP32_H2: {0: 6, 1: 9},
+}
+
+
+def _esp32_uart_signal_groups(
+    board: str, label: str, groups: list[str], signal_base: int
+) -> dict[str, str]:
+    """Return {"tx": group, "rx": group, "rts": group, "cts": group} (only
+    keys actually found), decoding every value of each group's real pinmux
+    property against this UART instance's real signal IDs -- RXD_IN and
+    TXD_OUT share `signal_base`, CTS_IN and RTS_OUT share `signal_base + 1`.
+    Reads the whole values list, not just the first entry, since a board may
+    combine e.g. TX and RTS in one group's pinmux array."""
+    from .dts_lookup import get_pinctrl_group_property
+
+    signals: dict[str, str] = {}
+    for group in groups:
+        for value in get_pinctrl_group_property(board, label, group, "pinmux") or []:
+            sig_i = (value >> _ESP32_PINMUX_SIGI_SHIFT) & _ESP32_PINMUX_SIG_MASK
+            sig_o = (value >> _ESP32_PINMUX_SIGO_SHIFT) & _ESP32_PINMUX_SIG_MASK
+            if sig_o == signal_base:
+                signals["tx"] = group
+            elif sig_o == signal_base + 1:
+                signals["rts"] = group
+            elif sig_i == signal_base:
+                signals["rx"] = group
+            elif sig_i == signal_base + 1:
+                signals["cts"] = group
+    return signals
+
+
+def _esp32_uart_group_roles(
+    board: str, port_label: str
+) -> Callable[[str, str, list[str]], dict[str, str] | None] | None:
+    """Return a group_role_resolver bound to port_label's real UART instance
+    signal IDs, or None if the instance/variant isn't in
+    _ESP32_UART_INSTANCE_SIGNAL_BASE (falls back to the positional guess)."""
+    instance = (
+        int(port_label.removeprefix("uart")) if port_label[4:].isdigit() else None
+    )
+    signal_base = _ESP32_UART_INSTANCE_SIGNAL_BASE.get(zephyr_variant(), {}).get(
+        instance
+    )
+    if signal_base is None:
+        return None
+
+    def resolver(board: str, label: str, groups: list[str]) -> dict[str, str] | None:
+        signals = _esp32_uart_signal_groups(board, label, groups, signal_base)
+        if "tx" not in signals or "rx" not in signals:
+            return None
+        return signals
+
+    return resolver
+
+
 def _resolve_uart_pinctrl_states(
     board: str,
     port_label: str,
     tx_value: str | None,
     rx_value: str | None,
+    group_role_resolver=None,
 ) -> list[tuple[str, list[tuple[str, str]]]]:
     """Return [(pinctrl_label, [(group_name, value), ...]), ...] for every
     pinctrl state on port_label, deciding per state whether TX/RX share one
-    group or need two from that state's real DTS group count (some boards
-    split TX/RX for "default" but combine them for "sleep", e.g. nRF52).
-    Falls back to a guessed `{port_label}_default` with a group1=TX/group2=RX
-    split (with a warning) when DTS resolves nothing, or when a resolved state
-    has a group count other than 1 or 2."""
+    group or need more (some boards split TX/RX/RTS/CTS into 4 separate
+    groups, e.g. dptechnics/walter; nRF52 combines TX/RX into one group for
+    "sleep" but splits them for "default").
+
+    `group_role_resolver(board, label, groups)` returns {"tx": group, "rx":
+    group, ...} for a state's groups (any count > 1) -- None (the default)
+    only ever succeeds for exactly 2 groups (a position-based guess), but a
+    family with a real way to tell (e.g. esp32's pinmux encoding) can pass a
+    resolver that reads the actual group content instead, and isn't limited
+    to 2 groups. Falls back to the positional guess (with a warning) when DTS
+    resolves nothing, or a state's "tx"/"rx" roles can't both be determined.
+    """
     from .dts_lookup import get_pinctrl_states
 
-    def _values_for_groups(groups: list[str]) -> list[tuple[str, str]]:
-        if len(groups) == 1:
-            values = [v for v in (tx_value, rx_value) if v is not None]
-            return [(groups[0], ", ".join(values))] if values else []
+    group_role_resolver = group_role_resolver or _positional_uart_group_roles
+
+    def _values_for_roles(tx_group: str, rx_group: str) -> list[tuple[str, str]]:
         result = []
         if tx_value is not None:
-            result.append((groups[0], tx_value))
+            result.append((tx_group, tx_value))
         if rx_value is not None:
-            result.append((groups[1], rx_value))
+            result.append((rx_group, rx_value))
         return result
+
+    def _values_for_combined_group(group: str) -> list[tuple[str, str]]:
+        values = [v for v in (tx_value, rx_value) if v is not None]
+        return [(group, ", ".join(values))] if values else []
 
     states = get_pinctrl_states(board, port_label)
     if states is None:
@@ -434,23 +526,26 @@ def _resolve_uart_pinctrl_states(
             port_label,
             label,
         )
-        return [(label, _values_for_groups(["group1", "group2"]))]
+        return [(label, _values_for_roles("group1", "group2"))]
 
     resolved: list[tuple[str, list[tuple[str, str]]]] = []
     for label, groups in states:
-        if len(groups) in (1, 2):
-            resolved.append((label, _values_for_groups(groups)))
+        if len(groups) == 1:
+            resolved.append((label, _values_for_combined_group(groups[0])))
+            continue
+        roles = group_role_resolver(board, label, groups)
+        if roles is not None:
+            resolved.append((label, _values_for_roles(roles["tx"], roles["rx"])))
             continue
         _LOGGER.warning(
-            "Board '%s''s pinctrl node '%s' has %d groups (%s), not the 1 or 2 "
-            "TX/RX expect -- assuming a group1/group2 split. If that's wrong, "
-            "this will fail at devicetree-compile time.",
+            "Could not determine TX/RX group roles for board '%s''s pinctrl "
+            "node '%s' (groups: %s) -- assuming a group1/group2 split. If "
+            "that's wrong, this will fail at devicetree-compile time.",
             board,
             label,
-            len(groups),
             ", ".join(groups),
         )
-        resolved.append((label, _values_for_groups(["group1", "group2"])))
+        resolved.append((label, _values_for_roles("group1", "group2")))
     return resolved
 
 
@@ -485,6 +580,59 @@ def _build_uart_pinctrl_states_overlay(
             {"".join(state_blocks)}
         }};
     """
+
+
+def zephyr_setup_uart_pinctrl(
+    board: str,
+    port_label: str,
+    tx_pin: int | None,
+    rx_pin: int | None,
+    baud_rate: int,
+) -> None:
+    """Add the TX/RX pinctrl overlay (if either pin is given) and the bus-enable
+    overlay for `port_label`, mirroring zephyr_setup_i2c_pinctrl()/
+    zephyr_setup_spi_pinctrl()'s shape: this owns the whole family-specific
+    macro/group-role resolution internally so callers only ever deal in real
+    pin numbers, not devicetree overlay text."""
+    if tx_pin is None and rx_pin is None:
+        from .dts_lookup import has_pinctrl_configured
+
+        if not has_pinctrl_configured(board, port_label):
+            _LOGGER.warning(
+                "Board '%s' has no pinctrl configured for port '%s' -- "
+                "assuming you've configured it yourself via `zephyr: "
+                "overlays:`. If not, this will fail at devicetree-compile "
+                "time.",
+                board,
+                port_label,
+            )
+        zephyr_add_overlay(f'&{port_label} {{ status = "okay"; }};')
+        return
+
+    prefix = port_label.upper()
+    family = zephyr_variant_family()
+    # rp2040/rp2350 pinctrl macros are `_P{n}`, esp32-family is `_GPIO{n}`.
+    pin_suffix = "P" if family == "rpi_pico" else "GPIO"
+    tx_value = f"<{prefix}_TX_{pin_suffix}{tx_pin}>" if tx_pin is not None else None
+    rx_value = f"<{prefix}_RX_{pin_suffix}{rx_pin}>" if rx_pin is not None else None
+    # esp32's pinmux encoding lets group roles be read from real DTS content
+    # instead of assumed by position -- see _esp32_uart_signal_groups()'s
+    # docstring for why that matters.
+    group_role_resolver = (
+        _esp32_uart_group_roles(board, port_label) if family == "esp32" else None
+    )
+    states = _resolve_uart_pinctrl_states(
+        board, port_label, tx_value, rx_value, group_role_resolver=group_role_resolver
+    )
+    zephyr_add_overlay(_build_uart_pinctrl_states_overlay(states, "pinmux"))
+    default_label = states[0][0]
+    # current-speed must exist in DT for the driver's init macro regardless of
+    # value; the real baud rate is set at runtime by uart_configure().
+    zephyr_add_overlay(
+        f'&{port_label} {{ status = "okay"; '
+        f"current-speed = <{baud_rate}>; "
+        f'pinctrl-0 = <&{default_label}>; pinctrl-names = "default"; }};'
+    )
 
 
 def zephyr_setup_i2c_pinctrl(

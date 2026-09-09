@@ -26,6 +26,7 @@ from esphome.components.zephyr.dts_lookup import (
     get_can_controller_labels,
     get_i2c_controller_labels,
     get_i2c_pinctrl_esp32,
+    get_pinctrl_group_property,
     get_pinctrl_states,
     get_spi_controller_labels,
     get_uart_controller_labels,
@@ -70,6 +71,7 @@ class _FakeNode:
         aliases: list[str] | None = None,
         binding_path: str | None = None,
         children: dict[str, _FakeNode] | None = None,
+        props: dict[str, object] | None = None,
     ) -> None:
         self.labels = labels or []
         self.status = status
@@ -82,6 +84,12 @@ class _FakeNode:
         self.aliases = aliases or []
         self.binding_path = binding_path
         self.children = children or {}
+        self.props = props or {}
+
+
+class _FakeProp:
+    def __init__(self, val: object) -> None:
+        self.val = val
 
 
 class _FakeEdt:
@@ -732,6 +740,51 @@ def test_get_pinctrl_states_none_when_conf_node_has_no_label(
     spi2 = _FakeNode(labels=["spi2"], pinctrls=[_FakePinCtrl([unlabeled])])
     monkeypatch.setattr(dts_lookup, "_get_edt", lambda board: _FakeEdt([spi2]))
     assert get_pinctrl_states("some_board", "spi2") is None
+
+
+def test_get_pinctrl_group_property_returns_real_values(monkeypatch) -> None:
+    group1 = _FakeNode(labels=[], props={"pinmux": _FakeProp([229328])})
+    uart0_default = _FakeNode(labels=["uart0_default"], children={"group1": group1})
+    monkeypatch.setattr(dts_lookup, "_get_edt", lambda board: _FakeEdt([uart0_default]))
+    assert get_pinctrl_group_property(
+        "some_board", "uart0_default", "group1", "pinmux"
+    ) == [229328]
+
+
+def test_get_pinctrl_group_property_none_for_unknown_group(monkeypatch) -> None:
+    uart0_default = _FakeNode(labels=["uart0_default"], children={})
+    monkeypatch.setattr(dts_lookup, "_get_edt", lambda board: _FakeEdt([uart0_default]))
+    assert (
+        get_pinctrl_group_property("some_board", "uart0_default", "group1", "pinmux")
+        is None
+    )
+
+
+def test_get_pinctrl_group_property_none_for_unknown_property(monkeypatch) -> None:
+    group1 = _FakeNode(labels=[], props={})
+    uart0_default = _FakeNode(labels=["uart0_default"], children={"group1": group1})
+    monkeypatch.setattr(dts_lookup, "_get_edt", lambda board: _FakeEdt([uart0_default]))
+    assert (
+        get_pinctrl_group_property("some_board", "uart0_default", "group1", "pinmux")
+        is None
+    )
+
+
+def test_get_pinctrl_group_property_none_for_unknown_label(monkeypatch) -> None:
+    uart0_default = _FakeNode(labels=["uart0_default"])
+    monkeypatch.setattr(dts_lookup, "_get_edt", lambda board: _FakeEdt([uart0_default]))
+    assert (
+        get_pinctrl_group_property("some_board", "uart1_default", "group1", "pinmux")
+        is None
+    )
+
+
+def test_get_pinctrl_group_property_none_without_dts(monkeypatch) -> None:
+    monkeypatch.setattr(dts_lookup, "_get_edt", lambda board: None)
+    assert (
+        get_pinctrl_group_property("some_board", "uart0_default", "group1", "pinmux")
+        is None
+    )
 
 
 def test_get_watchdog_node_label_already_working(monkeypatch) -> None:
