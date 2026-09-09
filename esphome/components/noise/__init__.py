@@ -88,7 +88,7 @@ def encryption_schema(config: ConfigType | None) -> ConfigType:
 
 async def to_code(config: ConfigType) -> None:
     cg.add_define("USE_NOISE")
-    cg.add_library("esphome/noise-c", "0.1.26")
+    cg.add_library("esphome/noise-c", "0.1.27")
     # noise-c depends on libsodium, but declaring it here too lets the
     # library manager see the full set up front instead of discovering
     # libsodium only after noise-c has downloaded, so the two can download
@@ -97,3 +97,8 @@ async def to_code(config: ConfigType) -> None:
     # Enable optimized memzero/memcmp in libsodium instead of volatile byte loops
     cg.add_build_flag("-DHAVE_WEAK_SYMBOLS=1")
     cg.add_build_flag("-DHAVE_INLINE_ASM=1")
+    # The handshake is built from algorithm ids and never names a protocol, so
+    # noise-c can leave its name tables and the fallback and hfs modifiers out
+    cg.add_build_flag("-DNOISE_USE_PROTOCOL_NAME_TABLE=0")
+    cg.add_build_flag("-DNOISE_USE_FALLBACK=0")
+    cg.add_build_flag("-DNOISE_USE_HFS=0")
