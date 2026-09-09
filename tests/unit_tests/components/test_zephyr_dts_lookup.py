@@ -26,6 +26,7 @@ from esphome.components.zephyr.dts_lookup import (
     get_can_controller_labels,
     get_i2c_controller_labels,
     get_i2c_pinctrl_esp32,
+    get_pinctrl_states,
     get_spi_controller_labels,
     get_uart_controller_labels,
     get_watchdog_node_label,
@@ -68,6 +69,7 @@ class _FakeNode:
         pinctrls: list[object] | None = None,
         aliases: list[str] | None = None,
         binding_path: str | None = None,
+        children: dict[str, _FakeNode] | None = None,
     ) -> None:
         self.labels = labels or []
         self.status = status
@@ -79,6 +81,7 @@ class _FakeNode:
         self.pinctrls = pinctrls or []
         self.aliases = aliases or []
         self.binding_path = binding_path
+        self.children = children or {}
 
 
 class _FakeEdt:
@@ -634,6 +637,101 @@ def test_has_pinctrl_configured_false_without_dts(monkeypatch) -> None:
     CORE.data[KEY_ZEPHYR] = _empty_zd()
     monkeypatch.setattr(dts_lookup, "_get_edt", lambda board: None)
     assert has_pinctrl_configured("some_board", "uart0") is False
+
+
+class _FakePinCtrl:
+    def __init__(self, conf_nodes: list[_FakeNode]) -> None:
+        self.conf_nodes = conf_nodes
+
+
+def test_get_pinctrl_states_reads_real_conf_node_label_and_single_group(
+    monkeypatch,
+) -> None:
+    # esp32's real shape: &spi2's pinctrl-0 points at spim2_default, not spi2_default,
+    # with a single shared "group1" child.
+    CORE.data[KEY_ZEPHYR] = _empty_zd()
+    group1 = _FakeNode(labels=[])
+    spim2_default = _FakeNode(labels=["spim2_default"], children={"group1": group1})
+    spi2 = _FakeNode(labels=["spi2"], pinctrls=[_FakePinCtrl([spim2_default])])
+    monkeypatch.setattr(dts_lookup, "_get_edt", lambda board: _FakeEdt([spi2]))
+    assert get_pinctrl_states("some_board", "spi2") == [("spim2_default", ["group1"])]
+
+
+def test_get_pinctrl_states_returns_every_pinctrl_n_state(monkeypatch) -> None:
+    # nRF52's real shape: pinctrl-0 = default, pinctrl-1 = sleep -- both states
+    # must come back, in pinctrl-<N> index order.
+    CORE.data[KEY_ZEPHYR] = _empty_zd()
+    i2c0_default = _FakeNode(
+        labels=["i2c0_default"], children={"group1": _FakeNode(labels=[])}
+    )
+    i2c0_sleep = _FakeNode(
+        labels=["i2c0_sleep"], children={"group1": _FakeNode(labels=[])}
+    )
+    i2c0 = _FakeNode(
+        labels=["i2c0"],
+        pinctrls=[_FakePinCtrl([i2c0_default]), _FakePinCtrl([i2c0_sleep])],
+    )
+    monkeypatch.setattr(dts_lookup, "_get_edt", lambda board: _FakeEdt([i2c0]))
+    assert get_pinctrl_states("some_board", "i2c0") == [
+        ("i2c0_default", ["group1"]),
+        ("i2c0_sleep", ["group1"]),
+    ]
+
+
+def test_get_pinctrl_states_reports_multiple_groups(monkeypatch) -> None:
+    # The UART TX/RX shape: some boards split signals across more than one group.
+    CORE.data[KEY_ZEPHYR] = _empty_zd()
+    uart1_default = _FakeNode(
+        labels=["uart1_default"],
+        children={"group1": _FakeNode(labels=[]), "group2": _FakeNode(labels=[])},
+    )
+    uart1 = _FakeNode(labels=["uart1"], pinctrls=[_FakePinCtrl([uart1_default])])
+    monkeypatch.setattr(dts_lookup, "_get_edt", lambda board: _FakeEdt([uart1]))
+    assert get_pinctrl_states("some_board", "uart1") == [
+        ("uart1_default", ["group1", "group2"])
+    ]
+
+
+def test_get_pinctrl_states_true_on_ancestor(monkeypatch) -> None:
+    CORE.data[KEY_ZEPHYR] = _empty_zd()
+    sci2_default = _FakeNode(
+        labels=["sci2_default"], children={"group1": _FakeNode(labels=[])}
+    )
+    sci2 = _FakeNode(labels=["sci2"], pinctrls=[_FakePinCtrl([sci2_default])])
+    uart2 = _FakeNode(labels=["uart2"], parent=sci2)
+    monkeypatch.setattr(dts_lookup, "_get_edt", lambda board: _FakeEdt([sci2, uart2]))
+    assert get_pinctrl_states("some_board", "uart2") == [("sci2_default", ["group1"])]
+
+
+def test_get_pinctrl_states_none_when_absent(monkeypatch) -> None:
+    CORE.data[KEY_ZEPHYR] = _empty_zd()
+    nodes = [_FakeNode(labels=["spi2"])]
+    monkeypatch.setattr(dts_lookup, "_get_edt", lambda board: _FakeEdt(nodes))
+    assert get_pinctrl_states("some_board", "spi2") is None
+
+
+def test_get_pinctrl_states_none_for_unknown_label(monkeypatch) -> None:
+    CORE.data[KEY_ZEPHYR] = _empty_zd()
+    spim2_default = _FakeNode(labels=["spim2_default"])
+    spi2 = _FakeNode(labels=["spi2"], pinctrls=[_FakePinCtrl([spim2_default])])
+    monkeypatch.setattr(dts_lookup, "_get_edt", lambda board: _FakeEdt([spi2]))
+    assert get_pinctrl_states("some_board", "spi9") is None
+
+
+def test_get_pinctrl_states_none_without_dts(monkeypatch) -> None:
+    CORE.data[KEY_ZEPHYR] = _empty_zd()
+    monkeypatch.setattr(dts_lookup, "_get_edt", lambda board: None)
+    assert get_pinctrl_states("some_board", "spi2") is None
+
+
+def test_get_pinctrl_states_none_when_conf_node_has_no_label(
+    monkeypatch,
+) -> None:
+    CORE.data[KEY_ZEPHYR] = _empty_zd()
+    unlabeled = _FakeNode(labels=[])
+    spi2 = _FakeNode(labels=["spi2"], pinctrls=[_FakePinCtrl([unlabeled])])
+    monkeypatch.setattr(dts_lookup, "_get_edt", lambda board: _FakeEdt([spi2]))
+    assert get_pinctrl_states("some_board", "spi2") is None
 
 
 def test_get_watchdog_node_label_already_working(monkeypatch) -> None:

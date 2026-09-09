@@ -323,6 +323,170 @@ def zephyr_only_on_variant(*variant_names: str):
     return validator
 
 
+def _resolve_i2c_pinctrl_states(
+    board: str,
+    bus_label: str,
+    fallback_group: str,
+    fallback_state_suffixes: tuple[str, ...] = ("default",),
+) -> list[tuple[str, str]]:
+    """Return [(pinctrl_label, group_name), ...] for every pinctrl state (e.g.
+    "default" and "sleep") to merge SDA+SCL into. Falls back to guessing
+    `{bus_label}_{suffix}`/`fallback_group` per `fallback_state_suffixes` (with
+    a warning) when DTS resolves nothing, and to `fallback_group` for any
+    resolved state with more than one group (the shape UART's TX/RX split
+    hit)."""
+    from .dts_lookup import get_pinctrl_states
+
+    states = get_pinctrl_states(board, bus_label)
+    if states is None:
+        _LOGGER.warning(
+            "Could not resolve board '%s''s real pinctrl node for '%s' from "
+            "devicetree -- assuming '%s_%s'/'%s' for each state. If that's "
+            "wrong, this will fail at devicetree-compile time.",
+            board,
+            bus_label,
+            bus_label,
+            "/".join(fallback_state_suffixes),
+            fallback_group,
+        )
+        return [
+            (f"{bus_label}_{suffix}", fallback_group)
+            for suffix in fallback_state_suffixes
+        ]
+
+    resolved: list[tuple[str, str]] = []
+    for label, groups in states:
+        if len(groups) == 1:
+            resolved.append((label, groups[0]))
+            continue
+        _LOGGER.warning(
+            "Board '%s''s pinctrl node '%s' has %d groups (%s), not the single "
+            "shared group SDA/SCL expect -- assuming '%s'. If that's wrong, "
+            "this will fail at devicetree-compile time.",
+            board,
+            label,
+            len(groups),
+            ", ".join(groups),
+            fallback_group,
+        )
+        resolved.append((label, fallback_group))
+    return resolved
+
+
+def _build_i2c_pinctrl_states_overlay(
+    states: list[tuple[str, str]], property_name: str, value: str
+) -> str:
+    """Build a `&pinctrl { <label> { <group> { <property_name> = <value>; }; };
+    ... };` overlay merging the same property/value into every (label, group)
+    in `states` -- e.g. both "default" and "sleep" -- so remapped pins stay
+    consistent across every state a board defines."""
+    blocks = "\n".join(
+        f"""
+                {label} {{
+                    {group} {{
+                        {property_name} = {value};
+                    }};
+                }};
+        """
+        for label, group in states
+    )
+    return f"""
+        &pinctrl {{
+            {blocks}
+        }};
+    """
+
+
+def _resolve_uart_pinctrl_states(
+    board: str,
+    port_label: str,
+    tx_value: str | None,
+    rx_value: str | None,
+) -> list[tuple[str, list[tuple[str, str]]]]:
+    """Return [(pinctrl_label, [(group_name, value), ...]), ...] for every
+    pinctrl state on port_label, deciding per state whether TX/RX share one
+    group or need two from that state's real DTS group count (some boards
+    split TX/RX for "default" but combine them for "sleep", e.g. nRF52).
+    Falls back to a guessed `{port_label}_default` with a group1=TX/group2=RX
+    split (with a warning) when DTS resolves nothing, or when a resolved state
+    has a group count other than 1 or 2."""
+    from .dts_lookup import get_pinctrl_states
+
+    def _values_for_groups(groups: list[str]) -> list[tuple[str, str]]:
+        if len(groups) == 1:
+            values = [v for v in (tx_value, rx_value) if v is not None]
+            return [(groups[0], ", ".join(values))] if values else []
+        result = []
+        if tx_value is not None:
+            result.append((groups[0], tx_value))
+        if rx_value is not None:
+            result.append((groups[1], rx_value))
+        return result
+
+    states = get_pinctrl_states(board, port_label)
+    if states is None:
+        label = f"{port_label}_default"
+        _LOGGER.warning(
+            "Could not resolve board '%s''s real pinctrl node for '%s' from "
+            "devicetree -- assuming '%s' with a TX/RX group1/group2 split. If "
+            "that's wrong, this will fail at devicetree-compile time.",
+            board,
+            port_label,
+            label,
+        )
+        return [(label, _values_for_groups(["group1", "group2"]))]
+
+    resolved: list[tuple[str, list[tuple[str, str]]]] = []
+    for label, groups in states:
+        if len(groups) in (1, 2):
+            resolved.append((label, _values_for_groups(groups)))
+            continue
+        _LOGGER.warning(
+            "Board '%s''s pinctrl node '%s' has %d groups (%s), not the 1 or 2 "
+            "TX/RX expect -- assuming a group1/group2 split. If that's wrong, "
+            "this will fail at devicetree-compile time.",
+            board,
+            label,
+            len(groups),
+            ", ".join(groups),
+        )
+        resolved.append((label, _values_for_groups(["group1", "group2"])))
+    return resolved
+
+
+def _build_uart_pinctrl_states_overlay(
+    states: list[tuple[str, list[tuple[str, str]]]], property_name: str
+) -> str:
+    """Build a `&pinctrl { <label> { <group> { <property_name> = <value>; }; ...
+    }; ... };` overlay from _resolve_uart_pinctrl_states()'s output -- one group
+    block per (group, value) pair per state, so TX/RX land together when a
+    state combines them into one group and separately when it splits them."""
+    state_blocks = []
+    for label, group_values in states:
+        if not group_values:
+            continue
+        group_blocks = "\n".join(
+            f"""
+                    {group} {{
+                        {property_name} = {value};
+                    }};
+            """
+            for group, value in group_values
+        )
+        state_blocks.append(
+            f"""
+                {label} {{
+                    {group_blocks}
+                }};
+            """
+        )
+    return f"""
+        &pinctrl {{
+            {"".join(state_blocks)}
+        }};
+    """
+
+
 def zephyr_setup_i2c_pinctrl(
     board: str, bus_label: str, sda: int | None, scl: int | None
 ) -> tuple[str, str]:
@@ -365,11 +529,9 @@ def zephyr_setup_i2c_pinctrl(
     if variant_name == ZEPHYR_VARIANT_NATIVE_SIM:
         # No pinctrl node -- the emulated controller has no physical pins.
         zephyr_add_overlay(f'&{bus_label} {{ status = "okay"; }};')
-    elif CORE.is_nrf52 or zephyr_variant_family() == "nordic":
+    elif CORE.is_nrf52:
         # nRF52's TWIM has fully flexible pin muxing and no fixed I2C pins in the board
         # DTS, so a custom pinctrl overlay must be generated for whatever pins the user picked.
-        # Same devicetree shape whether this is platform: nrf52 or platform: zephyr's
-        # nordic-family variant -- identical physical TWIM peripheral either way.
         zephyr_add_overlay(
             f"""
                 &pinctrl {{
@@ -388,20 +550,30 @@ def zephyr_setup_i2c_pinctrl(
                 }};
             """
         )
+    elif zephyr_variant_family() == "nordic":
+        # Same peripheral as platform: nrf52 above, but resolved via DTS first
+        # like esp32/silabs, in case a board ever does pre-wire it.
+        states = _resolve_i2c_pinctrl_states(
+            board, bus_label, "group1", fallback_state_suffixes=("default", "sleep")
+        )
+        zephyr_add_overlay(
+            _build_i2c_pinctrl_states_overlay(
+                states,
+                "psels",
+                f"<NRF_PSEL(TWIM_SDA, {sda // 32}, {sda % 32})>, "
+                f"<NRF_PSEL(TWIM_SCL, {scl // 32}, {scl % 32})>",
+            )
+        )
     elif zephyr_variant_family() == "esp32":
-        # i2c*_default keeps SDA+SCL in one group1 -- override just `pinmux` so the
-        # board's own properties (bias-pull-up etc.) merge through untouched.
+        # Override just `pinmux` on the board's own resolved group(s) so their
+        # other properties (bias-pull-up etc.) merge through untouched.
+        states = _resolve_i2c_pinctrl_states(board, bus_label, "group1")
         prefix = bus_label.upper()
-        pinctrl_overlay = f"""
-            &pinctrl {{
-                {bus_label}_default {{
-                    group1 {{
-                        pinmux = <{prefix}_SDA_GPIO{sda}>,
-                            <{prefix}_SCL_GPIO{scl}>;
-                    }};
-                }};
-            }};
-        """
+        pinctrl_overlay = _build_i2c_pinctrl_states_overlay(
+            states,
+            "pinmux",
+            f"<{prefix}_SDA_GPIO{sda}>, <{prefix}_SCL_GPIO{scl}>",
+        )
         if zephyr_variant() == ZEPHYR_VARIANT_ESP32:
             # Original ESP32 lacks hardware bus-clear support, so i2c_esp32.c needs
             # explicit sda-gpios/scl-gpios to recover a stuck bus in software. Every
@@ -419,21 +591,17 @@ def zephyr_setup_i2c_pinctrl(
     elif zephyr_variant_family() == "silabs":
         # Same reasoning as esp32, override just `pins`. Silabs macros are lettered-port
         # form ({BUS}_{SIGNAL}_P{port}{n}, e.g. I2C0_SDA_PC5), not ESP32's flat GPIO{n}.
+        states = _resolve_i2c_pinctrl_states(board, bus_label, "group0")
         prefix = bus_label.upper()
         port_width = VARIANTS[variant_name].gpio_port_width
         sda_letter, sda_pin = chr(ord("A") + sda // port_width), sda % port_width
         scl_letter, scl_pin = chr(ord("A") + scl // port_width), scl % port_width
         zephyr_add_overlay(
-            f"""
-                &pinctrl {{
-                    {bus_label}_default {{
-                        group0 {{
-                            pins = <{prefix}_SCL_P{scl_letter}{scl_pin}>,
-                                <{prefix}_SDA_P{sda_letter}{sda_pin}>;
-                        }};
-                    }};
-                }};
-            """
+            _build_i2c_pinctrl_states_overlay(
+                states,
+                "pins",
+                f"<{prefix}_SCL_P{scl_letter}{scl_pin}>, <{prefix}_SDA_P{sda_letter}{sda_pin}>",
+            )
         )
     else:
         # No overlay-generation branch for this family -- don't silently ignore the pins.

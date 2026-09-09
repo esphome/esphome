@@ -10,6 +10,7 @@ import pytest
 from esphome.components.zephyr import (
     _MODULE_SCHEMA,
     _resolve_board_source,
+    _resolve_i2c_pinctrl_states,
     _resolve_shield_source,
     _resolve_snippet_source,
     _variant_config_schema,
@@ -55,6 +56,7 @@ from esphome.const import (
     KEY_FRAMEWORK_VERSION,
     KEY_TARGET_PLATFORM,
     PLATFORM_ESP32,
+    PLATFORM_NRF52,
     PLATFORM_ZEPHYR,
     TYPE_GIT,
     TYPE_LOCAL,
@@ -244,6 +246,46 @@ def test_zephyr_add_overlay_appends_across_multiple_calls() -> None:
 
 
 # ---------------------------------------------------------------------------
+# _resolve_i2c_pinctrl_states
+# ---------------------------------------------------------------------------
+
+
+def test_resolve_i2c_pinctrl_states_returns_every_resolved_state() -> None:
+    with patch(
+        "esphome.components.zephyr.dts_lookup.get_pinctrl_states",
+        return_value=[("i2c0_default", ["group1"]), ("i2c0_sleep", ["group1"])],
+    ):
+        assert _resolve_i2c_pinctrl_states("some_board", "i2c0", "group1") == [
+            ("i2c0_default", "group1"),
+            ("i2c0_sleep", "group1"),
+        ]
+
+
+def test_resolve_i2c_pinctrl_states_falls_back_when_unresolved() -> None:
+    with patch(
+        "esphome.components.zephyr.dts_lookup.get_pinctrl_states",
+        return_value=None,
+    ):
+        assert _resolve_i2c_pinctrl_states("some_board", "i2c0", "group1") == [
+            ("i2c0_default", "group1")
+        ]
+
+
+def test_resolve_i2c_pinctrl_states_falls_back_per_state_when_multiple_groups() -> None:
+    with patch(
+        "esphome.components.zephyr.dts_lookup.get_pinctrl_states",
+        return_value=[
+            ("i2c0_default", ["group1"]),
+            ("i2c0_sleep", ["group1", "group2"]),
+        ],
+    ):
+        assert _resolve_i2c_pinctrl_states("some_board", "i2c0", "group1") == [
+            ("i2c0_default", "group1"),
+            ("i2c0_sleep", "group1"),
+        ]
+
+
+# ---------------------------------------------------------------------------
 # zephyr_setup_i2c_pinctrl -- the mechanism ZEPHYR_ESP32_ADC1_PIN_TO_CHANNEL's
 # sibling feature (get_i2c_pinctrl_esp32) plugs into via pinctrl_extractors.
 # ---------------------------------------------------------------------------
@@ -319,6 +361,114 @@ def test_zephyr_setup_i2c_pinctrl_native_sim_adds_status_overlay_only() -> None:
     assert '&i2c0 { status = "okay"; };' in overlay
     # No pinctrl node -- native_sim's emulated controller has no physical pins.
     assert "pinctrl" not in overlay
+
+
+def test_zephyr_setup_i2c_pinctrl_legacy_nrf52_always_generates_both_states() -> None:
+    # platform: nrf52 is reached via CORE.is_nrf52, not zephyr_variant_family()
+    # (which is always None for it) -- its own branch, untouched by the DTS
+    # resolution the zephyr_variant_family() == "nordic" branch below does.
+    CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: PLATFORM_NRF52}
+    CORE.data[KEY_ZEPHYR] = _empty_zephyr_data()
+    zephyr_setup_i2c_pinctrl("some_board", "i2c0", sda=6, scl=7)
+    overlay = CORE.data[KEY_ZEPHYR]["overlay"][""]
+    assert "i2c0_default {" in overlay
+    assert "i2c0_sleep {" in overlay
+    # Once per state (default, sleep) -- both must carry the remapped pins.
+    assert overlay.count("NRF_PSEL(TWIM_SDA, 0, 6)") == 2
+    assert overlay.count("NRF_PSEL(TWIM_SCL, 0, 7)") == 2
+
+
+def test_zephyr_setup_i2c_pinctrl_nordic_falls_back_to_both_states() -> None:
+    # Nothing pre-wired for I2C on real nordic boards -- the fallback must
+    # still synthesize both "default" and "sleep", not just "default".
+    _set_non_nrf52_target_platform()
+    CORE.data[KEY_ZEPHYR] = _empty_zephyr_data(variant="NRF52")
+    with patch(
+        "esphome.components.zephyr.dts_lookup.get_pinctrl_states",
+        return_value=None,
+    ):
+        zephyr_setup_i2c_pinctrl("some_board", "i2c0", sda=6, scl=7)
+    overlay = CORE.data[KEY_ZEPHYR]["overlay"][""]
+    assert "i2c0_default {" in overlay
+    assert "i2c0_sleep {" in overlay
+
+
+def test_zephyr_setup_i2c_pinctrl_nordic_uses_real_dts_state_if_present() -> None:
+    # If a board ever does pre-wire I2C pinctrl, merge into it like esp32/silabs.
+    _set_non_nrf52_target_platform()
+    CORE.data[KEY_ZEPHYR] = _empty_zephyr_data(variant="NRF52")
+    with patch(
+        "esphome.components.zephyr.dts_lookup.get_pinctrl_states",
+        return_value=[("i2c0_default", ["group1"])],
+    ):
+        zephyr_setup_i2c_pinctrl("some_board", "i2c0", sda=6, scl=7)
+    overlay = CORE.data[KEY_ZEPHYR]["overlay"][""]
+    assert "i2c0_default {" in overlay
+    assert "i2c0_sleep" not in overlay
+
+
+def test_zephyr_setup_i2c_pinctrl_esp32_merges_into_dts_resolved_node() -> None:
+    # The board's real pinctrl label can differ from `{bus_label}_default` (e.g.
+    # SPI's spim<N>_default) -- merge into whatever DTS actually resolves to.
+    _set_non_nrf52_target_platform()
+    CORE.data[KEY_ZEPHYR] = _empty_zephyr_data(variant="ESP32H2")
+    with patch(
+        "esphome.components.zephyr.dts_lookup.get_pinctrl_states",
+        return_value=[("some_other_label", ["group3"])],
+    ):
+        zephyr_setup_i2c_pinctrl("some_board", "i2c0", sda=6, scl=7)
+    overlay = CORE.data[KEY_ZEPHYR]["overlay"][""]
+    assert "some_other_label {" in overlay
+    assert "group3 {" in overlay
+    assert "i2c0_default" not in overlay
+
+
+def test_zephyr_setup_i2c_pinctrl_esp32_merges_into_every_state() -> None:
+    # Remapped pins must land in every state a board defines (e.g. both
+    # "default" and "sleep"), not just the active one -- otherwise "sleep"
+    # would keep referencing the board's original pins.
+    _set_non_nrf52_target_platform()
+    CORE.data[KEY_ZEPHYR] = _empty_zephyr_data(variant="ESP32H2")
+    with patch(
+        "esphome.components.zephyr.dts_lookup.get_pinctrl_states",
+        return_value=[("i2c0_default", ["group1"]), ("i2c0_sleep", ["group1"])],
+    ):
+        zephyr_setup_i2c_pinctrl("some_board", "i2c0", sda=6, scl=7)
+    overlay = CORE.data[KEY_ZEPHYR]["overlay"][""]
+    assert "i2c0_default {" in overlay
+    assert "i2c0_sleep {" in overlay
+    assert overlay.count("I2C0_SDA_GPIO6") == 2
+    assert overlay.count("I2C0_SCL_GPIO7") == 2
+
+
+def test_zephyr_setup_i2c_pinctrl_esp32_falls_back_when_dts_unresolved() -> None:
+    _set_non_nrf52_target_platform()
+    CORE.data[KEY_ZEPHYR] = _empty_zephyr_data(variant="ESP32H2")
+    with patch(
+        "esphome.components.zephyr.dts_lookup.get_pinctrl_states",
+        return_value=None,
+    ):
+        zephyr_setup_i2c_pinctrl("some_board", "i2c0", sda=6, scl=7)
+    overlay = CORE.data[KEY_ZEPHYR]["overlay"][""]
+    assert "i2c0_default {" in overlay
+    assert "group1 {" in overlay
+
+
+def test_zephyr_setup_i2c_pinctrl_esp32_falls_back_when_multiple_groups() -> None:
+    # Mirrors UART's TX/RX group1/group2 split -- SDA/SCL grouping can't be
+    # guessed from structure alone, so this falls back with a warning instead
+    # of guessing which signal belongs in which group.
+    _set_non_nrf52_target_platform()
+    CORE.data[KEY_ZEPHYR] = _empty_zephyr_data(variant="ESP32H2")
+    with patch(
+        "esphome.components.zephyr.dts_lookup.get_pinctrl_states",
+        return_value=[("i2c0_default", ["group1", "group2"])],
+    ):
+        zephyr_setup_i2c_pinctrl("some_board", "i2c0", sda=6, scl=7)
+    overlay = CORE.data[KEY_ZEPHYR]["overlay"][""]
+    assert "i2c0_default {" in overlay
+    assert "group1 {" in overlay
+    assert "group2" not in overlay
 
 
 # ---------------------------------------------------------------------------

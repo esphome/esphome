@@ -477,6 +477,8 @@ async def to_code(config):
             from esphome.components.zephyr import (
                 KEY_BOARD,
                 VARIANTS,
+                _build_uart_pinctrl_states_overlay,
+                _resolve_uart_pinctrl_states,
                 zephyr_add_overlay,
                 zephyr_add_prj_conf,
                 zephyr_data,
@@ -484,7 +486,6 @@ async def to_code(config):
                 zephyr_variant_family,
             )
             from esphome.components.zephyr.dts_lookup import (
-                dts_node_label_exists,
                 has_pinctrl_configured,
                 resolve_uart_node_label,
                 validate_dts_label_exists,
@@ -516,53 +517,30 @@ async def to_code(config):
                 )
             )
             if CONF_TX_PIN in config or CONF_RX_PIN in config:
-                # Board pinctrl splits TX into group1, RX into group2 -- overriding
-                # just `pinmux` there keeps whatever else the board put on each group
-                # (e.g. RX's bias-pull-up).
-                node_label = f"{port_label}_default"
-                node_exists = dts_node_label_exists(
-                    zephyr_data()[KEY_BOARD], node_label
-                )
-                if not node_exists:
-                    _LOGGER.warning(
-                        "Board '%s' has no '%s' devicetree node -- assuming you've "
-                        "defined it yourself via `zephyr: overlays:`. If not, this "
-                        "will fail at devicetree-compile time.",
-                        zephyr_data()[KEY_BOARD],
-                        node_label,
-                    )
                 prefix = port_label.upper()
                 # rp2040/rp2350 pinctrl macros are `_P{n}`, esp32-family is `_GPIO{n}`.
                 pin_suffix = "P" if zephyr_variant_family() == "rpi_pico" else "GPIO"
-                tx_pinmux = (
-                    f"""&pinctrl {{
-                        {node_label} {{
-                            group1 {{
-                                pinmux = <{prefix}_TX_{pin_suffix}{config[CONF_TX_PIN][CONF_NUMBER]}>;
-                            }};
-                        }};
-                    }};"""
-                    if CONF_TX_PIN in config and node_exists
-                    else ""
+                tx_value = (
+                    f"<{prefix}_TX_{pin_suffix}{config[CONF_TX_PIN][CONF_NUMBER]}>"
+                    if CONF_TX_PIN in config
+                    else None
                 )
-                rx_pinmux = (
-                    f"""&pinctrl {{
-                        {node_label} {{
-                            group2 {{
-                                pinmux = <{prefix}_RX_{pin_suffix}{config[CONF_RX_PIN][CONF_NUMBER]}>;
-                            }};
-                        }};
-                    }};"""
-                    if CONF_RX_PIN in config and node_exists
-                    else ""
+                rx_value = (
+                    f"<{prefix}_RX_{pin_suffix}{config[CONF_RX_PIN][CONF_NUMBER]}>"
+                    if CONF_RX_PIN in config
+                    else None
                 )
-                zephyr_add_overlay(f"{tx_pinmux}\n{rx_pinmux}")
+                states = _resolve_uart_pinctrl_states(
+                    zephyr_data()[KEY_BOARD], port_label, tx_value, rx_value
+                )
+                zephyr_add_overlay(_build_uart_pinctrl_states_overlay(states, "pinmux"))
+                default_label = states[0][0]
                 # current-speed must exist in DT for the driver's init macro regardless
                 # of value; the real baud rate is set at runtime by uart_configure().
                 zephyr_add_overlay(
                     f'&{port_label} {{ status = "okay"; '
                     f"current-speed = <{config[CONF_BAUD_RATE]}>; "
-                    f'pinctrl-0 = <&{port_label}_default>; pinctrl-names = "default"; }};'
+                    f'pinctrl-0 = <&{default_label}>; pinctrl-names = "default"; }};'
                 )
             else:
                 # Without this, a board with no pre-wired pinctrl-0 fails with a

@@ -79,6 +79,40 @@ def has_pinctrl_configured(board: str, label: str) -> bool:
     return False
 
 
+def _pinctrl_states_for_node(node) -> list[tuple[str, list[str]]] | None:
+    """Return [(real_label, child_group_names), ...] built from `node`'s own
+    pinctrl-<N> properties, or None if a referenced conf node lacks a label."""
+    states: list[tuple[str, list[str]]] = []
+    for pinctrl in node.pinctrls:
+        conf_nodes = pinctrl.conf_nodes
+        if not conf_nodes or not conf_nodes[0].labels:
+            return None
+        conf_node = conf_nodes[0]
+        states.append((conf_node.labels[0], list(conf_node.children)))
+    return states
+
+
+def get_pinctrl_states(board: str, label: str) -> list[tuple[str, list[str]]] | None:
+    """Return [(real_label, child_group_names), ...] for every pinctrl-<N> state
+    on the node `label` (or an ancestor) -- e.g. both "default" and "sleep" --
+    or None if unavailable. Reads the real pinctrl-<N> = <&...> phandles via
+    edtlib's Node.pinctrls[*].conf_nodes instead of guessing a
+    `<label>_default`-style name, which no Zephyr binding guarantees (e.g.
+    esp32 labels it `spim<N>_default` for `&spi<N>`, not `spi<N>_default`)."""
+    edt = _get_edt(board)
+    if edt is None:
+        return None
+    for node in _iter_nodes(edt):
+        if label not in node.labels:
+            continue
+        while node is not None:
+            if node.pinctrls:
+                return _pinctrl_states_for_node(node)
+            node = node.parent
+        return None
+    return None
+
+
 def get_watchdog_node_label(board: str) -> tuple[str | None, bool]:
     """Return (label, already_working) for this board's watchdog -- found by
     binding path under `.../bindings/watchdog/`, not a per-family list, so any
