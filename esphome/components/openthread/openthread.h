@@ -36,12 +36,14 @@ class OpenThreadComponent final : public Component {
  public:
   OpenThreadComponent();
 #ifdef USE_OPENTHREAD_RCP_UART
-  OpenThreadComponent(uint32_t rcp_baud_rate, int rcp_rx_pin, int rcp_tx_pin, int rcp_reset_pin,
-                      bool rcp_reset_active_level);
+  OpenThreadComponent(uint32_t rcp_baud_rate, int rcp_rx_pin, int rcp_tx_pin, GPIOPin *rcp_reset_pin);
 #endif
   ~OpenThreadComponent();
   void dump_config() override;
   void setup() override;
+#ifdef USE_OPENTHREAD_BORDER_ROUTER
+  void loop() override;
+#endif
   bool teardown() override;
   float get_setup_priority() const override {
 #ifdef USE_OPENTHREAD_BORDER_ROUTER
@@ -116,9 +118,11 @@ class OpenThreadComponent final : public Component {
   uint32_t rcp_baud_rate_{0};
   int rcp_rx_pin_{-1};
   int rcp_tx_pin_{-1};
-  int rcp_reset_pin_{-1};
-  bool rcp_reset_active_level_{false};
-  uint8_t rcp_reset_attempts_{0};
+  GPIOPin *rcp_reset_pin_{nullptr};
+#endif
+#ifdef USE_OPENTHREAD_BORDER_ROUTER
+  bool border_router_started_{false};
+  uint16_t lock_wait_failures_{0};
 #endif
 
  private:
@@ -128,46 +132,6 @@ class OpenThreadComponent final : public Component {
 };
 
 extern OpenThreadComponent *global_openthread_component;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-
-#ifdef USE_OPENTHREAD_BORDER_ROUTER
-class OpenThreadBorderRouterComponent final : public Component {
- public:
-  explicit OpenThreadBorderRouterComponent(OpenThreadComponent *openthread) : openthread_(openthread) {}
-
-  void setup() override;
-  void loop() override;
-  void dump_config() override;
-  bool teardown() override;
-  // Runs after mDNS (AFTER_CONNECTION) so the border router's own SRP/mDNS integration
-  // sees a fully set up mDNS component.
-  float get_setup_priority() const override { return setup_priority::AFTER_CONNECTION - 1.0f; }
-
- protected:
-  OpenThreadComponent *openthread_;
-  bool started_{false};
-  uint16_t lock_wait_failures_{0};
-};
-#endif
-
-#ifdef USE_OPENTHREAD_ANTENNA_SWITCH
-// Configures a GPIO-based RF antenna switch (e.g. the Seeed Studio XIAO ESP32-C6's
-// onboard-ceramic vs external u.FL antenna select). Runs at HARDWARE priority so the
-// antenna is selected before Wi-Fi or the native 802.15.4 radio start using it.
-class OpenThreadAntennaSwitchComponent final : public Component {
- public:
-  OpenThreadAntennaSwitchComponent(GPIOPin *select_pin, bool external_antenna, GPIOPin *enable_pin = nullptr)
-      : select_pin_(select_pin), external_antenna_(external_antenna), enable_pin_(enable_pin) {}
-
-  void setup() override;
-  void dump_config() override;
-  float get_setup_priority() const override { return setup_priority::HARDWARE; }
-
- protected:
-  GPIOPin *select_pin_;
-  bool external_antenna_;
-  GPIOPin *enable_pin_;
-};
-#endif
 
 #ifndef USE_OPENTHREAD_BORDER_ROUTER
 class OpenThreadSrpComponent final : public Component {
