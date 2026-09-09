@@ -19,6 +19,7 @@ from esphome.components.zephyr import (
     _resolve_shield_source,
     _resolve_snippet_source,
     _resolve_uart_pinctrl_states,
+    _silabs_uart_group_roles,
     _variant_config_schema,
     add_extra_build_file,
     add_extra_script,
@@ -657,6 +658,77 @@ def test_nordic_uart_group_roles_none_when_property_unavailable() -> None:
         )
 
 
+# SILABS_DBUS(port, pin, periph_base, en_present, en_bit, route) (silabs-pinctrl-dbus.h).
+# en_bit (bits 19-23) is fixed per signal across every USART instance/chip
+# (verified xg22/xg24/xg26): TX=4, RX=2, RTS=1, CTS=0. Values below are
+# USART0_TX_PA5/USART0_RX_PA6 (xg24_ek2703a's real usart0_default) plus synthetic
+# RTS/CTS on PA0/PA1 sharing the same periph_base=184.
+_SILABS_TX_PINS = 639940688  # USART0_TX_PA5
+_SILABS_RX_PINS = 605337696  # USART0_RX_PA6
+_SILABS_RTS_PINS = 588036096  # USART0_RTS_PA0
+_SILABS_CTS_PINS = 570472464  # USART0_CTS_PA1
+
+
+def test_silabs_uart_group_roles_identifies_tx_and_rx_from_real_values() -> None:
+    with patch(
+        "esphome.components.zephyr.dts_lookup.get_pinctrl_group_property",
+        side_effect=lambda board, label, group, prop: {
+            "group0": [_SILABS_TX_PINS],
+            "group1": [_SILABS_RX_PINS],
+        }[group],
+    ):
+        assert _silabs_uart_group_roles(
+            "b", "usart0_default", ["group0", "group1"]
+        ) == {"tx": "group0", "rx": "group1"}
+
+
+def test_silabs_uart_group_roles_identifies_swapped_order() -> None:
+    with patch(
+        "esphome.components.zephyr.dts_lookup.get_pinctrl_group_property",
+        side_effect=lambda board, label, group, prop: {
+            "group0": [_SILABS_RX_PINS],
+            "group1": [_SILABS_TX_PINS],
+        }[group],
+    ):
+        assert _silabs_uart_group_roles(
+            "b", "usart0_default", ["group0", "group1"]
+        ) == {"tx": "group1", "rx": "group0"}
+
+
+def test_silabs_uart_group_roles_distinguishes_tx_from_rts() -> None:
+    with patch(
+        "esphome.components.zephyr.dts_lookup.get_pinctrl_group_property",
+        side_effect=lambda board, label, group, prop: {
+            "group0": [_SILABS_TX_PINS, _SILABS_RTS_PINS],
+            "group1": [_SILABS_RX_PINS, _SILABS_CTS_PINS],
+        }[group],
+    ):
+        assert _silabs_uart_group_roles(
+            "b", "usart0_default", ["group0", "group1"]
+        ) == {"tx": "group0", "rts": "group0", "rx": "group1", "cts": "group1"}
+
+
+def test_silabs_uart_group_roles_none_when_rx_missing() -> None:
+    with patch(
+        "esphome.components.zephyr.dts_lookup.get_pinctrl_group_property",
+        side_effect=lambda board, label, group, prop: {"group0": [_SILABS_TX_PINS]}[
+            group
+        ],
+    ):
+        assert _silabs_uart_group_roles("b", "usart0_default", ["group0"]) is None
+
+
+def test_silabs_uart_group_roles_none_when_property_unavailable() -> None:
+    with patch(
+        "esphome.components.zephyr.dts_lookup.get_pinctrl_group_property",
+        return_value=None,
+    ):
+        assert (
+            _silabs_uart_group_roles("b", "usart0_default", ["group0", "group1"])
+            is None
+        )
+
+
 def test_resolve_uart_pinctrl_states_uses_default_positional_resolver() -> None:
     with patch(
         "esphome.components.zephyr.dts_lookup.get_pinctrl_states",
@@ -838,6 +910,33 @@ def test_zephyr_setup_uart_pinctrl_nordic_uses_nrf_psel_and_role_decode() -> Non
     assert "psels = <NRF_PSEL(UART_TX, 1, 4)>;" in overlay[group2_idx:]
     assert "current-speed = <115200>;" in overlay
     assert "pinctrl-0 = <&uart20_default>;" in overlay
+
+
+def test_zephyr_setup_uart_pinctrl_silabs_uses_lettered_ports_and_role_decode() -> None:
+    CORE.data[KEY_ZEPHYR] = _empty_zephyr_data(variant="EFR32MG24")
+    with (
+        patch(
+            "esphome.components.zephyr.dts_lookup.get_pinctrl_states",
+            return_value=[("usart0_default", ["group0", "group1"])],
+        ),
+        patch(
+            "esphome.components.zephyr.dts_lookup.get_pinctrl_group_property",
+            side_effect=lambda board, label, group, prop: {
+                "group0": [_SILABS_RX_PINS],  # deliberately swapped from position
+                "group1": [_SILABS_TX_PINS],
+            }[group],
+        ),
+    ):
+        zephyr_setup_uart_pinctrl("some_board", "usart0", 5, 6, 115200)
+    overlay = CORE.data[KEY_ZEPHYR]["overlay"][""]
+    assert "USART0_TX_PA5" in overlay
+    assert "USART0_RX_PA6" in overlay
+    # Content-decoded role wins over position: TX value lands in group1, since
+    # group1 is the one whose real pins value decodes as USART0_TX.
+    group1_idx = overlay.index("group1 {")
+    assert "pins = <USART0_TX_PA5>;" in overlay[group1_idx:]
+    assert "current-speed = <115200>;" in overlay
+    assert "pinctrl-0 = <&usart0_default>;" in overlay
 
 
 def test_zephyr_setup_uart_pinctrl_rpi_pico_uses_p_suffix_and_position() -> None:

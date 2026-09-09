@@ -82,6 +82,8 @@ VARIANT = ZephyrVariant(
     adc_ain_map=_ADC_AIN_MAP,
     # Only usart0 exists at SoC level on this board -- no usart1/UART1.
     uart_node_labels={},
+    # Free-mux via SILABS_DBUS -- every PA0..PD15 pin is a valid UART TX/RX candidate.
+    uart_valid_pins={"tx": frozenset(range(64)), "rx": frozenset(range(64))},
 )
 
 

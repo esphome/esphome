@@ -434,6 +434,32 @@ def _nordic_uart_group_roles(
     return signals
 
 
+_SILABS_DBUS_EN_BIT_SHIFT = 19
+_SILABS_DBUS_EN_BIT_MASK = 0x1F
+# SILABS_DBUS's en_bit field (silabs-pinctrl-dbus.h) is fixed per signal across every
+# USART instance/chip (verified xg22/xg24/xg26): TX=4, RX=2, RTS=1, CTS=0.
+_SILABS_UART_SIGNAL_NAMES = {4: "tx", 2: "rx", 1: "rts", 0: "cts"}
+
+
+def _silabs_uart_group_roles(
+    board: str, label: str, groups: list[str]
+) -> dict[str, str] | None:
+    """group_role_resolver reading real `pins` content instead of assuming
+    position -- xg24_ek2703a's usart0 splits TX(group0)/RX(group1)."""
+    from .dts_lookup import get_pinctrl_group_property
+
+    signals: dict[str, str] = {}
+    for group in groups:
+        for value in get_pinctrl_group_property(board, label, group, "pins") or []:
+            en_bit = (value >> _SILABS_DBUS_EN_BIT_SHIFT) & _SILABS_DBUS_EN_BIT_MASK
+            name = _SILABS_UART_SIGNAL_NAMES.get(en_bit)
+            if name is not None:
+                signals[name] = group
+    if "tx" not in signals or "rx" not in signals:
+        return None
+    return signals
+
+
 _ESP32_PINMUX_SIGI_SHIFT = 6
 _ESP32_PINMUX_SIGO_SHIFT = 15
 _ESP32_PINMUX_SIG_MASK = 0x1FF
@@ -650,6 +676,18 @@ def zephyr_setup_uart_pinctrl(
         )
         group_role_resolver = _nordic_uart_group_roles
         property_name = "psels"
+    elif family == "silabs":
+        variant_info = VARIANTS.get(zephyr_data().get("variant") or "")
+        port_width = variant_info.gpio_port_width if variant_info is not None else 16
+
+        def _silabs_pin_macro(signal: str, pin: int) -> str:
+            letter, num = chr(ord("A") + pin // port_width), pin % port_width
+            return f"<{prefix}_{signal}_P{letter}{num}>"
+
+        tx_value = _silabs_pin_macro("TX", tx_pin) if tx_pin is not None else None
+        rx_value = _silabs_pin_macro("RX", rx_pin) if rx_pin is not None else None
+        group_role_resolver = _silabs_uart_group_roles
+        property_name = "pins"
     else:
         # rp2040/rp2350 pinctrl macros are `_P{n}`, esp32-family is `_GPIO{n}`.
         pin_suffix = "P" if family == "rpi_pico" else "GPIO"
