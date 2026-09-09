@@ -332,8 +332,10 @@ float AS734XComponent::normalization_divisor_() const {
 
 void AS734XComponent::calculate_saturation_level_() {
   const uint16_t max_adc = maximum_spectral_adc(this->readings_.atime, this->readings_.astep);
-  const uint16_t scanned = *std::max_element(
-      this->readings_.raw_counts.begin(), this->readings_.raw_counts.begin() + this->device_->get_number_of_channels());
+  uint16_t scanned = 0;
+  for (uint8_t i = 0; i < this->device_->get_number_of_channels(); i++) {
+    scanned = std::max(scanned, this->readings_.raw_counts[i]);
+  }
   // The AS7343 publishes the mean of its two clear cycles, which can only sit below a saturated
   // reading, so the peak the device saw is taken into account as well.
   const uint16_t highest = std::max(scanned, this->device_->get_peak_raw_count());
