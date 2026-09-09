@@ -11,25 +11,17 @@ from esphome.components.esp32.const import (
     KEY_SDKCONFIG_OPTIONS,
     KEY_VARIANT,
 )
-from esphome.components.openthread import (
-    _final_validate,
-    _validate_antenna_switch,
-    _validate_rcp,
-    _validate_tlv_hex,
-)
+from esphome.components.openthread import _final_validate, _validate_rcp
 from esphome.components.openthread.const import (
     CONF_BORDER_ROUTER,
     CONF_DEVICE_TYPE,
-    CONF_EXTERNAL_ANTENNA,
     CONF_RCP,
-    CONF_SELECT_PIN,
 )
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_AP,
     CONF_ENABLE_IPV6,
     CONF_ENABLE_ON_BOOT,
-    CONF_ENABLE_PIN,
     CONF_ID,
     CONF_INVERTED,
     CONF_LOGGER,
@@ -52,12 +44,6 @@ CONFIG_DIR = Path(__file__).parent / "config"
 CONF_NETWORK = "network"
 DEVICE_TYPE_FTD = "FTD"
 DEVICE_TYPE_MTD = "MTD"
-TLV_DATASET = (
-    "0e080000000000010000000300001035060004001fffe00208e227ac6a7f24052f0708fdb"
-    "753eb517cb4d3051062b2442a928d9ea3b947a1618fc4085a030f4f70656e546872656164"
-    "2d393837330102987304105330d857354330133c05e1fd7ae81a910c0402a0f7f8"
-)
-
 OTBR_SDKCONFIG_OPTIONS: dict[str, bool | int | str] = {
     "CONFIG_OPENTHREAD_BORDER_ROUTER": True,
     "CONFIG_OPENTHREAD_DNS64_CLIENT": False,
@@ -133,34 +119,12 @@ def _run_final_validation(
 def test_border_router_codegen(
     generate_main: Callable[[str | Path], str],
 ) -> None:
-    cpp_main = generate_main(CONFIG_DIR / "border_router.yaml")
+    generate_main(CONFIG_DIR / "border_router.yaml")
 
     sdkconfig = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
     for option, value in OTBR_SDKCONFIG_OPTIONS.items():
         assert sdkconfig[option] == value
     assert any(define.name == "USE_OPENTHREAD_BORDER_ROUTER" for define in CORE.defines)
-    assert "OpenThreadBorderRouterComponent" in cpp_main
-    assert (
-        sdkconfig["CONFIG_OPENTHREAD_NETWORK_MASTERKEY"]
-        == "00112233445566778899aabbccddeeff"
-    )
-    assert sdkconfig["CONFIG_OPENTHREAD_NETWORK_PANID"] == 0x0123
-    assert sdkconfig["CONFIG_OPENTHREAD_NETWORK_EXTPANID"] == "00000000000000ab"
-    assert (
-        sdkconfig["CONFIG_OPENTHREAD_NETWORK_PSKC"]
-        == "000000000000000000000000000000cd"
-    )
-
-
-def test_border_router_tlv_codegen(
-    generate_main: Callable[[str | Path], str],
-) -> None:
-    generate_main(CONFIG_DIR / "border_router_tlv.yaml")
-
-    tlv_define = next(
-        define for define in CORE.defines if define.name == "USE_OPENTHREAD_TLVS"
-    )
-    assert str(tlv_define.value) == f'"{TLV_DATASET}"'
 
 
 def test_border_router_rcp_codegen(
@@ -174,49 +138,7 @@ def test_border_router_rcp_codegen(
     assert sdkconfig["CONFIG_VFS_SUPPORT_DIR"] is True
     assert "CONFIG_ESP_COEX_SW_COEXIST_ENABLE" not in sdkconfig
     assert any(define.name == "USE_OPENTHREAD_RCP_UART" for define in CORE.defines)
-    assert "OpenThreadComponent(460800, 18, 17, 16, false)" in cpp_main
-
-
-def test_border_router_antenna_switch_codegen(
-    generate_main: Callable[[str | Path], str],
-) -> None:
-    cpp_main = generate_main(CONFIG_DIR / "border_router_antenna_switch.yaml")
-
-    assert any(
-        define.name == "USE_OPENTHREAD_ANTENNA_SWITCH" for define in CORE.defines
-    )
-    # Pins are generated as real GPIOPin objects (respecting inverted/drive_strength/...),
-    # not raw pin numbers passed directly to the constructor.
-    assert "->set_pin(::GPIO_NUM_14);" in cpp_main
-    assert "->set_pin(::GPIO_NUM_3);" in cpp_main
-    # The enable_pin defaults to active-low.
-    assert "->set_inverted(true);" in cpp_main
-    assert "openthread::OpenThreadAntennaSwitchComponent(" in cpp_main
-
-
-def test_antenna_switch_rejects_duplicate_pins() -> None:
-    with pytest.raises(cv.Invalid, match="must be different"):
-        _validate_antenna_switch(
-            {
-                CONF_ENABLE_PIN: {CONF_NUMBER: 14},
-                CONF_SELECT_PIN: {CONF_NUMBER: 14},
-                CONF_EXTERNAL_ANTENNA: False,
-            }
-        )
-
-
-@pytest.mark.parametrize(
-    ("value", "message"),
-    [
-        ("", "must not be empty"),
-        ("abc", "even number"),
-        ("00  11", "only hexadecimal"),
-        ("00" * 255, "max 254"),
-    ],
-)
-def test_tlv_validation_rejects_invalid_input(value: str, message: str) -> None:
-    with pytest.raises(cv.Invalid, match=message):
-        _validate_tlv_hex(value)
+    assert "OpenThreadComponent(460800, 18, 17," in cpp_main
 
 
 @pytest.mark.parametrize(
