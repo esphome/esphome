@@ -839,6 +839,29 @@ def zephyr_setup_i2c_pinctrl(
                 f"<{prefix}_SCL_P{scl_letter}{scl_pin}>, <{prefix}_SDA_P{sda_letter}{sda_pin}>",
             )
         )
+    elif zephyr_variant_family() == "rpi_pico":
+        # Unlike esp32/nordic/silabs, each pin is tied to one fixed I2C instance+role
+        # (rpi-pico-pinctrl-common.h) -- reject out-of-range pins instead of letting
+        # them fail obscurely at DTS-compile time.
+        instance_pins = VARIANTS[variant_name].i2c_valid_pins_by_instance.get(
+            bus_label.upper()
+        )
+        if (
+            instance_pins is None
+            or sda not in instance_pins.get("sda", frozenset())
+            or scl not in instance_pins.get("scl", frozenset())
+        ):
+            raise EsphomeError(
+                f"GPIO{sda}/GPIO{scl} are not a valid sda:/scl: pair for '{bus_label}' "
+                f"on {variant_name}."
+            )
+        states = _resolve_i2c_pinctrl_states(board, bus_label, "group1")
+        prefix = bus_label.upper()
+        zephyr_add_overlay(
+            _build_i2c_pinctrl_states_overlay(
+                states, "pinmux", f"<{prefix}_SDA_P{sda}>, <{prefix}_SCL_P{scl}>"
+            )
+        )
     else:
         # No overlay-generation branch for this family -- don't silently ignore the pins.
         raise EsphomeError(

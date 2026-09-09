@@ -267,6 +267,10 @@ class ZephyrVariant:
     uart_valid_pins_by_instance: dict[str, dict[str, frozenset[int]]] = field(
         default_factory=dict
     )
+    # Like uart_valid_pins_by_instance, but for I2C sda/scl (e.g. RP2040).
+    i2c_valid_pins_by_instance: dict[str, dict[str, frozenset[int]]] = field(
+        default_factory=dict
+    )
     # Devicetree node labels backing the `logger: hardware_uart: UART0`/`UART1` symbolic
     # selections. ESP32-family and nRF52 boards both label their two console-capable UARTs
     # uart0/uart1, so that's the default; nRF54 series numbers peripheral instances instead

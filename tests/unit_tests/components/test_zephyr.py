@@ -479,6 +479,26 @@ def test_zephyr_setup_i2c_pinctrl_esp32_falls_back_when_multiple_groups() -> Non
     assert "group2" not in overlay
 
 
+def test_zephyr_setup_i2c_pinctrl_rp2040_uses_fixed_instance_mux() -> None:
+    _set_non_nrf52_target_platform()
+    CORE.data[KEY_ZEPHYR] = _empty_zephyr_data(variant="RP2040")
+    with patch(
+        "esphome.components.zephyr.dts_lookup.get_pinctrl_states",
+        return_value=[("i2c1_default", ["group1"])],
+    ):
+        zephyr_setup_i2c_pinctrl("some_board", "i2c1", sda=2, scl=3)
+    overlay = CORE.data[KEY_ZEPHYR]["overlay"][""]
+    assert "I2C1_SDA_P2" in overlay
+    assert "I2C1_SCL_P3" in overlay
+
+
+def test_zephyr_setup_i2c_pinctrl_rp2040_rejects_pin_on_wrong_instance() -> None:
+    _set_non_nrf52_target_platform()
+    CORE.data[KEY_ZEPHYR] = _empty_zephyr_data(variant="RP2040")
+    with pytest.raises(EsphomeError, match="not a valid sda:/scl: pair"):
+        zephyr_setup_i2c_pinctrl("some_board", "i2c0", sda=2, scl=3)
+
+
 # ---------------------------------------------------------------------------
 # UART pinctrl state/group-role resolution
 # ---------------------------------------------------------------------------
