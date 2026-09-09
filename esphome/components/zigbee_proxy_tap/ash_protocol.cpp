@@ -1,6 +1,6 @@
 #include "ash_protocol.h"
 
-namespace esphome::zigbee_proxy {
+namespace esphome::zigbee_proxy_tap {
 
 static const uint16_t CRC_NIBBLE_TABLE[16] = {0x0000, 0x1021, 0x2042, 0x3063, 0x4084, 0x50A5, 0x60C6, 0x70E7,
                                               0x8108, 0x9129, 0xA14A, 0xB16B, 0xC18C, 0xD1AD, 0xE1CE, 0xF1EF};
@@ -38,4 +38,4 @@ size_t ash_build_ack_frame(uint8_t *output, uint8_t ack_num) {
   return pos;
 }
 
-}  // namespace esphome::zigbee_proxy
+}  // namespace esphome::zigbee_proxy_tap

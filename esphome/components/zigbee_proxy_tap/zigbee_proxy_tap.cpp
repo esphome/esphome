@@ -1,18 +1,18 @@
-#include "zigbee_proxy.h"
+#include "zigbee_proxy_tap.h"
 
-#ifdef USE_ZIGBEE_PROXY
+#ifdef USE_ZIGBEE_PROXY_TAP
 
 #include "esphome/core/log.h"
 
-namespace esphome::zigbee_proxy {
+namespace esphome::zigbee_proxy_tap {
 
-static const char *const TAG = "zigbee_proxy";
+static const char *const TAG = "zigbee_proxy_tap";
 
-void ZigbeeProxy::setup() { this->parent_->set_tap(this); }
+void ZigbeeProxyTap::setup() { this->parent_->set_tap(this); }
 
-void ZigbeeProxy::dump_config() { ESP_LOGCONFIG(TAG, "Zigbee Proxy:\n  Port: %s", this->parent_->get_name()); }
+void ZigbeeProxyTap::dump_config() { ESP_LOGCONFIG(TAG, "Zigbee Proxy Tap:\n  Port: %s", this->parent_->get_name()); }
 
-void ZigbeeProxy::on_device_rx(const uint8_t *data, size_t len) {
+void ZigbeeProxyTap::on_device_rx(const uint8_t *data, size_t len) {
   for (size_t i = 0; i < len; i++) {
     // Observation only: the detector never gates forwarding, so it adds no latency and a
     // frame it cannot parse still reaches the client, which judges it for itself.
@@ -37,7 +37,7 @@ void ZigbeeProxy::on_device_rx(const uint8_t *data, size_t len) {
   }
 }
 
-void ZigbeeProxy::on_client_tx(const uint8_t *data, size_t len) {
+void ZigbeeProxyTap::on_client_tx(const uint8_t *data, size_t len) {
   // Scanning this direction only matters while waiting for the version command that
   // completes the handshake. Outside that window it is skipped entirely -- which is what
   // makes a firmware upload, all of which flows this way, essentially free.
@@ -49,13 +49,13 @@ void ZigbeeProxy::on_client_tx(const uint8_t *data, size_t len) {
   }
 }
 
-void ZigbeeProxy::on_protocol_disabled() {
+void ZigbeeProxyTap::on_protocol_disabled() {
   // A client turning protocol handling off is usually about to reflash the radio, so the
   // handshake we saw says nothing about what will be on the wire next. Forget it: a real
   // ASH session announces itself again with an RSTACK.
   this->detector_.reset();
 }
 
-}  // namespace esphome::zigbee_proxy
+}  // namespace esphome::zigbee_proxy_tap
 
-#endif  // USE_ZIGBEE_PROXY
+#endif  // USE_ZIGBEE_PROXY_TAP

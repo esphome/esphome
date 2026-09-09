@@ -14,7 +14,7 @@ uart:
     rx_pin: ${rx_pin}
     baud_rate: 115200
 
-# The port owns the UART and carries every byte; zigbee_proxy only taps it
+# The port owns the UART and carries every byte; zigbee_proxy_tap only taps it
 serial_proxy:
   - id: zigbee_serial
     uart_id: zigbee_uart

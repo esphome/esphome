@@ -10,9 +10,9 @@ DEPENDENCIES = ["serial_proxy"]
 
 CONF_SERIAL_PROXY_ID = "serial_proxy_id"
 
-zigbee_proxy_ns = cg.esphome_ns.namespace("zigbee_proxy")
-ZigbeeProxy = zigbee_proxy_ns.class_(
-    "ZigbeeProxy", cg.Component, serial_proxy.SerialProxyTap
+zigbee_proxy_tap_ns = cg.esphome_ns.namespace("zigbee_proxy_tap")
+ZigbeeProxyTap = zigbee_proxy_tap_ns.class_(
+    "ZigbeeProxyTap", cg.Component, serial_proxy.SerialProxyTap
 )
 
 
@@ -29,7 +29,7 @@ def _final_validate(config: ConfigType) -> ConfigType:
 
 CONFIG_SCHEMA = cv.Schema(
     {
-        cv.GenerateID(): cv.declare_id(ZigbeeProxy),
+        cv.GenerateID(): cv.declare_id(ZigbeeProxyTap),
         cv.Required(CONF_SERIAL_PROXY_ID): cv.use_id(serial_proxy.SerialProxy),
     }
 ).extend(cv.COMPONENT_SCHEMA)
@@ -42,6 +42,6 @@ async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID], sp)
     await cg.register_component(var, config)
 
-    cg.add_define("USE_ZIGBEE_PROXY")
+    cg.add_define("USE_ZIGBEE_PROXY_TAP")
     # Compiles the tap interface into serial_proxy; without it the port is a plain byte pipe
     cg.add_define("USE_SERIAL_PROXY_TAP")

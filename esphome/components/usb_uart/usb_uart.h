@@ -160,7 +160,7 @@ class USBUartChannelBase : public uart::UARTComponent, public Parented<USBUartCo
 
   /// Register a callback invoked immediately after data is pushed to the input ring buffer.
   /// Called from USBUartComponent::loop() in the main loop context.
-  /// Allows consumers (e.g. ZigbeeProxy) to process bytes in the same loop iteration
+  /// Allows consumers (e.g. ZigbeeProxyTap) to process bytes in the same loop iteration
   /// they arrive, eliminating one full main-loop-wakeup cycle of latency.
   void set_rx_callback(std::function<void()> cb) { this->rx_callback_ = std::move(cb); }
 

@@ -3,7 +3,7 @@
 #include <cstddef>
 #include <cstdint>
 
-namespace esphome::zigbee_proxy {
+namespace esphome::zigbee_proxy_tap {
 
 // ASH Protocol Constants
 static constexpr uint8_t ASH_FLAG_BYTE = 0x7E;        // Frame delimiter
@@ -48,4 +48,4 @@ static constexpr size_t ASH_ACK_FRAME_MAX_SIZE = 8;
 // ASH_ACK_FRAME_MAX_SIZE bytes, and returns its length.
 size_t ash_build_ack_frame(uint8_t *output, uint8_t ack_num);
 
-}  // namespace esphome::zigbee_proxy
+}  // namespace esphome::zigbee_proxy_tap

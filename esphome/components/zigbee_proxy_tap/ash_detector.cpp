@@ -1,8 +1,8 @@
 #include "ash_detector.h"
 
-#ifdef USE_ZIGBEE_PROXY
+#ifdef USE_ZIGBEE_PROXY_TAP
 
-namespace esphome::zigbee_proxy {
+namespace esphome::zigbee_proxy_tap {
 
 // Control byte of an RSTACK, and the only ASH version byte that can follow it
 static constexpr uint8_t ASH_RSTACK_CONTROL = 0xC1;
@@ -245,6 +245,6 @@ bool AshDetector::take_pending_ack(uint8_t &ack_num) {
   return true;
 }
 
-}  // namespace esphome::zigbee_proxy
+}  // namespace esphome::zigbee_proxy_tap
 
-#endif  // USE_ZIGBEE_PROXY
+#endif  // USE_ZIGBEE_PROXY_TAP

@@ -1,14 +1,14 @@
 #pragma once
 
 #include "esphome/core/defines.h"
-#ifdef USE_ZIGBEE_PROXY
+#ifdef USE_ZIGBEE_PROXY_TAP
 
 #include "ash_protocol.h"
 
 #include <cstddef>
 #include <cstdint>
 
-namespace esphome::zigbee_proxy {
+namespace esphome::zigbee_proxy_tap {
 
 // Decides when it is safe to acknowledge NCP frames on a client's behalf.
 //
@@ -99,6 +99,6 @@ class AshDetector {
   bool ack_owed_{false};
 };
 
-}  // namespace esphome::zigbee_proxy
+}  // namespace esphome::zigbee_proxy_tap
 
-#endif  // USE_ZIGBEE_PROXY
+#endif  // USE_ZIGBEE_PROXY_TAP

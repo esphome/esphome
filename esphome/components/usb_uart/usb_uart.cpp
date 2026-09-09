@@ -242,7 +242,7 @@ void USBUartComponent::loop() {
     this->chunk_pool_.release(chunk);
 
     // Invoke the RX callback (if registered) immediately after data lands in the
-    // ring buffer.  This lets consumers such as ZigbeeProxy process incoming bytes
+    // ring buffer.  This lets consumers such as ZigbeeProxyTap process incoming bytes
     // in the same loop iteration they are delivered, avoiding an extra wakeup cycle.
     if (channel->rx_callback_) {
       channel->rx_callback_();

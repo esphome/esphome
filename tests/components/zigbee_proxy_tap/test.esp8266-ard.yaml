@@ -7,5 +7,5 @@ esp8266:
 
 <<: !include common.yaml
 
-zigbee_proxy:
+zigbee_proxy_tap:
   serial_proxy_id: zigbee_serial

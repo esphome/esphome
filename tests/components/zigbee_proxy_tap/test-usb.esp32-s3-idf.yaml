@@ -16,11 +16,11 @@ usb_uart:
         baud_rate: 460800
 
 # The tapped port may be a USB CDC ACM channel just as well as a hardware UART:
-# zigbee_proxy never touches the UART itself, so it does not care which it is.
+# zigbee_proxy_tap never touches the UART itself, so it does not care which it is.
 serial_proxy:
   - id: zigbee_usb_serial
     uart_id: zigbee_usb_channel
     name: Zigbee
 
-zigbee_proxy:
+zigbee_proxy_tap:
   serial_proxy_id: zigbee_usb_serial

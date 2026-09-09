@@ -1,13 +1,13 @@
 #pragma once
 
 #include "esphome/core/defines.h"
-#ifdef USE_ZIGBEE_PROXY
+#ifdef USE_ZIGBEE_PROXY_TAP
 
 #include "esphome/components/serial_proxy/serial_proxy.h"
 #include "esphome/core/component.h"
 #include "ash_detector.h"
 
-namespace esphome::zigbee_proxy {
+namespace esphome::zigbee_proxy_tap {
 
 // Acknowledges the ASH frames of an EZSP NCP on behalf of a remote client, so the NCP's
 // ack timeout is measured against this device rather than against the network round trip
@@ -17,9 +17,9 @@ namespace esphome::zigbee_proxy {
 // It never carries client traffic: the serial proxy owns the port and the bytes, and this
 // component only observes them. The sole exception is the acknowledgement itself, and it
 // is sent only once the handshake has proven the port really is carrying ASH.
-class ZigbeeProxy : public serial_proxy::SerialProxyTap, public Component {
+class ZigbeeProxyTap : public serial_proxy::SerialProxyTap, public Component {
  public:
-  explicit ZigbeeProxy(serial_proxy::SerialProxy *parent) : parent_(parent) {}
+  explicit ZigbeeProxyTap(serial_proxy::SerialProxy *parent) : parent_(parent) {}
 
   void setup() override;
   void dump_config() override;
@@ -45,6 +45,6 @@ class ZigbeeProxy : public serial_proxy::SerialProxyTap, public Component {
   bool was_armed_{false};
 };
 
-}  // namespace esphome::zigbee_proxy
+}  // namespace esphome::zigbee_proxy_tap
 
-#endif  // USE_ZIGBEE_PROXY
+#endif  // USE_ZIGBEE_PROXY_TAP
