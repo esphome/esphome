@@ -28,8 +28,11 @@ class ST7701S(RgbDriverChip):
     def get_sequence(
         self, config, add_madctl=True, add_reset=False, reset_delay: int = 10
     ) -> tuple[int, ...]:
-        # The ST7701S appears to need a longer delay after reset than the datasheet's stated 5ms, so extend it.
-        return super().get_sequence(config, add_madctl, add_reset, 50)
+        # The ST7701S appears to need a longer delay after reset than the datasheet's stated 5ms.
+        reset_delay = max(reset_delay, 50)
+        return super().get_sequence(
+            config, add_madctl=add_madctl, add_reset=add_reset, reset_delay=reset_delay
+        )
 
     @property
     def transforms(self) -> set[str]:
