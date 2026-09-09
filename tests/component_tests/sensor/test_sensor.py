@@ -23,10 +23,12 @@ def test_sensor_device_class_set(generate_main):
     assert f'App.register_sensor(s_1, "test s1", {expected_hash}, ' in main_cpp
     # The `entity_state:` shorthand must carry the YAML source location, like a
     # hand-written lambda would, so a compile error in the generated lambda is reported
-    # against the YAML line rather than the generated main.cpp.
+    # against the YAML line rather than the generated main.cpp. The path separator in
+    # the #line directive is platform-native (`\` on Windows), so match any separator
+    # rather than hardcoding one.
     assert re.search(
         r"threshold_id->set_upper_threshold\(\[\]\(\) -> float \{\n"
-        r'\s*#line \d+ "tests/component_tests/sensor/test_sensor\.yaml"\n'
+        r'\s*#line \d+ ".*test_sensor\.yaml"\n'
         r"\s*return s_1->state;",
         main_cpp,
     )

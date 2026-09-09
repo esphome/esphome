@@ -2675,6 +2675,19 @@ def test_templatable_entity_state_shorthand_unrestricted_for_unknown_validator()
     assert _contains_type(result.explicit_ids[0].type, TextSensor)
 
 
+def test_templatable_entity_state_shorthand_unrestricted_for_dict_validator() -> None:
+    """A dict-schema `other_validators` (e.g. `cv.templatable({cv.Required("x"): ...})`)
+    is unhashable, unlike the recognized primitive validators -- covers the fallback path
+    that catches the `TypeError` from that lookup instead of narrowing the allowed types.
+    """
+    from esphome.components.sensor import Sensor
+    from esphome.components.text_sensor import TextSensor
+
+    result = cv.templatable({cv.Required("x"): cv.int_})({CONF_ENTITY_STATE: "x"})
+    assert _contains_type(result.explicit_ids[0].type, Sensor)
+    assert _contains_type(result.explicit_ids[0].type, TextSensor)
+
+
 def test_returning_lambda_argument_shorthand() -> None:
     result = cv.returning_lambda({CONF_ARGUMENT: "x"})
     assert isinstance(result, Lambda)

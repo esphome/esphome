@@ -896,7 +896,9 @@ def _entity_state_allowed_types(other_validators) -> tuple:
     return tuple(t for t, kind in types_by_kind if kind in compatible_kinds)
 
 
-def convert_id_state_to_lambda(value, allowed_types: tuple = None) -> Lambda | None:
+def convert_id_state_to_lambda(
+    value, allowed_types: Callable[[], tuple] | None = None
+) -> Lambda | None:
     """
     Recognize the `entity_state:`/`argument:` lambda shorthand and expand it into the
     equivalent hand-written lambda: `{entity_state: some_id}` becomes a lambda returning
@@ -912,9 +914,12 @@ def convert_id_state_to_lambda(value, allowed_types: tuple = None) -> Lambda | N
       `process_lambda` can check it against the parameters actually available at the call
       site -- information only known there, not here.
 
-    `allowed_types`, if given, restricts which declared-id types `entity_state:` may point
-    at (see `_entity_state_allowed_types`); the id-resolution pass then rejects a reference
-    to a declared id of any other type. Defaults to every known state-bearing type.
+    `allowed_types`, if given, is called with no arguments to get the declared-id types
+    `entity_state:` may point at (see `_entity_state_allowed_types`); the id-resolution
+    pass then rejects a reference to a declared id of any other type. It's a callable,
+    not a precomputed tuple, so its (import-triggering) cost is only paid once we already
+    know `value` is this shorthand -- `templatable()` calls this for every value, most of
+    which aren't. Defaults to every known state-bearing type.
     """
     if not isinstance(value, dict) or not any(
         k in value for k in LAMBDA_SHORTHAND_KEYS
@@ -933,7 +938,7 @@ def convert_id_state_to_lambda(value, allowed_types: tuple = None) -> Lambda | N
         types = (
             tuple(t for t, _ in _state_bearing_types())
             if allowed_types is None
-            else allowed_types
+            else allowed_types()
         )
         state_lambda.explicit_ids = [
             core.ID(entity_state, is_declaration=False, type=types)
@@ -973,7 +978,7 @@ def templatable(other_validators):
             return other_validators
 
         if id_state := convert_id_state_to_lambda(
-            value, _entity_state_allowed_types(other_validators)
+            value, lambda: _entity_state_allowed_types(other_validators)
         ):
             return id_state
         if isinstance(value, Lambda):

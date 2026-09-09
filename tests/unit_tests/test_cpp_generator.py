@@ -694,6 +694,62 @@ class TestProcessLambda:
 
         assert isinstance(result, cg.LambdaExpression)
 
+    async def test_process_lambda__argument_shorthand_exact_kind_match_allowed(self):
+        """A parameter and return type of the identical kind (both numeric here) must
+        not raise -- covers the `arg_kind == return_kind` short-circuit."""
+        from esphome.core import Lambda
+
+        lambda_obj = Lambda("return x;")
+        lambda_obj.argument_name = "x"
+        result = await cg.process_lambda(lambda_obj, [(float, "x")], return_type=float)
+
+        assert isinstance(result, cg.LambdaExpression)
+
+
+class TestArgKind:
+    """Direct tests for _arg_kind()/_arg_kinds_compatible(), the coarse type
+    classification `argument:` uses to sanity-check a parameter against a field's
+    return type without policing every stylistic mismatch."""
+
+    @pytest.mark.parametrize(
+        "type_, expected",
+        [
+            (bool, cg._ARG_KIND_BOOLEAN),
+            (float, cg._ARG_KIND_NUMERIC),
+            (int, cg._ARG_KIND_NUMERIC),
+            (str, cg._ARG_KIND_STRING),
+            (ct.float_, cg._ARG_KIND_NUMERIC),
+            (ct.int_, cg._ARG_KIND_NUMERIC),
+            (ct.uint32, cg._ARG_KIND_NUMERIC),
+            (ct.bool_, cg._ARG_KIND_BOOLEAN),
+            (ct.std_string, cg._ARG_KIND_STRING),
+            (ct.const_char_ptr, cg._ARG_KIND_STRING),
+        ],
+    )
+    def test_arg_kind__recognized_types(self, type_, expected):
+        assert cg._arg_kind(type_) == expected
+
+    def test_arg_kind__unrecognized_type_returns_none(self):
+        """A custom/enum MockObjClass isn't in the recognized set -- returns None so
+        the caller stays lenient rather than guessing wrong."""
+        custom_type = cg.MockObjClass("my_component::MyEnum", parents=())
+
+        assert cg._arg_kind(custom_type) is None
+
+    @pytest.mark.parametrize(
+        "arg_kind, return_kind, expected",
+        [
+            (cg._ARG_KIND_NUMERIC, cg._ARG_KIND_NUMERIC, True),
+            (cg._ARG_KIND_STRING, cg._ARG_KIND_STRING, True),
+            (cg._ARG_KIND_BOOLEAN, cg._ARG_KIND_NUMERIC, True),
+            (cg._ARG_KIND_NUMERIC, cg._ARG_KIND_BOOLEAN, True),
+            (cg._ARG_KIND_STRING, cg._ARG_KIND_NUMERIC, False),
+            (cg._ARG_KIND_STRING, cg._ARG_KIND_BOOLEAN, False),
+        ],
+    )
+    def test_arg_kinds_compatible(self, arg_kind, return_kind, expected):
+        assert cg._arg_kinds_compatible(arg_kind, return_kind) is expected
+
 
 @pytest.mark.asyncio
 async def test_templatable__string_with_std_string_returns_flash_literal() -> None:
