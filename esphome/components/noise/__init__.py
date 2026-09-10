@@ -98,7 +98,6 @@ async def to_code(config: ConfigType) -> None:
     cg.add_build_flag("-DHAVE_WEAK_SYMBOLS=1")
     cg.add_build_flag("-DHAVE_INLINE_ASM=1")
     # The handshake is built from algorithm ids and never names a protocol, so
-    # noise-c can leave its name tables and the fallback and hfs modifiers out
-    cg.add_build_flag("-DNOISE_USE_PROTOCOL_NAME_TABLE=0")
-    cg.add_build_flag("-DNOISE_USE_FALLBACK=0")
-    cg.add_build_flag("-DNOISE_USE_HFS=0")
+    # noise-c can leave its name tables and the unused handshake modifiers out
+    for switch in ("PROTOCOL_NAME_TABLE", "FALLBACK", "HFS"):
+        cg.add_build_flag(f"-DNOISE_USE_{switch}=0")
