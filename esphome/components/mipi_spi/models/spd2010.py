@@ -22,6 +22,7 @@ DriverChip(
     transforms={CONF_MIRROR_X, CONF_MIRROR_Y},
     use_axis_flips=True,
     reset_delay=20,
+    no_slpout=True,
     initsequence=(
         delay(10),
         (0xFF, 0x20, 0x10, 0x00),
@@ -428,6 +429,8 @@ DriverChip(
         (0xFF, 0x20, 0x10, 0x2D),
         (0x02, 0x00),
         (0xFF, 0x20, 0x10, 0x00),
+        (0x11,),
+        delay(120),
     ),
 )
 # fmt: on
