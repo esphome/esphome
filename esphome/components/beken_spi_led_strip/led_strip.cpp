@@ -245,6 +245,9 @@ void BekenSPILEDStripLightOutput::set_led_params(uint8_t bit0, uint8_t bit1, uin
 }
 
 void BekenSPILEDStripLightOutput::write_state(light::LightState *state) {
+  if (!this->is_ready()) {
+    return;
+  }
   // protect from refreshing too often
   uint32_t now = micros();
   if (this->max_refresh_rate_.has_value() && *this->max_refresh_rate_ != 0 &&
@@ -257,12 +260,6 @@ void BekenSPILEDStripLightOutput::write_state(light::LightState *state) {
   this->mark_shown_();
 
   ESP_LOGVV(TAG, "Writing RGB values to bus");
-
-  if (spi_data == nullptr) {
-    ESP_LOGE(TAG, "SPI not initialized");
-    this->status_set_warning();
-    return;
-  }
 
   if (!spi_data->first_run && !xSemaphoreTake(spi_data->dma_tx_semaphore, 10 / portTICK_PERIOD_MS)) {
     ESP_LOGE(TAG, "Timed out waiting for semaphore");
@@ -300,6 +297,9 @@ void BekenSPILEDStripLightOutput::write_state(light::LightState *state) {
 }
 
 light::ESPColorView BekenSPILEDStripLightOutput::get_view_internal(int32_t index) const {
+  if (this->buf_ == nullptr) {
+    return {&this->correction_};
+  }
   const light::ChannelColors &colors = this->channel_colors_;
   uint8_t *led = this->buf_ + (index * colors.bytes_per_led());
   return {led + colors.r,
