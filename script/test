@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+
+set -e
+
+cd "$(dirname "$0")/.."
+
+set -x
+
+for f in ./tests/test*.yaml; do
+  esphome compile $f
+done

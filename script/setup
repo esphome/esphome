@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+# Set up ESPHome dev environment.
+#
+# The work is done by setup.py, which script/setup.bat also runs, so the Unix
+# and Windows entry points share one implementation.
+
+exec python3 "$(dirname "$0")/setup.py" "$@"

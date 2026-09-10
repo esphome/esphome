@@ -1,0 +1,7 @@
+esphome:
+  name: docker-test-bk72xx-arduino
+
+bk72xx:
+  board: generic-bk7231n-qfn32-tuya
+
+logger:

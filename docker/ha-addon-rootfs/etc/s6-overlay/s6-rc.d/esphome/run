@@ -1,0 +1,66 @@
+#!/command/with-contenv bashio
+# shellcheck shell=bash
+# ==============================================================================
+# Community Hass.io Add-ons: ESPHome
+# Runs the ESPHome Device Builder
+# ==============================================================================
+readonly pio_cache_base=/data/cache/platformio
+
+export ESPHOME_IS_HA_ADDON=true
+export PLATFORMIO_GLOBALLIB_DIR=/piolibs
+
+# we can't set core_dir, because the settings file is stored in `core_dir/appstate.json`
+# setting `core_dir` would therefore prevent pio from accessing
+export PLATFORMIO_PLATFORMS_DIR="${pio_cache_base}/platforms"
+export PLATFORMIO_PACKAGES_DIR="${pio_cache_base}/packages"
+export PLATFORMIO_CACHE_DIR="${pio_cache_base}/cache"
+
+# Keep the native toolchain installs on the persistent /data volume, not the
+# container's ephemeral user cache dir (wiped on every add-on update/restart).
+export ESPHOME_ESP_IDF_PREFIX=/data/cache/idf
+export ESPHOME_SDK_NRF_PREFIX=/data/cache/sdk-nrf
+
+if bashio::config.true 'leave_front_door_open'; then
+    export DISABLE_HA_AUTHENTICATION=true
+fi
+
+if bashio::config.has_value 'default_compile_process_limit'; then
+    export ESPHOME_DEFAULT_COMPILE_PROCESS_LIMIT=$(bashio::config 'default_compile_process_limit')
+else
+    if grep -q 'Raspberry Pi 3' /proc/cpuinfo; then
+        export ESPHOME_DEFAULT_COMPILE_PROCESS_LIMIT=1
+    fi
+fi
+
+mkdir -p "${pio_cache_base}"
+
+mkdir -p /config/esphome
+
+if bashio::fs.directory_exists '/config/esphome/.esphome'; then
+    bashio::log.info "Migrating old .esphome directory..."
+    if bashio::fs.file_exists '/config/esphome/.esphome/esphome.json'; then
+        mv /config/esphome/.esphome/esphome.json /data/esphome.json
+    fi
+    mkdir -p "/data/storage"
+    mv /config/esphome/.esphome/*.json /data/storage/ || true
+    rm -rf /config/esphome/.esphome
+fi
+
+# Only signal device-builder to expose the public LAN port when the operator
+# mapped port 6052, matching the legacy dashboard where nginx listened on the
+# fixed port 6052 only when it was configured. We use the mapping purely as a
+# presence check and don't forward the published value; device-builder binds
+# its default port 6052 (the fixed container port, as the legacy
+# "listen 6052" did). --ha-addon-allow-public is inert on its own: the no-auth
+# gate is the DISABLE_HA_AUTHENTICATION env var set above, so both opt-ins are
+# required to bind 6052 unauthenticated; either alone stays ingress-only.
+set --
+if bashio::var.has_value "$(bashio::addon.port 6052)"; then
+    set -- --ha-addon-allow-public
+fi
+
+bashio::log.info "Starting ESPHome Device Builder..."
+exec esphome-device-builder /config/esphome \
+    --ha-addon \
+    --ingress-port "$(bashio::addon.ingress_port)" \
+    "$@"
