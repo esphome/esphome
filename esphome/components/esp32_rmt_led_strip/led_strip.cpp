@@ -224,7 +224,7 @@ void ESP32RMTLEDStripLightOutput::write_state(light::LightState *state) {
 }
 
 light::ESPColorView ESP32RMTLEDStripLightOutput::get_view_internal(int32_t index) const {
-  if (this->buf_ == nullptr) {
+  if (this->buf_ == nullptr || this->effect_data_ == nullptr) {
     return {&this->correction_};
   }
   const light::ChannelColors &colors = this->channel_colors_;

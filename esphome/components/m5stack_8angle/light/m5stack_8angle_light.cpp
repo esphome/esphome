@@ -37,7 +37,7 @@ void M5Stack8AngleLightOutput::write_state(light::LightState *state) {
 }
 
 light::ESPColorView M5Stack8AngleLightOutput::get_view_internal(int32_t index) const {
-  if (this->buf_ == nullptr) {
+  if (this->buf_ == nullptr || this->effect_data_ == nullptr) {
     return {&this->correction_};
   }
   size_t pos = index * M5STACK_8ANGLE_BYTES_PER_LED;
