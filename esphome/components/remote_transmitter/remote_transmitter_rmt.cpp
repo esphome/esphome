@@ -78,8 +78,8 @@ static RmtFrame *new_frame(uint32_t capacity) {
   return frame;
 }
 
-bool IRAM_ATTR HOT RemoteTransmitterComponent::tx_done_callback_(rmt_channel_handle_t channel,
-                                                                 const rmt_tx_done_event_data_t *event, void *arg) {
+bool IRAM_ATTR HOT RemoteTransmitterComponent::tx_done_callback(rmt_channel_handle_t channel,
+                                                                const rmt_tx_done_event_data_t *event, void *arg) {
   auto *self = static_cast<RemoteTransmitterComponent *>(arg);
   self->done_count_++;
   self->enable_loop_soon_any_context();
@@ -210,7 +210,7 @@ void RemoteTransmitterComponent::configure_rmt_() {
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 5, 1)
     rmt_tx_event_callbacks_t callbacks;
     memset(&callbacks, 0, sizeof(callbacks));
-    callbacks.on_trans_done = tx_done_callback_;
+    callbacks.on_trans_done = tx_done_callback;
     error = rmt_tx_register_event_callbacks(this->channel_, &callbacks, this);
     if (error != ESP_OK) {
       this->error_code_ = error;

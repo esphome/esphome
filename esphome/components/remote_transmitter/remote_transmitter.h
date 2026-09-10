@@ -176,7 +176,7 @@ class RemoteTransmitterComponent final : public remote_base::RemoteTransmitterBa
   void wait_for_rmt_();
 
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 5, 1)
-  static bool tx_done_callback_(rmt_channel_handle_t channel, const rmt_tx_done_event_data_t *event, void *arg);
+  static bool tx_done_callback(rmt_channel_handle_t channel, const rmt_tx_done_event_data_t *event, void *arg);
   size_t encode_symbols_(rmt_symbol_half_t *out, uint32_t send_wait, uint32_t *offset);
   bool encode_frame_(RmtFramePtr &frame, size_t count, uint32_t send_times, uint32_t send_wait);
   void submit_(RmtTxSlot &slot);
