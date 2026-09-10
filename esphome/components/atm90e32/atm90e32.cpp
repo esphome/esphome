@@ -743,9 +743,21 @@ void ATM90E32Component::finish_gain_calibration_(const GainCalibration (&previou
                                                  bool previous_using_saved) {
   const char *cs = this->get_calibration_id_();
   const bool writes_verified = this->verify_gain_writes_();
+  const bool previous_has_stored = this->has_stored_gain_calibration_;
+  GainCalibration previous_stored[3]{{0, 0}, {0, 0}, {0, 0}};
+  bool preference_write_allowed = true;
+  if (writes_verified && previous_has_stored) {
+    preference_write_allowed = this->gain_calibration_pref_.load(&previous_stored);
+    if (!preference_write_allowed) {
+      ESP_LOGE(TAG, "[CALIBRATION][%s] Failed to load stored gain calibration values; refusing to overwrite them.", cs);
+    }
+  }
+
   bool saved = false;
   bool synced = false;
-  if (writes_verified) {
+  bool preference_write_attempted = false;
+  if (writes_verified && preference_write_allowed) {
+    preference_write_attempted = true;
     saved = this->gain_calibration_pref_.save(&this->gain_phase_);
     synced = global_preferences->sync();
   }
@@ -760,7 +772,7 @@ void ATM90E32Component::finish_gain_calibration_(const GainCalibration (&previou
     return;
   }
 
-  if (writes_verified) {
+  if (writes_verified && preference_write_attempted) {
     ESP_LOGE(TAG, "[CALIBRATION][%s] Failed to save gain calibration to memory!", cs);
   }
 
@@ -769,21 +781,16 @@ void ATM90E32Component::finish_gain_calibration_(const GainCalibration (&previou
   this->write_gains_to_registers_();
   const bool rollback_verified = this->verify_gain_writes_();
 
-  bool rollback_persisted = false;
-  if (writes_verified) {
-    GainCalibration rollback[3]{};
-    prepare_calibration_rollback(previous, previous_restored, GainCalibration{0, 0}, rollback);
-    const bool rollback_saved = this->gain_calibration_pref_.save(&rollback);
+  if (preference_write_attempted) {
+    const bool rollback_saved = this->gain_calibration_pref_.save(&previous_stored);
     const bool rollback_synced = global_preferences->sync();
-    rollback_persisted = rollback_saved && rollback_synced;
-    if (!rollback_persisted) {
+    if (!rollback_saved || !rollback_synced) {
       ESP_LOGE(TAG, "[CALIBRATION][%s] Failed to persist restored gain calibration values!", cs);
     }
   }
 
   this->restored_gain_calibration_ = previous_restored;
-  if (rollback_persisted)
-    this->has_stored_gain_calibration_ = previous_restored;
+  this->has_stored_gain_calibration_ = previous_has_stored;
   this->using_saved_calibrations_ = previous_using_saved;
   if (!rollback_verified) {
     this->restored_gain_calibration_ = false;
@@ -809,9 +816,22 @@ void ATM90E32Component::finish_offset_calibration_(const OffsetCalibration (&pre
   bool *mismatches = power_offsets ? this->power_offset_calibration_mismatch_ : this->offset_calibration_mismatch_;
 
   const bool writes_verified = this->verify_offset_writes_(type);
+  const bool previous_has_stored = *has_stored;
+  OffsetCalibration previous_stored[3]{};
+  bool preference_write_allowed = true;
+  if (writes_verified && previous_has_stored) {
+    preference_write_allowed = preference->load(&previous_stored);
+    if (!preference_write_allowed) {
+      ESP_LOGE(TAG, "[CALIBRATION][%s] Failed to load stored %s calibration values; refusing to overwrite them.", cs,
+               LOG_STR_ARG(name));
+    }
+  }
+
   bool saved = false;
   bool synced = false;
-  if (writes_verified) {
+  bool preference_write_attempted = false;
+  if (writes_verified && preference_write_allowed) {
+    preference_write_attempted = true;
     saved = preference->save(offsets);
     synced = global_preferences->sync();
   }
@@ -827,7 +847,7 @@ void ATM90E32Component::finish_offset_calibration_(const OffsetCalibration (&pre
     return;
   }
 
-  if (writes_verified) {
+  if (writes_verified && preference_write_attempted) {
     ESP_LOGE(TAG, "[CALIBRATION][%s] Failed to save %s calibration to memory!", cs, LOG_STR_ARG(name));
   }
 
@@ -836,23 +856,23 @@ void ATM90E32Component::finish_offset_calibration_(const OffsetCalibration (&pre
   }
   const bool rollback_verified = this->verify_offset_writes_(type);
 
-  bool rollback_persisted = false;
-  if (writes_verified) {
-    OffsetCalibration rollback[3]{};
-    prepare_calibration_rollback(previous, previous_restored, OffsetCalibration{}, rollback);
-    const bool rollback_saved = preference->save(&rollback);
+  if (preference_write_attempted) {
+    const bool rollback_saved = preference->save(&previous_stored);
     const bool rollback_synced = global_preferences->sync();
-    rollback_persisted = rollback_saved && rollback_synced;
     if (!rollback_saved || !rollback_synced) {
       ESP_LOGE(TAG, "[CALIBRATION][%s] Failed to persist restored %s calibration values!", cs, LOG_STR_ARG(name));
     }
   }
 
   *restored = previous_restored;
-  if (rollback_persisted)
-    *has_stored = previous_restored;
+  *has_stored = previous_has_stored;
   this->using_saved_calibrations_ = previous_using_saved;
   if (!rollback_verified) {
+    *restored = false;
+    for (uint8_t phase = 0; phase < 3; phase++)
+      mismatches[phase] = false;
+    this->using_saved_calibrations_ = this->restored_offset_calibration_ || this->restored_power_offset_calibration_ ||
+                                      this->restored_gain_calibration_;
     ESP_LOGE(TAG, "[CALIBRATION][%s] %s calibration failed; rollback readback verification failed.", cs,
              LOG_STR_ARG(name));
     return;
@@ -1088,11 +1108,12 @@ void ATM90E32Component::restore_offset_calibrations_(OffsetCalibrationType type)
   if (initial_values_verified) {
     const auto state = resolve_calibration_restore_state(*has_stored, true, false);
     *restored = state.restored;
+    this->using_saved_calibrations_ = this->restored_offset_calibration_ || this->restored_power_offset_calibration_ ||
+                                      this->restored_gain_calibration_;
     ESP_LOGI(TAG, "[CALIBRATION][%s] %s calibration values verified.", cs, LOG_STR_ARG(name));
     return;
   }
 
-  this->using_saved_calibrations_ = false;
   for (uint8_t phase = 0; phase < 3; phase++)
     mismatches[phase] = false;
   for (uint8_t phase = 0; phase < 3; phase++) {
@@ -1101,6 +1122,8 @@ void ATM90E32Component::restore_offset_calibrations_(OffsetCalibrationType type)
   }
   const auto state = resolve_calibration_restore_state(*has_stored, false, this->verify_offset_writes_(type));
   *restored = state.restored;
+  this->using_saved_calibrations_ = this->restored_offset_calibration_ || this->restored_power_offset_calibration_ ||
+                                    this->restored_gain_calibration_;
   if (state.values_verified) {
     ESP_LOGE(TAG, "[CALIBRATION][%s] %s calibration restore failed verification; config values verified.", cs,
              LOG_STR_ARG(name));
@@ -1194,15 +1217,22 @@ void ATM90E32Component::clear_offset_calibrations() {
   ESP_LOGI(TAG, "[CALIBRATION][%s] ==============================================================\n", cs);
 
   OffsetCalibration zero_offsets[3]{{0, 0}, {0, 0}, {0, 0}};
-  this->offset_pref_.save(&zero_offsets);  // Clear stored values in flash
-  global_preferences->sync();
+  const bool saved = this->offset_pref_.save(&zero_offsets);
+  const bool synced = global_preferences->sync();
 
-  this->has_stored_offset_calibration_ = false;
+  if (saved && synced)
+    this->has_stored_offset_calibration_ = false;
   this->restored_offset_calibration_ = false;
+  this->using_saved_calibrations_ = this->restored_offset_calibration_ || this->restored_power_offset_calibration_ ||
+                                    this->restored_gain_calibration_;
   for (bool &phase : this->offset_calibration_mismatch_)
     phase = false;
 
-  ESP_LOGI(TAG, "[CALIBRATION][%s] Offsets cleared.", cs);
+  if (!saved || !synced) {
+    ESP_LOGE(TAG, "[CALIBRATION][%s] Failed to clear offset calibrations!", cs);
+  } else {
+    ESP_LOGI(TAG, "[CALIBRATION][%s] Offsets cleared.", cs);
+  }
 }
 
 void ATM90E32Component::clear_power_offset_calibrations() {
@@ -1238,15 +1268,22 @@ void ATM90E32Component::clear_power_offset_calibrations() {
   ESP_LOGI(TAG, "[CALIBRATION][%s] =====================================================================\n", cs);
 
   OffsetCalibration zero_power_offsets[3]{{0, 0}, {0, 0}, {0, 0}};
-  this->power_offset_pref_.save(&zero_power_offsets);
-  global_preferences->sync();
+  const bool saved = this->power_offset_pref_.save(&zero_power_offsets);
+  const bool synced = global_preferences->sync();
 
-  this->has_stored_power_offset_calibration_ = false;
+  if (saved && synced)
+    this->has_stored_power_offset_calibration_ = false;
   this->restored_power_offset_calibration_ = false;
+  this->using_saved_calibrations_ = this->restored_offset_calibration_ || this->restored_power_offset_calibration_ ||
+                                    this->restored_gain_calibration_;
   for (bool &phase : this->power_offset_calibration_mismatch_)
     phase = false;
 
-  ESP_LOGI(TAG, "[CALIBRATION][%s] Power offsets cleared.", cs);
+  if (!saved || !synced) {
+    ESP_LOGE(TAG, "[CALIBRATION][%s] Failed to clear power offsets!", cs);
+  } else {
+    ESP_LOGI(TAG, "[CALIBRATION][%s] Power offsets cleared.", cs);
+  }
 }
 
 int16_t ATM90E32Component::calibrate_offset(uint8_t phase, bool voltage) {
