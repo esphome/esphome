@@ -176,6 +176,26 @@ def test_configuration_succeeds_on_supported_variants(
     CONFIG_SCHEMA(config)
 
 
+def test_st7701s_default_reset_delay() -> None:
+    """ST7701S instances default to a 50ms reset delay.
+
+    The datasheet's stated 5ms is too short in practice; ST7701S overrides the
+    DriverChip default of 10ms with its own default of 50ms.
+    """
+    from esphome.components.mipi_rgb.models.st7701s import st7701s
+
+    assert st7701s.get_default("reset_delay") == 50
+
+
+def test_st7701s_reset_delay_can_be_overridden() -> None:
+    """An explicit reset_delay overrides the ST7701S default of 50ms."""
+    from esphome.components.mipi_rgb.models.st7701s import ST7701S
+
+    chip = ST7701S("TEST-ST7701S-RESET-DELAY", width=480, height=480, reset_delay=99)
+
+    assert chip.get_default("reset_delay") == 99
+
+
 def test_only_on_variant_rejects_unsupported_variant(
     set_core_config: SetCoreConfigCallable,
 ) -> None:
