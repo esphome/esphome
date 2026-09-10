@@ -15,6 +15,9 @@ static const char *const TAG = "remote_transmitter";
 static constexpr uint32_t RMT_SYMBOL_DURATION_MAX = 0x7FFF;
 
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 5, 1)
+// How long a blocking wait sleeps between watchdog feeds
+static constexpr int RMT_WAIT_SLICE_MS = 50;
+
 static size_t IRAM_ATTR HOT encoder_callback(const void *data, size_t size, size_t written, size_t free,
                                              rmt_symbol_word_t *symbols, bool *done, void *arg) {
   auto *store = static_cast<RemoteTransmitterComponentStore *>(arg);
@@ -48,6 +51,31 @@ static size_t IRAM_ATTR HOT encoder_callback(const void *data, size_t size, size
   }
   *done = false;
   return count;
+}
+
+// Splits a duration into 15-bit symbols; with out == nullptr only counts them
+static size_t write_symbols(rmt_symbol_half_t *out, size_t pos, uint32_t ticks, bool level) {
+  size_t count = 0;
+  while (ticks > 0) {
+    uint32_t duration = std::min(ticks, RMT_SYMBOL_DURATION_MAX);
+    if (out != nullptr) {
+      out[pos + count] = {
+          .duration = static_cast<uint16_t>(duration),
+          .level = static_cast<uint16_t>(level),
+      };
+    }
+    ticks -= duration;
+    count++;
+  }
+  return count;
+}
+
+bool IRAM_ATTR HOT RemoteTransmitterComponent::tx_done_callback(rmt_channel_handle_t channel,
+                                                                const rmt_tx_done_event_data_t *event, void *arg) {
+  auto *self = static_cast<RemoteTransmitterComponent *>(arg);
+  self->tx_done_ = true;
+  self->enable_loop_soon_any_context();
+  return false;
 }
 #endif
 
@@ -83,8 +111,12 @@ void RemoteTransmitterComponent::digital_write(bool value) {
   rmt_transmit_config_t config;
   memset(&config, 0, sizeof(config));
   config.flags.eot_level = value;
+  config.flags.queue_nonblocking = 1;
+  // a frame still on the wire finishes first and reports its completion
+  this->wait_for_rmt_();
   this->store_.times = 1;
   this->store_.index = 0;
+  rmt_encoder_handle_t encoder = this->encoder_;
 #else
   rmt_symbol_word_t symbol = {
       .duration0 = 1,
@@ -95,17 +127,24 @@ void RemoteTransmitterComponent::digital_write(bool value) {
   rmt_transmit_config_t config;
   memset(&config, 0, sizeof(config));
   config.flags.eot_level = value;
+  rmt_encoder_handle_t encoder = this->encoder_;
 #endif
-  esp_err_t error = rmt_transmit(this->channel_, this->encoder_, &symbol, sizeof(symbol), &config);
+  esp_err_t error = rmt_transmit(this->channel_, encoder, &symbol, sizeof(symbol), &config);
   if (error != ESP_OK) {
     ESP_LOGW(TAG, "rmt_transmit failed: %s", esp_err_to_name(error));
     this->status_set_warning();
   }
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 5, 1)
+  this->wait_all_done_();
+  // a level write is not a frame, so its completion is not reported
+  this->tx_done_ = false;
+#else
   error = rmt_tx_wait_all_done(this->channel_, -1);
   if (error != ESP_OK) {
     ESP_LOGW(TAG, "rmt_tx_wait_all_done failed: %s", esp_err_to_name(error));
     this->status_set_warning();
   }
+#endif
 }
 
 void RemoteTransmitterComponent::configure_rmt_() {
@@ -152,6 +191,17 @@ void RemoteTransmitterComponent::configure_rmt_() {
     }
 
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 5, 1)
+    rmt_tx_event_callbacks_t callbacks;
+    memset(&callbacks, 0, sizeof(callbacks));
+    callbacks.on_trans_done = tx_done_callback;
+    error = rmt_tx_register_event_callbacks(this->channel_, &callbacks, this);
+    if (error != ESP_OK) {
+      this->error_code_ = error;
+      this->error_string_ = "in rmt_tx_register_event_callbacks";
+      this->mark_failed();
+      return;
+    }
+
     rmt_simple_encoder_config_t encoder;
     memset(&encoder, 0, sizeof(encoder));
     encoder.callback = encoder_callback;
@@ -206,6 +256,118 @@ void RemoteTransmitterComponent::configure_rmt_() {
   }
 }
 
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 5, 1)
+// Blocks until the hardware is idle, feeding the watchdog while waiting
+void RemoteTransmitterComponent::wait_all_done_() {
+  esp_err_t error;
+  while ((error = rmt_tx_wait_all_done(this->channel_, RMT_WAIT_SLICE_MS)) == ESP_ERR_TIMEOUT) {
+    App.feed_wdt();
+  }
+  if (error != ESP_OK) {
+    ESP_LOGW(TAG, "rmt_tx_wait_all_done failed: %s", esp_err_to_name(error));
+    this->status_set_warning();
+  }
+}
+
+void RemoteTransmitterComponent::deliver_completion_() {
+  this->tx_done_ = false;
+  this->tx_active_ = false;
+  this->complete_trigger_.trigger();
+}
+
+// Blocks until any frame on the wire has gone out and reports its completion
+void RemoteTransmitterComponent::wait_for_rmt_() {
+  this->wait_all_done_();
+  if (this->tx_active_)
+    this->deliver_completion_();
+}
+
+void RemoteTransmitterComponent::loop() {
+  if (this->tx_done_)
+    this->deliver_completion_();
+  // the transmit done interrupt re-enables the loop
+  this->disable_loop();
+}
+
+// Encodes the repeat gap followed by the frame; with out == nullptr only counts symbols.
+// The gap leads the buffer so the encoder skips it on the first pass and replays it
+// before every repeat; offset receives the index of the first frame symbol.
+size_t RemoteTransmitterComponent::encode_symbols_(rmt_symbol_half_t *out, uint32_t send_wait, uint32_t *offset) {
+  size_t count = write_symbols(out, 0, this->from_microseconds_(send_wait), this->eot_level_);
+  *offset = count;
+  for (int32_t value : this->temp_.get_data()) {
+    bool level = value >= 0;
+    if (!level) {
+      value = -value;
+    }
+    count += write_symbols(out, count, this->from_microseconds_(static_cast<uint32_t>(value)), level ^ this->inverted_);
+  }
+  return count;
+}
+
+void RemoteTransmitterComponent::send_internal(uint32_t send_times, uint32_t send_wait) {
+  if (this->is_failed()) {
+    return;
+  }
+
+  if (this->tx_active_ && this->tx_done_) {
+    // finished, but loop() has not run yet
+    this->deliver_completion_();
+  }
+
+  if (send_times == 0 || this->tx_active_) {
+    // nothing is sent, but both triggers still fire so an on_complete-sequenced automation
+    // does not stall; a zero repeat count would never finish in the encoder, and a frame that
+    // arrives while another is on the wire is dropped rather than blocking the loop
+    if (this->tx_active_) {
+      ESP_LOGW(TAG, "Transmitter busy, dropping");
+      this->status_set_warning();
+    }
+    this->transmit_trigger_.trigger();
+    this->complete_trigger_.trigger();
+    return;
+  }
+
+  if (this->current_carrier_frequency_ != this->temp_.get_carrier_frequency()) {
+    this->current_carrier_frequency_ = this->temp_.get_carrier_frequency();
+    this->configure_rmt_();
+  }
+
+  uint32_t offset;
+  size_t count = this->encode_symbols_(nullptr, send_wait, &offset);
+  if (count <= offset) {
+    ESP_LOGE(TAG, "Empty data");
+    return;
+  }
+  this->rmt_temp_.resize(count);
+  this->encode_symbols_(this->rmt_temp_.data(), send_wait, &offset);
+  this->store_.times = send_times;
+  this->store_.index = offset;
+
+  this->transmit_trigger_.trigger();
+
+  rmt_transmit_config_t config;
+  memset(&config, 0, sizeof(config));
+  config.flags.eot_level = this->eot_level_;
+  config.flags.queue_nonblocking = 1;
+  this->tx_done_ = false;
+  this->tx_active_ = true;
+  esp_err_t error = rmt_transmit(this->channel_, this->encoder_, this->rmt_temp_.data(),
+                                 this->rmt_temp_.size() * sizeof(rmt_symbol_half_t), &config);
+  if (error != ESP_OK) {
+    ESP_LOGW(TAG, "rmt_transmit failed: %s", esp_err_to_name(error));
+    this->status_set_warning();
+    // nothing will complete, so report it now
+    this->deliver_completion_();
+    return;
+  }
+  this->status_clear_warning();
+
+  if (!this->non_blocking_) {
+    this->wait_for_rmt_();
+  }
+}
+#else
 void RemoteTransmitterComponent::wait_for_rmt_() {
   esp_err_t error = rmt_tx_wait_all_done(this->channel_, -1);
   if (error != ESP_OK) {
@@ -216,87 +378,6 @@ void RemoteTransmitterComponent::wait_for_rmt_() {
   this->complete_trigger_.trigger();
 }
 
-#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 5, 1)
-void RemoteTransmitterComponent::send_internal(uint32_t send_times, uint32_t send_wait) {
-  uint64_t total_duration = 0;
-
-  if (this->is_failed()) {
-    return;
-  }
-
-  // if the timeout was cancelled, block until the tx is complete
-  if (this->non_blocking_ && this->cancel_timeout("complete")) {
-    this->wait_for_rmt_();
-  }
-
-  if (this->current_carrier_frequency_ != this->temp_.get_carrier_frequency()) {
-    this->current_carrier_frequency_ = this->temp_.get_carrier_frequency();
-    this->configure_rmt_();
-  }
-
-  this->rmt_temp_.clear();
-  this->rmt_temp_.reserve(this->temp_.get_data().size() + 1);
-
-  // encode any delay at the start of the buffer to simplify the encoder callback
-  // this will be skipped the first time around
-  total_duration += send_wait * (send_times - 1);
-  send_wait = this->from_microseconds_(static_cast<uint32_t>(send_wait));
-  while (send_wait > 0) {
-    int32_t duration = std::min(send_wait, uint32_t(RMT_SYMBOL_DURATION_MAX));
-    this->rmt_temp_.push_back({
-        .duration = static_cast<uint16_t>(duration),
-        .level = static_cast<uint16_t>(this->eot_level_),
-    });
-    send_wait -= duration;
-  }
-
-  // encode data
-  size_t offset = this->rmt_temp_.size();
-  for (int32_t value : this->temp_.get_data()) {
-    bool level = value >= 0;
-    if (!level) {
-      value = -value;
-    }
-    total_duration += value * send_times;
-    value = this->from_microseconds_(static_cast<uint32_t>(value));
-    while (value > 0) {
-      int32_t duration = std::min(value, int32_t(RMT_SYMBOL_DURATION_MAX));
-      this->rmt_temp_.push_back({
-          .duration = static_cast<uint16_t>(duration),
-          .level = static_cast<uint16_t>(level ^ this->inverted_),
-      });
-      value -= duration;
-    }
-  }
-
-  if ((this->rmt_temp_.data() == nullptr) || this->rmt_temp_.size() <= offset) {
-    ESP_LOGE(TAG, "Empty data");
-    return;
-  }
-
-  this->transmit_trigger_.trigger();
-
-  rmt_transmit_config_t config;
-  memset(&config, 0, sizeof(config));
-  config.flags.eot_level = this->eot_level_;
-  this->store_.times = send_times;
-  this->store_.index = offset;
-  esp_err_t error = rmt_transmit(this->channel_, this->encoder_, this->rmt_temp_.data(),
-                                 this->rmt_temp_.size() * sizeof(rmt_symbol_half_t), &config);
-  if (error != ESP_OK) {
-    ESP_LOGW(TAG, "rmt_transmit failed: %s", esp_err_to_name(error));
-    this->status_set_warning();
-  } else {
-    this->status_clear_warning();
-  }
-
-  if (this->non_blocking_) {
-    this->set_timeout("complete", total_duration / 1000, [this]() { this->wait_for_rmt_(); });
-  } else {
-    this->wait_for_rmt_();
-  }
-}
-#else
 void RemoteTransmitterComponent::send_internal(uint32_t send_times, uint32_t send_wait) {
   if (this->is_failed())
     return;

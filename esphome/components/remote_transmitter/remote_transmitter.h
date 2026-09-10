@@ -64,6 +64,9 @@ class RemoteTransmitterComponent final : public remote_base::RemoteTransmitterBa
 #if defined(USE_ESP32) && SOC_RMT_SUPPORTED
   void set_with_dma(bool with_dma) { this->with_dma_ = with_dma; }
   void set_eot_level(bool eot_level) { this->eot_level_ = eot_level; }
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 5, 1)
+  void loop() override;
+#endif
 #endif
 #if (defined(USE_ESP32) && SOC_RMT_SUPPORTED) || defined(USE_LIBRETINY_VARIANT_RTL8720C) || \
     defined(REMOTE_TRANSMITTER_BK_PWM)
@@ -145,21 +148,32 @@ class RemoteTransmitterComponent final : public remote_base::RemoteTransmitterBa
   void wait_for_rmt_();
 
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 5, 1)
+  static bool tx_done_callback(rmt_channel_handle_t channel, const rmt_tx_done_event_data_t *event, void *arg);
+  size_t encode_symbols_(rmt_symbol_half_t *out, uint32_t send_wait, uint32_t *offset);
+  void wait_all_done_();
+  void deliver_completion_();
+
   RemoteTransmitterComponentStore store_{};
   std::vector<rmt_symbol_half_t> rmt_temp_;
 #else
   std::vector<rmt_symbol_word_t> rmt_temp_;
 #endif
   uint32_t current_carrier_frequency_{38000};
-  bool initialized_{false};
-  bool with_dma_{false};
-  bool eot_level_{false};
   rmt_channel_handle_t channel_{NULL};
   rmt_encoder_handle_t encoder_{NULL};
   esp_err_t error_code_{ESP_OK};
   std::string error_string_;
+  bool initialized_{false};
+  bool with_dma_{false};
+  bool eot_level_{false};
   bool inverted_{false};
   bool non_blocking_{false};
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 5, 1)
+  // set when a frame is handed to the hardware, cleared once its completion is reported;
+  // the transmit done interrupt sets tx_done_
+  bool tx_active_{false};
+  volatile bool tx_done_{false};
+#endif
 #endif
   uint8_t carrier_duty_percent_{50};
 
