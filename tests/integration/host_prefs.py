@@ -1,7 +1,7 @@
 """Helpers for manipulating the host platform's preferences file.
 
 ESPHome's host platform stores preferences in
-``~/.esphome/prefs/<app_name>.prefs`` using a simple binary layout that
+``$ESPHOME_PREFDIR/<app_name>.prefs`` using a simple binary layout that
 mirrors ``HostPreferences::sync()``:
 ``[uint32_t key][uint8_t len][uint8_t data[len]]`` per entry.
 
@@ -11,13 +11,21 @@ boot (e.g. forcing safe mode) or to clear stale state between runs.
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 import struct
 
 
 def host_prefs_path(device_name: str) -> Path:
-    """Return the on-disk prefs file path for a host-platform device."""
-    return Path.home() / ".esphome" / "prefs" / f"{device_name}.prefs"
+    """Return the on-disk prefs file path for a host-platform device.
+
+    Requires ESPHOME_PREFDIR, which the autouse isolated_preferences fixture
+    sets; refusing the ~/.esphome/prefs fallback keeps tests off real user
+    data if the fixture is ever bypassed."""
+    prefdir = os.environ.get("ESPHOME_PREFDIR")
+    if not prefdir:
+        raise RuntimeError("ESPHOME_PREFDIR is not set; refusing the real prefs dir")
+    return Path(prefdir) / f"{device_name}.prefs"
 
 
 def clear_host_prefs(device_name: str) -> None:
