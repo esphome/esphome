@@ -7,13 +7,7 @@ from esphome import pins
 import esphome.codegen as cg
 from esphome.components import uart
 import esphome.config_validation as cv
-from esphome.const import (
-    CONF_ADDRESS,
-    CONF_CONTINUOUS,
-    CONF_DISABLE_CRC,
-    CONF_FLOW_CONTROL_PIN,
-    CONF_ID,
-)
+from esphome.const import CONF_ADDRESS, CONF_CONTINUOUS, CONF_FLOW_CONTROL_PIN, CONF_ID
 from esphome.cpp_generator import MockObj
 from esphome.cpp_helpers import gpio_pin_expression
 import esphome.final_validate as fv
@@ -165,10 +159,6 @@ CONFIG_SCHEMA = cv.typed_schema(
                 cv.Optional(
                     CONF_TURNAROUND_TIME, default="600ms"
                 ): cv.positive_time_period_milliseconds,
-                # Remove before 2026.10.0
-                cv.Optional(CONF_DISABLE_CRC): cv.invalid(
-                    "'disable_crc' has been removed. The parser no longer requires it — remove this option."
-                ),
             }
         )
         .extend(cv.COMPONENT_SCHEMA)
@@ -177,10 +167,6 @@ CONFIG_SCHEMA = cv.typed_schema(
             {
                 cv.GenerateID(): cv.declare_id(ModbusServer),
                 cv.Optional(CONF_FLOW_CONTROL_PIN): pins.gpio_output_pin_schema,
-                # Remove before 2026.10.0
-                cv.Optional(CONF_DISABLE_CRC): cv.invalid(
-                    "'disable_crc' has been removed. The parser no longer requires it — remove this option."
-                ),
             }
         )
         .extend(cv.COMPONENT_SCHEMA)
