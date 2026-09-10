@@ -26,6 +26,9 @@ namespace esphome::network {
 
 /// Return whether the node is connected to the network (through wifi, eth, ...)
 ESPHOME_ALWAYS_INLINE inline bool is_connected() {
+  // With a single interface enabled the checks below collapse to `if (x) return true; return false;`, which
+  // clang-tidy wants folded into one return. Keep the per-interface form so every enabled interface is checked.
+  // NOLINTBEGIN(readability-simplify-boolean-expr)
 #ifdef USE_ETHERNET
   if (ethernet::global_eth_component != nullptr && ethernet::global_eth_component->is_connected())
     return true;
@@ -50,6 +53,7 @@ ESPHOME_ALWAYS_INLINE inline bool is_connected() {
   return true;  // Assume it's connected
 #endif
   return false;
+  // NOLINTEND(readability-simplify-boolean-expr)
 }
 
 /// Return whether the network is disabled: every configured interface with a
