@@ -92,8 +92,6 @@ template<typename... Ts> class IsMountedCondition final : public Condition<Ts...
   TinyUSB *parent_;
 };
 
-extern TinyUSB *global_tinyusb;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-
 }  // namespace esphome::tinyusb
 #endif  // USE_ESP32_VARIANT_ESP32P4 || USE_ESP32_VARIANT_ESP32S2 || USE_ESP32_VARIANT_ESP32S3 ||
         // USE_ESP32_VARIANT_ESP32S31 || USE_ESP32_VARIANT_ESP32H4
