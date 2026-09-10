@@ -81,7 +81,7 @@ static RmtFrame *new_frame(uint32_t capacity) {
 bool IRAM_ATTR HOT RemoteTransmitterComponent::tx_done_callback(rmt_channel_handle_t channel,
                                                                 const rmt_tx_done_event_data_t *event, void *arg) {
   auto *self = static_cast<RemoteTransmitterComponent *>(arg);
-  self->done_count_++;
+  self->done_count_ = self->done_count_ + 1;
   self->enable_loop_soon_any_context();
   return false;
 }
