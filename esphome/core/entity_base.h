@@ -94,7 +94,8 @@ class EntityBase {
   // from on_boot at the default priority, or a setup() that runs above setup_priority::AFTER_WIFI.
   // Calls after setup finishes are ignored and log an error.
   //
-  // Known limitations, all by design and not going to be fixed:
+  // Known limitations. Not bugs, so no issue reports please; a PR that removes one with no RAM
+  // or performance cost would be considered.
   // - No consumer is notified of a change, so the flag can only be decided once per boot.
   // - The guard is coarse: a call from a priority below AFTER_WIFI (an on_boot with a low priority,
   //   or a setup() at LATE) still passes, but the API camera listener is already registered, MQTT
