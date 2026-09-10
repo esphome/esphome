@@ -397,6 +397,18 @@ void USBClient::handle_open_state_() {
     usb_client_print_config_descriptor(config_desc, nullptr);
 #endif
   this->on_connected();
+  // on_connected() may have rejected the device (no usable interface, say) and closed it
+  if (this->state_ == USB_CLIENT_CONNECTED && !this->reports_connection_itself()) {
+    this->report_connected_();
+  }
+}
+
+void USBClient::report_connected_() {
+  if (this->state_ != USB_CLIENT_CONNECTED || this->connection_reported_) {
+    return;
+  }
+  this->connection_reported_ = true;
+  this->connection_callback_.call(true);
 }
 
 void USBClient::on_opened(uint8_t addr) {
@@ -467,6 +479,10 @@ TransferRequest *USBClient::get_trq_() {
 }
 
 void USBClient::disconnect() {
+  // Also reached for a device this client opened and then declined, or lost before it was
+  // ready; neither was reported as connected, so neither is reported as removed
+  const bool was_reported = this->connection_reported_;
+  this->connection_reported_ = false;
   this->on_disconnected();
   auto err = usb_host_device_close(this->handle_, this->device_handle_);
   if (err != ESP_OK) {
@@ -475,6 +491,9 @@ void USBClient::disconnect() {
   this->state_ = USB_CLIENT_INIT;
   this->device_handle_ = nullptr;
   this->device_addr_ = -1;
+  if (was_reported) {
+    this->connection_callback_.call(false);
+  }
 }
 
 // THREAD CONTEXT: Called from main loop thread only

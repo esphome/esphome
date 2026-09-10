@@ -34,6 +34,13 @@ void SerialProxy::setup() {
   // instance_index_ is fixed at registration time; pre-set it so loop() only needs to update data
   this->outgoing_msg_.instance = this->instance_index_;
 #endif
+#ifdef USE_SERIAL_PROXY_USB_INFO
+  // The define is global, so a hardware UART port in the same config also gets here
+  if (this->usb_channel_ != nullptr) {
+    this->usb_channel_->get_parent()->add_on_connection_callback(
+        [this](bool connected) { this->on_usb_connection_changed_(connected); });
+  }
+#endif
 #ifdef USE_SERIAL_PROXY_TAP
   // A tap sets itself up before this runs (its setup priority is higher), so it may
   // already be waiting on the port -- a boot-time handshake with the device, say. Leaving
@@ -338,25 +345,53 @@ SerialProxyResult SerialProxy::set_modem_pins(api::APIConnection *api_connection
   return SerialProxyResult::SERIAL_PROXY_RESULT_OK;
 }
 
-#if defined(USE_SERIAL_PROXY_USB_INFO) && defined(USE_API)
-void SerialProxy::get_usb_info(usb_host::UsbDeviceInfo &info, api::SerialProxyGetUsbInfoResponse &resp) const {
-  if (this->usb_channel_ == nullptr) {
-    resp.status = api::enums::SERIAL_PROXY_STATUS_NOT_SUPPORTED;
+#ifdef USE_SERIAL_PROXY_USB_INFO
+void SerialProxy::on_usb_connection_changed_(bool connected) {
+  ESP_LOGD(TAG, "USB device %s serial proxy [%" PRIu32 "]",
+           connected ? LOG_STR_LITERAL("attached to") : LOG_STR_LITERAL("removed from"), this->instance_index_);
+#ifdef USE_SERIAL_PROXY_TAP
+  // Before telling clients, so a tap never acknowledges a frame from the old device after
+  // a client has been told it is gone. The subscriber and the mode stay: both belong to
+  // the client's session, and only the client knows whether that session is over.
+  if (!connected && this->tap_ != nullptr) {
+    this->tap_->on_device_disconnected();
+  }
+#endif
+#ifdef USE_API
+  if (api::global_api_server == nullptr) {
     return;
   }
-  resp.interface_number = this->usb_channel_->get_index();
+  // The message's strings are views into this buffer, which outlives the send below
+  usb_host::UsbDeviceInfo info;
+  api::SerialProxyUsbInfo msg{};
+  msg.instance = this->instance_index_;
+  this->get_usb_info(info, msg);
+  api::global_api_server->send_serial_proxy_usb_info(msg);
+#endif
+}
+
+#ifdef USE_API
+void SerialProxy::get_usb_info(usb_host::UsbDeviceInfo &info, api::SerialProxyUsbInfo &msg) const {
+  if (this->usb_channel_ == nullptr) {
+    msg.status = api::enums::SERIAL_PROXY_STATUS_NOT_SUPPORTED;
+    return;
+  }
   if (!this->usb_channel_->get_parent()->get_device_info(info)) {
     // No device attached right now; not an error
     return;
   }
-  resp.connected = true;
-  resp.vendor_id = info.vendor_id;
-  resp.product_id = info.product_id;
-  resp.bcd_device = info.bcd_device;
-  resp.manufacturer = StringRef(info.manufacturer);
-  resp.product = StringRef(info.product);
-  resp.serial_number = StringRef(info.serial_number);
+  msg.connected = true;
+  msg.vendor_id = info.vendor_id;
+  msg.product_id = info.product_id;
+  msg.bcd_device = info.bcd_device;
+  msg.interface_number = this->usb_channel_->get_interface_number();
+  msg.manufacturer = StringRef(info.manufacturer);
+  msg.product = StringRef(info.product);
+  msg.serial_number = StringRef(info.serial_number);
+  // Lives in the channel for as long as the device is attached
+  msg.interface_description = StringRef(this->usb_channel_->get_interface_string());
 }
+#endif
 #endif
 
 uint32_t SerialProxy::get_modem_pins() const {

@@ -189,6 +189,10 @@ class APIServer final : public Component,
 #ifdef USE_ZWAVE_PROXY
   void on_zwave_proxy_request(const ZWaveProxyRequest &msg);
 #endif
+#ifdef USE_SERIAL_PROXY_USB_INFO
+  /// Tell every client that the USB device behind a serial proxy port changed
+  void send_serial_proxy_usb_info(const SerialProxyUsbInfo &msg);
+#endif
 #if defined(USE_IR_RF) || defined(USE_RADIO_FREQUENCY)
   void send_infrared_rf_receive_event(uint32_t device_id, uint32_t key, const std::vector<int32_t> *timings);
 #endif

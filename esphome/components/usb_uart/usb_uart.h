@@ -164,8 +164,15 @@ class USBUartChannelBase : public uart::UARTComponent, public Parented<USBUartCo
   /// they arrive, eliminating one full main-loop-wakeup cycle of latency.
   void set_rx_callback(std::function<void()> cb) { this->rx_callback_ = std::move(cb); }
 
-  /// Channel index on the bridge (interface number on multi-port bridges)
+  /// Channel index on the bridge
   uint8_t get_index() const { return this->index_; }
+
+  /// USB interface number a host driver binds to for this channel: the communication
+  /// interface of a CDC ACM function, otherwise the data interface.
+  uint8_t get_interface_number() const {
+    return this->cdc_dev_.interrupt_interface_number != 0xFF ? this->cdc_dev_.interrupt_interface_number
+                                                             : this->cdc_dev_.bulk_interface_number;
+  }
 
  protected:
   // Not directly instantiable; construct a concrete channel type instead.
@@ -251,6 +258,10 @@ class USBUartComponent : public usb_host::USBClient {
   // Optional one-time device-level setup run before the per-channel phase on init only
   // (e.g. CH34x chip detection). Same contract as config_step_(). Default: no steps.
   virtual bool config_device_step(uint8_t step, bool ok, const uint8_t *response) { return false; }
+
+  // The device is only usable once the config machine has applied every channel's line
+  // settings, so the connected report waits for run_config_machine_() to finish the init
+  bool reports_connection_itself() const override { return true; }
 
   std::vector<USBUartChannelBase *> channels_{};
 

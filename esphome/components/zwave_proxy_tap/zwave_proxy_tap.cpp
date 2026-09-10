@@ -57,6 +57,16 @@ void ZWaveProxyTap::on_protocol_disabled() {
   this->detector_.reset();
 }
 
+void ZWaveProxyTap::on_device_disconnected() {
+  // The controller lost power, so the exchange we saw belongs to a session that no longer
+  // exists. Whatever appears next has to prove itself again.
+  if (this->was_armed_) {
+    ESP_LOGD(TAG, "Device removed, no longer acknowledging frames");
+    this->was_armed_ = false;
+  }
+  this->detector_.reset();
+}
+
 }  // namespace esphome::zwave_proxy_tap
 
 #endif  // USE_ZWAVE_PROXY_TAP

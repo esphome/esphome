@@ -2830,8 +2830,8 @@ const char *SerialProxyGetUsbInfoRequest::dump_to(DumpBuffer &out) const {
   dump_field(out, ESPHOME_PSTR("instance"), this->instance);
   return out.c_str();
 }
-const char *SerialProxyGetUsbInfoResponse::dump_to(DumpBuffer &out) const {
-  MessageDumpHelper helper(out, ESPHOME_PSTR("SerialProxyGetUsbInfoResponse"));
+const char *SerialProxyUsbInfo::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("SerialProxyUsbInfo"));
   dump_field(out, ESPHOME_PSTR("instance"), this->instance);
   dump_field(out, ESPHOME_PSTR("status"), static_cast<enums::SerialProxyStatus>(this->status));
   dump_field(out, ESPHOME_PSTR("connected"), this->connected);

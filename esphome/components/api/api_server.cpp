@@ -404,6 +404,18 @@ void APIServer::on_zwave_proxy_request(const ZWaveProxyRequest &msg) {
 }
 #endif
 
+#ifdef USE_SERIAL_PROXY_USB_INFO
+void APIServer::send_serial_proxy_usb_info(const SerialProxyUsbInfo &msg) {
+  // Unsolicited: a hotplug is rare and the message small, so every client hears of it
+  // rather than maintaining a subscription for the one client there normally is
+  for (auto &c : this->active_clients()) {
+    if (!c->send_message(msg)) {
+      API_LOG_MSG_DROPPED(TAG, "USB info notification");
+    }
+  }
+}
+#endif
+
 #if defined(USE_IR_RF) || defined(USE_RADIO_FREQUENCY)
 void APIServer::send_infrared_rf_receive_event([[maybe_unused]] uint32_t device_id, uint32_t key,
                                                const std::vector<int32_t> *timings) {

@@ -4276,7 +4276,7 @@ bool SerialProxyGetUsbInfoRequest::decode_varint(uint32_t field_id, proto_varint
   }
   return true;
 }
-uint8_t *SerialProxyGetUsbInfoResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
+uint8_t *SerialProxyUsbInfo::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
   uint8_t *__restrict__ pos = buffer.get_pos();
   ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 1, this->instance);
   ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 2, static_cast<uint32_t>(this->status));
