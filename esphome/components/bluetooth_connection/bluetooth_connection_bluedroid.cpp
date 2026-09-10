@@ -57,7 +57,7 @@ void BluedroidGattClient::loop() {
       ESP_LOGE(TAG, "gattc app register failed: app_id=%d code=%d", this->app_id, ret);
       this->mark_failed();
     }
-    // Do not wait for REG_EVT; a dropped event must not wedge the slot.
+    // Do not wait for REG_EVT; connect() rejects until it lands.
     this->set_idle_();
   } else if (st == ClientState::DISCONNECTING || this->disconnect_pending()) {
     // The one teardown safety net: a lost CLOSE_EVT, or a scheduled

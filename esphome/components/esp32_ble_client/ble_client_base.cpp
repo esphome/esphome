@@ -139,7 +139,10 @@ void BLEClientBase::connect() {
   if (this->gattc_if_ == ESP_GATT_IF_NONE) {
     // Bluedroid drops an open on an unknown interface without any event.
     this->log_warning_("Connect rejected, GATT app not registered");
-    this->set_state(espbt::ClientState::IDLE);
+    // INIT stays so loop() still registers; only a promoted client goes back.
+    if (this->state() == espbt::ClientState::DISCOVERED) {
+      this->set_state(espbt::ClientState::IDLE);
+    }
     return;
   }
   ESP_LOGI(TAG, "[%d] [%s] 0x%02x Connecting", this->connection_index_, this->address_str_, this->remote_addr_type_);
