@@ -13,17 +13,17 @@ DriverChip(
     width=412,
     height=412,
     bus_mode=TYPE_QUAD,
-    spi_mode="MODE3",
+    spi_mode="MODE0",
     data_rate="40MHz",
     cs_pin=21,
+    reset_pin={"pca9554": None, "number": 1},
     color_order=MODE_RGB,
     draw_rounding=4,
     transforms={CONF_MIRROR_X, CONF_MIRROR_Y},
     use_axis_flips=True,
-    no_swreset=True,  # The board uses a reset pin on its PCA9554 expander.
-    no_slpout=True,  # Preserve the vendor's 120ms delay after sleep-out.
+    reset_delay=20,
     initsequence=(
-        delay(120),
+        delay(10),
         (0xFF, 0x20, 0x10, 0x00),
         (0x36, 0x00),
         (0x3A, 0x55),
@@ -428,8 +428,6 @@ DriverChip(
         (0xFF, 0x20, 0x10, 0x2D),
         (0x02, 0x00),
         (0xFF, 0x20, 0x10, 0x00),
-        (0x11,),
-        delay(120),
     ),
 )
 # fmt: on
