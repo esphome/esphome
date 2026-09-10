@@ -28,8 +28,8 @@ CommandOutcome read_object(ObjectKind kind) {
 }
 
 bool supports_control(const DeviceProfile &profile, uint32_t mode) {
-  const auto end = profile.control_modes.begin() + profile.control_mode_count;
-  return std::find(profile.control_modes.begin(), end, mode) != end;
+  const auto *const modes_end = profile.control_modes.begin() + profile.control_mode_count;
+  return std::find(profile.control_modes.begin(), modes_end, mode) != modes_end;
 }
 
 ObjectKind local_object(const WorkItem &work) {

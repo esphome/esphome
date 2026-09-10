@@ -2,7 +2,7 @@
 
 #include "esphome/components/alpha3/alpha3.h"
 
-#ifdef USE_SELECT
+#if defined(USE_ESP32) && defined(USE_SELECT)
 namespace esphome::alpha3 {
 
 class Alpha3Select final : public select::Select {

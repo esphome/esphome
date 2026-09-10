@@ -123,9 +123,10 @@ TEST(Alpha3WorkQueue, CoalescesOnlyByteIdenticalCommandsAndPreservesDistinctComm
 
 TEST(Alpha3WorkQueue, RejectsPollWhenFull) {
   WorkQueue queue;
-  for (uint8_t value = 0; value < WORK_QUEUE_CAPACITY; value++)
+  for (uint8_t value = 0; value < WORK_QUEUE_CAPACITY; value++) {
     ASSERT_EQ(queue.enqueue(command(WorkKind::WORK_KIND_SET_OPERATION_MODE, value), nullptr),
               EnqueueResult::ENQUEUE_RESULT_ACCEPTED);
+  }
 
   EXPECT_EQ(queue.enqueue(read_object(ObjectKind::OBJECT_KIND_ELECTRICAL), nullptr),
             EnqueueResult::ENQUEUE_RESULT_REJECTED_FULL);
@@ -137,9 +138,10 @@ TEST(Alpha3WorkQueue, CommandEvictsNewestPollWhenFull) {
   const WorkItem oldest_poll = read_object(ObjectKind::OBJECT_KIND_ELECTRICAL);
   const WorkItem newest_poll = read_object(ObjectKind::OBJECT_KIND_HISTORY);
   ASSERT_EQ(queue.enqueue(oldest_poll, nullptr), EnqueueResult::ENQUEUE_RESULT_ACCEPTED);
-  for (uint8_t value = 0; value < WORK_QUEUE_CAPACITY - 2; value++)
+  for (uint8_t value = 0; value < WORK_QUEUE_CAPACITY - 2; value++) {
     ASSERT_EQ(queue.enqueue(command(WorkKind::WORK_KIND_SET_OPERATION_MODE, value), nullptr),
               EnqueueResult::ENQUEUE_RESULT_ACCEPTED);
+  }
   ASSERT_EQ(queue.enqueue(newest_poll, nullptr), EnqueueResult::ENQUEUE_RESULT_ACCEPTED);
 
   const WorkItem replacement = command(WorkKind::WORK_KIND_SET_CONTROL_MODE, 99);
@@ -152,9 +154,10 @@ TEST(Alpha3WorkQueue, CommandEvictsNewestPollWhenFull) {
 
 TEST(Alpha3WorkQueue, RejectsCommandWhenFullOfCommands) {
   WorkQueue queue;
-  for (uint8_t value = 0; value < WORK_QUEUE_CAPACITY; value++)
+  for (uint8_t value = 0; value < WORK_QUEUE_CAPACITY; value++) {
     ASSERT_EQ(queue.enqueue(command(WorkKind::WORK_KIND_SET_OPERATION_MODE, value), nullptr),
               EnqueueResult::ENQUEUE_RESULT_ACCEPTED);
+  }
 
   EXPECT_EQ(queue.enqueue(command(WorkKind::WORK_KIND_SET_CONTROL_MODE, 1), nullptr),
             EnqueueResult::ENQUEUE_RESULT_REJECTED_FULL);
@@ -320,10 +323,11 @@ TEST(Alpha3TransportState, DisconnectClearsDiscoveredOrFallbackAddressAndAllowsF
     ready_transport(state);
     ASSERT_TRUE(state.start_discovery());
     send_discovery(state);
-    if (fallback)
+    if (fallback) {
       ASSERT_EQ(state.handle_timeout(), TimeoutDecision::TIMEOUT_DECISION_DISCOVERY_FALLBACK);
-    else
+    } else {
       ASSERT_TRUE(state.accept_discovered_address(0xE6));
+    }
     state.reset_on_disconnect();
     EXPECT_EQ(state.unit_address, GENI_BROADCAST_ADDRESS);
     EXPECT_EQ(state.queue.size(), 0U);

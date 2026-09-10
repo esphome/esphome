@@ -1,6 +1,6 @@
 #include "alpha3_select.h"
 
-#ifdef USE_SELECT
+#if defined(USE_ESP32) && defined(USE_SELECT)
 #include "esphome/core/log.h"
 
 namespace esphome::alpha3 {

@@ -2,7 +2,7 @@
 
 #include "esphome/components/alpha3/alpha3.h"
 
-#ifdef USE_NUMBER
+#if defined(USE_ESP32) && defined(USE_NUMBER)
 namespace esphome::alpha3 {
 
 class Alpha3Number final : public number::Number {
