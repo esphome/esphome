@@ -5,6 +5,7 @@
     defined(USE_ESP32_VARIANT_ESP32S31) || defined(USE_ESP32_VARIANT_ESP32H4)
 #include "esphome/core/defines.h"
 #include "esphome/core/component.h"
+#include "esphome/core/helpers.h"
 #include <vector>
 #include "usb/usb_host.h"
 #include <freertos/FreeRTOS.h>
@@ -12,6 +13,7 @@
 #include "esphome/core/lock_free_queue.h"
 #include "esphome/core/event_pool.h"
 #include <atomic>
+#include <span>
 
 namespace esphome::usb_host {
 
@@ -131,6 +133,10 @@ struct UsbDeviceInfo {
   char serial_number[DESC_STRING_BUF_SIZE];
 };
 
+/// Copy a USB string descriptor into a NUL-terminated buffer, dropping characters outside
+/// Latin-1. A missing descriptor copies as an empty string.
+void copy_descriptor_string(const usb_str_desc_t *desc, std::span<char, DESC_STRING_BUF_SIZE> buffer);
+
 enum ClientState {
   USB_CLIENT_INIT = 0,
   USB_CLIENT_OPEN,
@@ -162,10 +168,27 @@ class USBClient : public Component {
   /// Returns false when no device is connected.
   bool get_device_info(UsbDeviceInfo &info) const;
 
+  /// Read a string descriptor the host stack does not cache, an interface string say, into
+  /// buffer. Uses a transfer of its own: the pooled ones hold one packet, and a string
+  /// descriptor can be four times that. The callback runs on the USB task once buffer holds
+  /// the string (empty on failure). Returns false when nothing was started. One read at a
+  /// time; main loop only.
+  bool read_string_descriptor(uint8_t index, std::span<char, DESC_STRING_BUF_SIZE> buffer,
+                              const transfer_cb_t &callback);
+
   /// Narrow which device this client claims, beyond the VID/PID it was constructed
   /// with, by requiring a descriptor string to match exactly.
   void set_manufacturer_filter(const char *manufacturer) { this->manufacturer_filter_ = manufacturer; }
   void set_product_filter(const char *product) { this->product_filter_ = product; }
+
+  /// Register a callback for the device this client claims being connected (true) or
+  /// removed (false). Fires only for a device that passed every filter and was fully
+  /// opened, so a device another client claims is never reported. Called from the main
+  /// loop: connected once the device is ready to use (a subclass may hold this back until
+  /// its own setup of the device has finished), removed after on_disconnected() has run.
+  template<typename F> void add_on_connection_callback(F &&callback) {
+    this->connection_callback_.add(std::forward<F>(callback));
+  }
 
   // Lock-free event queue and pool for USB task to main loop communication
   // Must be public for access from static callbacks
@@ -187,10 +210,19 @@ class USBClient : public Component {
 
   /// Whether the device's descriptor strings satisfy every filter that is set.
   bool descriptor_strings_match_(const usb_device_info_t &dev_info) const;
+
+  /// Whether the subclass reports the device as connected itself, once its own setup of
+  /// the device has finished, rather than as soon as the device has been opened
+  virtual bool reports_connection_itself() const { return false; }
+  /// Report the claimed device to the connection callbacks. Idempotent; a subclass that
+  /// reports itself calls this once the device is ready to use.
+  void report_connected_();
   virtual void on_disconnected() {
     // Reset all requests to available (all bits to 0)
     this->trq_in_use_.store(0);
   }
+
+  static void string_descriptor_callback(usb_transfer_t *xfer);
 
   // USB task management
   static void usb_task_fn(void *arg);
@@ -199,6 +231,11 @@ class USBClient : public Component {
   // Members ordered to minimize struct padding on 32-bit platforms
   TransferRequest requests_[MAX_REQUESTS]{};
   TaskHandle_t usb_task_handle_{nullptr};
+  // Dedicated transfer for read_string_descriptor(), allocated on first use and kept
+  usb_transfer_t *string_transfer_{nullptr};
+  transfer_cb_t string_callback_;
+  char *string_buffer_{nullptr};
+  std::atomic<bool> string_read_busy_{false};
   usb_host_client_handle_t handle_{};
   usb_device_handle_t device_handle_{};
   int device_addr_{-1};
@@ -207,11 +244,15 @@ class USBClient : public Component {
   // Bit i = 1: requests_[i] is in use, Bit i = 0: requests_[i] is available
   // Supports multiple concurrent consumers and producers (both threads can allocate/deallocate)
   std::atomic<trq_bitmask_t> trq_in_use_;
+  LazyCallbackManager<void(bool)> connection_callback_;
   // Descriptor strings a device must report to be claimed; nullptr means no constraint
   const char *manufacturer_filter_{nullptr};
   const char *product_filter_{nullptr};
   uint16_t vid_{};
   uint16_t pid_{};
+  // Whether the connection callbacks were told about the current device, so a removal is
+  // only ever reported for a device that was reported connected
+  bool connection_reported_{false};
 };
 class USBHost final : public Component {
  public:

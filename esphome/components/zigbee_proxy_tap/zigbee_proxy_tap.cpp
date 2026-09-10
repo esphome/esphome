@@ -56,6 +56,16 @@ void ZigbeeProxyTap::on_protocol_disabled() {
   this->detector_.reset();
 }
 
+void ZigbeeProxyTap::on_device_disconnected() {
+  // The ASH session died with the NCP's power. Staying armed would acknowledge frames from
+  // whatever boots next, before its own RSTACK has proven it speaks ASH at all.
+  if (this->was_armed_) {
+    ESP_LOGD(TAG, "Device removed, no longer acknowledging frames");
+    this->was_armed_ = false;
+  }
+  this->detector_.reset();
+}
+
 }  // namespace esphome::zigbee_proxy_tap
 
 #endif  // USE_ZIGBEE_PROXY_TAP

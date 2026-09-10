@@ -3440,12 +3440,12 @@ class SerialProxyGetUsbInfoRequest final : public ProtoDecodableMessage {
  protected:
   bool decode_varint(uint32_t field_id, proto_varint_value_t value) override;
 };
-class SerialProxyGetUsbInfoResponse final : public ProtoMessage {
+class SerialProxyUsbInfo final : public ProtoMessage {
  public:
   static constexpr uint16_t MESSAGE_TYPE = 154;
-  static constexpr uint8_t ESTIMATED_SIZE = 51;
+  static constexpr uint8_t ESTIMATED_SIZE = 60;
 #ifdef HAS_PROTO_MESSAGE_DUMP
-  const LogString *message_name() const override { return LOG_STR("serial_proxy_get_usb_info_response"); }
+  const LogString *message_name() const override { return LOG_STR("serial_proxy_usb_info"); }
 #endif
   uint32_t instance{0};
   enums::SerialProxyStatus status{};
@@ -3457,6 +3457,7 @@ class SerialProxyGetUsbInfoResponse final : public ProtoMessage {
   StringRef manufacturer{};
   StringRef product{};
   StringRef serial_number{};
+  StringRef interface_description{};
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const;
   uint32_t calculate_size() const;
 #ifdef HAS_PROTO_MESSAGE_DUMP

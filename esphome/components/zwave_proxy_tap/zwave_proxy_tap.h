@@ -34,6 +34,7 @@ class ZWaveProxyTap : public serial_proxy::SerialProxyTap, public Component {
   // there is nothing to do and the port need not be read.
   bool tap_needs_port() const override { return false; }
   void on_protocol_disabled() override;
+  void on_device_disconnected() override;
 
  protected:
   // The port this component observes. Owns the UART and the bytes; every write we make

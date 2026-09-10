@@ -1647,14 +1647,14 @@ void APIConnection::on_serial_proxy_get_modem_pins_request(const SerialProxyGetM
 
 void APIConnection::on_serial_proxy_get_usb_info_request(const SerialProxyGetUsbInfoRequest &msg) {
   auto &proxies = App.get_serial_proxies();
-  SerialProxyGetUsbInfoResponse resp{};
+  SerialProxyUsbInfo resp{};
   resp.instance = msg.instance;
   if (msg.instance >= proxies.size()) {
     ESP_LOGW(TAG, "Serial proxy instance %" PRIu32 " out of range", msg.instance);
     resp.status = enums::SERIAL_PROXY_STATUS_INVALID_ARGUMENT;
   } else {
 #ifdef USE_SERIAL_PROXY_USB_INFO
-    // The response's strings are views into this buffer, which outlives the send below
+    // The message's strings are views into this buffer, which outlives the send below
     usb_host::UsbDeviceInfo info;
     proxies[msg.instance]->get_usb_info(info, resp);
 #else

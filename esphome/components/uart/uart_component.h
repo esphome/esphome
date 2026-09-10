@@ -166,6 +166,14 @@ class UARTComponent {
   // @return Baud rate in bits per second.
   uint32_t get_baud_rate() const { return baud_rate_; }
 
+  // Requests hardware (RTS/CTS) flow control.
+  // @param flow_control True to request hardware flow control.
+  void set_flow_control(bool flow_control) { this->flow_control_ = flow_control; }
+
+  // Gets whether hardware flow control was requested.
+  // @return True when hardware flow control was requested.
+  bool get_flow_control() const { return this->flow_control_; }
+
 #if defined(USE_ESP8266) || defined(USE_ESP32)
   /**
    * Load the UART settings.
@@ -213,6 +221,7 @@ class UARTComponent {
   uint8_t stop_bits_{0};
   uint8_t data_bits_{0};
   UARTParityOptions parity_{UART_CONFIG_PARITY_NONE};
+  bool flow_control_{false};
 #ifdef USE_UART_DEBUGGER
   CallbackManager<void(UARTDirection, uint8_t)> debug_callback_{};
 #endif

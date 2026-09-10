@@ -37,6 +37,9 @@ struct CdcEps {
   // Also the wIndex target for CDC class requests (SET_LINE_CODING etc.), so it
   // must remain valid even when the interface itself is not claimed.
   uint8_t interrupt_interface_number;
+  // iInterface of each interface; 0 when the device provides no string for it
+  uint8_t interrupt_interface_string_index;
+  uint8_t bulk_interface_string_index;
   bool interrupt_interface_claimed{false};
 };
 
@@ -167,14 +170,26 @@ class USBUartChannelBase : public uart::UARTComponent, public Parented<USBUartCo
   /// they arrive, eliminating one full main-loop-wakeup cycle of latency.
   void set_rx_callback(std::function<void()> cb) { this->rx_callback_ = std::move(cb); }
 
-  /// Channel index on the bridge (interface number on multi-port bridges)
+  /// Channel index on the bridge
   uint8_t get_index() const { return this->index_; }
+
+  /// USB interface number a host driver binds to for this channel: the communication
+  /// interface of a CDC ACM function, otherwise the data interface.
+  uint8_t get_interface_number() const {
+    return this->cdc_dev_.interrupt_interface_number != 0xFF ? this->cdc_dev_.interrupt_interface_number
+                                                             : this->cdc_dev_.bulk_interface_number;
+  }
+
+  /// iInterface string of that interface; empty when the device has none, or until it has
+  /// been read after the device connected
+  const char *get_interface_string() const { return this->interface_string_; }
 
  protected:
   // Not directly instantiable; construct a concrete channel type instead.
   USBUartChannelBase(uint8_t index, uint16_t buffer_size) : input_buffer_(RingBuffer(buffer_size)), index_(index) {}
   void check_logger_conflict() override {}
   // Larger structures first (8+ bytes)
+  char interface_string_[usb_host::DESC_STRING_BUF_SIZE]{};
   RingBuffer input_buffer_;
   LockFreeQueue<UsbOutputChunk, USB_OUTPUT_CHUNK_COUNT> output_queue_;
   // Pool sized to queue capacity (SIZE-1) because LockFreeQueue<T,N> is a ring
@@ -244,6 +259,9 @@ class USBUartComponent : public usb_host::USBClient {
   void start_config_(bool reload);
   // Advance the config state machine; called from loop(). Returns true if it did work.
   bool run_config_machine_();
+  // Ask the device for the channel's interface string. Returns true when a transfer was
+  // submitted; its completion is signalled through cfg_done_ like a config step's.
+  bool fetch_interface_string_(USBUartChannelBase *channel);
 
   // Per-subclass per-channel settings sequence. For the given zero-based step, issue the
   // next control transfer via config_transfer_() and return true, or return false when the
@@ -254,6 +272,10 @@ class USBUartComponent : public usb_host::USBClient {
   // Optional one-time device-level setup run before the per-channel phase on init only
   // (e.g. CH34x chip detection). Same contract as config_step_(). Default: no steps.
   virtual bool config_device_step(uint8_t step, bool ok, const uint8_t *response) { return false; }
+
+  // The device is only usable once the config machine has applied every channel's line
+  // settings, so the connected report waits for run_config_machine_() to finish the init
+  bool reports_connection_itself() const override { return true; }
 
   std::vector<USBUartChannelBase *> channels_{};
 
@@ -269,6 +291,8 @@ class USBUartComponent : public usb_host::USBClient {
   bool cfg_device_phase_{false};
   bool cfg_in_flight_{false};
   bool cfg_ok_{true};
+  bool cfg_string_done_{false};
+  bool cfg_string_in_flight_{false};
 };
 
 class USBUartTypeCdcAcm : public USBUartComponent {

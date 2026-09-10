@@ -89,6 +89,11 @@ class SerialProxyTap {
   /// else with the device -- reflash it, most likely -- so anything the tap believes about
   /// it should be treated as suspect.
   virtual void on_protocol_disabled() = 0;
+
+  /// The device behind the port went away -- unplugged, or its power was cut. Whatever
+  /// session the tap had observed ended with it; the device that appears next starts from
+  /// scratch and may not even be the same one. Only a USB UART can report this.
+  virtual void on_device_disconnected() = 0;
 };
 #endif
 
@@ -123,7 +128,7 @@ class SerialProxy final : public uart::UARTDevice, public Component {
   /// Configure UART parameters and apply them
   /// @param api_connection The API connection requesting the change
   /// @param baudrate Baud rate in bits per second
-  /// @param flow_control True to enable hardware flow control
+  /// @param flow_control True to request hardware flow control
   /// @param parity Parity setting (0=none, 1=even, 2=odd)
   /// @param stop_bits Number of stop bits (1 or 2)
   /// @param data_size Number of data bits (5-8)
@@ -169,9 +174,9 @@ class SerialProxy final : public uart::UARTDevice, public Component {
   void set_usb_channel(usb_uart::USBUartChannel *channel) { this->usb_channel_ = channel; }
 
 #ifdef USE_API
-  /// Fill a USB info response for this port. The response's strings are views into
-  /// info, so info must outlive the send.
-  void get_usb_info(usb_host::UsbDeviceInfo &info, api::SerialProxyGetUsbInfoResponse &resp) const;
+  /// Fill a USB info message for this port. The message's strings are views into info,
+  /// so info must outlive the send.
+  void get_usb_info(usb_host::UsbDeviceInfo &info, api::SerialProxyUsbInfo &msg) const;
 #endif
 #endif
 
@@ -236,6 +241,12 @@ class SerialProxy final : public uart::UARTDevice, public Component {
 #ifdef USE_SERIAL_PROXY_TAP
   /// True when the tap should be shown the traffic passing through this port
   bool tap_observing_() const;
+#endif
+
+#ifdef USE_SERIAL_PROXY_USB_INFO
+  /// The USB device behind this port was attached or removed. Reports the port's new USB
+  /// identity to every API client, and ends the tap's view of the old device.
+  void on_usb_connection_changed_(bool connected);
 #endif
 
   /// Instance index for identifying this proxy in API messages

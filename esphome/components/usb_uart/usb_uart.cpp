@@ -43,14 +43,17 @@ static optional<CdcEps> get_cdc(const usb_config_desc_t *config_desc, uint8_t in
       if (ep->bmAttributes == USB_BM_ATTRIBUTES_XFER_INT) {
         eps.notify_ep = ep;
         eps.interrupt_interface_number = intf_desc->bInterfaceNumber;
+        eps.interrupt_interface_string_index = intf_desc->iInterface;
       } else if (ep->bmAttributes == USB_BM_ATTRIBUTES_XFER_BULK && ep->bEndpointAddress & usb_host::USB_DIR_IN &&
                  (eps.bulk_interface_number == 0xFF || eps.bulk_interface_number == intf_desc->bInterfaceNumber)) {
         eps.in_ep = ep;
         eps.bulk_interface_number = intf_desc->bInterfaceNumber;
+        eps.bulk_interface_string_index = intf_desc->iInterface;
       } else if (ep->bmAttributes == USB_BM_ATTRIBUTES_XFER_BULK && !(ep->bEndpointAddress & usb_host::USB_DIR_IN) &&
                  (eps.bulk_interface_number == 0xFF || eps.bulk_interface_number == intf_desc->bInterfaceNumber)) {
         eps.out_ep = ep;
         eps.bulk_interface_number = intf_desc->bInterfaceNumber;
+        eps.bulk_interface_string_index = intf_desc->iInterface;
       } else {
         ESP_LOGE(TAG, "Unexpected endpoint attributes: %02X", ep->bmAttributes);
         continue;
@@ -481,6 +484,7 @@ void USBUartTypeCdcAcm::on_disconnected() {
     channel->input_started_.store(true);
     channel->output_started_.store(true);
     channel->input_buffer_.clear();
+    channel->interface_string_[0] = '\0';
     // Drain any pending output chunks and return them to the pool
     {
       UsbOutputChunk *chunk;
@@ -559,9 +563,36 @@ void USBUartComponent::start_config_(bool reload) {
   this->cfg_step_ = 0;
   this->cfg_ok_ = true;
   this->cfg_in_flight_ = false;
+  this->cfg_string_done_ = false;
+  this->cfg_string_in_flight_ = false;
   this->cfg_done_.store(false);
   this->cfg_active_ = true;
   this->enable_loop();
+}
+
+bool USBUartComponent::fetch_interface_string_(USBUartChannelBase *channel) {
+  const CdcEps &eps = channel->cdc_dev_;
+  const uint8_t index =
+      eps.interrupt_interface_number != 0xFF ? eps.interrupt_interface_string_index : eps.bulk_interface_string_index;
+  channel->interface_string_[0] = '\0';
+  if (index == 0) {
+    return false;
+  }
+  this->cfg_done_.store(false);
+  const bool submitted =
+      this->read_string_descriptor(index, channel->interface_string_, [this](const usb_host::TransferStatus &status) {
+        if (!status.success) {
+          ESP_LOGW(TAG, "Interface string read failed: %s", esp_err_to_name(status.error_code));
+        }
+        // Release: publishes the string before the loop observes cfg_done_.
+        this->cfg_done_.store(true, std::memory_order_release);
+        this->enable_loop_soon_any_context();
+        App.wake_loop_threadsafe();
+      });
+  if (!submitted) {
+    ESP_LOGW(TAG, "Interface string read submit failed");
+  }
+  return submitted;
 }
 
 void USBUartComponent::config_transfer_(uint8_t type, uint8_t request, uint16_t value, uint16_t index,
@@ -597,6 +628,14 @@ bool USBUartComponent::run_config_machine_() {
   if (!this->cfg_active_)
     return false;
 
+  if (this->cfg_string_in_flight_) {
+    // Acquire: pairs with the release in fetch_interface_string_'s callback.
+    if (!this->cfg_done_.load(std::memory_order_acquire))
+      return false;
+    this->cfg_string_in_flight_ = false;
+    this->cfg_done_.store(false);
+  }
+
   if (this->cfg_in_flight_) {
     // Acquire: pairs with the release in config_transfer_'s callback.
     if (!this->cfg_done_.load(std::memory_order_acquire))
@@ -627,6 +666,16 @@ bool USBUartComponent::run_config_machine_() {
           ? this->cfg_single_
           : (this->cfg_channel_idx_ < this->channels_.size() ? this->channels_[this->cfg_channel_idx_] : nullptr);
 
+  // Once per channel on init, before its settings: the interface string is part of the
+  // identity reported to clients, and the connected report waits for this machine.
+  if (channel != nullptr && !this->cfg_reload_ && !this->cfg_string_done_) {
+    this->cfg_string_done_ = true;
+    if (this->fetch_interface_string_(channel)) {
+      this->cfg_string_in_flight_ = true;
+      return true;
+    }
+  }
+
   if (channel != nullptr && channel->initialised_.load()) {
     if (!this->cfg_ok_) {
       // A previous step in this channel's sequence failed. Abort the rest. On a full init,
@@ -650,11 +699,14 @@ bool USBUartComponent::run_config_machine_() {
   // Advance to the next channel (or finish).
   this->cfg_step_ = 0;
   this->cfg_ok_ = true;
+  this->cfg_string_done_ = false;
   if (this->cfg_single_ != nullptr) {
     this->cfg_active_ = false;
     this->cfg_single_ = nullptr;
   } else if (++this->cfg_channel_idx_ >= this->channels_.size()) {
     this->cfg_active_ = false;
+    // Init is done and the line settings are on the wire: now the device is ready to use
+    this->report_connected_();
   }
 
   // If the machine just went idle and a reload was requested while it was busy, start it now.

@@ -2886,7 +2886,14 @@ message SerialProxyGetUsbInfoRequest {
 
 // The USB identity of the device currently behind a port, read live from the cached
 // USB descriptors. Fields are zero/empty while no device is connected.
-message SerialProxyGetUsbInfoResponse {
+//
+// Sent in reply to SerialProxyGetUsbInfoRequest, and also unsolicited to every connected
+// client whenever a USB device is attached to or removed from a USB_SERIAL port. A client
+// therefore subscribes to this message before querying the current state, so the
+// connect-time query and later hotplug events are handled by one path. The port's
+// subscription is untouched by a hotplug: the session belongs to the client, which decides
+// whether to keep it.
+message SerialProxyUsbInfo {
   option (id) = 154;
   option (source) = SOURCE_SERVER;
   option (ifdef) = "USE_SERIAL_PROXY";
@@ -2897,10 +2904,11 @@ message SerialProxyGetUsbInfoResponse {
   uint32 vendor_id = 4;
   uint32 product_id = 5;
   uint32 bcd_device = 6;
-  uint32 interface_number = 7;    // Channel index on multi-port bridges
+  uint32 interface_number = 7;    // bInterfaceNumber a host driver binds to, as Linux reports it
   string manufacturer = 8;
   string product = 9;
   string serial_number = 10;
+  string interface_description = 11;  // iInterface string of that interface; empty when the device has none
 }
 
 // ==================== BLUETOOTH CONNECTION PARAMS ====================
