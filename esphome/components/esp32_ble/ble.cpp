@@ -84,11 +84,8 @@ void ESP32BLE::setup() {
 }
 
 void ESP32BLE::enable() {
-  if (this->state_ == BLE_COMPONENT_STATE_DISABLE) {
-    // The teardown has not run yet; the stack is still up.
-    this->state_ = BLE_COMPONENT_STATE_ACTIVE;
+  if (this->cancel_pending_(BLE_COMPONENT_STATE_DISABLE, BLE_COMPONENT_STATE_ACTIVE))
     return;
-  }
   if (this->state_ != BLE_COMPONENT_STATE_DISABLED)
     return;
 
@@ -96,11 +93,8 @@ void ESP32BLE::enable() {
 }
 
 void ESP32BLE::disable() {
-  if (this->state_ == BLE_COMPONENT_STATE_ENABLE) {
-    // The bring-up has not run yet; the stack is still down.
-    this->state_ = BLE_COMPONENT_STATE_DISABLED;
+  if (this->cancel_pending_(BLE_COMPONENT_STATE_ENABLE, BLE_COMPONENT_STATE_DISABLED))
     return;
-  }
   if (this->state_ == BLE_COMPONENT_STATE_DISABLED)
     return;
 
