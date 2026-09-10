@@ -38,6 +38,17 @@ enum SerialProxyLineStateFlag : uint32_t {
   SERIAL_PROXY_LINE_STATE_FLAG_DTR = 1 << 1,  ///< DTR (Data Terminal Ready)
 };
 
+/// Result of a client-initiated operation; mapped to api::enums::SerialProxyStatus by the API layer
+enum class SerialProxyResult : uint8_t {
+  SERIAL_PROXY_RESULT_OK,                ///< Operation completed or request accepted
+  SERIAL_PROXY_RESULT_ASSUMED_SUCCESS,   ///< Platform cannot confirm TX drain; success assumed
+  SERIAL_PROXY_RESULT_PORT_IN_USE,       ///< Denied: another live client holds the port
+  SERIAL_PROXY_RESULT_INVALID_ARGUMENT,  ///< A parameter value is out of range
+  SERIAL_PROXY_RESULT_ERROR,             ///< Driver or hardware error
+  SERIAL_PROXY_RESULT_TIMEOUT,           ///< Timed out before TX completed
+  SERIAL_PROXY_RESULT_NOT_SUPPORTED,     ///< Requested feature is not available on this instance
+};
+
 /// Maximum bytes to read from UART in a single loop iteration
 inline constexpr size_t SERIAL_PROXY_MAX_READ_SIZE = 256;
 
@@ -73,14 +84,14 @@ class SerialProxy final : public uart::UARTDevice, public Component {
   /// @param parity Parity setting (0=none, 1=even, 2=odd)
   /// @param stop_bits Number of stop bits (1 or 2)
   /// @param data_size Number of data bits (5-8)
-  void configure(api::APIConnection *api_connection, uint32_t baudrate, bool flow_control, uint8_t parity,
-                 uint8_t stop_bits, uint8_t data_size);
+  SerialProxyResult configure(api::APIConnection *api_connection, uint32_t baudrate, bool flow_control, uint8_t parity,
+                              uint8_t stop_bits, uint8_t data_size);
 
   /// Get the currently subscribed API connection (nullptr if none)
   api::APIConnection *get_api_connection() { return this->api_connection_; }
 
   /// Handle a subscribe/unsubscribe request from an API client
-  void serial_proxy_request(api::APIConnection *api_connection, api::enums::SerialProxyRequestType type);
+  SerialProxyResult serial_proxy_request(api::APIConnection *api_connection, api::enums::SerialProxyRequestType type);
 
   /// Write data received from an API client to the serial device
   /// @param api_connection The API connection sending the data
@@ -89,13 +100,20 @@ class SerialProxy final : public uart::UARTDevice, public Component {
   void write_from_client(api::APIConnection *api_connection, const uint8_t *data, size_t len);
 
   /// Set modem pin states from a bitmask of SerialProxyLineStateFlag values
-  void set_modem_pins(api::APIConnection *api_connection, uint32_t line_states);
+  SerialProxyResult set_modem_pins(api::APIConnection *api_connection, uint32_t line_states);
 
   /// Get current modem pin states as a bitmask of SerialProxyLineStateFlag values
   uint32_t get_modem_pins() const;
 
+  /// Get the modem pins this instance can drive as a bitmask of SerialProxyLineStateFlag values
+  uint32_t get_configured_modem_pins() const {
+    return (this->rts_pin_ != nullptr ? static_cast<uint32_t>(SERIAL_PROXY_LINE_STATE_FLAG_RTS) : 0u) |
+           (this->dtr_pin_ != nullptr ? static_cast<uint32_t>(SERIAL_PROXY_LINE_STATE_FLAG_DTR) : 0u);
+  }
+
   /// Flush the serial port (block until all TX data is sent)
-  uart::UARTFlushResult flush_port();
+  /// @param api_connection The API connection requesting the flush
+  SerialProxyResult flush_port(api::APIConnection *api_connection);
 
   /// Set the RTS GPIO pin (from YAML configuration)
   void set_rts_pin(GPIOPin *pin) { this->rts_pin_ = pin; }

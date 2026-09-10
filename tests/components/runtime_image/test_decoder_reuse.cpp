@@ -70,25 +70,44 @@ static const uint8_t PNG_RGB_EXPECTED[4][4][3] = {
     {{0x12, 0x34, 0x56}, {0x65, 0x43, 0x21}, {0xFE, 0xDC, 0xBA}, {0xAB, 0xCD, 0xEF}},
 };
 
+// 3x3 QOI, exercising all possible chunk types
+static const uint8_t QOI_RGBA[] = {
+    0x71, 0x6F, 0x69, 0x66,  // Header: 'qoif'
+    0x00, 0x00, 0x00, 0x03,  // Width: 3
+    0x00, 0x00, 0x00, 0x03,  // Height: 3
+    0x04,                    // Channels: 4 (RGBA)
+    0x00,                    // Colorspace: 0 (SRGB)
+    0xC1,                    // 1. QOI_OP_RUN
+    0x79,                    // 2. QOI_OP_DIFF
+    0xAA, 0x79,              // 3. QOI_OP_LUMA
+    0xFE, 0xC8, 0x64, 0x32,  // 4. QOI_OP_RGB
+    0xFF, 0x78, 0x50, 0x28,
+    0x64,                                           // 5. QOI_OP_RGBA
+    0x31,                                           // 6. QOI_OP_INDEX
+    0xC1,                                           // 7. QOI_OP_RUN
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01  // End Marker
+};
+
+static const uint8_t QOI_EXPECTED_RGBA[3][3][4] = {
+    {{0x00, 0x00, 0x00, 0xFF}, {0x00, 0x00, 0x00, 0xFF}, {0x01, 0x00, 0xFF, 0xFF}},
+    {{0x0A, 0x0A, 0x0A, 0xFF}, {0xC8, 0x64, 0x32, 0xFF}, {0x78, 0x50, 0x28, 0x64}},
+    {{0x01, 0x00, 0xFF, 0xFF}, {0x01, 0x00, 0xFF, 0xFF}, {0x01, 0x00, 0xFF, 0xFF}}
+
+};
+
 /// Exposes the protected decoder machinery so reuse and eviction can be observed directly.
 class TestableRuntimeImage : public RuntimeImage {
  public:
-  explicit TestableRuntimeImage(ImageFormat format)
-      : RuntimeImage(format, image::IMAGE_TYPE_RGB, image::TRANSPARENCY_OPAQUE, nullptr, false, 0, 0) {}
+  explicit TestableRuntimeImage(ImageFormat format, image::Transparency transparency = image::TRANSPARENCY_OPAQUE)
+      : RuntimeImage(format, image::IMAGE_TYPE_RGB, transparency, nullptr, false, 0, 0) {}
 
   ImageDecoder *decoder() { return this->decoder_.get(); }
-
-  /// Simulates the state a dynamic-format producer (PR #16337) would leave behind:
-  /// a cached decoder whose format no longer matches the image's format.
-  /// TODO: once #16337 adds a public way to change the format, drive the mismatch
-  /// through it and delete this seam.
-  void plant_decoder(ImageFormat format) { this->decoder_ = this->create_decoder_(format); }
 };
 
 /// Runs one full decode session. Returns true when every stage succeeded.
-static bool decode_all(TestableRuntimeImage &img, const uint8_t *data, size_t len) {
+static bool decode_all(TestableRuntimeImage &img, const uint8_t *data, size_t len, ImageFormat format = AUTO) {
   std::vector<uint8_t> buffer(data, data + len);  // feed_data needs mutable bytes
-  if (!img.begin_decode(len)) {
+  if (!img.begin_decode(len, format)) {
     return false;
   }
   size_t offset = 0;
@@ -138,6 +157,19 @@ template<size_t H, size_t W> static void expect_pixels(TestableRuntimeImage &img
   }
 }
 
+template<size_t H, size_t W>
+static void expect_pixels_rgba(TestableRuntimeImage &img, const uint8_t (&expected)[H][W][4]) {
+  ASSERT_EQ(img.get_width(), static_cast<int>(W));
+  ASSERT_EQ(img.get_height(), static_cast<int>(H));
+  for (size_t y = 0; y < H; y++) {
+    for (size_t x = 0; x < W; x++) {
+      SCOPED_TRACE(::testing::Message() << "pixel (" << x << "," << y << ")");
+      Color color = img.get_pixel(x, y);
+      EXPECT_THAT((std::array<uint8_t, 4>{color.r, color.g, color.b, color.w}),
+                  ::testing::ElementsAreArray(expected[y][x]));
+    }
+  }
+}
 TEST(RuntimeImageDecoder, DecoderStaysWarmAcrossDecodes) {
   TestableRuntimeImage img(BMP);
 
@@ -203,25 +235,51 @@ TEST(RuntimeImageDecoder, ChunkedFeedDecodesLikeDownloadLoop) {
 }
 
 TEST(RuntimeImageDecoder, FormatSwitchEvictsMismatchedDecoder) {
-  // PNG image holding a stale BMP decoder: begin_decode must evict and recreate.
-  TestableRuntimeImage png_img(PNG);
-  png_img.plant_decoder(BMP);
-  ASSERT_NE(png_img.decoder(), nullptr);
-  ASSERT_EQ(png_img.decoder()->get_format(), BMP);
+  // Drive the format switch through begin_decode()'s format parameter, the way
+  // a dynamic-format producer (online_image MIME detection) does.
+  TestableRuntimeImage img(AUTO);
 
-  ASSERT_TRUE(decode_all(png_img, PNG_RGB, sizeof(PNG_RGB)));
-  EXPECT_EQ(png_img.decoder()->get_format(), PNG);
-  expect_pixels(png_img, PNG_RGB_EXPECTED);
+  ASSERT_TRUE(decode_all(img, BMP_24BPP, sizeof(BMP_24BPP), BMP));
+  ASSERT_NE(img.decoder(), nullptr);
+  ASSERT_EQ(img.decoder()->get_format(), BMP);
+  expect_pixels(img, BMP_24BPP_EXPECTED);
 
-  // And the other direction: BMP image holding a stale PNG decoder.
-  TestableRuntimeImage bmp_img(BMP);
-  bmp_img.plant_decoder(PNG);
-  ASSERT_NE(bmp_img.decoder(), nullptr);
-  ASSERT_EQ(bmp_img.decoder()->get_format(), PNG);
+  // Same explicit format again: the decoder must stay warm.
+  ImageDecoder *bmp_decoder = img.decoder();
+  ASSERT_TRUE(decode_all(img, BMP_8BPP, sizeof(BMP_8BPP), BMP));
+  expect_pixels(img, BMP_8BPP_EXPECTED);
+  EXPECT_EQ(img.decoder(), bmp_decoder);
 
-  ASSERT_TRUE(decode_all(bmp_img, BMP_24BPP, sizeof(BMP_24BPP)));
-  EXPECT_EQ(bmp_img.decoder()->get_format(), BMP);
-  expect_pixels(bmp_img, BMP_24BPP_EXPECTED);
+  // Different format: the stale decoder must be evicted and recreated.
+  ASSERT_TRUE(decode_all(img, PNG_RGB, sizeof(PNG_RGB), PNG));
+  EXPECT_EQ(img.decoder()->get_format(), PNG);
+  expect_pixels(img, PNG_RGB_EXPECTED);
+
+  // And back again.
+  ASSERT_TRUE(decode_all(img, BMP_24BPP, sizeof(BMP_24BPP), BMP));
+  EXPECT_EQ(img.decoder()->get_format(), BMP);
+  expect_pixels(img, BMP_24BPP_EXPECTED);
+}
+
+TEST(RuntimeImageDecoder, AutoFormatFallsBackToConfiguredAndKeepsDecoderWarm) {
+  // With a configured format, an AUTO begin_decode() must resolve to the
+  // configured format before the reuse check instead of evicting the decoder.
+  TestableRuntimeImage img(BMP);
+
+  ASSERT_TRUE(decode_all(img, BMP_24BPP, sizeof(BMP_24BPP), AUTO));
+  ImageDecoder *first = img.decoder();
+  ASSERT_NE(first, nullptr);
+  EXPECT_EQ(first->get_format(), BMP);
+
+  ASSERT_TRUE(decode_all(img, BMP_24BPP, sizeof(BMP_24BPP), AUTO));
+  expect_pixels(img, BMP_24BPP_EXPECTED);
+  EXPECT_EQ(img.decoder(), first) << "AUTO must not evict the configured-format decoder";
+}
+
+TEST(RuntimeImageDecoder, AutoWithoutConfiguredFormatFails) {
+  // Neither a configured format nor an explicit one: there is nothing to decode with.
+  TestableRuntimeImage img(AUTO);
+  EXPECT_FALSE(img.begin_decode(64));
 }
 
 TEST(RuntimeImageDecoder, ReleaseKeepsDecoderWarm) {
@@ -316,6 +374,33 @@ TEST(RuntimeImageDecoder, JpegDecoderStaysWarmAcrossDecodes) {
   EXPECT_EQ(pixel_bytes(img), first_pixels) << "reused decoder must reproduce identical pixels";
 }
 #endif  // USE_RUNTIME_IMAGE_JPEG
+
+TEST(RuntimeImageDecoder, QoiDecoderStaysWarmAcrossDecodes) {
+  TestableRuntimeImage img(QOI, image::TRANSPARENCY_ALPHA_CHANNEL);
+
+  ASSERT_TRUE(decode_all(img, QOI_RGBA, sizeof(QOI_RGBA)));
+  expect_pixels_rgba(img, QOI_EXPECTED_RGBA);
+  ImageDecoder *first = img.decoder();
+  ASSERT_NE(first, nullptr);
+
+  ASSERT_TRUE(decode_all(img, QOI_RGBA, sizeof(QOI_RGBA)));
+  expect_pixels_rgba(img, QOI_EXPECTED_RGBA);
+  EXPECT_EQ(img.decoder(), first) << "decoder must be reused, not reallocated";
+}
+
+TEST(RuntimeImageDecoder, QoiChunkedFeedDecodesLikeDownloadLoop) {
+  TestableRuntimeImage img(QOI, image::TRANSPARENCY_ALPHA_CHANNEL);
+
+  ASSERT_TRUE(decode_chunked(img, QOI_RGBA, sizeof(QOI_RGBA), 10));
+  expect_pixels_rgba(img, QOI_EXPECTED_RGBA);
+  ImageDecoder *first = img.decoder();
+
+  // Chunked again on the warm decoder: the cross-call resume state
+  // (current_index_ / paint_index_) must have been fully reset.
+  ASSERT_TRUE(decode_chunked(img, QOI_RGBA, sizeof(QOI_RGBA), 10));
+  expect_pixels_rgba(img, QOI_EXPECTED_RGBA);
+  EXPECT_EQ(img.decoder(), first);
+}
 
 TEST(RuntimeImageDecoder, SessionFlagsTrackLifecycle) {
   TestableRuntimeImage img(BMP);

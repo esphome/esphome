@@ -83,6 +83,7 @@ class MitsubishiCN105 {
     return this->is_telemetry_polling_enabled() ? !std::isnan(this->status_.room_temperature)
                                                 : !std::isnan(this->status_.target_temperature);
   }
+  bool is_temperature_encoding_b() const { return this->property_context_.use_temperature_encoding_b; }
 
   void set_power(bool power_on);
   void set_target_temperature(float target_temperature);
@@ -100,6 +101,7 @@ class MitsubishiCN105 {
     CONNECTED,
     UPDATING_STATUS,
     STATUS_UPDATED,
+    DEFERRED_STATUS_REQUEST,
     SCHEDULE_NEXT_STATUS_UPDATE,
     WAITING_FOR_SCHEDULED_STATUS_UPDATE,
     APPLYING_SETTINGS,

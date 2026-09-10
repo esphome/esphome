@@ -88,7 +88,7 @@ def valid_package_contents(package_config: dict) -> dict:
     return package_config
 
 
-def expand_file_to_files(config: dict):
+def expand_file_to_files(config: dict) -> dict:
     if CONF_FILE in config:
         new_config = config
         new_config[CONF_FILES] = [config[CONF_FILE]]
@@ -97,7 +97,7 @@ def expand_file_to_files(config: dict):
     return config
 
 
-def validate_yaml_filename(value):
+def validate_yaml_filename(value: Any) -> str:
     value = cv.string(value)
 
     if not value.endswith((".yaml", ".yml")):
@@ -106,7 +106,7 @@ def validate_yaml_filename(value):
     return value
 
 
-def validate_source_shorthand(value):
+def validate_source_shorthand(value: Any) -> dict:
     if not isinstance(value, str):
         raise cv.Invalid("Git URL shorthand only for strings")
 

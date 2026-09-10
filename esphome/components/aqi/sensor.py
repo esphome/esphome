@@ -7,6 +7,7 @@ from esphome.const import (
     DEVICE_CLASS_AQI,
     STATE_CLASS_MEASUREMENT,
 )
+from esphome.types import ConfigType
 
 from . import AQI_CALCULATION_TYPE, CONF_CALCULATION_TYPE, CONF_EXTENDED_RANGE, aqi_ns
 
@@ -16,7 +17,7 @@ DEPENDENCIES = ["sensor"]
 AQISensor = aqi_ns.class_("AQISensor", sensor.Sensor, cg.Component)
 
 
-def _validate_extended_range(config):
+def _validate_extended_range(config: ConfigType) -> ConfigType:
     if CONF_EXTENDED_RANGE in config and config[CONF_CALCULATION_TYPE] == "CAQI":
         raise cv.Invalid(
             f"'{CONF_EXTENDED_RANGE}' is not supported with 'calculation_type: CAQI'. "
@@ -48,7 +49,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = await sensor.new_sensor(config)
     await cg.register_component(var, config)
 

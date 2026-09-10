@@ -64,25 +64,4 @@ class TestableMitsubishiCN105 : public MitsubishiCN105 {
   void set_current_time(uint32_t ms) { test_loop_time_ms = ms; }
 };
 
-class TestableMitsubishiCN105Climate : public MitsubishiCN105Climate {
- public:
-  TestableMitsubishiCN105Climate() { this->set_parent(&this->component_); }
-
-  using MitsubishiCN105Climate::apply_values_;
-  using MitsubishiCN105Climate::last_non_swing_vane_mode_;
-  using MitsubishiCN105Climate::last_non_swing_wide_vane_mode_;
-
-  MitsubishiCN105::Status &status() { return const_cast<MitsubishiCN105::Status &>(this->component_.status()); }
-
- protected:
-  MitsubishiCN105Component component_;
-};
-
-class TestableMitsubishiCN105Component : public MitsubishiCN105Component {
- public:
-  MitsubishiCN105::Status &mutable_status() { return const_cast<MitsubishiCN105::Status &>(this->status()); }
-
-  void notify_status() { this->status_callback_.call(); }
-};
-
 }  // namespace esphome::mitsubishi_cn105::testing

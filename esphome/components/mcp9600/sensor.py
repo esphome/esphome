@@ -8,6 +8,7 @@ from esphome.const import (
     STATE_CLASS_MEASUREMENT,
     UNIT_CELSIUS,
 )
+from esphome.types import ConfigType
 
 CONF_HOT_JUNCTION = "hot_junction"
 CONF_COLD_JUNCTION = "cold_junction"
@@ -62,7 +63,7 @@ FINAL_VALIDATE_SCHEMA = i2c.final_validate_device_schema(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
 
     await cg.register_component(var, config)

@@ -7,6 +7,7 @@ from esphome.const import (
     CONF_MAC_ADDRESS,
     ENTITY_CATEGORY_DIAGNOSTIC,
 )
+from esphome.types import ConfigType
 
 DEPENDENCIES = ["ethernet"]
 
@@ -46,7 +47,7 @@ CONFIG_SCHEMA = cv.Schema(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     # Request Ethernet IP state listener slots - one per sensor type
     if CONF_IP_ADDRESS in config:
         ethernet.request_ethernet_ip_state_listener()

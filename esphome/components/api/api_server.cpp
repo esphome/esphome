@@ -41,13 +41,13 @@ void APIServer::setup() {
   ControllerRegistry::register_controller(this);
 
 #ifdef USE_API_NOISE
+  // Always reserve the slot: flash preferences are positional on esp8266, so
+  // a yaml key build must keep the layout of a runtime key build
   uint32_t hash = 88491486UL;
-
   this->noise_pref_ = global_preferences->make_preference<SavedNoisePsk>(hash, true);
-
 #ifndef USE_API_NOISE_PSK_FROM_YAML
-  // Only load saved PSK if not set from YAML
-  if (this->load_and_apply_noise_psk_()) {
+  // A cleared record loads fine but holds no key
+  if (this->load_and_apply_noise_psk_() && this->noise_ctx_.has_psk()) {
     ESP_LOGD(TAG, "Loaded saved Noise PSK");
   }
 #endif
@@ -423,12 +423,6 @@ void APIServer::send_infrared_rf_receive_event([[maybe_unused]] uint32_t device_
 API_DISPATCH_UPDATE(alarm_control_panel::AlarmControlPanel, alarm_control_panel)
 #endif
 
-float APIServer::get_setup_priority() const { return setup_priority::AFTER_WIFI; }
-
-void APIServer::set_port(uint16_t port) { this->port_ = port; }
-
-void APIServer::set_batch_delay(uint16_t batch_delay) { this->batch_delay_ = batch_delay; }
-
 #ifdef USE_API_HOMEASSISTANT_SERVICES
 void APIServer::send_homeassistant_action(const HomeassistantActionRequest &call) {
   bool has_subscriber = false;
@@ -439,8 +433,10 @@ void APIServer::send_homeassistant_action(const HomeassistantActionRequest &call
     // Home Assistant subscribes to actions shortly *after* authenticating, so actions
     // fired right at connection time (on_client_connected, on_time_sync, ...) can
     // arrive before the subscription and are lost - warn instead of failing silently.
-    ESP_LOGW(TAG, "Home Assistant %s '%s' dropped; %s", call.is_event ? "event" : "action", call.service.c_str(),
-             this->is_connected() ? "client has not subscribed to actions (yet)" : "no client connected");
+    ESP_LOGW(TAG, "Home Assistant %s '%s' dropped; %s",
+             call.is_event ? LOG_STR_LITERAL("event") : LOG_STR_LITERAL("action"), call.service.c_str(),
+             this->is_connected() ? LOG_STR_LITERAL("client has not subscribed to actions (yet)")
+                                  : LOG_STR_LITERAL("no client connected"));
   }
 }
 #ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES
@@ -553,11 +549,8 @@ const std::vector<APIServer::HomeAssistantStateSubscription> &APIServer::get_sta
 }
 #endif
 
-uint16_t APIServer::get_port() const { return this->port_; }
-
-void APIServer::set_reboot_timeout(uint32_t reboot_timeout) { this->reboot_timeout_ = reboot_timeout; }
-
 #ifdef USE_API_NOISE
+#ifndef USE_API_NOISE_PSK_FROM_YAML
 bool APIServer::update_noise_psk_(const SavedNoisePsk &new_psk, const LogString *save_log_msg,
                                   const LogString *fail_log_msg, bool make_active) {
   if (!this->noise_pref_.save(&new_psk)) {
@@ -591,22 +584,19 @@ bool APIServer::update_noise_psk_(const SavedNoisePsk &new_psk, const LogString 
 }
 
 bool APIServer::load_and_apply_noise_psk_() {
-  SavedNoisePsk saved{};
-  if (!this->noise_pref_.load(&saved))
+  // Load into a temp so a failed read cannot disturb the key in use
+  SavedNoisePsk loaded{};
+  if (!this->noise_pref_.load(&loaded))
     return false;
-  this->set_noise_psk(saved.psk);
+  this->saved_psk_ = loaded;
+  // An unprovisioned device stores the reserved all-zeros key, which is no key
+  const bool has_key = !noise::NoiseContext::is_all_zeros(this->saved_psk_.psk);
+  this->noise_ctx_.set_psk(has_key ? this->saved_psk_.psk.data() : nullptr);
   return true;
 }
 
-bool APIServer::save_noise_psk(psk_t psk, bool make_active) {
-#ifdef USE_API_NOISE_PSK_FROM_YAML
-  // When PSK is set from YAML, this function should never be called
-  // but if it is, reject the change
-  ESP_LOGW(TAG, "Key set in YAML");
-  return false;
-#else
-  auto &old_psk = this->noise_ctx_.get_psk();
-  if (std::equal(old_psk.begin(), old_psk.end(), psk.begin())) {
+bool APIServer::save_noise_psk(noise::psk_t psk, bool make_active) {
+  if (this->saved_psk_.psk == psk) {
     ESP_LOGW(TAG, "New PSK matches old");
     return true;
   }
@@ -622,15 +612,8 @@ bool APIServer::save_noise_psk(psk_t psk, bool make_active) {
   }
 #endif
   return result;
-#endif
 }
 bool APIServer::clear_noise_psk(bool make_active) {
-#ifdef USE_API_NOISE_PSK_FROM_YAML
-  // When PSK is set from YAML, this function should never be called
-  // but if it is, reject the change
-  ESP_LOGW(TAG, "Key set in YAML");
-  return false;
-#else
   SavedNoisePsk empty_psk{};
   bool result = this->update_noise_psk_(empty_psk, LOG_STR("Noise PSK cleared"), LOG_STR("Failed to clear Noise PSK"),
                                         make_active);
@@ -642,8 +625,8 @@ bool APIServer::clear_noise_psk(bool make_active) {
   }
 #endif
   return result;
-#endif
 }
+#endif  // USE_API_NOISE_PSK_FROM_YAML
 #endif
 
 #ifdef USE_HOMEASSISTANT_TIME

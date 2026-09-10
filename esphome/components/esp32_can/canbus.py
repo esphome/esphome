@@ -1,4 +1,5 @@
 import math
+from typing import Any
 
 from esphome import pins
 import esphome.codegen as cg
@@ -26,6 +27,7 @@ from esphome.const import (
     CONF_TX_PIN,
     CONF_TX_QUEUE_LEN,
 )
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@Sympatron"]
 DEPENDENCIES = ["esp32"]
@@ -88,7 +90,7 @@ CAN_SPEEDS = {
 }
 
 
-def validate_bit_rate(value):
+def validate_bit_rate(value: Any) -> str:
     variant = get_esp32_variant()
     if variant not in CAN_SPEEDS:
         raise cv.Invalid(f"{variant} is not supported by component {esp32_can_ns}")
@@ -112,7 +114,7 @@ CONFIG_SCHEMA = canbus.CANBUS_SCHEMA.extend(
 )
 
 
-def get_default_tx_enqueue_timeout(bit_rate):
+def get_default_tx_enqueue_timeout(bit_rate: str) -> int:
     bit_rate_numeric = canbus.get_rate(bit_rate)
     bits_per_packet = 140  # ~max CAN message length
     ms_per_packet = bits_per_packet / bit_rate_numeric * 1000
@@ -121,7 +123,7 @@ def get_default_tx_enqueue_timeout(bit_rate):
     )  # ~10 packet lengths, min 1ms, max 1000ms
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     # Legacy driver component provides driver/twai.h header
     include_builtin_idf_component("driver")
     # Also enable esp_driver_twai for future migration to new API

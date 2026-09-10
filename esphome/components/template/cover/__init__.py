@@ -6,6 +6,7 @@ from esphome.const import (
     CONF_ASSUMED_STATE,
     CONF_CLOSE_ACTION,
     CONF_CURRENT_OPERATION,
+    CONF_DEVICE_CLASS,
     CONF_ID,
     CONF_LAMBDA,
     CONF_OPEN_ACTION,
@@ -38,7 +39,11 @@ CONF_HAS_POSITION = "has_position"
 CONF_TOGGLE_ACTION = "toggle_action"
 
 CONFIG_SCHEMA = (
-    cover.cover_schema(TemplateCover)
+    cv.with_visibility(
+        cover.cover_schema(TemplateCover),
+        cv.Visibility.UI,
+        CONF_DEVICE_CLASS,
+    )
     .extend(
         {
             cv.Optional(CONF_LAMBDA): cv.returning_lambda,

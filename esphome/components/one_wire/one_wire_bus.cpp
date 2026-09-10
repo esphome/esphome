@@ -18,8 +18,9 @@ const std::vector<uint64_t> &OneWireBus::get_devices() { return this->devices_; 
 
 bool OneWireBus::reset_() {
   int res = this->reset_int();
-  if (res == -1)
+  if (res == -1) {
     ESP_LOGE(TAG, "1-wire bus is held low");
+  }
   return res == 1;
 }
 
