@@ -28,19 +28,9 @@ void RP2040PIOLEDStripLightOutput::dma_write_complete_handler() {
 }
 
 void RP2040PIOLEDStripLightOutput::setup() {
-  size_t buffer_size = this->get_buffer_size_();
-
   RAMAllocator<uint8_t> allocator;
-  this->buf_ = allocator.allocate(buffer_size);
-  if (this->buf_ == nullptr) {
-    ESP_LOGE(TAG, "Failed to allocate buffer of size %u", buffer_size);
-    this->mark_failed();
-    return;
-  }
-
-  this->effect_data_ = allocator.allocate(this->num_leds_);
-  if (this->effect_data_ == nullptr) {
-    ESP_LOGE(TAG, "Failed to allocate effect data of size %u", this->num_leds_);
+  if (!this->buffer_.allocate_and_setup(&allocator)) {
+    ESP_LOGE(TAG, "Cannot allocate color buffer");
     this->mark_failed();
     return;
   }
@@ -107,10 +97,10 @@ void RP2040PIOLEDStripLightOutput::setup() {
                           pio_get_dreq(this->pio_, this->sm_, true));  // set the DREQ to the state machine's TX FIFO
 
   dma_channel_configure(this->dma_chan_, &this->dma_config_,
-                        &this->pio_->txf[this->sm_],  // write to the state machine's TX FIFO
-                        this->buf_,                   // read from memory
-                        this->get_buffer_size_(),     // number of bytes to transfer
-                        false                         // don't start yet
+                        &this->pio_->txf[this->sm_],         // write to the state machine's TX FIFO
+                        this->buffer_.get_led_data(),        // read from memory
+                        this->buffer_.get_led_data_bytes(),  // number of bytes to transfer
+                        false                                // don't start yet
   );
 
   // Initialize the semaphore for this DMA channel
@@ -124,32 +114,15 @@ void RP2040PIOLEDStripLightOutput::setup() {
 }
 
 void RP2040PIOLEDStripLightOutput::write_state(light::LightState *state) {
+  if (!this->is_ready()) {
+    return;
+  }
   ESP_LOGVV(TAG, "Writing state");
-
-  if (this->is_failed()) {
-    ESP_LOGW(TAG, "Light is in failed state, not writing state.");
-    return;
-  }
-
-  if (this->buf_ == nullptr) {
-    ESP_LOGW(TAG, "Buffer is null, not writing state.");
-    return;
-  }
 
   // the bits are already in the correct order for the pio program so we can just copy the buffer using DMA
   sem_acquire_blocking(&RP2040PIOLEDStripLightOutput::dma_write_complete_sem[this->dma_chan_]);
-  dma_channel_transfer_from_buffer_now(this->dma_chan_, this->buf_, this->get_buffer_size_());
-}
-
-light::ESPColorView RP2040PIOLEDStripLightOutput::get_view_internal(int32_t index) const {
-  const light::ChannelColors &colors = this->channel_colors_;
-  uint8_t *led = this->buf_ + (index * colors.bytes_per_led());
-  return {led + colors.r,
-          led + colors.g,
-          led + colors.b,
-          colors.has_white() ? led + colors.w : nullptr,
-          &this->effect_data_[index],
-          &this->correction_};
+  dma_channel_transfer_from_buffer_now(this->dma_chan_, this->buffer_.get_led_data(),
+                                       this->buffer_.get_led_data_bytes());
 }
 
 void RP2040PIOLEDStripLightOutput::dump_config() {
@@ -160,7 +133,8 @@ void RP2040PIOLEDStripLightOutput::dump_config() {
                 "  Number of LEDs: %d\n"
                 "  Channel colors: %s\n"
                 "  Max Refresh Rate: %f Hz",
-                this->pin_, this->num_leds_, this->channel_colors_.to_string(channel_colors), this->max_refresh_rate_);
+                this->pin_, this->num_leds_, this->buffer_.layout().channel_colors.to_string(channel_colors),
+                this->max_refresh_rate_);
 }
 
 float RP2040PIOLEDStripLightOutput::get_setup_priority() const { return setup_priority::HARDWARE; }

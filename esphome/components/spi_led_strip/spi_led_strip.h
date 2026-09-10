@@ -12,11 +12,18 @@ class SpiLedStrip final : public light::AddressableLight,
                           public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_HIGH,
                                                 spi::CLOCK_PHASE_TRAILING, spi::DATA_RATE_1MHZ> {
  public:
-  SpiLedStrip(uint16_t num_leds);
+  SpiLedStrip(size_t num_leds, light::ChannelColors channel_colors)
+      : buffer_(num_leds,
+                {.channel_colors = {.r = 3, .g = 2, .b = 1, .w = light::ChannelColors::NO_WHITE},
+                 .bytes_per_led = 4,
+                 .leading_bytes = 4,
+                 .trailing_bytes = 4},
+                &this->correction_) {}
+
+  light::ESPColorBuffer &buffer() override { return this->buffer_; }
+
   void setup() override;
   float get_setup_priority() const override { return setup_priority::IO; }
-
-  int32_t size() const override { return this->num_leds_; }
 
   light::LightTraits get_traits() override;
 
@@ -24,15 +31,8 @@ class SpiLedStrip final : public light::AddressableLight,
 
   void write_state(light::LightState *state) override;
 
-  void clear_effect_data() override { memset(this->effect_data_, 0, this->num_leds_ * sizeof(this->effect_data_[0])); }
-
  protected:
-  light::ESPColorView get_view_internal(int32_t index) const override;
-
-  size_t buffer_size_{};
-  uint8_t *effect_data_{nullptr};
-  uint8_t *buf_{nullptr};
-  uint16_t num_leds_;
+  light::InterleavedColorBuffer buffer_;
 };
 
 }  // namespace esphome::spi_led_strip

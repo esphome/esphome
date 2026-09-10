@@ -34,7 +34,7 @@ class ESPColorSettable {
   }
 };
 
-class ESPColorView : public ESPColorSettable {
+class ESPColorView final : public ESPColorSettable {
  public:
   ESPColorView(uint8_t *red, uint8_t *green, uint8_t *blue, uint8_t *white, uint8_t *effect_data,
                const ESPColorCorrection *color_correction)
@@ -43,6 +43,13 @@ class ESPColorView : public ESPColorSettable {
         blue_(blue),
         white_(white),
         effect_data_(effect_data),
+        color_correction_(color_correction) {}
+  ESPColorView(const ESPColorCorrection *color_correction)
+      : red_(nullptr),
+        green_(nullptr),
+        blue_(nullptr),
+        white_(nullptr),
+        effect_data_(nullptr),
         color_correction_(color_correction) {}
   ESPColorView &operator=(const Color &rhs) {
     this->set(rhs);
@@ -53,9 +60,21 @@ class ESPColorView : public ESPColorSettable {
     return *this;
   }
   void set(const Color &color) override { this->set_rgbw(color.r, color.g, color.b, color.w); }
-  void set_red(uint8_t red) override { *this->red_ = this->color_correction_->color_correct_red(red); }
-  void set_green(uint8_t green) override { *this->green_ = this->color_correction_->color_correct_green(green); }
-  void set_blue(uint8_t blue) override { *this->blue_ = this->color_correction_->color_correct_blue(blue); }
+  void set_red(uint8_t red) override {
+    if (this->red_ == nullptr)
+      return;
+    *this->red_ = this->color_correction_->color_correct_red(red);
+  }
+  void set_green(uint8_t green) override {
+    if (this->green_ == nullptr)
+      return;
+    *this->green_ = this->color_correction_->color_correct_green(green);
+  }
+  void set_blue(uint8_t blue) override {
+    if (this->blue_ == nullptr)
+      return;
+    *this->blue_ = this->color_correction_->color_correct_blue(blue);
+  }
   void set_white(uint8_t white) override {
     if (this->white_ == nullptr)
       return;
@@ -71,12 +90,36 @@ class ESPColorView : public ESPColorSettable {
   void lighten(uint8_t delta) override { this->set(this->get().lighten(delta)); }
   void darken(uint8_t delta) override { this->set(this->get().darken(delta)); }
   Color get() const { return Color(this->get_red(), this->get_green(), this->get_blue(), this->get_white()); }
-  uint8_t get_red() const { return this->color_correction_->color_uncorrect_red(*this->red_); }
-  uint8_t get_red_raw() const { return *this->red_; }
-  uint8_t get_green() const { return this->color_correction_->color_uncorrect_green(*this->green_); }
-  uint8_t get_green_raw() const { return *this->green_; }
-  uint8_t get_blue() const { return this->color_correction_->color_uncorrect_blue(*this->blue_); }
-  uint8_t get_blue_raw() const { return *this->blue_; }
+  uint8_t get_red() const {
+    if (this->red_ == nullptr)
+      return 0;
+    return this->color_correction_->color_uncorrect_red(*this->red_);
+  }
+  uint8_t get_red_raw() const {
+    if (this->red_ == nullptr)
+      return 0;
+    return *this->red_;
+  }
+  uint8_t get_green() const {
+    if (this->green_ == nullptr)
+      return 0;
+    return this->color_correction_->color_uncorrect_green(*this->green_);
+  }
+  uint8_t get_green_raw() const {
+    if (this->green_ == nullptr)
+      return 0;
+    return *this->green_;
+  }
+  uint8_t get_blue() const {
+    if (this->blue_ == nullptr)
+      return 0;
+    return this->color_correction_->color_uncorrect_blue(*this->blue_);
+  }
+  uint8_t get_blue_raw() const {
+    if (this->blue_ == nullptr)
+      return 0;
+    return *this->blue_;
+  }
   uint8_t get_white() const {
     if (this->white_ == nullptr)
       return 0;

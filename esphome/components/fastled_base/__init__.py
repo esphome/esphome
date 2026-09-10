@@ -36,8 +36,14 @@ BASE_SCHEMA = light.ADDRESSABLE_LIGHT_SCHEMA.extend(
 ).extend(cv.COMPONENT_SCHEMA)
 
 
-async def new_fastled_light(config: ConfigType) -> MockObj:
-    var = cg.new_Pvariable(config[CONF_OUTPUT_ID])
+async def new_fastled_light(
+    config: ConfigType, controller_template_args: cg.TemplateArguments
+) -> MockObj:
+    var = cg.new_Pvariable(
+        config[CONF_OUTPUT_ID],
+        config[CONF_NUM_LEDS],
+        FastLEDLightOutput.make_controller(controller_template_args),
+    )
     await cg.register_component(var, config)
 
     if CONF_MAX_REFRESH_RATE in config:

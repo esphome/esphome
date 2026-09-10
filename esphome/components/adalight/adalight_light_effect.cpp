@@ -24,7 +24,7 @@ void AdalightLightEffect::stop() {
   AddressableLightEffect::stop();
 }
 
-unsigned int AdalightLightEffect::get_frame_size_(int led_count) const {
+size_t AdalightLightEffect::get_frame_size_(size_t led_count) const {
   // 3 bytes: Ada
   // 2 bytes: LED count
   // 1 byte: checksum
@@ -33,14 +33,15 @@ unsigned int AdalightLightEffect::get_frame_size_(int led_count) const {
 }
 
 void AdalightLightEffect::reset_frame_(light::AddressableLight &it) {
-  int buffer_capacity = get_frame_size_(it.size());
+  size_t buffer_capacity = get_frame_size_(it.buffer().size());
 
   frame_.clear();
   frame_.reserve(buffer_capacity);
 }
 
 void AdalightLightEffect::blank_all_leds_(light::AddressableLight &it) {
-  for (int led = it.size(); led-- > 0;) {
+  light::ESPColorBuffer &buffer = it.buffer();
+  for (int led = buffer.size(); led-- > 0;) {
     it[led].set(Color::BLACK);
   }
   it.schedule_show();
@@ -124,13 +125,14 @@ AdalightLightEffect::Frame AdalightLightEffect::parse_frame_(light::AddressableL
     return PARTIAL;
 
   // Apply lights
-  auto accepted_led_count = std::min<int>(led_count, it.size());
+  light::ESPColorBuffer &buffer = it.buffer();
+  auto accepted_led_count = std::min<size_t>(led_count, buffer.size());
   uint8_t *led_data = &frame_[6];
 
-  for (int led = 0; led < accepted_led_count; led++, led_data += 3) {
+  for (size_t led = 0; led < accepted_led_count; led++, led_data += 3) {
     auto white = std::min({led_data[0], led_data[1], led_data[2]});
 
-    it[led].set(Color(led_data[0], led_data[1], led_data[2], white));
+    buffer[led].set(Color(led_data[0], led_data[1], led_data[2], white));
   }
 
   it.schedule_show();

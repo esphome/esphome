@@ -50,9 +50,7 @@ void WLEDLightEffect::stop() {
 }
 
 void WLEDLightEffect::blank_all_leds_(light::AddressableLight &it) {
-  for (int led = it.size(); led-- > 0;) {
-    it[led].set(Color::BLACK);
-  }
+  it.buffer().all().set(Color::BLACK);
   it.schedule_show();
 }
 
@@ -177,9 +175,7 @@ bool WLEDLightEffect::parse_notifier_frame_(light::AddressableLight &it, const u
   uint8_t b = esp_scale8(payload[3], bri);
   uint8_t w = esp_scale8(payload[8], bri);
 
-  for (auto &&led : it) {
-    led.set(Color(r, g, b, w));
-  }
+  it.buffer().all().set(Color(r, g, b, w));
 
   return true;
 }
@@ -190,8 +186,9 @@ bool WLEDLightEffect::parse_warls_frame_(light::AddressableLight &it, const uint
     return false;
   }
 
-  auto count = size / 4;
-  auto max_leds = it.size();
+  light::ESPColorBuffer &buffer = it.buffer();
+  size_t count = size / 4;
+  size_t max_leds = buffer.size();
 
   for (; count > 0; count--, payload += 4) {
     uint8_t led = payload[0];
@@ -200,7 +197,7 @@ bool WLEDLightEffect::parse_warls_frame_(light::AddressableLight &it, const uint
     uint8_t b = payload[3];
 
     if (led < max_leds) {
-      it[led].set(Color(r, g, b));
+      buffer[led].set(Color(r, g, b));
     }
   }
 
@@ -213,17 +210,14 @@ bool WLEDLightEffect::parse_drgb_frame_(light::AddressableLight &it, const uint8
     return false;
   }
 
-  auto count = size / 3;
-  auto max_leds = it.size();
+  light::ESPColorBuffer &buffer = it.buffer();
+  auto count = std::min<size_t>(size / 3, buffer.size());
 
-  for (uint16_t led = 0; led < count; ++led, payload += 3) {
+  for (size_t led = 0; led < count; ++led, payload += 3) {
     uint8_t r = payload[0];
     uint8_t g = payload[1];
     uint8_t b = payload[2];
-
-    if (led < max_leds) {
-      it[led].set(Color(r, g, b));
-    }
+    buffer[led].set(Color(r, g, b));
   }
 
   return true;
@@ -235,18 +229,15 @@ bool WLEDLightEffect::parse_drgbw_frame_(light::AddressableLight &it, const uint
     return false;
   }
 
-  auto count = size / 4;
-  auto max_leds = it.size();
+  light::ESPColorBuffer &buffer = it.buffer();
+  auto count = std::min<size_t>(size / 4, buffer.size());
 
   for (uint16_t led = 0; led < count; ++led, payload += 4) {
     uint8_t r = payload[0];
     uint8_t g = payload[1];
     uint8_t b = payload[2];
     uint8_t w = payload[3];
-
-    if (led < max_leds) {
-      it[led].set(Color(r, g, b, w));
-    }
+    buffer[led].set(Color(r, g, b, w));
   }
 
   return true;
@@ -258,7 +249,7 @@ bool WLEDLightEffect::parse_dnrgb_frame_(light::AddressableLight &it, const uint
     return false;
   }
 
-  uint16_t led = (uint16_t(payload[0]) << 8) + payload[1];
+  size_t led = (uint16_t(payload[0]) << 8) + payload[1];
   payload += 2;
   size -= 2;
 
@@ -267,17 +258,14 @@ bool WLEDLightEffect::parse_dnrgb_frame_(light::AddressableLight &it, const uint
     return false;
   }
 
-  auto count = size / 3;
-  auto max_leds = it.size();
+  light::ESPColorBuffer &buffer = it.buffer();
+  auto end = std::min<size_t>(led + size / 3, buffer.size());
 
-  for (; count > 0; count--, payload += 3, led++) {
+  for (; led < end; led++, payload += 3) {
     uint8_t r = payload[0];
     uint8_t g = payload[1];
     uint8_t b = payload[2];
-
-    if (led < max_leds) {
-      it[led].set(Color(r, g, b));
-    }
+    buffer[led].set(Color(r, g, b));
   }
 
   return true;

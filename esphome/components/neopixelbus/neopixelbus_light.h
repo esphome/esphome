@@ -6,6 +6,7 @@
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/macros.h"
+#include "esphome/components/light/channel_colors.h"
 #include "esphome/components/light/light_output.h"
 #include "esphome/components/light/addressable_light.h"
 
@@ -46,39 +47,31 @@ enum class ESPNeoPixelOrder {
   RWBG = 0b00111001,
 };
 
-template<typename T_METHOD, typename T_COLOR_FEATURE>
-class NeoPixelBusLightOutputBase : public light::AddressableLight {
+constexpr light::ChannelColors to_channel_colors(ESPNeoPixelOrder order, bool has_white) {
+  uint8_t u_order = static_cast<uint8_t>(order);
+  return {
+      .r = (u_order >> 6) & 0b11,
+      .g = (u_order >> 4) & 0b11,
+      .b = (u_order >> 2) & 0b11,
+      .w = has_white ? (u_order >> 0) & 0b11 : light::ChannelColors::NO_WHITE,
+  };
+}
+
+template<typename T_METHOD, typename T_COLOR_FEATURE, bool HAS_WHITE>
+class NeoPixelBusLightOutputBase : public light::AddressableLight, protected light::ESPColorBuffer {
  public:
+  NeoPixelBusLightOutputBase(size_t num_leds, ESPNeoPixelOrder order, uint8_t pin)
+      : NeoPixelBusLightOutputBase(new NeoPixelBus<T_COLOR_FEATURE, T_METHOD>(num_leds, pin), order) {}
+
+  NeoPixelBusLightOutputBase(size_t num_leds, ESPNeoPixelOrder order, uint8_t pin_clock, uint8_t pin_data)
+      : NeoPixelBusLightOutputBase(new NeoPixelBus<T_COLOR_FEATURE, T_METHOD>(num_leds, pin_clock, pin_data), order) {}
+
+  light::ESPColorBuffer &buffer() override { return *this; }
+
   NeoPixelBus<T_COLOR_FEATURE, T_METHOD> *get_controller() const { return this->controller_; }
 
-  void clear_effect_data() override {
-    for (int i = 0; i < this->size(); i++)
-      this->effect_data_[i] = 0;
-  }
-
-  /// Add some LEDS, can only be called once.
-  void add_leds(uint16_t count_pixels, uint8_t pin) {
-    this->add_leds(new NeoPixelBus<T_COLOR_FEATURE, T_METHOD>(count_pixels, pin));
-  }
-  void add_leds(uint16_t count_pixels, uint8_t pin_clock, uint8_t pin_data) {
-    this->add_leds(new NeoPixelBus<T_COLOR_FEATURE, T_METHOD>(count_pixels, pin_clock, pin_data));
-  }
-  void add_leds(uint16_t count_pixels) { this->add_leds(new NeoPixelBus<T_COLOR_FEATURE, T_METHOD>(count_pixels)); }
-  void add_leds(NeoPixelBus<T_COLOR_FEATURE, T_METHOD> *controller) {
-    this->controller_ = controller;
-    // controller gets initialised in setup() - avoid calling twice (crashes with RMT)
-    // this->controller_->Begin();
-  }
-
   // ========== INTERNAL METHODS ==========
-  void setup() override {
-    for (int i = 0; i < this->size(); i++) {
-      (*this)[i] = Color(0, 0, 0, 0);
-    }
-
-    this->effect_data_ = new uint8_t[this->size()];  // NOLINT
-    this->controller_->Begin();
-  }
+  void setup() override { this->controller_->Begin(); }
 
   void write_state(light::LightState *state) override {
     this->mark_shown_();
@@ -89,53 +82,61 @@ class NeoPixelBusLightOutputBase : public light::AddressableLight {
 
   float get_setup_priority() const override { return setup_priority::HARDWARE; }
 
-  int32_t size() const override { return this->controller_->PixelCount(); }
+ protected:
+  using Controller = NeoPixelBus<T_COLOR_FEATURE, T_METHOD>;
 
-  void set_pixel_order(ESPNeoPixelOrder order) {
-    uint8_t u_order = static_cast<uint8_t>(order);
-    this->rgb_offsets_[0] = (u_order >> 6) & 0b11;
-    this->rgb_offsets_[1] = (u_order >> 4) & 0b11;
-    this->rgb_offsets_[2] = (u_order >> 2) & 0b11;
-    this->rgb_offsets_[3] = (u_order >> 0) & 0b11;
+  NeoPixelBusLightOutputBase(Controller *controller, ESPNeoPixelOrder order)
+      : ESPColorBuffer(controller->PixelCount()),
+        controller_(controller),
+        effect_data_(new uint8_t[controller->PixelCount()]{0}),
+        channel_colors_(to_channel_colors(order)) {}
+
+  bool is_all_black() const override {
+    return is_all_black_internal_(this->controller_->Pixels(), this->num_leds, this->channel_colors_,
+                                  HAS_WHITE ? 4 : 3);
   }
 
- protected:
-  NeoPixelBus<T_COLOR_FEATURE, T_METHOD> *controller_{nullptr};
-  uint8_t *effect_data_{nullptr};
-  uint8_t rgb_offsets_[4]{0, 1, 2, 3};
+  void clear_effect_data() override { clear_effect_data_internal_(this->effect_data_, this->num_leds_); }
+
+  light::ESPColorView get_color_view_(size_t index) override {
+    return get_color_view_internal_(index, this->controller_->Pixels(), this->effect_data_, this->channel_colors,
+                                    HAS_WHITE ? 4 : 3, this->correction_);
+  }
+
+  Controller *const controller_;
+  uint8_t *const effect_data_;
+  ChannelColors const channel_colors_;
 };
 
 template<typename T_METHOD, typename T_COLOR_FEATURE = NeoRgbFeature>
 class NeoPixelRGBLightOutput : public NeoPixelBusLightOutputBase<T_METHOD, T_COLOR_FEATURE> {
  public:
+  NeoPixelRGBLightOutput(size_t num_leds, ESPNeoPixelOrder order, uint8_t pin)
+      : NeoPixelBusLightOutputBase(num_leds, order, pin) {}
+
+  NeoPixelRGBLightOutput(size_t num_leds, ESPNeoPixelOrder order, uint8_t pin_clock, uint8_t pin_data)
+      : NeoPixelBusLightOutputBase(num_leds, order, pin_clock, pin_data) {}
+
   light::LightTraits get_traits() override {
     auto traits = light::LightTraits();
     traits.set_supported_color_modes({light::ColorMode::RGB});
     return traits;
-  }
-
- protected:
-  light::ESPColorView get_view_internal(int32_t index) const override {  // NOLINT
-    uint8_t *base = this->controller_->Pixels() + 3ULL * index;
-    return light::ESPColorView(base + this->rgb_offsets_[0], base + this->rgb_offsets_[1], base + this->rgb_offsets_[2],
-                               nullptr, this->effect_data_ + index, &this->correction_);
   }
 };
 
 template<typename T_METHOD, typename T_COLOR_FEATURE = NeoRgbwFeature>
 class NeoPixelRGBWLightOutput : public NeoPixelBusLightOutputBase<T_METHOD, T_COLOR_FEATURE> {
  public:
+  NeoPixelRGBWLightOutput(size_t num_leds, ESPNeoPixelOrder order, uint8_t pin)
+      : NeoPixelBusLightOutputBase(num_leds, order, pin) {}
+
+  NeoPixelRGBWLightOutput(size_t num_leds, ESPNeoPixelOrder order, uint8_t pin_clock, uint8_t pin_data)
+      : NeoPixelBusLightOutputBase(num_leds, order, pin_clock, pin_data) {}
+
   light::LightTraits get_traits() override {
     auto traits = light::LightTraits();
     traits.set_supported_color_modes({light::ColorMode::RGB_WHITE});
     return traits;
-  }
-
- protected:
-  light::ESPColorView get_view_internal(int32_t index) const override {  // NOLINT
-    uint8_t *base = this->controller_->Pixels() + 4ULL * index;
-    return light::ESPColorView(base + this->rgb_offsets_[0], base + this->rgb_offsets_[1], base + this->rgb_offsets_[2],
-                               base + this->rgb_offsets_[3], this->effect_data_ + index, &this->correction_);
   }
 };
 

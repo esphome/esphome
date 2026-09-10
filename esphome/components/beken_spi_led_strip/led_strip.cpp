@@ -120,24 +120,14 @@ void spi_dma_tx_finish_callback(unsigned int param) {
 }
 
 void BekenSPILEDStripLightOutput::setup() {
-  size_t buffer_size = this->get_buffer_size_();
-  size_t dma_buffer_size = (buffer_size * 8) + (2 * 64);
-
   RAMAllocator<uint8_t> allocator;
-  this->buf_ = allocator.allocate(buffer_size);
-  if (this->buf_ == nullptr) {
-    ESP_LOGE(TAG, "Cannot allocate LED buffer!");
+  if (!this->buffer_.allocate_and_setup(&allocator)) {
+    ESP_LOGE(TAG, "Cannot allocate color buffer");
     this->mark_failed();
     return;
   }
 
-  this->effect_data_ = allocator.allocate(this->num_leds_);
-  if (this->effect_data_ == nullptr) {
-    ESP_LOGE(TAG, "Cannot allocate effect data!");
-    this->mark_failed();
-    return;
-  }
-
+  size_t dma_buffer_size = (this->buffer_->get_led_data_bytes() * 8) + (2 * 64);
   this->dma_buf_ = allocator.allocate(dma_buffer_size);
   if (this->dma_buf_ == nullptr) {
     ESP_LOGE(TAG, "Cannot allocate DMA buffer!");
@@ -145,8 +135,6 @@ void BekenSPILEDStripLightOutput::setup() {
     return;
   }
 
-  memset(this->buf_, 0, buffer_size);
-  memset(this->effect_data_, 0, this->num_leds_);
   memset(this->dma_buf_, 0, dma_buffer_size);
 
   uint32_t value = PCLK_POSI_SPI;
@@ -245,6 +233,9 @@ void BekenSPILEDStripLightOutput::set_led_params(uint8_t bit0, uint8_t bit1, uin
 }
 
 void BekenSPILEDStripLightOutput::write_state(light::LightState *state) {
+  if (!this->is_ready()) {
+    return;
+  }
   // protect from refreshing too often
   uint32_t now = micros();
   if (this->max_refresh_rate_.has_value() && *this->max_refresh_rate_ != 0 &&
@@ -257,12 +248,6 @@ void BekenSPILEDStripLightOutput::write_state(light::LightState *state) {
   this->mark_shown_();
 
   ESP_LOGVV(TAG, "Writing RGB values to bus");
-
-  if (spi_data == nullptr) {
-    ESP_LOGE(TAG, "SPI not initialized");
-    this->status_set_warning();
-    return;
-  }
 
   if (!spi_data->first_run && !xSemaphoreTake(spi_data->dma_tx_semaphore, 10 / portTICK_PERIOD_MS)) {
     ESP_LOGE(TAG, "Timed out waiting for semaphore");
@@ -277,14 +262,14 @@ void BekenSPILEDStripLightOutput::write_state(light::LightState *state) {
 
   spi_data->tx_in_progress = true;
 
-  size_t buffer_size = this->get_buffer_size_();
+  const size_t led_data_bytes = this->buffer_->get_led_data_bytes();
   size_t size = 0;
-  uint8_t *psrc = this->buf_;
+  uint8_t *psrc = this->buffer_.get_led_data();
   uint8_t *pdest = this->dma_buf_ + 64;
   // The 64 byte padding is a workaround for a SPI DMA bug where the
   // output doesn't exactly start at the beginning of dma_buf_
 
-  while (size < buffer_size) {
+  while (size < led_data_bytes) {
     uint8_t b = *psrc;
     for (int i = 0; i < 8; i++) {
       *pdest++ = b & (1 << (7 - i)) ? this->bit1_ : this->bit0_;
@@ -299,17 +284,6 @@ void BekenSPILEDStripLightOutput::write_state(light::LightState *state) {
   this->status_clear_warning();
 }
 
-light::ESPColorView BekenSPILEDStripLightOutput::get_view_internal(int32_t index) const {
-  const light::ChannelColors &colors = this->channel_colors_;
-  uint8_t *led = this->buf_ + (index * colors.bytes_per_led());
-  return {led + colors.r,
-          led + colors.g,
-          led + colors.b,
-          colors.has_white() ? led + colors.w : nullptr,
-          &this->effect_data_[index],
-          &this->correction_};
-}
-
 void BekenSPILEDStripLightOutput::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "Beken SPI LED Strip:\n"
@@ -320,7 +294,8 @@ void BekenSPILEDStripLightOutput::dump_config() {
                 "  Channel colors: %s\n"
                 "  Max refresh rate: %" PRIu32 "\n"
                 "  Number of LEDs: %u",
-                this->channel_colors_.to_string(channel_colors), this->max_refresh_rate_.value_or(0), this->num_leds_);
+                this->buffer_.layout().channel_colors.to_string(channel_colors), this->max_refresh_rate_.value_or(0),
+                this->buffer().size());
 }
 
 float BekenSPILEDStripLightOutput::get_setup_priority() const { return setup_priority::HARDWARE; }

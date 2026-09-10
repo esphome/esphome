@@ -12,8 +12,9 @@ void AddressableLight::call_setup() {
   this->set_interval(5000, [this]() {
     const char *name = this->state_parent_ == nullptr ? "" : this->state_parent_->get_name().c_str();
     ESP_LOGVV(TAG, "Addressable Light '%s' (effect_active=%s)", name, YESNO(this->effect_active_));
-    for (int i = 0; i < this->size(); i++) {
-      auto color = this->get(i);
+    ESPColorBuffer &buffer = this->buffer();
+    for (int i = 0; i < buffer.size(); i++) {
+      auto color = buffer[i];
       ESP_LOGVV(TAG, "  [%2d] Color: R=%3u G=%3u B=%3u W=%3u", i, color.get_red_raw(), color.get_green_raw(),
                 color.get_blue_raw(), color.get_white_raw());
     }
@@ -43,7 +44,7 @@ void AddressableLight::update_state(LightState *state) {
     return;
 
   // don't use LightState helper, gamma correction+brightness is handled by ESPColorView
-  this->all() = color_from_light_color_values(val);
+  this->buffer().all() = color_from_light_color_values(val);
   this->schedule_show();
 }
 
@@ -111,11 +112,12 @@ optional<LightColorValues> AddressableLightTransformer::apply() {
     // round to stored 0, freezing progress).
     if (!this->uniform_start_scanned_) {
       this->uniform_start_scanned_ = true;
-      if (this->light_.size() > 0) {
-        Color first = this->light_[0].get();
+      ESPColorBuffer &buffer = this->light_.buffer();
+      if (buffer.size() > 0) {
+        Color first = buffer[0].get();
         bool uniform = true;
-        for (int32_t i = 1; i < this->light_.size(); i++) {
-          if (this->light_[i].get() != first) {
+        for (int32_t i = 1; i < buffer.size(); i++) {
+          if (buffer[i].get() != first) {
             uniform = false;
             break;
           }
@@ -142,13 +144,13 @@ optional<LightColorValues> AddressableLightTransformer::apply() {
       uint8_t g = subtract_scaled_difference(this->target_color_.green, start.green, remaining);
       uint8_t b = subtract_scaled_difference(this->target_color_.blue, start.blue, remaining);
       uint8_t w = subtract_scaled_difference(this->target_color_.white, start.white, remaining);
-      for (auto led : this->light_) {
+      for (auto led : this->light_.buffer()) {
         led.set_rgbw(r, g, b, w);
       }
     } else {
       int32_t scale =
           int32_t(256.f * std::max((1.f - smoothed_progress) / (1.f - this->last_transition_progress_), 0.f));
-      for (auto led : this->light_) {
+      for (auto led : this->light_.buffer()) {
         led.set_rgbw(subtract_scaled_difference(this->target_color_.red, led.get_red(), scale),
                      subtract_scaled_difference(this->target_color_.green, led.get_green(), scale),
                      subtract_scaled_difference(this->target_color_.blue, led.get_blue(), scale),
