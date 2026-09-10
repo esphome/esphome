@@ -1,9 +1,5 @@
 #include "gpio_switch.h"
-#include "esphome/core/defines.h"
 #include "esphome/core/log.h"
-#if defined(USE_DEEP_SLEEP) && defined(USE_GPIO_HOLD)
-#include "esphome/components/deep_sleep/deep_sleep_component.h"
-#endif
 
 namespace esphome::gpio {
 
@@ -16,10 +12,7 @@ float GPIOSwitch::get_setup_priority() const { return setup_priority::HARDWARE; 
 void GPIOSwitch::setup() {
   bool initial_state = this->get_initial_state_with_restore_mode().value_or(false);
 
-#if defined(USE_DEEP_SLEEP) && defined(USE_GPIO_HOLD)
-  if (!((this->pin_->get_flags() & gpio::FLAG_HOLD) && deep_sleep::woken_from_deepsleep()))
-#endif
-  {
+  if (!pin_state_held_from_deep_sleep(this->pin_)) {
     // write state before setup. If waking up from deepsleep and state is held
     // we need to setup first
     if (initial_state) {
