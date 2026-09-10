@@ -1,11 +1,12 @@
 import esphome.codegen as cg
 from esphome.components import select
+from esphome.components.const import CONF_OPERATING_MODE
 import esphome.config_validation as cv
 from esphome.const import ENTITY_CATEGORY_CONFIG
 from esphome.types import ConfigType
 
 from .. import Alpha3, alpha3_ns
-from ..const import CONF_ALPHA3_ID, CONF_CONTROL_MODE, CONF_OPERATING_MODE
+from ..const import CONF_ALPHA3_ID, CONF_CONTROL_MODE
 
 DEPENDENCIES = ["alpha3"]
 

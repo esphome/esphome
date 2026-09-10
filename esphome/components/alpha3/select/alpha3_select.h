@@ -5,7 +5,7 @@
 #ifdef USE_SELECT
 namespace esphome::alpha3 {
 
-class Alpha3Select : public select::Select {
+class Alpha3Select final : public select::Select {
  public:
   Alpha3Select(Alpha3 *parent, Alpha3SelectType type) : parent_(parent), type_(type) {}
 

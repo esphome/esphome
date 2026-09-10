@@ -15,8 +15,8 @@ constexpr size_t FRAME_APDU_OFFSET = 6;
 constexpr size_t FRAME_CRC_SIZE = 2;
 constexpr size_t OBJECT_RESPONSE_HEADER_SIZE = 7;
 
-bool build_frame_(uint8_t destination, uint8_t data_class, GeniOperation operation, const uint8_t *apdu,
-                  size_t apdu_size, EncodedFrame &output) {
+bool build_frame(uint8_t destination, uint8_t data_class, GeniOperation operation, const uint8_t *apdu,
+                 size_t apdu_size, EncodedFrame &output) {
   output = {};
   if (apdu_size > 0x3FU || FRAME_OVERHEAD + apdu_size > MAX_FRAME_SIZE || (apdu_size > 0 && apdu == nullptr))
     return false;
@@ -28,8 +28,9 @@ bool build_frame_(uint8_t destination, uint8_t data_class, GeniOperation operati
   output.data[FRAME_SOURCE_OFFSET] = GENI_REQUEST_SOURCE;
   output.data[FRAME_CLASS_OFFSET] = data_class;
   output.data[FRAME_OPERATION_OFFSET] = static_cast<uint8_t>((static_cast<uint8_t>(operation) << 6) | apdu_size);
-  if (apdu_size > 0)
+  if (apdu_size > 0) {
     std::memcpy(output.data.data() + FRAME_APDU_OFFSET, apdu, apdu_size);
+  }
 
   const uint16_t crc = geni_crc16(output.data.data() + FRAME_LENGTH_OFFSET, frame_size - 3);
   output.data[frame_size - FRAME_CRC_SIZE] = static_cast<uint8_t>(crc >> 8);
@@ -47,10 +48,11 @@ uint16_t geni_crc16(const uint8_t *data, size_t size) {
   for (size_t i = 0; i < size; i++) {
     crc ^= static_cast<uint16_t>(data[i]) << 8;
     for (uint8_t bit = 0; bit < 8; bit++) {
-      if ((crc & 0x8000U) != 0)
+      if ((crc & 0x8000U) != 0) {
         crc = static_cast<uint16_t>((crc << 1) ^ 0x1021U);
-      else
+      } else {
         crc = static_cast<uint16_t>(crc << 1);
+      }
     }
   }
   return static_cast<uint16_t>(~crc);
@@ -65,21 +67,21 @@ bool build_discovery_get(EncodedFrame &output) {
 }
 
 bool build_parameter_get(uint8_t destination, uint8_t parameter_id, EncodedFrame &output) {
-  return build_frame_(destination, GENI_PARAMETER_CLASS, GeniOperation::GENI_OPERATION_GET, &parameter_id, 1, output);
+  return build_frame(destination, GENI_PARAMETER_CLASS, GeniOperation::GENI_OPERATION_GET, &parameter_id, 1, output);
 }
 
 bool build_object_get(uint8_t destination, ObjectAddress address, EncodedFrame &output) {
   const std::array<uint8_t, 3> apdu{
       {address.data_id, static_cast<uint8_t>(address.sub_id >> 8), static_cast<uint8_t>(address.sub_id)}};
-  return build_frame_(destination, GENI_OBJECT_CLASS, GeniOperation::GENI_OPERATION_GET, apdu.data(), apdu.size(),
-                      output);
+  return build_frame(destination, GENI_OBJECT_CLASS, GeniOperation::GENI_OPERATION_GET, apdu.data(), apdu.size(),
+                     output);
 }
 
 bool build_object_set(uint8_t destination, ObjectAddress address, uint16_t type, uint8_t version,
                       const uint8_t *payload, size_t payload_size, EncodedFrame &output) {
-  constexpr size_t OBJECT_SET_HEADER_SIZE = 9;
+  constexpr size_t object_set_header_size = 9;
   std::array<uint8_t, 0x3F> apdu{};
-  if (payload_size > apdu.size() - OBJECT_SET_HEADER_SIZE || (payload_size > 0 && payload == nullptr)) {
+  if (payload_size > apdu.size() - object_set_header_size || (payload_size > 0 && payload == nullptr)) {
     output = {};
     return false;
   }
@@ -93,15 +95,16 @@ bool build_object_set(uint8_t destination, ObjectAddress address, uint16_t type,
   apdu[6] = static_cast<uint8_t>(payload_size >> 16);
   apdu[7] = static_cast<uint8_t>(payload_size >> 8);
   apdu[8] = static_cast<uint8_t>(payload_size);
-  if (payload_size > 0)
-    std::memcpy(apdu.data() + OBJECT_SET_HEADER_SIZE, payload, payload_size);
-  return build_frame_(destination, GENI_OBJECT_CLASS, GeniOperation::GENI_OPERATION_SET, apdu.data(),
-                      OBJECT_SET_HEADER_SIZE + payload_size, output);
+  if (payload_size > 0) {
+    std::memcpy(apdu.data() + object_set_header_size, payload, payload_size);
+  }
+  return build_frame(destination, GENI_OBJECT_CLASS, GeniOperation::GENI_OPERATION_SET, apdu.data(),
+                     object_set_header_size + payload_size, output);
 }
 
 namespace {
 
-ParseResult validate_response_envelope_(const uint8_t *data, size_t size) {
+ParseResult validate_response_envelope(const uint8_t *data, size_t size) {
   if (data == nullptr || size == 0)
     return ParseResult::PARSE_RESULT_INCOMPLETE;
   if (data[0] != GENI_RESPONSE_START)
@@ -131,7 +134,7 @@ ParseResult validate_response_envelope_(const uint8_t *data, size_t size) {
 
 ParseResult parse_discovery_response(const uint8_t *data, size_t size, uint8_t &unit_address) {
   unit_address = GENI_BROADCAST_ADDRESS;
-  const ParseResult result = validate_response_envelope_(data, size);
+  const ParseResult result = validate_response_envelope(data, size);
   if (result != ParseResult::PARSE_RESULT_OK)
     return result;
   if (data[FRAME_CLASS_OFFSET] != GENI_DISCOVERY_CLASS)
@@ -153,7 +156,7 @@ ParseResult parse_discovery_response(const uint8_t *data, size_t size, uint8_t &
 
 ParseResult parse_response_frame(const uint8_t *data, size_t size, uint8_t expected_source, ParsedFrame &output) {
   output = {};
-  const ParseResult result = validate_response_envelope_(data, size);
+  const ParseResult result = validate_response_envelope(data, size);
   if (result != ParseResult::PARSE_RESULT_OK)
     return result;
   if (data[FRAME_SOURCE_OFFSET] != expected_source)

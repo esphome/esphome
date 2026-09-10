@@ -54,7 +54,7 @@ bool has_capability(uint32_t capabilities, Capability capability) {
   return requested != 0 && (capabilities & requested) == requested;
 }
 
-Capability read_capability_for_object_(ObjectKind kind) {
+Capability read_capability_for_object(ObjectKind kind) {
   switch (kind) {
     case ObjectKind::OBJECT_KIND_HYDRAULIC_MODEL_B:
       return Capability::CAPABILITY_HYDRAULIC;
@@ -121,7 +121,7 @@ bool can_read_object(const ProfileMatch &match, ObjectKind kind) {
     return false;
   if (match.exact)
     return true;
-  return has_read_capability(match, read_capability_for_object_(kind));
+  return has_read_capability(match, read_capability_for_object(kind));
 }
 
 }  // namespace esphome::alpha3

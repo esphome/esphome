@@ -6,9 +6,9 @@ namespace {
 constexpr uint8_t ALARM_PARAMETER_ID = 158;
 constexpr uint8_t WARNING_PARAMETER_ID = 156;
 
-WorkItem object_read_(ObjectKind object_kind) { return {WorkKind::WORK_KIND_READ_OBJECT, object_kind, 0, 0, false}; }
+WorkItem object_read(ObjectKind object_kind) { return {WorkKind::WORK_KIND_READ_OBJECT, object_kind, 0, 0, false}; }
 
-WorkItem parameter_read_(uint8_t parameter_id) {
+WorkItem parameter_read(uint8_t parameter_id) {
   return {WorkKind::WORK_KIND_READ_PARAMETER, ObjectKind::OBJECT_KIND_ELECTRICAL, parameter_id, 0, false};
 }
 
@@ -150,8 +150,15 @@ void SetpointRanges::clear() {
   this->proportional_pressure = {};
 }
 
+bool TransportState::transport_ready() const { return this->readiness.ready(); }
+
+bool TransportState::control_ready() const {
+  return this->transport_ready() && this->unit_address != GENI_BROADCAST_ADDRESS && this->profile.profile != nullptr &&
+         this->profile.exact && this->profile.writable;
+}
+
 bool TransportState::start_discovery() {
-  if (!this->readiness.ready() || this->discovery_started_ || this->unit_address != GENI_BROADCAST_ADDRESS)
+  if (!this->transport_ready() || this->discovery_started_ || this->unit_address != GENI_BROADCAST_ADDRESS)
     return false;
   const WorkItem discovery{WorkKind::WORK_KIND_DISCOVER_ADDRESS, ObjectKind{}, 0, 0, false};
   if (this->queue.enqueue(discovery, nullptr) != EnqueueResult::ENQUEUE_RESULT_ACCEPTED)
@@ -169,7 +176,7 @@ bool TransportState::accept_discovered_address(uint8_t address) {
   this->transaction = {};
   this->assembler.reset();
   for (const uint8_t parameter_id : {UNIT_FAMILY_PARAMETER_ID, UNIT_TYPE_PARAMETER_ID, UNIT_VERSION_PARAMETER_ID})
-    this->queue.enqueue(parameter_read_(parameter_id), nullptr);
+    this->queue.enqueue(parameter_read(parameter_id), nullptr);
   return true;
 }
 
@@ -203,23 +210,23 @@ void TransportState::reset_on_disconnect() {
 
 void enqueue_periodic_reads(const PollDemand &demand, WorkQueue &queue, const WorkItem *active) {
   if (demand.hydraulic)
-    queue.enqueue(object_read_(ObjectKind::OBJECT_KIND_HYDRAULIC_MODEL_B), active);
+    queue.enqueue(object_read(ObjectKind::OBJECT_KIND_HYDRAULIC_MODEL_B), active);
   if (demand.electrical)
-    queue.enqueue(object_read_(ObjectKind::OBJECT_KIND_ELECTRICAL), active);
+    queue.enqueue(object_read(ObjectKind::OBJECT_KIND_ELECTRICAL), active);
   if (demand.history)
-    queue.enqueue(object_read_(ObjectKind::OBJECT_KIND_HISTORY), active);
+    queue.enqueue(object_read(ObjectKind::OBJECT_KIND_HISTORY), active);
   if (demand.energy)
-    queue.enqueue(object_read_(ObjectKind::OBJECT_KIND_ENERGY), active);
+    queue.enqueue(object_read(ObjectKind::OBJECT_KIND_ENERGY), active);
   if (demand.alarm)
-    queue.enqueue(parameter_read_(ALARM_PARAMETER_ID), active);
+    queue.enqueue(parameter_read(ALARM_PARAMETER_ID), active);
   if (demand.warning)
-    queue.enqueue(parameter_read_(WARNING_PARAMETER_ID), active);
+    queue.enqueue(parameter_read(WARNING_PARAMETER_ID), active);
   if (demand.local_operation)
-    queue.enqueue(object_read_(ObjectKind::OBJECT_KIND_LOCAL_OPERATION), active);
+    queue.enqueue(object_read(ObjectKind::OBJECT_KIND_LOCAL_OPERATION), active);
   if (demand.local_control)
-    queue.enqueue(object_read_(ObjectKind::OBJECT_KIND_LOCAL_CONTROL), active);
+    queue.enqueue(object_read(ObjectKind::OBJECT_KIND_LOCAL_CONTROL), active);
   if (demand.realized_operation)
-    queue.enqueue(object_read_(ObjectKind::OBJECT_KIND_REALIZED_OPERATION), active);
+    queue.enqueue(object_read(ObjectKind::OBJECT_KIND_REALIZED_OPERATION), active);
 }
 
 }  // namespace esphome::alpha3

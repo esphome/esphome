@@ -18,19 +18,19 @@ constexpr size_t SETPOINT_LIMITS_SIZE = 28;
 constexpr size_t SETPOINT_SIZE = 18;
 constexpr double WATT_SECONDS_PER_KILOWATT_HOUR = 3600000.0;
 
-uint32_t read_uint32_be_(const uint8_t *input) {
+uint32_t read_uint32_be(const uint8_t *input) {
   return (static_cast<uint32_t>(input[0]) << 24) | (static_cast<uint32_t>(input[1]) << 16) |
          (static_cast<uint32_t>(input[2]) << 8) | input[3];
 }
 
-float read_float_be_(const uint8_t *input) {
-  const uint32_t bits = read_uint32_be_(input);
+float read_float_be(const uint8_t *input) {
+  const uint32_t bits = read_uint32_be(input);
   float output;
   std::memcpy(&output, &bits, sizeof(output));
   return output;
 }
 
-double read_double_be_(const uint8_t *input) {
+double read_double_be(const uint8_t *input) {
   const uint64_t bits = (static_cast<uint64_t>(input[0]) << 56) | (static_cast<uint64_t>(input[1]) << 48) |
                         (static_cast<uint64_t>(input[2]) << 40) | (static_cast<uint64_t>(input[3]) << 32) |
                         (static_cast<uint64_t>(input[4]) << 24) | (static_cast<uint64_t>(input[5]) << 16) |
@@ -40,7 +40,7 @@ double read_double_be_(const uint8_t *input) {
   return output;
 }
 
-void write_float_be_(uint8_t *output, float value) {
+void write_float_be(uint8_t *output, float value) {
   uint32_t bits;
   std::memcpy(&bits, &value, sizeof(bits));
   output[0] = static_cast<uint8_t>(bits >> 24);
@@ -55,7 +55,7 @@ bool decode_model_b_hydraulic(const uint8_t *payload, size_t size, HydraulicTele
   if (payload == nullptr || size < MODEL_B_HYDRAULIC_SIZE)
     return false;
 
-  const HydraulicTelemetry decoded{read_float_be_(payload) * 3600.0F, read_float_be_(payload + 4) / PASCALS_PER_METER};
+  const HydraulicTelemetry decoded{read_float_be(payload) * 3600.0F, read_float_be(payload + 4) / PASCALS_PER_METER};
   output = decoded;
   return true;
 }
@@ -64,7 +64,7 @@ bool decode_extended_hydraulic(const uint8_t *payload, size_t size, HydraulicTel
   if (payload == nullptr || size < EXTENDED_HYDRAULIC_SIZE)
     return false;
 
-  const HydraulicTelemetry decoded{read_float_be_(payload) * 3600.0F, read_float_be_(payload + 4) / PASCALS_PER_METER};
+  const HydraulicTelemetry decoded{read_float_be(payload) * 3600.0F, read_float_be(payload + 4) / PASCALS_PER_METER};
   output = decoded;
   return true;
 }
@@ -74,8 +74,8 @@ bool decode_electrical(const uint8_t *payload, size_t size, uint8_t version, Ele
   if (payload == nullptr || expected_size == 0 || size < expected_size)
     return false;
 
-  const ElectricalTelemetry decoded{read_float_be_(payload), read_float_be_(payload + 8), read_float_be_(payload + 12),
-                                    read_float_be_(payload + 20)};
+  const ElectricalTelemetry decoded{read_float_be(payload), read_float_be(payload + 8), read_float_be(payload + 12),
+                                    read_float_be(payload + 20)};
   output = decoded;
   return true;
 }
@@ -84,7 +84,7 @@ bool decode_operation_history(const uint8_t *payload, size_t size, OperationHist
   if (payload == nullptr || size < OPERATION_HISTORY_SIZE)
     return false;
 
-  const OperationHistory decoded{read_uint32_be_(payload), static_cast<float>(read_uint32_be_(payload + 8)) / 3600.0F};
+  const OperationHistory decoded{read_uint32_be(payload), static_cast<float>(read_uint32_be(payload + 8)) / 3600.0F};
   output = decoded;
   return true;
 }
@@ -93,7 +93,7 @@ bool decode_energy_kwh(const uint8_t *payload, size_t size, double &output) {
   if (payload == nullptr || size < sizeof(double))
     return false;
 
-  const double decoded = read_double_be_(payload) / WATT_SECONDS_PER_KILOWATT_HOUR;
+  const double decoded = read_double_be(payload) / WATT_SECONDS_PER_KILOWATT_HOUR;
   output = decoded;
   return true;
 }
@@ -102,7 +102,7 @@ bool decode_operation_status(const uint8_t *payload, size_t size, OperationStatu
   if (payload == nullptr || size < OPERATION_STATUS_SIZE)
     return false;
 
-  const OperationStatus decoded{payload[0], payload[1], payload[2], read_float_be_(payload + 3)};
+  const OperationStatus decoded{payload[0], payload[1], payload[2], read_float_be(payload + 3)};
   output = decoded;
   return true;
 }
@@ -111,8 +111,8 @@ bool decode_setpoint_limits(const uint8_t *payload, size_t size, SetpointLimits 
   if (payload == nullptr || size < SETPOINT_LIMITS_SIZE)
     return false;
 
-  const SetpointLimits decoded{read_float_be_(payload), read_float_be_(payload + 4), read_float_be_(payload + 8),
-                               read_float_be_(payload + 12)};
+  const SetpointLimits decoded{read_float_be(payload), read_float_be(payload + 4), read_float_be(payload + 8),
+                               read_float_be(payload + 12)};
   output = decoded;
   return true;
 }
@@ -121,7 +121,7 @@ bool decode_setpoint(const uint8_t *payload, size_t size, float &output) {
   if (payload == nullptr || size < SETPOINT_SIZE)
     return false;
 
-  const float decoded = read_float_be_(payload + 2);
+  const float decoded = read_float_be(payload + 2);
   output = decoded;
   return true;
 }
@@ -154,7 +154,7 @@ bool replace_setpoint(const uint8_t *input, size_t size, float setpoint, std::ar
 
   std::array<uint8_t, 18> replaced;
   std::memcpy(replaced.data(), input, replaced.size());
-  write_float_be_(replaced.data() + 2, setpoint);
+  write_float_be(replaced.data() + 2, setpoint);
   output = replaced;
   return true;
 }

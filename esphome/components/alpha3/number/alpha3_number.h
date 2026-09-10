@@ -5,7 +5,7 @@
 #ifdef USE_NUMBER
 namespace esphome::alpha3 {
 
-class Alpha3Number : public number::Number {
+class Alpha3Number final : public number::Number {
  public:
   Alpha3Number(Alpha3 *parent, Alpha3NumberType type) : parent_(parent), type_(type) {}
 

@@ -13,7 +13,7 @@
 namespace esphome::alpha3 {
 namespace {
 
-static const char *const TAG = "alpha3";
+const char *const TAG = "alpha3";
 
 constexpr uint16_t CLIENT_CHARACTERISTIC_CONFIGURATION_DESCRIPTOR_UUID = 0x2902;
 constexpr uint8_t ALARM_PARAMETER_ID = 158;
@@ -46,7 +46,7 @@ void Alpha3::setup() {
 }
 
 void Alpha3::loop() {
-  if (!this->is_ready())
+  if (!this->is_transport_ready_())
     return;
   if (!this->transport_.transaction.active)
     this->start_next_work_();
@@ -54,7 +54,7 @@ void Alpha3::loop() {
 }
 
 void Alpha3::update() {
-  if (!this->is_ready() || this->transport_.profile.profile == nullptr)
+  if (!this->is_transport_ready_() || this->transport_.profile.profile == nullptr)
     return;
 
   PollDemand demand{};
@@ -130,6 +130,8 @@ void Alpha3::dump_config() {
 
 bool Alpha3::is_ready() const { return this->ready_; }
 
+bool Alpha3::is_transport_ready_() const { return this->transport_.transport_ready(); }
+
 #if defined(USE_SELECT) || defined(USE_NUMBER)
 bool Alpha3::validate_write_(Capability capability, ObjectKind object_kind) {
   if (!this->is_ready() || this->transport_.unit_address == GENI_BROADCAST_ADDRESS) {
@@ -183,7 +185,7 @@ bool Alpha3::request_control_mode(uint8_t mode) {
   if (!this->validate_write_(Capability::CAPABILITY_WRITE_CONTROL, ObjectKind::OBJECT_KIND_LOCAL_CONTROL))
     return false;
   const DeviceProfile &profile = *this->transport_.profile.profile;
-  const auto modes_end = profile.control_modes.begin() + profile.control_mode_count;
+  const auto *const modes_end = profile.control_modes.begin() + profile.control_mode_count;
   if (std::find(profile.control_modes.begin(), modes_end, mode) == modes_end) {
     ESP_LOGW(TAG, "[%s] rejected control mode %u: unsupported mode", this->parent()->address_str(), mode);
     return false;
@@ -237,7 +239,7 @@ bool Alpha3::request_setpoint(Alpha3NumberType type, float displayed_value) {
   if (!this->validate_write_(Capability::CAPABILITY_WRITE_SETPOINT, objects->user_config))
     return false;
   const DeviceProfile &profile = *this->transport_.profile.profile;
-  const auto modes_end = profile.control_modes.begin() + profile.control_mode_count;
+  const auto *const modes_end = profile.control_modes.begin() + profile.control_mode_count;
   if (std::find(profile.control_modes.begin(), modes_end, objects->control_mode) == modes_end) {
     ESP_LOGW(TAG, "[%s] rejected setpoint: control mode %u is unsupported", this->parent()->address_str(),
              objects->control_mode);
@@ -286,21 +288,21 @@ void Alpha3::try_subscribe_() {
   ESP_LOGD(TAG, "[%s] notification registration requested", this->parent()->address_str());
 }
 
-void Alpha3::set_ready_(bool ready) {
-  const bool new_ready = ready && this->transport_.readiness.ready();
-  if (new_ready == this->ready_)
+void Alpha3::set_ready_(bool ready, bool force_publish) {
+  const bool new_ready = ready && this->transport_.control_ready();
+  if (!force_publish && new_ready == this->ready_)
     return;
   this->ready_ = new_ready;
 #ifdef USE_BINARY_SENSOR
   if (this->ready_binary_sensor_ != nullptr)
     this->ready_binary_sensor_->publish_state(this->ready_);
 #endif
-  ESP_LOGI(TAG, "[%s] protocol %s", this->parent()->address_str(), this->ready_ ? "ready" : "not ready");
+  ESP_LOGI(TAG, "[%s] control %s", this->parent()->address_str(), this->ready_ ? "ready" : "not ready");
 }
 
 void Alpha3::reset_connection_state_() {
   this->cancel_timeout("alpha3_response");
-  this->set_ready_(false);
+  this->set_ready_(false, true);
   this->transport_.reset_on_disconnect();
   this->command_policy_.reset(this->command_state_);
   this->setpoint_ranges_.clear();
@@ -337,6 +339,7 @@ void Alpha3::start_next_work_() {
       break;
     case WorkKind::WORK_KIND_READ_PARAMETER:
       if (work.parameter_id == UNIT_FAMILY_PARAMETER_ID) {
+        this->set_ready_(false);
         this->transport_.identity = {};
         this->transport_.profile = {};
 #ifdef USE_NUMBER
@@ -423,7 +426,8 @@ void Alpha3::execute_command_outcome_(const CommandOutcome &outcome) {
     case CommandPublication::COMMAND_PUBLICATION_CONTROL:
 #ifdef USE_SELECT
     {
-      const auto mode = std::find(CONTROL_MODE_VALUES.begin(), CONTROL_MODE_VALUES.end(), outcome.confirmed_enum);
+      const auto *const mode =
+          std::find(CONTROL_MODE_VALUES.begin(), CONTROL_MODE_VALUES.end(), outcome.confirmed_enum);
       if (mode != CONTROL_MODE_VALUES.end()) {
         if (this->control_mode_select_ != nullptr)
           this->control_mode_select_->publish_state(static_cast<size_t>(mode - CONTROL_MODE_VALUES.begin()));
@@ -447,19 +451,21 @@ void Alpha3::execute_command_outcome_(const CommandOutcome &outcome) {
 #ifdef USE_TEXT_SENSOR
       if (this->realized_operation_text_sensor_ != nullptr) {
         const char *operation = operation_mode_to_string(outcome.realized_status.operation);
-        if (operation != nullptr)
+        if (operation != nullptr) {
           this->realized_operation_text_sensor_->publish_state(operation);
-        else
+        } else {
           ESP_LOGW(TAG, "[%s] unknown realized operation %u", this->parent()->address_str(),
                    outcome.realized_status.operation);
+        }
       }
       if (this->active_control_source_text_sensor_ != nullptr) {
         const char *source = control_source_to_string(outcome.realized_status.source);
-        if (source != nullptr)
+        if (source != nullptr) {
           this->active_control_source_text_sensor_->publish_state(source);
-        else
+        } else {
           ESP_LOGW(TAG, "[%s] unknown active control source %u", this->parent()->address_str(),
                    outcome.realized_status.source);
+        }
       }
 #endif
       break;
@@ -574,15 +580,17 @@ void Alpha3::handle_notification_(const uint8_t *data, size_t size) {
     ESP_LOGW(TAG, "[%s] discarded invalid GENI response, error=%u", this->parent()->address_str(),
              static_cast<unsigned>(parse_result));
     this->transport_.assembler.reset();
-    if (this->transport_.transaction.is_write)
+    if (this->transport_.transaction.is_write) {
       this->fail_active_transaction_("invalid write response");
+    }
     return;
   }
 
-  if (this->command_state_.active)
+  if (this->command_state_.active) {
     this->complete_command_transaction_(frame);
-  else
+  } else {
     this->complete_read_(frame);
+  }
   this->transport_.assembler.reset();
 }
 
@@ -712,7 +720,7 @@ void Alpha3::complete_read_(const ParsedFrame &frame) {
             ESP_LOGW(TAG, "[%s] unknown local operation mode %u", this->parent()->address_str(), status.operation);
           }
         } else {
-          const auto mode = std::find(CONTROL_MODE_VALUES.begin(), CONTROL_MODE_VALUES.end(), status.control);
+          const auto *const mode = std::find(CONTROL_MODE_VALUES.begin(), CONTROL_MODE_VALUES.end(), status.control);
           if (mode != CONTROL_MODE_VALUES.end()) {
             if (this->control_mode_select_ != nullptr)
               this->control_mode_select_->publish_state(static_cast<size_t>(mode - CONTROL_MODE_VALUES.begin()));
@@ -748,8 +756,9 @@ void Alpha3::complete_read_(const ParsedFrame &frame) {
           return;
         }
         if (auto *entity = this->get_setpoint_number_(tx.expected_object); entity != nullptr) {
-          if (tx.expected_object != ObjectKind::OBJECT_KIND_CS_USER_CONFIG)
+          if (tx.expected_object != ObjectKind::OBJECT_KIND_CS_USER_CONFIG) {
             setpoint /= this->transport_.profile.profile->pascals_per_meter;
+          }
           entity->publish_state(setpoint);
         }
 #endif
@@ -762,17 +771,19 @@ void Alpha3::complete_read_(const ParsedFrame &frame) {
         }
         if (this->realized_operation_text_sensor_ != nullptr) {
           const char *operation = operation_mode_to_string(status.operation);
-          if (operation != nullptr)
+          if (operation != nullptr) {
             this->realized_operation_text_sensor_->publish_state(operation);
-          else
+          } else {
             ESP_LOGW(TAG, "[%s] unknown realized operation %u", this->parent()->address_str(), status.operation);
+          }
         }
         if (this->active_control_source_text_sensor_ != nullptr) {
           const char *source = control_source_to_string(status.source);
-          if (source != nullptr)
+          if (source != nullptr) {
             this->active_control_source_text_sensor_->publish_state(source);
-          else
+          } else {
             ESP_LOGW(TAG, "[%s] unknown active control source %u", this->parent()->address_str(), status.source);
+          }
         }
 #endif
       } else {
@@ -794,6 +805,7 @@ void Alpha3::complete_read_(const ParsedFrame &frame) {
 
   if (!identity_completed) {
     if (identity_sequence_finished) {
+      this->set_ready_(false, true);
       ESP_LOGW(TAG, "[%s] incomplete identity family=%u type=%u version=%u mask=0x%02X", this->parent()->address_str(),
                this->transport_.identity.family, this->transport_.identity.type, this->transport_.identity.version,
                this->transport_.identity.valid_mask);
@@ -809,10 +821,13 @@ void Alpha3::complete_read_(const ParsedFrame &frame) {
            this->transport_.identity.family, this->transport_.identity.type, this->transport_.identity.version,
            this->transport_.identity.valid_mask);
   if (this->transport_.profile.profile == nullptr) {
+    this->set_ready_(false, true);
     ESP_LOGW(TAG, "[%s] unsupported identity; transport remains read-only", this->parent()->address_str());
     return;
   }
   ESP_LOGI(TAG, "[%s] selected profile %s", this->parent()->address_str(), this->transport_.profile.profile->name);
+  this->set_ready_(this->transport_.profile.exact && this->transport_.profile.writable,
+                   !this->transport_.profile.exact || !this->transport_.profile.writable);
   this->enqueue_initial_reads_();
 }
 
@@ -837,6 +852,7 @@ void Alpha3::fail_active_transaction_(const char *reason) {
   this->transport_.transaction = {};
   this->transport_.assembler.reset();
   if (identity_read_failed && this->transport_.queue.size() == 0) {
+    this->set_ready_(false, true);
     ESP_LOGW(TAG, "[%s] incomplete identity family=%u type=%u version=%u mask=0x%02X", this->parent()->address_str(),
              this->transport_.identity.family, this->transport_.identity.type, this->transport_.identity.version,
              this->transport_.identity.valid_mask);
@@ -880,12 +896,14 @@ void Alpha3::handle_response_timeout_() {
 void Alpha3::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t, esp_ble_gattc_cb_param_t *param) {
   switch (event) {
     case ESP_GATTC_CONNECT_EVT: {
-      if (std::memcmp(param->connect.remote_bda, this->parent()->get_remote_bda(), sizeof(esp_bd_addr_t)) != 0)
+      if (std::memcmp(param->connect.remote_bda, this->parent()->get_remote_bda(), sizeof(esp_bd_addr_t)) != 0) {
         return;
+      }
       this->reset_connection_state_();
       const esp_err_t status = esp_ble_set_encryption(param->connect.remote_bda, ESP_BLE_SEC_ENCRYPT);
-      if (status != ESP_OK)
+      if (status != ESP_OK) {
         ESP_LOGW(TAG, "[%s] encryption request failed, status=%d", this->parent()->address_str(), status);
+      }
       break;
     }
     case ESP_GATTC_SEARCH_CMPL_EVT: {
@@ -932,16 +950,17 @@ void Alpha3::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t, esp_
                  param->write.status);
         break;
       }
-      const bool was_ready = this->is_ready();
+      const bool was_transport_ready = this->is_transport_ready_();
       this->transport_.readiness.mark_cccd_succeeded();
       if (!this->transport_.readiness.ready()) {
         ESP_LOGW(TAG, "[%s] notification CCCD completed before registration", this->parent()->address_str());
         break;
       }
       this->node_state = espbt::ClientState::ESTABLISHED;
-      this->set_ready_(true);
-      if (!was_ready)
+      this->set_ready_(false);
+      if (!was_transport_ready) {
         this->transport_.start_discovery();
+      }
       break;
     }
     case ESP_GATTC_NOTIFY_EVT:

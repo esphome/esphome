@@ -88,8 +88,9 @@ class Alpha3 final : public ble_client::BLEClientNode, public PollingComponent {
 #endif
 
  protected:
+  bool is_transport_ready_() const;
   void try_subscribe_();
-  void set_ready_(bool ready);
+  void set_ready_(bool ready, bool force_publish = false);
   void reset_connection_state_();
   void enqueue_initial_reads_();
   void start_next_work_();

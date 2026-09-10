@@ -127,6 +127,8 @@ struct TransportState {
   // Broadcast is never a valid response source, so it denotes an unresolved unit.
   uint8_t unit_address{GENI_BROADCAST_ADDRESS};
 
+  bool transport_ready() const;
+  bool control_ready() const;
   bool start_discovery();
   bool accept_discovered_address(uint8_t address);
   TimeoutDecision handle_timeout();

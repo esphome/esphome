@@ -1,5 +1,6 @@
 import esphome.codegen as cg
 from esphome.components import ble_client, sensor
+from esphome.components.const import CONF_OPERATING_HOURS
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_CURRENT,
@@ -30,7 +31,7 @@ from esphome.const import (
 from esphome.types import ConfigType
 
 from . import Alpha3
-from .const import CONF_ALARM_CODE, CONF_OPERATING_HOURS, CONF_STARTS, CONF_WARNING_CODE
+from .const import CONF_ALARM_CODE, CONF_STARTS, CONF_WARNING_CODE
 
 AUTO_LOAD = ["alpha3"]
 

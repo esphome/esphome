@@ -224,6 +224,26 @@ TEST(Alpha3Readiness, ResetInvalidatesHandlesAndEveryReadinessFlag) {
   EXPECT_FALSE(tracker.ready());
 }
 
+TEST(Alpha3TransportState, DistinguishesTransportReadinessFromWritableControlReadiness) {
+  TransportState state;
+  ready_transport(state);
+
+  EXPECT_TRUE(state.transport_ready());
+  EXPECT_FALSE(state.control_ready());
+
+  state.unit_address = 0xE6;
+  state.profile = match_profile({52, 1, 0, 0x07});
+  EXPECT_TRUE(state.control_ready());
+
+  state.profile = match_profile({52, 1, 1, 0x07});
+  EXPECT_NE(state.profile.profile, nullptr);
+  EXPECT_FALSE(state.control_ready());
+
+  state.reset_on_disconnect();
+  EXPECT_FALSE(state.transport_ready());
+  EXPECT_FALSE(state.control_ready());
+}
+
 TEST(Alpha3TransportState, RetriesAReadOnceThenFails) {
   TransportState state;
   state.transaction.active = true;
