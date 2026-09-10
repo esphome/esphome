@@ -318,12 +318,13 @@ TEST_F(Alpha3Commands, NegativeAckAndTimeoutOnlyAdvanceToVerification) {
   for (bool timeout : {false, true}) {
     for (const auto work : {MAX_COMMAND, CP_COMMAND, setpoint_command(1650)}) {
       this->start_(work);
-      if (work.kind == WorkKind::WORK_KIND_SET_OPERATION_MODE)
+      if (work.kind == WorkKind::WORK_KIND_SET_OPERATION_MODE) {
         this->accept_(work.object_kind, OPERATION_CURRENT);
-      else if (work.kind == WorkKind::WORK_KIND_SET_CONTROL_MODE)
+      } else if (work.kind == WorkKind::WORK_KIND_SET_CONTROL_MODE) {
         this->accept_(work.object_kind, CONTROL_CURRENT);
-      else
+      } else {
         this->accept_(work.object_kind, USER_CURRENT);
+      }
       if (timeout) {
         TransportState transport;
         transport.transaction.active = true;
@@ -447,10 +448,11 @@ TEST_F(Alpha3Commands, RejectsInvalidReadbackWithoutPublicationOrDeferredWrite) 
     for (bool wrong_size : {false, true}) {
       const auto work = setpoint ? setpoint_command(1650) : MAX_COMMAND;
       this->start_(work);
-      if (setpoint)
+      if (setpoint) {
         this->accept_(work.object_kind, USER_CURRENT);
-      else
+      } else {
         this->accept_(work.object_kind, OPERATION_CURRENT);
+      }
       const auto ack = this->policy_.accept_write_ack(this->state_);
       const auto rejected =
           this->policy_.accept_object(this->state_, ack.object_kind, wrong_size ? USER_CURRENT.data() : nullptr,
