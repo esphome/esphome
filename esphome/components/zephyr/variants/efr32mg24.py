@@ -49,8 +49,8 @@ _ADVANCED_SCHEMA = ADVANCED_SCHEMA.extend(
 _ADC_AIN_MAP = {p: f"IADC_INPUT_P{chr(ord('A') + p // 16)}{p % 16}" for p in range(64)}
 
 # https://github.com/zephyrproject-rtos/zephyr/blob/main/include/zephyr/dt-bindings/pinctrl/silabs/xg24-pinctrl.h
-# Full crossbar -- every PA0..PD15 pin has a macro for every signal, no exclusions.
-# Shared by every free-mux GPIO signal on this variant.
+# Full crossbar -- every PA0..PD15 pin has a macro for every signal, no exclusions
+# (unlike esp32). Shared by every free-mux GPIO signal (UART, SPI).
 _GPIO_MATRIX_PINS = frozenset(range(64))
 
 # Registry entries — collected by variants/__init__.py
@@ -86,6 +86,11 @@ VARIANT = ZephyrVariant(
     # Only usart0 exists at SoC level on this board -- no usart1/UART1.
     uart_node_labels={},
     uart_valid_pins={"tx": _GPIO_MATRIX_PINS, "rx": _GPIO_MATRIX_PINS},
+    spi_valid_pins={
+        "clk": _GPIO_MATRIX_PINS,
+        "mosi": _GPIO_MATRIX_PINS,
+        "miso": _GPIO_MATRIX_PINS,
+    },
 )
 
 

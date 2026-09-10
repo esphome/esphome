@@ -1119,16 +1119,25 @@ def test_zephyr_setup_uart_pinctrl_rpi_pico_partial_override_preserves_other_sig
 
 def test_zephyr_setup_spi_pinctrl_fixed_family_only_enables_bus() -> None:
     CORE.data[KEY_ZEPHYR] = _empty_zephyr_data(variant="STM32L4")
-    zephyr_setup_spi_pinctrl("some_board", "spi1")
+    zephyr_setup_spi_pinctrl("some_board", "spi1", clk=5)
     overlay = CORE.data[KEY_ZEPHYR]["overlay"][""]
     assert '&spi1 { status = "okay"; };' in overlay
     assert "pinctrl" not in overlay
 
 
-def test_zephyr_setup_spi_pinctrl_raises_for_unimplemented_family() -> None:
-    CORE.data[KEY_ZEPHYR] = _empty_zephyr_data(variant="NRF52")
-    with pytest.raises(cv.Invalid, match="not implemented yet"):
-        zephyr_setup_spi_pinctrl("some_board", "spi0")
+def test_zephyr_setup_spi_pinctrl_unimplemented_family_warns_and_enables_bus() -> None:
+    # No generated overlay for rp2040 -- just enable the bus and warn, matching
+    # UART's own "board has no pinctrl configured" fallback, rather than a hard
+    # block. Lets a user's own `zephyr: overlays:` (or a board that already wires
+    # this bus) make it work.
+    CORE.data[KEY_ZEPHYR] = _empty_zephyr_data(variant="RP2040")
+    with patch(
+        "esphome.components.zephyr.dts_lookup.has_pinctrl_configured",
+        return_value=False,
+    ):
+        zephyr_setup_spi_pinctrl("some_board", "spi0", clk=5)
+    overlay = CORE.data[KEY_ZEPHYR]["overlay"][""]
+    assert '&spi0 { status = "okay"; };' in overlay
 
 
 def test_zephyr_setup_spi_pinctrl_esp32_raises_for_unknown_bus_label() -> None:
@@ -1143,10 +1152,13 @@ def test_zephyr_setup_spi_pinctrl_esp32_raises_for_malformed_bus_label() -> None
         zephyr_setup_spi_pinctrl("some_board", "notaspilabel", clk=6, miso=8, mosi=7)
 
 
-def test_zephyr_setup_spi_pinctrl_esp32_raises_without_clk() -> None:
+def test_zephyr_setup_spi_pinctrl_esp32_no_clk_leaves_board_default() -> None:
     CORE.data[KEY_ZEPHYR] = _empty_zephyr_data(variant="ESP32")
-    with pytest.raises(cv.Invalid, match="Could not determine SPI pin assignments"):
-        zephyr_setup_spi_pinctrl("some_board", "spi2")
+    zephyr_setup_spi_pinctrl("some_board", "spi2", miso=8, mosi=7)
+    overlay = CORE.data[KEY_ZEPHYR]["overlay"][""]
+    assert "SCLK" not in overlay
+    assert "MISO_GPIO8" in overlay
+    assert '&spi2 { status = "okay";' in overlay
 
 
 def test_zephyr_setup_spi_pinctrl_esp32_single_bit_uses_hspi_prefix() -> None:
@@ -1178,23 +1190,226 @@ def test_zephyr_setup_spi_pinctrl_esp32_c6_uses_fspi_prefix() -> None:
     assert "SPIM2_SCLK_GPIO6" in overlay
 
 
+# ESP32_PINMUX(gpio, sig_i, sig_o) raw values for ESP32-C6's FSPI signal IDs --
+# same encoding _ESP32_TX_PINMUX/_ESP32_RX_PINMUX above use for UART.
+_ESP32_SPI_CLK_PINMUX = 2097094  # ESP32_PINMUX(6, NOSIG, 63)
+_ESP32_SPI_MOSI_PINMUX = 2162631  # ESP32_PINMUX(7, NOSIG, 65)
+_ESP32_SPI_MISO_PINMUX = 16748552  # ESP32_PINMUX(8, 64, NOSIG)
+_ESP32_SPI_WP_PINMUX = 2228169  # ESP32_PINMUX(9, NOSIG, 67)
+_ESP32_SPI_HD_PINMUX = 2195402  # ESP32_PINMUX(10, NOSIG, 66)
+
+
+def test_zephyr_setup_spi_pinctrl_esp32_uses_gpio_macros_and_role_decode() -> None:
+    CORE.data[KEY_ZEPHYR] = _empty_zephyr_data(variant="ESP32C6")
+    with (
+        patch(
+            "esphome.components.zephyr.dts_lookup.get_pinctrl_states",
+            return_value=[("spim2_default", ["group1", "group2"])],
+        ),
+        patch(
+            "esphome.components.zephyr.dts_lookup.get_pinctrl_group_property",
+            side_effect=lambda board, label, group, prop: {
+                # CLK lands in group2, MOSI/MISO in group1 -- not the naive guess.
+                "group1": [_ESP32_SPI_MOSI_PINMUX, _ESP32_SPI_MISO_PINMUX],
+                "group2": [_ESP32_SPI_CLK_PINMUX],
+            }[group],
+        ),
+    ):
+        zephyr_setup_spi_pinctrl("some_board", "spi2", clk=6, miso=8, mosi=7)
+    overlay = CORE.data[KEY_ZEPHYR]["overlay"][""]
+    assert "SPIM2_SCLK_GPIO6" in overlay
+    assert "SPIM2_MISO_GPIO8" in overlay
+    assert "SPIM2_MOSI_GPIO7" in overlay
+    # Content-decoded role wins over position.
+    group2_idx = overlay.index("group2 {")
+    assert "pinmux = <SPIM2_SCLK_GPIO6>;" in overlay[group2_idx:]
+    assert "pinctrl-0 = <&spim2_default>;" in overlay
+
+
+def test_zephyr_setup_spi_pinctrl_esp32_partial_override_preserves_other_signal() -> (
+    None
+):
+    # Single shared group already carries CLK+MOSI+MISO together -- remapping
+    # only CLK/MOSI must not silently drop MISO's real value from the overlay.
+    CORE.data[KEY_ZEPHYR] = _empty_zephyr_data(variant="ESP32C6")
+    with (
+        patch(
+            "esphome.components.zephyr.dts_lookup.get_pinctrl_states",
+            return_value=[("spi2_default", ["group1"])],
+        ),
+        patch(
+            "esphome.components.zephyr.dts_lookup.get_pinctrl_group_property",
+            return_value=[
+                _ESP32_SPI_CLK_PINMUX,
+                _ESP32_SPI_MOSI_PINMUX,
+                _ESP32_SPI_MISO_PINMUX,
+            ],
+        ),
+    ):
+        zephyr_setup_spi_pinctrl("some_board", "spi2", clk=6, mosi=7)
+    overlay = CORE.data[KEY_ZEPHYR]["overlay"][""]
+    assert "SPIM2_SCLK_GPIO6" in overlay
+    assert "SPIM2_MOSI_GPIO7" in overlay
+    # MISO's original real value is restated as its raw integer, not dropped.
+    assert f"<{_ESP32_SPI_MISO_PINMUX}>" in overlay
+
+
+def test_zephyr_setup_spi_pinctrl_esp32_no_dts_assumes_single_shared_group() -> None:
+    # No group1/group2 split guess -- that'd be as much a guess as the wrong
+    # 'spi{n}_default' label this replaced.
+    CORE.data[KEY_ZEPHYR] = _empty_zephyr_data(variant="ESP32")
+    zephyr_setup_spi_pinctrl("some_board", "spi2", clk=6, miso=8, mosi=7)
+    overlay = CORE.data[KEY_ZEPHYR]["overlay"][""]
+    assert "group2" not in overlay
+    assert "pinctrl-0 = <&spi2_default>;" in overlay
+
+
 def test_zephyr_setup_spi_pinctrl_esp32_quad_adds_wp_hd_group_and_extended_modes() -> (
     None
 ):
     CORE.data[KEY_ZEPHYR] = _empty_zephyr_data(variant="ESP32C6")
-    zephyr_setup_spi_pinctrl("some_board", "spi2", clk=6, data_pins=[7, 8, 9, 10])
+    with (
+        patch(
+            "esphome.components.zephyr.dts_lookup.get_pinctrl_states",
+            return_value=[("spim2_default", ["group1", "group2", "group3"])],
+        ),
+        patch(
+            "esphome.components.zephyr.dts_lookup.get_pinctrl_group_property",
+            side_effect=lambda board, label, group, prop: {
+                "group1": [_ESP32_SPI_CLK_PINMUX, _ESP32_SPI_MOSI_PINMUX],
+                "group2": [_ESP32_SPI_MISO_PINMUX, _ESP32_SPI_WP_PINMUX],
+                "group3": [_ESP32_SPI_HD_PINMUX],
+            }[group],
+        ),
+    ):
+        zephyr_setup_spi_pinctrl("some_board", "spi2", clk=6, data_pins=[7, 8, 9, 10])
     overlay = CORE.data[KEY_ZEPHYR]["overlay"][""]
-    # data_pins[0]/[1] (D0/D1) take the mosi/miso role since no separate mosi/miso
-    # was passed for quad mode.
+    # data_pins[0]/[1] (D0/D1) take the mosi/miso role for quad mode.
     assert "SPIM2_MOSI_GPIO7" in overlay
     assert "SPIM2_MISO_GPIO8" in overlay
-    assert "group2" in overlay
-    assert "ESP32_PINMUX(9, ESP_NOSIG, ESP_FSPIWP_OUT)" in overlay
-    assert "ESP32_PINMUX(10, ESP_NOSIG, ESP_FSPIHD_OUT)" in overlay
+    # Content-decoded: WP shares MISO's group2, HD gets its own group3.
+    group2_idx = overlay.index("group2 {")
+    group3_idx = overlay.index("group3 {")
+    assert (
+        "ESP32_PINMUX(9, ESP_NOSIG, ESP_FSPIWP_OUT)" in overlay[group2_idx:group3_idx]
+    )
+    assert "ESP32_PINMUX(10, ESP_NOSIG, ESP_FSPIHD_OUT)" in overlay[group3_idx:]
     assert CORE.data[KEY_ZEPHYR]["prj_conf"][""]["CONFIG_SPI_EXTENDED_MODES"] == (
         True,
         True,
     )
+
+
+_NRF_SPI_CLK_PSEL = 67108900  # NRF_PSEL(SPIM_SCK, 1, 4)
+_NRF_SPI_MOSI_PSEL = 83886117  # NRF_PSEL(SPIM_MOSI, 1, 5)
+_NRF_SPI_MISO_PSEL = 100663334  # NRF_PSEL(SPIM_MISO, 1, 6)
+
+
+def test_zephyr_setup_spi_pinctrl_nordic_uses_nrf_psel_and_role_decode() -> None:
+    CORE.data[KEY_ZEPHYR] = _empty_zephyr_data(variant="NRF52")
+    with (
+        patch(
+            "esphome.components.zephyr.dts_lookup.get_pinctrl_states",
+            return_value=[("spi0_default", ["group1", "group2"])],
+        ),
+        patch(
+            "esphome.components.zephyr.dts_lookup.get_pinctrl_group_property",
+            side_effect=lambda board, label, group, prop: {
+                # CLK lands in group2, MOSI/MISO in group1 -- not the naive guess.
+                "group1": [_NRF_SPI_MOSI_PSEL, _NRF_SPI_MISO_PSEL],
+                "group2": [_NRF_SPI_CLK_PSEL],
+            }[group],
+        ),
+    ):
+        zephyr_setup_spi_pinctrl("some_board", "spi0", clk=36, miso=38, mosi=37)
+    overlay = CORE.data[KEY_ZEPHYR]["overlay"][""]
+    assert "NRF_PSEL(SPIM_SCK, 1, 4)" in overlay
+    assert "NRF_PSEL(SPIM_MOSI, 1, 5)" in overlay
+    assert "NRF_PSEL(SPIM_MISO, 1, 6)" in overlay
+    # Content-decoded role wins over position.
+    group2_idx = overlay.index("group2 {")
+    assert "psels = <NRF_PSEL(SPIM_SCK, 1, 4)>;" in overlay[group2_idx:]
+    assert "pinctrl-0 = <&spi0_default>;" in overlay
+
+
+def test_zephyr_setup_spi_pinctrl_nordic_no_dts_assumes_single_shared_group() -> None:
+    CORE.data[KEY_ZEPHYR] = _empty_zephyr_data(variant="NRF52")
+    zephyr_setup_spi_pinctrl("some_board", "spi0", clk=36, miso=38, mosi=37)
+    overlay = CORE.data[KEY_ZEPHYR]["overlay"][""]
+    assert "group2" not in overlay
+    assert "pinctrl-0 = <&spi0_default>;" in overlay
+
+
+_SILABS_SPI_CLK_PINS = 1572864  # en_bit=3 (CLK)
+
+
+def test_zephyr_setup_spi_pinctrl_silabs_uses_lettered_ports_and_role_decode() -> None:
+    CORE.data[KEY_ZEPHYR] = _empty_zephyr_data(variant="EFR32MG24")
+    with (
+        patch(
+            "esphome.components.zephyr.dts_lookup.get_pinctrl_states",
+            return_value=[("usart0_default", ["group0", "group1"])],
+        ),
+        patch(
+            "esphome.components.zephyr.dts_lookup.get_pinctrl_group_property",
+            side_effect=lambda board, label, group, prop: {
+                # CLK lands in group1, MOSI/MISO in group0 -- not the naive guess.
+                "group0": [_SILABS_TX_PINS, _SILABS_RX_PINS],
+                "group1": [_SILABS_SPI_CLK_PINS],
+            }[group],
+        ),
+    ):
+        zephyr_setup_spi_pinctrl("some_board", "usart0", clk=3, miso=6, mosi=5)
+    overlay = CORE.data[KEY_ZEPHYR]["overlay"][""]
+    assert "USART0_CLK_PA3" in overlay
+    assert "USART0_TX_PA5" in overlay
+    assert "USART0_RX_PA6" in overlay
+    # Content-decoded role wins over position.
+    group1_idx = overlay.index("group1 {")
+    assert "pins = <USART0_CLK_PA3>;" in overlay[group1_idx:]
+    assert "pinctrl-0 = <&usart0_default>;" in overlay
+
+
+def test_zephyr_setup_spi_pinctrl_silabs_no_dts_assumes_single_shared_group() -> None:
+    CORE.data[KEY_ZEPHYR] = _empty_zephyr_data(variant="EFR32MG24")
+    zephyr_setup_spi_pinctrl("some_board", "usart0", clk=3, miso=6, mosi=5)
+    overlay = CORE.data[KEY_ZEPHYR]["overlay"][""]
+    assert "group2" not in overlay
+    assert "pinctrl-0 = <&usart0_default>;" in overlay
+
+
+def test_zephyr_setup_spi_pinctrl_silabs_eusart_uses_sclk_signal_name() -> None:
+    # EUSART's clock signal macro is SCLK, not CLK like classic USART.
+    CORE.data[KEY_ZEPHYR] = _empty_zephyr_data(variant="EFR32MG24")
+    zephyr_setup_spi_pinctrl("some_board", "eusart0", clk=3, miso=6, mosi=5)
+    overlay = CORE.data[KEY_ZEPHYR]["overlay"][""]
+    assert "EUSART0_SCLK_PA3" in overlay
+    assert "EUSART0_TX_PA5" in overlay
+    assert "EUSART0_RX_PA6" in overlay
+
+
+def test_zephyr_setup_spi_pinctrl_nordic_partial_override_preserves_other_signal() -> (
+    None
+):
+    # Single shared group already carries CLK+MOSI+MISO together -- remapping
+    # only CLK/MOSI must not silently drop MISO's real value from the overlay.
+    CORE.data[KEY_ZEPHYR] = _empty_zephyr_data(variant="NRF52")
+    with (
+        patch(
+            "esphome.components.zephyr.dts_lookup.get_pinctrl_states",
+            return_value=[("spi0_default", ["group1"])],
+        ),
+        patch(
+            "esphome.components.zephyr.dts_lookup.get_pinctrl_group_property",
+            return_value=[_NRF_SPI_CLK_PSEL, _NRF_SPI_MOSI_PSEL, _NRF_SPI_MISO_PSEL],
+        ),
+    ):
+        zephyr_setup_spi_pinctrl("some_board", "spi0", clk=36, mosi=37)
+    overlay = CORE.data[KEY_ZEPHYR]["overlay"][""]
+    assert "NRF_PSEL(SPIM_SCK, 1, 4)" in overlay
+    assert "NRF_PSEL(SPIM_MOSI, 1, 5)" in overlay
+    # MISO's original real value is restated as its raw integer, not dropped.
+    assert f"<{_NRF_SPI_MISO_PSEL}>" in overlay
 
 
 # ---------------------------------------------------------------------------

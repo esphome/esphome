@@ -338,15 +338,51 @@ def get_hw_spi(config: ConfigType, available: list[int]) -> int | None:
     return None
 
 
+def _validate_zephyr_spi_pins(
+    spi: ConfigType, valid_pins: dict[str, Any], variant: str
+) -> None:
+    for conf_key, signal in (
+        (CONF_CLK_PIN, "clk"),
+        (CONF_MOSI_PIN, "mosi"),
+        (CONF_MISO_PIN, "miso"),
+    ):
+        if conf_key not in spi:
+            continue
+        pin_num = spi[conf_key][CONF_NUMBER]
+        if pin_num not in valid_pins[signal]:
+            raise cv.Invalid(
+                f"GPIO{pin_num} does not support SPI {signal.upper()} on {variant}",
+                path=[conf_key],
+            )
+
+
+def _validate_clk_pin_required(value: ConfigType) -> ConfigType:
+    """clk_pin is optional on Zephyr hardware SPI -- the board's real pinctrl
+    entry already picks a default clock pin; other platforms have no such
+    default, so clk_pin stays mandatory for them."""
+    if CONF_CLK_PIN in value or (
+        CORE.is_zephyr and value[CONF_INTERFACE] != "software"
+    ):
+        return value
+    raise cv.Invalid("required key not provided", path=[CONF_CLK_PIN])
+
+
 def validate_spi_config(config: list[ConfigType]) -> list[ConfigType]:
     if CORE.is_zephyr:
+        from esphome.components.zephyr.variants import VARIANTS  # noqa: PLC0415
+
         # A board's DTS may enable more than one SPI peripheral even though only one
         # spi: entry is allowed -- interface: <bus label> (e.g. "spi3") picks a
         # specific one; "hardware"/"any" defer to auto-detection in to_code().
+        variant = zephyr_variant()
+        variant_info = VARIANTS.get(variant)
+        valid_pins = variant_info.spi_valid_pins if variant_info is not None else {}
         for spi in config:
             interface = spi[CONF_INTERFACE]
             if interface != "software":
                 spi[CONF_INTERFACE_INDEX] = 0
+            if valid_pins:
+                _validate_zephyr_spi_pins(spi, valid_pins, variant)
         return config
 
     available = list(range(len(get_hw_interface_list())))
@@ -409,7 +445,7 @@ SPI_SINGLE_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(SPIComponent),
-            cv.Required(CONF_CLK_PIN): pins.gpio_output_pin_schema,
+            cv.Optional(CONF_CLK_PIN): pins.gpio_output_pin_schema,
             cv.Optional(CONF_MISO_PIN): pins.gpio_input_pin_schema,
             cv.Optional(CONF_MOSI_PIN): pins.gpio_output_pin_schema,
             cv.Optional(CONF_FORCE_SW): cv.invalid(
@@ -423,6 +459,7 @@ SPI_SINGLE_SCHEMA = cv.All(
             ),
         }
     ),
+    _validate_clk_pin_required,
     cv.has_at_least_one_key(CONF_MISO_PIN, CONF_MOSI_PIN),
     cv.only_on([PLATFORM_ESP32, PLATFORM_ESP8266, PLATFORM_RP2, PLATFORM_ZEPHYR]),
 )
@@ -468,7 +505,7 @@ def spi_mode_schema(mode: str) -> cv.Schema:
         cv.Schema(
             {
                 cv.GenerateID(): cv.declare_id(TYPE_CLASS[mode]),
-                cv.Required(CONF_CLK_PIN): pins.gpio_output_pin_schema,
+                cv.Optional(CONF_CLK_PIN): pins.gpio_output_pin_schema,
                 cv.Required(CONF_DATA_PINS): cv.All(
                     cv.ensure_list(pins.internal_gpio_output_pin_number),
                     cv.Length(min=pin_count, max=pin_count),
@@ -484,6 +521,7 @@ def spi_mode_schema(mode: str) -> cv.Schema:
                 ),
             }
         ),
+        _validate_clk_pin_required,
     )
 
 
@@ -517,7 +555,11 @@ def _zephyr_setup_spi(spi, resolved_buses: set[str]) -> tuple[str, str]:
             f"distinct 'interface: <bus label>'"
         )
     resolved_buses.add(bus)
-    clk = spi[CONF_CLK_PIN][CONF_NUMBER]
+    clk = (
+        clk_conf[CONF_NUMBER]
+        if (clk_conf := spi.get(CONF_CLK_PIN)) is not None
+        else None
+    )
     miso = spi[CONF_MISO_PIN][CONF_NUMBER] if CONF_MISO_PIN in spi else None
     mosi = spi[CONF_MOSI_PIN][CONF_NUMBER] if CONF_MOSI_PIN in spi else None
     data_pins = spi.get(CONF_DATA_PINS)
@@ -535,8 +577,8 @@ async def to_code(configs: list[ConfigType]) -> None:
     for spi in configs:
         var = cg.new_Pvariable(spi[CONF_ID])
         await cg.register_component(var, spi)
-        clk = await cg.gpio_pin_expression(spi[CONF_CLK_PIN])
-        cg.add(var.set_clk(clk))
+        if clk_conf := spi.get(CONF_CLK_PIN):
+            cg.add(var.set_clk(await cg.gpio_pin_expression(clk_conf)))
         if miso := spi.get(CONF_MISO_PIN):
             cg.add(var.set_miso(await cg.gpio_pin_expression(miso)))
         if mosi := spi.get(CONF_MOSI_PIN):

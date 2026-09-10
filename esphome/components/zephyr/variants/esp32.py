@@ -33,6 +33,45 @@ _DEFAULT_BOARD = "esp32_devkitc"
 
 _ADVANCED_SCHEMA = ADVANCED_SCHEMA
 
+# https://github.com/zephyrproject-rtos/zephyr/blob/main/include/zephyr/dt-bindings/pinctrl/esp32-pinctrl.h
+# No GPIO 24, 28-31 (SPI flash pins). Shared by UART tx/rx and SPI clk/mosi/miso --
+# same free-mux GPIO matrix regardless of peripheral. Output-capable excludes
+# GPIO34-39: input-only on original ESP32, no output driver.
+_OUTPUT_CAPABLE_PINS = frozenset(
+    {
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20,
+        21,
+        22,
+        23,
+        25,
+        26,
+        27,
+        32,
+        33,
+    }
+)
+_INPUT_CAPABLE_PINS = _OUTPUT_CAPABLE_PINS | frozenset({34, 35, 36, 37, 38, 39})
+
 # Registry entries — collected by variants/__init__.py
 VARIANT_NAME = ZEPHYR_VARIANT_ESP32
 VARIANT = ZephyrVariant(
@@ -57,82 +96,13 @@ VARIANT = ZephyrVariant(
     # https://github.com/espressif/esp-idf/blob/master/components/soc/esp32/include/soc/adc_channel.h
     adc1_channel_map={36: 0, 37: 1, 38: 2, 39: 3, 32: 4, 33: 5, 34: 6, 35: 7},
     uart_node_labels={},
-    # https://github.com/zephyrproject-rtos/zephyr/blob/main/include/zephyr/dt-bindings/pinctrl/esp32-pinctrl.h
-    # No GPIO 24, 28-31 (SPI flash pins, not exposed via UART0/1_{TX,RX}_GPIO* macros).
-    # TX additionally excludes GPIO34-39: input-only pins on original ESP32, no output driver.
-    uart_valid_pins={
-        "tx": frozenset(
-            {
-                0,
-                1,
-                2,
-                3,
-                4,
-                5,
-                6,
-                7,
-                8,
-                9,
-                10,
-                11,
-                12,
-                13,
-                14,
-                15,
-                16,
-                17,
-                18,
-                19,
-                20,
-                21,
-                22,
-                23,
-                25,
-                26,
-                27,
-                32,
-                33,
-            }
-        ),
-        "rx": frozenset(
-            {
-                0,
-                1,
-                2,
-                3,
-                4,
-                5,
-                6,
-                7,
-                8,
-                9,
-                10,
-                11,
-                12,
-                13,
-                14,
-                15,
-                16,
-                17,
-                18,
-                19,
-                20,
-                21,
-                22,
-                23,
-                25,
-                26,
-                27,
-                32,
-                33,
-                34,
-                35,
-                36,
-                37,
-                38,
-                39,
-            }
-        ),
+    uart_valid_pins={"tx": _OUTPUT_CAPABLE_PINS, "rx": _INPUT_CAPABLE_PINS},
+    # clk/mosi are outputs, so reuse the same output-capable set as TX; miso is an
+    # input, so reuse the same input-capable set as RX -- same GPIO matrix as UART.
+    spi_valid_pins={
+        "clk": _OUTPUT_CAPABLE_PINS,
+        "mosi": _OUTPUT_CAPABLE_PINS,
+        "miso": _INPUT_CAPABLE_PINS,
     },
 )
 

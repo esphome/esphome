@@ -91,6 +91,11 @@ _ADC_AIN_MAP = {
     31: "AIN7",
 }
 
+# nrf52840.dtsi: gpio0 (32 pins, flat 0-31) + gpio1 (ngpios=<16>, flat 32-47).
+# Free-mux via NRF_PSEL -- no fixed-function subset to exclude, shared by every
+# free-mux GPIO signal (UART, SPI).
+_GPIO_MATRIX_PINS = frozenset(range(48))
+
 # Registry entries — collected by variants/__init__.py
 VARIANT_NAME = ZEPHYR_VARIANT_NRF52
 VARIANT = ZephyrVariant(
@@ -121,9 +126,12 @@ VARIANT = ZephyrVariant(
     adc_ain_map=_ADC_AIN_MAP,
     uart_node_labels={},
     pwm_node_labels=["pwm0", "pwm1", "pwm2", "pwm3"],
-    # nrf52840.dtsi: gpio0 (32 pins, flat 0-31) + gpio1 (ngpios=<16>, flat 32-47).
-    # Free-mux via NRF_PSEL -- no fixed-function subset to exclude.
-    uart_valid_pins={"tx": frozenset(range(48)), "rx": frozenset(range(48))},
+    uart_valid_pins={"tx": _GPIO_MATRIX_PINS, "rx": _GPIO_MATRIX_PINS},
+    spi_valid_pins={
+        "clk": _GPIO_MATRIX_PINS,
+        "mosi": _GPIO_MATRIX_PINS,
+        "miso": _GPIO_MATRIX_PINS,
+    },
 )
 
 

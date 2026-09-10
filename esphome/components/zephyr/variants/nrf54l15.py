@@ -54,6 +54,13 @@ _ADC_AIN_MAP = {
     46: "AIN7",  # P1.14
 }
 
+# nrf54l_05_10_15.dtsi: gpio0 (ngpios=<7>, flat 0-6), gpio1 (ngpios=<17>, flat
+# 32-48), gpio2 (ngpios=<11>, flat 64-74). Free-mux via NRF_PSEL, shared by
+# every free-mux GPIO signal (UART, SPI).
+_GPIO_MATRIX_PINS = (
+    frozenset(range(7)) | frozenset(range(32, 49)) | frozenset(range(64, 75))
+)
+
 # Registry entries — collected by variants/__init__.py
 VARIANT_NAME = ZEPHYR_VARIANT_NRF54L15
 VARIANT = ZephyrVariant(
@@ -81,11 +88,11 @@ VARIANT = ZephyrVariant(
     # nrf54l_05_10_15.dtsi defines pwm20/pwm21/pwm22 -- same peripheral-instance-number
     # convention as uart_node_labels above, not nRF52840's pwm0-pwm3 low-number scheme.
     pwm_node_labels=["pwm20", "pwm21", "pwm22"],
-    # nrf54l_05_10_15.dtsi: gpio0 (ngpios=<7>, flat 0-6), gpio1 (ngpios=<17>, flat
-    # 32-48), gpio2 (ngpios=<11>, flat 64-74). Free-mux via NRF_PSEL.
-    uart_valid_pins={
-        "tx": frozenset(range(7)) | frozenset(range(32, 49)) | frozenset(range(64, 75)),
-        "rx": frozenset(range(7)) | frozenset(range(32, 49)) | frozenset(range(64, 75)),
+    uart_valid_pins={"tx": _GPIO_MATRIX_PINS, "rx": _GPIO_MATRIX_PINS},
+    spi_valid_pins={
+        "clk": _GPIO_MATRIX_PINS,
+        "mosi": _GPIO_MATRIX_PINS,
+        "miso": _GPIO_MATRIX_PINS,
     },
 )
 
