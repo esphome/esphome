@@ -21,6 +21,7 @@ from esphome.const import (
     KEY_CORE,
     KEY_TARGET_FRAMEWORK,
     KEY_TARGET_PLATFORM,
+    NATIVE_TOOLCHAINS,
     PLATFORM_BK72XX,
     PLATFORM_ESP32,
     PLATFORM_ESP8266,
@@ -338,7 +339,8 @@ class Lambda:
         self._requires_ids = None
 
     # https://stackoverflow.com/a/241506/229052
-    def comment_remover(self, text):
+    @staticmethod
+    def comment_remover(text):
         def replacer(match):
             s = match.group(0)
             if s.startswith("/"):
@@ -781,7 +783,8 @@ class EsphomeCore:
         can compare a locally computed hash against the one a device
         advertises. Machine-local data is kept out of the input: build_path
         (which embeds ESPHOME_BUILD_PATH and OS path separators) is excluded,
-        and Path values are dumped relative to the config directory.
+        and Path values are dumped relative to the config directory, with
+        the data directory always at its default ``.esphome`` location.
         """
         if self._config_hash is None:
             from esphome import yaml_util
@@ -792,11 +795,15 @@ class EsphomeCore:
                 esphome_conf = dict(esphome_conf)
                 esphome_conf.pop(CONF_BUILD_PATH, None)
                 config[CONF_ESPHOME] = esphome_conf
+            relative_to = data_dir = None
+            if self.config_path is not None:
+                relative_to, data_dir = self.config_dir, self.data_dir
             config_str = yaml_util.dump(
                 config,
                 show_secrets=True,
                 sort_keys=True,
-                relative_to=self.config_dir if self.config_path is not None else None,
+                relative_to=relative_to,
+                data_dir=data_dir,
             )
             self._config_hash = fnv1a_32bit_hash(config_str)
         return self._config_hash
@@ -983,6 +990,19 @@ class EsphomeCore:
         return self.toolchain == Toolchain.SDK_NRF
 
     @property
+    def using_toolchain_arduino(self):
+        """The native ESP8266 Arduino build toolchain (unlike
+        ``using_arduino``, which is the target framework)."""
+        return self.toolchain == Toolchain.ARDUINO
+
+    @property
+    def using_native_toolchain(self):
+        """Whether the selected toolchain builds natively, without reading
+        ``platformio.ini`` (see ``NATIVE_TOOLCHAINS`` in ``esphome.const``;
+        keep its membership in sync with ``write_cpp_file``'s dispatch)."""
+        return self.toolchain in NATIVE_TOOLCHAINS
+
+    @property
     def using_zephyr(self):
         return self.target_framework == "zephyr"
 
@@ -1095,6 +1115,8 @@ class EsphomeCore:
         return build_flag
 
     def add_build_unflag(self, build_unflag: str) -> None:
+        # No warning for using_toolchain_arduino: the native ESP8266 build
+        # honors build_unflags (token-level, matching PlatformIO).
         if self.using_toolchain_esp_idf:
             # The native ESP-IDF build generator does not consume build_unflags
             _LOGGER.warning(

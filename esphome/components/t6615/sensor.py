@@ -33,7 +33,13 @@ CONFIG_SCHEMA = (
 )
 
 FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema(
-    "t6615", baud_rate=19200, require_rx=True, require_tx=True
+    "t6615",
+    baud_rate=19200,
+    require_rx=True,
+    require_tx=True,
+    data_bits=8,
+    parity="NONE",
+    stop_bits=1,
 )
 
 
