@@ -42,7 +42,7 @@ const LogString *state_class_to_string(StateClass state_class) {
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-Sensor::Sensor() : state(NAN), raw_state(NAN) {}
+Sensor::Sensor() : state(NAN), raw_state_(NAN) {}
 #pragma GCC diagnostic pop
 
 int8_t Sensor::get_accuracy_decimals() {
@@ -66,10 +66,7 @@ StateClass Sensor::get_state_class() {
 }
 
 void Sensor::publish_state(float state) {
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-  this->raw_state = state;
-#pragma GCC diagnostic pop
+  this->raw_state_ = state;
 #ifdef USE_SENSOR_FILTER
   this->raw_callback_.call(state);
 #endif

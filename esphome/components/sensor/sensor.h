@@ -96,13 +96,8 @@ class Sensor : public EntityBase {
 
   /// Getter-syntax for .state.
   float get_state() const { return this->state; }
-  /// Getter-syntax for .raw_state
-  float get_raw_state() const {
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-    return this->raw_state;
-#pragma GCC diagnostic pop
-  }
+  /// Get the last state received by publish_state(), before any filters were applied.
+  float get_raw_state() const { return this->raw_state_; }
 
   /** Publish a new state to the front-end.
    *
@@ -137,16 +132,11 @@ class Sensor : public EntityBase {
    */
   float state;
 
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-  /// @deprecated Use get_raw_state() instead. This member will be removed in ESPHome 2026.10.0.
-  ESPDEPRECATED("Use get_raw_state() instead of .raw_state. Will be removed in 2026.10.0", "2026.4.0")
-  float raw_state;
-#pragma GCC diagnostic pop
-
   void internal_send_state_to_frontend(float state);
 
  protected:
+  float raw_state_;  ///< The last state passed to publish_state(), before filters.
+
 #ifdef USE_SENSOR_FILTER
   LazyCallbackManager<void(float)> raw_callback_;  ///< Storage for raw state callbacks.
 #endif
