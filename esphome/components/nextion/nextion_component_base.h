@@ -67,6 +67,7 @@ class NextionComponentBase {
 #ifdef USE_NEXTION_WAVEFORM
   uint8_t get_wave_channel_id() const { return this->wave_chan_id_; }
   void set_wave_channel_id(uint8_t wave_chan_id) { this->wave_chan_id_ = wave_chan_id; }
+  void set_wave_max_length(int wave_max_length) { this->wave_max_length_ = wave_max_length; }
 
   const std::vector<uint8_t> &get_wave_buffer() const { return this->wave_buffer_; }
   size_t get_wave_buffer_size() const { return this->wave_buffer_.size(); }
@@ -87,9 +88,6 @@ class NextionComponentBase {
   virtual void set_state_from_string(const std::string &state_value, bool publish, bool send_to_nextion){};
   virtual void send_state_to_nextion(){};
   bool get_needs_to_send_update() const { return this->needs_to_send_update_; }
-#ifdef USE_NEXTION_WAVEFORM
-  void set_wave_max_length(int wave_max_length) { this->wave_max_length_ = wave_max_length; }
-#endif  // USE_NEXTION_WAVEFORM
 
  protected:
   std::string variable_name_;
