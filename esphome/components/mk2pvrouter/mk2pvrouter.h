@@ -43,7 +43,6 @@ class Mk2PVRouter final : public Component, public uart::UARTDevice {
 
  protected:
   static constexpr size_t CRC_SUFFIX_LEN = 1;
-  static constexpr uint32_t BAUD_RATE = 9600;
 
   enum class State : uint8_t {
     WAITING_FOR_START,

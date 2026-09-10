@@ -4253,6 +4253,19 @@ uint32_t SerialProxyRequestResponse::calculate_size() const {
   size += ProtoSize::calc_length(1, this->error_message.size());
   return size;
 }
+bool SerialProxySetModeRequest::decode_varint(uint32_t field_id, proto_varint_value_t value) {
+  switch (field_id) {
+    case 1:
+      this->instance = value;
+      break;
+    case 2:
+      this->mode = static_cast<enums::SerialProxyMode>(value);
+      break;
+    default:
+      return false;
+  }
+  return true;
+}
 #endif
 #ifdef USE_BLUETOOTH_PROXY_CONNECTIONS
 bool BluetoothSetConnectionParamsRequest::decode_varint(uint32_t field_id, proto_varint_value_t value) {

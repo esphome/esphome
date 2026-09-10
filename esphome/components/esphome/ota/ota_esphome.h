@@ -4,6 +4,9 @@
 #ifdef USE_OTA
 #include "esphome/components/ota/ota_backend_factory.h"
 #include "esphome/components/socket/socket.h"
+#ifdef USE_OTA_ENCRYPTION
+#include "esphome/components/noise/noise_handshake.h"
+#endif
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include "esphome/core/preferences.h"
@@ -24,7 +27,10 @@ class ESPHomeOTAComponent final : public ota::OTAComponent {
     AUTH_SEND,  // Sending authentication request
     AUTH_READ,  // Reading authentication data
 #endif          // USE_OTA_PASSWORD
-    DATA,       // BLOCKING! Processing OTA data (update, etc.)
+#ifdef USE_OTA_ENCRYPTION
+    NOISE_HANDSHAKE,  // Exchanging Noise handshake frames
+#endif
+    DATA,  // BLOCKING! Processing OTA data (update, etc.)
   };
 #ifdef USE_OTA_PASSWORD
   void set_auth_password(const std::string &password) { password_ = password; }
@@ -37,6 +43,11 @@ class ESPHomeOTAComponent final : public ota::OTAComponent {
                      "config to enable runtime password rotation.");
   }
 #endif  // USE_OTA_PASSWORD
+
+#if defined(USE_OTA_ENCRYPTION) && !defined(USE_OTA_ENCRYPTION_FROM_API)
+  /// psk points at 32 bytes that live in flash for the life of the program
+  void set_noise_psk(const uint8_t *psk) { this->noise_ctx_.set_psk(psk); }
+#endif
 
   /// Manually set the port OTA should listen on
   void set_port(uint16_t port) { this->port_ = port; }
@@ -62,6 +73,51 @@ class ESPHomeOTAComponent final : public ota::OTAComponent {
   bool readall_(uint8_t *buf, size_t len);
   bool writeall_(const uint8_t *buf, size_t len);
   inline bool write_byte_(uint8_t byte) { return this->writeall_(&byte, 1); }
+
+#ifdef USE_OTA_ENCRYPTION
+  // Heap-allocated only while an encrypted OTA session is active.
+  struct NoiseSession {
+    ~NoiseSession();
+    noise::NoiseResponderHandshake handshake;
+    NoiseCipherState *send_cipher{nullptr};
+    NoiseCipherState *recv_cipher{nullptr};
+    uint16_t frame_len{0};  // total frame size once the header is parsed, 0 until then
+    uint16_t frame_pos{0};  // bytes read or written so far
+    bool writing{false};    // a produced handshake frame is still being flushed
+    uint8_t frame_buf[noise::FRAME_HEADER_SIZE + 1 + noise::MAX_HANDSHAKE_SIZE];
+  };
+  // The api server's live context when the api has encryption, else our own
+  const noise::NoiseContext &noise_context_() const;
+  bool noise_start_session_(uint8_t server_feature_flags);
+  bool handle_noise_handshake_();
+  bool noise_try_read_frame_();
+  size_t noise_frame_payload_len_(const uint8_t *header, size_t min_len, size_t max_len);
+  bool noise_try_write_frame_();
+  void noise_send_reject_(const LogString *reason);
+  ssize_t noise_decrypt_(uint8_t *buf, size_t len);
+  ssize_t noise_read_frame_blocking_(uint8_t *buf, size_t min_ciphertext, size_t max_ciphertext);
+  bool noise_readall_(uint8_t *buf, size_t len);
+  ssize_t noise_read_data_(uint8_t *buf, size_t capacity);
+  bool noise_write_byte_(uint8_t byte);
+#endif  // USE_OTA_ENCRYPTION
+
+  // Data-phase I/O dispatch: through the noise transport when a session is
+  // active, straight to the socket otherwise.
+  inline bool data_write_byte_(uint8_t byte) {
+#ifdef USE_OTA_ENCRYPTION
+    if (this->noise_ != nullptr)
+      return this->noise_write_byte_(byte);
+#endif
+    return this->write_byte_(byte);
+  }
+  // When encrypted, buf must have room for len + noise::MAC_SIZE bytes.
+  inline bool data_readall_(uint8_t *buf, size_t len) {
+#ifdef USE_OTA_ENCRYPTION
+    if (this->noise_ != nullptr)
+      return this->noise_readall_(buf, len);
+#endif
+    return this->readall_(buf, len);
+  }
 
   bool try_read_(size_t to_read, const LogString *desc);
   bool try_write_(size_t to_write, const LogString *desc);
@@ -91,6 +147,12 @@ class ESPHomeOTAComponent final : public ota::OTAComponent {
   std::string password_;
   std::unique_ptr<uint8_t[]> auth_buf_;
 #endif  // USE_OTA_PASSWORD
+#ifdef USE_OTA_ENCRYPTION
+#ifndef USE_OTA_ENCRYPTION_FROM_API
+  noise::NoiseContext noise_ctx_;
+#endif
+  std::unique_ptr<NoiseSession> noise_;
+#endif  // USE_OTA_ENCRYPTION
 
   socket::ListenSocket *server_{nullptr};
   std::unique_ptr<socket::Socket> client_;
@@ -98,6 +160,20 @@ class ESPHomeOTAComponent final : public ota::OTAComponent {
 
   uint32_t client_connect_time_{0};
   static constexpr size_t HANDSHAKE_BUF_SIZE = 5;
+  // Buffer size for OTA data transfer. The upload client derives its maximum
+  // encrypted frame plaintext from this (espota2.NOISE_MAX_PLAINTEXT is this
+  // minus the 16-byte MAC); both must change together.
+  static constexpr size_t OTA_BUFFER_SIZE = 1040;
+#ifdef USE_OTA_ENCRYPTION
+  // espota2.NOISE_MAX_PLAINTEXT; shrinking the buffer would reject every
+  // frame a current CLI sends
+  static constexpr size_t NOISE_CLIENT_MAX_PLAINTEXT = 1024;
+  static_assert(OTA_BUFFER_SIZE >= NOISE_CLIENT_MAX_PLAINTEXT + noise::MAC_SIZE,
+                "OTA_BUFFER_SIZE must fit a full encrypted data frame");
+#endif
+  static constexpr uint8_t MAGIC_BYTES[5] = {0x6C, 0x26, 0xF7, 0x5C, 0x45};
+  // Derived from the feature byte; storing it would pad the trailing bytes
+  bool extended_proto_() const;
 #ifdef USE_OTA_PARTITIONS
   uint32_t running_app_offset_{0};
   size_t running_app_size_{0};
@@ -111,7 +187,6 @@ class ESPHomeOTAComponent final : public ota::OTAComponent {
   uint8_t auth_buf_pos_{0};
   uint8_t auth_type_{0};  // Store auth type to know which hasher to use
 #endif                    // USE_OTA_PASSWORD
-  bool extended_proto_{false};
 };
 
 }  // namespace esphome
