@@ -985,7 +985,7 @@ def test_zephyr_setup_spi_pinctrl_fixed_family_only_enables_bus() -> None:
 
 
 def test_zephyr_setup_spi_pinctrl_raises_for_unimplemented_family() -> None:
-    CORE.data[KEY_ZEPHYR] = _empty_zephyr_data(variant="NRF52")
+    CORE.data[KEY_ZEPHYR] = _empty_zephyr_data(variant="EFR32MG24")
     with pytest.raises(cv.Invalid, match="not implemented yet"):
         zephyr_setup_spi_pinctrl("some_board", "spi0")
 
@@ -1117,6 +1117,46 @@ def test_zephyr_setup_spi_pinctrl_esp32_quad_adds_wp_hd_group_and_extended_modes
         True,
         True,
     )
+
+
+_NRF_SPI_CLK_PSEL = 67108900  # NRF_PSEL(SPIM_SCK, 1, 4)
+_NRF_SPI_MOSI_PSEL = 83886117  # NRF_PSEL(SPIM_MOSI, 1, 5)
+_NRF_SPI_MISO_PSEL = 100663334  # NRF_PSEL(SPIM_MISO, 1, 6)
+
+
+def test_zephyr_setup_spi_pinctrl_nordic_uses_nrf_psel_and_role_decode() -> None:
+    CORE.data[KEY_ZEPHYR] = _empty_zephyr_data(variant="NRF52")
+    with (
+        patch(
+            "esphome.components.zephyr.dts_lookup.get_pinctrl_states",
+            return_value=[("spi0_default", ["group1", "group2"])],
+        ),
+        patch(
+            "esphome.components.zephyr.dts_lookup.get_pinctrl_group_property",
+            side_effect=lambda board, label, group, prop: {
+                # CLK lands in group2, MOSI/MISO in group1 -- not the naive guess.
+                "group1": [_NRF_SPI_MOSI_PSEL, _NRF_SPI_MISO_PSEL],
+                "group2": [_NRF_SPI_CLK_PSEL],
+            }[group],
+        ),
+    ):
+        zephyr_setup_spi_pinctrl("some_board", "spi0", clk=36, miso=38, mosi=37)
+    overlay = CORE.data[KEY_ZEPHYR]["overlay"][""]
+    assert "NRF_PSEL(SPIM_SCK, 1, 4)" in overlay
+    assert "NRF_PSEL(SPIM_MOSI, 1, 5)" in overlay
+    assert "NRF_PSEL(SPIM_MISO, 1, 6)" in overlay
+    # Content-decoded role wins over position.
+    group2_idx = overlay.index("group2 {")
+    assert "psels = <NRF_PSEL(SPIM_SCK, 1, 4)>;" in overlay[group2_idx:]
+    assert "pinctrl-0 = <&spi0_default>;" in overlay
+
+
+def test_zephyr_setup_spi_pinctrl_nordic_no_dts_assumes_single_shared_group() -> None:
+    CORE.data[KEY_ZEPHYR] = _empty_zephyr_data(variant="NRF52")
+    zephyr_setup_spi_pinctrl("some_board", "spi0", clk=36, miso=38, mosi=37)
+    overlay = CORE.data[KEY_ZEPHYR]["overlay"][""]
+    assert "group2" not in overlay
+    assert "pinctrl-0 = <&spi0_default>;" in overlay
 
 
 # ---------------------------------------------------------------------------

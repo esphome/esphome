@@ -167,6 +167,19 @@ def test_validate_spi_config_rejects_invalid_esp32_miso_pin() -> None:
         validate_spi_config([_spi_pin_conf(clk=6, miso=99)])
 
 
+def test_validate_spi_config_accepts_valid_nordic_pins() -> None:
+    CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: PLATFORM_ZEPHYR}
+    CORE.data[KEY_ZEPHYR] = {"variant": "NRF52"}
+    validate_spi_config([_spi_pin_conf(clk=8, mosi=6, miso=7)])
+
+
+def test_validate_spi_config_rejects_invalid_nordic_clk_pin() -> None:
+    CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: PLATFORM_ZEPHYR}
+    CORE.data[KEY_ZEPHYR] = {"variant": "NRF52"}
+    with pytest.raises(cv.Invalid, match="does not support SPI CLK"):
+        validate_spi_config([_spi_pin_conf(clk=99)])
+
+
 def test_validate_spi_config_skips_pin_check_for_non_esp32_family() -> None:
     # STM32's spi_valid_pins is empty -- pin validity is left to
     # zephyr_setup_spi_pinctrl() at codegen time, not checked here.

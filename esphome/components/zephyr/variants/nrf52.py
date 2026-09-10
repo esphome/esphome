@@ -124,6 +124,11 @@ VARIANT = ZephyrVariant(
     # nrf52840.dtsi: gpio0 (32 pins, flat 0-31) + gpio1 (ngpios=<16>, flat 32-47).
     # Free-mux via NRF_PSEL -- no fixed-function subset to exclude.
     uart_valid_pins={"tx": frozenset(range(48)), "rx": frozenset(range(48))},
+    spi_valid_pins={
+        "clk": frozenset(range(48)),
+        "mosi": frozenset(range(48)),
+        "miso": frozenset(range(48)),
+    },
 )
 
 
