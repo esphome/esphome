@@ -36,8 +36,9 @@ CONF_FIRMWARE_VERSION = "firmware_version"
 CONF_MANUFACTURER = "manufacturer"
 
 # An empty device information string would be sent to the server as an empty value rather than
-# falling back, so reject it instead of silently substituting the fallback.
-NON_EMPTY_STRING = cv.All(cv.string_strict, cv.Length(min=1))
+# falling back, so reject it instead of silently substituting the fallback. The 127 byte cap keeps
+# the length prefix of a protobuf string field to a single byte, matching `esphome: project:`.
+DEVICE_INFO_STRING = cv.All(cv.string_strict, cv.Length(min=1), cv.ByteLength(max=127))
 
 CONF_INITIAL_STATIC_DELAY = "initial_static_delay"
 CONF_FIXED_DELAY = "fixed_delay"
@@ -210,9 +211,9 @@ CONFIG_SCHEMA = cv.All(
         {
             cv.GenerateID(): cv.declare_id(SendspinHub),
             cv.Optional(CONF_TASK_STACK_IN_PSRAM): psram.validate_task_stack_in_psram,
-            cv.Optional(CONF_MANUFACTURER): NON_EMPTY_STRING,
-            cv.Optional(CONF_MODEL): NON_EMPTY_STRING,
-            cv.Optional(CONF_FIRMWARE_VERSION): NON_EMPTY_STRING,
+            cv.Optional(CONF_MANUFACTURER): DEVICE_INFO_STRING,
+            cv.Optional(CONF_MODEL): DEVICE_INFO_STRING,
+            cv.Optional(CONF_FIRMWARE_VERSION): DEVICE_INFO_STRING,
         }
     ),
     cv.only_on_esp32,

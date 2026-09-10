@@ -64,3 +64,20 @@ def test_empty_device_info_rejected(
 
     with pytest.raises(cv.Invalid):
         CONFIG_SCHEMA({conf_key: ""})
+
+
+@pytest.mark.parametrize(
+    "conf_key", [CONF_MANUFACTURER, CONF_MODEL, CONF_FIRMWARE_VERSION]
+)
+def test_device_info_capped_at_127_bytes(
+    set_core_config: SetCoreConfigCallable, conf_key: str
+) -> None:
+    """The cap is in bytes so the protobuf length prefix stays a single byte."""
+    set_core_config(PlatformFramework.ESP32_IDF)
+
+    CONFIG_SCHEMA({conf_key: "a" * 127})
+    with pytest.raises(cv.Invalid):
+        CONFIG_SCHEMA({conf_key: "a" * 128})
+    # 64 two-byte characters is 128 bytes.
+    with pytest.raises(cv.Invalid):
+        CONFIG_SCHEMA({conf_key: "é" * 64})
