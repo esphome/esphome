@@ -294,8 +294,7 @@ def test_resolve_i2c_pinctrl_states_falls_back_per_state_when_multiple_groups() 
 
 
 # ---------------------------------------------------------------------------
-# zephyr_setup_i2c_pinctrl -- the mechanism ZEPHYR_ESP32_ADC1_PIN_TO_CHANNEL's
-# sibling feature (get_i2c_pinctrl_esp32) plugs into via pinctrl_extractors.
+# zephyr_setup_i2c_pinctrl
 # ---------------------------------------------------------------------------
 
 
@@ -308,54 +307,10 @@ def test_zephyr_setup_i2c_pinctrl_returns_explicit_pins_unchanged() -> None:
     assert (sda, scl) == ("GPIO5", "GPIO6")
 
 
-def test_zephyr_setup_i2c_pinctrl_uses_extractor_when_pins_not_given(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    _set_non_nrf52_target_platform()
-    CORE.data[KEY_ZEPHYR] = _empty_zephyr_data(variant="FAKE_VARIANT")
-
-    def fake_extractor(board: str, bus_label: str) -> dict[str, int]:
-        assert board == "some_board"
-        assert bus_label == "i2c0"
-        return {"sda": 6, "scl": 7}
-
-    fake_variant = ZephyrVariant(
-        sdk=ZephyrSDK(manifest_url="http://dummy"),
-        # A recognized family is required for the extracted pins to reach the
-        # overlay-generation step at all; "esp32" is the simplest of the three.
-        family="esp32",
-        pinctrl_extractors={"i2c": fake_extractor},
-    )
-    monkeypatch.setitem(VARIANTS, "FAKE_VARIANT", fake_variant)
-    CORE.data[KEY_ZEPHYR]["family"] = "esp32"
-
-    sda, scl = zephyr_setup_i2c_pinctrl("some_board", "i2c0", sda=None, scl=None)
-    assert (sda, scl) == ("GPIO6", "GPIO7")
-
-
-def test_zephyr_setup_i2c_pinctrl_falls_back_to_board_default_when_extractor_returns_none(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    # No real pin number to report when the extractor can't resolve one -- the
-    # board's own pre-wired pinctrl default is left untouched (no overlay
-    # generated, no raise), per zephyr_setup_i2c_pinctrl()'s own docstring.
-    CORE.data[KEY_ZEPHYR] = _empty_zephyr_data(variant="FAKE_VARIANT")
-
-    fake_variant = ZephyrVariant(
-        sdk=ZephyrSDK(manifest_url="http://dummy"),
-        pinctrl_extractors={"i2c": lambda board, bus_label: None},
-    )
-    monkeypatch.setitem(VARIANTS, "FAKE_VARIANT", fake_variant)
-
-    sda, scl = zephyr_setup_i2c_pinctrl("some_board", "i2c0", sda=None, scl=None)
-    assert (sda, scl) == ("board default", "board default")
-
-
-def test_zephyr_setup_i2c_pinctrl_falls_back_to_board_default_when_no_extractor_and_no_pins() -> (
+def test_zephyr_setup_i2c_pinctrl_falls_back_to_board_default_when_neither_pin_given() -> (
     None
 ):
     CORE.data[KEY_ZEPHYR] = _empty_zephyr_data(variant="NATIVESIM")
-    # native_sim's own entry has no "i2c" pinctrl_extractor and none were given.
     sda, scl = zephyr_setup_i2c_pinctrl(
         "native_sim/native/64", "i2c0", sda=None, scl=None
     )
@@ -479,6 +434,128 @@ def test_zephyr_setup_i2c_pinctrl_esp32_falls_back_when_multiple_groups() -> Non
     assert "group2" not in overlay
 
 
+def test_zephyr_setup_i2c_pinctrl_returns_per_pin_display_strings() -> None:
+    # Giving only one pin remaps just that signal -- the display string for the
+    # other one stays "board default", not blanked out to match the given one.
+    _set_non_nrf52_target_platform()
+    CORE.data[KEY_ZEPHYR] = _empty_zephyr_data(variant="ESP32H2")
+    sda, scl = zephyr_setup_i2c_pinctrl("some_board", "i2c0", sda=5, scl=None)
+    assert (sda, scl) == ("GPIO5", "board default")
+
+
+# ESP32_PINMUX(gpio, sig_i, sig_o) for ESP32-H2's I2C0 signal IDs (scl=45, sda=46) --
+# both fields equal since I2C is bidirectional/open-drain.
+_ESP32_H2_I2C_SDA_GPIO6 = 1510278
+_ESP32_H2_I2C_SCL_GPIO7 = 1477447
+
+
+def test_zephyr_setup_i2c_pinctrl_esp32_partial_override_preserves_other_signal() -> (
+    None
+):
+    # Single shared group already carries both SDA and SCL -- remapping only SDA
+    # must not silently drop SCL's real value from the overlay.
+    _set_non_nrf52_target_platform()
+    CORE.data[KEY_ZEPHYR] = _empty_zephyr_data(variant="ESP32H2")
+    with (
+        patch(
+            "esphome.components.zephyr.dts_lookup.get_pinctrl_states",
+            return_value=[("i2c0_default", ["group1"])],
+        ),
+        patch(
+            "esphome.components.zephyr.dts_lookup.get_pinctrl_group_property",
+            return_value=[_ESP32_H2_I2C_SDA_GPIO6, _ESP32_H2_I2C_SCL_GPIO7],
+        ),
+    ):
+        zephyr_setup_i2c_pinctrl("some_board", "i2c0", sda=5, scl=None)
+    overlay = CORE.data[KEY_ZEPHYR]["overlay"][""]
+    assert "I2C0_SDA_GPIO5" in overlay
+    # SCL's original real value is restated as its raw integer, not dropped.
+    assert f"<{_ESP32_H2_I2C_SCL_GPIO7}>" in overlay
+
+
+def test_zephyr_setup_i2c_pinctrl_esp32_original_requires_both_pins_together() -> None:
+    # Original ESP32's software bus-clear needs both real pin numbers together.
+    _set_non_nrf52_target_platform()
+    CORE.data[KEY_ZEPHYR] = _empty_zephyr_data(variant="ESP32")
+    with pytest.raises(EsphomeError, match="must be given together"):
+        zephyr_setup_i2c_pinctrl("some_board", "i2c0", sda=5, scl=None)
+
+
+# NRF_PSEL(fun, port, pin), NRF_FUN_TWIM_{SDA,SCL}=12,11 (nrf-pinctrl.h).
+_NRF_I2C_SDA_PSEL = 201326598  # NRF_PSEL(TWIM_SDA, 0, 6)
+_NRF_I2C_SCL_PSEL = 184549383  # NRF_PSEL(TWIM_SCL, 0, 7)
+
+
+def test_zephyr_setup_i2c_pinctrl_nordic_partial_override_preserves_other_signal() -> (
+    None
+):
+    _set_non_nrf52_target_platform()
+    CORE.data[KEY_ZEPHYR] = _empty_zephyr_data(variant="NRF52")
+    with (
+        patch(
+            "esphome.components.zephyr.dts_lookup.get_pinctrl_states",
+            return_value=[("i2c0_default", ["group1"])],
+        ),
+        patch(
+            "esphome.components.zephyr.dts_lookup.get_pinctrl_group_property",
+            return_value=[_NRF_I2C_SDA_PSEL, _NRF_I2C_SCL_PSEL],
+        ),
+    ):
+        zephyr_setup_i2c_pinctrl("some_board", "i2c0", sda=None, scl=8)
+    overlay = CORE.data[KEY_ZEPHYR]["overlay"][""]
+    assert "NRF_PSEL(TWIM_SCL, 0, 8)" in overlay
+    # SDA's original real value is restated as its raw integer, not dropped.
+    assert f"<{_NRF_I2C_SDA_PSEL}>" in overlay
+
+
+def test_zephyr_setup_i2c_pinctrl_legacy_nrf52_requires_both_pins_together() -> None:
+    CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: PLATFORM_NRF52}
+    CORE.data[KEY_ZEPHYR] = _empty_zephyr_data()
+    with pytest.raises(EsphomeError, match="must be given together"):
+        zephyr_setup_i2c_pinctrl("some_board", "i2c0", sda=6, scl=None)
+
+
+# SILABS_DBUS's en_bit field (silabs-pinctrl-dbus.h, verified xg22/xg24/xg26):
+# SCL=0, SDA=1.
+_SILABS_I2C_SCL = 0
+_SILABS_I2C_SDA = 524288  # en_bit=1
+
+
+def test_zephyr_setup_i2c_pinctrl_silabs_uses_lettered_ports() -> None:
+    _set_non_nrf52_target_platform()
+    CORE.data[KEY_ZEPHYR] = _empty_zephyr_data(variant="EFR32MG24")
+    with patch(
+        "esphome.components.zephyr.dts_lookup.get_pinctrl_states",
+        return_value=None,
+    ):
+        zephyr_setup_i2c_pinctrl("some_board", "i2c0", sda=5, scl=6)
+    overlay = CORE.data[KEY_ZEPHYR]["overlay"][""]
+    assert "I2C0_SDA_PA5" in overlay
+    assert "I2C0_SCL_PA6" in overlay
+
+
+def test_zephyr_setup_i2c_pinctrl_silabs_partial_override_preserves_other_signal() -> (
+    None
+):
+    _set_non_nrf52_target_platform()
+    CORE.data[KEY_ZEPHYR] = _empty_zephyr_data(variant="EFR32MG24")
+    with (
+        patch(
+            "esphome.components.zephyr.dts_lookup.get_pinctrl_states",
+            return_value=[("i2c0_default", ["group0"])],
+        ),
+        patch(
+            "esphome.components.zephyr.dts_lookup.get_pinctrl_group_property",
+            return_value=[_SILABS_I2C_SCL, _SILABS_I2C_SDA],
+        ),
+    ):
+        zephyr_setup_i2c_pinctrl("some_board", "i2c0", sda=5, scl=None)
+    overlay = CORE.data[KEY_ZEPHYR]["overlay"][""]
+    assert "I2C0_SDA_PA5" in overlay
+    # SCL's original real value is restated as its raw integer, not dropped.
+    assert f"<{_SILABS_I2C_SCL}>" in overlay
+
+
 def test_zephyr_setup_i2c_pinctrl_rp2040_uses_fixed_instance_mux() -> None:
     _set_non_nrf52_target_platform()
     CORE.data[KEY_ZEPHYR] = _empty_zephyr_data(variant="RP2040")
@@ -497,6 +574,15 @@ def test_zephyr_setup_i2c_pinctrl_rp2040_rejects_pin_on_wrong_instance() -> None
     CORE.data[KEY_ZEPHYR] = _empty_zephyr_data(variant="RP2040")
     with pytest.raises(EsphomeError, match="not a valid sda:/scl: pair"):
         zephyr_setup_i2c_pinctrl("some_board", "i2c0", sda=2, scl=3)
+
+
+def test_zephyr_setup_i2c_pinctrl_rp2040_requires_both_pins_together() -> None:
+    # Each pin is tied to a fixed instance+role pair -- both are needed together
+    # to even know which instance is being targeted.
+    _set_non_nrf52_target_platform()
+    CORE.data[KEY_ZEPHYR] = _empty_zephyr_data(variant="RP2040")
+    with pytest.raises(EsphomeError, match="must be given together"):
+        zephyr_setup_i2c_pinctrl("some_board", "i2c0", sda=2, scl=None)
 
 
 # ---------------------------------------------------------------------------
@@ -596,8 +682,9 @@ def test_esp32_uart_group_roles_resolver_none_for_unknown_instance() -> None:
 
 def test_esp32_uart_group_roles_resolver_binds_real_instance_signal_base() -> None:
     CORE.data[KEY_ZEPHYR] = _empty_zephyr_data(variant="ESP32C6")
-    resolver = _esp32_uart_group_roles("some_board", "uart0")
-    assert resolver is not None
+    result = _esp32_uart_group_roles("some_board", "uart0")
+    assert result is not None
+    resolver, value_role_decoder = result
     with patch(
         "esphome.components.zephyr.dts_lookup.get_pinctrl_group_property",
         side_effect=lambda board, label, group, prop: {
@@ -609,6 +696,8 @@ def test_esp32_uart_group_roles_resolver_binds_real_instance_signal_base() -> No
             "tx": "group1",
             "rx": "group2",
         }
+    assert value_role_decoder(_ESP32_TX_PINMUX) == "tx"
+    assert value_role_decoder(_ESP32_RX_PINMUX) == "rx"
 
 
 # NRF_PSEL(fun, port, pin), NRF_FUN_UART_{TX,RX,RTS,CTS}=0,1,2,3 (nrf-pinctrl.h).
@@ -905,6 +994,29 @@ def test_zephyr_setup_uart_pinctrl_esp32_uses_gpio_macros_and_role_decode() -> N
     assert "pinctrl-0 = <&uart0_default>;" in overlay
 
 
+def test_zephyr_setup_uart_pinctrl_esp32_partial_override_preserves_other_signal() -> (
+    None
+):
+    # Single shared group already carries both TX and RX -- remapping only TX
+    # must not silently drop RX's real value from the overlay.
+    CORE.data[KEY_ZEPHYR] = _empty_zephyr_data(variant="ESP32C6")
+    with (
+        patch(
+            "esphome.components.zephyr.dts_lookup.get_pinctrl_states",
+            return_value=[("uart0_default", ["group1"])],
+        ),
+        patch(
+            "esphome.components.zephyr.dts_lookup.get_pinctrl_group_property",
+            return_value=[_ESP32_TX_PINMUX, _ESP32_RX_PINMUX],
+        ),
+    ):
+        zephyr_setup_uart_pinctrl("some_board", "uart0", 16, None, 115200)
+    overlay = CORE.data[KEY_ZEPHYR]["overlay"][""]
+    assert "pinmux = <UART0_TX_GPIO16>" in overlay
+    # RX's original real value is restated as its raw integer, not dropped.
+    assert f"<{_ESP32_RX_PINMUX}>" in overlay
+
+
 def test_zephyr_setup_uart_pinctrl_nordic_uses_nrf_psel_and_role_decode() -> None:
     CORE.data[KEY_ZEPHYR] = _empty_zephyr_data(variant="NRF52")
     with (
@@ -969,6 +1081,35 @@ def test_zephyr_setup_uart_pinctrl_rpi_pico_uses_p_suffix_and_position() -> None
     overlay = CORE.data[KEY_ZEPHYR]["overlay"][""]
     assert "UART1_TX_P8" in overlay
     assert "UART1_RX_P9" in overlay
+
+
+# RP2XXX_PINMUX(pin_num, alt_func=UART) -- role is recovered by looking the pin
+# number up against UART1's real tx={4,8,20,24}/rx={5,9,21,25} table.
+_RP2_UART1_TX_PIN8 = 258
+_RP2_UART1_RX_PIN9 = 290
+
+
+def test_zephyr_setup_uart_pinctrl_rpi_pico_partial_override_preserves_other_signal() -> (
+    None
+):
+    # Single shared group already carries both TX and RX -- remapping only TX
+    # must not silently drop RX's real value from the overlay.
+    CORE.data[KEY_ZEPHYR] = _empty_zephyr_data(variant="RP2040")
+    with (
+        patch(
+            "esphome.components.zephyr.dts_lookup.get_pinctrl_states",
+            return_value=[("uart1_default", ["group1"])],
+        ),
+        patch(
+            "esphome.components.zephyr.dts_lookup.get_pinctrl_group_property",
+            return_value=[_RP2_UART1_TX_PIN8, _RP2_UART1_RX_PIN9],
+        ),
+    ):
+        zephyr_setup_uart_pinctrl("some_board", "uart1", 8, None, 115200)
+    overlay = CORE.data[KEY_ZEPHYR]["overlay"][""]
+    assert "UART1_TX_P8" in overlay
+    # RX's original real value is restated as its raw integer, not dropped.
+    assert f"<{_RP2_UART1_RX_PIN9}>" in overlay
 
 
 # ---------------------------------------------------------------------------
