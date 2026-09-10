@@ -26,38 +26,53 @@ static const uint8_t MLX90614_ID4 = 0x3F;
 
 static const char *const TAG = "mlx90614";
 
+// The EEPROM cell has a limited number of write cycles, so stop retrying after a few failures
+static constexpr uint8_t EMISSIVITY_WRITE_ATTEMPTS = 3;
+
 // SMBus packet error code: CRC-8 with polynomial 0x07, MSB first
 static uint8_t crc8_pec(const uint8_t *data, uint8_t len) { return crc8(data, len, 0x00, 0x07, true); }
 
 void MLX90614Component::setup() {
-  this->emissivity_write_ec_ = this->write_emissivity_();
-  if (this->emissivity_write_ec_ != i2c::ERROR_OK) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-    this->status_set_warning("Setup failed to set emissivity. Will retry later");
+  if (std::isnan(this->emissivity_)) {
+    return;
+  }
+  this->emissivity_write_attempts_ = EMISSIVITY_WRITE_ATTEMPTS;
+  this->try_write_emissivity_();
+  if (this->emissivity_write_attempts_ != 0) {
+    this->status_set_warning(LOG_STR("Failed to write emissivity, will retry"));
   }
 }
 
-i2c::ErrorCode MLX90614Component::write_emissivity_() {
-  if (std::isnan(this->emissivity_)) {
-    return i2c::ERROR_OK;
+void MLX90614Component::try_write_emissivity_() {
+  if (this->emissivity_write_attempts_ == 0) {
+    return;
   }
+  if (this->write_emissivity_()) {
+    this->emissivity_write_attempts_ = 0;
+    return;
+  }
+  if (--this->emissivity_write_attempts_ == 0) {
+    ESP_LOGE(TAG, "Giving up on writing emissivity after %u attempts", EMISSIVITY_WRITE_ATTEMPTS);
+    this->emissivity_write_failed_ = true;
+  }
+}
 
+bool MLX90614Component::write_emissivity_() {
   // Skip the write when the EEPROM already holds the desired value to save write cycles
   uint16_t current_emissivity;
-  const auto ec = this->read_register_(MLX90614_EMISSIVITY, current_emissivity);
-  if (ec != i2c::ERROR_OK) {
-    return ec;
+  if (this->read_register_(MLX90614_EMISSIVITY, current_emissivity) != i2c::ERROR_OK) {
+    return false;
   }
 
   const auto desired_emissivity = static_cast<uint16_t>(this->emissivity_ * 0xFFFF);
   if (current_emissivity == desired_emissivity) {
-    return i2c::ERROR_OK;
+    return true;
   }
 
   return this->write_register_(MLX90614_EMISSIVITY, desired_emissivity);
 }
 
-i2c::ErrorCode MLX90614Component::write_register_(uint8_t reg, uint16_t data) {
+bool MLX90614Component::write_register_(uint8_t reg, uint16_t data) {
   // The PEC covers the whole write transaction: SLA+W, command, data low, data high
   uint8_t buf[5];
   buf[0] = this->address_ << 1;
@@ -70,7 +85,7 @@ i2c::ErrorCode MLX90614Component::write_register_(uint8_t reg, uint16_t data) {
   auto ec = this->write_register(reg, buf + 2, 3);
   if (ec != i2c::ERROR_OK) {
     ESP_LOGW(TAG, "Can't erase register 0x%02X, error %d", reg, ec);
-    return ec;
+    return false;
   }
 
   // 2. Wait at least 5ms
@@ -84,7 +99,7 @@ i2c::ErrorCode MLX90614Component::write_register_(uint8_t reg, uint16_t data) {
     ec = this->write_register(reg, buf + 2, 3);
     if (ec != i2c::ERROR_OK) {
       ESP_LOGW(TAG, "Can't write register 0x%02X, error %d", reg, ec);
-      return ec;
+      return false;
     }
     // 4. Wait at least 5ms
     delay(10);
@@ -94,16 +109,16 @@ i2c::ErrorCode MLX90614Component::write_register_(uint8_t reg, uint16_t data) {
   uint16_t read_back;
   ec = this->read_register_(reg, read_back);
   if (ec != i2c::ERROR_OK) {
-    ESP_LOGW(TAG, "Can't check register 0x%02X value", reg);
-    return ec;
+    ESP_LOGW(TAG, "Can't check register 0x%02X value, error %d", reg, ec);
+    return false;
   }
 
   if (read_back != data) {
     ESP_LOGW(TAG, "Read back mismatch on register 0x%02X. Expected 0x%04X, got 0x%04X", reg, data, read_back);
-    return i2c::ERROR_CRC;
+    return false;
   }
 
-  return i2c::ERROR_OK;
+  return true;
 }
 
 i2c::ErrorCode MLX90614Component::read_register_(uint8_t reg, uint16_t &data) {
@@ -132,8 +147,8 @@ i2c::ErrorCode MLX90614Component::read_register_(uint8_t reg, uint16_t &data) {
 void MLX90614Component::dump_config() {
   ESP_LOGCONFIG(TAG, "MLX90614:");
   LOG_I2C_DEVICE(this);
-  if (this->emissivity_write_ec_ != i2c::ERROR_OK) {
-    ESP_LOGE(TAG, "Emissivity update error %d", this->emissivity_write_ec_);
+  if (this->emissivity_write_attempts_ != 0) {
+    ESP_LOGW(TAG, "  Emissivity not written yet, will retry");
   }
   LOG_UPDATE_INTERVAL(this);
   LOG_SENSOR("  ", "Ambient", this->ambient_sensor_);
@@ -141,13 +156,8 @@ void MLX90614Component::dump_config() {
 }
 
 void MLX90614Component::update() {
-  if (this->emissivity_write_ec_ != i2c::ERROR_OK) {
-    this->emissivity_write_ec_ = this->write_emissivity_();
-    if (this->emissivity_write_ec_ != i2c::ERROR_OK) {
-      this->status_set_warning("Failed to write emissivity");
-      return;
-    }
-  }
+  // Temperature reads run regardless of the emissivity state so a failure still shows up as NAN
+  this->try_write_emissivity_();
 
   // Publishes NAN on a bus or CRC failure so a stuck reading is visible instead of silently stale
   auto publish_sensor = [this](sensor::Sensor *sensor, uint8_t reg) {
@@ -172,10 +182,14 @@ void MLX90614Component::update() {
   const auto object_ec = publish_sensor(this->object_sensor_, MLX90614_TEMPERATURE_OBJECT_1);
   const auto ambient_ec = publish_sensor(this->ambient_sensor_, MLX90614_TEMPERATURE_AMBIENT);
 
-  if (object_ec == i2c::ERROR_OK && ambient_ec == i2c::ERROR_OK) {
-    this->status_clear_warning();
+  if (object_ec != i2c::ERROR_OK || ambient_ec != i2c::ERROR_OK) {
+    this->status_set_warning(LOG_STR("Failed to read some sensors"));
+  } else if (this->emissivity_write_failed_) {
+    this->status_set_warning(LOG_STR("Failed to write emissivity"));
+  } else if (this->emissivity_write_attempts_ != 0) {
+    this->status_set_warning(LOG_STR("Failed to write emissivity, will retry"));
   } else {
-    this->status_set_warning("Failed to read some sensors");
+    this->status_clear_warning();
   }
 }
 

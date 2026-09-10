@@ -18,15 +18,18 @@ class MLX90614Component final : public PollingComponent, public i2c::I2CDevice {
   void set_emissivity(float emissivity) { emissivity_ = emissivity; }
 
  protected:
-  i2c::ErrorCode write_emissivity_();
+  void try_write_emissivity_();
+  bool write_emissivity_();
 
-  i2c::ErrorCode write_register_(uint8_t reg, uint16_t data);
+  bool write_register_(uint8_t reg, uint16_t data);
   i2c::ErrorCode read_register_(uint8_t reg, uint16_t &data);
 
   sensor::Sensor *ambient_sensor_{nullptr};
   sensor::Sensor *object_sensor_{nullptr};
 
   float emissivity_{NAN};
-  i2c::ErrorCode emissivity_write_ec_{i2c::ERROR_OK};
+  // Remaining attempts to program the emissivity EEPROM cell, bounded to limit cell wear
+  uint8_t emissivity_write_attempts_{0};
+  bool emissivity_write_failed_{false};
 };
 }  // namespace esphome::mlx90614
