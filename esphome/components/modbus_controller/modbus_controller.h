@@ -56,8 +56,6 @@ inline bool coil_from_vector(int coil, std::span<const uint8_t> data) {
   return modbus::helpers::bit_from_packed(coil, data);
 }
 
-class ModbusController;
-
 /// How an item relates to the register range built just before it (same register type, address order).
 /// The numeric order doubles as the comparator tiebreak for items at the same address (see
 /// SensorItemsComparator): AUTO items form the shared range first, so a NEVER item comes last and
