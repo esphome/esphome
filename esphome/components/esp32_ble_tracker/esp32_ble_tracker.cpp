@@ -234,6 +234,9 @@ void ESP32BLETracker::ble_before_disabled_event_handler() {
   if (this->scanner_state_ != ScannerState::IDLE) {
     this->cleanup_scan_state_(true);
   }
+  // A failure latched by the old stack must not be handled against the next.
+  this->scan_start_failed_ = ESP_BT_STATUS_SUCCESS;
+  this->scan_set_param_failed_ = ESP_BT_STATUS_SUCCESS;
   this->ble_was_disabled_ = true;
 }
 
