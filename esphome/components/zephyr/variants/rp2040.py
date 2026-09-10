@@ -85,6 +85,17 @@ VARIANT = ZephyrVariant(
             "rx": frozenset({5, 9, 21, 25}),
         },
     },
+    # Same mux, repeating every 4 pins -- verified against the same header.
+    i2c_valid_pins_by_instance={
+        "I2C0": {
+            "sda": frozenset({0, 4, 8, 12, 16, 20, 24, 28}),
+            "scl": frozenset({1, 5, 9, 13, 17, 21, 25, 29}),
+        },
+        "I2C1": {
+            "sda": frozenset({2, 6, 10, 14, 18, 22, 26}),
+            "scl": frozenset({3, 7, 11, 15, 19, 23, 27}),
+        },
+    },
     # A single "pwm" controller node covers all 8 slices reachable within the 30
     # GPIOs this variant exposes (P0-P29) -- repeat the label once per slice so
     # zephyr_pwm's block-count math (len(pwm_node_labels)) still works unmodified.

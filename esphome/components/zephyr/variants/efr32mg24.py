@@ -17,7 +17,6 @@ from ..const import (
     CONF_RUNNER,
     ZEPHYR_VARIANT_EFR32MG24,
 )
-from ..dts_lookup import get_i2c_pinctrl_silabs
 from . import (
     MAINLINE,
     SILABS,
@@ -49,6 +48,11 @@ _ADVANCED_SCHEMA = ADVANCED_SCHEMA.extend(
 # zephyr/dt-bindings/adc/silabs-adc.h (e.g. IADC_INPUT_PC4 = 0xa4).
 _ADC_AIN_MAP = {p: f"IADC_INPUT_P{chr(ord('A') + p // 16)}{p % 16}" for p in range(64)}
 
+# https://github.com/zephyrproject-rtos/zephyr/blob/main/include/zephyr/dt-bindings/pinctrl/silabs/xg24-pinctrl.h
+# Full crossbar -- every PA0..PD15 pin has a macro for every signal, no exclusions.
+# Shared by every free-mux GPIO signal on this variant.
+_GPIO_MATRIX_PINS = frozenset(range(64))
+
 # Registry entries — collected by variants/__init__.py
 VARIANT_NAME = ZEPHYR_VARIANT_EFR32MG24
 VARIANT = ZephyrVariant(
@@ -73,7 +77,6 @@ VARIANT = ZephyrVariant(
     # `depends on ZEPHYR_HAL_SILABS_MODULE_BLOBS`, so this is required for OpenThread
     # too, not just BLE.
     blobs=("hal_silabs", ".*", ".blobs_hal_silabs_ready"),
-    pinctrl_extractors={"i2c": get_i2c_pinctrl_silabs},
     gpio_port_width=16,
     gpio_port_labels=("a", "b", "c", "d"),
     # No scratch partition in the board's flash layout (boot/image-0/image-1/storage
@@ -82,6 +85,7 @@ VARIANT = ZephyrVariant(
     adc_ain_map=_ADC_AIN_MAP,
     # Only usart0 exists at SoC level on this board -- no usart1/UART1.
     uart_node_labels={},
+    uart_valid_pins={"tx": _GPIO_MATRIX_PINS, "rx": _GPIO_MATRIX_PINS},
 )
 
 

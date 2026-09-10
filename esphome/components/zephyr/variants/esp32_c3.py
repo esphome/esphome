@@ -15,7 +15,6 @@ from ..const import (
     CONF_RUNNER,
     ZEPHYR_VARIANT_ESP32_C3,
 )
-from ..dts_lookup import get_i2c_pinctrl_esp32
 from . import (
     MAINLINE,
     ZephyrVariant,
@@ -31,8 +30,8 @@ _DEFAULT_BOARD = "esp32c3_devkitm"
 _ADVANCED_SCHEMA = ADVANCED_SCHEMA
 
 # https://github.com/zephyrproject-rtos/zephyr/blob/main/include/zephyr/dt-bindings/pinctrl/esp32c3-pinctrl.h
-# GPIO0-21, no gaps; identical set for tx and rx on this variant.
-_UART_VALID_PINS = frozenset(range(22))
+# GPIO0-21, no gaps; same set for every free-mux GPIO-matrix signal on this variant.
+_GPIO_MATRIX_PINS = frozenset(range(22))
 
 # Registry entries — collected by variants/__init__.py
 VARIANT_NAME = ZEPHYR_VARIANT_ESP32_C3
@@ -45,7 +44,6 @@ VARIANT = ZephyrVariant(
     # See esp32_h2.py's blobs= comment. Sentinel shared with esp32_h2/esp32_c6/esp32_c5
     # (same SDK).
     blobs=("hal_espressif", ".*", ".blobs_hal_espressif_ready"),
-    pinctrl_extractors={"i2c": get_i2c_pinctrl_esp32},
     # No 802.15.4 radio on this chip -- WiFi + BLE only, unlike esp32_c6/esp32_h2/esp32_c5.
     transports=frozenset({"wifi", "ble"}),
     transport_drivers={"wifi": ("WIFI_ESP32", "wifi")},
@@ -55,7 +53,7 @@ VARIANT = ZephyrVariant(
     # https://github.com/espressif/esp-idf/blob/master/components/soc/esp32c3/include/soc/adc_channel.h
     adc1_channel_map={0: 0, 1: 1, 2: 2, 3: 3, 4: 4},
     uart_node_labels={},
-    uart_valid_pins={"tx": _UART_VALID_PINS, "rx": _UART_VALID_PINS},
+    uart_valid_pins={"tx": _GPIO_MATRIX_PINS, "rx": _GPIO_MATRIX_PINS},
 )
 
 

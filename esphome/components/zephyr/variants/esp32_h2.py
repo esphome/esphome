@@ -15,7 +15,6 @@ from ..const import (
     CONF_RUNNER,
     ZEPHYR_VARIANT_ESP32_H2,
 )
-from ..dts_lookup import get_i2c_pinctrl_esp32
 from . import (
     MAINLINE,
     ZephyrVariant,
@@ -30,8 +29,9 @@ _DEFAULT_BOARD = "esp32h2_devkitm"
 _ADVANCED_SCHEMA = ADVANCED_SCHEMA
 
 # https://github.com/zephyrproject-rtos/zephyr/blob/main/include/zephyr/dt-bindings/pinctrl/esp32h2-pinctrl.h
-# No GPIO 6, 7, 15-21 (reserved for flash/RF); identical set for tx and rx on this variant.
-_UART_VALID_PINS = frozenset(
+# No GPIO 6, 7, 15-21 (reserved for flash/RF); same set for every free-mux
+# GPIO-matrix signal on this variant.
+_GPIO_MATRIX_PINS = frozenset(
     {0, 1, 2, 3, 4, 5, 8, 9, 10, 11, 12, 13, 14, 22, 23, 24, 25, 26, 27}
 )
 
@@ -47,7 +47,6 @@ VARIANT = ZephyrVariant(
     # enabled, not just this chip's -- a chip-specific regex fails the same way, so fetch
     # everything. Sentinel shared with esp32_c6 (same SDK) so it only runs once.
     blobs=("hal_espressif", ".*", ".blobs_hal_espressif_ready"),
-    pinctrl_extractors={"i2c": get_i2c_pinctrl_esp32},
     transports=frozenset({"ble", "openthread"}),
     soc="esp32h2",
     # offset excluded: upstream's BOOT_PREFER_SWAP_OFFSET requires !SOC_FAMILY_ESPRESSIF_ESP32.
@@ -55,7 +54,7 @@ VARIANT = ZephyrVariant(
     # https://github.com/espressif/esp-idf/blob/master/components/soc/esp32h2/include/soc/adc_channel.h
     adc1_channel_map={1: 0, 2: 1, 3: 2, 4: 3, 5: 4},
     uart_node_labels={},
-    uart_valid_pins={"tx": _UART_VALID_PINS, "rx": _UART_VALID_PINS},
+    uart_valid_pins={"tx": _GPIO_MATRIX_PINS, "rx": _GPIO_MATRIX_PINS},
 )
 
 

@@ -79,6 +79,86 @@ def has_pinctrl_configured(board: str, label: str) -> bool:
     return False
 
 
+def _pinctrl_states_for_node(node) -> list[tuple[str, list[str]]] | None:
+    """Return [(real_label, child_group_names), ...] built from `node`'s own
+    pinctrl-<N> properties, or None if a referenced conf node lacks a label."""
+    states: list[tuple[str, list[str]]] = []
+    for pinctrl in node.pinctrls:
+        conf_nodes = pinctrl.conf_nodes
+        if not conf_nodes or not conf_nodes[0].labels:
+            return None
+        conf_node = conf_nodes[0]
+        states.append((conf_node.labels[0], list(conf_node.children)))
+    return states
+
+
+def get_pinctrl_states(board: str, label: str) -> list[tuple[str, list[str]]] | None:
+    """Return [(real_label, child_group_names), ...] for every pinctrl-<N> state
+    on the node `label` (or an ancestor) -- e.g. both "default" and "sleep" --
+    or None if unavailable. Reads the real pinctrl-<N> = <&...> phandles via
+    edtlib's Node.pinctrls[*].conf_nodes instead of guessing a
+    `<label>_default`-style name, which no Zephyr binding guarantees (e.g.
+    esp32 labels it `spim<N>_default` for `&spi<N>`, not `spi<N>_default`)."""
+    edt = _get_edt(board)
+    if edt is None:
+        return None
+    for node in _iter_nodes(edt):
+        if label not in node.labels:
+            continue
+        while node is not None:
+            if node.pinctrls:
+                return _pinctrl_states_for_node(node)
+            node = node.parent
+        return None
+    return None
+
+
+def get_pinctrl_state_names(board: str, label: str) -> list[str] | None:
+    """Return the real pinctrl-names strings (e.g. ["default", "sleep"]), in
+    pinctrl-<N> order, for the node `label` (or an ancestor) -- or None if
+    unavailable. Needed because overriding pinctrl-0 must restate every state
+    with a matching pinctrl-names count, or it's a DTS compile error."""
+    edt = _get_edt(board)
+    if edt is None:
+        return None
+    for node in _iter_nodes(edt):
+        if label not in node.labels:
+            continue
+        while node is not None:
+            if node.pinctrls:
+                names = [p.name for p in node.pinctrls]
+                return names if all(name is not None for name in names) else None
+            node = node.parent
+        return None
+    return None
+
+
+def get_pinctrl_group_property(
+    board: str, pinctrl_label: str, group_name: str, property_name: str
+) -> list[int] | None:
+    """Return the resolved integer values of `property_name` (e.g. "pinmux")
+    on the child node `group_name` of the devicetree node labeled
+    `pinctrl_label`, or None if unavailable. `pinctrl_label` is expected to be
+    a real label already resolved via get_pinctrl_states() -- this lets a
+    caller decode a family's own bit-encoding (e.g. ESP32's ESP32_PINMUX
+    sig_i/sig_o fields) to determine which group carries which signal from
+    real, already-parsed data, instead of assuming group order."""
+    edt = _get_edt(board)
+    if edt is None:
+        return None
+    for node in _iter_nodes(edt):
+        if pinctrl_label not in node.labels:
+            continue
+        group_node = node.children.get(group_name)
+        if group_node is None:
+            return None
+        prop = group_node.props.get(property_name)
+        if prop is None or not isinstance(prop.val, list):
+            return None
+        return prop.val
+    return None
+
+
 def get_watchdog_node_label(board: str) -> tuple[str | None, bool]:
     """Return (label, already_working) for this board's watchdog -- found by
     binding path under `.../bindings/watchdog/`, not a per-family list, so any
@@ -712,33 +792,6 @@ def _find_board_yaml(board_dir: Path, board: str) -> Path | None:
     return candidates[0] if candidates else None
 
 
-def _read_dts_with_includes(
-    dts_file: Path, base_dir: Path, _seen: set[Path] | None = None
-) -> str:
-    """Read dts_file, inlining quoted #includes from the same directory, with
-    macro names left intact -- needed by extractors that read a pin number back
-    out of a macro name itself (unlike _preprocess_dts_file's full cpp expansion)."""
-    if _seen is None:
-        _seen = set()
-    abs_file = dts_file.resolve()
-    if abs_file in _seen:
-        return ""
-    _seen.add(abs_file)
-
-    try:
-        text = dts_file.read_text(encoding="utf-8")
-    except OSError:
-        return ""
-
-    def _inline_include(m: re.Match) -> str:
-        inc_path = base_dir / m.group(1)
-        if not inc_path.exists():
-            return ""
-        return _read_dts_with_includes(inc_path, base_dir, _seen)
-
-    return re.sub(r'#include\s+"([^"]+)"', _inline_include, text)
-
-
 def _preprocess_dts_file(
     src_file: Path, zephyr_base: Path, extra_include_dirs: list[str]
 ) -> str | None:
@@ -905,164 +958,6 @@ def _iter_nodes(edt):
             yield from scc
         else:
             yield scc
-
-
-# ---------------------------------------------------------------------------
-# Per-vendor I2C pinctrl extractors -- registered via ZephyrVariant.pinctrl_extractors
-# ---------------------------------------------------------------------------
-
-
-def get_i2c_pinctrl_esp32(board: str, bus_label: str) -> dict[str, int] | None:
-    """Return default I2C SDA/SCL GPIO numbers for an esp32-family board, read
-    from raw (un-preprocessed) DTS so the pin number stays embedded in the
-    macro name rather than encoded into a bit-field."""
-    zd = CORE.data.get(KEY_ZEPHYR, {})
-    dts_base = zd.get("dts_base_path")
-    if not dts_base:
-        _LOGGER.debug("[zephyr] DTS base path not set; skipping pinctrl extraction")
-        return None
-
-    zephyr_base = Path(dts_base)
-    board_dir = _find_board_dir(zephyr_base, board)
-    if board_dir is None:
-        _LOGGER.debug("[zephyr] Board dir not found for '%s'", board)
-        return None
-
-    dts_file = _find_dts_file(board_dir, board)
-    if dts_file is None:
-        _LOGGER.debug("[zephyr] DTS file not found for '%s'", board)
-        return None
-
-    text = _read_dts_with_includes(dts_file, board_dir)
-    pins = _extract_esp32_i2c_pins(text, bus_label)
-    if pins is not None:
-        _LOGGER.debug(
-            "[zephyr] DTS pinctrl defaults for '%s' %s: SDA=%d SCL=%d",
-            board,
-            bus_label,
-            pins["sda"],
-            pins["scl"],
-        )
-    return pins
-
-
-def _extract_esp32_i2c_pins(text: str, bus_label: str) -> dict[str, int] | None:
-    """Extract SDA/SCL GPIO numbers from a {bus_label}_default pinctrl node's
-    macro names -- scoped to that node specifically (brace-matched), since other
-    boards' overlay variants can mention the same macro name elsewhere in the
-    file."""
-    node_start_re = re.compile(
-        rf"{re.escape(bus_label)}_default"
-        rf"(?:\s*:\s*{re.escape(bus_label)}_default)?\s*\{{",
-        re.DOTALL,
-    )
-    m = node_start_re.search(text)
-    if m is None:
-        _LOGGER.debug("[zephyr] No pinctrl node '%s_default' found", bus_label)
-        return None
-
-    start = m.end() - 1  # position of opening '{'
-    depth = 0
-    end = start
-    for i, ch in enumerate(text[start:], start):
-        if ch == "{":
-            depth += 1
-        elif ch == "}":
-            depth -= 1
-            if depth == 0:
-                end = i
-                break
-    node_text = text[start : end + 1]
-
-    prefix = bus_label.upper()
-    sda_m = re.search(rf"{prefix}_SDA_GPIO(\d+)", node_text)
-    scl_m = re.search(rf"{prefix}_SCL_GPIO(\d+)", node_text)
-    if sda_m is None or scl_m is None:
-        _LOGGER.debug(
-            "[zephyr] %s_SDA_GPIO/%s_SCL_GPIO not both found in '%s_default'",
-            prefix,
-            prefix,
-            bus_label,
-        )
-        return None
-    return {"sda": int(sda_m.group(1)), "scl": int(scl_m.group(1))}
-
-
-def get_i2c_pinctrl_silabs(board: str, bus_label: str) -> dict[str, int] | None:
-    """Return default I2C SDA/SCL pin numbers for a Silicon Labs board -- same
-    approach as get_i2c_pinctrl_esp32, but silabs macros use a lettered-port
-    form instead of flat GPIO numbers."""
-    zd = CORE.data.get(KEY_ZEPHYR, {})
-    dts_base = zd.get("dts_base_path")
-    if not dts_base:
-        _LOGGER.debug("[zephyr] DTS base path not set; skipping pinctrl extraction")
-        return None
-
-    zephyr_base = Path(dts_base)
-    board_dir = _find_board_dir(zephyr_base, board)
-    if board_dir is None:
-        _LOGGER.debug("[zephyr] Board dir not found for '%s'", board)
-        return None
-
-    dts_file = _find_dts_file(board_dir, board)
-    if dts_file is None:
-        _LOGGER.debug("[zephyr] DTS file not found for '%s'", board)
-        return None
-
-    text = _read_dts_with_includes(dts_file, board_dir)
-    pins = _extract_silabs_i2c_pins(text, bus_label)
-    if pins is not None:
-        _LOGGER.debug(
-            "[zephyr] DTS pinctrl defaults for '%s' %s: SDA=%d SCL=%d",
-            board,
-            bus_label,
-            pins["sda"],
-            pins["scl"],
-        )
-    return pins
-
-
-def _extract_silabs_i2c_pins(text: str, bus_label: str) -> dict[str, int] | None:
-    """Extract SDA/SCL pin numbers from a {bus_label}_default pinctrl node's
-    lettered-port macro names (e.g. I2C0_SDA_PC5), same brace-matching approach
-    as _extract_esp32_i2c_pins."""
-    node_start_re = re.compile(
-        rf"{re.escape(bus_label)}_default"
-        rf"(?:\s*:\s*{re.escape(bus_label)}_default)?\s*\{{",
-        re.DOTALL,
-    )
-    m = node_start_re.search(text)
-    if m is None:
-        _LOGGER.debug("[zephyr] No pinctrl node '%s_default' found", bus_label)
-        return None
-
-    start = m.end() - 1  # position of opening '{'
-    depth = 0
-    end = start
-    for i, ch in enumerate(text[start:], start):
-        if ch == "{":
-            depth += 1
-        elif ch == "}":
-            depth -= 1
-            if depth == 0:
-                end = i
-                break
-    node_text = text[start : end + 1]
-
-    prefix = bus_label.upper()
-    sda_m = re.search(rf"{prefix}_SDA_P([A-D])(\d+)", node_text)
-    scl_m = re.search(rf"{prefix}_SCL_P([A-D])(\d+)", node_text)
-    if sda_m is None or scl_m is None:
-        _LOGGER.debug(
-            "[zephyr] %s_SDA_P.../%s_SCL_P... not both found in '%s_default'",
-            prefix,
-            prefix,
-            bus_label,
-        )
-        return None
-    sda = (ord(sda_m.group(1)) - ord("A")) * 16 + int(sda_m.group(2))
-    scl = (ord(scl_m.group(1)) - ord("A")) * 16 + int(scl_m.group(2))
-    return {"sda": sda, "scl": scl}
 
 
 # ---------------------------------------------------------------------------

@@ -9,7 +9,6 @@ import pytest
 from esphome.components.zephyr import dts_lookup
 from esphome.components.zephyr.const import KEY_ZEPHYR
 from esphome.components.zephyr.dts_lookup import (
-    _extract_esp32_i2c_pins,
     _find_board_dir,
     _find_board_yaml,
     _find_dts_file,
@@ -18,14 +17,14 @@ from esphome.components.zephyr.dts_lookup import (
     _find_snippet_dir,
     _format_size,
     _get_edt,
-    _read_dts_with_includes,
     _shield_overlay_files,
     _snippet_overlay_files,
     get_board_partitions,
     get_board_yaml_supported,
     get_can_controller_labels,
     get_i2c_controller_labels,
-    get_i2c_pinctrl_esp32,
+    get_pinctrl_group_property,
+    get_pinctrl_states,
     get_spi_controller_labels,
     get_uart_controller_labels,
     get_watchdog_node_label,
@@ -68,6 +67,8 @@ class _FakeNode:
         pinctrls: list[object] | None = None,
         aliases: list[str] | None = None,
         binding_path: str | None = None,
+        children: dict[str, _FakeNode] | None = None,
+        props: dict[str, object] | None = None,
     ) -> None:
         self.labels = labels or []
         self.status = status
@@ -79,6 +80,13 @@ class _FakeNode:
         self.pinctrls = pinctrls or []
         self.aliases = aliases or []
         self.binding_path = binding_path
+        self.children = children or {}
+        self.props = props or {}
+
+
+class _FakeProp:
+    def __init__(self, val: object) -> None:
+        self.val = val
 
 
 class _FakeEdt:
@@ -367,119 +375,6 @@ def test_find_board_dir_dts_file_and_revision_overlay_at_each_depth(
 
 
 # ---------------------------------------------------------------------------
-# _read_dts_with_includes
-# ---------------------------------------------------------------------------
-
-
-def test_read_dts_with_includes_inlines_quoted_include(tmp_path: Path) -> None:
-    (tmp_path / "pins.dtsi").write_text("PINCTRL_CONTENT")
-    main = tmp_path / "board.dts"
-    main.write_text('before\n#include "pins.dtsi"\nafter')
-
-    text = _read_dts_with_includes(main, tmp_path)
-    assert "before" in text
-    assert "PINCTRL_CONTENT" in text
-    assert "after" in text
-
-
-def test_read_dts_with_includes_missing_include_is_dropped_silently(
-    tmp_path: Path,
-) -> None:
-    main = tmp_path / "board.dts"
-    main.write_text('before\n#include "missing.dtsi"\nafter')
-    text = _read_dts_with_includes(main, tmp_path)
-    assert "before" in text
-    assert "after" in text
-
-
-def test_read_dts_with_includes_guards_against_circular_includes(
-    tmp_path: Path,
-) -> None:
-    a = tmp_path / "a.dtsi"
-    b = tmp_path / "b.dtsi"
-    a.write_text('a-content\n#include "b.dtsi"')
-    b.write_text('b-content\n#include "a.dtsi"')
-    # Must terminate, not infinitely recurse.
-    text = _read_dts_with_includes(a, tmp_path)
-    assert "a-content" in text
-    assert "b-content" in text
-
-
-# ---------------------------------------------------------------------------
-# _extract_esp32_i2c_pins / get_i2c_pinctrl_esp32
-# ---------------------------------------------------------------------------
-
-_H2_PINCTRL_DTS = """
-&pinctrl {
-    i2c0_default: i2c0_default {
-        group1 {
-            pinmux = <I2C0_SDA_GPIO0>,
-                     <I2C0_SCL_GPIO1>;
-            bias-pull-up;
-            drive-open-drain;
-            output-high;
-        };
-    };
-};
-"""
-
-_C6_PINCTRL_DTS = """
-&pinctrl {
-    i2c0_default: i2c0_default {
-        group1 {
-            pinmux = <I2C0_SDA_GPIO6>,
-                     <I2C0_SCL_GPIO7>;
-            bias-pull-up;
-            drive-open-drain;
-            output-high;
-        };
-    };
-};
-"""
-
-
-def test_extract_esp32_i2c_pins_h2() -> None:
-    assert _extract_esp32_i2c_pins(_H2_PINCTRL_DTS, "i2c0") == {"sda": 0, "scl": 1}
-
-
-def test_extract_esp32_i2c_pins_c6() -> None:
-    assert _extract_esp32_i2c_pins(_C6_PINCTRL_DTS, "i2c0") == {"sda": 6, "scl": 7}
-
-
-def test_extract_esp32_i2c_pins_returns_none_when_node_absent() -> None:
-    assert _extract_esp32_i2c_pins("/ { totally-unrelated; };", "i2c0") is None
-
-
-def test_extract_esp32_i2c_pins_ignores_macros_outside_the_node() -> None:
-    """A board file can mention another bus label's macro (or a comment) elsewhere
-    in the file -- the extractor must not pick that up for the wrong bus_label."""
-    text = "// see I2C1_SDA_GPIO99 for the alternate bus\n" + _H2_PINCTRL_DTS
-    assert _extract_esp32_i2c_pins(text, "i2c0") == {"sda": 0, "scl": 1}
-    assert _extract_esp32_i2c_pins(text, "i2c1") is None
-
-
-def test_get_i2c_pinctrl_esp32_end_to_end(tmp_path: Path) -> None:
-    boards = tmp_path / "boards" / "espressif" / "esp32h2_devkitm"
-    boards.mkdir(parents=True)
-    (boards / "esp32h2_devkitm.dts").write_text(_H2_PINCTRL_DTS)
-
-    CORE.data[KEY_ZEPHYR] = _empty_zd(dts_base_path=str(tmp_path))
-    result = get_i2c_pinctrl_esp32("esp32h2_devkitm/esp32h2", "i2c0")
-    assert result == {"sda": 0, "scl": 1}
-
-
-def test_get_i2c_pinctrl_esp32_returns_none_without_dts_base_path() -> None:
-    CORE.data[KEY_ZEPHYR] = _empty_zd(dts_base_path=None)
-    assert get_i2c_pinctrl_esp32("esp32h2_devkitm/esp32h2", "i2c0") is None
-
-
-def test_get_i2c_pinctrl_esp32_returns_none_for_unknown_board(tmp_path: Path) -> None:
-    (tmp_path / "boards").mkdir()
-    CORE.data[KEY_ZEPHYR] = _empty_zd(dts_base_path=str(tmp_path))
-    assert get_i2c_pinctrl_esp32("no_such_board/soc", "i2c0") is None
-
-
-# ---------------------------------------------------------------------------
 # _find_board_yaml / get_board_yaml_supported
 # ---------------------------------------------------------------------------
 
@@ -634,6 +529,146 @@ def test_has_pinctrl_configured_false_without_dts(monkeypatch) -> None:
     CORE.data[KEY_ZEPHYR] = _empty_zd()
     monkeypatch.setattr(dts_lookup, "_get_edt", lambda board: None)
     assert has_pinctrl_configured("some_board", "uart0") is False
+
+
+class _FakePinCtrl:
+    def __init__(self, conf_nodes: list[_FakeNode]) -> None:
+        self.conf_nodes = conf_nodes
+
+
+def test_get_pinctrl_states_reads_real_conf_node_label_and_single_group(
+    monkeypatch,
+) -> None:
+    # esp32's real shape: &spi2's pinctrl-0 points at spim2_default, not spi2_default,
+    # with a single shared "group1" child.
+    CORE.data[KEY_ZEPHYR] = _empty_zd()
+    group1 = _FakeNode(labels=[])
+    spim2_default = _FakeNode(labels=["spim2_default"], children={"group1": group1})
+    spi2 = _FakeNode(labels=["spi2"], pinctrls=[_FakePinCtrl([spim2_default])])
+    monkeypatch.setattr(dts_lookup, "_get_edt", lambda board: _FakeEdt([spi2]))
+    assert get_pinctrl_states("some_board", "spi2") == [("spim2_default", ["group1"])]
+
+
+def test_get_pinctrl_states_returns_every_pinctrl_n_state(monkeypatch) -> None:
+    # nRF52's real shape: pinctrl-0 = default, pinctrl-1 = sleep -- both states
+    # must come back, in pinctrl-<N> index order.
+    CORE.data[KEY_ZEPHYR] = _empty_zd()
+    i2c0_default = _FakeNode(
+        labels=["i2c0_default"], children={"group1": _FakeNode(labels=[])}
+    )
+    i2c0_sleep = _FakeNode(
+        labels=["i2c0_sleep"], children={"group1": _FakeNode(labels=[])}
+    )
+    i2c0 = _FakeNode(
+        labels=["i2c0"],
+        pinctrls=[_FakePinCtrl([i2c0_default]), _FakePinCtrl([i2c0_sleep])],
+    )
+    monkeypatch.setattr(dts_lookup, "_get_edt", lambda board: _FakeEdt([i2c0]))
+    assert get_pinctrl_states("some_board", "i2c0") == [
+        ("i2c0_default", ["group1"]),
+        ("i2c0_sleep", ["group1"]),
+    ]
+
+
+def test_get_pinctrl_states_reports_multiple_groups(monkeypatch) -> None:
+    # The UART TX/RX shape: some boards split signals across more than one group.
+    CORE.data[KEY_ZEPHYR] = _empty_zd()
+    uart1_default = _FakeNode(
+        labels=["uart1_default"],
+        children={"group1": _FakeNode(labels=[]), "group2": _FakeNode(labels=[])},
+    )
+    uart1 = _FakeNode(labels=["uart1"], pinctrls=[_FakePinCtrl([uart1_default])])
+    monkeypatch.setattr(dts_lookup, "_get_edt", lambda board: _FakeEdt([uart1]))
+    assert get_pinctrl_states("some_board", "uart1") == [
+        ("uart1_default", ["group1", "group2"])
+    ]
+
+
+def test_get_pinctrl_states_true_on_ancestor(monkeypatch) -> None:
+    CORE.data[KEY_ZEPHYR] = _empty_zd()
+    sci2_default = _FakeNode(
+        labels=["sci2_default"], children={"group1": _FakeNode(labels=[])}
+    )
+    sci2 = _FakeNode(labels=["sci2"], pinctrls=[_FakePinCtrl([sci2_default])])
+    uart2 = _FakeNode(labels=["uart2"], parent=sci2)
+    monkeypatch.setattr(dts_lookup, "_get_edt", lambda board: _FakeEdt([sci2, uart2]))
+    assert get_pinctrl_states("some_board", "uart2") == [("sci2_default", ["group1"])]
+
+
+def test_get_pinctrl_states_none_when_absent(monkeypatch) -> None:
+    CORE.data[KEY_ZEPHYR] = _empty_zd()
+    nodes = [_FakeNode(labels=["spi2"])]
+    monkeypatch.setattr(dts_lookup, "_get_edt", lambda board: _FakeEdt(nodes))
+    assert get_pinctrl_states("some_board", "spi2") is None
+
+
+def test_get_pinctrl_states_none_for_unknown_label(monkeypatch) -> None:
+    CORE.data[KEY_ZEPHYR] = _empty_zd()
+    spim2_default = _FakeNode(labels=["spim2_default"])
+    spi2 = _FakeNode(labels=["spi2"], pinctrls=[_FakePinCtrl([spim2_default])])
+    monkeypatch.setattr(dts_lookup, "_get_edt", lambda board: _FakeEdt([spi2]))
+    assert get_pinctrl_states("some_board", "spi9") is None
+
+
+def test_get_pinctrl_states_none_without_dts(monkeypatch) -> None:
+    CORE.data[KEY_ZEPHYR] = _empty_zd()
+    monkeypatch.setattr(dts_lookup, "_get_edt", lambda board: None)
+    assert get_pinctrl_states("some_board", "spi2") is None
+
+
+def test_get_pinctrl_states_none_when_conf_node_has_no_label(
+    monkeypatch,
+) -> None:
+    CORE.data[KEY_ZEPHYR] = _empty_zd()
+    unlabeled = _FakeNode(labels=[])
+    spi2 = _FakeNode(labels=["spi2"], pinctrls=[_FakePinCtrl([unlabeled])])
+    monkeypatch.setattr(dts_lookup, "_get_edt", lambda board: _FakeEdt([spi2]))
+    assert get_pinctrl_states("some_board", "spi2") is None
+
+
+def test_get_pinctrl_group_property_returns_real_values(monkeypatch) -> None:
+    group1 = _FakeNode(labels=[], props={"pinmux": _FakeProp([229328])})
+    uart0_default = _FakeNode(labels=["uart0_default"], children={"group1": group1})
+    monkeypatch.setattr(dts_lookup, "_get_edt", lambda board: _FakeEdt([uart0_default]))
+    assert get_pinctrl_group_property(
+        "some_board", "uart0_default", "group1", "pinmux"
+    ) == [229328]
+
+
+def test_get_pinctrl_group_property_none_for_unknown_group(monkeypatch) -> None:
+    uart0_default = _FakeNode(labels=["uart0_default"], children={})
+    monkeypatch.setattr(dts_lookup, "_get_edt", lambda board: _FakeEdt([uart0_default]))
+    assert (
+        get_pinctrl_group_property("some_board", "uart0_default", "group1", "pinmux")
+        is None
+    )
+
+
+def test_get_pinctrl_group_property_none_for_unknown_property(monkeypatch) -> None:
+    group1 = _FakeNode(labels=[], props={})
+    uart0_default = _FakeNode(labels=["uart0_default"], children={"group1": group1})
+    monkeypatch.setattr(dts_lookup, "_get_edt", lambda board: _FakeEdt([uart0_default]))
+    assert (
+        get_pinctrl_group_property("some_board", "uart0_default", "group1", "pinmux")
+        is None
+    )
+
+
+def test_get_pinctrl_group_property_none_for_unknown_label(monkeypatch) -> None:
+    uart0_default = _FakeNode(labels=["uart0_default"])
+    monkeypatch.setattr(dts_lookup, "_get_edt", lambda board: _FakeEdt([uart0_default]))
+    assert (
+        get_pinctrl_group_property("some_board", "uart1_default", "group1", "pinmux")
+        is None
+    )
+
+
+def test_get_pinctrl_group_property_none_without_dts(monkeypatch) -> None:
+    monkeypatch.setattr(dts_lookup, "_get_edt", lambda board: None)
+    assert (
+        get_pinctrl_group_property("some_board", "uart0_default", "group1", "pinmux")
+        is None
+    )
 
 
 def test_get_watchdog_node_label_already_working(monkeypatch) -> None:

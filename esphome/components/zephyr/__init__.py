@@ -323,53 +323,639 @@ def zephyr_only_on_variant(*variant_names: str):
     return validator
 
 
+# NRF_FUN_TWIM_{SDA,SCL} (nrf-pinctrl.h) -- fixed across every nRF chip.
+_NRF_I2C_SIGNAL_NAMES = {12: "sda", 11: "scl"}
+
+
+def _nordic_i2c_value_role(value: int) -> str | None:
+    fun = (value >> _NRF_PSEL_FUN_SHIFT) & _NRF_PSEL_FUN_MASK
+    return _NRF_I2C_SIGNAL_NAMES.get(fun)
+
+
+# I2C0/I2C1 en_bit (verified xg22/xg24/xg26), distinct from UART's en_bits.
+_SILABS_I2C_SIGNAL_NAMES = {0: "scl", 1: "sda"}
+
+
+def _silabs_i2c_value_role(value: int) -> str | None:
+    en_bit = (value >> _SILABS_DBUS_EN_BIT_SHIFT) & _SILABS_DBUS_EN_BIT_MASK
+    return _SILABS_I2C_SIGNAL_NAMES.get(en_bit)
+
+
+# esp32-family I2C instance -> {"scl": id, "sda": id} GPIO-matrix signal IDs. I2C
+# is bidirectional, so sig_i and sig_o are always equal -- either field identifies it.
+_ESP32_I2C_INSTANCE_SIGNAL_IDS = {
+    ZEPHYR_VARIANT_ESP32: {0: {"scl": 29, "sda": 30}, 1: {"scl": 95, "sda": 96}},
+    ZEPHYR_VARIANT_ESP32_C3: {0: {"scl": 53, "sda": 54}},
+    ZEPHYR_VARIANT_ESP32_C5: {0: {"scl": 46, "sda": 47}},
+    ZEPHYR_VARIANT_ESP32_C6: {0: {"scl": 45, "sda": 46}},
+    ZEPHYR_VARIANT_ESP32_H2: {0: {"scl": 45, "sda": 46}, 1: {"scl": 55, "sda": 56}},
+}
+
+
+def _esp32_i2c_value_role(value: int, signal_ids: dict[str, int]) -> str | None:
+    sig_o = (value >> _ESP32_PINMUX_SIGO_SHIFT) & _ESP32_PINMUX_SIG_MASK
+    for role, sig_id in signal_ids.items():
+        if sig_o == sig_id:
+            return role
+    return None
+
+
+def _esp32_i2c_value_role_decoder(bus_label: str) -> Callable[[int], str | None] | None:
+    """Bind a value_role_decoder to bus_label's real I2C instance signal IDs, or
+    None if the instance/variant isn't in _ESP32_I2C_INSTANCE_SIGNAL_IDS."""
+    instance = int(bus_label.removeprefix("i2c")) if bus_label[3:].isdigit() else None
+    signal_ids = _ESP32_I2C_INSTANCE_SIGNAL_IDS.get(zephyr_variant(), {}).get(instance)
+    if signal_ids is None:
+        return None
+
+    def decoder(value: int) -> str | None:
+        return _esp32_i2c_value_role(value, signal_ids)
+
+    return decoder
+
+
+def _resolve_i2c_pinctrl_states(
+    board: str,
+    bus_label: str,
+    fallback_group: str,
+    fallback_state_suffixes: tuple[str, ...] = ("default",),
+) -> list[tuple[str, str]]:
+    """Return [(pinctrl_label, group_name), ...] for every pinctrl state (e.g.
+    "default" and "sleep") to merge SDA+SCL into. Falls back to guessing
+    `{bus_label}_{suffix}`/`fallback_group` per `fallback_state_suffixes` (with
+    a warning) when DTS resolves nothing, and to `fallback_group` for any
+    resolved state with more than one group (the shape UART's TX/RX split
+    hit)."""
+    from .dts_lookup import get_pinctrl_states
+
+    states = get_pinctrl_states(board, bus_label)
+    if states is None:
+        _LOGGER.warning(
+            "Could not resolve board '%s''s real pinctrl node for '%s' from "
+            "devicetree -- assuming '%s_%s'/'%s' for each state. If that's "
+            "wrong, this will fail at devicetree-compile time.",
+            board,
+            bus_label,
+            bus_label,
+            "/".join(fallback_state_suffixes),
+            fallback_group,
+        )
+        return [
+            (f"{bus_label}_{suffix}", fallback_group)
+            for suffix in fallback_state_suffixes
+        ]
+
+    resolved: list[tuple[str, str]] = []
+    for label, groups in states:
+        if len(groups) == 1:
+            resolved.append((label, groups[0]))
+            continue
+        _LOGGER.warning(
+            "Board '%s''s pinctrl node '%s' has %d groups (%s), not the single "
+            "shared group SDA/SCL expect -- assuming '%s'. If that's wrong, "
+            "this will fail at devicetree-compile time.",
+            board,
+            label,
+            len(groups),
+            ", ".join(groups),
+            fallback_group,
+        )
+        resolved.append((label, fallback_group))
+    return resolved
+
+
+def _build_i2c_pinctrl_states_overlay(
+    board: str,
+    states: list[tuple[str, str]],
+    property_name: str,
+    role_values: dict[str, str],
+    value_role_decoder: Callable[[int], str | None] | None,
+) -> str:
+    """Build a `&pinctrl { <label> { <group> { <property_name> = <merged>; }; };
+    ... };` overlay for every (label, group) in `states`. `role_values` only has
+    entries for the signal(s) actually being remapped -- when only one of
+    sda/scl is given, `value_role_decoder` reads the group's real existing
+    values and restates whichever one isn't touched (as its raw integer), since
+    an overlay setting a property again replaces it wholesale rather than
+    merging. None decoder = no way to decode, falls back to just the given
+    values."""
+    from .dts_lookup import get_pinctrl_group_property
+
+    def _merged_value(label: str, group: str) -> str:
+        if value_role_decoder is None:
+            return ", ".join(role_values.values())
+        existing = get_pinctrl_group_property(board, label, group, property_name) or []
+        parts = []
+        seen_roles: set[str] = set()
+        for raw in existing:
+            role = value_role_decoder(raw)
+            if role in role_values:
+                parts.append(role_values[role])
+                seen_roles.add(role)
+            else:
+                parts.append(f"<{raw}>")
+        for role, value in role_values.items():
+            if role not in seen_roles:
+                parts.append(value)
+        return ", ".join(parts)
+
+    blocks = "\n".join(
+        f"""
+                {label} {{
+                    {group} {{
+                        {property_name} = {_merged_value(label, group)};
+                    }};
+                }};
+        """
+        for label, group in states
+    )
+    return f"""
+        &pinctrl {{
+            {blocks}
+        }};
+    """
+
+
+def _positional_uart_group_roles(
+    board: str, label: str, groups: list[str]
+) -> dict[str, str] | None:
+    """Default group-role guess: group[0]=TX, group[1]=RX by position. Not
+    universally safe -- nrf54lm20dk's uart20 swaps group order between its
+    "default" and "sleep" states -- used only where no better signal exists."""
+    if len(groups) != 2:
+        return None
+    return {"tx": groups[0], "rx": groups[1]}
+
+
+# RP2XXX_PINMUX(pin_num, alt_func) only encodes the pin and which peripheral owns
+# it, not which signal within it -- role is implied by which fixed GPIO it's on.
+_RP2_PIN_NUM_POS = 5
+_RP2_PIN_NUM_MASK = 0x3F
+
+
+def _rpi_pico_value_role(
+    value: int, instance_pins: dict[str, frozenset[int]]
+) -> str | None:
+    """Decode a value's embedded pin number against the per-instance valid-pins
+    table (uart/i2c_valid_pins_by_instance) already used to validate it."""
+    pin_num = (value >> _RP2_PIN_NUM_POS) & _RP2_PIN_NUM_MASK
+    for role, pins in instance_pins.items():
+        if pin_num in pins:
+            return role
+    return None
+
+
+def _rpi_pico_value_role_decoder(
+    instance_pins: dict[str, frozenset[int]] | None,
+) -> Callable[[int], str | None] | None:
+    if instance_pins is None:
+        return None
+
+    def decoder(value: int) -> str | None:
+        return _rpi_pico_value_role(value, instance_pins)
+
+    return decoder
+
+
+_NRF_PSEL_FUN_SHIFT = 24
+_NRF_PSEL_FUN_MASK = 0xFF
+# NRF_FUN_UART_{TX,RX,RTS,CTS} (nrf-pinctrl.h) -- fixed across every nRF chip,
+# unlike ESP32's per-instance signal IDs.
+_NRF_UART_SIGNAL_NAMES = {0: "tx", 1: "rx", 2: "rts", 3: "cts"}
+
+
+def _nordic_uart_value_role(value: int) -> str | None:
+    fun = (value >> _NRF_PSEL_FUN_SHIFT) & _NRF_PSEL_FUN_MASK
+    return _NRF_UART_SIGNAL_NAMES.get(fun)
+
+
+def _nordic_uart_group_roles(
+    board: str, label: str, groups: list[str]
+) -> dict[str, str] | None:
+    """group_role_resolver reading real psels content instead of assuming
+    position -- nrf54lm20dk's uart20 really does swap group order."""
+    from .dts_lookup import get_pinctrl_group_property
+
+    signals: dict[str, str] = {}
+    for group in groups:
+        for value in get_pinctrl_group_property(board, label, group, "psels") or []:
+            name = _nordic_uart_value_role(value)
+            if name is not None:
+                signals[name] = group
+    if "tx" not in signals or "rx" not in signals:
+        return None
+    return signals
+
+
+_SILABS_DBUS_EN_BIT_SHIFT = 19
+_SILABS_DBUS_EN_BIT_MASK = 0x1F
+# SILABS_DBUS's en_bit field (silabs-pinctrl-dbus.h) is fixed per signal across every
+# USART instance/chip (verified xg22/xg24/xg26): TX=4, RX=2, RTS=1, CTS=0.
+_SILABS_UART_SIGNAL_NAMES = {4: "tx", 2: "rx", 1: "rts", 0: "cts"}
+
+
+def _silabs_uart_value_role(value: int) -> str | None:
+    en_bit = (value >> _SILABS_DBUS_EN_BIT_SHIFT) & _SILABS_DBUS_EN_BIT_MASK
+    return _SILABS_UART_SIGNAL_NAMES.get(en_bit)
+
+
+def _silabs_uart_group_roles(
+    board: str, label: str, groups: list[str]
+) -> dict[str, str] | None:
+    """group_role_resolver reading real `pins` content instead of assuming
+    position -- xg24_ek2703a's usart0 splits TX(group0)/RX(group1)."""
+    from .dts_lookup import get_pinctrl_group_property
+
+    signals: dict[str, str] = {}
+    for group in groups:
+        for value in get_pinctrl_group_property(board, label, group, "pins") or []:
+            name = _silabs_uart_value_role(value)
+            if name is not None:
+                signals[name] = group
+    if "tx" not in signals or "rx" not in signals:
+        return None
+    return signals
+
+
+_ESP32_PINMUX_SIGI_SHIFT = 6
+_ESP32_PINMUX_SIGO_SHIFT = 15
+_ESP32_PINMUX_SIG_MASK = 0x1FF
+_ESP32_PINMUX_NOSIG = 0x1FF  # ESP_SIG_INVAL in esp-pinctrl-common.h
+
+# UART instance -> GPIO matrix signal ID shared by RXD_IN/TXD_OUT (CTS_IN/RTS_OUT
+# always use that ID + 1) -- verified against every esp32-family chip's own
+# <chip>-gpio-sigmap.h in scope. Direction (sig_i vs sig_o) alone can't tell TX
+# from RTS or RX from CTS (RXD_IN/TXD_OUT and CTS_IN/RTS_OUT are each a shared ID
+# used in different direction slots) -- this ID is what actually distinguishes them.
+_ESP32_UART_INSTANCE_SIGNAL_BASE = {
+    ZEPHYR_VARIANT_ESP32: {0: 14, 1: 17, 2: 198},
+    ZEPHYR_VARIANT_ESP32_C3: {0: 6, 1: 9},
+    ZEPHYR_VARIANT_ESP32_C5: {0: 6, 1: 9},
+    ZEPHYR_VARIANT_ESP32_C6: {0: 6, 1: 9},
+    ZEPHYR_VARIANT_ESP32_H2: {0: 6, 1: 9},
+}
+
+
+def _esp32_uart_value_role(value: int, signal_base: int) -> str | None:
+    """Decode a single real pinmux value against this UART instance's signal IDs --
+    RXD_IN/TXD_OUT share `signal_base`, CTS_IN/RTS_OUT share `signal_base + 1`."""
+    sig_i = (value >> _ESP32_PINMUX_SIGI_SHIFT) & _ESP32_PINMUX_SIG_MASK
+    sig_o = (value >> _ESP32_PINMUX_SIGO_SHIFT) & _ESP32_PINMUX_SIG_MASK
+    if sig_o == signal_base:
+        return "tx"
+    if sig_o == signal_base + 1:
+        return "rts"
+    if sig_i == signal_base:
+        return "rx"
+    if sig_i == signal_base + 1:
+        return "cts"
+    return None
+
+
+def _esp32_uart_signal_groups(
+    board: str, label: str, groups: list[str], signal_base: int
+) -> dict[str, str]:
+    """Return {"tx": group, "rx": group, "rts": group, "cts": group} (only
+    keys actually found), decoding every value of each group's real pinmux
+    property against this UART instance's real signal IDs. Reads the whole
+    values list, not just the first entry, since a board may combine e.g. TX
+    and RTS in one group's pinmux array."""
+    from .dts_lookup import get_pinctrl_group_property
+
+    signals: dict[str, str] = {}
+    for group in groups:
+        for value in get_pinctrl_group_property(board, label, group, "pinmux") or []:
+            role = _esp32_uart_value_role(value, signal_base)
+            if role is not None:
+                signals[role] = group
+    return signals
+
+
+def _esp32_uart_group_roles(
+    board: str, port_label: str
+) -> (
+    tuple[
+        Callable[[str, str, list[str]], dict[str, str] | None],
+        Callable[[int], str | None],
+    ]
+    | None
+):
+    """Return (group_role_resolver, value_role_decoder) bound to port_label's real
+    UART instance signal IDs, or None if the instance/variant isn't in
+    _ESP32_UART_INSTANCE_SIGNAL_BASE (falls back to the positional guess)."""
+    instance = (
+        int(port_label.removeprefix("uart")) if port_label[4:].isdigit() else None
+    )
+    signal_base = _ESP32_UART_INSTANCE_SIGNAL_BASE.get(zephyr_variant(), {}).get(
+        instance
+    )
+    if signal_base is None:
+        return None
+
+    def resolver(board: str, label: str, groups: list[str]) -> dict[str, str] | None:
+        signals = _esp32_uart_signal_groups(board, label, groups, signal_base)
+        if "tx" not in signals or "rx" not in signals:
+            return None
+        return signals
+
+    def value_role_decoder(value: int) -> str | None:
+        return _esp32_uart_value_role(value, signal_base)
+
+    return resolver, value_role_decoder
+
+
+def _resolve_uart_pinctrl_states(
+    board: str,
+    port_label: str,
+    tx_value: str | None,
+    rx_value: str | None,
+    group_role_resolver=None,
+    value_role_decoder: Callable[[int], str | None] | None = None,
+    property_name: str = "pinmux",
+) -> list[tuple[str, list[tuple[str, str]]]]:
+    """Return [(pinctrl_label, [(group_name, value), ...]), ...] for every
+    pinctrl state on port_label, deciding per state whether TX/RX share one
+    group or need more (some boards split TX/RX/RTS/CTS into 4 separate
+    groups, e.g. dptechnics/walter; nRF52 combines TX/RX into one group for
+    "sleep" but splits them for "default").
+
+    `group_role_resolver(board, label, groups)` returns {"tx": group, "rx":
+    group, ...} for a state's groups (any count > 1) -- None (the default)
+    only ever succeeds for exactly 2 groups (a position-based guess), but a
+    family with a real way to tell (e.g. esp32's pinmux encoding) can pass a
+    resolver that reads the actual group content instead, and isn't limited
+    to 2 groups. Falls back to the positional guess (with a warning) when DTS
+    resolves nothing, or a state's "tx"/"rx" roles can't both be determined.
+
+    `value_role_decoder(value)` decodes a single real property value (e.g. one
+    entry of a group's `pinmux` array) back to a role name, or None if the
+    family has no way to (positional-only families). Needed because a
+    devicetree overlay setting a property again *replaces* it wholesale --
+    when TX and RX (or TX and RTS, etc.) share one real group and only one of
+    them is being remapped, every other value already in that group must be
+    restated (as its raw resolved integer, since the friendly macro name isn't
+    recoverable from a bare int) or it's silently dropped from the overlay.
+    """
+    from .dts_lookup import get_pinctrl_group_property, get_pinctrl_states
+
+    group_role_resolver = group_role_resolver or _positional_uart_group_roles
+
+    new_values: dict[str, str] = {}
+    if tx_value is not None:
+        new_values["tx"] = tx_value
+    if rx_value is not None:
+        new_values["rx"] = rx_value
+
+    def _merge_group(label: str, group: str, role_values: dict[str, str]) -> str:
+        if value_role_decoder is None:
+            return ", ".join(role_values.values())
+        existing = get_pinctrl_group_property(board, label, group, property_name) or []
+        parts = []
+        seen_roles: set[str] = set()
+        for raw in existing:
+            role = value_role_decoder(raw)
+            if role in role_values:
+                parts.append(role_values[role])
+                seen_roles.add(role)
+            else:
+                parts.append(f"<{raw}>")
+        for role, value in role_values.items():
+            if role not in seen_roles:
+                parts.append(value)
+        return ", ".join(parts)
+
+    def _values_for_role_groups(
+        label: str, role_to_group: dict[str, str]
+    ) -> list[tuple[str, str]]:
+        by_group: dict[str, dict[str, str]] = {}
+        for role, value in new_values.items():
+            group = role_to_group.get(role)
+            if group is not None:
+                by_group.setdefault(group, {})[role] = value
+        return [
+            (group, _merge_group(label, group, role_values))
+            for group, role_values in by_group.items()
+        ]
+
+    states = get_pinctrl_states(board, port_label)
+    if states is None:
+        label = f"{port_label}_default"
+        _LOGGER.warning(
+            "Could not resolve board '%s''s real pinctrl node for '%s' from "
+            "devicetree -- assuming '%s' with a TX/RX group1/group2 split. If "
+            "that's wrong, this will fail at devicetree-compile time.",
+            board,
+            port_label,
+            label,
+        )
+        return [
+            (label, _values_for_role_groups(label, {"tx": "group1", "rx": "group2"}))
+        ]
+
+    resolved: list[tuple[str, list[tuple[str, str]]]] = []
+    for label, groups in states:
+        if len(groups) == 1:
+            resolved.append(
+                (
+                    label,
+                    _values_for_role_groups(
+                        label, dict.fromkeys(new_values, groups[0])
+                    ),
+                )
+            )
+            continue
+        roles = group_role_resolver(board, label, groups)
+        if roles is not None:
+            resolved.append((label, _values_for_role_groups(label, roles)))
+            continue
+        _LOGGER.warning(
+            "Could not determine TX/RX group roles for board '%s''s pinctrl "
+            "node '%s' (groups: %s) -- assuming a group1/group2 split. If "
+            "that's wrong, this will fail at devicetree-compile time.",
+            board,
+            label,
+            ", ".join(groups),
+        )
+        resolved.append(
+            (label, _values_for_role_groups(label, {"tx": "group1", "rx": "group2"}))
+        )
+    return resolved
+
+
+def _build_uart_pinctrl_states_overlay(
+    states: list[tuple[str, list[tuple[str, str]]]], property_name: str
+) -> str:
+    """Build the `&pinctrl { ... }` overlay from _resolve_uart_pinctrl_states()'s
+    output. The `<label>:` prefix (re-)establishes the phandle even for a state
+    the board never pinctrl'd itself -- without it, `&<label>` in the bus-enable
+    overlay resolves to nothing and fails at DTS-compile time."""
+    state_blocks = []
+    for label, group_values in states:
+        if not group_values:
+            continue
+        group_blocks = "\n".join(
+            f"""
+                    {group} {{
+                        {property_name} = {value};
+                    }};
+            """
+            for group, value in group_values
+        )
+        state_blocks.append(
+            f"""
+                {label}: {label} {{
+                    {group_blocks}
+                }};
+            """
+        )
+    return f"""
+        &pinctrl {{
+            {"".join(state_blocks)}
+        }};
+    """
+
+
+def zephyr_setup_uart_pinctrl(
+    board: str,
+    port_label: str,
+    tx_pin: int | None,
+    rx_pin: int | None,
+    baud_rate: int,
+) -> None:
+    """Add the TX/RX pinctrl overlay (if either pin is given) and the bus-enable
+    overlay for `port_label`, mirroring zephyr_setup_i2c_pinctrl()/
+    zephyr_setup_spi_pinctrl()'s shape: this owns the whole family-specific
+    macro/group-role resolution internally so callers only ever deal in real
+    pin numbers, not devicetree overlay text."""
+    if tx_pin is None and rx_pin is None:
+        from .dts_lookup import has_pinctrl_configured
+
+        if not has_pinctrl_configured(board, port_label):
+            _LOGGER.warning(
+                "Board '%s' has no pinctrl configured for port '%s' -- "
+                "assuming you've configured it yourself via `zephyr: "
+                "overlays:`. If not, this will fail at devicetree-compile "
+                "time.",
+                board,
+                port_label,
+            )
+        zephyr_add_overlay(f'&{port_label} {{ status = "okay"; }};')
+        return
+
+    prefix = port_label.upper()
+    family = zephyr_variant_family()
+    if family == "nordic":
+        tx_value = (
+            f"<NRF_PSEL(UART_TX, {tx_pin // 32}, {tx_pin % 32})>"
+            if tx_pin is not None
+            else None
+        )
+        rx_value = (
+            f"<NRF_PSEL(UART_RX, {rx_pin // 32}, {rx_pin % 32})>"
+            if rx_pin is not None
+            else None
+        )
+        group_role_resolver = _nordic_uart_group_roles
+        value_role_decoder = _nordic_uart_value_role
+        property_name = "psels"
+    elif family == "silabs":
+        variant_info = VARIANTS.get(zephyr_data().get("variant") or "")
+        port_width = variant_info.gpio_port_width if variant_info is not None else 16
+
+        def _silabs_pin_macro(signal: str, pin: int) -> str:
+            letter, num = chr(ord("A") + pin // port_width), pin % port_width
+            return f"<{prefix}_{signal}_P{letter}{num}>"
+
+        tx_value = _silabs_pin_macro("TX", tx_pin) if tx_pin is not None else None
+        rx_value = _silabs_pin_macro("RX", rx_pin) if rx_pin is not None else None
+        group_role_resolver = _silabs_uart_group_roles
+        value_role_decoder = _silabs_uart_value_role
+        property_name = "pins"
+    else:
+        # rp2040/rp2350 pinctrl macros are `_P{n}`, esp32-family is `_GPIO{n}`.
+        pin_suffix = "P" if family == "rpi_pico" else "GPIO"
+        tx_value = f"<{prefix}_TX_{pin_suffix}{tx_pin}>" if tx_pin is not None else None
+        rx_value = f"<{prefix}_RX_{pin_suffix}{rx_pin}>" if rx_pin is not None else None
+        if family == "esp32":
+            esp32_roles = _esp32_uart_group_roles(board, port_label)
+            group_role_resolver, value_role_decoder = (
+                esp32_roles if esp32_roles is not None else (None, None)
+            )
+        elif family == "rpi_pico":
+            variant_info = VARIANTS.get(zephyr_data().get("variant") or "")
+            instance_pins = (
+                variant_info.uart_valid_pins_by_instance.get(prefix)
+                if variant_info is not None
+                else None
+            )
+            group_role_resolver = None
+            value_role_decoder = _rpi_pico_value_role_decoder(instance_pins)
+        else:
+            group_role_resolver = None
+            value_role_decoder = None
+        property_name = "pinmux"
+    states = _resolve_uart_pinctrl_states(
+        board,
+        port_label,
+        tx_value,
+        rx_value,
+        group_role_resolver=group_role_resolver,
+        value_role_decoder=value_role_decoder,
+        property_name=property_name,
+    )
+    zephyr_add_overlay(_build_uart_pinctrl_states_overlay(states, property_name))
+    # A board whose stock node already declares >1 pinctrl state (e.g. "sleep" for
+    # PM) needs every pinctrl-<N> restated to match, or the now-uncovered old state
+    # is a pinctrl-names count mismatch at DTS-compile time.
+    from .dts_lookup import get_pinctrl_state_names
+
+    state_names = get_pinctrl_state_names(board, port_label)
+    if state_names is None or len(state_names) != len(states):
+        state_names = ["default"]
+        states = states[:1]
+    pinctrl_props = " ".join(
+        f"pinctrl-{i} = <&{label}>;" for i, (label, _) in enumerate(states)
+    )
+    names_prop = ", ".join(f'"{name}"' for name in state_names)
+    # current-speed must exist in DT for the driver's init macro regardless of
+    # value; the real baud rate is set at runtime by uart_configure().
+    zephyr_add_overlay(
+        f'&{port_label} {{ status = "okay"; '
+        f"current-speed = <{baud_rate}>; "
+        f"{pinctrl_props} pinctrl-names = {names_prop}; }};"
+    )
+
+
 def zephyr_setup_i2c_pinctrl(
     board: str, bus_label: str, sda: int | None, scl: int | None
 ) -> tuple[str, str]:
     """Resolve I2C pin assignments and add the variant-specific pinctrl overlay,
-    returning (sda, scl) as dump_config display strings.
-
-    If sda/scl are not provided, attempts to read them from the board's DTS via
-    this variant's pinctrl extractor (currently esp32-family, silabs). A variant
-    with no extractor and no explicit sda/scl reaches this still None -- rather
-    than fail, the board's own pre-wired pinctrl default is left untouched (no
-    overlay generated) and the display strings just say "board default", since
-    there's no real pin number to report.
-    """
+    returning (sda, scl) as dump_config display strings -- "GPIO{n}" for
+    whichever pin was actually given, "board default" for whichever wasn't
+    (independently, not all-or-nothing: giving only one remaps just that
+    signal, leaving the other at the board's own existing wiring)."""
     variant_name = zephyr_data().get("variant") or ""
+    sda_display = f"GPIO{sda}" if sda is not None else "board default"
+    scl_display = f"GPIO{scl}" if scl is not None else "board default"
 
-    if sda is None or scl is None:
-        variant_info = VARIANTS.get(variant_name)
-        extractor = (
-            variant_info.pinctrl_extractors.get("i2c")
-            if variant_info is not None
-            else None
-        )
-        if extractor is not None:
-            dts_pins = extractor(board, bus_label)
-            if dts_pins is not None:
-                sda = dts_pins.get("sda", sda)
-                scl = dts_pins.get("scl", scl)
-                _LOGGER.info(
-                    "[zephyr] I2C pins for '%s' from DTS: SDA=GPIO%d SCL=GPIO%d",
-                    board,
-                    sda,
-                    scl,
-                )
-
-    if sda is None or scl is None:
-        # Caller already enables the bus unconditionally before this call -- nothing
-        # more to do when there's no extractor and no explicit pins to act on.
-        return "board default", "board default"
+    if sda is None and scl is None:
+        # Bus is already enabled unconditionally by the caller -- board's own
+        # pre-wired pinctrl default (if any) is left untouched.
+        return sda_display, scl_display
 
     if variant_name == ZEPHYR_VARIANT_NATIVE_SIM:
         # No pinctrl node -- the emulated controller has no physical pins.
         zephyr_add_overlay(f'&{bus_label} {{ status = "okay"; }};')
-    elif CORE.is_nrf52 or zephyr_variant_family() == "nordic":
-        # nRF52's TWIM has fully flexible pin muxing and no fixed I2C pins in the board
-        # DTS, so a custom pinctrl overlay must be generated for whatever pins the user picked.
-        # Same devicetree shape whether this is platform: nrf52 or platform: zephyr's
-        # nordic-family variant -- identical physical TWIM peripheral either way.
+        return sda_display, scl_display
+
+    if CORE.is_nrf52:
+        # This platform never has DTS access to merge with, so both pins are needed
+        # together -- there's no "board default" to leave the other one at.
+        if sda is None or scl is None:
+            raise EsphomeError(
+                "sda: and scl: must be given together for I2C on platform: nrf52 -- "
+                "there's no board-default pinctrl to fall back to for the one you omitted."
+            )
         zephyr_add_overlay(
             f"""
                 &pinctrl {{
@@ -388,53 +974,81 @@ def zephyr_setup_i2c_pinctrl(
                 }};
             """
         )
-    elif zephyr_variant_family() == "esp32":
-        # i2c*_default keeps SDA+SCL in one group1 -- override just `pinmux` so the
-        # board's own properties (bias-pull-up etc.) merge through untouched.
+        return sda_display, scl_display
+
+    family = zephyr_variant_family()
+    role_values: dict[str, str] = {}
+    if family == "nordic":
+        # Same peripheral as platform: nrf52 above, but resolved via DTS first
+        # like esp32/silabs, in case a board ever does pre-wire it.
+        if sda is not None:
+            role_values["sda"] = f"<NRF_PSEL(TWIM_SDA, {sda // 32}, {sda % 32})>"
+        if scl is not None:
+            role_values["scl"] = f"<NRF_PSEL(TWIM_SCL, {scl // 32}, {scl % 32})>"
+        value_role_decoder = _nordic_i2c_value_role
+        property_name = "psels"
+        fallback_group = "group1"
+        fallback_state_suffixes = ("default", "sleep")
+    elif family == "esp32":
+        if zephyr_variant() == ZEPHYR_VARIANT_ESP32 and (sda is None) != (scl is None):
+            # Original ESP32's software bus-clear needs a real sda-gpios/scl-gpios
+            # pair below -- it can't express "leave it as-is" as a GPIO phandle.
+            raise EsphomeError(
+                "sda: and scl: must be given together for I2C on original ESP32 -- "
+                "its software bus-clear workaround needs both real pin numbers."
+            )
         prefix = bus_label.upper()
-        pinctrl_overlay = f"""
-            &pinctrl {{
-                {bus_label}_default {{
-                    group1 {{
-                        pinmux = <{prefix}_SDA_GPIO{sda}>,
-                            <{prefix}_SCL_GPIO{scl}>;
-                    }};
-                }};
-            }};
-        """
-        if zephyr_variant() == ZEPHYR_VARIANT_ESP32:
-            # Original ESP32 lacks hardware bus-clear support, so i2c_esp32.c needs
-            # explicit sda-gpios/scl-gpios to recover a stuck bus in software. Every
-            # other esp32-family chip has hardware bus-clear and treats these as a
-            # hard #error instead.
-            sda_ctlr, sda_pin = ("gpio1", sda - 32) if sda >= 32 else ("gpio0", sda)
-            scl_ctlr, scl_pin = ("gpio1", scl - 32) if scl >= 32 else ("gpio0", scl)
-            pinctrl_overlay += f"""
-                &{bus_label} {{
-                    sda-gpios = <&{sda_ctlr} {sda_pin} GPIO_OPEN_DRAIN>;
-                    scl-gpios = <&{scl_ctlr} {scl_pin} GPIO_OPEN_DRAIN>;
-                }};
-            """
-        zephyr_add_overlay(pinctrl_overlay)
-    elif zephyr_variant_family() == "silabs":
-        # Same reasoning as esp32, override just `pins`. Silabs macros are lettered-port
-        # form ({BUS}_{SIGNAL}_P{port}{n}, e.g. I2C0_SDA_PC5), not ESP32's flat GPIO{n}.
+        if sda is not None:
+            role_values["sda"] = f"<{prefix}_SDA_GPIO{sda}>"
+        if scl is not None:
+            role_values["scl"] = f"<{prefix}_SCL_GPIO{scl}>"
+        value_role_decoder = _esp32_i2c_value_role_decoder(bus_label)
+        property_name = "pinmux"
+        fallback_group = "group1"
+        fallback_state_suffixes = ("default",)
+    elif family == "silabs":
+        # Silabs macros are lettered-port form ({BUS}_{SIGNAL}_P{port}{n}, e.g.
+        # I2C0_SDA_PC5), not ESP32's flat GPIO{n}.
         prefix = bus_label.upper()
         port_width = VARIANTS[variant_name].gpio_port_width
-        sda_letter, sda_pin = chr(ord("A") + sda // port_width), sda % port_width
-        scl_letter, scl_pin = chr(ord("A") + scl // port_width), scl % port_width
-        zephyr_add_overlay(
-            f"""
-                &pinctrl {{
-                    {bus_label}_default {{
-                        group0 {{
-                            pins = <{prefix}_SCL_P{scl_letter}{scl_pin}>,
-                                <{prefix}_SDA_P{sda_letter}{sda_pin}>;
-                        }};
-                    }};
-                }};
-            """
+        if sda is not None:
+            sda_letter, sda_pin = chr(ord("A") + sda // port_width), sda % port_width
+            role_values["sda"] = f"<{prefix}_SDA_P{sda_letter}{sda_pin}>"
+        if scl is not None:
+            scl_letter, scl_pin = chr(ord("A") + scl // port_width), scl % port_width
+            role_values["scl"] = f"<{prefix}_SCL_P{scl_letter}{scl_pin}>"
+        value_role_decoder = _silabs_i2c_value_role
+        property_name = "pins"
+        fallback_group = "group0"
+        fallback_state_suffixes = ("default",)
+    elif family == "rpi_pico":
+        # Each pin is tied to one fixed I2C instance+role -- both are needed
+        # together to even know which instance is being targeted.
+        if sda is None or scl is None:
+            raise EsphomeError(
+                f"sda: and scl: must be given together for I2C on '{bus_label}' "
+                f"({variant_name}) -- its GPIO mux ties each pin to a fixed "
+                "instance+role pair."
+            )
+        instance_pins = VARIANTS[variant_name].i2c_valid_pins_by_instance.get(
+            bus_label.upper()
         )
+        if (
+            instance_pins is None
+            or sda not in instance_pins.get("sda", frozenset())
+            or scl not in instance_pins.get("scl", frozenset())
+        ):
+            raise EsphomeError(
+                f"GPIO{sda}/GPIO{scl} are not a valid sda:/scl: pair for '{bus_label}' "
+                f"on {variant_name}."
+            )
+        prefix = bus_label.upper()
+        role_values["sda"] = f"<{prefix}_SDA_P{sda}>"
+        role_values["scl"] = f"<{prefix}_SCL_P{scl}>"
+        value_role_decoder = None
+        property_name = "pinmux"
+        fallback_group = "group1"
+        fallback_state_suffixes = ("default",)
     else:
         # No overlay-generation branch for this family -- don't silently ignore the pins.
         raise EsphomeError(
@@ -442,7 +1056,28 @@ def zephyr_setup_i2c_pinctrl(
             f"('{variant_name}') -- remove them to use the board's default I2C pins."
         )
 
-    return f"GPIO{sda}", f"GPIO{scl}"
+    states = _resolve_i2c_pinctrl_states(
+        board,
+        bus_label,
+        fallback_group,
+        fallback_state_suffixes=fallback_state_suffixes,
+    )
+    pinctrl_overlay = _build_i2c_pinctrl_states_overlay(
+        board, states, property_name, role_values, value_role_decoder
+    )
+    if family == "esp32" and zephyr_variant() == ZEPHYR_VARIANT_ESP32:
+        # sda/scl are both real ints here (raised above otherwise).
+        sda_ctlr, sda_pin = ("gpio1", sda - 32) if sda >= 32 else ("gpio0", sda)
+        scl_ctlr, scl_pin = ("gpio1", scl - 32) if scl >= 32 else ("gpio0", scl)
+        pinctrl_overlay += f"""
+            &{bus_label} {{
+                sda-gpios = <&{sda_ctlr} {sda_pin} GPIO_OPEN_DRAIN>;
+                scl-gpios = <&{scl_ctlr} {scl_pin} GPIO_OPEN_DRAIN>;
+            }};
+        """
+    zephyr_add_overlay(pinctrl_overlay)
+
+    return sda_display, scl_display
 
 
 # Families whose boards ship SPI with fixed, already-wired pinctrl in the board DTS --

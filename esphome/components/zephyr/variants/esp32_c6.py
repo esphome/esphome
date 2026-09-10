@@ -15,7 +15,6 @@ from ..const import (
     CONF_RUNNER,
     ZEPHYR_VARIANT_ESP32_C6,
 )
-from ..dts_lookup import get_i2c_pinctrl_esp32
 from . import (
     MAINLINE,
     ZephyrVariant,
@@ -30,8 +29,8 @@ _DEFAULT_BOARD = "esp32c6_devkitc"
 _ADVANCED_SCHEMA = ADVANCED_SCHEMA
 
 # https://github.com/zephyrproject-rtos/zephyr/blob/main/include/zephyr/dt-bindings/pinctrl/esp32c6-pinctrl.h
-# GPIO0-23, no gaps; identical set for tx and rx on this variant.
-_UART_VALID_PINS = frozenset(range(24))
+# GPIO0-23, no gaps; same set for every free-mux GPIO-matrix signal on this variant.
+_GPIO_MATRIX_PINS = frozenset(range(24))
 
 # Registry entries — collected by variants/__init__.py
 VARIANT_NAME = ZEPHYR_VARIANT_ESP32_C6
@@ -43,7 +42,6 @@ VARIANT = ZephyrVariant(
     toolchain="riscv64-zephyr-elf",
     # See esp32_h2.py's blobs= comment. Sentinel shared with esp32_h2 (same SDK).
     blobs=("hal_espressif", ".*", ".blobs_hal_espressif_ready"),
-    pinctrl_extractors={"i2c": get_i2c_pinctrl_esp32},
     transports=frozenset({"wifi", "ble", "openthread"}),
     transport_drivers={"wifi": ("WIFI_ESP32", "wifi")},
     soc="esp32c6",
@@ -53,7 +51,7 @@ VARIANT = ZephyrVariant(
     # https://github.com/espressif/esp-idf/blob/master/components/soc/esp32c6/include/soc/adc_channel.h
     adc1_channel_map={0: 0, 1: 1, 2: 2, 3: 3, 4: 4, 5: 5, 6: 6},
     uart_node_labels={},
-    uart_valid_pins={"tx": _UART_VALID_PINS, "rx": _UART_VALID_PINS},
+    uart_valid_pins={"tx": _GPIO_MATRIX_PINS, "rx": _GPIO_MATRIX_PINS},
 )
 
 
