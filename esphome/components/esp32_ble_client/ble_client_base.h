@@ -156,10 +156,11 @@ class BLEClientBase : public espbt::ESPBTClient, public Component {
   void log_connection_params_(const char *param_type);
   void handle_connection_result_(esp_err_t ret);
   /// Hook called once a connection has been fully torn down (after release_services() and
-  /// set_idle_()), from both the CLOSE_EVT handler and the DISCONNECTING safety timeout.
+  /// set_idle_()): CLOSE_EVT, the DISCONNECTING safety timeout, or the BLE stack going down.
   /// Subclasses with extra per-connection accounting (e.g. bluetooth_proxy slot state)
-  /// override this to release that state. `reason` is the controller reason code, or
-  /// ESP_GATT_CONN_TIMEOUT for the safety-timeout path.
+  /// override this to release that state. `reason` is the controller reason code,
+  /// ESP_GATT_CONN_TIMEOUT for the safety timeout, or ESP_GATT_CONN_TERMINATE_LOCAL_HOST
+  /// for the stack going down.
   virtual void on_disconnect_complete(esp_err_t reason) {}
   /// Transition to IDLE and reset conn_id — call when the connection is fully dead.
   void set_idle_() {

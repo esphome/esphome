@@ -134,7 +134,7 @@ void BLEClientBase::connect() {
   }
   if (this->gattc_if_ == ESP_GATT_IF_NONE) {
     // Bluedroid drops an open on an unknown interface without any event.
-    ESP_LOGW(TAG, "[%d] [%s] Connect rejected, GATT app not registered", this->connection_index_, this->address_str_);
+    this->log_warning_("Connect rejected, GATT app not registered");
     this->set_state(espbt::ClientState::IDLE);
     return;
   }
@@ -220,7 +220,10 @@ void BLEClientBase::release_services() {
 #ifndef CONFIG_BT_GATTC_CACHE_NVS_FLASH
   // Only the cache clean makes the stack's database unsafe to walk.
   this->services_released_ = true;
-  esp_ble_gattc_cache_clean(this->remote_bda_);
+  // A stack on its way down frees its own cache.
+  if (esp32_ble::global_ble->is_active()) {
+    esp_ble_gattc_cache_clean(this->remote_bda_);
+  }
 #endif
 }
 

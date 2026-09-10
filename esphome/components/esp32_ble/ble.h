@@ -102,8 +102,8 @@ class ESP32BLE final : public Component {
   }
   uint32_t get_advertising_cycle_time() const { return this->advertising_cycle_time_; }
 
-  void enable();
-  void disable();
+  void enable() { this->request_state_(true); }
+  void disable() { this->request_state_(false); }
   ESPHOME_ALWAYS_INLINE bool is_active() { return this->state_ == BLE_COMPONENT_STATE_ACTIVE; }
   void setup() override;
   void loop() override;

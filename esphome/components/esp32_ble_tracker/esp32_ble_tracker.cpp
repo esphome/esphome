@@ -74,13 +74,12 @@ void ESP32BLETracker::on_ota_global_state(ota::OTAState state, float progress, u
 
 void ESP32BLETracker::loop() {
   if (!this->parent_->is_active()) {
-    this->ble_was_disabled_ = true;
     return;
-  } else if (this->ble_was_disabled_) {
+  }
+  if (this->ble_was_disabled_) {
     this->ble_was_disabled_ = false;
-    // Start the scan again after a disable. A cancelled disable never stopped
-    // it, so only start from IDLE.
-    if (this->scan_continuous_ && this->scanner_state_ == ScannerState::IDLE) {
+    // First start after boot or after the stack came back.
+    if (this->scan_continuous_) {
       this->start_scan();
     }
   }
@@ -228,12 +227,13 @@ void ESP32BLETracker::ble_before_disabled_event_handler() {
 #endif
   // The stop above never completes (stack torn down, events dropped); settle
   // here so start_scan_() sees IDLE once the stack is back.
-  if (this->scanner_state_ != ScannerState::IDLE) {
 #ifdef ESPHOME_ESP32_BLE_TRACKER_CLIENT_COUNT
-    this->skip_next_scan_end_ = false;
+  this->skip_next_scan_end_ = false;
 #endif
+  if (this->scanner_state_ != ScannerState::IDLE) {
     this->cleanup_scan_state_(true);
   }
+  this->ble_was_disabled_ = true;
 }
 
 bool ESP32BLETracker::stop_scan_() {

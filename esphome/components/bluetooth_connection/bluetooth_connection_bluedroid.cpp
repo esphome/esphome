@@ -70,8 +70,8 @@ void BluedroidGattClient::loop() {
       this->listener_->on_connection_state(false, 0, ESP_GATT_CONN_TIMEOUT);
     }
   } else {
-    // The loop stays on while a link exists (stack-down watch, pre-started
-    // search flush); it settles only back at IDLE.
+    // The loop stays on while a link exists (pre-started search flush); it
+    // settles only back at IDLE.
     this->deliver_pending_search_();
     if (this->state() == ClientState::IDLE) {
       this->disable_loop();
