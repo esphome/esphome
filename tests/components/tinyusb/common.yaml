@@ -6,6 +6,19 @@ tinyusb:
   usb_product_str: ESPHomeTestProduct
   usb_serial_str: ESPHomeTestSerialNumber
   usb_vendor_id: 0x2345
+  on_mount:
+    - logger.log: USB host mounted
+  on_unmount:
+    - logger.log: USB host unmounted
+
+interval:
+  - interval: 60s
+    then:
+      - if:
+          condition:
+            tinyusb.is_mounted:
+          then:
+            - logger.log: USB host is mounted
 
 # tinyusb requires at least one USB class companion; usb_cdc_acm satisfies that.
 usb_cdc_acm:

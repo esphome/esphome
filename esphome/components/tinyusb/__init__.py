@@ -1,4 +1,4 @@
-from esphome import final_validate as fv
+from esphome import automation, final_validate as fv
 import esphome.codegen as cg
 from esphome.components import esp32
 from esphome.components.esp32 import (
@@ -17,6 +17,8 @@ from esphome.types import ConfigType
 CODEOWNERS = ["@kbx81"]
 CONFLICTS_WITH = ["usb_host"]
 
+CONF_ON_MOUNT = "on_mount"
+CONF_ON_UNMOUNT = "on_unmount"
 CONF_USB_LANG_ID = "usb_lang_id"
 CONF_USB_MANUFACTURER_STR = "usb_manufacturer_str"
 CONF_USB_PRODUCT_ID = "usb_product_id"
@@ -33,6 +35,7 @@ _USB_CLASS_COMPONENTS = ("usb_cdc_acm",)
 
 tinyusb_ns = cg.esphome_ns.namespace("tinyusb")
 TinyUSB = tinyusb_ns.class_("TinyUSB", cg.Component)
+IsMountedCondition = tinyusb_ns.class_("IsMountedCondition", automation.Condition)
 
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
@@ -44,6 +47,8 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_USB_MANUFACTURER_STR, default="ESPHome"): cv.string,
             cv.Optional(CONF_USB_PRODUCT_STR, default="ESPHome"): cv.string,
             cv.Optional(CONF_USB_SERIAL_STR, default=""): cv.string,
+            cv.Optional(CONF_ON_MOUNT): automation.validate_automation({}),
+            cv.Optional(CONF_ON_UNMOUNT): automation.validate_automation({}),
         }
     ).extend(cv.COMPONENT_SCHEMA),
     esp32.only_on_variant(
@@ -94,8 +99,27 @@ async def to_code(config: ConfigType) -> None:
     if config[CONF_USB_SERIAL_STR]:
         cg.add(var.set_usb_desc_serial(config[CONF_USB_SERIAL_STR]))
 
+    for conf_key, forwarder in (
+        (CONF_ON_MOUNT, automation.TriggerOnTrueForwarder),
+        (CONF_ON_UNMOUNT, automation.TriggerOnFalseForwarder),
+    ):
+        for conf in config.get(conf_key, []):
+            await automation.build_callback_automation(
+                var, "add_on_mount_state_callback", [], conf, forwarder=forwarder
+            )
+
     add_idf_component(name="espressif/esp_tinyusb", ref="2.2.1")
 
     add_idf_sdkconfig_option("CONFIG_TINYUSB_DESC_USE_ESPRESSIF_VID", False)
     add_idf_sdkconfig_option("CONFIG_TINYUSB_DESC_USE_DEFAULT_PID", False)
     add_idf_sdkconfig_option("CONFIG_TINYUSB_DESC_BCD_DEVICE", 0x0100)
+
+
+@automation.register_condition(
+    "tinyusb.is_mounted",
+    IsMountedCondition,
+    cv.Schema({cv.GenerateID(): cv.use_id(TinyUSB)}),
+)
+async def tinyusb_is_mounted_to_code(config, condition_id, template_arg, args):
+    paren = await cg.get_variable(config[CONF_ID])
+    return cg.new_Pvariable(condition_id, template_arg, paren)

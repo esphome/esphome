@@ -5,9 +5,22 @@
 #include "esphome/core/log.h"
 #include "tinyusb_default_config.h"
 
+// TinyUSB's weak mount hooks, invoked from its own task: only wake the main loop,
+// which reads the state and runs the automations. esp_tinyusb's MSC storage
+// defines these as well when CONFIG_TINYUSB_MSC_ENABLED is set.
+void tud_mount_cb() {
+  if (esphome::tinyusb::global_tinyusb != nullptr) {
+    esphome::tinyusb::global_tinyusb->enable_loop_soon_any_context();
+  }
+}
+
+void tud_umount_cb() { tud_mount_cb(); }
+
 namespace esphome::tinyusb {
 
 static const char *const TAG = "tinyusb";
+
+TinyUSB *global_tinyusb = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 void TinyUSB::setup() {
   // Use the device's MAC address as its serial number if no serial number is defined
@@ -42,11 +55,25 @@ void TinyUSB::setup() {
   }
 #endif
 
+  global_tinyusb = this;
   esp_err_t result = tinyusb_driver_install(&this->tusb_cfg_);
   if (result != ESP_OK) {
     ESP_LOGE(TAG, "tinyusb_driver_install failed: %s", esp_err_to_name(result));
     this->mark_failed();
+    return;
   }
+  // loop() only reports mount changes; the mount hooks wake it when one happens.
+  this->disable_loop();
+}
+
+void TinyUSB::loop() {
+  const bool mounted = tud_mounted();
+  if (mounted != this->mounted_) {
+    this->mounted_ = mounted;
+    ESP_LOGD(TAG, "USB host %s", mounted ? LOG_STR_LITERAL("mounted") : LOG_STR_LITERAL("unmounted"));
+    this->mount_state_callback_.call(mounted);
+  }
+  this->disable_loop();
 }
 
 void TinyUSB::dump_config() {
