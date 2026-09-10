@@ -5,6 +5,7 @@
 #include "esphome/components/atm90e32/atm90e32.h"
 #ifdef USE_HOST
 #include <array>
+#include <cstdio>
 #include <cstdlib>
 #include <filesystem>
 
@@ -155,7 +156,9 @@ class ScopedATM90E32Preferences {
     }
 
     static uint32_t test_id = 0;
-    this->prefdir_ = fs::temp_directory_path() / ("esphome_atm90e32_" + std::to_string(++test_id));
+    char directory[48];
+    snprintf(directory, sizeof(directory), "esphome_atm90e32_%u", ++test_id);
+    this->prefdir_ = fs::temp_directory_path() / directory;
     fs::create_directories(this->prefdir_);
     this->set_prefdir_(fail_sync);
     global_preferences = &this->preferences_;
