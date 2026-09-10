@@ -6,10 +6,6 @@
 #include "esphome/core/log.h"
 #include "esphome/core/defines.h"
 
-#if defined(USE_DEEP_SLEEP) && defined(USE_GPIO_HOLD)
-#include "esphome/components/deep_sleep/deep_sleep_component.h"
-#endif
-
 namespace esphome {
 
 /// Maximum buffer size for dump_summary output
@@ -143,15 +139,5 @@ void log_pin(const char *tag, const __FlashStringHelper *prefix, GPIOPin *pin);
 #else
 void log_pin(const char *tag, const char *prefix, GPIOPin *pin);
 #endif
-
-// helper function to determine if a pin is held from deep sleep. This is used to determine
-// if the pin state is valid after waking from deep sleep.
-inline bool pin_state_held_from_deep_sleep(GPIOPin *pin) {
-#if defined(USE_DEEP_SLEEP) && defined(USE_GPIO_HOLD)
-  return (pin->get_flags() & gpio::FLAG_HOLD) && deep_sleep::woken_from_deep_sleep();
-#else
-  return false;
-#endif
-}
 
 }  // namespace esphome

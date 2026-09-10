@@ -49,10 +49,6 @@ WakeupCause get_wakeup_cause() {
 }
 #endif  // USE_DEEP_SLEEP_ON_WAKE
 
-#ifdef USE_GPIO_HOLD
-bool woken_from_deep_sleep() { return esp_sleep_get_wakeup_cause() != ESP_SLEEP_WAKEUP_UNDEFINED; }
-#endif
-
 optional<uint32_t> DeepSleepComponent::get_run_duration_() const {
   if (this->wakeup_cause_to_run_duration_.has_value()) {
     esp_sleep_wakeup_cause_t wakeup_cause = esp_sleep_get_wakeup_cause();

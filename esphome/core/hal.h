@@ -48,4 +48,14 @@ inline uint16_t progmem_read_uint16(const uint16_t *addr) { return *addr; }
 inline void progmem_memcpy(void *dst, const void *src, size_t len) { std::memcpy(dst, src, len); }
 #endif
 
+// helper function to determine if a pin is held from deep sleep. This is used to determine
+// if the pin state is valid after waking from deep sleep.
+inline bool pin_state_held_from_deep_sleep(GPIOPin *pin) {
+#if defined(USE_DEEP_SLEEP) && defined(USE_GPIO_HOLD)
+  return (pin->get_flags() & gpio::FLAG_HOLD) && woken_from_deep_sleep();
+#else
+  return false;
+#endif
+}
+
 }  // namespace esphome

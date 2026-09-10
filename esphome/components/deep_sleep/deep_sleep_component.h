@@ -57,12 +57,6 @@ struct WakeupCauseToRunDuration {
   // Run duration if woken up by GPIO pins.
   uint32_t gpio_cause;
 };
-
-#ifdef USE_GPIO_HOLD
-// Return if the device woke from deep sleep or started normally. Used for gpio hold which is currently
-// only implemented for ESP32.
-bool woken_from_deep_sleep();
-#endif
 #endif  // USE_ESP32
 
 #ifdef USE_DEEP_SLEEP_ON_WAKE
