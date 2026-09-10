@@ -88,9 +88,10 @@ class EntityBase {
   // Get whether this Entity should be hidden outside ESPHome
   bool is_internal() const { return this->flags_.internal; }
 
-  // Set whether this Entity should be hidden outside ESPHome. Must be called before MQTT and the
-  // API read the flag: from on_boot at the default priority, or a setup() that runs above
-  // setup_priority::AFTER_WIFI. Calls after setup finishes are ignored and log an error.
+  // Set whether this Entity should be hidden outside ESPHome. Kept for existing projects that
+  // decide the flag at boot; new designs should use the 'internal:' YAML key. Must be called before
+  // MQTT and the API read the flag: from on_boot at the default priority, or a setup() that runs
+  // above setup_priority::AFTER_WIFI. Calls after setup finishes are ignored and log an error.
   //
   // Known limitations, all by design and not going to be fixed:
   // - No consumer is notified of a change, so the flag can only be decided once per boot.
