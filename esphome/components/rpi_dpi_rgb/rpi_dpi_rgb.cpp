@@ -75,8 +75,9 @@ void RpiDpiRgb::draw_pixels_at(int x_start, int y_start, int w, int h, const uin
         break;
     }
   }
-  if (err != ESP_OK)
+  if (err != ESP_OK) {
     ESP_LOGE(TAG, "lcd_lcd_panel_draw_bitmap failed: %s", esp_err_to_name(err));
+  }
 }
 
 int RpiDpiRgb::get_width() {

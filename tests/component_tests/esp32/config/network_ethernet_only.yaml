@@ -6,6 +6,8 @@ esp32:
   framework:
     type: esp-idf
 
+mdns:
+
 ethernet:
   type: W5500
   clk_pin: 19

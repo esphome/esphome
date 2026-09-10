@@ -15,6 +15,9 @@
 #ifdef USE_RUNTIME_IMAGE_PNG
 #include "png_decoder.h"
 #endif
+#ifdef USE_RUNTIME_IMAGE_QOI
+#include "qoi_decoder.h"
+#endif
 
 namespace esphome::runtime_image {
 
@@ -367,6 +370,10 @@ std::unique_ptr<ImageDecoder> RuntimeImage::create_decoder_(ImageFormat format) 
 #ifdef USE_RUNTIME_IMAGE_PNG
     case PNG:
       return make_unique<PngDecoder>(this);
+#endif
+#ifdef USE_RUNTIME_IMAGE_QOI
+    case QOI:
+      return make_unique<QoiDecoder>(this);
 #endif
     case AUTO:
       ESP_LOGE(TAG, "Image format could not be determined; set `format:` explicitly in the configuration");

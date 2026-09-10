@@ -854,6 +854,8 @@ template<> const char *proto_enum_to_string<enums::SerialProxyRequestType>(enums
       return ESPHOME_PSTR("SERIAL_PROXY_REQUEST_TYPE_CONFIGURE");
     case enums::SERIAL_PROXY_REQUEST_TYPE_SET_MODEM_PINS:
       return ESPHOME_PSTR("SERIAL_PROXY_REQUEST_TYPE_SET_MODEM_PINS");
+    case enums::SERIAL_PROXY_REQUEST_TYPE_SET_MODE:
+      return ESPHOME_PSTR("SERIAL_PROXY_REQUEST_TYPE_SET_MODE");
     default:
       return ESPHOME_PSTR("UNKNOWN");
   }
@@ -874,6 +876,16 @@ template<> const char *proto_enum_to_string<enums::SerialProxyStatus>(enums::Ser
       return ESPHOME_PSTR("SERIAL_PROXY_STATUS_PORT_IN_USE");
     case enums::SERIAL_PROXY_STATUS_INVALID_ARGUMENT:
       return ESPHOME_PSTR("SERIAL_PROXY_STATUS_INVALID_ARGUMENT");
+    default:
+      return ESPHOME_PSTR("UNKNOWN");
+  }
+}
+template<> const char *proto_enum_to_string<enums::SerialProxyMode>(enums::SerialProxyMode value) {
+  switch (value) {
+    case enums::SERIAL_PROXY_MODE_RAW:
+      return ESPHOME_PSTR("SERIAL_PROXY_MODE_RAW");
+    case enums::SERIAL_PROXY_MODE_PROTOCOL:
+      return ESPHOME_PSTR("SERIAL_PROXY_MODE_PROTOCOL");
     default:
       return ESPHOME_PSTR("UNKNOWN");
   }
@@ -1500,6 +1512,12 @@ const char *ListEntitiesServicesArgument::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, ESPHOME_PSTR("ListEntitiesServicesArgument"));
   dump_field(out, ESPHOME_PSTR("name"), this->name);
   dump_field(out, ESPHOME_PSTR("type"), static_cast<enums::ServiceArgType>(this->type));
+#ifdef USE_API_USER_DEFINED_ACTION_METADATA
+  dump_field(out, ESPHOME_PSTR("description"), this->description);
+#endif
+#ifdef USE_API_USER_DEFINED_ACTION_METADATA
+  dump_field(out, ESPHOME_PSTR("example"), this->example);
+#endif
   return out.c_str();
 }
 const char *ListEntitiesServicesResponse::dump_to(DumpBuffer &out) const {
@@ -1512,6 +1530,9 @@ const char *ListEntitiesServicesResponse::dump_to(DumpBuffer &out) const {
     out.append("\n");
   }
   dump_field(out, ESPHOME_PSTR("supports_response"), static_cast<enums::SupportsResponseType>(this->supports_response));
+#ifdef USE_API_USER_DEFINED_ACTION_METADATA
+  dump_field(out, ESPHOME_PSTR("description"), this->description);
+#endif
   return out.c_str();
 }
 const char *ExecuteServiceArgument::dump_to(DumpBuffer &out) const {
@@ -1962,7 +1983,6 @@ const char *ListEntitiesMediaPlayerResponse::dump_to(DumpBuffer &out) const {
 #endif
   dump_field(out, ESPHOME_PSTR("disabled_by_default"), this->disabled_by_default);
   dump_field(out, ESPHOME_PSTR("entity_category"), static_cast<enums::EntityCategory>(this->entity_category));
-  dump_field(out, ESPHOME_PSTR("supports_pause"), this->supports_pause);
   for (const auto &it : this->supported_formats) {
     out.append(4, ' ').append_p(ESPHOME_PSTR("supported_formats")).append(": ");
     it.dump_to(out);
@@ -2795,6 +2815,12 @@ const char *SerialProxyRequestResponse::dump_to(DumpBuffer &out) const {
   dump_field(out, ESPHOME_PSTR("type"), static_cast<enums::SerialProxyRequestType>(this->type));
   dump_field(out, ESPHOME_PSTR("status"), static_cast<enums::SerialProxyStatus>(this->status));
   dump_field(out, ESPHOME_PSTR("error_message"), this->error_message);
+  return out.c_str();
+}
+const char *SerialProxySetModeRequest::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("SerialProxySetModeRequest"));
+  dump_field(out, ESPHOME_PSTR("instance"), this->instance);
+  dump_field(out, ESPHOME_PSTR("mode"), static_cast<enums::SerialProxyMode>(this->mode));
   return out.c_str();
 }
 #endif
