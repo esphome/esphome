@@ -24,7 +24,7 @@ DriverChip(
     reset_delay=20,
     no_slpout=True,
     initsequence=(
-        delay(10),
+        delay(120),
         (0xFF, 0x20, 0x10, 0x00),
         (0x36, 0x00),
         (0x3A, 0x55),
