@@ -41,15 +41,6 @@ async def _poll_until_exists(path: Path) -> None:
         await asyncio.sleep(0.05)
 
 
-@pytest.fixture(autouse=True)
-def isolated_preferences(monkeypatch: pytest.MonkeyPatch, tmp_path) -> Path:
-    """Keep host preferences per-test so this test never touches the real
-    ~/.esphome/prefs and never races other tests over ESPHOME_PREFDIR."""
-    prefdir = tmp_path / "prefs"
-    monkeypatch.setenv("ESPHOME_PREFDIR", str(prefdir))
-    return prefdir / f"{DEVICE_NAME}.prefs"
-
-
 @pytest.mark.asyncio
 async def test_host_preferences_suspend_resume(
     yaml_config: str,
@@ -58,7 +49,7 @@ async def test_host_preferences_suspend_resume(
     isolated_preferences: Path,
 ) -> None:
     """Test that a running syncer flushes, a suspended one doesn't, and resume restores flushing."""
-    pref_file = isolated_preferences
+    pref_file = isolated_preferences / f"{DEVICE_NAME}.prefs"
 
     loop = asyncio.get_running_loop()
     saved_in_memory = loop.create_future()

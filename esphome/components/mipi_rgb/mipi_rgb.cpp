@@ -5,7 +5,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include <driver/gpio.h>
-#include <esp_lcd_panel_rgb.h>
+#include <esp_lcd_panel_ops.h>
 #include <span>
 
 namespace esphome::mipi_rgb {
@@ -175,11 +175,6 @@ void MipiRgb::common_setup_() {
     this->mark_failed(LOG_STR("lcd setup failed"));
   }
   ESP_LOGCONFIG(TAG, "MipiRgb setup complete");
-}
-
-void MipiRgb::loop() {
-  if (this->handle_ != nullptr)
-    esp_lcd_rgb_panel_restart(this->handle_);
 }
 
 void MipiRgb::update() {
