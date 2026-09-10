@@ -136,3 +136,19 @@ binary_sensor:
         invalid_cooldown: 2s
         then:
           - logger.log: "Click with custom cooldown"
+
+  # Test on_click and on_double_click (compiles match_interval via
+  # USE_BINARY_SENSOR_CLICK_TRIGGER)
+  - platform: template
+    id: click_triggers
+    name: "Click Triggers"
+    on_click:
+      min_length: 50ms
+      max_length: 350ms
+      then:
+        - logger.log: "Clicked"
+    on_double_click:
+      min_length: 50ms
+      max_length: 350ms
+      then:
+        - logger.log: "Double clicked"

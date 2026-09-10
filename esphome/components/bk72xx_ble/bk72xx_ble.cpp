@@ -34,22 +34,26 @@
 
 // ---------------------------------------------------------------------------
 // SDK-capability gate (not a chip allowlist).
-// This component drives the Beken BLE *5.x* controller via its public API,
-// `ble_api.h`, which the LibreTiny beken-72xx builder ships only for the
-// BLE-5.x SoCs (it selects the `ble_pub` 5.x stack from CFG_BLE_VERSION; the
-// 4.2 SoCs build a different, older API with no ble_api.h). Gate on the header
-// itself so any BLE-5.x Beken chip — present or future — is supported without a
-// hard-coded list, and a non-5.x build fails here with a clear message instead
-// of a cryptic "ble_api.h: No such file or directory".
+// This component drives the Beken BLE *5.x* controller. `ble_api.h` cannot be
+// the probe: it ships for every SoC (driver/include) and merely switches on
+// CFG_BLE_VERSION internally. `app_ble.h` is on the include path only when the
+// LibreTiny beken-72xx builder selects a 5.x stack, so gating on it supports
+// any BLE-5.x chip — present or future — without a hard-coded list, and a
+// non-5.x build fails here with a clear message instead of a cryptic
+// "app_ble.h: No such file or directory".
 // ---------------------------------------------------------------------------
 #if defined(CLANG_TIDY)
 // The clang-tidy environment does not carry the full Beken BDK BLE 5.x API
 // (its ble_api.h variant lacks parts of the 5.x surface), so there is nothing
 // accurate to analyze the SDK calls against — skip the file under analysis.
 #define BK72XX_BLE_NO_SDK
-#elif !__has_include("ble_api.h")
+#elif !__has_include("ble_api.h") || !__has_include("app_ble.h")
+// Also skip the SDK body: #error does not stop the preprocessor, and on a 4.2
+// SoC ble_api.h exists, so without the guard the 5.x symbols would fail one by
+// one and bury this message.
+#define BK72XX_BLE_NO_SDK
 #error \
-    "bk72xx_ble requires a BLE 5.x Beken SDK (ble_api.h). Supported SoCs: BK7231N/BK7236 (BLE 5.1) and BK7238/BK7252N/BK7253 (BLE 5.2). BK7231T/BK7251/BK7271 (BLE 4.2) and BK7231Q (no BLE) are not supported."
+    "bk72xx_ble requires a BLE 5.x Beken SDK (app_ble.h). Supported SoCs: BK7231N/BK7236 (BLE 5.1) and BK7238/BK7252N/BK7253 (BLE 5.2). BK7231T/BK7251/BK7271 (BLE 4.2) and BK7231Q (no BLE) are not supported."
 #endif
 
 #ifndef BK72XX_BLE_NO_SDK
@@ -116,7 +120,7 @@ void BK72xxBLE::enqueue_scan_report(const uint8_t *mac, int8_t rssi, uint8_t add
     this->report_queue_.increment_dropped_count();
     return;
   }
-  memcpy(report->mac, mac, 6);
+  memcpy(report->mac, mac, MAC_ADDRESS_SIZE);
   report->rssi = rssi;
   report->addr_type = addr_type;
   report->evt_type = evt_type;
@@ -177,8 +181,9 @@ void BK72xxBLE::enable() {
       break;
     }
   }
-  if (!bdaddr_live)
+  if (!bdaddr_live) {
     ESP_LOGW(TAG, "Controller address still unset after init; BLE stack may not have started");
+  }
 #endif
 
   this->state_ = BLEComponentState::ACTIVE;
@@ -206,8 +211,9 @@ void BK72xxBLE::loop() {
     // Re-check a settled scan; scan_start() refills the bring-up budget.
     // WARN: the only report of a drop that recovers inside its budget.
     if (this->scan_start(this->requested_.interval, this->requested_.window, this->requested_.active) !=
-        ScanOpResult::SETTLED)
+        ScanOpResult::SETTLED) {
       ESP_LOGW(TAG, "Controller dropped the scan; restarting");
+    }
   }
 
   // Drain the lock-free ring filled by the BLE task; all per-report work runs
@@ -226,11 +232,12 @@ void BK72xxBLE::loop() {
   // Log dropped reports — only reachable when reports were processed; drops can
   // only occur while the queue is full, and only this loop drains it.
   uint16_t dropped = this->report_queue_.get_and_reset_dropped_count();
-  if (dropped > 0)
+  if (dropped > 0) {
     ESP_LOGW(TAG, "Dropped %u scan reports due to queue overflow", dropped);
+  }
 }
 
-void BK72xxBLE::get_mac_lsb_first(uint8_t out[6]) const {
+void BK72xxBLE::get_mac_lsb_first(uint8_t out[MAC_ADDRESS_SIZE]) const {
   for (int i = 0; i < 6; i++)
     out[i] = this->ble_mac_[i];
 }
@@ -263,7 +270,7 @@ void BK72xxBLE::resolve_mac_() {
     }
   }
   if (nonzero) {
-    memcpy(this->ble_mac_, common_default_bdaddr.addr, 6);
+    memcpy(this->ble_mac_, common_default_bdaddr.addr, MAC_ADDRESS_SIZE);
     return;
   }
 #endif
@@ -275,10 +282,10 @@ void BK72xxBLE::resolve_mac_() {
   // (verified against the BK7231N BLE-5.1 and BK7252N/BK7238 BLE-5.2 SDK sources), so it
   // matches on every device, including the last-byte == 0xFF edge that a 24-bit increment
   // would carry differently.
-  uint8_t wifi_mac[6];
+  uint8_t wifi_mac[MAC_ADDRESS_SIZE];
   get_mac_address_raw(wifi_mac);  // MSB-first
-  const uint8_t ble[6] = {wifi_mac[0], wifi_mac[1], wifi_mac[2],
-                          wifi_mac[3], wifi_mac[4], static_cast<uint8_t>(wifi_mac[5] + 1)};
+  const uint8_t ble[MAC_ADDRESS_SIZE] = {wifi_mac[0], wifi_mac[1], wifi_mac[2],
+                                         wifi_mac[3], wifi_mac[4], static_cast<uint8_t>(wifi_mac[5] + 1)};
   // Store LSB-first to match recv_adv_t adv_addr ordering.
   for (int i = 0; i < 6; i++)
     this->ble_mac_[i] = ble[5 - i];
@@ -445,8 +452,9 @@ ScanOpResult BK72xxBLE::advance_stop_(BdkActivityState state, bool ready) {
   if (!ready) {
     // Acting mid-operation could delete an activity whose start lands
     // afterwards, leaking the slot with the radio on; wait.
-    if (this->last_result_ == ScanOpResult::SETTLED)
+    if (this->last_result_ == ScanOpResult::SETTLED) {
       ESP_LOGD(TAG, "Scan stop deferred (controller busy)");
+    }
     return ScanOpResult::PENDING;
   }
   // Settled, so CREATED unambiguously means "never started".
@@ -470,8 +478,9 @@ ScanOpResult BK72xxBLE::advance_start_(BdkActivityState state, bool ready) {
     return ScanOpResult::PENDING;
   }
   if (!ready) {
-    if (this->last_result_ == ScanOpResult::SETTLED)
+    if (this->last_result_ == ScanOpResult::SETTLED) {
       ESP_LOGD(TAG, "Scan start deferred (controller busy)");
+    }
     return ScanOpResult::PENDING;
   }
   if (state == BdkActivityState::CREATED) {

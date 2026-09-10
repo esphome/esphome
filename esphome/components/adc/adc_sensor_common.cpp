@@ -3,7 +3,7 @@
 
 namespace esphome::adc {
 
-static const char *const TAG = "adc.common";
+static const char *const TAG = "adc";
 
 const LogString *sampling_mode_to_str(SamplingMode mode) {
   switch (mode) {

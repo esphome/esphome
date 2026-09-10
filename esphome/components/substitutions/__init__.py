@@ -363,13 +363,12 @@ def resolve_include(
     an explicit non-goal here.
     """
     original = include.file
-    original_str = str(original)
     filename = str(
         _expand_substitutions(
-            original_str, path + ["file"], context_vars, strict_undefined, errors
+            original, path + ["file"], context_vars, strict_undefined, errors
         )
     )
-    substituted = filename != original_str
+    substituted = filename != original
     if substituted:
         include = include.with_file(filename)
     try:

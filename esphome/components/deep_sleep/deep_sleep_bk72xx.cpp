@@ -5,7 +5,7 @@
 
 namespace esphome::deep_sleep {
 
-static const char *const TAG = "deep_sleep.bk72xx";
+static const char *const TAG = "deep_sleep";
 
 #ifdef USE_DEEP_SLEEP_ON_WAKE
 WakeupCause get_wakeup_cause() {
@@ -44,7 +44,7 @@ bool DeepSleepComponent::prepare_to_sleep_() {
           this->status_set_warning();
           ESP_LOGV(TAG, "Waiting for pin to switch state to enter deep sleep...");
         }
-        this->next_enter_deep_sleep_ = true;
+        this->defer_sleep_();
         return false;
       }
     }

@@ -3,6 +3,7 @@ from esphome.components import climate, remote_transmitter, sensor
 from esphome.components.remote_base import CONF_TRANSMITTER_ID
 import esphome.config_validation as cv
 from esphome.const import CONF_SENSOR, CONF_SUPPORTS_COOL, CONF_SUPPORTS_HEAT
+from esphome.types import ConfigType
 
 AUTO_LOAD = ["sensor"]
 
@@ -25,7 +26,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = await climate.new_climate(config)
     await cg.register_component(var, config)
 

@@ -2,6 +2,7 @@ import esphome.codegen as cg
 from esphome.components import text_sensor
 import esphome.config_validation as cv
 from esphome.const import ENTITY_CATEGORY_DIAGNOSTIC
+from esphome.types import ConfigType
 
 from . import LD6002BComponent
 from .const import CONF_LD6002B_ID, CONF_OTA_VERSION, CONF_WORK_MODE
@@ -21,7 +22,7 @@ CONFIG_SCHEMA = cv.Schema(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     hub = await cg.get_variable(config[CONF_LD6002B_ID])
     if work_mode_config := config.get(CONF_WORK_MODE):
         sens = await text_sensor.new_text_sensor(work_mode_config)

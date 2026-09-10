@@ -246,33 +246,36 @@ class MipiSpi : public display::Display,
       this->write_cmd_addr_data(8, 0x02, 24, cmd << 8, bytes, len);
       this->disable();
     } else if constexpr (BUS_TYPE == BUS_TYPE_OCTAL) {
-      this->dc_pin_->digital_write(false);
+      // Toggle D/C only while holding the bus; on boards where D/C doubles as
+      // another bus signal, driving it while another device owns the bus
+      // corrupts that device's transfer.
       this->enable();
+      this->dc_pin_->digital_write(false);
       this->write_cmd_addr_data(0, 0, 0, 0, &cmd, 1, 8);
-      this->disable();
       this->dc_pin_->digital_write(true);
+      this->disable();
       if (len != 0) {
         this->enable();
         this->write_cmd_addr_data(0, 0, 0, 0, bytes, len, 8);
         this->disable();
       }
     } else if constexpr (BUS_TYPE == BUS_TYPE_SINGLE) {
-      this->dc_pin_->digital_write(false);
       this->enable();
+      this->dc_pin_->digital_write(false);
       this->write_byte(cmd);
-      this->disable();
       this->dc_pin_->digital_write(true);
+      this->disable();
       if (len != 0) {
         this->enable();
         this->write_array(bytes, len);
         this->disable();
       }
     } else if constexpr (BUS_TYPE == BUS_TYPE_SINGLE_16) {
-      this->dc_pin_->digital_write(false);
       this->enable();
+      this->dc_pin_->digital_write(false);
       this->write_byte(cmd);
-      this->disable();
       this->dc_pin_->digital_write(true);
+      this->disable();
       for (size_t i = 0; i != len; i++) {
         this->enable();
         this->write_byte(0);

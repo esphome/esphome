@@ -8,7 +8,7 @@ SDIR_CMD = 0xC7
 
 class ST7701S(RgbDriverChip):
     # The ST7701s does not use the standard MADCTL bits for x/y mirroring
-    def add_madctl(self, sequence: list, config: dict):
+    def add_madctl(self, sequence: list, config: dict) -> int:
         transform = self.get_transform(config)
         madctl = 0x00
         if config[CONF_COLOR_ORDER] == MODE_BGR:

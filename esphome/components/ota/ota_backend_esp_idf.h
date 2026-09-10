@@ -5,7 +5,17 @@
 #include "esphome/components/md5/md5.h"
 #include "esphome/core/defines.h"
 
+#include <esp_idf_version.h>
 #include <esp_ota_ops.h>
+
+// esp_ota_resume() (IDF 5.4.2+, backported to 5.3.3) provides a no-erase OTA
+// handle, letting write() block-erase 64 KiB ahead of the write cursor
+// (~4x faster than the per-sector lazy erase of OTA_WITH_SEQUENTIAL_WRITES,
+// used as fallback on older IDF).
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 4, 2) || \
+    (ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 3, 3) && ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(5, 4, 0))
+#define USE_OTA_BLOCK_ERASE_AHEAD
+#endif
 
 namespace esphome::ota {
 
@@ -54,6 +64,9 @@ class IDFOTABackend final {
 #endif
 
  private:
+#ifdef USE_OTA_BLOCK_ERASE_AHEAD
+  OTAResponseTypes erase_ahead_(size_t len);
+#endif
 #ifdef USE_OTA_SIGNED_VERIFICATION_MULTI_KEY
   // Accept an image signed by any key the running app trusts (up to 3 blocks),
   // so rotation and backup keys work. Fails closed. Covers app and bootloader.
@@ -62,7 +75,11 @@ class IDFOTABackend final {
   // Keep md5_ first since its digest_ is alignas(32) on DMA-SHA variants; md5_set_ stays last so buf_ packs tightly.
   md5::MD5Digest md5_{};
   esp_ota_handle_t update_handle_{0};
-  const esp_partition_t *partition_;
+  const esp_partition_t *partition_{nullptr};
+  size_t written_{0};  // Bytes handed to esp_ota_write()
+#ifdef USE_OTA_BLOCK_ERASE_AHEAD
+  size_t erased_end_{0};  // Erased up to this partition offset; must stay >= written_
+#endif
   char expected_bin_md5_[32];
   bool md5_set_{false};
 #ifdef USE_OTA_PARTITIONS

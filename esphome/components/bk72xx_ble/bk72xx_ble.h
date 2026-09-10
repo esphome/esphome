@@ -40,8 +40,8 @@ struct ScanParams {
 
 /// One advertisement report from the controller.
 struct BLEScanReport {
-  uint8_t mac[6];  // LSB-first, as the controller delivers it
-  int8_t rssi;     // signed dBm
+  uint8_t mac[MAC_ADDRESS_SIZE];  // LSB-first, as the controller delivers it
+  int8_t rssi;                    // signed dBm
   uint8_t addr_type;
   // GAPM report info byte (recv_adv_t.evt_type): bits 0-2 report type
   // (1 = legacy adv, 3 = legacy scan response), bit 5 scannable — lets the
@@ -83,7 +83,7 @@ class BK72xxBLE final : public Component {
   void set_enable_on_boot(bool enable_on_boot) { this->enable_on_boot_ = enable_on_boot; }
 
   /// Controller BLE address, least-significant octet first (BLE convention).
-  void get_mac_lsb_first(uint8_t out[6]) const;
+  void get_mac_lsb_first(uint8_t out[MAC_ADDRESS_SIZE]) const;
 
 #ifdef BK72XX_BLE_SCAN_LISTENER_COUNT
   /// Register a consumer for scan reports (delivered on the main task via loop()).
@@ -135,13 +135,13 @@ class BK72xxBLE final : public Component {
   esphome::EventPool<BLEScanReport, MAX_SCAN_REPORT_QUEUE_SIZE - 1> report_pool_;
   // Largest-to-smallest: padding only at the tail, absorbed by future byte fields.
   uint32_t last_advance_ms_{0};
-  uint32_t pending_since_ms_{0};       // bring-up budget anchor; refilled on request change
-  uint32_t teardown_since_ms_{0};      // unfinished teardown episode start; 0 = none
-  uint32_t teardown_stuck_log_ms_{0};  // last stuck-teardown ERROR; re-logged each TEARDOWN_STUCK_ERROR_MS
-  int last_release_err_{0};            // SDK code of the episode's last failed release; 0 = none
-  ScanParams requested_{};             // latched by scan_start()
-  ScanParams applied_{};               // last params we commanded; mismatch with requested_ restarts
-  uint8_t ble_mac_[6]{0};              // LSB-first (BLE convention)
+  uint32_t pending_since_ms_{0};          // bring-up budget anchor; refilled on request change
+  uint32_t teardown_since_ms_{0};         // unfinished teardown episode start; 0 = none
+  uint32_t teardown_stuck_log_ms_{0};     // last stuck-teardown ERROR; re-logged each TEARDOWN_STUCK_ERROR_MS
+  int last_release_err_{0};               // SDK code of the episode's last failed release; 0 = none
+  ScanParams requested_{};                // latched by scan_start()
+  ScanParams applied_{};                  // last params we commanded; mismatch with requested_ restarts
+  uint8_t ble_mac_[MAC_ADDRESS_SIZE]{0};  // LSB-first (BLE convention)
   uint8_t scan_activity_idx_{INVALID_ACTIVITY_IDX};
   bool scan_wanted_{false};     // the latched request is to scan (vs stopped)
   bool release_warned_{false};  // gates the release WARN; widens the pump gate

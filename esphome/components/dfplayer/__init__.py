@@ -60,7 +60,12 @@ CONFIG_SCHEMA = cv.All(
     ).extend(uart.UART_DEVICE_SCHEMA)
 )
 FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema(
-    "dfplayer", baud_rate=9600, require_tx=True
+    "dfplayer",
+    baud_rate=9600,
+    require_tx=True,
+    data_bits=8,
+    parity="NONE",
+    stop_bits=1,
 )
 
 
