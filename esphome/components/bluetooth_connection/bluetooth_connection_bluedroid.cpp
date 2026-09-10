@@ -45,9 +45,7 @@ void BluedroidGattClient::setup() {
 
 void BluedroidGattClient::loop() {
   if (!esp32_ble::global_ble->is_active()) {
-    // Backstop for the window between disable() and the teardown; the
-    // tracker's before-disabled hook is the primary path.
-    this->reset_for_stack_down_();
+    // ble_before_disabled_event_handler() settles the slot.
     return;
   }
   auto st = this->state();
@@ -82,25 +80,17 @@ void BluedroidGattClient::loop() {
 }
 
 // Stack down: no CLOSE_EVT will come. Settle a live link so the consumer
-// frees its slot, then re-register the app on the next enable.
-void BluedroidGattClient::reset_for_stack_down_() {
+// frees its slot, then register the app again on the next enable.
+void BluedroidGattClient::ble_before_disabled_event_handler() {
   auto st = this->state();
-  if (st == ClientState::INIT) {
-    return;
-  }
-  if (st != ClientState::IDLE) {
+  if (st != ClientState::IDLE && st != ClientState::INIT) {
     this->release_services();
     this->set_idle_();
     this->listener_->on_connection_state(false, 0, ble_device_base::GATT_ERR_NOT_CONNECTED);
   }
-  // The interface belongs to the torn-down stack; Bluedroid drops an open
-  // issued with it without any event.
+  // The interface belongs to the torn-down stack.
   this->gattc_if_ = ESP_GATT_IF_NONE;
   this->set_state(ClientState::INIT);
-}
-
-void BluedroidGattClient::ble_before_disabled_event_handler() {
-  this->reset_for_stack_down_();
   // An idle slot runs no loop; the INIT branch must run to register again.
   this->enable_loop();
 }
@@ -115,15 +105,14 @@ void BluedroidGattClient::dump_config() {
 // ---- contract ops ----
 
 int BluedroidGattClient::connect(uint64_t address, uint8_t addr_type) {
-  auto st = this->state();
-  if (st == ClientState::INIT) {
-    // Nothing can be opened until the app is registered on a running stack.
-    ESP_LOGW(TAG, "[%d] Connect rejected, BLE stack not ready", this->connection_index_);
+  if (this->gattc_if_ == ESP_GATT_IF_NONE) {
+    // Bluedroid drops an open on an unknown interface without any event.
+    ESP_LOGW(TAG, "[%d] Connect rejected, GATT app not registered", this->connection_index_);
     return ble_device_base::GATT_ERR_NOT_CONNECTED;
   }
   // Only from idle: clobbering DISCONNECTING would open a new link the
   // stale CLOSE_EVT then tears down.
-  if (st != ClientState::IDLE) {
+  if (this->state() != ClientState::IDLE) {
     ESP_LOGW(TAG, "[%d] Connect rejected, slot busy", this->connection_index_);
     return ESP_GATT_BUSY;
   }
@@ -143,14 +132,6 @@ void BluedroidGattClient::tracker_connect_() {
   }
   if (st == ClientState::DISCONNECTING) {
     ESP_LOGW(TAG, "[%d] Cannot connect, still waiting for CLOSE_EVT", this->connection_index_);
-    return;
-  }
-  if (this->gattc_if_ == ESP_GATT_IF_NONE) {
-    // REG_EVT has not landed on this stack; Bluedroid drops an open on an
-    // unknown interface without any event, which would wedge the slot.
-    ESP_LOGW(TAG, "[%d] Connect failed, GATT app not registered", this->connection_index_);
-    this->set_idle_();
-    this->listener_->on_connection_state(false, 0, ble_device_base::GATT_ERR_NOT_CONNECTED);
     return;
   }
   ESP_LOGI(TAG, "[%d] 0x%02x Connecting", this->connection_index_, this->remote_addr_type_);

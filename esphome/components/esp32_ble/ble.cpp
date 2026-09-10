@@ -580,9 +580,7 @@ void ESP32BLE::loop_handle_state_transition_not_active_() {
       this->mark_failed();
       return;
     }
-    // Whatever the old stack queued while going down (close events for the
-    // links it tore down, scan completions) must not replay against the next
-    // stack, which hands out the same interface ids.
+    // Drop what the old stack queued; the next stack reuses the same interface ids.
     BLEEvent *ble_event;
     while ((ble_event = this->ble_events_.pop()) != nullptr) {
       this->ble_event_pool_.release(ble_event);

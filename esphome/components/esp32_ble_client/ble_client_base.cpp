@@ -42,7 +42,7 @@ void BLEClientBase::set_state(espbt::ClientState st) {
 
 void BLEClientBase::loop() {
   if (!esp32_ble::global_ble->is_active()) {
-    this->set_state(espbt::ClientState::INIT);
+    // ble_before_disabled_event_handler() resets the client.
     return;
   }
   if (this->state() == espbt::ClientState::INIT) {
@@ -73,9 +73,8 @@ void BLEClientBase::loop() {
 float BLEClientBase::get_setup_priority() const { return setup_priority::AFTER_BLUETOOTH; }
 
 void BLEClientBase::ble_before_disabled_event_handler() {
-  // Same reset as the stack-down branch of loop(); an idle client has its
-  // loop disabled, so enable it for the INIT registration on the next enable.
   this->set_state(espbt::ClientState::INIT);
+  // An idle client runs no loop; the INIT branch must run to register again.
   this->enable_loop();
 }
 
