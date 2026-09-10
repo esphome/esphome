@@ -104,7 +104,7 @@ bool DeepSleepComponent::prepare_to_sleep_() {
       this->status_set_warning();
       ESP_LOGW(TAG, "Waiting for wakeup pin state change");
     }
-    this->next_enter_deep_sleep_ = true;
+    this->defer_sleep_();
     return false;
   }
   return true;

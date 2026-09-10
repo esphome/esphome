@@ -2,7 +2,13 @@ from esphome import automation
 import esphome.codegen as cg
 from esphome.components import binary_sensor
 import esphome.config_validation as cv
-from esphome.const import CONF_CONDITION, CONF_ID, CONF_LAMBDA, CONF_STATE
+from esphome.const import (
+    CONF_CONDITION,
+    CONF_DEVICE_CLASS,
+    CONF_ID,
+    CONF_LAMBDA,
+    CONF_STATE,
+)
 from esphome.cpp_generator import LambdaExpression
 
 from .. import template_ns
@@ -12,7 +18,11 @@ TemplateBinarySensor = template_ns.class_(
 )
 
 CONFIG_SCHEMA = (
-    binary_sensor.binary_sensor_schema(TemplateBinarySensor)
+    cv.with_visibility(
+        binary_sensor.binary_sensor_schema(TemplateBinarySensor),
+        cv.Visibility.UI,
+        CONF_DEVICE_CLASS,
+    )
     .extend(
         {
             cv.Exclusive(CONF_LAMBDA, CONF_CONDITION): cv.returning_lambda,
