@@ -13,7 +13,7 @@ DriverChip(
     width=412,
     height=412,
     bus_mode=TYPE_QUAD,
-    spi_mode="MODE0",
+    spi_mode="MODE3",
     data_rate="40MHz",
     cs_pin=21,
     reset_pin={"pca9554": None, "number": 1},
