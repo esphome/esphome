@@ -1,11 +1,12 @@
 import esphome.codegen as cg
 from esphome.core import CORE
 from esphome.helpers import IS_MACOS
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@esphome/core"]
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     cg.add_define("USE_MD5")
 
     # Add OpenSSL library for host platform

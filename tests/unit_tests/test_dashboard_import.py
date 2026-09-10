@@ -10,8 +10,10 @@ during the adoption flow and depend on the output's ``esphome.name``
 from __future__ import annotations
 
 from pathlib import Path
+from unittest.mock import MagicMock, patch
 
 import pytest
+import requests as req
 import yaml as pyyaml
 
 from esphome.components.dashboard_import import import_config
@@ -201,3 +203,56 @@ def test_import_refuses_to_overwrite_existing_yaml(tmp_path: Path) -> None:
         )
     # Original content survives unchanged.
     assert yaml_path.read_text() == "# user's hand-edited config\n"
+
+
+def _full_config_kwargs(yaml_path: Path) -> dict:
+    return {
+        "path": str(yaml_path),
+        "name": "kitchen",
+        "friendly_name": None,
+        "project_name": "acme.kitchen-light",
+        "import_url": "github://acme/firmware/kitchen.yaml@main?full_config",
+    }
+
+
+def test_full_config_import_fetches_and_writes_contents(tmp_path: Path) -> None:
+    yaml_path = tmp_path / "kitchen.yaml"
+    resp = MagicMock(text="esphome:\n  name: orig\n")
+    with patch(
+        "esphome.components.dashboard_import.http_request", return_value=resp
+    ) as mock_req:
+        import_config(**_full_config_kwargs(yaml_path))
+    assert yaml_path.read_text() == "esphome:\n  name: orig\n"
+    assert mock_req.call_args[0][0] == "GET"
+
+
+def test_full_config_import_retries_transient_errors(tmp_path: Path) -> None:
+    """The fetch goes through the shared retry policy: a transient network
+    error is retried instead of failing the adoption immediately."""
+    yaml_path = tmp_path / "kitchen.yaml"
+    resp = MagicMock(text="esphome:\n  name: orig\n")
+    with (
+        patch(
+            "esphome.components.dashboard_import.http_request",
+            side_effect=[req.ConnectionError("reset"), resp],
+        ),
+        patch("esphome.net_retry.time.sleep") as mock_sleep,
+    ):
+        import_config(**_full_config_kwargs(yaml_path))
+    assert yaml_path.exists()
+    mock_sleep.assert_called_once_with(2)
+
+
+def test_full_config_import_wraps_permanent_errors_in_value_error(
+    tmp_path: Path,
+) -> None:
+    """device-builder depends on the ValueError contract for fetch failures."""
+    resp = MagicMock()
+    resp.raise_for_status.side_effect = req.HTTPError(
+        "404", response=MagicMock(status_code=404)
+    )
+    with (
+        patch("esphome.components.dashboard_import.http_request", return_value=resp),
+        pytest.raises(ValueError, match="Error while fetching"),
+    ):
+        import_config(**_full_config_kwargs(tmp_path / "kitchen.yaml"))

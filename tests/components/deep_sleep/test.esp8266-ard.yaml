@@ -1,5 +1,9 @@
 deep_sleep:
   run_duration: 10s
   sleep_duration: 50s
+  on_wake:
+    - logger.log:
+        format: "Woke up, cause %d"
+        args: ["static_cast<int>(cause)"]
 
 <<: !include common.yaml

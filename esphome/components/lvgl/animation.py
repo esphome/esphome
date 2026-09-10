@@ -42,6 +42,7 @@ LvAnimationTimingRoundTrip = lvgl_ns.class_("LvAnimationTimingRoundTrip")
 LvAnimationTimingEaseInOut = lvgl_ns.class_("LvAnimationTimingEaseInOut")
 
 CONF_BOUNCE = "bounce"
+CONF_PAUSE = "pause"
 
 
 def timing_class(name, extras=None):
@@ -60,10 +61,20 @@ TIMING_SCHEMA = cv.maybe_simple_value(
     cv.typed_schema(
         dict(
             [
-                timing_class("round_trip"),
+                timing_class(
+                    "round_trip",
+                    {
+                        cv.Optional(CONF_PAUSE, default=0.0): cv.All(
+                            cv.percentage,
+                            cv.float_range(
+                                min=0.0, max=1.0, min_included=True, max_included=False
+                            ),
+                        )
+                    },
+                ),
                 timing_class(
                     "ease_in_out",
-                    {cv.Optional(CONF_WEIGHT, default=2.0): lv_positive_float},
+                    {cv.Optional(CONF_WEIGHT, default=1.0): cv.zero_to_one_float},
                 ),
                 timing_class(
                     "gravity",

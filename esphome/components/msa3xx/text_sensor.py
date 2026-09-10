@@ -2,6 +2,8 @@ import esphome.codegen as cg
 from esphome.components import text_sensor
 import esphome.config_validation as cv
 from esphome.const import CONF_NAME
+from esphome.cpp_generator import MockObj
+from esphome.types import ConfigType
 
 from . import CONF_MSA3XX_ID, MSA_SENSOR_SCHEMA
 
@@ -25,13 +27,13 @@ CONFIG_SCHEMA = MSA_SENSOR_SCHEMA.extend(
 )
 
 
-async def setup_conf(config, key, hub):
+async def setup_conf(config: ConfigType, key: str, hub: MockObj) -> None:
     if sensor_config := config.get(key):
         var = await text_sensor.new_text_sensor(sensor_config)
         cg.add(getattr(hub, f"set_{key}_text_sensor")(var))
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     hub = await cg.get_variable(config[CONF_MSA3XX_ID])
 
     for key in ORIENTATION_SENSORS:

@@ -1,0 +1,11 @@
+# Explicit ble_hub_id on the rp2 hub — the documented disambiguator once a
+# platform has more than one tracker. Validate-only: never merged into grouped
+# builds, so the inline id cannot collide with rp2_ble_tracker's own fixture.
+packages:
+  common: !include common.yaml
+
+rp2_ble_tracker:
+  id: ble_hub
+
+bluetooth_proxy:
+  ble_hub_id: ble_hub

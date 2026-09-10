@@ -22,6 +22,15 @@
 #endif
 #endif
 
+// Device info TXT records (version, mac, config_hash) are published on the _esphomelib service
+// when the native API is enabled, otherwise on the _http service (web_server's or the fallback one).
+// When neither applies (only prometheus, sendspin or user-defined services are configured), no
+// device info records are published and the buffers below are not needed.
+#if defined(USE_API) || defined(USE_WEBSERVER) || \
+    (!defined(USE_PROMETHEUS) && !defined(USE_SENDSPIN) && !defined(USE_MDNS_EXTRA_SERVICES))
+#define USE_MDNS_DEVICE_INFO_TXT
+#endif
+
 namespace esphome::mdns {
 
 // Helper struct that identifies strings that may be stored in flash storage (similar to LogString)
@@ -136,7 +145,7 @@ class MDNSComponent final : public Component
   StaticVector<std::string, MDNS_DYNAMIC_TXT_COUNT> dynamic_txt_values_;
 #endif
 
-#if defined(USE_API) && defined(USE_MDNS_STORE_SERVICES)
+#if defined(USE_MDNS_DEVICE_INFO_TXT) && defined(USE_MDNS_STORE_SERVICES)
   /// Fixed buffer for MAC address (only needed when services are stored)
   char mac_address_[MAC_ADDRESS_BUFFER_SIZE];
   /// Fixed buffer for config hash hex string (only needed when services are stored)
@@ -149,8 +158,8 @@ class MDNSComponent final : public Component
   // RP2040 defers MDNS.begin() until the first IP-up event; this tracks that.
   bool initialized_{false};
 #endif
-  void compile_records_(StaticVector<MDNSService, MDNS_SERVICE_COUNT> &services, char *mac_address_buf,
-                        char *config_hash_buf);
+  void compile_records_(StaticVector<MDNSService, MDNS_SERVICE_COUNT> &services, const char *mac_address_buf,
+                        const char *config_hash_buf);
 };
 
 }  // namespace esphome::mdns

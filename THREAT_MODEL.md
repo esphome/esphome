@@ -23,7 +23,8 @@ For this repository there are two trusted inputs by design:
 1. **The configuration.** Anyone who can supply or edit a YAML config is trusted
    (see below).
 2. **Authenticated peers of a running device** — clients holding the device's
-   API encryption key / password, OTA password, or web server credentials.
+   API/OTA encryption key, API password, OTA password, or web server
+   credentials.
 
 The security boundary is therefore **unauthenticated network traffic vs. those
 trusted inputs.** A bug that lets an unauthenticated attacker cross it is a
@@ -76,8 +77,8 @@ These *are* security bugs in this repo, and we want to hear about them privately
   captive portal, etc.) **without** valid credentials.
 - Authentication or encryption bypass on the device — reaching API calls, OTA
   updates, or the web server without the configured key/password.
-- Flaws that weaken the device's API encryption (Noise), OTA, or web server auth
-  below their documented guarantees.
+- Flaws that weaken the device's API or OTA encryption (Noise), OTA auth, or
+  web server auth below their documented guarantees.
 
 ## The web server is an open HTTP API by design
 
@@ -92,18 +93,24 @@ is choosing an open control surface, in the same way that running native OTA
 without a password leaves OTA open. The API is documented and is meant to be
 called by other devices, scripts, and pages.
 
-The device performs no CSRF token, `Origin`, or `Referer` validation and returns
-a permissive CORS policy. Cross-origin requests are handled the same as any other
-network request, including requests a browser is induced to make by a page the
-operator visits (the "confused deputy", or CSRF, pattern). The following are
-therefore **not** vulnerabilities in this repository:
+As defense-in-depth, the web server checks the `Origin` header on browser requests
+to its entity control and state endpoints: a request whose `Origin` does not match
+the address the device is served on is rejected, and the `allowed_origins` option
+widens that list. This blocks the common "confused deputy" (CSRF) case where a page
+the operator visits drives the device through their browser. It is **not** an
+authentication boundary: it only constrains browsers. Any client that omits the
+`Origin` header — `curl`, scripts, or other non-browser callers on the same
+network — reaches every endpoint exactly as before. The check also does not cover
+the web OTA `/update` endpoint. The device performs no CSRF-token or `Referer`
+validation. The following are therefore **not** vulnerabilities in this repository:
 
-- Cross-origin or CSRF requests to the control endpoints (for example, a page the
-  operator opens toggling a switch), whether or not `web_server` `auth:` is set.
-- Cross-origin reads of device state permitted by the CORS policy.
-- Cross-origin firmware upload through the web OTA endpoint (`/update`) when web
-  OTA is enabled without `web_server` `auth:`. This is the same exposure as
-  running OTA without a password.
+- Requests without an `Origin` header (for example `curl`) reaching the control
+  endpoints, whether or not `web_server` `auth:` is set.
+- Requests from an origin the operator added to `allowed_origins`.
+- Cross-origin or CSRF firmware upload through the web OTA endpoint (`/update`) when
+  web OTA is enabled without `web_server` `auth:`. The `/update` endpoint is not
+  covered by the `Origin` check; this is the same exposure as running OTA without a
+  password.
 
 The supported defenses are `web_server` `auth:`, protecting OTA (a web password or
 a native OTA password), and keeping devices on a trusted, segmented network. See
@@ -113,9 +120,55 @@ What remains in scope is bypassing `web_server` `auth:` when it *is* configured,
 and any memory-safety or protocol bug in the server reachable without credentials.
 
 This section documents the current design and scope; it is not a judgment that the
-design is optimal or that it will not change. Optional hardening (for example an
-origin allowlist or opt-in CSRF checks) is welcome as a normal enhancement PR,
-framed as defense-in-depth rather than a security fix.
+design is optimal or that it will not change.
+
+## OTA update encryption
+
+The `esphome` OTA platform optionally encrypts updates with the same Noise
+`NNpsk0` pattern the native API uses; one key protects the device. A device
+whose `api:` block has an encryption key, static in the YAML or provisioned at
+runtime, compiles in the transport and offers it on every OTA connection once
+it holds a key, so an uploader presenting that key gets the guarantees below
+even without an `ota: encryption:` block; only that block makes the device
+require encryption. The guarantees are: the firmware image is confidential in
+transit, the uploader is authenticated by the pre-shared key, and the plaintext
+negotiation preceding the handshake is bound into the handshake prologue, so
+stripping or tampering with it fails the first MAC. With `ota: encryption:`
+configured both ends fail closed with no override: the device refuses
+plaintext uploads, and the CLI refuses to send plaintext when a key is
+configured. Without that block the CLI tries a static api key when the device
+offers and, until 2027.3.0, falls back to plaintext with a warning when the
+offer is missing or the handshake fails; a runtime provisioned key never
+reaches the CLI, so those uploads stay plaintext.
+
+Defeating any of that without the key is in scope: a device that requires
+encryption accepting a plaintext or downgraded upload, getting past the MAC,
+or recovering image contents from captured traffic.
+
+The following are **not** vulnerabilities, by design:
+
+- Plaintext OTA on a device with no `ota: encryption:` block, including one
+  that offers encryption because it has an api key. That is the documented
+  default, authenticated (if at all) by the OTA password. An uploader that
+  takes the offer skips the password; the key authenticates it. With a
+  runtime provisioned key and no `provisioning:` window, whoever provisions
+  the key gains that upload path too; validation warns about the pair.
+- The CLI plaintext fallback until 2027.3.0: without `ota: encryption:` an
+  active attacker who strips the offer or breaks the handshake can make a
+  keyed CLI upload plaintext, with the pre-existing plaintext exposure. A
+  device that requires encryption still refuses that upload.
+- The enablement window: firmware built with a static api key already offers
+  encryption, so turning on `ota: encryption:` is itself an encrypted upload.
+  Older firmware needs one last plaintext upload of an offering build, with
+  the pre-existing plaintext exposure.
+- The web OTA `/update` endpoint alongside encryption. With the `web_server`
+  or `prometheus` component the shared listener is always up, so the endpoint
+  stays reachable and validation warns about that combination;
+  `captive_portal:` alone brings the listener up only for the fallback AP
+  window, which is the intended recovery path, so that is not warned about.
+- CLI retry behavior on transport or MAC failures; every attempt renegotiates
+  a fresh handshake with fresh ephemerals, so retrying does not weaken
+  authentication.
 
 ## Explicitly out of scope
 
@@ -124,9 +177,10 @@ framed as defense-in-depth rather than a security fix.
 - Operator-supplied hostile YAML (covered above — config authoring is trusted).
 - Attacks that require an already-authenticated device peer (someone who already
   holds the API key / OTA / web credentials).
-- Cross-site (CSRF), cross-origin, or CORS behavior of the device web server and
-  its web OTA endpoint. The web server is an open HTTP API by design (see above);
-  gate it with `web_server` `auth:` and network isolation.
+- Access to the device web server or its web OTA endpoint by non-browser clients
+  (those that send no `Origin` header). The web server is an open HTTP API by
+  design (see above); browser cross-origin requests are blocked by default, but the
+  real controls are `web_server` `auth:` and network isolation.
 - Anything in the dashboard / device-builder — report that in its own repository
   (linked at the top).
 - Deployments where the operator removed protections or exposed credentials. See

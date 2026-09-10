@@ -78,7 +78,9 @@ _SWITCH_SCHEMA = (
             cv.Optional(CONF_ON_STATE): automation.validate_automation({}),
             cv.Optional(CONF_ON_TURN_ON): automation.validate_automation({}),
             cv.Optional(CONF_ON_TURN_OFF): automation.validate_automation({}),
-            cv.Optional(CONF_DEVICE_CLASS): validate_device_class,
+            cv.Optional(
+                CONF_DEVICE_CLASS, visibility=cv.Visibility.ADVANCED
+            ): validate_device_class,
         }
     )
 )

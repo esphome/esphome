@@ -1,7 +1,10 @@
 esp32_ble_tracker:
+  id: ble_tracker_hub
 
 sensor:
+  # Explicit ble_hub_id: pins the neutral binding as a declared key.
   - platform: thermopro_ble
+    ble_hub_id: ble_tracker_hub
     mac_address: FE:74:B8:6A:97:B7
     temperature:
       name: "ThermoPro Temperature"

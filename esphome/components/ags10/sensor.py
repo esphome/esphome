@@ -17,6 +17,9 @@ from esphome.const import (
     UNIT_OHM,
     UNIT_PARTS_PER_BILLION,
 )
+from esphome.core import ID
+from esphome.cpp_generator import MockObj, TemplateArgsType
+from esphome.types import ConfigType
 
 CONF_RESISTANCE = "resistance"
 
@@ -62,7 +65,7 @@ CONFIG_SCHEMA = (
 FINAL_VALIDATE_SCHEMA = i2c.final_validate_device_schema("ags10", max_frequency="15khz")
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)
@@ -94,7 +97,12 @@ AGS10_NEW_I2C_ADDRESS_SCHEMA = cv.maybe_simple_value(
     AGS10_NEW_I2C_ADDRESS_SCHEMA,
     synchronous=True,
 )
-async def ags10newi2caddress_to_code(config, action_id, template_arg, args):
+async def ags10newi2caddress_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
     address = await cg.templatable(config[CONF_ADDRESS], args, cg.uint8)
@@ -126,7 +134,12 @@ AGS10_SET_ZERO_POINT_SCHEMA = cv.Schema(
     AGS10_SET_ZERO_POINT_SCHEMA,
     synchronous=True,
 )
-async def ags10setzeropoint_to_code(config, action_id, template_arg, args):
+async def ags10setzeropoint_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
     mode = await cg.templatable(

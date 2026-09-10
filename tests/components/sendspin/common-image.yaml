@@ -1,0 +1,47 @@
+packages:
+  sendspin: !include common.yaml
+
+display:
+  - platform: ili9xxx
+    spi_id: spi_bus
+    id: main_lcd
+    model: ili9342
+    cs_pin: 20
+    dc_pin: 13
+    reset_pin: 21
+    invert_colors: true
+    lambda: |-
+      it.fill(Color(0, 0, 0));
+      it.image(0, 0, id(album_art));
+
+image:
+  - platform: sendspin
+    id: album_slot
+    format: JPEG
+    type: RGB565
+    resize: 240x240
+    source: ALBUM
+    current_image:
+      id: album_art
+    transition_image:
+      id: album_art_transition
+    on_image_display:
+      - logger.log:
+          format: "Album art displayed (late by %u ms)"
+          args: ["(unsigned) lateness_ms"]
+      # Stand-in for a display transition; with a transition image every display must end
+      # with transition_finished so the library releases the next artwork frame.
+      - delay: 300ms
+      - sendspin.image.transition_finished: album_slot
+    on_image_clear:
+      - logger.log: "Album art cleared"
+    on_image_error:
+      - logger.log: "Album art error"
+  - platform: sendspin
+    id: artist_slot
+    format: PNG
+    type: RGB565
+    resize: 96x96
+    source: ARTIST
+    current_image:
+      id: artist_art

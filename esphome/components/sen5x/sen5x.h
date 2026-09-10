@@ -95,6 +95,7 @@ class SEN5XComponent final : public PollingComponent, public sensirion_common::S
     temp_comp.time_constant = time_constant;
     this->temperature_compensation_ = temp_comp;
   }
+  void set_model(Sen5xType model) { this->model_override_ = model; }
   bool start_fan_cleaning();
 
  protected:
@@ -126,6 +127,7 @@ class SEN5XComponent final : public PollingComponent, public sensirion_common::S
   optional<GasTuning> voc_tuning_params_;
   optional<GasTuning> nox_tuning_params_;
   optional<TemperatureCompensation> temperature_compensation_;
+  optional<Sen5xType> model_override_;
   ESPPreferenceObject pref_;
 };
 

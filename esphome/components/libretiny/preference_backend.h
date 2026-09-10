@@ -5,8 +5,10 @@
 #include <cstdint>
 
 // Forward declare FlashDB types to avoid pulling in flashdb.h
+// NOLINTBEGIN(readability-identifier-naming)
 struct fdb_kvdb;
 struct fdb_blob;
+// NOLINTEND(readability-identifier-naming)
 
 namespace esphome::libretiny {
 

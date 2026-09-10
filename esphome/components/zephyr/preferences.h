@@ -16,10 +16,13 @@ class ZephyrPreferences final : public PreferencesMixin<ZephyrPreferences> {
     return this->make_preference(length, type);
   }
   ESPPreferenceObject make_preference(size_t length, uint32_t type);
+  /// One-shot read of a stored preference by key, without allocating or registering a backend
+  bool load_from_key(uint32_t type, uint8_t *data, size_t len);
   bool sync();
   bool reset();
 
  protected:
+  ZephyrPreferenceBackend *find_backend_(uint32_t type);
   std::vector<ZephyrPreferenceBackend *> backends_;
 
   static int load_setting(const char *name, size_t len, settings_read_cb read_cb, void *cb_arg);

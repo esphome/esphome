@@ -66,6 +66,12 @@ void Mcp4461Wiper::decrease_wiper() {
   }
 }
 
+void Mcp4461Wiper::store_nonvolatile() {
+  if (this->parent_->store_level_nonvolatile_(this->wiper_)) {
+    ESP_LOGV(TAG, "Stored wiper %u level to nonvolatile register", static_cast<uint8_t>(this->wiper_));
+  }
+}
+
 void Mcp4461Wiper::enable_terminal(char terminal) { this->parent_->enable_terminal_(this->wiper_, terminal); }
 
 void Mcp4461Wiper::disable_terminal(char terminal) { this->parent_->disable_terminal_(this->wiper_, terminal); }

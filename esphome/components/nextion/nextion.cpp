@@ -1,6 +1,7 @@
 #include "nextion.h"
 
 #include <cinttypes>
+#include <new>
 
 #include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
@@ -352,8 +353,9 @@ void Nextion::loop() {
     this->connection_state_.ignore_is_setup_ = false;
   }
 
-  this->process_serial_();            // Receive serial data
-  this->process_nextion_commands_();  // Process nextion return commands
+  this->process_serial_();             // Receive serial data
+  this->process_nextion_commands_();   // Process nextion return commands
+  this->purge_stale_queue_entries_();  // Drop expired entries even when the display sends no data
 
   if (!this->connection_state_.nextion_reports_is_setup_) {
     if (this->started_ms_ == 0)
@@ -593,7 +595,8 @@ void Nextion::process_nextion_commands_() {
         uint8_t page_id = to_process[0];
         uint8_t component_id = to_process[1];
         uint8_t touch_event = to_process[2];  // 0 -> release, 1 -> press
-        ESP_LOGV(TAG, "Touch %s: page %u comp %u", touch_event ? "PRESS" : "RELEASE", page_id, component_id);
+        ESP_LOGV(TAG, "Touch %s: page %u comp %u", touch_event ? LOG_STR_LITERAL("PRESS") : LOG_STR_LITERAL("RELEASE"),
+                 page_id, component_id);
         for (auto *touch : this->touch_) {
           touch->process_touch(page_id, component_id, touch_event != 0);
         }
@@ -626,7 +629,7 @@ void Nextion::process_nextion_commands_() {
         const uint16_t x = (uint16_t(to_process[0]) << 8) | to_process[1];
         const uint16_t y = (uint16_t(to_process[2]) << 8) | to_process[3];
         const uint8_t touch_event = to_process[4];  // 0 -> release, 1 -> press
-        ESP_LOGV(TAG, "Touch %s at %u,%u", touch_event ? "PRESS" : "RELEASE", x, y);
+        ESP_LOGV(TAG, "Touch %s at %u,%u", touch_event ? LOG_STR_LITERAL("PRESS") : LOG_STR_LITERAL("RELEASE"), x, y);
         break;
       }
 
@@ -902,6 +905,11 @@ void Nextion::process_nextion_commands_() {
     this->command_data_.erase(0, to_process_length + DELIMITER_SIZE + 1);
   }
 
+  ESP_LOGN(TAG, "Loop end");
+  this->process_serial_();
+}  // Nextion::process_nextion_commands_()
+
+void Nextion::purge_stale_queue_entries_() {
   const uint32_t ms = App.get_loop_component_start_time();
 
   if (this->max_q_age_ms_ > 0 && !this->nextion_queue_.empty() &&
@@ -927,10 +935,7 @@ void Nextion::process_nextion_commands_() {
       }
     }
   }
-  ESP_LOGN(TAG, "Loop end");
-  // App.feed_wdt(); Remove before master merge
-  this->process_serial_();
-}  // Nextion::process_nextion_commands_()
+}
 
 void Nextion::set_nextion_sensor_state(int queue_type, const std::string &name, float state) {
   this->set_nextion_sensor_state(static_cast<NextionQueueType>(queue_type), name, state);
@@ -1101,7 +1106,13 @@ void Nextion::add_no_result_to_queue_(const std::string &variable_name) {
   new (nextion_queue) nextion::NextionQueue();
 
   // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
-  nextion_queue->component = new nextion::NextionComponentBase;
+  nextion_queue->component = new (std::nothrow) nextion::NextionComponentBase;
+  if (nextion_queue->component == nullptr) {
+    ESP_LOGW(TAG, "Component alloc failed");
+    nextion_queue->~NextionQueue();
+    allocator.deallocate(nextion_queue, 1);
+    return;
+  }
   nextion_queue->component->set_variable_name(variable_name);
 
   nextion_queue->queue_time = App.get_loop_component_start_time();
@@ -1157,7 +1168,13 @@ void Nextion::add_no_result_to_queue_with_pending_command_(const std::string &va
   }
   new (nextion_queue) nextion::NextionQueue();
 
-  nextion_queue->component = new nextion::NextionComponentBase;
+  nextion_queue->component = new (std::nothrow) nextion::NextionComponentBase;
+  if (nextion_queue->component == nullptr) {
+    ESP_LOGW(TAG, "Component alloc failed");
+    nextion_queue->~NextionQueue();
+    allocator.deallocate(nextion_queue, 1);
+    return;
+  }
   nextion_queue->component->set_variable_name(variable_name);
   nextion_queue->queue_time = App.get_loop_component_start_time();
   nextion_queue->pending_command = command;  // Store command for retry

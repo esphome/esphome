@@ -59,8 +59,39 @@ def test_generate_cmakelists_txt_flags_and_includes(tmp_path):
     assert "-DFOO" in out
     assert "-Wall" in out
     assert "zephyr_link_libraries(" in out
-    assert "-Llibdir" in out
+    # -L paths are absolutised against the library dir (the CMakeLists lives in a
+    # zephyr/ subdir, so a relative path would resolve from the wrong place).
+    abs_libdir = str((tmp_path / "libdir").resolve()).replace("\\", "\\\\")
+    assert f"-L{abs_libdir}" in out
     assert "-lm" in out
+
+
+def test_generate_cmakelists_txt_escapes_embedded_quotes(tmp_path):
+    """A define value carrying a literal quote (reachable via the lex
+    round-trip) survives as an escaped quote, not a broken CMake string."""
+    c = _make_component(tmp_path)
+    (tmp_path / "src").mkdir()
+    (tmp_path / "src" / "a.c").write_text("")
+    c.data = {"build": {"flags": ['-DMSG=\\"hi\\"']}}
+
+    out = generate_cmakelists_txt(c)
+    assert '"-DMSG=\\"hi\\""' in out
+
+
+def test_generate_cmakelists_txt_lexes_spaced_flags(tmp_path):
+    """A spaced -I entry routes to include dirs instead of landing verbatim
+    in compile options; same shared lexer as the espidf emitter."""
+    c = _make_component(tmp_path)
+    (tmp_path / "src").mkdir()
+    (tmp_path / "src" / "a.c").write_text("")
+    (tmp_path / "include").mkdir()
+    c.data = {"build": {"flags": "-I include -DBAR=1"}}
+
+    out = generate_cmakelists_txt(c)
+
+    assert str((tmp_path / "include").resolve()).replace("\\", "\\\\") in out
+    assert "-DBAR=1" in out
+    assert "-I include" not in out
 
 
 def test_generate_zephyr_modules_collects_all_dirs_and_writes(tmp_path, monkeypatch):

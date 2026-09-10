@@ -1,4 +1,6 @@
+from collections.abc import Callable
 import logging
+from typing import Any
 
 from esphome import pins
 import esphome.codegen as cg
@@ -38,6 +40,7 @@ from esphome.const import (
     CONF_VSYNC_PIN,
     CONF_WIDTH,
 )
+from esphome.types import ConfigType
 
 DEPENDENCIES = ["esp32"]
 LOGGER = logging.getLogger(__name__)
@@ -53,7 +56,7 @@ COLOR_ORDERS = {
 DATA_PIN_SCHEMA = pins.internal_gpio_output_pin_schema
 
 
-def data_pin_validate(value):
+def data_pin_validate(value: Any) -> ConfigType:
     """
     It is safe to use strapping pins as RGB output data bits, as they are outputs only,
     and not initialised until after boot.
@@ -68,7 +71,7 @@ def data_pin_validate(value):
     return DATA_PIN_SCHEMA(value)
 
 
-def data_pin_set(length):
+def data_pin_set(length: int) -> Callable[[Any], Any]:
     return cv.All(
         [data_pin_validate],
         cv.Length(min=length, max=length, msg=f"Exactly {length} data pins required"),
@@ -128,7 +131,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     LOGGER.warning(
         "The 'rpi_dpi_rgb' component is deprecated, it is recommended to use 'mipi_rgb' instead."
     )

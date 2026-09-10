@@ -1,6 +1,5 @@
-from collections.abc import MutableMapping
+from collections.abc import Iterable, MutableMapping
 import functools
-import hashlib
 from itertools import accumulate
 import logging
 from pathlib import Path
@@ -17,7 +16,6 @@ from freetype import (
     FT_Exception,
     ft_pixel_mode_mono,
 )
-import requests
 
 from esphome import external_files
 import esphome.codegen as cg
@@ -36,6 +34,7 @@ from esphome.const import (
     CONF_WEIGHT,
 )
 from esphome.core import CORE, HexInt
+from esphome.external_files import RemoteFile
 from esphome.types import ConfigType
 
 _LOGGER = logging.getLogger(__name__)
@@ -295,45 +294,80 @@ def validate_weight_name(value):
     return FONT_WEIGHTS[cv.one_of(*FONT_WEIGHTS, lower=True, space="-")(value)]
 
 
-def _compute_local_font_path(value: dict) -> Path:
-    url = value[CONF_URL]
-    h = hashlib.new("sha256")
-    h.update(url.encode())
-    key = h.hexdigest()[:8]
-    base_dir = external_files.compute_local_file_dir(DOMAIN)
-    _LOGGER.debug("_compute_local_font_path: %s", base_dir / key)
-    return base_dir / key
+def _web_font_path(value: dict) -> Path:
+    return external_files.compute_local_file_path(DOMAIN, value[CONF_URL]) / "font.ttf"
 
 
-def download_gfont(value):
+def _gfonts_css_url(value: dict) -> str:
+    return (
+        f"https://fonts.googleapis.com/css2?family={value[CONF_FAMILY]}"
+        f":ital,wght@{int(value[CONF_ITALIC])},{value[CONF_WEIGHT]}"
+    )
+
+
+def _gfonts_cache_path(value: dict, suffix: str) -> Path:
+    name = f"{value[CONF_FAMILY]}@{value[CONF_WEIGHT]}@{value[CONF_ITALIC]}@v1"
+    return external_files.compute_local_file_dir(DOMAIN) / f"{name}.{suffix}"
+
+
+def _gfonts_ttf_path(value: dict) -> Path:
+    return _gfonts_cache_path(value, "ttf")
+
+
+def _gfonts_css_path(value: dict) -> Path:
+    return _gfonts_cache_path(value, "css")
+
+
+def _parse_gfonts_css(css: str) -> str | None:
+    """Extract the truetype URL from a Google Fonts CSS response."""
+    match = re.search(r"src:\s+url\((.+)\)\s+format\('truetype'\);", css)
+    return match.group(1) if match else None
+
+
+def download_gfont(value: ConfigType) -> ConfigType:
     if value in FONT_CACHE:
         return value
-    name = (
-        f"{value[CONF_FAMILY]}:ital,wght@{int(value[CONF_ITALIC])},{value[CONF_WEIGHT]}"
-    )
-    url = f"https://fonts.googleapis.com/css2?family={name}"
-    path = (
-        external_files.compute_local_file_dir(DOMAIN)
-        / f"{value[CONF_FAMILY]}@{value[CONF_WEIGHT]}@{value[CONF_ITALIC]}@v1.ttf"
-    )
+    path = _gfonts_ttf_path(value)
     if not external_files.is_file_recent(path, value[CONF_REFRESH]):
         _LOGGER.debug("download_gfont: path=%s", path)
+        url = _gfonts_css_url(value)
+        css_path = _gfonts_css_path(value)
         try:
-            req = requests.get(url, timeout=external_files.NETWORK_TIMEOUT)
-            req.raise_for_status()
-        except requests.exceptions.RequestException as e:
+            css_bytes = external_files.download_content(url, css_path)
+        except cv.Invalid as e:
             raise cv.Invalid(
                 f"Could not download font at {url}, please check the fonts exists "
                 f"at google fonts ({e})"
             ) from e
-        match = re.search(r"src:\s+url\((.+)\)\s+format\('truetype'\);", req.text)
-        if match is None:
+        if not (
+            external_files.is_fresh_this_run(css_path) or CORE.skip_external_update
+        ):
+            # Same rule as PREFETCH_FILES stage two: a CSS body that could
+            # not be revalidated may name a rotated ttf URL. Use the cached
+            # font instead (the failed check already warned).
+            if path.exists():
+                FONT_CACHE[value] = path
+                return value
             raise cv.Invalid(
-                f"Could not extract ttf file from gfonts response for {name}, "
-                f"please report this."
+                f"Could not refresh the Google Fonts CSS for "
+                f"{value[CONF_FAMILY]} and no cached font is available"
             )
-
-        ttf_url = match.group(1)
+        try:
+            css = css_bytes.decode("utf-8")
+        except UnicodeDecodeError as e:
+            # Do not leave an unusable body in the cache to be served again.
+            css_path.unlink(missing_ok=True)
+            raise cv.Invalid(
+                f"Bad response from Google Fonts for {value[CONF_FAMILY]}: "
+                f"not a text document"
+            ) from e
+        ttf_url = _parse_gfonts_css(css)
+        if ttf_url is None:
+            css_path.unlink(missing_ok=True)
+            raise cv.Invalid(
+                f"Could not extract ttf file from gfonts response for "
+                f"{value[CONF_FAMILY]}, please report this."
+            )
         _LOGGER.debug("download_gfont: ttf_url=%s", ttf_url)
 
         external_files.download_content(ttf_url, path)
@@ -344,11 +378,11 @@ def download_gfont(value):
     return value
 
 
-def download_web_font(value):
+def download_web_font(value: ConfigType) -> ConfigType:
     if value in FONT_CACHE:
         return value
     url = value[CONF_URL]
-    path = _compute_local_font_path(value) / "font.ttf"
+    path = _web_font_path(value)
 
     external_files.download_content(url, path)
     _LOGGER.debug("download_web_font: path=%s", path)
@@ -356,13 +390,18 @@ def download_web_font(value):
     return value
 
 
+# Shared by the schema and the prefetch extractor so they cannot drift.
+_DEFAULT_WEIGHT = "regular"
+_DEFAULT_ITALIC = False
+_DEFAULT_REFRESH = "1d"
+_WEIGHT_VALIDATOR = cv.Any(cv.int_, validate_weight_name)
+_REFRESH_VALIDATOR = cv.All(cv.string, cv.source_refresh)
+
 EXTERNAL_FONT_SCHEMA = cv.Schema(
     {
-        cv.Optional(CONF_WEIGHT, default="regular"): cv.Any(
-            cv.int_, validate_weight_name
-        ),
-        cv.Optional(CONF_ITALIC, default=False): cv.boolean,
-        cv.Optional(CONF_REFRESH, default="1d"): cv.All(cv.string, cv.source_refresh),
+        cv.Optional(CONF_WEIGHT, default=_DEFAULT_WEIGHT): _WEIGHT_VALIDATOR,
+        cv.Optional(CONF_ITALIC, default=_DEFAULT_ITALIC): cv.boolean,
+        cv.Optional(CONF_REFRESH, default=_DEFAULT_REFRESH): _REFRESH_VALIDATOR,
     }
 )
 
@@ -385,36 +424,123 @@ WEB_FONT_SCHEMA = cv.All(
 )
 
 
-def validate_file_shorthand(value):
-    value = cv.string_strict(value)
+_GFONTS_SHORTHAND_RE = re.compile(r"^gfonts://([^@]+)(@.+)?$")
+
+
+def _shorthand_to_file_dict(value: str) -> ConfigType | None:
+    """Typed-dict form of a remote font shorthand.
+
+    Shared by the schema validator and the prefetch extractor so the two
+    cannot drift. Returns None for values that are not remote shorthand
+    (i.e. local paths); raises cv.Invalid for a malformed gfonts shorthand.
+    """
     if value.startswith("gfonts://"):
-        match = re.match(r"^gfonts://([^@]+)(@.+)?$", value)
-        if match is None:
+        if (match := _GFONTS_SHORTHAND_RE.match(value)) is None:
             raise cv.Invalid("Could not parse gfonts shorthand syntax, please check it")
-        family = match.group(1)
-        weight = match.group(2)
-        data = {
+        data = {CONF_TYPE: TYPE_GFONTS, CONF_FAMILY: match.group(1)}
+        if match.group(2):
+            data[CONF_WEIGHT] = match.group(2)[1:]
+        return data
+    if value.startswith(("http://", "https://")):
+        return {CONF_TYPE: TYPE_WEB, CONF_URL: value}
+    return None
+
+
+def _extract_remote_font(value: object) -> ConfigType | None:
+    """Map a raw, pre-schema font `file:` value to a normalized remote spec.
+
+    Read-only mirror of `validate_file_shorthand` / `TYPED_FILE_SCHEMA` for
+    the prefetch hooks; returns None for local fonts and anything it does
+    not recognize. A wrong answer only wastes or misses a prefetch, the
+    schema validators stay authoritative.
+    """
+    if isinstance(value, str):
+        try:
+            value = _shorthand_to_file_dict(value)
+        except cv.Invalid:
+            return None
+    if not isinstance(value, dict):
+        return None
+    font_type = value.get(CONF_TYPE)
+    if font_type == TYPE_WEB and isinstance(url := value.get(CONF_URL), str):
+        return {CONF_TYPE: TYPE_WEB, CONF_URL: url}
+    if font_type == TYPE_GFONTS and isinstance(family := value.get(CONF_FAMILY), str):
+        try:
+            italic = cv.boolean(value.get(CONF_ITALIC, _DEFAULT_ITALIC))
+            weight = _WEIGHT_VALIDATOR(value.get(CONF_WEIGHT, _DEFAULT_WEIGHT))
+            refresh = _REFRESH_VALIDATOR(value.get(CONF_REFRESH, _DEFAULT_REFRESH))
+        except cv.Invalid:
+            return None
+        return {
             CONF_TYPE: TYPE_GFONTS,
             CONF_FAMILY: family,
+            CONF_WEIGHT: weight,
+            CONF_ITALIC: italic,
+            CONF_REFRESH: refresh,
         }
-        if weight is not None:
-            data[CONF_WEIGHT] = weight[1:]
-        return font_file_schema(data)
+    return None
 
-    if value.startswith(("http://", "https://")):
-        return font_file_schema(
-            {
-                CONF_TYPE: TYPE_WEB,
-                CONF_URL: value,
-            }
-        )
 
-    return font_file_schema(
-        {
-            CONF_TYPE: TYPE_LOCAL,
-            CONF_PATH: value,
-        }
-    )
+def _iter_remote_specs(entries: list[ConfigType]) -> Iterable[ConfigType]:
+    """Yield the remote spec of every `file:` value, including extras."""
+    for entry in entries:
+        values = [entry.get(CONF_FILE)]
+        extras = entry.get(CONF_EXTRAS)
+        if isinstance(extras, dict):
+            # The schema runs cv.ensure_list on extras, so a bare mapping
+            # is valid raw config; mirror that normalization here.
+            extras = [extras]
+        if isinstance(extras, list):
+            values.extend(
+                extra.get(CONF_FILE) for extra in extras if isinstance(extra, dict)
+            )
+        for value in values:
+            if (spec := _extract_remote_font(value)) is not None:
+                yield spec
+
+
+def PREFETCH_FILES(entries: list[ConfigType]) -> Iterable[list[RemoteFile]]:
+    """Batch-download hook: web fonts, then Google Fonts CSS, then ttf.
+
+    Stage one fetches web fonts and the CSS of stale gfonts; stage two
+    parses the now-cached CSS for the ttf URLs it names.
+    """
+    stage1: list[RemoteFile] = []
+    # Keyed by cache path: the same font at several sizes is one download,
+    # one freshness stat, and one stage-two CSS parse.
+    stale_gfonts: dict[Path, ConfigType] = {}
+    seen_web: set[Path] = set()
+    for spec in _iter_remote_specs(entries):
+        if spec[CONF_TYPE] == TYPE_WEB:
+            if (path := _web_font_path(spec)) not in seen_web:
+                seen_web.add(path)
+                stage1.append(RemoteFile(spec[CONF_URL], path))
+        elif (css_path := _gfonts_css_path(spec)) not in stale_gfonts and (
+            not external_files.is_file_recent(
+                _gfonts_ttf_path(spec), spec[CONF_REFRESH]
+            )
+        ):
+            stale_gfonts[css_path] = spec
+            stage1.append(RemoteFile(_gfonts_css_url(spec), css_path))
+    yield stage1
+
+    yield [
+        RemoteFile(ttf_url, _gfonts_ttf_path(spec))
+        for css_path, spec in stale_gfonts.items()
+        # Only trust CSS that stage one actually refreshed this run; a
+        # leftover from an earlier run may name a rotated ttf URL.
+        if external_files.is_fresh_this_run(css_path)
+        and css_path.exists()
+        and (ttf_url := _parse_gfonts_css(css_path.read_text("utf-8", "replace")))
+        is not None
+    ]
+
+
+def validate_file_shorthand(value: object) -> ConfigType:
+    value = cv.string_strict(value)
+    if (data := _shorthand_to_file_dict(value)) is None:
+        data = {CONF_TYPE: TYPE_LOCAL, CONF_PATH: value}
+    return font_file_schema(data)
 
 
 TYPED_FILE_SCHEMA = cv.typed_schema(

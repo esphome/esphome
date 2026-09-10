@@ -13,6 +13,7 @@ from esphome.const import (
     UNIT_PERCENT,
     UNIT_REVOLUTIONS_PER_MINUTE,
 )
+from esphome.types import ConfigType
 
 from .. import CONF_EMC2101_ID, EMC2101_COMPONENT_SCHEMA, emc2101_ns
 
@@ -53,7 +54,7 @@ CONFIG_SCHEMA = EMC2101_COMPONENT_SCHEMA.extend(
 ).extend(cv.polling_component_schema("60s"))
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     paren = await cg.get_variable(config[CONF_EMC2101_ID])
     var = cg.new_Pvariable(config[CONF_ID], paren)
     await cg.register_component(var, config)

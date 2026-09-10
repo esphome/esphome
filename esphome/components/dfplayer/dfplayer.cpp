@@ -277,9 +277,6 @@ void DFPlayer::loop() {
     }
   }
 }
-void DFPlayer::dump_config() {
-  ESP_LOGCONFIG(TAG, "DFPlayer:");
-  this->check_uart_settings(9600);
-}
+void DFPlayer::dump_config() { ESP_LOGCONFIG(TAG, "DFPlayer:"); }
 
 }  // namespace esphome::dfplayer

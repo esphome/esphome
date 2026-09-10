@@ -11,6 +11,4 @@ void SelectTraits::set_options(const FixedVector<const char *> &options) {
   }
 }
 
-const FixedVector<const char *> &SelectTraits::get_options() const { return this->options_; }
-
 }  // namespace esphome::select

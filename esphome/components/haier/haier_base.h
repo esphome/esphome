@@ -147,8 +147,8 @@ class HaierClimateBase : public esphome::Component,
     esphome::optional<haier_protocol::HaierMessage> message;
   };
   enum class SwitchState {
-    OFF = 0b00,
-    ON = 0b01,
+    SWITCH_OFF = 0b00,
+    SWITCH_ON = 0b01,
     PENDING_OFF = 0b10,
     PENDING_ON = 0b11,
   };
@@ -157,8 +157,8 @@ class HaierClimateBase : public esphome::Component,
   esphome::optional<PendingAction> action_request_;
   uint8_t fan_mode_speed_;
   uint8_t other_modes_fan_speed_;
-  SwitchState display_status_{SwitchState::ON};
-  SwitchState health_mode_{SwitchState::OFF};
+  SwitchState display_status_{SwitchState::SWITCH_ON};
+  SwitchState health_mode_{SwitchState::SWITCH_OFF};
   bool force_send_control_;
   bool forced_request_status_;
   bool reset_protocol_request_;

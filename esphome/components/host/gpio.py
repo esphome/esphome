@@ -1,4 +1,5 @@
 import logging
+from typing import Any
 
 from esphome import pins
 import esphome.codegen as cg
@@ -14,6 +15,8 @@ from esphome.const import (
     CONF_PULLDOWN,
     CONF_PULLUP,
 )
+from esphome.cpp_generator import MockObj
+from esphome.types import ConfigType
 
 from .const import host_ns
 
@@ -22,7 +25,7 @@ _LOGGER = logging.getLogger(__name__)
 HostGPIOPin = host_ns.class_("HostGPIOPin", cg.InternalGPIOPin)
 
 
-def _translate_pin(value):
+def _translate_pin(value: Any) -> int | str:
     if isinstance(value, dict) or value is None:
         raise cv.Invalid(
             "This variable only supports pin numbers, not full pin schemas "
@@ -41,7 +44,7 @@ def _translate_pin(value):
     return value
 
 
-def validate_gpio_pin(value):
+def validate_gpio_pin(value: Any) -> int | str:
     return _translate_pin(value)
 
 
@@ -53,7 +56,7 @@ HOST_PIN_SCHEMA = pins.gpio_base_schema(
 
 
 @pins.PIN_SCHEMA_REGISTRY.register("host", HOST_PIN_SCHEMA)
-async def host_pin_to_code(config):
+async def host_pin_to_code(config: ConfigType) -> MockObj:
     var = cg.new_Pvariable(config[CONF_ID])
     num = config[CONF_NUMBER]
     cg.add(var.set_pin(num))

@@ -20,7 +20,7 @@ TaskLogBuffer::~TaskLogBuffer() {
   }
 }
 
-size_t TaskLogBuffer::available_contiguous_space() const {
+size_t TaskLogBuffer::available_contiguous_space_() const {
   if (this->head_ >= this->tail_) {
     // head is ahead of or equal to tail
     // Available space is from head to end, plus from start to tail
@@ -81,7 +81,7 @@ void TaskLogBuffer::release_message_main_loop() {
     this->tail_ = 0;
   }
 
-  this->message_count_--;
+  this->message_count_ = this->message_count_ - 1;
   this->current_message_size_ = 0;
 
   xSemaphoreGive(this->mutex_);
@@ -117,7 +117,7 @@ bool TaskLogBuffer::send_message_thread_safe(uint8_t level, const char *tag, uin
   }
 
   // Check if we have enough contiguous space
-  size_t contiguous = this->available_contiguous_space();
+  size_t contiguous = this->available_contiguous_space_();
 
   if (contiguous < total_size) {
     // Not enough contiguous space at end
@@ -128,9 +128,9 @@ bool TaskLogBuffer::send_message_thread_safe(uint8_t level, const char *tag, uin
     }
 
     // Need at least enough space to safely write padding marker (level field is at end of struct)
-    constexpr size_t PADDING_MARKER_MIN_SPACE = offsetof(LogMessage, level) + 1;
+    constexpr size_t padding_marker_min_space = offsetof(LogMessage, level) + 1;
 
-    if (space_at_start >= total_size && this->head_ > 0 && contiguous >= PADDING_MARKER_MIN_SPACE) {
+    if (space_at_start >= total_size && this->head_ > 0 && contiguous >= padding_marker_min_space) {
       // Add padding marker (set level field to indicate this is padding, not a real message)
       LogMessage *padding = reinterpret_cast<LogMessage *>(this->storage_ + this->head_);
       padding->level = PADDING_MARKER_LEVEL;
@@ -180,7 +180,7 @@ bool TaskLogBuffer::send_message_thread_safe(uint8_t level, const char *tag, uin
     this->head_ = 0;
   }
 
-  this->message_count_++;
+  this->message_count_ = this->message_count_ + 1;
 
   xSemaphoreGive(this->mutex_);
   return true;

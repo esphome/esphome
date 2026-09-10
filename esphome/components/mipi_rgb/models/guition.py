@@ -5,6 +5,7 @@ st7701s.extend(
     width=480,
     height=480,
     data_rate="2MHz",
+    requires={"psram"},
     cs_pin=39,
     de_pin=18,
     hsync_pin=16,

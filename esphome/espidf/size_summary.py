@@ -28,6 +28,8 @@ import json
 import logging
 from pathlib import Path
 
+from esphome.build_helpers.size_summary import print_size_line
+
 _LOGGER = logging.getLogger(__name__)
 _SIZE_SUFFIXES = {"K": 1024, "M": 1024 * 1024}
 
@@ -57,7 +59,7 @@ def _find_app_partition_size(partitions_csv: Path) -> int:
     """
     if not partitions_csv.is_file():
         raise ValueError(f"partitions.csv not found at {partitions_csv}")
-    for row in csv.reader(partitions_csv.read_text().splitlines()):
+    for row in csv.reader(partitions_csv.read_text(encoding="utf-8").splitlines()):
         cells = [c.strip() for c in row]
         if not cells or cells[0].startswith("#") or len(cells) < 5:
             continue
@@ -65,18 +67,6 @@ def _find_app_partition_size(partitions_csv: Path) -> int:
         if ptype in ("app", "0") and psubtype in ("factory", "ota_0"):
             return _parse_size(psize)
     raise ValueError(f"No app+factory or app+ota_0 partition in {partitions_csv}")
-
-
-def _format_bar(used: int, total: int) -> str:
-    """Match PlatformIO's ``_format_availale_bytes`` (pioupload.py) exactly."""
-    pct_raw = used / total if total else 0
-    blocks = 10
-    filled = min(int(round(blocks * pct_raw)), blocks)
-    progress = "=" * filled
-    return (
-        f"[{progress:<{blocks}}] {pct_raw: 6.1%} "
-        f"(used {used:d} bytes from {total:d} bytes)"
-    )
 
 
 def print_summary(size_json: Path, partitions_csv: Path | None) -> None:
@@ -89,7 +79,7 @@ def print_summary(size_json: Path, partitions_csv: Path | None) -> None:
         _LOGGER.debug("Skipping size summary: %s not found", size_json)
         return
     try:
-        data = json.loads(size_json.read_text())
+        data = json.loads(size_json.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as e:
         _LOGGER.debug("Skipping size summary: %s", e)
         return
@@ -99,7 +89,7 @@ def print_summary(size_json: Path, partitions_csv: Path | None) -> None:
     ram_used = ram_region.get("used")
     ram_total = ram_region.get("size")
     if ram_total and ram_used is not None:
-        print(f"RAM:   {_format_bar(ram_used, ram_total)}")
+        print_size_line("RAM", ram_used, ram_total)
 
     image_size = data.get("image_size")
     if image_size is None or partitions_csv is None:
@@ -109,4 +99,4 @@ def print_summary(size_json: Path, partitions_csv: Path | None) -> None:
     except ValueError as e:
         _LOGGER.debug("Skipping Flash summary: %s", e)
         return
-    print(f"Flash: {_format_bar(image_size, app_size)}")
+    print_size_line("Flash", image_size, app_size)

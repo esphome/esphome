@@ -13,6 +13,9 @@ from esphome.const import (
     CONF_PRESET_MODES,
     CONF_SPEED_COUNT,
 )
+from esphome.core import ID
+from esphome.cpp_generator import MockObj, TemplateArgsType
+from esphome.types import ConfigType
 
 from .. import hbridge_ns
 
@@ -54,12 +57,17 @@ CONFIG_SCHEMA = (
     maybe_simple_id({cv.GenerateID(): cv.use_id(HBridgeFan)}),
     synchronous=True,
 )
-async def fan_hbridge_brake_to_code(config, action_id, template_arg, args):
+async def fan_hbridge_brake_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     paren = await cg.get_variable(config[CONF_ID])
     return cg.new_Pvariable(action_id, template_arg, paren)
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = await fan.new_fan(
         config,
         config[CONF_SPEED_COUNT],

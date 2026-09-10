@@ -8,6 +8,7 @@ from esphome.components.display_menu_base import (
 import esphome.config_validation as cv
 from esphome.const import CONF_DIMENSIONS, CONF_DISPLAY_ID, CONF_ID
 from esphome.core.entity_helpers import inherit_property_from
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@numo68"]
 
@@ -29,7 +30,7 @@ LCDCharacterMenuComponent = lcd_menu_ns.class_(
 MULTI_CONF = True
 
 
-def validate_lcd_dimensions(config):
+def validate_lcd_dimensions(config: ConfigType) -> ConfigType:
     if config[CONF_DIMENSIONS][0] < MINIMUM_COLUMNS:
         raise cv.Invalid(
             f"LCD display must have at least {MINIMUM_COLUMNS} columns to be usable with the menu"
@@ -56,7 +57,7 @@ FINAL_VALIDATE_SCHEMA = cv.All(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     disp = await cg.get_variable(config[CONF_DISPLAY_ID])

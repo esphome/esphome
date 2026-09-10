@@ -3,6 +3,7 @@ from esphome.components import i2c, ssd1306_base
 from esphome.components.ssd1306_base import _validate
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_LAMBDA, CONF_PAGES
+from esphome.types import ConfigType
 
 AUTO_LOAD = ["ssd1306_base"]
 DEPENDENCIES = ["i2c"]
@@ -23,7 +24,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await ssd1306_base.setup_ssd1306(var, config)
     await i2c.register_i2c_device(var, config)

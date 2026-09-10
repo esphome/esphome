@@ -1,0 +1,26 @@
+esphome:
+  name: test
+
+esp32:
+  board: esp32-s3-devkitc-1
+  variant: esp32s3
+  framework:
+    type: esp-idf
+
+spi:
+  clk_pin: GPIO18
+  mosi_pin: GPIO19
+
+display:
+  - platform: epaper_spi
+    id: epaper_display
+    model: t133a01
+    dc_pin: GPIO21
+    reset_pin: GPIO38
+    cs_pin: GPIO10
+    cs1_pin: GPIO2
+    busy_pin: GPIO13
+    update_interval: never
+    dimensions:
+      width: 200
+      height: 200

@@ -24,6 +24,8 @@ class HttpContainerIDF : public HttpContainer {
  protected:
   friend class HttpRequestIDF;
   esp_http_client_handle_t client_;
+  // Owned copy (not a reference): must outlive perform() for the response-header event handler
+  std::vector<std::string> collect_headers_;
 };
 
 class HttpRequestIDF final : public HttpRequestComponent {

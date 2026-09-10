@@ -93,36 +93,6 @@ bool Component::cancel_interval(const char *name) {  // NOLINT
   return App.scheduler.cancel_interval(this, name);
 }
 
-void Component::set_retry(const std::string &name, uint32_t initial_wait_time, uint8_t max_attempts,
-                          std::function<RetryResult(uint8_t)> &&f, float backoff_increase_factor) {  // NOLINT
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-  App.scheduler.set_retry(this, name, initial_wait_time, max_attempts, std::move(f), backoff_increase_factor);
-#pragma GCC diagnostic pop
-}
-
-void Component::set_retry(const char *name, uint32_t initial_wait_time, uint8_t max_attempts,
-                          std::function<RetryResult(uint8_t)> &&f, float backoff_increase_factor) {  // NOLINT
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-  App.scheduler.set_retry(this, name, initial_wait_time, max_attempts, std::move(f), backoff_increase_factor);
-#pragma GCC diagnostic pop
-}
-
-bool Component::cancel_retry(const std::string &name) {  // NOLINT
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-  return App.scheduler.cancel_retry(this, name);
-#pragma GCC diagnostic pop
-}
-
-bool Component::cancel_retry(const char *name) {  // NOLINT
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-  return App.scheduler.cancel_retry(this, name);
-#pragma GCC diagnostic pop
-}
-
 void Component::set_timeout(const char *name, uint32_t timeout, std::function<void()> &&f) {  // NOLINT
   App.scheduler.set_timeout(this, name, timeout, std::move(f));
 }
@@ -155,21 +125,6 @@ void Component::set_interval(InternalSchedulerID id, uint32_t interval, std::fun
 }
 
 bool Component::cancel_interval(InternalSchedulerID id) { return App.scheduler.cancel_interval(this, id); }
-
-void Component::set_retry(uint32_t id, uint32_t initial_wait_time, uint8_t max_attempts,
-                          std::function<RetryResult(uint8_t)> &&f, float backoff_increase_factor) {  // NOLINT
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-  App.scheduler.set_retry(this, id, initial_wait_time, max_attempts, std::move(f), backoff_increase_factor);
-#pragma GCC diagnostic pop
-}
-
-bool Component::cancel_retry(uint32_t id) {
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-  return App.scheduler.cancel_retry(this, id);
-#pragma GCC diagnostic pop
-}
 
 void Component::call_setup() { this->setup(); }
 void Component::call_dump_config_() {
@@ -307,13 +262,6 @@ void Component::set_timeout(uint32_t timeout, std::function<void()> &&f) {  // N
 void Component::set_interval(uint32_t interval, std::function<void()> &&f) {  // NOLINT
   App.scheduler.set_interval(this, static_cast<const char *>(nullptr), interval, std::move(f));
 }
-void Component::set_retry(uint32_t initial_wait_time, uint8_t max_attempts, std::function<RetryResult(uint8_t)> &&f,
-                          float backoff_increase_factor) {  // NOLINT
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-  App.scheduler.set_retry(this, "", initial_wait_time, max_attempts, std::move(f), backoff_increase_factor);
-#pragma GCC diagnostic pop
-}
 bool Component::is_ready() const {
   // Bitmask check: valid states are SETUP(1), LOOP(2), LOOP_DONE(4)
   // (1 << state) & 0b10110 checks membership in one instruction
@@ -388,10 +336,8 @@ void log_update_interval(const char *tag, PollingComponent *component) {
   uint32_t update_interval = component->get_update_interval();
   if (update_interval == SCHEDULER_DONT_RUN) {
     ESP_LOGCONFIG(tag, "  Update Interval: never");
-  } else if (update_interval < 100) {
-    ESP_LOGCONFIG(tag, "  Update Interval: %.3fs", update_interval / 1000.0f);
   } else {
-    ESP_LOGCONFIG(tag, "  Update Interval: %.1fs", update_interval / 1000.0f);
+    ESP_LOGCONFIG(tag, "  Update Interval: %" PRIu32 ".%03" PRIu32 "s", update_interval / 1000, update_interval % 1000);
   }
 }
 float Component::get_actual_setup_priority() const {

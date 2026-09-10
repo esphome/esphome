@@ -248,7 +248,13 @@ void VoiceAssistant::stream_api_audio_() {
       msg.data2_len = available2;
     }
 
-    this->api_client_->send_message(msg);
+    if (!this->api_client_->send_message(msg)) {
+      // Keep the chunk exposed and retry next pass, the same shape as
+      // APIConnection::try_send_camera_image_(): the slice is only lost if
+      // the ring buffer overflows before the TCP buffer clears, instead of
+      // on every refusal. The api layer already reports the refusal at V.
+      return;
+    }
 
     this->audio_source_->consume(available);
     if (this->audio_source2_ != nullptr) {
@@ -477,7 +483,9 @@ void VoiceAssistant::loop() {
 
           api::VoiceAssistantAnnounceFinished msg;
           msg.success = true;
-          this->api_client_->send_message(msg);
+          if (!this->api_client_->send_message(msg)) {
+            API_LOG_MSG_DROPPED(TAG, "Announce-finished");
+          }
           break;
         }
       }
@@ -741,7 +749,9 @@ void VoiceAssistant::signal_stop_() {
   ESP_LOGD(TAG, "Signaling stop");
   api::VoiceAssistantRequest msg;
   msg.start = false;
-  this->api_client_->send_message(msg);
+  if (!this->api_client_->send_message(msg)) {
+    API_LOG_MSG_DROPPED(TAG, "Stop request");
+  }
 }
 
 void VoiceAssistant::start_playback_timeout_() {
@@ -753,7 +763,9 @@ void VoiceAssistant::start_playback_timeout_() {
       return;
     api::VoiceAssistantAnnounceFinished msg;
     msg.success = true;
-    this->api_client_->send_message(msg);
+    if (!this->api_client_->send_message(msg)) {
+      API_LOG_MSG_DROPPED(TAG, "Announce-finished");
+    }
   });
 }
 
@@ -978,11 +990,12 @@ void VoiceAssistant::on_event(const api::VoiceAssistantEventResponse &msg) {
 void VoiceAssistant::on_audio(const api::VoiceAssistantAudio &msg) {
 #ifdef USE_SPEAKER  // We should never get to this function if there is no speaker anyway
   if ((this->speaker_ != nullptr) && (this->speaker_buffer_ != nullptr)) {
-    if (this->speaker_buffer_index_ + msg.data_len < SPEAKER_BUFFER_SIZE) {
+    if (this->speaker_buffer_index_ + msg.data_len <= SPEAKER_BUFFER_SIZE) {
       memcpy(this->speaker_buffer_ + this->speaker_buffer_index_, msg.data, msg.data_len);
       this->speaker_buffer_index_ += msg.data_len;
       this->speaker_buffer_size_ += msg.data_len;
       this->speaker_bytes_received_ += msg.data_len;
+      this->write_speaker_();
       ESP_LOGV(TAG, "Received audio: %u bytes from API", msg.data_len);
     } else {
       ESP_LOGE(TAG, "Cannot receive audio, buffer is full");
