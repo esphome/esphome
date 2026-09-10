@@ -434,11 +434,12 @@ void USBUartTypeCdcAcm::on_connected() {
       auto err_comm = usb_host_interface_claim(this->handle_, this->device_handle_,
                                                channel->cdc_dev_.interrupt_interface_number, 0);
       if (err_comm != ESP_OK) {
+        // Continue anyway: the interface number stays valid for CDC request addressing
         ESP_LOGW(TAG, "Could not claim comm interface %d: %s", channel->cdc_dev_.interrupt_interface_number,
                  esp_err_to_name(err_comm));
-        channel->cdc_dev_.interrupt_interface_number = 0xFF;  // Mark as unavailable, but continue anyway
       } else {
         ESP_LOGD(TAG, "Claimed comm interface %d", channel->cdc_dev_.interrupt_interface_number);
+        channel->cdc_dev_.interrupt_interface_claimed = true;
       }
     }
     auto err =
@@ -465,14 +466,15 @@ void USBUartTypeCdcAcm::on_disconnected() {
       usb_host_endpoint_halt(this->device_handle_, channel->cdc_dev_.out_ep->bEndpointAddress);
       usb_host_endpoint_flush(this->device_handle_, channel->cdc_dev_.out_ep->bEndpointAddress);
     }
-    if (channel->cdc_dev_.notify_ep != nullptr) {
+    // Only tear down the notify pipe when we claimed its interface ourselves;
+    // no transfer is ever submitted on it, so there is nothing else to cancel.
+    if (channel->cdc_dev_.notify_ep != nullptr && channel->cdc_dev_.interrupt_interface_claimed) {
       usb_host_endpoint_halt(this->device_handle_, channel->cdc_dev_.notify_ep->bEndpointAddress);
       usb_host_endpoint_flush(this->device_handle_, channel->cdc_dev_.notify_ep->bEndpointAddress);
     }
-    if (channel->cdc_dev_.interrupt_interface_number != 0xFF &&
-        channel->cdc_dev_.interrupt_interface_number != channel->cdc_dev_.bulk_interface_number) {
+    if (channel->cdc_dev_.interrupt_interface_claimed) {
       usb_host_interface_release(this->handle_, this->device_handle_, channel->cdc_dev_.interrupt_interface_number);
-      channel->cdc_dev_.interrupt_interface_number = 0xFF;
+      channel->cdc_dev_.interrupt_interface_claimed = false;
     }
     usb_host_interface_release(this->handle_, this->device_handle_, channel->cdc_dev_.bulk_interface_number);
     // Reset the input and output started flags to their initial state to avoid the possibility of spurious restarts
