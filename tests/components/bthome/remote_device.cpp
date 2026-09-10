@@ -82,6 +82,49 @@ TEST_F(BTHomeDeviceTest, ParseDataWithNonMatchingMacAddress) {
   EXPECT_EQ(handler2_.processed_objects().size(), 0);
 }
 
+TEST_F(BTHomeDeviceTest, ParseEmptyData) {
+  EXPECT_TRUE(device_.parse_data(test_mac_, nullptr, 0));
+  EXPECT_EQ(handler1_.processed_objects().size(), 0);
+  EXPECT_EQ(handler2_.processed_objects().size(), 0);
+}
+
+#ifdef USE_BTHOME_DECRYPTION
+TEST_F(BTHomeDeviceTest, ParseKnownEncryptedAdvertisement) {
+  RemoteDevice<2> encrypted_device;
+  MockBTHomeRemoteObject temperature{BTHomeObjectType::TEMPERATURE_C_E2};
+  MockBTHomeRemoteObject humidity{BTHomeObjectType::HUMIDITY_PCT_E2};
+  encrypted_device.set_address(MacAddress{0x5448E68F80A5ULL});
+  encrypted_device.set_handler(0, &temperature);
+  encrypted_device.set_handler(1, &humidity);
+  encrypted_device.set_encryption_key(
+      {0x23, 0x1D, 0x39, 0xC1, 0xD7, 0xCC, 0x1A, 0xB1, 0xAE, 0xE2, 0x24, 0xCD, 0x09, 0x6D, 0xB9, 0x32});
+
+  // Generated independently with Python cryptography AESCCM. Plaintext is
+  // TEMPERATURE_C_E2=25.06 and HUMIDITY_PCT_E2=50.55, counter=12345.
+  const uint8_t payload[] = {0x41, 0xA8, 0xF1, 0x60, 0x79, 0xE0, 0x60, 0x39, 0x30, 0x00, 0x00, 0x60, 0x22, 0x10, 0xEE};
+
+  EXPECT_TRUE(encrypted_device.parse_data(MacAddress{0x5448E68F80A5ULL}, payload, sizeof(payload)));
+  ASSERT_EQ(temperature.processed_objects().size(), 1);
+  ASSERT_EQ(humidity.processed_objects().size(), 1);
+  EXPECT_NEAR(temperature.processed_objects()[0].value, 25.06f, 0.001f);
+  EXPECT_NEAR(humidity.processed_objects()[0].value, 50.55f, 0.001f);
+}
+
+TEST_F(BTHomeDeviceTest, RejectsTamperedEncryptedAdvertisement) {
+  RemoteDevice<1> encrypted_device;
+  MockBTHomeRemoteObject temperature{BTHomeObjectType::TEMPERATURE_C_E2};
+  encrypted_device.set_address(MacAddress{0x5448E68F80A5ULL});
+  encrypted_device.set_handler(0, &temperature);
+  encrypted_device.set_encryption_key(
+      {0x23, 0x1D, 0x39, 0xC1, 0xD7, 0xCC, 0x1A, 0xB1, 0xAE, 0xE2, 0x24, 0xCD, 0x09, 0x6D, 0xB9, 0x32});
+  uint8_t payload[] = {0x41, 0xA8, 0xF1, 0x60, 0x79, 0xE0, 0x60, 0x39, 0x30, 0x00, 0x00, 0x60, 0x22, 0x10, 0xEE};
+  payload[1] ^= 0x01;
+
+  EXPECT_TRUE(encrypted_device.parse_data(MacAddress{0x5448E68F80A5ULL}, payload, sizeof(payload)));
+  EXPECT_EQ(temperature.processed_objects().size(), 0);
+}
+#endif
+
 TEST_F(BTHomeDeviceTest, ParseDataMultipleObjects) {
   // Create unencrypted BTHome payload with BATTERY_PCT and TEMPERATURE_C_E2
   // Header (version 2): 0x40

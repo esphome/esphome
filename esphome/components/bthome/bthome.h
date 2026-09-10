@@ -4,7 +4,6 @@
 #include <cstdint>
 #include <cstddef>
 #include <array>
-#include "ble.h"
 
 namespace esphome::bthome {
 
@@ -13,19 +12,15 @@ using EncryptionKey = std::array<uint8_t, 16>;
 static constexpr uint8_t BTHOME_VERSION_2 = 0x02;
 
 struct BTHomeHeader {
-  uint8_t encrypted : 1;      // bit 0: encrypted data
-  uint8_t reserved1 : 1;      // bit 1: reserved
-  uint8_t trigger_based : 1;  // bit 2: irregular advertisement interval
-  uint8_t reserved2 : 2;      // bits 3-4: reserved
-  uint8_t version : 3;        // bits 5-7: BTHome version (currently 1 or 2)
+  // Bit 0: encrypted data
+  // Bit 1: MAC address included
+  // Bit 2: trigger-based advertisement
+  // Bits 3-4: reserved
+  // Bits 5-7: BTHome version
+  uint8_t data;
 
-  static BTHomeHeader create(bool encrypted = false) {
-    return {.encrypted = uint8_t(encrypted),
-            .reserved1 = 0,
-            .trigger_based = 0,
-            .reserved2 = 0,
-            .version = BTHOME_VERSION_2};
-  }
+  bool encrypted() const { return this->data & 0x01; }
+  uint8_t version() const { return this->data >> 5; }
 };
 
 static_assert(sizeof(BTHomeHeader) == 1, "BTHomeHeader must be 1 byte");
@@ -34,9 +29,8 @@ static constexpr uint8_t BTHOME_SVC_UUID_HIGH = 0xFC;  // BTHome service UUID hi
 static constexpr uint16_t BTHOME_UUID16 = (BTHOME_SVC_UUID_HIGH << 8) | BTHOME_SVC_UUID_LOW;
 static constexpr size_t BTHOME_MIC_SIZE = 4;
 static constexpr size_t BTHOME_COUNTER_SIZE = 4;
-static constexpr size_t BTHOME_MAX_PAYLOAD =
-    BLE_ADV_MAX_SIZE - BLE_FLAGS_SIZE - BLE_ADV_HEADER_SIZE - sizeof(esphome::bthome::BTHomeHeader);
-static constexpr size_t BTHOME_MAX_ENCRYPTED_PAYLOAD = BTHOME_MAX_PAYLOAD - BTHOME_COUNTER_SIZE - BTHOME_MIC_SIZE;
+// Maximum plaintext in a legacy 31-byte advertisement with flags, service header, counter, and MIC.
+static constexpr size_t BTHOME_MAX_ENCRYPTED_PAYLOAD = 15;
 
 enum class BTHomeObjectType : uint8_t {
   ACCELERATION_MSS_E3 = 0x51,

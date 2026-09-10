@@ -1,8 +1,9 @@
 #include "remote_device.h"
 #include "decoder.h"
-#include "encryption.h"
+#include "esphome/components/ble_device_base/ble_aes_ccm.h"
 #include "esphome/core/log.h"
 
+#include <array>
 #include <cstring>
 
 namespace esphome::bthome::client {
@@ -13,24 +14,51 @@ bool RemoteDeviceBase::parse_data(MacAddressPtr source_address, const uint8_t *d
   if (this->address_ != source_address) {
     return false;
   }
-  BTHomeHeader &header = *(BTHomeHeader *) &data[0];
+  if (data_size == 0) {
+    ESP_LOGVV(TAG, "BTHome data is empty");
+    return true;
+  }
+
+  const BTHomeHeader header{data[0]};
 
   const uint8_t *payload;
   size_t payload_size;
 
 #ifdef USE_BTHOME_DECRYPTION
-  if (header.encrypted) {
+  std::array<uint8_t, BTHOME_MAX_ENCRYPTED_PAYLOAD> decrypted_payload{};
+  if (header.encrypted()) {
     if (!this->encryption_key_.has_value()) {
       ESP_LOGE(TAG, "Encrypted BTHome frame received but no bindkey configured for %s", source_address.c_str());
       return true;
     }
 
-    payload =
-        bthome_decrypt(data + 1, data_size - 1, source_address, header, this->encryption_key_.value(), payload_size);
-    if (payload == nullptr) {
+    if (data_size <= 1 + BTHOME_COUNTER_SIZE + BTHOME_MIC_SIZE) {
+      ESP_LOGVV(TAG, "Encrypted BTHome payload too short: %zu", data_size - 1);
+      return true;
+    }
+
+    payload_size = data_size - 1 - BTHOME_COUNTER_SIZE - BTHOME_MIC_SIZE;
+    if (payload_size > decrypted_payload.size()) {
+      ESP_LOGVV(TAG, "Decrypted BTHome payload too large: %zu", payload_size);
+      return true;
+    }
+
+    std::array<uint8_t, 13> nonce{};
+    std::memcpy(nonce.data(), static_cast<const uint8_t *>(source_address), MAC_ADDRESS_SIZE);
+    nonce[6] = BTHOME_SVC_UUID_LOW;
+    nonce[7] = BTHOME_SVC_UUID_HIGH;
+    nonce[8] = header.data;
+    const uint8_t *counter = data + 1 + payload_size;
+    std::memcpy(nonce.data() + 9, counter, BTHOME_COUNTER_SIZE);
+    const uint8_t *mic = counter + BTHOME_COUNTER_SIZE;
+
+    if (!ble_device_base::aes_ccm_auth_decrypt(this->encryption_key_->data(), nonce.data(), nonce.size(), nullptr, 0,
+                                               data + 1, payload_size, decrypted_payload.data(), mic,
+                                               BTHOME_MIC_SIZE)) {
       ESP_LOGVV(TAG, "Failed to decrypt BTHome frame from %s", source_address.c_str());
       return true;
     }
+    payload = decrypted_payload.data();
   } else {
     if (this->encryption_key_.has_value()) {
       ESP_LOGE(TAG, "Unencrypted BTHome frame received with bindkey configured for %s", source_address.c_str());
@@ -41,7 +69,7 @@ bool RemoteDeviceBase::parse_data(MacAddressPtr source_address, const uint8_t *d
   }
 
 #else
-  if (header.encrypted) {
+  if (header.encrypted()) {
     ESP_LOGE(TAG, "Encrypted BTHome frame received but no bindkey configured for %s", source_address.c_str());
     return true;
   }

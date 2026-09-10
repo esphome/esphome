@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 #include "esphome/components/bthome/remote_device.h"
 #include "esphome/components/bthome/remote_listener.h"
+#include "esphome/components/ble_device_base/ble_device.h"
 #include "esphome/core/helpers.h"
 
 namespace esphome::bthome::testing {
@@ -24,11 +25,16 @@ class MockHandler : public BTHomeRemoteObject {
   int call_count_{0};
 };
 
-// Minimal valid BTHome payload: header (v2, unencrypted=0x40) + BATTERY_PCT (0x01) + 97% (0x61)
-static const uint8_t K_BATTERY_PAYLOAD[] = {0x40, 0x01, 0x61};
-
 static const MacAddress K_MAC_A{0x010203040506ULL};
 static const MacAddress K_MAC_B{0xAABBCCDDEEFFULL};
+static const uint8_t K_MAC_A_LSB[] = {0x06, 0x05, 0x04, 0x03, 0x02, 0x01};
+static const uint8_t K_MAC_B_LSB[] = {0xFF, 0xEE, 0xDD, 0xCC, 0xBB, 0xAA};
+
+static ble_device_base::ESPBTDevice make_device(const uint8_t *mac, const uint8_t *advertisement, size_t size) {
+  ble_device_base::ESPBTDevice device;
+  device.from_scan_result(mac, -50, ble_device_base::BLE_ADDR_TYPE_PUBLIC, advertisement, static_cast<uint16_t>(size));
+  return device;
+}
 
 class DeviceListenerTest : public ::testing::Test {
  protected:
@@ -50,43 +56,62 @@ class DeviceListenerTest : public ::testing::Test {
 
 // on_bthome_data routes to the device whose MAC matches the source address
 TEST_F(DeviceListenerTest, RoutesToMatchingDevice) {
-  EXPECT_TRUE(this->listener_.on_bthome_data(K_MAC_A, K_BATTERY_PAYLOAD, sizeof(K_BATTERY_PAYLOAD)));
+  const uint8_t advertisement[] = {0x06, 0x16, 0xD2, 0xFC, 0x40, 0x01, 0x61};
+  EXPECT_TRUE(this->listener_.parse_device(make_device(K_MAC_A_LSB, advertisement, sizeof(advertisement))));
   EXPECT_EQ(this->handler_a_.call_count(), 1);
   EXPECT_EQ(this->handler_b_.call_count(), 0);
 }
 
-// Returns false when no registered device has the source MAC address
-TEST_F(DeviceListenerTest, ReturnsFalseWhenNoDeviceMatches) {
-  MacAddress unknown_mac{0x111111111111ULL};
-  EXPECT_FALSE(this->listener_.on_bthome_data(unknown_mac, K_BATTERY_PAYLOAD, sizeof(K_BATTERY_PAYLOAD)));
+TEST_F(DeviceListenerTest, IgnoresWrongServiceUuid) {
+  const uint8_t advertisement[] = {0x06, 0x16, 0xD3, 0xFC, 0x40, 0x01, 0x61};
+  EXPECT_FALSE(this->listener_.parse_device(make_device(K_MAC_A_LSB, advertisement, sizeof(advertisement))));
   EXPECT_EQ(this->handler_a_.call_count(), 0);
   EXPECT_EQ(this->handler_b_.call_count(), 0);
 }
 
-// Tries subsequent devices when an earlier one does not match the source MAC
-TEST_F(DeviceListenerTest, SecondDeviceCalledWhenFirstDoesNotMatch) {
-  EXPECT_TRUE(this->listener_.on_bthome_data(K_MAC_B, K_BATTERY_PAYLOAD, sizeof(K_BATTERY_PAYLOAD)));
+TEST_F(DeviceListenerTest, IgnoresEmptyServiceData) {
+  const uint8_t advertisement[] = {0x03, 0x16, 0xD2, 0xFC};
+  EXPECT_FALSE(this->listener_.parse_device(make_device(K_MAC_A_LSB, advertisement, sizeof(advertisement))));
+  EXPECT_EQ(this->handler_a_.call_count(), 0);
+  EXPECT_EQ(this->handler_b_.call_count(), 0);
+}
+
+TEST_F(DeviceListenerTest, IgnoresUnsupportedVersion) {
+  const uint8_t advertisement[] = {0x06, 0x16, 0xD2, 0xFC, 0x20, 0x01, 0x61};
+  EXPECT_FALSE(this->listener_.parse_device(make_device(K_MAC_A_LSB, advertisement, sizeof(advertisement))));
+  EXPECT_EQ(this->handler_a_.call_count(), 0);
+  EXPECT_EQ(this->handler_b_.call_count(), 0);
+}
+
+TEST_F(DeviceListenerTest, ReturnsFalseWhenNoDeviceMatches) {
+  const uint8_t mac_lsb[] = {0x11, 0x11, 0x11, 0x11, 0x11, 0x11};
+  const uint8_t advertisement[] = {0x06, 0x16, 0xD2, 0xFC, 0x40, 0x01, 0x61};
+  EXPECT_FALSE(this->listener_.parse_device(make_device(mac_lsb, advertisement, sizeof(advertisement))));
+  EXPECT_EQ(this->handler_a_.call_count(), 0);
+  EXPECT_EQ(this->handler_b_.call_count(), 0);
+}
+
+TEST_F(DeviceListenerTest, RoutesToSecondMatchingDevice) {
+  const uint8_t advertisement[] = {0x06, 0x16, 0xD2, 0xFC, 0x40, 0x01, 0x61};
+  EXPECT_TRUE(this->listener_.parse_device(make_device(K_MAC_B_LSB, advertisement, sizeof(advertisement))));
   EXPECT_EQ(this->handler_a_.call_count(), 0);
   EXPECT_EQ(this->handler_b_.call_count(), 1);
 }
 
-// Stops dispatching after the first device claims the data (returns true)
-TEST_F(DeviceListenerTest, StopsAfterFirstMatch) {
-  // Give device_b_ the same MAC as device_a_ so both would match
+TEST_F(DeviceListenerTest, StopsAfterFirstMatchingDevice) {
   this->device_b_.set_address(K_MAC_A);
-
-  EXPECT_TRUE(this->listener_.on_bthome_data(K_MAC_A, K_BATTERY_PAYLOAD, sizeof(K_BATTERY_PAYLOAD)));
+  const uint8_t advertisement[] = {0x06, 0x16, 0xD2, 0xFC, 0x40, 0x01, 0x61};
+  EXPECT_TRUE(this->listener_.parse_device(make_device(K_MAC_A_LSB, advertisement, sizeof(advertisement))));
   EXPECT_EQ(this->handler_a_.call_count(), 1);
-  EXPECT_EQ(this->handler_b_.call_count(), 0);  // never reached
+  EXPECT_EQ(this->handler_b_.call_count(), 0);
 }
 
-// Null device slots (unset entries in the array) are skipped without crashing
-TEST_F(DeviceListenerTest, NullDeviceSlotSkipped) {
+TEST_F(DeviceListenerTest, SkipsNullDeviceSlot) {
   DeviceListener<2> listener_with_null;
   listener_with_null.set_device(0, nullptr);
   listener_with_null.set_device(1, &this->device_a_);
-
-  EXPECT_TRUE(listener_with_null.on_bthome_data(K_MAC_A, K_BATTERY_PAYLOAD, sizeof(K_BATTERY_PAYLOAD)));
+  const uint8_t advertisement[] = {0x06, 0x16, 0xD2, 0xFC, 0x40, 0x01, 0x61};
+  EXPECT_TRUE(listener_with_null.parse_device(make_device(K_MAC_A_LSB, advertisement, sizeof(advertisement))));
   EXPECT_EQ(this->handler_a_.call_count(), 1);
 }
 

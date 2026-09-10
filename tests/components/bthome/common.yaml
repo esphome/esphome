@@ -1,5 +1,3 @@
-esp32_ble_tracker:
-
 sensor:
   - platform: bthome
     source_id: bthome_remote_plain

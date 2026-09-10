@@ -3,21 +3,18 @@ from typing import Any
 
 from esphome import core
 import esphome.codegen as cg
-from esphome.components import binary_sensor, esp32_ble_tracker, sensor, text_sensor
+from esphome.components import binary_sensor, ble_device_base, sensor, text_sensor
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_KEY, CONF_MAC_ADDRESS
 from esphome.core import CORE
 from esphome.cpp_generator import TemplateArguments
 
 CODEOWNERS = ["@jpeletier"]
-DEPENDENCIES = ["esp32", "esp32_ble_tracker"]
-
-
-BLE_DEVICE_SCHEMA = esp32_ble_tracker.ESP_BLE_DEVICE_SCHEMA
+AUTO_LOAD = ["ble_device_base"]
 
 bthome_ns = cg.esphome_ns.namespace("bthome")
 client_ns = bthome_ns.namespace("client")
-DeviceListener = client_ns.class_("DeviceListener")
+DeviceListener = client_ns.class_("DeviceListener", ble_device_base.ESPBTDeviceListener)
 RemoteDeviceBase = client_ns.class_("RemoteDeviceBase")
 RemoteDevice = client_ns.class_("RemoteDevice", RemoteDeviceBase)
 BTHomeRemoteObject = bthome_ns.class_("BTHomeRemoteObject")
@@ -35,9 +32,6 @@ BTHomeTextSensor = client_ns.class_(
     BTHomeRemoteObject,
     text_sensor.TextSensor,
     cg.Component,
-)
-ESP32BLEListener = bthome_ns.class_(
-    "ESP32BLEListener", esp32_ble_tracker.ESPBTDeviceListener
 )
 
 
@@ -75,11 +69,14 @@ _REMOTE_DEVICE_SCHEMA = cv.Schema(
 
 CONF_REMOTE_DEVICES = "remote_devices"
 
-CONFIG_SCHEMA = cv.Schema(
-    {
-        cv.Required(CONF_REMOTE_DEVICES): [_REMOTE_DEVICE_SCHEMA],
-    }
-).extend(BLE_DEVICE_SCHEMA)
+CONFIG_SCHEMA = cv.All(
+    ble_device_base.rename_legacy_hub_id("bthome"),
+    cv.Schema(
+        {
+            cv.Required(CONF_REMOTE_DEVICES): [_REMOTE_DEVICE_SCHEMA],
+        }
+    ).extend(ble_device_base.BLE_DEVICE_SCHEMA),
+)
 
 
 BTHOME_KEY = "bthome_key"
@@ -161,7 +158,4 @@ async def to_code(config):
             cg.add(device_var.set_encryption_key(_parse_key_bytes(key)))
             cg.add_define("USE_BTHOME_DECRYPTION")
 
-    ble_listener_id = core.ID("bthome_ble_listener", False, ESP32BLEListener)
-    ble_listener = cg.new_Pvariable(ble_listener_id)
-    cg.add(ble_listener.setup(listener))
-    await esp32_ble_tracker.register_ble_device(ble_listener, config)
+    await ble_device_base.register_ble_device(listener, config)

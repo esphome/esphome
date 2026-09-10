@@ -20,6 +20,8 @@ class RemoteDeviceBase {
   void set_address(const MacAddress &address) { this->address_ = address; }
 #ifdef USE_BTHOME_DECRYPTION
   void set_encryption_key(std::initializer_list<uint8_t> key) {
+    if (key.size() != EncryptionKey{}.size())
+      return;
     EncryptionKey k{};
     std::copy(key.begin(), key.end(), k.begin());
     this->encryption_key_ = k;
