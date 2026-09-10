@@ -1,0 +1,11 @@
+# Silicon Labs USART SPI mode is free-mux via SILABS_DBUS -- any valid pin works.
+substitutions:
+  clk_pin: "3"
+  mosi_pin: "5"
+  miso_pin: "6"
+
+spi:
+  - id: spi_bus
+    clk_pin: ${clk_pin}
+    mosi_pin: ${mosi_pin}
+    miso_pin: ${miso_pin}

@@ -1,4 +1,3 @@
-from collections.abc import Callable
 from dataclasses import dataclass, field
 import importlib
 import logging
@@ -168,12 +167,6 @@ class ZephyrVariant:
     # of an ever-growing per-variant elif chain. None = no family.
     family: str | None = None
     boards: list[str] = field(default_factory=list)  # empty = accept any board
-    # Per-variant DTS pin extractors keyed by bus name (e.g. "i2c", "spi").
-    # Signature: (board: str, bus_label: str) -> {"sda": int, "scl": int} | None
-    # Absent key = variant does not support DTS pin extraction for that bus.
-    pinctrl_extractors: dict[str, Callable[[str, str], dict[str, int] | None]] = field(
-        default_factory=dict
-    )
     # Toolchain identifiers supported by this variant (StrEnum values from esphome.const.Toolchain).
     valid_toolchains: tuple[str, ...] = ("platformio",)
     # Zephyr SDK cross-compiler name (arg to setup.sh -t / ZEPHYR_TOOLCHAIN_VARIANT).

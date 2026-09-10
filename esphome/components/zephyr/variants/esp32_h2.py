@@ -15,7 +15,6 @@ from ..const import (
     CONF_RUNNER,
     ZEPHYR_VARIANT_ESP32_H2,
 )
-from ..dts_lookup import get_i2c_pinctrl_esp32
 from . import (
     MAINLINE,
     ZephyrVariant,
@@ -48,7 +47,6 @@ VARIANT = ZephyrVariant(
     # enabled, not just this chip's -- a chip-specific regex fails the same way, so fetch
     # everything. Sentinel shared with esp32_c6 (same SDK) so it only runs once.
     blobs=("hal_espressif", ".*", ".blobs_hal_espressif_ready"),
-    pinctrl_extractors={"i2c": get_i2c_pinctrl_esp32},
     transports=frozenset({"ble", "openthread"}),
     soc="esp32h2",
     # offset excluded: upstream's BOOT_PREFER_SWAP_OFFSET requires !SOC_FAMILY_ESPRESSIF_ESP32.

@@ -11,6 +11,7 @@ from esphome.components.spi import (
     CONF_MISO_PIN,
     CONF_MOSI_PIN,
     _quad_platform_validator,
+    _validate_clk_pin_required,
     _zephyr_setup_spi,
     one_of_interface_validator,
     validate_spi_config,
@@ -180,9 +181,49 @@ def test_validate_spi_config_rejects_invalid_nordic_clk_pin() -> None:
         validate_spi_config([_spi_pin_conf(clk=99)])
 
 
+def test_validate_spi_config_accepts_valid_silabs_pins() -> None:
+    CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: PLATFORM_ZEPHYR}
+    CORE.data[KEY_ZEPHYR] = {"variant": "EFR32MG24"}
+    validate_spi_config([_spi_pin_conf(clk=3, mosi=5, miso=6)])
+
+
+def test_validate_spi_config_rejects_invalid_silabs_clk_pin() -> None:
+    CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: PLATFORM_ZEPHYR}
+    CORE.data[KEY_ZEPHYR] = {"variant": "EFR32MG24"}
+    with pytest.raises(cv.Invalid, match="does not support SPI CLK"):
+        validate_spi_config([_spi_pin_conf(clk=99)])
+
+
 def test_validate_spi_config_skips_pin_check_for_non_esp32_family() -> None:
     # STM32's spi_valid_pins is empty -- pin validity is left to
     # zephyr_setup_spi_pinctrl() at codegen time, not checked here.
     CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: PLATFORM_ZEPHYR}
     CORE.data[KEY_ZEPHYR] = {"variant": "STM32F4"}
     validate_spi_config([_spi_pin_conf(clk=99, mosi=99, miso=99)])
+
+
+# ---------------------------------------------------------------------------
+# _validate_clk_pin_required -- clk_pin is optional on Zephyr hardware SPI
+# (the board's real pinctrl entry has a default clock pin); every other
+# platform, and Zephyr's software interface, has no such default.
+# ---------------------------------------------------------------------------
+
+
+def test_clk_pin_required_zephyr_hardware_allows_missing_clk() -> None:
+    CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: PLATFORM_ZEPHYR}
+    value = {CONF_INTERFACE: "any", CONF_MOSI_PIN: {CONF_NUMBER: 7}}
+    assert _validate_clk_pin_required(value) is value
+
+
+def test_clk_pin_required_zephyr_software_requires_clk() -> None:
+    CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: PLATFORM_ZEPHYR}
+    value = {CONF_INTERFACE: "software", CONF_MOSI_PIN: {CONF_NUMBER: 7}}
+    with pytest.raises(cv.Invalid):
+        _validate_clk_pin_required(value)
+
+
+def test_clk_pin_required_non_zephyr_requires_clk() -> None:
+    CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: PLATFORM_ESP32}
+    value = {CONF_INTERFACE: "any"}
+    with pytest.raises(cv.Invalid):
+        _validate_clk_pin_required(value)

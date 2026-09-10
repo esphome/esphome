@@ -44,13 +44,16 @@ void SPIComponent::setup() {
     this->sdo_pin_ = NullPin::NULL_PIN;
   if (this->sdi_pin_ == nullptr)
     this->sdi_pin_ = NullPin::NULL_PIN;
-  if (this->clk_pin_ == nullptr) {
-    ESP_LOGE(TAG, "No clock pin");
-    this->mark_failed();
-    return;
-  }
-
   if (this->using_hw_) {
+    // Zephyr's hardware SPI clock line comes from board devicetree pinctrl, not a
+    // GPIOPin, so clk_pin_ may legitimately be null there.
+#if !defined(USE_ZEPHYR) || defined(USE_NRF52)
+    if (this->clk_pin_ == nullptr) {
+      ESP_LOGE(TAG, "No clock pin");
+      this->mark_failed();
+      return;
+    }
+#endif
     this->spi_bus_ =
         SPIComponent::get_bus(this->interface_, this->clk_pin_, this->sdo_pin_, this->sdi_pin_, this->data_pins_);
     if (this->spi_bus_ == nullptr) {
@@ -58,6 +61,11 @@ void SPIComponent::setup() {
       this->mark_failed();
     }
   } else {
+    if (this->clk_pin_ == nullptr) {
+      ESP_LOGE(TAG, "No clock pin");
+      this->mark_failed();
+      return;
+    }
     this->spi_bus_ = new SPIBus(this->clk_pin_, this->sdo_pin_, this->sdi_pin_);  // NOLINT
     this->clk_pin_->setup();
     this->clk_pin_->digital_write(true);
