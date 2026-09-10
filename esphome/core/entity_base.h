@@ -90,13 +90,14 @@ class EntityBase {
 
   // Set whether this Entity should be hidden outside ESPHome. Must be called before MQTT and the
   // API read the flag: from on_boot at the default priority, or a setup() that runs above
-  // setup_priority::AFTER_CONNECTION. Calls after setup finishes are ignored and log an error.
+  // setup_priority::AFTER_WIFI. Calls after setup finishes are ignored and log an error.
   //
   // Known limitations, all by design and not going to be fixed:
   // - No consumer is notified of a change, so the flag can only be decided once per boot.
-  // - The guard is coarse: a call from a priority below AFTER_CONNECTION (an on_boot with a low
-  //   priority, or a setup() at LATE) still passes, but MQTT has already cached the flag and the
-  //   API camera listener is already registered, so those consumers keep the old value.
+  // - The guard is coarse: a call from a priority below AFTER_WIFI (an on_boot with a low priority,
+  //   or a setup() at LATE) still passes, but the API camera listener is already registered, MQTT
+  //   (AFTER_CONNECTION) has cached the flag, and an API client that connected while setup was
+  //   stalled on a slow component has already listed the entities, so they keep the old value.
   // - Un-hiding an entity declared 'internal: true' in YAML skips the duplicate name check that
   //   codegen runs for exposed entities, so a name collision can surface at runtime. Entities with
   //   only an 'id:' are forced internal and use the id as their name.
