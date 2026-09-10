@@ -50,8 +50,8 @@ inline void progmem_memcpy(void *dst, const void *src, size_t len) { std::memcpy
 
 // helper function to determine if a pin is held from deep sleep. This is used to determine
 // if the pin state is valid after waking from deep sleep.
-inline bool pin_state_held_from_deep_sleep(GPIOPin *pin) {
-#if defined(USE_DEEP_SLEEP) && defined(USE_GPIO_HOLD)
+inline bool pin_state_held_from_deep_sleep(const GPIOPin *pin) {
+#if defined(USE_DEEP_SLEEP) && defined(USE_GPIO_HOLD) && defined(USE_ESP32)
   return (pin->get_flags() & gpio::FLAG_HOLD) && woken_from_deep_sleep();
 #else
   return false;

@@ -64,7 +64,7 @@ ISRInternalGPIOPin ESP32InternalGPIOPin::to_isr() const {
   arg->flags = gpio::FLAG_NONE;
   arg->inverted = this->pin_flags_.inverted;
 #ifdef USE_GPIO_HOLD
-  arg->hold = this->hold_;
+  arg->hold = this->get_hold_();
 #endif
 #if defined(USE_ESP32_VARIANT_ESP32)
   arg->use_rtc = rtc_gpio_is_valid_gpio(this->get_pin_num());
@@ -118,17 +118,20 @@ void ESP32InternalGPIOPin::setup() {
   conf.pull_down_en = this->flags_ & gpio::FLAG_PULLDOWN ? GPIO_PULLDOWN_ENABLE : GPIO_PULLDOWN_DISABLE;
   conf.intr_type = GPIO_INTR_DISABLE;
   gpio_config(&conf);
+#ifdef CONF_FREERTOS_USE_TICKLESS_IDLE
+  // If auto light sleep is used gpio sleep mode needs to be disabled for the pin
   gpio_sleep_sel_dis(this->get_pin_num());
+#endif
   if (this->flags_ & gpio::FLAG_OUTPUT) {
     gpio_set_drive_capability(this->get_pin_num(), this->get_drive_strength());
   }
 #ifdef USE_GPIO_HOLD
-  if (conf.mode == GPIO_MODE_INPUT) {
+  if (conf.mode == GPIO_MODE_INPUT || !this->get_hold_()) {
     // for inputs apply config now in case it was configured as output before sleep
     // for outputs defer until the first write
     gpio_hold_dis(this->get_pin_num());
   }
-  if (this->hold_) {
+  if (this->get_get_hold_()) {
     gpio_hold_en(this->get_pin_num());
   }
 #endif
@@ -147,7 +150,7 @@ void ESP32InternalGPIOPin::pin_mode(gpio::Flags flags) {
   }
   gpio_set_pull_mode(this->get_pin_num(), pull_mode);
 #ifdef USE_GPIO_HOLD
-  if (this->hold_) {
+  if (this->get_hold_()) {
     gpio_hold_dis(this->get_pin_num());
     gpio_hold_en(this->get_pin_num());
   }
@@ -160,7 +163,7 @@ bool ESP32InternalGPIOPin::digital_read() {
 void ESP32InternalGPIOPin::digital_write(bool value) {
   gpio_set_level(this->get_pin_num(), value != this->pin_flags_.inverted ? 1 : 0);
 #ifdef USE_GPIO_HOLD
-  if (this->hold_) {
+  if (this->get_hold_()) {
     gpio_hold_dis(this->get_pin_num());
     gpio_hold_en(this->get_pin_num());
   }

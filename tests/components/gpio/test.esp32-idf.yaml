@@ -9,6 +9,10 @@ substitutions:
 packages:
   gpio: !include common.yaml
 
+deep_sleep:
+  run_duration: 10s
+  sleep_duration: 10s
+
 binary_sensor:
   - platform: gpio
     pin:

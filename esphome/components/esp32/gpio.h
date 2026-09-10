@@ -17,12 +17,7 @@ class ESP32InternalGPIOPin final : public InternalGPIOPin {
   void set_drive_strength(gpio_drive_cap_t drive_strength) {
     this->pin_flags_.drive_strength = static_cast<uint8_t>(drive_strength);
   }
-  void set_flags(gpio::Flags flags) {
-    this->flags_ = flags;
-#ifdef USE_GPIO_HOLD
-    this->hold_ = flags & gpio::FLAG_HOLD;
-#endif
-  }
+  void set_flags(gpio::Flags flags) { this->flags_ = flags; }
 
   void setup() override;
   void pin_mode(gpio::Flags flags) override;
@@ -39,6 +34,7 @@ class ESP32InternalGPIOPin final : public InternalGPIOPin {
 
  protected:
   void attach_interrupt(void (*func)(void *), void *arg, gpio::InterruptType type) const override;
+  bool get_hold_() { this->flags_ &gpio::FLAG_HOLD; }
 
   // Memory layout: 8 bytes total on 32-bit systems
   // - 3 bytes for members below
@@ -53,9 +49,6 @@ class ESP32InternalGPIOPin final : public InternalGPIOPin {
   } pin_flags_{};                // Total: 1 byte
   // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
   static bool isr_service_installed;
-#ifdef USE_GPIO_HOLD
-  bool hold_{false};
-#endif
 };
 
 }  // namespace esphome::esp32

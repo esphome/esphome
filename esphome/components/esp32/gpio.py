@@ -271,10 +271,7 @@ async def esp32_pin_to_code(config):
         cg.add(var.set_drive_strength(config[CONF_DRIVE_STRENGTH]))
     flags = pins.gpio_flags_expr(config[CONF_MODE])
     if config[CONF_HOLD_DURING_SLEEP]:
-        from functools import reduce
-        import operator
-
-        flags = reduce(operator.or_, [flags, cg.gpio_Flags.FLAG_HOLD])
+        flags = flags | cg.gpio_Flags.FLAG_HOLD
         cg.add_define("USE_GPIO_HOLD")
     cg.add(var.set_flags(flags))
     return var
