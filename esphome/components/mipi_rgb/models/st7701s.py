@@ -7,6 +7,10 @@ SDIR_CMD = 0xC7
 
 
 class ST7701S(RgbDriverChip):
+    def __init__(self, *args, reset_delay=50, **kwargs):
+        kwargs["reset_delay"] = reset_delay
+        super().__init__(*args, **kwargs)
+
     # The ST7701s does not use the standard MADCTL bits for x/y mirroring
     def add_madctl(self, sequence: list, config: dict) -> int:
         transform = self.get_transform(config)
@@ -24,14 +28,6 @@ class ST7701S(RgbDriverChip):
             madctl |= MADCTL_XFLIP
         sequence.append((SDIR_CMD, sdir))
         return madctl
-
-    def get_sequence(
-        self, config, add_madctl=True, add_reset=False, reset_delay: int = 50
-    ) -> tuple[int, ...]:
-        # The ST7701S appears to need a longer delay after reset than the datasheet's stated 5ms.
-        return super().get_sequence(
-            config, add_madctl=add_madctl, add_reset=add_reset, reset_delay=reset_delay
-        )
 
     @property
     def transforms(self) -> set[str]:

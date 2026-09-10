@@ -602,9 +602,7 @@ class DriverChip:
         """
         return self.get_default(f"no_{command.lower()}", False)
 
-    def get_sequence(
-        self, config, add_madctl=True, add_reset=False, reset_delay: int = 10
-    ) -> tuple[int, ...]:
+    def get_sequence(self, config, add_madctl=True, add_reset=False) -> tuple[int, ...]:
         """
         Create the init sequence for the display.
         Use the default sequence from the model, if any, and append any custom sequence provided in the config.
@@ -615,6 +613,7 @@ class DriverChip:
         both a software and a hardware reset require. The delay length is set via reset_delay, and defaults to 10ms.
         Returns the init sequence
         """
+        reset_delay = self.get_default("reset_delay", 10)
         if reset_delay < 0 or reset_delay > 254:
             raise ValueError("reset_delay must be between 0 and 254ms")
         sequence = list(self.initsequence or ())
