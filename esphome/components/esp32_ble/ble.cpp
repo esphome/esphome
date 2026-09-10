@@ -580,12 +580,7 @@ void ESP32BLE::loop_handle_state_transition_not_active_() {
       this->mark_failed();
       return;
     }
-    // Drop what the old stack queued; the next stack reuses the same interface ids.
-    BLEEvent *ble_event;
-    while ((ble_event = this->ble_events_.pop()) != nullptr) {
-      this->ble_event_pool_.release(ble_event);
-    }
-    this->ble_events_.get_and_reset_dropped_count();
+    this->drain_ble_events_();
     this->state_ = BLE_COMPONENT_STATE_DISABLED;
   } else if (this->state_ == BLE_COMPONENT_STATE_ENABLE) {
     ESP_LOGD(TAG, "Enabling");

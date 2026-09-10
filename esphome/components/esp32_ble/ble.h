@@ -176,6 +176,14 @@ class ESP32BLE final : public Component {
 
   bool ble_setup_();
   bool ble_dismantle_();
+  // Drop what the old stack queued; the next stack reuses the same interface ids.
+  void drain_ble_events_() {
+    BLEEvent *ble_event;
+    while ((ble_event = this->ble_events_.pop()) != nullptr) {
+      this->ble_event_pool_.release(ble_event);
+    }
+    this->ble_events_.get_and_reset_dropped_count();
+  }
   bool ble_pre_setup_();
 #ifdef USE_ESP32_BLE_ADVERTISING
   void advertising_init_();
