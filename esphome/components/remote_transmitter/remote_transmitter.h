@@ -2,7 +2,9 @@
 
 #include "esphome/components/remote_base/remote_base.h"
 #include "esphome/core/component.h"
+#include "esphome/core/helpers.h"
 
+#include <memory>
 #include <vector>
 
 #if defined(USE_ESP32)
@@ -38,6 +40,30 @@ struct RemoteTransmitterComponentStore {
   uint32_t times{0};
   uint32_t index{0};
 };
+
+// An encoded frame with its symbols in the same heap block, so a backlogged frame
+// costs one allocation and moves into a queue slot without copying
+struct RmtFrame {
+  uint32_t capacity;  // symbols allocated
+  uint32_t count;
+  uint32_t offset;  // first symbol after the repeat gap
+  uint32_t times;
+  uint32_t carrier_frequency;
+  rmt_symbol_half_t symbols[];  // NOLINT(modernize-avoid-c-arrays)
+
+  struct Deleter {
+    void operator()(RmtFrame *frame) const { free(frame); }  // NOLINT(cppcoreguidelines-no-malloc)
+  };
+};
+using RmtFramePtr = std::unique_ptr<RmtFrame, RmtFrame::Deleter>;
+
+// One entry of the hardware transmit queue; the encoder reads store and frame from
+// the RMT interrupt until the transaction completes
+struct RmtTxSlot {
+  RemoteTransmitterComponentStore store;
+  RmtFramePtr frame;
+  rmt_encoder_handle_t encoder{nullptr};
+};
 #endif
 #endif
 
@@ -64,6 +90,11 @@ class RemoteTransmitterComponent final : public remote_base::RemoteTransmitterBa
 #if defined(USE_ESP32) && SOC_RMT_SUPPORTED
   void set_with_dma(bool with_dma) { this->with_dma_ = with_dma; }
   void set_eot_level(bool eot_level) { this->eot_level_ = eot_level; }
+  void set_queue_depth(uint8_t queue_depth) { this->queue_depth_ = queue_depth; }
+  void set_max_pending(uint8_t max_pending) { this->max_pending_ = max_pending; }
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 5, 1)
+  void loop() override;
+#endif
 #endif
 #if (defined(USE_ESP32) && SOC_RMT_SUPPORTED) || defined(USE_LIBRETINY_VARIANT_RTL8720C) || \
     defined(REMOTE_TRANSMITTER_BK_PWM)
@@ -145,21 +176,36 @@ class RemoteTransmitterComponent final : public remote_base::RemoteTransmitterBa
   void wait_for_rmt_();
 
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 5, 1)
-  RemoteTransmitterComponentStore store_{};
-  std::vector<rmt_symbol_half_t> rmt_temp_;
+  static bool tx_done_callback_(rmt_channel_handle_t channel, const rmt_tx_done_event_data_t *event, void *arg);
+  size_t encode_symbols_(rmt_symbol_half_t *out, uint32_t send_wait, uint32_t *offset);
+  bool encode_frame_(RmtFramePtr &frame, size_t count, uint32_t send_times, uint32_t send_wait);
+  void submit_(RmtTxSlot &slot);
+  void pump_backlog_();
+  void deliver_completions_();
+  void wait_all_done_();
+
+  FixedVector<RmtTxSlot> slots_;
+  OverflowQueue<RmtFrame, RmtFrame::Deleter> backlog_;
+  // Frames handed to the hardware queue and completions already reported; the
+  // interrupt advances done_count_, so frames in flight are submitted_ - done_count_
+  uint32_t submitted_{0};
+  uint32_t delivered_{0};
+  volatile uint32_t done_count_{0};
 #else
   std::vector<rmt_symbol_word_t> rmt_temp_;
+  rmt_encoder_handle_t encoder_{NULL};
 #endif
   uint32_t current_carrier_frequency_{38000};
+  rmt_channel_handle_t channel_{NULL};
+  esp_err_t error_code_{ESP_OK};
+  std::string error_string_;
   bool initialized_{false};
   bool with_dma_{false};
   bool eot_level_{false};
-  rmt_channel_handle_t channel_{NULL};
-  rmt_encoder_handle_t encoder_{NULL};
-  esp_err_t error_code_{ESP_OK};
-  std::string error_string_;
   bool inverted_{false};
   bool non_blocking_{false};
+  uint8_t queue_depth_{1};
+  uint8_t max_pending_{1};
 #endif
   uint8_t carrier_duty_percent_{50};
 

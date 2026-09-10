@@ -7,6 +7,7 @@
 #include <cstdarg>
 #include <cstdint>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <functional>
 #include <iterator>
@@ -728,6 +729,61 @@ template<typename T> class FixedVector {
   T *end() { return data_ + size_; }
   const T *begin() const { return data_; }
   const T *end() const { return data_ + size_; }
+};
+
+/// Fixed-capacity circular queue of owned heap entries for rarely used backlogs.
+/// Nothing is allocated until the first push, so a backlog that never fills costs only this object.
+template<typename T, typename Deleter = std::default_delete<T>> class OverflowQueue {
+ public:
+  using entry_type = std::unique_ptr<T, Deleter>;
+
+  OverflowQueue() = default;
+  OverflowQueue(const OverflowQueue &) = delete;
+  OverflowQueue &operator=(const OverflowQueue &) = delete;
+  ~OverflowQueue() {
+    while (!this->empty())
+      this->pop();
+    free(this->slots_);  // NOLINT(cppcoreguidelines-no-malloc)
+  }
+
+  /// Set the maximum number of entries; must be called before the first push.
+  void set_capacity(uint8_t capacity) { this->capacity_ = capacity; }
+  bool empty() const { return this->count_ == 0; }
+  bool full() const { return this->count_ >= this->capacity_; }
+
+  /// Take ownership of an entry; returns false (and drops it) when full or out of memory.
+  bool push(entry_type entry) {
+    if (this->full())
+      return false;
+    if (this->slots_ == nullptr) {
+      // malloc rather than new: with C++ exceptions disabled, new aborts instead of returning null
+      this->slots_ = static_cast<T **>(malloc(this->capacity_ * sizeof(T *)));  // NOLINT
+      if (this->slots_ == nullptr)
+        return false;
+    }
+    this->slots_[this->tail_] = entry.release();
+    this->tail_ = static_cast<uint8_t>((this->tail_ + 1) % this->capacity_);
+    this->count_++;
+    return true;
+  }
+
+  /// Oldest entry; caller must ensure the queue is not empty.
+  T &front() { return *this->slots_[this->head_]; }
+
+  /// Remove and return the oldest entry; caller must ensure the queue is not empty.
+  entry_type pop() {
+    entry_type entry(this->slots_[this->head_]);
+    this->head_ = static_cast<uint8_t>((this->head_ + 1) % this->capacity_);
+    this->count_--;
+    return entry;
+  }
+
+ protected:
+  T **slots_{nullptr};
+  uint8_t capacity_{0};
+  uint8_t head_{0};
+  uint8_t tail_{0};
+  uint8_t count_{0};
 };
 
 /// @brief Helper class for efficient buffer allocation - uses stack for small sizes, heap for large

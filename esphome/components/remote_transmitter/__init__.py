@@ -29,7 +29,9 @@ _LOGGER = logging.getLogger(__name__)
 AUTO_LOAD = ["remote_base"]
 
 CONF_EOT_LEVEL = "eot_level"
+CONF_MAX_PENDING = "max_pending"
 CONF_NON_BLOCKING = "non_blocking"
+CONF_QUEUE_DEPTH = "queue_depth"
 CONF_ON_TRANSMIT = "on_transmit"
 CONF_ON_COMPLETE = "on_complete"
 CONF_TRANSMITTER_ID = remote_base.CONF_TRANSMITTER_ID
@@ -94,6 +96,15 @@ CONFIG_SCHEMA = (
                 esp32_s3=48,
             ): cv.All(cv.only_on_esp32, cv.int_range(min=2)),
             cv.Optional(CONF_NON_BLOCKING): _validate_non_blocking_platform,
+            cv.SplitDefault(
+                CONF_QUEUE_DEPTH,
+                esp32=4,
+                esp32_c2=cv.UNDEFINED,
+                esp32_c61=cv.UNDEFINED,
+            ): cv.All(cv.only_on_esp32, cv.int_range(min=1, max=16)),
+            cv.Optional(CONF_MAX_PENDING): cv.All(
+                cv.only_on_esp32, cv.int_range(min=1, max=64)
+            ),
             cv.Optional(CONF_ON_TRANSMIT): automation.validate_automation(single=True),
             cv.Optional(CONF_ON_COMPLETE): automation.validate_automation(single=True),
         }
@@ -107,6 +118,8 @@ CONFIG_SCHEMA = (
                 CONF_USE_DMA,
                 CONF_RMT_SYMBOLS,
                 CONF_NON_BLOCKING,
+                CONF_QUEUE_DEPTH,
+                CONF_MAX_PENDING,
             ]
         )
     )
@@ -127,7 +140,23 @@ def _validate_non_blocking(config: ConfigType) -> None:
         config[CONF_NON_BLOCKING] = True
 
 
-FINAL_VALIDATE_SCHEMA = _validate_non_blocking
+def _validate_queue(config: ConfigType) -> None:
+    if (queue_depth := config.get(CONF_QUEUE_DEPTH)) is None:
+        return
+    max_pending = config.setdefault(CONF_MAX_PENDING, 2 * queue_depth)
+    if max_pending < queue_depth:
+        raise cv.Invalid(
+            f"{CONF_MAX_PENDING} must be at least {CONF_QUEUE_DEPTH} ({queue_depth})",
+            path=[CONF_MAX_PENDING],
+        )
+
+
+def _final_validate(config: ConfigType) -> None:
+    _validate_non_blocking(config)
+    _validate_queue(config)
+
+
+FINAL_VALIDATE_SCHEMA = _final_validate
 
 DIGITAL_WRITE_ACTION_SCHEMA = cv.maybe_simple_value(
     {
@@ -166,6 +195,10 @@ async def to_code(config: ConfigType) -> None:
         var = cg.new_Pvariable(config[CONF_ID], pin)
         cg.add(var.set_rmt_symbols(config[CONF_RMT_SYMBOLS]))
         cg.add(var.set_non_blocking(config[CONF_NON_BLOCKING]))
+        if config[CONF_NON_BLOCKING]:
+            # blocking mode never has a frame in flight when the next send starts
+            cg.add(var.set_queue_depth(config[CONF_QUEUE_DEPTH]))
+            cg.add(var.set_max_pending(config[CONF_MAX_PENDING]))
         if CONF_CLOCK_RESOLUTION in config:
             cg.add(var.set_clock_resolution(config[CONF_CLOCK_RESOLUTION]))
         if CONF_USE_DMA in config:

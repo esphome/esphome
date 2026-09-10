@@ -1,12 +1,12 @@
+substitutions:
+  pin: GPIO2
+
 remote_transmitter:
   - id: xmitr
     pin: ${pin}
     carrier_duty_percent: 50%
     non_blocking: true
-    clock_resolution: ${clock_resolution}
-    rmt_symbols: ${rmt_symbols}
-    queue_depth: 4
-    max_pending: 8
+    queue_depth: 1
 
 packages:
   buttons: !include common-buttons.yaml
