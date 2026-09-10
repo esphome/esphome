@@ -6,6 +6,7 @@ tinyusb:
   usb_product_str: ESPHomeTestProduct
   usb_serial_str: ESPHomeTestSerialNumber
   usb_vendor_id: 0x2345
+  vbus_monitor_pin: 4
   on_mount:
     - logger.log: USB host mounted
   on_unmount:

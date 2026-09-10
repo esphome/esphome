@@ -29,6 +29,12 @@ void TinyUSB::setup() {
   this->tusb_cfg_ = TINYUSB_DEFAULT_CONFIG();
   this->tusb_cfg_.port = TINYUSB_PORT_FULL_SPEED_0;
   this->tusb_cfg_.phy.skip_setup = false;
+  // Without VBUS monitoring the OTG core only sees a cable pull as the bus going idle
+  // (a suspend), so TinyUSB never reports a detach and stays "mounted".
+  if (this->vbus_monitor_pin_ >= 0) {
+    this->tusb_cfg_.phy.self_powered = true;
+    this->tusb_cfg_.phy.vbus_monitor_io = this->vbus_monitor_pin_;
+  }
   this->tusb_cfg_.descriptor = {
       .device = &this->usb_descriptor_,
       .string = this->string_descriptor_,
@@ -82,6 +88,9 @@ void TinyUSB::dump_config() {
                 "  Serial: '%s'\n",
                 this->usb_descriptor_.idProduct, this->usb_descriptor_.idVendor, this->string_descriptor_[MANUFACTURER],
                 this->string_descriptor_[PRODUCT], this->string_descriptor_[SERIAL_NUMBER]);
+  if (this->vbus_monitor_pin_ >= 0) {
+    ESP_LOGCONFIG(TAG, "  VBUS Monitor Pin: GPIO%d", this->vbus_monitor_pin_);
+  }
 }
 
 }  // namespace esphome::tinyusb
