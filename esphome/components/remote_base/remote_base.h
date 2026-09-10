@@ -7,6 +7,7 @@
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
 
 namespace esphome::remote_base {
 
@@ -194,24 +195,27 @@ class RemoteReceiverDumperBase {
 class RemoteReceiverBase : public RemoteComponentBase {
  public:
   RemoteReceiverBase(InternalGPIOPin *pin) : RemoteComponentBase(pin) {}
+#ifdef REMOTE_BASE_LISTENER_COUNT
   void register_listener(RemoteReceiverListener *listener) { this->listeners_.push_back(listener); }
+#endif
+#ifdef REMOTE_BASE_DUMPER_COUNT
   void register_dumper(RemoteReceiverDumperBase *dumper);
+#endif
   void set_tolerance(uint32_t tolerance, ToleranceMode tolerance_mode) {
     this->tolerance_ = tolerance;
     this->tolerance_mode_ = tolerance_mode;
   }
 
  protected:
-  void call_listeners_();
-  void call_dumpers_();
-  void call_listeners_dumpers_() {
-    this->call_listeners_();
-    this->call_dumpers_();
-  }
+  void call_listeners_dumpers_();
 
-  std::vector<RemoteReceiverListener *> listeners_;
-  std::vector<RemoteReceiverDumperBase *> dumpers_;
-  std::vector<RemoteReceiverDumperBase *> secondary_dumpers_;
+#ifdef REMOTE_BASE_LISTENER_COUNT
+  StaticVector<RemoteReceiverListener *, REMOTE_BASE_LISTENER_COUNT> listeners_;
+#endif
+#ifdef REMOTE_BASE_DUMPER_COUNT
+  StaticVector<RemoteReceiverDumperBase *, REMOTE_BASE_DUMPER_COUNT> dumpers_;
+  RemoteReceiverDumperBase *secondary_dumper_{nullptr};  // runs only when no primary dumper matched
+#endif
   RawTimings temp_;
   uint32_t tolerance_{25};
   ToleranceMode tolerance_mode_{TOLERANCE_MODE_PERCENTAGE};
@@ -229,12 +233,10 @@ class RemoteReceiverBinarySensorBase : public binary_sensor::BinarySensorInitial
 
 /* TEMPLATES */
 
+// Protocols are used only through their concrete type; encode/decode/dump stay non-virtual so unused ones link out
 template<typename T> class RemoteProtocol {
  public:
   using ProtocolData = T;
-  virtual void encode(RemoteTransmitData *dst, const ProtocolData &data) = 0;
-  virtual optional<ProtocolData> decode(RemoteReceiveData src) = 0;
-  virtual void dump(const ProtocolData &data) = 0;
 };
 
 template<typename T> class RemoteReceiverBinarySensor : public RemoteReceiverBinarySensorBase {

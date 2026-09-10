@@ -16,9 +16,16 @@ class RCSwitchBase {
  public:
   using ProtocolData = RCSwitchData;
 
-  RCSwitchBase() = default;
-  RCSwitchBase(uint32_t sync_high, uint32_t sync_low, uint32_t zero_high, uint32_t zero_low, uint32_t one_high,
-               uint32_t one_low, bool inverted);
+  constexpr RCSwitchBase() = default;
+  constexpr RCSwitchBase(uint32_t sync_high, uint32_t sync_low, uint32_t zero_high, uint32_t zero_low,
+                         uint32_t one_high, uint32_t one_low, bool inverted)
+      : sync_high_(sync_high),
+        sync_low_(sync_low),
+        zero_high_(zero_high),
+        zero_low_(zero_low),
+        one_high_(one_high),
+        one_low_(one_low),
+        inverted_(inverted) {}
 
   void one(RemoteTransmitData *dst) const;
 
@@ -61,7 +68,18 @@ class RCSwitchBase {
   bool inverted_{};
 };
 
-extern const RCSwitchBase RC_SWITCH_PROTOCOLS[9];
+// Constant-initialized: no global constructor, and in flash on platforms that map .rodata there
+inline constexpr RCSwitchBase RC_SWITCH_PROTOCOLS[] = {
+    {0, 0, 0, 0, 0, 0, false},
+    {350, 10850, 350, 1050, 1050, 350, false},
+    {650, 6500, 650, 1300, 1300, 650, false},
+    {3000, 7100, 400, 1100, 900, 600, false},
+    {380, 2280, 380, 1140, 1140, 380, false},
+    {3000, 7000, 500, 1000, 1000, 500, false},
+    {10350, 450, 450, 900, 900, 450, true},
+    {300, 9300, 150, 900, 900, 150, false},
+    {250, 2500, 250, 1250, 250, 250, false},
+};
 
 uint64_t decode_binary_string(const std::string &data);
 

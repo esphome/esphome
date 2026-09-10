@@ -99,29 +99,30 @@ bool RemoteReceiverBinarySensorBase::on_receive(RemoteReceiveData src) {
 
 /* RemoteReceiverBase */
 
+#ifdef REMOTE_BASE_DUMPER_COUNT
 void RemoteReceiverBase::register_dumper(RemoteReceiverDumperBase *dumper) {
   if (dumper->is_secondary()) {
-    this->secondary_dumpers_.push_back(dumper);
+    this->secondary_dumper_ = dumper;
   } else {
     this->dumpers_.push_back(dumper);
   }
 }
+#endif
 
-void RemoteReceiverBase::call_listeners_() {
+void RemoteReceiverBase::call_listeners_dumpers_() {
+#ifdef REMOTE_BASE_LISTENER_COUNT
   for (auto *listener : this->listeners_)
     listener->on_receive(RemoteReceiveData(this->temp_, this->tolerance_, this->tolerance_mode_));
-}
-
-void RemoteReceiverBase::call_dumpers_() {
+#endif
+#ifdef REMOTE_BASE_DUMPER_COUNT
   bool success = false;
   for (auto *dumper : this->dumpers_) {
     if (dumper->dump(RemoteReceiveData(this->temp_, this->tolerance_, this->tolerance_mode_)))
       success = true;
   }
-  if (!success) {
-    for (auto *dumper : this->secondary_dumpers_)
-      dumper->dump(RemoteReceiveData(this->temp_, this->tolerance_, this->tolerance_mode_));
-  }
+  if (!success && this->secondary_dumper_ != nullptr)
+    this->secondary_dumper_->dump(RemoteReceiveData(this->temp_, this->tolerance_, this->tolerance_mode_));
+#endif
 }
 
 void RemoteReceiverBinarySensorBase::dump_config() { LOG_BINARY_SENSOR("", "Remote Receiver Binary Sensor", this); }

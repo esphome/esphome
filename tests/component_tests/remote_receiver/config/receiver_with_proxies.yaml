@@ -1,0 +1,20 @@
+esphome:
+  name: test
+
+esp32:
+  board: esp32dev
+
+remote_receiver:
+  - id: rcvr
+    pin: GPIO4
+
+infrared:
+  - platform: ir_rf_proxy
+    name: IR Receiver
+    remote_receiver_id: rcvr
+
+radio_frequency:
+  - platform: ir_rf_proxy
+    name: RF Receiver
+    frequency: 433.92MHz
+    remote_receiver_id: rcvr

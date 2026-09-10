@@ -40,7 +40,9 @@ from esphome.const import (
     CONF_ZERO,
 )
 from esphome.core import ID, coroutine
+from esphome.cpp_generator import MockObj
 from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
+from esphome.types import ConfigType
 from esphome.util import Registry, SimpleRegistry
 
 AUTO_LOAD = ["binary_sensor"]
@@ -90,9 +92,25 @@ REMOTE_TRANSMITTABLE_SCHEMA = cv.Schema(
 )
 
 
-async def register_listener(var, config):
+# Listener and dumper lists are StaticVectors sized from these counts, so every
+# registration must go through add_listener / add_dumper
+_request_listener_slot = cg.slot_counter("REMOTE_BASE_LISTENER_COUNT")
+_request_dumper_slot = cg.slot_counter("REMOTE_BASE_DUMPER_COUNT")
+
+
+def add_listener(receiver: MockObj, listener: MockObj) -> None:
+    _request_listener_slot()
+    cg.add(receiver.register_listener(listener))
+
+
+def add_dumper(receiver: MockObj, dumper: MockObj) -> None:
+    _request_dumper_slot()
+    cg.add(receiver.register_dumper(dumper))
+
+
+async def register_listener(var: MockObj, config: ConfigType) -> None:
     receiver = await cg.get_variable(config[CONF_RECEIVER_ID])
-    cg.add(receiver.register_listener(var))
+    add_listener(receiver, var)
 
 
 async def register_transmittable(var, config):
