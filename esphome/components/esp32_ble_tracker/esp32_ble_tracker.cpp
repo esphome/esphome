@@ -219,17 +219,18 @@ void ESP32BLETracker::stop_scan() {
 }
 
 void ESP32BLETracker::ble_before_disabled_event_handler() {
-  this->stop_scan_();
+  // Tell the controller to stop; a scan still starting has nothing to stop yet.
+  if (this->scanner_state_ == ScannerState::RUNNING || this->scanner_state_ == ScannerState::FAILED) {
+    this->stop_scan_();
+  }
 #ifdef ESPHOME_ESP32_BLE_TRACKER_CLIENT_COUNT
   for (auto *client : this->clients_) {
     client->ble_before_disabled_event_handler();
   }
+  this->skip_next_scan_end_ = false;
 #endif
   // The stop above never completes (stack torn down, events dropped); settle
   // here so start_scan_() sees IDLE once the stack is back.
-#ifdef ESPHOME_ESP32_BLE_TRACKER_CLIENT_COUNT
-  this->skip_next_scan_end_ = false;
-#endif
   if (this->scanner_state_ != ScannerState::IDLE) {
     this->cleanup_scan_state_(true);
   }
