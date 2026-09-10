@@ -8,9 +8,12 @@ from esphome.components.esp32 import KEY_ESP32
 from esphome.components.spi import (
     CONF_CLK_PIN,
     CONF_INTERFACE,
+    CONF_MISO_PIN,
+    CONF_MOSI_PIN,
     _quad_platform_validator,
     _zephyr_setup_spi,
     one_of_interface_validator,
+    validate_spi_config,
 )
 from esphome.components.zephyr.const import KEY_ZEPHYR
 import esphome.config_validation as cv
@@ -126,3 +129,47 @@ def test_zephyr_setup_spi_rejects_duplicate_resolved_bus() -> None:
     _zephyr_setup_spi(_spi_conf("spi2", 6), resolved)
     with pytest.raises(cv.Invalid, match="both resolved to bus 'spi2'"):
         _zephyr_setup_spi(_spi_conf("spi2", 18), resolved)
+
+
+# ---------------------------------------------------------------------------
+# validate_spi_config -- clk/mosi/miso checked against spi_valid_pins, same
+# pattern as uart's validate_zephyr_config().
+# ---------------------------------------------------------------------------
+
+
+def _spi_pin_conf(clk: int, mosi: int | None = None, miso: int | None = None) -> dict:
+    conf = {CONF_INTERFACE: "any", CONF_CLK_PIN: {CONF_NUMBER: clk}}
+    if mosi is not None:
+        conf[CONF_MOSI_PIN] = {CONF_NUMBER: mosi}
+    if miso is not None:
+        conf[CONF_MISO_PIN] = {CONF_NUMBER: miso}
+    return conf
+
+
+def test_validate_spi_config_accepts_valid_esp32_pins() -> None:
+    CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: PLATFORM_ZEPHYR}
+    CORE.data[KEY_ZEPHYR] = {"variant": "ESP32C6"}
+    validate_spi_config([_spi_pin_conf(clk=6, mosi=7, miso=8)])
+
+
+def test_validate_spi_config_rejects_invalid_esp32_clk_pin() -> None:
+    CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: PLATFORM_ZEPHYR}
+    CORE.data[KEY_ZEPHYR] = {"variant": "ESP32C6"}
+    with pytest.raises(cv.Invalid, match="does not support SPI CLK"):
+        validate_spi_config([_spi_pin_conf(clk=30)])
+
+
+def test_validate_spi_config_rejects_invalid_esp32_miso_pin() -> None:
+    CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: PLATFORM_ZEPHYR}
+    CORE.data[KEY_ZEPHYR] = {"variant": "ESP32"}
+    # GPIO34-39 are input-only on the original ESP32 -- valid for MISO, not for CLK.
+    with pytest.raises(cv.Invalid, match="does not support SPI MISO"):
+        validate_spi_config([_spi_pin_conf(clk=6, miso=99)])
+
+
+def test_validate_spi_config_skips_pin_check_for_non_esp32_family() -> None:
+    # STM32's spi_valid_pins is empty -- pin validity is left to
+    # zephyr_setup_spi_pinctrl() at codegen time, not checked here.
+    CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: PLATFORM_ZEPHYR}
+    CORE.data[KEY_ZEPHYR] = {"variant": "STM32F4"}
+    validate_spi_config([_spi_pin_conf(clk=99, mosi=99, miso=99)])

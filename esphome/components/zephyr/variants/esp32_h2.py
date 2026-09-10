@@ -30,8 +30,9 @@ _DEFAULT_BOARD = "esp32h2_devkitm"
 _ADVANCED_SCHEMA = ADVANCED_SCHEMA
 
 # https://github.com/zephyrproject-rtos/zephyr/blob/main/include/zephyr/dt-bindings/pinctrl/esp32h2-pinctrl.h
-# No GPIO 6, 7, 15-21 (reserved for flash/RF); identical set for tx and rx on this variant.
-_UART_VALID_PINS = frozenset(
+# No GPIO 6, 7, 15-21 (reserved for flash/RF); same set for every free-mux
+# GPIO-matrix signal (UART, SPI).
+_GPIO_MATRIX_PINS = frozenset(
     {0, 1, 2, 3, 4, 5, 8, 9, 10, 11, 12, 13, 14, 22, 23, 24, 25, 26, 27}
 )
 
@@ -55,7 +56,12 @@ VARIANT = ZephyrVariant(
     # https://github.com/espressif/esp-idf/blob/master/components/soc/esp32h2/include/soc/adc_channel.h
     adc1_channel_map={1: 0, 2: 1, 3: 2, 4: 3, 5: 4},
     uart_node_labels={},
-    uart_valid_pins={"tx": _UART_VALID_PINS, "rx": _UART_VALID_PINS},
+    uart_valid_pins={"tx": _GPIO_MATRIX_PINS, "rx": _GPIO_MATRIX_PINS},
+    spi_valid_pins={
+        "clk": _GPIO_MATRIX_PINS,
+        "mosi": _GPIO_MATRIX_PINS,
+        "miso": _GPIO_MATRIX_PINS,
+    },
 )
 
 

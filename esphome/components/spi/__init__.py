@@ -338,15 +338,40 @@ def get_hw_spi(config: ConfigType, available: list[int]) -> int | None:
     return None
 
 
+def _validate_zephyr_spi_pins(
+    spi: ConfigType, valid_pins: dict[str, Any], variant: str
+) -> None:
+    for conf_key, signal in (
+        (CONF_CLK_PIN, "clk"),
+        (CONF_MOSI_PIN, "mosi"),
+        (CONF_MISO_PIN, "miso"),
+    ):
+        if conf_key not in spi:
+            continue
+        pin_num = spi[conf_key][CONF_NUMBER]
+        if pin_num not in valid_pins[signal]:
+            raise cv.Invalid(
+                f"GPIO{pin_num} does not support SPI {signal.upper()} on {variant}",
+                path=[conf_key],
+            )
+
+
 def validate_spi_config(config: list[ConfigType]) -> list[ConfigType]:
     if CORE.is_zephyr:
+        from esphome.components.zephyr.variants import VARIANTS  # noqa: PLC0415
+
         # A board's DTS may enable more than one SPI peripheral even though only one
         # spi: entry is allowed -- interface: <bus label> (e.g. "spi3") picks a
         # specific one; "hardware"/"any" defer to auto-detection in to_code().
+        variant = zephyr_variant()
+        variant_info = VARIANTS.get(variant)
+        valid_pins = variant_info.spi_valid_pins if variant_info is not None else {}
         for spi in config:
             interface = spi[CONF_INTERFACE]
             if interface != "software":
                 spi[CONF_INTERFACE_INDEX] = 0
+            if valid_pins:
+                _validate_zephyr_spi_pins(spi, valid_pins, variant)
         return config
 
     available = list(range(len(get_hw_interface_list())))

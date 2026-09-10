@@ -31,8 +31,8 @@ _DEFAULT_BOARD = "esp32c3_devkitm"
 _ADVANCED_SCHEMA = ADVANCED_SCHEMA
 
 # https://github.com/zephyrproject-rtos/zephyr/blob/main/include/zephyr/dt-bindings/pinctrl/esp32c3-pinctrl.h
-# GPIO0-21, no gaps; identical set for tx and rx on this variant.
-_UART_VALID_PINS = frozenset(range(22))
+# GPIO0-21, no gaps; same set for every free-mux GPIO-matrix signal (UART, SPI).
+_GPIO_MATRIX_PINS = frozenset(range(22))
 
 # Registry entries — collected by variants/__init__.py
 VARIANT_NAME = ZEPHYR_VARIANT_ESP32_C3
@@ -55,7 +55,12 @@ VARIANT = ZephyrVariant(
     # https://github.com/espressif/esp-idf/blob/master/components/soc/esp32c3/include/soc/adc_channel.h
     adc1_channel_map={0: 0, 1: 1, 2: 2, 3: 3, 4: 4},
     uart_node_labels={},
-    uart_valid_pins={"tx": _UART_VALID_PINS, "rx": _UART_VALID_PINS},
+    uart_valid_pins={"tx": _GPIO_MATRIX_PINS, "rx": _GPIO_MATRIX_PINS},
+    spi_valid_pins={
+        "clk": _GPIO_MATRIX_PINS,
+        "mosi": _GPIO_MATRIX_PINS,
+        "miso": _GPIO_MATRIX_PINS,
+    },
 )
 
 

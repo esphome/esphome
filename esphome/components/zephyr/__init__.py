@@ -899,60 +899,156 @@ _ESP32_SPI_INSTANCE_SIGNAL_PREFIX = {
     ZEPHYR_VARIANT_ESP32_H2: {2: "FSPI"},
 }
 
+# esp32-family SPI instance -> {"clk": id, "miso": id, "mosi": id, "wp": id, "hd":
+# id} GPIO-matrix signal IDs, from each chip's own <chip>-gpio-sigmap.h (verified
+# against zephyr main, 2026-09-09). "miso" is the only sig_i (controller input);
+# clk/mosi/wp/hd are all sig_o -- used to decode which real board pinctrl group
+# already carries each signal.
+_ESP32_SPI_INSTANCE_SIGNAL_IDS = {
+    ZEPHYR_VARIANT_ESP32: {
+        2: {"clk": 8, "miso": 9, "mosi": 10, "hd": 12, "wp": 13},
+        3: {"clk": 63, "miso": 64, "mosi": 65, "hd": 66, "wp": 67},
+    },
+    ZEPHYR_VARIANT_ESP32_C3: {
+        2: {"clk": 63, "miso": 64, "mosi": 65, "hd": 66, "wp": 67}
+    },
+    ZEPHYR_VARIANT_ESP32_C5: {
+        2: {"clk": 56, "miso": 57, "mosi": 58, "hd": 59, "wp": 60}
+    },
+    ZEPHYR_VARIANT_ESP32_C6: {
+        2: {"clk": 63, "miso": 64, "mosi": 65, "hd": 66, "wp": 67}
+    },
+    ZEPHYR_VARIANT_ESP32_H2: {
+        2: {"clk": 63, "miso": 64, "mosi": 65, "hd": 66, "wp": 67}
+    },
+}
 
-def _esp32_spi_pinctrl_overlay(
+
+def _esp32_spi_signal_groups(
+    board: str, label: str, groups: list[str], signal_ids: dict[str, int]
+) -> dict[str, str]:
+    """Return {"clk": group, ...} for signals found, decoding real pinmux values
+    against this instance's signal IDs -- mirrors _esp32_uart_signal_groups()."""
+    from .dts_lookup import get_pinctrl_group_property
+
+    signals: dict[str, str] = {}
+    for group in groups:
+        for value in get_pinctrl_group_property(board, label, group, "pinmux") or []:
+            sig_i = (value >> _ESP32_PINMUX_SIGI_SHIFT) & _ESP32_PINMUX_SIG_MASK
+            sig_o = (value >> _ESP32_PINMUX_SIGO_SHIFT) & _ESP32_PINMUX_SIG_MASK
+            for name, sig_id in signal_ids.items():
+                if (sig_i if name == "miso" else sig_o) == sig_id:
+                    signals[name] = group
+    return signals
+
+
+def _esp32_spi_group_roles(
+    board: str, bus_label: str
+) -> Callable[[str, str, list[str]], dict[str, str] | None] | None:
+    """Bind a group_role_resolver to bus_label's signal IDs, or None if unknown
+    (falls back to the single-shared-group guess in _resolve_spi_pinctrl_states())."""
+    instance = int(bus_label.removeprefix("spi")) if bus_label[3:].isdigit() else None
+    signal_ids = _ESP32_SPI_INSTANCE_SIGNAL_IDS.get(zephyr_variant(), {}).get(instance)
+    if signal_ids is None:
+        return None
+
+    def resolver(board: str, label: str, groups: list[str]) -> dict[str, str] | None:
+        signals = _esp32_spi_signal_groups(board, label, groups, signal_ids)
+        return signals or None
+
+    return resolver
+
+
+def _resolve_spi_pinctrl_states(
+    board: str,
     bus_label: str,
-    clk: int,
-    miso: int | None,
-    mosi: int | None,
-    data_pins: list[int] | None,
+    values: dict[str, str],
+    group_role_resolver: Callable[[str, str, list[str]], dict[str, str] | None] | None,
+) -> list[tuple[str, list[tuple[str, str]]]]:
+    """Return [(pinctrl_label, [(group, combined_value), ...]), ...], merging
+    `values` (signal -> pinmux macro text) into whichever real group each signal
+    already belongs to per group_role_resolver's content decode -- kept separate
+    from _resolve_uart_pinctrl_states() since SPI has no meaningful 2-group
+    positional fallback the way UART's tx/rx split does. Falls back to a single
+    shared 'group1' (with a warning) when DTS resolves nothing or a signal can't
+    be placed."""
+    from .dts_lookup import get_pinctrl_states
+
+    def _single_group(group: str) -> list[tuple[str, str]]:
+        return [(group, ", ".join(values.values()))]
+
+    states = get_pinctrl_states(board, bus_label)
+    if states is None:
+        label = f"{bus_label}_default"
+        _LOGGER.warning(
+            "Could not resolve board '%s''s real pinctrl node for '%s' from "
+            "devicetree -- assuming '%s' with every signal in one shared group. "
+            "If that's wrong, this will fail at devicetree-compile time.",
+            board,
+            bus_label,
+            label,
+        )
+        return [(label, _single_group("group1"))]
+
+    resolved: list[tuple[str, list[tuple[str, str]]]] = []
+    for label, groups in states:
+        if len(groups) == 1:
+            resolved.append((label, _single_group(groups[0])))
+            continue
+        roles = (
+            group_role_resolver(board, label, groups)
+            if group_role_resolver is not None
+            else None
+        )
+        if roles is not None and all(signal in roles for signal in values):
+            by_group: dict[str, list[str]] = {}
+            for signal, value in values.items():
+                by_group.setdefault(roles[signal], []).append(value)
+            resolved.append(
+                (label, [(group, ", ".join(vals)) for group, vals in by_group.items()])
+            )
+            continue
+        _LOGGER.warning(
+            "Could not determine SPI signal group roles for board '%s''s pinctrl "
+            "node '%s' (groups: %s) -- assuming every signal shares 'group1'. If "
+            "that's wrong, this will fail at devicetree-compile time.",
+            board,
+            label,
+            ", ".join(groups),
+        )
+        resolved.append((label, _single_group("group1")))
+    return resolved
+
+
+def _build_spi_pinctrl_states_overlay(
+    states: list[tuple[str, list[tuple[str, str]]]], property_name: str
 ) -> str:
-    """Build a pinctrl overlay for esp32's free-mux SPI GPIO matrix.
-
-    Uses the auto-generated `SPIM{n}_{SIGNAL}_GPIO{n}` convenience macros
-    (`<variant>-pinctrl.h`) for CLK/MISO/MOSI -- same shape as
-    zephyr_setup_i2c_pinctrl()'s esp32 branch. Those macros don't exist for
-    quad's HD/WP lines (verified: no SPIM{n}_HD_GPIO*/WP_GPIO* macros in any
-    in-scope chip's pinctrl header), so those two are hand-built from the raw
-    ESP32_PINMUX() signal IDs instead.
-    """
-    instance = int(bus_label.removeprefix("spi"))
-    prefix = _ESP32_SPI_INSTANCE_SIGNAL_PREFIX[zephyr_variant()][instance]
-    macro_prefix = f"SPIM{instance}"
-
-    if data_pins:
-        # Quad mode routes mosi/miso through data_pins[0]/[1] (D0/D1) instead of
-        # separate mosi_pin/miso_pin -- schema forbids the latter for quad.
-        mosi, miso = data_pins[0], data_pins[1]
-
-    pinmux = [f"<{macro_prefix}_SCLK_GPIO{clk}>"]
-    if miso is not None:
-        pinmux.append(f"<{macro_prefix}_MISO_GPIO{miso}>")
-    if mosi is not None:
-        pinmux.append(f"<{macro_prefix}_MOSI_GPIO{mosi}>")
-
-    groups = f"""
-        group1 {{
-            pinmux = {", ".join(pinmux)};
-        }};
-    """
-    if data_pins:
-        # data_pins[2]/[3] are WP/HD (data_pins[0]/[1] are the mosi/miso-role D0/D1
-        # lines, already routed above via mosi/miso) -- same order as ESP-IDF's own
-        # data0_io_num.._data3_io_num (spi_esp_idf.cpp).
-        wp, hd = data_pins[2], data_pins[3]
-        groups += f"""
-            group2 {{
-                pinmux = <ESP32_PINMUX({wp}, ESP_NOSIG, ESP_{prefix}WP_OUT)>,
-                    <ESP32_PINMUX({hd}, ESP_NOSIG, ESP_{prefix}HD_OUT)>;
-            }};
-        """
-
+    """Build the `&pinctrl { ... }` overlay from _resolve_spi_pinctrl_states()'s
+    output. The `<label>:` prefix (re-)establishes the phandle even for a state
+    the board never pinctrl'd itself -- without it, `&<label>` in the bus-enable
+    overlay resolves to nothing at DTS-compile time."""
+    state_blocks = []
+    for label, group_values in states:
+        if not group_values:
+            continue
+        group_blocks = "\n".join(
+            f"""
+                    {group} {{
+                        {property_name} = {value};
+                    }};
+            """
+            for group, value in group_values
+        )
+        state_blocks.append(
+            f"""
+                {label}: {label} {{
+                    {group_blocks}
+                }};
+            """
+        )
     return f"""
         &pinctrl {{
-            {bus_label}_default: {bus_label}_default {{
-                {groups}
-            }};
+            {"".join(state_blocks)}
         }};
     """
 
@@ -965,14 +1061,12 @@ def zephyr_setup_spi_pinctrl(
     mosi: int | None = None,
     data_pins: list[int] | None = None,
 ) -> None:
-    """Enable the hardware SPI bus node for `bus_label`.
-
-    Families in _SPI_FIXED_PINCTRL_FAMILIES ship pinctrl fixed in their own board
-    DTS -- only the bus itself needs enabling, clk/miso/mosi/data_pins are unused.
-    esp32's GPIO matrix has no fixed pinctrl, so clk/miso/mosi/data_pins are used to
-    generate a pinctrl overlay instead (mirrors zephyr_setup_i2c_pinctrl()'s esp32
-    branch). Other free-mux families (nordic, silabs, rp2040) aren't implemented yet.
-    """
+    """Enable the hardware SPI bus node for `bus_label`. Families in
+    _SPI_FIXED_PINCTRL_FAMILIES ship pinctrl fixed in board DTS -- only the bus
+    needs enabling. esp32's GPIO matrix is free-mux, so clk/miso/mosi/data_pins
+    generate a pinctrl overlay merged into the board's real pinctrl group(s)
+    resolved from DTS (mirrors zephyr_setup_uart_pinctrl()'s esp32 branch).
+    Other free-mux families (nordic, silabs, rp2040) aren't implemented yet."""
     family = zephyr_variant_family()
     if family in _SPI_FIXED_PINCTRL_FAMILIES:
         zephyr_add_overlay(f'&{bus_label} {{ status = "okay"; }};')
@@ -997,15 +1091,49 @@ def zephyr_setup_spi_pinctrl(
             f"{zephyr_variant()!r} -- valid options: {listed}"
         )
 
-    overlay = _esp32_spi_pinctrl_overlay(bus_label, clk, miso, mosi, data_pins)
-    overlay += f"""
-        &{bus_label} {{
-            status = "okay";
-            pinctrl-0 = <&{bus_label}_default>;
-            pinctrl-names = "default";
-        }};
-    """
-    zephyr_add_overlay(overlay)
+    macro_prefix = f"SPIM{instance}"
+    if data_pins:
+        # Quad mode routes mosi/miso through data_pins[0]/[1] (D0/D1) instead of
+        # separate mosi_pin/miso_pin -- schema forbids the latter for quad.
+        mosi, miso = data_pins[0], data_pins[1]
+
+    values = {"clk": f"<{macro_prefix}_SCLK_GPIO{clk}>"}
+    if miso is not None:
+        values["miso"] = f"<{macro_prefix}_MISO_GPIO{miso}>"
+    if mosi is not None:
+        values["mosi"] = f"<{macro_prefix}_MOSI_GPIO{mosi}>"
+    if data_pins:
+        # data_pins[2]/[3] are WP/HD, same order as ESP-IDF's data0_io_num..data3_io_num
+        # (spi_esp_idf.cpp). No SPIM{n}_{HD,WP}_GPIO* convenience macros exist for these
+        # two (verified absent from every in-scope chip's pinctrl header), so hand-built
+        # from the raw ESP32_PINMUX() signal IDs instead.
+        prefix = valid_instances[instance]
+        wp, hd = data_pins[2], data_pins[3]
+        values["wp"] = f"<ESP32_PINMUX({wp}, ESP_NOSIG, ESP_{prefix}WP_OUT)>"
+        values["hd"] = f"<ESP32_PINMUX({hd}, ESP_NOSIG, ESP_{prefix}HD_OUT)>"
+
+    states = _resolve_spi_pinctrl_states(
+        board, bus_label, values, _esp32_spi_group_roles(board, bus_label)
+    )
+    zephyr_add_overlay(_build_spi_pinctrl_states_overlay(states, "pinmux"))
+
+    # A board whose stock node already declares >1 pinctrl state (e.g. "sleep" for
+    # PM) needs every pinctrl-<N> restated to match, or the now-uncovered old state
+    # is a pinctrl-names count mismatch at DTS-compile time.
+    from .dts_lookup import get_pinctrl_state_names
+
+    state_names = get_pinctrl_state_names(board, bus_label)
+    if state_names is None or len(state_names) != len(states):
+        state_names = ["default"]
+        states = states[:1]
+    pinctrl_props = " ".join(
+        f"pinctrl-{i} = <&{label}>;" for i, (label, _) in enumerate(states)
+    )
+    names_prop = ", ".join(f'"{name}"' for name in state_names)
+    zephyr_add_overlay(
+        f'&{bus_label} {{ status = "okay"; '
+        f"{pinctrl_props} pinctrl-names = {names_prop}; }};"
+    )
     if data_pins:
         zephyr_add_prj_conf("SPI_EXTENDED_MODES", True)
 
