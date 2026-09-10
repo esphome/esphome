@@ -1,6 +1,0 @@
-esphome:
-  name: docker-test-host
-
-host:
-
-logger:
