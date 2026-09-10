@@ -72,6 +72,13 @@ void BLEClientBase::loop() {
 
 float BLEClientBase::get_setup_priority() const { return setup_priority::AFTER_BLUETOOTH; }
 
+void BLEClientBase::ble_before_disabled_event_handler() {
+  // Same reset as the stack-down branch of loop(); an idle client has its
+  // loop disabled, so enable it for the INIT registration on the next enable.
+  this->set_state(espbt::ClientState::INIT);
+  this->enable_loop();
+}
+
 void BLEClientBase::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "  Address: %s\n"

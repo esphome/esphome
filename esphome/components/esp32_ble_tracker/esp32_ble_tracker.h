@@ -113,6 +113,9 @@ class ESPBTClient : public ESPBTDeviceListener {
   virtual void gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param) = 0;
   virtual void connect() = 0;
   virtual void disconnect() = 0;
+  /// Called right before the BLE stack is dismantled. Nothing in flight will
+  /// complete, and the GATT app must register again once the stack is back.
+  virtual void ble_before_disabled_event_handler() {}
   bool disconnect_pending() const { return this->want_disconnect_; }
   void cancel_pending_disconnect() { this->want_disconnect_ = false; }
 

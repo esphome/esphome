@@ -41,6 +41,7 @@ class BLEClientBase : public espbt::ESPBTClient, public Component {
   void connect() override;
   esp_err_t pair();
   void disconnect() override;
+  void ble_before_disabled_event_handler() override;
   void unconditional_disconnect();
   void release_services();
 

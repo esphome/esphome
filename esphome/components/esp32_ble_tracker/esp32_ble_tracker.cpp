@@ -218,7 +218,14 @@ void ESP32BLETracker::stop_scan() {
   this->stop_scan_();
 }
 
-void ESP32BLETracker::ble_before_disabled_event_handler() { this->stop_scan_(); }
+void ESP32BLETracker::ble_before_disabled_event_handler() {
+  this->stop_scan_();
+#ifdef ESPHOME_ESP32_BLE_TRACKER_CLIENT_COUNT
+  for (auto *client : this->clients_) {
+    client->ble_before_disabled_event_handler();
+  }
+#endif
+}
 
 bool ESP32BLETracker::stop_scan_() {
   if (this->scanner_state_ != ScannerState::RUNNING && this->scanner_state_ != ScannerState::FAILED) {
