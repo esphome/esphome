@@ -78,8 +78,9 @@ void ESP32BLETracker::loop() {
     return;
   } else if (this->ble_was_disabled_) {
     this->ble_was_disabled_ = false;
-    // If the BLE stack was disabled, we need to start the scan again.
-    if (this->scan_continuous_) {
+    // Start the scan again after a disable. A cancelled disable never stopped
+    // it, so only start from IDLE.
+    if (this->scan_continuous_ && this->scanner_state_ == ScannerState::IDLE) {
       this->start_scan();
     }
   }
