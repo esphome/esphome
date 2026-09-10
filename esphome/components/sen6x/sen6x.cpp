@@ -203,14 +203,8 @@ void SEN6XComponent::finish_setup_() {
     return;
   }
 
-  this->set_timeout(TIMEOUT_STARTUP, STARTUP_DELAY, [this]() { this->startup_complete_ = true; });
+  this->on_measurement_started_();
   this->initialized_ = true;
-  this->measuring_ = true;
-  this->command_ready_at_ = millis() + START_MEASUREMENT_DELAY;
-  // SEN63C/SEN69C condition the CO2 sensor for 24 s after a start; block restarts until then
-  if (this->sen6x_type_ == SEN63C || this->sen6x_type_ == SEN69C) {
-    this->co2_restart_at_ = millis() + CO2_CONDITIONING_DELAY;
-  }
   ESP_LOGD(TAG, "Initialized");
 }
 
@@ -461,13 +455,31 @@ void SEN6XComponent::parse_and_publish_measurements_() {
 }
 
 // True while the previous command's execution or settling time has not elapsed
-bool SEN6XComponent::command_blocked_() const { return static_cast<int32_t>(millis() - this->command_ready_at_) < 0; }
+bool SEN6XComponent::command_blocked_() const { return millis() - this->command_started_at_ < this->command_wait_; }
+
+void SEN6XComponent::set_command_wait_(uint32_t wait_ms) {
+  this->command_started_at_ = millis();
+  this->command_wait_ = wait_ms;
+}
+
+void SEN6XComponent::on_measurement_started_() {
+  this->measuring_ = true;
+  this->set_command_wait_(START_MEASUREMENT_DELAY);
+  // SEN63C/SEN69C condition the CO2 sensor for 24 s after a start; block restarts until then
+  if (this->sen6x_type_ == SEN63C || this->sen6x_type_ == SEN69C) {
+    this->co2_started_at_ = millis();
+    this->co2_wait_ = CO2_CONDITIONING_DELAY;
+  }
+  // Values need the warm-up period again after every start
+  this->startup_complete_ = false;
+  this->set_timeout(TIMEOUT_STARTUP, STARTUP_DELAY, [this]() { this->startup_complete_ = true; });
+}
 
 void SEN6XComponent::start_measurement() {
   if (!this->initialized_ || this->measuring_)
     return;
   // The CO2 conditioning window only blocks restarting, not other commands
-  if (this->command_blocked_() || static_cast<int32_t>(millis() - this->co2_restart_at_) < 0) {
+  if (this->command_blocked_() || millis() - this->co2_started_at_ < this->co2_wait_) {
     ESP_LOGW(TAG, "Device busy");
     return;
   }
@@ -476,14 +488,7 @@ void SEN6XComponent::start_measurement() {
     ESP_LOGW(TAG, "Start measurement failed (%d)", this->last_error_);
     return;
   }
-  this->measuring_ = true;
-  this->command_ready_at_ = millis() + START_MEASUREMENT_DELAY;
-  if (this->sen6x_type_ == SEN63C || this->sen6x_type_ == SEN69C) {
-    this->co2_restart_at_ = millis() + CO2_CONDITIONING_DELAY;
-  }
-  // Values need the warm-up period again after a restart
-  this->startup_complete_ = false;
-  this->set_timeout(TIMEOUT_STARTUP, STARTUP_DELAY, [this]() { this->startup_complete_ = true; });
+  this->on_measurement_started_();
 }
 
 void SEN6XComponent::stop_measurement() {
@@ -501,7 +506,7 @@ void SEN6XComponent::stop_measurement() {
     return;
   }
   this->measuring_ = false;
-  this->command_ready_at_ = millis() + STOP_MEASUREMENT_DELAY;
+  this->set_command_wait_(STOP_MEASUREMENT_DELAY);
 }
 
 void SEN6XComponent::start_fan_cleaning() {
@@ -521,7 +526,7 @@ void SEN6XComponent::start_fan_cleaning() {
     ESP_LOGW(TAG, "Fan cleaning failed (%d)", this->last_error_);
     return;
   }
-  this->command_ready_at_ = millis() + FAN_CLEANING_DELAY;
+  this->set_command_wait_(FAN_CLEANING_DELAY);
 }
 
 void SEN6XComponent::activate_sht_heater() {
@@ -541,7 +546,7 @@ void SEN6XComponent::activate_sht_heater() {
     ESP_LOGW(TAG, "SHT heater failed (%d)", this->last_error_);
     return;
   }
-  this->command_ready_at_ = millis() + SHT_HEATER_DELAY;
+  this->set_command_wait_(SHT_HEATER_DELAY);
 }
 
 SEN6XComponent::Sen6xType SEN6XComponent::infer_type_from_product_name_(const std::string &product_name) {
