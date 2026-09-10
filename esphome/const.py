@@ -21,6 +21,14 @@ class Toolchain(StrEnum):
     PLATFORMIO = "platformio"
     ESP_IDF = "esp-idf"
     SDK_NRF = "sdk-nrf"
+    # ESP8266: the Arduino core built directly (no PlatformIO)
+    ARDUINO = "arduino"
+
+
+# Toolchains that drive their build natively and never read platformio.ini.
+# SDK_NRF is absent on purpose: the zephyr backend keeps consuming
+# platformio_options.
+NATIVE_TOOLCHAINS = frozenset({Toolchain.ESP_IDF, Toolchain.ARDUINO})
 
 
 class Platform(StrEnum):

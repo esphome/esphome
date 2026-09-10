@@ -22,6 +22,7 @@
 #include "esphome/components/output/binary_output.h"
 #endif
 
+#include <span>
 #include <vector>
 
 #ifdef USE_ESP32
@@ -109,7 +110,7 @@ class ESP32ImprovComponent final : public Component, public improv_base::ImprovB
   void set_state_(improv::State state, bool update_advertising = true);
   void set_error_(improv::Error error);
   improv::State get_initial_state_() const;
-  void send_response_(std::vector<uint8_t> &&response);
+  void send_response_(std::span<const uint8_t> response);
   void process_incoming_data_();
   void on_wifi_connect_timeout_();
   void check_wifi_connection_();

@@ -58,7 +58,12 @@ from pathlib import Path
 import sys
 from typing import Any
 
-from clang_tidy_hash import CLANG_TIDY_GLOBAL_FILES, SDKCONFIG_DEFAULTS_PREFIX
+from clang_tidy_hash import (
+    CLANG_TIDY_GLOBAL_FILES,
+    ESP_IDF_INFRA_TRIGGER_FILES,
+    ESP_IDF_INFRA_TRIGGER_PATH_PREFIXES,
+    SDKCONFIG_DEFAULTS_PREFIX,
+)
 from helpers import (
     CPP_FILE_EXTENSIONS,
     ESPHOME_TESTS_COMPONENTS_PATH,
@@ -95,6 +100,17 @@ COMPONENT_TEST_BATCH_SIZE = 40
 # fan out across this many parallel jobs. Below the threshold, a single job runs.
 INTEGRATION_TESTS_SPLIT_THRESHOLD = 10
 INTEGRATION_TESTS_SPLIT_BUCKETS = 3
+
+# platformio and aioesphomeapi (requirements.txt), the pytest stack
+# (requirements_test.txt) and the fixture every session compiles; a change
+# to any runs the full matrix
+INTEGRATION_TESTS_TRIGGER_FILES = frozenset(
+    {
+        "requirements.txt",
+        "requirements_test.txt",
+        "tests/integration/fixtures/cache_init.yaml",
+    }
+)
 
 
 def _split_list(items: list[str], n: int) -> list[list[str]]:
@@ -216,12 +232,15 @@ def determine_integration_tests(branch: str | None = None) -> tuple[bool, list[s
     3. Integration test infrastructure files changed
        - conftest.py, types.py, const.py, entity_utils.py, state_utils.py, etc.
 
+    4. A file in INTEGRATION_TESTS_TRIGGER_FILES changed
+       - The dependency pins and the session init fixture affect every test
+
     Returns (run_all=False, [test_files...]) when:
 
-    4. Specific integration test files changed
+    5. Specific integration test files changed
        - Only those specific test files are returned
 
-    5. Components used by integration tests (or their dependencies) changed
+    6. Components used by integration tests (or their dependencies) changed
        - Only test files whose fixtures use the changed components are returned
 
     Args:
@@ -237,6 +256,9 @@ def determine_integration_tests(branch: str | None = None) -> tuple[bool, list[s
 
     if core_changed(files):
         # If any core files changed, run all integration tests
+        return (True, [])
+
+    if any(f in INTEGRATION_TESTS_TRIGGER_FILES for f in files):
         return (True, [])
 
     # If infrastructure Python files changed (conftest, utils, etc.), run all tests
@@ -522,23 +544,6 @@ def _esp32_platformio_path_or_file_trigger(files: list[str]) -> bool:
         ):
             return True
     return False
-
-
-# Native-build infra: changes under esphome/espidf/, the shared
-# esphome/build_helpers/ package, or the modules the native ESP-IDF build
-# imports affect every esp32 IDF build (now the default toolchain) but aren't
-# components, so the component matrix wouldn't otherwise force any esp32
-# compile. When they change we fold the `esp32` component into the matrix so
-# the default native-IDF build path is still compiled on an infra-only PR.
-ESP_IDF_INFRA_TRIGGER_PATH_PREFIXES = ("esphome/espidf/", "esphome/build_helpers/")
-ESP_IDF_INFRA_TRIGGER_FILES = frozenset(
-    {
-        "esphome/build_gen/espidf.py",
-        "esphome/framework_helpers.py",
-        "esphome/platformio/library.py",
-        "esphome/platformio/extra_script.py",
-    }
-)
 
 
 def _esp_idf_infra_changed(files: list[str]) -> bool:

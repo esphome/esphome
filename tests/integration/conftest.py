@@ -78,7 +78,8 @@ def _get_platformio_env(cache_dir: Path) -> dict[str, str]:
 @pytest.fixture(scope="session")
 def shared_platformio_cache() -> Generator[Path]:
     """Initialize a shared PlatformIO cache for all integration tests."""
-    # Use a dedicated directory for integration tests to avoid conflicts
+    # Use a dedicated directory for integration tests to avoid conflicts.
+    # CI caches parts of this path; keep in sync with ci.yml integration-tests.
     test_cache_dir = Path.home() / ".esphome-integration-tests"
     cache_dir = test_cache_dir / "platformio"
 

@@ -155,6 +155,11 @@ async def to_code(config: ConfigType) -> None:
     cg.add_define("USE_ESPNOW")
     cg.add_define("USE_ESPNOW_MAX_PAYLOAD_SIZE", config[CONF_MAX_PAYLOAD_SIZE])
 
+    if CORE.is_esp32:
+        from esphome.components.esp32 import include_builtin_idf_component
+
+        include_builtin_idf_component("esp_wifi")
+
     if CONF_WIFI in CORE.config:
         # Track the Wi-Fi channel via connect events instead of polling every loop
         wifi.request_wifi_connect_state_listener()

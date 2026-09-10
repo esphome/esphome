@@ -1,8 +1,51 @@
 #include "user_services.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 #include "esphome/core/string_ref.h"
 
 namespace esphome::api {
+
+StringRef UserServiceStatic::str_(size_t idx, std::span<char> &scratch) const {
+  const char *s = progmem_read_ptr(&this->strings_[idx]);
+  if (s == nullptr)
+    return {};
+#ifdef USE_ESP8266
+  // Codegen sizes the scratch buffer for the largest service; the bound only guards other callers
+  if (scratch.empty())
+    return {};
+  size_t len = strnlen_P(s, scratch.size() - 1);
+  progmem_memcpy(scratch.data(), s, len);
+  scratch[len] = '\0';
+  StringRef ref(scratch.data(), len);
+  scratch = scratch.subspan(len + 1);
+  return ref;
+#else
+  return StringRef(s);
+#endif
+}
+
+ListEntitiesServicesResponse UserServiceStatic::encode_list_service_response_(
+    std::span<const enums::ServiceArgType> arg_types, std::span<char> scratch) const {
+  ListEntitiesServicesResponse msg;
+  msg.name = this->str_(0, scratch);
+  msg.key = this->key_;
+  msg.supports_response = this->supports_response_;
+#ifdef USE_API_USER_DEFINED_ACTION_METADATA
+  msg.description = this->str_(1, scratch);
+#endif
+  msg.args.init(arg_types.size());
+  for (size_t i = 0; i < arg_types.size(); i++) {
+    size_t base = USER_ACTION_HEADER_STRINGS + i * USER_ACTION_ARG_STRINGS;
+    auto &arg = msg.args.emplace_back();
+    arg.type = arg_types[i];
+    arg.name = this->str_(base, scratch);
+#ifdef USE_API_USER_DEFINED_ACTION_METADATA
+    arg.description = this->str_(base + 1, scratch);
+    arg.example = this->str_(base + 2, scratch);
+#endif
+  }
+  return msg;
+}
 
 template<> bool get_execute_arg_value<bool>(const ExecuteServiceArgument &arg) { return arg.bool_; }
 template<> int32_t get_execute_arg_value<int32_t>(const ExecuteServiceArgument &arg) {

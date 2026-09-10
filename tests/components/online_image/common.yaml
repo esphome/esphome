@@ -62,6 +62,12 @@ image:
     url: http://www.faqs.org/images/library.jpg
     format: AUTO
     type: RGB565
+  - platform: online_image
+    id: online_qoi_image
+    url: https://www.example.org/image.qoi
+    format: QOI
+    type: RGB
+    transparency: alpha_channel
 
 # Check the set_url action
 esphome:

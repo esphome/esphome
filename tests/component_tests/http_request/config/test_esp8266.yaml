@@ -1,0 +1,13 @@
+esphome:
+  name: test
+
+esp8266:
+  board: d1_mini
+
+wifi:
+  ssid: test
+  password: testtest
+
+http_request:
+  timeout: 10s
+  verify_ssl: false

@@ -4,19 +4,18 @@ import logging
 import os
 from pathlib import Path
 import re
-import shutil
-import subprocess
 import sys
 from typing import TYPE_CHECKING, Any
 
 import platformdirs
 
+from esphome.build_helpers.ccache import resolve_ccache_path
 from esphome.const import CONF_COMPILE_PROCESS_LIMIT, CONF_ESPHOME, KEY_CORE
 from esphome.core import CORE, EsphomeError
+from esphome.framework_helpers import strip_win_long_path_prefix
 from esphome.helpers import (
     add_git_ceiling_directory,
     copy_file_if_changed,
-    get_bool_env,
     rmtree,
     write_file,
 )
@@ -39,40 +38,6 @@ _PIO_CACHE_DIRS = ("cache_dir", "packages_dir", "platforms_dir")
 _PIO_PYTHON_STAMP_FILE = ".esphome.pio.stamp.json"
 _PIO_PYTHON_STAMP_LOCK = ".esphome.pio.stamp.lock"
 _PIO_PYTHON_STAMP_SCHEMA = "0"
-
-
-def _strip_win_long_path_prefix(path: str) -> str:
-    r"""Strip the Windows extended-length path prefix from ``path``.
-
-    Handles both forms documented at
-    https://learn.microsoft.com/windows/win32/fileio/naming-a-file:
-
-    * ``\\?\C:\path\to\file`` -> ``C:\path\to\file``
-    * ``\\?\UNC\server\share\path`` -> ``\\server\share\path``
-
-    The NSIS-installed ``esphome.exe`` launcher on Windows starts Python with
-    ``sys.executable`` already prefixed with ``\\?\``. That prefix propagates
-    into PlatformIO's ``$PYTHONEXE`` (PlatformIO reads ``PYTHONEXEPATH`` from
-    the environment, falling back to ``os.path.normpath(sys.executable)``)
-    and ends up baked into SCons-emitted command lines for build steps such
-    as the esp8266 ``elf2bin`` invocation. ``cmd.exe`` does not understand
-    the ``\\?\`` prefix, so the build fails with
-    "The system cannot find the path specified." Stripping the prefix early
-    keeps the path shell-quotable.
-
-    Also applied to the ccache path exported by ``_ccache_env()``, which
-    ``shutil.which`` can return with the same prefix.
-
-    No-op on non-Windows platforms.
-    """
-    if sys.platform != "win32":
-        return path
-    if path.startswith("\\\\?\\UNC\\"):
-        # \\?\UNC\server\share\... -> \\server\share\...
-        return "\\\\" + path[len("\\\\?\\UNC\\") :]
-    if path.startswith("\\\\?\\"):
-        return path[len("\\\\?\\") :]
-    return path
 
 
 def get_platformio_config() -> "ProjectConfig | None":
@@ -131,7 +96,7 @@ def _clean_platformio_python_env(config: "ProjectConfig", core_dir: Path) -> Non
         rmtree(penv)
 
 
-def _current_python_minor() -> str:
+def current_python_minor() -> str:
     """Return the running interpreter's ``major.minor`` (e.g. ``3.13``)."""
     return f"{sys.version_info.major}.{sys.version_info.minor}"
 
@@ -196,7 +161,7 @@ def heal_platformio_python_env() -> None:
 
 def _check_platformio_python_stamp(config: "ProjectConfig") -> None:
     """Compare the stamp to the running interpreter; wipe and restamp on mismatch."""
-    current = _current_python_minor()
+    current = current_python_minor()
     stamp_dir = _pio_stamp_dir(config)
     # Host the stamp/lock even before PlatformIO's first run creates the dir.
     stamp_dir.mkdir(parents=True, exist_ok=True)
@@ -238,35 +203,6 @@ def _check_platformio_python_stamp(config: "ProjectConfig") -> None:
         _write_pio_stamp_python(stamp_file, current)
 
 
-def _ccache_runs(ccache: str) -> bool:
-    """Return True when the ``ccache`` found on PATH actually runs.
-
-    ``shutil.which`` proves existence, not runnability: on Windows it also
-    matches ``.bat``/``.cmd`` wrappers and stale package-manager shims whose
-    target is gone. Wrapping compiles around such a find fails every compile
-    step with an opaque OS error, so probe once and fall back to compiling
-    without ccache when the probe fails.
-    """
-    try:
-        subprocess.run(
-            [ccache, "--version"],
-            check=True,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            timeout=15,
-            # Repo-wide convention (posix_spawn fast path); see the
-            # close_fds=False call sites across esphome/ and script/helpers.py
-            close_fds=False,
-        )
-    except (OSError, subprocess.SubprocessError):
-        _LOGGER.warning(
-            "Ignoring ccache at %s because it failed to run; compiling without ccache",
-            ccache,
-        )
-        return False
-    return True
-
-
 def _ccache_env() -> dict[str, str]:
     r"""Return ccache settings for PlatformIO builds.
 
@@ -285,7 +221,7 @@ def _ccache_env() -> dict[str, str]:
     runs fine through ``CreateProcess``, which is how ESP-IDF invokes it,
     but SCons runs every compile through ``cmd.exe``, which fails on it with
     "The system cannot find the path specified." (#18399), so the prefix is
-    stripped here with ``_strip_win_long_path_prefix()`` before the
+    stripped here with ``strip_win_long_path_prefix()`` before the
     runnability probe, which therefore validates the exact string the build
     will execute.
     ``ESPHOME_CCACHE_PATH`` is an internal channel, not a user setting: the
@@ -311,22 +247,8 @@ def _ccache_env() -> dict[str, str]:
     build dir. The other ``CCACHE_*`` values the user already set in the
     environment are respected.
     """
-    explicit = "ESPHOME_CCACHE_ENABLE" in os.environ
-    if explicit and not get_bool_env("ESPHOME_CCACHE_ENABLE"):
-        return {"ESPHOME_CCACHE_ENABLE": "0"}
-    ccache_path = shutil.which("ccache")
+    ccache_path = resolve_ccache_path()
     if ccache_path is None:
-        if explicit:
-            _LOGGER.warning(
-                "ESPHOME_CCACHE_ENABLE is set but no ccache binary is on PATH; "
-                "compiling without ccache"
-            )
-        return {"ESPHOME_CCACHE_ENABLE": "0"}
-    # Strip before probing so the probe validates (and the failure warning
-    # names) the exact string the build will execute through cmd.exe.
-    ccache_path = _strip_win_long_path_prefix(ccache_path)
-    # An explicit opt-in skips the runnability probe.
-    if not explicit and not _ccache_runs(ccache_path):
         return {"ESPHOME_CCACHE_ENABLE": "0"}
     env = {
         "ESPHOME_CCACHE_ENABLE": "1",
@@ -367,6 +289,12 @@ def copy_ccache_script() -> None:
     )
 
 
+def default_libdeps_dir() -> str:
+    """The PLATFORMIO_LIBDEPS_DIR value a pio run defaults to; the package
+    prefetch must resolve installed libraries against the same dir."""
+    return str(CORE.relative_piolibdeps_path().absolute())
+
+
 def run_platformio_cli(*args, **kwargs) -> str | int:
     # Re-provision the PlatformIO cache if the interpreter's major.minor changed
     # since it was last built; a stale platform otherwise rejects the new Python
@@ -374,9 +302,7 @@ def run_platformio_cli(*args, **kwargs) -> str | int:
     heal_platformio_python_env()
     os.environ["PLATFORMIO_FORCE_COLOR"] = "true"
     os.environ["PLATFORMIO_BUILD_DIR"] = str(CORE.relative_pioenvs_path().absolute())
-    os.environ.setdefault(
-        "PLATFORMIO_LIBDEPS_DIR", str(CORE.relative_piolibdeps_path().absolute())
-    )
+    os.environ.setdefault("PLATFORMIO_LIBDEPS_DIR", default_libdeps_dir())
     # Suppress Python syntax warnings from third-party scripts during compilation
     os.environ.setdefault("PYTHONWARNINGS", "ignore::SyntaxWarning")
     # Increase uv retry count to handle transient network errors (default is 3)
@@ -388,7 +314,7 @@ def run_platformio_cli(*args, **kwargs) -> str | int:
     # Strip the Windows extended-length path prefix from sys.executable so it
     # doesn't propagate into PlatformIO's $PYTHONEXE and break SCons-emitted
     # command lines run through cmd.exe.
-    python_exe = _strip_win_long_path_prefix(sys.executable)
+    python_exe = strip_win_long_path_prefix(sys.executable)
     if python_exe != sys.executable:
         # Only override PYTHONEXEPATH when we actually stripped a prefix.
         # PlatformIO's get_pythonexe_path() reads this and falls back to
@@ -424,6 +350,9 @@ def run_platformio_cli_run(config, verbose, *args, **kwargs) -> str | int:
 
 
 def run_compile(config, verbose):
+    from esphome.platformio.prefetch import prefetch_platformio_packages
+
+    prefetch_platformio_packages()
     args = []
     if CONF_COMPILE_PROCESS_LIMIT in config[CONF_ESPHOME]:
         args += [f"-j{config[CONF_ESPHOME][CONF_COMPILE_PROCESS_LIMIT]}"]

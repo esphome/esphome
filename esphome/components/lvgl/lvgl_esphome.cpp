@@ -525,6 +525,52 @@ void IndicatorLine::update_length_() {
 }
 #endif
 
+#ifdef USE_LVGL_TABLE
+uint32_t lv_table_get_selected_row(lv_obj_t *obj) {
+  uint32_t row;
+  uint32_t column;
+  lv_table_get_selected_cell(obj, &row, &column);
+  return row;
+}
+
+uint32_t lv_table_get_selected_column(lv_obj_t *obj) {
+  uint32_t row;
+  uint32_t column;
+  lv_table_get_selected_cell(obj, &row, &column);
+  return column;
+}
+
+void LvTableType::set_obj(lv_obj_t *lv_obj) {
+  LvCompound::set_obj(lv_obj);
+  lv_obj_add_event_cb(
+      lv_obj,
+      [](lv_event_t *e) {
+        auto *table = static_cast<LvTableType *>(lv_event_get_user_data(e));
+        table->update_column_widths_();
+      },
+      LV_EVENT_SIZE_CHANGED, this);
+}
+
+void LvTableType::add_column_width_pct(uint32_t col, uint8_t pct) {
+  for (auto &i : this->column_pct_) {
+    if (i.col == col) {
+      i.pct = pct;
+      this->update_column_widths_();
+      return;
+    }
+  }
+  this->column_pct_.push_back({col, pct});
+  this->update_column_widths_();
+}
+
+void LvTableType::update_column_widths_() {
+  auto content_width = lv_obj_get_content_width(this->obj);
+  for (const auto &col : this->column_pct_) {
+    lv_table_set_column_width(this->obj, col.col, content_width * col.pct / 100);
+  }
+}
+#endif  // USE_LVGL_TABLE
+
 #ifdef USE_LVGL_KEY_LISTENER
 LVEncoderListener::LVEncoderListener(lv_indev_type_t type, uint16_t long_press_time, uint16_t long_press_repeat_time) {
   this->drv_ = lv_indev_create();
@@ -551,21 +597,21 @@ std::string LvSelectable::get_selected_text() {
   return this->options_[selected];
 }
 
-static std::string join_string(std::vector<std::string> options) {
+static std::string join_string(const FixedVector<const char *> &options) {
   return std::accumulate(
       options.begin(), options.end(), std::string(),
-      [](const std::string &a, const std::string &b) -> std::string { return a + (!a.empty() ? "\n" : "") + b; });
+      [](const std::string &a, const char *b) -> std::string { return a + (!a.empty() ? "\n" : "") + b; });
 }
 
 void LvSelectable::set_selected_text(const std::string &text, lv_anim_enable_t anim) {
-  auto index = std::find(this->options_.begin(), this->options_.end(), text);
+  auto *index = std::find(this->options_.begin(), this->options_.end(), text);
   if (index != this->options_.end()) {
     this->set_selected_index(index - this->options_.begin(), anim);
     lv_obj_send_event(this->obj, lv_update_event, nullptr);
   }
 }
 
-void LvSelectable::set_options(std::vector<std::string> options) {
+void LvSelectable::set_options(FixedVector<const char *> options) {
   auto index = this->get_selected_index();
   if (index >= options.size())
     index = options.size() - 1;

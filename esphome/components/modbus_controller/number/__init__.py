@@ -3,6 +3,7 @@ from esphome.components import number
 from esphome.components.modbus.helpers import (
     MODBUS_WRITE_REGISTER_TYPE,
     SENSOR_VALUE_TYPE,
+    RegisterValues,
 )
 import esphome.config_validation as cv
 from esphome.const import (
@@ -13,22 +14,25 @@ from esphome.const import (
     CONF_MULTIPLY,
     CONF_STEP,
 )
+from esphome.types import ConfigType
 
 from .. import (
+    RANGE_REUSE,
     ModbusItemBaseSchema,
     SensorItem,
     add_modbus_base_properties,
     modbus_calc_properties,
     modbus_controller_ns,
     validate_custom_pdu_item,
+    validate_range_reuse_migration,
 )
 from ..const import (
     CONF_BITMASK,
     CONF_CUSTOM_COMMAND,
     CONF_CUSTOM_PDU,
-    CONF_FORCE_NEW_RANGE,
     CONF_MODBUS_CONTROLLER_ID,
     CONF_REGISTER_TYPE,
+    CONF_REUSE_PREVIOUS_RANGE,
     CONF_USE_WRITE_MULTIPLE,
     CONF_VALUE_TYPE,
     CONF_WRITE_LAMBDA,
@@ -43,7 +47,7 @@ ModbusNumber = modbus_controller_ns.class_(
 )
 
 
-def validate_min_max(config):
+def validate_min_max(config: ConfigType) -> ConfigType:
     if config[CONF_MAX_VALUE] <= config[CONF_MIN_VALUE]:
         raise cv.Invalid("max_value must be greater than min_value")
     if config[CONF_MIN_VALUE] < -16777215:
@@ -53,7 +57,7 @@ def validate_min_max(config):
     return config
 
 
-def validate_modbus_number(config):
+def validate_modbus_number(config: ConfigType) -> ConfigType:
     # custom_command is the deprecated alias for custom_pdu (migrated later in final validate).
     has_custom = CONF_CUSTOM_PDU in config or CONF_CUSTOM_COMMAND in config
     if not has_custom and CONF_ADDRESS not in config:
@@ -84,13 +88,14 @@ CONFIG_SCHEMA = cv.All(
     ),
     validate_min_max,
     validate_modbus_number,
+    validate_range_reuse_migration,
 )
 
 FINAL_VALIDATE_SCHEMA = validate_custom_pdu_item
 
 
-async def to_code(config):
-    byte_offset, reg_count = modbus_calc_properties(config)
+async def to_code(config: ConfigType) -> None:
+    byte_offset = modbus_calc_properties(config)
     var = cg.new_Pvariable(
         config[CONF_ID],
         config[CONF_REGISTER_TYPE],
@@ -98,8 +103,7 @@ async def to_code(config):
         byte_offset,
         config[CONF_BITMASK],
         config[CONF_VALUE_TYPE],
-        reg_count,
-        config[CONF_FORCE_NEW_RANGE],
+        RANGE_REUSE[config[CONF_REUSE_PREVIOUS_RANGE]],
     )
 
     await cg.register_component(var, config)
@@ -124,7 +128,7 @@ async def to_code(config):
             [
                 (ModbusNumber.operator("ptr"), "item"),
                 (cg.float_, "x"),
-                (cg.std_vector.template(cg.uint16).operator("ref"), "payload"),
+                (RegisterValues.operator("ref"), "payload"),
             ],
             return_type=cg.optional.template(float),
         )

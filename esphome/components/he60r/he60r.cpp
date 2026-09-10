@@ -59,7 +59,7 @@ void HE60rCover::endstop_reached_(CoverOperation operation) {
     if (this->last_command_ == operation) {
       float dur = (float) (now - this->start_dir_time_) / 1e3f;
       ESP_LOGD(TAG, "'%s' - %s endstop reached. Took %.1fs.", this->name_.c_str(),
-               operation == COVER_OPERATION_OPENING ? "Open" : "Close", dur);
+               operation == COVER_OPERATION_OPENING ? LOG_STR_LITERAL("Open") : LOG_STR_LITERAL("Close"), dur);
     }
     this->publish_state();
   }
@@ -213,9 +213,9 @@ void HE60rCover::start_direction_(CoverOperation dir) {
   if (this->current_operation == dir)
     return;
   ESP_LOGD(TAG, "'%s' - Direction '%s' requested.", this->name_.c_str(),
-           dir == COVER_OPERATION_OPENING   ? "OPEN"
-           : dir == COVER_OPERATION_CLOSING ? "CLOSE"
-                                            : "STOP");
+           dir == COVER_OPERATION_OPENING   ? LOG_STR_LITERAL("OPEN")
+           : dir == COVER_OPERATION_CLOSING ? LOG_STR_LITERAL("CLOSE")
+                                            : LOG_STR_LITERAL("STOP"));
 
   if (dir == this->next_direction_) {
     // either moving and needs to stop, or stopped and will move correctly on one trigger

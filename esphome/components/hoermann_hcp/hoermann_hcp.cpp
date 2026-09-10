@@ -22,6 +22,9 @@ static constexpr uint8_t MAX_LIGHT_TOGGLES_IN_FLIGHT = 4;
 static constexpr HoermannHcpCommand COMMAND_OPEN{"open", 0x0210, 0x0110};
 static constexpr HoermannHcpCommand COMMAND_CLOSE{"close", 0x0220, 0x0120};
 static constexpr HoermannHcpCommand COMMAND_IMPULSE{"impulse", 0x0240, 0x0140};
+// The intermediate positions are named in the second register, so the first only carries the phase.
+static constexpr HoermannHcpCommand COMMAND_VENT{"vent", 0x0200, 0x0100, 0x4000, 0x4000};
+static constexpr HoermannHcpCommand COMMAND_HALF_OPEN{"half open", 0x0200, 0x0100, 0x0400, 0x0400};
 // The lamp is named in the second register, but its phase bytes follow no scheme the door commands share.
 static constexpr HoermannHcpCommand COMMAND_TOGGLE_LAMP{"toggle light", 0x0100, 0x0800, 0x0200, 0x0200, false};
 
@@ -286,6 +289,8 @@ bool HoermannHcp::queue_command_(const HoermannHcpCommand &command) {
 bool HoermannHcp::open_door() { return this->queue_command_(COMMAND_OPEN); }
 bool HoermannHcp::close_door() { return this->queue_command_(COMMAND_CLOSE); }
 bool HoermannHcp::impulse_door() { return this->queue_command_(COMMAND_IMPULSE); }
+bool HoermannHcp::vent_door() { return this->queue_command_(COMMAND_VENT); }
+bool HoermannHcp::half_open_door() { return this->queue_command_(COMMAND_HALF_OPEN); }
 bool HoermannHcp::toggle_light() {
   if (this->light_toggles_in_flight_ >= MAX_LIGHT_TOGGLES_IN_FLIGHT) {
     ESP_LOGW(TAG, "Too many lamp toggles are still waiting to be confirmed, dropping this one");

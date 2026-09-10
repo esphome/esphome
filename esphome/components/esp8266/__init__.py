@@ -35,7 +35,7 @@ from esphome.platformio.toolchain import copy_ccache_script
 from esphome.storage_json import StorageJSON
 from esphome.types import ConfigType
 
-from .boards import BOARDS, ESP8266_LD_SCRIPTS
+from .boards import BOARDS, ESP8266_LD_SCRIPTS, board_ld_script
 from .const import (
     CONF_EARLY_PIN_INIT,
     CONF_ENABLE_SERIAL,
@@ -44,6 +44,7 @@ from .const import (
     KEY_BOARD,
     KEY_ESP8266,
     KEY_FLASH_SIZE,
+    KEY_LDSCRIPT,
     KEY_PIN_INITIAL_STATES,
     KEY_SERIAL1_REQUIRED,
     KEY_SERIAL_REQUIRED,
@@ -136,7 +137,16 @@ def _format_framework_arduino_version(ver: cv.Version) -> str:
         return f"~1.{ver.major}{ver.minor:02d}{ver.patch:02d}.0"
     if ver <= cv.Version(2, 6, 2):
         return f"~2.{ver.major}{ver.minor:02d}{ver.patch:02d}.0"
-    return f"~3.{ver.major}{ver.minor:02d}{ver.patch:02d}.0"
+    # Same encoding the native toolchain uses for its package download, so a
+    # version bump cannot drift between the two paths.
+    from esphome.arduino8266.framework import framework_package_version
+
+    try:
+        return f"~{framework_package_version(ver)}"
+    except EsphomeError as err:
+        # Anchor the 4.x rejection to the framework version line instead of
+        # aborting with a bare traceback-level error
+        raise cv.Invalid(str(err), path=[CONF_VERSION]) from err
 
 
 # NOTE: Keep this in mind when updating the recommended version:
@@ -246,6 +256,9 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_ENABLE_SCANF_FLOAT): cv.boolean,
         }
     ),
+    # Until the native toolchain lands, PlatformIO is the only backend;
+    # reject a --toolchain this platform cannot serve yet.
+    cv.require_platformio_toolchain("ESP8266"),
     set_core_data,
 )
 
@@ -274,6 +287,31 @@ def check_rosetta() -> None:
             "this system. Install it with:\n"
             "  softwareupdate --install-rosetta --agree-to-license"
         )
+
+
+def _choose_ld_script(board: str, ver: cv.Version) -> str | None:
+    """The flash ld to pin for this board and core, or None for cores
+    without ld-script support."""
+    board_data = BOARDS[board]
+    ld_scripts = ESP8266_LD_SCRIPTS[board_data[KEY_FLASH_SIZE]]
+    if ver <= cv.Version(2, 3, 0):
+        # No ld script support
+        return None
+    if ver <= cv.Version(2, 4, 2):
+        # Old ld script path; the modern per-board override names do not
+        # exist in this core's SDK, so the override cannot be honored.
+        # Substituting the size default would move _FS_end and the
+        # preferences sector, wiping flash-backed state on flash.
+        if KEY_LDSCRIPT in board_data:
+            raise EsphomeError(
+                f"Board {board} requires its {board_data[KEY_LDSCRIPT]} "
+                f"flash layout, which Arduino core {ver} cannot honor; "
+                "use a core newer than 2.4.2"
+            )
+        return ld_scripts[0]
+    # A per-board override preserves a layout the board shipped with
+    # (see d1_wroom_02 in boards.py)
+    return board_ld_script(board_data)
 
 
 @coroutine_with_priority(CoroPriority.PLATFORM)
@@ -397,17 +435,7 @@ async def to_code(config: ConfigType) -> None:
     )
 
     if config[CONF_BOARD] in BOARDS:
-        flash_size = BOARDS[config[CONF_BOARD]][KEY_FLASH_SIZE]
-        ld_scripts = ESP8266_LD_SCRIPTS[flash_size]
-
-        if ver <= cv.Version(2, 3, 0):
-            # No ld script support
-            ld_script = None
-        elif ver <= cv.Version(2, 4, 2):
-            # Old ld script path
-            ld_script = ld_scripts[0]
-        else:
-            ld_script = ld_scripts[1]
+        ld_script = _choose_ld_script(config[CONF_BOARD], ver)
 
         if ld_script is not None:
             cg.add_platformio_option("board_build.ldscript", ld_script)

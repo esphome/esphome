@@ -717,7 +717,7 @@ bool WiFiComponent::wifi_scan_start_(bool passive) {
   static constexpr uint32_t SCAN_ACTIVE_MAX_DEFAULT_MS = 500;
   static constexpr uint32_t SCAN_ACTIVE_MIN_ROAMING_MS = 100;
   static constexpr uint32_t SCAN_ACTIVE_MAX_ROAMING_MS = 300;
-  bool roaming = this->roaming_state_ == RoamingState::SCANNING;
+  bool roaming = this->is_roaming_scan_active();
   if (passive) {
     config.scan_time.passive = roaming ? SCAN_PASSIVE_ROAMING_MS : SCAN_PASSIVE_DEFAULT_MS;
   } else {

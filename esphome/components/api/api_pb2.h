@@ -1317,6 +1317,12 @@ class ListEntitiesServicesArgument final : public ProtoMessage {
  public:
   StringRef name{};
   enums::ServiceArgType type{};
+#ifdef USE_API_USER_DEFINED_ACTION_METADATA
+  StringRef description{};
+#endif
+#ifdef USE_API_USER_DEFINED_ACTION_METADATA
+  StringRef example{};
+#endif
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const;
   uint32_t calculate_size() const;
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -1328,7 +1334,7 @@ class ListEntitiesServicesArgument final : public ProtoMessage {
 class ListEntitiesServicesResponse final : public ProtoMessage {
  public:
   static constexpr uint16_t MESSAGE_TYPE = 41;
-  static constexpr uint8_t ESTIMATED_SIZE = 50;
+  static constexpr uint8_t ESTIMATED_SIZE = 59;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const LogString *message_name() const override { return LOG_STR("list_entities_services_response"); }
 #endif
@@ -1336,6 +1342,9 @@ class ListEntitiesServicesResponse final : public ProtoMessage {
   uint32_t key{0};
   FixedVector<ListEntitiesServicesArgument> args{};
   enums::SupportsResponseType supports_response{};
+#ifdef USE_API_USER_DEFINED_ACTION_METADATA
+  StringRef description{};
+#endif
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const;
   uint32_t calculate_size() const;
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -1911,11 +1920,10 @@ class MediaPlayerSupportedFormat final : public ProtoMessage {
 class ListEntitiesMediaPlayerResponse final : public InfoResponseProtoMessage {
  public:
   static constexpr uint16_t MESSAGE_TYPE = 63;
-  static constexpr uint8_t ESTIMATED_SIZE = 80;
+  static constexpr uint8_t ESTIMATED_SIZE = 78;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const LogString *message_name() const override { return LOG_STR("list_entities_media_player_response"); }
 #endif
-  bool supports_pause{false};
   std::vector<MediaPlayerSupportedFormat> supported_formats{};
   uint32_t feature_flags{0};
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const;
