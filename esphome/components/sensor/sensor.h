@@ -97,7 +97,13 @@ class Sensor : public EntityBase {
   /// Getter-syntax for .state.
   float get_state() const { return this->state; }
   /// Get the last state received by publish_state(), before any filters were applied.
-  float get_raw_state() const { return this->raw_state_; }
+  float get_raw_state() const {
+#ifdef USE_SENSOR_FILTER
+    return this->raw_state_;
+#else
+    return this->state;  // No filters compiled in, raw == filtered
+#endif
+  }
 
   /** Publish a new state to the front-end.
    *
@@ -135,9 +141,8 @@ class Sensor : public EntityBase {
   void internal_send_state_to_frontend(float state);
 
  protected:
-  float raw_state_;  ///< The last state passed to publish_state(), before filters.
-
 #ifdef USE_SENSOR_FILTER
+  float raw_state_{NAN};                           ///< The last state passed to publish_state(), before filters.
   LazyCallbackManager<void(float)> raw_callback_;  ///< Storage for raw state callbacks.
 #endif
   LazyCallbackManager<void(float)> callback_;  ///< Storage for filtered state callbacks.
