@@ -257,8 +257,9 @@ void HoermannHcp::on_state_reg_(uint16_t value) {
     }
   }
   // The low byte can change on its own, so only report a state we cannot decode once.
-  if (state != (previous >> 8))
+  if (state != (previous >> 8)) {
     ESP_LOGW(TAG, "Unknown door state 0x%02X", state);
+  }
 }
 
 // Low byte of register 6: bit 0x10 is the lamp, bit 0x04 the relay. The reference implementation records

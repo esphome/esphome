@@ -2120,3 +2120,58 @@ def test_get_cpp_changed_components_independent_of_cwd(
     assert helpers.get_cpp_changed_components(
         ["tests/components/time/__init__.py"]
     ) == ["time"]
+
+
+def test_fixture_map_includes_shared_yaml_markers() -> None:
+    """Fixtures named only by shared_yaml markers must map to their test file."""
+    helpers.get_fixture_to_test_files.cache_clear()
+    mapping = helpers.get_fixture_to_test_files()
+    for fixture in (
+        "uart_mock_modbus_loopback",
+        "uart_mock_modbus_mesh",
+        "uart_mock_modbus_server_injected",
+    ):
+        assert mapping[fixture] == frozenset(
+            {"tests/integration/test_uart_mock_modbus.py"}
+        )
+
+
+def test_no_orphan_integration_fixtures() -> None:
+    """Every fixture must reach CI test selection; an orphan selects nothing."""
+    helpers.get_fixture_to_test_files.cache_clear()
+    mapping = helpers.get_fixture_to_test_files()
+    fixtures_dir = (Path(__file__).parent.parent / "integration" / "fixtures").resolve()
+    fixtures = list(fixtures_dir.glob("*.yaml"))
+    assert fixtures, f"no fixtures found under {fixtures_dir}"
+    # cache_init is covered via INTEGRATION_TESTS_TRIGGER_FILES instead
+    orphans = [
+        f.stem for f in fixtures if f.stem != "cache_init" and f.stem not in mapping
+    ]
+    assert not orphans, f"fixtures invisible to CI test selection: {orphans}"
+
+
+def test_lpt_partition_balances_skewed_weights() -> None:
+    """Heavy items spread across groups instead of clustering."""
+    items = [f"i{n}" for n in range(6)]
+    weights = {"i0": 100.0, "i1": 90.0, "i2": 10.0, "i3": 10.0, "i4": 5.0, "i5": 5.0}
+    groups = helpers.lpt_partition(items, weights, 2)
+    group_weights = sorted(sum(weights[i] for i in g) for g in groups)
+    # Contiguous split would give 200 vs 20; LPT lands at 110 vs 110
+    assert group_weights == [110.0, 110.0]
+    assert sorted(i for g in groups for i in g) == items
+
+
+def test_lpt_partition_more_groups_than_items() -> None:
+    """Surplus groups come back empty; every item still lands somewhere."""
+    items = ["a", "b"]
+    groups = helpers.lpt_partition(items, {"a": 1.0, "b": 1.0}, 4)
+    assert len(groups) == 4
+    assert sorted(i for g in groups for i in g) == items
+    assert sum(not g for g in groups) == 2
+
+
+def test_lpt_partition_tie_determinism() -> None:
+    """Equal weights assign in input order, so output is reproducible."""
+    items = [f"i{n}" for n in range(4)]
+    weights = dict.fromkeys(items, 1.0)
+    assert helpers.lpt_partition(items, weights, 2) == [["i0", "i2"], ["i1", "i3"]]

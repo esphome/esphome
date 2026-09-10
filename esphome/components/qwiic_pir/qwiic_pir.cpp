@@ -124,8 +124,9 @@ void QwiicPIRComponent::dump_config() {
 
 void QwiicPIRComponent::clear_events_() {
   // Clear event status register
-  if (!this->write_byte(QWIIC_PIR_EVENT_STATUS, 0x00))
+  if (!this->write_byte(QWIIC_PIR_EVENT_STATUS, 0x00)) {
     ESP_LOGW(TAG, "Failed to clear events");
+  }
 }
 
 }  // namespace esphome::qwiic_pir
