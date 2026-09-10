@@ -68,13 +68,11 @@ def validate_usb_clients(configs: list[ConfigType]) -> list[ConfigType]:
     for index, first in enumerate(configs):
         # Ensure matching logic does not overlap between entries
         for second in configs[index + 1 :]:
-            if (
-                not (first[CONF_VID] == 0 and first[CONF_PID] == 0)
-                and not (second[CONF_VID] == 0 and second[CONF_PID] == 0)
-                and (
-                    first[CONF_VID] != second[CONF_VID]
-                    or first[CONF_PID] != second[CONF_PID]
-                )
+            # A zero VID or PID is a wildcard for that field, so only a differing non-zero
+            # value separates two entries
+            if not all(
+                first[key] == 0 or second[key] == 0 or first[key] == second[key]
+                for key in (CONF_VID, CONF_PID)
             ):
                 continue
 

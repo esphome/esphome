@@ -70,6 +70,36 @@ from esphome.types import ConfigType
             },
             id="different_manufacturer",
         ),
+        pytest.param(
+            {
+                "id": "a",
+                "vid": 0x303A,
+                "pid": 0,
+                "manufacturer": "Nabu Casa",
+                "product": "ZBT-2",
+            },
+            {
+                "id": "b",
+                "vid": 0x303A,
+                "pid": 0x4001,
+                "manufacturer": "Nabu Casa",
+                "product": "ZWA-2",
+            },
+            id="wildcard_pid_separated_by_product",
+        ),
+        pytest.param(
+            {
+                "id": "a",
+                "vid": 0,
+                "pid": 0x4001,
+            },
+            {
+                "id": "b",
+                "vid": 0x303A,
+                "pid": 0x4002,
+            },
+            id="wildcard_vid_different_pid",
+        ),
     ],
 )
 def test_disjoint_clients_are_accepted(first: ConfigType, second: ConfigType) -> None:
@@ -139,6 +169,34 @@ def test_disjoint_clients_are_accepted(first: ConfigType, second: ConfigType) ->
                 "product": "ZBT-2",
             },
             id="zero_ids_match_every_device",
+        ),
+        pytest.param(
+            {
+                "id": "a",
+                "vid": 0x303A,
+                "pid": 0,
+            },
+            {
+                "id": "b",
+                "vid": 0x303A,
+                "pid": 0x4001,
+                "manufacturer": "Nabu Casa",
+                "product": "ZBT-2",
+            },
+            id="wildcard_pid_shadows_filtered",
+        ),
+        pytest.param(
+            {
+                "id": "a",
+                "vid": 0,
+                "pid": 0x4001,
+            },
+            {
+                "id": "b",
+                "vid": 0x303A,
+                "pid": 0,
+            },
+            id="wildcards_on_different_fields",
         ),
     ],
 )

@@ -355,12 +355,10 @@ void USBClient::handle_open_state_() {
     return;
   }
   ESP_LOGD(TAG, "Device descriptor: vid %X pid %X", desc->idVendor, desc->idProduct);
-  if (desc->idVendor != this->vid_ || desc->idProduct != this->pid_) {
-    if (this->vid_ != 0 || this->pid_ != 0) {
-      ESP_LOGD(TAG, "Not our device, closing");
-      this->disconnect();
-      return;
-    }
+  if ((this->vid_ != 0 && desc->idVendor != this->vid_) || (this->pid_ != 0 && desc->idProduct != this->pid_)) {
+    ESP_LOGD(TAG, "Not our device, closing");
+    this->disconnect();
+    return;
   }
   usb_device_info_t dev_info;
   err = usb_host_device_info(this->device_handle_, &dev_info);
