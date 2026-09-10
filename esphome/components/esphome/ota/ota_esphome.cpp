@@ -41,7 +41,10 @@ const noise::NoiseContext &ESPHomeOTAComponent::noise_context_() const {
 #endif
 static constexpr uint16_t OTA_BLOCK_SIZE = 8192;
 static constexpr uint32_t OTA_SOCKET_TIMEOUT_HANDSHAKE = 20000;  // milliseconds for initial handshake
-static constexpr uint32_t OTA_SOCKET_TIMEOUT_DATA = 90000;       // milliseconds for data transfer
+// Milliseconds for data transfer. Covers the lwIP retransmit run seen in
+// practice for a lost chunk ack (1.5 + 3 + 6 + 12 + 24 + 48 s); the CLI waits
+// longer (espota2.DATA_PHASE_TIMEOUT) so the device is free before it retries
+static constexpr uint32_t OTA_SOCKET_TIMEOUT_DATA = 105000;
 
 // Single-instance pointer — multi-port configs are rejected in final_validate.
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
