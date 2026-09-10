@@ -9,9 +9,11 @@ static const char *const TAG = "sen6x";
 
 static constexpr uint8_t POLL_RETRIES = 24;     // 24 attempts
 static constexpr uint32_t I2C_READ_DELAY = 20;  // 20 ms to wait for I2C read to complete
+static constexpr uint32_t CMD_EXEC_DELAY = 20;  // execution time of set commands (datasheet section 4.8)
 static constexpr uint32_t POLL_INTERVAL = 50;   // 50 ms between poll attempts
-// Single numeric timeout ID — the chain is sequential so only one is active at a time.
+// Numeric timeout IDs. Each chain is sequential, so only one timeout per ID is active at a time.
 static constexpr uint32_t TIMEOUT_POLL = 1;
+static constexpr uint32_t TIMEOUT_SETUP_STEP = 2;
 static constexpr uint32_t TIMEOUT_STARTUP = 3;
 // Post-command wait times from the datasheet: start execution (4.8.1), stop execution (4.8.2),
 // fan cleaning (4.8.22), SHT heater (4.8.23), CO2 conditioning after start on SEN63C/SEN69C (4.8.1)
@@ -38,6 +40,8 @@ static constexpr uint16_t SEN6X_CMD_STOP_MEASUREMENTS = 0x0104;
 static constexpr uint16_t SEN6X_CMD_START_FAN_CLEANING = 0x5607;
 static constexpr uint16_t SEN6X_CMD_ACTIVATE_SHT_HEATER = 0x6765;
 static constexpr uint16_t SEN6X_CMD_RESET = 0xD304;
+static constexpr uint16_t SEN6X_CMD_VOC_ALGORITHM_TUNING = 0x60D0;
+static constexpr uint16_t SEN6X_CMD_NOX_ALGORITHM_TUNING = 0x60E1;
 
 static inline void set_read_command_and_words(SEN6XComponent::Sen6xType type, uint16_t &read_cmd, uint8_t &read_words) {
   read_cmd = SEN6X_CMD_READ_MEASUREMENT;
@@ -155,25 +159,80 @@ void SEN6XComponent::setup() {
           this->firmware_version_minor_ = raw_firmware_version & 0xFF;
           ESP_LOGI(TAG, "Firmware: %u.%u", this->firmware_version_major_, this->firmware_version_minor_);
 
-          if (!this->write_command(SEN6X_CMD_START_MEASUREMENTS)) {
-            ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-            this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
-            return;
-          }
-
-          this->set_timeout(TIMEOUT_STARTUP, STARTUP_DELAY, [this]() { this->startup_complete_ = true; });
-          this->initialized_ = true;
-          this->measuring_ = true;
-          this->command_ready_at_ = millis() + START_MEASUREMENT_DELAY;
-          // SEN63C/SEN69C condition the CO2 sensor for 24 s after a start; block restarts until then
-          if (this->sen6x_type_ == SEN63C || this->sen6x_type_ == SEN69C) {
-            this->co2_restart_at_ = millis() + CO2_CONDITIONING_DELAY;
-          }
-          ESP_LOGD(TAG, "Initialized");
+          // Step 4: write configuration commands one at a time, then start measurements.
+          // Delay the first step so it doesn't run in the same loop tick as the read above.
+          this->set_timeout(TIMEOUT_SETUP_STEP, CMD_EXEC_DELAY, [this]() { this->run_next_setup_step_(); });
         });
       });
     });
   });
+}
+
+// One configuration write per invocation, spaced by CMD_EXEC_DELAY. Cases without a
+// configured value fall through; each taken case must advance setup_step_index_ so the
+// next invocation resumes at the following step. These writes are optional, so a failure
+// only warns and the chain continues to the mandatory start-measurements write.
+void SEN6XComponent::run_next_setup_step_() {
+  switch (this->setup_step_index_) {
+    // Tuning writes are skipped when setup() disabled the sensor for this variant
+    case 0:
+      this->setup_step_index_++;
+      if (this->voc_sensor_ != nullptr && this->voc_tuning_params_.has_value()) {
+        this->write_tuning_parameters_(SEN6X_CMD_VOC_ALGORITHM_TUNING, this->voc_tuning_params_.value());
+        break;
+      }
+      [[fallthrough]];
+    case 1:
+      this->setup_step_index_++;
+      if (this->nox_sensor_ != nullptr && this->nox_tuning_params_.has_value()) {
+        this->write_tuning_parameters_(SEN6X_CMD_NOX_ALGORITHM_TUNING, this->nox_tuning_params_.value());
+        break;
+      }
+      [[fallthrough]];
+    default:
+      this->finish_setup_();
+      return;
+  }
+  this->set_timeout(TIMEOUT_SETUP_STEP, CMD_EXEC_DELAY, [this]() { this->run_next_setup_step_(); });
+}
+
+void SEN6XComponent::finish_setup_() {
+  if (!this->write_command(SEN6X_CMD_START_MEASUREMENTS)) {
+    ESP_LOGE(TAG, "Write 0x%04X failed, error %d", SEN6X_CMD_START_MEASUREMENTS, this->last_error_);
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+    return;
+  }
+
+  this->set_timeout(TIMEOUT_STARTUP, STARTUP_DELAY, [this]() { this->startup_complete_ = true; });
+  this->initialized_ = true;
+  this->measuring_ = true;
+  this->command_ready_at_ = millis() + START_MEASUREMENT_DELAY;
+  // SEN63C/SEN69C condition the CO2 sensor for 24 s after a start; block restarts until then
+  if (this->sen6x_type_ == SEN63C || this->sen6x_type_ == SEN69C) {
+    this->co2_restart_at_ = millis() + CO2_CONDITIONING_DELAY;
+  }
+  ESP_LOGD(TAG, "Initialized");
+}
+
+// Writes one optional configuration command. A failure warns and returns false, but does
+// not stop setup: the sensor still measures with that setting left at its default.
+bool SEN6XComponent::write_config_words_(uint16_t i2c_command, const uint16_t *data, uint8_t len) {
+  if (!this->write_command(i2c_command, data, len)) {
+    ESP_LOGE(TAG, "Write 0x%04X failed, error %d", i2c_command, this->last_error_);
+    this->status_set_warning();
+    return false;
+  }
+  return true;
+}
+
+bool SEN6XComponent::write_tuning_parameters_(uint16_t i2c_command, const GasTuning &tuning) {
+  uint16_t params[6] = {tuning.index_offset,
+                        tuning.learning_time_offset_hours,
+                        tuning.learning_time_gain_hours,
+                        tuning.gating_max_duration_minutes,
+                        tuning.std_initial,
+                        tuning.gain_factor};
+  return this->write_config_words_(i2c_command, params, 6);
 }
 
 void SEN6XComponent::dump_config() {

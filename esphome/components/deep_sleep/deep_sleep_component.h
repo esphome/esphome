@@ -190,6 +190,11 @@ class DeepSleepComponent final : public Component {
   void schedule_sleep_();
   bool should_teardown_();
 
+  void defer_sleep_() {
+    this->next_enter_deep_sleep_ = true;
+    this->enable_loop();
+  }
+
 #ifdef USE_BK72XX
   bool pin_prevents_sleep_(WakeUpPinItem &pin_item) const;
   bool get_real_pin_state_(InternalGPIOPin &pin) const { return (pin.digital_read() ^ pin.is_inverted()); }

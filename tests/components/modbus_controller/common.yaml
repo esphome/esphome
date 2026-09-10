@@ -21,6 +21,7 @@ binary_sensor:
     name: Test Binary Sensor with Lambda
     register_type: input
     address: 0x3201
+    reuse_previous_range: false
     lambda: |-
       return x;
 
@@ -85,6 +86,7 @@ select:
     name: Test Select with Lambda
     address: 1001
     value_type: U_WORD
+    reuse_previous_range: auto
     optionsmap:
       "Off": 0
       "On": 1
@@ -140,9 +142,10 @@ sensor:
     register_type: holding
     address: 0x9002
     value_type: U_WORD
+    reuse_previous_range: true
     lambda: |-
       return x / 10.0;
-  # Non-mergeable sensor sharing the start address of modbus_sensor1 (different register_count):
+  # Non-mergeable sensor sharing the start address of modbus_sensor1 (different value type width):
   # must join the same range, never open a second range keyed on the same (address, type).
   - platform: modbus_controller
     modbus_controller_id: modbus_controller1
@@ -187,8 +190,8 @@ sensor:
     value_type: U_WORD
     lambda: |-
       return modbus_controller::get_data<uint16_t>(data, item->offset) * 0.1f;
-  # force_new_range sensors sort before plain ones, so this high-address forced sensor is grouped
-  # first and the lower-address plain sensors above must still get their own ranges.
+  # The deprecated force_new_range migrates to reuse_previous_range: false, so this sensor never
+  # joins a range built before it and the lower-address sensors above keep their own ranges.
   - platform: modbus_controller
     modbus_controller_id: modbus_controller1
     id: modbus_sensor_forced_high
@@ -224,7 +227,6 @@ text_sensor:
     name: Test Text Sensor
     register_type: holding
     address: 0x9013
-    register_count: 3
     raw_encode: HEXBYTES
     response_size: 6
   - platform: modbus_controller
@@ -233,12 +235,13 @@ text_sensor:
     name: Test Text Sensor with Lambda
     register_type: holding
     address: 0x9014
-    register_count: 2
     response_size: 4
     lambda: |-
       return "Modified: " + x;
-  # A register reporting FEWER bytes than 2*register_count (response_size: 3 for 2 registers), followed
-  # by a contiguous sensor: the follower's byte position must track the actual 3 bytes, not underflow.
+  # A register reporting FEWER bytes than two per register (response_size: 3 over 2 registers), followed
+  # by a contiguous reuse:true sensor (auto never joins past a response_size register): the follower's
+  # byte position must track the actual 3 bytes, not underflow.
+  # register_count matches the derived width, so it migrates with a deprecation warning.
   - platform: modbus_controller
     modbus_controller_id: modbus_controller1
     id: modbus_text_sensor_narrow
@@ -255,4 +258,5 @@ text_sensor:
     register_type: holding
     address: 0x9032
     register_count: 1
+    reuse_previous_range: true
     raw_encode: HEXBYTES

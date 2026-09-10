@@ -40,8 +40,9 @@ void WakeOnLanButton::press_action() {
     memcpy(buffer + i * sizeof(this->macaddr_) + sizeof(PREFIX), this->macaddr_, sizeof(this->macaddr_));
   }
   if (this->broadcast_socket_->sendto(buffer, sizeof(buffer), 0, reinterpret_cast<const sockaddr *>(&saddr),
-                                      addr_len) <= 0)
+                                      addr_len) <= 0) {
     ESP_LOGW(TAG, "sendto() error %d", errno);
+  }
 #else
   IPAddress broadcast = IPAddress(255, 255, 255, 255);
   for (auto ip : esphome::network::get_ip_addresses()) {

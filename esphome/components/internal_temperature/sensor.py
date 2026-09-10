@@ -1,5 +1,7 @@
 import esphome.codegen as cg
 from esphome.components import sensor
+from esphome.components.esp32 import get_esp32_variant, include_builtin_idf_component
+from esphome.components.esp32.const import VARIANT_ESP32
 from esphome.components.zephyr import zephyr_add_prj_conf
 from esphome.config_helpers import filter_source_files_from_platform
 import esphome.config_validation as cv
@@ -47,6 +49,10 @@ CONFIG_SCHEMA = cv.All(
 async def to_code(config: ConfigType) -> None:
     var = await sensor.new_sensor(config)
     await cg.register_component(var, config)
+
+    if CORE.is_esp32 and get_esp32_variant() == VARIANT_ESP32:
+        # temprature_sens_read() lives in the esp_phy blob, which is excluded by default
+        include_builtin_idf_component("esp_phy")
 
     if CORE.using_zephyr and CORE.is_nrf52:
         zephyr_add_prj_conf("SENSOR", True)

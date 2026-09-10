@@ -5,4 +5,6 @@ wifi:
 logger:
   hardware_uart: UART0
 
+# next_url compiles the USE_IMPROV_SERIAL_NEXT_URL branch and add_next_url_
 improv_serial:
+  next_url: https://example.com/?device_name={{device_name}}&ip_address={{ip_address}}

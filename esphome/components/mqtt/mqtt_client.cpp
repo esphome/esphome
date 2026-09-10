@@ -41,7 +41,11 @@ MQTTClientComponent::MQTTClientComponent() {
   global_mqtt_client = this;
   char mac_addr[MAC_ADDRESS_BUFFER_SIZE];
   get_mac_address_into_buffer(mac_addr);
-  this->credentials_.client_id = make_name_with_suffix(App.get_name(), '-', mac_addr, MAC_ADDRESS_BUFFER_SIZE - 1);
+  const StringRef &name = App.get_name();
+  char client_id[MAX_NAME_WITH_SUFFIX_SIZE];
+  size_t len = make_name_with_suffix_to(client_id, sizeof(client_id), name.c_str(), name.size(), '-', mac_addr,
+                                        MAC_ADDRESS_BUFFER_SIZE - 1);
+  this->credentials_.client_id.assign(client_id, len);
 }
 
 // Connection
