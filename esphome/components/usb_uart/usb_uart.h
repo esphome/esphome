@@ -35,6 +35,9 @@ struct CdcEps {
   const usb_ep_desc_t *out_ep;
   uint8_t bulk_interface_number;
   uint8_t interrupt_interface_number;
+  // iInterface of each interface; 0 when the device provides no string for it
+  uint8_t interrupt_interface_string_index;
+  uint8_t bulk_interface_string_index;
 };
 
 enum CH34xChipType : uint8_t {
@@ -174,11 +177,16 @@ class USBUartChannelBase : public uart::UARTComponent, public Parented<USBUartCo
                                                              : this->cdc_dev_.bulk_interface_number;
   }
 
+  /// iInterface string of that interface; empty when the device has none, or until it has
+  /// been read after the device connected
+  const char *get_interface_string() const { return this->interface_string_; }
+
  protected:
   // Not directly instantiable; construct a concrete channel type instead.
   USBUartChannelBase(uint8_t index, uint16_t buffer_size) : input_buffer_(RingBuffer(buffer_size)), index_(index) {}
   void check_logger_conflict() override {}
   // Larger structures first (8+ bytes)
+  char interface_string_[usb_host::DESC_STRING_BUF_SIZE]{};
   RingBuffer input_buffer_;
   LockFreeQueue<UsbOutputChunk, USB_OUTPUT_CHUNK_COUNT> output_queue_;
   // Pool sized to queue capacity (SIZE-1) because LockFreeQueue<T,N> is a ring
@@ -248,6 +256,9 @@ class USBUartComponent : public usb_host::USBClient {
   void start_config_(bool reload);
   // Advance the config state machine; called from loop(). Returns true if it did work.
   bool run_config_machine_();
+  // Ask the device for the channel's interface string. Returns true when a transfer was
+  // submitted; its completion is signalled through cfg_done_ like a config step's.
+  bool fetch_interface_string_(USBUartChannelBase *channel);
 
   // Per-subclass per-channel settings sequence. For the given zero-based step, issue the
   // next control transfer via config_transfer_() and return true, or return false when the
@@ -277,6 +288,8 @@ class USBUartComponent : public usb_host::USBClient {
   bool cfg_device_phase_{false};
   bool cfg_in_flight_{false};
   bool cfg_ok_{true};
+  bool cfg_string_done_{false};
+  bool cfg_string_in_flight_{false};
 };
 
 class USBUartTypeCdcAcm : public USBUartComponent {

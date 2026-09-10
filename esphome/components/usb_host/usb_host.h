@@ -5,6 +5,7 @@
     defined(USE_ESP32_VARIANT_ESP32S31) || defined(USE_ESP32_VARIANT_ESP32H4)
 #include "esphome/core/defines.h"
 #include "esphome/core/component.h"
+#include "esphome/core/helpers.h"
 #include <vector>
 #include "usb/usb_host.h"
 #include <freertos/FreeRTOS.h>
@@ -12,6 +13,7 @@
 #include "esphome/core/lock_free_queue.h"
 #include "esphome/core/event_pool.h"
 #include <atomic>
+#include <span>
 
 namespace esphome::usb_host {
 
@@ -131,6 +133,10 @@ struct UsbDeviceInfo {
   char serial_number[DESC_STRING_BUF_SIZE];
 };
 
+/// Copy a USB string descriptor into a NUL-terminated buffer, dropping characters outside
+/// Latin-1. A missing descriptor copies as an empty string.
+void copy_descriptor_string(const usb_str_desc_t *desc, std::span<char, DESC_STRING_BUF_SIZE> buffer);
+
 enum ClientState {
   USB_CLIENT_INIT = 0,
   USB_CLIENT_OPEN,
@@ -161,6 +167,14 @@ class USBClient : public Component {
   /// Copy the connected device's identity out of the cached USB descriptors.
   /// Returns false when no device is connected.
   bool get_device_info(UsbDeviceInfo &info) const;
+
+  /// Read a string descriptor the host stack does not cache, an interface string say, into
+  /// buffer. Uses a transfer of its own: the pooled ones hold one packet, and a string
+  /// descriptor can be four times that. The callback runs on the USB task once buffer holds
+  /// the string (empty on failure). Returns false when nothing was started. One read at a
+  /// time; main loop only.
+  bool read_string_descriptor(uint8_t index, std::span<char, DESC_STRING_BUF_SIZE> buffer,
+                              const transfer_cb_t &callback);
 
   /// Narrow which device this client claims, beyond the VID/PID it was constructed
   /// with, by requiring a descriptor string to match exactly.
@@ -208,6 +222,8 @@ class USBClient : public Component {
     this->trq_in_use_.store(0);
   }
 
+  static void string_descriptor_callback(usb_transfer_t *xfer);
+
   // USB task management
   static void usb_task_fn(void *arg);
   [[noreturn]] void usb_task_loop_() const;
@@ -215,6 +231,11 @@ class USBClient : public Component {
   // Members ordered to minimize struct padding on 32-bit platforms
   TransferRequest requests_[MAX_REQUESTS]{};
   TaskHandle_t usb_task_handle_{nullptr};
+  // Dedicated transfer for read_string_descriptor(), allocated on first use and kept
+  usb_transfer_t *string_transfer_{nullptr};
+  transfer_cb_t string_callback_;
+  char *string_buffer_{nullptr};
+  std::atomic<bool> string_read_busy_{false};
   usb_host_client_handle_t handle_{};
   usb_device_handle_t device_handle_{};
   int device_addr_{-1};

@@ -2908,6 +2908,7 @@ message SerialProxyUsbInfo {
   string manufacturer = 8;
   string product = 9;
   string serial_number = 10;
+  string interface_description = 11;  // iInterface string of that interface; empty when the device has none
 }
 
 // ==================== BLUETOOTH CONNECTION PARAMS ====================

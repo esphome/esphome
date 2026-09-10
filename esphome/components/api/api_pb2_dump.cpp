@@ -2842,6 +2842,7 @@ const char *SerialProxyUsbInfo::dump_to(DumpBuffer &out) const {
   dump_field(out, ESPHOME_PSTR("manufacturer"), this->manufacturer);
   dump_field(out, ESPHOME_PSTR("product"), this->product);
   dump_field(out, ESPHOME_PSTR("serial_number"), this->serial_number);
+  dump_field(out, ESPHOME_PSTR("interface_description"), this->interface_description);
   return out.c_str();
 }
 #endif

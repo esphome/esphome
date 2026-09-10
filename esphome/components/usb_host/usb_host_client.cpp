@@ -162,7 +162,7 @@ static const char *get_descriptor_string(const usb_str_desc_t *desc, std::span<c
 
 // A missing descriptor copies as an empty string, unlike the "(unspecified)"
 // placeholder the logging helper above uses
-static void copy_descriptor_string(const usb_str_desc_t *desc, std::span<char, DESC_STRING_BUF_SIZE> buffer) {
+void copy_descriptor_string(const usb_str_desc_t *desc, std::span<char, DESC_STRING_BUF_SIZE> buffer) {
   buffer[0] = '\0';
   if (desc == nullptr || desc->bLength < 2)
     return;
@@ -212,6 +212,72 @@ bool USBClient::get_device_info(UsbDeviceInfo &info) const {
   copy_descriptor_string(dev_info.str_desc_manufacturer, info.manufacturer);
   copy_descriptor_string(dev_info.str_desc_product, info.product);
   copy_descriptor_string(dev_info.str_desc_serial_num, info.serial_number);
+  return true;
+}
+
+static constexpr size_t MAX_STRING_DESC_SIZE = 255;  // bLength is one byte
+static constexpr uint16_t LANGID_EN_US = 0x0409;
+
+// CALLBACK CONTEXT: USB task
+void USBClient::string_descriptor_callback(usb_transfer_t *xfer) {
+  auto *client = static_cast<USBClient *>(xfer->context);
+  TransferStatus status{};
+  status.error_code = xfer->status;
+  status.success = xfer->status == USB_TRANSFER_STATUS_COMPLETED;
+  status.endpoint = xfer->bEndpointAddress;
+  // The buffer starts with the setup packet; the descriptor follows it
+  status.data = xfer->data_buffer + SETUP_PACKET_SIZE;
+  status.data_len =
+      xfer->actual_num_bytes > static_cast<int>(SETUP_PACKET_SIZE) ? xfer->actual_num_bytes - SETUP_PACKET_SIZE : 0;
+  const auto *desc = reinterpret_cast<const usb_str_desc_t *>(status.data);
+  // A short read leaves bLength claiming bytes that never arrived; treat it as missing
+  const bool complete = status.success && status.data_len >= 2 && desc->bLength <= status.data_len;
+  copy_descriptor_string(complete ? desc : nullptr,
+                         std::span<char, DESC_STRING_BUF_SIZE>(client->string_buffer_, DESC_STRING_BUF_SIZE));
+  client->string_read_busy_.store(false);
+  if (client->string_callback_ != nullptr) {
+    client->string_callback_(status);
+  }
+}
+
+bool USBClient::read_string_descriptor(uint8_t index, std::span<char, DESC_STRING_BUF_SIZE> buffer,
+                                       const transfer_cb_t &callback) {
+  buffer[0] = '\0';
+  if (this->state_ != USB_CLIENT_CONNECTED || index == 0) {
+    return false;
+  }
+  if (this->string_transfer_ == nullptr) {
+    if (usb_host_transfer_alloc(SETUP_PACKET_SIZE + MAX_STRING_DESC_SIZE, 0, &this->string_transfer_) != ESP_OK) {
+      ESP_LOGE(TAG, "String descriptor transfer alloc failed");
+      return false;
+    }
+    this->string_transfer_->context = this;
+    this->string_transfer_->callback = string_descriptor_callback;
+  }
+  bool idle = false;
+  if (!this->string_read_busy_.compare_exchange_strong(idle, true)) {
+    ESP_LOGW(TAG, "String descriptor read already in progress");
+    return false;
+  }
+  auto *setup = reinterpret_cast<usb_setup_packet_t *>(this->string_transfer_->data_buffer);
+  setup->bmRequestType = USB_DIR_IN | USB_TYPE_STANDARD | USB_RECIP_DEVICE;
+  setup->bRequest = USB_B_REQUEST_GET_DESCRIPTOR;
+  setup->wValue = (USB_B_DESCRIPTOR_TYPE_STRING << 8) | index;
+  // The host stack read the device strings in US English; Linux asks for it first as well,
+  // so all three report the same text
+  setup->wIndex = LANGID_EN_US;
+  setup->wLength = MAX_STRING_DESC_SIZE;
+  this->string_transfer_->num_bytes = SETUP_PACKET_SIZE + MAX_STRING_DESC_SIZE;
+  this->string_transfer_->bEndpointAddress = USB_DIR_IN;
+  this->string_transfer_->device_handle = this->device_handle_;
+  this->string_buffer_ = buffer.data();
+  this->string_callback_ = callback;
+  auto err = usb_host_transfer_submit_control(this->handle_, this->string_transfer_);
+  if (err != ESP_OK) {
+    ESP_LOGE(TAG, "Failed to submit string descriptor read, err=%s", esp_err_to_name(err));
+    this->string_read_busy_.store(false);
+    return false;
+  }
   return true;
 }
 
