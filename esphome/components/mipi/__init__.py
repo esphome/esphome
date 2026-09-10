@@ -615,6 +615,8 @@ class DriverChip:
         both a software and a hardware reset require. The delay length is set via reset_delay, and defaults to 10ms.
         Returns the init sequence
         """
+        if reset_delay < 0 or reset_delay > 254:
+            raise ValueError("reset_delay must be between 0 and 254ms")
         sequence = list(self.initsequence or ())
         custom_sequence = config.get(CONF_INIT_SEQUENCE, [])
         sequence.extend(custom_sequence)
