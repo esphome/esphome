@@ -30,6 +30,7 @@ CONF_SENDSPIN_ID = "sendspin_id"
 CONF_INITIAL_STATIC_DELAY = "initial_static_delay"
 CONF_FIXED_DELAY = "fixed_delay"
 CONF_DECODE_MEMORY = "decode_memory"
+CONF_CODECS = "codecs"
 
 # Matches ARTWORK_MAX_SLOTS in sendspin-cpp.
 MAX_ARTWORK_SLOTS = 4
@@ -43,6 +44,20 @@ CODEC_FORMAT_FLAC = SendspinCodecFormat.enum("FLAC")
 CODEC_FORMAT_OPUS = SendspinCodecFormat.enum("OPUS")
 CODEC_FORMAT_PCM = SendspinCodecFormat.enum("PCM")
 CODEC_FORMAT_UNSUPPORTED = SendspinCodecFormat.enum("UNSUPPORTED")
+
+CODEC_FLAC = "flac"
+CODEC_OPUS = "opus"
+CODEC_PCM = "pcm"
+
+CODECS = {
+    CODEC_FLAC: CODEC_FORMAT_FLAC,
+    CODEC_OPUS: CODEC_FORMAT_OPUS,
+    CODEC_PCM: CODEC_FORMAT_PCM,
+}
+
+# Opus only supports 48 kHz audio, so it is left out of the default list at other rates.
+DEFAULT_CODECS = [CODEC_FLAC, CODEC_OPUS, CODEC_PCM]
+OPUS_SAMPLE_RATE = 48000
 
 SendspinImageFormat = sendspin_library_ns.enum("SendspinImageFormat", is_class=True)
 IMAGE_FORMAT_JPEG = SendspinImageFormat.enum("JPEG")
@@ -286,16 +301,13 @@ async def to_code(config: ConfigType) -> None:
     if data.player_support:
         cg.add_define("USE_SENDSPIN_PLAYER", True)
 
-        # Configures the player role. We always assume support for 16 bits per sample mono and stereo FLAC, Opus, and PCM at the configured sample rate
-        # (with Opus only supported at 48 kHz since that's the only sample rate it supports). Users can configure the specific formats via the Sendspin server
+        # Configures the player role. Each configured codec is advertised for 16 bits per sample
+        # mono and stereo at the configured sample rate. The order is a preference order, both for
+        # the codecs themselves and for stereo over mono.
         player_cfg = data.player_config
         sample_rate = player_cfg[CONF_SAMPLE_RATE]
 
-        # OPUS only supports 48 kHz audio
-        codecs = [CODEC_FORMAT_FLAC]
-        if sample_rate == 48000:
-            codecs.append(CODEC_FORMAT_OPUS)
-        codecs.append(CODEC_FORMAT_PCM)
+        codecs = [CODECS[codec] for codec in player_cfg[CONF_CODECS]]
 
         def _audio_format(codec: MockObj, channels: int) -> cg.StructInitializer:
             return cg.StructInitializer(
