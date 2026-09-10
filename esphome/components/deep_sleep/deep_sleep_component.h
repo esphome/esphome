@@ -57,6 +57,7 @@ struct WakeupCauseToRunDuration {
   // Run duration if woken up by GPIO pins.
   uint32_t gpio_cause;
 };
+
 #endif  // USE_ESP32
 
 #ifdef USE_DEEP_SLEEP_ON_WAKE
