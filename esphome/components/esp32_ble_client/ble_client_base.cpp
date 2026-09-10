@@ -73,6 +73,15 @@ void BLEClientBase::loop() {
 float BLEClientBase::get_setup_priority() const { return setup_priority::AFTER_BLUETOOTH; }
 
 void BLEClientBase::ble_before_disabled_event_handler() {
+  auto st = this->state();
+  if (st != espbt::ClientState::IDLE && st != espbt::ClientState::INIT) {
+    // No CLOSE_EVT will come: free the services and settle the link.
+    this->release_services();
+    this->set_idle_();
+    this->on_disconnect_complete(ESP_GATT_CONN_TERMINATE_LOCAL_HOST);
+  }
+  // The interface belongs to the torn-down stack.
+  this->gattc_if_ = ESP_GATT_IF_NONE;
   this->set_state(espbt::ClientState::INIT);
   // An idle client runs no loop; the INIT branch must run to register again.
   this->enable_loop();
@@ -121,6 +130,12 @@ void BLEClientBase::connect() {
   } else if (this->state() == espbt::ClientState::DISCONNECTING) {
     ESP_LOGW(TAG, "[%d] [%s] Cannot connect, still waiting for CLOSE_EVT to complete disconnect",
              this->connection_index_, this->address_str_);
+    return;
+  }
+  if (this->gattc_if_ == ESP_GATT_IF_NONE) {
+    // Bluedroid drops an open on an unknown interface without any event.
+    ESP_LOGW(TAG, "[%d] [%s] Connect rejected, GATT app not registered", this->connection_index_, this->address_str_);
+    this->set_state(espbt::ClientState::IDLE);
     return;
   }
   ESP_LOGI(TAG, "[%d] [%s] 0x%02x Connecting", this->connection_index_, this->address_str_, this->remote_addr_type_);

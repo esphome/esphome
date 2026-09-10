@@ -115,7 +115,7 @@ class BLEClientBase : public espbt::ESPBTClient, public Component {
 #endif
 
   // Group 3: 4-byte types
-  int gattc_if_;
+  int gattc_if_{ESP_GATT_IF_NONE};
   esp_gatt_status_t status_{ESP_GATT_OK};
 
   // Group 4: Arrays
