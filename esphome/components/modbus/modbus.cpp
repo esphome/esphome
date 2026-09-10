@@ -319,6 +319,13 @@ bool ModbusServerHub::parse_modbus_client_frame_() {
   std::span<const uint8_t> data(data_buffer, data_len);
   this->clear_rx_buffer_(LOG_STR("parse succeeded"), false, frame_length);
 
+  // This frame means the controller has moved on from the request a held reply answers. Clearing here rather
+  // than at the send also covers the frames we do not answer: a broadcast, or a request to another device.
+  if (this->deferred_payload_len_ != 0) {
+    ESP_LOGV(TAG, "Discarding a held server reply: a newer request arrived");
+    this->deferred_payload_len_ = 0;
+  }
+
   // Restored rather than cleared: loop() is public, so a nested pass must not free the outer dispatch.
   const bool was_dispatching = this->in_dispatch_;
   this->in_dispatch_ = true;
@@ -1230,9 +1237,6 @@ void ModbusServerHub::send_raw_(const uint8_t *payload, uint16_t len) {
     return;
   }
 
-  // Anything still stashed is older than the reply going out now, and the controller has moved on to the
-  // request this one answers. Sending it later would put a stale frame on the wire behind a newer one.
-  this->deferred_payload_len_ = 0;
   ModbusFrame frame(payload[0], payload + 1, len - 1);
   if (!this->send_frame_(frame)) {
     ESP_LOGE(TAG, "Server reply dropped: a frame arrived during the send delay");

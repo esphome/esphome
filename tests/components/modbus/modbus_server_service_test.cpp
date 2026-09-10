@@ -17,6 +17,10 @@ namespace {
 // fully determined: address, function code, byte count, value, CRC.
 constexpr uint8_t READ_HOLDING_PDU[] = {0x03, 0x00, 0x00, 0x00, 0x01};
 
+// Writes 0x0001 to holding register 0x0000. A broadcast is never answered, so this is a frame the hub parses
+// and dispatches without producing a reply of its own.
+constexpr uint8_t WRITE_SINGLE_PDU[] = {0x06, 0x00, 0x00, 0x00, 0x01};
+
 // A server device that answers one holding register and can turn its own hub, which is what a device
 // announcing a restart needs while the main loop is not running.
 class ServicingDevice : public ModbusServerDevice {
@@ -188,8 +192,8 @@ TEST(ModbusServerService, ReplyBlockedDuringTheSendDelayIsKept) {
   EXPECT_FALSE(f.uart.written.empty());
 }
 
-// A reply the pass itself produces goes out at once, and it is newer than anything still held back. The held
-// one must go with it, or a later pass would put a stale frame on the wire behind the reply it answered.
+// A frame the pass answers is newer than anything still held back, so the held one goes when that frame
+// arrives. A later pass must not put it on the wire behind the reply that answered the newer request.
 TEST(ModbusServerService, AReplySentOnThePassDiscardsAnOlderHeldOne) {
   ServerFixture f;
   ServicingDevice device(0x02);
@@ -209,6 +213,45 @@ TEST(ModbusServerService, AReplySentOnThePassDiscardsAnOlderHeldOne) {
   // Nothing is left over to be sent behind the reply that just went out.
   EXPECT_TRUE(device.pump());
   EXPECT_EQ(f.uart.written.size(), after_pass);
+}
+
+// A broadcast is never answered, so no reply of our own goes out to clear the one still held back. The
+// controller has moved on all the same, and the held reply must not reach the wire on a later pass.
+TEST(ModbusServerService, ABroadcastDiscardsAHeldReply) {
+  ServerFixture f;
+  ServicingDevice device(0x02);
+  f.hub.register_device(&device);
+  f.hub.stash_deferred_for_test(0x02, READ_HOLDING_PDU);
+  f.uart.inject_frame(BROADCAST_ADDRESS, WRITE_SINGLE_PDU);
+
+  // Busy at the start of the pass, so the held reply survives long enough for the broadcast to be parsed.
+  f.hub.block_first_check = true;
+  EXPECT_TRUE(device.pump());
+  f.hub.block_first_check = false;
+  // Gone means the broadcast really was parsed: nothing else in this pass touches the stash.
+  EXPECT_FALSE(f.hub.has_deferred());
+
+  EXPECT_TRUE(device.pump());
+  EXPECT_TRUE(f.uart.written.empty());
+}
+
+// Same for a request addressed to another device on the wire: we do not answer it, and the reply still held
+// back is just as stale as it is after a broadcast.
+TEST(ModbusServerService, ARequestToAPeerDiscardsAHeldReply) {
+  ServerFixture f;
+  ServicingDevice device(0x02);
+  f.hub.register_device(&device);
+  f.hub.stash_deferred_for_test(0x02, READ_HOLDING_PDU);
+  f.uart.inject_frame(0x09, READ_HOLDING_PDU);
+
+  f.hub.block_first_check = true;
+  EXPECT_TRUE(device.pump());
+  f.hub.block_first_check = false;
+  EXPECT_FALSE(f.hub.has_deferred());
+  EXPECT_EQ(device.reads, 0);
+
+  EXPECT_TRUE(device.pump());
+  EXPECT_TRUE(f.uart.written.empty());
 }
 
 // The scheduler gives the reply its one chance and lets it go. A pass afterwards must not find it and put a
