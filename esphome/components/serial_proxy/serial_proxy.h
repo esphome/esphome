@@ -121,6 +121,7 @@ class SerialProxy final : public uart::UARTDevice, public Component {
 
   /// Get the port type
   api::enums::SerialProxyPortType get_port_type() const { return this->port_type_; }
+
   /// Handle a mode change requested by an API client
   SerialProxyResult set_mode_from_client(api::APIConnection *api_connection, api::enums::SerialProxyMode mode);
 
@@ -277,6 +278,7 @@ class SerialProxy final : public uart::UARTDevice, public Component {
   /// Current modem pin states
   bool rts_state_{false};
   bool dtr_state_{false};
+
 #ifdef USE_SERIAL_PROXY_TAP
   SerialProxyTap *tap_{nullptr};
 #endif

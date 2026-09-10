@@ -104,8 +104,11 @@ class ESP32ImprovComponent final : public Component, public improv_base::ImprovB
   bool status_indicator_state_{false};
   uint32_t last_name_adv_time_{0};
   bool advertising_device_name_{false};
+  bool advertising_requested_{false};
   void set_status_indicator_state_(bool state);
   void update_advertising_type_();
+  void request_advertising_();
+  void release_advertising_();
 
   void set_state_(improv::State state, bool update_advertising = true);
   void set_error_(improv::Error error);

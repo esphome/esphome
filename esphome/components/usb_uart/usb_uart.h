@@ -34,10 +34,13 @@ struct CdcEps {
   const usb_ep_desc_t *in_ep;
   const usb_ep_desc_t *out_ep;
   uint8_t bulk_interface_number;
+  // Also the wIndex target for CDC class requests (SET_LINE_CODING etc.), so it
+  // must remain valid even when the interface itself is not claimed.
   uint8_t interrupt_interface_number;
   // iInterface of each interface; 0 when the device provides no string for it
   uint8_t interrupt_interface_string_index;
   uint8_t bulk_interface_string_index;
+  bool interrupt_interface_claimed{false};
 };
 
 enum CH34xChipType : uint8_t {
