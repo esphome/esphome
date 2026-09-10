@@ -157,7 +157,7 @@ void SdStorageBase::loop_cd_() {
   // No CD pin: card management is boot mount + manual actions only. In particular this
   // must NOT auto-remount after a manual unmount (card_present_() reports always-present
   // without a pin, so any level-based logic would remount on the next poll).
-  if (this->cd_pin_ == nullptr){
+  if (this->cd_pin_ == nullptr) {
     return;
   }
 

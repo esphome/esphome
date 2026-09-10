@@ -239,8 +239,7 @@ StorageError SdSpi::unmount() {
   StorageError flush_err = this->flush_open_handles_();
   if (flush_err == StorageError::STORAGE_ERROR_OK) {
     ESP_LOGD(TAG_SPI, "All data flushed");
-  }
-  else {
+  } else {
     ESP_LOGW(TAG_SPI, "Flush before unmount failed: %s", storage::error_to_string(flush_err));
   }
 

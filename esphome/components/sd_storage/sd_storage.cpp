@@ -198,15 +198,14 @@ storage::StorageError SdMmc::unmount() {
   storage::StorageError flush_err = this->flush_open_handles_();
   if (flush_err == storage::StorageError::STORAGE_ERROR_OK) {
     ESP_LOGD(TAG, "All data flushed");
-  }
-  else {
+  } else {
     ESP_LOGW(TAG, "Flush before unmount failed: %s", storage::error_to_string(flush_err));
   }
 
   esp_err_t unmount_err = esp_vfs_fat_sdcard_unmount(this->mount_path_, this->card_);
   if (unmount_err != ESP_OK) {
     ESP_LOGW(TAG, "esp_vfs_fat_sdcard_unmount failed: %s", esp_err_to_name(unmount_err));
-  }    
+  }
   this->card_ = nullptr;
   this->is_mounted_ = false;
 #ifdef USE_STORAGE_CHANGE_FEED
