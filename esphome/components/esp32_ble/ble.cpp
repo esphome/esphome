@@ -586,7 +586,10 @@ void ESP32BLE::loop_handle_state_transition_not_active_() {
       return;
     }
     this->drain_ble_events_();
-    this->state_ = BLE_COMPONENT_STATE_DISABLED;
+    // A status callback may have asked for BLE back; the stack is down now, so
+    // that request becomes a bring-up.
+    this->state_ =
+        this->state_ == BLE_COMPONENT_STATE_ACTIVE ? BLE_COMPONENT_STATE_ENABLE : BLE_COMPONENT_STATE_DISABLED;
   } else if (this->state_ == BLE_COMPONENT_STATE_ENABLE) {
     ESP_LOGD(TAG, "Enabling");
     this->state_ = BLE_COMPONENT_STATE_OFF;

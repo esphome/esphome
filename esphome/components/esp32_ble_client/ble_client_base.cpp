@@ -108,6 +108,10 @@ bool BLEClientBase::parse_device(const espbt::ESPBTDevice &device) {
     return false;
   if (this->state() != espbt::ClientState::IDLE)
     return false;
+  // Not registered on this stack yet; promoting now would stop the scan for a
+  // connect that connect() rejects anyway.
+  if (this->gattc_if_ == ESP_GATT_IF_NONE)
+    return false;
 
   this->log_event_("Found device");
   if (ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_DEBUG)
