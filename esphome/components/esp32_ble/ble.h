@@ -176,14 +176,7 @@ class ESP32BLE final : public Component {
 
   bool ble_setup_();
   bool ble_dismantle_();
-  // A request that arrives while the opposite transition is still pending just
-  // cancels it: loop() has not run, so nothing was torn down or brought up.
-  bool cancel_pending_(BLEComponentState pending, BLEComponentState restored) {
-    if (this->state_ != pending)
-      return false;
-    this->state_ = restored;
-    return true;
-  }
+  void request_state_(bool enable);
   // Drop what the old stack queued; the next stack reuses the same interface ids.
   void drain_ble_events_() {
     BLEEvent *ble_event;

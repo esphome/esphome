@@ -83,22 +83,33 @@ void ESP32BLE::setup() {
   }
 }
 
-void ESP32BLE::enable() {
-  if (this->cancel_pending_(BLE_COMPONENT_STATE_DISABLE, BLE_COMPONENT_STATE_ACTIVE))
-    return;
-  if (this->state_ != BLE_COMPONENT_STATE_DISABLED)
-    return;
+void ESP32BLE::enable() { this->request_state_(true); }
+void ESP32BLE::disable() { this->request_state_(false); }
 
-  this->state_ = BLE_COMPONENT_STATE_ENABLE;
-}
-
-void ESP32BLE::disable() {
-  if (this->cancel_pending_(BLE_COMPONENT_STATE_ENABLE, BLE_COMPONENT_STATE_DISABLED))
-    return;
-  if (this->state_ == BLE_COMPONENT_STATE_DISABLED)
-    return;
-
-  this->state_ = BLE_COMPONENT_STATE_DISABLE;
+// Queue the transition for loop(). A pending transition the other way is
+// cancelled instead, since nothing was torn down or brought up yet; any other
+// state is already there or on its way.
+void ESP32BLE::request_state_(bool enable) {
+  switch (this->state_) {
+    case BLE_COMPONENT_STATE_DISABLE:
+      if (enable)
+        this->state_ = BLE_COMPONENT_STATE_ACTIVE;
+      break;
+    case BLE_COMPONENT_STATE_ENABLE:
+      if (!enable)
+        this->state_ = BLE_COMPONENT_STATE_DISABLED;
+      break;
+    case BLE_COMPONENT_STATE_DISABLED:
+      if (enable)
+        this->state_ = BLE_COMPONENT_STATE_ENABLE;
+      break;
+    case BLE_COMPONENT_STATE_ACTIVE:
+      if (!enable)
+        this->state_ = BLE_COMPONENT_STATE_DISABLE;
+      break;
+    default:
+      break;
+  }
 }
 
 #ifdef USE_ESP32_BLE_ADVERTISING
