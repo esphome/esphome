@@ -107,8 +107,9 @@ class Sensor : public EntityBase {
 
   /** Publish a new state to the front-end.
    *
-   * First, the new state will be assigned to the raw_value. Then it's passed through all filters
-   * until it finally lands in the .value member variable and a callback is issued.
+   * The value is passed through the filter chain (when filters are compiled in) before landing in
+   * the `state` member and triggering the state callback. The pre-filter value is available via
+   * get_raw_state().
    *
    * @param state The state as a floating point number.
    */
