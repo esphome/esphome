@@ -4,7 +4,6 @@
 
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
-#include "esphome/core/defines.h"
 
 namespace esphome {
 
