@@ -121,14 +121,13 @@ class SerialProxy final : public uart::UARTDevice, public Component {
 
   /// Get the port type
   api::enums::SerialProxyPortType get_port_type() const { return this->port_type_; }
-
   /// Handle a mode change requested by an API client
   SerialProxyResult set_mode_from_client(api::APIConnection *api_connection, api::enums::SerialProxyMode mode);
 
   /// Configure UART parameters and apply them
   /// @param api_connection The API connection requesting the change
   /// @param baudrate Baud rate in bits per second
-  /// @param flow_control True to enable hardware flow control
+  /// @param flow_control True to request hardware flow control
   /// @param parity Parity setting (0=none, 1=even, 2=odd)
   /// @param stop_bits Number of stop bits (1 or 2)
   /// @param data_size Number of data bits (5-8)
@@ -278,7 +277,6 @@ class SerialProxy final : public uart::UARTDevice, public Component {
   /// Current modem pin states
   bool rts_state_{false};
   bool dtr_state_{false};
-
 #ifdef USE_SERIAL_PROXY_TAP
   SerialProxyTap *tap_{nullptr};
 #endif
