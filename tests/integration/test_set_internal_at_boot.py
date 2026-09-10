@@ -14,7 +14,7 @@ async def test_set_internal_at_boot(
     run_compiled: RunCompiledFunction,
     api_client_connected: APIClientConnectedFactory,
 ) -> None:
-    """set_internal() in on_boot changes API exposure, later calls are rejected."""
+    """set_internal() in on_boot changes API exposure, later calls log an error."""
     waiter = LineWaiter()
 
     async with (
@@ -31,8 +31,11 @@ async def test_set_internal_at_boot(
         late = next(s for s in services if s.name == "set_internal_late")
         await client.execute_service(late, {})
         await waiter.wait_for(
-            "'Untouched'", "set_internal() called after setup", timeout=5.0
+            "'Untouched'",
+            "set_internal() after setup is undefined behavior",
+            timeout=5.0,
         )
 
+        # Still written during the deprecation window, ignored from 2027.3.0
         entities, _ = await client.list_entities_services()
-        assert "Untouched" in {entity.name for entity in entities}
+        assert "Untouched" not in {entity.name for entity in entities}

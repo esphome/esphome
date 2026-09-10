@@ -57,9 +57,10 @@ void EntityBase::configure_entity_(const char *name, uint32_t object_id_hash, ui
 }
 
 void EntityBase::set_internal(bool internal) {
+  // Remove the after-setup path in 2027.3.0 and ignore the call instead.
   if (App.is_setup_complete()) {
-    ESP_LOGE(TAG, "'%s': set_internal() called after setup, ignored", this->get_name().c_str());
-    return;
+    ESP_LOGE(TAG, "'%s': set_internal() after setup is undefined behavior, stops working in 2027.3.0",
+             this->get_name().c_str());
   }
   this->flags_.internal = internal;
 }

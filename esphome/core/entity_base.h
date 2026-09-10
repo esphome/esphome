@@ -92,7 +92,8 @@ class EntityBase {
   // whenever possible: it is guaranteed and has none of the limitations below. Use this only when
   // the decision can only be made at boot. Must be called before MQTT and the API read the flag:
   // from on_boot at the default priority, or a setup() that runs above setup_priority::AFTER_WIFI.
-  // Calls after setup finishes are ignored and log an error.
+  // Calls after setup finishes are undefined behavior: the flag is still written and an error is
+  // logged, and from 2027.3.0 the call will be ignored.
   //
   // Known limitations. Not bugs, so no issue reports please; a PR that removes one with no RAM
   // or performance cost would be considered.
