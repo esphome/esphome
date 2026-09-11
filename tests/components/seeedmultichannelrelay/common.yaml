@@ -1,0 +1,27 @@
+i2c:
+  - id: i2c_seeedmultichannelrelay
+    scl: ${scl_pin}
+    sda: ${sda_pin}
+
+seeedmultichannelrelay:
+  id: SeeedMultiChannelRelay_ID
+  change_address_to: 0x01
+
+switch:
+  - platform: seeedmultichannelrelay
+    id: seeedmultichannelrelay_1
+    name: seeedmultichannelrelay1
+    channel: 1
+    seeedmultichannelrelay_id: SeeedMultiChannelRelay_ID
+
+  - platform: seeedmultichannelrelay
+    id: seeedmultichannelrelay_2
+    name: seeedmultichannelrelay2
+    channel: 2
+    seeedmultichannelrelay_id: SeeedMultiChannelRelay_ID
+
+  - platform: seeedmultichannelrelay
+    id: seeedmultichannelrelay_8
+    name: seeedmultichannelrelay8
+    channel: 8
+    seeedmultichannelrelay_id: SeeedMultiChannelRelay_ID

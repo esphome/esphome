@@ -463,6 +463,7 @@ esphome/components/sdp3x/* @Azimath
 esphome/components/seeed_mr24hpc1/* @limengdu
 esphome/components/seeed_mr60bha2/* @limengdu
 esphome/components/seeed_mr60fda2/* @limengdu
+esphome/components/seeed_multi_channel_relay/* @KoenBreeman
 esphome/components/selec_meter/* @sourabhjaiswal
 esphome/components/select/* @esphome/core
 esphome/components/sen0321/* @notjj
