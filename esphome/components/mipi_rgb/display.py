@@ -285,7 +285,7 @@ async def to_code(config: ConfigType) -> None:
 
     if CONF_SPI_ID in config:
         await spi.register_spi_device(var, config, write_only=True)
-        sequence = model.get_sequence(config)
+        sequence = model.get_sequence(config, add_reset=True)
         cg.add(var.set_init_sequence(sequence))
 
     cg.add(var.set_color_mode(COLOR_ORDERS[config[CONF_COLOR_ORDER]]))

@@ -606,11 +606,11 @@ class DriverChip:
         """
         Create the init sequence for the display.
         Use the default sequence from the model, if any, and append any custom sequence provided in the config.
-        Append SLPOUT (if not already in the sequence) and DISPON to the end of the sequence
+        Append SLPOUT (if not suppressed by the model) and DISPON to the end of the sequence
         MADCTL will be set if add_madctl is True
         If add_reset is True, a reset is prepended: a software reset when no reset pin
         is configured (and the model doesn't skip it), followed by a settling delay that
-        both a software and a hardware reset require.
+        both a software and a hardware reset require. The delay length is set via reset_delay, and defaults to 10ms.
         Returns the init sequence
         """
         sequence = list(self.initsequence or ())
@@ -620,12 +620,16 @@ class DriverChip:
         sequence = [x if isinstance(x, tuple) else (x,) for x in sequence]
 
         if add_reset:
+            # Matches the 1-255ms range map_sequence() already allows for a "delay N" entry.
+            reset_delay = self.get_default("reset_delay", 10)
+            if reset_delay < 1 or reset_delay > 255:
+                raise ValueError("reset_delay must be between 1 and 255ms")
             reset: list = []
             # A software reset is only needed when there is no hardware reset pin.
             if CONF_RESET_PIN not in config and not self.skip_command("SWRESET"):
                 reset.append((SWRESET,))
             # Both a software and a hardware reset need a settling delay before further commands.
-            reset.append(delay(10))
+            reset.append(delay(reset_delay))
             sequence = reset + sequence
 
         # Set pixel format if not already in the custom sequence
