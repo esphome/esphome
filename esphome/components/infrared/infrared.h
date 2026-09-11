@@ -45,7 +45,6 @@ class Infrared : public ir_rf_base::IrRfEntity {
  public:
   Infrared() = default;
 
-  void setup() override { this->setup_transport_(); }
   void dump_config() override;
 
   /// Get the traits for this infrared implementation

@@ -238,7 +238,7 @@ class APIConnection final : public APIServerConnectionBase {
   void send_infrared_rf_receive_event(const InfraredRFReceiveEvent &msg);
   // Reply to an InfraredRFTransmitRawTimingsRequest (API 1.18+); false when the TCP buffer is
   // full, the entity that owns the reply retries it then
-  bool send_infrared_rf_transmit_complete(uint32_t device_id, uint32_t key, bool success);
+  [[nodiscard]] bool send_infrared_rf_transmit_complete(uint32_t device_id, uint32_t key, bool success);
 #endif
 
 #ifdef USE_SERIAL_PROXY

@@ -22,13 +22,13 @@ try:
 except ImportError:  # aioesphomeapi older than the API 1.18 message
     InfraredRFTransmitCompleteResponse = None
 
-pytestmark = pytest.mark.skipif(
+needs_complete_message = pytest.mark.skipif(
     InfraredRFTransmitCompleteResponse is None,
     reason="needs an aioesphomeapi with InfraredRFTransmitCompleteResponse",
 )
 
 FRAME_COUNT = 5
-# 20 marks and spaces of 500 us, sent twice: 40 ms per frame
+# 10 marks and 10 spaces of 500 us, sent twice: 20 ms per frame
 TIMINGS = [500, -500] * 10
 REPEAT = 2
 MOCK_EVENT = re.compile(
@@ -36,6 +36,22 @@ MOCK_EVENT = re.compile(
 )
 
 
+@pytest.mark.shared_yaml("ir_rf_transmit_complete")
+@pytest.mark.asyncio
+async def test_ir_rf_transmit_complete_boot(
+    yaml_config: str,
+    run_compiled: RunCompiledFunction,
+    api_client_connected: APIClientConnectedFactory,
+) -> None:
+    """The host build with the mock transmitter boots and lists both entities on any client."""
+    async with run_compiled(yaml_config), api_client_connected() as client:
+        entities, _ = await client.list_entities_services()
+    assert find_entity(entities, "rf_transmitter", RadioFrequencyInfo) is not None
+    assert find_entity(entities, "rf_transmitter_b", RadioFrequencyInfo) is not None
+
+
+@needs_complete_message
+@pytest.mark.shared_yaml("ir_rf_transmit_complete")
 @pytest.mark.asyncio
 async def test_ir_rf_transmit_complete(
     yaml_config: str,
@@ -65,7 +81,8 @@ async def test_ir_rf_transmit_complete(
 
     def on_complete(msg: InfraredRFTransmitCompleteResponse) -> None:
         if not msg.success:
-            refused.set_result(msg)
+            if not refused.done():
+                refused.set_result(msg)
             return
         completions.append(msg)
         if len(completions) == FRAME_COUNT and not all_replied.done():

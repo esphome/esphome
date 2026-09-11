@@ -67,6 +67,9 @@ template<typename Call, typename Entity> class IrRfCall;
 /// once a transmit it started has left the transmitter.
 class IrRfEntity : public Component, public EntityBase, public remote_base::RemoteReceiverListener {
  public:
+  /// Reports the configured transports, listens on the receiver and hooks the transmitter's
+  /// completion; a platform with its own setup() calls it first
+  void setup() override;
   float get_setup_priority() const override { return setup_priority::AFTER_CONNECTION; }
 
   /// Set the remote receiver component
@@ -76,8 +79,8 @@ class IrRfEntity : public Component, public EntityBase, public remote_base::Remo
   bool has_transmitter() const { return this->transmitter_ != nullptr; }
   bool has_receiver() const { return this->receiver_ != nullptr; }
 
-  /// What the entity can do; platforms with their own hardware set these, remote_base ones
-  /// get them from setup_transport_()
+  /// What the entity can do; platforms with their own hardware set these from their own
+  /// setup(), remote_base ones get them from IrRfEntity::setup()
   bool get_supports_transmitter() const { return this->supports_transmitter_; }
   void set_supports_transmitter(bool supports) { this->supports_transmitter_ = supports; }
   bool get_supports_receiver() const { return this->supports_receiver_; }
@@ -104,9 +107,6 @@ class IrRfEntity : public Component, public EntityBase, public remote_base::Remo
  protected:
   template<typename, typename> friend class IrRfCall;
 
-  /// Reports the configured transports, listens on the receiver and hooks the transmitter's
-  /// completion; remote_base platforms call it from setup()
-  void setup_transport_();
   /// Hands the call's timings to the transmitter; the default transmit path of both entity types
   bool transmit_raw_(const IrRfCallData &call, uint32_t carrier_frequency_hz);
 #if defined(USE_API) && defined(USE_IR_RF)
@@ -129,6 +129,7 @@ class IrRfEntity : public Component, public EntityBase, public remote_base::Remo
   bool send_api_reply_();
   void clear_api_reply_() {
     this->api_reply_ = ApiReply::API_REPLY_NONE;
+    this->api_reply_connection_ = nullptr;
     this->disable_loop();
   }
   api::APIConnection *api_reply_connection_{nullptr};

@@ -1565,7 +1565,9 @@ void APIConnection::on_infrared_rf_transmit_raw_timings_request(const InfraredRF
 #else
     const uint32_t device_id = 0;
 #endif
-    this->send_infrared_rf_transmit_complete(device_id, msg.key, false);
+    if (!this->send_infrared_rf_transmit_complete(device_id, msg.key, false)) {
+      ESP_LOGV(TAG, "IR/RF reply for unknown key dropped, TCP buffer full");
+    }
   }
 }
 

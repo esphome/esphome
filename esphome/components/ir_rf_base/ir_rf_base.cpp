@@ -14,7 +14,7 @@ namespace esphome::ir_rf_base {
 
 static const char *const TAG = "ir_rf";
 
-void IrRfEntity::setup_transport_() {
+void IrRfEntity::setup() {
   this->supports_transmitter_ = this->has_transmitter();
   this->supports_receiver_ = this->has_receiver();
 
@@ -81,7 +81,9 @@ bool IrRfEntity::transmit_raw_(const IrRfCallData &call, uint32_t carrier_freque
   }
 
 #if defined(USE_API) && defined(REMOTE_BASE_COMPLETE_LISTENER_COUNT)
-  this->inflight_seq_ = transmit_call.get_seq();
+  // a YAML transmit while an API frame is on the wire must not take over that frame's completion
+  if (this->api_reply_ == ApiReply::API_REPLY_WAITING)
+    this->inflight_seq_ = transmit_call.get_seq();
 #endif
   transmit_call.perform();
   return true;
@@ -102,13 +104,19 @@ bool IrRfEntity::on_receive(remote_base::RemoteReceiveData data) {
 }
 
 #if defined(USE_API) && defined(USE_IR_RF)
-// Safety net for a transmitter that never reports completion (for example a failed component)
+// Safety net for a transmitter that never reports completion (for example a failed component),
+// measured from the request: a frame that stays on the wire longer than this is answered as
+// failed while still transmitting
 static constexpr uint32_t API_REPLY_TIMEOUT_MS = 30000;
 
 void IrRfEntity::expect_api_reply_(api::APIConnection *conn) {
   if (this->api_reply_ == ApiReply::API_REPLY_WAITING) {
-    // only an unpaced client gets here; its earlier request is answered as not started
+    // only an unpaced client gets here; its earlier request is answered as not started, and
+    // that reply cannot be kept if the buffer refuses it, since the slot goes to the new one
     this->finish_api_reply_(false);
+    if (this->api_reply_ != ApiReply::API_REPLY_NONE) {
+      ESP_LOGW(TAG, "'%s': transmit %s", this->get_name().c_str(), LOG_STR_LITERAL("reply displaced"));
+    }
   }
   this->api_reply_connection_ = conn;
   this->api_reply_registered_ms_ = App.get_loop_component_start_time();
@@ -116,6 +124,9 @@ void IrRfEntity::expect_api_reply_(api::APIConnection *conn) {
 }
 
 void IrRfEntity::finish_api_reply_(bool success) {
+  // a transmitter that completed inside control() has already answered
+  if (this->api_reply_ == ApiReply::API_REPLY_NONE)
+    return;
   this->api_reply_ = success ? ApiReply::API_REPLY_OWED_OK : ApiReply::API_REPLY_OWED_FAILED;
   this->send_api_reply_();
 }
@@ -144,12 +155,17 @@ void IrRfEntity::loop() {
   const bool waiting = this->api_reply_ == ApiReply::API_REPLY_WAITING;
   if (!waiting && this->send_api_reply_())
     return;
-  if (App.get_loop_component_start_time() - this->api_reply_registered_ms_ < API_REPLY_TIMEOUT_MS)
+  const uint32_t now = App.get_loop_component_start_time();
+  if (now - this->api_reply_registered_ms_ < API_REPLY_TIMEOUT_MS)
     return;
   ESP_LOGW(TAG, "'%s': transmit %s", this->get_name().c_str(),
            waiting ? LOG_STR_LITERAL("never reported completion") : LOG_STR_LITERAL("reply undeliverable"));
   if (waiting) {
-    this->finish_api_reply_(false);
+    // answered as failed; a refused reply gets one more timeout window of retries
+    this->api_reply_ = ApiReply::API_REPLY_OWED_FAILED;
+    this->api_reply_registered_ms_ = now;
+    this->send_api_reply_();
+    return;
   }
   this->clear_api_reply_();
 }

@@ -34,7 +34,7 @@ void IrRfProxy::dump_config() {
 #ifdef USE_RADIO_FREQUENCY
 
 void RfProxy::setup() {
-  this->setup_transport_();
+  ir_rf_base::IrRfEntity::setup();
   // remote_transmitter/receiver always uses OOK (on-off keying)
   this->traits_.add_supported_modulation(radio_frequency::RadioFrequencyModulation::RADIO_FREQUENCY_MODULATION_OOK);
 }
