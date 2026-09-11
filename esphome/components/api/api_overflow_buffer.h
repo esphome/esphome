@@ -52,6 +52,9 @@ class APIOverflowBuffer {
   static constexpr size_t MAX_BYTES = std::min(API_MAX_SEND_QUEUE * BYTES_PER_SLOT, MAX_SINGLE_BYTES);
   // Reserve in 256 byte steps so a creeping high-water mark settles quickly
   static constexpr size_t GROW_QUANTUM = 256;
+  static constexpr size_t reserve_for(size_t want) {
+    return std::min((want + GROW_QUANTUM - 1) & ~(GROW_QUANTUM - 1), MAX_SINGLE_BYTES);
+  }
 
   APIBuffer buf_;
   uint16_t head_{0};        // offset of the front message's length prefix; bytes before it are sent

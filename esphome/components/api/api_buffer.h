@@ -39,6 +39,10 @@ class APIBuffer {
     this->size_ = new_size;
     return true;
   }
+  /// Drop the first `drop` bytes and reserve capacity for `n`, copying the
+  /// remaining bytes once: in place, or straight into the new allocation.
+  /// Returns false if allocation fails; the buffer is left unchanged.
+  [[nodiscard]] bool drop_front_and_reserve(size_t drop, size_t n);
   uint8_t *data() { return this->data_.get(); }
   const uint8_t *data() const { return this->data_.get(); }
   size_t size() const { return this->size_; }
@@ -54,7 +58,7 @@ class APIBuffer {
   }
 
  protected:
-  bool grow_(size_t n);
+  bool grow_(size_t n, size_t drop = 0);
   std::unique_ptr<uint8_t[]> data_;
   size_t size_{0};
   size_t capacity_{0};

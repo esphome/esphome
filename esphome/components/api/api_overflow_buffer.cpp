@@ -48,31 +48,31 @@ bool APIOverflowBuffer::enqueue_iov(const struct iovec *iov, int iovcnt, uint16_
   if (this->count_ >= API_MAX_SEND_QUEUE)
     return false;
 
-  const uint16_t new_len = total_len - skip;
+  const size_t new_bytes = LEN_PREFIX + (total_len - skip);
   size_t size = this->buf_.size();
   // An empty backlog always takes one message: refusing it drops the connection,
   // and a lone message costs no more than the old per-message allocation
-  if (size - this->head_ + LEN_PREFIX + new_len > (this->count_ > 0 ? MAX_BYTES : MAX_SINGLE_BYTES))
+  if (size - this->head_ + new_bytes > (this->count_ > 0 ? MAX_BYTES : MAX_SINGLE_BYTES))
     return false;
 
-  if (size + LEN_PREFIX + new_len > this->buf_.capacity()) {
+  if (size + new_bytes > this->buf_.capacity()) {
     // Storage would move; not under an outer drain whose write() still points into it
     if (this->draining_)
       return false;
     if (this->head_ > 0) {
-      // Slide the unsent bytes to the front so growth only copies live data
+      // Reclaim the sent prefix; the live bytes are copied once even if this also grows
       size -= this->head_;
-      std::memmove(this->buf_.data(), this->buf_.data() + this->head_, size);
+      if (!this->buf_.drop_front_and_reserve(this->head_, reserve_for(size + new_bytes)))
+        return false;
       this->head_ = 0;
-      (void) this->buf_.resize(size);  // keeps size() consistent if the grow below fails
     }
   }
 
-  const size_t want = size + LEN_PREFIX + new_len;
-  const size_t reserve = std::min((want + GROW_QUANTUM - 1) & ~(GROW_QUANTUM - 1), MAX_SINGLE_BYTES);
-  if (!this->buf_.reserve_and_resize(reserve, want))
+  const size_t want = size + new_bytes;
+  if (!this->buf_.reserve_and_resize(reserve_for(want), want))
     return false;
 
+  const uint16_t new_len = static_cast<uint16_t>(new_bytes - LEN_PREFIX);
   uint8_t *dst = this->buf_.data() + size;
   std::memcpy(dst, &new_len, LEN_PREFIX);
   dst += LEN_PREFIX;
