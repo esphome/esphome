@@ -1,3 +1,4 @@
+#include <concepts>
 #include <utility>
 #include <vector>
 
@@ -142,6 +143,22 @@ class RemoteRMTChannel {
 #endif  // SOC_RMT_SUPPORTED
 #endif  // USE_ESP32
 
+// Protocol shapes, checked where a protocol is used so a missing method fails at the use site
+// instead of deep inside a template body. Receive-only protocols such as RCSwitchBase decode
+// without encoding.
+template<typename T>
+concept RemoteProtocolDecoder = requires(T proto, RemoteReceiveData src) {
+  { proto.decode(src) } -> std::same_as<optional<typename T::ProtocolData>>;
+};
+template<typename T>
+concept RemoteProtocolDumper = RemoteProtocolDecoder<T> && requires(T proto, const typename T::ProtocolData &data) {
+  proto.dump(data);
+};
+template<typename T>
+concept RemoteProtocolEncoder = requires(T proto, RemoteTransmitData *dst, const typename T::ProtocolData &data) {
+  proto.encode(dst, data);
+};
+
 class RemoteTransmitterBase : public RemoteComponentBase {
  public:
   RemoteTransmitterBase(InternalGPIOPin *pin) : RemoteComponentBase(pin) {}
@@ -163,7 +180,7 @@ class RemoteTransmitterBase : public RemoteComponentBase {
     this->temp_.reset();
     return TransmitCall(this);
   }
-  template<typename Protocol>
+  template<RemoteProtocolEncoder Protocol>
   void transmit(const Protocol::ProtocolData &data, uint32_t send_times = 1, uint32_t send_wait = 0) {
     auto call = this->transmit();
     Protocol().encode(call.get_data(), data);
@@ -233,13 +250,14 @@ class RemoteReceiverBinarySensorBase : public binary_sensor::BinarySensorInitial
 
 /* TEMPLATES */
 
-// Protocols are used only through their concrete type; encode/decode/dump stay non-virtual so unused ones link out
+// Protocols are used only through their concrete type (see the RemoteProtocol* concepts); encode/decode/dump
+// stay non-virtual so unused ones link out
 template<typename T> class RemoteProtocol {
  public:
   using ProtocolData = T;
 };
 
-template<typename T> class RemoteReceiverBinarySensor : public RemoteReceiverBinarySensorBase {
+template<RemoteProtocolDecoder T> class RemoteReceiverBinarySensor : public RemoteReceiverBinarySensorBase {
  public:
   RemoteReceiverBinarySensor() : RemoteReceiverBinarySensorBase() {}
 
@@ -257,7 +275,7 @@ template<typename T> class RemoteReceiverBinarySensor : public RemoteReceiverBin
   T::ProtocolData data_;
 };
 
-template<typename T>
+template<RemoteProtocolDecoder T>
 class RemoteReceiverTrigger final : public Trigger<typename T::ProtocolData>, public RemoteReceiverListener {
  protected:
   bool on_receive(RemoteReceiveData src) override {
@@ -278,7 +296,7 @@ class RemoteTransmittable {
   void set_transmitter(RemoteTransmitterBase *transmitter) { this->transmitter_ = transmitter; }
 
  protected:
-  template<typename Protocol>
+  template<RemoteProtocolEncoder Protocol>
   void transmit_(const Protocol::ProtocolData &data, uint32_t send_times = 1, uint32_t send_wait = 0) {
     this->transmitter_->transmit<Protocol>(data, send_times, send_wait);
   }
@@ -300,7 +318,7 @@ template<typename... Ts> class RemoteTransmitterActionBase : public RemoteTransm
   virtual void encode(RemoteTransmitData *dst, Ts... x) = 0;
 };
 
-template<typename T> class RemoteReceiverDumper : public RemoteReceiverDumperBase {
+template<RemoteProtocolDumper T> class RemoteReceiverDumper : public RemoteReceiverDumperBase {
  public:
   bool dump(RemoteReceiveData src) override {
     auto proto = T();
