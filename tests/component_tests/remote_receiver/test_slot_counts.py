@@ -66,13 +66,15 @@ def test_every_registry_name_maps_to_a_protocol_source() -> None:
 
 def test_request_protocol_rejects_unknown_names() -> None:
     """A misspelled protocol would otherwise surface only as a link error."""
-    with pytest.raises(ValueError, match="toshiba"):
+    with pytest.raises(ValueError, match="Unknown remote protocol 'toshiba'"):
         remote_base.request_protocol("toshiba")
 
 
 def test_dump_list_is_deduplicated_across_forms() -> None:
     dumpers = remote_base.validate_dumpers(["raw", {"raw": None}, "nec", "nec"])
-    assert [name for name, _ in dumpers] == ["raw", "nec"]
+    assert [
+        next(k for k in entry if k in remote_base.DUMPER_REGISTRY) for entry in dumpers
+    ] == ["raw", "nec"]
 
 
 @pytest.mark.parametrize("bad", [["nec", None], [5]])
