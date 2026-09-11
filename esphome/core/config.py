@@ -45,6 +45,7 @@ from esphome.const import (
     CONF_TRIGGER_ID,
     CONF_VERSION,
     KEY_CORE,
+    SOURCE_FILE_EXTENSIONS,
     PlatformFramework,
     __version__ as ESPHOME_VERSION,
 )
@@ -112,7 +113,7 @@ ProjectUpdateTrigger = cg.esphome_ns.class_(
 Device = cg.esphome_ns.class_("Device")
 Area = cg.esphome_ns.class_("Area")
 
-VALID_INCLUDE_EXTS = {".h", ".hpp", ".tcc", ".ino", ".cpp", ".c"}
+VALID_INCLUDE_EXTS = SOURCE_FILE_EXTENSIONS
 
 
 def validate_hostname(config):
@@ -187,8 +188,7 @@ def validate_ids_and_references(config: ConfigType) -> ConfigType:
 
 
 def valid_include(value: str) -> str:
-    # Look for "<...>" includes
-    if value.startswith("<") and value.endswith(">"):
+    if is_system_include(value):
         return value
     try:
         return str(cv.directory(value))

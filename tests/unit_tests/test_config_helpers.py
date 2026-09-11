@@ -206,6 +206,12 @@ def test_filter_source_files_from_defines() -> None:
         ('sscanf(buf, "%d,%f", &a, &b)', True),
         ('sscanf(buf, "%d;%f", &a, &b)', True),
         ('sscanf(buf, "a;b", &a); sscanf(buf, "%d", &b); printf("%f", v)', False),
+        # Escaped quotes, nested calls, a ')' inside the format, an unterminated call
+        ('sscanf(buf, "\\"%f\\"", &v)', True),
+        ('sscanf(f(x), "%f", &v)', True),
+        ('sscanf(buf, "%d)", &a); g("%f")', False),
+        ('sscanf(buf, "%d", &a; g("%f")', False),
+        ('sscanf(buf, "%f"', True),
         # fscanf and std::sscanf
         ('fscanf(fp, "%f", &v)', True),
         ('std::sscanf(buf, "%f", &v)', True),
