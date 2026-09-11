@@ -12,7 +12,10 @@ from typing import Any
 from esphome import yaml_util
 import esphome.codegen as cg
 from esphome.components.const import CONF_ENABLE_OTA_DOWNGRADE_PROTECTION
-from esphome.config_helpers import filter_source_files_from_defines
+from esphome.config_helpers import (
+    filter_source_files_from_defines,
+    lambdas_use_scanf_float,
+)
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ADVANCED,
@@ -2330,7 +2333,9 @@ async def _add_sscanf_stub(enable_full_scanf: bool) -> None:
     Runs at FINAL priority so every request_bluetooth() call has happened.
     bluedroid is the only sscanf caller in an ESPHome image (~13 KB of engine
     for two "%02x" parses); see sscanf_stubs.cpp. Newlib only, like the printf
-    wrap: IDF 6.0+ switches to picolibc, where the saving is unmeasured. The
+    wrap: IDF 6.0+ switches to picolibc, where the saving is unmeasured. A
+    lambda that scans a float keeps the libc sscanf, since the stub has no
+    floating-point conversions and the wrap applies to the whole image. The
     --undefined flag is needed because libsrc.a is scanned before libbt.a, so
     the stub would otherwise never be pulled from the archive.
     """
@@ -2341,6 +2346,12 @@ async def _add_sscanf_stub(enable_full_scanf: bool) -> None:
         or not _network_sdkconfig().bluetooth
         or get_esp32_variant() in ROM_SSCANF_VARIANTS
     ):
+        return
+    if lambdas_use_scanf_float(CORE.config):
+        _LOGGER.warning(
+            "Lambda uses scanf with a float format specifier; "
+            "keeping the libc sscanf (~13KB flash)"
+        )
         return
     cg.add_define("USE_ESP32_SSCANF_STUB")
     cg.add_build_flag("-Wl,--wrap=sscanf")

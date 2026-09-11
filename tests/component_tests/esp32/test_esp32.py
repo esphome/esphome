@@ -1449,6 +1449,7 @@ _SSCANF_STUB_FLAGS = {"-Wl,--wrap=sscanf", "-Wl,--undefined=__wrap_sscanf"}
         pytest.param("sscanf_stub_ble.yaml", True, id="esp32_ble"),
         pytest.param("sscanf_stub_ble_c6.yaml", False, id="c6_ble_rom_sscanf"),
         pytest.param("sscanf_stub_ble_full_scanf.yaml", False, id="full_scanf"),
+        pytest.param("sscanf_stub_ble_lambda.yaml", False, id="lambda_calls_sscanf"),
         pytest.param("exclusion_reincludes.yaml", False, id="esp32_no_ble"),
     ],
 )
@@ -1458,7 +1459,10 @@ def test_sscanf_stub_only_for_bluetooth_without_rom_sscanf(
     config_file: str,
     expected: bool,
 ) -> None:
-    """The sscanf wrap is emitted only for Bluetooth builds on variants whose ROM lacks sscanf."""
+    """The sscanf wrap is emitted only for Bluetooth builds on variants whose ROM lacks sscanf.
+
+    User code that calls a scanf function opts the build out automatically.
+    """
     generate_main(component_config_path(config_file))
     assert (CORE.build_flags >= _SSCANF_STUB_FLAGS) is expected
     defines = {define.name for define in CORE.defines}

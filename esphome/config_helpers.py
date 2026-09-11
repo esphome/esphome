@@ -1,4 +1,5 @@
 from collections.abc import Callable, Collection
+import re
 
 from esphome.const import (
     CONF_LEVEL,
@@ -8,7 +9,8 @@ from esphome.const import (
     KEY_TARGET_PLATFORM,
     PlatformFramework,
 )
-from esphome.core import CORE
+from esphome.core import CORE, Lambda
+from esphome.types import ConfigType
 from esphome.util import OrderedDict
 
 # Pre-build lookup map from (platform, framework) tuples to PlatformFramework enum
@@ -191,3 +193,33 @@ def get_logger_level() -> str:
 
     logger_config = CORE.config[CONF_LOGGER]
     return logger_config.get(CONF_LEVEL, "DEBUG")
+
+
+# Heuristically matches scanf/sscanf calls with float format specifiers.
+# Standard scanf float conversions: %f %F %e %E %g %G %a %A
+# With optional modifiers: %*f (suppression), %8f (width), %lf %Lf (length)
+# Also matches non-standard patterns like %.2f as a heuristic — these are
+# invalid in scanf but users may write them by analogy with printf.
+# Uses [^;]*? to stay within a single statement, preventing false positives
+# from e.g. sscanf(buf, "%d", &x); printf("%f", val);
+_SCANF_FLOAT_RE = re.compile(r"scanf\s*\([^;]*?%[*\d.]*[hlL]*[feEgGaAF]")
+
+
+def lambdas_use_scanf_float(config: ConfigType) -> bool:
+    """Check if any lambda in the config uses scanf with a float format specifier.
+
+    Comments are stripped before matching to avoid false positives from
+    commented-out code. The cost of a false positive is only ~8KB flash.
+    """
+    stack: list = [config]
+    while stack:
+        obj = stack.pop()
+        if isinstance(obj, Lambda):
+            src = obj.comment_remover(obj.value)
+            if _SCANF_FLOAT_RE.search(src):
+                return True
+        elif isinstance(obj, dict):
+            stack.extend(obj.values())
+        elif isinstance(obj, list):
+            stack.extend(obj)
+    return False

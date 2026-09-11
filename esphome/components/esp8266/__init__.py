@@ -6,6 +6,7 @@ import subprocess
 from typing import Any
 
 import esphome.codegen as cg
+from esphome.config_helpers import lambdas_use_scanf_float
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BOARD,
@@ -22,13 +23,7 @@ from esphome.const import (
     PLATFORM_ESP8266,
     ThreadModel,
 )
-from esphome.core import (
-    CORE,
-    CoroPriority,
-    EsphomeError,
-    Lambda,
-    coroutine_with_priority,
-)
+from esphome.core import CORE, CoroPriority, EsphomeError, coroutine_with_priority
 from esphome.core.config import BOARD_MAX_LENGTH
 from esphome.helpers import IS_MACOS, copy_file_if_changed
 from esphome.platformio.toolchain import copy_ccache_script
@@ -54,39 +49,10 @@ from .const import (
 from .gpio import PinInitialState, add_pin_initial_states_array
 
 CONF_ENABLE_SCANF_FLOAT = "enable_scanf_float"
-# Heuristically matches scanf/sscanf calls with float format specifiers.
-# Standard scanf float conversions: %f %F %e %E %g %G %a %A
-# With optional modifiers: %*f (suppression), %8f (width), %lf %Lf (length)
-# Also matches non-standard patterns like %.2f as a heuristic — these are
-# invalid in scanf but users may write them by analogy with printf.
-# Uses [^;]*? to stay within a single statement, preventing false positives
-# from e.g. sscanf(buf, "%d", &x); printf("%f", val);
-_SCANF_FLOAT_RE = re.compile(r"scanf\s*\([^;]*?%[*\d.]*[hlL]*[feEgGaAF]")
-
 CODEOWNERS = ["@esphome/core"]
 _LOGGER = logging.getLogger(__name__)
 AUTO_LOAD = ["preferences"]
 IS_TARGET_PLATFORM = True
-
-
-def lambdas_use_scanf_float(config: ConfigType) -> bool:
-    """Check if any lambda in the config uses scanf with a float format specifier.
-
-    Comments are stripped before matching to avoid false positives from
-    commented-out code. The cost of a false positive is only ~8KB flash.
-    """
-    stack: list = [config]
-    while stack:
-        obj = stack.pop()
-        if isinstance(obj, Lambda):
-            src = obj.comment_remover(obj.value)
-            if _SCANF_FLOAT_RE.search(src):
-                return True
-        elif isinstance(obj, dict):
-            stack.extend(obj.values())
-        elif isinstance(obj, list):
-            stack.extend(obj)
-    return False
 
 
 def set_core_data(config: ConfigType) -> ConfigType:
