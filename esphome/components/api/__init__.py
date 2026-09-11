@@ -350,8 +350,8 @@ CONFIG_SCHEMA = cv.All(
                 ln882x=5,  # Moderate RAM
                 nrf52=4,  # ~256KB RAM, BSD sockets, Thread (single HA controller)
             ): cv.int_range(min=1, max=20),
-            # Max queued messages per connection, and 2 KB of backlog per slot,
-            # before the connection is dropped
+            # Max queued messages per connection, and 2 KB of backlog per slot
+            # (a lone message is exempt), before the connection is dropped
             # Platform defaults based on available RAM and typical message rates:
             cv.SplitDefault(
                 CONF_MAX_SEND_QUEUE,

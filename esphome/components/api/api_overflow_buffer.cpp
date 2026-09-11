@@ -15,7 +15,7 @@ ssize_t APIOverflowBuffer::try_drain(socket::Socket *socket) {
   } guard{*this};
   this->draining_ = true;
 
-  do {
+  while (this->count_ > 0) {
     uint8_t *msg = this->buf_.data() + this->head_;
     uint16_t len;
     std::memcpy(&len, msg, LEN_PREFIX);
@@ -32,7 +32,7 @@ ssize_t APIOverflowBuffer::try_drain(socket::Socket *socket) {
     }
     this->head_ += LEN_PREFIX + len;
     this->count_--;
-  } while (this->count_ > 0);
+  }
 
   this->head_ = 0;
   if (this->release_when_drained_) {

@@ -75,9 +75,9 @@ class OverflowBufferTest : public ::testing::Test {
     int fds[2];
     ASSERT_EQ(::socketpair(AF_UNIX, SOCK_STREAM, 0, fds), 0);
     int size = 4096;
-    ::setsockopt(fds[0], SOL_SOCKET, SO_SNDBUF, &size, sizeof(size));
-    ::setsockopt(fds[1], SOL_SOCKET, SO_RCVBUF, &size, sizeof(size));
-    ::fcntl(fds[1], F_SETFL, O_NONBLOCK);
+    ASSERT_EQ(::setsockopt(fds[0], SOL_SOCKET, SO_SNDBUF, &size, sizeof(size)), 0);
+    ASSERT_EQ(::setsockopt(fds[1], SOL_SOCKET, SO_RCVBUF, &size, sizeof(size)), 0);
+    ASSERT_EQ(::fcntl(fds[1], F_SETFL, O_NONBLOCK), 0);
     this->reader_ = fds[1];
     this->sock_ = std::make_unique<socket::Socket>(fds[0]);
     ASSERT_EQ(this->sock_->setblocking(false), 0);
@@ -346,6 +346,8 @@ TEST_F(OverflowBufferTest, RefusesWhenByteLimitIsExceeded) {
 
 TEST_F(OverflowBufferTest, LoneMessageMayExceedByteLimit) {
   TestOverflowBuffer buf;
+  // The oversized message must still fit the 16 bit offsets
+  static_assert(TestOverflowBuffer::MAX_BYTES + 100 + TestOverflowBuffer::LEN_PREFIX <= APIBuffer::MAX_SIZE);
   auto big = make_message(TestOverflowBuffer::MAX_BYTES + 100, 5);
   auto small = make_message(16, 9);
 
