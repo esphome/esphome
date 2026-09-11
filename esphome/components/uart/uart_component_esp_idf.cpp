@@ -312,7 +312,9 @@ esp_err_t IDFUARTComponent::apply_settings_live() {
     return err;
   }
   this->last_good_framing_ = this->framing_();
-  return this->apply_line_settings_();
+  // The new framing is live; a line-setting failure here only logs.
+  this->apply_line_settings_();
+  return ESP_OK;
 }
 
 void IDFUARTComponent::dump_config() {

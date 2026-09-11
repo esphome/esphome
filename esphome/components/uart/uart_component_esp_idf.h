@@ -61,9 +61,10 @@ class IDFUARTComponent final : public UARTComponent, public Component {
    * rx_full_threshold is not rescaled; call set_rx_full_threshold_ms() first if it
    * should follow the new baud rate.
    *
-   * @return ESP_OK once the new framing is live. On rejection (unreachable baud rate)
-   * the previous framing is restored and the driver's error returned; if the restore
-   * fails too the component is marked failed. ESP_ERR_INVALID_STATE if already failed.
+   * @return ESP_OK once the new framing is live (a line-setting error after that only
+   * logs). On rejection (unreachable baud rate) the previous framing is restored and
+   * the driver's error returned; if the restore fails too the component is marked
+   * failed. ESP_ERR_INVALID_STATE if already failed.
    */
   esp_err_t apply_settings_live();
 
