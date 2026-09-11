@@ -115,11 +115,11 @@ bool RCSwitchBase::decode(RemoteReceiveData &src, uint64_t *out_data, uint8_t *o
 optional<RCSwitchData> RCSwitchBase::decode(RemoteReceiveData &src) const {
   RCSwitchData out;
   uint8_t out_nbits;
-  for (uint8_t i = 1; i < std::size(RC_SWITCH_PROTOCOLS); i++) {
+  for (size_t i = 1; i < std::size(RC_SWITCH_PROTOCOLS); i++) {
     src.reset();
     const RCSwitchBase *protocol = &RC_SWITCH_PROTOCOLS[i];
     if (protocol->decode(src, &out.code, &out_nbits) && out_nbits >= 3) {
-      out.protocol = i;
+      out.protocol = static_cast<uint8_t>(i);
       return out;
     }
   }
@@ -228,7 +228,7 @@ bool RCSwitchRawReceiver::matches(RemoteReceiveData src) {
   return decoded_nbits == this->nbits_ && (decoded_code & this->mask_) == (this->code_ & this->mask_);
 }
 bool RCSwitchDumper::dump(RemoteReceiveData src) {
-  for (uint8_t i = 1; i < std::size(RC_SWITCH_PROTOCOLS); i++) {
+  for (size_t i = 1; i < std::size(RC_SWITCH_PROTOCOLS); i++) {
     src.reset();
     uint64_t out_data;
     uint8_t out_nbits;
@@ -239,7 +239,7 @@ bool RCSwitchDumper::dump(RemoteReceiveData src) {
         buffer[j] = (out_data & ((uint64_t) 1 << (out_nbits - j - 1))) ? '1' : '0';
 
       buffer[out_nbits] = '\0';
-      ESP_LOGI(TAG, "Received RCSwitch Raw: protocol=%u data='%s'", i, buffer);
+      ESP_LOGI(TAG, "Received RCSwitch Raw: protocol=%u data='%s'", static_cast<unsigned>(i), buffer);
 
       // only send first decoded protocol
       return true;
