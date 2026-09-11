@@ -354,11 +354,13 @@ class APIServer final : public Component,
     APIConnection *connection;
   };
   // FIFO per entity: entities forward only completions of frames they submitted, and each
-  // completion pops the oldest match, so entries are never reordered.
-  // Unlike action calls, transmits share one named expiry timer: they are frequent and
-  // a scheduler item per entry would churn the heap.
-  std::vector<PendingIrRfTransmit> pending_ir_rf_transmits_;
+  // completion pops the oldest match, so entries are never reordered. One slot per connection:
+  // a pacing client has at most one transmit outstanding. Unlike action calls, transmits share
+  // one named expiry timer, since a scheduler item per entry would churn the heap.
+  std::array<PendingIrRfTransmit, MAX_API_CONNECTIONS> pending_ir_rf_transmits_{};
+  uint8_t pending_ir_rf_count_{0};
   void complete_pending_ir_rf_transmit_(size_t index, bool success);
+  void erase_pending_ir_rf_transmit_(size_t index);
   void unregister_pending_ir_rf_transmits_for_connection_(APIConnection *conn);
   void expire_pending_ir_rf_transmits_();
 #endif

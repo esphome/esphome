@@ -38,9 +38,6 @@ void APIServer::socket_failed_(const LogString *msg) {
 }
 
 void APIServer::setup() {
-#if defined(USE_IR_RF) || defined(USE_RADIO_FREQUENCY)
-  this->pending_ir_rf_transmits_.reserve(this->clients_.size());
-#endif
   ControllerRegistry::register_controller(this);
 
 #ifdef USE_API_NOISE
@@ -429,8 +426,13 @@ static constexpr uint32_t IR_RF_TRANSMIT_TIMEOUT_MS = 30000;
 static constexpr char IR_RF_TRANSMIT_TIMEOUT[] = "ir_rf_tx";
 
 void APIServer::register_pending_ir_rf_transmit(uint32_t device_id, uint32_t key, APIConnection *conn) {
-  this->pending_ir_rf_transmits_.push_back({device_id, key, App.get_loop_component_start_time(), conn});
-  if (this->pending_ir_rf_transmits_.size() == 1) {
+  if (this->pending_ir_rf_count_ == this->pending_ir_rf_transmits_.size()) {
+    // only an unpaced client gets here; its oldest request is answered as not started
+    this->complete_pending_ir_rf_transmit_(0, false);
+  }
+  this->pending_ir_rf_transmits_[this->pending_ir_rf_count_++] = {device_id, key, App.get_loop_component_start_time(),
+                                                                  conn};
+  if (this->pending_ir_rf_count_ == 1) {
     this->set_timeout(IR_RF_TRANSMIT_TIMEOUT, IR_RF_TRANSMIT_TIMEOUT_MS,
                       [this]() { this->expire_pending_ir_rf_transmits_(); });
   }
@@ -438,7 +440,7 @@ void APIServer::register_pending_ir_rf_transmit(uint32_t device_id, uint32_t key
 
 void APIServer::fail_pending_ir_rf_transmit(uint32_t device_id, uint32_t key, APIConnection *conn) {
   auto &pending = this->pending_ir_rf_transmits_;
-  for (size_t i = pending.size(); i-- > 0;) {
+  for (size_t i = this->pending_ir_rf_count_; i-- > 0;) {
     if (pending[i].connection == conn && pending[i].key == key && pending[i].device_id == device_id) {
       this->complete_pending_ir_rf_transmit_(i, false);
       return;
@@ -453,7 +455,7 @@ void APIServer::send_infrared_rf_transmit_complete(const EntityBase &entity) {
 #endif
   const uint32_t key = entity.get_object_id_hash();
   auto &pending = this->pending_ir_rf_transmits_;
-  for (size_t i = 0; i < pending.size(); i++) {
+  for (size_t i = 0; i < this->pending_ir_rf_count_; i++) {
     if (pending[i].key == key && pending[i].device_id == device_id) {
       this->complete_pending_ir_rf_transmit_(i, true);
       return;
@@ -462,34 +464,46 @@ void APIServer::send_infrared_rf_transmit_complete(const EntityBase &entity) {
 }
 
 void APIServer::complete_pending_ir_rf_transmit_(size_t index, bool success) {
-  auto &pending = this->pending_ir_rf_transmits_;
+  const auto &entry = this->pending_ir_rf_transmits_[index];
   InfraredRFTransmitCompleteResponse resp{};
 #ifdef USE_DEVICES
-  resp.device_id = pending[index].device_id;
+  resp.device_id = entry.device_id;
 #endif
-  resp.key = pending[index].key;
+  resp.key = entry.key;
   resp.success = success;
-  pending[index].connection->send_infrared_rf_transmit_complete_response(resp);
-  pending.erase(pending.begin() + index);
+  entry.connection->send_infrared_rf_transmit_complete_response(resp);
+  this->erase_pending_ir_rf_transmit_(index);
+}
+
+void APIServer::erase_pending_ir_rf_transmit_(size_t index) {
+  auto &pending = this->pending_ir_rf_transmits_;
+  for (size_t i = index + 1; i < this->pending_ir_rf_count_; i++) {
+    pending[i - 1] = pending[i];
+  }
+  this->pending_ir_rf_count_--;
 }
 
 void APIServer::unregister_pending_ir_rf_transmits_for_connection_(APIConnection *conn) {
   auto &pending = this->pending_ir_rf_transmits_;
-  pending.erase(std::remove_if(pending.begin(), pending.end(),
-                               [conn](const PendingIrRfTransmit &entry) { return entry.connection == conn; }),
-                pending.end());
+  uint8_t kept = 0;
+  for (size_t i = 0; i < this->pending_ir_rf_count_; i++) {
+    if (pending[i].connection != conn) {
+      pending[kept++] = pending[i];
+    }
+  }
+  this->pending_ir_rf_count_ = kept;
 }
 
 // A timer firing on an empty list is harmless, so nothing cancels it
 void APIServer::expire_pending_ir_rf_transmits_() {
   const uint32_t now = App.get_loop_component_start_time();
   auto &pending = this->pending_ir_rf_transmits_;
-  while (!pending.empty() && now - pending.front().registered_ms >= IR_RF_TRANSMIT_TIMEOUT_MS) {
-    ESP_LOGW(TAG, "IR/RF transmit %" PRIu32 " never reported completion", pending.front().key);
+  while (this->pending_ir_rf_count_ != 0 && now - pending[0].registered_ms >= IR_RF_TRANSMIT_TIMEOUT_MS) {
+    ESP_LOGW(TAG, "IR/RF transmit %" PRIu32 " never reported completion", pending[0].key);
     this->complete_pending_ir_rf_transmit_(0, false);
   }
-  if (!pending.empty()) {
-    this->set_timeout(IR_RF_TRANSMIT_TIMEOUT, IR_RF_TRANSMIT_TIMEOUT_MS - (now - pending.front().registered_ms),
+  if (this->pending_ir_rf_count_ != 0) {
+    this->set_timeout(IR_RF_TRANSMIT_TIMEOUT, IR_RF_TRANSMIT_TIMEOUT_MS - (now - pending[0].registered_ms),
                       [this]() { this->expire_pending_ir_rf_transmits_(); });
   }
 }
