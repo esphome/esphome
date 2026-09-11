@@ -115,8 +115,11 @@ CONFIG_SCHEMA = remote_base.validate_triggers(
             cv.SplitDefault(
                 CONF_BUFFER_SIZE,
                 esp32=cv.UNDEFINED,
-                esp32_c2="1000b",
-                esp32_c61="1000b",
+                # the pulse ring needs a size; only RMT targets size themselves in setup()
+                **{
+                    f"esp32_{variant.removeprefix('ESP32').lower()}": "1000b"
+                    for variant in esp32_rmt.VARIANTS_NO_RMT
+                },
                 esp8266="1000b",
                 bk72xx="1000b",
                 ln882x="1000b",

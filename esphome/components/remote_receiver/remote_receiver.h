@@ -47,7 +47,7 @@ struct RemoteReceiverComponentStore {
   /// The position last read from
   volatile uint32_t buffer_read{0};
   bool overflow{false};
-  uint32_t buffer_size{1000};
+  uint32_t buffer_size{0};
   uint32_t receive_size{0};
   uint32_t filter_symbols{0};
   esp_err_t error{ESP_OK};
