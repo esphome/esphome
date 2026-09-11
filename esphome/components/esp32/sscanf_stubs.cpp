@@ -1,13 +1,11 @@
 /*
  * Linker wrap for sscanf on ESP-IDF with newlib.
  *
- * bluedroid's two "%02x" parses (btc_config_get_bin, string_to_bdaddr) are
- * the only sscanf callers in an ESPHome image and link newlib's whole scanf
- * engine (~13 KB with _strtod_l). Routing them through core/sscanf_no_float.h
- * drops it; floats would pull _strtod_l back, so those abort with a message
- * naming enable_full_scanf. Codegen skips the wrap when a lambda scans a float
- * and only defines USE_ESP32_SSCANF_STUB for Bluetooth builds on variants
- * whose ROM lacks sscanf.
+ * bluedroid's two "%02x" parses are the only sscanf callers in an ESPHome
+ * image and link newlib's whole scanf engine (~13 KB with _strtod_l). Routing
+ * them through core/sscanf_no_float.h drops it; floats would pull _strtod_l
+ * back, so those abort naming enable_full_scanf. See _add_sscanf_stub in
+ * esp32/__init__.py for when this is emitted.
  */
 
 #include "esphome/core/defines.h"

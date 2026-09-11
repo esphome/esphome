@@ -7,7 +7,11 @@ from pathlib import Path
 
 from esphome import automation, core
 import esphome.codegen as cg
-from esphome.config_helpers import filter_source_files_from_platform
+from esphome.config_helpers import (
+    filter_source_files_from_platform,
+    is_system_include,
+    iter_include_files,
+)
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_AREA,
@@ -56,7 +60,6 @@ from esphome.helpers import (
     fnv1a_32bit_hash,
     get_str_env,
     get_usable_cpu_count,
-    walk_files,
 )
 from esphome.types import ConfigType
 
@@ -409,7 +412,7 @@ def _sort_includes_by_type(includes: list[str]) -> tuple[list[str], list[str]]:
     system_includes = []
     other_includes = []
     for include in includes:
-        if include.startswith("<") and include.endswith(">"):
+        if is_system_include(include):
             system_includes.append(include)
         else:
             other_includes.append(include)
@@ -516,17 +519,8 @@ async def add_arduino_global_workaround():
 @coroutine_with_priority(CoroPriority.FINAL)
 async def add_includes(includes: list[str], is_c_header: bool = False) -> None:
     # Add includes at the very end, so that the included files can access global variables
-    for include in includes:
-        path = CORE.relative_config_path(include)
-        if path.is_dir():
-            # Directory, copy tree
-            for p in walk_files(path):
-                basename = p.relative_to(path.parent)
-                include_file(p, basename, is_c_header)
-        else:
-            # Copy file
-            basename = Path(path.name)
-            include_file(path, basename, is_c_header)
+    for path, basename in iter_include_files(includes):
+        include_file(path, basename, is_c_header)
 
 
 def _add_library_str(lib: str) -> None:

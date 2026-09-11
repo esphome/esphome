@@ -1432,7 +1432,9 @@ def test_mbedtls_tls_openthread_requires_server_and_extras(
         ),
         # sscanf: only for Bluetooth builds on variants whose ROM lacks sscanf,
         # and not when a lambda scans a float
-        pytest.param("sscanf_stub_ble.yaml", "sscanf", True, id="sscanf_esp32_ble"),
+        pytest.param(
+            "exclusion_reincludes_wifi_ble.yaml", "sscanf", True, id="sscanf_esp32_ble"
+        ),
         pytest.param("sscanf_stub_ble_c6.yaml", "sscanf", False, id="sscanf_c6_rom"),
         pytest.param(
             "sscanf_stub_ble_full_scanf.yaml", "sscanf", False, id="sscanf_full_scanf"

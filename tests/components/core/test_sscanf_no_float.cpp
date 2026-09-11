@@ -1,11 +1,19 @@
 #include <gtest/gtest.h>
+#include <cstdarg>
 #include <cstdint>
 #include <cstdio>
-#include <cstring>
 
 #include "esphome/core/sscanf_no_float.h"
 
 namespace esphome::core::testing {
+
+static int sscanf_no_float(const char *str, const char *fmt, ...) {
+  va_list ap;
+  va_start(ap, fmt);
+  int result = vsscanf_no_float(str, fmt, ap);
+  va_end(ap);
+  return result;
+}
 
 // --- The two bluedroid call sites the wrap exists for ---
 

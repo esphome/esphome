@@ -12,10 +12,7 @@ from typing import Any
 from esphome import yaml_util
 import esphome.codegen as cg
 from esphome.components.const import CONF_ENABLE_OTA_DOWNGRADE_PROTECTION
-from esphome.config_helpers import (
-    filter_source_files_from_defines,
-    user_code_uses_scanf_float,
-)
+from esphome.config_helpers import filter_source_files_from_defines, keep_float_scanf
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ADVANCED,
@@ -2323,15 +2320,6 @@ async def _set_libc_picolibc_newlib_compat() -> None:
     )
 
 
-def _newlib_wraps_apply() -> bool:
-    """Whether the printf, vasprintf and sscanf wraps belong in this build.
-
-    ESP-IDF framework (the stubs compile out on Arduino) on newlib, which
-    IDF 6.0+ replaces with picolibc.
-    """
-    return not CORE.using_arduino and idf_version() < cv.Version(6, 0, 0)
-
-
 def _add_wrap_stub(symbol: str, define: str) -> None:
     """Emit a linker wrap for ``symbol`` served by a stub compiled under ``define``.
 
@@ -2344,30 +2332,15 @@ def _add_wrap_stub(symbol: str, define: str) -> None:
 
 
 @coroutine_with_priority(CoroPriority.FINAL)
-async def _add_sscanf_stub(enable_full_scanf: bool | None) -> None:
+async def _add_sscanf_stub(enable_full_scanf: bool | None, variant: str) -> None:
     """Wrap sscanf when bluedroid is the only reason newlib's scanf engine links.
 
-    FINAL priority so every request_bluetooth() call has happened. User code
-    that scans a float keeps the libc sscanf unless enable_full_scanf is set.
+    FINAL priority so every request_bluetooth() call has happened.
     """
-    if (
-        enable_full_scanf
-        or not _newlib_wraps_apply()
-        or not _network_sdkconfig().bluetooth
-        or get_esp32_variant() in ROM_SSCANF_VARIANTS
-    ):
+    if variant in ROM_SSCANF_VARIANTS or not _network_sdkconfig().bluetooth:
         return
-    if user_code_uses_scanf_float(CORE.config):
-        if enable_full_scanf is None:
-            _LOGGER.warning(
-                "Lambda or include uses scanf with a float format specifier; "
-                "keeping the libc sscanf (~13KB flash)"
-            )
-            return
-        _LOGGER.warning(
-            "enable_full_scanf is false but a lambda or include uses scanf with "
-            "a float format specifier; that call will abort at runtime"
-        )
+    if keep_float_scanf(enable_full_scanf, CORE.config, "~13KB flash"):
+        return
     _add_wrap_stub("sscanf", "USE_ESP32_SSCANF_STUB")
 
 
@@ -2713,8 +2686,12 @@ async def to_code(config):
         # implements vsnprintf by building a string-output FILE and calling
         # vfprintf, so vfprintf is unconditionally linked in by any caller
         # of snprintf/vsnprintf — effectively every build — and the wrap
-        # saves nothing while costing ~170 B of shim.
-        if conf[CONF_ADVANCED][CONF_ENABLE_FULL_PRINTF] or not _newlib_wraps_apply():
+        # saves nothing while costing ~170 B of shim. IDF 5.x defaults to
+        # newlib on every variant; IDF 6.0+ switches to picolibc on every
+        # variant.
+        if conf[CONF_ADVANCED][CONF_ENABLE_FULL_PRINTF] or idf_version() >= cv.Version(
+            6, 0, 0
+        ):
             cg.add_define("USE_FULL_PRINTF")
         else:
             for symbol in ("vprintf", "printf", "fprintf", "vfprintf"):
@@ -2725,6 +2702,12 @@ async def to_code(config):
             # ROM. See vasprintf_stubs.cpp.
             if variant in ROM_VSNPRINTF_WITHOUT_VASPRINTF_VARIANTS:
                 _add_wrap_stub("vasprintf", "USE_ESP32_VASPRINTF_STUB")
+            # bluedroid's sscanf calls; see sscanf_stubs.cpp
+            CORE.add_job(
+                _add_sscanf_stub,
+                conf[CONF_ADVANCED].get(CONF_ENABLE_FULL_SCANF),
+                variant,
+            )
     else:
         cg.add_build_flag("-DUSE_ARDUINO")
         cg.add_build_flag("-DUSE_ESP32_FRAMEWORK_ARDUINO")
@@ -3146,9 +3129,6 @@ async def to_code(config):
 
     # FINAL priority: runs after every network/coexistence request_*() call
     CORE.add_job(_reconcile_network_sdkconfig)
-
-    # FINAL priority: runs after every request_bluetooth() call
-    CORE.add_job(_add_sscanf_stub, advanced.get(CONF_ENABLE_FULL_SCANF))
 
     # FINAL priority: runs after every require_certificate_bundle() call
     CORE.add_job(_reconcile_certificate_bundle_sdkconfig)

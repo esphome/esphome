@@ -154,7 +154,6 @@ inline int vsscanf_no_float(const char *str, const char *fmt, va_list ap) {  // 
     if (width == 0)
       width = SIZE_MAX;
     auto length = SscanfLength::SSCANF_LENGTH_NONE;
-    bool has_length = true;
     switch (*f) {
       case 'h':
         f++;
@@ -187,7 +186,6 @@ inline int vsscanf_no_float(const char *str, const char *fmt, va_list ap) {  // 
         f++;
         break;
       default:
-        has_length = false;
         break;
     }
     const char conv = *f;
@@ -199,7 +197,7 @@ inline int vsscanf_no_float(const char *str, const char *fmt, va_list ap) {  // 
       continue;
     }
     const bool string_conv = conv == 'c' || conv == 's' || conv == '[';
-    if (string_conv && has_length)
+    if (string_conv && length != SscanfLength::SSCANF_LENGTH_NONE)
       return SSCANF_UNSUPPORTED;  // wide characters
     unsigned base = string_conv ? 0 : int_base(conv);
     if (base == 0xFF)
@@ -269,15 +267,6 @@ inline int vsscanf_no_float(const char *str, const char *fmt, va_list ap) {  // 
   if (input_failure && assigned == 0)
     return EOF;
   return assigned;
-}
-
-/// Variadic form of vsscanf_no_float().
-inline int sscanf_no_float(const char *str, const char *fmt, ...) {
-  va_list ap;
-  va_start(ap, fmt);
-  int result = vsscanf_no_float(str, fmt, ap);
-  va_end(ap);
-  return result;
 }
 
 }  // namespace esphome
