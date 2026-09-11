@@ -471,7 +471,7 @@ _IDF6 = cv.Version(6, 0, 0)
             MbedtlsSdkconfigData(),
             {},
             {**_TLS_OFF_IDF5, **_PEER_CERT_PKCS7_OFF},
-            {"esp-tls"},
+            {"esp-tls", "esp_http_client", "mqtt"},
             id="idf5_no_tls_user",
         ),
         pytest.param(
@@ -485,6 +485,16 @@ _IDF6 = cv.Version(6, 0, 0)
             id="idf_esp_tls_reincluded",
         ),
         pytest.param(
+            # esp_http_client links esp_tls itself, so re-including it counts too.
+            PlatformFramework.ESP32_IDF,
+            _IDF5,
+            MbedtlsSdkconfigData(),
+            {},
+            _PEER_CERT_PKCS7_OFF,
+            {"esp-tls", "mqtt"},
+            id="idf_http_client_reincluded",
+        ),
+        pytest.param(
             PlatformFramework.ESP32_IDF,
             _IDF6,
             MbedtlsSdkconfigData(),
@@ -495,7 +505,7 @@ _IDF6 = cv.Version(6, 0, 0)
                 "CONFIG_MBEDTLS_SHA384_C": False,
                 "CONFIG_MBEDTLS_SHA512_C": False,
             },
-            {"esp-tls"},
+            {"esp-tls", "esp_http_client", "mqtt"},
             id="idf6_drops_sha512",
         ),
         pytest.param(
@@ -504,7 +514,7 @@ _IDF6 = cv.Version(6, 0, 0)
             MbedtlsSdkconfigData(sha512_required=True),
             {},
             {**_TLS_OFF_IDF6, **_PEER_CERT_PKCS7_OFF},
-            {"esp-tls"},
+            {"esp-tls", "esp_http_client", "mqtt"},
             id="idf6_sha512_required",
         ),
         pytest.param(
@@ -513,7 +523,7 @@ _IDF6 = cv.Version(6, 0, 0)
             MbedtlsSdkconfigData(tls_required=True),
             {},
             _PEER_CERT_PKCS7_OFF,
-            {"esp-tls"},
+            {"esp-tls", "esp_http_client", "mqtt"},
             id="idf_tls_requested",
         ),
         pytest.param(
@@ -529,7 +539,7 @@ _IDF6 = cv.Version(6, 0, 0)
                 "CONFIG_MBEDTLS_X509_CSR_PARSE_C": False,
                 **_PEER_CERT_PKCS7_OFF,
             },
-            {"esp-tls"},
+            {"esp-tls", "esp_http_client", "mqtt"},
             id="idf_ecp_without_tls",
         ),
         pytest.param(
@@ -542,7 +552,7 @@ _IDF6 = cv.Version(6, 0, 0)
                 "CONFIG_MBEDTLS_ECP_C": RawSdkconfigValue("y"),
                 **_PEER_CERT_PKCS7_OFF,
             },
-            {"esp-tls"},
+            {"esp-tls", "esp_http_client", "mqtt"},
             id="idf_user_ecp_wins",
         ),
         pytest.param(
@@ -555,7 +565,7 @@ _IDF6 = cv.Version(6, 0, 0)
                 "CONFIG_MBEDTLS_SSL_KEEP_PEER_CERTIFICATE": True,
                 "CONFIG_MBEDTLS_PKCS7_C": True,
             },
-            {"esp-tls"},
+            {"esp-tls", "esp_http_client", "mqtt"},
             id="idf_peer_cert_pkcs7_required",
         ),
         pytest.param(
@@ -564,7 +574,7 @@ _IDF6 = cv.Version(6, 0, 0)
             MbedtlsSdkconfigData(disable_peer_cert=False, disable_pkcs7=False),
             {},
             _TLS_OFF_IDF5,
-            {"esp-tls"},
+            {"esp-tls", "esp_http_client", "mqtt"},
             id="idf_advanced_disables_off",
         ),
         pytest.param(
@@ -574,7 +584,7 @@ _IDF6 = cv.Version(6, 0, 0)
             MbedtlsSdkconfigData(disable_tls=False),
             {},
             _PEER_CERT_PKCS7_OFF,
-            {"esp-tls"},
+            {"esp-tls", "esp_http_client", "mqtt"},
             id="idf_disable_tls_opt_out",
         ),
         pytest.param(
@@ -583,7 +593,7 @@ _IDF6 = cv.Version(6, 0, 0)
             MbedtlsSdkconfigData(),
             {},
             _PEER_CERT_PKCS7_OFF,
-            {"esp-tls"},
+            {"esp-tls", "esp_http_client", "mqtt"},
             id="arduino_keeps_tls",
         ),
     ],
@@ -1610,13 +1620,14 @@ def test_mbedtls_tls_openthread_keeps_only_what_it_uses(
     component_config_path: Callable[[str], Path],
 ) -> None:
     """Nothing in the OpenThread config links TLS, so the stack is compiled out
-    entirely and the client-only/extras trim never runs."""
+    and no TLS role is written; the extras trim still runs because CCM and
+    deterministic ECDSA are plain crypto, and OpenThread keeps those two."""
     generate_main(component_config_path("mbedtls_tls_openthread.yaml"))
     sdkconfig = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
     assert sdkconfig.get("CONFIG_MBEDTLS_TLS_DISABLED") is True
     assert tuple(sdkconfig.get(name) for name in _TLS_SERVER_OPTIONS) == (None, None)
     for name in MBEDTLS_TLS_EXTRA_OPTIONS:
-        assert sdkconfig.get(name) is None
+        assert sdkconfig.get(name) is (None if name in _OPENTHREAD_EXTRAS else False)
 
 
 def test_mbedtls_tls_opt_out_keeps_stack_and_trims_role(

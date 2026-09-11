@@ -782,16 +782,22 @@ def _mbedtls_sdkconfig() -> MbedtlsSdkconfigData:
     return data[KEY_MBEDTLS_SDKCONFIG]
 
 
+# IDF components that reference esp_tls symbols from their own code, so
+# re-including any of them is an implicit TLS request.
+_ESP_TLS_LINKING_COMPONENTS = ("esp-tls", "esp_http_client", "mqtt")
+
+
 def _mbedtls_tls_required() -> bool:
-    """TLS stays in the build: requested, or esp-tls was re-included directly.
+    """TLS stays in the build: requested, or an esp_tls user was re-included.
 
     The second signal keeps external components working whose only obligation
-    before request_tls() existed was include_builtin_idf_component("esp-tls").
+    before request_tls() existed was include_builtin_idf_component() of
+    esp-tls or of a component that links it (esp_http_client, IDF mqtt).
     """
-    return (
-        _mbedtls_sdkconfig().tls_required
-        or "esp-tls" not in CORE.data[KEY_ESP32][KEY_EXCLUDE_COMPONENTS]
-    )
+    if _mbedtls_sdkconfig().tls_required:
+        return True
+    excluded = CORE.data[KEY_ESP32][KEY_EXCLUDE_COMPONENTS]
+    return any(name not in excluded for name in _ESP_TLS_LINKING_COMPONENTS)
 
 
 def _mbedtls_tls_compiled_out() -> bool:
@@ -2520,14 +2526,14 @@ async def _reconcile_mbedtls_tls_sdkconfig(
     sdkconfig_options value always wins; for the TLS role choice, any member
     the user set leaves the whole choice alone so the pair cannot conflict.
     """
-    if _mbedtls_tls_compiled_out():
-        # _reconcile_mbedtls_sdkconfig compiles TLS out entirely; writing a
-        # TLS role here would conflict with its CONFIG_MBEDTLS_TLS_DISABLED.
-        return
     data = CORE.data[KEY_ESP32]
     sdkconfig = data[KEY_SDKCONFIG_OPTIONS]
     if (
         disable_tls_server
+        # When TLS is compiled out entirely, a role write would conflict with
+        # CONFIG_MBEDTLS_TLS_DISABLED; the extras below still matter because
+        # CCM and deterministic ECDSA are plain crypto, not TLS-gated.
+        and not _mbedtls_tls_compiled_out()
         and not data.get(KEY_MBEDTLS_TLS_SERVER_REQUIRED, False)
         and not any(option in sdkconfig for option in MBEDTLS_TLS_ROLE_OPTIONS)
     ):

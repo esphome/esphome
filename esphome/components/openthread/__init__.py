@@ -295,13 +295,6 @@ async def to_code(config: ConfigType) -> None:
         include_builtin_idf_component("openthread")
         # OPENTHREAD_CONFIG_ECDSA_ENABLE: the SRP client host key uses mbedtls_ecdsa_*
         require_mbedtls_ecp()
-        # OpenThread's DTLS commissioner is a TLS server, and its crypto platform
-        # uses AES-CCM and deterministic ECDSA directly. Keep the esp32 component
-        # from trimming them out of mbedTLS when TLS is in the build.
-        require_mbedtls_tls_server()
-        require_mbedtls_tls_extras(
-            ("CONFIG_MBEDTLS_CCM_C", "CONFIG_MBEDTLS_ECDSA_DETERMINISTIC")
-        )
 
     cg.add_define("USE_OPENTHREAD")
     if config.get(CONF_FORCE_DATASET):
