@@ -1,5 +1,8 @@
 #include "api_buffer.h"
 #include <cstring>
+#ifdef ESPHOME_DEBUG_API
+#include "esphome/core/log.h"
+#endif
 
 namespace esphome::api {
 
@@ -30,6 +33,12 @@ bool APIBuffer::grow_(size_t n, size_t drop) {
 }
 
 bool APIBuffer::drop_front_and_reserve(size_t drop, size_t n) {
+#ifdef ESPHOME_DEBUG_API
+  if (drop > this->size_) {
+    ESP_LOGE("api.buffer", "drop_front_and_reserve: drop=%zu size=%u", drop, this->size_);
+    abort();
+  }
+#endif
   if (n > this->capacity_)
     return this->grow_(n, drop);
   this->size_ -= drop;
