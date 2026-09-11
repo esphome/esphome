@@ -189,10 +189,6 @@ PSRAM_XIP_VARIANTS = {
     VARIANT_ESP32S31,
 }
 
-# NVS encryption (HMAC peripheral scheme) is only available on variants that
-# expose the HMAC peripheral (SOC_HMAC_SUPPORTED in soc_caps.h). The original
-# ESP32 and ESP32-C2 do not have it. New variants with an HMAC peripheral
-# should be added here.
 # Variants whose ROM exports a full-format vsnprintf but no vasprintf
 # (esp32c6.rom.newlib-normal.ld). There, the newlib printf engine is only
 # linked because esp_http_client calls vasprintf; see vasprintf_stubs.cpp.
@@ -200,6 +196,10 @@ PSRAM_XIP_VARIANTS = {
 # neither, so the engine is already in the image and the wrap saves nothing.
 ROM_VSNPRINTF_WITHOUT_VASPRINTF_VARIANTS = {VARIANT_ESP32C6}
 
+# NVS encryption (HMAC peripheral scheme) is only available on variants that
+# expose the HMAC peripheral (SOC_HMAC_SUPPORTED in soc_caps.h). The original
+# ESP32 and ESP32-C2 do not have it. New variants with an HMAC peripheral
+# should be added here.
 NVS_ENCRYPTION_HMAC_VARIANTS = {
     VARIANT_ESP32S2,
     VARIANT_ESP32S3,
@@ -1851,15 +1851,18 @@ def require_mbedtls_tls_server() -> None:
     CORE.data[KEY_ESP32][KEY_MBEDTLS_TLS_SERVER_REQUIRED] = True
 
 
-def require_mbedtls_tls_extras() -> None:
-    """Mark that the TLS features disabled by ``disable_mbedtls_tls_extras`` are required.
+def require_mbedtls_tls_extras(options: Iterable[str] | None = None) -> None:
+    """Mark TLS features disabled by ``disable_mbedtls_tls_extras`` as required.
 
-    Call this from components that need AES-CCM, deterministic ECDSA signing,
-    static RSA/ECDH key exchange, TLS renegotiation or session tickets.
-    A user-supplied sdkconfig_options value is never overridden either.
-    OpenThread uses CCM and deterministic ECDSA directly.
+    ``options`` names the entries of ``MBEDTLS_TLS_EXTRA_OPTIONS`` to keep;
+    omit it to keep all of them. Call this from components that need AES-CCM,
+    deterministic ECDSA signing, static RSA/ECDH key exchange, TLS
+    renegotiation or session tickets, or that run a TLS client against
+    servers ESPHome cannot vet (wpa_supplicant's EAP client). A user-supplied
+    sdkconfig_options value is never overridden either.
     """
-    CORE.data[KEY_ESP32][KEY_MBEDTLS_TLS_EXTRAS_REQUIRED] = True
+    required = CORE.data[KEY_ESP32].setdefault(KEY_MBEDTLS_TLS_EXTRAS_REQUIRED, set())
+    required.update(MBEDTLS_TLS_EXTRA_OPTIONS if options is None else options)
 
 
 def require_mbedtls_sha512() -> None:
@@ -2342,6 +2345,10 @@ async def _reconcile_certificate_bundle_sdkconfig() -> None:
 # session tickets, AES-CCM ciphersuites are not offered by web servers, and
 # deterministic ECDSA only matters when signing with a private key. Together
 # they cost ~10 KB of flash whenever TLS is linked (http_request, mqtt).
+# wpa_supplicant's EAP client is a second TLS client that talks to RADIUS
+# servers ESPHome cannot vet, and a failed EAP handshake leaves the device
+# off the network, so the wifi component re-enables all of these when eap is
+# configured.
 # The EC public key parsing extras stay enabled: they decide whether a peer
 # certificate with a compressed point or explicit curve parameters parses,
 # which no component can know ahead of time.
@@ -2388,9 +2395,11 @@ async def _reconcile_mbedtls_tls_sdkconfig(
     ):
         add_idf_sdkconfig_option("CONFIG_MBEDTLS_TLS_CLIENT_ONLY", True)
         add_idf_sdkconfig_option("CONFIG_MBEDTLS_TLS_SERVER_AND_CLIENT", False)
-    if disable_tls_extras and not data.get(KEY_MBEDTLS_TLS_EXTRAS_REQUIRED, False):
+    if disable_tls_extras:
+        required = data.get(KEY_MBEDTLS_TLS_EXTRAS_REQUIRED, set())
         for option in MBEDTLS_TLS_EXTRA_OPTIONS:
-            set_idf_sdkconfig_default(option, False)
+            if option not in required:
+                set_idf_sdkconfig_default(option, False)
 
 
 @coroutine_with_priority(CoroPriority.FINAL)

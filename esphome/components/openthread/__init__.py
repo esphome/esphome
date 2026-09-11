@@ -115,7 +115,9 @@ def set_sdkconfig_options(config: ConfigType) -> None:
     # uses AES-CCM and deterministic ECDSA directly. Keep the esp32 component
     # from trimming them out of mbedTLS.
     require_mbedtls_tls_server()
-    require_mbedtls_tls_extras()
+    require_mbedtls_tls_extras(
+        ("CONFIG_MBEDTLS_CCM_C", "CONFIG_MBEDTLS_ECDSA_DETERMINISTIC")
+    )
 
     if not config.get(CONF_TLV):
         if pan_id := config.get(CONF_PAN_ID):

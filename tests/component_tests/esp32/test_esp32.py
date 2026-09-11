@@ -1355,9 +1355,7 @@ _TLS_SERVER_OPTIONS = (
     [
         pytest.param("mbedtls_tls_default.yaml", (True, False), False, id="default"),
         pytest.param("mbedtls_tls_opt_out.yaml", (None, None), None, id="opt_out"),
-        pytest.param(
-            "mbedtls_tls_openthread.yaml", (None, None), None, id="openthread"
-        ),
+        pytest.param("mbedtls_tls_wifi_eap.yaml", (True, False), None, id="wifi_eap"),
     ],
 )
 def test_mbedtls_tls_trim_sdkconfig(
@@ -1372,6 +1370,21 @@ def test_mbedtls_tls_trim_sdkconfig(
     sdkconfig = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
     assert tuple(sdkconfig.get(name) for name in _TLS_SERVER_OPTIONS) == server
     assert {sdkconfig.get(name) for name in MBEDTLS_TLS_EXTRA_OPTIONS} == {extras}
+
+
+_OPENTHREAD_EXTRAS = {"CONFIG_MBEDTLS_CCM_C", "CONFIG_MBEDTLS_ECDSA_DETERMINISTIC"}
+
+
+def test_mbedtls_tls_openthread_keeps_only_what_it_uses(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """The OpenThread config keeps the DTLS server, CCM and deterministic ECDSA; the rest is trimmed."""
+    generate_main(component_config_path("mbedtls_tls_openthread.yaml"))
+    sdkconfig = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
+    assert tuple(sdkconfig.get(name) for name in _TLS_SERVER_OPTIONS) == (None, None)
+    for name in MBEDTLS_TLS_EXTRA_OPTIONS:
+        assert sdkconfig.get(name) is (None if name in _OPENTHREAD_EXTRAS else False)
 
 
 def test_mbedtls_tls_user_sdkconfig_wins(
@@ -1400,7 +1413,7 @@ def test_mbedtls_tls_openthread_requires_server_and_extras(
     """The OpenThread hooks mark the DTLS server and CCM/deterministic ECDSA as required."""
     generate_main(component_config_path("mbedtls_tls_openthread.yaml"))
     assert CORE.data[KEY_ESP32][KEY_MBEDTLS_TLS_SERVER_REQUIRED] is True
-    assert CORE.data[KEY_ESP32][KEY_MBEDTLS_TLS_EXTRAS_REQUIRED] is True
+    assert CORE.data[KEY_ESP32][KEY_MBEDTLS_TLS_EXTRAS_REQUIRED] == _OPENTHREAD_EXTRAS
 
 
 _VASPRINTF_STUB_FLAGS = {"-Wl,--wrap=vasprintf", "-Wl,--undefined=__wrap_vasprintf"}
