@@ -6,7 +6,6 @@ whether float scanf support (or, on ESP-IDF Bluetooth builds, the libc sscanf)
 must stay linked. Other source heuristics belong here too.
 """
 
-from collections.abc import Iterator
 import logging
 from pathlib import Path
 import re
@@ -23,42 +22,15 @@ from esphome.types import ConfigType
 
 _LOGGER = logging.getLogger(__name__)
 
-_SCANF_CALL_RE = re.compile(r"scanf\s*\(")
+# The string literal handed to a scanf family call as its format: an optional
+# first argument (sscanf/fscanf, possibly a literal itself) then the literal.
+_SCANF_FORMAT_RE = re.compile(
+    r'scanf\s*\((?:(?:"(?:[^"\\]|\\.)*"|[^,;"])*,)?\s*"((?:[^"\\]|\\.)*)"'
+)
 # Standard scanf float conversions %f %F %e %E %g %G %a %A with optional
 # suppression, width and length; also the invalid %.2f users write by analogy
 # with printf.
 _SCANF_FLOAT_SPEC_RE = re.compile(r"%[*\d.]*[hlL]*[feEgGaAF]")
-
-
-def _scanf_call_texts(src: str) -> Iterator[str]:
-    """Yield the argument text of each scanf family call in ``src``.
-
-    Walks to the closing parenthesis, treating string and character literals
-    as opaque so a ';' inside a format string does not end the call early.
-    """
-    for match in _SCANF_CALL_RE.finditer(src):
-        start = i = match.end()
-        depth = 1
-        quote = None
-        while i < len(src):
-            ch = src[i]
-            if quote:
-                if ch == "\\":
-                    i += 1
-                elif ch == quote:
-                    quote = None
-            elif ch in "\"'":
-                quote = ch
-            elif ch == "(":
-                depth += 1
-            elif ch == ")":
-                depth -= 1
-                if depth == 0:
-                    break
-            elif ch == ";":
-                break
-            i += 1
-        yield src[start:i]
 
 
 def source_uses_scanf_float(src: str) -> bool:
@@ -66,7 +38,10 @@ def source_uses_scanf_float(src: str) -> bool:
     if "scanf" not in src:
         return False
     src = Lambda.comment_remover(src)
-    return any(_SCANF_FLOAT_SPEC_RE.search(call) for call in _scanf_call_texts(src))
+    return any(
+        _SCANF_FLOAT_SPEC_RE.search(match.group(1))
+        for match in _SCANF_FORMAT_RE.finditer(src)
+    )
 
 
 def lambdas_use_scanf_float(config: ConfigType) -> bool:
