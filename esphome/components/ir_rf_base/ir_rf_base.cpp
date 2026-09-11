@@ -128,10 +128,10 @@ void IrRfEntity::on_transmit_complete(remote_base::RemoteTransmitterBase *transm
 
 void IrRfEntity::expect_api_reply_(api::APIConnection *conn) {
   // only an unpaced client gets here: its earlier request is answered as not started, and a reply
-  // the buffer still owes cannot be kept, since the slot goes to the new request
+  // the buffer still owes gets one last try, since the slot goes to the new request
   if (this->api_reply_ == ApiReply::API_REPLY_WAITING)
     this->finish_api_reply_(false);
-  if (this->api_reply_ != ApiReply::API_REPLY_NONE) {
+  if (this->api_reply_ != ApiReply::API_REPLY_NONE && !this->send_api_reply_()) {
     ESP_LOGW(TAG, "'%s': transmit %s", this->get_name().c_str(), LOG_STR_LITERAL("reply displaced"));
   }
   this->api_reply_connection_ = conn;
