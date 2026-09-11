@@ -4148,14 +4148,16 @@ uint32_t SerialProxyRequestResponse::calc_size_msg(const void *self) {
   size += ProtoSize::calc_length(1, msg.error_message.size());
   return size;
 }
-void SerialProxySetModeRequest::decode_field(uint32_t tag, const uint8_t *data, proto_varint_value_t scalar) {
+void SerialProxySetModeRequest::decode_field(void *self, uint32_t tag, const uint8_t *data,
+                                             proto_varint_value_t scalar) {
+  auto &msg = *static_cast<SerialProxySetModeRequest *>(self);
   const ProtoFieldValue value(data, scalar);
   switch (tag) {
     case proto_tag(1, WIRE_TYPE_VARINT):
-      this->instance = value.as_varint();
+      msg.instance = value.as_varint();
       break;
     case proto_tag(2, WIRE_TYPE_VARINT):
-      this->mode = static_cast<enums::SerialProxyMode>(value.as_varint());
+      msg.mode = static_cast<enums::SerialProxyMode>(value.as_varint());
       break;
   }
 }
@@ -4319,6 +4321,7 @@ static_assert(!std::is_polymorphic_v<SerialProxyWriteRequest>, "decodable messag
 static_assert(!std::is_polymorphic_v<SerialProxySetModemPinsRequest>, "decodable messages carry no vtable");
 static_assert(!std::is_polymorphic_v<SerialProxyGetModemPinsRequest>, "decodable messages carry no vtable");
 static_assert(!std::is_polymorphic_v<SerialProxyRequest>, "decodable messages carry no vtable");
+static_assert(!std::is_polymorphic_v<SerialProxySetModeRequest>, "decodable messages carry no vtable");
 #endif
 #ifdef USE_BLUETOOTH_PROXY_CONNECTIONS
 static_assert(!std::is_polymorphic_v<BluetoothSetConnectionParamsRequest>, "decodable messages carry no vtable");
