@@ -16,6 +16,9 @@
 #ifdef USE_HOST
 namespace esphome::api::testing {
 
+// Idle cost is the buffer plus one word of bookkeeping
+static_assert(sizeof(APIOverflowBuffer) <= sizeof(APIBuffer) + sizeof(void *));
+
 // Exposes storage so tests can check it is reused, not reallocated
 class TestOverflowBuffer : public APIOverflowBuffer {
  public:
@@ -24,6 +27,7 @@ class TestOverflowBuffer : public APIOverflowBuffer {
   size_t capacity() const { return this->buf_.capacity(); }
   const uint8_t *storage() const { return this->buf_.data(); }
   uint8_t count() const { return this->count_; }
+  size_t live() const { return this->buf_.size() - this->head_; }
   /// Simulates a socket write inside try_drain() re-entering the send path
   void set_draining(bool draining) { this->draining_ = draining; }
 };
@@ -275,8 +279,8 @@ TEST_F(OverflowBufferTest, GrowsWhileReclaimingSentPrefix) {
   ASSERT_GT(this->drain_(buf), 0);
   ASSERT_EQ(buf.count(), 1);
 
-  // Too big to fit even after the sent prefix is reclaimed: grows in one copy
-  auto third = make_message(capacity - second.size(), 200);
+  // One byte too many to fit even after the sent prefix is reclaimed: grows in one copy
+  auto third = make_message(capacity - buf.live() + 1, 200);
   ASSERT_TRUE(enqueue(buf, third));
   EXPECT_GT(buf.capacity(), capacity);
   EXPECT_EQ(buf.count(), 2);

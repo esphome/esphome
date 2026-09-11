@@ -56,13 +56,12 @@ class APIOverflowBuffer {
   }
 
   APIBuffer buf_;
-  uint16_t head_{0};        // offset of the front message's length prefix; bytes before it are sent
-  uint16_t front_sent_{0};  // bytes of the front message already written
+  uint16_t head_{0};  // offset of the front message's length prefix; bytes before it are sent
   uint8_t count_{0};
   // socket->write() can re-enter the send path (log from an lwip callback):
   // a nested drain makes no progress and a nested enqueue never moves storage
-  bool draining_{false};
-  bool release_when_drained_{false};
+  bool draining_ : 1 {false};
+  bool release_when_drained_ : 1 {false};
 };
 
 }  // namespace esphome::api
