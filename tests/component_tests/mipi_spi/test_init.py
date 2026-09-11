@@ -428,8 +428,7 @@ def test_spd2010_default_reset_requires_expander() -> None:
     error = result.errors[0]
     assert (
         "WAVESHARE-ESP32-S3-TOUCH-LCD-1.46 requires component 'pca9554' "
-        "to be configured"
-        in str(error)
+        "to be configured" in str(error)
     )
     assert error.path == ["display", 0]
 

@@ -5,7 +5,7 @@
 
 from esphome.components.mipi import MODE_RGB, DriverChip, delay
 from esphome.components.spi import TYPE_QUAD
-from esphome.const import CONF_MIRROR_X, CONF_MIRROR_Y, CONF_NUMBER
+from esphome.const import CONF_MIRROR_X, CONF_MIRROR_Y
 
 # fmt: off
 DriverChip(
