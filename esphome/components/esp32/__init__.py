@@ -199,11 +199,8 @@ PSRAM_XIP_VARIANTS = {
 # neither, so the engine is already in the image and the wrap saves nothing.
 ROM_VSNPRINTF_WITHOUT_VASPRINTF_VARIANTS = {VARIANT_ESP32C6}
 
-# Variants whose ROM exports sscanf under the newlib format ESPHome links
-# against: the ESP32-C6 normal-format ROM (esp32c6.rom.newlib-normal.ld) and
-# the ESP32-C2 nano-format ROM, nano being the IDF default on the C2. There
-# the sscanf wrap saves nothing; see sscanf_stubs.cpp. The classic ESP32 ROM
-# only exports it under nano format, which ESPHome does not use.
+# Variants whose ROM exports sscanf with the newlib format in use (C6 normal
+# format, C2 nano format by IDF default), so the sscanf wrap saves nothing.
 ROM_SSCANF_VARIANTS = {VARIANT_ESP32C2, VARIANT_ESP32C6}
 
 # NVS encryption (HMAC peripheral scheme) is only available on variants that
@@ -2327,12 +2324,10 @@ async def _set_libc_picolibc_newlib_compat() -> None:
 
 
 def _newlib_wraps_apply() -> bool:
-    """Whether the printf, vasprintf and sscanf linker wraps belong in this build.
+    """Whether the printf, vasprintf and sscanf wraps belong in this build.
 
-    They need an ESP-IDF framework build (their stubs compile out on Arduino)
-    on newlib: IDF 5.x defaults to newlib on every variant, IDF 6.0+ switches
-    to picolibc on every variant, and the wraps are only measured against
-    newlib.
+    ESP-IDF framework (the stubs compile out on Arduino) on newlib, which
+    IDF 6.0+ replaces with picolibc.
     """
     return not CORE.using_arduino and idf_version() < cv.Version(6, 0, 0)
 
@@ -2340,9 +2335,8 @@ def _newlib_wraps_apply() -> bool:
 def _add_wrap_stub(symbol: str, define: str) -> None:
     """Emit a linker wrap for ``symbol`` served by a stub compiled under ``define``.
 
-    The --undefined flag is needed because libsrc.a is scanned before the IDF
-    libraries that reference the symbol, so the stub would otherwise never be
-    pulled from the archive.
+    --undefined is needed because libsrc.a is scanned before the IDF library
+    that references the symbol.
     """
     cg.add_define(define)
     cg.add_build_flag(f"-Wl,--wrap={symbol}")
@@ -2353,11 +2347,8 @@ def _add_wrap_stub(symbol: str, define: str) -> None:
 async def _add_sscanf_stub(enable_full_scanf: bool | None) -> None:
     """Wrap sscanf when bluedroid is the only reason newlib's scanf engine links.
 
-    Runs at FINAL priority so every request_bluetooth() call has happened;
-    see sscanf_stubs.cpp for what the stub covers. A lambda that scans a float
-    keeps the libc sscanf unless enable_full_scanf is set explicitly, since the
-    stub has no floating-point conversions and the wrap applies to the whole
-    image.
+    FINAL priority so every request_bluetooth() call has happened. A lambda
+    that scans a float keeps the libc sscanf unless enable_full_scanf is set.
     """
     if (
         enable_full_scanf

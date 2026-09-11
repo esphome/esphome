@@ -1,18 +1,9 @@
 #pragma once
 
-/*
- * A small sscanf without floating-point conversions.
- *
- * Backs the ESP-IDF linker wrap in components/esp32/sscanf_stubs.cpp, where
- * bluedroid's "%02x" parses would otherwise link newlib's whole scanf engine
- * (~13 KB with _strtod_l). Integer, character, string and scanset conversions
- * behave like libc; a conversion this scanner does not implement (floats,
- * %p, wide characters) returns SSCANF_UNSUPPORTED so the caller can fail
- * loudly instead of misparsing.
- *
- * Header only so the host unit tests can exercise it without compiling a
- * target platform's sources.
- */
+// sscanf without floating-point conversions, backing the linker wrap in
+// components/esp32/sscanf_stubs.cpp. Integer, character, string and scanset
+// conversions behave like libc; anything else returns SSCANF_UNSUPPORTED.
+// Header only so the host unit tests can cover it.
 
 #include <cstdarg>
 #include <cstddef>
@@ -40,9 +31,7 @@ enum class SscanfLength : uint8_t {
 
 inline bool is_space(char c) { return c == ' ' || (c >= '\t' && c <= '\r'); }
 
-// The bit pattern is what the signed conversions want as well. All object
-// pointers share one representation, so the caller fetches the argument
-// once as void * rather than once per pointee type.
+// The unsigned bit pattern is what the signed conversions want as well
 inline void store_int(void *dest, SscanfLength length, uint64_t value) {
   switch (length) {
     case SscanfLength::SSCANF_LENGTH_HH:
@@ -80,8 +69,7 @@ struct Scanset {
   }
 };
 
-// Parses a "[set]" directive starting just after the '[' and returns the
-// position after the closing ']'.
+// Parses "[set]" from just after the '[' and returns the position after ']'
 inline const char *parse_scanset(const char *f, Scanset &set) {
   if (*f == '^') {
     set.negate = true;
@@ -103,8 +91,7 @@ inline const char *parse_scanset(const char *f, Scanset &set) {
   return *f == ']' ? f + 1 : f;
 }
 
-// Radix of an integer conversion: 0 means "detect from the prefix" (%i),
-// 0xFF marks a conversion this scanner does not implement.
+// Radix of an integer conversion: 0 detects from the prefix (%i), 0xFF is unsupported
 inline unsigned int_base(char conv) {
   switch (conv) {
     case 'd':
@@ -261,8 +248,7 @@ inline int vsscanf_no_float(const char *str, const char *fmt, va_list ap) {  // 
     Scanset set;
     if (conv == '[')
       f = parse_scanset(f + 1, set) - 1;  // the loop's f++ steps past the ']'
-    // %c reads exactly width characters (default 1); like newlib, a short
-    // read still assigns whatever was available.
+    // %c reads width characters (default 1); a short read still assigns, like newlib
     const size_t limit = conv == 'c' && width == SIZE_MAX ? 1 : width;
     size_t n = 0;
     while (n < limit && in[n] != '\0' && (conv == 'c' || (conv == '[' ? set.contains(in[n]) : !is_space(in[n])))) {
