@@ -41,10 +41,9 @@ enum class SscanfLength : uint8_t {
 inline bool is_space(char c) { return c == ' ' || (c >= '\t' && c <= '\r'); }
 
 // The bit pattern is what the signed conversions want as well. All object
-// pointers share one representation, so the argument is fetched once as
-// void * rather than once per pointee type.
-inline void store_int(va_list &ap, SscanfLength length, unsigned long long value) {
-  void *dest = va_arg(ap, void *);
+// pointers share one representation, so the caller fetches the argument
+// once as void * rather than once per pointee type.
+inline void store_int(void *dest, SscanfLength length, unsigned long long value) {
   switch (length) {
     case SscanfLength::SSCANF_LENGTH_HH:
       *static_cast<unsigned char *>(dest) = static_cast<unsigned char>(value);
@@ -208,7 +207,7 @@ inline int vsscanf_no_float(const char *str, const char *fmt, va_list ap) {
       break;
     if (conv == 'n') {
       if (!suppress)
-        store_int(ap, length, static_cast<unsigned long long>(in - str));
+        store_int(va_arg(ap, void *), length, static_cast<unsigned long long>(in - str));
       continue;
     }
     const bool string_conv = conv == 'c' || conv == 's' || conv == '[';
@@ -252,7 +251,7 @@ inline int vsscanf_no_float(const char *str, const char *fmt, va_list ap) {
         break;
       in = p;
       if (!suppress) {
-        store_int(ap, length, negative ? 0 - value : value);
+        store_int(va_arg(ap, void *), length, negative ? 0 - value : value);
         assigned++;
       }
       continue;
