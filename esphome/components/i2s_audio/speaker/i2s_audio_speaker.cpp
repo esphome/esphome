@@ -239,8 +239,6 @@ void I2SAudioSpeakerBase::start() {
   if ((this->state_ == speaker::STATE_STARTING) || (this->state_ == speaker::STATE_RUNNING))
     return;
 
-  // Mark STARTING immediately to avoid transient STOPPED observations before loop() processes COMMAND_START.
-  this->state_ = speaker::STATE_STARTING;
   xEventGroupSetBits(this->event_group_, SpeakerEventGroupBits::COMMAND_START);
 }
 
