@@ -1,6 +1,5 @@
 #include "api_overflow_buffer.h"
 #ifdef USE_API
-#include <algorithm>
 #include <cstring>
 
 namespace esphome::api {
@@ -67,11 +66,10 @@ bool APIOverflowBuffer::enqueue_iov(const struct iovec *iov, int iovcnt, uint16_
     size = live;
     want = live + LEN_PREFIX + new_len;
   }
-  // Offsets are 16 bit, so the backlog is capped at 64 KB per connection
-  if (want > UINT16_MAX)
+  if (want > MAX_BYTES)
     return false;
 
-  const size_t reserve = std::min<size_t>((want + GROW_QUANTUM - 1) & ~(GROW_QUANTUM - 1), UINT16_MAX);
+  const size_t reserve = std::min((want + GROW_QUANTUM - 1) & ~(GROW_QUANTUM - 1), MAX_BYTES);
   if (!this->buf_.reserve_and_resize(reserve, want))
     return false;
 

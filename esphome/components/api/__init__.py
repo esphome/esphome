@@ -351,7 +351,7 @@ CONFIG_SCHEMA = cv.All(
                 nrf52=4,  # ~256KB RAM, BSD sockets, Thread (single HA controller)
             ): cv.int_range(min=1, max=20),
             # Maximum queued messages per connection before dropping the connection.
-            # Bounds message count, not bytes; slots cost no RAM until a message is queued.
+            # Also bounds the backlog at 2 KB per slot; slots cost no RAM until used.
             # Platform defaults based on available RAM and typical message rates:
             # CONF_MAX_SEND_QUEUE defaults are power of 2 for efficient modulo
             cv.SplitDefault(

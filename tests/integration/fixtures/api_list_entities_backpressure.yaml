@@ -4,8 +4,9 @@ esphome:
 host:
 
 api:
-  # Smallest queue so a non-draining client blocks the send path quickly
-  max_send_queue: 1
+  # Small queue so a non-draining client blocks the send path quickly, but
+  # with room (2 KB per slot) for one oversized service response to park
+  max_send_queue: 4
   actions:
 # GENERATED_ACTIONS
 

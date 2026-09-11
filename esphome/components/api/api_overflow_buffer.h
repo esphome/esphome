@@ -1,4 +1,5 @@
 #pragma once
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <sys/types.h>
@@ -21,8 +22,9 @@ namespace esphome::api {
 /// so a link that keeps stalling does not cycle heap allocations.
 ///
 /// Each queued message is stored as a 2 byte length prefix followed by its
-/// bytes.  API_MAX_SEND_QUEUE bounds the number of queued messages; if the
-/// queue fills completely the connection is marked failed.
+/// bytes.  API_MAX_SEND_QUEUE bounds the number of queued messages and, at
+/// 2 KB per slot, the number of queued bytes; exceeding either marks the
+/// connection failed.
 class APIOverflowBuffer {
  public:
   /// True when no backlogged data is waiting.
@@ -37,8 +39,8 @@ class APIOverflowBuffer {
 
   /// Enqueue unsent IOV data into the backlog.
   /// Copies iov data starting at byte offset `skip` as one queued message.
-  /// Returns false if the queue is full or allocation fails (caller should
-  /// fail the connection).
+  /// Returns false if the queue is full, the byte limit is exceeded, or
+  /// allocation fails (caller should fail the connection).
   bool enqueue_iov(const struct iovec *iov, int iovcnt, uint16_t total_len, uint16_t skip);
 
   /// Free the retained storage, now if empty, otherwise once it has drained.
@@ -52,6 +54,8 @@ class APIOverflowBuffer {
 
  protected:
   static constexpr size_t LEN_PREFIX = 2;
+  // Backlog byte limit; offsets are 16 bit so it never exceeds 64 KB
+  static constexpr size_t MAX_BYTES = std::min<size_t>(API_MAX_SEND_QUEUE * 2048, UINT16_MAX);
   // Reserve in 256 byte steps so a creeping high-water mark settles after a
   // couple of allocations instead of one per new size.
   static constexpr size_t GROW_QUANTUM = 256;
