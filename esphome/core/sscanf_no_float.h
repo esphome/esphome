@@ -43,19 +43,20 @@ inline bool is_space(char c) { return c == ' ' || (c >= '\t' && c <= '\r'); }
 // The bit pattern is what the signed conversions want as well. All object
 // pointers share one representation, so the caller fetches the argument
 // once as void * rather than once per pointee type.
-inline void store_int(void *dest, SscanfLength length, unsigned long long value) {
+inline void store_int(void *dest, SscanfLength length, uint64_t value) {
   switch (length) {
     case SscanfLength::SSCANF_LENGTH_HH:
-      *static_cast<unsigned char *>(dest) = static_cast<unsigned char>(value);
+      *static_cast<uint8_t *>(dest) = static_cast<uint8_t>(value);
       break;
     case SscanfLength::SSCANF_LENGTH_H:
-      *static_cast<unsigned short *>(dest) = static_cast<unsigned short>(value);
+      *static_cast<uint16_t *>(dest) = static_cast<uint16_t>(value);
       break;
     case SscanfLength::SSCANF_LENGTH_L:
-      *static_cast<unsigned long *>(dest) = static_cast<unsigned long>(value);
+      // %l is defined in terms of long, whatever its width on the target
+      *static_cast<unsigned long *>(dest) = static_cast<unsigned long>(value);  // NOLINT(google-runtime-int)
       break;
     case SscanfLength::SSCANF_LENGTH_LL:
-      *static_cast<unsigned long long *>(dest) = value;
+      *static_cast<uint64_t *>(dest) = value;
       break;
     case SscanfLength::SSCANF_LENGTH_Z:
       *static_cast<size_t *>(dest) = static_cast<size_t>(value);
@@ -64,7 +65,7 @@ inline void store_int(void *dest, SscanfLength length, unsigned long long value)
       *static_cast<ptrdiff_t *>(dest) = static_cast<ptrdiff_t>(value);
       break;
     default:
-      *static_cast<unsigned int *>(dest) = static_cast<unsigned int>(value);
+      *static_cast<unsigned *>(dest) = static_cast<unsigned>(value);
       break;
   }
 }
@@ -207,14 +208,14 @@ inline int vsscanf_no_float(const char *str, const char *fmt, va_list ap) {
       break;
     if (conv == 'n') {
       if (!suppress)
-        store_int(va_arg(ap, void *), length, static_cast<unsigned long long>(in - str));
+        store_int(va_arg(ap, void *), length, static_cast<uint64_t>(in - str));
       continue;
     }
     const bool string_conv = conv == 'c' || conv == 's' || conv == '[';
     if (string_conv && has_length)
       return SSCANF_UNSUPPORTED;  // wide characters
-    unsigned base = 0;
-    if (!string_conv && (base = int_base(conv)) == 0xFF)
+    unsigned base = string_conv ? 0 : int_base(conv);
+    if (base == 0xFF)
       return SSCANF_UNSUPPORTED;
     if (conv != 'c' && conv != '[') {
       while (is_space(*in))
@@ -241,7 +242,7 @@ inline int vsscanf_no_float(const char *str, const char *fmt, va_list ap) {
       }
       if (base == 0)
         base = *p == '0' ? 8 : 10;
-      unsigned long long value = 0;
+      uint64_t value = 0;
       bool any_digit = false;
       for (uint8_t digit; n < width && (digit = parse_hex_char(*p)) < base; p++, n++) {
         value = value * base + digit;
