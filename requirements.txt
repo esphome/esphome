@@ -9,7 +9,7 @@ colorama==0.4.6
 tzlocal==5.4.4    # from time
 tzdata>=2026.3  # from time
 pyserial==3.5
-platformio==6.1.19
+platformio==6.2.0
 esptool==5.4.0
 click==8.3.3
 aioesphomeapi==46.4.1
