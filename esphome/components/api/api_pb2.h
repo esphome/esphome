@@ -3767,7 +3767,7 @@ class SerialProxySetModeRequest final : public ProtoDecodableMessage {
 #endif
 
  protected:
-  bool decode_varint(uint32_t field_id, proto_varint_value_t value) override;
+  void decode_field(uint32_t tag, const uint8_t *data, proto_varint_value_t scalar) override;
 };
 #endif
 #ifdef USE_BLUETOOTH_PROXY_CONNECTIONS
