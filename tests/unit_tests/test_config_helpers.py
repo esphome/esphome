@@ -319,10 +319,19 @@ def test_external_components_use_scanf_float(setup_core: Path) -> None:
     core_component.module.__file__ = str(
         CORE_COMPONENTS_PATH / "sensor" / "__init__.py"
     )
-    lookup = {"ext_comp": fake, "sensor": core_component, "missing": None}
+    core_domain = MagicMock()
+    core_domain.module.__file__ = str(
+        CORE_COMPONENTS_PATH.parent / "core" / "config.py"
+    )
+    lookup = {
+        "ext_comp": fake,
+        "sensor": core_component,
+        "esphome": core_domain,
+        "missing": None,
+    }
 
     with patch("esphome.loader.get_component", side_effect=lookup.get):
-        CORE.loaded_integrations = {"sensor", "missing"}
+        CORE.loaded_integrations = {"sensor", "esphome", "missing"}
         assert external_components_use_scanf_float() is False
         CORE.loaded_integrations = {"sensor", "ext_comp"}
         assert external_components_use_scanf_float() is True
