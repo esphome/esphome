@@ -1,12 +1,14 @@
 import esphome.codegen as cg
 
+ALLOWED_UNITS = "allowed_units"
 DEVICE_TYPE = "device_type"
 ROLE = "role"
 CONF_CLUSTERS = "clusters"
 CONF_ATTRIBUTES = "attributes"
-CONF_CLUSTER = "cluster"
-SCALE = "scale"
 CONF_ATTRIBUTE_ID = "attribute_id"
+KEY_ZIGBEE_ATTRIBUTES = "zigbee_attributes"
+CONNECT = "connect"
+SCALE = "scale"
 KEY_ZIGBEE_EP = "zigbee_ep"
 KEY_ZIGBEE_EP_NO_NUM = "zigbee_ep_no_num"
 KEY_ZIGBEE_FIRST_EP_CL = "zigbee_first_ep_cl"
@@ -14,6 +16,11 @@ KEY_ZIGBEE_FIRST_EP_CL = "zigbee_first_ep_cl"
 DEVICE_ID = {
     "RANGE_EXTENDER": cg.RawExpression("EZB_ZHA_RANGE_EXTENDER_DEVICE_ID"),
     "SIMPLE_SENSOR": cg.RawExpression("EZB_ZHA_SIMPLE_SENSOR_DEVICE_ID"),
+    "LIGHT_SENSOR": cg.RawExpression("EZB_ZHA_LIGHT_SENSOR_DEVICE_ID"),
+    "OCCUPANCY_SENSOR": cg.RawExpression("EZB_ZHA_OCCUPANCY_SENSOR_DEVICE_ID"),
+    "TEMPERATURE_SENSOR": cg.RawExpression("EZB_ZHA_TEMPERATURE_SENSOR_DEVICE_ID"),
+    "PRESSURE_SENSOR": cg.RawExpression("EZB_ZHA_PRESSURE_SENSOR_DEVICE_ID"),
+    "FLOW_SENSOR": cg.RawExpression("EZB_ZHA_FLOW_SENSOR_DEVICE_ID"),
     "CUSTOM_ATTR": 0xFFF2,
 }
 cluster_id = cg.esphome_ns.enum("ezb_zcl_cluster_id_e")
@@ -22,6 +29,14 @@ CLUSTER_ID = {
     "TIME": cluster_id.EZB_ZCL_CLUSTER_ID_TIME,
     "BINARY_INPUT": cluster_id.EZB_ZCL_CLUSTER_ID_BINARY_INPUT,
     "ANALOG_INPUT": cluster_id.EZB_ZCL_CLUSTER_ID_ANALOG_INPUT,
+    "ILLUMINANCE_MEASUREMENT": cluster_id.EZB_ZCL_CLUSTER_ID_ILLUMINANCE_MEASUREMENT,
+    "TEMPERATURE_MEASUREMENT": cluster_id.EZB_ZCL_CLUSTER_ID_TEMPERATURE_MEASUREMENT,
+    "PRESSURE_MEASUREMENT": cluster_id.EZB_ZCL_CLUSTER_ID_PRESSURE_MEASUREMENT,
+    "FLOW_MEASUREMENT": cluster_id.EZB_ZCL_CLUSTER_ID_FLOW_MEASUREMENT,
+    "REL_HUMIDITY_MEASUREMENT": cluster_id.EZB_ZCL_CLUSTER_ID_REL_HUMIDITY_MEASUREMENT,
+    "OCCUPANCY_SENSING": cluster_id.EZB_ZCL_CLUSTER_ID_OCCUPANCY_SENSING,
+    "CARBON_DIOXIDE_MEASUREMENT": cluster_id.EZB_ZCL_CLUSTER_ID_CARBON_DIOXIDE_MEASUREMENT,
+    "PM2_5_MEASUREMENT": cluster_id.EZB_ZCL_CLUSTER_ID_PM2_5_MEASUREMENT,
 }
 CLUSTER_ROLE = {
     "SERVER": cg.RawExpression("EZB_ZCL_CLUSTER_SERVER"),
@@ -31,6 +46,12 @@ attr_type = cg.esphome_ns.enum("ezb_zcl_attr_type_e")
 ATTR_TYPE = {
     "BOOL": attr_type.EZB_ZCL_ATTR_TYPE_BOOL,
     "MAP8": attr_type.EZB_ZCL_ATTR_TYPE_MAP8,
+    "UINT8": attr_type.EZB_ZCL_ATTR_TYPE_UINT8,
+    "UINT16": attr_type.EZB_ZCL_ATTR_TYPE_UINT16,
+    "INT8": attr_type.EZB_ZCL_ATTR_TYPE_INT8,
+    "INT16": attr_type.EZB_ZCL_ATTR_TYPE_INT16,
+    "ENUM8": attr_type.EZB_ZCL_ATTR_TYPE_ENUM8,
+    "ENUM16": attr_type.EZB_ZCL_ATTR_TYPE_ENUM16,
     "STRING": attr_type.EZB_ZCL_ATTR_TYPE_STRING,
     "SINGLE": attr_type.EZB_ZCL_ATTR_TYPE_SINGLE,
     "DOUBLE": attr_type.EZB_ZCL_ATTR_TYPE_DOUBLE,
