@@ -266,25 +266,46 @@ class TestCallLambda:
         """A multi-statement lambda with parameters is called with the
         parameter names as arguments."""
         lamb = cg.LambdaExpression(
-            ("do_something(x, y);",), ((int, "x"), (float, "y")), "="
+            ("do_something(x, y);",), ((int, "x"), (float, "y")), "=", ct.bool_
         )
 
         result = cg.call_lambda(lamb)
 
         assert isinstance(result, cg.CallExpression)
         assert str(result) == (
-            "[=](int32_t x, float y) {\n  do_something(x, y);\n}(x, y)"
+            "[=](int32_t x, float y) -> bool {\n  do_something(x, y);\n}(x, y)"
         )
 
-    def test_call_lambda__no_return_no_parameters_calls_with_no_args(self):
-        """A multi-statement lambda without parameters is called with no
-        arguments."""
-        lamb = cg.LambdaExpression(("do_something();",), (), "")
+    def test_call_lambda__no_return_type_raises(self):
+        """Calling a lambda with no declared return type is a developer
+        error: call_lambda is only for value-returning lambdas."""
+        lamb = cg.LambdaExpression(("do_something();",), (), "=")
+
+        with pytest.raises(AssertionError):
+            cg.call_lambda(lamb)
+
+    def test_call_lambda__identifier_starting_with_return_is_not_a_return_statement(
+        self,
+    ):
+        """A body that merely starts with the substring "return" (e.g. a call
+        to a function named returnValue()) must not be mistaken for a return
+        statement -- the match requires a word boundary after "return"."""
+        lamb = cg.LambdaExpression(("returnValue();",), (), "=", ct.bool_)
 
         result = cg.call_lambda(lamb)
 
         assert isinstance(result, cg.CallExpression)
-        assert str(result) == "[]() {\n  do_something();\n}()"
+        assert str(result) == "[=]() -> bool {\n  returnValue();\n}()"
+
+    def test_call_lambda__no_return_no_parameters_calls_with_no_args(self):
+        """A multi-statement lambda without parameters is called with no
+        arguments."""
+        lamb = cg.LambdaExpression(("do_something();",), (), "", ct.bool_)
+
+        result = cg.call_lambda(lamb)
+
+        assert isinstance(result, cg.CallExpression)
+        assert str(result) == "[]() -> bool {\n  do_something();\n}()"
 
 
 class TestLiterals:
