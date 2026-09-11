@@ -39,6 +39,9 @@ class RemoteDeviceBase {
 #ifdef USE_BTHOME_DECRYPTION
   optional<EncryptionKey> encryption_key_;
 #endif
+
+ private:
+  size_t process_object_(std::span<BTHomeRemoteObject *> handlers, size_t index, const BTHomeObject &object);
 };
 
 template<size_t NUM_SENSORS> class RemoteDevice : public RemoteDeviceBase {

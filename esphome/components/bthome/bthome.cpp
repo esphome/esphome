@@ -77,6 +77,7 @@ bool bthome_is_signed(BTHomeObjectType type) {
     case BTHomeObjectType::COUNT_I32:
     case BTHomeObjectType::POWER_W_I32_E2:
     case BTHomeObjectType::CURRENT_A_I16_E3:
+    case BTHomeObjectType::SIGNAL_STRENGTH:
       return true;
     default:
       return false;

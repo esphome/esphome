@@ -5,14 +5,14 @@
 namespace esphome::bthome::testing {
 using namespace esphome::bthome::client;
 
-static ble_device_base::ESPBTDevice make_device(const MacAddress &address) {
+static ble_device_base::ESPBTDevice make_device(const MacAddress &address, int rssi = -50) {
   const uint8_t *mac_msb = address;
   uint8_t mac_lsb[MAC_ADDRESS_SIZE];
   for (size_t i = 0; i < MAC_ADDRESS_SIZE; i++)
     mac_lsb[i] = mac_msb[MAC_ADDRESS_SIZE - i - 1];
 
   ble_device_base::ESPBTDevice device;
-  device.from_scan_result(mac_lsb, -50, ble_device_base::BLE_ADDR_TYPE_PUBLIC, nullptr, 0);
+  device.from_scan_result(mac_lsb, rssi, ble_device_base::BLE_ADDR_TYPE_PUBLIC, nullptr, 0);
   return device;
 }
 
@@ -179,6 +179,20 @@ TEST_F(BTHomeDeviceTest, ParseDataDuplicatePacketId) {
   EXPECT_TRUE(result2);
   // Handler should not have been called again
   EXPECT_EQ(handler1_.processed_objects().size(), 1);
+}
+
+TEST_F(BTHomeDeviceTest, SignalStrengthIgnoresDuplicatePacket) {
+  RemoteDevice<1> device;
+  MockBTHomeRemoteObject signal_strength{BTHomeObjectType::SIGNAL_STRENGTH};
+  device.set_address(test_mac_);
+  device.set_handler(0, &signal_strength);
+  uint8_t payload[] = {0x40, 0x00, 0x42};
+
+  EXPECT_TRUE(device.parse_data(make_device(test_mac_, -50), payload, sizeof(payload)));
+  EXPECT_TRUE(device.parse_data(make_device(test_mac_, -67), payload, sizeof(payload)));
+
+  ASSERT_EQ(signal_strength.processed_objects().size(), 1);
+  EXPECT_EQ(signal_strength.processed_objects()[0].value, -50.0f);
 }
 
 TEST_F(BTHomeDeviceTest, ParseDataDifferentPacketId) {

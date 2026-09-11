@@ -23,6 +23,7 @@ class BTHomeObjectType:
     size: int
     name: str
     unit: str = const.UNIT_EMPTY
+    accuracy_decimals: int = 2
     device_class: str | None = None
     state_class: str = const.STATE_CLASS_MEASUREMENT
     kind: BTHomeObjectTypeKind = BTHomeObjectTypeKind.SENSOR
@@ -598,6 +599,15 @@ for index, ot in enumerate(OBJECT_TYPES_BY_ID):
         f"Object ID mismatch at index {index}: {ot.name} has object_id={ot.object_id}"
     )
     BTHOME_OBJECT_TYPES[ot.name] = ot
+
+BTHOME_OBJECT_TYPES["SIGNAL_STRENGTH"] = BTHomeObjectType(
+    object_id=0x0100,
+    size=1,
+    name="SIGNAL_STRENGTH",
+    unit=const.UNIT_DECIBEL_MILLIWATT,
+    accuracy_decimals=0,
+    device_class=const.DEVICE_CLASS_SIGNAL_STRENGTH,
+)
 
 # Maps short, easy-to-remember names to the canonical object type name.
 BTHOME_OBJECT_ALIASES: dict[str, str] = {

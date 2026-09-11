@@ -11,6 +11,10 @@ sensor:
     source_id: bthome_remote_encrypted
     type: HUMIDITY_PCT_E2
     name: "Remote Humidity Encrypted"
+  - platform: bthome
+    source_id: bthome_remote_plain
+    type: SIGNAL_STRENGTH
+    name: "Remote Signal Strength"
 
 binary_sensor:
   - platform: bthome

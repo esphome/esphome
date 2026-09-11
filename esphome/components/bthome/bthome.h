@@ -32,7 +32,7 @@ static constexpr size_t BTHOME_COUNTER_SIZE = 4;
 // Maximum plaintext in a legacy 31-byte advertisement with flags, service header, counter, and MIC.
 static constexpr size_t BTHOME_MAX_ENCRYPTED_PAYLOAD = 15;
 
-enum class BTHomeObjectType : uint8_t {
+enum class BTHomeObjectType : uint16_t {
   ACCELERATION_MSS_E3 = 0x51,
   ACCELERATION_MSS_I32_E6 = 0x63,
   BATTERY_PCT = 0x01,
@@ -92,6 +92,9 @@ enum class BTHomeObjectType : uint8_t {
   VOLUME_L_U32_E3 = 0x4E,
   VOLUME_STORAGE_L_E3 = 0x55,
   WATER_L_E3 = 0x4F,
+
+  // Values outside the wire-format range are derived from advertisement metadata.
+  SIGNAL_STRENGTH = 0x0100,
 
   // Binary sensors:
 

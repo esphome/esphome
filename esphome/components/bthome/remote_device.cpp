@@ -9,6 +9,15 @@ namespace esphome::bthome::client {
 
 static const char *const TAG = "bthome";
 
+size_t RemoteDeviceBase::process_object_(std::span<BTHomeRemoteObject *> handlers, size_t index,
+                                         const BTHomeObject &object) {
+  for (size_t i = index; i < handlers.size(); i++) {
+    if (handlers[i]->process_object(object))
+      return i + 1;
+  }
+  return index;
+}
+
 bool RemoteDeviceBase::parse_data(const ble_device_base::ESPBTDevice &device, const uint8_t *data, size_t data_size) {
   MacAddressPtr source_address{device.address()};
   if (this->address_ != source_address) {
@@ -73,13 +82,12 @@ bool RemoteDeviceBase::parse_data(const ble_device_base::ESPBTDevice &device, co
   size_t index = 0;
   auto handlers = this->get_handlers();
   for (const BTHomeObject &obj : decoder) {
-    for (size_t i = index; i < handlers.size(); i++) {
-      if (handlers[i]->process_object(obj)) {
-        index = i + 1;
-        break;
-      }
-    }
+    index = this->process_object_(handlers, index, obj);
   }
+
+  const uint8_t rssi = static_cast<uint8_t>(device.get_rssi());
+  const BTHomeObject signal_strength{BTHomeObjectType::SIGNAL_STRENGTH, &rssi, sizeof(rssi)};
+  this->process_object_(handlers, index, signal_strength);
 
   return true;
 }

@@ -30,7 +30,7 @@ def _apply_object_type_defaults(config):
     if CONF_UNIT_OF_MEASUREMENT not in config:
         config[CONF_UNIT_OF_MEASUREMENT] = obj.unit
     if CONF_ACCURACY_DECIMALS not in config:
-        config[CONF_ACCURACY_DECIMALS] = 2
+        config[CONF_ACCURACY_DECIMALS] = obj.accuracy_decimals
     if CONF_DEVICE_CLASS not in config and obj.device_class is not None:
         config[CONF_DEVICE_CLASS] = obj.device_class
     if CONF_STATE_CLASS not in config:
