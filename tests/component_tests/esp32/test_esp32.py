@@ -679,7 +679,7 @@ def test_tls_disabled_sdkconfig(
     generate_main(component_config_path(config_file))
     sdkconfig = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
     assert (sdkconfig.get("CONFIG_MBEDTLS_TLS_DISABLED") is True) is tls_off
-    assert ("CONFIG_MBEDTLS_ECP_C" in sdkconfig) is ecp_off
+    assert sdkconfig.get("CONFIG_MBEDTLS_ECP_C") is (False if ecp_off else None)
     assert ("esp-tls" in CORE.data[KEY_ESP32][KEY_EXCLUDE_COMPONENTS]) is tls_off
 
 

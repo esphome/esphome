@@ -2419,6 +2419,40 @@ async def _reconcile_certificate_bundle_sdkconfig() -> None:
         set_idf_sdkconfig_default("CONFIG_MBEDTLS_CERTIFICATE_BUNDLE_DEFAULT_CMN", True)
 
 
+# TLS features an HTTPS/MQTT client talking to a modern server never
+# negotiates. Static RSA and static ECDH key exchange have no forward secrecy
+# and are gone in TLS 1.3, renegotiation is deprecated, esp-tls never enables
+# session tickets, AES-CCM ciphersuites are not offered by web servers, and
+# deterministic ECDSA only matters when signing with a private key. Together
+# they cost ~10 KB of flash whenever TLS is linked (http_request, mqtt).
+# wpa_supplicant's EAP client is a second TLS client that talks to RADIUS
+# servers ESPHome cannot vet, and a failed EAP handshake leaves the device
+# off the network, so the wifi component re-enables all of these when eap is
+# configured.
+# The EC public key parsing extras stay enabled: they decide whether a peer
+# certificate with a compressed point or explicit curve parameters parses,
+# which no component can know ahead of time.
+MBEDTLS_TLS_EXTRA_OPTIONS = (
+    "CONFIG_MBEDTLS_KEY_EXCHANGE_RSA",
+    "CONFIG_MBEDTLS_KEY_EXCHANGE_ECDH_ECDSA",
+    "CONFIG_MBEDTLS_KEY_EXCHANGE_ECDH_RSA",
+    "CONFIG_MBEDTLS_SSL_RENEGOTIATION",
+    "CONFIG_MBEDTLS_CLIENT_SSL_SESSION_TICKETS",
+    "CONFIG_MBEDTLS_SERVER_SSL_SESSION_TICKETS",
+    "CONFIG_MBEDTLS_CCM_C",
+    "CONFIG_MBEDTLS_ECDSA_DETERMINISTIC",
+)
+
+# Members of the mbedTLS "TLS Protocol Role" Kconfig choice. Setting one
+# member is only valid when the user has not already chosen another.
+MBEDTLS_TLS_ROLE_OPTIONS = (
+    "CONFIG_MBEDTLS_TLS_SERVER_AND_CLIENT",
+    "CONFIG_MBEDTLS_TLS_SERVER_ONLY",
+    "CONFIG_MBEDTLS_TLS_CLIENT_ONLY",
+    "CONFIG_MBEDTLS_TLS_DISABLED",
+)
+
+
 # User sdkconfig_options that mean "keep TLS on" when set to y.
 _MBEDTLS_TLS_ON_OPTIONS = (
     "CONFIG_MBEDTLS_TLS_ENABLED",
@@ -2507,40 +2541,6 @@ async def _reconcile_mbedtls_sdkconfig() -> None:
     if idf6 and not data.sha512_required:
         set_idf_sdkconfig_default("CONFIG_MBEDTLS_SHA384_C", False)
         set_idf_sdkconfig_default("CONFIG_MBEDTLS_SHA512_C", False)
-
-
-# TLS features an HTTPS/MQTT client talking to a modern server never
-# negotiates. Static RSA and static ECDH key exchange have no forward secrecy
-# and are gone in TLS 1.3, renegotiation is deprecated, esp-tls never enables
-# session tickets, AES-CCM ciphersuites are not offered by web servers, and
-# deterministic ECDSA only matters when signing with a private key. Together
-# they cost ~10 KB of flash whenever TLS is linked (http_request, mqtt).
-# wpa_supplicant's EAP client is a second TLS client that talks to RADIUS
-# servers ESPHome cannot vet, and a failed EAP handshake leaves the device
-# off the network, so the wifi component re-enables all of these when eap is
-# configured.
-# The EC public key parsing extras stay enabled: they decide whether a peer
-# certificate with a compressed point or explicit curve parameters parses,
-# which no component can know ahead of time.
-MBEDTLS_TLS_EXTRA_OPTIONS = (
-    "CONFIG_MBEDTLS_KEY_EXCHANGE_RSA",
-    "CONFIG_MBEDTLS_KEY_EXCHANGE_ECDH_ECDSA",
-    "CONFIG_MBEDTLS_KEY_EXCHANGE_ECDH_RSA",
-    "CONFIG_MBEDTLS_SSL_RENEGOTIATION",
-    "CONFIG_MBEDTLS_CLIENT_SSL_SESSION_TICKETS",
-    "CONFIG_MBEDTLS_SERVER_SSL_SESSION_TICKETS",
-    "CONFIG_MBEDTLS_CCM_C",
-    "CONFIG_MBEDTLS_ECDSA_DETERMINISTIC",
-)
-
-# Members of the mbedTLS "TLS Protocol Role" Kconfig choice. Setting one
-# member is only valid when the user has not already chosen another.
-MBEDTLS_TLS_ROLE_OPTIONS = (
-    "CONFIG_MBEDTLS_TLS_SERVER_AND_CLIENT",
-    "CONFIG_MBEDTLS_TLS_SERVER_ONLY",
-    "CONFIG_MBEDTLS_TLS_CLIENT_ONLY",
-    "CONFIG_MBEDTLS_TLS_DISABLED",
-)
 
 
 @coroutine_with_priority(CoroPriority.FINAL)
