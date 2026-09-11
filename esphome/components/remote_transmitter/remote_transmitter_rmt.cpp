@@ -213,7 +213,7 @@ void RemoteTransmitterComponent::wait_for_rmt_() {
     this->status_set_warning();
   }
 
-  this->fire_complete_();
+  this->fire_complete_(error == ESP_OK);
 }
 
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 5, 1)
