@@ -48,32 +48,28 @@ bool APIOverflowBuffer::enqueue_iov(const struct iovec *iov, int iovcnt, uint16_
   if (this->count_ >= API_MAX_SEND_QUEUE)
     return false;
 
-  const size_t new_bytes = LEN_PREFIX + (total_len - skip);
-  size_t size = this->buf_.size();
-  // An empty backlog always takes one message: refusing it drops the connection,
-  // and a lone message costs no more than the old per-message allocation
-  if (size - this->head_ + new_bytes > (this->count_ > 0 ? MAX_BYTES : MAX_SINGLE_BYTES))
+  const uint16_t new_len = total_len - skip;
+  const size_t new_bytes = LEN_PREFIX + new_len;
+  const size_t live = this->buf_.size() - this->head_;
+  // A lone message is always taken; refusing it would only drop the connection
+  if (live + new_bytes > (this->count_ > 0 ? MAX_BYTES : MAX_SINGLE_BYTES))
     return false;
 
-  if (size + new_bytes > this->buf_.capacity()) {
-    // Storage would move; not under an outer drain whose write() still points into it
+  if (this->buf_.size() + new_bytes > this->buf_.capacity()) {
+    // Storage would move under an outer drain's write()
     if (this->draining_)
       return false;
     if (this->head_ > 0) {
-      // Reclaim the sent prefix; the live bytes are copied once even if this also grows
-      size -= this->head_;
-      if (!this->buf_.drop_front_and_reserve(this->head_, reserve_for(size + new_bytes)))
+      // Reclaim the sent prefix (one copy even if this grows)
+      if (!this->buf_.drop_front_and_reserve(this->head_, reserve_for(live + new_bytes)))
         return false;
       this->head_ = 0;
     }
   }
 
-  const size_t want = size + new_bytes;
-  if (!this->buf_.reserve_and_resize(reserve_for(want), want))
+  uint8_t *dst = this->buf_.append(new_bytes, reserve_for(this->buf_.size() + new_bytes));
+  if (dst == nullptr)
     return false;
-
-  const uint16_t new_len = static_cast<uint16_t>(new_bytes - LEN_PREFIX);
-  uint8_t *dst = this->buf_.data() + size;
   std::memcpy(dst, &new_len, LEN_PREFIX);
   dst += LEN_PREFIX;
   uint16_t to_skip = skip;

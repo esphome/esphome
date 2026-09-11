@@ -39,9 +39,15 @@ class APIBuffer {
     this->size_ = new_size;
     return true;
   }
-  /// Drop the first `drop` bytes and reserve capacity for `n`, copying the
-  /// remaining bytes once: in place, or straight into the new allocation.
-  /// Returns false if allocation fails; the buffer is left unchanged.
+  /// Grow by n bytes; returns the new bytes, or nullptr on allocation failure.
+  [[nodiscard]] uint8_t *append(size_t n, size_t reserve_size = 0) {
+    const size_t old_size = this->size_;
+    if (!this->reserve_and_resize(reserve_size, old_size + n))
+      return nullptr;
+    return this->data_.get() + old_size;
+  }
+  /// Drop the first `drop` bytes and reserve `n`, copying the rest only once.
+  /// Returns false on allocation failure.
   [[nodiscard]] bool drop_front_and_reserve(size_t drop, size_t n);
   uint8_t *data() { return this->data_.get(); }
   const uint8_t *data() const { return this->data_.get(); }
