@@ -13,6 +13,7 @@ from esphome.components.esp32 import (
     only_on_variant,
     request_tls,
     request_wifi,
+    require_mbedtls_tls_extras,
 )
 from esphome.components.network import (
     add_use_address,
@@ -659,9 +660,14 @@ async def to_code(config):
     # Disable Enterprise WiFi support if no EAP is configured
     if CORE.is_esp32:
         add_idf_sdkconfig_option("CONFIG_ESP_WIFI_ENTERPRISE_SUPPORT", has_eap)
-        # The supplicant's Kconfig select cannot override the IDF 5 TLS role choice
         if has_eap:
+            # The supplicant's Kconfig select cannot override the IDF 5 TLS
+            # role choice, so request TLS explicitly. Its EAP client also
+            # negotiates with whatever the RADIUS server offers, and a failed
+            # handshake leaves the device off the network, so keep every
+            # mbedTLS client feature the esp32 platform would otherwise trim.
             request_tls()
+            require_mbedtls_tls_extras()
 
     # Only define USE_WIFI_MANUAL_IP if any AP uses manual IP
     if has_manual_ip:

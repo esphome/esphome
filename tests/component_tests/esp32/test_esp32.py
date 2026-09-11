@@ -11,9 +11,12 @@ import pytest
 
 from esphome.components.esp32 import (
     KEY_FATFS_REQUIRED,
+    KEY_MBEDTLS_TLS_EXTRAS_REQUIRED,
+    KEY_MBEDTLS_TLS_SERVER_REQUIRED,
     KEY_VFS_DIR_REQUIRED,
     KEY_VFS_SELECT_REQUIRED,
     KEY_VFS_TERMIOS_REQUIRED,
+    MBEDTLS_TLS_EXTRA_OPTIONS,
     VARIANT_ESP32,
     VARIANTS,
     MbedtlsSdkconfigData,
@@ -1559,3 +1562,101 @@ def test_esp32_s31_gpio_validation(
     with caplog.at_level("WARNING"):
         validate_supports(pin)
     assert "GPIO36 is a strapping PIN" in caplog.text
+
+
+_TLS_SERVER_OPTIONS = (
+    "CONFIG_MBEDTLS_TLS_CLIENT_ONLY",
+    "CONFIG_MBEDTLS_TLS_SERVER_AND_CLIENT",
+)
+
+
+@pytest.mark.parametrize(
+    ("config_file", "server", "extras"),
+    [
+        pytest.param("mbedtls_tls_default.yaml", (True, False), False, id="default"),
+        pytest.param("mbedtls_tls_opt_out.yaml", (None, None), None, id="opt_out"),
+        pytest.param("mbedtls_tls_wifi_eap.yaml", (True, False), None, id="wifi_eap"),
+    ],
+)
+def test_mbedtls_tls_trim_sdkconfig(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+    config_file: str,
+    server: tuple[bool | None, bool | None],
+    extras: bool | None,
+) -> None:
+    """Client-only TLS and the unused-feature trims apply unless opted out or required."""
+    generate_main(component_config_path(config_file))
+    sdkconfig = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
+    assert tuple(sdkconfig.get(name) for name in _TLS_SERVER_OPTIONS) == server
+    assert {sdkconfig.get(name) for name in MBEDTLS_TLS_EXTRA_OPTIONS} == {extras}
+
+
+_OPENTHREAD_EXTRAS = {"CONFIG_MBEDTLS_CCM_C", "CONFIG_MBEDTLS_ECDSA_DETERMINISTIC"}
+
+
+def test_mbedtls_tls_openthread_keeps_only_what_it_uses(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """Nothing in the OpenThread config links TLS, so the stack is compiled out
+    entirely and the client-only/extras trim never runs."""
+    generate_main(component_config_path("mbedtls_tls_openthread.yaml"))
+    sdkconfig = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
+    assert sdkconfig.get("CONFIG_MBEDTLS_TLS_DISABLED") is True
+    assert tuple(sdkconfig.get(name) for name in _TLS_SERVER_OPTIONS) == (None, None)
+    for name in MBEDTLS_TLS_EXTRA_OPTIONS:
+        assert sdkconfig.get(name) is None
+
+
+def test_mbedtls_tls_user_sdkconfig_wins(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """A user-set TLS role member leaves the whole choice alone; other user values are kept."""
+    generate_main(component_config_path("mbedtls_tls_user_sdkconfig.yaml"))
+    sdkconfig = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
+    assert sdkconfig.get("CONFIG_MBEDTLS_TLS_CLIENT_ONLY") is None
+    role = sdkconfig["CONFIG_MBEDTLS_TLS_SERVER_AND_CLIENT"]
+    assert isinstance(role, RawSdkconfigValue) and role.value == "y"
+    ccm = sdkconfig["CONFIG_MBEDTLS_CCM_C"]
+    assert isinstance(ccm, RawSdkconfigValue) and ccm.value == "y"
+    assert {
+        sdkconfig.get(name)
+        for name in MBEDTLS_TLS_EXTRA_OPTIONS
+        if name != "CONFIG_MBEDTLS_CCM_C"
+    } == {False}
+
+
+def test_mbedtls_tls_openthread_requires_server_and_extras(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """The OpenThread hooks mark the DTLS server and CCM/deterministic ECDSA as required."""
+    generate_main(component_config_path("mbedtls_tls_openthread.yaml"))
+    assert CORE.data[KEY_ESP32][KEY_MBEDTLS_TLS_SERVER_REQUIRED] is True
+    assert CORE.data[KEY_ESP32][KEY_MBEDTLS_TLS_EXTRAS_REQUIRED] == _OPENTHREAD_EXTRAS
+
+
+_VASPRINTF_STUB_FLAGS = {"-Wl,--wrap=vasprintf", "-Wl,--undefined=__wrap_vasprintf"}
+
+
+@pytest.mark.parametrize(
+    ("config_file", "expected"),
+    [
+        pytest.param("vasprintf_stub_c6.yaml", True, id="c6"),
+        pytest.param("vasprintf_stub_c6_full_printf.yaml", False, id="c6_full_printf"),
+        pytest.param("exclusion_reincludes.yaml", False, id="esp32"),
+    ],
+)
+def test_vasprintf_stub_only_on_rom_vsnprintf_variants(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+    config_file: str,
+    expected: bool,
+) -> None:
+    """The vasprintf wrap is emitted only where the ROM lacks vasprintf but has vsnprintf."""
+    generate_main(component_config_path(config_file))
+    assert (CORE.build_flags >= _VASPRINTF_STUB_FLAGS) is expected
+    defines = {define.name for define in CORE.defines}
+    assert ("USE_ESP32_VASPRINTF_STUB" in defines) is expected
