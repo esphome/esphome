@@ -24,7 +24,7 @@ class APIOverflowBuffer {
   /// True when no backlogged data is waiting.
   bool empty() const { return this->count_ == 0; }
 
-  /// Drain queued messages to the socket. Must not be called while empty().
+  /// Drain queued messages to the socket.
   /// Returns bytes written, 0 for a re-entrant call, -1 on error (check errno
   /// for EWOULDBLOCK); callers only need to act on -1.
   ssize_t try_drain(socket::Socket *socket);
