@@ -129,13 +129,19 @@ void ESP32InternalGPIOPin::setup() {
   if (conf.mode == GPIO_MODE_INPUT || !this->get_hold_()) {
     // for inputs apply config now in case it was configured as output before sleep
     // for outputs defer until the first write
-    gpio_hold_dis(this->get_pin_num());
+    if (GPIO_IS_VALID_OUTPUT_GPIO(this->get_pin_num())) {
+      gpio_hold_dis(this->get_pin_num());
+    }
   }
   if (this->get_hold_()) {
     gpio_hold_en(this->get_pin_num());
   }
 #else
-  gpio_hold_dis(this->get_pin_num());
+  // release any hold left over from a previous firmware that used hold_during_sleep;
+  // only output-capable pads can be held, and IDF logs an error for the rest
+  if (GPIO_IS_VALID_OUTPUT_GPIO(this->get_pin_num())) {
+    gpio_hold_dis(this->get_pin_num());
+  }
 #endif
 }
 
@@ -152,8 +158,8 @@ void ESP32InternalGPIOPin::pin_mode(gpio::Flags flags) {
   }
   gpio_set_pull_mode(this->get_pin_num(), pull_mode);
 #ifdef USE_GPIO_HOLD
-  gpio_hold_dis(this->get_pin_num());
   if (this->get_hold_()) {
+    gpio_hold_dis(this->get_pin_num());
     gpio_hold_en(this->get_pin_num());
   }
 #endif
@@ -253,17 +259,15 @@ void IRAM_ATTR ISRInternalGPIOPin::pin_mode(gpio::Flags flags) {
     }
   }
 #ifdef USE_GPIO_HOLD
+  if (arg->hold) {
 #if defined(USE_ESP32_VARIANT_ESP32)
-  if (arg->use_rtc) {
-    rtcio_hal_hold_disable(arg->rtc_pin);
-    if (arg->hold) {
+    if (arg->use_rtc) {
+      rtcio_hal_hold_disable(arg->rtc_pin);
       rtcio_hal_hold_enable(arg->rtc_pin);
-    }
-  } else
+    } else
 #endif
-  {
-    gpio_hal_hold_dis(&GPIO_HAL, arg->pin);
-    if (arg->hold) {
+    {
+      gpio_hal_hold_dis(&GPIO_HAL, arg->pin);
       gpio_hal_hold_en(&GPIO_HAL, arg->pin);
     }
   }
