@@ -1,0 +1,4 @@
+# A receiver with no dumpers and no listeners compiles both lists out
+remote_receiver:
+  - id: rcvr_bare
+    pin: ${pin}

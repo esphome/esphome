@@ -1,18 +1,18 @@
 """Radio Frequency platform implementation using remote_base (remote_transmitter/receiver)."""
 
 import esphome.codegen as cg
-from esphome.components import (
-    radio_frequency,
-    remote_base,
-    remote_receiver,
-    remote_transmitter,
-)
+from esphome.components import radio_frequency, remote_receiver, remote_transmitter
 import esphome.config_validation as cv
 from esphome.const import CONF_CARRIER_DUTY_PERCENT, CONF_FREQUENCY
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
-from . import CONF_REMOTE_RECEIVER_ID, CONF_REMOTE_TRANSMITTER_ID, ir_rf_proxy_ns
+from . import (
+    CONF_REMOTE_RECEIVER_ID,
+    CONF_REMOTE_TRANSMITTER_ID,
+    attach_receiver,
+    ir_rf_proxy_ns,
+)
 
 CODEOWNERS = ["@kbx81"]
 DEPENDENCIES = ["radio_frequency"]
@@ -71,6 +71,4 @@ async def to_code(config: ConfigType) -> None:
         cg.add(var.set_transmitter(transmitter))
 
     if CONF_REMOTE_RECEIVER_ID in config:
-        receiver = await cg.get_variable(config[CONF_REMOTE_RECEIVER_ID])
-        cg.add(var.set_receiver(receiver))
-        remote_base.add_listener(receiver, var)
+        await attach_receiver(var, config)

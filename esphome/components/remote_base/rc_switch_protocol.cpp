@@ -1,4 +1,6 @@
 #include "rc_switch_protocol.h"
+
+#include <iterator>
 #include "esphome/core/log.h"
 
 namespace esphome::remote_base {
@@ -113,7 +115,7 @@ bool RCSwitchBase::decode(RemoteReceiveData &src, uint64_t *out_data, uint8_t *o
 optional<RCSwitchData> RCSwitchBase::decode(RemoteReceiveData &src) const {
   RCSwitchData out;
   uint8_t out_nbits;
-  for (uint8_t i = 1; i <= 8; i++) {
+  for (uint8_t i = 1; i < std::size(RC_SWITCH_PROTOCOLS); i++) {
     src.reset();
     const RCSwitchBase *protocol = &RC_SWITCH_PROTOCOLS[i];
     if (protocol->decode(src, &out.code, &out_nbits) && out_nbits >= 3) {
@@ -226,7 +228,7 @@ bool RCSwitchRawReceiver::matches(RemoteReceiveData src) {
   return decoded_nbits == this->nbits_ && (decoded_code & this->mask_) == (this->code_ & this->mask_);
 }
 bool RCSwitchDumper::dump(RemoteReceiveData src) {
-  for (uint8_t i = 1; i <= 8; i++) {
+  for (uint8_t i = 1; i < std::size(RC_SWITCH_PROTOCOLS); i++) {
     src.reset();
     uint64_t out_data;
     uint8_t out_nbits;

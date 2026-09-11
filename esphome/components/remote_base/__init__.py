@@ -231,6 +231,13 @@ DUMPER_REGISTRY = Registry()
 def validate_dumpers(value):
     if isinstance(value, str) and value.lower() == "all":
         return validate_dumpers(list(DUMPER_REGISTRY.keys()))
+    if isinstance(value, list):
+        # a dumper listed twice would register twice; the receiver holds one secondary dumper
+        value = (
+            list(dict.fromkeys(value))
+            if all(isinstance(v, str) for v in value)
+            else value
+        )
     return cv.validate_registry("dumper", DUMPER_REGISTRY)(value)
 
 
