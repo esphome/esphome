@@ -1,5 +1,5 @@
 #pragma once
-#include <array>
+#include <cstddef>
 #include <cstdint>
 #include <sys/types.h>
 
@@ -8,71 +8,63 @@
 
 #include "esphome/components/socket/headers.h"
 #include "esphome/components/socket/socket.h"
-#include "esphome/core/helpers.h"
+#include "api_buffer.h"
 
 namespace esphome::api {
 
-/// Circular queue of heap-allocated byte buffers used as a TCP send backlog.
+/// TCP send backlog stored in one contiguous per-connection buffer.
 ///
 /// Under normal operation this buffer is **never used** — data goes straight
 /// from the frame helper to the socket.  It only fills when the LWIP TCP
-/// send buffer is full (slow client, congested network, heavy logging).
-/// The queue drains automatically on subsequent write/loop calls once the
-/// socket becomes writable again.
+/// send buffer is full (slow client, lossy link, heavy logging).  The
+/// storage is allocated on the first stall and kept at its high-water mark,
+/// so a link that keeps stalling does not cycle heap allocations.
 ///
-/// Capacity is compile-time-fixed via API_MAX_SEND_QUEUE (set from Python
-/// config).  If the queue fills completely the connection is marked failed.
+/// Each queued message is stored as a 2 byte length prefix followed by its
+/// bytes.  API_MAX_SEND_QUEUE bounds the number of queued messages; if the
+/// queue fills completely the connection is marked failed.
 class APIOverflowBuffer {
  public:
-  /// A single heap-allocated send-backlog entry.
-  /// Lifetime is manually managed — see destroy().
-  struct Entry {
-    uint8_t *data;
-    uint16_t size;    // Total size of the buffer
-    uint16_t offset;  // Current send offset within the buffer
-
-    uint16_t remaining() const { return this->size - this->offset; }
-    const uint8_t *current_data() const { return this->data + this->offset; }
-
-    /// Free this entry and its data buffer.
-    static ESPHOME_ALWAYS_INLINE void destroy(Entry *entry) {
-      delete[] entry->data;
-      delete entry;  // NOLINT(cppcoreguidelines-owning-memory)
-    }
-  };
-
-  ~APIOverflowBuffer();
-
   /// True when no backlogged data is waiting.
   bool empty() const { return this->count_ == 0; }
 
-  /// True when the queue has no room for another entry.
-  bool full() const { return this->count_ >= API_MAX_SEND_QUEUE; }
-
-  /// Number of entries currently queued.
-  uint8_t count() const { return this->count_; }
-
-  /// Try to drain queued data to the socket.
-  /// Returns bytes-written > 0 on success/partial, 0 if all drained or no progress,
-  /// -1 on error (caller must check errno to distinguish EWOULDBLOCK from hard errors).
-  /// Callers only need to act on -1; 0 and positive values both mean "no error".
-  /// Frees entries as they are fully sent.
+  /// Try to drain queued messages to the socket.
+  /// Precondition: !empty().
+  /// Returns bytes-written > 0 on success/partial, 0 for a re-entrant call,
+  /// -1 on error (caller must check errno to distinguish EWOULDBLOCK from
+  /// hard errors). Callers only need to act on -1.
   ssize_t try_drain(socket::Socket *socket);
 
   /// Enqueue unsent IOV data into the backlog.
-  /// Copies iov data starting at byte offset `skip` into a new entry.
-  /// Returns false if the queue is full or allocation fails (caller should fail the connection).
+  /// Copies iov data starting at byte offset `skip` as one queued message.
+  /// Returns false if the queue is full or allocation fails (caller should
+  /// fail the connection).
   bool enqueue_iov(const struct iovec *iov, int iovcnt, uint16_t total_len, uint16_t skip);
 
+  /// Free the retained storage, now if empty, otherwise once it has drained.
+  void release() {
+    if (this->count_ == 0) {
+      this->buf_.release();
+    } else {
+      this->release_when_drained_ = true;
+    }
+  }
+
  protected:
-  std::array<Entry *, API_MAX_SEND_QUEUE> queue_{};
-  uint8_t head_{0};
-  uint8_t tail_{0};
+  static constexpr size_t LEN_PREFIX = 2;
+  // Reserve in 256 byte steps so a creeping high-water mark settles after a
+  // couple of allocations instead of one per new size.
+  static constexpr size_t GROW_QUANTUM = 256;
+
+  APIBuffer buf_;
+  uint16_t head_{0};        // offset of the front message's length prefix; bytes before it are sent
+  uint16_t front_sent_{0};  // bytes of the front message already written
   uint8_t count_{0};
   // Guards against re-entrant drains: socket->write() can re-enter the API
-  // send path (e.g. a log message emitted from an lwip callback), and a nested
-  // drain would free the entry the outer drain is still holding.
+  // send path (e.g. a log message emitted from an lwip callback). A nested
+  // drain reports no progress so the outer one keeps its bookkeeping intact.
   bool draining_{false};
+  bool release_when_drained_{false};
 };
 
 }  // namespace esphome::api
