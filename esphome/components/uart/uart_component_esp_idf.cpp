@@ -160,7 +160,7 @@ void IDFUARTComponent::load_settings(bool dump_config) {
     this->mark_failed();
     return;
   }
-  this->last_good_baud_ = this->baud_rate_;
+  this->last_good_framing_ = this->framing_();
 
   int8_t tx = this->tx_pin_ != nullptr ? this->tx_pin_->get_pin() : -1;
   int8_t rx = this->rx_pin_ != nullptr ? this->rx_pin_->get_pin() : -1;
@@ -271,12 +271,19 @@ esp_err_t IDFUARTComponent::apply_line_settings_() {
   return ESP_OK;
 }
 
-void IDFUARTComponent::apply_settings_live() {
+void IDFUARTComponent::set_framing_(const Framing &framing) {
+  this->baud_rate_ = framing.baud_rate;
+  this->data_bits_ = framing.data_bits;
+  this->stop_bits_ = framing.stop_bits;
+  this->parity_ = framing.parity;
+}
+
+esp_err_t IDFUARTComponent::apply_settings_live() {
   // If the driver isn't installed yet there are no live registers to update; do a
   // full reload (which installs the driver) instead.
   if (!uart_is_driver_installed(this->uart_num_)) {
     this->load_settings(false);
-    return;
+    return this->is_failed() ? ESP_FAIL : ESP_OK;
   }
   // Leaves the driver ring buffers alone (blocked read/write tasks are undisturbed)
   // but flushes both hardware FIFOs, discarding in-flight bytes -- inherent to live
@@ -285,22 +292,25 @@ void IDFUARTComponent::apply_settings_live() {
   esp_err_t err = uart_param_config(this->uart_num_, &uart_config);
   if (err != ESP_OK) {
     // Unachievable baud rates land here with the registers already reset (via the
-    // internal uart_hal_init()). Restore the last framing that worked; if that also
-    // fails (or none is recorded yet) the port is left reset -- mark failed.
+    // internal uart_hal_init()). Restore the whole framing that last worked, so the
+    // getters keep describing the hardware; if that also fails (or none is recorded
+    // yet) the port is left reset -- mark failed.
     ESP_LOGW(TAG, "uart_param_config (live) failed: %s; restoring %" PRIu32 " baud", esp_err_to_name(err),
-             this->last_good_baud_);
-    this->baud_rate_ = this->last_good_baud_;
+             this->last_good_framing_.baud_rate);
+    this->set_framing_(this->last_good_framing_);
     uart_config = this->get_config_();
-    if (this->last_good_baud_ == 0 || uart_param_config(this->uart_num_, &uart_config) != ESP_OK) {
+    if (this->last_good_framing_.baud_rate == 0 || uart_param_config(this->uart_num_, &uart_config) != ESP_OK) {
       ESP_LOGE(TAG, "UART left unconfigured after failed live reconfigure");
       this->mark_failed();
-      return;
+      return err;
     }
-  } else {
-    this->last_good_baud_ = this->baud_rate_;
+    // The previous framing is live again; still report that the request was refused.
+    esp_err_t line_err = this->apply_line_settings_();
+    return line_err != ESP_OK ? line_err : err;
   }
+  this->last_good_framing_ = this->framing_();
   // Re-apply what uart_param_config() clobbered; errors are logged inside.
-  this->apply_line_settings_();
+  return this->apply_line_settings_();
 }
 
 void IDFUARTComponent::dump_config() {

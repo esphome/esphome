@@ -59,8 +59,14 @@ class IDFUARTComponent final : public UARTComponent, public Component {
    * uart_read_bytes()/uart_write_bytes() survive, but uart_param_config() flushes
    * both hardware FIFOs, so up to a FIFO's worth of in-flight bytes is discarded in
    * each direction. Falls back to a full reload if the driver is not installed.
+   *
+   * @return ESP_OK once the requested framing is live. If the driver rejects it (for
+   * example an unreachable baud rate), the previous framing is restored, the getters
+   * reflect it again and the driver's error is returned; if that restore also fails
+   * the component is marked failed. Errors from the line settings re-applied after a
+   * successful reconfiguration are returned as well.
    */
-  void apply_settings_live();
+  esp_err_t apply_settings_live();
 
   void on_shutdown() override;
 
@@ -72,9 +78,19 @@ class IDFUARTComponent final : public UARTComponent, public Component {
   // threshold, RX timeout, and port mode. Returns the first error, already logged.
   esp_err_t apply_line_settings_();
   uart_port_t uart_num_{UART_NUM_MAX};
-  // Fallback for a failed live reconfiguration (unachievable requested rate).
-  uint32_t last_good_baud_{0};
   uart_config_t get_config_();
+
+  struct Framing {
+    uint32_t baud_rate;
+    uint8_t data_bits;
+    uint8_t stop_bits;
+    UARTParityOptions parity;
+  };
+  Framing framing_() const { return {this->baud_rate_, this->data_bits_, this->stop_bits_, this->parity_}; }
+  void set_framing_(const Framing &framing);
+  // Recorded after every configuration the driver accepted; a failed live
+  // reconfiguration rolls back to it. baud_rate 0 means none yet.
+  Framing last_good_framing_{};
 
   bool has_peek_{false};
   uint8_t peek_byte_;
