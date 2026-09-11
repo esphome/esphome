@@ -62,6 +62,7 @@ class MitsubishiClimate final : public climate_ir::ClimateIR {
   void set_vertical_default(VerticalDirection vertical_direction) {
     this->default_vertical_direction_ = vertical_direction;
   }
+  void set_vertical_vanes(uint8_t vertical_vanes) { this->vertical_vanes_ = vertical_vanes; }
 
  protected:
   // Transmit via IR the state of this climate controller.
@@ -74,6 +75,7 @@ class MitsubishiClimate final : public climate_ir::ClimateIR {
 
   HorizontalDirection default_horizontal_direction_;
   VerticalDirection default_vertical_direction_;
+  uint8_t vertical_vanes_{1};
 
   climate::ClimateTraits traits() override;
 };
