@@ -770,6 +770,7 @@ class MbedtlsSdkconfigData:
     pkcs7_required: bool = False  # PKCS#7 parsing
     sha512_required: bool = False  # SHA-384/SHA-512
     # esp32 advanced disable_mbedtls_* options
+    disable_tls: bool = True
     disable_peer_cert: bool = True
     disable_pkcs7: bool = True
 
@@ -795,7 +796,11 @@ def _mbedtls_tls_required() -> bool:
 
 def _mbedtls_tls_compiled_out() -> bool:
     """True when this build removes the TLS stack from mbedTLS entirely."""
-    return not CORE.using_arduino and not _mbedtls_tls_required()
+    return (
+        not CORE.using_arduino
+        and _mbedtls_sdkconfig().disable_tls
+        and not _mbedtls_tls_required()
+    )
 
 
 def request_tls() -> None:
@@ -1798,6 +1803,7 @@ CONF_DISABLE_OCD_AWARE = "disable_ocd_aware"
 CONF_DISABLE_USB_SERIAL_JTAG_SECONDARY = "disable_usb_serial_jtag_secondary"
 CONF_DISABLE_DEV_NULL_VFS = "disable_dev_null_vfs"
 CONF_DISABLE_MBEDTLS_PEER_CERT = "disable_mbedtls_peer_cert"
+CONF_DISABLE_MBEDTLS_TLS = "disable_mbedtls_tls"
 CONF_DISABLE_MBEDTLS_PKCS7 = "disable_mbedtls_pkcs7"
 CONF_DISABLE_MBEDTLS_TLS_SERVER = "disable_mbedtls_tls_server"
 CONF_DISABLE_MBEDTLS_TLS_EXTRAS = "disable_mbedtls_tls_extras"
@@ -2080,6 +2086,7 @@ FRAMEWORK_SCHEMA = cv.Schema(
                 cv.Optional(CONF_DISABLE_DEV_NULL_VFS, default=True): cv.boolean,
                 cv.Optional(CONF_DISABLE_MBEDTLS_PEER_CERT, default=True): cv.boolean,
                 cv.Optional(CONF_DISABLE_MBEDTLS_PKCS7, default=True): cv.boolean,
+                cv.Optional(CONF_DISABLE_MBEDTLS_TLS, default=True): cv.boolean,
                 cv.Optional(CONF_DISABLE_MBEDTLS_TLS_SERVER, default=True): cv.boolean,
                 cv.Optional(CONF_DISABLE_MBEDTLS_TLS_EXTRAS, default=True): cv.boolean,
                 cv.Optional(CONF_DISABLE_REGI2C_IN_IRAM, default=True): cv.boolean,
@@ -3203,6 +3210,7 @@ async def to_code(config):
 
     # FINAL priority: runs after every request_tls() / require_mbedtls_*() call
     mbedtls = _mbedtls_sdkconfig()
+    mbedtls.disable_tls = advanced[CONF_DISABLE_MBEDTLS_TLS]
     mbedtls.disable_peer_cert = advanced[CONF_DISABLE_MBEDTLS_PEER_CERT]
     mbedtls.disable_pkcs7 = advanced[CONF_DISABLE_MBEDTLS_PKCS7]
     CORE.add_job(_reconcile_mbedtls_sdkconfig)

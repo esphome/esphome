@@ -568,6 +568,16 @@ _IDF6 = cv.Version(6, 0, 0)
             id="idf_advanced_disables_off",
         ),
         pytest.param(
+            # advanced: disable_mbedtls_tls: false keeps TLS with no requester.
+            PlatformFramework.ESP32_IDF,
+            _IDF5,
+            MbedtlsSdkconfigData(disable_tls=False),
+            {},
+            _PEER_CERT_PKCS7_OFF,
+            {"esp-tls"},
+            id="idf_disable_tls_opt_out",
+        ),
+        pytest.param(
             PlatformFramework.ESP32_ARDUINO,
             _IDF5,
             MbedtlsSdkconfigData(),
@@ -1607,6 +1617,20 @@ def test_mbedtls_tls_openthread_keeps_only_what_it_uses(
     assert tuple(sdkconfig.get(name) for name in _TLS_SERVER_OPTIONS) == (None, None)
     for name in MBEDTLS_TLS_EXTRA_OPTIONS:
         assert sdkconfig.get(name) is None
+
+
+def test_mbedtls_tls_opt_out_keeps_stack_and_trims_role(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """disable_mbedtls_tls: false keeps TLS with no requester; the client-only
+    and extras trims then still apply."""
+    generate_main(component_config_path("tls_keep_opt_out.yaml"))
+    sdkconfig = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
+    assert "CONFIG_MBEDTLS_TLS_DISABLED" not in sdkconfig
+    assert "CONFIG_MBEDTLS_ECP_C" not in sdkconfig
+    assert sdkconfig.get("CONFIG_MBEDTLS_TLS_CLIENT_ONLY") is True
+    assert sdkconfig.get("CONFIG_MBEDTLS_SSL_RENEGOTIATION") is False
 
 
 def test_mbedtls_tls_user_sdkconfig_wins(
