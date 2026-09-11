@@ -4066,18 +4066,16 @@ uint32_t SerialProxyRequestResponse::calc_size_msg(const void *self) {
   size += ProtoSize::calc_length(1, msg.error_message.size());
   return size;
 }
-bool SerialProxySetModeRequest::decode_varint(uint32_t field_id, proto_varint_value_t value) {
-  switch (field_id) {
-    case 1:
-      this->instance = value;
+void SerialProxySetModeRequest::decode_field(uint32_t tag, const uint8_t *data, proto_varint_value_t scalar) {
+  const ProtoFieldValue value(data, scalar);
+  switch (tag) {
+    case proto_tag(1, WIRE_TYPE_VARINT):
+      this->instance = value.as_varint();
       break;
-    case 2:
-      this->mode = static_cast<enums::SerialProxyMode>(value);
+    case proto_tag(2, WIRE_TYPE_VARINT):
+      this->mode = static_cast<enums::SerialProxyMode>(value.as_varint());
       break;
-    default:
-      return false;
   }
-  return true;
 }
 #endif
 #ifdef USE_BLUETOOTH_PROXY_CONNECTIONS
