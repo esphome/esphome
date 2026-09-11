@@ -10,6 +10,7 @@
 namespace esphome::remote_receiver {
 
 static const char *const TAG = "remote_receiver";
+static constexpr uint32_t DEFAULT_BUFFER_SLOTS = 4;
 
 static bool IRAM_ATTR HOT rmt_callback(rmt_channel_handle_t channel, const rmt_rx_done_event_data_t *event, void *arg) {
   RemoteReceiverComponentStore *store = (RemoteReceiverComponentStore *) arg;
@@ -104,7 +105,11 @@ void RemoteReceiverComponent::setup() {
   this->store_.config.signal_range_max_ns = this->idle_us_ * 1000;
   this->store_.filter_symbols = this->filter_symbols_;
   this->store_.receive_size = this->receive_symbols_ * sizeof(rmt_symbol_word_t);
-  this->store_.buffer_size = std::max((event_size + this->store_.receive_size) * 2, this->buffer_size_);
+  // one slot per pending rmt_receive; two are the floor (one filling while one is decoded), and
+  // the default of four covers a few frames queued across a stalled loop pass
+  const uint32_t slot_size = event_size + this->store_.receive_size;
+  this->store_.buffer_size =
+      this->buffer_size_ != 0 ? std::max(slot_size * 2, this->buffer_size_) : slot_size * DEFAULT_BUFFER_SLOTS;
   this->store_.buffer = new uint8_t[this->store_.buffer_size];
   error = rmt_receive(this->channel_, (uint8_t *) this->store_.buffer + event_size, this->store_.receive_size,
                       &this->store_.config);
@@ -117,20 +122,23 @@ void RemoteReceiverComponent::setup() {
 }
 
 void RemoteReceiverComponent::dump_config() {
-  ESP_LOGCONFIG(TAG,
-                "Remote Receiver:\n"
-                "  Clock resolution: %" PRIu32 " hz\n"
-                "  RMT symbols: %" PRIu32 "\n"
-                "  Filter symbols: %" PRIu32 "\n"
-                "  Receive symbols: %" PRIu32 "\n"
-                "  Tolerance: %" PRIu32 "%s\n"
-                "  Carrier frequency: %" PRIu32 " hz\n"
-                "  Carrier duty: %u%%\n"
-                "  Filter out pulses shorter than: %" PRIu32 " us\n"
-                "  Signal is done after %" PRIu32 " us of no changes",
-                this->clock_resolution_, this->rmt_symbols_, this->filter_symbols_, this->receive_symbols_,
-                this->tolerance_, (this->tolerance_mode_ == remote_base::TOLERANCE_MODE_TIME) ? " us" : "%",
-                this->carrier_frequency_, this->carrier_duty_percent_, this->filter_us_, this->idle_us_);
+  ESP_LOGCONFIG(
+      TAG,
+      "Remote Receiver:\n"
+      "  Clock resolution: %" PRIu32 " hz\n"
+      "  RMT symbols: %" PRIu32 "\n"
+      "  Filter symbols: %" PRIu32 "\n"
+      "  Receive symbols: %" PRIu32 "\n"
+      "  Buffer size: %" PRIu32 " bytes\n"
+      "  Tolerance: %" PRIu32 "%s\n"
+      "  Carrier frequency: %" PRIu32 " hz\n"
+      "  Carrier duty: %u%%\n"
+      "  Filter out pulses shorter than: %" PRIu32 " us\n"
+      "  Signal is done after %" PRIu32 " us of no changes",
+      this->clock_resolution_, this->rmt_symbols_, this->filter_symbols_, this->receive_symbols_,
+      this->store_.buffer_size, this->tolerance_,
+      (this->tolerance_mode_ == remote_base::TOLERANCE_MODE_TIME) ? LOG_STR_LITERAL(" us") : LOG_STR_LITERAL("%"),
+      this->carrier_frequency_, this->carrier_duty_percent_, this->filter_us_, this->idle_us_);
   LOG_PIN("  Pin: ", this->pin_);
   if (this->is_failed()) {
     ESP_LOGE(TAG, "Configuring RMT driver failed: %s (%s)", esp_err_to_name(this->error_code_),
