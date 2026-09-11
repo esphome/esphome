@@ -1,6 +1,7 @@
 from itertools import combinations
 
 import esphome.codegen as cg
+from esphome.components.const import CONF_MANUFACTURER
 from esphome.components.esp32 import (
     VARIANT_ESP32H4,
     VARIANT_ESP32P4,
@@ -29,7 +30,6 @@ USBClient = usb_host_ns.class_("USBClient", Component)
 DOMAIN = "usb_host"
 CONF_VID = "vid"
 CONF_PID = "pid"
-CONF_MANUFACTURER = "manufacturer"
 CONF_PRODUCT = "product"
 CONF_ENABLE_HUBS = "enable_hubs"
 CONF_MAX_TRANSFER_REQUESTS = "max_transfer_requests"
