@@ -1,49 +1,37 @@
 #include "api_buffer.h"
-#include <cstring>
 #ifdef ESPHOME_DEBUG_API
 #include "esphome/core/log.h"
 #endif
 
 namespace esphome::api {
 
-bool APIBuffer::grow_(size_t n, size_t drop) {
+#ifdef ESPHOME_DEBUG_API
+void APIBuffer::debug_check_drop_(size_t drop) const {
+  if (drop > this->size_) {
+    ESP_LOGE("api.buffer", "drop_front: drop=%zu size=%u", drop, this->size_);
+    abort();
+  }
+}
+#endif
+
+bool APIBuffer::grow_(size_t n) {
   if (n > MAX_SIZE)
     return false;
-  RAMAllocator<uint8_t> allocator;
-  if (drop == 0) {
-    // realloc extends in place when it can, avoiding the copy
-    uint8_t *grown = allocator.reallocate(this->data_.get(), n);
-    if (grown == nullptr)
-      return false;
-    (void) this->data_.release();  // realloc already freed or reused the old block
-    this->data_.reset(grown);
-    this->capacity_ = n;
-    return true;
-  }
-  uint8_t *fresh = allocator.allocate(n);
-  if (fresh == nullptr)
+  // realloc extends in place when it can, avoiding the copy
+  uint8_t *grown = RAMAllocator<uint8_t>().reallocate(this->data_.get(), n);
+  if (grown == nullptr)
     return false;
-  const size_t live = this->size_ - drop;
-  if (live)
-    std::memcpy(fresh, this->data_.get() + drop, live);
-  this->data_.reset(fresh);
+  (void) this->data_.release();  // realloc already freed or reused the old block
+  this->data_.reset(grown);
   this->capacity_ = n;
-  this->size_ = live;
   return true;
 }
 
-bool APIBuffer::drop_front_and_reserve(size_t drop, size_t n) {
-#ifdef ESPHOME_DEBUG_API
-  if (drop > this->size_) {
-    ESP_LOGE("api.buffer", "drop_front_and_reserve: drop=%zu size=%u", drop, this->size_);
-    abort();
-  }
-#endif
-  if (n > this->capacity_)
-    return this->grow_(n, drop);
-  this->size_ -= drop;
-  std::memmove(this->data_.get(), this->data_.get() + drop, this->size_);
-  return true;
+uint8_t *APIBuffer::append(size_t n) {
+  const size_t old_size = this->size_;
+  if (!this->resize(old_size + n))
+    return nullptr;
+  return this->data_.get() + old_size;
 }
 
 }  // namespace esphome::api

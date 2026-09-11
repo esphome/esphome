@@ -365,7 +365,7 @@ void APIConnection::check_keepalive_(uint32_t now) {
     PingRequest req;
     this->flags_.sent_ping = this->send_message(req);
     if (this->flags_.sent_ping) {
-      // Quiet for a keepalive period and the socket accepted the ping: a one-off stall's storage can go
+      // Quiet for a keepalive period and the ping is on its way: a one-off stall's storage can go
       this->helper_->release_overflow_buffer();
     } else {
       // If we can't send the ping request directly (tx_buffer full),

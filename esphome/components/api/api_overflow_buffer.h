@@ -32,7 +32,7 @@ class APIOverflowBuffer {
   /// Queue iov data from byte offset `skip` as one message.
   /// Returns false when a limit is hit, allocation fails, or storage would move
   /// during a drain; the caller should fail the connection.
-  bool enqueue_iov(const struct iovec *iov, int iovcnt, uint16_t total_len, uint16_t skip);
+  bool enqueue_iov(const struct iovec *iov, int iovcnt, size_t total_len, size_t skip);
 
   /// Free the retained storage, now if empty, otherwise once it has drained.
   void release() {
@@ -46,12 +46,12 @@ class APIOverflowBuffer {
  protected:
   static constexpr size_t LEN_PREFIX = 2;
   static constexpr size_t BYTES_PER_SLOT = 2048;
-  static constexpr size_t MAX_BYTES = std::min(API_MAX_SEND_QUEUE * BYTES_PER_SLOT, APIBuffer::MAX_SIZE);
   // Reserve in 256 byte steps so a creeping high-water mark settles quickly
   static constexpr size_t GROW_QUANTUM = 256;
-  static constexpr size_t reserve_for(size_t want) {
-    return std::min((want + GROW_QUANTUM - 1) & ~(GROW_QUANTUM - 1), APIBuffer::MAX_SIZE);
-  }
+  // Lone message ceiling, rounded down so reserve_for() never exceeds the buffer limit
+  static constexpr size_t MAX_LONE_BYTES = APIBuffer::MAX_SIZE & ~(GROW_QUANTUM - 1);
+  static constexpr size_t MAX_BYTES = std::min(API_MAX_SEND_QUEUE * BYTES_PER_SLOT, MAX_LONE_BYTES);
+  static constexpr size_t reserve_for(size_t want) { return (want + GROW_QUANTUM - 1) & ~(GROW_QUANTUM - 1); }
 
   APIBuffer buf_;
   uint16_t head_{0};  // offset of the front message's length prefix; bytes before it are sent

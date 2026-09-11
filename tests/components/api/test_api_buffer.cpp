@@ -24,45 +24,42 @@ static const uint8_t BYTES[] = {1, 2, 3, 4, 5, 6};
 
 TEST(APIBuffer, AppendReturnsTheNewBytes) {
   APIBuffer buf;
-  uint8_t *first = buf.append(3, 8);
+  ASSERT_TRUE(buf.reserve(8));
+  uint8_t *first = buf.append(3);
   ASSERT_NE(first, nullptr);
   std::memcpy(first, BYTES, 3);
   EXPECT_EQ(buf.size(), 3u);
   EXPECT_EQ(buf.capacity(), 8u);
 
-  uint8_t *second = buf.append(2);
+  // Grows through realloc and keeps what was there
+  uint8_t *second = buf.append(6);
   ASSERT_EQ(second, buf.data() + 3);
-  std::memcpy(second, BYTES + 3, 2);
-  EXPECT_EQ(buf.size(), 5u);
-  EXPECT_EQ(std::memcmp(buf.data(), BYTES, 5), 0);
+  std::memcpy(second, BYTES + 3, 3);
+  EXPECT_EQ(buf.size(), 9u);
+  EXPECT_EQ(buf.capacity(), 9u);
+  EXPECT_EQ(std::memcmp(buf.data(), BYTES, 6), 0);
 }
 
-TEST(APIBuffer, DropFrontKeepsTheRestInPlaceOrWhenGrowing) {
+TEST(APIBuffer, DropFrontSlidesTheRestDown) {
   APIBuffer buf;
   uint8_t *bytes = buf.append(6);
   ASSERT_NE(bytes, nullptr);
   std::memcpy(bytes, BYTES, 6);
 
-  ASSERT_TRUE(buf.drop_front_and_reserve(2, 6));
+  buf.drop_front(2);
   EXPECT_EQ(buf.size(), 4u);
   EXPECT_EQ(buf.capacity(), 6u);
   EXPECT_EQ(std::memcmp(buf.data(), BYTES + 2, 4), 0);
 
-  ASSERT_TRUE(buf.drop_front_and_reserve(1, 64));
-  EXPECT_EQ(buf.size(), 3u);
+  // Growing afterwards keeps the slid bytes
+  ASSERT_TRUE(buf.reserve(64));
+  EXPECT_EQ(buf.size(), 4u);
+  EXPECT_EQ(std::memcmp(buf.data(), BYTES + 2, 4), 0);
+
+  // Dropping everything leaves an empty buffer with its capacity
+  buf.drop_front(4);
+  EXPECT_EQ(buf.size(), 0u);
   EXPECT_EQ(buf.capacity(), 64u);
-  EXPECT_EQ(std::memcmp(buf.data(), BYTES + 3, 3), 0);
-
-  EXPECT_FALSE(buf.drop_front_and_reserve(1, UINT16_MAX + 1));
-  EXPECT_EQ(buf.size(), 3u);
-
-  // Dropping everything leaves an empty buffer, in place and when growing
-  ASSERT_TRUE(buf.drop_front_and_reserve(3, 64));
-  EXPECT_EQ(buf.size(), 0u);
-  ASSERT_NE(buf.append(2), nullptr);
-  ASSERT_TRUE(buf.drop_front_and_reserve(2, 128));
-  EXPECT_EQ(buf.size(), 0u);
-  EXPECT_EQ(buf.capacity(), 128u);
 }
 
 }  // namespace esphome::api::testing

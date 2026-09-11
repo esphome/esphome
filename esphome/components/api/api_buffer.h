@@ -41,14 +41,15 @@ class APIBuffer {
     return true;
   }
   /// Grow by n bytes; returns the new bytes, or nullptr on allocation failure.
-  [[nodiscard]] uint8_t *append(size_t n, size_t reserve_size = 0) {
-    const uint16_t old_size = this->size_;
-    if (!this->reserve_and_resize(reserve_size, old_size + n))
-      return nullptr;
-    return this->data_.get() + old_size;
+  [[nodiscard]] uint8_t *append(size_t n);
+  /// Drop the first `drop` bytes (at most size()), sliding the rest down.
+  void drop_front(size_t drop) {
+#ifdef ESPHOME_DEBUG_API
+    this->debug_check_drop_(drop);
+#endif
+    this->size_ -= drop;
+    std::memmove(this->data_.get(), this->data_.get() + drop, this->size_);
   }
-  /// Drop the first `drop` bytes (at most size()) and reserve `n`, copying the rest once.
-  [[nodiscard]] bool drop_front_and_reserve(size_t drop, size_t n);
   uint8_t *data() { return this->data_.get(); }
   const uint8_t *data() const { return this->data_.get(); }
   size_t size() const { return this->size_; }
@@ -58,13 +59,16 @@ class APIBuffer {
   const uint8_t &operator[](size_t i) const { return this->data_[i]; }
   /// Release all memory (equivalent to std::vector swap trick).
   void release() {
-    RAMAllocator<uint8_t>().deallocate(this->data_.release(), 0);
+    this->data_.reset();
     this->size_ = 0;
     this->capacity_ = 0;
   }
 
  protected:
-  bool grow_(size_t n, size_t drop = 0);
+  bool grow_(size_t n);
+#ifdef ESPHOME_DEBUG_API
+  void debug_check_drop_(size_t drop) const;
+#endif
   // RAMAllocator: PSRAM when available, and it reports failure where
   // new (std::nothrow) still aborts on ESP-IDF without exceptions
   struct FreeDeleter {

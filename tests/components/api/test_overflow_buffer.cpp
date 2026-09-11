@@ -25,6 +25,7 @@ class TestOverflowBuffer : public APIOverflowBuffer {
  public:
   using APIOverflowBuffer::LEN_PREFIX;
   using APIOverflowBuffer::MAX_BYTES;
+  using APIOverflowBuffer::MAX_LONE_BYTES;
   struct Storage {
     size_t capacity;
     const uint8_t *data;
@@ -349,8 +350,9 @@ TEST_F(OverflowBufferTest, RefusesWhenByteLimitIsExceeded) {
 
 TEST_F(OverflowBufferTest, LoneMessageMayExceedByteLimit) {
   TestOverflowBuffer buf;
-  // The oversized message must still fit the 16 bit offsets
-  static_assert(TestOverflowBuffer::MAX_BYTES + 100 + TestOverflowBuffer::LEN_PREFIX <= APIBuffer::MAX_SIZE);
+  // The oversized message must still fit under the lone message ceiling
+  static_assert(TestOverflowBuffer::MAX_BYTES + 100 + TestOverflowBuffer::LEN_PREFIX <=
+                TestOverflowBuffer::MAX_LONE_BYTES);
   auto big = make_message(TestOverflowBuffer::MAX_BYTES + 100, 5);
   auto small = make_message(16, 9);
 
@@ -367,8 +369,8 @@ TEST_F(OverflowBufferTest, LoneMessageMayExceedByteLimit) {
 
 TEST_F(OverflowBufferTest, LoneMessageAboveOffsetLimitIsRefused) {
   TestOverflowBuffer buf;
-  // Payload plus prefix no longer fits 16 bit offsets, so the buffer itself refuses
-  auto msg = make_message(UINT16_MAX, 3);
+  // Payload plus prefix is past the lone message ceiling
+  auto msg = make_message(TestOverflowBuffer::MAX_LONE_BYTES, 3);
 
   this->fill_pipe_();
   EXPECT_FALSE(enqueue(buf, msg));
