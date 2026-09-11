@@ -194,17 +194,17 @@ def test_superseded_device_info_fields_still_declared_in_header() -> None:
 
 def test_superseded_device_info_fields_still_encoded_and_sized() -> None:
     """Each superseded field must still be touched by DeviceInfoResponse's
-    generated encode() and calculate_size(), i.e. it is still put on the wire.
+    generated encode_msg() and calc_size_msg(), i.e. it is still put on the wire.
     """
-    encode_body = _extract_function_body(CPP_TEXT, "DeviceInfoResponse::encode")
-    size_body = _extract_function_body(CPP_TEXT, "DeviceInfoResponse::calculate_size")
+    encode_body = _extract_function_body(CPP_TEXT, "DeviceInfoResponse::encode_msg")
+    size_body = _extract_function_body(CPP_TEXT, "DeviceInfoResponse::calc_size_msg")
     for field_name in SUPERSEDED_FIELDS:
-        assert f"this->{field_name}" in encode_body, (
-            f"DeviceInfoResponse::encode() no longer references {field_name}. "
+        assert f"msg.{field_name}" in encode_body, (
+            f"DeviceInfoResponse::encode_msg() no longer references {field_name}. "
             f"{DEPRECATED_FIELD_TRAP}"
         )
-        assert f"this->{field_name}" in size_body, (
-            f"DeviceInfoResponse::calculate_size() no longer references "
+        assert f"msg.{field_name}" in size_body, (
+            f"DeviceInfoResponse::calc_size_msg() no longer references "
             f"{field_name}. {DEPRECATED_FIELD_TRAP}"
         )
 
