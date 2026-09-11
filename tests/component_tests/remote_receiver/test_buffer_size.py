@@ -26,7 +26,7 @@ def test_pulse_ring_default_holds_1000_pulses(
 
 @pytest.mark.parametrize(
     ("value", "accepted"),
-    [("32b", False), ("64b", True), ("65b", True), ("1mb", False)],
+    [("32b", False), ("64b", True), ("65b", True), ("65536b", False)],
 )
 def test_buffer_size_range(
     set_core_config: SetCoreConfigCallable, value: str, accepted: bool
