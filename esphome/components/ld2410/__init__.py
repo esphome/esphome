@@ -19,6 +19,7 @@ LD2410Component = ld2410_ns.class_("LD2410Component", cg.Component, uart.UARTDev
 CONF_LD2410_ID = "ld2410_id"
 CONF_MAX_MOVE_DISTANCE = "max_move_distance"
 CONF_MAX_STILL_DISTANCE = "max_still_distance"
+CONF_BACKGROUND_CORRECTION_DURATION = "background_correction_duration"
 CONF_MOVE_THRESHOLDS = [f"g{x}_move_threshold" for x in range(9)]
 CONF_STILL_THRESHOLDS = [f"g{x}_still_threshold" for x in range(9)]
 
@@ -39,6 +40,16 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Optional(CONF_TIMEOUT): cv.invalid(
             f"The '{CONF_TIMEOUT}' option has been moved to the '{CONF_TIMEOUT}'"
             f" number component"
+        ),
+        # Window the module spends measuring the noise floor when the
+        # background_correction button is pressed (command 0x000B). HiLink's
+        # tool uses 10 s; longer captures intermittent clutter (fans, HVAC).
+        cv.Optional(CONF_BACKGROUND_CORRECTION_DURATION, default="10s"): cv.All(
+            cv.positive_time_period_seconds,
+            cv.Range(
+                min=cv.TimePeriod(seconds=10),
+                max=cv.TimePeriod(seconds=120),
+            ),
         ),
     }
 )
@@ -76,6 +87,11 @@ async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await uart.register_uart_device(var, config)
+    cg.add(
+        var.set_background_correction_duration(
+            config[CONF_BACKGROUND_CORRECTION_DURATION].total_seconds
+        )
+    )
 
 
 CALIBRATION_ACTION_SCHEMA = maybe_simple_id(
