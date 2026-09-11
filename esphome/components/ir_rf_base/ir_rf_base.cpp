@@ -91,8 +91,8 @@ bool IrRfEntity::transmit_raw_(const IrRfCallData &call, uint32_t carrier_freque
     // a long frame must not be answered as failed while still on the wire: the 30 s safety net
     // starts after this frame's own air time (capped so the tick comparison cannot wrap)
     uint64_t frame_us = 0;
-    for (int32_t timing : transmit_data->get_data())
-      frame_us += static_cast<uint32_t>(timing < 0 ? -timing : timing);
+    for (const int64_t timing : transmit_data->get_data())
+      frame_us += timing < 0 ? -timing : timing;
     const uint64_t air_ticks = (frame_us * std::max<uint32_t>(call.get_repeat_count(), 1) / 1000) >> 4;
     this->api_reply_deadline_ += static_cast<uint16_t>(std::min<uint64_t>(air_ticks, API_REPLY_MAX_AIR_TICKS));
   }
