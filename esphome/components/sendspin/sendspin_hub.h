@@ -8,6 +8,7 @@
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/preferences.h"
+#include "esphome/core/version.h"
 
 #include <sendspin/client.h>
 #include <sendspin/config.h>
@@ -125,6 +126,15 @@ class SendspinHub final : public Component,
 
   void set_task_stack_in_psram(bool task_stack_in_psram) { this->task_stack_in_psram_ = task_stack_in_psram; }
 
+  /// @brief Sets the device information reported to the server in the `client/hello` message.
+  ///
+  /// Each takes a pointer to a string literal emitted by codegen, so it must stay valid for the
+  /// lifetime of the hub. Only called for values the configuration overrides; anything left alone
+  /// keeps the default described on the member below.
+  void set_manufacturer(const char *manufacturer) { this->manufacturer_ = manufacturer; }
+  void set_model(const char *model) { this->model_ = model; }
+  void set_firmware_version(const char *firmware_version) { this->firmware_version_ = firmware_version; }
+
   // --- Sendspin role specific methods ---
 
 #ifdef USE_SENDSPIN_ARTWORK
@@ -186,6 +196,9 @@ class SendspinHub final : public Component,
  protected:
   /// @brief Builds the SendspinClientConfig from ESPHome configuration and platform info.
   sendspin::SendspinClientConfig build_client_config_();
+
+  /// @brief Returns the product name reported to the server: the configured model, or the device name.
+  const char *get_product_name_() const;
 
   /// @brief Writes the active network interface's MAC into @p buf and returns its data pointer.
   /// Uses the ethernet MAC if ethernet is configured, otherwise the base MAC (used by wifi).
@@ -268,6 +281,12 @@ class SendspinHub final : public Component,
   CallbackManager<void(const sendspin::GroupUpdateObject &)> group_update_callbacks_{};
 
   bool task_stack_in_psram_{false};
+
+  // Device information sent in the `client/hello` message. Defaults apply when neither the
+  // sendspin configuration nor the project information supplies a value.
+  const char *manufacturer_{"ESPHome"};
+  const char *model_{nullptr};  // nullptr reports the device name instead
+  const char *firmware_version_{ESPHOME_VERSION};
 };
 
 /// @brief Base class for all sendspin subcomponents.

@@ -9,4 +9,3 @@ media_source:
     static_delay_adjustable: true
     fixed_delay: 480us
     decode_memory: internal
-    codecs: [pcm, opus, flac]

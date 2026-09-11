@@ -4,6 +4,7 @@ from esphome.components import switch
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ASSUMED_STATE,
+    CONF_DEVICE_CLASS,
     CONF_ID,
     CONF_LAMBDA,
     CONF_OPTIMISTIC,
@@ -31,7 +32,11 @@ def validate(config):
 
 
 CONFIG_SCHEMA = cv.All(
-    switch.switch_schema(TemplateSwitch)
+    cv.with_visibility(
+        switch.switch_schema(TemplateSwitch),
+        cv.Visibility.UI,
+        CONF_DEVICE_CLASS,
+    )
     .extend(
         {
             cv.Optional(CONF_LAMBDA): cv.returning_lambda,
