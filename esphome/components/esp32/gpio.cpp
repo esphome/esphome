@@ -118,7 +118,7 @@ void ESP32InternalGPIOPin::setup() {
   conf.pull_down_en = this->flags_ & gpio::FLAG_PULLDOWN ? GPIO_PULLDOWN_ENABLE : GPIO_PULLDOWN_DISABLE;
   conf.intr_type = GPIO_INTR_DISABLE;
   gpio_config(&conf);
-#ifdef CONF_FREERTOS_USE_TICKLESS_IDLE
+#ifdef CONFIG_FREERTOS_USE_TICKLESS_IDLE
   // If auto light sleep is used gpio sleep mode needs to be disabled for the pin
   gpio_sleep_sel_dis(this->get_pin_num());
 #endif
@@ -131,7 +131,7 @@ void ESP32InternalGPIOPin::setup() {
     // for outputs defer until the first write
     gpio_hold_dis(this->get_pin_num());
   }
-  if (this->get_get_hold_()) {
+  if (this->get_hold_()) {
     gpio_hold_en(this->get_pin_num());
   }
 #endif
@@ -150,8 +150,8 @@ void ESP32InternalGPIOPin::pin_mode(gpio::Flags flags) {
   }
   gpio_set_pull_mode(this->get_pin_num(), pull_mode);
 #ifdef USE_GPIO_HOLD
+  gpio_hold_dis(this->get_pin_num());
   if (this->get_hold_()) {
-    gpio_hold_dis(this->get_pin_num());
     gpio_hold_en(this->get_pin_num());
   }
 #endif
@@ -243,8 +243,8 @@ void IRAM_ATTR ISRInternalGPIOPin::pin_mode(gpio::Flags flags) {
     }
   }
 #ifdef USE_GPIO_HOLD
+  gpio_hal_hold_dis(&GPIO_HAL, arg->pin);
   if (arg->hold) {
-    gpio_hal_hold_dis(&GPIO_HAL, arg->pin);
     gpio_hal_hold_en(&GPIO_HAL, arg->pin);
   }
 #endif
