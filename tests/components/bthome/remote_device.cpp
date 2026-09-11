@@ -5,6 +5,17 @@
 namespace esphome::bthome::testing {
 using namespace esphome::bthome::client;
 
+static ble_device_base::ESPBTDevice make_device(const MacAddress &address) {
+  const uint8_t *mac_msb = address;
+  uint8_t mac_lsb[MAC_ADDRESS_SIZE];
+  for (size_t i = 0; i < MAC_ADDRESS_SIZE; i++)
+    mac_lsb[i] = mac_msb[MAC_ADDRESS_SIZE - i - 1];
+
+  ble_device_base::ESPBTDevice device;
+  device.from_scan_result(mac_lsb, -50, ble_device_base::BLE_ADDR_TYPE_PUBLIC, nullptr, 0);
+  return device;
+}
+
 // Mock handler that tracks processed objects
 class MockBTHomeRemoteObject : public BTHomeRemoteObject {
  public:
@@ -61,7 +72,7 @@ TEST_F(BTHomeDeviceTest, ParseDataWithMatchingMacAddress) {
   // BATTERY_PCT + data: 0x01 0x61
   uint8_t payload[] = {0x40, 0x01, 0x61};
 
-  bool result = device_.parse_data(test_mac_, payload, sizeof(payload));
+  bool result = device_.parse_data(make_device(test_mac_), payload, sizeof(payload));
 
   EXPECT_TRUE(result);
   EXPECT_EQ(handler1_.processed_objects().size(), 1);
@@ -73,7 +84,7 @@ TEST_F(BTHomeDeviceTest, ParseDataWithNonMatchingMacAddress) {
   // Create unencrypted BTHome payload
   uint8_t payload[] = {0x40, 0x01, 0x61};
 
-  bool result = device_.parse_data(MacAddressPtr(other_mac_), payload, sizeof(payload));
+  bool result = device_.parse_data(make_device(other_mac_), payload, sizeof(payload));
 
   // Should return false when MAC address doesn't match
   EXPECT_FALSE(result);
@@ -83,7 +94,7 @@ TEST_F(BTHomeDeviceTest, ParseDataWithNonMatchingMacAddress) {
 }
 
 TEST_F(BTHomeDeviceTest, ParseEmptyData) {
-  EXPECT_TRUE(device_.parse_data(test_mac_, nullptr, 0));
+  EXPECT_TRUE(device_.parse_data(make_device(test_mac_), nullptr, 0));
   EXPECT_EQ(handler1_.processed_objects().size(), 0);
   EXPECT_EQ(handler2_.processed_objects().size(), 0);
 }
@@ -103,7 +114,7 @@ TEST_F(BTHomeDeviceTest, ParseKnownEncryptedAdvertisement) {
   // TEMPERATURE_C_E2=25.06 and HUMIDITY_PCT_E2=50.55, counter=12345.
   const uint8_t payload[] = {0x41, 0xA8, 0xF1, 0x60, 0x79, 0xE0, 0x60, 0x39, 0x30, 0x00, 0x00, 0x60, 0x22, 0x10, 0xEE};
 
-  EXPECT_TRUE(encrypted_device.parse_data(MacAddress{0x5448E68F80A5ULL}, payload, sizeof(payload)));
+  EXPECT_TRUE(encrypted_device.parse_data(make_device(MacAddress{0x5448E68F80A5ULL}), payload, sizeof(payload)));
   ASSERT_EQ(temperature.processed_objects().size(), 1);
   ASSERT_EQ(humidity.processed_objects().size(), 1);
   EXPECT_NEAR(temperature.processed_objects()[0].value, 25.06f, 0.001f);
@@ -120,7 +131,7 @@ TEST_F(BTHomeDeviceTest, RejectsTamperedEncryptedAdvertisement) {
   uint8_t payload[] = {0x41, 0xA8, 0xF1, 0x60, 0x79, 0xE0, 0x60, 0x39, 0x30, 0x00, 0x00, 0x60, 0x22, 0x10, 0xEE};
   payload[1] ^= 0x01;
 
-  EXPECT_TRUE(encrypted_device.parse_data(MacAddress{0x5448E68F80A5ULL}, payload, sizeof(payload)));
+  EXPECT_TRUE(encrypted_device.parse_data(make_device(MacAddress{0x5448E68F80A5ULL}), payload, sizeof(payload)));
   EXPECT_EQ(temperature.processed_objects().size(), 0);
 }
 #endif
@@ -132,7 +143,7 @@ TEST_F(BTHomeDeviceTest, ParseDataMultipleObjects) {
   // TEMPERATURE_C_E2 (25.06°C): 0x02 0xCA 0x09
   uint8_t payload[] = {0x40, 0x01, 0x61, 0x02, 0xCA, 0x09};
 
-  bool result = device_.parse_data(test_mac_, payload, sizeof(payload));
+  bool result = device_.parse_data(make_device(test_mac_), payload, sizeof(payload));
 
   EXPECT_TRUE(result);
   EXPECT_EQ(handler1_.processed_objects().size(), 1);
@@ -148,7 +159,7 @@ TEST_F(BTHomeDeviceTest, ParseDataWithPacketId) {
   // BATTERY_PCT: 0x01 0x61
   uint8_t payload[] = {0x40, 0x00, 0x42, 0x01, 0x61};
 
-  bool result = device_.parse_data(test_mac_, payload, sizeof(payload));
+  bool result = device_.parse_data(make_device(test_mac_), payload, sizeof(payload));
 
   EXPECT_TRUE(result);
   EXPECT_EQ(handler1_.processed_objects().size(), 1);
@@ -159,12 +170,12 @@ TEST_F(BTHomeDeviceTest, ParseDataDuplicatePacketId) {
   uint8_t payload[] = {0x40, 0x00, 0x42, 0x01, 0x61};
 
   // First parse should succeed
-  bool result1 = device_.parse_data(test_mac_, payload, sizeof(payload));
+  bool result1 = device_.parse_data(make_device(test_mac_), payload, sizeof(payload));
   EXPECT_TRUE(result1);
   EXPECT_EQ(handler1_.processed_objects().size(), 1);
 
   // Second parse with same packet ID should be ignored
-  bool result2 = device_.parse_data(test_mac_, payload, sizeof(payload));
+  bool result2 = device_.parse_data(make_device(test_mac_), payload, sizeof(payload));
   EXPECT_TRUE(result2);
   // Handler should not have been called again
   EXPECT_EQ(handler1_.processed_objects().size(), 1);
@@ -173,13 +184,13 @@ TEST_F(BTHomeDeviceTest, ParseDataDuplicatePacketId) {
 TEST_F(BTHomeDeviceTest, ParseDataDifferentPacketId) {
   // First payload with PACKET_ID 0x42
   uint8_t payload1[] = {0x40, 0x00, 0x42, 0x01, 0x61};
-  bool result1 = device_.parse_data(test_mac_, payload1, sizeof(payload1));
+  bool result1 = device_.parse_data(make_device(test_mac_), payload1, sizeof(payload1));
   EXPECT_TRUE(result1);
   EXPECT_EQ(handler1_.processed_objects().size(), 1);
 
   // Second payload with PACKET_ID 0x43 (different ID)
   uint8_t payload2[] = {0x40, 0x00, 0x43, 0x01, 0x32};
-  bool result2 = device_.parse_data(test_mac_, payload2, sizeof(payload2));
+  bool result2 = device_.parse_data(make_device(test_mac_), payload2, sizeof(payload2));
   EXPECT_TRUE(result2);
   // Handler should be called again because packet ID is different
   EXPECT_EQ(handler1_.processed_objects().size(), 2);
@@ -193,7 +204,7 @@ TEST_F(BTHomeDeviceTest, ParseDataNoMatchingHandler) {
   // HUMIDITY_PCT_E2: 0x03 0xBF 0x13
   uint8_t payload[] = {0x40, 0x03, 0xBF, 0x13};
 
-  bool result = device_.parse_data(test_mac_, payload, sizeof(payload));
+  bool result = device_.parse_data(make_device(test_mac_), payload, sizeof(payload));
 
   EXPECT_TRUE(result);
   // No handler should have processed the object
@@ -208,7 +219,7 @@ TEST_F(BTHomeDeviceTest, ParseDataOnlyUnmatchedObjectsAfterMatch) {
   // HUMIDITY_PCT_E2: 0x03 0xBF 0x13
   uint8_t payload[] = {0x40, 0x01, 0x61, 0x03, 0xBF, 0x13};
 
-  bool result = device_.parse_data(test_mac_, payload, sizeof(payload));
+  bool result = device_.parse_data(make_device(test_mac_), payload, sizeof(payload));
 
   EXPECT_TRUE(result);
   EXPECT_EQ(handler1_.processed_objects().size(), 1);
@@ -235,7 +246,7 @@ TEST_F(BTHomeDeviceTest, ParseDataRepeatedObjectType) {
   // BATTERY_PCT (97%): 0x01 0x61
   uint8_t payload[] = {0x40, 0x02, 0xCA, 0x09, 0x02, 0x73, 0x12, 0x01, 0x61};
 
-  bool result = device3.parse_data(test_mac_, payload, sizeof(payload));
+  bool result = device3.parse_data(make_device(test_mac_), payload, sizeof(payload));
 
   EXPECT_TRUE(result);
   // First temperature handler should get the first reading

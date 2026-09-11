@@ -9,7 +9,8 @@ namespace esphome::bthome::client {
 
 static const char *const TAG = "bthome";
 
-bool RemoteDeviceBase::parse_data(MacAddressPtr source_address, const uint8_t *data, size_t data_size) {
+bool RemoteDeviceBase::parse_data(const ble_device_base::ESPBTDevice &device, const uint8_t *data, size_t data_size) {
+  MacAddressPtr source_address{device.address()};
   if (this->address_ != source_address) {
     return false;
   }

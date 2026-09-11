@@ -1,6 +1,7 @@
 #pragma once
 #include "remote_object.h"
 #include "bthome.h"
+#include "esphome/components/ble_device_base/ble_device.h"
 #include "esphome/core/optional.h"
 #include "esphome/core/defines.h"
 
@@ -28,7 +29,7 @@ class RemoteDeviceBase {
   }
 #endif
   virtual void set_handler(size_t index, BTHomeRemoteObject *handler) = 0;
-  bool parse_data(MacAddressPtr source_address, const uint8_t *data, size_t data_size);
+  bool parse_data(const ble_device_base::ESPBTDevice &device, const uint8_t *data, size_t data_size);
 
  protected:
   virtual std::span<BTHomeRemoteObject *> get_handlers() = 0;
