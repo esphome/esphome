@@ -112,7 +112,7 @@ class AddressableLightWrapper : public light::AddressableLight {
 
  protected:
   light::LightState *light_state_;
-  light::InterleavedColorBuffer buffer_;
+  light::PackedColorBuffer buffer_;
   uint8_t led_data_[4]{};
   uint8_t effect_data_[1]{};
   ColorMode color_mode_{ColorMode::UNKNOWN};

@@ -63,7 +63,7 @@ class RP2040PIOLEDStripLightOutput final : public light::AddressableLight {
  protected:
   static void dma_write_complete_handler();
 
-  light::InterleavedColorBuffer buffer_;
+  light::PackedColorBuffer buffer_;
 
   uint8_t pin_;
 

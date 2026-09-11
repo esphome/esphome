@@ -17,7 +17,7 @@ void FastLEDLightOutput::setup() {
 void FastLEDLightOutput::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "FastLED light:\n"
-                "  Num LEDs: %u\n"
+                "  Number of LEDs: %u\n"
                 "  Max refresh rate: %" PRIu32,
                 this->num_leds_, this->max_refresh_rate_.value_or(0));
 }

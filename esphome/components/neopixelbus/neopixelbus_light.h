@@ -109,7 +109,7 @@ class NeoPixelBusLightOutputBase : public light::AddressableLight, protected lig
 };
 
 template<typename T_METHOD, typename T_COLOR_FEATURE = NeoRgbFeature>
-class NeoPixelRGBLightOutput : public NeoPixelBusLightOutputBase<T_METHOD, T_COLOR_FEATURE, false> {
+class NeoPixelRGBLightOutput final : public NeoPixelBusLightOutputBase<T_METHOD, T_COLOR_FEATURE, false> {
  public:
   NeoPixelRGBLightOutput(size_t num_leds, ESPNeoPixelOrder order, uint8_t pin)
       : NeoPixelBusLightOutputBase<T_METHOD, T_COLOR_FEATURE, false>(num_leds, order, pin) {}
@@ -125,7 +125,7 @@ class NeoPixelRGBLightOutput : public NeoPixelBusLightOutputBase<T_METHOD, T_COL
 };
 
 template<typename T_METHOD, typename T_COLOR_FEATURE = NeoRgbwFeature>
-class NeoPixelRGBWLightOutput : public NeoPixelBusLightOutputBase<T_METHOD, T_COLOR_FEATURE, true> {
+class NeoPixelRGBWLightOutput final : public NeoPixelBusLightOutputBase<T_METHOD, T_COLOR_FEATURE, true> {
  public:
   NeoPixelRGBWLightOutput(size_t num_leds, ESPNeoPixelOrder order, uint8_t pin)
       : NeoPixelBusLightOutputBase<T_METHOD, T_COLOR_FEATURE, true>(num_leds, order, pin) {}

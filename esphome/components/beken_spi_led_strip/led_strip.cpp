@@ -295,7 +295,7 @@ void BekenSPILEDStripLightOutput::dump_config() {
                 "  Max refresh rate: %" PRIu32 "\n"
                 "  Number of LEDs: %u",
                 this->buffer_.layout().channel_colors.to_string(channel_colors), this->max_refresh_rate_.value_or(0),
-                this->buffer().size());
+                this->buffer_.size());
 }
 
 float BekenSPILEDStripLightOutput::get_setup_priority() const { return setup_priority::HARDWARE; }

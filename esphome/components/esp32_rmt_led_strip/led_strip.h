@@ -59,7 +59,7 @@ class ESP32RMTLEDStripLightOutput final : public light::AddressableLight {
   void dump_config() override;
 
  protected:
-  light::InterleavedColorBuffer buffer_;
+  light::PackedColorBuffer buffer_;
 
   LedParams params_;
   rmt_channel_handle_t channel_{nullptr};

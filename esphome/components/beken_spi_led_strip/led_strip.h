@@ -42,7 +42,7 @@ class BekenSPILEDStripLightOutput final : public light::AddressableLight {
   void dump_config() override;
 
  protected:
-  light::InterleavedColorBuffer buffer_;
+  light::PackedColorBuffer buffer_;
 
   uint8_t *dma_buf_{nullptr};
 

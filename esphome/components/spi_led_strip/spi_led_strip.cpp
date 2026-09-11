@@ -21,7 +21,7 @@ light::LightTraits SpiLedStrip::get_traits() {
 void SpiLedStrip::dump_config() {
   esph_log_config(TAG,
                   "SPI LED Strip:\n"
-                  "  LEDs: %d",
+                  "  Number of LEDs: %u",
                   this->buffer_.size());
   if (this->data_rate_ >= spi::DATA_RATE_1MHZ) {
     esph_log_config(TAG, "  Data rate: %uMHz", (unsigned) (this->data_rate_ / 1000000));

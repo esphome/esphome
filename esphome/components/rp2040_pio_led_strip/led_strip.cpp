@@ -130,7 +130,7 @@ void RP2040PIOLEDStripLightOutput::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "RP2040 PIO LED Strip Light Output:\n"
                 "  Pin: GPIO%d\n"
-                "  Number of LEDs: %d\n"
+                "  Number of LEDs: %u\n"
                 "  Channel colors: %s\n"
                 "  Max Refresh Rate: %f Hz",
                 this->pin_, this->buffer_.size(), this->buffer_.layout().channel_colors.to_string(channel_colors),

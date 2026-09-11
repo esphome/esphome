@@ -12,7 +12,7 @@ class SpiLedStrip final : public light::AddressableLight,
                           public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_HIGH,
                                                 spi::CLOCK_PHASE_TRAILING, spi::DATA_RATE_1MHZ> {
  public:
-  SpiLedStrip(size_t num_leds)
+  explicit SpiLedStrip(size_t num_leds)
       : buffer_(num_leds,
                 {.channel_colors = {.r = 3, .g = 2, .b = 1, .w = light::ChannelColors::NO_WHITE},
                  .bytes_per_led = 4,
@@ -32,7 +32,7 @@ class SpiLedStrip final : public light::AddressableLight,
   void write_state(light::LightState *state) override;
 
  protected:
-  light::InterleavedColorBuffer buffer_;
+  light::PackedColorBuffer buffer_;
 };
 
 }  // namespace esphome::spi_led_strip

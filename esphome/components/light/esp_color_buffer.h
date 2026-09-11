@@ -10,7 +10,7 @@ namespace esphome::light {
 
 class ESPColorBuffer {
  public:
-  ESPColorBuffer(size_t num_leds) : num_leds_(num_leds) {}
+  explicit ESPColorBuffer(size_t num_leds) : num_leds_(num_leds) {}
 
   /// Get the number of LEDs in the buffer.
   size_t size() const { return this->num_leds_; }
@@ -82,20 +82,19 @@ class ESPColorBuffer {
   const size_t num_leds_;
 };
 
-struct InterleavedColorBufferLayout {
+struct PackedColorBufferLayout {
   ChannelColors channel_colors{};
   uint8_t bytes_per_led{uint8_t(channel_colors.has_white() ? 4 : 3)};
   uint8_t leading_bytes{0};
   uint8_t trailing_bytes{0};
 };
 
-class InterleavedColorBuffer final : public ESPColorBuffer {
+class PackedColorBuffer final : public ESPColorBuffer {
  public:
-  InterleavedColorBuffer(size_t num_leds, InterleavedColorBufferLayout layout,
-                         const ESPColorCorrection *color_correction)
+  PackedColorBuffer(size_t num_leds, PackedColorBufferLayout layout, const ESPColorCorrection *color_correction)
       : ESPColorBuffer(num_leds), layout_(layout), color_correction_(color_correction) {}
 
-  const InterleavedColorBufferLayout &layout() const { return this->layout_; }
+  const PackedColorBufferLayout &layout() const { return this->layout_; }
 
   bool allocate_and_setup(RAMAllocator<uint8_t> *allocator);
   void setup(uint8_t *led_data, uint8_t *effect_data);
@@ -114,7 +113,7 @@ class InterleavedColorBuffer final : public ESPColorBuffer {
  protected:
   ESPColorView get_color_view(size_t index) override;
 
-  const InterleavedColorBufferLayout layout_;
+  const PackedColorBufferLayout layout_;
   const ESPColorCorrection *const color_correction_;
   uint8_t *led_data_after_leading_bytes_{nullptr};
   uint8_t *effect_data_{nullptr};

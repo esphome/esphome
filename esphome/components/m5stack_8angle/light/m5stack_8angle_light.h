@@ -30,7 +30,7 @@ class M5Stack8AngleLightOutput final : public light::AddressableLight, public Pa
   };
 
  protected:
-  light::InterleavedColorBuffer buffer_;
+  light::PackedColorBuffer buffer_;
 };
 
 }  // namespace esphome::m5stack_8angle
