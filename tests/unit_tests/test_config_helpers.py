@@ -245,7 +245,7 @@ def test_iter_include_files(setup_core: Path) -> None:
     (setup_core / "lib").mkdir()
     (setup_core / "lib" / "two.h").write_text("")
     files = {
-        str(basename)
+        basename.as_posix()
         for _, basename in iter_include_files(["one.h", "lib", "<cstdio>"])
     }
     assert files == {"one.h", "lib/two.h"}
