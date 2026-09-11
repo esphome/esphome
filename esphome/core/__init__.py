@@ -385,7 +385,9 @@ class Lambda:
 
 
 class ID:
-    def __init__(self, id, is_declaration=False, type=None, is_manual=None):
+    def __init__(
+        self, id, is_declaration=False, type=None, is_manual=None, match_config=None
+    ):
         self.id = id
         if is_manual is None:
             self.is_manual = id is not None
@@ -393,6 +395,10 @@ class ID:
             self.is_manual = is_manual
         self.is_declaration = is_declaration
         self.type: MockObjClass | None = type
+        # When set, an unnamed (id=None) searching ID is disambiguated among same-type
+        # candidates by matching these key/value pairs against each candidate's own
+        # declared config, instead of requiring exactly one candidate to exist.
+        self.match_config: dict | None = match_config
 
     def resolve(self, registered_ids):
         from esphome.config_validation import RESERVED_IDS
@@ -431,6 +437,7 @@ class ID:
             is_declaration=self.is_declaration,
             type=self.type,
             is_manual=self.is_manual,
+            match_config=self.match_config,
         )
 
 

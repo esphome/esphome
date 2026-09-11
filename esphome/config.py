@@ -1129,6 +1129,42 @@ class IDPassValidationStep(ConfigValidationStep):
                     if inherits:
                         matches.append(v[0])
 
+                if id.match_config:
+                    # Disambiguate among same-type candidates by comparing their own
+                    # declared config against the requested key/value pairs, e.g. an
+                    # I2C address, instead of requiring a single unambiguous candidate.
+                    criteria = ", ".join(f"{k}={v}" for k, v in id.match_config.items())
+                    filtered = [
+                        m
+                        for m in matches
+                        if isinstance(
+                            candidate_conf := result.get_config_for_path(
+                                result.get_path_for_id(m)[:-1]
+                            ),
+                            dict,
+                        )
+                        and all(
+                            candidate_conf.get(k) == v
+                            for k, v in id.match_config.items()
+                        )
+                    ]
+                    if len(filtered) == 1:
+                        id.id = filtered[0].id
+                    elif len(filtered) == 0:
+                        result.add_str_error(
+                            f"Couldn't find a '{id.type}' matching {criteria}. "
+                            "Are you missing a hub declaration, or is the address wrong?",
+                            path,
+                        )
+                    else:
+                        ids = ", ".join(f"'{m.id}'" for m in filtered)
+                        result.add_str_error(
+                            f"Multiple '{id.type}' instances match {criteria}: {ids}. "
+                            "You must assign an explicit ID to the one you want to use.",
+                            path,
+                        )
+                    continue
+
                 if len(matches) == 0:
                     result.add_str_error(
                         f"Couldn't find any component that can be used for '{id.type}'. Are you missing a hub declaration?",
