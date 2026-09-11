@@ -31,7 +31,7 @@ class AddressableLightEffect : public LightEffect {
  public:
   explicit AddressableLightEffect(const char *name) : LightEffect(name) {}
   void start_internal() override {
-    auto addressable = this->get_addressable_();
+    auto *addressable = this->get_addressable_();
     addressable->set_effect_active(true);
     addressable->buffer().clear_effect_data();
     this->start();

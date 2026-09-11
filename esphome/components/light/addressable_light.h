@@ -29,7 +29,7 @@ class AddressableLightState final : public LightState {
 class AddressableLight : public LightOutput, public Component {
  public:
   /// Get the pixel data and effect data for this addressable light.
-  virtual ESPColorBuffer &buffer();
+  virtual ESPColorBuffer &buffer() = 0;
 
   ESPDEPRECATED("Use buffer().size() instead. Will be removed in 2027.4.0.", "2026.10.0")
   int32_t size() { return this->buffer().size(); }

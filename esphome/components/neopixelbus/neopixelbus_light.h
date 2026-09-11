@@ -92,15 +92,14 @@ class NeoPixelBusLightOutputBase : public light::AddressableLight, protected lig
         channel_colors_(to_channel_colors(order)) {}
 
   bool is_all_black() const override {
-    return is_all_black_internal_(this->controller_->Pixels(), this->num_leds, this->channel_colors_,
-                                  HAS_WHITE ? 4 : 3);
+    return is_all_black_internal(this->controller_->Pixels(), this->num_leds, this->channel_colors_, HAS_WHITE ? 4 : 3);
   }
 
-  void clear_effect_data() override { clear_effect_data_internal_(this->effect_data_, this->num_leds_); }
+  void clear_effect_data() override { clear_effect_data_internal(this->effect_data_, this->num_leds_); }
 
-  light::ESPColorView get_color_view_(size_t index) override {
-    return get_color_view_internal_(index, this->controller_->Pixels(), this->effect_data_, this->channel_colors,
-                                    HAS_WHITE ? 4 : 3, this->correction_);
+  light::ESPColorView get_color_view(size_t index) override {
+    return get_color_view_internal(index, this->controller_->Pixels(), this->effect_data_, this->channel_colors,
+                                   HAS_WHITE ? 4 : 3, this->correction_);
   }
 
   Controller *const controller_;

@@ -210,9 +210,9 @@ class FastLEDLightOutput final : public light::AddressableLight, protected light
     return true;
   }
 
-  void clear_effect_data() override { clear_effect_data_internal_(this->effect_data_, this->num_leds_); }
+  void clear_effect_data() override { clear_effect_data_internal(this->effect_data_, this->num_leds_); }
 
-  light::ESPColorView get_color_view_(size_t index) override {
+  light::ESPColorView get_color_view(size_t index) override {
     return light::ESPColorView{&this->led_data_[index].r,  &this->led_data_[index].g,
                                &this->led_data_[index].b,  nullptr,
                                &this->effect_data_[index], &this->correction_};

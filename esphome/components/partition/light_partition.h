@@ -31,24 +31,12 @@ class AddressableSegment {
   bool reversed_;
 };
 
-class PartitionLightOutput final : public light::AddressableLight {
+class PartitionLightOutput final : public light::AddressableLight, protected light::ESPColorBuffer {
  public:
-  explicit PartitionLightOutput(std::vector<AddressableSegment> segments) : segments_(std::move(segments)) {
-    int32_t off = 0;
-    for (auto &seg : this->segments_) {
-      seg.set_dst_offset(off);
-      off += seg.get_size();
-    }
-  }
-  int32_t size() const override {
-    auto &last_seg = this->segments_[this->segments_.size() - 1];
-    return last_seg.get_dst_offset() + last_seg.get_size();
-  }
-  void clear_effect_data() override {
-    for (auto &seg : this->segments_) {
-      seg.get_src()->clear_effect_data();
-    }
-  }
+  explicit PartitionLightOutput(std::vector<AddressableSegment> segments)
+      : ESPColorBuffer(set_segment_dst_offsets(&segments)), segments_(std::move(segments)) {}
+
+  light::ESPColorBuffer &buffer() override { return *this; }
   light::LightTraits get_traits() override { return this->segments_[0].get_src()->get_traits(); }
   void write_state(light::LightState *state) override {
     for (auto seg : this->segments_) {
@@ -58,7 +46,22 @@ class PartitionLightOutput final : public light::AddressableLight {
   }
 
  protected:
-  light::ESPColorView get_view_internal(int32_t index) const override {
+  bool is_all_black() const override {
+    for (auto &seg : this->segments_) {
+      if (!seg.get_src()->buffer().is_all_black()) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  void clear_effect_data() override {
+    for (auto &seg : this->segments_) {
+      seg.get_src()->buffer().clear_effect_data();
+    }
+  }
+
+  light::ESPColorView get_color_view(size_t index) override {
     uint32_t lo = 0;
     uint32_t hi = this->segments_.size() - 1;
     while (lo < hi) {
@@ -84,12 +87,22 @@ class PartitionLightOutput final : public light::AddressableLight {
       src_off = seg.get_src_offset() + seg_off;
     }
 
-    auto view = (*seg.get_src())[src_off];
+    auto view = seg.get_src()->buffer()[src_off];
     view.raw_set_color_correction(&this->correction_);
     return view;
   }
 
   std::vector<AddressableSegment> segments_;
+
+ private:
+  static int32_t set_segment_dst_offsets(std::vector<AddressableSegment> *segments) {
+    int32_t off = 0;
+    for (auto &seg : *segments) {
+      seg.set_dst_offset(off);
+      off += seg.get_size();
+    }
+    return off;
+  }
 };
 
 }  // namespace esphome::partition

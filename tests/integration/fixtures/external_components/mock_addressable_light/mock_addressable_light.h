@@ -15,15 +15,14 @@ namespace esphome::mock_addressable_light {
 class MockAddressableLight : public light::AddressableLight {
  public:
   explicit MockAddressableLight(uint16_t num_leds)
-      : num_leds_(num_leds), buf_(new uint8_t[num_leds * 4]()), effect_data_(new uint8_t[num_leds]()) {}
+      : buffer_(num_leds, {.channel_colors = {.r = 0, .g = 1, .b = 2, .w = 3}}, &this->correction_) {
+    RAMAllocator<uint8_t> allocator;
+    buffer_.allocate_and_setup(&allocator);
+  }
 
+  light::ESPColorBuffer &buffer() override { return buffer_; }
   void setup() override {}
   void write_state(light::LightState *state) override {}
-  int32_t size() const override { return this->num_leds_; }
-  void clear_effect_data() override {
-    for (uint16_t i = 0; i < this->num_leds_; i++)
-      this->effect_data_[i] = 0;
-  }
   light::LightTraits get_traits() override {
     auto traits = light::LightTraits();
     traits.set_supported_color_modes({light::ColorMode::RGB});
@@ -32,21 +31,13 @@ class MockAddressableLight : public light::AddressableLight {
 
   // Accessors for tests: return the raw stored byte (post gamma correction),
   // which is what actual LED hardware would receive.
-  uint8_t get_raw_red(uint16_t index) const { return this->buf_[index * 4 + 0]; }
-  uint8_t get_raw_green(uint16_t index) const { return this->buf_[index * 4 + 1]; }
-  uint8_t get_raw_blue(uint16_t index) const { return this->buf_[index * 4 + 2]; }
-  uint8_t get_raw_white(uint16_t index) const { return this->buf_[index * 4 + 3]; }
+  uint8_t get_raw_red(uint16_t index) const { return this->buffer_.get_led_data()[index * 4 + 0]; }
+  uint8_t get_raw_green(uint16_t index) const { return this->buffer_.get_led_data()[index * 4 + 1]; }
+  uint8_t get_raw_blue(uint16_t index) const { return this->buffer_.get_led_data()[index * 4 + 2]; }
+  uint8_t get_raw_white(uint16_t index) const { return this->buffer_.get_led_data()[index * 4 + 3]; }
 
  protected:
-  light::ESPColorView get_view_internal(int32_t index) const override {
-    size_t pos = index * 4;
-    return {this->buf_.get() + pos + 0, this->buf_.get() + pos + 1,       this->buf_.get() + pos + 2,
-            this->buf_.get() + pos + 3, this->effect_data_.get() + index, &this->correction_};
-  }
-
-  uint16_t num_leds_;
-  std::unique_ptr<uint8_t[]> buf_;
-  std::unique_ptr<uint8_t[]> effect_data_;
+  light::InterleavedColorBuffer buffer_;
 };
 
 }  // namespace esphome::mock_addressable_light
