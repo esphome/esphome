@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <cstdlib>
 #include <cstring>
 #include <memory>
 
@@ -25,7 +26,8 @@ namespace esphome::api {
 /// writes in debug builds.
 ///
 /// Sizes are 16 bit: API frames carry 16 bit lengths, so a request above
-/// 65535 bytes fails like an allocation failure.
+/// 65535 bytes fails like an allocation failure. Storage comes from malloc
+/// because new (std::nothrow) still aborts on ESP-IDF without exceptions.
 class APIBuffer {
  public:
   void clear() { this->size_ = 0; }
@@ -68,7 +70,10 @@ class APIBuffer {
 
  protected:
   bool grow_(size_t n, size_t drop = 0);
-  std::unique_ptr<uint8_t[]> data_;
+  struct FreeDeleter {
+    void operator()(uint8_t *p) const { std::free(p); }  // NOLINT(cppcoreguidelines-no-malloc)
+  };
+  std::unique_ptr<uint8_t[], FreeDeleter> data_;
   uint16_t size_{0};
   uint16_t capacity_{0};
 };

@@ -1,21 +1,28 @@
 #include "api_buffer.h"
-#include <new>
+#include <cstdlib>
 
 namespace esphome::api {
 
 bool APIBuffer::grow_(size_t n, size_t drop) {
   if (n > UINT16_MAX)
     return false;
-  // nothrow (no zero-fill) so OOM is reportable; plain new aborts instead
-  // (NEW_OOM_ABORT on ESP8266 Arduino, exception stub on ESP-IDF).
-  // RAMAllocator is no fit here: unique_ptr needs delete[]-compatible memory.
-  std::unique_ptr<uint8_t[]> new_data(new (std::nothrow) uint8_t[n]);
-  if (new_data == nullptr)
+  if (drop == 0) {
+    // realloc extends in place when it can, avoiding the copy
+    auto *grown = static_cast<uint8_t *>(std::realloc(this->data_.get(), n));  // NOLINT(cppcoreguidelines-no-malloc)
+    if (grown == nullptr)
+      return false;
+    (void) this->data_.release();  // realloc already freed or reused the old block
+    this->data_.reset(grown);
+    this->capacity_ = static_cast<uint16_t>(n);
+    return true;
+  }
+  auto *fresh = static_cast<uint8_t *>(std::malloc(n));  // NOLINT(cppcoreguidelines-no-malloc)
+  if (fresh == nullptr)
     return false;
   const uint16_t live = this->size_ - static_cast<uint16_t>(drop);
   if (live)
-    std::memcpy(new_data.get(), this->data_.get() + drop, live);
-  this->data_ = std::move(new_data);
+    std::memcpy(fresh, this->data_.get() + drop, live);
+  this->data_.reset(fresh);
   this->capacity_ = static_cast<uint16_t>(n);
   this->size_ = live;
   return true;
