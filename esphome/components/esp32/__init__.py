@@ -2025,7 +2025,7 @@ FRAMEWORK_SCHEMA = cv.Schema(
                     CONF_INCLUDE_BUILTIN_IDF_COMPONENTS, default=[]
                 ): cv.ensure_list(cv.string_strict),
                 cv.Optional(CONF_ENABLE_FULL_PRINTF, default=False): cv.boolean,
-                cv.Optional(CONF_ENABLE_FULL_SCANF, default=False): cv.boolean,
+                cv.Optional(CONF_ENABLE_FULL_SCANF): cv.boolean,
                 cv.Optional(CONF_DISABLE_DEBUG_STUBS, default=True): cv.boolean,
                 cv.Optional(CONF_DISABLE_OCD_AWARE, default=True): cv.boolean,
                 cv.Optional(
@@ -2326,36 +2326,52 @@ async def _set_libc_picolibc_newlib_compat() -> None:
     )
 
 
-@coroutine_with_priority(CoroPriority.FINAL)
-async def _add_sscanf_stub(enable_full_scanf: bool) -> None:
-    """Wrap sscanf when Bluetooth is the only reason newlib's scanf engine links.
+def _libc_is_newlib() -> bool:
+    """Whether the ESP-IDF build links newlib rather than picolibc.
 
-    Runs at FINAL priority so every request_bluetooth() call has happened.
-    bluedroid is the only sscanf caller in an ESPHome image (~13 KB of engine
-    for two "%02x" parses); see sscanf_stubs.cpp. Newlib only, like the printf
-    wrap: IDF 6.0+ switches to picolibc, where the saving is unmeasured. A
-    lambda that scans a float keeps the libc sscanf, since the stub has no
-    floating-point conversions and the wrap applies to the whole image. The
-    --undefined flag is needed because libsrc.a is scanned before libbt.a, so
-    the stub would otherwise never be pulled from the archive.
+    IDF 5.x defaults to newlib on every variant; IDF 6.0+ switches to picolibc
+    on every variant. The printf and sscanf wraps are only measured against
+    newlib.
+    """
+    return not CORE.using_arduino and idf_version() < cv.Version(6, 0, 0)
+
+
+def _add_wrap_stub(symbol: str, define: str) -> None:
+    """Emit a linker wrap for ``symbol`` served by a stub compiled under ``define``.
+
+    The --undefined flag is needed because libsrc.a is scanned before the IDF
+    libraries that reference the symbol, so the stub would otherwise never be
+    pulled from the archive.
+    """
+    cg.add_define(define)
+    cg.add_build_flag(f"-Wl,--wrap={symbol}")
+    cg.add_build_flag(f"-Wl,--undefined=__wrap_{symbol}")
+
+
+@coroutine_with_priority(CoroPriority.FINAL)
+async def _add_sscanf_stub(enable_full_scanf: bool | None) -> None:
+    """Wrap sscanf when bluedroid is the only reason newlib's scanf engine links.
+
+    Runs at FINAL priority so every request_bluetooth() call has happened;
+    see sscanf_stubs.cpp for what the stub covers. A lambda that scans a float
+    keeps the libc sscanf unless enable_full_scanf is set explicitly, since the
+    stub has no floating-point conversions and the wrap applies to the whole
+    image.
     """
     if (
         enable_full_scanf
-        or CORE.using_arduino
-        or idf_version() >= cv.Version(6, 0, 0)
+        or not _libc_is_newlib()
         or not _network_sdkconfig().bluetooth
         or get_esp32_variant() in ROM_SSCANF_VARIANTS
     ):
         return
-    if lambdas_use_scanf_float(CORE.config):
+    if enable_full_scanf is None and lambdas_use_scanf_float(CORE.config):
         _LOGGER.warning(
             "Lambda uses scanf with a float format specifier; "
             "keeping the libc sscanf (~13KB flash)"
         )
         return
-    cg.add_define("USE_ESP32_SSCANF_STUB")
-    cg.add_build_flag("-Wl,--wrap=sscanf")
-    cg.add_build_flag("-Wl,--undefined=__wrap_sscanf")
+    _add_wrap_stub("sscanf", "USE_ESP32_SSCANF_STUB")
 
 
 @coroutine_with_priority(CoroPriority.FINAL)
@@ -2700,12 +2716,8 @@ async def to_code(config):
         # implements vsnprintf by building a string-output FILE and calling
         # vfprintf, so vfprintf is unconditionally linked in by any caller
         # of snprintf/vsnprintf — effectively every build — and the wrap
-        # saves nothing while costing ~170 B of shim. IDF 5.x defaults to
-        # newlib on every variant; IDF 6.0+ switches to picolibc on every
-        # variant.
-        if conf[CONF_ADVANCED][CONF_ENABLE_FULL_PRINTF] or idf_version() >= cv.Version(
-            6, 0, 0
-        ):
+        # saves nothing while costing ~170 B of shim.
+        if conf[CONF_ADVANCED][CONF_ENABLE_FULL_PRINTF] or not _libc_is_newlib():
             cg.add_define("USE_FULL_PRINTF")
         else:
             for symbol in ("vprintf", "printf", "fprintf", "vfprintf"):
@@ -2713,14 +2725,9 @@ async def to_code(config):
             # esp_http_client calls vasprintf, which on the ESP32-C6 is the only
             # reference to newlib's full printf engine (~20 KB: _svfprintf_r,
             # _dtoa_r and their helpers); every other caller resolves to the
-            # ROM. See vasprintf_stubs.cpp. The --undefined flag is needed
-            # because libsrc.a is scanned before the IDF libraries that
-            # reference the symbol, so the stub would otherwise never be pulled
-            # from the archive.
+            # ROM. See vasprintf_stubs.cpp.
             if variant in ROM_VSNPRINTF_WITHOUT_VASPRINTF_VARIANTS:
-                cg.add_define("USE_ESP32_VASPRINTF_STUB")
-                cg.add_build_flag("-Wl,--wrap=vasprintf")
-                cg.add_build_flag("-Wl,--undefined=__wrap_vasprintf")
+                _add_wrap_stub("vasprintf", "USE_ESP32_VASPRINTF_STUB")
     else:
         cg.add_build_flag("-DUSE_ARDUINO")
         cg.add_build_flag("-DUSE_ESP32_FRAMEWORK_ARDUINO")
@@ -3144,7 +3151,7 @@ async def to_code(config):
     CORE.add_job(_reconcile_network_sdkconfig)
 
     # FINAL priority: runs after every request_bluetooth() call
-    CORE.add_job(_add_sscanf_stub, advanced[CONF_ENABLE_FULL_SCANF])
+    CORE.add_job(_add_sscanf_stub, advanced.get(CONF_ENABLE_FULL_SCANF))
 
     # FINAL priority: runs after every require_certificate_bundle() call
     CORE.add_job(_reconcile_certificate_bundle_sdkconfig)
@@ -3694,5 +3701,5 @@ def process_stacktrace(config, line, backtrace_state):
 # gpio.cpp only implements ESP32InternalGPIOPin and its ISR helpers, which
 # are instantiated solely by the pin schema codegen (esp32_pin_to_code)
 FILTER_SOURCE_FILES = filter_source_files_from_defines(
-    {"gpio.cpp": "USE_ESP32_INTERNAL_GPIO"}
+    {"gpio.cpp": "USE_ESP32_INTERNAL_GPIO", "sscanf_stubs.cpp": "USE_ESP32_SSCANF_STUB"}
 )

@@ -1416,54 +1416,43 @@ def test_mbedtls_tls_openthread_requires_server_and_extras(
     assert CORE.data[KEY_ESP32][KEY_MBEDTLS_TLS_EXTRAS_REQUIRED] == _OPENTHREAD_EXTRAS
 
 
-_VASPRINTF_STUB_FLAGS = {"-Wl,--wrap=vasprintf", "-Wl,--undefined=__wrap_vasprintf"}
-
-
 @pytest.mark.parametrize(
-    ("config_file", "expected"),
+    ("config_file", "symbol", "expected"),
     [
-        pytest.param("vasprintf_stub_c6.yaml", True, id="c6"),
-        pytest.param("vasprintf_stub_c6_full_printf.yaml", False, id="c6_full_printf"),
-        pytest.param("exclusion_reincludes.yaml", False, id="esp32"),
+        # vasprintf: only where the ROM lacks vasprintf but has vsnprintf
+        pytest.param("vasprintf_stub_c6.yaml", "vasprintf", True, id="vasprintf_c6"),
+        pytest.param(
+            "vasprintf_stub_c6_full_printf.yaml",
+            "vasprintf",
+            False,
+            id="vasprintf_c6_full_printf",
+        ),
+        pytest.param(
+            "exclusion_reincludes.yaml", "vasprintf", False, id="vasprintf_esp32"
+        ),
+        # sscanf: only for Bluetooth builds on variants whose ROM lacks sscanf,
+        # and not when a lambda scans a float
+        pytest.param("sscanf_stub_ble.yaml", "sscanf", True, id="sscanf_esp32_ble"),
+        pytest.param("sscanf_stub_ble_c6.yaml", "sscanf", False, id="sscanf_c6_rom"),
+        pytest.param(
+            "sscanf_stub_ble_full_scanf.yaml", "sscanf", False, id="sscanf_full_scanf"
+        ),
+        pytest.param(
+            "sscanf_stub_ble_lambda.yaml", "sscanf", False, id="sscanf_lambda_float"
+        ),
+        pytest.param("exclusion_reincludes.yaml", "sscanf", False, id="sscanf_no_ble"),
     ],
 )
-def test_vasprintf_stub_only_on_rom_vsnprintf_variants(
+def test_wrap_stub_emission(
     generate_main: Callable[[str | Path], str],
     component_config_path: Callable[[str], Path],
     config_file: str,
+    symbol: str,
     expected: bool,
 ) -> None:
-    """The vasprintf wrap is emitted only where the ROM lacks vasprintf but has vsnprintf."""
+    """A linker wrap stub is emitted as a define plus --wrap/--undefined flag pair."""
     generate_main(component_config_path(config_file))
-    assert (CORE.build_flags >= _VASPRINTF_STUB_FLAGS) is expected
+    flags = {f"-Wl,--wrap={symbol}", f"-Wl,--undefined=__wrap_{symbol}"}
+    assert (CORE.build_flags >= flags) is expected
     defines = {define.name for define in CORE.defines}
-    assert ("USE_ESP32_VASPRINTF_STUB" in defines) is expected
-
-
-_SSCANF_STUB_FLAGS = {"-Wl,--wrap=sscanf", "-Wl,--undefined=__wrap_sscanf"}
-
-
-@pytest.mark.parametrize(
-    ("config_file", "expected"),
-    [
-        pytest.param("sscanf_stub_ble.yaml", True, id="esp32_ble"),
-        pytest.param("sscanf_stub_ble_c6.yaml", False, id="c6_ble_rom_sscanf"),
-        pytest.param("sscanf_stub_ble_full_scanf.yaml", False, id="full_scanf"),
-        pytest.param("sscanf_stub_ble_lambda.yaml", False, id="lambda_calls_sscanf"),
-        pytest.param("exclusion_reincludes.yaml", False, id="esp32_no_ble"),
-    ],
-)
-def test_sscanf_stub_only_for_bluetooth_without_rom_sscanf(
-    generate_main: Callable[[str | Path], str],
-    component_config_path: Callable[[str], Path],
-    config_file: str,
-    expected: bool,
-) -> None:
-    """The sscanf wrap is emitted only for Bluetooth builds on variants whose ROM lacks sscanf.
-
-    User code that calls a scanf function opts the build out automatically.
-    """
-    generate_main(component_config_path(config_file))
-    assert (CORE.build_flags >= _SSCANF_STUB_FLAGS) is expected
-    defines = {define.name for define in CORE.defines}
-    assert ("USE_ESP32_SSCANF_STUB" in defines) is expected
+    assert (f"USE_ESP32_{symbol.upper()}_STUB" in defines) is expected

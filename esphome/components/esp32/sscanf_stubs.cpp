@@ -1,19 +1,20 @@
 /*
- * Linker wrap stub for sscanf() (ESP-IDF, newlib only).
+ * Linker wrap stub for sscanf on ESP-IDF, newlib only.
  *
- * Nothing in ESPHome calls sscanf(), but bluedroid does in two places:
- * btc_config_get_bin() decodes stored bonding keys with "%02x" and
- * string_to_bdaddr() parses "%02x:%02x:%02x:%02x:%02x:%02x". Those two
+ * Nothing in ESPHome calls sscanf, but bluedroid does in two places:
+ * btc_config_get_bin decodes stored bonding keys with "%02x" and
+ * string_to_bdaddr parses "%02x:%02x:%02x:%02x:%02x:%02x". Those two
  * calls are the only reference to newlib's scanf engine (__ssvfscanf_r,
  * _strtod_l and their helpers, ~13 KB) in a Bluetooth build on variants
  * whose ROM does not export sscanf.
  *
- * This stub replaces sscanf() with a small scanner covering the integer,
- * character, string and scanset conversions, so any other sscanf() caller
- * in the image (user lambdas included) keeps working. Floating-point
- * conversions are the one gap: supporting them would pull _strtod_l
- * straight back, so a format using %f and friends aborts with a message
- * pointing at enable_full_scanf: true.
+ * This stub replaces sscanf with a small scanner covering the integer,
+ * character, string and scanset conversions, so any other caller in the
+ * image (user lambdas included) keeps working. Floating-point conversions
+ * are the one gap: supporting them would pull _strtod_l straight back, so
+ * a format using %f and friends aborts with a message pointing at
+ * enable_full_scanf: true. Codegen already keeps the libc sscanf when a
+ * lambda scans a float.
  *
  * Only compiled in when codegen defines USE_ESP32_SSCANF_STUB, which is
  * gated on a Bluetooth component being present, on the variant's ROM and
@@ -30,75 +31,59 @@
 #include <cstdio>
 
 #include "esp_system.h"
+#include "esphome/core/helpers.h"
 
 namespace esphome::esp32 {
 
 namespace {
 
+// Store width of an integer conversion. Every ESP32 target is ILP32, so the
+// bare length, l, z and t all store 32 bits and ll and j store 64.
 enum class SscanfLength : uint8_t {
   SSCANF_LENGTH_NONE,
   SSCANF_LENGTH_HH,
   SSCANF_LENGTH_H,
-  SSCANF_LENGTH_L,
   SSCANF_LENGTH_LL,
-  SSCANF_LENGTH_Z,
-  SSCANF_LENGTH_J,
-  SSCANF_LENGTH_T,
 };
 
 bool is_space(char c) { return c == ' ' || (c >= '\t' && c <= '\r'); }
 
-int digit_value(char c, unsigned base) {
-  unsigned value;
-  if (c >= '0' && c <= '9') {
-    value = c - '0';
-  } else if (c >= 'a' && c <= 'z') {
-    value = c - 'a' + 10;
-  } else if (c >= 'A' && c <= 'Z') {
-    value = c - 'A' + 10;
-  } else {
-    return -1;
-  }
-  return value < base ? static_cast<int>(value) : -1;
-}
-
-// Stores through the unsigned counterpart of each length; the bit pattern is
-// what the signed conversions want as well.
+// The bit pattern is what the signed conversions want as well. All object
+// pointers share one representation here, so the argument is fetched once
+// as void * rather than once per pointee type.
 void store_int(va_list &ap, SscanfLength length, unsigned long long value) {
+  void *dest = va_arg(ap, void *);
   switch (length) {
     case SscanfLength::SSCANF_LENGTH_HH:
-      *va_arg(ap, unsigned char *) = static_cast<unsigned char>(value);
+      *static_cast<uint8_t *>(dest) = static_cast<uint8_t>(value);
       break;
     case SscanfLength::SSCANF_LENGTH_H:
-      *va_arg(ap, unsigned short *) = static_cast<unsigned short>(value);
-      break;
-    case SscanfLength::SSCANF_LENGTH_L:
-      *va_arg(ap, unsigned long *) = static_cast<unsigned long>(value);
+      *static_cast<uint16_t *>(dest) = static_cast<uint16_t>(value);
       break;
     case SscanfLength::SSCANF_LENGTH_LL:
-    case SscanfLength::SSCANF_LENGTH_J:
-      *va_arg(ap, unsigned long long *) = value;
-      break;
-    case SscanfLength::SSCANF_LENGTH_Z:
-      *va_arg(ap, size_t *) = static_cast<size_t>(value);
-      break;
-    case SscanfLength::SSCANF_LENGTH_T:
-      *va_arg(ap, ptrdiff_t *) = static_cast<ptrdiff_t>(value);
+      *static_cast<uint64_t *>(dest) = value;
       break;
     default:
-      *va_arg(ap, unsigned int *) = static_cast<unsigned int>(value);
+      *static_cast<uint32_t *>(dest) = static_cast<uint32_t>(value);
       break;
   }
 }
 
-// Parses a "[set]" directive starting just after the '[' into a 256-bit
-// membership bitmap and returns the position after the closing ']'.
-const char *parse_scanset(const char *f, uint8_t *bitmap, bool &negate) {
-  for (size_t i = 0; i < 32; i++)
-    bitmap[i] = 0;
-  negate = false;
+struct Scanset {
+  uint8_t bits[32]{};
+  bool negate{false};
+
+  bool contains(char c) const {
+    auto u = static_cast<uint8_t>(c);
+    return ((this->bits[u >> 3] >> (u & 7)) & 1u) != this->negate;
+  }
+};
+
+// Parses a "[set]" directive starting just after the '[' and returns the
+// position after the closing ']'.
+const char *parse_scanset(const char *f, Scanset &set) {
   if (*f == '^') {
-    negate = true;
+    set.negate = true;
     f++;
   }
   // A ']' right after '[' or '[^' is a member, not the terminator.
@@ -112,18 +97,31 @@ const char *parse_scanset(const char *f, uint8_t *bitmap, bool &negate) {
       f += 2;
     }
     for (unsigned c = lo; c <= hi; c++)
-      bitmap[c >> 3] |= static_cast<uint8_t>(1u << (c & 7));
+      set.bits[c >> 3] |= static_cast<uint8_t>(1u << (c & 7));
   }
   return *f == ']' ? f + 1 : f;
 }
 
-bool in_scanset(const uint8_t *bitmap, bool negate, char c) {
-  auto u = static_cast<uint8_t>(c);
-  return ((bitmap[u >> 3] >> (u & 7)) & 1u) != negate;
-}
-
 [[noreturn]] void unsupported_conversion() {
   esp_system_abort("sscanf: unsupported conversion; set enable_full_scanf: true in esp32 framework advanced config");
+}
+
+// Radix of an integer conversion, 0 meaning "detect from the prefix" (%i).
+unsigned int_base(char conv) {
+  switch (conv) {
+    case 'd':
+    case 'u':
+      return 10;
+    case 'i':
+      return 0;
+    case 'o':
+      return 8;
+    case 'x':
+    case 'X':
+      return 16;
+    default:
+      unsupported_conversion();
+  }
 }
 
 int vsscanf_stub(const char *str, const char *fmt, va_list ap) {
@@ -136,7 +134,15 @@ int vsscanf_stub(const char *str, const char *fmt, va_list ap) {
         in++;
       continue;
     }
-    if (*f != '%') {
+    bool literal = *f != '%';
+    if (!literal && f[1] == '%') {
+      // "%%" matches one '%' after skipping input whitespace
+      f++;
+      while (is_space(*in))
+        in++;
+      literal = true;
+    }
+    if (literal) {
       if (*in != *f) {
         input_failure = *in == '\0';
         break;
@@ -145,16 +151,6 @@ int vsscanf_stub(const char *str, const char *fmt, va_list ap) {
       continue;
     }
     f++;
-    if (*f == '%') {
-      while (is_space(*in))
-        in++;
-      if (*in != '%') {
-        input_failure = *in == '\0';
-        break;
-      }
-      in++;
-      continue;
-    }
     bool suppress = false;
     if (*f == '*') {
       suppress = true;
@@ -168,6 +164,7 @@ int vsscanf_stub(const char *str, const char *fmt, va_list ap) {
     if (width == 0)
       width = SIZE_MAX;
     auto length = SscanfLength::SSCANF_LENGTH_NONE;
+    bool has_length = true;
     switch (*f) {
       case 'h':
         f++;
@@ -183,26 +180,18 @@ int vsscanf_stub(const char *str, const char *fmt, va_list ap) {
         if (*f == 'l') {
           length = SscanfLength::SSCANF_LENGTH_LL;
           f++;
-        } else {
-          length = SscanfLength::SSCANF_LENGTH_L;
         }
         break;
       case 'j':
-        length = SscanfLength::SSCANF_LENGTH_J;
+        length = SscanfLength::SSCANF_LENGTH_LL;
         f++;
         break;
       case 'z':
-        length = SscanfLength::SSCANF_LENGTH_Z;
-        f++;
-        break;
       case 't':
-        length = SscanfLength::SSCANF_LENGTH_T;
-        f++;
-        break;
-      case 'L':
         f++;
         break;
       default:
+        has_length = false;
         break;
     }
     const char conv = *f;
@@ -213,7 +202,9 @@ int vsscanf_stub(const char *str, const char *fmt, va_list ap) {
         store_int(ap, length, static_cast<unsigned long long>(in - str));
       continue;
     }
-    const bool wide = length == SscanfLength::SSCANF_LENGTH_L || length == SscanfLength::SSCANF_LENGTH_LL;
+    const bool string_conv = conv == 'c' || conv == 's' || conv == '[';
+    if (string_conv && has_length)
+      unsupported_conversion();  // wide characters
     if (conv != 'c' && conv != '[') {
       while (is_space(*in))
         in++;
@@ -222,43 +213,18 @@ int vsscanf_stub(const char *str, const char *fmt, va_list ap) {
       input_failure = true;
       break;
     }
-    unsigned base;
-    switch (conv) {
-      case 'd':
-      case 'u':
-        base = 10;
-        break;
-      case 'i':
-        base = 0;
-        break;
-      case 'o':
-        base = 8;
-        break;
-      case 'x':
-      case 'X':
-        base = 16;
-        break;
-      case 'c':
-      case 's':
-      case '[':
-        if (wide)
-          unsupported_conversion();
-        base = 1;
-        break;
-      default:
-        unsupported_conversion();
-    }
-    if (base != 1) {
+    if (!string_conv) {
+      unsigned base = int_base(conv);
       const char *p = in;
       size_t n = 0;
       bool negative = false;
-      if ((*p == '+' || *p == '-') && n < width) {
+      if (*p == '+' || *p == '-') {
         negative = *p == '-';
         p++;
         n++;
       }
       if ((base == 0 || base == 16) && p[0] == '0' && (p[1] == 'x' || p[1] == 'X') && n + 2 < width &&
-          digit_value(p[2], 16) >= 0) {
+          parse_hex_char(p[2]) != INVALID_HEX_CHAR) {
         p += 2;
         n += 2;
         base = 16;
@@ -267,13 +233,8 @@ int vsscanf_stub(const char *str, const char *fmt, va_list ap) {
         base = *p == '0' ? 8 : 10;
       unsigned long long value = 0;
       bool any_digit = false;
-      while (n < width) {
-        int digit = digit_value(*p, base);
-        if (digit < 0)
-          break;
-        value = value * base + static_cast<unsigned>(digit);
-        p++;
-        n++;
+      for (uint8_t digit; n < width && (digit = parse_hex_char(*p)) < base; p++, n++) {
+        value = value * base + digit;
         any_digit = true;
       }
       if (!any_digit)
@@ -286,33 +247,25 @@ int vsscanf_stub(const char *str, const char *fmt, va_list ap) {
       continue;
     }
     char *dest = suppress ? nullptr : va_arg(ap, char *);
-    if (conv == 'c') {
-      // Like newlib, a short read still assigns whatever was available.
-      const size_t count = width == SIZE_MAX ? 1 : width;
-      size_t n = 0;
-      while (n < count && in[n] != '\0') {
-        if (dest != nullptr)
-          dest[n] = in[n];
-        n++;
-      }
-      in += n;
-    } else {
-      uint8_t bitmap[32];
-      bool negate = false;
-      if (conv == '[')
-        f = parse_scanset(f + 1, bitmap, negate) - 1;
-      size_t n = 0;
-      while (n < width && in[n] != '\0' && (conv == '[' ? in_scanset(bitmap, negate, in[n]) : !is_space(in[n]))) {
-        if (dest != nullptr)
-          dest[n] = in[n];
-        n++;
-      }
+    Scanset set;
+    if (conv == '[')
+      f = parse_scanset(f + 1, set) - 1;  // the loop's f++ steps past the ']'
+    // %c reads exactly width characters (default 1); like newlib, a short
+    // read still assigns whatever was available.
+    const size_t limit = conv == 'c' && width == SIZE_MAX ? 1 : width;
+    size_t n = 0;
+    while (n < limit && in[n] != '\0' && (conv == 'c' || (conv == '[' ? set.contains(in[n]) : !is_space(in[n])))) {
+      if (dest != nullptr)
+        dest[n] = in[n];
+      n++;
+    }
+    if (conv != 'c') {
       if (n == 0)
         break;
       if (dest != nullptr)
         dest[n] = '\0';
-      in += n;
     }
+    in += n;
     if (!suppress)
       assigned++;
   }
