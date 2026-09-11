@@ -64,8 +64,8 @@ class RadioFrequencyCall {
   /// Set the number of times to repeat transmission (1 = transmit once, 2 = transmit twice, etc.)
   RadioFrequencyCall &set_repeat_count(uint32_t count);
 
-  /// Perform the transmission
-  void perform();
+  /// Perform the transmission; returns true if a frame was handed to the transmitter
+  bool perform();
 
   /// Get the frequency in Hz
   const optional<uint32_t> &get_frequency() const { return this->frequency_hz_; }
@@ -184,7 +184,11 @@ class RadioFrequency : public Component, public EntityBase, public remote_base::
 
   /// Perform the actual transmission (called by RadioFrequencyCall::perform())
   /// Platforms must override this to implement hardware-specific transmission.
-  virtual void control(const RadioFrequencyCall &call) = 0;
+  /// Returns false if nothing was transmitted.
+  virtual bool control(const RadioFrequencyCall &call) = 0;
+  /// Forwards the transmitter's completion to the API server; platforms hook their transmitter to it
+  void notify_transmit_complete_();
+  uint32_t inflight_seq_{0};  // seq of the frame this entity submitted last
 
   // Traits describing capabilities
   RadioFrequencyTraits traits_;

@@ -146,21 +146,24 @@ class RemoteTransmitterBase : public RemoteComponentBase {
   RemoteTransmitterBase(InternalGPIOPin *pin) : RemoteComponentBase(pin) {}
   class TransmitCall {
    public:
-    explicit TransmitCall(RemoteTransmitterBase *parent) : parent_(parent) {}
+    TransmitCall(RemoteTransmitterBase *parent, uint32_t seq) : parent_(parent), seq_(seq) {}
     RemoteTransmitData *get_data() { return &this->parent_->temp_; }
     void set_send_times(uint32_t send_times) { send_times_ = send_times; }
     void set_send_wait(uint32_t send_wait) { send_wait_ = send_wait; }
-    void perform() { this->parent_->send_(this->send_times_, this->send_wait_); }
+    /// Identifies this transmission in the completion callback
+    uint32_t get_seq() const { return this->seq_; }
+    void perform() { this->parent_->send_(this->send_times_, this->send_wait_, this->seq_); }
 
    protected:
     RemoteTransmitterBase *parent_;
     uint32_t send_times_{1};
     uint32_t send_wait_{0};
+    uint32_t seq_;
   };
 
   TransmitCall transmit() {
     this->temp_.reset();
-    return TransmitCall(this);
+    return TransmitCall(this, ++this->next_seq_);
   }
   template<typename Protocol>
   void transmit(const Protocol::ProtocolData &data, uint32_t send_times = 1, uint32_t send_wait = 0) {
@@ -170,11 +173,32 @@ class RemoteTransmitterBase : public RemoteComponentBase {
     call.set_send_wait(send_wait);
     call.perform();
   }
+#if defined(USE_IR_RF) || defined(USE_RADIO_FREQUENCY)
+  /// Called with the TransmitCall's seq once that transmission has finished, after the last
+  /// repeat and before the on_complete trigger. One slot: a transmitter is driven by a single
+  /// infrared or radio_frequency entity.
+  template<typename F> void set_on_complete_callback(F &&callback) {
+    this->complete_callback_ = Callback<void(uint32_t)>::create(std::forward<F>(callback));
+  }
+#endif
 
  protected:
-  void send_(uint32_t send_times, uint32_t send_wait);
+  void send_(uint32_t send_times, uint32_t send_wait, uint32_t seq);
   virtual void send_internal(uint32_t send_times, uint32_t send_wait) = 0;
-  void send_single_() { this->send_(1, 0); }
+  void send_single_() { this->send_(1, 0, ++this->next_seq_); }
+#if defined(USE_IR_RF) || defined(USE_RADIO_FREQUENCY)
+  void notify_complete_(uint32_t seq) {
+    if (this->complete_callback_.fn_ != nullptr)
+      this->complete_callback_.call(seq);
+  }
+
+  Callback<void(uint32_t)> complete_callback_{};
+#else
+  void notify_complete_(uint32_t seq) {}
+#endif
+  // seq handed to the platform by send_(); platforms copy it when they accept the frame
+  uint32_t next_seq_{0};
+  uint32_t current_seq_{0};
 
   /// Use same vector for all transmits, avoids many allocations
   RemoteTransmitData temp_;

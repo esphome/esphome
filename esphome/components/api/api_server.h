@@ -196,6 +196,10 @@ class APIServer final : public Component,
 #endif
 #if defined(USE_IR_RF) || defined(USE_RADIO_FREQUENCY)
   void send_infrared_rf_receive_event(uint32_t device_id, uint32_t key, const std::vector<int32_t> *timings);
+  // Completion replies for InfraredRFTransmitRawTimingsRequest (API 1.18+); register before perform()
+  void register_pending_ir_rf_transmit(uint32_t device_id, uint32_t key, APIConnection *conn);
+  void fail_pending_ir_rf_transmit(uint32_t device_id, uint32_t key, APIConnection *conn);
+  void send_infrared_rf_transmit_complete(const EntityBase &entity);
 #endif
 
   bool is_connected() const { return this->api_connection_count_ != 0; }
@@ -341,6 +345,22 @@ class APIServer final : public Component,
   std::vector<ActiveActionCall> active_action_calls_;
   uint32_t next_action_call_id_{1};  // Counter for generating unique action_call_ids
 #endif                               // USE_API_USER_DEFINED_ACTION_RESPONSES
+#endif
+#if defined(USE_IR_RF) || defined(USE_RADIO_FREQUENCY)
+  struct PendingIrRfTransmit {
+    uint32_t device_id;
+    uint32_t key;
+    uint32_t registered_ms;
+    APIConnection *connection;
+  };
+  // FIFO per entity: entities forward only completions of frames they submitted, and each
+  // completion pops the oldest match, so entries are never reordered.
+  // Unlike action calls, transmits share one named expiry timer: they are frequent and
+  // a scheduler item per entry would churn the heap.
+  std::vector<PendingIrRfTransmit> pending_ir_rf_transmits_;
+  void complete_pending_ir_rf_transmit_(size_t index, bool success);
+  void unregister_pending_ir_rf_transmits_for_connection_(APIConnection *conn);
+  void expire_pending_ir_rf_transmits_();
 #endif
 #ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES
   struct PendingActionResponse {

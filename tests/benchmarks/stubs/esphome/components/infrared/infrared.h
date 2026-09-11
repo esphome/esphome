@@ -19,7 +19,7 @@ class InfraredCall {
     return *this;
   }
   InfraredCall &set_repeat_count(uint32_t /*count*/) { return *this; }
-  void perform() {}
+  bool perform() { return false; }
 
  protected:
   Infrared *parent_;

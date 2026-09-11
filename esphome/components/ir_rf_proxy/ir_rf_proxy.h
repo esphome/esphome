@@ -35,7 +35,7 @@ class IrRfProxy final : public infrared::Infrared {
   void set_receiver_frequency(uint32_t frequency_hz) { this->get_traits().set_receiver_frequency_hz(frequency_hz); }
 
  protected:
-  void control(const infrared::InfraredCall &call) override;
+  bool control(const infrared::InfraredCall &call) override;
 
   // RF frequency in kHz (Hz / 1000); 0 = infrared, non-zero = RF
   uint32_t frequency_khz_{0};
@@ -63,7 +63,7 @@ class RfProxy final : public radio_frequency::RadioFrequency {
   void set_frequency_hz(uint32_t freq_hz) { this->traits_.set_fixed_frequency_hz(freq_hz); }
 
  protected:
-  void control(const radio_frequency::RadioFrequencyCall &call) override;
+  bool control(const radio_frequency::RadioFrequencyCall &call) override;
 
   remote_base::RemoteTransmitterBase *transmitter_{nullptr};
   remote_base::RemoteReceiverBase *receiver_{nullptr};

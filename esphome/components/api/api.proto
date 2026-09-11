@@ -2697,6 +2697,21 @@ message InfraredRFReceiveEvent {
   repeated sint32 timings = 3 [packed = true, (container_pointer_no_template) = "std::vector<int32_t>"];  // Raw timings in microseconds (zigzag-encoded): alternating mark/space periods
 }
 
+// Sent only to the client that issued an InfraredRFTransmitRawTimingsRequest, once the
+// transmitter reports that the transmission (all repeats) has finished, or immediately with
+// success=false if it could not be started (unknown key, no transmitter, no or invalid timings).
+// Lets clients pace requests instead of estimating durations (since API 1.18)
+message InfraredRFTransmitCompleteResponse {
+  option (id) = 153;
+  option (source) = SOURCE_SERVER;
+  option (ifdef) = "USE_IR_RF || USE_RADIO_FREQUENCY";
+  option (no_delay) = true;
+
+  uint32 device_id = 1 [(field_ifdef) = "USE_DEVICES"];
+  fixed32 key = 2 [(force) = true];  // Key of the transmitter entity from the request
+  bool success = 3;                  // false if the transmit never started
+}
+
 // ==================== RADIO FREQUENCY ====================
 
 // Lists available radio frequency entity instances

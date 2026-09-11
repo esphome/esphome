@@ -4082,6 +4082,24 @@ InfraredRFReceiveEvent::calculate_size() const {
   }
   return size;
 }
+uint8_t *InfraredRFTransmitCompleteResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
+  uint8_t *__restrict__ pos = buffer.get_pos();
+#ifdef USE_DEVICES
+  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 1, this->device_id);
+#endif
+  ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 21, this->key);
+  ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 3, this->success);
+  return pos;
+}
+uint32_t InfraredRFTransmitCompleteResponse::calculate_size() const {
+  uint32_t size = 0;
+#ifdef USE_DEVICES
+  size += ProtoSize::calc_uint32(1, this->device_id);
+#endif
+  size += 5;
+  size += ProtoSize::calc_bool(1, this->success);
+  return size;
+}
 #endif
 #ifdef USE_RADIO_FREQUENCY
 uint8_t *ListEntitiesRadioFrequencyResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {

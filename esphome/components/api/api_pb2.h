@@ -3241,6 +3241,26 @@ class InfraredRFReceiveEvent final : public ProtoMessage {
 
  protected:
 };
+class InfraredRFTransmitCompleteResponse final : public ProtoMessage {
+ public:
+  static constexpr uint16_t MESSAGE_TYPE = 153;
+  static constexpr uint8_t ESTIMATED_SIZE = 11;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  const LogString *message_name() const override { return LOG_STR("infrared_rf_transmit_complete_response"); }
+#endif
+#ifdef USE_DEVICES
+  uint32_t device_id{0};
+#endif
+  uint32_t key{0};
+  bool success{false};
+  uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const;
+  uint32_t calculate_size() const;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  const char *dump_to(DumpBuffer &out) const override;
+#endif
+
+ protected:
+};
 #endif
 #ifdef USE_RADIO_FREQUENCY
 class ListEntitiesRadioFrequencyResponse final : public InfoResponseProtoMessage {

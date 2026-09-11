@@ -2740,6 +2740,15 @@ const char *InfraredRFReceiveEvent::dump_to(DumpBuffer &out) const {
   }
   return out.c_str();
 }
+const char *InfraredRFTransmitCompleteResponse::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("InfraredRFTransmitCompleteResponse"));
+#ifdef USE_DEVICES
+  dump_field(out, ESPHOME_PSTR("device_id"), this->device_id);
+#endif
+  dump_field(out, ESPHOME_PSTR("key"), this->key);
+  dump_field(out, ESPHOME_PSTR("success"), this->success);
+  return out.c_str();
+}
 #endif
 #ifdef USE_RADIO_FREQUENCY
 const char *ListEntitiesRadioFrequencyResponse::dump_to(DumpBuffer &out) const {

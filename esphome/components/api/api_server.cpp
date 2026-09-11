@@ -38,6 +38,9 @@ void APIServer::socket_failed_(const LogString *msg) {
 }
 
 void APIServer::setup() {
+#if defined(USE_IR_RF) || defined(USE_RADIO_FREQUENCY)
+  this->pending_ir_rf_transmits_.reserve(this->clients_.size());
+#endif
   ControllerRegistry::register_controller(this);
 
 #ifdef USE_API_NOISE
@@ -193,6 +196,9 @@ void APIServer::remove_client_(uint8_t client_index) {
 
 #ifdef USE_API_USER_DEFINED_ACTION_RESPONSES
   this->unregister_active_action_calls_for_connection(client.get());
+#endif
+#if defined(USE_IR_RF) || defined(USE_RADIO_FREQUENCY)
+  this->unregister_pending_ir_rf_transmits_for_connection_(client.get());
 #endif
   ESP_LOGV(TAG, "Remove connection %s", client->get_name());
 
@@ -416,6 +422,76 @@ void APIServer::send_infrared_rf_receive_event([[maybe_unused]] uint32_t device_
 
   for (auto &c : this->active_clients())
     c->send_infrared_rf_receive_event(resp);
+}
+
+// Safety net for transmitters that never report completion (for example a failed component)
+static constexpr uint32_t IR_RF_TRANSMIT_TIMEOUT_MS = 30000;
+static constexpr char IR_RF_TRANSMIT_TIMEOUT[] = "ir_rf_tx";
+
+void APIServer::register_pending_ir_rf_transmit(uint32_t device_id, uint32_t key, APIConnection *conn) {
+  this->pending_ir_rf_transmits_.push_back({device_id, key, App.get_loop_component_start_time(), conn});
+  if (this->pending_ir_rf_transmits_.size() == 1) {
+    this->set_timeout(IR_RF_TRANSMIT_TIMEOUT, IR_RF_TRANSMIT_TIMEOUT_MS,
+                      [this]() { this->expire_pending_ir_rf_transmits_(); });
+  }
+}
+
+void APIServer::fail_pending_ir_rf_transmit(uint32_t device_id, uint32_t key, APIConnection *conn) {
+  auto &pending = this->pending_ir_rf_transmits_;
+  for (size_t i = pending.size(); i-- > 0;) {
+    if (pending[i].connection == conn && pending[i].key == key && pending[i].device_id == device_id) {
+      this->complete_pending_ir_rf_transmit_(i, false);
+      return;
+    }
+  }
+}
+
+void APIServer::send_infrared_rf_transmit_complete(const EntityBase &entity) {
+  uint32_t device_id = 0;
+#ifdef USE_DEVICES
+  device_id = entity.get_device_id();
+#endif
+  const uint32_t key = entity.get_object_id_hash();
+  auto &pending = this->pending_ir_rf_transmits_;
+  for (size_t i = 0; i < pending.size(); i++) {
+    if (pending[i].key == key && pending[i].device_id == device_id) {
+      this->complete_pending_ir_rf_transmit_(i, true);
+      return;
+    }
+  }
+}
+
+void APIServer::complete_pending_ir_rf_transmit_(size_t index, bool success) {
+  auto &pending = this->pending_ir_rf_transmits_;
+  InfraredRFTransmitCompleteResponse resp{};
+#ifdef USE_DEVICES
+  resp.device_id = pending[index].device_id;
+#endif
+  resp.key = pending[index].key;
+  resp.success = success;
+  pending[index].connection->send_infrared_rf_transmit_complete_response(resp);
+  pending.erase(pending.begin() + index);
+}
+
+void APIServer::unregister_pending_ir_rf_transmits_for_connection_(APIConnection *conn) {
+  auto &pending = this->pending_ir_rf_transmits_;
+  pending.erase(std::remove_if(pending.begin(), pending.end(),
+                               [conn](const PendingIrRfTransmit &entry) { return entry.connection == conn; }),
+                pending.end());
+}
+
+// A timer firing on an empty list is harmless, so nothing cancels it
+void APIServer::expire_pending_ir_rf_transmits_() {
+  const uint32_t now = App.get_loop_component_start_time();
+  auto &pending = this->pending_ir_rf_transmits_;
+  while (!pending.empty() && now - pending.front().registered_ms >= IR_RF_TRANSMIT_TIMEOUT_MS) {
+    ESP_LOGW(TAG, "IR/RF transmit %" PRIu32 " never reported completion", pending.front().key);
+    this->complete_pending_ir_rf_transmit_(0, false);
+  }
+  if (!pending.empty()) {
+    this->set_timeout(IR_RF_TRANSMIT_TIMEOUT, IR_RF_TRANSMIT_TIMEOUT_MS - (now - pending.front().registered_ms),
+                      [this]() { this->expire_pending_ir_rf_transmits_(); });
+  }
 }
 #endif
 

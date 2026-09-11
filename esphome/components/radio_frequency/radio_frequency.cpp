@@ -52,14 +52,15 @@ RadioFrequencyCall &RadioFrequencyCall::set_repeat_count(uint32_t count) {
   return *this;
 }
 
-void RadioFrequencyCall::perform() {
-  if (this->parent_ != nullptr) {
-    // Fire any on_control hooks (user-wired automations) before handing off to
-    // the platform-specific control() — gives users a chance to react to call
-    // parameters (e.g. retune an external RF front-end based on call.get_frequency()).
-    this->parent_->control_callback_.call(*this);
-    this->parent_->control(*this);
+bool RadioFrequencyCall::perform() {
+  if (this->parent_ == nullptr) {
+    return false;
   }
+  // Fire any on_control hooks (user-wired automations) before handing off to
+  // the platform-specific control() — gives users a chance to react to call
+  // parameters (e.g. retune an external RF front-end based on call.get_frequency()).
+  this->parent_->control_callback_.call(*this);
+  return this->parent_->control(*this);
 }
 
 // ========== RadioFrequency ==========
@@ -106,6 +107,13 @@ bool RadioFrequency::on_receive(remote_base::RemoteReceiveData data) {
   }
 #endif
   return false;  // Don't consume the event, allow other listeners to process it
+}
+
+void RadioFrequency::notify_transmit_complete_() {
+#if defined(USE_API) && defined(USE_RADIO_FREQUENCY)
+  if (api::global_api_server != nullptr)
+    api::global_api_server->send_infrared_rf_transmit_complete(*this);
+#endif
 }
 
 }  // namespace esphome::radio_frequency

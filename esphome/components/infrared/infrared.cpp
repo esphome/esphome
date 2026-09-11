@@ -47,11 +47,7 @@ InfraredCall &InfraredCall::set_repeat_count(uint32_t count) {
   return *this;
 }
 
-void InfraredCall::perform() {
-  if (this->parent_ != nullptr) {
-    this->parent_->control(*this);
-  }
-}
+bool InfraredCall::perform() { return this->parent_ != nullptr && this->parent_->control(*this); }
 
 // ========== Infrared ==========
 
@@ -64,6 +60,15 @@ void Infrared::setup() {
   if (this->receiver_ != nullptr) {
     this->receiver_->register_listener(this);
   }
+#if defined(USE_API) && defined(USE_IR_RF)
+  if (this->transmitter_ != nullptr) {
+    // only frames this entity submitted; YAML automations share the transmitter
+    this->transmitter_->set_on_complete_callback([this](uint32_t seq) {
+      if (seq == this->inflight_seq_)
+        this->notify_transmit_complete_();
+    });
+  }
+#endif
 }
 
 void Infrared::dump_config() {
@@ -75,15 +80,15 @@ void Infrared::dump_config() {
                 YESNO(this->traits_.get_supports_receiver()));
 }
 
-void Infrared::control(const InfraredCall &call) {
+bool Infrared::control(const InfraredCall &call) {
   if (this->transmitter_ == nullptr) {
     ESP_LOGW(TAG, "No transmitter configured");
-    return;
+    return false;
   }
 
   if (!call.has_raw_timings()) {
     ESP_LOGE(TAG, "No raw timings provided");
-    return;
+    return false;
   }
 
   // Create transmit data object
@@ -107,7 +112,7 @@ void Infrared::control(const InfraredCall &call) {
     // Decode base64url (URL-safe) into transmit buffer
     if (!transmit_data->set_data_from_base64url(call.get_base64url_data())) {
       ESP_LOGE(TAG, "Invalid base64url data");
-      return;
+      return false;
     }
     // Sanity check: validate timing values are within reasonable bounds
     constexpr int32_t max_timing_us = 500000;  // 500ms absolute max
@@ -115,7 +120,7 @@ void Infrared::control(const InfraredCall &call) {
       int32_t abs_timing = timing < 0 ? -timing : timing;
       if (abs_timing > max_timing_us) {
         ESP_LOGE(TAG, "Invalid timing value: %" PRId32 " µs (max %" PRId32 ")", timing, max_timing_us);
-        return;
+        return false;
       }
     }
     ESP_LOGD(TAG, "Transmitting base64url raw timings: count=%zu, repeat=%" PRIu32, transmit_data->get_data().size(),
@@ -133,7 +138,16 @@ void Infrared::control(const InfraredCall &call) {
   }
 
   // Perform transmission
+  this->inflight_seq_ = transmit_call.get_seq();
   transmit_call.perform();
+  return true;
+}
+
+void Infrared::notify_transmit_complete_() {
+#if defined(USE_API) && defined(USE_IR_RF)
+  if (api::global_api_server != nullptr)
+    api::global_api_server->send_infrared_rf_transmit_complete(*this);
+#endif
 }
 
 uint32_t Infrared::get_capability_flags() const {

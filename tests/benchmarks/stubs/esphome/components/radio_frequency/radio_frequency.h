@@ -23,7 +23,7 @@ class RadioFrequencyCall {
   RadioFrequencyCall &set_raw_timings_packed(const uint8_t * /*data*/, uint16_t /*length*/, uint16_t /*count*/) {
     return *this;
   }
-  void perform() {}
+  bool perform() { return false; }
 
  protected:
   RadioFrequency *parent_;

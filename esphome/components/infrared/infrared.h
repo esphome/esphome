@@ -54,8 +54,8 @@ class InfraredCall {
   /// Set the number of times to repeat transmission (1 = transmit once, 2 = transmit twice, etc.)
   InfraredCall &set_repeat_count(uint32_t count);
 
-  /// Perform the transmission
-  void perform();
+  /// Perform the transmission; returns true if a frame was handed to the transmitter
+  bool perform();
 
   /// Get the carrier frequency
   const optional<uint32_t> &get_carrier_frequency() const { return this->carrier_frequency_; }
@@ -145,8 +145,11 @@ class Infrared : public Component, public EntityBase, public remote_base::Remote
  protected:
   friend class InfraredCall;
 
-  /// Perform the actual transmission (called by InfraredCall)
-  virtual void control(const InfraredCall &call);
+  /// Perform the actual transmission (called by InfraredCall); false if nothing was transmitted
+  virtual bool control(const InfraredCall &call);
+  /// Forwards the transmitter's completion to the API server
+  void notify_transmit_complete_();
+  uint32_t inflight_seq_{0};  // seq of the frame this entity submitted last
 
   // Underlying hardware components
   remote_base::RemoteReceiverBase *receiver_{nullptr};

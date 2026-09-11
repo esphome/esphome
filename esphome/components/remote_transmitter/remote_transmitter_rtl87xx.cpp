@@ -149,6 +149,7 @@ void RemoteTransmitterComponent::send_internal(uint32_t send_times, uint32_t sen
     return;
   }
   ESP_LOGD(TAG, "Sending remote code");
+  this->inflight_seq_ = this->current_seq_;
   const uint32_t carrier_frequency = this->temp_.get_carrier_frequency();
   // unmodulated protocols (no carrier or 100% duty) drive the pin constantly during marks
   float mark_duty =
@@ -194,7 +195,7 @@ void RemoteTransmitterComponent::send_internal(uint32_t send_times, uint32_t sen
       }
     }
   }
-  this->complete_trigger_.trigger();
+  this->fire_complete_();
 }
 
 #endif  // USE_LIBRETINY_VARIANT_RTL8720C

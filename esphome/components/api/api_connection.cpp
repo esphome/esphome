@@ -1516,6 +1516,18 @@ uint16_t APIConnection::try_send_event_info(EntityBase *entity, APIConnection *c
 
 #if defined(USE_IR_RF) || defined(USE_RADIO_FREQUENCY)
 void APIConnection::on_infrared_rf_transmit_raw_timings_request(const InfraredRFTransmitRawTimingsRequest &msg) {
+#ifdef USE_DEVICES
+  const uint32_t device_id = msg.device_id;
+#else
+  const uint32_t device_id = 0;
+#endif
+  // Register before perform(): blocking transmitters report completion from inside it, and the
+  // non-blocking RMT path flushes the previous frame's completion there
+  const bool want_reply = this->client_supports_api_version(1, 18);
+  if (want_reply) {
+    this->parent_->register_pending_ir_rf_transmit(device_id, msg.key, this);
+  }
+  bool started = false;
   // Dispatch by key: infrared entities are checked first, then radio frequency entities.
   // The key is unique across all entity instances on a device, so at most one lookup will succeed.
 #ifdef USE_INFRARED
@@ -1525,8 +1537,7 @@ void APIConnection::on_infrared_rf_transmit_raw_timings_request(const InfraredRF
     call.set_carrier_frequency(msg.carrier_frequency);
     call.set_raw_timings_packed(msg.timings_data_, msg.timings_length_, msg.timings_count_);
     call.set_repeat_count(msg.repeat_count);
-    call.perform();
-    return;
+    started = call.perform();
   }
 #endif
 #ifdef USE_RADIO_FREQUENCY
@@ -1537,9 +1548,12 @@ void APIConnection::on_infrared_rf_transmit_raw_timings_request(const InfraredRF
     call.set_modulation(static_cast<radio_frequency::RadioFrequencyModulation>(msg.modulation));
     call.set_repeat_count(msg.repeat_count);
     call.set_raw_timings_packed(msg.timings_data_, msg.timings_length_, msg.timings_count_);
-    call.perform();
+    started = call.perform();
   }
 #endif
+  if (want_reply && !started) {
+    this->parent_->fail_pending_ir_rf_transmit(device_id, msg.key, this);
+  }
 }
 #endif
 
@@ -1549,6 +1563,13 @@ void APIConnection::send_infrared_rf_receive_event(const InfraredRFReceiveEvent 
     // V: fires per decoded frame with no subscription gate, so a warning
     // would flood the congested link it reports on.
     ESP_LOGV(TAG, "IR/RF event dropped, TCP buffer full");
+  }
+}
+
+void APIConnection::send_infrared_rf_transmit_complete_response(const InfraredRFTransmitCompleteResponse &msg) {
+  if (!this->send_message(msg)) {
+    // a lost reply stalls the client's pacing until the server side expiry
+    API_LOG_MSG_DROPPED(TAG, "IR/RF transmit complete");
   }
 }
 #endif
@@ -1813,7 +1834,7 @@ bool APIConnection::send_hello_response_(const HelloRequest &msg) {
 
   HelloResponse resp;
   resp.api_version_major = 1;
-  resp.api_version_minor = 17;
+  resp.api_version_minor = 18;
   // Send only the version string - the client only logs this for debugging and doesn't use it otherwise
   resp.server_info = ESPHOME_VERSION_REF;
   resp.name = StringRef(App.get_name());

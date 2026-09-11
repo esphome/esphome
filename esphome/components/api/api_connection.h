@@ -236,6 +236,7 @@ class APIConnection final : public APIServerConnectionBase {
 #if defined(USE_IR_RF) || defined(USE_RADIO_FREQUENCY)
   void on_infrared_rf_transmit_raw_timings_request(const InfraredRFTransmitRawTimingsRequest &msg);
   void send_infrared_rf_receive_event(const InfraredRFReceiveEvent &msg);
+  void send_infrared_rf_transmit_complete_response(const InfraredRFTransmitCompleteResponse &msg);
 #endif
 
 #ifdef USE_SERIAL_PROXY

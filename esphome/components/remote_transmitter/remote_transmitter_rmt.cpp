@@ -213,7 +213,7 @@ void RemoteTransmitterComponent::wait_for_rmt_() {
     this->status_set_warning();
   }
 
-  this->complete_trigger_.trigger();
+  this->fire_complete_();
 }
 
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 5, 1)
@@ -228,6 +228,7 @@ void RemoteTransmitterComponent::send_internal(uint32_t send_times, uint32_t sen
   if (this->non_blocking_ && this->cancel_timeout("complete")) {
     this->wait_for_rmt_();
   }
+  this->inflight_seq_ = this->current_seq_;
 
   if (this->current_carrier_frequency_ != this->temp_.get_carrier_frequency()) {
     this->current_carrier_frequency_ = this->temp_.get_carrier_frequency();
@@ -300,6 +301,7 @@ void RemoteTransmitterComponent::send_internal(uint32_t send_times, uint32_t sen
 void RemoteTransmitterComponent::send_internal(uint32_t send_times, uint32_t send_wait) {
   if (this->is_failed())
     return;
+  this->inflight_seq_ = this->current_seq_;
 
   if (this->current_carrier_frequency_ != this->temp_.get_carrier_frequency()) {
     this->current_carrier_frequency_ = this->temp_.get_carrier_frequency();
@@ -364,7 +366,7 @@ void RemoteTransmitterComponent::send_internal(uint32_t send_times, uint32_t sen
     if (i + 1 < send_times)
       delayMicroseconds(send_wait);
   }
-  this->complete_trigger_.trigger();
+  this->fire_complete_();
 }
 #endif
 

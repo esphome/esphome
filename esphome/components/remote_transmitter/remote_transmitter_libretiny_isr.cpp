@@ -110,7 +110,7 @@ void RemoteTransmitterComponent::deliver_completion_() {
   if (!this->stall_aborted_)
     this->status_clear_warning();
   this->complete_pending_ = false;
-  this->complete_trigger_.trigger();
+  this->fire_complete_();
 }
 
 // Waits until no chain is in flight, delivering any deferred completions; a completion
@@ -137,6 +137,7 @@ void RemoteTransmitterComponent::wait_until_idle_() {
 
 // Stages the repeat schedule and stall deadline, then starts the interrupt chain
 void RemoteTransmitterComponent::arm_chain_(uint32_t send_times, uint32_t send_wait) {
+  this->inflight_seq_ = this->current_seq_;
   this->isr_repeats_left_ = send_times;
   this->isr_send_wait_ = send_wait;
   this->isr_index_ = 0;
