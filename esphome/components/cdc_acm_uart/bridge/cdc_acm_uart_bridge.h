@@ -51,7 +51,7 @@ class CDCACMUARTBridge final : public Component {
   /// True once both worker tasks are off the bus and the configured framing is restored.
   /// With no RX task (setup() failed or has not run) there is nothing to wait for.
   bool is_paused() const {
-    return this->paused_ != 0 && !this->framing_restore_pending_ && !this->resume_pending_ &&
+    return this->state_ == MainState::MAIN_STATE_PAUSED &&
            (this->uart_rx_task_handle_ == nullptr || this->rx_parked_ != 0);
   }
 
@@ -97,11 +97,15 @@ class CDCACMUARTBridge final : public Component {
   // the pause hand-off knows when the bus is actually free.
   std::atomic<uint8_t> rx_parked_{0};
   std::atomic<uint8_t> tx_busy_{0};
-  bool reload_pending_{false};
-  // Set by pause(); loop() restores the configured framing once the TX side is idle.
-  bool framing_restore_pending_{false};
-  // Set by resume() while a host write is still draining; loop() finishes the resume.
-  bool resume_pending_{false};
+  // Main-loop state; paused_ mirrors it for the worker tasks.
+  enum class MainState : uint8_t {
+    MAIN_STATE_RUNNING,
+    MAIN_STATE_RELOAD_PENDING,  // host line coding debounced, forwarding continues
+    MAIN_STATE_PAUSING,         // waiting for TX idle to restore the configured framing
+    MAIN_STATE_PAUSED,
+    MAIN_STATE_RESUMING,  // resume() requested while a host write still drains
+  };
+  MainState state_{MainState::MAIN_STATE_RUNNING};
   // Host line state, recorded even while paused so resume() can re-drive the pins.
   bool host_dtr_{false};
   bool host_rts_{false};

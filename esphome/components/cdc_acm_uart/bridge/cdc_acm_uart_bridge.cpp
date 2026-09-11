@@ -162,36 +162,35 @@ void CDCACMUARTBridge::on_shutdown() {
 }
 
 void CDCACMUARTBridge::loop() {
-  if (this->framing_restore_pending_ || this->resume_pending_) {
-    // Let a host write that was in flight drain, FIFO included, before a reload flushes
-    // the FIFOs and truncates it.
-    if (!this->tx_idle_()) {
-      return;
-    }
-    if (this->framing_restore_pending_) {
-      this->framing_restore_pending_ = false;
-      this->restore_configured_framing_();
-    } else {
-      this->resume_pending_ = false;
-      this->finish_resume_();
-    }
-    this->disable_loop();
-    return;
+  switch (this->state_) {
+    case MainState::MAIN_STATE_RELOAD_PENDING:
+      if ((App.get_loop_component_start_time() - this->reload_requested_at_) < UART_RELOAD_SETTLE_MS) {
+        return;
+      }
+      // Deliberately not gated on tx_idle_(): a host that re-codes the line mid-stream
+      // wants the new framing now, and its own in-flight bytes are its concern.
+      // apply_settings_live() rewrites the framing registers without reinstalling the
+      // driver, so the worker tasks blocked inside it are undisturbed.
+      this->uart_parent_->apply_settings_live();
+      this->state_ = MainState::MAIN_STATE_RUNNING;
+      break;
+    case MainState::MAIN_STATE_PAUSING:
+    case MainState::MAIN_STATE_RESUMING:
+      // Let a host write that was in flight drain, FIFO included, before a reload
+      // flushes the FIFOs and truncates it.
+      if (!this->tx_idle_()) {
+        return;
+      }
+      if (this->state_ == MainState::MAIN_STATE_PAUSING) {
+        this->restore_configured_framing_();
+        this->state_ = MainState::MAIN_STATE_PAUSED;
+      } else {
+        this->finish_resume_();
+      }
+      break;
+    default:
+      break;
   }
-
-  if (!this->reload_pending_) {
-    return;
-  }
-  if ((App.get_loop_component_start_time() - this->reload_requested_at_) < UART_RELOAD_SETTLE_MS) {
-    return;
-  }
-
-  // Deliberately not gated on tx_idle_(): a host that re-codes the line mid-stream
-  // wants the new framing now, and its own in-flight bytes are its concern.
-  // apply_settings_live() rewrites the framing registers without reinstalling the
-  // driver, so the worker tasks blocked inside it are undisturbed.
-  this->reload_pending_ = false;
-  this->uart_parent_->apply_settings_live();
   this->disable_loop();
 }
 
@@ -201,7 +200,7 @@ void CDCACMUARTBridge::set_line_coding() {
   }
   // Coalesce rapid line-coding updates from the host.
   this->reload_requested_at_ = App.get_loop_component_start_time();
-  this->reload_pending_ = true;
+  this->state_ = MainState::MAIN_STATE_RELOAD_PENDING;
   // Main-loop context (via USBCDCACMInstance::process_events_).
   this->enable_loop();
 }
@@ -254,8 +253,7 @@ bool CDCACMUARTBridge::sync_host_framing_() {
 }
 
 void CDCACMUARTBridge::pause() {
-  // A pause that lands while resume() is still waiting for the TX side cancels it.
-  if (this->paused_ != 0 && !this->resume_pending_) {
+  if (this->state_ == MainState::MAIN_STATE_PAUSING || this->state_ == MainState::MAIN_STATE_PAUSED) {
     return;
   }
   this->paused_ = 1;
@@ -263,28 +261,27 @@ void CDCACMUARTBridge::pause() {
   // the framing snapshot does not exist yet. Should setup() run later, the RX task
   // starts parked.
   if (this->uart_rx_task_handle_ == nullptr) {
+    this->state_ = MainState::MAIN_STATE_PAUSED;
     return;
   }
-  this->resume_pending_ = false;
-  // A coalesced host reload must not land once another component owns the bus.
-  this->reload_pending_ = false;
-  // loop() performs the restore once any host write in flight has drained.
-  this->framing_restore_pending_ = true;
+  // Drops a coalesced host reload or a pending resume; loop() restores the framing
+  // once any host write in flight has drained.
+  this->state_ = MainState::MAIN_STATE_PAUSING;
   this->enable_loop();
 }
 
 void CDCACMUARTBridge::resume() {
-  if (this->paused_ == 0 || this->resume_pending_) {
+  if (this->state_ != MainState::MAIN_STATE_PAUSING && this->state_ != MainState::MAIN_STATE_PAUSED) {
     return;
   }
   if (this->uart_rx_task_handle_ == nullptr) {
     this->paused_ = 0;
+    this->state_ = MainState::MAIN_STATE_RUNNING;
     return;
   }
   // A restore still waiting on the TX side is moot: the host's framing is kept.
-  this->framing_restore_pending_ = false;
   if (!this->tx_idle_()) {
-    this->resume_pending_ = true;
+    this->state_ = MainState::MAIN_STATE_RESUMING;
     this->enable_loop();
     return;
   }
@@ -299,6 +296,7 @@ void CDCACMUARTBridge::finish_resume_() {
     this->uart_parent_->apply_settings_live();
   }
   this->paused_ = 0;
+  this->state_ = MainState::MAIN_STATE_RUNNING;
   this->drive_line_state_();
   xTaskNotifyGive(this->uart_rx_task_handle_);
 }
@@ -396,16 +394,16 @@ void CDCACMUARTBridge::uart_rx_task_() {
     // Drain the currently buffered burst without waiting.
     while (true) {
       int rx_data_size = uart_read_bytes(uart_num, data + total_rx_size, buf_size - total_rx_size, 0);
-      if (rx_data_size == 0) {
-        break;
-      }
-      ESP_LOGV(TAG, "UART RX: %d bytes", rx_data_size);
       if (rx_data_size < 0) {
         if (should_log_now(&err_log_ms, LOG_THROTTLE_MS)) {
           ESP_LOGE(TAG, "UART read failed: %d", rx_data_size);
         }
         break;
       }
+      if (rx_data_size == 0) {
+        break;
+      }
+      ESP_LOGV(TAG, "UART RX: %d bytes", rx_data_size);
       total_rx_size += rx_data_size;
       if (total_rx_size >= (int) buf_size) {
         break;
