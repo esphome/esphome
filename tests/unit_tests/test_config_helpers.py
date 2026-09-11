@@ -2,11 +2,12 @@
 
 from collections.abc import Callable
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
 from esphome.config_helpers import (
+    external_components_use_scanf_float,
     filter_source_files_from_defines,
     filter_source_files_from_platform,
     frameworks_for_platforms,
@@ -28,7 +29,8 @@ from esphome.const import (
     KEY_TARGET_PLATFORM,
     PlatformFramework,
 )
-from esphome.core import Define, Lambda
+from esphome.core import CORE, Define, Lambda
+from esphome.loader import CORE_COMPONENTS_PATH
 from esphome.types import ConfigType
 
 
@@ -300,3 +302,28 @@ def test_keep_float_scanf() -> None:
     assert keep_float_scanf(False, float_config, "x", "y") is False
     assert keep_float_scanf(None, float_config, "x", "y") is True
     assert keep_float_scanf(None, int_config, "x", "y") is False
+
+
+def test_external_components_use_scanf_float(setup_core: Path) -> None:
+    """Sources of components outside the ESPHome tree are scanned; in-tree ones are skipped."""
+    ext = setup_core / "ext_comp"
+    ext.mkdir()
+    (ext / "__init__.py").write_text("")
+    (ext / "sensor").mkdir()
+    (ext / "sensor" / "parse.cpp").write_text(
+        'void f(const char *b) { float v; sscanf(b, "%f", &v); }'
+    )
+    fake = MagicMock()
+    fake.module.__file__ = str(ext / "__init__.py")
+    core_component = MagicMock()
+    core_component.module.__file__ = str(
+        CORE_COMPONENTS_PATH / "sensor" / "__init__.py"
+    )
+    lookup = {"ext_comp": fake, "sensor": core_component, "missing": None}
+
+    with patch("esphome.loader.get_component", side_effect=lookup.get):
+        CORE.loaded_integrations = {"sensor", "missing"}
+        assert external_components_use_scanf_float() is False
+        CORE.loaded_integrations = {"sensor", "ext_comp"}
+        assert external_components_use_scanf_float() is True
+        assert user_code_uses_scanf_float({}) is True

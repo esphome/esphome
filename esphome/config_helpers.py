@@ -306,9 +306,32 @@ def includes_use_scanf_float(config: ConfigType) -> bool:
     return False
 
 
+def external_components_use_scanf_float() -> bool:
+    """Whether a loaded component from outside the ESPHome tree scans a float."""
+    from esphome.loader import CORE_COMPONENTS_PATH, get_component
+
+    for name in sorted(CORE.loaded_integrations):
+        component = get_component(name)
+        if component is None:
+            continue
+        package_dir = Path(component.module.__file__).resolve().parent
+        if package_dir.is_relative_to(CORE_COMPONENTS_PATH):
+            continue
+        for file in walk_files(package_dir):
+            if file.suffix in SOURCE_FILE_EXTENSIONS and source_uses_scanf_float(
+                file.read_text(encoding="utf-8", errors="replace")
+            ):
+                return True
+    return False
+
+
 def user_code_uses_scanf_float(config: ConfigType) -> bool:
-    """Whether a lambda or an ``includes:`` file scans a float."""
-    return lambdas_use_scanf_float(config) or includes_use_scanf_float(config)
+    """Whether a lambda, an ``includes:`` file or an external component scans a float."""
+    return (
+        lambdas_use_scanf_float(config)
+        or includes_use_scanf_float(config)
+        or external_components_use_scanf_float()
+    )
 
 
 def keep_float_scanf(
@@ -323,15 +346,15 @@ def keep_float_scanf(
         if not user_code_uses_scanf_float(config):
             return False
         _LOGGER.warning(
-            "Lambda or include uses scanf with a float format specifier; "
-            "keeping float scanf support (%s)",
+            "Lambda, include or external component uses scanf with a float format "
+            "specifier; keeping float scanf support (%s)",
             flash_note,
         )
         return True
     if not option and user_code_uses_scanf_float(config):
         _LOGGER.warning(
-            "Float scanf support is disabled but a lambda or include uses scanf "
-            "with a float format specifier; %s",
+            "Float scanf support is disabled but a lambda, include or external "
+            "component uses scanf with a float format specifier; %s",
             override_note,
         )
     return option
