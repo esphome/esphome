@@ -2,9 +2,15 @@
 `type` is a tuple of acceptable alternatives, rather than a single type.
 
 This is what `entity_state:` relies on (see esphome/config_validation.py) to reject a
-reference to a declared id whose type has no usable `.state` field, and what narrows
-the message to a single type name when the field's own validator (e.g. `cv.string`)
-narrows the acceptable set down to one.
+reference to a declared id whose type has no usable `.state` field at all -- it always
+sets every known state-bearing type as the tuple (see
+`lambda_shorthand.state_bearing_types`); whether the specific type's `.state` kind
+(numeric/boolean/string) is compatible with the field it feeds is checked separately,
+at codegen time (`cpp_generator._check_entity_state_shorthand`), once the field's real
+return type is known. These tests exercise `IDPassValidationStep`'s tuple-of-types
+handling generically -- both a single-element and a multi-element tuple -- since that
+mechanism isn't specific to how many alternatives `entity_state:` itself happens to
+pass.
 """
 
 from __future__ import annotations
@@ -28,9 +34,7 @@ def _run_id_pass(declared_type, explicit_id_types: tuple) -> Config:
 
 
 def test_id_pass_rejects_wrong_type_against_single_allowed_type() -> None:
-    """A searching id's `type` narrowed to exactly one option (as
-    `_entity_state_allowed_types` does once the field's own validator narrows the
-    acceptable set, e.g. to just `TextSensor` for a string field) must produce the
+    """A searching id's `type` narrowed to exactly one option must produce the
     singular "doesn't inherit from" message, not the plural "is not one of" one.
     """
     config = _run_id_pass(declared_type=Sensor, explicit_id_types=(TextSensor,))
@@ -57,6 +61,23 @@ def test_id_pass_rejects_wrong_type_against_multiple_allowed_types() -> None:
 def test_id_pass_accepts_matching_type_in_tuple() -> None:
     """No error when the declared id's type is one of the accepted alternatives."""
     config = _run_id_pass(declared_type=Sensor, explicit_id_types=(TextSensor, Sensor))
+
+    assert not config.errors
+
+
+def test_id_pass_accepts_hand_written_lambda_id_reference() -> None:
+    """A hand-written `!lambda return id(x).state;` (no `entity_state:` shorthand
+    behind it) produces an *untyped* id for the id it references --
+    `Lambda.requires_ids` parses `id(...)` out of the source text with no type
+    information, so `id.type is None`. This is the common case for a lambda id
+    reference, not a defensive/unreachable one -- it must resolve cleanly, the same
+    as it always has.
+    """
+    config = Config()
+    config["sensor"] = [{"id": ID("s1", is_declaration=True, type=Sensor)}]
+    lambda_ = Lambda("return id(s1).state;")
+    config["text_sensor"] = [{"text": lambda_}]
+    IDPassValidationStep().run(config)
 
     assert not config.errors
 

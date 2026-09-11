@@ -3,7 +3,7 @@ import math
 
 import pytest
 
-from esphome import cpp_generator as cg, cpp_types as ct
+from esphome import cpp_generator as cg, cpp_types as ct, lambda_shorthand as ls
 
 
 class TestExpressions:
@@ -724,50 +724,154 @@ class TestProcessLambda:
 
         assert isinstance(result, cg.LambdaExpression)
 
+    @staticmethod
+    def _entity_state_lambda(entity_name: str, declared_type):
+        """Build a Lambda shaped like `convert_id_state_to_lambda`'s `entity_state:`
+        output -- `return id(<entity_name>).state;` with a searching id typed as
+        every known state-bearing type -- and register `entity_name` as a declared
+        id of `declared_type` so `process_lambda`'s id resolution finds it."""
+        from esphome.core import CORE, ID, Lambda
+        from esphome.lambda_shorthand import state_bearing_types
+
+        declared = ID(entity_name, is_declaration=True, type=declared_type)
+        CORE.register_variable(declared, cg.MockObj(entity_name))
+        lambda_obj = Lambda(f"return id({entity_name}).state;")
+        types = tuple(t for t, _ in state_bearing_types())
+        lambda_obj.set_requires_ids([ID(entity_name, is_declaration=False, type=types)])
+        return lambda_obj
+
+    async def test_process_lambda__entity_state_shorthand_incompatible_kind_raises(
+        self,
+    ):
+        """A TextSensor's std::string state fed into a float-returning field would
+        fail to compile; the codegen-time check should catch it instead -- this is
+        exactly the gap validator-identity narrowing left for composed validators."""
+        from esphome.components.text_sensor import TextSensor
+        from esphome.core import EsphomeError
+
+        lambda_obj = self._entity_state_lambda("my_text_sensor", TextSensor)
+
+        with pytest.raises(EsphomeError, match="not compatible"):
+            await cg.process_lambda(lambda_obj, [], return_type=float)
+
+    async def test_process_lambda__entity_state_shorthand_compatible_kind_allowed(
+        self,
+    ):
+        """A Sensor's numeric state fed into a float-returning field is fine."""
+        from esphome.components.sensor import Sensor
+
+        lambda_obj = self._entity_state_lambda("my_sensor", Sensor)
+        result = await cg.process_lambda(lambda_obj, [], return_type=float)
+
+        assert isinstance(result, cg.LambdaExpression)
+
+    async def test_process_lambda__entity_state_shorthand_bool_to_numeric_allowed(
+        self,
+    ):
+        """A BinarySensor's bool state and a numeric field are mutually compatible in
+        C++, so this must not raise even though the kinds differ."""
+        from esphome.components.binary_sensor import BinarySensor
+
+        lambda_obj = self._entity_state_lambda("my_binary_sensor", BinarySensor)
+        result = await cg.process_lambda(lambda_obj, [], return_type=float)
+
+        assert isinstance(result, cg.LambdaExpression)
+
+    async def test_process_lambda__entity_state_shorthand_no_return_type_unchecked(
+        self,
+    ):
+        """No return_type means no field type to compare against -- matches
+        `argument:`'s equivalent leniency for call sites that don't pass one."""
+        from esphome.components.text_sensor import TextSensor
+
+        lambda_obj = self._entity_state_lambda("my_text_sensor", TextSensor)
+        result = await cg.process_lambda(lambda_obj, [])
+
+        assert isinstance(result, cg.LambdaExpression)
+
+    async def test_process_lambda__entity_state_shorthand_untyped_resolved_id_unaffected(
+        self,
+    ):
+        """`full_id.type` not being a `MockObjClass` (e.g. an id declared with no
+        type at all) leaves nothing to classify -- must not raise."""
+        lambda_obj = self._entity_state_lambda("untyped_id", None)
+        result = await cg.process_lambda(lambda_obj, [], return_type=float)
+
+        assert isinstance(result, cg.LambdaExpression)
+
+    async def test_process_lambda__entity_state_shorthand_non_state_bearing_type_unaffected(
+        self,
+    ):
+        """A resolved type outside the known state-bearing set -- in normal operation
+        the id-resolution pass would already have rejected this before codegen runs,
+        so this only matters when process_lambda is exercised directly -- is left
+        unchecked here too, since there's no kind to compare against."""
+        from esphome.components.climate import Climate
+
+        lambda_obj = self._entity_state_lambda("my_climate", Climate)
+        result = await cg.process_lambda(lambda_obj, [], return_type=float)
+
+        assert isinstance(result, cg.LambdaExpression)
+
+    async def test_process_lambda__hand_written_id_reference_unaffected(self):
+        """A hand-written `return id(x).state;` (no `entity_state:` shorthand behind
+        it) parses to an untyped id -- `id.type` is `None`, not a tuple -- so this
+        check must not fire for it, even with an incompatible return_type."""
+        from esphome.components.text_sensor import TextSensor
+        from esphome.core import ID, Lambda
+
+        declared = ID("my_text_sensor", is_declaration=True, type=TextSensor)
+        cg.CORE.register_variable(declared, cg.MockObj("my_text_sensor"))
+        lambda_obj = Lambda("return id(my_text_sensor).state;")
+
+        result = await cg.process_lambda(lambda_obj, [], return_type=float)
+
+        assert isinstance(result, cg.LambdaExpression)
+
 
 class TestArgKind:
-    """Direct tests for _arg_kind()/_arg_kinds_compatible(), the coarse type
-    classification `argument:` uses to sanity-check a parameter against a field's
-    return type without policing every stylistic mismatch."""
+    """Direct tests for lambda_shorthand.arg_kind()/kinds_compatible(), the coarse
+    type classification `argument:` and `entity_state:` use to sanity-check a value
+    against a field's return type without policing every stylistic mismatch."""
 
     @pytest.mark.parametrize(
         "type_, expected",
         [
-            (bool, cg._ARG_KIND_BOOLEAN),
-            (float, cg._ARG_KIND_NUMERIC),
-            (int, cg._ARG_KIND_NUMERIC),
-            (str, cg._ARG_KIND_STRING),
-            (ct.float_, cg._ARG_KIND_NUMERIC),
-            (ct.int_, cg._ARG_KIND_NUMERIC),
-            (ct.uint32, cg._ARG_KIND_NUMERIC),
-            (ct.bool_, cg._ARG_KIND_BOOLEAN),
-            (ct.std_string, cg._ARG_KIND_STRING),
-            (ct.const_char_ptr, cg._ARG_KIND_STRING),
+            (bool, ls.ArgKind.BOOLEAN),
+            (float, ls.ArgKind.NUMERIC),
+            (int, ls.ArgKind.NUMERIC),
+            (str, ls.ArgKind.STRING),
+            (ct.float_, ls.ArgKind.NUMERIC),
+            (ct.int_, ls.ArgKind.NUMERIC),
+            (ct.uint32, ls.ArgKind.NUMERIC),
+            (ct.bool_, ls.ArgKind.BOOLEAN),
+            (ct.std_string, ls.ArgKind.STRING),
+            (ct.const_char_ptr, ls.ArgKind.STRING),
         ],
     )
     def test_arg_kind__recognized_types(self, type_, expected):
-        assert cg._arg_kind(type_) == expected
+        assert ls.arg_kind(type_) == expected
 
     def test_arg_kind__unrecognized_type_returns_none(self):
         """A custom/enum MockObjClass isn't in the recognized set -- returns None so
         the caller stays lenient rather than guessing wrong."""
         custom_type = cg.MockObjClass("my_component::MyEnum", parents=())
 
-        assert cg._arg_kind(custom_type) is None
+        assert ls.arg_kind(custom_type) is None
 
     @pytest.mark.parametrize(
-        "arg_kind, return_kind, expected",
+        "kind_a, kind_b, expected",
         [
-            (cg._ARG_KIND_NUMERIC, cg._ARG_KIND_NUMERIC, True),
-            (cg._ARG_KIND_STRING, cg._ARG_KIND_STRING, True),
-            (cg._ARG_KIND_BOOLEAN, cg._ARG_KIND_NUMERIC, True),
-            (cg._ARG_KIND_NUMERIC, cg._ARG_KIND_BOOLEAN, True),
-            (cg._ARG_KIND_STRING, cg._ARG_KIND_NUMERIC, False),
-            (cg._ARG_KIND_STRING, cg._ARG_KIND_BOOLEAN, False),
+            (ls.ArgKind.NUMERIC, ls.ArgKind.NUMERIC, True),
+            (ls.ArgKind.STRING, ls.ArgKind.STRING, True),
+            (ls.ArgKind.BOOLEAN, ls.ArgKind.NUMERIC, True),
+            (ls.ArgKind.NUMERIC, ls.ArgKind.BOOLEAN, True),
+            (ls.ArgKind.STRING, ls.ArgKind.NUMERIC, False),
+            (ls.ArgKind.STRING, ls.ArgKind.BOOLEAN, False),
         ],
     )
-    def test_arg_kinds_compatible(self, arg_kind, return_kind, expected):
-        assert cg._arg_kinds_compatible(arg_kind, return_kind) is expected
+    def test_arg_kinds_compatible(self, kind_a, kind_b, expected):
+        assert ls.kinds_compatible(kind_a, kind_b) is expected
 
 
 @pytest.mark.asyncio

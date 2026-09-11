@@ -5,6 +5,7 @@ import math
 import re
 from typing import Any
 
+from esphome import lambda_shorthand
 from esphome.core import (
     CORE,
     ID,
@@ -765,61 +766,13 @@ async def get_variable_with_full_id(id_: ID) -> tuple[ID, "MockObj"]:
     return await CORE.get_variable_with_full_id(id_)
 
 
-# Coarse category for an `argument:` parameter's or a field's return C++ type. Used only
-# to catch a shorthand reference that's guaranteed not to compile (a std::string parameter
-# fed into a numeric field, or vice versa) -- not to police every stylistic mismatch.
-_ARG_KIND_NUMERIC = "numeric"
-_ARG_KIND_BOOLEAN = "boolean"
-_ARG_KIND_STRING = "string"
-
-# C++ type names (as a MockObjClass renders via str()) recognized well enough to
-# sanity-check `argument:` against the field's expected return type. Anything else
-# (enums, custom classes, ...) is left unchecked, so the shorthand stays lenient rather
-# than risking a false-positive rejection.
-_CPP_NUMERIC_TYPE_NAMES = {
-    "float",
-    "double",
-    "int",
-    "int8_t",
-    "uint8_t",
-    "uint16_t",
-    "uint32_t",
-    "uint64_t",
-    "int16_t",
-    "int32_t",
-    "int64_t",
-    "size_t",
-}
-_CPP_BOOLEAN_TYPE_NAMES = {"bool"}
-_CPP_STRING_TYPE_NAMES = {"std::string", "std::string &", "const char *"}
-
-
-def _arg_kind(type_: Any) -> str | None:
-    # Python builtin type objects turn up directly in some `args` lists (e.g. sensor's
-    # `on_value` uses `[(float, "x")]`); compare by identity, never `==`/`in`, since
-    # MockObj overloads `==` to build a C++ expression rather than compare equality.
-    if type_ is bool:
-        return _ARG_KIND_BOOLEAN
-    if type_ is float or type_ is int:
-        return _ARG_KIND_NUMERIC
-    if type_ is str:
-        return _ARG_KIND_STRING
-    type_str = str(type_)
-    if type_str in _CPP_NUMERIC_TYPE_NAMES:
-        return _ARG_KIND_NUMERIC
-    if type_str in _CPP_BOOLEAN_TYPE_NAMES:
-        return _ARG_KIND_BOOLEAN
-    if type_str in _CPP_STRING_TYPE_NAMES:
-        return _ARG_KIND_STRING
-    return None
-
-
-def _arg_kinds_compatible(arg_kind: str, return_kind: str) -> bool:
-    # bool <-> numeric both implicitly convert in C++; a string converts to neither.
-    if arg_kind == return_kind:
-        return True
-    numeric_ish = {_ARG_KIND_NUMERIC, _ARG_KIND_BOOLEAN}
-    return arg_kind in numeric_ish and return_kind in numeric_ish
+def _lambda_location(value: Lambda) -> str:
+    """`' at <file> <line>:<col>'`, or `''` if `value` carries no YAML location --
+    shared by the `argument:` and `entity_state:` shorthand codegen checks below.
+    """
+    if isinstance(value, ESPHomeDataBase) and value.esp_range is not None:
+        return f" at {value.esp_range.start_mark}"
+    return ""
 
 
 def _check_argument_shorthand(
@@ -832,9 +785,7 @@ def _check_argument_shorthand(
     name = value.argument_name
     if name is None:
         return
-    location = ""
-    if isinstance(value, ESPHomeDataBase) and value.esp_range is not None:
-        location = f" at {value.esp_range.start_mark}"
+    location = _lambda_location(value)
     match = next((t for t, pname in parameters if pname == name), None)
     if match is None:
         available = ", ".join(f"'{pname}'" for _, pname in parameters)
@@ -847,16 +798,58 @@ def _check_argument_shorthand(
         # skipped for them -- a mismatched argument: is only caught at those sites
         # that do, otherwise it surfaces later as a C++ compile error.
         return
-    arg_kind = _arg_kind(match)
-    return_kind = _arg_kind(return_type)
+    param_kind = lambda_shorthand.arg_kind(match)
+    return_kind = lambda_shorthand.arg_kind(return_type)
     if (
-        arg_kind is not None
+        param_kind is not None
         and return_kind is not None
-        and not _arg_kinds_compatible(arg_kind, return_kind)
+        and not lambda_shorthand.kinds_compatible(param_kind, return_kind)
     ):
         raise EsphomeError(
             f"'argument: {name}' has type '{match}', which is not compatible with the "
             f"expected type '{return_type}'{location}."
+        )
+
+
+def _check_entity_state_shorthand(
+    value: Lambda, id: ID, full_id: ID | None, return_type: SafeExpType
+) -> None:
+    """Validate an `entity_state:` shorthand id's *resolved* declared type against the
+    field's expected return type -- e.g. a `TextSensor` id (a std::string state) fed
+    into a float-returning field.
+
+    Only known here, not at config-validation time: the id-resolution pass (see
+    `IDPassValidationStep` in config.py) narrows `entity_state:` to declared ids with
+    *some* usable `.state` field, using `id.type`, a tuple of every state-bearing type
+    set by `convert_id_state_to_lambda`. It does not narrow by kind, since which
+    kind the field expects is often not recoverable from its validator alone (a
+    composed validator like `cv.int_range(...)` isn't a recognized single kind). Here,
+    after id resolution, `full_id.type` is the entity's one real declared type, and
+    `return_type` is the field's real C++ return type -- both known precisely,
+    regardless of how the field's validator was built.
+    """
+    if not isinstance(id.type, tuple) or full_id is None or return_type is None:
+        return
+    if not isinstance(full_id.type, MockObjClass):
+        return
+    entity_kind = next(
+        (
+            kind
+            for entity_type, kind in lambda_shorthand.state_bearing_types()
+            if full_id.type.inherits_from(entity_type)
+        ),
+        None,
+    )
+    if entity_kind is None:
+        return
+    return_kind = lambda_shorthand.arg_kind(return_type)
+    if return_kind is not None and not lambda_shorthand.kinds_compatible(
+        entity_kind, return_kind
+    ):
+        raise EsphomeError(
+            f"'entity_state: {id.id}' resolves to type '{full_id.type}', whose state "
+            f"is not compatible with the expected type '{return_type}'"
+            f"{_lambda_location(value)}."
         )
 
 
@@ -897,6 +890,7 @@ async def process_lambda(
     parts = value.parts[:]
     for i, id in enumerate(value.requires_ids):
         full_id, var = await get_variable_with_full_id(id)
+        _check_entity_state_shorthand(value, id, full_id, return_type)
         if (
             full_id is not None
             and isinstance(full_id.type, MockObjClass)

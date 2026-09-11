@@ -1115,6 +1115,12 @@ class IDPassValidationStep(ConfigValidationStep):
                     # practice, but match.type.inherits_from(...) below would raise
                     # AttributeError if it somehow weren't one.
                     continue
+                if id.type is None:
+                    # Untyped: the usual case for an id parsed out of a hand-written
+                    # lambda's `id(...)` text -- `Lambda.requires_ids` builds those
+                    # with `type=None`, since the text alone carries no type
+                    # information to check against.
+                    continue
                 # id.type may be a single accepted type, or a tuple of acceptable
                 # alternatives (e.g. from the `entity_state:` shorthand).
                 allowed_types = id.type if isinstance(id.type, tuple) else (id.type,)
@@ -1123,10 +1129,11 @@ class IDPassValidationStep(ConfigValidationStep):
                 ):  # pragma: no cover
                     # Defensive: every allowed type here comes from cv.use_id(...)/
                     # cv.declare_id(...) or the entity_state: shorthand's
-                    # _state_bearing_types(), which are always real MockObjClass
-                    # instances -- this never fires in practice. If it somehow did,
-                    # skip the check entirely rather than silently narrowing against
-                    # a partially-filtered list of only the entries that passed.
+                    # lambda_shorthand.state_bearing_types(), which are always real
+                    # MockObjClass instances -- this never fires in practice. If it
+                    # somehow did, skip the check entirely rather than silently
+                    # narrowing against a partially-filtered list of only the
+                    # entries that passed.
                     continue
                 if not any(match.type.inherits_from(t) for t in allowed_types):
                     types_s = ", ".join(str(t) for t in allowed_types)
