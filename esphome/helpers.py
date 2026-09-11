@@ -201,6 +201,21 @@ def cpp_string_escape(string, encoding="utf-8"):
     return f'"{result}"'
 
 
+def cpp_u16string_escape(string: str) -> str:
+    """Escape a string as a C++ u"..." literal, which the compiler encodes as UTF-16."""
+    result = ""
+    for character in string:
+        code = ord(character)
+        if code >= 127:
+            # Surrogate escapes are ill-formed in C++; the compiler splits astral code points
+            result += f"\\U{code:08X}"
+        elif code < 32 or character in ("\\", '"'):
+            result += f"\\{code:03o}"
+        else:
+            result += character
+    return f'u"{result}"'
+
+
 def run_system_command(*args):
     import subprocess
 
