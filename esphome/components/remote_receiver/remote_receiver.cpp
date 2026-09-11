@@ -14,7 +14,7 @@ static void IRAM_ATTR HOT write_value(RemoteReceiverComponentStore *arg, uint32_
   int32_t multiplier = ((int32_t) level << 1) - 1;
   uint32_t buffer_write = arg->buffer_write;
   arg->buffer[buffer_write++] = (int32_t) delta * multiplier;
-  if (buffer_write >= arg->buffer_size) {
+  if (buffer_write >= arg->buffer_entries) {
     buffer_write = 0;
   }
 
@@ -65,9 +65,8 @@ void RemoteReceiverComponent::setup() {
   this->store_.idle_us = this->idle_us_;
   this->store_.filter_us = this->filter_us_;
   this->store_.pin = this->pin_->to_isr();
-  // buffer_size_ is bytes; the ring holds one int32_t per pulse
-  this->store_.buffer_size = this->buffer_size_ / sizeof(int32_t);
-  this->store_.buffer = new int32_t[this->store_.buffer_size];
+  this->store_.buffer_entries = this->buffer_size_ / sizeof(int32_t);
+  this->store_.buffer = new int32_t[this->store_.buffer_entries];
   this->store_.prev_micros = micros();
   this->store_.commit_micros = this->store_.prev_micros;
   this->store_.prev_level = this->pin_->digital_read();
@@ -120,7 +119,7 @@ void RemoteReceiverComponent::loop() {
   while (temp_read != last_index && (uint32_t) std::abs(s.buffer[temp_read]) < this->idle_us_) {
     reserve_size++;
     temp_read++;
-    if (temp_read >= s.buffer_size) {
+    if (temp_read >= s.buffer_entries) {
       temp_read = 0;
     }
   }
@@ -130,7 +129,7 @@ void RemoteReceiverComponent::loop() {
   // read the buffer
   for (uint32_t i = 0; i < reserve_size + 1; i++) {
     this->temp_.push_back((int32_t) s.buffer[s.buffer_read++]);
-    if (s.buffer_read >= s.buffer_size) {
+    if (s.buffer_read >= s.buffer_entries) {
       s.buffer_read = 0;
     }
   }
