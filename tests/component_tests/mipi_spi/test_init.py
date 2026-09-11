@@ -21,6 +21,10 @@ from esphome.components.mipi_spi.display import (
     MODELS,
     dimension_schema,
 )
+
+# Register the external pin schema used by the SPD2010 model's reset pin.
+import esphome.components.pca9554  # noqa: F401
+from esphome.config import validate_config
 from esphome.const import (
     CONF_DC_PIN,
     CONF_DIMENSIONS,
@@ -382,6 +386,119 @@ def test_lvgl_generation(
     assert "set_init_sequence({10, 255, 177, 3, 1, 44, 45, 178" in main_cpp
     assert "show_test_card();" not in main_cpp
     assert "set_auto_clear(false);" in main_cpp
+
+
+def test_spd2010_expander_default_generation(
+    generate_main: Callable[[str | Path], str],
+    component_fixture_path: Callable[[str], Path],
+) -> None:
+    """The SPD2010 default reset pin resolves through a configured PCA9554."""
+    main_cpp = generate_main(component_fixture_path("spd2010.yaml"))
+
+    assert "new(pca9554_pca9554gpiopin_id) pca9554::PCA9554GPIOPin();" in main_cpp
+    assert "pca9554_pca9554gpiopin_id->set_parent(board_expander);" in main_cpp
+    assert "pca9554_pca9554gpiopin_id->set_pin(1);" in main_cpp
+    assert "mipi_spi_mipispi_id->set_reset_pin(pca9554_pca9554gpiopin_id);" in main_cpp
+
+
+def test_spd2010_default_reset_requires_expander() -> None:
+    """A registered pin schema alone cannot satisfy the default expander reference."""
+    result = validate_config(
+        {
+            "esphome": {"name": "missing-expander"},
+            "esp32": {
+                "board": "esp32-s3-devkitc-1",
+                "framework": {"type": "esp-idf"},
+            },
+            "spi": {
+                "type": "quad",
+                "clk_pin": 40,
+                "data_pins": [46, 45, 42, 41],
+            },
+            "display": [
+                {
+                    "platform": "mipi_spi",
+                    "model": "WAVESHARE-ESP32-S3-TOUCH-LCD-1.46",
+                }
+            ],
+        },
+        {},
+    )
+    assert len(result.errors) == 1
+    error = result.errors[0]
+    assert (
+        "WAVESHARE-ESP32-S3-TOUCH-LCD-1.46 requires component 'pca9554' "
+        "to be configured"
+        in str(error)
+    )
+    assert error.path == ["display", 0]
+
+
+def test_spd2010_rejects_invalid_expander_pin() -> None:
+    """The reset pin must exist on the configured PCA9554 variant."""
+    result = validate_config(
+        {
+            "esphome": {"name": "invalid-expander-pin"},
+            "esp32": {
+                "board": "esp32-s3-devkitc-1",
+                "framework": {"type": "esp-idf"},
+            },
+            "i2c": {"sda": 11, "scl": 10},
+            "pca9554": {"id": "board_expander"},
+            "spi": {
+                "type": "quad",
+                "clk_pin": 40,
+                "data_pins": [46, 45, 42, 41],
+            },
+            "display": [
+                {
+                    "platform": "mipi_spi",
+                    "model": "WAVESHARE-ESP32-S3-TOUCH-LCD-1.46",
+                    "reset_pin": {
+                        "pca9554": "board_expander",
+                        "number": 8,
+                    },
+                }
+            ],
+        },
+        {},
+    )
+    assert len(result.errors) == 1
+    error = result.errors[0]
+    assert "Pin number must be in range 0-7" in str(error)
+    assert error.path == ["display", 0]
+
+
+def test_spd2010_rejects_invalid_internal_pin() -> None:
+    """An invalid internal reset pin is still checked by the ESP32 schema."""
+    result = validate_config(
+        {
+            "esphome": {"name": "invalid-internal-pin"},
+            "esp32": {
+                "board": "esp32-s3-devkitc-1",
+                "framework": {"type": "esp-idf"},
+            },
+            "i2c": {"sda": 11, "scl": 10},
+            "pca9554": {"id": "board_expander"},
+            "spi": {
+                "type": "quad",
+                "clk_pin": 40,
+                "data_pins": [46, 45, 42, 41],
+            },
+            "display": [
+                {
+                    "platform": "mipi_spi",
+                    "model": "WAVESHARE-ESP32-S3-TOUCH-LCD-1.46",
+                    "reset_pin": 99,
+                }
+            ],
+        },
+        {},
+    )
+    assert len(result.errors) == 1
+    error = result.errors[0]
+    assert "Invalid pin number: 99" in str(error)
+    assert error.path == ["display", 0, "reset_pin"]
 
 
 # A 10ms delay (flattened to {10, 0xFF}, where 0xFF is the delay marker byte) is

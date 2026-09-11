@@ -114,17 +114,19 @@ def set_component_config() -> Callable[[str, Any], None]:
 
 @pytest.fixture
 def choose_variant_with_pins() -> Generator[Callable[[list], None]]:
-    """Set the ESP32 variant to the first one on which all the given pins are valid.
+    """Set the ESP32 variant to the first one on which all internal pins are valid.
 
     For ESP32 only, since the other platforms do not have variants. The core
     configuration must already have been set up for an ESP32 target.
+    Pins supplied by external components are validated by the caller's component
+    schema and do not affect ESP32 variant selection.
     Using local imports to avoid importing when ESP32 is not the target.
     """
     from esphome import config_validation as cv
     from esphome.components.esp32 import KEY_ESP32, KEY_VARIANT, VARIANTS
     from esphome.components.esp32.gpio import validate_gpio_pin
     from esphome.const import CONF_INPUT, CONF_OUTPUT
-    from esphome.pins import gpio_pin_schema
+    from esphome.pins import PIN_SCHEMA_REGISTRY, gpio_pin_schema
 
     def chooser(pins: list) -> None:
         for variant in VARIANTS:
@@ -132,6 +134,14 @@ def choose_variant_with_pins() -> Generator[Callable[[list], None]]:
                 CORE.data[KEY_ESP32][KEY_VARIANT] = variant
                 for pin in pins:
                     if pin is not None:
+                        # Pins provided by external components do not constrain
+                        # the ESP32 variant. Their own schemas are exercised by
+                        # the component configuration test.
+                        if (
+                            isinstance(pin, dict)
+                            and PIN_SCHEMA_REGISTRY.get_key(pin) != CORE.target_platform
+                        ):
+                            continue
                         pin = gpio_pin_schema(
                             {
                                 CONF_INPUT: True,

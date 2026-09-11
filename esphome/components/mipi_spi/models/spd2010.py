@@ -5,7 +5,7 @@
 
 from esphome.components.mipi import MODE_RGB, DriverChip, delay
 from esphome.components.spi import TYPE_QUAD
-from esphome.const import CONF_MIRROR_X, CONF_MIRROR_Y
+from esphome.const import CONF_MIRROR_X, CONF_MIRROR_Y, CONF_NUMBER
 
 # fmt: off
 DriverChip(
@@ -23,8 +23,9 @@ DriverChip(
     use_axis_flips=True,
     reset_delay=20,
     no_slpout=True,
+    requires={"pca9554"},
     initsequence=(
-        delay(120),
+        delay(100),
         (0xFF, 0x20, 0x10, 0x00),
         (0x36, 0x00),
         (0x3A, 0x55),
@@ -429,8 +430,6 @@ DriverChip(
         (0xFF, 0x20, 0x10, 0x2D),
         (0x02, 0x00),
         (0xFF, 0x20, 0x10, 0x00),
-        (0x11,),
-        delay(120),
     ),
 )
 # fmt: on
