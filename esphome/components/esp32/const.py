@@ -9,6 +9,7 @@ from esphome.const import KEY_ESP32, KEY_FLASH_SIZE, KEY_IDF_VERSION, KEY_VARIAN
 # from esphome.espidf directly.
 from esphome.espidf import variant_to_idf_target  # noqa: F401  # pylint: disable=unused-import
 
+CONF_HOLD_DURING_SLEEP = "hold_during_sleep"
 KEY_BOARD = "board"
 KEY_SDKCONFIG_OPTIONS = "sdkconfig_options"
 KEY_COMPONENTS = "components"

@@ -34,6 +34,7 @@ class ESP32InternalGPIOPin final : public InternalGPIOPin {
 
  protected:
   void attach_interrupt(void (*func)(void *), void *arg, gpio::InterruptType type) const override;
+  bool get_hold_() const { return this->flags_ & gpio::FLAG_HOLD; }
 
   // Memory layout: 8 bytes total on 32-bit systems
   // - 3 bytes for members below

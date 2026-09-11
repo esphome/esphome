@@ -12,6 +12,8 @@ from esphome.const import (
 )
 from esphome.pins import check_strapping_pin
 
+from .const import CONF_HOLD_DURING_SLEEP
+
 _ESP_SDIO_PINS = {
     6: "Flash Clock",
     7: "Flash Data 0",
@@ -69,6 +71,11 @@ def esp32_validate_supports(value: dict[str, Any]) -> dict[str, Any]:
     if is_pulldown and 34 <= num <= 39:
         raise cv.Invalid(
             f"GPIO{num} (34-39) does not support pulldowns.", [CONF_MODE, CONF_PULLDOWN]
+        )
+    if value.get(CONF_HOLD_DURING_SLEEP) and 34 <= num <= 39:
+        raise cv.Invalid(
+            f"GPIO{num} (34-39) is input-only and cannot be held during sleep.",
+            [CONF_HOLD_DURING_SLEEP],
         )
 
     check_strapping_pin(value, _ESP32_STRAPPING_PINS, _LOGGER)

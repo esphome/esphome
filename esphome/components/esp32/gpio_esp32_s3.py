@@ -12,6 +12,8 @@ from esphome.const import (
 from esphome.pins import PIN_SCHEMA_REGISTRY, check_strapping_pin
 from esphome.types import ConfigType
 
+from .const import CONF_HOLD_DURING_SLEEP
+
 _ESP32S3_SPI_PSRAM_PINS = {
     26: "SPICS1",
     27: "SPIHD",
@@ -73,6 +75,11 @@ def esp32_s3_validate_supports(value: dict[str, Any]) -> dict[str, Any]:
     if is_input:
         # All ESP32 pins support input mode
         pass
+    if value.get(CONF_HOLD_DURING_SLEEP) and num in _ESP32S3_USB_JTAG_PINS:
+        _LOGGER.warning(
+            "GPIO%d cannot hold at low level during wakeup from deep sleep.",
+            num,
+        )
 
     check_strapping_pin(value, _ESP32S3_STRAPPING_PINS, _LOGGER)
     return value

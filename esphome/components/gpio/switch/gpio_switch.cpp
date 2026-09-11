@@ -12,14 +12,17 @@ float GPIOSwitch::get_setup_priority() const { return setup_priority::HARDWARE; 
 void GPIOSwitch::setup() {
   bool initial_state = this->get_initial_state_with_restore_mode().value_or(false);
 
-  // write state before setup
-  if (initial_state) {
-    this->turn_on();
-  } else {
-    this->turn_off();
+  if (!pin_state_held_from_deep_sleep(this->pin_)) {
+    // write state before setup. If waking up from deepsleep and state is held
+    // we need to setup first
+    if (initial_state) {
+      this->turn_on();
+    } else {
+      this->turn_off();
+    }
   }
   this->pin_->setup();
-  // write after setup again for other IOs
+  // write after setup again for other IOs and for held IOs
   if (initial_state) {
     this->turn_on();
   } else {
