@@ -30,7 +30,7 @@ static const gpio_hal_context_t GPIO_HAL = {.dev = GPIO_HAL_GET_HW(GPIO_PORT_0)}
 bool ESP32InternalGPIOPin::isr_service_installed = false;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 static gpio_mode_t flags_to_mode(gpio::Flags flags) {
-  flags = (gpio::Flags)(flags & ~(gpio::FLAG_PULLUP | gpio::FLAG_PULLDOWN));
+  flags = (gpio::Flags)(flags & ~(gpio::FLAG_PULLUP | gpio::FLAG_PULLDOWN | gpio::FLAG_HOLD));
   if (flags == gpio::FLAG_INPUT)
     return GPIO_MODE_INPUT;
   if (flags == gpio::FLAG_OUTPUT)
