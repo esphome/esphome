@@ -30,15 +30,13 @@ _SCANF_CALL_RE = re.compile(r"scanf\s*\(")
 _SCANF_FLOAT_SPEC_RE = re.compile(r"%[*\d.]*[hlL]*[feEgGaAF]")
 
 
-def _scanf_calls(src: str) -> Iterator[tuple[int, str]]:
-    """Yield ``(format argument index, argument text)`` for each scanf family call.
+def _scanf_call_texts(src: str) -> Iterator[str]:
+    """Yield the argument text of each scanf family call in ``src``.
 
     Walks to the closing parenthesis, treating string and character literals
     as opaque so a ';' inside a format string does not end the call early.
     """
     for match in _SCANF_CALL_RE.finditer(src):
-        # sscanf and fscanf take the format second, plain scanf first
-        fmt_index = 1 if match.start() > 0 and src[match.start() - 1] in "sf" else 0
         start = i = match.end()
         depth = 1
         quote = None
@@ -60,49 +58,15 @@ def _scanf_calls(src: str) -> Iterator[tuple[int, str]]:
             elif ch == ";":
                 break
             i += 1
-        yield fmt_index, src[start:i]
-
-
-def _argument(args: str, index: int) -> str | None:
-    """The ``index``-th top-level argument of a call, or None if there are fewer."""
-    depth = 0
-    quote = None
-    current = 0
-    arg_start = 0
-    for i, ch in enumerate(args):
-        if quote:
-            if ch == quote:
-                quote = None
-        elif ch in "\"'":
-            quote = ch
-        elif ch in "([{":
-            depth += 1
-        elif ch in ")]}":
-            depth -= 1
-        elif ch == "," and depth == 0:
-            if current == index:
-                return args[arg_start:i]
-            current += 1
-            arg_start = i + 1
-    return args[arg_start:] if current == index else None
+        yield src[start:i]
 
 
 def source_uses_scanf_float(src: str) -> bool:
-    """Heuristic: does C++ source call a scanf family function with a float conversion?
-
-    A format that is not a string literal cannot be checked and counts as one.
-    """
+    """Heuristic: does C++ source call a scanf family function with a float conversion?"""
     if "scanf" not in src:
         return False
     src = Lambda.comment_remover(src)
-    for fmt_index, args in _scanf_calls(src):
-        fmt = _argument(args, fmt_index)
-        if fmt is None or not fmt.lstrip().startswith('"'):
-            return True
-        # Join adjacent literal pieces such as "%" "f"
-        if _SCANF_FLOAT_SPEC_RE.search(re.sub(r'"\s*"', "", fmt)):
-            return True
-    return False
+    return any(_SCANF_FLOAT_SPEC_RE.search(call) for call in _scanf_call_texts(src))
 
 
 def lambdas_use_scanf_float(config: ConfigType) -> bool:

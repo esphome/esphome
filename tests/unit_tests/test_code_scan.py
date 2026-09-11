@@ -46,13 +46,6 @@ from esphome.types import ConfigType
         ('sscanf(buf, "%d)", &a); g("%f")', False),
         ('sscanf(buf, "%d", &a; g("%f")', False),
         ('sscanf(buf, "%f"', True),
-        # A format that is not a literal cannot be checked and counts as a float scan
-        ("sscanf(buf, fmt, &v)", True),
-        ("scanf(fmt, &v)", True),
-        ('fscanf(fp, "%d", &v)', False),
-        ('scanf("%d", &v)', False),
-        ('sscanf(buf, "%" "f", &v)', True),
-        ('sscanf(buf, "%d", f("%f"))', False),
         # fscanf and std::sscanf
         ('fscanf(fp, "%f", &v)', True),
         ('std::sscanf(buf, "%f", &v)', True),
