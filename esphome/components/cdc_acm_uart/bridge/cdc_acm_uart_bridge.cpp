@@ -15,8 +15,8 @@ namespace esphome::cdc_acm_uart {
 
 static const char *const TAG = "cdc_acm_uart";
 
-static constexpr size_t USB_TASK_STACK_SIZE = 4096;
-static constexpr size_t USB_TASK_STACK_SIZE_VV = 8192;
+static constexpr size_t UART_TASK_STACK_SIZE = 4096;
+static constexpr size_t UART_TASK_STACK_SIZE_VV = 8192;
 static constexpr size_t RINGBUF_RETRY_CHUNK_SIZE = 64;
 static constexpr uint32_t LOG_THROTTLE_MS = 1000;
 static constexpr uint32_t UART_RELOAD_SETTLE_MS = 20;
@@ -81,20 +81,6 @@ void CDCACMUARTBridge::setup() {
   this->configured_stop_bits_ = this->uart_parent_->get_stop_bits();
   this->configured_data_bits_ = this->uart_parent_->get_data_bits();
 
-  this->uart_rx_buffer_.reset(new (std::nothrow) uint8_t[this->uart_rx_buffer_size_]);
-  if (this->uart_rx_buffer_ == nullptr) {
-    ESP_LOGE(TAG, "UART RX buffer allocation failed");
-    this->mark_failed();
-    return;
-  }
-
-  this->uart_tx_buffer_.reset(new (std::nothrow) uint8_t[this->uart_tx_buffer_size_]);
-  if (this->uart_tx_buffer_ == nullptr) {
-    ESP_LOGE(TAG, "UART TX buffer allocation failed");
-    this->mark_failed();
-    return;
-  }
-
   // usb_cdc_acm sets up first (priority IO > HARDWARE). Any interface failing marks
   // the hub failed, and a failed hub no longer runs loop(), so line coding and line
   // state events would never reach this bridge even if its own interface is healthy.
@@ -106,12 +92,12 @@ void CDCACMUARTBridge::setup() {
 
   // Larger stack for the very-verbose hex-dump logging path.
   constexpr size_t stack_size =
-      ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERY_VERBOSE ? USB_TASK_STACK_SIZE_VV : USB_TASK_STACK_SIZE;
+      ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERY_VERBOSE ? UART_TASK_STACK_SIZE_VV : UART_TASK_STACK_SIZE;
 
   // Per-instance task names (keyed on the CDC interface number) keep task dumps
   // unambiguous with multiple bridges.
-  char tx_task_name[] = "usb_uart_tx_0";
-  char rx_task_name[] = "uart_usb_rx_0";
+  char tx_task_name[] = "cdc_uart_tx_0";
+  char rx_task_name[] = "cdc_uart_rx_0";
   const char itf_char = format_hex_char(this->usb_cdc_parent_->get_itf());
   tx_task_name[sizeof(tx_task_name) - 2] = itf_char;
   rx_task_name[sizeof(rx_task_name) - 2] = itf_char;
@@ -142,6 +128,11 @@ void CDCACMUARTBridge::setup() {
       this->set_line_coding();
     }
   });
+
+  // Release the workers only now: until here a failed setup may still delete the TX
+  // task, which is safe only while it is parked and owns nothing in the driver.
+  xTaskNotifyGive(this->uart_tx_task_handle_);
+  xTaskNotifyGive(this->uart_rx_task_handle_);
 
   // loop() only services line-coding reloads; stay off the main loop until one is
   // scheduled.
@@ -369,8 +360,11 @@ void CDCACMUARTBridge::uart_rx_task_() {
   uint32_t tx_full_log_ms = millis() - LOG_THROTTLE_MS;
   uint32_t err_log_ms = millis() - LOG_THROTTLE_MS;
 
-  uint8_t *data = this->uart_rx_buffer_.get();
-  const size_t buf_size = this->uart_rx_buffer_size_;
+  uint8_t *data = this->uart_rx_buffer_.data();
+  const size_t buf_size = this->uart_rx_buffer_.size();
+
+  // Released by setup() once both tasks exist.
+  ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
 
   while (true) {
     if (this->paused_ != 0) {
@@ -428,12 +422,15 @@ void CDCACMUARTBridge::uart_rx_task_() {
 void CDCACMUARTBridge::uart_tx_task_() {
   RingbufHandle_t usb_rx_ringbuf = this->usb_cdc_parent_->get_rx_ringbuf();
   uart_port_t uart_num = static_cast<uart_port_t>(this->uart_parent_->get_hw_serial_number());
-  uint8_t *data_to_uart = this->uart_tx_buffer_.get();
-  const size_t buf_size = this->uart_tx_buffer_size_;
+  uint8_t *data_to_uart = this->uart_tx_buffer_.data();
+  const size_t buf_size = this->uart_tx_buffer_.size();
   size_t rx_size;
   // Back-dated so a problem within the first LOG_THROTTLE_MS of uptime still logs.
   uint32_t err_log_ms = millis() - LOG_THROTTLE_MS;
   uint32_t drop_log_ms = millis() - LOG_THROTTLE_MS;
+
+  // Released by setup() once both tasks exist.
+  ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
 
   while (true) {
     ESP_LOGV(TAG, "Waiting for data to send to UART");

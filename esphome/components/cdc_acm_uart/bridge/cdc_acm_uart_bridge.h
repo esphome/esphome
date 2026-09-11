@@ -4,8 +4,9 @@
 #include "esphome/components/usb_cdc_acm/usb_cdc_acm.h"
 #include "esphome/core/component.h"
 
+#include <array>
 #include <atomic>
-#include <memory>
+#include "sdkconfig.h"
 
 namespace esphome::cdc_acm_uart {
 
@@ -15,12 +16,8 @@ class CDCACMUARTBridge final : public Component {
   // aborting the read. Arriving bytes still unblock it immediately.
   static constexpr uint32_t UART_RX_WAIT_MS = 250;
 
-  CDCACMUARTBridge(uart::IDFUARTComponent *uart_parent, usb_cdc_acm::USBCDCACMInstance *usb_cdc_parent,
-                   size_t uart_rx_buffer_size, size_t uart_tx_buffer_size)
-      : uart_rx_buffer_size_(uart_rx_buffer_size),
-        uart_tx_buffer_size_(uart_tx_buffer_size),
-        uart_parent_(uart_parent),
-        usb_cdc_parent_(usb_cdc_parent) {}
+  CDCACMUARTBridge(uart::IDFUARTComponent *uart_parent, usb_cdc_acm::USBCDCACMInstance *usb_cdc_parent)
+      : uart_parent_(uart_parent), usb_cdc_parent_(usb_cdc_parent) {}
 
   void setup() override;
   void loop() override;
@@ -79,10 +76,9 @@ class CDCACMUARTBridge final : public Component {
 
   uint32_t reload_requested_at_{0};
 
-  size_t uart_rx_buffer_size_;
-  size_t uart_tx_buffer_size_;
-  std::unique_ptr<uint8_t[]> uart_rx_buffer_{nullptr};
-  std::unique_ptr<uint8_t[]> uart_tx_buffer_{nullptr};
+  // Worker staging, each sized to the CDC ring buffer it feeds or drains.
+  std::array<uint8_t, CONFIG_TINYUSB_CDC_TX_BUFSIZE> uart_rx_buffer_{};
+  std::array<uint8_t, CONFIG_TINYUSB_CDC_RX_BUFSIZE> uart_tx_buffer_{};
 
   uart::IDFUARTComponent *uart_parent_;
   usb_cdc_acm::USBCDCACMInstance *usb_cdc_parent_;

@@ -36,11 +36,13 @@ inline esp_err_t ringbuf_read_bytes(RingbufHandle_t ring_buf, uint8_t *out_buf, 
   *rx_data_size = read_sz;
 
   // Buffer's data can be wrapped, in which case we should perform another read
-  buf = static_cast<uint8_t *>(xRingbufferReceiveUpTo(ring_buf, &read_sz, 0, out_buf_sz - *rx_data_size));
-  if (buf != nullptr) {
-    memcpy(out_buf + *rx_data_size, buf, read_sz);
-    vRingbufferReturnItem(ring_buf, (void *) buf);
-    *rx_data_size += read_sz;
+  if (*rx_data_size < out_buf_sz) {
+    buf = static_cast<uint8_t *>(xRingbufferReceiveUpTo(ring_buf, &read_sz, 0, out_buf_sz - *rx_data_size));
+    if (buf != nullptr) {
+      memcpy(out_buf + *rx_data_size, buf, read_sz);
+      vRingbufferReturnItem(ring_buf, (void *) buf);
+      *rx_data_size += read_sz;
+    }
   }
 
   return ESP_OK;

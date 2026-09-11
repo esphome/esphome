@@ -14,8 +14,6 @@ DEPENDENCIES = ["tinyusb", "uart", "usb_cdc_acm"]
 CONF_DTR_PIN = "dtr_pin"
 CONF_RTS_PIN = "rts_pin"
 CONF_USB_CDC_ACM_ID = "usb_cdc_acm_id"
-CONF_UART_RX_BUFFER_SIZE = "uart_rx_buffer_size"
-CONF_UART_TX_BUFFER_SIZE = "uart_tx_buffer_size"
 
 cdc_acm_uart_ns = cg.esphome_ns.namespace("cdc_acm_uart")
 CDCACMUARTBridge = cdc_acm_uart_ns.class_("CDCACMUARTBridge", cg.Component)
@@ -28,12 +26,6 @@ CONFIG_SCHEMA = cv.All(
             cv.Required(CONF_USB_CDC_ACM_ID): cv.use_id(usb_cdc_acm.USBCDCACMInstance),
             cv.Optional(CONF_DTR_PIN): pins.gpio_output_pin_schema,
             cv.Optional(CONF_RTS_PIN): pins.gpio_output_pin_schema,
-            cv.Optional(CONF_UART_RX_BUFFER_SIZE, default=256): cv.int_range(
-                min=64, max=65535
-            ),
-            cv.Optional(CONF_UART_TX_BUFFER_SIZE, default=256): cv.int_range(
-                min=64, max=65535
-            ),
         }
     ).extend(cv.COMPONENT_SCHEMA),
     # Narrower than usb_cdc_acm's variant list on purpose: S31/H4 untested on
@@ -111,13 +103,7 @@ FINAL_VALIDATE_SCHEMA = _final_validate
 async def to_code(config: ConfigType) -> None:
     uart_component = await cg.get_variable(config[CONF_UART_ID])
     usb_cdc = await cg.get_variable(config[CONF_USB_CDC_ACM_ID])
-    var = cg.new_Pvariable(
-        config[CONF_ID],
-        uart_component,
-        usb_cdc,
-        config[CONF_UART_RX_BUFFER_SIZE],
-        config[CONF_UART_TX_BUFFER_SIZE],
-    )
+    var = cg.new_Pvariable(config[CONF_ID], uart_component, usb_cdc)
     await cg.register_component(var, config)
 
     if dtr_pin_config := config.get(CONF_DTR_PIN):
