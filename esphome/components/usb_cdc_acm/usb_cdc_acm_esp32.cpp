@@ -6,7 +6,6 @@
 #include "esphome/core/log.h"
 
 #include <cstring>
-#include <new>
 #include <sys/param.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/ringbuf.h"
@@ -124,13 +123,6 @@ void USBCDCACMInstance::setup() {
     return;
   }
 
-  this->usb_tx_staging_.reset(new (std::nothrow) uint8_t[CONFIG_TINYUSB_CDC_TX_BUFSIZE]);
-  if (this->usb_tx_staging_ == nullptr) {
-    ESP_LOGE(TAG, "USB TX staging buffer allocation failed for itf %d", this->itf_);
-    this->parent_->mark_failed();
-    return;
-  }
-
   // Configure this CDC interface
   const tinyusb_config_cdcacm_t acm_cfg = {
       .cdc_port = static_cast<tinyusb_cdcacm_itf_t>(this->itf_),
@@ -176,7 +168,7 @@ void USBCDCACMInstance::usb_tx_task_fn(void *arg) {
 }
 
 void USBCDCACMInstance::usb_tx_task() {
-  uint8_t *data = this->usb_tx_staging_.get();
+  uint8_t *data = this->usb_tx_staging_.data();
   size_t tx_data_size = 0;
   // Back-dated so a stall within the first LOG_THROTTLE_MS of uptime still logs
   // immediately (unsigned arithmetic keeps this wrap-safe).

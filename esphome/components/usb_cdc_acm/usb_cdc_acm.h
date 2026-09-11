@@ -7,10 +7,10 @@
 #include "esphome/core/lock_free_queue.h"
 #include "esphome/components/uart/uart_component.h"
 
+#include <array>
 #include <atomic>
 #include <cstring>
 #include <functional>
-#include <memory>
 #include "freertos/ringbuf.h"
 #include "esp_err.h"
 #include "tinyusb_cdc_acm.h"
@@ -135,8 +135,8 @@ class USBCDCACMInstance final : public uart::UARTComponent, public Parented<USBC
 
   RingbufHandle_t usb_tx_ringbuf_{nullptr};
   RingbufHandle_t usb_rx_ringbuf_{nullptr};
-  // TX task staging buffer; heap-allocated so its size does not inflate the task stack.
-  std::unique_ptr<uint8_t[]> usb_tx_staging_{nullptr};
+  // TX task staging; a member rather than a stack array so it does not size the task stack.
+  std::array<uint8_t, CONFIG_TINYUSB_CDC_TX_BUFSIZE> usb_tx_staging_{};
   // Non-zero while the TX task holds bytes it has pulled from the ring buffer but not
   // yet handed to TinyUSB; lets flush() account for data that is in neither the ring
   // buffer nor TinyUSB's FIFO.
