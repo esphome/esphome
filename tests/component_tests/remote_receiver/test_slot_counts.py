@@ -54,21 +54,14 @@ def test_only_used_protocol_sources_are_compiled(
 
 
 def test_every_registry_name_maps_to_a_protocol_source() -> None:
-    sources = {
-        path.name for path in Path(remote_base.__file__).parent.glob("*_protocol.cpp")
-    }
+    """A registry name must resolve to a source file or request_protocol rejects it."""
     names = (
         set(remote_base.BINARY_SENSOR_REGISTRY)
         | set(remote_base.DUMPER_REGISTRY)
         | {key.removeprefix("on_") for key in remote_base.TRIGGER_REGISTRY}
     )
     for name in names:
-        stem = (
-            remote_base.protocol_define(name)
-            .removeprefix("USE_REMOTE_PROTOCOL_")
-            .lower()
-        )
-        assert f"{stem}_protocol.cpp" in sources, name
+        assert remote_base._protocol_stem(name) in remote_base._PROTOCOL_STEMS, name
 
 
 def test_request_protocol_rejects_unknown_names() -> None:

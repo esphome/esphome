@@ -68,7 +68,7 @@ class RCSwitchBase {
   uint32_t inverted_{};  // bool widened so every field is a word: the table is read from flash
 };
 
-// Constant-initialized and kept in flash on every platform; all fields are 32-bit so ESP8266 can read it in place
+// Constant-initialized and kept in flash on every platform
 inline constexpr RCSwitchBase RC_SWITCH_PROTOCOLS[] PROGMEM = {
     {0, 0, 0, 0, 0, 0, false},
     {350, 10850, 350, 1050, 1050, 350, false},

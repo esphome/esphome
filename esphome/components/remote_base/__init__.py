@@ -281,22 +281,16 @@ TRIGGER_REGISTRY = SimpleRegistry()
 DUMPER_REGISTRY = Registry()
 
 
-def _dumper_key(item: Any) -> Any:
-    """Registry key of a dump entry in either its string or its mapping form."""
-    if isinstance(item, dict) and len(item) == 1:
-        return next(iter(item))
-    return item
-
-
 def validate_dumpers(value):
     if isinstance(value, str) and value.lower() == "all":
         return validate_dumpers(list(DUMPER_REGISTRY.keys()))
-    if isinstance(value, list):
-        # a dumper listed twice would register twice; the receiver holds one secondary dumper
-        keys = [_dumper_key(item) for item in value]
-        if all(isinstance(key, str) for key in keys):
-            value = list(dict(zip(keys, value, strict=True)).values())
-    return cv.validate_registry("dumper", DUMPER_REGISTRY)(value)
+    entries = cv.validate_registry("dumper", DUMPER_REGISTRY)(value)
+    # a dumper listed twice would register twice; the receiver holds one secondary dumper
+    return list(
+        {
+            next(k for k in entry if k in DUMPER_REGISTRY): entry for entry in entries
+        }.values()
+    )
 
 
 def validate_triggers(base_schema):
