@@ -43,6 +43,9 @@ from esphome.types import ConfigType
         # Escaped quotes, nested calls, a ')' inside the format, an unterminated call
         ('sscanf(buf, "\\"%f\\"", &v)', True),
         ('sscanf(f(x), "%f", &v)', True),
+        ('sscanf(s.substr(0, 2).c_str(), "%f", &v)', True),
+        ('sscanf(strtok(s, ","), "%f", &v)', True),
+        ('sscanf(strtok(s, ","), "%d", &v)', False),
         ('sscanf(buf, "%d)", &a); g("%f")', False),
         ('sscanf(buf, "%d", &a; g("%f")', False),
         ('sscanf(buf, "%f"', True),

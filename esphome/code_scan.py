@@ -23,9 +23,10 @@ from esphome.types import ConfigType
 _LOGGER = logging.getLogger(__name__)
 
 # The string literal handed to a scanf family call as its format: an optional
-# first argument (sscanf/fscanf, possibly a literal itself) then the literal.
+# first argument (sscanf/fscanf; a literal or a call with its own commas is
+# fine) then the literal.
 _SCANF_FORMAT_RE = re.compile(
-    r'scanf\s*\((?:(?:"(?:[^"\\]|\\.)*"|[^,;"])*,)?\s*"((?:[^"\\]|\\.)*)"'
+    r'scanf\s*\((?:(?:"(?:[^"\\]|\\.)*"|\([^()]*\)|[^,;"()])*,)?\s*"((?:[^"\\]|\\.)*)"'
 )
 # Standard scanf float conversions %f %F %e %E %g %G %a %A with optional
 # suppression, width and length; also the invalid %.2f users write by analogy
