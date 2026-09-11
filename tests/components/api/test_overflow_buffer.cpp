@@ -256,12 +256,79 @@ TEST_F(OverflowBufferTest, RefusesWhenQueueIsFull) {
   TestOverflowBuffer buf;
   auto msg = make_message(16, 1);
 
-  this->fill_pipe_();
+  size_t filler = this->fill_pipe_();
   for (int i = 0; i < API_MAX_SEND_QUEUE; i++) {
     ASSERT_TRUE(enqueue(buf, msg)) << "message " << i;
   }
   EXPECT_FALSE(enqueue(buf, msg));
   EXPECT_EQ(buf.count(), API_MAX_SEND_QUEUE);
+
+  // Draining frees the slots again
+  std::vector<uint8_t> expected;
+  for (int i = 0; i < API_MAX_SEND_QUEUE; i++)
+    append(expected, msg);
+  expect_after_filler(this->drain_all_(buf), filler, expected);
+  this->fill_pipe_();
+  EXPECT_TRUE(enqueue(buf, msg));
+  EXPECT_EQ(buf.count(), 1);
+}
+
+TEST_F(OverflowBufferTest, SkipAtIovecBoundary) {
+  TestOverflowBuffer buf;
+  auto sent = make_message(300, 50);
+  auto unsent = make_message(400, 90);
+
+  size_t filler = this->fill_pipe_();
+  // The skip covers the first iovec exactly, so only the second is copied
+  struct iovec iov[2] = {{sent.data(), sent.size()}, {unsent.data(), unsent.size()}};
+  ASSERT_TRUE(
+      buf.enqueue_iov(iov, 2, static_cast<uint16_t>(sent.size() + unsent.size()), static_cast<uint16_t>(sent.size())));
+  EXPECT_EQ(buf.live(), unsent.size() + TestOverflowBuffer::LEN_PREFIX);
+  expect_after_filler(this->drain_all_(buf), filler, unsent);
+}
+
+TEST_F(OverflowBufferTest, AppendsBehindSentPrefixWhenItFits) {
+  TestOverflowBuffer buf;
+  size_t filler = this->fill_pipe_();
+  auto first = make_message(200, 20);
+  auto second = make_message(std::min<size_t>(filler * 3, 12000), 60);
+  ASSERT_GT(second.size(), filler);
+  ASSERT_TRUE(enqueue(buf, first));
+  ASSERT_TRUE(enqueue(buf, second));
+  const auto storage = buf.storage();
+  // Rounding left slack past the second message for a small third one
+  const size_t slack = storage.capacity - first.size() - second.size() - 2 * TestOverflowBuffer::LEN_PREFIX;
+  ASSERT_GT(slack, TestOverflowBuffer::LEN_PREFIX);
+  auto third = make_message(slack - TestOverflowBuffer::LEN_PREFIX, 200);
+
+  std::vector<uint8_t> received;
+  this->read_into_(received);
+  ASSERT_GT(this->drain_(buf), 0);
+  ASSERT_EQ(buf.count(), 1);
+  const size_t live = buf.live();
+
+  // Fits in the tail, so the sent prefix is left alone
+  ASSERT_TRUE(enqueue(buf, third));
+  EXPECT_EQ(buf.storage(), storage);
+  EXPECT_EQ(buf.live(), live + third.size() + TestOverflowBuffer::LEN_PREFIX);
+
+  append(received, this->drain_all_(buf));
+  expect_after_filler(received, filler, concat({first, second, third}));
+}
+
+TEST_F(OverflowBufferTest, ReleaseSurvivesFurtherEnqueues) {
+  TestOverflowBuffer buf;
+  auto first = make_message(300, 7);
+  auto second = make_message(300, 70);
+
+  size_t filler = this->fill_pipe_();
+  ASSERT_TRUE(enqueue(buf, first));
+  buf.release();
+  ASSERT_TRUE(enqueue(buf, second));
+  EXPECT_GT(buf.capacity(), 0u);
+
+  expect_after_filler(this->drain_all_(buf), filler, concat({first, second}));
+  EXPECT_EQ(buf.capacity(), 0u);
 }
 
 TEST_F(OverflowBufferTest, RefusesWhenByteLimitIsExceeded) {

@@ -55,6 +55,14 @@ TEST(APIBuffer, DropFrontKeepsTheRestInPlaceOrWhenGrowing) {
 
   EXPECT_FALSE(buf.drop_front_and_reserve(1, UINT16_MAX + 1));
   EXPECT_EQ(buf.size(), 3u);
+
+  // Dropping everything leaves an empty buffer, in place and when growing
+  ASSERT_TRUE(buf.drop_front_and_reserve(3, 64));
+  EXPECT_EQ(buf.size(), 0u);
+  ASSERT_NE(buf.append(2), nullptr);
+  ASSERT_TRUE(buf.drop_front_and_reserve(2, 128));
+  EXPECT_EQ(buf.size(), 0u);
+  EXPECT_EQ(buf.capacity(), 128u);
 }
 
 }  // namespace esphome::api::testing
