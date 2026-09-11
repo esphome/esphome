@@ -16,7 +16,6 @@ namespace esphome::cdc_acm_uart {
 static const char *const TAG = "cdc_acm_uart";
 
 static constexpr size_t UART_TASK_STACK_SIZE = 4096;
-static constexpr size_t UART_TASK_STACK_SIZE_VV = 8192;
 static constexpr size_t RINGBUF_RETRY_CHUNK_SIZE = 64;
 static constexpr uint32_t LOG_THROTTLE_MS = 1000;
 static constexpr uint32_t UART_RELOAD_SETTLE_MS = 20;
@@ -90,10 +89,6 @@ void CDCACMUARTBridge::setup() {
     return;
   }
 
-  // Larger stack for the very-verbose hex-dump logging path.
-  constexpr size_t stack_size =
-      ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERY_VERBOSE ? UART_TASK_STACK_SIZE_VV : UART_TASK_STACK_SIZE;
-
   // Per-instance task names (keyed on the CDC interface number) keep task dumps
   // unambiguous with multiple bridges.
   char tx_task_name[] = "cdc_uart_tx_0";
@@ -102,14 +97,14 @@ void CDCACMUARTBridge::setup() {
   tx_task_name[sizeof(tx_task_name) - 2] = itf_char;
   rx_task_name[sizeof(rx_task_name) - 2] = itf_char;
 
-  xTaskCreate(uart_tx_task_fn, tx_task_name, stack_size, this, TASK_PRIORITY, &this->uart_tx_task_handle_);
+  xTaskCreate(uart_tx_task_fn, tx_task_name, UART_TASK_STACK_SIZE, this, TASK_PRIORITY, &this->uart_tx_task_handle_);
   if (this->uart_tx_task_handle_ == nullptr) {
     ESP_LOGE(TAG, "Failed to create UART TX task");
     this->mark_failed();
     return;
   }
 
-  xTaskCreate(uart_rx_task_fn, rx_task_name, stack_size, this, TASK_PRIORITY, &this->uart_rx_task_handle_);
+  xTaskCreate(uart_rx_task_fn, rx_task_name, UART_TASK_STACK_SIZE, this, TASK_PRIORITY, &this->uart_rx_task_handle_);
   if (this->uart_rx_task_handle_ == nullptr) {
     ESP_LOGE(TAG, "Failed to create UART RX task");
     vTaskDelete(this->uart_tx_task_handle_);
@@ -290,10 +285,13 @@ void CDCACMUARTBridge::resume() {
 }
 
 void CDCACMUARTBridge::finish_resume_() {
-  // Re-apply the host's coding before either task runs again, so no traffic moves at
-  // the YAML framing pause() restored.
-  if (this->host_coding_seen_ && this->sync_host_framing_()) {
+  // Take the bus back at a known framing before either task runs again: the host's
+  // if it ever sent one, else the YAML framing (the other owner may have changed it).
+  if (this->host_coding_seen_) {
+    this->sync_host_framing_();
     this->uart_parent_->apply_settings_live();
+  } else {
+    this->restore_configured_framing_();
   }
   this->paused_ = 0;
   this->state_ = MainState::MAIN_STATE_RUNNING;
@@ -307,12 +305,8 @@ bool CDCACMUARTBridge::tx_idle_() {
 }
 
 void CDCACMUARTBridge::restore_configured_framing_() {
-  if (this->uart_parent_->get_baud_rate() == this->configured_baud_rate_ &&
-      this->uart_parent_->get_parity() == this->configured_parity_ &&
-      this->uart_parent_->get_stop_bits() == this->configured_stop_bits_ &&
-      this->uart_parent_->get_data_bits() == this->configured_data_bits_) {
-    return;
-  }
+  // Always applied: the cached settings can lead the hardware by a pending reload,
+  // so they are no proof of what is live.
   this->uart_parent_->set_baud_rate(this->configured_baud_rate_);
   this->uart_parent_->set_parity(this->configured_parity_);
   this->uart_parent_->set_stop_bits(this->configured_stop_bits_);
