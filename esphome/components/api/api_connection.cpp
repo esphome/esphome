@@ -362,6 +362,8 @@ void APIConnection::check_keepalive_(uint32_t now) {
   } else if (!this->flags_.remove) {
     // Only send ping if we're not disconnecting
     ESP_LOGVV(TAG, "Sending keepalive PING");
+    // A keepalive period without traffic: let a one-off stall's backlog storage go
+    this->helper_->release_overflow_buffer();
     PingRequest req;
     this->flags_.sent_ping = this->send_message(req);
     if (!this->flags_.sent_ping) {
