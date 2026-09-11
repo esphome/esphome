@@ -190,9 +190,8 @@ void IDFUARTComponent::load_settings(bool dump_config) {
     setup_pin_if_needed(this->tx_pin_);
   }
 
-  // apply_line_settings_() re-applies inversion below; this earlier write is the
-  // load-bearing one -- it sets the idle level before uart_set_pin() attaches the
-  // pins, so an inverted TX line never briefly presents the wrong idle level.
+  // Must precede uart_set_pin() so an inverted TX line never shows the wrong idle
+  // level; apply_line_settings_() repeats it later for the reset registers.
   err = uart_set_line_inverse(this->uart_num_, this->line_inversion_mask_());
   if (err != ESP_OK) {
     ESP_LOGW(TAG, "uart_set_line_inverse failed: %s", esp_err_to_name(err));
@@ -240,8 +239,7 @@ uint32_t IDFUARTComponent::line_inversion_mask_() {
 }
 
 esp_err_t IDFUARTComponent::apply_line_settings_() {
-  // uart_param_config()'s internal uart_hal_init() resets these, so re-apply after
-  // every uart_param_config() call (driver install and live reconfiguration alike).
+  // uart_param_config() resets these; call after every use of it.
   esp_err_t err = uart_set_line_inverse(this->uart_num_, this->line_inversion_mask_());
   if (err != ESP_OK) {
     ESP_LOGW(TAG, "uart_set_line_inverse failed: %s", esp_err_to_name(err));
@@ -279,22 +277,17 @@ void IDFUARTComponent::set_framing_(const Framing &framing) {
 }
 
 esp_err_t IDFUARTComponent::apply_settings_live() {
-  // If the driver isn't installed yet there are no live registers to update; do a
-  // full reload (which installs the driver) instead.
+  // No driver yet: nothing to reconfigure in place.
   if (!uart_is_driver_installed(this->uart_num_)) {
     this->load_settings(false);
     return this->is_failed() ? ESP_FAIL : ESP_OK;
   }
-  // Leaves the driver ring buffers alone (blocked read/write tasks are undisturbed)
-  // but flushes both hardware FIFOs, discarding in-flight bytes -- inherent to live
-  // reconfiguration; hosts normally re-code the line at port-open before data flows.
+  // Keeps the driver ring buffers; flushes both hardware FIFOs (in-flight bytes lost).
   uart_config_t uart_config = this->get_config_();
   esp_err_t err = uart_param_config(this->uart_num_, &uart_config);
   if (err != ESP_OK) {
-    // Unachievable baud rates land here with the registers already reset (via the
-    // internal uart_hal_init()). Restore the whole framing that last worked, so the
-    // getters keep describing the hardware; if none is recorded yet or that also
-    // fails, the port is left reset -- mark failed.
+    // Failure leaves the registers reset; put back the last accepted framing so the
+    // getters still describe the hardware.
     if (this->last_good_framing_.baud_rate == 0) {
       ESP_LOGE(TAG, "uart_param_config (live) failed: %s; no previous framing to restore", esp_err_to_name(err));
       this->mark_failed();
@@ -309,12 +302,11 @@ esp_err_t IDFUARTComponent::apply_settings_live() {
       this->mark_failed();
       return err;
     }
-    // The previous framing is live again; still report that the request was refused.
+    // Previous framing is live again; still report the refusal.
     esp_err_t line_err = this->apply_line_settings_();
     return line_err != ESP_OK ? line_err : err;
   }
   this->last_good_framing_ = this->framing_();
-  // Re-apply what uart_param_config() clobbered; errors are logged inside.
   return this->apply_line_settings_();
 }
 
