@@ -46,7 +46,7 @@ async def test_ir_rf_transmit_complete_boot(
     """The host build with the mock transmitters boots and lists all entities on any client."""
     async with run_compiled(yaml_config), api_client_connected() as client:
         entities, _ = await client.list_entities_services()
-    assert find_entity(entities, "rf_transmitter", RadioFrequencyInfo) is not None
+    assert find_entity(entities, "rf_transmitter_a", RadioFrequencyInfo) is not None
     assert find_entity(entities, "rf_transmitter_b", RadioFrequencyInfo) is not None
     assert find_entity(entities, "ir_transmitter", InfraredInfo) is not None
 
@@ -102,7 +102,7 @@ async def test_ir_rf_transmit_complete(
         api_client_connected() as client,
     ):
         entities, _ = await client.list_entities_services()
-        rf = find_entity(entities, "rf_transmitter", RadioFrequencyInfo)
+        rf = find_entity(entities, "rf_transmitter_a", RadioFrequencyInfo)
         rf_b = find_entity(entities, "rf_transmitter_b", RadioFrequencyInfo)
         ir = find_entity(entities, "ir_transmitter", InfraredInfo)
         assert rf is not None and rf_b is not None, "RF transmitter entities not found"

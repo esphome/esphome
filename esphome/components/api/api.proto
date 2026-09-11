@@ -2705,7 +2705,9 @@ message InfraredRFReceiveEvent {
 // any client, and a transmit that reported nothing within 30 s past its expected air time, so a
 // client should not retry on it blindly. The device serializes transmits per transmitter and
 // several entities may share one, so a client should keep at most one transmit outstanding per
-// device, not per entity. Lets clients pace requests instead of estimating durations (since API 1.18)
+// device, not per entity. A reply for an unknown key or a refused request is sent once and can be lost
+// when the device's send buffer is full, so a client should also stop waiting on its own after the
+// expected air time plus a margin. Lets clients pace requests instead of estimating durations (since API 1.18)
 message InfraredRFTransmitCompleteResponse {
   option (id) = 153;
   option (source) = SOURCE_SERVER;

@@ -18,7 +18,7 @@ remote_transmitter_mock:
 # two entities on one transmitter: each must get only its own completion
 radio_frequency:
   - platform: ir_rf_proxy
-    name: RF Transmitter
+    name: RF Transmitter A
     remote_transmitter_id: rf_tx
   - platform: ir_rf_proxy
     name: RF Transmitter B
