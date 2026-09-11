@@ -308,14 +308,17 @@ def includes_use_scanf_float(config: ConfigType) -> bool:
 
 def external_components_use_scanf_float() -> bool:
     """Whether a loaded component from outside the ESPHome tree scans a float."""
-    from esphome.loader import CORE_COMPONENTS_PATH, get_component
+    import esphome
+    from esphome.loader import get_component
 
+    # Everything shipped in the esphome package, components and core alike
+    package_root = Path(esphome.__file__).resolve().parent
     for name in sorted(CORE.loaded_integrations):
         component = get_component(name)
         if component is None:
             continue
         package_dir = Path(component.module.__file__).resolve().parent
-        if package_dir.is_relative_to(CORE_COMPONENTS_PATH):
+        if package_dir.is_relative_to(package_root):
             continue
         for file in walk_files(package_dir):
             if file.suffix in SOURCE_FILE_EXTENSIONS and source_uses_scanf_float(
