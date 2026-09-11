@@ -18,14 +18,13 @@ namespace esphome::api {
 /// kept at its high-water mark so a lossy link does not churn the heap.
 /// Messages are stored as a 2 byte length prefix plus payload.
 /// API_MAX_SEND_QUEUE bounds queued messages and, at 2 KB per slot, queued
-/// bytes; exceeding either fails the connection. A lone message is exempt
-/// from the byte limit, only the 16 bit offsets cap it.
+/// bytes; exceeding either fails the connection.
 class APIOverflowBuffer {
  public:
   /// True when no backlogged data is waiting.
   bool empty() const { return this->count_ == 0; }
 
-  /// Drain queued messages to the socket. Precondition: !empty().
+  /// Drain queued messages to the socket. Must not be called while empty().
   /// Returns bytes written, 0 for a re-entrant call, -1 on error (check errno
   /// for EWOULDBLOCK); callers only need to act on -1.
   ssize_t try_drain(socket::Socket *socket);
@@ -47,12 +46,11 @@ class APIOverflowBuffer {
  protected:
   static constexpr size_t LEN_PREFIX = 2;
   static constexpr size_t BYTES_PER_SLOT = 2048;
-  static constexpr size_t MAX_SINGLE_BYTES = UINT16_MAX;  // offsets are 16 bit
-  static constexpr size_t MAX_BYTES = std::min(API_MAX_SEND_QUEUE * BYTES_PER_SLOT, MAX_SINGLE_BYTES);
+  static constexpr size_t MAX_BYTES = std::min(API_MAX_SEND_QUEUE * BYTES_PER_SLOT, APIBuffer::MAX_SIZE);
   // Reserve in 256 byte steps so a creeping high-water mark settles quickly
   static constexpr size_t GROW_QUANTUM = 256;
   static constexpr size_t reserve_for(size_t want) {
-    return std::min((want + GROW_QUANTUM - 1) & ~(GROW_QUANTUM - 1), MAX_SINGLE_BYTES);
+    return std::min((want + GROW_QUANTUM - 1) & ~(GROW_QUANTUM - 1), APIBuffer::MAX_SIZE);
   }
 
   APIBuffer buf_;

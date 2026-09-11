@@ -24,12 +24,9 @@ namespace esphome::api {
 /// Safe because: callers always write exactly the number of bytes they
 /// resize for. In the protobuf write path, debug_check_bounds_ validates
 /// writes in debug builds.
-///
-/// Sizes are 16 bit: API frames carry 16 bit lengths, so a request above
-/// 65535 bytes fails like an allocation failure. Storage comes from malloc
-/// because new (std::nothrow) still aborts on ESP-IDF without exceptions.
 class APIBuffer {
  public:
+  static constexpr size_t MAX_SIZE = UINT16_MAX;  // API frames carry 16 bit lengths
   void clear() { this->size_ = 0; }
   /// Returns false if allocation fails; the buffer is left unchanged.
   [[nodiscard]] inline bool reserve(size_t n) ESPHOME_ALWAYS_INLINE { return n <= this->capacity_ || this->grow_(n); }
@@ -51,8 +48,7 @@ class APIBuffer {
       return nullptr;
     return this->data_.get() + old_size;
   }
-  /// Drop the first `drop` bytes and reserve `n`, copying the rest only once.
-  /// Returns false on allocation failure.
+  /// Drop the first `drop` bytes (at most size()) and reserve `n`, copying the rest once.
   [[nodiscard]] bool drop_front_and_reserve(size_t drop, size_t n);
   uint8_t *data() { return this->data_.get(); }
   const uint8_t *data() const { return this->data_.get(); }
@@ -63,13 +59,14 @@ class APIBuffer {
   const uint8_t &operator[](size_t i) const { return this->data_[i]; }
   /// Release all memory (equivalent to std::vector swap trick).
   void release() {
-    this->data_.reset();
+    std::free(this->data_.release());  // NOLINT(cppcoreguidelines-no-malloc)
     this->size_ = 0;
     this->capacity_ = 0;
   }
 
  protected:
   bool grow_(size_t n, size_t drop = 0);
+  // malloc, not new (std::nothrow): that still aborts on ESP-IDF without exceptions
   struct FreeDeleter {
     void operator()(uint8_t *p) const { std::free(p); }  // NOLINT(cppcoreguidelines-no-malloc)
   };

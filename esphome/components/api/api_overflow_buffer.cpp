@@ -10,12 +10,12 @@ ssize_t APIOverflowBuffer::try_drain(socket::Socket *socket) {
     return 0;
 
   struct DrainGuard {
-    explicit DrainGuard(APIOverflowBuffer &owner) : owner_(owner) { owner.draining_ = true; }
-    ~DrainGuard() { this->owner_.draining_ = false; }
-    APIOverflowBuffer &owner_;
-  } guard(*this);
+    APIOverflowBuffer &owner;
+    ~DrainGuard() { this->owner.draining_ = false; }
+  } guard{*this};
+  this->draining_ = true;
 
-  while (this->count_ > 0) {
+  do {
     uint8_t *msg = this->buf_.data() + this->head_;
     uint16_t len;
     std::memcpy(&len, msg, LEN_PREFIX);
@@ -25,16 +25,15 @@ ssize_t APIOverflowBuffer::try_drain(socket::Socket *socket) {
       return sent;
     if (sent < len) {
       // Step past the sent bytes and rewrite the prefix there; it lands on bytes already sent
-      this->head_ += static_cast<uint16_t>(sent);
-      len -= static_cast<uint16_t>(sent);
+      this->head_ += sent;
+      len -= sent;
       std::memcpy(msg + sent, &len, LEN_PREFIX);
       return sent;
     }
     this->head_ += LEN_PREFIX + len;
     this->count_--;
-  }
+  } while (this->count_ > 0);
 
-  // Fully drained: rewind; keep the capacity unless release() asked otherwise
   this->head_ = 0;
   if (this->release_when_drained_) {
     this->release_when_drained_ = false;
@@ -53,42 +52,36 @@ bool APIOverflowBuffer::enqueue_iov(const struct iovec *iov, int iovcnt, uint16_
   const size_t new_bytes = LEN_PREFIX + new_len;
   const size_t live = this->buf_.size() - this->head_;
   // A lone message is always taken; refusing it would only drop the connection
-  if (live + new_bytes > (this->count_ > 0 ? MAX_BYTES : MAX_SINGLE_BYTES))
+  if (this->count_ > 0 && live + new_bytes > MAX_BYTES)
     return false;
 
-  // Same target after a reclaim, since size() then equals live
-  const size_t reserve = reserve_for(live + new_bytes);
   if (this->buf_.size() + new_bytes > this->buf_.capacity()) {
     // Storage would move under an outer drain's write()
     if (this->draining_)
       return false;
-    if (this->head_ > 0) {
-      // Reclaim the sent prefix (one copy even if this grows)
-      if (!this->buf_.drop_front_and_reserve(this->head_, reserve))
-        return false;
-      this->head_ = 0;
-    }
+    // Reclaim the sent prefix and grow in one step (one copy of the live bytes)
+    if (!this->buf_.drop_front_and_reserve(this->head_, reserve_for(live + new_bytes)))
+      return false;
+    this->head_ = 0;
   }
 
-  uint8_t *dst = this->buf_.append(new_bytes, reserve);
+  uint8_t *dst = this->buf_.append(new_bytes);
   if (dst == nullptr)
     return false;
   std::memcpy(dst, &new_len, LEN_PREFIX);
   dst += LEN_PREFIX;
-  uint16_t to_skip = skip;
+  size_t to_skip = skip;
   for (int i = 0; i < iovcnt; i++) {
     if (to_skip >= iov[i].iov_len) {
-      to_skip -= static_cast<uint16_t>(iov[i].iov_len);
+      to_skip -= iov[i].iov_len;
     } else {
-      const uint8_t *src = static_cast<const uint8_t *>(iov[i].iov_base) + to_skip;
-      uint16_t len = static_cast<uint16_t>(iov[i].iov_len) - to_skip;
-      std::memcpy(dst, src, len);
+      const size_t len = iov[i].iov_len - to_skip;
+      std::memcpy(dst, static_cast<const uint8_t *>(iov[i].iov_base) + to_skip, len);
       dst += len;
       to_skip = 0;
     }
   }
 
-  // Publish after the copy so a half-built message is never sent
   this->count_++;
   return true;
 }
