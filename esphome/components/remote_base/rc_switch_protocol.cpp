@@ -1,11 +1,18 @@
 #include "rc_switch_protocol.h"
 
 #include <iterator>
+#include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
 namespace esphome::remote_base {
 
 static const char *const TAG = "remote.rc_switch";
+
+RCSwitchBase rc_switch_protocol(uint8_t index) {
+  RCSwitchBase protocol;
+  progmem_memcpy(&protocol, &RC_SWITCH_PROTOCOLS[index], sizeof(protocol));
+  return protocol;
+}
 
 void RCSwitchBase::one(RemoteTransmitData *dst) const {
   if (!this->inverted_) {

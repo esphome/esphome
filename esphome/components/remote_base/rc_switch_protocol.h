@@ -68,8 +68,9 @@ class RCSwitchBase {
   uint32_t inverted_{};  // bool widened so every field is a word: the table is read from flash
 };
 
-// Constant-initialized and kept in flash on every platform; ESP8266 reads it in place, which only
-// works while every field is a whole word
+// Constant-initialized and kept in flash on every platform. The decoder reads entries in place
+// through a pointer, which ESP8266 only allows while every field is a whole word; copies out of
+// the table go through rc_switch_protocol()
 static_assert(sizeof(RCSwitchBase) == 7 * sizeof(uint32_t), "RCSwitchBase must stay word-only for flash reads");
 inline constexpr RCSwitchBase RC_SWITCH_PROTOCOLS[] PROGMEM = {
     {0, 0, 0, 0, 0, 0, false},
@@ -82,6 +83,10 @@ inline constexpr RCSwitchBase RC_SWITCH_PROTOCOLS[] PROGMEM = {
     {300, 9300, 150, 900, 900, 150, false},
     {250, 2500, 250, 1250, 250, 250, false},
 };
+
+/// RAM copy of RC_SWITCH_PROTOCOLS[index] for the transmit actions and the dumper, made with
+/// progmem_memcpy so no byte load ever touches the flash table on ESP8266
+RCSwitchBase rc_switch_protocol(uint8_t index);
 
 uint64_t decode_binary_string(const std::string &data);
 

@@ -1535,7 +1535,7 @@ def validate_rc_switch_raw_code(value):
 
 def build_rc_switch_protocol(config):
     if isinstance(config, int):
-        return rc_switch_protocols[config]
+        return rc_switch_protocol(config)
     pl = config[CONF_PULSE_LENGTH]
     return RCSwitchBase(
         config[CONF_SYNC][0] * pl,
@@ -1622,7 +1622,7 @@ RC_SWITCH_TRANSMITTER = cv.Schema(
     }
 )
 
-rc_switch_protocols = ns.RC_SWITCH_PROTOCOLS
+rc_switch_protocol = ns.rc_switch_protocol
 RCSwitchData = ns.struct("RCSwitchData")
 RCSwitchBase = ns.class_("RCSwitchBase")
 RCSwitchTrigger = ns.class_("RCSwitchTrigger", RemoteReceiverTrigger)
