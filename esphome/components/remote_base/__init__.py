@@ -1,8 +1,10 @@
+from pathlib import Path
 from typing import Any
 
 from esphome import automation
 import esphome.codegen as cg
 from esphome.components import binary_sensor
+from esphome.config_helpers import filter_source_files_from_defines
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ADDRESS,
@@ -120,8 +122,45 @@ async def register_transmittable(var, config):
     cg.add(var.set_transmitter(transmitter_))
 
 
+# Registry names that share a protocol source file
+def _protocol_stem(name: str) -> str:
+    if name.startswith("rc_switch"):
+        return "rc_switch"
+    if name == "canalsatld":
+        return "canalsat"
+    return name
+
+
+def protocol_define(name: str) -> str:
+    return f"USE_REMOTE_PROTOCOL_{_protocol_stem(name).upper()}"
+
+
+def request_protocol(name: str) -> None:
+    """Keep a protocol's source file in the build; components using it from C++ must call this."""
+    cg.add_define(protocol_define(name))
+
+
+_PROTOCOL_STEMS = sorted(
+    path.name.removesuffix("_protocol.cpp")
+    for path in Path(__file__).parent.glob("*_protocol.cpp")
+)
+# Only the protocol sources a configuration uses are compiled
+FILTER_SOURCE_FILES = filter_source_files_from_defines(
+    {f"{stem}_protocol.cpp": protocol_define(stem) for stem in _PROTOCOL_STEMS}
+)
+
+
 def register_binary_sensor(name, type, schema):
-    return BINARY_SENSOR_REGISTRY.register(name, type, schema)
+    registerer = BINARY_SENSOR_REGISTRY.register(name, type, schema)
+
+    def decorator(func):
+        async def new_func(var, config):
+            request_protocol(name)
+            await coroutine(func)(var, config)
+
+        return registerer(new_func)
+
+    return decorator
 
 
 def register_trigger(name, type, data_type):
@@ -134,6 +173,7 @@ def register_trigger(name, type, data_type):
 
     def decorator(func):
         async def new_func(config):
+            request_protocol(name)
             var = cg.new_Pvariable(config[CONF_TRIGGER_ID])
             await coroutine(func)(var, config)
             await automation.build_automation(var, [(data_type, "x")], config)
@@ -151,6 +191,7 @@ def register_dumper(name, type, schema=None):
 
     def decorator(func):
         async def new_func(config, dumper_id):
+            request_protocol(name)
             var = cg.new_Pvariable(dumper_id)
             await coroutine(func)(var, config)
             return var
@@ -191,6 +232,7 @@ def register_action(name, type_, schema):
 
     def decorator(func):
         async def new_func(config, action_id, template_arg, args):
+            request_protocol(name)
             var = cg.new_Pvariable(action_id, template_arg)
             await register_transmittable(var, config)
             if CONF_REPEAT in config:

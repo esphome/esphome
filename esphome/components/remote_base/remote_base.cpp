@@ -102,7 +102,7 @@ bool RemoteReceiverBinarySensorBase::on_receive(RemoteReceiveData src) {
 // Slots are counted at code generation; a registration from C++ setup() has none
 #ifdef REMOTE_BASE_LISTENER_COUNT
 void RemoteReceiverBase::register_listener(RemoteReceiverListener *listener) {
-  if (this->listeners_.size() == REMOTE_BASE_LISTENER_COUNT) {
+  if (this->listeners_.size() == this->listeners_.capacity()) {
     ESP_LOGE(TAG, "No %s slot: register it from to_code() with remote_base.add_%s", LOG_STR_LITERAL("listener"),
              LOG_STR_LITERAL("listener"));
     return;
@@ -117,7 +117,7 @@ void RemoteReceiverBase::register_dumper(RemoteReceiverDumperBase *dumper) {
     this->secondary_dumper_ = dumper;
     return;
   }
-  if (this->dumpers_.size() == REMOTE_BASE_DUMPER_COUNT) {
+  if (this->dumpers_.size() == this->dumpers_.capacity()) {
     ESP_LOGE(TAG, "No %s slot: register it from to_code() with remote_base.add_%s", LOG_STR_LITERAL("dumper"),
              LOG_STR_LITERAL("dumper"));
     return;

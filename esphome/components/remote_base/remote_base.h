@@ -1,8 +1,8 @@
+#pragma once
+
 #include <concepts>
 #include <utility>
 #include <vector>
-
-#pragma once
 
 #include "esphome/components/binary_sensor/binary_sensor.h"
 #include "esphome/core/automation.h"
