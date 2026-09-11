@@ -90,7 +90,7 @@ void MainControlUnitHub::setup() {
 
   if (this->main_switch_switch_) {
     this->main_switch_switch_->add_on_state_callback([this](bool state) {
-      std::string cmd = "";
+      std::string cmd;
       auto *hs_key_long = GET_VARIABLE(bool, "HS_KEY_LONG");
       auto *hs_key_state = GET_VARIABLE(int, "HS_KEY_STATE");
       bool current_state = hs_key_state->get_value() > 0;
@@ -114,7 +114,7 @@ void MainControlUnitHub::setup() {
   }
   if (this->all_lights_switch_) {
     this->all_lights_switch_->add_on_state_callback([this](bool state) {
-      std::string cmd = "";
+      std::string cmd;
       auto *hs_key = GET_VARIABLE(bool, "HS_KEY");
       auto *hs_key_state = GET_VARIABLE(int, "HS_KEY_STATE");
       bool current_state = hs_key_state->get_value() == 2;
@@ -131,7 +131,7 @@ void MainControlUnitHub::setup() {
 
   if (this->floor_heater_switch_) {
     this->floor_heater_switch_->add_on_state_callback([this](bool state) {
-      std::string cmd = "";
+      std::string cmd;
       auto *floor_heater = GET_VARIABLE(bool, "FLOOR_HEATER_ON");
       if (floor_heater) {
         floor_heater->set_value(state);
@@ -168,7 +168,7 @@ void MainControlUnitHub::update() {
       this->temp_out_sensor_->publish_state(temp_out->get_value());
   }
   if (this->water_level_sensor_) {
-    auto water_level = GET_VARIABLE(int, "WATER_LEVEL");
+    auto *water_level = GET_VARIABLE(int, "WATER_LEVEL");
     if (water_level && water_level->is_active())
       this->water_level_sensor_->publish_state(float(water_level->get_value()) / 4.0f);
   }
