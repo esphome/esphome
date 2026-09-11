@@ -25,6 +25,7 @@ from .const import (
     CONF_REPORT,
     CONF_ROUTER,
     CONF_USE_DEVICE_TYPE,
+    CONF_ANTENNA,
     CONF_WIPE_ON_BOOT,
     KEY_ZIGBEE,
     POWER_SOURCE,
@@ -125,6 +126,9 @@ CONFIG_SCHEMA = cv.All(
                     cv.one_of(*["random"], lower=True),
                 ),
                 cv.requires_component("nrf52"),
+            ),
+            cv.Optional(CONF_ANTENNA, default="internal"): cv.one_of(
+                "internal", "external", lower=True
             ),
             cv.OnlyWith(CONF_SLEEPY, "nrf52", default=False): cv.All(
                 cv.boolean,

@@ -44,6 +44,7 @@ from .const import (
     CONF_ROUTER,
     CONF_USE_DEVICE_TYPE,
     KEY_ZIGBEE,
+    CONF_ANTENNA,
     POWER_SOURCE,
     ZigbeeAttribute,
 )
@@ -118,6 +119,10 @@ def validate_attributes(config: ConfigType) -> ConfigType:
 def final_validate_esp32(config: ConfigType) -> ConfigType:
     if not CORE.is_esp32:
         return config
+    if CONF_ANTENNA in config and get_board() != "seeed_xiao_esp32c6":
+        raise cv.Invalid(
+            "'antenna' is currently only suppored on board: seeed_xiao_esp32c6"
+        )
     if CONF_WIFI in fv.full_config.get():
         if CONF_AP in fv.full_config.get()[CONF_WIFI]:
             raise cv.Invalid(
@@ -285,6 +290,13 @@ async def attributes_to_code(
 
 
 async def esp32_to_code(config: ConfigType) -> "MockObj":
+    if get_board() == "seeed_xiao_esp32c6":
+        cg.add_define("USE_XIAO_ESP32C6_RF_SWITCH")
+        cg.add_define(
+            "XIAO_ESP32C6_RF_ANTENNA_SELECT",
+            1 if config.get(CONF_ANTENNA, "internal") == "external" else 0,
+        )
+
     add_idf_component(
         name="espressif/esp-zigbee-lib",
         ref="2.0.4",

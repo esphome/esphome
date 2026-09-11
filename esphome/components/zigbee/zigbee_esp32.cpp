@@ -276,6 +276,24 @@ static void ezb_task(void *pv_parameters) {
 }
 
 ZigbeeComponent::ZigbeeComponent() {
+#ifdef USE_XIAO_ESP32C6_RF_SWITCH
+  gpio_reset_pin(GPIO_NUM_3);
+  gpio_set_direction(GPIO_NUM_3, GPIO_MODE_OUTPUT);
+  gpio_set_level(GPIO_NUM_3, 0);
+
+  vTaskDelay(pdMS_TO_TICKS(100));
+
+  gpio_reset_pin(GPIO_NUM_14);
+  gpio_set_direction(GPIO_NUM_14, GPIO_MODE_OUTPUT);
+  gpio_set_level(GPIO_NUM_14, XIAO_ESP32C6_RF_ANTENNA_SELECT);
+
+  ESP_LOGI(
+      TAG,
+      "XIAO ESP32-C6 Zigbee antenna: %s",
+      XIAO_ESP32C6_RF_ANTENNA_SELECT ? "external" : "internal"
+  );
+
+#endif
   esp_zigbee_platform_config_t platform_config = {
       .storage_partition_name = "nvs",
       .radio_config = EZB_DEFAULT_RADIO_CONFIG(),
