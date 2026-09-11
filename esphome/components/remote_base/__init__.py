@@ -52,7 +52,6 @@ from esphome.util import Registry, SimpleRegistry
 
 AUTO_LOAD = ["binary_sensor"]
 
-DOMAIN = "remote_base"
 
 CONF_RECEIVER_ID = "receiver_id"
 CONF_TRANSMITTER_ID = "transmitter_id"

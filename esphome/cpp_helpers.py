@@ -202,6 +202,11 @@ def slot_counter(define: str) -> Callable[..., None]:
         if counts is None:
             counts = state.counts[define] = {}
             CORE.add_job(emit_job)
+        elif (key is None) != (None in counts):
+            # a keyed and an unkeyed request would compare buckets instead of adding up
+            raise ValueError(
+                f"slot_counter('{define}'): every request must use a key, or none of them"
+            )
         counts[key] = counts.get(key, 0) + 1
 
     return request_slot

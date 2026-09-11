@@ -200,6 +200,18 @@ def test_slot_counter_keyed_emits_largest_count() -> None:
     assert _define_value("TEST_SLOT_COUNT_KEYED") == "3"
 
 
+def test_slot_counter_rejects_mixed_keyed_and_unkeyed_requests() -> None:
+    """A keyed and an unkeyed request for one define cannot be sized together."""
+    request = ch.slot_counter("TEST_SLOT_COUNT_MIXED")
+    request("rx_a")
+    with pytest.raises(ValueError, match="TEST_SLOT_COUNT_MIXED"):
+        request()
+    unkeyed = ch.slot_counter("TEST_SLOT_COUNT_MIXED_2")
+    unkeyed()
+    with pytest.raises(ValueError, match="TEST_SLOT_COUNT_MIXED_2"):
+        unkeyed("rx_a")
+
+
 def test_slot_counter_without_requests_emits_nothing() -> None:
     """No requests, no job, no define — the guarded storage compiles out."""
     ch.slot_counter("TEST_SLOT_COUNT_UNUSED")
