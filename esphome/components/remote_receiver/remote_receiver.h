@@ -101,7 +101,7 @@ class RemoteReceiverComponent final : public remote_base::RemoteReceiverBase,
   HighFrequencyLoopRequester high_freq_;
 #endif
 
-  uint32_t buffer_size_{};
+  uint32_t buffer_size_{};  // 0 on RMT targets: sized from receive_symbols in setup()
   uint32_t filter_us_{10};
   uint32_t idle_us_{10000};
 };

@@ -112,9 +112,10 @@ CONFIG_SCHEMA = remote_base.validate_triggers(
             cv.Required(CONF_PIN): cv.All(pins.internal_gpio_input_pin_schema),
             cv.Optional(CONF_DUMP, default=[]): remote_base.validate_dumpers,
             cv.Optional(CONF_TOLERANCE, default="25%"): validate_tolerance,
+            # RMT targets size the ring from receive_symbols unless set, see setup()
             cv.SplitDefault(
                 CONF_BUFFER_SIZE,
-                esp32="10000b",
+                esp32=cv.UNDEFINED,
                 esp32_c2="1000b",
                 esp32_c61="1000b",
                 esp8266="1000b",
@@ -233,7 +234,8 @@ async def to_code(config: ConfigType) -> None:
             config[CONF_TOLERANCE][CONF_VALUE], config[CONF_TOLERANCE][CONF_TYPE]
         )
     )
-    cg.add(var.set_buffer_size(config[CONF_BUFFER_SIZE]))
+    if (buffer_size := config.get(CONF_BUFFER_SIZE)) is not None:
+        cg.add(var.set_buffer_size(buffer_size))
     cg.add(var.set_filter_us(config[CONF_FILTER]))
     cg.add(var.set_idle_us(config[CONF_IDLE]))
 
