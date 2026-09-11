@@ -209,7 +209,8 @@ def lambdas_use_scanf_float(config: ConfigType) -> bool:
     """Check if any lambda in the config uses scanf with a float format specifier.
 
     Comments are stripped before matching to avoid false positives from
-    commented-out code. The cost of a false positive is only ~8KB flash.
+    commented-out code. The cost of a false positive is only the flash the
+    caller's float scanf support takes.
     """
     stack: list = [config]
     while stack:

@@ -2326,12 +2326,13 @@ async def _set_libc_picolibc_newlib_compat() -> None:
     )
 
 
-def _libc_is_newlib() -> bool:
-    """Whether the ESP-IDF build links newlib rather than picolibc.
+def _idf_libc_is_newlib() -> bool:
+    """Whether this is an ESP-IDF framework build that links newlib.
 
     IDF 5.x defaults to newlib on every variant; IDF 6.0+ switches to picolibc
     on every variant. The printf and sscanf wraps are only measured against
-    newlib.
+    newlib, and their stubs are compiled out on Arduino, so an Arduino build
+    (which also links newlib underneath) answers False here.
     """
     return not CORE.using_arduino and idf_version() < cv.Version(6, 0, 0)
 
@@ -2360,17 +2361,23 @@ async def _add_sscanf_stub(enable_full_scanf: bool | None) -> None:
     """
     if (
         enable_full_scanf
-        or not _libc_is_newlib()
+        or CORE.using_arduino  # sscanf_stubs.cpp compiles out without USE_ESP_IDF
+        or not _idf_libc_is_newlib()
         or not _network_sdkconfig().bluetooth
         or get_esp32_variant() in ROM_SSCANF_VARIANTS
     ):
         return
-    if enable_full_scanf is None and lambdas_use_scanf_float(CORE.config):
+    if lambdas_use_scanf_float(CORE.config):
+        if enable_full_scanf is None:
+            _LOGGER.warning(
+                "Lambda uses scanf with a float format specifier; "
+                "keeping the libc sscanf (~13KB flash)"
+            )
+            return
         _LOGGER.warning(
-            "Lambda uses scanf with a float format specifier; "
-            "keeping the libc sscanf (~13KB flash)"
+            "enable_full_scanf is false but a lambda uses scanf with a float "
+            "format specifier; that call will abort at runtime"
         )
-        return
     _add_wrap_stub("sscanf", "USE_ESP32_SSCANF_STUB")
 
 
@@ -2717,7 +2724,7 @@ async def to_code(config):
         # vfprintf, so vfprintf is unconditionally linked in by any caller
         # of snprintf/vsnprintf — effectively every build — and the wrap
         # saves nothing while costing ~170 B of shim.
-        if conf[CONF_ADVANCED][CONF_ENABLE_FULL_PRINTF] or not _libc_is_newlib():
+        if conf[CONF_ADVANCED][CONF_ENABLE_FULL_PRINTF] or not _idf_libc_is_newlib():
             cg.add_define("USE_FULL_PRINTF")
         else:
             for symbol in ("vprintf", "printf", "fprintf", "vfprintf"):
@@ -3701,5 +3708,9 @@ def process_stacktrace(config, line, backtrace_state):
 # gpio.cpp only implements ESP32InternalGPIOPin and its ISR helpers, which
 # are instantiated solely by the pin schema codegen (esp32_pin_to_code)
 FILTER_SOURCE_FILES = filter_source_files_from_defines(
-    {"gpio.cpp": "USE_ESP32_INTERNAL_GPIO", "sscanf_stubs.cpp": "USE_ESP32_SSCANF_STUB"}
+    {
+        "gpio.cpp": "USE_ESP32_INTERNAL_GPIO",
+        "sscanf_stubs.cpp": "USE_ESP32_SSCANF_STUB",
+        "vasprintf_stubs.cpp": "USE_ESP32_VASPRINTF_STUB",
+    }
 )
