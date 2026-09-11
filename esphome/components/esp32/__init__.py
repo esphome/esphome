@@ -10,6 +10,7 @@ import subprocess
 from typing import Any
 
 from esphome import yaml_util
+from esphome.code_scan import keep_float_scanf
 import esphome.codegen as cg
 from esphome.components.const import CONF_ENABLE_OTA_DOWNGRADE_PROTECTION
 from esphome.config_helpers import filter_source_files_from_defines
@@ -195,6 +196,10 @@ PSRAM_XIP_VARIANTS = {
 # The other variants either export both (classic ESP32, nano-format only) or
 # neither, so the engine is already in the image and the wrap saves nothing.
 ROM_VSNPRINTF_WITHOUT_VASPRINTF_VARIANTS = {VARIANT_ESP32C6}
+
+# Variants whose ROM exports sscanf with the newlib format in use (C6 normal
+# format, C2 nano format by IDF default), so the sscanf wrap saves nothing.
+ROM_SSCANF_VARIANTS = {VARIANT_ESP32C2, VARIANT_ESP32C6}
 
 # NVS encryption (HMAC peripheral scheme) is only available on variants that
 # expose the HMAC peripheral (SOC_HMAC_SUPPORTED in soc_caps.h). The original
@@ -1733,6 +1738,7 @@ CONF_RINGBUF_IN_IRAM = "ringbuf_in_iram"
 CONF_HEAP_IN_IRAM = "heap_in_iram"
 CONF_LOOP_TASK_STACK_SIZE = "loop_task_stack_size"
 CONF_USE_FULL_CERTIFICATE_BUNDLE = "use_full_certificate_bundle"
+CONF_ENABLE_FULL_SCANF = "enable_full_scanf"
 CONF_DISABLE_DEBUG_STUBS = "disable_debug_stubs"
 CONF_DISABLE_OCD_AWARE = "disable_ocd_aware"
 CONF_DISABLE_USB_SERIAL_JTAG_SECONDARY = "disable_usb_serial_jtag_secondary"
@@ -2014,6 +2020,7 @@ FRAMEWORK_SCHEMA = cv.Schema(
                     CONF_INCLUDE_BUILTIN_IDF_COMPONENTS, default=[]
                 ): cv.ensure_list(cv.string_strict),
                 cv.Optional(CONF_ENABLE_FULL_PRINTF, default=False): cv.boolean,
+                cv.Optional(CONF_ENABLE_FULL_SCANF): cv.boolean,
                 cv.Optional(CONF_DISABLE_DEBUG_STUBS, default=True): cv.boolean,
                 cv.Optional(CONF_DISABLE_OCD_AWARE, default=True): cv.boolean,
                 cv.Optional(
@@ -2312,6 +2319,32 @@ async def _set_libc_picolibc_newlib_compat() -> None:
         option,
         CORE.data[KEY_ESP32].get(KEY_LIBC_PICOLIBC_NEWLIB_COMPAT_REQUIRED, False),
     )
+
+
+def _add_wrap_stub(symbol: str, define: str) -> None:
+    """Emit a linker wrap for ``symbol`` served by a stub compiled under ``define``.
+
+    --undefined pulls the stub from libsrc.a, scanned before the IDF library that
+    references the symbol.
+    """
+    cg.add_define(define)
+    cg.add_build_flag(f"-Wl,--wrap={symbol}")
+    cg.add_build_flag(f"-Wl,--undefined=__wrap_{symbol}")
+
+
+@coroutine_with_priority(CoroPriority.FINAL)
+async def _add_sscanf_stub(enable_full_scanf: bool | None) -> None:
+    """Wrap sscanf when bluedroid is the only reason newlib's scanf engine links.
+
+    FINAL priority so every request_bluetooth() call has happened.
+    """
+    if get_esp32_variant() in ROM_SSCANF_VARIANTS or not _network_sdkconfig().bluetooth:
+        return
+    if keep_float_scanf(
+        enable_full_scanf, CORE.config, "~13KB flash", "that call will abort the device"
+    ):
+        return
+    _add_wrap_stub("sscanf", "USE_ESP32_SSCANF_STUB")
 
 
 @coroutine_with_priority(CoroPriority.FINAL)
@@ -2659,9 +2692,8 @@ async def to_code(config):
         # saves nothing while costing ~170 B of shim. IDF 5.x defaults to
         # newlib on every variant; IDF 6.0+ switches to picolibc on every
         # variant.
-        if conf[CONF_ADVANCED][CONF_ENABLE_FULL_PRINTF] or idf_version() >= cv.Version(
-            6, 0, 0
-        ):
+        uses_newlib = idf_version() < cv.Version(6, 0, 0)
+        if conf[CONF_ADVANCED][CONF_ENABLE_FULL_PRINTF] or not uses_newlib:
             cg.add_define("USE_FULL_PRINTF")
         else:
             for symbol in ("vprintf", "printf", "fprintf", "vfprintf"):
@@ -2669,14 +2701,14 @@ async def to_code(config):
             # esp_http_client calls vasprintf, which on the ESP32-C6 is the only
             # reference to newlib's full printf engine (~20 KB: _svfprintf_r,
             # _dtoa_r and their helpers); every other caller resolves to the
-            # ROM. See vasprintf_stubs.cpp. The --undefined flag is needed
-            # because libsrc.a is scanned before the IDF libraries that
-            # reference the symbol, so the stub would otherwise never be pulled
-            # from the archive.
+            # ROM. See vasprintf_stubs.cpp.
             if variant in ROM_VSNPRINTF_WITHOUT_VASPRINTF_VARIANTS:
-                cg.add_define("USE_ESP32_VASPRINTF_STUB")
-                cg.add_build_flag("-Wl,--wrap=vasprintf")
-                cg.add_build_flag("-Wl,--undefined=__wrap_vasprintf")
+                _add_wrap_stub("vasprintf", "USE_ESP32_VASPRINTF_STUB")
+        if uses_newlib:
+            # bluedroid's sscanf calls; see sscanf_stubs.cpp
+            CORE.add_job(
+                _add_sscanf_stub, conf[CONF_ADVANCED].get(CONF_ENABLE_FULL_SCANF)
+            )
     else:
         cg.add_build_flag("-DUSE_ARDUINO")
         cg.add_build_flag("-DUSE_ESP32_FRAMEWORK_ARDUINO")
@@ -3647,5 +3679,9 @@ def process_stacktrace(config, line, backtrace_state):
 # gpio.cpp only implements ESP32InternalGPIOPin and its ISR helpers, which
 # are instantiated solely by the pin schema codegen (esp32_pin_to_code)
 FILTER_SOURCE_FILES = filter_source_files_from_defines(
-    {"gpio.cpp": "USE_ESP32_INTERNAL_GPIO"}
+    {
+        "gpio.cpp": "USE_ESP32_INTERNAL_GPIO",
+        "sscanf_stubs.cpp": "USE_ESP32_SSCANF_STUB",
+        "vasprintf_stubs.cpp": "USE_ESP32_VASPRINTF_STUB",
+    }
 )

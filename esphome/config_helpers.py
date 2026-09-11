@@ -1,4 +1,6 @@
-from collections.abc import Callable, Collection
+from collections.abc import Callable, Collection, Iterator
+import logging
+from pathlib import Path
 
 from esphome.const import (
     CONF_LEVEL,
@@ -9,7 +11,10 @@ from esphome.const import (
     PlatformFramework,
 )
 from esphome.core import CORE
+from esphome.helpers import walk_files
 from esphome.util import OrderedDict
+
+_LOGGER = logging.getLogger(__name__)
 
 # Pre-build lookup map from (platform, framework) tuples to PlatformFramework enum
 _PLATFORM_FRAMEWORK_LOOKUP = {
@@ -191,3 +196,16 @@ def get_logger_level() -> str:
 
     logger_config = CORE.config[CONF_LOGGER]
     return logger_config.get(CONF_LEVEL, "DEBUG")
+
+
+def iter_include_files(includes: list[str]) -> Iterator[tuple[Path, Path]]:
+    """Yield ``(path, basename)`` per local ``includes:`` file; directory members keep the directory prefix."""
+    for include in includes:
+        if include.startswith("<") and include.endswith(">"):
+            continue
+        path = CORE.relative_config_path(include)
+        if path.is_dir():
+            for file in walk_files(path):
+                yield file, file.relative_to(path.parent)
+        else:
+            yield path, Path(path.name)
