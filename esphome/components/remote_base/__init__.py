@@ -95,8 +95,8 @@ async def register_listener(var, config):
     cg.add(receiver.register_listener(var))
 
 
-async def register_transmittable(var, config):
-    transmitter_ = await cg.get_variable(config[CONF_TRANSMITTER_ID])
+async def register_transmittable(var, config, key: str = CONF_TRANSMITTER_ID):
+    transmitter_ = await cg.get_variable(config[key])
     cg.add(var.set_transmitter(transmitter_))
 
 

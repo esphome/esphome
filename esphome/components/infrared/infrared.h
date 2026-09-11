@@ -57,8 +57,9 @@ class Infrared : public ir_rf_base::IrRfEntity {
  protected:
   friend class ir_rf_base::IrRfCall<InfraredCall, Infrared>;
 
-  void on_call_(const InfraredCall &call) {}
-  /// Perform the actual transmission (called by InfraredCall); false if nothing was transmitted
+  void on_call_(const InfraredCall &) {}
+  /// Perform the actual transmission (called by InfraredCall); false only when no frame was handed
+  /// to the transmitter, in which case no completion follows
   virtual bool control(const InfraredCall &call) {
     return this->transmit_raw_(call, call.get_carrier_frequency().value_or(0));
   }

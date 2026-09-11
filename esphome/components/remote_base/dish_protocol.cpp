@@ -20,7 +20,7 @@ void DishProtocol::encode(RemoteTransmitData *dst, const DishData &data) {
 
   //  Typically a DISH device needs to get a command a total of
   //  at least 4 times to accept it.
-  for (uint8_t i = 0; i < 4; i++) {
+  for (uint32_t i = 0; i < 4; i++) {
     // COMMAND (function, in MSB)
     for (uint8_t mask = 1UL << 5; mask; mask >>= 1) {
       if (data.command & mask) {
@@ -39,7 +39,7 @@ void DishProtocol::encode(RemoteTransmitData *dst, const DishData &data) {
       }
     }
     // PADDING
-    for (uint8_t j = 0; j < 6; j++)
+    for (uint32_t j = 0; j < 6; j++)
       dst->item(BIT_HIGH_US, BIT_ZERO_LOW_US);
 
     // FOOTER
@@ -73,7 +73,7 @@ optional<DishData> DishProtocol::decode(RemoteReceiveData src) {
       return {};
     }
   }
-  for (uint8_t j = 0; j < 6; j++) {
+  for (uint32_t j = 0; j < 6; j++) {
     if (!src.expect_item(BIT_HIGH_US, BIT_ZERO_LOW_US)) {
       return {};
     }

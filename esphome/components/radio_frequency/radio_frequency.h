@@ -113,7 +113,8 @@ class RadioFrequency : public ir_rf_base::IrRfEntity {
   void on_call_(const RadioFrequencyCall &call) { this->control_callback_.call(call); }
   /// Perform the actual transmission (called by RadioFrequencyCall::perform())
   /// Platforms must override this to implement hardware-specific transmission.
-  /// Returns false if nothing was transmitted.
+  /// Returns false only when no frame was handed to the transmitter, in which case no
+  /// completion follows.
   virtual bool control(const RadioFrequencyCall &call) = 0;
 
   // Traits describing capabilities

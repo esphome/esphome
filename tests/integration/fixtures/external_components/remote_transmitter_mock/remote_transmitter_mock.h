@@ -25,7 +25,6 @@ class MockRemoteTransmitter : public remote_base::RemoteTransmitterBase, public 
   void send_internal(uint32_t send_times, uint32_t send_wait) override;
   void finish_();
 
-  uint32_t seq_{0};  // own count for the log lines, one per frame
   bool busy_{false};
 };
 

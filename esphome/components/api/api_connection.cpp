@@ -1538,8 +1538,7 @@ void APIConnection::on_infrared_rf_transmit_raw_timings_request(const InfraredRF
     call.set_carrier_frequency(msg.carrier_frequency);
     call.set_raw_timings_packed(msg.timings_data_, msg.timings_length_, msg.timings_count_);
     call.set_repeat_count(msg.repeat_count);
-    if (want_reply)
-      call.set_api_connection(this);
+    call.set_api_connection(want_reply ? this : nullptr);
     call.perform();
     return;
   }
@@ -1552,8 +1551,7 @@ void APIConnection::on_infrared_rf_transmit_raw_timings_request(const InfraredRF
     call.set_modulation(static_cast<radio_frequency::RadioFrequencyModulation>(msg.modulation));
     call.set_repeat_count(msg.repeat_count);
     call.set_raw_timings_packed(msg.timings_data_, msg.timings_length_, msg.timings_count_);
-    if (want_reply)
-      call.set_api_connection(this);
+    call.set_api_connection(want_reply ? this : nullptr);
     call.perform();
     return;
   }
@@ -1566,7 +1564,7 @@ void APIConnection::on_infrared_rf_transmit_raw_timings_request(const InfraredRF
     const uint32_t device_id = 0;
 #endif
     if (!this->send_infrared_rf_transmit_complete(device_id, msg.key, false)) {
-      ESP_LOGV(TAG, "IR/RF reply for unknown key dropped, TCP buffer full");
+      ESP_LOGV(TAG, "IR/RF %s dropped, TCP buffer full", LOG_STR_LITERAL("reply"));
     }
   }
 }
@@ -1588,7 +1586,7 @@ void APIConnection::send_infrared_rf_receive_event(const InfraredRFReceiveEvent 
   if (!this->send_message(msg)) {
     // V: fires per decoded frame with no subscription gate, so a warning
     // would flood the congested link it reports on.
-    ESP_LOGV(TAG, "IR/RF event dropped, TCP buffer full");
+    ESP_LOGV(TAG, "IR/RF %s dropped, TCP buffer full", LOG_STR_LITERAL("event"));
   }
 }
 

@@ -228,7 +228,8 @@ void RemoteTransmitterComponent::send_internal(uint32_t send_times, uint32_t sen
   uint64_t total_duration = 0;
 
   if (this->is_failed()) {
-    // still report completion so a paced API client or on_complete automation is not left waiting
+    // both triggers still fire, so a paced API client or on_complete automation is not left waiting
+    this->transmit_trigger_.trigger();
     this->fire_complete_();
     return;
   }
@@ -275,6 +276,7 @@ void RemoteTransmitterComponent::send_internal(uint32_t send_times, uint32_t sen
 
   if ((this->rmt_temp_.data() == nullptr) || this->rmt_temp_.size() <= offset) {
     ESP_LOGE(TAG, "Empty data");
+    this->transmit_trigger_.trigger();
     this->fire_complete_();
     return;
   }
@@ -306,6 +308,7 @@ void RemoteTransmitterComponent::flush_pending_completion_() {}
 
 void RemoteTransmitterComponent::send_internal(uint32_t send_times, uint32_t send_wait) {
   if (this->is_failed()) {
+    this->transmit_trigger_.trigger();
     this->fire_complete_();
     return;
   }
@@ -350,6 +353,7 @@ void RemoteTransmitterComponent::send_internal(uint32_t send_times, uint32_t sen
 
   if ((this->rmt_temp_.data() == nullptr) || this->rmt_temp_.empty()) {
     ESP_LOGE(TAG, "Empty data");
+    this->transmit_trigger_.trigger();
     this->fire_complete_();
     return;
   }

@@ -21,7 +21,7 @@ void IrRfEntity::setup() {
   if (this->receiver_ != nullptr) {
     this->receiver_->register_listener(this);
   }
-#if defined(USE_API) && defined(REMOTE_BASE_COMPLETE_LISTENER_COUNT)
+#ifdef REMOTE_BASE_COMPLETE_LISTENER_COUNT
   if (this->transmitter_ != nullptr) {
     // only frames this entity submitted; YAML automations and other entities share the transmitter
     this->transmitter_->add_on_complete_callback([this](uint32_t seq) {
@@ -80,9 +80,9 @@ bool IrRfEntity::transmit_raw_(const IrRfCallData &call, uint32_t carrier_freque
     transmit_call.set_send_times(call.get_repeat_count());
   }
 
-#if defined(USE_API) && defined(REMOTE_BASE_COMPLETE_LISTENER_COUNT)
-  // a YAML transmit while an API frame is on the wire must not take over that frame's completion
-  if (this->api_reply_ == ApiReply::API_REPLY_WAITING)
+#ifdef REMOTE_BASE_COMPLETE_LISTENER_COUNT
+  // only an API frame claims the seq, so a YAML transmit cannot take over a pending reply
+  if (call.wants_api_reply())
     this->inflight_seq_ = transmit_call.get_seq();
 #endif
   transmit_call.perform();
@@ -110,13 +110,12 @@ bool IrRfEntity::on_receive(remote_base::RemoteReceiveData data) {
 static constexpr uint32_t API_REPLY_TIMEOUT_MS = 30000;
 
 void IrRfEntity::expect_api_reply_(api::APIConnection *conn) {
-  if (this->api_reply_ == ApiReply::API_REPLY_WAITING) {
-    // only an unpaced client gets here; its earlier request is answered as not started, and
-    // that reply cannot be kept if the buffer refuses it, since the slot goes to the new one
+  // only an unpaced client gets here: its earlier request is answered as not started, and a reply
+  // the buffer still owes cannot be kept, since the slot goes to the new request
+  if (this->api_reply_ == ApiReply::API_REPLY_WAITING)
     this->finish_api_reply_(false);
-    if (this->api_reply_ != ApiReply::API_REPLY_NONE) {
-      ESP_LOGW(TAG, "'%s': transmit %s", this->get_name().c_str(), LOG_STR_LITERAL("reply displaced"));
-    }
+  if (this->api_reply_ != ApiReply::API_REPLY_NONE) {
+    ESP_LOGW(TAG, "'%s': transmit %s", this->get_name().c_str(), LOG_STR_LITERAL("reply displaced"));
   }
   this->api_reply_connection_ = conn;
   this->api_reply_registered_ms_ = App.get_loop_component_start_time();
@@ -124,9 +123,6 @@ void IrRfEntity::expect_api_reply_(api::APIConnection *conn) {
 }
 
 void IrRfEntity::finish_api_reply_(bool success) {
-  // a transmitter that completed inside control() has already answered
-  if (this->api_reply_ == ApiReply::API_REPLY_NONE)
-    return;
   this->api_reply_ = success ? ApiReply::API_REPLY_OWED_OK : ApiReply::API_REPLY_OWED_FAILED;
   this->send_api_reply_();
 }
@@ -145,29 +141,22 @@ bool IrRfEntity::send_api_reply_() {
   return true;
 }
 
-// Only runs while an API reply is pending: retries an owed one, expires a transmit that never
-// reported (a platform overriding control() without wiring its transmitter's completion)
+// Only runs while an API reply is pending: retries an owed one until it goes out or the client is
+// gone, and expires a transmit that never reported (a platform overriding control() without wiring
+// its transmitter's completion)
 void IrRfEntity::loop() {
   if (this->api_reply_ == ApiReply::API_REPLY_NONE) {
     this->disable_loop();
     return;
   }
-  const bool waiting = this->api_reply_ == ApiReply::API_REPLY_WAITING;
-  if (!waiting && this->send_api_reply_())
-    return;
-  const uint32_t now = App.get_loop_component_start_time();
-  if (now - this->api_reply_registered_ms_ < API_REPLY_TIMEOUT_MS)
-    return;
-  ESP_LOGW(TAG, "'%s': transmit %s", this->get_name().c_str(),
-           waiting ? LOG_STR_LITERAL("never reported completion") : LOG_STR_LITERAL("reply undeliverable"));
-  if (waiting) {
-    // answered as failed; a refused reply gets one more timeout window of retries
-    this->api_reply_ = ApiReply::API_REPLY_OWED_FAILED;
-    this->api_reply_registered_ms_ = now;
+  if (this->api_reply_ != ApiReply::API_REPLY_WAITING) {
     this->send_api_reply_();
     return;
   }
-  this->clear_api_reply_();
+  if (App.get_loop_component_start_time() - this->api_reply_registered_ms_ < API_REPLY_TIMEOUT_MS)
+    return;
+  ESP_LOGW(TAG, "'%s': transmit %s", this->get_name().c_str(), LOG_STR_LITERAL("never reported completion"));
+  this->finish_api_reply_(false);
 }
 
 void IrRfEntity::on_api_connection_closed(api::APIConnection *conn) {
