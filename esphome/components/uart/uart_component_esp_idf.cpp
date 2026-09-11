@@ -274,6 +274,7 @@ void IDFUARTComponent::set_framing_(const Framing &framing) {
   this->data_bits_ = framing.data_bits;
   this->stop_bits_ = framing.stop_bits;
   this->parity_ = framing.parity;
+  this->rx_full_threshold_ = framing.rx_full_threshold;
 }
 
 esp_err_t IDFUARTComponent::apply_settings_live() {
@@ -300,8 +301,9 @@ esp_err_t IDFUARTComponent::apply_settings_live() {
              this->last_good_framing_.baud_rate);
     this->set_framing_(this->last_good_framing_);
     uart_config = this->get_config_();
-    if (uart_param_config(this->uart_num_, &uart_config) != ESP_OK) {
-      ESP_LOGE(TAG, "UART left unconfigured after failed live reconfigure");
+    esp_err_t restore_err = uart_param_config(this->uart_num_, &uart_config);
+    if (restore_err != ESP_OK) {
+      ESP_LOGE(TAG, "UART left unconfigured after failed live reconfigure: %s", esp_err_to_name(restore_err));
       this->mark_failed();
       return err;
     }
