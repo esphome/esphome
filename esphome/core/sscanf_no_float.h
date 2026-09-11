@@ -126,7 +126,7 @@ inline unsigned int_base(char conv) {
 
 /// sscanf semantics for the integer, character, string and scanset
 /// conversions; returns SSCANF_UNSUPPORTED on any other conversion.
-inline int vsscanf_no_float(const char *str, const char *fmt, va_list ap) {
+inline int vsscanf_no_float(const char *str, const char *fmt, va_list ap) {  // NOLINT(readability-non-const-parameter)
   using namespace sscanf_no_float_internal;
   const char *in = str;
   int assigned = 0;
