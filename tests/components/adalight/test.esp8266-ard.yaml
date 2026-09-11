@@ -11,7 +11,7 @@ adalight:
 
 light:
   - platform: neopixelbus
-    id: addr
+    id: adalight_light
     name: Neopixelbus Light
     method: esp8266_uart
     num_leds: 5
