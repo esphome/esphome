@@ -254,7 +254,7 @@ void I2SAudioSpeakerBase::stop() { this->stop_(false); }
 void I2SAudioSpeakerBase::finish() { this->stop_(true); }
 
 void I2SAudioSpeakerBase::stop_(bool wait_on_empty) {
-  if (this->is_failed())
+  if (!this->is_ready() || this->is_failed())
     return;
 
   // Always set the bit, even when stopped, so loop() can cancel a start that is still pending
