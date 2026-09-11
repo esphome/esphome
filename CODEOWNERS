@@ -39,6 +39,7 @@ esphome/components/am43/sensor/* @buxtronix
 esphome/components/analog_threshold/* @ianchi
 esphome/components/animation/* @syndlex
 esphome/components/anova/* @buxtronix
+esphome/components/apc_proteous/* @clydebarrow
 esphome/components/apds9306/* @aodrenah
 esphome/components/api/* @esphome/core
 esphome/components/aqi/* @freekode @jasstrong @ximex
