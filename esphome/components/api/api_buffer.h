@@ -25,6 +25,7 @@ namespace esphome::api {
 /// writes in debug builds.
 class APIBuffer {
  public:
+  static constexpr size_t MAX_SIZE = UINT16_MAX;  // API frames carry 16 bit lengths
   void clear() { this->size_ = 0; }
   /// Returns false if allocation fails; the buffer is left unchanged.
   [[nodiscard]] inline bool reserve(size_t n) ESPHOME_ALWAYS_INLINE { return n <= this->capacity_ || this->grow_(n); }
@@ -36,8 +37,18 @@ class APIBuffer {
   [[nodiscard]] inline bool reserve_and_resize(size_t reserve_size, size_t new_size) ESPHOME_ALWAYS_INLINE {
     if (!this->reserve(std::max(reserve_size, new_size)))
       return false;
-    this->size_ = new_size;
+    this->size_ = static_cast<uint16_t>(new_size);
     return true;
+  }
+  /// Grow by n bytes; returns the new bytes, or nullptr on allocation failure.
+  [[nodiscard]] uint8_t *append(size_t n);
+  /// Drop the first `drop` bytes (at most size()), sliding the rest down.
+  void drop_front(size_t drop) {
+#ifdef ESPHOME_DEBUG_API
+    this->debug_check_drop_(drop);
+#endif
+    this->size_ -= drop;
+    std::memmove(this->data_.get(), this->data_.get() + drop, this->size_);
   }
   uint8_t *data() { return this->data_.get(); }
   const uint8_t *data() const { return this->data_.get(); }
@@ -55,9 +66,17 @@ class APIBuffer {
 
  protected:
   bool grow_(size_t n);
-  std::unique_ptr<uint8_t[]> data_;
-  size_t size_{0};
-  size_t capacity_{0};
+#ifdef ESPHOME_DEBUG_API
+  void debug_check_drop_(size_t drop) const;
+#endif
+  // RAMAllocator: PSRAM when available, and it reports failure where
+  // new (std::nothrow) still aborts on ESP-IDF without exceptions
+  struct FreeDeleter {
+    void operator()(uint8_t *p) const { RAMAllocator<uint8_t>().deallocate(p, 0); }
+  };
+  std::unique_ptr<uint8_t[], FreeDeleter> data_;
+  uint16_t size_{0};
+  uint16_t capacity_{0};
 };
 
 }  // namespace esphome::api

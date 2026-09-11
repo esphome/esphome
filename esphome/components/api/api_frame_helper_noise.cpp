@@ -67,15 +67,15 @@ APIError APINoiseFrameHelper::init() {
   }
 
   // init prologue
-  size_t old_size = prologue_.size();
-  if (!prologue_.resize(old_size + PROLOGUE_INIT_LEN)) [[unlikely]] {
+  uint8_t *dst = prologue_.append(PROLOGUE_INIT_LEN);
+  if (dst == nullptr) [[unlikely]] {
     state_ = State::FAILED;
     return APIError::OUT_OF_MEMORY;
   }
 #ifdef USE_ESP8266
-  memcpy_P(prologue_.data() + old_size, PROLOGUE_INIT, PROLOGUE_INIT_LEN);
+  memcpy_P(dst, PROLOGUE_INIT, PROLOGUE_INIT_LEN);
 #else
-  std::memcpy(prologue_.data() + old_size, PROLOGUE_INIT, PROLOGUE_INIT_LEN);
+  std::memcpy(dst, PROLOGUE_INIT, PROLOGUE_INIT_LEN);
 #endif
 
   state_ = State::CLIENT_HELLO;
@@ -272,17 +272,17 @@ APIError APINoiseFrameHelper::state_action_client_hello_() {
     return handle_handshake_frame_error_(aerr);
   }
   // ignore contents, may be used in future for flags
-  // Resize for: existing prologue + 2 size bytes + frame data
-  size_t old_size = this->prologue_.size();
+  // Append 2 size bytes + frame data to the prologue
   size_t rx_size = this->rx_buf_.size();
-  if (!this->prologue_.resize(old_size + 2 + rx_size)) [[unlikely]] {
+  uint8_t *dst = this->prologue_.append(2 + rx_size);
+  if (dst == nullptr) [[unlikely]] {
     state_ = State::FAILED;
     return APIError::OUT_OF_MEMORY;
   }
-  this->prologue_[old_size] = (uint8_t) (rx_size >> 8);
-  this->prologue_[old_size + 1] = (uint8_t) rx_size;
+  dst[0] = (uint8_t) (rx_size >> 8);
+  dst[1] = (uint8_t) rx_size;
   if (rx_size > 0) {
-    std::memcpy(this->prologue_.data() + old_size + 2, this->rx_buf_.data(), rx_size);
+    std::memcpy(dst + 2, this->rx_buf_.data(), rx_size);
   }
 
   state_ = State::SERVER_HELLO;
