@@ -530,13 +530,14 @@ bool USBUartTypeCdcAcm::config_step(USBUartChannelBase *channel, uint8_t step, b
       // Signal DTE presence (init only).
       if (reload)
         return false;
-      return this->modem_control_transfer(channel);
+      this->modem_control_transfer(channel);
+      return true;
     default:
       return false;
   }
 }
 
-bool USBUartTypeCdcAcm::modem_control_transfer(USBUartChannelBase *channel) {
+void USBUartTypeCdcAcm::modem_control_transfer(USBUartChannelBase *channel) {
   static constexpr uint8_t CDC_SET_CONTROL_LINE_STATE = 0x22;
   static constexpr uint16_t CDC_CONTROL_LINE_DTR = 1 << 0;
   static constexpr uint16_t CDC_CONTROL_LINE_RTS = 1 << 1;
@@ -544,7 +545,6 @@ bool USBUartTypeCdcAcm::modem_control_transfer(USBUartChannelBase *channel) {
   ESP_LOGD(TAG, "SET_CONTROL_LINE_STATE: DTR=%s RTS=%s", ONOFF(channel->dtr_), ONOFF(channel->rts_));
   this->config_transfer_(CDC_REQUEST_TYPE, CDC_SET_CONTROL_LINE_STATE, value,
                          channel->cdc_dev_.interrupt_interface_number);
-  return true;
 }
 
 void USBUartComponent::enable_channels() {
@@ -662,7 +662,8 @@ bool USBUartComponent::run_config_machine_() {
         channel->initialised_.store(false);
     } else if (this->cfg_mode_ == ConfigMode::CONFIG_MODE_MODEM) {
       // A single transfer, so only the first step issues one
-      if (this->cfg_step_ == 0 && this->modem_control_transfer(channel)) {
+      if (this->cfg_step_ == 0) {
+        this->modem_control_transfer(channel);
         this->cfg_in_flight_ = true;
         return true;
       }
@@ -713,12 +714,16 @@ void USBUartChannelBase::load_settings(bool /*dump_config*/) {
   this->parent_->apply_channel_settings(this);
 }
 
-void USBUartChannelBase::set_modem_control(bool dtr, bool rts) {
+bool USBUartChannelBase::set_modem_control(bool dtr, bool rts) {
+  if (!this->parent_->supports_modem_control()) {
+    return false;
+  }
   this->dtr_ = dtr;
   this->rts_ = rts;
   if (this->initialised_.load()) {
     this->parent_->apply_modem_control(this);
   }
+  return true;
 }
 
 }  // namespace esphome::usb_uart

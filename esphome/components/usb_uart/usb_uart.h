@@ -197,7 +197,8 @@ class USBUartChannelBase : public uart::UARTComponent, public Parented<USBUartCo
                                                              : this->cdc_dev_.bulk_interface_number;
   }
 
-  void set_modem_control(bool dtr, bool rts);
+  /// Returns false when the bridge driver cannot drive the modem lines.
+  bool set_modem_control(bool dtr, bool rts);
   bool get_dtr() const { return this->dtr_; }
   bool get_rts() const { return this->rts_; }
 
@@ -258,6 +259,8 @@ class USBUartComponent : public usb_host::USBClient {
   // Apply the DTR/RTS state of a single, already-open channel (used by
   // USBUartChannelBase::set_modem_control()).
   void apply_modem_control(USBUartChannelBase *channel);
+  // Whether the driver can drive the modem lines.
+  virtual bool supports_modem_control() const { return false; }
 
   // Called from loop() when input_buffer_ has insufficient space for the incoming chunk.
   // Default is a no-op; override in device-specific subclasses that need resync on overflow.
@@ -292,9 +295,8 @@ class USBUartComponent : public usb_host::USBClient {
   // (e.g. CH34x chip detection). Same contract as config_step_(). Default: no steps.
   virtual bool config_device_step(uint8_t step, bool ok, const uint8_t *response) { return false; }
   // Issue the one control transfer, via config_transfer_(), that puts the channel's dtr_
-  // and rts_ on the wire, and return true. Return false without issuing anything when the
-  // driver cannot drive the modem lines; the request is then dropped.
-  virtual bool modem_control_transfer(USBUartChannelBase *channel) { return false; }
+  // and rts_ on the wire. Only called when supports_modem_control() is true.
+  virtual void modem_control_transfer(USBUartChannelBase *channel) {}
 
   // The device is only usable once the config machine has applied every channel's line
   // settings, so the connected report waits for run_config_machine_() to finish the init
@@ -327,7 +329,8 @@ class USBUartTypeCdcAcm : public USBUartComponent {
   void on_connected() override;
   void on_disconnected() override;
   bool config_step(USBUartChannelBase *channel, uint8_t step, bool reload, bool ok, const uint8_t *response) override;
-  bool modem_control_transfer(USBUartChannelBase *channel) override;
+  bool supports_modem_control() const override { return true; }
+  void modem_control_transfer(USBUartChannelBase *channel) override;
   // Each claimed interface pins one host hardware channel per endpoint; skipping
   // the comm (interrupt) interface frees one on channel-poor hosts (ESP32-S3: 8).
   bool claim_comm_interface_{true};
@@ -341,7 +344,7 @@ class USBUartTypeCP210X : public USBUartTypeCdcAcm {
   std::vector<CdcEps> parse_descriptors(usb_device_handle_t dev_hdl) override;
   bool config_step(USBUartChannelBase *channel, uint8_t step, bool reload, bool ok, const uint8_t *response) override;
   // TODO: implement the vendor-specific protocol
-  bool modem_control_transfer(USBUartChannelBase *channel) override { return false; }
+  bool supports_modem_control() const override { return false; }
 };
 class USBUartTypeCH34X : public USBUartTypeCdcAcm {
  public:
@@ -351,7 +354,7 @@ class USBUartTypeCH34X : public USBUartTypeCdcAcm {
  protected:
   bool config_step(USBUartChannelBase *channel, uint8_t step, bool reload, bool ok, const uint8_t *response) override;
   // TODO: implement the vendor-specific protocol
-  bool modem_control_transfer(USBUartChannelBase *channel) override { return false; }
+  bool supports_modem_control() const override { return false; }
   bool config_device_step(uint8_t step, bool ok, const uint8_t *response) override;
   std::vector<CdcEps> parse_descriptors(usb_device_handle_t dev_hdl) override;
 
@@ -372,7 +375,7 @@ class USBUartTypeFT23XX : public USBUartTypeCdcAcm {
   std::vector<CdcEps> parse_descriptors(usb_device_handle_t dev_hdl) override;
   bool config_step(USBUartChannelBase *channel, uint8_t step, bool reload, bool ok, const uint8_t *response) override;
   // TODO: implement the vendor-specific protocol
-  bool modem_control_transfer(USBUartChannelBase *channel) override { return false; }
+  bool supports_modem_control() const override { return false; }
 
   uint8_t chip_type_{255};
 };
@@ -397,7 +400,7 @@ class USBUartTypePL2303 : public USBUartTypeCdcAcm {
   std::vector<CdcEps> parse_descriptors(usb_device_handle_t dev_hdl) override;
   bool config_step(USBUartChannelBase *channel, uint8_t step, bool reload, bool ok, const uint8_t *response) override;
   // TODO: implement the vendor-specific protocol
-  bool modem_control_transfer(USBUartChannelBase *channel) override { return false; }
+  bool supports_modem_control() const override { return false; }
 
   Pl2303ChipType chip_type_{PL2303_TYPE_UNKNOWN};
 };
