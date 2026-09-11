@@ -105,6 +105,11 @@ class IrRfEntity : public Component, public EntityBase, public remote_base::Remo
 
   /// Forwards a received frame to the API; never consumes it, so other listeners still run
   bool on_receive(remote_base::RemoteReceiveData data) override;
+#ifdef USE_IR_RF_TRANSMIT_COMPLETE
+  /// Called for every finished frame on every transmitter; answers the API request when the
+  /// frame is the one this entity submitted for it
+  void on_transmit_complete(remote_base::RemoteTransmitterBase *transmitter, uint16_t seq);
+#endif
 
 #if defined(USE_API) && defined(USE_IR_RF)
   void loop() override;
@@ -145,15 +150,17 @@ class IrRfEntity : public Component, public EntityBase, public remote_base::Remo
     this->disable_loop();
   }
   api::APIConnection *api_reply_connection_{nullptr};
-  uint32_t api_reply_registered_ms_{0};
 #endif
 
   remote_base::RemoteReceiverBase *receiver_{nullptr};
   remote_base::RemoteTransmitterBase *transmitter_{nullptr};
-#ifdef REMOTE_BASE_COMPLETE_LISTENER_COUNT
-  uint32_t inflight_seq_{0};  // seq of the API frame this entity submitted last
+#if defined(USE_API) && defined(USE_IR_RF)
+  uint16_t api_reply_registered_{0};  // in 16 ms ticks; only compared over the 30 s timeout
 #endif
-  // byte-sized members last, so the derived traits start on the next word without a gap
+#ifdef USE_IR_RF_TRANSMIT_COMPLETE
+  uint16_t inflight_seq_{0};  // seq of the API frame this entity submitted last
+#endif
+  // short members last, so the derived traits start on the next word without a gap
   bool supports_transmitter_{false};
   bool supports_receiver_{false};
 #if defined(USE_API) && defined(USE_IR_RF)

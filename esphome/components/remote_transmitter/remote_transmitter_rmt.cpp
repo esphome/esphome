@@ -217,7 +217,7 @@ void RemoteTransmitterComponent::wait_for_rmt_() {
 }
 
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 5, 1)
-void RemoteTransmitterComponent::flush_pending_completion_() {
+void RemoteTransmitterComponent::flush_pending_completion() {
   // a frame still on the wire is waited out, and its completion reported, before the next one
   if (this->non_blocking_ && this->cancel_timeout("complete")) {
     this->wait_for_rmt_();
@@ -304,7 +304,7 @@ void RemoteTransmitterComponent::send_internal(uint32_t send_times, uint32_t sen
   }
 }
 #else
-void RemoteTransmitterComponent::flush_pending_completion_() {}
+void RemoteTransmitterComponent::flush_pending_completion() {}
 
 void RemoteTransmitterComponent::send_internal(uint32_t send_times, uint32_t send_wait) {
   if (this->is_failed()) {

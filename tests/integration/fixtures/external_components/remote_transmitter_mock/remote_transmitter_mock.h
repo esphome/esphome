@@ -21,7 +21,7 @@ class MockRemoteTransmitter : public remote_base::RemoteTransmitterBase, public 
   void dump_config() override;
 
  protected:
-  void flush_pending_completion_() override;
+  void flush_pending_completion() override;
   void send_internal(uint32_t send_times, uint32_t send_wait) override;
   void finish_();
 

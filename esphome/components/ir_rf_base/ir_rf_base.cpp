@@ -21,15 +21,6 @@ void IrRfEntity::setup() {
   if (this->receiver_ != nullptr) {
     this->receiver_->register_listener(this);
   }
-#ifdef REMOTE_BASE_COMPLETE_LISTENER_COUNT
-  if (this->transmitter_ != nullptr) {
-    // only frames this entity submitted; YAML automations and other entities share the transmitter
-    this->transmitter_->add_on_complete_callback([this](uint32_t seq) {
-      if (seq == this->inflight_seq_ && this->api_reply_ == ApiReply::API_REPLY_WAITING)
-        this->finish_api_reply_(true);
-    });
-  }
-#endif
 }
 
 bool IrRfEntity::transmit_raw_(const IrRfCallData &call, uint32_t carrier_frequency_hz) {
@@ -80,7 +71,7 @@ bool IrRfEntity::transmit_raw_(const IrRfCallData &call, uint32_t carrier_freque
     transmit_call.set_send_times(call.get_repeat_count());
   }
 
-#ifdef REMOTE_BASE_COMPLETE_LISTENER_COUNT
+#ifdef USE_IR_RF_TRANSMIT_COMPLETE
   // only an API frame claims the seq, so a YAML transmit cannot take over a pending reply
   if (call.wants_api_reply())
     this->inflight_seq_ = transmit_call.get_seq();
@@ -109,6 +100,15 @@ bool IrRfEntity::on_receive(remote_base::RemoteReceiveData data) {
 // failed while still transmitting
 static constexpr uint32_t API_REPLY_TIMEOUT_MS = 30000;
 
+#ifdef USE_IR_RF_TRANSMIT_COMPLETE
+void IrRfEntity::on_transmit_complete(remote_base::RemoteTransmitterBase *transmitter, uint16_t seq) {
+  // only the frame this entity submitted; YAML automations and other entities share the transmitter
+  if (transmitter == this->transmitter_ && seq == this->inflight_seq_ &&
+      this->api_reply_ == ApiReply::API_REPLY_WAITING)
+    this->finish_api_reply_(true);
+}
+#endif
+
 void IrRfEntity::expect_api_reply_(api::APIConnection *conn) {
   // only an unpaced client gets here: its earlier request is answered as not started, and a reply
   // the buffer still owes cannot be kept, since the slot goes to the new request
@@ -118,7 +118,7 @@ void IrRfEntity::expect_api_reply_(api::APIConnection *conn) {
     ESP_LOGW(TAG, "'%s': transmit %s", this->get_name().c_str(), LOG_STR_LITERAL("reply displaced"));
   }
   this->api_reply_connection_ = conn;
-  this->api_reply_registered_ms_ = App.get_loop_component_start_time();
+  this->api_reply_registered_ = static_cast<uint16_t>(App.get_loop_component_start_time() >> 4);
   this->api_reply_ = ApiReply::API_REPLY_WAITING;
 }
 
@@ -153,7 +153,8 @@ void IrRfEntity::loop() {
     this->send_api_reply_();
     return;
   }
-  if (App.get_loop_component_start_time() - this->api_reply_registered_ms_ < API_REPLY_TIMEOUT_MS)
+  const auto age = static_cast<uint16_t>((App.get_loop_component_start_time() >> 4) - this->api_reply_registered_);
+  if (age < (API_REPLY_TIMEOUT_MS >> 4))
     return;
   ESP_LOGW(TAG, "'%s': transmit %s", this->get_name().c_str(), LOG_STR_LITERAL("never reported completion"));
   this->finish_api_reply_(false);
@@ -167,3 +168,22 @@ void IrRfEntity::on_api_connection_closed(api::APIConnection *conn) {
 #endif
 
 }  // namespace esphome::ir_rf_base
+
+#ifdef USE_IR_RF_TRANSMIT_COMPLETE
+namespace esphome::remote_base {
+
+void ir_rf_transmit_complete(RemoteTransmitterBase *transmitter, uint16_t seq) {
+#ifdef USE_INFRARED
+  for (auto *entity : App.get_infrareds()) {
+    entity->on_transmit_complete(transmitter, seq);
+  }
+#endif
+#ifdef USE_RADIO_FREQUENCY
+  for (auto *entity : App.get_radio_frequencies()) {
+    entity->on_transmit_complete(transmitter, seq);
+  }
+#endif
+}
+
+}  // namespace esphome::remote_base
+#endif

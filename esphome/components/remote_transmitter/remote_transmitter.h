@@ -89,7 +89,7 @@ class RemoteTransmitterComponent final : public remote_base::RemoteTransmitterBa
   }
 #if (defined(USE_ESP32) && SOC_RMT_SUPPORTED) || defined(USE_LIBRETINY_VARIANT_RTL8720C) || \
     defined(REMOTE_TRANSMITTER_BK_PWM)
-  void flush_pending_completion_() override;
+  void flush_pending_completion() override;
 #endif
 #if defined(USE_ESP8266) || \
     (defined(USE_LIBRETINY) && !defined(USE_LIBRETINY_VARIANT_RTL8720C) && !defined(REMOTE_TRANSMITTER_BK_PWM)) || \

@@ -141,24 +141,32 @@ class RemoteRMTChannel {
 #endif  // SOC_RMT_SUPPORTED
 #endif  // USE_ESP32
 
+class RemoteTransmitterBase;
+
+#ifdef USE_IR_RF_TRANSMIT_COMPLETE
+/// Defined by ir_rf_base: answers the API request waiting on the entity that submitted seq.
+/// One function for the whole build instead of a callback list on every transmitter.
+void ir_rf_transmit_complete(RemoteTransmitterBase *transmitter, uint16_t seq);
+#endif
+
 class RemoteTransmitterBase : public RemoteComponentBase {
  public:
   RemoteTransmitterBase(InternalGPIOPin *pin) : RemoteComponentBase(pin) {}
   class TransmitCall {
    public:
-    TransmitCall(RemoteTransmitterBase *parent, uint32_t seq) : parent_(parent), seq_(seq) {}
+    TransmitCall(RemoteTransmitterBase *parent, uint16_t seq) : parent_(parent), seq_(seq) {}
     RemoteTransmitData *get_data() { return &this->parent_->temp_; }
     void set_send_times(uint32_t send_times) { send_times_ = send_times; }
     void set_send_wait(uint32_t send_wait) { send_wait_ = send_wait; }
-    /// Identifies this transmission in the completion callback
-    uint32_t get_seq() const { return this->seq_; }
+    /// Identifies this transmission in the completion hook
+    uint16_t get_seq() const { return this->seq_; }
     void perform() { this->parent_->send_(this->send_times_, this->send_wait_, this->seq_); }
 
    protected:
     RemoteTransmitterBase *parent_;
     uint32_t send_times_{1};
     uint32_t send_wait_{0};
-    uint32_t seq_;
+    uint16_t seq_;
   };
 
   TransmitCall transmit() {
@@ -173,33 +181,26 @@ class RemoteTransmitterBase : public RemoteComponentBase {
     call.set_send_wait(send_wait);
     call.perform();
   }
-#ifdef REMOTE_BASE_COMPLETE_LISTENER_COUNT
-  /// Called with the TransmitCall's seq once that transmission has finished, after the last
-  /// repeat and before the on_complete trigger. Entities sharing a transmitter each register
-  /// and keep only the seqs they submitted; the slots are counted at code generation.
-  template<typename F> void add_on_complete_callback(F &&callback) {
-    this->complete_callback_.add(std::forward<F>(callback));
-  }
-#endif
 
  protected:
-  void send_(uint32_t send_times, uint32_t send_wait, uint32_t seq);
+  void send_(uint32_t send_times, uint32_t send_wait, uint16_t seq);
   virtual void send_internal(uint32_t send_times, uint32_t send_wait) = 0;
   /// Platforms that report completion later wait out the previous frame here, before send_()
   /// assigns the next seq, so that completion carries the seq it belongs to
-  virtual void flush_pending_completion_() {}
+  virtual void flush_pending_completion() {}
   void send_single_() { this->send_(1, 0, this->take_seq_()); }
-#ifdef REMOTE_BASE_COMPLETE_LISTENER_COUNT
-  void notify_complete_() { this->complete_callback_.call(this->current_seq_); }
-  uint32_t take_seq_() { return ++this->next_seq_; }
+#ifdef USE_IR_RF_TRANSMIT_COMPLETE
+  /// Reports the frame handed to the platform last, after its final repeat and before the
+  /// on_complete trigger; a seq only has to be unique within the 30 s reply window
+  void notify_complete_() { ir_rf_transmit_complete(this, this->current_seq_); }
+  uint16_t take_seq_() { return ++this->next_seq_; }
 
-  StaticCallbackManager<REMOTE_BASE_COMPLETE_LISTENER_COUNT, void(uint32_t)> complete_callback_;
-  uint32_t next_seq_{0};
-  uint32_t current_seq_{0};  // seq of the frame handed to the platform last
+  uint16_t next_seq_{0};
+  uint16_t current_seq_{0};
 #else
   // seq tracking only exists for the API completion reply
   void notify_complete_() {}
-  static uint32_t take_seq_() { return 0; }
+  static uint16_t take_seq_() { return 0; }
 #endif
 
   /// Use same vector for all transmits, avoids many allocations
