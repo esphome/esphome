@@ -1,3 +1,5 @@
+from typing import Any
+
 from esphome import automation
 import esphome.codegen as cg
 from esphome.components import binary_sensor
@@ -228,21 +230,21 @@ TRIGGER_REGISTRY = SimpleRegistry()
 DUMPER_REGISTRY = Registry()
 
 
+def _dumper_key(item: Any) -> Any:
+    """Registry key of a dump entry in either its string or its mapping form."""
+    if isinstance(item, dict) and len(item) == 1:
+        return next(iter(item))
+    return item
+
+
 def validate_dumpers(value):
     if isinstance(value, str) and value.lower() == "all":
         return validate_dumpers(list(DUMPER_REGISTRY.keys()))
     if isinstance(value, list):
         # a dumper listed twice would register twice; the receiver holds one secondary dumper
-        seen: set[str] = set()
-        deduped = []
-        for item in value:
-            key = item if isinstance(item, str) else next(iter(item), None)
-            if isinstance(key, str):
-                if key in seen:
-                    continue
-                seen.add(key)
-            deduped.append(item)
-        value = deduped
+        keys = [_dumper_key(item) for item in value]
+        if all(isinstance(key, str) for key in keys):
+            value = list(dict(zip(keys, value, strict=True)).values())
     return cv.validate_registry("dumper", DUMPER_REGISTRY)(value)
 
 
