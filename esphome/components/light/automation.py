@@ -65,7 +65,13 @@ def validate_light_state(value: Any) -> Any:
     try:
         return _STATE_ON_OFF(value) == "ON"
     except cv.Invalid:
+        pass
+    try:
         return cv.boolean(value)
+    except cv.Invalid as err:
+        raise cv.Invalid(
+            f"Expected 'ON', 'OFF', or a boolean value, got {value!r}"
+        ) from err
 
 
 @automation.register_action(

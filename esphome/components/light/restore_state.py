@@ -30,7 +30,7 @@ from esphome.core import Lambda
 from esphome.types import ConfigType
 
 from .automation import validate_light_state
-from .types import COLOR_MODES, ColorMode, LightStateRTCState
+from .types import COLOR_MODES, LightStateRTCState
 
 RESTORE_STATE_KEEP = "KEEP"
 RESTORE_STATE_INVERT = "INVERT"
@@ -81,28 +81,14 @@ _ALL_STATE_FIELDS: tuple[tuple[str, str], ...] = (
 # these are independent field assignments, so the actual order never affects behavior.
 _MEMBER_ORDER: tuple[str, ...] = tuple(member for _, member in _ALL_STATE_FIELDS)
 
-# LightStateRTCState's own member-initializer defaults, used to resolve
-# restore_state:'s INITIAL sentinel for a field initial_state: doesn't set either.
-_STRUCT_DEFAULTS: dict[str, Any] = {
-    "state": False,
-    "color_mode": ColorMode.UNKNOWN,
-    "brightness": 1.0,
-    "color_brightness": 1.0,
-    "red": 1.0,
-    "green": 1.0,
-    "blue": 1.0,
-    "white": 1.0,
-    "color_temp": 1.0,
-    "cold_white": 1.0,
-    "warm_white": 1.0,
-}
-
 # A pending `s.<member> = <value>;` statement, tagged with the member it writes.
 StateStatement = tuple[str, str]
 
 
 def _partition_state_statements(
-    initial_statements: list[StateStatement], restore_statements: list[StateStatement]
+    initial_statements: list[StateStatement],
+    restore_statements: list[StateStatement],
+    save_enabled: bool,
 ) -> list[str]:
     """Split initial/restore statements into what must run unconditionally versus what
     depends on `restored`, and render the resulting lambda body lines.
@@ -115,6 +101,10 @@ def _partition_state_statements(
     (a plain, side-effect-free assignment): matches sequential-execution semantics,
     since an earlier write to the same member is always fully overwritten by a later
     one in the original code this replaces.
+
+    `save_enabled` is false exactly when `restore_statements` is empty and `restored`
+    is unconditionally false at the call site (nothing is ever loaded), so the
+    initial-only branch can skip its `if (!restored)` guard entirely.
     """
     # dict() over (member, statement) pairs keeps the *last* entry per member.
     initial_map = dict(initial_statements)
@@ -140,12 +130,17 @@ def _partition_state_statements(
     elif only_restore:
         body += ["if (restored) {", *only_restore, "}"]
     elif only_initial:
-        body += ["if (!restored) {", *only_initial, "}"]
+        if save_enabled:
+            body += ["if (!restored) {", *only_initial, "}"]
+        else:
+            body += only_initial
     return body
 
 
 async def _build_state_lambda(
-    initial_statements: list[StateStatement], restore_statements: list[StateStatement]
+    initial_statements: list[StateStatement],
+    restore_statements: list[StateStatement],
+    save_enabled: bool,
 ) -> Lambda | None:
     """A stateless `[](LightStateRTCState &s, bool restored) { ... }` for setup()-time
     state mutation, or None if there's nothing to apply in either branch.
@@ -158,7 +153,9 @@ async def _build_state_lambda(
     """
     if not initial_statements and not restore_statements:
         return None
-    body = _partition_state_statements(initial_statements, restore_statements)
+    body = _partition_state_statements(
+        initial_statements, restore_statements, save_enabled
+    )
     args = [(LightStateRTCState.operator("ref"), "s"), (cg.bool_, "restored")]
     return await cg.process_lambda(Lambda("\n".join(body)), args, return_type=cg.void)
 
@@ -182,16 +179,17 @@ def _initial_state_statements(
 
 def _resolve_initial_value(
     conf_key: str, member: str, initial_state_config: ConfigType | None
-) -> Any:
-    """The value `restore_state:`'s `INITIAL` sentinel resolves to for one field:
-    whatever `initial_state:` sets for it, or `LightStateRTCState`'s own
-    member-initializer default if `initial_state:` doesn't set it either."""
+) -> str:
+    """The C++ expression `restore_state:`'s `INITIAL` sentinel resolves to for one
+    field: whatever `initial_state:` sets for it, or a read of `LightStateRTCState`'s
+    own member-initializer default straight from the struct -- rather than a
+    hand-copied literal -- so it can never drift out of sync with the header."""
     if (
         initial_state_config is not None
         and (value := initial_state_config.get(conf_key)) is not None
     ):
-        return value
-    return _STRUCT_DEFAULTS[member]
+        return cg.safe_exp(value)
+    return f"LightStateRTCState{{}}.{member}"
 
 
 def _restore_state_statements(
@@ -206,17 +204,19 @@ def _restore_state_statements(
     if state == RESTORE_STATE_INVERT:
         statements.append(("state", "s.state = !s.state;"))
     elif state == RESTORE_STATE_INITIAL:
-        value = _resolve_initial_value(CONF_STATE, "state", initial_state_config)
-        statements.append(("state", f"s.state = {cg.safe_exp(value)};"))
+        expr = _resolve_initial_value(CONF_STATE, "state", initial_state_config)
+        statements.append(("state", f"s.state = {expr};"))
     elif state != RESTORE_STATE_KEEP:
         statements.append(("state", f"s.state = {cg.safe_exp(state)};"))
     for conf_key, member in _STATE_STRUCT_FIELDS:
         value = restore_state_config[conf_key]
         if value == RESTORE_STATE_INITIAL:
-            value = _resolve_initial_value(conf_key, member, initial_state_config)
+            expr = _resolve_initial_value(conf_key, member, initial_state_config)
         elif value == RESTORE_STATE_KEEP:
             continue
-        statements.append((member, f"s.{member} = {cg.safe_exp(value)};"))
+        else:
+            expr = cg.safe_exp(value)
+        statements.append((member, f"s.{member} = {expr};"))
     return statements
 
 

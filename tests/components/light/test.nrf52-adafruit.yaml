@@ -19,17 +19,25 @@ output:
   - platform: zephyr_pwm
     id: test_ledc_5
     pin: 17
-  - platform: gpio
+  - platform: template
     id: light_test_restore_state_keep
-    pin: 18
-  - platform: gpio
+    type: binary
+    write_action:
+      - lambda: ""
+  - platform: template
     id: light_test_restore_state_override
-    pin: 19
-  - platform: gpio
+    type: binary
+    write_action:
+      - lambda: ""
+  - platform: template
     id: light_test_restore_state_none
-    pin: 20
-  - platform: gpio
+    type: binary
+    write_action:
+      - lambda: ""
+  - platform: template
     id: light_test_restore_state_initial
-    pin: 21
+    type: binary
+    write_action:
+      - lambda: ""
 
 <<: !include common.yaml

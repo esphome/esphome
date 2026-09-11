@@ -33,7 +33,9 @@ def test_validate_light_state_accepts_on_off_and_booleans(
 
 
 def test_validate_light_state_rejects_invalid_string() -> None:
-    with pytest.raises(cv.Invalid):
+    # The error must mention both accepted forms (ON/OFF and boolean), not just
+    # whichever validator happened to run last.
+    with pytest.raises(cv.Invalid, match="ON.*OFF.*boolean"):
         validate_light_state("maybe")
 
 

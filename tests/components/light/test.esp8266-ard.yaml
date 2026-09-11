@@ -17,17 +17,25 @@ output:
   - platform: esp8266_pwm
     id: test_ledc_5
     pin: 16
-  - platform: gpio
+  - platform: template
     id: light_test_restore_state_keep
-    pin: 5
-  - platform: gpio
+    type: binary
+    write_action:
+      - lambda: ""
+  - platform: template
     id: light_test_restore_state_override
-    pin: 2
-  - platform: gpio
+    type: binary
+    write_action:
+      - lambda: ""
+  - platform: template
     id: light_test_restore_state_none
-    pin: 0
-  - platform: gpio
+    type: binary
+    write_action:
+      - lambda: ""
+  - platform: template
     id: light_test_restore_state_initial
-    pin: 1
+    type: binary
+    write_action:
+      - lambda: ""
 
 <<: !include common.yaml

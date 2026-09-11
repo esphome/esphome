@@ -51,8 +51,18 @@ async def test_light_restore_state(
         keep_light = require_entity(entities, "test_light_keep", LightInfo)
         override_light = require_entity(entities, "test_light_override", LightInfo)
 
+        # A single subscription serves both initial-state capture and later
+        # state-change waits -- a second subscribe_states call would restart the
+        # device's initial-state iterator and could resolve a wait on replayed data.
+        loop = asyncio.get_running_loop()
+        state_futures: dict[int, asyncio.Future[Any]] = {}
+
+        def on_state(state: Any) -> None:
+            if state.key in state_futures and not state_futures[state.key].done():
+                state_futures[state.key].set_result(state)
+
         helper = InitialStateHelper(entities)
-        client.subscribe_states(helper.on_state_wrapper(lambda s: None))
+        client.subscribe_states(helper.on_state_wrapper(on_state))
         await helper.wait_for_initial_states()
 
         keep_initial = helper.initial_states[keep_light.key]
@@ -64,15 +74,6 @@ async def test_light_restore_state(
         assert override_initial.state is False
 
         # Set both lights to a known, saved state
-        loop = asyncio.get_running_loop()
-        state_futures: dict[int, asyncio.Future[Any]] = {}
-
-        def on_state(state: Any) -> None:
-            if state.key in state_futures and not state_futures[state.key].done():
-                state_futures[state.key].set_result(state)
-
-        client.subscribe_states(on_state)
-
         async def wait_for_state(key: int, timeout: float = 2.0) -> Any:
             state_futures[key] = loop.create_future()
             try:

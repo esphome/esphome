@@ -121,6 +121,18 @@ def test_default_restore_mode_still_exclusive_with_explicit_restore_state() -> N
         )
 
 
+def test_default_restore_mode_result_still_extendable() -> None:
+    # light_schema() must keep returning a real cv.Schema (not e.g. cv.All) even when
+    # default_restore_mode is given, since every in-tree light platform chains
+    # .extend() on its result.
+    schema = light_schema(
+        _DummyLight, LightType.BINARY, default_restore_mode="RESTORE_DEFAULT_ON"
+    )
+    extended = schema.extend({})
+    config = extended({"id": "light1"})
+    assert config[CONF_RESTORE_MODE] == "RESTORE_DEFAULT_ON"
+
+
 @pytest.mark.parametrize("value", ["none", "None", "NONE"])
 def test_restore_state_none_shorthand_is_case_insensitive(value: str) -> None:
     assert RESTORE_STATE_SCHEMA(value) == RESTORE_STATE_NONE
@@ -221,6 +233,7 @@ def test_partition_no_overlap_produces_full_if_else() -> None:
     body = _partition_state_statements(
         [("brightness", "s.brightness = 1.0f;")],
         [("state", "s.state = false;")],
+        True,
     )
     assert body == [
         "if (restored) {",
@@ -236,6 +249,7 @@ def test_partition_full_overlap_drops_branch_entirely() -> None:
     body = _partition_state_statements(
         [("state", "s.state = true;")],
         [("state", "s.state = true;")],
+        True,
     )
     assert body == ["s.state = true;"]
 
@@ -252,6 +266,7 @@ def test_partition_partial_overlap_hoists_shared_field() -> None:
             ("state", "s.state = true;"),
             ("color_mode", "s.color_mode = light::ColorMode::ON_OFF;"),
         ],
+        True,
     )
     assert body == [
         "s.state = true;",
@@ -273,8 +288,21 @@ def test_partition_duplicate_member_in_one_list_keeps_last_write() -> None:
             ("state", "s.state = false;"),
         ],
         [("state", "s.state = false;")],
+        True,
     )
     assert body == ["s.state = false;"]
+
+
+def test_partition_initial_only_without_save_skips_guard() -> None:
+    # save_enabled False means restored is unconditionally false at the call site
+    # (e.g. ALWAYS_OFF, restore_state: none, or neither key configured), so guarding
+    # the initial-only statements behind `if (!restored)` would only waste flash.
+    body = _partition_state_statements(
+        [("brightness", "s.brightness = 1.0f;")],
+        [],
+        False,
+    )
+    assert body == ["s.brightness = 1.0f;"]
 
 
 @pytest.mark.parametrize(
@@ -317,15 +345,19 @@ def test_restore_state_initial_other_field_copies_initial_state_value() -> None:
 
 
 def test_restore_state_initial_falls_back_to_struct_default() -> None:
-    # No initial_state: at all -- INITIAL resolves to LightStateRTCState's own
-    # member-initializer default (1.0 for brightness).
+    # No initial_state: at all -- INITIAL resolves to a read of LightStateRTCState's
+    # own member-initializer default, straight from the struct.
     restore_state_config = RESTORE_STATE_SCHEMA({"brightness": "initial"})
     statements = _restore_state_statements(restore_state_config, None)
-    assert statements == [("brightness", "s.brightness = 1.0f;")]
+    assert statements == [
+        ("brightness", "s.brightness = LightStateRTCState{}.brightness;")
+    ]
 
 
 def test_restore_state_initial_falls_back_when_initial_state_omits_field() -> None:
     restore_state_config = RESTORE_STATE_SCHEMA({"brightness": "initial"})
     initial_state_config = {"state": True}  # doesn't set brightness
     statements = _restore_state_statements(restore_state_config, initial_state_config)
-    assert statements == [("brightness", "s.brightness = 1.0f;")]
+    assert statements == [
+        ("brightness", "s.brightness = LightStateRTCState{}.brightness;")
+    ]

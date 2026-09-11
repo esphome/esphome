@@ -410,20 +410,20 @@ class LightType(enum.IntEnum):
     ADDRESSABLE = 3
 
 
-def _apply_default_restore_mode(default_restore_mode: str) -> Callable[[dict], dict]:
-    # cv.Exclusive (unlike cv.Optional) has no `default` parameter, and the exclusivity
-    # check runs against the raw input before any default would be filled in anyway. So
-    # apply the platform's default here, before LIGHT_SCHEMA's cv.Exclusive("restore")
-    # marker runs, and only when the user gave neither restore_mode nor restore_state --
-    # that keeps a user-provided restore_state from being silently overridden, and keeps
-    # a user providing both restore_mode and restore_state an exclusivity error.
-    def validator(config):
-        if (
-            isinstance(config, dict)
-            and CONF_RESTORE_MODE not in config
-            and CONF_RESTORE_STATE not in config
-        ):
-            config = {**config, CONF_RESTORE_MODE: default_restore_mode}
+def _apply_default_restore_mode(
+    default_restore_mode: str,
+) -> Callable[[ConfigType], ConfigType]:
+    # cv.Exclusive (unlike cv.Optional) has no `default` parameter. Applying the
+    # platform's default as a post-validation step (via add_extra, below) runs after
+    # LIGHT_SCHEMA's cv.Exclusive("restore") marker has already checked the raw input,
+    # so filling in restore_mode: here can never trip that check -- and only happens
+    # when the user gave neither restore_mode nor restore_state, so a user-provided
+    # restore_state is never silently overridden.
+    def validator(config: ConfigType) -> ConfigType:
+        if CONF_RESTORE_MODE not in config and CONF_RESTORE_STATE not in config:
+            config[CONF_RESTORE_MODE] = cv.one_of(
+                *LEGACY_RESTORE_MODES, upper=True, space="_"
+            )(default_restore_mode)
         return config
 
     return validator
@@ -461,7 +461,7 @@ def light_schema(
 
     result = base_schema.extend(schema)
     if default_restore_mode is not cv.UNDEFINED:
-        result = cv.All(_apply_default_restore_mode(default_restore_mode), result)
+        result.add_extra(_apply_default_restore_mode(default_restore_mode))
     return result
 
 
@@ -524,7 +524,9 @@ async def setup_light_core_(light_var, config, output_var):
         save_enabled = False
 
     if (
-        lamb := await _build_state_lambda(initial_statements, restore_statements)
+        lamb := await _build_state_lambda(
+            initial_statements, restore_statements, save_enabled
+        )
     ) is not None:
         cg.add(light_var.set_state_callback(lamb))
     if save_enabled:  # matches LightState::save_enabled_'s own default of false
