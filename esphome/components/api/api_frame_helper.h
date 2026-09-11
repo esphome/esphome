@@ -219,6 +219,7 @@ class APIFrameHelper {
     if (this->rx_buf_len_ == 0) {
       this->rx_buf_.release();
     }
+    this->overflow_buf_.release();
   }
 
  protected:

@@ -1,24 +1,12 @@
 #include "api_overflow_buffer.h"
 #ifdef USE_API
+#include <algorithm>
 #include <cstring>
-#include <new>
 
 namespace esphome::api {
 
-APIOverflowBuffer::~APIOverflowBuffer() {
-  for (auto *entry : this->queue_) {
-    if (entry != nullptr)
-      Entry::destroy(entry);
-  }
-}
-
 ssize_t APIOverflowBuffer::try_drain(socket::Socket *socket) {
-  // socket->write() can re-enter this function: a log message emitted from an
-  // lwip callback during the write goes out over the API and lands back in the
-  // frame helper's write/drain path. If a nested drain ran here it would send
-  // and free the entry the outer drain is still holding, causing a double free.
-  // Report "no progress" instead; the outer drain keeps draining, and the
-  // nested send is enqueued behind the existing backlog.
+  // Nested call from inside socket->write(); see draining_
   if (this->draining_)
     return 0;
 
@@ -30,69 +18,80 @@ ssize_t APIOverflowBuffer::try_drain(socket::Socket *socket) {
   } guard(this->draining_);
 
   while (this->count_ > 0) {
-    Entry *front = this->queue_[this->head_];
+    const uint8_t *msg = this->buf_.data() + this->head_;
+    uint16_t len;
+    std::memcpy(&len, msg, LEN_PREFIX);
+    const uint16_t remaining = len - this->front_sent_;
 
-    ssize_t sent = socket->write(front->current_data(), front->remaining());
-
+    ssize_t sent = socket->write(msg + LEN_PREFIX + this->front_sent_, remaining);
     if (sent <= 0) {
       // -1 = error (caller checks errno for EWOULDBLOCK vs hard error)
       // 0 = nothing sent (treat as no progress)
       return sent;
     }
-
-    if (static_cast<uint16_t>(sent) < front->remaining()) {
-      // Partially sent, update offset and stop
-      front->offset += static_cast<uint16_t>(sent);
+    if (static_cast<uint16_t>(sent) < remaining) {
+      this->front_sent_ += static_cast<uint16_t>(sent);
       return sent;
     }
-
-    // Entry fully sent — unlink it before freeing so a freed pointer is never
-    // reachable from the queue
-    this->queue_[this->head_] = nullptr;
-    this->head_ = (this->head_ + 1) % API_MAX_SEND_QUEUE;
+    this->head_ += LEN_PREFIX + len;
+    this->front_sent_ = 0;
     this->count_--;
-    Entry::destroy(front);
   }
 
-  return 0;  // All drained
+  // Fully drained: rewind, keeping the capacity for the next stall unless a
+  // release was requested while data was still queued
+  this->head_ = 0;
+  if (this->release_when_drained_) {
+    this->release_when_drained_ = false;
+    this->buf_.release();
+  } else {
+    this->buf_.clear();
+  }
+  return 0;
 }
 
 bool APIOverflowBuffer::enqueue_iov(const struct iovec *iov, int iovcnt, uint16_t total_len, uint16_t skip) {
   if (this->count_ >= API_MAX_SEND_QUEUE)
     return false;
 
-  uint16_t buffer_size = total_len - skip;
-  // nothrow: a failed allocation returns nullptr so the connection is dropped
-  // cleanly instead of plain new's crash or abort on OOM
-  // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
-  auto *data = new (std::nothrow) uint8_t[buffer_size];
-  if (data == nullptr)
-    return false;
-  // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
-  auto *entry = new (std::nothrow) Entry{data, buffer_size, 0};
-  if (entry == nullptr) {
-    delete[] data;
-    return false;
+  const uint16_t new_len = total_len - skip;
+  size_t size = this->buf_.size();
+  size_t want = size + LEN_PREFIX + new_len;
+
+  if (this->head_ > 0 && want > this->buf_.capacity()) {
+    // Slide the unsent bytes to the front so growth only copies live data
+    const size_t live = size - this->head_;
+    std::memmove(this->buf_.data(), this->buf_.data() + this->head_, live);
+    this->head_ = 0;
+    (void) this->buf_.resize(live);  // live <= capacity, cannot fail
+    size = live;
+    want = live + LEN_PREFIX + new_len;
   }
+  // Offsets are 16 bit, so the backlog is capped at 64 KB per connection
+  if (want > UINT16_MAX)
+    return false;
 
+  const size_t reserve = std::min<size_t>((want + GROW_QUANTUM - 1) & ~(GROW_QUANTUM - 1), UINT16_MAX);
+  if (!this->buf_.reserve_and_resize(reserve, want))
+    return false;
+
+  uint8_t *dst = this->buf_.data() + size;
+  std::memcpy(dst, &new_len, LEN_PREFIX);
+  dst += LEN_PREFIX;
   uint16_t to_skip = skip;
-  uint16_t write_pos = 0;
-
   for (int i = 0; i < iovcnt; i++) {
     if (to_skip >= iov[i].iov_len) {
       to_skip -= static_cast<uint16_t>(iov[i].iov_len);
     } else {
       const uint8_t *src = reinterpret_cast<uint8_t *>(iov[i].iov_base) + to_skip;
       uint16_t len = static_cast<uint16_t>(iov[i].iov_len) - to_skip;
-      std::memcpy(entry->data + write_pos, src, len);
-      write_pos += len;
+      std::memcpy(dst, src, len);
+      dst += len;
       to_skip = 0;
     }
   }
 
-  // Publish only after the copy completes so a half-built entry is never reachable
-  this->queue_[this->tail_] = entry;
-  this->tail_ = (this->tail_ + 1) % API_MAX_SEND_QUEUE;
+  // Publish only after the copy completes so a half-built message is never sent
   this->count_++;
   return true;
 }

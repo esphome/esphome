@@ -350,8 +350,8 @@ CONFIG_SCHEMA = cv.All(
                 ln882x=5,  # Moderate RAM
                 nrf52=4,  # ~256KB RAM, BSD sockets, Thread (single HA controller)
             ): cv.int_range(min=1, max=20),
-            # Maximum queued send buffers per connection before dropping connection
-            # Each buffer uses ~8-12 bytes overhead plus actual message size
+            # Maximum queued messages per connection before dropping the connection.
+            # Bounds message count, not bytes; slots cost no RAM until a message is queued.
             # Platform defaults based on available RAM and typical message rates:
             # CONF_MAX_SEND_QUEUE defaults are power of 2 for efficient modulo
             cv.SplitDefault(
