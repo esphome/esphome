@@ -55,8 +55,9 @@ class IDFUARTComponent final : public UARTComponent, public Component {
   /**
    * Apply the current framing (baud rate, parity, data/stop bits) to the installed
    * driver in place, without the delete/reinstall of load_settings(). Tasks blocked in
-   * the driver survive; both hardware FIFOs are flushed, so a frame in flight reaches
-   * the peer truncated. No lock is taken: quiesce writers first if that matters.
+   * the driver survive and the ring buffers are kept, but both hardware FIFOs are
+   * flushed: a frame in flight reaches the peer truncated and bytes not yet out of the
+   * RX FIFO are dropped. No lock is taken: quiesce writers first if that matters.
    * rx_full_threshold is not rescaled; call set_rx_full_threshold_ms() first if it
    * should follow the new baud rate.
    *
@@ -81,8 +82,11 @@ class IDFUARTComponent final : public UARTComponent, public Component {
     uint8_t data_bits;
     uint8_t stop_bits;
     UARTParityOptions parity;
+    size_t rx_full_threshold;  // sized for the baud rate, so rolled back with it
   };
-  Framing framing_() const { return {this->baud_rate_, this->data_bits_, this->stop_bits_, this->parity_}; }
+  Framing framing_() const {
+    return {this->baud_rate_, this->data_bits_, this->stop_bits_, this->parity_, this->rx_full_threshold_};
+  }
   void set_framing_(const Framing &framing);
   // Last framing the driver accepted; baud_rate 0 means none yet.
   Framing last_good_framing_{};
