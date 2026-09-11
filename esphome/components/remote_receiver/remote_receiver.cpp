@@ -65,7 +65,8 @@ void RemoteReceiverComponent::setup() {
   this->store_.idle_us = this->idle_us_;
   this->store_.filter_us = this->filter_us_;
   this->store_.pin = this->pin_->to_isr();
-  this->store_.buffer_entries = this->buffer_size_ / sizeof(int32_t);
+  // rounded up so a size that is not a multiple of four never holds less than requested
+  this->store_.buffer_entries = (this->buffer_size_ + sizeof(int32_t) - 1) / sizeof(int32_t);
   this->store_.buffer = new int32_t[this->store_.buffer_entries];
   this->store_.prev_micros = micros();
   this->store_.commit_micros = this->store_.prev_micros;
