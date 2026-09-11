@@ -3930,12 +3930,15 @@ class SerialProxySetModeRequest final : public ProtoDecodableMessage {
 #endif
   uint32_t instance{0};
   enums::SerialProxyMode mode{};
+  void decode(const uint8_t *buffer, size_t length) {
+    ProtoDecodableMessage::decode_fields(this, buffer, length, &decode_field);
+  }
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *dump_to(DumpBuffer &out) const override;
 #endif
 
  protected:
-  void decode_field(uint32_t tag, const uint8_t *data, proto_varint_value_t scalar) override;
+  static void decode_field(void *self, uint32_t tag, const uint8_t *data, proto_varint_value_t scalar);
 };
 #endif
 #ifdef USE_BLUETOOTH_PROXY_CONNECTIONS
