@@ -51,8 +51,8 @@ bool APIOverflowBuffer::enqueue_iov(const struct iovec *iov, int iovcnt, uint16_
   const uint16_t new_len = total_len - skip;
   const size_t new_bytes = LEN_PREFIX + new_len;
   const size_t live = this->buf_.size() - this->head_;
-  // A lone message is always taken; refusing it would only drop the connection
-  if (this->count_ > 0 && live + new_bytes > MAX_BYTES)
+  // A lone message is only bound by the buffer; refusing it would just drop the connection
+  if (live + new_bytes > (this->count_ > 0 ? MAX_BYTES : APIBuffer::MAX_SIZE))
     return false;
 
   if (this->buf_.size() + new_bytes > this->buf_.capacity()) {

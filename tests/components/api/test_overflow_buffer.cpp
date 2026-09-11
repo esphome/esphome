@@ -293,6 +293,34 @@ TEST_F(OverflowBufferTest, LoneMessageMayExceedByteLimit) {
   expect_after_filler(this->drain_all_(buf), filler, big);
 }
 
+TEST_F(OverflowBufferTest, LoneMessageAboveOffsetLimitIsRefused) {
+  TestOverflowBuffer buf;
+  // Payload plus prefix no longer fits 16 bit offsets, so the buffer itself refuses
+  auto msg = make_message(UINT16_MAX, 3);
+
+  this->fill_pipe_();
+  EXPECT_FALSE(enqueue(buf, msg));
+  EXPECT_TRUE(buf.empty());
+  EXPECT_EQ(buf.capacity(), 0u);
+}
+
+TEST_F(OverflowBufferTest, HardSocketErrorLeavesBacklogIntact) {
+  TestOverflowBuffer buf;
+  auto msg = make_message(300, 40);
+
+  this->fill_pipe_();
+  ASSERT_TRUE(enqueue(buf, msg));
+  // A closed socket fails every write outright, unlike a full one
+  ASSERT_EQ(this->sock_->close(), 0);
+
+  errno = 0;
+  EXPECT_EQ(buf.try_drain(this->sock_.get()), -1);
+  EXPECT_NE(errno, EWOULDBLOCK);
+  EXPECT_NE(errno, EAGAIN);
+  EXPECT_EQ(buf.count(), 1);
+  EXPECT_EQ(buf.live(), msg.size() + TestOverflowBuffer::LEN_PREFIX);
+}
+
 TEST_F(OverflowBufferTest, GrowsWhileReclaimingSentPrefix) {
   TestOverflowBuffer buf;
   Stall s;
