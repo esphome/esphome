@@ -2337,9 +2337,15 @@ async def _add_sscanf_stub(enable_full_scanf: bool | None, variant: str) -> None
 
     FINAL priority so every request_bluetooth() call has happened.
     """
-    if variant in ROM_SSCANF_VARIANTS or not _network_sdkconfig().bluetooth:
+    if (
+        variant in ROM_SSCANF_VARIANTS
+        or idf_version() >= cv.Version(6, 0, 0)  # picolibc, unmeasured
+        or not _network_sdkconfig().bluetooth
+    ):
         return
-    if keep_float_scanf(enable_full_scanf, CORE.config, "~13KB flash"):
+    if keep_float_scanf(
+        enable_full_scanf, CORE.config, "~13KB flash", "that call will abort the device"
+    ):
         return
     _add_wrap_stub("sscanf", "USE_ESP32_SSCANF_STUB")
 
@@ -2702,12 +2708,12 @@ async def to_code(config):
             # ROM. See vasprintf_stubs.cpp.
             if variant in ROM_VSNPRINTF_WITHOUT_VASPRINTF_VARIANTS:
                 _add_wrap_stub("vasprintf", "USE_ESP32_VASPRINTF_STUB")
-            # bluedroid's sscanf calls; see sscanf_stubs.cpp
-            CORE.add_job(
-                _add_sscanf_stub,
-                conf[CONF_ADVANCED].get(CONF_ENABLE_FULL_SCANF),
-                variant,
-            )
+        # bluedroid's sscanf calls; see sscanf_stubs.cpp
+        CORE.add_job(
+            _add_sscanf_stub,
+            conf[CONF_ADVANCED].get(CONF_ENABLE_FULL_SCANF),
+            variant,
+        )
     else:
         cg.add_build_flag("-DUSE_ARDUINO")
         cg.add_build_flag("-DUSE_ESP32_FRAMEWORK_ARDUINO")

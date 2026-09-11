@@ -1449,6 +1449,9 @@ def test_mbedtls_tls_openthread_requires_server_and_extras(
             id="sscanf_lambda_float_forced",
         ),
         pytest.param("sscanf_stub_ble_c2.yaml", "sscanf", False, id="sscanf_c2_rom"),
+        pytest.param(
+            "sscanf_stub_ble_full_printf.yaml", "sscanf", True, id="sscanf_full_printf"
+        ),
         pytest.param("exclusion_reincludes.yaml", "sscanf", False, id="sscanf_no_ble"),
     ],
 )

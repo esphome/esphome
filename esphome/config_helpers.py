@@ -278,10 +278,13 @@ def user_code_uses_scanf_float(config: ConfigType) -> bool:
     return lambdas_use_scanf_float(config) or includes_use_scanf_float(config)
 
 
-def keep_float_scanf(option: bool | None, config: ConfigType, flash_note: str) -> bool:
+def keep_float_scanf(
+    option: bool | None, config: ConfigType, flash_note: str, override_note: str
+) -> bool:
     """Resolve a tri-state float-scanf option: unset means "only if user code scans a float".
 
-    Logs when user code decides it, or when an explicit ``false`` overrides it.
+    Logs when user code decides it, or (with ``override_note``, the consequence)
+    when an explicit ``false`` overrides it.
     """
     if option is None:
         if not user_code_uses_scanf_float(config):
@@ -295,6 +298,7 @@ def keep_float_scanf(option: bool | None, config: ConfigType, flash_note: str) -
     if not option and user_code_uses_scanf_float(config):
         _LOGGER.warning(
             "Float scanf support is disabled but a lambda or include uses scanf "
-            "with a float format specifier; that call will not parse"
+            "with a float format specifier; %s",
+            override_note,
         )
     return option

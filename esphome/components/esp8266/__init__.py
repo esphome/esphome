@@ -274,7 +274,10 @@ async def to_code(config: ConfigType) -> None:
     cg.add_define("USE_ESP8266_CRASH_HANDLER")
 
     enable_scanf_float = keep_float_scanf(
-        config.get(CONF_ENABLE_SCANF_FLOAT), CORE.config, "~8KB flash"
+        config.get(CONF_ENABLE_SCANF_FLOAT),
+        CORE.config,
+        "~8KB flash",
+        "that call will not parse",
     )
 
     extra_scripts = [
