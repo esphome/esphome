@@ -18,7 +18,8 @@ namespace esphome::api {
 /// kept at its high-water mark so a lossy link does not churn the heap.
 /// Messages are stored as a 2 byte length prefix plus payload.
 /// API_MAX_SEND_QUEUE bounds queued messages and, at 2 KB per slot, queued
-/// bytes; exceeding either fails the connection.
+/// bytes; exceeding either fails the connection. A lone message is exempt
+/// from the byte limit, only the 16 bit offsets cap it.
 class APIOverflowBuffer {
  public:
   /// True when no backlogged data is waiting.
@@ -47,8 +48,8 @@ class APIOverflowBuffer {
  protected:
   static constexpr size_t LEN_PREFIX = 2;
   static constexpr size_t BYTES_PER_SLOT = 2048;
-  // Byte limit; offsets are 16 bit
-  static constexpr size_t MAX_BYTES = std::min<size_t>(API_MAX_SEND_QUEUE * BYTES_PER_SLOT, UINT16_MAX);
+  static constexpr size_t MAX_SINGLE_BYTES = UINT16_MAX;  // offsets are 16 bit
+  static constexpr size_t MAX_BYTES = std::min(API_MAX_SEND_QUEUE * BYTES_PER_SLOT, MAX_SINGLE_BYTES);
   // Reserve in 256 byte steps so a creeping high-water mark settles quickly
   static constexpr size_t GROW_QUANTUM = 256;
 

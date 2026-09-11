@@ -36,9 +36,6 @@ ARG_NAME_LEN = 800
 # ~160 KB listing versus a tens-of-KB pipe guarantees a mid-services block
 NUM_SERVICES = 25
 assert ARGS_PER_SERVICE * ARG_NAME_LEN < SERVER_SNDBUF
-# The overflow buffer allows 2 KB per max_send_queue slot (4 in the fixture)
-MAX_SEND_QUEUE_BYTES = 4 * 2048
-assert ARGS_PER_SERVICE * ARG_NAME_LEN < MAX_SEND_QUEUE_BYTES
 # The pipe fills in well under a second
 STALL_SECONDS = 0.5
 # Well above pipe capacity, well below the listing size

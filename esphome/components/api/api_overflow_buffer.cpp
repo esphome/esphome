@@ -50,7 +50,9 @@ bool APIOverflowBuffer::enqueue_iov(const struct iovec *iov, int iovcnt, uint16_
 
   const uint16_t new_len = total_len - skip;
   size_t size = this->buf_.size();
-  if (size - this->head_ + LEN_PREFIX + new_len > MAX_BYTES)
+  // An empty backlog always takes one message: refusing it drops the connection,
+  // and a lone message costs no more than the old per-message allocation
+  if (size - this->head_ + LEN_PREFIX + new_len > (this->count_ > 0 ? MAX_BYTES : MAX_SINGLE_BYTES))
     return false;
 
   if (size + LEN_PREFIX + new_len > this->buf_.capacity()) {
@@ -67,7 +69,7 @@ bool APIOverflowBuffer::enqueue_iov(const struct iovec *iov, int iovcnt, uint16_
   }
 
   const size_t want = size + LEN_PREFIX + new_len;
-  const size_t reserve = std::min((want + GROW_QUANTUM - 1) & ~(GROW_QUANTUM - 1), MAX_BYTES);
+  const size_t reserve = std::min((want + GROW_QUANTUM - 1) & ~(GROW_QUANTUM - 1), MAX_SINGLE_BYTES);
   if (!this->buf_.reserve_and_resize(reserve, want))
     return false;
 

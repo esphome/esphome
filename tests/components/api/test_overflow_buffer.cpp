@@ -20,9 +20,12 @@ namespace esphome::api::testing {
 class TestOverflowBuffer : public APIOverflowBuffer {
  public:
   using APIOverflowBuffer::LEN_PREFIX;
+  using APIOverflowBuffer::MAX_BYTES;
   size_t capacity() const { return this->buf_.capacity(); }
   const uint8_t *storage() const { return this->buf_.data(); }
   uint8_t count() const { return this->count_; }
+  /// Simulates being inside an outer try_drain() whose socket write re-entered the send path.
+  void set_draining(bool draining) { this->draining_ = draining; }
 };
 
 static std::vector<uint8_t> make_message(size_t len, uint8_t seed) {
@@ -102,10 +105,13 @@ class OverflowBufferTest : public ::testing::Test {
   /// Alternate reading and draining until the backlog is empty; returns all bytes received.
   std::vector<uint8_t> drain_all_(TestOverflowBuffer &buf) {
     std::vector<uint8_t> received;
-    while (!buf.empty()) {
+    for (int i = 0; i < 10000 && !buf.empty(); i++) {
       this->read_into_(received);
-      this->drain_(buf);
+      // A hard socket error would never clear the backlog; stop instead of spinning
+      if (this->drain_(buf) == -1 && errno != EWOULDBLOCK && errno != EAGAIN)
+        break;
     }
+    EXPECT_TRUE(buf.empty());
     this->read_into_(received);
     return received;
   }
@@ -227,14 +233,137 @@ TEST_F(OverflowBufferTest, RefusesWhenQueueIsFull) {
 
 TEST_F(OverflowBufferTest, RefusesWhenByteLimitIsExceeded) {
   TestOverflowBuffer buf;
-  // Three of these exceed the 2 KB per slot budget long before the slot count does
-  auto msg = make_message(6000, 1);
+  // Two of these fill the byte budget exactly, well before the slot count is reached
+  static_assert(API_MAX_SEND_QUEUE >= 3);
+  auto msg = make_message(TestOverflowBuffer::MAX_BYTES / 2 - TestOverflowBuffer::LEN_PREFIX, 1);
 
   this->fill_pipe_();
   ASSERT_TRUE(enqueue(buf, msg));
   ASSERT_TRUE(enqueue(buf, msg));
   EXPECT_FALSE(enqueue(buf, msg));
   EXPECT_EQ(buf.count(), 2);
+}
+
+TEST_F(OverflowBufferTest, LoneMessageMayExceedByteLimit) {
+  TestOverflowBuffer buf;
+  auto big = make_message(TestOverflowBuffer::MAX_BYTES + 100, 5);
+  auto small = make_message(16, 9);
+
+  // Refusing the only message would drop the connection for nothing
+  size_t filler = this->fill_pipe_();
+  ASSERT_TRUE(enqueue(buf, big));
+  EXPECT_EQ(buf.count(), 1);
+  // With a backlog present the byte limit applies again
+  EXPECT_FALSE(enqueue(buf, small));
+  EXPECT_EQ(buf.count(), 1);
+
+  expect_after_filler(this->drain_all_(buf), filler, big);
+}
+
+TEST_F(OverflowBufferTest, NestedDrainMakesNoProgress) {
+  TestOverflowBuffer buf;
+  auto msg = make_message(300, 40);
+
+  size_t filler = this->fill_pipe_();
+  ASSERT_TRUE(enqueue(buf, msg));
+  std::vector<uint8_t> received;
+  this->read_into_(received);
+
+  // Room is available, but a nested drain must leave the outer one's message alone
+  buf.set_draining(true);
+  EXPECT_EQ(this->drain_(buf), 0);
+  EXPECT_EQ(buf.count(), 1);
+  std::vector<uint8_t> nothing;
+  this->read_into_(nothing);
+  EXPECT_TRUE(nothing.empty());
+
+  buf.set_draining(false);
+  append(received, this->drain_all_(buf));
+  expect_after_filler(received, filler, msg);
+}
+
+TEST_F(OverflowBufferTest, NestedEnqueueAppendsWithinCapacity) {
+  TestOverflowBuffer buf;
+  auto first = make_message(500, 10);
+  auto second = make_message(4, 90);
+
+  size_t filler = this->fill_pipe_();
+  ASSERT_TRUE(enqueue(buf, first));
+  const size_t capacity = buf.capacity();
+  const uint8_t *storage = buf.storage();
+  ASSERT_GE(capacity, first.size() + second.size() + 2 * TestOverflowBuffer::LEN_PREFIX);
+
+  buf.set_draining(true);
+  EXPECT_TRUE(enqueue(buf, second));
+  EXPECT_EQ(buf.count(), 2);
+  EXPECT_EQ(buf.capacity(), capacity);
+  EXPECT_EQ(buf.storage(), storage);
+  buf.set_draining(false);
+
+  std::vector<uint8_t> expected;
+  append(expected, first);
+  append(expected, second);
+  expect_after_filler(this->drain_all_(buf), filler, expected);
+}
+
+TEST_F(OverflowBufferTest, NestedEnqueueRefusesToGrow) {
+  TestOverflowBuffer buf;
+  auto first = make_message(500, 10);
+  auto second = make_message(100, 90);
+
+  size_t filler = this->fill_pipe_();
+  ASSERT_TRUE(enqueue(buf, first));
+  const size_t capacity = buf.capacity();
+  const uint8_t *storage = buf.storage();
+  ASSERT_LT(capacity, first.size() + second.size() + 2 * TestOverflowBuffer::LEN_PREFIX);
+
+  // Growing would free the bytes the outer write() is sending from
+  buf.set_draining(true);
+  EXPECT_FALSE(enqueue(buf, second));
+  EXPECT_EQ(buf.count(), 1);
+  EXPECT_EQ(buf.capacity(), capacity);
+  EXPECT_EQ(buf.storage(), storage);
+  buf.set_draining(false);
+
+  expect_after_filler(this->drain_all_(buf), filler, first);
+}
+
+TEST_F(OverflowBufferTest, NestedEnqueueRefusesToCompact) {
+  TestOverflowBuffer buf;
+  size_t filler = this->fill_pipe_();
+  auto first = make_message(1500, 20);
+  auto second = make_message(std::min<size_t>(filler * 3, 12000), 60);
+  auto third = make_message(1000, 200);
+  ASSERT_GT(second.size(), filler);
+
+  ASSERT_TRUE(enqueue(buf, first));
+  ASSERT_TRUE(enqueue(buf, second));
+  const size_t capacity = buf.capacity();
+  const uint8_t *storage = buf.storage();
+
+  // First message fully sent, second part way: the sent prefix could be reclaimed
+  std::vector<uint8_t> received;
+  this->read_into_(received);
+  ASSERT_GT(this->drain_(buf), 0);
+  ASSERT_EQ(buf.count(), 1);
+
+  // Sliding the remainder down would move the bytes the outer write() points at
+  buf.set_draining(true);
+  EXPECT_FALSE(enqueue(buf, third));
+  EXPECT_EQ(buf.count(), 1);
+  EXPECT_EQ(buf.capacity(), capacity);
+  EXPECT_EQ(buf.storage(), storage);
+  buf.set_draining(false);
+
+  // Once the drain is over the same enqueue compacts and succeeds
+  ASSERT_TRUE(enqueue(buf, third));
+  EXPECT_EQ(buf.capacity(), capacity);
+  append(received, this->drain_all_(buf));
+  std::vector<uint8_t> expected;
+  append(expected, first);
+  append(expected, second);
+  append(expected, third);
+  expect_after_filler(received, filler, expected);
 }
 
 TEST_F(OverflowBufferTest, CompactsInsteadOfGrowingAfterPartialDrain) {
