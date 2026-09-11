@@ -17,8 +17,8 @@ void IrRfProxy::dump_config() {
                 "IR Proxy '%s'\n"
                 "  Supports Transmitter: %s\n"
                 "  Supports Receiver: %s",
-                this->get_name().c_str(), YESNO(this->traits_.get_supports_transmitter()),
-                YESNO(this->traits_.get_supports_receiver()));
+                this->get_name().c_str(), YESNO(this->get_supports_transmitter()),
+                YESNO(this->get_supports_receiver()));
 
   if (this->is_rf()) {
     ESP_LOGCONFIG(TAG, "  Hardware Type: RF (%.3f MHz)", this->frequency_khz_ / 1e3f);
@@ -34,7 +34,7 @@ void IrRfProxy::dump_config() {
 #ifdef USE_RADIO_FREQUENCY
 
 void RfProxy::setup() {
-  this->setup_transport_(this->traits_);
+  this->setup_transport_();
   // remote_transmitter/receiver always uses OOK (on-off keying)
   this->traits_.add_supported_modulation(radio_frequency::RadioFrequencyModulation::RADIO_FREQUENCY_MODULATION_OOK);
 }
@@ -44,8 +44,8 @@ void RfProxy::dump_config() {
                 "RF Proxy '%s'\n"
                 "  Supports Transmitter: %s\n"
                 "  Supports Receiver: %s",
-                this->get_name().c_str(), YESNO(this->traits_.get_supports_transmitter()),
-                YESNO(this->traits_.get_supports_receiver()));
+                this->get_name().c_str(), YESNO(this->get_supports_transmitter()),
+                YESNO(this->get_supports_receiver()));
 
   const auto &traits = this->traits_;
   if (traits.get_frequency_min_hz() > 0) {

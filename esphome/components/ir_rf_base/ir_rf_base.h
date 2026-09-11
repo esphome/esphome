@@ -60,20 +60,6 @@ class IrRfCallData {
   uint16_t packed_count_{0};
 };
 
-/// Transport capabilities shared by the infrared and radio frequency traits
-class IrRfTraits {
- public:
-  bool get_supports_transmitter() const { return this->supports_transmitter_; }
-  void set_supports_transmitter(bool supports) { this->supports_transmitter_ = supports; }
-
-  bool get_supports_receiver() const { return this->supports_receiver_; }
-  void set_supports_receiver(bool supports) { this->supports_receiver_ = supports; }
-
- protected:
-  bool supports_transmitter_{false};
-  bool supports_receiver_{false};
-};
-
 template<typename Call, typename Entity> class IrRfCall;
 
 /// Everything an infrared or radio frequency entity does that does not depend on the medium:
@@ -90,6 +76,22 @@ class IrRfEntity : public Component, public EntityBase, public remote_base::Remo
   bool has_transmitter() const { return this->transmitter_ != nullptr; }
   bool has_receiver() const { return this->receiver_ != nullptr; }
 
+  /// What the entity can do; platforms with their own hardware set these, remote_base ones
+  /// get them from setup_transport_()
+  bool get_supports_transmitter() const { return this->supports_transmitter_; }
+  void set_supports_transmitter(bool supports) { this->supports_transmitter_ = supports; }
+  bool get_supports_receiver() const { return this->supports_receiver_; }
+  void set_supports_receiver(bool supports) { this->supports_receiver_ = supports; }
+  /// Capability flags as reported to the API and web server
+  uint32_t get_capability_flags() const {
+    uint32_t flags = 0;
+    if (this->supports_transmitter_)
+      flags |= CAPABILITY_TRANSMITTER;
+    if (this->supports_receiver_)
+      flags |= CAPABILITY_RECEIVER;
+    return flags;
+  }
+
   /// Forwards a received frame to the API; never consumes it, so other listeners still run
   bool on_receive(remote_base::RemoteReceiveData data) override;
 
@@ -102,19 +104,11 @@ class IrRfEntity : public Component, public EntityBase, public remote_base::Remo
  protected:
   template<typename, typename> friend class IrRfCall;
 
-  /// Marks the configured transports in the traits, listens on the receiver and hooks the
-  /// transmitter's completion; platforms call it from setup()
-  void setup_transport_(IrRfTraits &traits);
+  /// Reports the configured transports, listens on the receiver and hooks the transmitter's
+  /// completion; remote_base platforms call it from setup()
+  void setup_transport_();
   /// Hands the call's timings to the transmitter; the default transmit path of both entity types
   bool transmit_raw_(const IrRfCallData &call, uint32_t carrier_frequency_hz);
-  static uint32_t capability_flags_(const IrRfTraits &traits) {
-    uint32_t flags = 0;
-    if (traits.get_supports_transmitter())
-      flags |= CAPABILITY_TRANSMITTER;
-    if (traits.get_supports_receiver())
-      flags |= CAPABILITY_RECEIVER;
-    return flags;
-  }
   /// Answers the API request waiting on this entity, if any
   void notify_transmit_complete_();
 #if defined(USE_API) && defined(USE_IR_RF)
@@ -137,6 +131,9 @@ class IrRfEntity : public Component, public EntityBase, public remote_base::Remo
   remote_base::RemoteReceiverBase *receiver_{nullptr};
   remote_base::RemoteTransmitterBase *transmitter_{nullptr};
   uint32_t inflight_seq_{0};  // seq of the frame this entity submitted last
+  // byte-sized members last, so the derived traits start on the next word without a gap
+  bool supports_transmitter_{false};
+  bool supports_receiver_{false};
 #if defined(USE_API) && defined(USE_IR_RF)
   ApiReply api_reply_{ApiReply::API_REPLY_NONE};
 #endif

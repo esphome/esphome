@@ -46,7 +46,7 @@ class RadioFrequencyCall : public ir_rf_base::IrRfCall<RadioFrequencyCall, Radio
 };
 
 /// RadioFrequencyTraits - Describes the capabilities of a radio frequency implementation
-class RadioFrequencyTraits : public ir_rf_base::IrRfTraits {
+class RadioFrequencyTraits {
  public:
   /// Hardware-supported tunable frequency range in Hz.
   /// If min == max (and both non-zero): fixed-frequency hardware.
@@ -89,9 +89,6 @@ class RadioFrequency : public ir_rf_base::IrRfEntity {
 
   /// Create a call object for transmitting
   RadioFrequencyCall make_call() { return RadioFrequencyCall(this); }
-
-  /// Get capability flags for this radio frequency instance
-  uint32_t get_capability_flags() const { return capability_flags_(this->traits_); }
 
   /// Called when RF data is received (from RemoteReceiverListener)
   bool on_receive(remote_base::RemoteReceiveData data) override;

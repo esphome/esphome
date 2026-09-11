@@ -32,7 +32,7 @@ class InfraredCall : public ir_rf_base::IrRfCall<InfraredCall, Infrared> {
 };
 
 /// InfraredTraits - Describes the capabilities of an infrared implementation
-class InfraredTraits : public ir_rf_base::IrRfTraits {
+class InfraredTraits {
  public:
   uint32_t get_receiver_frequency_hz() const { return this->receiver_frequency_hz_; }
   void set_receiver_frequency_hz(uint32_t freq) { this->receiver_frequency_hz_ = freq; }
@@ -46,7 +46,7 @@ class Infrared : public ir_rf_base::IrRfEntity {
  public:
   Infrared() = default;
 
-  void setup() override { this->setup_transport_(this->traits_); }
+  void setup() override { this->setup_transport_(); }
   void dump_config() override;
 
   /// Get the traits for this infrared implementation
@@ -55,9 +55,6 @@ class Infrared : public ir_rf_base::IrRfEntity {
 
   /// Create a call object for transmitting
   InfraredCall make_call() { return InfraredCall(this); }
-
-  /// Get capability flags for this infrared instance
-  uint32_t get_capability_flags() const { return capability_flags_(this->traits_); }
 
  protected:
   friend class ir_rf_base::IrRfCall<InfraredCall, Infrared>;

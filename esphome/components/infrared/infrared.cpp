@@ -11,8 +11,8 @@ void Infrared::dump_config() {
                 "Infrared '%s'\n"
                 "  Supports Transmitter: %s\n"
                 "  Supports Receiver: %s",
-                this->get_name().c_str(), YESNO(this->traits_.get_supports_transmitter()),
-                YESNO(this->traits_.get_supports_receiver()));
+                this->get_name().c_str(), YESNO(this->get_supports_transmitter()),
+                YESNO(this->get_supports_receiver()));
 }
 
 }  // namespace esphome::infrared

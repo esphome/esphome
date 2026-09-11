@@ -14,9 +14,9 @@ namespace esphome::ir_rf_base {
 
 static const char *const TAG = "ir_rf";
 
-void IrRfEntity::setup_transport_(IrRfTraits &traits) {
-  traits.set_supports_transmitter(this->has_transmitter());
-  traits.set_supports_receiver(this->has_receiver());
+void IrRfEntity::setup_transport_() {
+  this->supports_transmitter_ = this->has_transmitter();
+  this->supports_receiver_ = this->has_receiver();
 
   if (this->receiver_ != nullptr) {
     this->receiver_->register_listener(this);
