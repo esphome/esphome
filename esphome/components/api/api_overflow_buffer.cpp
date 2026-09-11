@@ -56,19 +56,21 @@ bool APIOverflowBuffer::enqueue_iov(const struct iovec *iov, int iovcnt, uint16_
   if (live + new_bytes > (this->count_ > 0 ? MAX_BYTES : MAX_SINGLE_BYTES))
     return false;
 
+  // Same target after a reclaim, since size() then equals live
+  const size_t reserve = reserve_for(live + new_bytes);
   if (this->buf_.size() + new_bytes > this->buf_.capacity()) {
     // Storage would move under an outer drain's write()
     if (this->draining_)
       return false;
     if (this->head_ > 0) {
       // Reclaim the sent prefix (one copy even if this grows)
-      if (!this->buf_.drop_front_and_reserve(this->head_, reserve_for(live + new_bytes)))
+      if (!this->buf_.drop_front_and_reserve(this->head_, reserve))
         return false;
       this->head_ = 0;
     }
   }
 
-  uint8_t *dst = this->buf_.append(new_bytes, reserve_for(this->buf_.size() + new_bytes));
+  uint8_t *dst = this->buf_.append(new_bytes, reserve);
   if (dst == nullptr)
     return false;
   std::memcpy(dst, &new_len, LEN_PREFIX);

@@ -3,10 +3,9 @@ from tests.testing_helpers import ComponentManifestOverride
 
 
 def override_manifest(manifest: ComponentManifestOverride) -> None:
-    # The api to_code is suppressed in unit test builds. USE_API compiles every
-    # api source, so emit what they need: a frame helper, the connection limits
-    # and the controller registry that api_server registers with (core only
-    # emits it from the real api to_code).
+    # api and socket to_code are suppressed in unit test builds; USE_API compiles
+    # every api source, so emit what they need. No socket override: an
+    # __init__.py there makes pytest import its conftest as socket.conftest.
     async def to_code_testing(config):
         cg.add_define("USE_API")
         cg.add_define("USE_API_PLAINTEXT")
@@ -14,5 +13,6 @@ def override_manifest(manifest: ComponentManifestOverride) -> None:
         cg.add_define("MAX_API_CONNECTIONS", 1)
         cg.add_define("USE_CONTROLLER_REGISTRY")
         cg.add_define("CONTROLLER_REGISTRY_MAX", 1)
+        cg.add_define("USE_SOCKET_IMPL_BSD_SOCKETS")
 
     manifest.to_code = to_code_testing
