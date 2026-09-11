@@ -139,6 +139,7 @@ esphome/components/dallas_temp/* @ssieb
 esphome/components/daly_bms/* @s1lvi0
 esphome/components/dashboard_import/* @esphome/core
 esphome/components/datetime/* @jesserockz @rfdarter
+esphome/components/dc01/* @etbusch
 esphome/components/debug/* @esphome/core
 esphome/components/delonghi/* @grob6000
 esphome/components/dew_point/* @CFlix
