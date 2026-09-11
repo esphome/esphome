@@ -1516,43 +1516,48 @@ uint16_t APIConnection::try_send_event_info(EntityBase *entity, APIConnection *c
 
 #if defined(USE_IR_RF) || defined(USE_RADIO_FREQUENCY)
 void APIConnection::on_infrared_rf_transmit_raw_timings_request(const InfraredRFTransmitRawTimingsRequest &msg) {
-#ifdef USE_DEVICES
-  const uint32_t device_id = msg.device_id;
-#else
-  const uint32_t device_id = 0;
-#endif
-  // Register before perform(): blocking transmitters report completion from inside it, and the
-  // non-blocking RMT path flushes the previous frame's completion there
+  // Clients on API 1.18+ are told when the frame has left the transmitter; the entity owns that reply
   const bool want_reply = this->client_supports_api_version(1, 18);
-  if (want_reply) {
-    this->parent_->register_pending_ir_rf_transmit(device_id, msg.key, this);
-  }
-  bool started = false;
+  bool found = false;
   // Dispatch by key: infrared entities are checked first, then radio frequency entities.
   // The key is unique across all entity instances on a device, so at most one lookup will succeed.
 #ifdef USE_INFRARED
   ENTITY_COMMAND_LOOKUP(infrared::Infrared, infrared, infrared);
   if (infrared != nullptr) {
+    found = true;
     auto call = infrared->make_call();
     call.set_carrier_frequency(msg.carrier_frequency);
     call.set_raw_timings_packed(msg.timings_data_, msg.timings_length_, msg.timings_count_);
     call.set_repeat_count(msg.repeat_count);
-    started = call.perform();
+#ifdef USE_IR_RF
+    if (want_reply)
+      call.set_api_connection(this);
+#endif
+    call.perform();
   }
 #endif
 #ifdef USE_RADIO_FREQUENCY
   ENTITY_COMMAND_LOOKUP(radio_frequency::RadioFrequency, radio_frequency, radio_frequency);
   if (radio_frequency != nullptr) {
+    found = true;
     auto call = radio_frequency->make_call();
     call.set_frequency(msg.carrier_frequency);
     call.set_modulation(static_cast<radio_frequency::RadioFrequencyModulation>(msg.modulation));
     call.set_repeat_count(msg.repeat_count);
     call.set_raw_timings_packed(msg.timings_data_, msg.timings_length_, msg.timings_count_);
-    started = call.perform();
+    if (want_reply)
+      call.set_api_connection(this);
+    call.perform();
   }
 #endif
-  if (want_reply && !started) {
-    this->parent_->fail_pending_ir_rf_transmit(device_id, msg.key, this);
+  if (want_reply && !found) {
+    // nothing will ever report for an unknown key, so answer as not started right away
+    InfraredRFTransmitCompleteResponse resp{};
+#ifdef USE_DEVICES
+    resp.device_id = msg.device_id;
+#endif
+    resp.key = msg.key;
+    this->send_infrared_rf_transmit_complete_response(resp);
   }
 }
 #endif
@@ -1566,10 +1571,6 @@ void APIConnection::send_infrared_rf_receive_event(const InfraredRFReceiveEvent 
   }
 }
 
-bool APIConnection::send_infrared_rf_transmit_complete_response(const InfraredRFTransmitCompleteResponse &msg) {
-  // false when the TCP buffer is full; the server keeps the reply and retries it from loop()
-  return this->send_message(msg);
-}
 #endif
 
 #ifdef USE_SERIAL_PROXY

@@ -5,7 +5,9 @@
 #include "esphome/core/log.h"
 
 #ifdef USE_API
+#include "esphome/components/api/api_connection.h"
 #include "esphome/components/api/api_server.h"
+#include "esphome/core/application.h"
 #endif
 
 namespace esphome::infrared {
@@ -47,7 +49,22 @@ InfraredCall &InfraredCall::set_repeat_count(uint32_t count) {
   return *this;
 }
 
-bool InfraredCall::perform() { return this->parent_ != nullptr && this->parent_->control(*this); }
+bool InfraredCall::perform() {
+  if (this->parent_ == nullptr)
+    return false;
+#if defined(USE_API) && defined(USE_IR_RF)
+  // Before control(): blocking transmitters report completion from inside it, and the
+  // non-blocking RMT path flushes the previous frame's completion there
+  if (this->api_connection_ != nullptr)
+    this->parent_->expect_api_reply_(this->api_connection_);
+#endif
+  const bool started = this->parent_->control(*this);
+#if defined(USE_API) && defined(USE_IR_RF)
+  if (!started && this->api_connection_ != nullptr)
+    this->parent_->finish_api_reply_(false);
+#endif
+  return started;
+}
 
 // ========== Infrared ==========
 
@@ -145,10 +162,74 @@ bool Infrared::control(const InfraredCall &call) {
 
 void Infrared::notify_transmit_complete_() {
 #if defined(USE_API) && defined(USE_IR_RF)
-  if (api::global_api_server != nullptr)
-    api::global_api_server->send_infrared_rf_transmit_complete(*this);
+  if (this->api_reply_ == ApiReply::API_REPLY_WAITING)
+    this->finish_api_reply_(true);
 #endif
 }
+
+#if defined(USE_API) && defined(USE_IR_RF)
+// Safety net for a transmitter that never reports completion (for example a failed component)
+static constexpr uint32_t API_REPLY_TIMEOUT_MS = 30000;
+
+void Infrared::expect_api_reply_(api::APIConnection *conn) {
+  if (this->api_reply_ == ApiReply::API_REPLY_WAITING) {
+    // only an unpaced client gets here; its earlier request is answered as not started
+    this->finish_api_reply_(false);
+  }
+  this->api_reply_connection_ = conn;
+  this->api_reply_registered_ms_ = App.get_loop_component_start_time();
+  this->api_reply_ = ApiReply::API_REPLY_WAITING;
+  this->enable_loop();
+}
+
+void Infrared::finish_api_reply_(bool success) {
+  this->api_reply_ = success ? ApiReply::API_REPLY_OWED_OK : ApiReply::API_REPLY_OWED_FAILED;
+  this->send_api_reply_();
+}
+
+bool Infrared::send_api_reply_() {
+  api::InfraredRFTransmitCompleteResponse resp{};
+#ifdef USE_DEVICES
+  resp.device_id = this->get_device_id();
+#endif
+  resp.key = this->get_object_id_hash();
+  resp.success = this->api_reply_ == ApiReply::API_REPLY_OWED_OK;
+  // Refused by a full TCP buffer: the reply stays owed and loop() retries it, since a lost
+  // reply would stall the client's pacing for good (same shape as bluetooth_proxy)
+  if (!this->api_reply_connection_->send_infrared_rf_transmit_complete_response(resp))
+    return false;
+  this->api_reply_ = ApiReply::API_REPLY_NONE;
+  this->disable_loop();
+  return true;
+}
+
+// Only runs while an API reply is pending: retries an owed one, expires a transmit that never reported
+void Infrared::loop() {
+  if (this->api_reply_ == ApiReply::API_REPLY_NONE) {
+    this->disable_loop();
+    return;
+  }
+  const bool waiting = this->api_reply_ == ApiReply::API_REPLY_WAITING;
+  if (!waiting && this->send_api_reply_())
+    return;
+  if (App.get_loop_component_start_time() - this->api_reply_registered_ms_ < API_REPLY_TIMEOUT_MS)
+    return;
+  ESP_LOGW(TAG, "'%s': transmit %s", this->get_name().c_str(),
+           waiting ? LOG_STR_LITERAL("never reported completion") : LOG_STR_LITERAL("reply undeliverable"));
+  if (waiting) {
+    this->finish_api_reply_(false);
+  }
+  this->api_reply_ = ApiReply::API_REPLY_NONE;
+  this->disable_loop();
+}
+
+void Infrared::on_api_connection_closed(api::APIConnection *conn) {
+  if (this->api_reply_connection_ == conn) {
+    this->api_reply_ = ApiReply::API_REPLY_NONE;
+    this->disable_loop();
+  }
+}
+#endif
 
 uint32_t Infrared::get_capability_flags() const {
   uint32_t flags = 0;

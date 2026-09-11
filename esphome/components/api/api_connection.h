@@ -236,7 +236,11 @@ class APIConnection final : public APIServerConnectionBase {
 #if defined(USE_IR_RF) || defined(USE_RADIO_FREQUENCY)
   void on_infrared_rf_transmit_raw_timings_request(const InfraredRFTransmitRawTimingsRequest &msg);
   void send_infrared_rf_receive_event(const InfraredRFReceiveEvent &msg);
-  bool send_infrared_rf_transmit_complete_response(const InfraredRFTransmitCompleteResponse &msg);
+  // Reply to an InfraredRFTransmitRawTimingsRequest (API 1.18+); the entity that owns the reply
+  // retries it when this returns false
+  bool send_infrared_rf_transmit_complete_response(const InfraredRFTransmitCompleteResponse &msg) {
+    return this->send_message(msg);
+  }
 #endif
 
 #ifdef USE_SERIAL_PROXY

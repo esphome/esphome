@@ -10,6 +10,12 @@
 
 #include <vector>
 
+#if defined(USE_API) && defined(USE_IR_RF)
+namespace esphome::api {
+class APIConnection;
+}  // namespace esphome::api
+#endif
+
 namespace esphome::infrared {
 
 /// Capability flags for individual infrared instances
@@ -56,6 +62,13 @@ class InfraredCall {
 
   /// Perform the transmission; returns true if a frame was handed to the transmitter
   bool perform();
+#if defined(USE_API) && defined(USE_IR_RF)
+  /// Reply to this API client once the frame has left the transmitter (API 1.18+)
+  InfraredCall &set_api_connection(api::APIConnection *conn) {
+    this->api_connection_ = conn;
+    return *this;
+  }
+#endif
 
   /// Get the carrier frequency
   const optional<uint32_t> &get_carrier_frequency() const { return this->carrier_frequency_; }
@@ -81,6 +94,9 @@ class InfraredCall {
  protected:
   uint32_t repeat_count_{1};
   Infrared *parent_;
+#if defined(USE_API) && defined(USE_IR_RF)
+  api::APIConnection *api_connection_{nullptr};
+#endif
   optional<uint32_t> carrier_frequency_;
   // Pointer to vector-based timings (caller-owned, must outlive perform())
   const std::vector<int32_t> *raw_timings_{nullptr};
@@ -142,12 +158,18 @@ class Infrared : public Component, public EntityBase, public remote_base::Remote
   /// Called when IR data is received (from RemoteReceiverListener)
   bool on_receive(remote_base::RemoteReceiveData data) override;
 
+#if defined(USE_API) && defined(USE_IR_RF)
+  void loop() override;
+  /// The API server calls this when a client disconnects, so no reply goes to a stale pointer
+  void on_api_connection_closed(api::APIConnection *conn);
+#endif
+
  protected:
   friend class InfraredCall;
 
   /// Perform the actual transmission (called by InfraredCall); false if nothing was transmitted
   virtual bool control(const InfraredCall &call);
-  /// Forwards the transmitter's completion to the API server
+  /// Answers the API request waiting on this entity, if any
   void notify_transmit_complete_();
   uint32_t inflight_seq_{0};  // seq of the frame this entity submitted last
 
@@ -155,8 +177,28 @@ class Infrared : public Component, public EntityBase, public remote_base::Remote
   remote_base::RemoteReceiverBase *receiver_{nullptr};
   remote_base::RemoteTransmitterBase *transmitter_{nullptr};
 
+#if defined(USE_API) && defined(USE_IR_RF)
+  // One reply slot: a pacing client has at most one transmit outstanding, and a second request
+  // from an unpaced client displaces the first. Retried and expired from loop(), which only
+  // runs while a reply is pending.
+  enum class ApiReply : uint8_t {
+    API_REPLY_NONE,
+    API_REPLY_WAITING,     // frame handed to the transmitter, completion not reported yet
+    API_REPLY_OWED_OK,     // reply refused by a full TCP buffer; loop() retries it
+    API_REPLY_OWED_FAILED  // same, for a transmit that did not start
+  };
+  void expect_api_reply_(api::APIConnection *conn);
+  void finish_api_reply_(bool success);
+  bool send_api_reply_();
+  api::APIConnection *api_reply_connection_{nullptr};
+  uint32_t api_reply_registered_ms_{0};
+#endif
+
   // Traits describing capabilities
   InfraredTraits traits_;
+#if defined(USE_API) && defined(USE_IR_RF)
+  ApiReply api_reply_{ApiReply::API_REPLY_NONE};
+#endif
 };
 
 }  // namespace esphome::infrared

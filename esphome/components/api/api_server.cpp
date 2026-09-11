@@ -186,12 +186,6 @@ void APIServer::loop() {
       client_index++;
     }
   }
-#if defined(USE_IR_RF) || defined(USE_RADIO_FREQUENCY)
-  // after the clients have flushed their buffers, so a retry has the best chance to fit
-  if (this->ir_rf_reply_owed_) {
-    this->retry_owed_ir_rf_replies_();
-  }
-#endif
 }
 
 void APIServer::remove_client_(uint8_t client_index) {
@@ -200,8 +194,16 @@ void APIServer::remove_client_(uint8_t client_index) {
 #ifdef USE_API_USER_DEFINED_ACTION_RESPONSES
   this->unregister_active_action_calls_for_connection(client.get());
 #endif
-#if defined(USE_IR_RF) || defined(USE_RADIO_FREQUENCY)
-  this->unregister_pending_ir_rf_transmits_for_connection_(client.get());
+  // Entities holding a transmit reply for this client must not answer into a freed connection
+#if defined(USE_INFRARED) && defined(USE_IR_RF)
+  for (auto *infrared : App.get_infrareds()) {
+    infrared->on_api_connection_closed(client.get());
+  }
+#endif
+#ifdef USE_RADIO_FREQUENCY
+  for (auto *radio_frequency : App.get_radio_frequencies()) {
+    radio_frequency->on_api_connection_closed(client.get());
+  }
 #endif
   ESP_LOGV(TAG, "Remove connection %s", client->get_name());
 
@@ -427,133 +429,6 @@ void APIServer::send_infrared_rf_receive_event([[maybe_unused]] uint32_t device_
     c->send_infrared_rf_receive_event(resp);
 }
 
-// Safety net for transmitters that never report completion (for example a failed component)
-static constexpr uint32_t IR_RF_TRANSMIT_TIMEOUT_MS = 30000;
-static constexpr char IR_RF_TRANSMIT_TIMEOUT[] = "ir_rf_tx";
-
-void APIServer::register_pending_ir_rf_transmit(uint32_t device_id, uint32_t key, APIConnection *conn) {
-  if (this->pending_ir_rf_count_ == this->pending_ir_rf_transmits_.size()) {
-    // only an unpaced client gets here; its oldest request is answered as not started, or
-    // dropped when that reply cannot go out either
-    if (!this->pending_ir_rf_transmits_[0].owed) {
-      this->complete_pending_ir_rf_transmit_(0, false);
-    }
-    if (this->pending_ir_rf_count_ == this->pending_ir_rf_transmits_.size()) {
-      this->erase_pending_ir_rf_transmit_(0);
-    }
-  }
-  this->pending_ir_rf_transmits_[this->pending_ir_rf_count_++] = {device_id, key,   App.get_loop_component_start_time(),
-                                                                  conn,      false, false};
-  if (this->pending_ir_rf_count_ == 1) {
-    this->set_timeout(IR_RF_TRANSMIT_TIMEOUT, IR_RF_TRANSMIT_TIMEOUT_MS,
-                      [this]() { this->expire_pending_ir_rf_transmits_(); });
-  }
-}
-
-void APIServer::fail_pending_ir_rf_transmit(uint32_t device_id, uint32_t key, APIConnection *conn) {
-  auto &pending = this->pending_ir_rf_transmits_;
-  for (size_t i = this->pending_ir_rf_count_; i-- > 0;) {
-    if (pending[i].connection == conn && pending[i].key == key && pending[i].device_id == device_id &&
-        !pending[i].owed) {
-      this->complete_pending_ir_rf_transmit_(i, false);
-      return;
-    }
-  }
-}
-
-void APIServer::send_infrared_rf_transmit_complete(const EntityBase &entity) {
-  uint32_t device_id = 0;
-#ifdef USE_DEVICES
-  device_id = entity.get_device_id();
-#endif
-  const uint32_t key = entity.get_object_id_hash();
-  auto &pending = this->pending_ir_rf_transmits_;
-  for (size_t i = 0; i < this->pending_ir_rf_count_; i++) {
-    if (pending[i].key == key && pending[i].device_id == device_id && !pending[i].owed) {
-      this->complete_pending_ir_rf_transmit_(i, true);
-      return;
-    }
-  }
-}
-
-bool APIServer::send_ir_rf_reply_(const PendingIrRfTransmit &entry) {
-  InfraredRFTransmitCompleteResponse resp{};
-#ifdef USE_DEVICES
-  resp.device_id = entry.device_id;
-#endif
-  resp.key = entry.key;
-  resp.success = entry.success;
-  return entry.connection->send_infrared_rf_transmit_complete_response(resp);
-}
-
-void APIServer::complete_pending_ir_rf_transmit_(size_t index, bool success) {
-  auto &entry = this->pending_ir_rf_transmits_[index];
-  entry.success = success;
-  if (this->send_ir_rf_reply_(entry)) {
-    this->erase_pending_ir_rf_transmit_(index);
-    return;
-  }
-  // Refused by a full TCP buffer. A lost reply would stall the client's pacing for good, so keep
-  // the entry and let loop() retry once the buffer drains (same shape as bluetooth_proxy)
-  entry.owed = true;
-  this->ir_rf_reply_owed_ = true;
-}
-
-void APIServer::retry_owed_ir_rf_replies_() {
-  bool owed = false;
-  for (size_t i = 0; i < this->pending_ir_rf_count_;) {
-    const auto &entry = this->pending_ir_rf_transmits_[i];
-    if (entry.owed && this->send_ir_rf_reply_(entry)) {
-      this->erase_pending_ir_rf_transmit_(i);
-      continue;
-    }
-    owed |= entry.owed;
-    i++;
-  }
-  this->ir_rf_reply_owed_ = owed;
-}
-
-void APIServer::erase_pending_ir_rf_transmit_(size_t index) {
-  auto &pending = this->pending_ir_rf_transmits_;
-  for (size_t i = index + 1; i < this->pending_ir_rf_count_; i++) {
-    pending[i - 1] = pending[i];
-  }
-  this->pending_ir_rf_count_--;
-}
-
-void APIServer::unregister_pending_ir_rf_transmits_for_connection_(APIConnection *conn) {
-  auto &pending = this->pending_ir_rf_transmits_;
-  uint8_t kept = 0;
-  for (size_t i = 0; i < this->pending_ir_rf_count_; i++) {
-    if (pending[i].connection != conn) {
-      pending[kept++] = pending[i];
-    }
-  }
-  this->pending_ir_rf_count_ = kept;
-}
-
-// A timer firing on an empty list is harmless, so nothing cancels it
-void APIServer::expire_pending_ir_rf_transmits_() {
-  const uint32_t now = App.get_loop_component_start_time();
-  auto &pending = this->pending_ir_rf_transmits_;
-  while (this->pending_ir_rf_count_ != 0 && now - pending[0].registered_ms >= IR_RF_TRANSMIT_TIMEOUT_MS) {
-    bool give_up = pending[0].owed;
-    ESP_LOGW(TAG, "IR/RF transmit %" PRIu32 " %s", pending[0].key,
-             give_up ? LOG_STR_LITERAL("reply undeliverable") : LOG_STR_LITERAL("never reported completion"));
-    if (!give_up) {
-      const uint8_t before = this->pending_ir_rf_count_;
-      this->complete_pending_ir_rf_transmit_(0, false);
-      give_up = this->pending_ir_rf_count_ == before;  // that reply was refused too
-    }
-    if (give_up) {
-      this->erase_pending_ir_rf_transmit_(0);
-    }
-  }
-  if (this->pending_ir_rf_count_ != 0) {
-    this->set_timeout(IR_RF_TRANSMIT_TIMEOUT, IR_RF_TRANSMIT_TIMEOUT_MS - (now - pending[0].registered_ms),
-                      [this]() { this->expire_pending_ir_rf_transmits_(); });
-  }
-}
 #endif
 
 #ifdef USE_ALARM_CONTROL_PANEL

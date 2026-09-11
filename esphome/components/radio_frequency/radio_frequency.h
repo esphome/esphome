@@ -11,6 +11,12 @@
 
 #include <vector>
 
+#if defined(USE_API) && defined(USE_RADIO_FREQUENCY)
+namespace esphome::api {
+class APIConnection;
+}  // namespace esphome::api
+#endif
+
 namespace esphome::radio_frequency {
 
 /// Capability flags for individual radio frequency instances
@@ -66,6 +72,13 @@ class RadioFrequencyCall {
 
   /// Perform the transmission; returns true if a frame was handed to the transmitter
   bool perform();
+#if defined(USE_API) && defined(USE_RADIO_FREQUENCY)
+  /// Reply to this API client once the frame has left the transmitter (API 1.18+)
+  RadioFrequencyCall &set_api_connection(api::APIConnection *conn) {
+    this->api_connection_ = conn;
+    return *this;
+  }
+#endif
 
   /// Get the frequency in Hz
   const optional<uint32_t> &get_frequency() const { return this->frequency_hz_; }
@@ -94,6 +107,9 @@ class RadioFrequencyCall {
   optional<uint32_t> frequency_hz_{};
   uint32_t repeat_count_{1};
   RadioFrequency *parent_;
+#if defined(USE_API) && defined(USE_RADIO_FREQUENCY)
+  api::APIConnection *api_connection_{nullptr};
+#endif
   // Pointer to vector-based timings (caller-owned, must outlive perform())
   const std::vector<int32_t> *raw_timings_{nullptr};
   // Pointer to base64url-encoded string (caller-owned, must outlive perform())
@@ -179,6 +195,12 @@ class RadioFrequency : public Component, public EntityBase, public remote_base::
     this->control_callback_.add(std::forward<F>(callback));
   }
 
+#if defined(USE_API) && defined(USE_RADIO_FREQUENCY)
+  void loop() override;
+  /// The API server calls this when a client disconnects, so no reply goes to a stale pointer
+  void on_api_connection_closed(api::APIConnection *conn);
+#endif
+
  protected:
   friend class RadioFrequencyCall;
 
@@ -186,12 +208,32 @@ class RadioFrequency : public Component, public EntityBase, public remote_base::
   /// Platforms must override this to implement hardware-specific transmission.
   /// Returns false if nothing was transmitted.
   virtual bool control(const RadioFrequencyCall &call) = 0;
-  /// Forwards the transmitter's completion to the API server; platforms hook their transmitter to it
+  /// Answers the API request waiting on this entity, if any; platforms hook their transmitter to it
   void notify_transmit_complete_();
   uint32_t inflight_seq_{0};  // seq of the frame this entity submitted last
 
+#if defined(USE_API) && defined(USE_RADIO_FREQUENCY)
+  // One reply slot: a pacing client has at most one transmit outstanding, and a second request
+  // from an unpaced client displaces the first. Retried and expired from loop(), which only
+  // runs while a reply is pending.
+  enum class ApiReply : uint8_t {
+    API_REPLY_NONE,
+    API_REPLY_WAITING,     // frame handed to the transmitter, completion not reported yet
+    API_REPLY_OWED_OK,     // reply refused by a full TCP buffer; loop() retries it
+    API_REPLY_OWED_FAILED  // same, for a transmit that did not start
+  };
+  void expect_api_reply_(api::APIConnection *conn);
+  void finish_api_reply_(bool success);
+  bool send_api_reply_();
+  api::APIConnection *api_reply_connection_{nullptr};
+  uint32_t api_reply_registered_ms_{0};
+#endif
+
   // Traits describing capabilities
   RadioFrequencyTraits traits_;
+#if defined(USE_API) && defined(USE_RADIO_FREQUENCY)
+  ApiReply api_reply_{ApiReply::API_REPLY_NONE};
+#endif
 
   // Callback manager for receive events (lazy: saves memory when no callbacks registered)
   LazyCallbackManager<void(remote_base::RemoteReceiveData)> receive_callback_;
