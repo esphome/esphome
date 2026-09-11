@@ -1,0 +1,20 @@
+esphome:
+  name: ir-rf-transmit-complete-test
+
+host:
+api:
+logger:
+  level: DEBUG
+
+external_components:
+  - source:
+      type: local
+      path: EXTERNAL_COMPONENT_PATH
+
+remote_transmitter_mock:
+  - id: rf_tx
+
+radio_frequency:
+  - platform: ir_rf_proxy
+    name: RF Transmitter
+    remote_transmitter_id: rf_tx
