@@ -84,7 +84,7 @@ inline constexpr RCSwitchBase RC_SWITCH_PROTOCOLS[] PROGMEM = {
     {250, 2500, 250, 1250, 250, 250, false},
 };
 
-/// RAM copy of RC_SWITCH_PROTOCOLS[index] for the transmit actions and the dumper, made with
+/// RAM copy of RC_SWITCH_PROTOCOLS[index] (0 when out of range) for the transmit actions and the dumper, made with
 /// progmem_memcpy so no byte load ever touches the flash table on ESP8266
 RCSwitchBase rc_switch_protocol(uint8_t index);
 

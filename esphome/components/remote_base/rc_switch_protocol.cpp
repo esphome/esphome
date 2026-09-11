@@ -10,6 +10,9 @@ static const char *const TAG = "remote.rc_switch";
 
 RCSwitchBase rc_switch_protocol(uint8_t index) {
   RCSwitchBase protocol;
+  // entry 0 is the all-zero protocol, so an out of range index from a lambda transmits nothing
+  if (index >= std::size(RC_SWITCH_PROTOCOLS))
+    index = 0;
   progmem_memcpy(&protocol, &RC_SWITCH_PROTOCOLS[index], sizeof(protocol));
   return protocol;
 }
