@@ -57,35 +57,41 @@ def _subtree_references_uart(node: object, uart_id: str) -> bool:
     return False
 
 
+def _reject_debug(uart_conf: ConfigType) -> ConfigType:
+    # The worker tasks use the IDF driver directly, so the uart debugger never sees
+    # bridge traffic and its dummy_receiver would drain RX bytes on the main loop.
+    if CONF_DEBUG in uart_conf:
+        raise cv.Invalid(
+            "A bridged UART cannot use 'debug'; the bridge bypasses the UART "
+            "component's read/write path.",
+            [CONF_DEBUG],
+        )
+    return uart_conf
+
+
 def _final_validate(config: ConfigType) -> ConfigType:
+    full_config = fv.full_config.get()
     # Bridges of any platform must own their interfaces exclusively; shared ring
     # buffers and overwritten callbacks would corrupt both streams silently. The
     # seen-set is keyed on the bridge domain so future platforms share it.
-    data = fv.full_config.get().data.setdefault(BRIDGE_DOMAIN, {})
-    for conf_key, label in (
-        (CONF_UART_ID, "UART"),
-        (CONF_USB_CDC_ACM_ID, "USB CDC-ACM interface"),
-    ):
-        used = data.setdefault(conf_key, set())
-        key = str(config[conf_key])
-        if key in used:
-            raise cv.Invalid(
-                f"The {label} '{key}' is already bridged by another 'bridge' instance; "
-                f"each bridge requires its own {label}.",
-                [conf_key],
-            )
-        used.add(key)
-
     # Other components bind either interface through the same uart_id key (the CDC
     # instance is itself a uart::UARTComponent) and would race the worker tasks.
     # Bare `id:` references (a uart.write action) cannot be distinguished; not caught.
+    data = full_config.data.setdefault(BRIDGE_DOMAIN, {})
     for conf_key, label in (
         (CONF_UART_ID, "UART"),
         (CONF_USB_CDC_ACM_ID, "USB CDC-ACM interface"),
     ):
         owned_id = str(config[conf_key])
-        for domain, domain_conf in fv.full_config.get().items():
-            # Bridge-vs-bridge sharing is already rejected above.
+        used = data.setdefault(conf_key, set())
+        if owned_id in used:
+            raise cv.Invalid(
+                f"The {label} '{owned_id}' is already bridged by another 'bridge' "
+                f"instance; each bridge requires its own {label}.",
+                [conf_key],
+            )
+        used.add(owned_id)
+        for domain, domain_conf in full_config.items():
             if domain == BRIDGE_DOMAIN:
                 continue
             if _subtree_references_uart(domain_conf, owned_id):
@@ -95,16 +101,7 @@ def _final_validate(config: ConfigType) -> ConfigType:
                     [conf_key],
                 )
 
-    # The worker tasks use the IDF driver directly, so a uart `debug:` block never sees
-    # bridge traffic, and its dummy_receiver would drain RX bytes on the main loop.
-    uart_id = str(config[CONF_UART_ID])
-    for uart_conf in fv.full_config.get().get(uart.DOMAIN, []):
-        if str(uart_conf[CONF_ID]) == uart_id and CONF_DEBUG in uart_conf:
-            raise cv.Invalid(
-                f"The UART '{uart_id}' has 'debug' enabled; a bridge bypasses the UART "
-                "component's read/write path, so 'debug' cannot be used on a bridged UART.",
-                [CONF_UART_ID],
-            )
+    fv.id_declaration_match_schema(_reject_debug)(config[CONF_UART_ID])
     return config
 
 

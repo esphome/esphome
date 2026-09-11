@@ -6,8 +6,6 @@
 
 #include <atomic>
 #include <memory>
-#include "freertos/ringbuf.h"
-#include "tinyusb_cdc_acm.h"
 
 namespace esphome::cdc_acm_uart {
 
@@ -65,7 +63,6 @@ class CDCACMUARTBridge final : public Component {
   static void uart_tx_task_fn(void *arg);
   void uart_rx_task_();
   void uart_tx_task_();
-  void uart_settings_reload_();
   void restore_configured_framing_();
   // True when the TX task has no write in flight and the UART TX FIFO has drained.
   bool tx_idle_();
@@ -76,7 +73,6 @@ class CDCACMUARTBridge final : public Component {
 
   TaskHandle_t uart_rx_task_handle_{nullptr};
   TaskHandle_t uart_tx_task_handle_{nullptr};
-  TaskHandle_t usb_tx_task_handle_{nullptr};
 
   GPIOPin *dtr_pin_{nullptr};
   GPIOPin *rts_pin_{nullptr};

@@ -8,11 +8,8 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "freertos/ringbuf.h"
-#include "driver/gpio.h"
 #include "driver/uart.h"
 #include "soc/soc_caps.h"
-
-#include "tinyusb_cdc_acm.h"
 
 namespace esphome::cdc_acm_uart {
 
@@ -106,7 +103,6 @@ void CDCACMUARTBridge::setup() {
     this->mark_failed();
     return;
   }
-  this->usb_tx_task_handle_ = this->usb_cdc_parent_->get_tx_task_handle();
 
   // Larger stack for the very-verbose hex-dump logging path.
   constexpr size_t stack_size =
@@ -116,7 +112,7 @@ void CDCACMUARTBridge::setup() {
   // unambiguous with multiple bridges.
   char tx_task_name[] = "usb_uart_tx_0";
   char rx_task_name[] = "uart_usb_rx_0";
-  const char itf_char = format_hex_char(static_cast<char>(this->usb_cdc_parent_->get_itf()));
+  const char itf_char = format_hex_char(this->usb_cdc_parent_->get_itf());
   tx_task_name[sizeof(tx_task_name) - 2] = itf_char;
   rx_task_name[sizeof(rx_task_name) - 2] = itf_char;
 
@@ -157,7 +153,7 @@ void CDCACMUARTBridge::dump_config() {
                 "CDC-ACM UART Bridge:\n"
                 "  UART Bus: %u\n"
                 "  USB CDC Interface: %u",
-                this->uart_parent_->get_hw_serial_number(), static_cast<uint8_t>(this->usb_cdc_parent_->get_itf()));
+                this->uart_parent_->get_hw_serial_number(), this->usb_cdc_parent_->get_itf());
   LOG_PIN("  DTR Pin: ", this->dtr_pin_);
   LOG_PIN("  RTS Pin: ", this->rts_pin_);
 }
@@ -201,8 +197,10 @@ void CDCACMUARTBridge::loop() {
 
   // Deliberately not gated on tx_idle_(): a host that re-codes the line mid-stream
   // wants the new framing now, and its own in-flight bytes are its concern.
+  // apply_settings_live() rewrites the framing registers without reinstalling the
+  // driver, so the worker tasks blocked inside it are undisturbed.
   this->reload_pending_ = false;
-  this->uart_settings_reload_();
+  this->uart_parent_->apply_settings_live();
   this->disable_loop();
 }
 
@@ -307,7 +305,7 @@ void CDCACMUARTBridge::finish_resume_() {
   // Re-apply the host's coding before either task runs again, so no traffic moves at
   // the YAML framing pause() restored.
   if (this->host_coding_seen_ && this->sync_host_framing_()) {
-    this->uart_settings_reload_();
+    this->uart_parent_->apply_settings_live();
   }
   this->paused_ = 0;
   this->drive_line_state_();
@@ -330,7 +328,7 @@ void CDCACMUARTBridge::restore_configured_framing_() {
   this->uart_parent_->set_parity(this->configured_parity_);
   this->uart_parent_->set_stop_bits(this->configured_stop_bits_);
   this->uart_parent_->set_data_bits(this->configured_data_bits_);
-  this->uart_settings_reload_();
+  this->uart_parent_->apply_settings_live();
 }
 
 void CDCACMUARTBridge::set_line_state(bool dtr, bool rts) {
@@ -364,7 +362,7 @@ void CDCACMUARTBridge::uart_tx_task_fn(void *arg) {
 }
 
 void CDCACMUARTBridge::uart_rx_task_() {
-  TaskHandle_t usb_tx_handle = this->usb_tx_task_handle_;
+  TaskHandle_t usb_tx_handle = this->usb_cdc_parent_->get_tx_task_handle();
   RingbufHandle_t usb_tx_ringbuf = this->usb_cdc_parent_->get_tx_ringbuf();
   uart_port_t uart_num = static_cast<uart_port_t>(this->uart_parent_->get_hw_serial_number());
   // Back-dated so a problem within the first LOG_THROTTLE_MS of uptime still logs.
@@ -404,10 +402,10 @@ void CDCACMUARTBridge::uart_rx_task_() {
     // Drain the currently buffered burst without waiting.
     while (true) {
       int rx_data_size = uart_read_bytes(uart_num, data + total_rx_size, buf_size - total_rx_size, 0);
-      ESP_LOGV(TAG, "UART RX: %d bytes", rx_data_size);
       if (rx_data_size == 0) {
         break;
       }
+      ESP_LOGV(TAG, "UART RX: %d bytes", rx_data_size);
       if (rx_data_size < 0) {
         if (should_log_now(&err_log_ms, LOG_THROTTLE_MS)) {
           ESP_LOGE(TAG, "UART read failed: %d", rx_data_size);
@@ -475,13 +473,6 @@ void CDCACMUARTBridge::uart_tx_task_() {
       ESP_LOGW(TAG, "UART write incomplete (%d/%zu bytes)", xfer_size, rx_size);
     }
   }
-}
-
-void CDCACMUARTBridge::uart_settings_reload_() {
-  // apply_settings_live() rewrites the framing registers without reinstalling the
-  // driver, so the worker tasks blocked inside it are undisturbed. Runs on the main
-  // loop (see loop()), matching the IDF UART component's threading contract.
-  this->uart_parent_->apply_settings_live();
 }
 
 }  // namespace esphome::cdc_acm_uart
