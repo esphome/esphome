@@ -45,6 +45,8 @@ void MipiRgbSpi::setup() {
   this->setup_enables_();
   this->spi_setup();
   this->common_setup_();
+  if (this->is_failed())
+    return;
   this->write_init_sequence_();
 }
 void MipiRgbSpi::write_command_(uint8_t value) {

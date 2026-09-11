@@ -613,9 +613,6 @@ class DriverChip:
         both a software and a hardware reset require. The delay length is set via reset_delay, and defaults to 10ms.
         Returns the init sequence
         """
-        reset_delay = self.get_default("reset_delay", 10)
-        if reset_delay < 0 or reset_delay > 254:
-            raise ValueError("reset_delay must be between 0 and 254ms")
         sequence = list(self.initsequence or ())
         custom_sequence = config.get(CONF_INIT_SEQUENCE, [])
         sequence.extend(custom_sequence)
@@ -623,6 +620,10 @@ class DriverChip:
         sequence = [x if isinstance(x, tuple) else (x,) for x in sequence]
 
         if add_reset:
+            # Matches the 1-255ms range map_sequence() already allows for a "delay N" entry.
+            reset_delay = self.get_default("reset_delay", 10)
+            if reset_delay < 1 or reset_delay > 255:
+                raise ValueError("reset_delay must be between 1 and 255ms")
             reset: list = []
             # A software reset is only needed when there is no hardware reset pin.
             if CONF_RESET_PIN not in config and not self.skip_command("SWRESET"):

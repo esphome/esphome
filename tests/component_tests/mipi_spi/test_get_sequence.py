@@ -29,10 +29,25 @@ def test_get_sequence_uses_model_reset_delay_default() -> None:
     assert sequence[:4] == (1, 0, 99, 255)
 
 
-@pytest.mark.parametrize("reset_delay", [-1, 255])
+@pytest.mark.parametrize("reset_delay", [0, 256])
 def test_get_sequence_rejects_out_of_range_reset_delay(reset_delay: int) -> None:
-    """reset_delay outside 0-254ms is rejected."""
+    """reset_delay outside 1-255ms is rejected.
+
+    This matches the 1-255ms range map_sequence() already allows for a
+    "delay N" entry in a custom init sequence.
+    """
     chip = DriverChip("TEST-GET-SEQUENCE-BAD-DELAY", reset_delay=reset_delay)
 
-    with pytest.raises(ValueError, match="reset_delay must be between 0 and 254ms"):
+    with pytest.raises(ValueError, match="reset_delay must be between 1 and 255ms"):
         chip.get_sequence(_BASE_CONFIG, add_madctl=False, add_reset=True)
+
+
+def test_get_sequence_skips_reset_delay_validation_without_add_reset() -> None:
+    """An out-of-range reset_delay is only checked when add_reset is requested.
+
+    mipi_dsi calls get_sequence with add_reset=False and never uses
+    reset_delay, so an invalid default there should not raise.
+    """
+    chip = DriverChip("TEST-GET-SEQUENCE-NO-RESET", reset_delay=999)
+
+    chip.get_sequence(_BASE_CONFIG, add_madctl=False, add_reset=False)

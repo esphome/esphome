@@ -196,6 +196,21 @@ def test_st7701s_reset_delay_can_be_overridden() -> None:
     assert chip.get_default("reset_delay") == 99
 
 
+def test_st7701s_extend_inherits_reset_delay_default() -> None:
+    """extend() carries the 50ms default forward to derived board models.
+
+    Every shipped ST7701S variant is built via ``st7701s.extend(...)`` rather
+    than direct construction, so the override in ``ST7701S.__init__`` must
+    survive that path (see DriverChip.extend, which re-passes the copied
+    defaults as kwargs to the constructor).
+    """
+    from esphome.components.mipi_rgb.models.st7701s import st7701s
+
+    extended = st7701s.extend("TEST-ST7701S-EXTEND", width=480, height=480)
+
+    assert extended.get_default("reset_delay") == 50
+
+
 def test_only_on_variant_rejects_unsupported_variant(
     set_core_config: SetCoreConfigCallable,
 ) -> None:
