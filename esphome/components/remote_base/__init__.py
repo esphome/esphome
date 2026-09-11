@@ -1,3 +1,4 @@
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -150,11 +151,11 @@ FILTER_SOURCE_FILES = filter_source_files_from_defines(
 )
 
 
-def register_binary_sensor(name, type, schema):
+def register_binary_sensor(name: str, type: MockObj, schema: cv.Schema | dict):
     registerer = BINARY_SENSOR_REGISTRY.register(name, type, schema)
 
-    def decorator(func):
-        async def new_func(var, config):
+    def decorator(func: Callable[[MockObj, ConfigType], Any]) -> Callable:
+        async def new_func(var: MockObj, config: ConfigType) -> None:
             request_protocol(name)
             await coroutine(func)(var, config)
 
