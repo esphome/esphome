@@ -4,7 +4,7 @@ from esphome.components import esp32, uart, usb_cdc_acm
 from esphome.components.bridge import DOMAIN as BRIDGE_DOMAIN
 from esphome.components.esp32 import VARIANT_ESP32P4, VARIANT_ESP32S2, VARIANT_ESP32S3
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, CONF_UART_ID
+from esphome.const import CONF_DEBUG, CONF_ID, CONF_UART_ID
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
@@ -94,6 +94,17 @@ def _final_validate(config: ConfigType) -> ConfigType:
                     f"requires exclusive use of its {label}.",
                     [conf_key],
                 )
+
+    # The worker tasks use the IDF driver directly, so a uart `debug:` block never sees
+    # bridge traffic, and its dummy_receiver would drain RX bytes on the main loop.
+    uart_id = str(config[CONF_UART_ID])
+    for uart_conf in fv.full_config.get().get(uart.DOMAIN, []):
+        if str(uart_conf[CONF_ID]) == uart_id and CONF_DEBUG in uart_conf:
+            raise cv.Invalid(
+                f"The UART '{uart_id}' has 'debug' enabled; a bridge bypasses the UART "
+                "component's read/write path, so 'debug' cannot be used on a bridged UART.",
+                [CONF_UART_ID],
+            )
     return config
 
 

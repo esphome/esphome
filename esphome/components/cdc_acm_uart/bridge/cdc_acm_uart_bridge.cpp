@@ -98,15 +98,15 @@ void CDCACMUARTBridge::setup() {
     return;
   }
 
-  // The tasks dereference these handles/ring buffers immediately; usb_cdc_acm sets
-  // up first (priority IO > HARDWARE), so a null here means its setup failed.
-  this->usb_tx_task_handle_ = this->usb_cdc_parent_->get_tx_task_handle();
-  if (this->usb_tx_task_handle_ == nullptr || this->usb_cdc_parent_->get_rx_ringbuf() == nullptr ||
-      this->usb_cdc_parent_->get_tx_ringbuf() == nullptr) {
-    ESP_LOGE(TAG, "USB CDC ACM not ready; aborting");
+  // usb_cdc_acm sets up first (priority IO > HARDWARE). Any interface failing marks
+  // the hub failed, and a failed hub no longer runs loop(), so line coding and line
+  // state events would never reach this bridge even if its own interface is healthy.
+  if (this->usb_cdc_parent_->get_parent()->is_failed()) {
+    ESP_LOGE(TAG, "USB CDC ACM failed; aborting");
     this->mark_failed();
     return;
   }
+  this->usb_tx_task_handle_ = this->usb_cdc_parent_->get_tx_task_handle();
 
   // Larger stack for the very-verbose hex-dump logging path.
   constexpr size_t stack_size =

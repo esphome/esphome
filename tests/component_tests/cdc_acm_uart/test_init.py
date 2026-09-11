@@ -4,7 +4,7 @@ import pytest
 
 from esphome import config_validation as cv
 from esphome.components.cdc_acm_uart import bridge
-from esphome.const import CONF_UART_ID, PlatformFramework
+from esphome.const import CONF_DEBUG, CONF_ID, CONF_UART_ID, PlatformFramework
 from esphome.core import ID
 from esphome.types import ConfigType
 from tests.component_tests.types import SetCoreConfigCallable
@@ -114,6 +114,34 @@ def test_ignores_other_components_on_other_uarts(
             # bridge-vs-bridge sharing, which the seen-set already rejects) must not
             # trip the exclusivity scan.
             "bridge": [_bridge_config("uart_0", "cdc_acm_1")],
+        },
+    )
+    _final_validate(_bridge_config("uart_0", "cdc_acm_1"))
+
+
+def test_rejects_debug_on_bridged_uart(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    # The bridge talks to the IDF driver directly, so the uart debugger would see
+    # nothing and its dummy_receiver would steal RX bytes.
+    _set_esp32_s3(
+        set_core_config,
+        full_config={"uart": [{CONF_ID: ID("uart_0"), CONF_DEBUG: {}}]},
+    )
+    with pytest.raises(cv.Invalid, match="debug"):
+        _final_validate(_bridge_config("uart_0", "cdc_acm_1"))
+
+
+def test_allows_debug_on_other_uart(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    _set_esp32_s3(
+        set_core_config,
+        full_config={
+            "uart": [
+                {CONF_ID: ID("uart_0")},
+                {CONF_ID: ID("uart_1"), CONF_DEBUG: {}},
+            ]
         },
     )
     _final_validate(_bridge_config("uart_0", "cdc_acm_1"))
