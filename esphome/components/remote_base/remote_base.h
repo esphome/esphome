@@ -212,11 +212,21 @@ class RemoteReceiverDumperBase {
 class RemoteReceiverBase : public RemoteComponentBase {
  public:
   RemoteReceiverBase(InternalGPIOPin *pin) : RemoteComponentBase(pin) {}
+  // Slots are counted at code generation; without one the call fails at compile time with the same message
+  // the runtime check logs
 #ifdef REMOTE_BASE_LISTENER_COUNT
   void register_listener(RemoteReceiverListener *listener);
+#else
+  template<typename T> void register_listener(T *) {
+    static_assert(sizeof(T) == 0, "No listener slot: register it from to_code() with remote_base.add_listener");
+  }
 #endif
 #ifdef REMOTE_BASE_DUMPER_COUNT
   void register_dumper(RemoteReceiverDumperBase *dumper);
+#else
+  template<typename T> void register_dumper(T *) {
+    static_assert(sizeof(T) == 0, "No dumper slot: register it from to_code() with remote_base.add_dumper");
+  }
 #endif
   void set_tolerance(uint32_t tolerance, ToleranceMode tolerance_mode) {
     this->tolerance_ = tolerance;
