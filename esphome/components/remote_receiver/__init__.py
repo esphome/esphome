@@ -125,7 +125,7 @@ CONFIG_SCHEMA = remote_base.validate_triggers(
                 ln882x="1000b",
                 rtl87xx="1000b",
                 rp2="1000b",
-            ): cv.validate_bytes,
+            ): cv.All(cv.validate_bytes, cv.int_range(min=64)),
             cv.Optional(CONF_FILTER, default="50us"): cv.All(
                 cv.positive_time_period_microseconds,
                 cv.Range(max=TimePeriod(microseconds=4294967295)),
