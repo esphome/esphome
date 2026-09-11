@@ -628,10 +628,6 @@ OBJ_FLAGS = (
     "send_draw_task_events",
     "widget_1",
     "widget_2",
-    "user_1",
-    "user_2",
-    "user_3",
-    "user_4",
 )
 LV_OBJ_FLAG = LvConstant("LV_OBJ_FLAG_", *OBJ_FLAGS)
 

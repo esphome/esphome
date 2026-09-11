@@ -1432,7 +1432,8 @@ void ThermostatClimate::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "  On boot, restore from: %s\n"
                 "  Use Start-up Delay: %s",
-                this->on_boot_restore_from_ == thermostat::DEFAULT_PRESET ? "DEFAULT_PRESET" : "MEMORY",
+                this->on_boot_restore_from_ == thermostat::DEFAULT_PRESET ? LOG_STR_LITERAL("DEFAULT_PRESET")
+                                                                          : LOG_STR_LITERAL("MEMORY"),
                 YESNO(this->use_startup_delay_));
   if (this->supports_two_points_) {
     ESP_LOGCONFIG(TAG, "  Minimum Set Point Differential: %.1f°C", this->set_point_minimum_differential_);
@@ -1550,7 +1551,8 @@ void ThermostatClimate::dump_config() {
     ESP_LOGCONFIG(TAG, "  Supported PRESETS:");
     for (const auto &entry : this->preset_config_) {
       const auto *preset_name = LOG_STR_ARG(climate::climate_preset_to_string(entry.preset));
-      ESP_LOGCONFIG(TAG, "    %s:%s", preset_name, entry.preset == this->default_preset_ ? " (default)" : "");
+      ESP_LOGCONFIG(TAG, "    %s:%s", preset_name,
+                    entry.preset == this->default_preset_ ? LOG_STR_LITERAL(" (default)") : "");
       this->dump_preset_config_(preset_name, entry.config);
     }
   }
@@ -1561,7 +1563,7 @@ void ThermostatClimate::dump_config() {
       const auto *preset_name = entry.name;
       ESP_LOGCONFIG(TAG, "    %s:%s", preset_name,
                     (this->default_custom_preset_ != nullptr && strcmp(entry.name, this->default_custom_preset_) == 0)
-                        ? " (default)"
+                        ? LOG_STR_LITERAL(" (default)")
                         : "");
       this->dump_preset_config_(preset_name, entry.config);
     }

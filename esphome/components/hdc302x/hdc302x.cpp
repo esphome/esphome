@@ -38,7 +38,7 @@ void HDC302XComponent::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "HDC302x:\n"
                 "  Heater: %s",
-                this->heater_active_ ? "active" : "inactive");
+                this->heater_active_ ? LOG_STR_LITERAL("active") : LOG_STR_LITERAL("inactive"));
   LOG_I2C_DEVICE(this);
   LOG_UPDATE_INTERVAL(this);
   LOG_SENSOR("  ", "Temperature", this->temp_sensor_);

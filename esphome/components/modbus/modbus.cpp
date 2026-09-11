@@ -1199,15 +1199,17 @@ void ModbusServerHub::send_raw_(const uint8_t *payload, uint16_t len) {
     this->set_timeout("deferred_send", (this->tx_delay_remaining() + US_PER_MS - 1) / US_PER_MS, [this]() {
       ModbusFrame frame(this->deferred_payload_[0], this->deferred_payload_.data() + 1,
                         this->deferred_payload_len_ - 1);
-      if (!this->send_frame_(frame))
+      if (!this->send_frame_(frame)) {
         ESP_LOGE(TAG, "Deferred server reply dropped: transmission still blocked");
+      }
     });
     return;
   }
 
   ModbusFrame frame(payload[0], payload + 1, len - 1);
-  if (!this->send_frame_(frame))
+  if (!this->send_frame_(frame)) {
     ESP_LOGE(TAG, "Server reply dropped: a frame arrived during the send delay");
+  }
 }
 
 void Modbus::clear_rx_buffer_(const LogString *reason, bool warn, size_t bytes_to_clear) {
