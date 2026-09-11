@@ -260,6 +260,36 @@ TEST_F(OverflowBufferTest, LoneMessageMayExceedByteLimit) {
   expect_after_filler(this->drain_all_(buf), filler, big);
 }
 
+TEST_F(OverflowBufferTest, GrowsWhileReclaimingSentPrefix) {
+  TestOverflowBuffer buf;
+  size_t filler = this->fill_pipe_();
+  auto first = make_message(1500, 20);
+  auto second = make_message(std::min<size_t>(filler * 3, 12000), 60);
+  ASSERT_GT(second.size(), filler);
+
+  ASSERT_TRUE(enqueue(buf, first));
+  ASSERT_TRUE(enqueue(buf, second));
+  const size_t capacity = buf.capacity();
+
+  std::vector<uint8_t> received;
+  this->read_into_(received);
+  ASSERT_GT(this->drain_(buf), 0);
+  ASSERT_EQ(buf.count(), 1);
+
+  // Too big to fit even after the sent prefix is reclaimed: grows in one copy
+  auto third = make_message(capacity - second.size(), 200);
+  ASSERT_TRUE(enqueue(buf, third));
+  EXPECT_GT(buf.capacity(), capacity);
+  EXPECT_EQ(buf.count(), 2);
+
+  append(received, this->drain_all_(buf));
+  std::vector<uint8_t> expected;
+  append(expected, first);
+  append(expected, second);
+  append(expected, third);
+  expect_after_filler(received, filler, expected);
+}
+
 TEST_F(OverflowBufferTest, NestedDrainMakesNoProgress) {
   TestOverflowBuffer buf;
   auto msg = make_message(300, 40);
