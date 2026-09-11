@@ -12,7 +12,9 @@ from esphome.const import PlatformFramework
 from tests.component_tests.types import SetCoreConfigCallable
 
 
-@pytest.mark.parametrize("target", ["esp8266", "rp2", "bk72xx", "rtl87xx", "ln882x"])
+@pytest.mark.parametrize(
+    "target", ["esp8266", "rp2", "bk72xx", "rtl87xx", "ln882x", "esp32_c2", "esp32_c61"]
+)
 def test_pulse_ring_default_holds_1000_pulses(
     generate_main: Callable[[str | Path], str],
     component_config_path: Callable[[str], Path],
