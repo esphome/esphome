@@ -9,17 +9,9 @@ import pytest
 
 from esphome.components.zephyr import (
     _MODULE_SCHEMA,
-    _build_uart_pinctrl_states_overlay,
-    _esp32_uart_group_roles,
-    _esp32_uart_signal_groups,
-    _nordic_uart_group_roles,
-    _positional_uart_group_roles,
     _resolve_board_source,
-    _resolve_i2c_pinctrl_states,
     _resolve_shield_source,
     _resolve_snippet_source,
-    _resolve_uart_pinctrl_states,
-    _silabs_uart_group_roles,
     _variant_config_schema,
     add_extra_build_file,
     add_extra_script,
@@ -42,12 +34,28 @@ from esphome.components.zephyr import (
     zephyr_variant_family,
 )
 from esphome.components.zephyr.const import CONF_BOARD_SOURCE, KEY_ZEPHYR
+from esphome.components.zephyr.pinctrl import (
+    _build_uart_pinctrl_states_overlay,
+    _positional_uart_group_roles,
+    _resolve_i2c_pinctrl_states,
+    _resolve_uart_pinctrl_states,
+)
 from esphome.components.zephyr.variants import (
     VARIANTS,
     ZephyrModule,
     ZephyrModuleTemplate,
     ZephyrSDK,
     ZephyrVariant,
+)
+from esphome.components.zephyr.variants.esp32_family import (
+    _uart_signal_groups as _esp32_uart_signal_groups,
+    uart_pinctrl as _esp32_uart_group_roles,
+)
+from esphome.components.zephyr.variants.nordic_family import (
+    uart_group_roles as _nordic_uart_group_roles,
+)
+from esphome.components.zephyr.variants.silabs_family import (
+    uart_group_roles as _silabs_uart_group_roles,
 )
 import esphome.config_validation as cv
 from esphome.const import (
@@ -1570,14 +1578,16 @@ def test_variant_config_schema_raises_for_unregistered_variant(
 ) -> None:
     # CONF_VARIANT's cv.one_of(*VARIANTS) is built at import time, so monkeypatching
     # VARIANTS alone can't get a fake key past it -- bypass that outer schema to
-    # exercise the dead-code guard directly.
+    # exercise get_variant_module()'s lookup directly. VARIANTS and the module
+    # registry are built together by the same _ensure() pass, so a VARIANTS entry
+    # with no real module behind it only happens via this kind of direct monkeypatch.
     import esphome.components.zephyr as zephyr_module
 
     _init_variant_schema_core()
     fake_variant = ZephyrVariant(sdk=ZephyrSDK(manifest_url="http://dummy"))
     monkeypatch.setitem(VARIANTS, "FAKE_VARIANT", fake_variant)
     monkeypatch.setattr(zephyr_module, "_ZEPHYR_SCHEMA", lambda config: config)
-    with pytest.raises(cv.Invalid, match="no config schema registered"):
+    with pytest.raises(KeyError, match="FAKE_VARIANT"):
         _variant_config_schema({"variant": "FAKE_VARIANT"})
 
 

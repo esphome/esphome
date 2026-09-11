@@ -2,6 +2,7 @@ from dataclasses import dataclass, field
 import importlib
 import logging
 from pathlib import Path
+from types import ModuleType
 
 import esphome.config_validation as cv
 from esphome.const import (
@@ -594,6 +595,11 @@ class _LazyVariants(dict):
     """Defers variant module loading until first access to avoid circular imports."""
 
     _built: bool = False
+    _modules: dict[str, ModuleType]
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._modules = {}
 
     def _ensure(self) -> None:
         if self._built:
@@ -602,6 +608,12 @@ class _LazyVariants(dict):
         for mod_name in _VARIANT_MODULES:
             mod = importlib.import_module(f".{mod_name}", package=__name__)
             self[mod.VARIANT_NAME] = mod.VARIANT
+            self._modules[mod.VARIANT_NAME] = mod
+
+    def module(self, key: str) -> ModuleType:
+        """Look up the variant's own module -- config_schema/to_code live there."""
+        self._ensure()
+        return self._modules[key]
 
     def __getitem__(self, key):
         self._ensure()
@@ -628,4 +640,11 @@ class _LazyVariants(dict):
         return super().get(key, default)
 
 
-VARIANTS: dict[str, ZephyrVariant] = _LazyVariants()
+_variants_instance = _LazyVariants()
+VARIANTS: dict[str, ZephyrVariant] = _variants_instance
+
+
+def get_variant_module(variant: str) -> ModuleType:
+    """The variant's own module (its config_schema/to_code live there) -- the
+    generic dispatch target so callers don't need a hardcoded per-variant chain."""
+    return _variants_instance.module(variant)
