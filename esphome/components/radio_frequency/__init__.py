@@ -10,22 +10,21 @@ Once the API is considered stable, this warning will be removed.
 
 from esphome import automation
 import esphome.codegen as cg
+from esphome.components import ir_rf_base
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_ON_CONTROL
-from esphome.core import CORE, coroutine_with_priority
-from esphome.core.entity_helpers import queue_entity_register, setup_entity
+from esphome.core import coroutine_with_priority
+from esphome.core.entity_helpers import setup_entity
 from esphome.coroutine import CoroPriority
 from esphome.types import ConfigType, SafeExpType
 
 CODEOWNERS = ["@kbx81"]
-AUTO_LOAD = ["remote_base"]
+AUTO_LOAD = ["ir_rf_base"]
 
 IS_PLATFORM_COMPONENT = True
 
 radio_frequency_ns = cg.esphome_ns.namespace("radio_frequency")
-RadioFrequency = radio_frequency_ns.class_(
-    "RadioFrequency", cg.EntityBase, cg.Component
-)
+RadioFrequency = radio_frequency_ns.class_("RadioFrequency", ir_rf_base.IrRfEntity)
 RadioFrequencyCall = radio_frequency_ns.class_("RadioFrequencyCall")
 RadioFrequencyTraits = radio_frequency_ns.class_("RadioFrequencyTraits")
 RadioFrequencyModulation = radio_frequency_ns.enum("RadioFrequencyModulation")
@@ -55,11 +54,8 @@ async def setup_radio_frequency_core_(var: cg.MockObj, config: ConfigType) -> No
 
 async def register_radio_frequency(var: cg.MockObj, config: ConfigType) -> None:
     """Register a radio frequency device with the core."""
-    cg.add_define("USE_RADIO_FREQUENCY")
-    await cg.register_component(var, config)
-    queue_entity_register("radio_frequency", config)
+    await ir_rf_base.register_ir_rf_entity(var, config, "radio_frequency")
     await setup_radio_frequency_core_(var, config)
-    CORE.register_platform_component("radio_frequency", var)
 
     for conf in config.get(CONF_ON_CONTROL, []):
         await automation.build_callback_automation(
