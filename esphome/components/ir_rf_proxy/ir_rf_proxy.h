@@ -6,7 +6,7 @@
 
 #include "esphome/components/remote_base/remote_base.h"
 
-#ifdef USE_IR_RF
+#ifdef USE_INFRARED
 #include "esphome/components/infrared/infrared.h"
 #endif
 
@@ -16,7 +16,7 @@
 
 namespace esphome::ir_rf_proxy {
 
-#ifdef USE_IR_RF
+#ifdef USE_INFRARED
 /// IrRfProxy - Infrared platform implementation using remote_transmitter/receiver as backend
 class IrRfProxy final : public infrared::Infrared {
  public:
@@ -35,12 +35,10 @@ class IrRfProxy final : public infrared::Infrared {
   void set_receiver_frequency(uint32_t frequency_hz) { this->get_traits().set_receiver_frequency_hz(frequency_hz); }
 
  protected:
-  bool control(const infrared::InfraredCall &call) override;
-
   // RF frequency in kHz (Hz / 1000); 0 = infrared, non-zero = RF
   uint32_t frequency_khz_{0};
 };
-#endif  // USE_IR_RF
+#endif  // USE_INFRARED
 
 #ifdef USE_RADIO_FREQUENCY
 /// RfProxy - Radio Frequency platform implementation using remote_transmitter/receiver as backend.
@@ -54,19 +52,11 @@ class RfProxy final : public radio_frequency::RadioFrequency {
   void setup() override;
   void dump_config() override;
 
-  /// Set the remote transmitter component
-  void set_transmitter(remote_base::RemoteTransmitterBase *transmitter) { this->transmitter_ = transmitter; }
-  /// Set the remote receiver component
-  void set_receiver(remote_base::RemoteReceiverBase *receiver) { this->receiver_ = receiver; }
-
   /// Set the fixed carrier frequency in Hz (metadata: advertised via traits, does not tune hardware)
   void set_frequency_hz(uint32_t freq_hz) { this->traits_.set_fixed_frequency_hz(freq_hz); }
 
  protected:
   bool control(const radio_frequency::RadioFrequencyCall &call) override;
-
-  remote_base::RemoteTransmitterBase *transmitter_{nullptr};
-  remote_base::RemoteReceiverBase *receiver_{nullptr};
 };
 #endif  // USE_RADIO_FREQUENCY
 

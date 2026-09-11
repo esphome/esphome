@@ -173,7 +173,7 @@ class RemoteTransmitterBase : public RemoteComponentBase {
     call.set_send_wait(send_wait);
     call.perform();
   }
-#if defined(USE_IR_RF) || defined(USE_RADIO_FREQUENCY)
+#ifdef USE_IR_RF
   /// Called with the TransmitCall's seq once that transmission has finished, after the last
   /// repeat and before the on_complete trigger. Entities sharing a transmitter each register
   /// and keep only the seqs they submitted.
@@ -186,7 +186,7 @@ class RemoteTransmitterBase : public RemoteComponentBase {
   void send_(uint32_t send_times, uint32_t send_wait, uint32_t seq);
   virtual void send_internal(uint32_t send_times, uint32_t send_wait) = 0;
   void send_single_() { this->send_(1, 0, this->take_seq_()); }
-#if defined(USE_IR_RF) || defined(USE_RADIO_FREQUENCY)
+#ifdef USE_IR_RF
   void notify_complete_(uint32_t seq) { this->complete_callback_.call(seq); }
   uint32_t take_seq_() { return ++this->next_seq_; }
 

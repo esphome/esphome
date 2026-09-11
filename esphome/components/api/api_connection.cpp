@@ -1514,7 +1514,7 @@ uint16_t APIConnection::try_send_event_info(EntityBase *entity, APIConnection *c
 }
 #endif
 
-#if defined(USE_IR_RF) || defined(USE_RADIO_FREQUENCY)
+#ifdef USE_IR_RF
 void APIConnection::on_infrared_rf_transmit_raw_timings_request(const InfraredRFTransmitRawTimingsRequest &msg) {
   // Clients on API 1.18+ are told when the frame has left the transmitter; the entity owns that reply
   const bool want_reply = this->client_supports_api_version(1, 18);
@@ -1529,10 +1529,8 @@ void APIConnection::on_infrared_rf_transmit_raw_timings_request(const InfraredRF
     call.set_carrier_frequency(msg.carrier_frequency);
     call.set_raw_timings_packed(msg.timings_data_, msg.timings_length_, msg.timings_count_);
     call.set_repeat_count(msg.repeat_count);
-#ifdef USE_IR_RF
     if (want_reply)
       call.set_api_connection(this);
-#endif
     call.perform();
   }
 #endif
@@ -1564,7 +1562,7 @@ void APIConnection::on_infrared_rf_transmit_raw_timings_request(const InfraredRF
 }
 #endif
 
-#if defined(USE_IR_RF) || defined(USE_RADIO_FREQUENCY)
+#ifdef USE_IR_RF
 void APIConnection::send_infrared_rf_receive_event(const InfraredRFReceiveEvent &msg) {
   if (!this->send_message(msg)) {
     // V: fires per decoded frame with no subscription gate, so a warning

@@ -4,26 +4,13 @@
 // without following the normal breaking changes policy. Use at your own risk.
 // Once the API is considered stable, this warning will be removed.
 
-#include "esphome/core/component.h"
-#include "esphome/core/entity_base.h"
-#include "esphome/core/helpers.h"
-#include "esphome/components/remote_base/remote_base.h"
-
-#include <vector>
-
-#if defined(USE_API) && defined(USE_RADIO_FREQUENCY)
-namespace esphome::api {
-class APIConnection;
-}  // namespace esphome::api
-#endif
+#include "esphome/components/ir_rf_base/ir_rf_base.h"
 
 namespace esphome::radio_frequency {
 
-/// Capability flags for individual radio frequency instances
-enum RadioFrequencyCapability : uint32_t {
-  CAPABILITY_TRANSMITTER = 1 << 0,  // Can transmit signals
-  CAPABILITY_RECEIVER = 1 << 1,     // Can receive signals
-};
+using ir_rf_base::CAPABILITY_RECEIVER;
+using ir_rf_base::CAPABILITY_TRANSMITTER;
+using ir_rf_base::IrRfCapability;
 
 /// Modulation types supported by radio frequency implementations
 enum RadioFrequencyModulation : uint8_t {
@@ -31,105 +18,36 @@ enum RadioFrequencyModulation : uint8_t {
   // Future: RADIO_FREQUENCY_MODULATION_FSK, RADIO_FREQUENCY_MODULATION_GFSK, etc.
 };
 
-/// Forward declarations
 class RadioFrequency;
 
 /// RadioFrequencyCall - Builder pattern for transmitting radio frequency signals
-class RadioFrequencyCall {
+class RadioFrequencyCall : public ir_rf_base::IrRfCall<RadioFrequencyCall, RadioFrequency> {
  public:
-  explicit RadioFrequencyCall(RadioFrequency *parent) : parent_(parent) {}
+  using IrRfCall::IrRfCall;
 
   /// Set the carrier frequency in Hz (e.g. 433920000 for 433.92 MHz)
-  RadioFrequencyCall &set_frequency(uint32_t frequency_hz);
-
-  /// Set the modulation type (defaults to OOK)
-  RadioFrequencyCall &set_modulation(RadioFrequencyModulation modulation);
-
-  // ===== Raw Timings Methods =====
-  // All set_raw_timings_* methods store pointers/references to external data.
-  // The referenced data must remain valid until perform() completes.
-  // Safe pattern:   call.set_raw_timings_xxx(data); call.perform();  // synchronous
-  // Unsafe pattern: call.set_raw_timings_xxx(data); defer([call]() { call.perform(); });  // data may be gone!
-
-  /// Set the raw timings from a vector (positive = mark, negative = space)
-  /// @note Lifetime: Stores a pointer to the vector. The vector must outlive perform().
-  /// @note Usage: Primarily for lambdas/automations where the vector is in scope.
-  RadioFrequencyCall &set_raw_timings(const std::vector<int32_t> &timings);
-
-  /// Set the raw timings from base64url-encoded little-endian int32 data
-  /// @note Lifetime: Stores a pointer to the string. The string must outlive perform().
-  /// @note Usage: For web_server - base64url is fully URL-safe (uses '-' and '_').
-  /// @note Decoding happens at perform() time, directly into the transmit buffer.
-  RadioFrequencyCall &set_raw_timings_base64url(const std::string &base64url);
-
-  /// Set the raw timings from packed protobuf sint32 data (zigzag + varint encoded)
-  /// @note Lifetime: Stores a pointer to the buffer. The buffer must outlive perform().
-  /// @note Usage: For API component where data comes directly from the protobuf message.
-  RadioFrequencyCall &set_raw_timings_packed(const uint8_t *data, uint16_t length, uint16_t count);
-
-  /// Set the number of times to repeat transmission (1 = transmit once, 2 = transmit twice, etc.)
-  RadioFrequencyCall &set_repeat_count(uint32_t count);
-
-  /// Perform the transmission; returns true if a frame was handed to the transmitter
-  bool perform();
-#if defined(USE_API) && defined(USE_RADIO_FREQUENCY)
-  /// Reply to this API client once the frame has left the transmitter (API 1.18+)
-  RadioFrequencyCall &set_api_connection(api::APIConnection *conn) {
-    this->api_connection_ = conn;
+  RadioFrequencyCall &set_frequency(uint32_t frequency_hz) {
+    this->frequency_hz_ = frequency_hz;
     return *this;
   }
-#endif
-
+  /// Set the modulation type (defaults to OOK)
+  RadioFrequencyCall &set_modulation(RadioFrequencyModulation modulation) {
+    this->modulation_ = modulation;
+    return *this;
+  }
   /// Get the frequency in Hz
   const optional<uint32_t> &get_frequency() const { return this->frequency_hz_; }
   /// Get the modulation type
   RadioFrequencyModulation get_modulation() const { return this->modulation_; }
-  /// Get the raw timings (only valid if set via set_raw_timings)
-  const std::vector<int32_t> &get_raw_timings() const { return *this->raw_timings_; }
-  /// Check if raw timings have been set (any format)
-  bool has_raw_timings() const {
-    return this->raw_timings_ != nullptr || this->packed_data_ != nullptr || this->base64url_ptr_ != nullptr;
-  }
-  /// Check if using packed data format
-  bool is_packed() const { return this->packed_data_ != nullptr; }
-  /// Check if using base64url data format
-  bool is_base64url() const { return this->base64url_ptr_ != nullptr; }
-  /// Get the base64url data string
-  const std::string &get_base64url_data() const { return *this->base64url_ptr_; }
-  /// Get packed data (only valid if set via set_raw_timings_packed)
-  const uint8_t *get_packed_data() const { return this->packed_data_; }
-  uint16_t get_packed_length() const { return this->packed_length_; }
-  uint16_t get_packed_count() const { return this->packed_count_; }
-  /// Get the repeat count
-  uint32_t get_repeat_count() const { return this->repeat_count_; }
 
  protected:
   optional<uint32_t> frequency_hz_{};
-  uint32_t repeat_count_{1};
-  RadioFrequency *parent_;
-#if defined(USE_API) && defined(USE_RADIO_FREQUENCY)
-  api::APIConnection *api_connection_{nullptr};
-#endif
-  // Pointer to vector-based timings (caller-owned, must outlive perform())
-  const std::vector<int32_t> *raw_timings_{nullptr};
-  // Pointer to base64url-encoded string (caller-owned, must outlive perform())
-  const std::string *base64url_ptr_{nullptr};
-  // Pointer to packed protobuf buffer (caller-owned, must outlive perform())
-  const uint8_t *packed_data_{nullptr};
-  uint16_t packed_length_{0};
-  uint16_t packed_count_{0};
   RadioFrequencyModulation modulation_{RADIO_FREQUENCY_MODULATION_OOK};
 };
 
 /// RadioFrequencyTraits - Describes the capabilities of a radio frequency implementation
-class RadioFrequencyTraits {
+class RadioFrequencyTraits : public ir_rf_base::IrRfTraits {
  public:
-  bool get_supports_transmitter() const { return this->supports_transmitter_; }
-  void set_supports_transmitter(bool supports) { this->supports_transmitter_ = supports; }
-
-  bool get_supports_receiver() const { return this->supports_receiver_; }
-  void set_supports_receiver(bool supports) { this->supports_receiver_ = supports; }
-
   /// Hardware-supported tunable frequency range in Hz.
   /// If min == max (and both non-zero): fixed-frequency hardware.
   /// If both 0: range unspecified.
@@ -156,17 +74,14 @@ class RadioFrequencyTraits {
   uint32_t frequency_min_hz_{0};       // Minimum tunable frequency in Hz (0 = unspecified)
   uint32_t frequency_max_hz_{0};       // Maximum tunable frequency in Hz (0 = unspecified)
   uint32_t supported_modulations_{0};  // Bitmask of supported RadioFrequencyModulation values
-  bool supports_transmitter_{false};
-  bool supports_receiver_{false};
 };
 
 /// RadioFrequency - Base class for radio frequency implementations
-class RadioFrequency : public Component, public EntityBase, public remote_base::RemoteReceiverListener {
+class RadioFrequency : public ir_rf_base::IrRfEntity {
  public:
   RadioFrequency() = default;
 
   void dump_config() override;
-  float get_setup_priority() const override { return setup_priority::AFTER_CONNECTION; }
 
   /// Get the traits for this radio frequency implementation
   RadioFrequencyTraits &get_traits() { return this->traits_; }
@@ -176,7 +91,7 @@ class RadioFrequency : public Component, public EntityBase, public remote_base::
   RadioFrequencyCall make_call() { return RadioFrequencyCall(this); }
 
   /// Get capability flags for this radio frequency instance
-  uint32_t get_capability_flags() const;
+  uint32_t get_capability_flags() const { return capability_flags_(this->traits_); }
 
   /// Called when RF data is received (from RemoteReceiverListener)
   bool on_receive(remote_base::RemoteReceiveData data) override;
@@ -195,45 +110,18 @@ class RadioFrequency : public Component, public EntityBase, public remote_base::
     this->control_callback_.add(std::forward<F>(callback));
   }
 
-#if defined(USE_API) && defined(USE_RADIO_FREQUENCY)
-  void loop() override;
-  /// The API server calls this when a client disconnects, so no reply goes to a stale pointer
-  void on_api_connection_closed(api::APIConnection *conn);
-#endif
-
  protected:
-  friend class RadioFrequencyCall;
+  friend class ir_rf_base::IrRfCall<RadioFrequencyCall, RadioFrequency>;
 
+  /// Fires the on_control hooks before the platform-specific control() runs
+  void on_call_(const RadioFrequencyCall &call) { this->control_callback_.call(call); }
   /// Perform the actual transmission (called by RadioFrequencyCall::perform())
   /// Platforms must override this to implement hardware-specific transmission.
   /// Returns false if nothing was transmitted.
   virtual bool control(const RadioFrequencyCall &call) = 0;
-  /// Answers the API request waiting on this entity, if any; platforms hook their transmitter to it
-  void notify_transmit_complete_();
-  uint32_t inflight_seq_{0};  // seq of the frame this entity submitted last
-
-#if defined(USE_API) && defined(USE_RADIO_FREQUENCY)
-  // One reply slot: a pacing client has at most one transmit outstanding, and a second request
-  // from an unpaced client displaces the first. Retried and expired from loop(), which only
-  // runs while a reply is pending.
-  enum class ApiReply : uint8_t {
-    API_REPLY_NONE,
-    API_REPLY_WAITING,     // frame handed to the transmitter, completion not reported yet
-    API_REPLY_OWED_OK,     // reply refused by a full TCP buffer; loop() retries it
-    API_REPLY_OWED_FAILED  // same, for a transmit that did not start
-  };
-  void expect_api_reply_(api::APIConnection *conn);
-  void finish_api_reply_(bool success);
-  bool send_api_reply_();
-  api::APIConnection *api_reply_connection_{nullptr};
-  uint32_t api_reply_registered_ms_{0};
-#endif
 
   // Traits describing capabilities
   RadioFrequencyTraits traits_;
-#if defined(USE_API) && defined(USE_RADIO_FREQUENCY)
-  ApiReply api_reply_{ApiReply::API_REPLY_NONE};
-#endif
 
   // Callback manager for receive events (lazy: saves memory when no callbacks registered)
   LazyCallbackManager<void(remote_base::RemoteReceiveData)> receive_callback_;

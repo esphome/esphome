@@ -2674,7 +2674,7 @@ message ListEntitiesInfraredResponse {
 message InfraredRFTransmitRawTimingsRequest {
   option (id) = 136;
   option (source) = SOURCE_CLIENT;
-  option (ifdef) = "USE_IR_RF || USE_RADIO_FREQUENCY";
+  option (ifdef) = "USE_IR_RF";
 
   uint32 device_id = 1 [(field_ifdef) = "USE_DEVICES"];
   fixed32 key = 2 [(force) = true];     // Key identifying the transmitter instance
@@ -2688,7 +2688,7 @@ message InfraredRFTransmitRawTimingsRequest {
 message InfraredRFReceiveEvent {
   option (id) = 137;
   option (source) = SOURCE_SERVER;
-  option (ifdef) = "USE_IR_RF || USE_RADIO_FREQUENCY";
+  option (ifdef) = "USE_IR_RF";
   option (no_delay) = true;
   option (speed_optimized) = true;
 
@@ -2704,7 +2704,7 @@ message InfraredRFReceiveEvent {
 message InfraredRFTransmitCompleteResponse {
   option (id) = 153;
   option (source) = SOURCE_SERVER;
-  option (ifdef) = "USE_IR_RF || USE_RADIO_FREQUENCY";
+  option (ifdef) = "USE_IR_RF";
   option (no_delay) = true;
 
   uint32 device_id = 1 [(field_ifdef) = "USE_DEVICES"];

@@ -3194,7 +3194,7 @@ class ListEntitiesInfraredResponse final : public InfoResponseProtoMessage {
  protected:
 };
 #endif
-#if defined(USE_IR_RF) || defined(USE_RADIO_FREQUENCY)
+#ifdef USE_IR_RF
 class InfraredRFTransmitRawTimingsRequest final : public ProtoDecodableMessage {
  public:
   static constexpr uint16_t MESSAGE_TYPE = 136;

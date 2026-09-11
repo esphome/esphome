@@ -195,7 +195,7 @@ void APIServer::remove_client_(uint8_t client_index) {
   this->unregister_active_action_calls_for_connection(client.get());
 #endif
   // Entities holding a transmit reply for this client must not answer into a freed connection
-#if defined(USE_INFRARED) && defined(USE_IR_RF)
+#ifdef USE_INFRARED
   for (auto *infrared : App.get_infrareds()) {
     infrared->on_api_connection_closed(client.get());
   }
@@ -415,7 +415,7 @@ void APIServer::on_zwave_proxy_request(const ZWaveProxyRequest &msg) {
 }
 #endif
 
-#if defined(USE_IR_RF) || defined(USE_RADIO_FREQUENCY)
+#ifdef USE_IR_RF
 void APIServer::send_infrared_rf_receive_event([[maybe_unused]] uint32_t device_id, uint32_t key,
                                                const std::vector<int32_t> *timings) {
   InfraredRFReceiveEvent resp{};

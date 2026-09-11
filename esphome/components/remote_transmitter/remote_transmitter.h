@@ -82,7 +82,7 @@ class RemoteTransmitterComponent final : public remote_base::RemoteTransmitterBa
 
  protected:
   void send_internal(uint32_t send_times, uint32_t send_wait) override;
-#if defined(USE_IR_RF) || defined(USE_RADIO_FREQUENCY)
+#ifdef USE_IR_RF
   // platforms accept the frame's seq when they take it, and report it before the user's on_complete
   void accept_seq_() { this->inflight_seq_ = this->current_seq_; }
   void fire_complete_() {
