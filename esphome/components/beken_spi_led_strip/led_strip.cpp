@@ -127,7 +127,7 @@ void BekenSPILEDStripLightOutput::setup() {
     return;
   }
 
-  size_t dma_buffer_size = (this->buffer_->get_led_data_bytes() * 8) + (2 * 64);
+  size_t dma_buffer_size = (this->buffer_.get_led_data_bytes() * 8) + (2 * 64);
   this->dma_buf_ = allocator.allocate(dma_buffer_size);
   if (this->dma_buf_ == nullptr) {
     ESP_LOGE(TAG, "Cannot allocate DMA buffer!");
@@ -262,7 +262,7 @@ void BekenSPILEDStripLightOutput::write_state(light::LightState *state) {
 
   spi_data->tx_in_progress = true;
 
-  const size_t led_data_bytes = this->buffer_->get_led_data_bytes();
+  const size_t led_data_bytes = this->buffer_.get_led_data_bytes();
   size_t size = 0;
   uint8_t *psrc = this->buffer_.get_led_data();
   uint8_t *pdest = this->dma_buf_ + 64;

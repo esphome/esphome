@@ -41,9 +41,7 @@ void AdalightLightEffect::reset_frame_(light::AddressableLight &it) {
 
 void AdalightLightEffect::blank_all_leds_(light::AddressableLight &it) {
   light::ESPColorBuffer &buffer = it.buffer();
-  for (int led = buffer.size(); led-- > 0;) {
-    it[led].set(Color::BLACK);
-  }
+  buffer.all().set(Color::BLACK);
   it.schedule_show();
 }
 

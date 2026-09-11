@@ -12,7 +12,7 @@ class SpiLedStrip final : public light::AddressableLight,
                           public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_HIGH,
                                                 spi::CLOCK_PHASE_TRAILING, spi::DATA_RATE_1MHZ> {
  public:
-  SpiLedStrip(size_t num_leds, light::ChannelColors channel_colors)
+  SpiLedStrip(size_t num_leds)
       : buffer_(num_leds,
                 {.channel_colors = {.r = 3, .g = 2, .b = 1, .w = light::ChannelColors::NO_WHITE},
                  .bytes_per_led = 4,

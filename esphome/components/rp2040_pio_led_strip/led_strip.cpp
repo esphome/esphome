@@ -133,7 +133,7 @@ void RP2040PIOLEDStripLightOutput::dump_config() {
                 "  Number of LEDs: %d\n"
                 "  Channel colors: %s\n"
                 "  Max Refresh Rate: %f Hz",
-                this->pin_, this->num_leds_, this->buffer_.layout().channel_colors.to_string(channel_colors),
+                this->pin_, this->buffer_.size(), this->buffer_.layout().channel_colors.to_string(channel_colors),
                 this->max_refresh_rate_);
 }
 

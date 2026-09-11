@@ -112,7 +112,6 @@ async def to_code(config: ConfigType) -> None:
     await light.register_light(var, config)
     await cg.register_component(var, config)
 
-    cg.add(var.set_num_leds())
     cg.add(var.set_pin(config[CONF_PIN]))
 
     if CONF_MAX_REFRESH_RATE in config:

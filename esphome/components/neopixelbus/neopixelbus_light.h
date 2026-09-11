@@ -47,16 +47,6 @@ enum class ESPNeoPixelOrder {
   RWBG = 0b00111001,
 };
 
-constexpr light::ChannelColors to_channel_colors(ESPNeoPixelOrder order, bool has_white) {
-  uint8_t u_order = static_cast<uint8_t>(order);
-  return {
-      .r = (u_order >> 6) & 0b11,
-      .g = (u_order >> 4) & 0b11,
-      .b = (u_order >> 2) & 0b11,
-      .w = has_white ? (u_order >> 0) & 0b11 : light::ChannelColors::NO_WHITE,
-  };
-}
-
 template<typename T_METHOD, typename T_COLOR_FEATURE, bool HAS_WHITE>
 class NeoPixelBusLightOutputBase : public light::AddressableLight, protected light::ESPColorBuffer {
  public:
@@ -85,36 +75,47 @@ class NeoPixelBusLightOutputBase : public light::AddressableLight, protected lig
  protected:
   using Controller = NeoPixelBus<T_COLOR_FEATURE, T_METHOD>;
 
+  static constexpr light::ChannelColors to_channel_colors(ESPNeoPixelOrder order) {
+    uint8_t u_order = static_cast<uint8_t>(order);
+    return {
+        .r = uint8_t((u_order >> 6) & 0b11),
+        .g = uint8_t((u_order >> 4) & 0b11),
+        .b = uint8_t((u_order >> 2) & 0b11),
+        .w = HAS_WHITE ? uint8_t((u_order >> 0) & 0b11) : light::ChannelColors::NO_WHITE,
+    };
+  }
+
   NeoPixelBusLightOutputBase(Controller *controller, ESPNeoPixelOrder order)
       : ESPColorBuffer(controller->PixelCount()),
         controller_(controller),
         effect_data_(new uint8_t[controller->PixelCount()]{0}),
-        channel_colors_(to_channel_colors(order)) {}
+        channel_colors_(NeoPixelBusLightOutputBase::to_channel_colors(order)) {}
 
   bool is_all_black() const override {
-    return is_all_black_internal(this->controller_->Pixels(), this->num_leds, this->channel_colors_, HAS_WHITE ? 4 : 3);
+    return is_all_black_internal(this->controller_->Pixels(), this->num_leds_, this->channel_colors_,
+                                 HAS_WHITE ? 4 : 3);
   }
 
   void clear_effect_data() override { clear_effect_data_internal(this->effect_data_, this->num_leds_); }
 
   light::ESPColorView get_color_view(size_t index) override {
-    return get_color_view_internal(index, this->controller_->Pixels(), this->effect_data_, this->channel_colors,
-                                   HAS_WHITE ? 4 : 3, this->correction_);
+    return get_color_view_internal(index, this->controller_->Pixels(), this->effect_data_, this->channel_colors_,
+                                   HAS_WHITE ? 4 : 3, &this->correction_);
   }
 
   Controller *const controller_;
   uint8_t *const effect_data_;
-  ChannelColors const channel_colors_;
+  light::ChannelColors const channel_colors_;
 };
 
 template<typename T_METHOD, typename T_COLOR_FEATURE = NeoRgbFeature>
-class NeoPixelRGBLightOutput : public NeoPixelBusLightOutputBase<T_METHOD, T_COLOR_FEATURE> {
+class NeoPixelRGBLightOutput : public NeoPixelBusLightOutputBase<T_METHOD, T_COLOR_FEATURE, false> {
  public:
   NeoPixelRGBLightOutput(size_t num_leds, ESPNeoPixelOrder order, uint8_t pin)
-      : NeoPixelBusLightOutputBase(num_leds, order, pin) {}
+      : NeoPixelBusLightOutputBase<T_METHOD, T_COLOR_FEATURE, false>(num_leds, order, pin) {}
 
   NeoPixelRGBLightOutput(size_t num_leds, ESPNeoPixelOrder order, uint8_t pin_clock, uint8_t pin_data)
-      : NeoPixelBusLightOutputBase(num_leds, order, pin_clock, pin_data) {}
+      : NeoPixelBusLightOutputBase<T_METHOD, T_COLOR_FEATURE, false>(num_leds, order, pin_clock, pin_data) {}
 
   light::LightTraits get_traits() override {
     auto traits = light::LightTraits();
@@ -124,13 +125,13 @@ class NeoPixelRGBLightOutput : public NeoPixelBusLightOutputBase<T_METHOD, T_COL
 };
 
 template<typename T_METHOD, typename T_COLOR_FEATURE = NeoRgbwFeature>
-class NeoPixelRGBWLightOutput : public NeoPixelBusLightOutputBase<T_METHOD, T_COLOR_FEATURE> {
+class NeoPixelRGBWLightOutput : public NeoPixelBusLightOutputBase<T_METHOD, T_COLOR_FEATURE, true> {
  public:
   NeoPixelRGBWLightOutput(size_t num_leds, ESPNeoPixelOrder order, uint8_t pin)
-      : NeoPixelBusLightOutputBase(num_leds, order, pin) {}
+      : NeoPixelBusLightOutputBase<T_METHOD, T_COLOR_FEATURE, true>(num_leds, order, pin) {}
 
   NeoPixelRGBWLightOutput(size_t num_leds, ESPNeoPixelOrder order, uint8_t pin_clock, uint8_t pin_data)
-      : NeoPixelBusLightOutputBase(num_leds, order, pin_clock, pin_data) {}
+      : NeoPixelBusLightOutputBase<T_METHOD, T_COLOR_FEATURE, true>(num_leds, order, pin_clock, pin_data) {}
 
   light::LightTraits get_traits() override {
     auto traits = light::LightTraits();

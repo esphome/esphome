@@ -33,8 +33,6 @@ class BekenSPILEDStripLightOutput final : public light::AddressableLight {
   }
 
   void set_pin(uint8_t pin) { this->pin_ = pin; }
-  void set_num_leds(uint16_t num_leds) { this->num_leds_ = num_leds; }
-  void set_channel_colors(light::ChannelColors channel_colors) { this->channel_colors_ = channel_colors; }
 
   /// Set a maximum refresh rate in µs as some lights do not like being updated too often.
   void set_max_refresh_rate(uint32_t interval_us) { this->max_refresh_rate_ = interval_us; }

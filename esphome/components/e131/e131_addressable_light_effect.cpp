@@ -21,7 +21,7 @@ int E131AddressableLightEffect::get_last_universe() const { return first_univers
 int E131AddressableLightEffect::get_universe_count() const {
   // Round up to lights_per_universe
   auto lights = get_lights_per_universe();
-  return (get_addressable_()->size() + lights - 1) / lights;
+  return (get_addressable_()->buffer().size() + lights - 1) / lights;
 }
 
 void E131AddressableLightEffect::start() {
@@ -57,7 +57,7 @@ bool E131AddressableLightEffect::process_(int universe, const E131Packet &packet
   // packet.count is the number of DMX bytes including start code; divide by channels to get the number of lights
   int lights_in_packet = (packet.count > 0) ? (packet.count - 1) / channels_ : 0;
   int output_end =
-      std::min({buffer.size(), output_offset + get_lights_per_universe(), output_offset + lights_in_packet});
+      std::min({int32_t(buffer.size()), output_offset + get_lights_per_universe(), output_offset + lights_in_packet});
   auto *input_data = packet.values + 1;
 
   auto effect_name = get_name();
