@@ -5,8 +5,8 @@ import re
 import subprocess
 from typing import Any
 
+from esphome.code_scan import keep_float_scanf
 import esphome.codegen as cg
-from esphome.config_helpers import keep_float_scanf
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BOARD,

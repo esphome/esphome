@@ -1,23 +1,17 @@
 from collections.abc import Callable, Collection, Iterator
 import logging
 from pathlib import Path
-import re
 
 from esphome.const import (
-    CONF_ESPHOME,
-    CONF_INCLUDES,
-    CONF_INCLUDES_C,
     CONF_LEVEL,
     CONF_LOGGER,
     KEY_CORE,
     KEY_TARGET_FRAMEWORK,
     KEY_TARGET_PLATFORM,
-    SOURCE_FILE_EXTENSIONS,
     PlatformFramework,
 )
-from esphome.core import CORE, Lambda
+from esphome.core import CORE
 from esphome.helpers import walk_files
-from esphome.types import ConfigType
 from esphome.util import OrderedDict
 
 _LOGGER = logging.getLogger(__name__)
@@ -204,85 +198,10 @@ def get_logger_level() -> str:
     return logger_config.get(CONF_LEVEL, "DEBUG")
 
 
-_SCANF_CALL_RE = re.compile(r"scanf\s*\(")
-# Standard scanf float conversions %f %F %e %E %g %G %a %A with optional
-# suppression, width and length; also the invalid %.2f users write by analogy
-# with printf.
-_SCANF_FLOAT_SPEC_RE = re.compile(r"%[*\d.]*[hlL]*[feEgGaAF]")
-
-
-def _scanf_call_texts(src: str) -> Iterator[str]:
-    """Yield the argument text of each scanf family call in ``src``.
-
-    Walks to the closing parenthesis, treating string and character literals
-    as opaque so a ';' inside a format string does not end the call early.
-    """
-    for match in _SCANF_CALL_RE.finditer(src):
-        start = i = match.end()
-        depth = 1
-        quote = None
-        while i < len(src):
-            ch = src[i]
-            if quote:
-                if ch == "\\":
-                    i += 1
-                elif ch == quote:
-                    quote = None
-            elif ch in "\"'":
-                quote = ch
-            elif ch == "(":
-                depth += 1
-            elif ch == ")":
-                depth -= 1
-                if depth == 0:
-                    break
-            elif ch == ";":
-                break
-            i += 1
-        yield src[start:i]
-
-
-def source_uses_scanf_float(src: str) -> bool:
-    """Heuristic: does C++ source call a scanf family function with a float conversion?"""
-    if "scanf" not in src:
-        return False
-    src = Lambda.comment_remover(src)
-    return any(_SCANF_FLOAT_SPEC_RE.search(call) for call in _scanf_call_texts(src))
-
-
-def lambdas_use_scanf_float(config: ConfigType) -> bool:
-    """Check if any lambda in the config uses scanf with a float format specifier.
-
-    Comments are stripped before matching to avoid false positives from
-    commented-out code. The cost of a false positive is only the flash the
-    caller's float scanf support takes.
-    """
-    stack: list = [config]
-    while stack:
-        obj = stack.pop()
-        if isinstance(obj, Lambda):
-            if source_uses_scanf_float(obj.value):
-                return True
-        elif isinstance(obj, dict):
-            stack.extend(obj.values())
-        elif isinstance(obj, list):
-            stack.extend(obj)
-    return False
-
-
-def is_system_include(include: str) -> bool:
-    """Whether an ``includes:`` entry is a ``<system>`` header rather than a local path."""
-    return include.startswith("<") and include.endswith(">")
-
-
 def iter_include_files(includes: list[str]) -> Iterator[tuple[Path, Path]]:
-    """Yield ``(path, basename)`` for every local file named by ``includes:`` entries.
-
-    A directory entry yields each file under it with a basename relative to the
-    directory's parent, matching how it is copied into the build.
-    """
+    """Yield ``(path, basename)`` per local ``includes:`` file; directory members keep the directory prefix."""
     for include in includes:
-        if is_system_include(include):
+        if include.startswith("<") and include.endswith(">"):
             continue
         path = CORE.relative_config_path(include)
         if path.is_dir():
@@ -290,74 +209,3 @@ def iter_include_files(includes: list[str]) -> Iterator[tuple[Path, Path]]:
                 yield file, file.relative_to(path.parent)
         else:
             yield path, Path(path.name)
-
-
-def includes_use_scanf_float(config: ConfigType) -> bool:
-    """Check if an ``includes:`` or ``includes_c:`` file uses scanf with a float format specifier."""
-    esphome_config = config.get(CONF_ESPHOME, {})
-    includes = esphome_config.get(CONF_INCLUDES, []) + esphome_config.get(
-        CONF_INCLUDES_C, []
-    )
-    for path, _ in iter_include_files(includes):
-        if path.suffix not in SOURCE_FILE_EXTENSIONS:
-            continue
-        if source_uses_scanf_float(path.read_text(encoding="utf-8", errors="replace")):
-            return True
-    return False
-
-
-def external_components_use_scanf_float() -> bool:
-    """Whether a loaded component from outside the ESPHome tree scans a float."""
-    import esphome
-    from esphome.loader import get_component
-
-    # Everything shipped in the esphome package, components and core alike
-    package_root = Path(esphome.__file__).resolve().parent
-    for name in sorted(CORE.loaded_integrations):
-        component = get_component(name)
-        if component is None:
-            continue
-        package_dir = Path(component.module.__file__).resolve().parent
-        if package_dir.is_relative_to(package_root):
-            continue
-        for file in walk_files(package_dir):
-            if file.suffix in SOURCE_FILE_EXTENSIONS and source_uses_scanf_float(
-                file.read_text(encoding="utf-8", errors="replace")
-            ):
-                return True
-    return False
-
-
-def user_code_uses_scanf_float(config: ConfigType) -> bool:
-    """Whether a lambda, an ``includes:`` file or an external component scans a float."""
-    return (
-        lambdas_use_scanf_float(config)
-        or includes_use_scanf_float(config)
-        or external_components_use_scanf_float()
-    )
-
-
-def keep_float_scanf(
-    option: bool | None, config: ConfigType, flash_note: str, override_note: str
-) -> bool:
-    """Resolve a tri-state float-scanf option: unset means "only if user code scans a float".
-
-    Logs when user code decides it, or (with ``override_note``, the consequence)
-    when an explicit ``false`` overrides it.
-    """
-    if option is None:
-        if not user_code_uses_scanf_float(config):
-            return False
-        _LOGGER.warning(
-            "Lambda, include or external component uses scanf with a float format "
-            "specifier; keeping float scanf support (%s)",
-            flash_note,
-        )
-        return True
-    if not option and user_code_uses_scanf_float(config):
-        _LOGGER.warning(
-            "Float scanf support is disabled but a lambda, include or external "
-            "component uses scanf with a float format specifier; %s",
-            override_note,
-        )
-    return option

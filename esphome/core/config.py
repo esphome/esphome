@@ -7,11 +7,7 @@ from pathlib import Path
 
 from esphome import automation, core
 import esphome.codegen as cg
-from esphome.config_helpers import (
-    filter_source_files_from_platform,
-    is_system_include,
-    iter_include_files,
-)
+from esphome.config_helpers import filter_source_files_from_platform, iter_include_files
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_AREA,
@@ -188,7 +184,8 @@ def validate_ids_and_references(config: ConfigType) -> ConfigType:
 
 
 def valid_include(value: str) -> str:
-    if is_system_include(value):
+    # Look for "<...>" includes
+    if value.startswith("<") and value.endswith(">"):
         return value
     try:
         return str(cv.directory(value))
@@ -412,7 +409,7 @@ def _sort_includes_by_type(includes: list[str]) -> tuple[list[str], list[str]]:
     system_includes = []
     other_includes = []
     for include in includes:
-        if is_system_include(include):
+        if include.startswith("<") and include.endswith(">"):
             system_includes.append(include)
         else:
             other_includes.append(include)

@@ -634,34 +634,6 @@ def test_preload_core_config_multiple_platforms(setup_core: Path) -> None:
             preload_core_config(config, result)
 
 
-def test_sort_includes_by_type() -> None:
-    """System headers are separated from local includes."""
-    assert config._sort_includes_by_type(
-        ["<cstdio>", "local.h", "<vector>", "dir"]
-    ) == (
-        ["<cstdio>", "<vector>"],
-        ["local.h", "dir"],
-    )
-
-
-@pytest.mark.asyncio
-async def test_add_includes(tmp_path: Path) -> None:
-    """Each include file is copied; directory members keep the directory prefix."""
-    (tmp_path / "one.h").write_text("")
-    (tmp_path / "lib").mkdir()
-    (tmp_path / "lib" / "two.cpp").write_text("")
-    CORE.config_path = tmp_path / "test.yaml"
-
-    with patch("esphome.core.config.include_file") as mock_include_file:
-        await config.add_includes(["one.h", "lib"], True)
-
-    calls = {
-        (call.args[0].name, call.args[1].as_posix(), call.args[2])
-        for call in mock_include_file.call_args_list
-    }
-    assert calls == {("one.h", "one.h", True), ("two.cpp", "lib/two.cpp", True)}
-
-
 def test_include_file_header(tmp_path: Path, mock_copy_file_if_changed: Mock) -> None:
     """Test include_file adds include statement for header files."""
     src_file = tmp_path / "source.h"

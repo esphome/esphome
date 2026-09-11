@@ -10,9 +10,10 @@ import subprocess
 from typing import Any
 
 from esphome import yaml_util
+from esphome.code_scan import keep_float_scanf
 import esphome.codegen as cg
 from esphome.components.const import CONF_ENABLE_OTA_DOWNGRADE_PROTECTION
-from esphome.config_helpers import filter_source_files_from_defines, keep_float_scanf
+from esphome.config_helpers import filter_source_files_from_defines
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ADVANCED,
@@ -2323,8 +2324,8 @@ async def _set_libc_picolibc_newlib_compat() -> None:
 def _add_wrap_stub(symbol: str, define: str) -> None:
     """Emit a linker wrap for ``symbol`` served by a stub compiled under ``define``.
 
-    --undefined is needed because libsrc.a is scanned before the IDF library
-    that references the symbol.
+    --undefined pulls the stub from libsrc.a, scanned before the IDF library that
+    references the symbol.
     """
     cg.add_define(define)
     cg.add_build_flag(f"-Wl,--wrap={symbol}")
@@ -2332,16 +2333,12 @@ def _add_wrap_stub(symbol: str, define: str) -> None:
 
 
 @coroutine_with_priority(CoroPriority.FINAL)
-async def _add_sscanf_stub(enable_full_scanf: bool | None, variant: str) -> None:
+async def _add_sscanf_stub(enable_full_scanf: bool | None) -> None:
     """Wrap sscanf when bluedroid is the only reason newlib's scanf engine links.
 
     FINAL priority so every request_bluetooth() call has happened.
     """
-    if (
-        variant in ROM_SSCANF_VARIANTS
-        or idf_version() >= cv.Version(6, 0, 0)  # picolibc, unmeasured
-        or not _network_sdkconfig().bluetooth
-    ):
+    if get_esp32_variant() in ROM_SSCANF_VARIANTS or not _network_sdkconfig().bluetooth:
         return
     if keep_float_scanf(
         enable_full_scanf, CORE.config, "~13KB flash", "that call will abort the device"
@@ -2695,9 +2692,8 @@ async def to_code(config):
         # saves nothing while costing ~170 B of shim. IDF 5.x defaults to
         # newlib on every variant; IDF 6.0+ switches to picolibc on every
         # variant.
-        if conf[CONF_ADVANCED][CONF_ENABLE_FULL_PRINTF] or idf_version() >= cv.Version(
-            6, 0, 0
-        ):
+        uses_newlib = idf_version() < cv.Version(6, 0, 0)
+        if conf[CONF_ADVANCED][CONF_ENABLE_FULL_PRINTF] or not uses_newlib:
             cg.add_define("USE_FULL_PRINTF")
         else:
             for symbol in ("vprintf", "printf", "fprintf", "vfprintf"):
@@ -2708,12 +2704,11 @@ async def to_code(config):
             # ROM. See vasprintf_stubs.cpp.
             if variant in ROM_VSNPRINTF_WITHOUT_VASPRINTF_VARIANTS:
                 _add_wrap_stub("vasprintf", "USE_ESP32_VASPRINTF_STUB")
-        # bluedroid's sscanf calls; see sscanf_stubs.cpp
-        CORE.add_job(
-            _add_sscanf_stub,
-            conf[CONF_ADVANCED].get(CONF_ENABLE_FULL_SCANF),
-            variant,
-        )
+        if uses_newlib:
+            # bluedroid's sscanf calls; see sscanf_stubs.cpp
+            CORE.add_job(
+                _add_sscanf_stub, conf[CONF_ADVANCED].get(CONF_ENABLE_FULL_SCANF)
+            )
     else:
         cg.add_build_flag("-DUSE_ARDUINO")
         cg.add_build_flag("-DUSE_ESP32_FRAMEWORK_ARDUINO")

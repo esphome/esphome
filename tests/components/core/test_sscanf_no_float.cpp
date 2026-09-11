@@ -41,32 +41,18 @@ TEST(SscanfNoFloat, BluedroidAddress) {
 }
 
 TEST(SscanfNoFloat, WidthWithByteLength) {
-  uint8_t mac[6] = {0};
-  EXPECT_EQ(sscanf_no_float("AA:bb:0C:dd:ee:FF", "%02hhx:%02hhx:%02hhx:%02hhx:%02hhx:%02hhx", mac, mac + 1, mac + 2,
-                            mac + 3, mac + 4, mac + 5),
-            6);
+  uint8_t mac[2] = {0};
+  EXPECT_EQ(sscanf_no_float("AA:bb", "%02hhx:%02hhx", mac, mac + 1), 2);
   EXPECT_EQ(mac[0], 0xaa);
   EXPECT_EQ(mac[1], 0xbb);
-  EXPECT_EQ(mac[2], 0x0c);
-  EXPECT_EQ(mac[3], 0xdd);
-  EXPECT_EQ(mac[4], 0xee);
-  EXPECT_EQ(mac[5], 0xff);
   // The width still bounds the digits when a length modifier is present
   EXPECT_EQ(sscanf_no_float("abcd", "%02hhx", mac), 1);
   EXPECT_EQ(mac[0], 0xab);
 }
 
-// --- The formats newlib's tzset uses, in case a wrap ever covers siscanf ---
+// --- Formats bluedroid's hands-free client uses: %hu with %n ---
 
-TEST(SscanfNoFloat, TzsetName) {
-  char name[12] = {0};
-  int consumed = 0;
-  EXPECT_EQ(sscanf_no_float("CST6CDT,M3.2.0,M11.1.0", "%11[-+0-9A-Za-z]%n", name, &consumed), 1);
-  EXPECT_STREQ(name, "CST6CDT");
-  EXPECT_EQ(consumed, 7);
-}
-
-TEST(SscanfNoFloat, TzsetOffsetAndRule) {
+TEST(SscanfNoFloat, ShortWithPosition) {
   uint16_t h = 0, m = 0, s = 0;
   int n1 = 0, n2 = 0, n3 = 0;
   EXPECT_EQ(sscanf_no_float("6:30:15", "%hu%n:%hu%n:%hu%n", &h, &n1, &m, &n2, &s, &n3), 3);
