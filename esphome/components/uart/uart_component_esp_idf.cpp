@@ -277,6 +277,9 @@ void IDFUARTComponent::set_framing_(const Framing &framing) {
 }
 
 esp_err_t IDFUARTComponent::apply_settings_live() {
+  if (this->is_failed()) {
+    return ESP_ERR_INVALID_STATE;
+  }
   // No driver yet: nothing to reconfigure in place.
   if (!uart_is_driver_installed(this->uart_num_)) {
     this->load_settings(false);
@@ -302,9 +305,9 @@ esp_err_t IDFUARTComponent::apply_settings_live() {
       this->mark_failed();
       return err;
     }
-    // Previous framing is live again; still report the refusal.
-    esp_err_t line_err = this->apply_line_settings_();
-    return line_err != ESP_OK ? line_err : err;
+    // Previous framing is live again; report the refusal (line-setting errors log).
+    this->apply_line_settings_();
+    return err;
   }
   this->last_good_framing_ = this->framing_();
   return this->apply_line_settings_();
