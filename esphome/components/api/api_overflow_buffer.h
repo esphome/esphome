@@ -31,9 +31,8 @@ class APIOverflowBuffer {
   ssize_t try_drain(socket::Socket *socket);
 
   /// Queue iov data from byte offset `skip` as one message.
-  /// Returns false when the queue or byte limit is hit, allocation fails, or
-  /// the storage would have to move during a drain; the caller should fail
-  /// the connection.
+  /// Returns false when a limit is hit, allocation fails, or storage would move
+  /// during a drain; the caller should fail the connection.
   bool enqueue_iov(const struct iovec *iov, int iovcnt, uint16_t total_len, uint16_t skip);
 
   /// Free the retained storage, now if empty, otherwise once it has drained.
@@ -60,9 +59,8 @@ class APIOverflowBuffer {
   uint16_t head_{0};        // offset of the front message's length prefix; bytes before it are sent
   uint16_t front_sent_{0};  // bytes of the front message already written
   uint8_t count_{0};
-  // socket->write() can re-enter the send path (log from an lwip callback).
-  // A nested drain reports no progress, and a nested enqueue may append but
-  // never move storage the outer write() still points into.
+  // socket->write() can re-enter the send path (log from an lwip callback):
+  // a nested drain makes no progress and a nested enqueue never moves storage
   bool draining_{false};
   bool release_when_drained_{false};
 };

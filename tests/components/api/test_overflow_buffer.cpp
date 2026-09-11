@@ -16,7 +16,7 @@
 #ifdef USE_HOST
 namespace esphome::api::testing {
 
-// Exposes the storage so tests can check that it is reused rather than reallocated.
+// Exposes storage so tests can check it is reused, not reallocated
 class TestOverflowBuffer : public APIOverflowBuffer {
  public:
   using APIOverflowBuffer::LEN_PREFIX;
@@ -24,7 +24,7 @@ class TestOverflowBuffer : public APIOverflowBuffer {
   size_t capacity() const { return this->buf_.capacity(); }
   const uint8_t *storage() const { return this->buf_.data(); }
   uint8_t count() const { return this->count_; }
-  /// Simulates being inside an outer try_drain() whose socket write re-entered the send path.
+  /// Simulates a socket write inside try_drain() re-entering the send path
   void set_draining(bool draining) { this->draining_ = draining; }
 };
 
@@ -51,8 +51,7 @@ static void expect_after_filler(const std::vector<uint8_t> &received, size_t fil
   EXPECT_TRUE(std::equal(expected.begin(), expected.end(), received.begin() + filler));
 }
 
-// A non-blocking unix socket pair with small buffers so the writer side can be
-// filled deterministically, the way a stalled TCP connection behaves.
+// Non-blocking socket pair with small buffers, so the writer fills like a stalled TCP connection
 class OverflowBufferTest : public ::testing::Test {
  protected:
   void SetUp() override {
@@ -68,7 +67,7 @@ class OverflowBufferTest : public ::testing::Test {
   }
   void TearDown() override { ::close(this->reader_); }
 
-  /// Write filler until the socket refuses more; returns the number of filler bytes accepted.
+  /// Write filler until the socket refuses; returns the bytes accepted
   size_t fill_pipe_() {
     uint8_t junk[512];
     std::memset(junk, 0xEE, sizeof(junk));
@@ -102,7 +101,7 @@ class OverflowBufferTest : public ::testing::Test {
     return sent;
   }
 
-  /// Alternate reading and draining until the backlog is empty; returns all bytes received.
+  /// Read and drain until the backlog is empty; returns all bytes received
   std::vector<uint8_t> drain_all_(TestOverflowBuffer &buf) {
     std::vector<uint8_t> received;
     for (int i = 0; i < 10000 && !buf.empty(); i++) {
