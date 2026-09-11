@@ -10,26 +10,27 @@ ssize_t APIOverflowBuffer::try_drain(socket::Socket *socket) {
     return 0;
 
   struct DrainGuard {
-    explicit DrainGuard(bool &flag) : flag_(flag) { flag_ = true; }
-    ~DrainGuard() { this->flag_ = false; }
-    bool &flag_;
-  } guard(this->draining_);
+    explicit DrainGuard(APIOverflowBuffer &owner) : owner_(owner) { owner.draining_ = true; }
+    ~DrainGuard() { this->owner_.draining_ = false; }
+    APIOverflowBuffer &owner_;
+  } guard(*this);
 
   while (this->count_ > 0) {
-    const uint8_t *msg = this->buf_.data() + this->head_;
+    uint8_t *msg = this->buf_.data() + this->head_;
     uint16_t len;
     std::memcpy(&len, msg, LEN_PREFIX);
-    const uint16_t remaining = len - this->front_sent_;
 
-    ssize_t sent = socket->write(msg + LEN_PREFIX + this->front_sent_, remaining);
+    ssize_t sent = socket->write(msg + LEN_PREFIX, len);
     if (sent <= 0)
       return sent;
-    if (sent < remaining) {
-      this->front_sent_ += static_cast<uint16_t>(sent);
+    if (sent < len) {
+      // Step past the sent bytes and rewrite the prefix there; it lands on bytes already sent
+      this->head_ += static_cast<uint16_t>(sent);
+      len -= static_cast<uint16_t>(sent);
+      std::memcpy(msg + sent, &len, LEN_PREFIX);
       return sent;
     }
     this->head_ += LEN_PREFIX + len;
-    this->front_sent_ = 0;
     this->count_--;
   }
 
