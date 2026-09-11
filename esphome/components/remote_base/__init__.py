@@ -233,11 +233,16 @@ def validate_dumpers(value):
         return validate_dumpers(list(DUMPER_REGISTRY.keys()))
     if isinstance(value, list):
         # a dumper listed twice would register twice; the receiver holds one secondary dumper
-        value = (
-            list(dict.fromkeys(value))
-            if all(isinstance(v, str) for v in value)
-            else value
-        )
+        seen: set[str] = set()
+        deduped = []
+        for item in value:
+            key = item if isinstance(item, str) else next(iter(item), None)
+            if isinstance(key, str):
+                if key in seen:
+                    continue
+                seen.add(key)
+            deduped.append(item)
+        value = deduped
     return cv.validate_registry("dumper", DUMPER_REGISTRY)(value)
 
 

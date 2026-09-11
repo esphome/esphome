@@ -213,7 +213,7 @@ class RemoteReceiverBase : public RemoteComponentBase {
  public:
   RemoteReceiverBase(InternalGPIOPin *pin) : RemoteComponentBase(pin) {}
 #ifdef REMOTE_BASE_LISTENER_COUNT
-  void register_listener(RemoteReceiverListener *listener) { this->listeners_.push_back(listener); }
+  void register_listener(RemoteReceiverListener *listener);
 #endif
 #ifdef REMOTE_BASE_DUMPER_COUNT
   void register_dumper(RemoteReceiverDumperBase *dumper);

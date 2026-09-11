@@ -1,4 +1,6 @@
-# A receiver with no dumpers and no listeners compiles both lists out
+# A receiver with no dumpers and no listeners compiles both lists out.
+# Only built while remote_receiver is tested in isolation: the counts are global defines,
+# so this variant cannot be merged with configs that register any.
 remote_receiver:
   - id: rcvr_bare
     pin: ${pin}
