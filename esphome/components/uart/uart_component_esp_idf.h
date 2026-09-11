@@ -53,21 +53,14 @@ class IDFUARTComponent final : public UARTComponent, public Component {
   using UARTComponent::load_settings;  // also bring in the no-arg overload for convenience
 
   /**
-   * Apply the current framing settings (baud rate, parity, data/stop bits) to the
-   * already-installed driver without the driver delete/reinstall that load_settings()
-   * performs. The driver ring buffers and any tasks blocked in
-   * uart_read_bytes()/uart_write_bytes() survive, but uart_param_config() flushes
-   * both hardware FIFOs, so up to a FIFO's worth of in-flight bytes is discarded in
-   * each direction: a frame being shifted out at that moment reaches the peer
-   * truncated. No driver lock is taken, so a caller whose peer cannot tolerate a
-   * partial frame must quiesce its writers first. Falls back to a full reload if the
-   * driver is not installed.
+   * Apply the current framing (baud rate, parity, data/stop bits) to the installed
+   * driver in place, without the delete/reinstall of load_settings(). Tasks blocked in
+   * the driver survive; both hardware FIFOs are flushed, so a frame in flight reaches
+   * the peer truncated. No lock is taken: quiesce writers first if that matters.
    *
-   * @return ESP_OK once the requested framing is live. If the driver rejects it (for
-   * example an unreachable baud rate), the previous framing is restored, the getters
-   * reflect it again and the driver's error is returned; if that restore also fails
-   * the component is marked failed. Errors from the line settings re-applied after a
-   * successful reconfiguration are returned as well.
+   * @return ESP_OK once the new framing is live. On rejection (unreachable baud rate)
+   * the previous framing is restored and the driver's error returned; if the restore
+   * fails too the component is marked failed.
    */
   esp_err_t apply_settings_live();
 
@@ -75,10 +68,8 @@ class IDFUARTComponent final : public UARTComponent, public Component {
 
  protected:
   void check_logger_conflict() override;
-  // Signal-inversion flags derived from the configured pins' inverted markers.
   uint32_t line_inversion_mask_();
-  // (Re)apply the settings that uart_param_config() resets: line inversion, RX full
-  // threshold, RX timeout, and port mode. Returns the first error, already logged.
+  // Re-applies what uart_param_config() resets: inversion, RX threshold/timeout, mode.
   esp_err_t apply_line_settings_();
   uart_port_t uart_num_{UART_NUM_MAX};
   uart_config_t get_config_();
@@ -91,8 +82,7 @@ class IDFUARTComponent final : public UARTComponent, public Component {
   };
   Framing framing_() const { return {this->baud_rate_, this->data_bits_, this->stop_bits_, this->parity_}; }
   void set_framing_(const Framing &framing);
-  // Recorded after every configuration the driver accepted; a failed live
-  // reconfiguration rolls back to it. baud_rate 0 means none yet.
+  // Last framing the driver accepted; baud_rate 0 means none yet.
   Framing last_good_framing_{};
 
   bool has_peek_{false};
