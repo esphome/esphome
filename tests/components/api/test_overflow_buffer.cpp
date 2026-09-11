@@ -221,12 +221,26 @@ TEST_F(OverflowBufferTest, RefusesWhenQueueIsFull) {
   this->drain_all(buf);
 }
 
+TEST_F(OverflowBufferTest, RefusesWhenByteLimitIsExceeded) {
+  TestOverflowBuffer buf;
+  // Three of these exceed the 2 KB per slot budget long before the slot count does
+  auto msg = make_message(6000, 1);
+
+  this->fill_pipe();
+  ASSERT_TRUE(enqueue(buf, msg));
+  ASSERT_TRUE(enqueue(buf, msg));
+  EXPECT_FALSE(enqueue(buf, msg));
+  EXPECT_EQ(buf.count(), 2);
+  this->drain_all(buf);
+}
+
 TEST_F(OverflowBufferTest, CompactsInsteadOfGrowingAfterPartialDrain) {
   TestOverflowBuffer buf;
   size_t filler = this->fill_pipe();
   auto first = make_message(1500, 20);
   // Larger than the whole pipe, so a drain always stops part way through it
-  auto second = make_message(filler * 3, 60);
+  auto second = make_message(std::min<size_t>(filler * 3, 12000), 60);
+  ASSERT_GT(second.size(), filler);
   auto third = make_message(1000, 200);
 
   ASSERT_TRUE(enqueue(buf, first));
