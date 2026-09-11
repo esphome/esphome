@@ -371,8 +371,6 @@ void RemoteTransmitterComponent::send_internal(uint32_t send_times, uint32_t sen
       ESP_LOGW(TAG, "rmt_transmit failed: %s", esp_err_to_name(error));
       this->status_set_warning();
       sent = false;
-    } else {
-      this->status_clear_warning();
     }
     error = rmt_tx_wait_all_done(this->channel_, -1);
     if (error != ESP_OK) {
@@ -382,6 +380,9 @@ void RemoteTransmitterComponent::send_internal(uint32_t send_times, uint32_t sen
     if (i + 1 < send_times)
       delayMicroseconds(send_wait);
   }
+  // a later repeat must not clear the warning a failed one raised
+  if (sent)
+    this->status_clear_warning();
   this->fire_complete_(sent);
 }
 #endif

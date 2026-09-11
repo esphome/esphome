@@ -18,8 +18,10 @@ async def attach_transmitter(var: cg.MockObj, config: ConfigType, key: str) -> N
     """Link the configured transmitter to an entity.
 
     With the API configured this also compiles in the transmit completion
-    tracking that answers API transmit requests. An entity whose transmitter
-    is set from C++ instead is answered as soon as the frame is handed over.
+    tracking that answers API transmit requests; the transmitter platform has
+    to report completion through notify_complete_(), as remote_transmitter
+    does. Without this call anywhere in the build a request is answered as
+    soon as the frame is handed over.
     """
     await remote_base.register_transmittable(var, config, key)
     if CONF_API in CORE.config:
