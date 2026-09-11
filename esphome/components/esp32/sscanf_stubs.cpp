@@ -15,6 +15,7 @@
 #if defined(USE_ESP_IDF) && defined(USE_ESP32_SSCANF_STUB)
 
 #include <cstdarg>
+#include <cstdio>
 
 #include "esp_system.h"
 #include "esphome/core/sscanf_no_float.h"
@@ -30,7 +31,10 @@ int __wrap_sscanf(const char *str, const char *fmt, ...) {
   int result = esphome::vsscanf_no_float(str, fmt, ap);
   va_end(ap);
   if (result == esphome::SSCANF_UNSUPPORTED) {
-    esp_system_abort("sscanf: unsupported conversion; set enable_full_scanf: true in esp32 framework advanced config");
+    char msg[160];
+    snprintf(msg, sizeof(msg),
+             "sscanf: unsupported conversion in \"%s\"; set enable_full_scanf: true in esp32 framework", fmt);
+    esp_system_abort(msg);
   }
   return result;
 }

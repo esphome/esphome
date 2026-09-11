@@ -1,6 +1,7 @@
 """Unit tests for esphome.config_helpers module."""
 
 from collections.abc import Callable
+from pathlib import Path
 from unittest.mock import patch
 
 import pytest
@@ -10,9 +11,13 @@ from esphome.config_helpers import (
     filter_source_files_from_platform,
     frameworks_for_platforms,
     get_logger_level,
+    includes_use_scanf_float,
     lambdas_use_scanf_float,
+    user_code_uses_scanf_float,
 )
 from esphome.const import (
+    CONF_ESPHOME,
+    CONF_INCLUDES,
     CONF_LEVEL,
     CONF_LOGGER,
     KEY_CORE,
@@ -229,3 +234,28 @@ def test_lambdas_use_scanf_float_nested() -> None:
     """Test detection in deeply nested config."""
     config: ConfigType = {"a": {"b": {"c": [Lambda('sscanf(buf, "%f", &v)')]}}}
     assert lambdas_use_scanf_float(config) is True
+
+
+def test_includes_use_scanf_float(setup_core: Path) -> None:
+    """A float scanf in an includes: file or directory is found, comments are ignored."""
+    (setup_core / "parse.h").write_text(
+        'static void f(const char *b) { float v; sscanf(b, "%f", &v); }'
+    )
+    (setup_core / "lib").mkdir()
+    (setup_core / "lib" / "int.h").write_text(
+        'static int g(const char *b) { int v; sscanf(b, "%d", &v); return v; }'
+    )
+    (setup_core / "commented.h").write_text(
+        '// sscanf(b, "%f", &v)\n/* sscanf(b, "%g", &v) */'
+    )
+
+    def config(*includes: str) -> ConfigType:
+        return {CONF_ESPHOME: {CONF_INCLUDES: list(includes)}}
+
+    assert includes_use_scanf_float(config("parse.h")) is True
+    assert includes_use_scanf_float(config("lib")) is False
+    assert includes_use_scanf_float(config("commented.h", "<cstdio>")) is False
+    assert includes_use_scanf_float(config("missing.h")) is False
+    assert includes_use_scanf_float({}) is False
+    assert user_code_uses_scanf_float(config("parse.h")) is True
+    assert user_code_uses_scanf_float({"test": [Lambda('sscanf(b, "%f", &v)')]}) is True

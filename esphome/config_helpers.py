@@ -2,6 +2,8 @@ from collections.abc import Callable, Collection
 import re
 
 from esphome.const import (
+    CONF_ESPHOME,
+    CONF_INCLUDES,
     CONF_LEVEL,
     CONF_LOGGER,
     KEY_CORE,
@@ -10,6 +12,7 @@ from esphome.const import (
     PlatformFramework,
 )
 from esphome.core import CORE, Lambda
+from esphome.helpers import walk_files
 from esphome.types import ConfigType
 from esphome.util import OrderedDict
 
@@ -224,3 +227,24 @@ def lambdas_use_scanf_float(config: ConfigType) -> bool:
         elif isinstance(obj, list):
             stack.extend(obj)
     return False
+
+
+def includes_use_scanf_float(config: ConfigType) -> bool:
+    """Check if any ``esphome: includes:`` file uses scanf with a float format specifier."""
+    for include in config.get(CONF_ESPHOME, {}).get(CONF_INCLUDES, []):
+        if include.startswith("<"):
+            continue
+        path = CORE.relative_config_path(include)
+        for file in walk_files(path) if path.is_dir() else (path,):
+            try:
+                src = file.read_text(encoding="utf-8", errors="replace")
+            except OSError:
+                continue
+            if _SCANF_FLOAT_RE.search(Lambda.comment_remover(src)):
+                return True
+    return False
+
+
+def user_code_uses_scanf_float(config: ConfigType) -> bool:
+    """Whether a lambda or an ``esphome: includes:`` file scans a float."""
+    return lambdas_use_scanf_float(config) or includes_use_scanf_float(config)

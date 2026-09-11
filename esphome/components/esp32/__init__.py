@@ -14,7 +14,7 @@ import esphome.codegen as cg
 from esphome.components.const import CONF_ENABLE_OTA_DOWNGRADE_PROTECTION
 from esphome.config_helpers import (
     filter_source_files_from_defines,
-    lambdas_use_scanf_float,
+    user_code_uses_scanf_float,
 )
 import esphome.config_validation as cv
 from esphome.const import (
@@ -2347,7 +2347,7 @@ def _add_wrap_stub(symbol: str, define: str) -> None:
 async def _add_sscanf_stub(enable_full_scanf: bool | None) -> None:
     """Wrap sscanf when bluedroid is the only reason newlib's scanf engine links.
 
-    FINAL priority so every request_bluetooth() call has happened. A lambda
+    FINAL priority so every request_bluetooth() call has happened. User code
     that scans a float keeps the libc sscanf unless enable_full_scanf is set.
     """
     if (
@@ -2357,16 +2357,16 @@ async def _add_sscanf_stub(enable_full_scanf: bool | None) -> None:
         or get_esp32_variant() in ROM_SSCANF_VARIANTS
     ):
         return
-    if lambdas_use_scanf_float(CORE.config):
+    if user_code_uses_scanf_float(CORE.config):
         if enable_full_scanf is None:
             _LOGGER.warning(
-                "Lambda uses scanf with a float format specifier; "
+                "Lambda or include uses scanf with a float format specifier; "
                 "keeping the libc sscanf (~13KB flash)"
             )
             return
         _LOGGER.warning(
-            "enable_full_scanf is false but a lambda uses scanf with a float "
-            "format specifier; that call will abort at runtime"
+            "enable_full_scanf is false but a lambda or include uses scanf with "
+            "a float format specifier; that call will abort at runtime"
         )
     _add_wrap_stub("sscanf", "USE_ESP32_SSCANF_STUB")
 

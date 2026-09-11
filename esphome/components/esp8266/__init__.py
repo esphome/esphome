@@ -6,7 +6,7 @@ import subprocess
 from typing import Any
 
 import esphome.codegen as cg
-from esphome.config_helpers import lambdas_use_scanf_float
+from esphome.config_helpers import user_code_uses_scanf_float
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BOARD,
@@ -274,10 +274,10 @@ async def to_code(config: ConfigType) -> None:
     cg.add_define("USE_ESP8266_CRASH_HANDLER")
 
     enable_scanf_float = config.get(CONF_ENABLE_SCANF_FLOAT)
-    if enable_scanf_float is None and lambdas_use_scanf_float(CORE.config):
+    if enable_scanf_float is None and user_code_uses_scanf_float(CORE.config):
         enable_scanf_float = True
         _LOGGER.warning(
-            "Lambda uses scanf with a float format specifier; "
+            "Lambda or include uses scanf with a float format specifier; "
             "enabling scanf float support (~8KB flash)"
         )
 
