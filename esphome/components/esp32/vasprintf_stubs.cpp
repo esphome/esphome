@@ -37,7 +37,8 @@ int __wrap_vasprintf(char **strp, const char *fmt, va_list ap) {
   if (len < 0) {
     return len;
   }
-  char *buf = static_cast<char *>(malloc(static_cast<size_t>(len) + 1));
+  // vasprintf's contract is a malloc'd buffer the caller releases with free()
+  char *buf = static_cast<char *>(malloc(static_cast<size_t>(len) + 1));  // NOLINT(cppcoreguidelines-no-malloc)
   if (buf == nullptr) {
     return -1;
   }

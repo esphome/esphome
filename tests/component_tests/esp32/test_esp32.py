@@ -1374,6 +1374,25 @@ def test_mbedtls_tls_trim_sdkconfig(
     assert {sdkconfig.get(name) for name in MBEDTLS_TLS_EXTRA_OPTIONS} == {extras}
 
 
+def test_mbedtls_tls_user_sdkconfig_wins(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """A user-set TLS role member leaves the whole choice alone; other user values are kept."""
+    generate_main(component_config_path("mbedtls_tls_user_sdkconfig.yaml"))
+    sdkconfig = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
+    assert sdkconfig.get("CONFIG_MBEDTLS_TLS_CLIENT_ONLY") is None
+    role = sdkconfig["CONFIG_MBEDTLS_TLS_SERVER_AND_CLIENT"]
+    assert isinstance(role, RawSdkconfigValue) and role.value == "y"
+    ccm = sdkconfig["CONFIG_MBEDTLS_CCM_C"]
+    assert isinstance(ccm, RawSdkconfigValue) and ccm.value == "y"
+    assert {
+        sdkconfig.get(name)
+        for name in MBEDTLS_TLS_EXTRA_OPTIONS
+        if name != "CONFIG_MBEDTLS_CCM_C"
+    } == {False}
+
+
 def test_mbedtls_tls_openthread_requires_server_and_extras(
     generate_main: Callable[[str | Path], str],
     component_config_path: Callable[[str], Path],

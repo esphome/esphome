@@ -1856,6 +1856,7 @@ def require_mbedtls_tls_extras() -> None:
 
     Call this from components that need AES-CCM, deterministic ECDSA signing,
     static RSA/ECDH key exchange, TLS renegotiation or session tickets.
+    A user-supplied sdkconfig_options value is never overridden either.
     OpenThread uses CCM and deterministic ECDSA directly.
     """
     CORE.data[KEY_ESP32][KEY_MBEDTLS_TLS_EXTRAS_REQUIRED] = True
@@ -2339,9 +2340,11 @@ async def _reconcile_certificate_bundle_sdkconfig() -> None:
 # negotiates. Static RSA and static ECDH key exchange have no forward secrecy
 # and are gone in TLS 1.3, renegotiation is deprecated, esp-tls never enables
 # session tickets, AES-CCM ciphersuites are not offered by web servers, and
-# the EC key parsing extras and deterministic ECDSA only matter when signing
-# with a private key. Together they cost ~11 KB of flash whenever TLS is
-# linked (http_request, mqtt).
+# deterministic ECDSA only matters when signing with a private key. Together
+# they cost ~10 KB of flash whenever TLS is linked (http_request, mqtt).
+# The EC public key parsing extras stay enabled: they decide whether a peer
+# certificate with a compressed point or explicit curve parameters parses,
+# which no component can know ahead of time.
 MBEDTLS_TLS_EXTRA_OPTIONS = (
     "CONFIG_MBEDTLS_KEY_EXCHANGE_RSA",
     "CONFIG_MBEDTLS_KEY_EXCHANGE_ECDH_ECDSA",
@@ -2350,9 +2353,16 @@ MBEDTLS_TLS_EXTRA_OPTIONS = (
     "CONFIG_MBEDTLS_CLIENT_SSL_SESSION_TICKETS",
     "CONFIG_MBEDTLS_SERVER_SSL_SESSION_TICKETS",
     "CONFIG_MBEDTLS_CCM_C",
-    "CONFIG_MBEDTLS_PK_PARSE_EC_EXTENDED",
-    "CONFIG_MBEDTLS_PK_PARSE_EC_COMPRESSED",
     "CONFIG_MBEDTLS_ECDSA_DETERMINISTIC",
+)
+
+# Members of the mbedTLS "TLS Protocol Role" Kconfig choice. Setting one
+# member is only valid when the user has not already chosen another.
+MBEDTLS_TLS_ROLE_OPTIONS = (
+    "CONFIG_MBEDTLS_TLS_SERVER_AND_CLIENT",
+    "CONFIG_MBEDTLS_TLS_SERVER_ONLY",
+    "CONFIG_MBEDTLS_TLS_CLIENT_ONLY",
+    "CONFIG_MBEDTLS_TLS_DISABLED",
 )
 
 
@@ -2365,15 +2375,22 @@ async def _reconcile_mbedtls_tls_sdkconfig(
     Runs at FINAL priority so every require_mbedtls_tls_server() and
     require_mbedtls_tls_extras() call has happened. Only the server-side
     handshake (~7 KB) is a separate option; nothing in ESPHome accepts TLS
-    connections, but OpenThread's DTLS commissioner does.
+    connections, but OpenThread's DTLS commissioner does. A user-supplied
+    sdkconfig_options value always wins; for the TLS role choice, any member
+    the user set leaves the whole choice alone so the pair cannot conflict.
     """
     data = CORE.data[KEY_ESP32]
-    if disable_tls_server and not data.get(KEY_MBEDTLS_TLS_SERVER_REQUIRED, False):
+    sdkconfig = data[KEY_SDKCONFIG_OPTIONS]
+    if (
+        disable_tls_server
+        and not data.get(KEY_MBEDTLS_TLS_SERVER_REQUIRED, False)
+        and not any(option in sdkconfig for option in MBEDTLS_TLS_ROLE_OPTIONS)
+    ):
         add_idf_sdkconfig_option("CONFIG_MBEDTLS_TLS_CLIENT_ONLY", True)
         add_idf_sdkconfig_option("CONFIG_MBEDTLS_TLS_SERVER_AND_CLIENT", False)
     if disable_tls_extras and not data.get(KEY_MBEDTLS_TLS_EXTRAS_REQUIRED, False):
         for option in MBEDTLS_TLS_EXTRA_OPTIONS:
-            add_idf_sdkconfig_option(option, False)
+            set_idf_sdkconfig_default(option, False)
 
 
 @coroutine_with_priority(CoroPriority.FINAL)
