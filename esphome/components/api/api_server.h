@@ -352,6 +352,8 @@ class APIServer final : public Component,
     uint32_t key;
     uint32_t registered_ms;
     APIConnection *connection;
+    bool owed;  // reply refused by a full TCP buffer; loop() retries it until it goes out
+    bool success;
   };
   // FIFO per entity: entities forward only completions of frames they submitted, and each
   // completion pops the oldest match, so entries are never reordered. One slot per connection:
@@ -359,7 +361,10 @@ class APIServer final : public Component,
   // one named expiry timer, since a scheduler item per entry would churn the heap.
   std::array<PendingIrRfTransmit, MAX_API_CONNECTIONS> pending_ir_rf_transmits_{};
   uint8_t pending_ir_rf_count_{0};
+  bool ir_rf_reply_owed_{false};
+  bool send_ir_rf_reply_(const PendingIrRfTransmit &entry);
   void complete_pending_ir_rf_transmit_(size_t index, bool success);
+  void retry_owed_ir_rf_replies_();
   void erase_pending_ir_rf_transmit_(size_t index);
   void unregister_pending_ir_rf_transmits_for_connection_(APIConnection *conn);
   void expire_pending_ir_rf_transmits_();

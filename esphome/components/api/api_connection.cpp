@@ -1566,11 +1566,9 @@ void APIConnection::send_infrared_rf_receive_event(const InfraredRFReceiveEvent 
   }
 }
 
-void APIConnection::send_infrared_rf_transmit_complete_response(const InfraredRFTransmitCompleteResponse &msg) {
-  if (!this->send_message(msg)) {
-    // a lost reply stalls the client's pacing until the server side expiry
-    API_LOG_MSG_DROPPED(TAG, "IR/RF transmit complete");
-  }
+bool APIConnection::send_infrared_rf_transmit_complete_response(const InfraredRFTransmitCompleteResponse &msg) {
+  // false when the TCP buffer is full; the server keeps the reply and retries it from loop()
+  return this->send_message(msg);
 }
 #endif
 
