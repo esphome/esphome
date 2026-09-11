@@ -459,6 +459,11 @@ _PEER_CERT_PKCS7_OFF = {
     "CONFIG_MBEDTLS_SSL_KEEP_PEER_CERTIFICATE": False,
     "CONFIG_MBEDTLS_PKCS7_C": False,
 }
+_TLS_EXTRAS_OFF = dict.fromkeys(MBEDTLS_TLS_EXTRA_OPTIONS, False)
+_TLS_CLIENT_ONLY = {
+    "CONFIG_MBEDTLS_TLS_CLIENT_ONLY": True,
+    "CONFIG_MBEDTLS_TLS_SERVER_AND_CLIENT": False,
+}
 _IDF5 = cv.Version(5, 5, 5)
 _IDF6 = cv.Version(6, 0, 0)
 
@@ -471,7 +476,7 @@ _IDF6 = cv.Version(6, 0, 0)
             _IDF5,
             MbedtlsSdkconfigData(),
             {},
-            {**_TLS_OFF_IDF5, **_PEER_CERT_PKCS7_OFF},
+            {**_TLS_OFF_IDF5, **_TLS_EXTRAS_OFF, **_PEER_CERT_PKCS7_OFF},
             set(_ESP_TLS_LINKING_COMPONENTS),
             id="idf5_no_tls_user",
         ),
@@ -481,8 +486,8 @@ _IDF6 = cv.Version(6, 0, 0)
             _IDF5,
             MbedtlsSdkconfigData(),
             {},
-            _PEER_CERT_PKCS7_OFF,
-            set(),
+            {**_TLS_CLIENT_ONLY, **_TLS_EXTRAS_OFF, **_PEER_CERT_PKCS7_OFF},
+            set(_ESP_TLS_LINKING_COMPONENTS) - {"esp-tls"},
             id="idf_esp_tls_reincluded",
         ),
         pytest.param(
@@ -491,7 +496,7 @@ _IDF6 = cv.Version(6, 0, 0)
             _IDF5,
             MbedtlsSdkconfigData(),
             {},
-            _PEER_CERT_PKCS7_OFF,
+            {**_TLS_CLIENT_ONLY, **_TLS_EXTRAS_OFF, **_PEER_CERT_PKCS7_OFF},
             set(_ESP_TLS_LINKING_COMPONENTS) - {"esp_http_client"},
             id="idf_http_client_reincluded",
         ),
@@ -502,6 +507,7 @@ _IDF6 = cv.Version(6, 0, 0)
             {},
             {
                 **_TLS_OFF_IDF6,
+                **_TLS_EXTRAS_OFF,
                 **_PEER_CERT_PKCS7_OFF,
                 "CONFIG_MBEDTLS_SHA384_C": False,
                 "CONFIG_MBEDTLS_SHA512_C": False,
@@ -514,7 +520,7 @@ _IDF6 = cv.Version(6, 0, 0)
             _IDF6,
             MbedtlsSdkconfigData(sha512_required=True),
             {},
-            {**_TLS_OFF_IDF6, **_PEER_CERT_PKCS7_OFF},
+            {**_TLS_OFF_IDF6, **_TLS_EXTRAS_OFF, **_PEER_CERT_PKCS7_OFF},
             set(_ESP_TLS_LINKING_COMPONENTS),
             id="idf6_sha512_required",
         ),
@@ -523,7 +529,7 @@ _IDF6 = cv.Version(6, 0, 0)
             _IDF5,
             MbedtlsSdkconfigData(tls_required=True),
             {},
-            _PEER_CERT_PKCS7_OFF,
+            {**_TLS_CLIENT_ONLY, **_TLS_EXTRAS_OFF, **_PEER_CERT_PKCS7_OFF},
             set(_ESP_TLS_LINKING_COMPONENTS),
             id="idf_tls_requested",
         ),
@@ -538,6 +544,7 @@ _IDF6 = cv.Version(6, 0, 0)
                 "CONFIG_MBEDTLS_PEM_WRITE_C": False,
                 "CONFIG_MBEDTLS_X509_CRL_PARSE_C": False,
                 "CONFIG_MBEDTLS_X509_CSR_PARSE_C": False,
+                **_TLS_EXTRAS_OFF,
                 **_PEER_CERT_PKCS7_OFF,
             },
             set(_ESP_TLS_LINKING_COMPONENTS),
@@ -551,6 +558,7 @@ _IDF6 = cv.Version(6, 0, 0)
             {
                 **_TLS_OFF_IDF5,
                 "CONFIG_MBEDTLS_ECP_C": RawSdkconfigValue("y"),
+                **_TLS_EXTRAS_OFF,
                 **_PEER_CERT_PKCS7_OFF,
             },
             set(_ESP_TLS_LINKING_COMPONENTS),
@@ -563,6 +571,7 @@ _IDF6 = cv.Version(6, 0, 0)
             {},
             {
                 **_TLS_OFF_IDF5,
+                **_TLS_EXTRAS_OFF,
                 "CONFIG_MBEDTLS_SSL_KEEP_PEER_CERTIFICATE": True,
                 "CONFIG_MBEDTLS_PKCS7_C": True,
             },
@@ -574,7 +583,7 @@ _IDF6 = cv.Version(6, 0, 0)
             _IDF5,
             MbedtlsSdkconfigData(disable_peer_cert=False, disable_pkcs7=False),
             {},
-            _TLS_OFF_IDF5,
+            {**_TLS_OFF_IDF5, **_TLS_EXTRAS_OFF},
             set(_ESP_TLS_LINKING_COMPONENTS),
             id="idf_advanced_disables_off",
         ),
@@ -584,7 +593,7 @@ _IDF6 = cv.Version(6, 0, 0)
             _IDF5,
             MbedtlsSdkconfigData(disable_tls=False),
             {},
-            _PEER_CERT_PKCS7_OFF,
+            {**_TLS_CLIENT_ONLY, **_TLS_EXTRAS_OFF, **_PEER_CERT_PKCS7_OFF},
             set(_ESP_TLS_LINKING_COMPONENTS),
             id="idf_disable_tls_opt_out",
         ),
@@ -593,7 +602,7 @@ _IDF6 = cv.Version(6, 0, 0)
             _IDF5,
             MbedtlsSdkconfigData(),
             {},
-            _PEER_CERT_PKCS7_OFF,
+            {**_TLS_CLIENT_ONLY, **_TLS_EXTRAS_OFF, **_PEER_CERT_PKCS7_OFF},
             set(_ESP_TLS_LINKING_COMPONENTS),
             id="arduino_keeps_tls",
         ),

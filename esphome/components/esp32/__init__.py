@@ -771,6 +771,8 @@ class MbedtlsSdkconfigData:
     sha512_required: bool = False  # SHA-384/SHA-512
     # esp32 advanced disable_mbedtls_* options
     disable_tls: bool = True
+    disable_tls_server: bool = True
+    disable_tls_extras: bool = True
     disable_peer_cert: bool = True
     disable_pkcs7: bool = True
 
@@ -2444,10 +2446,14 @@ async def _reconcile_mbedtls_sdkconfig() -> None:
 
     mbedtls cannot be excluded from an IDF build (bootloader_support needs its
     SHA-256), but with no TLS user the ssl_*.c sources and the TLS-only crypto
-    compile to empty objects. User sdkconfig_options win.
+    compile to empty objects. When TLS stays in, it is trimmed to the client
+    role and the legacy handshake extras are dropped. User sdkconfig_options
+    win; a user-chosen TLS role leaves the whole choice alone.
     """
     data = _mbedtls_sdkconfig()
     idf6 = idf_version() >= cv.Version(6, 0, 0)
+    esp32_data = CORE.data[KEY_ESP32]
+    opts = esp32_data[KEY_SDKCONFIG_OPTIONS]
 
     if _mbedtls_tls_compiled_out():
         # IDF 6 made CONFIG_MBEDTLS_TLS_ENABLED a normal bool; on IDF 5 it has
@@ -2466,6 +2472,23 @@ async def _reconcile_mbedtls_sdkconfig() -> None:
         set_idf_sdkconfig_default("CONFIG_MBEDTLS_PEM_WRITE_C", False)
         set_idf_sdkconfig_default("CONFIG_MBEDTLS_X509_CRL_PARSE_C", False)
         set_idf_sdkconfig_default("CONFIG_MBEDTLS_X509_CSR_PARSE_C", False)
+    elif (
+        # TLS stays in: trim it to the client role unless a component accepts
+        # TLS connections or the user already chose a role.
+        data.disable_tls_server
+        and not esp32_data.get(KEY_MBEDTLS_TLS_SERVER_REQUIRED, False)
+        and not any(option in opts for option in MBEDTLS_TLS_ROLE_OPTIONS)
+    ):
+        add_idf_sdkconfig_option("CONFIG_MBEDTLS_TLS_CLIENT_ONLY", True)
+        add_idf_sdkconfig_option("CONFIG_MBEDTLS_TLS_SERVER_AND_CLIENT", False)
+
+    # The extras run either way: CCM and deterministic ECDSA are plain
+    # crypto, not TLS-gated, so they matter even with TLS compiled out.
+    if data.disable_tls_extras:
+        required = esp32_data.get(KEY_MBEDTLS_TLS_EXTRAS_REQUIRED, set())
+        for option in MBEDTLS_TLS_EXTRA_OPTIONS:
+            if option not in required:
+                set_idf_sdkconfig_default(option, False)
 
     # Keeping the peer certificate costs ~4KB heap per connection.
     if data.peer_cert_required:
@@ -2518,39 +2541,6 @@ MBEDTLS_TLS_ROLE_OPTIONS = (
     "CONFIG_MBEDTLS_TLS_CLIENT_ONLY",
     "CONFIG_MBEDTLS_TLS_DISABLED",
 )
-
-
-@coroutine_with_priority(CoroPriority.FINAL)
-async def _reconcile_mbedtls_tls_sdkconfig(
-    disable_tls_server: bool, disable_tls_extras: bool
-) -> None:
-    """Trim mbedTLS to what a TLS client needs unless a component asked otherwise.
-
-    Runs at FINAL priority so every require_mbedtls_tls_server() and
-    require_mbedtls_tls_extras() call has happened. Only the server-side
-    handshake (~7 KB) is a separate option; nothing in ESPHome accepts TLS
-    connections, but OpenThread's DTLS commissioner does. A user-supplied
-    sdkconfig_options value always wins; for the TLS role choice, any member
-    the user set leaves the whole choice alone so the pair cannot conflict.
-    """
-    data = CORE.data[KEY_ESP32]
-    sdkconfig = data[KEY_SDKCONFIG_OPTIONS]
-    if (
-        disable_tls_server
-        # When TLS is compiled out entirely, a role write would conflict with
-        # CONFIG_MBEDTLS_TLS_DISABLED; the extras below still matter because
-        # CCM and deterministic ECDSA are plain crypto, not TLS-gated.
-        and not _mbedtls_tls_compiled_out()
-        and not data.get(KEY_MBEDTLS_TLS_SERVER_REQUIRED, False)
-        and not any(option in sdkconfig for option in MBEDTLS_TLS_ROLE_OPTIONS)
-    ):
-        add_idf_sdkconfig_option("CONFIG_MBEDTLS_TLS_CLIENT_ONLY", True)
-        add_idf_sdkconfig_option("CONFIG_MBEDTLS_TLS_SERVER_AND_CLIENT", False)
-    if disable_tls_extras:
-        required = data.get(KEY_MBEDTLS_TLS_EXTRAS_REQUIRED, set())
-        for option in MBEDTLS_TLS_EXTRA_OPTIONS:
-            if option not in required:
-                set_idf_sdkconfig_default(option, False)
 
 
 @coroutine_with_priority(CoroPriority.FINAL)
@@ -3224,16 +3214,11 @@ async def to_code(config):
     # FINAL priority: runs after every request_tls() / require_mbedtls_*() call
     mbedtls = _mbedtls_sdkconfig()
     mbedtls.disable_tls = advanced[CONF_DISABLE_MBEDTLS_TLS]
+    mbedtls.disable_tls_server = advanced[CONF_DISABLE_MBEDTLS_TLS_SERVER]
+    mbedtls.disable_tls_extras = advanced[CONF_DISABLE_MBEDTLS_TLS_EXTRAS]
     mbedtls.disable_peer_cert = advanced[CONF_DISABLE_MBEDTLS_PEER_CERT]
     mbedtls.disable_pkcs7 = advanced[CONF_DISABLE_MBEDTLS_PKCS7]
     CORE.add_job(_reconcile_mbedtls_sdkconfig)
-
-    # FINAL priority: runs after every require_mbedtls_tls_*() call
-    CORE.add_job(
-        _reconcile_mbedtls_tls_sdkconfig,
-        advanced[CONF_DISABLE_MBEDTLS_TLS_SERVER],
-        advanced[CONF_DISABLE_MBEDTLS_TLS_EXTRAS],
-    )
 
     # FINAL: require_*() calls can come from to_code at or below this priority, so an
     # inline read would be iteration-order-dependent; reconcile once after every job ran.
