@@ -2,6 +2,8 @@
 
 #ifdef USE_ESP32
 
+#include "esphome/core/application.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
 #include "esp_timer.h"
@@ -11,6 +13,9 @@
 namespace esphome::router {
 
 static const char *const TAG = "router.speaker";
+
+// Maximum time to wait for the active output to report running after start() before giving up
+static const uint32_t STATE_TRANSITION_TIMEOUT_MS = 5000;
 
 static inline uint32_t atomic_subtract_clamped(std::atomic<uint32_t> &var, uint32_t amount) {
   uint32_t current = var.load(std::memory_order_acquire);
@@ -72,6 +77,7 @@ void Router::loop() {
 
       this->apply_cached_state_to_active_();
       this->state_ = speaker::STATE_STARTING;
+      this->state_start_ms_ = App.get_loop_component_start_time();
       active->start();
     }
     return;
@@ -86,10 +92,17 @@ void Router::loop() {
   // set_audio_stream_info() and never reaches the output on its own; if the format
   // changed while stopped, only start()'s apply_cached_state_to_active_() pushes it
   // down before the output's play()-side auto-start locks in the stale format.
-  if (active->is_stopped()) {
+  // While STARTING, ignore a transient stopped report as speaker running state
+  // is set asynchronously from start(). Timeout if the speaker never transitions.
+  if (this->state_ == speaker::STATE_STARTING) {
+    if (active->is_running()) {
+      this->state_ = speaker::STATE_RUNNING;
+    } else if ((App.get_loop_component_start_time() - this->state_start_ms_) > STATE_TRANSITION_TIMEOUT_MS) {
+      ESP_LOGW(TAG, "Active output did not start; giving up");
+      this->state_ = speaker::STATE_STOPPED;
+    }
+  } else if (active->is_stopped()) {
     this->state_ = speaker::STATE_STOPPED;
-  } else if (this->state_ == speaker::STATE_STARTING && active->is_running()) {
-    this->state_ = speaker::STATE_RUNNING;
   }
 }
 
@@ -133,6 +146,8 @@ void Router::start() {
   this->frames_in_pipeline_.store(0, std::memory_order_release);
   this->apply_cached_state_to_active_();
   this->state_ = speaker::STATE_STARTING;
+  // May run on a producer task, so the cached loop timestamp is not usable here
+  this->state_start_ms_ = millis();
   this->get_active_output()->start();
 }
 
