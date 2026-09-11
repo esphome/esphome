@@ -9,7 +9,6 @@ ssize_t APIOverflowBuffer::try_drain(socket::Socket *socket) {
   if (this->draining_)
     return 0;
 
-  // RAII so the flag is cleared on every return path
   struct DrainGuard {
     explicit DrainGuard(bool &flag) : flag_(flag) { flag_ = true; }
     ~DrainGuard() { this->flag_ = false; }
@@ -23,12 +22,9 @@ ssize_t APIOverflowBuffer::try_drain(socket::Socket *socket) {
     const uint16_t remaining = len - this->front_sent_;
 
     ssize_t sent = socket->write(msg + LEN_PREFIX + this->front_sent_, remaining);
-    if (sent <= 0) {
-      // -1 = error (caller checks errno for EWOULDBLOCK vs hard error)
-      // 0 = nothing sent (treat as no progress)
+    if (sent <= 0)
       return sent;
-    }
-    if (static_cast<uint16_t>(sent) < remaining) {
+    if (sent < remaining) {
       this->front_sent_ += static_cast<uint16_t>(sent);
       return sent;
     }
@@ -37,8 +33,7 @@ ssize_t APIOverflowBuffer::try_drain(socket::Socket *socket) {
     this->count_--;
   }
 
-  // Fully drained: rewind, keeping the capacity for the next stall unless a
-  // release was requested while data was still queued
+  // Fully drained: rewind; keep the capacity unless release() asked otherwise
   this->head_ = 0;
   if (this->release_when_drained_) {
     this->release_when_drained_ = false;
@@ -55,20 +50,23 @@ bool APIOverflowBuffer::enqueue_iov(const struct iovec *iov, int iovcnt, uint16_
 
   const uint16_t new_len = total_len - skip;
   size_t size = this->buf_.size();
-  size_t want = size + LEN_PREFIX + new_len;
-
-  if (this->head_ > 0 && want > this->buf_.capacity()) {
-    // Slide the unsent bytes to the front so growth only copies live data
-    const size_t live = size - this->head_;
-    std::memmove(this->buf_.data(), this->buf_.data() + this->head_, live);
-    this->head_ = 0;
-    (void) this->buf_.resize(live);  // live <= capacity, cannot fail
-    size = live;
-    want = live + LEN_PREFIX + new_len;
-  }
-  if (want > MAX_BYTES)
+  if (size - this->head_ + LEN_PREFIX + new_len > MAX_BYTES)
     return false;
 
+  if (size + LEN_PREFIX + new_len > this->buf_.capacity()) {
+    // Storage would move; not under an outer drain whose write() still points into it
+    if (this->draining_)
+      return false;
+    if (this->head_ > 0) {
+      // Slide the unsent bytes to the front so growth only copies live data
+      size -= this->head_;
+      std::memmove(this->buf_.data(), this->buf_.data() + this->head_, size);
+      this->head_ = 0;
+      (void) this->buf_.resize(size);  // keeps size() consistent if the grow below fails
+    }
+  }
+
+  const size_t want = size + LEN_PREFIX + new_len;
   const size_t reserve = std::min((want + GROW_QUANTUM - 1) & ~(GROW_QUANTUM - 1), MAX_BYTES);
   if (!this->buf_.reserve_and_resize(reserve, want))
     return false;
@@ -81,7 +79,7 @@ bool APIOverflowBuffer::enqueue_iov(const struct iovec *iov, int iovcnt, uint16_
     if (to_skip >= iov[i].iov_len) {
       to_skip -= static_cast<uint16_t>(iov[i].iov_len);
     } else {
-      const uint8_t *src = reinterpret_cast<uint8_t *>(iov[i].iov_base) + to_skip;
+      const uint8_t *src = static_cast<const uint8_t *>(iov[i].iov_base) + to_skip;
       uint16_t len = static_cast<uint16_t>(iov[i].iov_len) - to_skip;
       std::memcpy(dst, src, len);
       dst += len;
@@ -89,7 +87,7 @@ bool APIOverflowBuffer::enqueue_iov(const struct iovec *iov, int iovcnt, uint16_
     }
   }
 
-  // Publish only after the copy completes so a half-built message is never sent
+  // Publish after the copy so a half-built message is never sent
   this->count_++;
   return true;
 }
