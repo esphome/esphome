@@ -34,10 +34,10 @@ static bool IRAM_ATTR HOT rmt_callback(rmt_channel_handle_t channel, const rmt_r
   event_buffer->received_symbols = event->received_symbols;
   const bool stored = next_write != buffer_write;
   store->buffer_write = next_write;
-  // a stored frame is decoded on the next loop pass instead of waiting out the loop interval;
-  // filtered noise and dropped frames leave nothing to read
+  // a stored frame is decoded, and a failed re-arm reported, on the next loop pass instead of
+  // waiting out the loop interval; filtered noise and dropped frames leave nothing to read
   BaseType_t task_woken = pdFALSE;
-  if (stored)
+  if (stored || store->error != ESP_OK)
     wake_loop_isrsafe(&task_woken);
   return task_woken != pdFALSE;
 }
