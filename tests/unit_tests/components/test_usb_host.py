@@ -107,5 +107,5 @@ def test_every_pair_is_compared_not_just_neighbours() -> None:
         {"id": "b", "vid": 0x303A, "pid": 0x4002},
         {"id": "c", "vid": 0x303A, "pid": 0x4001, "product": "ZBT-2"},
     ]
-    with pytest.raises(cv.Invalid, match="'a', 'c'"):
+    with pytest.raises(cv.Invalid, match="a, c"):
         validate_usb_clients(configs)

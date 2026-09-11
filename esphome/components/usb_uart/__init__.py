@@ -6,7 +6,6 @@ from esphome.components.usb_host import (
     get_max_packet_size,
     register_usb_client,
     usb_device_schema,
-    validate_usb_clients,
 )
 import esphome.config_validation as cv
 from esphome.const import (
@@ -145,19 +144,16 @@ def channel_schema(type_: "Type") -> cv.Schema:
     )
 
 
-CONFIG_SCHEMA = cv.All(
-    cv.ensure_list(
-        cv.typed_schema(
-            {
-                it.name: usb_device_schema(it.cls, it.vid, it.pid).extend(
-                    channel_schema(it)
-                )
-                for it in uart_types
-            },
-            upper=True,
-        )
-    ),
-    validate_usb_clients,
+CONFIG_SCHEMA = cv.ensure_list(
+    cv.typed_schema(
+        {
+            it.name: usb_device_schema(it.cls, it.vid, it.pid).extend(
+                channel_schema(it)
+            )
+            for it in uart_types
+        },
+        upper=True,
+    )
 )
 
 

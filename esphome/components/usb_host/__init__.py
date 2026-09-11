@@ -18,6 +18,7 @@ from esphome.const import CONF_DEVICES, CONF_ID
 from esphome.core import CORE
 from esphome.cpp_generator import MockObj
 from esphome.cpp_types import Component
+import esphome.final_validate as fv
 from esphome.helpers import cpp_u16string_escape
 from esphome.types import ConfigType
 
@@ -80,9 +81,21 @@ def validate_usb_clients(configs: list[ConfigType]) -> list[ConfigType]:
                 break
         else:
             raise cv.Invalid(
-                f"USB configs overlap: {first[CONF_ID]!r}, {second[CONF_ID]!r}"
+                f"USB configs overlap: {first[CONF_ID]}, {second[CONF_ID]}"
             )
     return configs
+
+
+def _final_validate(config: ConfigType) -> ConfigType:
+    # Every USB client on the bus, whichever component configured it: any two could
+    # otherwise open the same device
+    clients = list(config.get(CONF_DEVICES) or ())
+    clients.extend(fv.full_config.get().get("usb_uart") or ())
+    validate_usb_clients(clients)
+    return config
+
+
+FINAL_VALIDATE_SCHEMA = _final_validate
 
 
 def _set_max_packet_size(config: dict) -> dict:
@@ -107,9 +120,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_MAX_PACKET_SIZE, default=64): cv.one_of(
                 64, 128, 256, 512, 1024, int=True
             ),
-            cv.Optional(CONF_DEVICES): cv.All(
-                cv.ensure_list(usb_device_schema()), validate_usb_clients
-            ),
+            cv.Optional(CONF_DEVICES): cv.ensure_list(usb_device_schema()),
         }
     ),
     only_on_variant(
