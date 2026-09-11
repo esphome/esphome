@@ -62,6 +62,11 @@ void ESP32BLETracker::on_ota_global_state(ota::OTAState state, float progress, u
     for (auto *client : this->clients_) {
       client->disconnect();
     }
+#ifdef USE_ESP32_BLE_SOFTWARE_COEXISTENCE
+    // The OTA transfer blocks the main loop, so the revert in loop() cannot run. No
+    // active-connection gate here: every client was just told to disconnect.
+    this->update_coex_preference_(false);
+#endif
 #endif
   } else if ((state == ota::OTA_ERROR || state == ota::OTA_ABORT) && this->scan_continuous_before_ota_) {
     this->scan_continuous_before_ota_ = false;
