@@ -52,11 +52,28 @@ class IDFUARTComponent final : public UARTComponent, public Component {
   void load_settings(bool dump_config) override;
   using UARTComponent::load_settings;  // also bring in the no-arg overload for convenience
 
+  /**
+   * Apply the current framing settings (baud rate, parity, data/stop bits) to the
+   * already-installed driver without the driver delete/reinstall that load_settings()
+   * performs. The driver ring buffers and any tasks blocked in
+   * uart_read_bytes()/uart_write_bytes() survive, but uart_param_config() flushes
+   * both hardware FIFOs, so up to a FIFO's worth of in-flight bytes is discarded in
+   * each direction. Falls back to a full reload if the driver is not installed.
+   */
+  void apply_settings_live();
+
   void on_shutdown() override;
 
  protected:
   void check_logger_conflict() override;
+  // Signal-inversion flags derived from the configured pins' inverted markers.
+  uint32_t line_inversion_mask_();
+  // (Re)apply the settings that uart_param_config() resets: line inversion, RX full
+  // threshold, RX timeout, and port mode. Returns the first error, already logged.
+  esp_err_t apply_line_settings_();
   uart_port_t uart_num_{UART_NUM_MAX};
+  // Fallback for a failed live reconfiguration (unachievable requested rate).
+  uint32_t last_good_baud_{0};
   uart_config_t get_config_();
 
   bool has_peek_{false};
