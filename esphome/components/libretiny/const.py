@@ -62,6 +62,13 @@ COMPONENT_RTL87XX = "rtl87xx"
 # ``FAMILY_COMPONENT.values()``. New chip families added by the
 # generator are picked up automatically; please don't repurpose
 # the public ``FAMILY_COMPONENT`` name without coordinating.
+# Exception: RTL8720D/bw16 (here and in rtl87xx/boards.py) are hand-maintained
+# until a released ltchiptool carries the realtek-ambd family. Regenerating
+# before then drops the family's entries from the generated block below; the
+# constant is defined here, outside that block, so libretiny/__init__.py (which
+# imports it at module scope) keeps importing and only bw16 stops resolving.
+# Delete this line once the generator emits it.
+FAMILY_RTL8720D = "RTL8720D"
 # FAMILIES - auto-generated! Do not modify this block.
 FAMILY_BK7231N = "BK7231N"
 FAMILY_BK7231Q = "BK7231Q"
@@ -80,6 +87,7 @@ FAMILIES = [
     FAMILY_LN882H,
     FAMILY_RTL8710B,
     FAMILY_RTL8720C,
+    FAMILY_RTL8720D,
 ]
 FAMILY_FRIENDLY = {
     FAMILY_BK7231N: "BK7231N",
@@ -90,6 +98,7 @@ FAMILY_FRIENDLY = {
     FAMILY_LN882H: "LN882H",
     FAMILY_RTL8710B: "RTL8710B",
     FAMILY_RTL8720C: "RTL8720C",
+    FAMILY_RTL8720D: "RTL8720D",
 }
 FAMILY_COMPONENT = {
     FAMILY_BK7231N: COMPONENT_BK72XX,
@@ -100,6 +109,7 @@ FAMILY_COMPONENT = {
     FAMILY_LN882H: COMPONENT_LN882X,
     FAMILY_RTL8710B: COMPONENT_RTL87XX,
     FAMILY_RTL8720C: COMPONENT_RTL87XX,
+    FAMILY_RTL8720D: COMPONENT_RTL87XX,
 }
 # FAMILIES - end
 

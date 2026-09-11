@@ -1,0 +1,18 @@
+esphome:
+  name: componenttestrtl87xxc
+  friendly_name: $component_name
+
+# AmebaZ2 (RTL8720C): the BLE-capable family in released LibreTiny, so
+# components with BLE C++ get real compile coverage here (the rtl87xx-ard
+# base is an RTL8710B, which has no BLE radio).
+rtl87xx:
+  board: bw15
+
+logger:
+  level: VERY_VERBOSE
+
+packages:
+  component_under_test: !include
+    file: $component_test_file
+    vars:
+      component_test_file: $component_test_file
