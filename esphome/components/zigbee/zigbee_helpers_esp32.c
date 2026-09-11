@@ -36,6 +36,8 @@ ezb_zcl_cluster_desc_t esphome_zb_default_cluster_dscr_create(uint16_t cluster_i
       return ezb_zcl_analog_input_create_cluster_desc(NULL, role_mask);
     case EZB_ZCL_CLUSTER_ID_BINARY_INPUT:
       return ezb_zcl_binary_input_create_cluster_desc(NULL, role_mask);
+    case EZB_ZCL_CLUSTER_ID_ON_OFF:
+      return ezb_zcl_on_off_create_cluster_desc(NULL, role_mask);
     default: {
       ezb_zcl_custom_cluster_config_t config = {0};
       config.cluster_id = cluster_id;
@@ -57,6 +59,8 @@ ezb_err_t esphome_zb_cluster_add_attr(uint16_t cluster_id, ezb_zcl_cluster_desc_
       return ezb_zcl_analog_input_cluster_desc_add_attr(cluster_desc, attr_id, value_p);
     case EZB_ZCL_CLUSTER_ID_BINARY_INPUT:
       return ezb_zcl_binary_input_cluster_desc_add_attr(cluster_desc, attr_id, value_p);
+    case EZB_ZCL_CLUSTER_ID_ON_OFF:
+      return ezb_zcl_on_off_cluster_desc_add_attr(cluster_desc, attr_id, value_p);
     default:
       return EZB_ERR_NOT_FOUND;
   }

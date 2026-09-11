@@ -81,6 +81,23 @@ ep_configs: dict[str, dict[str, Any]] = {
             },
         ],
     },
+    "on_off_output": {
+        DEVICE_TYPE: "ON_OFF_OUTPUT",
+        CONF_CLUSTERS: [
+            {
+                CONF_ID: "ON_OFF",
+                ROLE: "SERVER",
+                CONF_ATTRIBUTES: [
+                    {
+                        CONF_ATTRIBUTE_ID: 0x0000,
+                        CONF_TYPE: "BOOL",
+                        CONF_REPORT: cv.enum(REPORT, lower=True)("force"),
+                        CONF_DEVICE: None,
+                    },
+                ],
+            },
+        ],
+    },
 }
 
 

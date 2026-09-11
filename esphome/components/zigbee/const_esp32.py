@@ -14,6 +14,7 @@ KEY_ZIGBEE_FIRST_EP_CL = "zigbee_first_ep_cl"
 DEVICE_ID = {
     "RANGE_EXTENDER": cg.RawExpression("EZB_ZHA_RANGE_EXTENDER_DEVICE_ID"),
     "SIMPLE_SENSOR": cg.RawExpression("EZB_ZHA_SIMPLE_SENSOR_DEVICE_ID"),
+    "ON_OFF_OUTPUT": cg.RawExpression("EZB_ZHA_ON_OFF_OUTPUT_DEVICE_ID"),
     "CUSTOM_ATTR": 0xFFF2,
 }
 cluster_id = cg.esphome_ns.enum("ezb_zcl_cluster_id_e")
@@ -22,6 +23,7 @@ CLUSTER_ID = {
     "TIME": cluster_id.EZB_ZCL_CLUSTER_ID_TIME,
     "BINARY_INPUT": cluster_id.EZB_ZCL_CLUSTER_ID_BINARY_INPUT,
     "ANALOG_INPUT": cluster_id.EZB_ZCL_CLUSTER_ID_ANALOG_INPUT,
+    "ON_OFF": cluster_id.EZB_ZCL_CLUSTER_ID_ON_OFF,
 }
 CLUSTER_ROLE = {
     "SERVER": cg.RawExpression("EZB_ZCL_CLUSTER_SERVER"),
