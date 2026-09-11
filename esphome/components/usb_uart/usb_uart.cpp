@@ -458,10 +458,12 @@ void USBUartTypeCdcAcm::on_connected() {
 
 void USBUartTypeCdcAcm::on_disconnected() {
   for (auto *channel : this->channels_) {
-    if (channel->cdc_dev_.in_ep != nullptr) {
-      usb_host_endpoint_halt(this->device_handle_, channel->cdc_dev_.in_ep->bEndpointAddress);
-      usb_host_endpoint_flush(this->device_handle_, channel->cdc_dev_.in_ep->bEndpointAddress);
-    }
+    // Not set up for this device: it was rejected before on_connected() ran, or it has
+    // fewer ports than there are channels. Nothing was claimed for it.
+    if (channel->cdc_dev_.in_ep == nullptr)
+      continue;
+    usb_host_endpoint_halt(this->device_handle_, channel->cdc_dev_.in_ep->bEndpointAddress);
+    usb_host_endpoint_flush(this->device_handle_, channel->cdc_dev_.in_ep->bEndpointAddress);
     if (channel->cdc_dev_.out_ep != nullptr) {
       usb_host_endpoint_halt(this->device_handle_, channel->cdc_dev_.out_ep->bEndpointAddress);
       usb_host_endpoint_flush(this->device_handle_, channel->cdc_dev_.out_ep->bEndpointAddress);
@@ -489,6 +491,8 @@ void USBUartTypeCdcAcm::on_disconnected() {
       }
     }
     channel->initialised_.store(false);
+    // The descriptors these point into are freed with the device
+    channel->cdc_dev_ = {};
   }
   USBClient::on_disconnected();
 }
