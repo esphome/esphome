@@ -1,5 +1,4 @@
 #include "api_buffer.h"
-#include <cstdlib>
 #include <cstring>
 
 namespace esphome::api {
@@ -7,9 +6,10 @@ namespace esphome::api {
 bool APIBuffer::grow_(size_t n, size_t drop) {
   if (n > MAX_SIZE)
     return false;
+  RAMAllocator<uint8_t> allocator;
   if (drop == 0) {
     // realloc extends in place when it can, avoiding the copy
-    auto *grown = static_cast<uint8_t *>(std::realloc(this->data_.get(), n));  // NOLINT(cppcoreguidelines-no-malloc)
+    uint8_t *grown = allocator.reallocate(this->data_.get(), n);
     if (grown == nullptr)
       return false;
     (void) this->data_.release();  // realloc already freed or reused the old block
@@ -17,7 +17,7 @@ bool APIBuffer::grow_(size_t n, size_t drop) {
     this->capacity_ = n;
     return true;
   }
-  auto *fresh = static_cast<uint8_t *>(std::malloc(n));  // NOLINT(cppcoreguidelines-no-malloc)
+  uint8_t *fresh = allocator.allocate(n);
   if (fresh == nullptr)
     return false;
   const size_t live = this->size_ - drop;
