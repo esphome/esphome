@@ -105,8 +105,8 @@ void RfProxy::setup() {
   }
 #if defined(USE_API) && defined(USE_RADIO_FREQUENCY)
   if (this->transmitter_ != nullptr) {
-    // only frames this entity submitted; YAML automations share the transmitter
-    this->transmitter_->set_on_complete_callback([this](uint32_t seq) {
+    // only frames this entity submitted; YAML automations and other entities share the transmitter
+    this->transmitter_->add_on_complete_callback([this](uint32_t seq) {
       if (seq == this->inflight_seq_)
         this->notify_transmit_complete_();
     });

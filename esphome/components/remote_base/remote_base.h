@@ -163,7 +163,7 @@ class RemoteTransmitterBase : public RemoteComponentBase {
 
   TransmitCall transmit() {
     this->temp_.reset();
-    return TransmitCall(this, ++this->next_seq_);
+    return TransmitCall(this, this->take_seq_());
   }
   template<typename Protocol>
   void transmit(const Protocol::ProtocolData &data, uint32_t send_times = 1, uint32_t send_wait = 0) {
@@ -175,30 +175,30 @@ class RemoteTransmitterBase : public RemoteComponentBase {
   }
 #if defined(USE_IR_RF) || defined(USE_RADIO_FREQUENCY)
   /// Called with the TransmitCall's seq once that transmission has finished, after the last
-  /// repeat and before the on_complete trigger. One slot: a transmitter is driven by a single
-  /// infrared or radio_frequency entity.
-  template<typename F> void set_on_complete_callback(F &&callback) {
-    this->complete_callback_ = Callback<void(uint32_t)>::create(std::forward<F>(callback));
+  /// repeat and before the on_complete trigger. Entities sharing a transmitter each register
+  /// and keep only the seqs they submitted.
+  template<typename F> void add_on_complete_callback(F &&callback) {
+    this->complete_callback_.add(std::forward<F>(callback));
   }
 #endif
 
  protected:
   void send_(uint32_t send_times, uint32_t send_wait, uint32_t seq);
   virtual void send_internal(uint32_t send_times, uint32_t send_wait) = 0;
-  void send_single_() { this->send_(1, 0, ++this->next_seq_); }
+  void send_single_() { this->send_(1, 0, this->take_seq_()); }
 #if defined(USE_IR_RF) || defined(USE_RADIO_FREQUENCY)
-  void notify_complete_(uint32_t seq) {
-    if (this->complete_callback_.fn_ != nullptr)
-      this->complete_callback_.call(seq);
-  }
+  void notify_complete_(uint32_t seq) { this->complete_callback_.call(seq); }
+  uint32_t take_seq_() { return ++this->next_seq_; }
 
-  Callback<void(uint32_t)> complete_callback_{};
-#else
-  void notify_complete_(uint32_t seq) {}
-#endif
+  LazyCallbackManager<void(uint32_t)> complete_callback_;
   // seq handed to the platform by send_(); platforms copy it when they accept the frame
   uint32_t next_seq_{0};
   uint32_t current_seq_{0};
+#else
+  // seq tracking only exists for the API completion reply
+  void notify_complete_(uint32_t seq) {}
+  static uint32_t take_seq_() { return 0; }
+#endif
 
   /// Use same vector for all transmits, avoids many allocations
   RemoteTransmitData temp_;

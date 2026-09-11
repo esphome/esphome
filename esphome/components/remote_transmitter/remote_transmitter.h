@@ -82,12 +82,18 @@ class RemoteTransmitterComponent final : public remote_base::RemoteTransmitterBa
 
  protected:
   void send_internal(uint32_t send_times, uint32_t send_wait) override;
-  // completion callbacks run before the user's on_complete automation
+#if defined(USE_IR_RF) || defined(USE_RADIO_FREQUENCY)
+  // platforms accept the frame's seq when they take it, and report it before the user's on_complete
+  void accept_seq_() { this->inflight_seq_ = this->current_seq_; }
   void fire_complete_() {
     this->notify_complete_(this->inflight_seq_);
     this->complete_trigger_.trigger();
   }
   uint32_t inflight_seq_{0};  // seq of the frame whose completion is still to be reported
+#else
+  void accept_seq_() {}
+  void fire_complete_() { this->complete_trigger_.trigger(); }
+#endif
 #if defined(USE_ESP8266) || \
     (defined(USE_LIBRETINY) && !defined(USE_LIBRETINY_VARIANT_RTL8720C) && !defined(REMOTE_TRANSMITTER_BK_PWM)) || \
     defined(USE_RP2) || (defined(USE_ESP32) && !SOC_RMT_SUPPORTED)

@@ -1537,17 +1537,19 @@ void APIConnection::on_infrared_rf_transmit_raw_timings_request(const InfraredRF
   }
 #endif
 #ifdef USE_RADIO_FREQUENCY
-  ENTITY_COMMAND_LOOKUP(radio_frequency::RadioFrequency, radio_frequency, radio_frequency);
-  if (radio_frequency != nullptr) {
-    found = true;
-    auto call = radio_frequency->make_call();
-    call.set_frequency(msg.carrier_frequency);
-    call.set_modulation(static_cast<radio_frequency::RadioFrequencyModulation>(msg.modulation));
-    call.set_repeat_count(msg.repeat_count);
-    call.set_raw_timings_packed(msg.timings_data_, msg.timings_length_, msg.timings_count_);
-    if (want_reply)
-      call.set_api_connection(this);
-    call.perform();
+  if (!found) {
+    ENTITY_COMMAND_LOOKUP(radio_frequency::RadioFrequency, radio_frequency, radio_frequency);
+    if (radio_frequency != nullptr) {
+      found = true;
+      auto call = radio_frequency->make_call();
+      call.set_frequency(msg.carrier_frequency);
+      call.set_modulation(static_cast<radio_frequency::RadioFrequencyModulation>(msg.modulation));
+      call.set_repeat_count(msg.repeat_count);
+      call.set_raw_timings_packed(msg.timings_data_, msg.timings_length_, msg.timings_count_);
+      if (want_reply)
+        call.set_api_connection(this);
+      call.perform();
+    }
   }
 #endif
   if (want_reply && !found) {

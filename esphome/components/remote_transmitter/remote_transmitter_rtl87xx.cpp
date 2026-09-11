@@ -146,10 +146,12 @@ void RemoteTransmitterComponent::await_target_time_() {
 void RemoteTransmitterComponent::send_internal(uint32_t send_times, uint32_t send_wait) {
   if (this->pwm_ == nullptr) {
     ESP_LOGW(TAG, "Cannot send: PWM not initialized");
+    this->accept_seq_();
+    this->fire_complete_();
     return;
   }
   ESP_LOGD(TAG, "Sending remote code");
-  this->inflight_seq_ = this->current_seq_;
+  this->accept_seq_();
   const uint32_t carrier_frequency = this->temp_.get_carrier_frequency();
   // unmodulated protocols (no carrier or 100% duty) drive the pin constantly during marks
   float mark_duty =

@@ -43,7 +43,7 @@ async def test_ir_rf_transmit_complete(
     api_client_connected: APIClientConnectedFactory,
 ) -> None:
     """Frames are answered once they leave the transmitter, never overlap, and a refused
-    request is answered at once."""
+    request is answered at once. Two entities share the transmitter and each gets its own reply."""
     loop = asyncio.get_running_loop()
     events: list[tuple[str, int]] = []
     all_sent = loop.create_future()
@@ -77,14 +77,17 @@ async def test_ir_rf_transmit_complete(
     ):
         entities, _ = await client.list_entities_services()
         rf = find_entity(entities, "rf_transmitter", RadioFrequencyInfo)
-        assert rf is not None, "RF transmitter entity not found"
+        rf_b = find_entity(entities, "rf_transmitter_b", RadioFrequencyInfo)
+        assert rf is not None and rf_b is not None, "RF transmitter entities not found"
 
         client._connection.add_message_callback(
             on_complete, (InfraredRFTransmitCompleteResponse,)
         )
-        for _ in range(FRAME_COUNT):
+        # alternate between the two entities sharing the transmitter
+        keys = [rf.key if i % 2 == 0 else rf_b.key for i in range(FRAME_COUNT)]
+        for key in keys:
             client.radio_frequency_transmit_raw_timings(
-                rf.key, 433920000, TIMINGS, repeat_count=REPEAT
+                key, 433920000, TIMINGS, repeat_count=REPEAT
             )
 
         await asyncio.wait_for(all_replied, timeout=10)
@@ -95,7 +98,7 @@ async def test_ir_rf_transmit_complete(
         client.radio_frequency_transmit_raw_timings(rf.key, 433920000, [])
         refused_msg = await asyncio.wait_for(refused, timeout=10)
 
-    assert [msg.key for msg in completions] == [rf.key] * FRAME_COUNT
+    assert [msg.key for msg in completions] == keys
     assert refused_msg.key == rf.key
 
     # The mock saw one frame at a time: every transmit follows the previous completion

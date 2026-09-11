@@ -221,6 +221,9 @@ void RemoteTransmitterComponent::send_internal(uint32_t send_times, uint32_t sen
   uint64_t total_duration = 0;
 
   if (this->is_failed()) {
+    // still report completion so a paced API client or on_complete automation is not left waiting
+    this->accept_seq_();
+    this->fire_complete_();
     return;
   }
 
@@ -228,7 +231,7 @@ void RemoteTransmitterComponent::send_internal(uint32_t send_times, uint32_t sen
   if (this->non_blocking_ && this->cancel_timeout("complete")) {
     this->wait_for_rmt_();
   }
-  this->inflight_seq_ = this->current_seq_;
+  this->accept_seq_();
 
   if (this->current_carrier_frequency_ != this->temp_.get_carrier_frequency()) {
     this->current_carrier_frequency_ = this->temp_.get_carrier_frequency();
@@ -272,6 +275,7 @@ void RemoteTransmitterComponent::send_internal(uint32_t send_times, uint32_t sen
 
   if ((this->rmt_temp_.data() == nullptr) || this->rmt_temp_.size() <= offset) {
     ESP_LOGE(TAG, "Empty data");
+    this->fire_complete_();
     return;
   }
 
@@ -299,9 +303,11 @@ void RemoteTransmitterComponent::send_internal(uint32_t send_times, uint32_t sen
 }
 #else
 void RemoteTransmitterComponent::send_internal(uint32_t send_times, uint32_t send_wait) {
-  if (this->is_failed())
+  this->accept_seq_();
+  if (this->is_failed()) {
+    this->fire_complete_();
     return;
-  this->inflight_seq_ = this->current_seq_;
+  }
 
   if (this->current_carrier_frequency_ != this->temp_.get_carrier_frequency()) {
     this->current_carrier_frequency_ = this->temp_.get_carrier_frequency();
@@ -343,6 +349,7 @@ void RemoteTransmitterComponent::send_internal(uint32_t send_times, uint32_t sen
 
   if ((this->rmt_temp_.data() == nullptr) || this->rmt_temp_.empty()) {
     ESP_LOGE(TAG, "Empty data");
+    this->fire_complete_();
     return;
   }
   this->transmit_trigger_.trigger();
