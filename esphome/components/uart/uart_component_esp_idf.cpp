@@ -293,13 +293,18 @@ esp_err_t IDFUARTComponent::apply_settings_live() {
   if (err != ESP_OK) {
     // Unachievable baud rates land here with the registers already reset (via the
     // internal uart_hal_init()). Restore the whole framing that last worked, so the
-    // getters keep describing the hardware; if that also fails (or none is recorded
-    // yet) the port is left reset -- mark failed.
+    // getters keep describing the hardware; if none is recorded yet or that also
+    // fails, the port is left reset -- mark failed.
+    if (this->last_good_framing_.baud_rate == 0) {
+      ESP_LOGE(TAG, "uart_param_config (live) failed: %s; no previous framing to restore", esp_err_to_name(err));
+      this->mark_failed();
+      return err;
+    }
     ESP_LOGW(TAG, "uart_param_config (live) failed: %s; restoring %" PRIu32 " baud", esp_err_to_name(err),
              this->last_good_framing_.baud_rate);
     this->set_framing_(this->last_good_framing_);
     uart_config = this->get_config_();
-    if (this->last_good_framing_.baud_rate == 0 || uart_param_config(this->uart_num_, &uart_config) != ESP_OK) {
+    if (uart_param_config(this->uart_num_, &uart_config) != ESP_OK) {
       ESP_LOGE(TAG, "UART left unconfigured after failed live reconfigure");
       this->mark_failed();
       return err;

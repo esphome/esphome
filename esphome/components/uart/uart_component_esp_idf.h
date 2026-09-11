@@ -58,7 +58,10 @@ class IDFUARTComponent final : public UARTComponent, public Component {
    * performs. The driver ring buffers and any tasks blocked in
    * uart_read_bytes()/uart_write_bytes() survive, but uart_param_config() flushes
    * both hardware FIFOs, so up to a FIFO's worth of in-flight bytes is discarded in
-   * each direction. Falls back to a full reload if the driver is not installed.
+   * each direction: a frame being shifted out at that moment reaches the peer
+   * truncated. No driver lock is taken, so a caller whose peer cannot tolerate a
+   * partial frame must quiesce its writers first. Falls back to a full reload if the
+   * driver is not installed.
    *
    * @return ESP_OK once the requested framing is live. If the driver rejects it (for
    * example an unreachable baud rate), the previous framing is restored, the getters
