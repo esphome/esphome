@@ -1,0 +1,95 @@
+#include "remote_device.h"
+#include "decoder.h"
+#include "encryption.h"
+#include "esphome/core/log.h"
+
+#include <array>
+
+namespace esphome::bthome::client {
+
+static const char *const TAG = "bthome";
+
+size_t RemoteDeviceBase::process_object_(std::span<BTHomeRemoteObject *> handlers, size_t index,
+                                         const BTHomeObject &object) {
+  for (size_t i = index; i < handlers.size(); i++) {
+    if (handlers[i]->process_object(object))
+      return i + 1;
+  }
+  return index;
+}
+
+bool RemoteDeviceBase::parse_data(const ble_device_base::ESPBTDevice &device, const uint8_t *data, size_t data_size) {
+  MacAddressPtr source_address{device.address()};
+  if (this->address_ != source_address) {
+    return false;
+  }
+  if (data_size == 0) {
+    ESP_LOGVV(TAG, "BTHome data is empty");
+    return true;
+  }
+
+  const BTHomeHeader header{data[0]};
+
+  const uint8_t *payload;
+  size_t payload_size;
+
+#ifdef USE_BTHOME_DECRYPTION
+  std::array<uint8_t, BTHOME_MAX_ENCRYPTED_PAYLOAD> decrypted_payload{};
+  if (header.encrypted()) {
+    if (!this->encryption_key_.has_value()) {
+      ESP_LOGE(TAG, "Encrypted BTHome frame received but no bindkey configured for %s", source_address.c_str());
+      return true;
+    }
+
+    if (!bthome_decrypt(data + 1, data_size - 1, source_address, header, this->encryption_key_.value(),
+                        decrypted_payload, payload_size)) {
+      ESP_LOGVV(TAG, "Failed to decrypt BTHome frame from %s", source_address.c_str());
+      return true;
+    }
+    payload = decrypted_payload.data();
+  } else {
+    if (this->encryption_key_.has_value()) {
+      ESP_LOGE(TAG, "Unencrypted BTHome frame received with bindkey configured for %s", source_address.c_str());
+      return true;
+    }
+    payload = data + 1;
+    payload_size = data_size - 1;
+  }
+
+#else
+  if (header.encrypted()) {
+    ESP_LOGE(TAG, "Encrypted BTHome frame received but no bindkey configured for %s", source_address.c_str());
+    return true;
+  }
+  payload = data + 1;
+  payload_size = data_size - 1;
+#endif
+
+  BTHomePayloadDecoder decoder(payload, payload_size);
+
+  // Ignore repeated packets using the optional packet ID field (object type 0x00).
+  // Since objects are in ascending order, PACKET_ID always appears first if present.
+  auto it = decoder.begin();
+  if (it != decoder.end() && (*it).type == BTHomeObjectType::PACKET_ID) {
+    uint8_t packet_id = (*it).data[0];
+    if (this->last_packet_id_.has_value() && this->last_packet_id_.value() == packet_id) {
+      ESP_LOGVV(TAG, "Duplicate packet ID %u from %s, ignoring", packet_id, source_address.c_str());
+      return true;
+    }
+    this->last_packet_id_ = packet_id;
+  }
+
+  size_t index = 0;
+  auto handlers = this->get_handlers();
+  for (const BTHomeObject &obj : decoder) {
+    index = this->process_object_(handlers, index, obj);
+  }
+
+  const uint8_t rssi = static_cast<uint8_t>(device.get_rssi());
+  const BTHomeObject signal_strength{BTHomeObjectType::SIGNAL_STRENGTH, &rssi, sizeof(rssi)};
+  this->process_object_(handlers, index, signal_strength);
+
+  return true;
+}
+
+}  // namespace esphome::bthome::client

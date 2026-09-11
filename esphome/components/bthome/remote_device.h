@@ -1,0 +1,57 @@
+#pragma once
+#include "remote_object.h"
+#include "bthome.h"
+#include "esphome/components/ble_device_base/ble_device.h"
+#include "esphome/core/optional.h"
+#include "esphome/core/defines.h"
+
+#include <array>
+#include <cstddef>
+#include <span>
+
+#ifdef USE_BTHOME_DECRYPTION
+#include <algorithm>
+#include <initializer_list>
+#endif
+
+namespace esphome::bthome::client {
+
+class RemoteDeviceBase {
+ public:
+  void set_address(const MacAddress &address) { this->address_ = address; }
+#ifdef USE_BTHOME_DECRYPTION
+  void set_encryption_key(std::initializer_list<uint8_t> key) {
+    if (key.size() != EncryptionKey{}.size())
+      return;
+    EncryptionKey k{};
+    std::copy(key.begin(), key.end(), k.begin());
+    this->encryption_key_ = k;
+  }
+#endif
+  virtual void set_handler(size_t index, BTHomeRemoteObject *handler) = 0;
+  bool parse_data(const ble_device_base::ESPBTDevice &device, const uint8_t *data, size_t data_size);
+
+ protected:
+  virtual std::span<BTHomeRemoteObject *> get_handlers() = 0;
+
+  MacAddress address_;
+  optional<uint8_t> last_packet_id_{};
+#ifdef USE_BTHOME_DECRYPTION
+  optional<EncryptionKey> encryption_key_;
+#endif
+
+ private:
+  size_t process_object_(std::span<BTHomeRemoteObject *> handlers, size_t index, const BTHomeObject &object);
+};
+
+template<size_t NUM_SENSORS> class RemoteDevice : public RemoteDeviceBase {
+ public:
+  void set_handler(size_t index, BTHomeRemoteObject *handler) override { handlers_[index] = handler; }
+
+ protected:
+  std::span<BTHomeRemoteObject *> get_handlers() override { return handlers_; }
+
+ private:
+  std::array<BTHomeRemoteObject *, NUM_SENSORS> handlers_{};
+};
+}  // namespace esphome::bthome::client
