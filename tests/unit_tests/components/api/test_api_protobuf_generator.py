@@ -18,7 +18,9 @@ sys.path.insert(0, str(Path(__file__).parents[4] / "script" / "api_protobuf"))
 import aioesphomeapi.api_options_pb2 as pb  # noqa: E402
 from api_protobuf import (  # noqa: E402
     MAX_MESSAGE_ID,
+    SOURCE_CLIENT,
     _make_ifdef_line,
+    build_message_type,
     create_field_type_info,
     get_varint64_ifdef,
     validate_message_id,
@@ -36,12 +38,15 @@ def _file_with_messages(
     file_desc = descriptor_pb2.FileDescriptorProto(name="test.proto")
     for name, field_type, deprecated in messages:
         msg = file_desc.message_type.add(name=name)
-        field = msg.field.add(name="value", number=1, type=field_type)
+        field = msg.field.add()
+        field.CopyFrom(_field(field_type))
         field.options.deprecated = deprecated
     return file_desc
 
 
 UINT64 = descriptor_pb2.FieldDescriptorProto.TYPE_UINT64
+MESSAGE = descriptor_pb2.FieldDescriptorProto.TYPE_MESSAGE
+DOUBLE = descriptor_pb2.FieldDescriptorProto.TYPE_DOUBLE
 INT64 = descriptor_pb2.FieldDescriptorProto.TYPE_INT64
 SINT64 = descriptor_pb2.FieldDescriptorProto.TYPE_SINT64
 UINT32 = descriptor_pb2.FieldDescriptorProto.TYPE_UINT32
@@ -182,3 +187,106 @@ def test_multi_byte_tag_fixed32_falls_back_to_the_generic_helper(
     content = _encode_field(field_type, number=16)
     assert "write_tag_and_fixed32" not in content, content
     assert content.startswith("pos = ProtoEncode::encode_"), content
+
+
+def _decode_case(field_type: int, number: int, *, repeated: bool = False) -> str:
+    """Return the decode_field() case the generator emits for one decoded field."""
+    field = _field(field_type, number, repeated=repeated)
+    if field_type == MESSAGE:
+        field.type_name = ".Sub"
+    return create_field_type_info(
+        field, needs_decode=True, needs_encode=False
+    ).decode_content
+
+
+@pytest.mark.parametrize(
+    ("field_type", "number", "wire_type", "accessor"),
+    [
+        (UINT32, 2, "WIRE_TYPE_VARINT", "value.as_varint()"),
+        (BOOL, 3, "WIRE_TYPE_VARINT", "value.as_bool()"),
+        (STRING, 1, "WIRE_TYPE_LENGTH_DELIMITED", "value.data()"),
+        (FLOAT, 4, "WIRE_TYPE_FIXED32", "value.as_float()"),
+        (FIXED32, 5, "WIRE_TYPE_FIXED32", "value.as_fixed32()"),
+    ],
+)
+def test_decode_cases_carry_field_number_and_wire_type(
+    field_type: int, number: int, wire_type: str, accessor: str
+) -> None:
+    """Each decoded field yields one case keyed on its number and declared wire type."""
+    case = _decode_case(field_type, number)
+    lines = case.splitlines()
+    assert lines[0] == f"case proto_tag({number}, {wire_type}):", case
+    assert accessor in lines[1], case
+    assert lines[-1].strip() == "break;", case
+
+
+@pytest.mark.parametrize(
+    ("field_type", "repeated", "wire_type", "store"),
+    [
+        (UINT32, True, "WIRE_TYPE_VARINT", "this->value.push_back(value.as_varint());"),
+        (
+            STRING,
+            True,
+            "WIRE_TYPE_LENGTH_DELIMITED",
+            "this->value.push_back(value.as_string());",
+        ),
+        (
+            MESSAGE,
+            False,
+            "WIRE_TYPE_LENGTH_DELIMITED",
+            "value.decode_to_message(this->value);",
+        ),
+        (
+            MESSAGE,
+            True,
+            "WIRE_TYPE_LENGTH_DELIMITED",
+            "value.decode_to_message(this->value.back());",
+        ),
+    ],
+)
+def test_repeated_and_message_fields_decode_through_the_same_case_shape(
+    field_type: int, repeated: bool, wire_type: str, store: str
+) -> None:
+    """Repeated and sub message fields land in the one switch with their own store."""
+    case = _decode_case(field_type, 7, repeated=repeated)
+    lines = case.splitlines()
+    assert lines[0] == f"case proto_tag(7, {wire_type}):", case
+    assert store in case, case
+    if field_type == MESSAGE and repeated:
+        assert "this->value.emplace_back();" in case, case
+    assert lines[-1].strip() == "break;", case
+
+
+def test_a_fixed64_field_fails_at_generation_time() -> None:
+    """The decode loop has no 64 bit wire type path, so such a field must never reach it silently."""
+    desc = descriptor_pb2.DescriptorProto(name="Wide")
+    desc.field.add(name="ratio", number=1, type=DOUBLE)
+    with pytest.raises(
+        ValueError, match="64-bit type 'double' .*ratio.* not supported"
+    ):
+        build_message_type(desc, {}, {"Wide": SOURCE_CLIENT})
+
+
+def test_message_gets_a_single_decode_field_override() -> None:
+    """All wire types of a decoded message land in one decode_field() switch."""
+    desc = descriptor_pb2.DescriptorProto(name="Mixed")
+    desc.field.add(name="name", number=1, type=STRING)
+    desc.field.add(name="count", number=2, type=UINT32)
+    desc.field.add(name="level", number=3, type=FLOAT)
+    header, cpp, _ = build_message_type(desc, {}, {"Mixed": SOURCE_CLIENT})
+    decl = "void decode_field(uint32_t tag, const uint8_t *data, proto_varint_value_t scalar) override;"
+    assert header.count(decl) == 1
+    assert (
+        cpp.count(
+            "void Mixed::decode_field(uint32_t tag, const uint8_t *data, proto_varint_value_t scalar) {"
+        )
+        == 1
+    )
+    assert "switch (tag) {" in cpp
+    assert "const ProtoFieldValue value(data, scalar);" in cpp
+    for number, wire_type in (
+        (1, "WIRE_TYPE_LENGTH_DELIMITED"),
+        (2, "WIRE_TYPE_VARINT"),
+        (3, "WIRE_TYPE_FIXED32"),
+    ):
+        assert f"case proto_tag({number}, {wire_type}):" in cpp, cpp

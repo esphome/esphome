@@ -28,6 +28,11 @@ class WireType(IntEnum):
     END_GROUP = 4  # groups (deprecated)
     FIXED32 = 5  # fixed32, sfixed32, float
 
+    @property
+    def cpp_name(self) -> str:
+        """The matching constant in proto.h."""
+        return f"WIRE_TYPE_{self.name}"
+
 
 # Generate with
 # protoc --python_out=script/api_protobuf -I esphome/components/api/ api_options.proto
@@ -124,11 +129,6 @@ def camel_to_snake(name: str) -> str:
     # https://stackoverflow.com/a/1176023
     s1 = re.sub("(.)([A-Z][a-z]+)", r"\1_\2", name)
     return re.sub("([a-z0-9])([A-Z])", r"\1_\2", s1).lower()
-
-
-def force_str(force: bool) -> str:
-    """Convert a boolean force value to string format for C++ code."""
-    return str(force).lower()
 
 
 def _encode_call(func: str, *args: str, force: bool = False) -> str:
@@ -229,41 +229,23 @@ class TypeInfo(ABC):
     def class_member(self) -> str:
         return f"{self.cpp_type} {self.field_name}{{{self.default_value}}};"
 
-    @property
-    def decode_varint_content(self) -> str:
-        content = self.decode_varint
-        if content is None:
-            return None
-        return f"case {self.number}: this->{self.field_name} = {content}; break;"
+    def decode_case(self, body: str) -> str:
+        """Emit one decode_field() case, keyed on the field's wire tag."""
+        return f"case proto_tag({self.number}, {self.wire_type.cpp_name}):\n" + indent(
+            f"{body}\nbreak;"
+        )
 
-    decode_varint = None
+    # Expression that reads this field from `value`; None when the type is never decoded.
+    decode_expr: str | None = None
 
-    @property
-    def decode_length_content(self) -> str:
-        content = self.decode_length
-        if content is None:
-            return None
-        return f"case {self.number}: this->{self.field_name} = {content}; break;"
-
-    decode_length = None
+    def _decode_store(self, expr: str) -> str:
+        return f"this->{self.field_name} = {expr};"
 
     @property
-    def decode_32bit_content(self) -> str:
-        content = self.decode_32bit
-        if content is None:
-            return None
-        return f"case {self.number}: this->{self.field_name} = {content}; break;"
-
-    decode_32bit = None
-
-    @property
-    def decode_64bit_content(self) -> str:
-        content = self.decode_64bit
-        if content is None:
-            return None
-        return f"case {self.number}: this->{self.field_name} = {content}; break;"
-
-    decode_64bit = None
+    def decode_content(self) -> str | None:
+        """The decode_field() case for this field, or None when it is never decoded."""
+        expr = self.decode_expr
+        return None if expr is None else self.decode_case(self._decode_store(expr))
 
     # Mapping from encode_func to raw encode expression template.
     # When a forced field has a single-byte tag, the code generator emits
@@ -339,11 +321,12 @@ class TypeInfo(ABC):
             )
         )
 
-    def _encode_fixed32_with_precomputed_tag(self, value_expr: str) -> str | None:
-        """Single-byte tag fixed32 write, or None for multi-byte tags."""
+    def _encode_fixed32_with_precomputed_tag(self, value: str) -> str | None:
+        """Single-byte tag fixed32 write, or None for other types and multi-byte tags."""
         tag = self.calculate_tag()
-        if tag >= 128:
+        if self.fixed32_value_template is None or tag >= 128:
             return None
+        value_expr = self.fixed32_value_template.format(value=value)
         if self.force:
             return _encode_call("write_tag_and_fixed32", str(tag), value_expr)
         return (
@@ -357,13 +340,13 @@ class TypeInfo(ABC):
         value = f"this->{self.field_name}"
         if result := self._encode_with_precomputed_tag(value):
             return result
-        if self.fixed32_value_template is not None and (
-            result := self._encode_fixed32_with_precomputed_tag(
-                self.fixed32_value_template.format(value=value)
-            )
-        ):
+        if result := self._encode_fixed32_with_precomputed_tag(value):
             return result
         return _encode_call(self.encode_func, str(self.number), value, force=self.force)
+
+    def encode_element(self, number: int, element: str) -> str:
+        """Encode one element of a repeated field; elements are always written."""
+        return _encode_call(self.encode_func, str(number), element, force=True)
 
     encode_func = None
 
@@ -638,7 +621,6 @@ class DoubleType(FixedSizeTypeMixin, TypeInfo):
     # Unsupported but defined for completeness
     cpp_type = "double"
     default_value = "0.0"
-    decode_64bit = "value.as_double()"
     encode_func = "encode_double"
     wire_type = WireType.FIXED64  # Uses wire type 1 according to protobuf spec
 
@@ -664,7 +646,7 @@ class DoubleType(FixedSizeTypeMixin, TypeInfo):
 class FloatType(FixedSizeTypeMixin, TypeInfo):
     cpp_type = "float"
     default_value = "0.0f"
-    decode_32bit = "value.as_float()"
+    decode_expr = "value.as_float()"
     encode_func = "encode_float"
     wire_type = WireType.FIXED32  # Uses wire type 5
 
@@ -693,7 +675,7 @@ class Int64Type(VarintTypeMixin, TypeInfo):
     cpp_type = "int64_t"
     _varint_max_bits = 64
     default_value = "0"
-    decode_varint = "static_cast<int64_t>(value)"
+    decode_expr = "static_cast<int64_t>(value.as_varint())"
     encode_func = "encode_int64"
     wire_type = WireType.VARINT  # Uses wire type 0
 
@@ -714,7 +696,7 @@ class UInt64Type(VarintTypeMixin, TypeInfo):
     cpp_type = "uint64_t"
     _varint_max_bits = 64
     default_value = "0"
-    decode_varint = "value"
+    decode_expr = "value.as_varint()"
     encode_func = "encode_uint64"
     wire_type = WireType.VARINT  # Uses wire type 0
 
@@ -749,7 +731,7 @@ class Int32Type(VarintTypeMixin, TypeInfo):
     cpp_type = "int32_t"
     _varint_max_bits = 64  # int32 is sign-extended to 64 bits in protobuf
     default_value = "0"
-    decode_varint = "static_cast<int32_t>(value)"
+    decode_expr = "static_cast<int32_t>(value.as_varint())"
     encode_func = "encode_int32"
     wire_type = WireType.VARINT  # Uses wire type 0
 
@@ -769,7 +751,6 @@ class Int32Type(VarintTypeMixin, TypeInfo):
 class Fixed64Type(FixedSizeTypeMixin, TypeInfo):
     cpp_type = "uint64_t"
     default_value = "0"
-    decode_64bit = "value.as_fixed64()"
     encode_func = "encode_fixed64"
     wire_type = WireType.FIXED64  # Uses wire type 1
 
@@ -795,7 +776,7 @@ class Fixed64Type(FixedSizeTypeMixin, TypeInfo):
 class Fixed32Type(FixedSizeTypeMixin, TypeInfo):
     cpp_type = "uint32_t"
     default_value = "0"
-    decode_32bit = "value.as_fixed32()"
+    decode_expr = "value.as_fixed32()"
     encode_func = "encode_fixed32"
     wire_type = WireType.FIXED32  # Uses wire type 5
 
@@ -824,7 +805,7 @@ class BoolType(VarintTypeMixin, TypeInfo):
     _varint_max_bits = 1
     cpp_type = "bool"
     default_value = "false"
-    decode_varint = "value != 0"
+    decode_expr = "value.as_bool()"
     encode_func = "encode_bool"
     wire_type = WireType.VARINT  # Uses wire type 0
 
@@ -844,7 +825,7 @@ class StringType(TypeInfo):
     default_value = ""
     reference_type = "std::string &"
     const_reference_type = "const std::string &"
-    decode_length = "value.as_string()"
+    decode_expr = "value.as_string()"
     encode_func = "encode_string"
     wire_type = WireType.LENGTH_DELIMITED  # Uses wire type 2
 
@@ -959,6 +940,9 @@ class MessageType(TypeInfo):
     def can_use_dump_field(cls) -> bool:
         return False
 
+    def encode_element(self, number: int, element: str) -> str:
+        return _encode_call("encode_sub_message", "buffer", str(number), element)
+
     @property
     def cpp_type(self) -> str:
         return self._field.type_name[1:]
@@ -986,14 +970,6 @@ class MessageType(TypeInfo):
         )
 
     @property
-    def decode_length(self) -> str:
-        # Override to return None for message types because we can't use template-based
-        # decoding when the specific message type isn't known at compile time.
-        # Instead, we use the non-template decode_to_message() method which allows
-        # runtime polymorphism through virtual function calls.
-        return None
-
-    @property
     def public_content(self) -> list[str]:
         content = [self.class_member]
         if self._track_presence:
@@ -1008,19 +984,14 @@ class MessageType(TypeInfo):
         )
 
     @property
-    def decode_length_content(self) -> str:
-        # Custom decode that doesn't use templates
+    def decode_content(self) -> str:
+        body = f"value.decode_to_message(this->{self.field_name});"
         if self._track_presence:
             # decode_to_message() cannot report failure, so setting the flag
             # afterwards only documents intent; a status-returning decode could
             # gate it for real without touching callers.
-            return (
-                f"case {self.number}:\n"
-                f"      value.decode_to_message(this->{self.field_name});\n"
-                f"      this->has_{self.name} = true;\n"
-                f"      break;"
-            )
-        return f"case {self.number}: value.decode_to_message(this->{self.field_name}); break;"
+            body += f"\nthis->has_{self.name} = true;"
+        return self.decode_case(body)
 
     def dump(self, name: str) -> str:
         return f"{name}.dump_to(out);"
@@ -1059,7 +1030,7 @@ class BytesType(TypeInfo):
     reference_type = "std::string &"
     const_reference_type = "const std::string &"
     encode_func = "encode_bytes"
-    decode_length = "value.as_string()"
+    decode_expr = "value.as_string()"
     wire_type = WireType.LENGTH_DELIMITED  # Uses wire type 2
 
     @property
@@ -1170,11 +1141,6 @@ class PointerToBufferTypeBase(TypeInfo):
         self.array_size = 0
 
     @property
-    def decode_length(self) -> str | None:
-        # This is handled in decode_length_content
-        return None
-
-    @property
     def wire_type(self) -> WireType:
         """Get the wire type for this field."""
         return WireType.LENGTH_DELIMITED  # Uses wire type 2
@@ -1215,12 +1181,11 @@ class PointerToBytesBufferType(PointerToBufferTypeBase):
         )
 
     @property
-    def decode_length_content(self) -> str | None:
-        return f"""case {self.number}: {{
-      this->{self.field_name} = value.data();
-      this->{self.field_name}_len = value.size();
-      break;
-    }}"""
+    def decode_content(self) -> str:
+        return self.decode_case(
+            f"this->{self.field_name} = value.data();\n"
+            f"this->{self.field_name}_len = value.size();",
+        )
 
     def dump(self, name: str) -> str:
         return (
@@ -1280,11 +1245,10 @@ class PointerToStringBufferType(PointerToBufferTypeBase):
         )
 
     @property
-    def decode_length_content(self) -> str | None:
-        return f"""case {self.number}: {{
-      this->{self.field_name} = StringRef(reinterpret_cast<const char *>(value.data()), value.size());
-      break;
-    }}"""
+    def decode_content(self) -> str:
+        return self.decode_case(
+            f"this->{self.field_name} = StringRef(value.data(), value.size());",
+        )
 
     def dump(self, name: str) -> str:
         # Not used since we use dump_field, but required by abstract base class
@@ -1353,14 +1317,13 @@ class PackedBufferTypeInfo(TypeInfo):
         ]
 
     @property
-    def decode_length_content(self) -> str:
+    def decode_content(self) -> str:
         """Store pointer to buffer and calculate count of packed varints."""
-        return f"""case {self.number}: {{
-      this->{self.field_name}_data_ = value.data();
-      this->{self.field_name}_length_ = value.size();
-      this->{self.field_name}_count_ = count_packed_varints(value.data(), value.size());
-      break;
-    }}"""
+        return self.decode_case(
+            f"this->{self.field_name}_data_ = value.data();\n"
+            f"this->{self.field_name}_length_ = value.size();\n"
+            f"this->{self.field_name}_count_ = count_packed_varints(value.data(), value.size());",
+        )
 
     @property
     def encode_content(self) -> str:
@@ -1445,17 +1408,11 @@ class FixedArrayBytesType(TypeInfo):
         ]
 
     @property
-    def decode_length_content(self) -> str:
-        o = f"case {self.number}: {{\n"
-        o += "  const std::string &data_str = value.as_string();\n"
-        o += f"  this->{self.field_name}_len = data_str.size();\n"
-        o += f"  if (this->{self.field_name}_len > {self.array_size}) {{\n"
-        o += f"    this->{self.field_name}_len = {self.array_size};\n"
-        o += "  }\n"
-        o += f"  memcpy(this->{self.field_name}, data_str.data(), this->{self.field_name}_len);\n"
-        o += "  break;\n"
-        o += "}"
-        return o
+    def decode_content(self) -> str:
+        return self.decode_case(
+            f"this->{self.field_name}_len = std::min<size_t>(value.size(), {self.array_size});\n"
+            f"memcpy(this->{self.field_name}, value.data(), this->{self.field_name}_len);",
+        )
 
     @property
     def encode_content(self) -> str:
@@ -1518,7 +1475,7 @@ class UInt32Type(VarintTypeMixin, TypeInfo):
     cpp_type = "uint32_t"
     _varint_max_bits = 32
     default_value = "0"
-    decode_varint = "value"
+    decode_expr = "value.as_varint()"
     encode_func = "encode_uint32"
     wire_type = WireType.VARINT  # Uses wire type 0
 
@@ -1541,13 +1498,21 @@ class UInt32Type(VarintTypeMixin, TypeInfo):
 class EnumType(VarintTypeMixin, TypeInfo):
     _varint_max_bits = 32
 
+    def encode_element(self, number: int, element: str) -> str:
+        return _encode_call(
+            self.encode_func,
+            str(number),
+            f"static_cast<uint32_t>({element})",
+            force=True,
+        )
+
     @property
     def cpp_type(self) -> str:
         return f"enums::{self._field.type_name[1:]}"
 
     @property
-    def decode_varint(self) -> str:
-        return f"static_cast<{self.cpp_type}>(value)"
+    def decode_expr(self) -> str:
+        return f"static_cast<{self.cpp_type}>(value.as_varint())"
 
     default_value = ""
     wire_type = WireType.VARINT  # Uses wire type 0
@@ -1594,7 +1559,7 @@ class EnumType(VarintTypeMixin, TypeInfo):
 class SFixed32Type(FixedSizeTypeMixin, TypeInfo):
     cpp_type = "int32_t"
     default_value = "0"
-    decode_32bit = "value.as_sfixed32()"
+    decode_expr = "value.as_sfixed32()"
     encode_func = "encode_sfixed32"
     wire_type = WireType.FIXED32  # Uses wire type 5
 
@@ -1620,7 +1585,6 @@ class SFixed32Type(FixedSizeTypeMixin, TypeInfo):
 class SFixed64Type(FixedSizeTypeMixin, TypeInfo):
     cpp_type = "int64_t"
     default_value = "0"
-    decode_64bit = "value.as_sfixed64()"
     encode_func = "encode_sfixed64"
     wire_type = WireType.FIXED64  # Uses wire type 1
 
@@ -1647,7 +1611,7 @@ class SInt32Type(VarintTypeMixin, TypeInfo):
     cpp_type = "int32_t"
     _varint_max_bits = 32  # zigzag encoding keeps it 32-bit
     default_value = "0"
-    decode_varint = "decode_zigzag32(static_cast<uint32_t>(value))"
+    decode_expr = "decode_zigzag32(static_cast<uint32_t>(value.as_varint()))"
     encode_func = "encode_sint32"
     wire_type = WireType.VARINT  # Uses wire type 0
 
@@ -1668,7 +1632,7 @@ class SInt64Type(VarintTypeMixin, TypeInfo):
     cpp_type = "int64_t"
     _varint_max_bits = 64
     default_value = "0"
-    decode_varint = "decode_zigzag64(value)"
+    decode_expr = "decode_zigzag64(value.as_varint())"
     encode_func = "encode_sint64"
     wire_type = WireType.VARINT  # Uses wire type 0
 
@@ -1821,23 +1785,11 @@ class FixedArrayRepeatedType(TypeInfo):
 
     def _encode_element(self, element: str) -> str:
         """Helper to generate encode statement for a single element."""
-        if isinstance(self._ti, EnumType):
-            return _encode_call(
-                self._ti.encode_func,
-                str(self.number),
-                f"static_cast<uint32_t>({element})",
-                force=True,
+        if isinstance(self._ti, MessageType) and _is_inline_encode(self._ti.cpp_type):
+            return _generate_inline_encode_block(
+                self.number, self._ti.cpp_type, element
             )
-        # Repeated message elements use encode_sub_message (force=true is default)
-        if isinstance(self._ti, MessageType):
-            if _is_inline_encode(self._ti.cpp_type):
-                return _generate_inline_encode_block(
-                    self.number, self._ti.cpp_type, element
-                )
-            return _encode_call(
-                "encode_sub_message", "buffer", str(self.number), element
-            )
-        return _encode_call(self._ti.encode_func, str(self.number), element, force=True)
+        return self._ti.encode_element(self.number, element)
 
     @property
     def cpp_type(self) -> str:
@@ -2131,55 +2083,23 @@ class RepeatedTypeInfo(TypeInfo):
         return self._ti.wire_type
 
     @property
-    def decode_varint_content(self) -> str:
-        # Pointer fields don't support decoding
-        if self._use_pointer:
-            return None
-        content = self._ti.decode_varint
-        if content is None:
-            return None
-        return (
-            f"case {self.number}: this->{self.field_name}.push_back({content}); break;"
-        )
+    def decode_expr(self) -> str | None:
+        return self._ti.decode_expr
+
+    def _decode_store(self, expr: str) -> str:
+        return f"this->{self.field_name}.push_back({expr});"
 
     @property
-    def decode_length_content(self) -> str:
+    def decode_content(self) -> str | None:
         # Pointer fields don't support decoding
         if self._use_pointer:
             return None
-        content = self._ti.decode_length
-        if content is None and isinstance(self._ti, MessageType):
-            # Special handling for non-template message decoding
-            return f"case {self.number}: this->{self.field_name}.emplace_back(); value.decode_to_message(this->{self.field_name}.back()); break;"
-        if content is None:
-            return None
-        return (
-            f"case {self.number}: this->{self.field_name}.push_back({content}); break;"
-        )
-
-    @property
-    def decode_32bit_content(self) -> str:
-        # Pointer fields don't support decoding
-        if self._use_pointer:
-            return None
-        content = self._ti.decode_32bit
-        if content is None:
-            return None
-        return (
-            f"case {self.number}: this->{self.field_name}.push_back({content}); break;"
-        )
-
-    @property
-    def decode_64bit_content(self) -> str:
-        # Pointer fields don't support decoding
-        if self._use_pointer:
-            return None
-        content = self._ti.decode_64bit
-        if content is None:
-            return None
-        return (
-            f"case {self.number}: this->{self.field_name}.push_back({content}); break;"
-        )
+        if isinstance(self._ti, MessageType):
+            return self.decode_case(
+                f"this->{self.field_name}.emplace_back();\n"
+                f"value.decode_to_message(this->{self.field_name}.back());"
+            )
+        return super().decode_content
 
     @property
     def _ti_is_bool(self) -> bool:
@@ -2187,20 +2107,7 @@ class RepeatedTypeInfo(TypeInfo):
         return isinstance(self._ti, BoolType)
 
     def _encode_element_call(self, element: str) -> str:
-        """Helper to generate encode call for a single element."""
-        if isinstance(self._ti, EnumType):
-            return _encode_call(
-                self._ti.encode_func,
-                str(self.number),
-                f"static_cast<uint32_t>({element})",
-                force=True,
-            )
-        # Repeated message elements use encode_sub_message (force=true is default)
-        if isinstance(self._ti, MessageType):
-            return _encode_call(
-                "encode_sub_message", "buffer", str(self.number), element
-            )
-        return _encode_call(self._ti.encode_func, str(self.number), element, force=True)
+        return self._ti.encode_element(self.number, element)
 
     @property
     def encode_content(self) -> str:
@@ -2595,10 +2502,7 @@ def build_message_type(
 ) -> tuple[str, str, str]:
     public_content: list[str] = []
     protected_content: list[str] = []
-    decode_varint: list[str] = []
-    decode_length: list[str] = []
-    decode_32bit: list[str] = []
-    decode_64bit: list[str] = []
+    decode: list[str] = []
     encode: list[str] = []
     dump: list[str] = []
     size_calc: list[str] = []
@@ -2727,22 +2631,8 @@ def build_message_type(
             if field.options.HasExtension(pb.field_ifdef):
                 field_ifdef = field.options.Extensions[pb.field_ifdef]
 
-            if ti.decode_varint_content:
-                decode_varint.extend(
-                    wrap_with_ifdef(ti.decode_varint_content, field_ifdef)
-                )
-            if ti.decode_length_content:
-                decode_length.extend(
-                    wrap_with_ifdef(ti.decode_length_content, field_ifdef)
-                )
-            if ti.decode_32bit_content:
-                decode_32bit.extend(
-                    wrap_with_ifdef(ti.decode_32bit_content, field_ifdef)
-                )
-            if ti.decode_64bit_content:
-                decode_64bit.extend(
-                    wrap_with_ifdef(ti.decode_64bit_content, field_ifdef)
-                )
+            if case := ti.decode_content:
+                decode.extend(wrap_with_ifdef(case, field_ifdef))
         if ti.dump_content:
             # Check for field_ifdef option for dump as well
             field_ifdef = None
@@ -2752,49 +2642,15 @@ def build_message_type(
             dump.extend(wrap_with_ifdef(ti.dump_content, field_ifdef))
 
     cpp = ""
-    if decode_varint:
-        o = f"bool {desc.name}::decode_varint(uint32_t field_id, proto_varint_value_t value) {{\n"
-        o += "  switch (field_id) {\n"
-        o += indent("\n".join(decode_varint), "    ") + "\n"
-        o += "    default: return false;\n"
+    if decode:
+        o = f"void {desc.name}::decode_field(uint32_t tag, const uint8_t *data, proto_varint_value_t scalar) {{\n"
+        o += "  const ProtoFieldValue value(data, scalar);\n"
+        o += "  switch (tag) {\n"
+        o += indent("\n".join(decode), "    ") + "\n"
         o += "  }\n"
-        o += "  return true;\n"
         o += "}\n"
         cpp += o
-        prot = "bool decode_varint(uint32_t field_id, proto_varint_value_t value) override;"
-        protected_content.insert(0, prot)
-    if decode_length:
-        o = f"bool {desc.name}::decode_length(uint32_t field_id, ProtoLengthDelimited value) {{\n"
-        o += "  switch (field_id) {\n"
-        o += indent("\n".join(decode_length), "    ") + "\n"
-        o += "    default: return false;\n"
-        o += "  }\n"
-        o += "  return true;\n"
-        o += "}\n"
-        cpp += o
-        prot = "bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;"
-        protected_content.insert(0, prot)
-    if decode_32bit:
-        o = f"bool {desc.name}::decode_32bit(uint32_t field_id, Proto32Bit value) {{\n"
-        o += "  switch (field_id) {\n"
-        o += indent("\n".join(decode_32bit), "    ") + "\n"
-        o += "    default: return false;\n"
-        o += "  }\n"
-        o += "  return true;\n"
-        o += "}\n"
-        cpp += o
-        prot = "bool decode_32bit(uint32_t field_id, Proto32Bit value) override;"
-        protected_content.insert(0, prot)
-    if decode_64bit:
-        o = f"bool {desc.name}::decode_64bit(uint32_t field_id, Proto64Bit value) {{\n"
-        o += "  switch (field_id) {\n"
-        o += indent("\n".join(decode_64bit), "    ") + "\n"
-        o += "    default: return false;\n"
-        o += "  }\n"
-        o += "  return true;\n"
-        o += "}\n"
-        cpp += o
-        prot = "bool decode_64bit(uint32_t field_id, Proto64Bit value) override;"
+        prot = "void decode_field(uint32_t tag, const uint8_t *data, proto_varint_value_t scalar) override;"
         protected_content.insert(0, prot)
 
     # Generate custom decode() override for messages with FixedVector fields
