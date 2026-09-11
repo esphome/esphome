@@ -43,7 +43,7 @@ TEST(SscanfNoFloat, TzsetName) {
 }
 
 TEST(SscanfNoFloat, TzsetOffsetAndRule) {
-  unsigned short h = 0, m = 0, s = 0;
+  uint16_t h = 0, m = 0, s = 0;
   int n1 = 0, n2 = 0, n3 = 0;
   EXPECT_EQ(sscanf_no_float("6:30:15", "%hu%n:%hu%n:%hu%n", &h, &n1, &m, &n2, &s, &n3), 3);
   EXPECT_EQ(h, 6);
@@ -102,9 +102,9 @@ TEST(SscanfNoFloat, WidthSplitsDigits) {
 
 TEST(SscanfNoFloat, LengthModifiers) {
   unsigned char hh = 0;
-  short h = 0;
-  long l = 0;
-  unsigned long long ll = 0;
+  int16_t h = 0;
+  long l = 0;  // NOLINT(google-runtime-int) %ld is defined in terms of long
+  uint64_t ll = 0;
   size_t z = 0;
   ptrdiff_t t = 0;
   EXPECT_EQ(sscanf_no_float("255", "%hhu", &hh), 1);
