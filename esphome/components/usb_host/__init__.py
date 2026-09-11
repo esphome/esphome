@@ -1,3 +1,5 @@
+from itertools import combinations
+
 import esphome.codegen as cg
 from esphome.components.esp32 import (
     VARIANT_ESP32H4,
@@ -15,6 +17,7 @@ from esphome.const import CONF_DEVICES, CONF_ID
 from esphome.core import CORE
 from esphome.cpp_generator import MockObj
 from esphome.cpp_types import Component
+from esphome.helpers import cpp_u16string_escape
 from esphome.types import ConfigType
 
 AUTO_LOAD = ["bytebuffer"]
@@ -26,9 +29,20 @@ USBClient = usb_host_ns.class_("USBClient", Component)
 DOMAIN = "usb_host"
 CONF_VID = "vid"
 CONF_PID = "pid"
+CONF_MANUFACTURER = "manufacturer"
+CONF_PRODUCT = "product"
 CONF_ENABLE_HUBS = "enable_hubs"
 CONF_MAX_TRANSFER_REQUESTS = "max_transfer_requests"
 CONF_MAX_PACKET_SIZE = "max_packet_size"
+
+
+# VID/PID set to 0 or `None` product/manufacturer are wildcards
+_FILTER_WILDCARDS = {
+    CONF_VID: 0,
+    CONF_PID: 0,
+    CONF_MANUFACTURER: None,
+    CONF_PRODUCT: None,
+}
 
 
 def usb_device_schema(
@@ -47,7 +61,28 @@ def usb_device_schema(
         schema = schema.extend({cv.Optional(CONF_PID, default=pid): cv.hex_uint16_t})
     else:
         schema = schema.extend({cv.Required(CONF_PID): cv.hex_uint16_t})
-    return schema
+
+    return schema.extend(
+        {
+            cv.Optional(CONF_MANUFACTURER): cv.string_strict,
+            cv.Optional(CONF_PRODUCT): cv.string_strict,
+        }
+    )
+
+
+def validate_usb_clients(configs: list[ConfigType]) -> list[ConfigType]:
+    # Two entries overlap when no field they both constrain tells them apart
+    for first, second in combinations(configs, 2):
+        for key, wildcard in _FILTER_WILDCARDS.items():
+            a = first.get(key)
+            b = second.get(key)
+            if wildcard not in (a, b) and a != b:
+                break
+        else:
+            raise cv.Invalid(
+                f"USB configs overlap: {first[CONF_ID]!r}, {second[CONF_ID]!r}"
+            )
+    return configs
 
 
 def _set_max_packet_size(config: dict) -> dict:
@@ -72,7 +107,9 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_MAX_PACKET_SIZE, default=64): cv.one_of(
                 64, 128, 256, 512, 1024, int=True
             ),
-            cv.Optional(CONF_DEVICES): cv.ensure_list(usb_device_schema()),
+            cv.Optional(CONF_DEVICES): cv.All(
+                cv.ensure_list(usb_device_schema()), validate_usb_clients
+            ),
         }
     ),
     only_on_variant(
@@ -91,6 +128,15 @@ CONFIG_SCHEMA = cv.All(
 async def register_usb_client(config: ConfigType) -> MockObj:
     var = cg.new_Pvariable(config[CONF_ID], config[CONF_VID], config[CONF_PID])
     await cg.register_component(var, config)
+    # UTF-16 literals, the encoding the descriptors use, so the device compares code units
+    if (manufacturer := config.get(CONF_MANUFACTURER)) is not None:
+        cg.add(
+            var.set_manufacturer_filter(
+                cg.RawExpression(cpp_u16string_escape(manufacturer))
+            )
+        )
+    if (product := config.get(CONF_PRODUCT)) is not None:
+        cg.add(var.set_product_filter(cg.RawExpression(cpp_u16string_escape(product))))
     return var
 
 

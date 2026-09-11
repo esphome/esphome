@@ -35,8 +35,10 @@ usb_uart:
         debug: true
         dummy_receiver: true
         debug_prefix: "[ESP_JTAG] "
+  # A CP2105, so it does not share 10C4:EA60 with uart_1 above
   - id: uart_5
     type: cp210x
+    pid: 0xEA70
     channels:
       - id: channel_5_1
         baud_rate: 9600
@@ -65,3 +67,20 @@ usb_uart:
         stop_bits: 2
         data_bits: 7
         parity: even
+  # A ZBT-2 and a ZWA-2 both enumerate as 303A:4001, so only iProduct separates them
+  - id: uart_9
+    type: cdc_acm
+    vid: 0x303A
+    pid: 0x4001
+    manufacturer: Nabu Casa
+    product: ZBT-2
+    channels:
+      - id: channel_9_1
+  - id: uart_10
+    type: cdc_acm
+    vid: 0x303A
+    pid: 0x4001
+    manufacturer: Nabu Casa
+    product: ZWA-2
+    channels:
+      - id: channel_10_1
