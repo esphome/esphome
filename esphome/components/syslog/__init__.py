@@ -4,7 +4,7 @@ from esphome.components.logger import LOG_LEVELS, is_log_level, request_log_list
 from esphome.components.time import RealTimeClock
 from esphome.components.udp import CONF_UDP_ID
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, CONF_LEVEL, CONF_PORT, CONF_TIME_ID
+from esphome.const import CONF_FORMAT, CONF_ID, CONF_LEVEL, CONF_PORT, CONF_TIME_ID
 from esphome.cpp_types import Component, Parented
 from esphome.types import ConfigType
 
@@ -14,6 +14,12 @@ DEPENDENCIES = ["udp", "logger", "time"]
 
 syslog_ns = cg.esphome_ns.namespace("syslog")
 Syslog = syslog_ns.class_("Syslog", Component, Parented.template(udp.UDPComponent))
+SyslogFormat = syslog_ns.enum("SyslogFormat")
+
+SYSLOG_FORMATS = {
+    "RFC3164": SyslogFormat.SYSLOG_FORMAT_RFC3164,
+    "RFC5424": SyslogFormat.SYSLOG_FORMAT_RFC5424,
+}
 
 CONF_STRIP = "strip"
 CONF_FACILITY = "facility"
@@ -25,6 +31,9 @@ CONFIG_SCHEMA = udp.UDP_SCHEMA.extend(
         cv.Optional(CONF_LEVEL, default="DEBUG"): is_log_level,
         cv.Optional(CONF_STRIP, default=True): cv.boolean,
         cv.Optional(CONF_FACILITY, default=16): cv.int_range(0, 23),
+        cv.Optional(CONF_FORMAT, default="RFC3164"): cv.enum(
+            SYSLOG_FORMATS, upper=True
+        ),
     }
 )
 
@@ -41,3 +50,4 @@ async def to_code(config: ConfigType) -> None:
     await cg.register_parented(var, parent)
     cg.add(var.set_strip(config[CONF_STRIP]))
     cg.add(var.set_facility(config[CONF_FACILITY]))
+    cg.add(var.set_format(config[CONF_FORMAT]))
