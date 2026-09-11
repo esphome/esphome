@@ -57,6 +57,46 @@ async def wait_for_state(
     return await asyncio.wait_for(future, timeout=timeout)
 
 
+class StateWaiter:
+    """Route one state subscription to any number of predicate waits."""
+
+    def __init__(self) -> None:
+        self._waiters: list[
+            tuple[Callable[[EntityState], bool], asyncio.Future[EntityState]]
+        ] = []
+
+    def on_state(self, state: EntityState) -> None:
+        for predicate, future in self._waiters:
+            if future.done():
+                continue
+            try:
+                matched = predicate(state)
+            except Exception as exc:  # noqa: BLE001  the wait re-raises it, the callback must not die
+                future.set_exception(exc)
+                continue
+            if matched:
+                future.set_result(state)
+
+    async def expect(
+        self,
+        predicate: Callable[[EntityState], bool],
+        timeout: float = 5.0,
+        label: str | None = None,
+    ) -> EntityState:
+        """Wait for the next state matching ``predicate``; states seen before this call do not count."""
+        entry = (predicate, asyncio.get_running_loop().create_future())
+        self._waiters.append(entry)
+        try:
+            async with asyncio.timeout(timeout):
+                return await entry[1]
+        except TimeoutError:
+            raise TimeoutError(
+                f"no state matched {label or predicate} within {timeout}s"
+            ) from None
+        finally:
+            self._waiters.remove(entry)
+
+
 def find_entity[T: EntityInfo](
     entities: list[EntityInfo],
     object_id_substring: str,

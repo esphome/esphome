@@ -2269,7 +2269,12 @@ bool APIConnection::send_message_(uint32_t payload_size, uint16_t message_type, 
   // Capacity reserved above, cannot fail
   (void) shared_buf.resize(write_start + payload_size);
   ProtoWriteBuffer buffer{&shared_buf, write_start};
-  encode_fn(msg, buffer PROTO_ENCODE_DEBUG_INIT(&shared_buf));
+  uint8_t *end = encode_fn(msg, buffer PROTO_ENCODE_DEBUG_INIT(&shared_buf));
+#ifdef ESPHOME_DEBUG_API
+  assert(end == shared_buf.data() + shared_buf.size());
+#else
+  (void) end;
+#endif
   return this->send_buffer(ProtoWriteBuffer{&shared_buf}, message_type);
 }
 // encode_to_buffer is defined inline in api_connection.h (ESPHOME_ALWAYS_INLINE)
