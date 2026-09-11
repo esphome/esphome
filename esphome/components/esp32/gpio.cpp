@@ -134,6 +134,8 @@ void ESP32InternalGPIOPin::setup() {
   if (this->get_hold_()) {
     gpio_hold_en(this->get_pin_num());
   }
+#else
+  gpio_hold_dis(this->get_pin_num());
 #endif
 }
 
