@@ -22,6 +22,10 @@ namespace esphome {
  * pointer.  When it is default constructed, it has empty string.  You can freely copy or move around this struct, but
  * never free its pointer.  str() function can be used to export the content as std::string. StringRef is adopted from
  * <https://github.com/nghttp2/nghttp2/blob/29cbf8b83ff78faf405d1086b16adc09a8772eca/src/template.h#L376>
+ *
+ * A StringRef may carry a null pointer while its length is zero (the generated api messages start their encode only
+ * string fields that way). Every member treats that as the empty string; only c_str() hands the null pointer on, so
+ * callers that print or copy through c_str() must check empty() first.
  */
 class StringRef {
  public:
@@ -78,7 +82,7 @@ class StringRef {
 
   /// True if the view begins with the given prefix (std::string::starts_with-like)
   bool starts_with(const StringRef &prefix) const {
-    return len_ >= prefix.len_ && std::memcmp(base_, prefix.base_, prefix.len_) == 0;
+    return len_ >= prefix.len_ && (prefix.len_ == 0 || std::memcmp(base_, prefix.base_, prefix.len_) == 0);
   }
   bool starts_with(const char *prefix) const { return this->starts_with(StringRef(prefix)); }
   bool starts_with(const std::string &prefix) const { return this->starts_with(StringRef(prefix)); }
@@ -92,14 +96,15 @@ class StringRef {
     return actual;
   }
 
-  std::string str() const { return std::string(base_, len_); }
+  std::string str() const { return std::string(base_, len_); }  // fine for {nullptr, 0}: nothing is read
   const uint8_t *byte() const { return reinterpret_cast<const uint8_t *>(base_); }
 
   operator std::string() const { return str(); }
 
   /// Compare (compatible with std::string::compare)
   int compare(const StringRef &other) const {
-    int result = std::memcmp(base_, other.base_, std::min(len_, other.len_));
+    size_type common = std::min(len_, other.len_);
+    int result = common == 0 ? 0 : std::memcmp(base_, other.base_, common);
     if (result != 0)
       return result;
     if (len_ < other.len_)
@@ -258,7 +263,14 @@ inline double stod(const StringRef &str, size_t *pos = nullptr) {
 
 #ifdef USE_JSON
 // NOLINTNEXTLINE(readability-identifier-naming)
-inline void convertToJson(const StringRef &src, JsonVariant dst) { dst.set(src.c_str()); }
+inline void convertToJson(const StringRef &src, JsonVariant dst) {
+  // Bounded by the view length; a null, empty view becomes "" rather than JSON null
+  if (src.empty()) {
+    dst.set("");
+    return;
+  }
+  dst.set(JsonString(src.c_str(), src.size()));
+}
 #endif  // USE_JSON
 
 }  // namespace esphome

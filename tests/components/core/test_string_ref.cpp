@@ -59,4 +59,47 @@ TEST(StringRefStartsWith, RefOverloadComparesOnlyTheViewedLength) {
   EXPECT_TRUE(ref.starts_with(prefix));
 }
 
+// The generated api messages start their encode only string fields as a null pointer with zero
+// length; every member must treat that exactly like the default constructed empty string.
+TEST(StringRefNullEmpty, BehavesAsEmptyString) {
+  const StringRef null_empty{nullptr, 0};
+  const StringRef empty;
+  EXPECT_TRUE(null_empty.empty());
+  EXPECT_EQ(null_empty.size(), 0u);
+  EXPECT_EQ(null_empty.c_str(), nullptr);
+  EXPECT_TRUE(null_empty == empty);
+  EXPECT_TRUE(null_empty == "");
+  EXPECT_TRUE(null_empty == std::string());
+  EXPECT_EQ(null_empty.compare(empty), 0);
+  EXPECT_EQ(null_empty.compare(""), 0);
+  EXPECT_LT(null_empty.compare("a"), 0);
+  EXPECT_TRUE(null_empty.starts_with(""));
+  EXPECT_FALSE(null_empty.starts_with("a"));
+  EXPECT_EQ(null_empty.str(), std::string());
+  EXPECT_EQ(null_empty.substr(0), std::string());
+  EXPECT_EQ(null_empty.find('a'), std::string::npos);
+  EXPECT_EQ(null_empty.find("a"), std::string::npos);
+  char buf[4] = "xyz";
+  EXPECT_EQ(null_empty.copy(buf, sizeof(buf)), 0u);
+  EXPECT_EQ(null_empty.begin(), null_empty.end());
+}
+
+TEST(StringRefNullEmpty, ComparesAgainstText) {
+  const StringRef null_empty{nullptr, 0};
+  const StringRef text("abc", 3);
+  EXPECT_FALSE(null_empty == text);
+  EXPECT_FALSE(text == null_empty);
+  EXPECT_LT(null_empty.compare(text), 0);
+  EXPECT_GT(text.compare(null_empty), 0);
+  EXPECT_TRUE(text.starts_with(null_empty));
+}
+
+TEST(StringRefNullEmpty, TwoNullViewsAreEqual) {
+  const StringRef a{nullptr, 0};
+  const StringRef b{nullptr, 0};
+  EXPECT_TRUE(a == b);
+  EXPECT_EQ(a.compare(b), 0);
+  EXPECT_TRUE(a.starts_with(b));
+}
+
 }  // namespace esphome::core::testing

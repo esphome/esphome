@@ -566,17 +566,17 @@ def create_field_type_info(
         # For messages that decode (SOURCE_CLIENT or SOURCE_BOTH), use pointer
         # for zero-copy access to the receive buffer
         if needs_decode:
-            return PointerToBytesBufferType(field, None)
+            return PointerToBytesBufferType(field, needs_decode)
 
         # For SOURCE_SERVER (encode only), explicit annotation is still needed
         if get_field_opt(field, pb.pointer_to_buffer, False):
-            return PointerToBytesBufferType(field, None)
+            return PointerToBytesBufferType(field, needs_decode)
 
         return BytesType(field, needs_decode, needs_encode)
 
     # Special handling for string fields - use StringRef for zero-copy
     if field.type == 9:
-        return PointerToStringBufferType(field, None)
+        return PointerToStringBufferType(field, needs_decode)
 
     validate_field_type(field.type, field.name)
     if field.type == 11:
@@ -1134,11 +1134,12 @@ class PointerToBufferTypeBase(TypeInfo):
     def can_use_dump_field(cls) -> bool:
         return False
 
+    # Only here to make needs_decode required: the null string default keys off it, so a call
+    # site must not fall back on the base class default
     def __init__(
-        self, field: descriptor.FieldDescriptorProto, size: int | None = None
+        self, field: descriptor.FieldDescriptorProto, needs_decode: bool
     ) -> None:
-        super().__init__(field)
-        self.array_size = 0
+        super().__init__(field, needs_decode)
 
     @property
     def wire_type(self) -> WireType:
@@ -1220,13 +1221,27 @@ class PointerToStringBufferType(PointerToBufferTypeBase):
         return True
 
     @property
+    def _starts_null(self) -> bool:
+        """A field that is only encoded, and skipped when empty, never has its pointer read
+        before it is set, so it can default to a null StringRef and the message constructs as
+        one zero fill. Any encode path that copies unconditionally must check this."""
+        return not self._needs_decode and not self.force
+
+    @property
     def public_content(self) -> list[str]:
+        if self._starts_null:
+            return [
+                f"StringRef {self.field_name}{{nullptr, 0}};  // null until set, encode only"
+            ]
         return [f"StringRef {self.field_name}{{}};"]
 
     @property
     def encode_content(self) -> str:
         max_len = self.max_data_length
         if max_len is not None and max_len < 128 and self.force:
+            assert not self._starts_null, (
+                "unconditional copy of a field that may start null"
+            )
             tag = self.calculate_tag()
             if tag < 128:
                 return _encode_call(
@@ -1236,6 +1251,9 @@ class PointerToStringBufferType(PointerToBufferTypeBase):
             f"this->{self.field_name}.c_str()",
             f"this->{self.field_name}.size()",
         ):
+            assert not self._starts_null, (
+                "unconditional copy of a field that may start null"
+            )
             return result
         return _encode_call(
             "encode_string",

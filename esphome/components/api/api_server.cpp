@@ -433,8 +433,9 @@ void APIServer::send_homeassistant_action(const HomeassistantActionRequest &call
     // Home Assistant subscribes to actions shortly *after* authenticating, so actions
     // fired right at connection time (on_client_connected, on_time_sync, ...) can
     // arrive before the subscription and are lost - warn instead of failing silently.
-    ESP_LOGW(TAG, "Home Assistant %s '%s' dropped; %s",
-             call.is_event ? LOG_STR_LITERAL("event") : LOG_STR_LITERAL("action"), call.service.c_str(),
+    ESP_LOGW(TAG, "Home Assistant %s '%.*s' dropped; %s",
+             call.is_event ? LOG_STR_LITERAL("event") : LOG_STR_LITERAL("action"),
+             static_cast<int>(call.service.size()), call.service.empty() ? "" : call.service.c_str(),
              this->is_connected() ? LOG_STR_LITERAL("client has not subscribed to actions (yet)")
                                   : LOG_STR_LITERAL("no client connected"));
   }
