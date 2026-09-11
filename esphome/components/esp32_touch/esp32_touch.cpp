@@ -216,6 +216,7 @@ void ESP32TouchComponent::setup() {
   // Do initial oneshot scans to populate baseline values
   for (uint32_t i = 0; i < ONESHOT_SCAN_COUNT; i++) {
     err = touch_sensor_trigger_oneshot_scanning(this->sens_handle_, ONESHOT_SCAN_TIMEOUT_MS);
+    App.feed_wdt();  // 3 scans with 2s timeout might exceed WDT, so feed it here to be safe
     if (err != ESP_OK) {
       ESP_LOGW(TAG, "Oneshot scan %" PRIu32 " failed: %s", i, esp_err_to_name(err));
     }

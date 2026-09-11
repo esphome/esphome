@@ -5,7 +5,7 @@
 
 namespace esphome::ld2412 {
 
-class EngineeringModeSwitch : public switch_::Switch, public Parented<LD2412Component> {
+class EngineeringModeSwitch final : public switch_::Switch, public Parented<LD2412Component> {
  public:
   EngineeringModeSwitch() = default;
 

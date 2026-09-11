@@ -2,8 +2,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace mitsubishi {
+namespace esphome::mitsubishi {
 
 static const char *const TAG = "mitsubishi.climate";
 
@@ -402,5 +401,4 @@ bool MitsubishiClimate::on_receive(remote_base::RemoteReceiveData data) {
   return true;
 }
 
-}  // namespace mitsubishi
-}  // namespace esphome
+}  // namespace esphome::mitsubishi

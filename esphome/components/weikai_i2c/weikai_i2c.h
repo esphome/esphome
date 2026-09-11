@@ -13,8 +13,7 @@
 #include "esphome/components/i2c/i2c.h"
 #include "esphome/components/weikai/weikai.h"
 
-namespace esphome {
-namespace weikai_i2c {
+namespace esphome::weikai_i2c {
 
 class WeikaiComponentI2C;
 
@@ -39,7 +38,7 @@ class WeikaiRegisterI2C : public weikai::WeikaiRegister {
 /// @brief The WeikaiComponentI2C class stores the information to the WeiKai component
 /// connected through an I2C bus.
 ////////////////////////////////////////////////////////////////////////////////////
-class WeikaiComponentI2C : public weikai::WeikaiComponent, public i2c::I2CDevice {
+class WeikaiComponentI2C final : public weikai::WeikaiComponent, public i2c::I2CDevice {
  public:
   weikai::WeikaiRegister &reg(uint8_t reg, uint8_t channel) override {
     reg_i2c_.register_ = reg;
@@ -57,5 +56,4 @@ class WeikaiComponentI2C : public weikai::WeikaiComponent, public i2c::I2CDevice
   WeikaiRegisterI2C reg_i2c_{this, 0, 0};  ///< init to this component
 };
 
-}  // namespace weikai_i2c
-}  // namespace esphome
+}  // namespace esphome::weikai_i2c

@@ -2,8 +2,7 @@
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
 
-namespace esphome {
-namespace cap1188 {
+namespace esphome::cap1188 {
 
 static const char *const TAG = "cap1188";
 
@@ -100,5 +99,4 @@ void CAP1188Component::loop() {
   }
 }
 
-}  // namespace cap1188
-}  // namespace esphome
+}  // namespace esphome::cap1188

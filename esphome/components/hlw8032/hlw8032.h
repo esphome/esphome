@@ -6,7 +6,7 @@
 
 namespace esphome::hlw8032 {
 
-class HLW8032Component : public Component, public uart::UARTDevice {
+class HLW8032Component final : public Component, public uart::UARTDevice {
  public:
   void loop() override;
   void dump_config() override;

@@ -5,8 +5,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/components/switch/switch.h"
 
-namespace esphome {
-namespace gpio {
+namespace esphome::gpio {
 
 class GPIOSwitch final : public switch_::Switch, public Component {
  public:
@@ -33,5 +32,4 @@ class GPIOSwitch final : public switch_::Switch, public Component {
 #endif
 };
 
-}  // namespace gpio
-}  // namespace esphome
+}  // namespace esphome::gpio

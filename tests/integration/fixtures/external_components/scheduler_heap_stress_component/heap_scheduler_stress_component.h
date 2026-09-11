@@ -3,8 +3,7 @@
 #include "esphome/core/component.h"
 #include <atomic>
 
-namespace esphome {
-namespace scheduler_heap_stress_component {
+namespace esphome::scheduler_heap_stress_component {
 
 class SchedulerHeapStressComponent : public Component {
  public:
@@ -18,5 +17,4 @@ class SchedulerHeapStressComponent : public Component {
   std::atomic<int> executed_callbacks_{0};
 };
 
-}  // namespace scheduler_heap_stress_component
-}  // namespace esphome
+}  // namespace esphome::scheduler_heap_stress_component

@@ -4,8 +4,7 @@
 #include "esphome/core/hal.h"
 #include "esphome/components/display/display_buffer.h"
 
-namespace esphome {
-namespace ssd1322_base {
+namespace esphome::ssd1322_base {
 
 enum SSD1322Model {
   SSD1322_MODEL_256_64 = 0,
@@ -51,5 +50,4 @@ class SSD1322 : public display::DisplayBuffer {
   float brightness_{1.0};
 };
 
-}  // namespace ssd1322_base
-}  // namespace esphome
+}  // namespace esphome::ssd1322_base

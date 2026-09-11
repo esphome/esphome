@@ -29,7 +29,7 @@ Required fields:
 - **What does this implement/fix?**: Brief description of changes
 - **Types of changes**: Check ONE appropriate box (Bugfix, New feature, Breaking change, etc.)
 - **Related issue**: Use `fixes <link>` syntax if applicable
-- **Pull request in esphome-docs**: Link if docs are needed
+- **Pull request in esphome.io**: Link if docs are needed
 - **Test Environment**: Check platforms you tested on
 - **Example config.yaml**: Include working example YAML
 - **Checklist**: Verify code is tested and tests added
@@ -54,9 +54,9 @@ Required fields:
 
 - fixes https://github.com/esphome/esphome/issues/XXX
 
-**Pull request in [esphome-docs](https://github.com/esphome/esphome-docs) with documentation (if applicable):**
+**Pull request in [esphome.io](https://github.com/esphome/esphome.io) with documentation (if applicable):**
 
-- esphome/esphome-docs#XXX
+- esphome/esphome.io#XXX
 
 ## Test Environment
 
@@ -83,7 +83,7 @@ component_name:
   - [x] Tests have been added to verify that the new code works (under `tests/` folder).
 
 If user exposed functionality or configuration variables are added/changed:
-  - [ ] Documentation added/updated in [esphome-docs](https://github.com/esphome/esphome-docs).
+  - [ ] Documentation added/updated in [esphome.io](https://github.com/esphome/esphome.io).
 ```
 
 ## 5. Push and Create PR

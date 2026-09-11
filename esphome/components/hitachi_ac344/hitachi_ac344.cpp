@@ -1,7 +1,6 @@
 #include "hitachi_ac344.h"
 
-namespace esphome {
-namespace hitachi_ac344 {
+namespace esphome::hitachi_ac344 {
 
 static const char *const TAG = "climate.hitachi_ac344";
 
@@ -366,5 +365,4 @@ void HitachiClimate::dump_state_(const char action[], uint8_t state[]) {
   ESP_LOGV(TAG, "%s: %02X %02X %02X", action, state[40], state[41], state[42]);
 }
 
-}  // namespace hitachi_ac344
-}  // namespace esphome
+}  // namespace esphome::hitachi_ac344

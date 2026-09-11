@@ -95,7 +95,7 @@ void RuntimeStatsCollector::log_stats_() {
       ESP_LOGI(TAG, "  %s: count=%" PRIu32 ", avg=%.3fms, max=%.2fms, total=%.1fms",
                LOG_STR_ARG(sorted[i]->get_component_log_str()), stats.total_count,
                stats.total_count > 0 ? stats.total_time_us / (float) stats.total_count / 1000.0f : 0.0f,
-               stats.total_max_time_us / 1000.0f, stats.total_time_us / 1000.0);
+               stats.total_max_time_us / 1000.0f, stats.total_time_us / 1000.0f);
     }
   }
 

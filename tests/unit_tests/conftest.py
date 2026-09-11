@@ -9,7 +9,8 @@ not be part of a unit test suite.
 
 """
 
-from collections.abc import Generator
+from collections.abc import Callable, Generator
+import os
 from pathlib import Path
 import sys
 from unittest.mock import Mock, patch
@@ -41,6 +42,19 @@ def fixture_path() -> Path:
 
 
 @pytest.fixture
+def probe_env() -> dict[str, str]:
+    """Environment for running fixture probe scripts as subprocesses.
+
+    Running a script file drops the cwd from sys.path, so prepend the
+    repo root for the child.
+    """
+    python_path = str(package_root)
+    if ambient := os.environ.get("PYTHONPATH"):
+        python_path = os.pathsep.join((python_path, ambient))
+    return os.environ | {"PYTHONPATH": python_path}
+
+
+@pytest.fixture
 def setup_core(tmp_path: Path) -> Path:
     """Set up CORE with test paths."""
     CORE.config_path = tmp_path / "test.yaml"
@@ -64,29 +78,36 @@ def mock_copy_file_if_changed() -> Generator[Mock, None, None]:
 
 @pytest.fixture
 def mock_run_platformio_cli() -> Generator[Mock, None, None]:
-    """Mock run_platformio_cli for platformio_api."""
-    with patch("esphome.platformio_api.run_platformio_cli") as mock:
+    """Mock run_platformio_cli for platformio toolchain."""
+    with patch("esphome.platformio.toolchain.run_platformio_cli") as mock:
         yield mock
 
 
 @pytest.fixture
 def mock_run_platformio_cli_run() -> Generator[Mock, None, None]:
-    """Mock run_platformio_cli_run for platformio_api."""
-    with patch("esphome.platformio_api.run_platformio_cli_run") as mock:
+    """Mock run_platformio_cli_run for platformio toolchain."""
+    with patch("esphome.platformio.toolchain.run_platformio_cli_run") as mock:
         yield mock
 
 
 @pytest.fixture
-def mock_decode_pc() -> Generator[Mock, None, None]:
-    """Mock _decode_pc for platformio_api."""
-    with patch("esphome.platformio_api._decode_pc") as mock:
+def mock_esp32_decode_pc() -> Generator[Mock, None, None]:
+    """Mock _decode_pc for esp32."""
+    with patch("esphome.components.esp32._decode_pc") as mock:
+        yield mock
+
+
+@pytest.fixture
+def mock_esp8266_decode_pc() -> Generator[Mock, None, None]:
+    """Mock _decode_pc for esp8266."""
+    with patch("esphome.components.esp8266._decode_pc") as mock:
         yield mock
 
 
 @pytest.fixture
 def mock_run_external_process() -> Generator[Mock, None, None]:
-    """Mock run_external_process for platformio_api."""
-    with patch("esphome.platformio_api.run_external_process") as mock:
+    """Mock run_external_process for platformio toolchain."""
+    with patch("esphome.platformio.toolchain.run_external_process") as mock:
         yield mock
 
 
@@ -106,8 +127,8 @@ def mock_subprocess_run() -> Generator[Mock, None, None]:
 
 @pytest.fixture
 def mock_get_idedata() -> Generator[Mock, None, None]:
-    """Mock get_idedata for platformio_api."""
-    with patch("esphome.platformio_api.get_idedata") as mock:
+    """Mock get_idedata for platformio toolchain."""
+    with patch("esphome.platformio.toolchain.get_idedata") as mock:
         yield mock
 
 
@@ -116,3 +137,40 @@ def mock_get_component() -> Generator[Mock, None, None]:
     """Mock get_component for config module."""
     with patch("esphome.config.get_component") as mock:
         yield mock
+
+
+@pytest.fixture
+def held_lock() -> Callable[..., Callable[..., None]]:
+    """Factory for a ``FileLock.acquire`` fake held by another downloader.
+
+    Each poll writes the next chunk to ``part`` (or runs it, for a callable)
+    and raises ``Timeout``; when the chunks run out the part is removed,
+    ``land()`` runs, and the acquire succeeds (also for any later job, so
+    ``land`` must be idempotent).
+    """
+    from filelock import Timeout
+
+    def make(
+        part: Path,
+        chunks: list[bytes | Callable[[], None]],
+        land: Callable[[], None],
+    ) -> Callable[..., None]:
+        polls = iter(chunks)
+
+        def acquire(*args, **kwargs) -> None:
+            try:
+                chunk = next(polls)
+            except StopIteration:
+                part.unlink(missing_ok=True)
+                land()
+                return
+            if callable(chunk):
+                chunk()
+            else:
+                part.parent.mkdir(parents=True, exist_ok=True)
+                part.write_bytes(chunk)
+            raise Timeout("held")
+
+        return acquire
+
+    return make

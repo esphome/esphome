@@ -10,8 +10,7 @@
 #include <cinttypes>
 #include <vector>
 
-namespace esphome {
-namespace pn532 {
+namespace esphome::pn532 {
 
 static const uint8_t PN532_COMMAND_VERSION_DATA = 0x02;
 static const uint8_t PN532_COMMAND_SAMCONFIGURATION = 0x14;
@@ -115,7 +114,7 @@ class PN532 : public PollingComponent {
   CallbackManager<void()> on_finished_write_callback_;
 };
 
-class PN532BinarySensor : public binary_sensor::BinarySensor {
+class PN532BinarySensor final : public binary_sensor::BinarySensor {
  public:
   void set_uid(const nfc::NfcTagUid &uid) { uid_ = uid; }
 
@@ -133,10 +132,9 @@ class PN532BinarySensor : public binary_sensor::BinarySensor {
   bool found_{false};
 };
 
-template<typename... Ts> class PN532IsWritingCondition : public Condition<Ts...>, public Parented<PN532> {
+template<typename... Ts> class PN532IsWritingCondition final : public Condition<Ts...>, public Parented<PN532> {
  public:
   bool check(const Ts &...x) override { return this->parent_->is_writing(); }
 };
 
-}  // namespace pn532
-}  // namespace esphome
+}  // namespace esphome::pn532

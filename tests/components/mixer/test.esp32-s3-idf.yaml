@@ -1,7 +1,7 @@
 substitutions:
-  lrclk_pin: GPIO4
-  bclk_pin: GPIO5
-  mclk_pin: GPIO6
   dout_pin: GPIO7
+
+packages:
+  i2s_audio: !include ../../test_build_components/common/i2s_audio/esp32-s3-idf.yaml
 
 <<: !include common.yaml

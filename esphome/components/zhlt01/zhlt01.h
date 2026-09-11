@@ -82,8 +82,7 @@
  *
  ***********************************************************************************/
 
-namespace esphome {
-namespace zhlt01 {
+namespace esphome::zhlt01 {
 
 /********************************************************************************
  *  TIMINGS
@@ -143,7 +142,7 @@ static const float AC1_TEMP_MIN = 16.0f;
 static const float AC1_TEMP_MAX = 32.0f;
 static const float AC1_TEMP_INC = 1.0f;
 
-class ZHLT01Climate : public climate_ir::ClimateIR {
+class ZHLT01Climate final : public climate_ir::ClimateIR {
  public:
   ZHLT01Climate()
       : climate_ir::ClimateIR(
@@ -163,5 +162,4 @@ class ZHLT01Climate : public climate_ir::ClimateIR {
   bool on_receive(remote_base::RemoteReceiveData data) override;
 };
 
-}  // namespace zhlt01
-}  // namespace esphome
+}  // namespace esphome::zhlt01

@@ -4,8 +4,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace aic3204 {
+namespace esphome::aic3204 {
 
 static const char *const TAG = "aic3204";
 
@@ -167,5 +166,4 @@ bool AIC3204::write_volume_() {
   return true;
 }
 
-}  // namespace aic3204
-}  // namespace esphome
+}  // namespace esphome::aic3204

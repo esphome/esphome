@@ -424,7 +424,9 @@ void Rtttl::set_state_(State state) {
   // Clear loop_done when transitioning from `State::STOPPED` to any other state
   if (state == State::STOPPED) {
     this->disable_loop();
+#ifdef USE_RTTTL_FINISHED_PLAYBACK_CALLBACK
     this->on_finished_playback_callback_.call();
+#endif
     ESP_LOGD(TAG, "Playback finished");
   } else if (old_state == State::STOPPED) {
     this->enable_loop();

@@ -1,8 +1,7 @@
 #include "canalsat_protocol.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace remote_base {
+namespace esphome::remote_base {
 
 static const char *const CANALSAT_TAG = "remote.canalsat";
 static const char *const CANALSATLD_TAG = "remote.canalsatld";
@@ -104,5 +103,4 @@ void CanalSatBaseProtocol::dump(const CanalSatData &data) {
   }
 }
 
-}  // namespace remote_base
-}  // namespace esphome
+}  // namespace esphome::remote_base

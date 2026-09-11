@@ -7,10 +7,9 @@
 #include "esphome/components/datetime/datetime_entity.h"
 #include "esphome/core/component.h"
 
-namespace esphome {
-namespace demo {
+namespace esphome::demo {
 
-class DemoDateTime : public datetime::DateTimeEntity, public Component {
+class DemoDateTime final : public datetime::DateTimeEntity, public Component {
  public:
   void setup() override {
     this->year_ = 2038;
@@ -34,7 +33,6 @@ class DemoDateTime : public datetime::DateTimeEntity, public Component {
   }
 };
 
-}  // namespace demo
-}  // namespace esphome
+}  // namespace esphome::demo
 
 #endif

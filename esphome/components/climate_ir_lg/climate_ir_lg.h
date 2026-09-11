@@ -4,14 +4,13 @@
 
 #include <cinttypes>
 
-namespace esphome {
-namespace climate_ir_lg {
+namespace esphome::climate_ir_lg {
 
 // Temperature
 const uint8_t TEMP_MIN = 18;  // Celsius
 const uint8_t TEMP_MAX = 30;  // Celsius
 
-class LgIrClimate : public climate_ir::ClimateIR {
+class LgIrClimate final : public climate_ir::ClimateIR {
  public:
   LgIrClimate()
       : climate_ir::ClimateIR(TEMP_MIN, TEMP_MAX, 1.0f, true, true,
@@ -22,12 +21,13 @@ class LgIrClimate : public climate_ir::ClimateIR {
   /// Override control to change settings of the climate device.
   void control(const climate::ClimateCall &call) override {
     this->send_swing_cmd_ = call.get_swing_mode().has_value();
-    // swing resets after unit powered off
+    // swing resets after unit powered off, except when advanced_commands_support_ is set
     auto mode = call.get_mode();
-    if (mode.has_value() && *mode == climate::CLIMATE_MODE_OFF)
+    if (mode.has_value() && *mode == climate::CLIMATE_MODE_OFF && !(this->advanced_commands_support_))
       this->swing_mode = climate::CLIMATE_SWING_OFF;
     climate_ir::ClimateIR::control(call);
   }
+  void set_advanced_commands_support(bool value) { this->advanced_commands_support_ = value; }
   void set_header_high(uint32_t header_high) { this->header_high_ = header_high; }
   void set_header_low(uint32_t header_low) { this->header_low_ = header_low; }
   void set_bit_high(uint32_t bit_high) { this->bit_high_ = bit_high; }
@@ -45,6 +45,7 @@ class LgIrClimate : public climate_ir::ClimateIR {
   void calc_checksum_(uint32_t &value);
   void transmit_(uint32_t value);
 
+  bool advanced_commands_support_{false};
   uint32_t header_high_;
   uint32_t header_low_;
   uint32_t bit_high_;
@@ -54,5 +55,4 @@ class LgIrClimate : public climate_ir::ClimateIR {
   climate::ClimateMode mode_before_{climate::CLIMATE_MODE_OFF};
 };
 
-}  // namespace climate_ir_lg
-}  // namespace esphome
+}  // namespace esphome::climate_ir_lg

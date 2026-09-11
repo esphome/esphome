@@ -3,8 +3,7 @@
 #include "esphome/core/log.h"
 #include <cmath>
 
-namespace esphome {
-namespace max31856 {
+namespace esphome::max31856 {
 
 static const char *const TAG = "max31856";
 
@@ -24,8 +23,10 @@ void MAX31856Sensor::setup() {
 void MAX31856Sensor::dump_config() {
   LOG_SENSOR("", "MAX31856", this);
   LOG_PIN("  CS Pin: ", this->cs_);
-  ESP_LOGCONFIG(TAG, "  Mains Filter: %s",
-                (filter_ == FILTER_60HZ ? "60 Hz" : (filter_ == FILTER_50HZ ? "50 Hz" : "Unknown!")));
+  ESP_LOGCONFIG(
+      TAG, "  Mains Filter: %s",
+      (filter_ == FILTER_60HZ ? LOG_STR_LITERAL("60 Hz")
+                              : (filter_ == FILTER_50HZ ? LOG_STR_LITERAL("50 Hz") : LOG_STR_LITERAL("Unknown!"))));
   if (this->thermocouple_type_ < 0 || this->thermocouple_type_ > 7) {
     ESP_LOGCONFIG(TAG, "  Thermocouple Type: Unknown");
   } else {
@@ -197,5 +198,4 @@ uint32_t MAX31856Sensor::read_register24_(uint8_t reg) {
   return value;
 }
 
-}  // namespace max31856
-}  // namespace esphome
+}  // namespace esphome::max31856

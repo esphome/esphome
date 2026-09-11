@@ -2,8 +2,7 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace pmwcs3 {
+namespace esphome::pmwcs3 {
 
 static const uint8_t PMWCS3_I2C_ADDRESS = 0x63;
 static const uint8_t PMWCS3_REG_READ_START = 0x01;
@@ -106,5 +105,4 @@ void PMWCS3Component::read_data_() {
   });
 }
 
-}  // namespace pmwcs3
-}  // namespace esphome
+}  // namespace esphome::pmwcs3

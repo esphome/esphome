@@ -1,8 +1,7 @@
 #include "dish_protocol.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace remote_base {
+namespace esphome::remote_base {
 
 static const char *const TAG = "remote.dish";
 
@@ -90,5 +89,4 @@ void DishProtocol::dump(const DishData &data) {
   ESP_LOGI(TAG, "Received Dish: address=0x%02X, command=0x%02X", data.address, data.command);
 }
 
-}  // namespace remote_base
-}  // namespace esphome
+}  // namespace esphome::remote_base

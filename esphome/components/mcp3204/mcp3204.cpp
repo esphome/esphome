@@ -1,8 +1,7 @@
 #include "mcp3204.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace mcp3204 {
+namespace esphome::mcp3204 {
 
 static const char *const TAG = "mcp3204";
 
@@ -32,8 +31,7 @@ float MCP3204::read_data(uint8_t pin, bool differential) {
   this->disable();
 
   uint16_t digital_value = encode_uint16(b0, b1) >> 4;
-  return float(digital_value) / 4096.000 * this->reference_voltage_;  // in V
+  return float(digital_value) / 4096.000f * this->reference_voltage_;  // in V
 }
 
-}  // namespace mcp3204
-}  // namespace esphome
+}  // namespace esphome::mcp3204

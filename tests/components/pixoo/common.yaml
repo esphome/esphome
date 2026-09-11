@@ -1,0 +1,26 @@
+display:
+  - platform: pixoo
+    id: pixoo_display
+    model: 64x64
+    cs_pin: GPIO5
+    data_rate: 10MHz
+    update_interval: 1s
+    lambda: |-
+      it.fill(Color(0, 0, 0));
+      it.filled_rectangle(0, 0, 16, 16, Color(255, 0, 0));
+      it.line(0, 0, 63, 63, Color(0, 255, 0));
+
+  - platform: pixoo
+    id: pixoo_display_pages
+    model: 64x64
+    cs_pin: GPIO21
+    rotation: 90
+    pages:
+      - id: pixoo_page
+        lambda: |-
+          it.rectangle(0, 0, it.get_width(), it.get_height(), Color(0, 0, 255));
+
+light:
+  - platform: pixoo
+    pixoo_id: pixoo_display
+    name: Pixoo Brightness

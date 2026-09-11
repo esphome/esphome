@@ -6,17 +6,30 @@
 
 #include <cstring>
 #include "esphome/core/application.h"
+#ifdef USE_HOST
+#include "esphome/core/wake.h"
+#endif
 
 namespace esphome::socket {
 
 BSDSocketImpl::BSDSocketImpl(int fd, bool monitor_loop) {
   this->fd_ = fd;
-  if (!monitor_loop || this->fd_ < 0)
+  if (this->fd_ < 0)
+    return;
+#ifdef USE_HOST
+  // Release listening ports on OTA re-exec.
+  int flags = ::fcntl(this->fd_, F_GETFD, 0);
+  if (flags >= 0)
+    ::fcntl(this->fd_, F_SETFD, flags | FD_CLOEXEC);
+#endif
+  // Guard structure matches socket_ready_fd(): non-HOST platforms (nRF52/OpenThread)
+  // do not register fds with the esphome select loop, so monitor_loop is a no-op there.
+  if (!monitor_loop)
     return;
 #ifdef USE_LWIP_FAST_SELECT
   this->cached_sock_ = hook_fd_for_fast_select(this->fd_);
-#else
-  this->loop_monitored_ = App.register_socket_fd(this->fd_);
+#elif defined(USE_HOST)
+  this->loop_monitored_ = wake_register_fd(this->fd_);
 #endif
 }
 
@@ -34,9 +47,9 @@ int BSDSocketImpl::close() {
   // touch an unrelated socket's pcb. No per-socket callback unhook is needed —
   // all LwIP sockets share the same static event_callback.
   this->cached_sock_ = nullptr;
-#else
+#elif defined(USE_HOST)
   if (this->loop_monitored_) {
-    App.unregister_socket_fd(this->fd_);
+    wake_unregister_fd(this->fd_);
   }
 #endif
   int ret = ::close(this->fd_);

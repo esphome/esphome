@@ -2,8 +2,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace pipsolar {
+namespace esphome::pipsolar {
 
 static const char *const TAG = "pipsolar.output";
 
@@ -18,5 +17,4 @@ void PipsolarOutput::write_state(float state) {
     ESP_LOGD(TAG, "Will not write: %s as it is not in list of allowed values", tmp);
   }
 }
-}  // namespace pipsolar
-}  // namespace esphome
+}  // namespace esphome::pipsolar

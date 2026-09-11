@@ -1,6 +1,6 @@
 #include <cstring>
 #include "hmac_sha256.h"
-#if defined(USE_ESP32) || defined(USE_ESP8266) || defined(USE_RP2040) || defined(USE_LIBRETINY) || defined(USE_HOST)
+#if defined(USE_ESP32) || defined(USE_ESP8266) || defined(USE_RP2) || defined(USE_LIBRETINY) || defined(USE_HOST)
 #include "esphome/core/helpers.h"
 
 namespace esphome::hmac_sha256 {

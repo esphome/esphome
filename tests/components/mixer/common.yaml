@@ -6,18 +6,18 @@ esphome:
           decibel_reduction: 10
           duration: 1s
 
-i2s_audio:
-  i2s_lrclk_pin: ${lrclk_pin}
-  i2s_bclk_pin: ${bclk_pin}
-  i2s_mclk_pin: ${mclk_pin}
-
 speaker:
   - platform: i2s_audio
-    id: speaker_id
+    id: mixer_output_speaker_id
+    i2s_audio_id: i2s_audio_bus
     dac_type: external
     i2s_dout_pin: ${dout_pin}
+    bits_per_sample: 32bit
+    channel: stereo
   - platform: mixer
-    output_speaker: speaker_id
+    output_speaker: mixer_output_speaker_id
+    bits_per_sample: 32
+    num_channels: 2
     source_speakers:
       - id: source_speaker_1_id
       - id: source_speaker_2_id

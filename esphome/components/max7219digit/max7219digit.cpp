@@ -8,8 +8,7 @@
 #include <algorithm>
 #include <cinttypes>
 
-namespace esphome {
-namespace max7219digit {
+namespace esphome::max7219digit {
 
 static const char *const TAG = "max7219DIGIT";
 
@@ -352,5 +351,4 @@ uint8_t MAX7219Component::strftimedigit(const char *format, ESPTime time) {
   return this->strftimedigit(0, format, time);
 }
 
-}  // namespace max7219digit
-}  // namespace esphome
+}  // namespace esphome::max7219digit

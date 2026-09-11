@@ -11,12 +11,11 @@
 #include "LwRx.h"
 #include "LwTx.h"
 
-namespace esphome {
-namespace lightwaverf {
+namespace esphome::lightwaverf {
 
 #ifdef USE_ESP8266
 
-class LightWaveRF : public PollingComponent {
+class LightWaveRF final : public PollingComponent {
  public:
   void set_pin(InternalGPIOPin *pin_tx, InternalGPIOPin *pin_rx) {
     pin_tx_ = pin_tx;
@@ -38,7 +37,7 @@ class LightWaveRF : public PollingComponent {
   LwTx lwtx_;
 };
 
-template<typename... Ts> class SendRawAction : public Action<Ts...> {
+template<typename... Ts> class SendRawAction final : public Action<Ts...> {
  public:
   SendRawAction(LightWaveRF *parent) : parent_(parent){};
   TEMPLATABLE_VALUE(int, repeat);
@@ -61,6 +60,5 @@ template<typename... Ts> class SendRawAction : public Action<Ts...> {
 };
 
 #endif
-}  // namespace lightwaverf
-}  // namespace esphome
+}  // namespace esphome::lightwaverf
 #endif

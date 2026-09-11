@@ -77,3 +77,34 @@ esp32_ble_server:
                   id: test_change_descriptor
                   value:
                     data: [0x01, 0x02, 0x03]
+
+# Regression test for #17142: the set_value action used from a trigger that passes
+# its argument by reference (climate on_control supplies ClimateCall&) previously
+# failed to compile.
+sensor:
+  - platform: template
+    id: ble_test_temp
+    lambda: "return 20.0;"
+
+output:
+  - platform: template
+    id: ble_test_output
+    type: float
+    write_action:
+      - logger.log: "out"
+
+climate:
+  - platform: pid
+    name: "BLE Test Climate"
+    id: ble_test_climate
+    sensor: ble_test_temp
+    default_target_temperature: 20
+    heat_output: ble_test_output
+    control_parameters:
+      kp: 0.1
+      ki: 0.001
+      kd: 0.1
+    on_control:
+      - ble_server.characteristic.set_value:
+          id: test_notify_characteristic
+          value: !lambda "return std::vector<uint8_t>{0, 1, 2};"

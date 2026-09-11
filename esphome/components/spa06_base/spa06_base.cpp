@@ -224,7 +224,7 @@ bool SPA06Component::soft_reset_() {
 }
 
 // Temperature conversion formula. See datasheet pg. 14
-float SPA06Component::convert_temperature_(const float &t_raw_sc) { return this->c0_ * 0.5 + this->c1_ * t_raw_sc; }
+float SPA06Component::convert_temperature_(const float &t_raw_sc) { return this->c0_ * 0.5f + this->c1_ * t_raw_sc; }
 // Pressure conversion formula. See datasheet pg. 14
 float SPA06Component::convert_pressure_(const float &p_raw_sc, const float &t_raw_sc) {
   float p2_raw_sc = p_raw_sc * p_raw_sc;

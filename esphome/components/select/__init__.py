@@ -19,7 +19,11 @@ from esphome.const import (
     CONF_WEB_SERVER,
 )
 from esphome.core import CORE, ID, CoroPriority, coroutine_with_priority
-from esphome.core.entity_helpers import entity_duplicate_validator, setup_entity
+from esphome.core.entity_helpers import (
+    entity_duplicate_validator,
+    queue_entity_register,
+    setup_entity,
+)
 from esphome.cpp_generator import MockObjClass, TemplateArguments
 from esphome.cpp_types import global_ns
 
@@ -113,7 +117,7 @@ async def setup_select_core_(var, config, *, options: list[str]):
 async def register_select(var, config, *, options: list[str]):
     if not CORE.has_id(config[CONF_ID]):
         var = cg.Pvariable(config[CONF_ID], var)
-    cg.add(cg.App.register_select(var))
+    queue_entity_register("select", config)
     CORE.register_platform_component("select", var)
     await setup_select_core_(var, config, options=options)
 

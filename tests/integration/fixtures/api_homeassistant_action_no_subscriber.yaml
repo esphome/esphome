@@ -1,0 +1,30 @@
+esphome:
+  name: test-ha-action-no-subscriber
+  friendly_name: Home Assistant Action No Subscriber Test
+  on_boot:
+    # Fires before any client is connected - dropped with a warning.
+    - homeassistant.action:
+        action: test.boot_action
+
+host:
+
+api:
+  on_client_connected:
+    # Fires at authentication time, before the client has subscribed to
+    # Home Assistant actions - dropped with a warning.
+    - homeassistant.action:
+        action: test.connected_action
+
+logger:
+  level: DEBUG
+
+button:
+  - platform: template
+    name: Send Action Button
+    id: send_action_button
+    on_press:
+      # Pressed only after the client has subscribed - must be delivered.
+      - homeassistant.action:
+          action: test.button_action
+          data:
+            value: subscribed

@@ -1,8 +1,7 @@
 #include "samsung36_protocol.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace remote_base {
+namespace esphome::remote_base {
 
 static const char *const TAG = "remote.samsung36";
 
@@ -99,5 +98,4 @@ void Samsung36Protocol::dump(const Samsung36Data &data) {
   ESP_LOGI(TAG, "Received Samsung36: address=0x%04X, command=0x%08" PRIX32, data.address, data.command);
 }
 
-}  // namespace remote_base
-}  // namespace esphome
+}  // namespace esphome::remote_base

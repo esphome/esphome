@@ -13,8 +13,8 @@ from .defines import (
     CONF_LONG_PRESS_REPEAT_TIME,
     CONF_LONG_PRESS_TIME,
     CONF_RIGHT_BUTTON,
+    add_lv_use,
 )
-from .helpers import lvgl_components_required, requires_component
 from .lvcode import lv, lv_add, lv_assign, lv_expr, lv_Pvariable
 from .schemas import ENCODER_SCHEMA
 from .types import lv_group_t, lv_indev_type_t, lv_key_t
@@ -26,7 +26,8 @@ ENCODERS_CONFIG = cv.ensure_list(
             cv.Required(CONF_ENTER_BUTTON): cv.use_id(BinarySensor),
             cv.Required(CONF_SENSOR): cv.Any(
                 cv.All(
-                    cv.use_id(RotaryEncoderSensor), requires_component("rotary_encoder")
+                    cv.use_id(RotaryEncoderSensor),
+                    cv.requires_component("rotary_encoder"),
                 ),
                 cv.Schema(
                     {
@@ -48,7 +49,7 @@ def get_default_group(config):
 
 async def encoders_to_code(var, config, default_group):
     for enc_conf in config[CONF_ENCODERS]:
-        lvgl_components_required.add("KEY_LISTENER")
+        add_lv_use("KEY_LISTENER", "ROTARY_ENCODER")
         lpt = enc_conf[CONF_LONG_PRESS_TIME].total_milliseconds
         lprt = enc_conf[CONF_LONG_PRESS_REPEAT_TIME].total_milliseconds
         listener = cg.new_Pvariable(

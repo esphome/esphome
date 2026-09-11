@@ -2,8 +2,7 @@
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
 
-namespace esphome {
-namespace ezo_pmp {
+namespace esphome::ezo_pmp {
 
 static const char *const TAG = "ezo-pmp";
 
@@ -547,5 +546,4 @@ void EzoPMP::exec_arbitrary_command(const std::basic_string<char> &command) {
   this->queue_command_(EZO_PMP_COMMAND_EXEC_ARBITRARY_COMMAND_ADDRESS, 0, 0, true);
 }
 
-}  // namespace ezo_pmp
-}  // namespace esphome
+}  // namespace esphome::ezo_pmp

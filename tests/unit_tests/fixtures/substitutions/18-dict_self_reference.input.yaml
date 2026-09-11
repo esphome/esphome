@@ -1,0 +1,18 @@
+substitutions:
+  device:
+    manufacturer: "espressif"
+    model: "esp32"
+    mac_suffix: "ffffff"
+    name: ${device.manufacturer}-${device.model}-${device.mac_suffix}
+  network:
+    host: "example.com"
+    port: 8080
+    url: "http://${network.host}:${network.port}/api"
+
+esphome:
+  name: ${device.name}
+
+test_list:
+  - ${device.name}
+  - ${network.url}
+  - "${device.manufacturer}/${device.model}"

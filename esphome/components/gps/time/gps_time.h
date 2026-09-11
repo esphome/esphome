@@ -4,10 +4,9 @@
 #include "esphome/components/time/real_time_clock.h"
 #include "esphome/core/component.h"
 
-namespace esphome {
-namespace gps {
+namespace esphome::gps {
 
-class GPSTime : public time::RealTimeClock, public GPSListener {
+class GPSTime final : public time::RealTimeClock, public GPSListener {
  public:
   void update() override { this->from_tiny_gps_(this->get_tiny_gps()); };
   void on_update(TinyGPSPlus &tiny_gps) override {
@@ -21,5 +20,4 @@ class GPSTime : public time::RealTimeClock, public GPSListener {
   bool has_time_{false};
 };
 
-}  // namespace gps
-}  // namespace esphome
+}  // namespace esphome::gps

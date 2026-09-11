@@ -23,10 +23,10 @@
 #if defined(USE_ESP8266)
 #include <HardwareSerial.h>
 #endif  // USE_ESP8266
-#ifdef USE_RP2040
+#ifdef USE_RP2
 #include <HardwareSerial.h>
 #include <SerialUSB.h>
-#endif  // USE_RP2040
+#endif  // USE_RP2
 #endif  // USE_ARDUINO
 
 #ifdef USE_ESP32
@@ -96,7 +96,7 @@ struct CStrCompare {
 // macOS allows up to 64 bytes, Linux up to 16
 static constexpr size_t THREAD_NAME_BUF_SIZE = 64;
 
-#if defined(USE_ESP32) || defined(USE_ESP8266) || defined(USE_RP2040) || defined(USE_LIBRETINY) || defined(USE_ZEPHYR)
+#if defined(USE_ESP32) || defined(USE_ESP8266) || defined(USE_RP2) || defined(USE_LIBRETINY) || defined(USE_ZEPHYR)
 /** Enum for logging UART selection
  *
  * Advanced configuration (pin selection, etc) is not supported.
@@ -122,7 +122,7 @@ enum UARTSelection : uint8_t {
   UART_SELECTION_UART0_SWAP,
 #endif  // USE_ESP8266
 };
-#endif  // USE_ESP32 || USE_ESP8266 || USE_RP2040 || USE_LIBRETINY || USE_ZEPHYR
+#endif  // USE_ESP32 || USE_ESP8266 || USE_RP2 || USE_LIBRETINY || USE_ZEPHYR
 
 /**
  * @brief Logger component for all ESPHome logging.
@@ -148,7 +148,7 @@ class Logger final : public Component {
   void loop() override;
 #endif
   /// Manually set the baud rate for serial, set to 0 to disable.
-  void set_baud_rate(uint32_t baud_rate);
+  void set_baud_rate(uint32_t baud_rate) { this->baud_rate_ = baud_rate; }
   uint32_t get_baud_rate() const { return baud_rate_; }
 #if defined(USE_ARDUINO) && !defined(USE_ESP32)
   Stream *get_hw_serial() const { return hw_serial_; }
@@ -160,10 +160,10 @@ class Logger final : public Component {
 #ifdef USE_HOST
   void create_pthread_key() { pthread_key_create(&log_recursion_key_, nullptr); }
 #endif
-#if defined(USE_ESP32) || defined(USE_ESP8266) || defined(USE_RP2040) || defined(USE_LIBRETINY) || defined(USE_ZEPHYR)
+#if defined(USE_ESP32) || defined(USE_ESP8266) || defined(USE_RP2) || defined(USE_LIBRETINY) || defined(USE_ZEPHYR)
   void set_uart_selection(UARTSelection uart_selection) { uart_ = uart_selection; }
   /// Get the UART used by the logger.
-  UARTSelection get_uart() const;
+  UARTSelection get_uart() const { return this->uart_; }
 #endif
 
   /// Set the default log level for this logger.
@@ -197,7 +197,7 @@ class Logger final : public Component {
   void add_level_listener(LoggerLevelListener *listener) { this->level_listeners_.push_back(listener); }
 #endif
 
-  float get_setup_priority() const override;
+  float get_setup_priority() const override { return setup_priority::BUS + 500.0f; }
 
   void log_vprintf_(uint8_t level, const char *tag, int line, const char *format, va_list args);  // NOLINT
 #ifdef USE_STORE_LOG_STR_IN_FLASH
@@ -351,7 +351,7 @@ class Logger final : public Component {
 #endif
   // Group smaller types together at the end
   uint8_t current_level_{ESPHOME_LOG_LEVEL_VERY_VERBOSE};
-#if defined(USE_ESP32) || defined(USE_ESP8266) || defined(USE_RP2040) || defined(USE_ZEPHYR)
+#if defined(USE_ESP32) || defined(USE_ESP8266) || defined(USE_RP2) || defined(USE_ZEPHYR)
   UARTSelection uart_{UART_SELECTION_UART0};
 #endif
 #ifdef USE_LIBRETINY
@@ -505,8 +505,8 @@ class LoggerMessageTrigger final : public Trigger<uint8_t, const char *, const c
 #include "logger_esp32.h"
 #elif defined(USE_ESP8266)
 #include "logger_esp8266.h"
-#elif defined(USE_RP2040)
-#include "logger_rp2040.h"
+#elif defined(USE_RP2)
+#include "logger_rp2.h"
 #elif defined(USE_LIBRETINY)
 #include "logger_libretiny.h"
 #endif

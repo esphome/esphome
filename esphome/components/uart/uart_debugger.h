@@ -18,7 +18,7 @@ namespace esphome::uart {
 /// 'appropriate time' means exactly, is determined by a number of
 /// configurable constraints. E.g. when a given number of bytes is gathered
 /// and/or when no more data has been seen for a given time interval.
-class UARTDebugger : public Component, public Trigger<UARTDirection, std::vector<uint8_t>, StringRef> {
+class UARTDebugger final : public Component, public Trigger<UARTDirection, std::vector<uint8_t>, StringRef> {
  public:
   explicit UARTDebugger(UARTComponent *parent);
   void loop() override;
@@ -73,7 +73,7 @@ class UARTDebugger : public Component, public Trigger<UARTDirection, std::vector
 /// debugger is used to reverse engineer a serial protocol, for which no
 /// specific UARTDevice implementation exists (yet), but for which the
 /// incoming bytes must be read to drive the debugger.
-class UARTDummyReceiver : public Component, public UARTDevice {
+class UARTDummyReceiver final : public Component, public UARTDevice {
  public:
   UARTDummyReceiver(UARTComponent *parent) : UARTDevice(parent) {}
   void loop() override;

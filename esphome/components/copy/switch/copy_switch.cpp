@@ -1,8 +1,7 @@
 #include "copy_switch.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace copy {
+namespace esphome::copy {
 
 static const char *const TAG = "copy.switch";
 
@@ -22,5 +21,4 @@ void CopySwitch::write_state(bool state) {
   }
 }
 
-}  // namespace copy
-}  // namespace esphome
+}  // namespace esphome::copy

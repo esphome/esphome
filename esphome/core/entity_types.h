@@ -90,6 +90,10 @@ ENTITY_CONTROLLER_TYPE_(water_heater::WaterHeater, water_heater, water_heaters, 
 #ifdef USE_INFRARED
 ENTITY_TYPE_(infrared::Infrared, infrared, infrareds, ESPHOME_ENTITY_INFRARED_COUNT, INFRARED)
 #endif
+#ifdef USE_RADIO_FREQUENCY
+ENTITY_TYPE_(radio_frequency::RadioFrequency, radio_frequency, radio_frequencies, ESPHOME_ENTITY_RADIO_FREQUENCY_COUNT,
+             RADIO_FREQUENCY)
+#endif
 #ifdef USE_EVENT
 ENTITY_CONTROLLER_TYPE_(event::Event, event, events, ESPHOME_ENTITY_EVENT_COUNT, EVENT, event)
 #endif

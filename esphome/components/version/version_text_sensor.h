@@ -7,8 +7,8 @@ namespace esphome::version {
 
 class VersionTextSensor final : public text_sensor::TextSensor, public Component {
  public:
-  void set_hide_hash(bool hide_hash);
-  void set_hide_timestamp(bool hide_timestamp);
+  void set_hide_hash(bool hide_hash) { this->hide_hash_ = hide_hash; }
+  void set_hide_timestamp(bool hide_timestamp) { this->hide_timestamp_ = hide_timestamp; }
   void setup() override;
   void dump_config() override;
 

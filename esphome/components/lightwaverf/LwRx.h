@@ -3,8 +3,7 @@
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
 
-namespace esphome {
-namespace lightwaverf {
+namespace esphome::lightwaverf {
 
 // LwRx.h
 //
@@ -138,5 +137,4 @@ class LwRx {
   InternalGPIOPin *rx_pin_;
 };
 
-}  // namespace lightwaverf
-}  // namespace esphome
+}  // namespace esphome::lightwaverf

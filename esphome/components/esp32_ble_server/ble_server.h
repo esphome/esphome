@@ -18,13 +18,12 @@
 
 #include <esp_gatts_api.h>
 
-namespace esphome {
-namespace esp32_ble_server {
+namespace esphome::esp32_ble_server {
 
 using namespace esp32_ble;
 using namespace bytebuffer;
 
-class BLEServer : public Component, public Parented<ESP32BLE> {
+class BLEServer final : public Component, public Parented<ESP32BLE> {
  public:
   void setup() override;
   void loop() override;
@@ -38,6 +37,13 @@ class BLEServer : public Component, public Parented<ESP32BLE> {
     this->manufacturer_data_ = data;
     this->restart_advertising_();
   }
+
+  /** Whether this server needs the device to advertise so clients can find and connect to it.
+   *
+   * False for a server that only hosts services created at runtime (e.g. esp32_improv), which
+   * request advertising themselves for as long as they need it.
+   */
+  void set_advertising_required(bool required) { this->advertising_required_ = required; }
 
   void set_max_clients(uint8_t max_clients) { this->max_clients_ = max_clients; }
   uint8_t get_max_clients() const { return this->max_clients_; }
@@ -83,6 +89,8 @@ class BLEServer : public Component, public Parented<ESP32BLE> {
   };
 
   void restart_advertising_();
+  void request_advertising_();
+  void release_advertising_();
 
   int8_t find_client_index_(uint16_t conn_id) const;
   void add_client_(uint16_t conn_id);
@@ -94,6 +102,8 @@ class BLEServer : public Component, public Parented<ESP32BLE> {
   std::vector<uint8_t> manufacturer_data_{};
   esp_gatt_if_t gatts_if_{0};
   bool registered_{false};
+  bool advertising_required_{true};
+  bool advertising_requested_{false};
 
   uint16_t clients_[USE_ESP32_BLE_MAX_CONNECTIONS]{};
   uint8_t client_count_{0};
@@ -113,7 +123,6 @@ class BLEServer : public Component, public Parented<ESP32BLE> {
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
 extern BLEServer *global_ble_server;
 
-}  // namespace esp32_ble_server
-}  // namespace esphome
+}  // namespace esphome::esp32_ble_server
 
 #endif

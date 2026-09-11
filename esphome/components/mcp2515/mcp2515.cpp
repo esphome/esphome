@@ -1,8 +1,7 @@
 #include "mcp2515.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace mcp2515 {
+namespace esphome::mcp2515 {
 
 static const char *const TAG = "mcp2515";
 
@@ -707,5 +706,4 @@ canbus::Error MCP2515::set_bitrate_(canbus::CanSpeed can_speed, CanClock can_clo
     return canbus::ERROR_FAIL;
   }
 }
-}  // namespace mcp2515
-}  // namespace esphome
+}  // namespace esphome::mcp2515

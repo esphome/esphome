@@ -175,6 +175,10 @@ void Logger::process_messages_() {
 #ifdef USE_ESPHOME_TASK_LOG_BUFFER
   // Process any buffered messages when available
   if (this->log_buffer_.has_messages()) {
+    // Prevent main-task logs emitted by listener callbacks (e.g. the API send path) from re-entering
+    // and corrupting the shared tx_buffer_ / API shared_write_buffer_ while we are draining here.
+    // Mirrors the guard held by log_message_to_buffer_and_send_ on the synchronous logging path.
+    RecursionGuard guard(this->main_task_recursion_guard_);
     logger::TaskLogBuffer::LogMessage *message;
     uint16_t text_length;
     while (this->log_buffer_.borrow_message_main_loop(message, text_length)) {
@@ -197,16 +201,9 @@ void Logger::process_messages_() {
 #endif  // USE_ESPHOME_TASK_LOG_BUFFER
 }
 
-void Logger::set_baud_rate(uint32_t baud_rate) { this->baud_rate_ = baud_rate; }
 #ifdef USE_LOGGER_RUNTIME_TAG_LEVELS
 void Logger::set_log_level(const char *tag, uint8_t log_level) { this->log_levels_[tag] = log_level; }
 #endif
-
-#if defined(USE_ESP32) || defined(USE_ESP8266) || defined(USE_RP2040) || defined(USE_LIBRETINY) || defined(USE_ZEPHYR)
-UARTSelection Logger::get_uart() const { return this->uart_; }
-#endif
-
-float Logger::get_setup_priority() const { return setup_priority::BUS + 500.0f; }
 
 // Log level strings - packed into flash on ESP8266, indexed by log level (0-7)
 PROGMEM_STRING_TABLE(LogLevelStrings, "NONE", "ERROR", "WARN", "INFO", "CONFIG", "DEBUG", "VERBOSE", "VERY_VERBOSE");
@@ -243,6 +240,9 @@ void Logger::dump_config() {
 #endif
 #ifdef USE_ZEPHYR
   dump_crash_();
+  if (!device_is_ready(this->uart_dev_)) {
+    ESP_LOGE(TAG, "  %s is not ready.", LOG_STR_ARG(get_uart_selection_()));
+  }
 #endif
   // Warn users that VERBOSE/VERY_VERBOSE logging impacts performance.
   // Only the compiled log level matters — all log calls up to this level

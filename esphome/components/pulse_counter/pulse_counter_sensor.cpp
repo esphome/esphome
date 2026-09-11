@@ -7,8 +7,7 @@
 #include <hal/pcnt_ll.h>
 #endif
 
-namespace esphome {
-namespace pulse_counter {
+namespace esphome::pulse_counter {
 
 static const char *const TAG = "pulse_counter";
 
@@ -210,5 +209,4 @@ void PulseCounterSensor::update() {
   this->last_time_ = now;
 }
 
-}  // namespace pulse_counter
-}  // namespace esphome
+}  // namespace esphome::pulse_counter

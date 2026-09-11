@@ -11,8 +11,7 @@
 
 #include "NeoPixelBus.h"
 
-namespace esphome {
-namespace neopixelbus {
+namespace esphome::neopixelbus {
 
 enum class ESPNeoPixelOrder {
   GBWR = 0b11000110,
@@ -140,7 +139,6 @@ class NeoPixelRGBWLightOutput : public NeoPixelBusLightOutputBase<T_METHOD, T_CO
   }
 };
 
-}  // namespace neopixelbus
-}  // namespace esphome
+}  // namespace esphome::neopixelbus
 
 #endif  // USE_ARDUINO

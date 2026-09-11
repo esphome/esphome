@@ -5,8 +5,7 @@
 #include <cinttypes>
 #include <utility>
 
-namespace esphome {
-namespace seeed_mr60bha2 {
+namespace esphome::seeed_mr60bha2 {
 
 static const char *const TAG = "seeed_mr60bha2";
 
@@ -219,5 +218,4 @@ void MR60BHA2Component::process_frame_(uint16_t frame_id, uint16_t frame_type, c
   }
 }
 
-}  // namespace seeed_mr60bha2
-}  // namespace esphome
+}  // namespace esphome::seeed_mr60bha2

@@ -1,8 +1,7 @@
 #include "copy_text.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace copy {
+namespace esphome::copy {
 
 static const char *const TAG = "copy.text";
 
@@ -21,5 +20,4 @@ void CopyText::control(const std::string &value) {
   call2.perform();
 }
 
-}  // namespace copy
-}  // namespace esphome
+}  // namespace esphome::copy

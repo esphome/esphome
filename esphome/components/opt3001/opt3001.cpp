@@ -1,8 +1,7 @@
 #include "opt3001.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace opt3001 {
+namespace esphome::opt3001 {
 
 static const char *const TAG = "opt3001.sensor";
 
@@ -116,5 +115,4 @@ void OPT3001Sensor::update() {
   });
 }
 
-}  // namespace opt3001
-}  // namespace esphome
+}  // namespace esphome::opt3001

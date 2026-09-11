@@ -6,7 +6,7 @@
 
 namespace esphome::text {
 
-class TextTextSensor : public text_sensor::TextSensor, public Component {
+class TextTextSensor final : public text_sensor::TextSensor, public Component {
  public:
   explicit TextTextSensor(Text *source) : source_(source) {}
   void setup() override;

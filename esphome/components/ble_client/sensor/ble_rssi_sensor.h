@@ -12,7 +12,7 @@ namespace esphome::ble_client {
 
 namespace espbt = esphome::esp32_ble_tracker;
 
-class BLEClientRSSISensor : public sensor::Sensor, public PollingComponent, public BLEClientNode {
+class BLEClientRSSISensor final : public sensor::Sensor, public PollingComponent, public BLEClientNode {
  public:
   void loop() override;
   void update() override;

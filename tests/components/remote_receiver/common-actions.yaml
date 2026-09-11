@@ -12,7 +12,7 @@ on_brennenstuhl:
   then:
     - logger.log:
         format: "on_brennenstuhl: %u"
-        args: ["x.code"]
+        args: ["(unsigned) x.code"]
 on_aeha:
   then:
     - logger.log:

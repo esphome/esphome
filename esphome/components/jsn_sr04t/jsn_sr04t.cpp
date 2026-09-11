@@ -4,8 +4,7 @@
 
 // Very basic support for JSN_SR04T V3.0 distance sensor in mode 2
 
-namespace esphome {
-namespace jsn_sr04t {
+namespace esphome::jsn_sr04t {
 
 static const char *const TAG = "jsn_sr04t.sensor";
 
@@ -62,5 +61,4 @@ void Jsnsr04tComponent::dump_config() {
   LOG_UPDATE_INTERVAL(this);
 }
 
-}  // namespace jsn_sr04t
-}  // namespace esphome
+}  // namespace esphome::jsn_sr04t

@@ -13,8 +13,7 @@
 #include "esphome/components/uart/uart.h"
 #include "esphome/core/automation.h"
 
-namespace esphome {
-namespace sim800l {
+namespace esphome::sim800l {
 
 const uint16_t SIM800L_READ_BUFFER_LENGTH = 1024;
 
@@ -47,7 +46,7 @@ enum State {
   STATE_RECEIVED_USSD
 };
 
-class Sim800LComponent : public uart::UARTDevice, public PollingComponent {
+class Sim800LComponent final : public uart::UARTDevice, public PollingComponent {
  public:
   /// Retrieve the latest sensor values. This operation takes approximately 16ms.
   void update() override;
@@ -121,7 +120,7 @@ class Sim800LComponent : public uart::UARTDevice, public PollingComponent {
   CallbackManager<void(std::string)> ussd_received_callback_;
 };
 
-template<typename... Ts> class Sim800LSendSmsAction : public Action<Ts...> {
+template<typename... Ts> class Sim800LSendSmsAction final : public Action<Ts...> {
  public:
   Sim800LSendSmsAction(Sim800LComponent *parent) : parent_(parent) {}
   TEMPLATABLE_VALUE(std::string, recipient)
@@ -137,7 +136,7 @@ template<typename... Ts> class Sim800LSendSmsAction : public Action<Ts...> {
   Sim800LComponent *parent_;
 };
 
-template<typename... Ts> class Sim800LSendUssdAction : public Action<Ts...> {
+template<typename... Ts> class Sim800LSendUssdAction final : public Action<Ts...> {
  public:
   Sim800LSendUssdAction(Sim800LComponent *parent) : parent_(parent) {}
   TEMPLATABLE_VALUE(std::string, ussd)
@@ -151,7 +150,7 @@ template<typename... Ts> class Sim800LSendUssdAction : public Action<Ts...> {
   Sim800LComponent *parent_;
 };
 
-template<typename... Ts> class Sim800LDialAction : public Action<Ts...> {
+template<typename... Ts> class Sim800LDialAction final : public Action<Ts...> {
  public:
   Sim800LDialAction(Sim800LComponent *parent) : parent_(parent) {}
   TEMPLATABLE_VALUE(std::string, recipient)
@@ -164,7 +163,7 @@ template<typename... Ts> class Sim800LDialAction : public Action<Ts...> {
  protected:
   Sim800LComponent *parent_;
 };
-template<typename... Ts> class Sim800LConnectAction : public Action<Ts...> {
+template<typename... Ts> class Sim800LConnectAction final : public Action<Ts...> {
  public:
   Sim800LConnectAction(Sim800LComponent *parent) : parent_(parent) {}
 
@@ -174,7 +173,7 @@ template<typename... Ts> class Sim800LConnectAction : public Action<Ts...> {
   Sim800LComponent *parent_;
 };
 
-template<typename... Ts> class Sim800LDisconnectAction : public Action<Ts...> {
+template<typename... Ts> class Sim800LDisconnectAction final : public Action<Ts...> {
  public:
   Sim800LDisconnectAction(Sim800LComponent *parent) : parent_(parent) {}
 
@@ -184,5 +183,4 @@ template<typename... Ts> class Sim800LDisconnectAction : public Action<Ts...> {
   Sim800LComponent *parent_;
 };
 
-}  // namespace sim800l
-}  // namespace esphome
+}  // namespace esphome::sim800l

@@ -2,8 +2,7 @@
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
 
-namespace esphome {
-namespace lm75b {
+namespace esphome::lm75b {
 
 static const char *const TAG = "lm75b";
 
@@ -35,5 +34,4 @@ void LM75BComponent::update() {
   }
 }
 
-}  // namespace lm75b
-}  // namespace esphome
+}  // namespace esphome::lm75b

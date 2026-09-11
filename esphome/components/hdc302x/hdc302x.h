@@ -20,7 +20,7 @@ enum HDC302XPowerMode : uint8_t {
  Datasheet:
  https://www.ti.com/lit/ds/symlink/hdc3020.pdf
  */
-class HDC302XComponent : public PollingComponent, public i2c::I2CDevice {
+class HDC302XComponent final : public PollingComponent, public i2c::I2CDevice {
  public:
   void setup() override;
   void dump_config() override;
@@ -48,7 +48,7 @@ class HDC302XComponent : public PollingComponent, public i2c::I2CDevice {
   uint32_t conversion_delay_ms_();
 };
 
-template<typename... Ts> class HeaterOnAction : public Action<Ts...>, public Parented<HDC302XComponent> {
+template<typename... Ts> class HeaterOnAction final : public Action<Ts...>, public Parented<HDC302XComponent> {
  public:
   TEMPLATABLE_VALUE(uint16_t, power)
   TEMPLATABLE_VALUE(uint32_t, duration)
@@ -60,7 +60,7 @@ template<typename... Ts> class HeaterOnAction : public Action<Ts...>, public Par
   }
 };
 
-template<typename... Ts> class HeaterOffAction : public Action<Ts...>, public Parented<HDC302XComponent> {
+template<typename... Ts> class HeaterOffAction final : public Action<Ts...>, public Parented<HDC302XComponent> {
  public:
   void play(const Ts &...x) override { this->parent_->stop_heater(); }
 };

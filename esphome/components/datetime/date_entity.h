@@ -96,7 +96,9 @@ class DateCall {
   optional<uint8_t> day_;
 };
 
-template<typename... Ts> class DateSetAction : public Action<Ts...>, public Parented<DateEntity> {
+inline DateCall DateEntity::make_call() { return DateCall(this); }
+
+template<typename... Ts> class DateSetAction final : public Action<Ts...>, public Parented<DateEntity> {
  public:
   TEMPLATABLE_VALUE(ESPTime, date)
 

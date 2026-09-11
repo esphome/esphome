@@ -3,8 +3,7 @@
 #include "esphome/core/component.h"
 #include "remote_base.h"
 
-namespace esphome {
-namespace remote_base {
+namespace esphome::remote_base {
 
 struct KeeloqData {
   uint32_t encrypted;  // 32 bit encrypted field
@@ -49,5 +48,4 @@ template<typename... Ts> class KeeloqAction : public RemoteTransmitterActionBase
   }
 };
 
-}  // namespace remote_base
-}  // namespace esphome
+}  // namespace esphome::remote_base

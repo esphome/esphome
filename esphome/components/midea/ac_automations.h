@@ -1,13 +1,11 @@
 #pragma once
 
-#ifdef USE_ARDUINO
+#if (defined(USE_ARDUINO) && !defined(USE_RP2) && !defined(USE_LIBRETINY)) || defined(USE_ESP_IDF)
 
 #include "esphome/core/automation.h"
 #include "air_conditioner.h"
 
-namespace esphome {
-namespace midea {
-namespace ac {
+namespace esphome::midea::ac {
 
 template<typename... Ts> class MideaActionBase : public Action<Ts...> {
  public:
@@ -63,8 +61,6 @@ template<typename... Ts> class PowerToggleAction : public MideaActionBase<Ts...>
   void play(const Ts &...x) override { this->parent_->do_power_toggle(); }
 };
 
-}  // namespace ac
-}  // namespace midea
-}  // namespace esphome
+}  // namespace esphome::midea::ac
 
-#endif  // USE_ARDUINO
+#endif  // USE_ARDUINO || USE_ESP_IDF

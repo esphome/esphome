@@ -12,6 +12,22 @@ namespace esphome::runtime_image {
 
 static const char *const TAG = "image_decoder.bmp";
 
+void BmpDecoder::reset() {
+  ImageDecoder::reset();
+  this->bits_per_pixel_ = 0;
+  this->compression_method_ = 0;
+  this->image_data_size_ = 0;
+  this->width_ = 0;
+  this->height_ = 0;
+  this->current_index_ = 0;
+  this->paint_index_ = 0;
+  // color_table_ is deliberately kept allocated so the next decode can reuse it
+  this->color_table_entries_ = 0;
+  this->data_offset_ = 0;
+  this->padding_bytes_ = 0;
+  this->width_bytes_ = 0;
+}
+
 int HOT BmpDecoder::decode(uint8_t *buffer, size_t size) {
   size_t index = 0;
   if (this->current_index_ == 0) {
@@ -64,6 +80,10 @@ int HOT BmpDecoder::decode(uint8_t *buffer, size_t size) {
 
     this->width_ = encode_uint32(buffer[21], buffer[20], buffer[19], buffer[18]);
     this->height_ = encode_uint32(buffer[25], buffer[24], buffer[23], buffer[22]);
+    if (this->width_ <= 0 || this->height_ <= 0) {
+      ESP_LOGE(TAG, "Invalid image dimensions: (%zdx%zd)", this->width_, this->height_);
+      return DECODE_ERROR_UNSUPPORTED_FORMAT;
+    }
     this->bits_per_pixel_ = encode_uint16(buffer[29], buffer[28]);
     this->compression_method_ = encode_uint32(buffer[33], buffer[32], buffer[31], buffer[30]);
     this->image_data_size_ = encode_uint32(buffer[37], buffer[36], buffer[35], buffer[34]);
@@ -85,7 +105,10 @@ int HOT BmpDecoder::decode(uint8_t *buffer, size_t size) {
         size_t header_size = encode_uint32(buffer[17], buffer[16], buffer[15], buffer[14]);
         size_t offset = 14 + header_size;
 
-        this->color_table_ = std::make_unique<uint32_t[]>(this->color_table_entries_);
+        if (this->color_table_entries_ > this->color_table_capacity_) {
+          this->color_table_ = std::make_unique<uint32_t[]>(this->color_table_entries_);
+          this->color_table_capacity_ = this->color_table_entries_;
+        }
 
         for (size_t i = 0; i < this->color_table_entries_; i++) {
           this->color_table_[i] = encode_uint32(buffer[offset + i * 4 + 3], buffer[offset + i * 4 + 2],

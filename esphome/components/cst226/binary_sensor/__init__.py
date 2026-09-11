@@ -1,6 +1,7 @@
 import esphome.codegen as cg
 from esphome.components import binary_sensor
 import esphome.config_validation as cv
+from esphome.types import ConfigType
 
 from .. import cst226_ns
 from ..touchscreen import CST226ButtonListener, CST226Touchscreen
@@ -26,7 +27,7 @@ CONFIG_SCHEMA = (
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = await binary_sensor.new_binary_sensor(config)
     await cg.register_component(var, config)
     await cg.register_parented(var, config[CONF_CST226_ID])

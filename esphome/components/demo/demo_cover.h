@@ -3,8 +3,7 @@
 #include "esphome/core/component.h"
 #include "esphome/components/cover/cover.h"
 
-namespace esphome {
-namespace demo {
+namespace esphome::demo {
 
 enum class DemoCoverType {
   TYPE_1,
@@ -13,7 +12,7 @@ enum class DemoCoverType {
   TYPE_4,
 };
 
-class DemoCover : public cover::Cover, public Component {
+class DemoCover final : public cover::Cover, public Component {
  public:
   void set_type(DemoCoverType type) { type_ = type; }
   void setup() override {
@@ -85,5 +84,4 @@ class DemoCover : public cover::Cover, public Component {
   DemoCoverType type_;
 };
 
-}  // namespace demo
-}  // namespace esphome
+}  // namespace esphome::demo

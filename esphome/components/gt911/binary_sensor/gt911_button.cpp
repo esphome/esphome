@@ -1,8 +1,7 @@
 #include "gt911_button.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace gt911 {
+namespace esphome::gt911 {
 
 static const char *const TAG = "GT911.binary_sensor";
 
@@ -23,5 +22,4 @@ void GT911Button::update_button(uint8_t index, bool state) {
   this->publish_state(state);
 }
 
-}  // namespace gt911
-}  // namespace esphome
+}  // namespace esphome::gt911

@@ -1,0 +1,9 @@
+---
+esphome:
+  name: test
+
+esp32:
+  board: nodemcu-32s
+
+safe_mode:
+  boot_is_good_on_shutdown: false

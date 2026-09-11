@@ -8,9 +8,9 @@ namespace esphome::nextion {
 
 class NextionBinarySensor;
 
-class NextionBinarySensor : public NextionComponent,
-                            public binary_sensor::BinarySensorInitiallyOff,
-                            public PollingComponent {
+class NextionBinarySensor final : public NextionComponent,
+                                  public binary_sensor::BinarySensorInitiallyOff,
+                                  public PollingComponent {
  public:
   NextionBinarySensor(NextionBase *nextion) { this->nextion_ = nextion; }
 

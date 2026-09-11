@@ -26,7 +26,7 @@ static constexpr size_t MAX_LINE_LENGTH = 1024;
  * The EmonTx processes incoming data frames via UART,
  * extracts tags and values, and publishes them to registered sensors.
  */
-class EmonTx : public Component, public uart::UARTDevice {
+class EmonTx final : public Component, public uart::UARTDevice {
  public:
   EmonTx() = default;
 
@@ -59,7 +59,7 @@ class EmonTx : public Component, public uart::UARTDevice {
 };
 
 // Action to send command to emonTx
-template<typename... Ts> class EmonTxSendCommandAction : public Action<Ts...>, public Parented<EmonTx> {
+template<typename... Ts> class EmonTxSendCommandAction final : public Action<Ts...>, public Parented<EmonTx> {
  public:
   TEMPLATABLE_VALUE(std::string, command)
 

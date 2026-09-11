@@ -1,8 +1,7 @@
 #include "qwiic_pir.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace qwiic_pir {
+namespace esphome::qwiic_pir {
 
 static const char *const TAG = "qwiic_pir";
 
@@ -125,9 +124,9 @@ void QwiicPIRComponent::dump_config() {
 
 void QwiicPIRComponent::clear_events_() {
   // Clear event status register
-  if (!this->write_byte(QWIIC_PIR_EVENT_STATUS, 0x00))
+  if (!this->write_byte(QWIIC_PIR_EVENT_STATUS, 0x00)) {
     ESP_LOGW(TAG, "Failed to clear events");
+  }
 }
 
-}  // namespace qwiic_pir
-}  // namespace esphome
+}  // namespace esphome::qwiic_pir

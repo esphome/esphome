@@ -3,8 +3,7 @@
 
 // ArduinoJson::Allocator is included via ArduinoJson.h in json_util.h
 
-namespace esphome {
-namespace json {
+namespace esphome::json {
 
 static const char *const TAG = "json";
 
@@ -39,7 +38,8 @@ bool parse_json(const uint8_t *data, size_t len, const json_parse_t &f) {
 }
 
 JsonDocument parse_json(const uint8_t *data, size_t len) {
-  // NOLINTBEGIN(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
+  // NOLINTBEGIN(clang-analyzer-cplusplus.NewDeleteLeaks,clang-analyzer-core.StackAddressEscape) false positives with
+  // ArduinoJson
   if (data == nullptr || len == 0) {
     ESP_LOGE(TAG, "No data to parse");
     return JsonObject();  // return unbound object
@@ -63,7 +63,7 @@ JsonDocument parse_json(const uint8_t *data, size_t len) {
   }
   ESP_LOGE(TAG, "Parse error: %s", err.c_str());
   return JsonObject();  // return unbound object
-  // NOLINTEND(clang-analyzer-cplusplus.NewDeleteLeaks)
+  // NOLINTEND(clang-analyzer-cplusplus.NewDeleteLeaks,clang-analyzer-core.StackAddressEscape)
 }
 
 SerializationBuffer<> JsonBuilder::serialize() {
@@ -148,5 +148,4 @@ SerializationBuffer<> JsonBuilder::serialize() {
   return result;
 }
 
-}  // namespace json
-}  // namespace esphome
+}  // namespace esphome::json

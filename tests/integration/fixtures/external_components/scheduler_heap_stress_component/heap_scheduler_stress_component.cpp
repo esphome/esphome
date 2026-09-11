@@ -6,8 +6,7 @@
 #include <chrono>
 #include <random>
 
-namespace esphome {
-namespace scheduler_heap_stress_component {
+namespace esphome::scheduler_heap_stress_component {
 
 static const char *const TAG = "scheduler_heap_stress";
 
@@ -100,5 +99,4 @@ void SchedulerHeapStressComponent::run_multi_thread_test() {
   ESP_LOGI(TAG, "All threads finished in %lldms. Created %d callbacks", thread_time, this->total_callbacks_.load());
 }
 
-}  // namespace scheduler_heap_stress_component
-}  // namespace esphome
+}  // namespace esphome::scheduler_heap_stress_component

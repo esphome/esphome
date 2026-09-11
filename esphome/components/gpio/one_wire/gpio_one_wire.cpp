@@ -2,8 +2,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace gpio {
+namespace esphome::gpio {
 
 static const char *const TAG = "gpio.one_wire";
 
@@ -56,8 +55,11 @@ int HOT IRAM_ATTR GPIOOneWireBus::reset_int() {
     delayMicroseconds(1);
   }
 
-  // delay J
-  delayMicroseconds(start + 480 - micros());
+  // delay J: finish the 480us slot, but never spin if it already elapsed
+  // (unsigned wrap here would busy-wait for minutes with interrupts off)
+  uint32_t elapsed = micros() - start;
+  if (elapsed < 480)
+    delayMicroseconds(480 - elapsed);
   this->pin_.digital_write(true);
   this->pin_.pin_mode(gpio::FLAG_OUTPUT);
   return r ? 1 : 0;
@@ -202,5 +204,4 @@ uint64_t IRAM_ATTR GPIOOneWireBus::search_int() {
   return address;
 }
 
-}  // namespace gpio
-}  // namespace esphome
+}  // namespace esphome::gpio

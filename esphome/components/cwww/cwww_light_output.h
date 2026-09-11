@@ -4,10 +4,9 @@
 #include "esphome/components/output/float_output.h"
 #include "esphome/components/light/light_output.h"
 
-namespace esphome {
-namespace cwww {
+namespace esphome::cwww {
 
-class CWWWLightOutput : public light::LightOutput {
+class CWWWLightOutput final : public light::LightOutput {
  public:
   void set_cold_white(output::FloatOutput *cold_white) { cold_white_ = cold_white; }
   void set_warm_white(output::FloatOutput *warm_white) { warm_white_ = warm_white; }
@@ -36,5 +35,4 @@ class CWWWLightOutput : public light::LightOutput {
   bool constant_brightness_;
 };
 
-}  // namespace cwww
-}  // namespace esphome
+}  // namespace esphome::cwww

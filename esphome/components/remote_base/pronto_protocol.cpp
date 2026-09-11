@@ -35,8 +35,7 @@
 #include "pronto_protocol.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace remote_base {
+namespace esphome::remote_base {
 
 static const char *const TAG = "remote.pronto";
 
@@ -243,5 +242,4 @@ void ProntoProtocol::dump(const ProntoData &data) {
   } while (remaining > 0);
 }
 
-}  // namespace remote_base
-}  // namespace esphome
+}  // namespace esphome::remote_base

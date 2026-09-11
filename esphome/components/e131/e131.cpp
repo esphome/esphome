@@ -5,8 +5,7 @@
 
 #include <algorithm>
 
-namespace esphome {
-namespace e131 {
+namespace esphome::e131 {
 
 static const char *const TAG = "e131";
 static const int PORT = 5568;
@@ -134,6 +133,6 @@ bool E131Component::process_(int universe, const E131Packet &packet) {
   return handled;
 }
 
-}  // namespace e131
-}  // namespace esphome
+}  // namespace esphome::e131
+
 #endif

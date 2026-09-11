@@ -3,8 +3,7 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/application.h"
 
-namespace esphome {
-namespace endstop {
+namespace esphome::endstop {
 
 static const char *const TAG = "endstop.cover";
 
@@ -192,5 +191,4 @@ void EndstopCover::recompute_position_() {
   this->last_recompute_time_ = now;
 }
 
-}  // namespace endstop
-}  // namespace esphome
+}  // namespace esphome::endstop

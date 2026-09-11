@@ -8,21 +8,21 @@
 
 namespace esphome::text_sensor {
 
-class TextSensorStateTrigger : public Trigger<std::string> {
+class TextSensorStateTrigger final : public Trigger<std::string> {
  public:
   explicit TextSensorStateTrigger(TextSensor *parent) {
     parent->add_on_state_callback([this](const std::string &value) { this->trigger(value); });
   }
 };
 
-class TextSensorStateRawTrigger : public Trigger<std::string> {
+class TextSensorStateRawTrigger final : public Trigger<std::string> {
  public:
   explicit TextSensorStateRawTrigger(TextSensor *parent) {
     parent->add_on_raw_state_callback([this](const std::string &value) { this->trigger(value); });
   }
 };
 
-template<typename... Ts> class TextSensorStateCondition : public Condition<Ts...> {
+template<typename... Ts> class TextSensorStateCondition final : public Condition<Ts...> {
  public:
   explicit TextSensorStateCondition(TextSensor *parent) : parent_(parent) {}
 
@@ -34,7 +34,7 @@ template<typename... Ts> class TextSensorStateCondition : public Condition<Ts...
   TextSensor *parent_;
 };
 
-template<typename... Ts> class TextSensorPublishAction : public Action<Ts...> {
+template<typename... Ts> class TextSensorPublishAction final : public Action<Ts...> {
  public:
   TextSensorPublishAction(TextSensor *sensor) : sensor_(sensor) {}
   TEMPLATABLE_VALUE(std::string, state)

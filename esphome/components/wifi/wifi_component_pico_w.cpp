@@ -1,7 +1,7 @@
 #include "wifi_component.h"
 
 #ifdef USE_WIFI
-#ifdef USE_RP2040
+#ifdef USE_RP2
 
 #include <cassert>
 
@@ -109,10 +109,7 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
   // setup depends on begin() succeeding. beginNoBlock() skips the outer wait loop, saving
   // up to 20 additional seconds of blocking per attempt.
   auto ret = WiFi.beginNoBlock(ap.ssid_.c_str(), ap.password_.c_str());
-  if (ret == WL_IDLE_STATUS)
-    return false;
-
-  return true;
+  return ret != WL_IDLE_STATUS;
 }
 
 bool WiFiComponent::wifi_sta_pre_setup_() { return this->wifi_mode_(true, {}); }
@@ -169,11 +166,11 @@ WiFiSTAConnectStatus WiFiComponent::wifi_sta_connect_status_() const {
 }
 
 int WiFiComponent::s_wifi_scan_result(void *env, const cyw43_ev_scan_result_t *result) {
-  global_wifi_component->wifi_scan_result(env, result);
+  global_wifi_component->wifi_scan_result_(env, result);
   return 0;
 }
 
-void WiFiComponent::wifi_scan_result(void *env, const cyw43_ev_scan_result_t *result) {
+void WiFiComponent::wifi_scan_result_(void *env, const cyw43_ev_scan_result_t *result) {
   s_scan_result_count++;
 
   // CYW43 scan results have ssid as a 32-byte buffer that is NOT null-terminated.
@@ -193,12 +190,16 @@ void WiFiComponent::wifi_scan_result(void *env, const cyw43_ev_scan_result_t *re
   std::copy(result->bssid, result->bssid + 6, bssid.begin());
   WiFiScanResult res(bssid, ssid_buf, len, result->channel, result->rssi, result->auth_mode != CYW43_AUTH_OPEN,
                      len == 0);
+  // Compiles to nothing here; kept so every scan_result_ mutation holds the lock
+  ScanResultsLock lock(this);
   if (std::find(this->scan_result_.begin(), this->scan_result_.end(), res) == this->scan_result_.end()) {
     this->scan_result_.push_back(res);
   }
 }
 
 bool WiFiComponent::wifi_scan_start_(bool passive) {
+  // Compiles to nothing here; kept so every scan_result_ mutation holds the lock
+  ScanResultsLock lock(this);
   this->scan_result_.clear();
   this->scan_done_ = false;
   s_scan_result_count = 0;
@@ -264,7 +265,6 @@ bssid_t WiFiComponent::wifi_bssid() {
     bssid[i] = raw_bssid[i];
   return bssid;
 }
-std::string WiFiComponent::wifi_ssid() { return WiFi.SSID().c_str(); }
 const char *WiFiComponent::wifi_ssid_to(std::span<char, SSID_BUFFER_SIZE> buffer) {
   // TODO: Find direct CYW43 API to avoid Arduino String allocation
   String ssid = WiFi.SSID();
@@ -282,7 +282,7 @@ network::IPAddresses WiFiComponent::wifi_sta_ip_addresses() {
   // Filter out AP interface addresses — addrList includes all lwIP netifs.
   // The AP netif IP lingers even after the AP radio is disabled.
   IPAddress ap_ip = WiFi.softAPIP();
-  for (auto addr : addrList) {
+  for (const auto &addr : addrList) {
     IPAddress ip(addr.ipFromNetifNum());
     if (ip == ap_ip) {
       continue;
@@ -303,7 +303,7 @@ network::IPAddress WiFiComponent::wifi_dns_ip_(int num) {
 // Connect state listener notifications are deferred until after the state machine
 // transitions (in check_connecting_finished) so that conditions like wifi.connected
 // return correct values in automations.
-void WiFiComponent::wifi_loop_() {
+bool WiFiComponent::wifi_loop_() {
   // Handle scan completion
   if (this->state_ == WIFI_COMPONENT_STATE_STA_SCANNING && !cyw43_wifi_scan_active(&cyw43_state)) {
     this->scan_done_ = true;
@@ -342,6 +342,8 @@ void WiFiComponent::wifi_loop_() {
     s_sta_was_connected = false;
     s_sta_had_ip = false;
     ESP_LOGV(TAG, "Disconnected");
+    // Refresh is_connected() cache; driver link status reports disconnected.
+    this->update_connected_state_();
 #ifdef USE_WIFI_CONNECT_STATE_LISTENERS
     this->notify_disconnect_state_listeners_();
 #endif
@@ -349,12 +351,11 @@ void WiFiComponent::wifi_loop_() {
 
   // Detect IP address changes (only when connected)
   if (is_connected) {
-    bool has_ip = false;
-    // Check for any IP address (IPv4 or IPv6)
-    for (auto addr : addrList) {
-      has_ip = true;
-      break;
-    }
+    // Check for any IP address (IPv4 or IPv6). The iterator comparison
+    // operators take non-const references, so the temporaries need names.
+    auto addr_it = addrList.begin();
+    auto addr_end = addrList.end();
+    bool has_ip = addr_it != addr_end;
 
     if (has_ip && !s_sta_had_ip) {
       // Just got IP address
@@ -365,6 +366,7 @@ void WiFiComponent::wifi_loop_() {
 #endif
     }
   }
+  return true;
 }
 
 void WiFiComponent::wifi_pre_setup_() {}

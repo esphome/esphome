@@ -2,8 +2,7 @@
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
 
-namespace esphome {
-namespace sds011 {
+namespace esphome::sds011 {
 
 static const char *const TAG = "sds011";
 
@@ -74,7 +73,6 @@ void SDS011Component::dump_config() {
                 this->update_interval_min_, ONOFF(this->rx_mode_only_));
   LOG_SENSOR("  ", "PM2.5", this->pm_2_5_sensor_);
   LOG_SENSOR("  ", "PM10.0", this->pm_10_0_sensor_);
-  this->check_uart_settings(9600);
 }
 
 void SDS011Component::loop() {
@@ -184,5 +182,4 @@ void SDS011Component::set_update_interval_min(uint8_t update_interval_min) {
   this->update_interval_min_ = update_interval_min;
 }
 
-}  // namespace sds011
-}  // namespace esphome
+}  // namespace esphome::sds011

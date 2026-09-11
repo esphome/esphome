@@ -5,11 +5,17 @@ from esphome.core import CORE
 from esphome.cpp_types import std_string
 
 from .. import LvContext
-from ..defines import CONF_MAIN, KEYBOARD_MODES, literal
-from ..helpers import lvgl_components_required
+from ..defines import (
+    CONF_MAIN,
+    KEYBOARD_MODES,
+    add_lv_use,
+    is_widget_completed,
+    literal,
+)
 from ..types import LvCompound, LvType
-from . import Widget, WidgetType, get_widgets, is_widget_completed
+from . import Widget, WidgetType, get_widgets
 from .buttonmatrix import CONF_BUTTONMATRIX
+from .label import CONF_LABEL
 from .textarea import CONF_TEXTAREA, lv_textarea_t
 
 CONF_KEYBOARD = "keyboard"
@@ -44,11 +50,10 @@ class KeyboardType(WidgetType):
         )
 
     def get_uses(self):
-        return CONF_KEYBOARD, CONF_TEXTAREA, CONF_BUTTONMATRIX
+        return CONF_KEYBOARD, CONF_TEXTAREA, CONF_BUTTONMATRIX, CONF_LABEL
 
     async def to_code(self, w: Widget, config: dict):
-        lvgl_components_required.add("KEY_LISTENER")
-        lvgl_components_required.add(CONF_KEYBOARD)
+        add_lv_use("KEY_LISTENER")
         if mode := config.get(CONF_MODE):
             await w.set_property(CONF_MODE, await KEYBOARD_MODES.process(mode))
         if textarea := config.get(CONF_TEXTAREA):

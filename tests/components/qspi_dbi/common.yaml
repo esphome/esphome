@@ -16,7 +16,7 @@ display:
 
   - platform: qspi_dbi
     model: CUSTOM
-    id: main_lcd
+    id: qspi_dbi_main_lcd
     draw_from_origin: true
     dimensions:
       height: 240

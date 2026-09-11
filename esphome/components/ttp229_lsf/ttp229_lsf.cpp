@@ -1,8 +1,7 @@
 #include "ttp229_lsf.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace ttp229_lsf {
+namespace esphome::ttp229_lsf {
 
 static const char *const TAG = "ttp229_lsf";
 
@@ -40,5 +39,4 @@ void TTP229LSFComponent::loop() {
   }
 }
 
-}  // namespace ttp229_lsf
-}  // namespace esphome
+}  // namespace esphome::ttp229_lsf

@@ -9,8 +9,8 @@
 #include "esphome/components/esp32/preferences.h"
 #elif defined(USE_ESP8266)
 #include "esphome/components/esp8266/preferences.h"
-#elif defined(USE_RP2040)
-#include "esphome/components/rp2040/preferences.h"
+#elif defined(USE_RP2)
+#include "esphome/components/rp2/preferences.h"
 #elif defined(USE_LIBRETINY)
 #include "esphome/components/libretiny/preferences.h"
 #elif defined(USE_HOST)
@@ -23,6 +23,7 @@ struct Preferences : public PreferencesMixin<Preferences> {
   using PreferencesMixin<Preferences>::make_preference;
   ESPPreferenceObject make_preference(size_t, uint32_t, bool) { return {}; }
   ESPPreferenceObject make_preference(size_t, uint32_t) { return {}; }
+  bool load_from_key(uint32_t, uint8_t *, size_t) { return false; }
 
   /**
    * Commit pending writes to flash.
@@ -43,3 +44,17 @@ using ESPPreferences = Preferences;
 extern ESPPreferences *global_preferences;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 }  // namespace esphome
 #endif
+
+namespace esphome {
+static_assert(PreferencesContract<ESPPreferences>,
+              "The platform's preferences manager is missing part of the ESPPreferences surface "
+              "(esphome/core/preference_backend.h)");
+}  // namespace esphome
+
+#ifdef USE_PREFERENCE_KEY_LOOKUP
+namespace esphome {
+static_assert(PreferencesKeyLookupContract<ESPPreferences>,
+              "This platform emits USE_PREFERENCE_KEY_LOOKUP but its preferences manager does not provide "
+              "load_from_key() (esphome/core/preference_backend.h)");
+}  // namespace esphome
+#endif  // USE_PREFERENCE_KEY_LOOKUP

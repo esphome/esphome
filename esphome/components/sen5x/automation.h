@@ -4,10 +4,9 @@
 #include "esphome/core/automation.h"
 #include "sen5x.h"
 
-namespace esphome {
-namespace sen5x {
+namespace esphome::sen5x {
 
-template<typename... Ts> class StartFanAction : public Action<Ts...> {
+template<typename... Ts> class StartFanAction final : public Action<Ts...> {
  public:
   explicit StartFanAction(SEN5XComponent *sen5x) : sen5x_(sen5x) {}
 
@@ -17,5 +16,4 @@ template<typename... Ts> class StartFanAction : public Action<Ts...> {
   SEN5XComponent *sen5x_;
 };
 
-}  // namespace sen5x
-}  // namespace esphome
+}  // namespace esphome::sen5x

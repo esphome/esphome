@@ -7,10 +7,9 @@
 
 #include <cinttypes>
 
-namespace esphome {
-namespace pulse_meter {
+namespace esphome::pulse_meter {
 
-class PulseMeterSensor : public sensor::Sensor, public Component {
+class PulseMeterSensor final : public sensor::Sensor, public Component {
  public:
   enum InternalFilterMode {
     FILTER_EDGE = 0,
@@ -77,5 +76,4 @@ class PulseMeterSensor : public sensor::Sensor, public Component {
   PulseState pulse_state_{};
 };
 
-}  // namespace pulse_meter
-}  // namespace esphome
+}  // namespace esphome::pulse_meter

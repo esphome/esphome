@@ -1,8 +1,7 @@
 #include "climate_ir.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace climate_ir {
+namespace esphome::climate_ir {
 
 static const char *const TAG = "climate_ir";
 
@@ -100,5 +99,4 @@ void ClimateIR::dump_config() {
                 YESNO(this->supports_cool_));
 }
 
-}  // namespace climate_ir
-}  // namespace esphome
+}  // namespace esphome::climate_ir

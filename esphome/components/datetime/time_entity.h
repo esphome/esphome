@@ -98,7 +98,9 @@ class TimeCall {
   optional<uint8_t> second_;
 };
 
-template<typename... Ts> class TimeSetAction : public Action<Ts...>, public Parented<TimeEntity> {
+inline TimeCall TimeEntity::make_call() { return TimeCall(this); }
+
+template<typename... Ts> class TimeSetAction final : public Action<Ts...>, public Parented<TimeEntity> {
  public:
   TEMPLATABLE_VALUE(ESPTime, time)
 
@@ -113,7 +115,7 @@ template<typename... Ts> class TimeSetAction : public Action<Ts...>, public Pare
 };
 
 #ifdef USE_TIME
-class OnTimeTrigger : public Trigger<>, public Component, public Parented<TimeEntity> {
+class OnTimeTrigger final : public Trigger<>, public Component, public Parented<TimeEntity> {
  public:
   void loop() override;
 

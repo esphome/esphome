@@ -11,7 +11,7 @@
 
 namespace esphome::ble_nus {
 
-class BLENUS : public uart::UARTComponent, public Component {
+class BLENUS final : public uart::UARTComponent, public Component {
   enum TxStatus {
     TX_DISABLED,
     TX_ENABLED,

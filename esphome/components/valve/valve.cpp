@@ -6,8 +6,7 @@
 
 #include <strings.h>
 
-namespace esphome {
-namespace valve {
+namespace esphome::valve {
 
 static const char *const TAG = "valve";
 
@@ -121,10 +120,6 @@ ValveCall &ValveCall::set_stop(bool stop) {
   this->stop_ = stop;
   return *this;
 }
-bool ValveCall::get_stop() const { return this->stop_; }
-
-ValveCall Valve::make_call() { return {this}; }
-
 void Valve::publish_state(bool save) {
   this->position = clamp(this->position, 0.0f, 1.0f);
 
@@ -163,9 +158,6 @@ optional<ValveRestoreState> Valve::restore_state_() {
   return recovered;
 }
 
-bool Valve::is_fully_open() const { return this->position == VALVE_OPEN; }
-bool Valve::is_fully_closed() const { return this->position == VALVE_CLOSED; }
-
 ValveCall ValveRestoreState::to_call(Valve *valve) {
   auto call = valve->make_call();
   call.set_position(this->position);
@@ -176,5 +168,4 @@ void ValveRestoreState::apply(Valve *valve) {
   valve->publish_state();
 }
 
-}  // namespace valve
-}  // namespace esphome
+}  // namespace esphome::valve

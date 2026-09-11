@@ -2,8 +2,7 @@
 #include "esphome/core/log.h"
 #include <cstdio>
 
-namespace esphome {
-namespace mcp23016 {
+namespace esphome::mcp23016 {
 
 static const char *const TAG = "mcp23016";
 
@@ -37,7 +36,10 @@ void IRAM_ATTR MCP23016::gpio_intr(MCP23016 *arg) { arg->enable_loop_soon_any_co
 void MCP23016::loop() {
   // Invalidate cache at the start of each loop
   this->reset_pin_cache_();
-  if (this->interrupt_pin_ != nullptr) {
+  // Only disable the loop once INT has actually gone HIGH. Input transitions that straddle the
+  // I2C read leave INT asserted without re-firing a falling edge, which would strand us with
+  // stale state forever; keep looping until the line is released so we self-heal.
+  if (this->interrupt_pin_ != nullptr && this->interrupt_pin_->digital_read()) {
     this->disable_loop();
   }
 }
@@ -98,5 +100,4 @@ size_t MCP23016GPIOPin::dump_summary(char *buffer, size_t len) const {
   return buf_append_printf(buffer, len, 0, "%u via MCP23016", this->pin_);
 }
 
-}  // namespace mcp23016
-}  // namespace esphome
+}  // namespace esphome::mcp23016

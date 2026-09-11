@@ -2,8 +2,7 @@
 #include "ufire_ec.h"
 #include <cmath>
 
-namespace esphome {
-namespace ufire_ec {
+namespace esphome::ufire_ec {
 
 static const char *const TAG = "ufire_ec";
 
@@ -122,5 +121,4 @@ void UFireECComponent::dump_config() {
   LOG_SENSOR("  ", "Temperature Sensor external", this->temperature_sensor_external_);
 }
 
-}  // namespace ufire_ec
-}  // namespace esphome
+}  // namespace esphome::ufire_ec

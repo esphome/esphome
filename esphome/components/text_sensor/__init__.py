@@ -1,6 +1,7 @@
 from esphome import automation
 import esphome.codegen as cg
 from esphome.components import mqtt, web_server
+from esphome.config_helpers import filter_source_files_from_defines
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_DEVICE_CLASS,
@@ -22,6 +23,7 @@ from esphome.const import (
 from esphome.core import CORE, CoroPriority, coroutine_with_priority
 from esphome.core.entity_helpers import (
     entity_duplicate_validator,
+    queue_entity_register,
     setup_device_class,
     setup_entity,
 )
@@ -143,7 +145,9 @@ _TEXT_SENSOR_SCHEMA = (
         {
             cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTTextSensor),
             cv.GenerateID(): cv.declare_id(TextSensor),
-            cv.Optional(CONF_DEVICE_CLASS): validate_device_class,
+            cv.Optional(
+                CONF_DEVICE_CLASS, visibility=cv.Visibility.ADVANCED
+            ): validate_device_class,
             cv.Optional(CONF_FILTERS): validate_filters,
             cv.Optional(CONF_ON_VALUE): automation.validate_automation({}),
             cv.Optional(CONF_ON_RAW_VALUE): automation.validate_automation({}),
@@ -221,7 +225,7 @@ async def setup_text_sensor_core_(var, config):
 async def register_text_sensor(var, config):
     if not CORE.has_id(config[CONF_ID]):
         var = cg.Pvariable(config[CONF_ID], var)
-    cg.add(cg.App.register_text_sensor(var))
+    queue_entity_register("text_sensor", config)
     CORE.register_platform_component("text_sensor", var)
     await setup_text_sensor_core_(var, config)
 
@@ -253,3 +257,8 @@ async def text_sensor_state_to_code(config, condition_id, template_arg, args):
     templ = await cg.templatable(config[CONF_STATE], args, cg.std_string)
     cg.add(var.set_state(templ))
     return var
+
+
+FILTER_SOURCE_FILES = filter_source_files_from_defines(
+    {"filter.cpp": "USE_TEXT_SENSOR_FILTER"}
+)

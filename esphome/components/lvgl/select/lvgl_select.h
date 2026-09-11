@@ -8,10 +8,9 @@
 #include "esphome/core/preferences.h"
 #include "esphome/components/lvgl/lvgl_esphome.h"
 
-namespace esphome {
-namespace lvgl {
+namespace esphome::lvgl {
 
-class LVGLSelect : public select::Select, public Component {
+class LVGLSelect final : public select::Select, public Component {
  public:
   LVGLSelect(LvSelectable *widget, lv_anim_enable_t anim, bool restore)
       : widget_(widget), anim_(anim), restore_(restore) {}
@@ -51,19 +50,10 @@ class LVGLSelect : public select::Select, public Component {
  protected:
   void control(size_t index) override {
     this->widget_->set_selected_index(index, this->anim_);
-    this->publish();
+    // The update event fires the widget's on_value/on_update triggers
+    lv_obj_send_event(this->widget_->obj, lv_update_event, nullptr);
   }
-  void set_options_() {
-    // Widget uses std::vector<std::string>, SelectTraits uses FixedVector<const char*>
-    // Convert by extracting c_str() pointers
-    const auto &opts = this->widget_->get_options();
-    FixedVector<const char *> opt_ptrs;
-    opt_ptrs.init(opts.size());
-    for (const auto &opt : opts) {
-      opt_ptrs.push_back(opt.c_str());
-    }
-    this->traits.set_options(opt_ptrs);
-  }
+  void set_options_() { this->traits.set_options(this->widget_->get_options()); }
 
   LvSelectable *widget_;
   lv_anim_enable_t anim_;
@@ -71,5 +61,4 @@ class LVGLSelect : public select::Select, public Component {
   ESPPreferenceObject pref_{};
 };
 
-}  // namespace lvgl
-}  // namespace esphome
+}  // namespace esphome::lvgl

@@ -1,8 +1,7 @@
 #include "esphome/core/log.h"
 #include "tuya_fan.h"
 
-namespace esphome {
-namespace tuya {
+namespace esphome::tuya {
 
 static const char *const TAG = "tuya.fan";
 
@@ -127,5 +126,4 @@ void TuyaFan::control(const fan::FanCall &call) {
   }
 }
 
-}  // namespace tuya
-}  // namespace esphome
+}  // namespace esphome::tuya

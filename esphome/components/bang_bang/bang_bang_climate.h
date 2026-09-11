@@ -5,8 +5,7 @@
 #include "esphome/components/climate/climate.h"
 #include "esphome/components/sensor/sensor.h"
 
-namespace esphome {
-namespace bang_bang {
+namespace esphome::bang_bang {
 
 struct BangBangClimateTargetTempConfig {
  public:
@@ -17,7 +16,7 @@ struct BangBangClimateTargetTempConfig {
   float default_temperature_high{NAN};
 };
 
-class BangBangClimate : public climate::Climate, public Component {
+class BangBangClimate final : public climate::Climate, public Component {
  public:
   BangBangClimate();
   void setup() override;
@@ -84,5 +83,4 @@ class BangBangClimate : public climate::Climate, public Component {
   BangBangClimateTargetTempConfig away_config_{};
 };
 
-}  // namespace bang_bang
-}  // namespace esphome
+}  // namespace esphome::bang_bang

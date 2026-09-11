@@ -2,8 +2,7 @@
 
 #include "esphome/core/hal.h"
 
-namespace esphome {
-namespace sx127x {
+namespace esphome::sx127x {
 
 enum SX127xReg : uint8_t {
   // Common registers
@@ -291,5 +290,4 @@ enum SX127xModemCfg3 : uint8_t {
   MODEM_AGC_AUTO_ON = 0x04,
 };
 
-}  // namespace sx127x
-}  // namespace esphome
+}  // namespace esphome::sx127x

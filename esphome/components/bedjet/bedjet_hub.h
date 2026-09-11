@@ -18,8 +18,7 @@
 
 #include <esp_gattc_api.h>
 
-namespace esphome {
-namespace bedjet {
+namespace esphome::bedjet {
 
 namespace espbt = esphome::esp32_ble_tracker;
 
@@ -34,7 +33,7 @@ static const espbt::ESPBTUUID BEDJET_NAME_UUID = espbt::ESPBTUUID::from_raw("000
 /**
  * Hub component connecting to the BedJet device over Bluetooth.
  */
-class BedJetHub : public esphome::ble_client::BLEClientNode, public PollingComponent {
+class BedJetHub final : public esphome::ble_client::BLEClientNode, public PollingComponent {
  public:
   /* BedJet functionality exposed to `BedJetClient` children and/or accessible from action lambdas. */
 
@@ -172,7 +171,6 @@ class BedJetHub : public esphome::ble_client::BLEClientNode, public PollingCompo
   uint8_t write_notify_config_descriptor_(bool enable);
 };
 
-}  // namespace bedjet
-}  // namespace esphome
+}  // namespace esphome::bedjet
 
 #endif

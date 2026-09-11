@@ -78,7 +78,8 @@ class ActionResponse {
       : success_(success), error_message_(error_message) {
     if (data == nullptr || data_len == 0)
       return;
-    this->json_document_ = json::parse_json(data, data_len);
+    JsonDocument tmp = json::parse_json(data, data_len);
+    swap(this->json_document_, tmp);
   }
 #endif
 
@@ -103,7 +104,7 @@ class ActionResponse {
 template<typename... Ts> using ActionResponseCallback = std::function<void(const ActionResponse &, Ts...)>;
 #endif
 
-template<typename... Ts> class HomeAssistantServiceCallAction : public Action<Ts...> {
+template<typename... Ts> class HomeAssistantServiceCallAction final : public Action<Ts...> {
  public:
   explicit HomeAssistantServiceCallAction(APIServer *parent, bool is_event) : parent_(parent) {
     this->flags_.is_event = is_event;

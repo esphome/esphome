@@ -4,11 +4,10 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/core/component.h"
 
-namespace esphome {
-namespace emc2101 {
+namespace esphome::emc2101 {
 
 /// This class exposes the EMC2101 sensors.
-class EMC2101Sensor : public PollingComponent {
+class EMC2101Sensor final : public PollingComponent {
  public:
   EMC2101Sensor(Emc2101Component *parent) : parent_(parent) {}
   /** Used by ESPHome framework. */
@@ -33,5 +32,4 @@ class EMC2101Sensor : public PollingComponent {
   sensor::Sensor *duty_cycle_sensor_{nullptr};
 };
 
-}  // namespace emc2101
-}  // namespace esphome
+}  // namespace esphome::emc2101

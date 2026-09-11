@@ -4,8 +4,7 @@
 
 #define BMP280_ERROR_WRONG_CHIP_ID "Wrong chip ID or no response"
 
-namespace esphome {
-namespace bmp280_base {
+namespace esphome::bmp280_base {
 
 static const char *const TAG = "bmp280.sensor";
 
@@ -268,5 +267,4 @@ uint16_t BMP280Component::read_u16_le_(uint8_t a_register) {
 }
 int16_t BMP280Component::read_s16_le_(uint8_t a_register) { return this->read_u16_le_(a_register); }
 
-}  // namespace bmp280_base
-}  // namespace esphome
+}  // namespace esphome::bmp280_base

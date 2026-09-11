@@ -2,8 +2,7 @@
 #include "tuya_sensor.h"
 #include <cinttypes>
 
-namespace esphome {
-namespace tuya {
+namespace esphome::tuya {
 
 static const char *const TAG = "tuya.sensor";
 
@@ -30,5 +29,4 @@ void TuyaSensor::dump_config() {
   ESP_LOGCONFIG(TAG, "  Sensor has datapoint ID %u", this->sensor_id_);
 }
 
-}  // namespace tuya
-}  // namespace esphome
+}  // namespace esphome::tuya

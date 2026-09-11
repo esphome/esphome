@@ -1,14 +1,13 @@
-from esphome.components.mipi import DriverChip
-from esphome.config_validation import UNDEFINED
+from . import RgbDriverChip
 
 # fmt: off
-sunton = DriverChip(
+sunton = RgbDriverChip(
     "ESP32-8048S070",
-    swap_xy=UNDEFINED,
     initsequence=(),
     width=800,
     height=480,
     pclk_frequency="12.5MHz",
+    requires={"psram"},
     de_pin=41,
     hsync_pin=39,
     vsync_pin=40,
@@ -28,7 +27,6 @@ sunton = DriverChip(
 
 sunton.extend(
     "ESP32-8048S050",
-    swap_xy=UNDEFINED,
     initsequence=(),
     width=800,
     height=480,

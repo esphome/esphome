@@ -1,0 +1,15 @@
+wifi:
+  ssid: MySSID
+  password: password1
+  enable_on_boot: false
+
+esphome:
+  on_boot:
+    priority: 200
+    then:
+      - if:
+          condition:
+            not:
+              wifi.enabled:
+          then:
+            - wifi.enable:

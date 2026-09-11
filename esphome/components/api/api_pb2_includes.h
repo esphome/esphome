@@ -31,6 +31,13 @@
 #include <vector>
 #include <string>
 
+#if defined(LOG_LEVEL_NONE)
+// Zephyr defines LOG_LEVEL_NONE as a logging macro that collides with the LogLevel enum value of
+// the same name in the generated api_pb2.h. Undefine it for the rest of this translation unit so
+// the enum parses; nothing below needs Zephyr's logging macro.
+#undef LOG_LEVEL_NONE
+#endif
+
 namespace esphome::api {
 
 // This file only provides includes, no actual code

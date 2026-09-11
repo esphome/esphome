@@ -1,10 +1,7 @@
 #include "inkbird_ibsth1_mini.h"
 #include "esphome/core/log.h"
 
-#ifdef USE_ESP32
-
-namespace esphome {
-namespace inkbird_ibsth1_mini {
+namespace esphome::inkbird_ibsth1_mini {
 
 static const char *const TAG = "inkbird_ibsth1_mini";
 
@@ -16,7 +13,7 @@ void InkbirdIbstH1Mini::dump_config() {
   LOG_SENSOR("  ", "Battery Level", this->battery_level_);
 }
 
-bool InkbirdIbstH1Mini::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
+bool InkbirdIbstH1Mini::parse_device(const ble_device_base::ESPBTDevice &device) {
   // The below is based on my research and reverse engineering of a single device
   // It is entirely possible that some of that may be inaccurate or incomplete
 
@@ -33,7 +30,7 @@ bool InkbirdIbstH1Mini::parse_device(const esp32_ble_tracker::ESPBTDevice &devic
     ESP_LOGVV(TAG, "parse_device(): unknown MAC address.");
     return false;
   }
-  if (device.get_address_type() != BLE_ADDR_TYPE_PUBLIC) {
+  if (device.get_address_type() != ble_device_base::BLE_ADDR_TYPE_PUBLIC) {
     ESP_LOGVV(TAG, "parse_device(): address is not public");
     return false;
   }
@@ -41,13 +38,13 @@ bool InkbirdIbstH1Mini::parse_device(const esp32_ble_tracker::ESPBTDevice &devic
     ESP_LOGVV(TAG, "parse_device(): service_data is expected to be empty");
     return false;
   }
-  auto mnf_datas = device.get_manufacturer_datas();
+  const auto &mnf_datas = device.get_manufacturer_datas();
   if (mnf_datas.size() != 1) {
     ESP_LOGVV(TAG, "parse_device(): manufacturer_datas is expected to have a single element");
     return false;
   }
-  auto mnf_data = mnf_datas[0];
-  if (mnf_data.uuid.get_uuid().len != ESP_UUID_LEN_16) {
+  const auto &mnf_data = mnf_datas[0];
+  if (mnf_data.uuid.type() != ble_device_base::ESPBTUUID::Type::UUID16) {
     ESP_LOGVV(TAG, "parse_device(): manufacturer data element is expected to have uuid of length 16");
     return false;
   }
@@ -72,7 +69,7 @@ bool InkbirdIbstH1Mini::parse_device(const esp32_ble_tracker::ESPBTDevice &devic
   auto external_temperature = NAN;
 
   // Read bluetooth data into variable
-  auto measured_temperature = ((int16_t) mnf_data.uuid.get_uuid().uuid.uuid16) / 100.0f;
+  auto measured_temperature = ((int16_t) mnf_data.uuid.uuid16()) / 100.0f;
 
   // Set temperature or external_temperature based on which sensor is in use
   if (mnf_data.data[2] == 0) {
@@ -104,7 +101,4 @@ bool InkbirdIbstH1Mini::parse_device(const esp32_ble_tracker::ESPBTDevice &devic
   return true;
 }
 
-}  // namespace inkbird_ibsth1_mini
-}  // namespace esphome
-
-#endif
+}  // namespace esphome::inkbird_ibsth1_mini

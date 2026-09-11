@@ -8,10 +8,9 @@
 #include "esphome/components/text_sensor/text_sensor.h"
 #include "esphome/components/mqtt/mqtt_client.h"
 
-namespace esphome {
-namespace mqtt_subscribe {
+namespace esphome::mqtt_subscribe {
 
-class MQTTSubscribeTextSensor : public text_sensor::TextSensor, public Component {
+class MQTTSubscribeTextSensor final : public text_sensor::TextSensor, public Component {
  public:
   void set_parent(mqtt::MQTTClientComponent *parent) { parent_ = parent; }
   void set_topic(const std::string &topic) { topic_ = topic; }
@@ -26,7 +25,6 @@ class MQTTSubscribeTextSensor : public text_sensor::TextSensor, public Component
   uint8_t qos_{};
 };
 
-}  // namespace mqtt_subscribe
-}  // namespace esphome
+}  // namespace esphome::mqtt_subscribe
 
 #endif  // USE_MQTT

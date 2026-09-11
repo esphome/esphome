@@ -1,8 +1,7 @@
 #include "mcp9808.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace mcp9808 {
+namespace esphome::mcp9808 {
 
 static const uint8_t MCP9808_REG_AMBIENT_TEMP = 0x05;
 static const uint8_t MCP9808_REG_MANUF_ID = 0x06;
@@ -74,5 +73,4 @@ void MCP9808Sensor::update() {
   this->status_clear_warning();
 }
 
-}  // namespace mcp9808
-}  // namespace esphome
+}  // namespace esphome::mcp9808

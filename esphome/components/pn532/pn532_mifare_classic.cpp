@@ -4,8 +4,7 @@
 #include "pn532.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace pn532 {
+namespace esphome::pn532 {
 
 static const char *const TAG = "pn532.mifare_classic";
 
@@ -258,5 +257,4 @@ bool PN532::write_mifare_classic_tag_(nfc::NfcTagUid &uid, nfc::NdefMessage *mes
   return true;
 }
 
-}  // namespace pn532
-}  // namespace esphome
+}  // namespace esphome::pn532

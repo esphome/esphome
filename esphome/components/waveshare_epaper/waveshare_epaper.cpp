@@ -5,8 +5,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace waveshare_epaper {
+namespace esphome::waveshare_epaper {
 
 static const char *const TAG = "waveshare_epaper";
 
@@ -4770,5 +4769,4 @@ void WaveshareEPaper13P3InK::dump_config() {
   LOG_UPDATE_INTERVAL(this);
 }
 
-}  // namespace waveshare_epaper
-}  // namespace esphome
+}  // namespace esphome::waveshare_epaper

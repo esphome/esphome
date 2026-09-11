@@ -7,8 +7,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace speaker {
+namespace esphome::speaker {
 
 static const uint32_t INITIAL_BUFFER_MS = 1000;  // Start playback after buffering this duration of the file
 
@@ -203,8 +202,15 @@ AudioPipelineState AudioPipeline::process_state() {
     if (!this->is_playing_) {
       // The tasks have been stopped for two ``process_state`` calls in a row, so delete the tasks
       if (this->read_task_.is_created() || this->decode_task_.is_created()) {
-        this->read_task_.deallocate();
-        this->decode_task_.deallocate();
+        // Both are attempted every time; a task that is still running on the other core is freed by a
+        // subsequent call, and freeing an already freed task succeeds without doing anything
+        bool read_task_freed = this->read_task_.deallocate();
+        bool decode_task_freed = this->decode_task_.deallocate();
+        if (!read_task_freed || !decode_task_freed) {
+          // A task is still running on the other core, so keep the pipeline in its current state and try
+          // again on the next call
+          return AudioPipelineState::PLAYING;
+        }
         if (this->hard_stop_) {
           // Stop command was sent, so immediately end the playback
           this->speaker_->stop();
@@ -316,17 +322,17 @@ void AudioPipeline::read_task(void *params) {
       if (err == ESP_OK) {
         size_t file_ring_buffer_size = this_pipeline->buffer_size_;
 
-        std::shared_ptr<RingBuffer> temp_ring_buffer;
+        std::shared_ptr<ring_buffer::RingBuffer> temp_ring_buffer = this_pipeline->raw_file_ring_buffer_.lock();
 
-        if (!this_pipeline->raw_file_ring_buffer_.use_count()) {
-          temp_ring_buffer = RingBuffer::create(file_ring_buffer_size);
+        if (temp_ring_buffer == nullptr) {
+          temp_ring_buffer = ring_buffer::RingBuffer::create(file_ring_buffer_size);
           this_pipeline->raw_file_ring_buffer_ = temp_ring_buffer;
         }
 
-        if (!this_pipeline->raw_file_ring_buffer_.use_count()) {
+        if (temp_ring_buffer == nullptr) {
           err = ESP_ERR_NO_MEM;
         } else {
-          reader->add_sink(this_pipeline->raw_file_ring_buffer_);
+          err = reader->add_sink(temp_ring_buffer);
         }
       }
 
@@ -397,7 +403,9 @@ void AudioPipeline::decode_task(void *params) {
           make_unique<audio::AudioDecoder>(this_pipeline->transfer_buffer_size_, this_pipeline->transfer_buffer_size_);
 
       esp_err_t err = decoder->start(this_pipeline->current_audio_file_type_);
-      decoder->add_source(this_pipeline->raw_file_ring_buffer_);
+      if (err == ESP_OK) {
+        err = decoder->add_source(this_pipeline->raw_file_ring_buffer_);
+      }
 
       if (err != ESP_OK) {
         // Send specific error message
@@ -503,7 +511,7 @@ void AudioPipeline::decode_task(void *params) {
 
         if (!started_playback && has_stream_info) {
           // Verify enough data is available before starting playback
-          std::shared_ptr<RingBuffer> temp_ring_buffer = this_pipeline->raw_file_ring_buffer_.lock();
+          std::shared_ptr<ring_buffer::RingBuffer> temp_ring_buffer = this_pipeline->raw_file_ring_buffer_.lock();
           if (temp_ring_buffer != nullptr && temp_ring_buffer->available() >= initial_bytes_to_buffer) {
             started_playback = true;
           }
@@ -513,7 +521,6 @@ void AudioPipeline::decode_task(void *params) {
   }
 }
 
-}  // namespace speaker
-}  // namespace esphome
+}  // namespace esphome::speaker
 
 #endif

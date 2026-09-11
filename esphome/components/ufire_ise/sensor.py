@@ -13,6 +13,9 @@ from esphome.const import (
     UNIT_CELSIUS,
     UNIT_PH,
 )
+from esphome.core import ID
+from esphome.cpp_generator import MockObj, TemplateArgsType
+from esphome.types import ConfigType
 
 DEPENDENCIES = ["i2c"]
 
@@ -60,7 +63,7 @@ CONFIG_SCHEMA = (
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
 
@@ -93,7 +96,12 @@ UFIRE_ISE_CALIBRATE_PROBE_SCHEMA = cv.Schema(
     UFIRE_ISE_CALIBRATE_PROBE_SCHEMA,
     synchronous=True,
 )
-async def ufire_ise_calibrate_probe_low_to_code(config, action_id, template_arg, args):
+async def ufire_ise_calibrate_probe_low_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
     template_ = await cg.templatable(config[CONF_SOLUTION], args, cg.float_)
@@ -107,7 +115,12 @@ async def ufire_ise_calibrate_probe_low_to_code(config, action_id, template_arg,
     UFIRE_ISE_CALIBRATE_PROBE_SCHEMA,
     synchronous=True,
 )
-async def ufire_ise_calibrate_probe_high_to_code(config, action_id, template_arg, args):
+async def ufire_ise_calibrate_probe_high_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
     template_ = await cg.templatable(config[CONF_SOLUTION], args, cg.float_)
@@ -124,6 +137,11 @@ UFIRE_ISE_RESET_SCHEMA = cv.Schema({cv.GenerateID(): cv.use_id(UFireISEComponent
     UFIRE_ISE_RESET_SCHEMA,
     synchronous=True,
 )
-async def ufire_ise_reset_to_code(config, action_id, template_arg, args):
+async def ufire_ise_reset_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     paren = await cg.get_variable(config[CONF_ID])
     return cg.new_Pvariable(action_id, template_arg, paren)

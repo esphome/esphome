@@ -2,8 +2,7 @@
 #include "esphome/components/remote_base/coolix_protocol.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace coolix {
+namespace esphome::coolix {
 
 static const char *const TAG = "coolix.climate";
 
@@ -159,5 +158,4 @@ bool CoolixClimate::on_coolix(climate::Climate *parent, remote_base::RemoteRecei
   return true;
 }
 
-}  // namespace coolix
-}  // namespace esphome
+}  // namespace esphome::coolix

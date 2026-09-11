@@ -2,8 +2,7 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/application.h"
 
-namespace esphome {
-namespace loop_test_component {
+namespace esphome::loop_test_component {
 
 static const char *const ISR_TAG = "loop_test_isr_component";
 
@@ -76,5 +75,4 @@ void IRAM_ATTR LoopTestISRComponent::simulate_isr_enable() {
   // For testing, we'll track the call count and log it from the main loop
 }
 
-}  // namespace loop_test_component
-}  // namespace esphome
+}  // namespace esphome::loop_test_component

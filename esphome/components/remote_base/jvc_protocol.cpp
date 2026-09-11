@@ -1,8 +1,7 @@
 #include "jvc_protocol.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace remote_base {
+namespace esphome::remote_base {
 
 static const char *const TAG = "remote.jvc";
 
@@ -48,5 +47,4 @@ optional<JVCData> JVCProtocol::decode(RemoteReceiveData src) {
 }
 void JVCProtocol::dump(const JVCData &data) { ESP_LOGI(TAG, "Received JVC: data=0x%04" PRIX32, data.data); }
 
-}  // namespace remote_base
-}  // namespace esphome
+}  // namespace esphome::remote_base

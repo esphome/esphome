@@ -79,7 +79,7 @@ switch:
 number:
   - platform: template
     name: "Test Number"
-    id: test_number
+    id: uart_test_number
     optimistic: true
     min_value: 0
     max_value: 100
@@ -103,7 +103,7 @@ button:
       - uart.write:
           id: uart_id
           data: !lambda |-
-            std::string cmd = "VALUE=" + str_sprintf("%.0f", id(test_number).state) + "\r\n";
+            std::string cmd = "VALUE=" + str_sprintf("%.0f", id(uart_test_number).state) + "\r\n";
             return std::vector<uint8_t>(cmd.begin(), cmd.end());
 
 event:

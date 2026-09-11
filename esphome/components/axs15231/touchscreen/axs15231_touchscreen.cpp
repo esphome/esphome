@@ -3,8 +3,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace axs15231 {
+namespace esphome::axs15231 {
 
 static const char *const TAG = "ax15231.touchscreen";
 
@@ -64,5 +63,4 @@ void AXS15231Touchscreen::dump_config() {
                 this->x_raw_max_, this->y_raw_max_);
 }
 
-}  // namespace axs15231
-}  // namespace esphome
+}  // namespace esphome::axs15231

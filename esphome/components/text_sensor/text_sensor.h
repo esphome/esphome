@@ -29,23 +29,16 @@ class TextSensor : public EntityBase {
  public:
   std::string state;
 
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-  /// @deprecated Use get_raw_state() instead. This member will be removed in ESPHome 2026.6.0.
-  ESPDEPRECATED("Use get_raw_state() instead of .raw_state. Will be removed in 2026.6.0", "2025.12.0")
-  std::string raw_state;
-
   TextSensor() = default;
   ~TextSensor() = default;
-#pragma GCC diagnostic pop
 
   /// Getter-syntax for .state.
   const std::string &get_state() const;
-  /// Getter-syntax for .raw_state
+  /// Returns the raw (pre-filter) state.
   const std::string &get_raw_state() const;
 
-  void publish_state(const std::string &state);
-  void publish_state(const char *state);
+  void publish_state(const std::string &state) { this->publish_state(state.data(), state.size()); }
+  void publish_state(const char *state) { this->publish_state(state, strlen(state)); }
   void publish_state(const char *state, size_t len);
 
 #ifdef USE_TEXT_SENSOR_FILTER
@@ -77,13 +70,16 @@ class TextSensor : public EntityBase {
   // ========== INTERNAL METHODS ==========
   // (In most use cases you won't need these)
 
-  void internal_send_state_to_frontend(const std::string &state);
+  void internal_send_state_to_frontend(const std::string &state) {
+    this->internal_send_state_to_frontend(state.data(), state.size());
+  }
   void internal_send_state_to_frontend(const char *state, size_t len);
 
  protected:
   /// Notify frontend that state has changed (assumes this->state is already set)
   void notify_frontend_();
 #ifdef USE_TEXT_SENSOR_FILTER
+  std::string raw_state_;  ///< Backing storage for the raw (pre-filter) value. Only used when a filter is attached.
   LazyCallbackManager<void(const std::string &)> raw_callback_;  ///< Storage for raw state callbacks.
 #endif
   LazyCallbackManager<void(const std::string &)> callback_;  ///< Storage for filtered state callbacks.

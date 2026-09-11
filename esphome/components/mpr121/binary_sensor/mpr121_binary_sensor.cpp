@@ -1,7 +1,6 @@
 #include "mpr121_binary_sensor.h"
 
-namespace esphome {
-namespace mpr121 {
+namespace esphome::mpr121 {
 
 void MPR121BinarySensor::setup() {
   uint8_t touch_threshold = this->touch_threshold_.value_or(this->parent_->get_touch_threshold());
@@ -16,5 +15,4 @@ void MPR121BinarySensor::process(uint16_t data) {
   this->publish_state(new_state);
 }
 
-}  // namespace mpr121
-}  // namespace esphome
+}  // namespace esphome::mpr121

@@ -4,8 +4,7 @@
 #include <cinttypes>
 #include <cmath>
 
-namespace esphome {
-namespace ct_clamp {
+namespace esphome::ct_clamp {
 
 static const char *const TAG = "ct_clamp";
 
@@ -70,5 +69,4 @@ void CTClampSensor::loop() {
   this->sample_squared_sum_ += value * value;
 }
 
-}  // namespace ct_clamp
-}  // namespace esphome
+}  // namespace esphome::ct_clamp

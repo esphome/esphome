@@ -44,8 +44,7 @@
 #include "sonoff_d1.h"
 #include "esphome/core/helpers.h"
 
-namespace esphome {
-namespace sonoff_d1 {
+namespace esphome::sonoff_d1 {
 
 static const char *const TAG = "sonoff_d1";
 
@@ -321,5 +320,4 @@ void SonoffD1Output::loop() {
   }
 }
 
-}  // namespace sonoff_d1
-}  // namespace esphome
+}  // namespace esphome::sonoff_d1

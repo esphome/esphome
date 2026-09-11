@@ -8,13 +8,12 @@
 #include <cinttypes>
 #include <vector>
 
-namespace esphome {
-namespace rdm6300 {
+namespace esphome::rdm6300 {
 
 class RDM6300BinarySensor;
 class RDM6300Trigger;
 
-class RDM6300Component : public Component, public uart::UARTDevice {
+class RDM6300Component final : public Component, public uart::UARTDevice {
  public:
   void loop() override;
 
@@ -29,7 +28,7 @@ class RDM6300Component : public Component, public uart::UARTDevice {
   uint32_t last_id_{0};
 };
 
-class RDM6300BinarySensor : public binary_sensor::BinarySensorInitiallyOff {
+class RDM6300BinarySensor final : public binary_sensor::BinarySensorInitiallyOff {
  public:
   void set_id(uint32_t id) { id_ = id; }
 
@@ -47,10 +46,9 @@ class RDM6300BinarySensor : public binary_sensor::BinarySensorInitiallyOff {
   uint32_t id_;
 };
 
-class RDM6300Trigger : public Trigger<uint32_t> {
+class RDM6300Trigger final : public Trigger<uint32_t> {
  public:
   void process(uint32_t uid) { this->trigger(uid); }
 };
 
-}  // namespace rdm6300
-}  // namespace esphome
+}  // namespace esphome::rdm6300

@@ -111,7 +111,7 @@ class RandomLightEffect : public LightEffect {
 
 class LambdaLightEffect : public LightEffect {
  public:
-  LambdaLightEffect(const char *name, void (*f)(bool initial_run), uint32_t update_interval)
+  LambdaLightEffect(const char *name, void (*f)(LightState &, bool initial_run), uint32_t update_interval)
       : LightEffect(name), f_(f), update_interval_(update_interval) {}
 
   void start() override { this->initial_run_ = true; }
@@ -119,7 +119,7 @@ class LambdaLightEffect : public LightEffect {
     const uint32_t now = millis();
     if (now - this->last_run_ >= this->update_interval_ || this->initial_run_) {
       this->last_run_ = now;
-      this->f_(this->initial_run_);
+      this->f_(*this->state_, this->initial_run_);
       this->initial_run_ = false;
     }
   }
@@ -129,7 +129,7 @@ class LambdaLightEffect : public LightEffect {
   uint32_t get_current_index() const { return this->get_index(); }
 
  protected:
-  void (*f_)(bool initial_run);
+  void (*f_)(LightState &, bool initial_run);
   uint32_t update_interval_;
   uint32_t last_run_{0};
   bool initial_run_;

@@ -1,0 +1,18 @@
+# Legacy top-level `image:` list form (deprecated; migrates to `platform: file`).
+# Config-only test exercising the deprecation/migration path.
+display:
+  - platform: sdl
+    id: image_display
+    auto_clear_enabled: false
+    dimensions:
+      width: 480
+      height: 480
+
+image:
+  - id: legacy_list_binary
+    file: ../../pnglogo.png
+    type: BINARY
+  - id: legacy_list_rgb565
+    file: ../../pnglogo.png
+    type: RGB565
+    transparency: alpha_channel

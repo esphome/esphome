@@ -6,8 +6,7 @@
 
 #ifdef USE_ESP32
 
-namespace esphome {
-namespace airthings_wave_base {
+namespace esphome::airthings_wave_base {
 
 static const char *const TAG = "airthings_wave_base";
 
@@ -211,7 +210,6 @@ void AirthingsWaveBase::set_response_timeout_() {
   });
 }
 
-}  // namespace airthings_wave_base
-}  // namespace esphome
+}  // namespace esphome::airthings_wave_base
 
 #endif  // USE_ESP32

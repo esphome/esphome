@@ -21,8 +21,7 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/queue.h>
 
-namespace esphome {
-namespace speaker {
+namespace esphome::speaker {
 
 struct MediaCallCommand {
   optional<media_player::MediaPlayerCommand> command;
@@ -43,11 +42,11 @@ struct VolumeRestoreState {
   bool is_muted;
 };
 
-class SpeakerMediaPlayer : public Component,
-                           public media_player::MediaPlayer
+class SpeakerMediaPlayer final : public Component,
+                                 public media_player::MediaPlayer
 #ifdef USE_OTA_STATE_LISTENER
     ,
-                           public ota::OTAGlobalStateListener
+                                 public ota::OTAGlobalStateListener
 #endif
 {
  public:
@@ -167,7 +166,6 @@ class SpeakerMediaPlayer : public Component,
   Trigger<float> volume_trigger_;
 };
 
-}  // namespace speaker
-}  // namespace esphome
+}  // namespace esphome::speaker
 
 #endif

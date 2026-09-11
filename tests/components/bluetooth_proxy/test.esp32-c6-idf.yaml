@@ -1,6 +1,8 @@
 <<: !include common.yaml
 
 esp32_ble_tracker:
+
+esp32_ble:
   max_connections: 9
 
 bluetooth_proxy:

@@ -3,8 +3,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace tem3200 {
+namespace esphome::tem3200 {
 
 static const char *const TAG = "tem3200";
 
@@ -142,5 +141,4 @@ void TEM3200Component::update() {
   this->status_clear_warning();
 }
 
-}  // namespace tem3200
-}  // namespace esphome
+}  // namespace esphome::tem3200

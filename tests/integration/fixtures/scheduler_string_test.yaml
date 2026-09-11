@@ -18,9 +18,6 @@ globals:
   - id: interval_counter
     type: int
     initial_value: '0'
-  - id: dynamic_counter
-    type: int
-    initial_value: '0'
   - id: static_tests_done
     type: bool
     initial_value: 'false'
@@ -103,46 +100,43 @@ script:
 
   - id: test_dynamic_strings
     then:
-      - logger.log: "Testing dynamic string timeouts and intervals"
+      - logger.log: "Testing const char* timeouts and intervals"
       - lambda: |-
           auto *component2 = id(test_sensor2);
 
-          // Test 8: Dynamic string with set_timeout (std::string)
-          std::string dynamic_name = "dynamic_timeout_" + std::to_string(id(dynamic_counter)++);
-          App.scheduler.set_timeout(component2, dynamic_name, 100, []() {
+          // Test 8: const char* name with set_timeout
+          App.scheduler.set_timeout(component2, "dynamic_timeout", 100, []() {
             ESP_LOGI("test", "Dynamic timeout fired");
             id(timeout_counter) += 1;
           });
 
-          // Test 9: Dynamic string with set_interval
-          std::string interval_name = "dynamic_interval_" + std::to_string(id(dynamic_counter)++);
-          App.scheduler.set_interval(component2, interval_name, 250, [interval_name]() {
-            ESP_LOGI("test", "Dynamic interval fired: %s", interval_name.c_str());
+          // Test 9: const char* name with set_interval, cancelled from inside the callback
+          App.scheduler.set_interval(component2, "dynamic_interval", 250, []() {
+            ESP_LOGI("test", "Dynamic interval fired");
             id(interval_counter) += 1;
             if (id(interval_counter) >= 6) {
-              App.scheduler.cancel_interval(id(test_sensor2), interval_name);
+              App.scheduler.cancel_interval(id(test_sensor2), "dynamic_interval");
               ESP_LOGI("test", "Cancelled dynamic interval");
             }
           });
 
-          // Test 10: Cancel with different string object but same content
-          std::string cancel_name = "cancel_test";
-          App.scheduler.set_timeout(component2, cancel_name, 2000, []() {
+          // Test 10: Cancel with a different pointer but identical content.
+          // STATIC_STRING names match by content, so a distinct static buffer with the
+          // same characters still cancels the scheduled timeout.
+          static const char CANCEL_NAME[] = "cancel_test";
+          App.scheduler.set_timeout(component2, CANCEL_NAME, 2000, []() {
             ESP_LOGI("test", "This should be cancelled");
           });
+          static const char CANCEL_NAME_2[] = "cancel_test";
+          App.scheduler.cancel_timeout(component2, CANCEL_NAME_2);
+          ESP_LOGI("test", "Cancelled timeout using different buffer with same content");
 
-          // Cancel using a different string object
-          std::string cancel_name_2 = "cancel_test";
-          App.scheduler.cancel_timeout(component2, cancel_name_2);
-          ESP_LOGI("test", "Cancelled timeout using different string object");
-
-          // Test 11: Dynamic string with defer (using std::string overload)
+          // Test 11: const char* name with defer
           class TestDynamicDeferComponent : public Component {
           public:
             void test_dynamic_defer() {
-              std::string defer_name = "dynamic_defer_" + std::to_string(id(dynamic_counter)++);
-              this->defer(defer_name, [defer_name]() {
-                ESP_LOGI("test", "Dynamic defer fired: %s", defer_name.c_str());
+              this->defer("dynamic_defer", []() {
+                ESP_LOGI("test", "Dynamic defer fired");
                 id(timeout_counter) += 1;
               });
             }

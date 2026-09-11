@@ -22,18 +22,18 @@
 #include "esphome/components/output/binary_output.h"
 #endif
 
+#include <span>
 #include <vector>
 
 #ifdef USE_ESP32
 
 #include <improv.h>
 
-namespace esphome {
-namespace esp32_improv {
+namespace esphome::esp32_improv {
 
 using namespace esp32_ble_server;
 
-class ESP32ImprovComponent : public Component, public improv_base::ImprovBase {
+class ESP32ImprovComponent final : public Component, public improv_base::ImprovBase {
  public:
   ESP32ImprovComponent();
   void dump_config() override;
@@ -104,13 +104,16 @@ class ESP32ImprovComponent : public Component, public improv_base::ImprovBase {
   bool status_indicator_state_{false};
   uint32_t last_name_adv_time_{0};
   bool advertising_device_name_{false};
+  bool advertising_requested_{false};
   void set_status_indicator_state_(bool state);
   void update_advertising_type_();
+  void request_advertising_();
+  void release_advertising_();
 
   void set_state_(improv::State state, bool update_advertising = true);
   void set_error_(improv::Error error);
   improv::State get_initial_state_() const;
-  void send_response_(std::vector<uint8_t> &&response);
+  void send_response_(std::span<const uint8_t> response);
   void process_incoming_data_();
   void on_wifi_connect_timeout_();
   void check_wifi_connection_();
@@ -124,7 +127,6 @@ class ESP32ImprovComponent : public Component, public improv_base::ImprovBase {
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
 extern ESP32ImprovComponent *global_improv_component;
 
-}  // namespace esp32_improv
-}  // namespace esphome
+}  // namespace esphome::esp32_improv
 
 #endif

@@ -68,6 +68,9 @@
 #ifdef USE_INFRARED
 #include "esphome/components/infrared/infrared.h"
 #endif
+#ifdef USE_RADIO_FREQUENCY
+#include "esphome/components/radio_frequency/radio_frequency.h"
+#endif
 #ifdef USE_SERIAL_PROXY
 #include "esphome/components/serial_proxy/serial_proxy.h"
 #endif

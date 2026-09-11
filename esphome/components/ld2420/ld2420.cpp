@@ -184,8 +184,6 @@ static int32_t get_firmware_int(const char *version_string) {
   return result;
 }
 
-float LD2420Component::get_setup_priority() const { return setup_priority::BUS; }
-
 void LD2420Component::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "LD2420:\n"
@@ -703,7 +701,8 @@ uint8_t LD2420Component::set_config_mode(bool enable) {
     cmd_frame.data_length += sizeof(CMD_PROTOCOL_VER);
   }
   cmd_frame.footer = CMD_FRAME_FOOTER;
-  ESP_LOGV(TAG, "Sending set config %s command: %2X", enable ? "enable" : "disable", cmd_frame.command);
+  ESP_LOGV(TAG, "Sending set config %s command: %2X", enable ? LOG_STR_LITERAL("enable") : LOG_STR_LITERAL("disable"),
+           cmd_frame.command);
   return this->send_cmd_from_array(cmd_frame);
 }
 
@@ -746,7 +745,14 @@ void LD2420Component::set_reg_value(uint16_t reg, uint16_t value) {
   this->send_cmd_from_array(cmd_frame);
 }
 
-void LD2420Component::handle_cmd_error(uint8_t error) { ESP_LOGE(TAG, "Command failed: %s", ERR_MESSAGE[error]); }
+void LD2420Component::handle_cmd_error(uint16_t error) {
+  if (error < std::size(ERR_MESSAGE)) {
+    ESP_LOGE(TAG, "Command failed: %s", ERR_MESSAGE[error]);
+  } else {
+    // The error word comes from the device reply frame; unknown codes must not index ERR_MESSAGE
+    ESP_LOGE(TAG, "Command failed: error 0x%04X", error);
+  }
+}
 
 int LD2420Component::get_gate_threshold_(uint8_t gate) {
   uint8_t error;

@@ -16,7 +16,7 @@ GPIOPin *const NullPin::NULL_PIN = new NullPin();  // NOLINT(cppcoreguidelines-a
 
 SPIDelegate *SPIComponent::register_device(SPIClient *device, SPIMode mode, SPIBitOrder bit_order, uint32_t data_rate,
                                            GPIOPin *cs_pin, bool release_device, bool write_only) {
-  if (this->devices_.count(device) != 0) {
+  if (this->devices_.contains(device)) {
     ESP_LOGE(TAG, "Device already registered");
     return this->devices_[device];
   }
@@ -27,7 +27,7 @@ SPIDelegate *SPIComponent::register_device(SPIClient *device, SPIMode mode, SPIB
 }
 
 void SPIComponent::unregister_device(SPIClient *device) {
-  if (this->devices_.count(device) == 0) {
+  if (!this->devices_.contains(device)) {
     esph_log_e(TAG, "Device not registered");
     return;
   }

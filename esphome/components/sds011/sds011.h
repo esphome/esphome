@@ -5,10 +5,9 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/uart/uart.h"
 
-namespace esphome {
-namespace sds011 {
+namespace esphome::sds011 {
 
-class SDS011Component : public Component, public uart::UARTDevice {
+class SDS011Component final : public Component, public uart::UARTDevice {
  public:
   SDS011Component() = default;
 
@@ -44,5 +43,4 @@ class SDS011Component : public Component, public uart::UARTDevice {
   bool rx_mode_only_;
 };
 
-}  // namespace sds011
-}  // namespace esphome
+}  // namespace esphome::sds011

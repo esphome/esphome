@@ -2,8 +2,7 @@
 
 #include <cinttypes>
 
-namespace esphome {
-namespace es7210 {
+namespace esphome::es7210 {
 
 // ES7210 register addresses
 static const uint8_t ES7210_RESET_REG00 = 0x00;     /* Reset control */
@@ -125,5 +124,4 @@ static const ES7210Coefficient ES7210_COEFFICIENTS[] = {
 static const float ES7210_MIC_GAIN_MIN = 0.0;
 static const float ES7210_MIC_GAIN_MAX = 37.5;
 
-}  // namespace es7210
-}  // namespace esphome
+}  // namespace esphome::es7210

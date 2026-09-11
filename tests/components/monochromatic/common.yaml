@@ -1,13 +1,13 @@
 output:
   - platform: ${light_platform}
-    id: light_output_1
+    id: monochromatic_light_output_1
     pin: ${pin}
 
 light:
   - platform: monochromatic
     name: Monochromatic Light
     id: monochromatic_light
-    output: light_output_1
+    output: monochromatic_light_output_1
     gamma_correct: 2.8
     default_transition_length: 2s
     effects:

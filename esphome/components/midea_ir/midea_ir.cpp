@@ -4,8 +4,7 @@
 #include "esphome/core/log.h"
 #include "esphome/components/coolix/coolix.h"
 
-namespace esphome {
-namespace midea_ir {
+namespace esphome::midea_ir {
 
 static const char *const TAG = "midea_ir.climate";
 
@@ -204,5 +203,4 @@ bool MideaIR::on_midea_(const MideaData &data) {
   return false;
 }
 
-}  // namespace midea_ir
-}  // namespace esphome
+}  // namespace esphome::midea_ir

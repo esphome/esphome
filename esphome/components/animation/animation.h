@@ -3,10 +3,9 @@
 
 #include "esphome/core/automation.h"
 
-namespace esphome {
-namespace animation {
+namespace esphome::animation {
 
-class Animation : public image::Image {
+class Animation final : public image::Image {
  public:
   Animation(const uint8_t *data_start, int width, int height, uint32_t animation_frame_count, image::ImageType type,
             image::Transparency transparent);
@@ -36,7 +35,7 @@ class Animation : public image::Image {
   int loop_current_iteration_;
 };
 
-template<typename... Ts> class AnimationNextFrameAction : public Action<Ts...> {
+template<typename... Ts> class AnimationNextFrameAction final : public Action<Ts...> {
  public:
   AnimationNextFrameAction(Animation *parent) : parent_(parent) {}
   void play(const Ts &...x) override { this->parent_->next_frame(); }
@@ -45,7 +44,7 @@ template<typename... Ts> class AnimationNextFrameAction : public Action<Ts...> {
   Animation *parent_;
 };
 
-template<typename... Ts> class AnimationPrevFrameAction : public Action<Ts...> {
+template<typename... Ts> class AnimationPrevFrameAction final : public Action<Ts...> {
  public:
   AnimationPrevFrameAction(Animation *parent) : parent_(parent) {}
   void play(const Ts &...x) override { this->parent_->prev_frame(); }
@@ -54,7 +53,7 @@ template<typename... Ts> class AnimationPrevFrameAction : public Action<Ts...> {
   Animation *parent_;
 };
 
-template<typename... Ts> class AnimationSetFrameAction : public Action<Ts...> {
+template<typename... Ts> class AnimationSetFrameAction final : public Action<Ts...> {
  public:
   AnimationSetFrameAction(Animation *parent) : parent_(parent) {}
   TEMPLATABLE_VALUE(uint16_t, frame)
@@ -64,5 +63,4 @@ template<typename... Ts> class AnimationSetFrameAction : public Action<Ts...> {
   Animation *parent_;
 };
 
-}  // namespace animation
-}  // namespace esphome
+}  // namespace esphome::animation

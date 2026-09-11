@@ -121,6 +121,26 @@ def test_get_addresses_auto_detection() -> None:
     assert cache.get_addresses("unknown.com") is None
 
 
+def test_add_mdns_addresses_stores_and_normalizes() -> None:
+    """add_mdns_addresses inserts entries under the normalized hostname."""
+    cache = AddressCache()
+    cache.add_mdns_addresses("Device.Local.", ["192.168.1.10", "192.168.1.11"])
+
+    assert cache.mdns_cache == {
+        normalize_hostname("Device.Local."): ["192.168.1.10", "192.168.1.11"]
+    }
+    # Overwrites on subsequent calls for the same host
+    cache.add_mdns_addresses("device.local", ["10.0.0.1"])
+    assert cache.mdns_cache[normalize_hostname("device.local")] == ["10.0.0.1"]
+
+
+def test_add_mdns_addresses_empty_is_noop() -> None:
+    """Passing an empty address list must not create an entry."""
+    cache = AddressCache()
+    cache.add_mdns_addresses("device.local", [])
+    assert cache.mdns_cache == {}
+
+
 def test_has_cache() -> None:
     """Test checking if cache has entries."""
     # Empty cache

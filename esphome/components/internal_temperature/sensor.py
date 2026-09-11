@@ -1,5 +1,7 @@
 import esphome.codegen as cg
 from esphome.components import sensor
+from esphome.components.esp32 import get_esp32_variant, include_builtin_idf_component
+from esphome.components.esp32.const import VARIANT_ESP32
 from esphome.components.zephyr import zephyr_add_prj_conf
 from esphome.config_helpers import filter_source_files_from_platform
 import esphome.config_validation as cv
@@ -10,12 +12,13 @@ from esphome.const import (
     PLATFORM_ESP32,
     PLATFORM_LN882X,
     PLATFORM_NRF52,
-    PLATFORM_RP2040,
+    PLATFORM_RP2,
     STATE_CLASS_MEASUREMENT,
     UNIT_CELSIUS,
     PlatformFramework,
 )
 from esphome.core import CORE
+from esphome.types import ConfigType
 
 internal_temperature_ns = cg.esphome_ns.namespace("internal_temperature")
 InternalTemperatureSensor = internal_temperature_ns.class_(
@@ -34,7 +37,7 @@ CONFIG_SCHEMA = cv.All(
     cv.only_on(
         [
             PLATFORM_ESP32,
-            PLATFORM_RP2040,
+            PLATFORM_RP2,
             PLATFORM_BK72XX,
             PLATFORM_NRF52,
             PLATFORM_LN882X,
@@ -43,9 +46,13 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = await sensor.new_sensor(config)
     await cg.register_component(var, config)
+
+    if CORE.is_esp32 and get_esp32_variant() == VARIANT_ESP32:
+        # temprature_sens_read() lives in the esp_phy blob, which is excluded by default
+        include_builtin_idf_component("esp_phy")
 
     if CORE.using_zephyr and CORE.is_nrf52:
         zephyr_add_prj_conf("SENSOR", True)
@@ -58,7 +65,7 @@ FILTER_SOURCE_FILES = filter_source_files_from_platform(
             PlatformFramework.ESP32_ARDUINO,
             PlatformFramework.ESP32_IDF,
         },
-        "internal_temperature_rp2040.cpp": {PlatformFramework.RP2040_ARDUINO},
+        "internal_temperature_rp2.cpp": {PlatformFramework.RP2_ARDUINO},
         "internal_temperature_bk72xx.cpp": {
             PlatformFramework.BK72XX_ARDUINO,
         },

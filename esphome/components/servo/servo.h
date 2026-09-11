@@ -6,12 +6,11 @@
 #include "esphome/core/preferences.h"
 #include "esphome/components/output/float_output.h"
 
-namespace esphome {
-namespace servo {
+namespace esphome::servo {
 
 extern uint32_t global_servo_id;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
-class Servo : public Component {
+class Servo final : public Component {
  public:
   void set_output(output::FloatOutput *output) { output_ = output; }
   void loop() override;
@@ -52,7 +51,7 @@ class Servo : public Component {
   };
 };
 
-template<typename... Ts> class ServoWriteAction : public Action<Ts...> {
+template<typename... Ts> class ServoWriteAction final : public Action<Ts...> {
  public:
   ServoWriteAction(Servo *servo) : servo_(servo) {}
   TEMPLATABLE_VALUE(float, value)
@@ -63,7 +62,7 @@ template<typename... Ts> class ServoWriteAction : public Action<Ts...> {
   Servo *servo_;
 };
 
-template<typename... Ts> class ServoDetachAction : public Action<Ts...> {
+template<typename... Ts> class ServoDetachAction final : public Action<Ts...> {
  public:
   ServoDetachAction(Servo *servo) : servo_(servo) {}
 
@@ -73,5 +72,4 @@ template<typename... Ts> class ServoDetachAction : public Action<Ts...> {
   Servo *servo_;
 };
 
-}  // namespace servo
-}  // namespace esphome
+}  // namespace esphome::servo

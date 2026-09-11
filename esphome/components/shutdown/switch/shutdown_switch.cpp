@@ -10,8 +10,7 @@
 #include <Esp.h>
 #endif
 
-namespace esphome {
-namespace shutdown {
+namespace esphome::shutdown {
 
 static const char *const TAG = "shutdown.switch";
 
@@ -34,5 +33,4 @@ void ShutdownSwitch::write_state(bool state) {
   }
 }
 
-}  // namespace shutdown
-}  // namespace esphome
+}  // namespace esphome::shutdown

@@ -1,4 +1,5 @@
 import re
+from typing import Any
 
 from esphome import automation
 from esphome.automation import LambdaAction, StatelessLambdaAction
@@ -11,9 +12,12 @@ from esphome.components.esp32 import (
     VARIANT_ESP32C6,
     VARIANT_ESP32C61,
     VARIANT_ESP32H2,
+    VARIANT_ESP32H4,
+    VARIANT_ESP32H21,
     VARIANT_ESP32P4,
     VARIANT_ESP32S2,
     VARIANT_ESP32S3,
+    VARIANT_ESP32S31,
     add_idf_sdkconfig_option,
     get_esp32_variant,
     require_usb_serial_jtag_secondary,
@@ -51,11 +55,12 @@ from esphome.const import (
     PLATFORM_ESP8266,
     PLATFORM_LN882X,
     PLATFORM_NRF52,
-    PLATFORM_RP2040,
+    PLATFORM_RP2,
     PLATFORM_RTL87XX,
     PlatformFramework,
 )
-from esphome.core import CORE, CoroPriority, Lambda, coroutine_with_priority
+from esphome.core import CORE, ID, CoroPriority, Lambda, coroutine_with_priority
+from esphome.cpp_generator import MockObj, TemplateArgsType
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@esphome/core"]
@@ -113,9 +118,12 @@ UART_SELECTION_ESP32 = {
     VARIANT_ESP32C6: [UART0, UART1, USB_CDC, USB_SERIAL_JTAG],
     VARIANT_ESP32C61: [UART0, UART1, USB_CDC, USB_SERIAL_JTAG],
     VARIANT_ESP32H2: [UART0, UART1, USB_CDC, USB_SERIAL_JTAG],
+    VARIANT_ESP32H4: [UART0, UART1, USB_CDC, USB_SERIAL_JTAG],
+    VARIANT_ESP32H21: [UART0, UART1, USB_SERIAL_JTAG],
     VARIANT_ESP32P4: [UART0, UART1, USB_CDC, USB_SERIAL_JTAG],
     VARIANT_ESP32S2: [UART0, UART1, USB_CDC],
     VARIANT_ESP32S3: [UART0, UART1, USB_CDC, USB_SERIAL_JTAG],
+    VARIANT_ESP32S31: [UART0, UART1, USB_CDC, USB_SERIAL_JTAG],
 }
 
 UART_SELECTION_ESP8266 = [UART0, UART0_SWAP, UART1]
@@ -148,7 +156,7 @@ HARDWARE_UART_TO_SERIAL = {
         UART2: cg.global_ns.Serial2,
         DEFAULT: cg.global_ns.Serial,
     },
-    PLATFORM_RP2040: {
+    PLATFORM_RP2: {
         UART0: cg.global_ns.Serial1,
         UART1: cg.global_ns.Serial2,
         USB_CDC: cg.global_ns.Serial,
@@ -158,14 +166,14 @@ HARDWARE_UART_TO_SERIAL = {
 is_log_level = cv.one_of(*LOG_LEVELS, upper=True)
 
 
-def uart_selection(value):
+def uart_selection(value: Any) -> str:
     if CORE.is_esp32:
         variant = get_esp32_variant()
         if variant in UART_SELECTION_ESP32:
             return cv.one_of(*UART_SELECTION_ESP32[variant], upper=True)(value)
     if CORE.is_esp8266:
         return cv.one_of(*UART_SELECTION_ESP8266, upper=True)(value)
-    if CORE.is_rp2040:
+    if CORE.is_rp2:
         return cv.one_of(*UART_SELECTION_RP2040, upper=True)(value)
     if CORE.is_libretiny:
         family = get_libretiny_family()
@@ -181,7 +189,7 @@ def uart_selection(value):
     raise NotImplementedError
 
 
-def validate_local_no_higher_than_global(config):
+def validate_local_no_higher_than_global(config: ConfigType) -> ConfigType:
     global_level = config[CONF_LEVEL]
     global_level_index = LOG_LEVEL_SEVERITY.index(global_level)
     errs = []
@@ -198,7 +206,7 @@ def validate_local_no_higher_than_global(config):
     return config
 
 
-def validate_initial_no_higher_than_global(config):
+def validate_initial_no_higher_than_global(config: ConfigType) -> ConfigType:
     if initial_level := config.get(CONF_INITIAL_LEVEL):
         global_level = config[CONF_LEVEL]
         if LOG_LEVEL_SEVERITY.index(initial_level) > LOG_LEVEL_SEVERITY.index(
@@ -211,7 +219,7 @@ def validate_initial_no_higher_than_global(config):
     return config
 
 
-def validate_wait_for_cdc(config):
+def validate_wait_for_cdc(config: ConfigType) -> ConfigType:
     if config.get(CONF_WAIT_FOR_CDC) and config.get(CONF_HARDWARE_UART) != USB_CDC:
         raise cv.Invalid("wait_for_cdc requires hardware_uart: USB_CDC")
     return config
@@ -270,10 +278,13 @@ CONFIG_SCHEMA = cv.All(
                 esp32_c6=USB_SERIAL_JTAG,
                 esp32_c61=USB_SERIAL_JTAG,
                 esp32_h2=USB_SERIAL_JTAG,
+                esp32_h4=USB_SERIAL_JTAG,
+                esp32_h21=USB_SERIAL_JTAG,
                 esp32_p4=USB_SERIAL_JTAG,
                 esp32_s2=USB_CDC,
                 esp32_s3=USB_SERIAL_JTAG,
-                rp2040=USB_CDC,
+                esp32_s31=USB_SERIAL_JTAG,
+                rp2=USB_CDC,
                 bk72xx=DEFAULT,
                 ln882x=DEFAULT,
                 rtl87xx=DEFAULT,
@@ -283,7 +294,7 @@ CONFIG_SCHEMA = cv.All(
                     [
                         PLATFORM_ESP8266,
                         PLATFORM_ESP32,
-                        PLATFORM_RP2040,
+                        PLATFORM_RP2,
                         PLATFORM_BK72XX,
                         PLATFORM_LN882X,
                         PLATFORM_RTL87XX,
@@ -401,18 +412,20 @@ async def _late_logger_init(config: ConfigType) -> None:
         from esphome.components.esp8266.const import enable_serial, enable_serial1
 
         hw_uart = config.get(CONF_HARDWARE_UART, UART0)
-        if has_serial_logging and hw_uart in (UART0, UART0_SWAP):
+        if not has_serial_logging:
+            # No serial logging: stub out ROM ets_putc so stray output (newlib
+            # stdout, lwIP diagnostics) cannot block on a slow or shared UART0.
+            # ets_putc always writes to the physical UART and cannot be disabled
+            # through uart_set_debug(); see __wrap_ets_putc in logger_esp8266.cpp.
+            cg.add_build_flag("-Wl,--wrap=ets_putc")
+        elif hw_uart in (UART0, UART0_SWAP):
             cg.add_define("USE_ESP8266_LOGGER_SERIAL")
             enable_serial()
-        elif has_serial_logging and hw_uart == UART1:
+        elif hw_uart == UART1:
             cg.add_define("USE_ESP8266_LOGGER_SERIAL1")
             enable_serial1()
 
-    if (
-        (CORE.is_esp8266 or CORE.is_rp2040)
-        and has_serial_logging
-        and is_at_least_verbose
-    ):
+    if (CORE.is_esp8266 or CORE.is_rp2) and has_serial_logging and is_at_least_verbose:
         debug_serial_port = HARDWARE_UART_TO_SERIAL[CORE.target_platform][
             config.get(CONF_HARDWARE_UART)
         ]
@@ -452,7 +465,11 @@ async def _late_logger_init(config: ConfigType) -> None:
         cg.add_define("USE_LOGGER_USB_SERIAL_JTAG")
         # USB Serial JTAG code is compiled when platform supports it.
         # Enable secondary USB serial JTAG console so the VFS functions are available.
-        if CORE.is_esp32 and config[CONF_HARDWARE_UART] != USB_SERIAL_JTAG:
+        if (
+            CORE.is_esp32
+            and config[CONF_HARDWARE_UART] != USB_SERIAL_JTAG
+            and has_serial_logging
+        ):
             require_usb_serial_jtag_secondary()
             require_vfs_termios()
     except cv.Invalid:
@@ -472,14 +489,15 @@ async def _late_logger_init(config: ConfigType) -> None:
         # esphome implement own fatal error handler which save PC/LR before reset
         zephyr_add_prj_conf("RESET_ON_FATAL_ERROR", False)
         zephyr_add_prj_conf("THREAD_LOCAL_STORAGE", True)
-        if config[CONF_HARDWARE_UART] == UART0:
-            zephyr_add_overlay("""&uart0 { status = "okay";};""")
-        if config[CONF_HARDWARE_UART] == UART1:
-            zephyr_add_overlay("""&uart1 { status = "okay";};""")
-        if config[CONF_HARDWARE_UART] == USB_CDC:
-            cg.add_define("USE_LOGGER_UART_SELECTION_USB_CDC")
-            zephyr_add_prj_conf("UART_LINE_CTRL", True)
-            zephyr_add_cdc_acm(config, 0)
+        if has_serial_logging:
+            if config[CONF_HARDWARE_UART] == UART0:
+                zephyr_add_overlay("""&uart0 { status = "okay";};""")
+            if config[CONF_HARDWARE_UART] == UART1:
+                zephyr_add_overlay("""&uart1 { status = "okay";};""")
+            if config[CONF_HARDWARE_UART] == USB_CDC:
+                cg.add_define("USE_LOGGER_UART_SELECTION_USB_CDC")
+                zephyr_add_prj_conf("UART_LINE_CTRL", True)
+                zephyr_add_cdc_acm(config, 0)
 
     # Register at end for safe mode
     await cg.register_component(log, config)
@@ -502,18 +520,18 @@ async def _late_logger_init(config: ConfigType) -> None:
     CORE.add_job(final_step)
 
 
-def validate_printf(value):
+def validate_printf(value: ConfigType) -> ConfigType:
     # https://stackoverflow.com/questions/30011379/how-can-i-parse-a-c-format-string-in-python
     cfmt = r"""
-    (                                  # start of capture group 1
-    %                                  # literal "%"
-    (?:[-+0 #]{0,5})                   # optional flags
-    (?:\d+|\*)?                        # width
-    (?:\.(?:\d+|\*))?                  # precision
-    (?:h|l|ll|w|I|I32|I64)?            # size
-    [cCdiouxXeEfgGaAnpsSZ]             # type
+    (                                   # start of capture group 1
+    %                                   # literal "%"
+    (?:[-+0 #]{0,5})                    # optional flags
+    (?:\d+|\*)?                         # width
+    (?:\.(?:\d+|\*))?                   # precision
+    (?:hh|h|ll|l|j|z|t|L|w|I|I32|I64)?  # size
+    [cCdiouxXeEfgGaAnpsSZ]              # type
     )
-    """  # noqa
+    """
     matches = re.findall(cfmt, value[CONF_FORMAT], flags=re.VERBOSE)
     if len(matches) != len(value[CONF_ARGS]):
         raise cv.Invalid(
@@ -543,7 +561,12 @@ LOGGER_LOG_ACTION_SCHEMA = cv.All(
 @automation.register_action(
     CONF_LOGGER_LOG, LambdaAction, LOGGER_LOG_ACTION_SCHEMA, synchronous=True
 )
-async def logger_log_action_to_code(config, action_id, template_arg, args):
+async def logger_log_action_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     esp_log = LOG_LEVEL_TO_ESP_LOG[config[CONF_LEVEL]]
     args_ = [cg.RawExpression(str(x)) for x in config[CONF_ARGS]]
 
@@ -568,7 +591,12 @@ async def logger_log_action_to_code(config, action_id, template_arg, args):
     ),
     synchronous=True,
 )
-async def logger_set_level_to_code(config, action_id, template_arg, args):
+async def logger_set_level_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     level = LOG_LEVELS[config[CONF_LEVEL]]
     logger = await cg.get_variable(config[CONF_LOGGER_ID])
     if tag := config.get(CONF_TAG):
@@ -591,7 +619,7 @@ FILTER_SOURCE_FILES = filter_source_files_from_platform(
         },
         "logger_esp8266.cpp": {PlatformFramework.ESP8266_ARDUINO},
         "logger_host.cpp": {PlatformFramework.HOST_NATIVE},
-        "logger_rp2040.cpp": {PlatformFramework.RP2040_ARDUINO},
+        "logger_rp2.cpp": {PlatformFramework.RP2_ARDUINO},
         "logger_libretiny.cpp": {
             PlatformFramework.BK72XX_ARDUINO,
             PlatformFramework.RTL87XX_ARDUINO,
@@ -640,7 +668,7 @@ def request_log_listener() -> None:
 
 
 @coroutine_with_priority(CoroPriority.FINAL)
-async def final_step():
+async def final_step() -> None:
     """Final code generation step to configure optional logger features."""
     domain_data = CORE.data.get(DOMAIN, {})
     if domain_data.get(KEY_LEVEL_LISTENERS, False):

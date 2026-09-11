@@ -1,23 +1,19 @@
-i2s_audio:
-  i2s_lrclk_pin: ${i2s_bclk_pin}
-  i2s_bclk_pin: ${i2s_lrclk_pin}
-  i2s_mclk_pin: ${i2s_mclk_pin}
-
 speaker:
   - platform: i2s_audio
-    id: speaker_id
+    id: speaker_source_speaker_id
+    i2s_audio_id: i2s_audio_bus
     dac_type: external
     i2s_dout_pin: ${i2s_dout_pin}
     sample_rate: 48000
     num_channels: 2
   - platform: mixer
-    output_speaker: speaker_id
+    output_speaker: speaker_source_speaker_id
     source_speakers:
       - id: announcement_mixer_speaker_id
       - id: media_mixer_speaker_id
 
 audio_file:
-  - id: test_audio
+  - id: speaker_source_test_audio
     file:
       type: local
       path: $component_dir/test.wav

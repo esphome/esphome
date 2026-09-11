@@ -2,8 +2,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace ssd1325_base {
+namespace esphome::ssd1325_base {
 
 static const char *const TAG = "ssd1325";
 
@@ -241,5 +240,4 @@ const char *SSD1325::model_str_() {
   }
 }
 
-}  // namespace ssd1325_base
-}  // namespace esphome
+}  // namespace esphome::ssd1325_base

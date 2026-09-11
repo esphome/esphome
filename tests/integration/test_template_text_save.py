@@ -9,7 +9,6 @@ Tests that:
 from __future__ import annotations
 
 import asyncio
-from pathlib import Path
 import socket
 from typing import Any
 
@@ -17,8 +16,11 @@ from aioesphomeapi import TextInfo, TextState
 import pytest
 
 from .conftest import run_binary_and_wait_for_port, wait_and_connect_api_client
+from .host_prefs import clear_host_prefs
 from .state_utils import InitialStateHelper, require_entity
 from .types import CompileFunction, ConfigWriter
+
+DEVICE_NAME = "host-template-text-save-test"
 
 
 @pytest.mark.asyncio
@@ -32,11 +34,7 @@ async def test_template_text_save(
     port, port_socket = reserved_tcp_port
 
     # Clean up any stale preference file from previous runs
-    prefs_file = (
-        Path.home() / ".esphome" / "prefs" / "host-template-text-save-test.prefs"
-    )
-    if prefs_file.exists():
-        prefs_file.unlink()
+    clear_host_prefs(DEVICE_NAME)
 
     # Write and compile once
     config_path = await write_yaml_config(yaml_config)
@@ -59,7 +57,7 @@ async def test_template_text_save(
         wait_and_connect_api_client(port=port) as client,
     ):
         device_info = await client.device_info()
-        assert device_info.name == "host-template-text-save-test"
+        assert device_info.name == DEVICE_NAME
 
         entities, _ = await client.list_entities_services()
         text_entity = require_entity(
@@ -127,5 +125,4 @@ async def test_template_text_save(
         )
 
     # Clean up preference file
-    if prefs_file.exists():
-        prefs_file.unlink()
+    clear_host_prefs(DEVICE_NAME)

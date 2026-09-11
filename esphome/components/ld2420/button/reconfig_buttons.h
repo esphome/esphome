@@ -5,7 +5,7 @@
 
 namespace esphome::ld2420 {
 
-class LD2420ApplyConfigButton : public button::Button, public Parented<LD2420Component> {
+class LD2420ApplyConfigButton final : public button::Button, public Parented<LD2420Component> {
  public:
   LD2420ApplyConfigButton() = default;
 
@@ -13,7 +13,7 @@ class LD2420ApplyConfigButton : public button::Button, public Parented<LD2420Com
   void press_action() override;
 };
 
-class LD2420RevertConfigButton : public button::Button, public Parented<LD2420Component> {
+class LD2420RevertConfigButton final : public button::Button, public Parented<LD2420Component> {
  public:
   LD2420RevertConfigButton() = default;
 
@@ -21,7 +21,7 @@ class LD2420RevertConfigButton : public button::Button, public Parented<LD2420Co
   void press_action() override;
 };
 
-class LD2420RestartModuleButton : public button::Button, public Parented<LD2420Component> {
+class LD2420RestartModuleButton final : public button::Button, public Parented<LD2420Component> {
  public:
   LD2420RestartModuleButton() = default;
 
@@ -29,7 +29,7 @@ class LD2420RestartModuleButton : public button::Button, public Parented<LD2420C
   void press_action() override;
 };
 
-class LD2420FactoryResetButton : public button::Button, public Parented<LD2420Component> {
+class LD2420FactoryResetButton final : public button::Button, public Parented<LD2420Component> {
  public:
   LD2420FactoryResetButton() = default;
 

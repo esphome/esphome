@@ -6,7 +6,7 @@
 
 namespace esphome::ld2410 {
 
-template<typename... Ts> class BluetoothPasswordSetAction : public Action<Ts...> {
+template<typename... Ts> class BluetoothPasswordSetAction final : public Action<Ts...> {
  public:
   explicit BluetoothPasswordSetAction(LD2410Component *ld2410_comp) : ld2410_comp_(ld2410_comp) {}
   TEMPLATABLE_VALUE(std::string, password)

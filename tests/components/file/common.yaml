@@ -1,0 +1,17 @@
+image:
+  - platform: file
+    id: file_binary_image
+    file: ../../pnglogo.png
+    type: BINARY
+    dither: FloydSteinberg
+  - platform: file
+    id: file_rgb565_image
+    file: ../../pnglogo.png
+    type: RGB565
+    transparency: alpha_channel
+    resize: 50x50
+  - platform: file
+    id: file_mdi_image
+    file: mdi:alert-circle-outline
+    type: BINARY
+    resize: 24x24

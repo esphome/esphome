@@ -4,8 +4,7 @@
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
 
-namespace esphome {
-namespace mcp23x08_base {
+namespace esphome::mcp23x08_base {
 
 enum MCP23S08GPIORegisters {
   // A side
@@ -40,5 +39,4 @@ class MCP23X08Base : public mcp23xxx_base::MCP23XXXBase<8> {
   uint8_t input_mask_{0x00};
 };
 
-}  // namespace mcp23x08_base
-}  // namespace esphome
+}  // namespace esphome::mcp23x08_base

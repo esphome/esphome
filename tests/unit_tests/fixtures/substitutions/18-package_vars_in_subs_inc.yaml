@@ -1,0 +1,8 @@
+substitutions:
+  enrolling_id: ${sensor_id_prefix}_enrolling
+  enrolling_name: ${sensor_name} Enrolling
+
+binary_sensor:
+  - platform: template
+    id: ${enrolling_id}
+    name: ${enrolling_name}

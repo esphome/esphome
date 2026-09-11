@@ -4,12 +4,11 @@
 
 #include "esphome/core/alloc_helpers.h"
 
-namespace esphome {
-namespace anova {
+namespace esphome::anova {
 
-float ftoc(float f) { return (f - 32.0) * (5.0f / 9.0f); }
+float ftoc(float f) { return (f - 32.0f) * (5.0f / 9.0f); }
 
-float ctof(float c) { return (c * 9.0f / 5.0f) + 32.0; }
+float ctof(float c) { return (c * 9.0f / 5.0f) + 32.0f; }
 
 AnovaPacket *AnovaCodec::clean_packet_() {
   this->packet_.length = strlen((char *) this->packet_.data);
@@ -132,5 +131,4 @@ void AnovaCodec::decode(const uint8_t *data, uint16_t length) {
   }
 }
 
-}  // namespace anova
-}  // namespace esphome
+}  // namespace esphome::anova

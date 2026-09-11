@@ -1,7 +1,6 @@
 #include "m5stack_8angle_sensor.h"
 
-namespace esphome {
-namespace m5stack_8angle {
+namespace esphome::m5stack_8angle {
 
 void M5Stack8AngleKnobSensor::update() {
   if (this->parent_ != nullptr) {
@@ -20,5 +19,4 @@ void M5Stack8AngleKnobSensor::update() {
   };
 }
 
-}  // namespace m5stack_8angle
-}  // namespace esphome
+}  // namespace esphome::m5stack_8angle

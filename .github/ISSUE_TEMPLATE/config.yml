@@ -2,13 +2,13 @@
 blank_issues_enabled: false
 contact_links:
   - name: Report an issue with the ESPHome documentation
-    url: https://github.com/esphome/esphome-docs/issues/new/choose
+    url: https://github.com/esphome/esphome.io/issues/new/choose
     about: Report an issue with the ESPHome documentation.
   - name: Report an issue with the ESPHome web server
     url: https://github.com/esphome/esphome-webserver/issues/new/choose
     about: Report an issue with the ESPHome web server.
   - name: Report an issue with the ESPHome Builder / Dashboard
-    url: https://github.com/esphome/dashboard/issues/new/choose
+    url: https://github.com/esphome/device-builder/issues/new/choose
     about: Report an issue with the ESPHome Builder / Dashboard.
   - name: Report an issue with the ESPHome API client
     url: https://github.com/esphome/aioesphomeapi/issues/new/choose

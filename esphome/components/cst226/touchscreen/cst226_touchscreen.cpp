@@ -1,7 +1,6 @@
 #include "cst226_touchscreen.h"
 
-namespace esphome {
-namespace cst226 {
+namespace esphome::cst226 {
 
 static const char *const TAG = "cst226.touchscreen";
 
@@ -110,5 +109,4 @@ void CST226Touchscreen::dump_config() {
   LOG_PIN("  Reset Pin: ", this->reset_pin_);
 }
 
-}  // namespace cst226
-}  // namespace esphome
+}  // namespace esphome::cst226

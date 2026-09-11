@@ -1,0 +1,10 @@
+esphome:
+  name: docker-test-esp32-ard-idf
+
+esp32:
+  variant: esp32
+  framework:
+    type: arduino
+  toolchain: esp-idf
+
+logger:

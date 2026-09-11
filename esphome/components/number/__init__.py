@@ -59,6 +59,7 @@ from esphome.const import (
     DEVICE_CLASS_PRECIPITATION,
     DEVICE_CLASS_PRECIPITATION_INTENSITY,
     DEVICE_CLASS_PRESSURE,
+    DEVICE_CLASS_RADON,
     DEVICE_CLASS_REACTIVE_ENERGY,
     DEVICE_CLASS_REACTIVE_POWER,
     DEVICE_CLASS_SIGNAL_STRENGTH,
@@ -82,6 +83,7 @@ from esphome.core import CORE, CoroPriority, coroutine_with_priority
 from esphome.core.config import UNIT_OF_MEASUREMENT_MAX_LENGTH
 from esphome.core.entity_helpers import (
     entity_duplicate_validator,
+    queue_entity_register,
     setup_device_class,
     setup_entity,
     setup_unit_of_measurement,
@@ -130,6 +132,7 @@ DEVICE_CLASSES = [
     DEVICE_CLASS_PRECIPITATION,
     DEVICE_CLASS_PRECIPITATION_INTENSITY,
     DEVICE_CLASS_PRESSURE,
+    DEVICE_CLASS_RADON,
     DEVICE_CLASS_REACTIVE_ENERGY,
     DEVICE_CLASS_REACTIVE_POWER,
     DEVICE_CLASS_SIGNAL_STRENGTH,
@@ -209,9 +212,15 @@ _NUMBER_SCHEMA = (
                 },
                 cv.has_at_least_one_key(CONF_ABOVE, CONF_BELOW),
             ),
-            cv.Optional(CONF_UNIT_OF_MEASUREMENT): validate_unit_of_measurement,
-            cv.Optional(CONF_MODE, default="AUTO"): cv.enum(NUMBER_MODES, upper=True),
-            cv.Optional(CONF_DEVICE_CLASS): validate_device_class,
+            cv.Optional(
+                CONF_UNIT_OF_MEASUREMENT, visibility=cv.Visibility.ADVANCED
+            ): validate_unit_of_measurement,
+            cv.Optional(
+                CONF_MODE, default="AUTO", visibility=cv.Visibility.ADVANCED
+            ): cv.enum(NUMBER_MODES, upper=True),
+            cv.Optional(
+                CONF_DEVICE_CLASS, visibility=cv.Visibility.ADVANCED
+            ): validate_device_class,
         }
     )
 )
@@ -301,7 +310,7 @@ async def register_number(
 ):
     if not CORE.has_id(config[CONF_ID]):
         var = cg.Pvariable(config[CONF_ID], var)
-    cg.add(cg.App.register_number(var))
+    queue_entity_register("number", config)
     CORE.register_platform_component("number", var)
     await setup_number_core_(
         var, config, min_value=min_value, max_value=max_value, step=step

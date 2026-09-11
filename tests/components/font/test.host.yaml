@@ -8,7 +8,7 @@ font:
     id: roboto32
 
   - file: "gfonts://Roboto"
-    id: roboto
+    id: font_roboto
     size: 20
     glyphs: "0123456789."
     extras:
@@ -44,12 +44,12 @@ font:
 
 display:
   - platform: sdl
-    id: sdl_display
+    id: font_sdl_display
     dimensions:
       width: 800
       height: 600
     lambda: |-
-      it.print(0, 0, id(roboto), "Hello, World!");
+      it.print(0, 0, id(font_roboto), "Hello, World!");
       it.print(0, 20, id(roboto_web), "Hello, World!");
       it.print(0, 40, id(roboto_greek), "Hello κόσμε!");
       it.print(0, 60, id(monocraft), "Hello, World!");

@@ -2,8 +2,7 @@
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
 
-namespace esphome {
-namespace tsl2591 {
+namespace esphome::tsl2591 {
 
 static const char *const TAG = "tsl2591.sensor";
 
@@ -270,7 +269,7 @@ uint32_t TSL2591Component::get_combined_illuminance() {
       break;
     }
     // we only log this if we need any delay, since normally we don't
-    ESP_LOGD(TAG, "   after %3d ms: ADC valid? %s", d, avalid ? "true" : "false");
+    ESP_LOGD(TAG, "   after %3d ms: ADC valid? %s", d, avalid ? LOG_STR_LITERAL("true") : LOG_STR_LITERAL("false"));
     delay(mini_delay);
   }
   if (!avalid) {
@@ -475,5 +474,4 @@ float TSL2591Component::get_actual_gain() {
   }
 }
 
-}  // namespace tsl2591
-}  // namespace esphome
+}  // namespace esphome::tsl2591

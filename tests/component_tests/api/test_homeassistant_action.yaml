@@ -1,0 +1,43 @@
+esphome:
+  name: test
+
+esp32:
+  board: esp32dev
+
+wifi:
+  ssid: SomeNetwork
+  password: SomePassword
+
+logger:
+
+api:
+  actions:
+    # Chain of synchronous actions that never store the args:
+    # keeps the zero-copy StringRef arg type.
+    - action: zero_copy_args
+      variables:
+        message: string
+      then:
+        - logger.log:
+            format: "%s"
+            args: [message.c_str()]
+    # homeassistant.action with on_success/on_error stores the trigger args
+    # until the action response arrives, so the codegen must fall back to
+    # owning std::string args (StringRef would dangle once the receive
+    # buffer is reused).
+    - action: response_args
+      variables:
+        message: string
+      then:
+        - homeassistant.action:
+            action: notify.notify
+            data:
+              message: !lambda return message;
+            on_success:
+              - logger.log:
+                  format: "sent %s"
+                  args: [message.c_str()]
+            on_error:
+              - logger.log:
+                  format: "failed (%s): %s"
+                  args: [error.c_str(), message.c_str()]

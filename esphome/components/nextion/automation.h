@@ -7,7 +7,7 @@
 
 namespace esphome::nextion {
 
-template<typename... Ts> class NextionSetBrightnessAction : public Action<Ts...> {
+template<typename... Ts> class NextionSetBrightnessAction final : public Action<Ts...> {
  public:
   explicit NextionSetBrightnessAction(Nextion *component) : component_(component) {}
 
@@ -24,7 +24,7 @@ template<typename... Ts> class NextionSetBrightnessAction : public Action<Ts...>
   Nextion *component_;
 };
 
-template<typename... Ts> class NextionPublishFloatAction : public Action<Ts...> {
+template<typename... Ts> class NextionPublishFloatAction final : public Action<Ts...> {
  public:
   explicit NextionPublishFloatAction(NextionComponent *component) : component_(component) {}
 
@@ -47,7 +47,7 @@ template<typename... Ts> class NextionPublishFloatAction : public Action<Ts...> 
   NextionComponent *component_;
 };
 
-template<typename... Ts> class NextionPublishTextAction : public Action<Ts...> {
+template<typename... Ts> class NextionPublishTextAction final : public Action<Ts...> {
  public:
   explicit NextionPublishTextAction(NextionComponent *component) : component_(component) {}
 
@@ -70,7 +70,7 @@ template<typename... Ts> class NextionPublishTextAction : public Action<Ts...> {
   NextionComponent *component_;
 };
 
-template<typename... Ts> class NextionPublishBoolAction : public Action<Ts...> {
+template<typename... Ts> class NextionPublishBoolAction final : public Action<Ts...> {
  public:
   explicit NextionPublishBoolAction(NextionComponent *component) : component_(component) {}
 

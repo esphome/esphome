@@ -1,0 +1,16 @@
+esphome:
+  name: componenttestnrf52
+  friendly_name: $component_name
+
+nrf52:
+  board: bbc_microbit
+
+logger:
+  level: VERY_VERBOSE
+  hardware_uart: UART0
+
+packages:
+  component_under_test: !include
+    file: $component_test_file
+    vars:
+      component_test_file: $component_test_file

@@ -44,7 +44,14 @@ def find_and_activate_virtualenv():
 def run_command():
     # Execute the remaining arguments in the new environment
     if len(sys.argv) > 1:
-        result = subprocess.run(sys.argv[1:], check=False, close_fds=False)
+        args = sys.argv[1:]
+        # Windows CreateProcess doesn't follow shebangs, so prepend the
+        # current interpreter when the entry is a .py script. Using
+        # sys.executable also pins the nested call to the same Python that
+        # ran us — no ambiguous PATH lookup for "python".
+        if args[0].endswith(".py"):
+            args = [sys.executable, *args]
+        result = subprocess.run(args, check=False, close_fds=False)
         sys.exit(result.returncode)
     else:
         print(

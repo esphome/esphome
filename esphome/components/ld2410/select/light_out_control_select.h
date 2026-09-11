@@ -5,7 +5,7 @@
 
 namespace esphome::ld2410 {
 
-class LightOutControlSelect : public select::Select, public Parented<LD2410Component> {
+class LightOutControlSelect final : public select::Select, public Parented<LD2410Component> {
  public:
   LightOutControlSelect() = default;
 

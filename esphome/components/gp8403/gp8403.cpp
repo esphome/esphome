@@ -2,8 +2,7 @@
 
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace gp8403 {
+namespace esphome::gp8403 {
 
 static const char *const TAG = "gp8403";
 
@@ -51,5 +50,4 @@ void GP8403Component::write_state(float state, uint8_t channel) {
   }
 }
 
-}  // namespace gp8403
-}  // namespace esphome
+}  // namespace esphome::gp8403

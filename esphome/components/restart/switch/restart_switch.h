@@ -3,10 +3,9 @@
 #include "esphome/core/component.h"
 #include "esphome/components/switch/switch.h"
 
-namespace esphome {
-namespace restart {
+namespace esphome::restart {
 
-class RestartSwitch : public switch_::Switch, public Component {
+class RestartSwitch final : public switch_::Switch, public Component {
  public:
   void dump_config() override;
 
@@ -14,5 +13,4 @@ class RestartSwitch : public switch_::Switch, public Component {
   void write_state(bool state) override;
 };
 
-}  // namespace restart
-}  // namespace esphome
+}  // namespace esphome::restart

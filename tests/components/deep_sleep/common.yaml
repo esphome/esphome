@@ -4,3 +4,9 @@ esphome:
       - deep_sleep.prevent
       - delay: 1s
       - deep_sleep.allow
+      - if:
+          condition:
+            lambda: 'return false;'
+          then:
+            - deep_sleep.enter:
+                sleep_duration: 60min

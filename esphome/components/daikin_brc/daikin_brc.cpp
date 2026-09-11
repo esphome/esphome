@@ -1,8 +1,7 @@
 #include "daikin_brc.h"
 #include "esphome/components/remote_base/remote_base.h"
 
-namespace esphome {
-namespace daikin_brc {
+namespace esphome::daikin_brc {
 
 static const char *const TAG = "daikin_brc.climate";
 
@@ -152,7 +151,7 @@ uint8_t DaikinBrcClimate::temperature_() {
       // Temperature in remote is in F
       if (this->fahrenheit_) {
         temperature = (uint8_t) roundf(
-            clamp<float>(((this->target_temperature * 1.8) + 32), DAIKIN_BRC_TEMP_MIN_F, DAIKIN_BRC_TEMP_MAX_F));
+            clamp<float>(((this->target_temperature * 1.8f) + 32), DAIKIN_BRC_TEMP_MIN_F, DAIKIN_BRC_TEMP_MAX_F));
       } else {
         temperature = ((uint8_t) roundf(this->target_temperature) - 9) << 1;
       }
@@ -269,5 +268,4 @@ bool DaikinBrcClimate::on_receive(remote_base::RemoteReceiveData data) {
   return this->parse_state_frame_(state_frame);
 }
 
-}  // namespace daikin_brc
-}  // namespace esphome
+}  // namespace esphome::daikin_brc

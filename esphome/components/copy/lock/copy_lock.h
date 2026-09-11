@@ -3,10 +3,9 @@
 #include "esphome/core/component.h"
 #include "esphome/components/lock/lock.h"
 
-namespace esphome {
-namespace copy {
+namespace esphome::copy {
 
-class CopyLock : public lock::Lock, public Component {
+class CopyLock final : public lock::Lock, public Component {
  public:
   void set_source(lock::Lock *source) { source_ = source; }
   void setup() override;
@@ -18,5 +17,4 @@ class CopyLock : public lock::Lock, public Component {
   lock::Lock *source_;
 };
 
-}  // namespace copy
-}  // namespace esphome
+}  // namespace esphome::copy

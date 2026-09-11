@@ -1,0 +1,62 @@
+substitutions:
+  devicename: bluetooth_proxy_device
+  friendly_name: bluetooth_proxy_device
+
+esphome:
+  name: $devicename
+  friendly_name: $friendly_name
+
+esp32:
+  board: esp32-poe-iso
+  framework:
+    type: esp-idf
+    advanced:
+      sram1_as_iram: true
+      minimum_chip_revision: "3.0"
+
+esp32_ble_tracker:
+  scan_parameters:
+    active: false
+
+bluetooth_proxy:
+  active: true
+
+ethernet:
+  type: LAN8720
+  mdc_pin: GPIO23
+  mdio_pin: GPIO18
+  clk_mode: GPIO17_OUT
+  phy_addr: 0
+  power_pin: GPIO12
+
+debug:
+logger:
+api:
+ota:
+  platform: esphome
+
+button:
+  - platform: restart
+    name: Restart
+
+time:
+  - platform: homeassistant
+    id: homeassistant_time
+  - platform: sntp
+    id: sntp_time
+
+sensor:
+  - platform: uptime
+    name: Ethernet Uptime
+  - platform: template
+    name: Free Memory
+    lambda: return heap_caps_get_free_size(MALLOC_CAP_INTERNAL);
+    unit_of_measurement: B
+    state_class: measurement
+  - platform: debug
+    free:
+      name: Heap Free
+    fragmentation:
+      name: Heap Fragmentation
+    min_free:
+      name: Heap Min Free

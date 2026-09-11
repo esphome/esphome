@@ -2,8 +2,7 @@
 
 #include "esphome/core/component.h"
 
-namespace esphome {
-namespace voltage_sampler {
+namespace esphome::voltage_sampler {
 
 /// Abstract interface for components to request voltage (usually ADC readings)
 class VoltageSampler {
@@ -12,5 +11,4 @@ class VoltageSampler {
   virtual float sample() = 0;
 };
 
-}  // namespace voltage_sampler
-}  // namespace esphome
+}  // namespace esphome::voltage_sampler

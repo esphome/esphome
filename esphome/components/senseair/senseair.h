@@ -5,8 +5,7 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/uart/uart.h"
 
-namespace esphome {
-namespace senseair {
+namespace esphome::senseair {
 
 enum SenseAirStatus : uint8_t {
   FATAL_ERROR = 1 << 0,
@@ -19,7 +18,7 @@ enum SenseAirStatus : uint8_t {
   RESERVED = 1 << 7
 };
 
-class SenseAirComponent : public PollingComponent, public uart::UARTDevice {
+class SenseAirComponent final : public PollingComponent, public uart::UARTDevice {
  public:
   void set_co2_sensor(sensor::Sensor *co2_sensor) { co2_sensor_ = co2_sensor; }
 
@@ -38,7 +37,7 @@ class SenseAirComponent : public PollingComponent, public uart::UARTDevice {
   sensor::Sensor *co2_sensor_{nullptr};
 };
 
-template<typename... Ts> class SenseAirBackgroundCalibrationAction : public Action<Ts...> {
+template<typename... Ts> class SenseAirBackgroundCalibrationAction final : public Action<Ts...> {
  public:
   SenseAirBackgroundCalibrationAction(SenseAirComponent *senseair) : senseair_(senseair) {}
 
@@ -48,7 +47,7 @@ template<typename... Ts> class SenseAirBackgroundCalibrationAction : public Acti
   SenseAirComponent *senseair_;
 };
 
-template<typename... Ts> class SenseAirBackgroundCalibrationResultAction : public Action<Ts...> {
+template<typename... Ts> class SenseAirBackgroundCalibrationResultAction final : public Action<Ts...> {
  public:
   SenseAirBackgroundCalibrationResultAction(SenseAirComponent *senseair) : senseair_(senseair) {}
 
@@ -58,7 +57,7 @@ template<typename... Ts> class SenseAirBackgroundCalibrationResultAction : publi
   SenseAirComponent *senseair_;
 };
 
-template<typename... Ts> class SenseAirABCEnableAction : public Action<Ts...> {
+template<typename... Ts> class SenseAirABCEnableAction final : public Action<Ts...> {
  public:
   SenseAirABCEnableAction(SenseAirComponent *senseair) : senseair_(senseair) {}
 
@@ -68,7 +67,7 @@ template<typename... Ts> class SenseAirABCEnableAction : public Action<Ts...> {
   SenseAirComponent *senseair_;
 };
 
-template<typename... Ts> class SenseAirABCDisableAction : public Action<Ts...> {
+template<typename... Ts> class SenseAirABCDisableAction final : public Action<Ts...> {
  public:
   SenseAirABCDisableAction(SenseAirComponent *senseair) : senseair_(senseair) {}
 
@@ -78,7 +77,7 @@ template<typename... Ts> class SenseAirABCDisableAction : public Action<Ts...> {
   SenseAirComponent *senseair_;
 };
 
-template<typename... Ts> class SenseAirABCGetPeriodAction : public Action<Ts...> {
+template<typename... Ts> class SenseAirABCGetPeriodAction final : public Action<Ts...> {
  public:
   SenseAirABCGetPeriodAction(SenseAirComponent *senseair) : senseair_(senseair) {}
 
@@ -88,5 +87,4 @@ template<typename... Ts> class SenseAirABCGetPeriodAction : public Action<Ts...>
   SenseAirComponent *senseair_;
 };
 
-}  // namespace senseair
-}  // namespace esphome
+}  // namespace esphome::senseair

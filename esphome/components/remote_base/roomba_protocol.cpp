@@ -1,8 +1,7 @@
 #include "roomba_protocol.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace remote_base {
+namespace esphome::remote_base {
 
 static const char *const TAG = "remote.roomba";
 
@@ -52,5 +51,4 @@ optional<RoombaData> RoombaProtocol::decode(RemoteReceiveData src) {
 }
 void RoombaProtocol::dump(const RoombaData &data) { ESP_LOGD(TAG, "Received Roomba: data=0x%02X", data.data); }
 
-}  // namespace remote_base
-}  // namespace esphome
+}  // namespace esphome::remote_base

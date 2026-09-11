@@ -1,0 +1,4 @@
+# Config-only: with no options the single-mode ESP32 resolves mode -> quad and
+# speed -> 40MHz from the per-variant defaults. Compiling adds no signal here,
+# so this only runs through `esphome config`.
+psram:

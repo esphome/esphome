@@ -1,0 +1,150 @@
+esphome:
+  name: uart-mock-modbus-broadcast
+
+host:
+api:
+logger:
+  level: VERBOSE
+
+external_components:
+  - source:
+      type: local
+      path: EXTERNAL_COMPONENT_PATH
+
+# Dummy uart entry to satisfy modbus's DEPENDENCIES = ["uart"]
+# The actual UART bus used is the uart_mock component below
+uart:
+  baud_rate: 115200
+  port: /dev/null
+
+uart_mock:
+  - id: virtual_uart_server
+    baud_rate: 9600
+    auto_start: true  # controller polls at boot; forwarding must already be active
+    debug:
+    on_tx:
+      - then:
+          - uart_mock.inject_rx:
+              id: virtual_uart_controller
+              data: !lambda return data;
+          - uart_mock.inject_rx:
+              id: virtual_uart_server_2
+              data: !lambda return data;
+  - id: virtual_uart_server_2
+    baud_rate: 9600
+    auto_start: true
+    debug:
+    on_tx:
+      - then:
+          - uart_mock.inject_rx:
+              id: virtual_uart_server
+              data: !lambda return data;
+          - uart_mock.inject_rx:
+              id: virtual_uart_controller
+              data: !lambda return data;
+  - id: virtual_uart_controller
+    baud_rate: 9600
+    auto_start: true
+    debug:
+    on_tx:
+      - then:
+          - uart_mock.inject_rx:
+              id: virtual_uart_server
+              data: !lambda return data;
+          - uart_mock.inject_rx:
+              id: virtual_uart_server_2
+              data: !lambda return data;
+
+modbus:
+  - uart_id: virtual_uart_server
+    id: virtual_modbus_server
+    role: server
+  - uart_id: virtual_uart_server_2
+    id: virtual_modbus_server_2
+    role: server
+  - uart_id: virtual_uart_controller
+    id: virtual_modbus_client
+    role: client
+    turnaround_time: 10ms
+
+globals:
+  - id: srv1_reg
+    type: int
+    initial_value: "0"
+  - id: srv2_reg
+    type: int
+    initial_value: "0"
+
+modbus_controller:
+  - address: 1
+    modbus_id: virtual_modbus_client
+    # Polling is off until the test has subscribed; the Start Scenario button starts it, so the
+    # first poll is never lost to a boot-time race ahead of the API subscription.
+    update_interval: never
+    id: modbus_controller_1
+
+modbus_server:
+  - address: 1
+    modbus_id: virtual_modbus_server
+    registers:
+      - address: 0x01
+        value_type: U_WORD
+        read_lambda: return 919;
+      - address: 0x10
+        value_type: U_WORD
+        read_lambda: return id(srv1_reg);
+        write_lambda: |-
+          id(srv1_reg) = x;
+          return true;
+  - address: 2
+    modbus_id: virtual_modbus_server_2
+    registers:
+      - address: 0x10
+        value_type: U_WORD
+        read_lambda: return id(srv2_reg);
+        write_lambda: |-
+          id(srv2_reg) = x;
+          return true;
+
+sensor:
+  # Normal polling continues before and after the broadcast: the old behavior burned a
+  # timeout per broadcast, which surfaces as modbus warnings and failed expectations here.
+  - platform: modbus_controller
+    modbus_controller_id: modbus_controller_1
+    name: "reg_u_word"
+    address: 0x01
+    register_type: holding
+    value_type: U_WORD
+    # Republish every poll (the value is constant 919): the test observes successive publishes to
+    # prove polling continues before and after the broadcast, which dedup would otherwise hide.
+    force_update: true
+  # The servers' written values, published locally.
+  - platform: template
+    name: "srv1_written"
+    lambda: return id(srv1_reg);
+    update_interval: 0.2s
+  - platform: template
+    name: "srv2_written"
+    lambda: return id(srv2_reg);
+    update_interval: 0.2s
+  # Whether the hub accepted the broadcast into the transmit queue (the bool queue_pdu() returns).
+  - platform: template
+    name: "broadcast_accepted"
+    id: broadcast_accepted
+
+button:
+  - platform: template
+    name: "Start Scenario"
+    id: start_scenario_btn
+    on_press:
+      - lambda: |-
+          // Start polling now that the test has subscribed.
+          id(modbus_controller_1).set_update_interval(1000);
+          id(modbus_controller_1).start_poller();
+          // Broadcast (address 0) write single register: reg 0x10 = 777 on every server.
+          // PDU is function code + data (no address/CRC); the hub prepends address 0 and appends CRC.
+          const uint8_t pdu[] = {0x06, 0x00, 0x10, 0x03, 0x09};
+          // queue_pdu() returns whether the broadcast was accepted into the machine (the answer this PR
+          // makes meaningful); publish it so the test asserts the accept, not just the servers' writes.
+          bool accepted = id(virtual_modbus_client)->queue_pdu(0x00, pdu);
+          id(broadcast_accepted).publish_state(accepted ? 1.0f : 0.0f);

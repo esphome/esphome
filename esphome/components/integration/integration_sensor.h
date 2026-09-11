@@ -6,8 +6,7 @@
 #include "esphome/core/hal.h"
 #include "esphome/components/sensor/sensor.h"
 
-namespace esphome {
-namespace integration {
+namespace esphome::integration {
 
 enum IntegrationSensorTime {
   INTEGRATION_SENSOR_TIME_MILLISECOND = 0,
@@ -23,7 +22,7 @@ enum IntegrationMethod {
   INTEGRATION_METHOD_RIGHT,
 };
 
-class IntegrationSensor : public sensor::Sensor, public Component {
+class IntegrationSensor final : public sensor::Sensor, public Component {
  public:
   void setup() override;
   void dump_config() override;
@@ -72,17 +71,16 @@ class IntegrationSensor : public sensor::Sensor, public Component {
   float last_value_{0.0f};
 };
 
-template<typename... Ts> class ResetAction : public Action<Ts...>, public Parented<IntegrationSensor> {
+template<typename... Ts> class ResetAction final : public Action<Ts...>, public Parented<IntegrationSensor> {
  public:
   void play(const Ts &...x) override { this->parent_->reset(); }
 };
 
-template<typename... Ts> class SetValueAction : public Action<Ts...>, public Parented<IntegrationSensor> {
+template<typename... Ts> class SetValueAction final : public Action<Ts...>, public Parented<IntegrationSensor> {
  public:
   TEMPLATABLE_VALUE(float, value)
 
   void play(const Ts &...x) override { this->parent_->set_value(this->value_.value(x...)); }
 };
 
-}  // namespace integration
-}  // namespace esphome
+}  // namespace esphome::integration

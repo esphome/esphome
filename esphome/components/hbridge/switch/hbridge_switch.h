@@ -6,8 +6,7 @@
 
 #include <vector>
 
-namespace esphome {
-namespace hbridge {
+namespace esphome::hbridge {
 
 enum RelayState : uint8_t {
   RELAY_STATE_OFF = 0,
@@ -17,7 +16,7 @@ enum RelayState : uint8_t {
   RELAY_STATE_UNKNOWN = 4,
 };
 
-class HBridgeSwitch : public switch_::Switch, public Component {
+class HBridgeSwitch final : public switch_::Switch, public Component {
  public:
   void set_on_pin(GPIOPin *pin) { this->on_pin_ = pin; }
   void set_off_pin(GPIOPin *pin) { this->off_pin_ = pin; }
@@ -46,5 +45,4 @@ class HBridgeSwitch : public switch_::Switch, public Component {
   bool optimistic_{false};
 };
 
-}  // namespace hbridge
-}  // namespace esphome
+}  // namespace esphome::hbridge

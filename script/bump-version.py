@@ -2,6 +2,7 @@
 
 import argparse
 from dataclasses import dataclass
+from pathlib import Path
 import re
 import sys
 
@@ -39,12 +40,12 @@ class Version:
 
 
 def sub(path, pattern, repl, expected_count=1):
-    with open(path, encoding="utf-8") as fh:
+    with Path(path).open(encoding="utf-8") as fh:
         content = fh.read()
     content, count = re.subn(pattern, repl, content, flags=re.MULTILINE)
     if expected_count is not None:
         assert count == expected_count, f"Pattern {pattern} replacement failed!"
-    with open(path, "w", encoding="utf-8") as fh:
+    with Path(path).open("w", encoding="utf-8") as fh:
         fh.write(content)
 
 

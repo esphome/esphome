@@ -1,8 +1,7 @@
 #include "bmp3xx_spi.h"
 #include <cinttypes>
 
-namespace esphome {
-namespace bmp3xx_spi {
+namespace esphome::bmp3xx_spi {
 
 static const char *const TAG = "bmp3xx_spi.sensor";
 
@@ -53,5 +52,4 @@ bool BMP3XXSPIComponent::write_bytes(uint8_t a_register, uint8_t *data, size_t l
   return true;
 }
 
-}  // namespace bmp3xx_spi
-}  // namespace esphome
+}  // namespace esphome::bmp3xx_spi

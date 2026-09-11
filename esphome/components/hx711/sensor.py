@@ -3,6 +3,7 @@ import esphome.codegen as cg
 from esphome.components import sensor
 import esphome.config_validation as cv
 from esphome.const import CONF_CLK_PIN, CONF_GAIN, ICON_SCALE, STATE_CLASS_MEASUREMENT
+from esphome.types import ConfigType
 
 hx711_ns = cg.esphome_ns.namespace("hx711")
 HX711Sensor = hx711_ns.class_("HX711Sensor", sensor.Sensor, cg.PollingComponent)
@@ -34,7 +35,7 @@ CONFIG_SCHEMA = (
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = await sensor.new_sensor(config)
     await cg.register_component(var, config)
 

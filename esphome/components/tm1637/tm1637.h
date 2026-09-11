@@ -12,8 +12,7 @@
 #include "esphome/components/binary_sensor/binary_sensor.h"
 #endif
 
-namespace esphome {
-namespace tm1637 {
+namespace esphome::tm1637 {
 
 class TM1637Display;
 #ifdef USE_BINARY_SENSOR
@@ -22,7 +21,7 @@ class TM1637Key;
 
 using tm1637_writer_t = display::DisplayWriter<TM1637Display>;
 
-class TM1637Display : public PollingComponent {
+class TM1637Display final : public PollingComponent {
  public:
   void set_writer(tm1637_writer_t &&writer) { this->writer_ = writer; }
 
@@ -93,7 +92,7 @@ class TM1637Display : public PollingComponent {
 };
 
 #ifdef USE_BINARY_SENSOR
-class TM1637Key : public binary_sensor::BinarySensor {
+class TM1637Key final : public binary_sensor::BinarySensor {
   friend class TM1637Display;
 
  public:
@@ -105,5 +104,4 @@ class TM1637Key : public binary_sensor::BinarySensor {
 };
 #endif
 
-}  // namespace tm1637
-}  // namespace esphome
+}  // namespace esphome::tm1637

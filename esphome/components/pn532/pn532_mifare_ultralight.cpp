@@ -4,8 +4,7 @@
 #include "pn532.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace pn532 {
+namespace esphome::pn532 {
 
 static const char *const TAG = "pn532.mifare_ultralight";
 
@@ -189,5 +188,4 @@ bool PN532::write_mifare_ultralight_page_(uint8_t page_num, const uint8_t *write
   return true;
 }
 
-}  // namespace pn532
-}  // namespace esphome
+}  // namespace esphome::pn532

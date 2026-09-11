@@ -4,11 +4,9 @@
 #include "esphome/core/automation.h"
 #include "esphome/components/pulse_meter/pulse_meter_sensor.h"
 
-namespace esphome {
+namespace esphome::pulse_meter {
 
-namespace pulse_meter {
-
-template<typename... Ts> class SetTotalPulsesAction : public Action<Ts...> {
+template<typename... Ts> class SetTotalPulsesAction final : public Action<Ts...> {
  public:
   SetTotalPulsesAction(PulseMeterSensor *pulse_meter) : pulse_meter_(pulse_meter) {}
 
@@ -20,5 +18,4 @@ template<typename... Ts> class SetTotalPulsesAction : public Action<Ts...> {
   PulseMeterSensor *pulse_meter_;
 };
 
-}  // namespace pulse_meter
-}  // namespace esphome
+}  // namespace esphome::pulse_meter

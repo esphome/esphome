@@ -2,8 +2,7 @@
 #include "esphome/core/log.h"
 #include <algorithm>
 
-namespace esphome {
-namespace st7789v {
+namespace esphome::st7789v {
 
 static const char *const TAG = "st7789v";
 #ifdef USE_ESP32
@@ -317,5 +316,4 @@ void HOT ST7789V::draw_absolute_pixel_internal(int x, int y, Color color) {
   }
 }
 
-}  // namespace st7789v
-}  // namespace esphome
+}  // namespace esphome::st7789v

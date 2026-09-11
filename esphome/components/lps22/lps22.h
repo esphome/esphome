@@ -4,10 +4,9 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/i2c/i2c.h"
 
-namespace esphome {
-namespace lps22 {
+namespace esphome::lps22 {
 
-class LPS22Component : public sensor::Sensor, public PollingComponent, public i2c::I2CDevice {
+class LPS22Component final : public sensor::Sensor, public PollingComponent, public i2c::I2CDevice {
  public:
   void set_temperature_sensor(sensor::Sensor *temperature_sensor) { this->temperature_sensor_ = temperature_sensor; }
   void set_pressure_sensor(sensor::Sensor *pressure_sensor) { this->pressure_sensor_ = pressure_sensor; }
@@ -24,5 +23,4 @@ class LPS22Component : public sensor::Sensor, public PollingComponent, public i2
   uint8_t read_attempts_remaining_{0};
 };
 
-}  // namespace lps22
-}  // namespace esphome
+}  // namespace esphome::lps22

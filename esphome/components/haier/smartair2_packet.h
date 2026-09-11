@@ -1,8 +1,6 @@
 ﻿#pragma once
 
-namespace esphome {
-namespace haier {
-namespace smartair2_protocol {
+namespace esphome::haier::smartair2_protocol {
 
 enum class ConditioningMode : uint8_t { AUTO = 0x00, COOL = 0x01, HEAT = 0x02, FAN = 0x03, DRY = 0x04 };
 
@@ -83,6 +81,4 @@ struct HaierStatus {
   HaierPacketControl control;
 };
 
-}  // namespace smartair2_protocol
-}  // namespace haier
-}  // namespace esphome
+}  // namespace esphome::haier::smartair2_protocol

@@ -4,8 +4,7 @@
 #include "esphome/core/helpers.h"
 #include <cmath>
 
-namespace esphome {
-namespace pid {
+namespace esphome::pid {
 
 struct PIDController {
   float update(float setpoint, float process_value);
@@ -71,5 +70,4 @@ struct PIDController {
   FixedRingBuffer<float> output_window_;
 
 };  // Struct PIDController
-}  // namespace pid
-}  // namespace esphome
+}  // namespace esphome::pid

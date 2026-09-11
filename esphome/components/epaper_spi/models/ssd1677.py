@@ -10,11 +10,11 @@ class SSD1677(EpaperModel):
 
     # fmt: off
     def get_init_sequence(self, config: dict):
-        width, _height = self.get_dimensions(config)
+        _width, height = self.get_dimensions(config)
         return (
             (0x18, 0x80),    # Select internal Temp sensor
             (0x0C, 0xAE, 0xC7, 0xC3, 0xC0, 0x80),  # inrush current level 2
-            (0x01, (width - 1) % 256, (width - 1) // 256, 0x02),    # Set column gate limit
+            (0x01, (height - 1) % 256, (height - 1) // 256, 0x02),    # Set gate limit (number of rows-1)
             (0x3C, 0x01),    # Set border waveform
             (0x11, 3),      # Set transform
         )
@@ -50,4 +50,17 @@ ssd1677.extend(
     width=800,
     height=480,
     mirror_x=True,
+)
+
+ssd1677.extend(
+    "seeed-reterminal-sticky",
+    width=800,
+    height=480,
+    mirror_x=True,
+    enable_pin=47,
+    cs_pin=15,
+    dc_pin=16,
+    reset_pin=17,
+    busy_pin=18,
+    data_rate="10MHz",
 )

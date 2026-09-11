@@ -27,7 +27,7 @@ static_assert(std::is_trivially_copyable_v<StateAnyForwarder>);
 static_assert(sizeof(StateEnterForwarder<ACP_STATE_TRIGGERED>) <= sizeof(void *));
 static_assert(std::is_trivially_copyable_v<StateEnterForwarder<ACP_STATE_TRIGGERED>>);
 
-template<typename... Ts> class ArmAwayAction : public Action<Ts...> {
+template<typename... Ts> class ArmAwayAction final : public Action<Ts...> {
  public:
   explicit ArmAwayAction(AlarmControlPanel *alarm_control_panel) : alarm_control_panel_(alarm_control_panel) {}
 
@@ -39,7 +39,7 @@ template<typename... Ts> class ArmAwayAction : public Action<Ts...> {
   AlarmControlPanel *alarm_control_panel_;
 };
 
-template<typename... Ts> class ArmHomeAction : public Action<Ts...> {
+template<typename... Ts> class ArmHomeAction final : public Action<Ts...> {
  public:
   explicit ArmHomeAction(AlarmControlPanel *alarm_control_panel) : alarm_control_panel_(alarm_control_panel) {}
 
@@ -51,7 +51,7 @@ template<typename... Ts> class ArmHomeAction : public Action<Ts...> {
   AlarmControlPanel *alarm_control_panel_;
 };
 
-template<typename... Ts> class ArmNightAction : public Action<Ts...> {
+template<typename... Ts> class ArmNightAction final : public Action<Ts...> {
  public:
   explicit ArmNightAction(AlarmControlPanel *alarm_control_panel) : alarm_control_panel_(alarm_control_panel) {}
 
@@ -63,7 +63,7 @@ template<typename... Ts> class ArmNightAction : public Action<Ts...> {
   AlarmControlPanel *alarm_control_panel_;
 };
 
-template<typename... Ts> class DisarmAction : public Action<Ts...> {
+template<typename... Ts> class DisarmAction final : public Action<Ts...> {
  public:
   explicit DisarmAction(AlarmControlPanel *alarm_control_panel) : alarm_control_panel_(alarm_control_panel) {}
 
@@ -75,7 +75,7 @@ template<typename... Ts> class DisarmAction : public Action<Ts...> {
   AlarmControlPanel *alarm_control_panel_;
 };
 
-template<typename... Ts> class PendingAction : public Action<Ts...> {
+template<typename... Ts> class PendingAction final : public Action<Ts...> {
  public:
   explicit PendingAction(AlarmControlPanel *alarm_control_panel) : alarm_control_panel_(alarm_control_panel) {}
 
@@ -85,7 +85,7 @@ template<typename... Ts> class PendingAction : public Action<Ts...> {
   AlarmControlPanel *alarm_control_panel_;
 };
 
-template<typename... Ts> class TriggeredAction : public Action<Ts...> {
+template<typename... Ts> class TriggeredAction final : public Action<Ts...> {
  public:
   explicit TriggeredAction(AlarmControlPanel *alarm_control_panel) : alarm_control_panel_(alarm_control_panel) {}
 
@@ -95,7 +95,7 @@ template<typename... Ts> class TriggeredAction : public Action<Ts...> {
   AlarmControlPanel *alarm_control_panel_;
 };
 
-template<typename... Ts> class AlarmControlPanelCondition : public Condition<Ts...> {
+template<typename... Ts> class AlarmControlPanelCondition final : public Condition<Ts...> {
  public:
   AlarmControlPanelCondition(AlarmControlPanel *parent) : parent_(parent) {}
   bool check(const Ts &...x) override {

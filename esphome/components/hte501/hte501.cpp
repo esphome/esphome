@@ -2,8 +2,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace hte501 {
+namespace esphome::hte501 {
 
 static const char *const TAG = "hte501";
 
@@ -71,5 +70,4 @@ void HTE501Component::update() {
     this->status_clear_warning();
   });
 }
-}  // namespace hte501
-}  // namespace esphome
+}  // namespace esphome::hte501

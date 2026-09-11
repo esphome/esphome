@@ -1,8 +1,7 @@
 #include "bang_bang_climate.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace bang_bang {
+namespace esphome::bang_bang {
 
 static const char *const TAG = "bang_bang.climate";
 
@@ -231,5 +230,4 @@ BangBangClimateTargetTempConfig::BangBangClimateTargetTempConfig(float default_t
                                                                  float default_temperature_high)
     : default_temperature_low(default_temperature_low), default_temperature_high(default_temperature_high) {}
 
-}  // namespace bang_bang
-}  // namespace esphome
+}  // namespace esphome::bang_bang

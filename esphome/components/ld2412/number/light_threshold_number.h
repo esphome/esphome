@@ -5,7 +5,7 @@
 
 namespace esphome::ld2412 {
 
-class LightThresholdNumber : public number::Number, public Parented<LD2412Component> {
+class LightThresholdNumber final : public number::Number, public Parented<LD2412Component> {
  public:
   LightThresholdNumber() = default;
 

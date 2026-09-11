@@ -14,8 +14,11 @@ from esphome.const import (
     CONF_ON_START,
     CONF_SPEAKER,
 )
+from esphome.core import ID
+from esphome.cpp_generator import MockObj, TemplateArgsType
+from esphome.types import ConfigType
 
-AUTO_LOAD = ["socket"]
+AUTO_LOAD = ["audio", "ring_buffer", "socket"]
 DEPENDENCIES = ["api", "microphone"]
 
 CODEOWNERS = ["@jesserockz", "@kahrendt"]
@@ -53,6 +56,8 @@ CONF_ON_TIMER_CANCELLED = "on_timer_cancelled"
 CONF_ON_TIMER_FINISHED = "on_timer_finished"
 CONF_ON_TIMER_TICK = "on_timer_tick"
 
+MAX_MICROPHONE_SOURCES = 2
+
 
 voice_assistant_ns = cg.esphome_ns.namespace("voice_assistant")
 VoiceAssistant = voice_assistant_ns.class_("VoiceAssistant", cg.Component)
@@ -76,7 +81,7 @@ ConnectedCondition = voice_assistant_ns.class_(
 Timer = voice_assistant_ns.struct("Timer")
 
 
-def tts_stream_validate(config):
+def tts_stream_validate(config: ConfigType) -> ConfigType:
     if CONF_SPEAKER not in config and (
         CONF_ON_TTS_STREAM_START in config or CONF_ON_TTS_STREAM_END in config
     ):
@@ -90,13 +95,20 @@ CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(VoiceAssistant),
-            cv.Optional(
-                CONF_MICROPHONE, default={}
-            ): microphone.microphone_source_schema(
-                min_bits_per_sample=16,
-                max_bits_per_sample=16,
-                min_channels=1,
-                max_channels=1,
+            cv.Optional(CONF_MICROPHONE, default=[{}]): cv.All(
+                cv.ensure_list(
+                    microphone.microphone_source_schema(
+                        min_bits_per_sample=16,
+                        max_bits_per_sample=16,
+                        min_channels=1,
+                        max_channels=1,
+                    )
+                ),
+                cv.Length(
+                    min=1,
+                    max=MAX_MICROPHONE_SOURCES,
+                    msg=f"Voice Assistant supports at most {MAX_MICROPHONE_SOURCES} microphone sources",
+                ),
             ),
             cv.Exclusive(CONF_MEDIA_PLAYER, "output"): cv.use_id(
                 media_player.MediaPlayer
@@ -179,10 +191,10 @@ CONFIG_SCHEMA = cv.All(
 FINAL_VALIDATE_SCHEMA = cv.All(
     cv.Schema(
         {
-            cv.Optional(
-                CONF_MICROPHONE
-            ): microphone.final_validate_microphone_source_schema(
-                "voice_assistant", sample_rate=16000
+            cv.Optional(CONF_MICROPHONE): cv.ensure_list(
+                microphone.final_validate_microphone_source_schema(
+                    "voice_assistant", sample_rate=16000
+                )
             ),
         },
         extra=cv.ALLOW_EXTRA,
@@ -190,12 +202,17 @@ FINAL_VALIDATE_SCHEMA = cv.All(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
 
-    mic_source = await microphone.microphone_source_to_code(config[CONF_MICROPHONE])
+    mic_sources = config[CONF_MICROPHONE]
+    mic_source = await microphone.microphone_source_to_code(mic_sources[0])
     cg.add(var.set_microphone_source(mic_source))
+
+    if len(mic_sources) > 1:
+        mic_source2 = await microphone.microphone_source_to_code(mic_sources[1])
+        cg.add(var.set_microphone_source2(mic_source2))
 
     if CONF_MICRO_WAKE_WORD in config:
         mww = await cg.get_variable(config[CONF_MICRO_WAKE_WORD])
@@ -406,7 +423,12 @@ VOICE_ASSISTANT_ACTION_SCHEMA = cv.Schema({cv.GenerateID(): cv.use_id(VoiceAssis
     ),
     synchronous=True,
 )
-async def voice_assistant_listen_to_code(config, action_id, template_arg, args):
+async def voice_assistant_listen_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
     if CONF_SILENCE_DETECTION in config:
@@ -420,7 +442,12 @@ async def voice_assistant_listen_to_code(config, action_id, template_arg, args):
 @register_action(
     "voice_assistant.stop", StopAction, VOICE_ASSISTANT_ACTION_SCHEMA, synchronous=True
 )
-async def voice_assistant_stop_to_code(config, action_id, template_arg, args):
+async def voice_assistant_stop_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
     return var
@@ -429,7 +456,12 @@ async def voice_assistant_stop_to_code(config, action_id, template_arg, args):
 @register_condition(
     "voice_assistant.is_running", IsRunningCondition, VOICE_ASSISTANT_ACTION_SCHEMA
 )
-async def voice_assistant_is_running_to_code(config, condition_id, template_arg, args):
+async def voice_assistant_is_running_to_code(
+    config: ConfigType,
+    condition_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     var = cg.new_Pvariable(condition_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
     return var
@@ -438,7 +470,12 @@ async def voice_assistant_is_running_to_code(config, condition_id, template_arg,
 @register_condition(
     "voice_assistant.connected", ConnectedCondition, VOICE_ASSISTANT_ACTION_SCHEMA
 )
-async def voice_assistant_connected_to_code(config, condition_id, template_arg, args):
+async def voice_assistant_connected_to_code(
+    config: ConfigType,
+    condition_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     var = cg.new_Pvariable(condition_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
     return var

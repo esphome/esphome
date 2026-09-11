@@ -65,11 +65,26 @@ _enum_max_values: dict[str, int] = {}
 _message_desc_map: dict[str, Any] = {}
 
 
+def _make_ifdef_line(condition: str) -> str:
+    """Return the correct preprocessor open-guard line for a condition string.
+
+    Simple identifiers use ``#ifdef IDENTIFIER``.
+    Compound expressions (containing ``||`` or ``&&``) use
+    ``#if defined(A) || defined(B)`` so that the preprocessor
+    evaluates them correctly.
+    """
+    if any(op in condition for op in ("||", "&&", "!")):
+        # Replace each bare identifier token with defined(token)
+        expr = re.sub(r"\b([A-Za-z_]\w*)\b", r"defined(\1)", condition)
+        return f"#if {expr}"
+    return f"#ifdef {condition}"
+
+
 def indent_list(text: str, padding: str = "  ") -> list[str]:
     """Indent each line of the given text with the specified padding."""
     lines = []
     for line in text.splitlines():
-        if line == "" or line.startswith("#ifdef") or line.startswith("#endif"):
+        if line == "" or line.startswith(("#ifdef", "#if ", "#endif")):
             p = ""
         else:
             p = padding
@@ -82,7 +97,7 @@ def indent(text: str, padding: str = "  ") -> str:
 
 
 def wrap_with_ifdef(content: str | list[str], ifdef: str | None) -> list[str]:
-    """Wrap content with #ifdef directives if ifdef is provided.
+    """Wrap content with #ifdef / #if directives if ifdef is provided.
 
     Args:
         content: Single string or list of strings to wrap
@@ -96,7 +111,7 @@ def wrap_with_ifdef(content: str | list[str], ifdef: str | None) -> list[str]:
             return [content]
         return content
 
-    result = [f"#ifdef {ifdef}"]
+    result = [_make_ifdef_line(ifdef)]
     if isinstance(content, str):
         result.append(content)
     else:
@@ -163,6 +178,11 @@ class TypeInfo(ABC):
     def force(self) -> bool:
         """Check if this field should always be encoded (skip zero/empty check)."""
         return get_field_opt(self._field, pb.force, False)
+
+    @property
+    def mac_address(self) -> bool:
+        """Check if this uint64 field is a 48-bit MAC address (use 7-byte fast path)."""
+        return get_field_opt(self._field, pb.mac_address, False)
 
     @property
     def max_value(self) -> int | None:
@@ -455,6 +475,19 @@ TYPE_INFO: dict[int, TypeInfo] = {}
 # TYPE_DOUBLE = 1, TYPE_FIXED64 = 6, TYPE_SFIXED64 = 16, TYPE_SINT64 = 18
 UNSUPPORTED_TYPES = {1: "double", 6: "fixed64", 16: "sfixed64", 18: "sint64"}
 
+# The plaintext frame header budgets 2 varint bytes for the message type
+# (APIPlaintextFrameHelper::HEADER_PADDING), which caps message IDs at 16383.
+MAX_MESSAGE_ID = 16383
+
+
+def validate_message_id(message_id: int, message_name: str) -> None:
+    """Reject message IDs whose plaintext type varint would not fit in 2 bytes."""
+    if message_id > MAX_MESSAGE_ID:
+        raise ValueError(
+            f"Message ID {message_id} for {message_name} exceeds the plaintext "
+            f"2-byte type varint maximum ({MAX_MESSAGE_ID})"
+        )
+
 
 def validate_field_type(field_type: int, field_name: str = "") -> None:
     """Validate that the field type is supported by ESPHome API.
@@ -478,6 +511,15 @@ def create_field_type_info(
     needs_encode: bool = True,
 ) -> TypeInfo:
     """Create the appropriate TypeInfo instance for a field, handling repeated fields and custom options."""
+    if get_field_opt(field, pb.track_presence, False) and (
+        field.label == FieldDescriptorProto.LABEL_REPEATED
+        or field.type != 11
+        or not needs_decode
+    ):
+        raise ValueError(
+            f"track_presence on field '{field.name}' has no effect; it requires "
+            "a non-repeated message field in a message that is decoded"
+        )
     if field.label == FieldDescriptorProto.LABEL_REPEATED:
         # Check if this is a packed_buffer field (zero-copy packed repeated)
         if get_field_opt(field, pb.packed_buffer, False):
@@ -521,6 +563,8 @@ def create_field_type_info(
         return PointerToStringBufferType(field, None)
 
     validate_field_type(field.type, field.name)
+    if field.type == 11:
+        return MessageType(field, needs_decode, needs_encode)
     return TYPE_INFO[field.type](field)
 
 
@@ -645,7 +689,21 @@ class UInt64Type(VarintTypeMixin, TypeInfo):
         return o
 
     def get_size_calculation(self, name: str, force: bool = False) -> str:
+        if self.mac_address and force:
+            field_id_size = self.calculate_field_id_size()
+            return (
+                f"size += ProtoSize::calc_uint64_48bit_force({field_id_size}, {name});"
+            )
         return self._get_simple_size_calculation(name, force, "uint64")
+
+    @property
+    def RAW_ENCODE_MAP(self) -> dict[str, str]:  # noqa: N802
+        if self.mac_address:
+            return {
+                **TypeInfo.RAW_ENCODE_MAP,
+                "encode_uint64": "ProtoEncode::encode_varint_raw_48bit(pos, {value});",
+            }
+        return TypeInfo.RAW_ENCODE_MAP
 
     def get_estimated_size(self) -> int:
         return self.calculate_field_id_size() + 3  # field ID + 3 bytes typical varint
@@ -904,8 +962,32 @@ class MessageType(TypeInfo):
         return None
 
     @property
+    def public_content(self) -> list[str]:
+        content = [self.class_member]
+        if self._track_presence:
+            content.append(f"bool has_{self.name}{{false}};")
+        return content
+
+    @property
+    def _track_presence(self) -> bool:
+        # Presence is only observable on the decode side
+        return self._needs_decode and get_field_opt(
+            self._field, pb.track_presence, False
+        )
+
+    @property
     def decode_length_content(self) -> str:
         # Custom decode that doesn't use templates
+        if self._track_presence:
+            # decode_to_message() cannot report failure, so setting the flag
+            # afterwards only documents intent; a status-returning decode could
+            # gate it for real without touching callers.
+            return (
+                f"case {self.number}:\n"
+                f"      value.decode_to_message(this->{self.field_name});\n"
+                f"      this->has_{self.name} = true;\n"
+                f"      break;"
+            )
         return f"case {self.number}: value.decode_to_message(this->{self.field_name}); break;"
 
     def dump(self, name: str) -> str:
@@ -913,7 +995,10 @@ class MessageType(TypeInfo):
 
     @property
     def dump_content(self) -> str:
-        o = f'out.append(2, \' \').append_p(ESPHOME_PSTR("{self.name}")).append(": ");\n'
+        o = ""
+        if self._track_presence:
+            o += f'dump_field(out, ESPHOME_PSTR("has_{self.name}"), this->has_{self.name});\n'
+        o += f'out.append(2, \' \').append_p(ESPHOME_PSTR("{self.name}")).append(": ");\n'
         o += f"this->{self.field_name}.dump_to(out);\n"
         o += 'out.append("\\n");'
         return o
@@ -1244,11 +1329,11 @@ class PackedBufferTypeInfo(TypeInfo):
         """Dump shows buffer info but not decoded values."""
         return (
             f'out.append(2, \' \').append_p(ESPHOME_PSTR("{self.name}")).append(": ");\n'
-            + 'out.append_p(ESPHOME_PSTR("packed buffer ["));\n'
-            + f"append_uint(out, this->{self.field_name}_count_);\n"
-            + 'out.append_p(ESPHOME_PSTR(" values, "));\n'
-            + f"append_uint(out, this->{self.field_name}_length_);\n"
-            + 'out.append_p(ESPHOME_PSTR(" bytes]\\n"));'
+            'out.append_p(ESPHOME_PSTR("packed buffer ["));\n'
+            f"append_uint(out, this->{self.field_name}_count_);\n"
+            'out.append_p(ESPHOME_PSTR(" values, "));\n'
+            f"append_uint(out, this->{self.field_name}_length_);\n"
+            'out.append_p(ESPHOME_PSTR(" bytes]\\n"));'
         )
 
     def dump(self, name: str) -> str:
@@ -2367,7 +2452,10 @@ def get_varint64_ifdef(
         # At least one 64-bit varint field is unconditional, so the guard must be unconditional.
         return True, None
     ifdefs.discard(None)
-    return True, ifdefs.pop() if len(ifdefs) == 1 else None
+    # Several guards: the define is needed under any of them, so emit the union.
+    # Falling back to unconditional would pull 64-bit varint support into builds
+    # that have none of them.
+    return True, " || ".join(sorted(ifdefs))
 
 
 def build_enum_type(desc, enum_ifdef_map) -> tuple[str, str, str]:
@@ -2474,14 +2562,10 @@ def build_message_type(
 
     # Add MESSAGE_TYPE method if this is a service message
     if message_id is not None:
-        # Validate that message_id fits in uint8_t
-        if message_id > 255:
-            raise ValueError(
-                f"Message ID {message_id} for {desc.name} exceeds uint8_t maximum (255)"
-            )
+        validate_message_id(message_id, desc.name)
 
         # Add static constexpr for message type
-        public_content.append(f"static constexpr uint8_t MESSAGE_TYPE = {message_id};")
+        public_content.append(f"static constexpr uint16_t MESSAGE_TYPE = {message_id};")
 
         # Add estimated size constant
         estimated_size = calculate_message_estimated_size(desc)
@@ -3021,7 +3105,7 @@ def build_service_message_type(
     if source in (SOURCE_BOTH, SOURCE_CLIENT):
         # Only add ifdef when we're actually generating content
         if ifdef is not None:
-            hout += f"#ifdef {ifdef}\n"
+            hout += _make_ifdef_line(ifdef) + "\n"
         # Generate receive handler and switch case
         func = f"on_{snake}"
         has_fields = any(not field.options.deprecated for field in mt.field)
@@ -3124,7 +3208,7 @@ def main() -> None:
         defines_content += "\n"
     defines_content += "\nnamespace esphome::api {}  // namespace esphome::api\n"
 
-    with open(root / "api_pb2_defines.h", "w", encoding="utf-8") as f:
+    with (root / "api_pb2_defines.h").open("w", encoding="utf-8") as f:
         f.write(defines_content)
 
     content = FILE_HEADER
@@ -3137,8 +3221,12 @@ def main() -> None:
 #include "api_pb2_includes.h"
 """
 
-    content += """
-namespace esphome::api {
+    content += f"""
+namespace esphome::api {{
+
+// Upper bound on message IDs, enforced by the code generator: the plaintext
+// frame header budgets 2 varint bytes for the type (HEADER_PADDING).
+static constexpr uint16_t MAX_MESSAGE_TYPE = {MAX_MESSAGE_ID};
 
 """
 
@@ -3302,8 +3390,8 @@ static void dump_bytes_field(DumpBuffer &out, const char *field_name, const uint
                 content += "#endif\n"
                 dump_cpp += "#endif\n"
             if enum_ifdef is not None:
-                content += f"#ifdef {enum_ifdef}\n"
-                dump_cpp += f"#ifdef {enum_ifdef}\n"
+                content += _make_ifdef_line(enum_ifdef) + "\n"
+                dump_cpp += _make_ifdef_line(enum_ifdef) + "\n"
             current_ifdef = enum_ifdef
 
         content += s
@@ -3378,9 +3466,9 @@ static void dump_bytes_field(DumpBuffer &out, const char *field_name, const uint
                 if dump_cpp:
                     dump_cpp += "#endif\n"
             if msg_ifdef is not None:
-                content += f"#ifdef {msg_ifdef}\n"
-                cpp += f"#ifdef {msg_ifdef}\n"
-                dump_cpp += f"#ifdef {msg_ifdef}\n"
+                content += _make_ifdef_line(msg_ifdef) + "\n"
+                cpp += _make_ifdef_line(msg_ifdef) + "\n"
+                dump_cpp += _make_ifdef_line(msg_ifdef) + "\n"
             current_ifdef = msg_ifdef
 
         content += s
@@ -3409,13 +3497,13 @@ static void dump_bytes_field(DumpBuffer &out, const char *field_name, const uint
 #endif  // HAS_PROTO_MESSAGE_DUMP
 """
 
-    with open(root / "api_pb2.h", "w", encoding="utf-8") as f:
+    with (root / "api_pb2.h").open("w", encoding="utf-8") as f:
         f.write(content)
 
-    with open(root / "api_pb2.cpp", "w", encoding="utf-8") as f:
+    with (root / "api_pb2.cpp").open("w", encoding="utf-8") as f:
         f.write(cpp)
 
-    with open(root / "api_pb2_dump.cpp", "w", encoding="utf-8") as f:
+    with (root / "api_pb2_dump.cpp").open("w", encoding="utf-8") as f:
         f.write(dump_cpp)
 
     hpp = FILE_HEADER
@@ -3512,7 +3600,7 @@ static const char *const TAG = "api.service";
         if id_ is not None and not mt.options.deprecated:
             id_to_msg_name[id_] = mt.name
 
-    for id_, (_, _, case_label) in cases:
+    for id_, (_, _, _case_label) in cases:
         msg_name = id_to_msg_name.get(id_, "")
         if msg_name in message_auth_map:
             needs_auth = message_auth_map[msg_name]
@@ -3529,7 +3617,7 @@ static const char *const TAG = "api.service";
         for id_ in sorted(ids):
             _, ifdef, case_label = RECEIVE_CASES[id_]
             if ifdef:
-                result += f"#ifdef {ifdef}\n"
+                result += _make_ifdef_line(ifdef) + "\n"
             result += f"    case {case_label}:  {comment}\n"
             if ifdef:
                 result += "#endif\n"
@@ -3538,8 +3626,13 @@ static const char *const TAG = "api.service";
     # Generate read_message_ as APIConnection method (not base class) so the compiler
     # can devirtualize and inline the on_* handler calls within the same class.
     # APIConnection declares this method in api_connection.h.
+    # Guard with #ifdef USE_API since APIConnection itself is only defined when
+    # USE_API is set; without this, builds that compile this .cpp without
+    # USE_API (e.g. C++ unit tests for api dependencies) fail to find the
+    # class declaration.
 
-    out = "void APIConnection::read_message_(uint32_t msg_size, uint32_t msg_type, const uint8_t *msg_data) {\n"
+    out = "#ifdef USE_API\n"
+    out += "void APIConnection::read_message_(uint32_t msg_size, uint32_t msg_type, const uint8_t *msg_data) {\n"
 
     # Auth check block before dispatch switch
     out += "  // Check authentication/connection requirements\n"
@@ -3570,9 +3663,9 @@ static const char *const TAG = "api.service";
 
     # Dispatch switch
     out += "  switch (msg_type) {\n"
-    for i, (case, ifdef, case_label) in cases:
+    for _i, (case, ifdef, case_label) in cases:
         if ifdef is not None:
-            out += f"#ifdef {ifdef}\n"
+            out += _make_ifdef_line(ifdef) + "\n"
 
         c = f"    case {case_label}: {{\n"
         c += indent(case, "      ") + "\n"
@@ -3584,6 +3677,7 @@ static const char *const TAG = "api.service";
     out += "      break;\n"
     out += "  }\n"
     out += "}\n"
+    out += "#endif  // USE_API\n"
     cpp += out
     hpp += "};\n"
 
@@ -3596,10 +3690,10 @@ static const char *const TAG = "api.service";
 }  // namespace esphome::api
 """
 
-    with open(root / "api_pb2_service.h", "w", encoding="utf-8") as f:
+    with (root / "api_pb2_service.h").open("w", encoding="utf-8") as f:
         f.write(hpp)
 
-    with open(root / "api_pb2_service.cpp", "w", encoding="utf-8") as f:
+    with (root / "api_pb2_service.cpp").open("w", encoding="utf-8") as f:
         f.write(cpp)
 
     prot_file.unlink()

@@ -1,0 +1,21 @@
+# Config-only test: micro_wake_word without any compiled-in models. Covers the optional models
+# schema, which validates without a model list. Wake word models are added at runtime instead,
+# which voice_assistant wires up.
+substitutions:
+  mic_din_pin: GPIO36
+
+packages:
+  i2s_audio: !include ../../test_build_components/common/i2s_audio/esp32-idf.yaml
+
+microphone:
+  - platform: i2s_audio
+    id: echo_microphone
+    i2s_audio_id: i2s_audio_bus
+    i2s_din_pin: ${mic_din_pin}
+    adc_type: external
+    pdm: true
+    bits_per_sample: 16bit
+
+micro_wake_word:
+  microphone: echo_microphone
+  # models is omitted entirely, so the default empty list applies

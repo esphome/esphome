@@ -1,7 +1,6 @@
 #include "touchscreen_binary_sensor.h"
 
-namespace esphome {
-namespace touchscreen {
+namespace esphome::touchscreen {
 
 void TouchscreenBinarySensor::setup() {
   this->parent_->register_listener(this);
@@ -30,5 +29,4 @@ void TouchscreenBinarySensor::touch(TouchPoint tp) {
 
 void TouchscreenBinarySensor::release() { this->publish_state(false); }
 
-}  // namespace touchscreen
-}  // namespace esphome
+}  // namespace esphome::touchscreen

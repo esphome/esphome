@@ -2,8 +2,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace remote_base {
+namespace esphome::remote_base {
 
 static const char *const TAG = "remote_base";
 
@@ -198,5 +197,4 @@ void RemoteTransmitterBase::send_(uint32_t send_times, uint32_t send_wait) {
 #endif
   this->send_internal(send_times, send_wait);
 }
-}  // namespace remote_base
-}  // namespace esphome
+}  // namespace esphome::remote_base

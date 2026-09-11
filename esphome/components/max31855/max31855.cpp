@@ -3,8 +3,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace max31855 {
+namespace esphome::max31855 {
 
 static const char *const TAG = "max31855";
 
@@ -100,5 +99,4 @@ void MAX31855Sensor::read_data_() {
   this->status_clear_warning();
 }
 
-}  // namespace max31855
-}  // namespace esphome
+}  // namespace esphome::max31855

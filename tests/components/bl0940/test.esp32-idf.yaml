@@ -3,6 +3,6 @@ substitutions:
   rx_pin: GPIO14
 
 packages:
-  uart: !include ../../test_build_components/common/uart/esp32-idf.yaml
+  uart_4800: !include ../../test_build_components/common/uart_4800/esp32-idf.yaml
 
 <<: !include common.yaml

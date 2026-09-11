@@ -1,0 +1,115 @@
+# Combined DS248x test covering all chip variants and options:
+#   - DS2482-100: active pullup, multiple sensors + index access
+#   - DS2482-101: sleep pin, bus_sleep / hub_sleep
+#   - DS2482-800: all 8 channels
+#   - DS2484:     adjustable 1-Wire timing + RWPU pullup resistor selection
+ds248x:
+  - id: ds2482_100
+    address: 0x18
+    type: ds2482-100
+    active_pullup: true
+  - id: ds2482_101
+    address: 0x19
+    type: ds2482-101
+    active_pullup: true
+    sleep_pin:
+      number: GPIO12
+      inverted: false
+    bus_sleep: true
+    hub_sleep: true
+  - id: ds2482_800
+    address: 0x1a
+    type: ds2482-800
+    active_pullup: true
+  - id: ds2484_hub
+    address: 0x1b
+    type: ds2484
+    active_pullup: true
+    # DS2484-specific 1-Wire timing parameters (optional fine-tuning)
+    reset_low_time: 8              # tRSTL: Reset low time
+    master_sample_time: 8         # tMSP: Master sample point
+    write_0_low_time: 8           # tW0L: Write-0 low time
+    recovery_time: 8              # tREC0: Recovery time
+    active_pullup_resistance: 1000ohm  # RWPU: weak pullup resistor selection
+
+one_wire:
+  - platform: ds248x
+    ds248x_id: ds2482_100
+    channel: 0
+    id: ow_100
+  - platform: ds248x
+    ds248x_id: ds2482_101
+    channel: 0
+    id: ow_101
+  - platform: ds248x
+    ds248x_id: ds2482_800
+    channel: 0
+    id: ow_800_0
+  - platform: ds248x
+    ds248x_id: ds2482_800
+    channel: 1
+    id: ow_800_1
+  - platform: ds248x
+    ds248x_id: ds2482_800
+    channel: 2
+    id: ow_800_2
+  - platform: ds248x
+    ds248x_id: ds2482_800
+    channel: 3
+    id: ow_800_3
+  - platform: ds248x
+    ds248x_id: ds2482_800
+    channel: 4
+    id: ow_800_4
+  - platform: ds248x
+    ds248x_id: ds2482_800
+    channel: 5
+    id: ow_800_5
+  - platform: ds248x
+    ds248x_id: ds2482_800
+    channel: 6
+    id: ow_800_6
+  - platform: ds248x
+    ds248x_id: ds2482_800
+    channel: 7
+    id: ow_800_7
+  - platform: ds248x
+    ds248x_id: ds2484_hub
+    channel: 0
+    id: ow_2484
+
+sensor:
+  # DS2482-100: explicit address + index-based access on the same bus
+  - platform: dallas_temp
+    one_wire_id: ow_100
+    address: 0x1c0000031edd2a28
+    name: Temp 100 by address
+    resolution: 12
+  - platform: dallas_temp
+    one_wire_id: ow_100
+    index: 0
+    name: Temp 100 by index
+  # DS2482-101 (sleep variant)
+  - platform: dallas_temp
+    one_wire_id: ow_101
+    address: 0x578295491f64ff28
+    name: Temp 101
+  # DS2482-800: sensors on a few of the eight channels
+  - platform: dallas_temp
+    one_wire_id: ow_800_0
+    address: 0x1c0000031edd2a28
+    name: Temp 800 CH0
+  - platform: dallas_temp
+    one_wire_id: ow_800_3
+    index: 0
+    name: Temp 800 CH3 by index
+  - platform: dallas_temp
+    one_wire_id: ow_800_7
+    address: 0x2800000123456789
+    name: Temp 800 CH7
+  # DS2484 (adjustable timing)
+  - platform: dallas_temp
+    one_wire_id: ow_2484
+    address: 0x1c0000031edd2a28
+    name: Temp 2484
+    resolution: 12

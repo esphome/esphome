@@ -5,7 +5,7 @@
 
 namespace esphome::dew_point {
 
-class DewPointComponent : public Component, public sensor::Sensor {
+class DewPointComponent final : public Component, public sensor::Sensor {
  public:
   void set_temperature_sensor(sensor::Sensor *temperature_sensor) { this->temperature_sensor_ = temperature_sensor; }
   void set_humidity_sensor(sensor::Sensor *humidity_sensor) { this->humidity_sensor_ = humidity_sensor; }

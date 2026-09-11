@@ -1,5 +1,5 @@
-#include <cinttypes>
 #include "mitsubishi_cn105_climate.h"
+
 #include "esphome/core/log.h"
 
 namespace esphome::mitsubishi_cn105 {
@@ -52,23 +52,13 @@ static constexpr std::optional<Left> reverse_map_lookup(const std::array<std::pa
 
 void MitsubishiCN105Climate::dump_config() {
   LOG_CLIMATE("", "Mitsubishi CN105 Climate", this);
-  if (this->hp_.is_room_temperature_enabled()) {
-    ESP_LOGCONFIG(TAG, "  Current temperature min interval: %" PRIu32 " ms",
-                  this->hp_.get_room_temperature_min_interval());
-  } else {
-    ESP_LOGCONFIG(TAG, "  Current temperature: disabled");
-  }
-  ESP_LOGCONFIG(TAG,
-                "  Update interval: %" PRIu32 " ms\n"
-                "  UART: baud_rate=%" PRIu32 " data_bits=%u parity=%s stop_bits=%u",
-                this->hp_.get_update_interval(), this->parent_->get_baud_rate(), this->parent_->get_data_bits(),
-                LOG_STR_ARG(parity_to_str(this->parent_->get_parity())), this->parent_->get_stop_bits());
+  ESP_LOGCONFIG(TAG, "  Temperature unit: °%c",
+                this->parent_->get_temperature_mapping().get_use_fahrenheit() ? 'F' : 'C');
 }
 
-void MitsubishiCN105Climate::setup() { this->hp_.initialize(); }
-
-void MitsubishiCN105Climate::loop() {
-  if (this->hp_.update()) {
+void MitsubishiCN105Climate::setup() {
+  this->parent_->add_on_status_callback([this]() { this->apply_values_(); });
+  if (this->parent_->is_status_initialized()) {
     this->apply_values_();
   }
 }
@@ -84,13 +74,17 @@ climate::ClimateTraits MitsubishiCN105Climate::traits() {
     traits.add_supported_fan_mode(p.second);
   }
 
-  traits.set_visual_min_temperature(16.0f);
-  traits.set_visual_max_temperature(31.0f);
+  traits.set_supported_swing_modes(this->swing_mode_manager_.supported_swing_modes());
+
+  const bool use_fahrenheit = this->parent_->get_temperature_mapping().get_use_fahrenheit();
+  traits.set_temperature_unit(use_fahrenheit ? TemperatureUnit::FAHRENHEIT : TemperatureUnit::CELSIUS);
+  traits.set_visual_min_temperature(use_fahrenheit ? 61.0f : 16.0f);
+  traits.set_visual_max_temperature(use_fahrenheit ? 88.0f : 31.0f);
   traits.set_visual_temperature_step(1.0f);
 
-  if (this->hp_.is_room_temperature_enabled()) {
+  if (this->parent_->is_telemetry_polling_enabled()) {
     traits.add_feature_flags(climate::CLIMATE_SUPPORTS_CURRENT_TEMPERATURE);
-    traits.set_visual_current_temperature_step(0.5f);
+    traits.set_visual_current_temperature_step(use_fahrenheit ? 1.0f : 0.5f);
   }
 
   return traits;
@@ -98,34 +92,41 @@ climate::ClimateTraits MitsubishiCN105Climate::traits() {
 
 void MitsubishiCN105Climate::control(const climate::ClimateCall &call) {
   if (const auto target_temperature = call.get_target_temperature()) {
-    this->hp_.set_target_temperature(*target_temperature);
+    this->parent_->set_target_temperature(this->parent_->get_temperature_mapping().to_mitsubishi(*target_temperature));
   }
 
   if (const auto mode = call.get_mode()) {
     if (*mode == climate::CLIMATE_MODE_OFF) {
-      this->hp_.set_power(false);
+      this->parent_->set_power(false);
     } else if (const auto mapped = reverse_map_lookup(MODE_MAP, *mode)) {
-      this->hp_.set_power(true);
-      this->hp_.set_mode(*mapped);
+      this->parent_->set_power(true);
+      this->parent_->set_mode(*mapped);
     }
   }
 
   if (const auto fan_mode = reverse_map_lookup(FAN_MODE_MAP, call.get_fan_mode())) {
-    this->hp_.set_fan_mode(*fan_mode);
+    this->parent_->set_fan_mode(*fan_mode);
   }
 
-  if (this->hp_.is_status_initialized()) {
-    this->apply_values_();
+  if (const auto swing_mode = call.get_swing_mode()) {
+    if (const auto vane = this->swing_mode_manager_.vane_from(*swing_mode)) {
+      this->parent_->set_vane_mode(*vane);
+    }
+    if (const auto wide = this->swing_mode_manager_.wide_vane_from(*swing_mode)) {
+      this->parent_->set_wide_vane_mode(*wide);
+    }
   }
+
+  this->parent_->publish_status();
 }
 
 void MitsubishiCN105Climate::apply_values_() {
-  const auto &status = this->hp_.status();
+  const auto &status = this->parent_->status();
 
-  this->target_temperature = status.target_temperature;
+  this->target_temperature = this->parent_->get_temperature_mapping().from_mitsubishi(status.target_temperature);
 
-  if (this->hp_.is_room_temperature_enabled()) {
-    this->current_temperature = status.room_temperature;
+  if (this->parent_->is_telemetry_polling_enabled()) {
+    this->current_temperature = this->parent_->get_temperature_mapping().from_mitsubishi(status.room_temperature);
   }
 
   if (status.power_on) {
@@ -143,7 +144,39 @@ void MitsubishiCN105Climate::apply_values_() {
     ESP_LOGD(TAG, "Unable to map fan mode");
   }
 
+  if (const auto swing_mode =
+          this->swing_mode_manager_.update_and_get_swing_mode(status.vane_mode, status.wide_vane_mode)) {
+    this->swing_mode = *swing_mode;
+  }
+
   this->publish_state();
+}
+
+void MitsubishiCN105Climate::set_supported_swing_mode(climate::ClimateSwingMode mode) {
+  climate::ClimateSwingModeMask supported_swing_modes;
+  switch (mode) {
+    case climate::CLIMATE_SWING_VERTICAL:
+      supported_swing_modes.insert(climate::CLIMATE_SWING_OFF);
+      supported_swing_modes.insert(climate::CLIMATE_SWING_VERTICAL);
+      break;
+
+    case climate::CLIMATE_SWING_HORIZONTAL:
+      supported_swing_modes.insert(climate::CLIMATE_SWING_OFF);
+      supported_swing_modes.insert(climate::CLIMATE_SWING_HORIZONTAL);
+      break;
+
+    case climate::CLIMATE_SWING_BOTH:
+      supported_swing_modes.insert(climate::CLIMATE_SWING_OFF);
+      supported_swing_modes.insert(climate::CLIMATE_SWING_VERTICAL);
+      supported_swing_modes.insert(climate::CLIMATE_SWING_HORIZONTAL);
+      supported_swing_modes.insert(climate::CLIMATE_SWING_BOTH);
+      break;
+
+    case climate::CLIMATE_SWING_OFF:
+    default:
+      break;
+  }
+  this->swing_mode_manager_.set_supported_swing_modes(supported_swing_modes);
 }
 
 }  // namespace esphome::mitsubishi_cn105

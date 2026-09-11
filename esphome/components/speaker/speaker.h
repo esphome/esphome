@@ -16,8 +16,7 @@
 #include "esphome/components/audio_dac/audio_dac.h"
 #endif
 
-namespace esphome {
-namespace speaker {
+namespace esphome::speaker {
 
 enum State : uint8_t {
   STATE_STOPPED = 0,
@@ -123,5 +122,4 @@ class Speaker {
   CallbackManager<void(uint32_t, int64_t)> audio_output_callback_{};
 };
 
-}  // namespace speaker
-}  // namespace esphome
+}  // namespace esphome::speaker
