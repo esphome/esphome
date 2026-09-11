@@ -2701,8 +2701,9 @@ message InfraredRFReceiveEvent {
 // transmitter reports that the transmission (all repeats) has finished, or immediately with
 // success=false if it was refused before reaching the transmitter (unknown key, no transmitter,
 // no or invalid timings) or the transmitter could not send it (not set up, hardware error).
-// success=false also answers a request the same client superseded with a newer one and a
-// transmit that reported nothing within 30 s, so a client should not retry on it blindly.
+// success=false also answers a request superseded by a newer request on the same entity, from
+// any client, and a transmit that reported nothing within 30 s past its expected air time, so a
+// client should not retry on it blindly.
 // Lets clients pace requests instead of estimating durations (since API 1.18)
 message InfraredRFTransmitCompleteResponse {
   option (id) = 153;

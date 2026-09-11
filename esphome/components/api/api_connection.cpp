@@ -1586,7 +1586,7 @@ void APIConnection::send_infrared_rf_receive_event(const InfraredRFReceiveEvent 
   if (!this->send_message(msg)) {
     // V: fires per decoded frame with no subscription gate, so a warning
     // would flood the congested link it reports on.
-    ESP_LOGV(TAG, "IR/RF %s dropped, TCP buffer full", LOG_STR_LITERAL("event"));
+    ESP_LOGV(TAG, "IR/RF event dropped, TCP buffer full");
   }
 }
 

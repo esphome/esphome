@@ -65,6 +65,7 @@ async def test_ir_rf_transmit_complete(
     loop = asyncio.get_running_loop()
     events: list[tuple[str, int]] = []
     all_sent = loop.create_future()
+    all_logged = loop.create_future()
 
     def line_callback(line: str) -> None:
         if (match := MOCK_EVENT.search(line)) is None:
@@ -76,6 +77,9 @@ async def test_ir_rf_transmit_complete(
             and sum(kind == "Complete" for kind, _ in events) == FRAME_COUNT
         ):
             all_sent.set_result(None)
+        # the log reader stops with the device, so wait for the last line before asserting on it
+        if len(events) == 2 * (FRAME_COUNT + 1) and not all_logged.done():
+            all_logged.set_result(None)
 
     completions: list[InfraredRFTransmitCompleteResponse] = []
     all_replied = loop.create_future()
@@ -120,6 +124,7 @@ async def test_ir_rf_transmit_complete(
         # the infrared entity goes through the same path on its own transmitter
         client.infrared_rf_transmit_raw_timings(ir.key, 38000, TIMINGS)
         await asyncio.wait_for(ir_replied, timeout=10)
+        await asyncio.wait_for(all_logged, timeout=10)
 
         # A request the entity refuses is answered right away with success false;
         # no timings, so the proxy rejects it before it reaches the transmitter

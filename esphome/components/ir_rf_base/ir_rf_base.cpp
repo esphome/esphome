@@ -1,5 +1,6 @@
 #include "ir_rf_base.h"
 
+#include <algorithm>
 #include <cinttypes>
 
 #include "esphome/core/log.h"
@@ -13,6 +14,15 @@
 namespace esphome::ir_rf_base {
 
 static const char *const TAG = "ir_rf";
+
+#if defined(USE_API) && defined(USE_IR_RF)
+// Safety net for a transmitter that never reports completion (for example a failed component):
+// the request is answered as failed this long after its frame should have left the wire
+static constexpr uint32_t API_REPLY_TIMEOUT_MS = 30000;
+// Longest air time added to the deadline, in 16 ms ticks (8 min); with the 30 s above the
+// deadline stays within the signed 16 bit tick window loop() compares against
+static constexpr uint16_t API_REPLY_MAX_AIR_TICKS = 30000;
+#endif
 
 void IrRfEntity::setup() {
   // merged, not assigned: a platform may have set a flag for its own hardware before setup()
@@ -74,10 +84,20 @@ bool IrRfEntity::transmit_raw_(const IrRfCallData &call, uint32_t carrier_freque
     transmit_call.set_send_times(call.get_repeat_count());
   }
 
+#if defined(USE_API) && defined(USE_IR_RF)
+  if (call.wants_api_reply()) {
 #ifdef USE_IR_RF_TRANSMIT_COMPLETE
-  // only an API frame claims the seq, so a YAML transmit cannot take over a pending reply
-  if (call.wants_api_reply())
+    // only an API frame claims the seq, so a YAML transmit cannot take over a pending reply
     this->inflight_seq_ = transmit_call.get_seq();
+#endif
+    // a long frame must not be answered as failed while still on the wire: the 30 s safety net
+    // starts after this frame's own air time (capped so the tick comparison cannot wrap)
+    uint64_t frame_us = 0;
+    for (int32_t timing : transmit_data->get_data())
+      frame_us += static_cast<uint32_t>(timing < 0 ? -timing : timing);
+    const uint64_t air_ticks = (frame_us * std::max<uint32_t>(call.get_repeat_count(), 1) / 1000) >> 4;
+    this->api_reply_deadline_ += static_cast<uint16_t>(std::min<uint64_t>(air_ticks, API_REPLY_MAX_AIR_TICKS));
+  }
 #endif
   transmit_call.perform();
   return true;
@@ -98,10 +118,6 @@ bool IrRfEntity::on_receive(remote_base::RemoteReceiveData data) {
 }
 
 #if defined(USE_API) && defined(USE_IR_RF)
-// Safety net for a transmitter that never reports completion (for example a failed component),
-// measured from the request: a frame that stays on the wire longer than this is answered as
-// failed while still transmitting
-static constexpr uint32_t API_REPLY_TIMEOUT_MS = 30000;
 
 #ifdef USE_IR_RF_TRANSMIT_COMPLETE
 void IrRfEntity::on_transmit_complete(remote_base::RemoteTransmitterBase *transmitter, uint16_t seq, bool sent) {
@@ -121,7 +137,8 @@ void IrRfEntity::expect_api_reply_(api::APIConnection *conn) {
     ESP_LOGW(TAG, "'%s': transmit %s", this->get_name().c_str(), LOG_STR_LITERAL("reply displaced"));
   }
   this->api_reply_connection_ = conn;
-  this->api_reply_registered_ = static_cast<uint16_t>(App.get_loop_component_start_time() >> 4);
+  this->api_reply_deadline_ =
+      static_cast<uint16_t>((App.get_loop_component_start_time() >> 4) + (API_REPLY_TIMEOUT_MS >> 4));
   this->api_reply_ = ApiReply::API_REPLY_WAITING;
 }
 
@@ -156,8 +173,8 @@ void IrRfEntity::loop() {
     this->send_api_reply_();
     return;
   }
-  const auto age = static_cast<uint16_t>((App.get_loop_component_start_time() >> 4) - this->api_reply_registered_);
-  if (age < (API_REPLY_TIMEOUT_MS >> 4))
+  const auto remaining = static_cast<int16_t>(this->api_reply_deadline_ - (App.get_loop_component_start_time() >> 4));
+  if (remaining > 0)
     return;
   ESP_LOGW(TAG, "'%s': transmit %s", this->get_name().c_str(), LOG_STR_LITERAL("never reported completion"));
   this->finish_api_reply_(false);
