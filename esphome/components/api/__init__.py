@@ -353,7 +353,6 @@ CONFIG_SCHEMA = cv.All(
             # Maximum queued messages per connection before dropping the connection.
             # Also bounds the backlog at 2 KB per slot; slots cost no RAM until used.
             # Platform defaults based on available RAM and typical message rates:
-            # CONF_MAX_SEND_QUEUE defaults are power of 2 for efficient modulo
             cv.SplitDefault(
                 CONF_MAX_SEND_QUEUE,
                 esp8266=4,  # Limited RAM, need to fail fast
