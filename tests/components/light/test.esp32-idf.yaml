@@ -17,25 +17,6 @@ output:
   - platform: ledc
     id: test_ledc_5
     pin: 17
-  - platform: template
-    id: light_test_restore_state_keep
-    type: binary
-    write_action:
-      - lambda: ""
-  - platform: template
-    id: light_test_restore_state_override
-    type: binary
-    write_action:
-      - lambda: ""
-  - platform: template
-    id: light_test_restore_state_none
-    type: binary
-    write_action:
-      - lambda: ""
-  - platform: template
-    id: light_test_restore_state_initial
-    type: binary
-    write_action:
-      - lambda: ""
 
-<<: !include common.yaml
+packages:
+  common: !include common.yaml

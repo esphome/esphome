@@ -1,10 +1,6 @@
-"""Translate `restore_mode:`/`restore_state:` config into the single runtime state
-callback that `LightState` actually understands: a `[](LightStateRTCState &s, bool
-restored)` lambda, plus a `save_enabled` flag. `restored` is true only when a
-persisted state actually loaded, in which case `s` already holds the loaded values;
-otherwise `s` is freshly default-constructed. Both the 8 legacy `restore_mode:`
-values and the new `restore_state:` key are just different ways to build the
-statements that go in each branch of that one callback.
+"""
+Functions and classes to translate the `restore_mode:` and `restore_state:` config keys into
+the single runtime state callback that `LightState` actually understands.
 """
 
 from collections.abc import Callable
@@ -142,14 +138,10 @@ async def _build_state_lambda(
     restore_statements: list[StateStatement],
     save_enabled: bool,
 ) -> Lambda | None:
-    """A stateless `[](LightStateRTCState &s, bool restored) { ... }` for setup()-time
-    state mutation, or None if there's nothing to apply in either branch.
-
-    `restored` is true only when a persisted state actually loaded -- `s` then already
-    holds the loaded values, and `restore_statements` overrides specific fields on top
-    of them. Otherwise `s` is freshly default-constructed and `initial_statements` sets
-    the cold-boot defaults. Combining both into one function (rather than two separate
-    callbacks) saves one function pointer's worth of RAM per light.
+    """
+    Combine the initial and restore statements into a single lambda that applies the
+    correct values to a `LightStateRTCState &s` depending on whether a persisted state
+    actually loaded.
     """
     if not initial_statements and not restore_statements:
         return None
@@ -163,10 +155,8 @@ async def _build_state_lambda(
 def _initial_state_statements(
     initial_state_config: ConfigType | None,
 ) -> list[StateStatement]:
-    """One `s.<member> = <value>;` per field the user actually set in `initial_state:`.
-
-    Fields the user didn't set are skipped: they already equal LightStateRTCState's own
-    member-initializer defaults.
+    """
+    Create assignments for every field the user set in `initial_state:`, in canonical struct-member order.
     """
     if not initial_state_config:
         return []
@@ -180,10 +170,9 @@ def _initial_state_statements(
 def _resolve_initial_value(
     conf_key: str, member: str, initial_state_config: ConfigType | None
 ) -> str:
-    """The C++ expression `restore_state:`'s `INITIAL` sentinel resolves to for one
-    field: whatever `initial_state:` sets for it, or a read of `LightStateRTCState`'s
-    own member-initializer default straight from the struct -- rather than a
-    hand-copied literal -- so it can never drift out of sync with the header."""
+    """
+    Return the C++ expression to use for a `restore_state:` field whose value is INITIAL
+    """
     if (
         initial_state_config is not None
         and (value := initial_state_config.get(conf_key)) is not None
@@ -195,9 +184,8 @@ def _resolve_initial_value(
 def _restore_state_statements(
     restore_state_config: ConfigType, initial_state_config: ConfigType | None
 ) -> list[StateStatement]:
-    """One `s.<member> = <value>;` per field the user overrode in `restore_state:`
-    (i.e. didn't leave as `KEEP`). `INITIAL` resolves to the same value `initial_state:`
-    would apply at cold boot, so it always wins regardless of what was restored.
+    """
+    Create a list of statements to apply the user's `restore_state:` config
     """
     statements: list[StateStatement] = []
     state = restore_state_config[CONF_STATE]
@@ -221,6 +209,9 @@ def _restore_state_statements(
 
 
 def _legacy_restore_statements(mode: LegacyRestoreMode) -> list[StateStatement]:
+    """
+    Create a list of statements to apply the legacy restore_mode: behavior.
+    """
     if mode.restore_action is None:
         return []
     if mode.restore_action == RESTORE_STATE_INVERT:
@@ -231,13 +222,8 @@ def _legacy_restore_statements(mode: LegacyRestoreMode) -> list[StateStatement]:
 def _legacy_cold_boot_statements(
     mode: LegacyRestoreMode, initial_state_config: ConfigType | None
 ) -> list[StateStatement]:
-    """The cold-boot `s.state = ...;` override, appended after the user's own
-    `initial_state:` statements so it wins at cold boot (matching the original
-    switch-based behavior).
-
-    Skipped when it would be a no-op: `LightStateRTCState`'s own member-initializer
-    already defaults `state` to `False`, so forcing it to `False` again only matters
-    when `initial_state:` explicitly set a different value that must be overridden.
+    """
+    Create a list of statements to apply the legacy restore_mode: cold-boot behavior.
     """
     existing_state = (
         initial_state_config.get(CONF_STATE) if initial_state_config else None
@@ -253,19 +239,18 @@ def _legacy_cold_boot_statements(
 def _initial_state_overridden_by_legacy_mode(
     mode: LegacyRestoreMode, initial_state_config: ConfigType | None
 ) -> bool:
-    """Whether the user explicitly set `initial_state: {state: ...}` to a value this
-    legacy mode's cold-boot force will silently override -- worth a warning, since
-    `restore_mode:` (unlike `restore_state:`) always wins regardless of what the user
-    asked `initial_state:` for."""
+    """
+    Is the user-config `initial_state:` value for `state` overridden by the legacy mode?
+    """
     if initial_state_config is None or CONF_STATE not in initial_state_config:
         return False
     return initial_state_config[CONF_STATE] != mode.cold_boot_state
 
 
 def _keep_or(validator: Callable[[Any], Any]) -> Callable[[Any], Any]:
-    """Wrap a plain (non-templatable) validator to also accept the case-insensitive
-    `KEEP`/`INITIAL` sentinels, meaning "leave this field as loaded" and "use
-    initial_state: (or its own default) for this field" respectively."""
+    """
+    Extend a validator to also accept the `KEEP`/`INITIAL` options
+    """
 
     def validate(value: Any) -> Any:
         if isinstance(value, str):
@@ -317,10 +302,8 @@ _RESTORE_STATE_FIELDS_SCHEMA = cv.Schema(
 
 
 def RESTORE_STATE_SCHEMA(value: Any) -> ConfigType | str:
-    """`restore_state:` accepts a mapping of per-field overrides, or one of two
-    case-insensitive shorthands: `all` (equivalent to `{}` -- restore every field
-    as-is, with no overrides) or `none` (equivalent to omitting `restore_state:`
-    entirely -- no persistence at all, same as not configuring restoring at all).
+    """
+    The restore_state: config key can be a mapping of per-field overrides, `all`, or `none`.
     """
     if isinstance(value, str):
         upper = value.strip().upper()
