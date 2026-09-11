@@ -1,0 +1,11 @@
+esphome:
+  name: ota-own-key
+
+host:
+
+api:
+
+ota:
+  - platform: esphome
+    encryption:
+      key: "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="
