@@ -151,7 +151,9 @@ FILTER_SOURCE_FILES = filter_source_files_from_defines(
 )
 
 
-def register_binary_sensor(name: str, type: MockObj, schema: cv.Schema | dict):
+def register_binary_sensor(
+    name: str, type: MockObj, schema: cv.Schema | dict
+) -> Callable[[Callable[[MockObj, ConfigType], Any]], Callable]:
     registerer = BINARY_SENSOR_REGISTRY.register(name, type, schema)
 
     def decorator(func: Callable[[MockObj, ConfigType], Any]) -> Callable:
