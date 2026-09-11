@@ -118,7 +118,7 @@ void RemoteReceiverBase::register_dumper(RemoteReceiverDumperBase *dumper) {
       this->secondary_dumper_ = dumper;
       return;
     }
-  } else if (this->dumpers_.size() < REMOTE_BASE_DUMPER_COUNT) {
+  } else if (this->dumpers_.size() != REMOTE_BASE_DUMPER_COUNT) {
     this->dumpers_.push_back(dumper);
     return;
   }
