@@ -65,8 +65,9 @@ void RemoteReceiverComponent::setup() {
   this->store_.idle_us = this->idle_us_;
   this->store_.filter_us = this->filter_us_;
   this->store_.pin = this->pin_->to_isr();
-  this->store_.buffer = new int32_t[this->buffer_size_];
-  this->store_.buffer_size = this->buffer_size_;
+  // buffer_size_ is bytes; the ring holds one int32_t per pulse
+  this->store_.buffer_size = this->buffer_size_ / sizeof(int32_t);
+  this->store_.buffer = new int32_t[this->store_.buffer_size];
   this->store_.prev_micros = micros();
   this->store_.commit_micros = this->store_.prev_micros;
   this->store_.prev_level = this->pin_->digital_read();
@@ -79,7 +80,7 @@ void RemoteReceiverComponent::dump_config() {
   ESP_LOGCONFIG(
       TAG,
       "Remote Receiver:\n"
-      "  Buffer Size: %" PRIu32 "\n"
+      "  Buffer Size: %" PRIu32 " bytes\n"
       "  Tolerance: %" PRIu32 "%s\n"
       "  Filter out pulses shorter than: %" PRIu32 " us\n"
       "  Signal is done after %" PRIu32 " us of no changes",
