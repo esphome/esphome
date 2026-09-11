@@ -58,13 +58,16 @@ class IDFUARTComponent final : public UARTComponent, public Component {
    * the driver survive and the ring buffers are kept, but both hardware FIFOs are
    * flushed: a frame in flight reaches the peer truncated and bytes not yet out of the
    * RX FIFO are dropped. No lock is taken: quiesce writers first if that matters.
-   * rx_full_threshold is not rescaled; call set_rx_full_threshold_ms() first if it
-   * should follow the new baud rate.
+   * rx_full_threshold is not rescaled (call set_rx_full_threshold_ms() first if it
+   * should follow the baud rate); a rollback restores the value from the last accepted
+   * configuration, undoing a standalone set_rx_full_threshold() made since. Without an
+   * installed driver this is a full load_settings(false) instead.
    *
    * @return ESP_OK once the new framing is live (a line-setting error after that only
    * logs). On rejection (unreachable baud rate) the previous framing is restored and
    * the driver's error returned; if the restore fails too the component is marked
-   * failed. ESP_ERR_INVALID_STATE if already failed.
+   * failed. ESP_ERR_INVALID_STATE if already failed; ESP_FAIL if the fallback
+   * load_settings() fails.
    */
   esp_err_t apply_settings_live();
 
