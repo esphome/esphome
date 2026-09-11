@@ -20,7 +20,7 @@ namespace esphome::usb_cdc_acm {
 static const uint8_t EVENT_QUEUE_SIZE = 12;
 
 // Drain up to out_buf_sz bytes from a byte ring buffer, handling FreeRTOS's wrapped
-// case with a second read. Shared with the usb_uart bridge platform, whose worker
+// case with a second read. Shared with the cdc_acm_uart bridge platform, whose worker
 // tasks drain the same ring buffers.
 inline esp_err_t ringbuf_read_bytes(RingbufHandle_t ring_buf, uint8_t *out_buf, size_t out_buf_sz, size_t *rx_data_size,
                                     TickType_t x_ticks_to_wait) {

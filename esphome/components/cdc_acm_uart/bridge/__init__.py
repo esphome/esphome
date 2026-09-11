@@ -17,13 +17,13 @@ CONF_USB_CDC_ACM_ID = "usb_cdc_acm_id"
 CONF_UART_RX_BUFFER_SIZE = "uart_rx_buffer_size"
 CONF_UART_TX_BUFFER_SIZE = "uart_tx_buffer_size"
 
-usb_uart_bridge_ns = cg.esphome_ns.namespace("usb_uart_bridge")
-USBUARTBridge = usb_uart_bridge_ns.class_("USBUARTBridge", cg.Component)
+cdc_acm_uart_ns = cg.esphome_ns.namespace("cdc_acm_uart")
+CDCACMUARTBridge = cdc_acm_uart_ns.class_("CDCACMUARTBridge", cg.Component)
 
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
-            cv.GenerateID(): cv.declare_id(USBUARTBridge),
+            cv.GenerateID(): cv.declare_id(CDCACMUARTBridge),
             cv.Required(CONF_UART_ID): cv.use_id(uart.IDFUARTComponent),
             cv.Required(CONF_USB_CDC_ACM_ID): cv.use_id(usb_cdc_acm.USBCDCACMInstance),
             cv.Optional(CONF_DTR_PIN): pins.gpio_output_pin_schema,

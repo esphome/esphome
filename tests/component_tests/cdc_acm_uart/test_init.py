@@ -1,8 +1,9 @@
-"""Tests for the bridge usb_uart platform's final validation."""
+"""Tests for the bridge cdc_acm_uart platform's final validation."""
 
 import pytest
 
 from esphome import config_validation as cv
+from esphome.components.cdc_acm_uart import bridge
 from esphome.const import CONF_UART_ID, PlatformFramework
 from esphome.core import ID
 from esphome.types import ConfigType
@@ -22,10 +23,6 @@ def _set_esp32_s3(set_core_config: SetCoreConfigCallable, **kwargs) -> None:
 
 
 def _final_validate(config: ConfigType) -> ConfigType:
-    # usb_uart's schema reads the target platform and variant from CORE at import
-    # time, so the platform module can only be imported after _set_esp32_s3() has run.
-    from esphome.components.usb_uart import bridge
-
     return bridge._final_validate(config)
 
 

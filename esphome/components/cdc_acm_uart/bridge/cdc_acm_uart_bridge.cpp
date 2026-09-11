@@ -1,5 +1,5 @@
 #if defined(USE_ESP32_VARIANT_ESP32P4) || defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3)
-#include "usb_uart_bridge.h"
+#include "cdc_acm_uart_bridge.h"
 #include "esphome/core/application.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
@@ -14,9 +14,9 @@
 
 #include "tinyusb_cdc_acm.h"
 
-namespace esphome::usb_uart_bridge {
+namespace esphome::cdc_acm_uart {
 
-static const char *const TAG = "usb_uart_bridge";
+static const char *const TAG = "cdc_acm_uart";
 
 static constexpr size_t USB_TASK_STACK_SIZE = 4096;
 static constexpr size_t USB_TASK_STACK_SIZE_VV = 8192;
@@ -58,7 +58,7 @@ static bool ringbuf_send_with_retry(RingbufHandle_t ringbuf, const uint8_t *data
   return true;
 }
 
-void USBUARTBridge::setup() {
+void CDCACMUARTBridge::setup() {
   // Line state starts deasserted (no host yet); active-low DTR#/RTS# wiring is
   // handled by configuring the pins inverted, so deasserted idles HIGH.
   if (this->dtr_pin_ != nullptr) {
@@ -152,9 +152,9 @@ void USBUARTBridge::setup() {
   this->disable_loop();
 }
 
-void USBUARTBridge::dump_config() {
+void CDCACMUARTBridge::dump_config() {
   ESP_LOGCONFIG(TAG,
-                "USB-UART Bridge:\n"
+                "CDC-ACM UART Bridge:\n"
                 "  UART Bus: %u\n"
                 "  USB CDC Interface: %u",
                 this->uart_parent_->get_hw_serial_number(), static_cast<uint8_t>(this->usb_cdc_parent_->get_itf()));
@@ -162,7 +162,7 @@ void USBUARTBridge::dump_config() {
   LOG_PIN("  RTS Pin: ", this->rts_pin_);
 }
 
-void USBUARTBridge::on_shutdown() {
+void CDCACMUARTBridge::on_shutdown() {
   // The UART (BUS) shuts down after this component (HARDWARE) and deletes its driver,
   // freeing the ring buffer and mutexes the worker tasks block on. Suspending the
   // tasks unlinks them from those objects first.
@@ -174,7 +174,7 @@ void USBUARTBridge::on_shutdown() {
   }
 }
 
-void USBUARTBridge::loop() {
+void CDCACMUARTBridge::loop() {
   if (this->framing_restore_pending_ || this->resume_pending_) {
     // Let a host write that was in flight drain, FIFO included, before a reload flushes
     // the FIFOs and truncates it.
@@ -206,7 +206,7 @@ void USBUARTBridge::loop() {
   this->disable_loop();
 }
 
-void USBUARTBridge::set_line_coding() {
+void CDCACMUARTBridge::set_line_coding() {
   if (!this->sync_host_framing_()) {
     return;
   }
@@ -217,7 +217,7 @@ void USBUARTBridge::set_line_coding() {
   this->enable_loop();
 }
 
-bool USBUARTBridge::sync_host_framing_() {
+bool CDCACMUARTBridge::sync_host_framing_() {
   // usb_cdc_acm has already translated the wire coding onto the CDC instance (main
   // loop); mirror it here so the framing translation has a single source of truth.
   bool changed = false;
@@ -264,7 +264,7 @@ bool USBUARTBridge::sync_host_framing_() {
   return changed;
 }
 
-void USBUARTBridge::pause() {
+void CDCACMUARTBridge::pause() {
   // A pause that lands while resume() is still waiting for the TX side cancels it.
   if (this->paused_ != 0 && !this->resume_pending_) {
     return;
@@ -284,7 +284,7 @@ void USBUARTBridge::pause() {
   this->enable_loop();
 }
 
-void USBUARTBridge::resume() {
+void CDCACMUARTBridge::resume() {
   if (this->paused_ == 0 || this->resume_pending_) {
     return;
   }
@@ -303,7 +303,7 @@ void USBUARTBridge::resume() {
   this->disable_loop();
 }
 
-void USBUARTBridge::finish_resume_() {
+void CDCACMUARTBridge::finish_resume_() {
   // Re-apply the host's coding before either task runs again, so no traffic moves at
   // the YAML framing pause() restored.
   if (this->host_coding_seen_ && this->sync_host_framing_()) {
@@ -314,12 +314,12 @@ void USBUARTBridge::finish_resume_() {
   xTaskNotifyGive(this->uart_rx_task_handle_);
 }
 
-bool USBUARTBridge::tx_idle_() {
+bool CDCACMUARTBridge::tx_idle_() {
   const auto uart_num = static_cast<uart_port_t>(this->uart_parent_->get_hw_serial_number());
   return this->tx_busy_ == 0 && uart_wait_tx_done(uart_num, 0) == ESP_OK;
 }
 
-void USBUARTBridge::restore_configured_framing_() {
+void CDCACMUARTBridge::restore_configured_framing_() {
   if (this->uart_parent_->get_baud_rate() == this->configured_baud_rate_ &&
       this->uart_parent_->get_parity() == this->configured_parity_ &&
       this->uart_parent_->get_stop_bits() == this->configured_stop_bits_ &&
@@ -333,7 +333,7 @@ void USBUARTBridge::restore_configured_framing_() {
   this->uart_settings_reload_();
 }
 
-void USBUARTBridge::set_line_state(bool dtr, bool rts) {
+void CDCACMUARTBridge::set_line_state(bool dtr, bool rts) {
   ESP_LOGV(TAG, "Line state: DTR=%d, RTS=%d", dtr, rts);
   this->host_dtr_ = dtr;
   this->host_rts_ = rts;
@@ -344,7 +344,7 @@ void USBUARTBridge::set_line_state(bool dtr, bool rts) {
   }
 }
 
-void USBUARTBridge::drive_line_state_() {
+void CDCACMUARTBridge::drive_line_state_() {
   if (this->dtr_pin_ != nullptr) {
     this->dtr_pin_->digital_write(this->host_dtr_);
   }
@@ -353,17 +353,17 @@ void USBUARTBridge::drive_line_state_() {
   }
 }
 
-void USBUARTBridge::uart_rx_task_fn(void *arg) {
-  auto *bridge = static_cast<USBUARTBridge *>(arg);
+void CDCACMUARTBridge::uart_rx_task_fn(void *arg) {
+  auto *bridge = static_cast<CDCACMUARTBridge *>(arg);
   bridge->uart_rx_task_();
 }
 
-void USBUARTBridge::uart_tx_task_fn(void *arg) {
-  auto *bridge = static_cast<USBUARTBridge *>(arg);
+void CDCACMUARTBridge::uart_tx_task_fn(void *arg) {
+  auto *bridge = static_cast<CDCACMUARTBridge *>(arg);
   bridge->uart_tx_task_();
 }
 
-void USBUARTBridge::uart_rx_task_() {
+void CDCACMUARTBridge::uart_rx_task_() {
   TaskHandle_t usb_tx_handle = this->usb_tx_task_handle_;
   RingbufHandle_t usb_tx_ringbuf = this->usb_cdc_parent_->get_tx_ringbuf();
   uart_port_t uart_num = static_cast<uart_port_t>(this->uart_parent_->get_hw_serial_number());
@@ -427,7 +427,7 @@ void USBUARTBridge::uart_rx_task_() {
   }
 }
 
-void USBUARTBridge::uart_tx_task_() {
+void CDCACMUARTBridge::uart_tx_task_() {
   RingbufHandle_t usb_rx_ringbuf = this->usb_cdc_parent_->get_rx_ringbuf();
   uart_port_t uart_num = static_cast<uart_port_t>(this->uart_parent_->get_hw_serial_number());
   uint8_t *data_to_uart = this->uart_tx_buffer_.get();
@@ -477,12 +477,12 @@ void USBUARTBridge::uart_tx_task_() {
   }
 }
 
-void USBUARTBridge::uart_settings_reload_() {
+void CDCACMUARTBridge::uart_settings_reload_() {
   // apply_settings_live() rewrites the framing registers without reinstalling the
   // driver, so the worker tasks blocked inside it are undisturbed. Runs on the main
   // loop (see loop()), matching the IDF UART component's threading contract.
   this->uart_parent_->apply_settings_live();
 }
 
-}  // namespace esphome::usb_uart_bridge
+}  // namespace esphome::cdc_acm_uart
 #endif

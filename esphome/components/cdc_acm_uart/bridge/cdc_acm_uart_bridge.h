@@ -9,16 +9,16 @@
 #include "freertos/ringbuf.h"
 #include "tinyusb_cdc_acm.h"
 
-namespace esphome::usb_uart_bridge {
+namespace esphome::cdc_acm_uart {
 
-class USBUARTBridge final : public Component {
+class CDCACMUARTBridge final : public Component {
  public:
   // Upper bound on the RX task's blocking read, so pause() takes effect without
   // aborting the read. Arriving bytes still unblock it immediately.
   static constexpr uint32_t UART_RX_WAIT_MS = 250;
 
-  USBUARTBridge(uart::IDFUARTComponent *uart_parent, usb_cdc_acm::USBCDCACMInstance *usb_cdc_parent,
-                size_t uart_rx_buffer_size, size_t uart_tx_buffer_size)
+  CDCACMUARTBridge(uart::IDFUARTComponent *uart_parent, usb_cdc_acm::USBCDCACMInstance *usb_cdc_parent,
+                   size_t uart_rx_buffer_size, size_t uart_tx_buffer_size)
       : uart_rx_buffer_size_(uart_rx_buffer_size),
         uart_tx_buffer_size_(uart_tx_buffer_size),
         uart_parent_(uart_parent),
@@ -117,5 +117,5 @@ class USBUARTBridge final : public Component {
   bool host_coding_seen_{false};
 };
 
-}  // namespace esphome::usb_uart_bridge
+}  // namespace esphome::cdc_acm_uart
 #endif
