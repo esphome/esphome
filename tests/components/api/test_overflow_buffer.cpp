@@ -291,14 +291,17 @@ TEST_F(OverflowBufferTest, AppendsBehindSentPrefixWhenItFits) {
   TestOverflowBuffer buf;
   size_t filler = this->fill_pipe_();
   auto first = make_message(200, 20);
-  auto second = make_message(std::min<size_t>(filler * 3, 12000), 60);
+  // Size the second message so the two land half way into a 256 byte step,
+  // leaving exactly 128 bytes of slack whatever the pipe accepted
+  const size_t base = std::min<size_t>(filler * 3, 12000);
+  const size_t second_len = (base / 256 + 1) * 256 + 128 - first.size() - 2 * TestOverflowBuffer::LEN_PREFIX;
+  auto second = make_message(second_len, 60);
   ASSERT_GT(second.size(), filler);
   ASSERT_TRUE(enqueue(buf, first));
   ASSERT_TRUE(enqueue(buf, second));
   const auto storage = buf.storage();
-  // Rounding left slack past the second message for a small third one
   const size_t slack = storage.capacity - first.size() - second.size() - 2 * TestOverflowBuffer::LEN_PREFIX;
-  ASSERT_GT(slack, TestOverflowBuffer::LEN_PREFIX);
+  ASSERT_EQ(slack, 128u);
   auto third = make_message(slack - TestOverflowBuffer::LEN_PREFIX, 200);
 
   std::vector<uint8_t> received;
