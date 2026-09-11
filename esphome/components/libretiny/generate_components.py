@@ -133,10 +133,10 @@ COMPONENT_MAP = {
     "ln882x": "lightning-ln882x",
 }
 
-# Components with Cortex-M4(F) have LDREX/STREX for native atomic support.
-# BK72xx uses ARM968E-S (ARMv5TE) which lacks these instructions.
+# Components with Cortex-M33/M4(F) cores have LDREX/STREX for native atomic
+# support. BK72xx uses ARM968E-S (ARMv5TE) which lacks these instructions.
 COMPONENT_SUPPORTS_ATOMICS = {
-    "rtl87xx": True,  # Cortex-M4
+    "rtl87xx": True,  # Cortex-M33/M4
     "ln882x": True,  # Cortex-M4F
     "bk72xx": False,  # ARM968E-S
 }
