@@ -114,15 +114,16 @@ void RemoteReceiverBase::register_listener(RemoteReceiverListener *listener) {
 #ifdef REMOTE_BASE_DUMPER_COUNT
 void RemoteReceiverBase::register_dumper(RemoteReceiverDumperBase *dumper) {
   if (dumper->is_secondary()) {
-    this->secondary_dumper_ = dumper;
+    if (this->secondary_dumper_ == nullptr) {
+      this->secondary_dumper_ = dumper;
+      return;
+    }
+  } else if (this->dumpers_.size() < REMOTE_BASE_DUMPER_COUNT) {
+    this->dumpers_.push_back(dumper);
     return;
   }
-  if (this->dumpers_.size() == REMOTE_BASE_DUMPER_COUNT) {
-    ESP_LOGE(TAG, "No %s slot: register it from to_code() with remote_base.add_%s", LOG_STR_LITERAL("dumper"),
-             LOG_STR_LITERAL("dumper"));
-    return;
-  }
-  this->dumpers_.push_back(dumper);
+  ESP_LOGE(TAG, "No %s slot: register it from to_code() with remote_base.add_%s", LOG_STR_LITERAL("dumper"),
+           LOG_STR_LITERAL("dumper"));
 }
 #endif
 

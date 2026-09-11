@@ -136,15 +136,19 @@ def protocol_define(name: str) -> str:
     return f"USE_REMOTE_PROTOCOL_{_protocol_stem(name).upper()}"
 
 
-def request_protocol(name: str) -> None:
-    """Keep a protocol's source file in the build; components using it from C++ must call this."""
-    cg.add_define(protocol_define(name))
-
-
 _PROTOCOL_STEMS = sorted(
     path.name.removesuffix("_protocol.cpp")
     for path in Path(__file__).parent.glob("*_protocol.cpp")
 )
+
+
+def request_protocol(name: str) -> None:
+    """Keep a protocol's source file in the build; components using it from C++ must call this."""
+    if _protocol_stem(name) not in _PROTOCOL_STEMS:
+        raise ValueError(f"Unknown remote protocol {name!r}")
+    cg.add_define(protocol_define(name))
+
+
 # Only the protocol sources a configuration uses are compiled
 FILTER_SOURCE_FILES = filter_source_files_from_defines(
     {f"{stem}_protocol.cpp": protocol_define(stem) for stem in _PROTOCOL_STEMS}
