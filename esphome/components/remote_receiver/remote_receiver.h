@@ -30,7 +30,7 @@ struct RemoteReceiverComponentStore {
   uint32_t buffer_read{0};
   volatile uint32_t commit_micros{0};
   volatile uint32_t prev_micros{0};
-  uint32_t buffer_size{1000};
+  uint32_t buffer_entries{0};
   uint32_t filter_us{10};
   uint32_t idle_us{10000};
   ISRInternalGPIOPin pin;
