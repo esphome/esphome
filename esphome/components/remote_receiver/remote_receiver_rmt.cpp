@@ -1,6 +1,6 @@
 #include "remote_receiver.h"
-#include "esphome/core/application.h"
 #include "esphome/core/log.h"
+#include "esphome/core/wake.h"
 
 #ifdef USE_ESP32
 #include <soc/soc_caps.h>
@@ -31,11 +31,14 @@ static bool IRAM_ATTR HOT rmt_callback(rmt_channel_handle_t channel, const rmt_r
       rmt_receive(channel, (uint8_t *) store->buffer + next_write + event_size, store->receive_size, &store->config);
   event_buffer->num_symbols = event->num_symbols;
   event_buffer->received_symbols = event->received_symbols;
+  const bool stored = next_write != store->buffer_write;
   store->buffer_write = next_write;
-  // decode on the next loop pass instead of waiting out the loop interval
+  // a stored frame is decoded on the next loop pass instead of waiting out the loop interval;
+  // filtered noise and dropped frames leave nothing to read
   BaseType_t task_woken = pdFALSE;
-  Application::wake_loop_isrsafe(&task_woken);
-  return task_woken == pdTRUE;
+  if (stored)
+    wake_loop_isrsafe(&task_woken);
+  return task_woken != pdFALSE;
 }
 
 void RemoteReceiverComponent::setup() {
