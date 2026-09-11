@@ -8,6 +8,7 @@
 #include <cerrno>
 #include <cstdint>
 #include <cstring>
+#include <initializer_list>
 #include <memory>
 #include <vector>
 
@@ -24,8 +25,13 @@ class TestOverflowBuffer : public APIOverflowBuffer {
  public:
   using APIOverflowBuffer::LEN_PREFIX;
   using APIOverflowBuffer::MAX_BYTES;
+  struct Storage {
+    size_t capacity;
+    const uint8_t *data;
+    bool operator==(const Storage &) const = default;
+  };
   size_t capacity() const { return this->buf_.capacity(); }
-  const uint8_t *storage() const { return this->buf_.data(); }
+  Storage storage() const { return {this->buf_.capacity(), this->buf_.data()}; }
   uint8_t count() const { return this->count_; }
   size_t live() const { return this->buf_.size() - this->head_; }
   /// Simulates a socket write inside try_drain() re-entering the send path
@@ -46,6 +52,13 @@ static bool enqueue(TestOverflowBuffer &buf, const std::vector<uint8_t> &msg, ui
 
 static void append(std::vector<uint8_t> &dst, const std::vector<uint8_t> &src, size_t skip = 0) {
   dst.insert(dst.end(), src.begin() + skip, src.end());
+}
+
+static std::vector<uint8_t> concat(std::initializer_list<std::vector<uint8_t>> parts) {
+  std::vector<uint8_t> out;
+  for (const auto &part : parts)
+    append(out, part);
+  return out;
 }
 
 /// The pipe delivers the filler first, then the drained messages.
@@ -119,6 +132,26 @@ class OverflowBufferTest : public ::testing::Test {
     return received;
   }
 
+  struct Stall {
+    size_t filler;
+    std::vector<uint8_t> first, second, received;
+    TestOverflowBuffer::Storage before;
+  };
+  /// Park two messages, then drain the first fully and the second part way
+  void stall_mid_message_(TestOverflowBuffer &buf, Stall &s) {
+    s.filler = this->fill_pipe_();
+    s.first = make_message(1500, 20);
+    // Larger than the whole pipe, so a drain always stops inside it
+    s.second = make_message(std::min<size_t>(s.filler * 3, 12000), 60);
+    ASSERT_GT(s.second.size(), s.filler);
+    ASSERT_TRUE(enqueue(buf, s.first));
+    ASSERT_TRUE(enqueue(buf, s.second));
+    s.before = buf.storage();
+    this->read_into_(s.received);
+    ASSERT_GT(this->drain_(buf), 0);
+    ASSERT_EQ(buf.count(), 1);
+  }
+
   int reader_{-1};
   std::unique_ptr<socket::Socket> sock_;
 };
@@ -127,7 +160,7 @@ TEST_F(OverflowBufferTest, IdleBufferOwnsNoStorage) {
   TestOverflowBuffer buf;
   EXPECT_TRUE(buf.empty());
   EXPECT_EQ(buf.capacity(), 0u);
-  EXPECT_EQ(buf.storage(), nullptr);
+  EXPECT_EQ(buf.storage().data, nullptr);
 }
 
 TEST_F(OverflowBufferTest, StorageIsReusedAcrossStalls) {
@@ -136,20 +169,17 @@ TEST_F(OverflowBufferTest, StorageIsReusedAcrossStalls) {
 
   size_t filler = this->fill_pipe_();
   ASSERT_TRUE(enqueue(buf, msg));
-  const size_t capacity = buf.capacity();
-  const uint8_t *storage = buf.storage();
-  EXPECT_GE(capacity, msg.size() + TestOverflowBuffer::LEN_PREFIX);
+  const auto storage = buf.storage();
+  EXPECT_GE(storage.capacity, msg.size() + TestOverflowBuffer::LEN_PREFIX);
 
   for (int stall = 0; stall < 5; stall++) {
     expect_after_filler(this->drain_all_(buf), filler, msg);
     EXPECT_TRUE(buf.empty());
     // Same allocation every time: no free, no new allocation
-    EXPECT_EQ(buf.capacity(), capacity);
     EXPECT_EQ(buf.storage(), storage);
 
     filler = this->fill_pipe_();
     ASSERT_TRUE(enqueue(buf, msg));
-    EXPECT_EQ(buf.capacity(), capacity);
     EXPECT_EQ(buf.storage(), storage);
   }
 }
@@ -170,7 +200,7 @@ TEST_F(OverflowBufferTest, ReleaseWhileQueuedFreesOnceDrained) {
   expect_after_filler(this->drain_all_(buf), filler, msg);
   EXPECT_TRUE(buf.empty());
   EXPECT_EQ(buf.capacity(), 0u);
-  EXPECT_EQ(buf.storage(), nullptr);
+  EXPECT_EQ(buf.storage().data, nullptr);
 
   // A later stall allocates again and keeps it, since nobody asked for a release
   filler = this->fill_pipe_();
@@ -191,7 +221,7 @@ TEST_F(OverflowBufferTest, ReleaseWhenEmptyFreesImmediately) {
 
   buf.release();
   EXPECT_EQ(buf.capacity(), 0u);
-  EXPECT_EQ(buf.storage(), nullptr);
+  EXPECT_EQ(buf.storage().data, nullptr);
 }
 
 TEST_F(OverflowBufferTest, PreservesOrderAndSkipsSentPrefix) {
@@ -265,32 +295,17 @@ TEST_F(OverflowBufferTest, LoneMessageMayExceedByteLimit) {
 
 TEST_F(OverflowBufferTest, GrowsWhileReclaimingSentPrefix) {
   TestOverflowBuffer buf;
-  size_t filler = this->fill_pipe_();
-  auto first = make_message(1500, 20);
-  auto second = make_message(std::min<size_t>(filler * 3, 12000), 60);
-  ASSERT_GT(second.size(), filler);
-
-  ASSERT_TRUE(enqueue(buf, first));
-  ASSERT_TRUE(enqueue(buf, second));
-  const size_t capacity = buf.capacity();
-
-  std::vector<uint8_t> received;
-  this->read_into_(received);
-  ASSERT_GT(this->drain_(buf), 0);
-  ASSERT_EQ(buf.count(), 1);
+  Stall s;
+  ASSERT_NO_FATAL_FAILURE(this->stall_mid_message_(buf, s));
 
   // One byte too many to fit even after the sent prefix is reclaimed: grows in one copy
-  auto third = make_message(capacity - buf.live() + 1, 200);
+  auto third = make_message(s.before.capacity - buf.live() + 1, 200);
   ASSERT_TRUE(enqueue(buf, third));
-  EXPECT_GT(buf.capacity(), capacity);
+  EXPECT_GT(buf.capacity(), s.before.capacity);
   EXPECT_EQ(buf.count(), 2);
 
-  append(received, this->drain_all_(buf));
-  std::vector<uint8_t> expected;
-  append(expected, first);
-  append(expected, second);
-  append(expected, third);
-  expect_after_filler(received, filler, expected);
+  append(s.received, this->drain_all_(buf));
+  expect_after_filler(s.received, s.filler, concat({s.first, s.second, third}));
 }
 
 TEST_F(OverflowBufferTest, NestedDrainMakesNoProgress) {
@@ -322,21 +337,16 @@ TEST_F(OverflowBufferTest, NestedEnqueueAppendsWithinCapacity) {
 
   size_t filler = this->fill_pipe_();
   ASSERT_TRUE(enqueue(buf, first));
-  const size_t capacity = buf.capacity();
-  const uint8_t *storage = buf.storage();
-  ASSERT_GE(capacity, first.size() + second.size() + 2 * TestOverflowBuffer::LEN_PREFIX);
+  const auto storage = buf.storage();
+  ASSERT_GE(storage.capacity, first.size() + second.size() + 2 * TestOverflowBuffer::LEN_PREFIX);
 
   buf.set_draining(true);
   EXPECT_TRUE(enqueue(buf, second));
   EXPECT_EQ(buf.count(), 2);
-  EXPECT_EQ(buf.capacity(), capacity);
   EXPECT_EQ(buf.storage(), storage);
   buf.set_draining(false);
 
-  std::vector<uint8_t> expected;
-  append(expected, first);
-  append(expected, second);
-  expect_after_filler(this->drain_all_(buf), filler, expected);
+  expect_after_filler(this->drain_all_(buf), filler, concat({first, second}));
 }
 
 TEST_F(OverflowBufferTest, NestedEnqueueRefusesToGrow) {
@@ -346,15 +356,13 @@ TEST_F(OverflowBufferTest, NestedEnqueueRefusesToGrow) {
 
   size_t filler = this->fill_pipe_();
   ASSERT_TRUE(enqueue(buf, first));
-  const size_t capacity = buf.capacity();
-  const uint8_t *storage = buf.storage();
-  ASSERT_LT(capacity, first.size() + second.size() + 2 * TestOverflowBuffer::LEN_PREFIX);
+  const auto storage = buf.storage();
+  ASSERT_LT(storage.capacity, first.size() + second.size() + 2 * TestOverflowBuffer::LEN_PREFIX);
 
   // Growing would free the bytes the outer write() is sending from
   buf.set_draining(true);
   EXPECT_FALSE(enqueue(buf, second));
   EXPECT_EQ(buf.count(), 1);
-  EXPECT_EQ(buf.capacity(), capacity);
   EXPECT_EQ(buf.storage(), storage);
   buf.set_draining(false);
 
@@ -363,72 +371,36 @@ TEST_F(OverflowBufferTest, NestedEnqueueRefusesToGrow) {
 
 TEST_F(OverflowBufferTest, NestedEnqueueRefusesToCompact) {
   TestOverflowBuffer buf;
-  size_t filler = this->fill_pipe_();
-  auto first = make_message(1500, 20);
-  auto second = make_message(std::min<size_t>(filler * 3, 12000), 60);
+  Stall s;
+  ASSERT_NO_FATAL_FAILURE(this->stall_mid_message_(buf, s));
   auto third = make_message(1000, 200);
-  ASSERT_GT(second.size(), filler);
-
-  ASSERT_TRUE(enqueue(buf, first));
-  ASSERT_TRUE(enqueue(buf, second));
-  const size_t capacity = buf.capacity();
-  const uint8_t *storage = buf.storage();
-
-  // First message fully sent, second part way: the sent prefix could be reclaimed
-  std::vector<uint8_t> received;
-  this->read_into_(received);
-  ASSERT_GT(this->drain_(buf), 0);
-  ASSERT_EQ(buf.count(), 1);
 
   // Sliding the remainder down would move the bytes the outer write() points at
   buf.set_draining(true);
   EXPECT_FALSE(enqueue(buf, third));
   EXPECT_EQ(buf.count(), 1);
-  EXPECT_EQ(buf.capacity(), capacity);
-  EXPECT_EQ(buf.storage(), storage);
+  EXPECT_EQ(buf.storage(), s.before);
   buf.set_draining(false);
 
   // Once the drain is over the same enqueue compacts and succeeds
   ASSERT_TRUE(enqueue(buf, third));
-  EXPECT_EQ(buf.capacity(), capacity);
-  append(received, this->drain_all_(buf));
-  std::vector<uint8_t> expected;
-  append(expected, first);
-  append(expected, second);
-  append(expected, third);
-  expect_after_filler(received, filler, expected);
+  EXPECT_EQ(buf.storage(), s.before);
+  append(s.received, this->drain_all_(buf));
+  expect_after_filler(s.received, s.filler, concat({s.first, s.second, third}));
 }
 
 TEST_F(OverflowBufferTest, CompactsInsteadOfGrowingAfterPartialDrain) {
   TestOverflowBuffer buf;
-  size_t filler = this->fill_pipe_();
-  auto first = make_message(1500, 20);
-  // Larger than the whole pipe, so a drain always stops part way through it
-  auto second = make_message(std::min<size_t>(filler * 3, 12000), 60);
-  ASSERT_GT(second.size(), filler);
+  Stall s;
+  ASSERT_NO_FATAL_FAILURE(this->stall_mid_message_(buf, s));
   auto third = make_message(1000, 200);
-
-  ASSERT_TRUE(enqueue(buf, first));
-  ASSERT_TRUE(enqueue(buf, second));
-  const size_t capacity = buf.capacity();
-  const uint8_t *storage = buf.storage();
-
-  std::vector<uint8_t> received;
-  this->read_into_(received);
-  ASSERT_GT(this->drain_(buf), 0);
-  ASSERT_EQ(buf.count(), 1);
 
   // The sent first message is reclaimed by sliding the remainder down, not by reallocating
   ASSERT_TRUE(enqueue(buf, third));
-  EXPECT_EQ(buf.capacity(), capacity);
-  EXPECT_EQ(buf.storage(), storage);
+  EXPECT_EQ(buf.storage(), s.before);
 
-  append(received, this->drain_all_(buf));
-  std::vector<uint8_t> expected;
-  append(expected, first);
-  append(expected, second);
-  append(expected, third);
-  expect_after_filler(received, filler, expected);
+  append(s.received, this->drain_all_(buf));
+  expect_after_filler(s.received, s.filler, concat({s.first, s.second, third}));
 }
 
 }  // namespace esphome::api::testing
