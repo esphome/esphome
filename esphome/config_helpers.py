@@ -12,6 +12,7 @@ from esphome.const import (
     KEY_CORE,
     KEY_TARGET_FRAMEWORK,
     KEY_TARGET_PLATFORM,
+    SOURCE_FILE_EXTENSIONS,
     PlatformFramework,
 )
 from esphome.core import CORE, Lambda
@@ -257,11 +258,6 @@ def iter_include_files(includes: list[str]) -> Iterator[tuple[Path, Path]]:
             yield path, Path(path.name)
 
 
-_CPP_SOURCE_SUFFIXES = frozenset(
-    {".h", ".hpp", ".hh", ".c", ".cpp", ".cc", ".tcc", ".ino"}
-)
-
-
 def includes_use_scanf_float(config: ConfigType) -> bool:
     """Check if an ``includes:`` or ``includes_c:`` file uses scanf with a float format specifier."""
     esphome_config = config.get(CONF_ESPHOME, {})
@@ -269,7 +265,7 @@ def includes_use_scanf_float(config: ConfigType) -> bool:
         CONF_INCLUDES_C, []
     )
     for path, _ in iter_include_files(includes):
-        if path.suffix not in _CPP_SOURCE_SUFFIXES:
+        if path.suffix not in SOURCE_FILE_EXTENSIONS:
             continue
         src = path.read_text(encoding="utf-8", errors="replace")
         if "scanf" in src and _SCANF_FLOAT_RE.search(Lambda.comment_remover(src)):
