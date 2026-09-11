@@ -196,6 +196,13 @@ PSRAM_XIP_VARIANTS = {
 # neither, so the engine is already in the image and the wrap saves nothing.
 ROM_VSNPRINTF_WITHOUT_VASPRINTF_VARIANTS = {VARIANT_ESP32C6}
 
+# Variants whose ROM exports sscanf under the newlib format ESPHome links
+# against: the ESP32-C6 normal-format ROM (esp32c6.rom.newlib-normal.ld) and
+# the ESP32-C2 nano-format ROM, nano being the IDF default on the C2. There
+# the sscanf wrap saves nothing; see sscanf_stubs.cpp. The classic ESP32 ROM
+# only exports it under nano format, which ESPHome does not use.
+ROM_SSCANF_VARIANTS = {VARIANT_ESP32C2, VARIANT_ESP32C6}
+
 # NVS encryption (HMAC peripheral scheme) is only available on variants that
 # expose the HMAC peripheral (SOC_HMAC_SUPPORTED in soc_caps.h). The original
 # ESP32 and ESP32-C2 do not have it. New variants with an HMAC peripheral
@@ -1733,6 +1740,7 @@ CONF_RINGBUF_IN_IRAM = "ringbuf_in_iram"
 CONF_HEAP_IN_IRAM = "heap_in_iram"
 CONF_LOOP_TASK_STACK_SIZE = "loop_task_stack_size"
 CONF_USE_FULL_CERTIFICATE_BUNDLE = "use_full_certificate_bundle"
+CONF_ENABLE_FULL_SCANF = "enable_full_scanf"
 CONF_DISABLE_DEBUG_STUBS = "disable_debug_stubs"
 CONF_DISABLE_OCD_AWARE = "disable_ocd_aware"
 CONF_DISABLE_USB_SERIAL_JTAG_SECONDARY = "disable_usb_serial_jtag_secondary"
@@ -2014,6 +2022,7 @@ FRAMEWORK_SCHEMA = cv.Schema(
                     CONF_INCLUDE_BUILTIN_IDF_COMPONENTS, default=[]
                 ): cv.ensure_list(cv.string_strict),
                 cv.Optional(CONF_ENABLE_FULL_PRINTF, default=False): cv.boolean,
+                cv.Optional(CONF_ENABLE_FULL_SCANF, default=False): cv.boolean,
                 cv.Optional(CONF_DISABLE_DEBUG_STUBS, default=True): cv.boolean,
                 cv.Optional(CONF_DISABLE_OCD_AWARE, default=True): cv.boolean,
                 cv.Optional(
@@ -2312,6 +2321,30 @@ async def _set_libc_picolibc_newlib_compat() -> None:
         option,
         CORE.data[KEY_ESP32].get(KEY_LIBC_PICOLIBC_NEWLIB_COMPAT_REQUIRED, False),
     )
+
+
+@coroutine_with_priority(CoroPriority.FINAL)
+async def _add_sscanf_stub(enable_full_scanf: bool) -> None:
+    """Wrap sscanf when Bluetooth is the only reason newlib's scanf engine links.
+
+    Runs at FINAL priority so every request_bluetooth() call has happened.
+    bluedroid is the only sscanf caller in an ESPHome image (~13 KB of engine
+    for two "%02x" parses); see sscanf_stubs.cpp. Newlib only, like the printf
+    wrap: IDF 6.0+ switches to picolibc, where the saving is unmeasured. The
+    --undefined flag is needed because libsrc.a is scanned before libbt.a, so
+    the stub would otherwise never be pulled from the archive.
+    """
+    if (
+        enable_full_scanf
+        or CORE.using_arduino
+        or idf_version() >= cv.Version(6, 0, 0)
+        or not _network_sdkconfig().bluetooth
+        or get_esp32_variant() in ROM_SSCANF_VARIANTS
+    ):
+        return
+    cg.add_define("USE_ESP32_SSCANF_STUB")
+    cg.add_build_flag("-Wl,--wrap=sscanf")
+    cg.add_build_flag("-Wl,--undefined=__wrap_sscanf")
 
 
 @coroutine_with_priority(CoroPriority.FINAL)
@@ -3098,6 +3131,9 @@ async def to_code(config):
 
     # FINAL priority: runs after every network/coexistence request_*() call
     CORE.add_job(_reconcile_network_sdkconfig)
+
+    # FINAL priority: runs after every request_bluetooth() call
+    CORE.add_job(_add_sscanf_stub, advanced[CONF_ENABLE_FULL_SCANF])
 
     # FINAL priority: runs after every require_certificate_bundle() call
     CORE.add_job(_reconcile_certificate_bundle_sdkconfig)

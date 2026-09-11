@@ -1438,3 +1438,28 @@ def test_vasprintf_stub_only_on_rom_vsnprintf_variants(
     assert (CORE.build_flags >= _VASPRINTF_STUB_FLAGS) is expected
     defines = {define.name for define in CORE.defines}
     assert ("USE_ESP32_VASPRINTF_STUB" in defines) is expected
+
+
+_SSCANF_STUB_FLAGS = {"-Wl,--wrap=sscanf", "-Wl,--undefined=__wrap_sscanf"}
+
+
+@pytest.mark.parametrize(
+    ("config_file", "expected"),
+    [
+        pytest.param("sscanf_stub_ble.yaml", True, id="esp32_ble"),
+        pytest.param("sscanf_stub_ble_c6.yaml", False, id="c6_ble_rom_sscanf"),
+        pytest.param("sscanf_stub_ble_full_scanf.yaml", False, id="full_scanf"),
+        pytest.param("exclusion_reincludes.yaml", False, id="esp32_no_ble"),
+    ],
+)
+def test_sscanf_stub_only_for_bluetooth_without_rom_sscanf(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+    config_file: str,
+    expected: bool,
+) -> None:
+    """The sscanf wrap is emitted only for Bluetooth builds on variants whose ROM lacks sscanf."""
+    generate_main(component_config_path(config_file))
+    assert (CORE.build_flags >= _SSCANF_STUB_FLAGS) is expected
+    defines = {define.name for define in CORE.defines}
+    assert ("USE_ESP32_SSCANF_STUB" in defines) is expected

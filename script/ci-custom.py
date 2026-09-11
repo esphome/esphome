@@ -1055,6 +1055,8 @@ def lint_no_std_to_string(fname, match):
     # [^\w] ensures we match function calls, not substrings
     r"[^\w]((?:std::)?v?[fs]?scanf)\s*\(" + CPP_RE_EOL,
     include=cpp_include,
+    # The linker wrap that keeps the scanf engine out of Bluetooth builds
+    exclude=["esphome/components/esp32/sscanf_stubs.cpp"],
 )
 def lint_no_scanf(fname, match):
     func = match.group(1)
