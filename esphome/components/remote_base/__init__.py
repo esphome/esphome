@@ -145,7 +145,9 @@ _PROTOCOL_STEMS = sorted(
 def request_protocol(name: str) -> None:
     """Keep a protocol's source file in the build; components using it from C++ must call this."""
     if _protocol_stem(name) not in _PROTOCOL_STEMS:
-        raise ValueError(f"Unknown remote protocol {name!r}")
+        raise ValueError(
+            f"Unknown remote protocol {name!r}; expected one of {', '.join(_PROTOCOL_STEMS)}"
+        )
     cg.add_define(protocol_define(name))
 
 
