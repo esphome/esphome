@@ -23,6 +23,9 @@ namespace esphome::api {
 /// Safe because: callers always write exactly the number of bytes they
 /// resize for. In the protobuf write path, debug_check_bounds_ validates
 /// writes in debug builds.
+///
+/// Sizes are 16 bit: API frames carry 16 bit lengths, so a request above
+/// 65535 bytes fails like an allocation failure.
 class APIBuffer {
  public:
   void clear() { this->size_ = 0; }
@@ -36,12 +39,12 @@ class APIBuffer {
   [[nodiscard]] inline bool reserve_and_resize(size_t reserve_size, size_t new_size) ESPHOME_ALWAYS_INLINE {
     if (!this->reserve(std::max(reserve_size, new_size)))
       return false;
-    this->size_ = new_size;
+    this->size_ = static_cast<uint16_t>(new_size);
     return true;
   }
   /// Grow by n bytes; returns the new bytes, or nullptr on allocation failure.
   [[nodiscard]] uint8_t *append(size_t n, size_t reserve_size = 0) {
-    const size_t old_size = this->size_;
+    const uint16_t old_size = this->size_;
     if (!this->reserve_and_resize(reserve_size, old_size + n))
       return nullptr;
     return this->data_.get() + old_size;
@@ -66,8 +69,8 @@ class APIBuffer {
  protected:
   bool grow_(size_t n, size_t drop = 0);
   std::unique_ptr<uint8_t[]> data_;
-  size_t size_{0};
-  size_t capacity_{0};
+  uint16_t size_{0};
+  uint16_t capacity_{0};
 };
 
 }  // namespace esphome::api
