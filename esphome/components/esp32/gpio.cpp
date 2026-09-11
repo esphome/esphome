@@ -188,9 +188,17 @@ void IRAM_ATTR ISRInternalGPIOPin::digital_write(bool value) {
   auto *arg = reinterpret_cast<ISRPinArg *>(this->arg_);
   gpio_hal_set_level(&GPIO_HAL, arg->pin, value != arg->inverted);
 #ifdef USE_GPIO_HOLD
-  if (arg->hold) {
-    gpio_hal_hold_dis(&GPIO_HAL, arg->pin);
-    gpio_hal_hold_en(&GPIO_HAL, arg->pin);
+#if defined(USE_ESP32_VARIANT_ESP32)
+  if (arg->use_rtc) {
+    rtcio_hal_hold_disable(arg->rtc_pin);
+    rtcio_hal_hold_enable(arg->rtc_pin);
+  } else
+#endif
+  {
+    if (arg->hold) {
+      gpio_hal_hold_dis(&GPIO_HAL, arg->pin);
+      gpio_hal_hold_en(&GPIO_HAL, arg->pin);
+    }
   }
 #endif
 }
@@ -245,9 +253,19 @@ void IRAM_ATTR ISRInternalGPIOPin::pin_mode(gpio::Flags flags) {
     }
   }
 #ifdef USE_GPIO_HOLD
-  gpio_hal_hold_dis(&GPIO_HAL, arg->pin);
-  if (arg->hold) {
-    gpio_hal_hold_en(&GPIO_HAL, arg->pin);
+#if defined(USE_ESP32_VARIANT_ESP32)
+  if (arg->use_rtc) {
+    rtcio_hal_hold_disable(arg->rtc_pin);
+    if (arg->hold) {
+      rtcio_hal_hold_enable(arg->rtc_pin);
+    }
+  } else
+#endif
+  {
+    gpio_hal_hold_dis(&GPIO_HAL, arg->pin);
+    if (arg->hold) {
+      gpio_hal_hold_en(&GPIO_HAL, arg->pin);
+    }
   }
 #endif
   arg->flags = flags;
