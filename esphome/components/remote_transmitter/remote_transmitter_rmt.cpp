@@ -230,7 +230,7 @@ void RemoteTransmitterComponent::send_internal(uint32_t send_times, uint32_t sen
   if (this->is_failed()) {
     // both triggers still fire, so a paced API client or on_complete automation is not left waiting
     this->transmit_trigger_.trigger();
-    this->fire_complete_();
+    this->fire_complete_(false);
     return;
   }
 
@@ -277,7 +277,7 @@ void RemoteTransmitterComponent::send_internal(uint32_t send_times, uint32_t sen
   if ((this->rmt_temp_.data() == nullptr) || this->rmt_temp_.size() <= offset) {
     ESP_LOGE(TAG, "Empty data");
     this->transmit_trigger_.trigger();
-    this->fire_complete_();
+    this->fire_complete_(false);
     return;
   }
 
@@ -293,9 +293,11 @@ void RemoteTransmitterComponent::send_internal(uint32_t send_times, uint32_t sen
   if (error != ESP_OK) {
     ESP_LOGW(TAG, "rmt_transmit failed: %s", esp_err_to_name(error));
     this->status_set_warning();
-  } else {
-    this->status_clear_warning();
+    // nothing was queued, so there is no frame to wait for
+    this->fire_complete_(false);
+    return;
   }
+  this->status_clear_warning();
 
   if (this->non_blocking_) {
     this->set_timeout("complete", total_duration / 1000, [this]() { this->wait_for_rmt_(); });
@@ -309,7 +311,7 @@ void RemoteTransmitterComponent::flush_pending_completion() {}
 void RemoteTransmitterComponent::send_internal(uint32_t send_times, uint32_t send_wait) {
   if (this->is_failed()) {
     this->transmit_trigger_.trigger();
-    this->fire_complete_();
+    this->fire_complete_(false);
     return;
   }
 
@@ -354,10 +356,11 @@ void RemoteTransmitterComponent::send_internal(uint32_t send_times, uint32_t sen
   if ((this->rmt_temp_.data() == nullptr) || this->rmt_temp_.empty()) {
     ESP_LOGE(TAG, "Empty data");
     this->transmit_trigger_.trigger();
-    this->fire_complete_();
+    this->fire_complete_(false);
     return;
   }
   this->transmit_trigger_.trigger();
+  bool sent = true;
   for (uint32_t i = 0; i < send_times; i++) {
     rmt_transmit_config_t config;
     memset(&config, 0, sizeof(config));
@@ -367,6 +370,7 @@ void RemoteTransmitterComponent::send_internal(uint32_t send_times, uint32_t sen
     if (error != ESP_OK) {
       ESP_LOGW(TAG, "rmt_transmit failed: %s", esp_err_to_name(error));
       this->status_set_warning();
+      sent = false;
     } else {
       this->status_clear_warning();
     }
@@ -378,7 +382,7 @@ void RemoteTransmitterComponent::send_internal(uint32_t send_times, uint32_t sen
     if (i + 1 < send_times)
       delayMicroseconds(send_wait);
   }
-  this->fire_complete_();
+  this->fire_complete_(sent);
 }
 #endif
 

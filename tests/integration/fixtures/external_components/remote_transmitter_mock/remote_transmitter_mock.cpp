@@ -34,7 +34,7 @@ void MockRemoteTransmitter::send_internal(uint32_t send_times, uint32_t send_wai
 void MockRemoteTransmitter::finish_() {
   this->busy_ = false;
   ESP_LOGI(TAG, "Complete seq=%" PRIu16, this->current_seq_);
-  this->notify_complete_();
+  this->notify_complete_(true);
 }
 
 }  // namespace esphome::remote_transmitter_mock

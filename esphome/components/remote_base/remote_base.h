@@ -144,9 +144,10 @@ class RemoteRMTChannel {
 class RemoteTransmitterBase;
 
 #ifdef USE_IR_RF_TRANSMIT_COMPLETE
-/// Defined by ir_rf_base: answers the API request waiting on the entity that submitted seq.
+/// Defined by ir_rf_base: answers the API request waiting on the entity that submitted seq;
+/// sent is false when the platform never put the frame on the wire.
 /// One function for the whole build instead of a callback list on every transmitter.
-void ir_rf_transmit_complete(RemoteTransmitterBase *transmitter, uint16_t seq);
+void ir_rf_transmit_complete(RemoteTransmitterBase *transmitter, uint16_t seq, bool sent);
 #endif
 
 class RemoteTransmitterBase : public RemoteComponentBase {
@@ -192,14 +193,14 @@ class RemoteTransmitterBase : public RemoteComponentBase {
 #ifdef USE_IR_RF_TRANSMIT_COMPLETE
   /// Reports the frame handed to the platform last, after its final repeat and before the
   /// on_complete trigger; a seq only has to be unique within the 30 s reply window
-  void notify_complete_() { ir_rf_transmit_complete(this, this->current_seq_); }
+  void notify_complete_(bool sent) { ir_rf_transmit_complete(this, this->current_seq_, sent); }
   uint16_t take_seq_() { return ++this->next_seq_; }
 
   uint16_t next_seq_{0};
   uint16_t current_seq_{0};
 #else
   // seq tracking only exists for the API completion reply
-  void notify_complete_() {}
+  void notify_complete_(bool /*sent*/) {}
   static uint16_t take_seq_() { return 0; }
 #endif
 

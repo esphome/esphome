@@ -107,8 +107,8 @@ class IrRfEntity : public Component, public EntityBase, public remote_base::Remo
   bool on_receive(remote_base::RemoteReceiveData data) override;
 #ifdef USE_IR_RF_TRANSMIT_COMPLETE
   /// Called for every finished frame on every transmitter; answers the API request when the
-  /// frame is the one this entity submitted for it
-  void on_transmit_complete(remote_base::RemoteTransmitterBase *transmitter, uint16_t seq);
+  /// frame is the one this entity submitted for it, with sent as the outcome
+  void on_transmit_complete(remote_base::RemoteTransmitterBase *transmitter, uint16_t seq, bool sent);
 #endif
 
 #if defined(USE_API) && defined(USE_IR_RF)
@@ -137,8 +137,13 @@ class IrRfEntity : public Component, public EntityBase, public remote_base::Remo
   /// After control(): a false start is answered now, and the loop only runs once something is
   /// pending, since a blocking transmitter has already answered inside control()
   void settle_api_reply_(bool started) {
+#ifdef USE_IR_RF_TRANSMIT_COMPLETE
     if (!started)
       this->finish_api_reply_(false);
+#else
+    // no transmitter in this build reports completion, so the hand-over is the answer
+    this->finish_api_reply_(started);
+#endif
     if (this->api_reply_ != ApiReply::API_REPLY_NONE)
       this->enable_loop();
   }

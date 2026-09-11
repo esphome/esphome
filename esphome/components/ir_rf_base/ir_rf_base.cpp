@@ -15,8 +15,11 @@ namespace esphome::ir_rf_base {
 static const char *const TAG = "ir_rf";
 
 void IrRfEntity::setup() {
-  this->supports_transmitter_ = this->has_transmitter();
-  this->supports_receiver_ = this->has_receiver();
+  // merged, not assigned: a platform may have set a flag for its own hardware before setup()
+  if (this->has_transmitter())
+    this->supports_transmitter_ = true;
+  if (this->has_receiver())
+    this->supports_receiver_ = true;
 
   if (this->receiver_ != nullptr) {
     this->receiver_->register_listener(this);
@@ -101,11 +104,11 @@ bool IrRfEntity::on_receive(remote_base::RemoteReceiveData data) {
 static constexpr uint32_t API_REPLY_TIMEOUT_MS = 30000;
 
 #ifdef USE_IR_RF_TRANSMIT_COMPLETE
-void IrRfEntity::on_transmit_complete(remote_base::RemoteTransmitterBase *transmitter, uint16_t seq) {
+void IrRfEntity::on_transmit_complete(remote_base::RemoteTransmitterBase *transmitter, uint16_t seq, bool sent) {
   // only the frame this entity submitted; YAML automations and other entities share the transmitter
   if (transmitter == this->transmitter_ && seq == this->inflight_seq_ &&
       this->api_reply_ == ApiReply::API_REPLY_WAITING)
-    this->finish_api_reply_(true);
+    this->finish_api_reply_(sent);
 }
 #endif
 
@@ -172,15 +175,15 @@ void IrRfEntity::on_api_connection_closed(api::APIConnection *conn) {
 #ifdef USE_IR_RF_TRANSMIT_COMPLETE
 namespace esphome::remote_base {
 
-void ir_rf_transmit_complete(RemoteTransmitterBase *transmitter, uint16_t seq) {
+void ir_rf_transmit_complete(RemoteTransmitterBase *transmitter, uint16_t seq, bool sent) {
 #ifdef USE_INFRARED
   for (auto *entity : App.get_infrareds()) {
-    entity->on_transmit_complete(transmitter, seq);
+    entity->on_transmit_complete(transmitter, seq, sent);
   }
 #endif
 #ifdef USE_RADIO_FREQUENCY
   for (auto *entity : App.get_radio_frequencies()) {
-    entity->on_transmit_complete(transmitter, seq);
+    entity->on_transmit_complete(transmitter, seq, sent);
   }
 #endif
 }

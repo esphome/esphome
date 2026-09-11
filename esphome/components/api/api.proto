@@ -2700,9 +2700,10 @@ message InfraredRFReceiveEvent {
 // Sent only to the client that issued an InfraredRFTransmitRawTimingsRequest, once the
 // transmitter reports that the transmission (all repeats) has finished, or immediately with
 // success=false if it was refused before reaching the transmitter (unknown key, no transmitter,
-// no or invalid timings). success=false also answers a request the same client superseded
-// with a newer one and a transmit that reported nothing within 30 s, so a client should not
-// retry on it blindly. Lets clients pace requests instead of estimating durations (since API 1.18)
+// no or invalid timings) or the transmitter could not send it (not set up, hardware error).
+// success=false also answers a request the same client superseded with a newer one and a
+// transmit that reported nothing within 30 s, so a client should not retry on it blindly.
+// Lets clients pace requests instead of estimating durations (since API 1.18)
 message InfraredRFTransmitCompleteResponse {
   option (id) = 153;
   option (source) = SOURCE_SERVER;
@@ -2711,7 +2712,7 @@ message InfraredRFTransmitCompleteResponse {
 
   uint32 device_id = 1 [(field_ifdef) = "USE_DEVICES"];
   fixed32 key = 2 [(force) = true];  // Key of the transmitter entity from the request
-  bool success = 3;                  // false if the request was refused, superseded, or never reported
+  bool success = 3;                  // false if the request was refused, not sent, superseded, or never reported
 }
 
 // ==================== RADIO FREQUENCY ====================
