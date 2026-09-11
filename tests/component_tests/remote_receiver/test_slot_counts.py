@@ -5,6 +5,7 @@ from pathlib import Path
 
 import pytest
 
+from esphome.automation import ACTION_REGISTRY
 from esphome.components import remote_base
 import esphome.config_validation as cv
 
@@ -59,7 +60,13 @@ def test_every_registry_name_maps_to_a_protocol_source() -> None:
         set(remote_base.BINARY_SENSOR_REGISTRY)
         | set(remote_base.DUMPER_REGISTRY)
         | {key.removeprefix("on_") for key in remote_base.TRIGGER_REGISTRY}
+        | {
+            key.removeprefix("remote_transmitter.transmit_")
+            for key in ACTION_REGISTRY
+            if key.startswith("remote_transmitter.transmit_")
+        }
     )
+    assert len(names) > 40
     for name in names:
         assert remote_base._protocol_stem(name) in remote_base._PROTOCOL_STEMS, name
 
