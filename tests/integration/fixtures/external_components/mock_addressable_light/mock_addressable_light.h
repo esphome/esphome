@@ -37,7 +37,7 @@ class MockAddressableLight : public light::AddressableLight {
   uint8_t get_raw_white(uint16_t index) const { return this->buffer_.get_led_data()[index * 4 + 3]; }
 
  protected:
-  light::InterleavedColorBuffer buffer_;
+  light::PackedColorBuffer buffer_;
 };
 
 }  // namespace esphome::mock_addressable_light
