@@ -65,5 +65,4 @@ async def to_code(config: ConfigType) -> None:
         await ir_rf_base.attach_transmitter(var, config, CONF_REMOTE_TRANSMITTER_ID)
 
     if CONF_REMOTE_RECEIVER_ID in config:
-        receiver = await cg.get_variable(config[CONF_REMOTE_RECEIVER_ID])
-        cg.add(var.set_receiver(receiver))
+        await remote_base.attach_receiver(var, config, CONF_REMOTE_RECEIVER_ID)

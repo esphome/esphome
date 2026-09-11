@@ -30,10 +30,6 @@ void IrRfEntity::setup() {
     this->supports_transmitter_ = true;
   if (this->has_receiver())
     this->supports_receiver_ = true;
-
-  if (this->receiver_ != nullptr) {
-    this->receiver_->register_listener(this);
-  }
 }
 
 bool IrRfEntity::transmit_raw_(const IrRfCallData &call, uint32_t carrier_frequency_hz) {

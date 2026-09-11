@@ -1,12 +1,14 @@
+#pragma once
+
+#include <concepts>
 #include <utility>
 #include <vector>
-
-#pragma once
 
 #include "esphome/components/binary_sensor/binary_sensor.h"
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
 
 namespace esphome::remote_base {
 
@@ -149,6 +151,21 @@ class RemoteTransmitterBase;
 /// One function for the whole build instead of a callback list on every transmitter.
 void ir_rf_transmit_complete(RemoteTransmitterBase *transmitter, uint16_t seq, bool sent);
 #endif
+// Protocol shapes, checked where a protocol is used so a missing method fails at the use site
+// instead of deep inside a template body. Receive-only protocols such as RCSwitchBase decode
+// without encoding.
+template<typename T>
+concept RemoteProtocolDecoder = requires(T proto, RemoteReceiveData src) {
+  { proto.decode(src) } -> std::same_as<optional<typename T::ProtocolData>>;
+};
+template<typename T>
+concept RemoteProtocolDumper = RemoteProtocolDecoder<T> && requires(T proto, const typename T::ProtocolData &data) {
+  proto.dump(data);
+};
+template<typename T>
+concept RemoteProtocolEncoder = requires(T proto, RemoteTransmitData *dst, const typename T::ProtocolData &data) {
+  proto.encode(dst, data);
+};
 
 class RemoteTransmitterBase : public RemoteComponentBase {
  public:
@@ -174,8 +191,8 @@ class RemoteTransmitterBase : public RemoteComponentBase {
     this->temp_.reset();
     return TransmitCall(this, this->take_seq_());
   }
-  template<typename Protocol>
-  void transmit(const Protocol::ProtocolData &data, uint32_t send_times = 1, uint32_t send_wait = 0) {
+  template<RemoteProtocolEncoder Protocol>
+  void transmit(const typename Protocol::ProtocolData &data, uint32_t send_times = 1, uint32_t send_wait = 0) {
     auto call = this->transmit();
     Protocol().encode(call.get_data(), data);
     call.set_send_times(send_times);
@@ -222,24 +239,37 @@ class RemoteReceiverDumperBase {
 class RemoteReceiverBase : public RemoteComponentBase {
  public:
   RemoteReceiverBase(InternalGPIOPin *pin) : RemoteComponentBase(pin) {}
-  void register_listener(RemoteReceiverListener *listener) { this->listeners_.push_back(listener); }
+  // Slots are counted at code generation; without one the call fails at compile time with the same message
+  // the runtime check logs
+#ifdef REMOTE_BASE_LISTENER_COUNT
+  void register_listener(RemoteReceiverListener *listener);
+#else
+  template<typename T> void register_listener(T *) {
+    static_assert(sizeof(T) == 0, "No listener slot: register it from to_code() with remote_base.add_listener");
+  }
+#endif
+#ifdef REMOTE_BASE_DUMPER_COUNT
   void register_dumper(RemoteReceiverDumperBase *dumper);
+#else
+  template<typename T> void register_dumper(T *) {
+    static_assert(sizeof(T) == 0, "No dumper slot: register it from to_code() with remote_base.add_dumper");
+  }
+#endif
   void set_tolerance(uint32_t tolerance, ToleranceMode tolerance_mode) {
     this->tolerance_ = tolerance;
     this->tolerance_mode_ = tolerance_mode;
   }
 
  protected:
-  void call_listeners_();
-  void call_dumpers_();
-  void call_listeners_dumpers_() {
-    this->call_listeners_();
-    this->call_dumpers_();
-  }
+  void call_listeners_dumpers_();
 
-  std::vector<RemoteReceiverListener *> listeners_;
-  std::vector<RemoteReceiverDumperBase *> dumpers_;
-  std::vector<RemoteReceiverDumperBase *> secondary_dumpers_;
+#ifdef REMOTE_BASE_LISTENER_COUNT
+  StaticVector<RemoteReceiverListener *, REMOTE_BASE_LISTENER_COUNT> listeners_;
+#endif
+#ifdef REMOTE_BASE_DUMPER_COUNT
+  StaticVector<RemoteReceiverDumperBase *, REMOTE_BASE_DUMPER_COUNT> dumpers_;
+  RemoteReceiverDumperBase *secondary_dumper_{nullptr};  // runs only when no primary dumper matched
+#endif
   RawTimings temp_;
   uint32_t tolerance_{25};
   ToleranceMode tolerance_mode_{TOLERANCE_MODE_PERCENTAGE};
@@ -257,15 +287,14 @@ class RemoteReceiverBinarySensorBase : public binary_sensor::BinarySensorInitial
 
 /* TEMPLATES */
 
+// Protocols are used only through their concrete type (see the RemoteProtocol* concepts); encode/decode/dump
+// stay non-virtual so unused ones link out
 template<typename T> class RemoteProtocol {
  public:
   using ProtocolData = T;
-  virtual void encode(RemoteTransmitData *dst, const ProtocolData &data) = 0;
-  virtual optional<ProtocolData> decode(RemoteReceiveData src) = 0;
-  virtual void dump(const ProtocolData &data) = 0;
 };
 
-template<typename T> class RemoteReceiverBinarySensor : public RemoteReceiverBinarySensorBase {
+template<RemoteProtocolDecoder T> class RemoteReceiverBinarySensor : public RemoteReceiverBinarySensorBase {
  public:
   RemoteReceiverBinarySensor() : RemoteReceiverBinarySensorBase() {}
 
@@ -283,7 +312,7 @@ template<typename T> class RemoteReceiverBinarySensor : public RemoteReceiverBin
   T::ProtocolData data_;
 };
 
-template<typename T>
+template<RemoteProtocolDecoder T>
 class RemoteReceiverTrigger final : public Trigger<typename T::ProtocolData>, public RemoteReceiverListener {
  protected:
   bool on_receive(RemoteReceiveData src) override {
@@ -304,8 +333,8 @@ class RemoteTransmittable {
   void set_transmitter(RemoteTransmitterBase *transmitter) { this->transmitter_ = transmitter; }
 
  protected:
-  template<typename Protocol>
-  void transmit_(const Protocol::ProtocolData &data, uint32_t send_times = 1, uint32_t send_wait = 0) {
+  template<RemoteProtocolEncoder Protocol>
+  void transmit_(const typename Protocol::ProtocolData &data, uint32_t send_times = 1, uint32_t send_wait = 0) {
     this->transmitter_->transmit<Protocol>(data, send_times, send_wait);
   }
   RemoteTransmitterBase *transmitter_;
@@ -326,7 +355,7 @@ template<typename... Ts> class RemoteTransmitterActionBase : public RemoteTransm
   virtual void encode(RemoteTransmitData *dst, Ts... x) = 0;
 };
 
-template<typename T> class RemoteReceiverDumper : public RemoteReceiverDumperBase {
+template<RemoteProtocolDumper T> class RemoteReceiverDumper : public RemoteReceiverDumperBase {
  public:
   bool dump(RemoteReceiveData src) override {
     auto proto = T();
