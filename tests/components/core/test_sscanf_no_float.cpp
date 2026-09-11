@@ -32,6 +32,22 @@ TEST(SscanfNoFloat, BluedroidAddress) {
   EXPECT_EQ(sscanf_no_float("AA:bb:0C", "%02x:%02x:%02x:%02x:%02x:%02x", a, a + 1, a + 2, a + 3, a + 4, a + 5), 3);
 }
 
+TEST(SscanfNoFloat, WidthWithByteLength) {
+  uint8_t mac[6] = {0};
+  EXPECT_EQ(sscanf_no_float("AA:bb:0C:dd:ee:FF", "%02hhx:%02hhx:%02hhx:%02hhx:%02hhx:%02hhx", mac, mac + 1, mac + 2,
+                            mac + 3, mac + 4, mac + 5),
+            6);
+  EXPECT_EQ(mac[0], 0xaa);
+  EXPECT_EQ(mac[1], 0xbb);
+  EXPECT_EQ(mac[2], 0x0c);
+  EXPECT_EQ(mac[3], 0xdd);
+  EXPECT_EQ(mac[4], 0xee);
+  EXPECT_EQ(mac[5], 0xff);
+  // The width still bounds the digits when a length modifier is present
+  EXPECT_EQ(sscanf_no_float("abcd", "%02hhx", mac), 1);
+  EXPECT_EQ(mac[0], 0xab);
+}
+
 // --- The formats newlib's tzset uses, in case a wrap ever covers siscanf ---
 
 TEST(SscanfNoFloat, TzsetName) {
