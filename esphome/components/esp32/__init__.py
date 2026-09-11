@@ -784,7 +784,14 @@ def _mbedtls_sdkconfig() -> MbedtlsSdkconfigData:
 
 # IDF components that reference esp_tls symbols from their own code, so
 # re-including any of them is an implicit TLS request.
-_ESP_TLS_LINKING_COMPONENTS = ("esp-tls", "esp_http_client", "mqtt")
+_ESP_TLS_LINKING_COMPONENTS = (
+    "esp-tls",
+    "esp_http_client",
+    "esp_https_ota",
+    "esp_https_server",
+    "esp_local_ctrl",
+    "mqtt",
+)
 
 
 def _mbedtls_tls_required() -> bool:
@@ -1917,11 +1924,11 @@ def require_mbedtls_pkcs7() -> None:
 
 
 def require_mbedtls_tls_server() -> None:
-    """Mark that the mbedTLS server-side TLS/DTLS handshake is required.
+    """Widen the TLS role to include the server-side handshake.
 
-    Call this from components that accept TLS connections (OpenThread's DTLS
-    commissioner does). This prevents CONFIG_MBEDTLS_TLS_CLIENT_ONLY from
-    being selected.
+    Only affects builds where TLS is compiled in; it prevents
+    CONFIG_MBEDTLS_TLS_CLIENT_ONLY from being selected. A component that
+    actually opens or accepts TLS/DTLS sessions must also call request_tls().
     """
     CORE.data[KEY_ESP32][KEY_MBEDTLS_TLS_SERVER_REQUIRED] = True
 

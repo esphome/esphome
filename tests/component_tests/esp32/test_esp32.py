@@ -10,6 +10,7 @@ from typing import Any
 import pytest
 
 from esphome.components.esp32 import (
+    _ESP_TLS_LINKING_COMPONENTS,
     KEY_FATFS_REQUIRED,
     KEY_MBEDTLS_TLS_EXTRAS_REQUIRED,
     KEY_MBEDTLS_TLS_SERVER_REQUIRED,
@@ -471,7 +472,7 @@ _IDF6 = cv.Version(6, 0, 0)
             MbedtlsSdkconfigData(),
             {},
             {**_TLS_OFF_IDF5, **_PEER_CERT_PKCS7_OFF},
-            {"esp-tls", "esp_http_client", "mqtt"},
+            set(_ESP_TLS_LINKING_COMPONENTS),
             id="idf5_no_tls_user",
         ),
         pytest.param(
@@ -491,7 +492,7 @@ _IDF6 = cv.Version(6, 0, 0)
             MbedtlsSdkconfigData(),
             {},
             _PEER_CERT_PKCS7_OFF,
-            {"esp-tls", "mqtt"},
+            set(_ESP_TLS_LINKING_COMPONENTS) - {"esp_http_client"},
             id="idf_http_client_reincluded",
         ),
         pytest.param(
@@ -505,7 +506,7 @@ _IDF6 = cv.Version(6, 0, 0)
                 "CONFIG_MBEDTLS_SHA384_C": False,
                 "CONFIG_MBEDTLS_SHA512_C": False,
             },
-            {"esp-tls", "esp_http_client", "mqtt"},
+            set(_ESP_TLS_LINKING_COMPONENTS),
             id="idf6_drops_sha512",
         ),
         pytest.param(
@@ -514,7 +515,7 @@ _IDF6 = cv.Version(6, 0, 0)
             MbedtlsSdkconfigData(sha512_required=True),
             {},
             {**_TLS_OFF_IDF6, **_PEER_CERT_PKCS7_OFF},
-            {"esp-tls", "esp_http_client", "mqtt"},
+            set(_ESP_TLS_LINKING_COMPONENTS),
             id="idf6_sha512_required",
         ),
         pytest.param(
@@ -523,7 +524,7 @@ _IDF6 = cv.Version(6, 0, 0)
             MbedtlsSdkconfigData(tls_required=True),
             {},
             _PEER_CERT_PKCS7_OFF,
-            {"esp-tls", "esp_http_client", "mqtt"},
+            set(_ESP_TLS_LINKING_COMPONENTS),
             id="idf_tls_requested",
         ),
         pytest.param(
@@ -539,7 +540,7 @@ _IDF6 = cv.Version(6, 0, 0)
                 "CONFIG_MBEDTLS_X509_CSR_PARSE_C": False,
                 **_PEER_CERT_PKCS7_OFF,
             },
-            {"esp-tls", "esp_http_client", "mqtt"},
+            set(_ESP_TLS_LINKING_COMPONENTS),
             id="idf_ecp_without_tls",
         ),
         pytest.param(
@@ -552,7 +553,7 @@ _IDF6 = cv.Version(6, 0, 0)
                 "CONFIG_MBEDTLS_ECP_C": RawSdkconfigValue("y"),
                 **_PEER_CERT_PKCS7_OFF,
             },
-            {"esp-tls", "esp_http_client", "mqtt"},
+            set(_ESP_TLS_LINKING_COMPONENTS),
             id="idf_user_ecp_wins",
         ),
         pytest.param(
@@ -565,7 +566,7 @@ _IDF6 = cv.Version(6, 0, 0)
                 "CONFIG_MBEDTLS_SSL_KEEP_PEER_CERTIFICATE": True,
                 "CONFIG_MBEDTLS_PKCS7_C": True,
             },
-            {"esp-tls", "esp_http_client", "mqtt"},
+            set(_ESP_TLS_LINKING_COMPONENTS),
             id="idf_peer_cert_pkcs7_required",
         ),
         pytest.param(
@@ -574,7 +575,7 @@ _IDF6 = cv.Version(6, 0, 0)
             MbedtlsSdkconfigData(disable_peer_cert=False, disable_pkcs7=False),
             {},
             _TLS_OFF_IDF5,
-            {"esp-tls", "esp_http_client", "mqtt"},
+            set(_ESP_TLS_LINKING_COMPONENTS),
             id="idf_advanced_disables_off",
         ),
         pytest.param(
@@ -584,7 +585,7 @@ _IDF6 = cv.Version(6, 0, 0)
             MbedtlsSdkconfigData(disable_tls=False),
             {},
             _PEER_CERT_PKCS7_OFF,
-            {"esp-tls", "esp_http_client", "mqtt"},
+            set(_ESP_TLS_LINKING_COMPONENTS),
             id="idf_disable_tls_opt_out",
         ),
         pytest.param(
@@ -593,7 +594,7 @@ _IDF6 = cv.Version(6, 0, 0)
             MbedtlsSdkconfigData(),
             {},
             _PEER_CERT_PKCS7_OFF,
-            {"esp-tls", "esp_http_client", "mqtt"},
+            set(_ESP_TLS_LINKING_COMPONENTS),
             id="arduino_keeps_tls",
         ),
     ],
@@ -630,7 +631,7 @@ def test_reconcile_mbedtls_sdkconfig(
             "exclusion_reincludes_web_server.yaml", True, True, id="web_server_idf"
         ),
         # openthread's SRP host key needs ECDSA, so ECP stays while TLS is off
-        pytest.param("tls_openthread_c6.yaml", True, False, id="openthread"),
+        pytest.param("mbedtls_tls_openthread.yaml", True, False, id="openthread"),
         pytest.param(
             "exclusion_reincludes_http_request.yaml", False, False, id="http_request"
         ),
