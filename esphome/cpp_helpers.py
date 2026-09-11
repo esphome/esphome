@@ -1,4 +1,4 @@
-from collections.abc import Callable
+from collections.abc import Callable, Hashable
 from dataclasses import dataclass, field
 import logging
 
@@ -142,9 +142,10 @@ _SLOT_COUNTER_DOMAIN = "slot_counter"
 
 @dataclass
 class _SlotCounterState:
-    """Per-run slot counter state: requested counts and already-emitted defines."""
+    """Per-run slot counter state: requested counts per define and key, and
+    already-emitted defines."""
 
-    counts: dict[str, int] = field(default_factory=dict)
+    counts: dict[str, dict[Hashable, int]] = field(default_factory=dict)
     emitted: set[str] = field(default_factory=set)
 
 
@@ -156,11 +157,13 @@ def _get_slot_counter_state() -> _SlotCounterState:
 
 
 def get_slot_count(define: str) -> int:
-    """Number of slots requested so far for `define`."""
-    return _get_slot_counter_state().counts.get(define, 0)
+    """Value `define` would be emitted with so far: the largest count requested
+    under any one key, which is the plain request count when no key is used."""
+    counts = _get_slot_counter_state().counts.get(define)
+    return max(counts.values()) if counts else 0
 
 
-def slot_counter(define: str) -> Callable[[], None]:
+def slot_counter(define: str) -> Callable[..., None]:
     """Create a request_slot function for codegen-sized storage.
 
     The pattern behind a StaticVector listener array: a consumer's to_code
@@ -168,6 +171,11 @@ def slot_counter(define: str) -> Callable[[], None]:
     at FINAL priority — after every consumer's to_code has run — `define` is
     emitted with the requested count. No requests, no define: the guarded
     storage and its registration method compile out entirely.
+
+    When several objects each declare the storage at the same size (one list
+    per receiver, per hub, ...) the caller passes the owning object as `key`
+    and the define becomes the largest count any one key requested, not the
+    total. Requests without a key share one count.
 
     The counts live in a table under CORE.data, which clears between runs.
     A request arriving after the define was already emitted raises instead of
@@ -179,10 +187,10 @@ def slot_counter(define: str) -> Callable[[], None]:
     async def emit_job() -> None:
         state = _get_slot_counter_state()
         state.emitted.add(define)
-        # Scheduled only by the first request, so the count is always >= 1 here.
-        add_define(define, state.counts[define])
+        # Scheduled only by the first request, so there is at least one count here.
+        add_define(define, max(state.counts[define].values()))
 
-    def request_slot() -> None:
+    def request_slot(key: Hashable = None) -> None:
         state = _get_slot_counter_state()
         if define in state.emitted:
             raise ValueError(
@@ -190,10 +198,11 @@ def slot_counter(define: str) -> Callable[[], None]:
                 f"define was emitted; request slots from to_code, not from a "
                 f"job running after FINAL emission"
             )
-        counts = state.counts
-        counts[define] = (count := counts.get(define, 0) + 1)
-        if count == 1:
+        counts = state.counts.get(define)
+        if counts is None:
+            counts = state.counts[define] = {}
             CORE.add_job(emit_job)
+        counts[key] = counts.get(key, 0) + 1
 
     return request_slot
 

@@ -1,5 +1,4 @@
 from collections.abc import Callable
-from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -45,8 +44,7 @@ from esphome.const import (
     CONF_WAND_ID,
     CONF_ZERO,
 )
-from esphome.core import CORE, ID, coroutine, coroutine_with_priority
-from esphome.coroutine import CoroPriority
+from esphome.core import ID, coroutine
 from esphome.cpp_generator import MockObj
 from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 from esphome.types import ConfigType
@@ -103,52 +101,22 @@ REMOTE_TRANSMITTABLE_SCHEMA = cv.Schema(
 
 # Listener and dumper lists are StaticVectors sized from these counts, so every registration
 # must go through add_listener / add_dumper. Every receiver's list gets the same capacity, so
-# the define is the largest count any one receiver needs, not the sum over all receivers.
+# the slots are keyed by receiver and the define is the largest count any one receiver needs.
 LISTENER_COUNT_DEFINE = "REMOTE_BASE_LISTENER_COUNT"
 DUMPER_COUNT_DEFINE = "REMOTE_BASE_DUMPER_COUNT"
 
 
-@dataclass
-class _SlotCounts:
-    per_receiver: dict[str, dict[str, int]] = field(default_factory=dict)
-    emitted: bool = False
-
-
-def _get_slot_counts() -> _SlotCounts:
-    if DOMAIN not in CORE.data:
-        CORE.data[DOMAIN] = _SlotCounts()
-    return CORE.data[DOMAIN]
-
-
-@coroutine_with_priority(CoroPriority.FINAL)
-async def _emit_slot_counts() -> None:
-    state = _get_slot_counts()
-    state.emitted = True
-    for define, counts in state.per_receiver.items():
-        cg.add_define(define, max(counts.values()))
-
-
-def _request_slot(define: str, receiver: MockObj) -> None:
-    state = _get_slot_counts()
-    if state.emitted:
-        raise ValueError(
-            f"{define}: slot requested after the count define was emitted; "
-            "request slots from to_code, not from a job running after FINAL"
-        )
-    if not state.per_receiver:
-        CORE.add_job(_emit_slot_counts)
-    counts = state.per_receiver.setdefault(define, {})
-    key = str(receiver)
-    counts[key] = counts.get(key, 0) + 1
+_request_listener_slot = cg.slot_counter(LISTENER_COUNT_DEFINE)
+_request_dumper_slot = cg.slot_counter(DUMPER_COUNT_DEFINE)
 
 
 def add_listener(receiver: MockObj, listener: MockObj) -> None:
-    _request_slot(LISTENER_COUNT_DEFINE, receiver)
+    _request_listener_slot(str(receiver))
     cg.add(receiver.register_listener(listener))
 
 
 def add_dumper(receiver: MockObj, dumper: MockObj) -> None:
-    _request_slot(DUMPER_COUNT_DEFINE, receiver)
+    _request_dumper_slot(str(receiver))
     cg.add(receiver.register_dumper(dumper))
 
 

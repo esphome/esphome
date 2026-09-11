@@ -187,6 +187,19 @@ def test_slot_counter_emits_requested_count() -> None:
     assert _define_value("TEST_SLOT_COUNT") == "2"
 
 
+def test_slot_counter_keyed_emits_largest_count() -> None:
+    """Keyed requests size storage every key declares at the same capacity:
+    the define is the busiest key's count, not the total over all keys."""
+    request = ch.slot_counter("TEST_SLOT_COUNT_KEYED")
+    request("rx_a")
+    request("rx_a")
+    request("rx_a")
+    request("rx_b")
+    assert ch.get_slot_count("TEST_SLOT_COUNT_KEYED") == 3
+    ch.CORE.flush_tasks()
+    assert _define_value("TEST_SLOT_COUNT_KEYED") == "3"
+
+
 def test_slot_counter_without_requests_emits_nothing() -> None:
     """No requests, no job, no define — the guarded storage compiles out."""
     ch.slot_counter("TEST_SLOT_COUNT_UNUSED")

@@ -181,7 +181,7 @@ class RemoteTransmitterBase : public RemoteComponentBase {
     return TransmitCall(this);
   }
   template<RemoteProtocolEncoder Protocol>
-  void transmit(const Protocol::ProtocolData &data, uint32_t send_times = 1, uint32_t send_wait = 0) {
+  void transmit(const typename Protocol::ProtocolData &data, uint32_t send_times = 1, uint32_t send_wait = 0) {
     auto call = this->transmit();
     Protocol().encode(call.get_data(), data);
     call.set_send_times(send_times);
@@ -307,7 +307,7 @@ class RemoteTransmittable {
 
  protected:
   template<RemoteProtocolEncoder Protocol>
-  void transmit_(const Protocol::ProtocolData &data, uint32_t send_times = 1, uint32_t send_wait = 0) {
+  void transmit_(const typename Protocol::ProtocolData &data, uint32_t send_times = 1, uint32_t send_wait = 0) {
     this->transmitter_->transmit<Protocol>(data, send_times, send_wait);
   }
   RemoteTransmitterBase *transmitter_;
