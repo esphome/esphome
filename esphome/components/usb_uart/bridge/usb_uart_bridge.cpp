@@ -153,11 +153,13 @@ void USBUARTBridge::setup() {
 }
 
 void USBUARTBridge::dump_config() {
-  ESP_LOGCONFIG(TAG, "USB-UART Bridge:");
+  ESP_LOGCONFIG(TAG,
+                "USB-UART Bridge:\n"
+                "  UART Bus: %u\n"
+                "  USB CDC Interface: %u",
+                this->uart_parent_->get_hw_serial_number(), static_cast<uint8_t>(this->usb_cdc_parent_->get_itf()));
   LOG_PIN("  DTR Pin: ", this->dtr_pin_);
   LOG_PIN("  RTS Pin: ", this->rts_pin_);
-  ESP_LOGCONFIG(TAG, "  UART Bus: %u", this->uart_parent_->get_hw_serial_number());
-  ESP_LOGCONFIG(TAG, "  USB CDC Interface: %u", static_cast<uint8_t>(this->usb_cdc_parent_->get_itf()));
 }
 
 void USBUARTBridge::on_shutdown() {
