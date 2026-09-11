@@ -376,6 +376,7 @@ void RemoteTransmitterComponent::send_internal(uint32_t send_times, uint32_t sen
     if (error != ESP_OK) {
       ESP_LOGW(TAG, "rmt_tx_wait_all_done failed: %s", esp_err_to_name(error));
       this->status_set_warning();
+      sent = false;
     }
     if (i + 1 < send_times)
       delayMicroseconds(send_wait);

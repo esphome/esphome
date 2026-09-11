@@ -15,7 +15,7 @@ namespace esphome::ir_rf_base {
 
 static const char *const TAG = "ir_rf";
 
-#if defined(USE_API) && defined(USE_IR_RF)
+#ifdef USE_IR_RF_TRANSMIT_COMPLETE
 // Safety net for a transmitter that never reports completion (for example a failed component):
 // the request is answered as failed this long after its frame should have left the wire
 static constexpr uint32_t API_REPLY_TIMEOUT_MS = 30000;
@@ -84,12 +84,10 @@ bool IrRfEntity::transmit_raw_(const IrRfCallData &call, uint32_t carrier_freque
     transmit_call.set_send_times(call.get_repeat_count());
   }
 
-#if defined(USE_API) && defined(USE_IR_RF)
-  if (call.wants_api_reply()) {
 #ifdef USE_IR_RF_TRANSMIT_COMPLETE
+  if (call.wants_api_reply()) {
     // only an API frame claims the seq, so a YAML transmit cannot take over a pending reply
     this->inflight_seq_ = transmit_call.get_seq();
-#endif
     // a long frame must not be answered as failed while still on the wire: the 30 s safety net
     // starts after this frame's own air time (capped so the tick comparison cannot wrap)
     uint64_t frame_us = 0;
@@ -137,8 +135,10 @@ void IrRfEntity::expect_api_reply_(api::APIConnection *conn) {
     ESP_LOGW(TAG, "'%s': transmit %s", this->get_name().c_str(), LOG_STR_LITERAL("reply displaced"));
   }
   this->api_reply_connection_ = conn;
+#ifdef USE_IR_RF_TRANSMIT_COMPLETE
   this->api_reply_deadline_ =
       static_cast<uint16_t>((App.get_loop_component_start_time() >> 4) + (API_REPLY_TIMEOUT_MS >> 4));
+#endif
   this->api_reply_ = ApiReply::API_REPLY_WAITING;
 }
 
@@ -173,9 +173,11 @@ void IrRfEntity::loop() {
     this->send_api_reply_();
     return;
   }
+#ifdef USE_IR_RF_TRANSMIT_COMPLETE
   const auto remaining = static_cast<int16_t>(this->api_reply_deadline_ - (App.get_loop_component_start_time() >> 4));
   if (remaining > 0)
     return;
+#endif
   ESP_LOGW(TAG, "'%s': transmit %s", this->get_name().c_str(), LOG_STR_LITERAL("never reported completion"));
   this->finish_api_reply_(false);
 }

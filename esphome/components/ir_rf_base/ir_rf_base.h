@@ -159,11 +159,9 @@ class IrRfEntity : public Component, public EntityBase, public remote_base::Remo
 
   remote_base::RemoteReceiverBase *receiver_{nullptr};
   remote_base::RemoteTransmitterBase *transmitter_{nullptr};
-#if defined(USE_API) && defined(USE_IR_RF)
-  uint16_t api_reply_deadline_{0};  // in 16 ms ticks: 30 s plus the frame's own air time, capped
-#endif
 #ifdef USE_IR_RF_TRANSMIT_COMPLETE
-  uint16_t inflight_seq_{0};  // seq of the API frame this entity submitted last
+  uint16_t api_reply_deadline_{0};  // in 16 ms ticks: 30 s plus the frame's own air time, capped
+  uint16_t inflight_seq_{0};        // seq of the API frame this entity submitted last
 #endif
   // short members last, so the derived traits start on the next word without a gap
   bool supports_transmitter_{false};

@@ -2703,8 +2703,9 @@ message InfraredRFReceiveEvent {
 // no or invalid timings) or the transmitter could not send it (not set up, hardware error).
 // success=false also answers a request superseded by a newer request on the same entity, from
 // any client, and a transmit that reported nothing within 30 s past its expected air time, so a
-// client should not retry on it blindly.
-// Lets clients pace requests instead of estimating durations (since API 1.18)
+// client should not retry on it blindly. The device serializes transmits per transmitter and
+// several entities may share one, so a client should keep at most one transmit outstanding per
+// device, not per entity. Lets clients pace requests instead of estimating durations (since API 1.18)
 message InfraredRFTransmitCompleteResponse {
   option (id) = 153;
   option (source) = SOURCE_SERVER;
