@@ -124,17 +124,10 @@ void RP2040PIOLEDStripLightOutput::setup() {
 }
 
 void RP2040PIOLEDStripLightOutput::write_state(light::LightState *state) {
+  if (!this->is_ready()) {
+    return;
+  }
   ESP_LOGVV(TAG, "Writing state");
-
-  if (this->is_failed()) {
-    ESP_LOGW(TAG, "Light is in failed state, not writing state.");
-    return;
-  }
-
-  if (this->buf_ == nullptr) {
-    ESP_LOGW(TAG, "Buffer is null, not writing state.");
-    return;
-  }
 
   // the bits are already in the correct order for the pio program so we can just copy the buffer using DMA
   sem_acquire_blocking(&RP2040PIOLEDStripLightOutput::dma_write_complete_sem[this->dma_chan_]);
@@ -142,6 +135,9 @@ void RP2040PIOLEDStripLightOutput::write_state(light::LightState *state) {
 }
 
 light::ESPColorView RP2040PIOLEDStripLightOutput::get_view_internal(int32_t index) const {
+  if (this->buf_ == nullptr || this->effect_data_ == nullptr) {
+    return {&this->correction_};
+  }
   const light::ChannelColors &colors = this->channel_colors_;
   uint8_t *led = this->buf_ + (index * colors.bytes_per_led());
   return {led + colors.r,
