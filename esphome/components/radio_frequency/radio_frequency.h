@@ -23,7 +23,7 @@ class RadioFrequency;
 /// RadioFrequencyCall - Builder pattern for transmitting radio frequency signals
 class RadioFrequencyCall : public ir_rf_base::IrRfCall<RadioFrequencyCall, RadioFrequency> {
  public:
-  using IrRfCall::IrRfCall;
+  explicit RadioFrequencyCall(RadioFrequency *parent) : IrRfCall(parent) {}
 
   /// Set the carrier frequency in Hz (e.g. 433920000 for 433.92 MHz)
   RadioFrequencyCall &set_frequency(uint32_t frequency_hz) {

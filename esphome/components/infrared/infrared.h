@@ -17,7 +17,7 @@ class Infrared;
 /// InfraredCall - Builder pattern for transmitting infrared signals
 class InfraredCall : public ir_rf_base::IrRfCall<InfraredCall, Infrared> {
  public:
-  using IrRfCall::IrRfCall;
+  explicit InfraredCall(Infrared *parent) : IrRfCall(parent) {}
 
   /// Set the carrier frequency in Hz
   InfraredCall &set_carrier_frequency(uint32_t frequency) {

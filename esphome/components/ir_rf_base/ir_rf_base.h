@@ -142,9 +142,11 @@ class IrRfEntity : public Component, public EntityBase, public remote_base::Remo
 /// Builder for a transmit; Call is the concrete call type and Entity its entity, so the fluent
 /// setters return the concrete type and control() sees the medium specific fields
 template<typename Call, typename Entity> class IrRfCall : public IrRfCallData {
- public:
+  // only the concrete call may construct the CRTP base
+  friend Call;
   explicit IrRfCall(Entity *parent) : parent_(parent) {}
 
+ public:
   // ===== Raw Timings Methods =====
   // All set_raw_timings_* methods store pointers/references to external data.
   // The referenced data must remain valid until perform() completes.
