@@ -662,10 +662,7 @@ async def to_code(config):
         add_idf_sdkconfig_option("CONFIG_ESP_WIFI_ENTERPRISE_SUPPORT", has_eap)
         if has_eap:
             # The supplicant's Kconfig select cannot override the IDF 5 TLS
-            # role choice, so request TLS explicitly. Its EAP client also
-            # negotiates with whatever the RADIUS server offers, and a failed
-            # handshake leaves the device off the network, so keep every
-            # mbedTLS client feature the esp32 platform would otherwise trim.
+            # role choice; the EAP client also needs every trimmed extra.
             request_tls()
             require_mbedtls_tls_extras()
 

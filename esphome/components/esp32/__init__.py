@@ -1,6 +1,6 @@
 from collections.abc import Callable, Iterable
 import contextlib
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import itertools
 import logging
 import os
@@ -764,8 +764,9 @@ class MbedtlsSdkconfigData:
     final values once every to_code has run.
     """
 
-    tls_required: bool = False  # TLS/DTLS handshake user
     ecp_required: bool = False  # ECDH/ECDSA without TLS (openthread SRP host key)
+    tls_server_required: bool = False  # server-side TLS/DTLS handshake
+    tls_extras_required: set[str] = field(default_factory=set)  # kept TLS extras
     peer_cert_required: bool = False  # keep the peer certificate after the handshake
     pkcs7_required: bool = False  # PKCS#7 parsing
     sha512_required: bool = False  # SHA-384/SHA-512
@@ -797,14 +798,13 @@ _ESP_TLS_LINKING_COMPONENTS = (
 
 
 def _mbedtls_tls_required() -> bool:
-    """TLS stays in the build: requested, or an esp_tls user was re-included.
+    """TLS stays in the build: an esp_tls-linking component was re-included.
 
-    The second signal keeps external components working whose only obligation
-    before request_tls() existed was include_builtin_idf_component() of
-    esp-tls or of a component that links it (esp_http_client, IDF mqtt).
+    request_tls() funnels into this signal too, and it keeps external
+    components working whose only obligation before request_tls() existed was
+    include_builtin_idf_component() of esp-tls or of a component that links
+    it (esp_http_client, IDF mqtt).
     """
-    if _mbedtls_sdkconfig().tls_required:
-        return True
     excluded = CORE.data[KEY_ESP32][KEY_EXCLUDE_COMPONENTS]
     return any(name not in excluded for name in _ESP_TLS_LINKING_COMPONENTS)
 
@@ -822,9 +822,9 @@ def request_tls() -> None:
     """Request the mbedTLS TLS stack and the esp-tls wrapper.
 
     Without a request TLS and its ECP/PEM-write/CRL/CSR crypto compile out;
-    hashes, AES and RSA stay available.
+    hashes, AES and RSA stay available. Re-including esp-tls is itself the
+    request signal the reconciler reads.
     """
-    _mbedtls_sdkconfig().tls_required = True
     include_builtin_idf_component("esp-tls")
 
 
@@ -1834,8 +1834,6 @@ KEY_VFS_TERMIOS_REQUIRED = "vfs_termios_required"
 # Feature requirement tracking - components can call require_* functions to re-enable
 # These are stored in CORE.data[KEY_ESP32] dict
 KEY_USB_SERIAL_JTAG_SECONDARY_REQUIRED = "usb_serial_jtag_secondary_required"
-KEY_MBEDTLS_TLS_SERVER_REQUIRED = "mbedtls_tls_server_required"
-KEY_MBEDTLS_TLS_EXTRAS_REQUIRED = "mbedtls_tls_extras_required"
 KEY_FATFS_REQUIRED = "fatfs_required"
 KEY_ADC_ONESHOT_IRAM_REQUIRED = "adc_oneshot_iram_required"
 KEY_LIBC_PICOLIBC_NEWLIB_COMPAT_REQUIRED = "libc_picolibc_newlib_compat_required"
@@ -1932,7 +1930,7 @@ def require_mbedtls_tls_server() -> None:
     CONFIG_MBEDTLS_TLS_CLIENT_ONLY from being selected. A component that
     actually opens or accepts TLS/DTLS sessions must also call request_tls().
     """
-    CORE.data[KEY_ESP32][KEY_MBEDTLS_TLS_SERVER_REQUIRED] = True
+    _mbedtls_sdkconfig().tls_server_required = True
 
 
 def require_mbedtls_tls_extras(options: Iterable[str] | None = None) -> None:
@@ -1945,8 +1943,9 @@ def require_mbedtls_tls_extras(options: Iterable[str] | None = None) -> None:
     servers ESPHome cannot vet (wpa_supplicant's EAP client). A user-supplied
     sdkconfig_options value is never overridden either.
     """
-    required = CORE.data[KEY_ESP32].setdefault(KEY_MBEDTLS_TLS_EXTRAS_REQUIRED, set())
-    required.update(MBEDTLS_TLS_EXTRA_OPTIONS if options is None else options)
+    _mbedtls_sdkconfig().tls_extras_required.update(
+        MBEDTLS_TLS_EXTRA_OPTIONS if options is None else options
+    )
 
 
 def require_mbedtls_sha512() -> None:
@@ -2486,8 +2485,7 @@ async def _reconcile_mbedtls_sdkconfig() -> None:
     """
     data = _mbedtls_sdkconfig()
     idf6 = idf_version() >= cv.Version(6, 0, 0)
-    esp32_data = CORE.data[KEY_ESP32]
-    opts = esp32_data[KEY_SDKCONFIG_OPTIONS]
+    opts = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
 
     if _mbedtls_tls_compiled_out():
         # IDF 6 made CONFIG_MBEDTLS_TLS_ENABLED a normal bool; on IDF 5 it has
@@ -2510,7 +2508,7 @@ async def _reconcile_mbedtls_sdkconfig() -> None:
         # TLS stays in: trim it to the client role unless a component accepts
         # TLS connections or the user already chose a role.
         data.disable_tls_server
-        and not esp32_data.get(KEY_MBEDTLS_TLS_SERVER_REQUIRED, False)
+        and not data.tls_server_required
         and not any(option in opts for option in MBEDTLS_TLS_ROLE_OPTIONS)
     ):
         add_idf_sdkconfig_option("CONFIG_MBEDTLS_TLS_CLIENT_ONLY", True)
@@ -2519,9 +2517,8 @@ async def _reconcile_mbedtls_sdkconfig() -> None:
     # The extras run either way: CCM and deterministic ECDSA are plain
     # crypto, not TLS-gated, so they matter even with TLS compiled out.
     if data.disable_tls_extras:
-        required = esp32_data.get(KEY_MBEDTLS_TLS_EXTRAS_REQUIRED, set())
         for option in MBEDTLS_TLS_EXTRA_OPTIONS:
-            if option not in required:
+            if option not in data.tls_extras_required:
                 set_idf_sdkconfig_default(option, False)
 
     # Keeping the peer certificate costs ~4KB heap per connection.

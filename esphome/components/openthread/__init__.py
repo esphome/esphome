@@ -112,11 +112,9 @@ def set_sdkconfig_options(config: ConfigType) -> None:
 
     add_idf_sdkconfig_option("CONFIG_OPENTHREAD_ENABLED", True)
 
-    # The commissioner/joiner Kconfigs are off by default, so no mbedtls_ssl_*
-    # is linked and TLS stays compiled out; enabling them via sdkconfig_options
-    # also needs CONFIG_MBEDTLS_TLS_DISABLED: n. The crypto platform uses
-    # AES-CCM and deterministic ECDSA directly, and the DTLS commissioner is a
-    # TLS server, so keep those out of the esp32 component's trims.
+    # Commissioner/joiner Kconfigs default off, so no mbedtls_ssl_* is linked;
+    # enabling them via sdkconfig_options also needs CONFIG_MBEDTLS_TLS_DISABLED: n.
+    # The crypto platform uses AES-CCM and deterministic ECDSA directly.
     require_mbedtls_tls_server()
     require_mbedtls_tls_extras(
         ("CONFIG_MBEDTLS_CCM_C", "CONFIG_MBEDTLS_ECDSA_DETERMINISTIC")

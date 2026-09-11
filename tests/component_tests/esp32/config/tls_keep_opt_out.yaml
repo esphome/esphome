@@ -7,12 +7,3 @@ esp32:
     type: esp-idf
     advanced:
       disable_mbedtls_tls: false
-
-ethernet:
-  type: W5500
-  clk_pin: 19
-  mosi_pin: 21
-  miso_pin: 23
-  cs_pin: 18
-  interrupt_pin: 36
-  reset_pin: 22

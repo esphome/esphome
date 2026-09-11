@@ -11,9 +11,8 @@ import pytest
 
 from esphome.components.esp32 import (
     _ESP_TLS_LINKING_COMPONENTS,
+    DEFAULT_EXCLUDED_IDF_COMPONENTS,
     KEY_FATFS_REQUIRED,
-    KEY_MBEDTLS_TLS_EXTRAS_REQUIRED,
-    KEY_MBEDTLS_TLS_SERVER_REQUIRED,
     KEY_VFS_DIR_REQUIRED,
     KEY_VFS_SELECT_REQUIRED,
     KEY_VFS_TERMIOS_REQUIRED,
@@ -27,6 +26,7 @@ from esphome.components.esp32 import (
     _reconcile_mbedtls_sdkconfig,
     _reconcile_network_sdkconfig,
     _reconcile_vfs_fatfs_sdkconfig,
+    _user_sdkconfig_wants_tls,
 )
 from esphome.components.esp32.const import (
     KEY_ESP32,
@@ -527,23 +527,14 @@ _IDF6 = cv.Version(6, 0, 0)
         pytest.param(
             PlatformFramework.ESP32_IDF,
             _IDF5,
-            MbedtlsSdkconfigData(tls_required=True),
-            {},
-            {**_TLS_CLIENT_ONLY, **_TLS_EXTRAS_OFF, **_PEER_CERT_PKCS7_OFF},
-            set(_ESP_TLS_LINKING_COMPONENTS),
-            id="idf_tls_requested",
-        ),
-        pytest.param(
-            PlatformFramework.ESP32_IDF,
-            _IDF5,
             MbedtlsSdkconfigData(ecp_required=True),
             {},
             {
-                "CONFIG_MBEDTLS_TLS_DISABLED": True,
-                "CONFIG_ESP_WIFI_ENTERPRISE_SUPPORT": False,
-                "CONFIG_MBEDTLS_PEM_WRITE_C": False,
-                "CONFIG_MBEDTLS_X509_CRL_PARSE_C": False,
-                "CONFIG_MBEDTLS_X509_CSR_PARSE_C": False,
+                **{
+                    k: v
+                    for k, v in _TLS_OFF_IDF5.items()
+                    if k != "CONFIG_MBEDTLS_ECP_C"
+                },
                 **_TLS_EXTRAS_OFF,
                 **_PEER_CERT_PKCS7_OFF,
             },
@@ -632,6 +623,33 @@ def test_reconcile_mbedtls_sdkconfig(
     assert CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS] == expected
 
 
+def test_esp_tls_linking_components_are_excluded_by_default() -> None:
+    """The fallback scan is only a real signal while every name is excluded by default."""
+    assert set(_ESP_TLS_LINKING_COMPONENTS) <= set(DEFAULT_EXCLUDED_IDF_COMPONENTS)
+
+
+@pytest.mark.parametrize(
+    ("options", "wants_tls"),
+    [
+        pytest.param({}, False, id="empty"),
+        pytest.param({"CONFIG_MBEDTLS_TLS_SERVER_AND_CLIENT": "y"}, True, id="role_y"),
+        pytest.param({"CONFIG_MBEDTLS_TLS_ENABLED": "n"}, False, id="enabled_n"),
+        pytest.param({"CONFIG_MBEDTLS_TLS_DISABLED": "n"}, True, id="disabled_n"),
+        pytest.param({"CONFIG_ESP_TLS_INSECURE": "y"}, True, id="esp_tls_prefix"),
+        pytest.param(
+            {"CONFIG_MBEDTLS_SSL_KEEP_PEER_CERTIFICATE": "n"},
+            False,
+            id="prefix_n_is_not_a_request",
+        ),
+        pytest.param({"CONFIG_ESP_HTTPS_OTA_ALLOW_HTTP": "y"}, True, id="https_prefix"),
+        pytest.param({"CONFIG_LWIP_IPV6": "y"}, False, id="unrelated"),
+    ],
+)
+def test_user_sdkconfig_wants_tls(options: dict[str, Any], wants_tls: bool) -> None:
+    """The sdkconfig escape hatch reads values, never bare key presence."""
+    assert _user_sdkconfig_wants_tls(options) is wants_tls
+
+
 @pytest.mark.parametrize(
     ("config_file", "tls_off", "ecp_off"),
     [
@@ -639,30 +657,19 @@ def test_reconcile_mbedtls_sdkconfig(
         pytest.param(
             "exclusion_reincludes_web_server.yaml", True, True, id="web_server_idf"
         ),
-        # openthread's SRP host key needs ECDSA, so ECP stays while TLS is off
-        pytest.param("mbedtls_tls_openthread.yaml", True, False, id="openthread"),
         pytest.param(
             "exclusion_reincludes_http_request.yaml", False, False, id="http_request"
         ),
         pytest.param("exclusion_reincludes_mqtt.yaml", False, False, id="mqtt"),
         pytest.param("exclusion_reincludes_nextion.yaml", False, False, id="nextion"),
-        pytest.param("tls_wifi_eap.yaml", False, False, id="wifi_eap"),
+        pytest.param("mbedtls_tls_wifi_eap.yaml", False, False, id="wifi_eap"),
         pytest.param(
             "certificate_bundle_sdkconfig.yaml", False, False, id="raw_bundle"
         ),
         pytest.param("tls_sdkconfig_esp_tls.yaml", False, False, id="raw_esp_tls"),
-        pytest.param("tls_sdkconfig_tls_role.yaml", False, False, id="raw_tls_role"),
         # A role option set to n is not a request.
         pytest.param(
             "tls_sdkconfig_tls_enabled_n.yaml", True, True, id="raw_tls_enabled_n"
-        ),
-        # Disabling a TLS sub-option is not a request either.
-        pytest.param(
-            "tls_sdkconfig_peer_cert_n.yaml", True, True, id="raw_peer_cert_n"
-        ),
-        # CONFIG_MBEDTLS_TLS_DISABLED=n is the IDF 5 way to keep TLS.
-        pytest.param(
-            "tls_sdkconfig_tls_disabled_n.yaml", False, False, id="raw_tls_disabled_n"
         ),
         # SECURE_SIGNED_APPS selects ECP back on in Kconfig; ESPHome still writes the default.
         pytest.param("signed_ota_ecdsa256_c6.yaml", True, True, id="signed_ota_ecdsa"),
@@ -1635,6 +1642,8 @@ def test_mbedtls_tls_openthread_keeps_only_what_it_uses(
     generate_main(component_config_path("mbedtls_tls_openthread.yaml"))
     sdkconfig = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
     assert sdkconfig.get("CONFIG_MBEDTLS_TLS_DISABLED") is True
+    # require_mbedtls_ecp() keeps ECP for the SRP host key while TLS is off
+    assert "CONFIG_MBEDTLS_ECP_C" not in sdkconfig
     assert tuple(sdkconfig.get(name) for name in _TLS_SERVER_OPTIONS) == (None, None)
     for name in MBEDTLS_TLS_EXTRA_OPTIONS:
         assert sdkconfig.get(name) is (None if name in _OPENTHREAD_EXTRAS else False)
@@ -1679,8 +1688,9 @@ def test_mbedtls_tls_openthread_requires_server_and_extras(
 ) -> None:
     """The OpenThread hooks mark the DTLS server and CCM/deterministic ECDSA as required."""
     generate_main(component_config_path("mbedtls_tls_openthread.yaml"))
-    assert CORE.data[KEY_ESP32][KEY_MBEDTLS_TLS_SERVER_REQUIRED] is True
-    assert CORE.data[KEY_ESP32][KEY_MBEDTLS_TLS_EXTRAS_REQUIRED] == _OPENTHREAD_EXTRAS
+    mbedtls = CORE.data[KEY_ESP32][KEY_MBEDTLS_SDKCONFIG]
+    assert mbedtls.tls_server_required is True
+    assert mbedtls.tls_extras_required == _OPENTHREAD_EXTRAS
 
 
 _VASPRINTF_STUB_FLAGS = {"-Wl,--wrap=vasprintf", "-Wl,--undefined=__wrap_vasprintf"}
