@@ -348,3 +348,181 @@ def test_lvgl_style_schemas_are_named_and_deduped(lvgl_schema: dict) -> None:
 
     _count(lvgl_schema)
     assert refs > 100, f"STYLE_SCHEMA should be referenced via extends, got {refs}"
+
+
+# ---------------------------------------------------------------------------
+# Typing of esphome.config_validation validators.
+#
+# These validators used to fall through convert() with no ``type``, leaving the
+# visual editor / dashboard unable to tell what YAML the field accepts. They are
+# now described either by identity (scalar leaf validators) or via a
+# schema_extractor decorator (factory-produced closures like float_with_unit).
+# ---------------------------------------------------------------------------
+
+
+def _convert(validator: object) -> dict:
+    config_var: dict = {}
+    _bls.convert(validator, config_var, "/x")
+    return config_var
+
+
+@pytest.mark.parametrize(
+    ("validator", "expected"),
+    [
+        (cv.icon, "string"),
+        (cv.mac_address, "string"),
+        (cv.url, "string"),
+        (cv.uuid, "string"),
+        (cv.directory, "string"),
+        (cv.mqtt_qos, "integer"),
+        (cv.hex_int, "integer"),
+        (cv.percentage, "float"),
+        (cv.temperature, "float"),
+        (cv.color_temperature, "float"),
+        (cv.update_interval, "time"),
+        (cv.time_period_str_colon, "time"),
+        (cv.lambda_, "lambda"),
+        (cv.returning_lambda, "lambda"),
+    ],
+)
+def test_convert_types_scalar_cv_validators(validator: object, expected: str) -> None:
+    assert _convert(validator).get("type") == expected
+
+
+def test_convert_entity_category_is_enum() -> None:
+    entry = _convert(cv.entity_category)
+    assert entry["type"] == "enum"
+    assert set(entry["values"]) == set(cv.ENTITY_CATEGORIES)
+
+
+def test_convert_bind_key_is_sensitive_string() -> None:
+    entry = _convert(cv.bind_key)
+    assert entry["type"] == "string"
+    assert entry["sensitive"] is True
+
+
+@pytest.mark.parametrize("scalar", ["string", "integer", "float", "time", "lambda"])
+def test_convert_scalar_schema_extractor(scalar: str) -> None:
+    """A validator that declares a scalar type via schema_extractor is typed.
+
+    Mirrors cv.float_with_unit / cv.date_time, whose decorated closures return
+    None for SCHEMA_EXTRACT and are keyed into hidden_schemas by repr.
+    """
+    from esphome import schema_extractors as ejs
+
+    def decorated(value: object) -> None:
+        return None
+
+    ejs.hidden_schemas[repr(decorated)] = scalar
+    try:
+        assert _convert(decorated).get("type") == scalar
+    finally:
+        del ejs.hidden_schemas[repr(decorated)]
+
+
+def test_convert_float_with_unit_reports_unit() -> None:
+    """A float schema_extractor whose probe returns a unit types float + unit."""
+    import voluptuous as vol
+
+    from esphome import schema_extractors as ejs
+
+    def frequency_validator(value: object) -> object:
+        return "Hz" if value is ejs.SCHEMA_EXTRACT else value
+
+    ejs.hidden_schemas[repr(frequency_validator)] = "float"
+    try:
+        entry = _convert(frequency_validator)
+        assert entry.get("type") == "float"
+        assert entry.get("unit") == "Hz"
+    finally:
+        del ejs.hidden_schemas[repr(frequency_validator)]
+
+    # A float source with no unit is a bare float (no unit key).
+    def plain_float(value: object) -> object:
+        return None if value is ejs.SCHEMA_EXTRACT else value
+
+    ejs.hidden_schemas[repr(plain_float)] = "float"
+    try:
+        entry = _convert(plain_float)
+        assert entry.get("type") == "float"
+        assert "unit" not in entry
+    finally:
+        del ejs.hidden_schemas[repr(plain_float)]
+
+    # A vol.Range in the All contributes min/max next to type, not a type.
+    assert _convert(vol.Range(min=45.0, max=66.0)) == {"min": 45.0, "max": 66.0}
+
+
+def test_convert_range_stringifies_non_numeric_bounds() -> None:
+    """A time-period range keeps JSON-serializable string bounds."""
+    import voluptuous as vol
+
+    entry = _convert(vol.Range(min=cv.time_period("1s"), max=cv.time_period("10s")))
+    assert isinstance(entry["min"], str) and isinstance(entry["max"], str)
+
+
+@pytest.fixture(scope="module")
+def full_schema_dir(tmp_path_factory: pytest.TempPathFactory) -> Path:
+    """Run the full build once (fresh interpreter, see ``lvgl_schema``).
+
+    PYTHONPATH points at this worktree so the subprocess imports the local
+    esphome (with the config_validation changes) rather than an editable install
+    that may resolve to a different checkout.
+    """
+    import os
+
+    out_dir = tmp_path_factory.mktemp("cv_types_schema")
+    repo_root = SCRIPT_PATH.parent.parent
+    subprocess.run(
+        [sys.executable, str(SCRIPT_PATH), "--output-path", str(out_dir)],
+        check=True,
+        capture_output=True,
+        text=True,
+        cwd=str(repo_root),
+        env={**os.environ, "PYTHONPATH": str(repo_root)},
+    )
+    return out_dir
+
+
+def test_cv_types_end_to_end(full_schema_dir: Path) -> None:
+    """The full build types config_validation fields end-to-end.
+
+    Also covers the shrink() spread of a field that references two typed schemas
+    at once (hex_uint8_t + uint8_t), which previously tripped an assertion.
+    """
+    core = json.loads((full_schema_dir / "esphome.json").read_text())["core"]
+    entity = core["schemas"]["ENTITY_BASE_SCHEMA"]["schema"]["config_vars"]
+    assert entity["icon"]["type"] == "string"
+    assert entity["entity_category"]["type"] == "enum"
+
+    climate = json.loads((full_schema_dir / "climate.json").read_text())["climate"]
+    visual = climate["schemas"]["_CLIMATE_SCHEMA"]["schema"]["config_vars"]["visual"]
+    assert visual["schema"]["config_vars"]["min_temperature"]["type"] == "float"
+
+    # message_type references both hex_uint8_t and uint8_t; shrink() must spread
+    # it to integer instead of tripping the single-extends assertion.
+    remote = json.loads((full_schema_dir / "remote_receiver.json").read_text())
+    abbwelcome = remote["remote_receiver.binary_sensor"]["schemas"]["CONFIG_SCHEMA"][
+        "schema"
+    ]["config_vars"]["abbwelcome"]["schema"]["config_vars"]
+    assert abbwelcome["message_type"]["type"] == "integer"
+
+    # cv.All(cv.frequency, cv.float_range(45, 66)) -> float + unit + min/max
+    # inline, next to type.
+    ade = json.loads((full_schema_dir / "ade7880.json").read_text())
+    freq = ade["ade7880.sensor"]["schemas"]["CONFIG_SCHEMA"]["schema"]["config_vars"][
+        "frequency"
+    ]
+    assert freq["type"] == "float"
+    assert freq["unit"] == "Hz"
+    assert freq["min"] == 45.0
+    assert freq["max"] == 66.0
+
+    # positive_float = All(float_, Range(min=0)): a bounds-only named schema
+    # spreads its data_type name and its min onto the field.
+    light = json.loads((full_schema_dir / "light.json").read_text())["light"]
+    gamma = light["schemas"]["BRIGHTNESS_ONLY_LIGHT_SCHEMA"]["schema"]["config_vars"][
+        "gamma_correct"
+    ]
+    assert gamma["data_type"] == "positive_float"
+    assert gamma["min"] == 0

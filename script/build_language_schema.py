@@ -120,6 +120,56 @@ from esphome.util import Registry  # noqa: E402
 
 # pylint: enable=wrong-import-position
 
+# Scalar ``cv.*`` validators the dumper describes by identity. Extending these
+# tuples -- rather than decorating each validator with a schema_extractor --
+# mirrors how ``cv.boolean`` / ``cv.string`` / ``cv.int_`` are already handled
+# in ``convert()`` and keeps runtime validation completely untouched. Grouped by
+# the ``type`` emitted into the schema dump so a language server / visual editor
+# knows what YAML each field accepts instead of treating it as free-form.
+_CV_STRING_VALIDATORS = (
+    cv.icon,
+    cv.mac_address,
+    cv.url,
+    cv.publish_topic,
+    cv.subscribe_topic,
+    cv.mqtt_payload,
+    cv.uuid,
+    cv.ssid,
+    cv.domain,
+    cv.domain_name,
+    cv.hostname,
+    cv.entity_id,
+    cv.git_ref,
+    cv.string_no_slash,
+    cv.version_number,
+    cv.validate_esphome_version,
+    cv.validate_id_name,
+    cv._validate_entity_name,
+    cv.validate_source_shorthand,
+    cv.ipv4address,
+    cv.ipv6network,
+    cv.ipv4address_multi_broadcast,
+    cv.time_of_day,
+    cv.directory,
+    cv.file_,
+    cv.dimensions,
+    cv.none,
+)
+_CV_INTEGER_VALIDATORS = (cv.hex_int, cv.percentage_int, cv.mqtt_qos)
+_CV_FLOAT_VALIDATORS = (
+    cv.percentage,
+    cv.possibly_negative_percentage,
+    cv.temperature,
+    cv.temperature_delta,
+    cv.color_temperature,
+)
+_CV_TIME_VALIDATORS = (
+    cv.update_interval,
+    cv.time_period_str_unit,
+    cv.time_period_str_colon,
+)
+_CV_LAMBDA_VALIDATORS = (cv.lambda_, cv.returning_lambda)
+
 
 def sort_obj(obj):
     if isinstance(obj, dict):
@@ -635,22 +685,48 @@ def shrink():
     # then are all simple types, integer and strings
     for x, paths in referenced_schemas.items():
         key_s = get_str_path_schema(x)
-        if key_s and key_s.get(S_TYPE) in ["enum", "registry", "integer", "string"]:
-            if key_s[S_TYPE] == "registry":
+        # Spread scalar leaf schemas (a single ``type`` with no nested schema or
+        # config vars) onto each referencing field so the type is inline. This
+        # covers enum/registry/integer/string plus float_with_unit quantities
+        # (e.g. a ``core.frequency`` schema typed ``frequency``), time and
+        # lambda -- but never structural schemas, which stay as references.
+        key_type = key_s.get(S_TYPE) if key_s else None
+        if (
+            key_type is not None
+            and key_type not in ("schema", "typed", "trigger", "pin", "use_id")
+            and S_SCHEMA not in key_s
+            and S_CONFIG_VARS not in key_s
+        ):
+            if key_type == "registry":
                 print("Spreading registry: " + x)
             for target in paths:
                 target_s = get_arr_path_schema(target)
                 if S_SCHEMA not in target_s:
                     print("skipping simple spread for " + ".".join(target))
                     continue
-                assert target_s[S_SCHEMA][S_EXTENDS] == [x]
+                extends = target_s[S_SCHEMA][S_EXTENDS]
+                if x not in extends:
+                    # Already handled on an earlier visit (a field can list the
+                    # same schema reference more than once).
+                    continue
+                if len(extends) > 1:
+                    # The field references several schemas at once (e.g. a value
+                    # that extends both hex_uint8_t and uint8_t). Drop this
+                    # reference and let the remaining one(s) describe the type,
+                    # rather than forcing a single-extends spread here.
+                    extends.remove(x)
+                    continue
+                assert extends == [x]
                 target_s.pop(S_SCHEMA)
                 target_s |= key_s
                 if key_s[S_TYPE] in ["integer", "string"]:
                     target_s["data_type"] = x.split(".")[1]
             # remove this dangling again
             pop_str_path_schema(x)
-        elif not key_s:
+        elif not key_s or set(key_s) <= {"min", "max"}:
+            # An untyped named schema, or one carrying only range bounds (e.g.
+            # positive_float = All(float_, Range(min=0)) has no scalar type but a
+            # min). Spread its data_type name and any bounds onto each field.
             for target in paths:
                 target_s = get_arr_path_schema(target)
                 if S_SCHEMA not in target_s:
@@ -661,6 +737,7 @@ def shrink():
                 target_s.pop(S_SCHEMA)
                 target_s.pop(S_TYPE)  # undefined
                 target_s["data_type"] = x.split(".")[1]
+                target_s.update(key_s)  # carry min/max bounds, if any
             # remove this dangling again
             pop_str_path_schema(x)
 
@@ -907,7 +984,12 @@ def convert(schema, config_var, path):
     if isinstance(schema, cv.SensitiveValidator):
         config_var["sensitive"] = True
         config_var["sensitive_source"] = "explicit"
-        convert(schema.inner, config_var, f"{path}/sensitive")
+        if isinstance(schema, cv.BindKeyValidator):
+            # Its inner is the bound ``_validate`` method (a hex-key string);
+            # walking it yields no type, so describe it directly.
+            config_var[S_TYPE] = "string"
+        else:
+            convert(schema.inner, config_var, f"{path}/sensitive")
         return
 
     if isinstance(schema, cv.All):
@@ -940,16 +1022,44 @@ def convert(schema, config_var, path):
     if DUMP_RAW:
         config_var["raw"] = repr_schema
 
+    # A numeric range constraint (from cv.int_range / cv.float_range / a bare
+    # vol.Range in an All) contributes bounds, not a type. Attach them at the
+    # config var level, next to ``type``, so editors can validate the range.
+    if isinstance(schema, vol.Range):
+        # min/max may be non-numeric (e.g. a TimePeriod for a time-period range);
+        # keep numbers as-is and stringify anything else so the dump stays JSON
+        # serializable.
+        if schema.min is not None:
+            config_var["min"] = (
+                schema.min if isinstance(schema.min, (int, float)) else str(schema.min)
+            )
+        if schema.max is not None:
+            config_var["max"] = (
+                schema.max if isinstance(schema.max, (int, float)) else str(schema.max)
+            )
+        return
+
     # pylint: disable=comparison-with-callable
     if schema == cv.boolean:
         config_var[S_TYPE] = "boolean"
     elif schema == automation.validate_potentially_and_condition:
         config_var[S_TYPE] = "registry"
         config_var["registry"] = "condition"
-    elif schema in (cv.int_, cv.int_range):
+    elif schema in (cv.int_, cv.int_range) or schema in _CV_INTEGER_VALIDATORS:
         config_var[S_TYPE] = "integer"
-    elif schema in (cv.string, cv.string_strict, cv.valid_name):
+    elif schema in (cv.string, cv.string_strict, cv.valid_name) or (
+        schema in _CV_STRING_VALIDATORS
+    ):
         config_var[S_TYPE] = "string"
+    elif schema in _CV_FLOAT_VALIDATORS:
+        config_var[S_TYPE] = "float"
+    elif schema in _CV_TIME_VALIDATORS:
+        config_var[S_TYPE] = "time"
+    elif schema in _CV_LAMBDA_VALIDATORS:
+        config_var[S_TYPE] = "lambda"
+    elif schema == cv.entity_category:
+        config_var[S_TYPE] = "enum"
+        config_var["values"] = dict.fromkeys(cv.ENTITY_CATEGORIES)
 
     elif isinstance(schema, vol.Schema):
         # test: esphome/project
@@ -1023,6 +1133,18 @@ def convert(schema, config_var, path):
             config_var[S_TYPE] = "registry"
             config_var["registry"] = "light.effects"
             config_var["filter"] = data[0]
+        elif schema_type == "float":
+            config_var[S_TYPE] = "float"
+            # cv.float_with_unit reports its canonical unit (e.g. "Hz", "V") for
+            # SCHEMA_EXTRACT; surface it next to the type so editors can label
+            # the field. Other float sources return None (no unit).
+            if isinstance(data, str):
+                config_var["unit"] = data
+        elif schema_type in ("string", "integer", "time", "lambda"):
+            # Scalar validators (e.g. cv.date_time) that declare their result
+            # type via schema_extractor. ``data`` is unused (the decorated
+            # validator returns None for SCHEMA_EXTRACT).
+            config_var[S_TYPE] = schema_type
         elif schema_type == "templatable":
             config_var["templatable"] = True
             convert(data, config_var, path + "/templat")
