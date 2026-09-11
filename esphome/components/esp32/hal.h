@@ -5,11 +5,14 @@
 #include <cstdint>
 #include <esp_attr.h>
 #include <esp_cpu.h>
-#include <esp_sleep.h>
 #include <esp_task_wdt.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 
+#include "esphome/core/defines.h"
+#if defined(USE_DEEP_SLEEP) && defined(USE_GPIO_HOLD)
+#include <esp_sleep.h>
+#endif
 #include "esphome/core/time_conversion.h"
 
 #ifndef PROGMEM
@@ -48,8 +51,10 @@ __attribute__((always_inline)) inline uint32_t arch_get_cpu_cycle_count() { retu
 void arch_init();
 uint32_t arch_get_cpu_freq_hz();
 
+#if defined(USE_DEEP_SLEEP) && defined(USE_GPIO_HOLD)
 // Return if the device woke from deep sleep or started normally.
 inline bool woken_from_deep_sleep() { return esp_sleep_get_wakeup_cause() != ESP_SLEEP_WAKEUP_UNDEFINED; }
+#endif
 
 }  // namespace esphome
 
