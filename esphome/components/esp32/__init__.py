@@ -193,6 +193,13 @@ PSRAM_XIP_VARIANTS = {
 # expose the HMAC peripheral (SOC_HMAC_SUPPORTED in soc_caps.h). The original
 # ESP32 and ESP32-C2 do not have it. New variants with an HMAC peripheral
 # should be added here.
+# Variants whose ROM exports a full-format vsnprintf but no vasprintf
+# (esp32c6.rom.newlib-normal.ld). There, the newlib printf engine is only
+# linked because esp_http_client calls vasprintf; see vasprintf_stubs.cpp.
+# The other variants either export both (classic ESP32, nano-format only) or
+# neither, so the engine is already in the image and the wrap saves nothing.
+ROM_VSNPRINTF_WITHOUT_VASPRINTF_VARIANTS = {VARIANT_ESP32C6}
+
 NVS_ENCRYPTION_HMAC_VARIANTS = {
     VARIANT_ESP32S2,
     VARIANT_ESP32S3,
@@ -1732,6 +1739,8 @@ CONF_DISABLE_USB_SERIAL_JTAG_SECONDARY = "disable_usb_serial_jtag_secondary"
 CONF_DISABLE_DEV_NULL_VFS = "disable_dev_null_vfs"
 CONF_DISABLE_MBEDTLS_PEER_CERT = "disable_mbedtls_peer_cert"
 CONF_DISABLE_MBEDTLS_PKCS7 = "disable_mbedtls_pkcs7"
+CONF_DISABLE_MBEDTLS_TLS_SERVER = "disable_mbedtls_tls_server"
+CONF_DISABLE_MBEDTLS_TLS_EXTRAS = "disable_mbedtls_tls_extras"
 CONF_DISABLE_REGI2C_IN_IRAM = "disable_regi2c_in_iram"
 CONF_DISABLE_FATFS = "disable_fatfs"
 CONF_ADC_ONESHOT_IN_IRAM = "adc_oneshot_in_iram"
@@ -1746,6 +1755,8 @@ KEY_VFS_TERMIOS_REQUIRED = "vfs_termios_required"
 KEY_USB_SERIAL_JTAG_SECONDARY_REQUIRED = "usb_serial_jtag_secondary_required"
 KEY_MBEDTLS_PEER_CERT_REQUIRED = "mbedtls_peer_cert_required"
 KEY_MBEDTLS_PKCS7_REQUIRED = "mbedtls_pkcs7_required"
+KEY_MBEDTLS_TLS_SERVER_REQUIRED = "mbedtls_tls_server_required"
+KEY_MBEDTLS_TLS_EXTRAS_REQUIRED = "mbedtls_tls_extras_required"
 KEY_FATFS_REQUIRED = "fatfs_required"
 KEY_MBEDTLS_SHA512_REQUIRED = "mbedtls_sha512_required"
 KEY_ADC_ONESHOT_IRAM_REQUIRED = "adc_oneshot_iram_required"
@@ -1828,6 +1839,26 @@ def require_mbedtls_pkcs7() -> None:
     This prevents CONFIG_MBEDTLS_PKCS7_C from being disabled.
     """
     CORE.data[KEY_ESP32][KEY_MBEDTLS_PKCS7_REQUIRED] = True
+
+
+def require_mbedtls_tls_server() -> None:
+    """Mark that the mbedTLS server-side TLS/DTLS handshake is required.
+
+    Call this from components that accept TLS connections (OpenThread's DTLS
+    commissioner does). This prevents CONFIG_MBEDTLS_TLS_CLIENT_ONLY from
+    being selected.
+    """
+    CORE.data[KEY_ESP32][KEY_MBEDTLS_TLS_SERVER_REQUIRED] = True
+
+
+def require_mbedtls_tls_extras() -> None:
+    """Mark that the TLS features disabled by ``disable_mbedtls_tls_extras`` are required.
+
+    Call this from components that need AES-CCM, deterministic ECDSA signing,
+    static RSA/ECDH key exchange, TLS renegotiation or session tickets.
+    OpenThread uses CCM and deterministic ECDSA directly.
+    """
+    CORE.data[KEY_ESP32][KEY_MBEDTLS_TLS_EXTRAS_REQUIRED] = True
 
 
 def require_mbedtls_sha512() -> None:
@@ -1987,6 +2018,8 @@ FRAMEWORK_SCHEMA = cv.Schema(
                 cv.Optional(CONF_DISABLE_DEV_NULL_VFS, default=True): cv.boolean,
                 cv.Optional(CONF_DISABLE_MBEDTLS_PEER_CERT, default=True): cv.boolean,
                 cv.Optional(CONF_DISABLE_MBEDTLS_PKCS7, default=True): cv.boolean,
+                cv.Optional(CONF_DISABLE_MBEDTLS_TLS_SERVER, default=True): cv.boolean,
+                cv.Optional(CONF_DISABLE_MBEDTLS_TLS_EXTRAS, default=True): cv.boolean,
                 cv.Optional(CONF_DISABLE_REGI2C_IN_IRAM, default=True): cv.boolean,
                 cv.Optional(CONF_ADC_ONESHOT_IN_IRAM, default=False): cv.boolean,
                 cv.Optional(CONF_DISABLE_FATFS, default=True): cv.boolean,
@@ -2302,6 +2335,47 @@ async def _reconcile_certificate_bundle_sdkconfig() -> None:
         set_idf_sdkconfig_default("CONFIG_MBEDTLS_CERTIFICATE_BUNDLE_DEFAULT_CMN", True)
 
 
+# TLS features an HTTPS/MQTT client talking to a modern server never
+# negotiates. Static RSA and static ECDH key exchange have no forward secrecy
+# and are gone in TLS 1.3, renegotiation is deprecated, esp-tls never enables
+# session tickets, AES-CCM ciphersuites are not offered by web servers, and
+# the EC key parsing extras and deterministic ECDSA only matter when signing
+# with a private key. Together they cost ~11 KB of flash whenever TLS is
+# linked (http_request, mqtt).
+MBEDTLS_TLS_EXTRA_OPTIONS = (
+    "CONFIG_MBEDTLS_KEY_EXCHANGE_RSA",
+    "CONFIG_MBEDTLS_KEY_EXCHANGE_ECDH_ECDSA",
+    "CONFIG_MBEDTLS_KEY_EXCHANGE_ECDH_RSA",
+    "CONFIG_MBEDTLS_SSL_RENEGOTIATION",
+    "CONFIG_MBEDTLS_CLIENT_SSL_SESSION_TICKETS",
+    "CONFIG_MBEDTLS_SERVER_SSL_SESSION_TICKETS",
+    "CONFIG_MBEDTLS_CCM_C",
+    "CONFIG_MBEDTLS_PK_PARSE_EC_EXTENDED",
+    "CONFIG_MBEDTLS_PK_PARSE_EC_COMPRESSED",
+    "CONFIG_MBEDTLS_ECDSA_DETERMINISTIC",
+)
+
+
+@coroutine_with_priority(CoroPriority.FINAL)
+async def _reconcile_mbedtls_tls_sdkconfig(
+    disable_tls_server: bool, disable_tls_extras: bool
+) -> None:
+    """Trim mbedTLS to what a TLS client needs unless a component asked otherwise.
+
+    Runs at FINAL priority so every require_mbedtls_tls_server() and
+    require_mbedtls_tls_extras() call has happened. Only the server-side
+    handshake (~7 KB) is a separate option; nothing in ESPHome accepts TLS
+    connections, but OpenThread's DTLS commissioner does.
+    """
+    data = CORE.data[KEY_ESP32]
+    if disable_tls_server and not data.get(KEY_MBEDTLS_TLS_SERVER_REQUIRED, False):
+        add_idf_sdkconfig_option("CONFIG_MBEDTLS_TLS_CLIENT_ONLY", True)
+        add_idf_sdkconfig_option("CONFIG_MBEDTLS_TLS_SERVER_AND_CLIENT", False)
+    if disable_tls_extras and not data.get(KEY_MBEDTLS_TLS_EXTRAS_REQUIRED, False):
+        for option in MBEDTLS_TLS_EXTRA_OPTIONS:
+            add_idf_sdkconfig_option(option, False)
+
+
 @coroutine_with_priority(CoroPriority.FINAL)
 async def _reconcile_network_sdkconfig() -> None:
     """Reconcile WiFi/Ethernet/Bluetooth/coexistence sdkconfig flags.
@@ -2566,6 +2640,17 @@ async def to_code(config):
         else:
             for symbol in ("vprintf", "printf", "fprintf", "vfprintf"):
                 cg.add_build_flag(f"-Wl,--wrap={symbol}")
+            # esp_http_client calls vasprintf, which on the ESP32-C6 is the only
+            # reference to newlib's full printf engine (~20 KB: _svfprintf_r,
+            # _dtoa_r and their helpers); every other caller resolves to the
+            # ROM. See vasprintf_stubs.cpp. The --undefined flag is needed
+            # because libsrc.a is scanned before the IDF libraries that
+            # reference the symbol, so the stub would otherwise never be pulled
+            # from the archive.
+            if variant in ROM_VSNPRINTF_WITHOUT_VASPRINTF_VARIANTS:
+                cg.add_define("USE_ESP32_VASPRINTF_STUB")
+                cg.add_build_flag("-Wl,--wrap=vasprintf")
+                cg.add_build_flag("-Wl,--undefined=__wrap_vasprintf")
     else:
         cg.add_build_flag("-DUSE_ARDUINO")
         cg.add_build_flag("-DUSE_ESP32_FRAMEWORK_ARDUINO")
@@ -2990,6 +3075,13 @@ async def to_code(config):
 
     # FINAL priority: runs after every require_certificate_bundle() call
     CORE.add_job(_reconcile_certificate_bundle_sdkconfig)
+
+    # FINAL priority: runs after every require_mbedtls_tls_*() call
+    CORE.add_job(
+        _reconcile_mbedtls_tls_sdkconfig,
+        advanced[CONF_DISABLE_MBEDTLS_TLS_SERVER],
+        advanced[CONF_DISABLE_MBEDTLS_TLS_EXTRAS],
+    )
 
     # FINAL: require_*() calls can come from to_code at or below this priority, so an
     # inline read would be iteration-order-dependent; reconcile once after every job ran.
