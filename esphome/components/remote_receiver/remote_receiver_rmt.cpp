@@ -1,4 +1,5 @@
 #include "remote_receiver.h"
+#include "esphome/core/application.h"
 #include "esphome/core/log.h"
 
 #ifdef USE_ESP32
@@ -31,7 +32,10 @@ static bool IRAM_ATTR HOT rmt_callback(rmt_channel_handle_t channel, const rmt_r
   event_buffer->num_symbols = event->num_symbols;
   event_buffer->received_symbols = event->received_symbols;
   store->buffer_write = next_write;
-  return false;
+  // decode on the next loop pass instead of waiting out the loop interval
+  BaseType_t task_woken = pdFALSE;
+  Application::wake_loop_isrsafe(&task_woken);
+  return task_woken == pdTRUE;
 }
 
 void RemoteReceiverComponent::setup() {
