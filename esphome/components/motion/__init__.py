@@ -1,12 +1,17 @@
 from collections.abc import Callable
+import logging
 import re
 
 from esphome import automation
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, CONF_ON_ERROR, CONF_ON_SUCCESS
+from esphome.const import CONF_ID, CONF_ON_ERROR, CONF_ON_SUCCESS, CONF_UPDATE_INTERVAL
+from esphome.core import ID
 from esphome.cpp_generator import MockObj, MockObjClass
+import esphome.final_validate as fv
 from esphome.helpers import fnv1_hash_object_id
+
+_LOGGER = logging.getLogger(__name__)
 
 CODEOWNERS = ["@esphome/core"]
 
@@ -37,6 +42,42 @@ SENSOR_SCHEMA = cv.Schema(
 )
 
 _AXIS_REGEX = re.compile(r"^[+-]?[xyz]$", re.IGNORECASE)
+
+# Fast motion patterns (shakes, free-fall, sudden movement) need frequent samples
+# to be detected reliably; a slower parent update_interval makes them likely to be
+# missed between polls.
+MAX_RECOMMENDED_UPDATE_INTERVAL_MS = 100
+
+
+def get_motion_config(motion_id: ID) -> dict:
+    """Look up the (already-validated) config of the motion hub referenced by motion_id."""
+    full_config = fv.full_config.get()
+    motion_path = full_config.get_path_for_id(motion_id)[:-1]
+    return full_config.get_config_for_path(motion_path)
+
+
+def check_update_interval(motion_id: ID, feature_name: str) -> None:
+    """Warn if the parent motion component polls too slowly for fast motion detection."""
+    motion_config = get_motion_config(motion_id)
+    update_interval = motion_config[CONF_UPDATE_INTERVAL]
+    if update_interval.total_milliseconds > MAX_RECOMMENDED_UPDATE_INTERVAL_MS:
+        _LOGGER.warning(
+            "Motion component '%s' has update_interval %s, but %s detection "
+            "works best with an update_interval of %dms or less.",
+            motion_id,
+            update_interval,
+            feature_name,
+            MAX_RECOMMENDED_UPDATE_INTERVAL_MS,
+        )
+
+
+def check_has_accelerometer(motion_id: ID, feature_name: str) -> None:
+    """Raise if the parent motion device does not measure acceleration."""
+    motion_config = get_motion_config(motion_id)
+    if not motion_config.get(KEY_ACCELEROMETER, False):
+        raise cv.Invalid(
+            f"The motion device does not measure acceleration, required for {feature_name}"
+        )
 
 
 def _axis_map(config: dict) -> dict:

@@ -3,6 +3,7 @@ sensor:
     name: "QMI8658 Temperature"
 
   - platform: motion
+    motion_id: qmi8658_motion
     type: acceleration_x
     name: "Accel X"
     accuracy_decimals: 4
@@ -11,44 +12,83 @@ sensor:
           window_size: 4
           send_every: 1
   - platform: motion
+    motion_id: qmi8658_motion
     type: acceleration_y
     name: "Accel Y"
     accuracy_decimals: 4
   - platform: motion
+    motion_id: qmi8658_motion
     type: acceleration_z
     name: "Accel Z"
     accuracy_decimals: 4
 
     # Gyroscope axes (unit: °/s)
   - platform: motion
+    motion_id: qmi8658_motion
     type: gyroscope_x
     name: "Gyro X"
   - platform: motion
+    motion_id: qmi8658_motion
     type: gyroscope_y
     name: "Gyro Y"
   - platform: motion
+    motion_id: qmi8658_motion
     type: gyroscope_z
     name: "Gyro Z"
 
   - platform: motion
+    motion_id: qmi8658_motion
     type: angular_rate_x
     name: "Angular Rate X"
   - platform: motion
+    motion_id: qmi8658_motion
     type: angular_rate_y
     name: "Angular Rate Y"
   - platform: motion
+    motion_id: qmi8658_motion
     type: angular_rate_z
     name: "Angular Rate Z"
 
   - platform: motion
+    motion_id: qmi8658_motion
     type: pitch
     name: "Pitch"
   - platform: motion
+    motion_id: qmi8658_motion
     type: roll
     name: "Roll"
+  - platform: motion
+    motion_id: qmi8658_motion
+    type: orientation
+    name: "Orientation"
+    flat_threshold: 30
+
+binary_sensor:
+  - platform: motion
+    motion_id: qmi8658_motion
+    type: face_up
+    name: "Face Up"
+  - platform: motion
+    motion_id: qmi8658_motion
+    type: face_down
+    name: "Face Down"
+  - platform: motion
+    motion_id: qmi8658_motion
+    type: free_fall
+    name: "Free Fall"
+  - platform: motion
+    motion_id: qmi8658_motion
+    type: moving
+    name: "Moving"
+
+event:
+  - platform: motion
+    motion_id: qmi8658_motion
+    name: "Shake"
 
 motion:
   - platform: qmi8658
+    id: qmi8658_motion
     i2c_id: i2c_bus
     # Accelerometer full-scale range: 2G | 4G | 8G | 16G
     accelerometer_range: 4G
