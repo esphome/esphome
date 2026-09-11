@@ -1203,12 +1203,15 @@ class StaticCastExpression(Expression):
 def call_lambda(lamb: LambdaExpression) -> Expression:
     """
     Given a lambda, either reduce to a simple expression or call it, possibly with parameters
-    from the surrounding context
+    from the surrounding context.
+    This is for use only with value-returning lambdas, used in places where the value of a lambda call is needed.
     :param lamb: The LambdaExpression to call or reduce
     :return: An Expression representing the result of calling the lambda or reducing it to a simple expression
     """
+    # Developer error if this is called with a lambda that doesn't have a return type
+    assert lamb.return_type is not None, "Lambda must have a return type to be called"
     expr = lamb.content.strip()
-    if expr.startswith("return") and expr.endswith(";"):
+    if expr.match(r"^return\b") and expr.endswith(";"):
         # Convert a lambda returning a simple expression to just that expression
         expr = RawExpression(expr[6:-1].strip())
         # Don't cast if the return type is a class
