@@ -6,7 +6,7 @@
 
 namespace esphome::bh1745 {
 
-enum class Bh1745Registers : uint8_t {
+enum class BH1745Registers : uint8_t {
   SYSTEM_CONTROL = 0x40,
   MODE_CONTROL1 = 0x41,
   MODE_CONTROL2 = 0x42,
@@ -30,19 +30,19 @@ enum class Bh1745Registers : uint8_t {
   MANUFACTURER_ID = 0x92,
 };
 
-enum MeasurementTime : uint8_t {
-  TIME_160MS = 0b000,
-  TIME_320MS = 0b001,
-  TIME_640MS = 0b010,
-  TIME_1280MS = 0b011,
-  TIME_2560MS = 0b100,
-  TIME_5120MS = 0b101,
+enum class MeasurementTime : uint8_t {
+  MEASUREMENT_TIME_160MS = 0b000,
+  MEASUREMENT_TIME_320MS = 0b001,
+  MEASUREMENT_TIME_640MS = 0b010,
+  MEASUREMENT_TIME_1280MS = 0b011,
+  MEASUREMENT_TIME_2560MS = 0b100,
+  MEASUREMENT_TIME_5120MS = 0b101,
 };
 
-enum AdcGain : uint8_t {
-  GAIN_1X = 0,
-  GAIN_2X,
-  GAIN_16X,
+enum class AdcGain : uint8_t {
+  ADC_GAIN_1X = 0,
+  ADC_GAIN_2X = 1,
+  ADC_GAIN_16X = 2,
 };
 
 // 0x40
@@ -57,7 +57,7 @@ union SystemControlRegister {
 
 // 0x41
 union ModeControl1Register {
-  u_int8_t raw;
+  uint8_t raw;
   struct {
     MeasurementTime measurement_time : 3;
     uint8_t reserved_3_7 : 5;
@@ -66,7 +66,7 @@ union ModeControl1Register {
 
 // 0x42
 union ModeControl2Register {
-  u_int8_t raw;
+  uint8_t raw;
   struct {
     AdcGain adc_gain : 2;
     uint8_t reserved_2_3 : 2;
@@ -102,9 +102,9 @@ class BH1745Component : public PollingComponent, public i2c::I2CDevice {
   void set_interrupt_state(bool on_off);
 
  protected:
-  MeasurementTime measurement_time_{MeasurementTime::TIME_160MS};
-  AdcGain adc_gain_{AdcGain::GAIN_1X};
-  float glass_attenuation_factor_{1.0};
+  MeasurementTime measurement_time_{MeasurementTime::MEASUREMENT_TIME_160MS};
+  AdcGain adc_gain_{AdcGain::ADC_GAIN_1X};
+  float glass_attenuation_factor_{1.0f};
 
   sensor::Sensor *red_counts_sensor_{nullptr};
   sensor::Sensor *green_counts_sensor_{nullptr};
@@ -124,25 +124,25 @@ class BH1745Component : public PollingComponent, public i2c::I2CDevice {
   } state_{State::NOT_INITIALIZED};
 
   struct Readings {
-    uint16_t red;
-    uint16_t green;
-    uint16_t blue;
-    uint16_t clear;
+    uint16_t red{0};
+    uint16_t green{0};
+    uint16_t blue{0};
+    uint16_t clear{0};
 
-    AdcGain gain;
-    MeasurementTime meas_time;
-
-    uint8_t tries;
+    AdcGain gain{AdcGain::ADC_GAIN_1X};
+    MeasurementTime meas_time{MeasurementTime::MEASUREMENT_TIME_160MS};
   } readings_;
+
+  uint32_t data_ready_deadline_ms_{0};
 
   void configure_measurement_time_();
   void configure_gain_();
 
   bool is_data_ready_(Readings &data);
-  void read_data_(Readings &data);
+  bool read_data_(Readings &data);
 
-  float calculate_lux_(Readings &data);
-  float calculate_cct_(Readings &data);
+  float calculate_lux_(const Readings &data);
+  float calculate_cct_(const Readings &data);
 
   void publish_data_();
 };

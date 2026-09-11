@@ -4,7 +4,7 @@ import esphome.config_validation as cv
 from esphome.const import CONF_ID
 from esphome.types import ConfigType
 
-from ..sensor import CONF_BH1745_ID, BH1745SComponent, bh1745_ns
+from ..sensor import CONF_BH1745_ID, BH1745Component, bh1745_ns
 
 BH1745InterruptPinOutput = bh1745_ns.class_(
     "BH1745InterruptPinOutput", output.BinaryOutput
@@ -13,7 +13,7 @@ BH1745InterruptPinOutput = bh1745_ns.class_(
 CONFIG_SCHEMA = output.BINARY_OUTPUT_SCHEMA.extend(
     {
         cv.GenerateID(): cv.declare_id(BH1745InterruptPinOutput),
-        cv.GenerateID(CONF_BH1745_ID): cv.use_id(BH1745SComponent),
+        cv.GenerateID(CONF_BH1745_ID): cv.use_id(BH1745Component),
     }
 )
 

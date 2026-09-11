@@ -1,5 +1,7 @@
 #include "bh1745.h"
+#include <cinttypes>
 #include <cmath>
+#include "esphome/core/application.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
@@ -11,9 +13,8 @@ static constexpr uint8_t BH1745_MANUFACTURER_ID = 0xE0;
 static constexpr uint8_t BH1745_DEVICE_ID = 0b001011;
 static constexpr uint8_t BH1745_RESET_TIMEOUT_MS = 100;
 static constexpr uint8_t BH1745_BASE_MEAS_TIME_MS = 160;
-static constexpr uint8_t BH1745_MAX_TRIES = 15;
 
-static constexpr float CHANNEL_COMPENSATION[BH1745_CHANNELS] = {2.2f, 1.0f, 1.8f, 10.0f};
+static constexpr uint32_t BH1745_DATA_READY_GRACE_DIVIDER = 5;  // grace = integration time / 5
 
 uint32_t get_measurement_time_ms(MeasurementTime time) {
   return ((uint32_t) BH1745_BASE_MEAS_TIME_MS) << static_cast<uint8_t>(time);
@@ -21,11 +22,11 @@ uint32_t get_measurement_time_ms(MeasurementTime time) {
 
 uint8_t get_adc_gain(AdcGain gain) {
   switch (gain) {
-    case AdcGain::GAIN_1X:
+    case AdcGain::ADC_GAIN_1X:
       return 1;
-    case AdcGain::GAIN_2X:
+    case AdcGain::ADC_GAIN_2X:
       return 2;
-    case AdcGain::GAIN_16X:
+    case AdcGain::ADC_GAIN_16X:
       return 16;
     default:
       return 1;
@@ -35,7 +36,7 @@ uint8_t get_adc_gain(AdcGain gain) {
 void BH1745Component::setup() {
   ESP_LOGCONFIG(TAG, "Setting up BH1745");
 
-  uint8_t manuf_id = this->reg((uint8_t) Bh1745Registers::MANUFACTURER_ID).get();
+  uint8_t manuf_id = this->reg((uint8_t) BH1745Registers::MANUFACTURER_ID).get();
   if (manuf_id != BH1745_MANUFACTURER_ID) {
     ESP_LOGW(TAG, "Manufacturer ID of BH1745 is not correct! Got 0x%02X, expected 0x%02X", manuf_id,
              BH1745_MANUFACTURER_ID);
@@ -44,7 +45,7 @@ void BH1745Component::setup() {
   }
 
   SystemControlRegister sys_ctrl;
-  sys_ctrl.raw = this->reg((uint8_t) Bh1745Registers::SYSTEM_CONTROL).get();
+  sys_ctrl.raw = this->reg((uint8_t) BH1745Registers::SYSTEM_CONTROL).get();
   if (sys_ctrl.part_id != BH1745_DEVICE_ID) {
     ESP_LOGW(TAG, "Device ID of BH1745 is not correct! Got 0x%02X, expected 0x%02X", sys_ctrl.part_id,
              BH1745_DEVICE_ID);
@@ -54,15 +55,19 @@ void BH1745Component::setup() {
 
   sys_ctrl.sw_reset = true;
   sys_ctrl.int_reset = false;
-  this->reg((uint8_t) Bh1745Registers::SYSTEM_CONTROL) = sys_ctrl.raw;
+  this->reg((uint8_t) BH1745Registers::SYSTEM_CONTROL) = sys_ctrl.raw;
 
   // ESPHome doesnt support using interrupts yet, so set the threasholds to max/min
   // so that the int pin can be used as an open drain output if configured.
-  uint16_t th_high[1] = {0xFFFF};
-  uint16_t th_low[1] = {0x0000};
-  this->write_bytes_16((uint8_t) Bh1745Registers::TH_LSB, th_high, 1);
-  this->write_bytes_16((uint8_t) Bh1745Registers::TL_LSB, th_low, 1);
-  this->reg((uint8_t) Bh1745Registers::INTERRUPT_REG) = 0x00;
+  static constexpr uint8_t TH_HIGH[2] = {0xFF, 0xFF};  // LSB first
+  static constexpr uint8_t TH_LOW[2] = {0x00, 0x00};
+  if (!this->write_bytes((uint8_t) BH1745Registers::TH_LSB, TH_HIGH, sizeof(TH_HIGH)) ||
+      !this->write_bytes((uint8_t) BH1745Registers::TL_LSB, TH_LOW, sizeof(TH_LOW))) {
+    ESP_LOGE(TAG, "Failed to write interrupt thresholds");
+    this->mark_failed();
+    return;
+  }
+  this->reg((uint8_t) BH1745Registers::INTERRUPT_REG) = 0x00;
 
   this->disable_loop();
 
@@ -79,8 +84,8 @@ void BH1745Component::dump_config() {
   LOG_UPDATE_INTERVAL(this);
 
   ESP_LOGCONFIG(TAG,
-                "  Gain: %dx\n"
-                "  Integration time: %d ms\n"
+                "  Gain: %ux\n"
+                "  Integration time: %" PRIu32 " ms\n"
                 "  Glass attenuation factor: %f",
                 get_adc_gain(this->adc_gain_), get_measurement_time_ms(this->measurement_time_),
                 this->glass_attenuation_factor_);
@@ -89,6 +94,8 @@ void BH1745Component::dump_config() {
   LOG_SENSOR("  ", "Green Counts", this->green_counts_sensor_);
   LOG_SENSOR("  ", "Blue Counts", this->blue_counts_sensor_);
   LOG_SENSOR("  ", "Clear Counts", this->clear_counts_sensor_);
+  LOG_SENSOR("  ", "Illuminance", this->illuminance_sensor_);
+  LOG_SENSOR("  ", "Color Temperature", this->color_temperature_sensor_);
 }
 
 void BH1745Component::update() {
@@ -101,15 +108,16 @@ void BH1745Component::update() {
     this->readings_.green = 0;
     this->readings_.blue = 0;
     this->readings_.clear = 0;
-    this->readings_.tries = 0;
 
     ModeControl2Register mode_ctrl2{0};
     mode_ctrl2.adc_gain = this->adc_gain_;
     mode_ctrl2.rgbc_measurement_enable = true;
 
-    this->reg((uint8_t) Bh1745Registers::MODE_CONTROL2) = mode_ctrl2.raw;
+    this->reg((uint8_t) BH1745Registers::MODE_CONTROL2) = mode_ctrl2.raw;
 
-    this->set_timeout(get_measurement_time_ms(this->measurement_time_), [this]() {
+    uint32_t measurement_time = get_measurement_time_ms(this->measurement_time_);
+    this->set_timeout(measurement_time, [this, measurement_time]() {
+      this->data_ready_deadline_ms_ = millis() + measurement_time / BH1745_DATA_READY_GRACE_DIVIDER;
       this->state_ = State::WAITING_FOR_DATA;
       this->enable_loop();
     });
@@ -121,24 +129,28 @@ void BH1745Component::loop() {
     case State::INITIAL_SETUP_COMPLETED:
       this->state_ = State::DELAYED_SETUP;
       this->configure_gain_();
-      this->reg((uint8_t) Bh1745Registers::MODE_CONTROL3) = 0x02;
+      this->reg((uint8_t) BH1745Registers::MODE_CONTROL3) = 0x02;
       this->disable_loop();
       this->set_timeout(BH1745_RESET_TIMEOUT_MS, [this]() { this->state_ = State::IDLE; });
       break;
 
     case State::WAITING_FOR_DATA:
       if (this->is_data_ready_(this->readings_)) {
-        this->read_data_(this->readings_);
+        if (!this->read_data_(this->readings_)) {
+          ESP_LOGW(TAG, "Failed to read measurement data. Aborting.");
+          this->status_set_warning();
+          this->state_ = State::IDLE;
+          this->disable_loop();
+          return;
+        }
         this->state_ = State::DATA_COLLECTED;
         return;
-      } else if (this->readings_.tries > BH1745_MAX_TRIES) {
-        ESP_LOGW(TAG, "Can't get data after several tries. Aborting.");
+      } else if ((int32_t) (App.get_loop_component_start_time() - this->data_ready_deadline_ms_) >= 0) {
+        ESP_LOGW(TAG, "Data not ready in time. Aborting.");
         this->status_set_warning();
         this->state_ = State::IDLE;
         this->disable_loop();
         return;
-      } else {
-        this->readings_.tries++;
       }
       break;
 
@@ -158,36 +170,36 @@ void BH1745Component::loop() {
 }
 
 void BH1745Component::set_interrupt_state(bool on_off) {
-  uint8_t raw = this->reg((uint8_t) Bh1745Registers::INTERRUPT_REG).get();
+  uint8_t raw = this->reg((uint8_t) BH1745Registers::INTERRUPT_REG).get();
 
   if (on_off) {
     raw |= (1);
   } else {
     raw &= ~(1);
   }
-  this->reg((uint8_t) Bh1745Registers::INTERRUPT_REG) = raw;
+  this->reg((uint8_t) BH1745Registers::INTERRUPT_REG) = raw;
 }
 
 void BH1745Component::configure_measurement_time_() {
   ModeControl1Register mode_ctrl1;
   mode_ctrl1.reserved_3_7 = 0;
   mode_ctrl1.measurement_time = this->measurement_time_;
-  this->reg((uint8_t) Bh1745Registers::MODE_CONTROL1) = mode_ctrl1.raw;
+  this->reg((uint8_t) BH1745Registers::MODE_CONTROL1) = mode_ctrl1.raw;
 }
 
 void BH1745Component::configure_gain_() {
   ModeControl2Register mode_ctrl2;
-  mode_ctrl2.raw = this->reg((uint8_t) Bh1745Registers::MODE_CONTROL2).get();
+  mode_ctrl2.raw = this->reg((uint8_t) BH1745Registers::MODE_CONTROL2).get();
   mode_ctrl2.adc_gain = this->adc_gain_;
-  this->reg((uint8_t) Bh1745Registers::MODE_CONTROL2) = mode_ctrl2.raw;
+  this->reg((uint8_t) BH1745Registers::MODE_CONTROL2) = mode_ctrl2.raw;
 }
 
 bool BH1745Component::is_data_ready_(Readings &data) {
   ModeControl2Register mode_ctrl2;
-  mode_ctrl2.raw = this->reg((uint8_t) Bh1745Registers::MODE_CONTROL2).get();
+  mode_ctrl2.raw = this->reg((uint8_t) BH1745Registers::MODE_CONTROL2).get();
   if (mode_ctrl2.valid) {
     ModeControl1Register mode_ctrl1;
-    mode_ctrl1.raw = this->reg((uint8_t) Bh1745Registers::MODE_CONTROL1).get();
+    mode_ctrl1.raw = this->reg((uint8_t) BH1745Registers::MODE_CONTROL1).get();
 
     data.meas_time = mode_ctrl1.measurement_time;
     data.gain = mode_ctrl2.adc_gain;
@@ -195,60 +207,58 @@ bool BH1745Component::is_data_ready_(Readings &data) {
   return mode_ctrl2.valid;
 }
 
-void BH1745Component::read_data_(BH1745Component::Readings &data) {
+bool BH1745Component::read_data_(BH1745Component::Readings &data) {
   uint8_t buffer[BH1745_CHANNELS * 2];
 
-  this->read_bytes((uint8_t) Bh1745Registers::RED_DATA_LSB, buffer, BH1745_CHANNELS * 2);
-  data.red = ((buffer[1] << 8) + buffer[0]) & 0xffff;
-  data.green = ((buffer[3] << 8) + buffer[2]) & 0xffff;
-  data.blue = ((buffer[5] << 8) + buffer[4]) & 0xffff;
-  data.clear = ((buffer[7] << 8) + buffer[6]) & 0xffff;
+  if (!this->read_bytes((uint8_t) BH1745Registers::RED_DATA_LSB, buffer, sizeof(buffer))) {
+    return false;
+  }
+  data.red = ((uint16_t) buffer[1] << 8) | buffer[0];
+  data.green = ((uint16_t) buffer[3] << 8) | buffer[2];
+  data.blue = ((uint16_t) buffer[5] << 8) | buffer[4];
+  data.clear = ((uint16_t) buffer[7] << 8) | buffer[6];
 
-  data.red *= CHANNEL_COMPENSATION[0];
-  data.green *= CHANNEL_COMPENSATION[1];
-  data.blue *= CHANNEL_COMPENSATION[2];
-  data.clear *= CHANNEL_COMPENSATION[3];
-  ESP_LOGV(TAG, "Red: %d, Green: %d, Blue: %d, Clear: %d", data.red, data.green, data.blue, data.clear);
+  ESP_LOGV(TAG, "Red: %u, Green: %u, Blue: %u, Clear: %u", data.red, data.green, data.blue, data.clear);
+  return true;
 }
 
-float BH1745Component::calculate_lux_(Readings &data) {
-  float lx, lx_tmp;
+float BH1745Component::calculate_lux_(const Readings &data) {
   float gain = get_adc_gain(data.gain);
   float integration_time = get_measurement_time_ms(data.meas_time);
+  float lx_tmp;
 
   if (data.green < 1) {
-    lx_tmp = 0;
-  } else if (((float) data.clear / (float) data.green) < 0.160) {
-    lx_tmp = (0.202 * data.red + 0.766 * data.green);
+    lx_tmp = 0.0f;
+  } else if (((float) data.clear / (float) data.green) < 0.160f) {
+    lx_tmp = 0.202f * data.red + 0.766f * data.green;
   } else {
-    lx_tmp = (0.159 * data.red + 0.646 * data.green);
+    lx_tmp = 0.159f * data.red + 0.646f * data.green;
   }
-  if (lx_tmp < 0) {
-    lx_tmp = 0;
+  if (lx_tmp < 0.0f) {
+    lx_tmp = 0.0f;
   }
 
-  lx = lx_tmp / gain / integration_time * 160 / this->glass_attenuation_factor_;
+  float lx = lx_tmp / gain / integration_time * 160.0f / this->glass_attenuation_factor_;
   ESP_LOGV(TAG, "Lux calculation: %.1f", lx);
   return lx;
 }
 
-float BH1745Component::calculate_cct_(Readings &data) {
-  uint32_t all = data.red + data.green + data.blue;
+float BH1745Component::calculate_cct_(const Readings &data) {
+  uint32_t all = (uint32_t) data.red + data.green + data.blue;
   if (data.green < 1 || all < 1)
-    return 0;
+    return 0.0f;
   float r_ratio = (float) data.red / all;
   float b_ratio = (float) data.blue / all;
-  float ct = 0;
-  if (((float) data.clear / (float) data.green) < 0.160) {
-    float b_eff = fmin(b_ratio * 3.13, 1);
-    ct = ((1 - b_eff) * 12746 * (exp(-2.911 * r_ratio))) + (b_eff * 1637 * (exp(4.865 * b_ratio)));
-
+  float ct = 0.0f;
+  if (((float) data.clear / (float) data.green) < 0.160f) {
+    float b_eff = std::fmin(b_ratio * 3.13f, 1.0f);
+    ct = ((1.0f - b_eff) * 12746.0f * std::exp(-2.911f * r_ratio)) + (b_eff * 1637.0f * std::exp(4.865f * b_ratio));
   } else {
-    float b_eff = fmin(b_ratio * 10.67, 1);
-    ct = ((1 - b_eff) * 16234 * (exp(-2.781 * r_ratio))) + (b_eff * 1882 * (exp(4.448 * b_ratio)));
+    float b_eff = std::fmin(b_ratio * 10.67f, 1.0f);
+    ct = ((1.0f - b_eff) * 16234.0f * std::exp(-2.781f * r_ratio)) + (b_eff * 1882.0f * std::exp(4.448f * b_ratio));
   }
-  if (ct > 10000) {
-    ct = 10000;
+  if (ct > 10000.0f) {
+    ct = 10000.0f;
   }
   ESP_LOGV(TAG, "CCT calculation: %.1f", ct);
   return ct;

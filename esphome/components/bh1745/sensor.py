@@ -1,3 +1,5 @@
+from typing import Any
+
 import esphome.codegen as cg
 from esphome.components import i2c, sensor
 import esphome.config_validation as cv
@@ -16,6 +18,7 @@ from esphome.const import (
     UNIT_KELVIN,
     UNIT_LUX,
 )
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@latonita"]
 DEPENDENCIES = ["i2c"]
@@ -31,26 +34,25 @@ CONF_CLEAR_CHANNEL = "clear_channel"
 
 bh1745_ns = cg.esphome_ns.namespace("bh1745")
 
-BH1745SComponent = bh1745_ns.class_(
+BH1745Component = bh1745_ns.class_(
     "BH1745Component", cg.PollingComponent, i2c.I2CDevice
 )
 
-
-AdcGain = bh1745_ns.enum("AdcGain")
+AdcGain = bh1745_ns.enum("AdcGain", is_class=True)
 ADC_GAINS = {
-    "1X": AdcGain.GAIN_1X,
-    "2X": AdcGain.GAIN_2X,
-    "16X": AdcGain.GAIN_16X,
+    "1X": AdcGain.ADC_GAIN_1X,
+    "2X": AdcGain.ADC_GAIN_2X,
+    "16X": AdcGain.ADC_GAIN_16X,
 }
 
-MeasurementTime = bh1745_ns.enum("MeasurementTime")
+MeasurementTime = bh1745_ns.enum("MeasurementTime", is_class=True)
 MEASUREMENT_TIMES = {
-    160: MeasurementTime.TIME_160MS,
-    320: MeasurementTime.TIME_320MS,
-    640: MeasurementTime.TIME_640MS,
-    1280: MeasurementTime.TIME_1280MS,
-    2560: MeasurementTime.TIME_2560MS,
-    5120: MeasurementTime.TIME_5120MS,
+    160: MeasurementTime.MEASUREMENT_TIME_160MS,
+    320: MeasurementTime.MEASUREMENT_TIME_320MS,
+    640: MeasurementTime.MEASUREMENT_TIME_640MS,
+    1280: MeasurementTime.MEASUREMENT_TIME_1280MS,
+    2560: MeasurementTime.MEASUREMENT_TIME_2560MS,
+    5120: MeasurementTime.MEASUREMENT_TIME_5120MS,
 }
 
 color_channel_schema = cv.maybe_simple_value(
@@ -64,7 +66,7 @@ color_channel_schema = cv.maybe_simple_value(
 )
 
 
-def validate_measurement_time(value):
+def validate_measurement_time(value: Any) -> Any:
     value = cv.positive_time_period_milliseconds(value).total_milliseconds
     return cv.enum(MEASUREMENT_TIMES, int=True)(value)
 
@@ -72,7 +74,7 @@ def validate_measurement_time(value):
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
-            cv.GenerateID(): cv.declare_id(BH1745SComponent),
+            cv.GenerateID(): cv.declare_id(BH1745Component),
             cv.Optional(CONF_GAIN, default="1X"): cv.enum(ADC_GAINS, upper=True),
             cv.Optional(
                 CONF_INTEGRATION_TIME, default="160ms"
@@ -110,7 +112,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)
@@ -119,21 +121,21 @@ async def to_code(config):
     cg.add(var.set_measurement_time(config[CONF_INTEGRATION_TIME]))
     cg.add(var.set_glass_attenuation_factor(config[CONF_GLASS_ATTENUATION_FACTOR]))
 
-    if CONF_RED_CHANNEL in config:
-        sens = await sensor.new_sensor(config[CONF_RED_CHANNEL])
+    if (conf := config.get(CONF_RED_CHANNEL)) is not None:
+        sens = await sensor.new_sensor(conf)
         cg.add(var.set_red_counts_sensor(sens))
-    if CONF_GREEN_CHANNEL in config:
-        sens = await sensor.new_sensor(config[CONF_GREEN_CHANNEL])
+    if (conf := config.get(CONF_GREEN_CHANNEL)) is not None:
+        sens = await sensor.new_sensor(conf)
         cg.add(var.set_green_counts_sensor(sens))
-    if CONF_BLUE_CHANNEL in config:
-        sens = await sensor.new_sensor(config[CONF_BLUE_CHANNEL])
+    if (conf := config.get(CONF_BLUE_CHANNEL)) is not None:
+        sens = await sensor.new_sensor(conf)
         cg.add(var.set_blue_counts_sensor(sens))
-    if CONF_CLEAR_CHANNEL in config:
-        sens = await sensor.new_sensor(config[CONF_CLEAR_CHANNEL])
+    if (conf := config.get(CONF_CLEAR_CHANNEL)) is not None:
+        sens = await sensor.new_sensor(conf)
         cg.add(var.set_clear_counts_sensor(sens))
-    if CONF_ILLUMINANCE in config:
-        sens = await sensor.new_sensor(config[CONF_ILLUMINANCE])
+    if (conf := config.get(CONF_ILLUMINANCE)) is not None:
+        sens = await sensor.new_sensor(conf)
         cg.add(var.set_illuminance_sensor(sens))
-    if CONF_COLOR_TEMPERATURE in config:
-        sens = await sensor.new_sensor(config[CONF_COLOR_TEMPERATURE])
+    if (conf := config.get(CONF_COLOR_TEMPERATURE)) is not None:
+        sens = await sensor.new_sensor(conf)
         cg.add(var.set_color_temperature_sensor(sens))
