@@ -5,16 +5,18 @@ esp32:
   board: esp32dev
 
 remote_receiver:
-  - id: rcvr
+  - id: rcvr_ir
     pin: GPIO4
+  - id: rcvr_rf
+    pin: GPIO5
 
 infrared:
   - platform: ir_rf_proxy
     name: IR Receiver
-    remote_receiver_id: rcvr
+    remote_receiver_id: rcvr_ir
 
 radio_frequency:
   - platform: ir_rf_proxy
     name: RF Receiver
     frequency: 433.92MHz
-    remote_receiver_id: rcvr
+    remote_receiver_id: rcvr_rf

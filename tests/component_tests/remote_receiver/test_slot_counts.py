@@ -37,8 +37,9 @@ def test_proxy_receivers_count_as_listeners(
     component_config_path: Callable[[str], Path],
 ) -> None:
     generate_main(component_config_path("receiver_with_proxies.yaml"))
-    # infrared and radio_frequency ir_rf_proxy platforms each listen
-    assert get_define_value("REMOTE_BASE_LISTENER_COUNT") == "2"
+    # one proxy entity listens on each of the two receivers; every receiver's list gets the
+    # capacity of the busiest one, so this is the largest per receiver count, not the sum
+    assert get_define_value("REMOTE_BASE_LISTENER_COUNT") == "1"
     assert get_define_value("REMOTE_BASE_DUMPER_COUNT") is None
 
 
