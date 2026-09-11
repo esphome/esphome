@@ -283,8 +283,16 @@ FINAL_VALIDATE_SCHEMA = ota_esphome_final_validate
 
 
 FILTER_SOURCE_FILES = filter_source_files_from_defines(
-    {"ota_esphome_noise.cpp": "USE_OTA_ENCRYPTION"}
+    {
+        "ota_esphome_noise.cpp": "USE_OTA_ENCRYPTION",
+        "ota_esphome_inflate.c": "USE_OTA_DEFLATE",
+    }
 )
+
+
+def enable_deflate() -> None:
+    """Compile the on-the-fly inflater for compressed uploads."""
+    cg.add_define("USE_OTA_DEFLATE")
 
 
 @coroutine_with_priority(CoroPriority.OTA_UPDATES)
@@ -304,6 +312,10 @@ async def to_code(config: ConfigType) -> None:
 
     if config.get(CONF_ALLOW_PARTITION_ACCESS):
         cg.add_define("USE_OTA_PARTITIONS")
+
+    # ESP8266 and RP2040 inflate gzip at reboot; the rest inflate on the fly
+    if not (CORE.is_esp8266 or CORE.is_rp2):
+        enable_deflate()
 
     # One key per device: an api encryption block supplies it (static or
     # runtime) and offers; the ota block only adds the requirement

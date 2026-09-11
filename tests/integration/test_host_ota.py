@@ -9,12 +9,14 @@ from __future__ import annotations
 
 import asyncio
 import base64
-from collections.abc import Generator
+from collections.abc import Callable, Generator
 from contextlib import contextmanager
 from dataclasses import dataclass
 import functools
 from pathlib import Path
 import socket
+from types import SimpleNamespace
+import zlib
 
 import pytest
 
@@ -122,6 +124,7 @@ class _Device:
     binary_path: Path
     proc: asyncio.subprocess.Process | None = None
     reboots: int = 0
+    inflates: int = 0
 
     def __post_init__(self) -> None:
         self._rebooted = asyncio.Event()
@@ -130,6 +133,8 @@ class _Device:
         if "Rebooting safely" in line:
             self.reboots += 1
             self._rebooted.set()
+        if "Inflated " in line and " bytes from " in line:
+            self.inflates += 1
 
     async def wait_reboot(self, count: int, timeout: float = 10.0) -> None:
         async with asyncio.timeout(timeout):
@@ -202,6 +207,81 @@ async def test_host_ota_self_update(
 
         # Second OTA: catches FD_CLOEXEC regressions (EADDRINUSE on rebind).
         await dev.ota(None, None, "second OTA failed -- listener leaked across execv")
+
+
+@pytest.mark.asyncio
+async def test_host_ota_deflate(
+    yaml_config: str,
+    write_yaml_config: ConfigWriter,
+    compile_esphome: CompileFunction,
+    reserved_tcp_port: tuple[int, socket.socket],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Deflate is negotiated by default, an old client gets an uncompressed
+    upload, and a corrupt stream is rejected without taking the device down."""
+    dev = _Device(
+        *await _build(
+            yaml_config, write_yaml_config, compile_esphome, reserved_tcp_port
+        )
+    )
+    errors: list[str] = []
+
+    def on_log(line: str) -> None:
+        # A corrupt stream is caught by the decoder, by the size check or by
+        # the MD5 at the end, depending on where the damage lands
+        if any(
+            text in line
+            for text in ("Inflate err", "Inflate overrun", "End update err")
+        ):
+            errors.append(line)
+        dev.on_log(line)
+
+    real_compress = zlib.compress
+
+    def corrupt_compress(data: bytes, *args: object, **kwargs: object) -> bytes:
+        out = bytearray(real_compress(data, *args, **kwargs))
+        out[len(out) // 2] ^= 0x55
+        return bytes(out)
+
+    def overlong_compress(data: bytes, *args: object, **kwargs: object) -> bytes:
+        """A stream that inflates past the size the client announced."""
+        return real_compress(data + bytes(8192), *args, **kwargs)
+
+    def patch_compress(func: Callable[..., bytes]) -> None:
+        monkeypatch.setattr(espota2, "zlib", SimpleNamespace(compress=func))
+
+    async with run_binary(dev.binary_path, line_callback=on_log) as (proc, _lines):
+        dev.proc = proc
+        await _wait_for_port(LOCALHOST, dev.api_port, PORT_WAIT_TIMEOUT)
+
+        # Default: the host backend cannot store gzip, so the CLI sends deflate
+        await dev.ota(None, None, "deflate upload failed")
+        assert dev.inflates == 1, "device did not inflate the upload"
+
+        # A client that does not offer deflate is served uncompressed
+        monkeypatch.setattr(espota2, "CLIENT_FEATURE_SUPPORTS_DEFLATE", 0)
+        await dev.ota(None, None, "uncompressed upload failed")
+        assert dev.inflates == 1, "device inflated without a client offer"
+        monkeypatch.undo()
+
+        # A corrupt stream fails the upload and leaves the device running
+        patch_compress(corrupt_compress)
+        await dev.refused_ota(None, None, "corrupt deflate stream was accepted")
+        monkeypatch.undo()
+        assert errors, "device did not report the corrupt stream"
+
+        # So does a stream that inflates past the announced image size
+        errors.clear()
+        patch_compress(overlong_compress)
+        await dev.refused_ota(None, None, "overlong deflate stream was accepted")
+        monkeypatch.undo()
+        assert any("Inflate overrun" in line for line in errors), (
+            "device wrote past the announced size"
+        )
+
+        # and it still takes a good upload afterwards
+        await dev.ota(None, None, "upload after a rejected stream failed")
+        assert dev.inflates == 2
 
 
 @pytest.mark.asyncio

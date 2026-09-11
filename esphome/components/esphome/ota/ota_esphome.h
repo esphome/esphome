@@ -7,6 +7,9 @@
 #ifdef USE_OTA_ENCRYPTION
 #include "esphome/components/noise/noise_handshake.h"
 #endif
+#ifdef USE_OTA_DEFLATE
+#include "ota_esphome_inflate.h"
+#endif
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include "esphome/core/preferences.h"
@@ -88,6 +91,9 @@ class ESPHomeOTAComponent final : public ota::OTAComponent {
   };
   // The api server's live context when the api has encryption, else our own
   const noise::NoiseContext &noise_context_() const;
+  // True once the feature ack offers noise and the client asked for it
+  bool noise_offered_() const;
+  void noise_reserve_session_();
   bool noise_start_session_(uint8_t server_feature_flags);
   bool handle_noise_handshake_();
   bool noise_try_read_frame_();
@@ -118,6 +124,38 @@ class ESPHomeOTAComponent final : public ota::OTAComponent {
 #endif
     return this->readall_(buf, len);
   }
+
+  // Upload accounting shared by the data loop and the inflate read callback
+  struct DataTransfer {
+    size_t ota_size{0};  // bytes the client sends
+    size_t total{0};     // bytes received so far
+#if USE_OTA_VERSION == 2
+    size_t acknowledged{0};
+#endif
+    uint32_t last_data_ms{0};
+    uint32_t last_progress{0};
+  };
+  // Up to OTA_BUFFER_SIZE bytes into buf; returns bytes read, -1 on failure (logged)
+  inline ssize_t receive_data_(uint8_t *buf, DataTransfer &xfer);
+  // Raw lwIP cannot service the radio during a sector write, so the ack waits
+  // for the write there; a socket task lets the next block arrive meanwhile
+#ifdef USE_SOCKET_IMPL_LWIP_TCP
+  static constexpr bool ACK_AFTER_WRITE = true;
+#else
+  static constexpr bool ACK_AFTER_WRITE = false;
+#endif
+  void send_chunk_acks_(DataTransfer &xfer);
+  inline void ack_received_(DataTransfer &xfer) {
+    if (!ACK_AFTER_WRITE)
+      this->send_chunk_acks_(xfer);
+  }
+  inline void ack_written_(DataTransfer &xfer) {
+    if (ACK_AFTER_WRITE)
+      this->send_chunk_acks_(xfer);
+  }
+  inline bool read_size_(uint8_t *buf, size_t &size, const LogString *desc);
+  // Writes to the backend and logs a failure
+  inline ota::OTAResponseTypes write_flash_(uint8_t *data, size_t len);
 
   bool try_read_(size_t to_read, const LogString *desc);
   bool try_write_(size_t to_write, const LogString *desc);
@@ -171,6 +209,34 @@ class ESPHomeOTAComponent final : public ota::OTAComponent {
   static_assert(OTA_BUFFER_SIZE >= NOISE_CLIENT_MAX_PLAINTEXT + noise::MAC_SIZE,
                 "OTA_BUFFER_SIZE must fit a full encrypted data frame");
 #endif
+#ifdef USE_OTA_DEFLATE
+  // At least 1 << espota2.DEFLATE_WINDOW_BITS; also the inflate output buffer
+  static constexpr size_t OTA_INFLATE_WINDOW_SIZE = 4096;
+  // Heap-allocated only while a deflate upload is negotiated; the decoder
+  // state is the base so the read callback can recover the session
+  struct InflateSession : OtaInflateState {
+    // The session outlives the upload it serves, but these three are borrowed
+    // from inflate_data_'s caller and dangle once that call returns; only that
+    // call, and the flush and read callback it drives, may read them
+    ESPHomeOTAComponent *self;
+    DataTransfer *xfer;
+    uint8_t *in;  // caller's buffer for the compressed input
+    size_t image_size;
+    size_t written;               // inflated bytes in flash
+    size_t flushed;               // bytes of the current window already in flash
+    ota::OTAResponseTypes error;  // first failure inside the read callback
+    uint8_t window[OTA_INFLATE_WINDOW_SIZE];
+  };
+#ifndef CLANG_TIDY  // static analysis sets every define at once
+  static_assert(!ota::OTABackend::supports_compression(),
+                "USE_OTA_DEFLATE is for backends that cannot store a gzip image");
+#endif
+  // Writes the decoded bytes not yet in flash without moving dest
+  ota::OTAResponseTypes inflate_flush_(InflateSession &session);
+  ota::OTAResponseTypes inflate_data_(uint8_t *in, size_t image_size, DataTransfer &xfer);
+  std::unique_ptr<InflateSession> inflate_;
+#endif
+
   static constexpr uint8_t MAGIC_BYTES[5] = {0x6C, 0x26, 0xF7, 0x5C, 0x45};
   // Derived from the feature byte; storing it would pad the trailing bytes
   bool extended_proto_() const;

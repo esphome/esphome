@@ -33,7 +33,13 @@ ESPHomeOTAComponent::NoiseSession::~NoiseSession() {
   }
 }
 
-/** Allocate the session and start the responder handshake.
+void ESPHomeOTAComponent::noise_reserve_session_() {
+  // Default-init: the frame buffer is written before it is read
+  // NOLINTNEXTLINE(clang-analyzer-cplusplus.NewDeleteLeaks)
+  this->noise_ = std::unique_ptr<NoiseSession>(new (std::nothrow) NoiseSession);
+}
+
+/** Start the responder handshake, on the session reserved at offer time.
  *
  * The prologue binds the whole plaintext preamble, so any tampering with the
  * negotiation (a stripped feature flag, a changed version) breaks the first
@@ -42,10 +48,7 @@ ESPHomeOTAComponent::NoiseSession::~NoiseSession() {
  */
 bool ESPHomeOTAComponent::noise_start_session_(uint8_t server_feature_flags) {
   // A provisioned key cleared between the offer and here is not guarded: the
-  // session runs on the zero key load_psk fills in and fails the client's MAC.
-  // Default-init: the frame buffer is written before it is read
-  // NOLINTNEXTLINE(clang-analyzer-cplusplus.NewDeleteLeaks)
-  this->noise_ = std::unique_ptr<NoiseSession>(new (std::nothrow) NoiseSession);
+  // session runs on the zero key load_psk fills in and fails the client's MAC
   static constexpr size_t PROLOGUE_ACK_LEN = 2;  // OTA_RESPONSE_OK + version
   static constexpr size_t PROLOGUE_CLIENT_FEATURES_LEN = 1;
   static constexpr size_t PROLOGUE_FEATURE_ACK_LEN = 2;  // OTA_RESPONSE_FEATURE_FLAGS + server flags
