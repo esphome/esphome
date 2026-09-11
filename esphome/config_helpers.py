@@ -204,14 +204,50 @@ def get_logger_level() -> str:
     return logger_config.get(CONF_LEVEL, "DEBUG")
 
 
-# Heuristically matches scanf/sscanf calls with float format specifiers.
-# Standard scanf float conversions: %f %F %e %E %g %G %a %A
-# With optional modifiers: %*f (suppression), %8f (width), %lf %Lf (length)
-# Also matches non-standard patterns like %.2f as a heuristic — these are
-# invalid in scanf but users may write them by analogy with printf.
-# Uses [^;]*? to stay within a single statement, preventing false positives
-# from e.g. sscanf(buf, "%d", &x); printf("%f", val);
-_SCANF_FLOAT_RE = re.compile(r"scanf\s*\([^;]*?%[*\d.]*[hlL]*[feEgGaAF]")
+_SCANF_CALL_RE = re.compile(r"scanf\s*\(")
+# Standard scanf float conversions %f %F %e %E %g %G %a %A with optional
+# suppression, width and length; also the invalid %.2f users write by analogy
+# with printf.
+_SCANF_FLOAT_SPEC_RE = re.compile(r"%[*\d.]*[hlL]*[feEgGaAF]")
+
+
+def _scanf_call_texts(src: str) -> Iterator[str]:
+    """Yield the argument text of each scanf family call in ``src``.
+
+    Walks to the closing parenthesis, treating string and character literals
+    as opaque so a ';' inside a format string does not end the call early.
+    """
+    for match in _SCANF_CALL_RE.finditer(src):
+        start = i = match.end()
+        depth = 1
+        quote = None
+        while i < len(src):
+            ch = src[i]
+            if quote:
+                if ch == "\\":
+                    i += 1
+                elif ch == quote:
+                    quote = None
+            elif ch in "\"'":
+                quote = ch
+            elif ch == "(":
+                depth += 1
+            elif ch == ")":
+                depth -= 1
+                if depth == 0:
+                    break
+            elif ch == ";":
+                break
+            i += 1
+        yield src[start:i]
+
+
+def source_uses_scanf_float(src: str) -> bool:
+    """Heuristic: does C++ source call a scanf family function with a float conversion?"""
+    if "scanf" not in src:
+        return False
+    src = Lambda.comment_remover(src)
+    return any(_SCANF_FLOAT_SPEC_RE.search(call) for call in _scanf_call_texts(src))
 
 
 def lambdas_use_scanf_float(config: ConfigType) -> bool:
@@ -225,9 +261,7 @@ def lambdas_use_scanf_float(config: ConfigType) -> bool:
     while stack:
         obj = stack.pop()
         if isinstance(obj, Lambda):
-            if "scanf" in obj.value and _SCANF_FLOAT_RE.search(
-                obj.comment_remover(obj.value)
-            ):
+            if source_uses_scanf_float(obj.value):
                 return True
         elif isinstance(obj, dict):
             stack.extend(obj.values())
@@ -267,8 +301,7 @@ def includes_use_scanf_float(config: ConfigType) -> bool:
     for path, _ in iter_include_files(includes):
         if path.suffix not in SOURCE_FILE_EXTENSIONS:
             continue
-        src = path.read_text(encoding="utf-8", errors="replace")
-        if "scanf" in src and _SCANF_FLOAT_RE.search(Lambda.comment_remover(src)):
+        if source_uses_scanf_float(path.read_text(encoding="utf-8", errors="replace")):
             return True
     return False
 

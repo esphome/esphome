@@ -147,6 +147,14 @@ TEST(SscanfNoFloat, LengthModifiers) {
   EXPECT_EQ(t, -9);
 }
 
+TEST(SscanfNoFloat, Pointer) {
+  void *p = nullptr;
+  EXPECT_EQ(sscanf_no_float("0x1234", "%p", &p), 1);
+  EXPECT_EQ(reinterpret_cast<uintptr_t>(p), 0x1234u);
+  EXPECT_EQ(sscanf_no_float("abcd rest", "%p", &p), 1);
+  EXPECT_EQ(reinterpret_cast<uintptr_t>(p), 0xabcdu);
+}
+
 TEST(SscanfNoFloat, Suppression) {
   int value = 0;
   EXPECT_EQ(sscanf_no_float("1 2 3", "%*d %d %*d", &value), 1);
@@ -207,7 +215,10 @@ TEST(SscanfNoFloat, LiteralsAndPercent) {
   int value = 0;
   EXPECT_EQ(sscanf_no_float("50%", "%d%%", &value), 1);
   EXPECT_EQ(value, 50);
-  EXPECT_EQ(sscanf_no_float("50 %", "%d%%", &value), 1);
+  // Like newlib, %% does not skip whitespace; an explicit space in the format does
+  EXPECT_EQ(sscanf_no_float("50 % 7", "%d%%%d", &value, &value), 1);
+  EXPECT_EQ(sscanf_no_float("50 % 7", "%d %%%d", &value, &value), 2);
+  EXPECT_EQ(value, 7);
   EXPECT_EQ(sscanf_no_float("1,2", "%d,%d", &value, &value), 2);
   EXPECT_EQ(sscanf_no_float("1 ,2", "%d,%d", &value, &value), 1);
   EXPECT_EQ(sscanf_no_float("1, 2", "%d,%d", &value, &value), 2);
@@ -238,13 +249,11 @@ TEST(SscanfNoFloat, EofVersusMatchingFailure) {
 TEST(SscanfNoFloat, UnsupportedConversions) {
   float f = 0;
   double d = 0;
-  void *p = nullptr;
   wchar_t w[4] = {0};
   EXPECT_EQ(sscanf_no_float("1.5", "%f", &f), SSCANF_UNSUPPORTED);
   EXPECT_EQ(sscanf_no_float("1.5", "%lf", &d), SSCANF_UNSUPPORTED);
   EXPECT_EQ(sscanf_no_float("1e3", "%g", &d), SSCANF_UNSUPPORTED);
   EXPECT_EQ(sscanf_no_float("0x1p3", "%a", &d), SSCANF_UNSUPPORTED);
-  EXPECT_EQ(sscanf_no_float("0x10", "%p", &p), SSCANF_UNSUPPORTED);
   EXPECT_EQ(sscanf_no_float("abc", "%ls", w), SSCANF_UNSUPPORTED);
   EXPECT_EQ(sscanf_no_float("abc", "%lc", w), SSCANF_UNSUPPORTED);
   // Earlier conversions do not hide a later unsupported one

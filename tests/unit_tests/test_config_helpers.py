@@ -202,8 +202,10 @@ def test_filter_source_files_from_defines() -> None:
         ('sscanf(buf, "%8lf", &v)', True),
         ('sscanf(buf, "%*f")', True),
         ('sscanf(buf, "%.2f", &v)', True),
-        # Mixed formats
+        # Mixed formats, including a ';' inside the format string
         ('sscanf(buf, "%d,%f", &a, &b)', True),
+        ('sscanf(buf, "%d;%f", &a, &b)', True),
+        ('sscanf(buf, "a;b", &a); sscanf(buf, "%d", &b); printf("%f", v)', False),
         # fscanf and std::sscanf
         ('fscanf(fp, "%f", &v)', True),
         ('std::sscanf(buf, "%f", &v)', True),

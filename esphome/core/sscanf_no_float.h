@@ -27,6 +27,7 @@ enum class SscanfLength : uint8_t {
   SSCANF_LENGTH_LL,
   SSCANF_LENGTH_Z,
   SSCANF_LENGTH_T,
+  SSCANF_LENGTH_PTR,  // %p
 };
 
 inline bool is_space(char c) { return c == ' ' || (c >= '\t' && c <= '\r'); }
@@ -52,6 +53,9 @@ inline void store_int(void *dest, SscanfLength length, uint64_t value) {
       break;
     case SscanfLength::SSCANF_LENGTH_T:
       *static_cast<ptrdiff_t *>(dest) = static_cast<ptrdiff_t>(value);
+      break;
+    case SscanfLength::SSCANF_LENGTH_PTR:
+      *static_cast<uintptr_t *>(dest) = static_cast<uintptr_t>(value);
       break;
     default:
       *static_cast<unsigned *>(dest) = static_cast<unsigned>(value);
@@ -103,6 +107,7 @@ inline unsigned int_base(char conv) {
       return 8;
     case 'x':
     case 'X':
+    case 'p':
       return 16;
     default:
       return 0xFF;
@@ -126,10 +131,8 @@ inline int vsscanf_no_float(const char *str, const char *fmt, va_list ap) {  // 
     }
     bool literal = *f != '%';
     if (!literal && f[1] == '%') {
-      // "%%" matches one '%' after skipping input whitespace
+      // "%%" matches one '%' with no whitespace skip, like newlib
       f++;
-      while (is_space(*in))
-        in++;
       literal = true;
     }
     if (literal) {
@@ -199,6 +202,8 @@ inline int vsscanf_no_float(const char *str, const char *fmt, va_list ap) {  // 
     const bool string_conv = conv == 'c' || conv == 's' || conv == '[';
     if (string_conv && length != SscanfLength::SSCANF_LENGTH_NONE)
       return SSCANF_UNSUPPORTED;  // wide characters
+    if (conv == 'p')
+      length = SscanfLength::SSCANF_LENGTH_PTR;
     unsigned base = string_conv ? 0 : int_base(conv);
     if (base == 0xFF)
       return SSCANF_UNSUPPORTED;
