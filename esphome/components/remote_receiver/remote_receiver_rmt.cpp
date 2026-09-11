@@ -14,24 +14,25 @@ static const char *const TAG = "remote_receiver";
 
 static bool IRAM_ATTR HOT rmt_callback(rmt_channel_handle_t channel, const rmt_rx_done_event_data_t *event, void *arg) {
   RemoteReceiverComponentStore *store = (RemoteReceiverComponentStore *) arg;
-  rmt_rx_done_event_data_t *event_buffer = (rmt_rx_done_event_data_t *) (store->buffer + store->buffer_write);
+  const uint32_t buffer_write = store->buffer_write;
+  rmt_rx_done_event_data_t *event_buffer = (rmt_rx_done_event_data_t *) (store->buffer + buffer_write);
   uint32_t event_size = sizeof(rmt_rx_done_event_data_t);
-  uint32_t next_write = store->buffer_write + event_size + event->num_symbols * sizeof(rmt_symbol_word_t);
+  uint32_t next_write = buffer_write + event_size + event->num_symbols * sizeof(rmt_symbol_word_t);
   if (next_write + event_size + store->receive_size > store->buffer_size) {
     next_write = 0;
   }
   if (store->buffer_read - next_write < event_size + store->receive_size) {
-    next_write = store->buffer_write;
+    next_write = buffer_write;
     store->overflow = true;
   }
   if (event->num_symbols <= store->filter_symbols) {
-    next_write = store->buffer_write;
+    next_write = buffer_write;
   }
   store->error =
       rmt_receive(channel, (uint8_t *) store->buffer + next_write + event_size, store->receive_size, &store->config);
   event_buffer->num_symbols = event->num_symbols;
   event_buffer->received_symbols = event->received_symbols;
-  const bool stored = next_write != store->buffer_write;
+  const bool stored = next_write != buffer_write;
   store->buffer_write = next_write;
   // a stored frame is decoded on the next loop pass instead of waiting out the loop interval;
   // filtered noise and dropped frames leave nothing to read
