@@ -1,7 +1,6 @@
 #pragma once
 
 #include <cstdint>
-#include <cstdlib>
 #include <cstring>
 #include <memory>
 
@@ -59,16 +58,17 @@ class APIBuffer {
   const uint8_t &operator[](size_t i) const { return this->data_[i]; }
   /// Release all memory (equivalent to std::vector swap trick).
   void release() {
-    std::free(this->data_.release());  // NOLINT(cppcoreguidelines-no-malloc)
+    RAMAllocator<uint8_t>().deallocate(this->data_.release(), 0);
     this->size_ = 0;
     this->capacity_ = 0;
   }
 
  protected:
   bool grow_(size_t n, size_t drop = 0);
-  // malloc, not new (std::nothrow): that still aborts on ESP-IDF without exceptions
+  // RAMAllocator: PSRAM when available, and it reports failure where
+  // new (std::nothrow) still aborts on ESP-IDF without exceptions
   struct FreeDeleter {
-    void operator()(uint8_t *p) const { std::free(p); }  // NOLINT(cppcoreguidelines-no-malloc)
+    void operator()(uint8_t *p) const { RAMAllocator<uint8_t>().deallocate(p, 0); }
   };
   std::unique_ptr<uint8_t[], FreeDeleter> data_;
   uint16_t size_{0};
