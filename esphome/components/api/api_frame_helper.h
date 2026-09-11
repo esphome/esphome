@@ -219,8 +219,10 @@ class APIFrameHelper {
     if (this->rx_buf_len_ == 0) {
       this->rx_buf_.release();
     }
-    this->overflow_buf_.release();
+    this->release_overflow_buffer();
   }
+  // Free the send backlog storage once it has drained
+  void release_overflow_buffer() { this->overflow_buf_.release(); }
 
  protected:
   // Drain backlogged overflow data to the socket and handle errors.
