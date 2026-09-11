@@ -26,14 +26,14 @@ template<size_t NUM_DEVICES> class DeviceListener : public ble_device_base::ESPB
       if (header.version() != BTHOME_VERSION_2)
         continue;
 
-      if (this->on_bthome_data(device, data, data_size))
+      if (this->on_bthome_data_(device, data, data_size))
         matched = true;
     }
     return matched;
   }
 
  private:
-  bool on_bthome_data(const ble_device_base::ESPBTDevice &device, const uint8_t *data, size_t size) {
+  bool on_bthome_data_(const ble_device_base::ESPBTDevice &device, const uint8_t *data, size_t size) {
     for (RemoteDeviceBase *d : this->devices_) {
       if (d == nullptr)
         continue;
