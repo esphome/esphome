@@ -221,11 +221,11 @@ async def to_code(config: ConfigType) -> None:
 
     dumpers = await remote_base.build_dumpers(config[CONF_DUMP])
     for dumper in dumpers:
-        cg.add(var.register_dumper(dumper))
+        remote_base.add_dumper(var, dumper)
 
     triggers = await remote_base.build_triggers(config)
     for trigger in triggers:
-        cg.add(var.register_listener(trigger))
+        remote_base.add_listener(var, trigger)
     await cg.register_component(var, config)
 
     cg.add(
