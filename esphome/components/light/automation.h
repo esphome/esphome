@@ -230,17 +230,18 @@ template<typename... Ts> class AddressableSet final : public Action<Ts...> {
 
   void play(const Ts &...x) override {
     auto *out = (AddressableLight *) this->parent_->get_output();
-    int32_t range_from = interpret_index(this->range_from_.value_or(x..., 0), out->size());
-    if (range_from < 0 || range_from >= out->size())
+    ESPColorBuffer &buffer = out->buffer();
+    int32_t range_from = interpret_index(this->range_from_.value_or(x..., 0), buffer.size());
+    if (range_from < 0 || range_from >= buffer.size())
       range_from = 0;
 
-    int32_t range_to = interpret_index(this->range_to_.value_or(x..., out->size() - 1) + 1, out->size());
-    if (range_to < 0 || range_to >= out->size())
-      range_to = out->size();
+    int32_t range_to = interpret_index(this->range_to_.value_or(x..., buffer.size() - 1) + 1, buffer.size());
+    if (range_to < 0 || range_to >= buffer.size())
+      range_to = buffer.size();
 
     uint8_t color_brightness =
         to_uint8_scale(this->color_brightness_.value_or(x..., this->parent_->remote_values.get_color_brightness()));
-    auto range = out->range(range_from, range_to);
+    auto range = buffer.range(range_from, range_to);
     if (this->red_.has_value())
       range.set_red(esp_scale8(to_uint8_compat(this->red_.value(x...), "red"), color_brightness));
     if (this->green_.has_value())

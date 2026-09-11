@@ -1,5 +1,5 @@
 #include "esp_range_view.h"
-#include "addressable_light.h"
+#include "esp_color_buffer.h"
 
 namespace esphome::light {
 

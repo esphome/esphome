@@ -1,5 +1,6 @@
 #pragma once
 
+#include "esp_color_buffer.h"
 #include "esp_color_correction.h"
 #include "esp_color_view.h"
 #include "esp_range_view.h"
@@ -27,36 +28,39 @@ class AddressableLightState final : public LightState {
 
 class AddressableLight : public LightOutput, public Component {
  public:
-  virtual int32_t size() const = 0;
-  ESPColorView operator[](int32_t index) const { return this->get_view_internal(interpret_index(index, this->size())); }
-  ESPColorView get(int32_t index) { return this->get_view_internal(interpret_index(index, this->size())); }
-  virtual void clear_effect_data() = 0;
-  ESPRangeView range(int32_t from, int32_t to) {
-    from = interpret_index(from, this->size());
-    to = interpret_index(to, this->size());
-    return ESPRangeView(this, from, to);
-  }
-  ESPRangeView all() { return ESPRangeView(this, 0, this->size()); }
-  ESPRangeIterator begin() { return this->all().begin(); }
-  ESPRangeIterator end() { return this->all().end(); }
-  void shift_left(int32_t amnt) {
-    if (amnt < 0) {
-      this->shift_right(-amnt);
-      return;
-    }
-    if (amnt > this->size())
-      amnt = this->size();
-    this->range(0, -amnt) = this->range(amnt, this->size());
-  }
-  void shift_right(int32_t amnt) {
-    if (amnt < 0) {
-      this->shift_left(-amnt);
-      return;
-    }
-    if (amnt > this->size())
-      amnt = this->size();
-    this->range(amnt, this->size()) = this->range(0, -amnt);
-  }
+  /// Get the pixel data and effect data for this addressable light.
+  virtual ESPColorBuffer &buffer() = 0;
+
+  ESPDEPRECATED("Use buffer().size() instead. Will be removed in 2027.4.0.", "2026.10.0")
+  int32_t size() { return this->buffer().size(); }
+
+  ESPDEPRECATED("Use buffer()[index] instead. Will be removed in 2027.4.0.", "2026.10.0")
+  ESPColorView operator[](int32_t index) { return this->buffer()[index]; }
+
+  ESPDEPRECATED("Use buffer().get(index) instead. Will be removed in 2027.4.0.", "2026.10.0")
+  ESPColorView get(int32_t index) { return this->buffer().get(index); }
+
+  ESPDEPRECATED("Use buffer().clear_effect_data() instead. Will be removed in 2027.4.0.", "2026.10.0")
+  void clear_effect_data() { this->buffer().clear_effect_data(); }
+
+  ESPDEPRECATED("Use buffer().range(from, to) instead. Will be removed in 2027.4.0.", "2026.10.0")
+  ESPRangeView range(int32_t from, int32_t to) { return this->buffer().range(from, to); }
+
+  ESPDEPRECATED("Use buffer().all() instead. Will be removed in 2027.4.0.", "2026.10.0")
+  ESPRangeView all() { return this->buffer().all(); }
+
+  ESPDEPRECATED("Use buffer().begin() instead. Will be removed in 2027.4.0.", "2026.10.0")
+  ESPRangeIterator begin() { return this->buffer().begin(); }
+
+  ESPDEPRECATED("Use buffer().end() instead. Will be removed in 2027.4.0.", "2026.10.0")
+  ESPRangeIterator end() { return this->buffer().end(); }
+
+  ESPDEPRECATED("Use buffer().shift_left(amount) instead. Will be removed in 2027.4.0.", "2026.10.0")
+  void shift_left(int32_t amount) { this->buffer().shift_left(amount); }
+
+  ESPDEPRECATED("Use buffer().shift_right(amount) instead. Will be removed in 2027.4.0.", "2026.10.0")
+  void shift_right(int32_t amount) { this->buffer().shift_right(amount); }
+
   // Indicates whether an effect that directly updates the output buffer is active to prevent overwriting
   bool is_effect_active() const { return this->effect_active_; }
   void set_effect_active(bool effect_active) { this->effect_active_ = effect_active; }
@@ -72,7 +76,11 @@ class AddressableLight : public LightOutput, public Component {
     this->state_parent_ = state;
   }
   void update_state(LightState *state) override;
-  void schedule_show() { this->state_parent_->schedule_write_(); }
+  void schedule_show() {
+    if (this->state_parent_ != nullptr) {
+      this->state_parent_->schedule_write_();
+    }
+  }
 
 #ifdef USE_POWER_SUPPLY
   void set_power_supply(power_supply::PowerSupply *power_supply) { this->power_.set_parent(power_supply); }
@@ -85,16 +93,13 @@ class AddressableLight : public LightOutput, public Component {
 
   void mark_shown_() {
 #ifdef USE_POWER_SUPPLY
-    for (const auto &c : *this) {
-      if (c.get_red_raw() > 0 || c.get_green_raw() > 0 || c.get_blue_raw() > 0 || c.get_white_raw() > 0) {
-        this->power_.request();
-        return;
-      }
+    if (!this->buffer().is_all_black()) {
+      this->power_.request();
+    } else {
+      this->power_.unrequest();
     }
-    this->power_.unrequest();
 #endif
   }
-  virtual ESPColorView get_view_internal(int32_t index) const = 0;
 
   ESPColorCorrection correction_{};
   LightState *state_parent_{nullptr};

@@ -7,11 +7,13 @@ namespace esphome::light {
 
 class AddressableLightWrapper : public light::AddressableLight {
  public:
-  explicit AddressableLightWrapper(light::LightState *light_state) : light_state_(light_state) {}
+  explicit AddressableLightWrapper(light::LightState *light_state)
+      : light_state_(light_state),
+        buffer_(1, {.channel_colors = {.r = 0, .g = 1, .b = 2, .w = 3}}, &this->correction_) {
+    this->buffer_.setup(this->led_data_, this->effect_data_);
+  }
 
-  int32_t size() const override { return 1; }
-
-  void clear_effect_data() override { this->wrapper_state_[4] = 0; }
+  ESPColorBuffer &buffer() override { return this->buffer_; }
 
   light::LightTraits get_traits() override {
     LightTraits traits;
@@ -74,10 +76,10 @@ class AddressableLightWrapper : public light::AddressableLight {
       return;
     }
 
-    float r = this->light_state_->gamma_uncorrect_lut(this->wrapper_state_[0] / 255.0f);
-    float g = this->light_state_->gamma_uncorrect_lut(this->wrapper_state_[1] / 255.0f);
-    float b = this->light_state_->gamma_uncorrect_lut(this->wrapper_state_[2] / 255.0f);
-    float w = this->light_state_->gamma_uncorrect_lut(this->wrapper_state_[3] / 255.0f);
+    float r = this->light_state_->gamma_uncorrect_lut(this->led_data_[0] / 255.0f);
+    float g = this->light_state_->gamma_uncorrect_lut(this->led_data_[1] / 255.0f);
+    float b = this->light_state_->gamma_uncorrect_lut(this->led_data_[2] / 255.0f);
+    float w = this->light_state_->gamma_uncorrect_lut(this->led_data_[3] / 255.0f);
 
     auto call = this->light_state_->make_call();
 
@@ -109,13 +111,10 @@ class AddressableLightWrapper : public light::AddressableLight {
   }
 
  protected:
-  light::ESPColorView get_view_internal(int32_t index) const override {
-    return {&this->wrapper_state_[0], &this->wrapper_state_[1], &this->wrapper_state_[2],
-            &this->wrapper_state_[3], &this->wrapper_state_[4], &this->correction_};
-  }
-
   light::LightState *light_state_;
-  mutable uint8_t wrapper_state_[5]{};
+  light::PackedColorBuffer buffer_;
+  uint8_t led_data_[4]{};
+  uint8_t effect_data_[1]{};
   ColorMode color_mode_{ColorMode::UNKNOWN};
 };
 

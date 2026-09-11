@@ -31,8 +31,9 @@ class AddressableLightEffect : public LightEffect {
  public:
   explicit AddressableLightEffect(const char *name) : LightEffect(name) {}
   void start_internal() override {
-    this->get_addressable_()->set_effect_active(true);
-    this->get_addressable_()->clear_effect_data();
+    auto *addressable = this->get_addressable_();
+    addressable->set_effect_active(true);
+    addressable->buffer().clear_effect_data();
     this->start();
   }
   void stop() override { this->get_addressable_()->set_effect_active(false); }
@@ -86,7 +87,7 @@ class AddressableRainbowLightEffect : public AddressableLightEffect {
     hsv.saturation = 240;
     uint16_t hue = (millis() * this->speed_) % 0xFFFF;
     const uint16_t add = 0xFFFF / this->width_;
-    for (auto var : it) {
+    for (auto var : it.buffer()) {
       hsv.hue = hue >> 8;
       var = hsv;
       hue += add;
@@ -119,10 +120,11 @@ class AddressableColorWipeEffect : public AddressableLightEffect {
     if (now - this->last_add_ < this->add_led_interval_)
       return;
     this->last_add_ = now;
+    ESPColorBuffer &buffer = it.buffer();
     if (this->reverse_) {
-      it.shift_left(1);
+      buffer.shift_left(1);
     } else {
-      it.shift_right(1);
+      buffer.shift_right(1);
     }
     const AddressableColorWipeEffectColor &color = this->colors_[this->at_color_];
     Color esp_color = Color(color.r, color.g, color.b, color.w);
@@ -134,9 +136,9 @@ class AddressableColorWipeEffect : public AddressableLightEffect {
       esp_color = esp_color.gradient(next_esp_color, gradient);
     }
     if (this->reverse_) {
-      it[-1] = esp_color;
+      buffer[-1] = esp_color;
     } else {
-      it[0] = esp_color;
+      buffer[0] = esp_color;
     }
     if (++this->leds_added_ >= color.num_leds) {
       this->leds_added_ = 0;
@@ -171,9 +173,10 @@ class AddressableScanEffect : public AddressableLightEffect {
     if (now - this->last_move_ < this->move_interval_)
       return;
 
-    const auto num_leds = static_cast<uint32_t>(it.size());
+    ESPColorBuffer &buffer = it.buffer();
+    const uint32_t num_leds = buffer.size();
     if (this->scan_width_ >= num_leds) {
-      it.all() = current_color;
+      buffer.all() = current_color;
       it.schedule_show();
       this->last_move_ = now;
       return;
@@ -197,9 +200,9 @@ class AddressableScanEffect : public AddressableLightEffect {
     }
     this->last_move_ = now;
 
-    it.all() = Color::BLACK;
+    buffer.all() = Color::BLACK;
     for (uint32_t i = 0; i < this->scan_width_; i++) {
-      it[this->at_led_ + i] = current_color;
+      buffer[this->at_led_ + i] = current_color;
     }
 
     it.schedule_show();
@@ -224,7 +227,8 @@ class AddressableTwinkleEffect : public AddressableLightEffect {
       pos_add = pos_add32;
       this->last_progress_ += pos_add32 * this->progress_interval_;
     }
-    for (auto view : addressable) {
+    ESPColorBuffer &buffer = addressable.buffer();
+    for (auto view : buffer) {
       if (view.get_effect_data() != 0) {
         const uint8_t sine = half_sin8(view.get_effect_data());
         view = current_color * sine;
@@ -239,10 +243,10 @@ class AddressableTwinkleEffect : public AddressableLightEffect {
       }
     }
     while (random_float() < this->twinkle_probability_) {
-      const size_t pos = random_uint32() % addressable.size();
-      if (addressable[pos].get_effect_data() != 0)
+      auto view = buffer[random_uint32() % buffer.size()];
+      if (view.get_effect_data() != 0)
         continue;
-      addressable[pos].set_effect_data(1);
+      view.set_effect_data(1);
     }
     addressable.schedule_show();
   }
@@ -266,7 +270,8 @@ class AddressableRandomTwinkleEffect : public AddressableLightEffect {
       this->last_progress_ = now;
     }
     uint8_t subsine = ((8 * (now - this->last_progress_)) / this->progress_interval_) & 0b111;
-    for (auto view : it) {
+    ESPColorBuffer &buffer = it.buffer();
+    for (auto view : buffer) {
       if (view.get_effect_data() != 0) {
         const uint8_t x = (view.get_effect_data() >> 3) & 0b11111;
         const uint8_t color = view.get_effect_data() & 0b111;
@@ -287,11 +292,11 @@ class AddressableRandomTwinkleEffect : public AddressableLightEffect {
       }
     }
     while (random_float() < this->twinkle_probability_) {
-      const size_t pos = random_uint32() % it.size();
-      if (it[pos].get_effect_data() != 0)
+      auto view = buffer[random_uint32() % buffer.size()];
+      if (view.get_effect_data() != 0)
         continue;
       const uint8_t color = random_uint32() & 0b111;
-      it[pos].set_effect_data(0b1000 | color);
+      view.set_effect_data(0b1000 | color);
     }
     it.schedule_show();
   }
@@ -309,7 +314,7 @@ class AddressableFireworksEffect : public AddressableLightEffect {
   explicit AddressableFireworksEffect(const char *name) : AddressableLightEffect(name) {}
   void start() override {
     auto &it = *this->get_addressable_();
-    it.all() = Color::BLACK;
+    it.buffer().all() = Color::BLACK;
   }
   void apply(AddressableLight &it, const Color &current_color) override {
     const uint32_t now = millis();
@@ -318,26 +323,27 @@ class AddressableFireworksEffect : public AddressableLightEffect {
     this->last_update_ = now;
     // "invert" the fade out parameter so that higher values make fade out faster
     const uint8_t fade_out_mult = 255u - this->fade_out_rate_;
-    for (auto view : it) {
+    ESPColorBuffer &buffer = it.buffer();
+    for (auto view : buffer) {
       Color target = view.get() * fade_out_mult;
       if (target.r < 64)
         target *= 170;
       view = target;
     }
-    if (it.size() < 2)
+    if (buffer.size() < 2)
       return;
-    int last = it.size() - 1;
-    it[0].set(it[0].get() + (it[1].get() * 128));
+    int last = buffer.size() - 1;
+    buffer[0].set(buffer[0].get() + (buffer[1].get() * 128));
     for (int i = 1; i < last; i++) {
-      it[i] = (it[i - 1].get() * 64) + it[i].get() + (it[i + 1].get() * 64);
+      buffer[i] = (buffer[i - 1].get() * 64) + buffer[i].get() + (buffer[i + 1].get() * 64);
     }
-    it[last] = it[last].get() + (it[last - 1].get() * 128);
+    buffer[last] = buffer[last].get() + (buffer[last - 1].get() * 128);
     if (random_float() < this->spark_probability_) {
-      const size_t pos = random_uint32() % it.size();
+      auto view = buffer[random_uint32() % buffer.size()];
       if (this->use_random_color_) {
-        it[pos] = Color::random_color();
+        view = Color::random_color();
       } else {
-        it[pos] = current_color;
+        view = current_color;
       }
     }
     it.schedule_show();
@@ -367,7 +373,8 @@ class AddressableFlickerEffect : public AddressableLightEffect {
 
     this->last_update_ = now;
     uint32_t rng_state = random_uint32();
-    for (auto var : it) {
+    ESPColorBuffer &buffer = it.buffer();
+    for (auto var : buffer) {
       rng_state = (rng_state * 0x9E3779B9) + 0x9E37;
       const uint8_t flicker = (rng_state & 0xFF) % intensity;
       // scale down by random factor

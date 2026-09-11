@@ -7,7 +7,7 @@ namespace esphome::light {
 
 int32_t interpret_index(int32_t index, int32_t size);
 
-class AddressableLight;
+class ESPColorBuffer;
 class ESPRangeIterator;
 
 /**
@@ -15,7 +15,7 @@ class ESPRangeIterator;
  */
 class ESPRangeView : public ESPColorSettable {
  public:
-  ESPRangeView(AddressableLight *parent, int32_t begin, int32_t end)
+  ESPRangeView(ESPColorBuffer *parent, int32_t begin, int32_t end)
       : parent_(parent), begin_(begin), end_(end < begin ? begin : end) {}
   ESPRangeView(const ESPRangeView &) = default;
 
@@ -54,7 +54,7 @@ class ESPRangeView : public ESPColorSettable {
  protected:
   friend ESPRangeIterator;
 
-  AddressableLight *parent_;
+  ESPColorBuffer *parent_;
   int32_t begin_;
   int32_t end_;
 };
