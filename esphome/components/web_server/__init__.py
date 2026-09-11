@@ -12,6 +12,7 @@ from esphome.components.logger import request_log_listener
 from esphome.components.web_server_base import CONF_WEB_SERVER_BASE_ID
 import esphome.config_validation as cv
 from esphome.const import (
+    CONF_AP,
     CONF_AUTH,
     CONF_COMPRESSION,
     CONF_CSS_INCLUDE,
@@ -23,15 +24,19 @@ from esphome.const import (
     CONF_JS_URL,
     CONF_LOCAL,
     CONF_LOG,
+    CONF_MANUAL_IP,
     CONF_NAME,
+    CONF_NETWORKS,
     CONF_OTA,
     CONF_PASSWORD,
     CONF_PORT,
+    CONF_STATIC_IP,
     CONF_TYPE,
     CONF_USERNAME,
     CONF_VERSION,
     CONF_WEB_SERVER,
     CONF_WEB_SERVER_ID,
+    CONF_WIFI,
     PLATFORM_BK72XX,
     PLATFORM_ESP32,
     PLATFORM_ESP8266,
@@ -46,7 +51,23 @@ from esphome.types import ConfigType
 
 _LOGGER = logging.getLogger(__name__)
 
-AUTO_LOAD = ["json", "web_server_base"]
+
+def AUTO_LOAD() -> list[str]:
+    # No config parameter on purpose: that would make this a late (dynamic) auto-load and
+    # ota.web_server's dependency on web_server_base would not be satisfied in time.
+    auto_load = ["json", "web_server_base"]
+    # The AP mode DNS server (web_server_base/dns_server_esp32_idf) uses socket; only
+    # configs with a WiFi access point can end up in AP mode. CORE.raw_config is set
+    # after package merging, so a wifi block from a package is visible here.
+    wifi = CORE.raw_config.get(CONF_WIFI) if CORE.raw_config else None
+    if (
+        CORE.is_esp32
+        and wifi is not None
+        and (not isinstance(wifi, dict) or CONF_AP in wifi)
+    ):
+        auto_load.append("socket")
+    return auto_load
+
 
 AUTH_TYPE_BASIC = "basic"
 AUTH_TYPE_DIGEST = "digest"
@@ -205,9 +226,6 @@ def _final_validate_sorting(config: ConfigType) -> None:
         )
 
 
-FINAL_VALIDATE_SCHEMA = _final_validate_sorting
-
-
 def _consume_web_server_sockets(config: ConfigType) -> ConfigType:
     """Register socket needs for web_server component."""
     from esphome.components import socket
@@ -334,6 +352,95 @@ async def add_entity_config(entity: MockObj, config: ConfigType) -> None:
     )
 
 
+def wifi_is_ap_only(wifi_config: ConfigType | None) -> bool:
+    """AP only: an access point and no network to join, so the device is only ever reached
+    through its own AP."""
+    return (
+        wifi_config is not None
+        and CONF_AP in wifi_config
+        and not wifi_config.get(CONF_NETWORKS)
+    )
+
+
+def serve_local(config: ConfigType, wifi_config: ConfigType | None) -> bool:
+    """Embed the interface unless ``local:`` says otherwise; AP only WiFi has no internet
+    for the hosted page. Version 1 has no local mode."""
+    if (local := config.get(CONF_LOCAL)) is not None:
+        return local
+    return config[CONF_VERSION] != 1 and wifi_is_ap_only(wifi_config)
+
+
+def serve_captive(config: ConfigType, full_config: ConfigType) -> bool:
+    """web_server runs its own captive portal while the AP is up: embedded interface plus
+    an access point, unless captive_portal (which owns that role) is configured. Only on
+    port 80: the OS captive portal probes and the DHCP portal URI always use port 80, so
+    a portal on another port could never be discovered."""
+    wifi_config = full_config.get(CONF_WIFI)
+    return (
+        "captive_portal" not in full_config
+        and config[CONF_PORT] == 80
+        and wifi_config is not None
+        and CONF_AP in wifi_config
+        and serve_local(config, wifi_config)
+    )
+
+
+def _final_validate_ap_mode(config: ConfigType) -> None:
+    full_config = fv.full_config.get()
+    wifi_config = full_config.get(CONF_WIFI)
+    captive = serve_captive(config, full_config)
+    local = serve_local(config, wifi_config)
+    if captive:
+        web_server_base.consume_captive_dns_sockets(config, "web_server")
+    # Surface behavior that the config does not spell out.
+    if local and CONF_LOCAL not in config:
+        _LOGGER.info(
+            "WiFi is AP only: embedding the web interface in the firmware "
+            "(local: true, roughly 13 KB of flash for version 2, 78 KB for version 3)%s. "
+            "Set 'local: false' to load it from the internet instead.",
+            " and serving it as a captive portal on the access point"
+            if captive
+            else "",
+        )
+    elif captive:
+        _LOGGER.info(
+            "web_server will act as a captive portal while the %saccess point is active.",
+            "" if wifi_is_ap_only(wifi_config) else "fallback ",
+        )
+    if not wifi_is_ap_only(wifi_config):
+        return
+    if not local:
+        _LOGGER.warning(
+            "WiFi is AP only and the web_server interface is loaded from the internet, "
+            "which browsers on the access point usually cannot reach; the page stays "
+            "blank. %s so the interface is embedded in the firmware.",
+            "Remove 'local: false'"
+            if config.get(CONF_LOCAL) is False
+            else "Migrate to version 2 or 3",
+        )
+    elif config[CONF_PORT] != 80:
+        ap_ip = "192.168.4.1"
+        if (manual_ip := wifi_config[CONF_AP].get(CONF_MANUAL_IP)) is not None:
+            ap_ip = str(manual_ip[CONF_STATIC_IP])
+        _LOGGER.warning(
+            "WiFi is AP only and web_server uses port %d. The interface cannot open "
+            "automatically on the access point (captive portal detection only works on "
+            "port 80); open http://%s:%d/ manually, or remove 'port:' to use 80.",
+            config[CONF_PORT],
+            ap_ip,
+            config[CONF_PORT],
+        )
+
+
+def _final_validate(config: ConfigType) -> None:
+    # Called one after the other rather than via cv.All: these return None.
+    _final_validate_sorting(config)
+    _final_validate_ap_mode(config)
+
+
+FINAL_VALIDATE_SCHEMA = _final_validate
+
+
 def build_index_html(config: ConfigType) -> str:
     html = "<!DOCTYPE html><html><head><meta charset=UTF-8><link rel=icon href=data:>"
     css_include = config.get(CONF_CSS_INCLUDE)
@@ -434,8 +541,12 @@ async def to_code(config: ConfigType) -> None:
         with path.open(encoding="utf-8") as js_file:
             add_resource_as_progmem("JS_INCLUDE", js_file.read())
     cg.add(var.set_include_internal(config[CONF_INCLUDE_INTERNAL]))
-    if CONF_LOCAL in config and config[CONF_LOCAL]:
+    if serve_local(config, CORE.config.get(CONF_WIFI)):
         cg.add_define("USE_WEBSERVER_LOCAL")
+    if serve_captive(config, CORE.config):
+        # AP mode: DNS server plus redirect of unknown URLs so phones open the interface
+        cg.add_define("USE_WEBSERVER_CAPTIVE")
+        web_server_base.add_captive_dns_library()
     if config[CONF_COMPRESSION] == "gzip":
         cg.add_define("USE_WEBSERVER_GZIP")
 

@@ -44,6 +44,10 @@
 #include "esphome/components/radio_frequency/radio_frequency.h"
 #endif
 
+#ifdef USE_WEBSERVER_CAPTIVE
+#include "esphome/components/wifi/wifi_component.h"
+#endif
+
 #ifdef USE_WEBSERVER_LOCAL
 #if USE_WEBSERVER_VERSION == 2
 #include "server_index_v2.h"
@@ -334,7 +338,15 @@ void DeferredUpdateEventSourceList::on_client_disconnect_(DeferredUpdateEventSou
 }
 #endif
 
-WebServer::WebServer(web_server_base::WebServerBase *base) : base_(base) {}
+#ifdef USE_WEBSERVER_CAPTIVE
+WebServer *global_web_server = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+#endif
+
+WebServer::WebServer(web_server_base::WebServerBase *base) : base_(base) {
+#ifdef USE_WEBSERVER_CAPTIVE
+  global_web_server = this;
+#endif
+}
 
 #ifdef USE_WEBSERVER_CSS_INCLUDE
 void WebServer::set_css_include(const char *css_include) { this->css_include_ = css_include; }
@@ -380,6 +392,11 @@ void WebServer::setup() {
   this->base_->add_handler(&this->events_);
 #endif
   this->base_->add_handler(this);
+#ifdef USE_WEBSERVER_CAPTIVE
+  // Not-found fallback (outside the auth middleware): the OS captive portal probes hit
+  // arbitrary URLs and must get the redirect without credentials.
+  this->base_->get_server()->onNotFound([this](AsyncWebServerRequest *request) { this->handle_not_found_(request); });
+#endif
 
   // OTA is now handled by the web_server OTA platform
 
@@ -395,15 +412,51 @@ void WebServer::setup() {
   });
 }
 void WebServer::loop() {
-  // No SSE clients connected; stop looping until a new client connects via
+  bool keep_looping = this->events_.loop();
+#ifdef USE_WEBSERVER_CAPTIVE
+  this->dns_.loop();
+  keep_looping |= this->dns_.is_running();
+#endif
+  // No SSE clients connected (and no captive DNS to serve); stop looping until a new client connects via
   // enable_loop_soon_any_context(). This is safe because:
   // - set_interval/set_timeout/defer run via the Scheduler, independent of loop()
   // - deferrable_send_state early-outs when no clients are connected
   // - try_send_nodefer (log, ping) iterates sessions which are empty
   // - REST API handlers use defer() which runs via the Scheduler
-  if (!this->events_.loop())
+  if (!keep_looping)
     this->disable_loop();
 }
+
+#ifdef USE_WEBSERVER_CAPTIVE
+void WebServer::start_captive() {
+  // CaptiveDNS::start() no-ops too; this guard just avoids repeating the log and enable_loop
+  if (this->dns_.is_running())
+    return;
+  network::IPAddress ip = wifi::global_wifi_component->wifi_soft_ap_ip();
+  this->dns_.start(ip);
+  this->enable_loop();
+  char ip_buf[network::IP_ADDRESS_BUFFER_SIZE];
+  ESP_LOGI(TAG, "AP mode: serving the web interface as captive portal at http://%s/", ip.str_to(ip_buf));
+}
+
+void WebServer::end_captive() { this->dns_.stop(); }
+
+void WebServer::handle_not_found_(AsyncWebServerRequest *request) {
+  // OS captive portal probe (or any other unknown page) while the AP is up: send the browser
+  // to the real page. A redirect rather than the page itself, because the interface resolves
+  // its /events and REST paths relative to the page URL.
+  if (this->dns_.is_running() && request->method() == HTTP_GET) {
+    // Captive mode requires port 80 (enforced at validation), so no port suffix is needed.
+    char location[7 + network::IP_ADDRESS_BUFFER_SIZE + 1];
+    size_t pos = buf_append_str(location, sizeof(location), 0, "http://");
+    wifi::global_wifi_component->wifi_soft_ap_ip().str_to(location + pos);
+    buf_append_str(location, sizeof(location), strlen(location), "/");
+    request->redirect(location);
+    return;
+  }
+  request->send(404);
+}
+#endif
 
 #ifdef USE_LOGGER
 void WebServer::on_log(uint8_t level, const char *tag, const char *message, size_t message_len) {

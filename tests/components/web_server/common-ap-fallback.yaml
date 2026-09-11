@@ -1,0 +1,11 @@
+# STA with AP fallback plus local: true opts the fallback into captive AP mode; exercises
+# the runtime start (fallback branch in wifi loop) and end (on STA connect) paths.
+wifi:
+  ssid: MySSID
+  password: password1
+  ap:
+    ssid: "ESPHome-Test"
+    password: "Test1234!"
+
+web_server:
+  local: true
