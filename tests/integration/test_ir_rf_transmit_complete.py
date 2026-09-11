@@ -103,7 +103,6 @@ async def test_ir_rf_transmit_complete(
 
     # The mock saw one frame at a time: every transmit follows the previous completion
     kinds = [kind for kind, _ in events]
-    assert "Overlap" not in kinds
     assert kinds == ["TX", "Complete"] * FRAME_COUNT, events
     seqs = [seq for _, seq in events]
-    assert seqs == [seq for seq in seqs[::2] for _ in range(2)], events
+    assert seqs[::2] == seqs[1::2], events

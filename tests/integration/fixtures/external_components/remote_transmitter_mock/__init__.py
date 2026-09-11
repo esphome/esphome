@@ -1,7 +1,7 @@
 """Host-only stand-in for remote_transmitter used by the IR/RF integration tests."""
 
 import esphome.codegen as cg
-from esphome.components import remote_transmitter
+from esphome.components import remote_base
 import esphome.config_validation as cv
 from esphome.const import CONF_ID
 from esphome.types import ConfigType
@@ -11,11 +11,8 @@ MULTI_CONF = True
 AUTO_LOAD = ["remote_base"]
 
 remote_transmitter_mock_ns = cg.esphome_ns.namespace("remote_transmitter_mock")
-# Declared as a RemoteTransmitterComponent so the ir_rf_proxy platforms accept it in
-# remote_transmitter_id; the C++ class derives from RemoteTransmitterBase, which is all
-# those platforms use
 MockRemoteTransmitter = remote_transmitter_mock_ns.class_(
-    "MockRemoteTransmitter", remote_transmitter.RemoteTransmitterComponent
+    "MockRemoteTransmitter", remote_base.RemoteTransmitterBase, cg.Component
 )
 
 CONFIG_SCHEMA = cv.Schema(

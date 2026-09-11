@@ -195,7 +195,8 @@ void RemoteTransmitterBase::send_(uint32_t send_times, uint32_t send_wait, [[may
     ESP_LOGVV(TAG, "%s", buffer);
   }
 #endif
-#ifdef USE_IR_RF
+  this->flush_pending_completion_();
+#ifdef REMOTE_BASE_COMPLETE_LISTENER_COUNT
   this->current_seq_ = seq;
 #endif
   this->send_internal(send_times, send_wait);

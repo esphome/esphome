@@ -21,12 +21,12 @@ void IrRfEntity::setup_transport_() {
   if (this->receiver_ != nullptr) {
     this->receiver_->register_listener(this);
   }
-#if defined(USE_API) && defined(USE_IR_RF)
+#if defined(USE_API) && defined(REMOTE_BASE_COMPLETE_LISTENER_COUNT)
   if (this->transmitter_ != nullptr) {
     // only frames this entity submitted; YAML automations and other entities share the transmitter
     this->transmitter_->add_on_complete_callback([this](uint32_t seq) {
-      if (seq == this->inflight_seq_)
-        this->notify_transmit_complete_();
+      if (seq == this->inflight_seq_ && this->api_reply_ == ApiReply::API_REPLY_WAITING)
+        this->finish_api_reply_(true);
     });
   }
 #endif
@@ -80,7 +80,9 @@ bool IrRfEntity::transmit_raw_(const IrRfCallData &call, uint32_t carrier_freque
     transmit_call.set_send_times(call.get_repeat_count());
   }
 
+#if defined(USE_API) && defined(REMOTE_BASE_COMPLETE_LISTENER_COUNT)
   this->inflight_seq_ = transmit_call.get_seq();
+#endif
   transmit_call.perform();
   return true;
 }
@@ -99,13 +101,6 @@ bool IrRfEntity::on_receive(remote_base::RemoteReceiveData data) {
   return false;  // Don't consume the event, allow other listeners to process it
 }
 
-void IrRfEntity::notify_transmit_complete_() {
-#if defined(USE_API) && defined(USE_IR_RF)
-  if (this->api_reply_ == ApiReply::API_REPLY_WAITING)
-    this->finish_api_reply_(true);
-#endif
-}
-
 #if defined(USE_API) && defined(USE_IR_RF)
 // Safety net for a transmitter that never reports completion (for example a failed component)
 static constexpr uint32_t API_REPLY_TIMEOUT_MS = 30000;
@@ -118,7 +113,6 @@ void IrRfEntity::expect_api_reply_(api::APIConnection *conn) {
   this->api_reply_connection_ = conn;
   this->api_reply_registered_ms_ = App.get_loop_component_start_time();
   this->api_reply_ = ApiReply::API_REPLY_WAITING;
-  this->enable_loop();
 }
 
 void IrRfEntity::finish_api_reply_(bool success) {
@@ -127,22 +121,21 @@ void IrRfEntity::finish_api_reply_(bool success) {
 }
 
 bool IrRfEntity::send_api_reply_() {
-  api::InfraredRFTransmitCompleteResponse resp{};
+  uint32_t device_id = 0;
 #ifdef USE_DEVICES
-  resp.device_id = this->get_device_id();
+  device_id = this->get_device_id();
 #endif
-  resp.key = this->get_object_id_hash();
-  resp.success = this->api_reply_ == ApiReply::API_REPLY_OWED_OK;
   // Refused by a full TCP buffer: the reply stays owed and loop() retries it, since a lost
   // reply would stall the client's pacing for good (same shape as bluetooth_proxy)
-  if (!this->api_reply_connection_->send_infrared_rf_transmit_complete_response(resp))
+  if (!this->api_reply_connection_->send_infrared_rf_transmit_complete(device_id, this->get_object_id_hash(),
+                                                                       this->api_reply_ == ApiReply::API_REPLY_OWED_OK))
     return false;
-  this->api_reply_ = ApiReply::API_REPLY_NONE;
-  this->disable_loop();
+  this->clear_api_reply_();
   return true;
 }
 
-// Only runs while an API reply is pending: retries an owed one, expires a transmit that never reported
+// Only runs while an API reply is pending: retries an owed one, expires a transmit that never
+// reported (a platform overriding control() without wiring its transmitter's completion)
 void IrRfEntity::loop() {
   if (this->api_reply_ == ApiReply::API_REPLY_NONE) {
     this->disable_loop();
@@ -158,14 +151,12 @@ void IrRfEntity::loop() {
   if (waiting) {
     this->finish_api_reply_(false);
   }
-  this->api_reply_ = ApiReply::API_REPLY_NONE;
-  this->disable_loop();
+  this->clear_api_reply_();
 }
 
 void IrRfEntity::on_api_connection_closed(api::APIConnection *conn) {
   if (this->api_reply_connection_ == conn) {
-    this->api_reply_ = ApiReply::API_REPLY_NONE;
-    this->disable_loop();
+    this->clear_api_reply_();
   }
 }
 #endif

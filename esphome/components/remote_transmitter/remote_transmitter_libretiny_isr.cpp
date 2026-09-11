@@ -137,7 +137,6 @@ void RemoteTransmitterComponent::wait_until_idle_() {
 
 // Stages the repeat schedule and stall deadline, then starts the interrupt chain
 void RemoteTransmitterComponent::arm_chain_(uint32_t send_times, uint32_t send_wait) {
-  this->accept_seq_();
   this->isr_repeats_left_ = send_times;
   this->isr_send_wait_ = send_wait;
   this->isr_index_ = 0;
@@ -153,6 +152,8 @@ void RemoteTransmitterComponent::arm_chain_(uint32_t send_times, uint32_t send_w
   this->start_isr_item_(0);
 }
 
+void RemoteTransmitterComponent::flush_pending_completion_() { this->wait_until_idle_(); }
+
 void RemoteTransmitterComponent::send_internal(uint32_t send_times, uint32_t send_wait) {
   if (!this->envelope_ready_()) {
     // both triggers still fire, so an on_complete-sequenced automation does not stall
@@ -161,7 +162,6 @@ void RemoteTransmitterComponent::send_internal(uint32_t send_times, uint32_t sen
     this->deliver_completion_();
     return;
   }
-  this->wait_until_idle_();
   if (send_times == 0) {
     // parity with the loop-based implementations: transmit nothing, but both triggers
     // still fire so an on_complete-sequenced automation does not stall

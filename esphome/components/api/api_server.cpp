@@ -194,17 +194,6 @@ void APIServer::remove_client_(uint8_t client_index) {
 #ifdef USE_API_USER_DEFINED_ACTION_RESPONSES
   this->unregister_active_action_calls_for_connection(client.get());
 #endif
-  // Entities holding a transmit reply for this client must not answer into a freed connection
-#ifdef USE_INFRARED
-  for (auto *infrared : App.get_infrareds()) {
-    infrared->on_api_connection_closed(client.get());
-  }
-#endif
-#ifdef USE_RADIO_FREQUENCY
-  for (auto *radio_frequency : App.get_radio_frequencies()) {
-    radio_frequency->on_api_connection_closed(client.get());
-  }
-#endif
   ESP_LOGV(TAG, "Remove connection %s", client->get_name());
 
 #ifdef USE_API_CLIENT_DISCONNECTED_TRIGGER

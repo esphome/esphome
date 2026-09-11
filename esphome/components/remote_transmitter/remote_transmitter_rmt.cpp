@@ -217,21 +217,21 @@ void RemoteTransmitterComponent::wait_for_rmt_() {
 }
 
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 5, 1)
+void RemoteTransmitterComponent::flush_pending_completion_() {
+  // a frame still on the wire is waited out, and its completion reported, before the next one
+  if (this->non_blocking_ && this->cancel_timeout("complete")) {
+    this->wait_for_rmt_();
+  }
+}
+
 void RemoteTransmitterComponent::send_internal(uint32_t send_times, uint32_t send_wait) {
   uint64_t total_duration = 0;
 
   if (this->is_failed()) {
     // still report completion so a paced API client or on_complete automation is not left waiting
-    this->accept_seq_();
     this->fire_complete_();
     return;
   }
-
-  // if the timeout was cancelled, block until the tx is complete
-  if (this->non_blocking_ && this->cancel_timeout("complete")) {
-    this->wait_for_rmt_();
-  }
-  this->accept_seq_();
 
   if (this->current_carrier_frequency_ != this->temp_.get_carrier_frequency()) {
     this->current_carrier_frequency_ = this->temp_.get_carrier_frequency();
@@ -302,8 +302,9 @@ void RemoteTransmitterComponent::send_internal(uint32_t send_times, uint32_t sen
   }
 }
 #else
+void RemoteTransmitterComponent::flush_pending_completion_() {}
+
 void RemoteTransmitterComponent::send_internal(uint32_t send_times, uint32_t send_wait) {
-  this->accept_seq_();
   if (this->is_failed()) {
     this->fire_complete_();
     return;

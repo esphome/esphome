@@ -109,12 +109,11 @@ class IrRfEntity : public Component, public EntityBase, public remote_base::Remo
   void setup_transport_();
   /// Hands the call's timings to the transmitter; the default transmit path of both entity types
   bool transmit_raw_(const IrRfCallData &call, uint32_t carrier_frequency_hz);
-  /// Answers the API request waiting on this entity, if any
-  void notify_transmit_complete_();
 #if defined(USE_API) && defined(USE_IR_RF)
   // One reply slot: a pacing client has at most one transmit outstanding, and a second request
   // from an unpaced client displaces the first. Retried and expired from loop(), which only
-  // runs while a reply is pending.
+  // runs while a reply is pending; polling the expiry there costs nothing while idle, where a
+  // scheduler timeout would allocate per frame.
   enum class ApiReply : uint8_t {
     API_REPLY_NONE,
     API_REPLY_WAITING,     // frame handed to the transmitter, completion not reported yet
@@ -122,15 +121,25 @@ class IrRfEntity : public Component, public EntityBase, public remote_base::Remo
     API_REPLY_OWED_FAILED  // same, for a transmit that did not start
   };
   void expect_api_reply_(api::APIConnection *conn);
+  void arm_api_reply_() {
+    if (this->api_reply_ != ApiReply::API_REPLY_NONE)
+      this->enable_loop();
+  }
   void finish_api_reply_(bool success);
   bool send_api_reply_();
+  void clear_api_reply_() {
+    this->api_reply_ = ApiReply::API_REPLY_NONE;
+    this->disable_loop();
+  }
   api::APIConnection *api_reply_connection_{nullptr};
   uint32_t api_reply_registered_ms_{0};
 #endif
 
   remote_base::RemoteReceiverBase *receiver_{nullptr};
   remote_base::RemoteTransmitterBase *transmitter_{nullptr};
+#if defined(USE_API) && defined(REMOTE_BASE_COMPLETE_LISTENER_COUNT)
   uint32_t inflight_seq_{0};  // seq of the frame this entity submitted last
+#endif
   // byte-sized members last, so the derived traits start on the next word without a gap
   bool supports_transmitter_{false};
   bool supports_receiver_{false};
@@ -214,8 +223,12 @@ template<typename Call, typename Entity> class IrRfCall : public IrRfCallData {
 #endif
     const bool started = parent->control(this->self_());
 #if defined(USE_API) && defined(USE_IR_RF)
-    if (!started && this->api_connection_ != nullptr)
-      parent->finish_api_reply_(false);
+    if (this->api_connection_ != nullptr) {
+      if (!started)
+        parent->finish_api_reply_(false);
+      // only now: a blocking transmitter has already answered inside control()
+      parent->arm_api_reply_();
+    }
 #endif
     return started;
   }

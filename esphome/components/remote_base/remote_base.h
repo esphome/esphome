@@ -173,10 +173,10 @@ class RemoteTransmitterBase : public RemoteComponentBase {
     call.set_send_wait(send_wait);
     call.perform();
   }
-#ifdef USE_IR_RF
+#ifdef REMOTE_BASE_COMPLETE_LISTENER_COUNT
   /// Called with the TransmitCall's seq once that transmission has finished, after the last
   /// repeat and before the on_complete trigger. Entities sharing a transmitter each register
-  /// and keep only the seqs they submitted.
+  /// and keep only the seqs they submitted; the slots are counted at code generation.
   template<typename F> void add_on_complete_callback(F &&callback) {
     this->complete_callback_.add(std::forward<F>(callback));
   }
@@ -185,18 +185,20 @@ class RemoteTransmitterBase : public RemoteComponentBase {
  protected:
   void send_(uint32_t send_times, uint32_t send_wait, uint32_t seq);
   virtual void send_internal(uint32_t send_times, uint32_t send_wait) = 0;
+  /// Platforms that report completion later wait out the previous frame here, before send_()
+  /// assigns the next seq, so that completion carries the seq it belongs to
+  virtual void flush_pending_completion_() {}
   void send_single_() { this->send_(1, 0, this->take_seq_()); }
-#ifdef USE_IR_RF
-  void notify_complete_(uint32_t seq) { this->complete_callback_.call(seq); }
+#ifdef REMOTE_BASE_COMPLETE_LISTENER_COUNT
+  void notify_complete_() { this->complete_callback_.call(this->current_seq_); }
   uint32_t take_seq_() { return ++this->next_seq_; }
 
-  LazyCallbackManager<void(uint32_t)> complete_callback_;
-  // seq handed to the platform by send_(); platforms copy it when they accept the frame
+  StaticCallbackManager<REMOTE_BASE_COMPLETE_LISTENER_COUNT, void(uint32_t)> complete_callback_;
   uint32_t next_seq_{0};
-  uint32_t current_seq_{0};
+  uint32_t current_seq_{0};  // seq of the frame handed to the platform last
 #else
   // seq tracking only exists for the API completion reply
-  void notify_complete_(uint32_t seq) {}
+  void notify_complete_() {}
   static uint32_t take_seq_() { return 0; }
 #endif
 

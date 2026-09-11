@@ -10,7 +10,6 @@ namespace esphome::radio_frequency {
 
 using ir_rf_base::CAPABILITY_RECEIVER;
 using ir_rf_base::CAPABILITY_TRANSMITTER;
-using ir_rf_base::IrRfCapability;
 
 /// Modulation types supported by radio frequency implementations
 enum RadioFrequencyModulation : uint8_t {

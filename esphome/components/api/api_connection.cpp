@@ -199,6 +199,17 @@ APIConnection::~APIConnection() {
     }
   }
 #endif
+  // entities holding a transmit reply for this client must not answer into a freed connection
+#ifdef USE_INFRARED
+  for (auto *infrared : App.get_infrareds()) {
+    infrared->on_api_connection_closed(this);
+  }
+#endif
+#ifdef USE_RADIO_FREQUENCY
+  for (auto *radio_frequency : App.get_radio_frequencies()) {
+    radio_frequency->on_api_connection_closed(this);
+  }
+#endif
 }
 
 #if defined(USE_API_NOISE) && defined(USE_API_PLAINTEXT)
@@ -1518,13 +1529,11 @@ uint16_t APIConnection::try_send_event_info(EntityBase *entity, APIConnection *c
 void APIConnection::on_infrared_rf_transmit_raw_timings_request(const InfraredRFTransmitRawTimingsRequest &msg) {
   // Clients on API 1.18+ are told when the frame has left the transmitter; the entity owns that reply
   const bool want_reply = this->client_supports_api_version(1, 18);
-  bool found = false;
   // Dispatch by key: infrared entities are checked first, then radio frequency entities.
   // The key is unique across all entity instances on a device, so at most one lookup will succeed.
 #ifdef USE_INFRARED
   ENTITY_COMMAND_LOOKUP(infrared::Infrared, infrared, infrared);
   if (infrared != nullptr) {
-    found = true;
     auto call = infrared->make_call();
     call.set_carrier_frequency(msg.carrier_frequency);
     call.set_raw_timings_packed(msg.timings_data_, msg.timings_length_, msg.timings_count_);
@@ -1532,33 +1541,43 @@ void APIConnection::on_infrared_rf_transmit_raw_timings_request(const InfraredRF
     if (want_reply)
       call.set_api_connection(this);
     call.perform();
+    return;
   }
 #endif
 #ifdef USE_RADIO_FREQUENCY
-  if (!found) {
-    ENTITY_COMMAND_LOOKUP(radio_frequency::RadioFrequency, radio_frequency, radio_frequency);
-    if (radio_frequency != nullptr) {
-      found = true;
-      auto call = radio_frequency->make_call();
-      call.set_frequency(msg.carrier_frequency);
-      call.set_modulation(static_cast<radio_frequency::RadioFrequencyModulation>(msg.modulation));
-      call.set_repeat_count(msg.repeat_count);
-      call.set_raw_timings_packed(msg.timings_data_, msg.timings_length_, msg.timings_count_);
-      if (want_reply)
-        call.set_api_connection(this);
-      call.perform();
-    }
+  ENTITY_COMMAND_LOOKUP(radio_frequency::RadioFrequency, radio_frequency, radio_frequency);
+  if (radio_frequency != nullptr) {
+    auto call = radio_frequency->make_call();
+    call.set_frequency(msg.carrier_frequency);
+    call.set_modulation(static_cast<radio_frequency::RadioFrequencyModulation>(msg.modulation));
+    call.set_repeat_count(msg.repeat_count);
+    call.set_raw_timings_packed(msg.timings_data_, msg.timings_length_, msg.timings_count_);
+    if (want_reply)
+      call.set_api_connection(this);
+    call.perform();
+    return;
   }
 #endif
-  if (want_reply && !found) {
+  if (want_reply) {
     // nothing will ever report for an unknown key, so answer as not started right away
-    InfraredRFTransmitCompleteResponse resp{};
 #ifdef USE_DEVICES
-    resp.device_id = msg.device_id;
+    const uint32_t device_id = msg.device_id;
+#else
+    const uint32_t device_id = 0;
 #endif
-    resp.key = msg.key;
-    this->send_infrared_rf_transmit_complete_response(resp);
+    this->send_infrared_rf_transmit_complete(device_id, msg.key, false);
   }
+}
+
+bool APIConnection::send_infrared_rf_transmit_complete([[maybe_unused]] uint32_t device_id, uint32_t key,
+                                                       bool success) {
+  InfraredRFTransmitCompleteResponse resp{};
+#ifdef USE_DEVICES
+  resp.device_id = device_id;
+#endif
+  resp.key = key;
+  resp.success = success;
+  return this->send_message(resp);
 }
 #endif
 

@@ -10,7 +10,6 @@ namespace esphome::infrared {
 
 using ir_rf_base::CAPABILITY_RECEIVER;
 using ir_rf_base::CAPABILITY_TRANSMITTER;
-using ir_rf_base::IrRfCapability;
 
 class Infrared;
 
