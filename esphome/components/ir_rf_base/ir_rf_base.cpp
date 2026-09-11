@@ -76,6 +76,12 @@ bool IrRfEntity::transmit_raw_(const IrRfCallData &call, uint32_t carrier_freque
              call.get_repeat_count());
   }
 
+  // one answer for every backend: a frame that decoded to nothing is refused here
+  if (transmit_data->get_data().empty()) {
+    ESP_LOGE(TAG, "No raw timings provided");
+    return false;
+  }
+
   if (call.get_repeat_count() > 0) {
     transmit_call.set_send_times(call.get_repeat_count());
   }
@@ -122,13 +128,16 @@ void IrRfEntity::on_transmit_complete(remote_base::RemoteTransmitterBase *transm
 }
 #endif
 
-void IrRfEntity::expect_api_reply_(api::APIConnection *conn) {
+bool IrRfEntity::expect_api_reply_(api::APIConnection *conn) {
   // only an unpaced client gets here: its earlier request is answered as not started, and a reply
-  // the buffer still owes gets one last try, since the slot goes to the new request
+  // the buffer still owes gets one last try; if that fails too the slot stays with it and the
+  // new request is refused rather than answered to nobody
   if (this->api_reply_ == ApiReply::API_REPLY_WAITING)
     this->finish_api_reply_(false);
   if (this->api_reply_ != ApiReply::API_REPLY_NONE && !this->send_api_reply_()) {
-    ESP_LOGW(TAG, "'%s': transmit %s", this->get_name().c_str(), LOG_STR_LITERAL("reply displaced"));
+    ESP_LOGW(TAG, "'%s': transmit %s", this->get_name().c_str(), LOG_STR_LITERAL("refused, reply still owed"));
+    this->refuse_api_call_(conn);
+    return false;
   }
   this->api_reply_connection_ = conn;
 #ifdef USE_IR_RF_TRANSMIT_COMPLETE
@@ -136,6 +145,18 @@ void IrRfEntity::expect_api_reply_(api::APIConnection *conn) {
       static_cast<uint16_t>((App.get_loop_component_start_time() >> 4) + (API_REPLY_TIMEOUT_MS >> 4));
 #endif
   this->api_reply_ = ApiReply::API_REPLY_WAITING;
+  return true;
+}
+
+void IrRfEntity::refuse_api_call_(api::APIConnection *conn) {
+  uint32_t device_id = 0;
+#ifdef USE_DEVICES
+  device_id = this->get_device_id();
+#endif
+  // no slot to retry from; a drop here is covered by the client's own timeout
+  if (!conn->send_infrared_rf_transmit_complete(device_id, this->get_object_id_hash(), false)) {
+    API_LOG_MSG_DROPPED(TAG, "IR/RF reply");
+  }
 }
 
 void IrRfEntity::finish_api_reply_(bool success) {

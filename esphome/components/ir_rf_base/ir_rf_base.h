@@ -134,7 +134,9 @@ class IrRfEntity : public Component, public EntityBase, public remote_base::Remo
     API_REPLY_OWED_OK,     // reply refused by a full TCP buffer; loop() retries it
     API_REPLY_OWED_FAILED  // same, for a transmit that did not start
   };
-  void expect_api_reply_(api::APIConnection *conn);
+  /// Claims the reply slot for conn; false when it still owes a reply that cannot be sent
+  bool expect_api_reply_(api::APIConnection *conn);
+  void refuse_api_call_(api::APIConnection *conn);
   /// After control(): a false start is answered now, and the loop only runs once something is
   /// pending, since a blocking transmitter has already answered inside control()
   void settle_api_reply_(bool started) {
@@ -242,8 +244,8 @@ template<typename Call, typename Entity> class IrRfCall : public IrRfCallData {
 #if defined(USE_API) && defined(USE_IR_RF)
     // Before control(): blocking transmitters report completion from inside it, and the
     // non-blocking RMT path flushes the previous frame's completion there
-    if (this->api_connection_ != nullptr)
-      parent->expect_api_reply_(this->api_connection_);
+    if (this->api_connection_ != nullptr && !parent->expect_api_reply_(this->api_connection_))
+      return false;
 #endif
     const bool started = parent->control(this->self_());
 #if defined(USE_API) && defined(USE_IR_RF)
