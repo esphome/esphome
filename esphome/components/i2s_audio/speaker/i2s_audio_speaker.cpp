@@ -107,8 +107,9 @@ void I2SAudioSpeakerBase::loop() {
   }
 
   if (event_group_bits & SpeakerEventGroupBits::ERR_ESP_NO_MEM) {
-    ESP_LOGE(TAG, "Speaker task setup failed (allocation, preload, or channel enable)");
+    ESP_LOGE(TAG, "Speaker task setup failed (allocation, preload, or channel enable); retrying in 1 second");
     xEventGroupClearBits(this->event_group_, SpeakerEventGroupBits::ERR_ESP_NO_MEM);
+    this->status_momentary_error("setup-failure", 1000);
   }
 
   // Handle the speaker's state
