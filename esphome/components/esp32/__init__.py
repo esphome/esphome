@@ -759,9 +759,10 @@ def request_software_coexistence() -> None:
 class MbedtlsSdkconfigData:
     """Inputs for the mbedTLS sdkconfig flags, reconciled at FINAL.
 
-    Components call request_tls() / require_mbedtls_*() instead of writing the
-    CONFIG_MBEDTLS_* flags directly; _reconcile_mbedtls_sdkconfig() decides the
-    final values once every to_code has run.
+    Components call the require_mbedtls_*() helpers (and request_tls(), which
+    signals through the esp-tls exclusion instead) rather than writing the
+    CONFIG_MBEDTLS_* flags directly; _reconcile_mbedtls_sdkconfig() decides
+    the final values once every to_code has run.
     """
 
     ecp_required: bool = False  # ECDH/ECDSA without TLS (openthread SRP host key)
@@ -2452,12 +2453,17 @@ MBEDTLS_TLS_ROLE_OPTIONS = (
 )
 
 
-# User sdkconfig_options that mean "keep TLS on" when set to y.
+# User sdkconfig_options that mean "keep TLS on" when set to y. The
+# OpenThread entries compile its DTLS secure transport in, which links
+# mbedtls_ssl_*.
 _MBEDTLS_TLS_ON_OPTIONS = (
     "CONFIG_MBEDTLS_TLS_ENABLED",
     "CONFIG_MBEDTLS_TLS_SERVER_AND_CLIENT",
     "CONFIG_MBEDTLS_TLS_SERVER_ONLY",
     "CONFIG_MBEDTLS_TLS_CLIENT_ONLY",
+    "CONFIG_OPENTHREAD_COMMISSIONER",
+    "CONFIG_OPENTHREAD_JOINER",
+    "CONFIG_OPENTHREAD_BORDER_AGENT_ENABLE",
 )
 # Any user option under these prefixes only makes sense with TLS compiled in.
 _TLS_OPTION_PREFIXES = ("CONFIG_ESP_TLS_", "CONFIG_MBEDTLS_SSL_", "CONFIG_ESP_HTTPS_")

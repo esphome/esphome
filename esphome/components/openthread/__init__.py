@@ -113,7 +113,7 @@ def set_sdkconfig_options(config: ConfigType) -> None:
     add_idf_sdkconfig_option("CONFIG_OPENTHREAD_ENABLED", True)
 
     # Commissioner/joiner Kconfigs default off, so no mbedtls_ssl_* is linked;
-    # enabling them via sdkconfig_options also needs CONFIG_MBEDTLS_TLS_DISABLED: n.
+    # setting one under sdkconfig_options keeps TLS in the build automatically.
     # The crypto platform uses AES-CCM and deterministic ECDSA directly.
     require_mbedtls_tls_server()
     require_mbedtls_tls_extras(

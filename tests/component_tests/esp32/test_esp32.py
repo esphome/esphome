@@ -642,6 +642,8 @@ def test_esp_tls_linking_components_are_excluded_by_default() -> None:
             id="prefix_n_is_not_a_request",
         ),
         pytest.param({"CONFIG_ESP_HTTPS_OTA_ALLOW_HTTP": "y"}, True, id="https_prefix"),
+        pytest.param({"CONFIG_OPENTHREAD_COMMISSIONER": "y"}, True, id="ot_dtls_y"),
+        pytest.param({"CONFIG_OPENTHREAD_JOINER": "n"}, False, id="ot_dtls_n"),
         pytest.param({"CONFIG_LWIP_IPV6": "y"}, False, id="unrelated"),
     ],
 )
