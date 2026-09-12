@@ -3,6 +3,8 @@
 
 namespace esphome::template_ {
 
+TemplateNumber::TemplateNumber() {}
+
 static const char *const TAG = "template.number";
 
 void TemplateNumber::setup() {
