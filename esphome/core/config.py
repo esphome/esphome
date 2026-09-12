@@ -717,12 +717,9 @@ async def to_code(config: ConfigType) -> None:
     cg.add_global(cg.RawExpression("using std::min"))
     cg.add_global(cg.RawExpression("using std::max"))
 
-    # Construct App via placement new — see application.cpp for storage details.
-    # No parentheses: Application has no user provided ctor, so `Application()`
-    # would zero-fill the whole object before the ctor runs. The storage is
-    # already zero.
+    # Construct App via placement new — see application.cpp for storage details
     cg.add_global(cg.RawStatement("#include <new>"))
-    cg.add(cg.RawExpression("new (&App) Application"))
+    cg.add(cg.RawExpression("new (&App) Application()"))
     name = config[CONF_NAME]
     friendly_name = config[CONF_FRIENDLY_NAME]
     name_add_mac_suffix = config[CONF_NAME_ADD_MAC_SUFFIX]
