@@ -154,8 +154,12 @@ void MitsubishiClimate::transmit_state() {
   if (this->mode == climate::CLIMATE_MODE_DRY) {
     remote_state[7] = 24 - MITSUBISHI_TEMP_MIN;  // Remote sends always 24°C if "Dry" mode is selected
   } else {
-    remote_state[7] = (uint8_t) roundf(
-        clamp<float>(this->target_temperature, MITSUBISHI_TEMP_MIN, MITSUBISHI_TEMP_MAX) - MITSUBISHI_TEMP_MIN);
+    if (!this->fahrenheit_compatibility_) {
+      remote_state[7] = (uint8_t) roundf(
+          clamp<float>(this->target_temperature, MITSUBISHI_TEMP_MIN, MITSUBISHI_TEMP_MAX) - MITSUBISHI_TEMP_MIN);
+    } else {
+      remote_state[7] = reconvert_from_fahrenheit_(this->target_temperature);
+    }
   }
 
   // Wide Vane
@@ -286,6 +290,32 @@ void MitsubishiClimate::transmit_state() {
 
 bool MitsubishiClimate::parse_state_frame_(const uint8_t frame[]) { return false; }
 
+static const uint8_t FAHRENHEIT_CODES[] = {0x00, 0x10, 0x01, 0x11, 0x02, 0x12, 0x03, 0x04, 0x05, 0x15,
+                                           0x06, 0x16, 0x07, 0x17, 0x08, 0x18, 0x09, 0x19, 0x0a, 0x1a,
+                                           0x0b, 0x1b, 0x0c, 0x1c, 0x0d, 0x1d, 0x0e, 0x0f};
+
+uint8_t MitsubishiClimate::reconvert_from_fahrenheit_(float c_temp) {
+  if (c_temp < 16.0f) {
+    return 0x00;
+  }
+  if (c_temp > 31.2f) {
+    return 0x0f;
+  }
+
+  // Every temperature from 61F..88F sends a unique code to the unit.
+  uint8_t f_index = (uint8_t) roundf(c_temp * 1.8f + 32) - 61;
+  return FAHRENHEIT_CODES[f_index];
+}
+
+float MitsubishiClimate::temp_code_to_celsius_(uint8_t code) {
+  for (size_t i = 0; i < sizeof(FAHRENHEIT_CODES) / sizeof(FAHRENHEIT_CODES[0]); i++) {
+    if (code == FAHRENHEIT_CODES[i]) {
+      return (61.0f + i - 32) / 1.8;
+    }
+  }
+  return -1.0f;
+}
+
 bool MitsubishiClimate::on_receive(remote_base::RemoteReceiveData data) {
   uint8_t state_frame[18] = {};
 
@@ -340,7 +370,18 @@ bool MitsubishiClimate::on_receive(remote_base::RemoteReceiveData data) {
   }
 
   // Temp
-  this->target_temperature = state_frame[7] + MITSUBISHI_TEMP_MIN;
+  if (!this->fahrenheit_compatibility_) {
+    this->target_temperature = state_frame[7] + MITSUBISHI_TEMP_MIN;
+    if (state_frame[7] & 0x10) {
+      ESP_LOGV(TAG, "Transmitter is in Fahrenheit mode; enable `fahrenheit_compatibility` for proper decoding");
+    }
+  } else {
+    this->target_temperature = temp_code_to_celsius_(state_frame[7]);
+    if (this->target_temperature < 0) {
+      ESP_LOGV(TAG, "Invalid temperature code %02x", state_frame[7]);
+      return false;
+    }
+  }
 
   // Fan
   uint8_t fan = state_frame[9] & 0x07;  //(Bit 0,1,2 = Speed)
