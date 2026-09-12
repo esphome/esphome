@@ -2034,6 +2034,32 @@ class LwIPLock {
 #endif
 };
 
+#if defined(USE_ESP8266) && F_CPU != 160000000L
+// Forward decl from <user_interface.h>
+// NOLINTNEXTLINE(readability-redundant-declaration)
+extern "C" bool system_update_cpu_freq(uint8_t freq);
+#endif
+
+/** Runs the CPU at 160 MHz while alive. ESP8266 built for 80 MHz only; elsewhere it compiles to nothing.
+ *
+ * The core resets the clock before every loop() pass, so a scope must stay within one pass, must not nest and
+ * must not yield to the main loop. Peripheral clocks are unchanged, but the cycle counter runs twice as fast, so
+ * code that times itself against F_CPU, including ISRs that fire while a scope is open, must read CPU2X.
+ */
+class CpuFrequencyBoost {
+ public:
+  CpuFrequencyBoost(const CpuFrequencyBoost &) = delete;
+  CpuFrequencyBoost &operator=(const CpuFrequencyBoost &) = delete;
+#if defined(USE_ESP8266) && F_CPU != 160000000L
+  CpuFrequencyBoost() { system_update_cpu_freq(160); }
+  ~CpuFrequencyBoost() { system_update_cpu_freq(80); }
+#else
+  // Not = default, so clang-tidy does not flag unused variables at call sites
+  CpuFrequencyBoost() {}
+  ~CpuFrequencyBoost() {}
+#endif
+};
+
 /** Helper class to request `loop()` to be called as fast as possible.
  *
  * Usually the ESPHome main loop runs at 60 Hz, sleeping in between invocations of `loop()` if necessary. When a higher
