@@ -4,6 +4,7 @@
 #include "esphome/components/spi/spi.h"
 #include "esphome/components/split_buffer/split_buffer.h"
 #include "esphome/core/component.h"
+#include "esphome/core/preferences.h"
 
 namespace esphome::epaper_spi {
 using namespace display;
@@ -61,6 +62,7 @@ class EPaperBase : public Display,
     this->update_effective_transform_();
   }
   void set_full_update_every(uint8_t full_update_every) { this->full_update_every_ = full_update_every; }
+  void set_full_refresh_after_deep_sleep(bool full_refresh) { this->full_refresh_after_deep_sleep_ = full_refresh; }
   void dump_config() override;
 
   void command(uint8_t value);
@@ -124,6 +126,7 @@ class EPaperBase : public Display,
   const char *epaper_state_to_string_();
   bool is_idle_() const;
   void setup_pins_() const;
+  void restore_update_count_();
   virtual bool reset();
   virtual bool initialise(bool partial);
   void send_init_sequence_(const uint8_t *sequence, size_t length);
@@ -185,6 +188,9 @@ class EPaperBase : public Display,
   uint8_t transform_{};
   uint8_t effective_transform_{};
   uint8_t update_count_{};
+  bool full_refresh_after_deep_sleep_{true};
+  bool persist_update_count_{false};
+  ESPPreferenceObject update_count_pref_{};
   // these values represent the bounds of the updated buffer. Note that x_high and y_high
   // point to the pixel past the last one updated, i.e. may range up to width/height.
   uint16_t x_low_{}, y_low_{}, x_high_{}, y_high_{};
