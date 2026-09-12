@@ -19,3 +19,14 @@ nrf52:
   reg0:
     voltage: 2.1V
     uicr_erase: true
+  # P1.x (port-1 math) + inverted + open_drain + omitted startup_delay (defaults
+  # to 0us) -- the mcumgr target's power_enable test only covers P0.x/non-inverted/
+  # explicit delay/pullup. inverted + open_drain together also exercise the
+  # multi-flag `(GPIO_ACTIVE_LOW | GPIO_OPEN_DRAIN)` parenthesized-join path.
+  power_enable:
+    pin:
+      number: P1.02
+      inverted: true
+      mode:
+        output: true
+        open_drain: true

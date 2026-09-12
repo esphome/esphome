@@ -2,3 +2,12 @@ nrf52:
   reg0:
     voltage: 3.3V
     uicr_erase: true
+  # P0.x/non-inverted/explicit delay + pullup -- the adafruit target's
+  # power_enable test covers P1.x/inverted/open_drain instead.
+  power_enable:
+    pin:
+      number: P0.13
+      mode:
+        output: true
+        pullup: true
+    startup_delay: 500ms
