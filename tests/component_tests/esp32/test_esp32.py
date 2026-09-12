@@ -658,6 +658,21 @@ def test_platformio_arduino_enables_reproducible_build(
     assert sdkconfig.get("CONFIG_APP_REPRODUCIBLE_BUILD") is True
 
 
+@pytest.mark.parametrize(
+    "config_file", ["reproducible_build.yaml", "reproducible_build_arduino.yaml"]
+)
+def test_file_macro_is_basename_only(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+    config_file: str,
+) -> None:
+    """__FILE__ is redefined to the basename so assert paths stay out of RAM."""
+    generate_main(component_config_path(config_file))
+
+    assert "-D__FILE__=__FILE_NAME__" in CORE.build_flags
+    assert "-Wno-builtin-macro-redefined" in CORE.build_flags
+
+
 def test_native_idf_enables_reproducible_build(
     component_config_path: Callable[[str], Path],
 ) -> None:
