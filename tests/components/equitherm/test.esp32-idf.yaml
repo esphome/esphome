@@ -1,0 +1,12 @@
+esphome:
+  name: test-equitherm-esp32-idf
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+logger:
+  level: DEBUG
+
+<<: !include common.yaml
