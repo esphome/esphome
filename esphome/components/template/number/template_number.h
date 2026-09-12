@@ -10,6 +10,8 @@ namespace esphome::template_ {
 
 class TemplateNumber final : public number::Number, public PollingComponent {
  public:
+  // User provided, not "= default": `new(p) TemplateNumber()` would zero-fill .bss that is already zero.
+  TemplateNumber() {}
   template<typename F> void set_template(F &&f) { this->f_.set(std::forward<F>(f)); }
 
   void setup() override;
