@@ -1,0 +1,15 @@
+systa_bus:
+
+sensor:
+  - platform: systa_bus
+    model: systasolar_aqua
+    temperature_tsa:
+      name: TSA
+    temperature_tse:
+      name: TSE
+    temperature_twu:
+      name: TWU
+    temperature_tw2:
+      name: TW2
+    pump_speed:
+      name: Pump Speed
