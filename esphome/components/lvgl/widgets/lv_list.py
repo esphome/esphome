@@ -61,7 +61,6 @@ from . import (
     collect_parts,
     get_widgets,
     set_obj_properties,
-    wait_for_widgets,
 )
 from .buttonmatrix import CONF_BUTTONMATRIX
 from .canvas import CONF_CANVAS
@@ -419,7 +418,6 @@ async def _build_dynamic_widget(
                 lv.obj_move_to_index(w.obj, index)
             await _fire_on_add(list_id, list_obj, w.obj)
 
-    await wait_for_widgets()
     if widget_type.is_compound():
         with LocalVariable(
             var_name, widget_type.w_type, widget_type.w_type.new()
