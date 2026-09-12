@@ -175,6 +175,27 @@ async def test_core_area_recorded_at_config_load(
     assert CORE.area == expected_area
 
 
+@pytest.mark.asyncio
+async def test_app_is_default_initialized(
+    yaml_file: Callable[[str], Path],
+) -> None:
+    """App is constructed with `new (&App) Application`, no parentheses.
+
+    `Application()` would value-initialize and memset the whole object into
+    storage that is already zero."""
+    result = load_config_from_fixture(yaml_file, "valid_area_device.yaml", FIXTURES_DIR)
+    assert result is not None
+
+    with patch("esphome.core.config.cg") as mock_cg:
+        mock_cg.RawStatement.side_effect = lambda *args, **kwargs: MagicMock()
+        mock_cg.RawExpression.side_effect = lambda *args, **kwargs: MagicMock()
+        await config.to_code(result[CONF_ESPHOME])
+
+    raw_expressions = [c.args[0] for c in mock_cg.RawExpression.call_args_list]
+    assert "new (&App) Application" in raw_expressions
+    assert "new (&App) Application()" not in raw_expressions
+
+
 def test_config_load_without_area_clears_stale_core_area(
     yaml_file: Callable[[str], Path],
 ) -> None:
