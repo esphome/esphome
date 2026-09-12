@@ -489,6 +489,23 @@ async def _late_logger_init(config: ConfigType) -> None:
         # esphome implement own fatal error handler which save PC/LR before reset
         zephyr_add_prj_conf("RESET_ON_FATAL_ERROR", False)
         zephyr_add_prj_conf("THREAD_LOCAL_STORAGE", True)
+        # Route Zephyr's own log messages (Bluetooth, USB, drivers, ...) through
+        # the ESPHome logger. ESPHome disables Zephyr's console and UART
+        # backends, so without this backend these messages are dropped.
+        zephyr_add_prj_conf("LOG", True)
+        # The custom backend renders messages with the log_output helper, which
+        # lives in its own library. The built-in backends normally select it;
+        # since those are disabled it must be requested explicitly.
+        zephyr_add_prj_conf("LOG_OUTPUT", True)
+        # Increase Zephyr's internal log ring buffer beyond the 1024-byte default
+        # to reduce message drops when verbose subsystems (e.g. IEEE 802.15.4)
+        # emit bursts faster than the ESPHome backend can drain them.
+        zephyr_add_prj_conf("LOG_BUFFER_SIZE", 4096)
+
+        zephyr_add_prj_conf("IEEE802154_DRIVER_LOG_LEVEL_DBG", True)
+
+        cg.add_define("USE_ZEPHYR_LOG_BACKEND")
+        cg.add_define("ESPHOME_ZEPHYR_LOG_BUFFER_SIZE", config[CONF_TX_BUFFER_SIZE])
         if has_serial_logging:
             if config[CONF_HARDWARE_UART] == UART0:
                 zephyr_add_overlay("""&uart0 { status = "okay";};""")
