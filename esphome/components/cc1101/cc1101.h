@@ -5,11 +5,13 @@
 #include "esphome/components/spi/spi.h"
 #include "esphome/core/automation.h"
 #include "cc1101defs.h"
+#include <functional>
 #include <vector>
 
 namespace esphome::cc1101 {
 
 enum class CC1101Error { NONE = 0, TIMEOUT, PARAMS, CRC_ERROR, FIFO_OVERFLOW, PLL_LOCK };
+using packet_length_func_t = std::function<int32_t(const std::vector<uint8_t> &)>;
 
 class CC1101Listener {
  public:
@@ -84,7 +86,8 @@ class CC1101Component final : public Component,
 
   // Packet mode settings
   void set_packet_mode(bool value);
-  void set_packet_length(uint8_t value);
+  void set_packet_length(uint16_t value);
+  void set_packet_length_lambda(packet_length_func_t func);
   void set_crc_enable(bool value);
   void set_whitening(bool value);
 
@@ -109,9 +112,23 @@ class CC1101Component final : public Component,
 
   // Packet handling
   void call_listeners_(const std::vector<uint8_t> &packet, float freq_offset, float rssi, uint8_t lqi);
+  void configure_packet_mode_();
+  bool is_long_packet_mode_() const;
+  void reset_long_packet_rx_();
+  void restart_long_packet_rx_();
+  void handle_long_packet_(uint8_t rx_bytes);
+  void finish_long_packet_();
+  void maybe_switch_long_packet_to_fixed_();
+  uint32_t packet_idle_timeout_ms_() const;
   Trigger<std::vector<uint8_t>, float, float, uint8_t> packet_trigger_;
   std::vector<uint8_t> packet_;
   std::vector<CC1101Listener *> listeners_;
+  packet_length_func_t packet_length_func_{};
+  uint16_t packet_length_{0};
+  uint16_t packet_expected_length_{0};
+  uint32_t packet_last_byte_ms_{0};
+  bool packet_mode_{false};
+  bool packet_fixed_mode_armed_{false};
 
   // Low-level Helpers
   uint8_t strobe_(Command cmd);

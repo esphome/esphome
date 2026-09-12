@@ -62,6 +62,7 @@ CONF_BS_POST_KP = "bs_post_kp"
 # Packet mode config keys
 CONF_PACKET_MODE = "packet_mode"
 CONF_PACKET_LENGTH = "packet_length"
+CONF_PACKET_LENGTH_LAMBDA = "packet_length_lambda"
 CONF_WHITENING = "whitening"
 CONF_GDO0_PIN = "gdo0_pin"
 
@@ -292,7 +293,7 @@ CONFIG_MAP = {
     cv.Optional(CONF_BS_POST_KI): cv.enum(BS_POST_KI, upper=False),
     cv.Optional(CONF_BS_POST_KP): cv.enum(BS_POST_KP, upper=False),
     cv.Optional(CONF_PACKET_MODE, default=False): cv.boolean,
-    cv.Optional(CONF_PACKET_LENGTH): cv.uint8_t,
+    cv.Optional(CONF_PACKET_LENGTH): cv.int_range(min=0, max=1024),
     cv.Optional(CONF_CRC_ENABLE, default=False): cv.boolean,
     cv.Optional(CONF_WHITENING, default=False): cv.boolean,
 }
@@ -304,8 +305,11 @@ def _validate_packet_mode(config):
             raise cv.Invalid("gdo0_pin is required when packet_mode is enabled")
         if CONF_PACKET_LENGTH not in config:
             raise cv.Invalid("packet_length is required when packet_mode is enabled")
-        if config[CONF_PACKET_LENGTH] > 64:
-            raise cv.Invalid("packet_length must be <= 64 (FIFO size)")
+    if CONF_PACKET_LENGTH_LAMBDA in config:
+        if not config.get(CONF_PACKET_MODE, False):
+            raise cv.Invalid("packet_mode is required when packet_length_lambda is set")
+        if config.get(CONF_PACKET_LENGTH, None) != 0:
+            raise cv.Invalid("packet_length must be 0 when packet_length_lambda is set")
     return config
 
 
@@ -314,6 +318,7 @@ CONFIG_SCHEMA = cv.All(
         {
             cv.GenerateID(): cv.declare_id(CC1101Component),
             cv.Optional(CONF_GDO0_PIN): pins.internal_gpio_input_pin_schema,
+            cv.Optional(CONF_PACKET_LENGTH_LAMBDA): cv.lambda_,
             cv.Optional(CONF_ON_PACKET): automation.validate_automation(single=True),
         }
     )
@@ -337,6 +342,13 @@ async def to_code(config):
     if CONF_GDO0_PIN in config:
         gdo0_pin = await cg.gpio_pin_expression(config[CONF_GDO0_PIN])
         cg.add(var.set_gdo0_pin(gdo0_pin))
+    if CONF_PACKET_LENGTH_LAMBDA in config:
+        lambda_ = await cg.process_lambda(
+            config[CONF_PACKET_LENGTH_LAMBDA],
+            [(cg.std_vector.template(cg.uint8).operator("ref").operator("const"), "x")],
+            return_type=cg.int32,
+        )
+        cg.add(var.set_packet_length_lambda(lambda_))
     if CONF_ON_PACKET in config:
         await automation.build_automation(
             var.get_packet_trigger(),
