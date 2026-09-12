@@ -51,6 +51,11 @@ static size_t IRAM_ATTR HOT encoder_callback(const void *data, size_t size, size
 }
 #endif
 
+void RemoteTransmitterComponent::fail_(esp_err_t error, const LogString *reason) {
+  ESP_LOGE(TAG, "Configuring RMT driver failed: %s (%s)", esp_err_to_name(error), LOG_STR_ARG(reason));
+  this->mark_failed(reason);
+}
+
 void RemoteTransmitterComponent::setup() {
   this->inverted_ = this->pin_->is_inverted();
   this->configure_rmt_();
@@ -66,10 +71,6 @@ void RemoteTransmitterComponent::dump_config() {
 
   if (this->current_carrier_frequency_ != 0 && this->carrier_duty_percent_ != 100) {
     ESP_LOGCONFIG(TAG, "    Carrier Duty: %u%%", this->carrier_duty_percent_);
-  }
-
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, "Configuring RMT driver failed: %s (%s)", esp_err_to_name(this->error_code_), this->error_string_);
   }
 }
 
@@ -128,7 +129,8 @@ void RemoteTransmitterComponent::configure_rmt_() {
 #endif
     error = rmt_new_tx_channel(&channel, &this->channel_);
     if (error != ESP_OK) {
-      this->fail_(error, error == ESP_ERR_NOT_FOUND ? "out of RMT symbol memory" : "in rmt_new_tx_channel");
+      this->fail_(error,
+                  error == ESP_ERR_NOT_FOUND ? LOG_STR("out of RMT symbol memory") : LOG_STR("in rmt_new_tx_channel"));
       return;
     }
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
@@ -152,7 +154,7 @@ void RemoteTransmitterComponent::configure_rmt_() {
     encoder.min_chunk_size = 1;
     error = rmt_new_simple_encoder(&encoder, &this->encoder_);
     if (error != ESP_OK) {
-      this->fail_(error, "in rmt_new_simple_encoder");
+      this->fail_(error, LOG_STR("in rmt_new_simple_encoder"));
       return;
     }
 #else
@@ -160,14 +162,14 @@ void RemoteTransmitterComponent::configure_rmt_() {
     memset(&encoder, 0, sizeof(encoder));
     error = rmt_new_copy_encoder(&encoder, &this->encoder_);
     if (error != ESP_OK) {
-      this->fail_(error, "in rmt_new_copy_encoder");
+      this->fail_(error, LOG_STR("in rmt_new_copy_encoder"));
       return;
     }
 #endif
 
     error = rmt_enable(this->channel_);
     if (error != ESP_OK) {
-      this->fail_(error, "in rmt_enable");
+      this->fail_(error, LOG_STR("in rmt_enable"));
       return;
     }
     this->digital_write(open_drain || this->inverted_);
@@ -186,7 +188,7 @@ void RemoteTransmitterComponent::configure_rmt_() {
     error = rmt_apply_carrier(this->channel_, &carrier);
   }
   if (error != ESP_OK) {
-    this->fail_(error, "in rmt_apply_carrier");
+    this->fail_(error, LOG_STR("in rmt_apply_carrier"));
     return;
   }
 }
