@@ -23,6 +23,8 @@ class EPaperMono : public EPaperBase {
   virtual void set_window();
   bool transfer_data() override;
   bool send_red_{true};
+  // When set, the red RAM pass writes the image rather than blank data.
+  bool send_red_as_image_{false};
 };
 
 }  // namespace esphome::epaper_spi
