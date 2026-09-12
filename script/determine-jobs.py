@@ -110,14 +110,15 @@ INTEGRATION_TESTS_SPLIT_THRESHOLD = 10
 INTEGRATION_TESTS_SPLIT_BUCKETS = 5
 INTEGRATION_TESTS_TARGET_BUCKET_WEIGHT = 360.0
 
-# platformio and aioesphomeapi (requirements.txt), the pytest stack
-# (requirements_test.txt) and the fixture every session compiles; a change
-# to any runs the full matrix
+# aioesphomeapi (requirements.txt), the pytest stack (requirements_test.txt)
+# and the native host build backend every test compiles with; a change to
+# any runs the full matrix
 INTEGRATION_TESTS_TRIGGER_FILES = frozenset(
     {
         "requirements.txt",
         "requirements_test.txt",
-        "tests/integration/fixtures/cache_init.yaml",
+        "esphome/build_gen/host.py",
+        "esphome/host/toolchain.py",
     }
 )
 

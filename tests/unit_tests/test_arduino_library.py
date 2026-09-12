@@ -1160,3 +1160,29 @@ def test_versionless_dependency_with_provider_stays_quiet(
         libs = _resolve(framework)
     assert "Wire" in [lib.name for lib in libs]
     assert "has no version to resolve" not in caplog.text
+
+
+def test_resolve_libraries_without_framework_is_all_external() -> None:
+    """The host build has no core tree: nothing is bundled, the framework
+    check is skipped, and every name reaches the converter."""
+    _add_library("Wire", None)
+    _add_library("lvgl/lvgl", "9.5.0")
+
+    def fake_convert(libraries: list, backend: LibraryBackend) -> list:
+        assert backend.platform == "native"
+        assert backend.framework is None
+        assert backend.cache_key == "host"
+        assert backend.provides("Wire") is False
+        return []
+
+    with patch.object(component, "convert_libraries", side_effect=fake_convert) as mock:
+        libs = component.resolve_libraries(
+            None,
+            pio_platform="native",
+            board_mcu="host",
+            cache_key="host",
+            framework=None,
+        )
+    assert libs == []
+    (libraries, _backend), _ = mock.call_args
+    assert [lib.name for lib in libraries] == ["Wire", "lvgl/lvgl"]

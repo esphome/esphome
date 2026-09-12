@@ -1,9 +1,8 @@
 esphome:
   name: api-action-timeout-test
   # Use a short timeout for testing (500ms instead of 30s)
-  platformio_options:
-    build_flags:
-      - "-DUSE_API_ACTION_CALL_TIMEOUT_MS=500"
+  build_flags:
+    - "-DUSE_API_ACTION_CALL_TIMEOUT_MS=500"
 
 host:
 
