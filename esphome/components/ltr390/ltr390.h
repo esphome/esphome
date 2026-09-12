@@ -41,6 +41,9 @@ enum LTR390RESOLUTION {
 
 class LTR390Component final : public PollingComponent, public i2c::I2CDevice {
  public:
+  // User provided, not "= default": `new(p) LTR390Component()` would zero-fill .bss that is already zero.
+  LTR390Component() {}
+
   void setup() override;
   void dump_config() override;
   void update() override;
@@ -71,11 +74,11 @@ class LTR390Component final : public PollingComponent, public i2c::I2CDevice {
   bool reading_{false};
   uint8_t enabled_modes_{0};
 
-  LTR390GAIN gain_als_;
-  LTR390GAIN gain_uv_;
-  LTR390RESOLUTION res_als_;
-  LTR390RESOLUTION res_uv_;
-  float wfac_;
+  LTR390GAIN gain_als_{};
+  LTR390GAIN gain_uv_{};
+  LTR390RESOLUTION res_als_{};
+  LTR390RESOLUTION res_uv_{};
+  float wfac_{0};
 
   sensor::Sensor *light_sensor_{nullptr};
   sensor::Sensor *als_sensor_{nullptr};
