@@ -216,3 +216,121 @@ def test_ccache_pch_env_warns_on_falsy_extsum(
         env = pch.ccache_pch_env()
     assert "CCACHE_PCH_EXTSUM" not in env
     assert "disables pch caching" in caplog.text
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [(None, False), ("0", False), ("1", True), ("true", True)],
+)
+def test_pch_strict(
+    value: str | None, expected: bool, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    if value is None:
+        monkeypatch.delenv("ESPHOME_PCH_STRICT", raising=False)
+    else:
+        monkeypatch.setenv("ESPHOME_PCH_STRICT", value)
+    assert pch.pch_strict() is expected
+
+
+def test_pch_degraded_raises_only_in_strict(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from esphome.core import EsphomeError
+
+    monkeypatch.delenv("ESPHOME_PCH_STRICT", raising=False)
+    pch.pch_degraded("reason")
+    monkeypatch.setenv("ESPHOME_PCH_STRICT", "1")
+    with pytest.raises(EsphomeError, match="reason"):
+        pch.pch_degraded("reason")
+
+
+def test_pch_extra_scripts_strict_raises_when_disabled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from esphome.core import EsphomeError
+
+    monkeypatch.setenv("ESPHOME_PCH_ENABLE", "0")
+    monkeypatch.setenv("ESPHOME_PCH_STRICT", "1")
+    with pytest.raises(EsphomeError, match="disabled"):
+        pch.pch_extra_scripts()
+
+
+def test_pch_strict_rejects_unrecognized_values(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A typo must not silently disable the gate."""
+    from esphome.core import EsphomeError
+
+    monkeypatch.setenv("ESPHOME_PCH_STRICT", "yolo")
+    with pytest.raises(EsphomeError, match="Unrecognized ESPHOME_PCH_STRICT"):
+        pch.pch_strict()
+
+
+def test_discard_pch_raises_when_gch_survives(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A .gch an unlink failure leaves behind would be consumed silently."""
+    from pathlib import Path as _P
+
+    from esphome.core import EsphomeError
+
+    (tmp_path / "esphome_pch.h").write_text("")
+    gch = tmp_path / "esphome_pch.h.gch"
+    gch.write_bytes(b"gch")
+    real_unlink = _P.unlink
+
+    def failing_unlink(self, missing_ok=False):
+        if self.name.endswith(".gch"):
+            raise OSError("readonly")
+        return real_unlink(self, missing_ok=missing_ok)
+
+    monkeypatch.setattr(_P, "unlink", failing_unlink)
+    with pytest.raises(EsphomeError, match="Could not discard"):
+        pch.discard_pch(tmp_path)
+
+
+def test_discard_pch_raises_when_sum_survives(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The .sum is ccache's pch identity; one that survives is as unsafe
+    as a surviving .gch."""
+    from pathlib import Path as _P
+
+    from esphome.core import EsphomeError
+
+    (tmp_path / "esphome_pch.h").write_text("")
+    (tmp_path / "esphome_pch.h.gch").write_bytes(b"gch")
+    (tmp_path / "esphome_pch.h.gch.sum").write_text("x")
+    real_unlink = _P.unlink
+
+    def failing_unlink(self, missing_ok=False):
+        if self.name.endswith(".sum"):
+            raise OSError("readonly")
+        return real_unlink(self, missing_ok=missing_ok)
+
+    monkeypatch.setattr(_P, "unlink", failing_unlink)
+    with pytest.raises(EsphomeError, match="Could not discard"):
+        pch.discard_pch(tmp_path)
+
+
+def test_discard_pch_warns_when_file_vanished_concurrently(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """An unlink error on a file that is nonetheless gone only warns."""
+    from pathlib import Path as _P
+
+    (tmp_path / "esphome_pch.h").write_text("")
+    (tmp_path / "esphome_pch.h.gch").write_bytes(b"gch")
+    real_unlink = _P.unlink
+
+    def racing_unlink(self, missing_ok=False):
+        if self.name.endswith(".sum"):
+            # Racer removed it, then our unlink errored
+            raise OSError("stale handle")
+        return real_unlink(self, missing_ok=missing_ok)
+
+    monkeypatch.setattr(_P, "unlink", racing_unlink)
+    pch.discard_pch(tmp_path)
+    assert "Could not discard the pch sidecars" in caplog.text

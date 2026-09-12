@@ -1842,3 +1842,53 @@ def test_write_project_pch_no_device_path_poison(tmp_path: Path) -> None:
             (CORE.relative_pioenvs_path(name) / "esphome_pch.h.gch.sum").read_text()
         )
     assert sums[0] == sums[1]
+
+
+def test_write_project_pch_strict_raises_on_skip(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from esphome.core import EsphomeError
+
+    monkeypatch.setenv("ESPHOME_PCH_STRICT", "1")
+    paths = _make_framework(tmp_path)
+    _set_flags(
+        "-DPIO_FRAMEWORK_ARDUINO_LWIP2_HIGHER_BANDWIDTH_LOW_FLASH", "-include foo.h"
+    )
+    with pytest.raises(EsphomeError, match="precedes the pch"):
+        _write_ninja(paths, ccache="/usr/bin/ccache")
+
+
+def test_write_project_pch_strict_emits_probe_edge(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Strict mode gates C++ src edges on a hard-failing load probe."""
+    paths = _make_framework(tmp_path)
+    _set_flags("-DPIO_FRAMEWORK_ARDUINO_LWIP2_HIGHER_BANDWIDTH_LOW_FLASH")
+    content = _write_ninja(paths, ccache="/usr/bin/ccache")
+    assert "pchprobe" not in content
+
+    monkeypatch.setenv("ESPHOME_PCH_STRICT", "1")
+    content = _write_ninja(paths, ccache="/usr/bin/ccache")
+    assert "build esphome_pch.probe: pchprobe esphome_pch.h.gch" in content
+    assert "-Werror=invalid-pch" in content
+    # $out only expands in rule text; an edge-level binding would emit a
+    # bare stamp command and fail every strict build
+    assert "&& $python $buildtool touch $out" in content
+    assert "$stamp" not in content
+    # Strict consumers escalate: a per-TU rejection must red the build
+    assert "srccxxflags = -Winvalid-pch -Werror=invalid-pch" in content
+    assert "-Wno-error=invalid-pch" not in content
+
+    # With extra src flags the probe edge carries them like the .gch edge
+    CORE.platformio_options["build_src_flags"] = (
+        "-include esphome/components/esp8266/throw_stubs.h -DSRC_EXTRA"
+    )
+    content = _write_ninja(paths, ccache="/usr/bin/ccache")
+    assert "pchprobe esphome_pch.h.gch\n  flags = " in content
+    edges = [
+        line
+        for line in content.splitlines()
+        if line.startswith("build obj/src/") and ".cpp.o:" in line
+    ]
+    assert edges
+    assert all(line.endswith("| esphome_pch.h.gch esphome_pch.probe") for line in edges)
