@@ -9,6 +9,7 @@ esp32:
     type: esp-idf
     advanced:
       execute_from_psram: true
+      flash_chip: gd
       disable_libc_locks_in_iram: true  # Test default RAM optimization enabled
       disable_debug_stubs: true
       disable_ocd_aware: true

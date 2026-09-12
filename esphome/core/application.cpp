@@ -11,6 +11,19 @@
 #include <esp_chip_info.h>
 #include <esp_ota_ops.h>
 #include <esp_bootloader_desc.h>
+#include <esp_flash.h>
+#if __has_include(<esp_flash_chips/spi_flash_chip_generic.h>)
+#include <esp_flash_chips/spi_flash_chip_generic.h>  // ESP-IDF 6
+#include <esp_flash_chips/spi_flash_chip_mxic.h>
+#else
+#include <spi_flash_chip_generic.h>
+#include <spi_flash_chip_mxic.h>
+#endif
+// Vendor flash drivers linked next to the generic one; sdkconfig defines each as 1 or not at all
+#define ESPHOME_FLASH_VENDOR_DRIVERS \
+  (CONFIG_SPI_FLASH_SUPPORT_ISSI_CHIP + CONFIG_SPI_FLASH_SUPPORT_MXIC_CHIP + CONFIG_SPI_FLASH_SUPPORT_GD_CHIP + \
+   CONFIG_SPI_FLASH_SUPPORT_WINBOND_CHIP + CONFIG_SPI_FLASH_SUPPORT_BOYA_CHIP + CONFIG_SPI_FLASH_SUPPORT_TH_CHIP + \
+   CONFIG_SPI_FLASH_SUPPORT_MXIC_OPI_CHIP)
 #endif
 #include "esphome/core/version.h"
 #include "esphome/core/hal.h"
@@ -157,8 +170,25 @@ void Application::process_dump_config_() {
     esp_chip_info(&chip_info);
     ESP_LOGI(TAG, "ESP32 Chip: %s rev%d.%d, %d core(s)", ESPHOME_VARIANT, chip_info.revision / 100,
              chip_info.revision % 100, chip_info.cores);
-#if defined(USE_ESP32_VARIANT_ESP32) && (!defined(USE_ESP32_MIN_CHIP_REVISION_SET) || !defined(USE_ESP32_SRAM1_AS_IRAM))
-    static const char *const ESP32_ADVANCED_PATH = "under esp32 > framework > advanced";
+    [[maybe_unused]] static const char *const ESP32_ADVANCED_PATH = "under esp32 > framework > advanced";
+#if ESPHOME_FLASH_VENDOR_DRIVERS > 0
+    {
+      // Only the driver in use earns its IRAM; with several linked at least one is idle
+      const spi_flash_chip_t *flash_driver = esp_flash_default_chip->chip_drv;
+#if ESPHOME_FLASH_VENDOR_DRIVERS > 1
+      constexpr bool idle_driver = true;
+#else
+      const bool idle_driver = flash_driver == &esp_flash_chip_generic;
+#endif
+      if (idle_driver) {
+        const char *value = flash_driver->name;
+#ifdef CONFIG_SPI_FLASH_SUPPORT_MXIC_OPI_CHIP
+        if (flash_driver == &esp_flash_chip_mxic_opi)
+          value = "mxic_opi";
+#endif
+        ESP_LOGW(TAG, "Set flash_chip: %s %s to save IRAM", value, ESP32_ADVANCED_PATH);
+      }
+    }
 #endif
 #if defined(USE_ESP32_VARIANT_ESP32) && !defined(USE_ESP32_MIN_CHIP_REVISION_SET)
     {

@@ -111,6 +111,7 @@ CONF_ENGINEERING_SAMPLE = "engineering_sample"
 CONF_INCLUDE_BUILTIN_IDF_COMPONENTS = "include_builtin_idf_components"
 CONF_ENABLE_LWIP_ASSERT = "enable_lwip_assert"
 CONF_EXECUTE_FROM_PSRAM = "execute_from_psram"
+CONF_FLASH_CHIP = "flash_chip"
 CONF_KEY_ID = "key_id"
 CONF_MINIMUM_CHIP_REVISION = "minimum_chip_revision"
 CONF_NVS_ENCRYPTION = "nvs_encryption"
@@ -463,6 +464,20 @@ ESP32_CHIP_REVISIONS = {
     "3.0": "CONFIG_ESP32_REV_MIN_3",
     "3.1": "CONFIG_ESP32_REV_MIN_3_1",
 }
+
+# Flash vendor drivers ESP-IDF can link; each costs IRAM plus a 124 B table in DRAM
+# and only the one matching the flash ID is ever used
+ESP32_FLASH_CHIPS = {
+    "gd": "CONFIG_SPI_FLASH_SUPPORT_GD_CHIP",
+    "issi": "CONFIG_SPI_FLASH_SUPPORT_ISSI_CHIP",
+    "mxic": "CONFIG_SPI_FLASH_SUPPORT_MXIC_CHIP",
+    "winbond": "CONFIG_SPI_FLASH_SUPPORT_WINBOND_CHIP",
+    "boya": "CONFIG_SPI_FLASH_SUPPORT_BOYA_CHIP",
+    "th": "CONFIG_SPI_FLASH_SUPPORT_TH_CHIP",
+    "mxic_opi": "CONFIG_SPI_FLASH_SUPPORT_MXIC_OPI_CHIP",
+}
+FLASH_CHIP_GENERIC = "generic"
+FLASH_CHIP_OPI = "mxic_opi"  # the octal driver, ESP32-S3 only
 
 # Socket limit configuration for ESP-IDF
 # ESP-IDF CONFIG_LWIP_MAX_SOCKETS has range 1-253, default 10
@@ -1526,6 +1541,25 @@ def final_validate(config) -> None:
                 path=[CONF_FRAMEWORK, CONF_ADVANCED, CONF_SRAM1_AS_IRAM],
             )
         )
+    if (flash_chip := advanced.get(CONF_FLASH_CHIP)) is not None:
+        opi = flash_chip == FLASH_CHIP_OPI
+        if opi and config[CONF_VARIANT] != VARIANT_ESP32S3:
+            errs.append(
+                cv.Invalid(
+                    f"'{CONF_FLASH_CHIP}: {flash_chip}' is only supported on {VARIANT_ESP32S3}",
+                    path=[CONF_FRAMEWORK, CONF_ADVANCED, CONF_FLASH_CHIP],
+                )
+            )
+        elif opi != (config.get(CONF_FLASH_MODE) == "opi"):
+            errs.append(
+                cv.Invalid(
+                    f"'{CONF_FLASH_CHIP}: {flash_chip}' requires '{CONF_FLASH_MODE}: opi'"
+                    if opi
+                    else f"'{CONF_FLASH_CHIP}: {flash_chip}' does not match "
+                    f"'{CONF_FLASH_MODE}: opi'; octal flash uses {FLASH_CHIP_OPI}",
+                    path=[CONF_FRAMEWORK, CONF_ADVANCED, CONF_FLASH_CHIP],
+                )
+            )
     if (
         config[CONF_VARIANT] != VARIANT_ESP32P4
         and config.get(CONF_ENGINEERING_SAMPLE) is not None
@@ -1964,6 +1998,9 @@ FRAMEWORK_SCHEMA = cv.Schema(
                     *ESP32_CHIP_REVISIONS, string=True
                 ),
                 cv.Optional(CONF_SRAM1_AS_IRAM, default=False): cv.boolean,
+                cv.Optional(CONF_FLASH_CHIP): cv.one_of(
+                    FLASH_CHIP_GENERIC, *ESP32_FLASH_CHIPS, lower=True
+                ),
                 # DHCP server is needed for WiFi AP mode. When WiFi component is used,
                 # it will handle disabling DHCP server when AP is not configured.
                 # Default to false (disabled) when WiFi is not used.
@@ -2748,6 +2785,11 @@ async def to_code(config):
             for rev, flag in ESP32_CHIP_REVISIONS.items():
                 add_idf_sdkconfig_option(flag, rev == min_rev)
             cg.add_define("USE_ESP32_MIN_CHIP_REVISION_SET")
+
+    # Keep only the flash vendor driver the board needs; the boot log names it
+    if (flash_chip := conf[CONF_ADVANCED].get(CONF_FLASH_CHIP)) is not None:
+        for chip, flag in ESP32_FLASH_CHIPS.items():
+            add_idf_sdkconfig_option(flag, chip == flash_chip)
 
     # Use SRAM1 region as IRAM on ESP32 (original) variant
     # This provides an additional 40KB of IRAM by using SRAM1 memory that was previously
