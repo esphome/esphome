@@ -17,6 +17,8 @@ esp32:
       disable_dev_null_vfs: true
       disable_mbedtls_peer_cert: true
       disable_mbedtls_pkcs7: true
+      disable_mbedtls_tls_server: true
+      disable_mbedtls_tls_extras: true
       disable_regi2c_in_iram: true
       disable_fatfs: true
       sram1_as_iram: true

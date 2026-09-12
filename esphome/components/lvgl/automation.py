@@ -14,7 +14,7 @@ from esphome.const import (
     CONF_TIMEOUT,
 )
 from esphome.core import Lambda
-from esphome.cpp_generator import TemplateArguments, get_variable
+from esphome.cpp_generator import StaticCastExpression, TemplateArguments, get_variable
 from esphome.cpp_types import nullptr
 
 from .defines import (
@@ -30,7 +30,6 @@ from .defines import (
     CONF_SHOW_SNOW,
     CONF_TOP_LAYER,
     PARTS,
-    StaticCastExpression,
     add_warning,
     get_focused_widgets,
     get_options,
