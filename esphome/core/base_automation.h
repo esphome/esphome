@@ -181,7 +181,8 @@ class ProjectUpdateTrigger : public Trigger<std::string>, public Component {
 template<typename... Ts> class DelayAction : public Action<Ts...> {
  public:
   // User provided, not "= default": `new(p) DelayAction()` would zero-fill .bss that is already zero.
-  explicit DelayAction() {}
+  // constexpr and noexcept keep the rest of the implicit constructor's contract.
+  constexpr explicit DelayAction() noexcept {}
 
   TEMPLATABLE_VALUE(uint32_t, delay)
 
