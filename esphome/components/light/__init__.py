@@ -19,6 +19,7 @@ from esphome.const import (
     CONF_COLOR_MODE,
     CONF_COLOR_TEMPERATURE,
     CONF_DEFAULT_TRANSITION_LENGTH,
+    CONF_EFFECT,
     CONF_EFFECTS,
     CONF_ENTITY_CATEGORY,
     CONF_FLASH_TRANSITION_LENGTH,
@@ -278,6 +279,25 @@ def _final_validate(config: ConfigType) -> None:
     This runs once per light platform instance. If no light platform is configured,
     this never runs — but the ID validator will catch the missing light ID separately.
     """
+    # initial_state.effect refers to an effect on this same light, so unlike the
+    # action references below it needs no cross-component lookup. Checked before the
+    # early return so it still runs when no action references any effect.
+    # `config` is every instance of this light platform, so iterate.
+    for light_config in config if isinstance(config, list) else [config]:
+        initial_state = light_config.get(CONF_INITIAL_STATE)
+        if initial_state is None:
+            continue
+        effect_name = initial_state.get(CONF_EFFECT)
+        if effect_name is None or effect_name.lower() == "none":
+            continue
+        effects = light_config.get(CONF_EFFECTS, [])
+        if find_effect_index(effects, effect_name) is None:
+            raise cv.Invalid(
+                f"Effect '{effect_name}' is not defined on this light. "
+                f"Available effects: {available_effects_str(effects)}",
+                path=[CONF_INITIAL_STATE, CONF_EFFECT],
+            )
+
     data = _get_data()
     if not data.effect_refs and not data.effect_cycle_refs:
         return
@@ -340,6 +360,16 @@ RESTORE_MODES = {
     "RESTORE_AND_ON": LightRestoreMode.LIGHT_RESTORE_AND_ON,
 }
 
+# initial_state accepts everything a light state has, plus the effect to start
+# with. `effect` is deliberately not part of LIGHT_STATE_SCHEMA because
+# LIGHT_CONTROL_ACTION_SCHEMA already defines it with different (templatable,
+# transformer-exclusive) semantics.
+INITIAL_STATE_SCHEMA = LIGHT_STATE_SCHEMA.extend(
+    {
+        cv.Optional(CONF_EFFECT): cv.string,
+    }
+)
+
 LIGHT_SCHEMA = (
     cv.ENTITY_BASE_SCHEMA.extend(web_server.WEBSERVER_SORTING_SCHEMA)
     .extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA)
@@ -367,7 +397,7 @@ LIGHT_SCHEMA = (
                     cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(LightStateTrigger),
                 }
             ),
-            cv.Optional(CONF_INITIAL_STATE): LIGHT_STATE_SCHEMA,
+            cv.Optional(CONF_INITIAL_STATE): INITIAL_STATE_SCHEMA,
         }
     )
 )
@@ -490,9 +520,20 @@ async def setup_light_core_(light_var, config, output_var):
             initial_state_config.get(CONF_COLD_WHITE, 1.0),
             initial_state_config.get(CONF_WARM_WHITE, 1.0),
         )
+        # LightStateRTCState's constructor does not take the effect index, so assign
+        # the public member afterwards. LightState::setup() applies it via
+        # `if (recovered.effect != 0) call.set_effect(...)`.
+        effect_stmt = ""
+        if (effect_name := initial_state_config.get(CONF_EFFECT)) is not None:
+            effect_index = (
+                0
+                if effect_name.lower() == "none"
+                else find_effect_index(config.get(CONF_EFFECTS, []), effect_name)
+            )
+            effect_stmt = f" s.effect = {effect_index};"
         args = [(LightStateRTCState.operator("ref"), "s")]
         lamb = await cg.process_lambda(
-            Lambda(f"s = {initial_state};"),
+            Lambda(f"s = {initial_state};{effect_stmt}"),
             args,
             return_type=cg.void,
         )
