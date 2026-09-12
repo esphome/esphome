@@ -1,0 +1,4 @@
+climate:
+  - platform: climate_ir_siemens_ira211
+    name: Siemens IRA211
+    transmitter_id: xmitr
