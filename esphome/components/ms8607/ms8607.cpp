@@ -1,5 +1,7 @@
 #include "ms8607.h"
 
+#include <cmath>
+
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
@@ -7,91 +9,92 @@
 namespace esphome::ms8607 {
 
 /// TAG used for logging calls
-static const char *const TAG = "ms8607";
+static constexpr char TAG[] = "ms8607";
 
 /// Reset the Pressure/Temperature sensor
-static const uint8_t MS8607_PT_CMD_RESET = 0x1E;
+static constexpr uint8_t MS8607_PT_CMD_RESET = 0x1E;
 
 /// Beginning of PROM register addresses. Same for both i2c addresses. Each address has 16 bits of data, and
 /// PROM addresses step by two, so the LSB is always 0
-static const uint8_t MS8607_PROM_START = 0xA0;
+static constexpr uint8_t MS8607_PROM_START = 0xA0;
 /// Last PROM register address.
-static const uint8_t MS8607_PROM_END = 0xAE;
+static constexpr uint8_t MS8607_PROM_END = 0xAE;
 /// Number of PROM registers.
-static const uint8_t MS8607_PROM_COUNT = (MS8607_PROM_END - MS8607_PROM_START) >> 1;
+static constexpr uint8_t MS8607_PROM_COUNT = (MS8607_PROM_END - MS8607_PROM_START) >> 1;
 
 /// Reset the Humidity sensor
-static const uint8_t MS8607_CMD_H_RESET = 0xFE;
+static constexpr uint8_t MS8607_CMD_H_RESET = 0xFE;
 /// Read relative humidity, without holding i2c master
-static const uint8_t MS8607_CMD_H_MEASURE_NO_HOLD = 0xF5;
+static constexpr uint8_t MS8607_CMD_H_MEASURE_NO_HOLD = 0xF5;
 /// Temperature correction coefficient for Relative Humidity from datasheet
-static const float MS8607_H_TEMP_COEFFICIENT = -0.18;
+static constexpr float MS8607_H_TEMP_COEFFICIENT = -0.18f;
 
 /// Read the converted analog value, either D1 (pressure) or D2 (temperature)
-static const uint8_t MS8607_CMD_ADC_READ = 0x00;
+static constexpr uint8_t MS8607_CMD_ADC_READ = 0x00;
 
 // TODO: allow OSR to be turned down for speed and/or lower power consumption via configuration.
 // ms8607 supports 6 different settings
 
 /// Request conversion of analog D1 (pressure) with OSR=8192 (highest oversampling ratio). Takes maximum of 17.2ms
-static const uint8_t MS8607_CMD_CONV_D1_OSR_8K = 0x4A;
+static constexpr uint8_t MS8607_CMD_CONV_D1_OSR_8K = 0x4A;
 /// Request conversion of analog D2 (temperature) with OSR=8192 (highest oversampling ratio). Takes maximum of 17.2ms
-static const uint8_t MS8607_CMD_CONV_D2_OSR_8K = 0x5A;
-
-enum class MS8607Component::ErrorCode {
-  /// Component hasn't failed (yet?)
-  NONE = 0,
-  /// Both the Pressure/Temperature address and the Humidity address failed to reset
-  PTH_RESET_FAILED = 1,
-  /// Asking the Pressure/Temperature sensor to reset failed
-  PT_RESET_FAILED = 2,
-  /// Asking the Humidity sensor to reset failed
-  H_RESET_FAILED = 3,
-  /// Reading the PROM calibration values failed
-  PROM_READ_FAILED = 4,
-  /// The PROM calibration values failed the CRC check
-  PROM_CRC_FAILED = 5,
-};
-
-enum class MS8607Component::SetupStatus {
-  /// This component has not successfully reset the PT & H devices
-  NEEDS_RESET,
-  /// Reset commands succeeded, need to wait >= 15ms to read PROM
-  NEEDS_PROM_READ,
-  /// Successfully read PROM and ready to update sensors
-  SUCCESSFUL,
-};
+static constexpr uint8_t MS8607_CMD_CONV_D2_OSR_8K = 0x5A;
 
 static uint8_t crc4(uint16_t *buffer, size_t length);
 
+// Sanity check Temperature & Pressure Readings, these values are way out of range
+
+/// value below which we consider a temperature reading to be invalid
+static constexpr float TEMPERATURE_LOWER_LIMIT = -50.0f;
+/// value above which we consider a temperature reading to be invalid
+static constexpr float TEMPERATURE_UPPER_LIMIT = 100.0f;
+
+/// value below which we consider a pressure reading to be invalid
+static constexpr float PRESSURE_LOWER_LIMIT = 0.0f;
+/// value above which we consider a pressure reading to be invalid
+static constexpr float PRESSURE_UPPER_LIMIT = 1500.0f;
+
+/// Value that indicates the raw pressure reading is known to be invalid, and shouldn't be published
+static constexpr uint32_t INVALID_RAW_PRESSURE_SENTINEL = 0;
+
 void MS8607Component::setup() {
-  this->error_code_ = ErrorCode::NONE;
-  this->setup_status_ = SetupStatus::NEEDS_RESET;
+  this->reset_interval_ = 5;
+  this->reset_attempts_remaining_ = 3;
+  this->error_code_ = ErrorCode::ERROR_CODE_NONE;
+  this->setup_status_ = SetupStatus::SETUP_STATUS_NEEDS_RESET;
 
   // I do not know why the device sometimes NACKs the reset command, but
   // try 3 times in case it's a transitory issue on this boot
   // Backoff: executes at now, +5ms, +30ms
-  this->reset_attempts_remaining_ = 3;
-  this->reset_interval_ = 5;
   this->try_reset_();
 }
 
 void MS8607Component::try_reset_() {
-  ESP_LOGD(TAG, "Resetting both I2C addresses: 0x%02X, 0x%02X", this->address_, this->humidity_device_->get_address());
+  if (this->humidity_device_ != nullptr && this->humidity_sensor_ != nullptr) {
+    ESP_LOGD(TAG, "Resetting I2C addresses: 0x%02X, 0x%02X", this->address_, this->humidity_device_->get_address());
+  } else {
+    ESP_LOGD(TAG, "Resetting I2C address: 0x%02X", this->address_);
+  }
+
   // I believe sending the reset command to both addresses is preferable to
   // skipping humidity if PT fails for some reason.
   // However, only consider the reset successful if they both ACK
   bool const pt_successful = this->write_bytes(MS8607_PT_CMD_RESET, nullptr, 0);
-  bool const h_successful = this->humidity_device_->write_bytes(MS8607_CMD_H_RESET, nullptr, 0);
+  bool h_successful = true;
+
+  // Skip humidity reset & readings if no humidity sensor is configured
+  if (this->humidity_device_ != nullptr && this->humidity_sensor_ != nullptr) {
+    h_successful = this->humidity_device_->write_bytes(MS8607_CMD_H_RESET, nullptr, 0);
+  }
 
   if (!(pt_successful && h_successful)) {
     ESP_LOGE(TAG, "Resetting I2C devices failed");
     if (!pt_successful && !h_successful) {
-      this->error_code_ = ErrorCode::PTH_RESET_FAILED;
+      this->error_code_ = ErrorCode::ERROR_CODE_PTH_RESET_FAILED;
     } else if (!pt_successful) {
-      this->error_code_ = ErrorCode::PT_RESET_FAILED;
+      this->error_code_ = ErrorCode::ERROR_CODE_PT_RESET_FAILED;
     } else {
-      this->error_code_ = ErrorCode::H_RESET_FAILED;
+      this->error_code_ = ErrorCode::ERROR_CODE_H_RESET_FAILED;
     }
 
     if (--this->reset_attempts_remaining_ > 0) {
@@ -105,15 +108,20 @@ void MS8607Component::try_reset_() {
     return;
   }
 
-  this->setup_status_ = SetupStatus::NEEDS_PROM_READ;
-  this->error_code_ = ErrorCode::NONE;
+  this->setup_status_ = SetupStatus::SETUP_STATUS_NEEDS_PROM_READ;
+  this->error_code_ = ErrorCode::ERROR_CODE_NONE;
   this->status_clear_error();
 
   // 15ms delay matches datasheet, Adafruit_MS8607 & SparkFun_PHT_MS8607_Arduino_Library
   this->set_timeout("prom-read", 15, [this]() {
     if (this->read_calibration_values_from_prom_()) {
-      this->setup_status_ = SetupStatus::SUCCESSFUL;
+      this->setup_status_ = SetupStatus::SETUP_STATUS_SUCCESSFUL;
       this->status_clear_error();
+      if (this->temperature_sensor_ == nullptr && this->pressure_sensor_ == nullptr &&
+          this->humidity_sensor_ == nullptr) {
+        ESP_LOGD(TAG, "Setup was successful, but no sensors are configured. Stopping polling");
+        this->stop_poller();
+      }
     } else {
       this->mark_failed();
       return;
@@ -122,41 +130,46 @@ void MS8607Component::try_reset_() {
 }
 
 void MS8607Component::update() {
-  if (this->setup_status_ != SetupStatus::SUCCESSFUL) {
+  if (this->setup_status_ != SetupStatus::SETUP_STATUS_SUCCESSFUL) {
     // setup is still occurring, either because reset had to retry or due to the 15ms
     // delay needed between reset & reading the PROM values
     return;
   }
 
+  this->nonterminal_warning_generated_this_update_ = false;
+
   // Updating happens async and sequentially.
-  // Temperature, then pressure, then humidity
+  // Temperature, then optionally pressure, then optionally humidity
+  // Temperature is used for compensation of pressure & humidity, so we'll always want it
   this->request_read_temperature_();
 }
 
 void MS8607Component::dump_config() {
   ESP_LOGCONFIG(TAG, "MS8607:");
   LOG_I2C_DEVICE(this);
-  // LOG_I2C_DEVICE doesn't work for humidity, the `address_` is protected. Log using get_address()
-  ESP_LOGCONFIG(TAG, "  Address: 0x%02X", this->humidity_device_->get_address());
+  if (this->humidity_device_ != nullptr) {
+    // LOG_I2C_DEVICE doesn't work for humidity, the `address_` is protected. Log using get_address()
+    ESP_LOGCONFIG(TAG, "  Address: 0x%02X", this->humidity_device_->get_address());
+  }
   if (this->is_failed()) {
     ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
     switch (this->error_code_) {
-      case ErrorCode::PT_RESET_FAILED:
+      case ErrorCode::ERROR_CODE_PT_RESET_FAILED:
         ESP_LOGE(TAG, "Temperature/Pressure RESET failed");
         break;
-      case ErrorCode::H_RESET_FAILED:
+      case ErrorCode::ERROR_CODE_H_RESET_FAILED:
         ESP_LOGE(TAG, "Humidity RESET failed");
         break;
-      case ErrorCode::PTH_RESET_FAILED:
+      case ErrorCode::ERROR_CODE_PTH_RESET_FAILED:
         ESP_LOGE(TAG, "Temperature/Pressure && Humidity RESET failed");
         break;
-      case ErrorCode::PROM_READ_FAILED:
+      case ErrorCode::ERROR_CODE_PROM_READ_FAILED:
         ESP_LOGE(TAG, "Reading PROM failed");
         break;
-      case ErrorCode::PROM_CRC_FAILED:
+      case ErrorCode::ERROR_CODE_PROM_CRC_FAILED:
         ESP_LOGE(TAG, "PROM values failed CRC");
         break;
-      case ErrorCode::NONE:
+      case ErrorCode::ERROR_CODE_NONE:
       default:
         ESP_LOGE(TAG, "Error reason unknown %u", static_cast<uint8_t>(this->error_code_));
         break;
@@ -166,6 +179,18 @@ void MS8607Component::dump_config() {
   LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
   LOG_SENSOR("  ", "Pressure", this->pressure_sensor_);
   LOG_SENSOR("  ", "Humidity", this->humidity_sensor_);
+  // on initial boot, we expect the calibration values to be empty, since they're read after a delay.
+  // These log messages will be useful when connecting to an already-running device
+  ESP_LOGVV(TAG, "  Calibration Values:");
+  ESP_LOGVV(TAG, "    Pressure Sensitivity: 0x%04X", this->calibration_values_.pressure_sensitivity);
+  ESP_LOGVV(TAG, "    Pressure Offset: 0x%04X", this->calibration_values_.pressure_offset);
+  ESP_LOGVV(TAG, "    Pressure Sensitivity Temperature Coefficient: 0x%04X",
+            this->calibration_values_.pressure_sensitivity_temperature_coefficient);
+  ESP_LOGVV(TAG, "    Pressure Offset Temperature Coefficient: 0x%04X",
+            this->calibration_values_.pressure_offset_temperature_coefficient);
+  ESP_LOGVV(TAG, "    Reference Temperature: 0x%04X", this->calibration_values_.reference_temperature);
+  ESP_LOGVV(TAG, "    Temperature Coefficient of Temperature: 0x%04X",
+            this->calibration_values_.temperature_coefficient_of_temperature);
 }
 
 bool MS8607Component::read_calibration_values_from_prom_() {
@@ -181,7 +206,7 @@ bool MS8607Component::read_calibration_values_from_prom_() {
 
   if (!successful) {
     ESP_LOGE(TAG, "Reading calibration values from PROM failed");
-    this->error_code_ = ErrorCode::PROM_READ_FAILED;
+    this->error_code_ = ErrorCode::ERROR_CODE_PROM_READ_FAILED;
     return false;
   }
 
@@ -192,7 +217,7 @@ bool MS8607Component::read_calibration_values_from_prom_() {
 
   if (expected_crc != actual_crc) {
     ESP_LOGE(TAG, "Incorrect CRC value. Provided value 0x%01X != calculated value 0x%01X", expected_crc, actual_crc);
-    this->error_code_ = ErrorCode::PROM_CRC_FAILED;
+    this->error_code_ = ErrorCode::ERROR_CODE_PROM_CRC_FAILED;
     return false;
   }
 
@@ -246,6 +271,7 @@ static uint8_t crc4(uint16_t *buffer, size_t length) {
 void MS8607Component::request_read_temperature_() {
   // Tell MS8607 to start ADC conversion of temperature sensor
   if (!this->write_bytes(MS8607_CMD_CONV_D2_OSR_8K, nullptr, 0)) {
+    ESP_LOGW(TAG, "Requesting ADC Read of temperature failed");
     this->status_set_warning();
     return;
   }
@@ -257,17 +283,29 @@ void MS8607Component::request_read_temperature_() {
 void MS8607Component::read_temperature_() {
   uint8_t bytes[3];  // 24 bits
   if (!this->read_bytes(MS8607_CMD_ADC_READ, bytes, 3)) {
+    ESP_LOGW(TAG, "ADC Read of temperature failed");
     this->status_set_warning();
     return;
   }
 
   const uint32_t d2_raw_temperature = encode_uint32(0, bytes[0], bytes[1], bytes[2]);
-  this->request_read_pressure_(d2_raw_temperature);
+
+  if (this->pressure_sensor_ != nullptr) {
+    this->request_read_pressure_(d2_raw_temperature);
+  } else {
+    // No pressure sensor configured, skip the pressure reading
+    this->calculate_values_(d2_raw_temperature, INVALID_RAW_PRESSURE_SENTINEL);
+  }
 }
 
 void MS8607Component::request_read_pressure_(uint32_t d2_raw_temperature) {
   if (!this->write_bytes(MS8607_CMD_CONV_D1_OSR_8K, nullptr, 0)) {
+    ESP_LOGW(TAG, "Requesting ADC Read of pressure failed");
     this->status_set_warning();
+
+    // don't have a valid pressure, but we can still publish temp and possibly humidity
+    this->nonterminal_warning_generated_this_update_ = true;
+    this->calculate_values_(d2_raw_temperature, INVALID_RAW_PRESSURE_SENTINEL);
     return;
   }
 
@@ -278,14 +316,38 @@ void MS8607Component::request_read_pressure_(uint32_t d2_raw_temperature) {
 void MS8607Component::read_pressure_(uint32_t d2_raw_temperature) {
   uint8_t bytes[3];  // 24 bits
   if (!this->read_bytes(MS8607_CMD_ADC_READ, bytes, 3)) {
+    ESP_LOGW(TAG, "ADC Read of pressure failed");
     this->status_set_warning();
+
+    // don't have a valid pressure, but we can still publish temp and possibly humidity
+    this->nonterminal_warning_generated_this_update_ = true;
+    this->calculate_values_(d2_raw_temperature, INVALID_RAW_PRESSURE_SENTINEL);
     return;
   }
+
   const uint32_t d1_raw_pressure = encode_uint32(0, bytes[0], bytes[1], bytes[2]);
-  this->calculate_values_(d2_raw_temperature, d1_raw_pressure);
+
+  if (d1_raw_pressure == 0) {
+    // Sensor returns all zeros if the ADC conversion isn't done yet. Check the timeout in request_read_pressure
+    ESP_LOGW(TAG, "ADC Read of pressure returned all zeros, indicated it was still converting the value");
+    this->status_set_warning();
+    this->nonterminal_warning_generated_this_update_ = true;
+
+    // delay the call to calculate to give the pressure conversion more time to finish, which hopefully reduces
+    // the chances of any issues if there's a humidity reading needed
+    this->set_timeout("calculate", 20, [this, d2_raw_temperature]() {
+      this->calculate_values_(d2_raw_temperature, INVALID_RAW_PRESSURE_SENTINEL);
+    });
+  } else {
+    this->calculate_values_(d2_raw_temperature, d1_raw_pressure);
+  }
 }
 
 void MS8607Component::request_read_humidity_(float temperature_float) {
+  if (this->humidity_device_ == nullptr || this->humidity_sensor_ == nullptr) {
+    return;
+  }
+
   if (!this->humidity_device_->write_bytes(MS8607_CMD_H_MEASURE_NO_HOLD, nullptr, 0)) {
     ESP_LOGW(TAG, "Request to measure humidity failed");
     this->status_set_warning();
@@ -297,6 +359,10 @@ void MS8607Component::request_read_humidity_(float temperature_float) {
 }
 
 void MS8607Component::read_humidity_(float temperature_float) {
+  if (this->humidity_device_ == nullptr || this->humidity_sensor_ == nullptr) {
+    return;
+  }
+
   uint8_t bytes[3];
   if (!this->humidity_device_->read_bytes_raw(bytes, 3)) {
     ESP_LOGW(TAG, "Failed to read the measured humidity value");
@@ -310,101 +376,161 @@ void MS8607Component::read_humidity_(float temperature_float) {
   uint8_t const expected_crc = bytes[2];
   uint8_t const actual_crc = crc8(bytes, 2, 0, 0x31, true);
   if (expected_crc != actual_crc) {
-    ESP_LOGE(TAG, "Incorrect Humidity CRC value. Provided value 0x%01X != calculated value 0x%01X", expected_crc,
+    ESP_LOGW(TAG, "Incorrect Humidity CRC value. Provided value 0x%01X != calculated value 0x%01X", expected_crc,
              actual_crc);
     this->status_set_warning();
     return;
   }
   if (!(humidity & 0x2)) {
     // data sheet says Bit1 should always set, but nothing about what happens if it isn't
-    ESP_LOGE(TAG, "Humidity status bit was not set to 1?");
+    ESP_LOGW(TAG, "Humidity status bit was not set to 1?");
+  }
+  if (humidity == 0) {
+    // treat this like a bad I2C read, because we received all zeros, despite the datasheet saying
+    // there should be at least Bit1 set. CRC might have passed because all zeros results in expected CRC of 0.
+    ESP_LOGW(TAG, "Treating this humidity read as a failed read, skipping it");
+    this->status_set_warning();
+    return;
   }
   humidity &= ~(0b11);  // strip status & unassigned bits from data
 
-  // map 16 bit humidity value into range [-6%, 118%]
-  float const humidity_partial = double(humidity) / (1 << 16);
-  float const humidity_percentage = std::lerp(-6.0, 118.0, humidity_partial);
-  float const compensated_humidity_percentage =
-      humidity_percentage + (20 - temperature_float) * MS8607_H_TEMP_COEFFICIENT;
+  float const compensated_humidity_percentage = compensated_humidity(humidity, temperature_float);
   ESP_LOGD(TAG, "Compensated for temperature, humidity=%.2f%%", compensated_humidity_percentage);
 
-  if (this->humidity_sensor_ != nullptr) {
-    this->humidity_sensor_->publish_state(compensated_humidity_percentage);
+  this->humidity_sensor_->publish_state(compensated_humidity_percentage);
+
+  if (!this->nonterminal_warning_generated_this_update_) {
+    this->status_clear_warning();
   }
-  this->status_clear_warning();
 }
 
 void MS8607Component::calculate_values_(uint32_t d2_raw_temperature, uint32_t d1_raw_pressure) {
-  // Perform the first order pressure/temperature calculation
+  struct CompensatedTemperature temperature_values =
+      MS8607Component::compensated_temperature(d2_raw_temperature, this->calibration_values_);
+
+  if (temperature_values.temperature_float < TEMPERATURE_LOWER_LIMIT ||
+      temperature_values.temperature_float > TEMPERATURE_UPPER_LIMIT) {
+    ESP_LOGW(TAG, "Treating this temperature read of %0.2f°C as a failed read, skipping it",
+             temperature_values.temperature_float);
+    this->status_set_warning();
+    return;
+  }
+
+  ESP_LOGD(TAG, "Temperature=%0.2f°C", temperature_values.temperature_float);
+
+  if (this->temperature_sensor_ != nullptr) {
+    this->temperature_sensor_->publish_state(temperature_values.temperature_float);
+  }
+
+  if (this->pressure_sensor_ != nullptr && d1_raw_pressure != INVALID_RAW_PRESSURE_SENTINEL) {
+    float pressure_float = compensated_pressure(d1_raw_pressure, this->calibration_values_, temperature_values);
+
+    if (pressure_float < PRESSURE_LOWER_LIMIT || pressure_float > PRESSURE_UPPER_LIMIT) {
+      ESP_LOGW(TAG, "Treating this pressure read of %.2fhPa as a failed read, skipping it", pressure_float);
+      this->status_set_warning();
+      this->nonterminal_warning_generated_this_update_ = true;
+      // Fall through to read humidity, even though pressure failed.
+    } else {
+      ESP_LOGD(TAG, "Pressure=%0.2fhPa", pressure_float);
+
+      this->pressure_sensor_->publish_state(pressure_float);  // hPa aka mbar
+    }
+  }
+
+  if (this->humidity_device_ != nullptr && this->humidity_sensor_ != nullptr) {
+    // now that we have temperature (to compensate the humidity with), kick off that read
+    this->request_read_humidity_(temperature_values.temperature_float);
+  } else if (!this->nonterminal_warning_generated_this_update_) {
+    // since no humidity read is needed, now's the time to clear the warning flag if it wasn't set during
+    // this cycle
+    this->status_clear_warning();
+  }
+}
+
+struct MS8607Component::CompensatedTemperature MS8607Component::compensated_temperature(
+    uint32_t d2_raw_temperature, const struct CalibrationValues &calibration_values) {
+  struct CompensatedTemperature result;
+  // Perform the first order temperature calculation
 
   // d_t: "difference between actual and reference temperature" = D2 - [C5] * 2**8
-  const int32_t d_t = int32_t(d2_raw_temperature) - (int32_t(this->calibration_values_.reference_temperature) << 8);
+  result.d_t = int32_t(d2_raw_temperature) - (int32_t(calibration_values.reference_temperature) << 8);
+  const int64_t d_t_squared = int64_t(result.d_t) * result.d_t;
+
   // actual temperature as hundredths of degree celsius in range [-4000, 8500]
   // 2000 + d_t * [C6] / (2**23)
-  int32_t temperature =
-      2000 + ((int64_t(d_t) * this->calibration_values_.temperature_coefficient_of_temperature) >> 23);
+  result.first_order_temperature =
+      2000 + ((int64_t(result.d_t) * calibration_values.temperature_coefficient_of_temperature) >> 23);
 
-  // offset at actual temperature. [C2] * (2**17) + (d_t * [C4] / (2**6))
-  int64_t pressure_offset = (int64_t(this->calibration_values_.pressure_offset) << 17) +
-                            ((int64_t(d_t) * this->calibration_values_.pressure_offset_temperature_coefficient) >> 6);
-  // sensitivity at actual temperature. [C1] * (2**16) + ([C3] * d_t) / (2**7)
-  int64_t pressure_sensitivity =
-      (int64_t(this->calibration_values_.pressure_sensitivity) << 16) +
-      ((int64_t(d_t) * this->calibration_values_.pressure_sensitivity_temperature_coefficient) >> 7);
-
-  // Perform the second order compensation, for non-linearity over temperature range
-  const int64_t d_t_squared = int64_t(d_t) * d_t;
+  // Perform the second order temperature compensation, for non-linearity over temperature range
   int64_t temperature_2 = 0;
-  int32_t pressure_offset_2 = 0;
-  int32_t pressure_sensitivity_2 = 0;
-  if (temperature < 2000) {
-    // (TEMP - 2000)**2 / 2**4
-    const int32_t low_temperature_adjustment = (temperature - 2000) * (temperature - 2000) >> 4;
-
+  if (result.first_order_temperature < 2000) {
     // T2 = 3 * (d_t**2) / 2**33
     temperature_2 = (3 * d_t_squared) >> 33;
+  } else {
+    // T2 = 5 * (d_t**2) / 2**38
+    temperature_2 = (5 * d_t_squared) >> 38;
+  }
+
+  result.temperature_float = (result.first_order_temperature - temperature_2) / 100.0f;
+
+  return result;
+}
+
+float MS8607Component::compensated_pressure(uint32_t d1_raw_pressure,
+                                            const struct CalibrationValues &calibration_values,
+                                            const struct CompensatedTemperature &temperature_values) {
+  // Perform the first order pressure calculation
+
+  // offset at actual temperature. [C2] * (2**17) + (d_t * [C4] / (2**6))
+  int64_t pressure_offset =
+      (int64_t(calibration_values.pressure_offset) << 17) +
+      ((int64_t(temperature_values.d_t) * calibration_values.pressure_offset_temperature_coefficient) >> 6);
+  // sensitivity at actual temperature. [C1] * (2**16) + ([C3] * d_t) / (2**7)
+  int64_t pressure_sensitivity =
+      (int64_t(calibration_values.pressure_sensitivity) << 16) +
+      ((int64_t(temperature_values.d_t) * calibration_values.pressure_sensitivity_temperature_coefficient) >> 7);
+
+  // Perform the second order pressure compensation, for non-linearity over temperature range
+  int32_t pressure_offset_2 = 0;
+  int32_t pressure_sensitivity_2 = 0;
+  if (temperature_values.first_order_temperature < 2000) {
+    // (TEMP - 2000)**2 / 2**4
+    const int32_t low_temperature_adjustment =
+        (temperature_values.first_order_temperature - 2000) * (temperature_values.first_order_temperature - 2000) >> 4;
+
     // OFF2 = 61 * (TEMP-2000)**2 / 2**4
     pressure_offset_2 = 61 * low_temperature_adjustment;
     // SENS2 = 29 * (TEMP-2000)**2 / 2**4
     pressure_sensitivity_2 = 29 * low_temperature_adjustment;
 
-    if (temperature < -1500) {
+    if (temperature_values.first_order_temperature < -1500) {
       // (TEMP+1500)**2
-      const int32_t very_low_temperature_adjustment = (temperature + 1500) * (temperature + 1500);
+      const int32_t very_low_temperature_adjustment =
+          (temperature_values.first_order_temperature + 1500) * (temperature_values.first_order_temperature + 1500);
 
       // OFF2 = OFF2 + 17 * (TEMP+1500)**2
       pressure_offset_2 += 17 * very_low_temperature_adjustment;
       // SENS2 = SENS2 + 9 * (TEMP+1500)**2
       pressure_sensitivity_2 += 9 * very_low_temperature_adjustment;
     }
-  } else {
-    // T2 = 5 * (d_t**2) / 2**38
-    temperature_2 = (5 * d_t_squared) >> 38;
   }
 
-  temperature -= temperature_2;
   pressure_offset -= pressure_offset_2;
   pressure_sensitivity -= pressure_sensitivity_2;
 
   // Temperature compensated pressure. [1000, 120000] => [10.00 mbar, 1200.00 mbar]
   const int32_t pressure = (((d1_raw_pressure * pressure_sensitivity) >> 21) - pressure_offset) >> 15;
 
-  const float temperature_float = temperature / 100.0f;
-  const float pressure_float = pressure / 100.0f;
-  ESP_LOGD(TAG, "Temperature=%0.2f°C, Pressure=%0.2fhPa", temperature_float, pressure_float);
+  return pressure / 100.0f;
+}
 
-  if (this->temperature_sensor_ != nullptr) {
-    this->temperature_sensor_->publish_state(temperature_float);
-  }
-  if (this->pressure_sensor_ != nullptr) {
-    this->pressure_sensor_->publish_state(pressure_float);  // hPa aka mbar
-  }
-  this->status_clear_warning();
-
-  if (this->humidity_sensor_ != nullptr) {
-    // now that we have temperature (to compensate the humidity with), kick off that read
-    this->request_read_humidity_(temperature_float);
-  }
+float MS8607Component::compensated_humidity(float humidity_float, float temperature_float) {
+  // map 16 bit humidity value into range [-6%, 119%]
+  // Datasheet is inconsistent on upper max value (118 vs 119), but example value,
+  // calculation equation, and max value in table all indicate it should be 119%
+  float const humidity_partial = humidity_float / (1 << 16);
+  float const humidity_percentage = std::lerp(-6.0f, 119.0f, humidity_partial);
+  return humidity_percentage + (20 - temperature_float) * MS8607_H_TEMP_COEFFICIENT;
 }
 
 }  // namespace esphome::ms8607
