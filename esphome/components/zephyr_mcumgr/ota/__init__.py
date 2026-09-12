@@ -33,15 +33,17 @@ ZephyrMcumgrOTAComponent = cg.esphome_ns.namespace("zephyr_mcumgr").class_(
 )
 
 CONF_BLE = "ble"
+CONF_UDP = "udp"
 CONF_TRANSPORT = "transport"
 
 
 def _validate_transport(conf: ConfigType) -> ConfigType:
     transport = conf[CONF_TRANSPORT]
-    if transport[CONF_BLE] or CONF_HARDWARE_UART in transport:
+    if transport[CONF_BLE] or transport[CONF_UDP] or CONF_HARDWARE_UART in transport:
         return conf
     raise cv.Invalid(
-        f"At least one transport protocol has to be enabled. Set '{CONF_BLE}: true' or '{CONF_HARDWARE_UART}'"
+        f"At least one transport protocol has to be enabled. "
+        f"Set '{CONF_BLE}: true', '{CONF_UDP}: true' or '{CONF_HARDWARE_UART}'"
     )
 
 
@@ -60,6 +62,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_TRANSPORT, default={CONF_BLE: True}): cv.Schema(
                 {
                     cv.Optional(CONF_BLE, default=False): cv.boolean,
+                    cv.Optional(CONF_UDP, default=False): cv.boolean,
                     cv.Optional(
                         CONF_HARDWARE_UART,
                     ): cv.one_of(*UARTS, upper=True),
@@ -85,6 +88,15 @@ def _validate_ble_server(config: ConfigType) -> None:
         raise cv.Invalid(f"'{KEY_ZEPHYR_BLE_SERVER}' component is required for BLE OTA")
 
 
+def _validate_udp_network(config: ConfigType) -> None:
+    if config[CONF_TRANSPORT][CONF_UDP] and "network" not in CORE.loaded_integrations:
+        raise cv.Invalid(
+            f"'{CONF_UDP}' OTA transport needs the 'network' component (IPv6 over "
+            "Thread) so the SMP UDP listener has a stack to bind to — add 'network:' "
+            "(and a connectivity provider such as 'openthread:')"
+        )
+
+
 def _validate_bootloader(config: ConfigType) -> None:
     bootloader = zephyr_data()[KEY_BOOTLOADER]
     if bootloader == BOOTLOADER_MCUBOOT:
@@ -100,6 +112,7 @@ def _validate_bootloader(config: ConfigType) -> None:
 
 def _final_validate(config: ConfigType) -> None:
     _validate_ble_server(config)
+    _validate_udp_network(config)
     _validate_bootloader(config)
 
 
@@ -140,6 +153,18 @@ async def to_code(config: ConfigType) -> None:
         zephyr_add_prj_conf("MCUMGR_GRP_OS_MCUMGR_PARAMS", True)
 
         zephyr_add_prj_conf("NCS_SAMPLE_MCUMGR_BT_OTA_DFU_SPEEDUP", True)
+    if transport[CONF_UDP]:
+        # SMP over UDP. Thread is IPv6-only, so enable IPv6 (not default-y) and
+        # disable IPv4 (default-y, but auto-off without NET_IPV4 anyway).
+        zephyr_add_prj_conf("NET_SOCKETS", True)
+        zephyr_add_prj_conf("MCUMGR_TRANSPORT_UDP", True)
+        zephyr_add_prj_conf("MCUMGR_TRANSPORT_UDP_IPV6", True)
+        zephyr_add_prj_conf("MCUMGR_TRANSPORT_UDP_IPV4", False)
+
+        # OS group provides the reset the host issues after upload to swap the
+        # image. Off by default, and (unlike BT) not enabled elsewhere.
+        zephyr_add_prj_conf("MCUMGR_GRP_OS", True)
+        zephyr_add_prj_conf("MCUMGR_GRP_OS_MCUMGR_PARAMS", True)
     if CONF_HARDWARE_UART in transport:
         uart = UARTS[transport[CONF_HARDWARE_UART]]
         uart_name = uart[0]
