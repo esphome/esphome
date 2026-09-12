@@ -1,5 +1,6 @@
 from typing import Any, Self
 
+from esphome import pins
 import esphome.config_validation as cv
 from esphome.const import CONF_DIMENSIONS, CONF_HEIGHT, CONF_WIDTH
 from esphome.cpp_generator import MockObj
@@ -27,6 +28,9 @@ class EpaperModel:
 
     def get_default(self, key, fallback: Any = False) -> Any:
         return self.defaults.get(key, fallback)
+
+    def get_busy_pin_schema(self):
+        return pins.gpio_input_pin_schema
 
     def get_init_sequence(self, config: dict):
         return self.initsequence

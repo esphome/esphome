@@ -45,6 +45,7 @@ from . import models
 AUTO_LOAD = ["split_buffer"]
 DEPENDENCIES = ["spi"]
 
+CONF_CS_SECONDARY_PIN = "cs_secondary_pin"
 CONF_INIT_SEQUENCE_ID = "init_sequence_id"
 CONF_MINIMUM_UPDATE_INTERVAL = "minimum_update_interval"
 
@@ -97,8 +98,9 @@ def model_schema(config):
                 }
             ),
             cv.Optional(CONF_FULL_UPDATE_EVERY, default=1): cv.int_range(1, 255),
-            model.option(CONF_BUSY_PIN): pins.gpio_input_pin_schema,
+            model.option(CONF_BUSY_PIN): model.get_busy_pin_schema(),
             model.option(CONF_CS_PIN): pins.gpio_output_pin_schema,
+            model.option(CONF_CS_SECONDARY_PIN): pins.gpio_output_pin_schema,
             model.option(CONF_DC_PIN, fallback=None): pins.gpio_output_pin_schema,
             model.option(CONF_RESET_PIN): pins.gpio_output_pin_schema,
             cv.GenerateID(): cv.declare_id(class_name),
@@ -201,8 +203,9 @@ async def to_code(config):
     config = await model.to_code(var, config)
     await spi.register_spi_device(var, config, write_only=True)
 
-    dc = await cg.gpio_pin_expression(config[CONF_DC_PIN])
-    cg.add(var.set_dc_pin(dc))
+    if dc_pin_config := config.get(CONF_DC_PIN):
+        dc = await cg.gpio_pin_expression(dc_pin_config)
+        cg.add(var.set_dc_pin(dc))
 
     if CONF_LAMBDA in config:
         lambda_ = await cg.process_lambda(
@@ -218,6 +221,9 @@ async def to_code(config):
     if enable_pin := config.get(CONF_ENABLE_PIN):
         enable = [await cg.gpio_pin_expression(pin) for pin in enable_pin]
         cg.add(var.set_enable_pins(enable))
+    if cs_secondary_config := config.get(CONF_CS_SECONDARY_PIN):
+        cs_secondary = await cg.gpio_pin_expression(cs_secondary_config)
+        cg.add(var.set_cs_secondary_pin(cs_secondary))
     cg.add(var.set_full_update_every(config[CONF_FULL_UPDATE_EVERY]))
     if CONF_RESET_DURATION in config:
         cg.add(var.set_reset_duration(config[CONF_RESET_DURATION]))
