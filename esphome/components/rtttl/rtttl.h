@@ -29,6 +29,9 @@ enum class State : uint8_t {
 
 class Rtttl final : public Component {
  public:
+  // User provided, not "= default": `new(p) Rtttl()` would zero-fill .bss that is already zero.
+  Rtttl() {}
+
 #ifdef USE_OUTPUT
   void set_output(output::FloatOutput *output) { this->output_ = output; }
 #endif  // USE_OUTPUT
@@ -82,9 +85,9 @@ class Rtttl final : public Component {
   /// The duration of the current note in milliseconds.
   uint16_t note_duration_{0};
   /// The duration of a whole note in milliseconds.
-  uint16_t wholenote_duration_;
+  uint16_t wholenote_duration_{0};
   /// The time in milliseconds since microcontroller boot when the last note was started.
-  uint32_t last_note_start_time_;
+  uint32_t last_note_start_time_{0};
   /// The frequency of the current note in Hz.
   uint32_t output_freq_{0};
   /// The gain of the output.
