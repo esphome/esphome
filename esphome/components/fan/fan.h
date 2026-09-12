@@ -106,9 +106,6 @@ struct FanRestoreState {
 
 class Fan : public EntityBase {
  public:
-  // User provided, not "= default": `new(p) Fan()` would zero-fill .bss that is already zero.
-  Fan() {}
-
   /// The current on/off state of the fan.
   bool state{false};
   /// The current oscillation state of the fan.
