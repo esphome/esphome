@@ -51,6 +51,8 @@ TYPE_PMS5003S = "PMS5003S"
 TYPE_PMS5003T = "PMS5003T"
 TYPE_PMS5003ST = "PMS5003ST"
 TYPE_PMS9003M = "PMS9003M"
+# Luftmy LD10, LD11, LD13, LD15, LD16: standard PM + particle counts, no atmospheric PM values
+TYPE_LUFTMY = "LUFTMY"
 
 Type = pmsx003_ns.enum("Type", is_class=True)
 
@@ -62,6 +64,7 @@ PMSX003_TYPES = {
     TYPE_PMS5003T: Type.PMS5003T,
     TYPE_PMS5003ST: Type.PMS5003ST,
     TYPE_PMS9003M: Type.PMS9003M,
+    TYPE_LUFTMY: Type.LUFTMY,
 }
 
 SENSORS_TO_TYPE = {
@@ -73,6 +76,7 @@ SENSORS_TO_TYPE = {
         TYPE_PMS5003T,
         TYPE_PMS5003ST,
         TYPE_PMS9003M,
+        TYPE_LUFTMY,
     ],
     CONF_PM_2_5_STD: [
         TYPE_PMS1003,
@@ -82,6 +86,7 @@ SENSORS_TO_TYPE = {
         TYPE_PMS5003T,
         TYPE_PMS5003ST,
         TYPE_PMS9003M,
+        TYPE_LUFTMY,
     ],
     CONF_PM_10_0_STD: [
         TYPE_PMS1003,
@@ -91,6 +96,7 @@ SENSORS_TO_TYPE = {
         TYPE_PMS5003T,
         TYPE_PMS5003ST,
         TYPE_PMS9003M,
+        TYPE_LUFTMY,
     ],
     CONF_PM_1_0: [
         TYPE_PMS1003,
@@ -126,6 +132,7 @@ SENSORS_TO_TYPE = {
         TYPE_PMS5003T,
         TYPE_PMS5003ST,
         TYPE_PMS9003M,
+        TYPE_LUFTMY,
     ],
     CONF_PM_0_5UM: [
         TYPE_PMS1003,
@@ -134,6 +141,7 @@ SENSORS_TO_TYPE = {
         TYPE_PMS5003T,
         TYPE_PMS5003ST,
         TYPE_PMS9003M,
+        TYPE_LUFTMY,
     ],
     CONF_PM_1_0UM: [
         TYPE_PMS1003,
@@ -142,6 +150,7 @@ SENSORS_TO_TYPE = {
         TYPE_PMS5003T,
         TYPE_PMS5003ST,
         TYPE_PMS9003M,
+        TYPE_LUFTMY,
     ],
     CONF_PM_2_5UM: [
         TYPE_PMS1003,
@@ -150,6 +159,7 @@ SENSORS_TO_TYPE = {
         TYPE_PMS5003T,
         TYPE_PMS5003ST,
         TYPE_PMS9003M,
+        TYPE_LUFTMY,
     ],
     CONF_PM_5_0UM: [
         TYPE_PMS1003,
@@ -157,6 +167,7 @@ SENSORS_TO_TYPE = {
         TYPE_PMS5003S,
         TYPE_PMS5003ST,
         TYPE_PMS9003M,
+        TYPE_LUFTMY,
     ],
     CONF_PM_10_0UM: [
         TYPE_PMS1003,
@@ -164,6 +175,7 @@ SENSORS_TO_TYPE = {
         TYPE_PMS5003S,
         TYPE_PMS5003ST,
         TYPE_PMS9003M,
+        TYPE_LUFTMY,
     ],
     CONF_FORMALDEHYDE: [TYPE_PMS5003S, TYPE_PMS5003ST],
     CONF_TEMPERATURE: [TYPE_PMS5003T, TYPE_PMS5003ST],
