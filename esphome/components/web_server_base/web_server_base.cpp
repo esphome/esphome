@@ -3,6 +3,8 @@
 
 namespace esphome::web_server_base {
 
+WebServerBase::WebServerBase() {}
+
 WebServerBase *global_web_server_base = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 void WebServerBase::add_handler(AsyncWebHandler *handler) {

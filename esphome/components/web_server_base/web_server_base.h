@@ -113,7 +113,8 @@ class AuthMiddlewareHandler : public MiddlewareHandler {
 class WebServerBase final {
  public:
   // User provided, not "= default": `new(p) WebServerBase()` would zero-fill .bss that is already zero.
-  WebServerBase() {}
+  // Defined out of line so the member constructors are not inlined into every construction site.
+  WebServerBase();
 
   // The AsyncWebServer is created once and intentionally never deleted: on Arduino
   // platforms ESPAsyncWebServer owns its registered handlers, so destroying it would
