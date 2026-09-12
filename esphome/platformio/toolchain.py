@@ -289,6 +289,15 @@ def copy_ccache_script() -> None:
     )
 
 
+def copy_pch_script() -> None:
+    """Copy the shared precompiled-header SCons post-script into the build
+    dir; platform components pair it with ``post:pch.py`` in extra_scripts."""
+    copy_file_if_changed(
+        Path(__file__).parent / "pch.py.script",
+        CORE.relative_build_path("pch.py"),
+    )
+
+
 def default_libdeps_dir() -> str:
     """The PLATFORMIO_LIBDEPS_DIR value a pio run defaults to; the package
     prefetch must resolve installed libraries against the same dir."""

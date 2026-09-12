@@ -678,6 +678,32 @@ def test_clean_build_partial_exists(
 
 
 @patch("esphome.writer.CORE")
+def test_clean_build_partial_removes_pch_artifacts(
+    mock_core: MagicMock,
+    tmp_path: Path,
+) -> None:
+    """The PlatformIO pch sidecars live at the project root and must go in
+    a partial clean, like the native backend's under .pioenvs."""
+    names = (
+        "esphome_pch.h",
+        "esphome_pch.h.gch",
+        "esphome_pch.h.gch.sum",
+        "esphome_pch.h.gch.failed",
+    )
+    for name in names:
+        (tmp_path / name).write_text("x")
+    mock_core.relative_pioenvs_path.return_value = tmp_path / ".pioenvs"
+    mock_core.relative_piolibdeps_path.return_value = tmp_path / ".piolibdeps"
+    mock_core.relative_build_path.side_effect = lambda name: tmp_path / name
+    mock_core.relative_internal_path.side_effect = tmp_path.joinpath
+
+    clean_build()
+
+    for name in names:
+        assert not (tmp_path / name).exists()
+
+
+@patch("esphome.writer.CORE")
 def test_clean_build_nothing_exists(
     mock_core: MagicMock,
     tmp_path: Path,

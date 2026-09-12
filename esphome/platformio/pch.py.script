@@ -1,0 +1,364 @@
+import hashlib
+import os
+from pathlib import Path
+import posixpath
+import re
+import shlex
+import stat
+import subprocess
+import traceback
+
+# pylint: disable=E0602
+Import("env")  # noqa: F821
+_projenv_error = None
+try:
+    Import("projenv")  # noqa: F821
+except Exception as err:  # noqa: BLE001 -- not exported under -t nobuild
+    projenv = None
+    _projenv_error = err
+
+# Precompile the src force-includes plus defines.h and force-include the
+# result into C++ src compiles only; their preprocessed output is unchanged.
+# Registration is gated host-side (pch_enabled()). Keep the closure, ccache
+# values, and stamp flow in sync with build_helpers/pch.py.
+
+# Compiler failures that clear on their own must not latch the .failed marker
+_TRANSIENT_ERRORS = ("No space left", "Cannot allocate", "Resource temporarily")
+
+_INCLUDE_RE = re.compile(rb'^\s*#\s*include\s+["<]([^">]+)[">]', re.MULTILINE)
+_CORE_HEADER = "esphome/core/defines.h"
+
+
+def _raise_walk_error(err: OSError) -> None:
+    raise err
+
+
+def _resolves_dir(path: Path) -> bool:
+    """False when missing; other stat failures propagate."""
+    try:
+        return stat.S_ISDIR(path.stat().st_mode)
+    except (FileNotFoundError, NotADirectoryError):
+        return False
+
+
+def _resolves(path: Path) -> bool:
+    """False when missing; other stat failures propagate (identity unknown)."""
+    try:
+        return stat.S_ISREG(path.stat().st_mode)
+    except (FileNotFoundError, NotADirectoryError):
+        return False
+
+
+def _include_closure(src_dir: Path, roots: list) -> dict:
+    """Quoted-include closure: src-relative name -> contents (mirror of
+    build_helpers/pch.py)."""
+    seen = {}
+    stack = [(name, "") for name in roots]
+    while stack:
+        name, from_dir = stack.pop()
+        for candidate in (f"{from_dir}/{name}" if from_dir else name, name):
+            rel = posixpath.normpath(candidate)
+            if not rel.startswith("..") and _resolves(src_dir / rel):
+                break
+        else:
+            continue
+        if rel in seen:
+            continue
+        try:
+            data = (src_dir / rel).read_bytes()
+        except OSError as err:
+            # A marker would truncate the transitive walk; fail closed
+            print(f"ESPHome: could not read {rel} for the pch checksum: {err}")
+            raise
+        seen[rel] = data
+        parent = posixpath.dirname(rel)
+        stack.extend(
+            (inc.decode(errors="surrogateescape"), parent)
+            for inc in _INCLUDE_RE.findall(data)
+        )
+    return seen
+
+
+def _shell_arg(element) -> str | None:
+    """One compiler argv from one SCons element, matching the real spawn:
+    spaced elements pass whole, the rest get one shell unquote (skipped on
+    Windows, where shlex would eat path backslashes)."""
+    arg = str(element)
+    if " " in arg or os.name == "nt":
+        return arg.replace('\\"', '"')
+    if not arg.strip():
+        return arg
+    try:
+        tokens = shlex.split(arg)
+    except ValueError as err:
+        print(f"ESPHome: could not lex flag {arg!r} for the pch: {err}")
+        return None
+    if len(tokens) != 1:
+        # A flag the model cannot reproduce would diverge the .gch's flags
+        print(f"ESPHome: cannot model flag {arg!r} for the pch")
+        return None
+    return tokens[0]
+
+
+def _compile_gch(cxx, flags, header: Path, gch: Path, proj_dir: Path):
+    """Compile the .gch, then probe that the toolchain can load it back
+    (GCC 10 on macOS arm64 rejects its own per-process). Returns an error
+    string or None; OSError propagates as transient."""
+    result = subprocess.run(  # noqa: PLW1510
+        [cxx, "-x", "c++-header", *flags, "-c", str(header), "-o", str(gch)],
+        cwd=proj_dir,
+        # C locale keeps diagnostics matchable by _TRANSIENT_ERRORS
+        env={**os.environ, "LC_ALL": "C"},
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode < 0:
+        # Signal-killed (OOM, ^C): route to the transient no-marker path
+        raise OSError(f"compiler killed by signal {-result.returncode}")
+    if result.returncode != 0:
+        return result.stderr
+    # -MF is only legal alongside a dependency flag; pass it solely to
+    # redirect a depfile that -MD/-MMD in the flags would otherwise write
+    dep_redirect = (
+        ["-MF", os.devnull]
+        if any(f in ("-MD", "-MMD", "-M", "-MM") for f in flags)
+        else []
+    )
+    probe = subprocess.run(  # noqa: PLW1510
+        [
+            cxx,
+            *flags,
+            *dep_redirect,
+            "-Winvalid-pch",
+            "-include",
+            str(header),
+            "-fsyntax-only",
+            "-x",
+            "c++",
+            "-",
+        ],
+        cwd=proj_dir,
+        env={**os.environ, "LC_ALL": "C"},
+        input="",
+        capture_output=True,
+        text=True,
+    )
+    if probe.returncode < 0:
+        raise OSError(f"probe killed by signal {-probe.returncode}")
+    if probe.returncode != 0 or ".gch" in probe.stderr:
+        return f"toolchain cannot load the pch: {probe.stderr.strip()}"
+    return None
+
+
+def _read_stamp(path: Path) -> str:
+    """A corrupt sidecar must read as stale, not kill the pch forever."""
+    try:
+        return path.read_text(encoding="utf-8").strip()
+    except (OSError, UnicodeDecodeError):
+        return ""
+
+
+def _setup_pch() -> None:
+    if projenv is None:
+        # Expected under -t nobuild; anything else must leave a trail
+        print(f"ESPHome: projenv unavailable ({_projenv_error}); skipping pch")
+        return
+    # Project root: SCons compiles run here, so the relative -include
+    # resolves; an absolute path would break cross-device ccache sharing.
+    proj_dir = Path(env.subst("$PROJECT_DIR"))  # noqa: F821
+    src_dir = Path(env.subst("$PROJECT_SRC_DIR"))  # noqa: F821
+    header = proj_dir / "esphome_pch.h"
+    gch = Path(f"{header}.gch")
+    sum_path = Path(f"{gch}.sum")
+
+    cxx = projenv.subst("$CXX")  # noqa: F821
+    # The header holds the -include entries itself, so the .gch compile must
+    # not see them; consumers keep theirs, which the .gch then satisfies.
+    flags = []
+    include_headers = []
+    raw_args = [
+        _shell_arg(element)
+        for element in projenv.subst_list("$CXXFLAGS $CCFLAGS $_CCCOMCOM")[0]  # noqa: F821
+    ]
+    if any(arg is None for arg in raw_args):
+        print("ESPHome: skipping precompiled header: unmodelable flag")
+        return
+    flag_it = iter(raw_args)
+    for tok in flag_it:
+        if tok == "-include":
+            include_headers.append(next(flag_it, ""))
+        elif tok.startswith("-include") and not tok.startswith("-include-"):
+            include_headers.append(tok[len("-include") :])
+        else:
+            flags.append(tok)
+    if any(not name for name in include_headers):
+        print("ESPHome: build_src_flags has a trailing -include; skipping pch")
+        return
+    # Fold only relative names resolving under src/: consumers keep their
+    # own -include entries, so folding an unguarded user header would
+    # include it twice; unfolded ones stay consumer-only.
+    try:
+        folded = [
+            name
+            for name in include_headers
+            if not Path(name).is_absolute() and _resolves(src_dir / name)
+        ]
+    except OSError as err:
+        print(f"ESPHome: skipping precompiled header: {err}")
+        return
+    if unfolded := [n for n in include_headers if n not in folded]:
+        print(f"ESPHome: not precompiling non-src force-includes: {unfolded}")
+    content = "".join(f'#include "{name}"\n' for name in (*folded, _CORE_HEADER))
+
+    digest = hashlib.sha256()
+    digest.update(content.encode(errors="surrogateescape"))
+    digest.update(cxx.encode(errors="surrogateescape"))
+    # Mirror CCACHE_BASEDIR: strip the per-device build path so identical
+    # configs produce identical .sum files and share cache entries
+    flags_id = " ".join(flags)
+    if basedir := os.environ.get("CCACHE_BASEDIR"):
+        flags_id = flags_id.replace(basedir, "")
+    digest.update(flags_id.encode(errors="surrogateescape"))
+    # GCC never validates a .gch against its source headers, and PlatformIO
+    # package paths carry no version, so a package bump must invalidate here
+    platform = env.PioPlatform()  # noqa: F821
+    for package in sorted(platform.packages):
+        try:
+            version = platform.get_package_version(package)
+        except KeyError:
+            # An unresolved manifest must not hash as a constant
+            if platform.get_package(package) is not None:
+                print(f"ESPHome: skipping precompiled header: no version for {package}")
+                return
+            version = None  # absent optional package
+        except Exception as err:  # noqa: BLE001
+            # No trustworthy package identity: a stale .gch could survive
+            print(f"ESPHome: skipping precompiled header: {err}")
+            return
+        digest.update(f"{package}={version}".encode())
+        digest.update(b"\0")
+    try:
+        closure = _include_closure(src_dir, [*folded, _CORE_HEADER])
+    except OSError as err:
+        print(f"ESPHome: skipping precompiled header: {err}")
+        return
+    for rel in sorted(closure):
+        digest.update(rel.encode(errors="surrogateescape"))
+        digest.update(closure[rel])
+        digest.update(b"\0")
+    # Project-local -I dirs (e.g. rp2's lwip_override) hold generated
+    # headers the src closure cannot see; hash them too
+    prev = ""
+    try:
+        for tok in flags:
+            inc = tok[2:] if tok.startswith("-I") and len(tok) > 2 else ""
+            if prev == "-I":
+                inc = tok
+            prev = tok
+            if not inc:
+                continue
+            inc_dir = Path(inc)
+            if not (
+                _resolves_dir(inc_dir)
+                and inc_dir.is_relative_to(proj_dir)
+                and not inc_dir.is_relative_to(src_dir)
+                # Library trees never enter the prefix closure; walking them
+                # would read every library file each build
+                and not inc_dir.is_relative_to(proj_dir / ".piolibdeps")
+                and not inc_dir.is_relative_to(proj_dir / ".pioenvs")
+            ):
+                continue
+            local_headers = []
+            # os.walk with onerror: rglob would swallow unlistable subtrees
+            for root, _dirs, files in os.walk(inc_dir, onerror=_raise_walk_error):
+                local_headers.extend(
+                    Path(root) / f
+                    for f in files
+                    if f.endswith((".h", ".hpp", ".hh", ".inc"))
+                )
+            for local in sorted(local_headers):
+                digest.update(str(local.relative_to(proj_dir)).encode())
+                digest.update(local.read_bytes())
+                digest.update(b"\0")
+    except OSError as err:
+        print(f"ESPHome: skipping precompiled header: {err}")
+        return
+    checksum = digest.hexdigest()
+
+    # The ccache .sum sidecar doubles as the freshness stamp
+    if (
+        not header.is_file()
+        or not gch.is_file()
+        or not sum_path.is_file()
+        or (_read_stamp(sum_path) != checksum)
+    ):
+        failed_marker = Path(f"{gch}.failed")
+        if _read_stamp(failed_marker) == checksum:
+            print(
+                "ESPHome: skipping precompiled header (previous attempt "
+                f"failed); delete {failed_marker.name} to retry"
+            )
+            return
+        header.write_text(content, encoding="utf-8")
+        try:
+            error = _compile_gch(cxx, flags, header, gch, proj_dir)
+        except OSError as err:
+            # Transient spawn/IO failure: no marker, retry next build
+            print(f"ESPHome: precompiled header compile did not run: {err}")
+            gch.unlink(missing_ok=True)
+            sum_path.unlink(missing_ok=True)
+            return
+        if error is not None:
+            print("ESPHome: precompiled header failed; compiling without it")
+            print(error)
+            gch.unlink(missing_ok=True)
+            sum_path.unlink(missing_ok=True)
+            if any(m in error for m in _TRANSIENT_ERRORS):
+                # Resource exhaustion clears on its own; retry next build
+                return
+            # Skip retries until a flag/header/platform change alters the checksum
+            failed_marker.write_text(checksum + "\n", encoding="utf-8")
+            return
+        failed_marker.unlink(missing_ok=True)
+        sum_path.write_text(checksum + "\n", encoding="utf-8")
+
+    # Computed first so the flags and env land together: a raise between
+    # them would leave a pch-consuming build without its ccache settings.
+    # projenv["ENV"] aliases os.environ, so these reach all TUs; only
+    # time_macros affects non-pch TUs. User values win.
+    ccache_updates = {
+        key: value
+        for key, value in (
+            ("CCACHE_SLOPPINESS", "pch_defines,time_macros"),
+            ("CCACHE_PCH_EXTSUM", "true"),
+        )
+        if key not in os.environ
+    }
+    sloppiness = os.environ.get("CCACHE_SLOPPINESS")
+    if sloppiness is not None:
+        tokens = {tok.strip() for tok in sloppiness.split(",")}
+        missing = [t for t in ("pch_defines", "time_macros") if t not in tokens]
+        if missing:
+            # Without these ccache declines every pch-consuming compile
+            ccache_updates["CCACHE_SLOPPINESS"] = ",".join((sloppiness, *missing))
+            print(f"ESPHome: adding {','.join(missing)} to CCACHE_SLOPPINESS for the pch")
+    extsum = os.environ.get("CCACHE_PCH_EXTSUM")
+    if extsum is not None and extsum.strip().lower() not in ("1", "true", "yes", "on"):
+        # ccache then hashes the non-reproducible .gch bytes: permanent misses
+        print(f"ESPHome: CCACHE_PCH_EXTSUM={extsum} disables pch caching")
+    # Prepended: GCC only uses a .gch while no other tokens precede it.
+    # The relative name also reaches "pio run -t idedata" output.
+    # -Wno-error: the per-process probe can pass while a later cc1plus
+    # rejects the .gch; that must stay a warning under user -Werror.
+    projenv.Prepend(  # noqa: F821
+        CXXFLAGS=["-Winvalid-pch", "-Wno-error=invalid-pch", "-include", header.name]
+    )
+    projenv["ENV"].update(ccache_updates)  # noqa: F821
+    print("ESPHome: Compiling with precompiled header")
+
+
+try:
+    _setup_pch()
+except Exception:  # noqa: BLE001 -- a speedup must never break the build
+    print("ESPHome: pch internal error; compiling without it")
+    traceback.print_exc()
