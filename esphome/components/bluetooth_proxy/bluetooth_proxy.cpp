@@ -94,6 +94,15 @@ void BluetoothProxy::on_raw_advertisement_(const ble_device_base::RawAdvertiseme
   if (!api::global_api_server->is_connected() || this->api_connection_ == nullptr)
     return;
 
+#ifdef USE_BLUETOOTH_PROXY_ADVERTISEMENT_FILTER
+  // Ask the filter before the packet is queued, so a dropped advertisement never
+  // reaches the batch or the network.
+  if (this->advertisement_filter_.is_set() && !this->advertisement_filter_.should_forward(raw)) {
+    ESP_LOGVV(TAG, "Filtered packet from %012" PRIX64, raw.address);
+    return;
+  }
+#endif
+
   auto &adv = this->response_.advertisements[this->response_.advertisements_len];
   adv.address = raw.address;
   adv.rssi = raw.rssi;
