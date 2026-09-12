@@ -13,5 +13,7 @@ def test_default_flash_length_and_empty_effects_are_not_emitted(
 
     assert "plain_light->set_flash_transition_length(" not in main_cpp
     assert "plain_light->add_effects(" not in main_cpp
+    assert "bare_light->set_flash_transition_length(" not in main_cpp
+    assert "bare_light->add_effects(" not in main_cpp
     assert "fancy_light->set_flash_transition_length(500);" in main_cpp
     assert "fancy_light->add_effects({" in main_cpp

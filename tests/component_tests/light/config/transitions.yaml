@@ -24,3 +24,6 @@ light:
     flash_transition_length: 500ms
     effects:
       - pulse:
+  - platform: monochromatic
+    id: bare_light
+    output: out_a
