@@ -204,6 +204,12 @@ sensor:
     pv_charging_power:
       id: inverter0_pv_charging_power
       name: inverter0_pv_charging_power
+    total_pv_generated_energy:
+      id: inverter0_total_pv_generated_energy
+      name: inverter0_total_pv_generated_energy
+    total_output_load_energy:
+      id: inverter0_total_output_load_energy
+      name: inverter0_total_output_load_energy
 
 switch:
   - platform: pipsolar
@@ -241,3 +247,9 @@ text_sensor:
     last_qflag:
       id: inverter0_last_qflag
       name: inverter0_last_qflag
+    last_qet:
+      id: inverter0_last_qet
+      name: inverter0_last_qet
+    last_qlt:
+      id: inverter0_last_qlt
+      name: inverter0_last_qlt
