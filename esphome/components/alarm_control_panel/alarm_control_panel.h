@@ -138,11 +138,11 @@ class AlarmControlPanel : public EntityBase {
   // in order to store last panel state in flash
   ESPPreferenceObject pref_;
   // current state
-  AlarmControlPanelState current_state_;
+  AlarmControlPanelState current_state_{ACP_STATE_DISARMED};
   // the desired (or previous) state
-  AlarmControlPanelState desired_state_;
+  AlarmControlPanelState desired_state_{ACP_STATE_DISARMED};
   // last time the state was updated
-  uint32_t last_update_;
+  uint32_t last_update_{0};
   // the call control function
   virtual void control(const AlarmControlPanelCall &call) = 0;
   // state callback - passes the new state to listeners
