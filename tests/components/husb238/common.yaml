@@ -1,0 +1,26 @@
+i2c:
+  - id: i2c_husb238
+    scl: ${scl_pin}
+    sda: ${sda_pin}
+
+husb238:
+  i2c_id: i2c_husb238
+
+binary_sensor:
+  - platform: husb238
+    attached: "PD Attached"
+
+sensor:
+  - platform: husb238
+    voltage: "Contracted Voltage"
+    current: "Contracted Current"
+    selected_voltage: "Selected Voltage"
+
+text_sensor:
+  - platform: husb238
+    capabilities: "Capabilities"
+    status: "Last request status"
+
+select:
+  - platform: husb238
+    voltage: "Voltage selector"
