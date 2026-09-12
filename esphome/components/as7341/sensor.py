@@ -1,3 +1,5 @@
+import logging
+
 import esphome.codegen as cg
 from esphome.components import i2c, sensor
 import esphome.config_validation as cv
@@ -10,6 +12,8 @@ from esphome.const import (
     STATE_CLASS_MEASUREMENT,
 )
 from esphome.types import ConfigType
+
+_LOGGER = logging.getLogger(__name__)
 
 CODEOWNERS = ["@mrgnr"]
 DEPENDENCIES = ["i2c"]
@@ -60,7 +64,21 @@ SENSOR_SCHEMA = sensor.sensor_schema(
 )
 
 
-CONFIG_SCHEMA = (
+def _warn_deprecated(config: ConfigType) -> ConfigType:
+    # Remove before 2027.2.0
+    _LOGGER.warning(
+        "The 'as7341' component is deprecated and will be removed in 2027.2.0. "
+        "Migrate to the 'as734x' platform with 'type: AS7341', which supports the "
+        "AS7341, AS7343 and TCS3448 sensors. Two things change: the band sensors move "
+        "under a 'counts:' block, and the published counts change value, because this "
+        "component reads the two bytes of each count in the wrong order and 'as734x' "
+        "reads them correctly. Expect a jump in your Home Assistant history and check "
+        "any automation that compares these counts with a number."
+    )
+    return config
+
+
+CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(AS7341Component),
@@ -80,7 +98,8 @@ CONFIG_SCHEMA = (
         }
     )
     .extend(cv.polling_component_schema("60s"))
-    .extend(i2c.i2c_device_schema(0x39))
+    .extend(i2c.i2c_device_schema(0x39)),
+    _warn_deprecated,
 )
 
 SENSORS = {

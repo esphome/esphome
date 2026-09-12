@@ -1,0 +1,94 @@
+---
+esphome:
+  name: test
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+i2c:
+  - id: i2c_as734x
+    sda: 21
+    scl: 22
+
+sensor:
+  - platform: as734x
+    id: chip_41
+    type: AS7341
+    i2c_id: i2c_as734x
+    counts:
+      f1:
+        id: chip_41_f1
+        name: chip_41 f1
+      f2:
+        id: chip_41_f2
+        name: chip_41 f2
+      f3:
+        id: chip_41_f3
+        name: chip_41 f3
+      f4:
+        id: chip_41_f4
+        name: chip_41 f4
+      f5:
+        id: chip_41_f5
+        name: chip_41 f5
+      f6:
+        id: chip_41_f6
+        name: chip_41 f6
+      f7:
+        id: chip_41_f7
+        name: chip_41 f7
+      f8:
+        id: chip_41_f8
+        name: chip_41 f8
+      nir:
+        id: chip_41_nir
+        name: chip_41 nir
+      clear:
+        id: chip_41_clear
+        name: chip_41 clear
+  - platform: as734x
+    id: chip_43
+    type: AS7343
+    i2c_id: i2c_as734x
+    counts:
+      f1:
+        id: chip_43_f1
+        name: chip_43 f1
+      f2:
+        id: chip_43_f2
+        name: chip_43 f2
+      fz:
+        id: chip_43_fz
+        name: chip_43 fz
+      f3:
+        id: chip_43_f3
+        name: chip_43 f3
+      f4:
+        id: chip_43_f4
+        name: chip_43 f4
+      fy:
+        id: chip_43_fy
+        name: chip_43 fy
+      f5:
+        id: chip_43_f5
+        name: chip_43 f5
+      fxl:
+        id: chip_43_fxl
+        name: chip_43 fxl
+      f6:
+        id: chip_43_f6
+        name: chip_43 f6
+      f7:
+        id: chip_43_f7
+        name: chip_43 f7
+      f8:
+        id: chip_43_f8
+        name: chip_43 f8
+      nir:
+        id: chip_43_nir
+        name: chip_43 nir
+      clear:
+        id: chip_43_clear
+        name: chip_43 clear
