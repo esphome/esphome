@@ -297,11 +297,24 @@ void VL53L0XSensor::loop() {
   // mistakes the measurement for "done" and gets stuck forever in
   // waiting_for_interrupt_. From then on every update() only publishes NaN
   // ("update called before prior reading complete") until reboot. Fix: if the
-  // measurement does not complete within `timeout`, abort it (stop + clear
-  // interrupt), reset the state machine and publish NaN so the next update()
-  // starts a fresh measurement - the sensor recovers by itself.
+  // measurement has not completed within max(measurement timing budget +
+  // margin, `timeout`), abort it (stop + clear interrupt), reset the state
+  // machine and publish NaN so the next update() starts a fresh measurement -
+  // the sensor recovers by itself. Note: `timeout` can only extend the stall
+  // window, not shorten it below the timing budget (it is also used for
+  // shorter setup operations).
   if (this->initiated_read_ || this->waiting_for_interrupt_) {
-    uint32_t stall_timeout_us = this->timeout_us_ > 0 ? this->timeout_us_ : 1000000;
+    // `timeout` is also used for setup operations and may be shorter than the
+    // sensor's measurement timing budget. Keep enough time for a valid
+    // measurement, while still allowing a configured timeout to extend it.
+    constexpr uint32_t measurement_timeout_margin_us = 10000;
+    uint32_t stall_timeout_us = 1000000;
+    if (this->measurement_timing_budget_us_ > 0) {
+      stall_timeout_us = this->measurement_timing_budget_us_ + measurement_timeout_margin_us;
+    }
+    if (this->timeout_us_ > stall_timeout_us) {
+      stall_timeout_us = this->timeout_us_;
+    }
     if (micros() - this->measurement_start_us_ > stall_timeout_us) {
       if (!this->stall_reported_) {
         ESP_LOGW(TAG,
