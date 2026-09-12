@@ -314,7 +314,7 @@ class TestTemplateParameterPassing:
         #  FRACTION, ROUNDING)
         # The instantiation should include padding values (0, 0 for default)
         assert (
-            "mipi_spi::MipiSpiBuffer<uint16_t, mipi_spi::PIXEL_MODE_16, true, mipi_spi::PIXEL_MODE_16, mipi_spi::BUS_TYPE_QUAD, 360, 360, 0, 1, 0, 0, 0, true, 1, 1>()"
+            "mipi_spi::MipiSpiBuffer<uint16_t, mipi_spi::PIXEL_MODE_16, true, mipi_spi::PIXEL_MODE_16, mipi_spi::BUS_TYPE_QUAD, 360, 360, 0, 1, 0, 0, 0, true, 1, 1>;"
             in main_cpp
         ), (
             "Padding parameters (0, 0) should be in the MipiSpiBuffer template instantiation"

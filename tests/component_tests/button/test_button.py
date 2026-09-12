@@ -14,7 +14,7 @@ def test_button_is_setup(generate_main):
 
     # Then
     assert "static wake_on_lan::WakeOnLanButton *const" in main_cpp
-    assert ") wake_on_lan::WakeOnLanButton();" in main_cpp
+    assert ") wake_on_lan::WakeOnLanButton;" in main_cpp
     assert "App.register_button" in main_cpp
     assert "App.register_component" in main_cpp
 

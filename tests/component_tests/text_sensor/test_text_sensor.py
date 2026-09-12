@@ -14,7 +14,7 @@ def test_text_sensor_is_setup(generate_main):
 
     # Then
     assert "static template_::TemplateTextSensor *const" in main_cpp
-    assert ") template_::TemplateTextSensor();" in main_cpp
+    assert ") template_::TemplateTextSensor;" in main_cpp
     assert "App.register_text_sensor" in main_cpp
 
 

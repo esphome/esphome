@@ -30,10 +30,10 @@ def test_template_text_saver_uses_placement_new_with_templated_subclass(
         in main_cpp
     )
     # Placement new runs the templated subclass constructor.
-    assert "new(test_text_restore_value_saver) template_::TextSaver<10>()" in main_cpp
+    assert "new(test_text_restore_value_saver) template_::TextSaver<10>;" in main_cpp
     # Base-class default ctor must NOT be used.
     assert (
-        "new(test_text_restore_value_saver) template_::TemplateTextSaverBase()"
+        "new(test_text_restore_value_saver) template_::TemplateTextSaverBase;"
         not in main_cpp
     )
     # No heap `new TextSaver<...>()` left over — the pre-fix pattern.

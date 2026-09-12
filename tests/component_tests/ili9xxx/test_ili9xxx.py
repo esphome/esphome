@@ -26,6 +26,6 @@ def test_ili9xxx_placement_new_uses_model_subclass(
     # Pointer is declared as the base type for polymorphism.
     assert "static ili9xxx::ILI9XXXDisplay *const tft_display" in main_cpp
     # Placement new runs the subclass constructor — this is the actual regression fix.
-    assert "new(tft_display) ili9xxx::ILI9XXXST7789V()" in main_cpp
+    assert "new(tft_display) ili9xxx::ILI9XXXST7789V;" in main_cpp
     # Base-class default constructor must NOT be used.
-    assert "new(tft_display) ili9xxx::ILI9XXXDisplay()" not in main_cpp
+    assert "new(tft_display) ili9xxx::ILI9XXXDisplay;" not in main_cpp

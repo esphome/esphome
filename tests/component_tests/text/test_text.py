@@ -14,7 +14,7 @@ def test_text_is_setup(generate_main):
 
     # Then
     assert "static template_::TemplateText *const" in main_cpp
-    assert ") template_::TemplateText();" in main_cpp
+    assert ") template_::TemplateText;" in main_cpp
     assert "App.register_text" in main_cpp
 
 

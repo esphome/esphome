@@ -19,7 +19,7 @@ def test_deep_sleep_setup(generate_main):
         "static deep_sleep::DeepSleepComponent *const deepsleep = reinterpret_cast<deep_sleep::DeepSleepComponent *>(deep_sleep__deepsleep__pstorage);"
         in main_cpp
     )
-    assert "new(deepsleep) deep_sleep::DeepSleepComponent();" in main_cpp
+    assert "new(deepsleep) deep_sleep::DeepSleepComponent;" in main_cpp
     assert "App.register_component_(deepsleep, " in main_cpp
 
 
@@ -49,7 +49,7 @@ def test_deep_sleep_on_wake_trigger(generate_main):
     """
     main_cpp = generate_main("tests/component_tests/deep_sleep/test_deep_sleep3.yaml")
 
-    assert "deep_sleep::WakeTrigger();" in main_cpp
+    assert "deep_sleep::WakeTrigger;" in main_cpp
     assert "Automation<deep_sleep::WakeupCause>" in main_cpp
 
 

@@ -790,3 +790,29 @@ async def test_templatable__lambda_with_std_string() -> None:
     result = await cg.templatable(lambda_obj, [], ct.std_string)
 
     assert isinstance(result, cg.LambdaExpression)
+
+
+class TestPvariablePlacementNew:
+    def _placement_new(self) -> str:
+        from esphome.core import CORE
+
+        return next(
+            str(stmt) for stmt in CORE.main_statements if str(stmt).startswith("new(")
+        )
+
+    def test_no_args_uses_default_initialization(self) -> None:
+        """`new(p) T` rather than `new(p) T()`: value initialization would zero-fill
+        storage that is already zero, costing a loop of flash at every site."""
+        id_ = cg.ID("my_id", is_declaration=True, type=ct.esphome_ns.class_("Foo"))
+        cg.new_Pvariable(id_)
+        assert self._placement_new() == "new(my_id) Foo;"
+
+    def test_with_args_calls_constructor(self) -> None:
+        id_ = cg.ID("my_id", is_declaration=True, type=ct.esphome_ns.class_("Foo"))
+        cg.new_Pvariable(id_, 1, 2)
+        assert self._placement_new() == "new(my_id) Foo(1, 2);"
+
+    def test_template_args_without_ctor_args(self) -> None:
+        id_ = cg.ID("my_id", is_declaration=True, type=ct.esphome_ns.class_("Foo"))
+        cg.new_Pvariable(id_, cg.TemplateArguments(ct.uint8))
+        assert self._placement_new() == "new(my_id) Foo<uint8_t>;"
