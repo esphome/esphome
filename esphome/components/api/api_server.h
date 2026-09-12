@@ -5,7 +5,7 @@
 #include "api_buffer.h"
 // Must precede clients_ so APIConnection is complete for default_delete (libc++).
 #include "api_connection.h"
-#ifdef USE_API_NOISE
+#if defined(USE_API_NOISE) || defined(USE_NOISE_SPARE_EPHEMERAL)
 // Only present in the build when the noise component is loaded
 #include "esphome/components/noise/noise.h"
 #endif
@@ -363,6 +363,9 @@ class APIServer final : public Component,
   uint8_t provisioning_source_{0};
 #endif
 
+#ifdef USE_NOISE_SPARE_EPHEMERAL
+  void refill_spare_ephemeral_();
+#endif
 #ifdef USE_API_NOISE
   noise::NoiseContext noise_ctx_;
 #ifndef USE_API_NOISE_PSK_FROM_YAML

@@ -317,8 +317,15 @@ class APIConnection final : public APIServerConnectionBase {
   void on_noise_encryption_set_key_request(const NoiseEncryptionSetKeyRequest &msg);
 #endif
 
+  // How long a new connection holds off the spare ephemeral refill
+  static constexpr uint32_t CONNECT_GRACE_MS = 1000;
   bool is_authenticated() {
     return static_cast<ConnectionState>(this->flags_.connection_state) == ConnectionState::AUTHENTICATED;
+  }
+  // Unauthenticated and within its grace period; an older unauthenticated
+  // connection is a stale half open client and no longer counts
+  bool is_still_connecting(uint32_t now) {
+    return !this->is_authenticated() && now - this->last_traffic_ < CONNECT_GRACE_MS;
   }
   bool is_connection_setup() {
     return static_cast<ConnectionState>(this->flags_.connection_state) == ConnectionState::CONNECTED ||

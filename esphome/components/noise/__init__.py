@@ -86,6 +86,11 @@ def encryption_schema(config: ConfigType | None) -> ConfigType:
     return ENCRYPTION_SCHEMA(config)
 
 
+def enable_spare_ephemeral() -> None:
+    """Compile the spare ephemeral key slot; the component that refills it calls this."""
+    cg.add_define("USE_NOISE_SPARE_EPHEMERAL")
+
+
 async def to_code(config: ConfigType) -> None:
     cg.add_define("USE_NOISE")
     cg.add_library("esphome/noise-c", "0.1.26")

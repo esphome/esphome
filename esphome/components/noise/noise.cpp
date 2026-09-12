@@ -1,12 +1,14 @@
 #include "noise.h"
 #ifdef USE_NOISE
 #include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 #include <algorithm>
 #include <cstring>
 
 #include <noise/protocol.h>
+#include <sodium.h>
 
 #ifdef USE_ESP8266
 #include <pgmspace.h>
@@ -23,6 +25,39 @@ void NoiseContext::load_psk(psk_t &out) const {
   }
   progmem_memcpy(out.data(), this->psk_, out.size());
 }
+
+#ifdef USE_NOISE_SPARE_EPHEMERAL
+static constexpr size_t PRIVATE_KEY_SIZE = SPARE_EPHEMERAL_KEY_SIZE;
+static constexpr size_t PUBLIC_KEY_SIZE = SPARE_EPHEMERAL_KEY_SIZE;
+uint8_t spare_ephemeral[SPARE_EPHEMERAL_SIZE];  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+
+void prepare_spare_ephemeral() {
+  uint8_t *private_key = spare_ephemeral;
+  uint8_t *public_key = spare_ephemeral + PRIVATE_KEY_SIZE;
+  // Same steps as noise-c's curve25519 keygen; the clamp sets the ready bit,
+  // a failure wipes the slot so the handshake generates its own key
+  if (!random_bytes(private_key, PRIVATE_KEY_SIZE)) {
+    sodium_memzero(spare_ephemeral, sizeof(spare_ephemeral));
+    return;
+  }
+  private_key[0] &= 0xF8;
+  private_key[PRIVATE_KEY_SIZE - 1] = (private_key[PRIVATE_KEY_SIZE - 1] & 0x7F) | 0x40;
+  if (crypto_scalarmult_curve25519_base(public_key, private_key) != 0) {
+    sodium_memzero(spare_ephemeral, sizeof(spare_ephemeral));
+  }
+}
+
+int consume_spare_ephemeral(NoiseHandshakeState *state) {
+  if (!has_spare_ephemeral()) {
+    return 0;
+  }
+  // noise-c keeps its own copy, so the slot is wiped either way
+  int err = noise_handshakestate_set_local_ephemeral(state, spare_ephemeral, PRIVATE_KEY_SIZE,
+                                                     spare_ephemeral + PRIVATE_KEY_SIZE, PUBLIC_KEY_SIZE);
+  sodium_memzero(spare_ephemeral, sizeof(spare_ephemeral));
+  return err;
+}
+#endif  // USE_NOISE_SPARE_EPHEMERAL
 
 const LogString *noise_err_to_logstr(int err) {
   if (err == NOISE_ERROR_NO_MEMORY)
