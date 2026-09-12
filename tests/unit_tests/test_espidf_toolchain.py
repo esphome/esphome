@@ -638,6 +638,43 @@ def test_run_compile_passes_compile_process_limit(setup_core: Path) -> None:
     mock_run.assert_called_once_with("build", "size", jobs=1)
 
 
+def test_run_compile_passes_size_summary_paths(setup_core: Path) -> None:
+    """print_summary receives the size json, partitions.csv, and the built
+    ELF from get_built_elf_path, which must stay in lockstep with the
+    project() name in the generated CMakeLists."""
+    _setup_build(setup_core)
+    config = {CONF_ESPHOME: {}}
+
+    with (
+        patch.object(toolchain, "need_reconfigure", return_value=False),
+        patch.object(toolchain, "run_idf_py", return_value=0),
+        patch.object(toolchain, "print_summary") as mock_summary,
+    ):
+        assert toolchain.run_compile(config, verbose=False) == 0
+
+    mock_summary.assert_called_once_with(
+        CORE.relative_build_path("build", "esp_idf_size.json"),
+        CORE.relative_build_path("partitions.csv"),
+        CORE.relative_build_path("build", f"{CORE.name}.elf"),
+    )
+
+
+def test_create_elf_copy(setup_core: Path) -> None:
+    """The built <name>.elf is copied to the firmware.elf dashboard name."""
+    _setup_build(setup_core)
+    src = toolchain.get_built_elf_path()
+    src.parent.mkdir(parents=True, exist_ok=True)
+    src.write_bytes(b"elf")
+    assert toolchain.create_elf_copy() is True
+    assert toolchain.get_elf_path().read_bytes() == b"elf"
+
+
+def test_create_elf_copy_missing_source(setup_core: Path) -> None:
+    """A missing built ELF is a warning and False, not a crash."""
+    _setup_build(setup_core)
+    assert toolchain.create_elf_copy() is False
+
+
 def test_run_compile_without_compile_process_limit(setup_core: Path) -> None:
     """When no compile_process_limit is set, no job limit is passed to idf.py."""
     _setup_build(setup_core)
