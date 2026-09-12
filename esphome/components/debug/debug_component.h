@@ -31,6 +31,10 @@ class DebugComponent final : public PollingComponent {
 #ifdef USE_TEXT_SENSOR
   void set_device_info_sensor(text_sensor::TextSensor *device_info) { device_info_ = device_info; }
   void set_reset_reason_sensor(text_sensor::TextSensor *reset_reason) { reset_reason_ = reset_reason; }
+#ifdef USE_ZEPHYR
+  void set_stack_usage_sensor(text_sensor::TextSensor *stack_usage) { stack_usage_ = stack_usage; }
+  void set_uicr_sensor(text_sensor::TextSensor *uicr) { uicr_ = uicr; }
+#endif
 #endif  // USE_TEXT_SENSOR
 #ifdef USE_SENSOR
   void set_free_sensor(sensor::Sensor *free_sensor) { free_sensor_ = free_sensor; }
@@ -91,8 +95,16 @@ class DebugComponent final : public PollingComponent {
 #ifdef USE_TEXT_SENSOR
   text_sensor::TextSensor *device_info_{nullptr};
   text_sensor::TextSensor *reset_reason_{nullptr};
+#ifdef USE_ZEPHYR
+  text_sensor::TextSensor *stack_usage_{nullptr};
+  text_sensor::TextSensor *uicr_{nullptr};
+#endif
 #endif  // USE_TEXT_SENSOR
 
+#ifdef USE_ZEPHYR
+  std::string get_stack_usage_();
+  std::string get_uicr_();
+#endif
   const char *get_reset_reason_(std::span<char, RESET_REASON_BUFFER_SIZE> buffer);
   const char *get_wakeup_cause_(std::span<char, WAKEUP_CAUSE_BUFFER_SIZE> buffer);
   uint32_t get_free_heap_();

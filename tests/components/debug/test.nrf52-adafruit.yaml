@@ -1,5 +1,12 @@
 <<: !include common.yaml
 
+text_sensor:
+  - platform: debug
+    stack_usage:
+      name: Stack
+    uicr:
+      name: Uicr
+
 nrf52:
   reg0:
     voltage: 2.1V
