@@ -20,6 +20,24 @@ class SSD1677(EpaperModel):
         )
 
 
+class SSD1677Gray4(SSD1677):
+    """Four-level variant.
+
+    The panel film is monochrome; the levels are synthesised from both RAM
+    planes by the panel's own OTP waveform. Only the border differs from the
+    black and white bring-up: four-level follows LUT0, mono follows LUT1.
+    """
+
+    def __init__(self, name, **defaults):
+        super().__init__(name, class_name="EPaperStickyGray4", **defaults)
+
+    def get_init_sequence(self, config: dict):
+        return tuple(
+            (0x3C, 0x00) if cmd[0] == 0x3C else cmd
+            for cmd in super().get_init_sequence(config)
+        )
+
+
 ssd1677 = SSD1677("ssd1677")
 
 wave_4_26 = ssd1677.extend(
@@ -52,15 +70,19 @@ ssd1677.extend(
     mirror_x=True,
 )
 
-ssd1677.extend(
-    "seeed-reterminal-sticky",
-    width=800,
-    height=480,
-    mirror_x=True,
-    enable_pin=47,
-    cs_pin=15,
-    dc_pin=16,
-    reset_pin=17,
-    busy_pin=18,
-    data_rate="10MHz",
-)
+SEEED_STICKY = {
+    "width": 800,
+    "height": 480,
+    "mirror_x": True,
+    "enable_pin": 47,
+    "cs_pin": 15,
+    "dc_pin": 16,
+    "reset_pin": 17,
+    "busy_pin": 18,
+    "data_rate": "10MHz",
+}
+
+# Four levels: the film is monochrome, but the controller synthesises them
+# from both RAM planes with the panel's own waveform, and at 235 ppi that is
+# the difference between antialiased text and ragged text.
+SSD1677Gray4("ssd1677-gray4").extend("seeed-reterminal-sticky", **SEEED_STICKY)
