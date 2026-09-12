@@ -7,10 +7,9 @@ namespace esphome::ld2412 {
 
 class GateThresholdNumber final : public number::Number, public Parented<LD2412Component> {
  public:
-  GateThresholdNumber(uint8_t gate);
+  GateThresholdNumber() = default;
 
  protected:
-  uint8_t gate_;
   void control(float value) override;
 };
 
