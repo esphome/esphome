@@ -6,20 +6,20 @@ namespace esphome::epaper_spi {
 
 static constexpr const char *const TAG = "epaper_spi.gray4";
 
-bool EPaperGray4::shadow_ready_() {
-  if (this->shadow_.is_valid())
-    return true;
-  if (this->shadow_failed_)
-    return false;
-  if (!this->shadow_.init((size_t) ((this->width_ + 7) / 8) * this->height_)) {
+void EPaperGray4::setup() {
+  EPaperBase::setup();
+  this->init_shadow_();
+}
+
+// The comparison frame is only wanted where partial refresh is: with
+// full_update_every at 1 every push is a full one and nothing ever diffs
+// against it. The first push is always full - the counter starts at zero - so
+// the frame is seeded before any partial can need it.
+void EPaperGray4::init_shadow_() {
+  if (!this->is_using_partial_update_())
+    return;
+  if (!this->shadow_.init((size_t) ((this->width_ + 7) / 8) * this->height_))
     ESP_LOGW(TAG, "No memory for a comparison frame; every update will be a full refresh");
-    this->shadow_failed_ = true;
-    return false;
-  }
-  // Allocated, but nothing has recorded what is on the glass yet, so this
-  // push has to be a full one. It seeds the shadow on its second pass.
-  ESP_LOGD(TAG, "Comparison frame allocated; partial refresh available from the next update");
-  return false;
 }
 
 // Luminance into four even quarters. A renderer that antialiases - LVGL
@@ -108,7 +108,7 @@ bool HOT EPaperGray4::transfer_data() {
     if (!second_pass) {
       // Latch the kind of push for its whole duration: the two planes must
       // agree, and refresh_screen() must match what was written.
-      this->partial_push_ = this->update_count_ != 0 && this->shadow_ready_();
+      this->partial_push_ = this->update_count_ != 0 && this->shadow_.is_valid();
       this->set_window_();
     }
     this->command(this->plane_command(this->partial_push_ == second_pass));
