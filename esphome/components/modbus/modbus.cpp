@@ -319,12 +319,16 @@ bool ModbusServerHub::parse_modbus_client_frame_() {
   std::span<const uint8_t> data(data_buffer, data_len);
   this->clear_rx_buffer_(LOG_STR("parse succeeded"), false, frame_length);
 
+  // Restored rather than cleared: loop() is public, so a nested pass must not free the outer dispatch.
+  const bool was_dispatching = this->in_dispatch_;
+  this->in_dispatch_ = true;
   if (address == BROADCAST_ADDRESS) {
     // Keep the unicast response buffers out of the broadcast call chain.
     this->process_broadcast_frame_(function_code, data);
   } else {
     this->process_modbus_client_frame_(address, function_code, data);
   }
+  this->in_dispatch_ = was_dispatching;
 
   return true;
 }
@@ -397,6 +401,31 @@ void ModbusServerHub::process_modbus_server_frame(uint8_t address, std::span<con
   // This always resets, even if the address doesn't match.
   // If an unexpected response is received, we can't trust that a correct response will follow (it shouldn't).
   this->expecting_peer_response_ = 0;
+}
+
+// Out of line: ModbusServerDevice is not yet defined at this point in the header.
+void ModbusServerHub::register_device(ModbusServerDevice *device) {
+  device->hub_ = this;
+  this->devices_.push_back(device);
+}
+
+bool ModbusServerDevice::service_bus_() {
+  if (this->hub_ == nullptr)
+    return false;
+  return this->hub_->service_();
+}
+
+bool ModbusServerHub::service_() {
+  // Re-entering from a handler would answer a later frame before the one being handled, and would overwrite
+  // the single reply this hub can hold back.
+  if (this->in_dispatch_)
+    return false;
+  // Owed first, so a reply held back earlier goes out ahead of one this pass produces, unless the wire cannot
+  // take it yet; then it waits for the next pass. The scheduler that would otherwise send it does not run
+  // during the waits this method exists for.
+  this->send_deferred_(false);
+  this->loop();
+  return true;
 }
 
 ModbusServerDevice *ModbusServerHub::find_device_(uint8_t address) {
@@ -1196,19 +1225,36 @@ void ModbusServerHub::send_raw_(const uint8_t *payload, uint16_t len) {
     std::memcpy(this->deferred_payload_.data(), payload, len);
     this->deferred_payload_len_ = len;
     // set_timeout() takes milliseconds; round the microsecond delay up so we never fire early.
-    this->set_timeout("deferred_send", (this->tx_delay_remaining() + US_PER_MS - 1) / US_PER_MS, [this]() {
-      ModbusFrame frame(this->deferred_payload_[0], this->deferred_payload_.data() + 1,
-                        this->deferred_payload_len_ - 1);
-      if (!this->send_frame_(frame)) {
-        ESP_LOGE(TAG, "Deferred server reply dropped: transmission still blocked");
-      }
-    });
+    this->set_timeout("deferred_send", (this->tx_delay_remaining() + US_PER_MS - 1) / US_PER_MS,
+                      [this]() { this->send_deferred_(true); });
     return;
   }
 
   ModbusFrame frame(payload[0], payload + 1, len - 1);
   if (!this->send_frame_(frame)) {
     ESP_LOGE(TAG, "Server reply dropped: a frame arrived during the send delay");
+  }
+}
+
+void ModbusServerHub::send_deferred_(bool drop_if_blocked) {
+  if (this->deferred_payload_len_ == 0)
+    return;
+  // What blocked the send is usually bytes still arriving, and waiting here would not drain them. A caller
+  // that comes back keeps the reply instead of spending its only attempt on a wire that cannot take it.
+  if (!drop_if_blocked && this->tx_blocked())
+    return;
+  ModbusFrame frame(this->deferred_payload_[0], this->deferred_payload_.data() + 1, this->deferred_payload_len_ - 1);
+  const bool sent = this->send_frame_(frame);
+  // Kept only for a caller that is coming back: send_frame_ re-checks after its own delay, so a failure here
+  // is still a busy wire rather than a reply the controller has stopped waiting for.
+  if (sent || drop_if_blocked)
+    this->deferred_payload_len_ = 0;
+  if (sent)
+    return;
+  if (drop_if_blocked) {
+    ESP_LOGE(TAG, "Deferred server reply dropped: transmission still blocked");
+  } else {
+    ESP_LOGV(TAG, "Deferred server reply held: a byte arrived during the send delay, next pass retries");
   }
 }
 
