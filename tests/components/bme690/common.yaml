@@ -1,0 +1,46 @@
+bme690:
+  - id: bme690_sensor
+    i2c_id: i2c_bus
+    address: 0x76
+    bsec_library: ${component_dir}/test_files/libalgobsec.a
+    bsec_config: ${component_dir}/test_files/bsec_iaq.config
+    sample_rate: LP
+    update_interval: 3s
+    state_save_interval: 30min
+    temperature_offset: 4.2C
+
+sensor:
+  - platform: bme690
+    bme690_id: bme690_sensor
+    temperature:
+      name: BME690 Temperature
+    humidity:
+      name: BME690 Humidity
+    pressure:
+      name: BME690 Pressure
+    gas_resistance:
+      name: BME690 Gas Resistance
+    iaq:
+      name: BME690 IAQ
+    iaq_accuracy:
+      name: BME690 IAQ Accuracy
+    static_iaq:
+      name: BME690 Static IAQ
+    co2_equivalent:
+      name: BME690 CO2 Equivalent
+    breath_voc_equivalent:
+      name: BME690 Breath VOC Equivalent
+    tvoc_equivalent:
+      name: BME690 TVOC Equivalent
+    gas_percentage:
+      name: BME690 Gas Percentage
+    compensated_temperature:
+      name: BME690 Compensated Temperature
+    compensated_humidity:
+      name: BME690 Compensated Humidity
+
+text_sensor:
+  - platform: bme690
+    bme690_id: bme690_sensor
+    iaq_accuracy:
+      name: BME690 IAQ Accuracy Text
