@@ -152,15 +152,69 @@ number:
             id: test_monochromatic_light
             brightness: !lambda "return x / 100.0;"
 
+output:
+  - platform: template
+    id: light_test_restore_state_keep
+    type: binary
+    write_action:
+      - lambda: ""
+  - platform: template
+    id: light_test_restore_state_override
+    type: binary
+    write_action:
+      - lambda: ""
+  - platform: template
+    id: light_test_restore_state_none
+    type: binary
+    write_action:
+      - lambda: ""
+  - platform: template
+    id: light_test_restore_state_initial
+    type: binary
+    write_action:
+      - lambda: ""
 light:
   - platform: binary
     id: test_binary_light
     name: Binary Light
     output: light_test_binary
+    restore_mode: RESTORE_AND_ON
     effects:
       - strobe:
     on_state:
       - logger.log: Binary light state changed
+  # Test restore_state: all (shorthand for {} -- restore everything, no overrides)
+  - platform: binary
+    id: test_restore_state_keep
+    name: Restore State Keep
+    output: light_test_restore_state_keep
+    restore_state: all
+  # Test restore_state: with explicit overrides
+  - platform: binary
+    id: test_restore_state_override
+    name: Restore State Override
+    output: light_test_restore_state_override
+    restore_state:
+      state: INVERT
+      brightness: 50%
+  # Test restore_state: none (explicit shorthand for "no restoring at all")
+  - platform: binary
+    id: test_restore_state_none
+    name: Restore State None
+    output: light_test_restore_state_none
+    restore_state: none
+    initial_state:
+      state: true
+  # Test restore_state: with INITIAL fields (copy initial_state:'s value on restore)
+  - platform: binary
+    id: test_restore_state_initial
+    name: Restore State Initial
+    output: light_test_restore_state_initial
+    initial_state:
+      state: true
+    restore_state:
+      state: INITIAL
+      brightness: INITIAL
   - platform: monochromatic
     id: test_monochromatic_light
     name: Monochromatic Light
@@ -260,6 +314,31 @@ light:
       red: 100%
       green: 50%
       blue: 50%
+  # Test initial_state: with every templatable field set via !lambda (color_mode is
+  # the only field that isn't templatable, so it's the only one left as a literal)
+  - platform: rgbww
+    id: test_rgbww_light_initial_state_lambda
+    name: RGBWW Light Initial State Lambda
+    red: test_ledc_1
+    green: test_ledc_2
+    blue: test_ledc_3
+    cold_white: test_ledc_4
+    warm_white: test_ledc_5
+    cold_white_color_temperature: 153 mireds
+    warm_white_color_temperature: 500 mireds
+    color_interlock: true
+    initial_state:
+      state: !lambda "return true;"
+      color_mode: rgb_cold_warm_white
+      brightness: !lambda "return 0.8;"
+      color_brightness: !lambda "return 0.9;"
+      red: !lambda "return 1.0;"
+      green: !lambda "return 0.5;"
+      blue: !lambda "return 0.25;"
+      white: !lambda "return 0.3;"
+      color_temperature: !lambda "return 300.0;"
+      cold_white: !lambda "return 0.6;"
+      warm_white: !lambda "return 0.4;"
   # Test StrobeLightEffect with multiple colors
   - platform: monochromatic
     id: test_strobe_multiple
