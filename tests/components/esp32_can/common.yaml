@@ -44,3 +44,18 @@ canbus:
                   break;
                 // to be continued...
               }
+
+interval:
+  - interval: 1s
+    then:
+      - lambda: |-
+          auto status = id(esp32_can_esp32_internal_can).get_status();
+          ESP_LOGD("canbus_status", "bus_off: %d, bus_err: %" PRIu32 ", arb_lost: %" PRIu32 ", tx_err: %d, rx_err: %d, tx_failed: %" PRIu32 ", rx_miss: %" PRIu32,
+            status.bus_off,
+            status.bus_error_count.value_or(-1),
+            status.arb_lost_count.value_or(-1),
+            status.tx_error_counter,
+            status.rx_error_counter,
+            status.tx_failed_count.value_or(-1),
+            status.rx_missed_count.value_or(-1)
+          );

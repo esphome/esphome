@@ -48,6 +48,8 @@ template<typename... Ts> class CanbusSendAction;
 /* CAN payload length definitions according to ISO 11898-1 */
 static const uint8_t CAN_MAX_DATA_LENGTH = 8;
 
+static const uint8_t CAN_ERROR_PASSIVE_THRESHOLD = 128;
+
 /*
 Can Frame describes a normative CAN Frame
 The RTR = Remote Transmission Request is implemented in every CAN controller but rarely used
@@ -59,6 +61,24 @@ struct CanFrame {
   uint32_t can_id;              /* 29 or 11 bit CAN_ID  */
   uint8_t can_data_length_code; /* frame payload length in byte (0 .. CAN_MAX_DATA_LENGTH) */
   uint8_t data[CAN_MAX_DATA_LENGTH] __attribute__((aligned(8)));
+};
+
+enum CanEventFlags {
+  CAN_EVENT_PASSIVE = 1 << 0,
+  CAN_EVENT_ACTIVE = 1 << 1,
+  CAN_EVENT_BUS_OFF = 1 << 2,
+  CAN_EVENT_RX_QUEUE_FULL = 1 << 3,
+};
+
+struct CanStatus {
+  bool bus_off{false};
+  uint8_t rx_error_counter{0};
+  uint8_t tx_error_counter{0};
+  esphome::optional<uint32_t> tx_failed_count{};
+  esphome::optional<uint32_t> rx_missed_count{};
+  esphome::optional<uint32_t> rx_overrun_count{};
+  esphome::optional<uint32_t> arb_lost_count{};
+  esphome::optional<uint32_t> bus_error_count{};
 };
 
 class Canbus : public Component {
@@ -78,6 +98,7 @@ class Canbus : public Component {
   void set_can_id(uint32_t can_id) { this->can_id_ = can_id; }
   void set_use_extended_id(bool use_extended_id) { this->use_extended_id_ = use_extended_id; }
   void set_bitrate(CanSpeed bit_rate) { this->bit_rate_ = bit_rate; }
+  virtual CanStatus get_status() = 0;
 
   void add_trigger(CanbusTrigger *trigger);
   /**
@@ -101,9 +122,31 @@ class Canbus : public Component {
   CallbackManager<void(uint32_t can_id, bool extended_id, bool rtr, const std::vector<uint8_t> &data)>
       callback_manager_{};
 
+  uint32_t events_to_log_{0};
+  bool bus_off_{false};
+
+  // interval in which to check for new can bus events (bus-off, passive, active)
+  static constexpr uint32_t EVENT_CHECK_INTERVAL_MS = 100;
+  uint32_t last_event_check_time_{0};
+
+  // time to wait after logging an event before logging the next event(s)
+  static constexpr uint32_t EVENT_LOG_THROTTLE_MS = 1000;
+  uint32_t last_event_log_time_{0};
+
+  // time span without bus-off events before the bus is declared recovered
+  static constexpr uint32_t EVENT_LOG_BUS_OFF_HOLDOFF_MS = 1000;
+  uint32_t last_bus_off_time_{0};
+
+#ifdef ESPHOME_LOG_HAS_VERBOSE
+  static constexpr uint32_t STATE_LOG_INTERVAL_MS = 1000;
+  uint32_t last_state_log_time_{0};
+#endif
+
+  void log_events_(CanEventFlags events);
   virtual bool setup_internal() = 0;
   virtual Error send_message(struct CanFrame *frame) = 0;
   virtual Error read_message(struct CanFrame *frame) = 0;
+  virtual CanEventFlags get_events() = 0;
 };
 
 template<typename... Ts> class CanbusSendAction final : public Action<Ts...>, public Parented<Canbus> {
