@@ -13,11 +13,13 @@ climate::ClimateTraits ClimateIR::traits() {
   if (this->humidity_sensor_ != nullptr) {
     traits.add_feature_flags(climate::CLIMATE_SUPPORTS_CURRENT_HUMIDITY);
   }
-  traits.set_supported_modes({climate::CLIMATE_MODE_OFF, climate::CLIMATE_MODE_HEAT_COOL});
+  traits.set_supported_modes({climate::CLIMATE_MODE_OFF});
   if (this->supports_cool_)
     traits.add_supported_mode(climate::CLIMATE_MODE_COOL);
   if (this->supports_heat_)
     traits.add_supported_mode(climate::CLIMATE_MODE_HEAT);
+  if (this->supports_heat_cool_)
+    traits.add_supported_mode(climate::CLIMATE_MODE_HEAT_COOL);
   if (this->supports_dry_)
     traits.add_supported_mode(climate::CLIMATE_MODE_DRY);
   if (this->supports_fan_only_)
@@ -94,9 +96,10 @@ void ClimateIR::dump_config() {
                 "  Min. Temperature: %.1f°C\n"
                 "  Max. Temperature: %.1f°C\n"
                 "  Supports HEAT: %s\n"
-                "  Supports COOL: %s",
+                "  Supports COOL: %s\n"
+                "  Supports HEAT_COOL: %s",
                 this->minimum_temperature_, this->maximum_temperature_, YESNO(this->supports_heat_),
-                YESNO(this->supports_cool_));
+                YESNO(this->supports_cool_), YESNO(this->supports_heat_cool_));
 }
 
 }  // namespace esphome::climate_ir

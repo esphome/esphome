@@ -5,17 +5,6 @@ namespace esphome::gree {
 
 static const char *const TAG = "gree.climate";
 
-climate::ClimateTraits GreeClimate::traits() {
-  auto t = climate_ir::ClimateIR::traits();
-  // ClimateIR unconditionally includes HEAT_COOL in the base mode set; remove it when heat is not supported.
-  if (!this->supports_heat_) {
-    auto modes = t.get_supported_modes();
-    modes.erase(climate::CLIMATE_MODE_HEAT_COOL);
-    t.set_supported_modes(modes);
-  }
-  return t;
-}
-
 void GreeClimate::set_model(Model model) {
   if (model == GREE_YAN) {
     // YAN only has a vertical vane; the horizontal swing IR bytes are not defined for this model.

@@ -54,27 +54,9 @@ const uint8_t MITSUBISHI_BYTE13 = 0x00;
 const uint8_t MITSUBISHI_BYTE16 = 0x00;
 
 climate::ClimateTraits MitsubishiClimate::traits() {
-  auto traits = climate::ClimateTraits();
-  if (this->sensor_ != nullptr) {
-    traits.add_feature_flags(climate::CLIMATE_SUPPORTS_CURRENT_TEMPERATURE);
-  }
-  traits.set_visual_min_temperature(MITSUBISHI_TEMP_MIN);
-  traits.set_visual_max_temperature(MITSUBISHI_TEMP_MAX);
-  traits.set_visual_temperature_step(1.0f);
-  traits.set_supported_modes({climate::CLIMATE_MODE_OFF});
-
-  if (this->supports_cool_)
-    traits.add_supported_mode(climate::CLIMATE_MODE_COOL);
-  if (this->supports_heat_)
-    traits.add_supported_mode(climate::CLIMATE_MODE_HEAT);
-
-  if (this->supports_cool_ && this->supports_heat_)
-    traits.add_supported_mode(climate::CLIMATE_MODE_HEAT_COOL);
-
-  if (this->supports_dry_)
-    traits.add_supported_mode(climate::CLIMATE_MODE_DRY);
-  if (this->supports_fan_only_)
-    traits.add_supported_mode(climate::CLIMATE_MODE_FAN_ONLY);
+  // Modes, temperature range, swing modes and presets are all derived from the values passed to the
+  // ClimateIR constructor, so reuse the base traits and only customize the fan modes below.
+  auto traits = climate_ir::ClimateIR::traits();
 
   // Default to only 3 levels in ESPHome even if most unit supports 4. The 3rd level is not used.
   traits.set_supported_fan_modes(
@@ -83,12 +65,6 @@ climate::ClimateTraits MitsubishiClimate::traits() {
     traits.add_supported_fan_mode(climate::CLIMATE_FAN_QUIET);
   if (/*this->fan_mode_ == MITSUBISHI_FAN_5L ||*/ this->fan_mode_ >= MITSUBISHI_FAN_4L)
     traits.add_supported_fan_mode(climate::CLIMATE_FAN_MIDDLE);  // Shouldn't be used for this but it helps
-
-  traits.set_supported_swing_modes({climate::CLIMATE_SWING_OFF, climate::CLIMATE_SWING_BOTH,
-                                    climate::CLIMATE_SWING_VERTICAL, climate::CLIMATE_SWING_HORIZONTAL});
-
-  traits.set_supported_presets({climate::CLIMATE_PRESET_NONE, climate::CLIMATE_PRESET_ECO,
-                                climate::CLIMATE_PRESET_BOOST, climate::CLIMATE_PRESET_SLEEP});
 
   return traits;
 }
