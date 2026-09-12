@@ -3,6 +3,7 @@
 #if defined(USE_ESP32_VARIANT_ESP32H2) || defined(USE_ESP32_VARIANT_ESP32P4)
 
 #include "esphome/core/component.h"
+#include "esphome/core/string_ref.h"
 #include "esphome/components/update/update_entity.h"
 #include <array>
 #include <string>
@@ -25,7 +26,8 @@ class Esp32HostedUpdate final : public update::UpdateEntity, public PollingCompo
 
 #ifdef USE_ESP32_HOSTED_HTTP_UPDATE
   // HTTP mode setters
-  void set_source_url(const std::string &url) { this->source_url_ = url; }
+  void set_source_url(const char *url) { this->source_url_ = url; }
+  StringRef get_source_url() const { return StringRef(this->source_url_); }
   void set_http_request_parent(http_request::HttpRequestComponent *parent) { this->http_request_parent_ = parent; }
 #else
   // Embedded mode setters
@@ -38,7 +40,6 @@ class Esp32HostedUpdate final : public update::UpdateEntity, public PollingCompo
 #ifdef USE_ESP32_HOSTED_HTTP_UPDATE
   // HTTP mode members
   http_request::HttpRequestComponent *http_request_parent_{nullptr};
-  std::string source_url_;
   std::string firmware_url_;
 
   // HTTP mode helpers
@@ -55,6 +56,9 @@ class Esp32HostedUpdate final : public update::UpdateEntity, public PollingCompo
 #endif
 
   std::array<uint8_t, 32> firmware_sha256_{};
+
+ private:
+  const char *source_url_{nullptr};  // literal from codegen
 };
 
 }  // namespace esphome::esp32_hosted
