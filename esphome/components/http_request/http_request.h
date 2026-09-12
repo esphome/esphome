@@ -529,17 +529,8 @@ template<typename... Ts> class HttpRequestSendAction final : public Action<Ts...
       request_headers.push_back({key, val.value(x...)});
     }
 
-    // A literal url: is stored as a const char *; only lambdas and PROGMEM strings need the copy.
-    std::string url_storage;
-    const char *url;
-    if (this->url_.is_static_string()) {
-      url = this->url_.get_static_string();
-    } else {
-      url_storage = this->url_.value(x...);
-      url = url_storage.c_str();
-    }
-    auto container =
-        this->parent_->start(url, this->method_.value(x...), body, request_headers, this->lower_case_collect_headers_);
+    auto container = this->parent_->start(this->url_.value(x...).c_str(), this->method_.value(x...), body,
+                                          request_headers, this->lower_case_collect_headers_);
 
     auto captured_args = std::make_tuple(x...);
 
