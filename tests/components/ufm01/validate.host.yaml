@@ -1,0 +1,16 @@
+esphome:
+  name: ufm01-validate
+
+host:
+
+logger:
+
+packages:
+  ufm01: !include common.yaml
+
+uart:
+  id: uart_bus
+  baud_rate: 2400
+  parity: EVEN
+  stop_bits: 1
+  port: /dev/null
