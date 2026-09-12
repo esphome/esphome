@@ -62,6 +62,10 @@ class VL53L0XSensor final : public sensor::Sensor, public PollingComponent, publ
   bool initiated_read_{false};
   bool waiting_for_interrupt_{false};
   uint8_t stop_variable_;
+  // Stall detection - timestamp of the last measurement start and
+  // a flag so the stall warning is logged only once per measurement cycle.
+  uint32_t measurement_start_us_{0};
+  bool stall_reported_{false};
 
   uint32_t timeout_us_{};
 
