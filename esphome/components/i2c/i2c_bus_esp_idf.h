@@ -16,6 +16,9 @@ enum RecoveryCode {
 
 class IDFI2CBus final : public InternalI2CBus, public Component {
  public:
+  // User provided, not "= default": `new(p) IDFI2CBus()` would zero-fill .bss that is already zero.
+  IDFI2CBus() {}
+
   void setup() override;
   void dump_config() override;
   ErrorCode write_readv(uint8_t address, const uint8_t *write_buffer, size_t write_count, uint8_t *read_buffer,
