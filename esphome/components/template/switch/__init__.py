@@ -73,7 +73,9 @@ async def to_code(config):
             var.get_turn_on_trigger(), [], config[CONF_TURN_ON_ACTION]
         )
     cg.add(var.set_optimistic(config[CONF_OPTIMISTIC]))
-    cg.add(var.set_assumed_state(config[CONF_ASSUMED_STATE]))
+    # assumed_state_ is false in C++; only emit the setter to turn it on.
+    if config[CONF_ASSUMED_STATE]:
+        cg.add(var.set_assumed_state(True))
 
 
 @automation.register_action(

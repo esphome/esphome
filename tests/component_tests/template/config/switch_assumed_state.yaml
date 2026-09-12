@@ -1,0 +1,15 @@
+---
+esphome:
+  name: test
+
+esp32:
+  board: esp32dev
+
+switch:
+  - platform: template
+    id: plain_switch
+    optimistic: true
+  - platform: template
+    id: assumed_switch
+    optimistic: true
+    assumed_state: true
