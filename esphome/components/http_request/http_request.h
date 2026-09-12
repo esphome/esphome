@@ -331,27 +331,46 @@ class HttpRequestComponent : public Component {
   void set_follow_redirects(bool follow_redirects) { this->follow_redirects_ = follow_redirects; }
   void set_redirect_limit(uint16_t limit) { this->redirect_limit_ = limit; }
 
-  std::shared_ptr<HttpContainer> get(const std::string &url) {
-    return this->start(url, "GET", "", std::vector<Header>{});
-  }
-  std::shared_ptr<HttpContainer> get(const std::string &url, const std::vector<Header> &request_headers) {
+  std::shared_ptr<HttpContainer> get(const char *url) { return this->start(url, "GET", "", std::vector<Header>{}); }
+  std::shared_ptr<HttpContainer> get(const char *url, const std::vector<Header> &request_headers) {
     return this->start(url, "GET", "", request_headers);
   }
-  std::shared_ptr<HttpContainer> get(const std::string &url, const std::vector<Header> &request_headers,
+  std::shared_ptr<HttpContainer> get(const char *url, const std::vector<Header> &request_headers,
                                      const std::vector<std::string> &lower_case_collect_headers) {
     return this->start(url, "GET", "", request_headers, lower_case_collect_headers);
   }
-  std::shared_ptr<HttpContainer> post(const std::string &url, const std::string &body) {
+  std::shared_ptr<HttpContainer> post(const char *url, const std::string &body) {
     return this->start(url, "POST", body, std::vector<Header>{});
+  }
+  std::shared_ptr<HttpContainer> post(const char *url, const std::string &body,
+                                      const std::vector<Header> &request_headers) {
+    return this->start(url, "POST", body, request_headers);
+  }
+  std::shared_ptr<HttpContainer> post(const char *url, const std::string &body,
+                                      const std::vector<Header> &request_headers,
+                                      const std::vector<std::string> &lower_case_collect_headers) {
+    return this->start(url, "POST", body, request_headers, lower_case_collect_headers);
+  }
+
+  std::shared_ptr<HttpContainer> get(const std::string &url) { return this->get(url.c_str()); }
+  std::shared_ptr<HttpContainer> get(const std::string &url, const std::vector<Header> &request_headers) {
+    return this->get(url.c_str(), request_headers);
+  }
+  std::shared_ptr<HttpContainer> get(const std::string &url, const std::vector<Header> &request_headers,
+                                     const std::vector<std::string> &lower_case_collect_headers) {
+    return this->get(url.c_str(), request_headers, lower_case_collect_headers);
+  }
+  std::shared_ptr<HttpContainer> post(const std::string &url, const std::string &body) {
+    return this->post(url.c_str(), body);
   }
   std::shared_ptr<HttpContainer> post(const std::string &url, const std::string &body,
                                       const std::vector<Header> &request_headers) {
-    return this->start(url, "POST", body, request_headers);
+    return this->post(url.c_str(), body, request_headers);
   }
   std::shared_ptr<HttpContainer> post(const std::string &url, const std::string &body,
                                       const std::vector<Header> &request_headers,
                                       const std::vector<std::string> &lower_case_collect_headers) {
-    return this->start(url, "POST", body, request_headers, lower_case_collect_headers);
+    return this->post(url.c_str(), body, request_headers, lower_case_collect_headers);
   }
 
   // Remove before 2027.1.0
@@ -379,10 +398,14 @@ class HttpRequestComponent : public Component {
     return this->post(url, body, std::vector<Header>(request_headers.begin(), request_headers.end()), collect_headers);
   }
 
-  std::shared_ptr<HttpContainer> start(const std::string &url, const std::string &method, const std::string &body,
+  std::shared_ptr<HttpContainer> start(const char *url, const char *method, const std::string &body,
                                        const std::vector<Header> &request_headers) {
     // Call perform() directly to avoid ambiguity with the deprecated overloads
     return this->perform(url, method, body, request_headers, {});
+  }
+  std::shared_ptr<HttpContainer> start(const std::string &url, const std::string &method, const std::string &body,
+                                       const std::vector<Header> &request_headers) {
+    return this->start(url.c_str(), method.c_str(), body, request_headers);
   }
 
   // Remove before 2027.1.0
@@ -403,7 +426,7 @@ class HttpRequestComponent : public Component {
     for (const auto &h : collect_headers) {
       lower.push_back(str_lower_case(h));  // NOLINT
     }
-    return this->perform(url, method, body, request_headers, lower);
+    return this->perform(url.c_str(), method.c_str(), body, request_headers, lower);
   }
 
   // Remove before 2027.1.0
@@ -418,7 +441,8 @@ class HttpRequestComponent : public Component {
     for (const auto &h : collect_headers) {
       lower.push_back(str_lower_case(h));  // NOLINT
     }
-    return this->perform(url, method, body, std::vector<Header>(request_headers.begin(), request_headers.end()), lower);
+    return this->perform(url.c_str(), method.c_str(), body,
+                         std::vector<Header>(request_headers.begin(), request_headers.end()), lower);
   }
 
   // Remove before 2027.1.0
@@ -426,19 +450,25 @@ class HttpRequestComponent : public Component {
   std::shared_ptr<HttpContainer> start(const std::string &url, const std::string &method, const std::string &body,
                                        const std::list<Header> &request_headers,
                                        const std::vector<std::string> &lower_case_collect_headers) {
-    return this->perform(url, method, body, std::vector<Header>(request_headers.begin(), request_headers.end()),
+    return this->perform(url.c_str(), method.c_str(), body,
+                         std::vector<Header>(request_headers.begin(), request_headers.end()),
                          lower_case_collect_headers);
   }
 
-  std::shared_ptr<HttpContainer> start(const std::string &url, const std::string &method, const std::string &body,
+  std::shared_ptr<HttpContainer> start(const char *url, const char *method, const std::string &body,
                                        const std::vector<Header> &request_headers,
                                        const std::vector<std::string> &lower_case_collect_headers) {
     return this->perform(url, method, body, request_headers, lower_case_collect_headers);
   }
+  std::shared_ptr<HttpContainer> start(const std::string &url, const std::string &method, const std::string &body,
+                                       const std::vector<Header> &request_headers,
+                                       const std::vector<std::string> &lower_case_collect_headers) {
+    return this->start(url.c_str(), method.c_str(), body, request_headers, lower_case_collect_headers);
+  }
 
  protected:
-  virtual std::shared_ptr<HttpContainer> perform(const std::string &url, const std::string &method,
-                                                 const std::string &body, const std::vector<Header> &request_headers,
+  virtual std::shared_ptr<HttpContainer> perform(const char *url, const char *method, const std::string &body,
+                                                 const std::vector<Header> &request_headers,
                                                  const std::vector<std::string> &lower_case_collect_headers) = 0;
   const char *useragent_{nullptr};
   bool follow_redirects_{};
