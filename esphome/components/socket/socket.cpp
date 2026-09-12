@@ -116,25 +116,7 @@ size_t format_sockaddr_to(const struct sockaddr *addr_ptr, socklen_t len, std::s
   return 0;
 }
 
-std::unique_ptr<Socket> socket_ip(int type, int protocol) {
-#if USE_NETWORK_IPV6
-  return socket(AF_INET6, type, protocol);
-#else
-  return socket(AF_INET, type, protocol);
-#endif /* USE_NETWORK_IPV6 */
-}
-
-#ifdef USE_SOCKET_IMPL_LWIP_TCP
-// LWIP_TCP has separate Socket/ListenSocket types — needs out-of-line factory.
-// BSD and LWIP_SOCKETS define this inline in socket.h.
-std::unique_ptr<ListenSocket> socket_ip_loop_monitored(int type, int protocol) {
-#if USE_NETWORK_IPV6
-  return socket_listen_loop_monitored(AF_INET6, type, protocol);
-#else
-  return socket_listen_loop_monitored(AF_INET, type, protocol);
-#endif /* USE_NETWORK_IPV6 */
-}
-#endif
+std::unique_ptr<Socket> socket_ip(int type, int protocol) { return socket(IP_DOMAIN, type, protocol); }
 
 socklen_t set_sockaddr(struct sockaddr *addr, socklen_t addrlen, const char *ip_address, uint16_t port) {
 #if USE_NETWORK_IPV6
