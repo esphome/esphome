@@ -51,7 +51,9 @@ void arch_init() {
 #endif
 
   // Enable the task watchdog only on the loop task (from which we're currently running)
+#ifdef USE_WATCHDOG
   esp_task_wdt_add(nullptr);
+#endif
 
   // Handle OTA rollback: mark partition valid immediately unless USE_OTA_ROLLBACK is enabled,
   // in which case safe_mode will mark it valid after confirming successful boot.
