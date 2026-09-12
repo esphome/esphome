@@ -3,7 +3,6 @@
 #ifdef USE_ESP8266
 
 #include <HardwareSerial.h>
-#include <esp8266_peri.h>
 #include <vector>
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
@@ -29,19 +28,10 @@ class ESP8266SoftwareSerial {
  protected:
   static void gpio_intr(ESP8266SoftwareSerial *arg);
 
-  void wait_(uint32_t *wait, const uint32_t &start);
-  bool read_bit_(uint32_t *wait, const uint32_t &start);
-  void write_bit_(bool bit, uint32_t *wait, const uint32_t &start);
-
-  // Cycles per bit at the compile time clock. An 80 MHz build runs at 160 MHz while a CpuFrequencyBoost is
-  // open, so the live clock select bit doubles it there; a 160 MHz build never changes clock.
-  __attribute__((always_inline)) inline uint32_t bit_time_now_() const {
-#if F_CPU != 160000000L
-    return this->bit_time_ << (CPU2X & 1);
-#else
-    return this->bit_time_;
-#endif
-  }
+  // bit_time is the cycles per bit at the clock the byte is running at
+  void wait_(uint32_t *wait, const uint32_t &start, uint32_t bit_time);
+  bool read_bit_(uint32_t *wait, const uint32_t &start, uint32_t bit_time);
+  void write_bit_(bool bit, uint32_t *wait, const uint32_t &start, uint32_t bit_time);
 
   uint32_t bit_time_{0};
   uint8_t *rx_buffer_{nullptr};

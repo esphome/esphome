@@ -2043,8 +2043,10 @@ extern "C" bool system_update_cpu_freq(uint8_t freq);
 /** Runs the CPU at 160 MHz while the object is alive.
  *
  * Only does anything on an ESP8266 built for 80 MHz; the Arduino core puts the clock back before every loop()
- * pass, so a scope must open and close within one pass. On an ESP8266 already built for 160 MHz and on every
- * other platform it is an inline no-op that compiles to nothing. Peripheral clocks are unchanged.
+ * pass, so a scope must open and close within one pass. Scopes must not nest, and the code inside one must not
+ * yield to the scheduler or the main loop, since the destructor always returns to 80 MHz. On an ESP8266 already
+ * built for 160 MHz and on every other platform it is an inline no-op that compiles to nothing. Peripheral
+ * clocks are unchanged.
  */
 class CpuFrequencyBoost {
  public:
