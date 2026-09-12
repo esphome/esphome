@@ -23,12 +23,14 @@ class Toolchain(StrEnum):
     SDK_NRF = "sdk-nrf"
     # ESP8266: the Arduino core built directly (no PlatformIO)
     ARDUINO = "arduino"
+    # host: the system C/C++ compiler driven by ninja (no PlatformIO)
+    HOST = "host"
 
 
 # Toolchains that drive their build natively and never read platformio.ini.
 # SDK_NRF is absent on purpose: the zephyr backend keeps consuming
 # platformio_options.
-NATIVE_TOOLCHAINS = frozenset({Toolchain.ESP_IDF, Toolchain.ARDUINO})
+NATIVE_TOOLCHAINS = frozenset({Toolchain.ESP_IDF, Toolchain.ARDUINO, Toolchain.HOST})
 
 
 class Platform(StrEnum):

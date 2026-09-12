@@ -11,6 +11,7 @@ consumers (IDE integration, clang-tidy) expect:
 
 from __future__ import annotations
 
+from collections.abc import Callable
 import json
 import logging
 import os
@@ -32,6 +33,25 @@ IDEDATA_BEST_EFFORT_ERRORS = (
 )
 
 _LOGGER = logging.getLogger(__name__)
+
+
+def warn_if_idedata_missing(get_idedata: Callable[[], dict | None]) -> None:
+    """Run an idedata generator, downgrading any failure to a warning.
+
+    Shared by the native backends: the firmware already built, so a missing
+    or broken idedata must not fail a successful build.
+    """
+    try:
+        if get_idedata() is None:
+            _LOGGER.warning("No idedata was generated for this build")
+    except IDEDATA_BEST_EFFORT_ERRORS as err:
+        _LOGGER.warning(
+            "Could not generate idedata: %s (IDE, clang-tidy, and "
+            "memory-analysis data will be unavailable for this build)",
+            err,
+        )
+        _LOGGER.debug("Idedata failure detail", exc_info=True)
+
 
 # C++ translation-unit suffixes used to identify ESPHome source files.
 _CXX_SUFFIXES = (".cpp", ".cc")
@@ -76,7 +96,7 @@ def _split_command(command: str) -> list[str]:
     CommandLineToArgvW = ctypes.windll.shell32.CommandLineToArgvW
     CommandLineToArgvW.argtypes = [wintypes.LPCWSTR, ctypes.POINTER(ctypes.c_int)]
     CommandLineToArgvW.restype = ctypes.POINTER(wintypes.LPWSTR)
-    argc = ctypes.c_int()
+    argc = ctypes.c_int(0)
     argv = CommandLineToArgvW(command, ctypes.byref(argc))
     if not argv:  # pragma: no cover
         raise ctypes.WinError()

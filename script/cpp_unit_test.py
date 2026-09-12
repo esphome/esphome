@@ -15,24 +15,16 @@ from helpers import get_all_components, root_path
 # Path to /tests/components
 COMPONENTS_TESTS_DIR: Path = Path(root_path) / "tests" / "components"
 
-PLATFORMIO_OPTIONS = {
-    "build_type": "debug",
-    "build_unflags": [
-        "-Os",  # remove size-opt flag
-    ],
-    "build_flags": [
-        "-Og",  # optimize for debug
-        "-DESPHOME_DEBUG",  # enable debug assertions
-        # Enable the address and undefined behavior sanitizers
-        "-fsanitize=address",
-        "-fsanitize=undefined",
-        "-fno-omit-frame-pointer",
-    ],
-    "debug_build_flags": [  # only for debug builds
-        "-g3",  # max debug info
-        "-ggdb3",
-    ],
-}
+BUILD_FLAGS = [
+    "-Og",  # optimize for debug
+    "-g3",  # max debug info
+    "-ggdb3",
+    "-DESPHOME_DEBUG",  # enable debug assertions
+    # Enable the address and undefined behavior sanitizers
+    "-fsanitize=address",
+    "-fsanitize=undefined",
+    "-fno-omit-frame-pointer",
+]
 
 
 def run_tests(selected_components: list[str]) -> int:
@@ -46,7 +38,7 @@ def run_tests(selected_components: list[str]) -> int:
         config_prefix="cpptests",
         friendly_name="CPP Unit Tests",
         libraries=PLATFORMIO_GOOGLE_TEST_LIB,
-        platformio_options=PLATFORMIO_OPTIONS,
+        build_flags=BUILD_FLAGS,
         main_entry="main.cpp",
         label="unit tests",
     )

@@ -8,9 +8,9 @@ from esphome.const import (
     KEY_TARGET_PLATFORM,
     PLATFORM_HOST,
     ThreadModel,
+    Toolchain,
 )
-from esphome.core import CORE
-from esphome.platformio.toolchain import copy_ccache_script
+from esphome.core import CORE, EsphomeError
 from esphome.types import ConfigType
 
 from .const import KEY_HOST
@@ -37,7 +37,9 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_MAC_ADDRESS, default="98:35:69:ab:f6:79"): cv.mac_address,
         }
     ),
-    cv.require_platformio_toolchain("host"),
+    # The host builds with the machine's own compiler through ninja; there
+    # is no PlatformIO backend, so a CLI --toolchain must name this one
+    cv.resolve_toolchain("host", (Toolchain.HOST,), Toolchain.HOST),
     set_core_data,
 )
 
@@ -48,16 +50,17 @@ async def to_code(config: ConfigType) -> None:
     # The prefs file finds stored preferences by key, so key migration is possible
     cg.add_define("USE_PREFERENCE_KEY_LOOKUP")
     cg.add_define("USE_ESPHOME_HOST_MAC_ADDRESS", config[CONF_MAC_ADDRESS].parts)
-    cg.add_build_flag("-std=gnu++20")
+    cg.set_cpp_standard("gnu++20")
     cg.add_define("ESPHOME_BOARD", "host")
     cg.add_define("ESPHOME_VARIANT", "HOST")
     cg.add_define(ThreadModel.MULTI_ATOMICS)
-    cg.add_platformio_option("platform", "platformio/native")
-    cg.add_platformio_option("lib_ldf_mode", "off")
-    cg.add_platformio_option("lib_compat_mode", "strict")
-    cg.add_platformio_option("extra_scripts", ["pre:ccache.py"])
 
 
-# Called by writer.py
-def copy_files() -> None:
-    copy_ccache_script()
+# Called by __main__.compile_program; True means this platform built the
+# program itself instead of falling through to the PlatformIO toolchain.
+def run_compile(args: object, config: ConfigType) -> bool:
+    from esphome.host import toolchain
+
+    if toolchain.run_compile(config, CORE.verbose) != 0:
+        raise EsphomeError("Host build failed")
+    return True

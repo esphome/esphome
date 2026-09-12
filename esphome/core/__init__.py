@@ -996,6 +996,12 @@ class EsphomeCore:
         return self.toolchain == Toolchain.ARDUINO
 
     @property
+    def using_toolchain_host(self):
+        """The native host build toolchain: the system compiler driven by
+        ninja (the only toolchain the host platform serves)."""
+        return self.toolchain == Toolchain.HOST
+
+    @property
     def using_native_toolchain(self):
         """Whether the selected toolchain builds natively, without reading
         ``platformio.ini`` (see ``NATIVE_TOOLCHAINS`` in ``esphome.const``;
