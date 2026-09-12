@@ -661,6 +661,23 @@ class ToNTCTemperatureFilter : public Filter {
   double c_;
 };
 
+/** RH Temperature correction filter
+ *
+ * Allows for Relative Humidity Correction when a temperature offset is applied to the temperature sensor.
+ */
+class RHCorrectionFilter : public Filter {
+ public:
+  RHCorrectionFilter(TemplatableFn<float> offset, const Sensor *temperature_sensor, bool fahr)
+      : temperature_offset_(offset), temperature_sensor_(temperature_sensor), use_fahrenheit_(fahr) {}
+
+  optional<float> new_value(float value) override;
+
+ protected:
+  TemplatableFn<float> temperature_offset_;
+  const Sensor *temperature_sensor_{nullptr};
+  const bool use_fahrenheit_{false};
+};
+
 /** Base class for streaming filters (batch windows where window_size == send_every).
  *
  * When window_size equals send_every, we don't need a sliding window.
