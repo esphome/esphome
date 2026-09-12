@@ -56,6 +56,7 @@ class BluedroidGattClient final : public esp32_ble_tracker::ESPBTClient, public 
   void gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param) override;
   void connect() override;
   void disconnect() override;
+  void ble_before_disabled_event_handler() override;
   bool wants_parsed_advertisements() override { return false; }
   void on_scan_end() override {}
   bool parse_device(const ble_device_base::ESPBTDevice &device) override { return false; }

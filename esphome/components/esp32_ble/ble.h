@@ -102,8 +102,8 @@ class ESP32BLE final : public Component {
   }
   uint32_t get_advertising_cycle_time() const { return this->advertising_cycle_time_; }
 
-  void enable();
-  void disable();
+  void enable() { this->request_state_(true); }
+  void disable() { this->request_state_(false); }
   ESPHOME_ALWAYS_INLINE bool is_active() { return this->state_ == BLE_COMPONENT_STATE_ACTIVE; }
   void setup() override;
   void loop() override;
@@ -176,6 +176,15 @@ class ESP32BLE final : public Component {
 
   bool ble_setup_();
   bool ble_dismantle_();
+  void request_state_(bool enable);
+  // Drop what the old stack queued; the next stack reuses the same interface ids.
+  void drain_ble_events_() {
+    BLEEvent *ble_event;
+    while ((ble_event = this->ble_events_.pop()) != nullptr) {
+      this->ble_event_pool_.release(ble_event);
+    }
+    this->ble_events_.get_and_reset_dropped_count();
+  }
   bool ble_pre_setup_();
 #ifdef USE_ESP32_BLE_ADVERTISING
   void advertising_init_();
