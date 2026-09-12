@@ -20,6 +20,7 @@ from esphome.build_helpers.pch import ccache_pch_env
 from esphome.build_helpers.tools_cache import IDF_TOOLS_CACHE, tools_cache_path
 from esphome.core import Version
 from esphome.framework_helpers import (
+    BATCH_EXTRACT_WORKERS,
     PathType,
     create_venv,
     download_and_extract,
@@ -27,6 +28,7 @@ from esphome.framework_helpers import (
     failure_reason,
     get_python_env_executable_path,
     get_system_python_path,
+    is_expected_fetch_error,
     resume_fetch_job,
     rmdir,
     run_batch_downloads,
@@ -36,7 +38,7 @@ from esphome.framework_helpers import (
     tool_version_runs,
     warn_batch_failures,
 )
-from esphome.helpers import write_file_if_changed
+from esphome.helpers import get_usable_cpu_count, write_file_if_changed
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -292,11 +294,13 @@ def _run_idf_tools_script(
     msg: str,
     args: list[str] | None = None,
     env: dict[str, str] | None = None,
+    stream_output: bool = False,
 ) -> tuple[bool, str | None, str | None]:
     """Run one of the sibling idf_tools-backed helper scripts.
 
-    The script is executed with the framework's ``tools`` directory on
-    PYTHONPATH so it imports the framework's own ``idf_tools`` module.
+    PYTHONPATH carries this directory (sibling imports like
+    ``_tool_resolution``), the esphome package root (``esphome.helpers``),
+    and the framework's ``tools`` dir (its own ``idf_tools`` module).
     """
     cmd = [
         get_system_python_path(),
@@ -304,11 +308,20 @@ def _run_idf_tools_script(
         str(idf_framework_root),
         *(args or []),
     ]
+    # Explicit paths: the scripts dir (sibling imports must survive
+    # PYTHONSAFEPATH), the esphome package root, and the framework's idf_tools
+    pythonpath = os.pathsep.join(
+        (
+            str(_SCRIPTS_DIR),
+            str(_SCRIPTS_DIR.parents[1]),
+            str(Path(idf_framework_root) / "tools"),
+        )
+    )
     return run_command(
         cmd,
         msg=msg,
-        env=(env or os.environ)
-        | {"PYTHONPATH": str(Path(idf_framework_root) / "tools")},
+        env=(env or os.environ) | {"PYTHONPATH": pythonpath},
+        stream_output=stream_output,
     )
 
 
@@ -726,9 +739,9 @@ def _prefetch_idf_tool_archives(
         dist_path = get_idf_tools_path() / "dist"
         entries = []
         seen_dests: set[str] = set()
+        # Pre-existing archives are not skipped: download_with_resume keeps
+        # them only on a sha256 match, so the pre-extraction can trust dist/
         for entry in json.loads(stdout):
-            if (dist_path / entry["dest"]).is_file():
-                continue
             # Never download unverified: an entry without sha256/size is
             # left to the installer, which fails loudly on a bad archive.
             # Checked before the dedupe so it cannot shadow a verifiable
@@ -748,9 +761,11 @@ def _prefetch_idf_tool_archives(
             entries.append(entry)
         if not entries:
             return
+        cached = sum((dist_path / entry["dest"]).is_file() for entry in entries)
         _LOGGER.info(
-            "Downloading %d ESP-IDF tool archive(s): %s",
+            "Downloading %d ESP-IDF tool archive(s)%s: %s",
             len(entries),
+            f" ({cached} cached, verifying)" if cached else "",
             ", ".join(entry["name"] for entry in entries),
         )
 
@@ -787,6 +802,42 @@ def _prefetch_idf_tool_archives(
         # prefetch become a new way for the install to fail.
         _LOGGER.warning("ESP-IDF tool prefetch failed: %s", failure_reason(e))
         _LOGGER.debug("Prefetch failure detail", exc_info=True)
+
+
+def _preinstall_idf_tool_archives(
+    framework_path: Path,
+    targets_str: str,
+    tools: list[str],
+    env: dict[str, str] | None,
+) -> None:
+    """Run install_tool_archives.py to extract the prefetched tool archives
+    in parallel. Strictly best-effort: the sequential installer remains the
+    authority (see that script's docstring)."""
+    try:
+        success, _stdout, _stderr = _run_idf_tools_script(
+            framework_path,
+            "install_tool_archives.py",
+            "ESP-IDF tool archive extraction",
+            args=[
+                targets_str,
+                str(min(get_usable_cpu_count(), BATCH_EXTRACT_WORKERS)),
+                *tools,
+            ],
+            env=env,
+            stream_output=True,
+        )
+        if not success:
+            # Detail already streamed to the terminal by the script; a
+            # surviving torn dir prints its own guidance there
+            _LOGGER.warning("ESP-IDF tool pre-extraction failed; see above")
+    except Exception as e:  # noqa: BLE001  # pylint: disable=broad-exception-caught
+        # A programming error keeps its traceback at WARNING
+        _LOGGER.warning(
+            "ESP-IDF tool pre-extraction failed: %s",
+            failure_reason(e),
+            exc_info=None if is_expected_fetch_error(e) else e,
+        )
+        _LOGGER.debug("Pre-extraction failure detail", exc_info=True)
 
 
 def _check_esphome_idf_framework_install(
@@ -940,6 +991,7 @@ def _check_esphome_idf_framework_install(
         _LOGGER.info("Installing ESP-IDF %s framework ...", version)
         targets_str = ",".join(targets)
         _prefetch_idf_tool_archives(framework_path, targets_str, tools, env)
+        _preinstall_idf_tool_archives(framework_path, targets_str, tools, env)
         cmd = [
             get_system_python_path(),
             str(idf_tools_path),

@@ -1,7 +1,8 @@
-"""Minimal idf_tools stand-in for get_tool_downloads.py tests."""
+"""Minimal idf_tools stand-in for the espidf helper-script tests."""
 
 from collections.abc import Iterable
 import os
+import pathlib
 
 CURRENT_PLATFORM = "linux-amd64"
 TOOLS_FILE = "tools/tools.json"
@@ -54,6 +55,7 @@ class _Tool:
         installed: Iterable[str] = (),
         broken: bool = False,
     ) -> None:
+        self.name = ""  # filled in from the _TOOLS key below
         self.versions = versions
         self._recommended = recommended
         self.versions_installed = list(installed)
@@ -68,6 +70,19 @@ class _Tool:
     def find_installed_versions(self) -> None:
         if self._broken:
             raise ToolBinaryError("broken binary")
+
+    def get_path_for_version(self, version: str) -> str:
+        return str(pathlib.Path(g.idf_tools_path) / "tools" / self.name / version)
+
+    def install(self, version: str) -> None:
+        dest = pathlib.Path(self.get_path_for_version(version))
+        dest.mkdir(exist_ok=True, parents=True)
+        if self.name in os.environ.get("TEST_FAIL_INSTALL", "").split(","):
+            # Fail mid-install like a torn unpack: the partial dir is left
+            # behind and check_binary_valid's failure path exits the process
+            (dest / ".partial").write_text("torn", encoding="utf-8")
+            raise SystemExit(1)
+        (dest / ".installed").write_text("ok", encoding="utf-8")
 
 
 _TOOLS = {
@@ -97,8 +112,17 @@ _TOOLS = {
     "no-download-tool": _Tool({"4.0": _Version(None)}, "4.0"),
 }
 
+for _name, _tool in _TOOLS.items():
+    _tool.name = _name
+
 
 def load_tools_info() -> dict[str, _Tool]:
+    # Test hook: strip verification metadata from the named tools
+    for name in os.environ.get("TEST_NO_SHA", "").split(","):
+        if (tool := _TOOLS.get(name)) is not None:
+            for version in tool.versions.values():
+                if (download := version.get_download_for_platform("")) is not None:
+                    download.sha256 = ""
     return _TOOLS
 
 
