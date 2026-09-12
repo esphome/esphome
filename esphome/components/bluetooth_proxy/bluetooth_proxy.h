@@ -240,7 +240,6 @@ class BluetoothProxy final : public Component {
   void add_allowed_service_uuid128(const char *hex) { this->service_uuid128_hex_.push_back(hex); }
 #endif  // USE_BLUETOOTH_PROXY_FILTERING
 
-
   uint32_t get_legacy_version() const {
     if (!this->active_) {
       return LEGACY_PASSIVE_ONLY_VERSION;
@@ -438,7 +437,6 @@ class BluetoothProxy final : public Component {
   bool drop_non_resolvable_{false};
   bool allow_homekit_{true};
 #endif  // USE_BLUETOOTH_PROXY_FILTERING
-
 
 #ifdef USE_BLUETOOTH_PROXY_FILTERING
   /// True when addr is a Resolvable Private Address: a *random* address whose
