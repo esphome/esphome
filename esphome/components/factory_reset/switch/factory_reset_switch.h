@@ -8,6 +8,9 @@ namespace esphome::factory_reset {
 
 class FactoryResetSwitch final : public switch_::Switch, public Component {
  public:
+  // User provided, not "= default": `new(p) FactoryResetSwitch()` would zero-fill .bss that is already zero.
+  FactoryResetSwitch() {}
+
   void dump_config() override;
 #ifdef USE_OPENTHREAD
   static void factory_reset_callback();
