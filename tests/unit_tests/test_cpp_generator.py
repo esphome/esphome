@@ -4,6 +4,7 @@ import math
 import pytest
 
 from esphome import cpp_generator as cg, cpp_types as ct
+from esphome.core import CORE
 
 
 class TestExpressions:
@@ -794,8 +795,6 @@ async def test_templatable__lambda_with_std_string() -> None:
 
 class TestPvariablePlacementNew:
     def _placement_new(self) -> str:
-        from esphome.core import CORE
-
         return next(
             str(stmt) for stmt in CORE.main_statements if str(stmt).startswith("new(")
         )
