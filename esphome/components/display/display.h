@@ -316,6 +316,12 @@ class BaseFont {
 
 class Display : public PollingComponent {
  public:
+  /// Put the display to sleep to save power.
+  virtual void sleep();
+
+  /// Wake the display up from sleep.
+  virtual void wakeup();
+
   /// Fill the entire screen with the given color.
   virtual void fill(Color color);
   /// Clear the entire screen by filling it with OFF pixels.

@@ -16,6 +16,7 @@ static constexpr size_t MIPI_SPI_MAX_CMD_LOG_BYTES = 64;
 
 // Command codes for MIPI SPI displays. Not all currently used, kept here for reference.
 static constexpr uint8_t SW_RESET_CMD = 0x01;
+static constexpr uint8_t SLEEP_IN = 0x10;
 static constexpr uint8_t SLEEP_OUT = 0x11;
 static constexpr uint8_t NORON = 0x13;
 static constexpr uint8_t INVERT_OFF = 0x20;
@@ -98,6 +99,15 @@ class MipiSpi : public display::Display,
  public:
   MipiSpi() = default;
   void update() override { this->stop_poller(); }
+  void sleep() override {
+    this->write_command_(SLEEP_IN);
+    delay(5);  // SLPIN: wait >=5ms before the next command per the controller spec
+  };
+  void wakeup() override {
+    this->write_command_(SLEEP_OUT);
+    delay(10);
+    this->write_command_(DISPLAY_ON);
+  };
   void draw_pixel_at(int x, int y, Color color) override {}
   void set_model(const char *model) { this->model_ = model; }
   void set_reset_pin(GPIOPin *reset_pin) { this->reset_pin_ = reset_pin; }
