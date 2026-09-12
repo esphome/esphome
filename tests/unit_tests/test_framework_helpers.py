@@ -523,6 +523,17 @@ class TestArchiveExtractAll:
         archive_extract_all(archive, dest)
         assert (dest / "file.txt").read_text() == "hi"
 
+    def test_progress_callback_passed_through(self, tmp_path: Path) -> None:
+        """The progress kwarg reaches the dispatched extractor."""
+        archive = tmp_path / "test.tar.gz"
+        archive.write_bytes(_gzip_tar_bytes({"file.txt": b"hello"}))
+        dest = tmp_path / "out"
+        dest.mkdir()
+        fractions: list[float] = []
+        archive_extract_all(archive, dest, progress=fractions.append)
+        assert fractions[-1] == 1
+        assert (dest / "file.txt").read_bytes() == b"hello"
+
     def test_invalid_type_raises_type_error(self) -> None:
         with pytest.raises(TypeError, match="archive must be"):
             archive_extract_all(42, ".")  # type: ignore[arg-type]
@@ -1951,6 +1962,19 @@ class TestTarExtractAllBranches:
         mock_pb.assert_called_once_with("Extracting")
         mock_pb.return_value.update.assert_called()
 
+    def test_progress_callback_replaces_bar(self, tmp_path: Path) -> None:
+        """A progress callback wins over progress_header and ends at 1.0."""
+        buf = _make_tar([_reg("a.txt"), _reg("b.txt")], {"a.txt": b"x", "b.txt": b"y"})
+        fractions: list[float] = []
+        with patch("esphome.framework_helpers.ProgressBar") as mock_pb:
+            _tar_extract_all(
+                buf, tmp_path, progress_header="Extracting", progress=fractions.append
+            )
+        mock_pb.assert_not_called()
+        assert fractions == sorted(fractions)
+        assert fractions[-1] == 1
+        assert (tmp_path / "a.txt").is_file()
+
 
 # ---------------------------------------------------------------------------
 # _zip_extract_all — additional branch coverage
@@ -1979,6 +2003,19 @@ class TestZipExtractAllBranches:
             _zip_extract_all(buf, tmp_path, progress_header="Unzipping")
         mock_pb.assert_called_once_with("Unzipping")
         mock_pb.return_value.update.assert_called()
+
+    def test_progress_callback_replaces_bar(self, tmp_path: Path) -> None:
+        """A progress callback wins over progress_header and ends at 1.0."""
+        buf = _make_zip([("a.txt", "aaa"), ("b.txt", "bbb")])
+        fractions: list[float] = []
+        with patch("esphome.framework_helpers.ProgressBar") as mock_pb:
+            _zip_extract_all(
+                buf, tmp_path, progress_header="Unzipping", progress=fractions.append
+            )
+        mock_pb.assert_not_called()
+        assert fractions == sorted(fractions)
+        assert fractions[-1] == 1
+        assert (tmp_path / "a.txt").is_file()
 
 
 # ---------------------------------------------------------------------------
@@ -2137,6 +2174,20 @@ class TestSevenZipExtractAll:
         mock_pb.assert_called_once_with("Unpacking 7z")
         mock_pb.return_value.update.assert_called()
 
+    def test_progress_callback_replaces_bar(self, tmp_path: Path) -> None:
+        """A progress callback wins over progress_header; 7z reports 1.0 once."""
+        buf = self._make_7z({"file.txt": b"x"})
+        out = tmp_path / "out"
+        out.mkdir()
+        fractions: list[float] = []
+        with patch("esphome.framework_helpers.ProgressBar") as mock_pb:
+            _7z_extract_all(
+                buf, out, progress_header="Unpacking 7z", progress=fractions.append
+            )
+        mock_pb.assert_not_called()
+        assert fractions == [1]
+        assert (out / "file.txt").is_file()
+
     def test_absolute_path_in_names_skipped(self, tmp_path: Path) -> None:
         """Names that resolve as absolute are silently skipped."""
         import py7zr
@@ -2294,16 +2345,34 @@ def test_resume_fetch_job_threads_tracker(tmp_path: Path) -> None:
     )
 
 
-def test_warn_prefetch_failures_names_each_failure(
+def test_warn_batch_failures_names_each_failure(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     """The shared failure loop warns per job with the failure reason."""
-    from esphome.framework_helpers import warn_prefetch_failures
+    from esphome.framework_helpers import warn_batch_failures
 
-    warn_prefetch_failures([("toolchain-x@1", OSError("down"))])
+    warn_batch_failures([("toolchain-x@1", OSError("down"))])
     assert "Could not prefetch toolchain-x@1: down" in caplog.text
-    warn_prefetch_failures([("lib", OSError("gone"))], "Prefetch of %s failed: %s")
+    warn_batch_failures([("lib", OSError("gone"))], "Prefetch of %s failed: %s")
     assert "Prefetch of lib failed: gone" in caplog.text
+
+
+def test_warn_batch_failures_unexpected_error_keeps_traceback(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """An unexpected error type is not reduced to a bare message; expected
+    download failures stay message-only at WARNING."""
+    from esphome.framework_helpers import warn_batch_failures
+
+    with caplog.at_level(logging.DEBUG):
+        warn_batch_failures(
+            [("pkg", TypeError("bad call")), ("lib", OSError("down"))],
+            "Could not install %s: %s",
+        )
+    warnings = {r.getMessage(): r for r in caplog.records if r.levelname == "WARNING"}
+    assert warnings["Could not install pkg: bad call"].exc_info is not None
+    assert warnings["Could not install lib: down"].exc_info is None
+    assert "Failure detail" in caplog.text
 
 
 @pytest.mark.parametrize(

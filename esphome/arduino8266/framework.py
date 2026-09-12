@@ -23,7 +23,7 @@ from esphome.build_helpers.pch import ccache_pch_env
 from esphome.build_helpers.tools_cache import ARDUINO8266_TOOLS_CACHE, tools_cache_path
 from esphome.core import EsphomeError, Version
 from esphome.framework_helpers import str_to_lst_of_str
-from esphome.platformio.registry import install_package, prefetch_packages
+from esphome.platformio.registry import install_packages, prefetch_packages
 
 FRAMEWORK_PACKAGE = "framework-arduinoespressif8266"
 TOOLCHAIN_PACKAGE = "toolchain-xtensa"
@@ -116,10 +116,9 @@ def check_and_install(framework_version: Version) -> InstalledPaths:
             ("bin", "xtensa-lx106-elf"),
         ),
     )
-    # Fetch both archives at once; the installs below verify and extract
+    # Fetch both archives at once; the install verifies and extracts them
     prefetch_packages([spec[:4] for spec in specs], downloads_dir)
-    for name, version, dest, mirrors, expect in specs:
-        install_package(name, version, dest, mirrors, downloads_dir, expect=expect)
+    install_packages(specs, downloads_dir)
     return InstalledPaths(
         framework=framework_path, toolchain=toolchain_path, ninja=ninja_path
     )
