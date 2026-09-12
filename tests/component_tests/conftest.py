@@ -60,7 +60,7 @@ def reset_core() -> Generator[None]:
 @pytest.fixture(autouse=True)
 def reset_full_config() -> Generator[None]:
     """Give each test a clean final-validate config and restore it after."""
-    token = final_validate.full_config.set({})
+    token = final_validate.full_config.set(Config())
     yield
     final_validate.full_config.reset(token)
 
@@ -75,7 +75,7 @@ def set_core_config() -> Generator[SetCoreConfigCallable]:
         *,
         core_data: ConfigType | None = None,
         platform_data: ConfigType | None = None,
-        full_config: dict[str, ConfigType] | None = None,
+        full_config: dict[str, ConfigType] | Config | None = None,
     ) -> None:
         platform, framework = platform_framework.value
 
@@ -94,7 +94,12 @@ def set_core_config() -> Generator[SetCoreConfigCallable]:
             CORE.data[platform.value] = platform_data
 
         config.path_context.set([])
-        final_validate.full_config.set(full_config or Config())
+        # Production always installs a Config (a FinalValidateConfig), never a plain dict.
+        if not isinstance(full_config, Config):
+            full = Config()
+            full.update(full_config or {})
+            full_config = full
+        final_validate.full_config.set(full_config)
 
     yield setter
 
