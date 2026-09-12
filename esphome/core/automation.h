@@ -608,7 +608,8 @@ template<typename... Ts> class ActionList {
 template<typename... Ts> class Automation {
  public:
   /// Default constructor for use with TriggerForwarder (no Trigger object needed).
-  Automation() = default;
+  // User provided, not "= default": `new(p) Automation()` would zero-fill .bss that is already zero.
+  Automation() {}
   explicit Automation(Trigger<Ts...> *trigger) { trigger->set_automation_parent(this); }
 
   void add_action(Action<Ts...> *action) { this->actions_.add_action(action); }
