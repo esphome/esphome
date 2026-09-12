@@ -14,7 +14,7 @@ namespace esphome::uart_mux {
 /// driven by the select_*() actions, typically from tinyusb's on_mount/on_unmount.
 class UARTMux final : public uart::UARTComponent, public Component {
  public:
-  UARTMux(uart::IDFUARTComponent *uart, cdc_acm_uart::CDCACMUARTBridge *bridge) : uart_(uart), bridge_(bridge) {}
+  explicit UARTMux(cdc_acm_uart::CDCACMUARTBridge *bridge) : uart_(bridge->get_uart_parent()), bridge_(bridge) {}
 
   void setup() override;
   void loop() override;
