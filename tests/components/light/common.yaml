@@ -136,6 +136,10 @@ esphome:
           green: 100%
           blue: 0%
           transition_length: 1s
+      # Test get_estimated_current_ma() is callable from a lambda
+      - lambda: |-
+          float current_ma = id(test_addressable_power_est).get_estimated_current_ma();
+          ESP_LOGI("test", "Estimated current: %.1f mA", current_ma);
 
 # Exercise light actions inside a trigger with non-empty Ts (number on_value
 # passes float).
@@ -304,5 +308,27 @@ light:
     id: test_addressable_transition
     name: Addressable Transition Test
     default_transition_length: 1s
+    segments:
+      - single_light_id: test_rgb_light
+  - platform: partition
+    id: test_addressable_power_est
+    name: Addressable Power Estimation Test
+    power_estimation:
+      ma_per_led_red: 16.0
+      ma_per_led_green: 11.0
+      ma_per_led_blue: 15.0
+      ma_per_led_white: 20.0
+      idle_ma_per_led: 1.0
+    segments:
+      - single_light_id: test_rgb_light
+  - platform: partition
+    id: test_addressable_power_limit
+    name: Addressable Power Limit Test
+    power_estimation:
+      ma_per_led_red: 16.0
+      ma_per_led_green: 11.0
+      ma_per_led_blue: 15.0
+      idle_ma_per_led: 1.0
+      max_current_ma: 1000.0
     segments:
       - single_light_id: test_rgb_light
