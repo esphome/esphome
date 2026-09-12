@@ -21,6 +21,8 @@ static constexpr uint32_t RESET_DELAY_LOW_US = 2000;
 static constexpr uint32_t SWITCHING_DELAY_US = 1;
 static constexpr uint32_t TRANSMIT_TIMEOUT_MS = 4000;
 static constexpr uint32_t BUSY_TIMEOUT_MS = 20;
+static constexpr uint8_t ENABLE_RX = 0;
+static constexpr uint8_t ENABLE_TX = 1;
 
 // OCP (Over Current Protection) values
 static constexpr uint8_t OCP_80MA = 0x18;   // 80 mA max current
@@ -110,6 +112,11 @@ void SX126x::setup() {
   this->busy_pin_->setup();
   this->rst_pin_->setup();
   this->dio1_pin_->setup();
+  if (this->rx_enable_pin_ != nullptr) {
+    this->rx_enable_pin_->setup();
+    this->tx_enable_pin_->setup();
+    this->set_rx_tx_enable_pins_(ENABLE_RX);
+  }
   if (this->dio1_pin_->is_internal()) {
     static_cast<InternalGPIOPin *>(this->dio1_pin_)
         ->attach_interrupt(&SX126x::gpio_intr, this, gpio::INTERRUPT_RISING_EDGE);
@@ -423,6 +430,8 @@ void SX126x::run_image_cal() {
 void SX126x::set_mode_rx() {
   uint8_t buf[8];
 
+  this->set_rx_tx_enable_pins_(ENABLE_RX);
+
   // configure irq params
   uint16_t irq = IRQ_RX_DONE | IRQ_RX_TX_TIMEOUT | IRQ_CRC_ERROR;
   buf[0] = (irq >> 8) & 0xFF;
@@ -448,6 +457,8 @@ void SX126x::set_mode_rx() {
 
 void SX126x::set_mode_tx() {
   uint8_t buf[8];
+
+  this->set_rx_tx_enable_pins_(ENABLE_TX);
 
   // configure irq params
   uint16_t irq = IRQ_TX_DONE | IRQ_RX_TX_TIMEOUT;
@@ -481,6 +492,14 @@ void SX126x::set_mode_standby(SX126xStandbyMode mode) {
   this->write_opcode_(RADIO_SET_STANDBY, buf, 1);
 }
 
+void SX126x::set_rx_tx_enable_pins_(uint8_t mode) {
+  if (this->rx_enable_pin_ == nullptr) {
+    return;
+  }
+  this->rx_enable_pin_->digital_write((mode == ENABLE_RX) == this->enable_pins_inverted_);
+  this->tx_enable_pin_->digital_write((mode == ENABLE_TX) == this->enable_pins_inverted_);
+}
+
 void SX126x::wait_busy_() {
   // wait if the device is busy, the maximum delay is only be a few ms
   // with most commands taking only a few us
@@ -500,6 +519,8 @@ void SX126x::dump_config() {
   LOG_PIN("  BUSY Pin: ", this->busy_pin_);
   LOG_PIN("  RST Pin: ", this->rst_pin_);
   LOG_PIN("  DIO1 Pin: ", this->dio1_pin_);
+  LOG_PIN("  RX Enable Pin: ", this->rx_enable_pin_);
+  LOG_PIN("  TX Enable Pin: ", this->tx_enable_pin_);
   ESP_LOGCONFIG(TAG,
                 "  HW Version: %15s\n"
                 "  Frequency: %" PRIu32 " Hz\n"
