@@ -183,7 +183,17 @@ void AirConditioner::do_swing_step() {
 }
 
 void AirConditioner::do_display_toggle() {
-  if (this->base_.getCapabilities().supportLightControl()) {
+  // Routing for the panel display toggle:
+  //   UART → always send over UART (default; works for Mundoclima/Rotenso
+  //          that don't report supportLightControl())
+  //   AUTO → send over UART only when the appliance advertises
+  //          supportLightControl() in 0xB5; otherwise fall back to IR
+  //          (legacy behavior, pre-this-PR)
+  //   IR   → always use the IR remote (requires transmitter_id)
+  const bool use_uart = this->display_control_ == DisplayControl::DISPLAY_CONTROL_UART ||
+                        (this->display_control_ == DisplayControl::DISPLAY_CONTROL_AUTO &&
+                         this->base_.getCapabilities().supportLightControl());
+  if (use_uart) {
     this->base_.displayToggle();
   } else {
 #ifdef USE_REMOTE_TRANSMITTER
