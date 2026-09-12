@@ -528,7 +528,7 @@ class Application {
 
   // 1-byte members (grouped together to minimize padding)
   uint8_t app_state_{0};
-  bool name_add_mac_suffix_;
+  bool name_add_mac_suffix_{false};
   bool in_loop_{false};
   volatile bool has_pending_enable_loop_requests_{false};
 
