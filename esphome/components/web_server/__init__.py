@@ -56,6 +56,10 @@ CONF_SORTING_GROUPS = "sorting_groups"
 CONF_SORTING_WEIGHT = "sorting_weight"
 CONF_ALLOWED_ORIGINS = "allowed_origins"
 
+# Schema default that also matches the C++ initializer in web_server_base.h; codegen
+# skips the setter when the config equals it.
+DEFAULT_PORT = 80
+
 
 web_server_ns = cg.esphome_ns.namespace("web_server")
 WebServer = web_server_ns.class_("WebServer", cg.Component, cg.Controller)
@@ -251,7 +255,7 @@ CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(WebServer),
-            cv.Optional(CONF_PORT, default=80): cv.port,
+            cv.Optional(CONF_PORT, default=DEFAULT_PORT): cv.port,
             cv.Optional(CONF_VERSION, default=2): cv.one_of(1, 2, 3, int=True),
             cv.Optional(CONF_CSS_URL): cv.string,
             cv.Optional(CONF_CSS_INCLUDE): cv.file_,
@@ -379,11 +383,11 @@ async def to_code(config: ConfigType) -> None:
 
     version = config[CONF_VERSION]
 
-    # The C++ initializer is 80; skip the setter when the config matches it.
-    if (port := config[CONF_PORT]) != 80:
+    # Skip the setter when the config matches the C++ initializer (DEFAULT_PORT).
+    if (port := config[CONF_PORT]) != DEFAULT_PORT:
         cg.add(paren.set_port(port))
     cg.add_define("USE_WEBSERVER")
-    cg.add_define("USE_WEBSERVER_PORT", config[CONF_PORT])
+    cg.add_define("USE_WEBSERVER_PORT", port)
     cg.add_define("USE_WEBSERVER_VERSION", version)
     if version >= 2:
         # Don't compress the index HTML as the data sizes are almost the same.
