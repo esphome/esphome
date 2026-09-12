@@ -1,4 +1,3 @@
-
 #pragma once
 #include "esphome/core/automation.h"
 #include "max17043.h"
