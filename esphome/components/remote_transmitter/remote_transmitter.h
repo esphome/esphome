@@ -156,8 +156,14 @@ class RemoteTransmitterComponent final : public remote_base::RemoteTransmitterBa
   bool eot_level_{false};
   rmt_channel_handle_t channel_{NULL};
   rmt_encoder_handle_t encoder_{NULL};
+  // every RMT failure records the code and the reason together
+  void fail_(esp_err_t error, const char *where) {
+    this->error_code_ = error;
+    this->error_string_ = where;
+    this->mark_failed();
+  }
   esp_err_t error_code_{ESP_OK};
-  const char *error_string_{nullptr};
+  const char *error_string_{""};
   bool inverted_{false};
   bool non_blocking_{false};
 #endif

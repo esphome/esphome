@@ -89,8 +89,14 @@ class RemoteReceiverComponent final : public remote_base::RemoteReceiverBase,
   bool with_dma_{false};
   uint32_t carrier_frequency_{0};
   uint8_t carrier_duty_percent_{100};
+  // every RMT failure records the code and the reason together
+  void fail_(esp_err_t error, const char *where) {
+    this->error_code_ = error;
+    this->error_string_ = where;
+    this->mark_failed();
+  }
   esp_err_t error_code_{ESP_OK};
-  const char *error_string_{nullptr};
+  const char *error_string_{""};
 #endif
 
 #if defined(USE_ESP8266) || defined(USE_LIBRETINY) || defined(USE_RP2) || defined(USE_ESP32)

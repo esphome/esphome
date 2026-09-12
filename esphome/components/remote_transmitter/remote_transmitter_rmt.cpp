@@ -128,13 +128,7 @@ void RemoteTransmitterComponent::configure_rmt_() {
 #endif
     error = rmt_new_tx_channel(&channel, &this->channel_);
     if (error != ESP_OK) {
-      this->error_code_ = error;
-      if (error == ESP_ERR_NOT_FOUND) {
-        this->error_string_ = "out of RMT symbol memory";
-      } else {
-        this->error_string_ = "in rmt_new_tx_channel";
-      }
-      this->mark_failed();
+      this->fail_(error, error == ESP_ERR_NOT_FOUND ? "out of RMT symbol memory" : "in rmt_new_tx_channel");
       return;
     }
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
@@ -158,9 +152,7 @@ void RemoteTransmitterComponent::configure_rmt_() {
     encoder.min_chunk_size = 1;
     error = rmt_new_simple_encoder(&encoder, &this->encoder_);
     if (error != ESP_OK) {
-      this->error_code_ = error;
-      this->error_string_ = "in rmt_new_simple_encoder";
-      this->mark_failed();
+      this->fail_(error, "in rmt_new_simple_encoder");
       return;
     }
 #else
@@ -168,18 +160,14 @@ void RemoteTransmitterComponent::configure_rmt_() {
     memset(&encoder, 0, sizeof(encoder));
     error = rmt_new_copy_encoder(&encoder, &this->encoder_);
     if (error != ESP_OK) {
-      this->error_code_ = error;
-      this->error_string_ = "in rmt_new_copy_encoder";
-      this->mark_failed();
+      this->fail_(error, "in rmt_new_copy_encoder");
       return;
     }
 #endif
 
     error = rmt_enable(this->channel_);
     if (error != ESP_OK) {
-      this->error_code_ = error;
-      this->error_string_ = "in rmt_enable";
-      this->mark_failed();
+      this->fail_(error, "in rmt_enable");
       return;
     }
     this->digital_write(open_drain || this->inverted_);
@@ -198,9 +186,7 @@ void RemoteTransmitterComponent::configure_rmt_() {
     error = rmt_apply_carrier(this->channel_, &carrier);
   }
   if (error != ESP_OK) {
-    this->error_code_ = error;
-    this->error_string_ = "in rmt_apply_carrier";
-    this->mark_failed();
+    this->fail_(error, "in rmt_apply_carrier");
     return;
   }
 }

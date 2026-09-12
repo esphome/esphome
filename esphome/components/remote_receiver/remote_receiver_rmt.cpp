@@ -47,13 +47,7 @@ void RemoteReceiverComponent::setup() {
   channel.flags.with_dma = this->with_dma_;
   esp_err_t error = rmt_new_rx_channel(&channel, &this->channel_);
   if (error != ESP_OK) {
-    this->error_code_ = error;
-    if (error == ESP_ERR_NOT_FOUND) {
-      this->error_string_ = "out of RMT symbol memory";
-    } else {
-      this->error_string_ = "in rmt_new_rx_channel";
-    }
-    this->mark_failed();
+    this->fail_(error, error == ESP_ERR_NOT_FOUND ? "out of RMT symbol memory" : "in rmt_new_rx_channel");
     return;
   }
   if (this->pin_->get_flags() & gpio::FLAG_PULLUP) {
@@ -63,9 +57,7 @@ void RemoteReceiverComponent::setup() {
   }
   error = rmt_enable(this->channel_);
   if (error != ESP_OK) {
-    this->error_code_ = error;
-    this->error_string_ = "in rmt_enable";
-    this->mark_failed();
+    this->fail_(error, "in rmt_enable");
     return;
   }
 
@@ -77,9 +69,7 @@ void RemoteReceiverComponent::setup() {
     carrier.flags.polarity_active_low = this->pin_->is_inverted();
     error = rmt_apply_carrier(this->channel_, &carrier);
     if (error != ESP_OK) {
-      this->error_code_ = error;
-      this->error_string_ = "in rmt_apply_carrier";
-      this->mark_failed();
+      this->fail_(error, "in rmt_apply_carrier");
       return;
     }
   }
@@ -89,9 +79,7 @@ void RemoteReceiverComponent::setup() {
   callbacks.on_recv_done = rmt_callback;
   error = rmt_rx_register_event_callbacks(this->channel_, &callbacks, &this->store_);
   if (error != ESP_OK) {
-    this->error_code_ = error;
-    this->error_string_ = "in rmt_rx_register_event_callbacks";
-    this->mark_failed();
+    this->fail_(error, "in rmt_rx_register_event_callbacks");
     return;
   }
 
@@ -114,9 +102,7 @@ void RemoteReceiverComponent::setup() {
   error = rmt_receive(this->channel_, (uint8_t *) this->store_.buffer + event_size, this->store_.receive_size,
                       &this->store_.config);
   if (error != ESP_OK) {
-    this->error_code_ = error;
-    this->error_string_ = "in rmt_receive";
-    this->mark_failed();
+    this->fail_(error, "in rmt_receive");
     return;
   }
 }
@@ -148,9 +134,7 @@ void RemoteReceiverComponent::dump_config() {
 void RemoteReceiverComponent::loop() {
   if (this->store_.error != ESP_OK) {
     ESP_LOGE(TAG, "Receive error");
-    this->error_code_ = this->store_.error;
-    this->error_string_ = "in rmt_callback";
-    this->mark_failed();
+    this->fail_(this->store_.error, "in rmt_callback");
   }
   if (this->store_.overflow) {
     ESP_LOGW(TAG, "Buffer overflow");
