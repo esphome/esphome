@@ -7,7 +7,8 @@ namespace esphome::ld2412 {
 
 class MaxDistanceTimeoutNumber final : public number::Number, public Parented<LD2412Component> {
  public:
-  MaxDistanceTimeoutNumber() = default;
+  // User provided, not "= default": `new(p) MaxDistanceTimeoutNumber()` would zero-fill .bss that is already zero.
+  MaxDistanceTimeoutNumber() {}
 
  protected:
   void control(float value) override;
