@@ -395,6 +395,19 @@ async def _to_code_ble_hub(config: ConfigType) -> None:
     await _connections_to_code(var, config)
 
 
+def enable_advertisement_filter() -> None:
+    """Compile the advertisement filter hook into bluetooth_proxy.
+
+    Call this from an external filtering component's to_code(); it is the
+    supported way to turn the hook on. The underlying define is an
+    implementation detail and may be renamed, so do not emit it directly.
+
+    Without it the slot, its member and the branch on the advertisement path are
+    all compiled out, and a proxy that installs no filter is unaffected.
+    """
+    cg.add_define("USE_BLUETOOTH_PROXY_ADVERTISEMENT_FILTER")
+
+
 async def to_code(config: ConfigType) -> None:
     if CORE.is_esp32:
         await _to_code_esp32(config)

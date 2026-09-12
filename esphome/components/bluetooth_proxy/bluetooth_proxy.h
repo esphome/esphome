@@ -97,6 +97,33 @@ static_assert(pending_reply_round_trips(0xABCD112233445566ULL, 0x000011223344556
 static_assert(PendingReply{}.empty());
 #endif
 
+#ifdef USE_BLUETOOTH_PROXY_ADVERTISEMENT_FILTER
+/// Predicate slot letting an external component drop advertisements before they
+/// are queued for the API, instead of forwarding every packet the radio hears.
+///
+/// Same shape as ble_device_base::RawAdvertisementCallback: a POD slot with no
+/// allocation and a single subscriber. The filter runs on the advertisement hot
+/// path, so it must be cheap and must not block.
+///
+/// Usage from an external component:
+///   proxy->set_advertisement_filter({this, [](void *self, const ble_device_base::RawAdvertisement &adv) {
+///     return static_cast<MyFilter *>(self)->should_forward(adv);
+///   }});
+///
+/// Returning false drops the advertisement. Call
+/// bluetooth_proxy.enable_advertisement_filter() from the external component's
+/// codegen to compile the hook in; without it there is no slot, no branch on the
+/// hot path, and no cost. The define behind that function is an implementation
+/// detail - external components should not emit it themselves.
+struct AdvertisementFilter {
+  void *instance{nullptr};
+  bool (*fn)(void *instance, const ble_device_base::RawAdvertisement &adv){nullptr};
+  /// A default-constructed slot is "no filter"; the proxy guards on this.
+  bool is_set() const { return this->fn != nullptr; }
+  bool should_forward(const ble_device_base::RawAdvertisement &adv) const { return this->fn(this->instance, adv); }
+};
+#endif  // USE_BLUETOOTH_PROXY_ADVERTISEMENT_FILTER
+
 class BluetoothProxy final : public Component {
 #ifdef USE_BLUETOOTH_PROXY_CONNECTIONS
   // Allow the connection to update connections_free_response_
@@ -161,6 +188,12 @@ class BluetoothProxy final : public Component {
 
   void set_active(bool active) { this->active_ = active; }
   bool has_active() { return this->active_; }
+
+#ifdef USE_BLUETOOTH_PROXY_ADVERTISEMENT_FILTER
+  /// Install the advertisement filter. One subscriber; a later call replaces an
+  /// earlier one.
+  void set_advertisement_filter(AdvertisementFilter filter) { this->advertisement_filter_ = filter; }
+#endif
 
   uint32_t get_legacy_version() const {
     if (!this->active_) {
@@ -329,6 +362,10 @@ class BluetoothProxy final : public Component {
   // Group 3: 4-byte types; paired with hub_ so the 8-aligned messages below
   // start on an even word, closing two alignment holes.
   uint32_t last_advertisement_flush_time_{0};
+
+#ifdef USE_BLUETOOTH_PROXY_ADVERTISEMENT_FILTER
+  AdvertisementFilter advertisement_filter_{};
+#endif
 
   // BLE advertisement batching
   api::BluetoothLERawAdvertisementsResponse response_;

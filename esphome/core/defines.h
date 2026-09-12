@@ -329,6 +329,9 @@
 #else
 #define BLUETOOTH_PROXY_MAX_CONNECTIONS 0
 #endif
+// Hook for an external filtering component; declared here so static analysis
+// parses the slot and its call site.
+#define USE_BLUETOOTH_PROXY_ADVERTISEMENT_FILTER
 #define BLUETOOTH_PROXY_ADVERTISEMENT_BATCH_SIZE 16
 #endif
 

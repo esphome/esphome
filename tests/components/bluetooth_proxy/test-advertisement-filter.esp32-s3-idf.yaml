@@ -1,0 +1,20 @@
+# Compiles the advertisement filter hook, which is otherwise gated out.
+#
+# The define is normally emitted by bluetooth_proxy.enable_advertisement_filter(),
+# which is what external components call. Forcing it directly here is core
+# testing its own gate, not the supported external API - there is no external
+# component in-tree to call that function. It gives CI coverage of the gated path -
+# the slot, the member and the call site in on_raw_advertisement_() - without
+# needing an external component in-tree. The other bluetooth_proxy tests leave
+# it unset and so cover the ungated build.
+<<: !include common.yaml
+
+esphome:
+  platformio_options:
+    build_flags:
+      - "-DUSE_BLUETOOTH_PROXY_ADVERTISEMENT_FILTER"
+
+esp32_ble_tracker:
+
+bluetooth_proxy:
+  active: true
