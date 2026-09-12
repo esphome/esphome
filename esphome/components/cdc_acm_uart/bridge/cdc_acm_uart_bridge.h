@@ -30,6 +30,7 @@ class CDCACMUARTBridge final : public Component {
 
   void set_line_coding();
   void set_line_state(bool dtr, bool rts);
+  uart::IDFUARTComponent *get_uart_parent() const { return this->uart_parent_; }
 
   /**
    * Stop forwarding in both directions and hand the UART back to its configured

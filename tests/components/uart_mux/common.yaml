@@ -27,7 +27,6 @@ bridge:
 
 uart_mux:
   - id: mux_0
-    uart_id: uart_0
     bridge_id: bridge_0
     initial_route: local
 
