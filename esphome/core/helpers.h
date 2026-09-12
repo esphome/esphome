@@ -239,7 +239,7 @@ template<typename T, size_t N> class StaticVector {
  public:
   // User provided, not "= default": otherwise `StaticVector<...> x_{}` members
   // value-initialize and memset data_, defeating the comment above.
-  StaticVector() {}
+  StaticVector() noexcept {}
 
   // Iterator range constructor
   template<typename InputIt> StaticVector(InputIt first, InputIt last) {
