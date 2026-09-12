@@ -53,12 +53,14 @@ async def setup_output_platform_(obj, config):
     if CONF_POWER_SUPPLY in config:
         power_supply_ = await cg.get_variable(config[CONF_POWER_SUPPLY])
         cg.add(obj.set_power_supply(power_supply_))
-    if CONF_MAX_POWER in config:
+    # The C++ initializers are max_power 1.0 and min_power 0.0; skip the setter and
+    # the power scaling define when the config matches them.
+    if (max_power := config.get(CONF_MAX_POWER)) is not None and max_power != 1.0:
         cg.add_define("USE_OUTPUT_FLOAT_POWER_SCALING")
-        cg.add(obj.set_max_power(config[CONF_MAX_POWER]))
-    if CONF_MIN_POWER in config:
+        cg.add(obj.set_max_power(max_power))
+    if (min_power := config.get(CONF_MIN_POWER)) is not None and min_power != 0.0:
         cg.add_define("USE_OUTPUT_FLOAT_POWER_SCALING")
-        cg.add(obj.set_min_power(config[CONF_MIN_POWER]))
+        cg.add(obj.set_min_power(min_power))
     # Only emit when zero_means_zero is actually enabled. The schema defaults to False
     # so this key is always present; emitting unconditionally would force
     # USE_OUTPUT_FLOAT_POWER_SCALING on for every output, defeating the gate.
