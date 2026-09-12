@@ -85,6 +85,77 @@ jd79660.extend(
     ),
 )
 
+# Waveshare 2.13-G (V2 hardware/init revision, PCB marked "rev 2.1" or later)
+#
+# Vendor init derived from vendor sample code
+# <https://github.com/waveshareteam/e-Paper/blob/master/E-paper_Separate_Program/2in13_e-Paper_G/ESP32/EPD_2in13g_V2.cpp>
+# Compatible MIT license, see esphome/LICENSE file.
+#
+# Note: busy pin uses LOW=busy, HIGH=idle. Configure with inverted: true in YAML.
+# Note: panel is 122px wide, but the TRES register needs a multiple of 4, so the
+# vendor code declares 124 (the 2 extra columns fall outside the visible glass).
+# width=124 (not 122) is declared here (as with the V1 variant below) so the driver's
+# per-pixel byte addressing stays aligned to whole bytes on every row; declaring the
+# true 122 causes row boundaries to fall mid-byte and shears the image diagonally.
+#
+# fmt: off
+jd79660.extend(
+    "Waveshare-2.13in-G",
+    width=124,
+    height=250,
+
+    initsequence=(
+        (0x61, 0x00, 0x7C, 0x00, 0xFA,),  # TRES: 124x250 fixed (124 = 122 rounded up to a multiple of 4)
+        (0xE9, 0x01,),
+        # Power On (0x04): Must be early part of init seq = Disabled later!
+        (0x04,),
+    ),
+    fast_update=(
+        (0xE0, 0x02,),
+        (0xE6, 0x5A,),
+        (0xA5,),
+    ),
+)
+
+# Waveshare 2.13-G (V1 hardware/init revision, older stock)
+#
+# Vendor init derived from vendor sample code
+# <https://github.com/waveshareteam/e-Paper/blob/master/E-paper_Separate_Program/2in13_e-Paper_G/ESP32/EPD_2in13g.cpp>
+# Compatible MIT license, see esphome/LICENSE file.
+#
+# Note: busy pin uses LOW=busy, HIGH=idle. Configure with inverted: true in YAML.
+# Note: vendor code forces the TRES register to a fixed 128 (rather than 122) on this
+# revision, since this IC apparently needs a value >=128 in that field. width=128 is
+# declared here (rather than 122) purely so the transferred bytes-per-row matches what
+# the vendor init tells the IC to expect; the extra 6 columns fall outside the visible
+# glass. No fast-update sequence exists in the vendor sample for this revision.
+#
+# fmt: off
+jd79660.extend(
+    "Waveshare-2.13in-G-V1",
+    width=128,
+    height=250,
+
+    initsequence=(
+        (0x4D, 0x78,),
+        (0x00, 0x0F, 0x29,),
+        (0x01, 0x07, 0x00,),
+        (0x03, 0x10, 0x54, 0x44,),
+        (0x06, 0x05, 0x00, 0x3F, 0x0A, 0x25, 0x12, 0x1A,),
+        (0x50, 0x37,),
+        (0x60, 0x02, 0x02,),
+        (0x61, 0x00, 0x80, 0x00, 0xFA,),  # TRES: 128x250 fixed (IC requires width >=128)
+        (0xE7, 0x1C,),
+        (0xE3, 0x22,),
+        (0xB4, 0xD0,),
+        (0xB5, 0x03,),
+        (0xE9, 0x01,),
+        (0x30, 0x08,),
+        # Power On (0x04): Must be early part of init seq = Disabled later!
+        (0x04,),
+    ),
+)
+
 # Waveshare 7.5-H
 #
 # Vendor init derived from vendor sample code
