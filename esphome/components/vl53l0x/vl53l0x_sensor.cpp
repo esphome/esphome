@@ -282,12 +282,43 @@ void VL53L0XSensor::update() {
   reg(0x80) = 0x00;
 
   reg(0x00) = 0x01;
+  // Remember when this measurement cycle started so loop() can
+  // detect a stalled read (e.g. after an I2C bus error / EMI glitch).
+  this->measurement_start_us_ = micros();
+  this->stall_reported_ = false;
   this->waiting_for_interrupt_ = false;
   this->initiated_read_ = true;
   // wait for timeout
 }
 
 void VL53L0XSensor::loop() {
+  // The driver polls the sensor in loop() with no timeout. After a single
+  // I2C error (NACK / EMI glitch) the register reads return 0, the driver
+  // mistakes the measurement for "done" and gets stuck forever in
+  // waiting_for_interrupt_. From then on every update() only publishes NaN
+  // ("update called before prior reading complete") until reboot. Fix: if the
+  // measurement does not complete within `timeout`, abort it (stop + clear
+  // interrupt), reset the state machine and publish NaN so the next update()
+  // starts a fresh measurement - the sensor recovers by itself.
+  if (this->initiated_read_ || this->waiting_for_interrupt_) {
+    uint32_t stall_timeout_us = this->timeout_us_ > 0 ? this->timeout_us_ : 1000000;
+    if (micros() - this->measurement_start_us_ > stall_timeout_us) {
+      if (!this->stall_reported_) {
+        ESP_LOGW(TAG,
+                 "'%s' - measurement did not complete within %" PRIu32
+                 "us, resetting read state (possible I2C glitch)",
+                 this->name_.c_str(), stall_timeout_us);
+        this->stall_reported_ = true;
+      }
+      reg(0x00) = 0x00;  // abort any pending measurement
+      reg(0x0B) = 0x01;  // clear interrupt flags
+      this->initiated_read_ = false;
+      this->waiting_for_interrupt_ = false;
+      this->publish_state(NAN);
+      this->status_momentary_warning("stall", 5000);
+      return;
+    }
+  }
   if (this->initiated_read_) {
     if (reg(0x00).get() & 0x01) {
       // waiting
