@@ -609,7 +609,8 @@ template<typename... Ts> class Automation {
  public:
   /// Default constructor for use with TriggerForwarder (no Trigger object needed).
   // User provided, not "= default": `new(p) Automation()` would zero-fill .bss that is already zero.
-  Automation() {}
+  // constexpr and noexcept keep the rest of the implicit constructor's contract.
+  constexpr Automation() noexcept {}
   explicit Automation(Trigger<Ts...> *trigger) { trigger->set_automation_parent(this); }
 
   void add_action(Action<Ts...> *action) { this->actions_.add_action(action); }
