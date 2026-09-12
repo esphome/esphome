@@ -8,11 +8,8 @@ from pathlib import Path
 import pytest
 
 from esphome import config_validation as cv
-from esphome.components.sendspin import (
-    CONF_FIRMWARE_VERSION,
-    CONF_MANUFACTURER,
-    CONFIG_SCHEMA,
-)
+from esphome.components.const import CONF_MANUFACTURER
+from esphome.components.sendspin import CONF_FIRMWARE_VERSION, CONFIG_SCHEMA
 from esphome.const import CONF_MODEL, PlatformFramework
 from tests.component_tests.types import SetCoreConfigCallable
 
