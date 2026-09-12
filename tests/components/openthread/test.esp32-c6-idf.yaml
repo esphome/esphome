@@ -9,3 +9,25 @@ openthread:
   pskc: 0xc23a76e98f1a6483639b1ac1271e2e27
   mesh_local_prefix: fd53:145f:ed22:ad81::/64
   output_power: 1dBm
+  on_state:
+    then:
+      - logger.log:
+          format: "on_state: state is %d"
+          args: [x]
+  on_state_change:
+    then:
+      - logger.log:
+          format: "on_state_change: new state is %d, old state is %d"
+          args: [x, x_previous]
+  on_detached:
+    then:
+      - logger.log: "on_detached"
+  on_child:
+    then:
+      - logger.log: "on_child"
+  on_router:
+    then:
+      - logger.log: "on_router"
+  on_leader:
+    then:
+      - logger.log: "on_leader"
