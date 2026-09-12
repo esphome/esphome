@@ -314,6 +314,31 @@ light:
       red: 100%
       green: 50%
       blue: 50%
+  # Test initial_state: with every templatable field set via !lambda (color_mode is
+  # the only field that isn't templatable, so it's the only one left as a literal)
+  - platform: rgbww
+    id: test_rgbww_light_initial_state_lambda
+    name: RGBWW Light Initial State Lambda
+    red: test_ledc_1
+    green: test_ledc_2
+    blue: test_ledc_3
+    cold_white: test_ledc_4
+    warm_white: test_ledc_5
+    cold_white_color_temperature: 153 mireds
+    warm_white_color_temperature: 500 mireds
+    color_interlock: true
+    initial_state:
+      state: !lambda "return true;"
+      color_mode: rgb_cold_warm_white
+      brightness: !lambda "return 0.8;"
+      color_brightness: !lambda "return 0.9;"
+      red: !lambda "return 1.0;"
+      green: !lambda "return 0.5;"
+      blue: !lambda "return 0.25;"
+      white: !lambda "return 0.3;"
+      color_temperature: !lambda "return 300.0;"
+      cold_white: !lambda "return 0.6;"
+      warm_white: !lambda "return 0.4;"
   # Test StrobeLightEffect with multiple colors
   - platform: monochromatic
     id: test_strobe_multiple

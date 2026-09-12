@@ -485,7 +485,7 @@ async def setup_light_core_(light_var, config, output_var):
     # ways to build the same state callback and save_enabled flag that LightState's
     # runtime actually understands.
     initial_state_config = config.get(CONF_INITIAL_STATE)
-    initial_statements = _initial_state_statements(initial_state_config)
+    initial_statements = await _initial_state_statements(initial_state_config)
 
     restore_mode = config.get(CONF_RESTORE_MODE)
     restore_state_config = config.get(CONF_RESTORE_STATE)

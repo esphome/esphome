@@ -23,6 +23,7 @@ from esphome.const import (
     CONF_WHITE,
 )
 from esphome.core import Lambda
+from esphome.cpp_generator import call_lambda
 from esphome.types import ConfigType
 
 from .automation import validate_light_state
@@ -152,19 +153,28 @@ async def _build_state_lambda(
     return await cg.process_lambda(Lambda("\n".join(body)), args, return_type=cg.void)
 
 
-def _initial_state_statements(
+async def _initial_state_statements(
     initial_state_config: ConfigType | None,
 ) -> list[StateStatement]:
     """
-    Create assignments for every field the user set in `initial_state:`, in canonical struct-member order.
+    Create assignments for every field the user set in `initial_state:`, in canonical
+    struct-member order. A field given as `!lambda` is resolved and called immediately,
+    the same way `light.control`'s own field lambdas are.
     """
     if not initial_state_config:
         return []
-    return [
-        (member, f"s.{member} = {cg.safe_exp(value)};")
-        for conf_key, member in _ALL_STATE_FIELDS
-        if (value := initial_state_config.get(conf_key)) is not None
-    ]
+    statements: list[StateStatement] = []
+    for conf_key, member in _ALL_STATE_FIELDS:
+        if (value := initial_state_config.get(conf_key)) is None:
+            continue
+        if isinstance(value, Lambda):
+            return_type = cg.bool_ if member == "state" else cg.float_
+            lamb = await cg.process_lambda(value, [], return_type=return_type)
+            expr = call_lambda(lamb)
+        else:
+            expr = cg.safe_exp(value)
+        statements.append((member, f"s.{member} = {expr};"))
+    return statements
 
 
 def _resolve_initial_value(
