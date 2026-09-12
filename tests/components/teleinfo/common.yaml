@@ -22,11 +22,95 @@ teleinfo:
   update_interval: 60s
 
 sensor:
+  # Historical mode tags - auto-configured via apply_tag_config
   - platform: teleinfo
     name: hchc
     tag_name: HCHC
     teleinfo_id: test_teleinfo
-    unit_of_measurement: Wh
+  - platform: teleinfo
+    name: base
+    tag_name: BASE
+    teleinfo_id: test_teleinfo
+  - platform: teleinfo
+    name: iinst1
+    tag_name: IINST1
+    teleinfo_id: test_teleinfo
+  - platform: teleinfo
+    name: papp
+    tag_name: PAPP
+    teleinfo_id: test_teleinfo
+  - platform: teleinfo
+    name: bbrhcjb
+    tag_name: BBRHCJB
+    teleinfo_id: test_teleinfo
+  - platform: teleinfo
+    name: ejphn
+    tag_name: EJPHN
+    teleinfo_id: test_teleinfo
+  - platform: teleinfo
+    name: pmax
+    tag_name: PMAX
+    teleinfo_id: test_teleinfo
+  - platform: teleinfo
+    name: imax1
+    tag_name: IMAX1
+    teleinfo_id: test_teleinfo
+  - platform: teleinfo
+    name: isousc
+    tag_name: ISOUSC
+    teleinfo_id: test_teleinfo
+  - platform: teleinfo
+    name: adps
+    tag_name: ADPS
+    teleinfo_id: test_teleinfo
+  # Standard mode tags - auto-configured via apply_tag_config
+  - platform: teleinfo
+    name: east
+    tag_name: EAST
+    teleinfo_id: test_teleinfo
+  - platform: teleinfo
+    name: erqt
+    tag_name: ERQT
+    teleinfo_id: test_teleinfo
+  - platform: teleinfo
+    name: irms1
+    tag_name: IRMS1
+    teleinfo_id: test_teleinfo
+  - platform: teleinfo
+    name: urms1
+    tag_name: URMS1
+    teleinfo_id: test_teleinfo
+  - platform: teleinfo
+    name: sinsts
+    tag_name: SINSTS
+    teleinfo_id: test_teleinfo
+  - platform: teleinfo
+    name: smaxsn
+    tag_name: SMAXSN
+    teleinfo_id: test_teleinfo
+  - platform: teleinfo
+    name: ccasn
+    tag_name: CCASN
+    teleinfo_id: test_teleinfo
+  - platform: teleinfo
+    name: pref
+    tag_name: PREF
+    teleinfo_id: test_teleinfo
+  - platform: teleinfo
+    name: pcoup
+    tag_name: PCOUP
+    teleinfo_id: test_teleinfo
+  # Explicit override - user-specified unit should not be overwritten
+  - platform: teleinfo
+    name: hchp_override
+    tag_name: HCHP
+    teleinfo_id: test_teleinfo
+    unit_of_measurement: kWh
+  # Unknown tag - no auto-config match, should still compile
+  - platform: teleinfo
+    name: custom_tag
+    tag_name: MYTAG
+    teleinfo_id: test_teleinfo
 
 text_sensor:
   - platform: teleinfo
