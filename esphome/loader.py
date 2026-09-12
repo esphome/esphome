@@ -40,6 +40,10 @@ class FileResource:
         )
 
 
+# Accessors for optional module attributes, so the count is a property of how many
+# things a component may declare rather than of this class's complexity. The
+# sibling too-many-* checks are already disabled repo-wide in pyproject.toml.
+# pylint: disable=too-many-public-methods
 class ComponentManifest:
     def __init__(self, module: ModuleType, recursive_sources: bool = False):
         self.module = module
@@ -101,6 +105,19 @@ class ComponentManifest:
     @property
     def codeowners(self) -> list[str]:
         return getattr(self.module, "CODEOWNERS", [])
+
+    @property
+    def component_version(self) -> str | None:
+        """Version this component reports for itself, or None if it reports none.
+
+        Optional and purely informational: components are under no obligation to
+        declare COMPONENT_VERSION, and nothing behaves differently when they do
+        not. It exists so external components - which have no version anywhere in
+        the config, unlike bundled ones that ship with ESPHome itself - can be
+        surfaced to the user.
+        """
+        version = getattr(self.module, "COMPONENT_VERSION", None)
+        return None if version is None else str(version)
 
     @property
     def aliases(self) -> list[str]:
