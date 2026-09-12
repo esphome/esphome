@@ -60,9 +60,6 @@ def validate_light_state(value: Any) -> Any:
 
     Documented as 'ON'/'OFF', but accepts all boolean forms for backward compatibility.
     """
-    print(
-        f"Warning: Light state {value!r} is not 'ON' or 'OFF', trying boolean conversion."
-    )
     if value == SCHEMA_EXTRACT:
         return ("ON", "OFF")
     try:
