@@ -431,15 +431,20 @@ void USBUartTypeCdcAcm::on_connected() {
     // they enable data flow on the bulk endpoints.
     if (channel->cdc_dev_.interrupt_interface_number != 0xFF &&
         channel->cdc_dev_.interrupt_interface_number != channel->cdc_dev_.bulk_interface_number) {
-      auto err_comm = usb_host_interface_claim(this->handle_, this->device_handle_,
-                                               channel->cdc_dev_.interrupt_interface_number, 0);
-      if (err_comm != ESP_OK) {
-        // Continue anyway: the interface number stays valid for CDC request addressing
-        ESP_LOGW(TAG, "Could not claim comm interface %d: %s", channel->cdc_dev_.interrupt_interface_number,
-                 esp_err_to_name(err_comm));
+      if (!this->claim_comm_interface_) {
+        ESP_LOGD(TAG, "Skipping comm interface %d (claim_comm_interface: false)",
+                 channel->cdc_dev_.interrupt_interface_number);
       } else {
-        ESP_LOGD(TAG, "Claimed comm interface %d", channel->cdc_dev_.interrupt_interface_number);
-        channel->cdc_dev_.interrupt_interface_claimed = true;
+        auto err_comm = usb_host_interface_claim(this->handle_, this->device_handle_,
+                                                 channel->cdc_dev_.interrupt_interface_number, 0);
+        if (err_comm != ESP_OK) {
+          // Continue anyway: the interface number stays valid for CDC request addressing
+          ESP_LOGW(TAG, "Could not claim comm interface %d: %s", channel->cdc_dev_.interrupt_interface_number,
+                   esp_err_to_name(err_comm));
+        } else {
+          ESP_LOGD(TAG, "Claimed comm interface %d", channel->cdc_dev_.interrupt_interface_number);
+          channel->cdc_dev_.interrupt_interface_claimed = true;
+        }
       }
     }
     auto err =
