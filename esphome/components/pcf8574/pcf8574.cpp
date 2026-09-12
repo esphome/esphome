@@ -12,8 +12,7 @@ void PCF8574Component::setup() {
     return;
   }
 
-  this->write_gpio_();
-  this->read_gpio_();
+  this->output_mask_ = this->input_mask_;
 
   if (this->interrupt_pin_ != nullptr) {
     this->interrupt_pin_->setup();
@@ -65,10 +64,7 @@ void PCF8574Component::digital_write_hw(uint8_t pin, bool value) {
 }
 void PCF8574Component::pin_mode(uint8_t pin, gpio::Flags flags) {
   if (flags == gpio::FLAG_INPUT) {
-    // Clear mode mask bit
     this->mode_mask_ &= ~(1 << pin);
-    // Write GPIO to enable input mode
-    this->write_gpio_();
     // Enable polling loop for input pins (not needed for interrupt-driven mode
     // where the ISR handles re-enabling loop)
     if (this->interrupt_pin_ == nullptr) {
