@@ -1,0 +1,38 @@
+esphome:
+  name: test
+
+esp32:
+  board: esp32dev
+
+wifi:
+  ssid: MySSID
+  password: password1
+
+logger:
+
+api:
+  actions:
+    - action: play_buzzer
+      variables:
+        song_str:
+          type: string
+          required: false
+        notes:
+          type: string
+          required: false
+        octave:
+          type: int
+          default: 5
+        bpm:
+          type: int
+          default: 100
+        loud:
+          type: bool
+          default: true
+      then:
+        - logger.log: Action Called
+    - action: plain_action
+      variables:
+        value: int
+      then:
+        - logger.log: Action Called

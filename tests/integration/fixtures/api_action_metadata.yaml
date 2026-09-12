@@ -22,5 +22,18 @@ api:
         value: int
       then:
         - logger.log: "Plain action called"
+    - action: optional_args_action
+      variables:
+        song_str:
+          type: string
+          required: false
+        octave:
+          type: int
+          default: 5
+        loud:
+          type: bool
+          default: true
+      then:
+        - logger.log: "Optional action called"
 
 logger:
