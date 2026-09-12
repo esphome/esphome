@@ -227,6 +227,7 @@ LIST_ID_SCHEMA = cv.Schema({cv.Required(CONF_ID): cv.use_id(lv_list_t)})
 )
 async def list_add_text_to_code(config, action_id, template_arg, args):
     widgets = await get_widgets(config)
+    await _wait_list_triggers_completed()
 
     async def do_add_text(w: Widget):
         text = await lv_text.process(config[CONF_TEXT])
@@ -370,6 +371,7 @@ async def list_add_to_code(config, action_id, template_arg, args):
     _register_lv_uses(w_type_name, w_conf)
     _register_dynamic_widget_style_uses(w_conf)
     widgets = await get_widgets(config)
+    await _wait_list_triggers_completed()
 
     async def do_add(w: Widget):
         index = None
@@ -503,6 +505,7 @@ LIST_REMOVE_SCHEMA = LIST_ID_SCHEMA.extend(
 )
 async def list_remove_to_code(config, action_id, template_arg, args):
     widgets = await get_widgets(config)
+    await _wait_list_triggers_completed()
 
     async def do_remove(w: Widget):
         index = await lv_int.process(config[CONF_INDEX])
@@ -536,6 +539,7 @@ async def list_remove_to_code(config, action_id, template_arg, args):
 )
 async def list_clear_to_code(config, action_id, template_arg, args):
     widgets = await get_widgets(config)
+    await _wait_list_triggers_completed()
 
     async def do_clear(w: Widget):
         await _wait_list_triggers_completed()
