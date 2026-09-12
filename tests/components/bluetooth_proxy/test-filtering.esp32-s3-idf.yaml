@@ -1,0 +1,27 @@
+# Compile coverage for the advertisement filters. Exercises every option so the
+# gated code path (USE_BLUETOOTH_PROXY_FILTERING) is actually built; the plain
+# test.*.yaml files leave them unset and so cover the ungated build.
+<<: !include common.yaml
+
+esp32_ble_tracker:
+  max_connections: 9
+
+bluetooth_proxy:
+  active: true
+  connection_slots: 9
+  rssi_threshold: -85
+  drop_non_resolvable: true
+  allow_espressif: true
+  allow_homekit: true
+  name_blocklist:
+    - "ignore-me"
+  mac_allowlist:
+    - AA:BB:CC:DD:EE:FF
+  manufacturer_blocklist:
+    - 0x004C
+  service_uuid_allowlist:
+    - 0xFFF6
+    - "00467768-6228-2272-4663-277478268000"
+  irks:
+    - "00112233445566778899aabbccddeeff"
+    - "ffeeddccbbaa99887766554433221100"

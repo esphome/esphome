@@ -12,7 +12,7 @@ from esphome.const import (
     PLATFORM_LN882X,
     PLATFORM_RP2,
 )
-from esphome.core import CORE
+from esphome.core import CORE, MACAddress
 from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 from esphome.types import ConfigType
 
@@ -62,8 +62,70 @@ CODEOWNERS = ["@jesserockz", "@bdraco"]
 _LOGGER = logging.getLogger(__name__)
 
 CONF_CONNECTION_SLOTS = "connection_slots"
+CONF_RSSI_THRESHOLD = "rssi_threshold"
+CONF_IRKS = "irks"
+CONF_ALLOW_ESPRESSIF = "allow_espressif"
+CONF_NAME_BLOCKLIST = "name_blocklist"
+CONF_MAC_ALLOWLIST = "mac_allowlist"
+CONF_MANUFACTURER_BLOCKLIST = "manufacturer_blocklist"
+CONF_DROP_NON_RESOLVABLE = "drop_non_resolvable"
+CONF_ALLOW_HOMEKIT = "allow_homekit"
+CONF_SERVICE_UUID_ALLOWLIST = "service_uuid_allowlist"
 CONF_CACHE_SERVICES = "cache_services"
 CONF_CONNECTIONS = "connections"
+
+
+def _mac_address(value):
+    """`cv.mac_address` but safe to run twice.
+
+    The outer walkable CONFIG_SCHEMA validates before the per-platform schema
+    does, so a mirrored key is transformed twice. `cv.mac_address` turns a string
+    into a MACAddress and then rejects that MACAddress on the second pass, so
+    accept an already-converted value and pass it through.
+    """
+    if isinstance(value, MACAddress):
+        return value
+    return cv.mac_address(value)
+
+
+def _validate_irk(value):
+    """One 16-byte Identity Resolving Key, as 32 hex chars.
+
+    Accepts the separator styles people paste (colons, dashes, spaces) and
+    normalises to bare lowercase hex; the C++ side parses the concatenated
+    blob once at boot.
+    """
+    value = cv.string_strict(value)
+    stripped = value.replace(":", "").replace("-", "").replace(" ", "").lower()
+    if len(stripped) != 32:
+        raise cv.Invalid(
+            f"IRK must be 16 bytes (32 hex characters), got {len(stripped)}"
+        )
+    if any(c not in "0123456789abcdef" for c in stripped):
+        raise cv.Invalid("IRK must be hexadecimal")
+    return stripped
+
+
+def _validate_service_uuid(value):
+    """A service UUID to allowlist: either a 16-bit short or a full 128-bit UUID.
+
+    Returns either an int (short) or a 32-char lowercase hex string (long), and
+    the codegen dispatches on the type. A 128-bit UUID written in its Base-UUID
+    long form is NOT folded to a short here - the C++ side compares against the
+    base at match time, so both spellings work either way.
+    """
+    if isinstance(value, int):
+        return cv.hex_uint16_t(value)
+    text = cv.string_strict(value).strip()
+    stripped = text.replace("-", "").replace(":", "").replace(" ", "").lower()
+    if len(stripped) == 32:
+        if any(c not in "0123456789abcdef" for c in stripped):
+            raise cv.Invalid("128-bit service UUID must be hexadecimal")
+        return stripped
+    # Anything else: let the 16-bit validator produce the error message.
+    return cv.hex_uint16_t(value)
+
+
 DEFAULT_CONNECTION_SLOTS = 3
 
 bluetooth_proxy_ns = cg.esphome_ns.namespace("bluetooth_proxy")
@@ -200,6 +262,60 @@ def _rp2_config_schema() -> cv.All:
     return cv.All(schema, populate_connections)
 
 
+def _irk_and_oui_to_code(var: cg.MockObj, config: ConfigType) -> None:
+    """Wire up the IRK list and the Espressif-OUI allowance.
+
+    The IRKs are handed over as one concatenated hex blob and parsed once in
+    setup(); that avoids emitting a codegen array per key and keeps this fork's
+    delta small. The blob is freed after parsing.
+    """
+    irks = config[CONF_IRKS]
+    if irks:
+        cg.add(var.set_irks_hex("".join(irks)))
+    cg.add(var.set_allow_espressif(config[CONF_ALLOW_ESPRESSIF]))
+    for needle in config[CONF_NAME_BLOCKLIST]:
+        # Lowercased here so the match loop stays a plain case-sensitive compare.
+        cg.add(var.add_blocked_name(needle.lower()))
+    for mac in config[CONF_MAC_ALLOWLIST]:
+        cg.add(var.add_allowed_mac(mac.as_hex))
+    for uuid in config[CONF_SERVICE_UUID_ALLOWLIST]:
+        if isinstance(uuid, str):
+            cg.add(var.add_allowed_service_uuid128(uuid))
+        else:
+            cg.add(var.add_allowed_service_uuid(uuid))
+    for company in config[CONF_MANUFACTURER_BLOCKLIST]:
+        cg.add(var.add_blocked_manufacturer(company))
+    cg.add(var.set_drop_non_resolvable(config[CONF_DROP_NON_RESOLVABLE]))
+    cg.add(var.set_allow_homekit(config[CONF_ALLOW_HOMEKIT]))
+
+
+def _filtering_configured(config: ConfigType) -> bool:
+    """True when any advertisement filter is actually set.
+
+    Drives USE_BLUETOOTH_PROXY_FILTERING so a proxy that configures none of these
+    compiles exactly as before - no filter code, no counters, no members. The
+    whole feature costs nothing unless it is asked for.
+    """
+    return (
+        config[CONF_RSSI_THRESHOLD] != -127
+        or bool(config[CONF_IRKS])
+        or bool(config[CONF_NAME_BLOCKLIST])
+        or bool(config[CONF_MAC_ALLOWLIST])
+        or bool(config[CONF_MANUFACTURER_BLOCKLIST])
+        or bool(config[CONF_SERVICE_UUID_ALLOWLIST])
+        or config[CONF_DROP_NON_RESOLVABLE]
+    )
+
+
+def _filtering_to_code(var: cg.MockObj, config: ConfigType) -> None:
+    """Emit the filter configuration, gated on anything being configured."""
+    if not _filtering_configured(config):
+        return
+    cg.add_define("USE_BLUETOOTH_PROXY_FILTERING")
+    cg.add(var.set_rssi_threshold(config[CONF_RSSI_THRESHOLD]))
+    _irk_and_oui_to_code(var, config)
+
+
 async def _connections_to_code(var: cg.MockObj, config: ConfigType) -> None:
     """One wrapper + backend pair per slot; the platform-specific backend
     registration lives in bluetooth_connection.new_gatt_backend()."""
@@ -231,6 +347,43 @@ _GATT_HUB_SCHEMAS = {PLATFORM_RP2: _rp2_config_schema}
 # differs (esp32 True, rp2 True, advertisement-only False).
 _COMMON_SCHEMA_KEYS = {
     cv.GenerateID(): cv.declare_id(BluetoothProxy),
+    cv.Optional(CONF_RSSI_THRESHOLD, default=-127): cv.int_range(min=-127, max=0),
+    # Empty list = no IRK gating, so the default stays upstream behaviour.
+    cv.Optional(CONF_IRKS, default=[]): cv.ensure_list(_validate_irk),
+    cv.Optional(CONF_ALLOW_ESPRESSIF, default=True): cv.boolean,
+    # Deliberately a blocklist, not an allowlist: most advertisements carry no
+    # local name at all (phones and watches omit it), so allowlisting by name
+    # would discard nearly everything.
+    cv.Optional(CONF_NAME_BLOCKLIST, default=[]): cv.ensure_list(
+        cv.All(cv.string_strict, cv.Length(min=1, max=29))
+    ),
+    # Addresses that bypass every filter below. Matched on the address itself
+    # rather than the advertised name, because the devices worth protecting
+    # (beacon tags) generally advertise no local name at all.
+    cv.Optional(CONF_MAC_ALLOWLIST, default=[]): cv.ensure_list(_mac_address),
+    # Bluetooth SIG company identifiers to discard (e.g. 0x004C Apple). Devices
+    # matched by mac_allowlist or by an IRK are exempt.
+    cv.Optional(CONF_MANUFACTURER_BLOCKLIST, default=[]): cv.ensure_list(
+        cv.hex_uint16_t
+    ),
+    # Off by default so an unconfigured build matches upstream behaviour.
+    cv.Optional(CONF_DROP_NON_RESOLVABLE, default=False): cv.boolean,
+    # Exempt HomeKit (HAP, Apple company id + subtype 0x06) from
+    # manufacturer_blocklist. On by default: blocklisting Apple for phone and
+    # AirTag noise should not silently kill HomeKit BLE accessories.
+    cv.Optional(CONF_ALLOW_HOMEKIT, default=True): cv.boolean,
+    # 16-bit service UUIDs that bypass every filter, including the address-type
+    # tests above. The companion to mac_allowlist for devices whose address is
+    # not knowable in advance: anything advertising a transient pairing service
+    # (Matter commissioning is 0xFFF6) does so from a rotating private address,
+    # which drop_non_resolvable and the IRK test would otherwise discard.
+    # Empty by default, which keeps upstream behaviour and the cheaper filter
+    # ordering (the payload walk is skipped entirely when unused).
+    # Accepts 16-bit shorts (0xFFF6) and full 128-bit UUIDs
+    # ("00467768-6228-2272-4663-277478268000", Improv Wi-Fi).
+    cv.Optional(CONF_SERVICE_UUID_ALLOWLIST, default=[]): cv.ensure_list(
+        _validate_service_uuid
+    ),
 }
 
 # Advertisement-only proxy on a neutral BLE hub: the hub's raw-advertisement
@@ -345,6 +498,23 @@ CONFIG_SCHEMA = cv.All(
         {
             cv.Optional(CONF_ACTIVE): cv.boolean,
             cv.Optional(CONF_CACHE_SERVICES): cv.boolean,
+            # Filtering options are mirrored here so schema tooling (the dashboard
+            # field-range extractor) can discover them; the per-platform schema
+            # applies the real defaults. Enforced by
+            # tests/component_tests/bluetooth_proxy/test_outer_schema_mirror.py.
+            cv.Optional(CONF_RSSI_THRESHOLD): cv.int_range(min=-127, max=0),
+            cv.Optional(CONF_IRKS): cv.ensure_list(_validate_irk),
+            cv.Optional(CONF_ALLOW_ESPRESSIF): cv.boolean,
+            cv.Optional(CONF_ALLOW_HOMEKIT): cv.boolean,
+            cv.Optional(CONF_DROP_NON_RESOLVABLE): cv.boolean,
+            cv.Optional(CONF_NAME_BLOCKLIST): cv.ensure_list(
+                cv.All(cv.string_strict, cv.Length(min=1, max=29))
+            ),
+            cv.Optional(CONF_MAC_ALLOWLIST): cv.ensure_list(_mac_address),
+            cv.Optional(CONF_MANUFACTURER_BLOCKLIST): cv.ensure_list(cv.hex_uint16_t),
+            cv.Optional(CONF_SERVICE_UUID_ALLOWLIST): cv.ensure_list(
+                _validate_service_uuid
+            ),
             # Bounded by the loosest platform cap so range walkers (the
             # device-builder field-range sync) see a real Range; the
             # per-platform schemas tighten it (1 on rp2) with their own error.
@@ -371,6 +541,7 @@ async def _to_code_esp32(config: ConfigType) -> None:
     await cg.register_component(var, config)
 
     cg.add(var.set_active(config[CONF_ACTIVE]))
+    _filtering_to_code(var, config)
     tracker = await cg.get_variable(config[esp32_ble_tracker.CONF_ESP32_BLE_ID])
     cg.add(var.set_ble_hub(tracker))
 
@@ -389,6 +560,7 @@ async def _to_code_ble_hub(config: ConfigType) -> None:
     await cg.register_component(var, config)
 
     cg.add(var.set_active(config[CONF_ACTIVE]))
+    _filtering_to_code(var, config)
     hub = await cg.get_variable(config[ble_device_base.CONF_BLE_HUB_ID])
     cg.add(var.set_ble_hub(hub))
 

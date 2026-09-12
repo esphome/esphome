@@ -5,6 +5,7 @@
 #ifdef USE_BLUETOOTH_PROXY
 
 #include <array>
+#include <vector>
 
 #include "esphome/components/api/api_connection.h"
 #include "esphome/components/api/api_pb2.h"
@@ -161,6 +162,84 @@ class BluetoothProxy final : public Component {
 
   void set_active(bool active) { this->active_ = active; }
   bool has_active() { return this->active_; }
+
+#ifdef USE_BLUETOOTH_PROXY_FILTERING
+
+  /// Advertisements weaker than this are dropped before they are queued for the
+  /// API, so they never reach the network. -127 (the default) forwards
+  /// everything, matching upstream behaviour.
+  void set_rssi_threshold(int8_t rssi) { this->rssi_threshold_ = rssi; }
+  int8_t get_rssi_threshold() const { return this->rssi_threshold_; }
+
+  /// Advertisement counters, for measuring what rssi_threshold actually costs.
+  /// Free-running and never reset: unsigned wraparound is well defined, so a
+  /// consumer taking deltas stays correct across the 32-bit rollover.
+  uint32_t get_adv_forwarded() const { return this->adv_forwarded_; }
+  uint32_t get_adv_dropped() const { return this->adv_dropped_; }
+  /// Subset of get_adv_dropped(): RPAs discarded for matching no configured
+  /// IRK. Tracked separately because it answers a different question - how
+  /// much of the noise is untrackable phones rather than distant devices.
+  uint32_t get_adv_dropped_rpa() const { return this->adv_dropped_rpa_; }
+  /// Subset of get_adv_forwarded(): advertisements that reached Home Assistant
+  /// only because they carried an allowlisted service UUID. Zero while nothing
+  /// is pairing, so a non-zero reading is direct evidence the passthrough fired.
+  uint32_t get_adv_allowed_service_uuid() const { return this->adv_allowed_service_uuid_; }
+
+  /// Concatenated 32-hex-char IRKs, parsed once in setup(). When the list is
+  /// empty no IRK gating happens at all (upstream behaviour).
+  void set_irks_hex(const char *hex) { this->irks_hex_ = hex; }
+  /// Exempt Espressif-assigned addresses from the unresolved-RPA test below.
+  /// NOTE: this does NOT bypass the RSSI threshold (an earlier version of this
+  /// comment claimed it did). It is also close to inert on its own: ESPHome
+  /// advertises on its public MAC and a public address is never an RPA, so
+  /// those advertisements never reach that test anyway. To keep a distant
+  /// unprovisioned ESP forwarded, allowlist the Improv service UUID instead.
+  void set_allow_espressif(bool allow) { this->allow_espressif_ = allow; }
+  /// Substring (already lowercased) matched against the advertised local name;
+  /// a hit drops the advertisement.
+  void add_blocked_name(const char *needle) { this->name_blocklist_.push_back(needle); }
+  /// Bluetooth SIG company identifier whose advertisements are dropped.
+  /// IRK-matched and mac_allowlist devices are exempt, so blocking e.g. Apple
+  /// does not discard our own phones.
+  void add_blocked_manufacturer(uint16_t company) { this->manufacturer_blocklist_.push_back(company); }
+  /// Drop non-resolvable private addresses. These rotate like an RPA but carry
+  /// no identity at all - an IRK cannot resolve them - so they can never be
+  /// tracked or reliably connected to. Off by default (upstream behaviour).
+  void set_drop_non_resolvable(bool drop) { this->drop_non_resolvable_ = drop; }
+  /// Exempt HomeKit (HAP) accessory advertisements from manufacturer_blocklist.
+  ///
+  /// HAP-over-BLE accessories advertise Apple's company id (0x004C) with
+  /// subtype 0x06, so blocklisting Apple to suppress phone/AirPods/AirTag noise
+  /// also silently discards every HomeKit BLE accessory - and unlike our own
+  /// phones they have no IRK, so nothing else rescues them. On by default: the
+  /// blocklist is aimed at untrackable consumer noise, not at accessories the
+  /// user deliberately owns.
+  void set_allow_homekit(bool allow) { this->allow_homekit_ = allow; }
+  /// Address that bypasses every filter. Use for beacons that must always be
+  /// forwarded (tracked tags), which typically advertise no local name.
+  void add_allowed_mac(uint64_t addr) { this->mac_allowlist_.push_back(addr); }
+  /// 16-bit service UUID that bypasses every filter, matched against the
+  /// advertisement's service UUID lists, solicitation lists and service data.
+  ///
+  /// Unlike add_allowed_mac() this protects a device whose address is not known
+  /// in advance, which is the whole point: a device advertising a transient
+  /// commissioning/pairing service (Matter uses 0xFFF6) does so from a rotating
+  /// private address, so the address-type filters below would discard it and no
+  /// MAC could be allowlisted ahead of time.
+  void add_allowed_service_uuid(uint16_t uuid) { this->service_uuid_allowlist_.push_back(uuid); }
+  /// As add_allowed_service_uuid(), for a 128-bit (vendor) service UUID.
+  /// Takes the canonical big-endian byte order; advertisements carry these
+  /// little-endian, and the walker reverses before comparing.
+  ///
+  /// Improv Wi-Fi (00467768-6228-2272-4663-277478268000) is the case this
+  /// exists for: an unprovisioned ESP advertises it from its public Espressif
+  /// address, so the address-type tests never touch it, but the RSSI threshold
+  /// does - allow_espressif does NOT exempt it, despite what this header used
+  /// to claim. Allowlisting the UUID is what actually makes provisioning work
+  /// on a far-away board.
+  void add_allowed_service_uuid128(const char *hex) { this->service_uuid128_hex_.push_back(hex); }
+#endif  // USE_BLUETOOTH_PROXY_FILTERING
+
 
   uint32_t get_legacy_version() const {
     if (!this->active_) {
@@ -329,6 +408,63 @@ class BluetoothProxy final : public Component {
   // Group 3: 4-byte types; paired with hub_ so the 8-aligned messages below
   // start on an even word, closing two alignment holes.
   uint32_t last_advertisement_flush_time_{0};
+
+#ifdef USE_BLUETOOTH_PROXY_FILTERING
+  // Advertisement accounting (see get_adv_forwarded/get_adv_dropped). Kept in
+  // the 4-byte group so they slot into the existing alignment run.
+  uint32_t adv_forwarded_{0};
+  uint32_t adv_dropped_{0};
+  uint32_t adv_dropped_rpa_{0};
+  uint32_t adv_allowed_service_uuid_{0};
+
+  // Identity Resolving Keys. irks_hex_ is the compile-time blob; it is parsed
+  // into irks_ during setup() and then dropped.
+  const char *irks_hex_{nullptr};
+  std::vector<std::array<uint8_t, 16>> irks_;
+  // Lowercased substrings; pointers into flash-resident string literals.
+  std::vector<const char *> name_blocklist_;
+  // Always-forward addresses, checked before any filter.
+  std::vector<uint64_t> mac_allowlist_;
+
+  std::vector<uint16_t> service_uuid_allowlist_;
+  // Compile-time 32-hex-char blobs, parsed into service_uuid128_ during setup()
+  // and then dropped - same pattern as irks_hex_.
+  std::vector<const char *> service_uuid128_hex_;
+  std::vector<std::array<uint8_t, 16>> service_uuid128_;
+  // Blocked Bluetooth SIG company identifiers (AD type 0xFF).
+  std::vector<uint16_t> manufacturer_blocklist_;
+  int8_t rssi_threshold_{-127};
+  bool allow_espressif_{true};
+  bool drop_non_resolvable_{false};
+  bool allow_homekit_{true};
+#endif  // USE_BLUETOOTH_PROXY_FILTERING
+
+
+#ifdef USE_BLUETOOTH_PROXY_FILTERING
+  /// True when addr is a Resolvable Private Address: a *random* address whose
+  /// top two bits are 0b01. The addr_type check is essential - plenty of public
+  /// OUIs (Espressif's 4C:xx among them) fall in that numeric range and would
+  /// otherwise be misread as RPAs and discarded.
+  static bool address_is_rpa_(uint64_t addr, uint8_t addr_type);
+  /// True for a *random* address whose top two bits are 0b00. The addr_type
+  /// check is essential: plenty of real public OUIs begin with a low octet
+  /// (00:, 04:, 15: ...) and would otherwise be mistaken for these.
+  static bool address_is_non_resolvable_(uint64_t addr, uint8_t addr_type);
+  /// Bluetooth Core "ah" hash against every configured IRK.
+  bool irk_matches_(uint64_t addr) const;
+  /// True when the address's OUI is one of Espressif's IEEE assignments.
+  static bool is_espressif_oui_(uint64_t addr);
+  /// Walks the advertisement's length/type/value structures once, looking for a
+  /// blocklisted manufacturer id (AD type 0xFF) or a local name (0x08/0x09)
+  /// containing a blocklisted substring.
+  bool payload_blocked_(const uint8_t *data, uint16_t len) const;
+  /// Walks the same length/type/value structures looking for any allowlisted
+  /// 16-bit service UUID. Only called when service_uuid_allowlist_ is non-empty.
+  bool payload_has_allowed_service_uuid_(const uint8_t *data, uint16_t len) const;
+  /// One 128-bit UUID from an advertisement (little-endian, as transmitted)
+  /// against the long allowlist, and against the short one via the Base UUID.
+  bool uuid128_matches_(const uint8_t *le_bytes) const;
+#endif  // USE_BLUETOOTH_PROXY_FILTERING
 
   // BLE advertisement batching
   api::BluetoothLERawAdvertisementsResponse response_;
