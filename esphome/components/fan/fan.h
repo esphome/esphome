@@ -106,6 +106,9 @@ struct FanRestoreState {
 
 class Fan : public EntityBase {
  public:
+  // User provided, not "= default": `new(p) Fan()` would zero-fill .bss that is already zero.
+  Fan() {}
+
   /// The current on/off state of the fan.
   bool state{false};
   /// The current oscillation state of the fan.
@@ -183,7 +186,7 @@ class Fan : public EntityBase {
 
   LazyCallbackManager<void()> state_callback_{};
   ESPPreferenceObject rtc_;
-  FanRestoreMode restore_mode_;
+  FanRestoreMode restore_mode_{FanRestoreMode::NO_RESTORE};
 
  private:
   /// Lazy-allocate preset modes vector (never freed — entity lives forever).
