@@ -16,9 +16,16 @@ class RCSwitchBase {
  public:
   using ProtocolData = RCSwitchData;
 
-  RCSwitchBase() = default;
-  RCSwitchBase(uint32_t sync_high, uint32_t sync_low, uint32_t zero_high, uint32_t zero_low, uint32_t one_high,
-               uint32_t one_low, bool inverted);
+  constexpr RCSwitchBase() = default;
+  constexpr RCSwitchBase(uint32_t sync_high, uint32_t sync_low, uint32_t zero_high, uint32_t zero_low,
+                         uint32_t one_high, uint32_t one_low, bool inverted)
+      : sync_high_(sync_high),
+        sync_low_(sync_low),
+        zero_high_(zero_high),
+        zero_low_(zero_low),
+        one_high_(one_high),
+        one_low_(one_low),
+        inverted_(inverted) {}
 
   void one(RemoteTransmitData *dst) const;
 
@@ -58,10 +65,28 @@ class RCSwitchBase {
   uint32_t zero_low_{};
   uint32_t one_high_{};
   uint32_t one_low_{};
-  bool inverted_{};
+  uint32_t inverted_{};  // bool widened so every field is a word: the table is read from flash
 };
 
-extern const RCSwitchBase RC_SWITCH_PROTOCOLS[9];
+// Constant-initialized and kept in flash on every platform. The decoder reads entries in place
+// through a pointer, which ESP8266 only allows while every field is a whole word; copies out of
+// the table go through rc_switch_protocol()
+static_assert(sizeof(RCSwitchBase) == 7 * sizeof(uint32_t), "RCSwitchBase must stay word-only for flash reads");
+inline constexpr RCSwitchBase RC_SWITCH_PROTOCOLS[] PROGMEM = {
+    {0, 0, 0, 0, 0, 0, false},
+    {350, 10850, 350, 1050, 1050, 350, false},
+    {650, 6500, 650, 1300, 1300, 650, false},
+    {3000, 7100, 400, 1100, 900, 600, false},
+    {380, 2280, 380, 1140, 1140, 380, false},
+    {3000, 7000, 500, 1000, 1000, 500, false},
+    {10350, 450, 450, 900, 900, 450, true},
+    {300, 9300, 150, 900, 900, 150, false},
+    {250, 2500, 250, 1250, 250, 250, false},
+};
+
+/// RAM copy of RC_SWITCH_PROTOCOLS[index] (0 when out of range) for the transmit actions and the dumper, made with
+/// progmem_memcpy so no byte load ever touches the flash table on ESP8266
+RCSwitchBase rc_switch_protocol(uint8_t index);
 
 uint64_t decode_binary_string(const std::string &data);
 
