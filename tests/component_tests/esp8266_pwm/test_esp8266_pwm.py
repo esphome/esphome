@@ -12,4 +12,5 @@ def test_default_frequency_is_not_emitted(
     main_cpp = generate_main(component_config_path("frequency.yaml"))
 
     assert "default_frequency->set_frequency(" not in main_cpp
+    assert "schema_default_frequency->set_frequency(" not in main_cpp
     assert "custom_frequency->set_frequency(2000.0f);" in main_cpp

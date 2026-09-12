@@ -22,6 +22,10 @@ ESP8266PWM = esp8266_pwm_ns.class_("ESP8266PWM", output.FloatOutput, cg.Componen
 SetFrequencyAction = esp8266_pwm_ns.class_("SetFrequencyAction", automation.Action)
 validate_frequency = cv.All(cv.frequency, cv.float_range(min=1.0e-6))
 
+# Schema default that also matches the C++ initializer in esp8266_pwm.h; codegen
+# skips the setter when the config equals it.
+DEFAULT_FREQUENCY = 1000.0
+
 CONFIG_SCHEMA = cv.All(
     output.FLOAT_OUTPUT_SCHEMA.extend(
         {
@@ -29,7 +33,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Required(CONF_PIN): cv.All(
                 pins.internal_gpio_output_pin_schema, valid_pwm_pin
             ),
-            cv.Optional(CONF_FREQUENCY, default="1kHz"): validate_frequency,
+            cv.Optional(CONF_FREQUENCY, default=DEFAULT_FREQUENCY): validate_frequency,
         }
     ).extend(cv.COMPONENT_SCHEMA),
     cv.require_framework_version(
@@ -48,8 +52,8 @@ async def to_code(config: ConfigType) -> None:
     pin = await cg.gpio_pin_expression(config[CONF_PIN])
     cg.add(var.set_pin(pin))
 
-    # The C++ initializer is 1 kHz; skip the setter when the config matches it.
-    if (frequency := config[CONF_FREQUENCY]) != 1000:
+    # Skip the setter when the config matches the C++ initializer (DEFAULT_FREQUENCY).
+    if (frequency := config[CONF_FREQUENCY]) != DEFAULT_FREQUENCY:
         cg.add(var.set_frequency(frequency))
 
 

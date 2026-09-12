@@ -14,3 +14,6 @@ output:
     id: custom_frequency
     pin: GPIO5
     frequency: 2kHz
+  - platform: esp8266_pwm
+    id: schema_default_frequency
+    pin: GPIO12
