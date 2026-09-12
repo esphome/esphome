@@ -9,6 +9,10 @@ namespace esphome::scd4x {
 template<typename... Ts>
 class PerformForcedCalibrationAction final : public Action<Ts...>, public Parented<SCD4XComponent> {
  public:
+  // User provided, not "= default": `new(p) PerformForcedCalibrationAction()` would zero-fill .bss that is already
+  // zero.
+  PerformForcedCalibrationAction() {}
+
   void play(const Ts &...x) override {
     if (this->value_.has_value()) {
       this->parent_->perform_forced_calibration(this->value_.value(x...));
