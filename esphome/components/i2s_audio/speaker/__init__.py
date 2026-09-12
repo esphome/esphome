@@ -43,6 +43,7 @@ I2SAudioSpeakerBase = i2s_audio_ns.class_(
 I2SAudioSpeaker = i2s_audio_ns.class_("I2SAudioSpeaker", I2SAudioSpeakerBase)
 
 CONF_DAC_TYPE = "dac_type"
+CONF_EXPAND_TO_SLOT_WIDTH = "expand_to_slot_width"
 CONF_I2S_COMM_FMT = "i2s_comm_fmt"
 CONF_SPDIF_MODE = "spdif_mode"
 
@@ -152,6 +153,14 @@ def _validate_esp32_variant(config: ConfigType) -> ConfigType:
         # 8-bit slot does not line up with ESPHome's tightly packed audio (see start_i2s_driver). Reject it
         # at config time rather than emitting corrupted output at runtime.
         raise cv.Invalid("8-bit audio is not supported on the original ESP32")
+    elif (
+        variant == esp32.VARIANT_ESP32
+        and config.get(CONF_EXPAND_TO_SLOT_WIDTH, False)
+        and config[CONF_BITS_PER_SAMPLE] % 16 != 0
+    ):
+        raise cv.Invalid(
+            "The original ESP32 supports expansion only to 16- or 32-bit slots"
+        )
     return config
 
 
@@ -196,6 +205,7 @@ CONFIG_SCHEMA = cv.All(
                         *I2C_COMM_FMT_OPTIONS, lower=True
                     ),
                     cv.Optional(CONF_SPDIF_MODE, default=False): cv.boolean,
+                    cv.Optional(CONF_EXPAND_TO_SLOT_WIDTH, default=False): cv.boolean,
                 }
             ),
         },
@@ -218,6 +228,8 @@ def _final_validate(config: ConfigType) -> None:
         raise cv.Invalid("I2S standard max format is no longer supported.")
 
     if config.get(CONF_SPDIF_MODE, False):
+        if config[CONF_EXPAND_TO_SLOT_WIDTH]:
+            raise cv.Invalid("'expand_to_slot_width' is not supported in SPDIF mode")
         # SPDIF mode specific validations
         if config[CONF_SAMPLE_RATE] not in [44100, 48000]:
             raise cv.Invalid(
@@ -252,6 +264,9 @@ async def to_code(config: ConfigType) -> None:
     if is_spdif:
         cg.add_define("USE_I2S_AUDIO_SPDIF_MODE")
     else:
+        if config[CONF_EXPAND_TO_SLOT_WIDTH]:
+            cg.add_define("USE_I2S_AUDIO_EXPAND_TO_SLOT_WIDTH")
+            cg.add(var.set_expand_to_slot_width(config[CONF_EXPAND_TO_SLOT_WIDTH]))
         fmt = I2SCommFmt.STANDARD  # equals stand_i2s, stand_pcm_long, i2s_msb, pcm_long
         if config[CONF_I2S_COMM_FMT] in ["stand_msb", "i2s_lsb"]:
             fmt = I2SCommFmt.MSB

@@ -1,4 +1,5 @@
 #include "i2s_audio_speaker_standard.h"
+#include "i2s_audio_sample_conversion.h"
 
 #ifdef USE_ESP32
 
@@ -66,11 +67,12 @@ void I2SAudioSpeaker::dump_config() {
   }
   ESP_LOGCONFIG(TAG, "  Communication format: %s", fmt_str);
   if (this->slot_bit_width_ != I2S_SLOT_BIT_WIDTH_AUTO) {
-    // The width of each I2S slot. It is also the narrowing ceiling: streams wider than this are narrowed to
-    // it. A stream narrower than the slot is left at its own width and clocked into the wider slot, so this
-    // is not necessarily the sample data width (which depends on the incoming stream).
+    // The width of each I2S slot. It is the narrowing ceiling and, when enabled, the expansion target.
     ESP_LOGCONFIG(TAG, "  Slot bit width: %u", (unsigned) static_cast<uint32_t>(this->slot_bit_width_));
   }
+#ifdef USE_I2S_AUDIO_EXPAND_TO_SLOT_WIDTH
+  ESP_LOGCONFIG(TAG, "  Expand samples to slot width: %s", YESNO(this->expand_to_slot_width_));
+#endif
 }
 
 void I2SAudioSpeaker::run_speaker_task() {
@@ -87,11 +89,14 @@ void I2SAudioSpeaker::run_speaker_task() {
   const size_t ring_buffer_size =
       (this->current_stream_info_.ms_to_bytes(ring_buffer_duration) / bytes_per_frame) * bytes_per_frame;
 
-  // Per-frame byte widths and whether the task must narrow the bit depth before writing to the I2S peripheral.
+  // Per-frame byte widths and whether the task must convert the bit depth before writing to the I2S peripheral.
   const uint8_t channels = this->current_stream_info_.get_channels();
   const uint8_t input_bytes_per_sample = this->current_stream_info_.get_bits_per_sample() / 8;
   const uint8_t output_bytes_per_sample = this->output_stream_info_.get_bits_per_sample() / 8;
-  const bool narrowing = input_bytes_per_sample != output_bytes_per_sample;
+  const bool converting = input_bytes_per_sample != output_bytes_per_sample;
+#ifdef USE_I2S_AUDIO_EXPAND_TO_SLOT_WIDTH
+  const bool expanding = input_bytes_per_sample < output_bytes_per_sample;
+#endif
 
   // ESP-IDF may allocate smaller (or cache-line-rounded) DMA buffers than dma_buffer_frames() requested: it
   // clamps each descriptor to the max DMA descriptor size and, on targets that route internal memory through
@@ -135,7 +140,8 @@ void I2SAudioSpeaker::run_speaker_task() {
   }
 
   if (successful_setup) {
-    // Preload every DMA descriptor with silence and push a matching zero-real-frames record per buffer.
+    // Preload every DMA descriptor with silence. Once preloading completes, expansion can safely reuse this
+    // buffer as scratch because each I2S write blocks until the source data has been copied.
     // This guarantees that every on_sent event has a corresponding write record from the start, so
     // ``i2s_event_queue_`` and ``write_records_queue_`` stay in lockstep for the entire task lifetime.
     for (size_t i = 0; i < DMA_BUFFERS_COUNT; i++) {
@@ -257,7 +263,7 @@ void I2SAudioSpeaker::run_speaker_task() {
       // exposes (may take multiple fill() calls when crossing a ring buffer wrap), then pad any
       // remainder with silence. All writes pack into the next free DMA descriptor in order, so the
       // descriptor ends up holding [real audio][silence padding]. ``bytes_written_total`` counts
-      // output-format bytes so it tracks how full the DMA buffer is regardless of any narrowing.
+      // output-format bytes so it tracks how full the DMA buffer is regardless of any conversion.
       size_t bytes_written_total = 0;
       uint32_t real_frames_total = 0;
       bool partial_write_failure = false;
@@ -266,7 +272,7 @@ void I2SAudioSpeaker::run_speaker_task() {
         while (bytes_written_total < dma_buffer_bytes) {
           size_t bytes_read = audio_source->fill(pdMS_TO_TICKS(DMA_BUFFER_DURATION_MS) / 2, false);
           if (bytes_read > 0) {
-            // Apply volume at the input bit depth, before any narrowing, so the full precision is scaled.
+            // Apply volume at the input bit depth, before conversion, so the full precision is scaled.
             uint8_t *new_data = audio_source->mutable_data() + audio_source->available() - bytes_read;
             this->apply_software_volume_(new_data, bytes_read);
           }
@@ -283,21 +289,36 @@ void I2SAudioSpeaker::run_speaker_task() {
             break;
           }
 
-          const size_t input_bytes = this->current_stream_info_.frames_to_bytes(frames_to_write);
-          const size_t output_bytes = this->output_stream_info_.frames_to_bytes(frames_to_write);
-
-          uint8_t *chunk = audio_source->mutable_data();
-          if (narrowing) {
-            // Narrow the bit depth in place: output exactly aliases input with the same channel count and a
-            // smaller width, which copy_frames handles as a single forward pass. Only the frames about to be
-            // consumed are overwritten, so any unprocessed tail stays intact for the next iteration.
-            esp_audio_libs::pcm_convert::copy_frames(chunk, chunk, input_bytes_per_sample, channels,
+          uint8_t *input_chunk = audio_source->mutable_data();
+          uint8_t *output_chunk = input_chunk;
+          size_t input_bytes;
+          size_t output_bytes;
+          uint32_t frames_written = frames_to_write;
+#ifdef USE_I2S_AUDIO_EXPAND_TO_SLOT_WIDTH
+          if (expanding) {
+            const I2SAudioExpansion expansion = prepare_i2s_audio_expansion(
+                silence_buffer, input_bytes_per_sample, output_bytes_per_sample, channels, frames_to_write);
+            output_chunk = expansion.output_data;
+            input_bytes = expansion.input_bytes;
+            output_bytes = expansion.output_bytes;
+            frames_written = expansion.frames;
+          } else {
+#endif
+            input_bytes = this->current_stream_info_.frames_to_bytes(frames_to_write);
+            output_bytes = this->output_stream_info_.frames_to_bytes(frames_to_write);
+#ifdef USE_I2S_AUDIO_EXPAND_TO_SLOT_WIDTH
+          }
+#endif
+          if (converting) {
+            // Expansion writes to separate scratch storage. Narrowing is safe in place because its write pointer
+            // never overtakes unread input, so any unprocessed tail remains intact for the next iteration.
+            esp_audio_libs::pcm_convert::copy_frames(input_chunk, output_chunk, input_bytes_per_sample, channels,
                                                      output_bytes_per_sample, channels, frames_to_write);
           }
-          this->swap_esp32_mono_samples_(chunk, output_bytes);
+          this->swap_esp32_mono_samples_(output_chunk, output_bytes);
 
           size_t bw = 0;
-          i2s_channel_write(this->tx_handle_, chunk, output_bytes, &bw, WRITE_TIMEOUT_TICKS);
+          i2s_channel_write(this->tx_handle_, output_chunk, output_bytes, &bw, WRITE_TIMEOUT_TICKS);
           if (bw != output_bytes) {
             // A short real-audio write breaks DMA descriptor alignment for every subsequent event;
             // the only safe recovery is to restart the task.
@@ -308,7 +329,7 @@ void I2SAudioSpeaker::run_speaker_task() {
           }
           audio_source->consume(input_bytes);
           bytes_written_total += output_bytes;
-          real_frames_total += frames_to_write;
+          real_frames_total += frames_written;
         }
         if (real_frames_total > 0) {
           last_data_received_time = millis();
@@ -321,6 +342,11 @@ void I2SAudioSpeaker::run_speaker_task() {
 
       const size_t silence_bytes = dma_buffer_bytes - bytes_written_total;
       if (silence_bytes > 0) {
+#ifdef USE_I2S_AUDIO_EXPAND_TO_SLOT_WIDTH
+        if (expanding) {
+          memset(silence_buffer, 0, silence_bytes);
+        }
+#endif
         size_t bw = 0;
         i2s_channel_write(this->tx_handle_, silence_buffer, silence_bytes, &bw, WRITE_TIMEOUT_TICKS);
         if (bw != silence_bytes) {
@@ -371,17 +397,17 @@ esp_err_t I2SAudioSpeaker::start_i2s_driver(audio::AudioStreamInfo &audio_stream
     return ESP_ERR_NOT_SUPPORTED;
   }
 
-  // When the stream is wider than the configured slot bit width, the speaker task narrows each frame in place
-  // before handing it to the I2S peripheral. Compute the output format here so the driver, DMA buffers, and
-  // the task's conversion all agree on the clocked-out width. A stream no wider than the slot width is passed
-  // through unchanged (the slot may still be wider than the data, the existing behavior).
-  uint8_t output_bits_per_sample = audio_stream_info.get_bits_per_sample();
-  if (this->slot_bit_width_ != I2S_SLOT_BIT_WIDTH_AUTO) {
-    const uint8_t configured_bits = static_cast<uint8_t>(this->slot_bit_width_);
-    if (output_bits_per_sample > configured_bits) {
-      output_bits_per_sample = configured_bits;
-    }
-  }
+  // Compute the effective output width so the driver, DMA buffers, and task conversion agree. Wider streams
+  // narrow to an explicit slot. Narrower streams expand only when requested; AUTO and equal widths pass through.
+  const uint8_t configured_bits = this->slot_bit_width_ == I2S_SLOT_BIT_WIDTH_AUTO
+                                      ? I2S_SLOT_BITS_AUTO
+                                      : static_cast<uint8_t>(this->slot_bit_width_);
+  bool expand_to_slot_width = false;
+#ifdef USE_I2S_AUDIO_EXPAND_TO_SLOT_WIDTH
+  expand_to_slot_width = this->expand_to_slot_width_;
+#endif
+  const uint8_t output_bits_per_sample =
+      resolve_i2s_output_bits(audio_stream_info.get_bits_per_sample(), configured_bits, expand_to_slot_width);
   this->output_stream_info_ = audio::AudioStreamInfo(output_bits_per_sample, audio_stream_info.get_channels(),
                                                      audio_stream_info.get_sample_rate());
 
@@ -402,7 +428,7 @@ esp_err_t I2SAudioSpeaker::start_i2s_driver(audio::AudioStreamInfo &audio_stream
     return ESP_ERR_INVALID_STATE;
   }
 
-  // The DMA buffers hold output-format (post-narrowing) samples, so size them from the output stream info.
+  // The DMA buffers hold output-format (post-conversion) samples, so size them from the output stream info.
   uint32_t dma_buffer_length = dma_buffer_frames(this->output_stream_info_);
 
   i2s_role_t i2s_role = this->i2s_role_;
@@ -443,7 +469,7 @@ esp_err_t I2SAudioSpeaker::start_i2s_driver(audio::AudioStreamInfo &audio_stream
     slot_mask = I2S_STD_SLOT_BOTH;
   }
 
-  // Configure the data bit width from the output (post-narrowing) format, which is what is clocked out.
+  // Configure the data bit width from the output (post-conversion) format, which is what is clocked out.
   const i2s_data_bit_width_t data_bit_width = (i2s_data_bit_width_t) this->output_stream_info_.get_bits_per_sample();
   i2s_std_slot_config_t slot_cfg;
   switch (this->i2s_comm_fmt_) {
