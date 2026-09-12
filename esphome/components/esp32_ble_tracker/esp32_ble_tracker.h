@@ -132,7 +132,7 @@ class ESPBTClient : public ESPBTDeviceListener {
   void set_tracker_state_version(uint8_t *version) { this->tracker_state_version_ = version; }
 
   // Memory optimized layout
-  uint8_t app_id;  // App IDs are small integers assigned sequentially
+  uint8_t app_id{0};  // App IDs are small integers assigned sequentially
 
  protected:
   /// Set state without IDLE handling - use for direct state transitions.
