@@ -65,6 +65,7 @@ const uint8_t HITACHI_AC344_SWINGH_LEFT_MAX = 5;   // 0b101
 
 const uint8_t HITACHI_AC344_SWINGV_BYTE = 37;
 const uint8_t HITACHI_AC344_SWINGV_OFFSET = 5;  // Mask 0b00x00000
+const uint8_t HITACHI_AC344_SWINGV_SIZE = 1;    // Mask 0b00x00000
 
 const uint8_t HITACHI_AC344_MILDEWPROOF_BYTE = HITACHI_AC344_SWINGV_BYTE;
 const uint8_t HITACHI_AC344_MILDEWPROOF_OFFSET = 2;  // Mask 0b00000x00
@@ -79,9 +80,10 @@ class HitachiClimate final : public climate_ir::ClimateIR {
  public:
   HitachiClimate()
       : climate_ir::ClimateIR(HITACHI_AC344_TEMP_MIN, HITACHI_AC344_TEMP_MAX, 1.0F, true, true,
-                              {climate::CLIMATE_FAN_AUTO, climate::CLIMATE_FAN_LOW, climate::CLIMATE_FAN_MEDIUM,
-                               climate::CLIMATE_FAN_HIGH},
-                              {climate::CLIMATE_SWING_OFF, climate::CLIMATE_SWING_HORIZONTAL}) {}
+                              {climate::CLIMATE_FAN_AUTO, climate::CLIMATE_FAN_QUIET, climate::CLIMATE_FAN_LOW,
+                               climate::CLIMATE_FAN_MEDIUM, climate::CLIMATE_FAN_HIGH},
+                              {climate::CLIMATE_SWING_OFF, climate::CLIMATE_SWING_VERTICAL,
+                               climate::CLIMATE_SWING_HORIZONTAL, climate::CLIMATE_SWING_BOTH}) {}
 
  protected:
   uint8_t remote_state_[HITACHI_AC344_STATE_LENGTH]{0x01, 0x10, 0x00, 0x40, 0x00, 0xFF, 0x00, 0xCC, 0x00, 0x00, 0x00,
@@ -89,6 +91,7 @@ class HitachiClimate final : public climate_ir::ClimateIR {
                                                     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x01, 0x00,
                                                     0x80, 0x00, 0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
   uint8_t previous_temp_{27};
+  bool prev_swingv_on_{false};
   // Transmit via IR the state of this climate controller.
   void transmit_state() override;
   bool get_power_();
@@ -99,7 +102,6 @@ class HitachiClimate final : public climate_ir::ClimateIR {
   uint8_t get_fan_();
   void set_fan_(uint8_t speed);
   void set_swing_v_toggle_(bool on);
-  bool get_swing_v_toggle_();
   void set_swing_v_(bool on);
   bool get_swing_v_();
   void set_swing_h_(uint8_t position);
