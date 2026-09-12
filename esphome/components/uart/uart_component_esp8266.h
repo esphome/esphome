@@ -28,10 +28,9 @@ class ESP8266SoftwareSerial {
  protected:
   static void gpio_intr(ESP8266SoftwareSerial *arg);
 
-  // bit_time is the cycles per bit at the clock the byte is running at
-  void wait_(uint32_t *wait, const uint32_t &start, uint32_t bit_time);
-  bool read_bit_(uint32_t *wait, const uint32_t &start, uint32_t bit_time);
-  void write_bit_(bool bit, uint32_t *wait, const uint32_t &start, uint32_t bit_time);
+  void wait_(uint32_t *wait, const uint32_t &start);
+  bool read_bit_(uint32_t *wait, const uint32_t &start);
+  void write_bit_(bool bit, uint32_t *wait, const uint32_t &start);
 
   uint32_t bit_time_{0};
   uint8_t *rx_buffer_{nullptr};
