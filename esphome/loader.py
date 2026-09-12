@@ -40,6 +40,10 @@ class FileResource:
         )
 
 
+# Accessors for optional module attributes, so the count is a property of how many
+# things a component may declare rather than of this class's complexity. The
+# sibling too-many-* checks are already disabled repo-wide in pyproject.toml.
+# pylint: disable=too-many-public-methods
 class ComponentManifest:
     def __init__(self, module: ModuleType, recursive_sources: bool = False):
         self.module = module
