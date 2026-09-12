@@ -1553,8 +1553,10 @@ def final_validate(config) -> None:
         elif opi != (config.get(CONF_FLASH_MODE) == "opi"):
             errs.append(
                 cv.Invalid(
-                    f"'{CONF_FLASH_CHIP}: {flash_chip}' does not match '{CONF_FLASH_MODE}'; "
-                    f"octal flash uses {FLASH_CHIP_OPI}",
+                    f"'{CONF_FLASH_CHIP}: {flash_chip}' requires '{CONF_FLASH_MODE}: opi'"
+                    if opi
+                    else f"'{CONF_FLASH_CHIP}: {flash_chip}' does not match "
+                    f"'{CONF_FLASH_MODE}: opi'; octal flash uses {FLASH_CHIP_OPI}",
                     path=[CONF_FRAMEWORK, CONF_ADVANCED, CONF_FLASH_CHIP],
                 )
             )

@@ -186,7 +186,7 @@ void Application::process_dump_config_() {
         if (flash_driver == &esp_flash_chip_mxic_opi)
           value = "mxic_opi";
 #endif
-        ESP_LOGW(TAG, "Set flash_chip: %s %s to save ~1KB IRAM", value, ESP32_ADVANCED_PATH);
+        ESP_LOGW(TAG, "Set flash_chip: %s %s to save IRAM", value, ESP32_ADVANCED_PATH);
       }
     }
 #endif

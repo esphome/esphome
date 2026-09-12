@@ -274,8 +274,19 @@ def test_esp32_rejects_unsupported_cli_toolchain(
                     "advanced": {"flash_chip": "gd"},
                 },
             },
-            r"'flash_chip: gd' does not match 'flash_mode'; octal flash uses mxic_opi @ data\['framework'\]\['advanced'\]\['flash_chip'\]",
+            r"'flash_chip: gd' does not match 'flash_mode: opi'; octal flash uses mxic_opi @ data\['framework'\]\['advanced'\]\['flash_chip'\]",
             id="flash_chip_must_match_opi_mode",
+        ),
+        pytest.param(
+            {
+                "variant": "esp32s3",
+                "framework": {
+                    "type": "esp-idf",
+                    "advanced": {"flash_chip": "mxic_opi"},
+                },
+            },
+            r"'flash_chip: mxic_opi' requires 'flash_mode: opi' @ data\['framework'\]\['advanced'\]\['flash_chip'\]",
+            id="flash_chip_mxic_opi_requires_opi_mode",
         ),
     ],
 )
