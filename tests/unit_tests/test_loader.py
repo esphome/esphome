@@ -4,6 +4,7 @@ import ast
 from pathlib import Path
 import sys
 import textwrap
+from types import ModuleType
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -685,3 +686,25 @@ def caplog_at_warning():
     finally:
         logger.removeHandler(handler)
         logger.setLevel(prev_level)
+
+
+def test_component_version_absent_by_default() -> None:
+    """A component declaring no COMPONENT_VERSION reports None rather than raising.
+
+    Declaring one is optional, so the common case must stay silent.
+    """
+    mod = ModuleType("esphome.components.no_version")
+    assert ComponentManifest(mod).component_version is None
+
+
+def test_component_version_read_from_module() -> None:
+    mod = ModuleType("esphome.components.has_version")
+    mod.COMPONENT_VERSION = "1.2.3"
+    assert ComponentManifest(mod).component_version == "1.2.3"
+
+
+def test_component_version_coerced_to_str() -> None:
+    """Authors may reasonably write a tuple or a number; take it as given."""
+    mod = ModuleType("esphome.components.odd_version")
+    mod.COMPONENT_VERSION = 7
+    assert ComponentManifest(mod).component_version == "7"

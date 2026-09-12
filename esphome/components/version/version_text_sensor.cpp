@@ -10,6 +10,16 @@ namespace esphome::version {
 static const char *const TAG = "version.text_sensor";
 
 void VersionTextSensor::setup() {
+  if (this->component_name_ != nullptr) {
+    // Component mode. A component that declares no version leaves version_ null;
+    // publish nothing so the state stays unknown, rather than inventing a
+    // placeholder that cannot be told apart from a real value.
+    if (this->version_ != nullptr) {
+      this->publish_state(this->version_);
+    }
+    return;
+  }
+
   static const char HASH_PREFIX[] PROGMEM = ESPHOME_VERSION " (config hash 0x";
   static const char VERSION_PREFIX[] PROGMEM = ESPHOME_VERSION;
   static const char BUILT_STR[] PROGMEM = ", built ";
@@ -48,6 +58,12 @@ void VersionTextSensor::setup() {
   version_str[sizeof(version_str) - 1] = '\0';
   this->publish_state(version_str);
 }
-void VersionTextSensor::dump_config() { LOG_TEXT_SENSOR("", "Version Text Sensor", this); }
+void VersionTextSensor::dump_config() {
+  LOG_TEXT_SENSOR("", "Version Text Sensor", this);
+  if (this->component_name_ != nullptr) {
+    ESP_LOGCONFIG(TAG, "  Component: %s", this->component_name_);
+    ESP_LOGCONFIG(TAG, "  Version: %s", this->version_ != nullptr ? this->version_ : "unknown (not reported)");
+  }
+}
 
 }  // namespace esphome::version
