@@ -1,0 +1,5 @@
+climate:
+  - platform: toshiba
+    name: RAS-B10N3KV2 Climate
+    model: RAS-B10N3KV2
+    receiver_id: rcvr
