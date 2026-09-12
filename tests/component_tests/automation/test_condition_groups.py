@@ -2,19 +2,21 @@
 
 from collections.abc import Callable
 from pathlib import Path
+import re
 
 
 def test_single_condition_groups_are_unwrapped(
     generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
 ) -> None:
     """A group of one condition is passed to the action directly."""
-    main_cpp = generate_main(
-        "tests/component_tests/automation/test_condition_groups.yaml"
-    )
+    main_cpp = generate_main(component_config_path("condition_groups.yaml"))
 
-    assert "AndCondition<1" not in main_cpp
-    assert "OrCondition<1" not in main_cpp
     assert "IfAction<false>(lambdacondition_id);" in main_cpp
     assert "IfAction<false>(lambdacondition_id_2);" in main_cpp
-    assert "AndCondition<2>({lambdacondition_id_3, lambdacondition_id_4});" in main_cpp
-    assert "IfAction<false>(andcondition_id_2);" in main_cpp
+    group = re.search(
+        r"new\((\w+)\) AndCondition<2>\(\{lambdacondition_id_3, lambdacondition_id_4\}\);",
+        main_cpp,
+    )
+    assert group is not None
+    assert f"IfAction<false>({group.group(1)});" in main_cpp

@@ -242,63 +242,24 @@ NotCondition = cg.esphome_ns.class_("NotCondition", Condition)
 XorCondition = cg.esphome_ns.class_("XorCondition", Condition)
 
 
-async def _build_condition_group(
+@register_condition("and", AndCondition, validate_condition_list)
+@register_condition("all", AndCondition, validate_condition_list)
+@register_condition("or", OrCondition, validate_condition_list)
+@register_condition("any", OrCondition, validate_condition_list)
+@register_condition("xor", XorCondition, validate_condition_list)
+async def condition_group_to_code(
     config: ConfigType,
     condition_id: ID,
     template_arg: cg.TemplateArguments,
     args: TemplateArgsType,
 ) -> MockObj:
-    """Build a condition that combines a list of conditions.
-
-    A group of one condition gives the same result as that condition alone for
-    and, or and xor, so the wrapper object and its virtual dispatch are skipped.
-    """
     conditions = await build_condition_list(config, template_arg, args)
+    # A group of one is that condition for and, or and xor; skip the wrapper.
     if len(conditions) == 1:
         return conditions[0]
     return cg.new_Pvariable(
         condition_id, cg.TemplateArguments(len(conditions), *template_arg), conditions
     )
-
-
-@register_condition("and", AndCondition, validate_condition_list)
-async def and_condition_to_code(
-    config: ConfigType,
-    condition_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    return await _build_condition_group(config, condition_id, template_arg, args)
-
-
-@register_condition("or", OrCondition, validate_condition_list)
-async def or_condition_to_code(
-    config: ConfigType,
-    condition_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    return await _build_condition_group(config, condition_id, template_arg, args)
-
-
-@register_condition("all", AndCondition, validate_condition_list)
-async def all_condition_to_code(
-    config: ConfigType,
-    condition_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    return await _build_condition_group(config, condition_id, template_arg, args)
-
-
-@register_condition("any", OrCondition, validate_condition_list)
-async def any_condition_to_code(
-    config: ConfigType,
-    condition_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    return await _build_condition_group(config, condition_id, template_arg, args)
 
 
 @register_condition("not", NotCondition, validate_potentially_and_condition)
@@ -310,16 +271,6 @@ async def not_condition_to_code(
 ) -> MockObj:
     condition = await build_condition(config, template_arg, args)
     return cg.new_Pvariable(condition_id, template_arg, condition)
-
-
-@register_condition("xor", XorCondition, validate_condition_list)
-async def xor_condition_to_code(
-    config: ConfigType,
-    condition_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    return await _build_condition_group(config, condition_id, template_arg, args)
 
 
 @register_condition("lambda", LambdaCondition, cv.returning_lambda)
