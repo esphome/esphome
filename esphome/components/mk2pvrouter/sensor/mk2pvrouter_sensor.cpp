@@ -5,7 +5,8 @@ namespace esphome::mk2pvrouter {
 
 static const char *const TAG = "mk2pvrouter_sensor";
 
-Mk2PVRouterSensor::Mk2PVRouterSensor(const char *tag) : Mk2PVRouterListener(tag) {}
+Mk2PVRouterSensor::Mk2PVRouterSensor(const char *tag, bool scale_centi)
+    : Mk2PVRouterListener(tag), scale_centi_(scale_centi) {}
 
 void Mk2PVRouterSensor::publish_val(const char *val) {
   auto result = parse_number<float>(val);
@@ -13,12 +14,19 @@ void Mk2PVRouterSensor::publish_val(const char *val) {
     ESP_LOGW(TAG, "Failed to parse value '%s' for tag '%s'", val, this->get_tag());
     return;
   }
-  this->publish_state(result.value());
+  float value = result.value();
+  if (this->scale_centi_) {
+    value *= 0.01f;
+  }
+  this->publish_state(value);
 }
 
 void Mk2PVRouterSensor::dump_config() {
   LOG_SENSOR("  ", "Mk2PVRouter Sensor", this);
   ESP_LOGCONFIG(TAG, "  Tag: %s", this->get_tag());
+  if (this->scale_centi_) {
+    ESP_LOGCONFIG(TAG, "  Scale: x0.01");
+  }
 }
 
 }  // namespace esphome::mk2pvrouter
