@@ -1,0 +1,21 @@
+lp5562:
+  - address: 0x30
+    id: lp5562_1
+
+output:
+  - platform: lp5562
+    id: lp5562_red
+    channel: red
+    lp5562_id: lp5562_1
+  - platform: lp5562
+    id: lp5562_green
+    channel: green
+    lp5562_id: lp5562_1
+  - platform: lp5562
+    id: lp5562_blue
+    channel: blue
+    lp5562_id: lp5562_1
+  - platform: lp5562
+    id: lp5562_white
+    channel: white
+    lp5562_id: lp5562_1
