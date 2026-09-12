@@ -110,10 +110,11 @@ static_assert(PendingReply{}.empty());
 ///     return static_cast<MyFilter *>(self)->should_forward(adv);
 ///   }});
 ///
-/// Returning false drops the advertisement. Define
-/// USE_BLUETOOTH_PROXY_ADVERTISEMENT_FILTER from the external component's
-/// codegen (cg.add_define) to compile the hook in; without it there is no slot,
-/// no branch on the hot path, and no cost.
+/// Returning false drops the advertisement. Call
+/// bluetooth_proxy.enable_advertisement_filter() from the external component's
+/// codegen to compile the hook in; without it there is no slot, no branch on the
+/// hot path, and no cost. The define behind that function is an implementation
+/// detail - external components should not emit it themselves.
 struct AdvertisementFilter {
   void *instance{nullptr};
   bool (*fn)(void *instance, const ble_device_base::RawAdvertisement &adv){nullptr};
