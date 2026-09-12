@@ -642,9 +642,7 @@ def Pvariable(id_: ID, rhs: SafeExpType, type_: "MockObj" = None) -> "MockObj":
                 MockObj(f"reinterpret_cast<{pointer_type} *>({storage_name})"),
             )
         )
-        # `new(p) T()` is value initialization: with a defaulted default ctor it
-        # zero-fills the object at every site before the ctor runs. The storage
-        # is .bss and already zero, so emit `new(p) T` when there are no args.
+        # No parens without args: `T()` value-initializes, zero-filling .bss that is already zero.
         placement_new = RawExpression(f"new({id_.id}) {actual_type}")
         if call_expr.args.args:
             placement_new = CallExpression(placement_new, *call_expr.args)
