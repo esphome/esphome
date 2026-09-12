@@ -1,4 +1,4 @@
-from esphome import final_validate as fv
+from esphome import automation, final_validate as fv, pins
 import esphome.codegen as cg
 from esphome.components import esp32
 from esphome.components.esp32 import (
@@ -17,12 +17,15 @@ from esphome.types import ConfigType
 CODEOWNERS = ["@kbx81"]
 CONFLICTS_WITH = ["usb_host"]
 
+CONF_ON_MOUNT = "on_mount"
+CONF_ON_UNMOUNT = "on_unmount"
 CONF_USB_LANG_ID = "usb_lang_id"
 CONF_USB_MANUFACTURER_STR = "usb_manufacturer_str"
 CONF_USB_PRODUCT_ID = "usb_product_id"
 CONF_USB_PRODUCT_STR = "usb_product_str"
 CONF_USB_SERIAL_STR = "usb_serial_str"
 CONF_USB_VENDOR_ID = "usb_vendor_id"
+CONF_VBUS_MONITOR_PIN = "vbus_monitor_pin"
 
 # Components that provide a USB device class (CDC, HID, MSC, ...) on top of
 # tinyusb. Configuring `tinyusb:` without any of these triggers a 5s hang in
@@ -33,6 +36,7 @@ _USB_CLASS_COMPONENTS = ("usb_cdc_acm",)
 
 tinyusb_ns = cg.esphome_ns.namespace("tinyusb")
 TinyUSB = tinyusb_ns.class_("TinyUSB", cg.Component)
+IsMountedCondition = tinyusb_ns.class_("IsMountedCondition", automation.Condition)
 
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
@@ -44,6 +48,9 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_USB_MANUFACTURER_STR, default="ESPHome"): cv.string,
             cv.Optional(CONF_USB_PRODUCT_STR, default="ESPHome"): cv.string,
             cv.Optional(CONF_USB_SERIAL_STR, default=""): cv.string,
+            cv.Optional(CONF_VBUS_MONITOR_PIN): pins.internal_gpio_input_pin_number,
+            cv.Optional(CONF_ON_MOUNT): automation.validate_automation({}),
+            cv.Optional(CONF_ON_UNMOUNT): automation.validate_automation({}),
         }
     ).extend(cv.COMPONENT_SCHEMA),
     esp32.only_on_variant(
@@ -56,6 +63,25 @@ CONFIG_SCHEMA = cv.All(
         ],
     ),
 )
+
+
+def _validate_vbus_monitor_pin(config: ConfigType) -> ConfigType:
+    # esp_tinyusb monitors VBUS on the S31 through a GPIO interrupt and needs the GPIO
+    # ISR service installed first, which would collide with the esp32 platform's own
+    # lazy install and disable other interrupts. The other variants watch the pin in
+    # the OTG hardware.
+    if (
+        CONF_VBUS_MONITOR_PIN in config
+        and esp32.get_esp32_variant() == VARIANT_ESP32S31
+    ):
+        raise cv.Invalid(
+            f"{CONF_VBUS_MONITOR_PIN} is not supported on the ESP32-S31 yet",
+            [CONF_VBUS_MONITOR_PIN],
+        )
+    return config
+
+
+CONFIG_SCHEMA = cv.All(CONFIG_SCHEMA, _validate_vbus_monitor_pin)
 
 
 def _final_validate(config: ConfigType) -> None:
@@ -93,9 +119,30 @@ async def to_code(config: ConfigType) -> None:
     cg.add(var.set_usb_desc_product(config[CONF_USB_PRODUCT_STR]))
     if config[CONF_USB_SERIAL_STR]:
         cg.add(var.set_usb_desc_serial(config[CONF_USB_SERIAL_STR]))
+    if (vbus_pin := config.get(CONF_VBUS_MONITOR_PIN)) is not None:
+        cg.add(var.set_vbus_monitor_pin(vbus_pin))
+
+    for conf_key, forwarder in (
+        (CONF_ON_MOUNT, automation.TriggerOnTrueForwarder),
+        (CONF_ON_UNMOUNT, automation.TriggerOnFalseForwarder),
+    ):
+        for conf in config.get(conf_key, []):
+            await automation.build_callback_automation(
+                var, "add_on_mount_state_callback", [], conf, forwarder=forwarder
+            )
 
     add_idf_component(name="espressif/esp_tinyusb", ref="2.2.1")
 
     add_idf_sdkconfig_option("CONFIG_TINYUSB_DESC_USE_ESPRESSIF_VID", False)
     add_idf_sdkconfig_option("CONFIG_TINYUSB_DESC_USE_DEFAULT_PID", False)
     add_idf_sdkconfig_option("CONFIG_TINYUSB_DESC_BCD_DEVICE", 0x0100)
+
+
+@automation.register_condition(
+    "tinyusb.is_mounted",
+    IsMountedCondition,
+    cv.Schema({cv.GenerateID(): cv.use_id(TinyUSB)}),
+)
+async def tinyusb_is_mounted_to_code(config, condition_id, template_arg, args):
+    paren = await cg.get_variable(config[CONF_ID])
+    return cg.new_Pvariable(condition_id, template_arg, paren)
