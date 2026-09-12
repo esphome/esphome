@@ -318,8 +318,7 @@ void VL53L0XSensor::loop() {
     if (micros() - this->measurement_start_us_ > stall_timeout_us) {
       if (!this->stall_reported_) {
         ESP_LOGW(TAG,
-                 "'%s' - measurement did not complete within %" PRIu32
-                 "us, resetting read state (possible I2C glitch)",
+                 "'%s' - measurement did not complete within %" PRIu32 "us, resetting read state (possible I2C glitch)",
                  this->name_.c_str(), stall_timeout_us);
         this->stall_reported_ = true;
       }
