@@ -13,6 +13,9 @@ class IPAddressEthernetInfo final : public Component,
                                     public text_sensor::TextSensor,
                                     public ethernet::EthernetIPStateListener {
  public:
+  // User provided, not "= default": `new(p) IPAddressEthernetInfo()` would zero-fill .bss that is already zero.
+  IPAddressEthernetInfo() {}
+
   void setup() override;
   void dump_config() override;
   void add_ip_sensors(uint8_t index, text_sensor::TextSensor *s) { this->ip_sensors_[index] = s; }
