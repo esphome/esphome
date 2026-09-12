@@ -141,6 +141,8 @@ class RemoteTransmitterComponent final : public remote_base::RemoteTransmitterBa
 #endif
 
 #if defined(USE_ESP32) && SOC_RMT_SUPPORTED
+  // log the failed RMT call and mark the component failed
+  void fail_(esp_err_t error, const LogString *reason);
   void configure_rmt_();
   void wait_for_rmt_();
 
@@ -156,8 +158,6 @@ class RemoteTransmitterComponent final : public remote_base::RemoteTransmitterBa
   bool eot_level_{false};
   rmt_channel_handle_t channel_{NULL};
   rmt_encoder_handle_t encoder_{NULL};
-  esp_err_t error_code_{ESP_OK};
-  std::string error_string_;
   bool inverted_{false};
   bool non_blocking_{false};
 #endif
