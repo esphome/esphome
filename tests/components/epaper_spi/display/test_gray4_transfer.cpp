@@ -66,6 +66,7 @@ class TestableGray4 : public EPaperStickyGray4 {
   /// What the base class would decide; 0 means the next push is a full one.
   void set_update_count(uint8_t count) { this->update_count_ = count; }
 
+  using EPaperStickyGray4::deep_sleep;
   using EPaperStickyGray4::draw_pixel_at;
 
   RecordingPin dc;
@@ -204,6 +205,35 @@ TEST(EPaperGray4, FirstPartialRequestIsServedAsAFullPush) {
   EXPECT_EQ(delegate.data[0x24][0], 0x00) << "first partial request was not served as a full push";
   EXPECT_EQ(delegate.data[0x26][0], 0x00);
   EXPECT_TRUE(display.has_shadow()) << "the push that allocates must also seed the frame";
+}
+
+/// The panel sleeps between updates like a monochrome one does, but in the
+/// mode that keeps RAM - the deeper mode is reserved for the host going to
+/// sleep, where the rail goes with it.
+TEST(EPaperGray4, SleepsBetweenUpdatesInTheRamRetainingMode) {
+  TestableGray4 display(8, 1);
+  RecordingDelegate delegate(&display.dc);
+  display.install(&delegate);
+
+  display.deep_sleep();
+
+  ASSERT_EQ(delegate.data[0x10].size(), 1u) << "the panel was not put to sleep between updates";
+  EXPECT_EQ(delegate.data[0x10][0], 0x01);
+}
+
+TEST(EPaperGray4, SleepsDeeplyWhenTheHostIsAboutToSleep) {
+  TestableGray4 display(8, 1);
+  RecordingDelegate delegate(&display.dc);
+  display.install(&delegate);
+
+  display.sleep_panel_deeply_after_next_push();
+  display.deep_sleep();
+  EXPECT_EQ(delegate.data[0x10][0], 0x03);
+
+  // One push only: the next one is back to keeping RAM.
+  delegate.clear();
+  display.deep_sleep();
+  EXPECT_EQ(delegate.data[0x10][0], 0x01);
 }
 
 }  // namespace esphome::epaper_spi::testing

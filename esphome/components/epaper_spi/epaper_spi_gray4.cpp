@@ -173,14 +173,26 @@ void EPaperGray4::refresh_partial_() {
   this->command(0x20);           // master activation
 }
 
-// Only when asked. The panel loses its RAM here and it costs a wake on the
-// next push, so it is for going to sleep - not for between updates.
+// The panel sleeps after every push, as it does for a monochrome display -
+// it wakes on the reset the next push performs anyway, so this costs nothing
+// and saves its idle draw for however long the host stays up.
+//
+// Mode 1 keeps RAM across the sleep and that reset. This class writes both
+// planes every time and so does not depend on it, but the deeper mode buys
+// nothing measurable while the host is awake, and mode 1 is the one with
+// hardware evidence behind it on this family.
+//
+// Mode 2 is for the host going to sleep: the rail is usually cut behind it,
+// so there is nothing to preserve and no wake to pay for.
 void EPaperGray4::deep_sleep() {
-  if (!this->sleep_panel_)
+  if (this->sleep_panel_deep_) {
+    this->sleep_panel_deep_ = false;
+    ESP_LOGV(TAG, "Panel deep sleep, mode 2");
+    this->cmd_data(0x10, {0x03});
     return;
-  this->sleep_panel_ = false;
-  ESP_LOGV(TAG, "Panel deep sleep");
-  this->cmd_data(0x10, {0x03});
+  }
+  ESP_LOGV(TAG, "Panel deep sleep, mode 1");
+  this->cmd_data(0x10, {0x01});
 }
 
 // Vendor waveform selection: 0xD7 is not a named row of the datasheet's

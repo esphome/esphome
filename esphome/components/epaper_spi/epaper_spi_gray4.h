@@ -56,9 +56,10 @@ class EPaperGray4 : public EPaperBase {
   /// says. Belongs on EPaperBase upstream, so every model gets it.
   void request_full_refresh() { this->update_count_ = 0; }
 
-  /// Put the PANEL to sleep after the next push. It loses its RAM, so this
-  /// is for going to sleep, not for between updates.
-  void sleep_panel_after_next_push() { this->sleep_panel_ = true; }
+  /// Put the panel into the deeper sleep, which drops its RAM, after the
+  /// next push: for use just before the host itself sleeps. Between updates
+  /// the panel sleeps too, but in the mode that keeps RAM - see deep_sleep().
+  void sleep_panel_deeply_after_next_push() { this->sleep_panel_deep_ = true; }
 
   void fill(Color color) override;
   void draw_pixel_at(int x, int y, Color color) override;
@@ -98,7 +99,7 @@ class EPaperGray4 : public EPaperBase {
 
   uint8_t plane_{0};          // first or second pass of a push
   bool partial_push_{false};  // latched for the whole push
-  bool sleep_panel_{false};
+  bool sleep_panel_deep_{false};
   bool shadow_failed_{false};
   split_buffer::SplitBuffer shadow_{};  // 1bpp frame on the glass, lazily allocated
 };
