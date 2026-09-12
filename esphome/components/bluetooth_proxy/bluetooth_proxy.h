@@ -119,9 +119,7 @@ struct AdvertisementFilter {
   bool (*fn)(void *instance, const ble_device_base::RawAdvertisement &adv){nullptr};
   /// A default-constructed slot is "no filter"; the proxy guards on this.
   bool is_set() const { return this->fn != nullptr; }
-  bool should_forward(const ble_device_base::RawAdvertisement &adv) const {
-    return this->fn(this->instance, adv);
-  }
+  bool should_forward(const ble_device_base::RawAdvertisement &adv) const { return this->fn(this->instance, adv); }
 };
 #endif  // USE_BLUETOOTH_PROXY_ADVERTISEMENT_FILTER
 
