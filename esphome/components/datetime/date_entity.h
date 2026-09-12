@@ -31,10 +31,14 @@ struct DateEntityRestoreState {
 } __attribute__((packed));
 
 class DateEntity : public DateTimeBase {
+ public:
+  // User provided, not "= default": `new(p) DateEntity()` would zero-fill .bss that is already zero.
+  DateEntity() {}
+
  protected:
-  uint16_t year_;
-  uint8_t month_;
-  uint8_t day_;
+  uint16_t year_{0};
+  uint8_t month_{0};
+  uint8_t day_{0};
 
  public:
   void publish_state();

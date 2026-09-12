@@ -27,7 +27,7 @@ class DateTimeBase : public EntityBase {
   LazyCallbackManager<void()> state_callback_;
 
 #ifdef USE_TIME
-  time::RealTimeClock *rtc_;
+  time::RealTimeClock *rtc_{nullptr};
 #endif
 };
 
