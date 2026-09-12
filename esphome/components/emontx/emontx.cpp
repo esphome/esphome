@@ -16,6 +16,13 @@ void EmonTx::setup() { this->buffer_pos_ = 0; }
  * 2. If line starts with '{', parse as JSON and update sensors/callbacks
  */
 void EmonTx::loop() {
+  // Let another component take exclusive ownership of the UART (e.g. while
+  // flashing new firmware to the emonTx over the same bus) without this
+  // component racing it for incoming bytes.
+  if (this->is_paused()) {
+    return;
+  }
+
   // Read all available data to prevent UART buffer overflow
   while (this->available() > 0) {
     uint8_t received = this->read();
@@ -95,6 +102,10 @@ void EmonTx::dump_config() {
  * @param command The command string to send (LF will be appended automatically).
  */
 void EmonTx::send_command(const std::string &command) {
+  if (this->is_paused()) {
+    ESP_LOGW(TAG, "Not sending command, UART is paused: %s", command.c_str());
+    return;
+  }
   ESP_LOGD(TAG, "Sending command to emonTx: %s", command.c_str());
   this->write_str(command.c_str());
   this->write_byte('\n');
