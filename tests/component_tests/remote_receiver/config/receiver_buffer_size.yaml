@@ -1,0 +1,10 @@
+esphome:
+  name: test
+
+esp32:
+  board: esp32dev
+
+remote_receiver:
+  - id: rcvr
+    pin: GPIO4
+    buffer_size: 2kb

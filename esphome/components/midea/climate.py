@@ -1,6 +1,6 @@
 from esphome import automation
 import esphome.codegen as cg
-from esphome.components import climate, remote_transmitter, sensor, uart
+from esphome.components import climate, remote_base, remote_transmitter, sensor, uart
 from esphome.components.climate import ClimateMode, ClimatePreset, ClimateSwingMode
 from esphome.components.remote_base import CONF_TRANSMITTER_ID
 import esphome.config_validation as cv
@@ -280,6 +280,7 @@ async def to_code(config):
     cg.add(var.set_response_timeout(config[CONF_TIMEOUT].total_milliseconds))
     cg.add(var.set_request_attempts(config[CONF_NUM_ATTEMPTS]))
     if CONF_TRANSMITTER_ID in config:
+        remote_base.request_protocol("midea")  # ir_transmitter.h uses it from C++
         cg.add_define("USE_REMOTE_TRANSMITTER")
         transmitter_ = await cg.get_variable(config[CONF_TRANSMITTER_ID])
         cg.add(var.set_transmitter(transmitter_))
