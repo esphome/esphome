@@ -1,7 +1,6 @@
 #pragma once
 
 #include "esphome/core/component.h"
-#include "esphome/core/string_ref.h"
 #include "esphome/core/helpers.h"
 
 #include "esphome/components/http_request/http_request.h"
@@ -23,7 +22,6 @@ class HttpRequestUpdate final : public update::UpdateEntity, public PollingCompo
   void check() override { this->update(); }
 
   void set_source_url(const char *source_url) { this->source_url_ = source_url; }
-  StringRef get_source_url() const { return StringRef(this->source_url_); }
 
   void set_request_parent(HttpRequestComponent *request_parent) { this->request_parent_ = request_parent; }
   void set_ota_parent(OtaHttpRequestComponent *ota_parent) { this->ota_parent_ = ota_parent; }
