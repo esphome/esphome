@@ -1,0 +1,34 @@
+mt6701_i2c:
+  id: mt6701_i2c_encoder
+  i2c_id: i2c_bus
+  address: 0x06
+  update_interval: 500ms
+  direction: CLOCKWISE
+  zero_offset: 45deg
+  hysteresis: 1
+  output_mode: ABZ
+  abz:
+    pulses_per_revolution: 1024
+    z_pulse_width: 1LSB
+  uvw:
+    pole_pairs: 8
+  out_pin:
+    mode: PWM
+    pwm_frequency: 994.4Hz
+    pwm_polarity: HIGH
+    analog_start: 0deg
+    analog_stop: 360deg
+
+sensor:
+  - platform: mt6701
+    mt6701_id: mt6701_i2c_encoder
+    name: MT6701 I2C Angle
+    update_interval: 100ms
+    raw_count:
+      name: MT6701 I2C Raw Count
+
+button:
+  - platform: template
+    name: MT6701 I2C Save EEPROM
+    on_press:
+      - mt6701_i2c.save_eeprom: mt6701_i2c_encoder
