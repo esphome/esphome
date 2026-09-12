@@ -1187,3 +1187,42 @@ class MockObjClass(MockObj):
 
     def __repr__(self):
         return f"MockObjClass<{str(self.base)}, parents={self._parents}>"
+
+
+class StaticCastExpression(Expression):
+    __slots__ = ("type", "exp")
+
+    def __init__(self, type: Any, exp: SafeExpType):
+        self.type = str(type)
+        self.exp = safe_exp(exp)
+
+    def __str__(self):
+        return f"static_cast<{self.type}>({self.exp})"
+
+
+def call_lambda(lamb: LambdaExpression) -> Expression:
+    """
+    Given a lambda, either reduce to a simple expression or call it, possibly with parameters
+    from the surrounding context.
+    This is for use only with value-returning lambdas, used in places where the value of a lambda call is needed.
+    :param lamb: The LambdaExpression to call or reduce
+    :return: An Expression representing the result of calling the lambda or reducing it to a simple expression
+    """
+    # Developer error if this is called with a lambda that doesn't have a return type
+    assert lamb.return_type is not None, "Lambda must have a return type to be called"
+    expr = lamb.content.strip()
+    if re.match(r"^return\b", expr) and expr.endswith(";"):
+        # Convert a lambda returning a simple expression to just that expression
+        expr = RawExpression(expr[6:-1].strip())
+        # Don't cast if the return type is a class
+        if isinstance(lamb.return_type, MockObjClass):
+            return expr
+        return StaticCastExpression(lamb.return_type, expr)
+    # If lambda has parameters, call it with their names
+    # Parameter names come from hardcoded component code (like "x", "it", "event")
+    # not from user input, so they're safe to use directly
+    if lamb.parameters and lamb.parameters.parameters:
+        return CallExpression(
+            lamb, *[MockObj(x.id) for x in lamb.parameters.parameters]
+        )
+    return CallExpression(lamb)

@@ -12,6 +12,7 @@ from esphome.components.esp32 import (
     get_esp32_variant,
     only_on_variant,
     request_wifi,
+    require_mbedtls_tls_extras,
 )
 from esphome.components.network import (
     add_use_address,
@@ -658,6 +659,12 @@ async def to_code(config):
     # Disable Enterprise WiFi support if no EAP is configured
     if CORE.is_esp32:
         add_idf_sdkconfig_option("CONFIG_ESP_WIFI_ENTERPRISE_SUPPORT", has_eap)
+        if has_eap:
+            # wpa_supplicant's EAP client negotiates with whatever the RADIUS
+            # server offers, and a failed handshake leaves the device off the
+            # network, so keep every mbedTLS client feature the esp32 platform
+            # would otherwise trim.
+            require_mbedtls_tls_extras()
 
     # Only define USE_WIFI_MANUAL_IP if any AP uses manual IP
     if has_manual_ip:
