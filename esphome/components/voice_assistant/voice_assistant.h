@@ -191,6 +191,7 @@ class VoiceAssistant final : public Component {
   void set_auto_gain(uint8_t auto_gain) { this->auto_gain_ = auto_gain; }
   void set_volume_multiplier(float volume_multiplier) { this->volume_multiplier_ = volume_multiplier; }
   void set_conversation_timeout(uint32_t conversation_timeout) { this->conversation_timeout_ = conversation_timeout; }
+  void set_tts_playback_start_timeout(uint32_t timeout) { this->tts_playback_start_timeout_ = timeout; }
   void reset_conversation_id();
 
   Trigger<> *get_intent_end_trigger() { return &this->intent_end_trigger_; }
@@ -327,6 +328,7 @@ class VoiceAssistant final : public Component {
   uint8_t auto_gain_;
   float volume_multiplier_;
   uint32_t conversation_timeout_;
+  uint32_t tts_playback_start_timeout_{2000};
 
   bool continuous_{false};
   bool silence_detection_;
