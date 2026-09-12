@@ -11,9 +11,10 @@ body:
         [fr]: https://github.com/orgs/esphome/discussions
   - type: markdown
     attributes:
-      label: Use of AI in bug reports
       value: |
-        AI's are good at carrying out well defined tasks, but they are not good at troubleshooting.
+        ## Use of AI in bug reports
+
+        AI tools are good at carrying out well-defined tasks, but they are not good at troubleshooting.
         Please do NOT paste an AI-generated wall of text into the issue template - if the AI hasn't solved
         your problem, its wild guesses are not likely to help.
 
