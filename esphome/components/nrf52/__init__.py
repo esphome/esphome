@@ -1,13 +1,24 @@
 from __future__ import annotations
 
 import asyncio
+from functools import partial
 import logging
 from pathlib import Path
 import re
 import shutil
+import stat
 import subprocess
 
 from esphome import pins
+from esphome.build_helpers import pch
+from esphome.build_helpers.pch import (
+    PCH_DEFAULT_HEADERS,
+    PCH_HEADER_NAME,
+    mark_pch_emitted,
+    pch_cmake_consumer,
+    pch_enabled,
+    pch_header_text,
+)
 import esphome.codegen as cg
 from esphome.components.zephyr import (
     add_extra_script,
@@ -805,6 +816,9 @@ def _generate_cmake_lists() -> bool:
             ")",
         ]
 
+    if consumer := pch_cmake_consumer("app", "${APP_SOURCES}"):
+        lines += consumer.splitlines()
+
     if link_flags:
         lines += [
             "",
@@ -816,6 +830,66 @@ def _generate_cmake_lists() -> bool:
     return write_file_if_changed(
         CORE.relative_build_path("zephyr", "CMakeLists.txt"),
         "\n".join(lines) + "\n",
+    )
+
+
+def _app_build_dir(build_dir: Path) -> Path:
+    """The CMake binary dir of the app image: sysbuild nests it in a
+    domain dir named after the app source dir. Probed on disk (the
+    non-sysbuild zephyr/ output dir has no CMakeCache.txt) so it stays
+    truthful mid-build, unlike an SDK-version check."""
+    sysbuild_app = build_dir / "zephyr"
+    try:
+        cache = (sysbuild_app / "CMakeCache.txt").stat()
+    except (FileNotFoundError, NotADirectoryError):
+        return build_dir
+    # Other stat errors propagate; is_file() would silently mislocate the pch
+    return sysbuild_app if stat.S_ISREG(cache.st_mode) else build_dir
+
+
+def _prepare_pch(app_dir: Path) -> None:
+    """Build the .gch between the cmake and compile phases of west."""
+    if not pch_enabled():
+        pch.discard_pch(app_dir)
+        pch.pch_disabled_degraded()
+        return
+    # First, so OBJECT_DEPENDS is satisfied even when the pch degrades
+    app_dir.mkdir(parents=True, exist_ok=True)
+    write_file_if_changed(
+        app_dir / PCH_HEADER_NAME, pch_header_text(PCH_DEFAULT_HEADERS)
+    )
+    # New layout first (Zephyr >= 3.4 nests under zephyr/); fixed candidates
+    # keep the .sum identity deterministic and skip walking generated/
+    generated = app_dir / "zephyr" / "include" / "generated"
+    autoconf = None
+    for candidate in (generated / "zephyr" / "autoconf.h", generated / "autoconf.h"):
+        if candidate.exists():
+            autoconf = candidate
+            break
+    if autoconf is None:
+        # Fail closed: autoconf.h is the .sum's Kconfig identity
+        _LOGGER.warning("No autoconf.h found; compiling without the pch")
+        pch.discard_pch(app_dir)
+        pch.pch_degraded("autoconf.h missing")
+        return
+    try:
+        autoconf_text = autoconf.read_text(encoding="utf-8")
+    except OSError as err:
+        _LOGGER.warning(
+            "Could not read %s; compiling without the pch: %s", autoconf, err
+        )
+        pch.discard_pch(app_dir)
+        pch.pch_degraded(f"autoconf unreadable: {err}")
+        return
+    pch.prepare_pch(
+        app_dir,
+        PCH_DEFAULT_HEADERS,
+        (
+            str(CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]),
+            zephyr_data()[KEY_BOARD],
+            autoconf_text,
+            *get_project_compile_flags(),
+        ),
     )
 
 
@@ -870,6 +944,58 @@ def run_compile(args, config: ConfigType) -> bool:
         str(build_dir),
         str(source_dir),
     ]
+
+    if pch_enabled():
+        # Consumers carry the -include; gate the ccache relaxation on it
+        # (Zephyr auto-enables ccache as the compiler launcher when found)
+        mark_pch_emitted()
+        env.update(pch.ccache_pch_env())
+
+        # Configure first so the .gch compiles from settled compile DB
+        # flags. Only when the app DB is missing: input changes wipe the
+        # build dir, so an existing DB is settled and --cmake-only would
+        # reconfigure for nothing.
+        prepare = True
+        app_dir = _app_build_dir(build_dir)
+        if not (app_dir / "compile_commands.json").is_file():
+            if not run_command_ok(
+                west_cmd + ["--cmake-only", "--", "-DCMAKE_EXPORT_COMPILE_COMMANDS=ON"],
+                env=env,
+                stream_output=True,
+                cwd=str(paths["framework_path"]),
+            ):
+                raise EsphomeError("nRF52 native build configure failed")
+            # The configure phase creates the sysbuild domain dir: re-resolve
+            app_dir = _app_build_dir(build_dir)
+            # kernel.h needs the build-time syscall headers; under sysbuild
+            # the target exists only in the app domain's ninja
+            if not run_command_ok(
+                [
+                    "cmake",
+                    "--build",
+                    str(app_dir),
+                    "--target",
+                    "zephyr_generated_headers",
+                ],
+                env=env,
+                stream_output=True,
+                cwd=str(paths["framework_path"]),
+            ):
+                # A pch-only prerequisite: degrade, let the real build report.
+                # Also skip the .gch compile: it would fail on the missing
+                # headers and latch .gch.failed until an identity change
+                _LOGGER.warning(
+                    "Zephyr header generation failed; compiling without the pch"
+                )
+                pch.discard_pch(app_dir)
+                pch.pch_degraded("zephyr_generated_headers failed")
+                prepare = False
+    else:
+        prepare = True
+        app_dir = _app_build_dir(build_dir)
+
+    if prepare:
+        pch.guarded_prepare(app_dir, partial(_prepare_pch, app_dir))
 
     if not run_command_ok(
         west_cmd,

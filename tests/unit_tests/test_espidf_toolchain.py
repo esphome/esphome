@@ -684,7 +684,7 @@ def test_run_compile_aborts_when_stale_pch_survives_discard(
         patch.object(toolchain, "print_summary"),
         patch("esphome.build_gen.espidf.prepare_pch", side_effect=RuntimeError("boom")),
         patch(
-            "esphome.build_gen.espidf.discard_pch",
+            "esphome.build_helpers.pch.discard_pch",
             side_effect=EsphomeError("Could not discard the stale precompiled header"),
         ),
         pytest.raises(EsphomeError, match="Could not discard"),
