@@ -1,0 +1,16 @@
+packages:
+  common: !include common-base.yaml
+
+wifi:
+  ssid: MySSID
+  password: password1
+
+# Outgoing connection: the device dials out when no dial-back client is
+# connected. Requires encryption so the peer is verified by key.
+api:
+  encryption:
+    key: bOFFzzvfpg5DB94DuBGLXD/hMnhpDKgP9UQyBulwWVU=
+  outgoing_connection:
+    host: 192.168.1.2
+    port: 6054
+    delay: 60s

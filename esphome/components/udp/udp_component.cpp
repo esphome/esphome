@@ -13,8 +13,15 @@ void UDPComponent::setup() {
 #if defined(USE_SOCKET_IMPL_BSD_SOCKETS) || defined(USE_SOCKET_IMPL_LWIP_SOCKETS)
   for (const auto &address : this->addresses_) {
     struct sockaddr saddr {};
-    socket::set_sockaddr(&saddr, sizeof(saddr), address, this->broadcast_port_);
+    if (socket::set_sockaddr(&saddr, sizeof(saddr), address, this->broadcast_port_) == 0) {
+      ESP_LOGW(TAG, "Invalid address %s", address);
+      continue;
+    }
     this->sockaddrs_.push_back(saddr);
+  }
+  if (this->sockaddrs_.size() != this->addresses_.size()) {
+    // A dropped address silently receives nothing; surface the misconfiguration
+    this->status_set_warning(LOG_STR("invalid address"));
   }
   // set up broadcast socket
   if (this->should_broadcast_) {
@@ -94,8 +101,14 @@ void UDPComponent::setup() {
   // 8266 and RP2040 `Duino
   for (const auto &address : this->addresses_) {
     auto ipaddr = IPAddress();
-    ipaddr.fromString(address);
+    if (!ipaddr.fromString(address)) {
+      ESP_LOGW(TAG, "Invalid address %s", address);
+      continue;
+    }
     this->ipaddrs_.push_back(ipaddr);
+  }
+  if (this->ipaddrs_.size() != this->addresses_.size()) {
+    this->status_set_warning(LOG_STR("invalid address"));
   }
   if (this->should_listen_)
     this->udp_client_.begin(this->listen_port_);

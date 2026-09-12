@@ -1,0 +1,7 @@
+esphome:
+  name: api-reboot-test
+host:
+api:
+  reboot_timeout: 2s  # Headroom to connect and authenticate a client first
+logger:
+  level: DEBUG
