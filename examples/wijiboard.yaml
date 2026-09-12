@@ -1,0 +1,137 @@
+# Example WijiBoard device configuration.
+#
+# The `wijiboard` component lives in this fork of ESPHome, so a stock ESPHome install
+# pulls it in as an external component. Replace the owner and branch below with your own
+# fork and branch if you push this somewhere else.
+#
+# To build against a local checkout instead, swap the `source:` line for:
+#   source:
+#     type: local
+#     path: /path/to/esphome/esphome/components
+
+substitutions:
+  device_name: wijiboard
+
+esphome:
+  name: ${device_name}
+  friendly_name: WijiBoard
+
+external_components:
+  - source: github://NotWoods/esphome@claude/wijiboard-esphome-component-16o3ux
+    components: [wijiboard]
+
+esp32:
+  board: adafruit_feather_esp32s3_nopsram
+  framework:
+    type: esp-idf
+
+logger:
+
+api:
+  encryption:
+    key: !secret api_encryption_key
+
+  # Home Assistant can call these directly, for example from a script or automation:
+  #   action: esphome.wijiboard_spell_word
+  #   data:
+  #     word: "hello world"
+  actions:
+    - action: spell_word
+      variables:
+        word: string
+      then:
+        - wijiboard.write_word: !lambda "return word;"
+
+    # Bonus: point the planchette at any coordinate on the board, in mm, measured from
+    # the middle of the board. Useful for calibrating your own artwork.
+    - action: goto_coordinates
+      variables:
+        x: float
+        y: float
+      then:
+        - wijiboard.goto_xy:
+            id: wiji
+            x: !lambda "return x;"
+            y: !lambda "return y;"
+
+    # Drive the two arms to raw angles in degrees, skipping the inverse kinematics.
+    - action: goto_angles
+      variables:
+        theta1: float
+        theta2: float
+      then:
+        - wijiboard.goto_angles:
+            id: wiji
+            theta1: !lambda "return theta1;"
+            theta2: !lambda "return theta2;"
+
+    - action: rehome
+      then:
+        - wijiboard.home: wiji
+
+ota:
+  - platform: esphome
+    password: !secret ota_password
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+# The two 28BYJ-48 steppers, wired through their ULN2003 drivers. These pins match the
+# stock WijiBoard PCB; the B and C pins of the second motor are deliberately swapped to
+# match the original firmware's wiring.
+stepper:
+  - platform: uln2003
+    id: wiji_stepper_1
+    pin_a: GPIO4
+    pin_b: GPIO7
+    pin_c: GPIO5
+    pin_d: GPIO6
+    max_speed: 600 steps/s
+    acceleration: 100 steps/s^2
+    deceleration: 100 steps/s^2
+    sleep_when_done: true
+  - platform: uln2003
+    id: wiji_stepper_2
+    pin_a: GPIO8
+    pin_b: GPIO11
+    pin_c: GPIO9
+    pin_d: GPIO10
+    max_speed: 600 steps/s
+    acceleration: 100 steps/s^2
+    deceleration: 100 steps/s^2
+    sleep_when_done: true
+
+wijiboard:
+  - id: wiji
+    stepper_1: wiji_stepper_1
+    stepper_2: wiji_stepper_2
+    # Uncomment and adjust if your artwork differs from the stock board.
+    # letters:
+    #   "A":
+    #     x: -143.0
+    #     y: 99.0
+
+# A text box in Home Assistant. Whatever you type is spelled out straight away.
+text:
+  - platform: wijiboard
+    wijiboard_id: wiji
+    name: Message
+    icon: mdi:message-text
+
+# Handy buttons for testing without Home Assistant automations.
+button:
+  - platform: template
+    name: Re-home
+    icon: mdi:home
+    on_press:
+      - wijiboard.home: wiji
+  - platform: template
+    name: Say hello
+    on_press:
+      - wijiboard.write_word: HELLO
+
+binary_sensor:
+  - platform: template
+    name: Moving
+    lambda: "return id(wiji).is_busy();"

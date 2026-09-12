@@ -1,0 +1,74 @@
+esphome:
+  on_boot:
+    then:
+      - wijiboard.write_word: HELLO WORLD
+      - wijiboard.write_letter: "A"
+      - wijiboard.goto_xy:
+          id: wiji
+          x: 12.5
+          y: 95.0
+      - wijiboard.goto_angles:
+          id: wiji
+          theta1: 30.0
+          theta2: 150.0
+      - if:
+          condition:
+            wijiboard.is_busy: wiji
+          then:
+            - wijiboard.stop: wiji
+      - wijiboard.home: wiji
+
+stepper:
+  - platform: uln2003
+    id: wiji_stepper_1
+    pin_a: ${stepper_1_pin_a}
+    pin_b: ${stepper_1_pin_b}
+    pin_c: ${stepper_1_pin_c}
+    pin_d: ${stepper_1_pin_d}
+    max_speed: 600 steps/s
+    acceleration: 100 steps/s^2
+    deceleration: 100 steps/s^2
+    sleep_when_done: true
+  - platform: uln2003
+    id: wiji_stepper_2
+    pin_a: ${stepper_2_pin_a}
+    pin_b: ${stepper_2_pin_b}
+    pin_c: ${stepper_2_pin_c}
+    pin_d: ${stepper_2_pin_d}
+    max_speed: 600 steps/s
+    acceleration: 100 steps/s^2
+    deceleration: 100 steps/s^2
+    sleep_when_done: true
+
+wijiboard:
+  - id: wiji
+    stepper_1: wiji_stepper_1
+    stepper_2: wiji_stepper_2
+    hold_time: 500ms
+    letter_pause: 200ms
+    space_pause: 1s
+    max_word_length: 32
+    letters:
+      "?":
+        x: 0.0
+        y: 128.0
+      "!":
+        theta1: 45.0
+        theta2: 135.0
+    on_word_start:
+      - logger.log:
+          format: "Spelling %s"
+          args: [x.c_str()]
+    on_letter:
+      - logger.log:
+          format: "Letter %c"
+          args: ["(char) x"]
+    on_word_end:
+      - logger.log: "Done"
+    on_home:
+      - logger.log: "Homed"
+
+text:
+  - platform: wijiboard
+    wijiboard_id: wiji
+    name: Message

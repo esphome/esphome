@@ -1,0 +1,12 @@
+substitutions:
+  stepper_1_pin_a: GPIO4
+  stepper_1_pin_b: GPIO7
+  stepper_1_pin_c: GPIO5
+  stepper_1_pin_d: GPIO6
+  stepper_2_pin_a: GPIO8
+  stepper_2_pin_b: GPIO11
+  stepper_2_pin_c: GPIO9
+  stepper_2_pin_d: GPIO10
+
+packages:
+  wijiboard: !include common.yaml
