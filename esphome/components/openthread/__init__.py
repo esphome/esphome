@@ -13,6 +13,7 @@ from esphome.components.esp32 import (
     get_esp32_variant,
     include_builtin_idf_component,
     only_on_variant,
+    require_mbedtls_ecp,
     require_mbedtls_tls_extras,
     require_mbedtls_tls_server,
     require_vfs_select,
@@ -111,9 +112,9 @@ def set_sdkconfig_options(config: ConfigType) -> None:
 
     add_idf_sdkconfig_option("CONFIG_OPENTHREAD_ENABLED", True)
 
-    # OpenThread's DTLS commissioner is a TLS server, and its crypto platform
-    # uses AES-CCM and deterministic ECDSA directly. Keep the esp32 component
-    # from trimming them out of mbedTLS.
+    # Commissioner/joiner Kconfigs default off, so no mbedtls_ssl_* is linked;
+    # setting one under sdkconfig_options keeps TLS in the build automatically.
+    # The crypto platform uses AES-CCM and deterministic ECDSA directly.
     require_mbedtls_tls_server()
     require_mbedtls_tls_extras(
         ("CONFIG_MBEDTLS_CCM_C", "CONFIG_MBEDTLS_ECDSA_DETERMINISTIC")
@@ -292,6 +293,8 @@ async def to_code(config: ConfigType) -> None:
     # Re-enable openthread IDF component (excluded by default)
     if CORE.is_esp32:
         include_builtin_idf_component("openthread")
+        # OPENTHREAD_CONFIG_ECDSA_ENABLE: the SRP client host key uses mbedtls_ecdsa_*
+        require_mbedtls_ecp()
 
     cg.add_define("USE_OPENTHREAD")
     if config.get(CONF_FORCE_DATASET):
