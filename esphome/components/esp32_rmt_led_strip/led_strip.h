@@ -24,6 +24,9 @@ struct LedParams {
 
 class ESP32RMTLEDStripLightOutput final : public light::AddressableLight {
  public:
+  // User provided, not "= default": `new(p) ESP32RMTLEDStripLightOutput()` would zero-fill .bss that is already zero.
+  ESP32RMTLEDStripLightOutput() {}
+
   void setup() override;
   void write_state(light::LightState *state) override;
   float get_setup_priority() const override;
@@ -68,7 +71,7 @@ class ESP32RMTLEDStripLightOutput final : public light::AddressableLight {
 
   uint8_t *buf_{nullptr};
   uint8_t *effect_data_{nullptr};
-  LedParams params_;
+  LedParams params_{};
   rmt_channel_handle_t channel_{nullptr};
   rmt_encoder_handle_t encoder_{nullptr};
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 3, 0)
@@ -77,8 +80,8 @@ class ESP32RMTLEDStripLightOutput final : public light::AddressableLight {
   rmt_symbol_word_t *rmt_buf_{nullptr};
 #endif
   uint32_t rmt_symbols_{48};
-  uint8_t pin_;
-  uint16_t num_leds_;
+  uint8_t pin_{0};
+  uint16_t num_leds_{0};
   bool use_dma_{false};
   bool use_psram_{false};
   bool invert_out_{false};
