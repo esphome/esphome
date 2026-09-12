@@ -1,16 +1,18 @@
 from typing import Any
 
 import esphome.codegen as cg
-from esphome.components import display
+from esphome.components import display, text_display
 import esphome.config_validation as cv
 from esphome.const import CONF_DATA, CONF_DIMENSIONS, CONF_POSITION
 from esphome.cpp_generator import MockObj
 from esphome.types import ConfigType
 
+AUTO_LOAD = ["text_display"]
+
 CONF_USER_CHARACTERS = "user_characters"
 
 lcd_base_ns = cg.esphome_ns.namespace("lcd_base")
-LCDDisplay = lcd_base_ns.class_("LCDDisplay", cg.PollingComponent)
+LCDDisplay = lcd_base_ns.class_("LCDDisplay", text_display.TextDisplay)
 
 
 def validate_lcd_dimensions(value: Any) -> list[int]:
