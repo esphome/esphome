@@ -1,0 +1,6 @@
+climate:
+  - platform: toshiba
+    name: "Seiya Climate"
+    model: SEIYA
+    transmitter_id: xmitr
+    receiver_id: rcvr
