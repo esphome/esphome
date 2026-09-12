@@ -1,0 +1,229 @@
+number:
+  - platform: toptronic
+    name: "Priorit\xE4t Speicher (1)"
+    device_type: SOL
+    function_group: 23
+    function_number: 0
+    datapoint: 8056
+    id: SOL_23_0_8056_set
+    type: U8
+    min_value: 1
+    max_value: 4
+    step: 1
+    decimal: 0
+  - platform: toptronic
+    name: "Priorit\xE4t Speicher (2)"
+    device_type: SOL
+    function_group: 23
+    function_number: 1
+    datapoint: 8056
+    id: SOL_23_1_8056_set
+    type: U8
+    min_value: 1
+    max_value: 4
+    step: 1
+    decimal: 0
+  - platform: toptronic
+    name: "Priorit\xE4t Speicher (3)"
+    device_type: SOL
+    function_group: 23
+    function_number: 2
+    datapoint: 8056
+    id: SOL_23_2_8056_set
+    type: U8
+    min_value: 1
+    max_value: 4
+    step: 1
+    decimal: 0
+  - platform: toptronic
+    name: "Priorit\xE4t Speicher (4)"
+    device_type: SOL
+    function_group: 23
+    function_number: 3
+    datapoint: 8056
+    id: SOL_23_3_8056_set
+    type: U8
+    min_value: 1
+    max_value: 4
+    step: 1
+    decimal: 0
+  - platform: toptronic
+    name: MaximalTemp. Speicher (1)
+    device_type: SOL
+    function_group: 23
+    function_number: 0
+    datapoint: 8059
+    id: SOL_23_0_8059_set
+    type: S16
+    min_value: 100
+    max_value: 950
+    step: 10
+    decimal: 1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+  - platform: toptronic
+    name: MaximalTemp. Speicher (2)
+    device_type: SOL
+    function_group: 23
+    function_number: 1
+    datapoint: 8059
+    id: SOL_23_1_8059_set
+    type: S16
+    min_value: 100
+    max_value: 950
+    step: 10
+    decimal: 1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+  - platform: toptronic
+    name: MaximalTemp. Speicher (3)
+    device_type: SOL
+    function_group: 23
+    function_number: 2
+    datapoint: 8059
+    id: SOL_23_2_8059_set
+    type: S16
+    min_value: 100
+    max_value: 950
+    step: 10
+    decimal: 1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+  - platform: toptronic
+    name: MaximalTemp. Speicher (4)
+    device_type: SOL
+    function_group: 23
+    function_number: 3
+    datapoint: 8059
+    id: SOL_23_3_8059_set
+    type: S16
+    min_value: 100
+    max_value: 950
+    step: 10
+    decimal: 1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+  - platform: toptronic
+    name: SchutzTemp. Speicher (1)
+    device_type: SOL
+    function_group: 23
+    function_number: 0
+    datapoint: 8060
+    id: SOL_23_0_8060_set
+    type: S16
+    min_value: 100
+    max_value: 990
+    step: 10
+    decimal: 1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+  - platform: toptronic
+    name: SchutzTemp. Speicher (2)
+    device_type: SOL
+    function_group: 23
+    function_number: 1
+    datapoint: 8060
+    id: SOL_23_1_8060_set
+    type: S16
+    min_value: 100
+    max_value: 990
+    step: 10
+    decimal: 1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+  - platform: toptronic
+    name: SchutzTemp. Speicher (3)
+    device_type: SOL
+    function_group: 23
+    function_number: 2
+    datapoint: 8060
+    id: SOL_23_2_8060_set
+    type: S16
+    min_value: 100
+    max_value: 990
+    step: 10
+    decimal: 1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+  - platform: toptronic
+    name: SchutzTemp. Speicher (4)
+    device_type: SOL
+    function_group: 23
+    function_number: 3
+    datapoint: 8060
+    id: SOL_23_3_8060_set
+    type: S16
+    min_value: 100
+    max_value: 990
+    step: 10
+    decimal: 1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+  - platform: toptronic
+    name: Solltemperatur Speicher (1)
+    device_type: SOL
+    function_group: 23
+    function_number: 0
+    datapoint: 8062
+    id: SOL_23_0_8062_set
+    type: S16
+    min_value: 0
+    max_value: 900
+    step: 10
+    decimal: 1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+  - platform: toptronic
+    name: Solltemperatur Speicher (2)
+    device_type: SOL
+    function_group: 23
+    function_number: 1
+    datapoint: 8062
+    id: SOL_23_1_8062_set
+    type: S16
+    min_value: 0
+    max_value: 900
+    step: 10
+    decimal: 1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+  - platform: toptronic
+    name: Solltemperatur Speicher (3)
+    device_type: SOL
+    function_group: 23
+    function_number: 2
+    datapoint: 8062
+    id: SOL_23_2_8062_set
+    type: S16
+    min_value: 0
+    max_value: 900
+    step: 10
+    decimal: 1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+  - platform: toptronic
+    name: Solltemperatur Speicher (4)
+    device_type: SOL
+    function_group: 23
+    function_number: 3
+    datapoint: 8062
+    id: SOL_23_3_8062_set
+    type: S16
+    min_value: 0
+    max_value: 900
+    step: 10
+    decimal: 1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature

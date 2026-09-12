@@ -1,0 +1,3949 @@
+sensor:
+  - platform: toptronic
+    name: "AF 1 - sonde ext\xE9rieure 1"
+    device_type: FW
+    function_group: 0
+    function_number: 0
+    datapoint: 0
+    id: FW_0_0_0
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: "temp\xE9rature local normale mode chauffage (1)"
+    device_type: FW
+    function_group: 1
+    function_number: 0
+    datapoint: 3051
+    id: FW_1_0_3051
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+    internal: true
+  - platform: toptronic
+    name: "temp\xE9rature local \xE9co mode chauffage (1)"
+    device_type: FW
+    function_group: 1
+    function_number: 0
+    datapoint: 3053
+    id: FW_1_0_3053
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+    internal: true
+  - platform: toptronic
+    name: "temp\xE9rature local normale mode chauffage (2)"
+    device_type: FW
+    function_group: 1
+    function_number: 1
+    datapoint: 3051
+    id: FW_1_1_3051
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+    internal: true
+  - platform: toptronic
+    name: "temp\xE9rature local \xE9co mode chauffage (2)"
+    device_type: FW
+    function_group: 1
+    function_number: 1
+    datapoint: 3053
+    id: FW_1_1_3053
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+    internal: true
+  - platform: toptronic
+    name: "temp\xE9rature local normale mode chauffage (3)"
+    device_type: FW
+    function_group: 1
+    function_number: 2
+    datapoint: 3051
+    id: FW_1_2_3051
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+    internal: true
+  - platform: toptronic
+    name: "temp\xE9rature local \xE9co mode chauffage (3)"
+    device_type: FW
+    function_group: 1
+    function_number: 2
+    datapoint: 3053
+    id: FW_1_2_3053
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+    internal: true
+  - platform: toptronic
+    name: "temp\xE9rature local normale mode chauffage (4)"
+    device_type: FW
+    function_group: 1
+    function_number: 3
+    datapoint: 3051
+    id: FW_1_3_3051
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+    internal: true
+  - platform: toptronic
+    name: "temp\xE9rature local \xE9co mode chauffage (4)"
+    device_type: FW
+    function_group: 1
+    function_number: 3
+    datapoint: 3053
+    id: FW_1_3_3053
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+    internal: true
+  - platform: toptronic
+    name: "temp\xE9rature local normale mode chauffage (5)"
+    device_type: FW
+    function_group: 1
+    function_number: 4
+    datapoint: 3051
+    id: FW_1_4_3051
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+    internal: true
+  - platform: toptronic
+    name: "temp\xE9rature local \xE9co mode chauffage (5)"
+    device_type: FW
+    function_group: 1
+    function_number: 4
+    datapoint: 3053
+    id: FW_1_4_3053
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+    internal: true
+  - platform: toptronic
+    name: "Valeur de consigne pi\xE8ce (1)"
+    device_type: FW
+    function_group: 1
+    function_number: 0
+    datapoint: 1001
+    id: FW_1_0_1001
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+    internal: true
+  - platform: toptronic
+    name: "Valeur de consigne pi\xE8ce (2)"
+    device_type: FW
+    function_group: 1
+    function_number: 1
+    datapoint: 1001
+    id: FW_1_1_1001
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+    internal: true
+  - platform: toptronic
+    name: "Valeur de consigne pi\xE8ce (3)"
+    device_type: FW
+    function_group: 1
+    function_number: 2
+    datapoint: 1001
+    id: FW_1_2_1001
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+    internal: true
+  - platform: toptronic
+    name: "Valeur de consigne pi\xE8ce (4)"
+    device_type: FW
+    function_group: 1
+    function_number: 3
+    datapoint: 1001
+    id: FW_1_3_1001
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+    internal: true
+  - platform: toptronic
+    name: "Valeur de consigne pi\xE8ce (5)"
+    device_type: FW
+    function_group: 1
+    function_number: 4
+    datapoint: 1001
+    id: FW_1_4_1001
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+    internal: true
+  - platform: toptronic
+    name: "temp\xE9rature d'eau chaude normale (1)"
+    device_type: FW
+    function_group: 2
+    function_number: 0
+    datapoint: 5051
+    id: FW_2_0_5051
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+    internal: true
+  - platform: toptronic
+    name: "temp\xE9rature eau chaude \xE9co (1)"
+    device_type: FW
+    function_group: 2
+    function_number: 0
+    datapoint: 5086
+    id: FW_2_0_5086
+    type: U8
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+    internal: true
+  - platform: toptronic
+    name: "temp\xE9rature d'eau chaude normale (2)"
+    device_type: FW
+    function_group: 2
+    function_number: 1
+    datapoint: 5051
+    id: FW_2_1_5051
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+    internal: true
+  - platform: toptronic
+    name: "temp\xE9rature eau chaude \xE9co (2)"
+    device_type: FW
+    function_group: 2
+    function_number: 1
+    datapoint: 5086
+    id: FW_2_1_5086
+    type: U8
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+    internal: true
+  - platform: toptronic
+    name: "temp\xE9rature d'eau chaude normale (3)"
+    device_type: FW
+    function_group: 2
+    function_number: 2
+    datapoint: 5051
+    id: FW_2_2_5051
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+    internal: true
+  - platform: toptronic
+    name: "temp\xE9rature eau chaude \xE9co (3)"
+    device_type: FW
+    function_group: 2
+    function_number: 2
+    datapoint: 5086
+    id: FW_2_2_5086
+    type: U8
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+    internal: true
+  - platform: toptronic
+    name: "temp\xE9rature d'eau chaude normale (4)"
+    device_type: FW
+    function_group: 2
+    function_number: 3
+    datapoint: 5051
+    id: FW_2_3_5051
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+    internal: true
+  - platform: toptronic
+    name: "temp\xE9rature eau chaude \xE9co (4)"
+    device_type: FW
+    function_group: 2
+    function_number: 3
+    datapoint: 5086
+    id: FW_2_3_5086
+    type: U8
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+    internal: true
+  - platform: toptronic
+    name: "temp\xE9rature d'eau chaude normale (5)"
+    device_type: FW
+    function_group: 2
+    function_number: 4
+    datapoint: 5051
+    id: FW_2_4_5051
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+    internal: true
+  - platform: toptronic
+    name: "temp\xE9rature eau chaude \xE9co (5)"
+    device_type: FW
+    function_group: 2
+    function_number: 4
+    datapoint: 5086
+    id: FW_2_4_5086
+    type: U8
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+    internal: true
+  - platform: toptronic
+    name: Eau chaude consigne (1)
+    device_type: FW
+    function_group: 2
+    function_number: 0
+    datapoint: 1004
+    id: FW_2_0_1004
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: "Eau chaude r\xE9elle SF (1)"
+    device_type: FW
+    function_group: 2
+    function_number: 0
+    datapoint: 4
+    id: FW_2_0_4
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: Eau chaude consigne (2)
+    device_type: FW
+    function_group: 2
+    function_number: 1
+    datapoint: 1004
+    id: FW_2_1_1004
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: "Eau chaude r\xE9elle SF (2)"
+    device_type: FW
+    function_group: 2
+    function_number: 1
+    datapoint: 4
+    id: FW_2_1_4
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: Eau chaude consigne (3)
+    device_type: FW
+    function_group: 2
+    function_number: 2
+    datapoint: 1004
+    id: FW_2_2_1004
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: "Eau chaude r\xE9elle SF (3)"
+    device_type: FW
+    function_group: 2
+    function_number: 2
+    datapoint: 4
+    id: FW_2_2_4
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: Eau chaude consigne (4)
+    device_type: FW
+    function_group: 2
+    function_number: 3
+    datapoint: 1004
+    id: FW_2_3_1004
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: "Eau chaude r\xE9elle SF (4)"
+    device_type: FW
+    function_group: 2
+    function_number: 3
+    datapoint: 4
+    id: FW_2_3_4
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: Eau chaude consigne (5)
+    device_type: FW
+    function_group: 2
+    function_number: 4
+    datapoint: 1004
+    id: FW_2_4_1004
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: "Eau chaude r\xE9elle SF (5)"
+    device_type: FW
+    function_group: 2
+    function_number: 4
+    datapoint: 4
+    id: FW_2_4_4
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: "AF 2 - sonde ext\xE9rieure 2"
+    device_type: FW
+    function_group: 0
+    function_number: 0
+    datapoint: 21100
+    id: FW_0_0_21100
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: "Valeur r\xE9elle pi\xE8ce (1)"
+    device_type: FW
+    function_group: 1
+    function_number: 0
+    datapoint: 1
+    id: FW_1_0_1
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: "Valeur r\xE9elle pi\xE8ce (2)"
+    device_type: FW
+    function_group: 1
+    function_number: 1
+    datapoint: 1
+    id: FW_1_1_1
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: "Valeur r\xE9elle pi\xE8ce (3)"
+    device_type: FW
+    function_group: 1
+    function_number: 2
+    datapoint: 1
+    id: FW_1_2_1
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: "Valeur r\xE9elle pi\xE8ce (4)"
+    device_type: FW
+    function_group: 1
+    function_number: 3
+    datapoint: 1
+    id: FW_1_3_1
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: "Valeur r\xE9elle pi\xE8ce (5)"
+    device_type: FW
+    function_group: 1
+    function_number: 4
+    datapoint: 1
+    id: FW_1_4_1
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: "Aller r\xE9el (1)"
+    device_type: FW
+    function_group: 1
+    function_number: 0
+    datapoint: 2
+    id: FW_1_0_2
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: "Aller r\xE9el (2)"
+    device_type: FW
+    function_group: 1
+    function_number: 1
+    datapoint: 2
+    id: FW_1_1_2
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: "Aller r\xE9el (3)"
+    device_type: FW
+    function_group: 1
+    function_number: 2
+    datapoint: 2
+    id: FW_1_2_2
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: "Aller r\xE9el (4)"
+    device_type: FW
+    function_group: 1
+    function_number: 3
+    datapoint: 2
+    id: FW_1_3_2
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: "Aller r\xE9el (5)"
+    device_type: FW
+    function_group: 1
+    function_number: 4
+    datapoint: 2
+    id: FW_1_4_2
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: Heures de fonctionnement
+    device_type: FW
+    function_group: 0
+    function_number: 0
+    datapoint: 132
+    id: FW_0_0_132
+    type: U32
+  - platform: toptronic
+    name: "\xC9nergie actuelle (2)"
+    device_type: FW
+    function_group: 20
+    function_number: 1
+    datapoint: 0
+    id: FW_20_1_0
+    type: U32
+    accuracy_decimals: 3
+    filters:
+      - multiply: 0.001
+    unit_of_measurement: MWh
+    icon: mdi:flash
+    device_class: energy
+    state_class: measurement
+  - platform: toptronic
+    name: Puissance actuelle (2)
+    device_type: FW
+    function_group: 20
+    function_number: 1
+    datapoint: 1
+    id: FW_20_1_1
+    type: U32
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: kW
+    icon: mdi:lightning-bolt
+    device_class: power
+    state_class: measurement
+  - platform: toptronic
+    name: "\xC9nergie actuelle froid (2)"
+    device_type: FW
+    function_group: 20
+    function_number: 1
+    datapoint: 50
+    id: FW_20_1_50
+    type: U32
+    accuracy_decimals: 3
+    filters:
+      - multiply: 0.001
+    unit_of_measurement: MWh
+    icon: mdi:flash
+    device_class: energy
+    state_class: measurement
+  - platform: toptronic
+    name: Puissance actuelle froid (2)
+    device_type: FW
+    function_group: 20
+    function_number: 1
+    datapoint: 51
+    id: FW_20_1_51
+    type: U32
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: kW
+    icon: mdi:lightning-bolt
+    device_class: power
+    state_class: measurement
+  - platform: toptronic
+    name: "D\xE9bit actuel (2)"
+    device_type: FW
+    function_group: 20
+    function_number: 1
+    datapoint: 2
+    id: FW_20_1_2
+    type: U32
+  - platform: toptronic
+    name: "Volume r\xE9el (2)"
+    device_type: FW
+    function_group: 20
+    function_number: 1
+    datapoint: 3
+    id: FW_20_1_3
+    type: U32
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: m3
+    icon: mdi:water-percent
+    device_class: volume
+    state_class: measurement
+  - platform: toptronic
+    name: "Temp. actuelle d\xE9part (2)"
+    device_type: FW
+    function_group: 20
+    function_number: 1
+    datapoint: 4
+    id: FW_20_1_4
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: "Temp\xE9rature actuelle de retour (2)"
+    device_type: FW
+    function_group: 20
+    function_number: 1
+    datapoint: 5
+    id: FW_20_1_5
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: "Diff\xE9rence temp\xE9rature actuelle (2)"
+    device_type: FW
+    function_group: 20
+    function_number: 1
+    datapoint: 6
+    id: FW_20_1_6
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-kelvin
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: "Message d\u2019erreur/octet d\u2019\xE9tat bus M (2)"
+    device_type: FW
+    function_group: 20
+    function_number: 1
+    datapoint: 8
+    id: FW_20_1_8
+    type: U8
+  - platform: toptronic
+    name: "\xC9nergie actuelle (3)"
+    device_type: FW
+    function_group: 20
+    function_number: 2
+    datapoint: 0
+    id: FW_20_2_0
+    type: U32
+    accuracy_decimals: 3
+    filters:
+      - multiply: 0.001
+    unit_of_measurement: MWh
+    icon: mdi:flash
+    device_class: energy
+    state_class: measurement
+  - platform: toptronic
+    name: Puissance actuelle (3)
+    device_type: FW
+    function_group: 20
+    function_number: 2
+    datapoint: 1
+    id: FW_20_2_1
+    type: U32
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: kW
+    icon: mdi:lightning-bolt
+    device_class: power
+    state_class: measurement
+  - platform: toptronic
+    name: "\xC9nergie actuelle froid (3)"
+    device_type: FW
+    function_group: 20
+    function_number: 2
+    datapoint: 50
+    id: FW_20_2_50
+    type: U32
+    accuracy_decimals: 3
+    filters:
+      - multiply: 0.001
+    unit_of_measurement: MWh
+    icon: mdi:flash
+    device_class: energy
+    state_class: measurement
+  - platform: toptronic
+    name: Puissance actuelle froid (3)
+    device_type: FW
+    function_group: 20
+    function_number: 2
+    datapoint: 51
+    id: FW_20_2_51
+    type: U32
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: kW
+    icon: mdi:lightning-bolt
+    device_class: power
+    state_class: measurement
+  - platform: toptronic
+    name: "D\xE9bit actuel (3)"
+    device_type: FW
+    function_group: 20
+    function_number: 2
+    datapoint: 2
+    id: FW_20_2_2
+    type: U32
+  - platform: toptronic
+    name: "Volume r\xE9el (3)"
+    device_type: FW
+    function_group: 20
+    function_number: 2
+    datapoint: 3
+    id: FW_20_2_3
+    type: U32
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: m3
+    icon: mdi:water-percent
+    device_class: volume
+    state_class: measurement
+  - platform: toptronic
+    name: "Temp. actuelle d\xE9part (3)"
+    device_type: FW
+    function_group: 20
+    function_number: 2
+    datapoint: 4
+    id: FW_20_2_4
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: "Temp\xE9rature actuelle de retour (3)"
+    device_type: FW
+    function_group: 20
+    function_number: 2
+    datapoint: 5
+    id: FW_20_2_5
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: "Diff\xE9rence temp\xE9rature actuelle (3)"
+    device_type: FW
+    function_group: 20
+    function_number: 2
+    datapoint: 6
+    id: FW_20_2_6
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-kelvin
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: "Message d\u2019erreur/octet d\u2019\xE9tat bus M (3)"
+    device_type: FW
+    function_group: 20
+    function_number: 2
+    datapoint: 8
+    id: FW_20_2_8
+    type: U8
+  - platform: toptronic
+    name: "\xC9nergie actuelle (4)"
+    device_type: FW
+    function_group: 20
+    function_number: 3
+    datapoint: 0
+    id: FW_20_3_0
+    type: U32
+    accuracy_decimals: 3
+    filters:
+      - multiply: 0.001
+    unit_of_measurement: MWh
+    icon: mdi:flash
+    device_class: energy
+    state_class: measurement
+  - platform: toptronic
+    name: Puissance actuelle (4)
+    device_type: FW
+    function_group: 20
+    function_number: 3
+    datapoint: 1
+    id: FW_20_3_1
+    type: U32
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: kW
+    icon: mdi:lightning-bolt
+    device_class: power
+    state_class: measurement
+  - platform: toptronic
+    name: "\xC9nergie actuelle froid (4)"
+    device_type: FW
+    function_group: 20
+    function_number: 3
+    datapoint: 50
+    id: FW_20_3_50
+    type: U32
+    accuracy_decimals: 3
+    filters:
+      - multiply: 0.001
+    unit_of_measurement: MWh
+    icon: mdi:flash
+    device_class: energy
+    state_class: measurement
+  - platform: toptronic
+    name: Puissance actuelle froid (4)
+    device_type: FW
+    function_group: 20
+    function_number: 3
+    datapoint: 51
+    id: FW_20_3_51
+    type: U32
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: kW
+    icon: mdi:lightning-bolt
+    device_class: power
+    state_class: measurement
+  - platform: toptronic
+    name: "D\xE9bit actuel (4)"
+    device_type: FW
+    function_group: 20
+    function_number: 3
+    datapoint: 2
+    id: FW_20_3_2
+    type: U32
+  - platform: toptronic
+    name: "Volume r\xE9el (4)"
+    device_type: FW
+    function_group: 20
+    function_number: 3
+    datapoint: 3
+    id: FW_20_3_3
+    type: U32
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: m3
+    icon: mdi:water-percent
+    device_class: volume
+    state_class: measurement
+  - platform: toptronic
+    name: "Temp. actuelle d\xE9part (4)"
+    device_type: FW
+    function_group: 20
+    function_number: 3
+    datapoint: 4
+    id: FW_20_3_4
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: "Temp\xE9rature actuelle de retour (4)"
+    device_type: FW
+    function_group: 20
+    function_number: 3
+    datapoint: 5
+    id: FW_20_3_5
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: "Diff\xE9rence temp\xE9rature actuelle (4)"
+    device_type: FW
+    function_group: 20
+    function_number: 3
+    datapoint: 6
+    id: FW_20_3_6
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-kelvin
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: "Message d\u2019erreur/octet d\u2019\xE9tat bus M (4)"
+    device_type: FW
+    function_group: 20
+    function_number: 3
+    datapoint: 8
+    id: FW_20_3_8
+    type: U8
+  - platform: toptronic
+    name: "\xC9nergie actuelle (5)"
+    device_type: FW
+    function_group: 20
+    function_number: 4
+    datapoint: 0
+    id: FW_20_4_0
+    type: U32
+    accuracy_decimals: 3
+    filters:
+      - multiply: 0.001
+    unit_of_measurement: MWh
+    icon: mdi:flash
+    device_class: energy
+    state_class: measurement
+  - platform: toptronic
+    name: Puissance actuelle (5)
+    device_type: FW
+    function_group: 20
+    function_number: 4
+    datapoint: 1
+    id: FW_20_4_1
+    type: U32
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: kW
+    icon: mdi:lightning-bolt
+    device_class: power
+    state_class: measurement
+  - platform: toptronic
+    name: "\xC9nergie actuelle froid (5)"
+    device_type: FW
+    function_group: 20
+    function_number: 4
+    datapoint: 50
+    id: FW_20_4_50
+    type: U32
+    accuracy_decimals: 3
+    filters:
+      - multiply: 0.001
+    unit_of_measurement: MWh
+    icon: mdi:flash
+    device_class: energy
+    state_class: measurement
+  - platform: toptronic
+    name: Puissance actuelle froid (5)
+    device_type: FW
+    function_group: 20
+    function_number: 4
+    datapoint: 51
+    id: FW_20_4_51
+    type: U32
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: kW
+    icon: mdi:lightning-bolt
+    device_class: power
+    state_class: measurement
+  - platform: toptronic
+    name: "D\xE9bit actuel (5)"
+    device_type: FW
+    function_group: 20
+    function_number: 4
+    datapoint: 2
+    id: FW_20_4_2
+    type: U32
+  - platform: toptronic
+    name: "Volume r\xE9el (5)"
+    device_type: FW
+    function_group: 20
+    function_number: 4
+    datapoint: 3
+    id: FW_20_4_3
+    type: U32
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: m3
+    icon: mdi:water-percent
+    device_class: volume
+    state_class: measurement
+  - platform: toptronic
+    name: "Temp. actuelle d\xE9part (5)"
+    device_type: FW
+    function_group: 20
+    function_number: 4
+    datapoint: 4
+    id: FW_20_4_4
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: "Temp\xE9rature actuelle de retour (5)"
+    device_type: FW
+    function_group: 20
+    function_number: 4
+    datapoint: 5
+    id: FW_20_4_5
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: "Diff\xE9rence temp\xE9rature actuelle (5)"
+    device_type: FW
+    function_group: 20
+    function_number: 4
+    datapoint: 6
+    id: FW_20_4_6
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-kelvin
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: "Message d\u2019erreur/octet d\u2019\xE9tat bus M (5)"
+    device_type: FW
+    function_group: 20
+    function_number: 4
+    datapoint: 8
+    id: FW_20_4_8
+    type: U8
+  - platform: toptronic
+    name: "\xC9nergie actuelle (6)"
+    device_type: FW
+    function_group: 20
+    function_number: 5
+    datapoint: 0
+    id: FW_20_5_0
+    type: U32
+    accuracy_decimals: 3
+    filters:
+      - multiply: 0.001
+    unit_of_measurement: MWh
+    icon: mdi:flash
+    device_class: energy
+    state_class: measurement
+  - platform: toptronic
+    name: Puissance actuelle (6)
+    device_type: FW
+    function_group: 20
+    function_number: 5
+    datapoint: 1
+    id: FW_20_5_1
+    type: U32
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: kW
+    icon: mdi:lightning-bolt
+    device_class: power
+    state_class: measurement
+  - platform: toptronic
+    name: "\xC9nergie actuelle froid (6)"
+    device_type: FW
+    function_group: 20
+    function_number: 5
+    datapoint: 50
+    id: FW_20_5_50
+    type: U32
+    accuracy_decimals: 3
+    filters:
+      - multiply: 0.001
+    unit_of_measurement: MWh
+    icon: mdi:flash
+    device_class: energy
+    state_class: measurement
+  - platform: toptronic
+    name: Puissance actuelle froid (6)
+    device_type: FW
+    function_group: 20
+    function_number: 5
+    datapoint: 51
+    id: FW_20_5_51
+    type: U32
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: kW
+    icon: mdi:lightning-bolt
+    device_class: power
+    state_class: measurement
+  - platform: toptronic
+    name: "D\xE9bit actuel (6)"
+    device_type: FW
+    function_group: 20
+    function_number: 5
+    datapoint: 2
+    id: FW_20_5_2
+    type: U32
+  - platform: toptronic
+    name: "Volume r\xE9el (6)"
+    device_type: FW
+    function_group: 20
+    function_number: 5
+    datapoint: 3
+    id: FW_20_5_3
+    type: U32
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: m3
+    icon: mdi:water-percent
+    device_class: volume
+    state_class: measurement
+  - platform: toptronic
+    name: "Temp. actuelle d\xE9part (6)"
+    device_type: FW
+    function_group: 20
+    function_number: 5
+    datapoint: 4
+    id: FW_20_5_4
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: "Temp\xE9rature actuelle de retour (6)"
+    device_type: FW
+    function_group: 20
+    function_number: 5
+    datapoint: 5
+    id: FW_20_5_5
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: "Diff\xE9rence temp\xE9rature actuelle (6)"
+    device_type: FW
+    function_group: 20
+    function_number: 5
+    datapoint: 6
+    id: FW_20_5_6
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-kelvin
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: "Message d\u2019erreur/octet d\u2019\xE9tat bus M (6)"
+    device_type: FW
+    function_group: 20
+    function_number: 5
+    datapoint: 8
+    id: FW_20_5_8
+    type: U8
+  - platform: toptronic
+    name: "\xC9nergie actuelle (7)"
+    device_type: FW
+    function_group: 20
+    function_number: 6
+    datapoint: 0
+    id: FW_20_6_0
+    type: U32
+    accuracy_decimals: 3
+    filters:
+      - multiply: 0.001
+    unit_of_measurement: MWh
+    icon: mdi:flash
+    device_class: energy
+    state_class: measurement
+  - platform: toptronic
+    name: Puissance actuelle (7)
+    device_type: FW
+    function_group: 20
+    function_number: 6
+    datapoint: 1
+    id: FW_20_6_1
+    type: U32
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: kW
+    icon: mdi:lightning-bolt
+    device_class: power
+    state_class: measurement
+  - platform: toptronic
+    name: "\xC9nergie actuelle froid (7)"
+    device_type: FW
+    function_group: 20
+    function_number: 6
+    datapoint: 50
+    id: FW_20_6_50
+    type: U32
+    accuracy_decimals: 3
+    filters:
+      - multiply: 0.001
+    unit_of_measurement: MWh
+    icon: mdi:flash
+    device_class: energy
+    state_class: measurement
+  - platform: toptronic
+    name: Puissance actuelle froid (7)
+    device_type: FW
+    function_group: 20
+    function_number: 6
+    datapoint: 51
+    id: FW_20_6_51
+    type: U32
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: kW
+    icon: mdi:lightning-bolt
+    device_class: power
+    state_class: measurement
+  - platform: toptronic
+    name: "D\xE9bit actuel (7)"
+    device_type: FW
+    function_group: 20
+    function_number: 6
+    datapoint: 2
+    id: FW_20_6_2
+    type: U32
+  - platform: toptronic
+    name: "Volume r\xE9el (7)"
+    device_type: FW
+    function_group: 20
+    function_number: 6
+    datapoint: 3
+    id: FW_20_6_3
+    type: U32
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: m3
+    icon: mdi:water-percent
+    device_class: volume
+    state_class: measurement
+  - platform: toptronic
+    name: "Temp. actuelle d\xE9part (7)"
+    device_type: FW
+    function_group: 20
+    function_number: 6
+    datapoint: 4
+    id: FW_20_6_4
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: "Temp\xE9rature actuelle de retour (7)"
+    device_type: FW
+    function_group: 20
+    function_number: 6
+    datapoint: 5
+    id: FW_20_6_5
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: "Diff\xE9rence temp\xE9rature actuelle (7)"
+    device_type: FW
+    function_group: 20
+    function_number: 6
+    datapoint: 6
+    id: FW_20_6_6
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-kelvin
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: "Message d\u2019erreur/octet d\u2019\xE9tat bus M (7)"
+    device_type: FW
+    function_group: 20
+    function_number: 6
+    datapoint: 8
+    id: FW_20_6_8
+    type: U8
+  - platform: toptronic
+    name: "\xC9nergie actuelle (8)"
+    device_type: FW
+    function_group: 20
+    function_number: 7
+    datapoint: 0
+    id: FW_20_7_0
+    type: U32
+    accuracy_decimals: 3
+    filters:
+      - multiply: 0.001
+    unit_of_measurement: MWh
+    icon: mdi:flash
+    device_class: energy
+    state_class: measurement
+  - platform: toptronic
+    name: Puissance actuelle (8)
+    device_type: FW
+    function_group: 20
+    function_number: 7
+    datapoint: 1
+    id: FW_20_7_1
+    type: U32
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: kW
+    icon: mdi:lightning-bolt
+    device_class: power
+    state_class: measurement
+  - platform: toptronic
+    name: "\xC9nergie actuelle froid (8)"
+    device_type: FW
+    function_group: 20
+    function_number: 7
+    datapoint: 50
+    id: FW_20_7_50
+    type: U32
+    accuracy_decimals: 3
+    filters:
+      - multiply: 0.001
+    unit_of_measurement: MWh
+    icon: mdi:flash
+    device_class: energy
+    state_class: measurement
+  - platform: toptronic
+    name: Puissance actuelle froid (8)
+    device_type: FW
+    function_group: 20
+    function_number: 7
+    datapoint: 51
+    id: FW_20_7_51
+    type: U32
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: kW
+    icon: mdi:lightning-bolt
+    device_class: power
+    state_class: measurement
+  - platform: toptronic
+    name: "D\xE9bit actuel (8)"
+    device_type: FW
+    function_group: 20
+    function_number: 7
+    datapoint: 2
+    id: FW_20_7_2
+    type: U32
+  - platform: toptronic
+    name: "Volume r\xE9el (8)"
+    device_type: FW
+    function_group: 20
+    function_number: 7
+    datapoint: 3
+    id: FW_20_7_3
+    type: U32
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: m3
+    icon: mdi:water-percent
+    device_class: volume
+    state_class: measurement
+  - platform: toptronic
+    name: "Temp. actuelle d\xE9part (8)"
+    device_type: FW
+    function_group: 20
+    function_number: 7
+    datapoint: 4
+    id: FW_20_7_4
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: "Temp\xE9rature actuelle de retour (8)"
+    device_type: FW
+    function_group: 20
+    function_number: 7
+    datapoint: 5
+    id: FW_20_7_5
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: "Diff\xE9rence temp\xE9rature actuelle (8)"
+    device_type: FW
+    function_group: 20
+    function_number: 7
+    datapoint: 6
+    id: FW_20_7_6
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-kelvin
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: "Message d\u2019erreur/octet d\u2019\xE9tat bus M (8)"
+    device_type: FW
+    function_group: 20
+    function_number: 7
+    datapoint: 8
+    id: FW_20_7_8
+    type: U8
+  - platform: toptronic
+    name: "\xC9nergie actuelle (9)"
+    device_type: FW
+    function_group: 20
+    function_number: 8
+    datapoint: 0
+    id: FW_20_8_0
+    type: U32
+    accuracy_decimals: 3
+    filters:
+      - multiply: 0.001
+    unit_of_measurement: MWh
+    icon: mdi:flash
+    device_class: energy
+    state_class: measurement
+  - platform: toptronic
+    name: Puissance actuelle (9)
+    device_type: FW
+    function_group: 20
+    function_number: 8
+    datapoint: 1
+    id: FW_20_8_1
+    type: U32
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: kW
+    icon: mdi:lightning-bolt
+    device_class: power
+    state_class: measurement
+  - platform: toptronic
+    name: "\xC9nergie actuelle froid (9)"
+    device_type: FW
+    function_group: 20
+    function_number: 8
+    datapoint: 50
+    id: FW_20_8_50
+    type: U32
+    accuracy_decimals: 3
+    filters:
+      - multiply: 0.001
+    unit_of_measurement: MWh
+    icon: mdi:flash
+    device_class: energy
+    state_class: measurement
+  - platform: toptronic
+    name: Puissance actuelle froid (9)
+    device_type: FW
+    function_group: 20
+    function_number: 8
+    datapoint: 51
+    id: FW_20_8_51
+    type: U32
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: kW
+    icon: mdi:lightning-bolt
+    device_class: power
+    state_class: measurement
+  - platform: toptronic
+    name: "D\xE9bit actuel (9)"
+    device_type: FW
+    function_group: 20
+    function_number: 8
+    datapoint: 2
+    id: FW_20_8_2
+    type: U32
+  - platform: toptronic
+    name: "Volume r\xE9el (9)"
+    device_type: FW
+    function_group: 20
+    function_number: 8
+    datapoint: 3
+    id: FW_20_8_3
+    type: U32
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: m3
+    icon: mdi:water-percent
+    device_class: volume
+    state_class: measurement
+  - platform: toptronic
+    name: "Temp. actuelle d\xE9part (9)"
+    device_type: FW
+    function_group: 20
+    function_number: 8
+    datapoint: 4
+    id: FW_20_8_4
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: "Temp\xE9rature actuelle de retour (9)"
+    device_type: FW
+    function_group: 20
+    function_number: 8
+    datapoint: 5
+    id: FW_20_8_5
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: "Diff\xE9rence temp\xE9rature actuelle (9)"
+    device_type: FW
+    function_group: 20
+    function_number: 8
+    datapoint: 6
+    id: FW_20_8_6
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-kelvin
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: "Message d\u2019erreur/octet d\u2019\xE9tat bus M (9)"
+    device_type: FW
+    function_group: 20
+    function_number: 8
+    datapoint: 8
+    id: FW_20_8_8
+    type: U8
+  - platform: toptronic
+    name: "\xC9nergie actuelle (10)"
+    device_type: FW
+    function_group: 20
+    function_number: 9
+    datapoint: 0
+    id: FW_20_9_0
+    type: U32
+    accuracy_decimals: 3
+    filters:
+      - multiply: 0.001
+    unit_of_measurement: MWh
+    icon: mdi:flash
+    device_class: energy
+    state_class: measurement
+  - platform: toptronic
+    name: Puissance actuelle (10)
+    device_type: FW
+    function_group: 20
+    function_number: 9
+    datapoint: 1
+    id: FW_20_9_1
+    type: U32
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: kW
+    icon: mdi:lightning-bolt
+    device_class: power
+    state_class: measurement
+  - platform: toptronic
+    name: "\xC9nergie actuelle froid (10)"
+    device_type: FW
+    function_group: 20
+    function_number: 9
+    datapoint: 50
+    id: FW_20_9_50
+    type: U32
+    accuracy_decimals: 3
+    filters:
+      - multiply: 0.001
+    unit_of_measurement: MWh
+    icon: mdi:flash
+    device_class: energy
+    state_class: measurement
+  - platform: toptronic
+    name: Puissance actuelle froid (10)
+    device_type: FW
+    function_group: 20
+    function_number: 9
+    datapoint: 51
+    id: FW_20_9_51
+    type: U32
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: kW
+    icon: mdi:lightning-bolt
+    device_class: power
+    state_class: measurement
+  - platform: toptronic
+    name: "D\xE9bit actuel (10)"
+    device_type: FW
+    function_group: 20
+    function_number: 9
+    datapoint: 2
+    id: FW_20_9_2
+    type: U32
+  - platform: toptronic
+    name: "Volume r\xE9el (10)"
+    device_type: FW
+    function_group: 20
+    function_number: 9
+    datapoint: 3
+    id: FW_20_9_3
+    type: U32
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: m3
+    icon: mdi:water-percent
+    device_class: volume
+    state_class: measurement
+  - platform: toptronic
+    name: "Temp. actuelle d\xE9part (10)"
+    device_type: FW
+    function_group: 20
+    function_number: 9
+    datapoint: 4
+    id: FW_20_9_4
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: "Temp\xE9rature actuelle de retour (10)"
+    device_type: FW
+    function_group: 20
+    function_number: 9
+    datapoint: 5
+    id: FW_20_9_5
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: "Diff\xE9rence temp\xE9rature actuelle (10)"
+    device_type: FW
+    function_group: 20
+    function_number: 9
+    datapoint: 6
+    id: FW_20_9_6
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-kelvin
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: "Message d\u2019erreur/octet d\u2019\xE9tat bus M (10)"
+    device_type: FW
+    function_group: 20
+    function_number: 9
+    datapoint: 8
+    id: FW_20_9_8
+    type: U8
+  - platform: toptronic
+    name: "\xC9nergie actuelle (11)"
+    device_type: FW
+    function_group: 20
+    function_number: 10
+    datapoint: 0
+    id: FW_20_10_0
+    type: U32
+    accuracy_decimals: 3
+    filters:
+      - multiply: 0.001
+    unit_of_measurement: MWh
+    icon: mdi:flash
+    device_class: energy
+    state_class: measurement
+  - platform: toptronic
+    name: Puissance actuelle (11)
+    device_type: FW
+    function_group: 20
+    function_number: 10
+    datapoint: 1
+    id: FW_20_10_1
+    type: U32
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: kW
+    icon: mdi:lightning-bolt
+    device_class: power
+    state_class: measurement
+  - platform: toptronic
+    name: "\xC9nergie actuelle froid (11)"
+    device_type: FW
+    function_group: 20
+    function_number: 10
+    datapoint: 50
+    id: FW_20_10_50
+    type: U32
+    accuracy_decimals: 3
+    filters:
+      - multiply: 0.001
+    unit_of_measurement: MWh
+    icon: mdi:flash
+    device_class: energy
+    state_class: measurement
+  - platform: toptronic
+    name: Puissance actuelle froid (11)
+    device_type: FW
+    function_group: 20
+    function_number: 10
+    datapoint: 51
+    id: FW_20_10_51
+    type: U32
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: kW
+    icon: mdi:lightning-bolt
+    device_class: power
+    state_class: measurement
+  - platform: toptronic
+    name: "D\xE9bit actuel (11)"
+    device_type: FW
+    function_group: 20
+    function_number: 10
+    datapoint: 2
+    id: FW_20_10_2
+    type: U32
+  - platform: toptronic
+    name: "Volume r\xE9el (11)"
+    device_type: FW
+    function_group: 20
+    function_number: 10
+    datapoint: 3
+    id: FW_20_10_3
+    type: U32
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: m3
+    icon: mdi:water-percent
+    device_class: volume
+    state_class: measurement
+  - platform: toptronic
+    name: "Temp. actuelle d\xE9part (11)"
+    device_type: FW
+    function_group: 20
+    function_number: 10
+    datapoint: 4
+    id: FW_20_10_4
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: "Temp\xE9rature actuelle de retour (11)"
+    device_type: FW
+    function_group: 20
+    function_number: 10
+    datapoint: 5
+    id: FW_20_10_5
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: "Diff\xE9rence temp\xE9rature actuelle (11)"
+    device_type: FW
+    function_group: 20
+    function_number: 10
+    datapoint: 6
+    id: FW_20_10_6
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-kelvin
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: "Message d\u2019erreur/octet d\u2019\xE9tat bus M (11)"
+    device_type: FW
+    function_group: 20
+    function_number: 10
+    datapoint: 8
+    id: FW_20_10_8
+    type: U8
+  - platform: toptronic
+    name: "\xC9nergie actuelle (12)"
+    device_type: FW
+    function_group: 20
+    function_number: 11
+    datapoint: 0
+    id: FW_20_11_0
+    type: U32
+    accuracy_decimals: 3
+    filters:
+      - multiply: 0.001
+    unit_of_measurement: MWh
+    icon: mdi:flash
+    device_class: energy
+    state_class: measurement
+  - platform: toptronic
+    name: Puissance actuelle (12)
+    device_type: FW
+    function_group: 20
+    function_number: 11
+    datapoint: 1
+    id: FW_20_11_1
+    type: U32
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: kW
+    icon: mdi:lightning-bolt
+    device_class: power
+    state_class: measurement
+  - platform: toptronic
+    name: "\xC9nergie actuelle froid (12)"
+    device_type: FW
+    function_group: 20
+    function_number: 11
+    datapoint: 50
+    id: FW_20_11_50
+    type: U32
+    accuracy_decimals: 3
+    filters:
+      - multiply: 0.001
+    unit_of_measurement: MWh
+    icon: mdi:flash
+    device_class: energy
+    state_class: measurement
+  - platform: toptronic
+    name: Puissance actuelle froid (12)
+    device_type: FW
+    function_group: 20
+    function_number: 11
+    datapoint: 51
+    id: FW_20_11_51
+    type: U32
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: kW
+    icon: mdi:lightning-bolt
+    device_class: power
+    state_class: measurement
+  - platform: toptronic
+    name: "D\xE9bit actuel (12)"
+    device_type: FW
+    function_group: 20
+    function_number: 11
+    datapoint: 2
+    id: FW_20_11_2
+    type: U32
+  - platform: toptronic
+    name: "Volume r\xE9el (12)"
+    device_type: FW
+    function_group: 20
+    function_number: 11
+    datapoint: 3
+    id: FW_20_11_3
+    type: U32
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: m3
+    icon: mdi:water-percent
+    device_class: volume
+    state_class: measurement
+  - platform: toptronic
+    name: "Temp. actuelle d\xE9part (12)"
+    device_type: FW
+    function_group: 20
+    function_number: 11
+    datapoint: 4
+    id: FW_20_11_4
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: "Temp\xE9rature actuelle de retour (12)"
+    device_type: FW
+    function_group: 20
+    function_number: 11
+    datapoint: 5
+    id: FW_20_11_5
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: "Diff\xE9rence temp\xE9rature actuelle (12)"
+    device_type: FW
+    function_group: 20
+    function_number: 11
+    datapoint: 6
+    id: FW_20_11_6
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-kelvin
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: "Message d\u2019erreur/octet d\u2019\xE9tat bus M (12)"
+    device_type: FW
+    function_group: 20
+    function_number: 11
+    datapoint: 8
+    id: FW_20_11_8
+    type: U8
+  - platform: toptronic
+    name: "\xC9nergie actuelle (13)"
+    device_type: FW
+    function_group: 20
+    function_number: 12
+    datapoint: 0
+    id: FW_20_12_0
+    type: U32
+    accuracy_decimals: 3
+    filters:
+      - multiply: 0.001
+    unit_of_measurement: MWh
+    icon: mdi:flash
+    device_class: energy
+    state_class: measurement
+  - platform: toptronic
+    name: Puissance actuelle (13)
+    device_type: FW
+    function_group: 20
+    function_number: 12
+    datapoint: 1
+    id: FW_20_12_1
+    type: U32
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: kW
+    icon: mdi:lightning-bolt
+    device_class: power
+    state_class: measurement
+  - platform: toptronic
+    name: "\xC9nergie actuelle froid (13)"
+    device_type: FW
+    function_group: 20
+    function_number: 12
+    datapoint: 50
+    id: FW_20_12_50
+    type: U32
+    accuracy_decimals: 3
+    filters:
+      - multiply: 0.001
+    unit_of_measurement: MWh
+    icon: mdi:flash
+    device_class: energy
+    state_class: measurement
+  - platform: toptronic
+    name: Puissance actuelle froid (13)
+    device_type: FW
+    function_group: 20
+    function_number: 12
+    datapoint: 51
+    id: FW_20_12_51
+    type: U32
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: kW
+    icon: mdi:lightning-bolt
+    device_class: power
+    state_class: measurement
+  - platform: toptronic
+    name: "D\xE9bit actuel (13)"
+    device_type: FW
+    function_group: 20
+    function_number: 12
+    datapoint: 2
+    id: FW_20_12_2
+    type: U32
+  - platform: toptronic
+    name: "Volume r\xE9el (13)"
+    device_type: FW
+    function_group: 20
+    function_number: 12
+    datapoint: 3
+    id: FW_20_12_3
+    type: U32
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: m3
+    icon: mdi:water-percent
+    device_class: volume
+    state_class: measurement
+  - platform: toptronic
+    name: "Temp. actuelle d\xE9part (13)"
+    device_type: FW
+    function_group: 20
+    function_number: 12
+    datapoint: 4
+    id: FW_20_12_4
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: "Temp\xE9rature actuelle de retour (13)"
+    device_type: FW
+    function_group: 20
+    function_number: 12
+    datapoint: 5
+    id: FW_20_12_5
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: "Diff\xE9rence temp\xE9rature actuelle (13)"
+    device_type: FW
+    function_group: 20
+    function_number: 12
+    datapoint: 6
+    id: FW_20_12_6
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-kelvin
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: "Message d\u2019erreur/octet d\u2019\xE9tat bus M (13)"
+    device_type: FW
+    function_group: 20
+    function_number: 12
+    datapoint: 8
+    id: FW_20_12_8
+    type: U8
+  - platform: toptronic
+    name: "\xC9nergie actuelle (14)"
+    device_type: FW
+    function_group: 20
+    function_number: 13
+    datapoint: 0
+    id: FW_20_13_0
+    type: U32
+    accuracy_decimals: 3
+    filters:
+      - multiply: 0.001
+    unit_of_measurement: MWh
+    icon: mdi:flash
+    device_class: energy
+    state_class: measurement
+  - platform: toptronic
+    name: Puissance actuelle (14)
+    device_type: FW
+    function_group: 20
+    function_number: 13
+    datapoint: 1
+    id: FW_20_13_1
+    type: U32
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: kW
+    icon: mdi:lightning-bolt
+    device_class: power
+    state_class: measurement
+  - platform: toptronic
+    name: "\xC9nergie actuelle froid (14)"
+    device_type: FW
+    function_group: 20
+    function_number: 13
+    datapoint: 50
+    id: FW_20_13_50
+    type: U32
+    accuracy_decimals: 3
+    filters:
+      - multiply: 0.001
+    unit_of_measurement: MWh
+    icon: mdi:flash
+    device_class: energy
+    state_class: measurement
+  - platform: toptronic
+    name: Puissance actuelle froid (14)
+    device_type: FW
+    function_group: 20
+    function_number: 13
+    datapoint: 51
+    id: FW_20_13_51
+    type: U32
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: kW
+    icon: mdi:lightning-bolt
+    device_class: power
+    state_class: measurement
+  - platform: toptronic
+    name: "D\xE9bit actuel (14)"
+    device_type: FW
+    function_group: 20
+    function_number: 13
+    datapoint: 2
+    id: FW_20_13_2
+    type: U32
+  - platform: toptronic
+    name: "Volume r\xE9el (14)"
+    device_type: FW
+    function_group: 20
+    function_number: 13
+    datapoint: 3
+    id: FW_20_13_3
+    type: U32
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: m3
+    icon: mdi:water-percent
+    device_class: volume
+    state_class: measurement
+  - platform: toptronic
+    name: "Temp. actuelle d\xE9part (14)"
+    device_type: FW
+    function_group: 20
+    function_number: 13
+    datapoint: 4
+    id: FW_20_13_4
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: "Temp\xE9rature actuelle de retour (14)"
+    device_type: FW
+    function_group: 20
+    function_number: 13
+    datapoint: 5
+    id: FW_20_13_5
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: "Diff\xE9rence temp\xE9rature actuelle (14)"
+    device_type: FW
+    function_group: 20
+    function_number: 13
+    datapoint: 6
+    id: FW_20_13_6
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-kelvin
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: "Message d\u2019erreur/octet d\u2019\xE9tat bus M (14)"
+    device_type: FW
+    function_group: 20
+    function_number: 13
+    datapoint: 8
+    id: FW_20_13_8
+    type: U8
+  - platform: toptronic
+    name: "\xC9nergie actuelle (15)"
+    device_type: FW
+    function_group: 20
+    function_number: 14
+    datapoint: 0
+    id: FW_20_14_0
+    type: U32
+    accuracy_decimals: 3
+    filters:
+      - multiply: 0.001
+    unit_of_measurement: MWh
+    icon: mdi:flash
+    device_class: energy
+    state_class: measurement
+  - platform: toptronic
+    name: Puissance actuelle (15)
+    device_type: FW
+    function_group: 20
+    function_number: 14
+    datapoint: 1
+    id: FW_20_14_1
+    type: U32
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: kW
+    icon: mdi:lightning-bolt
+    device_class: power
+    state_class: measurement
+  - platform: toptronic
+    name: "\xC9nergie actuelle froid (15)"
+    device_type: FW
+    function_group: 20
+    function_number: 14
+    datapoint: 50
+    id: FW_20_14_50
+    type: U32
+    accuracy_decimals: 3
+    filters:
+      - multiply: 0.001
+    unit_of_measurement: MWh
+    icon: mdi:flash
+    device_class: energy
+    state_class: measurement
+  - platform: toptronic
+    name: Puissance actuelle froid (15)
+    device_type: FW
+    function_group: 20
+    function_number: 14
+    datapoint: 51
+    id: FW_20_14_51
+    type: U32
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: kW
+    icon: mdi:lightning-bolt
+    device_class: power
+    state_class: measurement
+  - platform: toptronic
+    name: "D\xE9bit actuel (15)"
+    device_type: FW
+    function_group: 20
+    function_number: 14
+    datapoint: 2
+    id: FW_20_14_2
+    type: U32
+  - platform: toptronic
+    name: "Volume r\xE9el (15)"
+    device_type: FW
+    function_group: 20
+    function_number: 14
+    datapoint: 3
+    id: FW_20_14_3
+    type: U32
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: m3
+    icon: mdi:water-percent
+    device_class: volume
+    state_class: measurement
+  - platform: toptronic
+    name: "Temp. actuelle d\xE9part (15)"
+    device_type: FW
+    function_group: 20
+    function_number: 14
+    datapoint: 4
+    id: FW_20_14_4
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: "Temp\xE9rature actuelle de retour (15)"
+    device_type: FW
+    function_group: 20
+    function_number: 14
+    datapoint: 5
+    id: FW_20_14_5
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: "Diff\xE9rence temp\xE9rature actuelle (15)"
+    device_type: FW
+    function_group: 20
+    function_number: 14
+    datapoint: 6
+    id: FW_20_14_6
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-kelvin
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: "Message d\u2019erreur/octet d\u2019\xE9tat bus M (15)"
+    device_type: FW
+    function_group: 20
+    function_number: 14
+    datapoint: 8
+    id: FW_20_14_8
+    type: U8
+  - platform: toptronic
+    name: "\xC9nergie actuelle (16)"
+    device_type: FW
+    function_group: 20
+    function_number: 15
+    datapoint: 0
+    id: FW_20_15_0
+    type: U32
+    accuracy_decimals: 3
+    filters:
+      - multiply: 0.001
+    unit_of_measurement: MWh
+    icon: mdi:flash
+    device_class: energy
+    state_class: measurement
+  - platform: toptronic
+    name: Puissance actuelle (16)
+    device_type: FW
+    function_group: 20
+    function_number: 15
+    datapoint: 1
+    id: FW_20_15_1
+    type: U32
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: kW
+    icon: mdi:lightning-bolt
+    device_class: power
+    state_class: measurement
+  - platform: toptronic
+    name: "\xC9nergie actuelle froid (16)"
+    device_type: FW
+    function_group: 20
+    function_number: 15
+    datapoint: 50
+    id: FW_20_15_50
+    type: U32
+    accuracy_decimals: 3
+    filters:
+      - multiply: 0.001
+    unit_of_measurement: MWh
+    icon: mdi:flash
+    device_class: energy
+    state_class: measurement
+  - platform: toptronic
+    name: Puissance actuelle froid (16)
+    device_type: FW
+    function_group: 20
+    function_number: 15
+    datapoint: 51
+    id: FW_20_15_51
+    type: U32
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: kW
+    icon: mdi:lightning-bolt
+    device_class: power
+    state_class: measurement
+  - platform: toptronic
+    name: "D\xE9bit actuel (16)"
+    device_type: FW
+    function_group: 20
+    function_number: 15
+    datapoint: 2
+    id: FW_20_15_2
+    type: U32
+  - platform: toptronic
+    name: "Volume r\xE9el (16)"
+    device_type: FW
+    function_group: 20
+    function_number: 15
+    datapoint: 3
+    id: FW_20_15_3
+    type: U32
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: m3
+    icon: mdi:water-percent
+    device_class: volume
+    state_class: measurement
+  - platform: toptronic
+    name: "Temp. actuelle d\xE9part (16)"
+    device_type: FW
+    function_group: 20
+    function_number: 15
+    datapoint: 4
+    id: FW_20_15_4
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: "Temp\xE9rature actuelle de retour (16)"
+    device_type: FW
+    function_group: 20
+    function_number: 15
+    datapoint: 5
+    id: FW_20_15_5
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: "Diff\xE9rence temp\xE9rature actuelle (16)"
+    device_type: FW
+    function_group: 20
+    function_number: 15
+    datapoint: 6
+    id: FW_20_15_6
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-kelvin
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: "Message d\u2019erreur/octet d\u2019\xE9tat bus M (16)"
+    device_type: FW
+    function_group: 20
+    function_number: 15
+    datapoint: 8
+    id: FW_20_15_8
+    type: U8
+  - platform: toptronic
+    name: "\xC9nergie actuelle (17)"
+    device_type: FW
+    function_group: 20
+    function_number: 16
+    datapoint: 0
+    id: FW_20_16_0
+    type: U32
+    accuracy_decimals: 3
+    filters:
+      - multiply: 0.001
+    unit_of_measurement: MWh
+    icon: mdi:flash
+    device_class: energy
+    state_class: measurement
+  - platform: toptronic
+    name: Puissance actuelle (17)
+    device_type: FW
+    function_group: 20
+    function_number: 16
+    datapoint: 1
+    id: FW_20_16_1
+    type: U32
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: kW
+    icon: mdi:lightning-bolt
+    device_class: power
+    state_class: measurement
+  - platform: toptronic
+    name: "\xC9nergie actuelle froid (17)"
+    device_type: FW
+    function_group: 20
+    function_number: 16
+    datapoint: 50
+    id: FW_20_16_50
+    type: U32
+    accuracy_decimals: 3
+    filters:
+      - multiply: 0.001
+    unit_of_measurement: MWh
+    icon: mdi:flash
+    device_class: energy
+    state_class: measurement
+  - platform: toptronic
+    name: Puissance actuelle froid (17)
+    device_type: FW
+    function_group: 20
+    function_number: 16
+    datapoint: 51
+    id: FW_20_16_51
+    type: U32
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: kW
+    icon: mdi:lightning-bolt
+    device_class: power
+    state_class: measurement
+  - platform: toptronic
+    name: "D\xE9bit actuel (17)"
+    device_type: FW
+    function_group: 20
+    function_number: 16
+    datapoint: 2
+    id: FW_20_16_2
+    type: U32
+  - platform: toptronic
+    name: "Volume r\xE9el (17)"
+    device_type: FW
+    function_group: 20
+    function_number: 16
+    datapoint: 3
+    id: FW_20_16_3
+    type: U32
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: m3
+    icon: mdi:water-percent
+    device_class: volume
+    state_class: measurement
+  - platform: toptronic
+    name: "Temp. actuelle d\xE9part (17)"
+    device_type: FW
+    function_group: 20
+    function_number: 16
+    datapoint: 4
+    id: FW_20_16_4
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: "Temp\xE9rature actuelle de retour (17)"
+    device_type: FW
+    function_group: 20
+    function_number: 16
+    datapoint: 5
+    id: FW_20_16_5
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: "Diff\xE9rence temp\xE9rature actuelle (17)"
+    device_type: FW
+    function_group: 20
+    function_number: 16
+    datapoint: 6
+    id: FW_20_16_6
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-kelvin
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: "Message d\u2019erreur/octet d\u2019\xE9tat bus M (17)"
+    device_type: FW
+    function_group: 20
+    function_number: 16
+    datapoint: 8
+    id: FW_20_16_8
+    type: U8
+  - platform: toptronic
+    name: Limitation ret. active
+    device_type: FW
+    function_group: 0
+    function_number: 0
+    datapoint: 98
+    id: FW_0_0_98
+    type: U8
+  - platform: toptronic
+    name: Limitation de puissance active
+    device_type: FW
+    function_group: 0
+    function_number: 0
+    datapoint: 99
+    id: FW_0_0_99
+    type: U8
+  - platform: toptronic
+    name: Position de la vanne station
+    device_type: FW
+    function_group: 0
+    function_number: 0
+    datapoint: 110
+    id: FW_0_0_110
+    type: U8
+    unit_of_measurement: '%'
+    icon: mdi:percent
+    device_class: power_factor
+    state_class: measurement
+  - platform: toptronic
+    name: "Temp. d\xE9part cons. AVF"
+    device_type: FW
+    function_group: 0
+    function_number: 0
+    datapoint: 22021
+    id: FW_0_0_22021
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: "Temp. d\xE9part r\xE9elle AVF"
+    device_type: FW
+    function_group: 0
+    function_number: 0
+    datapoint: 21059
+    id: FW_0_0_21059
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: Pompe AVP
+    device_type: FW
+    function_group: 0
+    function_number: 0
+    datapoint: 22055
+    id: FW_0_0_22055
+    type: U8
+  - platform: toptronic
+    name: Pompe YAV
+    device_type: FW
+    function_group: 0
+    function_number: 0
+    datapoint: 22056
+    id: FW_0_0_22056
+    type: S8
+    unit_of_measurement: '%'
+    icon: mdi:percent
+    device_class: power_factor
+    state_class: measurement
+  - platform: toptronic
+    name: Niveau remplissage accumulateur tampon
+    device_type: FW
+    function_group: 0
+    function_number: 0
+    datapoint: 21092
+    id: FW_0_0_21092
+    type: U8
+    unit_of_measurement: '%'
+    icon: mdi:percent
+    device_class: power_factor
+    state_class: measurement
+  - platform: toptronic
+    name: Pression
+    device_type: FW
+    function_group: 0
+    function_number: 0
+    datapoint: 21093
+    id: FW_0_0_21093
+    type: U16
+  - platform: toptronic
+    name: "M\xE9langeur (1)"
+    device_type: FW
+    function_group: 1
+    function_number: 0
+    datapoint: 1021
+    id: FW_1_0_1021
+    type: U8
+    unit_of_measurement: '%'
+    icon: mdi:percent
+    device_class: power_factor
+    state_class: measurement
+  - platform: toptronic
+    name: Pompe (1)
+    device_type: FW
+    function_group: 1
+    function_number: 0
+    datapoint: 1020
+    id: FW_1_0_1020
+    type: U8
+  - platform: toptronic
+    name: Aller consigne (1)
+    device_type: FW
+    function_group: 1
+    function_number: 0
+    datapoint: 1002
+    id: FW_1_0_1002
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: "M\xE9langeur (2)"
+    device_type: FW
+    function_group: 1
+    function_number: 1
+    datapoint: 1021
+    id: FW_1_1_1021
+    type: U8
+    unit_of_measurement: '%'
+    icon: mdi:percent
+    device_class: power_factor
+    state_class: measurement
+  - platform: toptronic
+    name: Pompe (2)
+    device_type: FW
+    function_group: 1
+    function_number: 1
+    datapoint: 1020
+    id: FW_1_1_1020
+    type: U8
+  - platform: toptronic
+    name: Aller consigne (2)
+    device_type: FW
+    function_group: 1
+    function_number: 1
+    datapoint: 1002
+    id: FW_1_1_1002
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: "M\xE9langeur (3)"
+    device_type: FW
+    function_group: 1
+    function_number: 2
+    datapoint: 1021
+    id: FW_1_2_1021
+    type: U8
+    unit_of_measurement: '%'
+    icon: mdi:percent
+    device_class: power_factor
+    state_class: measurement
+  - platform: toptronic
+    name: Pompe (3)
+    device_type: FW
+    function_group: 1
+    function_number: 2
+    datapoint: 1020
+    id: FW_1_2_1020
+    type: U8
+  - platform: toptronic
+    name: Aller consigne (3)
+    device_type: FW
+    function_group: 1
+    function_number: 2
+    datapoint: 1002
+    id: FW_1_2_1002
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: "M\xE9langeur (4)"
+    device_type: FW
+    function_group: 1
+    function_number: 3
+    datapoint: 1021
+    id: FW_1_3_1021
+    type: U8
+    unit_of_measurement: '%'
+    icon: mdi:percent
+    device_class: power_factor
+    state_class: measurement
+  - platform: toptronic
+    name: Pompe (4)
+    device_type: FW
+    function_group: 1
+    function_number: 3
+    datapoint: 1020
+    id: FW_1_3_1020
+    type: U8
+  - platform: toptronic
+    name: Aller consigne (4)
+    device_type: FW
+    function_group: 1
+    function_number: 3
+    datapoint: 1002
+    id: FW_1_3_1002
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: "M\xE9langeur (5)"
+    device_type: FW
+    function_group: 1
+    function_number: 4
+    datapoint: 1021
+    id: FW_1_4_1021
+    type: U8
+    unit_of_measurement: '%'
+    icon: mdi:percent
+    device_class: power_factor
+    state_class: measurement
+  - platform: toptronic
+    name: Pompe (5)
+    device_type: FW
+    function_group: 1
+    function_number: 4
+    datapoint: 1020
+    id: FW_1_4_1020
+    type: U8
+  - platform: toptronic
+    name: Aller consigne (5)
+    device_type: FW
+    function_group: 1
+    function_number: 4
+    datapoint: 1002
+    id: FW_1_4_1002
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: SLP1 pompe de charge eau chaude (1)
+    device_type: FW
+    function_group: 2
+    function_number: 0
+    datapoint: 1066
+    id: FW_2_0_1066
+    type: U8
+  - platform: toptronic
+    name: "temp\xE9rature circuit de circulation (1)"
+    device_type: FW
+    function_group: 2
+    function_number: 0
+    datapoint: 118
+    id: FW_2_0_118
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: Pompe de circulation eau chaude (1)
+    device_type: FW
+    function_group: 2
+    function_number: 0
+    datapoint: 1065
+    id: FW_2_0_1065
+    type: U8
+  - platform: toptronic
+    name: SLP1 pompe de charge eau chaude (2)
+    device_type: FW
+    function_group: 2
+    function_number: 1
+    datapoint: 1066
+    id: FW_2_1_1066
+    type: U8
+  - platform: toptronic
+    name: "temp\xE9rature circuit de circulation (2)"
+    device_type: FW
+    function_group: 2
+    function_number: 1
+    datapoint: 118
+    id: FW_2_1_118
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: Pompe de circulation eau chaude (2)
+    device_type: FW
+    function_group: 2
+    function_number: 1
+    datapoint: 1065
+    id: FW_2_1_1065
+    type: U8
+  - platform: toptronic
+    name: SLP1 pompe de charge eau chaude (3)
+    device_type: FW
+    function_group: 2
+    function_number: 2
+    datapoint: 1066
+    id: FW_2_2_1066
+    type: U8
+  - platform: toptronic
+    name: "temp\xE9rature circuit de circulation (3)"
+    device_type: FW
+    function_group: 2
+    function_number: 2
+    datapoint: 118
+    id: FW_2_2_118
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: Pompe de circulation eau chaude (3)
+    device_type: FW
+    function_group: 2
+    function_number: 2
+    datapoint: 1065
+    id: FW_2_2_1065
+    type: U8
+  - platform: toptronic
+    name: SLP1 pompe de charge eau chaude (4)
+    device_type: FW
+    function_group: 2
+    function_number: 3
+    datapoint: 1066
+    id: FW_2_3_1066
+    type: U8
+  - platform: toptronic
+    name: "temp\xE9rature circuit de circulation (4)"
+    device_type: FW
+    function_group: 2
+    function_number: 3
+    datapoint: 118
+    id: FW_2_3_118
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: Pompe de circulation eau chaude (4)
+    device_type: FW
+    function_group: 2
+    function_number: 3
+    datapoint: 1065
+    id: FW_2_3_1065
+    type: U8
+  - platform: toptronic
+    name: SLP1 pompe de charge eau chaude (5)
+    device_type: FW
+    function_group: 2
+    function_number: 4
+    datapoint: 1066
+    id: FW_2_4_1066
+    type: U8
+  - platform: toptronic
+    name: "temp\xE9rature circuit de circulation (5)"
+    device_type: FW
+    function_group: 2
+    function_number: 4
+    datapoint: 118
+    id: FW_2_4_118
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: Pompe de circulation eau chaude (5)
+    device_type: FW
+    function_group: 2
+    function_number: 4
+    datapoint: 1065
+    id: FW_2_4_1065
+    type: U8
+  - platform: toptronic
+    name: "Valeur consigne d\xE9part demande constante (1)"
+    device_type: FW
+    function_group: 1
+    function_number: 0
+    datapoint: 7036
+    id: FW_1_0_7036
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+    internal: true
+  - platform: toptronic
+    name: "Valeur consigne d\xE9part demande constante (2)"
+    device_type: FW
+    function_group: 1
+    function_number: 1
+    datapoint: 7036
+    id: FW_1_1_7036
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+    internal: true
+  - platform: toptronic
+    name: "Valeur consigne d\xE9part demande constante (3)"
+    device_type: FW
+    function_group: 1
+    function_number: 2
+    datapoint: 7036
+    id: FW_1_2_7036
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+    internal: true
+  - platform: toptronic
+    name: "Valeur consigne d\xE9part demande constante (4)"
+    device_type: FW
+    function_group: 1
+    function_number: 3
+    datapoint: 7036
+    id: FW_1_3_7036
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+    internal: true
+  - platform: toptronic
+    name: "Valeur consigne d\xE9part demande constante (5)"
+    device_type: FW
+    function_group: 1
+    function_number: 4
+    datapoint: 7036
+    id: FW_1_4_7036
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+    internal: true
+text_sensor:
+  - platform: toptronic
+    name: "S\xE9lection fonctionnement chauffage (1)"
+    device_type: FW
+    function_group: 1
+    function_number: 0
+    datapoint: 3050
+    id: FW_1_0_3050
+    options:
+      - Stand-by
+      - Semaine 1
+      - Semaine 2
+      - Constant
+      - "Mode \xE9co"
+      - Commande manuelle chauffage
+      - Commande manuelle refroid
+    values:
+      - 0
+      - 1
+      - 2
+      - 4
+      - 5
+      - 7
+      - 8
+  - platform: toptronic
+    name: "S\xE9lection fonctionnement chauffage (2)"
+    device_type: FW
+    function_group: 1
+    function_number: 1
+    datapoint: 3050
+    id: FW_1_1_3050
+    options:
+      - Stand-by
+      - Semaine 1
+      - Semaine 2
+      - Constant
+      - "Mode \xE9co"
+      - Commande manuelle chauffage
+      - Commande manuelle refroid
+    values:
+      - 0
+      - 1
+      - 2
+      - 4
+      - 5
+      - 7
+      - 8
+  - platform: toptronic
+    name: "S\xE9lection fonctionnement chauffage (3)"
+    device_type: FW
+    function_group: 1
+    function_number: 2
+    datapoint: 3050
+    id: FW_1_2_3050
+    options:
+      - Stand-by
+      - Semaine 1
+      - Semaine 2
+      - Constant
+      - "Mode \xE9co"
+      - Commande manuelle chauffage
+      - Commande manuelle refroid
+    values:
+      - 0
+      - 1
+      - 2
+      - 4
+      - 5
+      - 7
+      - 8
+  - platform: toptronic
+    name: "S\xE9lection fonctionnement chauffage (4)"
+    device_type: FW
+    function_group: 1
+    function_number: 3
+    datapoint: 3050
+    id: FW_1_3_3050
+    options:
+      - Stand-by
+      - Semaine 1
+      - Semaine 2
+      - Constant
+      - "Mode \xE9co"
+      - Commande manuelle chauffage
+      - Commande manuelle refroid
+    values:
+      - 0
+      - 1
+      - 2
+      - 4
+      - 5
+      - 7
+      - 8
+  - platform: toptronic
+    name: "S\xE9lection fonctionnement chauffage (5)"
+    device_type: FW
+    function_group: 1
+    function_number: 4
+    datapoint: 3050
+    id: FW_1_4_3050
+    options:
+      - Stand-by
+      - Semaine 1
+      - Semaine 2
+      - Constant
+      - "Mode \xE9co"
+      - Commande manuelle chauffage
+      - Commande manuelle refroid
+    values:
+      - 0
+      - 1
+      - 2
+      - 4
+      - 5
+      - 7
+      - 8
+  - platform: toptronic
+    name: "S\xE9lection fonct. eau chaude (1)"
+    device_type: FW
+    function_group: 2
+    function_number: 0
+    datapoint: 5050
+    id: FW_2_0_5050
+    options:
+      - Stand-by
+      - Semaine 1
+      - Semaine 2
+      - Constant
+      - "Mode \xE9co"
+    values:
+      - 0
+      - 1
+      - 2
+      - 4
+      - 6
+  - platform: toptronic
+    name: "S\xE9lection fonct. eau chaude (2)"
+    device_type: FW
+    function_group: 2
+    function_number: 1
+    datapoint: 5050
+    id: FW_2_1_5050
+    options:
+      - Stand-by
+      - Semaine 1
+      - Semaine 2
+      - Constant
+      - "Mode \xE9co"
+    values:
+      - 0
+      - 1
+      - 2
+      - 4
+      - 6
+  - platform: toptronic
+    name: "S\xE9lection fonct. eau chaude (3)"
+    device_type: FW
+    function_group: 2
+    function_number: 2
+    datapoint: 5050
+    id: FW_2_2_5050
+    options:
+      - Stand-by
+      - Semaine 1
+      - Semaine 2
+      - Constant
+      - "Mode \xE9co"
+    values:
+      - 0
+      - 1
+      - 2
+      - 4
+      - 6
+  - platform: toptronic
+    name: "S\xE9lection fonct. eau chaude (4)"
+    device_type: FW
+    function_group: 2
+    function_number: 3
+    datapoint: 5050
+    id: FW_2_3_5050
+    options:
+      - Stand-by
+      - Semaine 1
+      - Semaine 2
+      - Constant
+      - "Mode \xE9co"
+    values:
+      - 0
+      - 1
+      - 2
+      - 4
+      - 6
+  - platform: toptronic
+    name: "S\xE9lection fonct. eau chaude (5)"
+    device_type: FW
+    function_group: 2
+    function_number: 4
+    datapoint: 5050
+    id: FW_2_4_5050
+    options:
+      - Stand-by
+      - Semaine 1
+      - Semaine 2
+      - Constant
+      - "Mode \xE9co"
+    values:
+      - 0
+      - 1
+      - 2
+      - 4
+      - 6
+  - platform: toptronic
+    name: "Statut r\xE9gulation circuit de chauffage (1)"
+    device_type: FW
+    function_group: 1
+    function_number: 0
+    datapoint: 2051
+    id: FW_1_0_2051
+    options:
+      - 'Off'
+      - Heating normal
+      - Heating comfort
+      - Heating eco
+      - Frost protection
+      - Holiday
+      - Party
+      - Cooling normal
+      - Cooling comfort
+      - Cooling eco
+      - FAULT
+      - Manual mode
+      - Protection cooling
+      - Cooling external/constant
+      - Heating external/constant
+      - SmartGrid priority
+    values:
+      - 0
+      - 1
+      - 2
+      - 3
+      - 4
+      - 7
+      - 8
+      - 9
+      - 10
+      - 11
+      - 12
+      - 13
+      - 14
+      - 22
+      - 23
+      - 26
+  - platform: toptronic
+    name: "Statut r\xE9gulation circuit de chauffage (2)"
+    device_type: FW
+    function_group: 1
+    function_number: 1
+    datapoint: 2051
+    id: FW_1_1_2051
+    options:
+      - 'Off'
+      - Heating normal
+      - Heating comfort
+      - Heating eco
+      - Frost protection
+      - Holiday
+      - Party
+      - Cooling normal
+      - Cooling comfort
+      - Cooling eco
+      - FAULT
+      - Manual mode
+      - Protection cooling
+      - Cooling external/constant
+      - Heating external/constant
+      - SmartGrid priority
+    values:
+      - 0
+      - 1
+      - 2
+      - 3
+      - 4
+      - 7
+      - 8
+      - 9
+      - 10
+      - 11
+      - 12
+      - 13
+      - 14
+      - 22
+      - 23
+      - 26
+  - platform: toptronic
+    name: "Statut r\xE9gulation circuit de chauffage (3)"
+    device_type: FW
+    function_group: 1
+    function_number: 2
+    datapoint: 2051
+    id: FW_1_2_2051
+    options:
+      - 'Off'
+      - Heating normal
+      - Heating comfort
+      - Heating eco
+      - Frost protection
+      - Holiday
+      - Party
+      - Cooling normal
+      - Cooling comfort
+      - Cooling eco
+      - FAULT
+      - Manual mode
+      - Protection cooling
+      - Cooling external/constant
+      - Heating external/constant
+      - SmartGrid priority
+    values:
+      - 0
+      - 1
+      - 2
+      - 3
+      - 4
+      - 7
+      - 8
+      - 9
+      - 10
+      - 11
+      - 12
+      - 13
+      - 14
+      - 22
+      - 23
+      - 26
+  - platform: toptronic
+    name: "Statut r\xE9gulation circuit de chauffage (4)"
+    device_type: FW
+    function_group: 1
+    function_number: 3
+    datapoint: 2051
+    id: FW_1_3_2051
+    options:
+      - 'Off'
+      - Heating normal
+      - Heating comfort
+      - Heating eco
+      - Frost protection
+      - Holiday
+      - Party
+      - Cooling normal
+      - Cooling comfort
+      - Cooling eco
+      - FAULT
+      - Manual mode
+      - Protection cooling
+      - Cooling external/constant
+      - Heating external/constant
+      - SmartGrid priority
+    values:
+      - 0
+      - 1
+      - 2
+      - 3
+      - 4
+      - 7
+      - 8
+      - 9
+      - 10
+      - 11
+      - 12
+      - 13
+      - 14
+      - 22
+      - 23
+      - 26
+  - platform: toptronic
+    name: "Statut r\xE9gulation circuit de chauffage (5)"
+    device_type: FW
+    function_group: 1
+    function_number: 4
+    datapoint: 2051
+    id: FW_1_4_2051
+    options:
+      - 'Off'
+      - Heating normal
+      - Heating comfort
+      - Heating eco
+      - Frost protection
+      - Holiday
+      - Party
+      - Cooling normal
+      - Cooling comfort
+      - Cooling eco
+      - FAULT
+      - Manual mode
+      - Protection cooling
+      - Cooling external/constant
+      - Heating external/constant
+      - SmartGrid priority
+    values:
+      - 0
+      - 1
+      - 2
+      - 3
+      - 4
+      - 7
+      - 8
+      - 9
+      - 10
+      - 11
+      - 12
+      - 13
+      - 14
+      - 22
+      - 23
+      - 26
+  - platform: toptronic
+    name: "Statut r\xE9gulation eau chaude (1)"
+    device_type: FW
+    function_group: 2
+    function_number: 0
+    datapoint: 2052
+    id: FW_2_0_2052
+    options:
+      - 'Off'
+      - Charging normal
+      - Charging comfort
+      - FAULT
+      - Draw-off
+      - Charging reduced
+      - SmartGrid priority
+      - SmartGrid forced
+    values:
+      - 0
+      - 1
+      - 2
+      - 5
+      - 6
+      - 8
+      - 12
+      - 13
+  - platform: toptronic
+    name: "Statut r\xE9gulation eau chaude (2)"
+    device_type: FW
+    function_group: 2
+    function_number: 1
+    datapoint: 2052
+    id: FW_2_1_2052
+    options:
+      - 'Off'
+      - Charging normal
+      - Charging comfort
+      - FAULT
+      - Draw-off
+      - Charging reduced
+      - SmartGrid priority
+      - SmartGrid forced
+    values:
+      - 0
+      - 1
+      - 2
+      - 5
+      - 6
+      - 8
+      - 12
+      - 13
+  - platform: toptronic
+    name: "Statut r\xE9gulation eau chaude (3)"
+    device_type: FW
+    function_group: 2
+    function_number: 2
+    datapoint: 2052
+    id: FW_2_2_2052
+    options:
+      - 'Off'
+      - Charging normal
+      - Charging comfort
+      - FAULT
+      - Draw-off
+      - Charging reduced
+      - SmartGrid priority
+      - SmartGrid forced
+    values:
+      - 0
+      - 1
+      - 2
+      - 5
+      - 6
+      - 8
+      - 12
+      - 13
+  - platform: toptronic
+    name: "Statut r\xE9gulation eau chaude (4)"
+    device_type: FW
+    function_group: 2
+    function_number: 3
+    datapoint: 2052
+    id: FW_2_3_2052
+    options:
+      - 'Off'
+      - Charging normal
+      - Charging comfort
+      - FAULT
+      - Draw-off
+      - Charging reduced
+      - SmartGrid priority
+      - SmartGrid forced
+    values:
+      - 0
+      - 1
+      - 2
+      - 5
+      - 6
+      - 8
+      - 12
+      - 13
+  - platform: toptronic
+    name: "Statut r\xE9gulation eau chaude (5)"
+    device_type: FW
+    function_group: 2
+    function_number: 4
+    datapoint: 2052
+    id: FW_2_4_2052
+    options:
+      - 'Off'
+      - Charging normal
+      - Charging comfort
+      - FAULT
+      - Draw-off
+      - Charging reduced
+      - SmartGrid priority
+      - SmartGrid forced
+    values:
+      - 0
+      - 1
+      - 2
+      - 5
+      - 6
+      - 8
+      - 12
+      - 13

@@ -1,0 +1,390 @@
+number:
+  - platform: toptronic
+    name: Temp ambiente normale riscaldamento (1)
+    device_type: HKW
+    function_group: 1
+    function_number: 0
+    datapoint: 3051
+    id: HKW_1_0_3051_set
+    type: S16
+    min_value: 100
+    max_value: 300
+    step: 5
+    decimal: 1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+  - platform: toptronic
+    name: Temp ambiente risparmio riscaldamento (1)
+    device_type: HKW
+    function_group: 1
+    function_number: 0
+    datapoint: 3053
+    id: HKW_1_0_3053_set
+    type: S16
+    min_value: 50
+    max_value: 200
+    step: 5
+    decimal: 1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+  - platform: toptronic
+    name: Temp ambiente normale riscaldamento (2)
+    device_type: HKW
+    function_group: 1
+    function_number: 1
+    datapoint: 3051
+    id: HKW_1_1_3051_set
+    type: S16
+    min_value: 100
+    max_value: 300
+    step: 5
+    decimal: 1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+  - platform: toptronic
+    name: Temp ambiente risparmio riscaldamento (2)
+    device_type: HKW
+    function_group: 1
+    function_number: 1
+    datapoint: 3053
+    id: HKW_1_1_3053_set
+    type: S16
+    min_value: 50
+    max_value: 200
+    step: 5
+    decimal: 1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+  - platform: toptronic
+    name: Temp ambiente normale riscaldamento (3)
+    device_type: HKW
+    function_group: 1
+    function_number: 2
+    datapoint: 3051
+    id: HKW_1_2_3051_set
+    type: S16
+    min_value: 100
+    max_value: 300
+    step: 5
+    decimal: 1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+  - platform: toptronic
+    name: Temp ambiente risparmio riscaldamento (3)
+    device_type: HKW
+    function_group: 1
+    function_number: 2
+    datapoint: 3053
+    id: HKW_1_2_3053_set
+    type: S16
+    min_value: 50
+    max_value: 200
+    step: 5
+    decimal: 1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+  - platform: toptronic
+    name: Temperatura nominale modo manuale (1)
+    device_type: HKW
+    function_group: 1
+    function_number: 0
+    datapoint: 7009
+    id: HKW_1_0_7009_set
+    type: S16
+    min_value: 100
+    max_value: 900
+    step: 5
+    decimal: 1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+  - platform: toptronic
+    name: Temperatura nominale modo manuale (2)
+    device_type: HKW
+    function_group: 1
+    function_number: 1
+    datapoint: 7009
+    id: HKW_1_1_7009_set
+    type: S16
+    min_value: 100
+    max_value: 900
+    step: 5
+    decimal: 1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+  - platform: toptronic
+    name: Temperatura nominale modo manuale (3)
+    device_type: HKW
+    function_group: 1
+    function_number: 2
+    datapoint: 7009
+    id: HKW_1_2_7009_set
+    type: S16
+    min_value: 100
+    max_value: 900
+    step: 5
+    decimal: 1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+  - platform: toptronic
+    name: Mandata nominale richiesta costante risc (1)
+    device_type: HKW
+    function_group: 1
+    function_number: 0
+    datapoint: 7036
+    id: HKW_1_0_7036_set
+    type: S16
+    min_value: 0
+    max_value: 1100
+    step: 10
+    decimal: 1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+  - platform: toptronic
+    name: Mandata nominale richiesta costante risc (2)
+    device_type: HKW
+    function_group: 1
+    function_number: 1
+    datapoint: 7036
+    id: HKW_1_1_7036_set
+    type: S16
+    min_value: 0
+    max_value: 1100
+    step: 10
+    decimal: 1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+  - platform: toptronic
+    name: Mandata nominale richiesta costante risc (3)
+    device_type: HKW
+    function_group: 1
+    function_number: 2
+    datapoint: 7036
+    id: HKW_1_2_7036_set
+    type: S16
+    min_value: 0
+    max_value: 1100
+    step: 10
+    decimal: 1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+  - platform: toptronic
+    name: Temperatura acqua calda normale
+    device_type: HKW
+    function_group: 2
+    function_number: 0
+    datapoint: 5051
+    id: HKW_2_0_5051_set
+    type: S16
+    min_value: 100
+    max_value: 700
+    step: 10
+    decimal: 1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+  - platform: toptronic
+    name: Temperatura di risparmio acqua calda
+    device_type: HKW
+    function_group: 2
+    function_number: 0
+    datapoint: 5086
+    id: HKW_2_0_5086_set
+    type: U8
+    min_value: 10
+    max_value: 70
+    step: 1
+    decimal: 0
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+  - platform: toptronic
+    name: Ambiente-effettivo (1)
+    device_type: HKW
+    function_group: 1
+    function_number: 0
+    datapoint: 1
+    id: HKW_1_0_1_set
+    type: S16
+    min_value: 0
+    max_value: 0
+    step: 1
+    decimal: 1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+  - platform: toptronic
+    name: Ambiente-effettivo (2)
+    device_type: HKW
+    function_group: 1
+    function_number: 1
+    datapoint: 1
+    id: HKW_1_1_1_set
+    type: S16
+    min_value: 0
+    max_value: 0
+    step: 1
+    decimal: 1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+  - platform: toptronic
+    name: Ambiente-effettivo (3)
+    device_type: HKW
+    function_group: 1
+    function_number: 2
+    datapoint: 1
+    id: HKW_1_2_1_set
+    type: S16
+    min_value: 0
+    max_value: 0
+    step: 1
+    decimal: 1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+  - platform: toptronic
+    name: Mandata nominale richiesta costante raff (1)
+    device_type: HKW
+    function_group: 1
+    function_number: 0
+    datapoint: 7047
+    id: HKW_1_0_7047_set
+    type: S16
+    min_value: 0
+    max_value: 300
+    step: 10
+    decimal: 1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+  - platform: toptronic
+    name: Mandata nominale richiesta costante raff (2)
+    device_type: HKW
+    function_group: 1
+    function_number: 1
+    datapoint: 7047
+    id: HKW_1_1_7047_set
+    type: S16
+    min_value: 0
+    max_value: 300
+    step: 10
+    decimal: 1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+  - platform: toptronic
+    name: Mandata nominale richiesta costante raff (3)
+    device_type: HKW
+    function_group: 1
+    function_number: 2
+    datapoint: 7047
+    id: HKW_1_2_7047_set
+    type: S16
+    min_value: 0
+    max_value: 300
+    step: 10
+    decimal: 1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+select:
+  - platform: toptronic
+    name: Selezione modo funzionam.to riscaldam.to (1)
+    device_type: HKW
+    function_group: 1
+    function_number: 0
+    datapoint: 3050
+    id: HKW_1_0_3050_set
+    options:
+      - Stand-by
+      - Settimana 1
+      - Settimana 2
+      - Costante
+      - Risparmio
+      - Modo manuale riscaldare
+      - Modo manuale raffreddare
+    values:
+      - 0
+      - 1
+      - 2
+      - 4
+      - 5
+      - 7
+      - 8
+  - platform: toptronic
+    name: Selezione modo funzionam.to riscaldam.to (2)
+    device_type: HKW
+    function_group: 1
+    function_number: 1
+    datapoint: 3050
+    id: HKW_1_1_3050_set
+    options:
+      - Stand-by
+      - Settimana 1
+      - Settimana 2
+      - Costante
+      - Risparmio
+      - Modo manuale riscaldare
+      - Modo manuale raffreddare
+    values:
+      - 0
+      - 1
+      - 2
+      - 4
+      - 5
+      - 7
+      - 8
+  - platform: toptronic
+    name: Selezione modo funzionam.to riscaldam.to (3)
+    device_type: HKW
+    function_group: 1
+    function_number: 2
+    datapoint: 3050
+    id: HKW_1_2_3050_set
+    options:
+      - Stand-by
+      - Settimana 1
+      - Settimana 2
+      - Costante
+      - Risparmio
+      - Modo manuale riscaldare
+      - Modo manuale raffreddare
+    values:
+      - 0
+      - 1
+      - 2
+      - 4
+      - 5
+      - 7
+      - 8
+  - platform: toptronic
+    name: Selezione modo funzionamento acqua calda
+    device_type: HKW
+    function_group: 2
+    function_number: 0
+    datapoint: 5050
+    id: HKW_2_0_5050_set
+    options:
+      - Stand-by
+      - Settimana 1
+      - Settimana 2
+      - Costante
+      - "Modalit\xE0 risparmio"
+    values:
+      - 0
+      - 1
+      - 2
+      - 4
+      - 6

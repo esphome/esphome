@@ -1,0 +1,86 @@
+sensor:
+  - platform: toptronic
+    name: Status buffer
+    device_type: PS
+    function_group: 21
+    function_number: 0
+    datapoint: 23082
+    id: PS_21_0_23082
+    type: U8
+  - platform: toptronic
+    name: Buffer setpoint
+    device_type: PS
+    function_group: 21
+    function_number: 0
+    datapoint: 1015
+    id: PS_21_0_1015
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: Buffer PF/KPF2 actual
+    device_type: PS
+    function_group: 21
+    function_number: 0
+    datapoint: 15
+    id: PS_21_0_15
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: Buffer PF2/KPF actual
+    device_type: PS
+    function_group: 21
+    function_number: 0
+    datapoint: 17
+    id: PS_21_0_17
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: SmartGrid (offset) buffer stpt. heating
+    device_type: PS
+    function_group: 21
+    function_number: 0
+    datapoint: 6050
+    id: PS_21_0_6050
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-kelvin
+    device_class: temperature
+    state_class: measurement
+    internal: true
+  - platform: toptronic
+    name: SmartGrid (offset) buffer stpt. cooling
+    device_type: PS
+    function_group: 21
+    function_number: 0
+    datapoint: 6051
+    id: PS_21_0_6051
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-kelvin
+    device_class: temperature
+    state_class: measurement
+    internal: true
