@@ -169,6 +169,9 @@ MAX_WIFI_NETWORKS = 127
 # get best-effort connection attempts. Longer timeout ensures we exhaust all options
 # before falling back to AP mode. Aligned with improv wifi_timeout default.
 DEFAULT_AP_TIMEOUT = "90s"
+DEFAULT_REBOOT_TIMEOUT = "15min"
+# Both defaults also match the C++ initializers in wifi_component.h; codegen skips
+# the setter when the config equals them.
 
 wifi_ns = cg.esphome_ns.namespace("wifi")
 EAPAuth = wifi_ns.struct("EAPAuth")
@@ -492,7 +495,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_AP): wifi_network_ap,
             cv.Optional(CONF_DOMAIN, default=".local"): cv.domain_name,
             cv.Optional(
-                CONF_REBOOT_TIMEOUT, default="15min"
+                CONF_REBOOT_TIMEOUT, default=DEFAULT_REBOOT_TIMEOUT
             ): cv.positive_time_period_milliseconds,
             cv.SplitDefault(
                 CONF_POWER_SAVE_MODE,
@@ -649,8 +652,8 @@ async def to_code(config):
             WiFiAP(),
             lambda ap: cg.add(var.set_ap(wifi_network(conf, ap, ip_config))),
         )
-        # ap_timeout_ is 90 s in C++; skip the setter when the config matches it.
-        if (ap_timeout := conf[CONF_AP_TIMEOUT]).total_milliseconds != 90000:
+        # Skip the setter when the config matches the C++ initializer.
+        if (ap_timeout := conf[CONF_AP_TIMEOUT]) != cv.time_period(DEFAULT_AP_TIMEOUT):
             cg.add(var.set_ap_timeout(ap_timeout))
         cg.add_define("USE_WIFI_AP")
 
@@ -673,9 +676,11 @@ async def to_code(config):
     if has_manual_ip:
         cg.add_define("USE_WIFI_MANUAL_IP")
 
-    # The C++ initializers are a 15 min reboot timeout, power save NONE and minimum
+    # The C++ initializers are DEFAULT_REBOOT_TIMEOUT, power save NONE and minimum
     # auth WPA2; skip the setters when the config matches them.
-    if (reboot_timeout := config[CONF_REBOOT_TIMEOUT]).total_milliseconds != 900000:
+    if (reboot_timeout := config[CONF_REBOOT_TIMEOUT]) != cv.time_period(
+        DEFAULT_REBOOT_TIMEOUT
+    ):
         cg.add(var.set_reboot_timeout(reboot_timeout))
     if (power_save_mode := config[CONF_POWER_SAVE_MODE]) != "NONE":
         cg.add(var.set_power_save_mode(power_save_mode))

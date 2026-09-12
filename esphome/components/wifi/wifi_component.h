@@ -919,11 +919,11 @@ class WiFiComponent final : public Component {
   float output_power_{NAN};
   uint32_t action_started_;
   uint32_t last_connected_{0};
-  uint32_t reboot_timeout_{900000};
+  uint32_t reboot_timeout_{900000};  // Keep in sync with DEFAULT_REBOOT_TIMEOUT in __init__.py
   uint32_t roaming_last_check_{0};
   uint32_t roaming_scan_end_{0};  // Timestamp when last roaming scan completed
 #ifdef USE_WIFI_AP
-  uint32_t ap_timeout_{90000};
+  uint32_t ap_timeout_{90000};  // Keep in sync with DEFAULT_AP_TIMEOUT in __init__.py
 #endif
 
   // 1-byte enums and integers

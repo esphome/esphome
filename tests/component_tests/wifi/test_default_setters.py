@@ -3,13 +3,20 @@
 from collections.abc import Callable
 from pathlib import Path
 
+import pytest
 
+
+@pytest.mark.parametrize("config_file", ["bare.yaml", "defaults.yaml"])
 def test_default_values_are_not_emitted(
     generate_main: Callable[[str | Path], str],
     component_config_path: Callable[[str], Path],
+    config_file: str,
 ) -> None:
-    """Priority 0, 90 s AP timeout, 15 min reboot, power save none, WPA2 are C++ defaults."""
-    main_cpp = generate_main(component_config_path("defaults.yaml"))
+    """Priority 0, 90 s AP timeout, 15 min reboot, power save none, WPA2 are C++ defaults.
+
+    Both the schema defaults and the same values written explicitly take the skip path.
+    """
+    main_cpp = generate_main(component_config_path(config_file))
 
     assert "set_priority(" not in main_cpp
     assert "set_ap_timeout(" not in main_cpp
