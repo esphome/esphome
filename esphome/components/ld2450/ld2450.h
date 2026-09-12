@@ -75,7 +75,7 @@ struct ZoneOfNumbers {
 };
 #endif
 
-class LD2450Component : public Component, public uart::UARTDevice {
+class LD2450Component final : public Component, public uart::UARTDevice {
 #ifdef USE_BINARY_SENSOR
   SUB_BINARY_SENSOR(moving_target)
   SUB_BINARY_SENSOR(still_target)

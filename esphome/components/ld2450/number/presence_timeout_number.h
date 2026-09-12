@@ -5,7 +5,7 @@
 
 namespace esphome::ld2450 {
 
-class PresenceTimeoutNumber : public number::Number, public Parented<LD2450Component> {
+class PresenceTimeoutNumber final : public number::Number, public Parented<LD2450Component> {
  public:
   PresenceTimeoutNumber() = default;
 

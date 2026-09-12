@@ -5,7 +5,7 @@
 
 namespace esphome::ld2450 {
 
-class ZoneCoordinateNumber : public number::Number, public Parented<LD2450Component> {
+class ZoneCoordinateNumber final : public number::Number, public Parented<LD2450Component> {
  public:
   ZoneCoordinateNumber(uint8_t zone);
 
