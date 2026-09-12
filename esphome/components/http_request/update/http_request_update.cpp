@@ -93,10 +93,10 @@ void HttpRequestUpdate::update_task(void *params) {
   auto *result = new TaskResult();
   auto *info = &result->info;
 
-  auto container = this_update->request_parent_->get(this_update->get_source_url());
+  auto container = this_update->request_parent_->get(this_update->source_url_);
 
   if (container == nullptr || container->status_code != HTTP_STATUS_OK) {
-    ESP_LOGE(TAG, "Failed to fetch manifest from %s", this_update->get_source_url().c_str());
+    ESP_LOGE(TAG, "Failed to fetch manifest from %s", this_update->source_url_);
     if (container != nullptr)
       container->end();
     result->error_str = LOG_STR("Failed to fetch manifest");
@@ -176,7 +176,7 @@ void HttpRequestUpdate::update_task(void *params) {
     allocator.deallocate(data, content_length);
 
     if (!valid) {
-      ESP_LOGE(TAG, "Failed to parse JSON from %s", this_update->get_source_url().c_str());
+      ESP_LOGE(TAG, "Failed to parse JSON from %s", this_update->source_url_);
       result->error_str = LOG_STR("Failed to parse manifest JSON");
       goto defer;  // NOLINT(cppcoreguidelines-avoid-goto)
     }
