@@ -2,6 +2,7 @@ from esphome import pins
 import esphome.codegen as cg
 from esphome.components import esp32, uart, usb_cdc_acm
 from esphome.components.bridge import DOMAIN as BRIDGE_DOMAIN
+from esphome.components.const import CONF_BRIDGE_ID
 from esphome.components.esp32 import VARIANT_ESP32P4, VARIANT_ESP32S2, VARIANT_ESP32S3
 import esphome.config_validation as cv
 from esphome.const import CONF_DEBUG, CONF_ID, CONF_UART_ID
@@ -14,6 +15,7 @@ DEPENDENCIES = ["tinyusb", "uart", "usb_cdc_acm"]
 CONF_DTR_PIN = "dtr_pin"
 CONF_RTS_PIN = "rts_pin"
 CONF_USB_CDC_ACM_ID = "usb_cdc_acm_id"
+UART_MUX_DOMAIN = "uart_mux"
 
 cdc_acm_uart_ns = cg.esphome_ns.namespace("cdc_acm_uart")
 CDCACMUARTBridge = cdc_acm_uart_ns.class_("CDCACMUARTBridge", cg.Component)
@@ -86,6 +88,14 @@ def _final_validate(config: ConfigType) -> ConfigType:
         for domain, domain_conf in full_config.items():
             if domain == BRIDGE_DOMAIN:
                 continue
+            # A mux bound to this bridge exists to share its UART: it pauses the
+            # bridge before touching the bus.
+            if domain == UART_MUX_DOMAIN:
+                domain_conf = [
+                    mux
+                    for mux in domain_conf
+                    if str(mux.get(CONF_BRIDGE_ID)) != str(config[CONF_ID])
+                ]
             if _subtree_references_uart(domain_conf, owned_id):
                 raise cv.Invalid(
                     f"The {label} '{owned_id}' is also used by '{domain}'; a bridge "

@@ -1,0 +1,54 @@
+tinyusb:
+  id: tinyusb_test
+  on_mount:
+    - uart_mux.select_bridge: mux_0
+  on_unmount:
+    - uart_mux.select_local: mux_0
+  usb_manufacturer_str: ESPHomeTestManufacturer
+  usb_product_id: 0x1234
+  usb_product_str: ESPHomeTestProduct
+  usb_vendor_id: 0x2345
+
+uart:
+  - id: uart_0
+    tx_pin: 14
+    rx_pin: 13
+    baud_rate: 115200
+
+usb_cdc_acm:
+  interfaces:
+    - id: cdc_acm_1
+
+bridge:
+  - platform: cdc_acm_uart
+    id: bridge_0
+    uart_id: uart_0
+    usb_cdc_acm_id: cdc_acm_1
+
+uart_mux:
+  - id: mux_0
+    uart_id: uart_0
+    bridge_id: bridge_0
+    initial_route: local
+
+switch:
+  - platform: template
+    name: Mux local
+    optimistic: true
+    turn_on_action:
+      - uart_mux.select_local: mux_0
+    turn_off_action:
+      - uart_mux.select_bridge: mux_0
+
+interval:
+  - interval: 60s
+    then:
+      - if:
+          condition:
+            uart_mux.is_local: mux_0
+          then:
+            - lambda: |-
+                uint8_t byte;
+                if (id(mux_0).available() && id(mux_0).read_byte(&byte)) {
+                  id(mux_0).write_byte(byte);
+                }
