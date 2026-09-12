@@ -1,11 +1,11 @@
-"""Build specification for the native ESP8266 Arduino toolchain.
+"""Native ninja build generator for the ESP8266 Arduino core.
 
 Transliterates the PlatformIO build spec for the Arduino ESP8266 framework
 (``framework-arduinoespressif8266/tools/platformio-build.py`` plus
-``platform-espressif8266/builder/main.py``): the flag sets, defines, and
-linker-script generation deliberately match what PlatformIO produces so the
-binaries stay near-identical between the two toolchains. The ninja emission
-(``write_project``) builds on these pieces.
+``platform-espressif8266/builder/main.py``) into a ``build.ninja`` under
+``.pioenvs/<name>/``. The flag sets, defines, link line, linker-script
+generation, and ``elf2bin`` invocation deliberately match what PlatformIO
+produces so the binaries stay near-identical between the two toolchains.
 
 The ``PIO_FRAMEWORK_ARDUINO_*`` knob defines (lwIP variant, NONOS SDK
 version, MMU layout, exceptions, waveform phase) keep working: they are read
@@ -14,6 +14,7 @@ from the build flags with the same precedence as the PlatformIO builder.
 
 from __future__ import annotations
 
+from collections.abc import Collection
 from dataclasses import dataclass
 import hashlib
 import logging
@@ -22,19 +23,50 @@ from pathlib import Path
 import re
 import shlex
 import subprocess
+import sys
 from typing import TYPE_CHECKING, NamedTuple
 
 from esphome.arduino8266.framework import toolchain_tool
-from esphome.build_helpers.ninja import shell_token as _shell_token
+from esphome.build_helpers.ninja import (
+    escape as _e,
+    quote_path as _q,
+    shell_token as _shell_token,
+)
 from esphome.components.esp8266 import build_surgery
+from esphome.components.esp8266.boards import (
+    BOARDS,
+    ESP8266_BOARD_BUILD,
+    board_ld_script,
+)
+from esphome.components.esp8266.const import (
+    BUILD_FLASH_MODES,
+    KEY_BOARD,
+    KEY_ESP8266,
+    KEY_FLASH_SIZE,
+    KEY_SCANF_FLOAT,
+)
 from esphome.core import CORE, EsphomeError
+from esphome.framework_helpers import (
+    get_project_cxx_compile_flags,
+    strip_win_long_path_prefix,
+)
 from esphome.helpers import mkdir_p, write_file_if_changed
-from esphome.platformio.library import lex_build_flags
+from esphome.platformio.library import SOURCE_KIND_FOR_SUFFIX, lex_build_flags
 
 if TYPE_CHECKING:
     from esphome.arduino8266.framework import InstalledPaths
 
 _LOGGER = logging.getLogger(__name__)
+
+# Always excluded from the core build: ESPHome uses its own native OTA
+# backend, so the Arduino Updater (and its 228-byte global) never links.
+_CORE_EXCLUDE_ALWAYS = {"Updater.cpp"}
+# Excluded when no component called require_waveform(); waveform_stubs.cpp
+# supplies the stopWaveform()/_stopPWM() stubs digitalWrite needs.
+_CORE_EXCLUDE_WAVEFORM = {
+    "core_esp8266_waveform_pwm.cpp",
+    "core_esp8266_waveform_phase.cpp",
+}
 
 # Values that land unquoted on generated command lines are shape-checked
 # against these before use. re.ASCII: a Unicode digit or word character
@@ -76,6 +108,11 @@ def _apply_surgery(fn, *args: object) -> str:
     except RuntimeError as err:
         raise EsphomeError(str(err)) from err
 
+
+# Every supported board's f_flash is 40 MHz; re-check on a platform bump
+# board_flash_mode's closed set, shared with cv.one_of's validation
+_FLASH_MODES = frozenset(BUILD_FLASH_MODES)
+_FLASH_FREQ_MHZ = 40
 
 # From platformio-build.py. Knob suffix -> SDK define; the first entry is
 # the default (dicts preserve insertion order). With multiple SDK knobs set
@@ -408,6 +445,52 @@ def _resolve_build_config(defines: dict[str, str]) -> _BuildConfig:
     )
 
 
+_INCOMPLETE_INSTALL = "Arduino toolchain install is incomplete"
+
+
+def _filter_link_flags(unflags: set[str]) -> list[str]:
+    """_LINKFLAGS minus ``unflags``, pair-aware: unflagging a symbol also
+    drops the ``-u`` that carried it, so no dangling operand-less flag
+    reaches ld as the next token's consumer."""
+    out: list[str] = []
+    it = iter(_LINKFLAGS)
+    for tok in it:
+        if tok == "-u":
+            symbol = next(it)
+            if symbol not in unflags:
+                out += [tok, symbol]
+        elif tok not in unflags:
+            out.append(tok)
+    return out
+
+
+def _active_flash_ld_name(flash_ld_name: str) -> str:
+    """The flash linker-script filename the link uses (testing mode renames
+    the surgically patched copy)."""
+    return (
+        f"{_TESTING_LD_PREFIX}{flash_ld_name}" if CORE.testing_mode else flash_ld_name
+    )
+
+
+def _flash_ld_name(board: str) -> str:
+    """The flash linker script: the board's, or a routed user override.
+
+    Published configs override board_build.ldscript to reserve a
+    filesystem region or correct a board's assumed flash size; a bare
+    name is required because the script resolves via the -L search path.
+    """
+    override = _pio_option("board_build.ldscript", "")
+    if not override:
+        # The same shared rule the PlatformIO path pins (layout
+        # preservation, see boards.board_ld_script)
+        return board_ld_script(BOARDS[board])
+    if Path(override).name != override:
+        raise EsphomeError(
+            f"board_build.ldscript must be a bare script name, got {override!r}"
+        )
+    return override
+
+
 def _pio_option(key: str, default: str) -> str:
     """A platformio_options value the native build honors (str-normalized).
 
@@ -551,9 +634,21 @@ _PLAIN_LINKER_FLAGS = (
     "-nostdlib",
     "-rdynamic",
 )
+# The subset whose next token is an operand; unflagging the bare flag
+# would strand the operand. Operand-less members of the list above filter
+# whole-token from both the compile and link lines, as PlatformIO allows.
+_PLAIN_LINKER_OPERAND_FLAGS = ("-u", "-e")
 _PLAIN_LINKER_PREFIXES = ("-T", "-Xlinker")
 # Driver options, not ld options: -Wl, has no equivalent for these
 _PLAIN_DRIVER_LINK_PREFIXES = ("-fuse-ld=", "--specs=", "-specs=")
+
+
+def _collect_sources(root: Path, exclude: Collection[str] = frozenset()) -> list[Path]:
+    return sorted(
+        p
+        for p in root.rglob("*")
+        if p.suffix in SOURCE_KIND_FOR_SUFFIX and p.name not in exclude
+    )
 
 
 def _stat_sig(path: Path) -> str:
@@ -771,3 +866,369 @@ def _generate_testing_flash_ld(
     write_file_if_changed(
         ld_dir / f"{_TESTING_LD_PREFIX}{flash_ld_name}", patched_flash_ld
     )
+
+
+def _ninja_compile_edges(
+    lines: list[str],
+    sources: list[Path],
+    root: Path,
+    group: str,
+    flags: str = "",
+) -> list[str]:
+    """Emit compile edges for ``sources``; return the object paths."""
+    objects = []
+    for src in sources:
+        rel = src.relative_to(root).as_posix()
+        obj = f"obj/{group}/{rel}.o"
+        escaped_obj = _e(obj)
+        lines.append(
+            f"build {escaped_obj}: {SOURCE_KIND_FOR_SUFFIX[src.suffix]} {_e(src)}"
+        )
+        if flags:
+            lines.append(f"  flags = {flags}")
+        # Escaped once here: the returned paths only ever appear in build
+        # statements (archive/link inputs), which use ninja escaping.
+        objects.append(escaped_obj)
+    return objects
+
+
+def _common_parent(paths: list[Path]) -> Path:
+    return Path(os.path.commonpath([str(p.parent) for p in paths]))
+
+
+def write_project(paths: InstalledPaths, ccache: str | None) -> bool:
+    """Write the ninja build for the current configuration.
+
+    ``ccache`` is the caller's already-resolved binary (None when disabled)
+    so one build never pays the runnability probe per consumer. Returns
+    True when ``build.ninja`` changed, so the caller can skip work derived
+    purely from it (the compile database) on unchanged builds.
+    """
+    from esphome.arduino.library import resolve_libraries
+
+    framework = paths.framework
+    toolchain_bin = paths.toolchain / "bin"
+    build_dir = CORE.relative_pioenvs_path(CORE.name)
+    mkdir_p(build_dir)
+
+    unflags = _unflag_tokens()
+    # Lexed once so a malformed entry warns once, not per consumer
+    build_tokens = _lexed_build_flags()
+    flag_defines = _flag_defines(unflags, build_tokens)
+    config = _resolve_build_config(flag_defines)
+    esp8266_data = CORE.data[KEY_ESP8266]
+    board = esp8266_data[KEY_BOARD]
+    # Config validation already gates boards;
+    # kept as defense-in-depth for direct calls, since CONF_BOARD itself is
+    # a free-form string
+    if board not in ESP8266_BOARD_BUILD:
+        raise EsphomeError(f"Board '{board}' is not supported by the native toolchain")
+    board_build = ESP8266_BOARD_BUILD[board]
+    # From the same producer the PlatformIO path reads (one source)
+    flash_mode = _pio_option("board_build.flash_mode", "dout")
+    if flash_mode not in _FLASH_MODES:
+        # Lands unquoted in the elf2bin command and a -D body; validation
+        # (cv.one_of on board_flash_mode) already gates it, defense-in-depth
+        raise EsphomeError(f"Invalid flash mode {flash_mode!r}")
+    flash_ld_name = _flash_ld_name(board)
+
+    generate_ld_scripts(paths, config, flash_ld_name)
+
+    sdk = framework / "tools" / "sdk"
+    core_dir = framework / "cores" / "esp8266"
+    variant_dir = framework / "variants" / board_build["variant"]
+    src_dir = CORE.relative_src_path()
+
+    libraries = resolve_libraries(
+        framework,
+        pio_platform="espressif8266",
+        board_mcu="esp8266",
+        cache_key="arduino8266",
+    )
+
+    if not src_dir.is_dir():
+        # Generated project state, not install state: clean-all would not help
+        raise EsphomeError(f"Generated source directory {src_dir} is missing")
+    # A missing install directory would otherwise surface as a wall of
+    # include errors; failing here names the path instead.
+    include_dirs = [
+        src_dir,
+        sdk / "include",
+        core_dir,
+        paths.toolchain / "include",
+        sdk / "lwip2" / "include",
+        variant_dir,
+    ]
+    for required in include_dirs[1:]:
+        if not required.is_dir():
+            raise EsphomeError(
+                f"{_INCOMPLETE_INSTALL}: missing {required}; {_CLEAN_HINT}"
+            )
+    # The elf2bin edge runs after the full compile and link; a
+    # half-extracted package must fail here, not an hour of wall-clock later
+    for required_file in (
+        framework / "tools" / "elf2bin.py",
+        framework / "bootloaders" / "eboot" / "eboot.elf",
+    ):
+        if not required_file.is_file():
+            raise EsphomeError(
+                f"{_INCOMPLETE_INSTALL}: missing {required_file}; {_CLEAN_HINT}"
+            )
+    for lib in libraries:
+        include_dirs += lib.include_dirs
+
+    (
+        project_compile_flags,
+        project_link_flags,
+        project_lib_dirs,
+        project_libs,
+    ) = _project_flags(unflags, build_tokens)
+    defines = _defines_flags(config, flash_mode, board, board_build["defines"])
+    includes = [f"-I{_q(d)}" for d in include_dirs]
+
+    common = _CCFLAGS + defines + includes + project_compile_flags
+    cflags = _CFLAGS + common
+    cpp_standard = CORE.cpp_standard or "gnu++17"
+    cxxflags = (
+        ["-fno-rtti", f"-std={cpp_standard}"]
+        + ["-fexceptions" if config.exceptions else "-fno-exceptions"]
+        + common
+        + [_shell_token(f) for f in get_project_cxx_compile_flags()]
+    )
+    # PlatformIO's ASPPCOM passes only -D/-I user flags to assembly; match
+    # it (tokens arrive shell-quoted, hence the lstrip)
+    asflags = (
+        _ASFLAGS
+        + defines
+        + includes
+        + [f for f in project_compile_flags if f.lstrip("\"'").startswith(("-D", "-I"))]
+    )
+
+    # build_unflags applies to the framework flag sets too (compile and link),
+    # as under PlatformIO (a silently ignored ``build_unflags: -Os`` would
+    # diverge between the toolchains).
+    # Matching is whole-token, so an unflag that hits nothing in the user
+    # flags or any framework set (a typo, or -DUSE_FOO against -DUSE_FOO=1)
+    # must be visible: the user believes the flag is gone while it still
+    # drives the compile line and the knob selection
+    flag_universe = set(build_tokens)
+    for flags in (cflags, cxxflags, asflags, _LINKFLAGS):
+        flag_universe.update(flags)
+    if unmatched := sorted(unflags - flag_universe):
+        _LOGGER.warning(
+            "build_unflags entries matched no build flag: %s", ", ".join(unmatched)
+        )
+    # _LINKFLAGS stores -u and its operand as two tokens; unflagging the
+    # bare -u would strip all seven and leave the operands as ld "input
+    # files" with an error pointing nowhere near build_unflags
+    if plain := sorted(
+        u
+        for u in unflags
+        if u in _PLAIN_LINKER_OPERAND_FLAGS or u.startswith(_PLAIN_LINKER_PREFIXES)
+    ):
+        raise EsphomeError(
+            f"build_unflags cannot remove plain linker flag(s) "
+            f"{', '.join(plain)}; unflag the full -Wl, form or the symbol"
+        )
+    cflags, cxxflags, asflags = (
+        [f for f in flags if f not in unflags] for flags in (cflags, cxxflags, asflags)
+    )
+    link_flags = _filter_link_flags(unflags)
+    if esp8266_data[KEY_SCANF_FLOAT]:
+        link_flags += ["-u", "_scanf_float"]
+    link_flags += project_link_flags
+    link_flags += [_shell_token(flag) for lib in libraries for flag in lib.link_flags]
+    flash_ld = _active_flash_ld_name(flash_ld_name)
+    # A user-overridden script name re-quotes like every other user token
+    link_flags += ["-T", _shell_token(flash_ld)]
+
+    lib_dirs = [Path("ld"), sdk / "lib", sdk / "ld", sdk / "lib" / config.nonosdk]
+    lib_dirs += project_lib_dirs
+    for lib in libraries:
+        lib_dirs += lib.link_dirs
+    system_libs = (
+        _SYSTEM_LIBS_PRE_LWIP
+        + [config.lwip_lib]
+        + _SYSTEM_LIBS_POST_LWIP
+        + project_libs
+        + [lib_name for lib in libraries for lib_name in lib.link_libs]
+        + ["stdc++-exc" if config.exceptions else "stdc++", "m", "c", "gcc"]
+    )
+
+    build_tool = Path(__file__).parent / "build_tool.py"
+
+    # $in/$out stay unquoted: ninja escapes its built-in path variables
+    # itself; only literal paths need _q().
+    lines = [
+        "# Auto-generated by ESPHome",
+        "ninja_required_version = 1.5",
+        f"cc = {_q(toolchain_tool(paths.toolchain, 'gcc'))}",
+        f"cxx = {_q(toolchain_tool(paths.toolchain, 'g++'))}",
+        # The NSIS launcher starts Python with a \\?\ extended-length path
+        # that cmd.exe cannot spawn; same strip every other emitted binary
+        # path gets
+        f"python = {_q(strip_win_long_path_prefix(sys.executable))}",
+        f"buildtool = {_q(build_tool)}",
+        f"ccache = {_q(ccache) if ccache else ''}",
+        "",
+        # Rule names match SOURCE_KIND_FOR_SUFFIX values (c, cxx, asm, aspp)
+        "rule c",
+        "  command = $ccache $cc -MMD -MF $out.d $cflags $flags -c $in -o $out",
+        "  depfile = $out.d",
+        "  deps = gcc",
+        "  description = CC $out",
+        "rule cxx",
+        "  command = $ccache $cxx -MMD -MF $out.d $cxxflags $flags -c $in -o $out",
+        "  depfile = $out.d",
+        "  deps = gcc",
+        "  description = CXX $out",
+        "rule aspp",
+        "  command = $ccache $cc -MMD -MF $out.d -x assembler-with-cpp $asflags $flags -c $in -o $out",
+        "  depfile = $out.d",
+        "  deps = gcc",
+        "  description = AS $out",
+        # Plain assembler, as SCons's ASCOM: no preprocessor, so no
+        # depfile and no $flags (defines/includes) either
+        "rule asm",
+        "  command = $ccache $cc -x assembler $asflags -c $in -o $out",
+        "  description = AS $out",
+        "rule ar",
+        f"  command = $python $buildtool ar {_q(toolchain_tool(paths.toolchain, 'ar'))} $out $out.rsp",
+        "  rspfile = $out.rsp",
+        "  rspfile_content = $in_newline",
+        "  description = AR $out",
+        "rule link",
+        "  command = $cxx -o $out $linkflags @$out.rsp $libdirflags -Wl,--start-group $archives $libflags -Wl,--end-group",
+        "  rspfile = $out.rsp",
+        "  rspfile_content = $in_newline",
+        "  description = LINK $out",
+        "rule elf2bin",
+        # --flash_size deliberately stays board-derived, as under
+        # PlatformIO (which reads upload.maximum_size, not the ldscript).
+        f"  command = $python {_q(framework / 'tools' / 'elf2bin.py')} --eboot {_q(framework / 'bootloaders' / 'eboot' / 'eboot.elf')} --app $in --flash_mode {flash_mode} --flash_freq {_FLASH_FREQ_MHZ} --flash_size {_flash_size_str(BOARDS[board][KEY_FLASH_SIZE])} --path {_q(toolchain_bin)} --out $out",
+        "  description = BIN $out",
+        "rule copy",
+        "  command = $python $buildtool copy $in $out",
+        "  description = COPY $out",
+        "",
+        f"cflags = {' '.join(cflags)}",
+        f"cxxflags = {' '.join(cxxflags)}",
+        f"asflags = {' '.join(asflags)}",
+        f"linkflags = {' '.join(link_flags)}",
+        f"libdirflags = {' '.join(f'-L{_q(d)}' for d in lib_dirs)}",
+        f"libflags = {' '.join(_shell_token(f'-l{lib}') for lib in system_libs)}",
+        "",
+    ]
+
+    core_exclude = set(_CORE_EXCLUDE_ALWAYS)
+    if "USE_ESP8266_WAVEFORM_STUBS" in flag_defines:
+        core_exclude |= _CORE_EXCLUDE_WAVEFORM
+
+    archives = []
+    direct_objs: list[str] = []
+    # variant_dir existence was already enforced with the include dirs
+    variant_sources = _collect_sources(variant_dir)
+    if variant_sources:
+        objs = _ninja_compile_edges(lines, variant_sources, variant_dir, "variant")
+        lines.append(f"build libFrameworkArduinoVariant.a: ar {' '.join(objs)}")
+        archives.append("libFrameworkArduinoVariant.a")
+
+    core_objs = _ninja_compile_edges(
+        lines, _collect_sources(core_dir, core_exclude), core_dir, "core"
+    )
+    if not core_objs:
+        # An empty archive would link into a wall of undefined references
+        # (app_entry, the exception vectors) far from the cause
+        raise EsphomeError(
+            f"{_INCOMPLETE_INSTALL}: no core sources in {core_dir}; {_CLEAN_HINT}"
+        )
+    lines.append(f"build libFrameworkArduino.a: ar {' '.join(core_objs)}")
+    archives.append("libFrameworkArduino.a")
+
+    for lib in libraries:
+        if not lib.sources:
+            # Header-only libraries are legitimate; the log makes an empty
+            # srcFilter or broken tree traceable before link errors do.
+            _LOGGER.debug(
+                "Library %s has no source files; contributing includes only",
+                lib.name,
+            )
+            continue
+        lib_root = _common_parent(lib.sources)
+        objs = _ninja_compile_edges(
+            lines,
+            lib.sources,
+            lib_root,
+            f"lib/{lib.name}",
+            flags=" ".join(_shell_token(f) for f in lib.flags),
+        )
+        if not lib.lib_archive:
+            # libArchive: false / dot_a_linkage=false: hand the objects to
+            # the linker directly so unreferenced-but-required symbols
+            # (exception handlers, weak overrides) survive
+            direct_objs.extend(objs)
+            continue
+        archive = f"lib{lib.name}.a"
+        lines.append(f"build {_e(archive)}: ar {' '.join(objs)}")
+        archives.append(archive)
+
+    # One source of truth with the PlatformIO path: esp8266/__init__ pins
+    # build_src_flags (the throw_stubs force-include); -include paths
+    # resolve against the source root
+    src_parts: list[str] = []
+    src_it = iter(
+        lex_build_flags(_pio_option("build_src_flags", ""), "build_src_flags")
+    )
+    for tok in src_it:
+        if tok == "-include":
+            header = next(src_it, "")
+            if not header:
+                raise EsphomeError(
+                    "build_src_flags has a trailing '-include' with no header"
+                )
+            src_parts.append(f"-include {_q(src_dir / header)}")
+        else:
+            src_parts.append(_shell_token(tok))
+    src_extra = " ".join(src_parts)
+    # One shared variable instead of repeating the flags line on every src
+    # edge (hundreds of edges in a real project)
+    lines.append(f"srcflags = {src_extra}")
+    src_objs = _ninja_compile_edges(
+        lines, _collect_sources(src_dir), src_dir, "src", flags="$srcflags"
+    )
+
+    ld_deps = [f"ld/{_COMMON_LD_NAME}"]
+    if CORE.testing_mode:
+        ld_deps.append(f"ld/{flash_ld}")
+    lines.append(
+        f"build firmware.elf: link {' '.join(src_objs + direct_objs)} | "
+        f"{' '.join(_e(a) for a in archives)} {' '.join(_e(d) for d in ld_deps)}"
+    )
+    lines.append(f"  archives = {' '.join(_shell_token(a) for a in archives)}")
+    lines.append("build firmware.bin: elf2bin firmware.elf")
+    lines.append("build firmware.factory.bin: copy firmware.bin")
+    lines.append("build firmware.ota.bin: copy firmware.bin")
+    lines.append("default firmware.factory.bin firmware.ota.bin")
+    lines.append("")
+
+    return write_file_if_changed(build_dir / "build.ninja", "\n".join(lines))
+
+
+def get_flash_ld_path(build_dir: Path, paths: InstalledPaths) -> Path:
+    """The flash linker script the link actually uses (for size reporting).
+
+    Reads the same install the ninja file linked against instead of
+    re-resolving the framework version. A user-shipped override living in a
+    custom -L dir resolves to a nonexistent path here; the size consumer
+    warns and skips the Flash summary then.
+    """
+    name = _active_flash_ld_name(_flash_ld_name(CORE.data[KEY_ESP8266][KEY_BOARD]))
+    if CORE.testing_mode:
+        return build_dir / "ld" / name
+    return paths.framework / "tools" / "sdk" / "ld" / name
+
+
+def _flash_size_str(flash_size: int) -> str:
+    """Flash size argument for elf2bin (e.g. ``4M``, ``512K``)."""
+    mb = 1024 * 1024
+    return f"{flash_size // mb}M" if flash_size >= mb else f"{flash_size // 1024}K"
