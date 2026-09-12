@@ -32,10 +32,6 @@ struct TimeEntityRestoreState {
 } __attribute__((packed));
 
 class TimeEntity : public DateTimeBase {
- public:
-  // User provided, not "= default": `new(p) TimeEntity()` would zero-fill .bss that is already zero.
-  TimeEntity() {}
-
  protected:
   uint8_t hour_{0};
   uint8_t minute_{0};
