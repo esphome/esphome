@@ -18,8 +18,12 @@ from esphome.core import CORE
 AUTO_LOAD = ["image"]
 CODEOWNERS = ["@guillempages", "@clydebarrow", "@kahrendt"]
 
+CONF_DECODER = "decoder"
 CONF_PLACEHOLDER = "placeholder"
 CONF_TRANSPARENCY = "transparency"
+
+DECODER_JPEGDEC = "JPEGDEC"
+DECODER_LIBJPEG_TURBO = "LIBJPEG_TURBO"
 
 runtime_image_ns = cg.esphome_ns.namespace("runtime_image")
 
@@ -27,6 +31,7 @@ runtime_image_ns = cg.esphome_ns.namespace("runtime_image")
 ImageDecoder = runtime_image_ns.class_("ImageDecoder")
 BmpDecoder = runtime_image_ns.class_("BmpDecoder", ImageDecoder)
 JpegDecoder = runtime_image_ns.class_("JpegDecoder", ImageDecoder)
+JpegTurboDecoder = runtime_image_ns.class_("JpegTurboDecoder", ImageDecoder)
 PngDecoder = runtime_image_ns.class_("PngDecoder", ImageDecoder)
 QoiDecoder = runtime_image_ns.class_("QoiDecoder", ImageDecoder)
 
@@ -57,7 +62,7 @@ class Format:
         self.name = name
         self.decoder_class = decoder_class
 
-    def actions(self) -> None:
+    def actions(self, config: dict) -> None:
         """Add defines and libraries needed for this format."""
 
 
@@ -67,10 +72,10 @@ class AUTOFormat(Format):
     def __init__(self) -> None:
         super().__init__("AUTO", None)
 
-    def actions(self) -> None:
+    def actions(self, config: dict) -> None:
         # dict.fromkeys dedupes the JPG/JPEG alias so each format runs once
         for image_format in dict.fromkeys(IMAGE_FORMATS.values()):
-            image_format.actions()
+            image_format.actions(config)
 
 
 class BMPFormat(Format):
@@ -79,7 +84,7 @@ class BMPFormat(Format):
     def __init__(self) -> None:
         super().__init__("BMP", BmpDecoder)
 
-    def actions(self) -> None:
+    def actions(self, config: dict) -> None:
         cg.add_define("USE_RUNTIME_IMAGE_BMP")
 
 
@@ -89,8 +94,28 @@ class JPEGFormat(Format):
     def __init__(self) -> None:
         super().__init__("JPEG", JpegDecoder)
 
-    def actions(self) -> None:
+    def actions(self, config: dict) -> None:
         cg.add_define("USE_RUNTIME_IMAGE_JPEG")
+        if config.get(CONF_DECODER) == DECODER_LIBJPEG_TURBO:
+            from esphome.components.esp32 import add_idf_component
+
+            # libjpeg-turbo supports progressive JPEG images, which JPEGDEC
+            # does not. Note: this replaces the JPEG decoder for the whole
+            # build, so every JPEG image in the configuration is decoded by
+            # libjpeg-turbo when any image selects it.
+            #
+            # Fetched via git instead of the component registry: the registry
+            # checkout is named espressif__libjpeg-turbo, which breaks the
+            # component's own reference to the idf::libjpeg-turbo CMake
+            # target. A git dependency keeps the plain component name.
+            cg.add_define("USE_RUNTIME_IMAGE_JPEG_TURBO")
+            add_idf_component(
+                name="libjpeg-turbo",
+                repo="https://github.com/espressif/idf-extra-components.git",
+                ref="19cc4c48622a6025ef105bd27debd55c80c9a83d",
+                path="libjpeg-turbo",
+            )
+            return
         cg.add_library("JPEGDEC", "1.8.4", "https://github.com/bitbank2/JPEGDEC#1.8.4")
         if CORE.is_host:
             # JPEGDEC's host detection checks __MACH__/__LINUX__, but gcc only
@@ -112,7 +137,7 @@ class PNGFormat(Format):
     def __init__(self) -> None:
         super().__init__("PNG", PngDecoder)
 
-    def actions(self) -> None:
+    def actions(self, config: dict) -> None:
         cg.add_define("USE_RUNTIME_IMAGE_PNG")
         cg.add_library("pngle", "1.1.0")
 
@@ -123,7 +148,7 @@ class QOIFormat(Format):
     def __init__(self):
         super().__init__("QOI", QoiDecoder)
 
-    def actions(self) -> None:
+    def actions(self, config: dict) -> None:
         cg.add_define("USE_RUNTIME_IMAGE_QOI")
 
 
@@ -160,11 +185,11 @@ def get_format(format_name: str) -> Format | None:
     return IMAGE_FORMATS.get(name)
 
 
-def enable_format(format_name: str) -> Format | None:
+def enable_format(format_name: str, config: dict) -> Format | None:
     """Enable a specific image format by adding its defines and libraries."""
     format_obj = get_format(format_name)
     if format_obj:
-        format_obj.actions()
+        format_obj.actions(config)
         return format_obj
     return None
 
@@ -176,6 +201,9 @@ def runtime_image_schema(image_class: cg.MockObjClass = RuntimeImage) -> cv.Sche
         {
             cv.Required(CONF_ID): cv.declare_id(image_class),
             cv.Required(CONF_FORMAT): cv.one_of(*IMAGE_FORMATS, upper=True),
+            cv.Optional(CONF_DECODER): cv.one_of(
+                DECODER_JPEGDEC, DECODER_LIBJPEG_TURBO, upper=True
+            ),
             cv.Optional(CONF_RESIZE): cv.dimensions,
             cv.Required(CONF_TYPE): validate_type(IMAGE_TYPE),
             cv.Optional(CONF_BYTE_ORDER): validate_byte_order,
@@ -187,7 +215,18 @@ def runtime_image_schema(image_class: cg.MockObjClass = RuntimeImage) -> cv.Sche
 
 def validate_runtime_image_settings(config: dict) -> dict:
     """Apply validate_settings from image component to runtime image config."""
-    return validate_settings(config)
+    config = validate_settings(config)
+    if (decoder := config.get(CONF_DECODER)) is not None:
+        if config[CONF_FORMAT].upper() not in ("JPEG", "JPG"):
+            raise cv.Invalid(
+                f"'{CONF_DECODER}' is only valid for JPEG images", [CONF_DECODER]
+            )
+        if decoder == DECODER_LIBJPEG_TURBO and not CORE.is_esp32:
+            raise cv.Invalid(
+                f"'{CONF_DECODER}: {DECODER_LIBJPEG_TURBO}' is only supported on ESP32",
+                [CONF_DECODER],
+            )
+    return config
 
 
 @dataclass
@@ -216,7 +255,7 @@ async def process_runtime_image_config(config: dict) -> RuntimeImageSettings:
     # Handle format (required for runtime images)
     format_name = config[CONF_FORMAT]
     # Enable the format in the runtime_image component
-    enable_format(format_name)
+    enable_format(format_name, config)
     # Map format names to enum values (handle JPG as alias for JPEG)
     if format_name.upper() == "JPG":
         format_name = "JPEG"
