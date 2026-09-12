@@ -97,10 +97,6 @@ void RfProxy::setup() {
 
   // remote_transmitter/receiver always uses OOK (on-off keying)
   this->traits_.add_supported_modulation(radio_frequency::RadioFrequencyModulation::RADIO_FREQUENCY_MODULATION_OOK);
-
-  if (this->receiver_ != nullptr) {
-    this->receiver_->register_listener(this);
-  }
 }
 
 void RfProxy::dump_config() {
