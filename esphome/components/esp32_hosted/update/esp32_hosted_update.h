@@ -25,7 +25,7 @@ class Esp32HostedUpdate final : public update::UpdateEntity, public PollingCompo
 
 #ifdef USE_ESP32_HOSTED_HTTP_UPDATE
   // HTTP mode setters
-  void set_source_url(const std::string &url) { this->source_url_ = url; }
+  void set_source_url(const char *url) { this->source_url_ = url; }
   void set_http_request_parent(http_request::HttpRequestComponent *parent) { this->http_request_parent_ = parent; }
 #else
   // Embedded mode setters
@@ -38,7 +38,7 @@ class Esp32HostedUpdate final : public update::UpdateEntity, public PollingCompo
 #ifdef USE_ESP32_HOSTED_HTTP_UPDATE
   // HTTP mode members
   http_request::HttpRequestComponent *http_request_parent_{nullptr};
-  std::string source_url_;
+  const char *source_url_{nullptr};  // literal from codegen
   std::string firmware_url_;
 
   // HTTP mode helpers

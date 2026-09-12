@@ -169,7 +169,7 @@ void Esp32HostedUpdate::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "  Mode: HTTP\n"
                 "  Source URL: %s",
-                this->source_url_.c_str());
+                this->source_url_);
 #else
   ESP_LOGCONFIG(TAG,
                 "  Mode: Embedded\n"
@@ -215,7 +215,7 @@ bool Esp32HostedUpdate::fetch_manifest_() {
 
   auto container = this->http_request_parent_->get(this->source_url_);
   if (container == nullptr || container->status_code != 200) {
-    ESP_LOGE(TAG, "Failed to fetch manifest from %s", this->source_url_.c_str());
+    ESP_LOGE(TAG, "Failed to fetch manifest from %s", this->source_url_);
     this->status_set_error(LOG_STR("Failed to fetch manifest"));
     return false;
   }
