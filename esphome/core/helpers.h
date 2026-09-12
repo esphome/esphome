@@ -2035,18 +2035,15 @@ class LwIPLock {
 };
 
 #if defined(USE_ESP8266) && F_CPU != 160000000L
-// Forward decl from <user_interface.h>; flips the clock select bit and updates the ROM tick rate
+// Forward decl from <user_interface.h>
 // NOLINTNEXTLINE(readability-redundant-declaration)
 extern "C" bool system_update_cpu_freq(uint8_t freq);
 #endif
 
-/** Runs the CPU at 160 MHz while the object is alive.
+/** Runs the CPU at 160 MHz while alive. ESP8266 built for 80 MHz only; elsewhere it compiles to nothing.
  *
- * Only does anything on an ESP8266 built for 80 MHz; the Arduino core puts the clock back before every loop()
- * pass, so a scope must open and close within one pass. Scopes must not nest, and the code inside one must not
- * yield to the scheduler or the main loop, since the destructor always returns to 80 MHz. On an ESP8266 already
- * built for 160 MHz and on every other platform it is an inline no-op that compiles to nothing. Peripheral
- * clocks are unchanged.
+ * The core resets the clock before every loop() pass, so a scope must stay within one pass, must not nest and
+ * must not yield to the main loop. Peripheral clocks are unchanged.
  */
 class CpuFrequencyBoost {
  public:
@@ -2056,7 +2053,7 @@ class CpuFrequencyBoost {
   CpuFrequencyBoost() { system_update_cpu_freq(160); }
   ~CpuFrequencyBoost() { system_update_cpu_freq(80); }
 #else
-  // Empty bodies instead of = default so clang-tidy does not flag unused variables at call sites
+  // Not = default, so clang-tidy does not flag unused variables at call sites
   CpuFrequencyBoost() {}
   ~CpuFrequencyBoost() {}
 #endif
