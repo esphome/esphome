@@ -78,6 +78,7 @@ class Canbus : public Component {
   void set_can_id(uint32_t can_id) { this->can_id_ = can_id; }
   void set_use_extended_id(bool use_extended_id) { this->use_extended_id_ = use_extended_id; }
   void set_bitrate(CanSpeed bit_rate) { this->bit_rate_ = bit_rate; }
+  void set_max_frames_per_loop(uint32_t max_frames_per_loop) { this->max_frames_per_loop_ = max_frames_per_loop; }
 
   void add_trigger(CanbusTrigger *trigger);
   /**
@@ -98,6 +99,7 @@ class Canbus : public Component {
   uint32_t can_id_;
   bool use_extended_id_;
   CanSpeed bit_rate_;
+  uint32_t max_frames_per_loop_;
   CallbackManager<void(uint32_t can_id, bool extended_id, bool rtr, const std::vector<uint8_t> &data)>
       callback_manager_{};
 
