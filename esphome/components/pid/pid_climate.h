@@ -163,4 +163,45 @@ template<typename... Ts> class PIDSetControlParametersAction final : public Acti
   PIDClimate *parent_;
 };
 
+template<typename... Ts> class PIDSetDeadbandControlParametersMultipliersAction : public Action<Ts...> {
+ public:
+  PIDSetDeadbandControlParametersMultipliersAction(PIDClimate *parent) : parent_(parent) {}
+
+  void play(const Ts &...x) {
+    auto kp_multiplier = this->kp_multiplier_.value(x...);
+    auto ki_multiplier = this->ki_multiplier_.value(x...);
+    auto kd_multiplier = this->kd_multiplier_.value(x...);
+
+    this->parent_->set_kp_multiplier(kp_multiplier);
+    this->parent_->set_ki_multiplier(ki_multiplier);
+    this->parent_->set_kd_multiplier(kd_multiplier);
+  }
+
+ protected:
+  TEMPLATABLE_VALUE(float, kp_multiplier)
+  TEMPLATABLE_VALUE(float, ki_multiplier)
+  TEMPLATABLE_VALUE(float, kd_multiplier)
+
+  PIDClimate *parent_;
+};
+
+template<typename... Ts> class PIDSetDeadbandThresholdParametersAction : public Action<Ts...> {
+ public:
+  PIDSetDeadbandThresholdParametersAction(PIDClimate *parent) : parent_(parent) {}
+
+  void play(const Ts &...x) {
+    auto threshold_high = this->threshold_high_.value(x...);
+    auto threshold_low = this->threshold_low_.value(x...);
+
+    this->parent_->set_threshold_high(threshold_high);
+    this->parent_->set_threshold_low(threshold_low);
+  }
+
+ protected:
+  TEMPLATABLE_VALUE(float, threshold_high)
+  TEMPLATABLE_VALUE(float, threshold_low)
+
+  PIDClimate *parent_;
+};
+
 }  // namespace esphome::pid
