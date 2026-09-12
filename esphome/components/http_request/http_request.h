@@ -529,8 +529,8 @@ template<typename... Ts> class HttpRequestSendAction final : public Action<Ts...
       request_headers.push_back({key, val.value(x...)});
     }
 
-    auto container = this->parent_->start(this->url_.value(x...), this->method_.value(x...), body, request_headers,
-                                          this->lower_case_collect_headers_);
+    auto container = this->parent_->start(this->url_.value(x...).c_str(), this->method_.value(x...), body,
+                                          request_headers, this->lower_case_collect_headers_);
 
     auto captured_args = std::make_tuple(x...);
 
