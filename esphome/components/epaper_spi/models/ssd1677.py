@@ -20,6 +20,24 @@ class SSD1677(EpaperModel):
         )
 
 
+class SSD1677Gray4(SSD1677):
+    """Four-level variant.
+
+    The panel film is monochrome; the levels are synthesised from both RAM
+    planes by the panel's own OTP waveform. Only the border differs from the
+    black and white bring-up: four-level follows LUT0, mono follows LUT1.
+    """
+
+    def __init__(self, name, **defaults):
+        super().__init__(name, class_name="EPaperStickyGray4", **defaults)
+
+    def get_init_sequence(self, config: dict):
+        return tuple(
+            (0x3C, 0x00) if cmd[0] == 0x3C else cmd
+            for cmd in super().get_init_sequence(config)
+        )
+
+
 ssd1677 = SSD1677("ssd1677")
 
 wave_4_26 = ssd1677.extend(
@@ -52,8 +70,7 @@ ssd1677.extend(
     mirror_x=True,
 )
 
-ssd1677.extend(
-    "seeed-reterminal-sticky",
+SEEED_STICKY = dict(
     width=800,
     height=480,
     mirror_x=True,
@@ -64,3 +81,9 @@ ssd1677.extend(
     busy_pin=18,
     data_rate="10MHz",
 )
+
+ssd1677.extend("seeed-reterminal-sticky", **SEEED_STICKY)
+
+# Same panel, driven in its four-level mode. The film is mono; the levels
+# come from the vendor OTP waveform reading both RAM planes at once.
+SSD1677Gray4("ssd1677-gray4").extend("seeed-reterminal-sticky-gray4", **SEEED_STICKY)

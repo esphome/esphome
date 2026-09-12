@@ -3,6 +3,7 @@
 #include "esphome/components/display/display.h"
 #include "esphome/components/spi/spi.h"
 #include "esphome/components/split_buffer/split_buffer.h"
+#include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 
 namespace esphome::epaper_spi {
@@ -61,6 +62,12 @@ class EPaperBase : public Display,
     this->update_effective_transform_();
   }
   void set_full_update_every(uint8_t full_update_every) { this->full_update_every_ = full_update_every; }
+  /**
+   * Make the next update a full refresh, whatever the full_update_every
+   * counter would have chosen. Self-clearing: the counter advances past it
+   * once the update has run. Displays that always refresh fully ignore it.
+   */
+  void request_full_refresh() { this->update_count_ = 0; }
   void dump_config() override;
 
   void command(uint8_t value);
@@ -201,6 +208,11 @@ class EPaperBase : public Display,
   EPaperState state_{EPaperState::IDLE};
   uint32_t reset_duration_{10};
   uint8_t full_update_every_{1};
+};
+
+template<typename... Ts> class FullRefreshAction : public Action<Ts...>, public Parented<EPaperBase> {
+ public:
+  void play(Ts... x) override { this->parent_->request_full_refresh(); }
 };
 
 }  // namespace esphome::epaper_spi
