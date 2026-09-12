@@ -314,9 +314,7 @@ display:
     busy_pin:
       allow_other_uses: true
       number: GPIO4
-    enable_pin:
-      allow_other_uses: true
-      number: GPIO15
+    enable_pin: GPIO15
     full_update_every: 255
     update_interval: 60s
     lambda: |-

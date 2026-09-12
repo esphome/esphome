@@ -20,7 +20,7 @@ namespace esphome::epaper_spi {
  *   0 black, 1 dark gray, 2 light gray, 3 white
  *
  * FULL push:    both planes carry the split image (high bit -> new RAM,
- *               low bit -> old RAM) and refresh_gray_() runs the panel's
+ *               low bit -> old RAM) and refresh_gray() runs the panel's
  *               four-level waveform.
  * PARTIAL push: the old RAM gets the frame currently ON THE GLASS and the
  *               new RAM the frame we want; the DU waveform is indexed by
@@ -75,19 +75,19 @@ class EPaperGray4 : public EPaperBase {
   /// Run the panel's four-level refresh. Both planes hold the split image.
   /// The one thing a model must supply: it is vendor waveform selection,
   /// not a datasheet register.
-  virtual void refresh_gray_() = 0;
+  virtual void refresh_gray() = 0;
 
   /// Run a partial refresh. Old RAM holds the glass, new RAM the target.
   /// Defaults to the SSD16xx OTP display mode 2.
-  virtual void refresh_partial_();
+  virtual void refresh_partial();
 
   /// RAM plane select. SSD16xx keeps the new frame in 0x24 and the
   /// comparison in 0x26; other families differ (UC8179 uses 0x13 / 0x10).
-  virtual uint8_t plane_command_(bool new_frame) const { return new_frame ? 0x24 : 0x26; }
+  virtual uint8_t plane_command(bool new_frame) const { return new_frame ? 0x24 : 0x26; }
 
   /// Whether the four-level planes go out inverted. True for panels whose
   /// factory waveform reads 1 as white.
-  virtual bool gray_planes_inverted_() const { return true; }
+  virtual bool gray_planes_inverted() const { return true; }
 
   void set_window_();
   /// True when the shadow already holds the frame on the glass, so a partial
@@ -119,7 +119,7 @@ class EPaperStickyGray4 : public EPaperGray4 {
       : EPaperGray4(name, width, height, init_sequence, init_sequence_length) {}
 
  protected:
-  void refresh_gray_() override;
+  void refresh_gray() override;
 };
 
 }  // namespace esphome::epaper_spi

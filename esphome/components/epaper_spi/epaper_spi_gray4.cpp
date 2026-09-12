@@ -43,7 +43,7 @@ uint8_t EPaperGray4::level_at_(int x, int y) const {
 
 void EPaperGray4::fill(Color color) {
   if (this->get_clipping().is_set()) {
-    Display::fill(color);
+    EPaperBase::fill(color);  // clipping active: defers to the per-pixel path
     return;
   }
   this->buffer_.fill(this->color_to_level_(color) * 0x55);  // same value in all four slots
@@ -111,7 +111,7 @@ bool HOT EPaperGray4::transfer_data() {
       this->partial_push_ = this->update_count_ != 0 && this->shadow_ready_();
       this->set_window_();
     }
-    this->command(this->plane_command_(this->partial_push_ == second_pass));
+    this->command(this->plane_command(this->partial_push_ == second_pass));
   }
   uint8_t row[128];
   this->start_data_();
@@ -130,7 +130,7 @@ bool HOT EPaperGray4::transfer_data() {
           out |= bit << (7 - i);
           mono |= (uint8_t) (level >= 2) << (7 - i);
         }
-        if (!this->partial_push_ && this->gray_planes_inverted_())
+        if (!this->partial_push_ && this->gray_planes_inverted())
           out = (uint8_t) ~out;
       }
       row[b] = out;
@@ -161,14 +161,14 @@ bool HOT EPaperGray4::transfer_data() {
 void EPaperGray4::refresh_screen(bool partial) {
   if (this->partial_push_) {
     ESP_LOGV(TAG, "Partial refresh");
-    this->refresh_partial_();
+    this->refresh_partial();
   } else {
     ESP_LOGV(TAG, "Four-level refresh");
-    this->refresh_gray_();
+    this->refresh_gray();
   }
 }
 
-void EPaperGray4::refresh_partial_() {
+void EPaperGray4::refresh_partial() {
   this->cmd_data(0x22, {0xFF});  // OTP display mode 2, with temperature
   this->command(0x20);           // master activation
 }
@@ -198,7 +198,7 @@ void EPaperGray4::deep_sleep() {
 // Vendor waveform selection: 0xD7 is not a named row of the datasheet's
 // Table 7-1. Seeed's dashboard driver and the stock firmware both send it,
 // preceded by the forced OTP temperature.
-void EPaperStickyGray4::refresh_gray_() {
+void EPaperStickyGray4::refresh_gray() {
   this->cmd_data(0x1A, {0x67, 0x00});  // force temperature by OTP
   this->cmd_data(0x22, {0xD7});        // four-level update sequence
   this->command(0x20);                 // master activation
