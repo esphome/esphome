@@ -3,6 +3,8 @@ pinctrl overlay generation in zephyr/__init__.py."""
 
 from collections.abc import Callable
 
+from esphome.types import ConfigType
+
 from ..const import (
     ZEPHYR_VARIANT_ESP32,
     ZEPHYR_VARIANT_ESP32_C3,
@@ -13,6 +15,36 @@ from ..const import (
 
 # Devicetree property esp32-family pinctrl groups pack all their signal macros into.
 PROPERTY_NAME = "pinmux"
+
+
+def to_code(config: ConfigType) -> None:
+    """REQUIRES_FULL_LIBCPP selects GLIBCXX_LIBCPP; without it Zephyr defaults
+    to MINIMAL_LIBCPP, which has no STL and breaks ESPHome's C++ headers."""
+    import esphome.codegen as cg  # noqa: PLC0415
+    from esphome.const import CONF_LOG_LEVEL  # noqa: PLC0415
+
+    from .. import (  # noqa: PLC0415 -- avoids circular import at module load
+        zephyr_add_prj_conf,
+        zephyr_variant,
+    )
+
+    zephyr_add_prj_conf("CPP", True)
+    zephyr_add_prj_conf("REQUIRES_FULL_LIBCPP", True)
+    # Original ESP32 is Xtensa LX6, which has a hardware FPU; esp32_h2/c6/c5/c3 are
+    # RV32IMAC/RV32IMC, none of which do.
+    if zephyr_variant() == ZEPHYR_VARIANT_ESP32:
+        zephyr_add_prj_conf("FPU", True)
+    # random_bytes() uses sys_rand_get(), which requires the entropy subsystem.
+    zephyr_add_prj_conf("ENTROPY_GENERATOR", True)
+    # arch_stack_walk() isn't implemented for Xtensa (original ESP32); RISC-V
+    # (esp32_h2/c6/c5/c3) does implement it and enables ARCH_HAS_STACKWALK
+    # unconditionally, so no EXTRA_EXCEPTION_INFO is needed there either.
+    log_level = config.get(CONF_LOG_LEVEL, "ERROR")
+    if log_level != "NONE" and zephyr_variant() != ZEPHYR_VARIANT_ESP32:
+        zephyr_add_prj_conf("EXCEPTION_STACK_TRACE", True)
+    # Consumed by C++ code shared across every esp32-family variant (core.cpp, etc.).
+    cg.add_build_flag("-DUSE_ZEPHYR_VARIANT_FAMILY_ESP32")
+
 
 # I2C pinctrl group/state to assume when DTS resolution fails.
 I2C_FALLBACK_GROUP = "group1"

@@ -142,10 +142,8 @@ async def to_code(config: ConfigType) -> None:
         zephyr_add_sysbuild_conf,
         zephyr_data,
         zephyr_setup_preferences,
-        zephyr_to_code,
     )
 
-    zephyr_to_code(config)
     cg.add_build_flag("-DUSE_ZEPHYR_VARIANT_RA4M1")
     cg.add_define("ESPHOME_BOARD", config[CONF_BOARD])
     cg.add_define("ESPHOME_VARIANT", "RA4M1")

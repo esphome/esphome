@@ -6,6 +6,8 @@ import logging
 from pathlib import Path
 import subprocess
 
+from esphome.types import ConfigType
+
 _LOGGER = logging.getLogger(__name__)
 
 # Devicetree property rpi_pico pinctrl groups pack all their signal macros into.
@@ -80,7 +82,7 @@ def uart_pinctrl(
     return None, decoder
 
 
-def to_code() -> None:
+def to_code(config: ConfigType) -> None:
     """rpi_pico-family zephyr_to_code hook: mainline Zephyr's MINIMAL_LIBCPP
     has no STL, which ESPHome's C++ core requires regardless of chip vendor --
     same reasoning as every other family. Also enables BOOTSEL-touch: lets
@@ -97,6 +99,7 @@ def to_code() -> None:
     applies there, and CONFIG_RETENTION_BOOT_MODE gets silently dropped for
     lack of the "zephyr,boot-mode" chosen node it depends on."""
     import esphome.codegen as cg  # noqa: PLC0415
+    from esphome.const import CONF_LOG_LEVEL  # noqa: PLC0415
 
     from .. import (  # noqa: PLC0415 -- avoids circular import at module load
         zephyr_add_overlay,
@@ -112,6 +115,18 @@ def to_code() -> None:
 
     zephyr_add_prj_conf("CPP", True)
     zephyr_add_prj_conf("REQUIRES_FULL_LIBCPP", True)
+    # rp2040 is Cortex-M0+, no hardware FPU; rp2350 is Cortex-M33, which has one.
+    if zephyr_variant() != ZEPHYR_VARIANT_RP2040:
+        zephyr_add_prj_conf("FPU", True)
+    # No ENTROPY_GENERATOR here: rp2040 has no hardware RNG at all; rp2350's does
+    # exist but Zephyr's driver for it hangs the whole boot sequence (unbounded
+    # busy-wait, no timeout -- see rp2350.py's TEST_RANDOM_GENERATOR).
+    # ARM Cortex-M's ARCH_HAS_STACKWALK only defaults on when EXTRA_EXCEPTION_INFO
+    # is also set (arch/arm/core/Kconfig selects the dependency it needs).
+    log_level = config.get(CONF_LOG_LEVEL, "ERROR")
+    if log_level != "NONE":
+        zephyr_add_prj_conf("EXTRA_EXCEPTION_INFO", True)
+        zephyr_add_prj_conf("EXCEPTION_STACK_TRACE", True)
     # Consumed by C++ code shared across every rpi_pico-family variant (core.cpp, etc.).
     cg.add_build_flag("-DUSE_ZEPHYR_VARIANT_FAMILY_RPI_PICO")
 

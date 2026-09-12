@@ -79,15 +79,8 @@ from .const import (
     KEY_USER,
     KEY_ZEPHYR,
     ZEPHYR_VARIANT_ESP32,
-    ZEPHYR_VARIANT_ESP32_C3,
-    ZEPHYR_VARIANT_ESP32_C5,
-    ZEPHYR_VARIANT_ESP32_C6,
-    ZEPHYR_VARIANT_ESP32_H2,
     ZEPHYR_VARIANT_NATIVE_SIM,
     ZEPHYR_VARIANT_RP2040,
-    ZEPHYR_VARIANT_RP2350,
-    ZEPHYR_VARIANT_STM32F1,
-    ZEPHYR_VARIANT_STM32F4,
     zephyr_ns,
 )
 from .gpio import zephyr_pin_to_code as _zephyr_pin_to_code  # noqa: F401
@@ -560,6 +553,24 @@ def _filter_source_files() -> list[str]:
 FILTER_SOURCE_FILES = _filter_source_files
 
 
+def _get_family_module(family: str):
+    if family == "esp32":
+        from .variants import esp32_family as mod
+    elif family == "nordic":
+        from .variants import nordic_family as mod
+    elif family == "silabs":
+        from .variants import silabs_family as mod
+    elif family == "stm32":
+        from .variants import stm32_family as mod
+    elif family == "renesas":
+        from .variants import renesas_family as mod
+    elif family == "rpi_pico":
+        from .variants import rpi_pico_family as mod
+    else:
+        raise ValueError(f"Unknown zephyr family: {family!r}")
+    return mod
+
+
 def zephyr_to_code(config: ConfigType) -> None:
     cg.add_build_flag("-DUSE_ZEPHYR")
     cg.add_define("USE_NATIVE_64BIT_TIME")
@@ -576,62 +587,23 @@ def zephyr_to_code(config: ConfigType) -> None:
     # wouldn't be visible yet if it were decided here instead.
     if zephyr_variant() is not None and zephyr_framework_type() == "ncs":
         cg.add_define("USE_ZEPHYR_FRAMEWORK_NCS")
-    if zephyr_variant() == ZEPHYR_VARIANT_NATIVE_SIM:
-        # native_sim: use host glibc + libstdc++, avoiding picolibc/glibc type conflicts.
-        zephyr_add_prj_conf("EXTERNAL_LIBC", True)
-        zephyr_add_prj_conf("CPP", True)
-        zephyr_add_prj_conf("EXTERNAL_LIBCPP", True)
-    elif zephyr_variant_family() in ("esp32", "nordic", "silabs", "stm32", "renesas"):
-        # REQUIRES_FULL_LIBCPP selects GLIBCXX_LIBCPP; without it Zephyr defaults to
-        # MINIMAL_LIBCPP, which has no STL and breaks ESPHome's C++ headers -- true
-        # for every family regardless of chip vendor.
-        zephyr_add_prj_conf("CPP", True)
-        zephyr_add_prj_conf("REQUIRES_FULL_LIBCPP", True)
-        # Consumed by C++ code shared across every variant of this family (core.cpp, etc.).
-        cg.add_build_flag(
-            f"-DUSE_ZEPHYR_VARIANT_FAMILY_{zephyr_variant_family().upper()}"
-        )
-    elif zephyr_variant_family() == "rpi_pico":
-        from .variants import rpi_pico_family
-
-        rpi_pico_family.to_code()
-    else:
-        # No zephyr variant: platform: nrf52 calling this shared helper directly, uses newlib.
+    if zephyr_variant() is None:
+        # No zephyr variant: platform: nrf52 calling this shared helper directly, uses
+        # newlib. No variant/family module owns this case -- platform: nrf52 is its own
+        # ESPHome platform component, not one of variants/*.py's registered variants.
         zephyr_add_prj_conf("NEWLIB_LIBC", True)
         zephyr_add_prj_conf("NEWLIB_LIBC_FLOAT_PRINTF", True)
+        # nrf52840 is Cortex-M4F -- has a hardware FPU.
+        zephyr_add_prj_conf("FPU", True)
+        # random_bytes() uses sys_rand_get(), which requires the entropy subsystem.
+        zephyr_add_prj_conf("ENTROPY_GENERATOR", True)
 
     if zephyr_data()[KEY_SINGLE_SLOT]:
         from . import mcuboot  # noqa: PLC0415
 
         mcuboot.apply_single_slot()
 
-    # esp32_h2/esp32_c6/esp32_c5 are RV32IMAC and esp32_c3 is RV32IMC -- none have a
-    # hardware FPU; rp2040 is Cortex-M0+, also without FPU. Original ESP32 is Xtensa LX6,
-    # which does have one -- it can't be excluded by family the way these chips are.
-    if zephyr_variant() not in (
-        ZEPHYR_VARIANT_ESP32_H2,
-        ZEPHYR_VARIANT_ESP32_C6,
-        ZEPHYR_VARIANT_ESP32_C5,
-        ZEPHYR_VARIANT_ESP32_C3,
-        ZEPHYR_VARIANT_RP2040,
-    ):
-        zephyr_add_prj_conf("FPU", True)
     zephyr_add_prj_conf("STD_CPP20", True)
-    # random_bytes() uses sys_rand_get() which requires the entropy subsystem. RP2040 has
-    # no hardware RNG; RP2350's does exist but Zephyr's driver for it hangs the whole boot
-    # sequence (unbounded busy-wait, no timeout -- see rp2350.py's TEST_RANDOM_GENERATOR).
-    # STM32F4 is a whole chip family, not a single SoC -- RNG presence varies per member
-    # (F401/F411 have none, F405/F410/F412 and larger do), so stm32f4.py resolves this
-    # itself from the board's own DTS instead of a blanket per-variant default. STM32F1
-    # has no true RNG on any family member (dts/arm/st/f1 has no rng@ node at all), so
-    # stm32f1.py always uses TEST_RANDOM_GENERATOR unconditionally.
-    if zephyr_variant() not in (
-        ZEPHYR_VARIANT_RP2040,
-        ZEPHYR_VARIANT_RP2350,
-        ZEPHYR_VARIANT_STM32F4,
-        ZEPHYR_VARIANT_STM32F1,
-    ):
-        zephyr_add_prj_conf("ENTROPY_GENERATOR", True)
     # <err> os: ***** USAGE FAULT *****
     # <err> os:   Illegal load of EXC_RETURN into PC
     zephyr_add_prj_conf("MAIN_STACK_SIZE", 4096, required=False)
@@ -686,30 +658,6 @@ def zephyr_to_code(config: ConfigType) -> None:
         # Both default to y already, set explicitly so a crash dumps a backtrace instead
         # of looking like a silent reboot.
         zephyr_add_prj_conf("EXCEPTION_DEBUG", True)
-        # EXCEPTION_STACK_TRACE needs ARCH_STACKWALK, which has no arch_stack_walk()
-        # for Xtensa (original ESP32) or POSIX (native_sim) -- excluded so the Kconfig
-        # doesn't warn about a backtrace that can never happen. nrf52 is excluded too:
-        # its older NCS doesn't select ARCH_STACKWALK, making this a fatal Kconfig
-        # error there instead of a no-op.
-        if zephyr_variant() is not None and zephyr_variant() not in (
-            ZEPHYR_VARIANT_ESP32,
-            ZEPHYR_VARIANT_NATIVE_SIM,
-        ):
-            if zephyr_variant_family() in (
-                "nordic",
-                "silabs",
-                "rpi_pico",
-                "stm32",
-                "renesas",
-            ):
-                # ARM Cortex-M's ARCH_HAS_STACKWALK only defaults on when this is
-                # also set (arch/arm/core/Kconfig selects the dependency it needs);
-                # RISC-V (esp32_h2/c6) enables ARCH_HAS_STACKWALK unconditionally,
-                # so it doesn't need this and setting it there would just warn.
-                # silabs (EFR32MG24, Cortex-M33), stm32 (STM32L4, Cortex-M4), and
-                # renesas (RA4M1, Cortex-M4) need the same treatment as nordic.
-                zephyr_add_prj_conf("EXTRA_EXCEPTION_INFO", True)
-            zephyr_add_prj_conf("EXCEPTION_STACK_TRACE", True)
 
     CORE.add_job(_kconfig_options_to_code, config)
     CORE.add_job(_modules_to_code, config)
@@ -1533,6 +1481,10 @@ async def to_code(config: ConfigType) -> None:
         zephyr_data()[KEY_SHIELDS],
     )
 
+    zephyr_to_code(config)
+    family = zephyr_variant_family()
+    if family is not None:
+        _get_family_module(family).to_code(config)
     await get_variant_module(variant).to_code(config)
 
 

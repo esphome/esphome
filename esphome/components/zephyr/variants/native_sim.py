@@ -63,9 +63,15 @@ def config_schema(config: ConfigType) -> ConfigType:
 
 
 async def to_code(config: ConfigType) -> None:
-    from .. import zephyr_add_prj_conf, zephyr_setup_preferences, zephyr_to_code
+    from .. import zephyr_add_prj_conf, zephyr_setup_preferences
 
-    zephyr_to_code(config)
+    # Use host glibc + libstdc++, avoiding picolibc/glibc type conflicts.
+    zephyr_add_prj_conf("EXTERNAL_LIBC", True)
+    zephyr_add_prj_conf("CPP", True)
+    zephyr_add_prj_conf("EXTERNAL_LIBCPP", True)
+    zephyr_add_prj_conf("FPU", True)
+    # random_bytes() uses sys_rand_get(), which requires the entropy subsystem.
+    zephyr_add_prj_conf("ENTROPY_GENERATOR", True)
     cg.add_build_flag("-DUSE_ZEPHYR_VARIANT_NATIVE_SIM")
     cg.add_define("ESPHOME_BOARD", ZEPHYR_VARIANT_NATIVE_SIM)
     cg.add_define(
