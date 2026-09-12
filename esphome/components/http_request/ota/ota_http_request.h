@@ -23,6 +23,9 @@ enum OtaHttpRequestError : uint8_t {
 
 class OtaHttpRequestComponent final : public ota::OTAComponent, public Parented<HttpRequestComponent> {
  public:
+  // User provided, not "= default": `new(p) OtaHttpRequestComponent()` would zero-fill .bss that is already zero.
+  OtaHttpRequestComponent() {}
+
   void dump_config() override;
   float get_setup_priority() const override { return setup_priority::AFTER_WIFI; }
 
