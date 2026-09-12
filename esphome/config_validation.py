@@ -24,10 +24,11 @@ import uuid as uuid_
 
 import voluptuous as vol
 
-from esphome import core
+from esphome import core, lambda_shorthand
 import esphome.codegen as cg
 from esphome.const import (
     ALLOWED_NAME_CHARS,
+    CONF_ARGUMENT,
     CONF_AVAILABILITY,
     CONF_COMMAND_RETAIN,
     CONF_COMMAND_TOPIC,
@@ -36,6 +37,7 @@ from esphome.const import (
     CONF_DISABLED_BY_DEFAULT,
     CONF_DISCOVERY,
     CONF_ENTITY_CATEGORY,
+    CONF_ENTITY_STATE,
     CONF_HOUR,
     CONF_ICON,
     CONF_ID,
@@ -113,7 +115,7 @@ from esphome.schema_extractors import (
 # pylint: disable-next=unused-import
 from esphome.util import parse_esphome_version  # noqa: F401
 from esphome.voluptuous_schema import _Schema
-from esphome.yaml_util import SensitiveStr, make_data_base
+from esphome.yaml_util import ESPHomeDataBase, SensitiveStr, make_data_base
 
 if typing.TYPE_CHECKING:
     from esphome.types import ConfigType
@@ -748,6 +750,21 @@ positive_not_null_int = int_range(min=0, min_included=False)
 positive_not_null_float = float_range(min=0, min_included=False)
 
 
+def _validate_cpp_name_chars(value: str, what: str) -> str:
+    """Character-set and reserved-word checks shared by `validate_id_name` (a full
+    ESPHome ID) and `_validate_argument_name` (a bare `argument:` lambda parameter
+    name)."""
+    valid_chars = f"{ascii_letters + digits}_"
+    for char in value:
+        if char not in valid_chars:
+            raise Invalid(
+                f"{what}s must only consist of upper/lowercase characters, the underscorecharacter and numbers. The character '{char}' cannot be used"
+            )
+    if value in RESERVED_IDS:
+        raise Invalid(f"{what} '{value}' is reserved internally and cannot be used")
+    return value
+
+
 def validate_id_name(value):
     """Validate that the given value would be a valid C++ identifier name."""
     value = string(value)
@@ -767,19 +784,33 @@ def validate_id_name(value):
         if sub_match:
             return value
 
-    valid_chars = f"{ascii_letters + digits}_"
-    for char in value:
-        if char not in valid_chars:
-            raise Invalid(
-                f"IDs must only consist of upper/lowercase characters, the underscorecharacter and numbers. The character '{char}' cannot be used"
-            )
-    if value in RESERVED_IDS:
-        raise Invalid(f"ID '{value}' is reserved internally and cannot be used")
+    value = _validate_cpp_name_chars(value, "ID")
     if value in CORE.loaded_integrations:
         raise Invalid(
             f"ID '{value}' conflicts with the name of an esphome integration, please use another ID name."
         )
     return value
+
+
+def _validate_argument_name(value):
+    """Validate an `argument:` lambda-shorthand parameter name.
+
+    Unlike `validate_id_name`, this does *not* check `CORE.loaded_integrations`: an
+    `argument:` name is a bare C++ lambda parameter, not an ESPHome ID, and some of
+    ESPHome's own hardcoded parameter names (e.g. `event`, from LVGL's event
+    lambdas) are also real component names. Rejecting those would depend on which
+    components happen to be loaded, which is not what the user's config controls.
+    """
+    value = string(value)
+    if not value:
+        raise Invalid("argument name must not be empty")
+    if value[0].isdigit():
+        raise Invalid("First character in an argument name cannot be a digit.")
+    if "-" in value:
+        raise Invalid(
+            "Dashes are not supported in argument names, please use underscores instead."
+        )
+    return _validate_cpp_name_chars(value, "argument name")
 
 
 def use_id(type):
@@ -826,6 +857,78 @@ def declare_id(type):
     return validator
 
 
+# A tuple, not a set: it's unpacked into `has_exactly_one_key(*LAMBDA_SHORTHAND_KEYS)`,
+# whose error message joins the keys in this order -- a set would make that message's key
+# order vary with PYTHONHASHSEED.
+LAMBDA_SHORTHAND_KEYS = (CONF_ARGUMENT, CONF_ENTITY_STATE)
+
+
+def convert_id_state_to_lambda(value) -> Lambda | None:
+    """
+    Recognize the `entity_state:`/`argument:` lambda shorthand and expand it into the
+    equivalent hand-written lambda: `{entity_state: some_id}` becomes a lambda returning
+    `id(some_id).state`, and `{argument: x}` becomes a lambda returning `x`. Returns None
+    if `value` isn't a dict using this shorthand, so callers can fall through to their
+    normal handling.
+
+    The returned lambda carries extra metadata a plain hand-written one wouldn't:
+    - `entity_state:` sets a typed `core.ID` as the lambda's sole `requires_ids` entry
+      (see `Lambda.set_requires_ids`), typed as every known state-bearing type (see
+      `lambda_shorthand.state_bearing_types`), so the id-resolution pass rejects both
+      a nonexistent id and one whose declared type has no `.state` field at all,
+      instead of only failing later at C++ compile time. Whether that `.state`'s kind
+      (numeric/boolean/string) is actually compatible with the field it feeds is
+      checked later, at codegen time (`cpp_generator._check_entity_state_shorthand`),
+      once the field's real C++ return type is known -- which, unlike a config-time
+      validator, is available uniformly regardless of how that validator was built.
+    - `argument:` attaches the raw parameter name (see `argument_name` on `Lambda`) so
+      `process_lambda` can check it against the parameters actually available at the call
+      site -- information only known there, not here.
+    """
+    if not isinstance(value, dict) or not any(
+        k in value for k in LAMBDA_SHORTHAND_KEYS
+    ):
+        return None
+    source = value
+    value = has_exactly_one_key(*LAMBDA_SHORTHAND_KEYS)(
+        Schema(
+            {
+                Optional(CONF_ENTITY_STATE): validate_id_name,
+                Optional(CONF_ARGUMENT): _validate_argument_name,
+            }
+        )(value)
+    )
+    # has_exactly_one_key guarantees exactly one of these keys is present and, per
+    # the validators above, non-empty.
+    if entity_state := value.get(CONF_ENTITY_STATE):
+        state_lambda = _lambda_at_source(f"return id({entity_state}).state;", source)
+        types = tuple(t for t, _ in lambda_shorthand.state_bearing_types())
+        # Set directly rather than leaving it to be parsed from the generated source:
+        # that would produce a second, untyped ID for the same `id(...)` reference,
+        # and the id-resolution pass would then report a bad id twice.
+        state_lambda.set_requires_ids(
+            [core.ID(entity_state, is_declaration=False, type=types)]
+        )
+        return state_lambda
+    argument = value[CONF_ARGUMENT]
+    argument_lambda = _lambda_at_source(f"return {argument};", source)
+    argument_lambda.argument_name = argument
+    return argument_lambda
+
+
+def _lambda_at_source(code: str, source) -> Lambda:
+    """Build a synthetic lambda tagged with `source`'s YAML location, so a compile error
+    this validation doesn't catch points at the offending YAML line instead of the
+    generated main.cpp. `source` may lack that location (e.g. a plain dict built directly
+    in a test rather than loaded from YAML); make_data_base's own location lookup isn't
+    tolerant of that, so skip tagging rather than fail.
+    """
+    result = Lambda(code)
+    if isinstance(source, ESPHomeDataBase):
+        result = make_data_base(result, source)
+    return result
+
+
 def templatable(other_validators):
     """Validate that the configuration option can (optionally) be templated.
 
@@ -840,10 +943,11 @@ def templatable(other_validators):
         if value == SCHEMA_EXTRACT:
             return other_validators
 
+        if id_state := convert_id_state_to_lambda(value):
+            return id_state
         if isinstance(value, Lambda):
             return returning_lambda(value)
-        if isinstance(other_validators, dict):
-            return schema(value)
+
         return schema(value)
 
     return validator
@@ -1903,7 +2007,10 @@ LAMBDA_ENTITY_ID_PROG = re.compile(r"\Wid\(\s*([a-zA-Z0-9_]+\.[.a-zA-Z0-9_]+)\s*
 def lambda_(value):
     """Coerce this configuration option to a lambda."""
     if not isinstance(value, Lambda):
-        value = make_data_base(Lambda(string_strict(value)), value)
+        if id_state := convert_id_state_to_lambda(value):
+            value = id_state
+        else:
+            value = make_data_base(Lambda(string_strict(value)), value)
     entity_id_parts = re.split(LAMBDA_ENTITY_ID_PROG, value.value)
     if len(entity_id_parts) != 1:
         entity_ids = " ".join(
@@ -1953,6 +2060,9 @@ def returning_lambda(value):
 
     Additionally, make sure the lambda returns something.
     """
+    # `lambda_` already expands the entity_state:/argument: shorthand (via
+    # convert_id_state_to_lambda) -- no need to check for it here too. Its output is
+    # always a `return ...;` statement, so the check below passes trivially for it.
     value = lambda_(value)
     if LAMBDA_RETURN_KEYWORD_PROG.search(Lambda.comment_remover(value.value)) is None:
         raise Invalid(

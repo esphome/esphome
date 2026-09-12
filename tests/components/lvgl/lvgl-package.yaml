@@ -25,10 +25,31 @@ binary_sensor:
     widget: button_a
     state: checked
   - platform: lvgl
+    id: button_checker
+    name: LVGL button
+    widget: button_button
+    state: checked
+    on_state:
+      then:
+        - lvgl.checkbox.update:
+            id: checkbox_id
+            state:
+              checked: !lambda |-
+                  auto y = x; // block inlining of one line return
+                  return y;
+  - platform: lvgl
     id: button_presser
     name: Button pressed
     widget: button_button
-    state: pressed
+
+text_sensor:
+  - platform: template
+    id: text_sensor_id
+    on_value:
+      - lvgl.label.update:
+          id: hello_label
+          text:
+            argument: x
 
 lvgl:
   id: lvgl_id
@@ -1266,7 +1287,8 @@ lvgl:
               then:
                 - lvgl.bar.update:
                     id: bar_id
-                    value: !lambda return (int)((float)rand() / RAND_MAX * 100);
+                    value:
+                      entity_state: random_sensor
                     start_value: !lambda return (int)((float)rand() / RAND_MAX * 100);
                     mode: range
                 - logger.log:
@@ -1789,6 +1811,10 @@ color:
     white_int: 255
 
 sensor:
+  - platform: template
+    id: random_sensor
+    lambda: return random_uint32() % 100;
+
   - platform: lvgl
     widget: lv_arc_1
     id: lvgl_arc1_sensor_on_change
