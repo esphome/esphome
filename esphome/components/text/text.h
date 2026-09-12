@@ -20,9 +20,6 @@ namespace esphome::text {
  */
 class Text : public EntityBase {
  public:
-  // User provided, not "= default": `new(p) Text()` would zero-fill .bss that is already zero.
-  Text() {}
-
   std::string state;
   TextTraits traits;
 
