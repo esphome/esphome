@@ -23,7 +23,7 @@ from .schemas import (
     theme_update_schema,
 )
 from .types import ObjUpdateAction, lv_style_t
-from .widgets import collect_parts, wait_for_widgets
+from .widgets import collect_parts
 
 
 def has_style_props(config) -> bool:
@@ -89,7 +89,6 @@ async def styles_to_code(config):
     synchronous=True,
 )
 async def style_update_to_code(config, action_id, template_arg, args):
-    await wait_for_widgets()
     style = await cg.get_variable(config[CONF_ID])
     async with LambdaContext(parameters=args, where=action_id) as context:
         await style_set(style, config)
@@ -145,7 +144,6 @@ async def theme_to_code(config):
     synchronous=True,
 )
 async def theme_update_to_code(config, action_id, template_arg, args):
-    await wait_for_widgets()
     theme_map = get_theme_widget_map()
     # Invariant this relies on: theme_update_schema() records every (widget
     # type, part, state) combo this action targets as a request during config

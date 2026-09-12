@@ -78,7 +78,6 @@ from .widgets import (
     get_screen_active,
     get_widgets,
     set_obj_properties,
-    wait_for_widgets,
 )
 
 # Widgets that are used in a focused/refreshed action are tracked in
@@ -135,7 +134,6 @@ async def action_to_code(
             if isinstance(lamb, Lambda):
                 for id_ in lamb.requires_ids:
                     await get_variable(id_)
-    await wait_for_widgets()
     async with LambdaContext(parameters=args, where=action_id) as context:
         for widget in widgets:
             await action(widget)

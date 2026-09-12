@@ -7,7 +7,7 @@ from esphome.const import CONF_GAMMA_CORRECT, CONF_OUTPUT_ID
 from ..defines import CONF_WIDGET
 from ..lvcode import LvContext
 from ..types import LvType, lvgl_ns
-from ..widgets import get_widgets, wait_for_widgets
+from ..widgets import get_widgets
 
 lv_led_t = LvType("lv_led_t")
 LVLight = lvgl_ns.class_("LVLight", LightOutput)
@@ -26,6 +26,5 @@ async def to_code(config):
 
     widget = await get_widgets(config, CONF_WIDGET)
     widget = widget[0]
-    await wait_for_widgets()
     async with LvContext() as ctx:
         ctx.add(var.set_obj(widget.obj))

@@ -20,6 +20,7 @@ DOMAIN = "lvgl"
 KEY_COLOR_FORMATS = "color_formats"
 KEY_ESPHOME_FONTS_USED = "esphome_fonts_used"
 KEY_FOCUSED_WIDGETS = "focused_widgets"
+KEY_LIST_TRIGGERS = "list_triggers"
 KEY_LV_DEFINES = "lv_defines"
 KEY_LV_FONTS_USED = "lv_fonts_used"
 KEY_LV_IMAGES_USED = "lv_images_used"
@@ -32,7 +33,6 @@ KEY_THEME_UPDATE_REQUESTS = "theme_update_requests"
 KEY_THEME_WIDGET_MAP = "theme_widget_map"
 KEY_UPDATED_WIDGETS = "updated_widgets"
 KEY_WIDGET_MAP = "widget_map"
-KEY_WIDGETS_COMPLETED = "widgets_completed"
 KEY_OPTIONS = "options"
 KEY_WARNINGS = "warnings"
 
@@ -130,16 +130,6 @@ def get_widget_map() -> dict[str, Any]:
     return _get_data(KEY_WIDGET_MAP, {})
 
 
-def get_widgets_completed() -> bool:
-    # ``[value]`` rather than the bare value so that we can mutate the
-    # entry in place; ``CORE.data`` is reset for us between runs.
-    return _get_data(KEY_WIDGETS_COMPLETED, [False])[0]
-
-
-def set_widgets_completed(value: bool) -> None:
-    _get_data(KEY_WIDGETS_COMPLETED, [False])[0] = value
-
-
 def is_widget_completed(name: ID) -> bool:
     return name in get_widget_map()
 
@@ -150,6 +140,10 @@ def get_focused_widgets() -> set:
 
 def get_refreshed_widgets() -> set:
     return _get_data(KEY_REFRESHED_WIDGETS, set())
+
+
+def get_list_triggers() -> dict:
+    return _get_data(KEY_LIST_TRIGGERS, {})
 
 
 def add_define(macro: str, value="1"):

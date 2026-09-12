@@ -4,7 +4,7 @@ from typing import Any
 
 from esphome import codegen as cg, config_validation as cv
 from esphome.automation import register_action
-from esphome.config_validation import Invalid, Schema
+from esphome.config_validation import Schema
 from esphome.const import (
     CONF_DEFAULT,
     CONF_GROUP,
@@ -45,7 +45,6 @@ from ..defines import (
     get_styles_used,
     get_theme_widget_map,
     get_widget_map,
-    get_widgets_completed,
     join_enums,
     literal,
 )
@@ -457,10 +456,6 @@ def get_widget_generator(wid):
     while True:
         if obj := widget_map.get(wid):
             return obj
-        if get_widgets_completed():
-            raise Invalid(
-                f"Widget {wid} not found, yet all widgets should be defined by now"
-            )
         yield
 
 
@@ -468,19 +463,6 @@ async def get_widget_(wid):
     if obj := get_widget_map().get(wid):
         return obj
     return await FakeAwaitable(get_widget_generator(wid))
-
-
-def widgets_wait_generator():
-    while True:
-        if get_widgets_completed():
-            return
-        yield
-
-
-async def wait_for_widgets():
-    if get_widgets_completed():
-        return
-    await FakeAwaitable(widgets_wait_generator())
 
 
 async def get_widgets(config: dict | list, id: str = CONF_ID) -> list[Widget]:

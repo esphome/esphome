@@ -60,7 +60,6 @@ from .defines import (
     get_focused_widgets,
     get_lv_images_used,
     get_refreshed_widgets,
-    set_widgets_completed,
 )
 from .encoders import (
     ENCODERS_CONFIG,
@@ -450,8 +449,6 @@ async def to_code(configs):
             await msgboxes_to_code(lv_component, config)
             await animations_to_code(config.get(CONF_ANIMATIONS, []))
 
-    # Mark all widgets as completed so awaiters of ``wait_for_widgets`` proceed.
-    set_widgets_completed(True)
     async with LvContext():
         # Local import: lv_list imports meter, which imports obj_spec/set_obj_properties
         # from this module's own namespace - a top-level import here would be circular.
