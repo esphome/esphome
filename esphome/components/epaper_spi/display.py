@@ -63,6 +63,8 @@ FullRefreshAction = epaper_spi_ns.class_("FullRefreshAction", automation.Action)
         {cv.GenerateID(): cv.use_id(EPaperBase)},
         key=CONF_ID,
     ),
+    # play() sets a flag and returns; play_next_() is never deferred.
+    synchronous=True,
 )
 async def epaper_spi_full_refresh_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)

@@ -70,17 +70,17 @@ ssd1677.extend(
     mirror_x=True,
 )
 
-SEEED_STICKY = dict(
-    width=800,
-    height=480,
-    mirror_x=True,
-    enable_pin=47,
-    cs_pin=15,
-    dc_pin=16,
-    reset_pin=17,
-    busy_pin=18,
-    data_rate="10MHz",
-)
+SEEED_STICKY = {
+    "width": 800,
+    "height": 480,
+    "mirror_x": True,
+    "enable_pin": 47,
+    "cs_pin": 15,
+    "dc_pin": 16,
+    "reset_pin": 17,
+    "busy_pin": 18,
+    "data_rate": "10MHz",
+}
 
 ssd1677.extend("seeed-reterminal-sticky", **SEEED_STICKY)
 
