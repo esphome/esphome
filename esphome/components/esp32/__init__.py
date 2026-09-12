@@ -2612,8 +2612,10 @@ async def to_code(config):
     # assert(), HAL_ASSERT and ESP_ERROR_CHECK bake __FILE__ into rodata, and
     # IDF's noflash placement puts the flash driver's copies in DRAM. The
     # basename keeps the panic output useful at a fraction of the size.
-    cg.add_build_flag("-D__FILE__=__FILE_NAME__")
-    cg.add_build_flag("-Wno-builtin-macro-redefined")
+    # __FILE_NAME__ is a GCC 12 builtin; IDF 5.0 still ships GCC 11.2.
+    if idf_version() >= cv.Version(5, 1, 0):
+        cg.add_build_flag("-D__FILE__=__FILE_NAME__")
+        cg.add_build_flag("-Wno-builtin-macro-redefined")
     # Deferred so KEY_COMPONENTS is fully populated -- see the coroutine.
     CORE.add_job(_finalize_arduino_aware_flags)
     cg.add_define("ESPHOME_BOARD", config[CONF_BOARD])
