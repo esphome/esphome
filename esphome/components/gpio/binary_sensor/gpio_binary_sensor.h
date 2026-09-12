@@ -47,9 +47,6 @@ class GPIOBinarySensorStore {
 
 class GPIOBinarySensor final : public binary_sensor::BinarySensor, public Component {
  public:
-  // User provided, not "= default": `new(p) GPIOBinarySensor()` would zero-fill .bss that is already zero.
-  GPIOBinarySensor() {}
-
   // No destructor needed: ESPHome components are created at boot and live forever.
   // Interrupts are only detached on reboot when memory is cleared anyway.
 
@@ -73,7 +70,7 @@ class GPIOBinarySensor final : public binary_sensor::BinarySensor, public Compon
   void loop() override;
 
  protected:
-  GPIOPin *pin_{nullptr};
+  GPIOPin *pin_;
   GPIOBinarySensorStore store_;
 };
 
