@@ -11,6 +11,12 @@
 #include <esp_chip_info.h>
 #include <esp_ota_ops.h>
 #include <esp_bootloader_desc.h>
+#include <esp_flash.h>
+#if __has_include(<esp_flash_chips/spi_flash_chip_driver.h>)
+#include <esp_flash_chips/spi_flash_chip_driver.h>  // ESP-IDF 6
+#else
+#include <spi_flash_chip_driver.h>
+#endif
 #endif
 #include "esphome/core/version.h"
 #include "esphome/core/hal.h"
@@ -157,9 +163,28 @@ void Application::process_dump_config_() {
     esp_chip_info(&chip_info);
     ESP_LOGI(TAG, "ESP32 Chip: %s rev%d.%d, %d core(s)", ESPHOME_VARIANT, chip_info.revision / 100,
              chip_info.revision % 100, chip_info.cores);
-#if defined(USE_ESP32_VARIANT_ESP32) && (!defined(USE_ESP32_MIN_CHIP_REVISION_SET) || !defined(USE_ESP32_SRAM1_AS_IRAM))
+#if !defined(USE_ESP32_FLASH_CHIP_SET) || \
+    (defined(USE_ESP32_VARIANT_ESP32) && \
+     (!defined(USE_ESP32_MIN_CHIP_REVISION_SET) || !defined(USE_ESP32_SRAM1_AS_IRAM)))
     static const char *const ESP32_ADVANCED_PATH = "under esp32 > framework > advanced";
 #endif
+    {
+      // The flash driver in use is the only vendor driver worth linking
+      const char *flash_driver = esp_flash_default_chip->chip_drv->name;
+#ifdef USE_ESP32_FLASH_CHIP_SET
+      if (strcmp(flash_driver, ESP32_FLASH_CHIP_DRIVER) != 0) {
+        ESP_LOGW(TAG, "flash_chip does not match the flash; driver %s is in use", flash_driver);
+      }
+#else
+      const bool generic = strcmp(flash_driver, "generic") == 0;
+      if (ESP32_FLASH_CHIP_DEFAULT_DRIVERS > 1 || generic) {
+        // the OPI driver reports "mxic (opi)"; the option spells it mxic_opi
+        const char *value = strchr(flash_driver, ' ') != nullptr ? "mxic_opi" : flash_driver;
+        ESP_LOGW(TAG, "Flash driver %s in use. Set flash_chip: %s %s to save ~1KB IRAM", flash_driver, value,
+                 ESP32_ADVANCED_PATH);
+      }
+#endif
+    }
 #if defined(USE_ESP32_VARIANT_ESP32) && !defined(USE_ESP32_MIN_CHIP_REVISION_SET)
     {
       // Suggest optimization for chips that don't need the PSRAM cache workaround

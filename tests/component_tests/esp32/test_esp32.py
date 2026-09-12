@@ -252,6 +252,18 @@ def test_esp32_rejects_unsupported_cli_toolchain(
             r"value must be at most 5 .* @ data\['framework'\]\['advanced'\]\['nvs_encryption'\]\['key_id'\]",
             id="nvs_encryption_key_id_out_of_range",
         ),
+        pytest.param(
+            {
+                "variant": "esp32",
+                "board": "esp32dev",
+                "framework": {
+                    "type": "esp-idf",
+                    "advanced": {"flash_chip": "mxic_opi"},
+                },
+            },
+            r"'flash_chip: mxic_opi' is only supported on ESP32S3 @ data\['framework'\]\['advanced'\]\['flash_chip'\]",
+            id="flash_chip_mxic_opi_only_on_s3",
+        ),
     ],
 )
 def test_esp32_configuration_errors(
@@ -685,6 +697,67 @@ def test_flash_mode_sets_sdkconfig_and_pio_option(
     assert sdkconfig.get("CONFIG_ESPTOOLPY_FLASHFREQ_80M") is True
     assert CORE.platformio_options.get("board_build.flash_mode") == "qio"
     assert CORE.platformio_options.get("board_build.f_flash") == "80000000L"
+
+
+FLASH_VENDOR_FLAGS = (
+    "CONFIG_SPI_FLASH_SUPPORT_GD_CHIP",
+    "CONFIG_SPI_FLASH_SUPPORT_ISSI_CHIP",
+    "CONFIG_SPI_FLASH_SUPPORT_MXIC_CHIP",
+    "CONFIG_SPI_FLASH_SUPPORT_WINBOND_CHIP",
+    "CONFIG_SPI_FLASH_SUPPORT_BOYA_CHIP",
+    "CONFIG_SPI_FLASH_SUPPORT_TH_CHIP",
+)
+
+
+@pytest.mark.parametrize(
+    ("config_file", "enabled", "driver"),
+    [
+        pytest.param(
+            "flash_chip_gd.yaml", "CONFIG_SPI_FLASH_SUPPORT_GD_CHIP", "gd", id="gd"
+        ),
+        pytest.param("flash_chip_generic.yaml", None, "generic", id="generic"),
+        pytest.param(
+            "flash_chip_mxic_opi_s3.yaml",
+            "CONFIG_SPI_FLASH_SUPPORT_MXIC_OPI_CHIP",
+            "mxic (opi)",
+            id="mxic_opi_s3",
+        ),
+    ],
+)
+def test_flash_chip_keeps_one_vendor_driver(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+    config_file: str,
+    enabled: str | None,
+    driver: str,
+) -> None:
+    """flash_chip enables only the chosen vendor driver and records its name."""
+    generate_main(component_config_path(config_file))
+    sdkconfig = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
+    flags = FLASH_VENDOR_FLAGS
+    if config_file.endswith("_s3.yaml"):
+        flags += ("CONFIG_SPI_FLASH_SUPPORT_MXIC_OPI_CHIP",)
+    else:
+        assert "CONFIG_SPI_FLASH_SUPPORT_MXIC_OPI_CHIP" not in sdkconfig
+    for flag in flags:
+        assert sdkconfig.get(flag) is (flag == enabled)
+    defines = {define.name: str(define.value) for define in CORE.defines}
+    assert "USE_ESP32_FLASH_CHIP_SET" in defines
+    assert defines["ESP32_FLASH_CHIP_DRIVER"] == f'"{driver}"'
+    assert "ESP32_FLASH_CHIP_DEFAULT_DRIVERS" not in defines
+
+
+def test_flash_chip_unset_keeps_idf_defaults(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """Without flash_chip every vendor driver stays at its ESP-IDF default and the hint is armed."""
+    generate_main(component_config_path("flash_mode_default.yaml"))
+    sdkconfig = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
+    assert not any(key.startswith("CONFIG_SPI_FLASH_SUPPORT_") for key in sdkconfig)
+    defines = {define.name: str(define.value) for define in CORE.defines}
+    assert "USE_ESP32_FLASH_CHIP_SET" not in defines
+    assert defines["ESP32_FLASH_CHIP_DEFAULT_DRIVERS"] == "4"
 
 
 def test_flash_mode_unset_leaves_defaults(
