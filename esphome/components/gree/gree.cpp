@@ -28,6 +28,11 @@ void GreeClimate::set_model(Model model) {
     this->presets_.insert(climate::CLIMATE_PRESET_SLEEP);  // YX1FF sleep mode
   }
 
+  if (model == GREE_YAC1FB9) {
+    this->presets_.insert(climate::CLIMATE_PRESET_NONE);   // YAC1FB9 sleep mode
+    this->presets_.insert(climate::CLIMATE_PRESET_SLEEP);  // YAC1FB9 sleep mode
+  }
+
   this->model_ = model;
 }
 
@@ -93,10 +98,11 @@ void GreeClimate::transmit_state() {
     if (this->fan_speed_() == GREE_FAN_TURBO) {
       remote_state[2] |= GREE_FAN_TURBO_BIT;
     }
+  }
 
-    if (this->preset_() == GREE_PRESET_SLEEP) {
-      remote_state[0] |= GREE_PRESET_SLEEP_BIT;
-    }
+  if (this->preset_() == GREE_PRESET_SLEEP) {
+    remote_state[0] |= GREE_PRESET_SLEEP_BIT;
+    // Sleep is encoded as bit 7 of byte 0.
   }
 
   // Calculate the checksum
@@ -241,8 +247,8 @@ uint8_t GreeClimate::temperature_() {
 }
 
 uint8_t GreeClimate::preset_() {
-  // YX1FF has sleep preset
-  if (this->model_ == GREE_YX1FF) {
+  // YX1FF and YAC1FB9 have sleep preset
+  if (this->model_ == GREE_YX1FF || this->model_ == GREE_YAC1FB9) {
     switch (this->preset.value_or(climate::CLIMATE_PRESET_NONE)) {
       case climate::CLIMATE_PRESET_NONE:
         return GREE_PRESET_NONE;
