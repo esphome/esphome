@@ -1,0 +1,14 @@
+test_list:
+  - level1:
+      file: this_level1.yaml
+      dir: substitutions
+      level2:
+        - level2:
+            file: this_level2.yaml
+            dir: substitutions
+            level3:
+              - level3:
+                  file: this_level3.yaml
+                  dir: substitutions
+  - file: 12-this-in-includes.input.yaml
+    dir: substitutions
