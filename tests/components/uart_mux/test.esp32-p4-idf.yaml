@@ -1,0 +1,2 @@
+packages:
+  uart_mux: !include common.yaml

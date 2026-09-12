@@ -9,6 +9,14 @@ namespace esphome::tinyusb {
 
 static const char *const TAG = "tinyusb";
 
+// Runs on the TinyUSB task: only wake the main loop, which reads the state and runs
+// the automations.
+static void tinyusb_event_cb(tinyusb_event_t *event, void *arg) {
+  if (event->id == TINYUSB_EVENT_ATTACHED || event->id == TINYUSB_EVENT_DETACHED) {
+    static_cast<TinyUSB *>(arg)->enable_loop_soon_any_context();
+  }
+}
+
 void TinyUSB::setup() {
   // Use the device's MAC address as its serial number if no serial number is defined
   if (this->string_descriptor_[SERIAL_NUMBER] == nullptr) {
@@ -21,6 +29,12 @@ void TinyUSB::setup() {
   this->tusb_cfg_ = TINYUSB_DEFAULT_CONFIG();
   this->tusb_cfg_.port = TINYUSB_PORT_FULL_SPEED_0;
   this->tusb_cfg_.phy.skip_setup = false;
+  // Without VBUS monitoring the OTG core only sees a cable pull as the bus going idle
+  // (a suspend), so TinyUSB never reports a detach and stays "mounted".
+  if (this->vbus_monitor_pin_ >= 0) {
+    this->tusb_cfg_.phy.self_powered = true;
+    this->tusb_cfg_.phy.vbus_monitor_io = this->vbus_monitor_pin_;
+  }
   this->tusb_cfg_.descriptor = {
       .device = &this->usb_descriptor_,
       .string = this->string_descriptor_,
@@ -42,11 +56,26 @@ void TinyUSB::setup() {
   }
 #endif
 
+  this->tusb_cfg_.event_cb = tinyusb_event_cb;
+  this->tusb_cfg_.event_arg = this;
   esp_err_t result = tinyusb_driver_install(&this->tusb_cfg_);
   if (result != ESP_OK) {
     ESP_LOGE(TAG, "tinyusb_driver_install failed: %s", esp_err_to_name(result));
     this->mark_failed();
+    return;
   }
+  // loop() only reports mount changes; the mount hooks wake it when one happens.
+  this->disable_loop();
+}
+
+void TinyUSB::loop() {
+  const bool mounted = tud_mounted();
+  if (mounted != this->mounted_) {
+    this->mounted_ = mounted;
+    ESP_LOGD(TAG, "USB host %s", mounted ? LOG_STR_LITERAL("mounted") : LOG_STR_LITERAL("unmounted"));
+    this->mount_state_callback_.call(mounted);
+  }
+  this->disable_loop();
 }
 
 void TinyUSB::dump_config() {
@@ -59,6 +88,9 @@ void TinyUSB::dump_config() {
                 "  Serial: '%s'\n",
                 this->usb_descriptor_.idProduct, this->usb_descriptor_.idVendor, this->string_descriptor_[MANUFACTURER],
                 this->string_descriptor_[PRODUCT], this->string_descriptor_[SERIAL_NUMBER]);
+  if (this->vbus_monitor_pin_ >= 0) {
+    ESP_LOGCONFIG(TAG, "  VBUS Monitor Pin: GPIO%d", this->vbus_monitor_pin_);
+  }
 }
 
 }  // namespace esphome::tinyusb
