@@ -314,7 +314,7 @@ class APIServer final : public Component,
 #endif
 
   // 4-byte aligned types
-  uint32_t reboot_timeout_{900000};
+  uint32_t reboot_timeout_{900000};  // Keep in sync with DEFAULT_REBOOT_TIMEOUT in __init__.py
   uint32_t last_connected_{0};
 
   // Slots [0, api_connection_count_) are populated; trailing slots are always nullptr.
@@ -351,8 +351,8 @@ class APIServer final : public Component,
 #endif
 
   // Group smaller types together
-  uint16_t port_{6053};
-  uint16_t batch_delay_{100};
+  uint16_t port_{6053};        // Keep in sync with DEFAULT_PORT in __init__.py
+  uint16_t batch_delay_{100};  // Keep in sync with DEFAULT_BATCH_DELAY in __init__.py
   // Connection limits - these defaults will be overridden by config values
   // from cv.SplitDefault in __init__.py which sets platform-specific defaults.
   uint8_t listen_backlog_{4};
