@@ -24,6 +24,9 @@ enum MeasurementMode : uint8_t {
 
 class SCD4XComponent final : public PollingComponent, public sensirion_common::SensirionI2CDevice {
  public:
+  // User provided, not "= default": `new(p) SCD4XComponent()` would zero-fill .bss that is already zero.
+  SCD4XComponent() {}
+
   void setup() override;
   void dump_config() override;
   void update() override;
@@ -49,12 +52,12 @@ class SCD4XComponent final : public PollingComponent, public sensirion_common::S
   sensor::Sensor *temperature_sensor_{nullptr};
   sensor::Sensor *humidity_sensor_{nullptr};
   sensor::Sensor *ambient_pressure_source_{nullptr};  // used for compensation
-  float temperature_offset_;
+  float temperature_offset_{0};
   uint16_t altitude_compensation_{0};
   uint16_t ambient_pressure_{0};  // Per datasheet, valid values are 700 to 1200 hPa; 0 is a valid sentinel value
   bool initialized_{false};
   bool enable_asc_{false};
-  ErrorCode error_code_;
+  ErrorCode error_code_{};
   MeasurementMode measurement_mode_{PERIODIC};
 };
 
