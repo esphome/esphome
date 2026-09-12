@@ -1429,12 +1429,3 @@ async def test_add_platformio_options_native_arduino(
     assert "board_build.ldscript is ignored" in caplog.text
     assert "'arduino' toolchain" in caplog.text
     assert "upload_speed" not in caplog.text
-
-
-def test_esp8266_rejects_unsupported_cli_toolchain() -> None:
-    """Until the native backend lands, ESP8266 serves only PlatformIO."""
-    from esphome.components.esp8266 import CONFIG_SCHEMA
-
-    CORE.toolchain = Toolchain.ARDUINO
-    with pytest.raises(cv.Invalid, match="Unsupported toolchain 'arduino'"):
-        CONFIG_SCHEMA({"board": "nodemcuv2"})

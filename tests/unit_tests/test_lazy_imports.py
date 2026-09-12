@@ -175,6 +175,27 @@ def test_esptool_upload_fast_path_does_not_import_heavy_modules(
     )
 
 
+def test_native_upload_fast_path_does_not_import_heavy_modules(
+    fixture_path: Path,
+    probe_env: dict[str, str],
+) -> None:
+    """The native-toolchain serial upload dispatches through a
+    toolchain-keyed backend table; resolving the flash image must not drag
+    in the esp32 or esp8266 component package or the validation stack.
+    """
+    leaked = _leaked_from_fixture(
+        fixture_path,
+        probe_env,
+        "native_upload_fast_path.py",
+        extra=("esphome.components.esp8266",),
+    )
+    assert not leaked, (
+        f"native upload_using_esptool pulls in heavy modules: {leaked}. "
+        "The upload fast path skips validation; importing a platform "
+        "component package executes its codegen module by design."
+    )
+
+
 def test_api_client_does_not_import_heavy_modules() -> None:
     """``esphome.api_client`` is on the logs fast path and must stay light.
 

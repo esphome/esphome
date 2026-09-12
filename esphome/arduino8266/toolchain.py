@@ -1,0 +1,329 @@
+"""Native Arduino ESP8266 build driver (the PlatformIO ``run`` equivalent)."""
+
+from __future__ import annotations
+
+import json
+import logging
+from pathlib import Path
+import subprocess
+from typing import Any
+
+from esphome.arduino8266 import framework
+from esphome.build_helpers.ccache import resolve_ccache_path
+from esphome.const import (
+    CONF_COMPILE_PROCESS_LIMIT,
+    CONF_ESPHOME,
+    KEY_CORE,
+    KEY_FRAMEWORK_VERSION,
+)
+from esphome.core import CORE, EsphomeError
+from esphome.helpers import write_file_if_changed
+from esphome.types import ConfigType
+
+_LOGGER = logging.getLogger(__name__)
+
+# ESP8266 user RAM (matches upload.maximum_ram_size in every board manifest)
+_MAX_RAM_SIZE = 81920
+
+
+def _warn_ignored_platformio_options() -> None:
+    """Warn for component-added platformio options the native build drops.
+
+    The consumed set is exported by core/config.py next to the routing that
+    stores these options, so the two cannot drift; YAML upload_speed never
+    reaches CORE.platformio_options here.
+    """
+    from esphome.core.config import NATIVE_ARDUINO_CONSUMED_PIO_OPTIONS
+
+    consumed = NATIVE_ARDUINO_CONSUMED_PIO_OPTIONS
+    for key in sorted(CORE.platformio_options or {}):
+        if key not in consumed:
+            _LOGGER.warning(
+                "platformio_options->%s is ignored when building with the "
+                "native 'arduino' toolchain",
+                key,
+            )
+
+
+_RAM_SECTIONS = (".data", ".rodata", ".bss")
+_FLASH_SECTIONS = (".irom0.text", ".text", ".text1", ".data", ".rodata")
+
+
+def get_build_dir() -> Path:
+    return CORE.relative_pioenvs_path(CORE.name)
+
+
+def get_elf_path() -> Path:
+    return get_build_dir() / "firmware.elf"
+
+
+def _toolchain_tool(name: str) -> Path:
+    return framework.toolchain_tool(framework.get_toolchain_path(), name)
+
+
+def get_factory_firmware_path() -> Path:
+    """The image to serial-flash at 0x0 (same bytes as firmware.bin: the
+    8266 factory copy exists for artifact-contract parity, not content)."""
+    return get_build_dir() / "firmware.factory.bin"
+
+
+def get_addr2line_path() -> Path:
+    return _toolchain_tool("addr2line")
+
+
+def get_objdump_path() -> Path:
+    return _toolchain_tool("objdump")
+
+
+def get_readelf_path() -> Path:
+    return _toolchain_tool("readelf")
+
+
+def run_compile(config: ConfigType, verbose: bool) -> int:
+    from esphome.build_gen import arduino8266 as build_gen
+
+    _warn_ignored_platformio_options()
+    paths = framework.check_and_install(CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION])
+    # Resolved once per build: the resolution probes PATH and spawns the
+    # runnability check, and three consumers need the same answer
+    ccache = resolve_ccache_path()
+    ninja_changed = build_gen.write_project(paths, ccache)
+
+    build_dir = get_build_dir()
+    env = framework.get_build_env(paths.toolchain, ccache)
+
+    # Regenerate the compile DB before the build (a pure function of
+    # build.ninja); skip only when it is at least as fresh as build.ninja
+    # (an interrupted previous run may have rewritten the manifest without
+    # regenerating the DB).
+    compdb = build_dir / "compile_commands.json"
+    compdb_stamp = build_dir / ".compile_commands.stamp"
+    ninja_file = build_dir / "build.ninja"
+    # Freshness rides a stamp: the DB itself is written through
+    # write_file_if_changed (its mtime feeds get_idedata's cache), so a
+    # regeneration with identical content would stay "stale" forever
+    if (
+        ninja_changed
+        or not compdb.is_file()
+        or not compdb_stamp.is_file()
+        or compdb_stamp.stat().st_mtime < ninja_file.stat().st_mtime
+    ):
+        _write_compile_commands(paths.ninja, build_dir, env)
+        compdb_stamp.touch()
+
+    cmd = [str(paths.ninja)]
+    if verbose:
+        cmd.append("-v")
+    if jobs := config[CONF_ESPHOME].get(CONF_COMPILE_PROCESS_LIMIT):
+        cmd += ["-j", str(jobs)]
+    # Explicit targets, not the default statement: a generator defect that
+    # drops them fails loudly with "unknown target" instead of a green
+    # no-op run that leaves stale artifacts in place
+    targets = ["firmware.factory.bin", "firmware.ota.bin"]
+    cmd += targets
+
+    # A dry-run probe keeps a no-op rebuild quiet: ninja would only print
+    # "no work to do". A freshly rewritten manifest all but guarantees work,
+    # so skip the probe (and its full stat pass) on that path. cwd instead
+    # of -C also drops the "Entering directory" banner on real builds.
+    skip_build = False
+    if not ninja_changed:
+        probe = subprocess.run(
+            [str(paths.ninja), "-n", *targets],
+            cwd=build_dir,
+            env=env,
+            capture_output=True,
+            text=True,
+            check=False,
+            close_fds=False,
+        )
+        if probe.stderr.strip():
+            # A load-time diagnostic (e.g. "multiple rules generate X")
+            # flags a generator bug; the skip branch would otherwise
+            # swallow it forever
+            _LOGGER.warning("ninja: %s", probe.stderr.strip())
+        if probe.returncode != 0:
+            # An unknown target here is the defective-manifest case; fall
+            # through to the real build so the error prints attributably
+            _LOGGER.debug("ninja probe failed; running the full build")
+        skip_build = probe.returncode == 0 and "no work to do" in probe.stdout
+    if skip_build:
+        _LOGGER.debug("ninja: nothing to rebuild")
+    else:
+        _LOGGER.debug("Running: %s", " ".join(cmd))
+        rc = subprocess.run(
+            cmd, cwd=build_dir, env=env, check=False, close_fds=False
+        ).returncode
+        if rc != 0:
+            return rc
+
+    # ninja already refused a manifest missing the explicit targets above;
+    # existence covers the remaining hole (a rule that ran but wrote
+    # elsewhere). The factory/ota copies are what upload and OTA consume.
+    build_dir_artifacts = (
+        get_elf_path(),
+        build_dir / "firmware.bin",
+        get_factory_firmware_path(),
+        build_dir / "firmware.ota.bin",
+    )
+    for artifact in build_dir_artifacts:
+        if not artifact.is_file():
+            _LOGGER.error("Build produced no %s", artifact)
+            return 1
+
+    if not _print_size_summary(build_dir, paths):
+        # The cause was already warned; name the consequence so a build
+        # contributing no RAM/Flash metric is visible to CI harnesses
+        _LOGGER.warning("Firmware size summary unavailable for this build")
+    from esphome.build_helpers.idedata import warn_if_idedata_missing
+
+    warn_if_idedata_missing(lambda: get_idedata(ccache))
+    return 0
+
+
+def _write_compile_commands(
+    ninja_path: Path, build_dir: Path, env: dict[str, str]
+) -> None:
+    compdb = build_dir / "compile_commands.json"
+    result = subprocess.run(
+        [str(ninja_path), "-C", str(build_dir), "-t", "compdb", "c", "cxx", "asm"],
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
+        close_fds=False,
+    )
+    if result.returncode != 0:
+        # Drop any stale database so consumers (IDE integration, clang-tidy,
+        # the memory analyzer) can't silently read outdated data.
+        compdb.unlink(missing_ok=True)
+        raise EsphomeError(f"Could not generate compile_commands.json: {result.stderr}")
+    try:
+        entries = json.loads(result.stdout)
+    except ValueError as err:
+        compdb.unlink(missing_ok=True)
+        raise EsphomeError(
+            f"ninja produced an unparsable compile database: {err} "
+            f"(output starts {result.stdout[:120]!r})"
+        ) from err
+    if not entries:
+        # compdb exits 0 with [] for unknown rule names; a renamed compile
+        # rule must fail the build, not silently strand every consumer
+        compdb.unlink(missing_ok=True)
+        raise EsphomeError(
+            "ninja produced an empty compile database; the generator's rule "
+            "names no longer match"
+        )
+    # write_file_if_changed keeps the mtime stable on no-op builds so the
+    # idedata cache in get_idedata() stays valid.
+    write_file_if_changed(compdb, result.stdout)
+
+
+def _parse_app_size(build_dir: Path, paths: framework.InstalledPaths) -> int | None:
+    """Read the app flash budget (irom0_0_seg length) from the linker script."""
+    from esphome.build_gen.arduino8266 import get_flash_ld_path
+    from esphome.components.esp8266.build_surgery import segment_length
+
+    # Warnings, not debug: without the app size the Flash summary line is
+    # dropped and CI's memory-impact extraction loses its flash metric.
+    ld_path = get_flash_ld_path(build_dir, paths)
+    try:
+        ld_text = ld_path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as err:
+        # UnicodeDecodeError: a truncated/corrupt script must degrade to
+        # the same warning, never abort an already-linked build
+        _LOGGER.warning("Cannot read linker script for the Flash summary: %s", err)
+        return None
+    app_size = segment_length(ld_text, "irom0_0_seg")
+    if app_size is None:
+        _LOGGER.warning("irom0_0_seg not found in %s; skipping Flash summary", ld_path)
+        return None
+    if app_size == 0:
+        _LOGGER.warning(
+            "irom0_0_seg has zero length in %s; skipping Flash summary", ld_path
+        )
+        return None
+    return app_size
+
+
+def _print_size_summary(build_dir: Path, paths: framework.InstalledPaths) -> bool:
+    """Print the PlatformIO-shaped RAM/Flash lines; False when skipped.
+
+    The exact shape (including the bar) is parsed by
+    ``script/ci_memory_impact_extract.py``; ``print_size_line`` matches it.
+    """
+    from esphome.build_helpers.size_summary import print_size_line
+
+    size_tool = _toolchain_tool("size")
+    try:
+        result = subprocess.run(
+            [str(size_tool), "-A", "-d", str(get_elf_path())],
+            capture_output=True,
+            text=True,
+            check=False,
+            close_fds=False,
+        )
+    except OSError as err:
+        # The summary is a bonus artifact like idedata; a truncated
+        # toolchain extraction must not discard an already-linked build
+        _LOGGER.warning("Could not summarize firmware size: %s", err)
+        return False
+    if result.returncode != 0:
+        _LOGGER.warning("Could not summarize firmware size: %s", result.stderr)
+        return False
+    sections: dict[str, int] = {}
+    for line in result.stdout.splitlines():
+        parts = line.split()
+        if len(parts) >= 2 and parts[0].startswith("."):
+            try:
+                sections[parts[0]] = int(parts[1])
+            except ValueError:
+                # An unparsed RAM/Flash section trips the missing-sections
+                # guard below, so no total is built on a dropped value
+                _LOGGER.warning("Unparsable size output for section %s", parts[0])
+    if missing := set(_RAM_SECTIONS + _FLASH_SECTIONS) - set(sections):
+        # A defaulted 0 would print a confidently wrong total for CI's metric
+        _LOGGER.warning(
+            "Size output is missing section(s) %s; skipping the size summary",
+            ", ".join(sorted(missing)),
+        )
+        return False
+    # Resolve the flash budget before printing anything: a RAM line without
+    # its Flash line would let CI's memory-impact extraction sum the two
+    # metrics over different build counts (_parse_app_size already warned).
+    app_size = _parse_app_size(build_dir, paths)
+    if not app_size:
+        return False
+    ram = sum(sections[s] for s in _RAM_SECTIONS)
+    flash = sum(sections[s] for s in _FLASH_SECTIONS)
+    print_size_line("RAM", ram, _MAX_RAM_SIZE)
+    print_size_line("Flash", flash, app_size)
+    return True
+
+
+# Sentinel: "resolve for me"; None is a real value meaning disabled.
+_CCACHE_UNRESOLVED: Any = object()
+
+
+def get_idedata(ccache: str | None = _CCACHE_UNRESOLVED) -> dict | None:
+    """Derive idedata from the build's compile_commands.json.
+
+    Same contract as ``espidf.toolchain.get_idedata``: the fields IDE
+    integrations, clang-tidy, and the memory analyzer expect.
+    """
+    from esphome.build_helpers.idedata import load_or_build_idedata
+
+    if ccache is _CCACHE_UNRESOLVED:
+        # Deliberately uncached: env/PATH can change between builds in a
+        # long-lived host process
+        ccache = resolve_ccache_path()
+    return load_or_build_idedata(
+        get_build_dir() / "compile_commands.json",
+        get_elf_path(),
+        # Suffixed so a platformio->arduino->platformio round trip on one
+        # config never serves the other toolchain's cache shape
+        CORE.relative_internal_path("idedata", f"{CORE.name}.arduino.json"),
+        # The compile DB's commands carry the same ccache prefix the ninja
+        # rules were generated with
+        launcher=str(ccache) if ccache else None,
+    )
