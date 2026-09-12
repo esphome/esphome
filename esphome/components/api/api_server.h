@@ -314,7 +314,7 @@ class APIServer final : public Component,
 #endif
 
   // 4-byte aligned types
-  uint32_t reboot_timeout_{300000};
+  uint32_t reboot_timeout_{900000};
   uint32_t last_connected_{0};
 
   // Slots [0, api_connection_count_) are populated; trailing slots are always nullptr.

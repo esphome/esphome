@@ -463,9 +463,14 @@ async def to_code(config: ConfigType) -> None:
     # Request a log listener slot for API log streaming
     request_log_listener()
 
-    cg.add(var.set_port(config[CONF_PORT]))
-    cg.add(var.set_reboot_timeout(config[CONF_REBOOT_TIMEOUT]))
-    cg.add(var.set_batch_delay(config[CONF_BATCH_DELAY]))
+    # The C++ initializers are port 6053, reboot timeout 15 min and batch delay
+    # 100 ms; skip the setters when the config matches them.
+    if (port := config[CONF_PORT]) != 6053:
+        cg.add(var.set_port(port))
+    if (reboot_timeout := config[CONF_REBOOT_TIMEOUT]).total_milliseconds != 900000:
+        cg.add(var.set_reboot_timeout(reboot_timeout))
+    if (batch_delay := config[CONF_BATCH_DELAY]).total_milliseconds != 100:
+        cg.add(var.set_batch_delay(batch_delay))
     if CONF_LISTEN_BACKLOG in config:
         cg.add(var.set_listen_backlog(config[CONF_LISTEN_BACKLOG]))
     cg.add_define("MAX_API_CONNECTIONS", config[CONF_MAX_CONNECTIONS])
