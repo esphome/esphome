@@ -1,4 +1,3 @@
 packages:
-  uart: !include ../../test_build_components/common/uart/esp8266-ard.yaml
-
-<<: !include common.yaml
+  uart_115200: !include ../../test_build_components/common/uart_115200/esp8266-ard.yaml
+  hlk_fm22x: !include common.yaml
