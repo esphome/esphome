@@ -602,7 +602,8 @@ def wifi_network(config, ap, static_ip):
         cg.add(ap.set_channel(config[CONF_CHANNEL]))
     if static_ip is not None:
         cg.add(ap.set_manual_ip(manual_ip(static_ip)))
-    if CONF_PRIORITY in config:
+    # priority_ is 0 in C++; skip the setter when the config matches it.
+    if config.get(CONF_PRIORITY, 0) != 0:
         cg.add(ap.set_priority(config[CONF_PRIORITY]))
 
     return ap
@@ -648,7 +649,9 @@ async def to_code(config):
             WiFiAP(),
             lambda ap: cg.add(var.set_ap(wifi_network(conf, ap, ip_config))),
         )
-        cg.add(var.set_ap_timeout(conf[CONF_AP_TIMEOUT]))
+        # ap_timeout_ is 90 s in C++; skip the setter when the config matches it.
+        if (ap_timeout := conf[CONF_AP_TIMEOUT]).total_milliseconds != 90000:
+            cg.add(var.set_ap_timeout(ap_timeout))
         cg.add_define("USE_WIFI_AP")
 
     # ESP32: register the WiFi stack with the esp32 sdkconfig reconciler, which
@@ -670,10 +673,16 @@ async def to_code(config):
     if has_manual_ip:
         cg.add_define("USE_WIFI_MANUAL_IP")
 
-    cg.add(var.set_reboot_timeout(config[CONF_REBOOT_TIMEOUT]))
-    cg.add(var.set_power_save_mode(config[CONF_POWER_SAVE_MODE]))
-    if CONF_MIN_AUTH_MODE in config:
-        cg.add(var.set_min_auth_mode(config[CONF_MIN_AUTH_MODE]))
+    # The C++ initializers are a 15 min reboot timeout, power save NONE and minimum
+    # auth WPA2; skip the setters when the config matches them.
+    if (reboot_timeout := config[CONF_REBOOT_TIMEOUT]).total_milliseconds != 900000:
+        cg.add(var.set_reboot_timeout(reboot_timeout))
+    if (power_save_mode := config[CONF_POWER_SAVE_MODE]) != "NONE":
+        cg.add(var.set_power_save_mode(power_save_mode))
+    if (
+        min_auth_mode := config.get(CONF_MIN_AUTH_MODE)
+    ) is not None and min_auth_mode != "WPA2":
+        cg.add(var.set_min_auth_mode(min_auth_mode))
     fast_connect = config[CONF_FAST_CONNECT]
     if fast_connect[CONF_ENABLED]:
         cg.add_define("USE_WIFI_FAST_CONNECT")
