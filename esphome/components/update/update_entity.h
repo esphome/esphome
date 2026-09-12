@@ -16,7 +16,7 @@ struct UpdateInfo {
   std::string firmware_url;
   std::string md5;
   bool has_progress{false};
-  float progress;
+  float progress{0};
 };
 
 enum UpdateState : uint8_t {
@@ -30,6 +30,9 @@ const LogString *update_state_to_string(UpdateState state);
 
 class UpdateEntity : public EntityBase {
  public:
+  // User provided, not "= default": `new(p) UpdateEntity()` would zero-fill .bss that is already zero.
+  UpdateEntity() {}
+
   void publish_state();
 
   void perform() { this->perform(false); }
