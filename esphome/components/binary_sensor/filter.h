@@ -63,6 +63,9 @@ class DelayedOnFilter : public Filter {
 
 class DelayedOffFilter : public Filter {
  public:
+  // User provided, not "= default": `new(p) DelayedOffFilter()` would zero-fill .bss that is already zero.
+  DelayedOffFilter() {}
+
   optional<bool> new_value(bool value) override;
 
   template<typename T> void set_delay(T delay) { this->delay_ = delay; }
