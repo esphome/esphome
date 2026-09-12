@@ -8,7 +8,7 @@ namespace esphome::epaper_spi::testing {
 /// Exposes the protected transfer machinery so the yield behaviour can be driven directly.
 class TestableT133A01 : public EPaperT133A01 {
  public:
-  TestableT133A01(uint16_t width, uint16_t height) : EPaperT133A01("test", width, height, nullptr, 0) {}
+  TestableT133A01(uint16_t width, uint16_t height) : EPaperT133A01("test", width, height, nullptr, 0, true) {}
 
   void install(spi::SPIDelegate *delegate) {
     this->delegate_ = delegate;
