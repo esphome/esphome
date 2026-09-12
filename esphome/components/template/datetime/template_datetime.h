@@ -15,6 +15,8 @@ namespace esphome::template_ {
 
 class TemplateDateTime final : public datetime::DateTimeEntity, public PollingComponent {
  public:
+  // User provided, not "= default": `new(p) TemplateDateTime()` would zero-fill .bss that is already zero.
+  TemplateDateTime() {}
   template<typename F> void set_template(F &&f) { this->f_.set(std::forward<F>(f)); }
 
   void setup() override;
