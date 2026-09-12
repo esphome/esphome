@@ -41,8 +41,6 @@ const uint32_t TEMP_OFFSET_C = 16;
 
 void Whynter::transmit_state() {
   uint32_t remote_state = COMMAND_CODE;
-  if (this->mode == climate::CLIMATE_MODE_HEAT_COOL)
-    this->mode = climate::CLIMATE_MODE_COOL;
   switch (this->mode) {
     case climate::CLIMATE_MODE_FAN_ONLY:
       remote_state |= POWER_MASK;
