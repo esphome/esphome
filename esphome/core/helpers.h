@@ -2034,6 +2034,32 @@ class LwIPLock {
 #endif
 };
 
+#if defined(USE_ESP8266) && F_CPU != 160000000L
+// Forward decl from <user_interface.h>; flips the clock select bit and updates the ROM tick rate
+// NOLINTNEXTLINE(readability-redundant-declaration)
+extern "C" bool system_update_cpu_freq(uint8_t freq);
+#endif
+
+/** Runs the CPU at 160 MHz while the object is alive.
+ *
+ * Only does anything on an ESP8266 built for 80 MHz; the Arduino core puts the clock back before every loop()
+ * pass, so a scope must open and close within one pass. On an ESP8266 already built for 160 MHz and on every
+ * other platform it is an inline no-op that compiles to nothing. Peripheral clocks are unchanged.
+ */
+class CpuFrequencyBoost {
+ public:
+  CpuFrequencyBoost(const CpuFrequencyBoost &) = delete;
+  CpuFrequencyBoost &operator=(const CpuFrequencyBoost &) = delete;
+#if defined(USE_ESP8266) && F_CPU != 160000000L
+  CpuFrequencyBoost() { system_update_cpu_freq(160); }
+  ~CpuFrequencyBoost() { system_update_cpu_freq(80); }
+#else
+  // Empty bodies instead of = default so clang-tidy does not flag unused variables at call sites
+  CpuFrequencyBoost() {}
+  ~CpuFrequencyBoost() {}
+#endif
+};
+
 /** Helper class to request `loop()` to be called as fast as possible.
  *
  * Usually the ESPHome main loop runs at 60 Hz, sleeping in between invocations of `loop()` if necessary. When a higher

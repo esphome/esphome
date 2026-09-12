@@ -252,7 +252,8 @@ void ESP8266SoftwareSerial::setup(InternalGPIOPin *tx_pin, InternalGPIOPin *rx_p
   }
 }
 void IRAM_ATTR ESP8266SoftwareSerial::gpio_intr(ESP8266SoftwareSerial *arg) {
-  uint32_t wait = arg->bit_time_ + arg->bit_time_ / 3 - 500;
+  const uint32_t bit_time = arg->bit_time_now_();
+  uint32_t wait = bit_time + bit_time / 3 - 500;
   const uint32_t start = arch_get_cpu_cycle_count();
   uint8_t rec = 0;
   // Manually unroll the loop
@@ -297,7 +298,7 @@ void IRAM_ATTR HOT ESP8266SoftwareSerial::write_byte(uint8_t data) {
 
   {
     InterruptLock lock;
-    uint32_t wait = this->bit_time_;
+    uint32_t wait = this->bit_time_now_();
     const uint32_t start = arch_get_cpu_cycle_count();
     // Start bit
     this->write_bit_(false, &wait, start);
@@ -318,7 +319,7 @@ void IRAM_ATTR HOT ESP8266SoftwareSerial::write_byte(uint8_t data) {
 void IRAM_ATTR ESP8266SoftwareSerial::wait_(uint32_t *wait, const uint32_t &start) {
   while (arch_get_cpu_cycle_count() - start < *wait)
     ;
-  *wait += this->bit_time_;
+  *wait += this->bit_time_now_();
 }
 bool IRAM_ATTR ESP8266SoftwareSerial::read_bit_(uint32_t *wait, const uint32_t &start) {
   this->wait_(wait, start);
