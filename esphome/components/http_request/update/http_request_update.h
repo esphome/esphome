@@ -15,6 +15,9 @@ namespace esphome::http_request {
 
 class HttpRequestUpdate final : public update::UpdateEntity, public PollingComponent, public ota::OTAStateListener {
  public:
+  // User provided, not "= default": `new(p) HttpRequestUpdate()` would zero-fill .bss that is already zero.
+  HttpRequestUpdate() {}
+
   void setup() override;
   void update() override;
 
@@ -31,8 +34,8 @@ class HttpRequestUpdate final : public update::UpdateEntity, public PollingCompo
   void on_ota_state(ota::OTAState state, float progress, uint8_t error) override;
 
  protected:
-  HttpRequestComponent *request_parent_;
-  OtaHttpRequestComponent *ota_parent_;
+  HttpRequestComponent *request_parent_{nullptr};
+  OtaHttpRequestComponent *ota_parent_{nullptr};
   std::string source_url_;
 
   static void update_task(void *params);
