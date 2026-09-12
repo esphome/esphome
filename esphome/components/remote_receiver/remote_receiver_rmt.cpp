@@ -36,7 +36,7 @@ static bool IRAM_ATTR HOT rmt_callback(rmt_channel_handle_t channel, const rmt_r
 }
 
 void RemoteReceiverComponent::fail_(esp_err_t error, const LogString *reason) {
-  ESP_LOGE(TAG, "Configuring RMT driver failed: %s (%s)", esp_err_to_name(error), LOG_STR_ARG(reason));
+  ESP_LOGE(TAG, "RMT driver failed: %s", esp_err_to_name(error));
   this->mark_failed(reason);
 }
 
