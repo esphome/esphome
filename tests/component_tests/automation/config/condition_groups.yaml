@@ -33,3 +33,12 @@ binary_sensor:
             - lambda: return false;
           then:
             - logger.log: double and
+  - platform: template
+    id: single_xor
+    on_press:
+      - if:
+          condition:
+            xor:
+              - lambda: return true;
+          then:
+            - logger.log: single xor

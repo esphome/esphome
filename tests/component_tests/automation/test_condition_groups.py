@@ -20,3 +20,6 @@ def test_single_condition_groups_are_unwrapped(
     )
     assert group is not None
     assert f"IfAction<false>({group.group(1)});" in main_cpp
+    # xor of one condition equals that condition, so it is unwrapped too.
+    assert "IfAction<false>(lambdacondition_id_5);" in main_cpp
+    assert "XorCondition<" not in main_cpp
