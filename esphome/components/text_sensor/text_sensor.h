@@ -29,7 +29,8 @@ class TextSensor : public EntityBase {
  public:
   std::string state;
 
-  TextSensor() = default;
+  // User provided, not "= default": `new(p) TextSensor()` would zero-fill .bss that is already zero.
+  TextSensor() {}
   ~TextSensor() = default;
 
   /// Getter-syntax for .state.
