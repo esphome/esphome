@@ -1,5 +1,7 @@
 #include "http_request_update.h"
 
+#include <cstring>
+
 #include "esphome/core/application.h"
 #include "esphome/core/version.h"
 
@@ -91,10 +93,10 @@ void HttpRequestUpdate::update_task(void *params) {
   auto *result = new TaskResult();
   auto *info = &result->info;
 
-  auto container = this_update->request_parent_->get(this_update->source_url_);
+  auto container = this_update->request_parent_->get(this_update->get_source_url());
 
   if (container == nullptr || container->status_code != HTTP_STATUS_OK) {
-    ESP_LOGE(TAG, "Failed to fetch manifest from %s", this_update->source_url_.c_str());
+    ESP_LOGE(TAG, "Failed to fetch manifest from %s", this_update->get_source_url().c_str());
     if (container != nullptr)
       container->end();
     result->error_str = LOG_STR("Failed to fetch manifest");
@@ -174,7 +176,7 @@ void HttpRequestUpdate::update_task(void *params) {
     allocator.deallocate(data, content_length);
 
     if (!valid) {
-      ESP_LOGE(TAG, "Failed to parse JSON from %s", this_update->source_url_.c_str());
+      ESP_LOGE(TAG, "Failed to parse JSON from %s", this_update->get_source_url().c_str());
       result->error_str = LOG_STR("Failed to parse manifest JSON");
       goto defer;  // NOLINT(cppcoreguidelines-avoid-goto)
     }
@@ -182,12 +184,14 @@ void HttpRequestUpdate::update_task(void *params) {
     // Merge source_url_ and firmware_url
     if (!info->firmware_url.empty() && info->firmware_url.find("http") == std::string::npos) {
       std::string path = info->firmware_url;
+      const StringRef source = this_update->get_source_url();
       if (path[0] == '/') {
-        std::string domain = this_update->source_url_.substr(0, this_update->source_url_.find('/', 8));
-        info->firmware_url = domain + path;
+        // scheme and host, up to the first slash after "https://"
+        info->firmware_url = source.substr(0, source.find('/', 8)) + path;
       } else {
-        std::string domain = this_update->source_url_.substr(0, this_update->source_url_.rfind('/') + 1);
-        info->firmware_url = domain + path;
+        // directory of the manifest, up to and including its last slash
+        const char *dir_end = strrchr(source.c_str(), '/');
+        info->firmware_url = source.substr(0, dir_end != nullptr ? dir_end - source.c_str() + 1 : 0) + path;
       }
     }
 
