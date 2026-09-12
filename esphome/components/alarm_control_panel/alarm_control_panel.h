@@ -21,9 +21,6 @@ enum AlarmControlPanelFeature : uint8_t {
 
 class AlarmControlPanel : public EntityBase {
  public:
-  // User provided, not "= default": `new(p) AlarmControlPanel()` would zero-fill .bss that is already zero.
-  AlarmControlPanel() {}
-
   /** Make a AlarmControlPanelCall
    *
    */
