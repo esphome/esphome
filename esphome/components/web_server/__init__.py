@@ -379,7 +379,9 @@ async def to_code(config: ConfigType) -> None:
 
     version = config[CONF_VERSION]
 
-    cg.add(paren.set_port(config[CONF_PORT]))
+    # The C++ initializer is 80; skip the setter when the config matches it.
+    if (port := config[CONF_PORT]) != 80:
+        cg.add(paren.set_port(port))
     cg.add_define("USE_WEBSERVER")
     cg.add_define("USE_WEBSERVER_PORT", config[CONF_PORT])
     cg.add_define("USE_WEBSERVER_VERSION", version)
@@ -395,9 +397,11 @@ async def to_code(config: ConfigType) -> None:
     # Captive portal will still be able to perform OTA updates even when this is set
     if config.get(CONF_OTA) is False:
         cg.add_define("USE_WEBSERVER_OTA_DISABLED")
-    cg.add(var.set_expose_log(config[CONF_LOG]))
+    # expose_log_ is true in C++; only emit the setter to turn it off.
     if config[CONF_LOG]:
         request_log_listener()  # Request a log listener slot for web server log streaming
+    else:
+        cg.add(var.set_expose_log(False))
     if config[CONF_ENABLE_PRIVATE_NETWORK_ACCESS]:
         cg.add_define("USE_WEBSERVER_PRIVATE_NETWORK_ACCESS")
     if (allowed_origins := config.get(CONF_ALLOWED_ORIGINS)) is not None:
@@ -433,7 +437,9 @@ async def to_code(config: ConfigType) -> None:
         path = CORE.relative_config_path(config[CONF_JS_INCLUDE])
         with path.open(encoding="utf-8") as js_file:
             add_resource_as_progmem("JS_INCLUDE", js_file.read())
-    cg.add(var.set_include_internal(config[CONF_INCLUDE_INTERNAL]))
+    # include_internal_ is false in C++; only emit the setter to turn it on.
+    if config[CONF_INCLUDE_INTERNAL]:
+        cg.add(var.set_include_internal(True))
     if CONF_LOCAL in config and config[CONF_LOCAL]:
         cg.add_define("USE_WEBSERVER_LOCAL")
     if config[CONF_COMPRESSION] == "gzip":
