@@ -116,7 +116,11 @@ class HeatpumpIRClimate final : public climate_ir::ClimateIR {
  protected:
   HeatpumpIR *heatpump_ir_;
   /// Transmit via IR the state of this climate controller.
+  void control(const climate::ClimateCall &call) override;
   void transmit_state() override;
+  bool is_mitsubishi_heavy_() const;
+  uint8_t mitsubishi_heavy_fan_speed_(uint8_t fan_speed_cmd) const;
+  uint8_t mitsubishi_heavy_shift_fan_speed_(uint8_t fan_speed_cmd) const;
   Protocol protocol_;
   HorizontalDirection default_horizontal_direction_;
   VerticalDirection default_vertical_direction_;

@@ -8,6 +8,23 @@ climate:
     max_temperature: 30
     transmitter_id: xmitr
   - platform: heatpumpir
+    id: hp_zj_test
+    protocol: mitsubishi_heavy_zj
+    horizontal_default: left
+    vertical_default: mup
+    name: HeatpumpIR Climate Mitsubishi ZJ
+    min_temperature: 18
+    max_temperature: 30
+    transmitter_id: xmitr
+  - platform: heatpumpir
+    protocol: mitsubishi_heavy_zmp
+    horizontal_default: left
+    vertical_default: up
+    name: HeatpumpIR Climate Mitsubishi ZMP
+    min_temperature: 18
+    max_temperature: 30
+    transmitter_id: xmitr
+  - platform: heatpumpir
     protocol: daikin
     horizontal_default: mleft
     vertical_default: mup
@@ -23,3 +40,11 @@ climate:
     min_temperature: 18
     max_temperature: 30
     transmitter_id: xmitr
+
+button:
+  - platform: template
+    name: "Test Eco Preset"
+    on_press:
+      - climate.control:
+          id: hp_zj_test
+          preset: "eco"
