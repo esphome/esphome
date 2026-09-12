@@ -1,0 +1,52 @@
+from esphome import automation
+import esphome.codegen as cg
+from esphome.components import uart
+import esphome.config_validation as cv
+from esphome.const import CONF_ID, CONF_ON_DATA
+from esphome.types import ConfigType
+
+AUTO_LOAD = ["ld24xx"]
+DEPENDENCIES = ["uart"]
+CODEOWNERS = ["@jesusvallejo"]
+MULTI_CONF = True
+
+ld2460_ns = cg.esphome_ns.namespace("ld2460")
+LD2460Component = ld2460_ns.class_("LD2460Component", cg.Component, uart.UARTDevice)
+
+CONF_LD2460_ID = "ld2460_id"
+
+CONFIG_SCHEMA = cv.All(
+    cv.Schema(
+        {
+            cv.GenerateID(): cv.declare_id(LD2460Component),
+            cv.Optional(CONF_ON_DATA): automation.validate_automation({}),
+        }
+    )
+    .extend(uart.UART_DEVICE_SCHEMA)
+    .extend(cv.COMPONENT_SCHEMA)
+)
+
+LD2460BaseSchema = cv.Schema(
+    {
+        cv.GenerateID(CONF_LD2460_ID): cv.use_id(LD2460Component),
+    },
+)
+
+FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema(
+    "ld2460",
+    require_tx=True,
+    require_rx=True,
+    parity="NONE",
+    stop_bits=1,
+)
+
+_CALLBACK_AUTOMATIONS = (
+    automation.CallbackAutomation(CONF_ON_DATA, "add_on_data_callback"),
+)
+
+
+async def to_code(config: ConfigType) -> None:
+    var = cg.new_Pvariable(config[CONF_ID])
+    await cg.register_component(var, config)
+    await uart.register_uart_device(var, config)
+    await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)

@@ -294,6 +294,7 @@ esphome/components/ld2410/* @regevbr @sebcaps
 esphome/components/ld2412/* @Rihan9
 esphome/components/ld2420/* @descipher
 esphome/components/ld2450/* @hareeshmu
+esphome/components/ld2460/* @jesusvallejo
 esphome/components/ld24xx/* @kbx81
 esphome/components/ld6002b/* @hepter
 esphome/components/ledc/* @OttoWinter
