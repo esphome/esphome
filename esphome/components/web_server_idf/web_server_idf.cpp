@@ -143,6 +143,12 @@ void AsyncWebServer::begin() {
   httpd_config_t config = HTTPD_DEFAULT_CONFIG();
   config.stack_size = config.stack_size + 256;
   config.server_port = this->port_;
+  // Optionally raise the concurrent-connection ceiling (default 7). The socket
+  // component reserves matching lwIP headroom so esp_http_server's requirement of
+  // CONFIG_LWIP_MAX_SOCKETS >= max_open_sockets + 3 holds.
+  if (this->max_open_sockets_ != 0) {
+    config.max_open_sockets = this->max_open_sockets_;
+  }
   config.uri_match_fn = [](const char * /*unused*/, const char * /*unused*/, size_t /*unused*/) { return true; };
   // Always enable LRU purging to handle socket exhaustion gracefully.
   // When max sockets is reached, the oldest connection is closed to make room for new ones.

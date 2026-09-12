@@ -127,6 +127,12 @@ class WebServerBase final {
       return;
     }
     this->server_ = new AsyncWebServer(this->port_);
+#if USE_ESP32
+    // Only the ESP-IDF HTTP server exposes a configurable concurrent-connection
+    // ceiling; 0 keeps its default. Must be applied before begin().
+    if (this->max_open_sockets_ != 0)
+      this->server_->set_max_open_sockets(this->max_open_sockets_);
+#endif
     // All content is controlled and created by user - so allowing all origins is fine here.
     // NOTE: Currently 1 header. If more are added, update in __init__.py:
     //   cg.add_define("WEB_SERVER_DEFAULT_HEADERS_COUNT", 1)
@@ -168,9 +174,17 @@ class WebServerBase final {
   void set_port(uint16_t port) { port_ = port; }
   uint16_t get_port() const { return port_; }
 
+#if USE_ESP32
+  // Raise the ESP-IDF HTTP server's concurrent-connection ceiling (0 = default).
+  void set_max_open_sockets(uint8_t max_open_sockets) { this->max_open_sockets_ = max_open_sockets; }
+#endif
+
  protected:
   uint8_t initialized_{0};
   uint16_t port_{80};
+#if USE_ESP32
+  uint8_t max_open_sockets_{0};  // 0 = ESP-IDF default
+#endif
   AsyncWebServer *server_{nullptr};
   std::vector<AsyncWebHandler *> handlers_;
 #ifdef USE_WEBSERVER_AUTH

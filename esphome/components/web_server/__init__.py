@@ -23,6 +23,7 @@ from esphome.const import (
     CONF_JS_URL,
     CONF_LOCAL,
     CONF_LOG,
+    CONF_MAX_CONNECTIONS,
     CONF_NAME,
     CONF_OTA,
     CONF_PASSWORD,
@@ -38,6 +39,7 @@ from esphome.const import (
     PLATFORM_LN882X,
     PLATFORM_RP2,
     PLATFORM_RTL87XX,
+    Framework,
 )
 from esphome.core import CORE, CoroPriority, coroutine_with_priority
 from esphome.cpp_generator import MockObj
@@ -208,6 +210,12 @@ def _final_validate_sorting(config: ConfigType) -> None:
 FINAL_VALIDATE_SCHEMA = _final_validate_sorting
 
 
+# esp_http_server also needs a few lwIP sockets beyond max_open_sockets (its
+# listener plus internal control sockets); reserve this headroom so its
+# requirement of CONFIG_LWIP_MAX_SOCKETS >= max_open_sockets + 3 always holds.
+HTTPD_SOCKET_OVERHEAD = 3
+
+
 def _consume_web_server_sockets(config: ConfigType) -> ConfigType:
     """Register socket needs for web_server component."""
     from esphome.components import socket
@@ -216,7 +224,12 @@ def _consume_web_server_sockets(config: ConfigType) -> ConfigType:
     # (browser opens connections for page resources, SSE event stream, and POST
     # requests for entity control which may linger before closing)
     # The listening socket is registered by web_server_base (shared with captive_portal)
-    socket.consume_sockets(5, "web_server")(config)
+    if (max_connections := config.get(CONF_MAX_CONNECTIONS)) is not None:
+        socket.consume_sockets(max_connections + HTTPD_SOCKET_OVERHEAD, "web_server")(
+            config
+        )
+    else:
+        socket.consume_sockets(5, "web_server")(config)
     return config
 
 
@@ -252,6 +265,14 @@ CONFIG_SCHEMA = cv.All(
         {
             cv.GenerateID(): cv.declare_id(WebServer),
             cv.Optional(CONF_PORT, default=80): cv.port,
+            # Concurrent client connections the ESP-IDF HTTP server keeps open
+            # (its max_open_sockets, default 7). Raise it when multiple dashboard
+            # tabs / event-stream clients would otherwise be evicted. ESP-IDF only:
+            # the socket component sizes CONFIG_LWIP_MAX_SOCKETS to match.
+            cv.Optional(CONF_MAX_CONNECTIONS): cv.All(
+                cv.only_with_framework(Framework.ESP_IDF),
+                cv.int_range(min=1, max=24),
+            ),
             cv.Optional(CONF_VERSION, default=2): cv.one_of(1, 2, 3, int=True),
             cv.Optional(CONF_CSS_URL): cv.string,
             cv.Optional(CONF_CSS_INCLUDE): cv.file_,
@@ -380,6 +401,8 @@ async def to_code(config: ConfigType) -> None:
     version = config[CONF_VERSION]
 
     cg.add(paren.set_port(config[CONF_PORT]))
+    if (max_connections := config.get(CONF_MAX_CONNECTIONS)) is not None:
+        cg.add(paren.set_max_open_sockets(max_connections))
     cg.add_define("USE_WEBSERVER")
     cg.add_define("USE_WEBSERVER_PORT", config[CONF_PORT])
     cg.add_define("USE_WEBSERVER_VERSION", version)
