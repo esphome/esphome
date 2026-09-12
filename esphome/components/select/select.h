@@ -30,7 +30,8 @@ class Select : public EntityBase {
  public:
   SelectTraits traits;
 
-  Select() = default;
+  // User provided, not "= default": `new(p) Select()` would zero-fill .bss that is already zero.
+  Select() {}
   ~Select() = default;
 
   void publish_state(const std::string &state) { this->publish_state(state.c_str()); }
