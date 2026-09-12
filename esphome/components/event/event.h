@@ -21,6 +21,9 @@ namespace esphome::event {
 
 class Event : public EntityBase {
  public:
+  // User provided, not "= default": `new(p) Event()` would zero-fill .bss that is already zero.
+  Event() {}
+
   void trigger(const std::string &event_type);
 
   /// Set the event types supported by this event (from initializer list).
