@@ -1,0 +1,65 @@
+uart:
+  - id: mmwave_uart
+    tx_pin: ${tx_pin}
+    rx_pin: ${rx_pin}
+    baud_rate: 9600
+
+dfrobot_c4001:
+  id: mmwave_sensor
+  uart_id: mmwave_uart
+  model: SEN0609
+  mode: PRESENCE
+
+binary_sensor:
+  - platform: dfrobot_c4001
+    dfrobot_c4001_id: mmwave_sensor
+    occupancy:
+      name: Occupancy
+    config_changed:
+      name: Config Changed
+
+button:
+  - platform: dfrobot_c4001
+    dfrobot_c4001_id: mmwave_sensor
+    config_save:
+      name: Config Save
+    restart:
+      name: Restart
+    factory_reset:
+      name: Factory Reset
+
+number:
+  - platform: dfrobot_c4001
+    dfrobot_c4001_id: mmwave_sensor
+    max_range:
+      name: Range Max
+    min_range:
+      name: Range Min
+    trigger_range:
+      name: Range Trigger
+    hold_sensitivity:
+      name: Sensitivity Hold
+    trigger_sensitivity:
+      name: Sensitivity Trigger
+    on_latency:
+      name: Latency On
+    off_latency:
+      name: Latency Off
+    inhibit_time:
+      name: Inhibit Time
+
+switch:
+  - platform: dfrobot_c4001
+    dfrobot_c4001_id: mmwave_sensor
+    out_led_enable:
+      name: Enable OUT LED
+    run_led_enable:
+      name: Enable RUN LED
+
+text_sensor:
+  - platform: dfrobot_c4001
+    dfrobot_c4001_id: mmwave_sensor
+    software_version:
+      name: Software Version
+    hardware_version:
+      name: Hardware Version
