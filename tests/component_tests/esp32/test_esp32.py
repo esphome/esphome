@@ -693,6 +693,7 @@ def test_flash_mode_sets_sdkconfig_and_pio_option(
     sdkconfig = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
     assert sdkconfig.get("CONFIG_ESPTOOLPY_FLASHMODE_QIO") is True
     assert sdkconfig.get("CONFIG_ESPTOOLPY_FLASHFREQ_80M") is True
+    assert sdkconfig.get("CONFIG_ESPTOOLPY_OCT_FLASH") is False
     assert CORE.platformio_options.get("board_build.flash_mode") == "qio"
     assert CORE.platformio_options.get("board_build.f_flash") == "80000000L"
 
