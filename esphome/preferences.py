@@ -19,11 +19,12 @@ STORAGE_FLASH = "flash"
 STORAGE_RTC = "rtc"
 
 
-def _rtc_supported() -> bool:
+def rtc_supported() -> bool:
     """Whether the active platform has an RTC-backed preferences backend.
 
     Mirrors the C++ ``SOC_RTC_MEM_SUPPORTED`` guard in the ESP32 backend: the ESP32-C2
-    and -C61 have no RTC memory at all, so RTC storage is unavailable there.
+    and -C61 have no RTC memory at all, so RTC storage is unavailable there. Lets a
+    component decide its own storage default (e.g. prefer RTC when it is available).
     """
     if CORE.is_esp8266:
         return True
@@ -44,9 +45,12 @@ def _default_storage() -> str:
     return STORAGE_RTC if CORE.is_esp8266 else STORAGE_FLASH
 
 
-def _validate_storage(value):
+def validate_storage(value):
+    """Validate a bare ``storage:`` field: ``flash`` or ``rtc`` (the latter gated by
+    platform support). Use directly for an option that resolves its own default;
+    use :func:`storage_schema` for the historic per-platform default."""
     value = cv.one_of(STORAGE_FLASH, STORAGE_RTC, lower=True)(value)
-    if value == STORAGE_RTC and not _rtc_supported():
+    if value == STORAGE_RTC and not rtc_supported():
         raise cv.Invalid(
             f"'{STORAGE_RTC}' storage is not supported on this platform; only "
             f"'{STORAGE_FLASH}' is available"
@@ -56,7 +60,7 @@ def _validate_storage(value):
 
 def storage_schema():
     """Return an Optional(CONF_STORAGE) entry for merging into a component schema."""
-    return {cv.Optional(CONF_STORAGE, default=_default_storage): _validate_storage}
+    return {cv.Optional(CONF_STORAGE, default=_default_storage): validate_storage}
 
 
 def request_rtc_storage() -> None:
@@ -88,7 +92,7 @@ def validate_rtc_storage(value):
                 "be disabled"
             )
         return value
-    if not _rtc_supported():
+    if not rtc_supported():
         raise cv.Invalid("RTC preference storage is not supported on this platform")
     return value
 
