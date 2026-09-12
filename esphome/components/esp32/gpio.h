@@ -12,6 +12,9 @@ static_assert(GPIO_DRIVE_CAP_MAX <= 4, "gpio_drive_cap_t has too many values for
 
 class ESP32InternalGPIOPin final : public InternalGPIOPin {
  public:
+  // User provided, not "= default": `new(p) ESP32InternalGPIOPin()` would zero-fill .bss that is already zero.
+  ESP32InternalGPIOPin() {}
+
   void set_pin(gpio_num_t pin) { this->pin_ = static_cast<uint8_t>(pin); }
   void set_inverted(bool inverted) { this->pin_flags_.inverted = inverted; }
   void set_drive_strength(gpio_drive_cap_t drive_strength) {
@@ -39,7 +42,7 @@ class ESP32InternalGPIOPin final : public InternalGPIOPin {
   // - 3 bytes for members below
   // - 1 byte padding for alignment
   // - 4 bytes for vtable pointer
-  uint8_t pin_;          // GPIO pin number (0-255, actual max ~54 on ESP32)
+  uint8_t pin_{0};       // GPIO pin number (0-255, actual max ~54 on ESP32)
   gpio::Flags flags_{};  // GPIO flags (1 byte)
   struct PinFlags {
     uint8_t inverted : 1;        // Invert pin logic (1 bit)
