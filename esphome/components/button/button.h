@@ -24,6 +24,9 @@ void log_button(const char *tag, const char *prefix, const char *type, Button *o
  */
 class Button : public EntityBase {
  public:
+  // User provided, not "= default": `new(p) Button()` would zero-fill .bss that is already zero.
+  Button() {}
+
   /** Press this button. This is called by the front-end.
    *
    * For implementing buttons, please override press_action.
