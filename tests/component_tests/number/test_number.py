@@ -12,4 +12,5 @@ def test_default_mode_is_not_emitted(
     main_cpp = generate_main(component_config_path("mode.yaml"))
 
     assert "auto_number->traits.set_mode(" not in main_cpp
+    assert "explicit_auto_number->traits.set_mode(" not in main_cpp
     assert "box_number->traits.set_mode(number::NUMBER_MODE_BOX);" in main_cpp

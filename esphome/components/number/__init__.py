@@ -174,6 +174,10 @@ NumberInRangeCondition = number_ns.class_(
 
 NumberMode = number_ns.enum("NumberMode")
 
+# Schema default that also matches the C++ initializer in number_traits.h; codegen
+# skips the setter when the config equals it.
+DEFAULT_MODE = "AUTO"
+
 NUMBER_MODES = {
     "AUTO": NumberMode.NUMBER_MODE_AUTO,
     "BOX": NumberMode.NUMBER_MODE_BOX,
@@ -216,7 +220,7 @@ _NUMBER_SCHEMA = (
                 CONF_UNIT_OF_MEASUREMENT, visibility=cv.Visibility.ADVANCED
             ): validate_unit_of_measurement,
             cv.Optional(
-                CONF_MODE, default="AUTO", visibility=cv.Visibility.ADVANCED
+                CONF_MODE, default=DEFAULT_MODE, visibility=cv.Visibility.ADVANCED
             ): cv.enum(NUMBER_MODES, upper=True),
             cv.Optional(
                 CONF_DEVICE_CLASS, visibility=cv.Visibility.ADVANCED
@@ -286,9 +290,9 @@ async def setup_number_core_(
     cg.add(var.traits.set_max_value(max_value))
     cg.add(var.traits.set_step(step))
 
-    # mode_ is NUMBER_MODE_AUTO in C++; skip the setter when the config matches it.
+    # Skip the setter when the config matches the C++ initializer (DEFAULT_MODE).
     # The validated value is the enum key string, not the C++ enum expression.
-    if (mode := config[CONF_MODE]) != "AUTO":
+    if (mode := config[CONF_MODE]) != DEFAULT_MODE:
         cg.add(var.traits.set_mode(mode))
 
     CORE.add_job(_build_number_automations, var, config)

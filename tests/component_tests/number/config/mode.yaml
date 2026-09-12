@@ -19,3 +19,10 @@ number:
     step: 1
     mode: box
     optimistic: true
+  - platform: template
+    id: explicit_auto_number
+    min_value: 0
+    max_value: 10
+    step: 1
+    mode: auto
+    optimistic: true
