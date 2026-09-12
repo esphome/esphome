@@ -211,7 +211,7 @@ bool Snapshot::take_snapshot(const char *filename) {
     exact = !name.empty();
     if (name_changed) {
       ESP_LOGW(TAG, "Requested snapshot name '%s' is not an acceptable file name, using '%s' instead", filename,
-               name.empty() ? "a name made from the time" : name.c_str());
+               name.empty() ? LOG_STR_LITERAL("a name made from the time") : name.c_str());
     }
   }
   if (name.empty()) {

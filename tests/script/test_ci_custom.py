@@ -4,11 +4,15 @@ The rule flags an if/else/for/while whose only body is an unbraced ESP_LOG*() ca
 empty statement -- and a -Wempty-body warning -- once the log level compiles the macro out). These
 tests pin the comment/string/raw-string masker, the accepted control-statement shapes, and the
 NOLINT escape hatch at both placements a contributor would try.
+
+Also covers the ESP_LOG call scanner (_iter_log_calls) and the bare-literal-ternary lint.
 """
 
 import importlib.util
 from pathlib import Path
 import sys
+
+import pytest
 
 SCRIPT_DIR = (Path(__file__).parent / ".." / ".." / "script").resolve()
 sys.path.insert(0, str(SCRIPT_DIR))
@@ -145,3 +149,125 @@ def test_nolint_at_end_of_log_line_suppresses() -> None:
 
 def test_nolint_on_control_line_suppresses() -> None:
     assert not _lint("if (x)  // NOLINT\n  ESP_LOGD(t);\n")
+
+
+# --- ESP_LOG call scanner and bare-literal-ternary lint ---
+
+
+def _calls(content: str) -> list[str | None]:
+    return [text for _, text in ci_custom._iter_log_calls(content)]
+
+
+def _ternary_errors(content: str) -> list[tuple[int, int]]:
+    errs = ci_custom.lint_log_no_bare_literal_ternary(Path("x.cpp"), content)
+    return [(line, col) for line, col, _ in errs]
+
+
+@pytest.mark.parametrize(
+    "content",
+    [
+        'ESP_LOGD(TAG, "a ) b ( c; d")',
+        'ESP_LOGD(TAG, "quote \\" inside")',
+        "ESP_LOGD(TAG, \"%s\", format_hex_pretty(x, '-', false).c_str())",
+        "ESP_LOGD(TAG, \"%c%c\", '(', ')')",
+        "ESP_LOGD(TAG, \"%d\", 1'000'000)",
+        'ESP_LOGD(TAG,  // it\'s a comment with ) and (\n         "x")',
+        'ESP_LOGD(TAG, /* :) */ "x")',
+        'ESP_LOGD(TAG, "%s", R"(say "hi" :) )")',
+        'ESP_LOGD(TAG, "%s", R"x(a)"b)x")',
+    ],
+)
+def test_iter_log_calls_spans_whole_call(content: str) -> None:
+    calls = _calls(content + ";\nint other = (1);")
+    assert calls == [content]
+
+
+def test_iter_log_calls_reports_unbalanced_call_once() -> None:
+    content = 'ESP_LOGD(TAG, "x";\nvoid f();'
+    assert _calls(content) == [None]
+    errs = ci_custom.lint_log_multiline_continuation(Path("x.cpp"), content)
+    assert len(errs) == 1
+    assert errs[0][:2] == (1, 1)
+    assert "no matching closing parenthesis" in errs[0][2]
+    assert _ternary_errors(content) == []
+
+
+@pytest.mark.parametrize(
+    ("content", "expected"),
+    [
+        # A ; inside the format string no longer cuts the call short
+        ('ESP_LOGD(TAG, "a; b\\nc %s", x);', [(1, 20)]),
+        # A \n%s continuation is exempt since %s may expand to leading whitespace
+        ('ESP_LOGD(TAG, "a\\n%s", x);', []),
+        ('ESP_LOGD(TAG, "a\\n  b");', []),
+    ],
+)
+def test_multiline_continuation_detection(
+    content: str, expected: list[tuple[int, int]]
+) -> None:
+    errs = ci_custom.lint_log_multiline_continuation(Path("x.cpp"), content)
+    assert [(line, col) for line, col, _ in errs] == expected
+
+
+def test_exclusion_list_only_names_components_without_esp8266_tests() -> None:
+    root = Path(__file__).parent / ".." / ".."
+    for pattern in ci_custom.LOG_LITERAL_LINT_EXCLUDE:
+        if not pattern.startswith("esphome/components/"):
+            continue
+        prefix = pattern.removeprefix("esphome/components/").split("/")[0]
+        comps = list((root / "esphome" / "components").glob(prefix))
+        assert comps, f"{pattern!r} matches no component"
+        for comp in comps:
+            test = root / "tests" / "components" / comp.name / "test.esp8266-ard.yaml"
+            assert not test.exists(), (
+                f"{comp.name} builds for ESP8266, drop {pattern!r}"
+            )
+
+
+def test_unbalanced_calls_are_reported_by_a_check_that_sees_every_file() -> None:
+    # lint_log_no_bare_literal_ternary skips unbalanced calls and relies on this
+    checks = {c["func"].__name__: c for c in ci_custom.LINT_CONTENT_CHECKS}
+    continuation = checks["lint_log_multiline_continuation"]
+    ternary = checks["lint_log_no_bare_literal_ternary"]
+    assert continuation["exclude"] == []
+    assert continuation["include"] == ternary["include"]
+
+
+@pytest.mark.parametrize(
+    ("content", "expected"),
+    [
+        ('ESP_LOGD(TAG, "%s", x ? "on" : "off");', [(1, 25), (1, 32)]),
+        (
+            'ESP_LOGD(TAG, "%s", x ? LOG_STR_LITERAL("on") : LOG_STR_LITERAL("off"));',
+            [],
+        ),
+        ('ESP_LOGD(TAG, "%s", x ? LOG_STR_LITERAL("on") : "off");', [(1, 49)]),
+        ('ESP_LOGD(TAG, "%s", x ? "on" : "");', [(1, 25)]),
+        (
+            'ESP_LOGD(TAG, "%s",\n         x ? "yes"\n           : "no");',
+            [(2, 14), (3, 14)],
+        ),
+        ("ESP_LOGD(TAG, \"%c\", x ? '1' : '0');", []),
+        ('ESP_LOGD(TAG, "a ? b : c %s", x ? "on" : "off");', [(1, 35), (1, 42)]),
+        ('ESP_LOGD(TAG, "x:" "y %s", p);', []),
+        ('ESP_LOGD(TAG, "%s", x ? "on" : "off");  // NOLINT', []),
+        ('ESP_LOGD(TAG, "%s",\n         x ? "yes"\n           : "no");  // NOLINT', []),
+        ('ESP_LOGD(TAG, "%s", x ? /* c */ "on" : "off");', [(1, 33), (1, 40)]),
+        (
+            'ESP_LOGD(TAG, "%s",\n         x ? "on"  // NOLINT(some-clang-check)\n           : "off");',
+            [(2, 14), (3, 14)],
+        ),
+    ],
+)
+def test_ternary_literal_detection(
+    content: str, expected: list[tuple[int, int]]
+) -> None:
+    assert _ternary_errors(content) == expected
+
+
+def test_ternary_error_message_names_the_literal() -> None:
+    errs = ci_custom.lint_log_no_bare_literal_ternary(
+        Path("x.cpp"), 'ESP_LOGD(TAG, "%s", x ? "enabled" : LOG_STR_LITERAL("off"));'
+    )
+    assert len(errs) == 1
+    assert 'LOG_STR_LITERAL("enabled")' in errs[0][2]
