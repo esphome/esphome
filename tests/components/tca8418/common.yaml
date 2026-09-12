@@ -1,0 +1,36 @@
+tca8418:
+  # A 4x3 key matrix, with the remaining pins reporting as individual inputs.
+  - id: matrix_keypad_device
+    i2c_id: i2c_bus
+    address: 0x34
+    rows: 4
+    columns: 3
+    keys: "123456789*0#"
+    # The interrupt output is open drain, so it needs a pull-up. Use the
+    # internal one unless the board already has its own.
+    interrupt_pin:
+      number: ${interrupt_pin}
+      mode: INPUT_PULLUP
+    on_key:
+      - logger.log:
+          format: "Key: %c"
+          args: [x]
+  # Every pin reporting as an individual input, polled over I2C.
+  - id: inputs_only_device
+    i2c_id: i2c_bus
+    address: 0x35
+
+binary_sensor:
+  - platform: tca8418
+    keypad_id: matrix_keypad_device
+    row: 0
+    col: 0
+    name: "Key top left"
+  - platform: tca8418
+    keypad_id: matrix_keypad_device
+    key: "5"
+    name: "Key five"
+  - platform: tca8418
+    keypad_id: inputs_only_device
+    key_code: 97
+    name: "Input ROW0"
