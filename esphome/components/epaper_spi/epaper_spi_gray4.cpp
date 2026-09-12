@@ -18,8 +18,9 @@ void EPaperGray4::setup() {
 void EPaperGray4::init_shadow_() {
   if (!this->is_using_partial_update_())
     return;
-  if (!this->shadow_.init((size_t) ((this->width_ + 7) / 8) * this->height_))
+  if (!this->shadow_.init((size_t) ((this->width_ + 7) / 8) * this->height_)) {
     ESP_LOGW(TAG, "No memory for a comparison frame; every update will be a full refresh");
+  }
 }
 
 // Luminance into four even quarters. A renderer that antialiases - LVGL
