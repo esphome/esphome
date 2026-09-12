@@ -183,16 +183,19 @@ void HttpRequestUpdate::update_task(void *params) {
 
     // Merge source_url_ and firmware_url
     if (!info->firmware_url.empty() && info->firmware_url.find("http") == std::string::npos) {
-      std::string path = info->firmware_url;
-      const StringRef source = this_update->get_source_url();
-      if (path[0] == '/') {
+      const char *source = this_update->source_url_;
+      const size_t source_len = strlen(source);
+      size_t prefix_len;
+      if (info->firmware_url[0] == '/') {
         // scheme and host, up to the first slash after "https://"
-        info->firmware_url = source.substr(0, source.find('/', 8)) + path;
+        const char *host_end = source_len > 8 ? strchr(source + 8, '/') : nullptr;
+        prefix_len = host_end != nullptr ? host_end - source : source_len;
       } else {
         // directory of the manifest, up to and including its last slash
-        const char *dir_end = strrchr(source.c_str(), '/');
-        info->firmware_url = source.substr(0, dir_end != nullptr ? dir_end - source.c_str() + 1 : 0) + path;
+        const char *dir_end = strrchr(source, '/');
+        prefix_len = dir_end != nullptr ? dir_end - source + 1 : 0;
       }
+      info->firmware_url.insert(0, source, prefix_len);
     }
 
 #ifdef ESPHOME_PROJECT_VERSION
