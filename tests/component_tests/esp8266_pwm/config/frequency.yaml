@@ -1,0 +1,16 @@
+---
+esphome:
+  name: test
+
+esp8266:
+  board: d1_mini
+
+output:
+  - platform: esp8266_pwm
+    id: default_frequency
+    pin: GPIO4
+    frequency: 1kHz
+  - platform: esp8266_pwm
+    id: custom_frequency
+    pin: GPIO5
+    frequency: 2kHz

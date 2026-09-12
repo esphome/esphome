@@ -48,7 +48,9 @@ async def to_code(config: ConfigType) -> None:
     pin = await cg.gpio_pin_expression(config[CONF_PIN])
     cg.add(var.set_pin(pin))
 
-    cg.add(var.set_frequency(config[CONF_FREQUENCY]))
+    # The C++ initializer is 1 kHz; skip the setter when the config matches it.
+    if (frequency := config[CONF_FREQUENCY]) != 1000:
+        cg.add(var.set_frequency(frequency))
 
 
 @automation.register_action(
