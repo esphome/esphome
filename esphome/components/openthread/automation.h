@@ -57,5 +57,18 @@ class OpenThreadComponentPollPeriodAction final : public Action<Ts...>, public O
   void apply_locked(otInstance *instance) override { this->parent_->apply_linkmode_(instance); }
 };
 
+/// Callback forwarder that triggers an Automation<> only when a specific role is entered.
+/// Pointer-sized (single Automation* field) to fit inline in Callback::ctx_.
+template<otDeviceRole State> struct StateEnterForwarder {
+  Automation<> *automation;
+  void operator()(otDeviceRole state) const {
+    if (state == State)
+      this->automation->trigger();
+  }
+};
+
+static_assert(sizeof(StateEnterForwarder<OT_DEVICE_ROLE_DISABLED>) <= sizeof(void *));
+static_assert(std::is_trivially_copyable_v<StateEnterForwarder<OT_DEVICE_ROLE_DISABLED>>);
+
 }  // namespace esphome::openthread
 #endif

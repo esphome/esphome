@@ -3,3 +3,11 @@ network:
 
 openthread:
   tlv: 0E080000000000010000
+  on_state:
+    then:
+      - logger.log:
+          format: "on_state: state is %d"
+          args: [x]
+  on_leader:
+    then:
+      - logger.log: "on_leader"
