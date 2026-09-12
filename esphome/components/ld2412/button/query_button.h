@@ -7,7 +7,8 @@ namespace esphome::ld2412 {
 
 class QueryButton final : public button::Button, public Parented<LD2412Component> {
  public:
-  QueryButton() = default;
+  // User provided, not "= default": `new(p) QueryButton()` would zero-fill .bss that is already zero.
+  QueryButton() {}
 
  protected:
   void press_action() override;
