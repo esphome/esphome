@@ -1,21 +1,29 @@
+from typing import Any
+
 import esphome.codegen as cg
 from esphome.core import ID
+from esphome.types import ConfigType
 
 from ..display import CONF_INIT_SEQUENCE_ID
 from . import EpaperModel
 
 
 class WaveshareModel(EpaperModel):
-    def __init__(self, name, lut, lut_partial=None, **defaults):
-        super().__init__(name, "EpaperWaveshare", **defaults)
+    def __init__(
+        self,
+        name: str,
+        lut: tuple[int, ...],
+        lut_partial: tuple[int, ...] | None = None,
+        **defaults,
+    ):
+        super().__init__(name=name, class_name="EpaperWaveshare", **defaults)
         self.lut = lut
         self.lut_partial = lut_partial
 
-    def get_constructor_args(self, config) -> tuple:
+    def get_constructor_args(self, config: ConfigType) -> tuple:
+        sequence_id: ID = config[CONF_INIT_SEQUENCE_ID]
         lut = (
-            cg.static_const_array(
-                ID(config[CONF_INIT_SEQUENCE_ID].id + "_lut", type=cg.uint8), self.lut
-            ),
+            cg.static_const_array(ID(sequence_id.id + "_lut", type=cg.uint8), self.lut),
             len(self.lut),
         )
         if self.lut_partial is None:
@@ -23,14 +31,38 @@ class WaveshareModel(EpaperModel):
         else:
             lut_partial = (
                 cg.static_const_array(
-                    ID(
-                        config[CONF_INIT_SEQUENCE_ID].id + "_lut_partial", type=cg.uint8
-                    ),
+                    ID(sequence_id.id + "_lut_partial", type=cg.uint8),
                     self.lut_partial,
                 ),
                 len(self.lut_partial),
             )
         return *lut, *lut_partial
+
+
+class WaveshareOtpModel(EpaperModel):
+    """A Waveshare panel whose full refresh uses the controller's built-in OTP waveform.
+
+    Only a partial-refresh LUT is sent to the panel, so no full LUT is carried.
+    """
+
+    def __init__(
+        self,
+        name: str,
+        lut_partial: tuple[int, ...],
+        class_name: str = "EpaperWaveshare2P9V2",
+        **defaults: Any,
+    ) -> None:
+        super().__init__(name, class_name, **defaults)
+        self.lut_partial = lut_partial
+
+    def get_constructor_args(self, config: ConfigType) -> tuple:
+        return (
+            cg.static_const_array(
+                ID(config[CONF_INIT_SEQUENCE_ID].id + "_lut_partial", type=cg.uint8),
+                self.lut_partial,
+            ),
+            len(self.lut_partial),
+        )
 
 
 # fmt: off
@@ -84,5 +116,47 @@ WaveshareModel(
         0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0,
         0x0, 0x0, 0x0, 0x0, 0x22, 0x22, 0x22, 0x22, 0x22, 0x22,
         0x0, 0x0, 0x0,
+    ),
+)
+
+# Waveshare 2.9" V2 Rev 2.1 mono (128x296, SSD1680-class).
+# Full refresh uses OTP (0xF7); partial LUT matches WaveshareEPaper2P9InV2R2 (159 bytes).
+WaveshareOtpModel(
+    "waveshare-2.9in-v2",
+    width=128,
+    height=296,
+    data_rate="10MHz",
+    reset_duration="10ms",
+    minimum_update_interval="25s",
+    initsequence=(
+        (0x01, 0x27, 0x01, 0x00),  # driver output control
+        (0x11, 0x03),  # data entry mode
+        (0x44, 0x00, 0x0F),  # RAM X end: (128 - 1) >> 3
+        (0x45, 0x00, 0x00, 0x27, 0x01),  # RAM Y end: 295 = 0x127
+        (0x21, 0x00, 0x80),  # display update control
+        (0x4E, 0x00),
+        (0x4F, 0x00, 0x00),
+    ),
+    lut_partial=(
+        # PARTIAL_UPD_2IN9_LUT from waveshare_epaper WaveshareEPaper2P9InV2R2
+        0x00, 0x40, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x80, 0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x40, 0x40, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x0A, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01,
+        0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x22, 0x22, 0x22, 0x22, 0x22, 0x22, 0x00, 0x00, 0x00,
+        0x22, 0x17, 0x41, 0xB0, 0x32, 0x36,
     ),
 )
