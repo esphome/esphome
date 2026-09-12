@@ -18,6 +18,7 @@ from esphome.components.esp32 import (
     VARIANT_ESP32S31,
     only_on_variant,
 )
+from esphome.components.zephyr import zephyr_add_overlay, zephyr_add_prj_conf
 from esphome.config_helpers import filter_source_files_from_platform
 import esphome.config_validation as cv
 from esphome.const import (
@@ -36,6 +37,7 @@ from esphome.const import (
     KEY_VARIANT,
     PLATFORM_ESP32,
     PLATFORM_ESP8266,
+    PLATFORM_NRF52,
     PLATFORM_RP2,
     PlatformFramework,
 )
@@ -55,6 +57,9 @@ SPIMode = spi_ns.enum("SPIMode")
 PLATFORM_SPI_CLOCKS = {
     PLATFORM_ESP8266: 40e6,
     PLATFORM_ESP32: 80e6,
+    # ESPHome binds the nRF52 SPI to Zephyr's spi2 node (SPIM2), which the
+    # nrf52840.dtsi caps at 8 MHz; only spi3 (SPIM3) supports 32 MHz.
+    PLATFORM_NRF52: 8e6,
     PLATFORM_RP2: 62.5e6,
 }
 
@@ -206,6 +211,8 @@ def get_hw_interface_list() -> list[list[str]]:
         return [["spi", "spi2"], ["spi3"]]
     if target_platform == PLATFORM_RP2:
         return [["spi"], ["spi1"]]
+    if target_platform == PLATFORM_NRF52:
+        return [["spi", "spi2"]]
     return []
 
 
@@ -287,6 +294,8 @@ def validate_hw_pins(spi: ConfigType, index: int = -1) -> bool:
         if sdo_pin_no not in pin_set[CONF_MOSI_PIN]:
             return False
         return sdi_pin_no in pin_set[CONF_MISO_PIN]
+    if target_platform == PLATFORM_NRF52:
+        return clk_pin_no >= 0
     return False
 
 
@@ -350,6 +359,8 @@ def get_spi_interface(index: int) -> str:
     # Arduino code follows
     if platform == PLATFORM_RP2:
         return ["&SPI", "&SPI1"][index]
+    if platform == PLATFORM_NRF52:
+        return "DEVICE_DT_GET(DT_NODELABEL(spi2))"
     if index == 0:
         return "&SPI"
     return "new SPIClass(HSPI)"
@@ -374,7 +385,7 @@ SPI_SINGLE_SCHEMA = cv.All(
         }
     ),
     cv.has_at_least_one_key(CONF_MISO_PIN, CONF_MOSI_PIN),
-    cv.only_on([PLATFORM_ESP32, PLATFORM_ESP8266, PLATFORM_RP2]),
+    cv.only_on([PLATFORM_ESP32, PLATFORM_ESP8266, PLATFORM_NRF52, PLATFORM_RP2]),
 )
 
 
@@ -424,6 +435,15 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
+def _final_validate(config):
+    full_config = fv.full_config.get().get("spi", [])
+    if CORE.using_zephyr and len(full_config) > 1:
+        raise cv.Invalid("Second spi is not implemented on Zephyr yet")
+
+
+FINAL_VALIDATE_SCHEMA = _final_validate
+
+
 @coroutine_with_priority(CoroPriority.BUS)
 async def to_code(configs: list[ConfigType]) -> None:
     cg.add_define("USE_SPI")
@@ -431,7 +451,49 @@ async def to_code(configs: list[ConfigType]) -> None:
     if CORE.using_arduino and not CORE.is_esp32:
         cg.add_library("SPI", None)
     for spi in configs:
-        var = cg.new_Pvariable(spi[CONF_ID])
+        # On Zephyr a hardware interface is only bound when validation resolved
+        # one (CONF_INTERFACE_INDEX is set). When the bus falls back to (or was
+        # explicitly configured as) interface: software, skip the spi2 overlay and
+        # the set_interface() call so SPIComponent uses the bit-bang path.
+        if CORE.using_zephyr and spi.get(CONF_INTERFACE_INDEX) is not None:
+            zephyr_add_prj_conf("SPI", True)
+            clk_pin = spi[CONF_CLK_PIN][CONF_NUMBER]
+            mosi_pin = spi[CONF_MOSI_PIN][CONF_NUMBER] if CONF_MOSI_PIN in spi else None
+            miso_pin = spi[CONF_MISO_PIN][CONF_NUMBER] if CONF_MISO_PIN in spi else None
+            psels = f"<NRF_PSEL(SPIM_SCK, {clk_pin // 32}, {clk_pin % 32})>"
+            if mosi_pin is not None:
+                psels += f", <NRF_PSEL(SPIM_MOSI, {mosi_pin // 32}, {mosi_pin % 32})>"
+            if miso_pin is not None:
+                psels += f", <NRF_PSEL(SPIM_MISO, {miso_pin // 32}, {miso_pin % 32})>"
+            zephyr_add_overlay(
+                f"""
+                    &pinctrl {{
+                        spi2_default: spi2_default {{
+                            group1 {{
+                                psels = {psels};
+                            }};
+                        }};
+                        spi2_sleep: spi2_sleep {{
+                            group1 {{
+                                psels = {psels};
+                                low-power-enable;
+                            }};
+                        }};
+                    }};
+                    &spi2 {{
+                        status = "okay";
+                        pinctrl-0 = <&spi2_default>;
+                        pinctrl-1 = <&spi2_sleep>;
+                        pinctrl-names = "default", "sleep";
+                    }};
+                """
+            )
+            var = cg.new_Pvariable(spi[CONF_ID])
+            interface = get_spi_interface(spi[CONF_INTERFACE_INDEX])
+            cg.add(var.set_interface(cg.RawExpression(interface)))
+            cg.add(var.set_interface_name("spi2"))
+        else:
+            var = cg.new_Pvariable(spi[CONF_ID])
         await cg.register_component(var, spi)
         clk = await cg.gpio_pin_expression(spi[CONF_CLK_PIN])
         cg.add(var.set_clk(clk))
@@ -441,7 +503,10 @@ async def to_code(configs: list[ConfigType]) -> None:
             cg.add(var.set_mosi(await cg.gpio_pin_expression(mosi)))
         if data_pins := spi.get(CONF_DATA_PINS):
             cg.add(var.set_data_pins(data_pins))
-        if (index := spi.get(CONF_INTERFACE_INDEX)) is not None:
+        if (
+            not CORE.using_zephyr
+            and (index := spi.get(CONF_INTERFACE_INDEX)) is not None
+        ):
             interface = get_spi_interface(index)
             cg.add(var.set_interface(cg.RawExpression(interface)))
             cg.add(
@@ -570,5 +635,6 @@ FILTER_SOURCE_FILES = filter_source_files_from_platform(
             PlatformFramework.ESP32_ARDUINO,
             PlatformFramework.ESP32_IDF,
         },
+        "spi_zephyr.cpp": {PlatformFramework.NRF52_ZEPHYR},
     }
 )
