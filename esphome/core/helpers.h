@@ -12,6 +12,7 @@
 #include <iterator>
 #include <limits>
 #include <memory>
+#include <new>
 #include <span>
 #include <string>
 #include <type_traits>
@@ -577,6 +578,9 @@ template<typename T> class FixedVector {
   // Helper to assign from initializer list (shared by constructor and assignment operator)
   void assign_from_initializer_list_(std::initializer_list<T> init_list) {
     init(init_list.size());
+    if (data_ == nullptr) {
+      return;  // Allocation failed; leave the vector empty
+    }
     size_t idx = 0;
     for (const auto &item : init_list) {
       new (data_ + idx) T(item);
@@ -639,8 +643,12 @@ template<typename T> class FixedVector {
       // Allocate raw memory without calling constructors
       // sizeof(T) is correct here for any type T (value types, pointers, etc.)
       // NOLINTNEXTLINE(bugprone-sizeof-expression)
-      data_ = static_cast<T *>(::operator new(n * sizeof(T)));
-      capacity_ = n;
+      data_ = static_cast<T *>(::operator new(n * sizeof(T), std::nothrow));
+      // capacity_ stays 0 when the allocation fails, so push_back() degrades to
+      // a no-op rather than writing through a null pointer.
+      if (data_ != nullptr) {
+        capacity_ = n;
+      }
     }
   }
 
