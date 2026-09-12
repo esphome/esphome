@@ -11,6 +11,9 @@ namespace esphome::esp8266_pwm {
 
 class ESP8266PWM final : public output::FloatOutput, public Component {
  public:
+  // User provided, not "= default": `new(p) ESP8266PWM()` would zero-fill .bss that is already zero.
+  ESP8266PWM() {}
+
   void set_pin(InternalGPIOPin *pin) { pin_ = pin; }
   void set_frequency(float frequency) { this->frequency_ = frequency; }
   /// Dynamically update frequency
@@ -28,7 +31,7 @@ class ESP8266PWM final : public output::FloatOutput, public Component {
  protected:
   void write_state(float state) override;
 
-  InternalGPIOPin *pin_;
+  InternalGPIOPin *pin_{nullptr};
   float frequency_{1000.0};
   /// Cache last output level for dynamic frequency updating
   float last_output_{0.0};
