@@ -28,7 +28,10 @@ class Number;
  */
 class Number : public EntityBase {
  public:
-  float state;
+  // User provided, not "= default": `new(p) Number()` would zero-fill .bss that is already zero.
+  Number() {}
+
+  float state{};
 
   void publish_state(float state);
 
