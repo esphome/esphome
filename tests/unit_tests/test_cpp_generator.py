@@ -85,6 +85,15 @@ class TestCallExpression:
         assert actual == 'my_function<int32_t, float>(1, "2", false)'
 
 
+class TestStaticCastExpression:
+    def test_str(self):
+        target = cg.StaticCastExpression(ct.bool_, 42)
+
+        actual = str(target)
+
+        assert actual == "static_cast<bool>(42)"
+
+
 class TestStructInitializer:
     def test_str(self):
         target = cg.StructInitializer(
@@ -227,6 +236,76 @@ class TestLambdaExpression:
         assert actual == (
             "[captured_var](int32_t x) -> int32_t {\n  return captured_var + x;\n}"
         )
+
+
+class TestCallLambda:
+    """Tests for the call_lambda() function."""
+
+    def test_call_lambda__return_expression_casts_to_return_type(self):
+        """A lambda body that is just a return statement reduces to the
+        expression, cast to the lambda's return type."""
+        lamb = cg.LambdaExpression(("return foo + 1;",), (), "", ct.bool_)
+
+        result = cg.call_lambda(lamb)
+
+        assert isinstance(result, cg.StaticCastExpression)
+        assert str(result) == "static_cast<bool>(foo + 1)"
+
+    def test_call_lambda__return_expression_with_class_return_type_no_cast(self):
+        """A class return type is not cast, since static_cast doesn't apply
+        to arbitrary class types."""
+        mock_class = cg.MockObjClass("foo::Bar", parents=())
+        lamb = cg.LambdaExpression(("return get_bar();",), (), "", mock_class)
+
+        result = cg.call_lambda(lamb)
+
+        assert isinstance(result, cg.RawExpression)
+        assert str(result) == "get_bar()"
+
+    def test_call_lambda__no_return_with_parameters_calls_with_names(self):
+        """A multi-statement lambda with parameters is called with the
+        parameter names as arguments."""
+        lamb = cg.LambdaExpression(
+            ("do_something(x, y);",), ((int, "x"), (float, "y")), "=", ct.bool_
+        )
+
+        result = cg.call_lambda(lamb)
+
+        assert isinstance(result, cg.CallExpression)
+        assert str(result) == (
+            "[=](int32_t x, float y) -> bool {\n  do_something(x, y);\n}(x, y)"
+        )
+
+    def test_call_lambda__no_return_type_raises(self):
+        """Calling a lambda with no declared return type is a developer
+        error: call_lambda is only for value-returning lambdas."""
+        lamb = cg.LambdaExpression(("do_something();",), (), "=")
+
+        with pytest.raises(AssertionError):
+            cg.call_lambda(lamb)
+
+    def test_call_lambda__identifier_starting_with_return_is_not_a_return_statement(
+        self,
+    ):
+        """A body that merely starts with the substring "return" (e.g. a call
+        to a function named returnValue()) must not be mistaken for a return
+        statement -- the match requires a word boundary after "return"."""
+        lamb = cg.LambdaExpression(("returnValue();",), (), "=", ct.bool_)
+
+        result = cg.call_lambda(lamb)
+
+        assert isinstance(result, cg.CallExpression)
+        assert str(result) == "[=]() -> bool {\n  returnValue();\n}()"
+
+    def test_call_lambda__no_return_no_parameters_calls_with_no_args(self):
+        """A multi-statement lambda without parameters is called with no
+        arguments."""
+        lamb = cg.LambdaExpression(("do_something();",), (), "", ct.bool_)
+
+        result = cg.call_lambda(lamb)
+
+        assert isinstance(result, cg.CallExpression)
+        assert str(result) == "[]() -> bool {\n  do_something();\n}()"
 
 
 class TestLiterals:
