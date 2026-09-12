@@ -1,0 +1,323 @@
+globals:
+  - id: g_led_mask
+    type: uint32_t
+    initial_value: "0"
+  - id: g_display_text
+    type: std::string
+    initial_value: '""'
+  - id: g_lights_confirm_count
+    type: uint32_t
+    initial_value: "0"
+  - id: g_lights_failed_count
+    type: uint32_t
+    initial_value: "0"
+
+# NOTE: every hub below shares one UART (uart_bus) so this single config exercises all hub modes
+# for compile/config coverage. On real hardware each actively-transmitting hub needs its own UART;
+# this is a test fixture, not a wiring example.
+rs485_frame:
+  # Hub 1 — exercises on_frame: triggers + diagnostic sensors + button + number.
+  # crc: is required (it has no default). command_format: is set explicitly so
+  # the `value:`-form button below is accepted (the button platform's _final_validate
+  # rejects `value:` against a hub with no command_format). The default frame_trigger gate
+  # mode requires an explicit gate.frame_type. A representative non-trivial command_format:
+  # 3-byte preamble, 4-byte value x 2, 1-byte pad.
+  - id: rs485_frame_hub
+    uart_id: uart_bus
+    framing:
+      escape:
+        mode: escape_byte
+        byte: 0x00
+    crc:
+      type: sum16_big_endian
+    tx:
+      gate:
+        frame_type: [0x01, 0x01]
+    command_format:
+      preamble: [0x00, 0x83, 0x01]
+      value_element_bytes: 4
+      postamble: [0x00]
+    dump_frames: true
+    frame_timeout: 50ms
+    # Non-default size/capture_bytes/include_invalid so CI compiles the FixedVector at a size
+    # other than the schema default, and exercises the reject-path record() call
+    # (include_invalid: true, the default, but set explicitly here for clarity).
+    frame_trace:
+      size: 16
+      capture_bytes: 20
+      include_invalid: true
+    on_frame:
+      # Decode a 32-bit little-endian bitmask once; push to multiple template sensors.
+      - frame_type: [0x01, 0x02]
+        then:
+          - lambda: |-
+              if (payload.size() < 6) return;
+              uint32_t mask = uint32_t(payload[2]) | (uint32_t(payload[3]) << 8) |
+                              (uint32_t(payload[4]) << 16) | (uint32_t(payload[5]) << 24);
+              id(g_led_mask) = mask;
+              id(led_bit0).publish_state(bool(mask & (1UL << 0)));
+              id(led_bit1).publish_state(bool(mask & (1UL << 1)));
+      # Display text decode into a static (BSS-allocated) buffer then a single
+      # std::string at publish time. static: allocated once at program start so the
+      # lambda inherits the hub's no-heap-after-setup discipline.
+      #
+      # frame_type accepts the list-of-prefixes form: the same lambda fires for both
+      # display frame types (0x01 0x03 main + 0x01 0x09 secondary) without duplicating
+      # the body. The frame_type bytes remain at payload[0..1] so the decode is identical.
+      - frame_type:
+          - [0x01, 0x03]
+          - [0x01, 0x09]
+        then:
+          - lambda: |-
+              const size_t BUF_LEN = 128;
+              static char out[BUF_LEN];
+              uint8_t olen = 0;
+              for (size_t i = 3; i < payload.size() && olen < (BUF_LEN - 1); i++) {
+                uint8_t b = payload[i] & 0x7F;  // strip blink bit
+                if (b >= 0x20 && b < 0x7F)
+                  out[olen++] = char(b);
+              }
+              id(display_text).publish_state(std::string(out, olen));
+      # Match-every-frame: write the first byte to a global for diagnostics.
+      - frame_type: []
+        then:
+          - lambda: |-
+              if (!payload.empty())
+                id(g_led_mask) = payload[0];
+    # Live trigger -> response confirmation. Exercises button_id: trigger resolution,
+    # named field: references, the changed+bit signature mode (bit: 6 resolves to mask:
+    # 0x40), and the response_* sensor decodes below.
+    response_fields:
+      led_mask_01_02:
+        frame_type: [0x01, 0x02]
+        offset: 2
+        length: 4
+        endian: little
+    response_monitor:
+      - name: lights_confirm
+        trigger:
+          button_id: lights_toggle_button
+        window: 200ms
+        signature:
+          - field: led_mask_01_02
+            type: changed
+            bit: 6
+        # on_confirmed:/on_failed: automation triggers, independent of the built-in sensors
+        # above -- exercises the per-entry callback registration/codegen path.
+        on_confirmed:
+          - lambda: |-
+              id(g_lights_confirm_count) += 1;
+        on_failed:
+          - lambda: |-
+              id(g_lights_failed_count) += 1;
+          # Wires the frame_trace dump into a response_monitor failure -- the documented
+          # diagnostics use case (see this feature's own docs section).
+          - rs485_frame.dump_frame_trace: rs485_frame_hub
+
+  # Hub 2 — sniffer-only with idle_gap gate and CRC16-Modbus. Exercises a different
+  # crc_type, gate mode, queue policy, and the FIFO-with-larger-queue path.
+  # Also exercises sniffer_stats: with an explicit reference_frame_type, so the
+  # USE_RS485_FRAME_SNIFFER_STATS gated code paths are compiled by CI.
+  - id: rs485_frame_hub2
+    uart_id: uart_bus
+    sniffer_only: true
+    # double escape mode: a literal DLE is stuffed by doubling it (DLE DLE) rather than with
+    # a separate escape byte. Exercises the doubling framer/encoder path in CI.
+    framing:
+      escape:
+        mode: double
+    crc:
+      type: crc16_modbus
+      rx_accept: [header_inclusive, payload_only]
+      tx_variant: header_inclusive
+    tx:
+      gate:
+        mode: idle_gap
+        min_silence: 10ms
+      queue_policy: fifo
+      max_queue_size: 4
+    sniffer_stats:
+      interval: 10s
+      max_frame_types: 16
+      payload_dump_top: 2
+      reference_frame_type: [0x01, 0x01]
+      ascii_strip_high_bit: true
+
+  # Hub 3 — generic raw hub with no command_format: target of the raw-form button and the
+  # send_frame action, proving the raw transmit path works without any command_format. XOR8
+  # CRC, fixed_delay gate.
+  - id: rs485_frame_hub3
+    uart_id: uart_bus
+    framing:
+      escape:
+        mode: escape_byte
+        byte: 0x00
+    crc:
+      type: xor8
+    tx:
+      gate:
+        mode: fixed_delay
+        interval: 500ms
+
+  # Hub 4 — exercises the idle_command path (send_next_idle_ / build_key_payload_). idle_command
+  # requires a command_format so the value has a defined on-wire encoding; a 1-byte command is
+  # used here. idle_gap gate so the keepalive is emitted after bus silence.
+  - id: rs485_frame_hub4
+    uart_id: uart_bus
+    framing:
+      escape:
+        mode: escape_byte
+        byte: 0x00
+    crc:
+      type: sum8
+    command_format:
+      value_element_bytes: 1
+    tx:
+      gate:
+        mode: idle_gap
+        min_silence: 20ms
+      idle_command: 0x00
+
+  # Hub 5 — discovery mode: no framing/crc/escape declared (those are what it discovers). The
+  # hub bypasses framing/validation/TX and passively analyzes raw traffic. Compiles the
+  # USE_RS485_FRAME_DISCOVERY code path in CI.
+  - id: rs485_frame_hub5
+    uart_id: uart_bus
+    discovery:
+      interval: 15s
+      idle_gap: 4ms
+      min_framing_confidence: 75
+      # Exercise the runtime baud/data-bits sweep codegen path.
+      baud_sweep: [9600, 19200, 38400]
+      data_bits_sweep: [7, 8]
+      dwell: 8s
+
+  # Hub 6 — sum16_little_endian CRC: compiles the little-endian 2-byte CRC read/emit branch
+  # for a sum (the counterpart to sum16_big_endian; same on-wire byte order as crc16_modbus).
+  - id: rs485_frame_hub6
+    uart_id: uart_bus
+    framing:
+      escape:
+        mode: escape_byte
+        byte: 0x00
+    crc:
+      type: sum16_little_endian
+    tx:
+      gate:
+        mode: idle_gap
+        min_silence: 15ms
+
+binary_sensor:
+  # User RX decoding is done entirely through on_frame: + template sensors.
+  - platform: template
+    id: led_bit0
+    name: "LED Bit 0"
+
+  - platform: template
+    id: led_bit1
+    name: "LED Bit 1"
+
+text_sensor:
+  # User text decoding via on_frame: + template text_sensor.
+  - platform: template
+    id: display_text
+    name: "Display Text"
+
+  # Diagnostic: most recent validated frame type as 4-hex string.
+  - platform: rs485_frame
+    rs485_frame_id: rs485_frame_hub
+    name: "Last Frame Type"
+
+sensor:
+  # Diagnostic counters. The rs485_frame sensor platform gates its own publishes to
+  # on-change in loop() (sensor::publish_state does not dedupe), so a steady-state bus
+  # produces no repeat API traffic.
+  - platform: rs485_frame
+    rs485_frame_id: rs485_frame_hub
+    name: "Frames Received"
+    decode: frames_received
+
+  - platform: rs485_frame
+    rs485_frame_id: rs485_frame_hub
+    name: "CRC Failures"
+    decode: crc_failures
+
+  - platform: rs485_frame
+    rs485_frame_id: rs485_frame_hub
+    name: "Commands Sent"
+    decode: commands_sent
+
+  - platform: rs485_frame
+    rs485_frame_id: rs485_frame_hub
+    name: "Command Drops"
+    decode: command_drops
+
+  - platform: rs485_frame
+    rs485_frame_id: rs485_frame_hub
+    name: "Last Keepalive ms"
+    decode: last_keepalive_ms
+    # Platform supplies state_class=measurement, unit=ms, device_class=duration. Override
+    # state_class here to confirm explicit values win over the per-decode default.
+    state_class: total
+
+  - platform: rs485_frame
+    rs485_frame_id: rs485_frame_hub
+    name: "Queue Depth"
+    decode: queue_depth
+
+  - platform: rs485_frame
+    rs485_frame_id: rs485_frame_hub
+    name: "Lights Confirm Success"
+    decode: response_success
+    monitor_id: lights_confirm
+
+  - platform: rs485_frame
+    rs485_frame_id: rs485_frame_hub
+    name: "Lights Confirm Fail"
+    decode: response_fail
+    monitor_id: lights_confirm
+
+  - platform: rs485_frame
+    rs485_frame_id: rs485_frame_hub
+    name: "Lights Confirm Timeout"
+    decode: response_timeout
+    monitor_id: lights_confirm
+
+button:
+  # value: form — encodes via the hub's command_format.
+  - platform: rs485_frame
+    id: lights_toggle_button
+    rs485_frame_id: rs485_frame_hub
+    name: "Lights Toggle"
+    value: 0x00010000
+
+  # Raw-form: bypasses command_format entirely — frame_type + payload bytes go out as-is.
+  # Targets hub3 (no command_format set) to prove the raw path works when the command-form
+  # path would have been rejected by the button platform's _final_validate.
+  - platform: rs485_frame
+    rs485_frame_id: rs485_frame_hub3
+    name: "Generic Probe Frame"
+    frame_type: [0x00, 0xA1]
+    payload: [0x01, 0x00, 0x55]
+
+# Exercise the rs485_frame.send_frame action against a templatable button. Covers both
+# templatable frame_type and templatable payload paths in codegen so the TemplatableValue
+# overloads are instantiated by CI compile.
+script:
+  - id: send_generic_probe
+    then:
+      - rs485_frame.send_frame:
+          id: rs485_frame_hub3
+          frame_type: [0x00, 0xA2]
+          payload: !lambda |-
+            return std::vector<uint8_t>{0x42, 0x00, static_cast<uint8_t>(id(g_led_mask) & 0xFF)};
+
+number:
+  - platform: rs485_frame
+    rs485_frame_id: rs485_frame_hub
+    name: "VSP Speed"
+    min_value: 0
+    max_value: 100
+    step: 1
+    lambda: |-
+      return std::vector<uint8_t>{0x0c, 0x01, 0x00, static_cast<uint8_t>(x)};

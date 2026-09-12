@@ -449,6 +449,7 @@ esphome/components/rp2040_pio_led_strip/* @Papa-DMan
 esphome/components/rp2040_pwm/* @jesserockz
 esphome/components/rp2_ble_tracker/* @bdraco
 esphome/components/rpi_dpi_rgb/* @clydebarrow
+esphome/components/rs485_frame/* @b3nj1
 esphome/components/rtl87xx/* @kuba2k2
 esphome/components/rtttl/* @glmnet @ximex
 esphome/components/runtime_image/* @clydebarrow @guillempages @kahrendt

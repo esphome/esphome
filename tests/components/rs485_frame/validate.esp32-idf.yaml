@@ -1,0 +1,170 @@
+## Config-only validation tests for validate_hub() branches and the button platform's
+## _final_validate, which the compiled common.yaml does not all reach. CI runs this with
+## `esphome config` only; it is never compiled, so it uses the shared UART package like the
+## compiled tests.
+
+packages:
+  uart: !include ../../test_build_components/common/uart/esp32-idf.yaml
+
+rs485_frame:
+  # frame_trigger gate (default mode) with an explicit gate.frame_type + a command_format,
+  # so the `command:`-form button below is accepted.
+  - id: cmd_hub
+    uart_id: uart_bus
+    framing:
+      escape:
+        mode: escape_byte
+        byte: 0x00
+    crc:
+      type: sum16_big_endian
+      rx_accept: [header_inclusive, payload_only]
+      tx_variant: header_inclusive
+    tx:
+      gate:
+        frame_type: [0x01, 0x01]
+    command_format:
+      preamble: [0x00, 0x83, 0x01]
+      value_element_bytes: 4
+      postamble: [0x00]
+
+  # Sniffer-only hub: exempt from the frame_trigger gate.frame_type requirement, and
+  # exercises sniffer_stats: with no explicit reference_frame_type so the default-to-gate
+  # fallback in to_code is reached during config-only validation. crc: type none.
+  - id: sniffer_hub
+    uart_id: uart_bus
+    sniffer_only: true
+    # double escape mode validated config-only here (no byte: key permitted).
+    framing:
+      escape:
+        mode: double
+    crc:
+      type: none
+    tx:
+      gate:
+        mode: idle_gap
+    sniffer_stats: {}
+
+  # Raw-only generic hub with custom (non-default) framing bytes — exercises the framing
+  # distinctness validation passing, and is the target of the raw-form button below (no
+  # command_format, so the `command:` form would be rejected against it).
+  - id: raw_hub
+    uart_id: uart_bus
+    framing:
+      dle: 0x7D
+      stx: 0x01
+      etx: 0x04
+      escape:
+        mode: escape_byte
+        byte: 0x00
+    crc:
+      type: xor8
+    tx:
+      gate:
+        mode: idle_gap
+
+  # idle_command requires a command_format so the value has a defined encoding. fixed_delay
+  # gate mode (no gate.frame_type needed).
+  - id: idle_hub
+    uart_id: uart_bus
+    framing:
+      escape:
+        mode: escape_byte
+        byte: 0x00
+    crc:
+      type: sum8
+    command_format:
+      preamble: [0x00, 0x01, 0x80]
+      value_element_bytes: 1
+    tx:
+      gate:
+        mode: fixed_delay
+        interval: 250ms
+      idle_command: 0x00
+
+  # discovery hub: no framing.escape and no crc: required (those are what it discovers).
+  # Exercises the validate_hub early-return branch and the discovery: defaults.
+  - id: discover_hub
+    uart_id: uart_bus
+    discovery: {}
+
+# Buttons exercise all _validate_button + _final_validate branches:
+#   - value: form against a hub that has command_format (cmd_hub)                   -> accepted
+#   - raw form against a hub with no command_format (raw_hub)                       -> accepted
+#   - value: + button-level command_format overriding hub's format (cmd_hub)        -> accepted
+#   - value: + button-level command_format against hub with no format (raw_hub)     -> accepted
+#   - value: + value_element_bytes: lightweight override (cmd_hub)                  -> accepted
+button:
+  - platform: rs485_frame
+    rs485_frame_id: cmd_hub
+    name: "Validate Value"
+    value: 0x00010000
+
+  - platform: rs485_frame
+    rs485_frame_id: raw_hub
+    name: "Validate Raw"
+    frame_type: [0x00, 0xA1]
+    payload: [0x01, 0x02, 0x03, 0x04]
+
+  # Per-button command_format: override against a hub that already has its own format.
+  # Exercises the branch where the button's format takes precedence over the hub's.
+  - platform: rs485_frame
+    rs485_frame_id: cmd_hub
+    name: "Validate Button Format Override"
+    value: 0x08000000
+    command_format:
+      preamble: [0x00, 0x03]
+      value_element_bytes: 4
+      endian: big
+
+  # Per-button command_format: against a hub with no hub-level format.
+  # Exercises the button-supplies-format path; _final_validate must not reject this.
+  - platform: rs485_frame
+    rs485_frame_id: raw_hub
+    name: "Validate Button Supplies Format"
+    value: 0x00000001
+    command_format:
+      preamble: [0x00, 0x83, 0x01]
+      value_element_bytes: 4
+      endian: big
+      postamble: [0x00]
+
+  # List-mode value: two values encoded back-to-back in one frame. Exercises the
+  # cv.ensure_list(...) schema path and the multi-value queue_command_with_format() call.
+  - platform: rs485_frame
+    rs485_frame_id: raw_hub
+    name: "Validate Value List"
+    value: [0x05000000, 0x04000000]
+    command_format:
+      preamble: [0x00, 0x83, 0x01]
+      value_element_bytes: 4
+      endian: big
+      postamble: [0x00]
+
+  # List-mode value at the full MAX_COMMAND_VALUES cap. Exercises cv.Length(max=...) at
+  # its boundary and the StaticVector<uint32_t, MAX_COMMAND_VALUES> capacity.
+  - platform: rs485_frame
+    rs485_frame_id: raw_hub
+    name: "Validate Value List Max"
+    value: [0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08]
+    command_format:
+      preamble: [0x00, 0x83, 0x01]
+      value_element_bytes: 1
+      endian: big
+      postamble: [0x00]
+
+  # Lightweight value_element_bytes: override — uses hub's preamble/endian/postamble but
+  # a 1-byte-per-element encoding. Exercises the has_value_element_bytes_override_ path.
+  - platform: rs485_frame
+    rs485_frame_id: cmd_hub
+    name: "Validate Value Element Bytes Override"
+    value: [0x01, 0x02]
+    value_element_bytes: 1
+
+  # 3-byte element width (24-bit values). Schema allows 1, 2, 3, 4; this exercises 3.
+  - platform: rs485_frame
+    rs485_frame_id: raw_hub
+    name: "Validate Value Element Bytes 3"
+    value: 0x010203
+    command_format:
+      preamble: [0x00, 0x01]
+      value_element_bytes: 3
