@@ -69,6 +69,7 @@ async def epaper_spi_full_refresh_to_code(config, action_id, template_arg, args)
     await cg.register_parented(var, config[CONF_ID])
     return var
 
+
 # Import all models dynamically from the models package
 for module_info in pkgutil.iter_modules(models.__path__):
     importlib.import_module(f".models.{module_info.name}", package=__package__)

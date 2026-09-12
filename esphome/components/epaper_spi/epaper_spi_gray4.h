@@ -89,8 +89,8 @@ class EPaperGray4 : public EPaperBase {
   uint8_t color_to_level_(Color color) const;
   uint8_t level_at_(int x, int y) const;
 
-  uint8_t plane_{0};           // first or second pass of a push
-  bool partial_push_{false};   // latched for the whole push
+  uint8_t plane_{0};          // first or second pass of a push
+  bool partial_push_{false};  // latched for the whole push
   bool sleep_panel_{false};
   split_buffer::SplitBuffer shadow_{};  // 1bpp frame on the glass
 };

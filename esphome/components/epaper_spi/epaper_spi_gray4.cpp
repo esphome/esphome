@@ -121,9 +121,7 @@ bool HOT EPaperGray4::transfer_data() {
         out = 0;
         for (uint8_t i = 0; i < 8; i++) {
           const uint8_t level = this->level_at_((int) (b * 8 + i), y);
-          const uint8_t bit = this->partial_push_ ? (level >= 2)
-                              : second_pass      ? (level & 1)
-                                                 : (level >> 1);
+          const uint8_t bit = this->partial_push_ ? (level >= 2) : second_pass ? (level & 1) : (level >> 1);
           out |= bit << (7 - i);
           mono |= (uint8_t) (level >= 2) << (7 - i);
         }
@@ -175,7 +173,6 @@ void EPaperGray4::deep_sleep() {
   ESP_LOGV(TAG, "Panel deep sleep");
   this->cmd_data(0x10, {0x03});
 }
-
 
 // Vendor waveform selection: 0xD7 is not a named row of the datasheet's
 // Table 7-1. Seeed's dashboard driver and the stock firmware both send it,
