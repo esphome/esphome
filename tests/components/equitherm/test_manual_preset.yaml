@@ -1,0 +1,45 @@
+esphome:
+  name: test-equitherm-manual
+
+esp32:
+  board: esp32dev
+
+sensor:
+  - platform: template
+    id: outdoor_temp
+    lambda: "return 5.0f;"
+  - platform: template
+    id: indoor_temp
+    lambda: "return 20.0f;"
+
+number:
+  - platform: template
+    id: ch_setpoint
+    min_value: 20
+    max_value: 85
+    step: 0.5
+    optimistic: true
+
+  - platform: template
+    id: manual_flow_temp
+    name: "Manual Flow Temperature"
+    min_value: 20
+    max_value: 85
+    step: 0.5
+    optimistic: true
+    initial_value: 45
+
+climate:
+  - platform: equitherm
+    id: equitherm_climate
+    outdoor_sensor: outdoor_temp
+    indoor_sensor: indoor_temp
+    default_target_temperature: 20
+    flow_setpoint: ch_setpoint
+    manual_flow_temp: manual_flow_temp
+    control_parameters:
+      heat_curve_coefficient: 1.4
+      heat_curve_exponent: 1.3
+    output_parameters:
+      min_flow_temp: 20
+      max_flow_temp: 70
