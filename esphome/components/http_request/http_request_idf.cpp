@@ -1,8 +1,8 @@
 #include "http_request_idf.h"
 
-#include <cstring>
-
 #ifdef USE_ESP32
+
+#include <cstring>
 
 #include "esphome/components/network/util.h"
 #include "esphome/components/watchdog/watchdog.h"
