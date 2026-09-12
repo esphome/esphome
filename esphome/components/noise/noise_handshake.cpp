@@ -8,6 +8,24 @@ namespace esphome::noise {
 
 static const char *const TAG = "noise";
 
+// Test branch only: a copy of CpuFrequencyBoost from esphome/core/helpers.h so this
+// component works through external_components against a dev that lacks it.
+#if defined(USE_ESP8266) && F_CPU != 160000000L
+// NOLINTNEXTLINE(readability-redundant-declaration)
+extern "C" bool system_update_cpu_freq(uint8_t freq);
+class HandshakeCpuBoost {
+ public:
+  HandshakeCpuBoost() { system_update_cpu_freq(160); }
+  ~HandshakeCpuBoost() { system_update_cpu_freq(80); }
+};
+#else
+class HandshakeCpuBoost {
+ public:
+  HandshakeCpuBoost() {}
+  ~HandshakeCpuBoost() {}
+};
+#endif
+
 // Log the failing noise-c call at the same verbosity the api helper used
 // before this class existed; callers only see one collapsed error code.
 #define HANDSHAKE_STEP_LOG(func_name, err_code) \
@@ -102,7 +120,7 @@ NoiseResponderHandshake::Action NoiseResponderHandshake::action() const {
 }
 
 int NoiseResponderHandshake::read_message(uint8_t *data, size_t len) {
-  CpuFrequencyBoost boost;
+  HandshakeCpuBoost boost;
   NoiseBuffer mbuf;
   noise_buffer_init(mbuf);
   noise_buffer_set_input(mbuf, data, len);
@@ -111,7 +129,7 @@ int NoiseResponderHandshake::read_message(uint8_t *data, size_t len) {
 
 int NoiseResponderHandshake::write_message(uint8_t *out, size_t capacity, size_t &out_len) {
   out_len = 0;
-  CpuFrequencyBoost boost;
+  HandshakeCpuBoost boost;
   NoiseBuffer mbuf;
   noise_buffer_init(mbuf);
   noise_buffer_set_output(mbuf, out, capacity);
