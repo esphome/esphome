@@ -1,5 +1,6 @@
 """ESP-IDF direct build API for ESPHome."""
 
+from contextlib import suppress
 from dataclasses import dataclass, field
 import hashlib
 import json
@@ -527,6 +528,20 @@ def run_compile(config, verbose: bool) -> int:
             _LOGGER.error("Failed to generate linker script")
             return result.returncode
         _patch_memory_segments()
+
+    # After every reconfigure so compile_commands and sdkconfig are settled.
+    # An optional speedup must never abort the build
+    from esphome.build_gen.espidf import discard_pch, prepare_pch
+
+    try:
+        prepare_pch()
+    except Exception:  # noqa: BLE001  # pylint: disable=broad-exception-caught
+        # Discard so a stale .gch can never be consumed
+        with suppress(OSError):
+            discard_pch()
+        _LOGGER.warning(
+            "Precompiled header setup failed; compiling without it", exc_info=True
+        )
 
     # Build
     args = []

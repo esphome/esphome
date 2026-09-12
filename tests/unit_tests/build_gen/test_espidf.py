@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 from pathlib import Path
+import subprocess
 from unittest.mock import patch
 
 import pytest
@@ -488,3 +490,616 @@ def test_get_component_cmakelists_no_compile_features() -> None:
         content = get_component_cmakelists()
 
     assert "target_compile_features" not in content
+
+
+@pytest.fixture(autouse=True)
+def _pch_default_on(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Pin the knob so a developer's ESPHOME_PCH_ENABLE=0 cannot fail these."""
+    monkeypatch.setenv("ESPHOME_PCH_ENABLE", "1")
+
+
+def _make_pch_device(tmp_path: Path, name: str) -> Path:
+    """A device dir with the pch source headers and a stub compile_commands."""
+    from esphome.build_helpers.pch import PCH_DEFAULT_HEADERS
+
+    dev = tmp_path / name
+    for header in PCH_DEFAULT_HEADERS:
+        path = dev / "src" / header
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("")
+    # A real quoted include chain and a per-device-named sdkconfig with
+    # identical content: the closure and sdkconfig inputs must be exercised
+    (dev / "src" / "esphome" / "core" / "defines.h").write_text(
+        '#include "esphome/core/macros.h"\n'
+    )
+    (dev / "src" / "esphome" / "core" / "macros.h").write_text("#define M 1\n")
+    # Both spellings: tests patch CORE.name to "test" or to the device name
+    (dev / f"sdkconfig.{name}").write_text("CONFIG_X=y\n")
+    (dev / "sdkconfig.test").write_text("CONFIG_X=y\n")
+    build = dev / "build"
+    build.mkdir(exist_ok=True)
+    from esphome.build_helpers.pch import pch_header_text
+
+    (build / "esphome_pch.h").write_text(pch_header_text(PCH_DEFAULT_HEADERS))
+    # Native separators: mixed f-string paths break the src-prefix match
+    # on Windows
+    src_file = str(dev / "src" / "a.cpp")
+    (build / "compile_commands.json").write_text(
+        json.dumps(
+            [
+                {
+                    "directory": str(build),
+                    "command": (
+                        "g++ -DX=1 -include esphome_pch.h "
+                        "-o esp-idf/src/CMakeFiles/__idf_src.dir/a.cpp.obj "
+                        f'-c "{src_file}"'
+                    ),
+                    "file": src_file,
+                }
+            ]
+        )
+    )
+    return dev
+
+
+def test_prepare_pch_writes_header_and_sum(tmp_path: Path) -> None:
+    from esphome.build_gen.espidf import prepare_pch
+
+    dev = _make_pch_device(tmp_path, "dev_a")
+    CORE.build_path = dev
+    gch = dev / "build" / "esphome_pch.h.gch"
+
+    def fake_compile(cmd, **kwargs):
+        # The compile must target the header, not the stub TU
+        assert cmd[-5:-3] == ["c++-header", "-c"]
+        gch.write_bytes(b"gch")
+        return subprocess.CompletedProcess(cmd, 0, "", "")
+
+    with (
+        patch.object(CORE, "name", "test"),
+        patch("esphome.build_helpers.pch.subprocess.run", side_effect=fake_compile),
+    ):
+        prepare_pch()
+    checksum = (dev / "build" / "esphome_pch.h.gch.sum").read_text().strip()
+    assert len(checksum) == 64
+    # Unchanged inputs: the second call must not recompile
+    with (
+        patch.object(CORE, "name", "test"),
+        patch("esphome.build_helpers.pch.subprocess.run", side_effect=AssertionError),
+    ):
+        prepare_pch()
+
+
+def test_pch_no_device_path_poison(tmp_path: Path) -> None:
+    """Regression: neither the injected -include nor the .sum may carry the
+    per-device build path, or cross-device ccache sharing breaks."""
+    from esphome.build_gen.espidf import get_component_cmakelists, prepare_pch
+
+    sums = []
+    for name in ("dev_a", "dev_b"):
+        dev = _make_pch_device(tmp_path, name)
+        CORE.build_path = dev
+        gch = dev / "build" / "esphome_pch.h.gch"
+
+        def fake_compile(cmd, _gch=gch, **kwargs):
+            _gch.write_bytes(b"gch")
+            return subprocess.CompletedProcess(cmd, 0, "", "")
+
+        with (
+            patch.object(CORE, "name", name),
+            patch("esphome.build_helpers.pch.subprocess.run", side_effect=fake_compile),
+        ):
+            prepare_pch()
+            content = get_component_cmakelists()
+        assert str(dev) not in content
+        sums.append((dev / "build" / "esphome_pch.h.gch.sum").read_text())
+    assert sums[0] == sums[1]
+
+
+def test_component_cmakelists_pch_block(monkeypatch: pytest.MonkeyPatch) -> None:
+    from esphome.build_gen.espidf import get_component_cmakelists
+
+    content = get_component_cmakelists()
+    assert '"$<$<COMPILE_LANGUAGE:CXX>:-include>"' in content
+    assert '"$<$<COMPILE_LANGUAGE:CXX>:esphome_pch.h>"' in content
+    monkeypatch.setenv("ESPHOME_PCH_ENABLE", "0")
+    assert "-include" not in get_component_cmakelists()
+
+
+def test_pch_compile_command_variants(tmp_path: Path) -> None:
+    """Missing DB, no matching entry, and launcher-prefixed commands."""
+    from esphome.build_helpers.pch import pch_compile_command
+
+    build = tmp_path / "build"
+    build.mkdir()
+    header = build / "esphome_pch.h"
+    gch = build / "esphome_pch.h.gch"
+    assert pch_compile_command(build, header, gch) is None
+
+    (build / "compile_commands.json").write_text(
+        json.dumps(
+            [
+                {"command": "gcc -c other.c", "file": "other.c"},
+            ]
+        )
+    )
+    assert pch_compile_command(build, header, gch) is None
+
+    src_file = str(tmp_path / "src" / "esphome" / "a.cpp")
+    (build / "compile_commands.json").write_text(
+        json.dumps(
+            [
+                {
+                    "command": (
+                        "/usr/bin/ccache g++ -DX=1 -include esphome_pch.h -MMD "
+                        "-MT a.cpp.obj -MF a.cpp.obj.d "
+                        "-o esp-idf/src/CMakeFiles/__idf_src.dir/a.cpp.obj "
+                        f"-c {src_file}"
+                    ),
+                    "file": src_file,
+                },
+            ]
+        )
+    )
+    # Launcher stripped; -include/-o/-c and depfile flags removed
+    cmd, cmd_dir = pch_compile_command(build, header, gch)
+    assert cmd == [
+        "g++",
+        "-DX=1",
+        "-x",
+        "c++-header",
+        "-c",
+        str(header),
+        "-o",
+        str(gch),
+    ]
+    # The compile must run where the flags were resolved
+    assert cmd_dir == build
+
+
+@pytest.mark.skipif(os.name == "nt", reason="symlinks need privileges on Windows")
+def test_pch_compile_command_matches_src_through_symlink(tmp_path: Path) -> None:
+    """Find the src TU when CMake spells paths through a different symlink (macOS /tmp)."""
+    from esphome.build_helpers.pch import pch_compile_command
+
+    real = tmp_path / "real"
+    (real / "src" / "esphome").mkdir(parents=True)
+    link = tmp_path / "link"
+    link.symlink_to(real, target_is_directory=True)
+    CORE.build_path = str(real)
+    build = real / "build"
+    build.mkdir()
+    header = build / "esphome_pch.h"
+    gch = build / "esphome_pch.h.gch"
+    src_file = str(link / "src" / "esphome" / "a.cpp")
+    (build / "compile_commands.json").write_text(
+        json.dumps([{"command": f"g++ -DX=1 -o a.obj -c {src_file}", "file": src_file}])
+    )
+
+    cmd, cmd_dir = pch_compile_command(build, header, gch)
+
+    assert cmd[:2] == ["g++", "-DX=1"]
+    assert cmd_dir == build
+
+
+def test_pch_compile_command_rejects_unusable_entries(tmp_path: Path) -> None:
+    """Malformed DB shapes and command-less entries skip cleanly instead of
+    producing a compiler-less argv retried every build."""
+    from esphome.build_helpers.pch import pch_compile_command
+
+    build = tmp_path / "build"
+    build.mkdir()
+    header = build / "esphome_pch.h"
+    gch = build / "esphome_pch.h.gch"
+    db = build / "compile_commands.json"
+    src_file = str(tmp_path / "src" / "esphome" / "a.cpp")
+
+    db.write_text(json.dumps({"not": "a list"}))
+    assert pch_compile_command(build, header, gch) is None
+
+    db.write_text(json.dumps(["just a string"]))
+    assert pch_compile_command(build, header, gch) is None
+
+    # An empty-string directory must fall back to the build dir, not cwd
+    db.write_text(
+        json.dumps(
+            [
+                {
+                    "directory": "",
+                    "command": f"g++ -DX=1 -o a.obj -c {src_file}",
+                    "file": src_file,
+                }
+            ]
+        )
+    )
+    _, cmd_dir = pch_compile_command(build, header, gch)
+    assert cmd_dir == build
+
+    # Corrupted entries with null fields must skip, not raise
+    db.write_text(
+        json.dumps(
+            [
+                {"file": None, "command": "g++ -c x.cpp", "directory": None},
+                {"file": src_file, "command": None, "directory": None},
+            ]
+        )
+    )
+    assert pch_compile_command(build, header, gch) is None
+
+    # arguments-style entry (allowed by the spec, unused by CMake)
+    db.write_text(
+        json.dumps([{"arguments": ["g++", "-c", src_file], "file": src_file}])
+    )
+    assert pch_compile_command(build, header, gch) is None
+
+
+def test_pch_header_list_order_is_in_checksum(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Reordering PCH_DEFAULT_HEADERS keeps the include closure identical, but the
+    generated header text differs, so the .gch must rebuild."""
+    import esphome.build_gen.espidf as espidf_mod
+
+    dev = _make_pch_device(tmp_path, "dev_r")
+    CORE.build_path = dev
+    gch = dev / "build" / "esphome_pch.h.gch"
+
+    def fake_compile(cmd, **kwargs):
+        gch.write_bytes(b"gch")
+        return subprocess.CompletedProcess(cmd, 0, "", "")
+
+    with (
+        patch.object(CORE, "name", "test"),
+        patch("esphome.build_helpers.pch.subprocess.run", side_effect=fake_compile),
+    ):
+        espidf_mod.prepare_pch()
+        first = (dev / "build" / "esphome_pch.h.gch.sum").read_text()
+        monkeypatch.setattr(
+            espidf_mod,
+            "PCH_DEFAULT_HEADERS",
+            tuple(reversed(espidf_mod.PCH_DEFAULT_HEADERS)),
+        )
+        espidf_mod.prepare_pch()
+    assert (dev / "build" / "esphome_pch.h.gch.sum").read_text() != first
+
+
+def test_prepare_pch_failure_writes_marker_and_skips_retry(tmp_path: Path) -> None:
+    from esphome.build_gen.espidf import prepare_pch
+
+    dev = _make_pch_device(tmp_path, "dev_f")
+    CORE.build_path = dev
+    calls = []
+
+    def failing_compile(cmd, **kwargs):
+        calls.append(cmd)
+        return subprocess.CompletedProcess(cmd, 1, "", "boom")
+
+    with (
+        patch.object(CORE, "name", "test"),
+        patch("esphome.build_helpers.pch.subprocess.run", side_effect=failing_compile),
+    ):
+        prepare_pch()
+        prepare_pch()
+    assert len(calls) == 1
+    assert not (dev / "build" / "esphome_pch.h.gch.sum").exists()
+    assert (dev / "build" / "esphome_pch.h.gch.failed").exists()
+
+
+def test_prepare_pch_spawn_oserror_is_transient(tmp_path: Path) -> None:
+    """Spawn/IO failures retry on the next build instead of latching."""
+    from esphome.build_gen.espidf import prepare_pch
+
+    dev = _make_pch_device(tmp_path, "dev_o")
+    CORE.build_path = dev
+    calls = []
+
+    def raising(cmd, **kwargs):
+        calls.append(cmd)
+        raise OSError("no such compiler")
+
+    header = dev / "build" / "esphome_pch.h"
+    before = header.stat().st_mtime_ns
+    with (
+        patch.object(CORE, "name", "test"),
+        patch("esphome.build_helpers.pch.subprocess.run", side_effect=raising),
+    ):
+        prepare_pch()
+        prepare_pch()
+    assert not (dev / "build" / "esphome_pch.h.gch.failed").exists()
+    assert not (dev / "build" / "esphome_pch.h.gch.sum").exists()
+    assert len(calls) == 2
+    # No .gch was ever in play, so the header must not be re-touched into
+    # forcing a full rebuild on every failing build
+    assert header.stat().st_mtime_ns == before
+
+
+def test_prepare_pch_transient_with_stale_gch_bumps_header(tmp_path: Path) -> None:
+    """A stale .gch removed on a transient failure must dirty its consumers."""
+    from esphome.build_gen.espidf import prepare_pch
+
+    dev = _make_pch_device(tmp_path, "dev_s")
+    CORE.build_path = dev
+    gch = dev / "build" / "esphome_pch.h.gch"
+    gch.write_bytes(b"stale")
+    header = dev / "build" / "esphome_pch.h"
+    os.utime(header, (1, 1))
+    with (
+        patch.object(CORE, "name", "test"),
+        patch(
+            "esphome.build_helpers.pch.subprocess.run",
+            side_effect=OSError("no such compiler"),
+        ),
+    ):
+        prepare_pch()
+    assert not gch.exists()
+    assert header.stat().st_mtime_ns > 1_000_000_000
+
+
+def test_prepare_pch_disabled_discards_and_skips_compile(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The escape hatch is self-cleaning: a leftover .gch is removed."""
+    from esphome.build_gen.espidf import prepare_pch
+
+    monkeypatch.setenv("ESPHOME_PCH_ENABLE", "0")
+    dev = _make_pch_device(tmp_path, "dev_d")
+    CORE.build_path = dev
+    stale = dev / "build" / "esphome_pch.h.gch"
+    stale.write_bytes(b"stale")
+    with patch("esphome.build_helpers.pch.subprocess.run", side_effect=AssertionError):
+        prepare_pch()
+    assert not stale.exists()
+
+
+def test_prepare_pch_missing_sdkconfig_fails_closed(tmp_path: Path) -> None:
+    """No sdkconfig means no config identity for the .sum: no pch at all."""
+    from esphome.build_gen.espidf import prepare_pch
+
+    dev = _make_pch_device(tmp_path, "dev_m")
+    (dev / "sdkconfig.test").unlink()
+    CORE.build_path = dev
+    stale = dev / "build" / "esphome_pch.h.gch"
+    stale.write_bytes(b"stale")
+    with (
+        patch.object(CORE, "name", "test"),
+        patch("esphome.build_helpers.pch.subprocess.run", side_effect=AssertionError),
+    ):
+        prepare_pch()
+    assert not stale.exists()
+    assert not (dev / "build" / "esphome_pch.h.gch.sum").exists()
+
+
+def test_prepare_pch_signal_kill_is_transient(tmp_path: Path) -> None:
+    """A signal-killed compile (OOM) must not latch the .failed marker."""
+    from esphome.build_gen.espidf import prepare_pch
+
+    dev = _make_pch_device(tmp_path, "dev_k")
+    CORE.build_path = dev
+    calls = []
+
+    def killed(cmd, **kwargs):
+        calls.append(cmd)
+        return subprocess.CompletedProcess(cmd, -9, "", "")
+
+    with (
+        patch.object(CORE, "name", "test"),
+        patch("esphome.build_helpers.pch.subprocess.run", side_effect=killed),
+    ):
+        prepare_pch()
+        prepare_pch()
+    assert not (dev / "build" / "esphome_pch.h.gch.failed").exists()
+    assert len(calls) == 2
+
+
+def test_prepare_pch_without_compile_commands(tmp_path: Path) -> None:
+    """Stale checksum but no configured TU yet: no compile, no sidecars."""
+    from esphome.build_gen.espidf import prepare_pch
+
+    dev = _make_pch_device(tmp_path, "dev_n")
+    (dev / "build" / "compile_commands.json").unlink()
+    CORE.build_path = dev
+    with (
+        patch.object(CORE, "name", "test"),
+        patch("esphome.build_helpers.pch.subprocess.run", side_effect=AssertionError),
+    ):
+        prepare_pch()
+    assert not (dev / "build" / "esphome_pch.h.gch.sum").exists()
+    assert not (dev / "build" / "esphome_pch.h.gch.failed").exists()
+
+
+def test_write_project_pch_disabled_writes_no_header(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from esphome.build_gen.espidf import write_project
+
+    monkeypatch.setenv("ESPHOME_PCH_ENABLE", "0")
+    _write_project_description(tmp_path, {})
+    CORE.build_path = tmp_path
+    with (
+        patch("esphome.build_gen.espidf.get_esp32_variant", return_value="ESP32"),
+        patch.object(CORE, "name", "test"),
+    ):
+        write_project()
+    assert not (tmp_path / "build" / "esphome_pch.h").exists()
+
+
+def test_write_project_writes_pch_header(tmp_path: Path) -> None:
+    """The header write_project emits is what _pch_cmake() force-includes;
+    this pairing is the one non-fail-safe path in the design."""
+    from esphome.build_gen.espidf import write_project
+    from esphome.build_helpers.pch import PCH_DEFAULT_HEADERS, pch_header_text
+
+    _write_project_description(tmp_path, {})
+    CORE.build_path = tmp_path
+    with (
+        patch("esphome.build_gen.espidf.get_esp32_variant", return_value="ESP32"),
+        patch.object(CORE, "name", "test"),
+    ):
+        write_project()
+    assert (tmp_path / "build" / "esphome_pch.h").read_text() == pch_header_text(
+        PCH_DEFAULT_HEADERS
+    )
+
+
+def test_prepare_pch_stale_bailout_removes_gch(tmp_path: Path) -> None:
+    """A stale .gch must not survive when no compile command is available."""
+    from esphome.build_gen.espidf import prepare_pch
+
+    dev = _make_pch_device(tmp_path, "dev_s")
+    CORE.build_path = dev
+    gch = dev / "build" / "esphome_pch.h.gch"
+    gch.write_bytes(b"stale")
+    (dev / "build" / "esphome_pch.h.gch.sum").write_text("stale-sum\n")
+    (dev / "build" / "compile_commands.json").unlink()
+    with patch.object(CORE, "name", "test"):
+        prepare_pch()
+    assert not gch.exists()
+    assert not (dev / "build" / "esphome_pch.h.gch.sum").exists()
+
+
+def test_prepare_pch_zero_exit_without_gch_is_failure(tmp_path: Path) -> None:
+    from esphome.build_gen.espidf import prepare_pch
+
+    dev = _make_pch_device(tmp_path, "dev_z")
+    CORE.build_path = dev
+
+    def no_output(cmd, **kwargs):
+        return subprocess.CompletedProcess(cmd, 0, "", "")
+
+    with (
+        patch.object(CORE, "name", "test"),
+        patch("esphome.build_helpers.pch.subprocess.run", side_effect=no_output),
+    ):
+        prepare_pch()
+    assert not (dev / "build" / "esphome_pch.h.gch.sum").exists()
+    assert (dev / "build" / "esphome_pch.h.gch.failed").exists()
+
+
+def test_prepare_pch_bumps_header_for_object_depends(tmp_path: Path) -> None:
+    """The OBJECT_DEPENDS edge watches the header; a rebuilt .gch must bump
+    it so pch-consuming TUs recompile."""
+    import os as _os
+
+    from esphome.build_gen.espidf import prepare_pch
+
+    dev = _make_pch_device(tmp_path, "dev_t")
+    CORE.build_path = dev
+    header = dev / "build" / "esphome_pch.h"
+    gch = dev / "build" / "esphome_pch.h.gch"
+    _os.utime(header, (0, 0))
+    before = header.stat().st_mtime
+
+    def fake_compile(cmd, **kwargs):
+        gch.write_bytes(b"gch")
+        return subprocess.CompletedProcess(cmd, 0, "", "")
+
+    with (
+        patch.object(CORE, "name", "test"),
+        patch("esphome.build_helpers.pch.subprocess.run", side_effect=fake_compile),
+    ):
+        prepare_pch()
+    assert header.stat().st_mtime > before
+
+
+def test_component_cmakelists_pch_object_depends() -> None:
+    from esphome.build_gen.espidf import get_component_cmakelists
+
+    content = get_component_cmakelists()
+    assert 'OBJECT_DEPENDS "${CMAKE_BINARY_DIR}/esphome_pch.h"' in content
+
+
+def test_prepare_pch_command_change_invalidates_sum(tmp_path: Path) -> None:
+    """A flag-only change in the compile DB must rebuild the .gch."""
+    from esphome.build_gen.espidf import prepare_pch
+
+    dev = _make_pch_device(tmp_path, "dev_c")
+    CORE.build_path = dev
+    gch = dev / "build" / "esphome_pch.h.gch"
+
+    def fake_compile(cmd, **kwargs):
+        gch.write_bytes(b"gch")
+        return subprocess.CompletedProcess(cmd, 0, "", "")
+
+    with (
+        patch.object(CORE, "name", "test"),
+        patch("esphome.build_helpers.pch.subprocess.run", side_effect=fake_compile),
+    ):
+        prepare_pch()
+        first = (dev / "build" / "esphome_pch.h.gch.sum").read_text()
+        db = dev / "build" / "compile_commands.json"
+        db.write_text(db.read_text().replace("-DX=1", "-DX=2"))
+        prepare_pch()
+    assert (dev / "build" / "esphome_pch.h.gch.sum").read_text() != first
+
+
+def test_prepare_pch_keeps_user_force_includes(tmp_path: Path) -> None:
+    from esphome.build_helpers.pch import pch_compile_command
+
+    dev = _make_pch_device(tmp_path, "dev_u")
+    CORE.build_path = dev
+    build = dev / "build"
+    src_file = str(dev / "src" / "esphome" / "a.cpp")
+    build.joinpath("compile_commands.json").write_text(
+        json.dumps(
+            [
+                {
+                    "directory": str(build),
+                    "command": (
+                        "g++ -include user.h -include esphome_pch.h "
+                        f"-o a.obj -c {src_file}"
+                    ),
+                    "file": src_file,
+                }
+            ]
+        )
+    )
+    cmd, _ = pch_compile_command(build, build / "esphome_pch.h", build / "x.gch")
+    assert "user.h" in cmd
+    assert "esphome_pch.h" not in " ".join(cmd[:-3])
+
+
+def test_prepare_pch_identity_unknown_discards(tmp_path: Path) -> None:
+    """An OSError from the checksum discards artifacts and skips the pch."""
+    from esphome.build_gen.espidf import prepare_pch
+
+    dev = _make_pch_device(tmp_path, "dev_i")
+    CORE.build_path = dev
+    stale = dev / "build" / "esphome_pch.h.gch"
+    stale.write_bytes(b"stale")
+    with (
+        patch.object(CORE, "name", "test"),
+        patch(
+            "esphome.build_helpers.pch.pch_checksum",
+            side_effect=OSError("stat failed"),
+        ),
+        patch("esphome.build_helpers.pch.subprocess.run", side_effect=AssertionError),
+    ):
+        prepare_pch()
+    assert not stale.exists()
+    assert not (dev / "build" / "esphome_pch.h.gch.sum").exists()
+
+
+def test_prepare_pch_transient_compiler_failure_does_not_latch(
+    tmp_path: Path,
+) -> None:
+    """ENOSPC-style failures clear on their own; no .failed marker."""
+    from esphome.build_gen.espidf import prepare_pch
+
+    dev = _make_pch_device(tmp_path, "dev_e")
+    CORE.build_path = dev
+    calls = []
+
+    def enospc(cmd, **kwargs):
+        calls.append(cmd)
+        return subprocess.CompletedProcess(
+            cmd, 1, "", "fatal error: No space left on device"
+        )
+
+    with (
+        patch.object(CORE, "name", "test"),
+        patch("esphome.build_helpers.pch.subprocess.run", side_effect=enospc),
+    ):
+        prepare_pch()
+        prepare_pch()
+    assert not (dev / "build" / "esphome_pch.h.gch.failed").exists()
+    assert len(calls) == 2
