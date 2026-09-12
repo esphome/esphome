@@ -8,6 +8,8 @@ namespace esphome::template_ {
 
 class TemplateBinaryOutput final : public output::BinaryOutput {
  public:
+  // User provided, not "= default": `new(p) TemplateBinaryOutput()` would zero-fill .bss that is already zero.
+  TemplateBinaryOutput() {}
   Trigger<bool> *get_trigger() { return &this->trigger_; }
 
  protected:
