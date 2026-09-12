@@ -165,6 +165,7 @@ esphome/components/ens160_i2c/* @latonita
 esphome/components/ens160_spi/* @latonita
 esphome/components/ens210/* @itn3rd77
 esphome/components/epaper_spi/* @esphome/core
+esphome/components/equitherm/* @P4uLT
 esphome/components/es7210/* @kahrendt
 esphome/components/es7243e/* @kbx81
 esphome/components/es8156/* @kbx81

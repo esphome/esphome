@@ -1,0 +1,54 @@
+esphome:
+  name: test-equitherm-diagnostics
+esp32:
+  board: esp32dev
+logger:
+  level: DEBUG
+sensor:
+  - platform: template
+    id: outdoor_temp
+    lambda: "return 5.0f;"
+  - platform: template
+    id: indoor_temp
+    lambda: "return 20.0f;"
+  - platform: equitherm
+    climate_id: equitherm_climate
+    type: FLOW_SETPOINT
+    name: "Flow Setpoint"
+  - platform: equitherm
+    climate_id: equitherm_climate
+    type: PID_CORRECTION
+    name: "PID Correction"
+  - platform: equitherm
+    climate_id: equitherm_climate
+    type: MIN_FLOW_TEMP
+    name: "Min Flow Temp"
+  - platform: equitherm
+    climate_id: equitherm_climate
+    type: MAX_FLOW_TEMP
+    name: "Max Flow Temp"
+binary_sensor:
+  - platform: equitherm
+    climate_id: equitherm_climate
+    pid_active:
+      name: "PID Active"
+    wws_active:
+      name: "WWS Active"
+output:
+  - platform: slow_pwm
+    pin: 4
+    id: heat_output
+    period: 15s
+climate:
+  - platform: equitherm
+    id: equitherm_climate
+    outdoor_sensor: outdoor_temp
+    indoor_sensor: indoor_temp
+    default_target_temperature: 20
+    heat_output: heat_output
+    control_parameters:
+      heat_curve_coefficient: 1.4
+      heat_curve_exponent: 1.3
+    output_parameters:
+      min_flow_temp: 20
+      max_flow_temp: 70
