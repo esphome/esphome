@@ -1,5 +1,7 @@
 #include "heatpumpir.h"
 
+#include "receiver_mitsubishi_heavy.h"
+
 #if defined(USE_ARDUINO) || defined(USE_ESP32)
 
 #include <cmath>
@@ -99,6 +101,15 @@ const std::map<Protocol, std::function<HeatpumpIR *()>> PROTOCOL_CONSTRUCTOR_MAP
     {PROTOCOL_PHILCO_PHS32, []() { return new PhilcoPHS32HeatpumpIR(); }},                   // NOLINT
     {PROTOCOL_VAILLANTVAI8, []() { return new VaillantHeatpumpIR(); }},                      // NOLINT
     {PROTOCOL_R51M, []() { return new R51MHeatpumpIR(); }},                                  // NOLINT
+};
+
+const std::map<Protocol, std::function<bool(HeatpumpIRClimate &, remote_base::RemoteReceiveData &)>>
+    PROTOCOL_RECEIVE_MAP = {
+        {PROTOCOL_MITSUBISHI_HEAVY_ZMP,
+         [](HeatpumpIRClimate &climate, remote_base::RemoteReceiveData &data) {
+           uint8_t frame[11];
+           return decode_mitsubishi_heavy_frame(data, frame, climate) && decode_mitsubishi_heavy_zmp(frame, climate);
+         }},
 };
 
 void HeatpumpIRClimate::setup() {
@@ -241,6 +252,18 @@ void HeatpumpIRClimate::transmit_state() {
   IRSenderESPHome esp_sender(this->transmitter_);
   heatpump_ir_->send(esp_sender, power_mode_cmd, operating_mode_cmd, fan_speed_cmd, temperature_cmd, swing_v_cmd,
                      swing_h_cmd);
+}
+
+bool HeatpumpIRClimate::on_receive(remote_base::RemoteReceiveData data) {
+  auto it = PROTOCOL_RECEIVE_MAP.find(this->protocol_);
+  if (it == PROTOCOL_RECEIVE_MAP.end())
+    return false;
+  bool decoded = it->second(*this, data);
+  if (decoded) {
+    this->target_temperature = clamp(this->target_temperature, this->min_temperature_, this->max_temperature_);
+    this->publish_state();
+  }
+  return decoded;
 }
 
 }  // namespace esphome::heatpumpir

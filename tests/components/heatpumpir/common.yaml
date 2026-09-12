@@ -8,6 +8,15 @@ climate:
     max_temperature: 30
     transmitter_id: xmitr
   - platform: heatpumpir
+    protocol: mitsubishi_heavy_zmp
+    horizontal_default: left
+    vertical_default: up
+    name: HeatpumpIR Climate Mitsubishi ZMP
+    min_temperature: 18
+    max_temperature: 30
+    transmitter_id: xmitr
+    receiver_id: rcvr
+  - platform: heatpumpir
     protocol: daikin
     horizontal_default: mleft
     vertical_default: mup
