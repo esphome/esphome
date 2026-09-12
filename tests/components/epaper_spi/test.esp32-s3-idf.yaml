@@ -301,7 +301,7 @@ display:
   - platform: epaper_spi
     id: epaper_gray4
     spi_id: spi_bus
-    model: seeed-reterminal-sticky-gray4
+    model: seeed-reterminal-sticky
     cs_pin:
       allow_other_uses: true
       number: GPIO5

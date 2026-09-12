@@ -11,6 +11,9 @@ class EpaperModel:
     # Whether the driver manages chip-select itself instead of via the SPI bus.
     manages_cs: bool = False
 
+    # Whether this model's framebuffer is large enough to want external RAM.
+    requires_psram: bool = False
+
     def __init__(
         self,
         name: str,

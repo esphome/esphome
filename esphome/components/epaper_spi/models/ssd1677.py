@@ -28,6 +28,9 @@ class SSD1677Gray4(SSD1677):
     black and white bring-up: four-level follows LUT0, mono follows LUT1.
     """
 
+    # The four-level framebuffer is twice the monochrome one, so say so.
+    requires_psram = True
+
     def __init__(self, name, **defaults):
         super().__init__(name, class_name="EPaperStickyGray4", **defaults)
 
@@ -82,8 +85,10 @@ SEEED_STICKY = {
     "data_rate": "10MHz",
 }
 
-ssd1677.extend("seeed-reterminal-sticky", **SEEED_STICKY)
-
-# Same panel, driven in its four-level mode. The film is mono; the levels
-# come from the vendor OTP waveform reading both RAM planes at once.
-SSD1677Gray4("ssd1677-gray4").extend("seeed-reterminal-sticky-gray4", **SEEED_STICKY)
+# The panel is driven in its four-level mode by default: the film is mono,
+# but the levels come from the vendor OTP waveform reading both RAM planes at
+# once, and at 235 ppi that is the difference between antialiased text and
+# ragged text. -mono is the plain black and white driver, for a board that
+# cannot spare the larger framebuffer.
+SSD1677Gray4("ssd1677-gray4").extend("seeed-reterminal-sticky", **SEEED_STICKY)
+ssd1677.extend("seeed-reterminal-sticky-mono", **SEEED_STICKY)

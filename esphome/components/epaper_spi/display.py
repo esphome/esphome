@@ -1,4 +1,5 @@
 import importlib
+import logging
 import pkgutil
 
 from esphome import automation, core, pins
@@ -47,6 +48,8 @@ DEPENDENCIES = ["spi"]
 
 CONF_INIT_SEQUENCE_ID = "init_sequence_id"
 CONF_MINIMUM_UPDATE_INTERVAL = "minimum_update_interval"
+
+_LOGGER = logging.getLogger(__name__)
 
 epaper_spi_ns = cg.esphome_ns.namespace("epaper_spi")
 EPaperBase = epaper_spi_ns.class_(
@@ -177,6 +180,25 @@ def _final_validate(config) -> None:
     )(config)
 
     global_config = full_config.get()
+
+    # A four-level framebuffer is twice the monochrome one. It is allocated
+    # from external RAM when there is any, so warn only when the psram
+    # component is absent or switched off - not on is_guaranteed(), which
+    # additionally wants ignore_not_found: false and so would nag configs
+    # that are perfectly fine.
+    model = MODELS[config[CONF_MODEL]]
+    psram_config = global_config.get("psram")
+    if model.requires_psram and (psram_config is None or psram_config.get("disabled")):
+        width, height = model.get_dimensions(config)
+        _LOGGER.warning(
+            "Model %s renders four gray levels and needs a %d byte framebuffer, twice "
+            "the monochrome one. With no 'psram:' it is allocated in internal RAM, "
+            "which may not fit alongside WiFi. Add 'psram:', or use the -mono model "
+            "if the board cannot spare it.",
+            config[CONF_MODEL],
+            width * height // 4,
+        )
+
     from esphome.components.lvgl import DOMAIN as LVGL_DOMAIN
 
     if CONF_LAMBDA not in config and CONF_PAGES not in config:
