@@ -141,8 +141,7 @@ void RemoteReceiverComponent::dump_config() {
       this->carrier_frequency_, this->carrier_duty_percent_, this->filter_us_, this->idle_us_);
   LOG_PIN("  Pin: ", this->pin_);
   if (this->is_failed()) {
-    ESP_LOGE(TAG, "Configuring RMT driver failed: %s (%s)", esp_err_to_name(this->error_code_),
-             this->error_string_.c_str());
+    ESP_LOGE(TAG, "Configuring RMT driver failed: %s (%s)", esp_err_to_name(this->error_code_), this->error_string_);
   }
 }
 

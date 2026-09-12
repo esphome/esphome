@@ -157,7 +157,7 @@ class RemoteTransmitterComponent final : public remote_base::RemoteTransmitterBa
   rmt_channel_handle_t channel_{NULL};
   rmt_encoder_handle_t encoder_{NULL};
   esp_err_t error_code_{ESP_OK};
-  std::string error_string_;
+  const char *error_string_{nullptr};
   bool inverted_{false};
   bool non_blocking_{false};
 #endif
