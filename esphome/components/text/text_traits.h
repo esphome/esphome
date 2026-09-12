@@ -30,8 +30,8 @@ class TextTraits {
   TextMode get_mode() const { return this->mode_; }
 
  protected:
-  int min_length_;
-  int max_length_;
+  int min_length_{0};
+  int max_length_{0};
   const char *pattern_{""};
   TextMode mode_{TEXT_MODE_TEXT};
 };
