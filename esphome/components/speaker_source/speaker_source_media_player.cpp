@@ -810,7 +810,10 @@ void SpeakerSourceMediaPlayer::set_mute_state_(bool mute_state, bool publish) {
 
 void SpeakerSourceMediaPlayer::set_volume_(float volume, bool publish) {
   // Remap the volume to fit within the configured limits
-  float bounded_volume = remap<float, float>(volume, 0.0f, 1.0f, this->volume_min_, this->volume_max_);
+  // A volume that is effectively zero is passed through unremapped, so that requested silence still reaches
+  // the speaker as zero. The same threshold decides the mute state below.
+  float bounded_volume =
+      (volume < 0.001f) ? 0.0f : remap<float, float>(volume, 0.0f, 1.0f, this->volume_min_, this->volume_max_);
 
   for (auto &ps : this->pipelines_) {
     if (ps.is_configured()) {
