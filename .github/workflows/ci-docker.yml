@@ -210,7 +210,7 @@ jobs:
           - host
         # Strict by default so a new matrix id cannot silently join in the
         # degrade-quietly mode the knob exists to catch; the knob is inert
-        # where no pch code runs (esp32-*-platformio, nrf52, host).
+        # where no pch code runs (esp32-*-platformio, nrf52).
         # Opt-outs: libretiny GCC rejects its own pch until a toolchain bump.
         include:
           - id: bk72xx-arduino
