@@ -61,6 +61,7 @@ from . import (
     collect_parts,
     get_widgets,
     set_obj_properties,
+    wait_for_widgets,
 )
 from .buttonmatrix import CONF_BUTTONMATRIX
 from .canvas import CONF_CANVAS
@@ -227,6 +228,7 @@ LIST_ID_SCHEMA = cv.Schema({cv.Required(CONF_ID): cv.use_id(lv_list_t)})
 )
 async def list_add_text_to_code(config, action_id, template_arg, args):
     widgets = await get_widgets(config)
+    await _wait_list_triggers_completed()
 
     async def do_add_text(w: Widget):
         text = await lv_text.process(config[CONF_TEXT])
@@ -370,6 +372,7 @@ async def list_add_to_code(config, action_id, template_arg, args):
     _register_lv_uses(w_type_name, w_conf)
     _register_dynamic_widget_style_uses(w_conf)
     widgets = await get_widgets(config)
+    await _wait_list_triggers_completed()
 
     async def do_add(w: Widget):
         index = None
@@ -416,6 +419,7 @@ async def _build_dynamic_widget(
                 lv.obj_move_to_index(w.obj, index)
             await _fire_on_add(list_id, list_obj, w.obj)
 
+    await wait_for_widgets()
     if widget_type.is_compound():
         with LocalVariable(
             var_name, widget_type.w_type, widget_type.w_type.new()
@@ -503,6 +507,7 @@ LIST_REMOVE_SCHEMA = LIST_ID_SCHEMA.extend(
 )
 async def list_remove_to_code(config, action_id, template_arg, args):
     widgets = await get_widgets(config)
+    await _wait_list_triggers_completed()
 
     async def do_remove(w: Widget):
         index = await lv_int.process(config[CONF_INDEX])
@@ -536,6 +541,7 @@ async def list_remove_to_code(config, action_id, template_arg, args):
 )
 async def list_clear_to_code(config, action_id, template_arg, args):
     widgets = await get_widgets(config)
+    await _wait_list_triggers_completed()
 
     async def do_clear(w: Widget):
         await _wait_list_triggers_completed()
