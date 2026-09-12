@@ -1,6 +1,8 @@
 #pragma once
 
 #include "esphome/components/climate_ir/climate_ir.h"
+#include "esphome/core/component.h"
+#include "esphome/core/hal.h"
 
 namespace esphome::daikin {
 
@@ -27,6 +29,14 @@ const uint8_t DAIKIN_FAN_3 = 0x50;
 const uint8_t DAIKIN_FAN_4 = 0x60;
 const uint8_t DAIKIN_FAN_5 = 0x70;
 
+// Presets
+const uint8_t DAIKIN_PRESET_OFF = 0x00;
+const uint8_t DAIKIN_PRESET_COMFORT_ON = 0x10;
+const uint8_t DAIKIN_PRESET_POWERFUL_ON = 0x01;
+const uint8_t DAIKIN_PRESET_QUIET_ON = 0x20;
+const uint8_t DAIKIN_PRESET_ECONO_ON = 0x04;
+const uint8_t DAIKIN_PRESET_SENSOR_ON = 0x02;
+
 // IR Transmission
 const uint32_t DAIKIN_IR_FREQUENCY = 38000;
 const uint32_t DAIKIN_HEADER_MARK = 3360;
@@ -38,15 +48,19 @@ const uint32_t DAIKIN_MESSAGE_SPACE = 32300;
 
 // State Frame size
 const uint8_t DAIKIN_STATE_FRAME_SIZE = 19;
+const uint8_t DAIKIN_COMFORT_FRAME_SIZE = 8;
 
 class DaikinClimate final : public climate_ir::ClimateIR {
  public:
   DaikinClimate()
-      : climate_ir::ClimateIR(DAIKIN_TEMP_MIN, DAIKIN_TEMP_MAX, 1.0f, true, true,
-                              {climate::CLIMATE_FAN_QUIET, climate::CLIMATE_FAN_AUTO, climate::CLIMATE_FAN_LOW,
-                               climate::CLIMATE_FAN_MEDIUM, climate::CLIMATE_FAN_HIGH},
-                              {climate::CLIMATE_SWING_OFF, climate::CLIMATE_SWING_VERTICAL,
-                               climate::CLIMATE_SWING_HORIZONTAL, climate::CLIMATE_SWING_BOTH}) {}
+      : climate_ir::ClimateIR(
+            DAIKIN_TEMP_MIN, DAIKIN_TEMP_MAX, 0.5f, true, true,
+            {climate::CLIMATE_FAN_QUIET, climate::CLIMATE_FAN_AUTO, climate::CLIMATE_FAN_LOW,
+             climate::CLIMATE_FAN_MEDIUM, climate::CLIMATE_FAN_HIGH},
+            {climate::CLIMATE_SWING_OFF, climate::CLIMATE_SWING_VERTICAL, climate::CLIMATE_SWING_HORIZONTAL,
+             climate::CLIMATE_SWING_BOTH},
+            {climate::CLIMATE_PRESET_ECO, climate::CLIMATE_PRESET_BOOST, climate::CLIMATE_PRESET_COMFORT,
+             climate::CLIMATE_PRESET_SLEEP, climate::CLIMATE_PRESET_ACTIVITY, climate::CLIMATE_PRESET_NONE}) {}
 
  protected:
   // Transmit via IR the state of this climate controller.
@@ -54,9 +68,14 @@ class DaikinClimate final : public climate_ir::ClimateIR {
   uint8_t operation_mode_() const;
   uint16_t fan_speed_() const;
   uint8_t temperature_() const;
+  uint8_t powerful_quiet_preset_();
+  uint8_t eco_preset_() const;
+  void cancel_boost_mode_();
+  uint32_t boost_mode_start_{0};
   // Handle received IR Buffer
   bool on_receive(remote_base::RemoteReceiveData data) override;
   bool parse_state_frame_(const uint8_t frame[]);
+  bool parse_comfort_frame_(const uint8_t frame[]);
 };
 
 }  // namespace esphome::daikin
