@@ -918,6 +918,13 @@ void AsyncEventSourceResponse::process_buffer_() {
 
   // Successful send - reset failure counter
   this->consecutive_send_failures_ = 0;
+  // Mark the session as recently used so the LRU purge prefers idle keep-alive
+  // sockets over live event streams. httpd only advances a session's lru_counter
+  // when a request is *received* (httpd_sess_process), and an SSE session
+  // receives exactly one request ever, so without this it is always the first
+  // socket purged once max_open_sockets is reached - killing every connected
+  // UI's event stream as soon as a second browser opens the page.
+  httpd_sess_update_lru_counter(this->hd_, this->fd_.load());
   event_bytes_sent_ += bytes_sent;
 
   // Log partial sends for debugging
