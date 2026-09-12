@@ -3,6 +3,7 @@ esphome:
 
 esp32:
   variant: esp32s3
+  flash_mode: opi
   framework:
     type: esp-idf
     advanced:
