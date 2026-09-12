@@ -9,6 +9,26 @@ body:
         If you have a feature request or enhancement, please [request them here instead][fr].
 
         [fr]: https://github.com/orgs/esphome/discussions
+  - type: markdown
+    attributes:
+      label: Use of AI in bug reports
+      value: |
+        AI's are good at carrying out well defined tasks, but they are not good at troubleshooting.
+        Please do NOT paste an AI-generated wall of text into the issue template - if the AI hasn't solved
+        your problem, its wild guesses are not likely to help.
+
+        Please DO include your own words and observations, compile/boot logs, and
+        especially a minimal reproducible example of your YAML configuration that demonstrates the problem.
+
+        It is however quite acceptable to use AI to translate your *own* report,
+        if you aren't a competent English speaker.
+
+        If you are using AI to help solve a problem, rather than asking it to speculate about what the problem is,
+        it can be more useful to ask it to create a step-by-step troubleshooting procedure.
+        AI is also useful for generating boilerplate code, such as a minimal reproducible example of your YAML
+        configuration that demonstrates the problem.
+
+        Used properly, AI can be a useful tool to help you solve your problem, but don't let it get in the way.
   - type: textarea
     validations:
       required: true
