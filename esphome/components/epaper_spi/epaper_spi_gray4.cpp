@@ -6,15 +6,20 @@ namespace esphome::epaper_spi {
 
 static constexpr const char *const TAG = "epaper_spi.gray4";
 
-void EPaperGray4::setup() {
-  EPaperBase::setup();
-  // 1bpp shadow of what is physically on the glass, so a partial has a
-  // comparison frame that matches the panel rather than guessing.
+bool EPaperGray4::shadow_ready_() {
+  if (this->shadow_.is_valid())
+    return true;
+  if (this->shadow_failed_)
+    return false;
   if (!this->shadow_.init((size_t) ((this->width_ + 7) / 8) * this->height_)) {
-    ESP_LOGE(TAG, "Shadow allocation failed; partial refresh will not be used");
-  } else {
-    this->shadow_.fill(0xFF);  // the panel is cleared to white at bring-up
+    ESP_LOGW(TAG, "No memory for a comparison frame; every update will be a full refresh");
+    this->shadow_failed_ = true;
+    return false;
   }
+  // Allocated, but nothing has recorded what is on the glass yet, so this
+  // push has to be a full one. It seeds the shadow on its second pass.
+  ESP_LOGD(TAG, "Comparison frame allocated; partial refresh available from the next update");
+  return false;
 }
 
 // Luminance into four even quarters. A renderer that antialiases - LVGL
@@ -103,7 +108,7 @@ bool HOT EPaperGray4::transfer_data() {
     if (!second_pass) {
       // Latch the kind of push for its whole duration: the two planes must
       // agree, and refresh_screen() must match what was written.
-      this->partial_push_ = this->shadow_.is_valid() && this->update_count_ != 0;
+      this->partial_push_ = this->update_count_ != 0 && this->shadow_ready_();
       this->set_window_();
     }
     this->command(this->plane_command_(this->partial_push_ == second_pass));
@@ -149,8 +154,12 @@ bool HOT EPaperGray4::transfer_data() {
   return true;
 }
 
+// The base class offers its own full/partial opinion from a counter, but the
+// planes were written against partial_push_, latched when the push began -
+// it can differ, because a partial is downgraded when there is no comparison
+// frame yet. The waveform has to match what was actually written.
 void EPaperGray4::refresh_screen(bool partial) {
-  if (partial) {
+  if (this->partial_push_) {
     ESP_LOGV(TAG, "Partial refresh");
     this->refresh_partial_();
   } else {

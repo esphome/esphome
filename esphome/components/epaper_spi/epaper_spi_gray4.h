@@ -34,6 +34,10 @@ namespace esphome::epaper_spi {
  * partial to diff against. On a plain mono driver the controller maintains
  * that itself, which is why none of them need this.
  *
+ * It costs width*height/8 bytes and is only allocated once a partial is
+ * actually asked for, so a display that only ever refreshes fully - or a
+ * board too small to spare the memory - pays nothing for it.
+ *
  * Which kind of push happens is the base class's existing decision:
  * refresh_screen() is handed partial = (update_count_ != 0), so
  * full_update_every and request_full_refresh() drive it exactly as they do
@@ -60,7 +64,6 @@ class EPaperGray4 : public EPaperBase {
   void draw_pixel_at(int x, int y, Color color) override;
 
  protected:
-  void setup() override;
   bool reset() override;
   bool transfer_data() override;
   void refresh_screen(bool partial) override;
@@ -86,13 +89,18 @@ class EPaperGray4 : public EPaperBase {
   virtual bool gray_planes_inverted_() const { return true; }
 
   void set_window_();
+  /// True when the shadow already holds the frame on the glass, so a partial
+  /// has something to compare against. Allocates it on first use and returns
+  /// false that once: the push that allocates is the one that seeds it.
+  bool shadow_ready_();
   uint8_t color_to_level_(Color color) const;
   uint8_t level_at_(int x, int y) const;
 
   uint8_t plane_{0};          // first or second pass of a push
   bool partial_push_{false};  // latched for the whole push
   bool sleep_panel_{false};
-  split_buffer::SplitBuffer shadow_{};  // 1bpp frame on the glass
+  bool shadow_failed_{false};
+  split_buffer::SplitBuffer shadow_{};  // 1bpp frame on the glass, lazily allocated
 };
 
 /**

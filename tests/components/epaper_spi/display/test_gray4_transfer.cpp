@@ -53,9 +53,9 @@ class TestableGray4 : public EPaperStickyGray4 {
     this->delegate_ = delegate;
     this->set_dc_pin(&this->dc);
     ASSERT_TRUE(this->init_buffer_(this->buffer_length_));
-    ASSERT_TRUE(this->shadow_.init((size_t) ((this->width_ + 7) / 8) * this->height_));
-    this->shadow_.fill(0xFF);  // panel starts white
   }
+
+  bool has_shadow() const { return this->shadow_.is_valid(); }
 
   /// Both planes of one push. transfer_data() reports false between them.
   void run_push() {
@@ -127,17 +127,25 @@ TEST(EPaperGray4, PartialPushComparesAgainstTheFrameOnTheGlass) {
   RecordingDelegate delegate(&display.dc);
   display.install(&delegate);
 
-  // A full push puts a known frame on the glass. Levels >= 2 are white.
-  const uint8_t on_glass[8] = {3, 3, 3, 3, 0, 0, 0, 0};  // mono 0xF0
-  draw_levels(display, on_glass);
+  // A full push, then the first partial request - which is downgraded to a
+  // full push because nothing has recorded the glass yet, and seeds the
+  // comparison frame as it goes.
+  const uint8_t first[8] = {0, 0, 0, 0, 3, 3, 3, 3};
+  draw_levels(display, first);
   display.set_update_count(0);
   display.run_push();
 
-  // Now a different frame, pushed as a partial.
+  const uint8_t on_glass[8] = {3, 3, 3, 3, 0, 0, 0, 0};  // mono 0xF0
+  draw_levels(display, on_glass);
+  display.set_update_count(1);
+  display.run_push();
+  ASSERT_TRUE(display.has_shadow()) << "a partial request must allocate the comparison frame";
+
+  // Now a real partial, against a frame the driver has recorded.
   delegate.clear();
   const uint8_t wanted[8] = {0, 0, 3, 3, 3, 3, 0, 0};  // mono 0x3C
   draw_levels(display, wanted);
-  display.set_update_count(1);  // partial
+  display.set_update_count(1);
   display.run_push();
 
   ASSERT_EQ(delegate.data[0x26].size(), 1u) << "comparison plane not written";
@@ -156,7 +164,7 @@ TEST(EPaperGray4, ShadowFollowsThePushThatWasSent) {
 
   const uint8_t first[8] = {3, 3, 3, 3, 0, 0, 0, 0};  // 0xF0
   draw_levels(display, first);
-  display.set_update_count(0);
+  display.set_update_count(1);  // downgraded to full, seeds the shadow with 0xF0
   display.run_push();
 
   const uint8_t second[8] = {0, 0, 3, 3, 3, 3, 0, 0};  // 0x3C
@@ -173,6 +181,29 @@ TEST(EPaperGray4, ShadowFollowsThePushThatWasSent) {
 
   EXPECT_EQ(delegate.data[0x26][0], 0x3C) << "shadow did not follow the previous push";
   EXPECT_EQ(delegate.data[0x24][0], 0xAA);
+}
+
+/// The comparison frame is only allocated when a partial is first asked for,
+/// so a display that only refreshes fully never pays the width*height/8 bytes.
+/// Nothing has recorded the glass at that point, so that first request has to
+/// be served as a full push - and the waveform must match the planes that were
+/// written, not what the counter asked for.
+TEST(EPaperGray4, FirstPartialRequestIsServedAsAFullPush) {
+  TestableGray4 display(8, 1);
+  RecordingDelegate delegate(&display.dc);
+  display.install(&delegate);
+  ASSERT_FALSE(display.has_shadow()) << "nothing should be allocated before a partial is wanted";
+
+  const uint8_t levels[8] = {3, 3, 3, 3, 3, 3, 3, 3};  // all white
+  draw_levels(display, levels);
+  display.set_update_count(1);  // ask for a partial
+  display.run_push();
+
+  // A full push inverts: white is level 3, so both planes go out as 0x00.
+  // A mono partial would have written 0xFF to the image plane instead.
+  EXPECT_EQ(delegate.data[0x24][0], 0x00) << "first partial request was not served as a full push";
+  EXPECT_EQ(delegate.data[0x26][0], 0x00);
+  EXPECT_TRUE(display.has_shadow()) << "the push that allocates must also seed the frame";
 }
 
 }  // namespace esphome::epaper_spi::testing
