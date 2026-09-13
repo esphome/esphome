@@ -71,10 +71,7 @@ class APIBuffer {
 #endif
   // RAMAllocator: PSRAM when available, and it reports failure where
   // new (std::nothrow) still aborts on ESP-IDF without exceptions
-  struct FreeDeleter {
-    void operator()(uint8_t *p) const { RAMAllocator<uint8_t>().deallocate(p, 0); }
-  };
-  std::unique_ptr<uint8_t[], FreeDeleter> data_;
+  RAMUniquePtr<uint8_t[]> data_;
   uint16_t size_{0};
   uint16_t capacity_{0};
 };
