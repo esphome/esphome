@@ -3,13 +3,12 @@
 #include "esphome/core/component.h"
 #include "esphome/components/switch/switch.h"
 
-#include "esphome/components/seeedmultichannelrelay/seeed_multi_channel_relay.h"
+#include "esphome/components/seeed_multi_channel_relay/seeed_multi_channel_relay.h"
 
 namespace esphome::seeed_multi_channel_relay {
 
 class SeeedMultiChannelRelaySwitch : public Component,
-                                         public switch_::Switch,
-                                         public Parented<seeed_multi_channel_relay> {
+                                         public switch_::Switch, public Parented<SeeedMultiChannelRelay> {
  public:
   void setup() override;
   void dump_config() override;
