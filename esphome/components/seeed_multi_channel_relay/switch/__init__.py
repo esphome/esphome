@@ -5,7 +5,7 @@ from esphome.const import CONF_CHANNEL, CONF_INTERLOCK
 
 from .. import (
     CONF_SEEED_MULTI_CHANNEL_RELAY_ID,
-    Seeed_Multi_Channel_Relay as SeeedMultiChannelRelay,
+    Seeed_Multi_Channel_Relay as Seeed_Multi_Channel_Relay,
     seeed_multi_channel_relay_ns,
 )
 
