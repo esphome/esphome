@@ -773,7 +773,7 @@ void WiFiComponent::wifi_scan_done_callback_(void *arg, STATUS status) {
     }
   }
 
-  if (!this->scan_result_.init(count)) {
+  if (!this->scan_result_.try_init(count)) {
     ESP_LOGW(TAG, "No memory for %zu scan results", count);
     this->scan_done_ = true;
     return;

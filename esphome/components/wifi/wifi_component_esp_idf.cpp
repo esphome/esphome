@@ -930,7 +930,7 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
       // capacity is enough. Storage is kept between scans and only regrown when a scan needs more;
       // an exhausted heap drops this scan and the retry logic scans again
       const size_t capacity = needs_full ? number : std::min<size_t>(number, WIFI_SCAN_RESULT_FILTERED_RESERVE);
-      if (this->scan_result_.capacity() < capacity && !this->scan_result_.init(capacity)) {
+      if (this->scan_result_.capacity() < capacity && !this->scan_result_.try_init(capacity)) {
         esp_wifi_clear_ap_list();
         ESP_LOGW(TAG, "No memory for %u scan results", number);
         return;

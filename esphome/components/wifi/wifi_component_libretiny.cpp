@@ -709,7 +709,7 @@ void WiFiComponent::wifi_scan_done_callback_() {
       }
     }
 
-    if (!this->scan_result_.init(count)) {
+    if (!this->scan_result_.try_init(count)) {
       ESP_LOGW(TAG, "No memory for %zu scan results", count);
       WiFi.scanDelete();
       return;
