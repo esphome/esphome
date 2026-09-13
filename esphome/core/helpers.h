@@ -541,6 +541,15 @@ template<typename T, size_t N> inline void init_array_from(std::array<T, N> &des
   }
 }
 
+/// Abort with a reason that reaches the panic output where the platform supports one
+[[noreturn]] inline void abort_with_reason(const char *reason) {
+#ifdef USE_ESP32
+  esp_system_abort(reason);
+#else
+  abort();
+#endif
+}
+
 /// Fixed-capacity vector - sized once through init() or try_init(); push_back never reallocates
 /// This avoids std::vector template overhead (_M_realloc_insert, _M_default_append)
 /// when size is known at initialization but not at compile time
@@ -633,15 +642,10 @@ template<typename T> class FixedVector {
   // Allocate capacity - can be called multiple times to reinit
   // IMPORTANT: After calling init(), you MUST use push_back() to add elements.
   // Direct assignment via operator[] does NOT update the size counter.
-  // Aborts on exhaustion like the operator new it replaces; use try_init() to handle failure.
+  // Aborts on exhaustion; use try_init() to handle failure.
   void init(size_t n) {
-    if (!try_init(n)) {
-#ifdef USE_ESP32
-      esp_system_abort("FixedVector: out of memory");
-#else
-      abort();
-#endif
-    }
+    if (!try_init(n))
+      abort_with_reason("FixedVector: out of memory");
   }
 
   // Same as init(), but returns false and leaves the vector empty when memory is exhausted
@@ -760,16 +764,13 @@ template<size_t STACK_SIZE, typename T = uint8_t> class SmallBufferWithHeapFallb
     if (size <= STACK_SIZE) {
       this->buffer_ = this->stack_buffer_;
     } else {
-      // NOLINTNEXTLINE(bugprone-sizeof-expression,cppcoreguidelines-no-malloc,cppcoreguidelines-owning-memory)
-      this->heap_buffer_ = static_cast<T *>(malloc(size * sizeof(T)));
-      if (this->heap_buffer_ == nullptr) {
-        // Callers write through get() unchecked, so exhaustion aborts like the new[] it replaces
-#ifdef USE_ESP32
-        esp_system_abort("SmallBufferWithHeapFallback: out of memory");
-#else
-        abort();
-#endif
+      if (size <= SIZE_MAX / sizeof(T)) {
+        // NOLINTNEXTLINE(bugprone-sizeof-expression,cppcoreguidelines-no-malloc,cppcoreguidelines-owning-memory)
+        this->heap_buffer_ = static_cast<T *>(malloc(size * sizeof(T)));
       }
+      // Callers write through get() unchecked, so exhaustion aborts like the new[] it replaces
+      if (this->heap_buffer_ == nullptr)
+        abort_with_reason("SmallBufferWithHeapFallback: out of memory");
       this->buffer_ = this->heap_buffer_;
     }
   }
