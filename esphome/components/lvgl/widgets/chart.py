@@ -166,8 +166,10 @@ class ChartType(WidgetType):
                     literal(series[CONF_Y_AXIS]),
                 ),
             )
-            series_widget = Widget.create(series[CONF_ID], w.obj, obj_spec, series)
-            series_widget.obj = series_var
+            series_widget = Widget.create(
+                series[CONF_ID], series_var, obj_spec, series
+            )
+            series_widget.parent = w.obj
             await set_series_values(w.obj, series_var, series[CONF_VALUES])
 
         lv.chart_refresh(w.obj)
@@ -194,9 +196,9 @@ async def chart_series_update_to_code(config, action_id, template_arg, args):
 
     async def do_update(w: Widget):
         if values := config.get(CONF_VALUES):
-            await set_series_values(w.obj, w.var, values)
+            await set_series_values(w.parent, w.obj, values)
         if (value := await lv_int.process(config.get(CONF_VALUE))) is not None:
-            lv.chart_set_next_value(w.obj, w.var, value)
-        lv.chart_refresh(w.obj)
+            lv.chart_set_next_value(w.parent, w.obj, value)
+        lv.chart_refresh(w.parent)
 
     return await action_to_code(widgets, do_update, action_id, template_arg, args)
