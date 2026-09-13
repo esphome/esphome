@@ -21,6 +21,7 @@ from esphome.components.esp32 import (
     VARIANT_ESP32S2,
     VARIANT_ESP32S3,
 )
+from esphome.components.substitutions import do_substitution_pass
 from esphome.config_validation import Invalid
 from esphome.const import (
     CONF_DAY,
@@ -3181,28 +3182,36 @@ def test_file__existing_relative_path(setup_core: Path) -> None:
     assert cv.file_("partitions.csv") == setup_core / "partitions.csv"
 
 
-def _package_asset(setup_core: Path, yaml: str) -> tuple[Path, str]:
-    """Write a package file next to an ``assets/`` dir; return the dir and its loaded path value."""
+def _package_value(setup_core: Path, path: str = "assets/ui.js") -> tuple[Path, str]:
+    """Write a package file next to an ``assets/`` dir; return the dir and its loaded *path* value."""
     package_dir = setup_core / ".esphome" / "packages" / "abc123" / "vendor"
     (package_dir / "assets").mkdir(parents=True)
     (package_dir / "assets" / "ui.js").write_text("js\n")
-    (package_dir / "device.yaml").write_text(yaml)
-    return package_dir, load_yaml(package_dir / "device.yaml")["web_server"][
-        "js_include"
-    ]
+    (package_dir / "device.yaml").write_text(f"path: {path}\n")
+    return package_dir, load_yaml(package_dir / "device.yaml")["path"]
 
 
 def test_file__resolves_relative_to_the_declaring_document(setup_core: Path) -> None:
     """A package's own asset path resolves against the package file when the config dir lacks it."""
-    package_dir, value = _package_asset(
-        setup_core, "web_server:\n  js_include: assets/ui.js\n"
-    )
+    package_dir, value = _package_value(setup_core)
 
     assert cv.file_(value) == package_dir / "assets" / "ui.js"
 
 
+def test_file__resolves_a_substituted_path_against_the_use_site(
+    setup_core: Path,
+) -> None:
+    package_dir, _ = _package_value(setup_core)
+    (package_dir / "device.yaml").write_text(
+        "substitutions:\n  ui: assets/ui.js\npath: ${ui}\n"
+    )
+    config = do_substitution_pass(load_yaml(package_dir / "device.yaml"))
+
+    assert cv.file_(config["path"]) == package_dir / "assets" / "ui.js"
+
+
 def test_file__config_dir_wins_over_the_declaring_document(setup_core: Path) -> None:
-    _, value = _package_asset(setup_core, "web_server:\n  js_include: assets/ui.js\n")
+    _, value = _package_value(setup_core)
     (setup_core / "assets").mkdir()
     (setup_core / "assets" / "ui.js").write_text("local\n")
 
@@ -3210,9 +3219,7 @@ def test_file__config_dir_wins_over_the_declaring_document(setup_core: Path) -> 
 
 
 def test_file__missing_in_both_places_raises(setup_core: Path) -> None:
-    _, value = _package_asset(
-        setup_core, "web_server:\n  js_include: assets/other.js\n"
-    )
+    _, value = _package_value(setup_core, "assets/other.js")
 
     with pytest.raises(Invalid, match="Could not find file"):
         cv.file_(value)
@@ -3222,10 +3229,9 @@ def test_file__declared_in_an_in_memory_document_is_not_resolved(
     setup_core: Path,
 ) -> None:
     """A value whose source document isn't on disk falls through to the config-dir error."""
-    value = parse_yaml(
-        Path("<unicode string>"),
-        io.StringIO("web_server:\n  js_include: assets/ui.js\n"),
-    )["web_server"]["js_include"]
+    value = parse_yaml(Path("<unicode string>"), io.StringIO("path: assets/ui.js\n"))[
+        "path"
+    ]
 
     with pytest.raises(Invalid, match="Could not find file"):
         cv.file_(value)
@@ -3234,9 +3240,7 @@ def test_file__declared_in_an_in_memory_document_is_not_resolved(
 def test_directory_resolves_relative_to_the_declaring_document(
     setup_core: Path,
 ) -> None:
-    package_dir, value = _package_asset(
-        setup_core, "web_server:\n  js_include: assets\n"
-    )
+    package_dir, value = _package_value(setup_core, "assets")
 
     assert cv.directory(value) == package_dir / "assets"
 

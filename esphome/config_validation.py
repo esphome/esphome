@@ -1999,6 +1999,18 @@ def _remap_bundle_path(value: str) -> Path | None:
     return remap_bundle_path(value)
 
 
+def _document_relative_path(value: str) -> Path | None:
+    """Resolve *value* next to the YAML file that declared it; callers try the config dir first."""
+    esp_range = getattr(value, "esp_range", None)
+    if esp_range is None:
+        return None
+    document = Path(esp_range.start_mark.document)
+    if not document.is_file():
+        return None
+    candidate = document.parent / Path(value).expanduser()
+    return candidate if candidate.exists() else None
+
+
 def directory(value: object) -> Path:
     value = string(value)
     path = CORE.relative_config_path(value)
@@ -2015,22 +2027,6 @@ def directory(value: object) -> Path:
             f"Path '{path}' is not a directory (full path: {path.resolve()})."
         )
     return path
-
-
-def _document_relative_path(value: str) -> Path | None:
-    """Resolve *value* against the YAML file that declared it, when that file holds it.
-
-    A package or ``!include``d file can ship its own assets next to itself;
-    the config dir is still tried first.
-    """
-    esp_range = getattr(value, "esp_range", None)
-    if esp_range is None:
-        return None
-    document = Path(esp_range.start_mark.document)
-    if not document.is_file():
-        return None
-    candidate = document.parent / Path(value).expanduser()
-    return candidate if candidate.exists() else None
 
 
 def file_(value: object) -> Path:
