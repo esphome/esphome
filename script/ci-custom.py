@@ -163,9 +163,10 @@ def lint_post_check(func):
     return func
 
 
-def lint_re_check(regex, mask=False, **kwargs):
+def lint_re_check(regex, mask=False, prefilter=None, **kwargs):
     """mask=True blanks comments and string literals first so prose about the pattern is not reported;
-    the masked text keeps its length, so match offsets still index the original content."""
+    the masked text keeps its length, so match offsets still index the original content.
+    prefilter is a literal every match must contain, checked before the costlier masking."""
     flags = kwargs.pop("flags", re.MULTILINE)
     prog = re.compile(regex, flags)
     decor = lint_content_check(**kwargs)
@@ -174,8 +175,7 @@ def lint_re_check(regex, mask=False, **kwargs):
         @functools.wraps(func)
         def new_func(fname, content):
             errs = []
-            # Masking only blanks text, so no raw match means no masked match either
-            if mask and not prog.search(content):
+            if prefilter is not None and prefilter not in content:
                 return errs
             haystack = _mask_cpp_comments_strings(content) if mask else content
             for match in prog.finditer(haystack):
@@ -1144,6 +1144,7 @@ def lint_no_std_bind(fname, match):
 @lint_re_check(
     r"[^\w]std\s*::\s*nothrow\b" + CPP_RE_EOL,
     mask=True,
+    prefilter="nothrow",
     include=cpp_include,
     exclude=[
         # Still use new (std::nothrow); migrated to RAMAllocator in a follow up PR
