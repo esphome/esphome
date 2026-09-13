@@ -368,4 +368,30 @@ TEST(FixedVectorTryInit, ReportsExhaustionAndStaysEmpty) {
   EXPECT_EQ(v[0], 7u);
 }
 
+TEST(FixedVectorTryReserve, GrowsKeepingContentsAndFailsCleanly) {
+  struct Named {
+    std::string name;
+    int id;
+  };
+  FixedVector<Named> v;
+  ASSERT_TRUE(v.try_init(2));
+  v.push_back(Named{"first", 1});
+  v.push_back(Named{"second", 2});
+  EXPECT_TRUE(v.full());
+  EXPECT_TRUE(v.try_reserve(1));  // at or below capacity is a no-op
+  EXPECT_EQ(v.capacity(), 2u);
+  ASSERT_TRUE(v.try_reserve(4));
+  EXPECT_EQ(v.capacity(), 4u);
+  EXPECT_EQ(v.size(), 2u);
+  EXPECT_EQ(v[0].name, "first");
+  EXPECT_EQ(v[1].id, 2);
+  v.push_back(Named{"third", 3});
+  const bool ok = v.try_reserve(SIZE_MAX / sizeof(Named));
+  escape(&v);
+  EXPECT_FALSE(ok);
+  EXPECT_EQ(v.capacity(), 4u);
+  EXPECT_EQ(v.size(), 3u);
+  EXPECT_EQ(v[2].name, "third");
+}
+
 }  // namespace esphome::core::testing

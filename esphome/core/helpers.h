@@ -641,6 +641,25 @@ template<typename T> class FixedVector {
       abort();
   }
 
+  // Grow to at least n elements keeping the contents; false and unchanged when memory is exhausted.
+  // Growth only happens here, never inside push_back, so the fixed size contract holds for every
+  // caller that does not ask for it.
+  bool try_reserve(size_t n) {
+    if (n <= capacity_)
+      return true;
+    T *grown = RAMAllocator<T>(RAMAllocator<T>::ALLOC_INTERNAL).allocate(n);
+    if (grown == nullptr)
+      return false;
+    for (size_t i = 0; i < size_; i++) {
+      new (grown + i) T(std::move(data_[i]));
+      data_[i].~T();
+    }
+    RAMAllocator<T>(RAMAllocator<T>::ALLOC_INTERNAL).deallocate(data_, capacity_);
+    data_ = grown;
+    capacity_ = n;
+    return true;
+  }
+
   // Same as init(), but returns false and leaves the vector empty when memory is exhausted
   bool try_init(size_t n) {
     cleanup_();
