@@ -180,3 +180,7 @@ def test_nothrow_in_comments_and_strings_is_masked() -> None:
 
 def test_nothrow_nolint_suppresses() -> None:
     assert not _lint_nothrow("auto *p = new (std::nothrow) Foo;  // NOLINT\n")
+
+
+def test_nothrow_nolint_inside_a_string_does_not_suppress() -> None:
+    assert len(_lint_nothrow('auto *p = new (std::nothrow) Foo; log("NOLINT");\n')) == 1

@@ -163,6 +163,17 @@ def lint_post_check(func):
     return func
 
 
+def _nolint_in_match(content, haystack, match, mask):
+    """With masking, only a trailing comment counts: the raw span still holds string contents, and
+    the masked text is blank exactly where comments and strings were, so NOLINT must sit after the
+    last real code character of the span."""
+    raw = content[match.start() : match.end()]
+    if not mask:
+        return "NOLINT" in raw
+    masked = haystack[match.start() : match.end()].rstrip()
+    return "NOLINT" in raw[len(masked) :]
+
+
 def lint_re_check(regex, mask=False, prefilter=None, **kwargs):
     """mask=True blanks comments and string literals first so prose about the pattern is not reported;
     the masked text keeps its length, so match offsets still index the original content.
@@ -179,7 +190,7 @@ def lint_re_check(regex, mask=False, prefilter=None, **kwargs):
                 return errs
             haystack = _mask_cpp_comments_strings(content) if mask else content
             for match in prog.finditer(haystack):
-                if "NOLINT" in content[match.start() : match.end()]:
+                if _nolint_in_match(content, haystack, match, mask):
                     continue
                 lineno = content.count("\n", 0, match.start()) + 1
                 substr = content[: match.start()]
