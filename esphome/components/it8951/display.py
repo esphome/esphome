@@ -374,6 +374,12 @@ def _final_validate(config: ConfigType) -> None:
                 config[CONF_UPDATE_INTERVAL] = update_interval("never")
         else:
             config[CONF_SHOW_TEST_CARD] = True
+    elif CONF_UPDATE_INTERVAL not in config:
+        # The schema leaves this undefined so that a panel driven by LVGL is not
+        # polled at the core default of one second. A lambda still needs a clock
+        # of its own, though — without one it paints once at boot and never
+        # again, which reads as a dead display. Same default as epaper_spi.
+        config[CONF_UPDATE_INTERVAL] = update_interval("1min")
 
     # Everything below applies only to the direct-draw variant.
     if requires_buffer(config):
