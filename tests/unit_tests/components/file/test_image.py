@@ -55,6 +55,21 @@ def test_prefetch_files_yields_remote_refs(setup_core: Path) -> None:
     assert files[1].url == "https://example.com/img.png"
 
 
+def test_validated_file_values_stay_paths(setup_core: Path, tmp_path: Path) -> None:
+    """config-hash normalizes Path values under the data dir; a str would
+    dump verbatim and hash differently between CLI and the add-on."""
+    url = "https://example.com/img.png"
+    with patch("esphome.components.file.image.external_files.download_content"):
+        remote = file_image.validate_file_shorthand(url)
+        mdi = file_image.validate_file_shorthand("mdi:home")
+    assert remote == file_image.compute_local_image_path(url)
+    assert isinstance(remote, Path)
+    assert isinstance(mdi, Path)
+    local = tmp_path / "img.png"
+    local.touch()
+    assert file_image.validate_file_shorthand("img.png") == local
+
+
 def test_extractor_matches_validator_path(setup_core: Path) -> None:
     """The path the validator downloads to equals the extractor's path."""
     with patch(
