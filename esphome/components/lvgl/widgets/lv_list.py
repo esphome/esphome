@@ -90,11 +90,9 @@ def _get_list_triggers(list_id) -> ListTriggers:
 
 async def finish_list_triggers() -> None:
     """
-    Builds every list's on_add/on_remove automations, collected by ListType.to_code()
+    Builds every list's on_add/on_remove automations, collected by ListType.on_create()
     instead of being built there directly.
     """
-    # Snapshot: _get_list_triggers() can add an entry for a new list while we
-    # await build_automation() below, changing this dict's size mid-iteration.
     for triggers in list(get_list_triggers().values()):
         for conf in triggers.on_add + triggers.on_remove:
             trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID])
@@ -207,13 +205,14 @@ async def list_add_text_to_code(config, action_id, template_arg, args):
     )
 
 
+# These types of widgets are not compatible with lvgl.list.add, because they manage their own children in a way
+# that can't be rebuilt on every call.
 _DYNAMIC_WIDGET_UNSUPPORTED = (
     CONF_BUTTONMATRIX,
     CONF_TABVIEW,
     CONF_TILEVIEW,
     CONF_METER,
     CONF_CANVAS,
-    # A nested list has no reachable id, so its own on_add/on_remove could never fire.
     CONF_LIST,
 )
 

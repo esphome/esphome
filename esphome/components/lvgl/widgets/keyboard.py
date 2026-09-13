@@ -1,17 +1,9 @@
 from esphome.components.key_provider import KeyProvider
 import esphome.config_validation as cv
 from esphome.const import CONF_ITEMS, CONF_MODE
-from esphome.core import CORE
 from esphome.cpp_types import std_string
 
-from .. import LvContext
-from ..defines import (
-    CONF_MAIN,
-    KEYBOARD_MODES,
-    add_lv_use,
-    is_widget_completed,
-    literal,
-)
+from ..defines import CONF_MAIN, KEYBOARD_MODES, add_lv_use, literal
 from ..types import LvCompound, LvType
 from . import Widget, WidgetType, get_widgets
 from .buttonmatrix import CONF_BUTTONMATRIX
@@ -56,24 +48,11 @@ class KeyboardType(WidgetType):
         add_lv_use("KEY_LISTENER")
         if mode := config.get(CONF_MODE):
             await w.set_property(CONF_MODE, await KEYBOARD_MODES.process(mode))
-        if textarea := config.get(CONF_TEXTAREA):
-            if not is_widget_completed(textarea):
-                # Can only happen for an initial config, where the keyboard is configured before the
-                # textarea, so it's ok to always emit into the global context
-                async def add_textarea():
-                    async with LvContext():
-                        await w.set_property(
-                            CONF_TEXTAREA,
-                            (await get_widgets(config, CONF_TEXTAREA))[0].obj,
-                        )
-
-                CORE.add_job(add_textarea)
-            else:
-                # Handles updates in automations, and properly ordered initial config. Code is generated
-                # into the enclosing context (main or lambda)
-                await w.set_property(
-                    CONF_TEXTAREA, (await get_widgets(config, CONF_TEXTAREA))[0].obj
-                )
+        if config.get(CONF_TEXTAREA):
+            # Handles updates in automations, and initial config.
+            await w.set_property(
+                CONF_TEXTAREA, (await get_widgets(config, CONF_TEXTAREA))[0].obj
+            )
 
 
 keyboard_spec = KeyboardType()
