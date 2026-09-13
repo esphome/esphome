@@ -237,7 +237,7 @@ class ESPHomeOTAComponent final : public ota::OTAComponent {
   // Writes the decoded bytes not yet in flash without moving dest
   ota::OTAResponseTypes inflate_flush_(InflateSession &session);
   ota::OTAResponseTypes inflate_data_(uint8_t *in, size_t image_size, DataTransfer &xfer);
-  std::unique_ptr<InflateSession> inflate_;
+  unique_ptr_ram<InflateSession> inflate_;
 #endif
 
   static constexpr uint8_t MAGIC_BYTES[5] = {0x6C, 0x26, 0xF7, 0x5C, 0x45};

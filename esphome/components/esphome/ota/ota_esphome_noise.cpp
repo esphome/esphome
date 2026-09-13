@@ -32,11 +32,7 @@ ESPHomeOTAComponent::NoiseSession::~NoiseSession() {
   }
 }
 
-void ESPHomeOTAComponent::noise_reserve_session_() {
-  // Default-init: the frame buffer is written before it is read
-  // NOLINTNEXTLINE(clang-analyzer-cplusplus.NewDeleteLeaks)
-  this->noise_ = std::unique_ptr<NoiseSession>(new (std::nothrow) NoiseSession);
-}
+void ESPHomeOTAComponent::noise_reserve_session_() { this->noise_ = make_unique_ram<NoiseSession>(); }
 
 /** Start the responder handshake, on the session reserved at offer time.
  *
