@@ -19,6 +19,7 @@ struct W5500CustomSpiContext {
   spi_device_handle_t handle;
   SemaphoreHandle_t lock;
 };
+// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables) - intentional mutable state
 W5500CustomSpiContext w5500_context{};
 
 // Transfers up to the ESP32 SPI hardware FIFO size (64 bytes) stay on the polling path; larger
