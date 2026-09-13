@@ -926,8 +926,15 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
         return;
       }
 
-      // Smart reserve: full capacity if needed, small reserve otherwise
-      this->scan_result_.reserve(needs_full ? number : WIFI_SCAN_RESULT_FILTERED_RESERVE);
+      // Full results keep every network; filtered results keep only configured ones, so a small
+      // capacity is enough. Storage is kept between scans and only regrown when a scan needs more;
+      // an exhausted heap drops this scan and the retry logic scans again
+      const size_t capacity = needs_full ? number : std::min<size_t>(number, WIFI_SCAN_RESULT_FILTERED_RESERVE);
+      if (this->scan_result_.capacity() < capacity && !this->scan_result_.init(capacity)) {
+        esp_wifi_clear_ap_list();
+        ESP_LOGW(TAG, "No memory for %u scan results", number);
+        return;
+      }
 
 #ifdef USE_ESP32_HOSTED
       // getting records one at a time fails on P4 with hosted esp32 WiFi coprocessor
@@ -959,7 +966,7 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
         const char *ssid_cstr = reinterpret_cast<const char *>(record.ssid);
 
         // Only construct std::string and store if needed
-        if (needs_full || this->matches_configured_network_(ssid_cstr, record.bssid)) {
+        if ((needs_full || this->matches_configured_network_(ssid_cstr, record.bssid)) && !this->scan_result_.full()) {
           bssid_t bssid;
           std::copy(record.bssid, record.bssid + 6, bssid.begin());
           this->scan_result_.emplace_back(bssid, ssid_cstr, strlen(ssid_cstr), record.primary, record.rssi,

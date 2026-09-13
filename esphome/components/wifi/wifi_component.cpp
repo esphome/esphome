@@ -2416,7 +2416,7 @@ void WiFiComponent::handle_driver_roam_(const bssid_t &bssid, uint8_t channel) {
 void WiFiComponent::release_scan_results_() {
   if (!this->keep_scan_results_) {
     ScanResultsLock lock(this);
-#if defined(USE_RP2) || defined(USE_ESP32)
+#if defined(USE_RP2)
     // std::vector - use swap trick since shrink_to_fit is non-binding
     decltype(this->scan_result_)().swap(this->scan_result_);
 #else

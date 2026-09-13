@@ -181,9 +181,9 @@ using bssid_t = std::array<uint8_t, 6>;
 /// Initial reserve size for filtered scan results (typical: 1-3 matching networks per SSID)
 static constexpr size_t WIFI_SCAN_RESULT_FILTERED_RESERVE = 8;
 
-// Use std::vector for RP2040 (callback-based) and ESP32 (destructive scan API)
-// Use FixedVector for ESP8266 and LibreTiny where two-pass exact allocation is possible
-#if defined(USE_RP2) || defined(USE_ESP32)
+// Use std::vector for RP2040 (callback-based). Everywhere else the count is known before the
+// results are read, so FixedVector sizes once and reports exhaustion instead of aborting
+#if defined(USE_RP2)
 template<typename T> using wifi_scan_vector_t = std::vector<T>;
 #else
 template<typename T> using wifi_scan_vector_t = FixedVector<T>;
