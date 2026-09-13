@@ -369,7 +369,7 @@ async def to_code(config: ConfigType) -> None:
     # a NULL pointer (so the stacktrace makes more sense), and for consistency with Arduino 3,
     # which always aborts if exceptions are disabled.
     # For allocations whose failure must be handled, use RAMAllocator from esphome/core/helpers.h,
-    # which returns nullptr; `new (std::nothrow)` is rejected by ci-custom since it aborts on ESP-IDF.
+    # which returns nullptr where `new (std::nothrow)` aborts on ESP-IDF.
     cg.add_build_flag("-DNEW_OOM_ABORT")
 
     # Force-include inline std::__throw_* overrides so GCC dead-strips the unused
