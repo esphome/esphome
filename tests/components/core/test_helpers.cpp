@@ -348,4 +348,23 @@ TEST(StepToAccuracyDecimals, NonFiniteAndZero) {
   EXPECT_EQ(step_to_accuracy_decimals(-INFINITY), 0);
 }
 
+// --- FixedVector::try_init() ---
+
+// Keeps the block observable, else the compiler may drop the malloc and free pair and fold the check
+static void escape(const void *p) { asm volatile("" : : "g"(p) : "memory"); }
+
+TEST(FixedVectorTryInit, ReportsExhaustionAndStaysEmpty) {
+  FixedVector<uint32_t> v;
+  const bool ok = v.try_init(SIZE_MAX / sizeof(uint32_t));
+  escape(&v);
+  EXPECT_FALSE(ok);
+  EXPECT_EQ(v.capacity(), 0u);
+  EXPECT_FALSE(v.try_init(SIZE_MAX / sizeof(uint32_t) + 1));  // byte count would wrap
+  EXPECT_EQ(v.capacity(), 0u);
+  EXPECT_TRUE(v.try_init(0));
+  EXPECT_TRUE(v.try_init(4));
+  v.push_back(7);
+  EXPECT_EQ(v.size(), 1u);
+}
+
 }  // namespace esphome::core::testing
