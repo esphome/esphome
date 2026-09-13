@@ -5,19 +5,19 @@ namespace esphome::seeed_multi_channel_relay {
 
 static const char *const TAG = "seeed_multi_channel_relay";
 
-void seeed_multi_channel_relay::channel_ctrl_(uint8_t state) {
+void seeed_multi_channel_relay::channel_ctrl(uint8_t state) {
   this->channel_state_ = state;
-  this->write1_byte_(CMD_CHANNEL_CTRL, state);
+  this->write1_byte(CMD_CHANNEL_CTRL, state);
 }
 
-void seeed_multi_channel_relay::turn_on_channel_(uint8_t channel) {
-  this->channel_state_ |= (1 << (channel - 1));
-  this->channel_ctrl_(channel_state_);
+void seeed_multi_channel_relay::turn_on_channel(uint8_t channel) {
+  this->channel_state |= (1 << (channel - 1));
+  this->channel_ctrl(channel_state);
 }
 
-void seeed_multi_channel_relay::turn_off_channel_(uint8_t channel) {
-  this->channel_state_ &= ~(1 << (channel - 1));
-  this->channel_ctrl_(channel_state_);
+void seeed_multi_channel_relay::turn_off_channel(uint8_t channel) {
+  this->channel_state &= ~(1 << (channel - 1));
+  this->channel_ctrl(channel_state);
 }
 
 void seeed_multi_channel_relay::dump_config() {
@@ -26,7 +26,7 @@ void seeed_multi_channel_relay::dump_config() {
 }
 
 /*! @brief Read a certain length of data to the specified register address. */
-uint8_t seeed_multi_channel_relay::read1_byte_(uint8_t register_address) {
+uint8_t seeed_multi_channel_relay::read1_byte(uint8_t register_address) {
   uint8_t data;
   if (!this->read_byte(register_address, &data)) {
     ESP_LOGW(TAG, "Read from relay failed!");
@@ -41,29 +41,29 @@ uint8_t seeed_multi_channel_relay::read1_byte_(uint8_t register_address) {
     @param state OFF = 0, ON = 1 . */
 void seeed_multi_channel_relay::relay_write(uint8_t number, bool state) {
   if (state) {
-    this->turn_on_channel_(number);
+    this->turn_on_channel(number);
   } else {
-    this->turn_off_channel_(number);
+    this->turn_off_channel(number);
   }
 }
 
 void seeed_multi_channel_relay::setup() {
   ESP_LOGCONFIG(TAG, "Setting up Seeed Multi Channel Relay...");
   ESP_LOGCONFIG(TAG, "Firmware version of the Seeed Multi Channel Relay %u", this->get_firmware_version());
-  if (this->address_changed_) {
-    this->write1_byte_(CMD_SAVE_I2C_ADDR, this->new_addr_);
-    this->set_i2c_address(this->new_addr_);
-    ESP_LOGCONFIG(TAG, "I2C address of control changed to %u", this->new_addr_);
+  if (this->address_changed) {
+    this->write1_byte(CMD_SAVE_I2C_ADDR, this->new_addr);
+    this->set_i2c_address(this->new_addr);
+    ESP_LOGCONFIG(TAG, "I2C address of control changed to %u", this->new_addr);
   }
 }
 
 void seeed_multi_channel_relay::change_i2c_address(uint8_t new_addr) {
-  this->new_addr_ = new_addr;
-  address_changed_ = true;
+  this->new_addr = new_addr;
+  address_changed = true;
 }
 
 uint8_t seeed_multi_channel_relay::get_firmware_version() {
-  uint8_t firmware_from_device = this->read1_byte_(CMD_READ_FIRMWARE_VER);
+  uint8_t firmware_from_device = this->read1_byte(CMD_READ_FIRMWARE_VER);
   return firmware_from_device;
 }
 
