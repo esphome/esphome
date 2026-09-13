@@ -179,10 +179,12 @@ struct EAPAuth {
 using bssid_t = std::array<uint8_t, 6>;
 
 /// Initial reserve size for filtered scan results (typical: 1-3 matching networks per SSID)
-static constexpr size_t WIFI_SCAN_RESULT_FILTERED_RESERVE = 8;
+// ESP32 with one configured network: the driver filters the scan and returns the strongest first,
+// so only this many of that network's BSSIDs are kept
+static constexpr size_t WIFI_SCAN_RESULT_BOUND = 12;
 
-// Use std::vector for RP2040 (callback-based). Everywhere else the count is known before the
-// results are read, so FixedVector sizes once and reports exhaustion instead of aborting
+// std::vector only for RP2040, whose callback delivers results with no count; FixedVector
+// everywhere else, sized once per scan and reporting exhaustion instead of aborting
 #if defined(USE_RP2)
 template<typename T> using wifi_scan_vector_t = std::vector<T>;
 #else
@@ -871,6 +873,9 @@ class WiFiComponent final : public Component {
   std::vector<WiFiSTAPriority> sta_priorities_;
   // Guarded by ScanResultsLock (see below this class)
   wifi_scan_vector_t<WiFiScanResult> scan_result_;
+#if defined(USE_ESP32) && !defined(USE_WIFI_MULTI_SSID)
+  bool scan_driver_filtered_{false};
+#endif
 #ifdef WIFI_SCAN_RESULTS_LOCK_ENABLED
   Mutex scan_result_lock_;
 #endif

@@ -909,7 +909,11 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
     ESP_LOGV(TAG, "Scan done: status=%" PRIu32 " number=%u scan_id=%u", it.status, it.number, it.scan_id);
 
     uint16_t number = it.number;
-    bool needs_full = this->needs_full_scan_results_();
+#ifdef USE_WIFI_MULTI_SSID
+    const bool filtered = false;
+#else
+    const bool filtered = this->scan_driver_filtered_;
+#endif
     {
       // Mutate in place under the lock; blocking a portal request is fine and
       // avoids scratch buffers
@@ -926,13 +930,19 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
         return;
       }
 
-      // Full results keep every network; filtered results usually keep a few, so start small and
-      // grow on demand below. Storage is kept between scans and only regrown when a scan needs
-      // more; an exhausted heap drops this scan and the retry logic scans again
-      const size_t initial = needs_full ? number : std::min<size_t>(number, WIFI_SCAN_RESULT_FILTERED_RESERVE);
-      if (this->scan_result_.capacity() < initial && !this->scan_result_.try_init(initial)) {
+#ifdef USE_WIFI_MULTI_SSID
+      // Several networks: store everything, matches are marked when the results are processed
+      const size_t wanted = number;
+#else
+      // One network: the driver filtered and returns the strongest first, so the first entries are
+      // the ones worth keeping
+      const size_t wanted = filtered ? std::min<size_t>(number, WIFI_SCAN_RESULT_BOUND) : number;
+#endif
+      // Storage is kept between scans and only regrown when a scan needs more; an exhausted heap
+      // drops this scan and the retry logic scans again
+      if (this->scan_result_.capacity() < wanted && !this->scan_result_.try_init(wanted)) {
         esp_wifi_clear_ap_list();
-        ESP_LOGW(TAG, "No memory for %u scan results", number);
+        ESP_LOGW(TAG, "No memory for %zu scan results", wanted);
         return;
       }
 
@@ -942,6 +952,11 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
       // Use stack buffer (3904 bytes / ~80 bytes per record = ~48 records) with heap fallback
       static constexpr size_t SCAN_RECORD_STACK_COUNT = 3904 / sizeof(wifi_ap_record_t);
       SmallBufferWithHeapFallback<SCAN_RECORD_STACK_COUNT, wifi_ap_record_t> records(number);
+      if (records.get() == nullptr) {
+        esp_wifi_clear_ap_list();
+        ESP_LOGW(TAG, "No memory for %u scan records", number);
+        return;
+      }
       err = esp_wifi_scan_get_ap_records(&number, records.get());
       if (err != ESP_OK) {
         esp_wifi_clear_ap_list();
@@ -962,15 +977,8 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
         }
 #endif  // USE_ESP32_HOSTED
 
-        // Check C string first - avoid std::string construction for non-matching networks
         const char *ssid_cstr = reinterpret_cast<const char *>(record.ssid);
-
-        // Only construct std::string and store if needed
-        // A full filtered store grows on demand; when the heap is exhausted mid scan the stored
-        // results are kept and the rest are logged as discarded
-        const bool wanted = needs_full || this->matches_configured_network_(ssid_cstr, record.bssid);
-        if (wanted && (!this->scan_result_.full() ||
-                       this->scan_result_.try_reserve(std::min<size_t>(number, this->scan_result_.capacity() * 2)))) {
+        if (!this->scan_result_.full()) {
           bssid_t bssid;
           std::copy(record.bssid, record.bssid + 6, bssid.begin());
           this->scan_result_.emplace_back(bssid, ssid_cstr, strlen(ssid_cstr), record.primary, record.rssi,
@@ -981,7 +989,7 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
       }
     }
     ESP_LOGV(TAG, "Scan complete: %u found, %zu stored%s", number, this->scan_result_.size(),
-             needs_full ? "" : " (filtered)");
+             filtered ? " (driver filtered)" : "");
 #ifdef USE_WIFI_SCAN_RESULTS_LISTENERS
     this->notify_scan_results_listeners_();
 #endif
@@ -1058,6 +1066,22 @@ bool WiFiComponent::wifi_scan_start_(bool passive) {
   wifi_scan_config_t config{};
   config.ssid = nullptr;
   config.bssid = nullptr;
+#ifndef USE_WIFI_MULTI_SSID
+  // One configured network: let the driver keep only its APs, so the result count is exact and the
+  // WiFi library holds fewer records during the scan. Full results (portal, provisioning, listeners)
+  // still scan everything
+  this->scan_driver_filtered_ = !this->needs_full_scan_results_() && this->sta_.size() == 1;
+  if (this->scan_driver_filtered_) {
+    const WiFiAP &ap = this->sta_[0];
+    if (!ap.get_ssid().empty()) {
+      // The driver only reads these during the call
+      config.ssid = const_cast<uint8_t *>(reinterpret_cast<const uint8_t *>(ap.get_ssid().c_str()));
+    }
+    if (ap.has_bssid()) {
+      config.bssid = const_cast<uint8_t *>(ap.get_bssid().data());
+    }
+  }
+#endif
   config.channel = 0;
   config.show_hidden = true;
   config.scan_type = passive ? WIFI_SCAN_TYPE_PASSIVE : WIFI_SCAN_TYPE_ACTIVE;
