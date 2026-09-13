@@ -344,7 +344,7 @@ void IT8951Display::setup() {
   // instead, and clears that RAM from on_initialised() once the handshake is
   // done. Its needs_transfer() is false, so nothing reads buffer_.
   this->row_width_ = this->compute_row_width_();
-  if (this->needs_transfer()) {
+  if (this->uses_framebuffer()) {
     this->buffer_length_ = static_cast<size_t>(this->row_width_) * static_cast<size_t>(this->height_);
     RAMAllocator<uint8_t> allocator{};
     this->buffer_ = allocator.allocate(this->buffer_length_);
@@ -792,15 +792,12 @@ void IT8951Display::set_refresh_paused(bool paused, UpdateMode mode) {
     this->refresh_paused_ = false;
     ESP_LOGD(TAG, "Refresh resumed");
   }
-  if (!this->paused_present_pending_)
+  if (this->paused_mode_ == UPDATE_MODE_NONE)
     return;
   // Present what was composed while paused. An explicit mode replaces the one
   // the swallowed request carried.
-  this->paused_present_pending_ = false;
-  UpdateMode present = mode != UPDATE_MODE_NONE ? mode : this->paused_mode_;
+  const UpdateMode present = mode != UPDATE_MODE_NONE ? mode : this->paused_mode_;
   this->paused_mode_ = UPDATE_MODE_NONE;
-  if (present == UPDATE_MODE_NONE)
-    present = UPDATE_MODE_GC16;
   this->start_update_(present);
 }
 
@@ -817,7 +814,6 @@ void IT8951Display::refresh_now(UpdateMode mode) {
   this->x_high_ = this->width_;
   this->y_high_ = this->height_;
   this->refresh_paused_ = false;
-  this->paused_present_pending_ = false;
   this->paused_mode_ = UPDATE_MODE_NONE;
   this->start_update_(mode);
 }
@@ -826,7 +822,6 @@ void IT8951Display::start_update_(UpdateMode mode) {
   if (this->refresh_paused_) {
     // Remember the request; the dirty region keeps accumulating because we
     // never reach prepare_update_region_, which is what resets it.
-    this->paused_present_pending_ = true;
     this->paused_mode_ = mode;
     ESP_LOGV(TAG, "Update deferred (refresh paused), mode=%u", static_cast<unsigned>(mode));
     return;
@@ -976,6 +971,14 @@ static uint8_t color_to_nibble(const Color &color) {
 // channels and the Color round-trip. The weights are the usual 0.299/0.587/0.114
 // pre-scaled so a full-white pixel lands on exactly 15, and the +2048 matches the
 // rounding quantize_8bit_to_nibble applies one byte further up.
+// Place a 4bpp pixel in a packed row. The row always starts on a 4-pixel
+// boundary, so a pixel's nibble parity is just the parity of its column.
+static inline void write_nibble(uint8_t *row, uint16_t column, uint8_t nibble) {
+  uint8_t &byte = row[column >> 1];
+  byte =
+      (column & 1) ? static_cast<uint8_t>((byte & 0xF0) | nibble) : static_cast<uint8_t>((byte & 0x0F) | (nibble << 4));
+}
+
 static inline uint8_t rgb565_to_nibble(uint16_t value) {
   const uint32_t r = (value >> 11) & 0x1F;
   const uint32_t g = (value >> 5) & 0x3F;
@@ -1246,73 +1249,66 @@ bool IT8951DirectDisplay::prepare_direct_write_() {
   return true;
 }
 
-void HOT IT8951DirectDisplay::pack_row_(uint16_t native_x, uint16_t native_y, uint16_t w, const uint8_t *ptr,
-                                        ColorOrder order, ColorBitness bitness, bool big_endian, size_t source_index,
-                                        bool mirror_x, uint16_t source_w, uint16_t clip_left) {
+void HOT IT8951DirectDisplay::pack_row_(uint16_t x, uint16_t y, uint16_t w, size_t source_index,
+                                        const FlushSource &src) {
   uint8_t *out = this->row_buf_.get();
   std::memset(out, 0, this->row_bytes_for_(w));
+
+  // Column c of the clipped rectangle is column clip_left + c of the source,
+  // which reads from the far end when mirrored in X.
+  const uint16_t first = src.clip_left;
+  const auto source_column = [&](uint16_t c) -> size_t {
+    const uint16_t column = static_cast<uint16_t>(first + c);
+    return src.mirror_x ? static_cast<size_t>(src.width - 1 - column) : column;
+  };
 
   // LVGL is the only writer that reaches this class (anything drawing pixel by
   // pixel routes to the buffered one), and it passes a compile-time-constant
   // bitness with a fixed colour order and endianness. So for the whole flush the
   // decode is one known shape: decide it once here rather than per pixel.
-  if (this->grayscale_ && bitness == COLOR_BITNESS_565 && order == COLOR_ORDER_RGB) {
-    const uint8_t *base = ptr + source_index * 2;
+  if (this->grayscale_ && src.bitness == COLOR_BITNESS_565 && src.order == COLOR_ORDER_RGB) {
+    const uint8_t *base = src.ptr + source_index * 2;
     for (uint16_t c = 0; c < w; c++) {
-      const uint16_t column = static_cast<uint16_t>(clip_left + c);
-      const size_t i = (mirror_x ? static_cast<size_t>(source_w - 1 - column) : column) * 2;
-      const uint16_t value = big_endian ? static_cast<uint16_t>((static_cast<uint16_t>(base[i]) << 8) | base[i + 1])
-                                        : static_cast<uint16_t>(base[i] | (static_cast<uint16_t>(base[i + 1]) << 8));
+      const size_t i = source_column(c) * 2;
+      const uint16_t value = src.big_endian
+                                 ? static_cast<uint16_t>((static_cast<uint16_t>(base[i]) << 8) | base[i + 1])
+                                 : static_cast<uint16_t>(base[i] | (static_cast<uint16_t>(base[i + 1]) << 8));
       uint8_t nibble = rgb565_to_nibble(value);
       if (this->invert_colors_)
         nibble = static_cast<uint8_t>(0x0F - nibble);
-      const uint16_t index = static_cast<uint16_t>(c >> 1);
-      if (c & 1) {
-        out[index] = static_cast<uint8_t>((out[index] & 0xF0) | nibble);
-      } else {
-        out[index] = static_cast<uint8_t>((out[index] & 0x0F) | (nibble << 4));
-      }
+      write_nibble(out, c, nibble);
     }
     return;
   }
 
   for (uint16_t c = 0; c < w; c++) {
-    // Column c of the clipped rectangle is column clip_left + c of the source
-    // rectangle, which in turn reads from the far end when mirrored in X.
-    const uint16_t column = static_cast<uint16_t>(clip_left + c);
-    const size_t src = source_index + (mirror_x ? static_cast<size_t>(source_w - 1 - column) : column);
+    const size_t index = source_index + source_column(c);
     uint32_t color_value;
-    switch (bitness) {
+    switch (src.bitness) {
       case COLOR_BITNESS_565: {
-        const size_t i = src * 2;
-        color_value = big_endian ? (static_cast<uint32_t>(ptr[i]) << 8) | ptr[i + 1]
-                                 : ptr[i] | (static_cast<uint32_t>(ptr[i + 1]) << 8);
+        const size_t i = index * 2;
+        color_value = src.big_endian ? (static_cast<uint32_t>(src.ptr[i]) << 8) | src.ptr[i + 1]
+                                     : src.ptr[i] | (static_cast<uint32_t>(src.ptr[i + 1]) << 8);
         break;
       }
       case COLOR_BITNESS_888: {
-        const size_t i = src * 3;
-        color_value =
-            big_endian ? (static_cast<uint32_t>(ptr[i]) << 16) | (static_cast<uint32_t>(ptr[i + 1]) << 8) | ptr[i + 2]
-                       : ptr[i] | (static_cast<uint32_t>(ptr[i + 1]) << 8) | (static_cast<uint32_t>(ptr[i + 2]) << 16);
+        const size_t i = index * 3;
+        color_value = src.big_endian ? (static_cast<uint32_t>(src.ptr[i]) << 16) |
+                                           (static_cast<uint32_t>(src.ptr[i + 1]) << 8) | src.ptr[i + 2]
+                                     : src.ptr[i] | (static_cast<uint32_t>(src.ptr[i + 1]) << 8) |
+                                           (static_cast<uint32_t>(src.ptr[i + 2]) << 16);
         break;
       }
       default:
-        color_value = ptr[src];
+        color_value = src.ptr[index];
         break;
     }
-    const Color color = ColorUtil::to_color(color_value, order, bitness);
+    const Color color = ColorUtil::to_color(color_value, src.order, src.bitness);
     if (this->grayscale_) {
       uint8_t nibble = color_to_nibble(color);
       if (this->invert_colors_)
         nibble = static_cast<uint8_t>(0x0F - nibble);
-      // native_x is 4-pixel aligned, so a pixel's nibble parity within the row
-      // buffer is just the parity of its column index.
-      const uint16_t index = static_cast<uint16_t>(c >> 1);
-      if (c & 1) {
-        out[index] = static_cast<uint8_t>((out[index] & 0xF0) | nibble);
-      } else {
-        out[index] = static_cast<uint8_t>((out[index] & 0x0F) | (nibble << 4));
-      }
+      write_nibble(out, c, nibble);
     } else {
       // Rec.601 luma, matching write_pixel_native_.
       auto lum = static_cast<uint16_t>(77u * color.r + 151u * color.g + 29u * color.b);
@@ -1320,8 +1316,7 @@ void HOT IT8951DirectDisplay::pack_row_(uint16_t native_x, uint16_t native_y, ui
         lum = static_cast<uint16_t>(65535u - lum);
       // Threshold from absolute panel coordinates so the dither pattern stays
       // continuous across flush-rectangle boundaries.
-      const uint16_t threshold =
-          this->dithering_ ? dither_threshold(static_cast<uint16_t>(native_x + c), native_y) : 32768;
+      const uint16_t threshold = this->dithering_ ? dither_threshold(static_cast<uint16_t>(x + c), y) : 32768;
       if (lum < threshold) {
         // 16-pixel groups; on the wire the high byte (pixels 8..15) precedes
         // the low byte (pixels 0..7). See set_mono_pixel_.
@@ -1333,10 +1328,7 @@ void HOT IT8951DirectDisplay::pack_row_(uint16_t native_x, uint16_t native_y, ui
   }
 }
 
-void IT8951DirectDisplay::write_area_(uint16_t x, uint16_t y, uint16_t w, uint16_t h, const uint8_t *ptr,
-                                      ColorOrder order, ColorBitness bitness, bool big_endian, size_t line_stride,
-                                      int x_offset, int y_offset, bool mirror_x, bool mirror_y, uint16_t source_w,
-                                      uint16_t source_h, uint16_t clip_left, uint16_t clip_top) {
+void IT8951DirectDisplay::write_area_(uint16_t x, uint16_t y, uint16_t w, uint16_t h, const FlushSource &src) {
   // Point the load at the image buffer, then open one LD_IMG_AREA for this
   // rectangle. Unlike the buffered path (one area per update) direct draw opens
   // one per flush, since each flush is an independent rectangle.
@@ -1373,11 +1365,10 @@ void IT8951DirectDisplay::write_area_(uint16_t x, uint16_t y, uint16_t w, uint16
     App.feed_wdt();
     // Row `row` of the clipped rectangle is row clip_top + row of the source
     // rectangle, which reads from the far end when mirrored in Y.
-    const uint16_t line = static_cast<uint16_t>(clip_top + row);
-    const size_t source_row = mirror_y ? static_cast<size_t>(source_h - 1 - line) : line;
-    const size_t source_index = (static_cast<size_t>(y_offset) + source_row) * line_stride + x_offset;
-    this->pack_row_(x, static_cast<uint16_t>(y + row), w, ptr, order, bitness, big_endian, source_index, mirror_x,
-                    source_w, clip_left);
+    const uint16_t line = static_cast<uint16_t>(src.clip_top + row);
+    const size_t source_row = src.mirror_y ? static_cast<size_t>(src.height - 1 - line) : line;
+    const size_t source_index = (static_cast<size_t>(src.y_offset) + source_row) * src.line_stride + src.x_offset;
+    this->pack_row_(x, static_cast<uint16_t>(y + row), w, source_index, src);
     this->write_array(this->row_buf_.get(), bytes_per_row);
   }
   this->disable();
@@ -1431,11 +1422,21 @@ void HOT IT8951DirectDisplay::draw_pixels_at(int x_start, int y_start, int w, in
   if (!this->prepare_direct_write_())
     return;
 
-  const size_t line_stride = static_cast<size_t>(x_offset) + w + x_pad;
+  const FlushSource src{ptr,
+                        order,
+                        bitness,
+                        big_endian,
+                        static_cast<size_t>(x_offset) + w + x_pad,
+                        x_offset,
+                        y_offset,
+                        static_cast<uint16_t>(w),
+                        static_cast<uint16_t>(h),
+                        static_cast<uint16_t>(clip_left),
+                        static_cast<uint16_t>(clip_top),
+                        mirror_x,
+                        mirror_y};
   this->write_area_(static_cast<uint16_t>(cx), static_cast<uint16_t>(cy), static_cast<uint16_t>(clipped_w),
-                    static_cast<uint16_t>(clipped_h), ptr, order, bitness, big_endian, line_stride, x_offset, y_offset,
-                    mirror_x, mirror_y, static_cast<uint16_t>(w), static_cast<uint16_t>(h),
-                    static_cast<uint16_t>(clip_left), static_cast<uint16_t>(clip_top));
+                    static_cast<uint16_t>(clipped_h), src);
 
   // Accumulate the region the next waveform has to present.
   this->x_low_ = clamp_at_most(this->x_low_, cx);

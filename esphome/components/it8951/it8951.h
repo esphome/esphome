@@ -301,9 +301,12 @@ class IT8951Display : public Display,
   void enqueue_wake_if_asleep_();
 
   // --- Framebuffer hooks (overridden by the direct-draw subclass) ---
-  // True when the current update has to stream pixel data to the controller.
-  // The direct-draw subclass has already written the image as LVGL flushed it,
-  // so it only needs the transfer phase for whole-screen constant fills.
+  // True when this instance renders through an ESP-side framebuffer, asked once
+  // at setup to decide whether to allocate one.
+  virtual bool uses_framebuffer() const { return true; }
+  // True when the update about to run has pixel data to stream. Distinct from
+  // uses_framebuffer: the direct-draw subclass has no framebuffer yet still
+  // needs the transfer phase for a whole-screen constant fill.
   virtual bool needs_transfer() const { return true; }
   // Source bytes for one row of the current update area, in native wire format.
   virtual const uint8_t *transfer_row_data(uint16_t row) const;
@@ -331,9 +334,10 @@ class IT8951Display : public Display,
   // Pending update bookkeeping
   bool update_pending_{false};
   UpdateMode pending_update_mode_{UPDATE_MODE_NONE};
-  // Deferred presentation (see set_refresh_paused).
+  // Deferred presentation (see set_refresh_paused). A mode other than NONE is
+  // exactly "a refresh was requested while paused": every caller of
+  // start_update_ passes a concrete mode.
   bool refresh_paused_{false};
-  bool paused_present_pending_{false};
   UpdateMode paused_mode_{UPDATE_MODE_NONE};
   UpdateMode active_mode_{UPDATE_MODE_NONE};
   uint16_t area_x_{0}, area_y_{0}, area_w_{0}, area_h_{0};
@@ -440,6 +444,23 @@ template<typename... Ts> class IT8951RefreshAction : public Action<Ts...> {
   IT8951Display *display_;
 };
 
+// One LVGL flush: where the pixels are and how to read them. Every field is
+// fixed for the whole rectangle and most for the whole build, which is what lets
+// the packing loop decide its shape once instead of per pixel.
+struct FlushSource {
+  const uint8_t *ptr;
+  ColorOrder order;
+  ColorBitness bitness;
+  bool big_endian;
+  size_t line_stride;  // pixels per source line, including offset and padding
+  int x_offset, y_offset;
+  // The caller's rectangle before clipping, and where the clipped one sits
+  // inside it, so a mirrored axis still reads from the correct end.
+  uint16_t width, height;
+  uint16_t clip_left, clip_top;
+  bool mirror_x, mirror_y;
+};
+
 // --- Direct-draw variant ------------------------------------------------------
 // Writes pixels straight into the controller's image RAM as they are drawn,
 // with no ESP-side framebuffer: each LVGL flush is converted to the native wire
@@ -466,23 +487,17 @@ class IT8951DirectDisplay : public IT8951Display {
  protected:
   // Only a whole-screen constant fill needs the streaming transfer phase; a
   // normal update's pixels are already in controller RAM.
+  bool uses_framebuffer() const override { return false; }
   bool needs_transfer() const override { return this->fill_pending_; }
   const uint8_t *transfer_row_data(uint16_t row) const override { return this->fill_row_.get(); }
   void on_initialised() override;
   void on_transfer_done() override { this->fill_pending_ = false; }
 
-  // Stream one flush rectangle, already in native panel coordinates and
-  // already alignment-checked, into controller image RAM.
-  // The rectangle passed here is the clipped one; source_w/source_h and
-  // clip_left/clip_top describe where it sits inside the caller's rectangle, so
-  // a mirrored axis still reads from the right end of the source.
-  void write_area_(uint16_t x, uint16_t y, uint16_t w, uint16_t h, const uint8_t *ptr, ColorOrder order,
-                   ColorBitness bitness, bool big_endian, size_t line_stride, int x_offset, int y_offset, bool mirror_x,
-                   bool mirror_y, uint16_t source_w, uint16_t source_h, uint16_t clip_left, uint16_t clip_top);
-  // Pack one native row of a flush rectangle into row_buf_.
-  void pack_row_(uint16_t native_x, uint16_t native_y, uint16_t w, const uint8_t *ptr, ColorOrder order,
-                 ColorBitness bitness, bool big_endian, size_t source_index, bool mirror_x, uint16_t source_w,
-                 uint16_t clip_left);
+  // Stream one flush rectangle, in native panel coordinates and already clipped
+  // and alignment-checked, into controller image RAM.
+  void write_area_(uint16_t x, uint16_t y, uint16_t w, uint16_t h, const FlushSource &src);
+  // Pack one native row of that rectangle into row_buf_.
+  void pack_row_(uint16_t x, uint16_t y, uint16_t w, size_t source_index, const FlushSource &src);
   // Bring the controller out of sleep before a direct write. Returns false if
   // the controller is not in a state that can accept pixel data.
   bool prepare_direct_write_();

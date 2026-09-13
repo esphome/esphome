@@ -190,15 +190,15 @@ DIMENSION_SCHEMA = cv.Schema(
 )
 
 
-def _has_writer(config: ConfigType) -> bool:
-    """True when a writer draws into this display pixel-by-pixel.
+def _uses_direct_draw(config: ConfigType) -> bool:
+    """True when this display streams into controller memory instead of a framebuffer.
 
     A lambda, pages or the test card all call draw_pixel_at in arbitrary order,
     which cannot be streamed to the controller as it happens, so those configs
-    need the buffered class. Everything else (i.e. LVGL, which pushes whole
-    rectangles) can be drawn directly into controller RAM.
+    need the buffered class. Everything else — in practice LVGL, which pushes
+    whole rectangles — can be drawn straight into controller memory.
     """
-    return any(
+    return not any(
         config.get(key) for key in (CONF_LAMBDA, CONF_PAGES, CONF_SHOW_TEST_CARD)
     )
 
@@ -332,22 +332,22 @@ def _customise_schema(config: ConfigType) -> ConfigType:
     model = IT8951Model.models[config[CONF_MODEL].upper()]
     width, height = model.get_dimensions(model_config)
 
-    has_writer = _has_writer(model_config)
+    direct_draw = _uses_direct_draw(model_config)
     display.add_metadata(
         model_config[CONF_ID],
         width,
         height,
         # With a framebuffer, rotation is applied per-pixel in draw_pixel_at at no
         # extra cost, so we advertise hardware rotation and LVGL routes its
-        # rotation to the driver via set_rotation. The direct-draw variant has no
-        # framebuffer to rotate through — transposing a flush rectangle would need
-        # a chunk-sized scratch buffer, which is exactly what LVGL's own software
+        # rotation to the driver via set_rotation. Direct draw has no framebuffer
+        # to rotate through — transposing a flush rectangle would need a
+        # chunk-sized scratch buffer, which is exactly what LVGL's own software
         # (or ESP32-P4 PPA) rotation already provides — so it leaves rotation to
-        # LVGL. Where there is no writer and no LVGL, _final_validate turns on the
-        # test card, making this buffered again; nothing reads the flag in that
-        # case since only LVGL consults it.
-        has_hardware_rotation=has_writer,
-        has_writer=has_writer,
+        # LVGL. Only LVGL reads this flag, and a config with neither a writer nor
+        # LVGL gets the test card from _final_validate, so the value is never
+        # consulted in the one case where it would be stale.
+        has_hardware_rotation=not direct_draw,
+        has_writer=not direct_draw,
         # Report the configured rotation so LVGL can detect (and reject) a
         # rotation set in the display config instead of the LVGL config.
         rotation=model_config.get(CONF_ROTATION, 0),
@@ -383,9 +383,8 @@ def _final_validate(config: ConfigType) -> None:
         else:
             config[CONF_SHOW_TEST_CARD] = True
 
-    # Everything below applies only to the direct-draw variant, which is chosen
-    # (in to_code) exactly when nothing writes pixel-by-pixel.
-    if _has_writer(config):
+    # Everything below applies only to the direct-draw variant.
+    if not _uses_direct_draw(config):
         return
 
     # Mirroring maps a rectangle to width - x - w, so the panel width has to be a
@@ -449,11 +448,8 @@ async def to_code(config: ConfigType) -> None:
     model = IT8951Model.models[config[CONF_MODEL]]
     width, height = model.get_dimensions(config)
 
-    # No writer means every draw arrives as a rectangle (LVGL), which can be
-    # streamed straight into controller RAM instead of through a ~1.25 MiB
-    # framebuffer. See _has_writer.
     var_id = config[CONF_ID]
-    var_id.type = IT8951Display if _has_writer(config) else IT8951DirectDisplay
+    var_id.type = IT8951DirectDisplay if _uses_direct_draw(config) else IT8951Display
     var = cg.new_Pvariable(var_id, model.name, width, height)
     await display.register_display(var, config)
     await spi.register_spi_device(var, config, write_only=False)
