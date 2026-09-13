@@ -7,9 +7,7 @@
 
 namespace esphome::seeed_multi_channel_relay {
 
-class SeeedMultiChannelRelaySwitch : public Component,
-                                         public switch_::Switch,
-                                         public Parented<SeeedMultiChannelRelay> {
+class SeeedMultiChannelRelaySwitch : public Component, public switch_::Switch, public Parented<SeeedMultiChannelRelay> {
  public:
   void setup() override;
   void dump_config() override;
