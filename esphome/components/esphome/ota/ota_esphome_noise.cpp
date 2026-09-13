@@ -3,6 +3,7 @@
 #ifdef USE_OTA_ENCRYPTION
 #include "esphome/components/noise/noise.h"
 #include "esphome/components/ota/ota_backend.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
 #include <cstring>
@@ -40,24 +41,17 @@ ESPHomeOTAComponent::NoiseSession::~NoiseSession() {
  *   "NoiseOTAInit" | magic(5) | OK,version | client_features | FEATURE_FLAGS,server_flags
  */
 bool ESPHomeOTAComponent::noise_start_session_(uint8_t server_feature_flags) {
+  // A provisioned key cleared between the offer and here is not guarded: the
+  // session runs on the zero key load_psk fills in and fails the client's MAC.
+  // Default-init: the frame buffer is written before it is read
   // NOLINTNEXTLINE(clang-analyzer-cplusplus.NewDeleteLeaks)
-  this->noise_ = std::unique_ptr<NoiseSession>(new (std::nothrow) NoiseSession());
-  if (this->noise_ == nullptr) {
-    ESP_LOGW(TAG, "Session allocation failed");
-    this->cleanup_connection_();
-    return false;
-  }
-
+  this->noise_ = std::unique_ptr<NoiseSession>(new (std::nothrow) NoiseSession);
   static constexpr size_t PROLOGUE_ACK_LEN = 2;  // OTA_RESPONSE_OK + version
   static constexpr size_t PROLOGUE_CLIENT_FEATURES_LEN = 1;
   static constexpr size_t PROLOGUE_FEATURE_ACK_LEN = 2;  // OTA_RESPONSE_FEATURE_FLAGS + server flags
   uint8_t prologue[OTA_NOISE_PROLOGUE_INIT_LEN + sizeof(MAGIC_BYTES) + PROLOGUE_ACK_LEN + PROLOGUE_CLIENT_FEATURES_LEN +
                    PROLOGUE_FEATURE_ACK_LEN];
-#ifdef USE_ESP8266
-  memcpy_P(prologue, OTA_NOISE_PROLOGUE_INIT, OTA_NOISE_PROLOGUE_INIT_LEN);
-#else
-  std::memcpy(prologue, OTA_NOISE_PROLOGUE_INIT, OTA_NOISE_PROLOGUE_INIT_LEN);
-#endif
+  progmem_memcpy(prologue, OTA_NOISE_PROLOGUE_INIT, OTA_NOISE_PROLOGUE_INIT_LEN);
   uint8_t *p = prologue + OTA_NOISE_PROLOGUE_INIT_LEN;
   // Magic bytes, already validated in MAGIC_READ
   std::memcpy(p, MAGIC_BYTES, sizeof(MAGIC_BYTES));
@@ -71,9 +65,13 @@ bool ESPHomeOTAComponent::noise_start_session_(uint8_t server_feature_flags) {
   *p++ = ota::OTA_RESPONSE_FEATURE_FLAGS;
   *p++ = server_feature_flags;
 
-  int err = this->noise_->handshake.init(this->noise_ctx_.get_psk(), prologue, sizeof(prologue));
+  // The caller only starts a session when the context holds a key
+  int err = this->noise_ == nullptr ? NOISE_ERROR_NO_MEMORY
+                                    : this->noise_->handshake.init(this->noise_context_(), prologue, sizeof(prologue));
   if (err != 0) {
-    ESP_LOGW(TAG, "Handshake init: %s", LOG_STR_ARG(noise::noise_err_to_logstr(err)));
+    // Raw noise codes throughout: the name table would cost flash in builds
+    // where only the OTA uses noise
+    ESP_LOGW(TAG, "Session init: %d", err);
     this->cleanup_connection_();
     return false;
   }
@@ -105,14 +103,16 @@ bool ESPHomeOTAComponent::handle_noise_handshake_() {
         s.frame_pos = 0;
         s.frame_len = 0;
         if (s.frame_buf[noise::FRAME_HEADER_SIZE] != noise::HANDSHAKE_STATUS_OK) {
-          ESP_LOGW(TAG, "Bad handshake error byte: %u", s.frame_buf[noise::FRAME_HEADER_SIZE]);
+          ESP_LOGW(TAG, "Client rejected the handshake: %u", s.frame_buf[noise::FRAME_HEADER_SIZE]);
           this->cleanup_connection_();
           return false;
         }
         int err = s.handshake.read_message(s.frame_buf + noise::FRAME_HEADER_SIZE + 1, payload_len - 1);
         if (err != 0) {
-          ESP_LOGW(TAG, "Handshake read: %s", LOG_STR_ARG(noise::noise_err_to_logstr(err)));
-          this->noise_send_reject_(noise::reject_reason_for(err));
+          // A MAC failure here almost always means the uploader has a different key
+          const LogString *reason = noise::reject_reason_for(err);
+          ESP_LOGW(TAG, "Handshake read: %s (%d)", LOG_STR_ARG(reason), err);
+          this->noise_send_reject_(reason);
           this->cleanup_connection_();
           return false;
         }
@@ -123,7 +123,7 @@ bool ESPHomeOTAComponent::handle_noise_handshake_() {
         int err =
             s.handshake.write_message(s.frame_buf + noise::FRAME_HEADER_SIZE + 1, noise::MAX_HANDSHAKE_SIZE, msg_len);
         if (err != 0) {
-          ESP_LOGW(TAG, "Handshake write: %s", LOG_STR_ARG(noise::noise_err_to_logstr(err)));
+          ESP_LOGW(TAG, "Handshake write: %d", err);
           this->cleanup_connection_();
           return false;
         }
@@ -138,7 +138,7 @@ bool ESPHomeOTAComponent::handle_noise_handshake_() {
       case noise::NoiseResponderHandshake::Action::ACTION_SPLIT: {
         int err = s.handshake.split(s.send_cipher, s.recv_cipher);
         if (err != 0) {
-          ESP_LOGW(TAG, "Handshake split: %s", LOG_STR_ARG(noise::noise_err_to_logstr(err)));
+          ESP_LOGW(TAG, "Handshake split: %d", err);
           this->cleanup_connection_();
           return false;
         }
@@ -154,33 +154,41 @@ bool ESPHomeOTAComponent::handle_noise_handshake_() {
   }
 }
 
+/// Payload length from a frame header, or 0 (logged) when the indicator or
+/// the length is out of range. Callers pass min_len >= 1 so 0 is never valid.
+size_t ESPHomeOTAComponent::noise_frame_payload_len_(const uint8_t *header, size_t min_len, size_t max_len) {
+  const size_t payload_len = encode_uint16(header[1], header[2]);
+  if (header[0] != noise::FRAME_INDICATOR || payload_len < min_len || payload_len > max_len) {
+    ESP_LOGW(TAG, "Bad frame: 0x%02X, %zu bytes", header[0], payload_len);
+    return 0;
+  }
+  return payload_len;
+}
+
 /// Non-blocking read of one handshake frame into the session buffer.
 bool ESPHomeOTAComponent::noise_try_read_frame_() {
   NoiseSession &s = *this->noise_;
-  while (s.frame_pos < noise::FRAME_HEADER_SIZE) {
-    ssize_t read = this->client_->read(s.frame_buf + s.frame_pos, noise::FRAME_HEADER_SIZE - s.frame_pos);
-    if (!this->handle_read_error_(read, LOG_STR("read noise header"))) {
-      return false;
+  while (true) {
+    // The header first, then the body once the header says how long it is
+    const uint16_t want = s.frame_len == 0 ? noise::FRAME_HEADER_SIZE : s.frame_len;
+    if (s.frame_pos < want) {
+      ssize_t read = this->client_->read(s.frame_buf + s.frame_pos, want - s.frame_pos);
+      if (!this->handle_read_error_(read, LOG_STR("read noise"))) {
+        return false;
+      }
+      s.frame_pos += read;
+      continue;
     }
-    s.frame_pos += read;
-  }
-  if (s.frame_len == 0) {
-    const uint16_t payload_len = encode_uint16(s.frame_buf[1], s.frame_buf[2]);
-    if (s.frame_buf[0] != noise::FRAME_INDICATOR || payload_len < 1 || payload_len > 1 + noise::MAX_HANDSHAKE_SIZE) {
-      ESP_LOGW(TAG, "Bad handshake frame: 0x%02X, %u bytes", s.frame_buf[0], payload_len);
+    if (s.frame_len != 0) {
+      return true;
+    }
+    const size_t payload_len = this->noise_frame_payload_len_(s.frame_buf, 1, 1 + noise::MAX_HANDSHAKE_SIZE);
+    if (payload_len == 0) {
       this->cleanup_connection_();
       return false;
     }
     s.frame_len = noise::FRAME_HEADER_SIZE + payload_len;
   }
-  while (s.frame_pos < s.frame_len) {
-    ssize_t read = this->client_->read(s.frame_buf + s.frame_pos, s.frame_len - s.frame_pos);
-    if (!this->handle_read_error_(read, LOG_STR("read noise frame"))) {
-      return false;
-    }
-    s.frame_pos += read;
-  }
-  return true;
 }
 
 /// Non-blocking write of the pending session-buffer frame.
@@ -214,7 +222,7 @@ ssize_t ESPHomeOTAComponent::noise_decrypt_(uint8_t *buf, size_t len) {
   noise_buffer_set_inout(mbuf, buf, len, len);
   int err = noise_cipherstate_decrypt(this->noise_->recv_cipher, &mbuf);
   if (err != 0) {
-    ESP_LOGW(TAG, "Decrypt: %s", LOG_STR_ARG(noise::noise_err_to_logstr(err)));
+    ESP_LOGW(TAG, "Decrypt: %d", err);
     return -1;
   }
   return mbuf.size;
@@ -229,9 +237,8 @@ ssize_t ESPHomeOTAComponent::noise_read_frame_blocking_(uint8_t *buf, size_t min
   if (!this->readall_(header, sizeof(header))) {
     return -1;
   }
-  const size_t ciphertext_len = encode_uint16(header[1], header[2]);
-  if (header[0] != noise::FRAME_INDICATOR || ciphertext_len < min_ciphertext || ciphertext_len > max_ciphertext) {
-    ESP_LOGW(TAG, "Bad frame: 0x%02X, %zu bytes", header[0], ciphertext_len);
+  const size_t ciphertext_len = this->noise_frame_payload_len_(header, min_ciphertext, max_ciphertext);
+  if (ciphertext_len == 0) {
     return -1;
   }
   if (!this->readall_(buf, ciphertext_len)) {
@@ -267,7 +274,7 @@ bool ESPHomeOTAComponent::noise_write_byte_(uint8_t byte) {
   noise_buffer_set_inout(mbuf, frame + noise::FRAME_HEADER_SIZE, 1, 1 + noise::MAC_SIZE);
   int err = noise_cipherstate_encrypt(this->noise_->send_cipher, &mbuf);
   if (err != 0) {
-    ESP_LOGW(TAG, "Encrypt: %s", LOG_STR_ARG(noise::noise_err_to_logstr(err)));
+    ESP_LOGW(TAG, "Encrypt: %d", err);
     return false;
   }
   noise::write_frame_header(frame, mbuf.size);

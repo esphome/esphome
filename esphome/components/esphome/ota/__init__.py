@@ -2,12 +2,12 @@ import logging
 
 import esphome.codegen as cg
 from esphome.components.noise import (
-    decode_encryption_key,
     encryption_schema,
-    is_reserved_key,
+    new_psk_progmem,
+    static_encryption_key,
 )
 from esphome.components.ota import BASE_OTA_SCHEMA, OTAComponent, ota_to_code
-from esphome.config_helpers import merge_config
+from esphome.config_helpers import filter_source_files_from_defines, merge_config
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_API,
@@ -31,7 +31,6 @@ import esphome.final_validate as fv
 from esphome.types import ConfigType
 
 CONF_ALLOW_PARTITION_ACCESS = "allow_partition_access"
-CONF_CAPTIVE_PORTAL = "captive_portal"
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -41,11 +40,10 @@ DEPENDENCIES = ["network"]
 
 
 def AUTO_LOAD(config: ConfigType) -> list[str]:
-    """Auto-load noise only when encryption is configured."""
+    """Auto-load noise only when encryption is configured; the api key offer
+    inherits it from the api component."""
     base = ["sha256", "socket"]
-    # A falsy config is a tooling probe for the maximal set (None from
-    # dependency resolution, {} from the components-graph platform probe);
-    # a validated config always carries defaults, never empty
+    # A falsy config is a tooling probe for the maximal set
     if not config or CONF_ENCRYPTION in config:
         return base + ["noise"]
     return base
@@ -132,12 +130,56 @@ def ota_esphome_final_validate(config: ConfigType) -> None:
         _validate_no_password_with_encryption(ota_conf)
         if (encryption_conf := ota_conf.get(CONF_ENCRYPTION)) is not None:
             _resolve_encryption_key(encryption_conf, api_conf)
-    if any(
-        conf.get(CONF_PLATFORM) == CONF_WEB_SERVER for conf in full_ota_conf
-    ) and any(
-        CONF_ENCRYPTION in conf for conf in merged_ota_esphome_configs_by_port.values()
+        elif CONF_PASSWORD in ota_conf and static_encryption_key(api_conf) is not None:
+            _LOGGER.warning(
+                "'%s' %s wastes significant flash and RAM (about 3.5 KB and 60 "
+                "bytes plus the password on the heap): the device already offers "
+                "encryption with the '%s' %s %s, which authenticates any uploader "
+                "that takes it, and a password only matters for uploaders without "
+                "encryption support; remove '%s' and add '%s' under '%s' so "
+                "uploads use the key and encryption is required",
+                CONF_OTA,
+                CONF_PASSWORD,
+                CONF_API,
+                CONF_ENCRYPTION,
+                CONF_KEY,
+                CONF_PASSWORD,
+                CONF_ENCRYPTION,
+                CONF_OTA,
+            )
+        elif (
+            CONF_PASSWORD in ota_conf
+            and CONF_ENCRYPTION in api_conf
+            and not api_conf[CONF_ENCRYPTION].get(CONF_KEY)
+        ):
+            # The CLI still needs the password; whoever provisions the key skips it
+            _LOGGER.warning(
+                "The '%s' %s %s provisioned at runtime also authenticates OTA "
+                "uploads once provisioned; '%s' %s then only guards plaintext "
+                "uploads. Whoever provisions the key can upload firmware "
+                "without the password, so add a 'provisioning:' block to limit "
+                "when that is possible",
+                CONF_API,
+                CONF_ENCRYPTION,
+                CONF_KEY,
+                CONF_OTA,
+                CONF_PASSWORD,
+            )
+    # web_server and prometheus keep the shared listener up; the captive
+    # portal's copy only exists on the fallback AP and is the recovery path
+    if (
+        (CONF_WEB_SERVER in full_conf or "prometheus" in full_conf)
+        and any(conf.get(CONF_PLATFORM) == CONF_WEB_SERVER for conf in full_ota_conf)
+        and any(
+            CONF_ENCRYPTION in conf
+            for conf in merged_ota_esphome_configs_by_port.values()
+        )
     ):
-        _warn_web_server_ota(full_conf)
+        _LOGGER.warning(
+            "OTA encryption does not cover the %s OTA platform; its "
+            "plaintext /update endpoint accepts the same image",
+            CONF_WEB_SERVER,
+        )
 
     full_conf[CONF_OTA] = new_ota_conf
     fv.full_config.set(full_conf)
@@ -152,33 +194,11 @@ def ota_esphome_final_validate(config: ConfigType) -> None:
         )
 
 
-def _warn_web_server_ota(full_conf: ConfigType) -> None:
-    """The web_server ota platform accepts the same image over plaintext HTTP
-    with basic auth, bypassing the encryption; warn rather than fail so the
-    operator keeps the recovery path."""
-    if CONF_CAPTIVE_PORTAL in full_conf and CONF_WEB_SERVER not in full_conf:
-        # The captive_portal auto-load: the endpoint only exists while the
-        # fallback AP is active
-        _LOGGER.warning(
-            "OTA encryption does not cover the %s OTA platform (auto-loaded "
-            "by captive_portal); the plaintext /update endpoint stays "
-            "reachable while the fallback AP is active",
-            CONF_WEB_SERVER,
-        )
-    else:
-        _LOGGER.warning(
-            "OTA encryption does not cover the %s OTA platform; its "
-            "plaintext /update endpoint accepts the same image",
-            CONF_WEB_SERVER,
-        )
-
-
 def _resolve_encryption_key(encryption_conf: ConfigType, api_conf: ConfigType) -> None:
     """Resolve the one encryption key per device into the ota block.
 
     An explicit ota key must match the api key, a bare block inherits it,
-    a runtime provisioned api key cannot be inherited, and the all-zeros
-    provisioning sentinel is rejected (the device treats it as no key).
+    a runtime provisioned api key cannot be inherited.
     """
     api_key = api_conf.get(CONF_ENCRYPTION, {}).get(CONF_KEY)
     if ota_key := encryption_conf.get(CONF_KEY):
@@ -201,11 +221,6 @@ def _resolve_encryption_key(encryption_conf: ConfigType, api_conf: ConfigType) -
         )
     else:
         encryption_conf[CONF_KEY] = api_key
-    if is_reserved_key(encryption_conf[CONF_KEY]):
-        raise cv.Invalid(
-            f"The all-zeros {CONF_KEY} is reserved and provides no protection; "
-            f"generate a real key with: openssl rand -base64 32"
-        )
 
 
 # Also called on merged same-port configs in final validate, where schemas
@@ -267,15 +282,9 @@ CONFIG_SCHEMA = cv.All(
 FINAL_VALIDATE_SCHEMA = ota_esphome_final_validate
 
 
-def FILTER_SOURCE_FILES() -> list[str]:
-    """Filter out the noise transport when no ota entry configures encryption."""
-    for ota_conf in CORE.config.get(CONF_OTA, []):
-        if (
-            ota_conf.get(CONF_PLATFORM) == CONF_ESPHOME
-            and ota_conf.get(CONF_ENCRYPTION) is not None
-        ):
-            return []
-    return ["ota_esphome_noise.cpp"]
+FILTER_SOURCE_FILES = filter_source_files_from_defines(
+    {"ota_esphome_noise.cpp": "USE_OTA_ENCRYPTION"}
+)
 
 
 @coroutine_with_priority(CoroPriority.OTA_UPDATES)
@@ -296,11 +305,24 @@ async def to_code(config: ConfigType) -> None:
     if config.get(CONF_ALLOW_PARTITION_ACCESS):
         cg.add_define("USE_OTA_PARTITIONS")
 
-    if (encryption_conf := config.get(CONF_ENCRYPTION)) is not None:
-        # A missing key was resolved from the api component in final validate.
-        key = encryption_conf[CONF_KEY]
+    # One key per device: an api encryption block supplies it (static or
+    # runtime) and offers; the ota block only adds the requirement
+    api_conf = CORE.config.get(CONF_API) or {}
+    encryption_conf = config.get(CONF_ENCRYPTION)
+    own_key = None
+    if encryption_conf is not None and static_encryption_key(api_conf) is None:
+        own_key = encryption_conf[CONF_KEY]
+    if own_key is not None:
         cg.add_define("USE_OTA_ENCRYPTION")
-        cg.add(var.set_noise_psk(list(decode_encryption_key(key))))
+        cg.add(var.set_noise_psk(new_psk_progmem(config[CONF_ID], own_key)))
+    elif CONF_ENCRYPTION in api_conf:
+        cg.add_define("USE_OTA_ENCRYPTION")
+        cg.add_define("USE_OTA_ENCRYPTION_FROM_API")
+        if static_encryption_key(api_conf) is None:
+            # The key arrives at runtime, so the offer has to look for it
+            cg.add_define("USE_OTA_ENCRYPTION_PROVISIONED")
+    if encryption_conf is not None:
+        cg.add_define("USE_OTA_ENCRYPTION_REQUIRED")
 
     # Build flag so lwip_fast_select.c (a .c file that can't include defines.h) sees it.
     cg.add_build_flag("-DUSE_OTA_PLATFORM_ESPHOME")

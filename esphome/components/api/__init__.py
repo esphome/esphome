@@ -14,6 +14,7 @@ from esphome.components.noise import (  # noqa: F401
     ENCRYPTION_SCHEMA,
     decode_encryption_key,
     encryption_schema,
+    new_psk_progmem,
     validate_encryption_key,
 )
 from esphome.config_helpers import filter_source_files_from_defines, get_logger_level
@@ -589,8 +590,7 @@ async def to_code(config: ConfigType) -> None:
 
     if (encryption_config := config.get(CONF_ENCRYPTION, None)) is not None:
         if key := encryption_config.get(CONF_KEY):
-            decoded = decode_encryption_key(key)
-            cg.add(var.set_noise_psk(list(decoded)))
+            cg.add(var.set_noise_psk(new_psk_progmem(config[CONF_ID], key)))
             cg.add_define("USE_API_NOISE_PSK_FROM_YAML")
         else:
             # No key provided, but encryption desired
