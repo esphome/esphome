@@ -163,8 +163,8 @@ bool Nextion::check_connect_() {
 #endif  // USE_NEXTION_CONFIG_SKIP_CONNECTION_HANDSHAKE
 }
 
-// Frees a queue entry and, when the entry owns it, its NO_RESULT component. Both are placement
-// constructed in RAMAllocator storage, so delete would hand malloc memory to operator delete.
+// NO_RESULT components are owned by their entry; every other component is a user entity. Entry and
+// component storage comes from RAMAllocator, so delete is not valid for either.
 void Nextion::release_queue_entry_(NextionQueue *nb) {
   if (nb->component != nullptr && nb->component->get_queue_type() == NextionQueueType::NO_RESULT) {
     nb->component->~NextionComponentBase();
@@ -1091,37 +1091,40 @@ uint16_t Nextion::recv_ret_string_(std::string &response, uint32_t timeout, bool
  *
  * @param variable_name Name of the variable or component associated with the command.
  */
-void Nextion::add_no_result_to_queue_(const std::string &variable_name) {
+// Allocates a queue entry owning a bare NO_RESULT component; nullptr when the queue is full or memory is out
+NextionQueue *Nextion::make_no_result_entry_(const std::string &variable_name) {
 #ifdef USE_NEXTION_MAX_QUEUE_SIZE
   if (this->max_queue_size_ > 0 && this->nextion_queue_.size() >= this->max_queue_size_) {
     ESP_LOGW(TAG, "Queue full (%zu), drop: %s", this->nextion_queue_.size(), variable_name.c_str());
-    return;
+    return nullptr;
   }
 #endif
 
-  RAMAllocator<nextion::NextionQueue> allocator;
-  nextion::NextionQueue *nextion_queue = allocator.allocate(1);
+  auto *nextion_queue = RAMAllocator<nextion::NextionQueue>().allocate(1);
   if (nextion_queue == nullptr) {
     ESP_LOGW(TAG, "Queue alloc failed");
-    return;
+    return nullptr;
   }
   new (nextion_queue) nextion::NextionQueue();
 
   nextion_queue->component = RAMAllocator<nextion::NextionComponentBase>().allocate(1);
   if (nextion_queue->component == nullptr) {
     ESP_LOGW(TAG, "Component alloc failed");
-    nextion_queue->~NextionQueue();
-    allocator.deallocate(nextion_queue, 1);
-    return;
+    this->release_queue_entry_(nextion_queue);
+    return nullptr;
   }
   new (nextion_queue->component) nextion::NextionComponentBase();
   nextion_queue->component->set_variable_name(variable_name);
-
   nextion_queue->queue_time = App.get_loop_component_start_time();
+  return nextion_queue;
+}
 
+void Nextion::add_no_result_to_queue_(const std::string &variable_name) {
+  auto *nextion_queue = this->make_no_result_entry_(variable_name);
+  if (nextion_queue == nullptr)
+    return;
   this->nextion_queue_.push_back(nextion_queue);
-
-  ESP_LOGN(TAG, "Queue NORESULT: %s", nextion_queue->component->get_variable_name().c_str());
+  ESP_LOGN(TAG, "Queue NORESULT: %s", variable_name.c_str());
 }
 
 /**
@@ -1155,33 +1158,10 @@ void Nextion::add_no_result_to_queue_with_command_(const std::string &variable_n
 #ifdef USE_NEXTION_COMMAND_SPACING
 void Nextion::add_no_result_to_queue_with_pending_command_(const std::string &variable_name,
                                                            const std::string &command) {
-#ifdef USE_NEXTION_MAX_QUEUE_SIZE
-  if (this->max_queue_size_ > 0 && this->nextion_queue_.size() >= this->max_queue_size_) {
-    ESP_LOGW(TAG, "Queue full (%zu), drop: %s", this->nextion_queue_.size(), variable_name.c_str());
+  auto *nextion_queue = this->make_no_result_entry_(variable_name);
+  if (nextion_queue == nullptr)
     return;
-  }
-#endif
-
-  RAMAllocator<nextion::NextionQueue> allocator;
-  nextion::NextionQueue *nextion_queue = allocator.allocate(1);
-  if (nextion_queue == nullptr) {
-    ESP_LOGW(TAG, "Queue alloc failed");
-    return;
-  }
-  new (nextion_queue) nextion::NextionQueue();
-
-  nextion_queue->component = RAMAllocator<nextion::NextionComponentBase>().allocate(1);
-  if (nextion_queue->component == nullptr) {
-    ESP_LOGW(TAG, "Component alloc failed");
-    nextion_queue->~NextionQueue();
-    allocator.deallocate(nextion_queue, 1);
-    return;
-  }
-  new (nextion_queue->component) nextion::NextionComponentBase();
-  nextion_queue->component->set_variable_name(variable_name);
-  nextion_queue->queue_time = App.get_loop_component_start_time();
   nextion_queue->pending_command = command;  // Store command for retry
-
   this->nextion_queue_.push_back(nextion_queue);
   ESP_LOGVV(TAG, "Queue with pending command: %s", variable_name.c_str());
 }
