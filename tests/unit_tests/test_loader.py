@@ -704,7 +704,7 @@ def test_component_version_read_from_module() -> None:
 
 
 def test_component_version_coerced_to_str() -> None:
-    """Authors may reasonably write a tuple or a number; take it as given."""
+    """A non-string COMPONENT_VERSION is coerced rather than rejected."""
     mod = ModuleType("esphome.components.odd_version")
     mod.COMPONENT_VERSION = 7
     assert ComponentManifest(mod).component_version == "7"
