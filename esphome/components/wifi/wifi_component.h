@@ -178,8 +178,8 @@ struct EAPAuth {
 
 using bssid_t = std::array<uint8_t, 6>;
 
-// ESP32 with one configured network: the driver filters the scan and hands out records in descending
-// RSSI order (documented on esp_wifi_scan_get_ap_records), so only this many of its BSSIDs are kept
+// ESP32 with one configured network: the driver filters the scan by its SSID and only this many of
+// its BSSIDs are kept, the strongest ones
 static constexpr size_t WIFI_SCAN_RESULT_BOUND = 12;
 
 // RP2040's callback delivers results one at a time with no count, so it needs a growable vector

@@ -963,15 +963,32 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
 #endif  // USE_ESP32_HOSTED
 
         const char *ssid_cstr = reinterpret_cast<const char *>(record.ssid);
-        if (this->scan_result_.size() < wanted &&
-            (needs_full || this->matches_configured_network_(ssid_cstr, record.bssid))) {
-          bssid_t bssid;
-          std::copy(record.bssid, record.bssid + 6, bssid.begin());
+        if (!needs_full && !this->matches_configured_network_(ssid_cstr, record.bssid)) {
+          this->log_discarded_scan_result_(ssid_cstr, record.bssid, record.rssi, record.primary);
+          continue;
+        }
+        bssid_t bssid;
+        std::copy(record.bssid, record.bssid + 6, bssid.begin());
+        if (this->scan_result_.size() < wanted) {
           this->scan_result_.emplace_back(bssid, ssid_cstr, strlen(ssid_cstr), record.primary, record.rssi,
                                           record.authmode != WIFI_AUTH_OPEN, ssid_cstr[0] == '\0');
-        } else {
-          this->log_discarded_scan_result_(ssid_cstr, record.bssid, record.rssi, record.primary);
+          continue;
         }
+        // Records arrive in scan order, not by signal, so a bounded store keeps the strongest by
+        // replacing its weakest entry
+        WiFiScanResult *weakest = &this->scan_result_[0];
+        for (auto &res : this->scan_result_) {
+          if (res.get_rssi() < weakest->get_rssi())
+            weakest = &res;
+        }
+        if (record.rssi <= weakest->get_rssi()) {
+          this->log_discarded_scan_result_(ssid_cstr, record.bssid, record.rssi, record.primary);
+          continue;
+        }
+        this->log_discarded_scan_result_(weakest->get_ssid().c_str(), weakest->get_bssid().data(), weakest->get_rssi(),
+                                         weakest->get_channel());
+        *weakest = WiFiScanResult(bssid, ssid_cstr, strlen(ssid_cstr), record.primary, record.rssi,
+                                  record.authmode != WIFI_AUTH_OPEN, ssid_cstr[0] == '\0');
       }
     }
     ESP_LOGV(TAG, "Scan complete: %u found, %zu stored%s", number, this->scan_result_.size(),
