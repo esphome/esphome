@@ -975,7 +975,8 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
           continue;
         }
         // Records arrive in scan order, not by signal, so a bounded store keeps the strongest by
-        // replacing its weakest entry
+        // replacing its weakest entry. Only SSID and signal decide here; a channel or auth constrained
+        // network hidden behind 12 stronger APs of its own SSID is not a real deployment
         WiFiScanResult *weakest = &this->scan_result_[0];
         for (auto &res : this->scan_result_) {
           if (res.get_rssi() < weakest->get_rssi())
@@ -992,7 +993,7 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
       }
     }
     ESP_LOGV(TAG, "Scan complete: %u found, %zu stored%s", number, this->scan_result_.size(),
-             filtered ? " (driver filtered)" : "");
+             filtered ? LOG_STR_LITERAL(" (driver filtered)") : LOG_STR_LITERAL(""));
 #ifdef USE_WIFI_SCAN_RESULTS_LISTENERS
     this->notify_scan_results_listeners_();
 #endif
