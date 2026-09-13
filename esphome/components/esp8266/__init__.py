@@ -368,7 +368,8 @@ async def to_code(config: ConfigType) -> None:
     # new abort instead. Use it so that OOM fails early (on allocation) instead of on dereference of
     # a NULL pointer (so the stacktrace makes more sense), and for consistency with Arduino 3,
     # which always aborts if exceptions are disabled.
-    # For cases where nullptrs can be handled, use nothrow: `new (std::nothrow) T;`
+    # For allocations whose failure must be handled, use RAMAllocator from esphome/core/helpers.h,
+    # which returns nullptr; `new (std::nothrow)` is rejected by ci-custom since it aborts on ESP-IDF.
     cg.add_build_flag("-DNEW_OOM_ABORT")
 
     # Force-include inline std::__throw_* overrides so GCC dead-strips the unused
