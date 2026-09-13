@@ -1170,6 +1170,8 @@ def lint_no_std_nothrow(fname, content):
             f"  Before: {highlight('auto *buf = new (std::nothrow) uint8_t[n];')}\n"
             f"  After:  {highlight('auto *buf = RAMAllocator<uint8_t>().allocate(n);')}"
             f"  (free with {highlight('.deallocate(buf, n)')})\n"
+            f"Keep owned storage in a {highlight('std::unique_ptr')} whose deleter calls "
+            f"{highlight('deallocate')}, as {highlight('APIBuffer')} in esphome/components/api does.\n"
             f"For an object with a constructor, allocate raw storage with RAMAllocator and "
             f"construct it with placement new.\n"
             f"(If strictly necessary, add `// NOLINT` to the end of the line)"
