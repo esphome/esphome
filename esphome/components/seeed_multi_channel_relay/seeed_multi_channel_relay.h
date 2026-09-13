@@ -10,7 +10,7 @@ static constexpr uint8_t CMD_SAVE_I2C_ADDR = 0x11;
 static constexpr uint8_t CMD_READ_I2C_ADDR = 0x12;
 static constexpr uint8_t CMD_READ_FIRMWARE_VER = 0x13;
 
-class SeeedMultiChannelRelay : public Component, public i2c::I2CDevice {
+class seeed_multi_channel_relay : public Component, public i2c::I2CDevice {
  public:
   void relay_write(uint8_t number, bool state);
 
