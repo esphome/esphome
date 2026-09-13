@@ -541,12 +541,12 @@ template<typename T, size_t N> inline void init_array_from(std::array<T, N> &des
   }
 }
 
+// Abort with a reason that reaches the panic output on ESP32. Elsewhere the literal is dropped
+// before it can land in rodata, which is RAM on ESP8266
 #ifdef USE_ESP32
-/// Abort with a reason that reaches the panic output
-[[noreturn]] inline void abort_with_reason(const char *reason) { esp_system_abort(reason); }
+#define ESPHOME_ABORT_WITH_REASON(reason) esp_system_abort(reason)
 #else
-// No labelled abort elsewhere; a macro keeps the literal out of rodata, which is RAM on ESP8266
-#define abort_with_reason(reason) abort()
+#define ESPHOME_ABORT_WITH_REASON(reason) abort()
 #endif
 
 /// Fixed-capacity vector - sized once through init() or try_init(); push_back never reallocates
@@ -644,10 +644,10 @@ template<typename T> class FixedVector {
   // Aborts on exhaustion; use try_init() to handle failure.
   void init(size_t n) {
     if (!try_init(n))
-      abort_with_reason("FixedVector: out of memory");
+      ESPHOME_ABORT_WITH_REASON("FixedVector: out of memory");
   }
 
-  // Same as init(), but returns false and leaves the vector empty when memory is exhausted
+  // Same as init(), but returns false when memory is exhausted; the previous storage is freed either way
   bool try_init(size_t n) {
     cleanup_();
     reset_();
@@ -769,7 +769,7 @@ template<size_t STACK_SIZE, typename T = uint8_t> class SmallBufferWithHeapFallb
       }
       // Callers write through get() unchecked, so exhaustion aborts like the new[] it replaces
       if (this->heap_buffer_ == nullptr)
-        abort_with_reason("SmallBufferWithHeapFallback: out of memory");
+        ESPHOME_ABORT_WITH_REASON("SmallBufferWithHeapFallback: out of memory");
       this->buffer_ = this->heap_buffer_;
     }
   }
