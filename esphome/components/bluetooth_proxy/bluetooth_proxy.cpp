@@ -193,6 +193,9 @@ void BluetoothProxy::dump_config() {
                 "  Adapter MAC: %s",
                 scan_mode, mac_out);
 #endif
+#ifdef USE_BLUETOOTH_PROXY_ADVERTISEMENT_FILTER
+  ESP_LOGCONFIG(TAG, "  Advertisement filter: %s", YESNO(this->advertisement_filter_.is_set()));
+#endif
 }
 
 #ifdef USE_BLUETOOTH_PROXY_CONNECTIONS

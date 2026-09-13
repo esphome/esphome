@@ -108,8 +108,9 @@ static_assert(PendingReply{}.empty());
 ///     return static_cast<MyFilter *>(self)->should_forward(adv);
 ///   }});
 ///
-/// Returning false drops the advertisement. Compiled in only when an external
-/// component calls bluetooth_proxy.enable_advertisement_filter().
+/// Returning false drops the advertisement. Not called at all while the API is
+/// disconnected, which matters to a stateful filter. Compiled in only when an
+/// external component calls bluetooth_proxy.enable_advertisement_filter().
 struct AdvertisementFilter {
   void *instance{nullptr};
   bool (*fn)(void *instance, const ble_device_base::RawAdvertisement &adv){nullptr};
