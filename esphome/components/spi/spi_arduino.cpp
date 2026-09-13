@@ -44,13 +44,11 @@ class SPIDelegateHw : public SPIDelegate {
 #ifdef USE_RP2
     this->channel_->transfer(ptr, nullptr, length);
 #elif defined(USE_ESP8266)
-    // ESP8266 SPI library requires the pointer to be word aligned, but the data may not be
-    // so we need to copy the data to a temporary buffer
+    // ESP8266 writeBytes() requires a word aligned pointer; transferBytes() bounces unaligned
+    // data through its own stack buffer in FIFO sized chunks, so no heap copy is needed.
     if (reinterpret_cast<uintptr_t>(ptr) & 0x3) {
-      ESP_LOGVV(TAG, "SPI write buffer not word aligned, copying to temporary buffer");
-      auto txbuf = std::vector<uint8_t>(length);
-      memcpy(txbuf.data(), ptr, length);
-      this->channel_->writeBytes(txbuf.data(), length);
+      ESP_LOGVV(TAG, "SPI write buffer not word aligned, using transferBytes");
+      this->channel_->transferBytes(ptr, nullptr, length);
     } else {
       this->channel_->writeBytes(ptr, length);
     }
