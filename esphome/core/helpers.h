@@ -542,6 +542,8 @@ template<typename T, size_t N> inline void init_array_from(std::array<T, N> &des
 /// Fixed-capacity vector - allocates once at runtime, never reallocates
 /// This avoids std::vector template overhead (_M_realloc_insert, _M_default_append)
 /// when size is known at initialization but not at compile time
+template<class T> class RAMAllocator;
+
 template<typename T> class FixedVector {
  private:
   T *data_{nullptr};
@@ -562,8 +564,7 @@ template<typename T> class FixedVector {
   void cleanup_() {
     if (data_ != nullptr) {
       destroy_elements_();
-      // Free raw memory
-      ::operator delete(data_);
+      RAMAllocator<T>().deallocate(data_, capacity_);
     }
   }
 
@@ -632,16 +633,18 @@ template<typename T> class FixedVector {
   // Allocate capacity - can be called multiple times to reinit
   // IMPORTANT: After calling init(), you MUST use push_back() to add elements.
   // Direct assignment via operator[] does NOT update the size counter.
-  void init(size_t n) {
+  // Returns false and leaves the vector empty when memory is exhausted, where
+  // operator new aborts on ESP-IDF. Internal RAM first, PSRAM as the fallback.
+  bool init(size_t n) {
     cleanup_();
     reset_();
-    if (n > 0) {
-      // Allocate raw memory without calling constructors
-      // sizeof(T) is correct here for any type T (value types, pointers, etc.)
-      // NOLINTNEXTLINE(bugprone-sizeof-expression)
-      data_ = static_cast<T *>(::operator new(n * sizeof(T)));
-      capacity_ = n;
-    }
+    if (n == 0)
+      return true;
+    data_ = RAMAllocator<T>(RAMAllocator<T>::PREFER_INTERNAL).allocate(n);
+    if (data_ == nullptr)
+      return false;
+    capacity_ = n;
+    return true;
   }
 
   // Clear the vector (destroy all elements, reset size to 0, keep capacity)
