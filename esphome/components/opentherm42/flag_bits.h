@@ -63,21 +63,17 @@ struct FlagWriteBits {
 
   // Called when the boiler has definitively rejected (DATA-INVALID/UNKNOWN-DATAID) the
   // conversation that carries this byte -- unlike a transient datalink error, this means the
-  // underlying feature genuinely isn't present on this hardware. set_has_state(false) alone
-  // doesn't notify already-connected API/web_server clients, so notify_switch_update() is called
-  // explicitly (see hub.cpp's invalidate_entity() helpers for the same pattern on other domains).
-  // It's guarded by #ifdef USE_SWITCH: entity_types.h only generates that ControllerRegistry
-  // member when at least one switch entity exists anywhere in the device's config. A device with
-  // none at all (not just none in opentherm42) would otherwise fail to compile, even though a
-  // non-null bit here can only occur when a switch was actually configured -- which itself
-  // requires USE_SWITCH to be defined.
+  // underlying feature genuinely isn't present on this hardware. Unlike FlagReadBits::invalidate()
+  // above, this deliberately skips notifying already-connected clients: Home Assistant's switch
+  // entity (homeassistant/components/esphome/switch.py's is_on) never checks the missing_state
+  // flag, unlike sensor/binary_sensor/number/select, so it always reads back as off regardless of
+  // has_state() -- there is currently no Home Assistant-visible effect to notify for. This still
+  // sets the flag for any other client that does honor it (e.g. a future Home Assistant fix, or a
+  // third-party API consumer).
   void invalidate() {
     for (auto *b : this->bits) {
       if (b != nullptr) {
         b->set_has_state(false);
-#ifdef USE_SWITCH
-        ControllerRegistry::notify_switch_update(b);
-#endif
       }
     }
   }
