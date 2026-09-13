@@ -37,8 +37,8 @@
 #include "esphome/components/captive_portal/captive_portal.h"
 #endif
 
-#ifdef USE_IMPROV
-#include "esphome/components/esp32_improv/esp32_improv_component.h"
+#ifdef USE_IMPROV_BLE
+#include "esphome/components/improv_ble/improv_ble_component.h"
 #endif
 
 #ifdef USE_IMPROV_SERIAL
@@ -226,7 +226,7 @@ bool CompactString::operator==(const StringRef &other) const {
 /// ┌──────────────────────────────────────────────────────────────────────┐
 /// │        Captive Portal / Improv Mode (AP active, scanning disabled)   │
 /// ├──────────────────────────────────────────────────────────────────────┤
-/// │  When captive_portal or esp32_improv is active, WiFi scanning is     │
+/// │  When captive_portal or improv_ble is active, WiFi scanning is       │
 /// │  disabled because it disrupts AP clients (radio leaves AP channel    │
 /// │  to hop through other channels, causing client disconnections).      │
 /// │                                                                      │
@@ -478,9 +478,9 @@ bool WiFiComponent::needs_full_scan_results_() const {
   }
 #endif
 
-#ifdef USE_IMPROV
+#ifdef USE_IMPROV_BLE
   // BLE improv also needs results during provisioning
-  if (esp32_improv::global_improv_component != nullptr && esp32_improv::global_improv_component->is_active()) {
+  if (improv_ble::global_improv_component != nullptr && improv_ble::global_improv_component->is_active()) {
     return true;
   }
 #endif
@@ -746,10 +746,10 @@ void WiFiComponent::start() {
 #endif
 #endif  // USE_WIFI_AP
   }
-#ifdef USE_IMPROV
-  if (!this->has_sta() && esp32_improv::global_improv_component != nullptr) {
+#ifdef USE_IMPROV_BLE
+  if (!this->has_sta() && improv_ble::global_improv_component != nullptr) {
     if (this->wifi_mode_(true, {}))
-      esp32_improv::global_improv_component->start();
+      improv_ble::global_improv_component->start();
   }
 #endif
   this->wifi_apply_hostname_();
@@ -805,7 +805,7 @@ void WiFiComponent::loop() {
           break;
         }
         // Use longer cooldown when captive portal/improv is active to avoid disrupting user config
-        bool portal_active = this->is_captive_portal_active_() || this->is_esp32_improv_active_();
+        bool portal_active = this->is_captive_portal_active_() || this->is_improv_ble_active_();
         uint32_t cooldown_duration = portal_active ? WIFI_COOLDOWN_WITH_AP_ACTIVE_MS : WIFI_COOLDOWN_DURATION_MS;
         if (now - this->action_started_ > cooldown_duration) {
           // After cooldown we either restarted the adapter because of
@@ -894,12 +894,12 @@ void WiFiComponent::loop() {
     }
 #endif  // USE_WIFI_AP
 
-#ifdef USE_IMPROV
-    if (esp32_improv::global_improv_component != nullptr && !esp32_improv::global_improv_component->is_active() &&
-        !esp32_improv::global_improv_component->should_start()) {
-      if (now - this->last_connected_ > esp32_improv::global_improv_component->get_wifi_timeout()) {
+#ifdef USE_IMPROV_BLE
+    if (improv_ble::global_improv_component != nullptr && !improv_ble::global_improv_component->is_active() &&
+        !improv_ble::global_improv_component->should_start()) {
+      if (now - this->last_connected_ > improv_ble::global_improv_component->get_wifi_timeout()) {
         if (this->wifi_mode_(true, {}))
-          esp32_improv::global_improv_component->start();
+          improv_ble::global_improv_component->start();
       }
     }
 
@@ -1644,9 +1644,9 @@ void WiFiComponent::check_connecting_finished(uint32_t now) {
       ESP_LOGD(TAG, "Disabling AP");
       this->wifi_mode_({}, false);
     }
-#ifdef USE_IMPROV
-    if (this->is_esp32_improv_active_()) {
-      esp32_improv::global_improv_component->stop();
+#ifdef USE_IMPROV_BLE
+    if (this->is_improv_ble_active_()) {
+      improv_ble::global_improv_component->stop();
     }
 #endif
 
@@ -1878,7 +1878,7 @@ WiFiRetryPhase WiFiComponent::determine_next_phase_() {
           return WiFiRetryPhase::RETRY_HIDDEN;
         }
         // Need to scan for captive portal
-      } else if (this->is_esp32_improv_active_()) {
+      } else if (this->is_improv_ble_active_()) {
         // Improv doesn't need scan results
         return WiFiRetryPhase::RETRY_HIDDEN;
       }
@@ -1969,7 +1969,7 @@ bool WiFiComponent::transition_to_phase_(WiFiRetryPhase new_phase) {
       // Skip actual adapter restart if captive portal/improv is active
       // This allows state machine to reset num_retried_ and trigger fresh scan
       // without disrupting the captive portal/improv connection
-      if (!this->is_captive_portal_active_() && !this->is_esp32_improv_active_()) {
+      if (!this->is_captive_portal_active_() && !this->is_improv_ble_active_()) {
         this->restart_adapter();
       } else {
         // Even when skipping full restart, disconnect to clear driver state
@@ -2228,9 +2228,9 @@ bool WiFiComponent::is_captive_portal_active_() {
   return false;
 #endif
 }
-bool WiFiComponent::is_esp32_improv_active_() {
-#ifdef USE_IMPROV
-  return esp32_improv::global_improv_component != nullptr && esp32_improv::global_improv_component->is_active();
+bool WiFiComponent::is_improv_ble_active_() {
+#ifdef USE_IMPROV_BLE
+  return improv_ble::global_improv_component != nullptr && improv_ble::global_improv_component->is_active();
 #else
   return false;
 #endif

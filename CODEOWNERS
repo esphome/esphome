@@ -182,7 +182,6 @@ esphome/components/esp32_camera_web_server/* @ayufan
 esphome/components/esp32_can/* @Sympatron
 esphome/components/esp32_hosted/* @swoboda1337
 esphome/components/esp32_hosted/update/* @swoboda1337
-esphome/components/esp32_improv/* @jesserockz
 esphome/components/esp32_rmt/* @jesserockz
 esphome/components/esp32_rmt_led_strip/* @jesserockz
 esphome/components/esp8266/* @esphome/core
@@ -268,6 +267,7 @@ esphome/components/i2s_audio/speaker/* @jesserockz @kahrendt
 esphome/components/iaqcore/* @yozik04
 esphome/components/ili9xxx/* @clydebarrow @nielsnl68
 esphome/components/improv_base/* @esphome/core
+esphome/components/improv_ble/* @jesserockz
 esphome/components/improv_serial/* @esphome/core
 esphome/components/ina226/* @latonita @Sergio303
 esphome/components/ina260/* @mreditor97
