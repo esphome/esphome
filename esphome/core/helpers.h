@@ -541,14 +541,13 @@ template<typename T, size_t N> inline void init_array_from(std::array<T, N> &des
   }
 }
 
-/// Abort with a reason that reaches the panic output where the platform supports one
-[[noreturn]] inline void abort_with_reason(const char *reason) {
 #ifdef USE_ESP32
-  esp_system_abort(reason);
+/// Abort with a reason that reaches the panic output
+[[noreturn]] inline void abort_with_reason(const char *reason) { esp_system_abort(reason); }
 #else
-  abort();
+// No labelled abort elsewhere; a macro keeps the literal out of rodata, which is RAM on ESP8266
+#define abort_with_reason(reason) abort()
 #endif
-}
 
 /// Fixed-capacity vector - sized once through init() or try_init(); push_back never reallocates
 /// This avoids std::vector template overhead (_M_realloc_insert, _M_default_append)
