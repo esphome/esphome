@@ -1,5 +1,5 @@
 import esphome.codegen as cg
-from esphome.components import i2c as i2c, switch
+from esphome.components import switch
 import esphome.config_validation as cv
 from esphome.const import CONF_INTERLOCK, CONF_CHANNEL
 
@@ -25,7 +25,7 @@ CONFIG_SCHEMA = (
         {
             cv.GenerateID(): cv.declare_id(Seeed_Multi_Channel_Relay_Switch),
             cv.GenerateID(CONF_SEEED_MULTI_CHANNEL_RELAY_ID): cv.use_id(
-                SeeedMultiChannelRelay
+                Seeed_Multi_Channel_Relay
             ),
             cv.Required(CONF_CHANNEL): cv.int_range(min=1, max=8),
             cv.Optional(CONF_INTERLOCK): cv.ensure_list(cv.use_id(switch.Switch)),

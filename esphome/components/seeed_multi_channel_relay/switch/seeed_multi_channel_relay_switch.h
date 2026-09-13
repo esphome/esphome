@@ -6,7 +6,7 @@
 #include "esphome/components/seeedmultichannelrelay/seeed_multi_channel_relay.h"
 
 namespace esphome {
-namespace seeedmultichannelrelay {
+namespace seeed_multi_channel_relay {
 
 class Seeed_Multi_Channel_Relay_Switch : public Component,
                                          public switch_::Switch,
@@ -29,5 +29,5 @@ class Seeed_Multi_Channel_Relay_Switch : public Component,
 #endif
 };
 
-}  // namespace seeedmultichannelrelay
+}  // namespace seeed_multi_channel_relay
 }  // namespace esphome
