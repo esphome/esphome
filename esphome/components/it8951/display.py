@@ -9,9 +9,11 @@ from esphome import automation, core, pins
 import esphome.codegen as cg
 from esphome.components import display, spi
 from esphome.components.display import CONF_SHOW_TEST_CARD, validate_rotation
+from esphome.components.mipi import requires_buffer
 import esphome.config_validation as cv
 from esphome.config_validation import update_interval
 from esphome.const import (
+    CONF_AUTO_CLEAR_ENABLED,
     CONF_BUSY_PIN,
     CONF_CS_PIN,
     CONF_DATA_RATE,
@@ -190,19 +192,6 @@ DIMENSION_SCHEMA = cv.Schema(
 )
 
 
-def _uses_direct_draw(config: ConfigType) -> bool:
-    """True when this display streams into controller memory instead of a framebuffer.
-
-    A lambda, pages or the test card all call draw_pixel_at in arbitrary order,
-    which cannot be streamed to the controller as it happens, so those configs
-    need the buffered class. Everything else — in practice LVGL, which pushes
-    whole rectangles — can be drawn straight into controller memory.
-    """
-    return not any(
-        config.get(key) for key in (CONF_LAMBDA, CONF_PAGES, CONF_SHOW_TEST_CARD)
-    )
-
-
 def _model_pin_option(
     model: IT8951Model, key: str, schema: Callable[[Any], Any]
 ) -> tuple[cv.Optional | cv.Required, Callable[[Any], Any]]:
@@ -332,7 +321,7 @@ def _customise_schema(config: ConfigType) -> ConfigType:
     model = IT8951Model.models[config[CONF_MODEL].upper()]
     width, height = model.get_dimensions(model_config)
 
-    direct_draw = _uses_direct_draw(model_config)
+    buffered = requires_buffer(model_config)
     display.add_metadata(
         model_config[CONF_ID],
         width,
@@ -346,8 +335,11 @@ def _customise_schema(config: ConfigType) -> ConfigType:
         # LVGL. Only LVGL reads this flag, and a config with neither a writer nor
         # LVGL gets the test card from _final_validate, so the value is never
         # consulted in the one case where it would be stale.
-        has_hardware_rotation=not direct_draw,
-        has_writer=not direct_draw,
+        has_hardware_rotation=buffered,
+        # auto_clear_enabled calls clear() from do_update_ whether or not a writer
+        # exists, so it counts as a writer for LVGL's purposes — the same term as
+        # mipi_spi, mipi_dsi, mipi_rgb and display's own fallback metadata.
+        has_writer=buffered or model_config.get(CONF_AUTO_CLEAR_ENABLED) is True,
         # Report the configured rotation so LVGL can detect (and reject) a
         # rotation set in the display config instead of the LVGL config.
         rotation=model_config.get(CONF_ROTATION, 0),
@@ -384,7 +376,7 @@ def _final_validate(config: ConfigType) -> None:
             config[CONF_SHOW_TEST_CARD] = True
 
     # Everything below applies only to the direct-draw variant.
-    if not _uses_direct_draw(config):
+    if requires_buffer(config):
         return
 
     # Mirroring maps a rectangle to width - x - w, so the panel width has to be a
@@ -449,7 +441,11 @@ async def to_code(config: ConfigType) -> None:
     width, height = model.get_dimensions(config)
 
     var_id = config[CONF_ID]
-    var_id.type = IT8951DirectDisplay if _uses_direct_draw(config) else IT8951Display
+    # A lambda, pages or the test card all call draw_pixel_at in arbitrary order,
+    # which cannot be streamed into controller memory as it happens, so those
+    # configs need the buffered class. Everything else — in practice LVGL, which
+    # pushes whole rectangles — is drawn straight into controller memory.
+    var_id.type = IT8951Display if requires_buffer(config) else IT8951DirectDisplay
     var = cg.new_Pvariable(var_id, model.name, width, height)
     await display.register_display(var, config)
     await spi.register_spi_device(var, config, write_only=False)
