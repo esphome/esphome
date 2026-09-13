@@ -151,7 +151,7 @@ class ESPHomeOTAComponent final : public ota::OTAComponent {
 #ifndef USE_OTA_ENCRYPTION_FROM_API
   noise::NoiseContext noise_ctx_;
 #endif
-  std::unique_ptr<NoiseSession> noise_;
+  RAMUniquePtr<NoiseSession> noise_;
 #endif  // USE_OTA_ENCRYPTION
 
   socket::ListenSocket *server_{nullptr};
