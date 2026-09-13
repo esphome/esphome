@@ -3227,10 +3227,19 @@ def test_file__result_is_absolute_for_a_relative_document(
 def test_file__miss_names_the_declaring_document(setup_core: Path) -> None:
     package_dir, value = _package_value(setup_core, "assets/other.js")
 
-    with pytest.raises(
-        Invalid, match=f"Also looked next to {package_dir / 'device.yaml'}"
-    ):
+    with pytest.raises(Invalid, match="Could not find file") as excinfo:
         cv.file_(value)
+
+    assert f"Also looked next to {package_dir / 'device.yaml'}" in str(excinfo.value)
+
+
+def test_directory_miss_names_the_declaring_document(setup_core: Path) -> None:
+    package_dir, value = _package_value(setup_core, "other")
+
+    with pytest.raises(Invalid, match="Could not find directory") as excinfo:
+        cv.directory(value)
+
+    assert f"Also looked next to {package_dir / 'device.yaml'}" in str(excinfo.value)
 
 
 def test_file__config_dir_wins_over_the_declaring_document(setup_core: Path) -> None:
