@@ -3210,6 +3210,29 @@ def test_file__resolves_a_substituted_path_against_the_use_site(
     assert cv.file_(config["path"]) == package_dir / "assets" / "ui.js"
 
 
+def test_file__result_is_absolute_for_a_relative_document(
+    setup_core: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A document loaded by a cwd-relative path still yields an absolute result."""
+    package_dir, _ = _package_value(setup_core)
+    monkeypatch.chdir(setup_core)
+    value = load_yaml(Path(".esphome/packages/abc123/vendor/device.yaml"))["path"]
+
+    result = cv.file_(value)
+
+    assert result.is_absolute()
+    assert result == package_dir / "assets" / "ui.js"
+
+
+def test_file__miss_names_the_declaring_document(setup_core: Path) -> None:
+    package_dir, value = _package_value(setup_core, "assets/other.js")
+
+    with pytest.raises(
+        Invalid, match=f"Also looked next to {package_dir / 'device.yaml'}"
+    ):
+        cv.file_(value)
+
+
 def test_file__config_dir_wins_over_the_declaring_document(setup_core: Path) -> None:
     _, value = _package_value(setup_core)
     (setup_core / "assets").mkdir()

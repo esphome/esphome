@@ -2001,27 +2001,42 @@ def _remap_bundle_path(value: str) -> Path | None:
 
 def _document_relative_path(value: str) -> Path | None:
     """Resolve *value* next to the YAML file that declared it; callers try the config dir first."""
-    esp_range = getattr(value, "esp_range", None)
-    if esp_range is None:
-        return None
-    document = Path(esp_range.start_mark.document)
-    if not document.is_file():
+    document = _declaring_document(value)
+    if document is None:
         return None
     candidate = document.parent / Path(value).expanduser()
     return candidate if candidate.exists() else None
 
 
-def directory(value: object) -> Path:
-    value = string(value)
-    path = CORE.relative_config_path(value)
+def _declaring_document(value: str) -> Path | None:
+    """Return the on-disk YAML file *value* was loaded from, absolute, or None."""
+    esp_range = getattr(value, "esp_range", None)
+    if esp_range is None:
+        return None
+    document = Path(esp_range.start_mark.document).absolute()
+    return document if document.is_file() else None
 
-    if not path.exists():
-        found = _document_relative_path(value) or _remap_bundle_path(value)
-        if found is None:
-            raise Invalid(
-                f"Could not find directory '{path}'. Please make sure it exists (full path: {path.resolve()})."
-            )
-        path = found
+
+def _existing_path(value: str, kind: str) -> Path:
+    """Resolve *value* against the config dir, then its declaring document, then a bundle remap."""
+    path = CORE.relative_config_path(value)
+    if path.exists():
+        return path
+    found = _document_relative_path(value) or _remap_bundle_path(value)
+    if found is not None:
+        return found
+    also = ""
+    if (
+        document := _declaring_document(value)
+    ) is not None and document.parent != CORE.config_dir:
+        also = f" Also looked next to {document}."
+    raise Invalid(
+        f"Could not find {kind} '{path}'. Please make sure it exists (full path: {path.resolve()}).{also}"
+    )
+
+
+def directory(value: object) -> Path:
+    path = _existing_path(string(value), "directory")
     if not path.is_dir():
         raise Invalid(
             f"Path '{path}' is not a directory (full path: {path.resolve()})."
@@ -2030,16 +2045,7 @@ def directory(value: object) -> Path:
 
 
 def file_(value: object) -> Path:
-    value = string(value)
-    path = CORE.relative_config_path(value)
-
-    if not path.exists():
-        found = _document_relative_path(value) or _remap_bundle_path(value)
-        if found is None:
-            raise Invalid(
-                f"Could not find file '{path}'. Please make sure it exists (full path: {path.resolve()})."
-            )
-        path = found
+    path = _existing_path(string(value), "file")
     if not path.is_file():
         raise Invalid(f"Path '{path}' is not a file (full path: {path.resolve()}).")
     return path
