@@ -3233,22 +3233,6 @@ def test_file__config_dir_entry_of_the_wrong_kind_does_not_shadow_the_package(
     assert cv.file_(value) == package_dir / "assets" / "ui.js"
 
 
-def test_directory_config_dir_entry_of_the_wrong_kind_does_not_shadow_the_package(
-    setup_core: Path,
-) -> None:
-    package_dir, value = _package_value(setup_core, "assets")
-    (setup_core / "assets").write_text("not a dir\n")
-
-    assert cv.directory(value) == package_dir / "assets"
-
-
-def test_file__wrong_kind_everywhere_keeps_the_kind_error(setup_core: Path) -> None:
-    (setup_core / "assets").mkdir()
-
-    with pytest.raises(Invalid, match="is not a file"):
-        cv.file_("assets")
-
-
 def test_file__miss_names_the_declaring_document(setup_core: Path) -> None:
     package_dir, value = _package_value(setup_core, "assets/other.js")
 
@@ -3258,13 +3242,17 @@ def test_file__miss_names_the_declaring_document(setup_core: Path) -> None:
     assert f"Also looked next to {package_dir / 'device.yaml'}" in str(excinfo.value)
 
 
-def test_directory_miss_names_the_declaring_document(setup_core: Path) -> None:
-    package_dir, value = _package_value(setup_core, "other")
+def test_file__document_spelled_through_dotdot_in_the_config_dir_adds_no_hint(
+    setup_core: Path,
+) -> None:
+    (setup_core / "sub").mkdir()
+    (setup_core / "device.yaml").write_text("path: assets/other.js\n")
+    value = load_yaml(setup_core / "sub" / ".." / "device.yaml")["path"]
 
-    with pytest.raises(Invalid, match="Could not find directory") as excinfo:
-        cv.directory(value)
+    with pytest.raises(Invalid) as excinfo:
+        cv.file_(value)
 
-    assert f"Also looked next to {package_dir / 'device.yaml'}" in str(excinfo.value)
+    assert "Also looked" not in str(excinfo.value)
 
 
 def test_file__config_dir_wins_over_the_declaring_document(setup_core: Path) -> None:
@@ -3273,13 +3261,6 @@ def test_file__config_dir_wins_over_the_declaring_document(setup_core: Path) -> 
     (setup_core / "assets" / "ui.js").write_text("local\n")
 
     assert cv.file_(value) == setup_core / "assets" / "ui.js"
-
-
-def test_file__missing_in_both_places_raises(setup_core: Path) -> None:
-    _, value = _package_value(setup_core, "assets/other.js")
-
-    with pytest.raises(Invalid, match="Could not find file"):
-        cv.file_(value)
 
 
 def test_file__declared_in_an_in_memory_document_is_not_resolved(

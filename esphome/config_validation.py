@@ -16,6 +16,7 @@ from ipaddress import (
     ip_network,
 )
 import logging
+import os
 from pathlib import Path
 import re
 from string import ascii_letters, digits
@@ -1999,15 +2000,6 @@ def _remap_bundle_path(value: str) -> Path | None:
     return remap_bundle_path(value)
 
 
-def _document_relative_path(value: str) -> Path | None:
-    """Resolve *value* next to the YAML file that declared it; callers try the config dir first."""
-    document = _declaring_document(value)
-    if document is None:
-        return None
-    candidate = document.parent / Path(value).expanduser()
-    return candidate if candidate.exists() else None
-
-
 def _declaring_document(value: str) -> Path | None:
     """Return the on-disk YAML file *value* was loaded from, absolute, or None."""
     esp_range = getattr(value, "esp_range", None)
@@ -2022,24 +2014,25 @@ def _existing_path(value: str, kind: str, is_kind: Callable[[Path], bool]) -> Pa
     path = CORE.relative_config_path(value)
     if is_kind(path):
         return path
-    candidates = [
-        c
-        for c in (_document_relative_path(value), _remap_bundle_path(value))
-        if c is not None
-    ]
+    candidates = [path]
+    document = _declaring_document(value)
+    if document is not None:
+        beside_document = document.parent / Path(value).expanduser()
+        if os.path.normpath(beside_document) == os.path.normpath(path):
+            document = None
+        else:
+            candidates.append(beside_document)
+    if (remapped := _remap_bundle_path(value)) is not None:
+        candidates.append(remapped)
     for candidate in candidates:
         if is_kind(candidate):
             return candidate
-    for candidate in (path, *candidates):
+    for candidate in candidates:
         if candidate.exists():
             raise Invalid(
                 f"Path '{candidate}' is not a {kind} (full path: {candidate.resolve()})."
             )
-    also = ""
-    if (
-        document := _declaring_document(value)
-    ) is not None and document.parent != CORE.config_dir:
-        also = f" Also looked next to {document}."
+    also = f" Also looked next to {document}." if document is not None else ""
     raise Invalid(
         f"Could not find {kind} '{path}'. Please make sure it exists (full path: {path.resolve()}).{also}"
     )
