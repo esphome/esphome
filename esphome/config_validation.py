@@ -2004,12 +2004,12 @@ def directory(value: object) -> Path:
     path = CORE.relative_config_path(value)
 
     if not path.exists():
-        remapped = _remap_bundle_path(value)
-        if remapped is None:
+        found = _document_relative_path(value) or _remap_bundle_path(value)
+        if found is None:
             raise Invalid(
                 f"Could not find directory '{path}'. Please make sure it exists (full path: {path.resolve()})."
             )
-        path = remapped
+        path = found
     if not path.is_dir():
         raise Invalid(
             f"Path '{path}' is not a directory (full path: {path.resolve()})."
@@ -2017,17 +2017,33 @@ def directory(value: object) -> Path:
     return path
 
 
+def _document_relative_path(value: str) -> Path | None:
+    """Resolve *value* against the YAML file that declared it, when that file holds it.
+
+    A package or ``!include``d file can ship its own assets next to itself;
+    the config dir is still tried first.
+    """
+    esp_range = getattr(value, "esp_range", None)
+    if esp_range is None:
+        return None
+    document = Path(esp_range.start_mark.document)
+    if not document.is_file():
+        return None
+    candidate = document.parent / Path(value).expanduser()
+    return candidate if candidate.exists() else None
+
+
 def file_(value: object) -> Path:
     value = string(value)
     path = CORE.relative_config_path(value)
 
     if not path.exists():
-        remapped = _remap_bundle_path(value)
-        if remapped is None:
+        found = _document_relative_path(value) or _remap_bundle_path(value)
+        if found is None:
             raise Invalid(
                 f"Could not find file '{path}'. Please make sure it exists (full path: {path.resolve()})."
             )
-        path = remapped
+        path = found
     if not path.is_file():
         raise Invalid(f"Path '{path}' is not a file (full path: {path.resolve()}).")
     return path

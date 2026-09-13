@@ -65,7 +65,7 @@ from esphome.core import (
 )
 from esphome.schema_extractors import SCHEMA_EXTRACT
 from esphome.util import Registry
-from esphome.yaml_util import ESPHomeDataBase, SensitiveStr, make_data_base
+from esphome.yaml_util import ESPHomeDataBase, SensitiveStr, load_yaml, make_data_base
 
 
 def test_check_not_templatable__invalid():
@@ -3172,6 +3172,53 @@ def test_file__existing_relative_path(setup_core: Path) -> None:
     (setup_core / "partitions.csv").write_text("csv\n")
 
     assert cv.file_("partitions.csv") == setup_core / "partitions.csv"
+
+
+def _package_asset(setup_core: Path, yaml: str) -> tuple[Path, str]:
+    """Write a package file next to an ``assets/`` dir; return the dir and its loaded path value."""
+    package_dir = setup_core / ".esphome" / "packages" / "abc123" / "vendor"
+    (package_dir / "assets").mkdir(parents=True)
+    (package_dir / "assets" / "ui.js").write_text("js\n")
+    (package_dir / "device.yaml").write_text(yaml)
+    return package_dir, load_yaml(package_dir / "device.yaml")["web_server"][
+        "js_include"
+    ]
+
+
+def test_file__resolves_relative_to_the_declaring_document(setup_core: Path) -> None:
+    """A package's own asset path resolves against the package file when the config dir lacks it."""
+    package_dir, value = _package_asset(
+        setup_core, "web_server:\n  js_include: assets/ui.js\n"
+    )
+
+    assert cv.file_(value) == package_dir / "assets" / "ui.js"
+
+
+def test_file__config_dir_wins_over_the_declaring_document(setup_core: Path) -> None:
+    _, value = _package_asset(setup_core, "web_server:\n  js_include: assets/ui.js\n")
+    (setup_core / "assets").mkdir()
+    (setup_core / "assets" / "ui.js").write_text("local\n")
+
+    assert cv.file_(value) == setup_core / "assets" / "ui.js"
+
+
+def test_file__missing_in_both_places_raises(setup_core: Path) -> None:
+    _, value = _package_asset(
+        setup_core, "web_server:\n  js_include: assets/other.js\n"
+    )
+
+    with pytest.raises(Invalid, match="Could not find file"):
+        cv.file_(value)
+
+
+def test_directory_resolves_relative_to_the_declaring_document(
+    setup_core: Path,
+) -> None:
+    package_dir, value = _package_asset(
+        setup_core, "web_server:\n  js_include: assets\n"
+    )
+
+    assert cv.directory(value) == package_dir / "assets"
 
 
 def test_file__missing_raises(setup_core: Path) -> None:
