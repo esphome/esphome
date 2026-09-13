@@ -11,8 +11,10 @@ namespace esphome::ethernet {
 
 namespace {
 
-// Context returned by init() and handed back to read/write/deinit. There is one W5500 per device,
-// so a single static instance replaces a heap allocation that could fail
+// Context returned by init() and handed back to read/write/deinit. There is one W5500 per device, so a
+// single static instance replaces a heap allocation that could fail. It is always clear when init() runs:
+// esp_eth_mac_new_w5500() calls deinit() on every failure after init() succeeded, and nothing else
+// uninstalls the driver
 struct W5500CustomSpiContext {
   spi_device_handle_t handle;
   SemaphoreHandle_t lock;
@@ -27,14 +29,6 @@ constexpr uint32_t W5500_SPI_LOCK_TIMEOUT_MS = 50;
 void *w5500_custom_spi_init(const void *spi_config) {
   const auto *config = static_cast<const eth_w5500_config_t *>(spi_config);
   auto *ctx = &w5500_context;
-  if (ctx->handle != nullptr) {
-    // A previous install never reached deinit(); reclaim it instead of failing forever
-    spi_bus_remove_device(ctx->handle);
-    if (ctx->lock != nullptr) {
-      vSemaphoreDelete(ctx->lock);
-    }
-    *ctx = {};
-  }
   // The W5500 SPI frame carries the 16-bit address in the command phase and the 8-bit control
   // byte in the address phase; mirror what the stock driver configures.
   spi_device_interface_config_t devcfg = *config->spi_devcfg;
