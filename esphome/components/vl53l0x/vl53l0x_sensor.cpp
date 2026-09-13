@@ -58,6 +58,15 @@ void VL53L0XSensor::setup() {
   uint8_t final_address = address_;
   this->set_i2c_address(0x29);
 
+  if (!this->init_sensor_(final_address)) {
+    this->mark_failed();
+  }
+}
+
+// Runs the full sensor init sequence. Returns false on failure (timeout or
+// failed reference calibration). Also used by the stall-recovery logic to
+// re-initialize the sensor at runtime without rebooting the ESP.
+bool VL53L0XSensor::init_sensor_(uint8_t final_address) {
   reg(0x89) |= 0x01;
   reg(0x88) = 0x00;
 
@@ -93,8 +102,7 @@ void VL53L0XSensor::setup() {
   while (reg(0x83).get() == 0x00) {
     if (this->timeout_us_ > 0 && (micros() - timeout_start_us > this->timeout_us_)) {
       ESP_LOGE(TAG, "'%s' - setup timeout", this->name_.c_str());
-      this->mark_failed();
-      return;
+      return false;
     }
     yield();
   }
@@ -243,14 +251,12 @@ void VL53L0XSensor::setup() {
 
   if (!perform_single_ref_calibration_(0x40)) {
     ESP_LOGW(TAG, "1st reference calibration failed!");
-    this->mark_failed();
-    return;
+    return false;
   }
   reg(0x01) = 0x02;
   if (!perform_single_ref_calibration_(0x00)) {
     ESP_LOGW(TAG, "2nd reference calibration failed!");
-    this->mark_failed();
-    return;
+    return false;
   }
   reg(0x01) = 0xE8;
 
@@ -260,6 +266,7 @@ void VL53L0XSensor::setup() {
   // I2C_SXXXX__DEVICE_ADDRESS = 0x0001 for VL53L1X
   reg(0x8A) = final_address & 0x7F;
   this->set_i2c_address(final_address);
+  return true;
 }
 
 void VL53L0XSensor::update() {
@@ -322,12 +329,42 @@ void VL53L0XSensor::loop() {
                  this->name_.c_str(), stall_timeout_us);
         this->stall_reported_ = true;
       }
+      this->consecutive_stalls_++;
       reg(0x00) = 0x00;  // abort any pending measurement
       reg(0x0B) = 0x01;  // clear interrupt flags
       this->initiated_read_ = false;
       this->waiting_for_interrupt_ = false;
       this->publish_state(NAN);
       this->status_momentary_warning("stall", 5000);
+      if (this->consecutive_stalls_ >= 2) {
+        // The sensor's internal MCU is wedged - resetting the driver state
+        // does not help (every subsequent measurement keeps timing out).
+        // Recover by performing the sensor's own soft reset (register 0xBF,
+        // the software equivalent of the XSHUT pin) followed by a full
+        // re-initialization - no ESP reboot, no power cycle required.
+        if (this->recovery_attempts_ >= 5) {
+          ESP_LOGE(TAG, "'%s' - sensor did not recover after %d soft resets, marking as failed", this->name_.c_str(),
+                   this->recovery_attempts_);
+          this->mark_failed();
+          return;
+        }
+        this->recovery_attempts_++;
+        ESP_LOGW(TAG, "'%s' - sensor still stuck, performing soft reset and re-init (attempt %d/5)",
+                 this->name_.c_str(), this->recovery_attempts_);
+        reg(0xBF) = 0x00;  // SOFT_RESET_GO2_SOFT_RESET_N: hold the sensor MCU in reset
+        delay(1);
+        reg(0xBF) = 0x01;  // release - the sensor MCU reboots, registers revert to defaults
+        delay(2);
+        this->set_i2c_address(0x29);  // soft reset restores the default I2C address
+        if (this->init_sensor_(this->address_)) {
+          ESP_LOGI(TAG, "'%s' - sensor re-initialized successfully, restarting measurement", this->name_.c_str());
+          this->consecutive_stalls_ = 0;
+          this->recovery_attempts_ = 0;
+          this->update();  // start a fresh measurement right away
+        } else {
+          ESP_LOGE(TAG, "'%s' - re-init failed, will retry on the next update", this->name_.c_str());
+        }
+      }
       return;
     }
   }
@@ -351,12 +388,15 @@ void VL53L0XSensor::loop() {
       if (range_mm >= 8190) {
         ESP_LOGD(TAG, "'%s' - Distance is out of range, please move the target closer", this->name_.c_str());
         this->publish_state(NAN);
+        this->consecutive_stalls_ = 0;
         return;
       }
 
       float range_m = range_mm / 1e3f;
       ESP_LOGD(TAG, "'%s' - Got distance %.3f m", this->name_.c_str(), range_m);
       this->publish_state(range_m);
+      this->consecutive_stalls_ = 0;
+      this->recovery_attempts_ = 0;
     }
   }
 }

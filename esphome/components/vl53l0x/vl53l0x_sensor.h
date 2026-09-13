@@ -54,6 +54,7 @@ class VL53L0XSensor final : public sensor::Sensor, public PollingComponent, publ
   uint16_t encode_timeout_(uint16_t timeout_mclks);
 
   bool perform_single_ref_calibration_(uint8_t vhv_init_byte);
+  bool init_sensor_(uint8_t final_address);
 
   float signal_rate_limit_;
   bool long_range_;
@@ -66,6 +67,11 @@ class VL53L0XSensor final : public sensor::Sensor, public PollingComponent, publ
   // a flag so the stall warning is logged only once per measurement cycle.
   uint32_t measurement_start_us_{0};
   bool stall_reported_{false};
+  // Self-recovery - consecutive stalled measurements trigger a sensor soft
+  // reset + full re-init; recovery_attempts_ counts failed recovery attempts
+  // before the component is marked failed.
+  int consecutive_stalls_{0};
+  int recovery_attempts_{0};
 
   uint32_t timeout_us_{};
 
