@@ -2022,11 +2022,19 @@ def _existing_path(value: str, kind: str, is_kind: Callable[[Path], bool]) -> Pa
     path = CORE.relative_config_path(value)
     if is_kind(path):
         return path
-    for candidate in (_document_relative_path(value), _remap_bundle_path(value)):
-        if candidate is not None and is_kind(candidate):
+    candidates = [
+        c
+        for c in (_document_relative_path(value), _remap_bundle_path(value))
+        if c is not None
+    ]
+    for candidate in candidates:
+        if is_kind(candidate):
             return candidate
-    if path.exists():
-        raise Invalid(f"Path '{path}' is not a {kind} (full path: {path.resolve()}).")
+    for candidate in (path, *candidates):
+        if candidate.exists():
+            raise Invalid(
+                f"Path '{candidate}' is not a {kind} (full path: {candidate.resolve()})."
+            )
     also = ""
     if (
         document := _declaring_document(value)
