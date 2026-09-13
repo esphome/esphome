@@ -1,8 +1,7 @@
 #include "seeed_multi_channel_relay.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace seeed_multi_channel_relay {
+namespace esphome::seeed_multi_channel_relay {
 
 static const char *const TAG = "seeed_multi_channel_relay";
 
@@ -77,5 +76,4 @@ void seeed_multi_channel_relay::write1_byte_(uint8_t register_address, uint8_t d
   }
 }
 
-}  // namespace seeed_multi_channel_relay
-}  // namespace esphome
+}  // namespace esphome::seeed_multi_channel_relay

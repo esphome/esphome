@@ -1,8 +1,7 @@
 #include "seeed_multi_channel_relay_switch.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace seeed_multi_channel_relay {
+namespace esphome::namespace seeed_multi_channel_relay {
 
 static const char *const TAG = "switch.seeed_multi_channel_relay";
 
@@ -80,5 +79,4 @@ void seeed_multi_channel_relay_Switch::write_state(bool state) {
   }
 #endif
 
-}  // namespace seeed_multi_channel_relay
-}  // namespace esphome
+}  // namespace esphome::seeed_multi_channel_relay

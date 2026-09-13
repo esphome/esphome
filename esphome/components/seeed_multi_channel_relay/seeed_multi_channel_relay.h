@@ -3,15 +3,14 @@
 #include "esphome/core/component.h"
 #include "esphome/components/i2c/i2c.h"
 
-namespace esphome {
-namespace seeed_multi_channel_relay {
+namespace esphome::seeed_multi_channel_relay {
 
 static constexpr uint8_t CMD_CHANNEL_CTRL = 0x10;
 static constexpr uint8_t CMD_SAVE_I2C_ADDR = 0x11;
 static constexpr uint8_t CMD_READ_I2C_ADDR = 0x12;
 static constexpr uint8_t CMD_READ_FIRMWARE_VER = 0x13;
 
-class seeed_multi_channel_relay : public Component, public i2c::I2CDevice {
+class SeeedMultiChannelRelay : public Component, public i2c::I2CDevice {
  public:
   void relay_write(uint8_t number, bool state);
 
@@ -63,5 +62,4 @@ class seeed_multi_channel_relay : public Component, public i2c::I2CDevice {
   void turn_off_channel_(uint8_t channel);
 };
 
-}  // namespace seeed_multi_channel_relay
-}  // namespace esphome
+}  // namespace esphome::seeed_multi_channel_relay

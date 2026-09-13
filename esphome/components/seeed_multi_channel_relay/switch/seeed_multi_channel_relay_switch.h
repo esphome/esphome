@@ -5,12 +5,11 @@
 
 #include "esphome/components/seeedmultichannelrelay/seeed_multi_channel_relay.h"
 
-namespace esphome {
-namespace seeed_multi_channel_relay {
+namespace esphome::seeed_multi_channel_relay {
 
-class Seeed_Multi_Channel_Relay_Switch : public Component,
+class SeeedMultiChannelRelaySwitch : public Component,
                                          public switch_::Switch,
-                                         public Parented<seeed_multi_channel_relay> {
+                                         public Parented<SeeedMultiChannelRelay> {
  public:
   void setup() override;
   void dump_config() override;
@@ -29,5 +28,4 @@ class Seeed_Multi_Channel_Relay_Switch : public Component,
 #endif
 };
 
-}  // namespace seeed_multi_channel_relay
-}  // namespace esphome
+}  // namespace esphome::seeed_multi_channel_relay
