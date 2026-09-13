@@ -348,21 +348,21 @@ TEST(StepToAccuracyDecimals, NonFiniteAndZero) {
   EXPECT_EQ(step_to_accuracy_decimals(-INFINITY), 0);
 }
 
-// --- FixedVector::init() ---
+// --- FixedVector::try_init() ---
 
 // Keeps the allocation observable: with the block only null checked and freed, the compiler
 // may drop the malloc and free pair and fold the check to success
 static void escape(const void *p) { asm volatile("" : : "g"(p) : "memory"); }
 
-TEST(FixedVectorInit, ReportsExhaustionAndStaysEmpty) {
+TEST(FixedVectorTryInit, ReportsExhaustionAndStaysEmpty) {
   FixedVector<uint32_t> v;
-  const bool ok = v.init(SIZE_MAX / sizeof(uint32_t));
+  const bool ok = v.try_init(SIZE_MAX / sizeof(uint32_t));
   escape(&v);
   EXPECT_FALSE(ok);
   EXPECT_EQ(v.size(), 0u);
-  EXPECT_TRUE(v.init(0));
+  EXPECT_TRUE(v.try_init(0));
   EXPECT_EQ(v.size(), 0u);
-  EXPECT_TRUE(v.init(4));
+  EXPECT_TRUE(v.try_init(4));
   v.push_back(7);
   EXPECT_EQ(v.size(), 1u);
   EXPECT_EQ(v[0], 7u);

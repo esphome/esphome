@@ -7,6 +7,7 @@
 #include <cstdarg>
 #include <cstdint>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <functional>
 #include <iterator>
@@ -564,7 +565,7 @@ template<typename T> class FixedVector {
   void cleanup_() {
     if (data_ != nullptr) {
       destroy_elements_();
-      RAMAllocator<T>().deallocate(data_, capacity_);
+      RAMAllocator<T>(RAMAllocator<T>::ALLOC_INTERNAL).deallocate(data_, capacity_);
     }
   }
 
@@ -633,14 +634,20 @@ template<typename T> class FixedVector {
   // Allocate capacity - can be called multiple times to reinit
   // IMPORTANT: After calling init(), you MUST use push_back() to add elements.
   // Direct assignment via operator[] does NOT update the size counter.
-  // Returns false and leaves the vector empty when memory is exhausted, where
-  // operator new aborts on ESP-IDF. Internal RAM first, PSRAM as the fallback.
-  bool init(size_t n) {
+  // Aborts when memory is exhausted, as the operator new it replaces did; callers that can
+  // cope with a failed allocation use try_init() instead.
+  void init(size_t n) {
+    if (!this->try_init(n))
+      abort();
+  }
+
+  // Same as init(), but returns false and leaves the vector empty when memory is exhausted
+  bool try_init(size_t n) {
     cleanup_();
     reset_();
     if (n == 0)
       return true;
-    data_ = RAMAllocator<T>(RAMAllocator<T>::PREFER_INTERNAL).allocate(n);
+    data_ = RAMAllocator<T>(RAMAllocator<T>::ALLOC_INTERNAL).allocate(n);
     if (data_ == nullptr)
       return false;
     capacity_ = n;
