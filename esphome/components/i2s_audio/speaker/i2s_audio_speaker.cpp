@@ -91,7 +91,14 @@ void I2SAudioSpeakerBase::loop() {
     this->speaker_task_handle_ = nullptr;
 
     this->stop_i2s_driver_();
-    xEventGroupClearBits(this->event_group_, SpeakerEventGroupBits::ALL_BITS);
+    // ALL_BITS includes COMMAND_START. Take the bits from the clear itself, not from the snapshot at
+    // the top of loop(): the audio source's task can raise a start at any point above, including
+    // during stop_i2s_driver_(), and nothing would ever re-issue it.
+    const EventBits_t bits_before_clear = xEventGroupClearBits(this->event_group_, SpeakerEventGroupBits::ALL_BITS);
+    if (bits_before_clear & SpeakerEventGroupBits::COMMAND_START) {
+      ESP_LOGD(TAG, "Start requested while stopping; keeping the request");
+      xEventGroupSetBits(this->event_group_, SpeakerEventGroupBits::COMMAND_START);
+    }
     this->status_clear_error();
 
     this->on_task_stopped();
@@ -111,21 +118,24 @@ void I2SAudioSpeakerBase::loop() {
         break;
       }
 
+      // Still starting up or winding down from a previous run
+      if ((this->tx_handle_ != nullptr) || (this->speaker_task_handle_ != nullptr)) {
+        break;
+      }
+
       if (this->start_i2s_driver(this->audio_stream_info_) != ESP_OK) {
         ESP_LOGE(TAG, "Driver failed to start; retrying in 1 second");
         this->status_momentary_error("driver-failure", 1000);
         break;
       }
 
-      if (this->speaker_task_handle_ == nullptr) {
-        xTaskCreate(I2SAudioSpeakerBase::speaker_task, "speaker_task", TASK_STACK_SIZE, (void *) this, TASK_PRIORITY,
-                    &this->speaker_task_handle_);
+      xTaskCreate(I2SAudioSpeakerBase::speaker_task, "speaker_task", TASK_STACK_SIZE, (void *) this, TASK_PRIORITY,
+                  &this->speaker_task_handle_);
 
-        if (this->speaker_task_handle_ == nullptr) {
-          ESP_LOGE(TAG, "Task failed to start, retrying in 1 second");
-          this->status_momentary_error("task-failure", 1000);
-          this->stop_i2s_driver_();  // Stops the driver to return the lock; will be reloaded in next attempt
-        }
+      if (this->speaker_task_handle_ == nullptr) {
+        ESP_LOGE(TAG, "Task failed to start, retrying in 1 second");
+        this->status_momentary_error("task-failure", 1000);
+        this->stop_i2s_driver_();  // Stops the driver to return the lock; will be reloaded in next attempt
       }
       break;
     case speaker::STATE_RUNNING:   // Intentional fallthrough
@@ -211,8 +221,8 @@ size_t I2SAudioSpeakerBase::play(const uint8_t *data, size_t length, TickType_t 
 }
 
 bool I2SAudioSpeakerBase::has_buffered_data() const {
-  if (this->audio_ring_buffer_.use_count() > 0) {
-    std::shared_ptr<ring_buffer::RingBuffer> temp_ring_buffer = this->audio_ring_buffer_.lock();
+  std::shared_ptr<ring_buffer::RingBuffer> temp_ring_buffer = this->audio_ring_buffer_.lock();
+  if (temp_ring_buffer != nullptr) {
     return temp_ring_buffer->available() > 0;
   }
   return false;

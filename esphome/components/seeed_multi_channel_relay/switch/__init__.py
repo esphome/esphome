@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 from esphome.components import switch
 import esphome.config_validation as cv
-from esphome.const import CONF_INTERLOCK, CONF_CHANNEL
+from esphome.const import CONF_CHANNEL, CONF_INTERLOCK
 
 from .. import (
     CONF_SEEED_MULTI_CHANNEL_RELAY_ID,
