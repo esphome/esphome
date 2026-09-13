@@ -7,7 +7,6 @@
 #include "esphome/core/log.h"
 
 #include <cstring>
-#include <new>
 
 #ifdef USE_ESP8266
 #include <pgmspace.h>
