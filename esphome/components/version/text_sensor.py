@@ -12,6 +12,7 @@ from esphome.const import (
     ICON_NEW_BOX,
 )
 from esphome.loader import get_component
+from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 from esphome.types import ConfigType
 
 _LOGGER = logging.getLogger(__name__)
@@ -63,24 +64,45 @@ COMPONENT_VERSION_SCHEMA = _BASE_SCHEMA.extend(
 )
 
 
+@schema_extractor("schema")
 def CONFIG_SCHEMA(config: ConfigType) -> ConfigType:
     # Separate classes so the ESPHome-version sensor carries neither the fields nor
     # the branch that only component mode needs, and so hide_hash / hide_timestamp
     # are rejected in component mode rather than silently ignored.
-    if isinstance(config, dict) and CONF_COMPONENT in config:
+    if config is SCHEMA_EXTRACT:
+        return ESPHOME_VERSION_SCHEMA.extend(
+            {cv.Optional(CONF_COMPONENT): _component_name}
+        )
+    if CONF_COMPONENT in config:
         return COMPONENT_VERSION_SCHEMA(config)
     return ESPHOME_VERSION_SCHEMA(config)
 
 
 def _final_validate(config: ConfigType) -> ConfigType:
-    # Deferred to final validation so external components are loaded by now. A typo
-    # is an error here rather than a sensor that silently reads unknown forever.
+    # Deferred to final validation so external components are loaded by now, and so
+    # both the error and the warning show up in `esphome config`.
     name = config.get(CONF_COMPONENT)
-    if name is not None and get_component(name) is None:
+    if name is None:
+        return config
+
+    manifest = get_component(name)
+    if manifest is None:
+        # A typo is an error rather than a sensor that reads unknown forever.
         raise cv.Invalid(
             f"Component '{name}' not found. It must be a core component or one "
             "listed under external_components.",
             path=[CONF_COMPONENT],
+        )
+    # Declaring COMPONENT_VERSION is optional and most components never will, so
+    # this is a warning. The state is left unpublished rather than set to "" so it
+    # cannot be mistaken for a reported value.
+    if manifest.component_version is None:
+        _LOGGER.warning(
+            "Component '%s' does not report a version, so text sensor '%s' will "
+            "read as unknown. Components opt in by defining COMPONENT_VERSION; "
+            "this one has not.",
+            name,
+            config.get(CONF_NAME, name),
         )
     return config
 
@@ -89,25 +111,15 @@ FINAL_VALIDATE_SCHEMA = _final_validate
 
 
 async def to_code(config: ConfigType) -> None:
-    var = await text_sensor.new_text_sensor(config)
-    await cg.register_component(var, config)
-
     if (name := config.get(CONF_COMPONENT)) is not None:
-        cg.add(var.set_component_name(name))
-        # Declaring COMPONENT_VERSION is optional and most components never will,
-        # so this is a warning rather than an error. The state is left unpublished
-        # rather than set to "" so it cannot be mistaken for a reported value.
-        if (version := get_component(name).component_version) is None:
-            _LOGGER.warning(
-                "Component '%s' does not report a version, so text sensor '%s' "
-                "will read as unknown. Components opt in by defining "
-                "COMPONENT_VERSION; this one has not.",
-                name,
-                config.get(CONF_NAME, name),
-            )
-        else:
+        var = await text_sensor.new_text_sensor(config, name)
+        await cg.register_component(var, config)
+        # _final_validate has already warned when there is no version to report.
+        if (version := get_component(name).component_version) is not None:
             cg.add(var.set_version(version))
         return
 
+    var = await text_sensor.new_text_sensor(config)
+    await cg.register_component(var, config)
     cg.add(var.set_hide_hash(config[CONF_HIDE_HASH]))
     cg.add(var.set_hide_timestamp(config[CONF_HIDE_TIMESTAMP]))

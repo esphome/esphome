@@ -15,8 +15,10 @@ void ComponentVersionTextSensor::setup() {
 
 void ComponentVersionTextSensor::dump_config() {
   LOG_TEXT_SENSOR("", "Component Version Text Sensor", this);
-  ESP_LOGCONFIG(TAG, "  Component: %s", this->component_name_);
-  ESP_LOGCONFIG(TAG, "  Version: %s", this->version_ != nullptr ? this->version_ : "unknown (not reported)");
+  ESP_LOGCONFIG(TAG,
+                "  Component: %s\n"
+                "  Version: %s",
+                this->component_name_, this->version_ != nullptr ? this->version_ : "unknown (not reported)");
 }
 
 }  // namespace esphome::version

@@ -10,6 +10,7 @@ import pytest
 from esphome import config_validation as cv
 from esphome.components import version as version_component
 from esphome.components.version import text_sensor as version_text_sensor
+from esphome.schema_extractors import SCHEMA_EXTRACT
 
 
 def test_component_mode_uses_its_own_class(
@@ -20,7 +21,8 @@ def test_component_mode_uses_its_own_class(
 
     assert "version::ComponentVersionTextSensor" in main_cpp
     assert "version::VersionTextSensor" not in main_cpp
-    assert "set_component_name" in main_cpp
+    # Required and invariant, so a constructor argument rather than a setter.
+    assert 'ComponentVersionTextSensor("version")' in main_cpp
 
 
 def test_esphome_mode_is_untouched(
@@ -33,7 +35,6 @@ def test_esphome_mode_is_untouched(
 
     assert "version::VersionTextSensor" in main_cpp
     assert "ComponentVersionTextSensor" not in main_cpp
-    assert "set_component_name" not in main_cpp
 
 
 def test_declared_version_is_emitted(
@@ -86,3 +87,12 @@ def test_hide_options_are_rejected_in_component_mode() -> None:
 def test_invalid_component_names_are_rejected(name: str) -> None:
     with pytest.raises(cv.Invalid, match="not a valid component name"):
         version_text_sensor.CONFIG_SCHEMA({"component": name, "name": "Test"})
+
+
+def test_schema_is_extractable() -> None:
+    # A bare callable CONFIG_SCHEMA would drop this platform from the editor
+    # schema dump entirely, hide_hash and hide_timestamp included.
+    schema = version_text_sensor.CONFIG_SCHEMA(SCHEMA_EXTRACT)
+
+    keys = {str(key) for key in schema.schema}
+    assert {"component", "hide_hash", "hide_timestamp"} <= keys
