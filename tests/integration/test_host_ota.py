@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import base64
-from collections.abc import Callable, Generator
+from collections.abc import Generator
 from contextlib import contextmanager
 from dataclasses import dataclass
 import functools
@@ -247,9 +247,6 @@ async def test_host_ota_deflate(
         """A stream that inflates past the size the client announced."""
         return real_compress(data + bytes(8192), *args, **kwargs)
 
-    def patch_compress(func: Callable[..., bytes]) -> None:
-        monkeypatch.setattr(espota2, "zlib", SimpleNamespace(compress=func))
-
     async with run_binary(dev.binary_path, line_callback=on_log) as (proc, _lines):
         dev.proc = proc
         await _wait_for_port(LOCALHOST, dev.api_port, PORT_WAIT_TIMEOUT)
@@ -259,22 +256,22 @@ async def test_host_ota_deflate(
         assert dev.inflates == 1, "device did not inflate the upload"
 
         # A client that does not offer deflate is served uncompressed
-        monkeypatch.setattr(espota2, "CLIENT_FEATURE_SUPPORTS_DEFLATE", 0)
-        await dev.ota(None, None, "uncompressed upload failed")
+        with monkeypatch.context() as m:
+            m.setattr(espota2, "CLIENT_FEATURE_SUPPORTS_DEFLATE", 0)
+            await dev.ota(None, None, "uncompressed upload failed")
         assert dev.inflates == 1, "device inflated without a client offer"
-        monkeypatch.undo()
 
         # A corrupt stream fails the upload and leaves the device running
-        patch_compress(corrupt_compress)
-        await dev.refused_ota(None, None, "corrupt deflate stream was accepted")
-        monkeypatch.undo()
+        with monkeypatch.context() as m:
+            m.setattr(espota2, "zlib", SimpleNamespace(compress=corrupt_compress))
+            await dev.refused_ota(None, None, "corrupt deflate stream was accepted")
         assert errors, "device did not report the corrupt stream"
 
         # So does a stream that inflates past the announced image size
         errors.clear()
-        patch_compress(overlong_compress)
-        await dev.refused_ota(None, None, "overlong deflate stream was accepted")
-        monkeypatch.undo()
+        with monkeypatch.context() as m:
+            m.setattr(espota2, "zlib", SimpleNamespace(compress=overlong_compress))
+            await dev.refused_ota(None, None, "overlong deflate stream was accepted")
         assert any("Inflate overrun" in line for line in errors), (
             "device wrote past the announced size"
         )
