@@ -439,8 +439,8 @@ bool Nextion::remove_from_q_(bool report_empty) {
 
   ESP_LOGN(TAG, "Removed: %s", component->get_variable_name().c_str());
 
-  const bool owned = component->get_queue_type() == NextionQueueType::NO_RESULT;
-  if (owned && component->get_variable_name() == "sleep_wake") {
+  // A user entity may be named sleep_wake too; only the internal NO_RESULT command clears the flag
+  if (component->get_queue_type() == NextionQueueType::NO_RESULT && component->get_variable_name() == "sleep_wake") {
     this->is_sleeping_ = false;
   }
   this->release_queue_entry_(nb);
@@ -935,8 +935,9 @@ void Nextion::purge_stale_queue_entries_() {
         ESP_LOGV(TAG, "Remove old queue '%s':'%s'", component->get_queue_type_string(),
                  component->get_variable_name().c_str());
 
-        const bool owned = component->get_queue_type() == NextionQueueType::NO_RESULT;
-        if (owned && component->get_variable_name() == "sleep_wake") {
+        // A user entity may be named sleep_wake too; only the internal NO_RESULT command clears the flag
+        if (component->get_queue_type() == NextionQueueType::NO_RESULT &&
+            component->get_variable_name() == "sleep_wake") {
           this->is_sleeping_ = false;
         }
         this->release_queue_entry_(*it);
