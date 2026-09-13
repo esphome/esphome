@@ -958,7 +958,7 @@ class WiFiComponent final : public Component {
   bool scan_driver_filtered_{false};
   bool is_scan_driver_filtered_() const { return this->scan_driver_filtered_; }
 #else
-  static constexpr bool is_scan_driver_filtered_() { return false; }
+  constexpr bool is_scan_driver_filtered_() const { return false; }
 #endif
 #if defined(USE_ESP8266) || defined(USE_LIBRETINY)
   // Platform-specific STA state enum, defined in platform cpp file.
