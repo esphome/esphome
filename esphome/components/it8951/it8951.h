@@ -69,24 +69,6 @@ template<typename T, size_t N> class StaticOpQueue {
   size_t count_{0};
 };
 
-// A rectangle of the panel, in native (post-transform) coordinates.
-struct DirtyRect {
-  uint16_t x, y, w, h;
-  uint32_t area() const { return static_cast<uint32_t>(this->w) * this->h; }
-};
-
-// How many separate regions a single update may present. Each one costs its own
-// waveform — the LUT engine has to finish one before the next starts — so this
-// trades refresh time against how much untouched content gets re-driven.
-static constexpr size_t MAX_DIRTY_RECTS = 4;
-
-// Merging two dirty rectangles drags in whatever sits between them, and an
-// e-paper waveform re-drives every pixel of the region it is given: that is what
-// makes a neighbouring label visibly flash when an unrelated widget changes.
-// Merge only while the union wastes at most this fraction of the pixels actually
-// drawn, expressed as a divisor (4 = 25%).
-static constexpr uint32_t DIRTY_MERGE_WASTE_DIVISOR = 4;
-
 // Op queue capacity. See StaticOpQueue comment for sizing analysis.
 static constexpr size_t OP_QUEUE_SIZE = 32;
 
@@ -331,19 +313,6 @@ class IT8951Display : public Display,
   virtual void on_transfer_done() {}
 
   bool prepare_update_region_(UpdateMode &mode);
-  // Record a drawn rectangle, merging it into an existing one when that costs
-  // little. Cheap per call, so the direct-draw path calls it once per flush.
-  void mark_dirty_(int x, int y, int w, int h);
-  // Fold the pending bounding box (grown per pixel by the buffered draw path,
-  // where a call per pixel would be far too expensive) into the rectangle list.
-  void flush_pending_bbox_();
-  // Replace everything recorded with a single full-screen region.
-  void mark_whole_screen_dirty_();
-  // Point area_* at one of the rectangles being presented.
-  void set_area_from_rect_(size_t index);
-  // How many regions this instance may present separately. The buffered path
-  // stays on one, so its behaviour is unchanged.
-  virtual size_t max_dirty_rects() const { return 1; }
 
   // --- Recovery ---
   void recover_();
@@ -413,15 +382,8 @@ class IT8951Display : public Display,
   // GPIOs driven high during setup to power on the panel (empty if unused).
   std::vector<GPIOPin *> enable_pins_;
 
-  // Pending dirty bounding box, grown per pixel by the buffered draw path and
-  // folded into dirty_ by flush_pending_bbox_.
+  // Dirty region (pixel coordinates of bounding box of changes since last update)
   uint16_t x_low_{0}, y_low_{0}, x_high_{0}, y_high_{0};
-  // Regions drawn since the last update, and the snapshot being presented by the
-  // update currently running. They are separate so that drawing during a refresh
-  // accumulates for the next one instead of mutating the list being walked.
-  StaticVector<DirtyRect, MAX_DIRTY_RECTS> dirty_;
-  StaticVector<DirtyRect, MAX_DIRTY_RECTS> presenting_;
-  size_t refresh_index_{0};
 
   // Saved data rate so we can probe slow then run fast
   uint32_t configured_data_rate_{0};
@@ -505,10 +467,6 @@ class IT8951DirectDisplay : public IT8951Display {
   // Only a whole-screen constant fill needs the streaming transfer phase; a
   // normal update's pixels are already in controller RAM.
   bool needs_transfer() const override { return this->fill_pending_; }
-  // LVGL hands over one rectangle per flush, so the regions that actually
-  // changed are known exactly; presenting their bounding box would re-drive
-  // everything between them.
-  size_t max_dirty_rects() const override { return MAX_DIRTY_RECTS; }
   const uint8_t *transfer_row_data(uint16_t row) const override { return this->fill_row_.get(); }
   void on_initialised() override;
   void on_transfer_done() override { this->fill_pending_ = false; }

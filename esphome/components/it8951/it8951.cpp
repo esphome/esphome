@@ -288,14 +288,6 @@ void IT8951Display::advance_phase_() {
       break;
 
     case Phase::UPDATE_REFRESH:
-      // More than one region to present: the next one's LUT-idle poll waits for
-      // this waveform to finish, which is what serialises them.
-      if (++this->refresh_index_ < this->presenting_.size()) {
-        this->set_area_from_rect_(this->refresh_index_);
-        this->set_phase_(Phase::UPDATE_REFRESH);
-        this->enqueue_update_refresh_();
-        break;
-      }
       // Fire-and-forget: don't block here waiting for the refresh to complete.
       // The next update's pre-display LUT-idle poll (and the HW_RDY-gated
       // TCON_SLEEP) wait as needed, so the refresh time stays off this update's
@@ -711,115 +703,53 @@ void IT8951Display::op_set_1bpp_() {
 
 // --- Update prep / public API ------------------------------------------------
 
-void IT8951Display::mark_dirty_(int x, int y, int w, int h) {
-  const int x0 = std::max(0, x);
-  const int y0 = std::max(0, y);
-  const int x1 = std::min(x + w, static_cast<int>(this->width_));
-  const int y1 = std::min(y + h, static_cast<int>(this->height_));
-  if (x1 <= x0 || y1 <= y0)
-    return;
-  const DirtyRect incoming{static_cast<uint16_t>(x0), static_cast<uint16_t>(y0), static_cast<uint16_t>(x1 - x0),
-                           static_cast<uint16_t>(y1 - y0)};
-
-  if (this->dirty_.empty()) {
-    this->dirty_.push_back(incoming);
-    return;
-  }
-
-  // Find the rectangle this one is cheapest to merge with, "cheapest" being the
-  // number of untouched pixels the union would drag in.
-  size_t best = 0;
-  uint32_t best_waste = UINT32_MAX;
-  for (size_t i = 0; i < this->dirty_.size(); i++) {
-    const DirtyRect &r = this->dirty_[i];
-    const uint16_t ux = std::min(r.x, incoming.x);
-    const uint16_t uy = std::min(r.y, incoming.y);
-    const uint32_t uw = static_cast<uint32_t>(std::max(r.x + r.w, incoming.x + incoming.w)) - ux;
-    const uint32_t uh = static_cast<uint32_t>(std::max(r.y + r.h, incoming.y + incoming.h)) - uy;
-    const uint32_t drawn = r.area() + incoming.area();
-    const uint32_t united = uw * uh;
-    const uint32_t waste = united > drawn ? united - drawn : 0;
-    if (waste < best_waste) {
-      best_waste = waste;
-      best = i;
-    }
-  }
-
-  // Keep it separate while there is room and the merge would waste too much;
-  // once the list is full there is no choice but to merge somewhere. Regions can
-  // end up overlapping, which costs the shared pixels a second waveform but
-  // never shows anything wrong.
-  const bool room = this->dirty_.size() < this->max_dirty_rects();
-  if (room && best_waste > (this->dirty_[best].area() + incoming.area()) / DIRTY_MERGE_WASTE_DIVISOR) {
-    this->dirty_.push_back(incoming);
-    return;
-  }
-  DirtyRect &target = this->dirty_[best];
-  const uint16_t ux = std::min(target.x, incoming.x);
-  const uint16_t uy = std::min(target.y, incoming.y);
-  target.w = static_cast<uint16_t>(std::max(target.x + target.w, incoming.x + incoming.w) - ux);
-  target.h = static_cast<uint16_t>(std::max(target.y + target.h, incoming.y + incoming.h) - uy);
-  target.x = ux;
-  target.y = uy;
-}
-
-void IT8951Display::flush_pending_bbox_() {
-  if (this->x_high_ <= this->x_low_ || this->y_high_ <= this->y_low_)
-    return;
-  this->mark_dirty_(this->x_low_, this->y_low_, this->x_high_ - this->x_low_, this->y_high_ - this->y_low_);
-  this->x_low_ = this->width_;
-  this->x_high_ = 0;
-  this->y_low_ = this->height_;
-  this->y_high_ = 0;
-}
-
-void IT8951Display::set_area_from_rect_(size_t index) {
-  const DirtyRect &r = this->presenting_[index];
-  this->area_x_ = r.x;
-  this->area_y_ = r.y;
-  this->area_w_ = r.w;
-  this->area_h_ = r.h;
-  this->transfer_row_ = 0;
-}
-
 bool IT8951Display::prepare_update_region_(UpdateMode &mode) {
-  this->flush_pending_bbox_();
-
   this->partial_update_count_++;
   const bool full_update = this->partial_update_count_ >= this->full_update_every_;
-
-  // Take a snapshot to present. Anything drawn from here on belongs to the next
-  // update, not this one, so the two lists must not be the same object.
-  this->presenting_.clear();
   if (full_update) {
     this->partial_update_count_ = 0;
     mode = UPDATE_MODE_GC16;
-    this->presenting_.push_back(DirtyRect{0, 0, this->width_, this->height_});
+    this->x_low_ = 0;
+    this->y_low_ = 0;
+    this->x_high_ = this->width_;
+    this->y_high_ = this->height_;
   } else {
-    for (const DirtyRect &rect : this->dirty_) {
-      // Align each region's X extent to 32 pixels. The IT8951's partial display
-      // refresh snaps the X start/width to a 32-pixel boundary (the panel source
-      // driver fetches 32-pixel chunks); refreshing a region whose X is only
-      // 16-aligned makes the panel snap it down to the previous boundary,
-      // shifting that update ~16px to the left.
-      const uint16_t x = static_cast<uint16_t>(rect.x & 0xFFE0);
-      uint16_t last = static_cast<uint16_t>((rect.x + rect.w - 1) | 0x001F);
-      if (last >= this->width_)
-        last = static_cast<uint16_t>(this->width_ - 1);
-      if (last < x)
-        continue;
-      const uint16_t w = static_cast<uint16_t>(last - x + 1);
-      if (rect.y >= this->height_ || (rect.y + rect.h) > this->height_) {
-        ESP_LOGE(TAG, "Dirty region (%u,%u %ux%u) out of bounds", rect.x, rect.y, rect.w, rect.h);
-        continue;
-      }
-      this->presenting_.push_back(DirtyRect{x, rect.y, w, rect.h});
-    }
+    // Align the partial region's X extent to 32 pixels. The IT8951's partial
+    // display refresh snaps the X start/width to a 32-pixel boundary (the panel
+    // source driver fetches 32-pixel chunks); refreshing a region whose X is
+    // only 16-aligned makes the panel snap it down to the previous boundary,
+    // shifting that update ~16px to the left. 32-alignment also satisfies the
+    // load constraints (4bpp X must be a multiple of 4; the 8bpp-packed mono
+    // load needs x/8 even, i.e. X a multiple of 16).
+    this->x_low_ &= 0xFFE0;
+    uint16_t temp_max = this->x_high_ > 0 ? static_cast<uint16_t>(this->x_high_ - 1) : 0;
+    temp_max = static_cast<uint16_t>(temp_max | 0x001F);
+    if (temp_max >= this->width_)
+      temp_max = static_cast<uint16_t>(this->width_ - 1);
+    this->x_high_ = static_cast<uint16_t>(temp_max + 1);
   }
-  this->dirty_.clear();
 
-  if (this->presenting_.empty())
+  if (this->x_high_ <= this->x_low_ || this->y_high_ <= this->y_low_) {
+    this->reset_dirty_region_();
     return false;
+  }
+
+  const uint16_t x = this->x_low_;
+  const uint16_t y = this->y_low_;
+  const uint16_t width = static_cast<uint16_t>(this->x_high_ - this->x_low_);
+  const uint16_t height = static_cast<uint16_t>(this->y_high_ - this->y_low_);
+
+  if (x >= this->width_ || y >= this->height_ || (x + width) > this->width_ || (y + height) > this->height_) {
+    ESP_LOGE(TAG, "Dirty region (%u,%u %ux%u) out of bounds", x, y, width, height);
+    this->reset_dirty_region_();
+    return false;
+  }
+
+  this->area_x_ = x;
+  this->area_y_ = y;
+  this->area_w_ = width;
+  this->area_h_ = height;
+  this->transfer_row_ = 0;
 
   // On non-full updates, downgrade monochrome frames from the full, flashy GC16
   // clear to DU — a fast, low-flash absolute waveform — so full_update_every
@@ -836,26 +766,11 @@ bool IT8951Display::prepare_update_region_(UpdateMode &mode) {
   if (!full_update && mode == UPDATE_MODE_GC16 && !this->grayscale_)
     mode = UPDATE_MODE_DU;
 
-  this->refresh_index_ = 0;
-  this->set_area_from_rect_(0);
+  this->reset_dirty_region_();
 
-  for (size_t i = 0; i < this->presenting_.size(); i++) {
-    const DirtyRect &r = this->presenting_[i];
-    ESP_LOGV(TAG, "Update %u/%u: %ux%u@%u,%u mode=%u (%s)", static_cast<unsigned>(i + 1),
-             static_cast<unsigned>(this->presenting_.size()), r.w, r.h, r.x, r.y, static_cast<unsigned>(mode),
-             this->grayscale_ ? LOG_STR_LITERAL("grayscale") : LOG_STR_LITERAL("mono"));
-  }
+  ESP_LOGV(TAG, "Update: %ux%u@%u,%u mode=%u (%s)", width, height, x, y, static_cast<unsigned>(mode),
+           this->grayscale_ ? LOG_STR_LITERAL("grayscale") : LOG_STR_LITERAL("mono"));
   return true;
-}
-
-void IT8951Display::mark_whole_screen_dirty_() {
-  // Supersedes anything already recorded: a full-screen region subsumes every
-  // other, and leaving them in the list would spend a redundant waveform each.
-  this->dirty_.clear();
-  this->x_low_ = 0;
-  this->y_low_ = 0;
-  this->x_high_ = this->width_;
-  this->y_high_ = this->height_;
 }
 
 void IT8951Display::reset_dirty_region_() {
@@ -863,7 +778,6 @@ void IT8951Display::reset_dirty_region_() {
   this->x_high_ = 0;
   this->y_low_ = this->height_;
   this->y_high_ = 0;
-  this->dirty_.clear();
 }
 
 void IT8951Display::set_refresh_paused(bool paused, UpdateMode mode) {
@@ -898,12 +812,10 @@ void IT8951Display::refresh_now(UpdateMode mode) {
   // Mark the whole panel dirty so prepare_update_region_ yields a full-screen
   // area. Direct draw has nothing to transfer, so this is a waveform only; the
   // buffered class re-streams its framebuffer, which is equally correct.
-  this->dirty_.clear();
-  this->dirty_.push_back(DirtyRect{0, 0, this->width_, this->height_});
-  this->x_low_ = this->width_;
-  this->x_high_ = 0;
-  this->y_low_ = this->height_;
-  this->y_high_ = 0;
+  this->x_low_ = 0;
+  this->y_low_ = 0;
+  this->x_high_ = this->width_;
+  this->y_high_ = this->height_;
   this->refresh_paused_ = false;
   this->paused_present_pending_ = false;
   this->paused_mode_ = UPDATE_MODE_NONE;
@@ -981,7 +893,10 @@ void IT8951Display::recover_() {
   }
 
   // Force a full redraw on next opportunity.
-  this->mark_whole_screen_dirty_();
+  this->x_low_ = 0;
+  this->y_low_ = 0;
+  this->x_high_ = this->width_;
+  this->y_high_ = this->height_;
 
   this->set_phase_(Phase::INIT_RESET);
   this->enqueue_init_reset_();
@@ -1097,7 +1012,10 @@ void IT8951Display::fill(Color color) {
     fill_byte = (packed <= 0x07) ? 0xFF : 0x00;
   }
   memset(this->buffer_, fill_byte, this->buffer_length_);
-  this->mark_whole_screen_dirty_();
+  this->x_low_ = 0;
+  this->y_low_ = 0;
+  this->x_high_ = this->width_;
+  this->y_high_ = this->height_;
 }
 
 void HOT IT8951Display::draw_pixel_at(int x, int y, Color color) {
@@ -1303,7 +1221,10 @@ void IT8951DirectDisplay::fill(Color color) {
   // A fill covers the panel, so let the normal (time-sliced) transfer phase
   // stream the constant row for every line rather than blocking here.
   this->fill_pending_ = true;
-  this->mark_whole_screen_dirty_();
+  this->x_low_ = 0;
+  this->y_low_ = 0;
+  this->x_high_ = this->width_;
+  this->y_high_ = this->height_;
   this->update();
 }
 
@@ -1516,10 +1437,11 @@ void HOT IT8951DirectDisplay::draw_pixels_at(int x_start, int y_start, int w, in
                     mirror_x, mirror_y, static_cast<uint16_t>(w), static_cast<uint16_t>(h),
                     static_cast<uint16_t>(clip_left), static_cast<uint16_t>(clip_top));
 
-  // Record this rectangle rather than growing one box around every flush: LVGL
-  // tells us exactly what changed, and a waveform re-drives everything in the
-  // region it is given.
-  this->mark_dirty_(cx, cy, clipped_w, clipped_h);
+  // Accumulate the region the next waveform has to present.
+  this->x_low_ = clamp_at_most(this->x_low_, cx);
+  this->x_high_ = clamp_at_least(this->x_high_, cx + clipped_w);
+  this->y_low_ = clamp_at_most(this->y_low_, cy);
+  this->y_high_ = clamp_at_least(this->y_high_, cy + clipped_h);
 }
 
 }  // namespace esphome::it8951
