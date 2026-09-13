@@ -626,6 +626,9 @@ async def to_code(config):
     networks = config.get(CONF_NETWORKS, [])
     if networks:
         cg.add(var.init_sta(len(networks)))
+        if len(networks) > 1:
+            # The ESP32 scan can filter one SSID in the driver; with several the whole list is kept
+            cg.add_define("USE_WIFI_MULTI_SSID")
 
         def add_sta(ap: cg.MockObj, network: dict) -> None:
             ip_config = network.get(CONF_MANUAL_IP, config.get(CONF_MANUAL_IP))

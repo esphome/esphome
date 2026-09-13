@@ -5,6 +5,7 @@
 #include <cassert>
 #include <cmath>
 #include <cstdarg>
+#include <cstddef>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
@@ -13,9 +14,11 @@
 #include <iterator>
 #include <limits>
 #include <memory>
+#include <new>
 #include <span>
 #include <string>
 #include <type_traits>
+#include <utility>
 #include <vector>
 #include <concepts>
 #include <strings.h>
@@ -2123,6 +2126,10 @@ void delay_microseconds_safe(uint32_t us);
 /// @name Memory management
 ///@{
 
+template<typename T> struct RAMDeleter;
+/// unique_ptr over RAMAllocator storage
+template<typename T> using RAMUniquePtr = std::unique_ptr<T, RAMDeleter<T>>;
+
 /** An STL allocator that uses SPI or internal RAM.
  * Returns `nullptr` in case no memory is available.
  *
@@ -2193,6 +2200,26 @@ template<class T> class RAMAllocator {
     free(p);  // NOLINT(cppcoreguidelines-owning-memory,cppcoreguidelines-no-malloc)
   }
 
+  /// Value initialize one T; empty on exhaustion. new (std::nothrow) aborts on ESP-IDF instead.
+  /// Default flags prefer PSRAM; pass PREFER_INTERNAL to keep an object where plain new put it.
+  template<typename... Args> RAMUniquePtr<T> make_unique(Args &&...args) {
+    static_assert(alignof(T) <= alignof(std::max_align_t), "malloc storage cannot hold an over aligned type");
+    T *p = this->allocate(1);
+    if (p == nullptr)
+      return {};
+    // ::new so a class scoped operator new cannot hide the global placement form
+    return RAMUniquePtr<T>(::new (p) T(std::forward<Args>(args)...));
+  }
+
+  /// n elements left uninitialized, as std::make_unique_for_overwrite does; empty on exhaustion, overflow, and n == 0
+  RAMUniquePtr<T[]> make_unique_array_for_overwrite(size_t n) {
+    static_assert(std::is_trivially_default_constructible_v<T>, "elements are left unconstructed");
+    static_assert(alignof(T) <= alignof(std::max_align_t), "malloc storage cannot hold an over aligned type");
+    if (n == 0 || n > SIZE_MAX / sizeof(T))
+      return {};
+    return RAMUniquePtr<T[]>(this->allocate(n));
+  }
+
   /**
    * Return the total heap space available via this allocator
    */
@@ -2254,6 +2281,19 @@ template<class T> class RAMAllocator {
 };
 
 template<class T> using ExternalRAMAllocator = RAMAllocator<T>;
+
+/// Destroys and frees RAMAllocator storage. Not convertible: free() needs the address malloc returned
+template<typename T> struct RAMDeleter {
+  void operator()(T *p) const {
+    p->~T();
+    RAMAllocator<T>().deallocate(p, 1);
+  }
+};
+/// Array form: elements must be trivial, the count is not stored so only the storage is freed
+template<typename T> struct RAMDeleter<T[]> {
+  static_assert(std::is_trivially_destructible_v<T>, "RAMUniquePtr<T[]> is for trivially destructible elements");
+  void operator()(T *p) const { RAMAllocator<T>().deallocate(p, 1); }
+};
 
 /**
  * Functions to constrain the range of arithmetic values.
