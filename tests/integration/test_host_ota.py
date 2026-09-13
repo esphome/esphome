@@ -15,7 +15,6 @@ from dataclasses import dataclass
 import functools
 from pathlib import Path
 import socket
-from types import SimpleNamespace
 import zlib
 
 import pytest
@@ -273,14 +272,14 @@ async def test_host_ota_deflate(
 
         # A corrupt stream fails the upload and leaves the device running
         with monkeypatch.context() as m:
-            m.setattr(espota2, "zlib", SimpleNamespace(compress=corrupt_compress))
+            m.setattr(zlib, "compress", corrupt_compress)
             await dev.refused_ota(None, None, "corrupt deflate stream was accepted")
         assert errors, "device did not report the corrupt stream"
 
         # So does a stream that inflates past the announced image size
         errors.clear()
         with monkeypatch.context() as m:
-            m.setattr(espota2, "zlib", SimpleNamespace(compress=overlong_compress))
+            m.setattr(zlib, "compress", overlong_compress)
             await dev.refused_ota(None, None, "overlong deflate stream was accepted")
         assert any("Inflate overrun" in line for line in errors), (
             "device wrote past the announced size"

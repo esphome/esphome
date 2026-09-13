@@ -11,7 +11,6 @@ import secrets
 import socket
 import time
 from typing import Any
-import zlib
 
 from esphome.core import EsphomeError
 from esphome.helpers import ProgressBar, resolve_ip_address
@@ -657,6 +656,8 @@ def perform_ota(
 
     deflate = bool(extended_proto and features & SERVER_FEATURE_SUPPORTS_DEFLATE)
     if deflate:
+        import zlib
+
         # The device inflates while receiving through a small ring window
         upload_contents = zlib.compress(
             file_contents, COMPRESS_LEVEL, wbits=-DEFLATE_WINDOW_BITS
