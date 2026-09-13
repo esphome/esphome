@@ -231,8 +231,10 @@ void Nextion::dump_config() {
 #endif  // USE_NEXTION_COMMAND_SPACING
 
 #ifdef USE_NEXTION_MAX_QUEUE_SIZE
-  ESP_LOGCONFIG(TAG, "  Max queue size: %zu", this->max_queue_size_);
-#endif
+  ESP_LOGCONFIG(TAG, "  Max queue size: %u", NEXTION_MAX_QUEUE_SIZE);
+#else   // USE_NEXTION_MAX_QUEUE_SIZE
+  ESP_LOGCONFIG(TAG, "  Queue: unlimited");
+#endif  // USE_NEXTION_MAX_QUEUE_SIZE
 #ifdef USE_NEXTION_TFT_UPLOAD
   ESP_LOGCONFIG(TAG,
                 "  TFT URL: %s\n"
@@ -421,7 +423,11 @@ bool Nextion::remove_from_q_(bool report_empty) {
   NextionQueue *nb = this->nextion_queue_.front();
   if (!nb || !nb->component) {
     ESP_LOGE(TAG, "Invalid queue");
+#ifdef USE_NEXTION_MAX_QUEUE_SIZE
+    this->nextion_queue_.pop();
+#else   // USE_NEXTION_MAX_QUEUE_SIZE
     this->nextion_queue_.pop_front();
+#endif  // USE_NEXTION_MAX_QUEUE_SIZE
     return false;
   }
   NextionComponentBase *component = nb->component;
@@ -435,7 +441,11 @@ bool Nextion::remove_from_q_(bool report_empty) {
     delete component;  // NOLINT(cppcoreguidelines-owning-memory)
   }
   delete nb;  // NOLINT(cppcoreguidelines-owning-memory)
+#ifdef USE_NEXTION_MAX_QUEUE_SIZE
+  this->nextion_queue_.pop();
+#else   // USE_NEXTION_MAX_QUEUE_SIZE
   this->nextion_queue_.pop_front();
+#endif  // USE_NEXTION_MAX_QUEUE_SIZE
   return true;
 }
 
@@ -647,7 +657,11 @@ void Nextion::process_nextion_commands_() {
         NextionQueue *nb = this->nextion_queue_.front();
         if (!nb || !nb->component) {
           ESP_LOGE(TAG, "Invalid queue entry");
+#ifdef USE_NEXTION_MAX_QUEUE_SIZE
+          this->nextion_queue_.pop();
+#else   // USE_NEXTION_MAX_QUEUE_SIZE
           this->nextion_queue_.pop_front();
+#endif  // USE_NEXTION_MAX_QUEUE_SIZE
           return;
         }
         NextionComponentBase *component = nb->component;
@@ -661,8 +675,11 @@ void Nextion::process_nextion_commands_() {
         }
 
         delete nb;  // NOLINT(cppcoreguidelines-owning-memory)
+#ifdef USE_NEXTION_MAX_QUEUE_SIZE
+        this->nextion_queue_.pop();
+#else   // USE_NEXTION_MAX_QUEUE_SIZE
         this->nextion_queue_.pop_front();
-
+#endif  // USE_NEXTION_MAX_QUEUE_SIZE
         break;
       }
         //  0x71 0x01 0x02 0x03 0x04 0xFF 0xFF 0xFF
@@ -687,7 +704,11 @@ void Nextion::process_nextion_commands_() {
         NextionQueue *nb = this->nextion_queue_.front();
         if (!nb || !nb->component) {
           ESP_LOGE(TAG, "Invalid queue");
+#ifdef USE_NEXTION_MAX_QUEUE_SIZE
+          this->nextion_queue_.pop();
+#else   // USE_NEXTION_MAX_QUEUE_SIZE
           this->nextion_queue_.pop_front();
+#endif  // USE_NEXTION_MAX_QUEUE_SIZE
           return;
         }
         NextionComponentBase *component = nb->component;
@@ -704,8 +725,11 @@ void Nextion::process_nextion_commands_() {
         }
 
         delete nb;  // NOLINT(cppcoreguidelines-owning-memory)
+#ifdef USE_NEXTION_MAX_QUEUE_SIZE
+        this->nextion_queue_.pop();
+#else   // USE_NEXTION_MAX_QUEUE_SIZE
         this->nextion_queue_.pop_front();
-
+#endif  // USE_NEXTION_MAX_QUEUE_SIZE
         break;
       }
 
@@ -914,6 +938,23 @@ void Nextion::purge_stale_queue_entries_() {
 
   if (this->max_q_age_ms_ > 0 && !this->nextion_queue_.empty() &&
       ms - this->nextion_queue_.front()->queue_time > this->max_q_age_ms_) {
+#ifdef USE_NEXTION_MAX_QUEUE_SIZE
+    // StaticRingBuffer path: FIFO order means oldest is always at front — pop directly.
+    while (!this->nextion_queue_.empty() && ms - this->nextion_queue_.front()->queue_time > this->max_q_age_ms_) {
+      NextionQueue *nb = this->nextion_queue_.front();
+      NextionComponentBase *component = nb->component;
+      ESP_LOGV(TAG, "Remove old queue '%s':'%s'", component->get_queue_type_string(),
+               component->get_variable_name().c_str());
+      if (component->get_queue_type() == NextionQueueType::NO_RESULT) {
+        if (component->get_variable_name() == "sleep_wake") {
+          this->is_sleeping_ = false;
+        }
+        delete component;  // NOLINT(cppcoreguidelines-owning-memory)
+      }
+      delete nb;  // NOLINT(cppcoreguidelines-owning-memory)
+      this->nextion_queue_.pop();
+    }
+#else   // USE_NEXTION_MAX_QUEUE_SIZE
     for (auto it = this->nextion_queue_.begin(); it != this->nextion_queue_.end();) {
       if (ms - (*it)->queue_time > this->max_q_age_ms_) {
         NextionComponentBase *component = (*it)->component;
@@ -934,6 +975,7 @@ void Nextion::purge_stale_queue_entries_() {
         break;
       }
     }
+#endif  // USE_NEXTION_MAX_QUEUE_SIZE
   }
 }
 
@@ -1090,13 +1132,6 @@ uint16_t Nextion::recv_ret_string_(std::string &response, uint32_t timeout, bool
  * @param variable_name Name of the variable or component associated with the command.
  */
 void Nextion::add_no_result_to_queue_(const std::string &variable_name) {
-#ifdef USE_NEXTION_MAX_QUEUE_SIZE
-  if (this->max_queue_size_ > 0 && this->nextion_queue_.size() >= this->max_queue_size_) {
-    ESP_LOGW(TAG, "Queue full (%zu), drop: %s", this->nextion_queue_.size(), variable_name.c_str());
-    return;
-  }
-#endif
-
   RAMAllocator<nextion::NextionQueue> allocator;
   nextion::NextionQueue *nextion_queue = allocator.allocate(1);
   if (nextion_queue == nullptr) {
@@ -1117,7 +1152,16 @@ void Nextion::add_no_result_to_queue_(const std::string &variable_name) {
 
   nextion_queue->queue_time = App.get_loop_component_start_time();
 
+#ifdef USE_NEXTION_MAX_QUEUE_SIZE
+  if (!this->nextion_queue_.push(nextion_queue)) {
+    ESP_LOGW(TAG, "Queue full, drop: %s", variable_name.c_str());
+    delete nextion_queue->component;  // NOLINT(cppcoreguidelines-owning-memory)
+    delete nextion_queue;             // NOLINT(cppcoreguidelines-owning-memory)
+    return;
+  }
+#else   // USE_NEXTION_MAX_QUEUE_SIZE
   this->nextion_queue_.push_back(nextion_queue);
+#endif  // USE_NEXTION_MAX_QUEUE_SIZE
 
   ESP_LOGN(TAG, "Queue NORESULT: %s", nextion_queue->component->get_variable_name().c_str());
 }
@@ -1153,13 +1197,6 @@ void Nextion::add_no_result_to_queue_with_command_(const std::string &variable_n
 #ifdef USE_NEXTION_COMMAND_SPACING
 void Nextion::add_no_result_to_queue_with_pending_command_(const std::string &variable_name,
                                                            const std::string &command) {
-#ifdef USE_NEXTION_MAX_QUEUE_SIZE
-  if (this->max_queue_size_ > 0 && this->nextion_queue_.size() >= this->max_queue_size_) {
-    ESP_LOGW(TAG, "Queue full (%zu), drop: %s", this->nextion_queue_.size(), variable_name.c_str());
-    return;
-  }
-#endif
-
   RAMAllocator<nextion::NextionQueue> allocator;
   nextion::NextionQueue *nextion_queue = allocator.allocate(1);
   if (nextion_queue == nullptr) {
@@ -1179,7 +1216,17 @@ void Nextion::add_no_result_to_queue_with_pending_command_(const std::string &va
   nextion_queue->queue_time = App.get_loop_component_start_time();
   nextion_queue->pending_command = command;  // Store command for retry
 
+#ifdef USE_NEXTION_MAX_QUEUE_SIZE
+  if (!this->nextion_queue_.push(nextion_queue)) {
+    ESP_LOGW(TAG, "Queue full, drop: %s", variable_name.c_str());
+    delete nextion_queue->component;  // NOLINT(cppcoreguidelines-owning-memory)
+    delete nextion_queue;             // NOLINT(cppcoreguidelines-owning-memory)
+    return;
+  }
+#else   // USE_NEXTION_MAX_QUEUE_SIZE
   this->nextion_queue_.push_back(nextion_queue);
+#endif  // USE_NEXTION_MAX_QUEUE_SIZE
+
   ESP_LOGVV(TAG, "Queue with pending command: %s", variable_name.c_str());
 }
 #endif  // USE_NEXTION_COMMAND_SPACING
@@ -1298,14 +1345,6 @@ void Nextion::add_to_get_queue(NextionComponentBase *component) {
   if ((!this->is_setup() && !this->connection_state_.ignore_is_setup_))
     return;
 
-#ifdef USE_NEXTION_MAX_QUEUE_SIZE
-  if (this->max_queue_size_ > 0 && this->nextion_queue_.size() >= this->max_queue_size_) {
-    ESP_LOGW(TAG, "Queue full (%zu), drop GET: %s", this->nextion_queue_.size(),
-             component->get_variable_name().c_str());
-    return;
-  }
-#endif
-
   RAMAllocator<nextion::NextionQueue> allocator;
   nextion::NextionQueue *nextion_queue = allocator.allocate(1);
   if (nextion_queue == nullptr) {
@@ -1326,13 +1365,28 @@ void Nextion::add_to_get_queue(NextionComponentBase *component) {
   // is eventually sent. Store the command for retry if spacing blocked it;
   // process_pending_in_queue_() will transmit it when the pacer allows.
   nextion_queue->pending_command = command;
+#ifdef USE_NEXTION_MAX_QUEUE_SIZE
+  if (!this->nextion_queue_.push(nextion_queue)) {
+    ESP_LOGW(TAG, "Queue full, drop GET: %s", component->get_variable_name().c_str());
+    delete nextion_queue;  // NOLINT(cppcoreguidelines-owning-memory)
+    return;
+  }
+#else   // USE_NEXTION_MAX_QUEUE_SIZE
   this->nextion_queue_.push_back(nextion_queue);
+#endif  // USE_NEXTION_MAX_QUEUE_SIZE
   if (this->send_command_(command)) {
     nextion_queue->pending_command.clear();
   }
-#else   // USE_NEXTION_COMMAND_SPACING
+#else  // USE_NEXTION_COMMAND_SPACING
   if (this->send_command_(command)) {
+#ifdef USE_NEXTION_MAX_QUEUE_SIZE
+    if (!this->nextion_queue_.push(nextion_queue)) {
+      ESP_LOGW(TAG, "Queue full, drop GET: %s", component->get_variable_name().c_str());
+      delete nextion_queue;  // NOLINT(cppcoreguidelines-owning-memory)
+    }
+#else   // USE_NEXTION_MAX_QUEUE_SIZE
     this->nextion_queue_.push_back(nextion_queue);
+#endif  // USE_NEXTION_MAX_QUEUE_SIZE
   } else {
     delete nextion_queue;  // NOLINT(cppcoreguidelines-owning-memory)
   }
