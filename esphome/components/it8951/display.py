@@ -3,7 +3,6 @@ ESPHome configuration for the IT8951 e-paper controller.
 """
 
 from collections.abc import Callable
-import logging
 from typing import Any
 
 from esphome import automation, core, pins
@@ -41,8 +40,6 @@ from esphome.core import ID
 from esphome.cpp_generator import MockObj, RawExpression, TemplateArgsType
 from esphome.final_validate import full_config
 from esphome.types import ConfigType
-
-_LOGGER = logging.getLogger(__name__)
 
 AUTO_LOAD = ["split_buffer"]
 DEPENDENCIES = ["spi"]
@@ -420,27 +417,28 @@ def _final_validate(config: ConfigType) -> None:
 
     # Direct draw writes into the controller's image memory as LVGL flushes, so a
     # render started while a waveform is in flight overwrites the image the panel
-    # is still drawing from; the driver logs and drops such a flush.
+    # is still drawing from, and the driver has to drop it — leaving that part of
+    # the screen wrong until something happens to redraw it.
     #
-    # 'update_when_display_idle' avoids it by withholding rendering until the
-    # display reports idle. It is not required, because it also presents at every
-    # render end with the display's default mode, which rules out both choosing a
-    # waveform per update and composing a frame ahead of time; a config that
-    # instead renders explicitly can gate on is_idle() itself and keep that
-    # control. Warn rather than fail, since neither shape is detectable here.
+    # Only 'update_when_display_idle' prevents this. Gating the config's own
+    # lv_refr_now() calls on is_idle() is not enough, because LVGL's refresh timer
+    # renders on its own schedule and nothing in a configuration can hold it back.
+    #
+    # It does mean LVGL asks for a present at every render end, using the
+    # display's default waveform. Use it8951.pause to swallow those requests and
+    # it8951.resume to present with the waveform this particular update wants.
     display_id = config[CONF_ID]
     for lvgl_config in global_config.get(LVGL_DOMAIN, []):
         if display_id not in lvgl_config.get(lv_defines.CONF_DISPLAYS, []):
             continue
         if not lvgl_config.get(lv_defines.CONF_UPDATE_WHEN_DISPLAY_IDLE):
-            _LOGGER.warning(
-                "Display '%s' has no framebuffer, so LVGL writes straight into the "
-                "controller's image memory. Either set 'update_when_display_idle: "
-                "true' on the lvgl component, or make sure anything calling "
-                "lv_refr_now() waits for id(%s).is_idle() first — otherwise a "
-                "render landing mid-waveform is dropped.",
-                display_id,
-                display_id,
+            raise cv.Invalid(
+                f"The lvgl component driving '{display_id}' must set "
+                "'update_when_display_idle: true'. Without a framebuffer, LVGL "
+                "would render into the controller's image memory while the panel "
+                "is still refreshing from it, and those renders are lost. Use "
+                "it8951.pause / it8951.resume to keep control of which waveform "
+                "each update uses."
             )
 
 

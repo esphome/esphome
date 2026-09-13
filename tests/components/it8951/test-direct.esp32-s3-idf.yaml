@@ -56,8 +56,9 @@ lvgl:
 
   - id: lvgl_mono
     displays: [direct_mono]
-    # No update_when_display_idle here: this config drives updates explicitly
-    # so it can pick a waveform per update, which that option would override.
+    # Required for a framebuffer-less display: nothing else can hold back LVGL's
+    # own refresh timer while a waveform is running.
+    update_when_display_idle: true
     # Direct draw advertises has_hardware_rotation=false, so this exercises
     # LVGL's software rotation path rather than driver-side rotation.
     rotation: 90
