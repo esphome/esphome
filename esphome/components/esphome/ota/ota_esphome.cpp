@@ -26,7 +26,6 @@
 #include <cerrno>
 #include <cstdio>
 #include <cstring>
-#include <new>
 #include <sys/time.h>
 
 namespace esphome {
@@ -353,7 +352,9 @@ void ESPHomeOTAComponent::handle_handshake_() {
         // Offered only once the session memory is in hand; else uncompressed
         if ((this->ota_features_ & CLIENT_FEATURE_SUPPORTS_DEFLATE) != 0) {
           // Value initialized: a corrupt stream that back references the
-          // window before it is filled then copies zeros, never stale memory
+          // window before it is filled then copies zeros, never stale memory.
+          // Default placement, PSRAM first where present: the session lives for one
+          // upload and keeps 4.9 KB of internal heap free while it runs
           this->inflate_ = RAMAllocator<InflateSession>().make_unique();
           if (this->inflate_ != nullptr) {
             this->handshake_buf_[1] |= SERVER_FEATURE_SUPPORTS_DEFLATE;
