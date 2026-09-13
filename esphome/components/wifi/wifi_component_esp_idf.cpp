@@ -1062,17 +1062,13 @@ bool WiFiComponent::wifi_scan_start_(bool passive) {
   config.ssid = nullptr;
   config.bssid = nullptr;
 #ifndef USE_WIFI_MULTI_SSID
-  // One configured network: let the driver keep only its APs, so the WiFi library holds fewer
-  // records during the scan. Full results (portal, provisioning, listeners) still scan everything
-  this->scan_driver_filtered_ = !this->needs_full_scan_results_() && this->sta_.size() == 1;
+  // One configured network with an SSID: let the driver keep only its APs, so the WiFi library
+  // holds fewer records during the scan. Full results (portal, provisioning, listeners) and a
+  // network configured by BSSID alone still scan everything
+  this->scan_driver_filtered_ =
+      !this->needs_full_scan_results_() && this->sta_.size() == 1 && !this->sta_[0].get_ssid().empty();
   if (this->scan_driver_filtered_) {
-    const WiFiAP &ap = this->sta_[0];
-    if (!ap.get_ssid().empty()) {
-      // Filter by SSID only: a pinned BSSID must not hide the other APs a roaming scan looks for
-      config.ssid = const_cast<uint8_t *>(reinterpret_cast<const uint8_t *>(ap.get_ssid().c_str()));
-    } else if (ap.has_bssid()) {
-      config.bssid = const_cast<uint8_t *>(ap.get_bssid().data());
-    }
+    config.ssid = const_cast<uint8_t *>(reinterpret_cast<const uint8_t *>(this->sta_[0].get_ssid().c_str()));
   }
 #endif
   config.channel = 0;
