@@ -13,6 +13,11 @@ namespace esphome::nextion {
 
 static const char *const TAG = "nextion";
 
+// A user entity may be named sleep_wake too; only the internal NO_RESULT command clears the sleeping flag
+static bool is_sleep_wake_command(const NextionComponentBase *component) {
+  return component->get_queue_type() == NextionQueueType::NO_RESULT && component->get_variable_name() == "sleep_wake";
+}
+
 // Nextion command terminator: three consecutive 0xFF bytes (per Nextion Instruction Set v1.1).
 static constexpr uint8_t COMMAND_DELIMITER[3] = {0xFF, 0xFF, 0xFF};
 static constexpr size_t DELIMITER_SIZE = sizeof(COMMAND_DELIMITER);
@@ -439,8 +444,7 @@ bool Nextion::remove_from_q_(bool report_empty) {
 
   ESP_LOGN(TAG, "Removed: %s", component->get_variable_name().c_str());
 
-  // A user entity may be named sleep_wake too; only the internal NO_RESULT command clears the flag
-  if (component->get_queue_type() == NextionQueueType::NO_RESULT && component->get_variable_name() == "sleep_wake") {
+  if (is_sleep_wake_command(component)) {
     this->is_sleeping_ = false;
   }
   this->release_queue_entry_(nb);
@@ -935,9 +939,7 @@ void Nextion::purge_stale_queue_entries_() {
         ESP_LOGV(TAG, "Remove old queue '%s':'%s'", component->get_queue_type_string(),
                  component->get_variable_name().c_str());
 
-        // A user entity may be named sleep_wake too; only the internal NO_RESULT command clears the flag
-        if (component->get_queue_type() == NextionQueueType::NO_RESULT &&
-            component->get_variable_name() == "sleep_wake") {
+        if (is_sleep_wake_command(component)) {
           this->is_sleeping_ = false;
         }
         this->release_queue_entry_(*it);
