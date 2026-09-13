@@ -51,7 +51,7 @@ void SeeedMultiChannelRelay::setup() {
   ESP_LOGCONFIG(TAG, "Setting up Seeed Multi Channel Relay...");
   ESP_LOGCONFIG(TAG, "Firmware version of the Seeed Multi Channel Relay %u", this->get_firmware_version());
   if (this->address_changed_) {
-    this->write1_byte(CMD_SAVE_I2C_ADDR, this->new_addr_);
+    this->write1_byte_(CMD_SAVE_I2C_ADDR, this->new_addr_);
     this->set_i2c_address(this->new_addr_);
     ESP_LOGCONFIG(TAG, "I2C address of control changed to %u", this->new_addr_);
   }
@@ -63,7 +63,7 @@ void SeeedMultiChannelRelay::change_i2c_address(uint8_t new_addr) {
 }
 
 uint8_t SeeedMultiChannelRelay::get_firmware_version() {
-  uint8_t firmware_from_device = this->read1_byte(CMD_READ_FIRMWARE_VER);
+  uint8_t firmware_from_device = this->read1_byte_(CMD_READ_FIRMWARE_VER);
   return firmware_from_device;
 }
 
