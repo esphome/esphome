@@ -1,4 +1,4 @@
-"""Unit tests for the ESP_LOG-needs-braces lint rule in script/ci-custom.py.
+"""Unit tests for the ESP_LOG-needs-braces and std::nothrow lint rules in script/ci-custom.py.
 
 The rule flags an if/else/for/while whose only body is an unbraced ESP_LOG*() call (which becomes an
 empty statement -- and a -Wempty-body warning -- once the log level compiles the macro out). These
@@ -145,3 +145,65 @@ def test_nolint_at_end_of_log_line_suppresses() -> None:
 
 def test_nolint_on_control_line_suppresses() -> None:
     assert not _lint("if (x)  // NOLINT\n  ESP_LOGD(t);\n")
+
+
+# --- std::nothrow ---
+
+
+def _lint_nothrow(content: str) -> list:
+    return ci_custom.lint_no_std_nothrow("test.cpp", content)
+
+
+def _nothrow_check() -> dict:
+    return next(
+        c
+        for c in ci_custom.LINT_CONTENT_CHECKS
+        if c["func"].__name__ == "lint_no_std_nothrow"
+    )
+
+
+def test_nothrow_is_reported_at_its_line_and_column_and_points_at_ramallocator() -> (
+    None
+):
+    errors = _lint_nothrow(
+        "int a;\nint b;\n  auto *p = new (std::nothrow) uint8_t[n];\n"
+    )
+    assert [(line, col) for line, col, _msg in errors] == [(3, 18)]
+    assert "RAMAllocator" in errors[0][2]
+
+
+def test_nothrow_spacing_variants_are_reported() -> None:
+    assert len(_lint_nothrow("auto *p = new(std::nothrow) Foo;\n")) == 1
+    assert len(_lint_nothrow("auto *p = new (std :: nothrow) Foo;\n")) == 1
+
+
+def test_nothrow_in_comments_and_strings_is_not_reported() -> None:
+    assert not _lint_nothrow("// new (std::nothrow) aborts on ESP-IDF\n")
+    assert not _lint_nothrow("/* std::nothrow is\n   not used here */\n")
+    assert not _lint_nothrow('ESP_LOGD(TAG, "std::nothrow");\n')
+
+
+def test_plain_and_placement_new_and_nothrow_t_are_not_reported() -> None:
+    assert not _lint_nothrow("auto *p = new Foo();\n")
+    assert not _lint_nothrow("auto *p = new (buf) Foo();\n")
+    assert not _lint_nothrow(
+        "void *operator new(size_t n, const std::nothrow_t &) noexcept;\n"
+    )
+
+
+def test_nothrow_nolint_suppresses() -> None:
+    assert not _lint_nothrow("auto *p = new (std::nothrow) Foo;  // NOLINT\n")
+
+
+def test_nothrow_rule_scope_and_grandfathered_files() -> None:
+    check = _nothrow_check()
+    content = "auto *p = new (std::nothrow) Foo;\n"
+
+    def run(path: str) -> list | None:
+        return ci_custom.run_check(check, path, path, content)
+
+    assert run("esphome/components/foo/foo.cpp")
+    assert run("esphome/components/foo/foo.h")
+    assert run("esphome/components/nextion/nextion.cpp") is None
+    assert run("esphome/components/api/api_overflow_buffer.cpp") is None
+    assert run("esphome/components/foo/__init__.py") is None

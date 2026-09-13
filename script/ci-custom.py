@@ -1135,6 +1135,49 @@ def lint_no_std_bind(fname, match):
     )
 
 
+STD_NOTHROW_RE = re.compile(r"\bstd\s*::\s*nothrow\b")
+
+
+@lint_content_check(
+    include=cpp_include,
+    exclude=[
+        # Still use new (std::nothrow); migrated to RAMAllocator in a follow up PR
+        "esphome/components/api/api_buffer.cpp",
+        "esphome/components/api/api_overflow_buffer.cpp",
+        "esphome/components/esphome/ota/ota_esphome_noise.cpp",
+        "esphome/components/ethernet/w5500_custom_spi.cpp",
+        "esphome/components/nextion/nextion.cpp",
+        "esphome/components/ota/ota_signature_esp_idf.cpp",
+    ],
+)
+def lint_no_std_nothrow(fname, content):
+    errs = []
+    # Comments and string literals are blanked so prose about nothrow is not reported
+    masked = _mask_cpp_comments_strings(content)
+    for match in STD_NOTHROW_RE.finditer(masked):
+        line_start = content.rfind("\n", 0, match.start()) + 1
+        line_end = content.find("\n", match.end())
+        line = content[line_start : line_end if line_end != -1 else None]
+        if "NOLINT" in line:
+            continue
+        lineno = content.count("\n", 0, match.start()) + 1
+        msg = (
+            f"{highlight('new (std::nothrow)')} does not return nullptr on ESP-IDF: C++ exceptions "
+            f"are disabled there, so the throwing operator new reaches the exception stubs and "
+            f"the device aborts.\n"
+            f"Please use {highlight('RAMAllocator')} from esphome/core/helpers.h, which returns "
+            f"nullptr when memory is exhausted:\n"
+            f"  Before: {highlight('auto *buf = new (std::nothrow) uint8_t[n];')}\n"
+            f"  After:  {highlight('auto *buf = RAMAllocator<uint8_t>().allocate(n);')}"
+            f"  (free with {highlight('.deallocate(buf, n)')})\n"
+            f"For an object with a constructor, allocate raw storage with RAMAllocator and "
+            f"construct it with placement new.\n"
+            f"(If strictly necessary, add `// NOLINT` to the end of the line)"
+        )
+        errs.append((lineno, match.start() - line_start + 1, msg))
+    return errs
+
+
 LOG_MULTILINE_RE = re.compile(r"ESP_LOG\w+\s*\(.*?;", re.DOTALL)
 LOG_BAD_CONTINUATION_RE = re.compile(r'\\n(?:[^ \\"\r\n\t]|"\s*\n\s*"[^ \\])')
 LOG_PERCENT_S_CONTINUATION_RE = re.compile(r'\\n(?:%s|"\s*\n\s*"%s)')
