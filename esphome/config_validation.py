@@ -2017,14 +2017,16 @@ def _declaring_document(value: str) -> Path | None:
     return document if document.is_file() else None
 
 
-def _existing_path(value: str, kind: str) -> Path:
-    """Resolve *value* against the config dir, then its declaring document, then a bundle remap."""
+def _existing_path(value: str, kind: str, is_kind: Callable[[Path], bool]) -> Path:
+    """Resolve *value* to a *kind* entry: config dir, then declaring document, then bundle remap."""
     path = CORE.relative_config_path(value)
-    if path.exists():
+    if is_kind(path):
         return path
-    found = _document_relative_path(value) or _remap_bundle_path(value)
-    if found is not None:
-        return found
+    for candidate in (_document_relative_path(value), _remap_bundle_path(value)):
+        if candidate is not None and is_kind(candidate):
+            return candidate
+    if path.exists():
+        raise Invalid(f"Path '{path}' is not a {kind} (full path: {path.resolve()}).")
     also = ""
     if (
         document := _declaring_document(value)
@@ -2036,19 +2038,11 @@ def _existing_path(value: str, kind: str) -> Path:
 
 
 def directory(value: object) -> Path:
-    path = _existing_path(string(value), "directory")
-    if not path.is_dir():
-        raise Invalid(
-            f"Path '{path}' is not a directory (full path: {path.resolve()})."
-        )
-    return path
+    return _existing_path(string(value), "directory", Path.is_dir)
 
 
 def file_(value: object) -> Path:
-    path = _existing_path(string(value), "file")
-    if not path.is_file():
-        raise Invalid(f"Path '{path}' is not a file (full path: {path.resolve()}).")
-    return path
+    return _existing_path(string(value), "file", Path.is_file)
 
 
 ENTITY_ID_CHARACTERS = "abcdefghijklmnopqrstuvwxyz0123456789_"

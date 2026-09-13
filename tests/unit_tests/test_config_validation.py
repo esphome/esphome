@@ -3224,6 +3224,31 @@ def test_file__result_is_absolute_for_a_relative_document(
     assert result == package_dir / "assets" / "ui.js"
 
 
+def test_file__config_dir_entry_of_the_wrong_kind_does_not_shadow_the_package(
+    setup_core: Path,
+) -> None:
+    package_dir, value = _package_value(setup_core)
+    (setup_core / "assets" / "ui.js").mkdir(parents=True)
+
+    assert cv.file_(value) == package_dir / "assets" / "ui.js"
+
+
+def test_directory_config_dir_entry_of_the_wrong_kind_does_not_shadow_the_package(
+    setup_core: Path,
+) -> None:
+    package_dir, value = _package_value(setup_core, "assets")
+    (setup_core / "assets").write_text("not a dir\n")
+
+    assert cv.directory(value) == package_dir / "assets"
+
+
+def test_file__wrong_kind_everywhere_keeps_the_kind_error(setup_core: Path) -> None:
+    (setup_core / "assets").mkdir()
+
+    with pytest.raises(Invalid, match="is not a file"):
+        cv.file_("assets")
+
+
 def test_file__miss_names_the_declaring_document(setup_core: Path) -> None:
     package_dir, value = _package_value(setup_core, "assets/other.js")
 
