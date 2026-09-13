@@ -773,7 +773,11 @@ void WiFiComponent::wifi_scan_done_callback_(void *arg, STATUS status) {
     }
   }
 
-  this->scan_result_.init(count);  // Exact allocation
+  if (!this->scan_result_.init(count)) {
+    ESP_LOGW(TAG, "No memory for %zu scan results", count);
+    this->scan_done_ = true;
+    return;
+  }
 
   // Second pass: store matching networks
   for (bss_info *it = head; it != nullptr; it = STAILQ_NEXT(it, next)) {
