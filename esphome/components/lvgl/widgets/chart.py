@@ -166,9 +166,7 @@ class ChartType(WidgetType):
                     literal(series[CONF_Y_AXIS]),
                 ),
             )
-            series_widget = Widget.create(
-                series[CONF_ID], series_var, obj_spec, series
-            )
+            series_widget = Widget.create(series[CONF_ID], series_var, obj_spec, series)
             series_widget.parent = w.obj
             await set_series_values(w.obj, series_var, series[CONF_VALUES])
 
