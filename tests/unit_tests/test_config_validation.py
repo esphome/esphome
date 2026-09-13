@@ -1,4 +1,5 @@
 import importlib
+import io
 import json
 import logging
 from pathlib import Path
@@ -65,7 +66,13 @@ from esphome.core import (
 )
 from esphome.schema_extractors import SCHEMA_EXTRACT
 from esphome.util import Registry
-from esphome.yaml_util import ESPHomeDataBase, SensitiveStr, load_yaml, make_data_base
+from esphome.yaml_util import (
+    ESPHomeDataBase,
+    SensitiveStr,
+    load_yaml,
+    make_data_base,
+    parse_yaml,
+)
 
 
 def test_check_not_templatable__invalid():
@@ -3206,6 +3213,19 @@ def test_file__missing_in_both_places_raises(setup_core: Path) -> None:
     _, value = _package_asset(
         setup_core, "web_server:\n  js_include: assets/other.js\n"
     )
+
+    with pytest.raises(Invalid, match="Could not find file"):
+        cv.file_(value)
+
+
+def test_file__declared_in_an_in_memory_document_is_not_resolved(
+    setup_core: Path,
+) -> None:
+    """A value whose source document isn't on disk falls through to the config-dir error."""
+    value = parse_yaml(
+        Path("<unicode string>"),
+        io.StringIO("web_server:\n  js_include: assets/ui.js\n"),
+    )["web_server"]["js_include"]
 
     with pytest.raises(Invalid, match="Could not find file"):
         cv.file_(value)
