@@ -11,8 +11,8 @@ namespace esphome::ethernet {
 
 namespace {
 
-// Context returned by init() and handed back to read/write/deinit. There is one W5500 per device and
-// the driver is never uninstalled, so a single static instance replaces a heap allocation that could fail
+// Context returned by init() and handed back to read/write/deinit. There is one W5500 per device,
+// so a single static instance replaces a heap allocation that could fail
 struct W5500CustomSpiContext {
   spi_device_handle_t handle;
   SemaphoreHandle_t lock;
@@ -28,7 +28,12 @@ void *w5500_custom_spi_init(const void *spi_config) {
   const auto *config = static_cast<const eth_w5500_config_t *>(spi_config);
   auto *ctx = &w5500_context;
   if (ctx->handle != nullptr) {
-    return nullptr;  // already installed
+    // A previous install never reached deinit(); reclaim it instead of failing forever
+    spi_bus_remove_device(ctx->handle);
+    if (ctx->lock != nullptr) {
+      vSemaphoreDelete(ctx->lock);
+    }
+    *ctx = {};
   }
   // The W5500 SPI frame carries the 16-bit address in the command phase and the 8-bit control
   // byte in the address phase; mirror what the stock driver configures.
