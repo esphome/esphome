@@ -142,8 +142,9 @@ class OverflowBufferTest : public ::testing::Test {
   void stall_mid_message_(TestOverflowBuffer &buf, Stall &s) {
     s.filler = this->fill_pipe_();
     s.first = make_message(1500, 20);
+    ASSERT_GT(s.filler, s.first.size());  // the first message must drain in one go
     // Larger than the whole pipe, so a drain always stops inside it
-    s.second = make_message(std::min<size_t>(s.filler * 3, 12000), 60);
+    s.second = make_message(std::max<size_t>(s.filler + 1, std::min<size_t>(s.filler * 3, 12000)), 60);
     ASSERT_GT(s.second.size(), s.filler);
     ASSERT_TRUE(enqueue(buf, s.first));
     ASSERT_TRUE(enqueue(buf, s.second));
@@ -294,7 +295,7 @@ TEST_F(OverflowBufferTest, AppendsBehindSentPrefixWhenItFits) {
   auto first = make_message(200, 20);
   // Size the second message so the two land half way into a 256 byte step,
   // leaving exactly 128 bytes of slack whatever the pipe accepted
-  const size_t base = std::min<size_t>(filler * 3, 12000);
+  const size_t base = std::max<size_t>(filler + 1, std::min<size_t>(filler * 3, 12000));
   const size_t second_len = (base / 256 + 1) * 256 + 128 - first.size() - 2 * TestOverflowBuffer::LEN_PREFIX;
   auto second = make_message(second_len, 60);
   ASSERT_GT(second.size(), filler);

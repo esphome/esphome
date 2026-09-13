@@ -42,7 +42,7 @@ class APIBuffer {
   }
   /// Grow by n bytes; returns the new bytes, or nullptr on allocation failure.
   [[nodiscard]] uint8_t *append(size_t n);
-  /// Drop the first `drop` bytes (at most size()), sliding the rest down.
+  /// Drop the first `drop` bytes, sliding the rest down. Precondition: drop <= size().
   void drop_front(size_t drop) {
 #ifdef ESPHOME_DEBUG_API
     this->debug_check_drop_(drop);
