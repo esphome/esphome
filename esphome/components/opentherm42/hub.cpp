@@ -1,5 +1,6 @@
 #include "hub.h"
 #include <algorithm>
+#include <cstdio>
 #include "esphome/core/controller_registry.h"
 #include "esphome/core/helpers.h"
 
@@ -239,12 +240,15 @@ void OpenTherm42Hub::loop() {
       this->last_conversation_end_ms_ = millis();
       this->datalink_->stop();
       return;
-    case DataLinkState::ERROR:
-      ESP_LOGW(TAG, "Conversation failed: %s", data_link_error_to_string(this->datalink_->get_error()));
+    case DataLinkState::ERROR: {
+      char kind_desc[80];
+      this->describe_request_kind_(this->pending_request_kind_, kind_desc, sizeof(kind_desc));
+      ESP_LOGW(TAG, "Conversation failed: %s (%s)", data_link_error_to_string(this->datalink_->get_error()), kind_desc);
       this->invalidate_response_(this->pending_request_kind_);
       this->last_conversation_end_ms_ = millis();
       this->datalink_->stop();
       return;
+    }
     default:
       return;  // SENDING/LISTENING/RECEIVING: bit-level progress driven by the datalink's timer ISR.
   }
@@ -2117,6 +2121,148 @@ void OpenTherm42Hub::invalidate_response_(RequestKind kind) {
       }
       return;
     }
+  }
+}
+
+// The literal-name half of describe_request_kind_() below -- every kind not covered by
+// find_simple_sensor_() or one of the three kinds needing a runtime-formatted value (TSP, FHB,
+// REMOTE_REQUEST). Names match the text each case already logs on a definitive rejection in
+// handle_response_(), so the two ways this component reports "this conversation failed" agree.
+static const char *bespoke_request_kind_name(RequestKind kind) {
+  switch (kind) {
+    case RequestKind::BOILER_CONFIG:
+      return "Boiler configuration flags (id=3)";
+    case RequestKind::STATUS:
+      return "Status exchange (id=0)";
+    case RequestKind::CONTROL_SETPOINT:
+      return "Control setpoint (id=1)";
+    case RequestKind::CONTROL_SETPOINT_2:
+      return "Control setpoint 2 (id=8)";
+    case RequestKind::VENTILATION_STATUS:
+      return "Ventilation/heat-recovery status exchange (id=70)";
+    case RequestKind::CONTROL_SETPOINT_VENTILATION:
+      return "Control setpoint ventilation/heat-recovery (id=71)";
+    case RequestKind::FAULT_FLAGS:
+      return "Application-specific fault flags (id=5)";
+    case RequestKind::VENTILATION_FAULT_FLAGS:
+      return "Application-specific fault flags ventilation/heat-recovery (id=72)";
+    case RequestKind::SOLAR_STORAGE_STATUS:
+      return "Solar storage status (id=101)";
+    case RequestKind::SOLAR_STORAGE_FAULT_FLAGS:
+      return "Solar storage specific fault flags (id=102)";
+    case RequestKind::OEM_DIAGNOSTIC_CODE:
+      return "OEM diagnostic code (id=115)";
+    case RequestKind::OEM_DIAGNOSTIC_CODE_VENTILATION:
+      return "OEM diagnostic code ventilation/heat-recovery (id=73)";
+    case RequestKind::MASTER_CONFIG:
+      return "Master configuration (id=2)";
+    case RequestKind::MASTER_OPENTHERM_VERSION:
+      return "OpenTherm version Master (id=124)";
+    case RequestKind::MASTER_PRODUCT_VERSION:
+      return "Master product version number and type (id=126)";
+    case RequestKind::VENTILATION_CONFIGURATION:
+      return "Configuration ventilation/heat-recovery (id=74)";
+    case RequestKind::SOLAR_STORAGE_CONFIGURATION:
+      return "Solar Storage configuration (id=103)";
+    case RequestKind::PRODUCT_VERSION_BOILER:
+      return "Boiler product version number and type (id=127)";
+    case RequestKind::PRODUCT_VERSION_VENTILATION:
+      return "Ventilation/heat-recovery product version number and type (id=76)";
+    case RequestKind::PRODUCT_VERSION_SOLAR_STORAGE:
+      return "Solar Storage product version number and type (id=104)";
+    case RequestKind::BRAND:
+      return "Brand (id=93)";
+    case RequestKind::BRAND_VERSION:
+      return "Brand version (id=94)";
+    case RequestKind::BRAND_SERIAL_NUMBER:
+      return "Brand serial number (id=95)";
+    case RequestKind::ROOM_SETPOINT:
+      return "Room Setpoint (id=16)";
+    case RequestKind::ROOM_SETPOINT_CH2:
+      return "Room Setpoint CH2 (id=23)";
+    case RequestKind::ROOM_TEMPERATURE:
+      return "Room temperature (id=24)";
+    case RequestKind::TRCH2:
+      return "TrCH2 (id=37)";
+    case RequestKind::DAY_TIME:
+      return "Day of Week & Time of Day (id=20)";
+    case RequestKind::DATE:
+      return "Date (id=21)";
+    case RequestKind::YEAR:
+      return "Year (id=22)";
+    case RequestKind::OUTSIDE_TEMPERATURE:
+    case RequestKind::OUTSIDE_TEMPERATURE_READ:
+      return "Outside temperature (id=27)";
+    case RequestKind::RELATIVE_HUMIDITY:
+    case RequestKind::RELATIVE_HUMIDITY_READ:
+      return "Relative Humidity (id=38)";
+    case RequestKind::RELATIVE_HUMIDITY_EXHAUST_AIR:
+    case RequestKind::RELATIVE_HUMIDITY_EXHAUST_AIR_READ:
+      return "Relative humidity exhaust air (id=78)";
+    case RequestKind::CO2_LEVEL:
+    case RequestKind::CO2_LEVEL_READ:
+      return "CO2 level (id=79)";
+    case RequestKind::BOILER_FAN_SPEED:
+      return "Boiler fan speed (id=35)";
+    case RequestKind::REMOTE_PARAMETER_FLAGS:
+      return "Remote-parameter transfer-enable/read-write flags (id=6)";
+    case RequestKind::REMOTE_PARAMETER_FLAGS_VENTILATION:
+      return "Remote-parameter transfer-enable/read-write flags ventilation/heat-recovery (id=86)";
+    case RequestKind::DHWSETP_BOUNDS:
+      return "DHWsetp upp-/low-bound (id=48)";
+    case RequestKind::MAX_CHSETP_BOUNDS:
+      return "max CHsetp upp-/low-bnd (id=49)";
+    case RequestKind::DHW_SETPOINT:
+    case RequestKind::DHW_SETPOINT_READ:
+      return "DHW Setpoint (id=56)";
+    case RequestKind::MAX_CH_WATER_SETPOINT:
+    case RequestKind::MAX_CH_WATER_SETPOINT_READ:
+      return "max CH water Setpoint (id=57)";
+    case RequestKind::NOMINAL_VENTILATION_VALUE:
+    case RequestKind::NOMINAL_VENTILATION_VALUE_READ:
+      return "Nominal ventilation value (id=87)";
+    case RequestKind::COOLING_CONTROL_SIGNAL:
+      return "Cooling control signal (id=7)";
+    case RequestKind::MAX_REL_MOD_LEVEL_SETTING:
+      return "Maximum relative modulation level setting (id=14)";
+    case RequestKind::MAX_CAPACITY_MIN_MOD_LEVEL:
+      return "Maximum boiler capacity & Minimum modulation level (id=15)";
+    case RequestKind::REMOTE_OVERRIDE_OPERATING_MODES:
+      return "Remote Override Operating Modes (id=99)";
+    case RequestKind::REMOTE_OVERRIDE_ROOM_SETPOINT_FUNCTION:
+      return "Remote Override Room Setpoint function (id=100)";
+    default:
+      return nullptr;
+  }
+}
+
+void OpenTherm42Hub::describe_request_kind_(RequestKind kind, char *buf, size_t buf_len) const {
+  if (const SimpleSensorInfo *info = this->find_simple_sensor_(kind)) {
+    snprintf(buf, buf_len, "%s", info->log_name);
+    return;
+  }
+  switch (kind) {
+    case RequestKind::TSP: {
+      auto const &slot = this->tsp_slots_[this->pending_tsp_slot_index_];
+      snprintf(buf, buf_len, "TSP %s (id=%u, index=%u)", this->pending_tsp_is_write_ ? "write" : "read", slot.data_id,
+               slot.index);
+      return;
+    }
+    case RequestKind::FHB: {
+      auto const &slot = this->fhb_slots_[this->pending_fhb_slot_index_];
+      snprintf(buf, buf_len, "FHB read (id=%u, index=%u)", slot.data_id, slot.index);
+      return;
+    }
+    case RequestKind::REMOTE_REQUEST:
+      snprintf(buf, buf_len, "Remote request (id=4, code=%u)", this->remote_request_code_);
+      return;
+    default:
+      break;
+  }
+  if (const char *name = bespoke_request_kind_name(kind)) {
+    snprintf(buf, buf_len, "%s", name);
+  } else {
+    snprintf(buf, buf_len, "kind=%u", static_cast<unsigned>(kind));
   }
 }
 

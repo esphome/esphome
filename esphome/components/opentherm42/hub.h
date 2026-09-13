@@ -696,6 +696,11 @@ class OpenTherm42Hub : public Component {
   // On a failed conversation, every read-only entity that conversation would have updated must show
   // unknown rather than keep stale data.
   void invalidate_response_(RequestKind kind);
+  // Formats a short "Name (id=N)"-style description of the given request kind into buf, for the raw
+  // datalink error log in loop() -- that log fires before any frame is parsed, so unlike
+  // handle_response_()/invalidate_response_() it has no message-type context of its own to name the
+  // failed conversation by.
+  void describe_request_kind_(RequestKind kind, char *buf, size_t buf_len) const;
   // Looks up a single-value, non-bit-decomposed read-only sensor's data-id/sensor pointer/log name --
   // the fallback every class after Class 1 dispatches "plain" reads through. Returns nullptr for kinds
   // with bespoke handling (bit-decomposed, write-only, dual-mode, ...).
