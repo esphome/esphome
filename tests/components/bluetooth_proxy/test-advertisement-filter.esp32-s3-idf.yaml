@@ -3,9 +3,8 @@
 <<: !include common.yaml
 
 esphome:
-  platformio_options:
-    build_flags:
-      - "-DUSE_BLUETOOTH_PROXY_ADVERTISEMENT_FILTER"
+  build_flags:
+    - "-DUSE_BLUETOOTH_PROXY_ADVERTISEMENT_FILTER"
 
 esp32_ble_tracker:
 
