@@ -1794,10 +1794,19 @@ void OpenTherm42Hub::invalidate_response_(RequestKind kind) {
       return;
 
     case RequestKind::STATUS:
+      // Unlike a definitive rejection (not legal for this mandatory id per §5.2.1, so never reached
+      // here), a raw datalink error means we don't know whether the boiler ever saw this turn's
+      // master-status byte at all -- show these switches as unknown too, rather than keep displaying
+      // a commanded state we can no longer vouch for.
+      this->master_status_write_.invalidate();
       this->boiler_status_read_.invalidate();
       return;
 
     case RequestKind::VENTILATION_STATUS:
+      // Same reasoning as STATUS above: a raw datalink error means we can't tell whether the boiler
+      // received this turn's write, so the switches go unknown here too, not just on a definitive
+      // rejection (see handle_response_()).
+      this->ventilation_status_write_.invalidate();
       this->ventilation_status_read_.invalidate();
       return;
 
@@ -1816,8 +1825,12 @@ void OpenTherm42Hub::invalidate_response_(RequestKind kind) {
       return;
 
     case RequestKind::SOLAR_STORAGE_STATUS:
-      // The select is not invalidated -- like a switch, it survives conversation errors and is
-      // simply resent next turn; only the LB-derived read entities go unknown.
+      // Same reasoning as STATUS/VENTILATION_STATUS above: a raw datalink error means we can't tell
+      // whether the boiler received this turn's HB write, so the select goes unknown here too, not
+      // just on a definitive rejection (see handle_response_()).
+      if (this->master_solar_storage_status_solar_mode_select_ != nullptr) {
+        invalidate_entity(this->master_solar_storage_status_solar_mode_select_);
+      }
       if (this->solar_storage_fault_indication_binary_sensor_ != nullptr) {
         invalidate_entity(this->solar_storage_fault_indication_binary_sensor_);
       }
