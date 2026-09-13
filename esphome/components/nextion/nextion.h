@@ -1469,7 +1469,7 @@ class Nextion final : public NextionBase, public PollingComponent, public uart::
   void all_components_send_state_(bool force_update = false);
   uint32_t comok_sent_ = 0;
   bool remove_from_q_(bool report_empty = true);
-  void release_queue_entry_(NextionQueue *nb);
+  void release_queue_entry_(NextionQueue *nb, bool owns_component);
   NextionQueue *make_no_result_entry_(const std::string &variable_name);
 
   /**
