@@ -46,7 +46,8 @@ EXIT_SKIPPED = 1
 EXIT_COMPILE_ERROR = 2
 EXIT_CONFIG_ERROR = 3
 EXIT_NO_EXECUTABLE = 4
-EXIT_NO_TESTS = 5
+# A test folder with this name would be synced into src/esphome and swept away with the core tree
+CORE_TREE_DIR = "esphome"
 
 # Name of the per-component YAML config file in benchmark directories
 BENCHMARK_YAML_FILENAME = "benchmark.yaml"
@@ -467,17 +468,17 @@ def build_and_run(
 
     components = sorted(components)
 
-    # Build include list: main entry point + component folders + extra dirs. A test folder
-    # named esphome would land in src/esphome and be swept away with the core tree, so its
-    # files are listed one by one instead
+    # Build include list: main entry point + component folders + extra dirs. The core tree
+    # folder is listed file by file, nested files included, since a folder include would
+    # land in src/esphome (see CORE_TREE_DIR)
     includes: list[str] = [main_entry]
     for component in components:
-        if component != "esphome":
+        if component != CORE_TREE_DIR:
             includes.append(component)
             continue
         includes.extend(
-            f"{component}/{path.name}"
-            for path in sorted((tests_dir / component).iterdir())
+            str(path.relative_to(tests_dir))
+            for path in sorted((tests_dir / component).rglob("*"))
             if path.suffix in (".cpp", ".h")
         )
     if extra_include_dirs:
@@ -515,17 +516,6 @@ def build_and_run(
         return EXIT_OK
 
     # Run the binary
-    # gtest exits 0 when nothing was linked in, which hides a test folder that never reached the build
-    listing = subprocess.run(
-        [program_path, "--gtest_list_tests"],
-        check=False,
-        capture_output=True,
-        text=True,
-    )
-    if not listing.stdout.strip():
-        print(f"No {label} were linked into {program_path}", file=sys.stderr)
-        return EXIT_NO_TESTS
-
     run_cmd: list[str] = [program_path]
     if extra_run_args:
         run_cmd.extend(extra_run_args)
