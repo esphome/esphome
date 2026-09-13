@@ -9,7 +9,6 @@
 #include <array>
 #include <cstring>
 #include <memory>
-#include <new>
 #include <esp_image_format.h>
 #include <esp_partition.h>
 #include <esp_rom_crc.h>
@@ -238,7 +237,9 @@ bool IDFOTABackend::verify_signed_image_(const esp_partition_t *incoming) {
   // fragmentation pattern the project guards against. RAMAllocator reports an
   // OOM as nullptr so it fails closed like every other error path; nothrow
   // would abort here because ESP-IDF builds without exceptions.
-  auto block = RAMAllocator<uint8_t>().make_unique_array(SIG_BLOCK_SIZE);
+  // Internal RAM first: the block is a flash read target, which IDF has to bounce through internal memory for PSRAM
+  RAMAllocator<uint8_t> allocator(RAMAllocator<uint8_t>::PREFER_INTERNAL);
+  auto block = allocator.make_unique_array(SIG_BLOCK_SIZE);
   if (!block) {
     OTA_IDF_SIG_LOG(ESP_LOGE, "out of memory");
     return false;
