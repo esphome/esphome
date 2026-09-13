@@ -21,14 +21,17 @@ built.
 
 from __future__ import annotations
 
+from unittest.mock import patch
+
 import pytest
 
 from esphome.automation import ACTION_REGISTRY
 from esphome.components.lvgl.lvcode import LvContext
 from esphome.components.lvgl.schemas import container_schema
-from esphome.components.lvgl.widgets import widget_to_code
+from esphome.components.lvgl.widgets import Widget, widget_to_code
 from esphome.components.lvgl.widgets.lv_list import (
     CONF_ON_ADD,
+    _get_list_triggers,
     finish_list_triggers,
     list_spec,
 )
@@ -86,4 +89,41 @@ async def test_list_add_action_running_before_finish_list_triggers_still_fires_o
         "on_add did not fire: the lvgl.list.add action ran before "
         "finish_list_triggers() built the list's on_add trigger, and "
         "_fire_on_add() didn't wait for it"
+    )
+
+
+@pytest.mark.asyncio
+async def test_on_add_recorded_before_widget_registered(setup_core) -> None:
+    """Widget.create() is what makes a list visible to get_widgets(), so an
+    action interleaved with its creation could resolve get_widgets() and reach
+    _fire_on_add() right after Widget.create() runs. Its on_add config must
+    already be recorded by then - ListType.on_create() (called before
+    Widget.create()) is what guarantees that, not ListType.to_code() (called
+    after).
+    """
+    config = container_schema(list_spec)(
+        {
+            "id": "test_list",
+            CONF_ON_ADD: [{"lambda": make_data_base("return;")}],
+        }
+    )
+    automation_conf = config[CONF_ON_ADD][0]
+    automation_conf[CONF_TRIGGER_ID].resolve([])
+    automation_conf[CONF_AUTOMATION_ID].resolve([])
+    automation_conf[CONF_THEN][0][CONF_TYPE_ID].resolve([])
+
+    seen_on_add_counts = []
+    real_create = Widget.create
+
+    def spy_create(name, var, wtype, config=None):
+        seen_on_add_counts.append(len(_get_list_triggers(name).on_add))
+        return real_create(name, var, wtype, config)
+
+    parent = MockObj("parent_obj")
+    with patch.object(Widget, "create", side_effect=spy_create):
+        async with LvContext():
+            await widget_to_code(config, list_spec, parent)
+
+    assert seen_on_add_counts == [1], (
+        "on_add wasn't recorded yet when Widget.create() registered the list"
     )

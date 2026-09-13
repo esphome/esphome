@@ -163,12 +163,13 @@ class ListType(WidgetType):
     def get_uses(self):
         return TYPE_FLEX, CONF_LABEL, CONF_BUTTON
 
-    async def to_code(self, w: Widget, config: dict):
+    async def on_create(self, var: MockObj, config: dict) -> None:
+        # Runs before Widget.create() registers this list
         on_add = config.get(CONF_ON_ADD, ())
         on_remove = config.get(CONF_ON_REMOVE, ())
         if not on_add and not on_remove:
             return
-        triggers = _get_list_triggers(w.config[CONF_ID])
+        triggers = _get_list_triggers(config[CONF_ID])
         triggers.on_add.extend(on_add)
         triggers.on_remove.extend(on_remove)
 
