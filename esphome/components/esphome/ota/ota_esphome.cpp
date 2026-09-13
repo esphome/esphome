@@ -342,7 +342,7 @@ void ESPHomeOTAComponent::handle_handshake_() {
         if ((this->ota_features_ & CLIENT_FEATURE_SUPPORTS_DEFLATE) != 0) {
           // Value initialized: a corrupt stream that back references the
           // window before it is filled then copies zeros, never stale memory
-          this->inflate_ = make_unique_ram<InflateSession>();
+          this->inflate_ = RAMAllocator<InflateSession>().make_unique();
           if (this->inflate_ != nullptr) {
             this->handshake_buf_[1] |= SERVER_FEATURE_SUPPORTS_DEFLATE;
           } else {
