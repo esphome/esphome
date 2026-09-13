@@ -1163,6 +1163,7 @@ def lint_no_std_nothrow(fname, match):
         f"Please use {highlight('RAMAllocator')} from esphome/core/helpers.h, which does.\n"
         f"  Before: {highlight('auto *buf = new (std::nothrow) uint8_t[n];')}\n"
         f"  After:  {highlight('auto *buf = RAMAllocator<uint8_t>().allocate(n);')}\n"
+        f"allocate() does not construct: for an object, allocate(1) and placement new as core/event_pool.h does.\n"
         f"(If strictly necessary, add `// NOLINT` to the end of the line)"
     )
 
