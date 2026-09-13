@@ -234,10 +234,9 @@ bool IDFOTABackend::verify_signed_image_(const esp_partition_t *incoming) {
   // runs mid-OTA on the loop task, on top of the caller's live 1 KB OTA buffer
   // and mbedtls's own ~1 KB verify scratch, so keeping it off the stack widens
   // a thin margin. One short-lived allocation right before reboot is not the
-  // fragmentation pattern the project guards against. RAMAllocator reports an
-  // OOM as nullptr so it fails closed like every other error path; nothrow
-  // would abort here because ESP-IDF builds without exceptions.
-  // Internal RAM first: the block is a flash read target, which IDF has to bounce through internal memory for PSRAM
+  // fragmentation pattern the project guards against. An OOM returns nullptr
+  // and fails closed like every other error path. Internal RAM first: the
+  // block is an esp_partition_read target.
   RAMAllocator<uint8_t> allocator(RAMAllocator<uint8_t>::PREFER_INTERNAL);
   auto block = allocator.make_unique_array(SIG_BLOCK_SIZE);
   if (!block) {
