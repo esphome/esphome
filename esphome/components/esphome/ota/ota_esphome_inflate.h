@@ -29,24 +29,23 @@ struct OtaInflateState {
   /* Called when source is exhausted; returns the next byte or -1 at EOF.
      It may refill source/source_limit for buffered operation. */
   int (*source_read_cb)(struct OtaInflateState *d);
-
-  unsigned int tag;
-  unsigned int bitcount;
-
   /* Output cursor and one past the end of the output buffer */
   unsigned char *dest;
   unsigned char *dest_limit;
-
-  bool eof;
-
-  int btype;
-  int bfinal;
-  unsigned int curlen;
-  int lz_off;
   /* Ring window holding the last dict_size output bytes for back references */
   unsigned char *dict_ring;
+
+  unsigned int tag;
+  unsigned int curlen;
+  int lz_off;
   unsigned int dict_size;
   unsigned int dict_idx;
+
+  /* One word: btype is -1 between blocks, bitcount never exceeds 7 */
+  int8_t btype;
+  uint8_t bfinal;
+  uint8_t bitcount;
+  bool eof;
 
   struct OtaInflateTree ltree; /* dynamic length/symbol tree */
   struct OtaInflateTree dtree; /* dynamic distance tree */
