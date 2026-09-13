@@ -914,6 +914,7 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
 #else
     const bool filtered = this->scan_driver_filtered_;
 #endif
+    const bool needs_full = this->needs_full_scan_results_();
     {
       // Mutate in place under the lock; blocking a portal request is fine and
       // avoids scratch buffers
@@ -930,16 +931,9 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
         return;
       }
 
-#ifdef USE_WIFI_MULTI_SSID
-      // Several networks: store everything, matches are marked when the results are processed
-      const size_t wanted = number;
-#else
-      // One network: the driver filtered and returns the strongest first, so the first entries are
-      // the ones worth keeping
       const size_t wanted = filtered ? std::min<size_t>(number, WIFI_SCAN_RESULT_BOUND) : number;
-#endif
-      // Storage is kept between scans and only regrown when a scan needs more; an exhausted heap
-      // drops this scan and the retry logic scans again
+      // Storage is reused across the scans of one retry cycle and freed on connect; an exhausted
+      // heap drops this scan and the retry logic scans again
       if (this->scan_result_.capacity() < wanted && !this->scan_result_.try_init(wanted)) {
         esp_wifi_clear_ap_list();
         ESP_LOGW(TAG, "No memory for %zu scan results", wanted);
@@ -978,7 +972,8 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
 #endif  // USE_ESP32_HOSTED
 
         const char *ssid_cstr = reinterpret_cast<const char *>(record.ssid);
-        if (!this->scan_result_.full()) {
+        if (!this->scan_result_.full() &&
+            (needs_full || filtered || this->matches_configured_network_(ssid_cstr, record.bssid))) {
           bssid_t bssid;
           std::copy(record.bssid, record.bssid + 6, bssid.begin());
           this->scan_result_.emplace_back(bssid, ssid_cstr, strlen(ssid_cstr), record.primary, record.rssi,
@@ -1067,14 +1062,12 @@ bool WiFiComponent::wifi_scan_start_(bool passive) {
   config.ssid = nullptr;
   config.bssid = nullptr;
 #ifndef USE_WIFI_MULTI_SSID
-  // One configured network: let the driver keep only its APs, so the result count is exact and the
-  // WiFi library holds fewer records during the scan. Full results (portal, provisioning, listeners)
-  // still scan everything
+  // One configured network: let the driver keep only its APs, so the WiFi library holds fewer
+  // records during the scan. Full results (portal, provisioning, listeners) still scan everything
   this->scan_driver_filtered_ = !this->needs_full_scan_results_() && this->sta_.size() == 1;
   if (this->scan_driver_filtered_) {
     const WiFiAP &ap = this->sta_[0];
     if (!ap.get_ssid().empty()) {
-      // The driver only reads these during the call
       config.ssid = const_cast<uint8_t *>(reinterpret_cast<const uint8_t *>(ap.get_ssid().c_str()));
     }
     if (ap.has_bssid()) {

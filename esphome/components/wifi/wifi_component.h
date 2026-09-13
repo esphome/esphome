@@ -178,13 +178,11 @@ struct EAPAuth {
 
 using bssid_t = std::array<uint8_t, 6>;
 
-/// Initial reserve size for filtered scan results (typical: 1-3 matching networks per SSID)
 // ESP32 with one configured network: the driver filters the scan and returns the strongest first,
 // so only this many of that network's BSSIDs are kept
 static constexpr size_t WIFI_SCAN_RESULT_BOUND = 12;
 
-// std::vector only for RP2040, whose callback delivers results with no count; FixedVector
-// everywhere else, sized once per scan and reporting exhaustion instead of aborting
+// RP2040's callback delivers results one at a time with no count, so it needs a growable vector
 #if defined(USE_RP2)
 template<typename T> using wifi_scan_vector_t = std::vector<T>;
 #else
@@ -873,9 +871,6 @@ class WiFiComponent final : public Component {
   std::vector<WiFiSTAPriority> sta_priorities_;
   // Guarded by ScanResultsLock (see below this class)
   wifi_scan_vector_t<WiFiScanResult> scan_result_;
-#if defined(USE_ESP32) && !defined(USE_WIFI_MULTI_SSID)
-  bool scan_driver_filtered_{false};
-#endif
 #ifdef WIFI_SCAN_RESULTS_LOCK_ENABLED
   Mutex scan_result_lock_;
 #endif
@@ -959,6 +954,9 @@ class WiFiComponent final : public Component {
   uint8_t num_ipv6_addresses_{0};
 #endif /* USE_NETWORK_IPV6 */
   bool error_from_callback_{false};
+#if defined(USE_ESP32) && !defined(USE_WIFI_MULTI_SSID)
+  bool scan_driver_filtered_{false};
+#endif
 #if defined(USE_ESP8266) || defined(USE_LIBRETINY)
   // Platform-specific STA state enum, defined in platform cpp file.
   // On ESP8266, written from SDK system context (wifi_event_callback) —
