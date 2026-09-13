@@ -1161,9 +1161,7 @@ def lint_no_std_bind(fname, match):
         # Still use new (std::nothrow); migrated to RAMAllocator in a follow up PR
         "esphome/components/api/api_buffer.cpp",
         "esphome/components/api/api_overflow_buffer.cpp",
-        "esphome/components/esphome/ota/ota_esphome_noise.cpp",
         "esphome/components/ethernet/w5500_custom_spi.cpp",
-        "esphome/components/nextion/nextion.cpp",
         "esphome/components/ota/ota_signature_esp_idf.cpp",
     ],
 )
