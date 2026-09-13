@@ -235,9 +235,10 @@ bool IDFOTABackend::verify_signed_image_(const esp_partition_t *incoming) {
   // runs mid-OTA on the loop task, on top of the caller's live 1 KB OTA buffer
   // and mbedtls's own ~1 KB verify scratch, so keeping it off the stack widens
   // a thin margin. One short-lived allocation right before reboot is not the
-  // fragmentation pattern the project guards against. nothrow so an OOM here
-  // fails closed like every other error path, rather than aborting.
-  std::unique_ptr<uint8_t[]> block(new (std::nothrow) uint8_t[SIG_BLOCK_SIZE]);
+  // fragmentation pattern the project guards against. RAMAllocator reports an
+  // OOM as nullptr so it fails closed like every other error path; nothrow
+  // would abort here because ESP-IDF builds without exceptions.
+  auto block = RAMAllocator<uint8_t>().make_unique_array(SIG_BLOCK_SIZE);
   if (!block) {
     OTA_IDF_SIG_LOG(ESP_LOGE, "out of memory");
     return false;
