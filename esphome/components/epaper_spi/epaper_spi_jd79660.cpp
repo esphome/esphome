@@ -19,13 +19,7 @@ static JD79660Color HOT color_to_hex(Color color) {
   return color_to_bwyr(color, JD79660Color::BLACK, JD79660Color::WHITE, JD79660Color::YELLOW, JD79660Color::RED);
 }
 
-void EPaperJD79660::fill(Color color) {
-  // If clipping is active, fall back to base implementation
-  if (this->get_clipping().is_set()) {
-    EPaperBase::fill(color);
-    return;
-  }
-
+void EPaperJD79660::fill_buffer(Color color) {
   const auto pixel_color = color_to_hex(color);
 
   // We store 4 pixels per byte

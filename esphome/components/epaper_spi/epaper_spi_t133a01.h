@@ -31,13 +31,12 @@ class EPaperT133A01 : public EPaperBase {
     this->cs1_pin_ = cs1;
   }
 
-  void fill(Color color) override;
-
   void setup() override;
   void dump_config() override;
   void draw_pixel_at(int x, int y, Color color) override;
 
  protected:
+  void fill_buffer(Color color) override;
   bool reset() override;
   bool initialise(bool partial) override;
   void refresh_screen(bool partial) override;

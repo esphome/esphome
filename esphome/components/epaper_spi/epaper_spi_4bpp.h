@@ -19,10 +19,8 @@ class EPaper4bpp : public EPaperBase {
     this->buffer_length_ = width * height / 2;  // 2 pixels per byte
   }
 
-  void fill(Color color) override;
-  void clear() override;
-
  protected:
+  void fill_buffer(Color color) override;
   void draw_pixel_at(int x, int y, Color color) override;
   bool transfer_data() override;
 
