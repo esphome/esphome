@@ -32,7 +32,7 @@ ESPHomeOTAComponent::NoiseSession::~NoiseSession() {
   }
 }
 
-void ESPHomeOTAComponent::noise_reserve_session_() { this->noise_ = make_unique_ram<NoiseSession>(); }
+void ESPHomeOTAComponent::noise_reserve_session_() { this->noise_ = RAMAllocator<NoiseSession>().make_unique(); }
 
 /** Start the responder handshake, on the session reserved at offer time.
  *
