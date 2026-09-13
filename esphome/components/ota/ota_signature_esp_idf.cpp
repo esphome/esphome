@@ -237,8 +237,7 @@ bool IDFOTABackend::verify_signed_image_(const esp_partition_t *incoming) {
   // fragmentation pattern the project guards against. An OOM returns nullptr
   // and fails closed like every other error path. Internal RAM first: the
   // block is an esp_partition_read target.
-  RAMAllocator<uint8_t> allocator(RAMAllocator<uint8_t>::PREFER_INTERNAL);
-  auto block = allocator.make_unique_array(SIG_BLOCK_SIZE);
+  auto block = RAMAllocator<uint8_t>(RAMAllocator<uint8_t>::PREFER_INTERNAL).make_unique_array(SIG_BLOCK_SIZE);
   if (!block) {
     OTA_IDF_SIG_LOG(ESP_LOGE, "out of memory");
     return false;
