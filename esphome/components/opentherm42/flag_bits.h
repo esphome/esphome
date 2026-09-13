@@ -25,11 +25,18 @@ struct FlagReadBits {
   // already-connected API/web_server clients (only publish_state() does, via each domain's own
   // internal call to ControllerRegistry) -- an already-subscribed client would otherwise keep
   // showing the last known value forever, so that notification has to be triggered explicitly here.
+  // Guarded by #ifdef USE_BINARY_SENSOR: entity_types.h only generates that ControllerRegistry
+  // member when at least one binary_sensor exists anywhere in the device's config. A device with
+  // none at all would otherwise fail to compile, even though a non-null bit here can only occur
+  // when a binary_sensor was actually configured -- which itself requires USE_BINARY_SENSOR to be
+  // defined (see hub.cpp's invalidate_entity() helpers for the same pattern on other domains).
   void invalidate() {
     for (auto *b : this->bits) {
       if (b != nullptr) {
         b->set_has_state(false);
+#ifdef USE_BINARY_SENSOR
         ControllerRegistry::notify_binary_sensor_update(b);
+#endif
       }
     }
   }

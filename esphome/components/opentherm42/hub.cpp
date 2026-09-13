@@ -15,22 +15,24 @@ static const char *const TAG = "opentherm42";
 // One overload per entity type used below, so every set_has_state(false) call site in this file
 // can go through this instead of the bare call.
 //
-// The notify_switch_update()/notify_number_update() calls (here and in
-// FlagWriteBits::invalidate() in flag_bits.h) are wrapped in #ifdef USE_SWITCH/USE_NUMBER:
-// entity_types.h only generates those ControllerRegistry members when at least one switch/number
-// entity exists *anywhere* in the device's config, not specifically in opentherm42. A device that
-// configures neither (e.g. no ventilation switches and no writable setpoints) would otherwise fail
-// to compile, even though the guarded call can only be reached when the corresponding entity
-// pointer is non-null -- which itself requires that define to be set. This, not an ESPHome version
-// difference, is what caused the real-world "is not a member of ControllerRegistry" build failure:
-// the local test YAML always configures at least one of each, so it never exercised a config
-// shaped like the one that failed.
+// Every notify_*_update() call below is wrapped in the matching #ifdef USE_*: entity_types.h only
+// generates each ControllerRegistry member when at least one entity of that domain exists
+// *anywhere* in the device's config, not specifically in opentherm42 -- e.g. a device with no
+// sensor: platform of any kind anywhere would fail to compile on notify_sensor_update() otherwise,
+// even though the guarded call can only be reached when the corresponding entity pointer is
+// non-null, which itself requires that define to be set. This, not an ESPHome version difference,
+// is what caused the original real-world "is not a member of ControllerRegistry" build failures on
+// switch/number: the local test YAML always configures at least one of every domain, so it never
+// exercised a config shaped like the ones that failed. Applied to all five domains here for the
+// same reason, since none of them are actually mandatory in an opentherm42 config either.
 static void invalidate_entity(sensor::Sensor *entity) {
   if (entity == nullptr) {
     return;
   }
   entity->set_has_state(false);
+#ifdef USE_SENSOR
   ControllerRegistry::notify_sensor_update(entity);
+#endif
 }
 static void invalidate_entity(number::Number *entity) {
   if (entity == nullptr) {
@@ -46,21 +48,27 @@ static void invalidate_entity(text_sensor::TextSensor *entity) {
     return;
   }
   entity->set_has_state(false);
+#ifdef USE_TEXT_SENSOR
   ControllerRegistry::notify_text_sensor_update(entity);
+#endif
 }
 static void invalidate_entity(select::Select *entity) {
   if (entity == nullptr) {
     return;
   }
   entity->set_has_state(false);
+#ifdef USE_SELECT
   ControllerRegistry::notify_select_update(entity);
+#endif
 }
 static void invalidate_entity(binary_sensor::BinarySensor *entity) {
   if (entity == nullptr) {
     return;
   }
   entity->set_has_state(false);
+#ifdef USE_BINARY_SENSOR
   ControllerRegistry::notify_binary_sensor_update(entity);
+#endif
 }
 
 // clang-format off
