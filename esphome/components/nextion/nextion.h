@@ -1468,6 +1468,12 @@ class Nextion final : public NextionBase, public PollingComponent, public uart::
   uint16_t recv_ret_string_(std::string &response, uint32_t timeout, bool recv_flag);
   void all_components_send_state_(bool force_update = false);
   uint32_t comok_sent_ = 0;
+  /**
+   * Add an entry whose command has already been sent, keeping the queue in
+   * transmit order so that front() is the entry a response belongs to.
+   * @param item Queue entry to insert.
+   */
+  void enqueue_sent_(NextionQueue *item);
   bool remove_from_q_(bool report_empty = true);
 
   /**

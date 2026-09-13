@@ -410,6 +410,21 @@ void Nextion::process_pending_in_queue_() {
 }
 #endif  // USE_NEXTION_COMMAND_SPACING
 
+void Nextion::enqueue_sent_(NextionQueue *item) {
+#ifdef USE_NEXTION_COMMAND_SPACING
+  // The command is already on the wire, so it will be answered before anything
+  // still waiting to be sent. Keeping the queue in transmit order is what makes
+  // front() the right entry to match a response against.
+  auto it = this->nextion_queue_.begin();
+  while (it != this->nextion_queue_.end() && (*it == nullptr || (*it)->pending_command.empty())) {
+    ++it;
+  }
+  this->nextion_queue_.insert(it, item);
+#else   // USE_NEXTION_COMMAND_SPACING
+  this->nextion_queue_.push_back(item);
+#endif  // USE_NEXTION_COMMAND_SPACING
+}
+
 bool Nextion::remove_from_q_(bool report_empty) {
   if (this->nextion_queue_.empty()) {
     if (report_empty) {
@@ -425,6 +440,15 @@ bool Nextion::remove_from_q_(bool report_empty) {
     return false;
   }
   NextionComponentBase *component = nb->component;
+
+#ifdef USE_NEXTION_COMMAND_SPACING
+  if (!nb->pending_command.empty()) {
+    // Not sent yet, so this response cannot belong to it. Dropping the
+    // response leaves the command queued instead of losing it.
+    ESP_LOGW(TAG, "Response for a command not yet sent, ignoring");
+    return false;
+  }
+#endif  // USE_NEXTION_COMMAND_SPACING
 
   ESP_LOGN(TAG, "Removed: %s", component->get_variable_name().c_str());
 
@@ -1117,7 +1141,7 @@ void Nextion::add_no_result_to_queue_(const std::string &variable_name) {
 
   nextion_queue->queue_time = App.get_loop_component_start_time();
 
-  this->nextion_queue_.push_back(nextion_queue);
+  this->enqueue_sent_(nextion_queue);
 
   ESP_LOGN(TAG, "Queue NORESULT: %s", nextion_queue->component->get_variable_name().c_str());
 }
@@ -1322,13 +1346,14 @@ void Nextion::add_to_get_queue(NextionComponentBase *component) {
   std::string command = "get " + component->get_variable_name_to_send();
 
 #ifdef USE_NEXTION_COMMAND_SPACING
-  // Always enqueue first so the response handler is present when the command
-  // is eventually sent. Store the command for retry if spacing blocked it;
-  // process_pending_in_queue_() will transmit it when the pacer allows.
-  nextion_queue->pending_command = command;
-  this->nextion_queue_.push_back(nextion_queue);
+  // Store the command for retry if spacing blocks it; process_pending_in_queue_()
+  // will transmit it when the pacer allows. A command that goes out right away is
+  // placed ahead of the entries still waiting, so the queue keeps transmit order.
   if (this->send_command_(command)) {
-    nextion_queue->pending_command.clear();
+    this->enqueue_sent_(nextion_queue);
+  } else {
+    nextion_queue->pending_command = command;
+    this->nextion_queue_.push_back(nextion_queue);
   }
 #else   // USE_NEXTION_COMMAND_SPACING
   if (this->send_command_(command)) {
