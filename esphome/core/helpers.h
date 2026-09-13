@@ -650,6 +650,8 @@ template<typename T> class FixedVector {
     reset_();
     if (n == 0)
       return true;
+    if (n > SIZE_MAX / sizeof(T))
+      return false;  // the byte count would wrap into a small block
     // sizeof(T) is correct here for any type T (value types, pointers, etc.)
     // NOLINTNEXTLINE(bugprone-sizeof-expression,cppcoreguidelines-no-malloc,cppcoreguidelines-owning-memory)
     data_ = static_cast<T *>(malloc(n * sizeof(T)));

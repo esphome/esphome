@@ -359,6 +359,8 @@ TEST(FixedVectorTryInit, ReportsExhaustionAndStaysEmpty) {
   escape(&v);
   EXPECT_FALSE(ok);
   EXPECT_EQ(v.capacity(), 0u);
+  EXPECT_FALSE(v.try_init(SIZE_MAX / sizeof(uint32_t) + 1));  // byte count would wrap
+  EXPECT_EQ(v.capacity(), 0u);
   EXPECT_TRUE(v.try_init(0));
   EXPECT_TRUE(v.try_init(4));
   v.push_back(7);
