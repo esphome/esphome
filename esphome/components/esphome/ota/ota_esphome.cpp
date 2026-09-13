@@ -842,7 +842,7 @@ bool ESPHomeOTAComponent::handle_auth_send_() {
     const size_t hex_size = hasher.get_size() * 2;
     const size_t nonce_len = hasher.get_size() / 4;
     const size_t auth_buf_size = 1 + 3 * hex_size;
-    this->auth_buf_ = RAMAllocator<uint8_t>().make_unique_array(auth_buf_size);
+    this->auth_buf_ = RAMAllocator<uint8_t>().make_unique_array_for_overwrite(auth_buf_size);
     if (!this->auth_buf_) {
       this->log_auth_warning_(LOG_STR("No memory"));
       this->send_error_and_cleanup_(ota::OTA_RESPONSE_ERROR_UNKNOWN);
