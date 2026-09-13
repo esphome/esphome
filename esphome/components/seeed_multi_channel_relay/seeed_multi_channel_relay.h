@@ -10,7 +10,7 @@ static constexpr uint8_t CMD_SAVE_I2C_ADDR = 0x11;
 static constexpr uint8_t CMD_READ_I2C_ADDR = 0x12;
 static constexpr uint8_t CMD_READ_FIRMWARE_VER = 0x13;
 
-class seeed_multi_channel_relay : public Component, public i2c::I2CDevice {
+class SeeedMultiChannelRelay : public Component, public i2c::I2CDevice {
  public:
   void relay_write(uint8_t number, bool state);
 
@@ -34,32 +34,32 @@ class seeed_multi_channel_relay : public Component, public i2c::I2CDevice {
   void setup() override;
 
  protected:
-  void write1_byte(uint8_t register_address, uint8_t data);
-  uint8_t read1_byte(uint8_t register_address);
-  uint8_t channel_state = {0};  // Value to save channel state
-  uint8_t new_addr;
-  bool address_changed = false;
+  void write1_byte_(uint8_t register_address, uint8_t data);
+  uint8_t read1_byte_(uint8_t register_address);
+  uint8_t channel_state_ = {0};  // Value to save channel state
+  uint8_t new_addr_;
+  bool address_changed_ = false;
 
   /*
     @brief Control relay channels
     @param state, use one Byte to represent 8 channel
     @return None
   */
-  void channel_ctrl(uint8_t state);
+  void channel_ctrl_(uint8_t state);
 
   /*
     @brief Turn on one of 8 channels
     @param channel, channel to control with (range from 1 to 8)
     @return None
 */
-  void turn_on_channel(uint8_t channel);
+  void turn_on_channel_(uint8_t channel);
 
   /*
       @brief Turn off on of 8 channels
       @param channel, channel to control with (range from 1 to 8)
       @return None
   */
-  void turn_off_channel(uint8_t channel);
+  void turn_off_channel_(uint8_t channel);
 };
 
 }  // namespace esphome::seeed_multi_channel_relay

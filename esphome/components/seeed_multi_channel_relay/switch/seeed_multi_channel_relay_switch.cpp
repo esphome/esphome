@@ -9,7 +9,7 @@ static const char *const TAG = "switch.seeed_multi_channel_relay";
 static constexpr uint32_t INTERLOCK_TIMEOUT_ID = 0;
 #endif
 
-void seeed_multi_channel_relay_Switch::setup() {
+void SeeedMultiChannelRelaySwitch ::setup() {
   ESP_LOGCONFIG(TAG, "Setting up seeed_multi_channel_relay Switch '%s'...", this->name_.c_str());
 
   bool initial_state = this->get_initial_state_with_restore_mode().value_or(false);
@@ -22,7 +22,7 @@ void seeed_multi_channel_relay_Switch::setup() {
   }
 }
 
-void seeed_multi_channel_relay_Switch::dump_config() {
+void SeeedMultiChannelRelaySwitch ::dump_config() {
   LOG_SWITCH("", "seeed_multi_channel_relay Switch", this);
   ESP_LOGCONFIG(TAG, "  Channel: %u", this->channel_);
 #ifdef USE_SWITCH_INTERLOCK
@@ -37,7 +37,7 @@ void seeed_multi_channel_relay_Switch::dump_config() {
 #endif
 }
 
-void seeed_multi_channel_relay_Switch::write_state(bool state) {
+void SeeedMultiChannelRelaySwitch ::write_state(bool state) {
 #ifdef USE_SWITCH_INTERLOCK
   if (state != this->inverted_) {
     if (state != this->inverted_) {
