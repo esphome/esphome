@@ -99,22 +99,17 @@ static_assert(PendingReply{}.empty());
 
 #ifdef USE_BLUETOOTH_PROXY_ADVERTISEMENT_FILTER
 /// Predicate slot letting an external component drop advertisements before they
-/// are queued for the API, instead of forwarding every packet the radio hears.
-///
-/// Same shape as ble_device_base::RawAdvertisementCallback: a POD slot with no
-/// allocation and a single subscriber. The filter runs on the advertisement hot
+/// are queued for the API. Same shape as
+/// ble_device_base::RawAdvertisementCallback. Runs on the advertisement hot
 /// path, so it must be cheap and must not block.
 ///
-/// Usage from an external component:
+/// Usage:
 ///   proxy->set_advertisement_filter({this, [](void *self, const ble_device_base::RawAdvertisement &adv) {
 ///     return static_cast<MyFilter *>(self)->should_forward(adv);
 ///   }});
 ///
-/// Returning false drops the advertisement. Call
-/// bluetooth_proxy.enable_advertisement_filter() from the external component's
-/// codegen to compile the hook in; without it there is no slot, no branch on the
-/// hot path, and no cost. The define behind that function is an implementation
-/// detail - external components should not emit it themselves.
+/// Returning false drops the advertisement. Compiled in only when an external
+/// component calls bluetooth_proxy.enable_advertisement_filter().
 struct AdvertisementFilter {
   void *instance{nullptr};
   bool (*fn)(void *instance, const ble_device_base::RawAdvertisement &adv){nullptr};
@@ -190,8 +185,7 @@ class BluetoothProxy final : public Component {
   bool has_active() { return this->active_; }
 
 #ifdef USE_BLUETOOTH_PROXY_ADVERTISEMENT_FILTER
-  /// Install the advertisement filter. One subscriber; a later call replaces an
-  /// earlier one.
+  /// One subscriber; a later call replaces an earlier one.
   void set_advertisement_filter(AdvertisementFilter filter) { this->advertisement_filter_ = filter; }
 #endif
 
