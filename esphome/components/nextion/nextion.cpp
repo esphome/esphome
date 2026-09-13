@@ -181,7 +181,8 @@ void Nextion::reset_(bool reset_nextion) {
     this->read_byte(&d);
   }
   for (auto *entry : this->nextion_queue_) {
-    this->release_queue_entry_(entry, entry->component->get_queue_type() == NextionQueueType::NO_RESULT);
+    this->release_queue_entry_(
+        entry, entry->component != nullptr && entry->component->get_queue_type() == NextionQueueType::NO_RESULT);
   }
   this->nextion_queue_.clear();
 #ifdef USE_NEXTION_WAVEFORM
@@ -666,7 +667,7 @@ void Nextion::process_nextion_commands_() {
           component->set_state_from_string(to_process, true, false);
         }
 
-        this->release_queue_entry_(nb, false);
+        this->release_queue_entry_(nb, component->get_queue_type() == NextionQueueType::NO_RESULT);
         this->nextion_queue_.pop_front();
 
         break;
@@ -709,7 +710,7 @@ void Nextion::process_nextion_commands_() {
           component->set_state_from_int(value, true, false);
         }
 
-        this->release_queue_entry_(nb, false);
+        this->release_queue_entry_(nb, component->get_queue_type() == NextionQueueType::NO_RESULT);
         this->nextion_queue_.pop_front();
 
         break;
@@ -1082,16 +1083,6 @@ uint16_t Nextion::recv_ret_string_(std::string &response, uint32_t timeout, bool
   return response.length();
 }
 
-/**
- * @brief Add a command to the Nextion queue that expects no response.
- *
- * This is typically used for write-only operations such as variable assignments or component updates
- * where no return value or acknowledgment is expected from the display.
- *
- * If the `max_queue_size` limit is configured and reached, the command will be skipped.
- *
- * @param variable_name Name of the variable or component associated with the command.
- */
 // Allocates a queue entry owning a bare NO_RESULT component; nullptr when the queue is full or memory is out
 NextionQueue *Nextion::make_no_result_entry_(const std::string &variable_name) {
 #ifdef USE_NEXTION_MAX_QUEUE_SIZE
@@ -1120,6 +1111,16 @@ NextionQueue *Nextion::make_no_result_entry_(const std::string &variable_name) {
   return nextion_queue;
 }
 
+/**
+ * @brief Add a command to the Nextion queue that expects no response.
+ *
+ * This is typically used for write-only operations such as variable assignments or component updates
+ * where no return value or acknowledgment is expected from the display.
+ *
+ * If the `max_queue_size` limit is configured and reached, the command will be skipped.
+ *
+ * @param variable_name Name of the variable or component associated with the command.
+ */
 void Nextion::add_no_result_to_queue_(const std::string &variable_name) {
   auto *nextion_queue = this->make_no_result_entry_(variable_name);
   if (nextion_queue == nullptr)
