@@ -2015,13 +2015,12 @@ def _existing_path(value: str, kind: str, is_kind: Callable[[Path], bool]) -> Pa
     if is_kind(path):
         return path
     candidates = [path]
-    document = _declaring_document(value)
-    if document is not None:
+    tried_document: Path | None = None
+    if (document := _declaring_document(value)) is not None:
         beside_document = document.parent / Path(value).expanduser()
-        if os.path.normpath(beside_document) == os.path.normpath(path):
-            document = None
-        else:
+        if os.path.normpath(beside_document) != os.path.normpath(path):
             candidates.append(beside_document)
+            tried_document = document
     if (remapped := _remap_bundle_path(value)) is not None:
         candidates.append(remapped)
     for candidate in candidates:
@@ -2032,7 +2031,9 @@ def _existing_path(value: str, kind: str, is_kind: Callable[[Path], bool]) -> Pa
             raise Invalid(
                 f"Path '{candidate}' is not a {kind} (full path: {candidate.resolve()})."
             )
-    also = f" Also looked next to {document}." if document is not None else ""
+    also = (
+        f" Also looked next to {tried_document}." if tried_document is not None else ""
+    )
     raise Invalid(
         f"Could not find {kind} '{path}'. Please make sure it exists (full path: {path.resolve()}).{also}"
     )

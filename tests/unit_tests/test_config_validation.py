@@ -3255,6 +3255,15 @@ def test_file__document_spelled_through_dotdot_in_the_config_dir_adds_no_hint(
     assert "Also looked" not in str(excinfo.value)
 
 
+def test_file__wrong_kind_beside_the_document_is_reported(setup_core: Path) -> None:
+    package_dir, value = _package_value(setup_core, "assets")
+
+    with pytest.raises(Invalid, match="is not a file") as excinfo:
+        cv.file_(value)
+
+    assert str(package_dir / "assets") in str(excinfo.value)
+
+
 def test_file__config_dir_wins_over_the_declaring_document(setup_core: Path) -> None:
     _, value = _package_value(setup_core)
     (setup_core / "assets").mkdir()
