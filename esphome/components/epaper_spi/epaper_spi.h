@@ -113,12 +113,12 @@ class EPaperBase : public Display,
   int get_height_internal() override { return this->height_; };
   int get_width_internal() override { return this->width_; };
   bool is_using_partial_update_() const { return this->full_update_every_ > 1; }
-  /// Fill the whole frame buffer with the color; fill() marks the canvas dirty afterwards.
+  /// Fill the whole frame buffer with the color.
   virtual void fill_buffer(Color color) {
     // We store 8 pixels per byte
     this->buffer_.fill(color_to_bit(color) ? 0xFF : 0x00);
   }
-  /// Mark the whole canvas dirty so the next update is not skipped.
+  /// An update with no dirty area is skipped, so whole buffer writes must call this.
   void mark_all_dirty_() {
     this->x_low_ = 0;
     this->y_low_ = 0;

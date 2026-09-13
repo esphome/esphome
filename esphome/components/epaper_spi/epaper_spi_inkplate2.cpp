@@ -73,7 +73,7 @@ void HOT EPaperInkplate2::draw_pixel_at(int x, int y, Color color) {
 
   const size_t half_buffer = this->buffer_length_ / 2;
   const size_t pos = y * this->row_width_ + x / 8;
-  const uint8_t mask = 0x80 >> (x & 0x07);  // MSB first; see fill() for plane encoding
+  const uint8_t mask = 0x80 >> (x & 0x07);  // MSB first; see fill_buffer() for plane encoding
 
   switch (to_inkplate2_color(color)) {
     case Inkplate2Color::BLACK:
