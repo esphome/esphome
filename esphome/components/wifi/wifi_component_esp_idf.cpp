@@ -985,6 +985,7 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
           this->log_discarded_scan_result_(ssid_cstr, record.bssid, record.rssi, record.primary);
           continue;
         }
+        // Rebuilt in place rather than assigned; assignment pulls in CompactString's operators, 104 B of flash
         weakest->~WiFiScanResult();
         new (weakest) WiFiScanResult(bssid, ssid_cstr, strlen(ssid_cstr), record.primary, record.rssi,
                                      record.authmode != WIFI_AUTH_OPEN, ssid_cstr[0] == '\0');
