@@ -926,11 +926,11 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
         return;
       }
 
-      // Full results keep every network; filtered results keep only configured ones, so a small
-      // capacity is enough. Storage is kept between scans and only regrown when a scan needs more;
-      // an exhausted heap drops this scan and the retry logic scans again
-      const size_t capacity = needs_full ? number : std::min<size_t>(number, WIFI_SCAN_RESULT_FILTERED_RESERVE);
-      if (this->scan_result_.capacity() < capacity && !this->scan_result_.try_init(capacity)) {
+      // Full results keep every network; filtered results usually keep a few, so start small and
+      // grow on demand below. Storage is kept between scans and only regrown when a scan needs
+      // more; an exhausted heap drops this scan and the retry logic scans again
+      const size_t initial = needs_full ? number : std::min<size_t>(number, WIFI_SCAN_RESULT_FILTERED_RESERVE);
+      if (this->scan_result_.capacity() < initial && !this->scan_result_.try_init(initial)) {
         esp_wifi_clear_ap_list();
         ESP_LOGW(TAG, "No memory for %u scan results", number);
         return;
@@ -966,7 +966,11 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
         const char *ssid_cstr = reinterpret_cast<const char *>(record.ssid);
 
         // Only construct std::string and store if needed
-        if ((needs_full || this->matches_configured_network_(ssid_cstr, record.bssid)) && !this->scan_result_.full()) {
+        // A full filtered store grows on demand; when the heap is exhausted mid scan the stored
+        // results are kept and the rest are logged as discarded
+        const bool wanted = needs_full || this->matches_configured_network_(ssid_cstr, record.bssid);
+        if (wanted && (!this->scan_result_.full() ||
+                       this->scan_result_.try_reserve(std::min<size_t>(number, this->scan_result_.capacity() * 2)))) {
           bssid_t bssid;
           std::copy(record.bssid, record.bssid + 6, bssid.begin());
           this->scan_result_.emplace_back(bssid, ssid_cstr, strlen(ssid_cstr), record.primary, record.rssi,
