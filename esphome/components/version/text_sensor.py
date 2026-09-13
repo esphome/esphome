@@ -112,11 +112,12 @@ FINAL_VALIDATE_SCHEMA = _final_validate
 
 async def to_code(config: ConfigType) -> None:
     if (name := config.get(CONF_COMPONENT)) is not None:
-        var = await text_sensor.new_text_sensor(config, name)
+        # Both literals go to flash on esp8266, like the ESPHome-version path.
+        var = await text_sensor.new_text_sensor(config, cg.LogStringLiteral(name))
         await cg.register_component(var, config)
         # _final_validate has already warned when there is no version to report.
         if (version := get_component(name).component_version) is not None:
-            cg.add(var.set_version(version))
+            cg.add(var.set_version(cg.FlashStringLiteral(version)))
         return
 
     var = await text_sensor.new_text_sensor(config)

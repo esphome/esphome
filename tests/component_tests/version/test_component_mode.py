@@ -22,7 +22,8 @@ def test_component_mode_uses_its_own_class(
     assert "version::ComponentVersionTextSensor" in main_cpp
     assert "version::VersionTextSensor" not in main_cpp
     # Required and invariant, so a constructor argument rather than a setter.
-    assert 'ComponentVersionTextSensor("version")' in main_cpp
+    # LOG_STR keeps it out of DRAM on esp8266.
+    assert 'ComponentVersionTextSensor(LOG_STR("version"))' in main_cpp
 
 
 def test_esphome_mode_is_untouched(
@@ -46,7 +47,7 @@ def test_declared_version_is_emitted(
 
     main_cpp = generate_main(component_config_path("component_mode.yaml"))
 
-    assert 'set_version("1.2.3")' in main_cpp
+    assert 'set_version(ESPHOME_F("1.2.3"))' in main_cpp
 
 
 def test_undeclared_version_is_not_emitted(
