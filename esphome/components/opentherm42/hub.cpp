@@ -251,7 +251,7 @@ void OpenTherm42Hub::loop() {
     case DataLinkState::ERROR: {
       char kind_desc[80];
       this->describe_request_kind_(this->pending_request_kind_, kind_desc, sizeof(kind_desc));
-      ESP_LOGW(TAG, "Conversation failed: %s (%s)", data_link_error_to_string(this->datalink_->get_error()), kind_desc);
+      ESP_LOGE(TAG, "Conversation failed: %s (%s)", data_link_error_to_string(this->datalink_->get_error()), kind_desc);
       this->invalidate_response_(this->pending_request_kind_);
       this->last_conversation_end_ms_ = millis();
       this->datalink_->stop();
