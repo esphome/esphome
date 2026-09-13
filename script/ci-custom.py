@@ -163,7 +163,9 @@ def lint_post_check(func):
     return func
 
 
-def lint_re_check(regex, **kwargs):
+def lint_re_check(regex, mask=False, **kwargs):
+    """mask=True blanks comments and string literals first so prose about the pattern is not reported;
+    the masked text keeps its length, so match offsets still index the original content."""
     flags = kwargs.pop("flags", re.MULTILINE)
     prog = re.compile(regex, flags)
     decor = lint_content_check(**kwargs)
@@ -172,8 +174,12 @@ def lint_re_check(regex, **kwargs):
         @functools.wraps(func)
         def new_func(fname, content):
             errs = []
-            for match in prog.finditer(content):
-                if "NOLINT" in match.group(0):
+            # Masking only blanks text, so no raw match means no masked match either
+            if mask and not prog.search(content):
+                return errs
+            haystack = _mask_cpp_comments_strings(content) if mask else content
+            for match in prog.finditer(haystack):
+                if "NOLINT" in content[match.start() : match.end()]:
                     continue
                 lineno = content.count("\n", 0, match.start()) + 1
                 substr = content[: match.start()]
@@ -1135,10 +1141,9 @@ def lint_no_std_bind(fname, match):
     )
 
 
-STD_NOTHROW_RE = re.compile(r"\bstd\s*::\s*nothrow\b")
-
-
-@lint_content_check(
+@lint_re_check(
+    r"[^\w]std\s*::\s*nothrow\b" + CPP_RE_EOL,
+    mask=True,
     include=cpp_include,
     exclude=[
         # Still use new (std::nothrow); migrated to RAMAllocator in a follow up PR
@@ -1150,34 +1155,15 @@ STD_NOTHROW_RE = re.compile(r"\bstd\s*::\s*nothrow\b")
         "esphome/components/ota/ota_signature_esp_idf.cpp",
     ],
 )
-def lint_no_std_nothrow(fname, content):
-    errs = []
-    # Comments and string literals are blanked so prose about nothrow is not reported
-    masked = _mask_cpp_comments_strings(content)
-    for match in STD_NOTHROW_RE.finditer(masked):
-        line_start = content.rfind("\n", 0, match.start()) + 1
-        line_end = content.find("\n", match.end())
-        line = content[line_start : line_end if line_end != -1 else None]
-        if "NOLINT" in line:
-            continue
-        lineno = content.count("\n", 0, match.start()) + 1
-        msg = (
-            f"{highlight('new (std::nothrow)')} does not return nullptr on ESP-IDF: C++ exceptions "
-            f"are disabled there, so the throwing operator new reaches the exception stubs and "
-            f"the device aborts.\n"
-            f"Please use {highlight('RAMAllocator')} from esphome/core/helpers.h, which returns "
-            f"nullptr when memory is exhausted:\n"
-            f"  Before: {highlight('auto *buf = new (std::nothrow) uint8_t[n];')}\n"
-            f"  After:  {highlight('auto *buf = RAMAllocator<uint8_t>().allocate(n);')}"
-            f"  (free with {highlight('.deallocate(buf, n)')})\n"
-            f"Keep owned storage in a {highlight('std::unique_ptr')} whose deleter calls "
-            f"{highlight('deallocate')}, as {highlight('APIBuffer')} in esphome/components/api does.\n"
-            f"For an object with a constructor, allocate raw storage with RAMAllocator and "
-            f"construct it with placement new.\n"
-            f"(If strictly necessary, add `// NOLINT` to the end of the line)"
-        )
-        errs.append((lineno, match.start() - line_start + 1, msg))
-    return errs
+def lint_no_std_nothrow(fname, match):
+    return (
+        f"{highlight('new (std::nothrow)')} aborts on ESP-IDF when the allocation fails, exceptions are disabled "
+        f"there, so it never returns nullptr.\n"
+        f"Please use {highlight('RAMAllocator')} from esphome/core/helpers.h, which does.\n"
+        f"  Before: {highlight('auto *buf = new (std::nothrow) uint8_t[n];')}\n"
+        f"  After:  {highlight('auto *buf = RAMAllocator<uint8_t>().allocate(n);')}\n"
+        f"(If strictly necessary, add `// NOLINT` to the end of the line)"
+    )
 
 
 LOG_MULTILINE_RE = re.compile(r"ESP_LOG\w+\s*\(.*?;", re.DOTALL)
