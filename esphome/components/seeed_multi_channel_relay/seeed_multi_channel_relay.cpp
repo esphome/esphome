@@ -39,7 +39,7 @@ uint8_t SeeedMultiChannelRelay::read1_byte_(uint8_t register_address) {
 /*! @brief Control the on/off of the specified relay.
   *  @param number Bit number of relay (1~8).
     @param state OFF = 0, ON = 1 . */
-void SeeedMultiChannelRelay::relay_write_(uint8_t number, bool state) {
+void SeeedMultiChannelRelay::relay_write(uint8_t number, bool state) {
   if (state) {
     this->turn_on_channel_(number);
   } else {
@@ -57,7 +57,7 @@ void SeeedMultiChannelRelay::setup() {
   }
 }
 
-void SeeedMultiChannelRelay::change_i2c_address_(uint8_t new_addr) {
+void SeeedMultiChannelRelay::change_i2c_address(uint8_t new_addr) {
   this->new_addr_ = new_addr;
   address_changed_ = true;
 }
