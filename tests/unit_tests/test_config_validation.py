@@ -1394,6 +1394,35 @@ def test_entity_metadata_visibility_hints() -> None:
     assert web["web_server"].visibility is advanced
 
 
+def test_with_visibility_remarks_keys() -> None:
+    """``with_visibility`` re-marks the named keys, preserving each field's
+    default and validator, without touching the other keys or the input schema.
+    """
+    base = cv.Schema(
+        {
+            cv.Optional("a", default=7): cv.int_,
+            cv.Optional("b", visibility=cv.Visibility.ADVANCED): cv.string,
+        }
+    )
+    promoted = cv.with_visibility(base, cv.Visibility.UI, "a")
+
+    pm = {str(k): k for k in promoted.schema}
+    assert pm["a"].visibility is cv.Visibility.UI  # re-marked
+    assert pm["a"].default() == 7  # default preserved
+    assert pm["b"].visibility is cv.Visibility.ADVANCED  # sibling untouched
+    assert promoted({}) == {"a": 7}  # validator/default still applied
+
+    # The input schema is left untouched (no shared-marker mutation).
+    assert {str(k): k for k in base.schema}["a"].visibility is None
+
+
+def test_with_visibility_unknown_key_raises() -> None:
+    """A key not present in the schema is a typo — fail at build time."""
+    base = cv.Schema({cv.Optional("a"): cv.int_})
+    with pytest.raises(ValueError, match="not in schema"):
+        cv.with_visibility(base, cv.Visibility.UI, "nope")
+
+
 def _wrap_str(value: str) -> ESPHomeDataBase:
     """Wrap a raw string as an ESPHomeDataBase, mimicking a YAML-loaded value."""
     return make_data_base(value)

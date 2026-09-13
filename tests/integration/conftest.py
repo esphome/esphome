@@ -4,17 +4,22 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import AsyncGenerator, Callable, Generator
-from contextlib import AbstractAsyncContextManager, asynccontextmanager
+from contextlib import AbstractAsyncContextManager, asynccontextmanager, suppress
 import fcntl
+from functools import cache
+import hashlib
 import logging
 import os
 from pathlib import Path
 import platform
+import re
+import shutil
 import signal
 import socket
 import subprocess
 import sys
 import tempfile
+import time
 from typing import TextIO
 
 from aioesphomeapi import APIClient, APIConnectionError, LogParser, ReconnectLogic
@@ -23,7 +28,13 @@ import pytest_asyncio
 
 import esphome.config
 from esphome.core import CORE
-from esphome.helpers import get_usable_cpu_count
+from esphome.helpers import (
+    get_usable_cpu_count,
+    read_file,
+    rmtree,
+    write_file,
+    write_file_if_changed,
+)
 from esphome.platformio.toolchain import get_idedata
 
 from .const import (
@@ -56,6 +67,21 @@ import pty  # not available on Windows
 pytest.register_assert_rewrite("tests.integration.entity_utils")
 
 
+def pytest_configure(config: pytest.Config) -> None:
+    config.addinivalue_line(
+        "markers",
+        "shared_yaml(name): load fixtures/<name>.yaml and compile it in a shared, "
+        "hash-keyed incremental build directory",
+    )
+
+
+FIXTURES_DIR = Path(__file__).parent / "fixtures"
+REPO_ROOT = Path(__file__).resolve().parent.parent.parent
+
+# CI caches parts of this path; keep in sync with ci.yml integration-tests.
+INTEGRATION_TESTS_ROOT = Path.home() / ".esphome-integration-tests"
+
+
 def _get_platformio_env(cache_dir: Path) -> dict[str, str]:
     """Get environment variables for PlatformIO with shared cache."""
     env = os.environ.copy()
@@ -78,7 +104,7 @@ def _get_platformio_env(cache_dir: Path) -> dict[str, str]:
         )
     # Compile with THIS tree's esphome sources, not wherever the venv's editable
     # install points (which may be a different git worktree or checkout).
-    repo_root = str(Path(__file__).resolve().parent.parent.parent)
+    repo_root = str(REPO_ROOT)
     existing = env.get("PYTHONPATH")
     env["PYTHONPATH"] = f"{repo_root}{os.pathsep}{existing}" if existing else repo_root
     return env
@@ -88,8 +114,7 @@ def _get_platformio_env(cache_dir: Path) -> dict[str, str]:
 def shared_platformio_cache() -> Generator[Path]:
     """Initialize a shared PlatformIO cache for all integration tests."""
     # Use a dedicated directory for integration tests to avoid conflicts.
-    # CI caches parts of this path; keep in sync with ci.yml integration-tests.
-    test_cache_dir = Path.home() / ".esphome-integration-tests"
+    test_cache_dir = INTEGRATION_TESTS_ROOT
     cache_dir = test_cache_dir / "platformio"
 
     # Use a lock file in the home directory to ensure only one process initializes the cache
@@ -112,7 +137,9 @@ def shared_platformio_cache() -> Generator[Path]:
                 init_dir = Path(tmpdir)
                 fixture_path = Path(__file__).parent / "fixtures" / "cache_init.yaml"
                 config_path = init_dir / "cache_init.yaml"
-                config_path.write_text(fixture_path.read_text())
+                config_path.write_text(
+                    fixture_path.read_text(encoding="utf-8"), encoding="utf-8"
+                )
 
                 # Run compilation to populate the cache
                 # We must succeed here to avoid race conditions where multiple
@@ -181,21 +208,29 @@ def unused_tcp_port(reserved_tcp_port: tuple[int, socket.socket]) -> int:
     return reserved_tcp_port[0]
 
 
+@pytest.fixture(autouse=True)
+def isolated_preferences(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Path:
+    """Give every test its own host prefs dir; prefs are keyed only by device
+    name, which tests sharing a fixture also share."""
+    prefdir = tmp_path / "prefs"
+    monkeypatch.setenv("ESPHOME_PREFDIR", str(prefdir))
+    return prefdir
+
+
 @pytest_asyncio.fixture
 async def yaml_config(request: pytest.FixtureRequest, unused_tcp_port: int) -> str:
     """Load YAML configuration based on test name."""
-    # Get the test function name
-    test_name: str = request.node.name
-    # Extract the base test name (remove test_ prefix and any parametrization)
-    base_name = test_name.replace("test_", "").partition("[")[0]
+    shared_name = _shared_yaml_name(request)
+    # Base test name: test_ prefix and any parametrization stripped
+    base_name = shared_name or request.node.name.replace("test_", "").partition("[")[0]
 
     # Load the fixture file
-    fixture_path = Path(__file__).parent / "fixtures" / f"{base_name}.yaml"
+    fixture_path = FIXTURES_DIR / f"{base_name}.yaml"
     if not fixture_path.exists():
         raise FileNotFoundError(f"Fixture file not found: {fixture_path}")
 
     loop = asyncio.get_running_loop()
-    content = await loop.run_in_executor(None, fixture_path.read_text)
+    content = await loop.run_in_executor(None, read_file, fixture_path)
 
     # Replace the port in the config if it contains api section
     if "api:" in content:
@@ -219,10 +254,12 @@ async def yaml_config(request: pytest.FixtureRequest, unused_tcp_port: int) -> s
 
     # Replace external component path placeholder if present
     if "EXTERNAL_COMPONENT_PATH" in content:
-        external_components_path = str(
-            Path(__file__).parent / "fixtures" / "external_components"
-        )
+        external_components_path = str(FIXTURES_DIR / "external_components")
         content = content.replace("EXTERNAL_COMPONENT_PATH", external_components_path)
+
+    if shared_name is not None:
+        # _compile verifies the marked test compiles this content unmodified
+        request.node._shared_yaml_content = content
 
     return content
 
@@ -233,24 +270,218 @@ async def write_yaml_config(
 ) -> AsyncGenerator[ConfigWriter]:
     """Write YAML configuration to a file."""
     # Get the test name for default filename
-    test_name = request.node.name
-    base_name = test_name.replace("test_", "").split("[")[0]
+    base_name = request.node.name.replace("test_", "").partition("[")[0]
 
     async def _write_config(content: str, filename: str | None = None) -> Path:
         if filename is None:
             filename = f"{base_name}.yaml"
         config_path = integration_test_dir / filename
         loop = asyncio.get_running_loop()
-        await loop.run_in_executor(None, config_path.write_text, content)
+        await loop.run_in_executor(None, write_file, config_path, content)
         return config_path
 
     yield _write_config
+
+
+# Deliberately not CI-cached (ci.yml caches only platformio/ subpaths); stale
+# dirs for a fixture are pruned when its content hash changes.
+SHARED_BUILDS_ROOT = INTEGRATION_TESTS_ROOT / "builds"
+
+# In the dir name (not just the hash) so pruning stays inside this checkout
+_REPO_KEY = hashlib.sha256(str(REPO_ROOT).encode()).hexdigest()[:8]
+
+# Give a contended shared build lock time for a full cold compile ahead of us
+_SHARED_LOCK_TIMEOUT_S = 900
+_SHARED_LOCK_POLL_S = 0.1
+_SHARED_LOCK_REPORT_S = 30
+
+# Reclaims dirs orphaned by fixture renames or deleted checkouts
+_STALE_BUILD_MAX_AGE_S = 30 * 24 * 3600
+
+# ELF path per shared build dir; constant once compiled, so resolve it only once
+_shared_elf_paths: dict[Path, Path] = {}
+
+# Dirs this process already swept; pruning is session-scoped work
+_pruned_dirs: set[Path] = set()
+
+
+def _shared_yaml_name(request: pytest.FixtureRequest) -> str | None:
+    """Name passed to the shared_yaml marker, or None when unmarked."""
+    marker = request.node.get_closest_marker("shared_yaml")
+    if marker is None:
+        return None
+    # Exactly one \w+ positional arg: the name doubles as a build dir
+    # component, and CI test selection (script/helpers.py) parses the same shape
+    if (
+        len(marker.args) != 1
+        or marker.kwargs
+        or not re.fullmatch(r"\w+", str(marker.args[0]))
+    ):
+        raise ValueError(
+            "shared_yaml marker requires exactly one \\w+ fixture name literal"
+        )
+    return marker.args[0]
+
+
+def _shared_build_prefix(name: str) -> str:
+    return f"{name}-{_REPO_KEY}-"
+
+
+@cache
+def _shared_build_dir(name: str) -> Path:
+    """Dir keyed by checkout and fixture source, before per-test injections."""
+    key = hashlib.sha256((FIXTURES_DIR / f"{name}.yaml").read_bytes()).hexdigest()[:16]
+    return SHARED_BUILDS_ROOT / (_shared_build_prefix(name) + key)
+
+
+def _read_stamp(stamp: Path, shared_dir: Path) -> Path | None:
+    """ELF path recorded by the last completed compile, or None."""
+    try:
+        text = stamp.read_text(encoding="utf-8").strip()
+    except FileNotFoundError:
+        return None
+    except OSError as err:
+        print(f"Cannot read {stamp}: {err}")
+        return None
+    if not text:
+        print(f"Ignoring empty stamp {stamp}")
+        return None
+    built = Path(text)
+    # Never trust a stamp pointing outside its own build dir as an unlink target
+    if shared_dir.resolve() in built.resolve().parents:
+        return built
+    print(f"Ignoring stamp {stamp} pointing outside {shared_dir}")
+    return None
+
+
+def _unused_since(stale: Path, cutoff: float) -> bool:
+    """Whether a build dir looks untouched since cutoff; unknown counts as used."""
+    # Newest of the .built stamp (rewritten by every completed compile) and the
+    # dir itself (freshened by a worker claiming the dir before locking)
+    newest: float | None = None
+    for probe in (stale / ".built", stale):
+        try:
+            mtime = probe.stat().st_mtime
+        except FileNotFoundError:
+            continue
+        except NotADirectoryError:
+            return True  # a stray file where a dir should be; reclaimable
+        except OSError as err:
+            print(f"Cannot age-probe {stale}: {err}")
+            return False  # unknown never authorizes deletion
+        newest = mtime if newest is None else max(newest, mtime)
+    return newest is not None and newest < cutoff
+
+
+def _prune_stale_builds(name: str, keep: Path) -> None:
+    """Remove outdated build dirs (blocking, run in executor): this checkout's
+    other dirs for the fixture, plus anything untouched for 30 days. Tolerates
+    other workers pruning the same dirs concurrently."""
+    cutoff = time.time() - _STALE_BUILD_MAX_AGE_S
+    prefix = _shared_build_prefix(name)
+    for stale in SHARED_BUILDS_ROOT.iterdir():
+        if stale == keep:
+            continue
+        same_fixture = stale.name.startswith(prefix)
+        if not same_fixture and not _unused_since(stale, cutoff):
+            continue
+        # Creating .lock bumps the dir mtime, so remember whether the re-probe
+        # under the lock can trust it
+        lock_preexisting = (stale / ".lock").exists()
+        try:
+            lock_file = (stale / ".lock").open("w")
+        except FileNotFoundError:
+            continue  # pruned by another worker meanwhile
+        except NotADirectoryError:
+            print(f"Removing stray file {stale}")
+            stale.unlink(missing_ok=True)
+            continue
+        except OSError as err:
+            print(f"Cannot prune {stale}: {err}")
+            continue
+        with lock_file:
+            try:
+                fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except BlockingIOError:
+                continue  # still in use by another run
+            # Re-probe under the lock: a worker freshens its dir before
+            # locking, so a just-claimed dir no longer looks unused. A dir
+            # whose .lock we just created cannot be held by anyone, and our
+            # own open bumped its mtime, so its pre-open probe stands
+            if (
+                lock_preexisting
+                and not same_fixture
+                and not _unused_since(stale, cutoff)
+            ):
+                continue
+            # rmtree tolerates races; a leftover partial tree only costs a
+            # rebuild, since the ELF is deleted before every compile
+            try:
+                rmtree(stale)
+            except OSError as err:
+                print(f"Failed to prune {stale}: {err}")
+
+
+async def _run_esphome_compile(
+    config_path: Path, cwd: Path, env: dict[str, str]
+) -> None:
+    """Run `esphome compile`, retrying up to 3 times on a segfault."""
+    max_retries = 3
+    for attempt in range(max_retries):
+        # Compile using subprocess, inheriting stdout/stderr to show progress
+        proc = await asyncio.create_subprocess_exec(
+            sys.executable,
+            "-m",
+            "esphome",
+            "compile",
+            str(config_path),
+            cwd=cwd,
+            stdout=None,  # Inherit stdout
+            stderr=None,  # Inherit stderr
+            stdin=asyncio.subprocess.DEVNULL,
+            # Start in a new process group to isolate signal handling
+            start_new_session=True,
+            env=env,
+            close_fds=False,
+        )
+        await proc.wait()
+
+        if proc.returncode == 0:
+            break
+        if proc.returncode == -11 and attempt < max_retries - 1:
+            # Segfault (-11 = SIGSEGV), retry
+            print(
+                f"Compilation segfaulted (attempt {attempt + 1}/{max_retries}), retrying..."
+            )
+            await asyncio.sleep(1)  # Brief pause before retry
+            continue
+        raise RuntimeError(
+            f"Failed to compile {config_path}, return code: {proc.returncode}. "
+            f"Run with 'pytest -s' to see compilation output."
+        )
+
+
+def _resolve_compiled_binary(config_path: Path) -> Path:
+    """Load the config to learn the compiled ELF path (blocking, run in executor)."""
+    CORE.reset()  # Reset CORE state between test runs
+    CORE.config_path = config_path
+    config = esphome.config.read_config(
+        {"command": "compile", "config": str(config_path)}
+    )
+    if config is None:
+        raise RuntimeError(f"Failed to read config from {config_path}")
+    idedata = get_idedata(config)
+    binary_path = Path(idedata.firmware_elf_path)
+    if not binary_path.exists():
+        raise RuntimeError(f"Compiled binary not found at {binary_path}")
+    return binary_path
 
 
 @pytest_asyncio.fixture
 async def compile_esphome(
     integration_test_dir: Path,
     shared_platformio_cache: Path,
+    request: pytest.FixtureRequest,
 ) -> AsyncGenerator[CompileFunction]:
     """Compile an ESPHome configuration and return the binary path."""
 
@@ -258,66 +489,96 @@ async def compile_esphome(
         # Use the shared PlatformIO cache for faster compilation
         # This avoids re-downloading dependencies for each test
         env = _get_platformio_env(shared_platformio_cache)
-
-        # Retry compilation up to 3 times if we get a segfault
-        max_retries = 3
-        for attempt in range(max_retries):
-            # Compile using subprocess, inheriting stdout/stderr to show progress
-            proc = await asyncio.create_subprocess_exec(
-                sys.executable,
-                "-m",
-                "esphome",
-                "compile",
-                str(config_path),
-                cwd=integration_test_dir,
-                stdout=None,  # Inherit stdout
-                stderr=None,  # Inherit stderr
-                stdin=asyncio.subprocess.DEVNULL,
-                # Start in a new process group to isolate signal handling
-                start_new_session=True,
-                env=env,
-                close_fds=False,
-            )
-            await proc.wait()
-
-            if proc.returncode == 0:
-                # Success!
-                break
-            if proc.returncode == -11 and attempt < max_retries - 1:
-                # Segfault (-11 = SIGSEGV), retry
-                print(
-                    f"Compilation segfaulted (attempt {attempt + 1}/{max_retries}), retrying..."
-                )
-                await asyncio.sleep(1)  # Brief pause before retry
-                continue
-            # Other error or final retry
-            raise RuntimeError(
-                f"Failed to compile {config_path}, return code: {proc.returncode}. "
-                f"Run with 'pytest -s' to see compilation output."
-            )
-
-        # Load the config to get idedata (blocking call, must use executor)
         loop = asyncio.get_running_loop()
 
-        def _read_config_and_get_binary():
-            CORE.reset()  # Reset CORE state between test runs
-            CORE.config_path = config_path
-            config = esphome.config.read_config(
-                {"command": "compile", "config": str(config_path)}
+        name = _shared_yaml_name(request)
+        if name is None:
+            await _run_esphome_compile(config_path, integration_test_dir, env)
+            return await loop.run_in_executor(
+                None, _resolve_compiled_binary, config_path
             )
-            if config is None:
-                raise RuntimeError(f"Failed to read config from {config_path}")
 
-            # Get the compiled binary path
-            idedata = get_idedata(config)
-            return Path(idedata.firmware_elf_path)
-
-        binary_path = await loop.run_in_executor(None, _read_config_and_get_binary)
-
-        if not binary_path.exists():
-            raise RuntimeError(f"Compiled binary not found at {binary_path}")
-
-        return binary_path
+        # Shared fixture: build in a hash-keyed dir so tests sharing a config
+        # pay one full compile and later only a main.cpp (port) rebuild + relink
+        shared_dir = _shared_build_dir(name)
+        shared_dir.mkdir(parents=True, exist_ok=True)
+        # Freshen the dir before locking so a concurrent age sweep, which
+        # re-probes under the lock, never reaps a dir a worker just claimed;
+        # if a peer reaped it already, the guarded lock open recreates it
+        with suppress(FileNotFoundError):
+            os.utime(shared_dir)
+        if shared_dir not in _pruned_dirs:
+            _pruned_dirs.add(shared_dir)
+            await loop.run_in_executor(None, _prune_stale_builds, name, shared_dir)
+        shared_config = shared_dir / f"{name}.yaml"
+        private_binary = integration_test_dir / f"{name}.elf"
+        content = await loop.run_in_executor(None, read_file, config_path)
+        if content != getattr(request.node, "_shared_yaml_content", None):
+            # The dir is keyed by the fixture source; a mutated config would be
+            # cached under a hash that does not describe it
+            raise RuntimeError(
+                "shared_yaml tests must compile the yaml_config content unmodified"
+            )
+        # flock serializes concurrent xdist workers; closing the fd releases it.
+        # Hand-rolled rather than filelock.FileLock: non-blocking retries keep
+        # the wait cancellable, while a blocking acquire in an executor thread
+        # would survive test cancellation holding the fd
+        try:
+            lock_file = (shared_dir / ".lock").open("w")
+        except FileNotFoundError:
+            # A peer run pruning divergent hashes reaped the dir between our
+            # mkdir and this open; recreate it and pay a full rebuild
+            shared_dir.mkdir(parents=True, exist_ok=True)
+            lock_file = (shared_dir / ".lock").open("w")
+        with lock_file:
+            start = time.monotonic()
+            last_report = start
+            while True:
+                try:
+                    fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+                    break
+                except BlockingIOError:
+                    now = time.monotonic()
+                    if now - start > _SHARED_LOCK_TIMEOUT_S:
+                        raise RuntimeError(
+                            f"Timed out waiting for the {shared_dir} lock"
+                        ) from None
+                    if now - last_report >= _SHARED_LOCK_REPORT_S:
+                        last_report = now
+                        print(
+                            f"Waited {now - start:.0f}s for another worker's "
+                            f"build of {shared_dir.name}"
+                        )
+                    await asyncio.sleep(_SHARED_LOCK_POLL_S)
+            # .built carries the ELF path of the last completed compile, so
+            # later workers skip the config re-read in _resolve_compiled_binary
+            stamp = shared_dir / ".built"
+            if (built := _shared_elf_paths.get(shared_dir)) is None:
+                built = await loop.run_in_executor(None, _read_stamp, stamp, shared_dir)
+            # Delete the ELF before compiling: whatever exists afterwards is
+            # this compile's output, so no staleness check is ever needed.
+            # With no usable stamp, sweep any leftover at the known layout
+            if built is not None:
+                built.unlink(missing_ok=True)
+            else:
+                # Layout-agnostic: ESPHOME_BUILD_PATH can move the build tree
+                for leftover in shared_dir.rglob("program"):
+                    if leftover.is_file():
+                        leftover.unlink()
+            await loop.run_in_executor(
+                None, write_file_if_changed, shared_config, content
+            )
+            await _run_esphome_compile(shared_config, shared_dir, env)
+            if built is None or not built.exists():
+                built = await loop.run_in_executor(
+                    None, _resolve_compiled_binary, shared_config
+                )
+            _shared_elf_paths[shared_dir] = built
+            await loop.run_in_executor(None, write_file, stamp, str(built))
+            # Copy out before unlocking: another worker may relink firmware.elf
+            # while this test is still running its private copy
+            await loop.run_in_executor(None, shutil.copy2, built, private_binary)
+        return private_binary
 
     yield _compile
 

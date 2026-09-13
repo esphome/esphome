@@ -2353,3 +2353,20 @@ def test_discard_partial_download_logs_undeletable(
     ):
         framework_helpers.discard_partial_download(dest)
     assert "Could not remove" in caplog.text
+
+
+def test_downloaded_bytes_reports_what_is_on_disk(tmp_path: Path) -> None:
+    """Part file first, then the landed file, both capped at size; else 0."""
+    dest = tmp_path / "archive"
+    assert framework_helpers.downloaded_bytes(dest, 4) == 0
+    part = tmp_path / "archive.part"
+    part.write_bytes(b"ab")
+    assert framework_helpers.downloaded_bytes(dest, 4) == 2
+    part.write_bytes(b"abcdef")
+    assert framework_helpers.downloaded_bytes(dest, 4) == 4
+    part.unlink()
+    dest.write_bytes(b"abc")
+    assert framework_helpers.downloaded_bytes(dest, 4) == 3
+    assert framework_helpers.downloaded_bytes(dest) == 3
+    dest.write_bytes(b"abcdef")
+    assert framework_helpers.downloaded_bytes(dest, 4) == 4
