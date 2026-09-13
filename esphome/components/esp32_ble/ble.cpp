@@ -83,18 +83,23 @@ void ESP32BLE::setup() {
   }
 }
 
-void ESP32BLE::enable() {
-  if (this->state_ != BLE_COMPONENT_STATE_DISABLED)
-    return;
-
-  this->state_ = BLE_COMPONENT_STATE_ENABLE;
-}
-
-void ESP32BLE::disable() {
-  if (this->state_ == BLE_COMPONENT_STATE_DISABLED)
-    return;
-
-  this->state_ = BLE_COMPONENT_STATE_DISABLE;
+// Queue the transition for loop(). A pending transition the other way is
+// cancelled instead, since nothing was torn down or brought up yet; any other
+// state is already there or on its way.
+void ESP32BLE::request_state_(bool enable) {
+  if (enable) {
+    if (this->state_ == BLE_COMPONENT_STATE_DISABLED) {
+      this->state_ = BLE_COMPONENT_STATE_ENABLE;
+    } else if (this->state_ == BLE_COMPONENT_STATE_DISABLE) {
+      this->state_ = BLE_COMPONENT_STATE_ACTIVE;
+    }
+  } else {
+    if (this->state_ == BLE_COMPONENT_STATE_ACTIVE) {
+      this->state_ = BLE_COMPONENT_STATE_DISABLE;
+    } else if (this->state_ == BLE_COMPONENT_STATE_ENABLE) {
+      this->state_ = BLE_COMPONENT_STATE_DISABLED;
+    }
+  }
 }
 
 #ifdef USE_ESP32_BLE_ADVERTISING
@@ -580,7 +585,11 @@ void ESP32BLE::loop_handle_state_transition_not_active_() {
       this->mark_failed();
       return;
     }
-    this->state_ = BLE_COMPONENT_STATE_DISABLED;
+    this->drain_ble_events_();
+    // A status callback may have asked for BLE back; the stack is down now, so
+    // that request becomes a bring-up.
+    this->state_ =
+        this->state_ == BLE_COMPONENT_STATE_ACTIVE ? BLE_COMPONENT_STATE_ENABLE : BLE_COMPONENT_STATE_DISABLED;
   } else if (this->state_ == BLE_COMPONENT_STATE_ENABLE) {
     ESP_LOGD(TAG, "Enabling");
     this->state_ = BLE_COMPONENT_STATE_OFF;
