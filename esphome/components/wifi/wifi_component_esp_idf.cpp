@@ -946,11 +946,6 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
       // Use stack buffer (3904 bytes / ~80 bytes per record = ~48 records) with heap fallback
       static constexpr size_t SCAN_RECORD_STACK_COUNT = 3904 / sizeof(wifi_ap_record_t);
       SmallBufferWithHeapFallback<SCAN_RECORD_STACK_COUNT, wifi_ap_record_t> records(number);
-      if (records.get() == nullptr) {
-        esp_wifi_clear_ap_list();
-        ESP_LOGW(TAG, "No memory for %u scan records", number);
-        return;
-      }
       err = esp_wifi_scan_get_ap_records(&number, records.get());
       if (err != ESP_OK) {
         esp_wifi_clear_ap_list();
