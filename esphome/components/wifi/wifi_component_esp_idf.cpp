@@ -963,7 +963,8 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
 #endif  // USE_ESP32_HOSTED
 
         const char *ssid_cstr = reinterpret_cast<const char *>(record.ssid);
-        if (!this->scan_result_.full() && (needs_full || this->matches_configured_network_(ssid_cstr, record.bssid))) {
+        if (this->scan_result_.size() < wanted &&
+            (needs_full || this->matches_configured_network_(ssid_cstr, record.bssid))) {
           bssid_t bssid;
           std::copy(record.bssid, record.bssid + 6, bssid.begin());
           this->scan_result_.emplace_back(bssid, ssid_cstr, strlen(ssid_cstr), record.primary, record.rssi,
