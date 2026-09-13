@@ -293,7 +293,7 @@ FINAL_VALIDATE_SCHEMA = ota_esphome_final_validate
 FILTER_SOURCE_FILES = filter_source_files_from_defines(
     {
         "ota_esphome_noise.cpp": "USE_OTA_ENCRYPTION",
-        "ota_esphome_deflate.cpp": "USE_OTA_DEFLATE",
+        "ota_esphome_inflate_session.cpp": "USE_OTA_DEFLATE",
         "ota_esphome_inflate.c": "USE_OTA_DEFLATE",
     }
 )
