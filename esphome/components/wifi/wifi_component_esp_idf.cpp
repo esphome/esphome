@@ -985,10 +985,9 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
           this->log_discarded_scan_result_(ssid_cstr, record.bssid, record.rssi, record.primary);
           continue;
         }
-        this->log_discarded_scan_result_(weakest->get_ssid().c_str(), weakest->get_bssid().data(), weakest->get_rssi(),
-                                         weakest->get_channel());
-        *weakest = WiFiScanResult(bssid, ssid_cstr, strlen(ssid_cstr), record.primary, record.rssi,
-                                  record.authmode != WIFI_AUTH_OPEN, ssid_cstr[0] == '\0');
+        weakest->~WiFiScanResult();
+        new (weakest) WiFiScanResult(bssid, ssid_cstr, strlen(ssid_cstr), record.primary, record.rssi,
+                                     record.authmode != WIFI_AUTH_OPEN, ssid_cstr[0] == '\0');
       }
     }
     ESP_LOGV(TAG, "Scan complete: %u found, %zu stored%s", number, this->scan_result_.size(),
