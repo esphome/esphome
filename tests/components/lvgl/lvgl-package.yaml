@@ -42,6 +42,13 @@ script:
           label:
             text: row
 
+esphome:
+  on_boot:
+    then:
+      - lvgl.theme.update:
+          obj:
+            border_width: 2
+
 lvgl:
   id: lvgl_id
   rotation: 90
