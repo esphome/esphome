@@ -39,6 +39,7 @@
 #endif
 
 #ifdef USE_ESP32
+#include <esp_system.h>
 #include <esp_heap_caps.h>
 #endif
 
@@ -540,11 +541,9 @@ template<typename T, size_t N> inline void init_array_from(std::array<T, N> &des
   }
 }
 
-/// Fixed-capacity vector - allocates once at runtime, never reallocates
+/// Fixed-capacity vector - sized once through init() or try_init(); push_back never reallocates
 /// This avoids std::vector template overhead (_M_realloc_insert, _M_default_append)
 /// when size is known at initialization but not at compile time
-template<class T> class RAMAllocator;
-
 template<typename T> class FixedVector {
  private:
   T *data_{nullptr};
@@ -565,7 +564,7 @@ template<typename T> class FixedVector {
   void cleanup_() {
     if (data_ != nullptr) {
       destroy_elements_();
-      RAMAllocator<T>(RAMAllocator<T>::ALLOC_INTERNAL).deallocate(data_, capacity_);
+      free(data_);  // NOLINT(cppcoreguidelines-owning-memory,cppcoreguidelines-no-malloc)
     }
   }
 
@@ -634,30 +633,15 @@ template<typename T> class FixedVector {
   // Allocate capacity - can be called multiple times to reinit
   // IMPORTANT: After calling init(), you MUST use push_back() to add elements.
   // Direct assignment via operator[] does NOT update the size counter.
-  // Aborts when memory is exhausted, as the operator new it replaces did; callers that can
-  // cope with a failed allocation use try_init() instead.
+  // Aborts on exhaustion like the operator new it replaces; use try_init() to handle failure.
   void init(size_t n) {
-    if (!this->try_init(n))
+    if (!try_init(n)) {
+#ifdef USE_ESP32
+      esp_system_abort("FixedVector: out of memory");
+#else
       abort();
-  }
-
-  // Grow to at least n elements keeping the contents; false and unchanged when memory is exhausted.
-  // Growth only happens here, never inside push_back, so the fixed size contract holds for every
-  // caller that does not ask for it.
-  bool try_reserve(size_t n) {
-    if (n <= capacity_)
-      return true;
-    T *grown = RAMAllocator<T>(RAMAllocator<T>::ALLOC_INTERNAL).allocate(n);
-    if (grown == nullptr)
-      return false;
-    for (size_t i = 0; i < size_; i++) {
-      new (grown + i) T(std::move(data_[i]));
-      data_[i].~T();
+#endif
     }
-    RAMAllocator<T>(RAMAllocator<T>::ALLOC_INTERNAL).deallocate(data_, capacity_);
-    data_ = grown;
-    capacity_ = n;
-    return true;
   }
 
   // Same as init(), but returns false and leaves the vector empty when memory is exhausted
@@ -666,7 +650,9 @@ template<typename T> class FixedVector {
     reset_();
     if (n == 0)
       return true;
-    data_ = RAMAllocator<T>(RAMAllocator<T>::ALLOC_INTERNAL).allocate(n);
+    // sizeof(T) is correct here for any type T (value types, pointers, etc.)
+    // NOLINTNEXTLINE(bugprone-sizeof-expression,cppcoreguidelines-no-malloc,cppcoreguidelines-owning-memory)
+    data_ = static_cast<T *>(malloc(n * sizeof(T)));
     if (data_ == nullptr)
       return false;
     capacity_ = n;
@@ -767,14 +753,18 @@ template<typename T> class FixedVector {
 template<size_t STACK_SIZE, typename T = uint8_t> class SmallBufferWithHeapFallback {
  public:
   explicit SmallBufferWithHeapFallback(size_t size) {
+    static_assert(std::is_trivially_default_constructible_v<T> && std::is_trivially_destructible_v<T>,
+                  "the heap fallback leaves elements unconstructed");
     if (size <= STACK_SIZE) {
       this->buffer_ = this->stack_buffer_;
     } else {
-      this->heap_buffer_ = new T[size];
+      // malloc reports exhaustion as nullptr where new would abort on ESP-IDF; get() is then null
+      // NOLINTNEXTLINE(bugprone-sizeof-expression,cppcoreguidelines-no-malloc,cppcoreguidelines-owning-memory)
+      this->heap_buffer_ = static_cast<T *>(malloc(size * sizeof(T)));
       this->buffer_ = this->heap_buffer_;
     }
   }
-  ~SmallBufferWithHeapFallback() { delete[] this->heap_buffer_; }
+  ~SmallBufferWithHeapFallback() { free(this->heap_buffer_); }  // NOLINT(cppcoreguidelines-no-malloc)
 
   // Delete copy and move operations to prevent double-delete
   SmallBufferWithHeapFallback(const SmallBufferWithHeapFallback &) = delete;

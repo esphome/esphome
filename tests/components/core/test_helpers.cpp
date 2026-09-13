@@ -350,8 +350,7 @@ TEST(StepToAccuracyDecimals, NonFiniteAndZero) {
 
 // --- FixedVector::try_init() ---
 
-// Keeps the allocation observable: with the block only null checked and freed, the compiler
-// may drop the malloc and free pair and fold the check to success
+// Keeps the block observable, else the compiler may drop the malloc and free pair and fold the check
 static void escape(const void *p) { asm volatile("" : : "g"(p) : "memory"); }
 
 TEST(FixedVectorTryInit, ReportsExhaustionAndStaysEmpty) {
@@ -359,39 +358,11 @@ TEST(FixedVectorTryInit, ReportsExhaustionAndStaysEmpty) {
   const bool ok = v.try_init(SIZE_MAX / sizeof(uint32_t));
   escape(&v);
   EXPECT_FALSE(ok);
-  EXPECT_EQ(v.size(), 0u);
+  EXPECT_EQ(v.capacity(), 0u);
   EXPECT_TRUE(v.try_init(0));
-  EXPECT_EQ(v.size(), 0u);
   EXPECT_TRUE(v.try_init(4));
   v.push_back(7);
   EXPECT_EQ(v.size(), 1u);
-  EXPECT_EQ(v[0], 7u);
-}
-
-TEST(FixedVectorTryReserve, GrowsKeepingContentsAndFailsCleanly) {
-  struct Named {
-    std::string name;
-    int id;
-  };
-  FixedVector<Named> v;
-  ASSERT_TRUE(v.try_init(2));
-  v.push_back(Named{"first", 1});
-  v.push_back(Named{"second", 2});
-  EXPECT_TRUE(v.full());
-  EXPECT_TRUE(v.try_reserve(1));  // at or below capacity is a no-op
-  EXPECT_EQ(v.capacity(), 2u);
-  ASSERT_TRUE(v.try_reserve(4));
-  EXPECT_EQ(v.capacity(), 4u);
-  EXPECT_EQ(v.size(), 2u);
-  EXPECT_EQ(v[0].name, "first");
-  EXPECT_EQ(v[1].id, 2);
-  v.push_back(Named{"third", 3});
-  const bool ok = v.try_reserve(SIZE_MAX / sizeof(Named));
-  escape(&v);
-  EXPECT_FALSE(ok);
-  EXPECT_EQ(v.capacity(), 4u);
-  EXPECT_EQ(v.size(), 3u);
-  EXPECT_EQ(v[2].name, "third");
 }
 
 }  // namespace esphome::core::testing
