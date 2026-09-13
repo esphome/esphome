@@ -15,7 +15,7 @@ CONF_CHANGE_ADDRESS_TO = "change_address_to"
 
 seeed_multi_channel_relay_ns = cg.esphome_ns.namespace("seeed_multi_channel_relay")
 Seeed_Multi_Channel_Relay = seeed_multi_channel_relay_ns.class_(
-    "Seeed_Multi_Channel_Relay", cg.Component, i2c.I2CDevice
+    "SeeedMultiChannelRelay", cg.Component, i2c.I2CDevice
 )
 
 CONFIG_SCHEMA = (

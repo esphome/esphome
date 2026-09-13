@@ -5,14 +5,14 @@ from esphome.const import CONF_CHANNEL, CONF_INTERLOCK
 
 from .. import (
     CONF_SEEED_MULTI_CHANNEL_RELAY_ID,
-    Seeed_Multi_Channel_Relay as Seeed_Multi_Channel_Relay,
+    Seeed_Multi_Channel_Relay as SeeedMultiChannelRelay,
     seeed_multi_channel_relay_ns,
 )
 
 DEPENDENCIES = ["seeed_multi_channel_relay"]
 
 Seeed_Multi_Channel_Relay_Switch = seeed_multi_channel_relay_ns.class_(
-    "Seeed_Multi_Channel_Relay_Switch", cg.Component, switch.Switch
+    "SeeedMultiChannelRelaySwitch", cg.Component, switch.Switch
 )
 
 CONF_INTERLOCK_WAIT_TIME = "interlock_wait_time"
