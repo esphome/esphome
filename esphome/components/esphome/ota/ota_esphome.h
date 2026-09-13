@@ -137,7 +137,7 @@ class ESPHomeOTAComponent final : public ota::OTAComponent {
     uint32_t last_progress{0};
   };
   // Up to OTA_BUFFER_SIZE bytes into buf; returns bytes read, -1 on failure (logged)
-  inline ssize_t receive_data_(uint8_t *buf, DataTransfer &xfer);
+  ssize_t receive_data_(uint8_t *buf, DataTransfer &xfer);
   // Raw lwIP cannot service the radio during a sector write, so the ack waits
   // for the write there; a socket task lets the next block arrive meanwhile
 #ifdef USE_SOCKET_IMPL_LWIP_TCP
@@ -156,7 +156,7 @@ class ESPHomeOTAComponent final : public ota::OTAComponent {
   }
   inline bool read_size_(uint8_t *buf, size_t &size, const LogString *desc);
   // Writes to the backend and logs a failure
-  inline ota::OTAResponseTypes write_flash_(uint8_t *data, size_t len);
+  ota::OTAResponseTypes write_flash_(uint8_t *data, size_t len);
 
   bool try_read_(size_t to_read, const LogString *desc);
   bool try_write_(size_t to_write, const LogString *desc);
