@@ -47,7 +47,6 @@ wijiboard:
     hold_time: 500ms
     letter_pause: 200ms
     space_pause: 1s
-    max_word_length: 32
     letters:
       "?":
         x: 0.0

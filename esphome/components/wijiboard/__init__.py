@@ -12,15 +12,10 @@ MULTI_CONF = True
 
 CONF_WIJIBOARD_ID = "wijiboard_id"
 
-CONF_BASE_SEPARATION = "base_separation"
-CONF_FOREARM_LENGTH = "forearm_length"
 CONF_HOLD_TIME = "hold_time"
-CONF_HOME_ON_BOOT = "home_on_boot"
-CONF_HOMING_POSITIONS = "homing_positions"
 CONF_LETTER = "letter"
 CONF_LETTER_PAUSE = "letter_pause"
 CONF_LETTERS = "letters"
-CONF_MAX_WORD_LENGTH = "max_word_length"
 CONF_ON_HOME = "on_home"
 CONF_ON_LETTER = "on_letter"
 CONF_ON_WORD_END = "on_word_end"
@@ -30,10 +25,8 @@ CONF_RETURN_HOME_BETWEEN_LETTERS = "return_home_between_letters"
 CONF_SPACE_PAUSE = "space_pause"
 CONF_STEPPER_1 = "stepper_1"
 CONF_STEPPER_2 = "stepper_2"
-CONF_STEPS_PER_ROTATION = "steps_per_rotation"
 CONF_THETA1 = "theta1"
 CONF_THETA2 = "theta2"
-CONF_UPPER_ARM_LENGTH = "upper_arm_length"
 CONF_USE_DEFAULT_LETTERS = "use_default_letters"
 CONF_WORD = "word"
 
@@ -157,20 +150,9 @@ CONFIG_SCHEMA = cv.All(
             cv.GenerateID(): cv.declare_id(WijiBoard),
             cv.Required(CONF_STEPPER_1): cv.use_id(stepper.Stepper),
             cv.Required(CONF_STEPPER_2): cv.use_id(stepper.Stepper),
-            cv.Optional(CONF_BASE_SEPARATION, default=25.8): cv.positive_float,
-            cv.Optional(
-                CONF_UPPER_ARM_LENGTH, default=85.0
-            ): cv.positive_not_null_float,
-            cv.Optional(CONF_FOREARM_LENGTH, default=110.0): cv.positive_not_null_float,
-            cv.Optional(CONF_STEPS_PER_ROTATION, default=2048): cv.int_range(
-                min=1, max=65535
-            ),
             cv.Optional(CONF_REST_POSITION, default=[-1024, 0]): cv.All(
                 [cv.int_], cv.Length(min=2, max=2)
             ),
-            cv.Optional(
-                CONF_HOMING_POSITIONS, default=[1024, 2048, -1050, -1300, 550, -530]
-            ): cv.All([cv.int_], cv.Length(min=6, max=6)),
             cv.Optional(
                 CONF_HOLD_TIME, default="500ms"
             ): cv.positive_time_period_milliseconds,
@@ -181,8 +163,6 @@ CONFIG_SCHEMA = cv.All(
                 CONF_SPACE_PAUSE, default="1s"
             ): cv.positive_time_period_milliseconds,
             cv.Optional(CONF_RETURN_HOME_BETWEEN_LETTERS, default=True): cv.boolean,
-            cv.Optional(CONF_HOME_ON_BOOT, default=True): cv.boolean,
-            cv.Optional(CONF_MAX_WORD_LENGTH, default=64): cv.int_range(min=1, max=255),
             cv.Optional(CONF_USE_DEFAULT_LETTERS, default=True): cv.boolean,
             cv.Optional(CONF_LETTERS): cv.Schema({_validate_letter_key: LETTER_SCHEMA}),
             cv.Optional(CONF_ON_WORD_START): automation.validate_automation({}),
@@ -236,27 +216,13 @@ async def to_code(config: ConfigType) -> None:
     )
     cg.add(var.set_letters(letters_array, len(letters)))
 
-    cg.add(
-        var.set_geometry(
-            config[CONF_BASE_SEPARATION],
-            config[CONF_UPPER_ARM_LENGTH],
-            config[CONF_FOREARM_LENGTH],
-        )
-    )
-    cg.add(var.set_steps_per_rotation(config[CONF_STEPS_PER_ROTATION]))
     cg.add(var.set_rest_position(*config[CONF_REST_POSITION]))
-    cg.add(
-        var.set_homing_positions(cg.ArrayInitializer(*config[CONF_HOMING_POSITIONS]))
-    )
     cg.add(var.set_hold_time(config[CONF_HOLD_TIME]))
     cg.add(var.set_letter_pause(config[CONF_LETTER_PAUSE]))
     cg.add(var.set_space_pause(config[CONF_SPACE_PAUSE]))
     cg.add(
         var.set_return_home_between_letters(config[CONF_RETURN_HOME_BETWEEN_LETTERS])
     )
-    cg.add(var.set_home_on_boot(config[CONF_HOME_ON_BOOT]))
-
-    cg.add_define("WIJIBOARD_MAX_WORD_LENGTH", config[CONF_MAX_WORD_LENGTH])
 
     await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
 

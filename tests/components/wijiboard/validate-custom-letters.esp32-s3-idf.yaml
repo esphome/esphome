@@ -20,14 +20,8 @@ wijiboard:
     stepper_1: wiji_stepper_1
     stepper_2: wiji_stepper_2
     use_default_letters: false
-    home_on_boot: false
     return_home_between_letters: false
-    base_separation: 30.0
-    upper_arm_length: 90.0
-    forearm_length: 120.0
-    steps_per_rotation: 4096
     rest_position: [-2048, 0]
-    homing_positions: [2048, 4096, -2100, -2600, 1100, -1060]
     letters:
       "y":
         x: -20.0

@@ -3,12 +3,14 @@
 #include "esphome/components/stepper/stepper.h"
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
-#include "esphome/core/defines.h"
 #include "esphome/core/helpers.h"
 
 #include <array>
 
 namespace esphome::wijiboard {
+
+/// Longest word the board will queue; anything past this is dropped.
+constexpr uint8_t MAX_WORD_LENGTH = 64;
 
 /// One entry of the board's character map, generated into flash by the Python code generation.
 struct WijiBoardLetter {
@@ -53,22 +55,14 @@ class WijiBoard : public Component {
     this->letters_ = letters;
     this->letter_count_ = letter_count;
   }
-  void set_geometry(float base_separation, float upper_arm_length, float forearm_length) {
-    this->half_base_ = base_separation / 2.0f;
-    this->upper_arm_length_ = upper_arm_length;
-    this->forearm_length_ = forearm_length;
-  }
-  void set_steps_per_rotation(uint16_t steps) { this->step_angle_ = 360.0f / static_cast<float>(steps); }
   void set_rest_position(int32_t position_1, int32_t position_2) {
     this->rest_position_1_ = position_1;
     this->rest_position_2_ = position_2;
   }
-  void set_homing_positions(const std::array<int32_t, 6> &positions) { this->homing_positions_ = positions; }
   void set_hold_time(uint32_t hold_time) { this->hold_time_ = hold_time; }
   void set_letter_pause(uint32_t letter_pause) { this->letter_pause_ = letter_pause; }
   void set_space_pause(uint32_t space_pause) { this->space_pause_ = space_pause; }
   void set_return_home_between_letters(bool value) { this->return_home_between_letters_ = value; }
-  void set_home_on_boot(bool value) { this->home_on_boot_ = value; }
 
   template<typename F> void add_on_word_start_callback(F &&callback) {
     this->word_start_callback_.add(std::forward<F>(callback));
@@ -84,7 +78,7 @@ class WijiBoard : public Component {
   /** Spell out a word, one letter at a time.
    *
    * Characters missing from the board are skipped and spaces become a pause. Anything past
-   * WIJIBOARD_MAX_WORD_LENGTH characters is dropped. A word already in progress is abandoned.
+   * MAX_WORD_LENGTH characters is dropped. A word already in progress is abandoned.
    */
   void write_word(const char *word, size_t length);
   void write_word(const std::string &word) { this->write_word(word.c_str(), word.size()); }
@@ -132,14 +126,8 @@ class WijiBoard : public Component {
   const WijiBoardLetter *letters_{nullptr};
   uint8_t letter_count_{0};
 
-  float half_base_{12.9f};
-  float upper_arm_length_{85.0f};
-  float forearm_length_{110.0f};
-  float step_angle_{360.0f / 2048.0f};
-
   int32_t rest_position_1_{-1024};
   int32_t rest_position_2_{0};
-  std::array<int32_t, 6> homing_positions_{{1024, 2048, -1050, -1300, 550, -530}};
 
   uint32_t hold_time_{500};
   uint32_t letter_pause_{200};
@@ -147,14 +135,13 @@ class WijiBoard : public Component {
   uint32_t wait_start_{0};
   uint32_t wait_time_{0};
 
-  std::array<char, WIJIBOARD_MAX_WORD_LENGTH> word_{};
+  std::array<char, MAX_WORD_LENGTH> word_{};
   uint8_t word_length_{0};
   uint8_t word_index_{0};
 
   WijiBoardState state_{WijiBoardState::WIJIBOARD_STATE_IDLE};
   uint8_t homing_step_{0};
   bool homed_{false};
-  bool home_on_boot_{true};
   bool return_home_between_letters_{true};
   /// Set while a single move is running so it does not get treated as a one letter word.
   bool single_move_{false};

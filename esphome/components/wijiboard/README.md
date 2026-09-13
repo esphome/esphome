@@ -8,6 +8,10 @@ inverse kinematics that turn a board coordinate into a pair of arm angles are ca
 unchanged; the WiFi access point, the web interface and the blocking motor loops are not,
 because ESPHome already handles the network and the main loop must never block.
 
+The linkage geometry, the step count of a 28BYJ-48, the homing targets and the longest
+word the board will queue are fixed in `wijiboard.cpp` rather than configured, because they
+describe the board itself rather than a preference. The component always homes at start-up.
+
 ## Wiring
 
 The board has two 28BYJ-48 stepper motors behind ULN2003 drivers. Declare them with the
@@ -55,18 +59,11 @@ text:
 | Option | Default | Meaning |
 | --- | --- | --- |
 | `stepper_1`, `stepper_2` | required | IDs of the two steppers that carry the arms. |
-| `base_separation` | `25.8` | Distance in mm between the two shoulder joints. |
-| `upper_arm_length` | `85.0` | Length in mm of the link from shoulder to elbow. |
-| `forearm_length` | `110.0` | Length in mm of the link from elbow to planchette. |
-| `steps_per_rotation` | `2048` | Steps in one full turn of a motor. |
 | `rest_position` | `[-1024, 0]` | Step positions the planchette parks at between letters. |
-| `homing_positions` | `[1024, 2048, -1050, -1300, 550, -530]` | Step targets of the three-part homing run against the mechanical stops. |
 | `hold_time` | `500ms` | How long the planchette sits on a letter. |
 | `letter_pause` | `200ms` | Pause between two letters. |
 | `space_pause` | `1s` | Pause for a space in a word. |
 | `return_home_between_letters` | `true` | Park at the rest position after every letter, so repeated letters read clearly. |
-| `home_on_boot` | `true` | Run the homing sequence at start-up. Turn this off only if the planchette is already parked. |
-| `max_word_length` | `64` | Longest word the board will queue; anything longer is truncated. |
 | `use_default_letters` | `true` | Start from the stock board's character map. |
 | `letters` | see below | Add to or override the character map. |
 

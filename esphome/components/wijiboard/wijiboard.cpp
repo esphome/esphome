@@ -12,19 +12,26 @@ static const char *const TAG = "wijiboard";
 
 static constexpr float RADIANS_TO_DEGREES = 180.0f / static_cast<float>(M_PI);
 
+// Fixed geometry of the WijiBoard linkage, in mm.
+/// Half the distance between the two shoulder joints.
+static constexpr float HALF_BASE_SEPARATION = 12.9f;
+/// Length of each link from shoulder to elbow.
+static constexpr float UPPER_ARM_LENGTH = 85.0f;
+/// Length of each link from elbow to planchette.
+static constexpr float FOREARM_LENGTH = 110.0f;
+/// Degrees per step of a 28BYJ-48 in full step mode, which turns 2048 steps per rotation.
+static constexpr float STEP_ANGLE = 360.0f / 2048.0f;
+
+// Step targets of the three part homing run against the mechanical stops. Each pair is
+// {stepper 1, stepper 2}, and the position reached after the last pair is the rest pose.
+static constexpr int32_t HOMING_TARGETS_1[2] = {1024, 2048};
+static constexpr int32_t HOMING_TARGETS_2[2] = {-1050, -1300};
+static constexpr int32_t HOMING_TARGETS_3[2] = {550, -530};
+
 /// Upper case an ASCII letter; everything else is passed through untouched.
 static char to_upper(char c) { return (c >= 'a' && c <= 'z') ? static_cast<char>(c - ('a' - 'A')) : c; }
 
-void WijiBoard::setup() {
-  if (this->home_on_boot_) {
-    this->start_homing_();
-    return;
-  }
-  // Without a homing run we have to trust that the planchette was parked at the rest position.
-  this->homed_ = true;
-  this->teleport_to_(this->rest_position_1_, this->rest_position_2_);
-  this->go_idle_();
-}
+void WijiBoard::setup() { this->start_homing_(); }
 
 void WijiBoard::loop() {
   const uint32_t now = App.get_loop_component_start_time();
@@ -86,22 +93,14 @@ void WijiBoard::loop() {
 void WijiBoard::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "WijiBoard:\n"
-                "  Base separation: %.1f mm\n"
-                "  Upper arm: %.1f mm\n"
-                "  Forearm: %.1f mm\n"
-                "  Step angle: %.5f deg\n"
                 "  Rest position: %" PRId32 ", %" PRId32 "\n"
                 "  Hold time: %" PRIu32 " ms\n"
                 "  Letter pause: %" PRIu32 " ms\n"
                 "  Space pause: %" PRIu32 " ms\n"
                 "  Return home between letters: %s\n"
-                "  Home on boot: %s\n"
-                "  Characters: %u\n"
-                "  Maximum word length: %u",
-                this->half_base_ * 2.0f, this->upper_arm_length_, this->forearm_length_, this->step_angle_,
+                "  Characters: %u",
                 this->rest_position_1_, this->rest_position_2_, this->hold_time_, this->letter_pause_,
-                this->space_pause_, YESNO(this->return_home_between_letters_), YESNO(this->home_on_boot_),
-                this->letter_count_, static_cast<unsigned>(WIJIBOARD_MAX_WORD_LENGTH));
+                this->space_pause_, YESNO(this->return_home_between_letters_), this->letter_count_);
 }
 
 void WijiBoard::write_word(const char *word, size_t length) {
@@ -109,7 +108,7 @@ void WijiBoard::write_word(const char *word, size_t length) {
   this->word_index_ = 0;
   this->single_move_ = false;
 
-  for (size_t i = 0; i < length && this->word_length_ < WIJIBOARD_MAX_WORD_LENGTH; i++) {
+  for (size_t i = 0; i < length && this->word_length_ < MAX_WORD_LENGTH; i++) {
     const char c = word[i];
     // Collapse every run of blanks into the single pause the board can show.
     if (c == '\r' || c == '\n' || c == '\t') {
@@ -118,8 +117,8 @@ void WijiBoard::write_word(const char *word, size_t length) {
       this->word_[this->word_length_++] = to_upper(c);
     }
   }
-  if (length > WIJIBOARD_MAX_WORD_LENGTH) {
-    ESP_LOGW(TAG, "Word truncated to %u characters", static_cast<unsigned>(WIJIBOARD_MAX_WORD_LENGTH));
+  if (length > MAX_WORD_LENGTH) {
+    ESP_LOGW(TAG, "Word truncated to %u characters", static_cast<unsigned>(MAX_WORD_LENGTH));
   }
 
   this->word_start_callback_.call(std::string(this->word_.data(), this->word_length_));
@@ -210,10 +209,10 @@ bool WijiBoard::resolve_letter_(char letter, WijiBoardAngles &angles) const {
 }
 
 bool WijiBoard::calculate_inverse_kinematics_(float x, float y, WijiBoardAngles &angles) const {
-  const float l1 = this->upper_arm_length_;
-  const float l2 = this->forearm_length_;
-  const float x_minus = x - this->half_base_;
-  const float x_plus = x + this->half_base_;
+  const float l1 = UPPER_ARM_LENGTH;
+  const float l2 = FOREARM_LENGTH;
+  const float x_minus = x - HALF_BASE_SEPARATION;
+  const float x_plus = x + HALF_BASE_SEPARATION;
 
   // Left arm: distance from its shoulder to the target, then the elbow angle that spans it.
   const float s = std::sqrt(x_minus * x_minus + y * y);
@@ -233,8 +232,8 @@ bool WijiBoard::calculate_inverse_kinematics_(float x, float y, WijiBoardAngles 
 
 void WijiBoard::start_move_(const WijiBoardAngles &angles) {
   // The arms are cross-linked: stepper 1 carries the right hand angle and vice versa.
-  const int32_t target_1 = -static_cast<int32_t>(std::lround(angles.theta2 / this->step_angle_));
-  const int32_t target_2 = -static_cast<int32_t>(std::lround(angles.theta1 / this->step_angle_));
+  const int32_t target_1 = -static_cast<int32_t>(std::lround(angles.theta2 / STEP_ANGLE));
+  const int32_t target_2 = -static_cast<int32_t>(std::lround(angles.theta1 / STEP_ANGLE));
   ESP_LOGV(TAG, "Moving to %.2f/%.2f deg (%" PRId32 "/%" PRId32 " steps)", angles.theta1, angles.theta2, target_1,
            target_2);
   this->set_targets_(target_1, target_2);
@@ -266,7 +265,7 @@ void WijiBoard::start_homing_() {
   this->homed_ = false;
   this->homing_step_ = 0;
   this->teleport_to_(0, 0);
-  this->set_targets_(this->homing_positions_[0], this->homing_positions_[1]);
+  this->set_targets_(HOMING_TARGETS_1[0], HOMING_TARGETS_1[1]);
   this->state_ = WijiBoardState::WIJIBOARD_STATE_HOMING;
   this->enable_loop();
 }
@@ -276,12 +275,12 @@ void WijiBoard::advance_homing_() {
     case 0:
       // Second arm has reached its stop, so call that zero and drive both back against the other side.
       this->stepper_2_->report_position(0);
-      this->set_targets_(this->homing_positions_[2], this->homing_positions_[3]);
+      this->set_targets_(HOMING_TARGETS_2[0], HOMING_TARGETS_2[1]);
       this->homing_step_ = 1;
       break;
     case 1:
       this->stepper_1_->report_position(0);
-      this->set_targets_(this->homing_positions_[4], this->homing_positions_[5]);
+      this->set_targets_(HOMING_TARGETS_3[0], HOMING_TARGETS_3[1]);
       this->homing_step_ = 2;
       break;
     default:
