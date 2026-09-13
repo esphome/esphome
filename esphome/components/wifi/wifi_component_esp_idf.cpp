@@ -909,11 +909,7 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
     ESP_LOGV(TAG, "Scan done: status=%" PRIu32 " number=%u scan_id=%u", it.status, it.number, it.scan_id);
 
     uint16_t number = it.number;
-#ifdef USE_WIFI_MULTI_SSID
-    const bool filtered = false;
-#else
-    const bool filtered = this->scan_driver_filtered_;
-#endif
+    const bool filtered = this->is_scan_driver_filtered_();
     const bool needs_full = this->needs_full_scan_results_();
     {
       // Mutate in place under the lock; blocking a portal request is fine and

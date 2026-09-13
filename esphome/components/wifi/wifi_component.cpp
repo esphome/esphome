@@ -1499,13 +1499,8 @@ void WiFiComponent::check_scanning_finished() {
     return;
   }
   this->scan_done_ = false;
-#if defined(USE_ESP32) && !defined(USE_WIFI_MULTI_SSID)
   // A driver filtered scan saw one SSID; a portal that started during it still needs a full scan
-  this->has_completed_scan_after_captive_portal_start_ = !this->scan_driver_filtered_;
-#else
-  this->has_completed_scan_after_captive_portal_start_ =
-      true;  // Track that we've done a scan since captive portal started
-#endif
+  this->has_completed_scan_after_captive_portal_start_ = !this->is_scan_driver_filtered_();
   this->retry_hidden_mode_ = RetryHiddenMode::SCAN_BASED;
 
   if (this->scan_result_.empty()) {

@@ -956,6 +956,9 @@ class WiFiComponent final : public Component {
   bool error_from_callback_{false};
 #if defined(USE_ESP32) && !defined(USE_WIFI_MULTI_SSID)
   bool scan_driver_filtered_{false};
+  bool is_scan_driver_filtered_() const { return this->scan_driver_filtered_; }
+#else
+  static constexpr bool is_scan_driver_filtered_() { return false; }
 #endif
 #if defined(USE_ESP8266) || defined(USE_LIBRETINY)
   // Platform-specific STA state enum, defined in platform cpp file.
