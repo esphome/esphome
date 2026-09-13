@@ -760,9 +760,16 @@ template<size_t STACK_SIZE, typename T = uint8_t> class SmallBufferWithHeapFallb
     if (size <= STACK_SIZE) {
       this->buffer_ = this->stack_buffer_;
     } else {
-      // malloc reports exhaustion as nullptr where new would abort on ESP-IDF; get() is then null
       // NOLINTNEXTLINE(bugprone-sizeof-expression,cppcoreguidelines-no-malloc,cppcoreguidelines-owning-memory)
       this->heap_buffer_ = static_cast<T *>(malloc(size * sizeof(T)));
+      if (this->heap_buffer_ == nullptr) {
+        // Callers write through get() unchecked, so exhaustion aborts like the new[] it replaces
+#ifdef USE_ESP32
+        esp_system_abort("SmallBufferWithHeapFallback: out of memory");
+#else
+        abort();
+#endif
+      }
       this->buffer_ = this->heap_buffer_;
     }
   }
