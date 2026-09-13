@@ -145,7 +145,7 @@ class ESPHomeOTAComponent final : public ota::OTAComponent {
 
 #ifdef USE_OTA_PASSWORD
   std::string password_;
-  std::unique_ptr<uint8_t[]> auth_buf_;
+  RAMUniquePtr<uint8_t[]> auth_buf_;
 #endif  // USE_OTA_PASSWORD
 #ifdef USE_OTA_ENCRYPTION
 #ifndef USE_OTA_ENCRYPTION_FROM_API
