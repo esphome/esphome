@@ -1068,9 +1068,9 @@ bool WiFiComponent::wifi_scan_start_(bool passive) {
   if (this->scan_driver_filtered_) {
     const WiFiAP &ap = this->sta_[0];
     if (!ap.get_ssid().empty()) {
+      // Filter by SSID only: a pinned BSSID must not hide the other APs a roaming scan looks for
       config.ssid = const_cast<uint8_t *>(reinterpret_cast<const uint8_t *>(ap.get_ssid().c_str()));
-    }
-    if (ap.has_bssid()) {
+    } else if (ap.has_bssid()) {
       config.bssid = const_cast<uint8_t *>(ap.get_bssid().data());
     }
   }
