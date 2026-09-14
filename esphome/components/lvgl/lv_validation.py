@@ -16,7 +16,7 @@ from esphome.const import (
     CONF_VALUE,
 )
 from esphome.core import CORE, ID, Lambda
-from esphome.cpp_generator import MockObj
+from esphome.cpp_generator import MockObj, StaticCastExpression, call_lambda
 from esphome.cpp_types import ESPTime, int32, uint32
 from esphome.helpers import cpp_string_escape
 from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
@@ -33,9 +33,7 @@ from .defines import (
     LV_FONTS,
     LValidator,
     LvConstant,
-    StaticCastExpression,
     add_lv_use,
-    call_lambda,
     get_esphome_fonts_used,
     get_lv_fonts_used,
     get_lv_images_used,

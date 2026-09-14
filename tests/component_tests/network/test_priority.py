@@ -24,11 +24,9 @@ from tests.component_tests.types import SetCoreConfigCallable
 
 @pytest.fixture(autouse=True)
 def _clear_core_data():
-    """Wipe CORE.data and reset fv.full_config so each test starts clean."""
+    """Wipe CORE.data so each test starts clean."""
     CORE.data.clear()
-    token = fv.full_config.set({})
     yield
-    fv.full_config.reset(token)
     CORE.data.clear()
 
 

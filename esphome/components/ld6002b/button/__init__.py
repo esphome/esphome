@@ -84,7 +84,7 @@ CONFIG_SCHEMA = cv.Schema(
 )
 
 
-def final_validate(config: ConfigType) -> ConfigType:
+def final_validate(config: ConfigType) -> None:
     full_config = fv.full_config.get()
     hub_id = config[CONF_LD6002B_ID]
 
@@ -108,8 +108,6 @@ def final_validate(config: ConfigType) -> ConfigType:
                 path=[CONF_WAKE],
             )
 
-    return config
-
 
 FINAL_VALIDATE_SCHEMA = final_validate
 
@@ -131,7 +129,7 @@ BUTTON_MAP = {
 }
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     for key, button_type in BUTTON_MAP.items():
         if button_config := config.get(key):
             b = cg.new_Pvariable(button_config[CONF_ID], button_type)
