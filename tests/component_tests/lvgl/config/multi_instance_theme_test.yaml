@@ -1,0 +1,35 @@
+esphome:
+  name: test-multi-instance-theme
+
+host:
+  mac_address: "62:23:45:AF:B3:DD"
+
+display:
+  - platform: sdl
+    id: sdl0
+    dimensions:
+      width: 100
+      height: 100
+  - platform: sdl
+    id: sdl1
+    dimensions:
+      width: 100
+      height: 100
+
+lvgl:
+  - id: lvgl_0
+    displays: sdl0
+    widgets:
+      - label:
+          id: label_0
+          text: "First"
+
+  - id: lvgl_1
+    displays: sdl1
+    theme:
+      label:
+        bg_color: 0xFF0000
+    widgets:
+      - label:
+          id: label_1
+          text: "Second"
