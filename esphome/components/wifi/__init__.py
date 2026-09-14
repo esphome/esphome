@@ -169,6 +169,9 @@ MAX_WIFI_NETWORKS = 127
 # get best-effort connection attempts. Longer timeout ensures we exhaust all options
 # before falling back to AP mode. Aligned with improv wifi_timeout default.
 DEFAULT_AP_TIMEOUT = "90s"
+DEFAULT_REBOOT_TIMEOUT = "15min"
+# Both defaults also match the C++ initializers in wifi_component.h; codegen skips
+# the setter when the config equals them.
 
 wifi_ns = cg.esphome_ns.namespace("wifi")
 EAPAuth = wifi_ns.struct("EAPAuth")
@@ -496,7 +499,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_AP): wifi_network_ap,
             cv.Optional(CONF_DOMAIN, default=".local"): cv.domain_name,
             cv.Optional(
-                CONF_REBOOT_TIMEOUT, default="15min"
+                CONF_REBOOT_TIMEOUT, default=DEFAULT_REBOOT_TIMEOUT
             ): cv.positive_time_period_milliseconds,
             cv.SplitDefault(
                 CONF_POWER_SAVE_MODE,
@@ -606,7 +609,8 @@ def wifi_network(config, ap, static_ip):
         cg.add(ap.set_channel(config[CONF_CHANNEL]))
     if static_ip is not None:
         cg.add(ap.set_manual_ip(manual_ip(static_ip)))
-    if CONF_PRIORITY in config:
+    # priority_ is 0 in C++; skip the setter when the config matches it.
+    if config.get(CONF_PRIORITY, 0) != 0:
         cg.add(ap.set_priority(config[CONF_PRIORITY]))
 
     return ap
@@ -655,7 +659,9 @@ async def to_code(config):
             WiFiAP(),
             lambda ap: cg.add(var.set_ap(wifi_network(conf, ap, ip_config))),
         )
-        cg.add(var.set_ap_timeout(conf[CONF_AP_TIMEOUT]))
+        # Skip the setter when the config matches the C++ initializer.
+        if (ap_timeout := conf[CONF_AP_TIMEOUT]) != cv.time_period(DEFAULT_AP_TIMEOUT):
+            cg.add(var.set_ap_timeout(ap_timeout))
         cg.add_define("USE_WIFI_AP")
 
     # ESP32: register the WiFi stack with the esp32 sdkconfig reconciler, which
@@ -677,10 +683,18 @@ async def to_code(config):
     if has_manual_ip:
         cg.add_define("USE_WIFI_MANUAL_IP")
 
-    cg.add(var.set_reboot_timeout(config[CONF_REBOOT_TIMEOUT]))
-    cg.add(var.set_power_save_mode(config[CONF_POWER_SAVE_MODE]))
-    if CONF_MIN_AUTH_MODE in config:
-        cg.add(var.set_min_auth_mode(config[CONF_MIN_AUTH_MODE]))
+    # The C++ initializers are DEFAULT_REBOOT_TIMEOUT, power save NONE and minimum
+    # auth WPA2; skip the setters when the config matches them.
+    if (reboot_timeout := config[CONF_REBOOT_TIMEOUT]) != cv.time_period(
+        DEFAULT_REBOOT_TIMEOUT
+    ):
+        cg.add(var.set_reboot_timeout(reboot_timeout))
+    if (power_save_mode := config[CONF_POWER_SAVE_MODE]) != "NONE":
+        cg.add(var.set_power_save_mode(power_save_mode))
+    if (
+        min_auth_mode := config.get(CONF_MIN_AUTH_MODE)
+    ) is not None and min_auth_mode != "WPA2":
+        cg.add(var.set_min_auth_mode(min_auth_mode))
     fast_connect = config[CONF_FAST_CONNECT]
     if fast_connect[CONF_ENABLED]:
         cg.add_define("USE_WIFI_FAST_CONNECT")
