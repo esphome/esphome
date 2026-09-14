@@ -298,6 +298,8 @@
 #ifdef USE_ARDUINO
 #define USE_PROMETHEUS
 #define USE_WIFI_WPA2_EAP
+// Kept in the Arduino block so clang-tidy sees both scan storage paths
+#define USE_WIFI_MULTI_SSID
 #endif
 
 // Platforms with native 64-bit time sources (no rollover tracking needed)
@@ -329,6 +331,8 @@
 #else
 #define BLUETOOTH_PROXY_MAX_CONNECTIONS 0
 #endif
+// Defined here so static analysis parses the slot and its call site.
+#define USE_BLUETOOTH_PROXY_ADVERTISEMENT_FILTER
 #define BLUETOOTH_PROXY_ADVERTISEMENT_BATCH_SIZE 16
 #endif
 
