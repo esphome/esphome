@@ -177,7 +177,7 @@ void I2SAudioSpeakerBase::post_software_gain_(uint32_t rate_samples) {
 #endif  // USE_AUDIO_DAC
   // Software volume control. The ramp treats 0 dB as unity and skips processing there.
   float target_db;
-  if (this->mute_state_ || this->volume_ <= 0.0f) {
+  if (this->is_silent_()) {
     target_db = -INFINITY;
   } else if (this->volume_ >= 1.0f) {
     target_db = 0.0f;

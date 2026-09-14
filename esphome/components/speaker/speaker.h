@@ -18,6 +18,9 @@
 
 namespace esphome::speaker {
 
+/// Volumes below this are treated as zero. Matches the threshold the media players use for "effectively zero".
+static constexpr float SILENT_VOLUME_THRESHOLD = 0.001f;
+
 enum State : uint8_t {
   STATE_STOPPED = 0,
   STATE_STARTING,
@@ -65,13 +68,15 @@ class Speaker {
   bool is_running() const { return this->state_ == STATE_RUNNING; }
   bool is_stopped() const { return this->state_ == STATE_STOPPED; }
 
-  // Volume control is handled by a configured audio dac component. Individual speaker components can
-  // override and implement in software if an audio dac isn't available.
+  // Volume and mute are independent: changing one never alters the other's stored state. Volume control is
+  // handled by a configured audio dac component. Individual speaker components can override and implement in
+  // software if an audio dac isn't available.
   virtual void set_volume(float volume) {
     this->volume_ = volume;
 #ifdef USE_AUDIO_DAC
     if (this->audio_dac_ != nullptr) {
       this->audio_dac_->set_volume(volume);
+      this->apply_audio_dac_mute_();
     }
 #endif
   };
@@ -80,12 +85,8 @@ class Speaker {
   virtual void set_mute_state(bool mute_state) {
     this->mute_state_ = mute_state;
 #ifdef USE_AUDIO_DAC
-    if (this->audio_dac_) {
-      if (mute_state) {
-        this->audio_dac_->set_mute_on();
-      } else {
-        this->audio_dac_->set_mute_off();
-      }
+    if (this->audio_dac_ != nullptr) {
+      this->apply_audio_dac_mute_();
     }
 #endif
   }
@@ -110,6 +111,21 @@ class Speaker {
   }
 
  protected:
+  /// @brief Whether the output should be silent: muted, or the volume is effectively zero.
+  /// Volume steps from media players can leave a positive value near float epsilon instead of exactly zero.
+  bool is_silent_() const { return this->mute_state_ || this->volume_ < SILENT_VOLUME_THRESHOLD; }
+
+#ifdef USE_AUDIO_DAC
+  /// @brief Uses the audio dac's mute as the silence mechanism, since a dac's minimum volume is often audible.
+  void apply_audio_dac_mute_() {
+    if (this->is_silent_()) {
+      this->audio_dac_->set_mute_on();
+    } else {
+      this->audio_dac_->set_mute_off();
+    }
+  }
+#endif
+
   State state_{STATE_STOPPED};
   audio::AudioStreamInfo audio_stream_info_;
   float volume_{1.0f};
