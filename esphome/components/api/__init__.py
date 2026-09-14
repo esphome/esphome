@@ -14,6 +14,7 @@ from esphome.components.noise import (  # noqa: F401
     ENCRYPTION_SCHEMA,
     decode_encryption_key,
     encryption_schema,
+    new_psk_progmem,
     validate_encryption_key,
 )
 from esphome.config_helpers import filter_source_files_from_defines, get_logger_level
@@ -349,10 +350,9 @@ CONFIG_SCHEMA = cv.All(
                 ln882x=5,  # Moderate RAM
                 nrf52=4,  # ~256KB RAM, BSD sockets, Thread (single HA controller)
             ): cv.int_range(min=1, max=20),
-            # Maximum queued send buffers per connection before dropping connection
-            # Each buffer uses ~8-12 bytes overhead plus actual message size
+            # Max queued messages per connection, and 2 KB of backlog per slot up
+            # to 64 KB (a lone message is exempt), before the connection is dropped
             # Platform defaults based on available RAM and typical message rates:
-            # CONF_MAX_SEND_QUEUE defaults are power of 2 for efficient modulo
             cv.SplitDefault(
                 CONF_MAX_SEND_QUEUE,
                 esp8266=4,  # Limited RAM, need to fail fast
@@ -589,8 +589,7 @@ async def to_code(config: ConfigType) -> None:
 
     if (encryption_config := config.get(CONF_ENCRYPTION, None)) is not None:
         if key := encryption_config.get(CONF_KEY):
-            decoded = decode_encryption_key(key)
-            cg.add(var.set_noise_psk(list(decoded)))
+            cg.add(var.set_noise_psk(new_psk_progmem(config[CONF_ID], key)))
             cg.add_define("USE_API_NOISE_PSK_FROM_YAML")
         else:
             # No key provided, but encryption desired
