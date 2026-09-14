@@ -48,6 +48,10 @@ void SendspinHub::setup() {
   this->artwork_role_->set_listener(this);
 #endif
 
+#ifdef USE_SENDSPIN_COLOR
+  this->client_->add_color().set_listener(this);
+#endif
+
 #ifdef USE_SENDSPIN_CONTROLLER
   this->controller_role_ = &this->client_->add_controller();
   this->controller_role_->set_listener(this);
@@ -60,6 +64,10 @@ void SendspinHub::setup() {
 
 #ifdef USE_SENDSPIN_PLAYER
   this->client_->add_player(this->player_config_).set_listener(this->player_listener_);
+#endif
+
+#ifdef USE_SENDSPIN_VISUALIZER
+  this->client_->add_visualizer(this->visualizer_config_).set_listener(this->visualizer_listener_);
 #endif
 
   if (!this->client_->start_server()) {
@@ -227,6 +235,17 @@ void SendspinHub::artwork_frame_done(uint8_t slot) {
     this->artwork_role_->frame_done(slot);
   }
 }
+#endif
+
+#ifdef USE_SENDSPIN_COLOR
+// THREAD CONTEXT: Main loop (ColorRoleListener override, fired from client_->loop())
+void SendspinHub::on_color(const sendspin::ServerColorStateObject &color) { this->color_callbacks_.call(color); }
+
+// THREAD CONTEXT: Main loop (ColorRoleListener override, fired from client_->loop())
+// The cached palette was dropped because the connection to the server was lost. As with metadata, fanning that out as a
+// default-constructed state object keeps one code path in the children: every color is nullopt, which they already
+// treat as cleared.
+void SendspinHub::on_color_clear() { this->color_callbacks_.call(sendspin::ServerColorStateObject{}); }
 #endif
 
 #ifdef USE_SENDSPIN_CONTROLLER
