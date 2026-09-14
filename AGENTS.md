@@ -629,6 +629,9 @@ file does, and it is the authority when they disagree. The most useful starting 
                _request_listener_slot()
                cg.add(hub.register_listener(var))
            ```
+           When several instances each own a list declared at the same size (one per hub of a
+           `MULTI_CONF` component), pass the owning object as the key, `_request_listener_slot(str(hub))`;
+           the define is then the largest count any one key requested instead of the total.
            ```cpp
            #ifdef MY_COMPONENT_LISTENER_COUNT
              void register_listener(MyComponentListener *listener);

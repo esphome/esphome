@@ -834,7 +834,7 @@ void SpeakerSourceMediaPlayer::set_volume_(float volume, bool publish) {
 
   // Turn on the mute state if the volume is effectively zero, off otherwise.
   // Pass publish=false to avoid saving twice.
-  if (volume < 0.001f) {
+  if (volume < speaker::SILENT_VOLUME_THRESHOLD) {
     this->set_mute_state_(true, false);
   } else {
     this->set_mute_state_(false, false);
