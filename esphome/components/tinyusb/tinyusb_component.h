@@ -49,7 +49,7 @@ class TinyUSB final : public Component {
   void set_usb_desc_product(const char *usb_desc_product) { this->string_descriptor_[PRODUCT] = usb_desc_product; }
   void set_usb_desc_serial(const char *usb_desc_serial) { this->string_descriptor_[SERIAL_NUMBER] = usb_desc_serial; }
   /// Self-powered device: watch VBUS on this GPIO so a cable pull becomes a detach.
-  void set_vbus_monitor_pin(int pin) { this->vbus_monitor_pin_ = pin; }
+  void set_vbus_monitor_pin(int pin) { this->vbus_monitor_pin_ = static_cast<int8_t>(pin); }
 
  protected:
   char usb_desc_lang_id_[2] = {0x09, 0x04};  // defaults to english
@@ -64,8 +64,9 @@ class TinyUSB final : public Component {
   };
 
   LazyCallbackManager<void(bool)> mount_state_callback_;
-  bool mounted_{false};
-  int vbus_monitor_pin_{-1};
+  // Edge-detection baseline for loop(); is_mounted() reads the live state instead.
+  bool last_reported_mounted_{false};
+  int8_t vbus_monitor_pin_{-1};
 
   tinyusb_config_t tusb_cfg_{};
   tusb_desc_device_t usb_descriptor_{

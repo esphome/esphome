@@ -70,8 +70,8 @@ void TinyUSB::setup() {
 
 void TinyUSB::loop() {
   const bool mounted = tud_mounted();
-  if (mounted != this->mounted_) {
-    this->mounted_ = mounted;
+  if (mounted != this->last_reported_mounted_) {
+    this->last_reported_mounted_ = mounted;
     ESP_LOGD(TAG, "USB host %s", mounted ? LOG_STR_LITERAL("mounted") : LOG_STR_LITERAL("unmounted"));
     this->mount_state_callback_.call(mounted);
   }
@@ -85,7 +85,7 @@ void TinyUSB::dump_config() {
                 "  Vendor ID: 0x%04X\n"
                 "  Manufacturer: '%s'\n"
                 "  Product: '%s'\n"
-                "  Serial: '%s'\n",
+                "  Serial: '%s'",
                 this->usb_descriptor_.idProduct, this->usb_descriptor_.idVendor, this->string_descriptor_[MANUFACTURER],
                 this->string_descriptor_[PRODUCT], this->string_descriptor_[SERIAL_NUMBER]);
   if (this->vbus_monitor_pin_ >= 0) {

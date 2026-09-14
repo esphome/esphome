@@ -48,7 +48,16 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_USB_MANUFACTURER_STR, default="ESPHome"): cv.string,
             cv.Optional(CONF_USB_PRODUCT_STR, default="ESPHome"): cv.string,
             cv.Optional(CONF_USB_SERIAL_STR, default=""): cv.string,
-            cv.Optional(CONF_VBUS_MONITOR_PIN): pins.internal_gpio_input_pin_number,
+            # esp_tinyusb monitors VBUS on the S31 through a GPIO interrupt and needs
+            # the GPIO ISR service installed first, which would collide with the esp32
+            # platform's own lazy install and disable other interrupts. The other
+            # variants watch the pin in the OTG hardware.
+            cv.Optional(CONF_VBUS_MONITOR_PIN): cv.All(
+                pins.internal_gpio_input_pin_number,
+                esp32.only_on_variant(
+                    unsupported=[VARIANT_ESP32S31], msg_prefix=CONF_VBUS_MONITOR_PIN
+                ),
+            ),
             cv.Optional(CONF_ON_MOUNT): automation.validate_automation({}),
             cv.Optional(CONF_ON_UNMOUNT): automation.validate_automation({}),
         }
@@ -63,25 +72,6 @@ CONFIG_SCHEMA = cv.All(
         ],
     ),
 )
-
-
-def _validate_vbus_monitor_pin(config: ConfigType) -> ConfigType:
-    # esp_tinyusb monitors VBUS on the S31 through a GPIO interrupt and needs the GPIO
-    # ISR service installed first, which would collide with the esp32 platform's own
-    # lazy install and disable other interrupts. The other variants watch the pin in
-    # the OTG hardware.
-    if (
-        CONF_VBUS_MONITOR_PIN in config
-        and esp32.get_esp32_variant() == VARIANT_ESP32S31
-    ):
-        raise cv.Invalid(
-            f"{CONF_VBUS_MONITOR_PIN} is not supported on the ESP32-S31 yet",
-            [CONF_VBUS_MONITOR_PIN],
-        )
-    return config
-
-
-CONFIG_SCHEMA = cv.All(CONFIG_SCHEMA, _validate_vbus_monitor_pin)
 
 
 def _final_validate(config: ConfigType) -> None:
