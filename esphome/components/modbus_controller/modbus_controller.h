@@ -280,9 +280,8 @@ class ControllerDevice : protected modbus::ModbusClientDevice {
 
   void notify_online_(std::span<const uint8_t> request_pdu);
 
-  /// Write-path state owned by WriterEntity's forwarders, packed so the flags and the one-byte write
-  /// options together fill the base's two bytes of tail padding instead of adding a word to every writer
-  /// entity. The warn flag leaves in 2027.3.0.
+  /// Write-path state for WriterEntity's forwarders, packed into the base's tail padding. The warn flag
+  /// leaves in 2027.3.0.
   bool dispatched_ : 1 {false};
   bool write_buffer_deprecated_warned_ : 1 {false};
   modbus::CommandOptions write_options_{};
@@ -330,7 +329,6 @@ class WriterEntity {
   /// Whether the lambda called a request helper since the last clear_dispatched_(). Deliberately records
   /// the call, not the hub's accept/refuse: a refused lambda write must not fall through to the default write.
   bool dispatched() const { return this->device_.dispatched(); }
-  /// The entity's write-side options (modbus::CommandOptions), sent with every write helper below.
   void set_write_options(modbus::CommandOptions options) { this->device_.set_write_options(options); }
   bool write_single_register(uint16_t address, uint16_t value) {
     this->device_.set_dispatched();
@@ -352,7 +350,6 @@ class WriterEntity {
     this->device_.set_dispatched();
     return this->device_.write_multiple_coils(address, bits, this->device_.write_options());
   }
-  /// A custom PDU is sent with the entity's write options unless the caller passes its own.
   bool queue_pdu(std::span<const uint8_t> pdu) { return this->queue_pdu(pdu, this->device_.write_options()); }
   bool queue_pdu(std::span<const uint8_t> pdu, modbus::CommandOptions options) {
     this->device_.set_dispatched();

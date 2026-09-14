@@ -157,9 +157,6 @@ _ACTION_BASE_SCHEMA = cv.Schema(
 )
 
 
-# A raw PDU may be a read or a write, so send offers both option sets; the shared validator rejects
-# any option a static PDU's function code does not take, and the hub strips it at runtime for a
-# templated one.
 MODBUS_CLIENT_SEND_SCHEMA = cv.All(
     _ACTION_BASE_SCHEMA.extend(
         {
@@ -264,7 +261,7 @@ async def modbus_client_send_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
     template_ = await cg.templatable(config[CONF_PDU], args, _PDU_BUFFER)
     cg.add(var.set_pdu(template_))
-    # send carries both option sets (its PDU may be either direction); the read set is wired below.
+    # The read set is wired by register_client_action() below.
     await modbus.register_templatable_command_options(var, config, args, "write")
     return await register_client_action(
         var,
@@ -544,8 +541,7 @@ _READ_WRITE_MULTIPLE_REGISTERS_SCHEMA = cv.All(
                     cv.Length(min=1, max=modbus.MAX_NUM_OF_REGISTERS_TO_WRITE_RW),
                 )
             ),
-            # 0x17 is a read for broadcast purposes (its reply carries data) and a write for
-            # continuous, so this offers exactly allow_broadcast_read.
+            # 0x17 counts as a read at address 0, so it takes allow_broadcast_read only.
             **modbus.command_options_schema(
                 direction="read", templatable=True, function_code=0x17
             ),

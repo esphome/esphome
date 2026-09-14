@@ -85,14 +85,12 @@ template<typename... Ts> class ClientActionBase : public Action<Ts...>, public m
 /// builds its static struct; declaring the values here instead of per action means a new read option
 /// costs one TEMPLATABLE_VALUE plus one field below, and every read action picks it up.
 /// The read/write split mirrors _COMMAND_OPTIONS in the modbus component's Python
-/// (command_options_schema(direction="read") adds exactly these keys); WriteCommandOptions below is the
-/// write-side twin, so write actions never carry read-only members and vice versa.
+/// (command_options_schema(direction="read") adds exactly these keys); WriteCommandOptions is the twin.
 template<typename... Ts> class ReadCommandOptions {
  public:
   // Poll: re-queue after each success until downgraded (replay with false) or failed. The hub strips
   // it for mutating function codes at the door (see modbus::CommandOptions).
   TEMPLATABLE_VALUE(bool, continuous)
-  // Send to address 0 and wait for the reply (see modbus::CommandOptions).
   TEMPLATABLE_VALUE(bool, allow_broadcast_read)
 
  protected:
@@ -106,12 +104,10 @@ template<typename... Ts> class ReadCommandOptions {
 /// The write-side per-command options (command_options_schema(direction="write") adds exactly these keys).
 template<typename... Ts> class WriteCommandOptions {
  public:
-  // Send to address 0 and wait for the reply (see modbus::CommandOptions).
   TEMPLATABLE_VALUE(bool, expect_broadcast_write_response)
 
  protected:
-  /// Resolve every write option into `options`, so an action carrying both sets (send) merges them
-  /// exhaustively: a new write option is added here once and reaches the hub from every write action.
+  /// Resolves every write option into `options`, so send's merge of both sets stays exhaustive.
   void apply_write_command_options_(modbus::CommandOptions &options, const Ts &...x) const {
     options.expect_broadcast_write_response = this->expect_broadcast_write_response_.value(x...);
   }
@@ -129,8 +125,7 @@ template<typename... Ts> class WriteCommandOptions {
 /// modbus::helpers::create_*_pdu() builders and return it directly (smaller builder results convert).
 /// A PduBuffer drops bytes past modbus::MAX_PDU_SIZE without reporting it (the hub's oversize check
 /// cannot fire - that limit is the capacity), so an over-long lambda-built PDU is silently truncated.
-/// A raw PDU may be a read or a write, so this action carries both option sets; the hub strips the
-/// ones that do not apply to the function code actually sent.
+/// A raw PDU may be a read or a write, so this action carries both option sets.
 template<typename... Ts>
 class ModbusClientSendAction : public ClientActionBase<Ts...>,
                                public ReadCommandOptions<Ts...>,

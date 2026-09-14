@@ -341,9 +341,7 @@ void ModbusClientHub::process_modbus_server_frame(uint8_t address, std::span<con
     return;
   }
 
-  // Check if the response matches the expected address and function code. An address-0 frame sent with
-  // allow_broadcast_read / expect_broadcast_write_response waits like a unicast one: the reply must come
-  // from address 0 too.
+  // Check if the response matches the expected address and function code
   const uint8_t expected_address = cmd->frame.address();
   const uint8_t expected_function_code = cmd->frame.pdu()[0];
   if (expected_address != address || expected_function_code != (function_code & FUNCTION_CODE_MASK)) {
@@ -1083,9 +1081,6 @@ bool ModbusClientHub::queue_pdu(uint8_t address, std::span<const uint8_t> pdu, M
     ESP_LOGW(TAG, "continuous is ignored for a mutating function (0x%X, address %" PRIu8 ")", pdu[0], address);
     options.continuous = false;
   }
-  // The broadcast options only mean something at address 0, each for the codes the other does not cover:
-  // allow_broadcast_read for a code the guard below would refuse, expect_broadcast_write_response for a
-  // broadcastable one (write, custom). A unicast frame never consults either.
   if (address != BROADCAST_ADDRESS) {
     options.allow_broadcast_read = false;
     options.expect_broadcast_write_response = false;
@@ -1144,10 +1139,6 @@ bool ModbusClientHub::queue_pdu(uint8_t address, std::span<const uint8_t> pdu, M
       ESP_LOGV(TAG, "Frame already active for %" PRIu8 ", request absorbed (pending %" PRIu8 ")", address,
                item.pending);
     }
-    // Merge rule for the write-side flag: a broadcastable frame at address 0 is accepted with or without it,
-    // so an absorbed request may disagree with the entry (a custom-code poll being downgraded by a one-shot
-    // that wants the reply). If either wants the reply the entry waits for it; the merge lands before the
-    // send, since a fire-and-forget entry never leaves READY until it is sent.
     item.options.expect_broadcast_write_response |= options.expect_broadcast_write_response;
     return true;
   }
