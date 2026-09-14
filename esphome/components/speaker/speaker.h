@@ -18,7 +18,7 @@
 
 namespace esphome::speaker {
 
-/// Volumes below this are treated as zero. Matches the threshold the media players use for "effectively zero".
+/// Volumes below this are treated as zero
 static constexpr float SILENT_VOLUME_THRESHOLD = 0.001f;
 
 enum State : uint8_t {
