@@ -79,15 +79,14 @@ class I2SAudioSpeakerBase : public I2SAudioOut, public speaker::Speaker, public 
 
   bool has_buffered_data() const override;
 
-  /// @brief Sets the volume of the speaker. Uses the speaker's configured audio dac component. If unavailble, it is
-  /// implemented as a software volume control. Overrides the default setter to convert the floating point volume to a
-  /// Q15 fixed-point factor.
+  /// @brief Sets the volume of the speaker. Uses the speaker's configured audio dac component. If unavailable, it is
+  /// implemented as a software volume control. Overrides the default setter to convert the volume to a dB target for
+  /// the gain ramp.
   /// @param volume between 0.0 and 1.0
   void set_volume(float volume) override;
 
-  /// @brief Mutes or unmute the speaker. Uses the speaker's configured audio dac component. If unavailble, it is
-  /// implemented as a software volume control. Overrides the default setter to convert the floating point volume to a
-  /// Q15 fixed-point factor.
+  /// @brief Mutes or unmutes the speaker. Uses the speaker's configured audio dac component. If unavailable, it is
+  /// implemented as a software volume control. Overrides the default setter to post the mute state to the gain ramp.
   /// @param mute_state true for muting, false for unmuting
   void set_mute_state(bool mute_state) override;
 
