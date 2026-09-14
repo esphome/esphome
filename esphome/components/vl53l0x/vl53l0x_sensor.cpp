@@ -272,8 +272,8 @@ bool VL53L0XSensor::init_sensor_(uint8_t final_address) {
   // A measurement may not take longer than its timing budget plus a margin. The
   // configured `timeout` can only extend that window, never shorten it - it is
   // also used for much shorter setup operations.
-  constexpr uint32_t MEASUREMENT_TIMEOUT_MARGIN_MS = 10;
-  this->stall_timeout_ms_ = this->measurement_timing_budget_us_ / 1000 + MEASUREMENT_TIMEOUT_MARGIN_MS;
+  constexpr uint32_t measurement_timeout_margin_ms = 10;
+  this->stall_timeout_ms_ = this->measurement_timing_budget_us_ / 1000 + measurement_timeout_margin_ms;
   this->stall_timeout_ms_ = std::max(this->stall_timeout_ms_, this->timeout_us_ / 1000);
   return true;
 }
