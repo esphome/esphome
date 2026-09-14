@@ -6,6 +6,6 @@ usb_host:
       pid: 0x1234
     - id: device_2
       vid: 0x1234
-      pid: 0x5678
+      pid: 0xABCD
       manufacturer: Example Corp
       product: Example Widget
