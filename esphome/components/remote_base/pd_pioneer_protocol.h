@@ -72,9 +72,9 @@ class PDPioneerData {
 
 class PDPioneerProtocol : public RemoteProtocol<PDPioneerData> {
  public:
-  void encode(RemoteTransmitData *dst, const PDPioneerData &src) override;
-  optional<PDPioneerData> decode(RemoteReceiveData src) override;
-  void dump(const PDPioneerData &data) override;
+  void encode(RemoteTransmitData *dst, const PDPioneerData &src);
+  optional<PDPioneerData> decode(RemoteReceiveData src);
+  void dump(const PDPioneerData &data);
 };
 
 DECLARE_REMOTE_PROTOCOL(PDPioneer)
