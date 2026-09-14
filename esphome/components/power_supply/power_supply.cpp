@@ -7,7 +7,9 @@ static const char *const TAG = "power_supply";
 
 void PowerSupply::setup() {
   this->pin_->setup();
-  this->pin_->digital_write(false);
+  if (!pin_state_held_from_deep_sleep(this->pin_)) {
+    this->pin_->digital_write(false);
+  }
   if (this->enable_on_boot_)
     this->request_high_power();
 }
@@ -53,8 +55,11 @@ void PowerSupply::unrequest_high_power() {
   }
 }
 void PowerSupply::on_powerdown() {
-  this->active_requests_ = 0;
-  this->pin_->digital_write(false);
+  // only turn off if pin is not held.
+  if (!this->pin_->get_flags() & gpio::FLAG_HOLD) {
+    this->active_requests_ = 0;
+    this->pin_->digital_write(false);
+  }
 }
 
 }  // namespace esphome::power_supply
