@@ -1,6 +1,6 @@
 from esphome import pins
 import esphome.codegen as cg
-from esphome.components import gpio_expander, i2c
+from esphome.components import gpio_expander as gpio_expander, i2c
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_DEVICE,
@@ -117,7 +117,6 @@ CONFIG_SCHEMA = (
     cv.Schema(
         {
             cv.Required(CONF_ID): cv.declare_id(PCA9554Component),
-
             cv.Optional(CONF_DEVICE, default="NONE"): cv.enum(
                 PCA9554_DEVICE_TYPES, upper=True
             ),
@@ -157,7 +156,6 @@ async def to_code(config: ConfigType) -> None:
     await i2c.register_i2c_device(var, config)
     if interrupt_pin := config.get(CONF_INTERRUPT_PIN):
         cg.add(var.set_interrupt_pin(await cg.gpio_pin_expression(interrupt_pin)))
-
 
 
 def validate_mode(value: ConfigType) -> ConfigType:
