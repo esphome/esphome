@@ -269,6 +269,7 @@
 #define USE_IMPROV_SERIAL_NEXT_URL
 #define USE_MD5
 #define USE_NOISE
+#define USE_NOISE_SPARE_EPHEMERAL
 #define USE_SHA256
 #ifndef USE_RP2  // no MQTT backend or esp_wireguard library on RP2
 #define USE_MQTT
