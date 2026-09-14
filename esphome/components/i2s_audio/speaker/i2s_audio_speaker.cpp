@@ -14,6 +14,8 @@
 
 #include "esp_timer.h"
 
+#include <cmath>
+
 // esp-audio-libs
 #include <gain.h>
 
@@ -21,9 +23,13 @@ namespace esphome::i2s_audio {
 
 static const char *const TAG = "i2s_audio.speaker";
 
-// Software volume control maps the user-facing [0.0, 1.0] range to a Q31 scale factor.
-// Volumes in (0.0, 1.0) map linearly to a dB reduction in [-49.0, 0.0] dB.
+// Software volume control maps the user-facing (0.0, 1.0) range linearly to a dB reduction in
+// [-49.0, 0.0] dB; 0.0 is silence.
 static constexpr float SOFTWARE_VOLUME_MIN_DB = -49.0f;
+
+// Rate at which the software gain moves toward a new target. A slider step of a few dB is over in
+// a few milliseconds; a mute fades across the whole grid in about a tenth of a second.
+static constexpr uint32_t GAIN_RAMP_MS_PER_DB = 1;
 
 void I2SAudioSpeakerBase::setup() {
   this->event_group_ = xEventGroupCreate();
@@ -136,6 +142,10 @@ void I2SAudioSpeakerBase::loop() {
         break;
       }
 
+      // Seed the ramp at the live target so this run adopts it instantly rather than fading to it
+      // from wherever the previous run left off. Posted here, not in the task: the ramp's mailbox
+      // allows one writer, and that is the main loop.
+      this->post_software_gain_(0);
       xTaskCreate(I2SAudioSpeakerBase::speaker_task, "speaker_task", TASK_STACK_SIZE, (void *) this, TASK_PRIORITY,
                   &this->speaker_task_handle_);
 
@@ -163,17 +173,15 @@ void I2SAudioSpeakerBase::set_volume(float volume) {
   } else
 #endif  // USE_AUDIO_DAC
   {
-    // Fallback to software volume control by using a Q31 fixed point scaling factor.
-    // At maximum volume (1.0), set to INT32_MAX to bypass volume processing entirely
-    // and avoid any floating-point precision issues that could cause slight volume reduction.
+    // Fallback to software volume control. The ramp treats 0 dB as unity and skips processing there.
     if (volume >= 1.0f) {
-      this->q31_volume_factor_ = INT32_MAX;
+      this->software_gain_db_ = 0.0f;
     } else if (volume <= 0.0f) {
-      this->q31_volume_factor_ = 0;
+      this->software_gain_db_ = -INFINITY;
     } else {
-      this->q31_volume_factor_ =
-          esp_audio_libs::gain::db_to_q31(remap<float, float>(volume, 0.0f, 1.0f, SOFTWARE_VOLUME_MIN_DB, 0.0f));
+      this->software_gain_db_ = remap<float, float>(volume, 0.0f, 1.0f, SOFTWARE_VOLUME_MIN_DB, 0.0f);
     }
+    this->post_software_gain_(this->audio_stream_info_.ms_to_samples(GAIN_RAMP_MS_PER_DB));
   }
 }
 
@@ -189,14 +197,14 @@ void I2SAudioSpeakerBase::set_mute_state(bool mute_state) {
   } else
 #endif  // USE_AUDIO_DAC
   {
-    if (mute_state) {
-      // Fallback to software volume control and scale by 0
-      this->q31_volume_factor_ = 0;
-    } else {
-      // Revert to previous volume when unmuting
-      this->set_volume(this->volume_);
-    }
+    // Fallback to software volume control: silence while muted, the stored gain otherwise
+    this->software_muted_ = mute_state;
+    this->post_software_gain_(this->audio_stream_info_.ms_to_samples(GAIN_RAMP_MS_PER_DB));
   }
+}
+
+void I2SAudioSpeakerBase::post_software_gain_(uint32_t rate_samples) {
+  this->gain_ramp_.set_target_db_at_rate(this->software_muted_ ? -INFINITY : this->software_gain_db_, rate_samples);
 }
 
 size_t I2SAudioSpeakerBase::play(const uint8_t *data, size_t length, TickType_t ticks_to_wait) {
@@ -355,14 +363,9 @@ bool IRAM_ATTR I2SAudioSpeakerBase::i2s_on_sent_cb(i2s_chan_handle_t handle, i2s
 }
 
 void I2SAudioSpeakerBase::apply_software_volume_(uint8_t *data, size_t bytes_read) {
-  if (this->q31_volume_factor_ == INT32_MAX) {
-    return;  // Max volume, no processing needed
-  }
-
   const size_t bytes_per_sample = this->current_stream_info_.samples_to_bytes(1);
-  const uint32_t len = bytes_read / bytes_per_sample;
-
-  esp_audio_libs::gain::apply(data, data, this->q31_volume_factor_, len, bytes_per_sample);
+  this->gain_ramp_.process(data, static_cast<uint8_t>(bytes_per_sample),
+                           this->current_stream_info_.bytes_to_samples(bytes_read));
 }
 
 void I2SAudioSpeakerBase::swap_esp32_mono_samples_(uint8_t *data, size_t bytes_read) {
