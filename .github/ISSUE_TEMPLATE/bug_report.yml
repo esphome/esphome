@@ -23,6 +23,9 @@ body:
 
         It is however quite acceptable to use AI to translate your *own* report,
         if you aren't a competent English speaker.
+        
+        If you really think it will be useful to include an AI's analysis, preferably wrap it in a `<details>` block which will be collapsed by default.
+
 
         If you are using AI to help solve a problem, rather than asking it to speculate about what the problem is,
         it can be more useful to ask it to create a step-by-step troubleshooting procedure.
