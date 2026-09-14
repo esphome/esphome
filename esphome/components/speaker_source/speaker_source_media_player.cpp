@@ -809,9 +809,8 @@ void SpeakerSourceMediaPlayer::set_mute_state_(bool mute_state, bool publish) {
 }
 
 void SpeakerSourceMediaPlayer::set_volume_(float volume, bool publish) {
-  // Remap the volume to fit within the configured limits
-  // A volume that is effectively zero is passed through unremapped, so that requested silence still reaches
-  // the speaker as zero. The same threshold decides the mute state below.
+  // Remap the volume to fit within the configured limits. An effectively zero volume is passed through as zero so
+  // the speaker silences it, otherwise volume_min would make it audible.
   float bounded_volume = (volume < speaker::SILENT_VOLUME_THRESHOLD)
                              ? 0.0f
                              : remap<float, float>(volume, 0.0f, 1.0f, this->volume_min_, this->volume_max_);
