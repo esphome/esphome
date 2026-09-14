@@ -53,6 +53,13 @@ void I2SAudioSpeakerBase::dump_config() {
 void I2SAudioSpeakerBase::loop() {
   uint32_t event_group_bits = xEventGroupGetBits(this->event_group_);
 
+  // A stop that arrives while stopped cancels any start that has not been processed yet
+  constexpr uint32_t stop_bits = SpeakerEventGroupBits::COMMAND_STOP | SpeakerEventGroupBits::COMMAND_STOP_GRACEFULLY;
+  if ((event_group_bits & stop_bits) && (this->state_ == speaker::STATE_STOPPED)) {
+    xEventGroupClearBits(this->event_group_, stop_bits | SpeakerEventGroupBits::COMMAND_START);
+    event_group_bits &= ~(stop_bits | SpeakerEventGroupBits::COMMAND_START);
+  }
+
   if ((event_group_bits & SpeakerEventGroupBits::COMMAND_START) && (this->state_ == speaker::STATE_STOPPED)) {
     this->state_ = speaker::STATE_STARTING;
     xEventGroupClearBits(this->event_group_, SpeakerEventGroupBits::COMMAND_START);
@@ -239,8 +246,6 @@ void I2SAudioSpeakerBase::start() {
   if ((this->state_ == speaker::STATE_STARTING) || (this->state_ == speaker::STATE_RUNNING))
     return;
 
-  // Mark STARTING immediately to avoid transient STOPPED observations before loop() processes COMMAND_START.
-  this->state_ = speaker::STATE_STARTING;
   xEventGroupSetBits(this->event_group_, SpeakerEventGroupBits::COMMAND_START);
 }
 
@@ -249,11 +254,10 @@ void I2SAudioSpeakerBase::stop() { this->stop_(false); }
 void I2SAudioSpeakerBase::finish() { this->stop_(true); }
 
 void I2SAudioSpeakerBase::stop_(bool wait_on_empty) {
-  if (this->is_failed())
-    return;
-  if (this->state_ == speaker::STATE_STOPPED)
+  if (!this->is_ready() || this->is_failed())
     return;
 
+  // Always set the bit, even when stopped, so loop() can cancel a start that is still pending
   if (wait_on_empty) {
     xEventGroupSetBits(this->event_group_, SpeakerEventGroupBits::COMMAND_STOP_GRACEFULLY);
   } else {
