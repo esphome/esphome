@@ -57,7 +57,7 @@ from ..lv_validation import (
 )
 from ..lvcode import LocalVariable, lv, lv_assign, lv_expr
 from ..schemas import STYLE_PROPS, TEXT_SCHEMA, point_schema, remap_property
-from ..types import LvType, ObjUpdateAction, lv_image_t, lv_point_precise_t
+from ..types import LvType, ObjUpdateAction, lv_point_precise_t
 from . import Widget, WidgetType, get_widgets
 from .img import CONF_IMAGE
 
@@ -67,9 +67,7 @@ CONF_MAX_WIDTH = "max_width"
 CONF_TRANSPARENT = "transparent"
 CONF_DRAW_BUF_ID = "draw_buf_id"
 
-# A canvas is an image with a buffer of its own behind it, in LVGL as well as
-# here, so anything that takes an image widget takes a canvas too.
-lv_canvas_t = LvType("lv_canvas_t", parents=(lv_image_t,))
+lv_canvas_t = LvType("lv_canvas_t")
 lv_draw_buf_t = LvType("lv_draw_buf_t")
 
 

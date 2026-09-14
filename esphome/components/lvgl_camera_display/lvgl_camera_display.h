@@ -13,12 +13,16 @@
 
 namespace esphome::lvgl_camera_display {
 
-/// Shows an esp_video_camera's live frames in an LVGL canvas or image widget.
+/// Shows an esp_video_camera's live frames in an LVGL canvas.
 ///
 /// Nothing is copied and nothing is decoded: the sensor's frames are already
-/// RGB565, which is what LVGL draws from, so the widget is pointed straight at
+/// RGB565, which is what LVGL draws from, so the canvas is pointed straight at
 /// the capture buffer. The camera holds that buffer back from the sensor for as
-/// long as the widget is reading it -- see esp_video_camera::RawFrameConsumer.
+/// long as the canvas is reading it -- see esp_video_camera::RawFrameConsumer.
+///
+/// A canvas and not an image widget. A canvas is what LVGL offers for a buffer
+/// whose contents keep changing, and lv_canvas_set_draw_buf() is the call that
+/// keeps the widget and the buffer it draws from in step.
 class LVGLCameraDisplay : public Component, public esp_video_camera::RawFrameConsumer {
  public:
   void setup() override;
@@ -27,7 +31,7 @@ class LVGLCameraDisplay : public Component, public esp_video_camera::RawFrameCon
   float get_setup_priority() const override { return setup_priority::LATE; }
 
   void set_camera(esp_video_camera::ESPVideoCamera *camera) { this->camera_ = camera; }
-  void set_widget(lv_obj_t **widget) { this->widget_ = widget; }
+  void set_canvas(lv_obj_t **canvas) { this->canvas_ = canvas; }
 
   /// Start or stop asking the camera for frames. Stopping lets the camera shut
   /// the sensor down, so a display that is switched off costs nothing.
@@ -39,24 +43,21 @@ class LVGLCameraDisplay : public Component, public esp_video_camera::RawFrameCon
   void on_raw_frames_stopped() override;
 
  protected:
-  /// Stop the widget drawing from a buffer the camera is about to take back.
-  void release_widget_();
+  /// Stop the canvas drawing from a buffer the camera is about to take back.
+  void release_canvas_();
 
   esp_video_camera::ESPVideoCamera *camera_{nullptr};
   /// The address of the widget pointer, not the pointer: LVGL fills its widget
   /// variables in during its own setup, and this component may be constructed
   /// before that has happened.
-  lv_obj_t **widget_{nullptr};
+  lv_obj_t **canvas_{nullptr};
   bool enabled_{true};
 
   /// The descriptor handed to LVGL. Its geometry is fixed on the first frame;
   /// after that only the data pointer changes, which is the whole point.
   lv_draw_buf_t draw_buf_{};
   bool draw_buf_ready_{false};
-  /// A canvas takes the draw buffer, an image takes it as its source. Decided
-  /// once, on the first frame, from the widget LVGL actually created.
-  bool widget_is_canvas_{false};
-  bool warned_no_widget_{false};
+  bool warned_no_canvas_{false};
 };
 
 template<typename... Ts> class StartAction : public Action<Ts...> {

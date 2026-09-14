@@ -1,14 +1,18 @@
-"""Live camera frames in an LVGL widget (ESP32-P4).
+"""Live camera frames in an LVGL canvas (ESP32-P4).
 
-Points an LVGL canvas or image widget straight at the frames an
-``esp_video_camera`` captures. The sensor already produces RGB565, which is
-what LVGL draws from, so nothing is decoded and nothing is copied on the way.
+Points an LVGL canvas straight at the frames an ``esp_video_camera`` captures.
+The sensor already produces RGB565, which is what LVGL draws from, so nothing
+is decoded and nothing is copied on the way.
+
+A canvas rather than an image widget: the canvas is LVGL's supported way of
+showing a buffer whose contents keep changing, and it is the one that has been
+run against these sensors.
 """
 
 from esphome import automation, codegen as cg, config_validation as cv
 from esphome.components.const import CONF_BYTE_ORDER, CONF_ENABLED
 from esphome.components.esp_video_camera import ESPVideoCamera
-from esphome.components.lvgl.types import lv_image_t
+from esphome.components.lvgl.widgets.canvas import lv_canvas_t
 from esphome.const import CONF_ID
 import esphome.final_validate as fv
 from esphome.types import ConfigType
@@ -17,7 +21,7 @@ CODEOWNERS = ["@youkorr"]
 DEPENDENCIES = ["esp_video_camera", "lvgl"]
 
 CONF_CAMERA_ID = "camera_id"
-CONF_WIDGET_ID = "widget_id"
+CONF_CANVAS_ID = "canvas_id"
 
 lvgl_camera_display_ns = cg.esphome_ns.namespace("lvgl_camera_display")
 LVGLCameraDisplay = lvgl_camera_display_ns.class_("LVGLCameraDisplay", cg.Component)
@@ -28,8 +32,7 @@ CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(LVGLCameraDisplay),
         cv.Required(CONF_CAMERA_ID): cv.use_id(ESPVideoCamera),
-        # A canvas is an image widget with its own buffer, so this takes either.
-        cv.Required(CONF_WIDGET_ID): cv.use_id(lv_image_t),
+        cv.Required(CONF_CANVAS_ID): cv.use_id(lv_canvas_t),
         cv.Optional(CONF_ENABLED, default=True): cv.boolean,
     }
 ).extend(cv.COMPONENT_SCHEMA)
@@ -74,9 +77,9 @@ async def to_code(config: ConfigType) -> None:
 
     # The address of LVGL's widget variable, not its value: LVGL assigns those
     # variables while it builds the display, and this component is told about
-    # the widget before it necessarily exists.
-    widget = await cg.get_variable(config[CONF_WIDGET_ID])
-    cg.add(var.set_widget(cg.RawExpression(f"&{widget}")))
+    # the canvas before it necessarily exists.
+    canvas = await cg.get_variable(config[CONF_CANVAS_ID])
+    cg.add(var.set_canvas(cg.RawExpression(f"&{canvas}")))
 
     cg.add(var.set_enabled(config[CONF_ENABLED]))
 
