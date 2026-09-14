@@ -111,7 +111,7 @@ def get_updated_widgets() -> dict:
     return _get_data(KEY_UPDATED_WIDGETS, {})
 
 
-def get_theme_styles() -> dict[str, ID]:
+def get_theme_styles() -> dict[str, MockObj]:
     """Get a map of already created theme style names to their corresponding style IDs."""
     return _get_data(KEY_THEME_STYLES, {})
 
@@ -135,10 +135,6 @@ def get_styles_used() -> set[str]:
 
 def get_widget_map() -> dict[str, Any]:
     return _get_data(KEY_WIDGET_MAP, {})
-
-
-def is_widget_completed(name: ID) -> bool:
-    return name in get_widget_map()
 
 
 def get_focused_widgets() -> set:

@@ -386,6 +386,11 @@ async def to_code(configs):
     cg.add(lvgl_static.esphome_lvgl_init())
     default_group = get_default_group(config_0)
 
+    # Create theme lambdas before any widgets.
+    async with LvContext():
+        for config in configs:
+            await theme_to_code(config)
+
     for config in configs:
         frac = config[CONF_BUFFER_SIZE]
         if frac >= 0.75:
@@ -438,7 +443,6 @@ async def to_code(configs):
             await touchscreens_to_code(lv_component, config)
             await encoders_to_code(lv_component, config, default_group)
             await keypads_to_code(lv_component, config, default_group)
-            await theme_to_code(config)
             await gradients_to_code(config)
             await styles_to_code(config)
             await set_obj_properties(lv_scr_act, config)
