@@ -117,6 +117,13 @@ struct UsbEvent {
 
 // callback function type.
 
+/// Identity of a connected USB device, read from the device descriptor
+struct UsbDeviceInfo {
+  uint16_t vendor_id;
+  uint16_t product_id;
+  uint16_t bcd_device;
+};
+
 enum ClientState {
   USB_CLIENT_INIT = 0,
   USB_CLIENT_OPEN,
@@ -143,6 +150,10 @@ class USBClient : public Component {
   trq_bitmask_t get_trq_in_use() const { return trq_in_use_; }
   bool control_transfer(uint8_t type, uint8_t request, uint16_t value, uint16_t index, const transfer_cb_t &callback,
                         const std::vector<uint8_t> &data = {});
+
+  /// Copy the connected device's identity out of the cached device descriptor.
+  /// Returns false when no device is connected.
+  bool get_device_info(UsbDeviceInfo &info) const;
 
   // Lock-free event queue and pool for USB task to main loop communication
   // Must be public for access from static callbacks

@@ -162,6 +162,18 @@ static const char *get_descriptor_string(const usb_str_desc_t *desc, std::span<c
   return buffer.data();
 }
 
+bool USBClient::get_device_info(UsbDeviceInfo &info) const {
+  if (this->state_ != USB_CLIENT_CONNECTED)
+    return false;
+  const usb_device_desc_t *desc;
+  if (usb_host_get_device_descriptor(this->device_handle_, &desc) != ESP_OK)
+    return false;
+  info.vendor_id = desc->idVendor;
+  info.product_id = desc->idProduct;
+  info.bcd_device = desc->bcdDevice;
+  return true;
+}
+
 // CALLBACK CONTEXT: USB task (called from usb_host_client_handle_events in USB task)
 static void client_event_cb(const usb_host_client_event_msg_t *event_msg, void *ptr) {
   auto *client = static_cast<USBClient *>(ptr);

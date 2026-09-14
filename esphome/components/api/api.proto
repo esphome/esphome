@@ -76,6 +76,7 @@ service APIConnection {
   rpc serial_proxy_write(SerialProxyWriteRequest) returns (void) {}
   rpc serial_proxy_set_modem_pins(SerialProxySetModemPinsRequest) returns (void) {}
   rpc serial_proxy_get_modem_pins(SerialProxyGetModemPinsRequest) returns (void) {}
+  rpc serial_proxy_get_usb_info(SerialProxyGetUsbInfoRequest) returns (void) {}
   rpc serial_proxy_request(SerialProxyRequest) returns (void) {}
   rpc serial_proxy_set_mode(SerialProxySetModeRequest) returns (void) {}
 }
@@ -228,6 +229,7 @@ enum SerialProxyPortType {
   SERIAL_PROXY_PORT_TYPE_TTL = 0;
   SERIAL_PROXY_PORT_TYPE_RS232 = 1;
   SERIAL_PROXY_PORT_TYPE_RS485 = 2;
+  SERIAL_PROXY_PORT_TYPE_USB_SERIAL = 3;
 }
 
 message SerialProxyInfo {
@@ -2865,6 +2867,36 @@ message SerialProxySetModeRequest {
 
   uint32 instance = 1;
   SerialProxyMode mode = 2;
+}
+
+// Ask for the USB identity of the device behind a port on a USB bridge. Read-only, so no
+// subscription is required. Answered with NOT_SUPPORTED on ports without a USB bridge.
+message SerialProxyGetUsbInfoRequest {
+  option (id) = 153;
+  option (source) = SOURCE_CLIENT;
+  option (ifdef) = "USE_SERIAL_PROXY";
+
+  uint32 instance = 1;
+}
+
+// The USB identity of the device currently behind a port. Fields are zero/empty while
+// no device is connected.
+message SerialProxyUsbInfo {
+  option (id) = 154;
+  option (source) = SOURCE_SERVER;
+  option (ifdef) = "USE_SERIAL_PROXY";
+
+  uint32 instance = 1;
+  SerialProxyStatus status = 2;   // NOT_SUPPORTED when the port has no USB bridge
+  bool connected = 3;             // True when a USB device is currently attached
+  uint32 vendor_id = 4;
+  uint32 product_id = 5;
+  uint32 bcd_device = 6;
+  uint32 interface_number = 7;    // bInterfaceNumber a host driver binds to, as Linux reports it
+  string manufacturer = 8;
+  string product = 9;
+  string serial_number = 10;
+  string interface_description = 11;  // iInterface string of that interface; empty when the device has none
 }
 
 // ==================== BLUETOOTH CONNECTION PARAMS ====================

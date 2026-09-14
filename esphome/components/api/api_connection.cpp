@@ -1645,6 +1645,25 @@ void APIConnection::on_serial_proxy_get_modem_pins_request(const SerialProxyGetM
   }
 }
 
+void APIConnection::on_serial_proxy_get_usb_info_request(const SerialProxyGetUsbInfoRequest &msg) {
+  auto &proxies = App.get_serial_proxies();
+  SerialProxyUsbInfo resp{};
+  resp.instance = msg.instance;
+  if (msg.instance >= proxies.size()) {
+    ESP_LOGW(TAG, "Serial proxy instance %" PRIu32 " out of range", msg.instance);
+    resp.status = enums::SERIAL_PROXY_STATUS_INVALID_ARGUMENT;
+  } else {
+#ifdef USE_SERIAL_PROXY_USB_INFO
+    proxies[msg.instance]->get_usb_info(resp);
+#else
+    resp.status = enums::SERIAL_PROXY_STATUS_NOT_SUPPORTED;
+#endif
+  }
+  if (!this->send_message(resp)) {
+    API_LOG_MSG_DROPPED(TAG, "Serial proxy response");
+  }
+}
+
 void APIConnection::on_serial_proxy_request(const SerialProxyRequest &msg) {
   auto &proxies = App.get_serial_proxies();
   if (msg.instance >= proxies.size()) {

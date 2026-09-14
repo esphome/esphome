@@ -23,6 +23,7 @@ enum SerialProxyPortType : uint32_t {
   SERIAL_PROXY_PORT_TYPE_TTL = 0,
   SERIAL_PROXY_PORT_TYPE_RS232 = 1,
   SERIAL_PROXY_PORT_TYPE_RS485 = 2,
+  SERIAL_PROXY_PORT_TYPE_USB_SERIAL = 3,
 };
 enum EntityCategory : uint32_t {
   ENTITY_CATEGORY_NONE = 0,
@@ -3423,6 +3424,47 @@ class SerialProxySetModeRequest final : public ProtoDecodableMessage {
 
  protected:
   bool decode_varint(uint32_t field_id, proto_varint_value_t value) override;
+};
+class SerialProxyGetUsbInfoRequest final : public ProtoDecodableMessage {
+ public:
+  static constexpr uint16_t MESSAGE_TYPE = 153;
+  static constexpr uint8_t ESTIMATED_SIZE = 4;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  const LogString *message_name() const override { return LOG_STR("serial_proxy_get_usb_info_request"); }
+#endif
+  uint32_t instance{0};
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  const char *dump_to(DumpBuffer &out) const override;
+#endif
+
+ protected:
+  bool decode_varint(uint32_t field_id, proto_varint_value_t value) override;
+};
+class SerialProxyUsbInfo final : public ProtoMessage {
+ public:
+  static constexpr uint16_t MESSAGE_TYPE = 154;
+  static constexpr uint8_t ESTIMATED_SIZE = 60;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  const LogString *message_name() const override { return LOG_STR("serial_proxy_usb_info"); }
+#endif
+  uint32_t instance{0};
+  enums::SerialProxyStatus status{};
+  bool connected{false};
+  uint32_t vendor_id{0};
+  uint32_t product_id{0};
+  uint32_t bcd_device{0};
+  uint32_t interface_number{0};
+  StringRef manufacturer{};
+  StringRef product{};
+  StringRef serial_number{};
+  StringRef interface_description{};
+  uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const;
+  uint32_t calculate_size() const;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  const char *dump_to(DumpBuffer &out) const override;
+#endif
+
+ protected:
 };
 #endif
 #ifdef USE_BLUETOOTH_PROXY_CONNECTIONS
