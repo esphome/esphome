@@ -163,7 +163,21 @@ def lint_post_check(func):
     return func
 
 
-def lint_re_check(regex, **kwargs):
+def _nolint_in_match(content, haystack, match, mask):
+    """With masking, only a trailing comment counts: the raw span still holds string contents, and
+    the masked text is blank exactly where comments and strings were, so NOLINT must sit after the
+    last real code character of the span."""
+    raw = content[match.start() : match.end()]
+    if not mask:
+        return "NOLINT" in raw
+    masked = haystack[match.start() : match.end()].rstrip()
+    return "NOLINT" in raw[len(masked) :]
+
+
+def lint_re_check(regex, mask=False, prefilter=None, **kwargs):
+    """mask=True blanks comments and string literals first so prose about the pattern is not reported;
+    the masked text keeps its length, so match offsets still index the original content.
+    prefilter is a literal every match must contain, checked before the costlier masking."""
     flags = kwargs.pop("flags", re.MULTILINE)
     prog = re.compile(regex, flags)
     decor = lint_content_check(**kwargs)
@@ -172,8 +186,11 @@ def lint_re_check(regex, **kwargs):
         @functools.wraps(func)
         def new_func(fname, content):
             errs = []
-            for match in prog.finditer(content):
-                if "NOLINT" in match.group(0):
+            if prefilter is not None and prefilter not in content:
+                return errs
+            haystack = _mask_cpp_comments_strings(content) if mask else content
+            for match in prog.finditer(haystack):
+                if _nolint_in_match(content, haystack, match, mask):
                     continue
                 lineno = content.count("\n", 0, match.start()) + 1
                 substr = content[: match.start()]
@@ -1131,6 +1148,29 @@ def lint_no_std_bind(fname, match):
         f"Please use a lambda instead.\n"
         f"  Before: {highlight('std::bind(&Class::method, this, std::placeholders::_1)')}\n"
         f"  After:  {highlight('[this](auto arg) { this->method(arg); }')}\n"
+        f"(If strictly necessary, add `// NOLINT` to the end of the line)"
+    )
+
+
+@lint_re_check(
+    r"[^\w]std\s*::\s*nothrow\b" + CPP_RE_EOL,
+    mask=True,
+    prefilter="nothrow",
+    include=cpp_include,
+    exclude=[
+        # Still use new (std::nothrow); migrated to RAMAllocator in a follow up PR
+        "esphome/components/api/api_buffer.cpp",
+        "esphome/components/api/api_overflow_buffer.cpp",
+    ],
+)
+def lint_no_std_nothrow(fname, match):
+    return (
+        f"{highlight('new (std::nothrow)')} aborts on ESP-IDF when the allocation fails, exceptions are disabled "
+        f"there, so it never returns nullptr.\n"
+        f"Please use {highlight('RAMAllocator')} from esphome/core/helpers.h, which does.\n"
+        f"  Before: {highlight('auto *buf = new (std::nothrow) uint8_t[n];')}\n"
+        f"  After:  {highlight('auto *buf = RAMAllocator<uint8_t>().allocate(n);')}\n"
+        f"allocate() does not construct: for an object, allocate(1) and placement new as core/event_pool.h does.\n"
         f"(If strictly necessary, add `// NOLINT` to the end of the line)"
     )
 
