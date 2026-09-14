@@ -1,6 +1,11 @@
+from collections.abc import Callable
+from pathlib import Path
+from typing import Any
+
 from esphome import automation
 import esphome.codegen as cg
 from esphome.components import binary_sensor
+from esphome.config_helpers import filter_source_files_from_defines
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ADDRESS,
@@ -40,10 +45,13 @@ from esphome.const import (
     CONF_ZERO,
 )
 from esphome.core import ID, coroutine
+from esphome.cpp_generator import MockObj
 from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
+from esphome.types import ConfigType
 from esphome.util import Registry, SimpleRegistry
 
 AUTO_LOAD = ["binary_sensor"]
+
 
 CONF_RECEIVER_ID = "receiver_id"
 CONF_TRANSMITTER_ID = "transmitter_id"
@@ -90,9 +98,42 @@ REMOTE_TRANSMITTABLE_SCHEMA = cv.Schema(
 )
 
 
-async def register_listener(var, config):
+# Listener and dumper lists are StaticVectors sized from these counts, so every registration
+# must go through add_listener / add_dumper. Every receiver's list gets the same capacity, so
+# the slots are keyed by receiver and the define is the largest count any one receiver needs.
+LISTENER_COUNT_DEFINE = "REMOTE_BASE_LISTENER_COUNT"
+DUMPER_COUNT_DEFINE = "REMOTE_BASE_DUMPER_COUNT"
+
+
+_request_listener_slot = cg.slot_counter(LISTENER_COUNT_DEFINE)
+_request_dumper_slot = cg.slot_counter(DUMPER_COUNT_DEFINE)
+
+
+def add_listener(receiver: MockObj, listener: MockObj) -> None:
+    _request_listener_slot(str(receiver))
+    cg.add(receiver.register_listener(listener))
+
+
+def add_dumper(receiver: MockObj, dumper: MockObj) -> None:
+    _request_dumper_slot(str(receiver))
+    cg.add(receiver.register_dumper(dumper))
+
+
+async def register_listener(var: MockObj, config: ConfigType) -> None:
     receiver = await cg.get_variable(config[CONF_RECEIVER_ID])
-    cg.add(receiver.register_listener(var))
+    add_listener(receiver, var)
+
+
+async def attach_receiver(
+    var: MockObj, config: ConfigType, key: str = CONF_RECEIVER_ID
+) -> None:
+    """Link the configured receiver to an entity and register the entity as its listener.
+
+    The C++ set_receiver() no longer registers the listener; the slot for it is counted here.
+    """
+    receiver = await cg.get_variable(config[key])
+    cg.add(var.set_receiver(receiver))
+    add_listener(receiver, var)
 
 
 async def register_transmittable(var, config):
@@ -100,8 +141,53 @@ async def register_transmittable(var, config):
     cg.add(var.set_transmitter(transmitter_))
 
 
-def register_binary_sensor(name, type, schema):
-    return BINARY_SENSOR_REGISTRY.register(name, type, schema)
+# Registry names that share a protocol source file
+def _protocol_stem(name: str) -> str:
+    if name.startswith("rc_switch"):
+        return "rc_switch"
+    if name == "canalsatld":
+        return "canalsat"
+    return name
+
+
+def protocol_define(name: str) -> str:
+    return f"USE_REMOTE_PROTOCOL_{_protocol_stem(name).upper()}"
+
+
+_PROTOCOL_STEMS = sorted(
+    path.name.removesuffix("_protocol.cpp")
+    for path in Path(__file__).parent.glob("*_protocol.cpp")
+)
+
+
+def request_protocol(name: str) -> None:
+    """Keep a protocol's source file in the build; components using it from C++ must call this."""
+    if _protocol_stem(name) not in _PROTOCOL_STEMS:
+        raise ValueError(
+            f"Unknown remote protocol {name!r}; expected one of {', '.join(_PROTOCOL_STEMS)}"
+        )
+    cg.add_define(protocol_define(name))
+
+
+# Only the protocol sources a configuration uses are compiled
+FILTER_SOURCE_FILES = filter_source_files_from_defines(
+    {f"{stem}_protocol.cpp": protocol_define(stem) for stem in _PROTOCOL_STEMS}
+)
+
+
+def register_binary_sensor(
+    name: str, type: MockObj, schema: cv.Schema | dict
+) -> Callable[[Callable[[MockObj, ConfigType], Any]], Callable]:
+    registerer = BINARY_SENSOR_REGISTRY.register(name, type, schema)
+
+    def decorator(func: Callable[[MockObj, ConfigType], Any]) -> Callable:
+        async def new_func(var: MockObj, config: ConfigType) -> None:
+            request_protocol(name)
+            await coroutine(func)(var, config)
+
+        return registerer(new_func)
+
+    return decorator
 
 
 def register_trigger(name, type, data_type):
@@ -114,6 +200,7 @@ def register_trigger(name, type, data_type):
 
     def decorator(func):
         async def new_func(config):
+            request_protocol(name)
             var = cg.new_Pvariable(config[CONF_TRIGGER_ID])
             await coroutine(func)(var, config)
             await automation.build_automation(var, [(data_type, "x")], config)
@@ -131,6 +218,7 @@ def register_dumper(name, type, schema=None):
 
     def decorator(func):
         async def new_func(config, dumper_id):
+            request_protocol(name)
             var = cg.new_Pvariable(dumper_id)
             await coroutine(func)(var, config)
             return var
@@ -171,6 +259,7 @@ def register_action(name, type_, schema):
 
     def decorator(func):
         async def new_func(config, action_id, template_arg, args):
+            request_protocol(name)
             var = cg.new_Pvariable(action_id, template_arg)
             await register_transmittable(var, config)
             if CONF_REPEAT in config:
@@ -213,7 +302,13 @@ DUMPER_REGISTRY = Registry()
 def validate_dumpers(value):
     if isinstance(value, str) and value.lower() == "all":
         return validate_dumpers(list(DUMPER_REGISTRY.keys()))
-    return cv.validate_registry("dumper", DUMPER_REGISTRY)(value)
+    entries = cv.validate_registry("dumper", DUMPER_REGISTRY)(value)
+    # a dumper listed twice would register twice; the receiver holds one secondary dumper
+    return list(
+        {
+            next(k for k in entry if k in DUMPER_REGISTRY): entry for entry in entries
+        }.values()
+    )
 
 
 def validate_triggers(base_schema):
@@ -1439,7 +1534,7 @@ def validate_rc_switch_raw_code(value):
 
 def build_rc_switch_protocol(config):
     if isinstance(config, int):
-        return rc_switch_protocols[config]
+        return rc_switch_protocol(config)
     pl = config[CONF_PULSE_LENGTH]
     return RCSwitchBase(
         config[CONF_SYNC][0] * pl,
@@ -1526,7 +1621,7 @@ RC_SWITCH_TRANSMITTER = cv.Schema(
     }
 )
 
-rc_switch_protocols = ns.RC_SWITCH_PROTOCOLS
+rc_switch_protocol = ns.rc_switch_protocol
 RCSwitchData = ns.struct("RCSwitchData")
 RCSwitchBase = ns.class_("RCSwitchBase")
 RCSwitchTrigger = ns.class_("RCSwitchTrigger", RemoteReceiverTrigger)
@@ -2012,7 +2107,14 @@ HaierData, HaierBinarySensor, HaierTrigger, HaierAction, HaierDumper = declare_p
 HaierAction = ns.class_("HaierAction", RemoteTransmitterActionBase)
 HAIER_SCHEMA = cv.Schema(
     {
-        cv.Required(CONF_CODE): cv.All([cv.hex_uint8_t], cv.Length(min=13, max=13)),
+        cv.Required(CONF_CODE): cv.All(
+            [cv.hex_uint8_t],
+            cv.Any(
+                cv.Length(min=8, max=8),
+                cv.Length(min=13, max=13),
+                msg="must be a list of length 8 or 13",
+            ),
+        ),
     }
 )
 

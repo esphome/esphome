@@ -246,33 +246,36 @@ class MipiSpi : public display::Display,
       this->write_cmd_addr_data(8, 0x02, 24, cmd << 8, bytes, len);
       this->disable();
     } else if constexpr (BUS_TYPE == BUS_TYPE_OCTAL) {
-      this->dc_pin_->digital_write(false);
+      // Toggle D/C only while holding the bus; on boards where D/C doubles as
+      // another bus signal, driving it while another device owns the bus
+      // corrupts that device's transfer.
       this->enable();
+      this->dc_pin_->digital_write(false);
       this->write_cmd_addr_data(0, 0, 0, 0, &cmd, 1, 8);
-      this->disable();
       this->dc_pin_->digital_write(true);
+      this->disable();
       if (len != 0) {
         this->enable();
         this->write_cmd_addr_data(0, 0, 0, 0, bytes, len, 8);
         this->disable();
       }
     } else if constexpr (BUS_TYPE == BUS_TYPE_SINGLE) {
-      this->dc_pin_->digital_write(false);
       this->enable();
+      this->dc_pin_->digital_write(false);
       this->write_byte(cmd);
-      this->disable();
       this->dc_pin_->digital_write(true);
+      this->disable();
       if (len != 0) {
         this->enable();
         this->write_array(bytes, len);
         this->disable();
       }
     } else if constexpr (BUS_TYPE == BUS_TYPE_SINGLE_16) {
-      this->dc_pin_->digital_write(false);
       this->enable();
+      this->dc_pin_->digital_write(false);
       this->write_byte(cmd);
-      this->disable();
       this->dc_pin_->digital_write(true);
+      this->disable();
       for (size_t i = 0; i != len; i++) {
         this->enable();
         this->write_byte(0);
@@ -385,10 +388,10 @@ class MipiSpi : public display::Display,
    * @param ptr The pointer to the pixel data
    * @param w Width of each line in bytes
    * @param h Height of the buffer in rows
-   * @param pad Padding in bytes after each line
+   * @param stride Total length of each line in bytes, including any padding
    */
-  void write_display_data_(const uint8_t *ptr, size_t w, size_t h, size_t pad) {
-    if (pad == 0) {
+  void write_display_data_(const uint8_t *ptr, size_t w, size_t h, size_t stride) {
+    if (stride == w) {
       if constexpr (BUS_TYPE == BUS_TYPE_SINGLE || BUS_TYPE == BUS_TYPE_SINGLE_16) {
         this->write_array(ptr, w * h);
       } else if constexpr (BUS_TYPE == BUS_TYPE_QUAD) {
@@ -405,7 +408,7 @@ class MipiSpi : public display::Display,
         } else if constexpr (BUS_TYPE == BUS_TYPE_OCTAL) {
           this->write_cmd_addr_data(0, 0, 0, 0, ptr, w, 8);
         }
-        ptr += w + pad;
+        ptr += stride;
       }
     }
   }
@@ -423,7 +426,7 @@ class MipiSpi : public display::Display,
     ptr += y_offset * (x_offset + w + x_pad) + x_offset;
     if constexpr (BUFFERPIXEL == DISPLAYPIXEL) {
       this->write_display_data_(reinterpret_cast<const uint8_t *>(ptr), w * sizeof(BUFFERTYPE), h,
-                                x_pad * sizeof(BUFFERTYPE));
+                                (x_offset + w + x_pad) * sizeof(BUFFERTYPE));
     } else {
       // type conversion required, do it in chunks
       uint8_t dbuffer[DISPLAYPIXEL * 48];
@@ -459,14 +462,14 @@ class MipiSpi : public display::Display,
           }
           // buffer full? Flush.
           if (dptr == dbuffer + sizeof(dbuffer)) {
-            this->write_display_data_(dbuffer, sizeof(dbuffer), 1, 0);
+            this->write_display_data_(dbuffer, sizeof(dbuffer), 1, sizeof(dbuffer));
             dptr = dbuffer;
           }
         }
       }
       // flush any remaining data
       if (dptr != dbuffer) {
-        this->write_display_data_(dbuffer, dptr - dbuffer, 1, 0);
+        this->write_display_data_(dbuffer, dptr - dbuffer, 1, dptr - dbuffer);
       }
     }
     this->disable();

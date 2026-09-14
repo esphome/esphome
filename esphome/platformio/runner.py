@@ -2,7 +2,8 @@
 
 Invoked via ``python -m esphome.platformio.runner`` instead of
 ``python -m platformio`` so that the patches (incremental rebuild
-preservation, download retries) apply inside the subprocess. Running
+preservation, download retries, skipping the private-package probe) apply
+inside the subprocess. Running
 PlatformIO in a subprocess keeps its ``sys.path`` mutations and other
 global state from leaking into the ESPHome process.
 """
@@ -105,6 +106,16 @@ def patch_file_downloader() -> None:
     FileDownloader.__init__ = patched_init
 
 
+def patch_registry_private_packages() -> None:
+    """Skip PlatformIO's private-package probe; it sleeps ~500 ms per lookup.
+
+    ESPHome never uses private packages, so the answer is always False.
+    """
+    from platformio.registry.client import RegistryClient
+
+    RegistryClient.allowed_private_packages = staticmethod(lambda: False)  # type: ignore[method-assign]
+
+
 _IGNORE_LIB_WARNINGS = "(?:Hash|Update)"
 # Regex patterns matched against each line of PlatformIO output. Lines that
 # match are dropped by RedirectText before they reach the parent process.
@@ -152,6 +163,7 @@ FILTER_PLATFORMIO_LINES = [
 def main() -> int:
     patch_structhash()
     patch_file_downloader()
+    patch_registry_private_packages()
 
     # Wrap stdout/stderr with RedirectText before PlatformIO runs:
     #
@@ -179,12 +191,24 @@ def main() -> int:
     is_verbose = any(arg in ("-v", "--verbose") for arg in sys.argv[1:])
     filter_lines = None if is_verbose else FILTER_PLATFORMIO_LINES
 
-    sys.stdout = RedirectText(sys.stdout, filter_lines=filter_lines)
-    sys.stderr = RedirectText(sys.stderr, filter_lines=filter_lines)
+    stdout_redirect = sys.stdout = RedirectText(sys.stdout, filter_lines=filter_lines)
+    stderr_redirect = sys.stderr = RedirectText(sys.stderr, filter_lines=filter_lines)
 
     import platformio.__main__
 
-    return platformio.__main__.main() or 0
+    # PlatformIO exits through ``sys.exit``, so drain from a finally to give
+    # a last line without a terminator a chance to reach the user. Drain the
+    # wrappers we made rather than sys.stdout, which PlatformIO is free to
+    # replace while it runs.
+    try:
+        return platformio.__main__.main() or 0
+    finally:
+        # Drain stderr from a finally so a surprise from the first one cannot
+        # strand the second.
+        try:
+            stdout_redirect.drain()
+        finally:
+            stderr_redirect.drain()
 
 
 if __name__ == "__main__":

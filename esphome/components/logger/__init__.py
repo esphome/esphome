@@ -1,4 +1,5 @@
 import re
+from typing import Any
 
 from esphome import automation
 from esphome.automation import LambdaAction, StatelessLambdaAction
@@ -58,7 +59,8 @@ from esphome.const import (
     PLATFORM_RTL87XX,
     PlatformFramework,
 )
-from esphome.core import CORE, CoroPriority, Lambda, coroutine_with_priority
+from esphome.core import CORE, ID, CoroPriority, Lambda, coroutine_with_priority
+from esphome.cpp_generator import MockObj, TemplateArgsType
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@esphome/core"]
@@ -165,7 +167,7 @@ HARDWARE_UART_TO_SERIAL = {
 is_log_level = cv.one_of(*LOG_LEVELS, upper=True)
 
 
-def uart_selection(value):
+def uart_selection(value: Any) -> str:
     if CORE.is_esp32:
         variant = get_esp32_variant()
         if variant in UART_SELECTION_ESP32:
@@ -188,7 +190,7 @@ def uart_selection(value):
     raise NotImplementedError
 
 
-def validate_local_no_higher_than_global(config):
+def validate_local_no_higher_than_global(config: ConfigType) -> ConfigType:
     global_level = config[CONF_LEVEL]
     global_level_index = LOG_LEVEL_SEVERITY.index(global_level)
     errs = []
@@ -205,7 +207,7 @@ def validate_local_no_higher_than_global(config):
     return config
 
 
-def validate_initial_no_higher_than_global(config):
+def validate_initial_no_higher_than_global(config: ConfigType) -> ConfigType:
     if initial_level := config.get(CONF_INITIAL_LEVEL):
         global_level = config[CONF_LEVEL]
         if LOG_LEVEL_SEVERITY.index(initial_level) > LOG_LEVEL_SEVERITY.index(
@@ -218,7 +220,7 @@ def validate_initial_no_higher_than_global(config):
     return config
 
 
-def validate_wait_for_cdc(config):
+def validate_wait_for_cdc(config: ConfigType) -> ConfigType:
     if config.get(CONF_WAIT_FOR_CDC) and config.get(CONF_HARDWARE_UART) != USB_CDC:
         raise cv.Invalid("wait_for_cdc requires hardware_uart: USB_CDC")
     return config
@@ -373,12 +375,13 @@ async def to_code(config: ConfigType) -> None:
     # pre_setup() switches on uart_ to decide which hardware to initialize
     # (e.g. UART0 vs USB_SERIAL_JTAG). Without this, uart_ is still the
     # default UART_SELECTION_UART0 and the wrong hardware gets initialized.
-    if CONF_HARDWARE_UART in config:
-        cg.add(
-            log.set_uart_selection(
-                HARDWARE_UART_TO_UART_SELECTION[config[CONF_HARDWARE_UART]]
-            )
-        )
+    # uart_ is UART0 in C++ except on LibreTiny where it is DEFAULT; skip the
+    # setter when the config matches it.
+    cpp_default_uart = DEFAULT if CORE.is_libretiny else UART0
+    if (
+        hardware_uart := config.get(CONF_HARDWARE_UART)
+    ) is not None and hardware_uart != cpp_default_uart:
+        cg.add(log.set_uart_selection(HARDWARE_UART_TO_UART_SELECTION[hardware_uart]))
     # pre_setup() sets global_logger and must run before any other code
     # that may call ESP_LOG* (e.g. setup_preferences contains ESP_LOGVV).
     cg.add(log.pre_setup())
@@ -423,10 +426,16 @@ async def _late_logger_init(config: ConfigType) -> None:
         from esphome.components.esp8266.const import enable_serial, enable_serial1
 
         hw_uart = config.get(CONF_HARDWARE_UART, UART0)
-        if has_serial_logging and hw_uart in (UART0, UART0_SWAP):
+        if not has_serial_logging:
+            # No serial logging: stub out ROM ets_putc so stray output (newlib
+            # stdout, lwIP diagnostics) cannot block on a slow or shared UART0.
+            # ets_putc always writes to the physical UART and cannot be disabled
+            # through uart_set_debug(); see __wrap_ets_putc in logger_esp8266.cpp.
+            cg.add_build_flag("-Wl,--wrap=ets_putc")
+        elif hw_uart in (UART0, UART0_SWAP):
             cg.add_define("USE_ESP8266_LOGGER_SERIAL")
             enable_serial()
-        elif has_serial_logging and hw_uart == UART1:
+        elif hw_uart == UART1:
             cg.add_define("USE_ESP8266_LOGGER_SERIAL1")
             enable_serial1()
 
@@ -525,7 +534,7 @@ async def _late_logger_init(config: ConfigType) -> None:
     CORE.add_job(final_step)
 
 
-def validate_printf(value):
+def validate_printf(value: ConfigType) -> ConfigType:
     # https://stackoverflow.com/questions/30011379/how-can-i-parse-a-c-format-string-in-python
     cfmt = r"""
     (                                   # start of capture group 1
@@ -566,7 +575,12 @@ LOGGER_LOG_ACTION_SCHEMA = cv.All(
 @automation.register_action(
     CONF_LOGGER_LOG, LambdaAction, LOGGER_LOG_ACTION_SCHEMA, synchronous=True
 )
-async def logger_log_action_to_code(config, action_id, template_arg, args):
+async def logger_log_action_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     esp_log = LOG_LEVEL_TO_ESP_LOG[config[CONF_LEVEL]]
     args_ = [cg.RawExpression(str(x)) for x in config[CONF_ARGS]]
 
@@ -591,7 +605,12 @@ async def logger_log_action_to_code(config, action_id, template_arg, args):
     ),
     synchronous=True,
 )
-async def logger_set_level_to_code(config, action_id, template_arg, args):
+async def logger_set_level_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     level = LOG_LEVELS[config[CONF_LEVEL]]
     logger = await cg.get_variable(config[CONF_LOGGER_ID])
     if tag := config.get(CONF_TAG):
@@ -617,7 +636,12 @@ async def logger_set_level_to_code(config, action_id, template_arg, args):
     ),
     synchronous=True,
 )
-async def logger_replay_boot_logs_to_code(config, action_id, template_arg, args):
+async def logger_replay_boot_logs_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     logger = await cg.get_variable(config[CONF_LOGGER_ID])
     text = str(cg.statement(logger.replay_boot_logs()))
 
@@ -684,7 +708,7 @@ def request_log_listener() -> None:
 
 
 @coroutine_with_priority(CoroPriority.FINAL)
-async def final_step():
+async def final_step() -> None:
     """Final code generation step to configure optional logger features."""
     domain_data = CORE.data.get(DOMAIN, {})
     if domain_data.get(KEY_LEVEL_LISTENERS, False):
