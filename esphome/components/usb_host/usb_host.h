@@ -171,8 +171,9 @@ class USBClient : public Component {
   /// Register a callback for the device this client claims being connected (true) or
   /// removed (false). Fires only for a device that was fully opened, so a device another
   /// client claims is never reported. Called from the main loop: connected once the device
-  /// is ready to use (a subclass may hold this back until its own setup of the device has
-  /// finished), removed after on_disconnected() has run.
+  /// has been enumerated and the subclass has finished its setup of it (whether or not that
+  /// setup succeeded), removed after on_disconnected() has run. This tracks the device's
+  /// presence, not whether a given channel is usable.
   template<typename F> void add_on_connection_callback(F &&callback) {
     this->connection_callback_.add(std::forward<F>(callback));
   }
