@@ -15,6 +15,11 @@ bool HelloRequest::decode_varint(uint32_t field_id, proto_varint_value_t value) 
     case 3:
       this->api_version_minor = value;
       break;
+#ifdef USE_API_OUTGOING_CONNECTION
+    case 4:
+      this->outgoing_connection_target = value != 0;
+      break;
+#endif
     default:
       return false;
   }
@@ -176,6 +181,9 @@ uint8_t *DeviceInfoResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_
 #ifdef USE_API_NOISE
   ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 26, this->api_encryption_provisionable);
 #endif
+#ifdef USE_API_OUTGOING_CONNECTION
+  ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 27, this->api_outgoing_connection_supported);
+#endif
   return pos;
 }
 uint32_t DeviceInfoResponse::calculate_size() const {
@@ -240,6 +248,9 @@ uint32_t DeviceInfoResponse::calculate_size() const {
 #endif
 #ifdef USE_API_NOISE
   size += ProtoSize::calc_bool(2, this->api_encryption_provisionable);
+#endif
+#ifdef USE_API_OUTGOING_CONNECTION
+  size += ProtoSize::calc_bool(2, this->api_outgoing_connection_supported);
 #endif
   return size;
 }
