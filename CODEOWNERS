@@ -557,6 +557,7 @@ esphome/components/template/alarm_control_panel/* @grahambrown11 @hwstar
 esphome/components/template/datetime/* @rfdarter
 esphome/components/template/event/* @nohat
 esphome/components/template/fan/* @ssieb
+esphome/components/template/time/* @clydebarrow
 esphome/components/text/* @mauritskorse
 esphome/components/thermopro_ble/* @sittner
 esphome/components/thermostat/* @kbx81

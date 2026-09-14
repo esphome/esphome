@@ -3,6 +3,11 @@
 time:
   - platform: sntp  # Required for datetime
     id: sntp_time
+  - platform: template
+    id: template_time_id
+    sync: true
+    lambda: |-
+      return id(sntp_time).timestamp_now() + 3600;
 
 wifi:  # Required for sntp time
   ap:
