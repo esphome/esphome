@@ -641,6 +641,37 @@ def is_platform_schema(schema_name):
     return component in components and components[component].is_platform_component
 
 
+def _tighter_bound(own, ref, choose):
+    """Return the tighter of a field's own range bound and a referenced schema's.
+
+    ``choose`` is ``max`` for a lower bound and ``min`` for an upper bound, so an
+    ``All(named_type, field_range)`` collapses to the intersection of the two
+    ranges. Non-numeric bounds (e.g. a stringified TimePeriod) can't be compared,
+    so the field's own value is kept.
+    """
+    if own is None:
+        return ref
+    if ref is None:
+        return own
+    if isinstance(own, (int, float)) and isinstance(ref, (int, float)):
+        return choose(own, ref)
+    return own
+
+
+def _apply_tighter_bounds(target_s, own_min, own_max, key_s):
+    """Reconcile a field's own min/max (captured before the spread) with the
+    referenced schema's bounds, so spreading a named schema never widens
+    (clobbers) a tighter bound the field defined itself, e.g.
+    ``All(uint8_t, Range(min=1, max=6))`` must stay 1..6, not uint8_t's 0..255.
+    """
+    for bound, own, choose in (("min", own_min, max), ("max", own_max, min)):
+        merged = _tighter_bound(own, key_s.get(bound), choose)
+        if merged is None:
+            target_s.pop(bound, None)
+        else:
+            target_s[bound] = merged
+
+
 def shrink():
     """Shrink the extending schemas which has just an end type, e.g. at this point
     ota / port is type schema with extended pointing to core.port, this should instead be
@@ -723,7 +754,9 @@ def shrink():
                     continue
                 assert extends == [x]
                 target_s.pop(S_SCHEMA)
+                own_min, own_max = target_s.get("min"), target_s.get("max")
                 target_s |= key_s
+                _apply_tighter_bounds(target_s, own_min, own_max, key_s)
                 if key_s[S_TYPE] in ["integer", "string"]:
                     target_s["data_type"] = x.split(".")[1]
             # remove this dangling again
@@ -739,10 +772,12 @@ def shrink():
                     target_s[S_EXTENDS].remove(x)
                     continue
                 assert x in target_s[S_SCHEMA][S_EXTENDS]
+                own_min, own_max = target_s.get("min"), target_s.get("max")
                 target_s.pop(S_SCHEMA)
                 target_s.pop(S_TYPE)  # undefined
                 target_s["data_type"] = x.split(".")[1]
                 target_s.update(key_s)  # carry min/max bounds, if any
+                _apply_tighter_bounds(target_s, own_min, own_max, key_s)
             # remove this dangling again
             pop_str_path_schema(x)
 

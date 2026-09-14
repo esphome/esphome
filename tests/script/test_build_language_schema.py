@@ -546,6 +546,17 @@ def test_cv_types_end_to_end(full_schema_dir: Path) -> None:
     assert freq["min"] == 45.0
     assert freq["max"] == 66.0
 
+    # cv.All(cv.uint8_t, cv.Range(min=1, max=6)): spreading the uint8_t named
+    # schema (0..255) must not clobber the field's own tighter 1..6 bound.
+    tm1637 = json.loads((full_schema_dir / "tm1637.json").read_text())
+    length = tm1637["tm1637.display"]["schemas"]["CONFIG_SCHEMA"]["schema"][
+        "config_vars"
+    ]["length"]
+    assert length["type"] == "integer"
+    assert length["data_type"] == "uint8_t"
+    assert length["min"] == 1
+    assert length["max"] == 6
+
     # positive_float = All(float_, Range(min=0)): a bounds-only named schema
     # spreads its data_type name and its min onto the field.
     light = json.loads((full_schema_dir / "light.json").read_text())["light"]
