@@ -509,7 +509,7 @@ class DeltaFilter : public Filter {
  public:
   explicit DeltaFilter(float min_a0, float min_a1, float max_a0, float max_a1);
 
-  void set_baseline(float (*fn)(float));
+  void set_baseline(float (*fn)(float)) { this->baseline_ = fn; }
 
   optional<float> new_value(float value) override;
 
