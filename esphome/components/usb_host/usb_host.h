@@ -5,6 +5,7 @@
     defined(USE_ESP32_VARIANT_ESP32S31) || defined(USE_ESP32_VARIANT_ESP32H4)
 #include "esphome/core/defines.h"
 #include "esphome/core/component.h"
+#include "esphome/core/helpers.h"
 #include <vector>
 #include "usb/usb_host.h"
 #include <freertos/FreeRTOS.h>
@@ -155,6 +156,15 @@ class USBClient : public Component {
   /// Returns false when no device is connected.
   bool get_device_info(UsbDeviceInfo &info) const;
 
+  /// Register a callback for the device this client claims being connected (true) or
+  /// removed (false). Fires only for a device that was fully opened, so a device another
+  /// client claims is never reported. Called from the main loop: connected once the device
+  /// is ready to use (a subclass may hold this back until its own setup of the device has
+  /// finished), removed after on_disconnected() has run.
+  template<typename F> void add_on_connection_callback(F &&callback) {
+    this->connection_callback_.add(std::forward<F>(callback));
+  }
+
   // Lock-free event queue and pool for USB task to main loop communication
   // Must be public for access from static callbacks
   LockFreeQueue<UsbEvent, USB_EVENT_QUEUE_SIZE> event_queue;
@@ -172,6 +182,13 @@ class USBClient : public Component {
   TransferRequest *get_trq_();  // Lock-free allocation using atomic bitmask (multi-consumer safe)
   virtual void disconnect();
   virtual void on_connected() {}
+
+  /// Whether the subclass reports the device as connected itself, once its own setup of
+  /// the device has finished, rather than as soon as the device has been opened
+  virtual bool reports_connection_itself() const { return false; }
+  /// Report the claimed device to the connection callbacks. Idempotent; a subclass that
+  /// reports itself calls this once the device is ready to use.
+  void report_connected_();
   virtual void on_disconnected() {
     // Reset all requests to available (all bits to 0)
     this->trq_in_use_.store(0);
@@ -192,8 +209,12 @@ class USBClient : public Component {
   // Bit i = 1: requests_[i] is in use, Bit i = 0: requests_[i] is available
   // Supports multiple concurrent consumers and producers (both threads can allocate/deallocate)
   std::atomic<trq_bitmask_t> trq_in_use_;
+  LazyCallbackManager<void(bool)> connection_callback_;
   uint16_t vid_{};
   uint16_t pid_{};
+  // Whether the connection callbacks were told about the current device, so a removal is
+  // only ever reported for a device that was reported connected
+  bool connection_reported_{false};
 };
 class USBHost final : public Component {
  public:

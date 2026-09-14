@@ -34,6 +34,12 @@ void SerialProxy::setup() {
   // instance_index_ is fixed at registration time; pre-set it so loop() only needs to update data
   this->outgoing_msg_.instance = this->instance_index_;
 #endif
+#ifdef USE_SERIAL_PROXY_USB_INFO
+  if (this->usb_channel_ != nullptr) {
+    this->usb_channel_->get_parent()->add_on_connection_callback(
+        [this](bool connected) { this->on_usb_connection_changed_(connected); });
+  }
+#endif
 #ifdef USE_SERIAL_PROXY_TAP
   // A tap sets itself up before this runs (its setup priority is higher), so it may
   // already be waiting on the port -- a boot-time handshake with the device, say. Leaving
@@ -338,7 +344,22 @@ SerialProxyResult SerialProxy::set_modem_pins(api::APIConnection *api_connection
   return SerialProxyResult::SERIAL_PROXY_RESULT_OK;
 }
 
-#if defined(USE_SERIAL_PROXY_USB_INFO) && defined(USE_API)
+#ifdef USE_SERIAL_PROXY_USB_INFO
+void SerialProxy::on_usb_connection_changed_(bool connected) {
+  ESP_LOGD(TAG, "USB device %s serial proxy [%" PRIu32 "]",
+           connected ? LOG_STR_LITERAL("attached to") : LOG_STR_LITERAL("removed from"), this->instance_index_);
+#ifdef USE_API
+  if (api::global_api_server == nullptr) {
+    return;
+  }
+  api::SerialProxyUsbInfo msg{};
+  msg.instance = this->instance_index_;
+  this->get_usb_info(msg);
+  api::global_api_server->send_serial_proxy_usb_info(msg);
+#endif
+}
+
+#ifdef USE_API
 void SerialProxy::get_usb_info(api::SerialProxyUsbInfo &msg) const {
   // The define is global, so a hardware UART port in the same config also gets here
   if (this->usb_channel_ == nullptr) {
@@ -355,6 +376,7 @@ void SerialProxy::get_usb_info(api::SerialProxyUsbInfo &msg) const {
   msg.bcd_device = info.bcd_device;
   msg.interface_number = this->usb_channel_->get_interface_number();
 }
+#endif
 #endif
 
 uint32_t SerialProxy::get_modem_pins() const {

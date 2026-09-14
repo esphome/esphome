@@ -2880,7 +2880,9 @@ message SerialProxyGetUsbInfoRequest {
 }
 
 // The USB identity of the device currently behind a port. Fields are zero/empty while
-// no device is connected.
+// no device is connected. Sent in reply to SerialProxyGetUsbInfoRequest, and also
+// unsolicited to every connected client whenever a USB device is attached to or
+// removed from a port on a USB bridge.
 message SerialProxyUsbInfo {
   option (id) = 154;
   option (source) = SOURCE_SERVER;
@@ -2892,7 +2894,7 @@ message SerialProxyUsbInfo {
   uint32 vendor_id = 4;
   uint32 product_id = 5;
   uint32 bcd_device = 6;
-  uint32 interface_number = 7;    // bInterfaceNumber a host driver binds to, as Linux reports it
+  uint32 interface_number = 7;    // bInterfaceNumber a host driver binds to
   string manufacturer = 8;
   string product = 9;
   string serial_number = 10;

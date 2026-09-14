@@ -259,6 +259,10 @@ class USBUartComponent : public usb_host::USBClient {
   // (e.g. CH34x chip detection). Same contract as config_step_(). Default: no steps.
   virtual bool config_device_step(uint8_t step, bool ok, const uint8_t *response) { return false; }
 
+  // The device is only usable once the config machine has applied every channel's line
+  // settings, so the connected report waits for run_config_machine_() to finish the init
+  bool reports_connection_itself() const override { return true; }
+
   std::vector<USBUartChannelBase *> channels_{};
 
   // Config state machine

@@ -234,6 +234,12 @@ class SerialProxy final : public uart::UARTDevice, public Component {
   bool tap_observing_() const;
 #endif
 
+#ifdef USE_SERIAL_PROXY_USB_INFO
+  /// The USB device behind this port was attached or removed; report the port's new USB
+  /// identity to every API client
+  void on_usb_connection_changed_(bool connected);
+#endif
+
   /// Instance index for identifying this proxy in API messages
   uint32_t instance_index_{0};
 

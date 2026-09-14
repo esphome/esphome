@@ -655,6 +655,8 @@ bool USBUartComponent::run_config_machine_() {
     this->cfg_single_ = nullptr;
   } else if (++this->cfg_channel_idx_ >= this->channels_.size()) {
     this->cfg_active_ = false;
+    // Init is done and the line settings are on the wire: now the device is ready to use
+    this->report_connected_();
   }
 
   // If the machine just went idle and a reload was requested while it was busy, start it now.
