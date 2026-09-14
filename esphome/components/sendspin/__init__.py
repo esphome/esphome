@@ -307,7 +307,7 @@ async def to_code(config: ConfigType) -> None:
         player_cfg = data.player_config
         sample_rate = player_cfg[CONF_SAMPLE_RATE]
 
-        codecs = player_cfg[CONF_CODECS]
+        codecs = [CODECS[codec] for codec in player_cfg[CONF_CODECS]]
 
         def _audio_format(codec: MockObj, channels: int) -> cg.StructInitializer:
             return cg.StructInitializer(

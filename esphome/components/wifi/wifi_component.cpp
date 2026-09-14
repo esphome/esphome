@@ -1498,8 +1498,8 @@ void WiFiComponent::check_scanning_finished() {
     return;
   }
   this->scan_done_ = false;
-  this->has_completed_scan_after_captive_portal_start_ =
-      true;  // Track that we've done a scan since captive portal started
+  // A driver filtered scan saw one SSID; a portal that started during it still needs a full scan
+  this->has_completed_scan_after_captive_portal_start_ = !this->is_scan_driver_filtered_();
   this->retry_hidden_mode_ = RetryHiddenMode::SCAN_BASED;
 
   if (this->scan_result_.empty()) {
@@ -2415,7 +2415,7 @@ void WiFiComponent::handle_driver_roam_(const bssid_t &bssid, uint8_t channel) {
 void WiFiComponent::release_scan_results_() {
   if (!this->keep_scan_results_) {
     ScanResultsLock lock(this);
-#if defined(USE_RP2) || defined(USE_ESP32)
+#if defined(USE_RP2)
     // std::vector - use swap trick since shrink_to_fit is non-binding
     decltype(this->scan_result_)().swap(this->scan_result_);
 #else
