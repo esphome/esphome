@@ -55,11 +55,14 @@ void PowerSupply::unrequest_high_power() {
   }
 }
 void PowerSupply::on_powerdown() {
+#ifdef USE_GPIO_HOLD
   // only turn off if pin is not held.
-  if (!this->pin_->get_flags() & gpio::FLAG_HOLD) {
-    this->active_requests_ = 0;
-    this->pin_->digital_write(false);
+  if (this->pin_->get_flags() & gpio::FLAG_HOLD) {
+    return;
   }
+#endif
+  this->active_requests_ = 0;
+  this->pin_->digital_write(false);
 }
 
 }  // namespace esphome::power_supply
