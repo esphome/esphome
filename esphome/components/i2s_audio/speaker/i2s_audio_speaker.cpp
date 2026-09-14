@@ -362,6 +362,11 @@ bool IRAM_ATTR I2SAudioSpeakerBase::i2s_on_sent_cb(i2s_chan_handle_t handle, i2s
 }
 
 void I2SAudioSpeakerBase::apply_software_volume_(uint8_t *data, size_t bytes_read) {
+#ifdef USE_AUDIO_DAC
+  if (this->audio_dac_ != nullptr) {
+    return;  // Hardware volume; the ramp is never targeted
+  }
+#endif  // USE_AUDIO_DAC
   const size_t bytes_per_sample = this->current_stream_info_.samples_to_bytes(1);
   this->gain_ramp_.process(data, static_cast<uint8_t>(bytes_per_sample),
                            this->current_stream_info_.bytes_to_samples(bytes_read));
