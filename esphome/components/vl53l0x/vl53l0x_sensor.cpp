@@ -352,7 +352,9 @@ void VL53L0XSensor::loop() {
       // Reject readings the sensor itself flagged as invalid - publishing
       // them would report phantom targets (observed: 0.12-0.23 m garbage
       // right after a recovery, which the level sensor clamps to ~100%).
-      if (range_status != 0) {
+      // Per the ST API the raw DeviceRangeStatus is 11 for good ranging
+      // (0 means "no update"); every other code is an error condition.
+      if (range_status != 11) {
         ESP_LOGD(TAG, "'%s' - invalid reading (range status %u, signal %.2f MCPS), rejecting", this->name_.c_str(),
                  range_status, signal_rate_mcps);
         this->publish_state(NAN);
