@@ -143,6 +143,8 @@ class StatelessLambdaFilter : public Filter {
 
 class SettleFilter : public Filter {
  public:
+  // User provided, not "= default": `new(p) SettleFilter()` would zero-fill .bss that is already zero.
+  SettleFilter() {}
   optional<bool> new_value(bool value) override;
 
   template<typename T> void set_delay(T delay) { this->delay_ = delay; }
