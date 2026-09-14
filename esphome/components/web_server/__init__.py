@@ -11,7 +11,11 @@ from esphome.components import web_server_base
 from esphome.components.logger import request_log_listener
 from esphome.components.web_server_base import CONF_WEB_SERVER_BASE_ID
 import esphome.config_validation as cv
-from esphome.const import (
+
+# Re-exported so entity components and external components keep importing
+# these from web_server; defined outside this package so entity base
+# schemas do not need to import it.
+from esphome.const import (  # noqa: F401
     CONF_AUTH,
     CONF_COMPRESSION,
     CONF_CSS_INCLUDE,
@@ -27,6 +31,8 @@ from esphome.const import (
     CONF_OTA,
     CONF_PASSWORD,
     CONF_PORT,
+    CONF_SORTING_GROUP_ID,
+    CONF_SORTING_WEIGHT,
     CONF_TYPE,
     CONF_USERNAME,
     CONF_VERSION,
@@ -40,6 +46,7 @@ from esphome.const import (
     PLATFORM_RTL87XX,
 )
 from esphome.core import CORE, CoroPriority, coroutine_with_priority
+from esphome.core.entity_helpers import WEBSERVER_SORTING_SCHEMA  # noqa: F401
 from esphome.cpp_generator import MockObj
 import esphome.final_validate as fv
 from esphome.types import ConfigType
@@ -51,9 +58,7 @@ AUTO_LOAD = ["json", "web_server_base"]
 AUTH_TYPE_BASIC = "basic"
 AUTH_TYPE_DIGEST = "digest"
 
-CONF_SORTING_GROUP_ID = "sorting_group_id"
 CONF_SORTING_GROUPS = "sorting_groups"
-CONF_SORTING_WEIGHT = "sorting_weight"
 CONF_ALLOWED_ORIGINS = "allowed_origins"
 
 # Schema default that also matches the C++ initializer in web_server_base.h; codegen
@@ -229,27 +234,6 @@ sorting_group = {
     cv.Required(CONF_NAME): cv.string,
     cv.Optional(CONF_SORTING_WEIGHT): cv.float_,
 }
-
-WEBSERVER_SORTING_SCHEMA = cv.Schema(
-    {
-        # The per-entity web_server block is cosmetic dashboard ordering —
-        # mark the whole block advanced; the children inherit via the cascade.
-        cv.Optional(CONF_WEB_SERVER, visibility=cv.Visibility.ADVANCED): cv.Schema(
-            {
-                cv.OnlyWith(CONF_WEB_SERVER_ID, "web_server"): cv.use_id(WebServer),
-                cv.Optional(CONF_SORTING_WEIGHT): cv.All(
-                    cv.requires_component("web_server"),
-                    cv.float_,
-                ),
-                cv.Optional(CONF_SORTING_GROUP_ID): cv.All(
-                    cv.requires_component("web_server"),
-                    cv.use_id(cg.int_),
-                ),
-            }
-        )
-    }
-)
-
 
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
