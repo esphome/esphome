@@ -1,6 +1,8 @@
 #include "vl53l0x_sensor.h"
+#include "esphome/core/application.h"
 #include "esphome/core/log.h"
 
+#include <algorithm>
 #include <cinttypes>
 
 /*
@@ -48,15 +50,15 @@ void VL53L0XSensor::setup() {
   }
 
   if (this->enable_pin_ != nullptr) {
-    // Enable the enable pin to cause FW boot (to get back to 0x29 default address)
+    // Enable the enable pin to cause FW boot (to get back to the default address)
     this->enable_pin_->digital_write(true);
     delayMicroseconds(100);
   }
 
-  // Save the i2c address we want and force it to use the default 0x29
+  // Save the i2c address we want and force it to use the default address
   // until we finish setup, then re-address to final desired address.
   uint8_t final_address = address_;
-  this->set_i2c_address(0x29);
+  this->set_i2c_address(DEFAULT_I2C_ADDRESS);
 
   if (!this->init_sensor_(final_address)) {
     this->mark_failed();
@@ -266,6 +268,13 @@ bool VL53L0XSensor::init_sensor_(uint8_t final_address) {
   // I2C_SXXXX__DEVICE_ADDRESS = 0x0001 for VL53L1X
   reg(0x8A) = final_address & 0x7F;
   this->set_i2c_address(final_address);
+
+  // A measurement may not take longer than its timing budget plus a margin. The
+  // configured `timeout` can only extend that window, never shorten it - it is
+  // also used for much shorter setup operations.
+  constexpr uint32_t MEASUREMENT_TIMEOUT_MARGIN_MS = 10;
+  this->stall_timeout_ms_ = this->measurement_timing_budget_us_ / 1000 + MEASUREMENT_TIMEOUT_MARGIN_MS;
+  this->stall_timeout_ms_ = std::max(this->stall_timeout_ms_, this->timeout_us_ / 1000);
   return true;
 }
 
@@ -291,82 +300,64 @@ void VL53L0XSensor::update() {
   reg(0x00) = 0x01;
   // Remember when this measurement cycle started so loop() can
   // detect a stalled read (e.g. after an I2C bus error / EMI glitch).
-  this->measurement_start_us_ = micros();
-  this->stall_reported_ = false;
+  this->measurement_start_ms_ = App.get_loop_component_start_time();
   this->waiting_for_interrupt_ = false;
   this->initiated_read_ = true;
   // wait for timeout
 }
 
 void VL53L0XSensor::loop() {
-  // The driver polls the sensor in loop() with no timeout. After a single
-  // I2C error (NACK / EMI glitch) the register reads return 0, the driver
-  // mistakes the measurement for "done" and gets stuck forever in
-  // waiting_for_interrupt_. From then on every update() only publishes NaN
-  // ("update called before prior reading complete") until reboot. Fix: if the
-  // measurement has not completed within max(measurement timing budget +
-  // margin, `timeout`), abort it (stop + clear interrupt), reset the state
-  // machine and publish NaN so the next update() starts a fresh measurement -
-  // the sensor recovers by itself. Note: `timeout` can only extend the stall
-  // window, not shorten it below the timing budget (it is also used for
-  // shorter setup operations).
-  if (this->initiated_read_ || this->waiting_for_interrupt_) {
-    // `timeout` is also used for setup operations and may be shorter than the
-    // sensor's measurement timing budget. Keep enough time for a valid
-    // measurement, while still allowing a configured timeout to extend it.
-    constexpr uint32_t measurement_timeout_margin_us = 10000;
-    uint32_t stall_timeout_us = 1000000;
-    if (this->measurement_timing_budget_us_ > 0) {
-      stall_timeout_us = this->measurement_timing_budget_us_ + measurement_timeout_margin_us;
-    }
-    if (this->timeout_us_ > stall_timeout_us) {
-      stall_timeout_us = this->timeout_us_;
-    }
-    if (micros() - this->measurement_start_us_ > stall_timeout_us) {
-      if (!this->stall_reported_) {
-        ESP_LOGW(TAG,
-                 "'%s' - measurement did not complete within %" PRIu32 "us, resetting read state (possible I2C glitch)",
-                 this->name_.c_str(), stall_timeout_us);
-        this->stall_reported_ = true;
+  // After an I2C error (NACK / EMI glitch) the register reads return 0, the
+  // driver mistakes the measurement for "done" and gets stuck in
+  // waiting_for_interrupt_ forever - every later update() then only publishes
+  // NaN until the ESP reboots. If a measurement overruns its window, abort it
+  // and reset the state machine so the next update() starts a fresh one.
+  if ((this->initiated_read_ || this->waiting_for_interrupt_) &&
+      App.get_loop_component_start_time() - this->measurement_start_ms_ > this->stall_timeout_ms_) {
+    ESP_LOGW(TAG,
+             "'%s' - measurement did not complete within %" PRIu32 "ms, resetting read state (possible I2C glitch)",
+             this->name_.c_str(), this->stall_timeout_ms_);
+    this->consecutive_stalls_++;
+    reg(0x00) = 0x00;  // abort any pending measurement
+    reg(0x0B) = 0x01;  // clear interrupt flags
+    this->initiated_read_ = false;
+    this->waiting_for_interrupt_ = false;
+    this->publish_state(NAN);
+    this->status_momentary_warning("stall", 5000);
+    if (this->consecutive_stalls_ >= STALLS_BEFORE_RESET) {
+      // The sensor's own MCU is wedged - clearing the driver state is not
+      // enough, every following measurement keeps timing out. Recover with the
+      // sensor's soft reset (register 0xBF, the software equivalent of the
+      // XSHUT pin) plus a full re-init: no ESP reboot, no power cycle.
+      if (this->recovery_attempts_ >= MAX_RECOVERY_ATTEMPTS) {
+        ESP_LOGE(TAG, "'%s' - sensor did not recover after %d soft resets, marking as failed", this->name_.c_str(),
+                 this->recovery_attempts_);
+        this->mark_failed();
+        return;
       }
-      this->consecutive_stalls_++;
-      reg(0x00) = 0x00;  // abort any pending measurement
-      reg(0x0B) = 0x01;  // clear interrupt flags
-      this->initiated_read_ = false;
-      this->waiting_for_interrupt_ = false;
-      this->publish_state(NAN);
-      this->status_momentary_warning("stall", 5000);
-      if (this->consecutive_stalls_ >= 2) {
-        // The sensor's internal MCU is wedged - resetting the driver state
-        // does not help (every subsequent measurement keeps timing out).
-        // Recover by performing the sensor's own soft reset (register 0xBF,
-        // the software equivalent of the XSHUT pin) followed by a full
-        // re-initialization - no ESP reboot, no power cycle required.
-        if (this->recovery_attempts_ >= 5) {
-          ESP_LOGE(TAG, "'%s' - sensor did not recover after %d soft resets, marking as failed", this->name_.c_str(),
-                   this->recovery_attempts_);
-          this->mark_failed();
-          return;
-        }
-        this->recovery_attempts_++;
-        ESP_LOGW(TAG, "'%s' - sensor still stuck, performing soft reset and re-init (attempt %d/5)",
-                 this->name_.c_str(), this->recovery_attempts_);
-        reg(0xBF) = 0x00;  // SOFT_RESET_GO2_SOFT_RESET_N: hold the sensor MCU in reset
-        delay(1);
-        reg(0xBF) = 0x01;  // release - the sensor MCU reboots, registers revert to defaults
-        delay(2);
-        this->set_i2c_address(0x29);  // soft reset restores the default I2C address
-        if (this->init_sensor_(this->address_)) {
-          ESP_LOGI(TAG, "'%s' - sensor re-initialized successfully, restarting measurement", this->name_.c_str());
-          this->consecutive_stalls_ = 0;
-          this->recovery_attempts_ = 0;
-          this->update();  // start a fresh measurement right away
-        } else {
-          ESP_LOGE(TAG, "'%s' - re-init failed, will retry on the next update", this->name_.c_str());
-        }
+      this->recovery_attempts_++;
+      ESP_LOGW(TAG, "'%s' - sensor still stuck, performing soft reset and re-init (attempt %d/%d)", this->name_.c_str(),
+               this->recovery_attempts_, MAX_RECOVERY_ATTEMPTS);
+      reg(0xBF) = 0x00;  // SOFT_RESET_GO2_SOFT_RESET_N: hold the sensor MCU in reset
+      delay(1);
+      reg(0xBF) = 0x01;  // release - the sensor MCU reboots, registers revert to defaults
+      delay(2);
+      // The soft reset restores the default address, so re-init has to talk to
+      // that one and re-apply the configured address - save it before switching.
+      const uint8_t final_address = this->address_;
+      this->set_i2c_address(DEFAULT_I2C_ADDRESS);
+      if (this->init_sensor_(final_address)) {
+        ESP_LOGI(TAG, "'%s' - sensor re-initialized successfully, restarting measurement", this->name_.c_str());
+        this->consecutive_stalls_ = 0;
+        this->recovery_attempts_ = 0;
+        // Start the next measurement from a later loop iteration: the re-init
+        // above blocked, so the timestamp update() reads here would be stale.
+        this->defer([this]() { this->update(); });
+      } else {
+        ESP_LOGE(TAG, "'%s' - re-init failed, will retry on the next update", this->name_.c_str());
       }
-      return;
     }
+    return;
   }
   if (this->initiated_read_) {
     if (reg(0x00).get() & 0x01) {
@@ -384,19 +375,19 @@ void VL53L0XSensor::loop() {
       this->read_byte_16(0x14 + 10, &range_mm);
       reg(0x0B) = 0x01;
       this->waiting_for_interrupt_ = false;
+      // The sensor answered, so it is not wedged.
+      this->consecutive_stalls_ = 0;
+      this->recovery_attempts_ = 0;
 
       if (range_mm >= 8190) {
         ESP_LOGD(TAG, "'%s' - Distance is out of range, please move the target closer", this->name_.c_str());
         this->publish_state(NAN);
-        this->consecutive_stalls_ = 0;
         return;
       }
 
       float range_m = range_mm / 1e3f;
       ESP_LOGD(TAG, "'%s' - Got distance %.3f m", this->name_.c_str(), range_m);
       this->publish_state(range_m);
-      this->consecutive_stalls_ = 0;
-      this->recovery_attempts_ = 0;
     }
   }
 }
