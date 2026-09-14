@@ -1021,9 +1021,6 @@ const char *DeviceInfoResponse::dump_to(DumpBuffer &out) const {
 #ifdef USE_API_NOISE
   dump_field(out, ESPHOME_PSTR("api_encryption_provisionable"), this->api_encryption_provisionable);
 #endif
-#ifdef USE_STORE_YAML
-  dump_field(out, ESPHOME_PSTR("has_store_yaml"), this->has_store_yaml);
-#endif
   return out.c_str();
 }
 #ifdef USE_BLUETOOTH_PROXY
@@ -1046,6 +1043,13 @@ const char *ZWaveProxyCapabilities::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, ESPHOME_PSTR("ZWaveProxyCapabilities"));
   dump_field(out, ESPHOME_PSTR("feature_flags"), this->feature_flags);
   dump_field(out, ESPHOME_PSTR("home_id"), this->home_id);
+  return out.c_str();
+}
+#endif
+#ifdef USE_STORE_YAML
+const char *StoreYamlCapabilities::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("StoreYamlCapabilities"));
+  dump_field(out, ESPHOME_PSTR("supported"), this->supported);
   return out.c_str();
 }
 #endif
@@ -1072,6 +1076,11 @@ const char *DeviceCapabilitiesResponse::dump_to(DumpBuffer &out) const {
     it.dump_to(out);
     out.append("\n");
   }
+#endif
+#ifdef USE_STORE_YAML
+  out.append(2, ' ').append_p(ESPHOME_PSTR("store_yaml")).append(": ");
+  this->store_yaml.dump_to(out);
+  out.append("\n");
 #endif
   return out.c_str();
 }

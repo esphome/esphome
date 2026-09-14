@@ -2002,12 +2002,6 @@ bool APIConnection::send_device_info_response_() {
 #ifdef USE_DEEP_SLEEP
   resp.has_deep_sleep = deep_sleep::global_has_deep_sleep;
 #endif
-#ifdef USE_STORE_YAML
-  // Compile-time knowledge: codegen always embeds a non-empty blob when the
-  // component is compiled in. Deriving this from the runtime pointer could
-  // report false to a client connecting before store_yaml's setup() ran.
-  resp.has_store_yaml = true;
-#endif
 #ifdef ESPHOME_PROJECT_NAME
 #ifdef USE_ESP8266
   static const char PROJECT_NAME_PROGMEM[] PROGMEM = ESPHOME_PROJECT_NAME;
@@ -2112,6 +2106,12 @@ bool APIConnection::send_device_capabilities_response_() {
     info.port_type = proxy->get_port_type();
     info.configured_line_states = proxy->get_configured_modem_pins();
   }
+#endif
+#ifdef USE_STORE_YAML
+  // Compile-time knowledge: codegen always embeds a non-empty blob when the
+  // component is compiled in. Deriving this from the runtime pointer could
+  // report false to a client connecting before store_yaml's setup() ran.
+  resp.store_yaml.supported = true;
 #endif
   return this->send_message(resp);
 }

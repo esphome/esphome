@@ -334,11 +334,6 @@ message DeviceInfoResponse {
   // all-zeros PSK, so the api encryption key can be provisioned without being
   // sent in plaintext (protects against passive sniffing, not active MITM)
   bool api_encryption_provisionable = 26 [(field_ifdef) = "USE_API_NOISE"];
-
-  // Whether this firmware embeds its YAML configuration for recovery via
-  // `get_yaml`. Clients use this to skip the request entirely when the
-  // device cannot answer it instead of waiting for a timeout.
-  bool has_store_yaml = 27 [(field_ifdef) = "USE_STORE_YAML"];
 }
 
 // ==================== DEVICE CAPABILITIES ====================
@@ -387,6 +382,12 @@ message ZWaveProxyCapabilities {
   uint32 home_id = 2;
 }
 
+message StoreYamlCapabilities {
+  // Whether this firmware embeds its YAML configuration for recovery via
+  // `get_yaml`, so clients can skip the request instead of waiting for a timeout
+  bool supported = 1;
+}
+
 message DeviceCapabilitiesResponse {
   option (id) = 150;
   option (source) = SOURCE_SERVER;
@@ -396,6 +397,7 @@ message DeviceCapabilitiesResponse {
   ZWaveProxyCapabilities zwave_proxy = 3 [(field_ifdef) = "USE_ZWAVE_PROXY"];
   repeated SerialProxyInfo serial_proxies = 4
       [(field_ifdef) = "USE_SERIAL_PROXY", (fixed_array_size_define) = "SERIAL_PROXY_COUNT"];
+  StoreYamlCapabilities store_yaml = 5 [(field_ifdef) = "USE_STORE_YAML"];
 }
 
 message ListEntitiesRequest {

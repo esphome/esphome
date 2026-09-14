@@ -176,9 +176,6 @@ uint8_t *DeviceInfoResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_
 #ifdef USE_API_NOISE
   ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 26, this->api_encryption_provisionable);
 #endif
-#ifdef USE_STORE_YAML
-  ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 27, this->has_store_yaml);
-#endif
   return pos;
 }
 uint32_t DeviceInfoResponse::calculate_size() const {
@@ -244,9 +241,6 @@ uint32_t DeviceInfoResponse::calculate_size() const {
 #ifdef USE_API_NOISE
   size += ProtoSize::calc_bool(2, this->api_encryption_provisionable);
 #endif
-#ifdef USE_STORE_YAML
-  size += ProtoSize::calc_bool(2, this->has_store_yaml);
-#endif
   return size;
 }
 #ifdef USE_BLUETOOTH_PROXY
@@ -289,6 +283,18 @@ uint32_t ZWaveProxyCapabilities::calculate_size() const {
   return size;
 }
 #endif
+#ifdef USE_STORE_YAML
+uint8_t *StoreYamlCapabilities::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
+  uint8_t *__restrict__ pos = buffer.get_pos();
+  ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 1, this->supported);
+  return pos;
+}
+uint32_t StoreYamlCapabilities::calculate_size() const {
+  uint32_t size = 0;
+  size += ProtoSize::calc_bool(1, this->supported);
+  return size;
+}
+#endif
 uint8_t *DeviceCapabilitiesResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
   uint8_t *__restrict__ pos = buffer.get_pos();
 #ifdef USE_BLUETOOTH_PROXY
@@ -304,6 +310,9 @@ uint8_t *DeviceCapabilitiesResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCOD
   for (const auto &it : this->serial_proxies) {
     ProtoEncode::encode_sub_message(pos PROTO_ENCODE_DEBUG_ARG, buffer, 4, it);
   }
+#endif
+#ifdef USE_STORE_YAML
+  ProtoEncode::encode_optional_sub_message(pos PROTO_ENCODE_DEBUG_ARG, buffer, 5, this->store_yaml);
 #endif
   return pos;
 }
@@ -322,6 +331,9 @@ uint32_t DeviceCapabilitiesResponse::calculate_size() const {
   for (const auto &it : this->serial_proxies) {
     size += ProtoSize::calc_message_force(1, it.calculate_size());
   }
+#endif
+#ifdef USE_STORE_YAML
+  size += ProtoSize::calc_message(1, this->store_yaml.calculate_size());
 #endif
   return size;
 }

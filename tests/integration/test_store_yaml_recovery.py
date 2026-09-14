@@ -28,6 +28,8 @@ from .types import RunCompiledFunction
 # Message IDs from esphome/components/api/api.proto.
 HELLO_REQUEST = 1
 HELLO_RESPONSE = 2
+DEVICE_CAPABILITIES_REQUEST = 149
+DEVICE_CAPABILITIES_RESPONSE = 150
 GET_YAML_REQUEST = 154
 GET_YAML_RESPONSE = 155
 
@@ -88,6 +90,30 @@ def _parse_get_yaml_response(payload: bytes) -> tuple[bytes, bool, int, str]:
         else:
             raise AssertionError(f"unexpected wire type {wire_type}")
     return data, done, total_size, encoding
+
+
+def _parse_store_yaml_supported(payload: bytes) -> bool:
+    """Read `store_yaml.supported` (field 5, field 1) from `DeviceCapabilitiesResponse`."""
+    pos = 0
+    while pos < len(payload):
+        tag, pos = _read_varint(payload, pos)
+        wire_type = tag & 0x07
+        if wire_type == 0:
+            _, pos = _read_varint(payload, pos)
+            continue
+        assert wire_type == 2, f"unexpected wire type {wire_type}"
+        length, pos = _read_varint(payload, pos)
+        chunk = payload[pos : pos + length]
+        pos += length
+        if tag >> 3 != 5:
+            continue
+        sub_pos = 0
+        while sub_pos < len(chunk):
+            sub_tag, sub_pos = _read_varint(chunk, sub_pos)
+            value, sub_pos = _read_varint(chunk, sub_pos)
+            if sub_tag == 0x08:
+                return bool(value)
+    return False
 
 
 async def _read_varint_from(reader: asyncio.StreamReader) -> int:
@@ -158,6 +184,16 @@ async def test_store_yaml_recovery(
             await client.send(HELLO_REQUEST, hello_payload)
             msg_type, _ = await asyncio.wait_for(client.recv(), timeout=5.0)
             assert msg_type == HELLO_RESPONSE, f"expected HelloResponse, got {msg_type}"
+
+            # Clients learn the device can answer get_yaml from its capabilities.
+            await client.send(DEVICE_CAPABILITIES_REQUEST, b"")
+            while True:
+                msg_type, payload = await asyncio.wait_for(client.recv(), timeout=5.0)
+                if msg_type == DEVICE_CAPABILITIES_RESPONSE:
+                    break
+            assert _parse_store_yaml_supported(payload), (
+                "expected DeviceCapabilitiesResponse to report store_yaml.supported"
+            )
 
             # The actual request under test.
             await client.send(GET_YAML_REQUEST, b"")
