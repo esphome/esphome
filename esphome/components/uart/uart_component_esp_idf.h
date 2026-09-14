@@ -18,6 +18,8 @@ namespace esphome::uart {
 /// peek byte state (has_peek_/peek_byte_) is not synchronized.
 class IDFUARTComponent final : public UARTComponent, public Component {
  public:
+  // User provided, not "= default": `new(p) IDFUARTComponent()` would zero-fill .bss that is already zero.
+  IDFUARTComponent() {}
   void setup() override;
   void dump_config() override;
   float get_setup_priority() const override { return setup_priority::BUS; }
@@ -96,7 +98,7 @@ class IDFUARTComponent final : public UARTComponent, public Component {
   Framing last_good_framing_{};
 
   bool has_peek_{false};
-  uint8_t peek_byte_;
+  uint8_t peek_byte_{0};
   uint32_t flush_timeout_ms_{0};  ///< 0 means wait indefinitely (portMAX_DELAY).
 
 #ifdef USE_UART_WAKE_LOOP_ON_RX
