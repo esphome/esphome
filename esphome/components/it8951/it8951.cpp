@@ -176,6 +176,8 @@ void IT8951Display::advance_phase_() {
       if (this->initialised_ && this->update_pending_) {
         this->update_pending_ = false;
         this->active_mode_ = this->pending_update_mode_;
+        this->active_load_only_ = this->pending_load_only_;
+        this->active_refresh_only_ = this->pending_refresh_only_;
         this->update_started_at_ = millis();
         this->set_phase_(Phase::UPDATE_PREPARE);
         this->advance_phase_();
@@ -255,21 +257,50 @@ void IT8951Display::advance_phase_() {
       break;
 
     case Phase::UPDATE_PREPARE: {
+      // refresh-only (it8951.refresh): nothing to render or transfer — the
+      // image was preloaded into controller RAM. Display the full screen.
+      if (this->active_refresh_only_) {
+        this->area_x_ = 0;
+        this->area_y_ = 0;
+        this->area_w_ = this->width_;
+        this->area_h_ = this->height_;
+        this->set_phase_(Phase::UPDATE_TRANSFER);
+        this->advance_phase_();
+        break;
+      }
       this->do_update_();
       UpdateMode mode = this->active_mode_;
       if (!this->prepare_update_region_(mode)) {
         ESP_LOGD(TAG, "Nothing to update");
+        this->active_load_only_ = false;
         this->set_phase_(Phase::IDLE);
         this->advance_phase_();
         return;
       }
       this->active_mode_ = mode;
+      // load-only (it8951.load): the transfer overwrites controller RAM that
+      // an in-progress waveform may still be reading from (the panel could be
+      // mid-GC16 showing the other page). Normal updates skip this gate for
+      // latency and immediately re-display anyway; a preload never re-displays,
+      // so tearing the visible image would persist — wait for LUT idle first.
+      if (this->active_load_only_) {
+        this->enqueue_(OpType::CMD, TCON_REG_RD);
+        this->enqueue_(OpType::WRITE_W, LUTAFSR);
+        this->enqueue_(OpType::READ_WORD);
+        this->enqueue_(OpType::CHECK_LUT_IDLE);
+      }
       this->set_phase_(Phase::UPDATE_TRANSFER);
       this->enqueue_update_transfer_();
       break;
     }
 
     case Phase::UPDATE_TRANSFER:
+      if (this->active_load_only_) {
+        // Preload complete: image is in controller RAM, skip the display.
+        this->set_phase_(Phase::UPDATE_SLEEP);
+        this->enqueue_update_sleep_();
+        break;
+      }
       this->set_phase_(Phase::UPDATE_REFRESH);
       this->enqueue_update_refresh_();
       break;
@@ -288,8 +319,11 @@ void IT8951Display::advance_phase_() {
       break;
 
     case Phase::UPDATE_SLEEP:
-      ESP_LOGV(TAG, "Update took %" PRIu32 "ms (mode=%u area=%ux%u@%u,%u)", millis() - this->update_started_at_,
-               static_cast<unsigned>(this->active_mode_), this->area_w_, this->area_h_, this->area_x_, this->area_y_);
+      ESP_LOGV(TAG, "Update took %" PRIu32 "ms (mode=%u area=%ux%u@%u,%u%s)", millis() - this->update_started_at_,
+               static_cast<unsigned>(this->active_mode_), this->area_w_, this->area_h_, this->area_x_, this->area_y_,
+               this->active_load_only_ ? " load-only" : (this->active_refresh_only_ ? " refresh-only" : ""));
+      this->active_load_only_ = false;
+      this->active_refresh_only_ = false;
       this->set_phase_(Phase::IDLE);
       this->advance_phase_();
       break;
@@ -427,6 +461,13 @@ void IT8951Display::enqueue_update_transfer_() {
 
 void IT8951Display::enqueue_update_refresh_() {
   ESP_LOGV(TAG, "Enqueueing refresh ops: grayscale=%u", this->grayscale_);
+  // A refresh-only update (it8951.refresh) skips the transfer stage, which is
+  // where a sleeping controller is normally woken — wake it here if needed.
+  if (this->asleep_) {
+    this->enqueue_(OpType::CMD, TCON_SYS_RUN);
+    this->enqueue_(OpType::DELAY_MS, 10);  // clocks settle after SYS_RUN
+    this->asleep_ = false;
+  }
   // Poll LUT idle: CMD(REG_RD) → WRITE_W(LUTAFSR) → READ_WORD → CHECK_LUT_IDLE
   this->enqueue_(OpType::CMD, TCON_REG_RD);
   this->enqueue_(OpType::WRITE_W, LUTAFSR);
@@ -751,17 +792,21 @@ void IT8951Display::reset_dirty_region_() {
   this->y_high_ = 0;
 }
 
-void IT8951Display::start_update_(UpdateMode mode) {
+void IT8951Display::start_update_(UpdateMode mode, bool load_only, bool refresh_only) {
   if (this->phase_ == Phase::IDLE && this->initialised_) {
     this->update_started_at_ = millis();
     this->active_mode_ = mode;
+    this->active_load_only_ = load_only;
+    this->active_refresh_only_ = refresh_only;
     this->set_phase_(Phase::UPDATE_PREPARE);
     this->enable_loop();
     this->advance_phase_();
   } else {
-    // Coalesce: latest pending mode wins.
+    // Coalesce: latest pending request wins (mode AND load/refresh kind).
     this->update_pending_ = true;
     this->pending_update_mode_ = mode;
+    this->pending_load_only_ = load_only;
+    this->pending_refresh_only_ = refresh_only;
     this->enable_loop();
   }
 }
@@ -784,6 +829,21 @@ void IT8951Display::update_mode(UpdateMode mode) {
     return;
   }
   this->start_update_(mode);
+}
+
+void IT8951Display::load_buffer() {
+  if (!this->is_ready())
+    return;
+  // Mode is irrelevant for a load (nothing is displayed); GC16 is a placeholder.
+  this->start_update_(UPDATE_MODE_GC16, /*load_only=*/true, /*refresh_only=*/false);
+}
+
+void IT8951Display::refresh_full(UpdateMode mode) {
+  if (!this->is_ready())
+    return;
+  if (mode == UPDATE_MODE_NONE)
+    mode = UPDATE_MODE_GC16;
+  this->start_update_(mode, /*load_only=*/false, /*refresh_only=*/true);
 }
 
 // --- Recovery ----------------------------------------------------------------
