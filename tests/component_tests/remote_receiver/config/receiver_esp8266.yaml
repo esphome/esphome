@@ -2,7 +2,7 @@ esphome:
   name: test
 
 esp8266:
-  board: d1_mini_pro
+  board: d1_mini
 
 remote_receiver:
   - id: rcvr

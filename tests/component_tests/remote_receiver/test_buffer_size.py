@@ -1,4 +1,4 @@
-"""buffer_size is bytes on the pulse ring targets, with a floor and a 1000 pulse default."""
+"""buffer_size is bytes on the pulse ring targets and only reaches RMT targets when set."""
 
 from collections.abc import Callable
 from pathlib import Path
@@ -10,6 +10,14 @@ from esphome.components.esp8266 import gpio as esp8266_gpio  # noqa: F401  regis
 from esphome.config_validation import Invalid
 from esphome.const import PlatformFramework
 from tests.component_tests.types import SetCoreConfigCallable
+
+
+def test_explicit_buffer_size_is_passed_through(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    main_cpp = generate_main(component_config_path("receiver_buffer_size.yaml"))
+    assert "rcvr->set_buffer_size(2000);" in main_cpp
 
 
 @pytest.mark.parametrize(

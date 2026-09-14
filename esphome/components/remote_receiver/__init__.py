@@ -115,9 +115,12 @@ CONFIG_SCHEMA = remote_base.validate_triggers(
             # pulse ring targets hold one 4 byte entry per pulse; 4000b keeps their 1000 pulses
             cv.SplitDefault(
                 CONF_BUFFER_SIZE,
-                esp32="10000b",
-                esp32_c2="4000b",
-                esp32_c61="4000b",
+                esp32=cv.UNDEFINED,
+                # the pulse ring needs a size; only RMT targets size themselves in setup()
+                **{
+                    f"esp32_{variant.removeprefix('ESP32').lower()}": "4000b"
+                    for variant in esp32_rmt.VARIANTS_NO_RMT
+                },
                 esp8266="4000b",
                 bk72xx="4000b",
                 ln882x="4000b",
@@ -234,7 +237,8 @@ async def to_code(config: ConfigType) -> None:
             config[CONF_TOLERANCE][CONF_VALUE], config[CONF_TOLERANCE][CONF_TYPE]
         )
     )
-    cg.add(var.set_buffer_size(config[CONF_BUFFER_SIZE]))
+    if CONF_BUFFER_SIZE in config:
+        cg.add(var.set_buffer_size(config[CONF_BUFFER_SIZE]))
     cg.add(var.set_filter_us(config[CONF_FILTER]))
     cg.add(var.set_idle_us(config[CONF_IDLE]))
 
