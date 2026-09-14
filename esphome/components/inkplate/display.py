@@ -18,7 +18,7 @@ from esphome.core import ID
 
 from . import models
 
-DEPENDENCIES = ["i2c"]
+DEPENDENCIES = ["esp32", "i2c"]
 
 CONF_PCA6416A_ID = "pca6416a_id"
 CONF_MCP23017_ID = "mcp23017_id"
