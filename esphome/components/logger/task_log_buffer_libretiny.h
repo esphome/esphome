@@ -84,7 +84,7 @@ class TaskLogBuffer {
   static inline size_t message_total_size(size_t text_length) { return sizeof(LogMessage) + text_length + 1; }
 
   // Calculate available contiguous space at write position
-  size_t available_contiguous_space() const;
+  size_t available_contiguous_space_() const;
 
   uint8_t storage_[ESPHOME_TASK_LOG_BUFFER_SIZE];  // Embedded in Logger (no separate heap allocation)
   size_t head_{0};                                 // Write position

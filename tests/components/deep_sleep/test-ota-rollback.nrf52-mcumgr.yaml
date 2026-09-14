@@ -1,0 +1,16 @@
+# Deep sleep combined with mcumgr OTA while MCUboot image rollback is enabled
+# (the default on nRF52). Entering system-off deep sleep runs the safe
+# shutdown hooks, where safe_mode confirms the running image so MCUboot does
+# not revert a fresh OTA update on the next wake.
+packages:
+  deep_sleep: !include common.yaml
+
+deep_sleep:
+  run_duration: 10s
+
+zephyr_ble_server:
+
+ota:
+  - platform: zephyr_mcumgr
+    transport:
+      ble: true

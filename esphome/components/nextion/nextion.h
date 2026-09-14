@@ -23,7 +23,9 @@
 #elif defined(USE_ESP8266)
 #include <ESP8266HTTPClient.h>
 #include <WiFiClientSecure.h>
-#endif  // USE_ESP32 vs USE_ESP8266
+#elif defined(USE_LIBRETINY)
+#include <HTTPClient.h>
+#endif  // USE_ESP32 vs USE_ESP8266 vs USE_LIBRETINY
 #endif  // USE_NEXTION_TFT_UPLOAD
 
 namespace esphome::nextion {
@@ -1467,6 +1469,8 @@ class Nextion final : public NextionBase, public PollingComponent, public uart::
   void all_components_send_state_(bool force_update = false);
   uint32_t comok_sent_ = 0;
   bool remove_from_q_(bool report_empty = true);
+  void release_queue_entry_(NextionQueue *nb);
+  NextionQueue *make_no_result_entry_(const std::string &variable_name);
 
   /**
    * @brief Status flags for Nextion display state management
@@ -1564,7 +1568,7 @@ class Nextion final : public NextionBase, public PollingComponent, public uart::
    * @return position of last byte transferred, -1 for failure.
    */
   int upload_by_chunks_(esp_http_client_handle_t http_client, uint32_t &range_start);
-#elif defined(USE_ARDUINO)
+#elif defined(USE_ESP8266) || defined(USE_LIBRETINY)
   /**
    * will request chunk_size chunks from the web server
    * and send each to the nextion
@@ -1573,7 +1577,7 @@ class Nextion final : public NextionBase, public PollingComponent, public uart::
    * @return position of last byte transferred, -1 for failure.
    */
   int upload_by_chunks_(HTTPClient &http_client, uint32_t &range_start);
-#endif  // USE_ESP32 vs USE_ARDUINO
+#endif  // USE_ESP32 vs USE_ESP8266/USE_LIBRETINY
 
   /**
    * Ends the upload process, restart Nextion and, if successful,

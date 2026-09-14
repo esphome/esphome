@@ -1,0 +1,70 @@
+# pylint: disable=E0602
+Import("env")  # noqa
+
+# Move the NONOS SDK wifi rate tables from flash to DRAM
+#
+# libnet80211.a ships its 802.11b/11g rate tables in the .irom.text section
+# of ieee80211_phy.o (440 bytes of pure data, no relocations). The Arduino
+# core linker script places .irom.text in flash, but the SDK reads these
+# tables with byte loads and ets_memcpy from the wifi RX path while parsing
+# beacons. Byte access to flash-mapped memory from that context misbehaves
+# and crashes with StoreProhibited in ROM memcpy (PC 0x4000df64):
+#
+#   scan_parse_beacon -> cnx_update_bss_more -> ieee80211_phy_init
+#     -> ieee80211_setup_ratetable -> ets_memcpy -> crash
+#
+# See https://github.com/espressif/ESP8266_NONOS_SDK/issues/320 (1000+
+# reports). The SDK is abandoned so the fix from
+# https://github.com/espressif/ESP8266_NONOS_SDK/pull/345 was never merged;
+# we apply the same linker rule here: place ieee80211_phy.o's .irom.text
+# inside the DRAM .data output section so the tables are copied to RAM at
+# boot. Costs 440 bytes of DRAM.
+#
+# The rule is inserted into the working linker script that PlatformIO
+# generates in the build directory (local.eagle.app.v6.common.ld). SDK
+# package files are never modified.
+
+import re
+from os.path import join
+
+RULE = "*libnet80211.a:ieee80211_phy.o(.irom.text .irom.text.*)"
+# Match the whole line: "_data_start" is also a substring of the
+# "_dport0_data_start" line in the earlier .dport0.data section
+ANCHOR = re.compile(r"^\s*_data_start = ABSOLUTE\(\.\);", re.MULTILINE)
+
+
+def relocate_ratetable(source, target, env):
+    """Insert the rate table DRAM rule into the generated linker script.
+
+    Runs as a pre-action of the link step; the linker script is a declared
+    dependency of the elf, so it has already been generated at this point.
+    """
+    ld_path = join(env.subst("$BUILD_DIR"), "ld", "local.eagle.app.v6.common.ld")
+    with open(ld_path, encoding="utf-8") as f:
+        contents = f.read()
+
+    if RULE in contents:
+        return  # Already patched (incremental build)
+
+    match = ANCHOR.search(contents)
+    if match is None:
+        raise RuntimeError(
+            f"ESPHome: '_data_start' anchor not found in {ld_path}; "
+            "cannot apply wifi rate table DRAM relocation "
+            "(has the Arduino core linker script changed?)"
+        )
+
+    insert_pos = match.end()
+    patched = (
+        contents[:insert_pos]
+        + "\n    /* ESPHome: wifi rate tables must live in DRAM, see NONOS SDK issue 320 */"
+        + f"\n    {RULE}"
+        + contents[insert_pos:]
+    )
+    with open(ld_path, "w", encoding="utf-8") as f:
+        f.write(patched)
+    print("ESPHome: Relocated wifi rate tables to DRAM (fixes beacon parse crash)")
+
+
+# Register the callback to run before the link step
+env.AddPreAction("$BUILD_DIR/${PROGNAME}.elf", relocate_ratetable)

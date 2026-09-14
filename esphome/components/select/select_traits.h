@@ -9,7 +9,7 @@ class SelectTraits {
  public:
   void set_options(const std::initializer_list<const char *> &options);
   void set_options(const FixedVector<const char *> &options);
-  const FixedVector<const char *> &get_options() const;
+  const FixedVector<const char *> &get_options() const { return this->options_; }
 
  protected:
   FixedVector<const char *> options_;

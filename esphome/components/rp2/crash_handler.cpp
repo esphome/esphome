@@ -64,7 +64,7 @@ static struct CrashData {
   uint32_t sp;
   uint32_t backtrace[MAX_BACKTRACE];
   uint8_t backtrace_count;
-} s_crash_data __attribute__((section(".noinit")));
+} s_crash_data __attribute__((section(".noinit")));  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 bool crash_handler_has_data() { return s_crash_data.valid; }
 

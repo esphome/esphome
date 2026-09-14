@@ -12,9 +12,11 @@ from esphome.components.esp32 import (
     get_esp32_variant,
     only_on_variant,
     request_wifi,
+    require_mbedtls_tls_extras,
 )
 from esphome.components.network import (
     add_use_address,
+    get_network_priority,
     has_high_performance_networking,
     ip_address_literal,
 )
@@ -65,13 +67,14 @@ from esphome.const import (
 )
 from esphome.core import (
     CORE,
+    ID,
     CoroPriority,
     EsphomeError,
     HexInt,
     coroutine_with_priority,
 )
 import esphome.final_validate as fv
-from esphome.types import ConfigType
+from esphome.types import ConfigType, TemplateArgsType
 
 from . import wpa2_eap
 
@@ -207,6 +210,7 @@ WiFiEnabledCondition = wifi_ns.class_("WiFiEnabledCondition", Condition)
 WiFiAPActiveCondition = wifi_ns.class_("WiFiAPActiveCondition", Condition)
 WiFiEnableAction = wifi_ns.class_("WiFiEnableAction", automation.Action)
 WiFiDisableAction = wifi_ns.class_("WiFiDisableAction", automation.Action)
+WiFiRoamAction = wifi_ns.class_("WiFiRoamAction", automation.Action)
 WiFiConfigureAction = wifi_ns.class_(
     "WiFiConfigureAction", automation.Action, cg.Component
 )
@@ -444,10 +448,15 @@ def _report_provisioning_credentials(config):
     about this, since a device that uses a provisioning window should get its
     credentials on first connection instead.
     """
-    if config.get(CONF_NETWORKS):
-        from esphome.components import provisioning
+    from esphome.components import provisioning
 
+    if config.get(CONF_NETWORKS):
         provisioning.report_hardcoded_credentials("wifi")
+    elif CONF_AP in config:
+        # An access point with no station credentials: the AP shuts down when the
+        # provisioning window closes, so `provisioning:` warns that the device may
+        # become unreachable until power-cycled.
+        provisioning.report_ap_without_sta()
     return config
 
 
@@ -602,6 +611,10 @@ def wifi_network(config, ap, static_ip):
 @coroutine_with_priority(CoroPriority.COMMUNICATION)
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
+
+    prio = get_network_priority("wifi")
+    if prio is not None:
+        cg.set_setup_priority(var, prio)
     add_use_address(var, config[CONF_USE_ADDRESS])
 
     # Track if any network uses Enterprise authentication
@@ -613,6 +626,9 @@ async def to_code(config):
     networks = config.get(CONF_NETWORKS, [])
     if networks:
         cg.add(var.init_sta(len(networks)))
+        if len(networks) > 1:
+            # The ESP32 scan can filter one SSID in the driver; with several the whole list is kept
+            cg.add_define("USE_WIFI_MULTI_SSID")
 
         def add_sta(ap: cg.MockObj, network: dict) -> None:
             ip_config = network.get(CONF_MANUAL_IP, config.get(CONF_MANUAL_IP))
@@ -646,6 +662,12 @@ async def to_code(config):
     # Disable Enterprise WiFi support if no EAP is configured
     if CORE.is_esp32:
         add_idf_sdkconfig_option("CONFIG_ESP_WIFI_ENTERPRISE_SUPPORT", has_eap)
+        if has_eap:
+            # wpa_supplicant's EAP client negotiates with whatever the RADIUS
+            # server offers, and a failed handshake leaves the device off the
+            # network, so keep every mbedTLS client feature the esp32 platform
+            # would otherwise trim.
+            require_mbedtls_tls_extras()
 
     # Only define USE_WIFI_MANUAL_IP if any AP uses manual IP
     if has_manual_ip:
@@ -810,6 +832,18 @@ async def wifi_disable_to_code(config, action_id, template_arg, args):
     return cg.new_Pvariable(action_id, template_arg)
 
 
+@automation.register_action(
+    "wifi.roam", WiFiRoamAction, cv.Schema({}), synchronous=True
+)
+async def wifi_roam_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> cg.MockObj:
+    return cg.new_Pvariable(action_id, template_arg)
+
+
 KEEP_SCAN_RESULTS_KEY = "wifi_keep_scan_results"
 RUNTIME_POWER_SAVE_KEY = "wifi_runtime_power_save"
 RUNTIME_ROAMING_SUPPRESSION_KEY = "wifi_runtime_roaming_suppression"
@@ -818,6 +852,7 @@ IP_STATE_LISTENERS_KEY = "wifi_ip_state_listeners"
 SCAN_RESULTS_LISTENERS_KEY = "wifi_scan_results_listeners"
 CONNECT_STATE_LISTENERS_KEY = "wifi_connect_state_listeners"
 POWER_SAVE_LISTENERS_KEY = "wifi_power_save_listeners"
+SCAN_RESULTS_LOCK_KEY = "wifi_scan_results_lock"
 
 
 def request_wifi_scan_results():
@@ -828,6 +863,19 @@ def request_wifi_scan_results():
     freeing scan result memory after successful connection.
     """
     CORE.data[KEEP_SCAN_RESULTS_KEY] = True
+
+
+def request_wifi_scan_results_lock() -> None:
+    """Request that scan results be guarded by a lock for cross-task readers.
+
+    Components that read WiFi scan results from a task other than the main loop
+    (for example a web server handler) must call this function during their code
+    generation, and their C++ code must hold a wifi::ScanResultsLock while
+    iterating get_scan_result(). On multi-threaded platforms this compiles in a
+    lock that scan result writers hold; on single-threaded platforms it compiles
+    to nothing.
+    """
+    CORE.data[SCAN_RESULTS_LOCK_KEY] = True
 
 
 def enable_runtime_power_save_control():
@@ -891,6 +939,8 @@ async def final_step():
         cg.add_define("USE_WIFI_RUNTIME_POWER_SAVE")
     if CORE.data.get(RUNTIME_ROAMING_SUPPRESSION_KEY, False):
         cg.add_define("USE_WIFI_RUNTIME_ROAMING_SUPPRESSION")
+    if CORE.data.get(SCAN_RESULTS_LOCK_KEY):
+        cg.add_define("USE_WIFI_SCAN_RESULTS_LOCK")
 
     # Generate listener defines - each listener type has its own #ifdef
     ip_state_count = CORE.data.get(IP_STATE_LISTENERS_KEY, 0)

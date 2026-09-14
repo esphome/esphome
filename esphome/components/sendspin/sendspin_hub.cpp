@@ -21,6 +21,12 @@ namespace esphome::sendspin_ {
 
 static const char *const TAG = "sendspin.hub";
 
+#ifdef USE_SENDSPIN_ARTWORK
+// Indexed by the library enums, which start at zero and are contiguous.
+static const char *const IMAGE_SOURCE_NAMES[] = {"ALBUM", "ARTIST", "NONE"};
+static const char *const IMAGE_FORMAT_NAMES[] = {"JPEG", "PNG", "BMP"};
+#endif
+
 void SendspinHub::setup() {
   auto config = this->build_client_config_();
   this->client_ = std::make_unique<sendspin::SendspinClient>(std::move(config));
@@ -36,6 +42,11 @@ void SendspinHub::setup() {
   this->client_->set_listener(this);
   this->client_->set_network_provider(this);
   this->client_->set_persistence_provider(this);
+
+#ifdef USE_SENDSPIN_ARTWORK
+  this->artwork_role_ = &this->client_->add_artwork(this->artwork_config_);
+  this->artwork_role_->set_listener(this);
+#endif
 
 #ifdef USE_SENDSPIN_CONTROLLER
   this->controller_role_ = &this->client_->add_controller();
@@ -65,8 +76,24 @@ void SendspinHub::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "Sendspin Hub:\n"
                 "  Client ID: %s\n"
+                "  Manufacturer: %s\n"
+                "  Model: %s\n"
+                "  Firmware version: %s\n"
                 "  Task stack in PSRAM: %s",
-                get_client_id_into_buffer(mac_buf), YESNO(this->task_stack_in_psram_));
+                get_client_id_into_buffer(mac_buf), this->manufacturer_, this->get_product_name_(),
+                this->firmware_version_, YESNO(this->task_stack_in_psram_));
+
+#ifdef USE_SENDSPIN_ARTWORK
+  // Slot indices come from the order the image platform entries were declared, so the log is the
+  // only place the mapping from a slot to the artwork it asked for can be read back.
+  uint8_t slot = 0;
+  for (const auto &preference : this->artwork_config_.preferred_formats) {
+    ESP_LOGCONFIG(TAG, "  Artwork slot %u: %s as %s, %ux%u, display offset %" PRId32 " ms", slot++,
+                  IMAGE_SOURCE_NAMES[static_cast<uint8_t>(preference.source)],
+                  IMAGE_FORMAT_NAMES[static_cast<uint8_t>(preference.format)], preference.width, preference.height,
+                  preference.display_offset_ms);
+  }
+#endif
 }
 
 // --- Delegating methods ---
@@ -104,15 +131,19 @@ const char *SendspinHub::get_client_id_into_buffer(std::span<char, MAC_ADDRESS_P
   return get_mac_address_pretty_into_buffer(buf);
 }
 
+const char *SendspinHub::get_product_name_() const {
+  return this->model_ != nullptr ? this->model_ : App.get_name().c_str();
+}
+
 sendspin::SendspinClientConfig SendspinHub::build_client_config_() {
   sendspin::SendspinClientConfig config;
 
   char mac_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
   config.client_id = SendspinHub::get_client_id_into_buffer(mac_buf);
   config.name = App.get_friendly_name();
-  config.product_name = App.get_name();
-  config.manufacturer = "ESPHome";
-  config.software_version = ESPHOME_VERSION;
+  config.product_name = this->get_product_name_();
+  config.manufacturer = this->manufacturer_;
+  config.software_version = this->firmware_version_;
   config.httpd_psram_stack = this->task_stack_in_psram_;
 
   return config;
@@ -174,12 +205,41 @@ std::optional<uint32_t> SendspinHub::load_last_server_hash() {
 
 // --- Sendspin role specific methods/overrides ---
 
+#ifdef USE_SENDSPIN_ARTWORK
+// THREAD CONTEXT: Dedicated artwork decode thread; downstream callbacks run here too
+void SendspinHub::on_image_decode(uint8_t slot, const uint8_t *data, size_t length,
+                                  sendspin::SendspinImageFormat format) {
+  this->artwork_image_decode_callbacks_.call(slot, data, length, format);
+}
+
+// THREAD CONTEXT: Main loop (fired from client_->loop() once the slot's offset-shifted display
+// deadline is reached; lateness_ms reports how far past the deadline the display slipped)
+void SendspinHub::on_image_display(uint8_t slot, uint32_t lateness_ms) {
+  this->artwork_image_display_callbacks_.call(slot, lateness_ms);
+}
+
+// THREAD CONTEXT: Main loop (fired from client_->loop())
+void SendspinHub::on_image_clear(uint8_t slot) { this->artwork_image_clear_callbacks_.call(slot); }
+
+// THREAD CONTEXT: Main loop (invoked from SendspinImageSlot once a delivery is fully presented)
+void SendspinHub::artwork_frame_done(uint8_t slot) {
+  if (this->artwork_role_ != nullptr) {
+    this->artwork_role_->frame_done(slot);
+  }
+}
+#endif
+
 #ifdef USE_SENDSPIN_CONTROLLER
 // THREAD CONTEXT: Main loop (invoked from ESPHome actions / other components)
 void SendspinHub::send_client_command(sendspin::SendspinControllerCommand command, std::optional<uint8_t> volume,
                                       std::optional<bool> mute) {
   if (this->is_ready()) {
-    this->controller_role_->send_command(command, volume, mute);
+    sendspin::ClientCommandControllerObject obj = {
+        .command = command,
+        .volume = volume,
+        .muted = mute,
+    };
+    this->controller_role_->send_command(obj);
   }
 }
 
@@ -187,6 +247,12 @@ void SendspinHub::send_client_command(sendspin::SendspinControllerCommand comman
 void SendspinHub::on_controller_state(const sendspin::ServerStateControllerObject &state) {
   this->controller_state_callbacks_.call(state);
 }
+
+// THREAD CONTEXT: Main loop (ControllerRoleListener override, fired from client_->loop())
+// Unlike metadata, this cannot be fanned out as a default-constructed state object: volume and muted are plain values
+// rather than optionals, so children would read a real-looking 0% volume where we mean no value at all. A separate
+// callback lets each child clear only what it can represent.
+void SendspinHub::on_controller_state_clear() { this->controller_state_clear_callbacks_.call(); }
 #endif
 
 #ifdef USE_SENDSPIN_METADATA
@@ -194,6 +260,12 @@ void SendspinHub::on_controller_state(const sendspin::ServerStateControllerObjec
 void SendspinHub::on_metadata(const sendspin::ServerMetadataStateObject &metadata) {
   this->metadata_update_callbacks_.call(metadata);
 }
+
+// THREAD CONTEXT: Main loop (MetadataRoleListener override, fired from client_->loop())
+// The cached metadata was dropped because the connection to the server was lost, so what the children now mirror is
+// the empty state. Fanning that out as a default-constructed state object rather than through a separate callback
+// keeps one code path in the children: every field is nullopt, which they already publish as empty/unknown.
+void SendspinHub::on_metadata_clear() { this->metadata_update_callbacks_.call(sendspin::ServerMetadataStateObject{}); }
 
 // THREAD CONTEXT: Main loop (invoked from Sendspin components)
 uint32_t SendspinHub::get_track_progress_ms() const {
