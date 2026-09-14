@@ -175,6 +175,7 @@ MODBUS_CLIENT_SEND_SCHEMA = cv.All(
         }
     ),
     modbus.reject_inapplicable_command_options(CONF_PDU),
+    modbus.reject_broadcast_options_for_unicast(CONF_ADDRESS),
 )
 
 
@@ -339,6 +340,7 @@ def _read_schema(max_count: int) -> cv.All:
             }
         ),
         _no_address_overflow(CONF_COUNT),
+        modbus.reject_broadcast_options_for_unicast(CONF_ADDRESS),
     )
 
 
@@ -354,24 +356,31 @@ def _write_multiple_schema(item: Callable[[Any], Any], max_values: int) -> cv.Al
             }
         ),
         _no_address_overflow(CONF_VALUES),
+        modbus.reject_broadcast_options_for_unicast(CONF_ADDRESS),
     )
 
 
 _READ_REGISTERS_SCHEMA = _read_schema(modbus.MAX_NUM_OF_REGISTERS_TO_READ)
 
-_WRITE_SINGLE_REGISTER_SCHEMA = _TYPED_ACTION_SCHEMA.extend(
-    {
-        cv.Required(CONF_VALUE): cv.templatable(cv.hex_uint16_t),
-        **modbus.command_options_schema(direction="write", templatable=True),
-    }
+_WRITE_SINGLE_REGISTER_SCHEMA = cv.All(
+    _TYPED_ACTION_SCHEMA.extend(
+        {
+            cv.Required(CONF_VALUE): cv.templatable(cv.hex_uint16_t),
+            **modbus.command_options_schema(direction="write", templatable=True),
+        }
+    ),
+    modbus.reject_broadcast_options_for_unicast(CONF_ADDRESS),
 )
 
 # A coil is one bit, so the value is a boolean - the wire only carries 0x0000 or 0xFF00.
-_WRITE_SINGLE_COIL_SCHEMA = _TYPED_ACTION_SCHEMA.extend(
-    {
-        cv.Required(CONF_VALUE): cv.templatable(cv.boolean),
-        **modbus.command_options_schema(direction="write", templatable=True),
-    }
+_WRITE_SINGLE_COIL_SCHEMA = cv.All(
+    _TYPED_ACTION_SCHEMA.extend(
+        {
+            cv.Required(CONF_VALUE): cv.templatable(cv.boolean),
+            **modbus.command_options_schema(direction="write", templatable=True),
+        }
+    ),
+    modbus.reject_broadcast_options_for_unicast(CONF_ADDRESS),
 )
 
 
@@ -544,6 +553,7 @@ _READ_WRITE_MULTIPLE_REGISTERS_SCHEMA = cv.All(
     ),
     _no_address_overflow(CONF_READ_COUNT, CONF_READ_ADDRESS),
     _no_address_overflow(CONF_VALUES, CONF_WRITE_ADDRESS),
+    modbus.reject_broadcast_options_for_unicast(CONF_ADDRESS),
 )
 
 

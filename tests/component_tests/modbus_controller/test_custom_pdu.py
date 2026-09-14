@@ -136,3 +136,34 @@ def test_read_custom_pdu_allowed_under_broadcast_controller(reset_full_config) -
             CONF_CUSTOM_PDU: [0x03, 0x00, 0x2A, 0x00, 0x01],
         }
     )
+
+
+def test_write_option_rejected_under_unicast_controller(reset_full_config) -> None:
+    """expect_broadcast_write_response on a writer entity whose controller is not at address 0 is
+    rejected at final validate, where the controller's address is known."""
+    from esphome.components.modbus_controller import validate_writer_item
+
+    fv.full_config.set(_controller_full_config(continuous=False))
+    with pytest.raises(
+        Invalid, match="only applies when the 'ctl' modbus_controller is at address 0"
+    ):
+        validate_writer_item(
+            {
+                CONF_MODBUS_CONTROLLER_ID: ID("ctl"),
+                modbus.CONF_EXPECT_BROADCAST_WRITE_RESPONSE: True,
+            }
+        )
+
+
+def test_write_option_allowed_under_broadcast_controller(reset_full_config) -> None:
+    from esphome.components.modbus_controller import validate_writer_item
+
+    fv.full_config.set(
+        _controller_full_config(continuous=False, allow_broadcast_read=True)
+    )
+    validate_writer_item(
+        {
+            CONF_MODBUS_CONTROLLER_ID: ID("ctl"),
+            modbus.CONF_EXPECT_BROADCAST_WRITE_RESPONSE: True,
+        }
+    )

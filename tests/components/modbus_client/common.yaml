@@ -79,7 +79,7 @@ button:
     name: "Typed Actions"
     on_press:
       - modbus_client.write_single_register:
-          address: 0x01
+          address: !lambda "return 1;"
           expect_broadcast_write_response: true
           start_address: 0x0102
           value: !lambda "return 42;"

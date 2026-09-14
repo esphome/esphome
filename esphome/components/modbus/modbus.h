@@ -111,9 +111,9 @@ enum class FrameState : uint8_t {
 // Per-command send options. Append-only; pass via designated initializers ({.continuous = true}).
 // A new field reaches the queue with no plumbing but arrives inert until it defines three rules:
 // normalization in queue_pdu(), a merge rule for duplicate absorption, and teardown in
-// retire()/silent_retire(). (The broadcast flags need no merge rule: a live address-0 read always
-// carries allow_broadcast_read or it would have been refused at the door, and a write or custom
-// duplicate is refused at its cap of one in flight, never absorbed.)
+// retire()/silent_retire(). (allow_broadcast_read needs no merge rule: a live address-0 read always
+// carries it or it would have been refused at the door; expect_broadcast_write_response is OR-ed into
+// an entry that absorbs a duplicate.)
 // Bit-packed so the whole set stays one byte: it is stored per queue entry, per controller and per writer
 // entity, and passed by value through every send helper.
 struct CommandOptions {

@@ -24,7 +24,7 @@ void WriterDevice::warn_write_buffer_deprecated(const LogString *platform, uint1
 bool WriterDevice::send_raw_frame_deprecated(std::span<const uint8_t> frame) {
   if (frame.empty())
     return false;
-  return this->parent_->queue_pdu(frame[0], frame.subspan(1), this);
+  return this->parent_->queue_pdu(frame[0], frame.subspan(1), this, this->write_options_);
 }
 
 void ControllerDevice::set_controller(ModbusController *controller) {

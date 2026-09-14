@@ -387,6 +387,30 @@ def validate_custom_pdu_item(config: ConfigType) -> None:
     _reject_broadcastable_custom_pdu(config)
 
 
+def _reject_write_option_off_broadcast(config: ConfigType) -> None:
+    """Final-validate: a writer entity's expect_broadcast_write_response only means something when its
+    controller is at the broadcast address (0); anywhere else the hub would silently drop it."""
+    if not any(config.get(key) is True for key in modbus.broadcast_only_option_keys()):
+        return
+    fconf = fv.full_config.get()
+    path = fconf.get_path_for_id(config[CONF_MODBUS_CONTROLLER_ID])[:-1]
+    controller = fconf.get_config_for_path(path)
+    if controller.get(CONF_ADDRESS) != modbus.BROADCAST_ADDRESS:
+        raise cv.Invalid(
+            f"'{modbus.CONF_EXPECT_BROADCAST_WRITE_RESPONSE}' only applies when the "
+            f"'{controller[CONF_ID]}' modbus_controller is at address 0; remove the option.",
+            [modbus.CONF_EXPECT_BROADCAST_WRITE_RESPONSE],
+        )
+
+
+def validate_writer_item(config: ConfigType) -> None:
+    """Final-validate for the writer platforms (number, output, select, switch): the custom_pdu checks
+    where the platform takes one, plus the broadcast-address gate on expect_broadcast_write_response."""
+    if CONF_CUSTOM_PDU in config or CONF_CUSTOM_COMMAND in config:
+        validate_custom_pdu_item(config)
+    _reject_write_option_off_broadcast(config)
+
+
 def _final_validate(config: ConfigType) -> None:
     modbus.final_validate_modbus_device("modbus_controller", role="client")(config)
 

@@ -15,6 +15,7 @@ from .. import (
     modbus_controller_ns,
     validate_range_reuse_migration,
     validate_skip_updates_deprecated,
+    validate_writer_item,
 )
 from ..const import (
     CONF_FORCE_NEW_RANGE,
@@ -85,6 +86,9 @@ CONFIG_SCHEMA = cv.All(
     ),
     validate_range_reuse_migration,
 )
+
+
+FINAL_VALIDATE_SCHEMA = validate_writer_item
 
 
 async def to_code(config: ConfigType) -> None:

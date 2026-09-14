@@ -985,6 +985,30 @@ TEST(ModbusClientHubBroadcast, ExpectBroadcastWriteResponseDuplicateRefusedNotMe
   EXPECT_EQ(hub.entries(), 0u);
 }
 
+// A custom-code poll at address 0 is a fire-and-forget broadcast that a one-shot duplicate downgrades and
+// is absorbed into; if that duplicate wants the reply, the entry waits for it instead of retiring at the
+// send, so the absorbed request still gets its terminal callback.
+TEST(ModbusClientHubBroadcast, ExpectBroadcastWriteResponseMergesIntoDowngradedPoll) {
+  NullUART uart;
+  NoResponseProbeHub hub;
+  hub.set_uart_parent(&uart);
+  hub.setup();
+  BroadcastProbeDevice device(&hub, BROADCAST_ADDRESS);
+
+  const uint8_t custom[] = {0x41, 0x01, 0x02};
+  ASSERT_TRUE(device.queue_pdu(custom, {.continuous = true}));
+  EXPECT_TRUE(hub.queued(0).fire_and_forget());
+  ASSERT_TRUE(device.queue_pdu(custom, {.expect_broadcast_write_response = true}));  // downgrades, absorbed
+  EXPECT_EQ(hub.entries(), 1u);
+  EXPECT_FALSE(hub.queued(0).options.continuous);
+  EXPECT_FALSE(hub.queued(0).fire_and_forget());
+
+  hub.send_next_for_test();
+  EXPECT_TRUE(hub.waiting());
+  hub.receive_frame_for_test(BROADCAST_ADDRESS, custom);
+  EXPECT_EQ(device.response_count_, 1);
+}
+
 // A silent device leaves an expected write response to the normal send-wait timeout.
 TEST(ModbusClientHubBroadcast, ExpectBroadcastWriteResponseTimesOutLikeUnicast) {
   NullUART uart;

@@ -13,9 +13,9 @@ from .. import (
     modbus_calc_properties,
     modbus_controller_ns,
     reject_odd_holding_write_offset,
-    validate_custom_pdu_item,
     validate_modbus_register,
     validate_range_reuse_migration,
+    validate_writer_item,
 )
 from ..const import (
     CONF_BITMASK,
@@ -60,7 +60,7 @@ CONFIG_SCHEMA = cv.All(
     validate_range_reuse_migration,
 )
 
-FINAL_VALIDATE_SCHEMA = validate_custom_pdu_item
+FINAL_VALIDATE_SCHEMA = validate_writer_item
 
 
 async def to_code(config: ConfigType) -> None:

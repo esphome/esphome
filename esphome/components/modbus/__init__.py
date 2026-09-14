@@ -95,6 +95,9 @@ class _CommandOption(NamedTuple):
     # True for the function codes the hub honours the option on; it strips it from any other. Used
     # to validate a static PDU and to leave the key out of a typed action's schema entirely.
     applies_to: Callable[[int], bool]
+    # True for an option that only means something at the broadcast address (0): it is rejected on a
+    # literal unicast address, where the hub would silently drop it.
+    requires_broadcast_address: bool = False
 
 
 def _not_write(function_code: int) -> bool:
@@ -120,6 +123,7 @@ _COMMAND_OPTIONS: dict[str, list[_CommandOption]] = {
             bool,
             False,
             _not_broadcastable,
+            requires_broadcast_address=True,
         ),
     ],
     "write": [
@@ -130,6 +134,7 @@ _COMMAND_OPTIONS: dict[str, list[_CommandOption]] = {
             bool,
             False,
             is_function_code_broadcastable,
+            requires_broadcast_address=True,
         ),
     ],
 }
@@ -140,6 +145,39 @@ def _command_options(direction: str) -> list[_CommandOption]:
         return _COMMAND_OPTIONS[direction]
     except KeyError:
         raise ValueError(f"unknown command-options direction {direction!r}") from None
+
+
+def broadcast_only_option_keys() -> list[str]:
+    """The config keys of the options that only apply at the broadcast address (0)."""
+    return [
+        option.conf_key
+        for options in _COMMAND_OPTIONS.values()
+        for option in options
+        if option.requires_broadcast_address
+    ]
+
+
+def reject_broadcast_options_for_unicast(
+    address_key: str,
+) -> Callable[[ConfigType], ConfigType]:
+    """Validator for a schema carrying a device address under `address_key` plus command options:
+    reject a broadcast-only option set true on a literal address other than 0, where the hub would
+    silently drop it. A templated address is not decidable here."""
+
+    def validator(config: ConfigType) -> ConfigType:
+        address = config.get(address_key)
+        if not isinstance(address, int) or address == BROADCAST_ADDRESS:
+            return config
+        for key in broadcast_only_option_keys():
+            if config.get(key) is True:
+                raise cv.Invalid(
+                    f"'{key}' only applies to the broadcast address; set '{address_key}: 0' or "
+                    f"remove the option.",
+                    path=[key],
+                )
+        return config
+
+    return validator
 
 
 def reject_inapplicable_command_options(

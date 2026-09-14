@@ -1144,6 +1144,11 @@ bool ModbusClientHub::queue_pdu(uint8_t address, std::span<const uint8_t> pdu, M
       ESP_LOGV(TAG, "Frame already active for %" PRIu8 ", request absorbed (pending %" PRIu8 ")", address,
                item.pending);
     }
+    // Merge rule for the write-side flag: a broadcastable frame at address 0 is accepted with or without it,
+    // so an absorbed request may disagree with the entry (a custom-code poll being downgraded by a one-shot
+    // that wants the reply). If either wants the reply the entry waits for it; the merge lands before the
+    // send, since a fire-and-forget entry never leaves READY until it is sent.
+    item.options.expect_broadcast_write_response |= options.expect_broadcast_write_response;
     return true;
   }
 

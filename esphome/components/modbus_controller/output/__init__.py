@@ -18,6 +18,7 @@ from .. import (
     modbus_calc_properties,
     modbus_controller_ns,
     reject_odd_holding_write_offset,
+    validate_writer_item,
 )
 from ..const import (
     CONF_CUSTOM_COMMAND,
@@ -111,6 +112,9 @@ CONFIG_SCHEMA = cv.All(
     ),
     _warn_unused_range_options,
 )
+
+
+FINAL_VALIDATE_SCHEMA = validate_writer_item
 
 
 async def to_code(config: ConfigType) -> None:

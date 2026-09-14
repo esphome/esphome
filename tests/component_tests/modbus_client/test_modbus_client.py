@@ -308,3 +308,22 @@ def test_read_write_multiple_offers_allow_broadcast_read_only() -> None:
     assert config[modbus.CONF_ALLOW_BROADCAST_READ] is True
     assert CONF_CONTINUOUS not in config
     assert modbus.CONF_EXPECT_BROADCAST_WRITE_RESPONSE not in config
+
+
+@pytest.mark.parametrize(
+    "key",
+    [modbus.CONF_ALLOW_BROADCAST_READ, modbus.CONF_EXPECT_BROADCAST_WRITE_RESPONSE],
+)
+def test_broadcast_options_rejected_on_literal_unicast_address(key: str) -> None:
+    # A broadcast-only option on a literal non-zero address would be silently dropped by the hub.
+    if key == modbus.CONF_ALLOW_BROADCAST_READ:
+        pdu = [0x03, 0x00, 0x10, 0x00, 0x01]
+    else:
+        pdu = [0x06, 0x00, 0x10, 0x00, 0x01]
+    with pytest.raises(cv.Invalid, match="only applies to the broadcast address"):
+        MODBUS_CLIENT_SEND_SCHEMA({CONF_ADDRESS: 1, CONF_PDU: pdu, key: True})
+    # A templated address is not decidable at validation and passes through.
+    config = MODBUS_CLIENT_SEND_SCHEMA(
+        {CONF_ADDRESS: Lambda("return 1;"), CONF_PDU: pdu, key: True}
+    )
+    assert config[key] is True
