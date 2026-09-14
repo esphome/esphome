@@ -288,7 +288,9 @@ WIFI_NETWORK_BASE = cv.Schema(
         cv.Optional(CONF_SSID): cv.sensitive(cv.ssid),
         cv.Optional(CONF_PASSWORD): cv.sensitive(validate_password),
         cv.Optional(CONF_CHANNEL): validate_channel,
-        cv.Optional(CONF_MANUAL_IP): STA_MANUAL_IP_SCHEMA,
+        cv.Optional(
+            CONF_MANUAL_IP, visibility=cv.Visibility.ADVANCED
+        ): STA_MANUAL_IP_SCHEMA,
     }
 )
 
@@ -487,7 +489,9 @@ CONFIG_SCHEMA = cv.All(
             ),
             cv.Optional(CONF_SSID): cv.sensitive(cv.ssid),
             cv.Optional(CONF_PASSWORD): cv.sensitive(validate_password),
-            cv.Optional(CONF_MANUAL_IP): STA_MANUAL_IP_SCHEMA,
+            cv.Optional(
+                CONF_MANUAL_IP, visibility=cv.Visibility.ADVANCED
+            ): STA_MANUAL_IP_SCHEMA,
             cv.Optional(CONF_EAP): EAP_AUTH_SCHEMA,
             cv.Optional(CONF_AP): wifi_network_ap,
             cv.Optional(CONF_DOMAIN, default=".local"): cv.domain_name,
