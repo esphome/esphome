@@ -1,38 +1,34 @@
-"""Drift tests for the native ESP8266 Arduino build spec.
+"""Drift tests for the native ESP8266 Arduino build generator.
 
-These pin the ESPHome side of the transliteration (the knob-define
-precedence, the define/flag sets, and the linker-script generation) against
-literals audited from the PlatformIO builder
-(framework-arduinoespressif8266/tools/platformio-build.py and
-platform-espressif8266/builder/main.py). They catch an accidental edit on
-this side; an upstream change in a new framework release is caught by the
-A/B byte-identical build check on a version bump, not by these tests.
+Pin the transliterated flag/define/link sets against literals audited from
+the PlatformIO builder. Upstream drift is caught by the A/B build check on
+version bumps, not here.
 """
 
 from __future__ import annotations
 
 from collections.abc import Generator
+import logging
 import os
 from pathlib import Path
+import shutil
 from unittest.mock import MagicMock, patch
 
 import pytest
 
+from esphome.arduino.library import ArduinoLibrary
 from esphome.arduino8266.framework import InstalledPaths, toolchain_tool
 from esphome.build_gen import arduino8266
 from esphome.build_gen.arduino8266 import (
     _defines_flags,
     _flag_defines,
+    _flash_size_str,
     _resolve_build_config,
+    get_flash_ld_path,
 )
-from esphome.components.esp8266.boards import ESP8266_BOARD_BUILD
+from esphome.components.esp8266.boards import BOARDS, ESP8266_BOARD_BUILD
 from esphome.components.esp8266.build_surgery import RATETABLE_RULE
-from esphome.components.esp8266.const import (
-    KEY_BOARD,
-    KEY_ESP8266,
-    KEY_FLASH_MODE,
-    KEY_SCANF_FLOAT,
-)
+from esphome.components.esp8266.const import KEY_BOARD, KEY_ESP8266, KEY_SCANF_FLOAT
 import esphome.config_validation as cv
 from esphome.const import KEY_CORE, KEY_FRAMEWORK_VERSION
 from esphome.core import CORE, EsphomeError
@@ -47,8 +43,12 @@ def _setup_core(tmp_path: Path) -> Generator[None]:
     CORE.data[KEY_CORE] = {KEY_FRAMEWORK_VERSION: cv.Version(3, 1, 2)}
     CORE.data[KEY_ESP8266] = {
         KEY_BOARD: "nodemcuv2",
-        KEY_FLASH_MODE: "dout",
         KEY_SCANF_FLOAT: False,
+    }
+    # The producers esp8266/__init__ pins unconditionally
+    CORE.platformio_options = {
+        "board_build.flash_mode": "dout",
+        "build_src_flags": "-include esphome/components/esp8266/throw_stubs.h",
     }
     yield
     # CORE.reset() (the suite-wide autouse fixture) does not clear this flag
@@ -57,6 +57,11 @@ def _setup_core(tmp_path: Path) -> Generator[None]:
 
 def _set_flags(*flags: str) -> None:
     CORE.build_flags = set(flags)
+
+
+def _shq(tok: str) -> str:
+    """The platform's shell_token quote wrapper (argv rule on Windows)."""
+    return f'"{tok}"' if os.name == "nt" else f"'{tok}'"
 
 
 def _resolve(*flags: str) -> arduino8266._BuildConfig:
@@ -206,10 +211,171 @@ def _make_framework(tmp_path: Path) -> InstalledPaths:
     for sub in ("include", "ld", "lwip2/include", "lib"):
         (framework / "tools" / "sdk" / sub).mkdir(parents=True)
     (framework / "libraries").mkdir()
+    (framework / "tools" / "elf2bin.py").write_text("")
+    eboot = framework / "bootloaders" / "eboot"
+    eboot.mkdir(parents=True)
+    (eboot / "eboot.elf").write_text("")
     toolchain = tmp_path / "toolchain"
     (toolchain / "bin").mkdir(parents=True)
     (toolchain / "include").mkdir()
     return InstalledPaths(framework=framework, toolchain=toolchain, ninja=Path("ninja"))
+
+
+def _write_ninja(
+    paths: InstalledPaths,
+    libraries: list | None = None,
+    ccache: str | None = None,
+) -> str:
+    src = CORE.relative_src_path()
+    (src / "esphome" / "components" / "esp8266").mkdir(parents=True, exist_ok=True)
+    (src / "main.cpp").write_text("")
+    (src / "esphome" / "vendor.c").write_text("")
+
+    with (
+        patch.object(arduino8266, "generate_ld_scripts"),
+        patch(
+            "esphome.arduino.library.resolve_libraries",
+            return_value=libraries or [],
+        ),
+    ):
+        arduino8266.write_project(paths, ccache)
+    return (CORE.relative_pioenvs_path(CORE.name) / "build.ninja").read_text()
+
+
+def test_write_project_rejects_bad_flash_mode(tmp_path: Path) -> None:
+    """A flash mode outside the closed set fails by name before landing
+    unquoted in the elf2bin command."""
+    paths = _make_framework(tmp_path)
+    CORE.platformio_options["board_build.flash_mode"] = "dout; rm -rf /"
+    with pytest.raises(EsphomeError, match="Invalid flash mode"):
+        _write_ninja(paths)
+
+
+def test_write_project_flash_mode_reaches_define_and_elf2bin(
+    tmp_path: Path,
+) -> None:
+    """A non-default board_flash_mode lands in both the compile define and
+    the elf2bin image header, never silently falling back to dout."""
+    paths = _make_framework(tmp_path)
+    CORE.platformio_options["board_build.flash_mode"] = "dio"
+    content = _write_ninja(paths)
+    assert "-DFLASHMODE_DIO" in content
+    assert "--flash_mode dio" in content
+    assert "FLASHMODE_DOUT" not in content
+
+
+def test_write_project_trailing_include_raises(tmp_path: Path) -> None:
+    """A dangling -include must fail by name, not become -include <src_dir>."""
+    paths = _make_framework(tmp_path)
+    CORE.platformio_options["build_src_flags"] = "-include"
+    with pytest.raises(EsphomeError, match="trailing '-include'"):
+        _write_ninja(paths)
+
+
+def test_write_project_passes_other_src_flags_through(tmp_path: Path) -> None:
+    """Non-include build_src_flags tokens are requoted onto the src edges."""
+    paths = _make_framework(tmp_path)
+    CORE.platformio_options["build_src_flags"] = (
+        "-include esphome/components/esp8266/throw_stubs.h -DSRC_ONLY=1"
+    )
+    content = _write_ninja(paths)
+    assert "throw_stubs.h" in content
+    assert "-DSRC_ONLY=1" in content
+
+
+def test_write_project_link_line_and_exclusions(tmp_path: Path) -> None:
+    paths = _make_framework(tmp_path)
+    _set_flags(
+        "-DPIO_FRAMEWORK_ARDUINO_LWIP2_HIGHER_BANDWIDTH_LOW_FLASH",
+        "-DUSE_ESP8266_WAVEFORM_STUBS",
+        "-Wl,--wrap=millis",
+        "-Wl,--wrap=printf",
+        "-Wno-nonnull-compare",
+        "-L/opt/blobs",
+        "-luser_blob",
+        "-L /spc/blobs -l spaced_blob",
+    )
+    content = _write_ninja(paths)
+
+    # Base link flags from the PlatformIO builder
+    for flag in (
+        "-Wl,--no-check-sections",
+        "-Wl,-static",
+        "-Wl,--gc-sections",
+        "-Wl,-wrap,system_restart_local",
+        "-Wl,-wrap,spi_flash_read",
+        "-u app_entry",
+        "-u _printf_float",
+        "-u _DebugExceptionVector",
+        "-u _DoubleExceptionVector",
+        "-u _KernelExceptionVector",
+        "-u _NMIExceptionVector",
+        "-u _UserExceptionVector",
+    ):
+        assert flag in content
+    # ESPHome's link flags and the board linker script
+    assert "-Wl,--wrap=millis" in content
+    assert "-Wl,--wrap=printf" in content
+    assert "-T eagle.flash.4m.ld" in content
+    # scanf float disabled: the forced-link flag must not appear
+    assert "_scanf_float" not in content
+    # $in/$out must stay unquoted; ninja escapes its own path variables
+    assert "-c $in -o $out" in content
+    assert "--app $in --flash_mode" in content
+    assert '"$in"' not in content
+    assert '"$out"' not in content
+    # -L/-l from esphome build_flags reach the link line, not the compiles;
+    # spaced forms ("-L /path") are shell-lexed the way PlatformIO does.
+    # str(Path(...)) so the separator matches the host platform.
+    opt_blobs = str(Path("/opt/blobs"))
+    spc_blobs = str(Path("/spc/blobs"))
+    assert f"-L{_shq(opt_blobs)}" in content
+    assert "-luser_blob" in content
+    assert f"-L{_shq(spc_blobs)}" in content
+    assert "-lspaced_blob" in content
+    for line in content.splitlines():
+        if line.split(" = ")[0] in ("cflags", "cxxflags", "asflags"):
+            assert "user_blob" not in line
+            assert opt_blobs not in line
+            assert "spaced_blob" not in line
+            assert spc_blobs not in line
+    # System libraries with the selected lwIP variant, in the builder's order
+    assert (
+        "-lhal -lphy -lpp -lnet80211 -llwip2-1460 -lwpa -lcrypto -lmain -lwps "
+        "-lbearssl -lespnow -lsmartconfig -lairkiss -lwpa2 -lspaced_blob "
+        "-luser_blob "
+        "-lstdc++ -lm -lc -lgcc" in content
+    )
+    # Core exclusions: native OTA backend and waveform stubs
+    assert "Updater.cpp" not in content
+    assert "core_esp8266_waveform_pwm.cpp" not in content
+    assert "core_esp8266_waveform_phase.cpp" not in content
+    assert "core_esp8266_main.cpp.o" in content
+    # Assembly and C sources compile through their own rules
+    assert "cont.S.o: aspp" in content
+    assert "abi.c.o: c" in content
+    # throw_stubs is force-included for ESPHome sources only, via one shared
+    # srcflags variable rather than a copy of the flags line per edge
+    src_lines = [line for line in content.splitlines() if "obj/src/" in line]
+    assert any("main.cpp.o: cxx" in line for line in src_lines)
+    assert content.count("throw_stubs.h") == 1
+    assert "srcflags = -include" in content
+    flags_lines = [
+        line for line in content.splitlines() if line.startswith("  flags = ")
+    ]
+    assert flags_lines
+    assert all(line == "  flags = $srcflags" for line in flags_lines)
+
+
+def test_write_project_scanf_float_and_waveform_kept(tmp_path: Path) -> None:
+    paths = _make_framework(tmp_path)
+    CORE.data[KEY_ESP8266][KEY_SCANF_FLOAT] = True
+    _set_flags("-DPIO_FRAMEWORK_ARDUINO_LWIP2_HIGHER_BANDWIDTH_LOW_FLASH")
+    content = _write_ninja(paths)
+    assert "-u _scanf_float" in content
+    # Waveform not stubbed out: both implementations stay in the archive
+    assert "core_esp8266_waveform_pwm.cpp.o" in content
+    assert "core_esp8266_waveform_phase.cpp.o" in content
 
 
 @pytest.mark.parametrize(
@@ -360,8 +526,8 @@ def test_generate_ld_scripts(tmp_path: Path) -> None:
         _run_generate_ld_scripts(paths)
     mock_run.assert_not_called()
 
-    # A surgery edit invalidates the stamp via the fingerprint (a stale
-    # linker script would otherwise persist until an esphome clean)
+    # An edit to the surgery constants invalidates the stamp (a stale linker
+    # script would otherwise persist until an esphome clean)
     with (
         patch.object(
             arduino8266.build_surgery, "surgery_fingerprint", return_value="changed"
@@ -401,8 +567,6 @@ def test_generate_ld_scripts_testing_mode(tmp_path: Path) -> None:
 
     paths = _make_framework(tmp_path)
     (paths.framework / "tools" / "sdk" / "ld" / "eagle.flash.4m.ld").write_text(
-        # Real flash ld scripts carry no iram1_0_seg (that lives in the
-        # generated common ld); the surgery rejects one it was not asked about
         "MEMORY\n{\n"
         "  dram0_0_seg :    org = 0x3FFE8000, len = 0x14000\n"
         "  irom0_0_seg :    org = 0x40201010, len = 0xfeff0\n"
@@ -414,6 +578,96 @@ def test_generate_ld_scripts_testing_mode(tmp_path: Path) -> None:
         ld_dir = _run_generate_ld_scripts(paths)
     patched = (ld_dir / "testing_eagle.flash.4m.ld").read_text()
     assert "len = 0x2000000" in patched
+
+
+def test_write_project_libraries_and_variant(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+
+    paths = _make_framework(tmp_path)
+    variant_src = paths.framework / "variants" / "nodemcu" / "variant.cpp"
+    variant_src.write_text("")
+
+    lib_dir = tmp_path / "libsrc"
+    lib_dir.mkdir()
+    (lib_dir / "lib.cpp").write_text("")
+    (lib_dir / "impl.cc").write_text("")
+    headers_only = ArduinoLibrary(name="HeadersOnly", include_dirs=[lib_dir])
+    library = ArduinoLibrary(
+        name="MyLib",
+        sources=[lib_dir / "impl.cc", lib_dir / "lib.cpp"],
+        include_dirs=[lib_dir],
+        flags=["-DMYLIB=1"],
+        link_dirs=[lib_dir / "blobs"],
+        link_libs=["algobsec"],
+        link_flags=["-Wl,--wrap=malloc"],
+    )
+    _set_flags("-DPIO_FRAMEWORK_ARDUINO_ENABLE_EXCEPTIONS")
+
+    with caplog.at_level(logging.DEBUG, logger="esphome.build_gen.arduino8266"):
+        content = _write_ninja(
+            paths, libraries=[library, headers_only], ccache="/cc/ccache"
+        )
+
+    assert "build libFrameworkArduinoVariant.a: ar" in content
+    assert "build libMyLib.a: ar" in content
+    # A headers-only library contributes includes but no archive, with a
+    # debug log distinguishing it from a resolution failure
+    assert "libHeadersOnly.a" not in content
+    assert "Library HeadersOnly has no source files" in caplog.text
+    assert "  flags = -DMYLIB=1" in content
+    assert "-lalgobsec" in content
+    # Library link flags reach the firmware link line; .cc compiles as C++
+    assert "-Wl,--wrap=malloc" in content
+    assert "impl.cc.o: cxx" in content
+    assert f"-L{_shq(str(lib_dir / 'blobs'))}" in content
+    # Exceptions knob: -fexceptions and the exception-enabled stdc++
+    assert "-fexceptions" in content
+    assert "-lstdc++-exc" in content
+    assert f"ccache = {_shq('/cc/ccache')}" in content
+
+
+def test_get_flash_ld_path(tmp_path: Path) -> None:
+
+    paths = InstalledPaths(
+        framework=tmp_path / "framework",
+        toolchain=tmp_path / "toolchain",
+        ninja=Path("ninja"),
+    )
+    CORE.testing_mode = True
+    assert get_flash_ld_path(tmp_path, paths) == (
+        tmp_path / "ld" / "testing_eagle.flash.4m.ld"
+    )
+
+    CORE.testing_mode = False
+    # Reads the same install the ninja file linked against; no re-resolve
+    assert get_flash_ld_path(tmp_path, paths) == (
+        tmp_path / "framework" / "tools" / "sdk" / "ld" / "eagle.flash.4m.ld"
+    )
+
+
+def test_flash_size_str() -> None:
+    assert _flash_size_str(4 * 1024 * 1024) == "4M"
+    assert _flash_size_str(512 * 1024) == "512K"
+
+
+def test_write_project_testing_mode(tmp_path: Path) -> None:
+    paths = _make_framework(tmp_path)
+    CORE.testing_mode = True
+    _set_flags()
+    content = _write_ninja(paths)
+    assert "-T testing_eagle.flash.4m.ld" in content
+    assert "ld/testing_eagle.flash.4m.ld" in content
+
+
+def test_write_project_missing_framework_dir_raises(tmp_path: Path) -> None:
+    """An incomplete framework install fails naming the missing path."""
+
+    paths = _make_framework(tmp_path)
+    shutil.rmtree(paths.framework / "tools" / "sdk" / "lwip2")
+    _set_flags()
+    with pytest.raises(EsphomeError, match="incomplete.*lwip2"):
+        _write_ninja(paths)
 
 
 def test_generate_ld_scripts_testing_mode_missing_flash_ld_raises(
@@ -438,6 +692,61 @@ def test_build_config_nonosdk_precedence() -> None:
         "-DPIO_FRAMEWORK_ARDUINO_ESPRESSIF_SDK221",
     )
     assert _resolve_build_config(_defines()).nonosdk == "NONOSDK221"
+
+
+def test_write_project_plain_asm_rule_skips_preprocessor(tmp_path: Path) -> None:
+    """A lowercase .s source assembles plain (SCons AS), never through the
+    preprocessor rule that a .S source gets."""
+    paths = _make_framework(tmp_path)
+    core_dir = paths.framework / "cores" / "esp8266"
+    (core_dir / "lowlevel.s").write_text("nop\n")
+    _set_flags()
+    content = _write_ninja(paths)
+    assert "lowlevel.s.o: asm " in content
+    assert "rule asm\n  command = $ccache $cc -x assembler $asflags -c $in -o $out" in (
+        content
+    )
+
+
+def test_write_project_unflags_operandless_linker_flag(tmp_path: Path) -> None:
+    """build_unflags: -nostdlib filters whole-token from both lines, as
+    PlatformIO allows; only operand-taking flags hard-error."""
+    paths = _make_framework(tmp_path)
+    _set_flags()
+    CORE.build_unflags = {"-nostdlib"}
+    content = _write_ninja(paths)
+    assert "-nostdlib" not in content
+
+
+def test_write_project_unflagged_symbol_takes_its_dash_u(tmp_path: Path) -> None:
+    """Unflagging a -u symbol drops the -u that carried it; a dangling -u
+    would consume the next token and hand ld a symbol as an input file."""
+    paths = _make_framework(tmp_path)
+    _set_flags()
+    CORE.build_unflags = {"_printf_float"}
+    content = _write_ninja(paths)
+    link_line = next(
+        line for line in content.splitlines() if line.startswith("linkflags = ")
+    )
+    assert "_printf_float" not in link_line
+    assert "-u -u" not in link_line
+    # The neighbors survive as intact pairs
+    assert "-u app_entry" in link_line
+    assert "-u _DebugExceptionVector" in link_line
+
+
+def test_write_project_build_unflags_apply_to_framework_flags(tmp_path: Path) -> None:
+    """build_unflags removes flags from the framework sets, as PlatformIO does."""
+    paths = _make_framework(tmp_path)
+    _set_flags()
+    CORE.build_unflags = {"-fipa-pta", "-Wl,--gc-sections"}
+    content = _write_ninja(paths)
+    for line in content.splitlines():
+        key = line.split(" = ")[0]
+        if key in ("cflags", "cxxflags", "asflags"):
+            assert "-fipa-pta" not in line
+        if key == "linkflags":
+            assert "-Wl,--gc-sections" not in line
 
 
 def test_project_flags_trailing_bare_linker_flag_warns(
@@ -494,10 +803,18 @@ def test_project_flags_requotes_lexed_defines() -> None:
     compile_flags, _link, _dirs, _libs = _split_flags()
     # shlex folds the quotes (as PIO's ParseFlags does); _shell_token
     # re-quotes the spaced token so the shell passes one argv element
-    expected = (
-        '"-DGREETING=hello world"' if os.name == "nt" else "'-DGREETING=hello world'"
-    )
-    assert compile_flags == [expected]
+    assert compile_flags == [_shq("-DGREETING=hello world")]
+
+
+def test_write_project_empty_core_raises(tmp_path: Path) -> None:
+    """A framework tree with no core sources fails at generation, not link."""
+    paths = _make_framework(tmp_path)
+    core = paths.framework / "cores" / "esp8266"
+    for f in core.iterdir():
+        f.unlink()
+    _set_flags()
+    with pytest.raises(EsphomeError, match="no core sources"):
+        _write_ninja(paths)
 
 
 def test_flag_defines_joins_spaced_define() -> None:
@@ -506,6 +823,75 @@ def test_flag_defines_joins_spaced_define() -> None:
     defines = _defines()
     assert "PIO_FRAMEWORK_ARDUINO_LWIP2_HIGHER_BANDWIDTH_LOW_FLASH" in defines
     assert "" not in defines
+
+
+def test_ninja_path_escaping() -> None:
+    """Build-statement paths and command-line paths escape differently."""
+    assert arduino8266._e("a b:$c") == "a$ b$:$$c"
+    assert arduino8266._q("/a b/$x") == _shq("/a b/$$x")
+
+
+def test_write_project_asm_excludes_non_define_user_flags(tmp_path: Path) -> None:
+    """The ASPPCOM command under PlatformIO never sees CCFLAGS, so only -D/-I user flags
+    reach assembly compiles."""
+    paths = _make_framework(tmp_path)
+    _set_flags("-DUSER_KNOB=1", "-Wno-volatile")
+    content = _write_ninja(paths)
+    asflags = next(line for line in content.splitlines() if line.startswith("asflags"))
+    assert "-DUSER_KNOB=1" in asflags
+    assert "-Wno-volatile" not in asflags
+    cxxflags = next(
+        line for line in content.splitlines() if line.startswith("cxxflags")
+    )
+    assert "-Wno-volatile" in cxxflags
+
+
+def test_write_project_returns_changed(tmp_path: Path) -> None:
+    """The documented contract: True when build.ninja changed, False on an
+    identical regeneration (pins byte-stable output too)."""
+    paths = _make_framework(tmp_path)
+    _set_flags()
+    src = CORE.relative_src_path()
+    (src / "esphome" / "components" / "esp8266").mkdir(parents=True, exist_ok=True)
+    (src / "main.cpp").write_text("")
+    with (
+        patch.object(arduino8266, "generate_ld_scripts"),
+        patch("esphome.arduino.library.resolve_libraries", return_value=[]),
+    ):
+        assert arduino8266.write_project(paths, None) is True
+        assert arduino8266.write_project(paths, None) is False
+
+
+def test_write_project_missing_elf2bin_raises(tmp_path: Path) -> None:
+    """A half-extracted package must fail by name at generation, not after
+    the full compile at the elf2bin edge."""
+    paths = _make_framework(tmp_path)
+    (paths.framework / "tools" / "elf2bin.py").unlink()
+    _set_flags()
+    src = CORE.relative_src_path()
+    (src / "main.cpp").parent.mkdir(parents=True, exist_ok=True)
+    (src / "main.cpp").write_text("")
+    with (
+        patch.object(arduino8266, "generate_ld_scripts"),
+        patch("esphome.arduino.library.resolve_libraries", return_value=[]),
+        pytest.raises(EsphomeError, match="elf2bin"),
+    ):
+        arduino8266.write_project(paths, None)
+
+
+def test_write_project_missing_src_dir_raises(tmp_path: Path) -> None:
+    """A missing generated source tree is its own error, not an install one."""
+    paths = _make_framework(tmp_path)
+    _set_flags()
+    with (
+        patch.object(arduino8266, "generate_ld_scripts"),
+        patch("esphome.arduino.library.resolve_libraries", return_value=[]),
+        patch.object(
+            arduino8266.CORE, "relative_src_path", return_value=tmp_path / "nope"
+        ),
+        pytest.raises(EsphomeError, match="source directory"),
+    ):
+        arduino8266.write_project(paths, None)
 
 
 def test_build_config_custom_mmu_without_knob_raises() -> None:
@@ -598,6 +984,49 @@ def test_generate_ld_scripts_missing_compiler_is_clean(tmp_path: Path) -> None:
     _set_flags()
     with pytest.raises(EsphomeError, match="Could not run"):
         _run_generate_ld_scripts(paths)
+
+
+def test_write_project_asm_keeps_quoted_defines(tmp_path: Path) -> None:
+    """A spaced -D/-I user flag arrives shell-quoted; assembly must still
+    receive it."""
+    paths = _make_framework(tmp_path)
+    _set_flags('-DGREETING="hello world"', "-Wno-volatile")
+    content = _write_ninja(paths)
+    asflags = next(line for line in content.splitlines() if line.startswith("asflags"))
+    assert _shq("-DGREETING=hello world") in asflags
+    assert "-Wno-volatile" not in asflags
+
+
+def test_write_project_unarchived_library_links_objects(tmp_path: Path) -> None:
+    """A libArchive:false library's objects reach the link directly."""
+
+    paths = _make_framework(tmp_path)
+    lib_src = tmp_path / "gdb" / "src"
+    lib_src.mkdir(parents=True)
+    (lib_src / "GDBStub.cpp").write_text("")
+    _set_flags()
+    lib = ArduinoLibrary(
+        name="GDBStub",
+        sources=[lib_src / "GDBStub.cpp"],
+        include_dirs=[lib_src],
+        lib_archive=False,
+    )
+    content = _write_ninja(paths, libraries=[lib])
+    assert "libGDBStub.a" not in content
+    link_line = next(
+        line for line in content.splitlines() if line.startswith("build firmware.elf")
+    )
+    assert "GDBStub.cpp.o" in link_line
+
+
+def test_write_project_unknown_board_fails_by_name(tmp_path: Path) -> None:
+    """A caller bypassing config validation gets the board named, not a
+    KeyError."""
+    paths = _make_framework(tmp_path)
+    _set_flags()
+    CORE.data[KEY_ESP8266][KEY_BOARD] = "not_a_board"
+    with pytest.raises(EsphomeError, match="'not_a_board' is not supported"):
+        _write_ninja(paths)
 
 
 def test_unflag_tokens_join_spaced_entries() -> None:
@@ -1072,6 +1501,31 @@ def test_generate_ld_scripts_surgery_failure_is_named(tmp_path: Path) -> None:
         _run_generate_ld_scripts(paths)
 
 
+def test_write_project_unmatched_unflag_warns(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """An unflag that removes nothing is named; a matching one is silent."""
+    paths = _make_framework(tmp_path)
+    _set_flags("-DUSE_FOO=1")
+    CORE.build_unflags = {"-DUSE_FOO", "-Os"}
+    content = _write_ninja(paths)
+    assert "matched no build flag: -DUSE_FOO" in caplog.text
+    assert "-Os" not in caplog.text.split("matched no build flag")[-1].splitlines()[0]
+    # The matching -Os unflag really removed the framework flag
+    cflags = next(line for line in content.splitlines() if line.startswith("cflags"))
+    assert " -Os " not in cflags
+
+
+def test_write_project_lexes_build_flags_once(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A malformed build_flags entry warns once per generation."""
+    paths = _make_framework(tmp_path)
+    _set_flags("-DFOO=1 -l")
+    _write_ninja(paths)
+    assert caplog.text.count("Ignoring trailing '-l'") == 1
+
+
 def test_build_config_mmu_conflict_names_the_variant_knob_with_custom() -> None:
     """With MMU_CUSTOM also set, the actionable fix is dropping the variant
     knob, not setting the knob the user already set."""
@@ -1171,6 +1625,11 @@ def test_generate_ld_scripts_unreadable_header_forces_regeneration(
         mock_run.assert_called_once()
 
 
+def test_board_tables_are_equal() -> None:
+    """BOARDS and ESP8266_BOARD_BUILD must stay exactly in sync."""
+    assert set(BOARDS) == set(ESP8266_BOARD_BUILD)
+
+
 def test_bare_include_and_define_dropped(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
@@ -1208,3 +1667,47 @@ def test_defines_flags_honors_f_cpu_override() -> None:
     CORE.platformio_options = {"board_build.f_cpu": "160000000L"}
     defines = _defines_flags(config, "dout", "nodemcuv2", board_build["defines"])
     assert "-DF_CPU=160000000L" in defines
+
+
+def test_flash_ld_name_honors_ldscript_override(tmp_path: Path) -> None:
+    """board_build.ldscript (filesystem reservation, corrected flash size)
+    replaces the board default; a path is rejected since the name resolves
+    via the -L search path."""
+    assert arduino8266._flash_ld_name("nodemcuv2") == "eagle.flash.4m.ld"
+    CORE.platformio_options = {"board_build.ldscript": "eagle.flash.4m2m.ld"}
+    assert arduino8266._flash_ld_name("nodemcuv2") == "eagle.flash.4m2m.ld"
+    paths = _make_framework(tmp_path)
+    _set_flags()
+    content = _write_ninja(paths)
+    assert "-T eagle.flash.4m2m.ld" in content
+    CORE.platformio_options = {"board_build.ldscript": "../evil.ld"}
+    with pytest.raises(EsphomeError, match="bare script name"):
+        arduino8266._flash_ld_name("nodemcuv2")
+
+
+def test_unflagging_a_plain_linker_flag_raises(tmp_path: Path) -> None:
+    """build_unflags: -u would strip all seven -u tokens and leave the
+    operands as ld input files; refuse by name instead."""
+    paths = _make_framework(tmp_path)
+    _set_flags()
+    CORE.build_unflags = {"-u _printf_float"}
+    with pytest.raises(EsphomeError, match="cannot remove plain linker"):
+        _write_ninja(paths)
+
+
+def test_d1_wroom_02_keeps_its_shipped_flash_layout() -> None:
+    """The board joined BOARDS late; the flash-size default (2m.ld) would
+    move _FS_end and the preferences sector on existing devices."""
+    assert arduino8266._flash_ld_name("d1_wroom_02") == "eagle.flash.2m64.ld"
+    assert arduino8266._flash_ld_name("nodemcuv2") == "eagle.flash.4m.ld"
+
+
+def test_write_project_rejects_spaced_ldscript_override(tmp_path: Path) -> None:
+    """A spaced override never reaches the link line: generate_ld_scripts
+    rejects the name first (the -T _shell_token quoting behind it is
+    defence-in-depth)."""
+    CORE.platformio_options = {"board_build.ldscript": "my script.ld"}
+    paths = _make_framework(tmp_path)
+    _set_flags()
+    with pytest.raises(EsphomeError, match="Invalid flash linker script name"):
+        arduino8266.write_project(paths, None)
