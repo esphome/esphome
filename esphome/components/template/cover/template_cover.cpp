@@ -54,7 +54,6 @@ void TemplateCover::loop() {
     this->publish_state();
 }
 void TemplateCover::set_optimistic(bool optimistic) { this->optimistic_ = optimistic; }
-void TemplateCover::set_assumed_state(bool assumed_state) { this->assumed_state_ = assumed_state; }
 float TemplateCover::get_setup_priority() const { return setup_priority::HARDWARE; }
 Trigger<> *TemplateCover::get_open_trigger() { return &this->open_trigger_; }
 Trigger<> *TemplateCover::get_close_trigger() { return &this->close_trigger_; }
