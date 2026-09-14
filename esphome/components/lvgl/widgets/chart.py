@@ -7,6 +7,8 @@ from esphome.const import (
     CONF_MIN_VALUE,
     CONF_TYPE,
     CONF_VALUE,
+    CONF_X,
+    CONF_Y,
 )
 
 from ..automation import action_to_code
@@ -29,6 +31,8 @@ from .obj import obj_spec
 CONF_CHART = "chart"
 CONF_DIV_LINE_COUNT = "div_line_count"
 CONF_POINT_COUNT = "point_count"
+CONF_POINT = "point"
+CONF_POINTS = "points"
 CONF_SECONDARY_X_AXIS = "secondary_x_axis"
 CONF_SECONDARY_Y_AXIS = "secondary_y_axis"
 CONF_SERIES = "series"
@@ -51,21 +55,33 @@ RANGE_SCHEMA = cv.Schema(
     }
 )
 
+POINT_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_X): lv_int,
+        cv.Required(CONF_Y): lv_int,
+    }
+)
+
 SERIES_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(lv_chart_series_t),
         cv.Optional(CONF_COLOR, default=0): lv_color,
         cv.Optional(CONF_Y_AXIS, default="PRIMARY_Y"): CHART_AXES.one_of,
-        cv.Optional(CONF_VALUES, default=[]): cv.ensure_list(lv_int),
+        cv.Optional(CONF_VALUES): cv.ensure_list(lv_int),
+        cv.Optional(CONF_POINTS): cv.ensure_list(POINT_SCHEMA),
     }
 )
 
-SERIES_MODIFY_SCHEMA = cv.Schema(
-    {
-        cv.Required(CONF_ID): cv.use_id(lv_chart_series_t),
-        cv.Exclusive(CONF_VALUE, CONF_VALUES): lv_int,
-        cv.Exclusive(CONF_VALUES, CONF_VALUE): cv.ensure_list(lv_int),
-    }
+SERIES_MODIFY_SCHEMA = cv.All(
+    cv.Schema(
+        {
+            cv.Required(CONF_ID): cv.use_id(lv_chart_series_t),
+            cv.Optional(CONF_VALUE): lv_int,
+            cv.Optional(CONF_VALUES): cv.ensure_list(lv_int),
+            cv.Optional(CONF_POINT): POINT_SCHEMA,
+        }
+    ),
+    cv.has_exactly_one_key(CONF_VALUE, CONF_VALUES, CONF_POINT),
 )
 
 CHART_SCHEMA = cv.Schema(
@@ -84,7 +100,6 @@ CHART_SCHEMA = cv.Schema(
 
 CHART_MODIFY_SCHEMA = cv.Schema(
     {
-        cv.Optional(CONF_TYPE): CHART_TYPES.one_of,
         cv.Optional(CONF_UPDATE_MODE): CHART_UPDATE_MODES.one_of,
         cv.Optional(CONF_POINT_COUNT): cv.int_range(min=1, max=4096),
         cv.Optional(CONF_DIV_LINE_COUNT): cv.ensure_list(cv.int_range(min=0, max=255)),
@@ -105,18 +120,28 @@ def validate_div_line_count(config):
 def validate_chart(config):
     validate_div_line_count(config)
     point_count = config[CONF_POINT_COUNT]
+    is_scatter = config[CONF_TYPE] == "LV_CHART_TYPE_SCATTER"
     for series in config.get(CONF_SERIES, ()):
-        values = series.get(CONF_VALUES, ())
-        if len(values) > point_count:
+        values = series.get(CONF_VALUES)
+        points = series.get(CONF_POINTS)
+        if is_scatter and values is not None:
+            raise cv.Invalid("A scatter chart series must use points instead of values")
+        if not is_scatter and points is not None:
+            raise cv.Invalid("points can only be used with a scatter chart")
+        data = points if is_scatter else values
+        if data is not None and len(data) > point_count:
             raise cv.Invalid(
-                f"A chart series can't have more than {point_count} values"
+                f"A chart series can't have more than point_count ({point_count}) entries"
             )
     return config
 
 
-def validate_series_update(config):
-    if CONF_VALUE not in config and CONF_VALUES not in config:
-        raise cv.Invalid(f"One of {CONF_VALUE} or {CONF_VALUES} is required")
+def validate_series_update_for_type(config, chart_type):
+    is_scatter = chart_type == "LV_CHART_TYPE_SCATTER"
+    if is_scatter and CONF_POINT not in config:
+        raise cv.Invalid("A scatter chart series update requires point")
+    if not is_scatter and CONF_POINT in config:
+        raise cv.Invalid("point can only update a scatter chart series")
     return config
 
 
@@ -166,9 +191,16 @@ class ChartType(WidgetType):
                     literal(series[CONF_Y_AXIS]),
                 ),
             )
-            series_widget = Widget.create(series[CONF_ID], series_var, obj_spec, series)
-            series_widget.parent = w.obj
-            await set_series_values(w.obj, series_var, series[CONF_VALUES])
+            series_config = dict(series)
+            series_config[CONF_TYPE] = config[CONF_TYPE]
+            series_widget = Widget.create(
+                series[CONF_ID], w.obj, obj_spec, series_config
+            )
+            series_widget.obj = series_var
+            if config[CONF_TYPE] == "LV_CHART_TYPE_SCATTER":
+                await set_series_points(w.obj, series_var, series.get(CONF_POINTS, ()))
+            else:
+                await set_series_values(w.obj, series_var, series.get(CONF_VALUES, ()))
 
         lv.chart_refresh(w.obj)
 
@@ -178,25 +210,47 @@ async def set_series_values(chart, series, values):
         lv.chart_set_value_by_id(chart, series, index, await lv_int.process(value))
 
 
+async def set_series_points(chart, series, points):
+    for index, point in enumerate(points):
+        lv.chart_set_series_value_by_id2(
+            chart,
+            series,
+            index,
+            await lv_int.process(point[CONF_X]),
+            await lv_int.process(point[CONF_Y]),
+        )
+
+
 chart_spec = ChartType()
 
 
 @automation.register_action(
     "lvgl.chart.series.update",
     ObjUpdateAction,
-    cv.maybe_simple_value(
-        SERIES_MODIFY_SCHEMA.add_extra(validate_series_update), key=CONF_ID
-    ),
+    cv.maybe_simple_value(SERIES_MODIFY_SCHEMA, key=CONF_ID),
     synchronous=True,
 )
 async def chart_series_update_to_code(config, action_id, template_arg, args):
     widgets = await get_widgets(config)
 
     async def do_update(w: Widget):
-        if values := config.get(CONF_VALUES):
-            await set_series_values(w.parent, w.obj, values)
-        if (value := await lv_int.process(config.get(CONF_VALUE))) is not None:
-            lv.chart_set_next_value(w.parent, w.obj, value)
-        lv.chart_refresh(w.parent)
+        is_scatter = w.config[CONF_TYPE] == "LV_CHART_TYPE_SCATTER"
+        validate_series_update_for_type(config, w.config[CONF_TYPE])
+        if is_scatter:
+            point = config[CONF_POINT]
+            lv.chart_set_next_value2(
+                w.var,
+                w.obj,
+                await lv_int.process(point[CONF_X]),
+                await lv_int.process(point[CONF_Y]),
+            )
+        else:
+            if values := config.get(CONF_VALUES):
+                await set_series_values(w.var, w.obj, values)
+            if (value := await lv_int.process(config.get(CONF_VALUE))) is not None:
+                lv.chart_set_next_value(w.var, w.obj, value)
+        lv.chart_refresh(w.var)
 
-    return await action_to_code(widgets, do_update, action_id, template_arg, args)
+    return await action_to_code(
+        widgets, do_update, action_id, template_arg, args, config
+    )

@@ -1657,6 +1657,25 @@ lvgl:
                           color: 0x00FF00
                           y_axis: secondary_y
                           values: [50, 20, 80, 10, 60]
+                  - chart:
+                      id: lv_scatter_chart_id
+                      width: 200
+                      height: 120
+                      point_count: 5
+                      type: scatter
+                      x_axis:
+                        min_value: 0
+                        max_value: 100
+                      y_axis:
+                        min_value: 0
+                        max_value: 100
+                      series:
+                        - id: lv_scatter_series
+                          color: 0x0000FF
+                          points:
+                            - {x: 10, y: 20}
+                            - {x: 30, y: 60}
+                            - {x: 50, y: 40}
                   - button:
                       id: chart_update_button
                       on_click:
@@ -1671,9 +1690,13 @@ lvgl:
                               - !lambda return random_uint32() % 100;
                               - !lambda return random_uint32() % 100;
                               - !lambda return random_uint32() % 100;
+                        - lvgl.chart.series.update:
+                            id: lv_scatter_series
+                            point:
+                              x: !lambda return random_uint32() % 100;
+                              y: !lambda return random_uint32() % 100;
                         - lvgl.chart.update:
                             id: lv_chart_id
-                            type: line
                             update_mode: circular
                             point_count: 5
                       widgets:
