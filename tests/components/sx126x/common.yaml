@@ -2,6 +2,7 @@ sx126x:
   dio1_pin: ${dio1_pin}
   cs_pin: ${cs_pin}
   busy_pin: ${busy_pin}
+  enable_pins_inverted: true
   rst_pin: ${rst_pin}
   pa_power: 3
   bandwidth: 125_0kHz
@@ -15,6 +16,7 @@ sx126x:
   rx_start: true
   hw_version: sx1262
   rf_switch: true
+  rx_enable_pin: ${rx_enable_pin}
   sync_value: [0x14, 0x24]
   preamble_size: 8
   spreading_factor: 7
@@ -23,6 +25,7 @@ sx126x:
   tcxo_delay: 5ms
   whitening_enable: false
   whitening_initial: 0x1FF
+  tx_enable_pin: ${tx_enable_pin}
   on_packet:
     then:
       - lambda: |-
