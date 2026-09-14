@@ -709,7 +709,8 @@ void LD2420Component::build_config_mode_frame_(CmdFrameT &frame, bool enable) {
 uint8_t LD2420Component::set_config_mode(bool enable) {
   CmdFrameT cmd_frame;
   this->build_config_mode_frame_(cmd_frame, enable);
-  ESP_LOGV(TAG, "Sending set config %s command: %2X", enable ? "enable" : "disable", cmd_frame.command);
+  ESP_LOGV(TAG, "Sending set config %s command: %2X", enable ? LOG_STR_LITERAL("enable") : LOG_STR_LITERAL("disable"),
+           cmd_frame.command);
   return this->send_cmd_from_array(cmd_frame);
 }
 

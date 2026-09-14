@@ -37,6 +37,25 @@ CONF_HANDSHAKE_PIN = "handshake_pin"
 CONF_SDIO_FREQUENCY = "sdio_frequency"
 CONF_SPI_MODE = "spi_mode"
 
+# ESP-NOW-over-hosted shim (esp_now_hosted.cpp). esp-hosted proxies esp_wifi.h
+# but not esp_now.h (espressif/esp-hosted-mcu#19), and esp_wifi_remote injects
+# the esp_now.h header on the ESP32-P4 host with no implementation, leaving the
+# esp_now_* symbols undefined at link. On a P4 host, esp_now_hosted.cpp DEFINES
+# those symbols and forwards each call to the co-processor over esp-hosted's
+# CustomRpc "peer data transfer" channel, so ESPHome's `espnow` component links
+# and runs unchanged (proven on a Tab5, 2026-07-20). The .cpp is guarded to
+# CONFIG_IDF_TARGET_ESP32P4 so it compiles to nothing on hosts with a native
+# ESP-NOW stack. CustomRpc needs these two host-side Kconfig options. Host
+# registers 3 handlers (RESP, RECV, SEND); the coprocessor registers 1 (REQ);
+# we ask for 8 to leave room for other CustomRpc extensions alongside.
+#
+# The coprocessor must run the matching custom firmware (a parallel effort in
+# esphome/esp-hosted-firmware). esp_now_hosted_rpc.h here is the canonical copy
+# of the wire contract and MUST stay byte-identical to the copy that coprocessor
+# firmware uses — the packed structs are the on-wire layout, so any divergence
+# silently corrupts every ESP-NOW frame.
+_MAX_CUSTOM_MSG_HANDLERS = 8
+
 # Shared fields for both transport modes
 BASE_SCHEMA = cv.Schema(
     {
@@ -64,7 +83,7 @@ SDIO_SCHEMA = BASE_SCHEMA.extend(
 )
 
 
-def _validate_sdio(config):
+def _validate_sdio(config: ConfigType) -> ConfigType:
     if config[CONF_BUS_WIDTH] == 4:
         for pin in (CONF_D1_PIN, CONF_D2_PIN, CONF_D3_PIN):
             if pin not in config:
@@ -98,7 +117,7 @@ SPI_SCHEMA = BASE_SCHEMA.extend(
 )
 
 
-def _validate_spi(config):
+def _validate_spi(config: ConfigType) -> ConfigType:
     variant = config[CONF_VARIANT]
     defaults = _SPI_VARIANT_DEFAULTS.get(variant, _SPI_DEFAULT)
 
@@ -126,7 +145,7 @@ CONFIG_SCHEMA = cv.typed_schema(
 )
 
 
-def _final_validate(config: ConfigType) -> ConfigType:
+def _final_validate(config: ConfigType) -> None:
     # The esp_hosted releases compatible with older ESP-IDF versions crash at
     # boot with a heap double free in the SDIO RX path (fixed in esp_hosted
     # 2.11.0, which requires ESP-IDF 5.3), so reject them at validation time.
@@ -136,13 +155,12 @@ def _final_validate(config: ConfigType) -> ConfigType:
             "Remove the framework version from your configuration to use the "
             "recommended version, or pin a version at or above 5.3."
         )
-    return config
 
 
 FINAL_VALIDATE_SCHEMA = _final_validate
 
 
-def _configure_sdio(config):
+def _configure_sdio(config: ConfigType) -> None:
     slot = config[CONF_SLOT]
     esp32.add_idf_sdkconfig_option(
         f"CONFIG_ESP_HOSTED_SDIO_SLOT_{slot}",
@@ -184,7 +202,7 @@ def _configure_sdio(config):
     )
 
 
-def _configure_spi(config):
+def _configure_spi(config: ConfigType) -> None:
     esp32.add_idf_sdkconfig_option("CONFIG_ESP_HOSTED_SPI_HOST_INTERFACE", True)
     # SPI mode is set via per-variant choice options
     variant = config[CONF_VARIANT]
@@ -232,7 +250,7 @@ def _configure_spi(config):
         esp32.add_idf_sdkconfig_option("CONFIG_ESP_HOSTED_DR_ACTIVE_LOW", True)
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     add_define("USE_ESP32_HOSTED")
     transport = config[CONF_TYPE]
     transport_prefix = "SDIO" if transport == "sdio" else "SPI"
@@ -262,6 +280,23 @@ async def to_code(config):
         _configure_sdio(config)
     else:
         _configure_spi(config)
+
+    # ESP-NOW-over-hosted shim: only the radio-less ESP32-P4 host needs it (see
+    # the note by _MAX_CUSTOM_MSG_HANDLERS). Enabled for every P4 host, not
+    # gated on the `espnow` component being present: the shim is tiny and the
+    # esp_now_* symbols/CustomRpc calls it defines require these Kconfig options
+    # to link whenever esp_now_hosted.cpp compiles (which is on any P4 host), so
+    # coupling the two keeps the build consistent. When `espnow` is absent the
+    # symbols are simply unused and never register a callback at runtime.
+    if esp32.get_esp32_variant() == esp32.VARIANT_ESP32P4:
+        add_define("USE_ESP_NOW_HOSTED")
+        # esp-hosted's CustomRpc ("peer data transfer") path — off by default.
+        esp32.add_idf_sdkconfig_option(
+            "CONFIG_ESP_HOSTED_ENABLE_PEER_DATA_TRANSFER", True
+        )
+        esp32.add_idf_sdkconfig_option(
+            "CONFIG_ESP_HOSTED_MAX_CUSTOM_MSG_HANDLERS", _MAX_CUSTOM_MSG_HANDLERS
+        )
 
     # Place the transport mempool in PSRAM. Required on memory-tight host
     # configurations (e.g. P4 with a large LVGL UI) where the internal-RAM
