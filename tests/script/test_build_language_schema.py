@@ -376,9 +376,6 @@ def _convert(validator: object) -> dict:
         (cv.directory, "string"),
         (cv.mqtt_qos, "integer"),
         (cv.hex_int, "integer"),
-        (cv.percentage, "float"),
-        (cv.temperature, "float"),
-        (cv.color_temperature, "float"),
         (cv.update_interval, "time"),
         (cv.time_period_str_colon, "time"),
         (cv.lambda_, "lambda"),
@@ -387,6 +384,35 @@ def _convert(validator: object) -> dict:
 )
 def test_convert_types_scalar_cv_validators(validator: object, expected: str) -> None:
     assert _convert(validator).get("type") == expected
+
+
+@pytest.mark.parametrize(
+    ("validator", "expected_type", "expected_unit"),
+    [
+        (cv.percentage, "float", "%"),
+        (cv.possibly_negative_percentage, "float", "%"),
+        (cv.temperature, "float", "°C"),
+        (cv.temperature_delta, "float", "°C"),
+        (cv.color_temperature, "float", "mireds"),
+        (cv.percentage_int, "integer", "%"),
+        (cv.validate_bytes, "integer", "B"),
+    ],
+)
+def test_convert_types_unit_validators(
+    validator: object, expected_type: str, expected_unit: str
+) -> None:
+    # Number-with-unit validators accept both a bare number and a unit-suffixed
+    # string, so they carry their base numeric type plus the canonical unit.
+    entry = _convert(validator)
+    assert entry.get("type") == expected_type
+    assert entry.get("unit") == expected_unit
+
+
+def test_convert_dimensions_left_untyped() -> None:
+    # cv.dimensions accepts either a "WIDTHxHEIGHT" string or a [w, h] list;
+    # a single scalar type would reject one form, so it is left untyped.
+    entry = _convert(cv.dimensions)
+    assert "type" not in entry
 
 
 def test_convert_entity_category_is_enum() -> None:
@@ -497,7 +523,9 @@ def test_cv_types_end_to_end(full_schema_dir: Path) -> None:
 
     climate = json.loads((full_schema_dir / "climate.json").read_text())["climate"]
     visual = climate["schemas"]["_CLIMATE_SCHEMA"]["schema"]["config_vars"]["visual"]
-    assert visual["schema"]["config_vars"]["min_temperature"]["type"] == "float"
+    min_temp = visual["schema"]["config_vars"]["min_temperature"]
+    assert min_temp["type"] == "float"
+    assert min_temp["unit"] == "°C"
 
     # message_type references both hex_uint8_t and uint8_t; shrink() must spread
     # it to integer instead of tripping the single-extends assertion.

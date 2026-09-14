@@ -152,17 +152,22 @@ _CV_STRING_VALIDATORS = (
     cv.time_of_day,
     cv.directory,
     cv.file_,
-    cv.dimensions,
     cv.none,
 )
-_CV_INTEGER_VALIDATORS = (cv.hex_int, cv.percentage_int, cv.mqtt_qos)
-_CV_FLOAT_VALIDATORS = (
-    cv.percentage,
-    cv.possibly_negative_percentage,
-    cv.temperature,
-    cv.temperature_delta,
-    cv.color_temperature,
-)
+_CV_INTEGER_VALIDATORS = (cv.hex_int, cv.mqtt_qos)
+# Validators that accept a number optionally carrying a unit suffix (e.g.
+# "50%", "25°C", "10kB"). Dumped as their base numeric type with the canonical
+# unit attached, mirroring float_with_unit, so editors accept both the
+# bare-number and the unit-string form instead of rejecting one of them.
+_CV_UNIT_VALIDATORS = {
+    cv.percentage: ("float", "%"),
+    cv.possibly_negative_percentage: ("float", "%"),
+    cv.temperature: ("float", "°C"),
+    cv.temperature_delta: ("float", "°C"),
+    cv.color_temperature: ("float", "mireds"),
+    cv.percentage_int: ("integer", "%"),
+    cv.validate_bytes: ("integer", "B"),
+}
 _CV_TIME_VALIDATORS = (
     cv.update_interval,
     cv.time_period_str_unit,
@@ -1051,8 +1056,8 @@ def convert(schema, config_var, path):
         schema in _CV_STRING_VALIDATORS
     ):
         config_var[S_TYPE] = "string"
-    elif schema in _CV_FLOAT_VALIDATORS:
-        config_var[S_TYPE] = "float"
+    elif callable(schema) and schema in _CV_UNIT_VALIDATORS:
+        config_var[S_TYPE], config_var["unit"] = _CV_UNIT_VALIDATORS[schema]
     elif schema in _CV_TIME_VALIDATORS:
         config_var[S_TYPE] = "time"
     elif schema in _CV_LAMBDA_VALIDATORS:
