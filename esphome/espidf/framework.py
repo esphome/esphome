@@ -34,7 +34,7 @@ from esphome.framework_helpers import (
     run_command_ok,
     str_to_lst_of_str,
     tool_version_runs,
-    warn_prefetch_failures,
+    warn_batch_failures,
 )
 from esphome.helpers import write_file_if_changed
 
@@ -774,7 +774,7 @@ def _prefetch_idf_tool_archives(
                 for entry in entries
             ],
         )
-        warn_prefetch_failures(failures)
+        warn_batch_failures(failures)
         if len(failures) == len(entries):
             # A systematic fault, not one flaky mirror: the resume
             # workaround (#17703) is off for this whole install
