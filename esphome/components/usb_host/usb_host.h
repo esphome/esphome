@@ -13,6 +13,7 @@
 #include "esphome/core/lock_free_queue.h"
 #include "esphome/core/event_pool.h"
 #include <atomic>
+#include <span>
 
 namespace esphome::usb_host {
 
@@ -118,12 +119,23 @@ struct UsbEvent {
 
 // callback function type.
 
-/// Identity of a connected USB device, read from the device descriptor
+// USB string descriptors hold at most 126 characters; one more for the terminator
+static constexpr size_t DESC_STRING_BUF_SIZE = 128;
+
+/// Identity of a connected USB device, copied out of the descriptors the USB host
+/// stack caches for the lifetime of the connection
 struct UsbDeviceInfo {
   uint16_t vendor_id;
   uint16_t product_id;
   uint16_t bcd_device;
+  char manufacturer[DESC_STRING_BUF_SIZE];
+  char product[DESC_STRING_BUF_SIZE];
+  char serial_number[DESC_STRING_BUF_SIZE];
 };
+
+/// Copy a USB string descriptor into a NUL-terminated buffer, dropping characters outside
+/// Latin-1. A missing descriptor copies as an empty string.
+void copy_descriptor_string(const usb_str_desc_t *desc, std::span<char, DESC_STRING_BUF_SIZE> buffer);
 
 enum ClientState {
   USB_CLIENT_INIT = 0,
@@ -152,7 +164,7 @@ class USBClient : public Component {
   bool control_transfer(uint8_t type, uint8_t request, uint16_t value, uint16_t index, const transfer_cb_t &callback,
                         const std::vector<uint8_t> &data = {});
 
-  /// Copy the connected device's identity out of the cached device descriptor.
+  /// Copy the connected device's identity out of the cached USB descriptors.
   /// Returns false when no device is connected.
   bool get_device_info(UsbDeviceInfo &info) const;
 

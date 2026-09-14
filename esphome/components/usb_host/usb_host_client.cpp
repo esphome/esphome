@@ -143,13 +143,12 @@ static void usb_client_print_config_descriptor(const usb_config_desc_t *cfg_desc
   } while (next_desc != NULL);
 }
 #endif
-// USB string descriptors: bLength (uint8_t, max 255) includes the 2-byte header (bLength and bDescriptorType).
-// Character count = (bLength - 2) / 2, max 126 chars + null terminator.
-static constexpr size_t DESC_STRING_BUF_SIZE = 128;
-
-static const char *get_descriptor_string(const usb_str_desc_t *desc, std::span<char, DESC_STRING_BUF_SIZE> buffer) {
+// bLength (uint8_t, max 255) includes the 2-byte header (bLength and bDescriptorType),
+// so character count = (bLength - 2) / 2.
+void copy_descriptor_string(const usb_str_desc_t *desc, std::span<char, DESC_STRING_BUF_SIZE> buffer) {
+  buffer[0] = '\0';
   if (desc == nullptr || desc->bLength < 2)
-    return "(unspecified)";
+    return;
   int char_count = (desc->bLength - 2) / 2;
   char *p = buffer.data();
   char *end = p + buffer.size() - 1;
@@ -159,6 +158,12 @@ static const char *get_descriptor_string(const usb_str_desc_t *desc, std::span<c
       *p++ = static_cast<char>(c);
   }
   *p = '\0';
+}
+
+static const char *get_descriptor_string(const usb_str_desc_t *desc, std::span<char, DESC_STRING_BUF_SIZE> buffer) {
+  if (desc == nullptr || desc->bLength < 2)
+    return "(unspecified)";
+  copy_descriptor_string(desc, buffer);
   return buffer.data();
 }
 
@@ -171,6 +176,12 @@ bool USBClient::get_device_info(UsbDeviceInfo &info) const {
   info.vendor_id = desc->idVendor;
   info.product_id = desc->idProduct;
   info.bcd_device = desc->bcdDevice;
+  usb_device_info_t dev_info;
+  if (usb_host_device_info(this->device_handle_, &dev_info) != ESP_OK)
+    return false;
+  copy_descriptor_string(dev_info.str_desc_manufacturer, info.manufacturer);
+  copy_descriptor_string(dev_info.str_desc_product, info.product);
+  copy_descriptor_string(dev_info.str_desc_serial_num, info.serial_number);
   return true;
 }
 

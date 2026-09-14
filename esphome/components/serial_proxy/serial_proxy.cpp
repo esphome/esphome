@@ -352,21 +352,22 @@ void SerialProxy::on_usb_connection_changed_(bool connected) {
   if (api::global_api_server == nullptr) {
     return;
   }
+  // The message's strings are views into this buffer, which outlives the send below
+  usb_host::UsbDeviceInfo info;
   api::SerialProxyUsbInfo msg{};
   msg.instance = this->instance_index_;
-  this->get_usb_info(msg);
+  this->get_usb_info(info, msg);
   api::global_api_server->send_serial_proxy_usb_info(msg);
 #endif
 }
 
 #ifdef USE_API
-void SerialProxy::get_usb_info(api::SerialProxyUsbInfo &msg) const {
+void SerialProxy::get_usb_info(usb_host::UsbDeviceInfo &info, api::SerialProxyUsbInfo &msg) const {
   // The define is global, so a hardware UART port in the same config also gets here
   if (this->usb_channel_ == nullptr) {
     msg.status = api::enums::SERIAL_PROXY_STATUS_NOT_SUPPORTED;
     return;
   }
-  usb_host::UsbDeviceInfo info;
   if (!this->usb_channel_->get_parent()->get_device_info(info)) {
     return;
   }
@@ -375,6 +376,9 @@ void SerialProxy::get_usb_info(api::SerialProxyUsbInfo &msg) const {
   msg.product_id = info.product_id;
   msg.bcd_device = info.bcd_device;
   msg.interface_number = this->usb_channel_->get_interface_number();
+  msg.manufacturer = StringRef(info.manufacturer);
+  msg.product = StringRef(info.product);
+  msg.serial_number = StringRef(info.serial_number);
 }
 #endif
 #endif

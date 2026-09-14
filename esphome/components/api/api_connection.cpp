@@ -48,6 +48,9 @@
 #ifdef USE_ZWAVE_PROXY
 #include "esphome/components/zwave_proxy/zwave_proxy.h"
 #endif
+#ifdef USE_SERIAL_PROXY_USB_INFO
+#include "esphome/components/usb_host/usb_host.h"
+#endif
 #ifdef USE_WATER_HEATER
 #include "esphome/components/water_heater/water_heater.h"
 #endif
@@ -1654,7 +1657,9 @@ void APIConnection::on_serial_proxy_get_usb_info_request(const SerialProxyGetUsb
     resp.status = enums::SERIAL_PROXY_STATUS_INVALID_ARGUMENT;
   } else {
 #ifdef USE_SERIAL_PROXY_USB_INFO
-    proxies[msg.instance]->get_usb_info(resp);
+    // The message's strings are views into this buffer, which outlives the send below
+    usb_host::UsbDeviceInfo info;
+    proxies[msg.instance]->get_usb_info(info, resp);
 #else
     resp.status = enums::SERIAL_PROXY_STATUS_NOT_SUPPORTED;
 #endif

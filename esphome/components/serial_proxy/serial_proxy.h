@@ -24,6 +24,9 @@
 namespace esphome::usb_uart {
 class USBUartChannel;
 }  // namespace esphome::usb_uart
+namespace esphome::usb_host {
+struct UsbDeviceInfo;
+}  // namespace esphome::usb_host
 #endif
 
 // Forward-declare types needed outside the USE_API guard.
@@ -166,8 +169,9 @@ class SerialProxy final : public uart::UARTDevice, public Component {
   void set_usb_channel(usb_uart::USBUartChannel *channel) { this->usb_channel_ = channel; }
 
 #ifdef USE_API
-  /// Fill a USB info message for this port
-  void get_usb_info(api::SerialProxyUsbInfo &msg) const;
+  /// Fill a USB info message for this port. The message's strings are views into info,
+  /// so info must outlive the send.
+  void get_usb_info(usb_host::UsbDeviceInfo &info, api::SerialProxyUsbInfo &msg) const;
 #endif
 #endif
 
