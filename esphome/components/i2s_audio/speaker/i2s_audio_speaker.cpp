@@ -39,9 +39,10 @@ void I2SAudioSpeakerBase::setup() {
     return;
   }
 
-  // Initialize volume control. When audio_dac is configured, this sets the DAC volume.
+  // Initialize volume control. When audio_dac is configured, this sets the DAC volume and mute state.
   // When no audio_dac is configured, this initializes software volume control.
   this->set_volume(this->volume_);
+  this->set_mute_state(this->mute_state_);
 }
 
 void I2SAudioSpeakerBase::dump_config() {
