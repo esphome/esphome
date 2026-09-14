@@ -33,16 +33,16 @@ def test_pulse_ring_default_holds_1000_pulses(
 
 
 @pytest.mark.parametrize(
-    ("value", "accepted"),
-    [("32b", False), ("64b", True), ("65b", True), ("65536b", False)],
+    ("value", "expected"),
+    [("32b", None), ("64b", 64), ("65b", 65), ("65535b", 65535), ("65536b", None)],
 )
 def test_buffer_size_range(
-    set_core_config: SetCoreConfigCallable, value: str, accepted: bool
+    set_core_config: SetCoreConfigCallable, value: str, expected: int | None
 ) -> None:
     set_core_config(PlatformFramework.ESP8266_ARDUINO)
     config = {"pin": "GPIO4", "buffer_size": value}
-    if accepted:
-        assert remote_receiver.CONFIG_SCHEMA(config)["buffer_size"] >= 64
-    else:
+    if expected is None:
         with pytest.raises(Invalid):
             remote_receiver.CONFIG_SCHEMA(config)
+    else:
+        assert remote_receiver.CONFIG_SCHEMA(config)["buffer_size"] == expected
