@@ -1,6 +1,7 @@
 import esphome.codegen as cg
 from esphome.components import binary_sensor
 import esphome.config_validation as cv
+from esphome.types import ConfigType
 
 from .. import cst328_ns
 from ..touchscreen import CST328ButtonListener, CST328Touchscreen
@@ -22,7 +23,7 @@ CONFIG_SCHEMA = binary_sensor.binary_sensor_schema(CST328Button).extend(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = await binary_sensor.new_binary_sensor(config)
     await cg.register_component(var, config)
     await cg.register_parented(var, config[CONF_CST328_ID])

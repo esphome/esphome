@@ -188,6 +188,8 @@ struct IPAddress {
   }
   IPAddress(const std::string &in_address) { inet_aton(in_address.c_str(), &ip_addr_); }
   IPAddress(const ip_addr_t *other_ip) { ip_addr_ = *other_ip; }
+  bool is_ip4() const { return true; }
+  bool is_ip6() const { return false; }
   /// Write IP address to buffer. Buffer must be at least IP_ADDRESS_BUFFER_SIZE bytes.
   char *str_to(char *buf) const {
     inet_ntop(AF_INET, &ip_addr_, buf, IP_ADDRESS_BUFFER_SIZE);

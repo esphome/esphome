@@ -1,3 +1,5 @@
+from typing import Any
+
 from esphome import pins
 import esphome.codegen as cg
 from esphome.components import esp32, esp32_rmt, remote_base
@@ -21,6 +23,7 @@ from esphome.const import (
     PlatformFramework,
 )
 from esphome.core import CORE, TimePeriod
+from esphome.types import ConfigType
 
 CONF_FILTER_SYMBOLS = "filter_symbols"
 CONF_RECEIVE_SYMBOLS = "receive_symbols"
@@ -62,7 +65,7 @@ RemoteReceiverComponent = remote_receiver_ns.class_(
 )
 
 
-def validate_config(config):
+def validate_config(config: ConfigType) -> ConfigType:
     if CORE.is_esp32:
         variant = esp32.get_esp32_variant()
         if variant in esp32_rmt.VARIANTS_NO_RMT:
@@ -78,7 +81,7 @@ def validate_config(config):
     return config
 
 
-def validate_tolerance(value):
+def validate_tolerance(value: Any) -> ConfigType:
     if isinstance(value, dict):
         return TOLERANCE_SCHEMA(value)
 
@@ -111,15 +114,18 @@ CONFIG_SCHEMA = remote_base.validate_triggers(
             cv.Optional(CONF_TOLERANCE, default="25%"): validate_tolerance,
             cv.SplitDefault(
                 CONF_BUFFER_SIZE,
-                esp32="10000b",
-                esp32_c2="1000b",
-                esp32_c61="1000b",
+                esp32=cv.UNDEFINED,
+                # the pulse ring needs a size; only RMT targets size themselves in setup()
+                **{
+                    f"esp32_{variant.removeprefix('ESP32').lower()}": "1000b"
+                    for variant in esp32_rmt.VARIANTS_NO_RMT
+                },
                 esp8266="1000b",
                 bk72xx="1000b",
                 ln882x="1000b",
                 rtl87xx="1000b",
                 rp2="1000b",
-            ): cv.validate_bytes,
+            ): cv.All(cv.validate_bytes, cv.int_range(min=64)),
             cv.Optional(CONF_FILTER, default="50us"): cv.All(
                 cv.positive_time_period_microseconds,
                 cv.Range(max=TimePeriod(microseconds=4294967295)),
@@ -196,7 +202,7 @@ CONFIG_SCHEMA = remote_base.validate_triggers(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     pin = await cg.gpio_pin_expression(config[CONF_PIN])
     if CORE.is_esp32 and esp32.get_esp32_variant() not in esp32_rmt.VARIANTS_NO_RMT:
         # Re-enable ESP-IDF's RMT driver (excluded by default to save compile time)
@@ -218,11 +224,11 @@ async def to_code(config):
 
     dumpers = await remote_base.build_dumpers(config[CONF_DUMP])
     for dumper in dumpers:
-        cg.add(var.register_dumper(dumper))
+        remote_base.add_dumper(var, dumper)
 
     triggers = await remote_base.build_triggers(config)
     for trigger in triggers:
-        cg.add(var.register_listener(trigger))
+        remote_base.add_listener(var, trigger)
     await cg.register_component(var, config)
 
     cg.add(
@@ -230,7 +236,8 @@ async def to_code(config):
             config[CONF_TOLERANCE][CONF_VALUE], config[CONF_TOLERANCE][CONF_TYPE]
         )
     )
-    cg.add(var.set_buffer_size(config[CONF_BUFFER_SIZE]))
+    if CONF_BUFFER_SIZE in config:
+        cg.add(var.set_buffer_size(config[CONF_BUFFER_SIZE]))
     cg.add(var.set_filter_us(config[CONF_FILTER]))
     cg.add(var.set_idle_us(config[CONF_IDLE]))
 
