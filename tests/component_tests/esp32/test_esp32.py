@@ -10,24 +10,29 @@ from typing import Any
 import pytest
 
 from esphome.components.esp32 import (
+    _ESP_TLS_LINKING_COMPONENTS,
+    DEFAULT_EXCLUDED_IDF_COMPONENTS,
     KEY_FATFS_REQUIRED,
-    KEY_MBEDTLS_TLS_EXTRAS_REQUIRED,
-    KEY_MBEDTLS_TLS_SERVER_REQUIRED,
     KEY_VFS_DIR_REQUIRED,
     KEY_VFS_SELECT_REQUIRED,
     KEY_VFS_TERMIOS_REQUIRED,
     MBEDTLS_TLS_EXTRA_OPTIONS,
     VARIANT_ESP32,
     VARIANTS,
+    MbedtlsSdkconfigData,
     NetworkSdkconfigData,
     RawSdkconfigValue,
     _ota_downgrade_protection_errors,
+    _reconcile_mbedtls_sdkconfig,
     _reconcile_network_sdkconfig,
     _reconcile_vfs_fatfs_sdkconfig,
+    _user_sdkconfig_wants_tls,
 )
 from esphome.components.esp32.const import (
     KEY_ESP32,
     KEY_EXCLUDE_COMPONENTS,
+    KEY_IDF_VERSION,
+    KEY_MBEDTLS_SDKCONFIG,
     KEY_NETWORK_SDKCONFIG,
     KEY_SDKCONFIG_OPTIONS,
     KEY_VARIANT,
@@ -275,8 +280,8 @@ def test_esp32_configuration_errors(
             ("esp_driver_i2c", "esp_driver_ledc", "esp_driver_gptimer"),
             id="i2c_ledc_ac_dimmer",
         ),
-        # esp-tls has three owners; a per-owner config makes a dropped
-        # re-include from any single one fail the test.
+        # esp-tls comes back through request_tls(); a per-owner config makes
+        # a dropped request from any single one fail the test.
         pytest.param(
             "exclusion_reincludes_http_request.yaml",
             ("esp-tls", "esp_http_client"),
@@ -290,8 +295,9 @@ def test_esp32_configuration_errors(
             id="mqtt",
         ),
         pytest.param(
+            # Basic auth uses mbedtls_base64_encode directly, so no esp-tls.
             "exclusion_reincludes_web_server.yaml",
-            ("esp-tls", "esp_http_server"),
+            ("esp_http_server",),
             id="web_server_idf",
         ),
         pytest.param(
@@ -431,6 +437,259 @@ def test_user_sdkconfig_certificate_bundle_wins(
     assert value.value == "y"
     assert sdkconfig.get("CONFIG_MBEDTLS_CERTIFICATE_BUNDLE_DEFAULT_CMN") is True
     assert sdkconfig.get("CONFIG_MBEDTLS_CERTIFICATE_BUNDLE_DEFAULT_FULL") is False
+
+
+_TLS_OFF_CRYPTO = {
+    "CONFIG_MBEDTLS_ECP_C": False,
+    "CONFIG_MBEDTLS_PEM_WRITE_C": False,
+    "CONFIG_MBEDTLS_X509_CRL_PARSE_C": False,
+    "CONFIG_MBEDTLS_X509_CSR_PARSE_C": False,
+}
+_TLS_OFF_IDF5 = {
+    "CONFIG_MBEDTLS_TLS_DISABLED": True,
+    "CONFIG_ESP_WIFI_ENTERPRISE_SUPPORT": False,
+    **_TLS_OFF_CRYPTO,
+}
+_TLS_OFF_IDF6 = {
+    "CONFIG_MBEDTLS_TLS_ENABLED": False,
+    "CONFIG_ESP_WIFI_ENTERPRISE_SUPPORT": False,
+    **_TLS_OFF_CRYPTO,
+}
+_PEER_CERT_PKCS7_OFF = {
+    "CONFIG_MBEDTLS_SSL_KEEP_PEER_CERTIFICATE": False,
+    "CONFIG_MBEDTLS_PKCS7_C": False,
+}
+_TLS_EXTRAS_OFF = dict.fromkeys(MBEDTLS_TLS_EXTRA_OPTIONS, False)
+_TLS_CLIENT_ONLY = {
+    "CONFIG_MBEDTLS_TLS_CLIENT_ONLY": True,
+    "CONFIG_MBEDTLS_TLS_SERVER_AND_CLIENT": False,
+}
+_IDF5 = cv.Version(5, 5, 5)
+_IDF6 = cv.Version(6, 0, 0)
+
+
+@pytest.mark.parametrize(
+    ("framework", "idf", "data", "preset", "expected", "excluded"),
+    [
+        pytest.param(
+            PlatformFramework.ESP32_IDF,
+            _IDF5,
+            MbedtlsSdkconfigData(),
+            {},
+            {**_TLS_OFF_IDF5, **_TLS_EXTRAS_OFF, **_PEER_CERT_PKCS7_OFF},
+            set(_ESP_TLS_LINKING_COMPONENTS),
+            id="idf5_no_tls_user",
+        ),
+        pytest.param(
+            # An external component that only re-included esp-tls keeps TLS.
+            PlatformFramework.ESP32_IDF,
+            _IDF5,
+            MbedtlsSdkconfigData(),
+            {},
+            {**_TLS_CLIENT_ONLY, **_TLS_EXTRAS_OFF, **_PEER_CERT_PKCS7_OFF},
+            set(_ESP_TLS_LINKING_COMPONENTS) - {"esp-tls"},
+            id="idf_esp_tls_reincluded",
+        ),
+        pytest.param(
+            # esp_http_client links esp_tls itself, so re-including it counts too.
+            PlatformFramework.ESP32_IDF,
+            _IDF5,
+            MbedtlsSdkconfigData(),
+            {},
+            {**_TLS_CLIENT_ONLY, **_TLS_EXTRAS_OFF, **_PEER_CERT_PKCS7_OFF},
+            set(_ESP_TLS_LINKING_COMPONENTS) - {"esp_http_client"},
+            id="idf_http_client_reincluded",
+        ),
+        pytest.param(
+            PlatformFramework.ESP32_IDF,
+            _IDF6,
+            MbedtlsSdkconfigData(),
+            {},
+            {
+                **_TLS_OFF_IDF6,
+                **_TLS_EXTRAS_OFF,
+                **_PEER_CERT_PKCS7_OFF,
+                "CONFIG_MBEDTLS_SHA384_C": False,
+                "CONFIG_MBEDTLS_SHA512_C": False,
+            },
+            set(_ESP_TLS_LINKING_COMPONENTS),
+            id="idf6_drops_sha512",
+        ),
+        pytest.param(
+            PlatformFramework.ESP32_IDF,
+            _IDF6,
+            MbedtlsSdkconfigData(sha512_required=True),
+            {},
+            {**_TLS_OFF_IDF6, **_TLS_EXTRAS_OFF, **_PEER_CERT_PKCS7_OFF},
+            set(_ESP_TLS_LINKING_COMPONENTS),
+            id="idf6_sha512_required",
+        ),
+        pytest.param(
+            PlatformFramework.ESP32_IDF,
+            _IDF5,
+            MbedtlsSdkconfigData(ecp_required=True),
+            {},
+            {
+                **{
+                    k: v
+                    for k, v in _TLS_OFF_IDF5.items()
+                    if k != "CONFIG_MBEDTLS_ECP_C"
+                },
+                **_TLS_EXTRAS_OFF,
+                **_PEER_CERT_PKCS7_OFF,
+            },
+            set(_ESP_TLS_LINKING_COMPONENTS),
+            id="idf_ecp_without_tls",
+        ),
+        pytest.param(
+            PlatformFramework.ESP32_IDF,
+            _IDF5,
+            MbedtlsSdkconfigData(),
+            {"CONFIG_MBEDTLS_ECP_C": RawSdkconfigValue("y")},
+            {
+                **_TLS_OFF_IDF5,
+                "CONFIG_MBEDTLS_ECP_C": RawSdkconfigValue("y"),
+                **_TLS_EXTRAS_OFF,
+                **_PEER_CERT_PKCS7_OFF,
+            },
+            set(_ESP_TLS_LINKING_COMPONENTS),
+            id="idf_user_ecp_wins",
+        ),
+        pytest.param(
+            PlatformFramework.ESP32_IDF,
+            _IDF5,
+            MbedtlsSdkconfigData(peer_cert_required=True, pkcs7_required=True),
+            {},
+            {
+                **_TLS_OFF_IDF5,
+                **_TLS_EXTRAS_OFF,
+                "CONFIG_MBEDTLS_SSL_KEEP_PEER_CERTIFICATE": True,
+                "CONFIG_MBEDTLS_PKCS7_C": True,
+            },
+            set(_ESP_TLS_LINKING_COMPONENTS),
+            id="idf_peer_cert_pkcs7_required",
+        ),
+        pytest.param(
+            PlatformFramework.ESP32_IDF,
+            _IDF5,
+            MbedtlsSdkconfigData(disable_peer_cert=False, disable_pkcs7=False),
+            {},
+            {**_TLS_OFF_IDF5, **_TLS_EXTRAS_OFF},
+            set(_ESP_TLS_LINKING_COMPONENTS),
+            id="idf_advanced_disables_off",
+        ),
+        pytest.param(
+            # advanced: disable_mbedtls_tls: false keeps TLS with no requester.
+            PlatformFramework.ESP32_IDF,
+            _IDF5,
+            MbedtlsSdkconfigData(disable_tls=False),
+            {},
+            {**_TLS_CLIENT_ONLY, **_TLS_EXTRAS_OFF, **_PEER_CERT_PKCS7_OFF},
+            set(_ESP_TLS_LINKING_COMPONENTS),
+            id="idf_disable_tls_opt_out",
+        ),
+        pytest.param(
+            PlatformFramework.ESP32_ARDUINO,
+            _IDF5,
+            MbedtlsSdkconfigData(),
+            {},
+            {**_TLS_CLIENT_ONLY, **_TLS_EXTRAS_OFF, **_PEER_CERT_PKCS7_OFF},
+            set(_ESP_TLS_LINKING_COMPONENTS),
+            id="arduino_keeps_tls",
+        ),
+    ],
+)
+def test_reconcile_mbedtls_sdkconfig(
+    set_core_config: SetCoreConfigCallable,
+    framework: PlatformFramework,
+    idf: cv.Version,
+    data: MbedtlsSdkconfigData,
+    preset: dict[str, Any],
+    expected: dict[str, Any],
+    excluded: set[str],
+) -> None:
+    """The FINAL-priority reconciler turns TLS off only when nothing requested it;
+    user sdkconfig_options always win."""
+    set_core_config(framework)
+    CORE.data[KEY_ESP32] = {
+        KEY_IDF_VERSION: idf,
+        KEY_SDKCONFIG_OPTIONS: dict(preset),
+        KEY_MBEDTLS_SDKCONFIG: data,
+        KEY_EXCLUDE_COMPONENTS: excluded,
+    }
+
+    asyncio.run(_reconcile_mbedtls_sdkconfig())
+
+    assert CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS] == expected
+
+
+def test_esp_tls_linking_components_are_excluded_by_default() -> None:
+    """The fallback scan is only a real signal while every name is excluded by default."""
+    assert set(_ESP_TLS_LINKING_COMPONENTS) <= set(DEFAULT_EXCLUDED_IDF_COMPONENTS)
+
+
+@pytest.mark.parametrize(
+    ("options", "wants_tls"),
+    [
+        pytest.param({}, False, id="empty"),
+        pytest.param({"CONFIG_MBEDTLS_TLS_SERVER_AND_CLIENT": "y"}, True, id="role_y"),
+        pytest.param({"CONFIG_MBEDTLS_TLS_ENABLED": "n"}, False, id="enabled_n"),
+        pytest.param({"CONFIG_MBEDTLS_TLS_DISABLED": "n"}, True, id="disabled_n"),
+        pytest.param({"CONFIG_ESP_TLS_INSECURE": "y"}, True, id="esp_tls_prefix"),
+        pytest.param(
+            {"CONFIG_MBEDTLS_SSL_KEEP_PEER_CERTIFICATE": "n"},
+            False,
+            id="prefix_n_is_not_a_request",
+        ),
+        pytest.param({"CONFIG_ESP_HTTPS_OTA_ALLOW_HTTP": "y"}, True, id="https_prefix"),
+        pytest.param({"CONFIG_OPENTHREAD_COMMISSIONER": "y"}, True, id="ot_dtls_y"),
+        pytest.param({"CONFIG_OPENTHREAD_JOINER": "n"}, False, id="ot_dtls_n"),
+        pytest.param({"CONFIG_LWIP_IPV6": "y"}, False, id="unrelated"),
+    ],
+)
+def test_user_sdkconfig_wants_tls(options: dict[str, Any], wants_tls: bool) -> None:
+    """The sdkconfig escape hatch reads values, never bare key presence."""
+    assert _user_sdkconfig_wants_tls(options) is wants_tls
+
+
+@pytest.mark.parametrize(
+    ("config_file", "tls_off", "ecp_off"),
+    [
+        pytest.param("network_ethernet_only.yaml", True, True, id="ethernet_api"),
+        pytest.param(
+            "exclusion_reincludes_web_server.yaml", True, True, id="web_server_idf"
+        ),
+        pytest.param(
+            "exclusion_reincludes_http_request.yaml", False, False, id="http_request"
+        ),
+        pytest.param("exclusion_reincludes_mqtt.yaml", False, False, id="mqtt"),
+        pytest.param("exclusion_reincludes_nextion.yaml", False, False, id="nextion"),
+        pytest.param("mbedtls_tls_wifi_eap.yaml", False, False, id="wifi_eap"),
+        pytest.param(
+            "certificate_bundle_sdkconfig.yaml", False, False, id="raw_bundle"
+        ),
+        pytest.param("tls_sdkconfig_esp_tls.yaml", False, False, id="raw_esp_tls"),
+        # A role option set to n is not a request.
+        pytest.param(
+            "tls_sdkconfig_tls_enabled_n.yaml", True, True, id="raw_tls_enabled_n"
+        ),
+        # SECURE_SIGNED_APPS selects ECP back on in Kconfig; ESPHome still writes the default.
+        pytest.param("signed_ota_ecdsa256_c6.yaml", True, True, id="signed_ota_ecdsa"),
+    ],
+)
+def test_tls_disabled_sdkconfig(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+    config_file: str,
+    tls_off: bool,
+    ecp_off: bool,
+) -> None:
+    """TLS is compiled out unless a component or a raw sdkconfig option asks for it."""
+    generate_main(component_config_path(config_file))
+    sdkconfig = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
+    assert (sdkconfig.get("CONFIG_MBEDTLS_TLS_DISABLED") is True) is tls_off
+    assert sdkconfig.get("CONFIG_MBEDTLS_ECP_C") is (False if ecp_off else None)
+    assert ("esp-tls" in CORE.data[KEY_ESP32][KEY_EXCLUDE_COMPONENTS]) is tls_off
 
 
 def test_execute_from_psram_s3_sdkconfig(
@@ -1379,12 +1638,31 @@ def test_mbedtls_tls_openthread_keeps_only_what_it_uses(
     generate_main: Callable[[str | Path], str],
     component_config_path: Callable[[str], Path],
 ) -> None:
-    """The OpenThread config keeps the DTLS server, CCM and deterministic ECDSA; the rest is trimmed."""
+    """Nothing in the OpenThread config links TLS, so the stack is compiled out
+    and no TLS role is written; the extras trim still runs because CCM and
+    deterministic ECDSA are plain crypto, and OpenThread keeps those two."""
     generate_main(component_config_path("mbedtls_tls_openthread.yaml"))
     sdkconfig = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
+    assert sdkconfig.get("CONFIG_MBEDTLS_TLS_DISABLED") is True
+    # require_mbedtls_ecp() keeps ECP for the SRP host key while TLS is off
+    assert "CONFIG_MBEDTLS_ECP_C" not in sdkconfig
     assert tuple(sdkconfig.get(name) for name in _TLS_SERVER_OPTIONS) == (None, None)
     for name in MBEDTLS_TLS_EXTRA_OPTIONS:
         assert sdkconfig.get(name) is (None if name in _OPENTHREAD_EXTRAS else False)
+
+
+def test_mbedtls_tls_opt_out_keeps_stack_and_trims_role(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """disable_mbedtls_tls: false keeps TLS with no requester; the client-only
+    and extras trims then still apply."""
+    generate_main(component_config_path("tls_keep_opt_out.yaml"))
+    sdkconfig = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
+    assert "CONFIG_MBEDTLS_TLS_DISABLED" not in sdkconfig
+    assert "CONFIG_MBEDTLS_ECP_C" not in sdkconfig
+    assert sdkconfig.get("CONFIG_MBEDTLS_TLS_CLIENT_ONLY") is True
+    assert sdkconfig.get("CONFIG_MBEDTLS_SSL_RENEGOTIATION") is False
 
 
 def test_mbedtls_tls_user_sdkconfig_wins(
@@ -1412,8 +1690,9 @@ def test_mbedtls_tls_openthread_requires_server_and_extras(
 ) -> None:
     """The OpenThread hooks mark the DTLS server and CCM/deterministic ECDSA as required."""
     generate_main(component_config_path("mbedtls_tls_openthread.yaml"))
-    assert CORE.data[KEY_ESP32][KEY_MBEDTLS_TLS_SERVER_REQUIRED] is True
-    assert CORE.data[KEY_ESP32][KEY_MBEDTLS_TLS_EXTRAS_REQUIRED] == _OPENTHREAD_EXTRAS
+    mbedtls = CORE.data[KEY_ESP32][KEY_MBEDTLS_SDKCONFIG]
+    assert mbedtls.tls_server_required is True
+    assert mbedtls.tls_extras_required == _OPENTHREAD_EXTRAS
 
 
 _VASPRINTF_STUB_FLAGS = {"-Wl,--wrap=vasprintf", "-Wl,--undefined=__wrap_vasprintf"}

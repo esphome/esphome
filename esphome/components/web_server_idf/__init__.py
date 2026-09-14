@@ -17,9 +17,8 @@ CONFIG_SCHEMA = cv.All(
 async def to_code(config: ConfigType) -> None:
     # Increase the maximum supported size of headers section in HTTP request packet to be processed by the server
     add_idf_sdkconfig_option("CONFIG_HTTPD_MAX_REQ_HDR_LEN", 1024)
-    # Re-enable esp-tls (excluded by default to save compile time);
-    # web_server_idf.cpp includes <esp_tls_crypto.h> for digest auth
-    include_builtin_idf_component("esp-tls")
+    # Re-enable ESP-IDF's HTTP server (excluded by default to save compile time).
+    # Basic auth uses mbedtls_base64_encode directly, so no TLS stack is needed.
     include_builtin_idf_component("esp_http_server")
 
 
