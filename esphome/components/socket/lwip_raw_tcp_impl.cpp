@@ -43,7 +43,12 @@ namespace esphome::socket {
 // (Ethernet). On ESP8266, it's a no-op.
 #define LWIP_LOCK() esphome::LwIPLock lwip_lock_guard  // NOLINT
 
-static const char *const TAG = "socket.lwip";
+static const char *const TAG = "socket";
+
+#ifdef USE_ESP8266
+// optimistic_yield() rate limit in microseconds of CONT time; cheap when hot.
+static constexpr uint32_t ESP8266_YIELD_INTERVAL_US = 1000;
+#endif
 
 // set to 1 to enable verbose lwip logging
 #if 0  // NOLINT(readability-avoid-unconditional-preprocessor-if)
@@ -535,6 +540,14 @@ ssize_t LWIPRawImpl::read_locked_(void *buf, size_t len) {
 }
 
 ssize_t LWIPRawImpl::read(void *buf, size_t len) {
+#ifdef USE_ESP8266
+  // Would block: yield to SYS so queued WiFi RX reaches lwip and this read
+  // may succeed. Without this, inbound segments can sit unprocessed for
+  // seconds while the main loop polls (CONT/SYS are cooperative on ESP8266).
+  if (this->waiting_for_data_()) {
+    optimistic_yield(ESP8266_YIELD_INTERVAL_US);
+  }
+#endif
   // See waiting_for_data_() for safety of unlocked reads.
   if (this->recv_timeout_cs_ > 0 && this->waiting_for_data_()) {
     this->wait_for_data_();
@@ -545,6 +558,8 @@ ssize_t LWIPRawImpl::read(void *buf, size_t len) {
 }
 
 ssize_t LWIPRawImpl::readv(const struct iovec *iov, int iovcnt) {
+  // No ESP8266 SYS yield here: only read() needs it today. If a consumer
+  // switches to scatter-gather reads, mirror the yield from read().
   // See waiting_for_data_() for safety of unlocked reads.
   if (this->recv_timeout_cs_ > 0 && this->waiting_for_data_()) {
     this->wait_for_data_();
@@ -609,19 +624,24 @@ int LWIPRawImpl::internal_output_() {
   }
   LWIP_LOG("tcp_output(%p)", this->pcb_);
   err_t err = tcp_output(this->pcb_);
-  if (err == ERR_ABRT) {
-    // sometimes lwip returns ERR_ABRT for no apparent reason
-    // the connection works fine afterwards, and back with ESPAsyncTCP we
-    // indirectly also ignored this error
-    // FIXME: figure out where this is returned and what it means in this context
-    LWIP_LOG("  -> err ERR_ABRT");
-    return 0;
-  }
   if (err != ERR_OK) {
     LWIP_LOG("  -> err %d", err);
-    errno = ECONNRESET;
-    return -1;
+    // ERR_ABRT: sometimes lwip returns it for no apparent reason; the
+    // connection works fine afterwards, and back with ESPAsyncTCP we
+    // indirectly also ignored this error, so treat it as success for
+    // flush purposes too.
+    // FIXME: figure out where this is returned and what it means in this context
+    if (err != ERR_ABRT) {
+      errno = ECONNRESET;
+      return -1;
+    }
   }
+#ifdef USE_ESP8266
+  // Flushed: yield to SYS so the queued segments reach the WiFi driver
+  // instead of waiting seconds for an unrelated SYS slot. Callers only get
+  // here after a successful tcp_write, so idle paths never yield.
+  optimistic_yield(ESP8266_YIELD_INTERVAL_US);
+#endif
   return 0;
 }
 

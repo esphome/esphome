@@ -11,6 +11,7 @@ from esphome.const import (
     CONF_PAGES,
     CONF_RESET_PIN,
 )
+from esphome.types import ConfigType
 
 DEPENDENCIES = ["spi"]
 
@@ -40,7 +41,7 @@ FINAL_VALIDATE_SCHEMA = spi.final_validate_device_schema(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
 
     await display.register_display(var, config)

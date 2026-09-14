@@ -1,9 +1,10 @@
 from esphome import automation, pins
 import esphome.codegen as cg
 from esphome.components import key_provider
-from esphome.components.const import CONF_ROWS
+from esphome.components.const import CONF_COLUMNS, CONF_KEYS, CONF_ROWS
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_ON_KEY, CONF_PIN, CONF_TRIGGER_ID
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@ssieb"]
 
@@ -20,14 +21,12 @@ MatrixKeyTrigger = matrix_keypad_ns.class_(
 )
 
 CONF_KEYPAD_ID = "keypad_id"
-CONF_COLUMNS = "columns"
-CONF_KEYS = "keys"
 CONF_DEBOUNCE_TIME = "debounce_time"
 CONF_HAS_DIODES = "has_diodes"
 CONF_HAS_PULLDOWNS = "has_pulldowns"
 
 
-def check_keys(obj):
+def check_keys(obj: ConfigType) -> ConfigType:
     if CONF_KEYS in obj and len(obj[CONF_KEYS]) != len(obj[CONF_ROWS]) * len(
         obj[CONF_COLUMNS]
     ):
@@ -62,7 +61,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     row_pins = []
