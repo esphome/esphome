@@ -1,7 +1,6 @@
 ---
 # See https://pre-commit.com for more information
 # See https://pre-commit.com/hooks.html for more hooks
-
 ci:
   autoupdate_commit_msg: 'pre-commit: autoupdate'
   autoupdate_schedule: off  # Disabled until ruff versions are synced between deps and pre-commit
@@ -11,7 +10,7 @@ ci:
 repos:
   - repo: https://github.com/astral-sh/ruff-pre-commit
     # Ruff version.
-    rev: v0.16.3
+    rev: v0.16.6
     hooks:
       # Run the linter.
       - id: ruff
@@ -42,7 +41,7 @@ repos:
       - id: pyupgrade
         args: [--py312-plus]
   - repo: https://github.com/adrienverge/yamllint.git
-    rev: v1.37.1
+    rev: v1.38.0
     hooks:
       - id: yamllint
         exclude: ^(\.clang-format|\.clang-tidy)$

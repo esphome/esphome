@@ -71,7 +71,7 @@ def test_neutral_cap_check_guards_future_hub_platforms(
     # Both current platforms defer to their stack budgets; pin the message
     # and boundary of the branch a future budget-less hub platform takes.
     set_core_config(PlatformFramework.RP2_ARDUINO)
-    monkeypatch.setattr(bluetooth_connection, "_STACK_BUDGET_PLATFORMS", set())
+    monkeypatch.setattr(bluetooth_connection, "_STACK_BUDGETS", {})
     bluetooth_connection.consume_gatt_slot("bluetooth_proxy", 3)({})
     bluetooth_connection.FINAL_VALIDATE_SCHEMA({})
     bluetooth_connection.consume_gatt_slot("ble_client")({})

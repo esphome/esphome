@@ -20,7 +20,7 @@ NoiseResponderHandshake::~NoiseResponderHandshake() {
   }
 }
 
-int NoiseResponderHandshake::init(const psk_t &psk, const uint8_t *prologue, size_t prologue_len) {
+int NoiseResponderHandshake::init(const NoiseContext &ctx, const uint8_t *prologue, size_t prologue_len) {
   if (this->handshake_ != nullptr) {
     noise_handshakestate_free(this->handshake_);
     this->handshake_ = nullptr;
@@ -44,6 +44,9 @@ int NoiseResponderHandshake::init(const psk_t &psk, const uint8_t *prologue, siz
     HANDSHAKE_STEP_LOG("noise_handshakestate_new_by_id", err);
     return err;
   }
+  // noise-c keeps its own copy, so the key only passes through the stack here
+  psk_t psk;
+  ctx.load_psk(psk);
   err = noise_handshakestate_set_pre_shared_key(this->handshake_, psk.data(), psk.size());
   if (err != 0) {
     HANDSHAKE_STEP_LOG("noise_handshakestate_set_pre_shared_key", err);
