@@ -183,32 +183,40 @@ def hub_connection_schema(platform: str | None = None) -> cv.Schema:
     )
 
 
+def _charge_esp32_budget(count: int, consumer: str, config: ConfigType) -> None:
+    from esphome.components import esp32_ble
+
+    esp32_ble.consume_connection_slots(count, consumer)(config)
+
+
+def _charge_rp2_budget(count: int, consumer: str, config: ConfigType) -> None:
+    rp2040_ble.consume_connection_slots(count, consumer)(config)
+
+
+# Platforms whose BLE stack owns its own connection budget: the claim is
+# charged there and that stack's final validation is the one place an
+# overcommit is reported (never two messages for one misconfiguration). One
+# mapping drives both, so a platform can never be skipped without a charge.
+_STACK_BUDGETS: dict[str, Callable[[int, str, ConfigType], None]] = {
+    PLATFORM_ESP32: _charge_esp32_budget,
+    PLATFORM_RP2: _charge_rp2_budget,
+}
+
+
 def consume_gatt_slot(
     consumer: str, count: int = 1
 ) -> Callable[[ConfigType], ConfigType]:
     """Validator claiming GATT connection slots - the one spelling for every
-    claimant. Platforms whose BLE stack owns a connection budget (esp32, rp2)
-    are charged there and their stack's final validation reports an
-    overcommit; the neutral ledger covers any future backend platform without
-    one (the cap check in FINAL_VALIDATE_SCHEMA)."""
+    claimant. The neutral ledger covers backend platforms without a stack
+    budget (the cap check in FINAL_VALIDATE_SCHEMA)."""
 
     def validator(config: ConfigType) -> ConfigType:
         _get_data().slot_consumers.extend([consumer] * count)
-        if CORE.is_esp32:
-            from esphome.components import esp32_ble
-
-            esp32_ble.consume_connection_slots(count, consumer)(config)
-        elif CORE.target_platform == PLATFORM_RP2:
-            rp2040_ble.consume_connection_slots(count, consumer)(config)
+        if (charge := _STACK_BUDGETS.get(CORE.target_platform)) is not None:
+            charge(count, consumer, config)
         return config
 
     return validator
-
-
-# Platforms whose BLE stack owns its own connection budget: consume_gatt_slot
-# charges it there, and the stack's final validation is the one place an
-# overcommit is reported (never two messages for one misconfiguration).
-_STACK_BUDGET_PLATFORMS = {PLATFORM_ESP32, PLATFORM_RP2}
 
 
 def _validate_slot_totals(config: ConfigType) -> ConfigType:
@@ -216,7 +224,7 @@ def _validate_slot_totals(config: ConfigType) -> ConfigType:
     # (mirrors esp32_ble.validate_connection_slots).
     if CORE.testing_mode:
         return config
-    if CORE.target_platform in _STACK_BUDGET_PLATFORMS:
+    if CORE.target_platform in _STACK_BUDGETS:
         return config
     if (cap := HUB_MAX_CONNECTIONS.get(CORE.target_platform)) is None:
         # Any backend platform without a stack budget must carry a cap here

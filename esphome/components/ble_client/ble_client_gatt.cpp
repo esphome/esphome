@@ -141,6 +141,12 @@ void BLEClient::on_connection_state(bool connected, uint16_t mtu, int error) {
 }
 
 void BLEClient::on_service_discovery_done(int error) {
+  if (this->state_ != State::DISCOVERING || this->cancel_requested_) {
+    // Raced a teardown; the terminal report settles the link.
+    ESP_LOGD(TAG, "[%s] Discovery completed during teardown, ignoring", this->address_str_);
+    this->backend_->release_services();
+    return;
+  }
   if (error != 0) {
     ESP_LOGW(TAG, "[%s] Service discovery failed, status=%d", this->address_str_, error);
     this->backoff_.register_failure(this->address_str_);

@@ -251,6 +251,9 @@ bool BLEClient::handle_gatt_search_cmpl_(esp_gatt_status_t status) {
     // and keep the link. Gatt nodes catch the next connection.
     ESP_LOGW(TAG, "[%s] Service table build failed; gatt nodes skip this connection", this->address_str());
     this->status_set_warning(LOG_STR("gatt nodes inactive: service table build failed"));
+    // A peer whose database never walks must not retry the build at
+    // advertisement cadence once the legacy nodes drop the link.
+    this->gatt_backoff_.register_failure(this->address_str());
   } else {
     this->gatt_connected_ = true;
     auto view = table.view();

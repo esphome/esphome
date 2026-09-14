@@ -97,6 +97,10 @@ template<typename... Ts> class BLEClientWriteAction final : public Action<Ts...>
   }
 
   void on_connected(const ble_device_base::GattServiceTable &table) override {
+    // Resolution comes from this table only; a re-discovery must not keep a
+    // stale handle.
+    this->resolved_ = false;
+    this->char_handle_ = 0;
     const auto *service = ble_device_base::find_service(table, this->service_uuid_);
     const auto *chr =
         service == nullptr ? nullptr : ble_device_base::find_characteristic(table, *service, this->char_uuid_);
