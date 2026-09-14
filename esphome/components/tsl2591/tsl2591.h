@@ -241,7 +241,7 @@ class TSL2591Component final : public PollingComponent, public i2c::I2CDevice {
   /** Used by ESPHome framework. Does NOT actually set the value on the device. */
   void set_integration_time(TSL2591IntegrationTime integration_time);
   /** Used by ESPHome framework. Does NOT actually set the value on the device. */
-  void set_gain(TSL2591ComponentGain gain);
+  void set_gain(TSL2591ComponentGain gain) { this->component_gain_ = gain; }
   /** Used by ESPHome framework. */
   void setup() override;
   /** Used by ESPHome framework. */
