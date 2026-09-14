@@ -22,8 +22,8 @@ from esphome.__main__ import command_compile, parse_args
 from esphome.config import validate_config
 from esphome.const import CONF_PLATFORM
 from esphome.core import CORE
+from esphome.host.toolchain import get_elf_path
 from esphome.loader import get_component, get_platform
-from esphome.platformio.toolchain import get_idedata
 from tests.testing_helpers import ComponentManifestOverride, set_testing_manifest
 
 # This must coincide with the version in /platformio.ini
@@ -220,7 +220,7 @@ def create_host_config(
     friendly_name: str,
     libraries: str | list[str],
     includes: list[str],
-    platformio_options: dict,
+    build_flags: list[str],
 ) -> dict:
     """Create an ESPHome host configuration for C++ builds.
 
@@ -229,7 +229,7 @@ def create_host_config(
         friendly_name: Human-readable name
         libraries: PlatformIO library specification(s)
         includes: List of include folders for the build
-        platformio_options: Dict of platformio_options to set
+        build_flags: Compiler/linker flags for the build
 
     Returns:
         Configuration dict for ESPHome
@@ -239,7 +239,7 @@ def create_host_config(
             "name": config_name,
             "friendly_name": friendly_name,
             "libraries": libraries,
-            "platformio_options": platformio_options,
+            "build_flags": build_flags,
             "includes": includes,
         },
         HOST_KEY: {},
@@ -403,13 +403,12 @@ def compile_and_get_binary(
         return EXIT_COMPILE_ERROR, None
 
     # After a successful compilation, locate the executable:
-    idedata = get_idedata(config)
-    if idedata is None:
+    program_path = get_elf_path()
+    if not program_path.is_file():
         print("Cannot find executable")
         return EXIT_NO_EXECUTABLE, None
 
-    program_path: str = idedata.raw["prog_path"]
-    return EXIT_OK, program_path
+    return EXIT_OK, str(program_path)
 
 
 def build_and_run(
@@ -419,7 +418,7 @@ def build_and_run(
     config_prefix: str,
     friendly_name: str,
     libraries: str | list[str],
-    platformio_options: dict,
+    build_flags: list[str],
     main_entry: str,
     label: str = "build",
     build_only: bool = False,
@@ -438,7 +437,7 @@ def build_and_run(
         config_prefix: Prefix for the config name (e.g. "cpptests", "cppbench")
         friendly_name: Human-readable name for the config
         libraries: PlatformIO library specification(s)
-        platformio_options: PlatformIO options dict
+        build_flags: Compiler/linker flags for the build
         main_entry: Name of the main entry file (e.g. "main.cpp")
         label: Label for log messages
         build_only: If True, print binary path and return without running
@@ -488,7 +487,7 @@ def build_and_run(
     config_name: str = f"{config_prefix}-" + hash_components(components)
 
     config = create_host_config(
-        config_name, friendly_name, libraries, includes, platformio_options
+        config_name, friendly_name, libraries, includes, build_flags
     )
 
     exit_code, program_path = compile_and_get_binary(

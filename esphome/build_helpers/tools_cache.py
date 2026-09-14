@@ -33,4 +33,11 @@ def tools_cache_path(env_var: str, subdir: str) -> Path:
 IDF_TOOLS_CACHE = ("ESPHOME_ESP_IDF_PREFIX", "idf")
 SDK_NRF_TOOLS_CACHE = ("ESPHOME_SDK_NRF_PREFIX", "sdk-nrf")
 ARDUINO8266_TOOLS_CACHE = ("ESPHOME_ARDUINO8266_PREFIX", "arduino8266")
-TOOLS_CACHE_SPECS = (IDF_TOOLS_CACHE, SDK_NRF_TOOLS_CACHE, ARDUINO8266_TOOLS_CACHE)
+# The host backend installs nothing; the entry only holds its ccache dir
+HOST_TOOLS_CACHE = ("ESPHOME_HOST_PREFIX", "host")
+TOOLS_CACHE_SPECS = (
+    IDF_TOOLS_CACHE,
+    SDK_NRF_TOOLS_CACHE,
+    ARDUINO8266_TOOLS_CACHE,
+    HOST_TOOLS_CACHE,
+)

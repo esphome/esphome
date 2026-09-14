@@ -7132,7 +7132,7 @@ def test_command_run_rp2040_bootsel_redetects_serial_port() -> None:
 
 def test_command_idedata_esp_idf_prints_json(capsys: CaptureFixture) -> None:
     """Under the native ESP-IDF toolchain, idedata is emitted as JSON."""
-    setup_core()
+    setup_core(platform=PLATFORM_ESP32)
     CORE.toolchain = Toolchain.ESP_IDF
     data = {"cxx_path": "g++", "prog_path": "/build/firmware.elf"}
 
@@ -7146,7 +7146,7 @@ def test_command_idedata_esp_idf_prints_json(capsys: CaptureFixture) -> None:
 
 def test_command_idedata_esp_idf_no_build_errors() -> None:
     """Under ESP-IDF, a missing build (no idedata) returns an error, not a crash."""
-    setup_core()
+    setup_core(platform=PLATFORM_ESP32)
     CORE.toolchain = Toolchain.ESP_IDF
 
     with patch("esphome.espidf.toolchain.get_idedata", return_value=None):
@@ -7457,25 +7457,15 @@ async def test_wrap_to_code_comment_is_insertion_order_independent() -> None:
     assert second.index("a: 2") < second.index("z: 1")
 
 
-def test_host_program_path_platformio_toolchain() -> None:
-    """Host + PlatformIO toolchain reads the memoized idedata path."""
+def test_host_program_path_uses_the_host_toolchain() -> None:
+    """The compiled program is wherever the native host build put it."""
     setup_core(platform=PLATFORM_HOST)
-    idedata = SimpleNamespace(firmware_elf_path="/build/x/.pioenvs/x/program")
+    CORE.toolchain = Toolchain.HOST
     with patch(
-        "esphome.platformio.toolchain.get_idedata", return_value=idedata
+        "esphome.host.toolchain.get_elf_path", return_value=Path("/b/program")
     ) as mock_get:
-        assert main._host_program_path({}) == "/build/x/.pioenvs/x/program"
-    mock_get.assert_called_once_with({})
-
-
-def test_host_program_path_esp_idf_toolchain() -> None:
-    """Host + native ESP-IDF toolchain asks the espidf toolchain for the ELF."""
-    setup_core(platform=PLATFORM_HOST)
-    CORE.toolchain = Toolchain.ESP_IDF
-    with patch(
-        "esphome.espidf.toolchain.get_elf_path", return_value=Path("/b/app.elf")
-    ):
-        assert main._host_program_path({}) == str(Path("/b/app.elf"))
+        assert main._host_program_path() == str(Path("/b/program"))
+    mock_get.assert_called_once_with()
 
 
 def test_command_compile_host_logs_program_path(
@@ -7506,3 +7496,171 @@ def test_command_run_host_executes_program(caplog: pytest.LogCaptureFixture) -> 
         assert main.command_run(SimpleNamespace(), {}) == 0
     mock_run.assert_called_with("/b/program")
     assert "Running program from path '/b/program'" in caplog.text
+
+
+def test_write_cpp_file_project_generation_follows_toolchain() -> None:
+    """Only PlatformIO gets a platformio.ini; ESP-IDF writes its CMake project
+    here, and the other native builds generate theirs at compile time."""
+    setup_core(platform=PLATFORM_HOST)
+    with (
+        patch("esphome.writer.write_cpp"),
+        patch("esphome.build_gen.platformio.write_project") as mock_pio,
+        patch("esphome.build_gen.espidf.write_project") as mock_idf,
+    ):
+        CORE.toolchain = Toolchain.HOST
+        assert main.write_cpp_file() == 0
+        mock_pio.assert_not_called()
+        mock_idf.assert_not_called()
+        CORE.toolchain = Toolchain.PLATFORMIO
+        assert main.write_cpp_file() == 0
+        mock_pio.assert_called_once()
+        CORE.toolchain = Toolchain.ESP_IDF
+        assert main.write_cpp_file() == 0
+        mock_idf.assert_called_once()
+
+
+def test_compile_program_host_uses_the_platform_hook() -> None:
+    """The host component's run_compile claims the build."""
+    setup_core(platform=PLATFORM_HOST)
+    CORE.toolchain = Toolchain.HOST
+    with (
+        patch("esphome.components.host.run_compile", return_value=True) as hook,
+        patch("esphome.__main__._check_and_emit_build_info") as build_info,
+    ):
+        assert compile_program(MagicMock(), {}) == 0
+    hook.assert_called_once()
+    build_info.assert_called_once()
+
+
+def test_compile_program_native_toolchain_needs_a_backend() -> None:
+    """A native toolchain no hook claims must not fall through to PlatformIO."""
+    setup_core(platform=PLATFORM_HOST)
+    CORE.toolchain = Toolchain.HOST
+    with (
+        patch("esphome.platformio.toolchain.run_compile") as mock_pio,
+        # A platform package without a run_compile hook
+        patch.dict(sys.modules, {"esphome.components.host": SimpleNamespace()}),
+        pytest.raises(EsphomeError, match="no platform backend claimed the build"),
+    ):
+        compile_program(MagicMock(), {})
+    mock_pio.assert_not_called()
+
+
+def test_native_toolchain_module_resolution() -> None:
+    from esphome.host import toolchain as host_toolchain
+
+    setup_core(platform=PLATFORM_HOST)
+    CORE.toolchain = Toolchain.PLATFORMIO
+    assert main._native_toolchain_module() is None
+    CORE.toolchain = Toolchain.HOST
+    assert main._native_toolchain_module() is host_toolchain
+    # A native toolchain without a backend for the platform must not degrade
+    CORE.toolchain = Toolchain.ARDUINO
+    with pytest.raises(
+        EsphomeError, match="has no native build backend module for platform host"
+    ):
+        main._native_toolchain_module()
+
+
+def test_command_idedata_host_prints_json(capsys: CaptureFixture) -> None:
+    setup_core(platform=PLATFORM_HOST)
+    CORE.toolchain = Toolchain.HOST
+    data = {"cxx_path": "g++", "prog_path": "/build/program"}
+    with patch("esphome.host.toolchain.get_idedata", return_value=data) as mock_get:
+        assert command_idedata(MagicMock(), CORE.config) == 0
+    mock_get.assert_called_once_with()
+    assert json.loads(capsys.readouterr().out) == data
+
+
+def test_command_analyze_memory_rejects_unsupported_toolchain(
+    caplog: pytest.LogCaptureFixture,
+    mock_write_cpp: Mock,
+) -> None:
+    """An unsupported toolchain is refused before paying for a compile."""
+    setup_core(platform=PLATFORM_NRF52)
+    CORE.toolchain = Toolchain.SDK_NRF
+    with caplog.at_level(logging.ERROR):
+        assert command_analyze_memory(MockArgs(), {}) == 1
+    assert (
+        "analyze-memory is not supported with the 'sdk-nrf' toolchain on nrf52"
+        in caplog.text
+    )
+    mock_write_cpp.assert_not_called()
+
+
+def _native_host_tools(tmp_path: Path) -> tuple[Path, Path, Path]:
+    objdump, readelf, elf = (tmp_path / n for n in ("objdump", "readelf", "program"))
+    for tool in (objdump, readelf, elf):
+        tool.write_text("")
+    return objdump, readelf, elf
+
+
+def test_command_analyze_memory_native_toolchain(
+    tmp_path: Path,
+    capfd: CaptureFixture[str],
+    mock_write_cpp: Mock,
+    mock_compile_program: Mock,
+    mock_get_esphome_components: Mock,
+    mock_memory_analyzer_cli: Mock,
+    mock_ram_strings_analyzer: Mock,
+) -> None:
+    """A native backend supplies its own binutils and ELF, with no idedata."""
+    setup_core(platform=PLATFORM_HOST, tmp_path=tmp_path, name="dev")
+    CORE.toolchain = Toolchain.HOST
+    objdump, readelf, elf = _native_host_tools(tmp_path)
+    config = {CONF_ESPHOME: {CONF_NAME: "dev"}}
+    with (
+        patch("esphome.host.toolchain.get_objdump_path", return_value=objdump),
+        patch("esphome.host.toolchain.get_readelf_path", return_value=readelf),
+        patch("esphome.host.toolchain.get_elf_path", return_value=elf),
+    ):
+        assert command_analyze_memory(MockArgs(), config) == 0
+    mock_memory_analyzer_cli.assert_called_once_with(
+        str(elf), str(objdump), str(readelf), set(), idedata=None
+    )
+    mock_ram_strings_analyzer.assert_called_once_with(
+        str(elf), objdump_path=str(objdump), platform="host"
+    )
+    assert "Mock Memory Report" in capfd.readouterr().out
+
+
+def test_command_analyze_memory_native_missing_tool_fails(
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+    mock_write_cpp: Mock,
+    mock_compile_program: Mock,
+) -> None:
+    setup_core(platform=PLATFORM_HOST, tmp_path=tmp_path, name="dev")
+    CORE.toolchain = Toolchain.HOST
+    objdump, readelf, elf = _native_host_tools(tmp_path)
+    readelf.unlink()
+    with (
+        patch("esphome.host.toolchain.get_objdump_path", return_value=objdump),
+        patch("esphome.host.toolchain.get_readelf_path", return_value=readelf),
+        patch("esphome.host.toolchain.get_elf_path", return_value=elf),
+        caplog.at_level(logging.ERROR),
+    ):
+        assert command_analyze_memory(MockArgs(), {}) == 1
+    assert f"{readelf} is missing; the toolchain install may be incomplete" in (
+        caplog.text
+    )
+
+
+def test_command_analyze_memory_native_missing_elf_fails(
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+    mock_write_cpp: Mock,
+    mock_compile_program: Mock,
+) -> None:
+    setup_core(platform=PLATFORM_HOST, tmp_path=tmp_path, name="dev")
+    CORE.toolchain = Toolchain.HOST
+    objdump, readelf, elf = _native_host_tools(tmp_path)
+    elf.unlink()
+    with (
+        patch("esphome.host.toolchain.get_objdump_path", return_value=objdump),
+        patch("esphome.host.toolchain.get_readelf_path", return_value=readelf),
+        patch("esphome.host.toolchain.get_elf_path", return_value=elf),
+        caplog.at_level(logging.ERROR),
+    ):
+        assert command_analyze_memory(MockArgs(), {}) == 1
+    assert f"{elf} is missing; compile the configuration first" in caplog.text

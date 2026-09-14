@@ -368,6 +368,10 @@ class LibraryBackend:
     # reconciles provided_requests after resolving
     provides: Callable[[str], bool] | None = None
     provided_requests: set[str] = field(default_factory=set)
+    # Accept a library without library.json/library.properties, as
+    # PlatformIO does (its defaults: src/ or the root, plus include/). Off
+    # for backends whose emitted build files need the manifest.
+    manifest_optional: bool = False
 
 
 def ensure_list[T](obj: T | list[T]) -> list[T]:
@@ -1244,9 +1248,16 @@ def convert_libraries(
             library_properties_path = source_dir / "library.properties"
             has_json = library_json_path.is_file()
             has_properties = library_properties_path.is_file()
-            if not has_json and not has_properties and not node.is_local:
+            if (
+                not has_json
+                and not has_properties
+                and not node.is_local
+                and not backend.manifest_optional
+            ):
                 # An interrupted clone/extraction self-heals with one forced
-                # re-download; a local source has nothing to re-download
+                # re-download; a local source has nothing to re-download.
+                # A backend accepting manifest-less libraries cannot tell
+                # one from a torn download and would re-fetch every build.
                 _LOGGER.warning(
                     "Library %s at %s is missing library.json and library.properties; "
                     "re-downloading",
@@ -1260,6 +1271,12 @@ def convert_libraries(
                 component.data = parse_library_json(library_json_path)
             elif has_properties:
                 component.data = parse_library_properties(library_properties_path)
+            elif backend.manifest_optional:
+                _LOGGER.debug(
+                    "Library %s has no manifest; using PlatformIO's default layout",
+                    key,
+                )
+                component.data = {"name": component.name}
             else:
                 # Local sources are user input (EsphomeError); a registry/git
                 # miss means a corrupt cache (RuntimeError)

@@ -407,6 +407,28 @@ def test_convert_libraries_redownloads_when_manifest_missing(
     assert top[0].data["name"] == "A"
 
 
+def test_convert_libraries_manifest_optional_uses_default_layout(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A backend accepting manifest-less libraries (the host build, like
+    PlatformIO's native platform) gets a default manifest instead of a
+    re-download that would repeat every build."""
+    calls = _patch_download_without_manifest(
+        monkeypatch, tmp_path, manifest_on_force=True
+    )
+    emitted: list[ConvertedLibrary] = []
+    backend = _backend(emit=emitted.append)
+    backend.manifest_optional = True
+
+    with caplog.at_level(logging.DEBUG, logger="esphome.platformio.library"):
+        top = convert_libraries([Library("esphome/A", "1.0.0", None)], backend)
+
+    assert calls == [False]
+    assert top[0].data == {"name": "esphome/A"}
+    assert emitted == top
+    assert "has no manifest; using PlatformIO's default layout" in caplog.text
+
+
 def test_convert_libraries_raises_when_manifest_missing_after_retry(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
