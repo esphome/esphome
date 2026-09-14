@@ -33,8 +33,6 @@ void MR60FDA2Component::dump_config() {
 
 // Initialisation functions
 void MR60FDA2Component::setup() {
-  this->check_uart_settings(115200);
-
   this->current_frame_locate_ = LOCATE_FRAME_HEADER;
   this->current_frame_id_ = 0;
   this->current_frame_len_ = 0;

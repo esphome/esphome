@@ -14,7 +14,7 @@ from esphome.const import (
     CONF_TIMEOUT,
 )
 from esphome.core import Lambda
-from esphome.cpp_generator import TemplateArguments, get_variable
+from esphome.cpp_generator import StaticCastExpression, TemplateArguments, get_variable
 from esphome.cpp_types import nullptr
 
 from .defines import (
@@ -30,7 +30,6 @@ from .defines import (
     CONF_SHOW_SNOW,
     CONF_TOP_LAYER,
     PARTS,
-    StaticCastExpression,
     add_warning,
     get_focused_widgets,
     get_options,
@@ -416,7 +415,7 @@ async def obj_set_z_index_to_code(config, action_id, template_arg, args):
                 widget.obj, literal(f"{lv_expr.obj_get_index(widget.obj)} + 1")
             )
         elif position == "DOWN":
-            with LvConditional(f"{lv_expr.obj_get_index(widget.obj)} > 0"):
+            with LvConditional(literal(f"{lv_expr.obj_get_index(widget.obj)} > 0")):
                 lv_obj.move_to_index(
                     widget.obj, literal(f"{lv_expr.obj_get_index(widget.obj)} - 1")
                 )
