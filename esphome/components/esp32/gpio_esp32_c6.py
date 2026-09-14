@@ -1,11 +1,10 @@
 import logging
 from typing import Any
 
+from esphome.components.const import CONF_HOLD_DURING_SLEEP
 import esphome.config_validation as cv
 from esphome.const import CONF_INPUT, CONF_MODE, CONF_NUMBER, CONF_SCL, CONF_SDA
 from esphome.pins import check_strapping_pin
-
-from .const import CONF_HOLD_DURING_SLEEP
 
 # https://github.com/espressif/esp-idf/blob/master/components/esp_hal_i2c/esp32c6/include/hal/i2c_ll.h
 _ESP32C6_I2C_LP_PINS = {"SDA": 6, "SCL": 7}

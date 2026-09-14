@@ -1,11 +1,10 @@
 import logging
 from typing import Any
 
+from esphome.components.const import CONF_HOLD_DURING_SLEEP
 import esphome.config_validation as cv
 from esphome.const import CONF_INPUT, CONF_MODE, CONF_NUMBER
 from esphome.pins import check_strapping_pin
-
-from .const import CONF_HOLD_DURING_SLEEP
 
 _ESP32H2_SPI_FLASH_PINS = {6, 7, 15, 16, 17, 18, 19, 20, 21}
 

@@ -5,6 +5,7 @@ from typing import Any
 
 from esphome import pins
 import esphome.codegen as cg
+from esphome.components.const import CONF_HOLD_DURING_SLEEP
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ID,
@@ -22,7 +23,6 @@ from esphome.types import ConfigType
 
 from . import boards
 from .const import (
-    CONF_HOLD_DURING_SLEEP,
     KEY_BOARD,
     KEY_ESP32,
     KEY_VARIANT,

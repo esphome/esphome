@@ -1,6 +1,7 @@
 import logging
 from typing import Any
 
+from esphome.components.const import CONF_HOLD_DURING_SLEEP
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_INPUT,
@@ -11,8 +12,6 @@ from esphome.const import (
     CONF_PULLUP,
 )
 from esphome.pins import check_strapping_pin
-
-from .const import CONF_HOLD_DURING_SLEEP
 
 _ESP32S2_SPI_PSRAM_PINS = {
     26: "SPICS1",

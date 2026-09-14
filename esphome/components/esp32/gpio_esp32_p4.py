@@ -1,11 +1,10 @@
 import logging
 from typing import Any
 
+from esphome.components.const import CONF_HOLD_DURING_SLEEP
 import esphome.config_validation as cv
 from esphome.const import CONF_INPUT, CONF_MODE, CONF_NUMBER, CONF_SCL, CONF_SDA
 from esphome.pins import check_strapping_pin
-
-from .const import CONF_HOLD_DURING_SLEEP
 
 # https://documentation.espressif.com/esp32-p4-chip-revision-v1.3_datasheet_en.pdf
 _ESP32P4_LP_PINS = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15}
