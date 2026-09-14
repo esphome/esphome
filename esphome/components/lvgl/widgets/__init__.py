@@ -194,12 +194,20 @@ class WidgetType:
         await self.to_code(w, config)
         return w
 
-    async def to_code(self, w: "Widget", config: dict):
+    async def to_code(self, w: "Widget", config: dict) -> None:
         """
-        Update a widget, also called when creating
+        Generate code for widget properties and actions.
         :param config:
         :return:
         """
+
+    async def update_to_code(self, w: "Widget", config: dict) -> None:
+        """
+        Update a widget. Defaults to calling to_code, but can be overridden
+        :param w: The widget to update
+        :param config: The configuration for the update
+        """
+        await self.to_code(w, config)
 
     async def obj_creator(self, parent: MockObj, config: dict):
         """

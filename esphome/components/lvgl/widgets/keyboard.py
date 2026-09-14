@@ -3,7 +3,7 @@ import esphome.config_validation as cv
 from esphome.const import CONF_ITEMS, CONF_MODE
 from esphome.cpp_types import std_string
 
-from ..defines import CONF_MAIN, KEYBOARD_MODES, add_lv_use, get_widget_map, literal
+from ..defines import CONF_MAIN, KEYBOARD_MODES, get_widget_map, literal
 from ..types import LvCompound, LvType
 from . import Widget, WidgetType, get_widgets
 from .buttonmatrix import CONF_BUTTONMATRIX
@@ -42,12 +42,25 @@ class KeyboardType(WidgetType):
         )
 
     def get_uses(self):
-        return CONF_KEYBOARD, CONF_TEXTAREA, CONF_BUTTONMATRIX, CONF_LABEL
+        return (
+            CONF_KEYBOARD,
+            CONF_TEXTAREA,
+            CONF_BUTTONMATRIX,
+            CONF_LABEL,
+            "KEY_LISTENER",
+        )
 
     async def to_code(self, w: Widget, config: dict):
-        add_lv_use("KEY_LISTENER")
         if mode := config.get(CONF_MODE):
             await w.set_property(CONF_MODE, await KEYBOARD_MODES.process(mode))
+
+    async def update_to_code(self, w: "Widget", config: dict) -> None:
+        if mode := config.get(CONF_MODE):
+            await w.set_property(CONF_MODE, await KEYBOARD_MODES.process(mode))
+        if config.get(CONF_TEXTAREA):
+            await w.set_property(
+                CONF_TEXTAREA, (await get_widgets(config, CONF_TEXTAREA))[0].obj
+            )
 
 
 async def attach_textareas():

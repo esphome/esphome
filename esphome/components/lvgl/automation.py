@@ -137,7 +137,7 @@ async def action_to_code(
 async def update_to_code(config, action_id, template_arg, args):
     async def do_update(widget: Widget):
         await set_obj_properties(widget, config)
-        await widget.type.to_code(widget, config)
+        await widget.type.update_to_code(widget, config)
         if (
             widget.type.w_type.value_property is not None
             and widget.type.w_type.value_property in config

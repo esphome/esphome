@@ -62,6 +62,7 @@ from . import (
 )
 from .buttonmatrix import CONF_BUTTONMATRIX
 from .canvas import CONF_CANVAS
+from .keyboard import CONF_KEYBOARD
 from .label import CONF_LABEL
 from .meter import CONF_METER
 from .tabview import CONF_TABVIEW
@@ -212,15 +213,16 @@ async def list_add_text_to_code(config, action_id, template_arg, args):
     )
 
 
-# These types of widgets are not compatible with lvgl.list.add, because they manage their own children in a way
-# that can't be rebuilt on every call.
+# These types of widgets are not compatible with lvgl.list.add, some since they manage their own children in a way
+# that can't be rebuilt on every call, others are just Too Hard.
 _DYNAMIC_WIDGET_UNSUPPORTED = (
     CONF_BUTTONMATRIX,
+    CONF_CANVAS,
+    CONF_KEYBOARD,
+    CONF_LIST,
+    CONF_METER,
     CONF_TABVIEW,
     CONF_TILEVIEW,
-    CONF_METER,
-    CONF_CANVAS,
-    CONF_LIST,
 )
 
 
