@@ -349,7 +349,7 @@ void WebServer::set_js_include(const char *js_include) { this->js_include_ = js_
 #endif
 
 // Kept out of the callers so the 64 bit division is emitted once
-static uint32_t uptime_seconds() { return static_cast<uint32_t>(millis_64() / 1000); }
+__attribute__((noinline)) static uint32_t uptime_seconds() { return static_cast<uint32_t>(millis_64() / 1000); }
 
 json::SerializationBuffer<> WebServer::get_config_json() {
   json::JsonBuilder builder;
