@@ -5,11 +5,14 @@ esphome:
 esp32:
   board: esp32dev
 
+logger:
+
 switch:
   - platform: template
     id: plain_switch
-    optimistic: true
+    turn_on_action:
+      - logger.log: "on"
   - platform: template
-    id: assumed_switch
+    id: enabled_switch
     optimistic: true
     assumed_state: true
