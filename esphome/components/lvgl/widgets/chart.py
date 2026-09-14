@@ -16,6 +16,7 @@ from ..defines import (
     CONF_CURSOR,
     CONF_INDICATOR,
     CONF_MAIN,
+    CONF_POINTS,
     CONF_TICKS,
     LV_CHART_AXES,
     LV_CHART_TYPES,
@@ -32,7 +33,6 @@ CONF_CHART = "chart"
 CONF_DIV_LINE_COUNT = "div_line_count"
 CONF_POINT_COUNT = "point_count"
 CONF_POINT = "point"
-CONF_POINTS = "points"
 CONF_SECONDARY_X_AXIS = "secondary_x_axis"
 CONF_SECONDARY_Y_AXIS = "secondary_y_axis"
 CONF_SERIES = "series"
