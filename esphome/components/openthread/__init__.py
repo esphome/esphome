@@ -148,6 +148,10 @@ def set_sdkconfig_options(config: ConfigType) -> None:
             )
 
     add_idf_sdkconfig_option("CONFIG_OPENTHREAD_DNS64_CLIENT", True)
+    # The DNS64 hook breaks IPv6 literal lookups; see openthread_esp.cpp. libsrc.a is
+    # scanned before the IDF libraries, so --undefined pulls the wrapper in.
+    cg.add_build_flag("-Wl,--wrap=lwip_hook_dns_external_resolve")
+    cg.add_build_flag("-Wl,--undefined=__wrap_lwip_hook_dns_external_resolve")
     add_idf_sdkconfig_option("CONFIG_OPENTHREAD_SRP_CLIENT", True)
     add_idf_sdkconfig_option("CONFIG_OPENTHREAD_SRP_CLIENT_MAX_SERVICES", 5)
 
