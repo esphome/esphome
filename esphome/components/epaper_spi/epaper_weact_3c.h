@@ -22,10 +22,8 @@ class EPaperWeAct3C : public EPaperBase {
     this->buffer_length_ = this->row_width_ * height * 2;
   }
 
-  void fill(Color color) override;
-  void clear() override;
-
  protected:
+  void fill_buffer(Color color) override;
   void set_window_();
   void refresh_screen(bool partial) override;
   void power_on() override;

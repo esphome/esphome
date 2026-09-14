@@ -14,11 +14,10 @@ class EPaperInkplate2 final : public EPaperBase {
     this->buffer_length_ = this->row_width_ * this->height_ * 2;
   }
 
-  void fill(Color color) override;
-  void clear() override;
   void draw_pixel_at(int x, int y, Color color) override;
 
  protected:
+  void fill_buffer(Color color) override;
   void refresh_screen(bool partial) override;
   void power_on() override;
   void power_off() override;

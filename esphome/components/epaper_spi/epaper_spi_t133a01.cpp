@@ -225,11 +225,7 @@ void EPaperT133A01::write_command_(uint8_t command, const uint8_t *data, size_t 
   this->cs1_pin_->digital_write(true);
 }
 
-void EPaperT133A01::fill(Color color) {
-  if (this->get_clipping().is_set()) {
-    EPaperBase::fill(color);
-    return;
-  }
+void EPaperT133A01::fill_buffer(Color color) {
   auto pixel_color = color_to_index(color);
   this->buffer_.fill(pixel_color + (pixel_color << 4));
 }

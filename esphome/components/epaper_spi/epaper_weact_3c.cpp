@@ -60,7 +60,7 @@ void EPaperWeAct3C::draw_pixel_at(int x, int y, Color color) {
   }
 }
 
-void EPaperWeAct3C::fill(Color color) {
+void EPaperWeAct3C::fill_buffer(Color color) {
   // For 3-color e-paper with 1-bit buffer format:
   // - Black buffer: 1=black, 0=white
   // - Red buffer: 1=red, 0=no red
@@ -87,11 +87,6 @@ void EPaperWeAct3C::fill(Color color) {
     for (size_t i = 0; i < half_buffer; i++)
       this->buffer_[half_buffer + i] = 0x00;
   }
-}
-
-void EPaperWeAct3C::clear() {
-  // Clear buffer to white, just like real paper.
-  this->fill(COLOR_ON);
 }
 
 void EPaperWeAct3C::set_window_() {
