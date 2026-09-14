@@ -85,9 +85,7 @@ class Speaker {
   virtual void set_mute_state(bool mute_state) {
     this->mute_state_ = mute_state;
 #ifdef USE_AUDIO_DAC
-    if (this->audio_dac_ != nullptr) {
-      this->apply_audio_dac_mute_();
-    }
+    this->apply_audio_dac_mute_();
 #endif
   }
   virtual bool get_mute_state() { return this->mute_state_; }
@@ -118,6 +116,8 @@ class Speaker {
 #ifdef USE_AUDIO_DAC
   /// @brief Uses the audio dac's mute as the silence mechanism, since a dac's minimum volume is often audible.
   void apply_audio_dac_mute_() {
+    if (this->audio_dac_ == nullptr)
+      return;
     if (this->is_silent_()) {
       this->audio_dac_->set_mute_on();
     } else {
