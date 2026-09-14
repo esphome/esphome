@@ -1,0 +1,16 @@
+esphome:
+  name: climateir-heatcool
+
+esp8266:
+  board: esp01_1m
+
+remote_transmitter:
+  pin: GPIO5
+  carrier_duty_percent: 50%
+
+climate:
+  - platform: gree
+    id: test_gree
+    name: GREE
+    model: YAN
+    supports_heat: false
