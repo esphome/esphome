@@ -244,6 +244,7 @@ class APIConnection final : public APIServerConnectionBase {
   void on_serial_proxy_set_modem_pins_request(const SerialProxySetModemPinsRequest &msg);
   void on_serial_proxy_get_modem_pins_request(const SerialProxyGetModemPinsRequest &msg);
   void on_serial_proxy_request(const SerialProxyRequest &msg);
+  void on_serial_proxy_set_mode_request(const SerialProxySetModeRequest &msg);
   void send_serial_proxy_data(const SerialProxyDataReceived &msg);
 #endif
 
