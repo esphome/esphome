@@ -16,9 +16,6 @@
 
 #include <cmath>
 
-// esp-audio-libs
-#include <gain.h>
-
 namespace esphome::i2s_audio {
 
 static const char *const TAG = "i2s_audio.speaker";
