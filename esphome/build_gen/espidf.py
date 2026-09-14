@@ -298,12 +298,17 @@ def _pch_cmake() -> str:
     """
     if not pch_enabled():
         return ""
+    # Strict inverts: a per-process consumer rejection reds the build.
+    # Baked at generation: a knob flip takes effect when the CMakeLists is
+    # rewritten (every esphome compile); a hand-run idf.py keeps the old one
+    escalation = pch.pch_consumer_escalation()
     return f"""
 # ESPHome precompiled header (see esphome/build_helpers/pch.py).
 # OBJECT_DEPENDS is on the header, not the .gch: pch-baked headers drop
 # out of TU depfiles, and prepare_pch() touches the header on rebuild.
 target_compile_options(${{COMPONENT_LIB}} PRIVATE
     "$<$<COMPILE_LANGUAGE:CXX>:-Winvalid-pch>"
+    "$<$<COMPILE_LANGUAGE:CXX>:{escalation}>"
     "$<$<COMPILE_LANGUAGE:CXX>:-include>"
     "$<$<COMPILE_LANGUAGE:CXX>:{PCH_HEADER_NAME}>"
 )
@@ -323,6 +328,7 @@ def prepare_pch() -> None:
     if not pch_enabled():
         # Self-cleaning escape hatch: drop any previously built .gch
         pch.discard_pch(CORE.relative_build_path("build"))
+        pch.pch_disabled_degraded()
         return
     sdkconfig_path = CORE.relative_build_path(f"sdkconfig.{CORE.name}")
     try:
@@ -334,6 +340,7 @@ def prepare_pch() -> None:
             "Could not read %s; compiling without the pch: %s", sdkconfig_path, err
         )
         pch.discard_pch(CORE.relative_build_path("build"))
+        pch.pch_degraded(f"sdkconfig unreadable: {err}")
         return
     pch.prepare_pch(
         CORE.relative_build_path("build"),
