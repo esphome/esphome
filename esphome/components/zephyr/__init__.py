@@ -91,6 +91,7 @@ from .const import (
     ZEPHYR_VARIANT_RA4M1,
     ZEPHYR_VARIANT_RP2040,
     ZEPHYR_VARIANT_RP2350,
+    ZEPHYR_VARIANT_SIWX917,
     ZEPHYR_VARIANT_STM32F1,
     ZEPHYR_VARIANT_STM32F4,
     ZEPHYR_VARIANT_STM32L4,
@@ -1314,12 +1315,17 @@ def _resolve_spi_pinctrl_states(
 
 
 def _build_spi_pinctrl_states_overlay(
-    states: list[tuple[str, list[tuple[str, str]]]], property_name: str
+    states: list[tuple[str, list[tuple[str, str]]]],
+    property_name: str,
+    pinctrl_label: str = "pinctrl",
 ) -> str:
-    """Build the `&pinctrl { ... }` overlay from _resolve_spi_pinctrl_states()'s
-    output. The `<label>:` prefix (re-)establishes the phandle even for a state
-    the board never pinctrl'd itself -- without it, `&<label>` in the bus-enable
-    overlay resolves to nothing at DTS-compile time."""
+    """Build the `&<pinctrl_label> { ... }` overlay from
+    _resolve_spi_pinctrl_states()'s output. The `<label>:` prefix
+    (re-)establishes the phandle even for a state the board never pinctrl'd
+    itself -- without it, `&<label>` in the bus-enable overlay resolves to
+    nothing at DTS-compile time. pinctrl_label is the variant's own pinctrl
+    controller node label (see ZephyrVariant.pinctrl_node_label) -- almost
+    always "pinctrl", but not universal (e.g. SiWx91x's "pinctrl0")."""
     state_blocks = []
     for label, group_values in states:
         if not group_values:
@@ -1340,7 +1346,7 @@ def _build_spi_pinctrl_states_overlay(
             """
         )
     return f"""
-        &pinctrl {{
+        &{pinctrl_label} {{
             {"".join(state_blocks)}
         }};
     """
@@ -1381,7 +1387,7 @@ def zephyr_setup_spi_pinctrl(
             bus_label,
         )
 
-    if family not in ("esp32", "nordic", "silabs"):
+    if family not in ("esp32", "nordic", "silabs", "silabs_siwx91x"):
         # stm32, renesas, rp2040, and any other family: no generated pinctrl overlay
         # -- clk/miso/mosi are irrelevant here, whatever the board (or the user's own
         # zephyr: overlays:) already wires is trusted as-is.
@@ -1421,6 +1427,24 @@ def zephyr_setup_spi_pinctrl(
         group_role_resolver = _silabs_spi_group_roles
         value_role_decoder = _silabs_spi_value_role
         property_name = "pins"
+    elif family == "silabs_siwx91x":
+        # SiWx91x has no per-pin macro formula (unlike EFR32 above) -- only a
+        # handful of enumerated pins have a macro at all, looked up from the
+        # variant's own spi_pin_macros instead of derived here. No board using
+        # this family pre-wires this bus's pinctrl today (confirmed against
+        # siwx917_dk2605a.dts: spi0 ships with no pinctrl-0 at all), so there's
+        # nothing to content-decode -- group_role_resolver/value_role_decoder
+        # stay None, same as a from-scratch board with zero existing pinctrl
+        # falls back to anyway. Revisit if a future siwx91x board ever does
+        # pre-wire it.
+        pin_macros = VARIANTS[zephyr_variant()].spi_pin_macros
+        values = {}
+        for signal, pin in (("clk", clk), ("mosi", mosi), ("miso", miso)):
+            if pin is not None:
+                values[signal] = f"<{pin_macros[signal][pin]}>"
+        group_role_resolver = None
+        value_role_decoder = None
+        property_name = "pinmux"
     else:
         valid_instances = _ESP32_SPI_INSTANCE_SIGNAL_PREFIX.get(zephyr_variant(), {})
         instance = (
@@ -1470,7 +1494,10 @@ def zephyr_setup_spi_pinctrl(
         value_role_decoder=value_role_decoder,
         property_name=property_name,
     )
-    zephyr_add_overlay(_build_spi_pinctrl_states_overlay(states, property_name))
+    pinctrl_label = VARIANTS[zephyr_variant()].pinctrl_node_label
+    zephyr_add_overlay(
+        _build_spi_pinctrl_states_overlay(states, property_name, pinctrl_label)
+    )
 
     # A board whose stock node already declares >1 pinctrl state (e.g. "sleep" for
     # PM) needs every pinctrl-<N> restated to match, or the now-uncovered old state
@@ -1765,6 +1792,14 @@ def zephyr_to_code(config: ConfigType) -> None:
         zephyr_add_prj_conf("REQUIRES_FULL_LIBCPP", True)
         # Consumed by C++ code shared across every silabs-family variant (core.cpp, etc.).
         cg.add_build_flag("-DUSE_ZEPHYR_VARIANT_FAMILY_SILABS")
+    elif zephyr_variant_family() == "silabs_siwx91x":
+        # Same reasoning as esp32/nordic/silabs above: mainline Zephyr's MINIMAL_LIBCPP
+        # has no STL, which ESPHome's C++ core requires regardless of chip vendor. Its
+        # own family (not "silabs" above) -- see siwx917.py's family= comment for why.
+        zephyr_add_prj_conf("CPP", True)
+        zephyr_add_prj_conf("REQUIRES_FULL_LIBCPP", True)
+        # Consumed by C++ code shared across every silabs_siwx91x-family variant.
+        cg.add_build_flag("-DUSE_ZEPHYR_VARIANT_FAMILY_SILABS_SIWX91X")
     elif zephyr_variant_family() == "stm32":
         zephyr_add_prj_conf("CPP", True)
         zephyr_add_prj_conf("REQUIRES_FULL_LIBCPP", True)
@@ -1920,6 +1955,7 @@ def zephyr_to_code(config: ConfigType) -> None:
             if zephyr_variant_family() in (
                 "nordic",
                 "silabs",
+                "silabs_siwx91x",
                 "rpi_pico",
                 "stm32",
                 "renesas",
@@ -1928,8 +1964,9 @@ def zephyr_to_code(config: ConfigType) -> None:
                 # also set (arch/arm/core/Kconfig selects the dependency it needs);
                 # RISC-V (esp32_h2/c6) enables ARCH_HAS_STACKWALK unconditionally,
                 # so it doesn't need this and setting it there would just warn.
-                # silabs (EFR32MG24, Cortex-M33), stm32 (STM32L4, Cortex-M4), and
-                # renesas (RA4M1, Cortex-M4) need the same treatment as nordic.
+                # silabs (EFR32MG24, Cortex-M33), silabs_siwx91x (SiWx917,
+                # Cortex-M4F), stm32 (STM32L4, Cortex-M4), and renesas (RA4M1,
+                # Cortex-M4) need the same treatment as nordic.
                 zephyr_add_prj_conf("EXTRA_EXCEPTION_INFO", True)
             zephyr_add_prj_conf("EXCEPTION_STACK_TRACE", True)
 
@@ -2754,6 +2791,10 @@ def _variant_config_schema(config: ConfigType) -> ConfigType:
         from .variants.rp2350 import config_schema as _rp2350_config_schema
 
         config = _rp2350_config_schema(config)
+    elif variant == ZEPHYR_VARIANT_SIWX917:
+        from .variants.siwx917 import config_schema as _siwx917_config_schema
+
+        config = _siwx917_config_schema(config)
     else:
         raise cv.Invalid(f"Variant {variant!r} has no config schema registered yet")
     if config[CONF_SINGLE_SLOT] and zephyr_data()[KEY_BOOTLOADER] != BOOTLOADER_MCUBOOT:
@@ -2917,6 +2958,11 @@ async def to_code(config: ConfigType) -> None:
         from .variants.rp2350 import to_code as _rp2350_to_code
 
         await _rp2350_to_code(config)
+        return
+    if variant == ZEPHYR_VARIANT_SIWX917:
+        from .variants.siwx917 import to_code as _siwx917_to_code
+
+        await _siwx917_to_code(config)
         return
     raise NotImplementedError(f"Zephyr variant {variant!r} has no to_code registered")
 

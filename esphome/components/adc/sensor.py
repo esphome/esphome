@@ -516,6 +516,57 @@ async def to_code(config: ConfigType) -> None:
                 }};
             """
         )
+    elif CORE.using_zephyr and zephyr_variant_family() == "silabs_siwx91x":
+        # Silicon Labs SiWx91x ADC -- a different IP from EFR32's IADC above despite
+        # the shared vendor name (see siwx917.py's family= comment). Like nRF52's
+        # SAADC, adc_ain_map stores the driver's own zephyr,input-positive macro name
+        # (SIWX91X_ADC_INPUT_HPnn); unlike either nRF52 or EFR32, this driver also
+        # requires a controller-level silabs,adc-ref-voltage property (board's own
+        # 3.3V reference rail, matching siwx917_dk2605a.dts's own example channel).
+        # acquisition-time is the literal 0 (not the ADC_ACQ_TIME_DEFAULT macro other
+        # branches use): that macro lives in dt-bindings/adc/adc.h, which this board's
+        # own DTS never #includes -- confirmed on real hardware, the bare macro fails
+        # devicetree preprocessing ("expected number or parenthesized expression").
+        # 0 is that macro's actual value, and is what the board's own reference
+        # channel@0 example already uses literally.
+        data = _get_data()
+        channel_id = data.zephyr_adc_channel_id
+        data.zephyr_adc_channel_id += 1
+        zephyr_add_prj_conf("ADC", True)
+        variant = zephyr_variant()
+        pin_num = config[CONF_PIN][CONF_NUMBER]
+        ain_map = VARIANTS[variant].adc_ain_map
+        if pin_num not in ain_map:
+            raise EsphomeError(f"Pin {pin_num} is not a valid ADC pin on {variant}")
+        ain_name = ain_map[pin_num]
+        adc_id = ID(
+            f"{config[CONF_ID]}_adc_channel", is_declaration=True, type=adc_dt_spec
+        )
+        rhs = cg.RawExpression(
+            f"ADC_DT_SPEC_GET_BY_IDX(DT_PATH(zephyr_user), {channel_id})"
+        )
+        adc = cg.new_Pvariable(adc_id, rhs)
+        cg.add(var.set_adc_channel(adc))
+        zephyr_add_user("io-channels", f"<&adc0 {channel_id}>")
+        zephyr_add_overlay(
+            f"""
+                &adc0 {{
+                    status = "okay";
+                    #address-cells = <1>;
+                    #size-cells = <0>;
+                    silabs,adc-ref-voltage = <3300>;
+
+                    channel@{channel_id} {{
+                        reg = <{channel_id}>;
+                        zephyr,gain = "ADC_GAIN_1";
+                        zephyr,reference = "ADC_REF_INTERNAL";
+                        zephyr,acquisition-time = <0>;
+                        zephyr,input-positive = <{ain_name}>;
+                        zephyr,resolution = <12>;
+                    }};
+                }};
+            """
+        )
     elif CORE.using_zephyr and zephyr_variant_family() == "renesas":
         # RA4M1's ADC12 driver rejects any gain/acquisition-time other than
         # ADC_GAIN_1/ADC_ACQ_TIME_DEFAULT. Each channel also needs its own pinctrl

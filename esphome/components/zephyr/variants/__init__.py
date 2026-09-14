@@ -267,6 +267,23 @@ class ZephyrVariant:
     # Like uart_valid_pins, but for SPI's clk/mosi/miso. Empty = not wired up
     # (left to zephyr_setup_spi_pinctrl() at codegen time instead).
     spi_valid_pins: dict[str, frozenset[int]] = field(default_factory=dict)
+    # signal ("clk"/"mosi"/"miso") -> {pin: pinmux macro name}, for a family whose
+    # valid SPI pins don't follow a per-pin formula (unlike EFR32/Nordic/ESP32,
+    # which derive the macro from the raw pin number) -- e.g. SiWx91x, where only
+    # a handful of enumerated pins have a macro at all and each one is a distinct
+    # #define, not a formula. Consulted by zephyr_setup_spi_pinctrl()'s
+    # family-specific branch instead of building the macro name programmatically.
+    # Empty for every family that does use a formula.
+    spi_pin_macros: dict[str, dict[int, str]] = field(default_factory=dict)
+    # Devicetree node label of this variant's pinctrl controller. Every family
+    # wired up so far names it "pinctrl" (a shared convention across EFR32/
+    # Nordic/ESP32/RP2040), which the SPI/UART/I2C pinctrl-overlay builders in
+    # zephyr/__init__.py hardcode -- SiWx91x is the first exception, whose SoC
+    # dtsi names it "pinctrl0" instead. Only threaded through the SPI path so
+    # far (the only one siwx91x actually exercises); UART/I2C custom pin
+    # remapping would need the same treatment if ever enabled for a family
+    # using a different label.
+    pinctrl_node_label: str = "pinctrl"
     # Devicetree node labels backing the `logger: hardware_uart: UART0`/`UART1` symbolic
     # selections. ESP32-family and nRF52 boards both label their two console-capable UARTs
     # uart0/uart1, so that's the default; nRF54 series numbers peripheral instances instead
@@ -587,6 +604,7 @@ _VARIANT_MODULES = [
     "rp2040",
     "rp2350",
     "ra4m1",
+    "siwx917",
 ]
 
 
