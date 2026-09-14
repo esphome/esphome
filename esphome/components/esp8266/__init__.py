@@ -363,13 +363,6 @@ async def to_code(config: ConfigType) -> None:
     if config.get(CONF_ENABLE_SERIAL1):
         enable_serial1()
 
-    # Arduino 2's new returns nullptr instead of aborting when exceptions are disabled; since
-    # Arduino 2.6.0 this flag makes it abort like Arduino 3 does, so OOM fails at the allocation
-    # rather than at a later null dereference. Allocations whose failure must be handled go through
-    # RAMAllocator::make_unique or make_unique_array_for_overwrite (esphome/core/helpers.h), which
-    # return an empty RAMUniquePtr where `new (std::nothrow)` aborts on ESP-IDF.
-    cg.add_build_flag("-DNEW_OOM_ABORT")
-
     # Force-include inline std::__throw_* overrides so GCC dead-strips the unused
     # libstdc++ error message strings (e.g. "basic_string::_M_create") from DRAM.
     # See throw_stubs.h for details. Must be prepended before <string>, so this
