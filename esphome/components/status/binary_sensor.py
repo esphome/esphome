@@ -2,6 +2,7 @@ import esphome.codegen as cg
 from esphome.components import binary_sensor
 import esphome.config_validation as cv
 from esphome.const import DEVICE_CLASS_CONNECTIVITY, ENTITY_CATEGORY_DIAGNOSTIC
+from esphome.types import ConfigType
 
 DEPENDENCIES = ["network"]
 
@@ -17,6 +18,6 @@ CONFIG_SCHEMA = binary_sensor.binary_sensor_schema(
 ).extend(cv.polling_component_schema("1s"))
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = await binary_sensor.new_binary_sensor(config)
     await cg.register_component(var, config)

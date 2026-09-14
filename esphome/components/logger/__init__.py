@@ -1,4 +1,5 @@
 import re
+from typing import Any
 
 from esphome import automation
 from esphome.automation import LambdaAction, StatelessLambdaAction
@@ -58,7 +59,8 @@ from esphome.const import (
     PLATFORM_RTL87XX,
     PlatformFramework,
 )
-from esphome.core import CORE, CoroPriority, Lambda, coroutine_with_priority
+from esphome.core import CORE, ID, CoroPriority, Lambda, coroutine_with_priority
+from esphome.cpp_generator import MockObj, TemplateArgsType
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@esphome/core"]
@@ -164,7 +166,7 @@ HARDWARE_UART_TO_SERIAL = {
 is_log_level = cv.one_of(*LOG_LEVELS, upper=True)
 
 
-def uart_selection(value):
+def uart_selection(value: Any) -> str:
     if CORE.is_esp32:
         variant = get_esp32_variant()
         if variant in UART_SELECTION_ESP32:
@@ -187,7 +189,7 @@ def uart_selection(value):
     raise NotImplementedError
 
 
-def validate_local_no_higher_than_global(config):
+def validate_local_no_higher_than_global(config: ConfigType) -> ConfigType:
     global_level = config[CONF_LEVEL]
     global_level_index = LOG_LEVEL_SEVERITY.index(global_level)
     errs = []
@@ -204,7 +206,7 @@ def validate_local_no_higher_than_global(config):
     return config
 
 
-def validate_initial_no_higher_than_global(config):
+def validate_initial_no_higher_than_global(config: ConfigType) -> ConfigType:
     if initial_level := config.get(CONF_INITIAL_LEVEL):
         global_level = config[CONF_LEVEL]
         if LOG_LEVEL_SEVERITY.index(initial_level) > LOG_LEVEL_SEVERITY.index(
@@ -217,7 +219,7 @@ def validate_initial_no_higher_than_global(config):
     return config
 
 
-def validate_wait_for_cdc(config):
+def validate_wait_for_cdc(config: ConfigType) -> ConfigType:
     if config.get(CONF_WAIT_FOR_CDC) and config.get(CONF_HARDWARE_UART) != USB_CDC:
         raise cv.Invalid("wait_for_cdc requires hardware_uart: USB_CDC")
     return config
@@ -518,7 +520,7 @@ async def _late_logger_init(config: ConfigType) -> None:
     CORE.add_job(final_step)
 
 
-def validate_printf(value):
+def validate_printf(value: ConfigType) -> ConfigType:
     # https://stackoverflow.com/questions/30011379/how-can-i-parse-a-c-format-string-in-python
     cfmt = r"""
     (                                   # start of capture group 1
@@ -559,7 +561,12 @@ LOGGER_LOG_ACTION_SCHEMA = cv.All(
 @automation.register_action(
     CONF_LOGGER_LOG, LambdaAction, LOGGER_LOG_ACTION_SCHEMA, synchronous=True
 )
-async def logger_log_action_to_code(config, action_id, template_arg, args):
+async def logger_log_action_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     esp_log = LOG_LEVEL_TO_ESP_LOG[config[CONF_LEVEL]]
     args_ = [cg.RawExpression(str(x)) for x in config[CONF_ARGS]]
 
@@ -584,7 +591,12 @@ async def logger_log_action_to_code(config, action_id, template_arg, args):
     ),
     synchronous=True,
 )
-async def logger_set_level_to_code(config, action_id, template_arg, args):
+async def logger_set_level_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     level = LOG_LEVELS[config[CONF_LEVEL]]
     logger = await cg.get_variable(config[CONF_LOGGER_ID])
     if tag := config.get(CONF_TAG):
@@ -656,7 +668,7 @@ def request_log_listener() -> None:
 
 
 @coroutine_with_priority(CoroPriority.FINAL)
-async def final_step():
+async def final_step() -> None:
     """Final code generation step to configure optional logger features."""
     domain_data = CORE.data.get(DOMAIN, {})
     if domain_data.get(KEY_LEVEL_LISTENERS, False):

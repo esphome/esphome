@@ -12,7 +12,7 @@ esphome:
           data_template:
             message: The humidity is {{ my_variable }}%.
           variables:
-            my_variable: "return id(ha_hello_world_temperature).state;"
+            my_variable: !lambda "return id(ha_hello_world_temperature).state;"
       - homeassistant.action:
           action: notify.html5
           data:
@@ -24,7 +24,7 @@ esphome:
           data_template:
             message: The humidity is {{ my_variable }}%.
           variables:
-            my_variable: "return id(ha_hello_world_temperature).state;"
+            my_variable: !lambda "return id(ha_hello_world_temperature).state;"
 
 wifi:
   ssid: MySSID

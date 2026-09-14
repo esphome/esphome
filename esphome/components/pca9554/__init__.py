@@ -1,6 +1,6 @@
 from esphome import pins
 import esphome.codegen as cg
-from esphome.components import i2c
+from esphome.components import gpio_expander, i2c
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_DEVICE,
@@ -15,6 +15,8 @@ from esphome.const import (
     CONF_PULLDOWN,
     CONF_PULLUP,
 )
+from esphome.cpp_generator import MockObj
+from esphome.types import ConfigType
 
 CONF_LATCH = "latch"
 CONF_DRIVE_STRENGTH = "drive_strength"
@@ -115,6 +117,7 @@ CONFIG_SCHEMA = (
     cv.Schema(
         {
             cv.Required(CONF_ID): cv.declare_id(PCA9554Component),
+
             cv.Optional(CONF_DEVICE, default="NONE"): cv.enum(
                 PCA9554_DEVICE_TYPES, upper=True
             ),
@@ -124,6 +127,7 @@ CONFIG_SCHEMA = (
             # defintion above.
             cv.Optional(CONF_PIN_COUNT): cv.one_of(4, 8, 16),
             cv.Optional(CONF_INTERRUPT_PIN): pins.internal_gpio_input_pin_schema,
+            # cv.Optional(CONF_INTERRUPT_PIN): gpio_expander.validate_interrupt_pin,
         }
     )
     .extend(cv.COMPONENT_SCHEMA)
@@ -133,7 +137,7 @@ CONFIG_SCHEMA = (
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     device_dict = PCA9554_DEVICE_TYPES[config[CONF_DEVICE]]
 
@@ -155,7 +159,8 @@ async def to_code(config):
         cg.add(var.set_interrupt_pin(await cg.gpio_pin_expression(interrupt_pin)))
 
 
-def validate_mode(value):
+
+def validate_mode(value: ConfigType) -> ConfigType:
     # Note: here we cannot validate that the modes entered are supported by the
     # device, only that the modes entered are compatible.
     if not (value[CONF_INPUT] or value[CONF_OUTPUT]):
@@ -194,7 +199,9 @@ PCA9554_PIN_SCHEMA = pins.gpio_base_schema(
 )
 
 
-def pca9554_pin_final_validate(pin_config, parent_config):
+def pca9554_pin_final_validate(
+    pin_config: ConfigType, parent_config: ConfigType
+) -> None:
     device_name = parent_config[CONF_DEVICE]
     device_dict = PCA9554_DEVICE_TYPES[device_name]
 
@@ -219,7 +226,7 @@ def pca9554_pin_final_validate(pin_config, parent_config):
 @pins.PIN_SCHEMA_REGISTRY.register(
     CONF_PCA9554, PCA9554_PIN_SCHEMA, pca9554_pin_final_validate
 )
-async def pca9554_pin_to_code(config):
+async def pca9554_pin_to_code(config: ConfigType) -> MockObj:
     var = cg.new_Pvariable(config[CONF_ID])
     parent = await cg.get_variable(config[CONF_PCA9554])
 

@@ -14,12 +14,7 @@ from esphome.const import (
 )
 from esphome.core import CORE, TimePeriod
 
-from . import (  # noqa: F401  pylint: disable=unused-import
-    FILTER_SOURCE_FILES,
-    Nextion,
-    nextion_ns,
-    nextion_ref,
-)
+from . import FILTER_SOURCE_FILES, Nextion, nextion_ns, nextion_ref  # noqa: F401  pylint: disable=unused-import
 from .base_component import (
     CONF_AUTO_WAKE_ON_TOUCH,
     CONF_COMMAND_SPACING,
@@ -290,7 +285,9 @@ async def to_code(config):
 
         if CORE.is_esp32:
             # Re-enable ESP-IDF's HTTP client (excluded by default to save compile time)
+            # and esp-tls, whose sdkconfig options below need the component present
             esp32.include_builtin_idf_component("esp_http_client")
+            esp32.include_builtin_idf_component("esp-tls")
             esp32.add_idf_sdkconfig_option("CONFIG_ESP_TLS_INSECURE", True)
             esp32.add_idf_sdkconfig_option(
                 "CONFIG_ESP_TLS_SKIP_SERVER_CERT_VERIFY", True
