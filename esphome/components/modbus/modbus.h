@@ -115,9 +115,9 @@ enum class FrameState : uint8_t {
 struct CommandOptions {
   // A continuous poll lives in the queue until cancelled or failed; ignored for mutating codes.
   bool continuous{false};
-  // Send a read to the broadcast address (0) and wait for its reply, for devices that answer address 0
-  // (a lone device of unknown unit id, or one that treats 0 as its own). Ignored for broadcastable
-  // codes (writes, custom), which are real broadcasts; inert for a unicast address.
+  // Send a read to the broadcast address (0) and wait for its reply, for a device that does not follow the
+  // Modbus spec and replies to the broadcast address. Ignored for broadcastable codes (writes, custom),
+  // which are real broadcasts; inert for a unicast address.
   bool allow_broadcast_read{false};
   // Send a write to the broadcast address (0) and wait for its reply, the write-side twin of
   // allow_broadcast_read. Ignored for codes that are not broadcastable (reads); inert for a unicast address.
