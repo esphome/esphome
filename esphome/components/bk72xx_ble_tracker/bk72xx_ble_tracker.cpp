@@ -69,8 +69,9 @@ void BK72xxBLETracker::on_ota_global_state(ota::OTAState state, float progress, 
     this->stop_scan();
     // The transfer starves the loop; a deferred stop would leave the radio
     // scanning for the whole update, so drain it here, bounded.
-    if (!this->parent_->flush_pending_stop(OTA_STOP_FLUSH_MS))
+    if (!this->parent_->flush_pending_stop(OTA_STOP_FLUSH_MS)) {
       ESP_LOGE(TAG, "Scan still stopping at OTA start; the radio may contend with the update");
+    }
   } else if (state == ota::OTA_ERROR || state == ota::OTA_ABORT) {
     // On success the device reboots, so restore only on a failed/aborted update;
     // loop() restarts the scan on its next iteration (continuous idle branch).
@@ -364,7 +365,8 @@ bool BK72xxBLETracker::request_scan_mode(bool active) {
   if (this->scan_active_ == active)
     return true;
   this->scan_active_ = active;
-  ESP_LOGD(TAG, "Scan mode %s", active ? "active" : "passive");
+  // V: the proxy's "Setting scanner mode" line already narrates this at D.
+  ESP_LOGV(TAG, "Scan mode %s", active ? "active" : "passive");
   // The controller reconciler restarts a running scan itself; the scan stays
   // logically running. An idle scanner picks the mode up on its next start.
   if (this->scan_running_)

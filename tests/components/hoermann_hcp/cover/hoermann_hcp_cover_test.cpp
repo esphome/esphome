@@ -2,36 +2,9 @@
 
 #include "esphome/components/hoermann_hcp/cover/hoermann_hcp_cover.h"
 
-namespace esphome::hoermann_hcp {
+#include "../common.h"
 
-using modbus::RegisterValues;
-
-namespace {
-
-constexpr uint16_t COMMAND_REG = 0x9C41;
-constexpr uint16_t STATE_REG = 0x9CB9;
-constexpr uint16_t BROADCAST_REG = 0x9D31;
-
-RegisterValues make_registers(std::initializer_list<uint16_t> values) {
-  RegisterValues registers;
-  for (uint16_t value : values)
-    registers.push_back(value);
-  return registers;
-}
-
-// The door only accepts commands once the bus controller has actually talked to it.
-void connect(HoermannHcp &door) { door.on_write_registers(COMMAND_REG, make_registers({0x0000, 0x0000})); }
-
-// Runs one command poll (write 2 / read 8) and returns the register carrying the key-press value.
-uint16_t poll_command(HoermannHcp &door) {
-  door.on_write_registers(COMMAND_REG, make_registers({0x0000, 0x0000}));
-  RegisterValues response;
-  door.on_read_holding_registers(STATE_REG, 8, response);
-  EXPECT_EQ(response.size(), 8u);
-  return response.size() == 8u ? response[2] : 0xFFFF;
-}
-
-}  // namespace
+namespace esphome::hoermann_hcp::testing {
 
 // Cover::position starts at COVER_OPEN, so a door that is already closed still has a state to publish.
 TEST(HoermannHcpCoverTest, ClosedDoorPublishesItsInitialPosition) {
@@ -92,10 +65,10 @@ TEST(HoermannHcpCoverTest, OpenCommandOpensTheDoor) {
   HoermannHcp door;
   HoermannHcpCover cover(&door);
   cover.setup();
-  connect(door);
+  connect_controller(door);
 
   cover.make_call().set_command_open().perform();
-  EXPECT_EQ(poll_command(door), 0x0210);  // COMMAND_OPEN pressed
+  EXPECT_EQ(poll_command(door).first, 0x0210);  // COMMAND_OPEN pressed
 }
 
 // The same for cover.close, which arrives as a position of 0.0.
@@ -103,32 +76,32 @@ TEST(HoermannHcpCoverTest, CloseCommandClosesTheDoor) {
   HoermannHcp door;
   HoermannHcpCover cover(&door);
   cover.setup();
-  connect(door);
+  connect_controller(door);
 
   cover.make_call().set_command_close().perform();
-  EXPECT_EQ(poll_command(door), 0x0220);  // COMMAND_CLOSE pressed
+  EXPECT_EQ(poll_command(door).first, 0x0220);  // COMMAND_CLOSE pressed
 }
 
 TEST(HoermannHcpCoverTest, ToggleCommandSendsAnImpulse) {
   HoermannHcp door;
   HoermannHcpCover cover(&door);
   cover.setup();
-  connect(door);
+  connect_controller(door);
 
   cover.make_call().set_command_toggle().perform();
-  EXPECT_EQ(poll_command(door), 0x0240);  // COMMAND_IMPULSE pressed
+  EXPECT_EQ(poll_command(door).first, 0x0240);  // COMMAND_IMPULSE pressed
 }
 
 TEST(HoermannHcpCoverTest, StopCommandStopsAMovingDoor) {
   HoermannHcp door;
   HoermannHcpCover cover(&door);
   cover.setup();
-  connect(door);
+  connect_controller(door);
   // The door is opening, so it takes an impulse to stop it.
   door.on_write_registers(BROADCAST_REG, make_registers({0x0000, 0x0064, 0x0100}));
 
   cover.make_call().set_command_stop().perform();
-  EXPECT_EQ(poll_command(door), 0x0240);  // COMMAND_IMPULSE pressed
+  EXPECT_EQ(poll_command(door).first, 0x0240);  // COMMAND_IMPULSE pressed
 }
 
 // A position between the end stops starts the door in the right direction; it is stopped there later.
@@ -136,10 +109,10 @@ TEST(HoermannHcpCoverTest, PositionCommandStartsTheDoorTowardsTheTarget) {
   HoermannHcp door;  // starts out fully closed
   HoermannHcpCover cover(&door);
   cover.setup();
-  connect(door);
+  connect_controller(door);
 
   cover.make_call().set_position(0.5f).perform();
-  EXPECT_EQ(poll_command(door), 0x0210);  // COMMAND_OPEN pressed
+  EXPECT_EQ(poll_command(door).first, 0x0210);  // COMMAND_OPEN pressed
 }
 
 // A command the door cannot take is assumed to have worked by whoever sent it, so the unchanged state has
@@ -153,7 +126,7 @@ TEST(HoermannHcpCoverTest, RefusedCommandPublishesTheUnchangedState) {
 
   cover.make_call().set_command_close().perform();
 
-  EXPECT_EQ(poll_command(door), 0x0000);
+  EXPECT_EQ(poll_command(door).first, 0x0000);
   EXPECT_EQ(publishes, 1);
   EXPECT_FLOAT_EQ(cover.position, cover::COVER_OPEN);
 }
@@ -166,9 +139,9 @@ TEST(HoermannHcpCoverTest, MissingBusControllerIsFlaggedUntilFirstContact) {
   cover.setup();
   EXPECT_TRUE(cover.status_has_warning());
 
-  connect(door);
+  connect_controller(door);
   door.update();
   EXPECT_FALSE(cover.status_has_warning());
 }
 
-}  // namespace esphome::hoermann_hcp
+}  // namespace esphome::hoermann_hcp::testing

@@ -20,7 +20,7 @@
 
 namespace esphome::bluetooth_connection {
 
-#ifdef USE_BLUETOOTH_PROXY
+#ifdef USE_BLUETOOTH_PROXY_CONNECTIONS
 class BluetoothConnection;
 #endif
 
@@ -56,6 +56,7 @@ class BluedroidGattClient final : public esp32_ble_tracker::ESPBTClient, public 
   void gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param) override;
   void connect() override;
   void disconnect() override;
+  void ble_before_disabled_event_handler() override;
   bool wants_parsed_advertisements() override { return false; }
   void on_scan_end() override {}
   bool parse_device(const ble_device_base::ESPBTDevice &device) override { return false; }
@@ -79,7 +80,7 @@ class BluedroidGattClient final : public esp32_ble_tracker::ESPBTClient, public 
   ble_device_base::GattServiceTable get_service_table() { return {}; }
   void release_services();
 
-#ifdef USE_BLUETOOTH_PROXY
+#ifdef USE_BLUETOOTH_PROXY_CONNECTIONS
   /// In-place service streamer (the proxy wrapper detects and prefers it):
   /// builds one api response batch directly from Bluedroid's cached database,
   /// so the streaming peak is the response itself - the old esp32 model.

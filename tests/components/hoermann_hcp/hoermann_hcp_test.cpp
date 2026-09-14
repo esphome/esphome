@@ -3,51 +3,9 @@
 #include <chrono>
 #include <thread>
 
-#include "esphome/components/hoermann_hcp/hoermann_hcp.h"
+#include "common.h"
 
-namespace esphome::hoermann_hcp {
-
-using modbus::RegisterValues;
-
-namespace {
-
-// Register block addresses the Hoermann bus controller polls (see hoermann_hcp.cpp).
-constexpr uint16_t COMMAND_REG = 0x9C41;
-constexpr uint16_t STATE_REG = 0x9CB9;
-constexpr uint16_t BROADCAST_REG = 0x9D31;
-
-// The tests shorten the key-press delay to zero, so the release only needs the millis() clock to tick on.
-constexpr auto KEY_PRESS_ELAPSED = std::chrono::milliseconds(2);
-
-RegisterValues make_registers(std::initializer_list<uint16_t> values) {
-  RegisterValues registers;
-  for (uint16_t value : values)
-    registers.push_back(value);
-  return registers;
-}
-
-// The device only accepts commands once the bus controller has actually talked to it.
-void connect(HoermannHcp &door) { door.on_write_registers(COMMAND_REG, make_registers({0x0000, 0x0000})); }
-
-// Runs one command poll (write 2 / read 8) and returns the register carrying the key-press value.
-uint16_t poll_command(HoermannHcp &door) {
-  door.on_write_registers(COMMAND_REG, make_registers({0x0000, 0x0000}));
-  RegisterValues response;
-  door.on_read_holding_registers(STATE_REG, 8, response);
-  EXPECT_EQ(response.size(), 8u);
-  return response.size() == 8u ? response[2] : 0xFFFF;
-}
-
-// Exposes the internal timings and the connection bookkeeping, so no test has to wait out a real delay.
-class TestableHoermannHcp : public HoermannHcp {
- public:
-  TestableHoermannHcp() { this->key_press_delay_ms_ = 0; }
-
-  using HoermannHcp::connection_timeout_ms_;
-  using HoermannHcp::set_valid_;
-};
-
-}  // namespace
+namespace esphome::hoermann_hcp::testing {
 
 // An empty poll (write 2 / read 2) answers with the fixed status word 0x0004.
 TEST(HoermannHcpReadWrite, EmptyPollReturnsStatusWord) {
@@ -91,7 +49,7 @@ TEST(HoermannHcpReadWrite, IdleCommandPollHasNoCommand) {
 // A queued control command is injected into the next command poll as a simulated key press.
 TEST(HoermannHcpReadWrite, QueuedCommandIsInjectedIntoPoll) {
   HoermannHcp door;
-  connect(door);
+  connect_controller(door);
   door.open_door();
   EXPECT_FALSE(door.on_write_registers(COMMAND_REG, make_registers({0x0000, 0x0000})).has_value());
   RegisterValues response;
@@ -113,31 +71,31 @@ TEST(HoermannHcpReadWrite, UnknownAddressIsRejected) {
 // A command is held for the key-press duration, then released, and only then can the next one be queued.
 TEST(HoermannHcpReadWrite, CommandIsReleasedAfterTheKeyPressDelay) {
   TestableHoermannHcp door;
-  connect(door);
+  connect_controller(door);
   door.open_door();
-  EXPECT_EQ(poll_command(door), 0x0210);  // COMMAND_OPEN pressed
+  EXPECT_EQ(poll_command(door).first, 0x0210);  // COMMAND_OPEN pressed
   // Refused while one is pending: were it accepted, the release below would carry COMMAND_CLOSE's 0x0120.
   door.close_door();
 
   std::this_thread::sleep_for(KEY_PRESS_ELAPSED);
-  EXPECT_EQ(poll_command(door), 0x0110);  // COMMAND_OPEN released
+  EXPECT_EQ(poll_command(door).first, 0x0110);  // COMMAND_OPEN released
   // With the command gone, the next one is accepted again.
   door.close_door();
-  EXPECT_EQ(poll_command(door), 0x0220);  // COMMAND_CLOSE pressed
+  EXPECT_EQ(poll_command(door).first, 0x0220);  // COMMAND_CLOSE pressed
 }
 
 // Commands issued while the bus controller is absent are dropped instead of firing when it returns.
 TEST(HoermannHcpReadWrite, CommandIsDroppedWhileDisconnected) {
   HoermannHcp door;
   door.open_door();
-  EXPECT_EQ(poll_command(door), 0x0000);
+  EXPECT_EQ(poll_command(door).first, 0x0000);
 }
 
 // Losing the controller must drop a command it never fetched, otherwise it blocks every later command
 // and fires unasked once the bus comes back.
 TEST(HoermannHcpReadWrite, ConnectionLossDropsThePendingCommand) {
   TestableHoermannHcp door;
-  connect(door);
+  connect_controller(door);
   door.open_door();
   ASSERT_TRUE(door.is_valid());
 
@@ -145,10 +103,10 @@ TEST(HoermannHcpReadWrite, ConnectionLossDropsThePendingCommand) {
   EXPECT_FALSE(door.is_valid());
 
   // The reconnecting poll must not replay the dropped command.
-  EXPECT_EQ(poll_command(door), 0x0000);
+  EXPECT_EQ(poll_command(door).first, 0x0000);
   // And the slot is free, so a new command is accepted.
   door.close_door();
-  EXPECT_EQ(poll_command(door), 0x0220);
+  EXPECT_EQ(poll_command(door).first, 0x0220);
 }
 
 // The connection is dropped by update() once the controller stops polling, which is what releases a
@@ -157,7 +115,7 @@ TEST(HoermannHcpReadWrite, PollingTimeoutDropsTheConnection) {
   TestableHoermannHcp door;
   // Wide enough that a stall cannot expire the connection before the check below runs.
   door.connection_timeout_ms_ = 10000;
-  connect(door);
+  connect_controller(door);
   door.open_door();
 
   // Still inside the window: the controller counts as present.
@@ -170,7 +128,7 @@ TEST(HoermannHcpReadWrite, PollingTimeoutDropsTheConnection) {
   door.update();
   EXPECT_FALSE(door.is_valid());
   // The pending command went with the connection instead of firing on the reconnecting poll.
-  EXPECT_EQ(poll_command(door), 0x0000);
+  EXPECT_EQ(poll_command(door).first, 0x0000);
 }
 
 // Status broadcasts alone keep the connection alive, so a command the controller never fetches has to
@@ -178,7 +136,7 @@ TEST(HoermannHcpReadWrite, PollingTimeoutDropsTheConnection) {
 TEST(HoermannHcpReadWrite, UnfetchedCommandExpiresWhileConnected) {
   TestableHoermannHcp door;
   door.connection_timeout_ms_ = 200;
-  connect(door);
+  connect_controller(door);
   door.open_door();
 
   std::this_thread::sleep_for(std::chrono::milliseconds(220));
@@ -189,7 +147,7 @@ TEST(HoermannHcpReadWrite, UnfetchedCommandExpiresWhileConnected) {
 
   // With the stale command gone, the door accepts commands again.
   door.close_door();
-  EXPECT_EQ(poll_command(door), 0x0220);
+  EXPECT_EQ(poll_command(door).first, 0x0220);
 }
 
 // The 0x17 read half echoes the message counter and command byte written to COMMAND_REG, packed
@@ -272,7 +230,7 @@ TEST(HoermannHcpWrite, EndStopsReportExactPositions) {
 // A position request below the lower snap threshold becomes a plain close command.
 TEST(HoermannHcpPosition, NearlyClosedTargetClosesTheDoor) {
   HoermannHcp door;
-  connect(door);
+  connect_controller(door);
   door.set_position(0.02f);
   RegisterValues response;
   door.on_read_holding_registers(STATE_REG, 8, response);
@@ -283,7 +241,7 @@ TEST(HoermannHcpPosition, NearlyClosedTargetClosesTheDoor) {
 // A half-open target starts the door moving towards the requested position.
 TEST(HoermannHcpPosition, HalfOpenTargetOpensTheDoor) {
   HoermannHcp door;  // starts out fully closed
-  connect(door);
+  connect_controller(door);
   door.set_position(0.5f);
   RegisterValues response;
   door.on_read_holding_registers(STATE_REG, 8, response);
@@ -294,31 +252,31 @@ TEST(HoermannHcpPosition, HalfOpenTargetOpensTheDoor) {
 // The door has no notion of a target, so it is stopped with an impulse once it travels past the request.
 TEST(HoermannHcpPosition, TargetPositionStopsTheDoor) {
   TestableHoermannHcp door;
-  connect(door);
+  connect_controller(door);
   door.set_position(0.5f);
-  EXPECT_EQ(poll_command(door), 0x0210);  // COMMAND_OPEN pressed
+  EXPECT_EQ(poll_command(door).first, 0x0210);  // COMMAND_OPEN pressed
   std::this_thread::sleep_for(KEY_PRESS_ELAPSED);
-  EXPECT_EQ(poll_command(door), 0x0110);  // COMMAND_OPEN released
+  EXPECT_EQ(poll_command(door).first, 0x0110);  // COMMAND_OPEN released
 
   // Position 20/200 = 0.1 while opening: short of the target, so the door keeps going.
   door.on_write_registers(BROADCAST_REG, make_registers({0x0000, 0x0014, 0x0100}));
   ASSERT_EQ(door.get_door_state(), DoorState::OPENING);
-  EXPECT_EQ(poll_command(door), 0x0000);
+  EXPECT_EQ(poll_command(door).first, 0x0000);
 
   // Position 120/200 = 0.6 is past the target, so the door is stopped.
   door.on_write_registers(BROADCAST_REG, make_registers({0x0000, 0x0078, 0x0100}));
-  EXPECT_EQ(poll_command(door), 0x0240);  // COMMAND_IMPULSE pressed
+  EXPECT_EQ(poll_command(door).first, 0x0240);  // COMMAND_IMPULSE pressed
 }
 
 // An impulse restarts a stopped door, so a frame reporting the stop and the target crossing at once
 // must be read as "already stopped" rather than "still opening".
 TEST(HoermannHcpPosition, StopReportedWithTheCrossingSendsNoImpulse) {
   TestableHoermannHcp door;
-  connect(door);
+  connect_controller(door);
   door.set_position(0.5f);
-  EXPECT_EQ(poll_command(door), 0x0210);
+  EXPECT_EQ(poll_command(door).first, 0x0210);
   std::this_thread::sleep_for(KEY_PRESS_ELAPSED);
-  EXPECT_EQ(poll_command(door), 0x0110);
+  EXPECT_EQ(poll_command(door).first, 0x0110);
 
   door.on_write_registers(BROADCAST_REG, make_registers({0x0000, 0x0014, 0x0100}));
   ASSERT_EQ(door.get_door_state(), DoorState::OPENING);
@@ -326,17 +284,17 @@ TEST(HoermannHcpPosition, StopReportedWithTheCrossingSendsNoImpulse) {
   // Same frame: position 0.6 (past the target) and state 0x20 -> the door has reached its open end stop.
   door.on_write_registers(BROADCAST_REG, make_registers({0x0000, 0x0078, 0x2000}));
   ASSERT_EQ(door.get_door_state(), DoorState::OPEN);
-  EXPECT_EQ(poll_command(door), 0x0000);
+  EXPECT_EQ(poll_command(door).first, 0x0000);
 }
 
 // A target the door never reaches is dropped once it comes to rest, so a later move is not cut short.
 TEST(HoermannHcpPosition, TargetIsDroppedWhenTheDoorStopsShort) {
   TestableHoermannHcp door;
-  connect(door);
+  connect_controller(door);
   door.set_position(0.5f);
-  EXPECT_EQ(poll_command(door), 0x0210);
+  EXPECT_EQ(poll_command(door).first, 0x0210);
   std::this_thread::sleep_for(KEY_PRESS_ELAPSED);
-  EXPECT_EQ(poll_command(door), 0x0110);
+  EXPECT_EQ(poll_command(door).first, 0x0110);
 
   // The door is stopped at 0.3 by a wall button, short of the requested 0.5.
   door.on_write_registers(BROADCAST_REG, make_registers({0x0000, 0x0014, 0x0100}));
@@ -346,48 +304,48 @@ TEST(HoermannHcpPosition, TargetIsDroppedWhenTheDoorStopsShort) {
   // A later manual open must run freely instead of being stopped at the abandoned target.
   door.on_write_registers(BROADCAST_REG, make_registers({0x0000, 0x0050, 0x0100}));
   door.on_write_registers(BROADCAST_REG, make_registers({0x0000, 0x0078, 0x0100}));
-  EXPECT_EQ(poll_command(door), 0x0000);
+  EXPECT_EQ(poll_command(door).first, 0x0000);
 }
 
 // A target armed while the door is still travelling the other way must not be judged by that old direction,
 // otherwise the very next position it reports counts as reached and stops the door where it stands.
 TEST(HoermannHcpPosition, TargetArmedWhileMovingTheOtherWayWaitsForTheTurnaround) {
   TestableHoermannHcp door;
-  connect(door);
+  connect_controller(door);
   // The door is closing, passing 60/200 = 0.3.
   door.on_write_registers(BROADCAST_REG, make_registers({0x0000, 0x003C, 0x0200}));
   ASSERT_EQ(door.get_door_state(), DoorState::CLOSING);
 
   door.set_position(0.5f);
-  EXPECT_EQ(poll_command(door), 0x0210);  // COMMAND_OPEN pressed
+  EXPECT_EQ(poll_command(door).first, 0x0210);  // COMMAND_OPEN pressed
   std::this_thread::sleep_for(KEY_PRESS_ELAPSED);
-  EXPECT_EQ(poll_command(door), 0x0110);  // COMMAND_OPEN released
+  EXPECT_EQ(poll_command(door).first, 0x0110);  // COMMAND_OPEN released
 
   // Still closing at 58/200 = 0.29: below the target, but not on the way to it.
   door.on_write_registers(BROADCAST_REG, make_registers({0x0000, 0x003A, 0x0200}));
-  EXPECT_EQ(poll_command(door), 0x0000);
+  EXPECT_EQ(poll_command(door).first, 0x0000);
 
   // Now opening at 62/200 = 0.31, still short of the target.
   door.on_write_registers(BROADCAST_REG, make_registers({0x0000, 0x003E, 0x0100}));
-  EXPECT_EQ(poll_command(door), 0x0000);
+  EXPECT_EQ(poll_command(door).first, 0x0000);
 
   // Past the target at 110/200 = 0.55, so the door is stopped.
   door.on_write_registers(BROADCAST_REG, make_registers({0x0000, 0x006E, 0x0100}));
-  EXPECT_EQ(poll_command(door), 0x0240);  // COMMAND_IMPULSE pressed
+  EXPECT_EQ(poll_command(door).first, 0x0240);  // COMMAND_IMPULSE pressed
 }
 
 // A motor turning around can report a momentary stop; dropping the target there would let the door run on
 // to the end stop that the reversing command asked for.
 TEST(HoermannHcpPosition, MomentaryStopWhileTurningAroundKeepsTheTarget) {
   TestableHoermannHcp door;
-  connect(door);
+  connect_controller(door);
   door.on_write_registers(BROADCAST_REG, make_registers({0x0000, 0x003C, 0x0200}));
   ASSERT_EQ(door.get_door_state(), DoorState::CLOSING);
 
   door.set_position(0.5f);
-  EXPECT_EQ(poll_command(door), 0x0210);
+  EXPECT_EQ(poll_command(door).first, 0x0210);
   std::this_thread::sleep_for(KEY_PRESS_ELAPSED);
-  EXPECT_EQ(poll_command(door), 0x0110);
+  EXPECT_EQ(poll_command(door).first, 0x0110);
 
   // The stop reported on the way from closing to opening.
   door.on_write_registers(BROADCAST_REG, make_registers({0x0000, 0x003C, 0x0000}));
@@ -395,23 +353,23 @@ TEST(HoermannHcpPosition, MomentaryStopWhileTurningAroundKeepsTheTarget) {
 
   // The door then opens and still has to be stopped at the requested position.
   door.on_write_registers(BROADCAST_REG, make_registers({0x0000, 0x003E, 0x0100}));
-  EXPECT_EQ(poll_command(door), 0x0000);
+  EXPECT_EQ(poll_command(door).first, 0x0000);
   door.on_write_registers(BROADCAST_REG, make_registers({0x0000, 0x006E, 0x0100}));
-  EXPECT_EQ(poll_command(door), 0x0240);
+  EXPECT_EQ(poll_command(door).first, 0x0240);
 }
 
 // A door that never turns around has to lose the target as well, otherwise it would cut a later move short.
 TEST(HoermannHcpPosition, TargetIsDroppedWhenTheDoorNeverTurnsAround) {
   TestableHoermannHcp door;
   door.connection_timeout_ms_ = 200;
-  connect(door);
+  connect_controller(door);
   door.on_write_registers(BROADCAST_REG, make_registers({0x0000, 0x003C, 0x0200}));
   ASSERT_EQ(door.get_door_state(), DoorState::CLOSING);
 
   door.set_position(0.5f);
-  EXPECT_EQ(poll_command(door), 0x0210);
+  EXPECT_EQ(poll_command(door).first, 0x0210);
   std::this_thread::sleep_for(KEY_PRESS_ELAPSED);
-  EXPECT_EQ(poll_command(door), 0x0110);
+  EXPECT_EQ(poll_command(door).first, 0x0110);
 
   std::this_thread::sleep_for(std::chrono::milliseconds(220));
   // The door ignored the command and closed all the way. Its broadcast keeps the connection alive, so the
@@ -424,7 +382,7 @@ TEST(HoermannHcpPosition, TargetIsDroppedWhenTheDoorNeverTurnsAround) {
   // A later manual open must run freely instead of being stopped at the abandoned target.
   door.on_write_registers(BROADCAST_REG, make_registers({0x0000, 0x003E, 0x0100}));
   door.on_write_registers(BROADCAST_REG, make_registers({0x0000, 0x006E, 0x0100}));
-  EXPECT_EQ(poll_command(door), 0x0000);
+  EXPECT_EQ(poll_command(door).first, 0x0000);
 }
 
-}  // namespace esphome::hoermann_hcp
+}  // namespace esphome::hoermann_hcp::testing

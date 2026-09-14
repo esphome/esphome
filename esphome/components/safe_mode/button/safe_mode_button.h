@@ -9,7 +9,7 @@ namespace esphome::safe_mode {
 class SafeModeButton final : public button::Button, public Component {
  public:
   void dump_config() override;
-  void set_safe_mode(SafeModeComponent *safe_mode_component);
+  void set_safe_mode(SafeModeComponent *safe_mode_component) { this->safe_mode_component_ = safe_mode_component; }
 
  protected:
   SafeModeComponent *safe_mode_component_;

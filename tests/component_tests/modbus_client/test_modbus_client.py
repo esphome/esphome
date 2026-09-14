@@ -16,7 +16,13 @@ from esphome.components.modbus_client import (
     CONFIG_SCHEMA,
     MODBUS_CLIENT_SEND_SCHEMA,
 )
-from esphome.const import CONF_ADDRESS, CONF_ID, CONF_ON_ERROR, CONF_ON_RESPONSE
+from esphome.const import (
+    CONF_ADDRESS,
+    CONF_CONTINUOUS,
+    CONF_ID,
+    CONF_ON_ERROR,
+    CONF_ON_RESPONSE,
+)
 from esphome.core import Lambda
 from esphome.types import ConfigType
 
@@ -114,6 +120,29 @@ def test_on_no_response_retry_lambda_accepted() -> None:
                 "then": [SYNCHRONOUS_ACTION],
                 "retry": Lambda("return true;"),
             },
+        }
+    )
+
+
+def test_continuous_on_write_pdu_rejected() -> None:
+    """A literal write-code PDU with continuous: true is rejected at config time (reads only)."""
+    with pytest.raises(cv.Invalid, match="does not apply to a write PDU"):
+        MODBUS_CLIENT_SEND_SCHEMA(
+            {
+                CONF_ADDRESS: 0x01,
+                CONF_PDU: [0x06, 0x00, 0x01, 0x00, 0x0A],
+                CONF_CONTINUOUS: True,
+            }
+        )
+
+
+def test_continuous_on_read_pdu_accepted() -> None:
+    """A literal read-code PDU with continuous: true is fine - continuous polling applies to reads."""
+    MODBUS_CLIENT_SEND_SCHEMA(
+        {
+            CONF_ADDRESS: 0x01,
+            CONF_PDU: [0x03, 0x00, 0x10, 0x00, 0x01],
+            CONF_CONTINUOUS: True,
         }
     )
 
