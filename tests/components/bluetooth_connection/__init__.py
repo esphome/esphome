@@ -14,7 +14,6 @@ def override_manifest(manifest: ComponentManifestOverride) -> None:
         # Gates the connection half of the API surface, which is what
         # close_service_batch and the GATT response types live behind.
         cg.add_define("USE_BLUETOOTH_PROXY_CONNECTIONS")
-        cg.add_define("BLUETOOTH_PROXY_ADVERTISEMENT_BATCH_SIZE", 16)
         cg.add_define("BLUETOOTH_PROXY_MAX_CONNECTIONS", 1)
 
     manifest.to_code = to_code_testing
