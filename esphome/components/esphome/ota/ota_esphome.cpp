@@ -41,7 +41,10 @@ const noise::NoiseContext &ESPHomeOTAComponent::noise_context_() const {
 #endif
 static constexpr uint16_t OTA_BLOCK_SIZE = 8192;
 static constexpr uint32_t OTA_SOCKET_TIMEOUT_HANDSHAKE = 20000;  // milliseconds for initial handshake
-static constexpr uint32_t OTA_SOCKET_TIMEOUT_DATA = 90000;       // milliseconds for data transfer
+// Milliseconds for data transfer. Covers the lwIP retransmit run seen in
+// practice for a lost chunk ack (1.5 + 3 + 6 + 12 + 24 + 48 s); the CLI waits
+// longer (espota2.DATA_PHASE_TIMEOUT) so the device is free before it retries
+static constexpr uint32_t OTA_SOCKET_TIMEOUT_DATA = 105000;
 
 // Single-instance pointer — multi-port configs are rejected in final_validate.
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
@@ -839,7 +842,14 @@ bool ESPHomeOTAComponent::handle_auth_send_() {
     const size_t hex_size = hasher.get_size() * 2;
     const size_t nonce_len = hasher.get_size() / 4;
     const size_t auth_buf_size = 1 + 3 * hex_size;
-    this->auth_buf_ = std::make_unique<uint8_t[]>(auth_buf_size);
+    // Internal RAM first: 128 of these bytes go straight into the hardware SHA engine
+    this->auth_buf_ =
+        RAMAllocator<uint8_t>(RAMAllocator<uint8_t>::PREFER_INTERNAL).make_unique_array_for_overwrite(auth_buf_size);
+    if (!this->auth_buf_) {
+      this->log_auth_warning_(LOG_STR("No memory"));
+      this->send_error_and_cleanup_(ota::OTA_RESPONSE_ERROR_UNKNOWN);
+      return false;
+    }
     this->auth_buf_pos_ = 0;
 
     char *buf = reinterpret_cast<char *>(this->auth_buf_.get() + 1);
