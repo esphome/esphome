@@ -829,7 +829,6 @@ void SpeakerSourceMediaPlayer::set_volume_(float volume, bool publish) {
     }
   }
 
-  // Volume and mute are independent (Sendspin: volume must not clear mute).
   if (publish) {
     this->save_volume_restore_state_();
   }
