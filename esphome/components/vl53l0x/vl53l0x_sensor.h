@@ -78,10 +78,12 @@ class VL53L0XSensor final : public sensor::Sensor, public PollingComponent, publ
   static constexpr uint8_t MAX_RECOVERY_ATTEMPTS = 5;
   uint8_t consecutive_stalls_{0};
   uint8_t recovery_attempts_{0};
-  // Backoff - while set (in the future), the driver stays completely off the
-  // I2C bus. Hammering a wedged bus feeds an ESP-IDF i2c_master bug that
-  // crashes the whole ESP after "I2C hardware timeout".
-  uint32_t backoff_until_ms_{0};
+  // Backoff - while active, the driver stays completely off the I2C bus.
+  // Hammering a wedged bus feeds an ESP-IDF i2c_master bug that crashes the
+  // whole ESP after "I2C hardware timeout". Start+duration (not "until") so
+  // the comparison stays valid across the millis() rollover.
+  uint32_t backoff_start_ms_{0};
+  uint32_t backoff_duration_ms_{0};
 
   uint32_t timeout_us_{};
 
