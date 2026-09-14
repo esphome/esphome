@@ -30,53 +30,10 @@ using modbus::ModbusFunctionCode;
 using modbus::ModbusRegisterType;
 #pragma GCC diagnostic pop
 
-// Remove before 2026.10.0 — these helpers have moved to modbus::helpers
-ESPDEPRECATED("Use modbus::helpers::value_type_is_float() instead. Removed in 2026.10.0", "2026.4.0")
-inline bool value_type_is_float(SensorValueType v) { return modbus::helpers::value_type_is_float(v); }
-
-ESPDEPRECATED("Use modbus::helpers::modbus_register_read_function() instead. Removed in 2026.10.0", "2026.4.0")
-inline FunctionCode modbus_register_read_function(modbus::EntityType reg_type) {
-  return modbus::helpers::modbus_register_read_function(reg_type);
-}
-
-ESPDEPRECATED("Use modbus::helpers::modbus_register_write_function() instead. Removed in 2026.10.0", "2026.4.0")
-inline FunctionCode modbus_register_write_function(modbus::EntityType reg_type) {
-  return modbus::helpers::modbus_register_write_function(reg_type);
-}
-
-ESPDEPRECATED("Use modbus::helpers::c_to_hex() instead. Removed in 2026.10.0", "2026.4.0")
-inline uint8_t c_to_hex(char c) { return modbus::helpers::c_to_hex(c); }
-
-ESPDEPRECATED("Use modbus::helpers::byte_from_hex_str() instead. Removed in 2026.10.0", "2026.4.0")
-inline uint8_t byte_from_hex_str(const std::string &value, uint8_t pos) {
-  return modbus::helpers::byte_from_hex_str(value, pos);
-}
-
-ESPDEPRECATED("Use modbus::helpers::word_from_hex_str() instead. Removed in 2026.10.0", "2026.4.0")
-inline uint16_t word_from_hex_str(const std::string &value, uint8_t pos) {
-  return modbus::helpers::word_from_hex_str(value, pos);
-}
-
-ESPDEPRECATED("Use modbus::helpers::dword_from_hex_str() instead. Removed in 2026.10.0", "2026.4.0")
-inline uint32_t dword_from_hex_str(const std::string &value, uint8_t pos) {
-  return modbus::helpers::dword_from_hex_str(value, pos);
-}
-
-ESPDEPRECATED("Use modbus::helpers::qword_from_hex_str() instead. Removed in 2026.10.0", "2026.4.0")
-inline uint64_t qword_from_hex_str(const std::string &value, uint8_t pos) {
-  return modbus::helpers::qword_from_hex_str(value, pos);
-}
-
-template<typename T>
-ESPDEPRECATED("Use modbus::helpers::get_data() instead. Removed in 2026.10.0", "2026.4.0")
-T get_data(const std::vector<uint8_t> &data, size_t buffer_offset) {
-  return modbus::helpers::get_data<T>(data, buffer_offset);
-}
-
-// Span overloads of the deprecated helpers below: read lambdas receive their payload as a
+// Span overloads of the former modbus_controller helpers: read lambdas receive their payload as a
 // std::span<const uint8_t> (previously a const std::vector<uint8_t> &), and a span does not convert to
 // a vector, so existing lambdas calling these by name need an overload that accepts one. These carry
-// this release's deprecation window, since the span forms only exist from it.
+// the 2026.8.0 deprecation window, since the span forms only exist from it.
 // payload_to_number() deliberately has no such overload: one of its arguments is a modbus::helpers
 // type, so a span call already reaches the helper by argument-dependent lookup, and a forwarder here
 // would only make that call ambiguous.
@@ -98,33 +55,6 @@ ESPDEPRECATED("Use modbus::helpers::bit_from_packed() instead. Removed in 2027.2
 inline bool coil_from_vector(int coil, std::span<const uint8_t> data) {
   return modbus::helpers::bit_from_packed(coil, data);
 }
-
-template<typename N>
-ESPDEPRECATED("Use modbus::helpers::mask_and_shift_by_rightbit() instead. Removed in 2026.10.0", "2026.4.0")
-N mask_and_shift_by_rightbit(N data, uint32_t mask) {
-  return modbus::helpers::mask_and_shift_by_rightbit(data, mask);
-}
-
-ESPDEPRECATED("Use modbus::helpers::number_to_payload() instead. Removed in 2026.10.0", "2026.4.0")
-inline void number_to_payload(std::vector<uint16_t> &data, int64_t value, SensorValueType value_type) {
-  modbus::helpers::number_to_payload(data, value, value_type);
-}
-
-ESPDEPRECATED("Use modbus::helpers::payload_to_number() instead. Removed in 2026.10.0", "2026.4.0")
-inline int64_t payload_to_number(const std::vector<uint8_t> &data, SensorValueType sensor_value_type, uint8_t offset,
-                                 uint32_t bitmask) {
-  return modbus::helpers::payload_to_number(std::span<const uint8_t>(data), sensor_value_type, offset, bitmask)
-      .value_or(0);
-}
-
-ESPDEPRECATED("Use modbus::helpers::float_to_payload() instead. Removed in 2026.10.0", "2026.4.0")
-inline std::vector<uint16_t> float_to_payload(float value, SensorValueType value_type) {
-  std::vector<uint16_t> data;
-  modbus::helpers::float_to_payload(data, value, value_type);
-  return data;
-}
-
-class ModbusController;
 
 /// How an item relates to the register range built just before it (same register type, address order).
 /// The numeric order doubles as the comparator tiebreak for items at the same address (see
