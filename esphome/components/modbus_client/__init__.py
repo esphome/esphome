@@ -174,6 +174,23 @@ def _no_read_options_on_write(config: ConfigType) -> ConfigType:
     return config
 
 
+def _no_write_options_on_read(config: ConfigType) -> ConfigType:
+    """The mirror of _no_read_options_on_write: a write option set true on a static read PDU is refused."""
+    pdu = config[CONF_PDU]
+    if not isinstance(pdu, list) or modbus.is_function_code_write(pdu[0]):
+        return config
+    for key in modbus.command_option_keys("write"):
+        if config.get(key) is True:
+            raise cv.Invalid(
+                f"'{key}: true' does not apply to a read PDU (function code 0x{pdu[0]:02X}); "
+                f"it only applies to writes",
+                path=[key],
+            )
+    return config
+
+
+# A raw PDU may be a read or a write, so send offers both option sets; the static validators above
+# reject the set that does not match a static PDU, and the hub strips it at runtime for a templated one.
 MODBUS_CLIENT_SEND_SCHEMA = cv.All(
     _ACTION_BASE_SCHEMA.extend(
         {
@@ -184,10 +201,12 @@ MODBUS_CLIENT_SEND_SCHEMA = cv.All(
                 )
             ),
             **modbus.command_options_schema(direction="read", templatable=True),
+            **modbus.command_options_schema(direction="write", templatable=True),
             cv.Optional(CONF_ON_RESPONSE): _handler_schema(),
         }
     ),
     _no_read_options_on_write,
+    _no_write_options_on_read,
 )
 
 
@@ -259,8 +278,7 @@ async def register_client_action(
             var.get_not_sent_trigger(), [(_PDU_SPAN, "request")], not_sent_conf
         )
     # Wire any command options the action's schema opted into (e.g. continuous on reads). Pass the
-    # matching direction so a write action never generates a read option's setter; the write side
-    # has no options yet, so this is a no-op there.
+    # matching direction so a write action never generates a read option's setter.
     await modbus.register_templatable_command_options(
         var, config, args, command_direction
     )
@@ -277,6 +295,8 @@ async def modbus_client_send_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
     template_ = await cg.templatable(config[CONF_PDU], args, _PDU_BUFFER)
     cg.add(var.set_pdu(template_))
+    # send carries both option sets (its PDU may be either direction); the read set is wired below.
+    await modbus.register_templatable_command_options(var, config, args, "write")
     return await register_client_action(
         var,
         config,
@@ -362,6 +382,7 @@ def _write_multiple_schema(item: Callable[[Any], Any], max_values: int) -> cv.Al
                 cv.Required(CONF_VALUES): cv.templatable(
                     cv.All(cv.ensure_list(item), cv.Length(min=1, max=max_values))
                 ),
+                **modbus.command_options_schema(direction="write", templatable=True),
             }
         ),
         _no_address_overflow(CONF_VALUES),
@@ -371,12 +392,18 @@ def _write_multiple_schema(item: Callable[[Any], Any], max_values: int) -> cv.Al
 _READ_REGISTERS_SCHEMA = _read_schema(modbus.MAX_NUM_OF_REGISTERS_TO_READ)
 
 _WRITE_SINGLE_REGISTER_SCHEMA = _TYPED_ACTION_SCHEMA.extend(
-    {cv.Required(CONF_VALUE): cv.templatable(cv.hex_uint16_t)}
+    {
+        cv.Required(CONF_VALUE): cv.templatable(cv.hex_uint16_t),
+        **modbus.command_options_schema(direction="write", templatable=True),
+    }
 )
 
 # A coil is one bit, so the value is a boolean - the wire only carries 0x0000 or 0xFF00.
 _WRITE_SINGLE_COIL_SCHEMA = _TYPED_ACTION_SCHEMA.extend(
-    {cv.Required(CONF_VALUE): cv.templatable(cv.boolean)}
+    {
+        cv.Required(CONF_VALUE): cv.templatable(cv.boolean),
+        **modbus.command_options_schema(direction="write", templatable=True),
+    }
 )
 
 

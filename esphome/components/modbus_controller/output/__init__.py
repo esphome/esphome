@@ -1,7 +1,7 @@
 import logging
 
 import esphome.codegen as cg
-from esphome.components import output
+from esphome.components import modbus, output
 from esphome.components.modbus.helpers import (
     SENSOR_VALUE_TYPE,
     PduBuffer,
@@ -79,6 +79,7 @@ CONFIG_SCHEMA = cv.All(
                     ),
                     cv.Optional(CONF_WRITE_LAMBDA): cv.returning_lambda,
                     cv.Optional(CONF_USE_WRITE_MULTIPLE, default=False): cv.boolean,
+                    **modbus.command_options_schema(direction="write"),
                 }
             ),
             "holding": cv.All(
@@ -98,6 +99,7 @@ CONFIG_SCHEMA = cv.All(
                         cv.Optional(CONF_WRITE_LAMBDA): cv.returning_lambda,
                         cv.Optional(CONF_MULTIPLY, default=1.0): cv.float_,
                         cv.Optional(CONF_USE_WRITE_MULTIPLE, default=False): cv.boolean,
+                        **modbus.command_options_schema(direction="write"),
                     }
                 ),
                 reject_odd_holding_write_offset,
@@ -153,6 +155,11 @@ async def to_code(config: ConfigType) -> None:
     await output.register_output(var, config)
     parent = await cg.get_variable(config[CONF_MODBUS_CONTROLLER_ID])
     cg.add(var.set_use_write_mutiple(config[CONF_USE_WRITE_MULTIPLE]))
+    cg.add(
+        var.set_write_options(
+            modbus.command_options_expression(config, direction="write")
+        )
+    )
     cg.add(var.set_parent(parent))
     if write_template:
         cg.add(var.set_write_template(write_template))

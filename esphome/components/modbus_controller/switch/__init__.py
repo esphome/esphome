@@ -1,5 +1,5 @@
 import esphome.codegen as cg
-from esphome.components import switch
+from esphome.components import modbus, switch
 from esphome.components.modbus.helpers import MODBUS_REGISTER_TYPE, PduBuffer
 import esphome.config_validation as cv
 from esphome.const import CONF_ADDRESS, CONF_ASSUMED_STATE, CONF_ID
@@ -51,6 +51,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_ASSUMED_STATE, default=False): cv.boolean,
             cv.Optional(CONF_REGISTER_TYPE): cv.enum(MODBUS_REGISTER_TYPE),
             cv.Optional(CONF_USE_WRITE_MULTIPLE, default=False): cv.boolean,
+            **modbus.command_options_schema(direction="write"),
             cv.Optional(CONF_WRITE_LAMBDA): cv.returning_lambda,
         }
     ),
@@ -78,6 +79,11 @@ async def to_code(config: ConfigType) -> None:
     paren = await cg.get_variable(config[CONF_MODBUS_CONTROLLER_ID])
     cg.add(var.set_parent(paren))
     cg.add(var.set_use_write_mutiple(config[CONF_USE_WRITE_MULTIPLE]))
+    cg.add(
+        var.set_write_options(
+            modbus.command_options_expression(config, direction="write")
+        )
+    )
     assumed_state = config[CONF_ASSUMED_STATE]
     cg.add(var.set_assumed_state(assumed_state))
     if not assumed_state:

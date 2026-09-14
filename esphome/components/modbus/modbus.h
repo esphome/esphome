@@ -119,6 +119,9 @@ struct CommandOptions {
   // (a lone device of unknown unit id, or one that treats 0 as its own). Ignored for broadcastable
   // codes (writes, custom), which are real broadcasts; inert for a unicast address.
   bool allow_broadcast_read{false};
+  // Send a write to the broadcast address (0) and wait for its reply, the write-side twin of
+  // allow_broadcast_read. Ignored for codes that are not broadcastable (reads); inert for a unicast address.
+  bool expect_broadcast_write_response{false};
 };
 
 struct ModbusDeviceCommand {
@@ -162,10 +165,12 @@ struct ModbusDeviceCommand {
     this->pending = 0;
     this->device = nullptr;
   }
-  // True for a broadcast (address 0) that gets no reply (Modbus 4.1): every address-0 frame except a
-  // read sent with allow_broadcast_read, which waits for a response like a unicast read.
+  // True for a broadcast (address 0) that gets no reply (Modbus 4.1): every address-0 frame except one
+  // sent with allow_broadcast_read / expect_broadcast_write_response, which waits for a response like a
+  // unicast frame.
   bool fire_and_forget() const {
-    return this->frame.address() == BROADCAST_ADDRESS && !this->options.allow_broadcast_read;
+    return this->frame.address() == BROADCAST_ADDRESS && !this->options.allow_broadcast_read &&
+           !this->options.expect_broadcast_write_response;
   }
   // Fire-and-forget completion for a broadcast (address 0): the frame was transmitted (on_sent already
   // fired), but a broadcast is never answered (Modbus 4.1), so the entry retires with no terminal callback.
@@ -543,27 +548,27 @@ class ModbusClientDevice {
     return this->queue_pdu(
         helpers::create_read_pdu(FunctionCode::READ_DISCRETE_INPUTS, start_address, number_of_inputs), options);
   }
-  bool write_single_register(uint16_t start_address, uint16_t value) {
-    return this->queue_pdu(helpers::create_write_single_register_pdu(start_address, value));
+  bool write_single_register(uint16_t start_address, uint16_t value, CommandOptions options = {}) {
+    return this->queue_pdu(helpers::create_write_single_register_pdu(start_address, value), options);
   }
-  bool write_single_coil(uint16_t address, bool value) {
-    return this->queue_pdu(helpers::create_write_single_coil_pdu(address, value));
+  bool write_single_coil(uint16_t address, bool value, CommandOptions options = {}) {
+    return this->queue_pdu(helpers::create_write_single_coil_pdu(address, value), options);
   }
-  bool write_multiple_registers(uint16_t start_address, std::span<const uint16_t> values) {
+  bool write_multiple_registers(uint16_t start_address, std::span<const uint16_t> values, CommandOptions options = {}) {
     // Empty goes to the full-size builder so the rejection log names this method's limit, not the small one's.
     if (!values.empty() && values.size() <= helpers::MAX_FEW_REGISTERS)
-      return this->queue_pdu(helpers::create_write_few_registers_pdu(start_address, values));
-    return this->queue_pdu(helpers::create_write_registers_pdu(start_address, values));
+      return this->queue_pdu(helpers::create_write_few_registers_pdu(start_address, values), options);
+    return this->queue_pdu(helpers::create_write_registers_pdu(start_address, values), options);
   }
   /// Note: std::vector<bool> cannot bind to std::span<const bool>; use a contiguous bool container or the packed
   /// overload.
-  bool write_multiple_coils(uint16_t start_address, std::span<const bool> values) {
-    return this->queue_pdu(helpers::create_write_coils_pdu(start_address, values));
+  bool write_multiple_coils(uint16_t start_address, std::span<const bool> values, CommandOptions options = {}) {
+    return this->queue_pdu(helpers::create_write_coils_pdu(start_address, values), options);
   }
   /// Packed variant: a PackedBits view (the same layout on_read_coils() delivers), so
   /// read-modify-write needs no unpack/repack.
-  bool write_multiple_coils(uint16_t start_address, PackedBits bits) {
-    return this->queue_pdu(helpers::create_write_coils_pdu(start_address, bits));
+  bool write_multiple_coils(uint16_t start_address, PackedBits bits, CommandOptions options = {}) {
+    return this->queue_pdu(helpers::create_write_coils_pdu(start_address, bits), options);
   }
   /// FC 0x17: the read-back is delivered through on_read_holding_registers(), and a device exception
   /// (typically a rejected write half) arrives there too via its status - one callback handles both

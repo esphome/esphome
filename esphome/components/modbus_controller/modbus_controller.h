@@ -326,26 +326,29 @@ class WriterEntity {
   /// Whether the lambda called a request helper since the last clear_dispatched_(). Deliberately records
   /// the call, not the hub's accept/refuse: a refused lambda write must not fall through to the default write.
   bool dispatched() const { return this->device_.dispatched(); }
+  /// The entity's write-side options (modbus::CommandOptions), sent with every write helper below.
+  void set_write_options(modbus::CommandOptions options) { this->write_options_ = options; }
   bool write_single_register(uint16_t address, uint16_t value) {
     this->device_.set_dispatched();
-    return this->device_.write_single_register(address, value);
+    return this->device_.write_single_register(address, value, this->write_options_);
   }
   bool write_single_coil(uint16_t address, bool value) {
     this->device_.set_dispatched();
-    return this->device_.write_single_coil(address, value);
+    return this->device_.write_single_coil(address, value, this->write_options_);
   }
   bool write_multiple_registers(uint16_t address, std::span<const uint16_t> values) {
     this->device_.set_dispatched();
-    return this->device_.write_multiple_registers(address, values);
+    return this->device_.write_multiple_registers(address, values, this->write_options_);
   }
   bool write_multiple_coils(uint16_t address, std::span<const bool> values) {
     this->device_.set_dispatched();
-    return this->device_.write_multiple_coils(address, values);
+    return this->device_.write_multiple_coils(address, values, this->write_options_);
   }
   bool write_multiple_coils(uint16_t address, modbus::PackedBits bits) {
     this->device_.set_dispatched();
-    return this->device_.write_multiple_coils(address, bits);
+    return this->device_.write_multiple_coils(address, bits, this->write_options_);
   }
+  /// A custom PDU takes its own options; the entity's write options are not merged in.
   bool queue_pdu(std::span<const uint8_t> pdu, modbus::CommandOptions options = {}) {
     this->device_.set_dispatched();
     return this->device_.queue_pdu(pdu, options);
@@ -366,6 +369,7 @@ class WriterEntity {
  private:
   // Private so a derived entity cannot reach the device except through the recording forwarders above.
   WriterDevice device_;
+  modbus::CommandOptions write_options_{};
 };
 
 /// A persistent hub device that polls one register range - the read-side mirror of WriterDevice.

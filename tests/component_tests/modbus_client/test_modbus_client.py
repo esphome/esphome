@@ -215,3 +215,50 @@ def test_send_accepts_allow_broadcast_read_on_read_pdu() -> None:
         }
     )
     assert config[modbus.CONF_ALLOW_BROADCAST_READ] is True
+
+
+def test_send_rejects_write_option_on_static_read_pdu() -> None:
+    # The write-side option is refused on a static read PDU, the mirror of the read-option check.
+    key = modbus.CONF_EXPECT_BROADCAST_WRITE_RESPONSE
+    with pytest.raises(cv.Invalid, match=f"'{key}: true' does not apply to a read PDU"):
+        MODBUS_CLIENT_SEND_SCHEMA(
+            {CONF_ADDRESS: 0, CONF_PDU: [0x03, 0x00, 0x10, 0x00, 0x02], key: True}
+        )
+
+
+def test_send_accepts_write_option_on_static_write_pdu() -> None:
+    config = MODBUS_CLIENT_SEND_SCHEMA(
+        {
+            CONF_ADDRESS: 0,
+            CONF_PDU: [0x06, 0x00, 0x10, 0x00, 0x01],
+            modbus.CONF_EXPECT_BROADCAST_WRITE_RESPONSE: True,
+        }
+    )
+    assert config[modbus.CONF_EXPECT_BROADCAST_WRITE_RESPONSE] is True
+
+
+def test_write_actions_offer_write_option_only() -> None:
+    # Every write action takes expect_broadcast_write_response and none of the read options.
+    from esphome.components.modbus_client import (
+        _WRITE_MULTIPLE_COILS_SCHEMA,
+        _WRITE_MULTIPLE_REGISTERS_SCHEMA,
+        _WRITE_SINGLE_COIL_SCHEMA,
+        _WRITE_SINGLE_REGISTER_SCHEMA,
+        CONF_START_ADDRESS,
+        CONF_VALUE,
+        CONF_VALUES,
+    )
+
+    write_key = modbus.CONF_EXPECT_BROADCAST_WRITE_RESPONSE
+    base = {CONF_ADDRESS: 0, CONF_START_ADDRESS: 0x10, write_key: True}
+    for schema, extra in (
+        (_WRITE_SINGLE_REGISTER_SCHEMA, {CONF_VALUE: 1}),
+        (_WRITE_SINGLE_COIL_SCHEMA, {CONF_VALUE: True}),
+        (_WRITE_MULTIPLE_REGISTERS_SCHEMA, {CONF_VALUES: [1, 2]}),
+        (_WRITE_MULTIPLE_COILS_SCHEMA, {CONF_VALUES: [True, False]}),
+    ):
+        config = schema({**base, **extra})
+        assert config[write_key] is True
+        assert modbus.CONF_ALLOW_BROADCAST_READ not in config
+        with pytest.raises(cv.Invalid):
+            schema({**base, **extra, modbus.CONF_ALLOW_BROADCAST_READ: True})

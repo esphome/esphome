@@ -2,7 +2,7 @@ from collections.abc import Callable
 from typing import Any
 
 import esphome.codegen as cg
-from esphome.components import select
+from esphome.components import modbus, select
 from esphome.components.modbus.helpers import SENSOR_VALUE_TYPE, RegisterValues
 import esphome.config_validation as cv
 from esphome.const import CONF_ADDRESS, CONF_ID, CONF_LAMBDA, CONF_OPTIMISTIC
@@ -77,6 +77,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_REGISTER_COUNT): cv.positive_int,
             cv.Required(CONF_OPTIONSMAP): ensure_option_map(),
             cv.Optional(CONF_USE_WRITE_MULTIPLE, default=False): cv.boolean,
+            **modbus.command_options_schema(direction="write"),
             cv.Optional(CONF_OPTIMISTIC, default=False): cv.boolean,
             cv.Optional(CONF_LAMBDA): cv.returning_lambda,
             cv.Optional(CONF_WRITE_LAMBDA): cv.returning_lambda,
@@ -104,6 +105,11 @@ async def to_code(config: ConfigType) -> None:
     cg.add(parent.add_sensor_item(var))
     cg.add(var.set_parent(parent))
     cg.add(var.set_use_write_mutiple(config[CONF_USE_WRITE_MULTIPLE]))
+    cg.add(
+        var.set_write_options(
+            modbus.command_options_expression(config, direction="write")
+        )
+    )
     cg.add(var.set_optimistic(config[CONF_OPTIMISTIC]))
 
     if CONF_LAMBDA in config:

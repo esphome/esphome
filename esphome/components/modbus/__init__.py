@@ -49,6 +49,7 @@ CommandOptions = modbus_ns.struct("CommandOptions")
 MULTI_CONF = True
 
 CONF_ALLOW_BROADCAST_READ = "allow_broadcast_read"
+CONF_EXPECT_BROADCAST_WRITE_RESPONSE = "expect_broadcast_write_response"
 CONF_ROLE = "role"
 CONF_MODBUS_ID = "modbus_id"
 CONF_SEND_WAIT_TIME = "send_wait_time"
@@ -77,7 +78,15 @@ _COMMAND_OPTIONS: dict[str, list[_CommandOption]] = {
             CONF_ALLOW_BROADCAST_READ, "allow_broadcast_read", cv.boolean, bool, False
         ),
     ],
-    "write": [],
+    "write": [
+        _CommandOption(
+            CONF_EXPECT_BROADCAST_WRITE_RESPONSE,
+            "expect_broadcast_write_response",
+            cv.boolean,
+            bool,
+            False,
+        ),
+    ],
 }
 
 
@@ -112,7 +121,7 @@ def command_options_schema(
     """Schema fragment for the per-command options a component forwards to the hub
     (modbus::CommandOptions). Extend this into any schema that queues commands. Keys are
     direction-specific so a schema never offers an option the hub would strip (e.g.
-    continuous on a write); the write side has no options yet. For actions (templatable=True the
+    continuous on a write). For actions (templatable=True the
     keys also accept lambdas), register the values with register_templatable_command_options().
     """
     return {

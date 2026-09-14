@@ -913,6 +913,76 @@ TEST(ModbusClientHubBroadcast, AllowBroadcastReadIgnoredForWritesAndUnicast) {
   EXPECT_FALSE(hub.queued(0).fire_and_forget());
 }
 
+// expect_broadcast_write_response is the write-side twin: a write to address 0 waits for its reply instead
+// of retiring at transmission, and a reply from address 0 or from the device's own unit id completes it.
+TEST(ModbusClientHubBroadcast, ExpectBroadcastWriteResponseWaitsAndAcceptsReply) {
+  NullUART uart;
+  NoResponseProbeHub hub;
+  hub.set_uart_parent(&uart);
+  hub.setup();
+  BroadcastProbeDevice device(&hub, BROADCAST_ADDRESS);
+
+  const uint8_t write[] = {0x06, 0x00, 0x10, 0x00, 0x01};
+  ASSERT_TRUE(device.write_single_register(0x0010, 0x0001, {.expect_broadcast_write_response = true}));
+  EXPECT_TRUE(hub.queued(0).options.expect_broadcast_write_response);
+  EXPECT_FALSE(hub.queued(0).fire_and_forget());
+
+  hub.send_next_for_test();
+  EXPECT_EQ(device.sent_count_, 1);
+  EXPECT_TRUE(hub.waiting());
+  EXPECT_EQ(hub.entries(), 1u);
+
+  hub.receive_frame_for_test(0x07, write);  // the echo, from the device's own unit id
+  EXPECT_EQ(device.response_count_, 1);
+  EXPECT_EQ(device.last_response_size_, sizeof(write));
+  EXPECT_FALSE(hub.waiting());
+  EXPECT_EQ(hub.entries(), 0u);
+
+  ASSERT_TRUE(device.write_single_register(0x0010, 0x0001, {.expect_broadcast_write_response = true}));
+  hub.send_next_for_test();
+  hub.receive_frame_for_test(BROADCAST_ADDRESS, write);  // an echo as address 0 completes it too
+  EXPECT_EQ(device.response_count_, 2);
+  EXPECT_EQ(hub.entries(), 0u);
+}
+
+// A silent device leaves an expected write response to the normal send-wait timeout.
+TEST(ModbusClientHubBroadcast, ExpectBroadcastWriteResponseTimesOutLikeUnicast) {
+  NullUART uart;
+  NoResponseProbeHub hub;
+  hub.set_uart_parent(&uart);
+  hub.setup();
+  BroadcastProbeDevice device(&hub, BROADCAST_ADDRESS);
+
+  ASSERT_TRUE(device.write_single_coil(0x0010, true, {.expect_broadcast_write_response = true}));
+  hub.send_next_for_test();
+  ASSERT_TRUE(hub.waiting());
+
+  hub.timeout_waiting();
+  EXPECT_EQ(device.no_response_count_, 1);
+  EXPECT_EQ(device.response_count_, 0);
+  EXPECT_FALSE(hub.waiting());
+  EXPECT_EQ(hub.entries(), 0u);
+}
+
+// expect_broadcast_write_response is stripped from a read (allow_broadcast_read is the read-side flag, so
+// the broadcast guard still refuses it) and from a unicast frame (nothing to expect).
+TEST(ModbusClientHubBroadcast, ExpectBroadcastWriteResponseIgnoredForReadsAndUnicast) {
+  NullUART uart;
+  NoResponseProbeHub hub;
+  hub.set_uart_parent(&uart);
+  hub.setup();
+  BroadcastProbeDevice broadcast_device(&hub, BROADCAST_ADDRESS);
+  BroadcastProbeDevice unicast_device(&hub, 0x01);
+
+  const uint8_t read[] = {0x03, 0x00, 0x10, 0x00, 0x02};
+  EXPECT_FALSE(broadcast_device.queue_pdu(read, {.expect_broadcast_write_response = true}));
+  EXPECT_EQ(hub.entries(), 0u);
+
+  ASSERT_TRUE(unicast_device.write_single_register(0x0010, 0x0001, {.expect_broadcast_write_response = true}));
+  EXPECT_FALSE(hub.queued(0).options.expect_broadcast_write_response);
+  EXPECT_FALSE(hub.queued(0).fire_and_forget());
+}
+
 // The counterpart to RefusesReadBroadcast: a custom (user-defined) function code carries no reply the
 // hub knows how to expect, so a broadcast of one is accepted and completes fire-and-forget like a write.
 TEST(ModbusClientHubBroadcast, AcceptsCustomBroadcast) {

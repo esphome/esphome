@@ -214,6 +214,13 @@ sensor:
 
 switch:
   - platform: modbus_controller
+    modbus_controller_id: modbus_controller_broadcast
+    id: modbus_broadcast_switch
+    name: Broadcast Write Switch
+    register_type: coil
+    address: 0x20
+    expect_broadcast_write_response: true
+  - platform: modbus_controller
     modbus_controller_id: modbus_controller1
     id: modbus_switch1
     name: Test Switch

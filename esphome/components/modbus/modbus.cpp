@@ -1098,6 +1098,17 @@ bool ModbusClientHub::queue_pdu(uint8_t address, std::span<const uint8_t> pdu, M
       options.allow_broadcast_read = false;
     }
   }
+  // expect_broadcast_write_response is the write-side twin: only a broadcastable code sent to address 0.
+  if (options.expect_broadcast_write_response) {
+    if (!helpers::is_function_code_broadcastable(pdu[0])) {
+      ESP_LOGW(TAG,
+               "expect_broadcast_write_response is ignored for a non-broadcastable function (0x%X, address %" PRIu8 ")",
+               pdu[0], address);
+      options.expect_broadcast_write_response = false;
+    } else if (address != BROADCAST_ADDRESS) {
+      options.expect_broadcast_write_response = false;
+    }
+  }
 
   if (address == BROADCAST_ADDRESS && !options.allow_broadcast_read &&
       !helpers::is_function_code_broadcastable(pdu[0])) {

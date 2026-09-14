@@ -1,5 +1,5 @@
 import esphome.codegen as cg
-from esphome.components import number
+from esphome.components import modbus, number
 from esphome.components.modbus.helpers import (
     MODBUS_WRITE_REGISTER_TYPE,
     SENSOR_VALUE_TYPE,
@@ -84,6 +84,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_STEP, default=1): cv.positive_float,
             cv.Optional(CONF_MULTIPLY, default=1.0): cv.float_,
             cv.Optional(CONF_USE_WRITE_MULTIPLE, default=False): cv.boolean,
+            **modbus.command_options_schema(direction="write"),
         }
     ),
     validate_min_max,
@@ -122,6 +123,11 @@ async def to_code(config: ConfigType) -> None:
     cg.add(parent.add_sensor_item(var))
     await add_modbus_base_properties(var, config, ModbusNumber)
     cg.add(var.set_use_write_mutiple(config[CONF_USE_WRITE_MULTIPLE]))
+    cg.add(
+        var.set_write_options(
+            modbus.command_options_expression(config, direction="write")
+        )
+    )
     if CONF_WRITE_LAMBDA in config:
         template_ = await cg.process_lambda(
             config[CONF_WRITE_LAMBDA],

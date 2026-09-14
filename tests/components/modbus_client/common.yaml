@@ -107,6 +107,14 @@ button:
           on_response:
             then:
               - lambda: 'ESP_LOGI("modbus_client.test", "broadcast read first=%u", values[0]);'
+      - modbus_client.write_single_register:
+          address: 0
+          expect_broadcast_write_response: true
+          start_address: 0x0102
+          value: 42
+          on_response:
+            then:
+              - logger.log: "broadcast write acked"
       - modbus_client.read_input_registers:
           continuous: !lambda "return false;"
           address: 0x01
