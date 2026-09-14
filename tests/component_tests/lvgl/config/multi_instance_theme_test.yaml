@@ -5,12 +5,12 @@ host:
   mac_address: "62:23:45:AF:B3:DD"
 
 display:
-  - platform: sdl
+  - platform: snapshot
     id: sdl0
     dimensions:
       width: 100
       height: 100
-  - platform: sdl
+  - platform: snapshot
     id: sdl1
     dimensions:
       width: 100
