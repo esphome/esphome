@@ -6,6 +6,7 @@ from pathlib import Path
 import ssl
 import tempfile
 import time
+from typing import TYPE_CHECKING
 
 import paho.mqtt.client as mqtt
 
@@ -30,6 +31,9 @@ from esphome.core import EsphomeError
 from esphome.helpers import get_int_env, get_str_env
 from esphome.types import ConfigType
 from esphome.util import safe_print
+
+if TYPE_CHECKING:
+    import threading
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -110,8 +114,12 @@ def prepare(
             CONF_CLIENT_CERTIFICATE_KEY
         ):
             with (
-                tempfile.NamedTemporaryFile(mode="w+", delete=False) as cert_file,
-                tempfile.NamedTemporaryFile(mode="w+", delete=False) as key_file,
+                tempfile.NamedTemporaryFile(
+                    encoding="utf-8", mode="w+", delete=False
+                ) as cert_file,
+                tempfile.NamedTemporaryFile(
+                    encoding="utf-8", mode="w+", delete=False
+                ) as key_file,
             ):
                 try:
                     cert_file.write(config[CONF_MQTT].get(CONF_CLIENT_CERTIFICATE))
@@ -160,6 +168,7 @@ def get_esphome_device_ip(
     password: str | None = None,
     client_id: str | None = None,
     timeout: float = 25,
+    stop_event: "threading.Event | None" = None,
 ) -> list[str]:
     if CONF_MQTT not in config:
         raise EsphomeError(
@@ -178,55 +187,113 @@ def get_esphome_device_ip(
 
     dev_name = config[CONF_ESPHOME][CONF_NAME]
     dev_ip = None
+    failed = False
 
     topic = "esphome/discover/" + dev_name
     _LOGGER.info("Starting looking for IP in topic %s", topic)
 
     def on_message(client, userdata, msg):
-        nonlocal dev_ip
+        nonlocal dev_ip, failed
         time_ = datetime.now().astimezone().time().strftime("[%H:%M:%S]")
         payload = msg.payload.decode(errors="backslashreplace")
         if len(payload) > 0:
             message = time_ + " " + payload
             _LOGGER.debug(message)
 
-            data = json.loads(payload)
+            try:
+                data = json.loads(payload)
+            except ValueError:
+                data = None
+            if not isinstance(data, dict):
+                # A raise in this handler would kill paho's network thread
+                _LOGGER.warning("Ignoring unparsable discovery payload")
+                return
             if "name" not in data or data["name"] != dev_name:
                 _LOGGER.warning("Wrong device answer")
                 return
 
-            dev_ip = []
+            addresses = []
             key = "ip"
             n = 0
             while key in data:
-                dev_ip.append(data[key])
+                value = data[key]
+                if (
+                    isinstance(value, str)
+                    and (value := value.strip())
+                    and value.isprintable()
+                ):
+                    addresses.append(value)
+                else:
+                    # repr-escaped and truncated: must not forge log lines
+                    _LOGGER.warning(
+                        "Ignoring invalid address in discovery answer: %s",
+                        repr(value)[:100],
+                    )
                 n = n + 1
                 key = "ip" + str(n)
 
-            if dev_ip:
-                client.disconnect()
+            if not addresses:
+                _LOGGER.warning("Device answer did not include an IP address")
+                failed = True
+                return
+
+            dev_ip = addresses
+            failed = False  # a complete answer wins over an earlier empty one
+            client.disconnect()
 
     def on_connect(client, userdata, flags, return_code):
         topic = "esphome/ping/" + dev_name
         _LOGGER.info("Send discover via MQTT broker topic: %s", topic)
         client.publish(topic, None, retain=False)
 
+    if stop_event is not None and stop_event.is_set():
+        # Teardown already started; don't open a broker connection at all
+        return []
+
+    def on_disconnect(client, userdata, result_code):
+        nonlocal failed
+        if result_code != 0:
+            _LOGGER.warning("Disconnected from MQTT broker (%s)", result_code)
+            failed = True
+
     mqtt_client = prepare(
         config, [topic], on_message, on_connect, username, password, client_id
     )
+    # Discovery is one-shot; prepare()'s reconnect-forever on_disconnect runs
+    # on the network thread and would make loop_stop() below join forever.
+    mqtt_client.on_disconnect = on_disconnect
 
-    mqtt_client.loop_start()
-    while timeout > 0:
-        if dev_ip is not None:
-            break
-        timeout -= 0.250
-        time.sleep(0.250)
-    mqtt_client.loop_stop()
+    if stop_event is None:
+        import threading
+
+        stop_event = threading.Event()  # never set; wait() below is a plain sleep
+    stopped = stop_event.is_set()  # teardown may have started during connect
+    try:
+        if not stopped:
+            mqtt_client.loop_start()
+            while timeout > 0:
+                if dev_ip is not None or failed:
+                    break
+                if stop_event.wait(0.250):
+                    stopped = True
+                    break
+                timeout -= 0.250
+    finally:
+        # A cleanup failure must not replace the discovery result or its
+        # EsphomeError; a second disconnect after on_message's is harmless.
+        try:
+            mqtt_client.disconnect()
+        except Exception:  # pylint: disable=broad-except
+            _LOGGER.debug("Error disconnecting from MQTT broker", exc_info=True)
+        mqtt_client.loop_stop()  # only signals and joins; does not raise
 
     if dev_ip is None:
+        if stopped:
+            # Aborted by the caller, not a failure; stay quiet
+            return []
         raise EsphomeError("Failed to find IP via MQTT")
 
-    _LOGGER.info("Found IP: %s", dev_ip)
+    _LOGGER.info("Found IP via MQTT broker: %s", ", ".join(dev_ip))
     return dev_ip
 
 

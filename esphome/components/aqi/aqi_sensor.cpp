@@ -23,8 +23,10 @@ void AQISensor::setup() {
 
 void AQISensor::dump_config() {
   ESP_LOGCONFIG(TAG, "AQI Sensor:");
-  ESP_LOGCONFIG(TAG, "  Calculation Type: %s", this->aqi_calc_type_ == AQI_TYPE ? "AQI" : "CAQI");
-  ESP_LOGCONFIG(TAG, "  Extended Range: %s", this->extended_range_ ? "enabled" : "disabled");
+  ESP_LOGCONFIG(TAG, "  Calculation Type: %s",
+                this->aqi_calc_type_ == AQI_TYPE ? LOG_STR_LITERAL("AQI") : LOG_STR_LITERAL("CAQI"));
+  ESP_LOGCONFIG(TAG, "  Extended Range: %s",
+                this->extended_range_ ? LOG_STR_LITERAL("enabled") : LOG_STR_LITERAL("disabled"));
   if (this->pm_2_5_sensor_ != nullptr) {
     ESP_LOGCONFIG(TAG, "  PM2.5 Sensor: '%s'", this->pm_2_5_sensor_->get_name().c_str());
   }

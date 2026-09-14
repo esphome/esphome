@@ -75,4 +75,7 @@ class ESPRangeIterator {
   int32_t i_;
 };
 
+inline ESPRangeIterator ESPRangeView::begin() { return {*this, this->begin_}; }
+inline ESPRangeIterator ESPRangeView::end() { return {*this, this->end_}; }
+
 }  // namespace esphome::light

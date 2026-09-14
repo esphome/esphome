@@ -29,7 +29,7 @@ jobs:
       - name: Set up uv
         # ``--system`` (below) installs into the setup-python interpreter;
         # no venv is created or restored by this workflow.
-        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
         with:
           enable-cache: true
           # Pull-request-only workflow: a save could never be shared and
@@ -41,10 +41,32 @@ jobs:
           version: "0.11.15"
 
       - name: Install apt dependencies
+        # PR-only workflow, so nothing on dev could seed a shared apt cache
+        # entry; the cached apt action would save one copy per PR. Plain apt
+        # with every call bounded: the apt.conf.d timeouts make a dead
+        # mirror fail over in seconds, and timeout runs under sudo so it can
+        # kill apt-get itself. Install without update first: image lists are
+        # fresh, and the index refresh is what a congested mirror makes slow.
+        timeout-minutes: 15
         run: |
-          sudo apt update
-          sudo apt-cache show protobuf-compiler
-          sudo apt install -y protobuf-compiler
+          sudo tee /etc/apt/apt.conf.d/99ci-acquire-timeouts >/dev/null <<'EOF'
+          Acquire::Retries "1";
+          Acquire::http::Timeout "15";
+          Acquire::https::Timeout "15";
+          EOF
+          # Common path: the image's package lists are fresh enough.
+          if sudo DEBIAN_FRONTEND=noninteractive timeout -k 15 90 \
+              apt-get install -y protobuf-compiler; then
+            protoc --version
+            exit 0
+          fi
+          # Rescue path: refresh the lists once with a generous bound; the
+          # apt config already fails a stalled mirror over quickly.
+          sudo DEBIAN_FRONTEND=noninteractive timeout -k 10 30 \
+            dpkg --configure -a || true
+          sudo timeout -k 15 300 apt-get update
+          sudo DEBIAN_FRONTEND=noninteractive timeout -k 15 300 \
+            apt-get install -y protobuf-compiler
           protoc --version
       - name: Install python dependencies
         run: uv pip install --system aioesphomeapi -c requirements.txt -r requirements_dev.txt

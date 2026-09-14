@@ -1,0 +1,3 @@
+packages:
+  modbus_server: !include ../../test_build_components/common/modbus_server/esp8266-ard.yaml
+  hoermann_hcp: !include common.yaml

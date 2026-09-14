@@ -8,7 +8,7 @@ client would silently drop the streamed bytes as "unknown message type".
 The raw client implements just enough of the plaintext framing
 (``0x00 | varint(size) | varint(msg_type) | payload``, see
 ``api_frame_helper_plaintext.cpp``) to send the empty `GetYamlRequest`
-(message type 149) and accumulate every `GetYamlResponse` (message type 150)
+(message type 154) and accumulate every `GetYamlResponse` (message type 155)
 until ``done=true``.
 """
 
@@ -28,8 +28,8 @@ from .types import RunCompiledFunction
 # Message IDs from esphome/components/api/api.proto.
 HELLO_REQUEST = 1
 HELLO_RESPONSE = 2
-GET_YAML_REQUEST = 149
-GET_YAML_RESPONSE = 150
+GET_YAML_REQUEST = 154
+GET_YAML_RESPONSE = 155
 
 
 def _encode_varint(value: int) -> bytes:
