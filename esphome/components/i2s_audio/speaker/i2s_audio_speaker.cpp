@@ -169,41 +169,41 @@ void I2SAudioSpeakerBase::set_volume(float volume) {
       this->audio_dac_->set_mute_off();
     }
     this->audio_dac_->set_volume(volume);
-  } else
-#endif  // USE_AUDIO_DAC
-  {
-    // Fallback to software volume control. The ramp treats 0 dB as unity and skips processing there.
-    if (volume >= 1.0f) {
-      this->software_gain_db_ = 0.0f;
-    } else if (volume <= 0.0f) {
-      this->software_gain_db_ = -INFINITY;
-    } else {
-      this->software_gain_db_ = remap<float, float>(volume, 0.0f, 1.0f, SOFTWARE_VOLUME_MIN_DB, 0.0f);
-    }
-    this->post_software_gain_(this->audio_stream_info_.ms_to_samples(GAIN_RAMP_MS_PER_DB));
   }
+#endif  // USE_AUDIO_DAC
+  this->post_software_gain_(this->audio_stream_info_.ms_to_samples(GAIN_RAMP_MS_PER_DB));
 }
 
 void I2SAudioSpeakerBase::set_mute_state(bool mute_state) {
   this->mute_state_ = mute_state;
 #ifdef USE_AUDIO_DAC
-  if (this->audio_dac_) {
+  if (this->audio_dac_ != nullptr) {
     if (mute_state) {
       this->audio_dac_->set_mute_on();
     } else {
       this->audio_dac_->set_mute_off();
     }
-  } else
-#endif  // USE_AUDIO_DAC
-  {
-    // Fallback to software volume control: silence while muted, the stored gain otherwise
-    this->software_muted_ = mute_state;
-    this->post_software_gain_(this->audio_stream_info_.ms_to_samples(GAIN_RAMP_MS_PER_DB));
   }
+#endif  // USE_AUDIO_DAC
+  this->post_software_gain_(this->audio_stream_info_.ms_to_samples(GAIN_RAMP_MS_PER_DB));
 }
 
 void I2SAudioSpeakerBase::post_software_gain_(uint32_t rate_samples) {
-  this->gain_ramp_.set_target_db_at_rate(this->software_muted_ ? -INFINITY : this->software_gain_db_, rate_samples);
+#ifdef USE_AUDIO_DAC
+  if (this->audio_dac_ != nullptr) {
+    return;  // Hardware volume; the ramp stays at unity
+  }
+#endif  // USE_AUDIO_DAC
+  // Software volume control. The ramp treats 0 dB as unity and skips processing there.
+  float target_db;
+  if (this->mute_state_ || this->volume_ <= 0.0f) {
+    target_db = -INFINITY;
+  } else if (this->volume_ >= 1.0f) {
+    target_db = 0.0f;
+  } else {
+    target_db = remap<float, float>(this->volume_, 0.0f, 1.0f, SOFTWARE_VOLUME_MIN_DB, 0.0f);
+  }
+  this->gain_ramp_.set_target_db_at_rate(target_db, rate_samples);
 }
 
 size_t I2SAudioSpeakerBase::play(const uint8_t *data, size_t length, TickType_t ticks_to_wait) {

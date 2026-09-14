@@ -91,7 +91,8 @@ class I2SAudioSpeakerBase : public I2SAudioOut, public speaker::Speaker, public 
   void set_mute_state(bool mute_state) override;
 
  protected:
-  /// @brief Posts the software gain target, or silence while muted, to the ramp. Main loop only.
+  /// @brief Posts the ramp target derived from the current volume and mute state. No-op when an audio dac owns
+  /// volume. Main loop only.
   /// @param rate_samples Samples the ramp takes per dB of change; 0 adopts the target at once
   void post_software_gain_(uint32_t rate_samples);
 
@@ -160,10 +161,6 @@ class I2SAudioSpeakerBase : public I2SAudioOut, public speaker::Speaker, public 
   optional<uint32_t> timeout_;
 
   bool pause_state_{false};
-
-  // Main loop inputs to the ramp target, written by set_volume and set_mute_state
-  float software_gain_db_{0.0f};
-  bool software_muted_{false};
 
   // Smooths software gain changes. The main loop posts targets, the speaker task processes;
   // GainRamp's mailbox makes that safe. The main loop is the only poster.
