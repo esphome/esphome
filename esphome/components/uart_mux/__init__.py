@@ -5,6 +5,8 @@ from esphome.components.cdc_acm_uart.bridge import CDCACMUARTBridge
 from esphome.components.esp32 import VARIANT_ESP32P4, VARIANT_ESP32S2, VARIANT_ESP32S3
 import esphome.config_validation as cv
 from esphome.const import CONF_ID
+from esphome.core import ID
+from esphome.cpp_generator import MockObj, TemplateArgsType
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@kbx81"]
@@ -60,7 +62,12 @@ UART_MUX_ACTION_SCHEMA = automation.maybe_simple_id(
     UART_MUX_ACTION_SCHEMA,
     synchronous=True,
 )
-async def uart_mux_select_to_code(config, action_id, template_arg, args):
+async def uart_mux_select_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     paren = await cg.get_variable(config[CONF_ID])
     return cg.new_Pvariable(action_id, template_arg, paren)
 
@@ -68,6 +75,11 @@ async def uart_mux_select_to_code(config, action_id, template_arg, args):
 @automation.register_condition(
     "uart_mux.is_local", IsLocalCondition, UART_MUX_ACTION_SCHEMA
 )
-async def uart_mux_is_local_to_code(config, condition_id, template_arg, args):
+async def uart_mux_is_local_to_code(
+    config: ConfigType,
+    condition_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     paren = await cg.get_variable(config[CONF_ID])
     return cg.new_Pvariable(condition_id, template_arg, paren)
