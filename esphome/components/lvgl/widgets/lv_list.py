@@ -82,13 +82,9 @@ class ListTriggers:
     on_remove: list = field(default_factory=list)
 
 
-# Static shared empty record for lists that have no triggers
-_NO_LIST_TRIGGERS = ListTriggers()
-
-
 def _get_list_triggers(list_id) -> ListTriggers:
     """Every on_add/on_remove automation config declared for a list, indexed by the list's own ID."""
-    return get_list_triggers().get(list_id, _NO_LIST_TRIGGERS)
+    return get_list_triggers().get(list_id, ListTriggers())
 
 
 def _declare_list_triggers(list_id) -> ListTriggers:
