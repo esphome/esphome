@@ -25,6 +25,8 @@ lvgl:
         id: line_chart
         type: line
         point_count: 2
+        items:
+          line_width: 2
         series:
           - id: line_series
             values: [10, 20]

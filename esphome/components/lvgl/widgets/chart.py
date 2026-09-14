@@ -3,6 +3,7 @@ import esphome.config_validation as cv
 from esphome.const import (
     CONF_COLOR,
     CONF_ID,
+    CONF_ITEMS,
     CONF_MAX_VALUE,
     CONF_MIN_VALUE,
     CONF_TYPE,
@@ -14,7 +15,6 @@ from esphome.const import (
 from ..automation import action_to_code
 from ..defines import (
     CONF_CURSOR,
-    CONF_INDICATOR,
     CONF_MAIN,
     CONF_POINTS,
     CONF_TICKS,
@@ -52,6 +52,13 @@ RANGE_SCHEMA = cv.Schema(
     {
         cv.Optional(CONF_MIN_VALUE, default=0): lv_int,
         cv.Optional(CONF_MAX_VALUE, default=100): lv_int,
+    }
+)
+
+RANGE_MODIFY_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_MIN_VALUE): lv_int,
+        cv.Required(CONF_MAX_VALUE): lv_int,
     }
 )
 
@@ -103,10 +110,10 @@ CHART_MODIFY_SCHEMA = cv.Schema(
         cv.Optional(CONF_UPDATE_MODE): CHART_UPDATE_MODES.one_of,
         cv.Optional(CONF_POINT_COUNT): cv.int_range(min=1, max=4096),
         cv.Optional(CONF_DIV_LINE_COUNT): cv.ensure_list(cv.int_range(min=0, max=255)),
-        cv.Optional(CONF_X_AXIS): RANGE_SCHEMA,
-        cv.Optional(CONF_Y_AXIS): RANGE_SCHEMA,
-        cv.Optional(CONF_SECONDARY_X_AXIS): RANGE_SCHEMA,
-        cv.Optional(CONF_SECONDARY_Y_AXIS): RANGE_SCHEMA,
+        cv.Optional(CONF_X_AXIS): RANGE_MODIFY_SCHEMA,
+        cv.Optional(CONF_Y_AXIS): RANGE_MODIFY_SCHEMA,
+        cv.Optional(CONF_SECONDARY_X_AXIS): RANGE_MODIFY_SCHEMA,
+        cv.Optional(CONF_SECONDARY_Y_AXIS): RANGE_MODIFY_SCHEMA,
     }
 )
 
@@ -136,12 +143,16 @@ def validate_chart(config):
     return config
 
 
-def validate_series_update_for_type(config, chart_type):
+def validate_series_update_for_type(config, chart_type, point_count):
     is_scatter = chart_type == "LV_CHART_TYPE_SCATTER"
     if is_scatter and CONF_POINT not in config:
         raise cv.Invalid("A scatter chart series update requires point")
     if not is_scatter and CONF_POINT in config:
         raise cv.Invalid("point can only update a scatter chart series")
+    if (values := config.get(CONF_VALUES)) is not None and len(values) > point_count:
+        raise cv.Invalid(
+            f"A chart series update can't have more than point_count ({point_count}) values"
+        )
     return config
 
 
@@ -150,7 +161,7 @@ class ChartType(WidgetType):
         super().__init__(
             CONF_CHART,
             lv_chart_t,
-            (CONF_MAIN, CONF_INDICATOR, CONF_TICKS, CONF_CURSOR),
+            (CONF_MAIN, CONF_ITEMS, CONF_TICKS, CONF_CURSOR),
             CHART_SCHEMA.add_extra(validate_chart),
             CHART_MODIFY_SCHEMA.add_extra(validate_div_line_count),
         )
@@ -193,6 +204,7 @@ class ChartType(WidgetType):
             )
             series_config = dict(series)
             series_config[CONF_TYPE] = config[CONF_TYPE]
+            series_config[CONF_POINT_COUNT] = config[CONF_POINT_COUNT]
             series_widget = Widget.create(
                 series[CONF_ID], w.obj, obj_spec, series_config
             )
@@ -235,7 +247,9 @@ async def chart_series_update_to_code(config, action_id, template_arg, args):
 
     async def do_update(w: Widget):
         is_scatter = w.config[CONF_TYPE] == "LV_CHART_TYPE_SCATTER"
-        validate_series_update_for_type(config, w.config[CONF_TYPE])
+        validate_series_update_for_type(
+            config, w.config[CONF_TYPE], w.config[CONF_POINT_COUNT]
+        )
         if is_scatter:
             point = config[CONF_POINT]
             lv.chart_set_next_value2(
