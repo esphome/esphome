@@ -27,8 +27,7 @@ static const char *const TAG = "i2s_audio.speaker";
 // [-49.0, 0.0] dB; 0.0 is silence.
 static constexpr float SOFTWARE_VOLUME_MIN_DB = -49.0f;
 
-// Rate at which the software gain moves toward a new target. A slider step of a few dB is over in
-// a few milliseconds; a mute fades across the whole grid in about a tenth of a second.
+// Rate at which the software gain moves toward a new target.
 static constexpr uint32_t GAIN_RAMP_MS_PER_DB = 1;
 
 void I2SAudioSpeakerBase::setup() {
