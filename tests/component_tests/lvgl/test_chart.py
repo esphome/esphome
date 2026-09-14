@@ -129,22 +129,15 @@ def test_chart_update_requires_complete_axis_range(axis: str) -> None:
     with pytest.raises(Invalid):
         CHART_MODIFY_SCHEMA({axis: {"max_value": 100}})
 
-    config = CHART_MODIFY_SCHEMA(
-        {axis: {"min_value": -50, "max_value": 100}}
-    )
+    config = CHART_MODIFY_SCHEMA({axis: {"min_value": -50, "max_value": 100}})
     assert config[axis] == {"min_value": -50, "max_value": 100}
 
 
 def test_series_update_values_cannot_exceed_point_count() -> None:
     with pytest.raises(Invalid, match="point_count"):
-        validate_series_update_for_type(
-            {"values": [1, 2, 3]}, "LV_CHART_TYPE_LINE", 2
-        )
+        validate_series_update_for_type({"values": [1, 2, 3]}, "LV_CHART_TYPE_LINE", 2)
 
 
 def test_series_update_values_can_match_point_count() -> None:
     config = {"values": [1, 2]}
-    assert (
-        validate_series_update_for_type(config, "LV_CHART_TYPE_LINE", 2)
-        == config
-    )
+    assert validate_series_update_for_type(config, "LV_CHART_TYPE_LINE", 2) == config
