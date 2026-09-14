@@ -12,6 +12,8 @@ from esphome.components.esp32 import (
 )
 import esphome.config_validation as cv
 from esphome.const import CONF_HARDWARE_UART, CONF_ID
+from esphome.core import ID
+from esphome.cpp_generator import MockObj, TemplateArgsType
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@kbx81"]
@@ -139,6 +141,11 @@ async def to_code(config: ConfigType) -> None:
     IsMountedCondition,
     cv.Schema({cv.GenerateID(): cv.use_id(TinyUSB)}),
 )
-async def tinyusb_is_mounted_to_code(config, condition_id, template_arg, args):
+async def tinyusb_is_mounted_to_code(
+    config: ConfigType,
+    condition_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     paren = await cg.get_variable(config[CONF_ID])
     return cg.new_Pvariable(condition_id, template_arg, paren)
