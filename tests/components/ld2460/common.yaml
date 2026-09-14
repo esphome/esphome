@@ -1,0 +1,113 @@
+ld2460:
+  - id: ld2460_radar
+    on_data:
+      then:
+        - logger.log: "LD2460 Radar Data Received"
+
+button:
+  - platform: ld2460
+    id: ld2460_button
+    ld2460_id: ld2460_radar
+    factory_reset:
+      name: LD2460 Factory Reset
+    restart:
+      name: LD2460 Restart
+
+sensor:
+  - platform: ld2460
+    id: ld2460_sensor
+    ld2460_id: ld2460_radar
+    target_count:
+      name: Target Count
+    target_1:
+      x:
+        name: Target-1 X
+      y:
+        name: Target-1 Y
+      angle:
+        name: Target-1 Angle
+      distance:
+        name: Target-1 Distance
+    target_2:
+      x:
+        name: Target-2 X
+      y:
+        name: Target-2 Y
+      angle:
+        name: Target-2 Angle
+      distance:
+        name: Target-2 Distance
+    target_3:
+      x:
+        name: Target-3 X
+      y:
+        name: Target-3 Y
+      angle:
+        name: Target-3 Angle
+      distance:
+        name: Target-3 Distance
+    target_4:
+      x:
+        name: Target-4 X
+      y:
+        name: Target-4 Y
+      angle:
+        name: Target-4 Angle
+      distance:
+        name: Target-4 Distance
+    target_5:
+      x:
+        name: Target-5 X
+      y:
+        name: Target-5 Y
+      angle:
+        name: Target-5 Angle
+      distance:
+        name: Target-5 Distance
+
+binary_sensor:
+  - platform: ld2460
+    id: ld2460_binary
+    ld2460_id: ld2460_radar
+    has_target:
+      name: Presence
+
+switch:
+  - platform: ld2460
+    id: ld2460_switch
+    ld2460_id: ld2460_radar
+    reporting:
+      name: Radar Reporting
+
+text_sensor:
+  - platform: ld2460
+    id: ld2460_textsensor
+    ld2460_id: ld2460_radar
+    version:
+      name: LD2460 Firmware
+
+number:
+  - platform: ld2460
+    id: ld2460_number
+    ld2460_id: ld2460_radar
+    installation_height:
+      name: Installation Height
+    installation_angle:
+      name: Installation Angle
+    max_detection_distance:
+      name: Max Detection Distance
+    detection_angle_min:
+      name: Detection Angle Min
+    detection_angle_max:
+      name: Detection Angle Max
+
+select:
+  - platform: ld2460
+    id: ld2460_select
+    ld2460_id: ld2460_radar
+    baud_rate:
+      name: Baud Rate
+    installation_mode:
+      name: Installation Mode
+    sensitivity:
+      name: Sensitivity
