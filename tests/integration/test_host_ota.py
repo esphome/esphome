@@ -238,8 +238,10 @@ async def test_host_ota_deflate(
     real_compress = zlib.compress
 
     def corrupt_compress(data: bytes, *args: object, **kwargs: object) -> bytes:
+        # Reserved block type in the first header: rejected by the decoder on
+        # every build, unlike a flipped data bit that may only fail the MD5
         out = bytearray(real_compress(data, *args, **kwargs))
-        out[len(out) // 2] ^= 0x55
+        out[0] |= 0x06
         return bytes(out)
 
     def overlong_compress(data: bytes, *args: object, **kwargs: object) -> bytes:
