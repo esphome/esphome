@@ -50,14 +50,14 @@ PrjConfValueType = bool | str | int | HexValue
 
 
 class Section:
-    def __init__(self, name, address, size, region):
+    def __init__(self, name: str, address: int, size: int, region: str) -> None:
         self.name = name
         self.address = address
         self.size = size
         self.region = region
         self.end_address = self.address + self.size
 
-    def __str__(self):
+    def __str__(self) -> str:
         return (
             f"{self.name}:\n"
             f"  address: 0x{self.address:X}\n"
@@ -158,6 +158,8 @@ def add_extra_script(stage: str, filename: str, path: Path) -> None:
 def zephyr_to_code(config: ConfigType) -> None:
     cg.add_build_flag("-DUSE_ZEPHYR")
     cg.add_define("USE_NATIVE_64BIT_TIME")
+    # The settings subsystem finds stored preferences by key, so key migration is possible
+    cg.add_define("USE_PREFERENCE_KEY_LOOKUP")
     cg.set_cpp_standard("gnu++20")
     # c++ support
     zephyr_add_prj_conf("FPU", True)
@@ -179,7 +181,7 @@ async def _cdc_acm_to_code(config: ConfigType) -> None:
         await cg.register_component(var, {})
 
 
-def zephyr_setup_preferences():
+def zephyr_setup_preferences() -> None:
     cg.add(zephyr_ns.setup_preferences())
     zephyr_add_prj_conf("SETTINGS", True)
     zephyr_add_prj_conf("NVS", True)

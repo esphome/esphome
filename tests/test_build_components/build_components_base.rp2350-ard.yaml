@@ -2,8 +2,10 @@ esphome:
   name: componenttestrp2040pico2ard
   friendly_name: $component_name
 
+# rpipico2w: superset of rpipico2 with the CYW43 radio, so wireless
+# components (wifi, BLE) can share this target too.
 rp2:
-  board: rpipico2
+  board: rpipico2w
 
 logger:
   level: VERY_VERBOSE

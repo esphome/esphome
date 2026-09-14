@@ -4,6 +4,7 @@
 
 #include <openthread/cli.h>
 #include <openthread/instance.h>
+#include <openthread/ip6.h>
 #include <openthread/logging.h>
 #include <openthread/netdata.h>
 #include <openthread/tasklet.h>
@@ -229,26 +230,43 @@ void *OpenThreadSrpComponent::pool_alloc_(size_t size) {
 void OpenThreadSrpComponent::set_mdns(esphome::mdns::MDNSComponent *mdns) { this->mdns_ = mdns; }
 
 bool OpenThreadComponent::teardown() {
-  if (!this->teardown_started_) {
-    this->teardown_started_ = true;
-    ESP_LOGD(TAG, "Clear Srp");
-    auto lock = InstanceLock::try_acquire(100);
-    if (!lock) {
-      ESP_LOGW(TAG, "Failed to acquire OpenThread lock during teardown, leaking memory");
-      return true;
-    }
-    otInstance *instance = lock.get_instance();
-    otSrpClientClearHostAndServices(instance);
-    otSrpClientBuffersFreeAllServices(instance);
-    global_openthread_component = nullptr;
-    ESP_LOGD(TAG, "Exit main loop ");
-    int error = this->openthread_stop_();
-    if (error != 0) {
-      ESP_LOGW(TAG, "Failed attempt to stop main loop %d", error);
-      this->teardown_complete_ = true;
-    }
+  switch (this->teardown_stage_) {
+    case TeardownStage::TEARDOWN_STAGE_NOT_STARTED: {
+      auto lock = InstanceLock::try_acquire(100);
+      if (!lock) {
+        // Try again on next teardown loop
+        ESP_LOGV(TAG, "Failed to acquire OpenThread lock during teardown");
+        return false;
+      }
+      // Start tearing down
+      this->teardown_stage_ = TeardownStage::TEARDOWN_STAGE_STOP_IN_PROCESS;
+      ESP_LOGV(TAG, "Clear SRP");
+      otInstance *instance = lock.get_instance();
+      otSrpClientClearHostAndServices(instance);
+      otSrpClientBuffersFreeAllServices(instance);
+      if (otThreadSetEnabled(instance, false) != OT_ERROR_NONE) {
+        ESP_LOGW(TAG, "Failed to disable Thread during teardown");
+      }
+      if (otIp6SetEnabled(instance, false) != OT_ERROR_NONE) {
+        ESP_LOGW(TAG, "Failed to disable IPv6 during teardown");
+      }
+      // Stop OpenThread
+      global_openthread_component = nullptr;
+      ESP_LOGV(TAG, "Stop OpenThread");
+      int error = this->openthread_stop_();
+      if (error != 0) {
+        ESP_LOGW(TAG, "Failed attempt to stop OpenThread %d", error);
+        this->teardown_stage_ = TeardownStage::TEARDOWN_STAGE_COMPLETED;
+      }
+    } break;
+    case TeardownStage::TEARDOWN_STAGE_STOP_IN_PROCESS:
+      // Waiting on OpenThread stop
+      break;
+    case TeardownStage::TEARDOWN_STAGE_COMPLETED:
+      ESP_LOGV(TAG, "OpenThreadComponent Teardown Complete");
+      break;
   }
-  return this->teardown_complete_;
+  return this->teardown_stage_ == TeardownStage::TEARDOWN_STAGE_COMPLETED;
 }
 
 void OpenThreadComponent::on_factory_reset(std::function<void()> callback) {
