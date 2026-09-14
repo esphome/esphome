@@ -11,6 +11,7 @@ consumers (IDE integration, clang-tidy) expect:
 
 from __future__ import annotations
 
+from collections.abc import Callable
 import json
 import logging
 import os
@@ -20,6 +21,8 @@ import subprocess
 
 from esphome.core import EsphomeError
 from esphome.helpers import write_file
+
+_LOGGER = logging.getLogger(__name__)
 
 # Everything idedata generation may raise after a successful link; idedata
 # is a bonus artifact, so consumers warn instead of failing the build
@@ -31,7 +34,30 @@ IDEDATA_BEST_EFFORT_ERRORS = (
     ValueError,
 )
 
-_LOGGER = logging.getLogger(__name__)
+
+def warn_if_idedata_missing(get_idedata: Callable[[], dict | None]) -> None:
+    """Run an idedata generator, downgrading any failure to a warning.
+
+    Shared by the native backends: the firmware already built, so a missing
+    or broken idedata must not fail a successful build.
+    """
+    try:
+        if get_idedata() is None:
+            _LOGGER.warning("No idedata was generated for this build")
+    except IDEDATA_BEST_EFFORT_ERRORS as err:
+        _LOGGER.warning(
+            "Could not generate idedata: %s (IDE, clang-tidy, and "
+            "memory-analysis data will be unavailable for this build)",
+            err,
+        )
+        if isinstance(err, (EsphomeError, OSError)):
+            # Routine environmental failures keep the detail at debug
+            _LOGGER.debug("Idedata failure detail", exc_info=True)
+        else:
+            # LookupError/ValueError/RuntimeError smell like a parsing bug;
+            # a permanently masked traceback would hide it on every build
+            _LOGGER.warning("Idedata failure detail", exc_info=True)
+
 
 # C++ translation-unit suffixes used to identify ESPHome source files.
 _CXX_SUFFIXES = (".cpp", ".cc")
