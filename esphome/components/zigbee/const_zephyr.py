@@ -3,10 +3,10 @@
 from esphome.const import (  # noqa: F401  # pylint: disable=unused-import
     CONF_ZIGBEE_BINARY_SENSOR,
     CONF_ZIGBEE_ID,
+    CONF_ZIGBEE_SENSOR,
 )
 
 CONF_MAX_EP_NUMBER_ZEPHYR = 8
-CONF_ZIGBEE_SENSOR = "zigbee_sensor"
 CONF_ZIGBEE_SWITCH = "zigbee_switch"
 CONF_ZIGBEE_NUMBER = "zigbee_number"
 CONF_SLEEPY = "sleepy"

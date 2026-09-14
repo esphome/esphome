@@ -19,6 +19,8 @@ from pathlib import Path
 import subprocess
 import sys
 
+import pytest
+
 # Modules that must only load for the commands that actually use them
 # (compile/config validation, shell completion), never from a bare
 # ``import esphome.__main__``.
@@ -190,21 +192,22 @@ def test_api_client_does_not_import_heavy_modules() -> None:
     )
 
 
-def test_binary_sensor_does_not_import_integrations() -> None:
+@pytest.mark.parametrize("component", ["binary_sensor", "sensor"])
+def test_entity_component_does_not_import_integrations(component: str) -> None:
     """An entity component must not drag in its optional integrations.
 
-    binary_sensor's mqtt/web_server/zigbee schema fragments live in
+    The mqtt/web_server/zigbee schema fragments live in
     ``esphome.core.entity_helpers``; the integration packages (and the
     esp32/logger chains mqtt and zigbee pull in) must only load when the
     user's config actually uses them.
     """
     allowed = (
         "esphome.components",
-        "esphome.components.binary_sensor",
+        f"esphome.components.{component}",
         "esphome.components.const",
     )
     check = (
-        "import sys; import esphome.components.binary_sensor; "
+        f"import sys; import esphome.components.{component}; "
         f"leaked = [m for m in sys.modules "
         f"if m.startswith('esphome.components') and m not in {allowed!r}]; "
         "print(','.join(leaked))"
@@ -217,7 +220,7 @@ def test_binary_sensor_does_not_import_integrations() -> None:
     )
     leaked = result.stdout.strip()
     assert not leaked, (
-        f"esphome.components.binary_sensor imports integration packages at "
+        f"esphome.components.{component} imports integration packages at "
         f"top level: {leaked}. Keep the shared schema fragments in "
         "esphome.core.entity_helpers and import the integration inside "
         "to_code instead."
