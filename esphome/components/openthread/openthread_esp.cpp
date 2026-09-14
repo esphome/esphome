@@ -231,6 +231,7 @@ InstanceLock::~InstanceLock() {
 
 // ESP-IDF's DNS64 hook runs before lwIP's literal address check and retries every lookup as IPv4,
 // so an IPv6 literal never resolves. Let lwIP handle those; linked with --wrap from __init__.py.
+// NOLINTBEGIN(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp,readability-identifier-naming)
 extern "C" {
 int __real_lwip_hook_dns_external_resolve(const char *name, ip_addr_t *addr, dns_found_callback found,
                                           void *callback_arg, u8_t addrtype, err_t *err);
@@ -241,5 +242,6 @@ int __wrap_lwip_hook_dns_external_resolve(const char *name, ip_addr_t *addr, dns
     return 0;
   return __real_lwip_hook_dns_external_resolve(name, addr, found, callback_arg, addrtype, err);
 }
-}
+}  // extern "C"
+// NOLINTEND(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp,readability-identifier-naming)
 #endif
