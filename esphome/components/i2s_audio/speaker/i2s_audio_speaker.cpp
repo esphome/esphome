@@ -162,29 +162,12 @@ void I2SAudioSpeakerBase::loop() {
 }
 
 void I2SAudioSpeakerBase::set_volume(float volume) {
-  this->volume_ = volume;
-#ifdef USE_AUDIO_DAC
-  if (this->audio_dac_ != nullptr) {
-    if (volume > 0.0f) {
-      this->audio_dac_->set_mute_off();
-    }
-    this->audio_dac_->set_volume(volume);
-  }
-#endif  // USE_AUDIO_DAC
+  speaker::Speaker::set_volume(volume);
   this->post_software_gain_(this->audio_stream_info_.ms_to_samples(GAIN_RAMP_MS_PER_DB));
 }
 
 void I2SAudioSpeakerBase::set_mute_state(bool mute_state) {
-  this->mute_state_ = mute_state;
-#ifdef USE_AUDIO_DAC
-  if (this->audio_dac_ != nullptr) {
-    if (mute_state) {
-      this->audio_dac_->set_mute_on();
-    } else {
-      this->audio_dac_->set_mute_off();
-    }
-  }
-#endif  // USE_AUDIO_DAC
+  speaker::Speaker::set_mute_state(mute_state);
   this->post_software_gain_(this->audio_stream_info_.ms_to_samples(GAIN_RAMP_MS_PER_DB));
 }
 
