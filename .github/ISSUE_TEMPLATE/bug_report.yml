@@ -26,7 +26,6 @@ body:
 
         If you really think it will be useful to include an AI's analysis, preferably wrap it in a `<details>` block which will be collapsed by default.
 
-
         If you are using AI to help solve a problem, rather than asking it to speculate about what the problem is,
         it can be more useful to ask it to create a step-by-step troubleshooting procedure.
         AI is also useful for generating boilerplate code, such as a minimal reproducible example of your YAML
