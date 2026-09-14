@@ -581,7 +581,7 @@ void InkplateParallelBase::send_line_i2s_() {
   I2S1.conf.tx_start = 1;
 
   // Busy-wait for DMA EOF (~100 µs at 16 MHz). Timeout guards against hardware stall.
-  uint32_t deadline = esp_timer_get_time() + 5000;  // 5 ms max per line
+  int64_t deadline = esp_timer_get_time() + 5000;  // 5 ms max per line
   while (!I2S1.int_raw.out_total_eof && esp_timer_get_time() < deadline)
     ;
   if (!I2S1.int_raw.out_total_eof)
