@@ -99,6 +99,14 @@ button:
           on_no_response:
             then:
               - logger.log: "typed read timeout"
+      - modbus_client.read_holding_registers:
+          address: 0
+          allow_broadcast_read: true
+          start_address: 0x10
+          count: 1
+          on_response:
+            then:
+              - lambda: 'ESP_LOGI("modbus_client.test", "broadcast read first=%u", values[0]);'
       - modbus_client.read_input_registers:
           continuous: !lambda "return false;"
           address: 0x01

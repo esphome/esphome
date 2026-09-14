@@ -341,10 +341,12 @@ void ModbusClientHub::process_modbus_server_frame(uint8_t address, std::span<con
     return;
   }
 
-  // Check if the response matches the expected address and function code
+  // Check if the response matches the expected address and function code. Only an allow_broadcast_read
+  // read ever waits on address 0; the device answering it may reply as 0 or with its own unit id.
   const uint8_t expected_address = cmd->frame.address();
   const uint8_t expected_function_code = cmd->frame.pdu()[0];
-  if (expected_address != address || expected_function_code != (function_code & FUNCTION_CODE_MASK)) {
+  const bool address_matches = expected_address == address || expected_address == BROADCAST_ADDRESS;
+  if (!address_matches || expected_function_code != (function_code & FUNCTION_CODE_MASK)) {
     ESP_LOGW(TAG,
              "Received incorrect frame address %" PRIu8 " <> %" PRIu8 " or function code 0x%X <> 0x%X, %" PRIu32
              "us after last send",
@@ -372,6 +374,9 @@ void ModbusClientHub::process_modbus_server_frame(uint8_t address, std::span<con
   // ("stop polling now") wins. A device-less shell runs no callback and the sweep erases it.
   this->waiting_for_response_ = false;
   this->sweep_needed_ = true;
+  if (expected_address == BROADCAST_ADDRESS && address != BROADCAST_ADDRESS) {
+    ESP_LOGD(TAG, "Broadcast read answered by address %" PRIu8, address);
+  }
   if (helpers::is_function_code_exception(function_code)) {
     uint8_t exception = pdu[1];  // exception frames are fixed-length, so the code is always present
     ESP_LOGW(TAG, "Error function code: 0x%X exception: %" PRIu8 ", address: %" PRIu8 ", %" PRIu32 "us after last send",
@@ -832,7 +837,7 @@ void ModbusClientHub::send_next_frame_() {
   }
 
   cmd->sent();
-  if (cmd->frame.address() == BROADCAST_ADDRESS) {
+  if (cmd->fire_and_forget()) {
     // A broadcast (address 0) is never answered (Modbus 4.1), so it is fire-and-forget: on_sent above
     // reports the transmission, and the entry then retires with no terminal callback instead of
     // occupying the waiting slot until the send-wait timeout expires. The turnaround delay already
@@ -1074,17 +1079,30 @@ bool ModbusClientHub::queue_pdu(uint8_t address, std::span<const uint8_t> pdu, M
     return false;
   }
 
-  if (address == BROADCAST_ADDRESS && !helpers::is_function_code_broadcastable(pdu[0])) {
-    ESP_LOGW(TAG, "Broadcast refused for function 0x%X: a broadcast (address 0) is never answered", pdu[0]);
-    return false;
-  }
-
   // Normalize the caller's options in place (the param is a by-value copy) so everything stored or
   // merged below carries effective options, never the raw request.
   // continuous is ignored for every mutating code (re-writing a value forever is never intended).
   if (options.continuous && helpers::is_function_code_write(pdu[0])) {
     ESP_LOGW(TAG, "continuous is ignored for a mutating function (0x%X, address %" PRIu8 ")", pdu[0], address);
     options.continuous = false;
+  }
+  // allow_broadcast_read only means something for a code the broadcast guard below would refuse, sent to
+  // address 0: a broadcastable code (write, custom) is a real broadcast, and a unicast frame never
+  // consults it.
+  if (options.allow_broadcast_read) {
+    if (helpers::is_function_code_broadcastable(pdu[0])) {
+      ESP_LOGW(TAG, "allow_broadcast_read is ignored for a broadcastable function (0x%X, address %" PRIu8 ")", pdu[0],
+               address);
+      options.allow_broadcast_read = false;
+    } else if (address != BROADCAST_ADDRESS) {
+      options.allow_broadcast_read = false;
+    }
+  }
+
+  if (address == BROADCAST_ADDRESS && !options.allow_broadcast_read &&
+      !helpers::is_function_code_broadcastable(pdu[0])) {
+    ESP_LOGW(TAG, "Broadcast refused for function 0x%X: a broadcast (address 0) is never answered", pdu[0]);
+    return false;
   }
 
   // A duplicate of a live entry with the same owner is not queued twice; it resolves against that

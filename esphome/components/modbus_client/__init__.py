@@ -7,7 +7,6 @@ from esphome.components import modbus
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ADDRESS,
-    CONF_CONTINUOUS,
     CONF_COUNT,
     CONF_ID,
     CONF_ON_ERROR,
@@ -158,21 +157,20 @@ _ACTION_BASE_SCHEMA = cv.Schema(
 )
 
 
-def _no_continuous_on_write(config: ConfigType) -> ConfigType:
-    """Reject `continuous: true` on a static write PDU: continuous polling only applies to reads.
-    Only the fully-static case is decidable here; the hub strips the flag from mutating PDUs at
-    runtime, so a templated pdu or continuous falls through to that backstop."""
+def _no_read_options_on_write(config: ConfigType) -> ConfigType:
+    """Reject a read option (continuous, allow_broadcast_read) set true on a static write PDU: they
+    only apply to reads. Only the fully-static case is decidable here; the hub strips the flags from
+    mutating PDUs at runtime, so a templated pdu or option falls through to that backstop."""
     pdu = config[CONF_PDU]
-    if (
-        isinstance(pdu, list)
-        and config.get(CONF_CONTINUOUS) is True
-        and modbus.is_function_code_write(pdu[0])
-    ):
-        raise cv.Invalid(
-            f"'{CONF_CONTINUOUS}: true' does not apply to a write PDU (function code "
-            f"0x{pdu[0]:02X}); continuous polling only applies to reads",
-            path=[CONF_CONTINUOUS],
-        )
+    if not isinstance(pdu, list) or not modbus.is_function_code_write(pdu[0]):
+        return config
+    for key in modbus.command_option_keys("read"):
+        if config.get(key) is True:
+            raise cv.Invalid(
+                f"'{key}: true' does not apply to a write PDU (function code 0x{pdu[0]:02X}); "
+                f"it only applies to reads",
+                path=[key],
+            )
     return config
 
 
@@ -189,7 +187,7 @@ MODBUS_CLIENT_SEND_SCHEMA = cv.All(
             cv.Optional(CONF_ON_RESPONSE): _handler_schema(),
         }
     ),
-    _no_continuous_on_write,
+    _no_read_options_on_write,
 )
 
 

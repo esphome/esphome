@@ -92,11 +92,14 @@ template<typename... Ts> class ReadCommandOptions {
   // Poll: re-queue after each success until downgraded (replay with false) or failed. The hub strips
   // it for mutating function codes at the door (see modbus::CommandOptions).
   TEMPLATABLE_VALUE(bool, continuous)
+  // Send to address 0 and wait for the reply (see modbus::CommandOptions).
+  TEMPLATABLE_VALUE(bool, allow_broadcast_read)
 
  protected:
   /// The options for this send, with every templatable value resolved against the action's arguments.
   modbus::CommandOptions command_options_(const Ts &...x) const {
-    return {.continuous = this->continuous_.value(x...)};
+    return {.continuous = this->continuous_.value(x...),
+            .allow_broadcast_read = this->allow_broadcast_read_.value(x...)};
   }
 };
 

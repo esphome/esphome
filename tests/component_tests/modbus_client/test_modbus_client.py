@@ -7,7 +7,7 @@ guard is a safety property: these tests pin it to every handler slot.
 import pytest
 
 from esphome import config_validation as cv
-from esphome.components import modbus_client
+from esphome.components import modbus, modbus_client
 from esphome.components.modbus_client import (
     CONF_ON_NO_RESPONSE,
     CONF_ON_NOT_SENT,
@@ -185,3 +185,33 @@ def test_multi_conf_no_default_is_set() -> None:
     """
     assert modbus_client.MULTI_CONF is True
     assert modbus_client.MULTI_CONF_NO_DEFAULT is True
+
+
+@pytest.mark.parametrize("key", [CONF_CONTINUOUS, modbus.CONF_ALLOW_BROADCAST_READ])
+def test_send_rejects_read_option_on_static_write_pdu(key: str) -> None:
+    # A read option set true on a static write PDU is refused at validation, naming the key.
+    config = {
+        CONF_ADDRESS: 1,
+        CONF_PDU: [0x06, 0x00, 0x10, 0x00, 0x01],
+        key: True,
+    }
+    with pytest.raises(
+        cv.Invalid, match=f"'{key}: true' does not apply to a write PDU"
+    ):
+        MODBUS_CLIENT_SEND_SCHEMA(config)
+
+
+def test_send_accepts_allow_broadcast_read_on_read_pdu() -> None:
+    # allow_broadcast_read defaults to False and is accepted on a read PDU to address 0.
+    config = MODBUS_CLIENT_SEND_SCHEMA(
+        {CONF_ADDRESS: 0, CONF_PDU: [0x03, 0x00, 0x10, 0x00, 0x02]}
+    )
+    assert config[modbus.CONF_ALLOW_BROADCAST_READ] is False
+    config = MODBUS_CLIENT_SEND_SCHEMA(
+        {
+            CONF_ADDRESS: 0,
+            CONF_PDU: [0x03, 0x00, 0x10, 0x00, 0x02],
+            modbus.CONF_ALLOW_BROADCAST_READ: True,
+        }
+    )
+    assert config[modbus.CONF_ALLOW_BROADCAST_READ] is True

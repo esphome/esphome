@@ -104,11 +104,15 @@ def _warn_removed_options(config: ConfigType) -> ConfigType:
 
 def _reject_broadcast_address(config: ConfigType) -> ConfigType:
     """A modbus_controller polls one device, so its address cannot be the broadcast address (0):
-    a broadcast is never answered (Modbus 4.1), so no register could ever read back."""
+    a broadcast is never answered (Modbus 4.1), so no register could ever read back. The exception is
+    allow_broadcast_read, for a device that does answer address 0."""
+    if config[modbus.CONF_ALLOW_BROADCAST_READ]:
+        return config
     modbus.reject_broadcast_address(
         config.get(CONF_ADDRESS),
         "a modbus_controller device address",
-        "Assign the unit address of the device you want to poll.",
+        "Assign the unit address of the device you want to poll, or set allow_broadcast_read if "
+        "it answers address 0.",
         [CONF_ADDRESS],
     )
     return config

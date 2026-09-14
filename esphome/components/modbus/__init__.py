@@ -48,6 +48,7 @@ ModbusServerDevice = modbus_ns.class_("ModbusServerDevice")
 CommandOptions = modbus_ns.struct("CommandOptions")
 MULTI_CONF = True
 
+CONF_ALLOW_BROADCAST_READ = "allow_broadcast_read"
 CONF_ROLE = "role"
 CONF_MODBUS_ID = "modbus_id"
 CONF_SEND_WAIT_TIME = "send_wait_time"
@@ -70,7 +71,12 @@ class _CommandOption(NamedTuple):
 # them from drifting; the C++ side must add the matching field per the rules documented on
 # CommandOptions (modbus.h).
 _COMMAND_OPTIONS: dict[str, list[_CommandOption]] = {
-    "read": [_CommandOption(CONF_CONTINUOUS, "continuous", cv.boolean, bool, False)],
+    "read": [
+        _CommandOption(CONF_CONTINUOUS, "continuous", cv.boolean, bool, False),
+        _CommandOption(
+            CONF_ALLOW_BROADCAST_READ, "allow_broadcast_read", cv.boolean, bool, False
+        ),
+    ],
     "write": [],
 }
 
@@ -80,6 +86,12 @@ def _command_options(direction: str) -> list[_CommandOption]:
         return _COMMAND_OPTIONS[direction]
     except KeyError:
         raise ValueError(f"unknown command-options direction {direction!r}") from None
+
+
+def command_option_keys(direction: Literal["read", "write"]) -> list[str]:
+    """The config keys command_options_schema() offers for a direction, for validators that need to
+    reason about them as a group (e.g. rejecting every read option on a static write PDU)."""
+    return [option.conf_key for option in _command_options(direction)]
 
 
 # The write (mutating) function codes, matching modbus::helpers::is_function_code_write(). 0x17

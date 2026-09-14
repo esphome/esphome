@@ -115,6 +115,10 @@ enum class FrameState : uint8_t {
 struct CommandOptions {
   // A continuous poll lives in the queue until cancelled or failed; ignored for mutating codes.
   bool continuous{false};
+  // Send a read to the broadcast address (0) and wait for its reply, for devices that answer address 0
+  // (a lone device of unknown unit id, or one that treats 0 as its own). Ignored for broadcastable
+  // codes (writes, custom), which are real broadcasts; inert for a unicast address.
+  bool allow_broadcast_read{false};
 };
 
 struct ModbusDeviceCommand {
@@ -157,6 +161,11 @@ struct ModbusDeviceCommand {
       this->state = FrameState::RETIRED;
     this->pending = 0;
     this->device = nullptr;
+  }
+  // True for a broadcast (address 0) that gets no reply (Modbus 4.1): every address-0 frame except a
+  // read sent with allow_broadcast_read, which waits for a response like a unicast read.
+  bool fire_and_forget() const {
+    return this->frame.address() == BROADCAST_ADDRESS && !this->options.allow_broadcast_read;
   }
   // Fire-and-forget completion for a broadcast (address 0): the frame was transmitted (on_sent already
   // fired), but a broadcast is never answered (Modbus 4.1), so the entry retires with no terminal callback.

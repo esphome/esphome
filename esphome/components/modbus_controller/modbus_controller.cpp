@@ -234,10 +234,14 @@ void ModbusCommandItem::on_sent(std::span<const uint8_t> request_pdu) {
   // (frame[0]), which may differ from this controller's. (unqueue_command() is a no-op for a poll.)
   // A custom polling command sends its PDU to this controller's own address, so only a factory custom
   // command (a raw frame staged in payload) can carry a different address byte.
+  // With allow_broadcast_read, the hub waits for a reply to a read sent to address 0, so that one keeps
+  // its terminal callback and stays queued (mirrors the hub's own normalization).
   uint8_t wire_address = this->address_;
   if (this->function_code_ == FunctionCode::CUSTOM && !this->payload.empty())
     wire_address = this->payload.data()[0];
-  if (wire_address == modbus::BROADCAST_ADDRESS)
+  const bool answered = this->controller_->read_options().allow_broadcast_read &&
+                        !modbus::helpers::is_function_code_broadcastable(request_pdu[0]);
+  if (wire_address == modbus::BROADCAST_ADDRESS && !answered)
     this->controller_->unqueue_command(this);
 }
 
@@ -285,8 +289,10 @@ void ModbusController::queue_command(ModbusCommandItem command) {
   this->one_shot_command_items_.push_back(make_unique<ModbusCommandItem>(std::move(command)));
   // A refused frame gets no terminal callback (see the hub contract), so reclaim the item here.
   auto &item = this->one_shot_command_items_.back();
-  // We intentionally do not pass read_options_ here, because one-shot commands are usually writes, and are non-polling.
-  if (!item->send()) {
+  // One-shot commands are usually writes and never poll, so continuous is deliberately not passed; a
+  // one-shot read to address 0 still needs the controller's allow_broadcast_read (the hub strips it
+  // from writes).
+  if (!item->send({.allow_broadcast_read = this->read_options_.allow_broadcast_read})) {
     // The caller (e.g. a write entity) has usually already published optimistically - surface the loss.
     ESP_LOGW(TAG, "Command refused by hub: type=0x%X address=0x%X", static_cast<uint8_t>(item->register_type()),
              item->register_address());
@@ -340,7 +346,8 @@ void ModbusController::update() {
   if (this->can_send()) {
     for (auto &poll : this->polling_devices_) {
       ESP_LOGVV(TAG, "Updating range 0x%X", poll.register_address());
-      // read_options_ carries the controller's continuous flag (the offline probe above sends it too).
+      // read_options_ carries the controller's continuous and allow_broadcast_read flags (the offline probe
+      // above sends them too).
       // A refusal is already logged by the hub; note the affected range for controller-level diagnostics.
       if (!poll.queue(this->read_options_)) {
         ESP_LOGD(TAG, "Poll refused by hub for range 0x%X", poll.register_address());
