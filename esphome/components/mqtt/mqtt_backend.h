@@ -20,6 +20,16 @@ enum class MQTTClientDisconnectReason : int8_t {
   DNS_RESOLVE_ERROR = 8
 };
 
+/// Transport selected for the MQTT connection.
+/// TCP keeps the existing behavior (SSL is auto-derived when a CA cert is set).
+/// WS and WSS are only honored by backends that support them (currently the
+/// ESP-IDF backend, via esp-mqtt's MQTT_TRANSPORT_OVER_WS/WSS).
+enum class MQTTTransport : uint8_t {
+  TCP = 0,
+  WS = 1,
+  WSS = 2,
+};
+
 /// internal struct for MQTT messages.
 struct MQTTMessage {
   std::string topic;
