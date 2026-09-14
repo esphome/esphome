@@ -155,7 +155,7 @@ class SprinklerValveRunRequest {
   bool has_request() { return this->has_valve_; }
   bool has_valve_operator();
   void set_request_from(SprinklerValveRunRequestOrigin origin) { this->origin_ = origin; }
-  void set_run_duration(uint32_t run_duration);
+  void set_run_duration(uint32_t run_duration) { this->run_duration_ = run_duration; }
   void set_valve(size_t valve_number);
   void set_valve_operator(SprinklerValveOperator *valve_op);
   void reset();

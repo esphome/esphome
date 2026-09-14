@@ -288,8 +288,6 @@ SprinklerValveRunRequest::SprinklerValveRunRequest(size_t valve_number, uint32_t
 
 bool SprinklerValveRunRequest::has_valve_operator() { return !(this->valve_op_ == nullptr); }
 
-void SprinklerValveRunRequest::set_run_duration(uint32_t run_duration) { this->run_duration_ = run_duration; }
-
 void SprinklerValveRunRequest::set_valve(size_t valve_number) {
   this->valve_number_ = valve_number;
   this->run_duration_ = 0;
