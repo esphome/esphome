@@ -880,7 +880,7 @@ TEST(ModbusClientHubBroadcast, AllowBroadcastReadStillRejectsWrongFunctionCode) 
   ASSERT_TRUE(hub.waiting());
 
   const uint8_t wrong_reply[] = {0x04, 0x04, 0x00, 0x01, 0x00, 0x02};
-  hub.receive_frame_for_test(0x07, wrong_reply);
+  hub.receive_frame_for_test(BROADCAST_ADDRESS, wrong_reply);  // right address, wrong function code
   EXPECT_EQ(device.response_count_, 0);
   EXPECT_EQ(hub.waiting_command().state, FrameState::INTERRUPTED);
 }
@@ -960,6 +960,27 @@ TEST(ModbusClientHubBroadcast, ExpectBroadcastWriteResponseWaitsAndAcceptsReply)
   hub.receive_frame_for_test(BROADCAST_ADDRESS, write);  // the echo, as address 0
   EXPECT_EQ(device.response_count_, 1);
   EXPECT_EQ(device.last_response_size_, sizeof(write));
+  EXPECT_FALSE(hub.waiting());
+  EXPECT_EQ(hub.entries(), 0u);
+}
+
+// Two requests for the same address-0 write may disagree on expect_broadcast_write_response (a
+// broadcastable frame is accepted either way), but a write duplicate is refused at its cap of one in
+// flight rather than absorbed, so the queued entry's delivery mode is never changed under it.
+TEST(ModbusClientHubBroadcast, ExpectBroadcastWriteResponseDuplicateRefusedNotMerged) {
+  NullUART uart;
+  NoResponseProbeHub hub;
+  hub.set_uart_parent(&uart);
+  hub.setup();
+  BroadcastProbeDevice device(&hub, BROADCAST_ADDRESS);
+
+  ASSERT_TRUE(device.write_single_register(0x0010, 0x0001));  // fire-and-forget as queued
+  EXPECT_TRUE(hub.queued(0).fire_and_forget());
+  EXPECT_FALSE(device.write_single_register(0x0010, 0x0001, {.expect_broadcast_write_response = true}));
+  EXPECT_EQ(hub.entries(), 1u);
+  EXPECT_TRUE(hub.queued(0).fire_and_forget());  // the refused request left the entry untouched
+
+  hub.send_next_for_test();
   EXPECT_FALSE(hub.waiting());
   EXPECT_EQ(hub.entries(), 0u);
 }

@@ -48,3 +48,9 @@ def test_writer_entity_takes_expect_broadcast_write_response() -> None:
     assert SWITCH_SCHEMA({**base, CONF_NAME: "Switch 2", key: True})[key] is True
     with pytest.raises(cv.Invalid):
         CONFIG_SCHEMA({modbus.CONF_MODBUS_ID: "bus", CONF_ADDRESS: 1, key: True})
+
+
+def test_allow_broadcast_read_requires_address_zero() -> None:
+    # The option only means something at address 0; elsewhere it would be silently inert.
+    with pytest.raises(cv.Invalid, match="only applies to the broadcast address"):
+        _controller(5, **{modbus.CONF_ALLOW_BROADCAST_READ: True})

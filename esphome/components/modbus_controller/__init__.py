@@ -107,6 +107,12 @@ def _reject_broadcast_address(config: ConfigType) -> ConfigType:
     a broadcast is never answered (Modbus 4.1), so no register could ever read back. The exception is
     allow_broadcast_read, for a device that does answer address 0."""
     if config[modbus.CONF_ALLOW_BROADCAST_READ]:
+        if config.get(CONF_ADDRESS) != modbus.BROADCAST_ADDRESS:
+            raise cv.Invalid(
+                f"'{modbus.CONF_ALLOW_BROADCAST_READ}' only applies to the broadcast address; "
+                f"set 'address: 0' or remove the option.",
+                [modbus.CONF_ALLOW_BROADCAST_READ],
+            )
         return config
     modbus.reject_broadcast_address(
         config.get(CONF_ADDRESS),
@@ -360,7 +366,10 @@ def _reject_broadcastable_custom_pdu(config: ConfigType) -> None:
     fconf = fv.full_config.get()
     path = fconf.get_path_for_id(config[CONF_MODBUS_CONTROLLER_ID])[:-1]
     controller = fconf.get_config_for_path(path)
-    if controller.get(modbus.CONF_ALLOW_BROADCAST_READ) is True:
+    if (
+        controller.get(CONF_ADDRESS) == modbus.BROADCAST_ADDRESS
+        and controller.get(modbus.CONF_ALLOW_BROADCAST_READ) is True
+    ):
         raise cv.Invalid(
             f"a '{CONF_CUSTOM_PDU}' with function code 0x{pdu[0] & 0x7F:02X} is a real broadcast at "
             f"address 0 and is never answered, so it can't be polled through the "

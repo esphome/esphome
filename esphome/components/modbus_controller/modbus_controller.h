@@ -352,8 +352,9 @@ class WriterEntity {
     this->device_.set_dispatched();
     return this->device_.write_multiple_coils(address, bits, this->device_.write_options());
   }
-  /// A custom PDU takes its own options; the entity's write options are not merged in.
-  bool queue_pdu(std::span<const uint8_t> pdu, modbus::CommandOptions options = {}) {
+  /// A custom PDU is sent with the entity's write options unless the caller passes its own.
+  bool queue_pdu(std::span<const uint8_t> pdu) { return this->queue_pdu(pdu, this->device_.write_options()); }
+  bool queue_pdu(std::span<const uint8_t> pdu, modbus::CommandOptions options) {
     this->device_.set_dispatched();
     return this->device_.queue_pdu(pdu, options);
   }
