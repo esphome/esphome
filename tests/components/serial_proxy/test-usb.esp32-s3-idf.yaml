@@ -1,3 +1,8 @@
+# A hardware UART port alongside the USB one, so the USB info define is exercised on a
+# port that has no USB channel
+packages:
+  uart: !include ../../test_build_components/common/uart/esp32-idf.yaml
+
 wifi:
   ssid: MySSID
   password: password1
@@ -19,3 +24,7 @@ serial_proxy:
     uart_id: usb_serial_channel
     name: USB Serial Port
     port_type: USB_SERIAL
+  - id: serial_proxy_hw
+    uart_id: uart_bus
+    name: Hardware Serial Port
+    port_type: TTL
