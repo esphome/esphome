@@ -97,10 +97,14 @@ async def finish_list_triggers() -> None:
     Builds every list's on_add/on_remove automations, collected by ListType.on_create()
     instead of being built there directly.
     """
-    for triggers in get_list_triggers().values():
-        for conf in triggers.on_add + triggers.on_remove:
-            trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID])
-            await automation.build_automation(trigger, [(cg.int_, "list_index")], conf)
+    # Avoid circular references by creating the trigger Pvariables first
+    built_triggers = [
+        (cg.new_Pvariable(conf[CONF_TRIGGER_ID]), conf)
+        for triggers in get_list_triggers().values()
+        for conf in triggers.on_add + triggers.on_remove
+    ]
+    for trigger, conf in built_triggers:
+        await automation.build_automation(trigger, [(cg.int_, "list_index")], conf)
 
 
 async def _fire_index_triggers(confs: list, index) -> None:

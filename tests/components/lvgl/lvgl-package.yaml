@@ -1357,6 +1357,17 @@ lvgl:
             text: Checkbox
             align: bottom_right
         - list:
+            id: list_a
+            on_add:
+              - lvgl.list.add:
+                  id: list_b          # fires list_b's on_add
+                  label: {text: x}
+        - list:
+            id: list_b
+            on_add:
+              - logger.log: added
+
+        - list:
             id: test_list_id
             align: top_right
             width: 150px
