@@ -4288,7 +4288,6 @@ uint8_t *SerialProxyUsbInfo::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_
   ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 8, this->manufacturer);
   ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 9, this->product);
   ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 10, this->serial_number);
-  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 11, this->interface_description);
   return pos;
 }
 uint32_t SerialProxyUsbInfo::calculate_size() const {
@@ -4303,7 +4302,6 @@ uint32_t SerialProxyUsbInfo::calculate_size() const {
   size += ProtoSize::calc_length(1, this->manufacturer.size());
   size += ProtoSize::calc_length(1, this->product.size());
   size += ProtoSize::calc_length(1, this->serial_number.size());
-  size += ProtoSize::calc_length(1, this->interface_description.size());
   return size;
 }
 #endif
