@@ -2536,8 +2536,8 @@ def build_message_type(
 
     # Get source direction to determine if we need decode/encode methods
     source = message_source_map[desc.name]
-    needs_decode = source in (SOURCE_BOTH, SOURCE_CLIENT)
-    needs_encode = source in (SOURCE_BOTH, SOURCE_SERVER)
+    needs_decode = message_needs_decode(source)
+    needs_encode = message_needs_encode(source)
 
     # Add MESSAGE_TYPE method if this is a service message
     if message_id is not None:
@@ -2661,15 +2661,22 @@ def build_message_type(
 
     cpp = ""
     if decode:
-        o = f"void {desc.name}::decode_field(uint32_t tag, const uint8_t *data, proto_varint_value_t scalar) {{\n"
+        o = f"void {desc.name}::decode_field(void *self, uint32_t tag, const uint8_t *data, proto_varint_value_t scalar) {{\n"
+        o += f"  auto &msg = *static_cast<{desc.name} *>(self);\n"
         o += "  const ProtoFieldValue value(data, scalar);\n"
         o += "  switch (tag) {\n"
-        o += indent("\n".join(decode), "    ") + "\n"
+        o += indent("\n".join(decode), "    ").replace("this->", "msg.") + "\n"
         o += "  }\n"
         o += "}\n"
         cpp += o
-        prot = "void decode_field(uint32_t tag, const uint8_t *data, proto_varint_value_t scalar) override;"
+        prot = "static void decode_field(void *self, uint32_t tag, const uint8_t *data, proto_varint_value_t scalar);"
         protected_content.insert(0, prot)
+        if not fixed_vector_fields:
+            public_content.append(
+                "void decode(const uint8_t *buffer, size_t length) {\n"
+                "  ProtoDecodableMessage::decode_fields(this, buffer, length, &decode_field);\n"
+                "}"
+            )
 
     # Generate custom decode() override for messages with FixedVector fields
     if fixed_vector_fields:
@@ -2679,8 +2686,8 @@ def build_message_type(
         for field_name, field_number in fixed_vector_fields:
             o += f"  uint32_t count_{field_name} = ProtoDecodableMessage::count_repeated_field(buffer, length, {field_number});\n"
             o += f"  this->{field_name}.init(count_{field_name});\n"
-        # Call parent decode to populate the fields
-        o += "  ProtoDecodableMessage::decode(buffer, length);\n"
+        # Then the shared loop fills them
+        o += "  ProtoDecodableMessage::decode_fields(this, buffer, length, &decode_field);\n"
         o += "}\n"
         cpp += o
         # Generate the decode() declaration in header (public method)
@@ -2839,6 +2846,23 @@ def get_field_opt(
     return field.options.Extensions[opt]
 
 
+def message_needs_decode(source: int) -> bool:
+    return source in (SOURCE_BOTH, SOURCE_CLIENT)
+
+
+def message_needs_encode(source: int) -> bool:
+    return source in (SOURCE_BOTH, SOURCE_SERVER)
+
+
+def is_decodable_class(desc: descriptor.DescriptorProto, source: int) -> bool:
+    """Whether the generated class derives from ProtoDecodableMessage: decoded, and either on a
+    decodable base class or with at least one live field."""
+    return message_needs_decode(source) and (
+        get_base_class(desc) is not None
+        or any(not field.options.deprecated for field in desc.field)
+    )
+
+
 def get_base_class(desc: descriptor.DescriptorProto) -> str | None:
     """Get the base_class option from a message descriptor."""
     if not desc.options.HasExtension(pb.base_class):
@@ -2940,11 +2964,11 @@ def build_base_class(
 
     # Determine if any message using this base class needs decoding/encoding
     needs_decode = any(
-        message_source_map.get(msg.name, SOURCE_BOTH) in (SOURCE_BOTH, SOURCE_CLIENT)
+        message_needs_decode(message_source_map.get(msg.name, SOURCE_BOTH))
         for msg in messages
     )
     needs_encode = any(
-        message_source_map.get(msg.name, SOURCE_BOTH) in (SOURCE_BOTH, SOURCE_SERVER)
+        message_needs_encode(message_source_map.get(msg.name, SOURCE_BOTH))
         for msg in messages
     )
 
@@ -3378,6 +3402,7 @@ static void dump_bytes_field(DumpBuffer &out, const char *field_name, const uint
 
     # Generate message types with base class information
     # Simple grouping by ifdef
+    decodable_messages: list[tuple[str, str | None]] = []
     current_ifdef = None
 
     for m in mt:
@@ -3394,6 +3419,8 @@ static void dump_bytes_field(DumpBuffer &out, const char *field_name, const uint
             continue
 
         s, c, dc = build_message_type(m, base_class_fields, message_source_map)
+        if is_decodable_class(m, message_source_map[m.name]):
+            decodable_messages.append((m.name, message_ifdef_map.get(m.name)))
         msg_ifdef = message_ifdef_map.get(m.name)
 
         # Handle ifdef changes
@@ -3419,6 +3446,22 @@ static void dump_bytes_field(DumpBuffer &out, const char *field_name, const uint
         content += "#endif\n"
         cpp += "#endif\n"
         dump_cpp += "#endif\n"
+
+    # decode() passes decode_field explicitly, so without the dump virtuals no decodable message
+    # may carry a vtable; a build at any level below VERY_VERBOSE proves it
+    cpp += "#ifndef HAS_PROTO_MESSAGE_DUMP\n"
+    assert_ifdef = None
+    for name, msg_ifdef in decodable_messages:
+        if msg_ifdef != assert_ifdef:
+            if assert_ifdef is not None:
+                cpp += "#endif\n"
+            if msg_ifdef is not None:
+                cpp += _make_ifdef_line(msg_ifdef) + "\n"
+            assert_ifdef = msg_ifdef
+        cpp += f'static_assert(!std::is_polymorphic_v<{name}>, "decodable messages carry no vtable");\n'
+    if assert_ifdef is not None:
+        cpp += "#endif\n"
+    cpp += "#endif\n"
 
     content += """\
 

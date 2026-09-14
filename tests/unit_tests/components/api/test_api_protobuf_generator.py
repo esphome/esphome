@@ -285,18 +285,19 @@ def test_a_fixed64_field_fails_at_generation_time() -> None:
         build_message_type(desc, {}, {"Wide": SOURCE_CLIENT})
 
 
-def test_message_gets_a_single_decode_field_override() -> None:
-    """All wire types of a decoded message land in one decode_field() switch."""
+def test_message_decodes_through_one_static_decode_field() -> None:
+    """All wire types of a decoded message land in one static decode_field() switch that the
+    inline decode() hands to the shared loop."""
     desc = descriptor_pb2.DescriptorProto(name="Mixed")
     desc.field.add(name="name", number=1, type=STRING)
     desc.field.add(name="count", number=2, type=UINT32)
     desc.field.add(name="level", number=3, type=FLOAT)
     header, cpp, _ = build_message_type(desc, {}, {"Mixed": SOURCE_CLIENT})
-    decl = "void decode_field(uint32_t tag, const uint8_t *data, proto_varint_value_t scalar) override;"
+    decl = "static void decode_field(void *self, uint32_t tag, const uint8_t *data, proto_varint_value_t scalar);"
     assert header.count(decl) == 1
     assert (
         cpp.count(
-            "void Mixed::decode_field(uint32_t tag, const uint8_t *data, proto_varint_value_t scalar) {"
+            "void Mixed::decode_field(void *self, uint32_t tag, const uint8_t *data, proto_varint_value_t scalar) {"
         )
         == 1
     )
@@ -308,3 +309,34 @@ def test_message_gets_a_single_decode_field_override() -> None:
         (3, "WIRE_TYPE_FIXED32"),
     ):
         assert f"case proto_tag({number}, {wire_type}):" in cpp, cpp
+    # The static body works on the cast message, never on this
+    assert "auto &msg = *static_cast<Mixed *>(self);" in cpp
+    assert "this->" not in cpp
+    assert (
+        header.count(
+            "ProtoDecodableMessage::decode_fields(this, buffer, length, &decode_field);"
+        )
+        == 1
+    )
+
+
+def test_fixed_vector_message_keeps_its_own_decode() -> None:
+    """A message that sizes a FixedVector first decodes through its own decode(), not the inline one."""
+    desc = descriptor_pb2.DescriptorProto(name="Sized")
+    field = desc.field.add(name="values", number=1, type=UINT32)
+    field.label = descriptor_pb2.FieldDescriptorProto.LABEL_REPEATED
+    field.options.Extensions[pb.fixed_vector] = True
+    header, cpp, _ = build_message_type(desc, {}, {"Sized": SOURCE_CLIENT})
+    assert (
+        "ProtoDecodableMessage::decode_fields(this, buffer, length, &decode_field);"
+        not in header
+    )
+    assert header.count("void decode(const uint8_t *buffer, size_t length);") == 1
+    assert "void Sized::decode(const uint8_t *buffer, size_t length) {" in cpp
+    assert "ProtoDecodableMessage::count_repeated_field(buffer, length, 1)" in cpp
+    assert (
+        cpp.count(
+            "ProtoDecodableMessage::decode_fields(this, buffer, length, &decode_field);"
+        )
+        == 1
+    )
