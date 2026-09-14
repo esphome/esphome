@@ -33,10 +33,11 @@ struct CdcEps {
   const usb_ep_desc_t *notify_ep;
   const usb_ep_desc_t *in_ep;
   const usb_ep_desc_t *out_ep;
-  uint8_t bulk_interface_number;
+  // 0xFF marks a channel that was never matched to a CDC function on the device
+  uint8_t bulk_interface_number{0xFF};
   // Also the wIndex target for CDC class requests (SET_LINE_CODING etc.), so it
   // must remain valid even when the interface itself is not claimed.
-  uint8_t interrupt_interface_number;
+  uint8_t interrupt_interface_number{0xFF};
   bool interrupt_interface_claimed{false};
 };
 

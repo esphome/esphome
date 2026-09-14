@@ -21,8 +21,6 @@ static optional<CdcEps> get_cdc(const usb_config_desc_t *config_desc, uint8_t in
   int conf_offset, ep_offset;
   // look for an interface with an interrupt endpoint (notify), and one with two bulk endpoints (data in/out)
   CdcEps eps{};
-  eps.bulk_interface_number = 0xFF;
-  eps.interrupt_interface_number = 0xFF;
   for (;;) {
     const auto *intf_desc = usb_parse_interface_descriptor(config_desc, intf_idx++, 0, &conf_offset);
     if (!intf_desc) {
