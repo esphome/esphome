@@ -1,0 +1,16 @@
+ld2410s:
+  uart_id: uart_bus
+
+sensor:
+  - platform: ld2410s
+    target_distance:
+      name: Target Distance
+    calibration_progress:
+      name: Calibration Progress
+
+binary_sensor:
+  - platform: ld2410s
+    has_target:
+      name: Presence
+    has_calibration_running:
+      name: Calibration Running
