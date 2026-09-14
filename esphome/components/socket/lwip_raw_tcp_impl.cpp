@@ -10,6 +10,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/wake.h"
 #include "esphome/core/log.h"
+#include "lwip_raw_common_impl.h"
 
 #ifdef USE_OTA_PLATFORM_ESPHOME
 extern "C" void esphome_wake_ota_component_any_context();
@@ -24,23 +25,9 @@ extern "C" void esphome_wake_ota_component_any_context();
 
 namespace esphome::socket {
 
-// ---- LWIP thread safety ----
-//
-// On RP2040 (Pico W), arduino-pico sets PICO_CYW43_ARCH_THREADSAFE_BACKGROUND=1.
-// This means lwip callbacks (recv_fn, accept_fn, err_fn) run from a low-priority
-// user IRQ context, not the main loop (see low_priority_irq_handler() in pico-sdk
-// async_context_threadsafe_background.c). They can preempt main-loop code at any point.
-//
-// Without locking, this causes race conditions between recv_fn and read() on the
-// shared rx_buf_ pbuf chain — recv_fn calls pbuf_cat() while read() is freeing
-// nodes, leading to use-after-free and infinite-loop crashes. See esphome#10681.
-//
-// On ESP8266, lwip callbacks run from the SYS context which cooperates with user
-// code (CONT context) — they never preempt each other, so no locking is needed.
-//
-// esphome::LwIPLock is the platform-provided RAII guard (see helpers.h/helpers.cpp).
-// On RP2040, it acquires cyw43_arch_lwip_begin/end (WiFi) or ethernet_arch_lwip_begin/end
-// (Ethernet). On ESP8266, it's a no-op.
+// LWIP thread safety — see lwip_raw_common_impl.h for full explanation.
+// esphome::LwIPLock is the platform-provided RAII guard.
+// On RP2040, it acquires cyw43_arch_lwip_begin/end. On ESP8266, it's a no-op.
 #define LWIP_LOCK() esphome::LwIPLock lwip_lock_guard  // NOLINT
 
 static const char *const TAG = "socket";
@@ -112,59 +99,14 @@ int LWIPRawCommon::bind(const struct sockaddr *name, socklen_t addrlen) {
     return -1;
   }
   ip_addr_t ip;
-  in_port_t port;
-#if LWIP_IPV6
-  if (this->family_ == AF_INET) {
-    if (addrlen < sizeof(sockaddr_in)) {
-      errno = EINVAL;
-      return -1;
-    }
-    auto *addr4 = reinterpret_cast<const sockaddr_in *>(name);
-    port = ntohs(addr4->sin_port);
-    ip.type = IPADDR_TYPE_V4;
-    ip.u_addr.ip4.addr = addr4->sin_addr.s_addr;
-    LWIP_LOG("tcp_bind(%p ip=%s port=%u)", this->pcb_, ip4addr_ntoa(&ip.u_addr.ip4), port);
-  } else if (this->family_ == AF_INET6) {
-    if (addrlen < sizeof(sockaddr_in6)) {
-      errno = EINVAL;
-      return -1;
-    }
-    auto *addr6 = reinterpret_cast<const sockaddr_in6 *>(name);
-    port = ntohs(addr6->sin6_port);
-    ip.type = IPADDR_TYPE_ANY;
-    memcpy(&ip.u_addr.ip6.addr, &addr6->sin6_addr.un.u8_addr, 16);
-    LWIP_LOG("tcp_bind(%p ip=%s port=%u)", this->pcb_, ip6addr_ntoa(&ip.u_addr.ip6), port);
-  } else {
+  uint16_t port;
+  if (!sockaddr_to_lwip_bind(this->family_, name, addrlen, &ip, &port)) {
     errno = EINVAL;
     return -1;
   }
-#else
-  if (this->family_ != AF_INET) {
-    errno = EINVAL;
-    return -1;
-  }
-  auto *addr4 = reinterpret_cast<const sockaddr_in *>(name);
-  port = ntohs(addr4->sin_port);
-  ip.addr = addr4->sin_addr.s_addr;
-  LWIP_LOG("tcp_bind(%p ip=%u port=%u)", this->pcb_, ip.addr, port);
-#endif
   err_t err = tcp_bind(this->pcb_, &ip, port);
-  if (err == ERR_USE) {
-    LWIP_LOG("  -> err ERR_USE");
-    errno = EADDRINUSE;
-    return -1;
-  }
-  if (err == ERR_VAL) {
-    LWIP_LOG("  -> err ERR_VAL");
-    errno = EINVAL;
-    return -1;
-  }
-  if (err != ERR_OK) {
-    LWIP_LOG("  -> err %d", err);
-    errno = EIO;
-    return -1;
-  }
-  return 0;
+  LWIP_LOG("  -> err %d", err);
+  return lwip_bind_err(err);
 }
 
 int LWIPRawCommon::close() {
@@ -349,43 +291,8 @@ int LWIPRawCommon::setsockopt(int level, int optname, const void *optval, sockle
 }
 
 int LWIPRawCommon::ip2sockaddr_(ip_addr_t *ip, uint16_t port, struct sockaddr *name, socklen_t *addrlen) {
-  if (this->family_ == AF_INET) {
-    if (*addrlen < sizeof(struct sockaddr_in)) {
-      errno = EINVAL;
-      return -1;
-    }
-
-    struct sockaddr_in *addr = reinterpret_cast<struct sockaddr_in *>(name);
-    addr->sin_family = AF_INET;
-    *addrlen = addr->sin_len = sizeof(struct sockaddr_in);
-    addr->sin_port = port;
-    inet_addr_from_ip4addr(&addr->sin_addr, ip_2_ip4(ip));
-    return 0;
-  }
-#if LWIP_IPV6
-  else if (this->family_ == AF_INET6) {
-    if (*addrlen < sizeof(struct sockaddr_in6)) {
-      errno = EINVAL;
-      return -1;
-    }
-
-    struct sockaddr_in6 *addr = reinterpret_cast<struct sockaddr_in6 *>(name);
-    addr->sin6_family = AF_INET6;
-    *addrlen = addr->sin6_len = sizeof(struct sockaddr_in6);
-    addr->sin6_port = port;
-
-    // AF_INET6 sockets are bound to IPv4 as well, so we may encounter IPv4 addresses that must be converted to IPv6.
-    if (IP_IS_V4(ip)) {
-      ip_addr_t mapped;
-      ip4_2_ipv4_mapped_ipv6(ip_2_ip6(&mapped), ip_2_ip4(ip));
-      inet6_addr_from_ip6addr(&addr->sin6_addr, ip_2_ip6(&mapped));
-    } else {
-      inet6_addr_from_ip6addr(&addr->sin6_addr, ip_2_ip6(ip));
-    }
-    return 0;
-  }
-#endif
-  return -1;
+  // lwip pcb ports are host order; ntohs preserves historical byte-swapped sin_port output
+  return lwip_ip_to_sockaddr(this->family_, ip, ntohs(port), name, addrlen);
 }
 
 // ---- LWIPRawImpl methods ----
@@ -887,11 +794,11 @@ err_t LWIPRawListenImpl::accept_fn_(struct tcp_pcb *newpcb, err_t err) {
   return ERR_OK;
 }
 
-// ---- Factory functions ----
+// ---- TCP Factory functions ----
 
 std::unique_ptr<Socket> socket(int domain, int type, int protocol) {
   if (type != SOCK_STREAM) {
-    ESP_LOGE(TAG, "UDP sockets not supported on this platform, use WiFiUDP");
+    ESP_LOGE(TAG, "Use socket_udp() for UDP sockets on this platform");
     errno = EPROTOTYPE;
     return nullptr;
   }
@@ -911,7 +818,7 @@ std::unique_ptr<Socket> socket_loop_monitored(int domain, int type, int protocol
 
 std::unique_ptr<ListenSocket> socket_listen(int domain, int type, int protocol) {
   if (type != SOCK_STREAM) {
-    ESP_LOGE(TAG, "UDP sockets not supported on this platform, use WiFiUDP");
+    ESP_LOGE(TAG, "Use socket_udp() for UDP sockets on this platform");
     errno = EPROTOTYPE;
     return nullptr;
   }
