@@ -15,9 +15,7 @@ lv_button_t = LvBoolean("lv_button_t")
 
 class ButtonType(WidgetType):
     def __init__(self):
-        super().__init__(
-            CONF_BUTTON, lv_button_t, (CONF_MAIN,), schema=TEXT_SCHEMA, lv_name="btn"
-        )
+        super().__init__(CONF_BUTTON, lv_button_t, (CONF_MAIN,), schema=TEXT_SCHEMA)
 
     def validate(self, value):
         if CONF_TEXT in value:

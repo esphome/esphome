@@ -42,8 +42,8 @@ from ..defines import (
     STATES,
     LValidator,
     add_lv_use,
+    get_part_state_selector,
     get_styles_used,
-    get_theme_widget_map,
     get_widget_map,
     join_enums,
     literal,
@@ -256,17 +256,10 @@ class WidgetType:
 
 def apply_theme_styles(w: "Widget") -> None:
     """Apply the current theme's styles for this widget's type"""
-    for part, states in get_theme_widget_map().get(w.type.name, {}).items():
-        part = "LV_PART_" + part.upper()
-        for state, style in states.items():
-            state = "LV_STATE_" + state.upper()
-            if state == "LV_STATE_DEFAULT":
-                lv_state = literal(part)
-            elif part == "LV_PART_MAIN":
-                lv_state = literal(state)
-            else:
-                lv_state = join_enums((state, part))
-            w.add_style(style, lv_state)
+    from ..styles import get_widget_theme_styles
+
+    for style, lv_state in get_widget_theme_styles(w.type.name):
+        w.add_style(style, lv_state)
 
 
 class Widget:
@@ -322,8 +315,6 @@ class Widget:
         return lv_obj.remove_flag(self.obj, literal(flag))
 
     def add_style(self, style_id, state=LV_STATE.DEFAULT):
-        if "|" in state:
-            state = f"(lv_state_t)({state})"
         lv_obj.add_style(self.obj, MockObj(style_id), literal(state))
 
     async def set_property(
@@ -597,15 +588,8 @@ async def set_obj_properties(w: Widget, config):
         _set_layout_options(w, layout, base_name)
     parts = collect_parts(config)
     for part, states in parts.items():
-        part = "LV_PART_" + part.upper()
         for state, props in states.items():
-            state = "LV_STATE_" + state.upper()
-            if state == "LV_STATE_DEFAULT":
-                lv_state = literal(part)
-            elif part == "LV_PART_MAIN":
-                lv_state = literal(state)
-            else:
-                lv_state = join_enums((state, part))
+            lv_state = get_part_state_selector(part, state)
             for style_id in props.get(CONF_STYLES, ()):
                 w.add_style(style_id, lv_state)
             for prop, value in {

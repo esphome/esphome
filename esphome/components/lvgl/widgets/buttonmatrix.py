@@ -188,7 +188,6 @@ class ButtonMatrixType(WidgetType):
             (CONF_MAIN, CONF_ITEMS),
             BUTTONMATRIX_SCHEMA,
             {},
-            lv_name="buttonmatrix",
         )
 
     async def to_code(self, w: Widget, config):

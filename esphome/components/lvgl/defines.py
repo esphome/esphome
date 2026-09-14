@@ -26,15 +26,16 @@ KEY_LV_FONTS_USED = "lv_fonts_used"
 KEY_LV_IMAGES_USED = "lv_images_used"
 KEY_LV_USES = "lv_uses"
 KEY_NAMED_STYLES = "named_styles"
+KEY_OPTIONS = "options"
 KEY_REFRESHED_WIDGETS = "refreshed_widgets"
 KEY_REMAPPED_USES = "remapped_uses"
 KEY_STYLES_USED = "styles_used"
 KEY_THEME_UPDATE_REQUESTS = "theme_update_requests"
-KEY_THEME_WIDGET_MAP = "theme_widget_map"
+KEY_THEME_STYLES = "theme_styles"
 KEY_UPDATED_WIDGETS = "updated_widgets"
-KEY_WIDGET_MAP = "widget_map"
-KEY_OPTIONS = "options"
 KEY_WARNINGS = "warnings"
+KEY_WIDGET_MAP = "widget_map"
+KEY_WIDGET_THEME_STYLES = "widget_theme_styles"
 
 # Initial set of LVGL features that are always enabled.
 _INITIAL_LV_USES = frozenset(
@@ -110,8 +111,14 @@ def get_updated_widgets() -> dict:
     return _get_data(KEY_UPDATED_WIDGETS, {})
 
 
-def get_theme_widget_map() -> dict[str, Any]:
-    return _get_data(KEY_THEME_WIDGET_MAP, {})
+def get_theme_styles() -> dict[str, ID]:
+    """Get a map of already created theme style names to their corresponding style IDs."""
+    return _get_data(KEY_THEME_STYLES, {})
+
+
+def get_widget_theme_style_data() -> dict[str, list[tuple[MockObj, MockObj]]]:
+    """Get the map of widget type names to the list of (style variable, part/state name)"""
+    return _get_data(KEY_WIDGET_THEME_STYLES, {})
 
 
 def get_theme_update_requests() -> dict[str, dict[tuple[str, str], None]]:
@@ -837,7 +844,7 @@ LV_SCALE_MODE = LvConstant(
 DEFAULT_ESPHOME_FONT = "esphome_lv_default_font"
 
 
-def join_enums(enums, prefix=""):
+def join_enums(enums: tuple[str], prefix: str = "") -> MockObj:
     enums = list(enums)
     enums.sort()
     # If a prefix is provided, prepend each constant with the prefix, and assume that all the constants are within the
@@ -845,6 +852,19 @@ def join_enums(enums, prefix=""):
     if prefix:
         return literal("|".join(f"{prefix}{e.upper()}" for e in enums))
     return literal("|".join(f"(int){e.upper()}" for e in enums))
+
+
+def get_part_state_selector(part: str, state: str) -> MockObj:
+    """Combine a part and state into a single selector value, e.g. LV_PART_KNOB | LV_STATE_PRESSED."""
+    state = "LV_STATE_" + state.removeprefix("LV_STATE_").upper()
+    part = "LV_PART_" + part.removeprefix("LV_PART_").upper()
+    if state == "LV_STATE_DEFAULT":
+        return literal(part)
+    if part == "LV_PART_MAIN":
+        return literal(state)
+    return MockObj(
+        StaticCastExpression("lv_style_selector_t", literal(state))
+    ) | MockObj(StaticCastExpression("lv_style_selector_t", literal(part)))
 
 
 # fmt: off
