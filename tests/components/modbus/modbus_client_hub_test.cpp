@@ -819,9 +819,9 @@ TEST(ModbusClientHubBroadcast, AllowBroadcastReadWaitsAndAcceptsReplyFromZero) {
   EXPECT_EQ(hub.entries(), 0u);
 }
 
-// A device answering an address-0 read usually replies with its own unit id; that reply completes the
-// read too (the function code must still match).
-TEST(ModbusClientHubBroadcast, AllowBroadcastReadAcceptsReplyFromAnyAddress) {
+// The address-0 read waits like a unicast one, so the reply must come from address 0 too: a reply from
+// another unit id is an unexpected frame and interrupts the transaction as it would for any address.
+TEST(ModbusClientHubBroadcast, AllowBroadcastReadRejectsReplyFromOtherAddress) {
   NullUART uart;
   NoResponseProbeHub hub;
   hub.set_uart_parent(&uart);
@@ -835,10 +835,35 @@ TEST(ModbusClientHubBroadcast, AllowBroadcastReadAcceptsReplyFromAnyAddress) {
 
   const uint8_t reply[] = {0x03, 0x04, 0x00, 0x01, 0x00, 0x02};
   hub.receive_frame_for_test(0x07, reply);
-  EXPECT_EQ(device.response_count_, 1);
-  EXPECT_EQ(device.no_response_count_, 0);
-  EXPECT_FALSE(hub.waiting());
-  EXPECT_EQ(hub.entries(), 0u);
+  EXPECT_EQ(device.response_count_, 0);
+  EXPECT_EQ(hub.waiting_command().state, FrameState::INTERRUPTED);
+}
+
+// An address-scoped clear must not turn a live address-0 entry back into a fire-and-forget broadcast: a
+// retry granted after the clear is re-sent with the flag intact, so it still waits and gets its terminal.
+TEST(ModbusClientHubBroadcast, AllowBroadcastReadSurvivesClearBeforeRetry) {
+  NullUART uart;
+  NoResponseProbeHub hub;
+  hub.set_uart_parent(&uart);
+  hub.setup();
+  RetryingDevice device(&hub, BROADCAST_ADDRESS, true);
+
+  const uint8_t read[] = {0x03, 0x00, 0x10, 0x00, 0x02};
+  ASSERT_TRUE(device.queue_pdu(read, {.allow_broadcast_read = true}));
+  hub.send_next_for_test();
+  ASSERT_TRUE(hub.waiting());
+
+  hub.clear_tx_queue_for_address(BROADCAST_ADDRESS);
+  EXPECT_EQ(hub.waiting_command().state, FrameState::WAITING_RETIRED);
+  EXPECT_TRUE(hub.waiting_command().options.allow_broadcast_read);
+
+  hub.timeout_waiting();  // retry granted: the entry is READY again
+  ASSERT_EQ(hub.queued_frames(), 1u);
+  EXPECT_FALSE(hub.queued(0).fire_and_forget());
+
+  hub.send_next_for_test();
+  EXPECT_TRUE(hub.waiting());  // the retry still waits for its reply
+  EXPECT_EQ(hub.entries(), 1u);
 }
 
 // The function code check is unchanged by the relaxed address match: a mismatched reply still interrupts.
@@ -914,7 +939,7 @@ TEST(ModbusClientHubBroadcast, AllowBroadcastReadIgnoredForWritesAndUnicast) {
 }
 
 // expect_broadcast_write_response is the write-side twin: a write to address 0 waits for its reply instead
-// of retiring at transmission, and a reply from address 0 or from the device's own unit id completes it.
+// of retiring at transmission, and the reply (from address 0) completes it.
 TEST(ModbusClientHubBroadcast, ExpectBroadcastWriteResponseWaitsAndAcceptsReply) {
   NullUART uart;
   NoResponseProbeHub hub;
@@ -932,16 +957,10 @@ TEST(ModbusClientHubBroadcast, ExpectBroadcastWriteResponseWaitsAndAcceptsReply)
   EXPECT_TRUE(hub.waiting());
   EXPECT_EQ(hub.entries(), 1u);
 
-  hub.receive_frame_for_test(0x07, write);  // the echo, from the device's own unit id
+  hub.receive_frame_for_test(BROADCAST_ADDRESS, write);  // the echo, as address 0
   EXPECT_EQ(device.response_count_, 1);
   EXPECT_EQ(device.last_response_size_, sizeof(write));
   EXPECT_FALSE(hub.waiting());
-  EXPECT_EQ(hub.entries(), 0u);
-
-  ASSERT_TRUE(device.write_single_register(0x0010, 0x0001, {.expect_broadcast_write_response = true}));
-  hub.send_next_for_test();
-  hub.receive_frame_for_test(BROADCAST_ADDRESS, write);  // an echo as address 0 completes it too
-  EXPECT_EQ(device.response_count_, 2);
   EXPECT_EQ(hub.entries(), 0u);
 }
 

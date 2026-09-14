@@ -80,6 +80,7 @@ button:
     on_press:
       - modbus_client.write_single_register:
           address: 0x01
+          expect_broadcast_write_response: true
           start_address: 0x0102
           value: !lambda "return 42;"
           on_response:
@@ -93,28 +94,13 @@ button:
           start_address: 0x10
           count: 2
           continuous: true
+          allow_broadcast_read: !lambda "return false;"
           on_response:
             then:
               - lambda: 'ESP_LOGI("modbus_client.test", "first=%u n=%u", values[0], (unsigned) values.size());'
           on_no_response:
             then:
               - logger.log: "typed read timeout"
-      - modbus_client.read_holding_registers:
-          address: 0
-          allow_broadcast_read: true
-          start_address: 0x10
-          count: 1
-          on_response:
-            then:
-              - lambda: 'ESP_LOGI("modbus_client.test", "broadcast read first=%u", values[0]);'
-      - modbus_client.write_single_register:
-          address: 0
-          expect_broadcast_write_response: true
-          start_address: 0x0102
-          value: 42
-          on_response:
-            then:
-              - logger.log: "broadcast write acked"
       - modbus_client.read_input_registers:
           continuous: !lambda "return false;"
           address: 0x01

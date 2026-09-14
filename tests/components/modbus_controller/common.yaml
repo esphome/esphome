@@ -6,11 +6,6 @@ modbus_controller:
     on_online:
       then:
         logger.log: "Module Online"
-  - id: modbus_controller_broadcast
-    address: 0
-    allow_broadcast_read: true
-    modbus_id: modbus_bus
-
 binary_sensor:
   - platform: modbus_controller
     modbus_controller_id: modbus_controller1
@@ -115,13 +110,6 @@ select:
       return value;
 
 sensor:
-  - platform: modbus_controller
-    modbus_controller_id: modbus_controller_broadcast
-    id: modbus_broadcast_sensor
-    name: Broadcast Read Sensor
-    register_type: holding
-    address: 0x0010
-    value_type: U_WORD
   # custom_pdu polls a ready-made PDU (function code + data - no device address byte, no CRC); covers
   # the set_custom_pdu codegen path and the custom-range polling constructor.
   - platform: modbus_controller
@@ -213,13 +201,6 @@ sensor:
     force_new_range: true
 
 switch:
-  - platform: modbus_controller
-    modbus_controller_id: modbus_controller_broadcast
-    id: modbus_broadcast_switch
-    name: Broadcast Write Switch
-    register_type: coil
-    address: 0x20
-    expect_broadcast_write_response: true
   - platform: modbus_controller
     modbus_controller_id: modbus_controller1
     id: modbus_switch1

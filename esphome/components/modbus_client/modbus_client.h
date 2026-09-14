@@ -110,8 +110,15 @@ template<typename... Ts> class WriteCommandOptions {
   TEMPLATABLE_VALUE(bool, expect_broadcast_write_response)
 
  protected:
+  /// Resolve every write option into `options`, so an action carrying both sets (send) merges them
+  /// exhaustively: a new write option is added here once and reaches the hub from every write action.
+  void apply_write_command_options_(modbus::CommandOptions &options, const Ts &...x) const {
+    options.expect_broadcast_write_response = this->expect_broadcast_write_response_.value(x...);
+  }
   modbus::CommandOptions write_command_options_(const Ts &...x) const {
-    return {.expect_broadcast_write_response = this->expect_broadcast_write_response_.value(x...)};
+    modbus::CommandOptions options{};
+    this->apply_write_command_options_(options, x...);
+    return options;
   }
 };
 
@@ -137,7 +144,7 @@ class ModbusClientSendAction : public ClientActionBase<Ts...>,
 
   void play(const Ts &...x) override {
     modbus::CommandOptions options = this->command_options_(x...);
-    options.expect_broadcast_write_response = this->write_command_options_(x...).expect_broadcast_write_response;
+    this->apply_write_command_options_(options, x...);
     this->send_or_resolve_(this->pdu_.value(x...), options);
   }
 
@@ -393,7 +400,8 @@ class WriteMultipleCoilsAction : public TypedClientActionBase<Ts...>, public Wri
 
 /// modbus_client.read_write_multiple_registers (FC 0x17): writes one register block and reads another back in
 /// one transaction (write first, per Modbus 6.17). on_response delivers the read-back words as `values`.
-template<typename... Ts> class ReadWriteMultipleRegistersAction : public TypedClientActionBase<Ts...> {
+template<typename... Ts>
+class ReadWriteMultipleRegistersAction : public TypedClientActionBase<Ts...>, public ReadCommandOptions<Ts...> {
  public:
   TEMPLATABLE_VALUE(uint16_t, read_address)
   TEMPLATABLE_VALUE(uint16_t, read_count)
@@ -419,13 +427,15 @@ template<typename... Ts> class ReadWriteMultipleRegistersAction : public TypedCl
     // An out-of-range read/write count builds an empty PDU (the builder logs why), resolving via on_not_sent.
     if (this->len_ >= 0) {
       this->send_or_resolve_(modbus::helpers::create_read_write_multiple_registers_pdu(
-          read_start, read_count, write_start,
-          std::span<const uint16_t>(this->values_.data, static_cast<size_t>(this->len_))));
+                                 read_start, read_count, write_start,
+                                 std::span<const uint16_t>(this->values_.data, static_cast<size_t>(this->len_))),
+                             this->command_options_(x...));
       return;
     }
     const std::vector<uint16_t> values = this->values_.func(x...);
     this->send_or_resolve_(modbus::helpers::create_read_write_multiple_registers_pdu(
-        read_start, read_count, write_start, std::span<const uint16_t>(values)));
+                               read_start, read_count, write_start, std::span<const uint16_t>(values)),
+                           this->command_options_(x...));
   }
   // The 0x17 response carries only the read block, so the hub dispatch delivers it as a holding-register read.
   void on_read_registers(modbus::EntityType entity_type, uint16_t start_address, std::span<const uint16_t> registers,

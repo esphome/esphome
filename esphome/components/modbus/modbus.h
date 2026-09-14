@@ -111,18 +111,22 @@ enum class FrameState : uint8_t {
 // Per-command send options. Append-only; pass via designated initializers ({.continuous = true}).
 // A new field reaches the queue with no plumbing but arrives inert until it defines three rules:
 // normalization in queue_pdu(), a merge rule for duplicate absorption, and teardown in
-// retire()/silent_retire().
+// retire()/silent_retire(). (The broadcast flags need no merge rule: a duplicate of a live address-0
+// entry always carries the same flag, or it would have been refused at the door.)
+// Bit-packed so the whole set stays one byte: it is stored per queue entry, per controller and per writer
+// entity, and passed by value through every send helper.
 struct CommandOptions {
   // A continuous poll lives in the queue until cancelled or failed; ignored for mutating codes.
-  bool continuous{false};
-  // Send a read to the broadcast address (0) and wait for its reply, for a device that does not follow the
-  // Modbus spec and replies to the broadcast address. Ignored for broadcastable codes (writes, custom),
-  // which are real broadcasts; inert for a unicast address.
-  bool allow_broadcast_read{false};
-  // Send a write to the broadcast address (0) and wait for its reply, the write-side twin of
-  // allow_broadcast_read. Ignored for codes that are not broadcastable (reads); inert for a unicast address.
-  bool expect_broadcast_write_response{false};
+  bool continuous : 1 {false};
+  // Send a read to the broadcast address (0) and wait for its reply (which must come from address 0 too),
+  // for a device that does not follow the Modbus spec and replies to the broadcast address. Ignored for
+  // broadcastable codes (writes, custom), which are real broadcasts; inert for a unicast address.
+  bool allow_broadcast_read : 1 {false};
+  // The write-side twin of allow_broadcast_read: wait for the reply to a broadcastable code sent to
+  // address 0. Ignored for codes that are not broadcastable; inert for a unicast address.
+  bool expect_broadcast_write_response : 1 {false};
 };
+static_assert(sizeof(CommandOptions) == 1, "CommandOptions must stay one byte");
 
 struct ModbusDeviceCommand {
   ModbusClientDevice *device;
@@ -205,7 +209,9 @@ struct ModbusDeviceCommand {
     } else if (!this->waiting_state()) {  // an already-retired shell stays put; off the wire -> RETIRED
       this->state = FrameState::RETIRED;
     }
-    this->options = {};  // reset every option
+    // continuous is a subscription and ends with the clear; the broadcast flags describe how the frame is
+    // delivered and must outlive it, or a retry granted after the clear would go out fire-and-forget.
+    this->options.continuous = false;
   }
 
   // True while the entry is still waiting for a response

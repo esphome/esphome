@@ -350,12 +350,32 @@ def _reject_continuous_write_custom_pdu(config: ConfigType) -> None:
         )
 
 
+def _reject_broadcastable_custom_pdu(config: ConfigType) -> None:
+    """Final-validate: under an allow_broadcast_read controller (address 0) a custom_pdu whose function
+    code is broadcastable (a write or a vendor code) would go out as a real broadcast, never answered,
+    so the entity could never update. Reject the combination."""
+    pdu = config.get(CONF_CUSTOM_PDU)
+    if pdu is None or not modbus.is_function_code_broadcastable(pdu[0]):
+        return
+    fconf = fv.full_config.get()
+    path = fconf.get_path_for_id(config[CONF_MODBUS_CONTROLLER_ID])[:-1]
+    controller = fconf.get_config_for_path(path)
+    if controller.get(modbus.CONF_ALLOW_BROADCAST_READ) is True:
+        raise cv.Invalid(
+            f"a '{CONF_CUSTOM_PDU}' with function code 0x{pdu[0] & 0x7F:02X} is a real broadcast at "
+            f"address 0 and is never answered, so it can't be polled through the "
+            f"'{controller[CONF_ID]}' modbus_controller; use a read function code.",
+            [CONF_CUSTOM_PDU],
+        )
+
+
 def validate_custom_pdu_item(config: ConfigType) -> None:
     """Final-validate for the read platforms that accept custom_pdu (sensor, binary_sensor,
     text_sensor): migrate the deprecated custom_command, then reject a write-coded custom_pdu under a
-    continuously-polling controller."""
+    continuously-polling controller, and a broadcastable one under an allow_broadcast_read controller."""
     migrate_custom_command(config)
     _reject_continuous_write_custom_pdu(config)
+    _reject_broadcastable_custom_pdu(config)
 
 
 def _final_validate(config: ConfigType) -> None:

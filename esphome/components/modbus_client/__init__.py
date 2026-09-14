@@ -157,40 +157,9 @@ _ACTION_BASE_SCHEMA = cv.Schema(
 )
 
 
-def _no_read_options_on_write(config: ConfigType) -> ConfigType:
-    """Reject a read option (continuous, allow_broadcast_read) set true on a static write PDU: they
-    only apply to reads. Only the fully-static case is decidable here; the hub strips the flags from
-    mutating PDUs at runtime, so a templated pdu or option falls through to that backstop."""
-    pdu = config[CONF_PDU]
-    if not isinstance(pdu, list) or not modbus.is_function_code_write(pdu[0]):
-        return config
-    for key in modbus.command_option_keys("read"):
-        if config.get(key) is True:
-            raise cv.Invalid(
-                f"'{key}: true' does not apply to a write PDU (function code 0x{pdu[0]:02X}); "
-                f"it only applies to reads",
-                path=[key],
-            )
-    return config
-
-
-def _no_write_options_on_read(config: ConfigType) -> ConfigType:
-    """The mirror of _no_read_options_on_write: a write option set true on a static read PDU is refused."""
-    pdu = config[CONF_PDU]
-    if not isinstance(pdu, list) or modbus.is_function_code_write(pdu[0]):
-        return config
-    for key in modbus.command_option_keys("write"):
-        if config.get(key) is True:
-            raise cv.Invalid(
-                f"'{key}: true' does not apply to a read PDU (function code 0x{pdu[0]:02X}); "
-                f"it only applies to writes",
-                path=[key],
-            )
-    return config
-
-
-# A raw PDU may be a read or a write, so send offers both option sets; the static validators above
-# reject the set that does not match a static PDU, and the hub strips it at runtime for a templated one.
+# A raw PDU may be a read or a write, so send offers both option sets; the shared validator rejects
+# any option a static PDU's function code does not take, and the hub strips it at runtime for a
+# templated one.
 MODBUS_CLIENT_SEND_SCHEMA = cv.All(
     _ACTION_BASE_SCHEMA.extend(
         {
@@ -205,8 +174,7 @@ MODBUS_CLIENT_SEND_SCHEMA = cv.All(
             cv.Optional(CONF_ON_RESPONSE): _handler_schema(),
         }
     ),
-    _no_read_options_on_write,
-    _no_write_options_on_read,
+    modbus.reject_inapplicable_command_options(CONF_PDU),
 )
 
 
@@ -566,6 +534,11 @@ _READ_WRITE_MULTIPLE_REGISTERS_SCHEMA = cv.All(
                     cv.ensure_list(cv.hex_uint16_t),
                     cv.Length(min=1, max=modbus.MAX_NUM_OF_REGISTERS_TO_WRITE_RW),
                 )
+            ),
+            # 0x17 is a read for broadcast purposes (its reply carries data) and a write for
+            # continuous, so this offers exactly allow_broadcast_read.
+            **modbus.command_options_schema(
+                direction="read", templatable=True, function_code=0x17
             ),
         }
     ),

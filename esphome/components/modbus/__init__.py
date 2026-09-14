@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 import logging
 from typing import Any, Literal, NamedTuple
 
@@ -58,6 +59,31 @@ CONF_TURNAROUND_TIME = "turnaround_time"
 MODBUS_ROLES = ["client", "server"]
 
 
+# The write (mutating) function codes, matching modbus::helpers::is_function_code_write(). 0x17
+# (read/write multiple) is included: it mutates, so the hub treats it as a write despite its read half.
+_WRITE_FUNCTION_CODES = frozenset({0x05, 0x06, 0x0F, 0x10, 0x16, 0x17})
+
+# The codes the hub refuses to broadcast (modbus::helpers::is_function_code_broadcastable() is false):
+# the reads (0x01-0x04 and 0x17), plus the other codes whose response length the parser knows (file
+# record 0x14/0x15, FIFO 0x18). Writes and every unknown/custom code are broadcastable.
+_NON_BROADCASTABLE_FUNCTION_CODES = frozenset(
+    {0x01, 0x02, 0x03, 0x04, 0x14, 0x15, 0x17, 0x18}
+)
+
+
+def is_function_code_write(function_code: int) -> bool:
+    """True if the Modbus function code writes (mutates). The exception bit (0x80) is masked off first,
+    so an exception-flagged code still classifies by its base code (the runtime hub never queues one:
+    queue_pdu() refuses them). Keep in sync with modbus::helpers::is_function_code_write()."""
+    return function_code & 0x7F in _WRITE_FUNCTION_CODES
+
+
+def is_function_code_broadcastable(function_code: int) -> bool:
+    """True if the hub accepts the function code at the broadcast address (0) without
+    allow_broadcast_read. Keep in sync with modbus::helpers::is_function_code_broadcastable()."""
+    return function_code & 0x7F not in _NON_BROADCASTABLE_FUNCTION_CODES
+
+
 class _CommandOption(NamedTuple):
     """One per-command option forwarded to the hub (modbus::CommandOptions)."""
 
@@ -66,16 +92,34 @@ class _CommandOption(NamedTuple):
     validator: Any  # the static (non-templatable) validator for the key
     cpp_type: Any  # the C++ type the value is generated as
     default: Any
+    # True for the function codes the hub honours the option on; it strips it from any other. Used
+    # to validate a static PDU and to leave the key out of a typed action's schema entirely.
+    applies_to: Callable[[int], bool]
 
 
-# Per-direction command options. Single-sourcing the schema and the setter generation here keeps
-# them from drifting; the C++ side must add the matching field per the rules documented on
-# CommandOptions (modbus.h).
+def _not_write(function_code: int) -> bool:
+    return not is_function_code_write(function_code)
+
+
+def _not_broadcastable(function_code: int) -> bool:
+    return not is_function_code_broadcastable(function_code)
+
+
+# Per-direction command options. Single-sourcing the schema, the setter generation and the
+# applicability rule here keeps them from drifting; the C++ side must add the matching field per
+# the rules documented on CommandOptions (modbus.h) and the matching strip in queue_pdu().
 _COMMAND_OPTIONS: dict[str, list[_CommandOption]] = {
     "read": [
-        _CommandOption(CONF_CONTINUOUS, "continuous", cv.boolean, bool, False),
         _CommandOption(
-            CONF_ALLOW_BROADCAST_READ, "allow_broadcast_read", cv.boolean, bool, False
+            CONF_CONTINUOUS, "continuous", cv.boolean, bool, False, _not_write
+        ),
+        _CommandOption(
+            CONF_ALLOW_BROADCAST_READ,
+            "allow_broadcast_read",
+            cv.boolean,
+            bool,
+            False,
+            _not_broadcastable,
         ),
     ],
     "write": [
@@ -85,6 +129,7 @@ _COMMAND_OPTIONS: dict[str, list[_CommandOption]] = {
             cv.boolean,
             bool,
             False,
+            is_function_code_broadcastable,
         ),
     ],
 }
@@ -97,31 +142,44 @@ def _command_options(direction: str) -> list[_CommandOption]:
         raise ValueError(f"unknown command-options direction {direction!r}") from None
 
 
-def command_option_keys(direction: Literal["read", "write"]) -> list[str]:
-    """The config keys command_options_schema() offers for a direction, for validators that need to
-    reason about them as a group (e.g. rejecting every read option on a static write PDU)."""
-    return [option.conf_key for option in _command_options(direction)]
+def reject_inapplicable_command_options(
+    pdu_key: str,
+) -> Callable[[ConfigType], ConfigType]:
+    """Validator for a schema that carries a raw PDU under `pdu_key` plus command options: reject any
+    option set true that the hub would strip from the PDU's function code (e.g. continuous on a write,
+    or allow_broadcast_read on a broadcastable code). Only a literal PDU is decidable here; a templated
+    one falls through to the hub's runtime strip."""
 
+    def validator(config: ConfigType) -> ConfigType:
+        pdu = config[pdu_key]
+        if not isinstance(pdu, list):
+            return config
+        for direction in _COMMAND_OPTIONS:
+            for option in _command_options(direction):
+                if config.get(option.conf_key) is True and not option.applies_to(
+                    pdu[0]
+                ):
+                    raise cv.Invalid(
+                        f"'{option.conf_key}: true' does not apply to function code "
+                        f"0x{pdu[0]:02X}",
+                        path=[option.conf_key],
+                    )
+        return config
 
-# The write (mutating) function codes, matching modbus::helpers::is_function_code_write(). 0x17
-# (read/write multiple) is included: it mutates, so the hub treats it as a write despite its read half.
-_WRITE_FUNCTION_CODES = frozenset({0x05, 0x06, 0x0F, 0x10, 0x16, 0x17})
-
-
-def is_function_code_write(function_code: int) -> bool:
-    """True if the Modbus function code writes (mutates). The exception bit (0x80) is masked off first,
-    so an exception-flagged code still classifies by its base code (the runtime hub never queues one:
-    queue_pdu() refuses them). Keep in sync with modbus::helpers::is_function_code_write()."""
-    return function_code & 0x7F in _WRITE_FUNCTION_CODES
+    return validator
 
 
 def command_options_schema(
-    *, direction: Literal["read", "write"], templatable: bool = False
+    *,
+    direction: Literal["read", "write"],
+    templatable: bool = False,
+    function_code: int | None = None,
 ) -> dict[cv.Optional, Any]:
     """Schema fragment for the per-command options a component forwards to the hub
     (modbus::CommandOptions). Extend this into any schema that queues commands. Keys are
     direction-specific so a schema never offers an option the hub would strip (e.g.
-    continuous on a write). For actions (templatable=True the
+    continuous on a write); pass `function_code` for a typed action whose code is fixed, to leave
+    out the options that do not apply to that code either. For actions (templatable=True, the
     keys also accept lambdas), register the values with register_templatable_command_options().
     """
     return {
@@ -129,6 +187,7 @@ def command_options_schema(
             cv.templatable(option.validator) if templatable else option.validator
         )
         for option in _command_options(direction)
+        if function_code is None or option.applies_to(function_code)
     }
 
 

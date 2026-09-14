@@ -9,6 +9,7 @@ test cannot: a write-coded custom_pdu polled continuously is rejected there.
 import pytest
 from voluptuous import Invalid, MultipleInvalid
 
+from esphome.components import modbus
 from esphome.components.modbus_controller import (
     ModbusItemBaseSchema,
     validate_custom_pdu_item,
@@ -55,14 +56,21 @@ def test_custom_pdu_rejects_non_byte_values() -> None:
         ModbusItemBaseSchema({CONF_CUSTOM_PDU: [0x0103, 0x002A]})
 
 
-def _controller_full_config(*, continuous: bool) -> Config:
+def _controller_full_config(
+    *, continuous: bool, allow_broadcast_read: bool = False
+) -> Config:
     """A minimal full-config graph with one modbus_controller declaring id 'ctl', enough for the
-    final-validate to resolve the controller (and its continuous flag) from an item's
+    final-validate to resolve the controller (and its option flags) from an item's
     modbus_controller_id."""
     ctl_id = ID("ctl", is_declaration=True)
     config = Config()
     config["modbus_controller"] = [
-        {CONF_ID: ctl_id, CONF_ADDRESS: 1, CONF_CONTINUOUS: continuous}
+        {
+            CONF_ID: ctl_id,
+            CONF_ADDRESS: 0 if allow_broadcast_read else 1,
+            CONF_CONTINUOUS: continuous,
+            modbus.CONF_ALLOW_BROADCAST_READ: allow_broadcast_read,
+        }
     ]
     config.declare_ids.append((ctl_id, ["modbus_controller", 0, CONF_ID]))
     return config
@@ -92,6 +100,36 @@ def test_continuous_write_custom_pdu_rejected(reset_full_config) -> None:
 def test_continuous_read_custom_pdu_allowed(reset_full_config) -> None:
     """A read-coded custom_pdu (0x03) under a continuous controller is fine - only writes stream."""
     fv.full_config.set(_controller_full_config(continuous=True))
+    validate_custom_pdu_item(
+        {
+            CONF_MODBUS_CONTROLLER_ID: ID("ctl"),
+            CONF_CUSTOM_PDU: [0x03, 0x00, 0x2A, 0x00, 0x01],
+        }
+    )
+
+
+def test_broadcastable_custom_pdu_rejected_under_broadcast_controller(
+    reset_full_config,
+) -> None:
+    """A vendor-coded custom_pdu under an allow_broadcast_read controller would be a real broadcast,
+    never answered, so it is rejected at final validate."""
+    fv.full_config.set(
+        _controller_full_config(continuous=False, allow_broadcast_read=True)
+    )
+    with pytest.raises(Invalid, match="is a real broadcast at address 0"):
+        validate_custom_pdu_item(
+            {
+                CONF_MODBUS_CONTROLLER_ID: ID("ctl"),
+                CONF_CUSTOM_PDU: [0x41, 0x00, 0x03],
+            }
+        )
+
+
+def test_read_custom_pdu_allowed_under_broadcast_controller(reset_full_config) -> None:
+    """A read-coded custom_pdu (0x03) is answered under allow_broadcast_read, so it is fine."""
+    fv.full_config.set(
+        _controller_full_config(continuous=False, allow_broadcast_read=True)
+    )
     validate_custom_pdu_item(
         {
             CONF_MODBUS_CONTROLLER_ID: ID("ctl"),

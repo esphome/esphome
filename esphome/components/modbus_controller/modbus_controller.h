@@ -280,10 +280,12 @@ class ControllerDevice : protected modbus::ModbusClientDevice {
 
   void notify_online_(std::span<const uint8_t> request_pdu);
 
-  /// Write-path state owned by WriterEntity's forwarders, stored here so both bools land in the base's
-  /// tail padding instead of adding a word to every writer entity. The warn flag leaves in 2027.3.0.
-  bool dispatched_{false};
-  bool write_buffer_deprecated_warned_{false};
+  /// Write-path state owned by WriterEntity's forwarders, packed so the flags and the one-byte write
+  /// options together fill the base's two bytes of tail padding instead of adding a word to every writer
+  /// entity. The warn flag leaves in 2027.3.0.
+  bool dispatched_ : 1 {false};
+  bool write_buffer_deprecated_warned_ : 1 {false};
+  modbus::CommandOptions write_options_{};
   ModbusController *controller_{nullptr};
 };
 
@@ -305,6 +307,8 @@ class WriterDevice final : public ControllerDevice {
   bool dispatched() const { return this->dispatched_; }
   void set_dispatched() { this->dispatched_ = true; }
   void clear_dispatched() { this->dispatched_ = false; }
+  modbus::CommandOptions write_options() const { return this->write_options_; }
+  void set_write_options(modbus::CommandOptions options) { this->write_options_ = options; }
   /// Warn once per entity that filling the write_lambda buffer parameter is deprecated (the entity is now the
   /// command - call a write helper / queue_pdu() on `item` instead). The buffer parameter is removed in 2027.3.0.
   void warn_write_buffer_deprecated(const LogString *platform, uint16_t address);
@@ -327,26 +331,26 @@ class WriterEntity {
   /// the call, not the hub's accept/refuse: a refused lambda write must not fall through to the default write.
   bool dispatched() const { return this->device_.dispatched(); }
   /// The entity's write-side options (modbus::CommandOptions), sent with every write helper below.
-  void set_write_options(modbus::CommandOptions options) { this->write_options_ = options; }
+  void set_write_options(modbus::CommandOptions options) { this->device_.set_write_options(options); }
   bool write_single_register(uint16_t address, uint16_t value) {
     this->device_.set_dispatched();
-    return this->device_.write_single_register(address, value, this->write_options_);
+    return this->device_.write_single_register(address, value, this->device_.write_options());
   }
   bool write_single_coil(uint16_t address, bool value) {
     this->device_.set_dispatched();
-    return this->device_.write_single_coil(address, value, this->write_options_);
+    return this->device_.write_single_coil(address, value, this->device_.write_options());
   }
   bool write_multiple_registers(uint16_t address, std::span<const uint16_t> values) {
     this->device_.set_dispatched();
-    return this->device_.write_multiple_registers(address, values, this->write_options_);
+    return this->device_.write_multiple_registers(address, values, this->device_.write_options());
   }
   bool write_multiple_coils(uint16_t address, std::span<const bool> values) {
     this->device_.set_dispatched();
-    return this->device_.write_multiple_coils(address, values, this->write_options_);
+    return this->device_.write_multiple_coils(address, values, this->device_.write_options());
   }
   bool write_multiple_coils(uint16_t address, modbus::PackedBits bits) {
     this->device_.set_dispatched();
-    return this->device_.write_multiple_coils(address, bits, this->write_options_);
+    return this->device_.write_multiple_coils(address, bits, this->device_.write_options());
   }
   /// A custom PDU takes its own options; the entity's write options are not merged in.
   bool queue_pdu(std::span<const uint8_t> pdu, modbus::CommandOptions options = {}) {
@@ -369,7 +373,6 @@ class WriterEntity {
  private:
   // Private so a derived entity cannot reach the device except through the recording forwarders above.
   WriterDevice device_;
-  modbus::CommandOptions write_options_{};
 };
 
 /// A persistent hub device that polls one register range - the read-side mirror of WriterDevice.
