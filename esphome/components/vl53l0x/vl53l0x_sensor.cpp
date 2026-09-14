@@ -279,6 +279,11 @@ bool VL53L0XSensor::init_sensor_(uint8_t final_address) {
 }
 
 void VL53L0XSensor::update() {
+  // Backoff: stay off the bus until the cooldown expires, then retry.
+  if (millis() < this->backoff_until_ms_) {
+    this->set_timeout("vl53_backoff_retry", this->backoff_until_ms_ - millis(), [this]() { this->update(); });
+    return;
+  }
   if (this->initiated_read_ || this->waiting_for_interrupt_) {
     this->publish_state(NAN);
     this->status_momentary_warning("update", 5000);
@@ -307,6 +312,12 @@ void VL53L0XSensor::update() {
 }
 
 void VL53L0XSensor::loop() {
+  // Backoff: do not touch the I2C bus at all while cooling down. Repeated
+  // transactions against a wedged bus/sensor can crash the whole ESP through
+  // an ESP-IDF i2c_master bug (LoadProhibited in i2c_ll_write_txfifo right
+  // after "I2C hardware timeout detected").
+  if (millis() < this->backoff_until_ms_)
+    return;
   // After an I2C error (NACK / EMI glitch) the register reads return 0, the
   // driver mistakes the measurement for "done" and gets stuck in
   // waiting_for_interrupt_ forever - every later update() then only publishes
@@ -318,12 +329,30 @@ void VL53L0XSensor::loop() {
              "'%s' - measurement did not complete within %" PRIu32 "ms, resetting read state (possible I2C glitch)",
              this->name_.c_str(), this->stall_timeout_ms_);
     this->consecutive_stalls_++;
-    reg(0x00) = 0x00;  // abort any pending measurement
-    reg(0x0B) = 0x01;  // clear interrupt flags
+
+    // Escalating backoff: stay off the bus, then retry. Every transaction
+    // against a wedged bus risks crashing the ESP through the ESP-IDF
+    // i2c_master bug, so keep the traffic to the minimum needed for recovery.
+    static constexpr uint32_t BACKOFF_STEPS_MS[] = {60000, 120000, 300000, 600000};
+    int backoff_idx = this->consecutive_stalls_ - 1;
+    if (backoff_idx > 3)
+      backoff_idx = 3;
+    const uint32_t backoff_ms = BACKOFF_STEPS_MS[backoff_idx];
+    this->backoff_until_ms_ = millis() + backoff_ms;
+
     this->initiated_read_ = false;
     this->waiting_for_interrupt_ = false;
     this->publish_state(NAN);
     this->status_momentary_warning("stall", 5000);
+
+    if (this->consecutive_stalls_ < STALLS_BEFORE_RESET) {
+      // First stall: try aborting the pending measurement, then retry after
+      // the cooldown instead of waiting for the next scheduled update.
+      reg(0x00) = 0x00;  // abort any pending measurement
+      reg(0x0B) = 0x01;  // clear interrupt flags
+      this->set_timeout("vl53_backoff_retry", backoff_ms, [this]() { this->update(); });
+      return;
+    }
     if (this->consecutive_stalls_ >= STALLS_BEFORE_RESET) {
       // The sensor's own MCU is wedged - clearing the driver state is not
       // enough, every following measurement keeps timing out. Recover with the
@@ -350,11 +379,13 @@ void VL53L0XSensor::loop() {
         ESP_LOGI(TAG, "'%s' - sensor re-initialized successfully, restarting measurement", this->name_.c_str());
         this->consecutive_stalls_ = 0;
         this->recovery_attempts_ = 0;
+        this->backoff_until_ms_ = 0;
         // Start the next measurement from a later loop iteration: the re-init
         // above blocked, so the timestamp update() reads here would be stale.
         this->defer([this]() { this->update(); });
       } else {
-        ESP_LOGE(TAG, "'%s' - re-init failed, will retry on the next update", this->name_.c_str());
+        ESP_LOGE(TAG, "'%s' - re-init failed, backing off and retrying", this->name_.c_str());
+        this->set_timeout("vl53_backoff_retry", backoff_ms, [this]() { this->update(); });
       }
     }
     return;
