@@ -1,10 +1,9 @@
-"""Regression test: a keyboard: declared before its textarea: sibling in the
-same widgets: list must not deadlock code generation.
+"""Regression test: a keyboard: declared before its textarea: sibling must
+still get attached to it, and only after both widgets exist.
 
-KeyboardType.to_code() unconditionally awaits get_widgets() for its textarea
-id. add_widgets() walks a container's children with a single sequential
-await, not a separate scheduled job, so if the textarea hasn't been created
-yet, this task is waiting on its own later progress and can never resume.
+attach_textareas() runs as a deferred pass, after every widget (across every
+LVGL instance) is created, so it must emit the attach call after the
+keyboard's own creation statement, not inline during widget creation.
 """
 
 from __future__ import annotations
@@ -15,21 +14,34 @@ import pytest
 
 from esphome.__main__ import generate_cpp_contents
 from esphome.config import read_config
-from esphome.core import CORE, EsphomeError
+from esphome.core import CORE
 
 
-def test_keyboard_before_textarea_does_not_deadlock() -> None:
+@pytest.fixture(scope="module")
+def main_cpp(request: pytest.FixtureRequest) -> str:
     config_path = (
-        Path(__file__).parent / "config" / "keyboard_before_textarea_test.yaml"
+        Path(request.fspath).parent / "config" / "keyboard_before_textarea_test.yaml"
     )
     original_path = CORE.config_path
     try:
         CORE.config_path = config_path
         CORE.config = read_config({})
-        try:
-            generate_cpp_contents(CORE.config)
-        except EsphomeError as e:
-            pytest.fail(f"code generation deadlocked: {e}")
+        generate_cpp_contents(CORE.config)
+        return CORE.cpp_main_section
     finally:
         CORE.config_path = original_path
         CORE.reset()
+
+
+def test_keyboard_and_textarea_are_created(main_cpp: str) -> None:
+    assert "lv_keyboard_create(" in main_cpp
+    assert "lv_textarea_create(" in main_cpp
+
+
+def test_attach_call_runs_after_keyboard_and_textarea_are_created(
+    main_cpp: str,
+) -> None:
+    attach_index = main_cpp.find("lv_keyboard_set_textarea(kb->obj, ta);")
+    assert attach_index != -1, "keyboard was never attached to its textarea"
+    assert attach_index > main_cpp.find("lv_keyboard_create(")
+    assert attach_index > main_cpp.find("lv_textarea_create(")

@@ -106,6 +106,7 @@ from .widgets import (
     get_screen_active,
     set_obj_properties,
 )
+from .widgets.keyboard import attach_textareas
 
 # Import only what we actually use directly in this file
 from .widgets.msgbox import MSGBOX_SCHEMA, msgboxes_to_code
@@ -465,6 +466,7 @@ async def to_code(configs):
         await finish_list_triggers()
         await generate_triggers()
         await generate_align_tos(configs[0])
+        await attach_textareas()
         for config in configs:
             lv_component = await cg.get_variable(config[CONF_ID])
             await add_animation_triggers(config.get(CONF_ANIMATIONS, []))
