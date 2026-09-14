@@ -1,0 +1,6 @@
+substitutions:
+  i2s_dout_pin_32: GPIO16
+
+packages:
+  i2s_audio: !include ../../test_build_components/common/i2s_audio/esp32-idf.yaml
+  slot_expansion: !include common-slot-expansion-esp32.yaml

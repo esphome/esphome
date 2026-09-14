@@ -1,0 +1,12 @@
+speaker:
+  - platform: i2s_audio
+    id: expand_s16_to_s32
+    i2s_audio_id: i2s_audio_bus
+    dac_type: external
+    i2s_dout_pin: ${i2s_dout_pin_32}
+    bits_per_sample: 32bit
+    expand_to_slot_width: true
+  - platform: resampler
+    id: s16_source_for_s32_slot
+    output_speaker: expand_s16_to_s32
+    bits_per_sample: 16
