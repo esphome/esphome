@@ -35,6 +35,10 @@ void LightState::setup() {
     this->current_values.set_color_temperature(min_mireds);
   }
 
+  if (this->restore_mode_ == LIGHT_RESTORE_DISABLED) {
+    return;
+  }
+
   auto call = this->make_call();
   LightStateRTCState recovered{};
   if (this->initial_state_callback_) {
