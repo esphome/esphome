@@ -1,0 +1,16 @@
+packages:
+  i2c: !include ../../test_build_components/common/i2c/esp32-p4-idf.yaml
+  lvgl_camera_display: !include common.yaml
+
+display:
+  - platform: mipi_dsi
+    model: WAVESHARE-ESP32-P4-WIFI6-TOUCH-LCD-3.4C
+
+esp_ldo:
+  - channel: 3
+    voltage: 2.5V
+
+# Frames land in PSRAM; esp_video_camera refuses to validate without it.
+psram:
+  mode: hex
+  speed: 200MHz

@@ -1,0 +1,44 @@
+esp_video_camera:
+  id: video_camera
+  name: Test Camera
+  i2c_id: i2c_bus
+  device: jpeg
+  sensor_model: sc202cs
+  resolution: 1600x900
+  max_framerate: 10
+
+lvgl:
+  pages:
+    - id: camera_page
+      widgets:
+        # An image widget needs no buffer of its own: the frames are drawn
+        # straight out of the camera's.
+        - image:
+            id: camera_view
+            src: dummy_image
+        # A canvas works too, for a configuration that also draws over the
+        # frames with the lvgl.canvas.draw_* actions.
+        - canvas:
+            id: camera_canvas
+            width: 100
+            height: 100
+
+image:
+  - id: dummy_image
+    file: ../../../tests/components/lvgl/logo-text.svg
+    type: RGB565
+    resize: 32x32
+
+lvgl_camera_display:
+  camera_id: video_camera
+  widget_id: camera_view
+
+switch:
+  - platform: template
+    name: Camera preview
+    optimistic: true
+    restore_mode: ALWAYS_ON
+    turn_on_action:
+      - lvgl_camera_display.start
+    turn_off_action:
+      - lvgl_camera_display.stop

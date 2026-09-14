@@ -1,0 +1,65 @@
+"""Live camera frames in an LVGL widget (ESP32-P4).
+
+Points an LVGL canvas or image widget straight at the frames an
+``esp_video_camera`` captures. The sensor already produces RGB565, which is
+what LVGL draws from, so nothing is decoded and nothing is copied on the way.
+"""
+
+from esphome import automation, codegen as cg, config_validation as cv
+from esphome.components.const import CONF_ENABLED
+from esphome.components.esp_video_camera import ESPVideoCamera
+from esphome.components.lvgl.types import lv_image_t
+from esphome.const import CONF_ID
+from esphome.types import ConfigType
+
+CODEOWNERS = ["@youkorr"]
+DEPENDENCIES = ["esp_video_camera", "lvgl"]
+
+CONF_CAMERA_ID = "camera_id"
+CONF_WIDGET_ID = "widget_id"
+
+lvgl_camera_display_ns = cg.esphome_ns.namespace("lvgl_camera_display")
+LVGLCameraDisplay = lvgl_camera_display_ns.class_("LVGLCameraDisplay", cg.Component)
+StartAction = lvgl_camera_display_ns.class_("StartAction", automation.Action)
+StopAction = lvgl_camera_display_ns.class_("StopAction", automation.Action)
+
+CONFIG_SCHEMA = cv.Schema(
+    {
+        cv.GenerateID(): cv.declare_id(LVGLCameraDisplay),
+        cv.Required(CONF_CAMERA_ID): cv.use_id(ESPVideoCamera),
+        # A canvas is an image widget with its own buffer, so this takes either.
+        cv.Required(CONF_WIDGET_ID): cv.use_id(lv_image_t),
+        cv.Optional(CONF_ENABLED, default=True): cv.boolean,
+    }
+).extend(cv.COMPONENT_SCHEMA)
+
+ACTION_SCHEMA = automation.maybe_simple_id(
+    {cv.GenerateID(): cv.use_id(LVGLCameraDisplay)}
+)
+
+
+async def to_code(config: ConfigType) -> None:
+    var = cg.new_Pvariable(config[CONF_ID])
+    await cg.register_component(var, config)
+
+    camera = await cg.get_variable(config[CONF_CAMERA_ID])
+    cg.add(var.set_camera(camera))
+
+    # The address of LVGL's widget variable, not its value: LVGL assigns those
+    # variables while it builds the display, and this component is told about
+    # the widget before it necessarily exists.
+    widget = await cg.get_variable(config[CONF_WIDGET_ID])
+    cg.add(var.set_widget(cg.RawExpression(f"&{widget}")))
+
+    cg.add(var.set_enabled(config[CONF_ENABLED]))
+
+
+@automation.register_action(
+    "lvgl_camera_display.start", StartAction, ACTION_SCHEMA, synchronous=True
+)
+@automation.register_action(
+    "lvgl_camera_display.stop", StopAction, ACTION_SCHEMA, synchronous=True
+)
+async def display_action_to_code(config, action_id, template_arg, args):
+    parent = await cg.get_variable(config[CONF_ID])
+    return cg.new_Pvariable(action_id, template_arg, parent)

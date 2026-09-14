@@ -45,6 +45,40 @@ class ESPVideoCameraImage : public camera::CameraImage {
   uint8_t requesters_{0};
 };
 
+/// One un-encoded frame, as the MIPI-CSI/ISP device produced it. The pixels
+/// live in a buffer owned by the V4L2 driver, not in this struct.
+struct RawFrame {
+  const uint8_t *data;
+  uint32_t width;
+  uint32_t height;
+  /// Bytes per row. The ISP writes rows back to back, so this is width times
+  /// the bytes per pixel, but a consumer that hands the buffer to something
+  /// else should pass the stride on rather than work it out again.
+  uint32_t stride;
+  camera::PixelFormat format;
+};
+
+/// Receives the frames before they reach the JPEG encoder, for a consumer that
+/// wants pixels rather than a compressed image -- a display, say.
+///
+/// The buffer belongs to the capture device and is handed back to it as soon as
+/// nobody needs it, so a consumer that wants to keep the pixels around (to draw
+/// from them later, without copying) says so by returning true, and the camera
+/// holds that one buffer back from the sensor. At most one frame is held: the
+/// answer to each call replaces the last one, so returning true for a new frame
+/// releases the previous one and returning false releases it without taking
+/// anything in its place.
+class RawFrameConsumer {
+ public:
+  /// @return true to keep reading `frame` after this call returns, false when
+  ///         the consumer wants no frame held at all -- including the one it
+  ///         may have kept last time, which is released either way.
+  virtual bool on_raw_frame(const RawFrame &frame) = 0;
+  /// The capture stopped and the buffers are gone; drop any pointer into them.
+  virtual void on_raw_frames_stopped() = 0;
+  virtual ~RawFrameConsumer() = default;
+};
+
 /// Reader used by the API to stream the JPEG bytes out in chunks.
 class ESPVideoCameraImageReader : public camera::CameraImageReader {
  public:
@@ -87,6 +121,16 @@ class ESPVideoCamera : public camera::Camera {
     this->max_framerate_ = fps;
     this->min_interval_ms_ = (fps > 0.0f) ? (uint32_t) (1000.0f / fps) : 0;
   }
+
+  // Raw frames ------------------------------------------------------------------
+  /// Attach the one consumer that gets the un-encoded frames. Only the
+  /// MIPI-CSI/ISP source has any: a camera that already delivers JPEG (USB-UVC,
+  /// or a device node producing it) never has the pixels in the first place.
+  void set_raw_frame_consumer(RawFrameConsumer *consumer) { this->raw_consumer_ = consumer; }
+  /// Whether that consumer currently wants frames. Like an API stream, this
+  /// keeps the pipeline up; unlike one, it does not run the JPEG encoder.
+  void request_raw_frames(bool enable) { this->raw_frames_wanted_ = enable; }
+  bool has_raw_frames() const { return this->is_hw_jpeg_; }
 
   // camera::Camera -------------------------------------------------------------
   void add_listener(camera::CameraListener *listener) override { this->listeners_.push_back(listener); }
@@ -132,6 +176,11 @@ class ESPVideoCamera : public camera::Camera {
   // Direct path: a source that already delivers JPEG/MJPEG (USB-UVC / device).
   bool start_direct_capture_();
   void loop_direct_capture_();
+  /// Offer one dequeued capture buffer to the raw consumer. Returns true when
+  /// the consumer kept it, which is the caller's cue not to re-queue it.
+  bool offer_raw_frame_(uint32_t index);
+  /// Give the capture buffer at `index` back to the sensor/ISP device.
+  bool requeue_capture_buffer_(uint32_t index);
 
   // Pipeline
 #ifdef USE_I2C
@@ -185,6 +234,9 @@ class ESPVideoCamera : public camera::Camera {
   // When the last consumer went away, or 0 while at least one is present. The
   // pipeline is only torn down once this is CAPTURE_IDLE_TIMEOUT_MS old.
   uint32_t idle_since_ms_{0};
+  // When the capture device last handed back a buffer with data in it, for any
+  // consumer. What decides that a running capture has gone quiet.
+  uint32_t last_capture_ms_{0};
   // Throughput accumulated between two STATS_INTERVAL_MS reports.
   uint32_t stats_since_ms_{0};
   uint32_t stats_frames_{0};
@@ -207,6 +259,18 @@ class ESPVideoCamera : public camera::Camera {
   std::shared_ptr<ESPVideoCameraImage> current_image_;
   std::atomic<uint8_t> stream_requesters_{0};
   std::atomic<uint8_t> single_requesters_{0};
+
+  // The un-encoded frames, and the one buffer the consumer is allowed to keep.
+  // Both belong to loop() too: the consumer is called from it.
+  RawFrameConsumer *raw_consumer_{nullptr};
+  bool raw_frames_wanted_{false};
+  /// Index of the capture buffer withheld from the sensor for the consumer, or
+  /// -1 when none is. Only the index is kept: an MMAP buffer needs nothing else
+  /// to be queued again, and this way the V4L2 types stay out of the header.
+  int held_buffer_index_{-1};
+  // One-shot: say once per capture that there are too few buffers to keep one
+  // back for the display, rather than on every frame.
+  bool warned_no_spare_buffer_{false};
 
   // V4L2 state. A direct source (USB-UVC, or a /dev/videoN already producing
   // JPEG) uses capture_fd_ + capture_buffers_ only. The hardware-JPEG source

@@ -14,6 +14,7 @@
 // without a word of complaint.
 #include <sdkconfig.h>
 
+#include "esp_cache.h"         // esp_cache_msync()
 #include "esp_heap_caps.h"
 #include "esp_idf_version.h"   // ESP_IDF_VERSION, for usb_host_config_t::peripheral_map
 #include "esp_memory_utils.h"  // esp_ptr_external_ram()
@@ -636,7 +637,11 @@ bool ESPVideoCamera::init_pipeline_() {
 // ESPVideoCamera — streaming / capture
 // ===========================================================================
 void ESPVideoCamera::loop() {
-  const bool wanted = (this->stream_requesters_ != 0) || (this->single_requesters_ != 0);
+  // Two kinds of consumer, and they do not want the same work done. An API or
+  // web stream wants encoded frames; a display wants the pixels and no encode
+  // at all. Either keeps the pipeline up.
+  const bool wanted = (this->stream_requesters_ != 0) || (this->single_requesters_ != 0) ||
+                      (this->raw_consumer_ != nullptr && this->raw_frames_wanted_);
 
   // Only reachable with UVC: setup() fails the component outright otherwise.
   // Retried on demand and on a long timer, and never waited for here:
@@ -690,13 +695,13 @@ void ESPVideoCamera::loop() {
   // completely silent -- the only symptom is a consumer timing out somewhere
   // else entirely.
   //
-  // Only while someone is watching: deliver_frame_() counts nothing during the
-  // idle grace period, so this warned about a perfectly healthy camera every
-  // time the last viewer went away.
+  // Only while someone is watching, or it would fire every time the last
+  // viewer went away. Measured from the last frame the capture device handed
+  // back rather than from the last encoded one, since a display-only
+  // configuration never runs the encoder at all.
   if (!wanted) {
     this->stats_since_ms_ = millis();
-  } else if (!this->warned_no_frames_ && this->stats_frames_ == 0 &&
-             (millis() - this->stats_since_ms_) >= NO_FRAME_WARNING_MS) {
+  } else if (!this->warned_no_frames_ && (millis() - this->last_capture_ms_) >= NO_FRAME_WARNING_MS) {
     this->warned_no_frames_ = true;
     ESP_LOGW(TAG,
              "Streaming from %s for %us without a single frame; restarting the capture. esp_video reports several "
@@ -799,6 +804,8 @@ void ESPVideoCamera::loop_direct_capture_() {
   }
 
   if (buf.index < (uint32_t) this->num_capture_buffers_) {
+    if (buf.bytesused > 0)
+      this->last_capture_ms_ = millis();
     this->deliver_frame_((const uint8_t *) this->capture_buffers_[buf.index].start, buf.bytesused);
   } else {
     // Not a frame this component mapped. Dropping it silently would look like a
@@ -833,7 +840,9 @@ void ESPVideoCamera::loop_jpeg_pipeline_() {
   // Only encode frames that are going somewhere. The sensor sets the pace, so
   // encoding every frame and dropping most of them in deliver_frame_ would run
   // the encoder at the sensor's rate whatever max_framerate says. Skipping
-  // leaves the encoder as STREAMON left it.
+  // leaves the encoder as STREAMON left it. A display consumer is deliberately
+  // not counted here: it wants the pixels, so encoding for it would cost a JPEG
+  // nobody reads.
   const bool wanted = (this->stream_requesters_ != 0) || (this->single_requesters_ != 0);
   const bool due = this->min_interval_ms_ == 0 || (millis() - this->last_frame_ms_) >= this->min_interval_ms_;
 
@@ -843,8 +852,17 @@ void ESPVideoCamera::loop_jpeg_pipeline_() {
              this->num_capture_buffers_);
   }
 
+  const bool have_frame = cap_buf.index < (uint32_t) this->num_capture_buffers_ && cap_buf.bytesused > 0;
+  if (have_frame)
+    this->last_capture_ms_ = millis();
+
+  // Offer the pixels before the encoder is handed them: both only read the
+  // buffer, and doing it first means a display still gets frames when the
+  // encoder is broken.
+  const bool consumer_kept_frame = have_frame && this->offer_raw_frame_(cap_buf.index);
+
   bool encoder_broken = false;
-  if (wanted && due && cap_buf.index < (uint32_t) this->num_capture_buffers_ && cap_buf.bytesused > 0) {
+  if (wanted && due && have_frame) {
     // M2M encode in the order of Espressif's examples/m2m: queue the raw frame on
     // OUTPUT, dequeue the encoded frame from CAPTURE, only then reclaim OUTPUT.
     // The encoder releases the input as part of completing the output, so waiting
@@ -934,10 +952,67 @@ void ESPVideoCamera::loop_jpeg_pipeline_() {
   }
 
   // Return the raw frame to the sensor/ISP device, unless the teardown above
-  // already closed it.
-  if (capture_alive && ioctl(this->capture_fd_, VIDIOC_QBUF, &cap_buf) < 0) {
+  // already closed it -- or the display consumer is still reading this one, in
+  // which case the frame it was reading before is the one that goes back.
+  if (!capture_alive)
+    return;
+  int previously_held = this->held_buffer_index_;
+  this->held_buffer_index_ = consumer_kept_frame ? (int) cap_buf.index : -1;
+  if (previously_held >= 0)
+    this->requeue_capture_buffer_((uint32_t) previously_held);
+  if (!consumer_kept_frame && ioctl(this->capture_fd_, VIDIOC_QBUF, &cap_buf) < 0) {
     ESP_LOGW(TAG, "capture QBUF failed: %s", strerror(errno));
   }
+}
+
+bool ESPVideoCamera::requeue_capture_buffer_(uint32_t index) {
+  struct v4l2_buffer buf;
+  memset(&buf, 0, sizeof(buf));
+  buf.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+  buf.memory = V4L2_MEMORY_MMAP;
+  buf.index = index;
+  if (ioctl(this->capture_fd_, VIDIOC_QBUF, &buf) < 0) {
+    ESP_LOGW(TAG, "capture QBUF failed: %s", strerror(errno));
+    return false;
+  }
+  return true;
+}
+
+bool ESPVideoCamera::offer_raw_frame_(uint32_t index) {
+  if (this->raw_consumer_ == nullptr || !this->raw_frames_wanted_)
+    return false;
+
+  // Keeping a buffer back costs the sensor one, so there has to be one to
+  // spare. With a single buffer the sensor would have nothing to fill and the
+  // stream would stop dead, which is a much worse failure than not being able
+  // to avoid a copy.
+  if (this->num_capture_buffers_ < 2) {
+    if (!this->warned_no_spare_buffer_) {
+      this->warned_no_spare_buffer_ = true;
+      ESP_LOGW(TAG, "Only %d capture buffer(s); frames cannot be held for the display", this->num_capture_buffers_);
+    }
+    return false;
+  }
+
+  auto *data = (const uint8_t *) this->capture_buffers_[index].start;
+  // The ISP wrote these bytes by DMA, so the cache may still hold what was
+  // there before. Two conditions on the call: only PSRAM sits behind the data
+  // cache -- internal SRAM is coherent, and esp_cache_msync() rejects an
+  // address in it outright -- and the region has to be cache-line aligned,
+  // which is why this passes the whole mapped buffer rather than the bytes the
+  // frame happens to occupy.
+  if (esp_ptr_external_ram(data)) {
+    esp_cache_msync((void *) data, this->capture_buffers_[index].length,
+                    ESP_CACHE_MSYNC_FLAG_DIR_M2C | ESP_CACHE_MSYNC_FLAG_TYPE_DATA);
+  }
+
+  RawFrame frame{};
+  frame.data = data;
+  frame.width = this->capture_width_;
+  frame.height = this->capture_height_;
+  frame.stride = this->capture_width_ * 2;  // RGB565: the ISP writes rows back to back
+  frame.format = camera::PIXEL_FORMAT_RGB565;
+  return this->raw_consumer_->on_raw_frame(frame);
 }
 
 bool ESPVideoCamera::reset_jpeg_encoder_() {
@@ -1127,11 +1202,13 @@ bool ESPVideoCamera::start_capture_() {
   this->last_frame_ms_ = 0;
   this->idle_since_ms_ = 0;
   this->stats_since_ms_ = millis();
+  this->last_capture_ms_ = this->stats_since_ms_;
   this->stats_frames_ = 0;
   this->stats_bytes_ = 0;
   this->logged_qbuf_failure_ = false;
   this->warned_stray_buffer_ = false;
   this->warned_no_frames_ = false;
+  this->warned_no_spare_buffer_ = false;
   return true;
 }
 
@@ -1313,6 +1390,12 @@ bool ESPVideoCamera::queue_jpeg_capture_buffer_() {
 }
 
 void ESPVideoCamera::stop_capture_() {
+  // Before the munmap below: the consumer may be holding a pointer into a
+  // buffer that is about to stop existing.
+  this->held_buffer_index_ = -1;
+  if (this->raw_consumer_ != nullptr && this->streaming_)
+    this->raw_consumer_->on_raw_frames_stopped();
+
   if (this->jpeg_fd_ >= 0) {
     int otype = V4L2_BUF_TYPE_VIDEO_OUTPUT;
     int jtype = V4L2_BUF_TYPE_VIDEO_CAPTURE;
