@@ -128,12 +128,6 @@ async def action_to_code(
     args,
     config=None,
 ):
-    # Ensure all required ids have been processed, so our LambdaContext doesn't get context-switched.
-    if config:
-        for lamb in config.values():
-            if isinstance(lamb, Lambda):
-                for id_ in lamb.requires_ids:
-                    await get_variable(id_)
     async with LambdaContext(parameters=args, where=action_id) as context:
         for widget in widgets:
             await action(widget)

@@ -81,10 +81,17 @@ class ListTriggers:
     on_remove: list = field(default_factory=list)
 
 
+# Static shared empty record for lists that have no triggers
+_NO_LIST_TRIGGERS = ListTriggers()
+
+
 def _get_list_triggers(list_id) -> ListTriggers:
-    """
-    Every on_add/on_remove automation config declared for a list, indexed by the list's own ID.
-    """
+    """Every on_add/on_remove automation config declared for a list, indexed by the list's own ID."""
+    return get_list_triggers().get(list_id, _NO_LIST_TRIGGERS)
+
+
+def _declare_list_triggers(list_id) -> ListTriggers:
+    """Get-or-create a list's trigger record, for ListType.on_create() to populate."""
     return get_list_triggers().setdefault(list_id, ListTriggers())
 
 
@@ -93,7 +100,7 @@ async def finish_list_triggers() -> None:
     Builds every list's on_add/on_remove automations, collected by ListType.on_create()
     instead of being built there directly.
     """
-    for triggers in list(get_list_triggers().values()):
+    for triggers in get_list_triggers().values():
         for conf in triggers.on_add + triggers.on_remove:
             trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID])
             await automation.build_automation(trigger, [(cg.int_, "list_index")], conf)
@@ -167,7 +174,7 @@ class ListType(WidgetType):
         on_remove = config.get(CONF_ON_REMOVE, ())
         if not on_add and not on_remove:
             return
-        triggers = _get_list_triggers(config[CONF_ID])
+        triggers = _declare_list_triggers(config[CONF_ID])
         triggers.on_add.extend(on_add)
         triggers.on_remove.extend(on_remove)
 
