@@ -47,7 +47,6 @@ void TemplateValve::loop() {
     this->publish_state();
 }
 
-void TemplateValve::set_optimistic(bool optimistic) { this->optimistic_ = optimistic; }
 void TemplateValve::set_assumed_state(bool assumed_state) { this->assumed_state_ = assumed_state; }
 float TemplateValve::get_setup_priority() const { return setup_priority::HARDWARE; }
 
