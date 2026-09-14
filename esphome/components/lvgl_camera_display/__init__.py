@@ -6,10 +6,11 @@ what LVGL draws from, so nothing is decoded and nothing is copied on the way.
 """
 
 from esphome import automation, codegen as cg, config_validation as cv
-from esphome.components.const import CONF_ENABLED
+from esphome.components.const import CONF_BYTE_ORDER, CONF_ENABLED
 from esphome.components.esp_video_camera import ESPVideoCamera
 from esphome.components.lvgl.types import lv_image_t
 from esphome.const import CONF_ID
+import esphome.final_validate as fv
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@youkorr"]
@@ -36,6 +37,32 @@ CONFIG_SCHEMA = cv.Schema(
 ACTION_SCHEMA = automation.maybe_simple_id(
     {cv.GenerateID(): cv.use_id(LVGLCameraDisplay)}
 )
+
+
+def _reject_swapped_byte_order(config: ConfigType) -> ConfigType:
+    """The sensor's pixel order is fixed, so LVGL's has to be the matching one.
+
+    The ISP writes RGB565 the way the chip stores a 16-bit word, and this
+    component hands those bytes to LVGL untouched. Built for big_endian, LVGL
+    reads every pixel with its two bytes the other way round, and the picture
+    comes out in the wrong colours -- with nothing in the logs to say why.
+
+    LVGL takes this from the display when the display states one, so this only
+    fires where it really is a choice.
+    """
+    lvgl_configs = fv.full_config.get()["lvgl"]
+    if any(c.get(CONF_BYTE_ORDER) == "big_endian" for c in lvgl_configs):
+        raise cv.Invalid(
+            "lvgl is set to big_endian, and camera frames cannot be shown that way: "
+            "the sensor writes RGB565 in the chip's own byte order and this component "
+            "does not copy the frames, so there is nowhere to swap them. Set "
+            "'lvgl: byte_order: little_endian'. Note that LVGL defaults to big_endian "
+            "unless the display states an order of its own."
+        )
+    return config
+
+
+FINAL_VALIDATE_SCHEMA = _reject_swapped_byte_order
 
 
 async def to_code(config: ConfigType) -> None:
