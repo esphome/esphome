@@ -52,6 +52,7 @@ voice_assistant:
   speaker: va_speaker_id
   micro_wake_word: mww_id
   conversation_timeout: 60s
+  tts_playback_start_timeout: 10s
   on_listening:
     - logger.log: "Voice assistant microphone listening"
   on_start:
