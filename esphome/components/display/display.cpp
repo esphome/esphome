@@ -11,6 +11,8 @@ static const char *const TAG = "display";
 
 // COLOR_OFF and COLOR_ON are now inline constexpr in display.h
 
+void Display::sleep() { ESP_LOGE(TAG, "Display sleep not implemented for this model!"); }
+void Display::wakeup() { ESP_LOGE(TAG, "Display wakeup not implemented for this model!"); }
 void Display::fill(Color color) { this->filled_rectangle(0, 0, this->get_width(), this->get_height(), color); }
 void Display::clear() { this->fill(COLOR_OFF); }
 void Display::set_rotation(DisplayRotation rotation) { this->rotation_ = rotation; }
