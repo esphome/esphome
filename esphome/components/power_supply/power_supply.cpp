@@ -47,6 +47,10 @@ void PowerSupply::unrequest_high_power() {
     return;
   }
   this->active_requests_--;
+  this->turn_off_();
+}
+
+void PowerSupply::turn_off_() {
   if (this->active_requests_ == 0) {
     this->set_timeout("power-supply-off", this->keep_on_time_, [this]() {
       ESP_LOGV(TAG, "Disabling");
@@ -54,8 +58,18 @@ void PowerSupply::unrequest_high_power() {
     });
   }
 }
+
+#if defined(USE_DEEP_SLEEP) && defined(USE_GPIO_HOLD)
+void PowerSupply::loop() {
+  // Run once after setup().
+  // Need to turn off the pin if no component requested it during setup() otherwise it will stay on forever.
+  this->turn_off_();
+  this->disable_loop();
+}
+#endif
+
 void PowerSupply::on_powerdown() {
-#ifdef USE_GPIO_HOLD
+#if defined(USE_DEEP_SLEEP) && defined(USE_GPIO_HOLD)
   // only turn off if pin is not held.
   if (this->pin_->get_flags() & gpio::FLAG_HOLD) {
     return;

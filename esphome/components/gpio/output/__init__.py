@@ -20,16 +20,16 @@ CONFIG_SCHEMA = output.BINARY_OUTPUT_SCHEMA.extend(
 
 
 def _final_validate(config: ConfigType) -> None:
-    if config[CONF_PIN].get(CONF_HOLD_DURING_SLEEP) and config.get(CONF_POWER_SUPPLY):
-        power_supply = [
-            ps
-            for ps in fv.full_config.get()[CONF_POWER_SUPPLY]
-            if ps[CONF_ID] == config[CONF_POWER_SUPPLY]
-        ][0]
-        if not power_supply[CONF_PIN].get(CONF_HOLD_DURING_SLEEP):
-            raise cv.Invalid(
-                f"{CONF_HOLD_DURING_SLEEP} can only be used with a power supply component if the power supply pin is also configured with {CONF_HOLD_DURING_SLEEP}."
-            )
+    if not config[CONF_PIN].get(CONF_HOLD_DURING_SLEEP):
+        return
+    if (ps_id := config.get(CONF_POWER_SUPPLY)) is None:
+        return
+    fconf = fv.full_config.get()
+    ps_config = fconf.get_config_for_path(fconf.get_path_for_id(ps_id)[:-1])
+    if not ps_config[CONF_PIN].get(CONF_HOLD_DURING_SLEEP):
+        raise cv.Invalid(
+            f"{CONF_HOLD_DURING_SLEEP} can only be used with a power supply component if the power supply pin is also configured with {CONF_HOLD_DURING_SLEEP}."
+        )
 
 
 FINAL_VALIDATE_SCHEMA = _final_validate
