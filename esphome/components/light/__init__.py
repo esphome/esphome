@@ -274,11 +274,24 @@ def migrate_channel_colors(
 
 
 def _final_validate(config: ConfigType) -> None:
-    """Validate all recorded effect name references against their target lights.
-
-    This runs once per light platform instance. If no light platform is configured,
-    this never runs — but the ID validator will catch the missing light ID separately.
+    """Validate this light instance's own resolved config, and all recorded effect
+    names against their target lights.
     """
+    restore_mode = config.get(CONF_RESTORE_MODE)
+    if restore_mode is not None:
+        legacy = LEGACY_RESTORE_MODES[restore_mode]
+        if _initial_state_overridden_by_legacy_mode(
+            legacy, config.get(CONF_INITIAL_STATE)
+        ):
+            _LOGGER.warning(
+                "[%s] 'initial_state: state' is ignored because 'restore_mode: %s' "
+                "always sets the light %s at boot; use 'restore_state:' instead for "
+                "per-field control",
+                config.get(CONF_NAME) or config[CONF_ID],
+                restore_mode,
+                "ON" if legacy.cold_boot_state else "OFF",
+            )
+
     data = _get_data()
     if not data.effect_refs and not data.effect_cycle_refs:
         return
@@ -417,12 +430,7 @@ class LightType(enum.IntEnum):
 def _apply_default_restore_mode(
     default_restore_mode: str,
 ) -> Callable[[ConfigType], ConfigType]:
-    # cv.Exclusive (unlike cv.Optional) has no `default` parameter. Applying the
-    # platform's default as a post-validation step (via add_extra, below) runs after
-    # LIGHT_SCHEMA's cv.Exclusive("restore") marker has already checked the raw input,
-    # so filling in restore_mode: here can never trip that check -- and only happens
-    # when the user gave neither restore_mode nor restore_state, so a user-provided
-    # restore_state is never silently overridden.
+    # cv.Exclusive has no default, so apply the default here if neither key is configured.
     def validator(config: ConfigType) -> ConfigType:
         if CONF_RESTORE_MODE not in config and CONF_RESTORE_STATE not in config:
             config[CONF_RESTORE_MODE] = cv.one_of(
@@ -495,20 +503,10 @@ async def setup_light_core_(light_var, config, output_var):
     restore_state_config = config.get(CONF_RESTORE_STATE)
     if restore_state_config == RESTORE_STATE_NONE:
         # restore_state: none is explicit shorthand for "no restoring at all" --
-        # normalize it to the same thing as omitting restore_state: entirely.
         restore_state_config = None
 
     if restore_mode is not None:
         legacy = LEGACY_RESTORE_MODES[restore_mode]
-        if _initial_state_overridden_by_legacy_mode(legacy, initial_state_config):
-            _LOGGER.warning(
-                "[%s] 'initial_state: state' is ignored because 'restore_mode: %s' "
-                "always sets the light %s at boot; use 'restore_state:' instead for "
-                "per-field control",
-                config.get(CONF_NAME) or config[CONF_ID],
-                restore_mode,
-                "ON" if legacy.cold_boot_state else "OFF",
-            )
         initial_statements.extend(
             _legacy_cold_boot_statements(legacy, initial_state_config)
         )
@@ -520,10 +518,7 @@ async def setup_light_core_(light_var, config, output_var):
         )
         save_enabled = True
     else:
-        # Neither key configured: no persistence, and -- unlike every explicit
-        # restore_mode: value -- no cold-boot forcing either. The light simply comes
-        # up as initial_state: (or LightStateRTCState's own defaults) says, same as
-        # any other boot.
+        # Neither key configured: no persistence, and no cold-boot forcing either.
         restore_statements = []
         save_enabled = False
 

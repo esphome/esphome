@@ -1,5 +1,7 @@
 """Tests for the restore_mode/restore_state -> runtime lambda translation layer."""
 
+import logging
+
 import pytest
 
 import esphome.codegen as cg
@@ -8,6 +10,7 @@ from esphome.components.light import (
     CONF_RESTORE_STATE,
     LIGHT_SCHEMA,
     LightType,
+    _final_validate,
     light_schema,
 )
 from esphome.components.light.restore_state import (
@@ -354,6 +357,40 @@ def test_initial_state_overridden_by_legacy_mode(
         _initial_state_overridden_by_legacy_mode(legacy, initial_state_config)
         == expected
     )
+
+
+def test_final_validate_warns_when_restore_mode_overrides_initial_state(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    # Regression test: this warning used to fire from setup_light_core_() during
+    # codegen; it now runs as part of FINAL_VALIDATE_SCHEMA instead, so it also
+    # surfaces on a plain `esphome config`, not just a full compile.
+    config = LIGHT_SCHEMA(
+        {
+            "name": "test",
+            CONF_RESTORE_MODE: "ALWAYS_OFF",
+            "initial_state": {"state": True},
+        }
+    )
+    with caplog.at_level(logging.WARNING):
+        _final_validate(config)
+    assert "'initial_state: state' is ignored" in caplog.text
+    assert "restore_mode: ALWAYS_OFF" in caplog.text
+
+
+def test_final_validate_does_not_warn_without_conflict(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    config = LIGHT_SCHEMA(
+        {
+            "name": "test",
+            CONF_RESTORE_MODE: "ALWAYS_OFF",
+            "initial_state": {"state": False},
+        }
+    )
+    with caplog.at_level(logging.WARNING):
+        _final_validate(config)
+    assert caplog.text == ""
 
 
 @pytest.mark.asyncio
