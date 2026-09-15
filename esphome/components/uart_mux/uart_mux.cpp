@@ -27,10 +27,9 @@ void UARTMux::loop() {
   if (!this->bridge_->is_paused()) {
     return;
   }
-  this->handoff_pending_ = false;
   // Bytes that arrived during the hand-off belong to neither owner.
   this->flush_input_();
-  this->local_active_ = true;
+  this->route_ = Route::ROUTE_LOCAL;
   ESP_LOGD(TAG, "UART routed to local consumers");
   this->disable_loop();
 }
@@ -40,26 +39,34 @@ void UARTMux::dump_config() {
                 "UART Mux:\n"
                 "  Start local: %s\n"
                 "  Route: %s",
-                YESNO(this->start_local_), this->local_active_ ? LOG_STR_LITERAL("local") : LOG_STR_LITERAL("bridge"));
+                YESNO(this->start_local_), this->is_local() ? LOG_STR_LITERAL("local") : LOG_STR_LITERAL("bridge"));
+}
+
+void UARTMux::load_settings(bool dump_config) {
+  ESP_LOGW(TAG, "load_settings() ignored; change the framing on the hardware UART instead");
 }
 
 void UARTMux::select_local() {
-  if (this->local_active_ || this->handoff_pending_) {
+  if (this->route_ != Route::ROUTE_BRIDGE) {
     return;
   }
   ESP_LOGD(TAG, "Pausing bridge to route UART locally");
   this->bridge_->pause();
-  this->handoff_pending_ = true;
+  this->route_ = Route::ROUTE_PENDING_LOCAL;
   this->enable_loop();
 }
 
 void UARTMux::select_bridge() {
-  if (!this->local_active_ && !this->handoff_pending_) {
+  if (this->route_ == Route::ROUTE_BRIDGE) {
     return;
   }
-  this->handoff_pending_ = false;
-  this->local_active_ = false;
-  this->flush_input_();
+  // While the pause is still pending the bridge's RX task may be inside
+  // uart_read_bytes() on this port, and nothing local has run, so flush only a
+  // completed hand-off.
+  if (this->route_ == Route::ROUTE_LOCAL) {
+    this->flush_input_();
+  }
+  this->route_ = Route::ROUTE_BRIDGE;
   ESP_LOGD(TAG, "UART routed to bridge");
   this->bridge_->resume();
   this->disable_loop();
@@ -75,7 +82,7 @@ void UARTMux::flush_input_() {
 }
 
 void UARTMux::write_array(const uint8_t *data, size_t len) {
-  if (!this->local_active_) {
+  if (!this->is_local()) {
     ESP_LOGV(TAG, "Dropping %zu bytes: UART routed to bridge", len);
     return;
   }
