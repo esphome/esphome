@@ -111,13 +111,13 @@ class TSL2591Component final : public PollingComponent, public i2c::I2CDevice {
    *
    * @param enable Enable or disable power save mode.
    */
-  void set_power_save_mode(bool enable);
+  void set_power_save_mode(bool enable) { this->power_save_mode_enabled_ = enable; }
 
   /** Sets the name for this instance of the device.
    *
    * @param name The user-friendly name.
    */
-  void set_name(const char *name);
+  void set_name(const char *name) { this->name_ = name; }
 
   /** Sets the device and glass attenuation factors.
    *
@@ -235,7 +235,7 @@ class TSL2591Component final : public PollingComponent, public i2c::I2CDevice {
   /** Used by ESPHome framework. */
   void set_infrared_sensor(sensor::Sensor *infrared_sensor);
   /** Used by ESPHome framework. */
-  void set_visible_sensor(sensor::Sensor *visible_sensor);
+  void set_visible_sensor(sensor::Sensor *visible_sensor) { this->visible_sensor_ = visible_sensor; }
   /** Used by ESPHome framework. */
   void set_calculated_lux_sensor(sensor::Sensor *calculated_lux_sensor);
   /** Used by ESPHome framework. Does NOT actually set the value on the device. */
