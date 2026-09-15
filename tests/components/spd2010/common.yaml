@@ -1,0 +1,25 @@
+display:
+  - platform: ssd1306_i2c
+    id: spd2010_display
+    model: SSD1306_128X64
+
+touchscreen:
+  - platform: spd2010
+    id: spd2010_touchscreen
+    display: spd2010_display
+    interrupt_pin: ${interrupt_pin}
+    reset_pin: ${reset_pin}
+  - platform: spd2010
+    id: spd2010_polling_touchscreen
+    display: spd2010_display
+    address: 0x54
+    update_interval: 100ms
+    calibration:
+      x_min: 0
+      x_max: 479
+      y_min: 0
+      y_max: 479
+    transform:
+      swap_xy: true
+      mirror_x: true
+      mirror_y: false
