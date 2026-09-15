@@ -31,10 +31,14 @@ class UARTMux final : public uart::UARTComponent, public Component {
 
   // uart::UARTComponent: forwarded while routed locally, inert otherwise.
   void write_array(const uint8_t *data, size_t len) override;
-  bool peek_byte(uint8_t *data) override;
-  bool read_array(uint8_t *data, size_t len) override;
-  size_t available() override;
-  uart::UARTFlushResult flush() override;
+  bool peek_byte(uint8_t *data) override { return this->local_active_ && this->uart_->peek_byte(data); }
+  bool read_array(uint8_t *data, size_t len) override {
+    return this->local_active_ && this->uart_->read_array(data, len);
+  }
+  size_t available() override { return this->local_active_ ? this->uart_->available() : 0; }
+  uart::UARTFlushResult flush() override {
+    return this->local_active_ ? this->uart_->flush() : uart::UARTFlushResult::UART_FLUSH_RESULT_ASSUMED_SUCCESS;
+  }
   bool is_connected() override { return this->local_active_; }
   // The bridge's tasks block inside the driver; reinstalling it would pull it out
   // from under them. The framing is the hardware UART's to change.

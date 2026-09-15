@@ -75,20 +75,5 @@ void UARTMux::write_array(const uint8_t *data, size_t len) {
   this->uart_->write_array(data, len);
 }
 
-bool UARTMux::peek_byte(uint8_t *data) { return this->local_active_ && this->uart_->peek_byte(data); }
-
-bool UARTMux::read_array(uint8_t *data, size_t len) {
-  return this->local_active_ && this->uart_->read_array(data, len);
-}
-
-size_t UARTMux::available() { return this->local_active_ ? this->uart_->available() : 0; }
-
-uart::UARTFlushResult UARTMux::flush() {
-  if (!this->local_active_) {
-    return uart::UARTFlushResult::UART_FLUSH_RESULT_ASSUMED_SUCCESS;
-  }
-  return this->uart_->flush();
-}
-
 }  // namespace esphome::uart_mux
 #endif

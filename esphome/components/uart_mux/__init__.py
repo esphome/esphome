@@ -53,6 +53,7 @@ UART_MUX_ACTION_SCHEMA = automation.maybe_simple_id(
 )
 
 
+# The actions and the condition all take just the mux, so one builder serves them.
 @automation.register_action(
     "uart_mux.select_local", SelectLocalAction, UART_MUX_ACTION_SCHEMA, synchronous=True
 )
@@ -62,24 +63,14 @@ UART_MUX_ACTION_SCHEMA = automation.maybe_simple_id(
     UART_MUX_ACTION_SCHEMA,
     synchronous=True,
 )
-async def uart_mux_select_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    paren = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, paren)
-
-
 @automation.register_condition(
     "uart_mux.is_local", IsLocalCondition, UART_MUX_ACTION_SCHEMA
 )
-async def uart_mux_is_local_to_code(
+async def uart_mux_automation_to_code(
     config: ConfigType,
-    condition_id: ID,
+    automation_id: ID,
     template_arg: cg.TemplateArguments,
     args: TemplateArgsType,
 ) -> MockObj:
     paren = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(condition_id, template_arg, paren)
+    return cg.new_Pvariable(automation_id, template_arg, paren)
