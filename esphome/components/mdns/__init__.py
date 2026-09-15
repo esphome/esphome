@@ -187,14 +187,10 @@ def enable_mdns_storage() -> None:
 
 
 def request_service_enable_disable() -> bool:
-    """Request support for enabling and disabling mDNS services at runtime.
+    """Request MDNSComponent::set_service_enabled() support.
 
-    Called by components that want to toggle their service after setup()
-    via MDNSComponent::set_service_enabled(). Only supported on ESP32 for
-    now (and not with OpenThread, which publishes services via the SRP
-    client instead of the mDNS stack). Returns True when the platform
-    supports it and the USE_MDNS_SUPPORTS_ENABLE_DISABLE define was added;
-    callers must guard their C++ usage with that define.
+    ESP32 only, not with OpenThread. Returns True when the
+    USE_MDNS_SUPPORTS_ENABLE_DISABLE define was added; guard C++ usage with it.
 
     Public API for external components. Do not remove.
     """

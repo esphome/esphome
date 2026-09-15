@@ -54,7 +54,7 @@ static void register_esp32(MDNSComponent *comp, StaticVector<MDNSService, MDNS_S
     if (err != ESP_OK) {
       ESP_LOGW(TAG, "Failed to register service %s: %s", MDNS_STR_ARG(service.service_type), esp_err_to_name(err));
 #ifdef USE_MDNS_SUPPORTS_ENABLE_DISABLE
-      // Keep the flag honest so a later enable call retries instead of reporting success
+      // Let a later enable call retry
       service.enabled = false;
 #endif
     }
@@ -62,11 +62,9 @@ static void register_esp32(MDNSComponent *comp, StaticVector<MDNSService, MDNS_S
 #endif
 }
 
-// Not defined with USE_OPENTHREAD: services are published via the SRP client there,
-// and request_service_enable_disable() never adds the define in that case.
 #if defined(USE_MDNS_SUPPORTS_ENABLE_DISABLE) && !defined(USE_OPENTHREAD)
 bool MDNSComponent::set_service_enabled(const char *service_type, const char *proto, bool enabled) {
-  // services_ is only compiled in setup(), and the mDNS stack does not exist before it
+  // services_ is compiled in setup()
   if (!this->is_ready()) {
     ESP_LOGW(TAG, "Cannot %s service %s before setup", enabled ? "enable" : "disable", service_type);
     return false;
