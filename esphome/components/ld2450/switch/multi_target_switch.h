@@ -5,7 +5,7 @@
 
 namespace esphome::ld2450 {
 
-class MultiTargetSwitch : public switch_::Switch, public Parented<LD2450Component> {
+class MultiTargetSwitch final : public switch_::Switch, public Parented<LD2450Component> {
  public:
   MultiTargetSwitch() = default;
 

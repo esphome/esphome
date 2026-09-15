@@ -5,7 +5,7 @@
 
 namespace esphome::ld2450 {
 
-class BaudRateSelect : public select::Select, public Parented<LD2450Component> {
+class BaudRateSelect final : public select::Select, public Parented<LD2450Component> {
  public:
   BaudRateSelect() = default;
 

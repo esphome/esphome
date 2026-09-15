@@ -5,7 +5,7 @@
 
 namespace esphome::ld2450 {
 
-class RestartButton : public button::Button, public Parented<LD2450Component> {
+class RestartButton final : public button::Button, public Parented<LD2450Component> {
  public:
   RestartButton() = default;
 
