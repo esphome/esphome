@@ -9,6 +9,13 @@ namespace esphome::uart_mux {
 static const char *const TAG = "uart_mux";
 
 void UARTMux::setup() {
+  // A failed UART never assigned its port; nothing behind the mux can work.
+  if (this->uart_->is_failed()) {
+    ESP_LOGE(TAG, "UART parent failed; aborting");
+    this->mark_failed();
+    return;
+  }
+
   // Mirror the framing so consumers reading it from their parent see the real values.
   this->baud_rate_ = this->uart_->get_baud_rate();
   this->data_bits_ = this->uart_->get_data_bits();
@@ -39,7 +46,10 @@ void UARTMux::dump_config() {
                 "UART Mux:\n"
                 "  Start local: %s\n"
                 "  Route: %s",
-                YESNO(this->start_local_), this->is_local() ? LOG_STR_LITERAL("local") : LOG_STR_LITERAL("bridge"));
+                YESNO(this->start_local_),
+                this->route_ == Route::ROUTE_LOCAL           ? LOG_STR_LITERAL("local")
+                : this->route_ == Route::ROUTE_PENDING_LOCAL ? LOG_STR_LITERAL("pending local")
+                                                             : LOG_STR_LITERAL("bridge"));
 }
 
 void UARTMux::load_settings(bool dump_config) {
