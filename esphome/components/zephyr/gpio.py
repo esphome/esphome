@@ -59,12 +59,12 @@ def _validate_gpio_pin(value):
                 raise cv.Invalid(
                     f"'{value}' is not a valid pin: unknown port '{letter.upper()}'"
                 )
-        pin = int(m.group(2))
-        if pin >= variant_info.gpio_port_width:
-            raise cv.Invalid(
-                f"'{value}' is not a valid pin: port {letter.upper()} only has "
-                f"pins 0-{variant_info.gpio_port_width - 1}"
-            )
+            pin = int(m.group(2))
+            if pin >= variant_info.gpio_port_width:
+                raise cv.Invalid(
+                    f"'{value}' is not a valid pin: port {letter.upper()} only has "
+                    f"pins 0-{variant_info.gpio_port_width - 1}"
+                )
 
         return port_labels.index(letter) * variant_info.gpio_port_width + pin
         if (m := _DOTTED_PIN_RE.fullmatch(value)) is not None:
