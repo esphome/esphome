@@ -16,11 +16,7 @@ void UARTMux::setup() {
     return;
   }
 
-  // Mirror the framing so consumers reading it from their parent see the real values.
-  this->baud_rate_ = this->uart_->get_baud_rate();
-  this->data_bits_ = this->uart_->get_data_bits();
-  this->stop_bits_ = this->uart_->get_stop_bits();
-  this->parity_ = this->uart_->get_parity();
+  this->mirror_settings_();
 
   if (this->start_local_) {
     this->select_local();
@@ -54,6 +50,18 @@ void UARTMux::dump_config() {
 
 void UARTMux::load_settings(bool dump_config) {
   ESP_LOGW(TAG, "load_settings() ignored; change the framing on the hardware UART instead");
+  // Undo whatever the caller set on us, so we keep describing the hardware.
+  this->mirror_settings_();
+}
+
+void UARTMux::mirror_settings_() {
+  this->baud_rate_ = this->uart_->get_baud_rate();
+  this->data_bits_ = this->uart_->get_data_bits();
+  this->stop_bits_ = this->uart_->get_stop_bits();
+  this->parity_ = this->uart_->get_parity();
+  this->rx_full_threshold_ = this->uart_->get_rx_full_threshold();
+  this->rx_timeout_ = this->uart_->get_rx_timeout();
+  this->rx_buffer_size_ = this->uart_->get_rx_buffer_size();
 }
 
 void UARTMux::select_local() {
@@ -83,12 +91,13 @@ void UARTMux::select_bridge() {
 }
 
 void UARTMux::flush_input_() {
-  uart_flush_input(static_cast<uart_port_t>(this->uart_->get_hw_serial_number()));
-  // The driver flush leaves the UART component's one-byte peek cache in place.
+  // Drain the UART component's one-byte peek cache first: the driver flush does not
+  // clear it, and draining afterwards could discard a freshly arrived byte instead.
   uint8_t discard;
   if (this->uart_->available() > 0) {
     this->uart_->read_byte(&discard);
   }
+  uart_flush_input(static_cast<uart_port_t>(this->uart_->get_hw_serial_number()));
 }
 
 void UARTMux::write_array(const uint8_t *data, size_t len) {

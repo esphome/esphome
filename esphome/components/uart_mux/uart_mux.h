@@ -19,6 +19,9 @@ class UARTMux final : public uart::UARTComponent, public Component {
   void setup() override;
   void loop() override;
   void dump_config() override;
+  // Between the hardware UART (BUS) and its consumers (modbus is BUS - 1): the
+  // mirrored framing must exist before anything reads it from us.
+  float get_setup_priority() const override { return setup_priority::BUS - 0.5f; }
 
   /// Route locally at boot instead of leaving the UART with the bridge.
   void set_start_local(bool start_local) { this->start_local_ = start_local; }
@@ -52,6 +55,8 @@ class UARTMux final : public uart::UARTComponent, public Component {
 
   void check_logger_conflict() override {}
   void flush_input_();
+  // Copy the hardware UART's framing and buffer settings onto this component.
+  void mirror_settings_();
 
   uart::IDFUARTComponent *uart_;
   cdc_acm_uart::CDCACMUARTBridge *bridge_;
