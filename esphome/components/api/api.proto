@@ -2873,7 +2873,7 @@ message SerialProxySetModeRequest {
 // subscription is required. Answered with NOT_SUPPORTED on ports without a USB bridge
 // (since API 1.18).
 message SerialProxyGetUsbInfoRequest {
-  option (id) = 153;
+  option (id) = 154;
   option (source) = SOURCE_CLIENT;
   option (ifdef) = "USE_SERIAL_PROXY";
 
@@ -2885,7 +2885,7 @@ message SerialProxyGetUsbInfoRequest {
 // unsolicited to every connected client whenever a USB device is attached to or
 // removed from a port on a USB bridge (since API 1.18).
 message SerialProxyUsbInfo {
-  option (id) = 154;
+  option (id) = 155;
   option (source) = SOURCE_SERVER;
   option (ifdef) = "USE_SERIAL_PROXY";
 

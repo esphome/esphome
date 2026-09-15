@@ -3427,7 +3427,7 @@ class SerialProxySetModeRequest final : public ProtoDecodableMessage {
 };
 class SerialProxyGetUsbInfoRequest final : public ProtoDecodableMessage {
  public:
-  static constexpr uint16_t MESSAGE_TYPE = 153;
+  static constexpr uint16_t MESSAGE_TYPE = 154;
   static constexpr uint8_t ESTIMATED_SIZE = 4;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const LogString *message_name() const override { return LOG_STR("serial_proxy_get_usb_info_request"); }
@@ -3442,7 +3442,7 @@ class SerialProxyGetUsbInfoRequest final : public ProtoDecodableMessage {
 };
 class SerialProxyUsbInfo final : public ProtoMessage {
  public:
-  static constexpr uint16_t MESSAGE_TYPE = 154;
+  static constexpr uint16_t MESSAGE_TYPE = 155;
   static constexpr uint8_t ESTIMATED_SIZE = 51;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const LogString *message_name() const override { return LOG_STR("serial_proxy_usb_info"); }
