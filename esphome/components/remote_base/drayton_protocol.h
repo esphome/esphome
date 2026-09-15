@@ -20,9 +20,9 @@ struct DraytonData {
 
 class DraytonProtocol : public RemoteProtocol<DraytonData> {
  public:
-  void encode(RemoteTransmitData *dst, const DraytonData &data) override;
-  optional<DraytonData> decode(RemoteReceiveData src) override;
-  void dump(const DraytonData &data) override;
+  void encode(RemoteTransmitData *dst, const DraytonData &data);
+  optional<DraytonData> decode(RemoteReceiveData src);
+  void dump(const DraytonData &data);
 
  protected:
   uint8_t calc_cs_(uint32_t) const;
