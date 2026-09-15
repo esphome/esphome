@@ -24,12 +24,14 @@ def _set_config(
     CORE.config = config
 
 
+@pytest.mark.parametrize(
+    "platform_framework",
+    [PlatformFramework.ESP32_IDF, PlatformFramework.ESP32_ARDUINO],
+)
 def test_esp32_adds_define_and_keeps_services_stored(
-    set_core_config: SetCoreConfigCallable,
+    set_core_config: SetCoreConfigCallable, platform_framework: PlatformFramework
 ) -> None:
-    _set_config(
-        set_core_config, PlatformFramework.ESP32_IDF, {"mdns": {CONF_DISABLED: False}}
-    )
+    _set_config(set_core_config, platform_framework, {"mdns": {CONF_DISABLED: False}})
 
     assert mdns.request_service_enable_disable() is True
     # Disabled services must stay stored so they can be re-registered later.
@@ -38,7 +40,7 @@ def test_esp32_adds_define_and_keeps_services_stored(
 
 @pytest.mark.parametrize(
     "platform_framework",
-    [PlatformFramework.ESP8266_ARDUINO, PlatformFramework.RP2040_ARDUINO],
+    [PlatformFramework.ESP8266_ARDUINO, PlatformFramework.RP2_ARDUINO],
 )
 def test_other_platforms_return_false(
     set_core_config: SetCoreConfigCallable, platform_framework: PlatformFramework
