@@ -53,15 +53,29 @@ class UARTMux final : public uart::UARTComponent, public Component {
     ROUTE_LOCAL,
   };
 
+  // The hardware UART's settings as configured. Taken once at setup, before the
+  // bridge can overwrite the live fields with a host's line coding.
+  struct Settings {
+    uint32_t baud_rate;
+    size_t rx_full_threshold;
+    size_t rx_timeout;
+    size_t rx_buffer_size;
+    uint8_t data_bits;
+    uint8_t stop_bits;
+    uart::UARTParityOptions parity;
+  };
+
   void check_logger_conflict() override {}
   void flush_input_();
-  // Copy the hardware UART's framing and buffer settings onto this component.
-  void mirror_settings_();
+  // Publish settings_ through the UARTComponent getters.
+  void apply_settings_();
 
   uart::IDFUARTComponent *uart_;
   cdc_acm_uart::CDCACMUARTBridge *bridge_;
+  Settings settings_{};
   Route route_{Route::ROUTE_BRIDGE};
   bool start_local_{false};
+  bool load_settings_warned_{false};
 };
 
 template<typename... Ts> class SelectLocalAction final : public Action<Ts...> {

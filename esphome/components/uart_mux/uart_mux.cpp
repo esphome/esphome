@@ -16,7 +16,12 @@ void UARTMux::setup() {
     return;
   }
 
-  this->mirror_settings_();
+  this->settings_ = {
+      this->uart_->get_baud_rate(),      this->uart_->get_rx_full_threshold(), this->uart_->get_rx_timeout(),
+      this->uart_->get_rx_buffer_size(), this->uart_->get_data_bits(),         this->uart_->get_stop_bits(),
+      this->uart_->get_parity(),
+  };
+  this->apply_settings_();
 
   if (this->start_local_) {
     this->select_local();
@@ -49,19 +54,23 @@ void UARTMux::dump_config() {
 }
 
 void UARTMux::load_settings(bool dump_config) {
-  ESP_LOGW(TAG, "load_settings() ignored; change the framing on the hardware UART instead");
-  // Undo whatever the caller set on us, so we keep describing the hardware.
-  this->mirror_settings_();
+  if (!this->load_settings_warned_) {
+    this->load_settings_warned_ = true;
+    ESP_LOGW(TAG, "load_settings() ignored; change the framing on the hardware UART instead");
+  }
+  // Undo whatever the caller set on us. Not re-sampled from the live UART, whose
+  // fields carry the host's line coding while the bridge owns the bus.
+  this->apply_settings_();
 }
 
-void UARTMux::mirror_settings_() {
-  this->baud_rate_ = this->uart_->get_baud_rate();
-  this->data_bits_ = this->uart_->get_data_bits();
-  this->stop_bits_ = this->uart_->get_stop_bits();
-  this->parity_ = this->uart_->get_parity();
-  this->rx_full_threshold_ = this->uart_->get_rx_full_threshold();
-  this->rx_timeout_ = this->uart_->get_rx_timeout();
-  this->rx_buffer_size_ = this->uart_->get_rx_buffer_size();
+void UARTMux::apply_settings_() {
+  this->baud_rate_ = this->settings_.baud_rate;
+  this->data_bits_ = this->settings_.data_bits;
+  this->stop_bits_ = this->settings_.stop_bits;
+  this->parity_ = this->settings_.parity;
+  this->rx_full_threshold_ = this->settings_.rx_full_threshold;
+  this->rx_timeout_ = this->settings_.rx_timeout;
+  this->rx_buffer_size_ = this->settings_.rx_buffer_size;
 }
 
 void UARTMux::select_local() {
@@ -76,6 +85,12 @@ void UARTMux::select_local() {
 
 void UARTMux::select_bridge() {
   if (this->route_ == Route::ROUTE_BRIDGE) {
+    return;
+  }
+  // A bridge that failed setup() has no worker tasks; handing it the bus would kill
+  // the UART in both directions.
+  if (this->bridge_->is_failed()) {
+    ESP_LOGW(TAG, "Bridge failed; keeping the UART routed locally");
     return;
   }
   // While the pause is still pending the bridge's RX task may be inside
