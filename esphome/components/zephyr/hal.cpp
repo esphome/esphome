@@ -27,11 +27,12 @@ namespace esphome {
 static int wdt_channel_id = -1;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 static const device *const WDT = DEVICE_DT_GET(DT_ALIAS(watchdog0));
 
-// Renesas RA and Silicon Labs EFR32 (wdt_gecko.c) reject callback + WDT_FLAG_RESET_SOC
-// together (-ENOTSUP), leaving the watchdog unarmed -- their single-channel watchdogs
-// only support callback or hardware reset, not both.
+// Renesas RA, Silicon Labs EFR32 (wdt_gecko.c), and Silicon Labs SiWx91x
+// (wdt_silabs_siwx91x.c) reject callback + WDT_FLAG_RESET_SOC together (-ENOTSUP),
+// leaving the watchdog unarmed -- their single-channel watchdogs only support
+// callback or hardware reset, not both.
 #if defined(USE_ZEPHYR_WATCHDOG_TIMEOUT_MS) && defined(USE_LOGGER) && !defined(USE_ZEPHYR_VARIANT_FAMILY_RENESAS) && \
-    !defined(USE_ZEPHYR_VARIANT_FAMILY_SILABS)
+    !defined(USE_ZEPHYR_VARIANT_FAMILY_SILABS) && !defined(USE_ZEPHYR_VARIANT_FAMILY_SILABS_SIWX91X)
 #ifdef USE_ZEPHYR_ARCH_STACKWALK
 static bool wdt_log_stack_frame(void *cookie, unsigned long addr) {
   char msg[48];
@@ -77,7 +78,8 @@ void arch_init() {
     wdt_config.window.max = USE_ZEPHYR_WATCHDOG_TIMEOUT_MS;
     // some families can't handle the callback, review periodically for correctness
     // since this is behavior is driven by zephyr
-#if defined(USE_LOGGER) && !defined(USE_ZEPHYR_VARIANT_FAMILY_RENESAS) && !defined(USE_ZEPHYR_VARIANT_FAMILY_SILABS)
+#if defined(USE_LOGGER) && !defined(USE_ZEPHYR_VARIANT_FAMILY_RENESAS) && \
+    !defined(USE_ZEPHYR_VARIANT_FAMILY_SILABS) && !defined(USE_ZEPHYR_VARIANT_FAMILY_SILABS_SIWX91X)
     wdt_config.callback = wdt_warning_cb;
 #endif
 #elif defined(USE_ZIGBEE)

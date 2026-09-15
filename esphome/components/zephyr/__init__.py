@@ -560,6 +560,8 @@ def _get_family_module(family: str):
         from .variants import nordic_family as mod
     elif family == "silabs":
         from .variants import silabs_family as mod
+    elif family == "silabs_siwx91x":
+        from .variants import silabs_siwx91x_family as mod
     elif family == "stm32":
         from .variants import stm32_family as mod
     elif family == "renesas":

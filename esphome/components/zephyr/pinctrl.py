@@ -613,12 +613,17 @@ def _resolve_spi_pinctrl_states(
 
 
 def _build_spi_pinctrl_states_overlay(
-    states: list[tuple[str, list[tuple[str, str]]]], property_name: str
+    states: list[tuple[str, list[tuple[str, str]]]],
+    property_name: str,
+    pinctrl_label: str = "pinctrl",
 ) -> str:
-    """Build the `&pinctrl { ... }` overlay from _resolve_spi_pinctrl_states()'s
-    output. The `<label>:` prefix (re-)establishes the phandle even for a state
-    the board never pinctrl'd itself -- without it, `&<label>` in the bus-enable
-    overlay resolves to nothing at DTS-compile time."""
+    """Build the `&<pinctrl_label> { ... }` overlay from
+    _resolve_spi_pinctrl_states()'s output. The `<label>:` prefix
+    (re-)establishes the phandle even for a state the board never pinctrl'd
+    itself -- without it, `&<label>` in the bus-enable overlay resolves to
+    nothing at DTS-compile time. pinctrl_label is the variant's own pinctrl
+    controller node label (see ZephyrVariant.pinctrl_node_label) -- almost
+    always "pinctrl", but not universal (e.g. SiWx91x's "pinctrl0")."""
     state_blocks = []
     for label, group_values in states:
         if not group_values:
@@ -639,7 +644,7 @@ def _build_spi_pinctrl_states_overlay(
             """
         )
     return f"""
-        &pinctrl {{
+        &{pinctrl_label} {{
             {"".join(state_blocks)}
         }};
     """
@@ -687,7 +692,7 @@ def zephyr_setup_spi_pinctrl(
             bus_label,
         )
 
-    if family not in ("esp32", "nordic", "silabs"):
+    if family not in ("esp32", "nordic", "silabs", "silabs_siwx91x"):
         # stm32, renesas, rp2040, and any other family: no generated pinctrl overlay
         # -- clk/miso/mosi are irrelevant here, whatever the board (or the user's own
         # zephyr: overlays:) already wires is trusted as-is.
@@ -707,6 +712,14 @@ def zephyr_setup_spi_pinctrl(
         # xg24-pinctrl.h) -- TX/RX names and en_bit values are otherwise identical.
         clk_signal = "SCLK" if bus_label.startswith("eusart") else "CLK"
         miso_signal, mosi_signal = "RX", "TX"
+    elif family == "silabs_siwx91x":
+        from .variants import silabs_siwx91x_family as family_module
+
+        # No per-pin macro formula (unlike EFR32/Nordic/ESP32 above/below) --
+        # family_module.pin_macro() looks up spi_pin_macros by these generic
+        # signal keys directly, so prefix is unused here.
+        prefix = None
+        clk_signal, miso_signal, mosi_signal = "clk", "miso", "mosi"
     else:
         from .variants import esp32_family as family_module
 
@@ -764,7 +777,10 @@ def zephyr_setup_spi_pinctrl(
         value_role_decoder=value_role_decoder,
         property_name=property_name,
     )
-    zephyr_add_overlay(_build_spi_pinctrl_states_overlay(states, property_name))
+    pinctrl_label = VARIANTS[zephyr_variant()].pinctrl_node_label
+    zephyr_add_overlay(
+        _build_spi_pinctrl_states_overlay(states, property_name, pinctrl_label)
+    )
 
     # A board whose stock node already declares >1 pinctrl state (e.g. "sleep" for
     # PM) needs every pinctrl-<N> restated to match, or the now-uncovered old state

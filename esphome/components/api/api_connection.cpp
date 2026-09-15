@@ -1867,7 +1867,7 @@ bool APIConnection::send_device_info_response_() {
 #define ESPHOME_MANUFACTURER "Espressif"
 #elif defined(USE_ZEPHYR_VARIANT_FAMILY_NORDIC)
 #define ESPHOME_MANUFACTURER "Nordic Semiconductor"
-#elif defined(USE_ZEPHYR_VARIANT_FAMILY_SILABS)
+#elif defined(USE_ZEPHYR_VARIANT_FAMILY_SILABS) || defined(USE_ZEPHYR_VARIANT_FAMILY_SILABS_SIWX91X)
 #define ESPHOME_MANUFACTURER "Silicon Labs"
 #elif defined(USE_ZEPHYR_VARIANT_FAMILY_RPI_PICO)
 #define ESPHOME_MANUFACTURER "Raspberry Pi"
