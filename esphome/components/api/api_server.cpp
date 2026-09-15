@@ -406,10 +406,10 @@ void APIServer::on_zwave_proxy_request(const ZWaveProxyRequest &msg) {
 
 #ifdef USE_SERIAL_PROXY_USB_INFO
 void APIServer::send_serial_proxy_usb_info(const SerialProxyUsbInfo &msg) {
-  // A hotplug is rare and the message small, so every client hears of it rather than
-  // maintaining a subscription for the one client there normally is
+  // A hotplug is rare and the message small, so every authenticated client hears of it
+  // rather than maintaining a subscription for the one client there normally is
   for (auto &c : this->active_clients()) {
-    if (!c->send_message(msg)) {
+    if (c->is_authenticated() && !c->send_message(msg)) {
       API_LOG_MSG_DROPPED(TAG, "USB info notification");
     }
   }
