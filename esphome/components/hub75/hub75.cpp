@@ -203,6 +203,52 @@ void HUB75Display::set_brightness(uint8_t brightness) {
   }
 }
 
+void HUB75Display::set_rotation(display::DisplayRotation rotation) {
+  if (!driver_) [[unlikely]]
+    return;
+
+  Hub75Rotation hub75_rotation;
+  switch (rotation) {
+    case display::DisplayRotation::DISPLAY_ROTATION_0_DEGREES:
+      hub75_rotation = Hub75Rotation::ROTATE_0;
+      break;
+    case display::DisplayRotation::DISPLAY_ROTATION_90_DEGREES:
+      hub75_rotation = Hub75Rotation::ROTATE_90;
+      break;
+    case display::DisplayRotation::DISPLAY_ROTATION_180_DEGREES:
+      hub75_rotation = Hub75Rotation::ROTATE_180;
+      break;
+    case display::DisplayRotation::DISPLAY_ROTATION_270_DEGREES:
+      hub75_rotation = Hub75Rotation::ROTATE_270;
+      break;
+    default:
+      ESP_LOGE(TAG, "Unsupported rotation: %d", static_cast<int>(rotation));
+      return;
+  }
+
+  driver_->set_rotation(hub75_rotation);
+}
+
+display::DisplayRotation HUB75Display::get_rotation() const {
+  if (!driver_) [[unlikely]]
+    return display::DisplayRotation::DISPLAY_ROTATION_0_DEGREES;
+
+  Hub75Rotation hub75_rotation = driver_->get_rotation();
+  switch (hub75_rotation) {
+    case Hub75Rotation::ROTATE_0:
+      return display::DisplayRotation::DISPLAY_ROTATION_0_DEGREES;
+    case Hub75Rotation::ROTATE_90:
+      return display::DisplayRotation::DISPLAY_ROTATION_90_DEGREES;
+    case Hub75Rotation::ROTATE_180:
+      return display::DisplayRotation::DISPLAY_ROTATION_180_DEGREES;
+    case Hub75Rotation::ROTATE_270:
+      return display::DisplayRotation::DISPLAY_ROTATION_270_DEGREES;
+    default:
+      ESP_LOGE(TAG, "Unsupported Hub75 rotation: %d", static_cast<int>(hub75_rotation));
+      return display::DisplayRotation::DISPLAY_ROTATION_0_DEGREES;
+  }
+}
+
 }  // namespace esphome::hub75
 
 #endif
