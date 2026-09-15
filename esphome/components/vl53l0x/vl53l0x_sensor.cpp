@@ -1,6 +1,8 @@
 #include "vl53l0x_sensor.h"
+#include "esphome/core/application.h"
 #include "esphome/core/log.h"
 
+#include <algorithm>
 #include <cinttypes>
 
 /*
@@ -48,16 +50,25 @@ void VL53L0XSensor::setup() {
   }
 
   if (this->enable_pin_ != nullptr) {
-    // Enable the enable pin to cause FW boot (to get back to 0x29 default address)
+    // Enable the enable pin to cause FW boot (to get back to the default address)
     this->enable_pin_->digital_write(true);
     delayMicroseconds(100);
   }
 
-  // Save the i2c address we want and force it to use the default 0x29
+  // Save the i2c address we want and force it to use the default address
   // until we finish setup, then re-address to final desired address.
-  uint8_t final_address = address_;
-  this->set_i2c_address(0x29);
+  this->configured_address_ = this->address_;
+  this->set_i2c_address(DEFAULT_I2C_ADDRESS);
 
+  if (!this->init_sensor_(this->configured_address_)) {
+    this->mark_failed();
+  }
+}
+
+// Runs the full sensor init sequence. Returns false on failure (timeout or
+// failed reference calibration). Also used by the stall-recovery logic to
+// re-initialize the sensor at runtime without rebooting the ESP.
+bool VL53L0XSensor::init_sensor_(uint8_t final_address, bool recovery) {
   reg(0x89) |= 0x01;
   reg(0x88) = 0x00;
 
@@ -90,11 +101,13 @@ void VL53L0XSensor::setup() {
   reg(0x83) = 0x00;
 
   uint32_t timeout_start_us = micros();
+  // Hard cap even when `timeout: 0s` - an unbounded wait here would block the
+  // main loop for minutes when called from the recovery path.
+  uint32_t spad_wait_timeout_us = this->timeout_us_ > 0 ? std::min(this->timeout_us_, (uint32_t) 1000000) : 1000000;
   while (reg(0x83).get() == 0x00) {
-    if (this->timeout_us_ > 0 && (micros() - timeout_start_us > this->timeout_us_)) {
+    if (micros() - timeout_start_us > spad_wait_timeout_us) {
       ESP_LOGE(TAG, "'%s' - setup timeout", this->name_.c_str());
-      this->mark_failed();
-      return;
+      return false;
     }
     yield();
   }
@@ -241,16 +254,15 @@ void VL53L0XSensor::setup() {
   set_measurement_timing_budget_(measurement_timing_budget_us_);
   reg(0x01) = 0x01;
 
-  if (!perform_single_ref_calibration_(0x40)) {
+  const uint32_t calibration_timeout_ms = recovery ? 200 : 1000;
+  if (!perform_single_ref_calibration_(0x40, calibration_timeout_ms)) {
     ESP_LOGW(TAG, "1st reference calibration failed!");
-    this->mark_failed();
-    return;
+    return false;
   }
   reg(0x01) = 0x02;
-  if (!perform_single_ref_calibration_(0x00)) {
+  if (!perform_single_ref_calibration_(0x00, calibration_timeout_ms)) {
     ESP_LOGW(TAG, "2nd reference calibration failed!");
-    this->mark_failed();
-    return;
+    return false;
   }
   reg(0x01) = 0xE8;
 
@@ -260,9 +272,25 @@ void VL53L0XSensor::setup() {
   // I2C_SXXXX__DEVICE_ADDRESS = 0x0001 for VL53L1X
   reg(0x8A) = final_address & 0x7F;
   this->set_i2c_address(final_address);
+
+  // A measurement may not take longer than its timing budget plus a margin. The
+  // configured `timeout` can only extend that window, never shorten it - it is
+  // also used for much shorter setup operations.
+  constexpr uint32_t measurement_timeout_margin_ms = 100;
+  this->stall_timeout_ms_ = this->measurement_timing_budget_us_ / 1000 + measurement_timeout_margin_ms;
+  this->stall_timeout_ms_ = std::max(this->stall_timeout_ms_, this->timeout_us_ / 1000);
+  return true;
 }
 
 void VL53L0XSensor::update() {
+  // Backoff: stay off the bus until the cooldown expires, then retry. The
+  // unsigned subtraction is wraparound-safe across the millis() rollover.
+  if (this->backoff_duration_ms_ != 0 && millis() - this->backoff_start_ms_ < this->backoff_duration_ms_) {
+    this->set_timeout("vl53_backoff_retry", this->backoff_duration_ms_ - (millis() - this->backoff_start_ms_),
+                      [this]() { this->update(); });
+    return;
+  }
+  this->backoff_duration_ms_ = 0;  // expired
   if (this->initiated_read_ || this->waiting_for_interrupt_) {
     this->publish_state(NAN);
     this->status_momentary_warning("update", 5000);
@@ -282,28 +310,63 @@ void VL53L0XSensor::update() {
   reg(0x80) = 0x00;
 
   reg(0x00) = 0x01;
+  // Remember when this measurement cycle started (wall clock - the stall
+  // check in loop() compares it against millis() as well).
+  this->measurement_start_ms_ = millis();
   this->waiting_for_interrupt_ = false;
   this->initiated_read_ = true;
   // wait for timeout
 }
 
 void VL53L0XSensor::loop() {
+  // Backoff: do not touch the I2C bus at all while cooling down. Repeated
+  // transactions against a wedged bus/sensor can crash the whole ESP through
+  // an ESP-IDF i2c_master bug (LoadProhibited in i2c_ll_write_txfifo right
+  // after "I2C hardware timeout detected"). Wraparound-safe unsigned math.
+  if (this->backoff_duration_ms_ != 0 && millis() - this->backoff_start_ms_ < this->backoff_duration_ms_)
+    return;
+
+  // Poll the data-ready flag FIRST so that a measurement which has just
+  // completed is never discarded by the stall check below.
   if (this->initiated_read_) {
     if (reg(0x00).get() & 0x01) {
-      // waiting
+      // still ranging
     } else {
-      // done
-      // wait until reg(0x13) & 0x07 is set
+      // done - wait until reg(0x13) & 0x07 is set
       this->initiated_read_ = false;
       this->waiting_for_interrupt_ = true;
     }
   }
   if (this->waiting_for_interrupt_) {
     if (reg(0x13).get() & 0x07) {
-      uint16_t range_mm = 0;
-      this->read_byte_16(0x14 + 10, &range_mm);
+      uint8_t result[12]{};
+      if (!this->read_bytes(0x14, result, 12)) {
+        ESP_LOGW(TAG, "'%s' - result read failed", this->name_.c_str());
+        this->waiting_for_interrupt_ = false;
+        this->publish_state(NAN);
+        return;
+      }
       reg(0x0B) = 0x01;
       this->waiting_for_interrupt_ = false;
+      // The sensor answered with a complete result block, but validity is
+      // checked below before resetting recovery counters.
+      this->consecutive_stalls_ = 0;
+
+      const uint8_t range_status = (result[0] & 0x78) >> 3;
+      const float signal_rate_mcps = ((result[6] << 8) | result[7]) / 128.0f;
+      const uint16_t range_mm = (result[10] << 8) | result[11];
+
+      // Reject readings the sensor itself flagged as invalid - publishing
+      // them would report phantom targets (observed: 0.12-0.23 m garbage
+      // right after a recovery, which the level sensor clamps to ~100%).
+      // Per the ST API the raw DeviceRangeStatus is 11 for good ranging
+      // (0 means "no update"); every other code is an error condition.
+      if (range_status != 11) {
+        ESP_LOGD(TAG, "'%s' - invalid reading (range status %u, signal %.2f MCPS), rejecting", this->name_.c_str(),
+                 range_status, signal_rate_mcps);
+        this->publish_state(NAN);
+        return;
+      }
 
       if (range_mm >= 8190) {
         ESP_LOGD(TAG, "'%s' - Distance is out of range, please move the target closer", this->name_.c_str());
@@ -312,8 +375,82 @@ void VL53L0XSensor::loop() {
       }
 
       float range_m = range_mm / 1e3f;
-      ESP_LOGD(TAG, "'%s' - Got distance %.3f m", this->name_.c_str(), range_m);
+      ESP_LOGD(TAG, "'%s' - Got distance %.3f m (signal %.2f MCPS)", this->name_.c_str(), range_m, signal_rate_mcps);
       this->publish_state(range_m);
+      // A valid reading proves the sensor is healthy again.
+      this->recovery_attempts_ = 0;
+      this->backoff_duration_ms_ = 0;
+      return;
+    }
+  }
+  // Stall check LAST: only a measurement still in flight can be stalled, so a
+  // measurement that has just completed is never discarded. millis()-based,
+  // wraparound-safe.
+  if ((this->initiated_read_ || this->waiting_for_interrupt_) &&
+      millis() - this->measurement_start_ms_ > this->stall_timeout_ms_) {
+    ESP_LOGW(TAG,
+             "'%s' - measurement did not complete within %" PRIu32 "ms, resetting read state (possible I2C glitch)",
+             this->name_.c_str(), this->stall_timeout_ms_);
+    this->consecutive_stalls_++;
+
+    // Escalating backoff: stay off the bus, then retry. Every transaction
+    // against a wedged bus risks crashing the ESP through the ESP-IDF
+    // i2c_master bug, so keep the traffic to the minimum needed for recovery.
+    static constexpr uint32_t BACKOFF_STEPS_MS[] = {60000, 120000, 300000, 600000};
+    int backoff_idx = this->consecutive_stalls_ - 1;
+    if (backoff_idx > 3)
+      backoff_idx = 3;
+    this->backoff_start_ms_ = millis();
+    this->backoff_duration_ms_ = BACKOFF_STEPS_MS[backoff_idx];
+    const uint32_t backoff_ms = this->backoff_duration_ms_;
+
+    this->initiated_read_ = false;
+    this->waiting_for_interrupt_ = false;
+    this->publish_state(NAN);
+    this->status_momentary_warning("stall", 5000);
+
+    if (this->consecutive_stalls_ < STALLS_BEFORE_RESET) {
+      // First stall: try aborting the pending measurement, then retry after
+      // the cooldown instead of waiting for the next scheduled update.
+      reg(0x00) = 0x00;  // abort any pending measurement
+      reg(0x0B) = 0x01;  // clear interrupt flags
+      this->set_timeout("vl53_backoff_retry", backoff_ms, [this]() { this->update(); });
+      return;
+    }
+    // The sensor's own MCU is wedged - clearing the driver state is not
+    // enough, every following measurement keeps timing out. Recover with the
+    // sensor's soft reset (register 0xBF, the software equivalent of the
+    // XSHUT pin) plus a full re-init: no ESP reboot, no power cycle.
+    if (this->recovery_attempts_ >= MAX_RECOVERY_ATTEMPTS) {
+      ESP_LOGE(TAG, "'%s' - sensor did not recover after %d soft resets, marking as failed", this->name_.c_str(),
+               this->recovery_attempts_);
+      this->mark_failed();
+      return;
+    }
+    this->recovery_attempts_++;
+    ESP_LOGW(TAG, "'%s' - sensor still stuck, performing soft reset and re-init (attempt %d/%d)", this->name_.c_str(),
+             this->recovery_attempts_, MAX_RECOVERY_ATTEMPTS);
+    reg(0xBF) = 0x00;  // SOFT_RESET_GO2_SOFT_RESET_N: hold the sensor MCU in reset
+    delay(1);
+    reg(0xBF) = 0x01;  // release - the sensor MCU reboots, registers revert to defaults
+    delay(2);
+    // The soft reset restores the default address, so re-init has to talk to
+    // that one and re-apply the configured address - save it before switching.
+    this->set_i2c_address(DEFAULT_I2C_ADDRESS);
+    if (this->init_sensor_(this->configured_address_, true)) {
+      ESP_LOGI(TAG, "'%s' - sensor re-initialized successfully, restarting measurement", this->name_.c_str());
+      this->consecutive_stalls_ = 0;
+      this->backoff_duration_ms_ = 0;
+      // recovery_attempts_ is only cleared once a VALID reading arrives.
+      // Start the next measurement from a later loop iteration: the re-init
+      // above blocked, so the timestamp update() reads here would be stale.
+      this->defer([this]() { this->update(); });
+    } else {
+      // The sensor is in an unknown state after a failed re-init; the only
+      // thing guaranteed by the soft reset is the default I2C address.
+      this->set_i2c_address(DEFAULT_I2C_ADDRESS);
+      ESP_LOGE(TAG, "'%s' - re-init failed, backing off and retrying", this->name_.c_str());
+      this->set_timeout("vl53_backoff_retry", backoff_ms, [this]() { this->update(); });
     }
   }
 }
@@ -519,12 +656,12 @@ uint16_t VL53L0XSensor::encode_timeout_(uint16_t timeout_mclks) {
   return (ms_byte << 8) | (ls_byte & 0xFF);
 }
 
-bool VL53L0XSensor::perform_single_ref_calibration_(uint8_t vhv_init_byte) {
+bool VL53L0XSensor::perform_single_ref_calibration_(uint8_t vhv_init_byte, uint32_t timeout_ms) {
   reg(0x00) = 0x01 | vhv_init_byte;  // VL53L0X_REG_SYSRANGE_MODE_START_STOP
 
   uint32_t start = millis();
   while ((reg(0x13).get() & 0x07) == 0) {
-    if (millis() - start > 1000)
+    if (millis() - start > timeout_ms)
       return false;
     yield();
   }
