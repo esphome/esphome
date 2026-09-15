@@ -285,9 +285,7 @@ async def to_code(config: ConfigType) -> None:
 
     cg.add_define("USE_SENDSPIN", True)  # for MDNS
 
-    # The _sendspin mDNS service starts disabled; the hub enables it once its
-    # server is running. Skipped (service stays always-advertised) when the
-    # platform does not support runtime enable/disable.
+    # Service starts disabled and the hub enables it; always advertised where unsupported
     if mdns.request_service_enable_disable():
         mdns_var = await cg.get_variable(CORE.config["mdns"][CONF_ID])
         cg.add(var.set_mdns(mdns_var))
