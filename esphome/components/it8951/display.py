@@ -9,9 +9,11 @@ from esphome import automation, core, pins
 import esphome.codegen as cg
 from esphome.components import display, spi
 from esphome.components.display import CONF_SHOW_TEST_CARD, validate_rotation
+from esphome.components.mipi import requires_buffer
 import esphome.config_validation as cv
 from esphome.config_validation import update_interval
 from esphome.const import (
+    CONF_AUTO_CLEAR_ENABLED,
     CONF_BUSY_PIN,
     CONF_CS_PIN,
     CONF_DATA_RATE,
@@ -61,7 +63,11 @@ VCOM_REGISTER_OPTIONS = (VCOM_REGISTER_DEFAULT, VCOM_REGISTER_ALT)
 
 it8951_ns = cg.esphome_ns.namespace("it8951")
 IT8951Display = it8951_ns.class_("IT8951Display", display.Display, spi.SPIDevice)
+IT8951DirectDisplay = it8951_ns.class_("IT8951DirectDisplay", IT8951Display)
 IT8951UpdateAction = it8951_ns.class_("IT8951UpdateAction", automation.Action)
+IT8951PauseAction = it8951_ns.class_("IT8951PauseAction", automation.Action)
+IT8951ResumeAction = it8951_ns.class_("IT8951ResumeAction", automation.Action)
+IT8951RefreshAction = it8951_ns.class_("IT8951RefreshAction", automation.Action)
 
 # Hardware waveform modes exposed to YAML. Strings are mapped to the C++
 # UpdateMode enum so the runtime can store the mode as a uint16_t rather
@@ -315,26 +321,36 @@ def _customise_schema(config: ConfigType) -> ConfigType:
     model = IT8951Model.models[config[CONF_MODEL].upper()]
     width, height = model.get_dimensions(model_config)
 
+    buffered = requires_buffer(model_config)
     display.add_metadata(
         model_config[CONF_ID],
         width,
         height,
-        # Rotation is applied per-pixel in draw_pixel_at at no extra cost, so we
-        # advertise hardware rotation: LVGL routes its rotation to the driver via
-        # set_rotation rather than rotating the framebuffer in software.
-        has_hardware_rotation=True,
-        has_writer=any(
-            model_config.get(key)
-            for key in (CONF_LAMBDA, CONF_PAGES, CONF_SHOW_TEST_CARD)
-        ),
+        # With a framebuffer, rotation is applied per-pixel in draw_pixel_at at no
+        # extra cost, so we advertise hardware rotation and LVGL routes its
+        # rotation to the driver via set_rotation. Direct draw has no framebuffer
+        # to rotate through — transposing a flush rectangle would need a
+        # chunk-sized scratch buffer, which is exactly what LVGL's own software
+        # (or ESP32-P4 PPA) rotation already provides — so it leaves rotation to
+        # LVGL. Only LVGL reads this flag, and a config with neither a writer nor
+        # LVGL gets the test card from _final_validate, so the value is never
+        # consulted in the one case where it would be stale.
+        has_hardware_rotation=buffered,
+        # auto_clear_enabled calls clear() from do_update_ whether or not a writer
+        # exists, so it counts as a writer for LVGL's purposes — the same term as
+        # mipi_spi, mipi_dsi, mipi_rgb and display's own fallback metadata.
+        has_writer=buffered or model_config.get(CONF_AUTO_CLEAR_ENABLED) is True,
         # Report the configured rotation so LVGL can detect (and reject) a
         # rotation set in the display config instead of the LVGL config.
         rotation=model_config.get(CONF_ROTATION, 0),
-        # The IT8951 snaps partial display refreshes to a 32-pixel X boundary
-        # (see prepare_update_region_), so have LVGL round its redraw areas to
-        # 32px too — this keeps flush rectangles aligned with what the panel
-        # actually refreshes and avoids redundant re-rounding/over-draw.
-        draw_rounding=32,
+        # What the hardware actually requires of a LOAD is a 4-pixel boundary in
+        # 4bpp, or 16 for the 8bpp-packed monochrome trick. The 32-pixel X snap
+        # that partial REFRESH needs is applied separately in
+        # prepare_update_region_ and only on X, so asking LVGL for 32 here would
+        # round both axes and inflate every redraw: a one-pixel text change would
+        # become 32x32 of converted pixels. 16 satisfies both pixel formats and
+        # survives mirroring (see _final_validate).
+        draw_rounding=16,
     )
 
     return model_config
@@ -350,7 +366,7 @@ def _final_validate(config: ConfigType) -> None:
     )
 
     global_config = full_config.get()
-    from esphome.components.lvgl import DOMAIN as LVGL_DOMAIN
+    from esphome.components.lvgl import DOMAIN as LVGL_DOMAIN, defines as lv_defines
 
     if CONF_LAMBDA not in config and CONF_PAGES not in config:
         if LVGL_DOMAIN in global_config:
@@ -358,6 +374,69 @@ def _final_validate(config: ConfigType) -> None:
                 config[CONF_UPDATE_INTERVAL] = update_interval("never")
         else:
             config[CONF_SHOW_TEST_CARD] = True
+    elif CONF_UPDATE_INTERVAL not in config:
+        # The schema leaves this undefined so that a panel driven by LVGL is not
+        # polled at the core default of one second. A lambda still needs a clock
+        # of its own, though — without one it paints once at boot and never
+        # again, which reads as a dead display. Same default as epaper_spi.
+        config[CONF_UPDATE_INTERVAL] = update_interval("1min")
+
+    # Everything below applies only to the direct-draw variant.
+    if requires_buffer(config):
+        return
+
+    # Mirroring maps a rectangle to width - x - w, so the panel width has to be a
+    # multiple of the load alignment for a LVGL-aligned rectangle to stay aligned.
+    # Every model preset satisfies this; a generic model with hand-entered
+    # dimensions need not, and would otherwise drop every flush at runtime.
+    transform = config.get(CONF_TRANSFORM)
+    mirrored = transform is not None and (
+        transform.get(CONF_MIRROR_X) or transform.get(CONF_MIRROR_Y)
+    )
+    if mirrored:
+        model = IT8951Model.models[config[CONF_MODEL]]
+        width, _ = model.get_dimensions(config)
+        align = 4 if config[CONF_GRAYSCALE] else 16
+        if width % align:
+            raise cv.Invalid(
+                f"Width {width} must be a multiple of {align} to use 'transform' "
+                f"without a framebuffer. Remove the mirror, pick a width that is a "
+                f"multiple of {align}, or add a 'lambda:' to use the buffered driver.",
+                [CONF_DIMENSIONS],
+            )
+
+    if transform is not None and transform.get(CONF_SWAP_XY):
+        raise cv.Invalid(
+            "'swap_xy' is not supported without a framebuffer. Rotate in the LVGL "
+            "config instead, or add a 'lambda:' to use the buffered driver.",
+            [CONF_TRANSFORM, CONF_SWAP_XY],
+        )
+
+    # Direct draw writes into the controller's image memory as LVGL flushes, so a
+    # render started while a waveform is in flight overwrites the image the panel
+    # is still drawing from, and the driver has to drop it — leaving that part of
+    # the screen wrong until something happens to redraw it.
+    #
+    # Only 'update_when_display_idle' prevents this. Gating the config's own
+    # lv_refr_now() calls on is_idle() is not enough, because LVGL's refresh timer
+    # renders on its own schedule and nothing in a configuration can hold it back.
+    #
+    # It does mean LVGL asks for a present at every render end, using the
+    # display's default waveform. Use it8951.pause to swallow those requests and
+    # it8951.resume to present with the waveform this particular update wants.
+    display_id = config[CONF_ID]
+    for lvgl_config in global_config.get(LVGL_DOMAIN, []):
+        if display_id not in lvgl_config.get(lv_defines.CONF_DISPLAYS, []):
+            continue
+        if not lvgl_config.get(lv_defines.CONF_UPDATE_WHEN_DISPLAY_IDLE):
+            raise cv.Invalid(
+                f"The lvgl component driving '{display_id}' must set "
+                "'update_when_display_idle: true'. Without a framebuffer, LVGL "
+                "would render into the controller's image memory while the panel "
+                "is still refreshing from it, and those renders are lost. Use "
+                "it8951.pause / it8951.resume to keep control of which waveform "
+                "each update uses."
+            )
 
 
 FINAL_VALIDATE_SCHEMA = _final_validate
@@ -367,7 +446,13 @@ async def to_code(config: ConfigType) -> None:
     model = IT8951Model.models[config[CONF_MODEL]]
     width, height = model.get_dimensions(config)
 
-    var = cg.new_Pvariable(config[CONF_ID], model.name, width, height)
+    var_id = config[CONF_ID]
+    # A lambda, pages or the test card all call draw_pixel_at in arbitrary order,
+    # which cannot be streamed into controller memory as it happens, so those
+    # configs need the buffered class. Everything else — in practice LVGL, which
+    # pushes whole rectangles — is drawn straight into controller memory.
+    var_id.type = IT8951Display if requires_buffer(config) else IT8951DirectDisplay
+    var = cg.new_Pvariable(var_id, model.name, width, height)
     await display.register_display(var, config)
     await spi.register_spi_device(var, config, write_only=False)
 
@@ -431,6 +516,72 @@ async def to_code(config: ConfigType) -> None:
     synchronous=True,
 )
 async def it8951_update_action_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
+    display_var = await cg.get_variable(config[CONF_ID])
+    var = cg.new_Pvariable(action_id, template_arg, display_var)
+    if mode := config.get(CONF_MODE):
+        mode = await cg.templatable(mode, args, UpdateMode)
+        cg.add(var.set_mode(mode))
+    return var
+
+
+@automation.register_action(
+    "it8951.pause",
+    IT8951PauseAction,
+    automation.maybe_simple_id({cv.Required(CONF_ID): cv.use_id(IT8951Display)}),
+    synchronous=True,
+)
+async def it8951_pause_action_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
+    display_var = await cg.get_variable(config[CONF_ID])
+    return cg.new_Pvariable(action_id, template_arg, display_var)
+
+
+@automation.register_action(
+    "it8951.resume",
+    IT8951ResumeAction,
+    automation.maybe_simple_id(
+        {
+            cv.Required(CONF_ID): cv.use_id(IT8951Display),
+            cv.Optional(CONF_MODE): cv.templatable(update_mode),
+        }
+    ),
+    synchronous=True,
+)
+async def it8951_resume_action_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
+    display_var = await cg.get_variable(config[CONF_ID])
+    var = cg.new_Pvariable(action_id, template_arg, display_var)
+    if mode := config.get(CONF_MODE):
+        mode = await cg.templatable(mode, args, UpdateMode)
+        cg.add(var.set_mode(mode))
+    return var
+
+
+@automation.register_action(
+    "it8951.refresh",
+    IT8951RefreshAction,
+    automation.maybe_simple_id(
+        {
+            cv.Required(CONF_ID): cv.use_id(IT8951Display),
+            cv.Optional(CONF_MODE): cv.templatable(update_mode),
+        }
+    ),
+    synchronous=True,
+)
+async def it8951_refresh_action_to_code(
     config: ConfigType,
     action_id: ID,
     template_arg: cg.TemplateArguments,
