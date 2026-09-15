@@ -1,0 +1,22 @@
+wifi:
+  ssid: MySSID
+  password: password1
+
+http_request:
+  useragent: esphome/loki
+  timeout: 10s
+  verify_ssl: false
+
+time:
+  - platform: sntp
+    id: sntp_time
+
+loki:
+  url: http://foo.com
+  level: DEBUG
+  enabled: true
+
+switch:
+  - platform: loki
+    logs_enabled:
+      name: Loki Logs Enabled
