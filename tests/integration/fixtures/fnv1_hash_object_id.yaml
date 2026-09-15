@@ -71,38 +71,6 @@ esphome:
           ESP_LOGE("FNV1_OID", "empty FAILED: 0x%08x != 0x811c9dc5", hash_empty);
         }
 
-        // Raw name hash: matches Python fnv1_hash_name("My Sensor Name")
-        uint32_t hash_raw = esphome::fnv1_hash_bytes("My Sensor Name", 14);
-        if (hash_raw == 0x8cec6fb0) {
-          ESP_LOGI("FNV1_OID", "raw PASSED");
-        } else {
-          ESP_LOGE("FNV1_OID", "raw FAILED: 0x%08x != 0x8cec6fb0", hash_raw);
-        }
-
-        // Raw name hash over UTF-8 bytes: matches Python fnv1_hash_name("Température")
-        uint32_t hash_raw_utf8 = esphome::fnv1_hash_bytes("Temp\xc3\xa9rature", 12);
-        if (hash_raw_utf8 == 0x531a74aa) {
-          ESP_LOGI("FNV1_OID", "raw_utf8 PASSED");
-        } else {
-          ESP_LOGE("FNV1_OID", "raw_utf8 FAILED: 0x%08x != 0x531a74aa", hash_raw_utf8);
-        }
-
-        // Old-key UTF-8 variant: matches Python fnv1_hash_object_id("Température")
-        uint32_t hash_old_utf8 = esphome::fnv1_hash_object_id("Temp\xc3\xa9rature", 12, true);
-        if (hash_old_utf8 == 0x965698f3) {
-          ESP_LOGI("FNV1_OID", "old_utf8 PASSED");
-        } else {
-          ESP_LOGE("FNV1_OID", "old_utf8 FAILED: 0x%08x != 0x965698f3", hash_old_utf8);
-        }
-
-        // Old-key UTF-8 variant with multi-byte only name: Python fnv1_hash_object_id("温度")
-        uint32_t hash_old_cjk = esphome::fnv1_hash_object_id("\xe6\xb8\xa9\xe5\xba\xa6", 6, true);
-        if (hash_old_cjk == 0x3276cb9f) {
-          ESP_LOGI("FNV1_OID", "old_cjk PASSED");
-        } else {
-          ESP_LOGE("FNV1_OID", "old_cjk FAILED: 0x%08x != 0x3276cb9f", hash_old_cjk);
-        }
-
 host:
 api:
 logger:

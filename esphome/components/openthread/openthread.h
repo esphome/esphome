@@ -19,6 +19,12 @@ namespace esphome::openthread {
 
 class InstanceLock;
 
+enum class TeardownStage : uint8_t {
+  TEARDOWN_STAGE_NOT_STARTED = 0,
+  TEARDOWN_STAGE_STOP_IN_PROCESS,
+  TEARDOWN_STAGE_COMPLETED,
+};
+
 template<typename... Ts> class OpenThreadComponentPollPeriodAction;
 
 class OpenThreadComponent final : public Component {
@@ -71,9 +77,8 @@ class OpenThreadComponent final : public Component {
 #endif
   std::optional<int8_t> output_power_{};
   std::atomic<bool> lock_initialized_{false};
-  bool teardown_started_{false};
-  bool teardown_complete_{false};
-  bool connected_{false};
+  std::atomic<TeardownStage> teardown_stage_{TeardownStage::TEARDOWN_STAGE_NOT_STARTED};
+  std::atomic<bool> connected_{false};
 
  private:
   // Stores a pointer to a string literal (static storage duration).

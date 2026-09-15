@@ -3,19 +3,25 @@ from dataclasses import dataclass, field
 from esphome import automation
 import esphome.codegen as cg
 from esphome.components import esp32, network, psram, socket, wifi
+from esphome.components.const import CONF_MANUFACTURER
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BUFFER_SIZE,
+    CONF_ESPHOME,
     CONF_FORMAT,
     CONF_HEIGHT,
     CONF_ID,
+    CONF_MODEL,
+    CONF_NAME,
+    CONF_PROJECT,
     CONF_SAMPLE_RATE,
     CONF_SOURCE,
     CONF_TASK_STACK_IN_PSRAM,
+    CONF_VERSION,
     CONF_WIDTH,
 )
 from esphome.core import CORE, ID
-from esphome.cpp_generator import TemplateArgsType
+from esphome.cpp_generator import MockObj, TemplateArgsType
 from esphome.types import ConfigType
 
 # mdns for autodiscovery
@@ -27,9 +33,17 @@ DOMAIN = "sendspin"
 CONF_DISPLAY_OFFSET = "display_offset"
 CONF_SENDSPIN_ID = "sendspin_id"
 
+CONF_FIRMWARE_VERSION = "firmware_version"
+
+# An empty device information string would be sent to the server as an empty value rather than
+# falling back, so reject it instead of silently substituting the fallback. The 127 byte cap keeps
+# the length prefix of a protobuf string field to a single byte, matching `esphome: project:`.
+DEVICE_INFO_STRING = cv.All(cv.string_strict, cv.Length(min=1), cv.ByteLength(max=127))
+
 CONF_INITIAL_STATIC_DELAY = "initial_static_delay"
 CONF_FIXED_DELAY = "fixed_delay"
 CONF_DECODE_MEMORY = "decode_memory"
+CONF_CODECS = "codecs"
 
 # Matches ARTWORK_MAX_SLOTS in sendspin-cpp.
 MAX_ARTWORK_SLOTS = 4
@@ -43,6 +57,20 @@ CODEC_FORMAT_FLAC = SendspinCodecFormat.enum("FLAC")
 CODEC_FORMAT_OPUS = SendspinCodecFormat.enum("OPUS")
 CODEC_FORMAT_PCM = SendspinCodecFormat.enum("PCM")
 CODEC_FORMAT_UNSUPPORTED = SendspinCodecFormat.enum("UNSUPPORTED")
+
+CODEC_FLAC = "flac"
+CODEC_OPUS = "opus"
+CODEC_PCM = "pcm"
+
+CODECS = {
+    CODEC_FLAC: CODEC_FORMAT_FLAC,
+    CODEC_OPUS: CODEC_FORMAT_OPUS,
+    CODEC_PCM: CODEC_FORMAT_PCM,
+}
+
+# Opus only supports 48 kHz audio, so it is left out of the default list at other rates.
+DEFAULT_CODECS = [CODEC_FLAC, CODEC_OPUS, CODEC_PCM]
+OPUS_SAMPLE_RATE = 48000
 
 SendspinImageFormat = sendspin_library_ns.enum("SendspinImageFormat", is_class=True)
 IMAGE_FORMAT_JPEG = SendspinImageFormat.enum("JPEG")
@@ -183,6 +211,9 @@ CONFIG_SCHEMA = cv.All(
         {
             cv.GenerateID(): cv.declare_id(SendspinHub),
             cv.Optional(CONF_TASK_STACK_IN_PSRAM): psram.validate_task_stack_in_psram,
+            cv.Optional(CONF_MANUFACTURER): DEVICE_INFO_STRING,
+            cv.Optional(CONF_MODEL): DEVICE_INFO_STRING,
+            cv.Optional(CONF_FIRMWARE_VERSION): DEVICE_INFO_STRING,
         }
     ),
     cv.only_on_esp32,
@@ -219,7 +250,7 @@ async def sendspin_switch_to_code(
     action_id: ID,
     template_arg: cg.TemplateArguments,
     args: TemplateArgsType,
-):
+) -> MockObj:
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
     return var
@@ -232,6 +263,22 @@ async def to_code(config: ConfigType) -> None:
     if config.get(CONF_TASK_STACK_IN_PSRAM):
         cg.add(var.set_task_stack_in_psram(True))
         psram.request_external_task_stack()
+
+    # Device information for the server's client/hello message. Falls back to the project
+    # information, which is written as `manufacturer.model`. Anything still unset keeps the
+    # default the hub itself applies: the ESPHome name and version.
+    project = CORE.config[CONF_ESPHOME].get(CONF_PROJECT, {})
+    project_manufacturer, _, project_model = project.get(CONF_NAME, "").partition(".")
+    for value, setter in (
+        (config.get(CONF_MANUFACTURER) or project_manufacturer, var.set_manufacturer),
+        (config.get(CONF_MODEL) or project_model, var.set_model),
+        (
+            config.get(CONF_FIRMWARE_VERSION) or project.get(CONF_VERSION),
+            var.set_firmware_version,
+        ),
+    ):
+        if value:
+            cg.add(setter(value))
 
     # sendspin-cpp library
     esp32.add_idf_component(name="sendspin/sendspin-cpp", ref="0.7.2")
@@ -286,18 +333,15 @@ async def to_code(config: ConfigType) -> None:
     if data.player_support:
         cg.add_define("USE_SENDSPIN_PLAYER", True)
 
-        # Configures the player role. We always assume support for 16 bits per sample mono and stereo FLAC, Opus, and PCM at the configured sample rate
-        # (with Opus only supported at 48 kHz since that's the only sample rate it supports). Users can configure the specific formats via the Sendspin server
+        # Configures the player role. Each configured codec is advertised for 16 bits per sample
+        # mono and stereo at the configured sample rate. The order is a preference order, both for
+        # the codecs themselves and for stereo over mono.
         player_cfg = data.player_config
         sample_rate = player_cfg[CONF_SAMPLE_RATE]
 
-        # OPUS only supports 48 kHz audio
-        codecs = [CODEC_FORMAT_FLAC]
-        if sample_rate == 48000:
-            codecs.append(CODEC_FORMAT_OPUS)
-        codecs.append(CODEC_FORMAT_PCM)
+        codecs = [CODECS[codec] for codec in player_cfg[CONF_CODECS]]
 
-        def _audio_format(codec, channels):
+        def _audio_format(codec: MockObj, channels: int) -> cg.StructInitializer:
             return cg.StructInitializer(
                 AudioSupportedFormatObject,
                 ("codec", codec),

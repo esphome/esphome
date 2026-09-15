@@ -26,6 +26,9 @@ class DraytonProtocol : public RemoteProtocol<DraytonData> {
 
  protected:
   uint8_t calc_cs_(uint32_t) const;
+  void encode(RemoteTransmitData *dst, const DraytonData &data);
+  optional<DraytonData> decode(RemoteReceiveData src);
+  void dump(const DraytonData &data);
 };
 
 DECLARE_REMOTE_PROTOCOL(Drayton)

@@ -8,6 +8,7 @@ from esphome.const import (
     CONF_ON_STATE,
     CONF_TEMPERATURE,
     CONF_UPDATE_INTERVAL,
+    CONF_USE_FAHRENHEIT,
 )
 from esphome.core import ID, Lambda
 from esphome.cpp_generator import LambdaExpression, MockObj
@@ -71,6 +72,7 @@ CONFIG_SCHEMA = (
             cv.Optional(
                 CONF_TELEMETRY_REQUEST_MIN_INTERVAL, default="60s"
             ): cv.update_interval,
+            cv.Optional(CONF_USE_FAHRENHEIT, default=False): cv.boolean,
             cv.Optional(CONF_VANE): cv.Schema(
                 {
                     cv.Optional(CONF_ON_STATE): automation.validate_automation({}),
@@ -114,6 +116,7 @@ async def to_code(config: ConfigType) -> None:
             config[CONF_TELEMETRY_REQUEST_MIN_INTERVAL]
         )
     )
+    cg.add(var.set_use_fahrenheit(config[CONF_USE_FAHRENHEIT]))
     if on_state := config.get(CONF_VANE, {}).get(CONF_ON_STATE):
         cg.add_global(mitsubishi_ns.using)
         for conf in on_state:

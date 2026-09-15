@@ -3,6 +3,7 @@
 from esphome import automation
 import esphome.codegen as cg
 from esphome.components import runtime_image
+from esphome.components.const import CONF_SLOT
 from esphome.components.image import CONF_TRANSPARENCY, Image_, add_metadata
 import esphome.config_validation as cv
 from esphome.const import (
@@ -45,7 +46,6 @@ MAX_IMAGE_DIMENSION = 32767
 MAX_DISPLAY_OFFSET = cv.TimePeriod(seconds=60)
 MIN_DISPLAY_OFFSET = cv.TimePeriod(seconds=-60)
 
-CONF_SLOT = "slot"
 CONF_CURRENT_IMAGE = "current_image"
 CONF_TRANSITION_IMAGE = "transition_image"
 CONF_ON_IMAGE_DISPLAY = "on_image_display"
