@@ -153,6 +153,14 @@ async def _build_state_lambda(
     return await cg.process_lambda(Lambda("\n".join(body)), args, return_type=cg.void)
 
 
+async def _process_value(value: Any, member: str) -> str:
+    if isinstance(value, Lambda):
+        return_type = cg.bool_ if member == CONF_STATE else cg.float_
+        lamb = await cg.process_lambda(value, [], return_type=return_type)
+        return call_lambda(lamb)
+    return cg.safe_exp(value)
+
+
 async def _initial_state_statements(
     initial_state_config: ConfigType | None,
 ) -> list[StateStatement]:
@@ -167,17 +175,13 @@ async def _initial_state_statements(
     for conf_key, member in _ALL_STATE_FIELDS:
         if (value := initial_state_config.get(conf_key)) is None:
             continue
-        if isinstance(value, Lambda):
-            return_type = cg.bool_ if member == "state" else cg.float_
-            lamb = await cg.process_lambda(value, [], return_type=return_type)
-            expr = call_lambda(lamb)
-        else:
-            expr = cg.safe_exp(value)
-        statements.append((member, f"s.{member} = {expr};"))
+        statements.append(
+            (member, f"s.{member} = {await _process_value(value, member)};")
+        )
     return statements
 
 
-def _resolve_initial_value(
+async def _resolve_initial_value(
     conf_key: str, member: str, initial_state_config: ConfigType | None
 ) -> str:
     """
@@ -187,11 +191,11 @@ def _resolve_initial_value(
         initial_state_config is not None
         and (value := initial_state_config.get(conf_key)) is not None
     ):
-        return cg.safe_exp(value)
+        return await _process_value(value, member)
     return f"LightStateRTCState{{}}.{member}"
 
 
-def _restore_state_statements(
+async def _restore_state_statements(
     restore_state_config: ConfigType, initial_state_config: ConfigType | None
 ) -> list[StateStatement]:
     """
@@ -202,14 +206,14 @@ def _restore_state_statements(
     if state == RESTORE_STATE_INVERT:
         statements.append(("state", "s.state = !s.state;"))
     elif state == RESTORE_STATE_INITIAL:
-        expr = _resolve_initial_value(CONF_STATE, "state", initial_state_config)
+        expr = await _resolve_initial_value(CONF_STATE, "state", initial_state_config)
         statements.append(("state", f"s.state = {expr};"))
     elif state != RESTORE_STATE_KEEP:
         statements.append(("state", f"s.state = {cg.safe_exp(state)};"))
     for conf_key, member in _STATE_STRUCT_FIELDS:
         value = restore_state_config[conf_key]
         if value == RESTORE_STATE_INITIAL:
-            expr = _resolve_initial_value(conf_key, member, initial_state_config)
+            expr = await _resolve_initial_value(conf_key, member, initial_state_config)
         elif value == RESTORE_STATE_KEEP:
             continue
         else:

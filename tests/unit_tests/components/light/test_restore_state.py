@@ -331,33 +331,69 @@ def test_initial_state_overridden_by_legacy_mode(
     )
 
 
-def test_restore_state_initial_state_field_copies_initial_state_value() -> None:
+@pytest.mark.asyncio
+async def test_restore_state_initial_state_field_copies_initial_state_value() -> None:
     restore_state_config = RESTORE_STATE_SCHEMA({"state": "initial"})
-    statements = _restore_state_statements(restore_state_config, {CONF_STATE: True})
+    statements = await _restore_state_statements(
+        restore_state_config, {CONF_STATE: True}
+    )
     assert statements == [("state", "s.state = true;")]
 
 
-def test_restore_state_initial_other_field_copies_initial_state_value() -> None:
+@pytest.mark.asyncio
+async def test_restore_state_initial_other_field_copies_initial_state_value() -> None:
     restore_state_config = RESTORE_STATE_SCHEMA({"brightness": "initial"})
     initial_state_config = {"brightness": 0.5}
-    statements = _restore_state_statements(restore_state_config, initial_state_config)
+    statements = await _restore_state_statements(
+        restore_state_config, initial_state_config
+    )
     assert statements == [("brightness", "s.brightness = 0.5f;")]
 
 
-def test_restore_state_initial_falls_back_to_struct_default() -> None:
+@pytest.mark.asyncio
+async def test_restore_state_initial_falls_back_to_struct_default() -> None:
     # No initial_state: at all -- INITIAL resolves to a read of LightStateRTCState's
     # own member-initializer default, straight from the struct.
     restore_state_config = RESTORE_STATE_SCHEMA({"brightness": "initial"})
-    statements = _restore_state_statements(restore_state_config, None)
+    statements = await _restore_state_statements(restore_state_config, None)
     assert statements == [
         ("brightness", "s.brightness = LightStateRTCState{}.brightness;")
     ]
 
 
-def test_restore_state_initial_falls_back_when_initial_state_omits_field() -> None:
+@pytest.mark.asyncio
+async def test_restore_state_initial_falls_back_when_initial_state_omits_field() -> (
+    None
+):
     restore_state_config = RESTORE_STATE_SCHEMA({"brightness": "initial"})
     initial_state_config = {"state": True}  # doesn't set brightness
-    statements = _restore_state_statements(restore_state_config, initial_state_config)
+    statements = await _restore_state_statements(
+        restore_state_config, initial_state_config
+    )
     assert statements == [
         ("brightness", "s.brightness = LightStateRTCState{}.brightness;")
     ]
+
+
+@pytest.mark.asyncio
+async def test_restore_state_initial_resolves_templated_initial_state() -> None:
+    # initial_state: gave `state` as a lambda -- INITIAL must call it (and cast its
+    # result), not just copy a literal value.
+    restore_state_config = RESTORE_STATE_SCHEMA({"state": "initial"})
+    initial_state_config = {CONF_STATE: Lambda("return true;")}
+    statements = await _restore_state_statements(
+        restore_state_config, initial_state_config
+    )
+    assert statements == [("state", "s.state = static_cast<bool>(true);")]
+
+
+@pytest.mark.asyncio
+async def test_restore_state_initial_resolves_templated_non_boolean_field() -> None:
+    # Same as above, but for a float-valued field -- the lambda's return type must
+    # be float, not bool.
+    restore_state_config = RESTORE_STATE_SCHEMA({"brightness": "initial"})
+    initial_state_config = {"brightness": Lambda("return 0.75;")}
+    statements = await _restore_state_statements(
+        restore_state_config, initial_state_config
+    )
+    assert statements == [("brightness", "s.brightness = static_cast<float>(0.75);")]

@@ -515,7 +515,7 @@ async def setup_light_core_(light_var, config, output_var):
         restore_statements = _legacy_restore_statements(legacy)
         save_enabled = legacy.save_enabled
     elif restore_state_config is not None:
-        restore_statements = _restore_state_statements(
+        restore_statements = await _restore_state_statements(
             restore_state_config, initial_state_config
         )
         save_enabled = True
