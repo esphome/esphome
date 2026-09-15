@@ -1,0 +1,53 @@
+esphome:
+  name: test-device
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+uart:
+  id: uart_bus
+  tx_pin: GPIO17
+  rx_pin: GPIO16
+  baud_rate: 9600
+
+rs485_frame:
+  id: hub
+  uart_id: uart_bus
+  framing:
+    escape:
+      mode: escape_byte
+      byte: 0x00
+  crc:
+    type: sum16_big_endian
+  tx:
+    gate:
+      frame_type: [0x01, 0x01]
+  command_format:
+    preamble: [0x00, 0x83, 0x01]
+    value_element_bytes: 4
+    postamble: [0x00]
+  response_fields:
+    led_mask:
+      frame_type: [0x01, 0x02]
+      offset: 2
+      length: 4
+      endian: little
+  response_monitor:
+    # No button on this hub is named "Nonexistent Button" -- must be rejected with a
+    # clean cv.Invalid reporting zero matches, not silently resolve to nothing.
+    - name: lights_confirm
+      trigger:
+        button_name: "Nonexistent Button"
+      window: 200ms
+      signature:
+        - field: led_mask
+          type: changed
+          mask: 0x40
+
+button:
+  - platform: rs485_frame
+    rs485_frame_id: hub
+    name: "Lights"
+    value: 0x00010000
