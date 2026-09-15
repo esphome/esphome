@@ -28,17 +28,26 @@ void NECProtocol::encode(RemoteTransmitData *dst, const NECData &data) {
     }
   }
 
-  for (uint16_t repeats = 0; repeats < data.command_repeats; repeats++) {
-    for (uint16_t mask = 1; mask; mask <<= 1) {
-      if (data.command & mask) {
-        dst->item(BIT_HIGH_US, BIT_ONE_LOW_US);
-      } else {
-        dst->item(BIT_HIGH_US, BIT_ZERO_LOW_US);
-      }
+  for (uint16_t mask = 1; mask; mask <<= 1) {
+    if (data.command & mask) {
+      dst->item(BIT_HIGH_US, BIT_ONE_LOW_US);
+    } else {
+      dst->item(BIT_HIGH_US, BIT_ZERO_LOW_US);
     }
   }
 
   dst->mark(BIT_HIGH_US);
+
+  if (data.command_repeats > 1) {
+    dst->space(40500);
+    for (uint16_t repeats = 1; repeats < data.command_repeats; repeats++) {
+      dst->item(HEADER_HIGH_US, HEADER_LOW_US / 2);
+      dst->mark(BIT_HIGH_US);
+      if (repeats + 1 < data.command_repeats) {
+        dst->space(96187);
+      }
+    }
+  }
 }
 optional<NECData> NECProtocol::decode(RemoteReceiveData src) {
   NECData data{
@@ -69,27 +78,18 @@ optional<NECData> NECProtocol::decode(RemoteReceiveData src) {
     }
   }
 
-  while (src.peek_item(BIT_HIGH_US, BIT_ONE_LOW_US) || src.peek_item(BIT_HIGH_US, BIT_ZERO_LOW_US)) {
-    uint16_t command = 0;
-    for (uint16_t mask = 1; mask; mask <<= 1) {
-      if (src.expect_item(BIT_HIGH_US, BIT_ONE_LOW_US)) {
-        command |= mask;
-      } else if (src.expect_item(BIT_HIGH_US, BIT_ZERO_LOW_US)) {
-        command &= ~mask;
-      } else {
-        return {};
-      }
-    }
-
-    // Make sure the extra/repeated data matches original command
-    if (command != data.command) {
-      return {};
-    }
-
-    data.command_repeats += 1;
+  if (!src.expect_mark(BIT_HIGH_US)) {
+    return {};
   }
 
-  src.expect_mark(BIT_HIGH_US);
+  while (src.expect_space(40500) || src.expect_space(96187)) {
+    if (src.expect_item(HEADER_HIGH_US, HEADER_LOW_US / 2) && src.expect_mark(BIT_HIGH_US)) {
+      data.command_repeats += 1;
+    } else {
+      break;
+    }
+  }
+
   return data;
 }
 void NECProtocol::dump(const NECData &data) {
