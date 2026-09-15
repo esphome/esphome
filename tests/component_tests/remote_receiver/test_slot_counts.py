@@ -1,6 +1,6 @@
 """Listener and dumper StaticVector sizes come from codegen slot counts."""
 
-from collections.abc import Callable
+from collections.abc import Callable, Generator
 from pathlib import Path
 
 import pytest
@@ -75,16 +75,24 @@ def test_every_registry_name_maps_to_a_protocol_source() -> None:
         assert remote_base._protocol_stem(name) in remote_base._PROTOCOL_STEMS, name
 
 
+@pytest.fixture
+def restore_protocol_registries() -> Generator[None]:
+    """Loading an external protocol component adds to module-level registries; undo that."""
+    registries = (remote_base.TRIGGER_REGISTRY, remote_base.DUMPER_REGISTRY)
+    saved = [dict(registry) for registry in registries]
+    yield
+    for registry, entries in zip(registries, saved, strict=True):
+        registry.clear()
+        registry.update(entries)
+
+
+@pytest.mark.usefixtures("restore_protocol_registries")
 def test_external_protocols_register_without_a_remote_base_source(
     generate_main: Callable[[str | Path], str],
     component_config_path: Callable[[str], Path],
 ) -> None:
-    """A protocol from an external component compiles from its own directory, so it needs no define."""
-    try:
-        generate_main(component_config_path("receiver_with_external_protocol.yaml"))
-    finally:
-        remote_base.TRIGGER_REGISTRY.pop("on_fake", None)
-        remote_base.DUMPER_REGISTRY.pop("fake", None)
+    """An external protocol goes through the decorators without a source file here, so no define is emitted."""
+    generate_main(component_config_path("receiver_with_external_protocol.yaml"))
     defines = {define.name for define in CORE.defines}
     assert "USE_REMOTE_PROTOCOL_NEC" in defines
     assert "USE_REMOTE_PROTOCOL_FAKE" not in defines

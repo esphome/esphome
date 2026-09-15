@@ -1,4 +1,4 @@
-"""External component registering a remote protocol whose source lives outside remote_base."""
+"""External component registering a protocol that has no source file in remote_base."""
 
 import esphome.codegen as cg
 from esphome.components import remote_base
@@ -22,8 +22,4 @@ def fake_trigger(var: cg.MockObj, config: ConfigType) -> None:
 
 @remote_base.register_dumper("fake", FakeDumper)
 def fake_dumper(var: cg.MockObj, config: ConfigType) -> None:
-    pass
-
-
-async def to_code(config: ConfigType) -> None:
     pass
