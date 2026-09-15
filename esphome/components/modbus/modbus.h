@@ -317,9 +317,16 @@ class ModbusServerHub : public Modbus {
  public:
   ModbusServerHub() = default;
   void dump_config() override;
-  void register_device(ModbusServerDevice *device) { this->devices_.push_back(device); }
+  void register_device(ModbusServerDevice *device);
 
  protected:
+  /// Runs one pass of the bus and sends anything a device is still owed. For a device that has to keep
+  /// answering during a bounded wait the main loop does not cover, such as announcing a restart.
+  /// Returns false without doing anything while the hub is dispatching a frame, so a handler cannot
+  /// re-enter it. Reached through ModbusServerDevice::service_bus_() only.
+  bool service_();
+  friend class ModbusServerDevice;
+
   void parse_modbus_frames() override;
   bool parse_modbus_client_frame_();
   void process_modbus_server_frame(uint8_t address, std::span<const uint8_t> pdu) override;
@@ -363,7 +370,13 @@ class ModbusServerHub : public Modbus {
   bool rejected_(uint8_t address, uint8_t function_code, ResponseStatus status);
   void send_exception_(uint8_t address, uint8_t function_code, ExceptionCode exception_code);
   void send_response_(uint8_t address, uint8_t function_code, const uint8_t *payload, uint16_t payload_len);
+  /// Sends a reply that was held back, if one is waiting. With drop_if_blocked the reply is given its one
+  /// chance and discarded, which is what the scheduler timeout wants; without it a busy wire is a reason to
+  /// keep the reply for the next pass.
+  void send_deferred_(bool drop_if_blocked);
   uint8_t expecting_peer_response_{0};
+  // Set while a frame is being handed to a device, so service_() cannot be re-entered from a handler.
+  bool in_dispatch_{false};
   std::vector<ModbusServerDevice *> devices_;
 
   // Holds the raw payload of a single reply deferred for sending when tx was blocked at send time.
@@ -648,7 +661,19 @@ class ModbusServerDevice {
   };
 
  protected:
+  /// Runs one pass of the bus, so a device can keep answering during a bounded wait the main loop does not
+  /// cover. Returns whether it ran: it does not while the hub is dispatching a frame, or before the device
+  /// is registered.
+  bool service_bus_();
+
   uint8_t address_{0};
+
+ private:
+  // Private, not protected: the hub's loop() is public, so a device holding the pointer could dispatch a
+  // frame from inside a handler and answer a later one first. service_bus_() is the only way through.
+  ModbusServerHub *hub_{nullptr};
+
+  friend class ModbusServerHub;
 };
 
 }  // namespace esphome::modbus
