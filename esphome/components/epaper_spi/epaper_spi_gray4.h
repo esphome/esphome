@@ -63,6 +63,8 @@ class EPaperGray4 : public EPaperBase {
 
   void fill(Color color) override;
   void draw_pixel_at(int x, int y, Color color) override;
+  void draw_pixels_at(int x_start, int y_start, int w, int h, const uint8_t *ptr, ColorOrder order,
+                      ColorBitness bitness, bool big_endian, int x_offset, int y_offset, int x_pad) override;
 
  protected:
   void setup() override;
@@ -93,8 +95,8 @@ class EPaperGray4 : public EPaperBase {
   void set_window_();
   /// Allocate the comparison frame, if this display will ever do a partial.
   void init_shadow_();
+  static uint8_t level_from_sum(uint16_t sum);
   uint8_t color_to_level_(Color color) const;
-  uint8_t level_at_(int x, int y) const;
 
   uint8_t plane_{0};          // first or second pass of a push
   bool partial_push_{false};  // latched for the whole push

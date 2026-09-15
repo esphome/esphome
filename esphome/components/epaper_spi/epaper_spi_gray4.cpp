@@ -1,10 +1,44 @@
 #include "epaper_spi_gray4.h"
 
+#include <algorithm>
+#include <array>
+#include <cstring>
+
 #include "esphome/core/log.h"
 
 namespace esphome::epaper_spi {
 
 static constexpr const char *const TAG = "epaper_spi.gray4";
+
+// The 5- and 6-bit channels of an RGB565 pixel expanded to eight bits, exactly as ColorUtil::to_color does it, so
+// that the batched path in draw_pixels_at() arrives at the same level as the per-pixel one.
+template<size_t N> static constexpr std::array<uint8_t, N> make_scale() {
+  std::array<uint8_t, N> table{};
+  for (size_t i = 0; i != N; i++)
+    table[i] = (uint8_t) (255 * i / (N - 1));
+  return table;
+}
+static constexpr std::array<uint8_t, 32> SCALE_5 = make_scale<32>();
+static constexpr std::array<uint8_t, 64> SCALE_6 = make_scale<64>();
+
+// For a buffer byte - four 2-bit levels, most significant pixel first - the HIGH bit of each of those four levels
+// gathered into bits 7..4, and the LOW bit of each into bits 3..0. A plane byte covers eight pixels, so two lookups
+// build one, in place of the eight per-pixel buffer reads it used to cost.
+static constexpr std::array<uint8_t, 256> make_plane_nibbles() {
+  std::array<uint8_t, 256> table{};
+  for (size_t value = 0; value != table.size(); value++) {
+    uint8_t high = 0;
+    uint8_t low = 0;
+    for (unsigned pixel = 0; pixel != 4; pixel++) {
+      const uint8_t level = (uint8_t) ((value >> (6 - 2 * pixel)) & 0x03);
+      high = (uint8_t) (high | ((level >> 1) << (3 - pixel)));
+      low = (uint8_t) (low | ((level & 1) << (3 - pixel)));
+    }
+    table[value] = (uint8_t) ((high << 4) | low);
+  }
+  return table;
+}
+static constexpr std::array<uint8_t, 256> PLANE_NIBBLES = make_plane_nibbles();
 
 void EPaperGray4::setup() {
   EPaperBase::setup();
@@ -26,8 +60,7 @@ void EPaperGray4::init_shadow_() {
 // Luminance into four even quarters. A renderer that antialiases - LVGL
 // composites at 16-bit - delivers glyph edges here as real intermediate
 // values, and this is where they survive instead of being thresholded.
-uint8_t EPaperGray4::color_to_level_(Color color) const {
-  const uint16_t sum = (uint16_t) color.r + color.g + color.b;  // 0..765
+uint8_t EPaperGray4::level_from_sum(uint16_t sum) {  // sum of the three channels, 0..765
   if (sum >= 574)
     return 3;  // white
   if (sum >= 383)
@@ -37,9 +70,8 @@ uint8_t EPaperGray4::color_to_level_(Color color) const {
   return 0;    // black
 }
 
-uint8_t EPaperGray4::level_at_(int x, int y) const {
-  const size_t byte_position = (size_t) y * this->row_width_ + x / 4;
-  return (this->buffer_[byte_position] >> (6 - 2 * (x % 4))) & 0x03;
+uint8_t EPaperGray4::color_to_level_(Color color) const {
+  return level_from_sum((uint16_t) color.r + color.g + color.b);
 }
 
 void EPaperGray4::fill(Color color) {
@@ -62,6 +94,68 @@ void HOT EPaperGray4::draw_pixel_at(int x, int y, Color color) {
   uint8_t value = this->buffer_[byte_position];
   value = (value & ~(0x03 << shift)) | (this->color_to_level_(color) << shift);
   this->buffer_[byte_position] = value;
+}
+
+// A renderer hands over a whole rectangle, and the generic implementation spends a virtual call, a colour
+// conversion, a clipping test, four bounds clamps and two SplitBuffer lookups on every pixel of it. This does the
+// same work per RECTANGLE instead, and walks the PANEL row by row rather than the source: rotate_coordinates_() is
+// affine - panel x comes from one logical axis and panel y from the other, each monotonically - so on a display
+// mounted at 90 degrees a source-major walk lands every consecutive pixel row_width_ bytes apart in the buffer,
+// which is a cache miss each. Panel-major, four pixels share a byte and the writes run in order.
+void HOT EPaperGray4::draw_pixels_at(int x_start, int y_start, int w, int h, const uint8_t *ptr, ColorOrder order,
+                                     ColorBitness bitness, bool big_endian, int x_offset, int y_offset, int x_pad) {
+  // Worth a fast path only for what a renderer actually sends: 16-bit pixels, and no clipping window to honour. The
+  // colour ORDER needs no case of its own - a luminance is the sum of the three channels, in whatever order they sit.
+  if (bitness != COLOR_BITNESS_565 || this->get_clipping().is_set()) {
+    Display::draw_pixels_at(x_start, y_start, w, h, ptr, order, bitness, big_endian, x_offset, y_offset, x_pad);
+    return;
+  }
+
+  const bool swap_xy = (this->effective_transform_ & SWAP_XY) != 0;
+  const bool mirror_x = (this->effective_transform_ & MIRROR_X) != 0;
+  const bool mirror_y = (this->effective_transform_ & MIRROR_Y) != 0;
+
+  // `a` walks the logical axis that becomes panel x, `b` the one that becomes panel y.
+  const int a_start = swap_xy ? y_start : x_start;
+  const int b_start = swap_xy ? x_start : y_start;
+  // Clip once, to the same bounds rotate_coordinates_() tests per pixel.
+  const int a_lo = std::max(0, -a_start);
+  const int a_hi = std::min(swap_xy ? h : w, (int) this->width_ - a_start);
+  const int b_lo = std::max(0, -b_start);
+  const int b_hi = std::min(swap_xy ? w : h, (int) this->height_ - b_start);
+  if (a_lo >= a_hi || b_lo >= b_hi)
+    return;
+
+  // Within one panel row only one logical axis moves, so the source index advances by a fixed stride.
+  const size_t line_stride = (size_t) (x_offset + w + x_pad);
+  const size_t src_step = swap_xy ? line_stride : 1;
+  const size_t src_row_step = swap_xy ? 1 : line_stride;
+  const size_t src_base = (size_t) y_offset * line_stride + (size_t) x_offset;
+
+  const int px_step = mirror_x ? -1 : 1;
+  for (int b = b_lo; b != b_hi; b++) {
+    const int py = mirror_y ? this->height_ - 1 - (b_start + b) : b_start + b;
+    const size_t row_start = (size_t) py * this->row_width_;
+
+    const uint8_t *src = ptr + 2 * (src_base + (size_t) b * src_row_step + (size_t) a_lo * src_step);
+    int px = mirror_x ? this->width_ - 1 - (a_start + a_lo) : a_start + a_lo;
+    for (int a = a_lo; a != a_hi; a++, px += px_step, src += 2 * src_step) {
+      const uint16_t value = big_endian ? (uint16_t) ((src[0] << 8) | src[1]) : (uint16_t) (src[0] | (src[1] << 8));
+      const uint8_t level =
+          level_from_sum(SCALE_5[(value >> 11) & 0x1F] + SCALE_6[(value >> 5) & 0x3F] + SCALE_5[value & 0x1F]);
+      const uint8_t shift = 6 - 2 * (px & 3);  // most significant pixel first
+      uint8_t &cell = this->buffer_[row_start + (px >> 2)];
+      cell = (uint8_t) ((cell & ~(0x03 << shift)) | (level << shift));
+    }
+  }
+
+  // The bounds of what was touched, once for the rectangle rather than once per pixel.
+  const int px_lo = mirror_x ? this->width_ - (a_start + a_hi) : a_start + a_lo;
+  const int py_lo = mirror_y ? this->height_ - (b_start + b_hi) : b_start + b_lo;
+  this->x_low_ = clamp_at_most(this->x_low_, px_lo);
+  this->x_high_ = clamp_at_least(this->x_high_, px_lo + (a_hi - a_lo));
+  this->y_low_ = clamp_at_most(this->y_low_, py_lo);
+  this->y_high_ = clamp_at_least(this->y_high_, py_lo + (b_hi - b_lo));
 }
 
 bool EPaperGray4::reset() {
@@ -114,24 +208,28 @@ bool HOT EPaperGray4::transfer_data() {
     }
     this->command(this->plane_command(this->partial_push_ == second_pass));
   }
+  // Which bit of each level this plane carries. The low one belongs to the second pass of a FULL push and nowhere
+  // else: a partial's new frame is "level >= 2", which is the high bit again.
+  const bool low_bits = !this->partial_push_ && second_pass;
+  const bool invert = !this->partial_push_ && this->gray_planes_inverted();
+  const bool reads_buffer = !this->partial_push_ || second_pass;
   uint8_t row[128];
   this->start_data_();
   while (this->current_data_index_ != this->height_) {
     const int y = (int) this->current_data_index_;
+    // Two buffer bytes hold the eight pixels of one plane byte, so a plane row spans 2 * row_length of them.
+    const size_t src_row = (size_t) y * this->row_width_;
     for (size_t b = 0; b != row_length; b++) {
       const size_t shadow_index = (size_t) y * row_length + b;
       uint8_t out, mono = 0;
-      if (this->partial_push_ && !second_pass) {
+      if (!reads_buffer) {
         out = this->shadow_[shadow_index];  // what is on the glass
       } else {
-        out = 0;
-        for (uint8_t i = 0; i < 8; i++) {
-          const uint8_t level = this->level_at_((int) (b * 8 + i), y);
-          const uint8_t bit = this->partial_push_ ? (level >= 2) : second_pass ? (level & 1) : (level >> 1);
-          out |= bit << (7 - i);
-          mono |= (uint8_t) (level >= 2) << (7 - i);
-        }
-        if (!this->partial_push_ && this->gray_planes_inverted())
+        const uint8_t first = PLANE_NIBBLES[this->buffer_[src_row + 2 * b]];
+        const uint8_t second = PLANE_NIBBLES[this->buffer_[src_row + 2 * b + 1]];
+        mono = (uint8_t) ((first & 0xF0) | (second >> 4));  // the high bit of every level: "level >= 2"
+        out = low_bits ? (uint8_t) (((first & 0x0F) << 4) | (second & 0x0F)) : mono;
+        if (invert)
           out = (uint8_t) ~out;
       }
       row[b] = out;
