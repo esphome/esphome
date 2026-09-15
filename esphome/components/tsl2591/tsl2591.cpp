@@ -218,8 +218,6 @@ void TSL2591Component::set_integration_time(TSL2591IntegrationTime integration_t
   this->integration_time_ = integration_time;
 }
 
-void TSL2591Component::set_gain(TSL2591ComponentGain gain) { this->component_gain_ = gain; }
-
 void TSL2591Component::set_device_and_glass_attenuation_factors(float device_factor, float glass_attenuation_factor) {
   this->device_factor_ = device_factor;
   this->glass_attenuation_factor_ = glass_attenuation_factor;
