@@ -1,0 +1,27 @@
+esphome:
+  name: test
+
+esp32:
+  board: esp32dev
+
+logger:
+
+external_components:
+  - source:
+      type: local
+      path: ../external_components
+
+fake_protocol:
+
+remote_receiver:
+  - id: rcvr
+    pin: GPIO4
+    dump:
+      - fake
+      - nec
+    on_fake:
+      then:
+        - logger.log: fake
+    on_nec:
+      then:
+        - logger.log: nec

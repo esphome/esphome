@@ -8,6 +8,7 @@ import pytest
 from esphome.automation import ACTION_REGISTRY
 from esphome.components import remote_base
 import esphome.config_validation as cv
+from esphome.core import CORE
 
 from ..helpers import get_define_value
 
@@ -72,6 +73,24 @@ def test_every_registry_name_maps_to_a_protocol_source() -> None:
     assert len(names) > 40
     for name in names:
         assert remote_base._protocol_stem(name) in remote_base._PROTOCOL_STEMS, name
+
+
+def test_external_protocols_register_without_a_remote_base_source(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """A protocol from an external component compiles from its own directory, so it needs no define."""
+    try:
+        generate_main(component_config_path("receiver_with_external_protocol.yaml"))
+    finally:
+        remote_base.TRIGGER_REGISTRY.pop("on_fake", None)
+        remote_base.DUMPER_REGISTRY.pop("fake", None)
+    defines = {define.name for define in CORE.defines}
+    assert "USE_REMOTE_PROTOCOL_NEC" in defines
+    assert "USE_REMOTE_PROTOCOL_FAKE" not in defines
+    # fake and nec dumpers; on_fake and on_nec triggers
+    assert get_define_value("REMOTE_BASE_DUMPER_COUNT") == "2"
+    assert get_define_value("REMOTE_BASE_LISTENER_COUNT") == "2"
 
 
 def test_request_protocol_rejects_unknown_names() -> None:
