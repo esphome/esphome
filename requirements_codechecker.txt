@@ -1,0 +1,2 @@
+# Adapts GCC (Zephyr/nrf52) compile commands for clang-tidy
+codechecker==6.28.2
