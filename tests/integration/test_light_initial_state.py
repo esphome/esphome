@@ -43,3 +43,11 @@ async def test_light_initial_state(
         restore_and_on_state = helper.initial_states[restore_and_on_light.key]
         assert restore_and_on_state.state is True
         assert restore_and_on_state.brightness == pytest.approx(1.0)
+
+        # With neither restore_mode nor restore_state configured, initial_state: must
+        # be honored as-is -- unlike every explicit restore_mode: value, omitting both
+        # keys entirely must not force the light off.
+        no_restore_key_light = require_entity(entities, "test_no_restore_key_light")
+        no_restore_key_state = helper.initial_states[no_restore_key_light.key]
+        assert no_restore_key_state.state is True
+        assert no_restore_key_state.brightness == pytest.approx(0.6, abs=0.01)

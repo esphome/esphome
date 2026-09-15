@@ -37,38 +37,14 @@ void LightState::setup() {
 
   auto call = this->make_call();
   LightStateRTCState recovered{};
-  if (this->initial_state_callback_) {
-    this->initial_state_callback_(recovered);
-    this->initial_state_callback_ = nullptr;  // One-shot — no longer needed
+  bool restored = false;
+  if (this->save_enabled_) {
+    this->rtc_ = this->make_entity_preference<LightStateRTCState>();
+    restored = this->rtc_.load(&recovered);
   }
-  switch (this->restore_mode_) {
-    case LIGHT_RESTORE_DEFAULT_OFF:
-    case LIGHT_RESTORE_DEFAULT_ON:
-    case LIGHT_RESTORE_INVERTED_DEFAULT_OFF:
-    case LIGHT_RESTORE_INVERTED_DEFAULT_ON:
-      this->rtc_ = this->make_entity_preference<LightStateRTCState>();
-      // Attempt to load from preferences, else fall back to default values
-      if (!this->rtc_.load(&recovered)) {
-        recovered.state = (this->restore_mode_ == LIGHT_RESTORE_DEFAULT_ON ||
-                           this->restore_mode_ == LIGHT_RESTORE_INVERTED_DEFAULT_ON);
-      } else if (this->restore_mode_ == LIGHT_RESTORE_INVERTED_DEFAULT_OFF ||
-                 this->restore_mode_ == LIGHT_RESTORE_INVERTED_DEFAULT_ON) {
-        // Inverted restore state
-        recovered.state = !recovered.state;
-      }
-      break;
-    case LIGHT_RESTORE_AND_OFF:
-    case LIGHT_RESTORE_AND_ON:
-      this->rtc_ = this->make_entity_preference<LightStateRTCState>();
-      this->rtc_.load(&recovered);
-      recovered.state = (this->restore_mode_ == LIGHT_RESTORE_AND_ON);
-      break;
-    case LIGHT_ALWAYS_OFF:
-      recovered.state = false;
-      break;
-    case LIGHT_ALWAYS_ON:
-      recovered.state = true;
-      break;
+  if (this->state_callback_) {
+    this->state_callback_(recovered, restored);
+    this->state_callback_ = nullptr;  // One-shot — no longer needed
   }
 
   // A light coming up on boot must never end up on-but-invisible: if the resolved restore
@@ -392,17 +368,14 @@ void LightState::disable_loop_if_idle_() {
 }
 
 void LightState::save_remote_values_() {
+  if (!this->save_enabled_)
+    return;
   LightStateRTCState saved;
   saved.color_mode = this->remote_values.get_color_mode();
-  switch (this->restore_mode_) {
-    case LIGHT_RESTORE_AND_OFF:
-    case LIGHT_RESTORE_AND_ON:
-      saved.state = (this->restore_mode_ == LIGHT_RESTORE_AND_ON);
-      break;
-    default:
-      saved.state = this->remote_values.is_on();
-      break;
-  }
+  // Always the real on/off status (RESTORE_AND_ON/OFF used to persist a hardcoded
+  // true/false here instead; harmless, since those modes force `state` again on
+  // every load regardless of what was saved -- see _legacy_restore_statements).
+  saved.state = this->remote_values.is_on();
   saved.brightness = this->remote_values.get_brightness();
   saved.color_brightness = this->remote_values.get_color_brightness();
   saved.red = this->remote_values.get_red();

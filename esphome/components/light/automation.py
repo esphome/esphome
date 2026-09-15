@@ -1,3 +1,5 @@
+from typing import Any
+
 from esphome import automation
 import esphome.codegen as cg
 from esphome.config import path_context
@@ -28,6 +30,7 @@ from esphome.const import (
 )
 from esphome.core import CORE, ID, EsphomeError, Lambda
 from esphome.cpp_generator import LambdaExpression, MockObj, TemplateArgsType
+from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 from esphome.types import ConfigType
 
 from .types import (
@@ -47,6 +50,28 @@ from .types import (
 )
 
 CONF_INCLUDE_NONE = "include_none"
+
+_STATE_ON_OFF = cv.one_of("ON", "OFF", upper=True)
+
+
+@schema_extractor("one_of")
+def validate_light_state(value: Any) -> Any:
+    """Validate a light on/off state.
+
+    Documented as 'ON'/'OFF', but accepts all boolean forms for backward compatibility.
+    """
+    if value == SCHEMA_EXTRACT:
+        return ("ON", "OFF")
+    try:
+        return _STATE_ON_OFF(value) == "ON"
+    except cv.Invalid:
+        pass
+    try:
+        return cv.boolean(value)
+    except cv.Invalid as err:
+        raise cv.Invalid(
+            f"Expected 'ON', 'OFF', or a boolean value, got {value!r}"
+        ) from err
 
 
 @automation.register_action(
@@ -78,7 +103,7 @@ async def light_toggle_to_code(config, action_id, template_arg, args):
 LIGHT_STATE_SCHEMA = cv.Schema(
     {
         cv.Optional(CONF_COLOR_MODE): cv.enum(COLOR_MODES, upper=True, space="_"),
-        cv.Optional(CONF_STATE): cv.templatable(cv.boolean),
+        cv.Optional(CONF_STATE): cv.templatable(validate_light_state),
         cv.Optional(CONF_BRIGHTNESS): cv.templatable(cv.percentage),
         cv.Optional(CONF_COLOR_BRIGHTNESS): cv.templatable(cv.percentage),
         cv.Optional(CONF_RED): cv.templatable(cv.percentage),
