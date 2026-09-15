@@ -57,8 +57,8 @@ class VL53L0XSensor final : public sensor::Sensor, public PollingComponent, publ
   uint16_t decode_timeout_(uint16_t reg_val);
   uint16_t encode_timeout_(uint16_t timeout_mclks);
 
-  bool perform_single_ref_calibration_(uint8_t vhv_init_byte);
-  bool init_sensor_(uint8_t final_address);
+  bool perform_single_ref_calibration_(uint8_t vhv_init_byte, uint32_t timeout_ms = 1000);
+  bool init_sensor_(uint8_t final_address, bool recovery = false);
 
   float signal_rate_limit_;
   bool long_range_;
@@ -84,6 +84,9 @@ class VL53L0XSensor final : public sensor::Sensor, public PollingComponent, publ
   // the comparison stays valid across the millis() rollover.
   uint32_t backoff_start_ms_{0};
   uint32_t backoff_duration_ms_{0};
+  // Keep the configured address separately; address_ temporarily becomes
+  // DEFAULT_I2C_ADDRESS during setup and recovery.
+  uint8_t configured_address_{DEFAULT_I2C_ADDRESS};
 
   uint32_t timeout_us_{};
 

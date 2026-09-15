@@ -57,10 +57,10 @@ void VL53L0XSensor::setup() {
 
   // Save the i2c address we want and force it to use the default address
   // until we finish setup, then re-address to final desired address.
-  uint8_t final_address = address_;
+  this->configured_address_ = this->address_;
   this->set_i2c_address(DEFAULT_I2C_ADDRESS);
 
-  if (!this->init_sensor_(final_address)) {
+  if (!this->init_sensor_(this->configured_address_)) {
     this->mark_failed();
   }
 }
@@ -68,7 +68,7 @@ void VL53L0XSensor::setup() {
 // Runs the full sensor init sequence. Returns false on failure (timeout or
 // failed reference calibration). Also used by the stall-recovery logic to
 // re-initialize the sensor at runtime without rebooting the ESP.
-bool VL53L0XSensor::init_sensor_(uint8_t final_address) {
+bool VL53L0XSensor::init_sensor_(uint8_t final_address, bool recovery) {
   reg(0x89) |= 0x01;
   reg(0x88) = 0x00;
 
@@ -254,12 +254,13 @@ bool VL53L0XSensor::init_sensor_(uint8_t final_address) {
   set_measurement_timing_budget_(measurement_timing_budget_us_);
   reg(0x01) = 0x01;
 
-  if (!perform_single_ref_calibration_(0x40)) {
+  const uint32_t calibration_timeout_ms = recovery ? 200 : 1000;
+  if (!perform_single_ref_calibration_(0x40, calibration_timeout_ms)) {
     ESP_LOGW(TAG, "1st reference calibration failed!");
     return false;
   }
   reg(0x01) = 0x02;
-  if (!perform_single_ref_calibration_(0x00)) {
+  if (!perform_single_ref_calibration_(0x00, calibration_timeout_ms)) {
     ESP_LOGW(TAG, "2nd reference calibration failed!");
     return false;
   }
@@ -275,7 +276,7 @@ bool VL53L0XSensor::init_sensor_(uint8_t final_address) {
   // A measurement may not take longer than its timing budget plus a margin. The
   // configured `timeout` can only extend that window, never shorten it - it is
   // also used for much shorter setup operations.
-  constexpr uint32_t measurement_timeout_margin_ms = 10;
+  constexpr uint32_t measurement_timeout_margin_ms = 100;
   this->stall_timeout_ms_ = this->measurement_timing_budget_us_ / 1000 + measurement_timeout_margin_ms;
   this->stall_timeout_ms_ = std::max(this->stall_timeout_ms_, this->timeout_us_ / 1000);
   return true;
@@ -338,11 +339,17 @@ void VL53L0XSensor::loop() {
   }
   if (this->waiting_for_interrupt_) {
     if (reg(0x13).get() & 0x07) {
-      uint8_t result[12];
-      this->read_bytes(0x14, result, 12);
+      uint8_t result[12]{};
+      if (!this->read_bytes(0x14, result, 12)) {
+        ESP_LOGW(TAG, "'%s' - result read failed", this->name_.c_str());
+        this->waiting_for_interrupt_ = false;
+        this->publish_state(NAN);
+        return;
+      }
       reg(0x0B) = 0x01;
       this->waiting_for_interrupt_ = false;
-      // The sensor answered, so it is not wedged.
+      // The sensor answered with a complete result block, but validity is
+      // checked below before resetting recovery counters.
       this->consecutive_stalls_ = 0;
 
       const uint8_t range_status = (result[0] & 0x78) >> 3;
@@ -429,11 +436,11 @@ void VL53L0XSensor::loop() {
     delay(2);
     // The soft reset restores the default address, so re-init has to talk to
     // that one and re-apply the configured address - save it before switching.
-    const uint8_t final_address = this->address_;
     this->set_i2c_address(DEFAULT_I2C_ADDRESS);
-    if (this->init_sensor_(final_address)) {
+    if (this->init_sensor_(this->configured_address_, true)) {
       ESP_LOGI(TAG, "'%s' - sensor re-initialized successfully, restarting measurement", this->name_.c_str());
       this->consecutive_stalls_ = 0;
+      this->backoff_duration_ms_ = 0;
       // recovery_attempts_ is only cleared once a VALID reading arrives.
       // Start the next measurement from a later loop iteration: the re-init
       // above blocked, so the timestamp update() reads here would be stale.
@@ -649,12 +656,12 @@ uint16_t VL53L0XSensor::encode_timeout_(uint16_t timeout_mclks) {
   return (ms_byte << 8) | (ls_byte & 0xFF);
 }
 
-bool VL53L0XSensor::perform_single_ref_calibration_(uint8_t vhv_init_byte) {
+bool VL53L0XSensor::perform_single_ref_calibration_(uint8_t vhv_init_byte, uint32_t timeout_ms) {
   reg(0x00) = 0x01 | vhv_init_byte;  // VL53L0X_REG_SYSRANGE_MODE_START_STOP
 
   uint32_t start = millis();
   while ((reg(0x13).get() & 0x07) == 0) {
-    if (millis() - start > 1000)
+    if (millis() - start > timeout_ms)
       return false;
     yield();
   }
