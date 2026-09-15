@@ -27,6 +27,7 @@ enum Flags : uint8_t {
   FLAG_OPEN_DRAIN = 0x04,
   FLAG_PULLUP = 0x08,
   FLAG_PULLDOWN = 0x10,
+  FLAG_HOLD = 0x20,
 };
 
 class FlagsHelper {
