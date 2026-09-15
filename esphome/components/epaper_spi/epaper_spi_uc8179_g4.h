@@ -66,7 +66,7 @@ class EPaperUC8179G4 : public EPaperBase {
   void power_off() override;
   void deep_sleep() override;
 
-  static uint8_t luminance_to_level_(Color color) {
+  static uint8_t luminance_to_level(Color color) {
     return static_cast<uint8_t>((color.r + color.g + color.b) / 3) >> 6;
   }
 

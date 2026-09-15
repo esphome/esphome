@@ -33,10 +33,10 @@ void EPaperUC8179G4::setup() {
 void EPaperUC8179G4::fill(Color color) {
   // If clipping is active, fall back to the base implementation
   if (this->get_clipping().is_set()) {
-    Display::fill(color);
+    EPaperBase::fill(color);
     return;
   }
-  const uint8_t level = luminance_to_level_(color);
+  const uint8_t level = luminance_to_level(color);
   this->buffer_.fill(level * 0b01010101u);  // 4 identical 2-bit pixels per byte
   this->x_low_ = 0;
   this->y_low_ = 0;
@@ -47,7 +47,7 @@ void EPaperUC8179G4::fill(Color color) {
 void HOT EPaperUC8179G4::draw_pixel_at(int x, int y, Color color) {
   if (!this->rotate_coordinates_(x, y))
     return;
-  const uint8_t level = luminance_to_level_(color);
+  const uint8_t level = luminance_to_level(color);
   const uint32_t pos = x + y * this->width_;
   const size_t byte_position = pos >> 2;
   const uint8_t shift = 6 - 2 * (pos & 0x3);
