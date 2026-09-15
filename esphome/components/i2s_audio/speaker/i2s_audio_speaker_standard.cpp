@@ -223,11 +223,11 @@ void I2SAudioSpeaker::run_speaker_task() {
       }
       if (resync_needed) {
         // Rebuild the lockstep in place; the ring buffer keeps accepting audio throughout
-        this->begin_lockstep_resync_(unrecorded_frames);
+        const bool resynced = this->resync_lockstep_(unrecorded_frames, preload_silence);
         unrecorded_frames = 0;
         pending_real_buffers = 0;
         resync_needed = false;
-        if (!preload_silence() || (i2s_channel_enable(this->tx_handle_) != ESP_OK)) {
+        if (!resynced) {
           ESP_LOGE(TAG, "DMA lockstep resync failed, restarting speaker task");
           break;
         }

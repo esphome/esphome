@@ -259,14 +259,14 @@ void I2SAudioSpeakerSPDIF::run_speaker_task() {
       if (resync_needed) {
         // Rebuild the lockstep in place. Frames held back by decimation are credited too, since their
         // blocks are discarded with the rest of the DMA contents.
-        this->begin_lockstep_resync_(unrecorded_frames + spdif_pending_frames);
+        this->spdif_encoder_->reset();
+        const bool resynced = this->resync_lockstep_(unrecorded_frames + spdif_pending_frames, preload_silence);
         unrecorded_frames = 0;
         spdif_pending_frames = 0;
         spdif_dma_event_count = 0;
         resync_needed = false;
         this->spdif_silence_start_ = 0;
-        this->spdif_encoder_->reset();
-        if (!preload_silence() || (i2s_channel_enable(this->tx_handle_) != ESP_OK)) {
+        if (!resynced) {
           ESP_LOGE(TAG, "DMA lockstep resync failed, restarting speaker task");
           break;
         }

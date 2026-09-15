@@ -132,10 +132,20 @@ class I2SAudioSpeakerBase : public I2SAudioOut, public speaker::Speaker, public 
   /// @brief Called in loop() when the task has stopped. Override for mode-specific cleanup.
   virtual void on_task_stopped() {}
 
-  /// @brief Disables the channel, credits every in-flight real frame as played now, and empties both lockstep
-  /// queues. The caller preloads silence and re-enables the channel, as at startup. Speaker task only.
+  /// @brief Rebuilds the lockstep queues in place: disables the channel, credits every in-flight real frame as
+  /// played now, empties both queues, preloads silence through ``preload`` and re-enables the channel. Speaker
+  /// task only.
   /// @param extra_frames Real frames the caller consumed that never reached a write record
-  void begin_lockstep_resync_(uint32_t extra_frames);
+  /// @param preload Callable returning true once every DMA descriptor holds silence with a matching record
+  /// @return false if the preload or the channel enable failed; the caller should restart the task
+  template<typename F> bool resync_lockstep_(uint32_t extra_frames, F &&preload) {
+    this->drain_lockstep_(extra_frames);
+    return preload() && (i2s_channel_enable(this->tx_handle_) == ESP_OK);
+  }
+
+  /// @brief Disables the channel, credits ``extra_frames`` plus every real frame still recorded as in flight,
+  /// and empties both lockstep queues.
+  void drain_lockstep_(uint32_t extra_frames);
 
   /// @brief Apply software volume control by running the samples through the gain ramp. Called from the
   /// speaker task only.

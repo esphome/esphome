@@ -325,7 +325,7 @@ bool IRAM_ATTR I2SAudioSpeakerBase::i2s_on_sent_cb(i2s_chan_handle_t handle, i2s
   return need_yield1 | need_yield2 | need_yield3;
 }
 
-void I2SAudioSpeakerBase::begin_lockstep_resync_(uint32_t extra_frames) {
+void I2SAudioSpeakerBase::drain_lockstep_(uint32_t extra_frames) {
   // Stop DMA so no more completion events arrive while the queues are rebuilt
   i2s_channel_disable(this->tx_handle_);
   xEventGroupClearBits(this->event_group_, SpeakerEventGroupBits::ERR_DROPPED_EVENT);
