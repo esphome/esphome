@@ -2,9 +2,11 @@
 
 from collections.abc import Callable, Generator
 from pathlib import Path
+import sys
 
 import pytest
 
+from esphome import loader
 from esphome.automation import ACTION_REGISTRY
 from esphome.components import remote_base
 import esphome.config_validation as cv
@@ -77,13 +79,19 @@ def test_every_registry_name_maps_to_a_protocol_source() -> None:
 
 @pytest.fixture
 def restore_protocol_registries() -> Generator[None]:
-    """Loading an external protocol component adds to module-level registries; undo that."""
+    """Loading an external protocol component adds to module-level registries; undo that.
+
+    The loader caches the component too, so drop it or a second load would skip the
+    decorators and leave the restored registries without the external names.
+    """
     registries = (remote_base.TRIGGER_REGISTRY, remote_base.DUMPER_REGISTRY)
     saved = [dict(registry) for registry in registries]
     yield
     for registry, entries in zip(registries, saved, strict=True):
         registry.clear()
         registry.update(entries)
+    loader._COMPONENT_CACHE.pop("fake_protocol", None)
+    sys.modules.pop("esphome.components.fake_protocol", None)
 
 
 @pytest.mark.usefixtures("restore_protocol_registries")
