@@ -14,6 +14,8 @@ from esphome.automation import (
     TriggerOnTrueForwarder,
     build_callback_automations,
     has_non_synchronous_actions,
+    register_bare_action,
+    register_bare_condition,
     register_parented_action,
     register_parented_condition,
     register_simple_action,
@@ -532,23 +534,18 @@ def registries() -> Generator[tuple[Registry, Registry]]:
     ("register", "is_action", "ctor_parent", "parented"),
     [
         (partial(register_simple_action, synchronous=True), True, True, False),
-        (
-            partial(register_simple_action, synchronous=True, parent=False),
-            True,
-            False,
-            False,
-        ),
+        (partial(register_bare_action, synchronous=True), True, False, False),
         (partial(register_parented_action, synchronous=True), True, False, True),
         (register_simple_condition, False, True, False),
-        (partial(register_simple_condition, parent=False), False, False, False),
+        (register_bare_condition, False, False, False),
         (register_parented_condition, False, False, True),
     ],
     ids=[
         "simple_action",
-        "simple_action_no_parent",
+        "bare_action",
         "parented_action",
         "simple_condition",
-        "simple_condition_no_parent",
+        "bare_condition",
         "parented_condition",
     ],
 )
@@ -592,6 +589,8 @@ def test_shared_builders_keep_synchronous_flag(
     """The synchronous flag reaches the registry entry unchanged."""
     actions, _ = registries
     register_simple_action("my.simple", ACTION_TYPE, {}, synchronous=synchronous)
+    register_bare_action("my.bare", ACTION_TYPE, {}, synchronous=synchronous)
     register_parented_action("my.parented", ACTION_TYPE, {}, synchronous=synchronous)
     assert actions["my.simple"].synchronous is synchronous
+    assert actions["my.bare"].synchronous is synchronous
     assert actions["my.parented"].synchronous is synchronous

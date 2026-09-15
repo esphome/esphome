@@ -437,8 +437,8 @@ file does, and it is the authority when they disagree. The most useful starting 
             "my_component.do_something", MyAction, schema, synchronous=True
         )
         ```
-        The constructor receives the object named by `config[CONF_ID]`. Use `parent=False` for a no-argument
-        constructor, `automation.register_parented_action(...)` for a class deriving from `Parented<T>`, and
+        The constructor receives the object named by `config[CONF_ID]`. Use `register_bare_action` for a
+        no-argument constructor, `register_parented_action` for a class deriving from `Parented<T>`, and
         the `@automation.register_action(...)` decorator only when the builder must also set fields.
 
         Use `synchronous=True` for actions that run to completion inside `play()` without deferring. Use `synchronous=False` if the action may suspend/defer execution (e.g. `delay`, `wait_until`, `script.wait`) or store trigger arguments for later use.
@@ -454,7 +454,7 @@ file does, and it is the authority when they disagree. The most useful starting 
         };
         ```
         Register with `automation.register_simple_condition("my_component.is_active", MyCondition, schema)`;
-        the same `parent=False`, `register_parented_condition` and decorator rules apply as for actions.
+        `register_bare_condition`, `register_parented_condition` and the decorator follow the action rules.
 
 *   **Type Hints:** Type-hint all function signatures, including test functions and config validators (e.g. `def validate_x(config: ConfigType) -> ConfigType:`, `def test_x() -> None:`). Import `ConfigType` from `esphome.types`.
 

@@ -138,30 +138,41 @@ def register_simple_action(
     schema: cv.Schema,
     *,
     synchronous: bool,
-    parent: bool = True,
 ) -> None:
-    """Register an action whose builder only constructs the C++ object.
+    """Register an action whose constructor takes the object named by ``config[CONF_ID]``.
 
-    With ``parent=True`` the constructor receives the object named by ``config[CONF_ID]``;
-    with ``parent=False`` it takes no arguments. Use the ``register_action`` decorator
-    instead when the builder must also set fields.
+    Use the ``register_action`` decorator instead when the builder must also set fields.
     """
     register_action(name, action_type, schema, synchronous=synchronous)(
-        _build_with_parent if parent else _build_without_parent
+        _build_with_parent
     )
 
 
 def register_simple_condition(
-    name: str,
-    condition_type: MockObjClass,
-    schema: cv.Schema,
-    *,
-    parent: bool = True,
+    name: str, condition_type: MockObjClass, schema: cv.Schema
 ) -> None:
     """Condition counterpart of ``register_simple_action``."""
-    register_condition(name, condition_type, schema)(
-        _build_with_parent if parent else _build_without_parent
+    register_condition(name, condition_type, schema)(_build_with_parent)
+
+
+def register_bare_action(
+    name: str,
+    action_type: MockObjClass,
+    schema: cv.Schema,
+    *,
+    synchronous: bool,
+) -> None:
+    """Register an action whose constructor takes no arguments."""
+    register_action(name, action_type, schema, synchronous=synchronous)(
+        _build_without_parent
     )
+
+
+def register_bare_condition(
+    name: str, condition_type: MockObjClass, schema: cv.Schema
+) -> None:
+    """Condition counterpart of ``register_bare_action``."""
+    register_condition(name, condition_type, schema)(_build_without_parent)
 
 
 def register_parented_action(
