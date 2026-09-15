@@ -12,17 +12,19 @@ class SunTextSensor final : public text_sensor::TextSensor, public PollingCompon
  public:
   void set_parent(Sun *parent) { parent_ = parent; }
   void set_elevation(double elevation) { elevation_ = elevation; }
-  void set_sunrise(bool sunrise) { sunrise_ = sunrise; }
+  void set_sunrise(uint8_t sunrise) { sunrise_ = sunrise; }
   void set_format(const char *format) { this->format_ = format; }
   /// Prevent accidental use of std::string which would dangle
   void set_format(const std::string &format) = delete;
 
   void update() override {
     optional<ESPTime> res;
-    if (this->sunrise_) {
+    if (this->sunrise_ == 0) {
       res = this->parent_->sunrise(this->elevation_);
-    } else {
+    } else if (this->sunrise_ == 1) {
       res = this->parent_->sunset(this->elevation_);
+    } else if (this->sunrise_ == 2) {
+      res = this->parent_->suntime();
     }
     if (!res) {
       this->publish_state("");
@@ -40,7 +42,7 @@ class SunTextSensor final : public text_sensor::TextSensor, public PollingCompon
   const char *format_{nullptr};
   Sun *parent_;
   double elevation_;
-  bool sunrise_;
+  uint8_t sunrise_;
 };
 
 }  // namespace esphome::sun

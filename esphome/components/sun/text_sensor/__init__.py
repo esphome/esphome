@@ -18,8 +18,9 @@ SunTextSensor = sun_ns.class_(
     "SunTextSensor", text_sensor.TextSensor, cg.PollingComponent
 )
 SUN_TYPES = {
-    "sunset": False,
-    "sunrise": True,
+    "sunset": 0,
+    "sunrise": 1,
+    "time": 2,
 }
 
 
@@ -29,6 +30,7 @@ def validate_optional_icon(config: ConfigType) -> ConfigType:
         config[CONF_ICON] = {
             "sunset": ICON_WEATHER_SUNSET_DOWN,
             "sunrise": ICON_WEATHER_SUNSET_UP,
+            "time": "mdi:calendar",
         }[config[CONF_TYPE]]
     return config
 
