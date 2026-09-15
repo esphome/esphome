@@ -190,6 +190,40 @@ def test_api_client_does_not_import_heavy_modules() -> None:
     )
 
 
+def test_binary_sensor_does_not_import_integrations() -> None:
+    """An entity component must not drag in its optional integrations.
+
+    binary_sensor's mqtt/web_server/zigbee schema fragments live in
+    ``esphome.core.entity_helpers``; the integration packages (and the
+    esp32/logger chains mqtt and zigbee pull in) must only load when the
+    user's config actually uses them.
+    """
+    allowed = (
+        "esphome.components",
+        "esphome.components.binary_sensor",
+        "esphome.components.const",
+    )
+    check = (
+        "import sys; import esphome.components.binary_sensor; "
+        f"leaked = [m for m in sys.modules "
+        f"if m.startswith('esphome.components') and m not in {allowed!r}]; "
+        "print(','.join(leaked))"
+    )
+    result = subprocess.run(
+        [sys.executable, "-c", check],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    leaked = result.stdout.strip()
+    assert not leaked, (
+        f"esphome.components.binary_sensor imports integration packages at "
+        f"top level: {leaked}. Keep the shared schema fragments in "
+        "esphome.core.entity_helpers and import the integration inside "
+        "to_code instead."
+    )
+
+
 def test_stacktrace_does_not_import_heavy_modules() -> None:
     """``esphome.stacktrace`` guards its own docstring's contract.
 
