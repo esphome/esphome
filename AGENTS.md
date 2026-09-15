@@ -431,17 +431,15 @@ file does, and it is the authority when they disagree. The most useful starting 
           MyComponent *parent_;
         };
         ```
-        When the builder only needs to construct the action, register it without writing one:
+        Register it without writing a builder:
         ```python
         automation.register_simple_action(
-            "my_component.do_something", MyAction, MY_ACTION_SCHEMA, synchronous=True
+            "my_component.do_something", MyAction, schema, synchronous=True
         )
         ```
-        This passes the object named by `config[CONF_ID]` to the constructor. Use `parent=False` for a
-        no-argument constructor, and `automation.register_parented_action(...)` when the C++ class derives
-        from `Parented<T>` (parent set via `set_parent()` after construction). Fall back to the
-        `@automation.register_action("my_component.do_something", MyAction, schema, synchronous=True)`
-        decorator only when the builder must also set fields (`cg.templatable`, `cg.add`).
+        The constructor receives the object named by `config[CONF_ID]`. Use `parent=False` for a no-argument
+        constructor, `automation.register_parented_action(...)` for a class deriving from `Parented<T>`, and
+        the `@automation.register_action(...)` decorator only when the builder must also set fields.
 
         Use `synchronous=True` for actions that run to completion inside `play()` without deferring. Use `synchronous=False` if the action may suspend/defer execution (e.g. `delay`, `wait_until`, `script.wait`) or store trigger arguments for later use.
 
@@ -455,9 +453,8 @@ file does, and it is the authority when they disagree. The most useful starting 
           MyComponent *parent_;
         };
         ```
-        Register with `automation.register_simple_condition("my_component.is_active", MyCondition, schema)`
-        (or `register_parented_condition` for `Parented<T>` classes); use the
-        `@automation.register_condition(...)` decorator only when the builder must do more than construct.
+        Register with `automation.register_simple_condition("my_component.is_active", MyCondition, schema)`;
+        the same `parent=False`, `register_parented_condition` and decorator rules apply as for actions.
 
 *   **Type Hints:** Type-hint all function signatures, including test functions and config validators (e.g. `def validate_x(config: ConfigType) -> ConfigType:`, `def test_x() -> None:`). Import `ConfigType` from `esphome.types`.
 

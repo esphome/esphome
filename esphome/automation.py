@@ -618,44 +618,20 @@ async def lambda_action_to_code(
     return new_lambda_pvariable(action_id, lambda_, StatelessLambdaAction, template_arg)
 
 
-@register_action(
+register_simple_action(
     "component.update",
     UpdateComponentAction,
-    maybe_simple_id(
-        {
-            cv.Required(CONF_ID): cv.use_id(cg.PollingComponent),
-        }
-    ),
+    maybe_simple_id({cv.Required(CONF_ID): cv.use_id(cg.PollingComponent)}),
     synchronous=True,
 )
-async def component_update_action_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    comp = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, comp)
 
 
-@register_action(
+register_simple_action(
     "component.suspend",
     SuspendComponentAction,
-    maybe_simple_id(
-        {
-            cv.Required(CONF_ID): cv.use_id(cg.PollingComponent),
-        }
-    ),
+    maybe_simple_id({cv.Required(CONF_ID): cv.use_id(cg.PollingComponent)}),
     synchronous=True,
 )
-async def component_suspend_action_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    comp = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, comp)
 
 
 @register_action(
