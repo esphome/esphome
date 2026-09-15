@@ -5,8 +5,6 @@ from esphome.components.cdc_acm_uart.bridge import CDCACMUARTBridge
 from esphome.components.esp32 import VARIANT_ESP32P4, VARIANT_ESP32S2, VARIANT_ESP32S3
 import esphome.config_validation as cv
 from esphome.const import CONF_ID
-from esphome.core import ID
-from esphome.cpp_generator import MockObj, TemplateArgsType
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
@@ -72,24 +70,15 @@ UART_MUX_ACTION_SCHEMA = automation.maybe_simple_id(
 )
 
 
-# The actions and the condition all take just the mux, so one builder serves them.
-@automation.register_action(
+automation.register_simple_action(
     "uart_mux.select_local", SelectLocalAction, UART_MUX_ACTION_SCHEMA, synchronous=True
 )
-@automation.register_action(
+automation.register_simple_action(
     "uart_mux.select_bridge",
     SelectBridgeAction,
     UART_MUX_ACTION_SCHEMA,
     synchronous=True,
 )
-@automation.register_condition(
+automation.register_simple_condition(
     "uart_mux.is_local", IsLocalCondition, UART_MUX_ACTION_SCHEMA
 )
-async def uart_mux_automation_to_code(
-    config: ConfigType,
-    automation_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    paren = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(automation_id, template_arg, paren)
