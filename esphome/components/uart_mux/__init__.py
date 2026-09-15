@@ -7,9 +7,11 @@ import esphome.config_validation as cv
 from esphome.const import CONF_ID
 from esphome.core import ID
 from esphome.cpp_generator import MockObj, TemplateArgsType
+import esphome.final_validate as fv
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@kbx81"]
+DOMAIN = "uart_mux"
 DEPENDENCIES = ["bridge", "uart"]
 MULTI_CONF = True
 
@@ -38,6 +40,23 @@ CONFIG_SCHEMA = cv.All(
         supported=[VARIANT_ESP32P4, VARIANT_ESP32S2, VARIANT_ESP32S3],
     ),
 )
+
+
+def _final_validate(config: ConfigType) -> ConfigType:
+    # Two muxes on one bridge would each believe they own the bus.
+    owned = fv.full_config.get().data.setdefault(DOMAIN, set())
+    bridge_id = str(config[CONF_BRIDGE_ID])
+    if bridge_id in owned:
+        raise cv.Invalid(
+            f"The bridge '{bridge_id}' is already routed by another 'uart_mux'; "
+            "each bridge supports one mux.",
+            [CONF_BRIDGE_ID],
+        )
+    owned.add(bridge_id)
+    return config
+
+
+FINAL_VALIDATE_SCHEMA = _final_validate
 
 
 async def to_code(config: ConfigType) -> None:

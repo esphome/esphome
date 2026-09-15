@@ -65,7 +65,14 @@ void UARTMux::select_bridge() {
   this->disable_loop();
 }
 
-void UARTMux::flush_input_() { uart_flush_input(static_cast<uart_port_t>(this->uart_->get_hw_serial_number())); }
+void UARTMux::flush_input_() {
+  uart_flush_input(static_cast<uart_port_t>(this->uart_->get_hw_serial_number()));
+  // The driver flush leaves the UART component's one-byte peek cache in place.
+  uint8_t discard;
+  if (this->uart_->available() > 0) {
+    this->uart_->read_byte(&discard);
+  }
+}
 
 void UARTMux::write_array(const uint8_t *data, size_t len) {
   if (!this->local_active_) {

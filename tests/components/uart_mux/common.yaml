@@ -30,15 +30,6 @@ uart_mux:
     bridge_id: bridge_0
     initial_route: local
 
-switch:
-  - platform: template
-    name: Mux local
-    optimistic: true
-    turn_on_action:
-      - uart_mux.select_local: mux_0
-    turn_off_action:
-      - uart_mux.select_bridge: mux_0
-
 interval:
   - interval: 60s
     then:
