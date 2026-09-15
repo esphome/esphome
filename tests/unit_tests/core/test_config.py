@@ -25,6 +25,7 @@ from esphome.const import (
 )
 from esphome.core import CORE, config
 from esphome.core.config import (
+    CONF_SUSPEND_LOOP,
     Area,
     make_app_name_cpp,
     preload_core_config,
@@ -224,6 +225,97 @@ def test_area_id_collision(
     captured = capsys.readouterr()
     # Exact duplicates are now caught by IDPassValidationStep
     assert "ID duplicate_id redefined! Check esphome->area->id." in captured.out
+
+
+@pytest.mark.parametrize(
+    ("fixture", "expected_platform"),
+    [
+        ("suspend_loop_host.yaml", "host"),
+        ("suspend_loop_rp2.yaml", "rp2"),
+    ],
+)
+def test_suspend_loop_fail(
+    yaml_file: Callable[[str], str],
+    capsys: pytest.CaptureFixture[str],
+    fixture: str,
+    expected_platform: str,
+) -> None:
+    """Test that suspend_loop fails."""
+    result = load_config_from_fixture(yaml_file, fixture, FIXTURES_DIR)
+    assert result is None
+
+    # Check for the specific error message in stdout
+    captured = capsys.readouterr()
+    assert (
+        f"Suspend loop is not available on {expected_platform} platform" in captured.out
+    )
+
+
+def test_loop_interval_warn_esp32(
+    yaml_file: Callable[[str], str],
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Test that too high loop_interval prints warning."""
+    result = load_config_from_fixture(
+        yaml_file, "loop_interval_esp32.yaml", FIXTURES_DIR
+    )
+    assert result is not None
+
+    assert (
+        "loop_interval of 7s exceeds the 2400ms maximum sleep on this platform; the loop will still "
+        "wake every 2400ms. Raise esp32.watchdog_timeout to sleep longer."
+        in caplog.text
+    )
+
+
+@pytest.mark.parametrize(
+    ("fixture", "interval", "max_loop"),
+    [
+        ("loop_interval_bk72xx.yaml", "5000ms", "4000"),
+        ("loop_interval_nrf52.yaml", "700ms", "600"),
+    ],
+)
+def test_loop_interval_warn(
+    yaml_file: Callable[[str], str],
+    caplog: pytest.LogCaptureFixture,
+    fixture: str,
+    interval: str,
+    max_loop: str,
+) -> None:
+    """Test that too high loop_interval prints warning."""
+    result = load_config_from_fixture(yaml_file, fixture, FIXTURES_DIR)
+    assert result is not None
+
+    assert (
+        f"loop_interval of {interval} exceeds the {max_loop}ms maximum sleep on this platform; the loop will still "
+        f"wake every {max_loop}ms." in caplog.text
+    )
+
+
+@pytest.mark.asyncio
+@pytest.mark.filterwarnings("ignore::RuntimeWarning")
+async def test_suspend_loop_and_loop_interval(
+    yaml_file: Callable[[str], Path],
+) -> None:
+    """Test suspend_loop and loop_interval on esp32"""
+    result = load_config_from_fixture(
+        yaml_file, "suspend_loop_esp32.yaml", FIXTURES_DIR
+    )
+    assert result is not None
+
+    esphome_config = result["esphome"]
+    assert esphome_config.get(CONF_SUSPEND_LOOP)
+
+    with patch("esphome.core.config.cg") as mock_cg:
+        mock_cg.RawStatement.side_effect = lambda *args, **kwargs: MagicMock()
+        mock_cg.RawExpression.side_effect = lambda *args, **kwargs: MagicMock()
+        await config.to_code(result[CONF_ESPHOME])
+
+    mock_cg.add_define.assert_any_call("ESPHOME_SUSPEND_LOOP")
+    mock_cg.add_define.assert_any_call("ESPHOME_DEBUG_SCHEDULER")
+    mock_cg.App.set_loop_interval.assert_called_once_with(
+        cv.TimePeriodMilliseconds(milliseconds=50)
+    )
 
 
 def test_device_without_area(yaml_file: Callable[[str], str]) -> None:

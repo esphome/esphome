@@ -40,7 +40,11 @@ from esphome.const import (
     CONF_PROJECT,
     CONF_TRIGGER_ID,
     CONF_VERSION,
+    CONF_WATCHDOG_TIMEOUT,
     KEY_CORE,
+    PLATFORM_ESP32,
+    PLATFORM_HOST,
+    PLATFORM_RP2,
     PlatformFramework,
     __version__ as ESPHOME_VERSION,
 )
@@ -50,6 +54,7 @@ from esphome.core import (
     CoroPriority,
     coroutine_with_priority,
 )
+import esphome.final_validate as fv
 from esphome.helpers import (
     copy_file_if_changed,
     cpp_string_escape,
@@ -59,6 +64,9 @@ from esphome.helpers import (
     walk_files,
 )
 from esphome.types import ConfigType
+
+CONF_LOOP_INTERVAL = "loop_interval"
+CONF_SUSPEND_LOOP = "suspend_loop"
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -183,6 +191,35 @@ def validate_ids_and_references(config: ConfigType) -> ConfigType:
     return config
 
 
+def validate_loop_interval(config: ConfigType) -> ConfigType:
+    if CONF_LOOP_INTERVAL in config and not (CORE.is_host or CORE.is_esp8266):
+        # max_loop interval is calculated from WDT_FEED_INTERVAL_MS. Make sure to align with application.h
+        max_loop = 600  # 2 * 300ms default for other platforms
+        if CORE.is_esp32:
+            max_loop = (
+                2
+                * fv.full_config.get()[PLATFORM_ESP32][
+                    CONF_WATCHDOG_TIMEOUT
+                ].total_milliseconds
+                // 5
+            )
+        elif CORE.is_bk72xx:
+            max_loop = 4000  # 10000ms / 5 * 2 default value
+        if config[CONF_LOOP_INTERVAL].total_milliseconds > max_loop:
+            _LOGGER.warning(
+                "%s of %s exceeds the %sms maximum sleep on this platform; the loop will still "
+                "wake every %sms.%s",
+                CONF_LOOP_INTERVAL,
+                config[CONF_LOOP_INTERVAL],
+                max_loop,
+                max_loop,
+                " Raise esp32.watchdog_timeout to sleep longer."
+                if CORE.is_esp32
+                else "",
+            )
+    return config
+
+
 def valid_include(value: str) -> str:
     # Look for "<...>" includes
     if value.startswith("<") and value.endswith(">"):
@@ -263,6 +300,15 @@ def validate_area_config(config: dict | str) -> dict[str, str | core.ID]:
     return cv.maybe_simple_value(AREA_SCHEMA, key=CONF_NAME)(config)
 
 
+def _validate_suspend_loop(value: bool) -> bool:
+    # host and RP2 platforms have unwakeable delay fallbacks, so suspending the main loop is unsafe
+    if value and CORE.target_platform in [PLATFORM_HOST, PLATFORM_RP2]:
+        raise cv.Invalid(
+            f"Suspend loop is not available on {CORE.target_platform} platform"
+        )
+    return value
+
+
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
@@ -328,6 +374,19 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(
                 CONF_DEBUG_SCHEDULER, default=False, visibility=cv.Visibility.YAML_ONLY
             ): cv.boolean,
+            cv.Optional(CONF_LOOP_INTERVAL, visibility=cv.Visibility.YAML_ONLY): cv.All(
+                cv.positive_time_period_milliseconds,
+                cv.Range(
+                    min=cv.TimePeriod(milliseconds=1),
+                    max=cv.TimePeriod(milliseconds=65535),
+                ),
+            ),
+            cv.Optional(
+                CONF_SUSPEND_LOOP, default=False, visibility=cv.Visibility.YAML_ONLY
+            ): cv.All(
+                cv.boolean,
+                _validate_suspend_loop,
+            ),
             cv.Optional(CONF_PROJECT): cv.Schema(
                 {
                     cv.Required(CONF_NAME): cv.All(
@@ -779,6 +838,10 @@ async def to_code(config: ConfigType) -> None:
         cg.add_cxx_build_flag("-Wno-volatile")
     if config[CONF_DEBUG_SCHEDULER]:
         cg.add_define("ESPHOME_DEBUG_SCHEDULER")
+    if config[CONF_SUSPEND_LOOP]:
+        cg.add_define("ESPHOME_SUSPEND_LOOP")
+    if CONF_LOOP_INTERVAL in config:
+        cg.add(cg.App.set_loop_interval(config[CONF_LOOP_INTERVAL]))
 
     if CORE.using_arduino:
         CORE.add_job(add_arduino_global_workaround)
