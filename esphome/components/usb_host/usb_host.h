@@ -133,9 +133,10 @@ struct UsbDeviceInfo {
   char serial_number[DESC_STRING_BUF_SIZE];
 };
 
-/// Copy a USB string descriptor into a NUL-terminated buffer, dropping characters outside
-/// Latin-1. A missing descriptor copies as an empty string.
-void copy_descriptor_string(const usb_str_desc_t *desc, std::span<char, DESC_STRING_BUF_SIZE> buffer);
+/// Copy a USB string descriptor into a NUL-terminated buffer. A missing descriptor copies as
+/// an empty string. Returns false when when a descriptor contains non-ASCII characters,
+/// UTF-16 to UTF-8 conversion is not currently implemented.
+bool copy_descriptor_string(const usb_str_desc_t *desc, std::span<char, DESC_STRING_BUF_SIZE> buffer);
 
 enum ClientState {
   USB_CLIENT_INIT = 0,

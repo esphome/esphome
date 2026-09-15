@@ -145,25 +145,31 @@ static void usb_client_print_config_descriptor(const usb_config_desc_t *cfg_desc
 #endif
 // bLength (uint8_t, max 255) includes the 2-byte header (bLength and bDescriptorType),
 // so character count = (bLength - 2) / 2.
-void copy_descriptor_string(const usb_str_desc_t *desc, std::span<char, DESC_STRING_BUF_SIZE> buffer) {
+bool copy_descriptor_string(const usb_str_desc_t *desc, std::span<char, DESC_STRING_BUF_SIZE> buffer) {
   buffer[0] = '\0';
   if (desc == nullptr || desc->bLength < 2)
-    return;
+    return true;
   int char_count = (desc->bLength - 2) / 2;
   char *p = buffer.data();
   char *end = p + buffer.size() - 1;
   for (int i = 0; i != char_count && p < end; i++) {
     auto c = desc->wData[i];
-    if (c < 0x100)
-      *p++ = static_cast<char>(c);
+    // TODO: encode non-ASCII code units as UTF-8 if a device with such descriptors turns up
+    if (c >= 0x80) {
+      buffer[0] = '\0';
+      return false;
+    }
+    *p++ = static_cast<char>(c);
   }
   *p = '\0';
+  return true;
 }
 
 static const char *get_descriptor_string(const usb_str_desc_t *desc, std::span<char, DESC_STRING_BUF_SIZE> buffer) {
   if (desc == nullptr || desc->bLength < 2)
     return "(unspecified)";
-  copy_descriptor_string(desc, buffer);
+  if (!copy_descriptor_string(desc, buffer))
+    return "(non-ASCII)";
   return buffer.data();
 }
 
@@ -179,9 +185,15 @@ bool USBClient::get_device_info(UsbDeviceInfo &info) const {
   usb_device_info_t dev_info;
   if (usb_host_device_info(this->device_handle_, &dev_info) != ESP_OK)
     return false;
-  copy_descriptor_string(dev_info.str_desc_manufacturer, info.manufacturer);
-  copy_descriptor_string(dev_info.str_desc_product, info.product);
-  copy_descriptor_string(dev_info.str_desc_serial_num, info.serial_number);
+  if (!copy_descriptor_string(dev_info.str_desc_manufacturer, info.manufacturer)) {
+    ESP_LOGW(TAG, "Manufacturer string descriptor is not ASCII");
+  }
+  if (!copy_descriptor_string(dev_info.str_desc_product, info.product)) {
+    ESP_LOGW(TAG, "Product string descriptor is not ASCII");
+  }
+  if (!copy_descriptor_string(dev_info.str_desc_serial_num, info.serial_number)) {
+    ESP_LOGW(TAG, "Serial number string descriptor is not ASCII");
+  }
   return true;
 }
 
