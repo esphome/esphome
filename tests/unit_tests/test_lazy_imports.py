@@ -15,7 +15,6 @@ test pins down *which* heavy modules must stay out entirely.
 from __future__ import annotations
 
 import importlib.util
-import os
 from pathlib import Path
 import subprocess
 import sys
@@ -41,6 +40,30 @@ FAST_PATH_HEAVY_MODULES = HEAVY_MODULES + ("esphome.components.esp32",)
 # in the existence guard so a rename can't silently no-op its check.
 API_HEAVY_MODULES = ("aioesphomeapi",)
 
+# Heavy only for the single-config dispatch path: the bundle suffix
+# check reads BUNDLE_EXTENSION from esphome.const so an ordinary run
+# never pays for the bundle machinery and its tarfile chain.
+BUNDLE_HEAVY_MODULES = ("esphome.bundle", "tarfile")
+
+# Heavy only for a cache-hit upload/logs run: the JSON cache parse must
+# not resolve pyyaml or the yaml_util chain (the read_config fallback
+# still uses both).
+CACHE_HIT_HEAVY_MODULES = ("esphome.yaml_util", "yaml")
+
+# Stdlib modules deferred out of the dispatch fast path: a cache-hit
+# upload/logs run never writes a file (tempfile), spawns a process
+# (subprocess), parses a URL (urllib.parse), or prints a serial
+# permission hint (getpass). shutil is deferred too but unwatchable:
+# argparse imports it from every add_argument on py3.14. urllib.parse
+# is only watchable on 3.13+ where pathlib stopped importing it.
+STDLIB_FAST_PATH_MODULES = (
+    "tempfile",
+    "subprocess",
+    "getpass",
+    "datetime",
+    *(("urllib.parse",) if sys.version_info >= (3, 13) else ()),
+)
+
 
 def _leaked_heavy_modules(module: str, extra: tuple[str, ...] = ()) -> str:
     """Import ``module`` in a subprocess and report the heavy modules it pulled.
@@ -65,8 +88,14 @@ def _leaked_heavy_modules(module: str, extra: tuple[str, ...] = ()) -> str:
 
 
 def test_main_module_does_not_import_heavy_modules() -> None:
-    """A bare ``import esphome.__main__`` must not drag in validation/codegen."""
-    leaked = _leaked_heavy_modules("esphome.__main__")
+    """A bare ``import esphome.__main__`` must not drag in validation/codegen.
+
+    The stdlib watch list rides along here because this check runs in a
+    clean subprocess: a module-level re-import anywhere on the chain is
+    caught, which the dispatch fixture (whose setup pre-imports them and
+    pops before dispatch) structurally cannot do.
+    """
+    leaked = _leaked_heavy_modules("esphome.__main__", extra=STDLIB_FAST_PATH_MODULES)
     assert not leaked, (
         f"esphome.__main__ imports heavy modules at top level: {leaked}. "
         "Import them lazily inside the command that needs them instead; "
@@ -77,25 +106,32 @@ def test_main_module_does_not_import_heavy_modules() -> None:
 
 def test_watched_heavy_modules_exist() -> None:
     """A renamed heavy module would silently disable the leak checks."""
-    for module in FAST_PATH_HEAVY_MODULES + API_HEAVY_MODULES:
+    for module in (
+        FAST_PATH_HEAVY_MODULES
+        + API_HEAVY_MODULES
+        + BUNDLE_HEAVY_MODULES
+        + CACHE_HIT_HEAVY_MODULES
+        + STDLIB_FAST_PATH_MODULES
+    ):
         assert importlib.util.find_spec(module) is not None, (
             f"{module} no longer resolves; update the heavy-module lists"
         )
 
 
-def _leaked_from_fixture(fixture_path: Path, script_name: str) -> str:
+def _leaked_from_fixture(
+    fixture_path: Path,
+    env: dict[str, str],
+    script_name: str,
+    extra: tuple[str, ...] = (),
+) -> str:
     """Run a fixture script with the watched modules on argv.
 
-    Running a script file drops the cwd from sys.path, so prepend the
-    repo root for the child; a non-zero exit surfaces the child's stderr.
+    ``env`` comes from the ``probe_env`` fixture so the child can import
+    the repo checkout; a non-zero exit surfaces the child's stderr.
     """
     script = fixture_path / "lazy_imports" / script_name
-    python_path = str(Path(__file__).parents[2])
-    if ambient := os.environ.get("PYTHONPATH"):
-        python_path = os.pathsep.join((python_path, ambient))
-    env = os.environ | {"PYTHONPATH": python_path}
     result = subprocess.run(
-        [sys.executable, str(script), *FAST_PATH_HEAVY_MODULES],
+        [sys.executable, str(script), *FAST_PATH_HEAVY_MODULES, *extra],
         capture_output=True,
         text=True,
         env=env,
@@ -107,12 +143,13 @@ def _leaked_from_fixture(fixture_path: Path, script_name: str) -> str:
 
 def test_storage_json_fast_path_does_not_import_heavy_modules(
     fixture_path: Path,
+    probe_env: dict[str, str],
 ) -> None:
     """``apply_to_core`` runs on the upload/logs fast path for every
     platform; parsing the stored framework version must not drag in the
     validation stack or the esp32 component package.
     """
-    leaked = _leaked_from_fixture(fixture_path, "storage_json_fast_path.py")
+    leaked = _leaked_from_fixture(fixture_path, probe_env, "storage_json_fast_path.py")
     assert not leaked, (
         f"storage_json.apply_to_core pulls in heavy modules: {leaked}. "
         "The upload/logs fast path skips validation; importing the "
@@ -122,12 +159,15 @@ def test_storage_json_fast_path_does_not_import_heavy_modules(
 
 def test_esptool_upload_fast_path_does_not_import_heavy_modules(
     fixture_path: Path,
+    probe_env: dict[str, str],
 ) -> None:
     """The esptool serial upload reads the esp32 variant from CORE.data;
     resolving it must not drag in the esp32 component package or the
     validation stack.
     """
-    leaked = _leaked_from_fixture(fixture_path, "esptool_upload_fast_path.py")
+    leaked = _leaked_from_fixture(
+        fixture_path, probe_env, "esptool_upload_fast_path.py"
+    )
     assert not leaked, (
         f"upload_using_esptool pulls in heavy modules: {leaked}. "
         "The upload fast path skips validation; importing the validation "
@@ -211,4 +251,40 @@ def test_has_mqtt_ip_lookup_does_not_import_mqtt() -> None:
         f"has_mqtt_ip_lookup pulls in heavy modules: {leaked}. "
         "The upload/logs fast path skips validation; importing the "
         "validation stack anyway defeats the validated-config cache."
+    )
+
+
+def test_yaml_util_does_not_import_heavy_modules() -> None:
+    """``esphome.yaml_util`` parses the validated-config cache on the
+    upload/logs fast path; importing it must not pull in voluptuous.
+    """
+    leaked = _leaked_heavy_modules("esphome.yaml_util")
+    assert not leaked, (
+        f"esphome.yaml_util imports heavy modules at top level: {leaked}. "
+        "The upload/logs fast path skips validation; importing the "
+        "validation stack anyway defeats the validated-config cache."
+    )
+
+
+def test_upload_command_path_does_not_import_heavy_modules(
+    fixture_path: Path,
+    probe_env: dict[str, str],
+) -> None:
+    """The single-config dispatch path checks the bundle suffix on every
+    run; reading it from esphome.const must not drag in esphome.bundle
+    and its tarfile chain.
+    """
+    leaked = _leaked_from_fixture(
+        fixture_path,
+        probe_env,
+        "upload_command_fast_path.py",
+        extra=BUNDLE_HEAVY_MODULES + CACHE_HIT_HEAVY_MODULES + STDLIB_FAST_PATH_MODULES,
+    )
+    assert not leaked, (
+        f"the upload dispatch path pulls in heavy modules: {leaked}. "
+        "An ordinary run only needs the bundle suffix constant, and the "
+        "JSON cache parse must not resolve voluptuous or pyyaml; keep the "
+        "esphome.bundle import inside the branch that extracts one, the "
+        "yaml_util imports inside the read_config fallback, and the "
+        "deferred stdlib imports inside the write/spawn/serial helpers."
     )

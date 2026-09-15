@@ -4,7 +4,7 @@ from enum import Enum
 
 from esphome.enum import StrEnum
 
-__version__ = "2026.8.0-dev"
+__version__ = "2026.10.0-dev"
 
 ALLOWED_NAME_CHARS = "abcdefghijklmnopqrstuvwxyz0123456789-_"
 VALID_SUBSTITUTIONS_CHARACTERS = (
@@ -21,6 +21,14 @@ class Toolchain(StrEnum):
     PLATFORMIO = "platformio"
     ESP_IDF = "esp-idf"
     SDK_NRF = "sdk-nrf"
+    # ESP8266: the Arduino core built directly (no PlatformIO)
+    ARDUINO = "arduino"
+
+
+# Toolchains that drive their build natively and never read platformio.ini.
+# SDK_NRF is absent on purpose: the zephyr backend keeps consuming
+# platformio_options.
+NATIVE_TOOLCHAINS = frozenset({Toolchain.ESP_IDF, Toolchain.ARDUINO})
 
 
 class Platform(StrEnum):
@@ -121,6 +129,7 @@ PLATFORM_RP2040 = Platform.RP2040
 PLATFORM_RTL87XX = Platform.RTL87XX
 
 
+BUNDLE_EXTENSION = ".esphomebundle.tar.gz"
 SOURCE_FILE_EXTENSIONS = {".cpp", ".hpp", ".h", ".c", ".tcc", ".ino"}
 HEADER_FILE_EXTENSIONS = {".h", ".hpp", ".tcc"}
 SECRETS_FILES = ("secrets.yaml", "secrets.yml")

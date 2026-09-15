@@ -1,0 +1,13 @@
+# Config-only: the CI base board (generic-bk7252, BLE 4.2) cannot compile the
+# BLE 5.x tracker, so this fixture proves validation (schema + neutral binding)
+# on a non-esp32 platform; codegen and compilation are not exercised here. The display platform is excluded: it needs ble_client
+# (GATT), which only the esp32 tracker stack provides.
+bk72xx_ble_tracker:
+  id: ble_hub
+
+sensor:
+  - platform: pvvx_mithermometer
+    ble_hub_id: ble_hub
+    mac_address: A4:C1:38:4E:16:78
+    temperature:
+      name: BK PVVX Temperature
