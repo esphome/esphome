@@ -68,6 +68,7 @@ from .const import (
     BOOTLOADER_ADAFRUIT_NRF52_SD132,
     BOOTLOADER_ADAFRUIT_NRF52_SD140_V6,
     BOOTLOADER_ADAFRUIT_NRF52_SD140_V7,
+    BOOTLOADER_NRF,
 )
 from .framework import (
     check_and_install,
@@ -161,12 +162,12 @@ def set_framework(config: ConfigType) -> ConfigType:
 
 BOOTLOADERS = [
     BOOTLOADER_ADAFRUIT,
+    BOOTLOADER_NRF,
     BOOTLOADER_ADAFRUIT_NRF52_SD132,
     BOOTLOADER_ADAFRUIT_NRF52_SD140_V6,
     BOOTLOADER_ADAFRUIT_NRF52_SD140_V7,
     BOOTLOADER_MCUBOOT,
 ]
-
 
 _validate_toolchain = cv.toolchain_enum(_TOOLCHAINS)
 
@@ -426,6 +427,19 @@ async def to_code(config: ConfigType) -> None:
                 };
             """
         )
+    if config[KEY_BOOTLOADER] == BOOTLOADER_NRF:
+        # The nrf52840dongle board DTS enables uart0 unconditionally and its
+        # pinctrl maps UART RX to P0.24, RTS to P0.17 and CTS to P0.22. The
+        # dongle has no wired serial console, and those pins are the ones
+        # exposed on the castellated edge for GPIO use — disable uart0 so
+        # nothing claims them.
+        zephyr_add_overlay(
+            """
+                &uart0 {
+                    status = "disabled";
+                };
+            """
+        )
     zephyr_add_prj_conf("REBOOT", True)
 
 
@@ -555,6 +569,7 @@ def upload_program(config: ConfigType, args, host: str) -> bool:
                 bootloader = zephyr_data()[KEY_BOOTLOADER]
                 if bootloader not in (
                     BOOTLOADER_ADAFRUIT,
+                    BOOTLOADER_NRF,
                     BOOTLOADER_ADAFRUIT_NRF52_SD132,
                     BOOTLOADER_ADAFRUIT_NRF52_SD140_V6,
                     BOOTLOADER_ADAFRUIT_NRF52_SD140_V7,
@@ -573,8 +588,14 @@ def upload_program(config: ConfigType, args, host: str) -> bool:
                 import serial.tools.list_ports as _list_ports
 
                 try:
-                    ser = _serial.Serial(host, baudrate=1200, timeout=1)
-                    ser.close()
+                    if bootloader != BOOTLOADER_NRF:
+                        # Adafruit bootloader: 1200bps touch forces a reset
+                        # into the bootloader.
+                        ser = _serial.Serial(host, baudrate=1200, timeout=1)
+                        ser.close()
+                    # BOOTLOADER_NRF (Nordic Open DFU Bootloader) has no
+                    # auto-entry: the user enters it by holding SW1 during
+                    # power-up. The port wait below handles both cases.
                 except _serial.SerialException as err:
                     raise EsphomeError(f"Failed to open {host}: {err}") from err
 
@@ -599,8 +620,9 @@ def upload_program(config: ConfigType, args, host: str) -> bool:
                         break
                 else:
                     raise EsphomeError(
-                        f"DFU port {host!r} did not reappear within 10 s. "
-                        "Check that the device entered DFU mode."
+                        f"DFU port {host!r} was not available within 10 s. "
+                        "Enter bootloader mode first (on the nrf52840dongle: "
+                        "hold SW1 while plugging the device in)."
                     )
 
                 # Wait for udev to finish setting up device permissions
