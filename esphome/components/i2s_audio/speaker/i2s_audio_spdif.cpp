@@ -168,39 +168,44 @@ void I2SAudioSpeakerSPDIF::run_speaker_task() {
     }
   }
 
-  if (!successful_setup) {
-    xEventGroupSetBits(this->event_group_, SpeakerEventGroupBits::ERR_ESP_NO_MEM);
-  } else {
-    // Preload DMA buffers with SPDIF-encoded silence before enabling the channel.
-    // This ensures the first data transmitted is valid SPDIF (not raw zeros from
-    // auto_clear) and prevents phantom DMA events before real audio is available.
-    // Each preloaded block pushes a 0-real-frame record so that the corresponding
-    // on_sent events drain in lockstep without crediting any audio frames. Runs with
-    // the channel disabled: at startup and after a resync.
-    auto preload_silence = [&]() -> bool {
-      bool ok = true;
-      this->spdif_encoder_->set_preload_mode(true);
-      for (size_t i = 0; i < SPDIF_DMA_BUFFERS_COUNT; i++) {
-        // i2s_channel_preload_data is non-blocking (returns immediately when the preload buffer fills), so no wait.
-        const uint32_t silence_record = 0;
-        if ((this->spdif_encoder_->flush_with_silence(0) != ESP_OK) ||
-            (xQueueSendToBack(this->write_records_queue_, &silence_record, 0) != pdTRUE)) {
-          ok = false;
-          break;
-        }
+  // Preload DMA buffers with SPDIF-encoded silence before enabling the channel.
+  // This ensures the first data transmitted is valid SPDIF (not raw zeros from
+  // auto_clear) and prevents phantom DMA events before real audio is available.
+  // Each preloaded block pushes a 0-real-frame record so that the corresponding
+  // on_sent events drain in lockstep without crediting any audio frames. Runs with
+  // the channel disabled: at startup and after a resync.
+  auto preload_silence = [&]() -> bool {
+    bool ok = true;
+    this->spdif_encoder_->set_preload_mode(true);
+    for (size_t i = 0; i < SPDIF_DMA_BUFFERS_COUNT; i++) {
+      // i2s_channel_preload_data is non-blocking (returns immediately when the preload buffer fills), so no wait.
+      const uint32_t silence_record = 0;
+      if ((this->spdif_encoder_->flush_with_silence(0) != ESP_OK) ||
+          (xQueueSendToBack(this->write_records_queue_, &silence_record, 0) != pdTRUE)) {
+        ok = false;
+        break;
       }
-      this->spdif_encoder_->set_preload_mode(false);
-      this->spdif_encoder_->reset();  // Clean encoder state for the main loop
-      return ok;
-    };
-    preload_silence();
+    }
+    this->spdif_encoder_->set_preload_mode(false);
+    this->spdif_encoder_->reset();  // Clean encoder state for the main loop
+    return ok;
+  };
 
-    // Now register the callback and enable the channel
+  if (successful_setup) {
+    successful_setup = preload_silence();
+  }
+
+  if (successful_setup) {
+    // Register the callback before enabling so the first transmitted block generates a queued event.
     xQueueReset(this->i2s_event_queue_);
     const i2s_event_callbacks_t callbacks = {.on_sent = i2s_on_sent_cb};
     i2s_channel_register_event_callback(this->tx_handle_, &callbacks, this);
-    i2s_channel_enable(this->tx_handle_);
+    successful_setup = i2s_channel_enable(this->tx_handle_) == ESP_OK;
+  }
 
+  if (!successful_setup) {
+    xEventGroupSetBits(this->event_group_, SpeakerEventGroupBits::ERR_ESP_NO_MEM);
+  } else {
     // Always-fill model: each iteration produces exactly one SPDIF block (= one DMA buffer).
     // We drain real PCM up to one block from the ring buffer and silence-pad any remainder.
     // Blocking writes pace the loop at the DMA consumption rate. This mirrors the standard
