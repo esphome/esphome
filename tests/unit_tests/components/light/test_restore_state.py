@@ -11,7 +11,10 @@ from esphome.components.light import (
     light_schema,
 )
 from esphome.components.light.restore_state import (
+    _RESTORE_STATE_FIELDS_SCHEMA,
     LEGACY_RESTORE_MODES,
+    RESTORE_STATE_INITIAL,
+    RESTORE_STATE_INVERT,
     RESTORE_STATE_KEEP,
     RESTORE_STATE_NONE,
     RESTORE_STATE_SCHEMA,
@@ -20,10 +23,12 @@ from esphome.components.light.restore_state import (
     _legacy_cold_boot_statements,
     _partition_state_statements,
     _restore_state_statements,
+    _validate_restore_state_state,
 )
 import esphome.config_validation as cv
 from esphome.const import CONF_STATE
 from esphome.core import Lambda
+from esphome.schema_extractors import SCHEMA_EXTRACT
 
 # (mode name, expected cold_boot_state, expected restore_action, expected save_enabled)
 LEGACY_MODE_TABLE = [
@@ -190,6 +195,26 @@ def test_restore_state_state_prioritizes_on_off(
     # A quoted "ON"/"OFF" string, distinct from KEEP/INVERT, still resolves via
     # validate_light_state -- matching initial_state:'s own state field.
     assert RESTORE_STATE_SCHEMA({"state": value})["state"] is expected
+
+
+def test_validate_restore_state_state_schema_extract_reports_all_options() -> None:
+    # Regression test: SCHEMA_EXTRACT is an object() sentinel, not a str, so a naive
+    # isinstance(value, str) check falls through to validate_light_state() and silently
+    # drops KEEP/INVERT/INITIAL from the extracted docs schema.
+    assert _validate_restore_state_state(SCHEMA_EXTRACT) == (
+        RESTORE_STATE_KEEP,
+        RESTORE_STATE_INVERT,
+        RESTORE_STATE_INITIAL,
+        "ON",
+        "OFF",
+    )
+
+
+def test_restore_state_schema_extract_returns_fields_schema() -> None:
+    # The `all`/`none` shorthands aren't representable here; extraction only walks
+    # the per-field mapping form, so it must resolve to the real fields schema
+    # rather than falling through to the untyped/unknown bucket.
+    assert RESTORE_STATE_SCHEMA(SCHEMA_EXTRACT) is _RESTORE_STATE_FIELDS_SCHEMA
 
 
 @pytest.mark.parametrize(

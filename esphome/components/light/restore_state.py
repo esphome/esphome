@@ -24,6 +24,7 @@ from esphome.const import (
 )
 from esphome.core import Lambda
 from esphome.cpp_generator import call_lambda
+from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 from esphome.types import ConfigType
 
 from .automation import validate_light_state
@@ -106,6 +107,10 @@ def _partition_state_statements(
     # dict() over (member, statement) pairs keeps the *last* entry per member.
     initial_map = dict(initial_statements)
     restore_map = dict(restore_statements)
+    # A member outside _MEMBER_ORDER would be silently skipped below instead of
+    # raising -- catch that here so a typo doesn't turn into wrong state on a device.
+    assert set(initial_map) <= set(_MEMBER_ORDER)
+    assert set(restore_map) <= set(_MEMBER_ORDER)
 
     common: list[str] = []
     only_initial: list[str] = []
@@ -276,7 +281,15 @@ def _keep_or(validator: Callable[[Any], Any]) -> Callable[[Any], Any]:
     return validate
 
 
+@schema_extractor("one_of")
 def _validate_restore_state_state(value: Any) -> str | bool:
+    if value == SCHEMA_EXTRACT:
+        return (
+            RESTORE_STATE_KEEP,
+            RESTORE_STATE_INVERT,
+            RESTORE_STATE_INITIAL,
+            *validate_light_state(SCHEMA_EXTRACT),
+        )
     if isinstance(value, str):
         upper = value.strip().upper()
         if upper in (RESTORE_STATE_KEEP, RESTORE_STATE_INVERT, RESTORE_STATE_INITIAL):
@@ -315,10 +328,15 @@ _RESTORE_STATE_FIELDS_SCHEMA = cv.Schema(
 )
 
 
+@schema_extractor("schema")
 def RESTORE_STATE_SCHEMA(value: Any) -> ConfigType | str:
     """
     The restore_state: config key can be a mapping of per-field overrides, `all`, or `none`.
     """
+    if value == SCHEMA_EXTRACT:
+        # The `all`/`none` string shorthands have no representation in the extracted
+        # docs schema; only the per-field mapping form is walked here.
+        return _RESTORE_STATE_FIELDS_SCHEMA
     if isinstance(value, str):
         upper = value.strip().upper()
         if upper == RESTORE_STATE_ALL:
