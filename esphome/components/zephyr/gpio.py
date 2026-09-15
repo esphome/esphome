@@ -66,7 +66,7 @@ def _validate_gpio_pin(value):
                     f"pins 0-{variant_info.gpio_port_width - 1}"
                 )
 
-        return port_labels.index(letter) * variant_info.gpio_port_width + pin
+            return port_labels.index(letter) * variant_info.gpio_port_width + pin
         if (m := _DOTTED_PIN_RE.fullmatch(value)) is not None:
             from . import zephyr_data
             from .variants import VARIANTS
