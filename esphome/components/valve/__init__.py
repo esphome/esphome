@@ -184,36 +184,36 @@ VALVE_ACTION_SCHEMA = maybe_simple_id(
 )
 
 
-@automation.register_action(
-    "valve.open", OpenAction, VALVE_ACTION_SCHEMA, synchronous=True
+automation.register_simple_action(
+    "valve.open",
+    OpenAction,
+    VALVE_ACTION_SCHEMA,
+    synchronous=True,
 )
-async def valve_open_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, paren)
 
 
-@automation.register_action(
-    "valve.close", CloseAction, VALVE_ACTION_SCHEMA, synchronous=True
+automation.register_simple_action(
+    "valve.close",
+    CloseAction,
+    VALVE_ACTION_SCHEMA,
+    synchronous=True,
 )
-async def valve_close_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, paren)
 
 
-@automation.register_action(
-    "valve.stop", StopAction, VALVE_ACTION_SCHEMA, synchronous=True
+automation.register_simple_action(
+    "valve.stop",
+    StopAction,
+    VALVE_ACTION_SCHEMA,
+    synchronous=True,
 )
-async def valve_stop_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, paren)
 
 
-@automation.register_action(
-    "valve.toggle", ToggleAction, VALVE_ACTION_SCHEMA, synchronous=True
+automation.register_simple_action(
+    "valve.toggle",
+    ToggleAction,
+    VALVE_ACTION_SCHEMA,
+    synchronous=True,
 )
-async def valve_toggle_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, paren)
 
 
 VALVE_CONTROL_ACTION_SCHEMA = cv.Schema(

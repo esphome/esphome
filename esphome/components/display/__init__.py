@@ -288,7 +288,7 @@ async def display_page_show_to_code(config, action_id, template_arg, args):
     return var
 
 
-@automation.register_action(
+automation.register_simple_action(
     "display.page.show_next",
     DisplayPageShowNextAction,
     maybe_simple_id(
@@ -298,12 +298,9 @@ async def display_page_show_to_code(config, action_id, template_arg, args):
     ),
     synchronous=True,
 )
-async def display_page_show_next_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, paren)
 
 
-@automation.register_action(
+automation.register_simple_action(
     "display.page.show_previous",
     DisplayPageShowPrevAction,
     maybe_simple_id(
@@ -313,9 +310,6 @@ async def display_page_show_next_to_code(config, action_id, template_arg, args):
     ),
     synchronous=True,
 )
-async def display_page_show_previous_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, paren)
 
 
 @automation.register_condition(

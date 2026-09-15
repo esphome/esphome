@@ -80,7 +80,7 @@ async def servo_write_to_code(
     return var
 
 
-@automation.register_action(
+automation.register_simple_action(
     "servo.detach",
     ServoDetachAction,
     maybe_simple_id(
@@ -90,11 +90,3 @@ async def servo_write_to_code(
     ),
     synchronous=True,
 )
-async def servo_detach_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    paren = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, paren)

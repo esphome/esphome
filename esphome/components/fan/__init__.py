@@ -316,20 +316,20 @@ FAN_ACTION_SCHEMA = maybe_simple_id(
 )
 
 
-@automation.register_action(
-    "fan.toggle", ToggleAction, FAN_ACTION_SCHEMA, synchronous=True
+automation.register_simple_action(
+    "fan.toggle",
+    ToggleAction,
+    FAN_ACTION_SCHEMA,
+    synchronous=True,
 )
-async def fan_toggle_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, paren)
 
 
-@automation.register_action(
-    "fan.turn_off", TurnOffAction, FAN_ACTION_SCHEMA, synchronous=True
+automation.register_simple_action(
+    "fan.turn_off",
+    TurnOffAction,
+    FAN_ACTION_SCHEMA,
+    synchronous=True,
 )
-async def fan_turn_off_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, paren)
 
 
 @automation.register_action(
@@ -410,7 +410,7 @@ async def fan_cycle_speed_to_code(config, action_id, template_arg, args):
     return var
 
 
-@automation.register_condition(
+automation.register_simple_condition(
     "fan.is_on",
     FanIsOnCondition,
     automation.maybe_simple_id(
@@ -419,7 +419,9 @@ async def fan_cycle_speed_to_code(config, action_id, template_arg, args):
         }
     ),
 )
-@automation.register_condition(
+
+
+automation.register_simple_condition(
     "fan.is_off",
     FanIsOffCondition,
     automation.maybe_simple_id(
@@ -428,9 +430,6 @@ async def fan_cycle_speed_to_code(config, action_id, template_arg, args):
         }
     ),
 )
-async def fan_is_on_off_to_code(config, condition_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(condition_id, template_arg, paren)
 
 
 @coroutine_with_priority(CoroPriority.CORE)

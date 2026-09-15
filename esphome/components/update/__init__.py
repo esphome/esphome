@@ -160,7 +160,7 @@ async def update_perform_action_to_code(
     return var
 
 
-@automation.register_action(
+automation.register_parented_action(
     "update.check",
     CheckAction,
     automation.maybe_simple_id(
@@ -170,18 +170,9 @@ async def update_perform_action_to_code(
     ),
     synchronous=True,
 )
-async def update_check_action_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    return var
 
 
-@automation.register_condition(
+automation.register_parented_condition(
     "update.is_available",
     IsAvailableCondition,
     automation.maybe_simple_id(
@@ -190,12 +181,3 @@ async def update_check_action_to_code(
         }
     ),
 )
-async def update_is_available_condition_to_code(
-    config: ConfigType,
-    condition_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    var = cg.new_Pvariable(condition_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    return var

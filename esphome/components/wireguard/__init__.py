@@ -163,47 +163,31 @@ async def to_code(config):
     await cg.register_component(var, config)
 
 
-@automation.register_condition(
+automation.register_parented_condition(
     "wireguard.peer_online",
     WireguardPeerOnlineCondition,
     cv.Schema({cv.GenerateID(): cv.use_id(Wireguard)}),
 )
-async def wireguard_peer_up_to_code(config, condition_id, template_arg, args):
-    var = cg.new_Pvariable(condition_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    return var
 
 
-@automation.register_condition(
+automation.register_parented_condition(
     "wireguard.enabled",
     WireguardEnabledCondition,
     cv.Schema({cv.GenerateID(): cv.use_id(Wireguard)}),
 )
-async def wireguard_enabled_to_code(config, condition_id, template_arg, args):
-    var = cg.new_Pvariable(condition_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    return var
 
 
-@automation.register_action(
+automation.register_parented_action(
     "wireguard.enable",
     WireguardEnableAction,
     cv.Schema({cv.GenerateID(): cv.use_id(Wireguard)}),
     synchronous=True,
 )
-async def wireguard_enable_to_code(config, action_id, template_arg, args):
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    return var
 
 
-@automation.register_action(
+automation.register_parented_action(
     "wireguard.disable",
     WireguardDisableAction,
     cv.Schema({cv.GenerateID(): cv.use_id(Wireguard)}),
     synchronous=True,
 )
-async def wireguard_disable_to_code(config, action_id, template_arg, args):
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    return var

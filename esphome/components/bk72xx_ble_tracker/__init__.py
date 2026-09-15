@@ -121,7 +121,7 @@ async def start_scan_action_to_code(
     return var
 
 
-@automation.register_action(
+automation.register_parented_action(
     "bk72xx_ble_tracker.stop_scan",
     StopScanAction,
     automation.maybe_simple_id(
@@ -133,15 +133,6 @@ async def start_scan_action_to_code(
     ),
     synchronous=True,
 )
-async def stop_scan_action_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: list,
-) -> cg.MockObj:
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    return var
 
 
 async def to_code(config: ConfigType) -> None:

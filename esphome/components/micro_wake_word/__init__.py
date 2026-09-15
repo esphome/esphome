@@ -6,7 +6,6 @@ import re
 from urllib.parse import urljoin
 
 from esphome import automation, external_files, git
-from esphome.automation import register_action, register_condition
 from esphome.bundle import add_bundle_file
 import esphome.codegen as cg
 from esphome.components import esp32, microphone, ota, psram
@@ -620,22 +619,27 @@ async def to_code(config):
 MICRO_WAKE_WORD_ACTION_SCHEMA = cv.Schema({cv.GenerateID(): cv.use_id(MicroWakeWord)})
 
 
-@register_action(
+automation.register_parented_action(
     "micro_wake_word.start",
     StartAction,
     MICRO_WAKE_WORD_ACTION_SCHEMA,
     synchronous=True,
 )
-@register_action(
-    "micro_wake_word.stop", StopAction, MICRO_WAKE_WORD_ACTION_SCHEMA, synchronous=True
+
+
+automation.register_parented_action(
+    "micro_wake_word.stop",
+    StopAction,
+    MICRO_WAKE_WORD_ACTION_SCHEMA,
+    synchronous=True,
 )
-@register_condition(
-    "micro_wake_word.is_running", IsRunningCondition, MICRO_WAKE_WORD_ACTION_SCHEMA
+
+
+automation.register_parented_condition(
+    "micro_wake_word.is_running",
+    IsRunningCondition,
+    MICRO_WAKE_WORD_ACTION_SCHEMA,
 )
-async def micro_wake_word_action_to_code(config, action_id, template_arg, args):
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    return var
 
 
 MICRO_WAKE_WORLD_MODEL_ACTION_SCHEMA = automation.maybe_simple_id(
@@ -645,23 +649,24 @@ MICRO_WAKE_WORLD_MODEL_ACTION_SCHEMA = automation.maybe_simple_id(
 )
 
 
-@register_action(
+automation.register_simple_action(
     "micro_wake_word.enable_model",
     EnableModelAction,
     MICRO_WAKE_WORLD_MODEL_ACTION_SCHEMA,
     synchronous=True,
 )
-@register_action(
+
+
+automation.register_simple_action(
     "micro_wake_word.disable_model",
     DisableModelAction,
     MICRO_WAKE_WORLD_MODEL_ACTION_SCHEMA,
     synchronous=True,
 )
-@register_condition(
+
+
+automation.register_simple_condition(
     "micro_wake_word.model_is_enabled",
     ModelIsEnabledCondition,
     MICRO_WAKE_WORLD_MODEL_ACTION_SCHEMA,
 )
-async def model_action(config, action_id, template_arg, args):
-    parent = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, parent)

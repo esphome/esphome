@@ -1,5 +1,5 @@
 from esphome import automation
-from esphome.automation import register_action, register_condition
+from esphome.automation import register_action
 import esphome.codegen as cg
 from esphome.components import media_player, micro_wake_word, microphone, speaker
 import esphome.config_validation as cv
@@ -439,43 +439,23 @@ async def voice_assistant_listen_to_code(
     return var
 
 
-@register_action(
-    "voice_assistant.stop", StopAction, VOICE_ASSISTANT_ACTION_SCHEMA, synchronous=True
+automation.register_parented_action(
+    "voice_assistant.stop",
+    StopAction,
+    VOICE_ASSISTANT_ACTION_SCHEMA,
+    synchronous=True,
 )
-async def voice_assistant_stop_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    return var
 
 
-@register_condition(
-    "voice_assistant.is_running", IsRunningCondition, VOICE_ASSISTANT_ACTION_SCHEMA
+automation.register_parented_condition(
+    "voice_assistant.is_running",
+    IsRunningCondition,
+    VOICE_ASSISTANT_ACTION_SCHEMA,
 )
-async def voice_assistant_is_running_to_code(
-    config: ConfigType,
-    condition_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    var = cg.new_Pvariable(condition_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    return var
 
 
-@register_condition(
-    "voice_assistant.connected", ConnectedCondition, VOICE_ASSISTANT_ACTION_SCHEMA
+automation.register_parented_condition(
+    "voice_assistant.connected",
+    ConnectedCondition,
+    VOICE_ASSISTANT_ACTION_SCHEMA,
 )
-async def voice_assistant_connected_to_code(
-    config: ConfigType,
-    condition_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    var = cg.new_Pvariable(condition_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    return var

@@ -497,21 +497,12 @@ ESP32_BLE_STOP_SCAN_ACTION_SCHEMA = automation.maybe_simple_id(
 )
 
 
-@automation.register_action(
+automation.register_parented_action(
     "esp32_ble_tracker.stop_scan",
     ESP32BLEStopScanAction,
     ESP32_BLE_STOP_SCAN_ACTION_SCHEMA,
     synchronous=True,
 )
-async def esp32_ble_tracker_stop_scan_action_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    return var
 
 
 async def register_ble_device(
