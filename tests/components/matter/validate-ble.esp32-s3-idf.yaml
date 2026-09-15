@@ -1,0 +1,16 @@
+# Config-only test: exercises `ble_commissioning: true` (spec-native BLE +
+# BTP transport that provisions Wi-Fi credentials during pairing). Enforced
+# to require wifi: and to reject conflicting BLE stack components in
+# _validate_final. Skipping compile keeps this fast — the real BLE path is
+# already exercised on hardware.
+packages:
+  matter_network: !include common.yaml
+
+matter:
+  vendor_id: 0xFFF1
+  product_id: 0x8000
+  setup_code: "20202021"
+  discriminator: 0x0F0F
+  ble_commissioning: true
+  vendor_name: ESPHome
+  product_name: Matter BLE Test

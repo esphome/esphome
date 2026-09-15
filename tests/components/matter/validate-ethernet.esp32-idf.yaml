@@ -1,0 +1,19 @@
+# Config-only test: exercises the Ethernet transport path on classic
+# ESP32. Covers matter_ethernet_stub.cpp's inclusion and _validate_final's
+# check that at least one of wifi:/ethernet: is present. Skipping compile
+# keeps this cheap.
+packages:
+  matter_network: !include common-ethernet.yaml
+
+matter:
+  vendor_id: 0xFFF1
+  product_id: 0x8000
+  setup_code: "20202021"
+  discriminator: 0x0F0F
+  vendor_name: ESPHome
+  product_name: Matter Ethernet Test
+
+switch:
+  - platform: template
+    name: Matter Ethernet Switch
+    optimistic: true

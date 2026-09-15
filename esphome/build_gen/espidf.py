@@ -195,6 +195,22 @@ set(CMAKE_NINJA_FORCE_RESPONSE_FILE 1)
 set(IDF_TARGET {idf_target})
 set(EXTRA_COMPONENT_DIRS ${{CMAKE_SOURCE_DIR}}/src)
 
+# ESPHome installs its app component under EXTRA_COMPONENT_DIRS with the
+# directory name `src`, not the ESP-IDF default `main`. Declare it here at
+# project scope — before include(project.cmake) — so ESP-IDF's component
+# resolver looks under `src/` and so managed components that follow the
+# "executable component" convention (they call
+# idf_component_get_property(main_lib ${{EXECUTABLE_COMPONENT_NAME}}
+# COMPONENT_LIB) — espressif/esp_matter is one such consumer) link
+# against ESPHome's actual app library rather than the non-existent
+# `main` component. Required for direct `idf.py`-based invocations
+# (script/test_build_components uses that path) where PlatformIO's
+# board_build.cmake_extra_args does not flow through. Matter's Python
+# component also injects the same -D via cmake_extra_args as a fallback
+# for users running against an older bundled ESPHome install; the two
+# paths converge on the same value.
+set(EXECUTABLE_COMPONENT_NAME src)
+
 {cmake_args}
 
 include($ENV{{IDF_PATH}}/tools/cmake/project.cmake)
