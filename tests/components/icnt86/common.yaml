@@ -1,0 +1,28 @@
+spi:
+  clk_pin: ${clk_pin}
+  mosi_pin: ${mosi_pin}
+
+touchscreen:
+  - platform: icnt86
+    i2c_id: i2c_bus
+    interrupt_pin: ${interrupt_pin_touch}
+    reset_pin: ${reset_pin_touch}
+    display: epaper
+    on_touch:
+      - logger.log:
+          format: Touch at (%d, %d)
+          args: [touch.x, touch.y]
+
+display:
+  - platform: waveshare_epaper
+    id: epaper
+    rotation: 90
+    cs_pin: ${cs_pin_display}
+    dc_pin: ${dc_pin_display}
+    busy_pin: ${busy_pin_display}
+    reset_pin: ${reset_pin_display}
+    model: 2.90inv2-r2
+    pages:
+      - id: icnt86_page
+        lambda: |-
+          it.rectangle(0, 0, it.get_width(), it.get_height());
