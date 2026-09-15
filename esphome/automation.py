@@ -102,6 +102,90 @@ def register_condition(name: str, condition_type: MockObjClass, schema: cv.Schem
     return CONDITION_REGISTRY.register(name, condition_type, schema)
 
 
+async def _build_with_parent(
+    config: ConfigType,
+    automation_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
+    parent = await cg.get_variable(config[CONF_ID])
+    return cg.new_Pvariable(automation_id, template_arg, parent)
+
+
+async def _build_without_parent(
+    config: ConfigType,
+    automation_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
+    return cg.new_Pvariable(automation_id, template_arg)
+
+
+async def _build_parented(
+    config: ConfigType,
+    automation_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
+    var = cg.new_Pvariable(automation_id, template_arg)
+    await cg.register_parented(var, config[CONF_ID])
+    return var
+
+
+def register_simple_action(
+    name: str,
+    action_type: MockObjClass,
+    schema: cv.Schema,
+    *,
+    synchronous: bool,
+    parent: bool = True,
+) -> None:
+    """Register an action whose builder only constructs the C++ object.
+
+    With ``parent=True`` the constructor receives the object named by ``config[CONF_ID]``;
+    with ``parent=False`` it takes no arguments. Use the ``register_action`` decorator
+    instead when the builder must also set fields.
+    """
+    register_action(name, action_type, schema, synchronous=synchronous)(
+        _build_with_parent if parent else _build_without_parent
+    )
+
+
+def register_simple_condition(
+    name: str,
+    condition_type: MockObjClass,
+    schema: cv.Schema,
+    *,
+    parent: bool = True,
+) -> None:
+    """Condition counterpart of ``register_simple_action``."""
+    register_condition(name, condition_type, schema)(
+        _build_with_parent if parent else _build_without_parent
+    )
+
+
+def register_parented_action(
+    name: str,
+    action_type: MockObjClass,
+    schema: cv.Schema,
+    *,
+    synchronous: bool,
+) -> None:
+    """Register an action deriving from ``Parented<T>``.
+
+    The object is constructed without arguments and ``set_parent()`` receives the object
+    named by ``config[CONF_ID]``.
+    """
+    register_action(name, action_type, schema, synchronous=synchronous)(_build_parented)
+
+
+def register_parented_condition(
+    name: str, condition_type: MockObjClass, schema: cv.Schema
+) -> None:
+    """Condition counterpart of ``register_parented_action``."""
+    register_condition(name, condition_type, schema)(_build_parented)
+
+
 Action = cg.esphome_ns.class_("Action")
 Trigger = cg.esphome_ns.class_("Trigger")
 ACTION_REGISTRY = Registry()

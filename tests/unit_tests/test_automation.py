@@ -1,7 +1,7 @@
 """Tests for esphome.automation module."""
 
 from collections.abc import Generator
-from unittest.mock import AsyncMock, call, patch
+from unittest.mock import AsyncMock, MagicMock, call, patch
 
 import pytest
 
@@ -12,9 +12,14 @@ from esphome.automation import (
     TriggerOnTrueForwarder,
     build_callback_automations,
     has_non_synchronous_actions,
+    register_parented_action,
+    register_parented_condition,
+    register_simple_action,
+    register_simple_condition,
 )
+from esphome.core import ID
 from esphome.cpp_generator import MockObj, RawExpression
-from esphome.util import RegistryEntry
+from esphome.util import Registry, RegistryEntry
 
 
 def _make_registry(non_synchronous_actions: set[str]) -> dict[str, RegistryEntry]:
@@ -475,3 +480,157 @@ async def test_build_callback_automations_defaults(
     mock_build_callback.assert_called_once_with(
         parent, "add_on_press_callback", [], conf, forwarder=None
     )
+
+
+@pytest.fixture
+def simple_registries() -> Generator[tuple[Registry, Registry]]:
+    """Patch both registries so registrations made by a test do not leak."""
+    actions = Registry()
+    conditions = Registry()
+    with (
+        patch("esphome.automation.ACTION_REGISTRY", actions),
+        patch("esphome.automation.CONDITION_REGISTRY", conditions),
+    ):
+        yield actions, conditions
+
+
+@pytest.fixture
+def mock_cg() -> Generator[dict[str, AsyncMock | MagicMock]]:
+    """Patch the codegen calls the shared builders make."""
+    with (
+        patch("esphome.codegen.get_variable", new_callable=AsyncMock) as get_variable,
+        patch("esphome.codegen.new_Pvariable") as new_pvariable,
+        patch(
+            "esphome.codegen.register_parented", new_callable=AsyncMock
+        ) as register_parented,
+    ):
+        get_variable.return_value = PARENT_OBJ
+        new_pvariable.return_value = NEW_OBJ
+        yield {
+            "get_variable": get_variable,
+            "new_Pvariable": new_pvariable,
+            "register_parented": register_parented,
+        }
+
+
+PARENT_OBJ = MockObj("parent", "->")
+NEW_OBJ = MockObj("var", "->")
+ACTION_TYPE = MockObj("MyAction", "::")
+CONDITION_TYPE = MockObj("MyCondition", "::")
+TEMPLATE_ARG = MockObj("<>", "")
+SIMPLE_CONFIG: dict[str, object] = {"id": ID("my_component")}
+
+
+@pytest.mark.asyncio
+async def test_register_simple_action_with_parent(
+    simple_registries: tuple[Registry, Registry],
+    mock_cg: dict[str, AsyncMock | MagicMock],
+) -> None:
+    """Parent is looked up and passed to the constructor."""
+    actions, _ = simple_registries
+    register_simple_action("my.action", ACTION_TYPE, {}, synchronous=True)
+    entry = actions["my.action"]
+    assert entry.type_id is ACTION_TYPE
+    assert entry.synchronous is True
+
+    result = await entry.fun(SIMPLE_CONFIG, ID("act_1"), TEMPLATE_ARG, [])
+
+    assert result is NEW_OBJ
+    mock_cg["get_variable"].assert_awaited_once_with(SIMPLE_CONFIG["id"])
+    mock_cg["new_Pvariable"].assert_called_once_with(
+        ID("act_1"), TEMPLATE_ARG, PARENT_OBJ
+    )
+    mock_cg["register_parented"].assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_register_simple_action_without_parent(
+    simple_registries: tuple[Registry, Registry],
+    mock_cg: dict[str, AsyncMock | MagicMock],
+) -> None:
+    """parent=False constructs with no arguments and never touches the config."""
+    actions, _ = simple_registries
+    register_simple_action(
+        "my.action", ACTION_TYPE, {}, synchronous=False, parent=False
+    )
+    entry = actions["my.action"]
+    assert entry.synchronous is False
+
+    result = await entry.fun({}, ID("act_1"), TEMPLATE_ARG, [])
+
+    assert result is NEW_OBJ
+    mock_cg["get_variable"].assert_not_called()
+    mock_cg["new_Pvariable"].assert_called_once_with(ID("act_1"), TEMPLATE_ARG)
+    mock_cg["register_parented"].assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_register_simple_condition(
+    simple_registries: tuple[Registry, Registry],
+    mock_cg: dict[str, AsyncMock | MagicMock],
+) -> None:
+    """Conditions share the constructor-parent builder."""
+    _, conditions = simple_registries
+    register_simple_condition("my.condition", CONDITION_TYPE, {})
+    entry = conditions["my.condition"]
+    assert entry.type_id is CONDITION_TYPE
+
+    result = await entry.fun(SIMPLE_CONFIG, ID("cond_1"), TEMPLATE_ARG, [])
+
+    assert result is NEW_OBJ
+    mock_cg["new_Pvariable"].assert_called_once_with(
+        ID("cond_1"), TEMPLATE_ARG, PARENT_OBJ
+    )
+
+
+@pytest.mark.asyncio
+async def test_register_simple_condition_without_parent(
+    simple_registries: tuple[Registry, Registry],
+    mock_cg: dict[str, AsyncMock | MagicMock],
+) -> None:
+    """parent=False on a condition constructs with no arguments."""
+    _, conditions = simple_registries
+    register_simple_condition("my.condition", CONDITION_TYPE, {}, parent=False)
+
+    result = await conditions["my.condition"].fun({}, ID("cond_1"), TEMPLATE_ARG, [])
+
+    assert result is NEW_OBJ
+    mock_cg["get_variable"].assert_not_called()
+    mock_cg["new_Pvariable"].assert_called_once_with(ID("cond_1"), TEMPLATE_ARG)
+
+
+@pytest.mark.asyncio
+async def test_register_parented_action(
+    simple_registries: tuple[Registry, Registry],
+    mock_cg: dict[str, AsyncMock | MagicMock],
+) -> None:
+    """Parented<T>: no-arg constructor, then register_parented with the config ID."""
+    actions, _ = simple_registries
+    register_parented_action("my.action", ACTION_TYPE, {}, synchronous=True)
+    entry = actions["my.action"]
+    assert entry.synchronous is True
+
+    result = await entry.fun(SIMPLE_CONFIG, ID("act_1"), TEMPLATE_ARG, [])
+
+    assert result is NEW_OBJ
+    mock_cg["get_variable"].assert_not_called()
+    mock_cg["new_Pvariable"].assert_called_once_with(ID("act_1"), TEMPLATE_ARG)
+    mock_cg["register_parented"].assert_awaited_once_with(NEW_OBJ, SIMPLE_CONFIG["id"])
+
+
+@pytest.mark.asyncio
+async def test_register_parented_condition(
+    simple_registries: tuple[Registry, Registry],
+    mock_cg: dict[str, AsyncMock | MagicMock],
+) -> None:
+    """Condition counterpart of register_parented_action."""
+    _, conditions = simple_registries
+    register_parented_condition("my.condition", CONDITION_TYPE, {})
+
+    result = await conditions["my.condition"].fun(
+        SIMPLE_CONFIG, ID("cond_1"), TEMPLATE_ARG, []
+    )
+
+    assert result is NEW_OBJ
+    mock_cg["new_Pvariable"].assert_called_once_with(ID("cond_1"), TEMPLATE_ARG)
+    mock_cg["register_parented"].assert_awaited_once_with(NEW_OBJ, SIMPLE_CONFIG["id"])
