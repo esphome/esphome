@@ -7,7 +7,6 @@ from esphome.const import (
     CONF_CLOCK_PIN,
     CONF_DATA_PIN,
     CONF_DATA_RATE,
-    CONF_NUM_LEDS,
     CONF_RGB_ORDER,
     Framework,
 )
@@ -54,8 +53,6 @@ CONFIG_SCHEMA = cv.All(
 
 
 async def to_code(config: ConfigType) -> None:
-    var = await fastled_base.new_fastled_light(config)
-
     rgb_order = cg.RawExpression(config.get(CONF_RGB_ORDER, "RGB"))
     data_rate = None
 
@@ -66,11 +63,11 @@ async def to_code(config: ConfigType) -> None:
         else:
             data_rate_mhz = int(data_rate_khz / 1000)
             data_rate = cg.RawExpression(f"DATA_RATE_MHZ({data_rate_mhz})")
-    template_args = cg.TemplateArguments(
+    controller_template_args = cg.TemplateArguments(
         cg.RawExpression(config[CONF_CHIPSET]),
         config[CONF_DATA_PIN],
         config[CONF_CLOCK_PIN],
         rgb_order,
         data_rate,
     )
-    cg.add(var.add_leds(template_args, config[CONF_NUM_LEDS]))
+    await fastled_base.new_fastled_light(config, controller_template_args)
