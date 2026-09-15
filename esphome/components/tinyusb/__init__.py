@@ -12,6 +12,8 @@ from esphome.components.esp32 import (
 )
 import esphome.config_validation as cv
 from esphome.const import CONF_HARDWARE_UART, CONF_ID
+from esphome.core import ID
+from esphome.cpp_generator import MockObj, TemplateArgsType
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@kbx81"]
@@ -37,6 +39,19 @@ _USB_CLASS_COMPONENTS = ("usb_cdc_acm",)
 tinyusb_ns = cg.esphome_ns.namespace("tinyusb")
 TinyUSB = tinyusb_ns.class_("TinyUSB", cg.Component)
 IsMountedCondition = tinyusb_ns.class_("IsMountedCondition", automation.Condition)
+
+_CALLBACK_AUTOMATIONS = (
+    automation.CallbackAutomation(
+        CONF_ON_MOUNT,
+        "add_on_mount_state_callback",
+        forwarder=automation.TriggerOnTrueForwarder,
+    ),
+    automation.CallbackAutomation(
+        CONF_ON_UNMOUNT,
+        "add_on_mount_state_callback",
+        forwarder=automation.TriggerOnFalseForwarder,
+    ),
+)
 
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
@@ -112,14 +127,7 @@ async def to_code(config: ConfigType) -> None:
     if (vbus_pin := config.get(CONF_VBUS_MONITOR_PIN)) is not None:
         cg.add(var.set_vbus_monitor_pin(vbus_pin))
 
-    for conf_key, forwarder in (
-        (CONF_ON_MOUNT, automation.TriggerOnTrueForwarder),
-        (CONF_ON_UNMOUNT, automation.TriggerOnFalseForwarder),
-    ):
-        for conf in config.get(conf_key, []):
-            await automation.build_callback_automation(
-                var, "add_on_mount_state_callback", [], conf, forwarder=forwarder
-            )
+    await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
 
     add_idf_component(name="espressif/esp_tinyusb", ref="2.2.1")
 
@@ -133,6 +141,11 @@ async def to_code(config: ConfigType) -> None:
     IsMountedCondition,
     cv.Schema({cv.GenerateID(): cv.use_id(TinyUSB)}),
 )
-async def tinyusb_is_mounted_to_code(config, condition_id, template_arg, args):
+async def tinyusb_is_mounted_to_code(
+    config: ConfigType,
+    condition_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     paren = await cg.get_variable(config[CONF_ID])
     return cg.new_Pvariable(condition_id, template_arg, paren)
