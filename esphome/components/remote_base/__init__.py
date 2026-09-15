@@ -169,7 +169,7 @@ def request_protocol(name: str) -> None:
     cg.add_define(protocol_define(name))
 
 
-def _request_in_tree_protocol(name: str) -> None:
+def _request_protocol_if_in_tree(name: str) -> None:
     """Registry names from external components have no source file here and need no define."""
     if _protocol_stem(name) in _PROTOCOL_STEMS:
         request_protocol(name)
@@ -188,7 +188,7 @@ def register_binary_sensor(
 
     def decorator(func: Callable[[MockObj, ConfigType], Any]) -> Callable:
         async def new_func(var: MockObj, config: ConfigType) -> None:
-            _request_in_tree_protocol(name)
+            _request_protocol_if_in_tree(name)
             await coroutine(func)(var, config)
 
         return registerer(new_func)
@@ -206,7 +206,7 @@ def register_trigger(name, type, data_type):
 
     def decorator(func):
         async def new_func(config):
-            _request_in_tree_protocol(name)
+            _request_protocol_if_in_tree(name)
             var = cg.new_Pvariable(config[CONF_TRIGGER_ID])
             await coroutine(func)(var, config)
             await automation.build_automation(var, [(data_type, "x")], config)
@@ -224,7 +224,7 @@ def register_dumper(name, type, schema=None):
 
     def decorator(func):
         async def new_func(config, dumper_id):
-            _request_in_tree_protocol(name)
+            _request_protocol_if_in_tree(name)
             var = cg.new_Pvariable(dumper_id)
             await coroutine(func)(var, config)
             return var
@@ -265,7 +265,7 @@ def register_action(name, type_, schema):
 
     def decorator(func):
         async def new_func(config, action_id, template_arg, args):
-            _request_in_tree_protocol(name)
+            _request_protocol_if_in_tree(name)
             var = cg.new_Pvariable(action_id, template_arg)
             await register_transmittable(var, config)
             if CONF_REPEAT in config:
