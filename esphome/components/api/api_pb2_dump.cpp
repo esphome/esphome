@@ -1046,6 +1046,13 @@ const char *ZWaveProxyCapabilities::dump_to(DumpBuffer &out) const {
   return out.c_str();
 }
 #endif
+#ifdef USE_STORE_YAML
+const char *StoreYamlCapabilities::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("StoreYamlCapabilities"));
+  dump_field(out, ESPHOME_PSTR("supported"), this->supported);
+  return out.c_str();
+}
+#endif
 const char *DeviceCapabilitiesResponse::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, ESPHOME_PSTR("DeviceCapabilitiesResponse"));
 #ifdef USE_BLUETOOTH_PROXY
@@ -1069,6 +1076,11 @@ const char *DeviceCapabilitiesResponse::dump_to(DumpBuffer &out) const {
     it.dump_to(out);
     out.append("\n");
   }
+#endif
+#ifdef USE_STORE_YAML
+  out.append(2, ' ').append_p(ESPHOME_PSTR("store_yaml")).append(": ");
+  this->store_yaml.dump_to(out);
+  out.append("\n");
 #endif
   return out.c_str();
 }
@@ -2838,6 +2850,16 @@ const char *BluetoothSetConnectionParamsResponse::dump_to(DumpBuffer &out) const
   MessageDumpHelper helper(out, ESPHOME_PSTR("BluetoothSetConnectionParamsResponse"));
   dump_field(out, ESPHOME_PSTR("address"), this->address);
   dump_field(out, ESPHOME_PSTR("error"), this->error);
+  return out.c_str();
+}
+#endif
+#ifdef USE_STORE_YAML
+const char *GetYamlResponse::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("GetYamlResponse"));
+  dump_bytes_field(out, ESPHOME_PSTR("data"), this->data_ptr_, this->data_len_);
+  dump_field(out, ESPHOME_PSTR("done"), this->done);
+  dump_field(out, ESPHOME_PSTR("total_size"), this->total_size);
+  dump_field(out, ESPHOME_PSTR("encoding"), this->encoding);
   return out.c_str();
 }
 #endif

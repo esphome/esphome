@@ -78,6 +78,8 @@ service APIConnection {
   rpc serial_proxy_get_modem_pins(SerialProxyGetModemPinsRequest) returns (void) {}
   rpc serial_proxy_request(SerialProxyRequest) returns (void) {}
   rpc serial_proxy_set_mode(SerialProxySetModeRequest) returns (void) {}
+
+  rpc get_yaml(GetYamlRequest) returns (void) {}
 }
 
 
@@ -380,6 +382,12 @@ message ZWaveProxyCapabilities {
   uint32 home_id = 2;
 }
 
+message StoreYamlCapabilities {
+  // Whether this firmware embeds its YAML configuration for recovery via
+  // `get_yaml`, so clients can skip the request instead of waiting for a timeout
+  bool supported = 1;
+}
+
 message DeviceCapabilitiesResponse {
   option (id) = 150;
   option (source) = SOURCE_SERVER;
@@ -389,6 +397,7 @@ message DeviceCapabilitiesResponse {
   ZWaveProxyCapabilities zwave_proxy = 3 [(field_ifdef) = "USE_ZWAVE_PROXY"];
   repeated SerialProxyInfo serial_proxies = 4
       [(field_ifdef) = "USE_SERIAL_PROXY", (fixed_array_size_define) = "SERIAL_PROXY_COUNT"];
+  StoreYamlCapabilities store_yaml = 5 [(field_ifdef) = "USE_STORE_YAML"];
 }
 
 message ListEntitiesRequest {
@@ -2887,4 +2896,32 @@ message BluetoothSetConnectionParamsResponse {
 
   uint64 address = 1;
   int32 error = 2;
+}
+
+// ==================== STORE YAML ====================
+// Embed the user's YAML in firmware and stream it back over the API so a lost
+// config can be recovered from a running device. The device only stores the
+// compressed bytes; decompression happens client-side.
+//
+// A GetYamlRequest received while a transfer is already streaming on the same
+// connection is ignored; the in-flight transfer continues undisturbed. To
+// restart a transfer, reconnect.
+message GetYamlRequest {
+  option (id) = 154;
+  option (source) = SOURCE_CLIENT;
+  option (ifdef) = "USE_STORE_YAML";
+  option (no_delay) = true;
+}
+
+message GetYamlResponse {
+  option (id) = 155;
+  option (source) = SOURCE_SERVER;
+  option (ifdef) = "USE_STORE_YAML";
+
+  bytes data = 1 [(force) = true];
+  bool done = 2 [(force) = true];
+  // Sent on the first chunk only — the client is expected to cache it.
+  // (firmware bandwidth/flash is expensive; the client has gigabytes.)
+  uint32 total_size = 3;
+  string encoding = 4 [(max_data_length) = 8];
 }

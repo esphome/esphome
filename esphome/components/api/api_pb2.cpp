@@ -283,6 +283,18 @@ uint32_t ZWaveProxyCapabilities::calculate_size() const {
   return size;
 }
 #endif
+#ifdef USE_STORE_YAML
+uint8_t *StoreYamlCapabilities::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
+  uint8_t *__restrict__ pos = buffer.get_pos();
+  ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 1, this->supported);
+  return pos;
+}
+uint32_t StoreYamlCapabilities::calculate_size() const {
+  uint32_t size = 0;
+  size += ProtoSize::calc_bool(1, this->supported);
+  return size;
+}
+#endif
 uint8_t *DeviceCapabilitiesResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
   uint8_t *__restrict__ pos = buffer.get_pos();
 #ifdef USE_BLUETOOTH_PROXY
@@ -298,6 +310,9 @@ uint8_t *DeviceCapabilitiesResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCOD
   for (const auto &it : this->serial_proxies) {
     ProtoEncode::encode_sub_message(pos PROTO_ENCODE_DEBUG_ARG, buffer, 4, it);
   }
+#endif
+#ifdef USE_STORE_YAML
+  ProtoEncode::encode_optional_sub_message(pos PROTO_ENCODE_DEBUG_ARG, buffer, 5, this->store_yaml);
 #endif
   return pos;
 }
@@ -316,6 +331,9 @@ uint32_t DeviceCapabilitiesResponse::calculate_size() const {
   for (const auto &it : this->serial_proxies) {
     size += ProtoSize::calc_message_force(1, it.calculate_size());
   }
+#endif
+#ifdef USE_STORE_YAML
+  size += ProtoSize::calc_message(1, this->store_yaml.calculate_size());
 #endif
   return size;
 }
@@ -4300,6 +4318,27 @@ uint32_t BluetoothSetConnectionParamsResponse::calculate_size() const {
   uint32_t size = 0;
   size += ProtoSize::calc_uint64(1, this->address);
   size += ProtoSize::calc_int32(1, this->error);
+  return size;
+}
+#endif
+#ifdef USE_STORE_YAML
+uint8_t *GetYamlResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
+  uint8_t *__restrict__ pos = buffer.get_pos();
+  ProtoEncode::write_raw_byte(pos PROTO_ENCODE_DEBUG_ARG, 10);
+  ProtoEncode::encode_varint_raw(pos PROTO_ENCODE_DEBUG_ARG, this->data_len_);
+  ProtoEncode::encode_raw(pos PROTO_ENCODE_DEBUG_ARG, this->data_ptr_, this->data_len_);
+  ProtoEncode::write_raw_byte(pos PROTO_ENCODE_DEBUG_ARG, 16);
+  ProtoEncode::write_raw_byte(pos PROTO_ENCODE_DEBUG_ARG, this->done ? 0x01 : 0x00);
+  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 3, this->total_size);
+  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 4, this->encoding);
+  return pos;
+}
+uint32_t GetYamlResponse::calculate_size() const {
+  uint32_t size = 0;
+  size += ProtoSize::calc_length_force(1, this->data_len_);
+  size += ProtoSize::calc_bool_force(1);
+  size += ProtoSize::calc_uint32(1, this->total_size);
+  size += !this->encoding.empty() ? 2 + this->encoding.size() : 0;
   return size;
 }
 #endif
