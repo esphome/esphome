@@ -1,0 +1,24 @@
+apds9930:
+  i2c_id: i2c_bus
+  id: apds9930_hub
+  address: 0x39
+  update_interval: 60s
+  led_drive: 100ma
+  proximity_gain: 8x
+  ambient_light_gain: 1x
+  proximity_diode: 2
+
+sensor:
+  - platform: apds9930
+    apds9930_id: apds9930_hub
+    type: illuminance
+    illuminance:
+      name: APDS9930 Ambient Light
+      id: apds9930_ambilight
+
+  - platform: apds9930
+    apds9930_id: apds9930_hub
+    type: proximity
+    proximity:
+      name: APDS9930 Proximity
+      id: apds9930_proximity
