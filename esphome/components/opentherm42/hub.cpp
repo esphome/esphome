@@ -810,7 +810,14 @@ Frame OpenTherm42Hub::build_startup_request_() {
       this->pending_request_kind_ = RequestKind::MASTER_CONFIG;
       frame.type = static_cast<uint8_t>(MessageType::WRITE_DATA);
       frame.id = 2;
-      frame.value_hb = 0;  // bit 0 Smart Power: not implemented -- see §3.4, out of scope for this component
+      // bit 0 Smart Power: always 0 (not implemented). §3.4.2 defines Smart Power as a physical-layer
+      // negotiation where the master signals support by actually switching the bus's idle voltage
+      // level between Low/Medium/High (§3.4.2.4/§3.4.2.5) -- not a data value. This datalink is a
+      // fixed-idle-level GPIO bit-banger (see OpenThermDataLink) with no concept of variable idle
+      // voltage/current, so it cannot perform that switching. Claiming support here would be a false
+      // promise: §3.4.2.3 warns a boiler that believes Smart Power is supported may switch to high
+      // idle current expecting power this interface was never designed to deliver.
+      frame.value_hb = 0;
       frame.value_lb = this->controller_member_id_code_;
       return frame;
     case StartupPhase::MASTER_OPENTHERM_VERSION:
