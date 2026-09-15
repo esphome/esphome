@@ -6,12 +6,19 @@ from esphome.components import bk72xx, ln882x, rtl87xx
 from esphome.components.libretiny import BASE_SCHEMA, _detect_variant
 from esphome.components.libretiny.const import (
     FAMILY_LN882H,
+    FAMILY_RTL8720D,
     KEY_COMPONENT_DATA,
     KEY_LIBRETINY,
 )
 from esphome.components.ln882x import COMPONENT_DATA
 import esphome.config_validation as cv
-from esphome.const import CONF_BOARD, CONF_FAMILY
+from esphome.const import (
+    CONF_BOARD,
+    CONF_FAMILY,
+    CONF_FRAMEWORK,
+    CONF_SOURCE,
+    CONF_VERSION,
+)
 from esphome.core import CORE, KEY_CORE
 
 
@@ -84,3 +91,45 @@ def test_each_platform_resolves_its_own_boards() -> None:
     ):
         platform.CONFIG_SCHEMA({CONF_BOARD: board})
         assert CORE.data[KEY_LIBRETINY][KEY_COMPONENT_DATA] is platform.COMPONENT_DATA
+
+
+def test_bw16_resolves_but_requires_custom_framework_source() -> None:
+    """bw16 (RTL8720D/AmebaD) resolves through the boards dict and family
+    routing, but the pinned LibreTiny releases have no realtek-ambd family, so
+    without a custom framework source validation must fail with an actionable
+    error instead of a raw PlatformIO "unknown board ID"."""
+    CORE.data[KEY_CORE] = {}
+    with pytest.raises(cv.Invalid, match="realtek-ambd"):
+        rtl87xx.CONFIG_SCHEMA({CONF_BOARD: "bw16"})
+    # Tripwire for the ARDUINO_VERSIONS bump: 1.13.0 predates realtek-ambd, so
+    # it must stay blocked. Replace it with the then-current stock release when
+    # a release carrying the family lands.
+    CORE.data[KEY_CORE] = {}
+    with pytest.raises(cv.Invalid, match="realtek-ambd"):
+        rtl87xx.CONFIG_SCHEMA(
+            {CONF_BOARD: "bw16", CONF_FRAMEWORK: {CONF_VERSION: "1.13.0"}}
+        )
+    CORE.data[KEY_CORE] = {}
+    config = rtl87xx.CONFIG_SCHEMA(
+        {
+            CONF_BOARD: "bw16",
+            CONF_FRAMEWORK: {
+                CONF_VERSION: "1.13.0",
+                CONF_SOURCE: "https://github.com/libretiny-eu/libretiny.git#ambd",
+            },
+        }
+    )
+    assert config[CONF_FAMILY] == FAMILY_RTL8720D
+    # version: dev resolves to the bare repo URL (branch HEAD), which can carry
+    # realtek-ambd, so it must not be treated as a stock source.
+    CORE.data[KEY_CORE] = {}
+    config = rtl87xx.CONFIG_SCHEMA(
+        {CONF_BOARD: "bw16", CONF_FRAMEWORK: {CONF_VERSION: "dev"}}
+    )
+    assert config[CONF_FAMILY] == FAMILY_RTL8720D
+    # The local-platform escape hatch (version 0.0.0, no source) is exempt.
+    CORE.data[KEY_CORE] = {}
+    config = rtl87xx.CONFIG_SCHEMA(
+        {CONF_BOARD: "bw16", CONF_FRAMEWORK: {CONF_VERSION: "0.0.0"}}
+    )
+    assert config[CONF_FAMILY] == FAMILY_RTL8720D
