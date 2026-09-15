@@ -176,19 +176,21 @@ void I2SAudioSpeakerSPDIF::run_speaker_task() {
     // Each preloaded block pushes a 0-real-frame record so that the corresponding
     // on_sent events drain in lockstep without crediting any audio frames. Runs with
     // the channel disabled: at startup and after a resync.
-    auto preload_silence = [&]() {
+    auto preload_silence = [&]() -> bool {
+      bool ok = true;
       this->spdif_encoder_->set_preload_mode(true);
       for (size_t i = 0; i < SPDIF_DMA_BUFFERS_COUNT; i++) {
         // i2s_channel_preload_data is non-blocking (returns immediately when the preload buffer fills), so no wait.
-        esp_err_t preload_err = this->spdif_encoder_->flush_with_silence(0);
-        if (preload_err != ESP_OK) {
-          break;  // DMA preload buffer full or error
-        }
         const uint32_t silence_record = 0;
-        xQueueSendToBack(this->write_records_queue_, &silence_record, 0);
+        if ((this->spdif_encoder_->flush_with_silence(0) != ESP_OK) ||
+            (xQueueSendToBack(this->write_records_queue_, &silence_record, 0) != pdTRUE)) {
+          ok = false;
+          break;
+        }
       }
       this->spdif_encoder_->set_preload_mode(false);
       this->spdif_encoder_->reset();  // Clean encoder state for the main loop
+      return ok;
     };
     preload_silence();
 
@@ -256,9 +258,9 @@ void I2SAudioSpeakerSPDIF::run_speaker_task() {
         spdif_pending_frames = 0;
         spdif_dma_event_count = 0;
         resync_needed = false;
+        this->spdif_silence_start_ = 0;
         this->spdif_encoder_->reset();
-        preload_silence();
-        if (i2s_channel_enable(this->tx_handle_) != ESP_OK) {
+        if (!preload_silence() || (i2s_channel_enable(this->tx_handle_) != ESP_OK)) {
           ESP_LOGE(TAG, "DMA lockstep resync failed, restarting speaker task");
           break;
         }
