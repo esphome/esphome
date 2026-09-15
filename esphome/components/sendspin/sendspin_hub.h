@@ -17,6 +17,9 @@
 #ifdef USE_SENDSPIN_ARTWORK
 #include <sendspin/artwork_role.h>
 #endif
+#ifdef USE_SENDSPIN_COLOR
+#include <sendspin/color_role.h>
+#endif
 #ifdef USE_SENDSPIN_CONTROLLER
 #include <sendspin/controller_role.h>
 #endif
@@ -25,6 +28,9 @@
 #endif
 #ifdef USE_SENDSPIN_PLAYER
 #include <sendspin/player_role.h>
+#endif
+#ifdef USE_SENDSPIN_VISUALIZER
+#include <sendspin/visualizer_role.h>
 #endif
 
 #include <functional>
@@ -62,9 +68,9 @@ struct StaticDelayPref {
 /// The hub owns a SendspinClient instance and bridges its listener/provider interfaces to ESPHome's CallbackManager for
 /// fan-out to child components.
 ///  - Provides persistence via ESPPreferenceObject and WiFi power management integration.
-///  - Handles Sendspin roles that apply to multiple child components (artwork, controller, metadata) so their events
-///    can be fanned out. Roles specific to a single component (player) are configured by the hub but owned by the
-///    child thereafter, since no fan-out is needed.
+///  - Handles Sendspin roles that apply to multiple child components (artwork, color, controller, metadata) so their
+///    events can be fanned out. Roles specific to a single component (player, visualizer) are configured by the hub
+///    but owned by the child thereafter, since no fan-out is needed.
 ///
 /// The sendspin-cpp library follows this design:
 ///  - Core and role configuration are passed at client/role construction time as structs. Built in our `setup()`.
@@ -75,6 +81,9 @@ struct StaticDelayPref {
 class SendspinHub final : public Component,
 #ifdef USE_SENDSPIN_ARTWORK
                           public sendspin::ArtworkRoleListener,
+#endif
+#ifdef USE_SENDSPIN_COLOR
+                          public sendspin::ColorRoleListener,
 #endif
 #ifdef USE_SENDSPIN_CONTROLLER
                           public sendspin::ControllerRoleListener,
@@ -158,6 +167,14 @@ class SendspinHub final : public Component,
   }
 #endif
 
+#ifdef USE_SENDSPIN_COLOR
+  /// @brief Registers a callback that fires when the server sends a palette update.
+  ///
+  /// Also fires when the connection is lost, with an all-empty palette (every color nullopt, timestamp 0) meaning the
+  /// cached palette was dropped. Subscribers must treat an absent color as cleared, not as no update.
+  template<typename F> void add_color_callback(F &&callback) { this->color_callbacks_.add(std::forward<F>(callback)); }
+#endif
+
 #ifdef USE_SENDSPIN_CONTROLLER
   void send_client_command(sendspin::SendspinControllerCommand command, std::optional<uint8_t> volume = std::nullopt,
                            std::optional<bool> mute = std::nullopt);
@@ -191,6 +208,16 @@ class SendspinHub final : public Component,
 
   /// @brief Child components call this to get the PlayerRole instance after setup, so they can push updates to it.
   sendspin::PlayerRole *get_player_role();
+#endif
+
+#ifdef USE_SENDSPIN_VISUALIZER
+  /// @brief Sets the single consumer of the visualizer role's data.
+  ///
+  /// The library delivers each datum (loudness, beats, spectrum, ...) from its own drain thread at the datum's
+  /// playback time, so the listener's data callbacks must be thread-safe; its stream lifecycle callbacks fire on the
+  /// main loop. The listener must outlive the hub.
+  void set_visualizer_listener(sendspin::VisualizerRoleListener *listener) { this->visualizer_listener_ = listener; }
+  void set_visualizer_config(const sendspin::VisualizerRoleConfig &config) { this->visualizer_config_ = config; }
 #endif
 
  protected:
@@ -237,6 +264,15 @@ class SendspinHub final : public Component,
   CallbackManager<void(uint8_t)> artwork_image_clear_callbacks_{};
 #endif
 
+#ifdef USE_SENDSPIN_COLOR
+  void on_color(const sendspin::ServerColorStateObject &color) override;
+
+  void on_color_clear() override;
+
+  // Callback fan-out to child components; they filter as needed
+  CallbackManager<void(const sendspin::ServerColorStateObject &)> color_callbacks_{};
+#endif
+
 #ifdef USE_SENDSPIN_CONTROLLER
   sendspin::ControllerRole *controller_role_{nullptr};
 
@@ -269,6 +305,11 @@ class SendspinHub final : public Component,
   ESPPreferenceObject static_delay_pref_;
   std::optional<uint16_t> load_static_delay() override;
   bool save_static_delay(uint16_t delay_ms) override;
+#endif
+
+#ifdef USE_SENDSPIN_VISUALIZER
+  sendspin::VisualizerRoleListener *visualizer_listener_{nullptr};
+  sendspin::VisualizerRoleConfig visualizer_config_{};
 #endif
 
   // --- Core member variables ---
