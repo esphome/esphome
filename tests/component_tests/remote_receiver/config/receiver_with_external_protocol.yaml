@@ -21,7 +21,16 @@ remote_receiver:
       - nec
     on_fake:
       then:
-        - logger.log: fake
+        - remote_transmitter.transmit_fake:
     on_nec:
       then:
         - logger.log: nec
+
+remote_transmitter:
+  pin: GPIO5
+  carrier_duty_percent: 50%
+
+binary_sensor:
+  - platform: remote_receiver
+    name: Fake Input
+    fake:

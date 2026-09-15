@@ -84,7 +84,12 @@ def restore_protocol_registries() -> Generator[None]:
     The loader caches the component too, so drop it or a second load would skip the
     decorators and leave the restored registries without the external names.
     """
-    registries = (remote_base.TRIGGER_REGISTRY, remote_base.DUMPER_REGISTRY)
+    registries = (
+        remote_base.BINARY_SENSOR_REGISTRY,
+        remote_base.TRIGGER_REGISTRY,
+        remote_base.DUMPER_REGISTRY,
+        ACTION_REGISTRY,
+    )
     saved = [dict(registry) for registry in registries]
     yield
     for registry, entries in zip(registries, saved, strict=True):
@@ -99,14 +104,18 @@ def test_external_protocols_register_without_a_remote_base_source(
     generate_main: Callable[[str | Path], str],
     component_config_path: Callable[[str], Path],
 ) -> None:
-    """An external protocol goes through the decorators without a source file here, so no define is emitted."""
-    generate_main(component_config_path("receiver_with_external_protocol.yaml"))
+    """An external protocol goes through all four decorators without a source file here, so no define is emitted."""
+    main_cpp = generate_main(
+        component_config_path("receiver_with_external_protocol.yaml")
+    )
     defines = {define.name for define in CORE.defines}
     assert "USE_REMOTE_PROTOCOL_NEC" in defines
     assert "USE_REMOTE_PROTOCOL_FAKE" not in defines
-    # fake and nec dumpers; on_fake and on_nec triggers
+    for cls in ("FakeBinarySensor", "FakeTrigger", "FakeDumper", "FakeAction"):
+        assert f"fake_protocol::{cls}" in main_cpp, cls
+    # fake and nec dumpers; on_fake and on_nec triggers plus the fake binary sensor
     assert get_define_value("REMOTE_BASE_DUMPER_COUNT") == "2"
-    assert get_define_value("REMOTE_BASE_LISTENER_COUNT") == "2"
+    assert get_define_value("REMOTE_BASE_LISTENER_COUNT") == "3"
 
 
 def test_request_protocol_rejects_unknown_names() -> None:
