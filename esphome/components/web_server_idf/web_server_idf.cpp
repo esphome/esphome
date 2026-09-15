@@ -325,9 +325,9 @@ StringRef AsyncWebServerRequest::url_to(std::span<char, URL_BUF_SIZE> buffer) co
   return StringRef(buffer.data(), decoded_len);
 }
 
-void AsyncWebServerRequest::redirect(const std::string &url) {
+void AsyncWebServerRequest::redirect(const char *url) {
   httpd_resp_set_status(*this, "302 Found");
-  httpd_resp_set_hdr(*this, "Location", url.c_str());
+  httpd_resp_set_hdr(*this, "Location", url);
   httpd_resp_set_hdr(*this, "Connection", "close");
   httpd_resp_send(*this, nullptr, 0);
 }
