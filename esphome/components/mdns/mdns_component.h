@@ -118,12 +118,14 @@ class MDNSComponent final : public Component
 #ifdef USE_MDNS_SUPPORTS_ENABLE_DISABLE
   /// Enable or disable a compile-time configured service at runtime.
   /// Matches by service type and protocol (e.g. "_sendspin", "_tcp"), including
-  /// the underscore prefixes. Called before setup(), it only records the requested
-  /// state for the initial registration, so a component can start its service
-  /// disabled from its own setup(). Returns true when the service is in the
-  /// requested state afterwards, false when it was not found, the change failed,
-  /// or this component failed to set up. Blocks briefly on the mDNS task once
-  /// running, so avoid calling from hot paths.
+  /// the underscore prefixes. Only valid once this component is ready: mdns sets
+  /// up late (AFTER_CONNECTION), so callers should wait for is_ready() rather
+  /// than call from their own setup(). A service that must start disabled sets
+  /// its enabled flag where its record is compiled in compile_records_().
+  /// Returns true when the service is in the requested state afterwards, false
+  /// when called too early, the service was not found, the change failed, or
+  /// this component failed to set up. Blocks briefly on the mDNS task, so avoid
+  /// calling from hot paths.
   bool set_service_enabled(const char *service_type, const char *proto, bool enabled);
 #endif
 

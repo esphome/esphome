@@ -66,8 +66,11 @@ static void register_esp32(MDNSComponent *comp, StaticVector<MDNSService, MDNS_S
 // and request_service_enable_disable() never adds the define in that case.
 #if defined(USE_MDNS_SUPPORTS_ENABLE_DISABLE) && !defined(USE_OPENTHREAD)
 bool MDNSComponent::set_service_enabled(const char *service_type, const char *proto, bool enabled) {
-  if (this->is_failed())
+  // services_ is only compiled in setup(), and the mDNS stack does not exist before it
+  if (!this->is_ready()) {
+    ESP_LOGW(TAG, "Cannot %s service %s before setup", enabled ? "enable" : "disable", service_type);
     return false;
+  }
   for (auto &service : this->services_) {
     if (strcmp(MDNS_STR_ARG(service.service_type), service_type) != 0 ||
         strcmp(MDNS_STR_ARG(service.proto), proto) != 0) {
@@ -75,12 +78,6 @@ bool MDNSComponent::set_service_enabled(const char *service_type, const char *pr
     }
     if (service.enabled == enabled)
       return true;
-    // Before setup() the mDNS stack does not exist yet; record the intent so the initial
-    // registration in register_esp32() honors it.
-    if (!this->is_ready()) {
-      service.enabled = enabled;
-      return true;
-    }
     esp_err_t err = enabled ? add_service(service) : mdns_service_remove(service_type, proto);
     if (err != ESP_OK) {
       ESP_LOGW(TAG, "Failed to %s service %s: %s", enabled ? "enable" : "disable", service_type, esp_err_to_name(err));
