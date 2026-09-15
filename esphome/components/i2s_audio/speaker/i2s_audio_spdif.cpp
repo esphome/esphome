@@ -48,10 +48,11 @@ static esp_err_t spdif_write_cb(void *user_ctx, uint32_t *data, size_t size, Tic
   auto *speaker = static_cast<I2SAudioSpeakerSPDIF *>(user_ctx);
   size_t bytes_written = 0;
   esp_err_t err = i2s_channel_write(speaker->get_tx_handle(), data, size, &bytes_written, ticks_to_wait);
-  if (err != ESP_OK) {
+  if (err != ESP_OK || bytes_written != size) {
     ESP_LOGV(TAG, "I2S write failed: %s (wrote %zu/%zu bytes)", esp_err_to_name(err), bytes_written, size);
+    return (err != ESP_OK) ? err : ESP_FAIL;
   }
-  return err;
+  return ESP_OK;
 }
 
 void I2SAudioSpeakerSPDIF::setup() {
