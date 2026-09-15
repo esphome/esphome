@@ -274,23 +274,28 @@ def migrate_channel_colors(
 
 
 def _final_validate(config: ConfigType) -> None:
-    """Validate this light instance's own resolved config, and all recorded effect
-    names against their target lights.
+    """Validate every configured light's own resolved config, and all recorded
+    effect name references against their target lights.
+
+    FINAL_VALIDATE_SCHEMA for a platform-based domain like `light:` runs once for
+    the whole domain, not once per entry -- `config` is the full list of light
+    platform entries across the file, not a single light's own config.
     """
-    restore_mode = config.get(CONF_RESTORE_MODE)
-    if restore_mode is not None:
-        legacy = LEGACY_RESTORE_MODES[restore_mode]
-        if _initial_state_overridden_by_legacy_mode(
-            legacy, config.get(CONF_INITIAL_STATE)
-        ):
-            _LOGGER.warning(
-                "[%s] 'initial_state: state' is ignored because 'restore_mode: %s' "
-                "always sets the light %s at boot; use 'restore_state:' instead for "
-                "per-field control",
-                config.get(CONF_NAME) or config[CONF_ID],
-                restore_mode,
-                "ON" if legacy.cold_boot_state else "OFF",
-            )
+    for light_config in config:
+        restore_mode = light_config.get(CONF_RESTORE_MODE)
+        if restore_mode is not None:
+            legacy = LEGACY_RESTORE_MODES[restore_mode]
+            if _initial_state_overridden_by_legacy_mode(
+                legacy, light_config.get(CONF_INITIAL_STATE)
+            ):
+                _LOGGER.warning(
+                    "[%s] 'initial_state: state' is ignored because 'restore_mode: %s' "
+                    "always sets the light %s at boot; use 'restore_state:' instead for "
+                    "per-field control",
+                    light_config.get(CONF_NAME) or light_config[CONF_ID],
+                    restore_mode,
+                    "ON" if legacy.cold_boot_state else "OFF",
+                )
 
     data = _get_data()
     if not data.effect_refs and not data.effect_cycle_refs:

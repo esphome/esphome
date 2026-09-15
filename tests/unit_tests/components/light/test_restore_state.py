@@ -365,13 +365,19 @@ def test_final_validate_warns_when_restore_mode_overrides_initial_state(
     # Regression test: this warning used to fire from setup_light_core_() during
     # codegen; it now runs as part of FINAL_VALIDATE_SCHEMA instead, so it also
     # surfaces on a plain `esphome config`, not just a full compile.
-    config = LIGHT_SCHEMA(
-        {
-            "name": "test",
-            CONF_RESTORE_MODE: "ALWAYS_OFF",
-            "initial_state": {"state": True},
-        }
-    )
+    #
+    # FINAL_VALIDATE_SCHEMA for the `light:` domain runs once for the whole list
+    # of configured lights, not once per light -- pass a one-element list, matching
+    # the real call shape, not the single light's own config dict.
+    config = [
+        LIGHT_SCHEMA(
+            {
+                "name": "test",
+                CONF_RESTORE_MODE: "ALWAYS_OFF",
+                "initial_state": {"state": True},
+            }
+        )
+    ]
     with caplog.at_level(logging.WARNING):
         _final_validate(config)
     assert "'initial_state: state' is ignored" in caplog.text
@@ -381,13 +387,15 @@ def test_final_validate_warns_when_restore_mode_overrides_initial_state(
 def test_final_validate_does_not_warn_without_conflict(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    config = LIGHT_SCHEMA(
-        {
-            "name": "test",
-            CONF_RESTORE_MODE: "ALWAYS_OFF",
-            "initial_state": {"state": False},
-        }
-    )
+    config = [
+        LIGHT_SCHEMA(
+            {
+                "name": "test",
+                CONF_RESTORE_MODE: "ALWAYS_OFF",
+                "initial_state": {"state": False},
+            }
+        )
+    ]
     with caplog.at_level(logging.WARNING):
         _final_validate(config)
     assert caplog.text == ""
