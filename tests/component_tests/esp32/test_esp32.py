@@ -252,6 +252,16 @@ def test_esp32_rejects_unsupported_cli_toolchain(
             r"value must be at most 5 .* @ data\['framework'\]\['advanced'\]\['nvs_encryption'\]\['key_id'\]",
             id="nvs_encryption_key_id_out_of_range",
         ),
+        pytest.param(
+            {
+                "variant": "esp32",
+                "board": "esp32dev",
+                "flash_mode": "opi",
+                "framework": {"type": "esp-idf"},
+            },
+            r"'flash_mode: opi' is only supported on ESP32S3 @ data\['flash_mode'\]",
+            id="flash_mode_opi_only_on_s3",
+        ),
     ],
 )
 def test_esp32_configuration_errors(
@@ -683,8 +693,20 @@ def test_flash_mode_sets_sdkconfig_and_pio_option(
     sdkconfig = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
     assert sdkconfig.get("CONFIG_ESPTOOLPY_FLASHMODE_QIO") is True
     assert sdkconfig.get("CONFIG_ESPTOOLPY_FLASHFREQ_80M") is True
+    assert sdkconfig.get("CONFIG_ESPTOOLPY_OCT_FLASH") is False
     assert CORE.platformio_options.get("board_build.flash_mode") == "qio"
     assert CORE.platformio_options.get("board_build.f_flash") == "80000000L"
+
+
+def test_flash_mode_opi_enables_octal_flash(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """flash_mode: opi needs the octal flash switch or ESP-IDF ignores the mode."""
+    generate_main(component_config_path("flash_mode_opi_s3.yaml"))
+    sdkconfig = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
+    assert sdkconfig.get("CONFIG_ESPTOOLPY_FLASHMODE_OPI") is True
+    assert sdkconfig.get("CONFIG_ESPTOOLPY_OCT_FLASH") is True
 
 
 def test_flash_mode_unset_leaves_defaults(
