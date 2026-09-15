@@ -174,17 +174,23 @@ static const char *get_descriptor_string(const usb_str_desc_t *desc, std::span<c
 }
 
 bool USBClient::get_device_info(UsbDeviceInfo &info) const {
-  if (this->state_ != USB_CLIENT_CONNECTED)
+  if (!this->is_connected())
     return false;
   const usb_device_desc_t *desc;
-  if (usb_host_get_device_descriptor(this->device_handle_, &desc) != ESP_OK)
+  esp_err_t err = usb_host_get_device_descriptor(this->device_handle_, &desc);
+  if (err != ESP_OK) {
+    ESP_LOGW(TAG, "Device descriptor query failed: %s", esp_err_to_name(err));
     return false;
+  }
   info.vendor_id = desc->idVendor;
   info.product_id = desc->idProduct;
   info.bcd_device = desc->bcdDevice;
   usb_device_info_t dev_info;
-  if (usb_host_device_info(this->device_handle_, &dev_info) != ESP_OK)
+  err = usb_host_device_info(this->device_handle_, &dev_info);
+  if (err != ESP_OK) {
+    ESP_LOGW(TAG, "Device info query failed: %s", esp_err_to_name(err));
     return false;
+  }
   if (!copy_descriptor_string(dev_info.str_desc_manufacturer, info.manufacturer)) {
     ESP_LOGW(TAG, "Manufacturer string descriptor is not ASCII");
   }

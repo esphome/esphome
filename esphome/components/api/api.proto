@@ -2890,7 +2890,8 @@ message SerialProxyUsbInfo {
   option (ifdef) = "USE_SERIAL_PROXY";
 
   uint32 instance = 1;
-  SerialProxyStatus status = 2;   // NOT_SUPPORTED when the port has no USB bridge
+  SerialProxyStatus status = 2;   // NOT_SUPPORTED when the port has no USB bridge, ERROR when the
+                                  // host stack refused the descriptor query
   bool connected = 3;             // True when a USB device is currently attached
   uint32 vendor_id = 4;
   uint32 product_id = 5;

@@ -165,8 +165,11 @@ class USBClient : public Component {
   bool control_transfer(uint8_t type, uint8_t request, uint16_t value, uint16_t index, const transfer_cb_t &callback,
                         const std::vector<uint8_t> &data = {});
 
+  /// Whether a device has been opened and its setup by the subclass has finished
+  bool is_connected() const { return this->state_ == USB_CLIENT_CONNECTED; }
+
   /// Copy the connected device's identity out of the cached USB descriptors.
-  /// Returns false when no device is connected.
+  /// Returns false when no device is connected or the host stack refused the query.
   bool get_device_info(UsbDeviceInfo &info) const;
 
   /// Register a callback for the device this client claims being connected (true) or

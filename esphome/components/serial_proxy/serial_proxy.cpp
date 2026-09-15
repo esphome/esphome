@@ -368,7 +368,12 @@ void SerialProxy::get_usb_info(usb_host::UsbDeviceInfo &info, api::SerialProxyUs
     msg.status = api::enums::SERIAL_PROXY_STATUS_NOT_SUPPORTED;
     return;
   }
-  if (!this->usb_channel_->get_parent()->get_device_info(info)) {
+  auto *client = this->usb_channel_->get_parent();
+  if (!client->is_connected()) {
+    return;
+  }
+  if (!client->get_device_info(info)) {
+    msg.status = api::enums::SERIAL_PROXY_STATUS_ERROR;
     return;
   }
   msg.connected = true;
