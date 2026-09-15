@@ -36,9 +36,7 @@ enum SpeakerEventGroupBits : uint32_t {
 
   ERR_ESP_NO_MEM = (1 << 19),
 
-  ERR_DROPPED_EVENT = (1 << 20),    // ISR overflowed the event queue, dropping a completion event
-  ERR_PARTIAL_WRITE = (1 << 21),    // i2s_channel_write returned fewer bytes than requested
-  ERR_LOCKSTEP_DESYNC = (1 << 22),  // i2s_event_queue_ and write_records_queue_ fell out of sync
+  ERR_DROPPED_EVENT = (1 << 20),  // ISR overflowed the event queue, dropping a completion event
 
   ALL_BITS = 0x00FFFFFF,  // All valid FreeRTOS event group bits
 };
@@ -133,6 +131,11 @@ class I2SAudioSpeakerBase : public I2SAudioOut, public speaker::Speaker, public 
 
   /// @brief Called in loop() when the task has stopped. Override for mode-specific cleanup.
   virtual void on_task_stopped() {}
+
+  /// @brief Disables the channel, credits every in-flight real frame as played now, and empties both lockstep
+  /// queues. The caller preloads silence and re-enables the channel, as at startup. Speaker task only.
+  /// @param extra_frames Real frames the caller consumed that never reached a write record
+  void begin_lockstep_resync_(uint32_t extra_frames);
 
   /// @brief Apply software volume control by running the samples through the gain ramp. Called from the
   /// speaker task only.
