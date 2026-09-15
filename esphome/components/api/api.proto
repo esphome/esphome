@@ -2880,6 +2880,11 @@ message SerialProxyGetUsbInfoRequest {
   uint32 instance = 1;
 }
 
+enum SerialProxyUsbInfoFlag {
+  SERIAL_PROXY_USB_INFO_FLAG_NONE = 0;
+  SERIAL_PROXY_USB_INFO_FLAG_CONNECTED = 1;  // A USB device is currently attached
+}
+
 // The USB identity of the device currently behind a port. Fields are zero/empty while
 // no device is connected. Sent in reply to SerialProxyGetUsbInfoRequest, and also
 // unsolicited to every connected client whenever a USB device is attached to or
@@ -2892,7 +2897,7 @@ message SerialProxyUsbInfo {
   uint32 instance = 1;
   SerialProxyStatus status = 2;   // NOT_SUPPORTED when the port has no USB bridge, ERROR when the
                                   // host stack refused the descriptor query
-  bool connected = 3;             // True when a USB device is currently attached
+  uint32 flags = 3;               // Bitmask of SerialProxyUsbInfoFlag
   uint32 vendor_id = 4;
   uint32 product_id = 5;
   uint32 bcd_device = 6;

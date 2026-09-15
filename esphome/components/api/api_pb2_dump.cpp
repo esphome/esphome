@@ -893,6 +893,16 @@ template<> const char *proto_enum_to_string<enums::SerialProxyMode>(enums::Seria
   }
 }
 #endif
+template<> const char *proto_enum_to_string<enums::SerialProxyUsbInfoFlag>(enums::SerialProxyUsbInfoFlag value) {
+  switch (value) {
+    case enums::SERIAL_PROXY_USB_INFO_FLAG_NONE:
+      return ESPHOME_PSTR("SERIAL_PROXY_USB_INFO_FLAG_NONE");
+    case enums::SERIAL_PROXY_USB_INFO_FLAG_CONNECTED:
+      return ESPHOME_PSTR("SERIAL_PROXY_USB_INFO_FLAG_CONNECTED");
+    default:
+      return ESPHOME_PSTR("UNKNOWN");
+  }
+}
 
 const char *HelloRequest::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, ESPHOME_PSTR("HelloRequest"));
@@ -2834,7 +2844,7 @@ const char *SerialProxyUsbInfo::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, ESPHOME_PSTR("SerialProxyUsbInfo"));
   dump_field(out, ESPHOME_PSTR("instance"), this->instance);
   dump_field(out, ESPHOME_PSTR("status"), static_cast<enums::SerialProxyStatus>(this->status));
-  dump_field(out, ESPHOME_PSTR("connected"), this->connected);
+  dump_field(out, ESPHOME_PSTR("flags"), this->flags);
   dump_field(out, ESPHOME_PSTR("vendor_id"), this->vendor_id);
   dump_field(out, ESPHOME_PSTR("product_id"), this->product_id);
   dump_field(out, ESPHOME_PSTR("bcd_device"), this->bcd_device);

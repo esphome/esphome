@@ -376,7 +376,7 @@ void SerialProxy::get_usb_info(usb_host::UsbDeviceInfo &info, api::SerialProxyUs
     msg.status = api::enums::SERIAL_PROXY_STATUS_ERROR;
     return;
   }
-  msg.connected = true;
+  msg.flags = api::enums::SERIAL_PROXY_USB_INFO_FLAG_CONNECTED;
   msg.vendor_id = info.vendor_id;
   msg.product_id = info.product_id;
   msg.bcd_device = info.bcd_device;

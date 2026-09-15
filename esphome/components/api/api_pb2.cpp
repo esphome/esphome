@@ -4280,7 +4280,7 @@ uint8_t *SerialProxyUsbInfo::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_
   uint8_t *__restrict__ pos = buffer.get_pos();
   ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 1, this->instance);
   ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 2, static_cast<uint32_t>(this->status));
-  ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 3, this->connected);
+  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 3, this->flags);
   ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 4, this->vendor_id);
   ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 5, this->product_id);
   ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 6, this->bcd_device);
@@ -4294,7 +4294,7 @@ uint32_t SerialProxyUsbInfo::calculate_size() const {
   uint32_t size = 0;
   size += ProtoSize::calc_uint32(1, this->instance);
   size += this->status ? 2 : 0;
-  size += ProtoSize::calc_bool(1, this->connected);
+  size += ProtoSize::calc_uint32(1, this->flags);
   size += ProtoSize::calc_uint32(1, this->vendor_id);
   size += ProtoSize::calc_uint32(1, this->product_id);
   size += ProtoSize::calc_uint32(1, this->bcd_device);

@@ -373,6 +373,10 @@ enum SerialProxyMode : uint32_t {
   SERIAL_PROXY_MODE_PROTOCOL = 1,
 };
 #endif
+enum SerialProxyUsbInfoFlag : uint32_t {
+  SERIAL_PROXY_USB_INFO_FLAG_NONE = 0,
+  SERIAL_PROXY_USB_INFO_FLAG_CONNECTED = 1,
+};
 
 }  // namespace enums
 
@@ -3443,13 +3447,13 @@ class SerialProxyGetUsbInfoRequest final : public ProtoDecodableMessage {
 class SerialProxyUsbInfo final : public ProtoMessage {
  public:
   static constexpr uint16_t MESSAGE_TYPE = 155;
-  static constexpr uint8_t ESTIMATED_SIZE = 51;
+  static constexpr uint8_t ESTIMATED_SIZE = 53;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const LogString *message_name() const override { return LOG_STR("serial_proxy_usb_info"); }
 #endif
   uint32_t instance{0};
   enums::SerialProxyStatus status{};
-  bool connected{false};
+  uint32_t flags{0};
   uint32_t vendor_id{0};
   uint32_t product_id{0};
   uint32_t bcd_device{0};
