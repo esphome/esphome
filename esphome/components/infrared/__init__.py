@@ -9,20 +9,21 @@ Once the API is considered stable, this warning will be removed.
 """
 
 import esphome.codegen as cg
+from esphome.components import ir_rf_base
 import esphome.config_validation as cv
 from esphome.const import CONF_ID
-from esphome.core import CORE, coroutine_with_priority
-from esphome.core.entity_helpers import queue_entity_register, setup_entity
+from esphome.core import coroutine_with_priority
+from esphome.core.entity_helpers import setup_entity
 from esphome.coroutine import CoroPriority
 from esphome.types import ConfigType, SafeExpType
 
 CODEOWNERS = ["@kbx81"]
-AUTO_LOAD = ["remote_base"]
+AUTO_LOAD = ["ir_rf_base"]
 
 IS_PLATFORM_COMPONENT = True
 
 infrared_ns = cg.esphome_ns.namespace("infrared")
-Infrared = infrared_ns.class_("Infrared", cg.EntityBase, cg.Component)
+Infrared = infrared_ns.class_("Infrared", ir_rf_base.IrRfEntity)
 InfraredCall = infrared_ns.class_("InfraredCall")
 InfraredTraits = infrared_ns.class_("InfraredTraits")
 
@@ -52,11 +53,8 @@ async def setup_infrared_core_(var: cg.MockObj, config: ConfigType) -> None:
 
 async def register_infrared(var: cg.MockObj, config: ConfigType) -> None:
     """Register an infrared device with the core."""
-    cg.add_define("USE_IR_RF")
-    await cg.register_component(var, config)
-    queue_entity_register("infrared", config)
+    await ir_rf_base.register_ir_rf_entity(var, config, "infrared")
     await setup_infrared_core_(var, config)
-    CORE.register_platform_component("infrared", var)
 
 
 async def new_infrared(config: ConfigType, *args: SafeExpType) -> cg.MockObj:

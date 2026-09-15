@@ -2091,10 +2091,8 @@ json::SerializationBuffer<> WebServer::infrared_json_(infrared::Infrared *obj, J
 
   set_json_icon_state_value(root, obj, "infrared", "", 0, start_config);
 
-  auto traits = obj->get_traits();
-
-  root[ESPHOME_F("supports_transmitter")] = traits.get_supports_transmitter();
-  root[ESPHOME_F("supports_receiver")] = traits.get_supports_receiver();
+  root[ESPHOME_F("supports_transmitter")] = obj->get_supports_transmitter();
+  root[ESPHOME_F("supports_receiver")] = obj->get_supports_receiver();
 
   if (start_config == DETAIL_ALL) {
     this->add_sorting_info_(root, obj);

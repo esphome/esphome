@@ -182,7 +182,7 @@ bool RemoteTransmitData::set_data_from_base64url(const std::string &base64url) {
 
 /* RemoteTransmitterBase */
 
-void RemoteTransmitterBase::send_(uint32_t send_times, uint32_t send_wait) {
+void RemoteTransmitterBase::send_(uint32_t send_times, uint32_t send_wait, [[maybe_unused]] uint16_t seq) {
 #ifdef ESPHOME_LOG_HAS_VERY_VERBOSE
   const auto &vec = this->temp_.get_data();
   char buffer[256];
@@ -213,6 +213,10 @@ void RemoteTransmitterBase::send_(uint32_t send_times, uint32_t send_wait) {
   if (pos != 0) {
     ESP_LOGVV(TAG, "%s", buffer);
   }
+#endif
+  this->flush_pending_completion();
+#ifdef USE_IR_RF_TRANSMIT_COMPLETE
+  this->current_seq_ = seq;
 #endif
   this->send_internal(send_times, send_wait);
 }
