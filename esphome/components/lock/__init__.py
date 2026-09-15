@@ -135,23 +135,28 @@ LOCK_ACTION_SCHEMA = maybe_simple_id(
 )
 
 
-@automation.register_action(
-    "lock.unlock", UnlockAction, LOCK_ACTION_SCHEMA, synchronous=True
+automation.register_simple_action(
+    "lock.unlock",
+    UnlockAction,
+    LOCK_ACTION_SCHEMA,
+    synchronous=True,
 )
-@automation.register_action(
-    "lock.lock", LockAction, LOCK_ACTION_SCHEMA, synchronous=True
+
+
+automation.register_simple_action(
+    "lock.lock",
+    LockAction,
+    LOCK_ACTION_SCHEMA,
+    synchronous=True,
 )
-@automation.register_action(
-    "lock.open", OpenAction, LOCK_ACTION_SCHEMA, synchronous=True
+
+
+automation.register_simple_action(
+    "lock.open",
+    OpenAction,
+    LOCK_ACTION_SCHEMA,
+    synchronous=True,
 )
-async def lock_action_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    paren = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, paren)
 
 
 @automation.register_condition("lock.is_locked", LockCondition, LOCK_ACTION_SCHEMA)

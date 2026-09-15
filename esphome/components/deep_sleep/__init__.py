@@ -486,27 +486,20 @@ async def deep_sleep_enter_to_code(
     return var
 
 
-@automation.register_action(
+automation.register_parented_action(
     "deep_sleep.prevent",
     PreventDeepSleepAction,
     automation.maybe_simple_id(DEEP_SLEEP_ACTION_SCHEMA),
     synchronous=True,
 )
-@automation.register_action(
+
+
+automation.register_parented_action(
     "deep_sleep.allow",
     AllowDeepSleepAction,
     automation.maybe_simple_id(DEEP_SLEEP_ACTION_SCHEMA),
     synchronous=True,
 )
-async def deep_sleep_action_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    return var
 
 
 FILTER_SOURCE_FILES = filter_source_files_from_platform(

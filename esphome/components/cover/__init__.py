@@ -256,56 +256,36 @@ COVER_ACTION_SCHEMA = maybe_simple_id(
 )
 
 
-@automation.register_action(
-    "cover.open", OpenAction, COVER_ACTION_SCHEMA, synchronous=True
+automation.register_simple_action(
+    "cover.open",
+    OpenAction,
+    COVER_ACTION_SCHEMA,
+    synchronous=True,
 )
-async def cover_open_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    paren = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, paren)
 
 
-@automation.register_action(
-    "cover.close", CloseAction, COVER_ACTION_SCHEMA, synchronous=True
+automation.register_simple_action(
+    "cover.close",
+    CloseAction,
+    COVER_ACTION_SCHEMA,
+    synchronous=True,
 )
-async def cover_close_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    paren = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, paren)
 
 
-@automation.register_action(
-    "cover.stop", StopAction, COVER_ACTION_SCHEMA, synchronous=True
+automation.register_simple_action(
+    "cover.stop",
+    StopAction,
+    COVER_ACTION_SCHEMA,
+    synchronous=True,
 )
-async def cover_stop_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    paren = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, paren)
 
 
-@automation.register_action(
-    "cover.toggle", ToggleAction, COVER_ACTION_SCHEMA, synchronous=True
+automation.register_simple_action(
+    "cover.toggle",
+    ToggleAction,
+    COVER_ACTION_SCHEMA,
+    synchronous=True,
 )
-async def cover_toggle_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    paren = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, paren)
 
 
 COVER_CONTROL_ACTION_SCHEMA = cv.Schema(
@@ -425,19 +405,16 @@ COVER_CONDITION_SCHEMA = cv.maybe_simple_value(
 )
 
 
-async def cover_condition_to_code(
-    config: ConfigType, condition_id: ID, template_arg: MockObj, args: TemplateArgsType
-) -> MockObj:
-    paren = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(condition_id, template_arg, paren)
-
-
-automation.register_condition(
-    "cover.is_open", CoverIsOpenCondition, COVER_CONDITION_SCHEMA
-)(cover_condition_to_code)
-automation.register_condition(
-    "cover.is_closed", CoverIsClosedCondition, COVER_CONDITION_SCHEMA
-)(cover_condition_to_code)
+automation.register_simple_condition(
+    "cover.is_open",
+    CoverIsOpenCondition,
+    COVER_CONDITION_SCHEMA,
+)
+automation.register_simple_condition(
+    "cover.is_closed",
+    CoverIsClosedCondition,
+    COVER_CONDITION_SCHEMA,
+)
 
 
 @coroutine_with_priority(CoroPriority.CORE)

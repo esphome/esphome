@@ -131,17 +131,9 @@ async def ufire_ise_calibrate_probe_high_to_code(
 UFIRE_ISE_RESET_SCHEMA = cv.Schema({cv.GenerateID(): cv.use_id(UFireISEComponent)})
 
 
-@automation.register_action(
+automation.register_simple_action(
     "ufire_ise.reset",
     UFireISEResetAction,
     UFIRE_ISE_RESET_SCHEMA,
     synchronous=True,
 )
-async def ufire_ise_reset_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    paren = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, paren)

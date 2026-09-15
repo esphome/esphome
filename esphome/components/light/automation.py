@@ -422,7 +422,7 @@ async def light_addressable_set_to_code(config, action_id, template_arg, args):
     return var
 
 
-@automation.register_condition(
+automation.register_simple_condition(
     "light.is_on",
     LightIsOnCondition,
     automation.maybe_simple_id(
@@ -431,7 +431,9 @@ async def light_addressable_set_to_code(config, action_id, template_arg, args):
         }
     ),
 )
-@automation.register_condition(
+
+
+automation.register_simple_condition(
     "light.is_off",
     LightIsOffCondition,
     automation.maybe_simple_id(
@@ -440,6 +442,3 @@ async def light_addressable_set_to_code(config, action_id, template_arg, args):
         }
     ),
 )
-async def light_is_on_off_to_code(config, condition_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(condition_id, template_arg, paren)

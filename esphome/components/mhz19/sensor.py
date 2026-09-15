@@ -122,33 +122,28 @@ NO_ARGS_ACTION_SCHEMA = maybe_simple_id(
 )
 
 
-@automation.register_action(
+automation.register_parented_action(
     "mhz19.calibrate_zero",
     MHZ19CalibrateZeroAction,
     NO_ARGS_ACTION_SCHEMA,
     synchronous=True,
 )
-@automation.register_action(
+
+
+automation.register_parented_action(
     "mhz19.abc_enable",
     MHZ19ABCEnableAction,
     NO_ARGS_ACTION_SCHEMA,
     synchronous=True,
 )
-@automation.register_action(
+
+
+automation.register_parented_action(
     "mhz19.abc_disable",
     MHZ19ABCDisableAction,
     NO_ARGS_ACTION_SCHEMA,
     synchronous=True,
 )
-async def mhz19_no_args_action_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    return var
 
 
 RANGE_ACTION_SCHEMA = maybe_simple_id(

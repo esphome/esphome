@@ -599,7 +599,7 @@ async def register_mqtt_component(var, config):
             )
 
 
-@automation.register_condition(
+automation.register_simple_condition(
     "mqtt.connected",
     MQTTConnectedCondition,
     cv.Schema(
@@ -608,12 +608,9 @@ async def register_mqtt_component(var, config):
         }
     ),
 )
-async def mqtt_connected_to_code(config, condition_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(condition_id, template_arg, paren)
 
 
-@automation.register_action(
+automation.register_simple_action(
     "mqtt.enable",
     MQTTEnableAction,
     cv.Schema(
@@ -623,12 +620,9 @@ async def mqtt_connected_to_code(config, condition_id, template_arg, args):
     ),
     synchronous=True,
 )
-async def mqtt_enable_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, paren)
 
 
-@automation.register_action(
+automation.register_simple_action(
     "mqtt.disable",
     MQTTDisableAction,
     cv.Schema(
@@ -638,9 +632,6 @@ async def mqtt_enable_to_code(config, action_id, template_arg, args):
     ),
     synchronous=True,
 )
-async def mqtt_disable_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, paren)
 
 
 _platform_filter = filter_source_files_from_platform(

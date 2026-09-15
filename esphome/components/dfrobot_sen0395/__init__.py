@@ -49,7 +49,7 @@ async def to_code(config: ConfigType) -> None:
     await uart.register_uart_device(var, config)
 
 
-@automation.register_action(
+automation.register_parented_action(
     "dfrobot_sen0395.reset",
     DfrobotSen0395ResetAction,
     maybe_simple_id(
@@ -59,16 +59,6 @@ async def to_code(config: ConfigType) -> None:
     ),
     synchronous=True,
 )
-async def dfrobot_sen0395_reset_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-
-    return var
 
 
 def range_segment_list(input: Any) -> list:

@@ -124,17 +124,9 @@ UFIRE_EC_RESET_SCHEMA = cv.Schema(
 )
 
 
-@automation.register_action(
+automation.register_simple_action(
     "ufire_ec.reset",
     UFireECResetAction,
     UFIRE_EC_RESET_SCHEMA,
     synchronous=True,
 )
-async def ufire_ec_reset_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    paren = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, paren)

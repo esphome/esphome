@@ -669,7 +669,7 @@ async def to_code(config):
     cg.add_global(binary_sensor_ns.using)
 
 
-@automation.register_action(
+automation.register_simple_action(
     "binary_sensor.invalidate_state",
     BinarySensorInvalidateAction,
     cv.maybe_simple_value(
@@ -680,9 +680,6 @@ async def to_code(config):
     ),
     synchronous=True,
 )
-async def binary_sensor_invalidate_state_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, paren)
 
 
 # automation.cpp only implements the click/double_click/multi_click triggers

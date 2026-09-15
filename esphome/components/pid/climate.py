@@ -134,7 +134,7 @@ async def to_code(config: ConfigType) -> None:
     cg.add(var.set_default_target_temperature(config[CONF_DEFAULT_TARGET_TEMPERATURE]))
 
 
-@automation.register_action(
+automation.register_simple_action(
     "climate.pid.reset_integral_term",
     PIDResetIntegralTermAction,
     automation.maybe_simple_id(
@@ -144,14 +144,6 @@ async def to_code(config: ConfigType) -> None:
     ),
     synchronous=True,
 )
-async def pid_reset_integral_term(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    paren = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, paren)
 
 
 @automation.register_action(

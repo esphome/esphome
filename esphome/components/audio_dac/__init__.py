@@ -33,20 +33,20 @@ SET_VOLUME_ACTION_SCHEMA = cv.maybe_simple_value(
 )
 
 
-@automation.register_action(
-    "audio_dac.mute_off", MuteOffAction, MUTE_ACTION_SCHEMA, synchronous=True
+automation.register_simple_action(
+    "audio_dac.mute_off",
+    MuteOffAction,
+    MUTE_ACTION_SCHEMA,
+    synchronous=True,
 )
-@automation.register_action(
-    "audio_dac.mute_on", MuteOnAction, MUTE_ACTION_SCHEMA, synchronous=True
+
+
+automation.register_simple_action(
+    "audio_dac.mute_on",
+    MuteOnAction,
+    MUTE_ACTION_SCHEMA,
+    synchronous=True,
 )
-async def audio_dac_mute_action_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    paren = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, paren)
 
 
 @automation.register_action(

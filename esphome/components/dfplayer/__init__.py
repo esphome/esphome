@@ -84,7 +84,7 @@ async def to_code(config):
     await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
 
 
-@automation.register_action(
+automation.register_parented_action(
     "dfplayer.play_next",
     NextAction,
     cv.Schema(
@@ -94,13 +94,9 @@ async def to_code(config):
     ),
     synchronous=True,
 )
-async def dfplayer_next_to_code(config, action_id, template_arg, args):
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    return var
 
 
-@automation.register_action(
+automation.register_parented_action(
     "dfplayer.play_previous",
     PreviousAction,
     cv.Schema(
@@ -110,10 +106,6 @@ async def dfplayer_next_to_code(config, action_id, template_arg, args):
     ),
     synchronous=True,
 )
-async def dfplayer_previous_to_code(config, action_id, template_arg, args):
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    return var
 
 
 @automation.register_action(
@@ -227,7 +219,7 @@ async def dfplayer_set_volume_to_code(config, action_id, template_arg, args):
     return var
 
 
-@automation.register_action(
+automation.register_parented_action(
     "dfplayer.volume_up",
     VolumeUpAction,
     cv.Schema(
@@ -237,13 +229,9 @@ async def dfplayer_set_volume_to_code(config, action_id, template_arg, args):
     ),
     synchronous=True,
 )
-async def dfplayer_volume_up_to_code(config, action_id, template_arg, args):
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    return var
 
 
-@automation.register_action(
+automation.register_parented_action(
     "dfplayer.volume_down",
     VolumeDownAction,
     cv.Schema(
@@ -253,10 +241,6 @@ async def dfplayer_volume_up_to_code(config, action_id, template_arg, args):
     ),
     synchronous=True,
 )
-async def dfplayer_volume_down_to_code(config, action_id, template_arg, args):
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    return var
 
 
 @automation.register_action(
@@ -279,7 +263,7 @@ async def dfplayer_set_eq_to_code(config, action_id, template_arg, args):
     return var
 
 
-@automation.register_action(
+automation.register_parented_action(
     "dfplayer.sleep",
     SleepAction,
     cv.Schema(
@@ -289,13 +273,9 @@ async def dfplayer_set_eq_to_code(config, action_id, template_arg, args):
     ),
     synchronous=True,
 )
-async def dfplayer_sleep_to_code(config, action_id, template_arg, args):
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    return var
 
 
-@automation.register_action(
+automation.register_parented_action(
     "dfplayer.reset",
     ResetAction,
     cv.Schema(
@@ -305,13 +285,9 @@ async def dfplayer_sleep_to_code(config, action_id, template_arg, args):
     ),
     synchronous=True,
 )
-async def dfplayer_reset_to_code(config, action_id, template_arg, args):
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    return var
 
 
-@automation.register_action(
+automation.register_parented_action(
     "dfplayer.start",
     StartAction,
     cv.Schema(
@@ -321,13 +297,9 @@ async def dfplayer_reset_to_code(config, action_id, template_arg, args):
     ),
     synchronous=True,
 )
-async def dfplayer_start_to_code(config, action_id, template_arg, args):
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    return var
 
 
-@automation.register_action(
+automation.register_parented_action(
     "dfplayer.pause",
     PauseAction,
     cv.Schema(
@@ -337,13 +309,9 @@ async def dfplayer_start_to_code(config, action_id, template_arg, args):
     ),
     synchronous=True,
 )
-async def dfplayer_pause_to_code(config, action_id, template_arg, args):
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    return var
 
 
-@automation.register_action(
+automation.register_parented_action(
     "dfplayer.stop",
     StopAction,
     cv.Schema(
@@ -353,13 +321,9 @@ async def dfplayer_pause_to_code(config, action_id, template_arg, args):
     ),
     synchronous=True,
 )
-async def dfplayer_stop_to_code(config, action_id, template_arg, args):
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    return var
 
 
-@automation.register_action(
+automation.register_parented_action(
     "dfplayer.random",
     RandomAction,
     cv.Schema(
@@ -369,13 +333,9 @@ async def dfplayer_stop_to_code(config, action_id, template_arg, args):
     ),
     synchronous=True,
 )
-async def dfplayer_random_to_code(config, action_id, template_arg, args):
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    return var
 
 
-@automation.register_condition(
+automation.register_parented_condition(
     "dfplayer.is_playing",
     DFPlayerIsPlayingCondition,
     cv.Schema(
@@ -384,7 +344,3 @@ async def dfplayer_random_to_code(config, action_id, template_arg, args):
         }
     ),
 )
-async def dfplayer_is_playing_to_code(config, condition_id, template_arg, args):
-    var = cg.new_Pvariable(condition_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    return var

@@ -206,7 +206,7 @@ async def fingerprint_grow_enroll_to_code(config, action_id, template_arg, args)
     return var
 
 
-@automation.register_action(
+automation.register_parented_action(
     "fingerprint_grow.cancel_enroll",
     CancelEnrollmentAction,
     cv.Schema(
@@ -216,10 +216,6 @@ async def fingerprint_grow_enroll_to_code(config, action_id, template_arg, args)
     ),
     synchronous=True,
 )
-async def fingerprint_grow_cancel_enroll_to_code(config, action_id, template_arg, args):
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    return var
 
 
 @automation.register_action(
@@ -243,7 +239,7 @@ async def fingerprint_grow_delete_to_code(config, action_id, template_arg, args)
     return var
 
 
-@automation.register_action(
+automation.register_parented_action(
     "fingerprint_grow.delete_all",
     DeleteAllAction,
     cv.Schema(
@@ -253,10 +249,6 @@ async def fingerprint_grow_delete_to_code(config, action_id, template_arg, args)
     ),
     synchronous=True,
 )
-async def fingerprint_grow_delete_all_to_code(config, action_id, template_arg, args):
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    return var
 
 
 FINGERPRINT_GROW_LED_CONTROL_ACTION_SCHEMA = cv.maybe_simple_value(

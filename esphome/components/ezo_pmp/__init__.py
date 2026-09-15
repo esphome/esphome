@@ -80,72 +80,52 @@ EzoPMPArbitraryCommandAction = ezo_pmp_ns.class_(
 )
 
 
-@automation.register_action(
+automation.register_simple_action(
     "ezo_pmp.find",
     EzoPMPFindAction,
     EZO_PMP_NO_ARGS_ACTION_SCHEMA,
     synchronous=True,
 )
-async def ezo_pmp_find_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, paren)
 
 
-@automation.register_action(
+automation.register_simple_action(
     "ezo_pmp.dose_continuously",
     EzoPMPDoseContinuouslyAction,
     EZO_PMP_NO_ARGS_ACTION_SCHEMA,
     synchronous=True,
 )
-async def ezo_pmp_dose_continuously_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, paren)
 
 
-@automation.register_action(
+automation.register_simple_action(
     "ezo_pmp.clear_total_volume_dosed",
     EzoPMPClearTotalVolumeDispensedAction,
     EZO_PMP_NO_ARGS_ACTION_SCHEMA,
     synchronous=True,
 )
-async def ezo_pmp_clear_total_volume_dosed_to_code(
-    config, action_id, template_arg, args
-):
-    paren = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, paren)
 
 
-@automation.register_action(
+automation.register_simple_action(
     "ezo_pmp.clear_calibration",
     EzoPMPClearCalibrationAction,
     EZO_PMP_NO_ARGS_ACTION_SCHEMA,
     synchronous=True,
 )
-async def ezo_pmp_clear_calibration_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, paren)
 
 
-@automation.register_action(
+automation.register_simple_action(
     "ezo_pmp.pause_dosing",
     EzoPMPPauseDosingAction,
     EZO_PMP_NO_ARGS_ACTION_SCHEMA,
     synchronous=True,
 )
-async def ezo_pmp_pause_dosing_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, paren)
 
 
-@automation.register_action(
+automation.register_simple_action(
     "ezo_pmp.stop_dosing",
     EzoPMPStopDosingAction,
     EZO_PMP_NO_ARGS_ACTION_SCHEMA,
     synchronous=True,
 )
-async def ezo_pmp_stop_dosing_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, paren)
 
 
 # Actions that require Multiple Args

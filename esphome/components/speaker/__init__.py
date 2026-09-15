@@ -62,12 +62,6 @@ SPEAKER_AUTOMATION_SCHEMA = automation.maybe_simple_id(
 )
 
 
-async def speaker_action(config, action_id, template_arg, args):
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    return var
-
-
 @automation.register_action(
     "speaker.play",
     PlayAction,
@@ -96,20 +90,30 @@ async def speaker_play_action(config, action_id, template_arg, args):
     return var
 
 
-automation.register_action(
-    "speaker.stop", StopAction, SPEAKER_AUTOMATION_SCHEMA, synchronous=True
-)(speaker_action)
-automation.register_action(
-    "speaker.finish", FinishAction, SPEAKER_AUTOMATION_SCHEMA, synchronous=True
-)(speaker_action)
+automation.register_parented_action(
+    "speaker.stop",
+    StopAction,
+    SPEAKER_AUTOMATION_SCHEMA,
+    synchronous=True,
+)
+automation.register_parented_action(
+    "speaker.finish",
+    FinishAction,
+    SPEAKER_AUTOMATION_SCHEMA,
+    synchronous=True,
+)
 
-automation.register_condition(
-    "speaker.is_playing", IsPlayingCondition, SPEAKER_AUTOMATION_SCHEMA
-)(speaker_action)
+automation.register_parented_condition(
+    "speaker.is_playing",
+    IsPlayingCondition,
+    SPEAKER_AUTOMATION_SCHEMA,
+)
 
-automation.register_condition(
-    "speaker.is_stopped", IsStoppedCondition, SPEAKER_AUTOMATION_SCHEMA
-)(speaker_action)
+automation.register_parented_condition(
+    "speaker.is_stopped",
+    IsStoppedCondition,
+    SPEAKER_AUTOMATION_SCHEMA,
+)
 
 
 @automation.register_action(
@@ -132,18 +136,20 @@ async def speaker_volume_set_action(config, action_id, template_arg, args):
     return var
 
 
-@automation.register_action(
+automation.register_simple_action(
     "speaker.mute_off",
     MuteOffAction,
     SPEAKER_AUTOMATION_SCHEMA,
     synchronous=True,
 )
-@automation.register_action(
-    "speaker.mute_on", MuteOnAction, SPEAKER_AUTOMATION_SCHEMA, synchronous=True
+
+
+automation.register_simple_action(
+    "speaker.mute_on",
+    MuteOnAction,
+    SPEAKER_AUTOMATION_SCHEMA,
+    synchronous=True,
 )
-async def speaker_mute_action_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, paren)
 
 
 @coroutine_with_priority(CoroPriority.CORE)

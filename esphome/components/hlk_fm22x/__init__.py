@@ -146,7 +146,7 @@ async def hlk_fm22x_delete_to_code(config, action_id, template_arg, args):
     return var
 
 
-@automation.register_action(
+automation.register_parented_action(
     "hlk_fm22x.delete_all",
     DeleteAllAction,
     cv.Schema(
@@ -156,13 +156,9 @@ async def hlk_fm22x_delete_to_code(config, action_id, template_arg, args):
     ),
     synchronous=True,
 )
-async def hlk_fm22x_delete_all_to_code(config, action_id, template_arg, args):
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    return var
 
 
-@automation.register_action(
+automation.register_parented_action(
     "hlk_fm22x.scan",
     ScanAction,
     cv.Schema(
@@ -172,13 +168,9 @@ async def hlk_fm22x_delete_all_to_code(config, action_id, template_arg, args):
     ),
     synchronous=True,
 )
-async def hlk_fm22x_scan_to_code(config, action_id, template_arg, args):
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    return var
 
 
-@automation.register_action(
+automation.register_parented_action(
     "hlk_fm22x.reset",
     ResetAction,
     cv.Schema(
@@ -188,7 +180,3 @@ async def hlk_fm22x_scan_to_code(config, action_id, template_arg, args):
     ),
     synchronous=True,
 )
-async def hlk_fm22x_reset_to_code(config, action_id, template_arg, args):
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    return var
