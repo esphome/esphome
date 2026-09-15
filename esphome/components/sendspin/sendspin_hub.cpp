@@ -69,7 +69,19 @@ void SendspinHub::setup() {
   }
 }
 
-void SendspinHub::loop() { this->client_->loop(); }
+void SendspinHub::loop() {
+  this->client_->loop();
+
+#ifdef USE_MDNS_SUPPORTS_ENABLE_DISABLE
+  // The _sendspin service starts disabled in mdns's compiled records, so it is advertised
+  // from here rather than setup(): mdns sets up after this hub and only builds its service
+  // list then. is_ready() stays false while mdns is still starting up or has failed. A
+  // failed enable is retried on the next pass rather than leaving the server undiscoverable.
+  if (!this->mdns_advertised_ && this->mdns_->is_ready()) {
+    this->mdns_advertised_ = this->mdns_->set_service_enabled("_sendspin", "_tcp", true);
+  }
+#endif
+}
 
 void SendspinHub::dump_config() {
   char mac_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];

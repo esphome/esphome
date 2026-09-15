@@ -2,7 +2,7 @@ from dataclasses import dataclass, field
 
 from esphome import automation
 import esphome.codegen as cg
-from esphome.components import esp32, network, psram, socket, wifi
+from esphome.components import esp32, mdns, network, psram, socket, wifi
 from esphome.components.const import CONF_MANUFACTURER
 import esphome.config_validation as cv
 from esphome.const import (
@@ -284,6 +284,13 @@ async def to_code(config: ConfigType) -> None:
     esp32.add_idf_component(name="sendspin/sendspin-cpp", ref="0.7.2")
 
     cg.add_define("USE_SENDSPIN", True)  # for MDNS
+
+    # The _sendspin mDNS service starts disabled; the hub enables it once its
+    # server is running. Skipped (service stays always-advertised) when the
+    # platform does not support runtime enable/disable.
+    if mdns.request_service_enable_disable():
+        mdns_var = await cg.get_variable(CORE.config["mdns"][CONF_ID])
+        cg.add(var.set_mdns(mdns_var))
 
     data = _get_data()
 
