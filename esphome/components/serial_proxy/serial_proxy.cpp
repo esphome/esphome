@@ -12,6 +12,10 @@
 #include "esphome/components/api/api_server.h"
 #endif
 
+#ifdef USE_SERIAL_PROXY_USB_INFO
+#include "esphome/components/usb_uart/usb_uart.h"
+#endif
+
 namespace esphome::serial_proxy {
 
 static const char *const TAG = "serial_proxy";
@@ -29,6 +33,12 @@ void SerialProxy::setup() {
 #ifdef USE_API
   // instance_index_ is fixed at registration time; pre-set it so loop() only needs to update data
   this->outgoing_msg_.instance = this->instance_index_;
+#endif
+#ifdef USE_SERIAL_PROXY_USB_INFO
+  if (this->usb_channel_ != nullptr) {
+    this->usb_channel_->get_parent()->add_on_connection_callback(
+        [this](bool connected) { this->on_usb_connection_changed_(connected); });
+  }
 #endif
 #ifdef USE_SERIAL_PROXY_TAP
   // A tap sets itself up before this runs (its setup priority is higher), so it may
@@ -156,9 +166,10 @@ void SerialProxy::dump_config() {
                 "  RTS Pin: %s\n"
                 "  DTR Pin: %s",
                 this->instance_index_, this->name_ != nullptr ? this->name_ : "",
-                this->port_type_ == api::enums::SERIAL_PROXY_PORT_TYPE_RS485   ? LOG_STR_LITERAL("RS485")
-                : this->port_type_ == api::enums::SERIAL_PROXY_PORT_TYPE_RS232 ? LOG_STR_LITERAL("RS232")
-                                                                               : LOG_STR_LITERAL("TTL"),
+                this->port_type_ == api::enums::SERIAL_PROXY_PORT_TYPE_RS485        ? LOG_STR_LITERAL("RS485")
+                : this->port_type_ == api::enums::SERIAL_PROXY_PORT_TYPE_RS232      ? LOG_STR_LITERAL("RS232")
+                : this->port_type_ == api::enums::SERIAL_PROXY_PORT_TYPE_USB_SERIAL ? LOG_STR_LITERAL("USB_SERIAL")
+                                                                                    : LOG_STR_LITERAL("TTL"),
                 this->rts_pin_ != nullptr ? LOG_STR_LITERAL("configured") : LOG_STR_LITERAL("not configured"),
                 this->dtr_pin_ != nullptr ? LOG_STR_LITERAL("configured") : LOG_STR_LITERAL("not configured"));
 }
@@ -332,6 +343,50 @@ SerialProxyResult SerialProxy::set_modem_pins(api::APIConnection *api_connection
   }
   return SerialProxyResult::SERIAL_PROXY_RESULT_OK;
 }
+
+#ifdef USE_SERIAL_PROXY_USB_INFO
+void SerialProxy::on_usb_connection_changed_(bool connected) {
+  ESP_LOGD(TAG, "USB device %s serial proxy [%" PRIu32 "]",
+           connected ? LOG_STR_LITERAL("attached to") : LOG_STR_LITERAL("removed from"), this->instance_index_);
+#ifdef USE_API
+  if (api::global_api_server == nullptr) {
+    return;
+  }
+  // The message's strings are views into this buffer, which outlives the send below
+  usb_host::UsbDeviceInfo info;
+  api::SerialProxyUsbInfo msg{};
+  msg.instance = this->instance_index_;
+  this->get_usb_info(info, msg);
+  api::global_api_server->send_serial_proxy_usb_info(msg);
+#endif
+}
+
+#ifdef USE_API
+void SerialProxy::get_usb_info(usb_host::UsbDeviceInfo &info, api::SerialProxyUsbInfo &msg) const {
+  // The define is global, so a hardware UART port in the same config also gets here
+  if (this->usb_channel_ == nullptr) {
+    msg.status = api::enums::SERIAL_PROXY_STATUS_NOT_SUPPORTED;
+    return;
+  }
+  auto *client = this->usb_channel_->get_parent();
+  if (!client->is_connected()) {
+    return;
+  }
+  if (!client->get_device_info(info)) {
+    msg.status = api::enums::SERIAL_PROXY_STATUS_ERROR;
+    return;
+  }
+  msg.flags = api::enums::SERIAL_PROXY_USB_INFO_FLAG_CONNECTED;
+  msg.vendor_id = info.vendor_id;
+  msg.product_id = info.product_id;
+  msg.bcd_device = info.bcd_device;
+  msg.interface_number = this->usb_channel_->get_interface_number();
+  msg.manufacturer = StringRef(info.manufacturer);
+  msg.product = StringRef(info.product);
+  msg.serial_number = StringRef(info.serial_number);
+}
+#endif
+#endif
 
 uint32_t SerialProxy::get_modem_pins() const {
   return (this->rts_state_ ? static_cast<uint32_t>(SERIAL_PROXY_LINE_STATE_FLAG_RTS) : 0u) |
