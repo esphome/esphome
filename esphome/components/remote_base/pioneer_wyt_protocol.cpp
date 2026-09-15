@@ -138,7 +138,7 @@ PioneerWytData PioneerWytData::make_fan(uint8_t fan_speed, bool mute, bool verti
   }
   d[7] = b7;
 
-  d[8] = 0x00;
+  d[8] = 0xC0;
   d[9] = 0x00;
   d[10] = 0x00;
   d[11] = 0x00;
