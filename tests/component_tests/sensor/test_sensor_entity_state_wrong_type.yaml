@@ -1,0 +1,27 @@
+---
+esphome:
+  name: test
+
+esp8266:
+  board: d1_mini_lite
+
+uart:
+  id: uart_bus
+  tx_pin: GPIO1
+  rx_pin: GPIO3
+  baud_rate: 9600
+
+sensor:
+  - platform: adc
+    pin: A0
+    id: s_1
+    name: test s1
+    update_interval: 60s
+binary_sensor:
+  - platform: analog_threshold
+    id: threshold_id
+    sensor_id: s_1
+    threshold:
+      # uart::UARTComponent has no `.state` member -- this must fail validation,
+      # not silently produce code that only fails at the C++ compile step.
+      entity_state: uart_bus
