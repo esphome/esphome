@@ -5,8 +5,13 @@ from __future__ import annotations
 from pathlib import Path
 from unittest.mock import patch
 
+import pytest
+
+from esphome import yaml_util
 from esphome.components.file import image as file_image
-from esphome.external_files import RemoteFile
+from esphome.const import CONF_PATH
+from esphome.core import CORE
+from esphome.external_files import RemoteFile, url_cache_key
 from esphome.loader import get_component, get_platform
 
 
@@ -55,19 +60,40 @@ def test_prefetch_files_yields_remote_refs(setup_core: Path) -> None:
     assert files[1].url == "https://example.com/img.png"
 
 
-def test_validated_file_values_stay_paths(setup_core: Path, tmp_path: Path) -> None:
-    """config-hash normalizes Path values under the data dir; a str would
-    dump verbatim and hash differently between CLI and the add-on."""
+def test_validated_file_values_hash_alike_across_data_dirs(
+    setup_core: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A CLI and an add-on data dir dump validated image files identically."""
     url = "https://example.com/img.png"
-    with patch("esphome.components.file.image.external_files.download_content"):
-        remote = file_image.validate_file_shorthand(url)
-        mdi = file_image.validate_file_shorthand("mdi:home")
-    assert remote == file_image.compute_local_image_path(url)
-    assert isinstance(remote, Path)
-    assert isinstance(mdi, Path)
-    local = tmp_path / "img.png"
-    local.touch()
-    assert file_image.validate_file_shorthand("img.png") == local
+    (setup_core / "img.png").touch()
+    dumps: list[str] = []
+    for data_dir in (
+        setup_core / ".esphome",
+        setup_core.parent / f"{setup_core.name}-data",
+    ):
+        monkeypatch.setenv("ESPHOME_DATA_DIR", str(data_dir))
+        with patch("esphome.components.file.image.external_files.download_content"):
+            config = {
+                "remote": file_image.validate_file_shorthand(url),
+                "mdi": file_image.validate_file_shorthand("mdi:home"),
+                "local": file_image.validate_file_shorthand("img.png"),
+                "local_schema": file_image.LOCAL_SCHEMA({CONF_PATH: "img.png"}),
+            }
+        dumps.append(
+            yaml_util.dump(
+                config,
+                sort_keys=True,
+                relative_to=CORE.config_dir,
+                data_dir=CORE.data_dir,
+            )
+        )
+    assert dumps[0] == dumps[1]
+    assert dumps[0].splitlines() == [
+        "local: img.png",
+        "local_schema: img.png",
+        "mdi: .esphome/image/mdi/home.svg",
+        f"remote: .esphome/image/{url_cache_key(url)}",
+    ]
 
 
 def test_extractor_matches_validator_path(setup_core: Path) -> None:

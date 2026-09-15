@@ -42,7 +42,7 @@ from esphome.const import (
     CONF_TYPE,
     CONF_URL,
 )
-from esphome.core import CORE, HexInt
+from esphome.core import HexInt
 from esphome.cpp_generator import MockObj, MockObjClass
 from esphome.external_files import RemoteFile
 from esphome.types import ConfigType
@@ -76,9 +76,9 @@ def compute_local_image_path(value: str | ConfigType) -> Path:
     return external_files.compute_local_file_path(DOMAIN, url)
 
 
-def local_path(value: str | ConfigType) -> Path:
-    value = value[CONF_PATH] if isinstance(value, dict) else value
-    return CORE.relative_config_path(value)
+def local_path(value: Path | ConfigType) -> Path:
+    # cv.file_ has already resolved the path against the config dir.
+    return value[CONF_PATH] if isinstance(value, dict) else value
 
 
 def download_file(url: str, path: Path) -> Path:
