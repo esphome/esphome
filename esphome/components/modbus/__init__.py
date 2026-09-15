@@ -231,6 +231,25 @@ def command_options_expression(
     )
 
 
+def add_command_options(
+    var: MockObj,
+    setter: str,
+    config: ConfigType,
+    *,
+    direction: Literal["read", "write"],
+) -> None:
+    """Emit `var.<setter>(<options>)` for a config validated with command_options_schema() of the
+    same direction, skipped when every option is at its C++ default."""
+    if all(
+        config.get(option.conf_key, option.default) == option.default
+        for option in _command_options(direction)
+    ):
+        return
+    cg.add(
+        getattr(var, setter)(command_options_expression(config, direction=direction))
+    )
+
+
 async def register_templatable_command_options(
     var: MockObj, config: ConfigType, args: TemplateArgsType, direction: str
 ) -> None:

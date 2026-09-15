@@ -496,11 +496,7 @@ async def to_code(config: ConfigType) -> None:
     await cg.register_component(var, config)
     cg.add(var.set_max_cmd_retries(config[CONF_MAX_CMD_RETRIES]))
     cg.add(var.set_offline_skip_updates(config[CONF_OFFLINE_SKIP_UPDATES]))
-    cg.add(
-        var.set_read_options(
-            modbus.command_options_expression(config, direction="read")
-        )
-    )
+    modbus.add_command_options(var, "set_read_options", config, direction="read")
     await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
 
 

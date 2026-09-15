@@ -54,3 +54,26 @@ def test_allow_broadcast_read_requires_address_zero() -> None:
     # The option only means something at address 0; elsewhere it would be silently inert.
     with pytest.raises(cv.Invalid, match="only applies to the broadcast address"):
         _controller(5, **{modbus.CONF_ALLOW_BROADCAST_READ: True})
+
+
+def test_add_command_options_skips_defaults() -> None:
+    # The setter is only emitted when an option differs from its C++ default.
+    import esphome.codegen as cg
+    from esphome.const import CONF_CONTINUOUS
+
+    var = cg.MockObj("ctl")
+    emitted: list = []
+    original = cg.add
+    cg.add = emitted.append
+    try:
+        modbus.add_command_options(
+            var, "set_read_options", {CONF_CONTINUOUS: False}, direction="read"
+        )
+        assert emitted == []
+        modbus.add_command_options(
+            var, "set_read_options", {CONF_CONTINUOUS: True}, direction="read"
+        )
+        assert len(emitted) == 1
+        assert "set_read_options" in str(emitted[0])
+    finally:
+        cg.add = original

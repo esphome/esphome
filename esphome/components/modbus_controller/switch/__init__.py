@@ -79,11 +79,7 @@ async def to_code(config: ConfigType) -> None:
     paren = await cg.get_variable(config[CONF_MODBUS_CONTROLLER_ID])
     cg.add(var.set_parent(paren))
     cg.add(var.set_use_write_mutiple(config[CONF_USE_WRITE_MULTIPLE]))
-    cg.add(
-        var.set_write_options(
-            modbus.command_options_expression(config, direction="write")
-        )
-    )
+    modbus.add_command_options(var, "set_write_options", config, direction="write")
     assumed_state = config[CONF_ASSUMED_STATE]
     cg.add(var.set_assumed_state(assumed_state))
     if not assumed_state:

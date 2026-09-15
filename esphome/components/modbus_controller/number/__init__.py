@@ -123,11 +123,7 @@ async def to_code(config: ConfigType) -> None:
     cg.add(parent.add_sensor_item(var))
     await add_modbus_base_properties(var, config, ModbusNumber)
     cg.add(var.set_use_write_mutiple(config[CONF_USE_WRITE_MULTIPLE]))
-    cg.add(
-        var.set_write_options(
-            modbus.command_options_expression(config, direction="write")
-        )
-    )
+    modbus.add_command_options(var, "set_write_options", config, direction="write")
     if CONF_WRITE_LAMBDA in config:
         template_ = await cg.process_lambda(
             config[CONF_WRITE_LAMBDA],
