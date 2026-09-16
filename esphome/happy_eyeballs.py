@@ -69,10 +69,7 @@ def _make_create_connection() -> Callable[..., socket.socket]:
 
     from aiohappyeyeballs import start_connection
     from urllib3.exceptions import LocationParseError
-    from urllib3.util.connection import (  # noqa: PLC2701
-        _set_socket_options,
-        allowed_gai_family,
-    )
+    from urllib3.util.connection import _set_socket_options, allowed_gai_family  # noqa: PLC2701
     from urllib3.util.timeout import _DEFAULT_TIMEOUT  # noqa: PLC2701
 
     from esphome import async_thread
