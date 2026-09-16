@@ -227,8 +227,12 @@ TYPES: dict[str, cv.Schema] = {
         entity_category=ENTITY_CATEGORY_DIAGNOSTIC
     ),
     # §5.3.3 Class 3, ID 4 LB: Req-Response-Code of the most recent remote request
-    # (0..127 = request refused, 128..255 = request accepted).
-    CONF_REMOTE_REQUEST_LAST_RESPONSE_CODE: _CODE_SCHEMA,
+    # (0..127 = request refused, 128..255 = request accepted). Feedback for the Class 3 remote-request
+    # buttons, which are all technician/installer actions (entity_category CONFIG) -- not a value
+    # anyone watches day-to-day, so DIAGNOSTIC.
+    CONF_REMOTE_REQUEST_LAST_RESPONSE_CODE: _code_schema(
+        entity_category=ENTITY_CATEGORY_DIAGNOSTIC
+    ),
     # §5.3.4 Class 4, ID 17: Relative Modulation Level (0..100%). 0% = minimum modulation level,
     # 100% = maximum modulation level.
     CONF_SENSOR_AND_INFORMATIONAL_DATA_RELATIVE_MODULATION_LEVEL: _PERCENT_SCHEMA,

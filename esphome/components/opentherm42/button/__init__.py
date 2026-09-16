@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 from esphome.components import button
 import esphome.config_validation as cv
-from esphome.const import ENTITY_CATEGORY_CONFIG, ENTITY_CATEGORY_DIAGNOSTIC
+from esphome.const import ENTITY_CATEGORY_CONFIG
 
 from .. import OpenTherm42Hub, opentherm42_ns, validate_requires_time_id
 from ..const import (
@@ -54,39 +54,40 @@ OpenTherm42SyncTimeButton = opentherm42_ns.class_(
 # §5.3.3 Class 3, ID 4 HB: Request-Code. Pressing a button sends WRITE-DATA(id=4, code, 00); the
 # boiler's WRITE-ACK reports acceptance via the remote_request_last_response_code sensor.
 #
-# Each entry maps to (request_code, entity_category). The "Service mode ..." requests and their
-# "back to normal" counterpart exist solely for a technician to run and then exit a diagnostic test
-# procedure (e.g. CO2 measurement, spark test, fan speed test) -- DIAGNOSTIC. The remaining requests
-# perform a lasting corrective/maintenance action on the boiler (resetting a lockout or flag, or
-# running a commissioning procedure) -- CONFIG.
+# Each entry maps to (request_code, entity_category). All of these are CONFIG, never DIAGNOSTIC:
+# a button always changes something when pressed, and Home Assistant's own definition of DIAGNOSTIC
+# is an entity that "does not allow changing" -- so DIAGNOSTIC never applies to a write entity like a
+# button (see the read-only remote_request_last_response_code sensor for that side of this
+# request/response pair). None of these are primary either: unlike the Class 8 manual DHW push2
+# button, none is a "press this as part of normal day-to-day use" action -- they're all
+# technician/installer actions, either entering or leaving a diagnostic test procedure (CO2
+# measurement, spark test, fan speed test) or a one-off corrective/commissioning action (resetting a
+# lockout or service flag, filling the CH circuit, purging air).
 CODES: dict[str, tuple[int, str]] = {
     # 0: Back to Normal operation mode -- exits whichever "Service mode ..." test below was entered.
-    CONF_REMOTE_REQUEST_BACK_TO_NORMAL_OPERATION_MODE: (0, ENTITY_CATEGORY_DIAGNOSTIC),
+    CONF_REMOTE_REQUEST_BACK_TO_NORMAL_OPERATION_MODE: (0, ENTITY_CATEGORY_CONFIG),
     # 1: "BLOR" = Boiler Lock-out Reset request
     CONF_REMOTE_REQUEST_BOILER_LOCKOUT_RESET: (1, ENTITY_CATEGORY_CONFIG),
     # 2: "CHWF" = CH water filling request
     CONF_REMOTE_REQUEST_CH_WATER_FILLING: (2, ENTITY_CATEGORY_CONFIG),
     # 3: Service mode maximum power request (for instance for CO2 measurement during Chimney Sweep Function)
-    CONF_REMOTE_REQUEST_SERVICE_MODE_MAXIMUM_POWER: (3, ENTITY_CATEGORY_DIAGNOSTIC),
+    CONF_REMOTE_REQUEST_SERVICE_MODE_MAXIMUM_POWER: (3, ENTITY_CATEGORY_CONFIG),
     # 4: Service mode minimum power request (CO2 measurement)
-    CONF_REMOTE_REQUEST_SERVICE_MODE_MINIMUM_POWER: (4, ENTITY_CATEGORY_DIAGNOSTIC),
+    CONF_REMOTE_REQUEST_SERVICE_MODE_MINIMUM_POWER: (4, ENTITY_CATEGORY_CONFIG),
     # 5: Service mode spark test request (no gas)
-    CONF_REMOTE_REQUEST_SERVICE_MODE_SPARK_TEST: (5, ENTITY_CATEGORY_DIAGNOSTIC),
+    CONF_REMOTE_REQUEST_SERVICE_MODE_SPARK_TEST: (5, ENTITY_CATEGORY_CONFIG),
     # 6: Service mode fan maximum speed request (no flame)
-    CONF_REMOTE_REQUEST_SERVICE_MODE_FAN_MAXIMUM_SPEED: (6, ENTITY_CATEGORY_DIAGNOSTIC),
+    CONF_REMOTE_REQUEST_SERVICE_MODE_FAN_MAXIMUM_SPEED: (6, ENTITY_CATEGORY_CONFIG),
     # 7: Service mode fan to minimum speed request (no flame)
-    CONF_REMOTE_REQUEST_SERVICE_MODE_FAN_MINIMUM_SPEED: (7, ENTITY_CATEGORY_DIAGNOSTIC),
+    CONF_REMOTE_REQUEST_SERVICE_MODE_FAN_MINIMUM_SPEED: (7, ENTITY_CATEGORY_CONFIG),
     # 8: Service mode 3-way valve to CH request (no pump, no flame)
-    CONF_REMOTE_REQUEST_SERVICE_MODE_3_WAY_VALVE_TO_CH: (8, ENTITY_CATEGORY_DIAGNOSTIC),
+    CONF_REMOTE_REQUEST_SERVICE_MODE_3_WAY_VALVE_TO_CH: (8, ENTITY_CATEGORY_CONFIG),
     # 9: Service mode 3-way valve to DHW request (no pump, no flame)
-    CONF_REMOTE_REQUEST_SERVICE_MODE_3_WAY_VALVE_TO_DHW: (
-        9,
-        ENTITY_CATEGORY_DIAGNOSTIC,
-    ),
+    CONF_REMOTE_REQUEST_SERVICE_MODE_3_WAY_VALVE_TO_DHW: (9, ENTITY_CATEGORY_CONFIG),
     # 10: Request to reset service request flag
     CONF_REMOTE_REQUEST_RESET_SERVICE_REQUEST_FLAG: (10, ENTITY_CATEGORY_CONFIG),
     # 11: Service test 1. This is an OEM specific test.
-    CONF_REMOTE_REQUEST_SERVICE_TEST_1: (11, ENTITY_CATEGORY_DIAGNOSTIC),
+    CONF_REMOTE_REQUEST_SERVICE_TEST_1: (11, ENTITY_CATEGORY_CONFIG),
     # 12: Automatic hydronic air purge.
     CONF_REMOTE_REQUEST_AUTOMATIC_HYDRONIC_AIR_PURGE: (12, ENTITY_CATEGORY_CONFIG),
 }
