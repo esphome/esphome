@@ -86,7 +86,9 @@ class ESP32RMTLEDStripLightOutput final : public light::AddressableLight {
   light::ChannelColors channel_colors_{0, 1, 2, light::ChannelColors::NO_WHITE};
 
   uint32_t last_refresh_{0};
-  optional<uint32_t> max_refresh_rate_{};
+  uint32_t max_refresh_rate_{0};
+  // Longer of the frame wire time plus reset gap and max_refresh_rate_, computed in setup()
+  uint32_t min_frame_interval_us_{0};
 };
 
 }  // namespace esphome::esp32_rmt_led_strip
