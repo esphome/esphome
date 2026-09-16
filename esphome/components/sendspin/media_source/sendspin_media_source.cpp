@@ -54,6 +54,11 @@ bool SendspinMediaSource::play_uri(const std::string &uri) {
     return false;
   }
 
+  if (!this->parent_->is_enabled()) {
+    ESP_LOGE(TAG, "Cannot play '%s': Sendspin is disabled", uri.c_str());
+    return false;
+  }
+
   if (!uri.starts_with(URI_PREFIX)) {
     ESP_LOGE(TAG, "Invalid URI: '%s'", uri.c_str());
     return false;

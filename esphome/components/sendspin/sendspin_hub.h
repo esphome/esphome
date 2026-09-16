@@ -100,7 +100,7 @@ class SendspinHub final : public Component,
 
   /// @brief Connects the underlying client to the given Sendspin server.
   ///
-  /// No-op if the hub's client is not ready (e.g. setup() has not completed).
+  /// No-op if the hub's client is not running (see is_enabled()).
   /// Must be called from the main loop thread.
   /// @param url WebSocket URL of the Sendspin server, starting with `ws://` (e.g. `ws://host:port/path`).
   void connect_to_server(const std::string &url);
@@ -108,7 +108,7 @@ class SendspinHub final : public Component,
   /// @brief Disconnects the underlying client from the current server.
   ///
   /// Sends a `client/goodbye` message with the given reason before closing the connection.
-  /// No-op if the hub's client is not ready. Must be called from the main loop thread.
+  /// No-op if the hub's client is not running. Must be called from the main loop thread.
   /// @param reason Reason reported to the server:
   ///   - `ANOTHER_SERVER`: client is switching to another server.
   ///   - `SHUTDOWN`: client is shutting down.
@@ -118,7 +118,7 @@ class SendspinHub final : public Component,
 
   /// @brief Updates the client's reported playback state on the server.
   ///
-  /// No-op if the hub's client is not ready. Must be called from the main loop thread.
+  /// No-op if the hub's client is not running. Must be called from the main loop thread.
   /// @param state New client state:
   ///   - `SYNCHRONIZED`: client is synchronized and playing from the server.
   ///   - `ERROR`: client encountered a playback error.
