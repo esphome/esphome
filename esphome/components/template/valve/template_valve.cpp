@@ -47,7 +47,6 @@ void TemplateValve::loop() {
     this->publish_state();
 }
 
-void TemplateValve::set_assumed_state(bool assumed_state) { this->assumed_state_ = assumed_state; }
 float TemplateValve::get_setup_priority() const { return setup_priority::HARDWARE; }
 
 Trigger<> *TemplateValve::get_open_trigger() { return &this->open_trigger_; }
