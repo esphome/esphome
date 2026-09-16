@@ -46,7 +46,7 @@ void arch_restart() {
 
 void arch_init() {
 #ifdef USE_ESP32_CRASH_HANDLER
-  // Read crash data from previous boot before anything else
+  // No-op when Logger::pre_setup() already read it; covers builds without a logger
   esp32::crash_handler_read_and_clear();
 #endif
 

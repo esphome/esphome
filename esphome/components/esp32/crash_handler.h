@@ -16,7 +16,7 @@ void crash_handler_log();
 /// Call after the data has been delivered to an API client.
 void crash_handler_clear();
 
-/// Returns true if crash data was found this boot.
+/// Returns true if crash data was found this boot, reading it first if needed.
 bool crash_handler_has_data();
 
 }  // namespace esphome::esp32

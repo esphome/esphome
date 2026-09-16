@@ -174,13 +174,8 @@ static const char *const TAG = "esp32.crash";
 static uint32_t s_current_build_time = static_cast<uint32_t>(ESPHOME_BUILD_TIME);
 
 // Logger::pre_setup() logs the record before App.pre_setup() reaches
-// arch_init(), so the first caller reads it and later calls are no-ops.
-static bool s_crash_data_read = false;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-
+// arch_init(), so has_data() reads on demand; re-reading is harmless.
 void crash_handler_read_and_clear() {
-  if (s_crash_data_read)
-    return;
-  s_crash_data_read = true;
   if (s_raw_crash_data.magic == CRASH_MAGIC && s_raw_crash_data.version == CRASH_DATA_VERSION) {
     s_crash_data_valid = true;
     // Clamp counts to prevent out-of-bounds reads from corrupt .noinit data

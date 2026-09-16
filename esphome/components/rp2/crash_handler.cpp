@@ -68,6 +68,9 @@ static struct CrashData {
 
 // Logger::pre_setup() logs the record before App.pre_setup() reaches
 // arch_init(), so the first caller reads it and later calls are no-ops.
+// The read clears the scratch registers, so it must not run twice, and
+// arch_init() keeps its call so the read precedes watchdog_enable(), which
+// overwrites scratch[4].
 static bool s_crash_data_read = false;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 bool crash_handler_has_data() {
