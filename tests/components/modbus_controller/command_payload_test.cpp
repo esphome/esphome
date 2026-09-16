@@ -5,6 +5,11 @@
 
 #include "esphome/components/modbus_controller/modbus_controller.h"
 
+// These tests pin the behaviour of the deprecated ModbusCommandItem until its removal.
+// Remove with ModbusCommandItem before 2027.3.0.
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+
 namespace esphome::modbus_controller::testing {
 
 // The coil write factory packs into an exact-size payload. Pinned at one past the protocol maximum
@@ -29,3 +34,5 @@ TEST(ModbusCommandPayload, CoilWritePacksLsbFirstWithZeroPad) {
 }
 
 }  // namespace esphome::modbus_controller::testing
+
+#pragma GCC diagnostic pop

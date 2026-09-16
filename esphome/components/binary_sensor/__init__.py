@@ -39,6 +39,7 @@ from esphome.const import (
     DEVICE_CLASS_EMPTY,
     DEVICE_CLASS_GARAGE_DOOR,
     DEVICE_CLASS_GAS,
+    DEVICE_CLASS_GLASS_BREAK,
     DEVICE_CLASS_HEAT,
     DEVICE_CLASS_LIGHT,
     DEVICE_CLASS_LOCK,
@@ -81,6 +82,7 @@ DEVICE_CLASSES = [
     DEVICE_CLASS_EMPTY,
     DEVICE_CLASS_GARAGE_DOOR,
     DEVICE_CLASS_GAS,
+    DEVICE_CLASS_GLASS_BREAK,
     DEVICE_CLASS_HEAT,
     DEVICE_CLASS_LIGHT,
     DEVICE_CLASS_LOCK,
@@ -452,7 +454,9 @@ _BINARY_SENSOR_SCHEMA = (
             cv.Optional(
                 CONF_DEVICE_CLASS, visibility=cv.Visibility.ADVANCED
             ): validate_device_class,
-            cv.Optional(CONF_FILTERS): validate_filters,
+            cv.Optional(
+                CONF_FILTERS, visibility=cv.Visibility.ADVANCED
+            ): validate_filters,
             cv.Optional(CONF_ON_PRESS): automation.validate_automation({}),
             cv.Optional(CONF_ON_RELEASE): automation.validate_automation({}),
             cv.Optional(CONF_ON_CLICK): cv.All(

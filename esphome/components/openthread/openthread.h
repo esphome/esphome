@@ -89,7 +89,7 @@ extern OpenThreadComponent *global_openthread_component;  // NOLINT(cppcoreguide
 
 class OpenThreadSrpComponent final : public Component {
  public:
-  void set_mdns(esphome::mdns::MDNSComponent *mdns);
+  void set_mdns(esphome::mdns::MDNSComponent *mdns) { this->mdns_ = mdns; }
   // This has to run after the mdns component or else no services are available to advertise
   float get_setup_priority() const override { return this->mdns_->get_setup_priority() - 1.0f; }
   void setup() override;

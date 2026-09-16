@@ -1,3 +1,4 @@
+import errno
 import io
 import logging
 import os
@@ -5,7 +6,7 @@ from pathlib import Path
 import socket
 import stat
 import types
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, call, patch
 
 from aioesphomeapi.host_resolver import AddrInfo, IPv4Sockaddr, IPv6Sockaddr
 from hypothesis import given, settings
@@ -964,6 +965,77 @@ def test_copy_file_if_changed_nonexistent_source(tmp_path: Path) -> None:
 
     with pytest.raises(EsphomeError, match=r"Error copying file"):
         helpers.copy_file_if_changed(src, dst)
+
+
+def test_rmtree_removes_tree(tmp_path: Path) -> None:
+    """Test rmtree removes a populated directory tree."""
+    target = tmp_path / "target"
+    (target / "sub").mkdir(parents=True)
+    (target / "sub" / "file.txt").write_text("content")
+
+    helpers.rmtree(target)
+    assert not target.exists()
+
+
+def test_rmtree_nonexistent_path(tmp_path: Path) -> None:
+    """Test rmtree on an already-removed path is a no-op."""
+    helpers.rmtree(tmp_path / "gone")
+
+
+def test_rmtree_retries_when_directory_repopulated(tmp_path: Path) -> None:
+    """Test rmtree retries when a file appears mid-delete (Finder .DS_Store race)."""
+    target = tmp_path / "target"
+    (target / "sub").mkdir(parents=True)
+    real_rmdir = os.rmdir
+    repopulated = False
+
+    def racy_rmdir(path, **kwargs):
+        nonlocal repopulated
+        if not repopulated and Path(path).name == "target":
+            repopulated = True
+            (target / ".DS_Store").write_text("x")  # Finder wins the race
+        real_rmdir(path, **kwargs)
+
+    with patch("os.rmdir", side_effect=racy_rmdir), patch("time.sleep"):
+        helpers.rmtree(target)
+    assert repopulated
+    assert not target.exists()
+
+
+def test_rmtree_raises_after_retries_exhausted(tmp_path: Path) -> None:
+    """Test rmtree gives up on a persistent ENOTEMPTY once attempts run out."""
+    target = tmp_path / "target"
+    target.mkdir()
+    errs = [
+        OSError(errno.ENOTEMPTY, "Directory not empty", str(target))
+        for _ in range(helpers.RMTREE_MAX_ATTEMPTS)
+    ]
+
+    with (
+        patch("shutil.rmtree", side_effect=errs) as mock_rmtree,
+        patch("time.sleep") as mock_sleep,
+        pytest.raises(OSError, match="Directory not empty") as excinfo,
+    ):
+        helpers.rmtree(target)
+    assert mock_rmtree.call_count == helpers.RMTREE_MAX_ATTEMPTS
+    assert mock_sleep.call_args_list == [call(0.05), call(0.1)]
+    # Final failure chains to the last retried race
+    assert excinfo.value is errs[-1]
+    assert excinfo.value.__cause__ is errs[-2]
+
+
+def test_rmtree_does_not_retry_other_oserror(tmp_path: Path) -> None:
+    """Test rmtree raises non-ENOTEMPTY errors immediately."""
+    target = tmp_path / "target"
+    target.mkdir()
+    err = OSError(errno.EACCES, "Permission denied", str(target))
+
+    with (
+        patch("shutil.rmtree", side_effect=err) as mock_rmtree,
+        pytest.raises(OSError, match="Permission denied"),
+    ):
+        helpers.rmtree(target)
+    assert mock_rmtree.call_count == 1
 
 
 def test_resolve_ip_address_sorting() -> None:

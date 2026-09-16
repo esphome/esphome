@@ -11,16 +11,15 @@ namespace esphome::modbus_controller {
 
 class ModbusSelect final : public Component, public select::Select, public SensorItem, public WriterEntity {
  public:
-  ModbusSelect(SensorValueType sensor_value_type, uint16_t start_address, uint8_t register_count, bool force_new_range,
+  ModbusSelect(SensorValueType sensor_value_type, uint16_t start_address, RangeReuse reuse_previous_range,
                std::vector<int64_t> mapping) {
     this->register_type = modbus::EntityType::HOLDING;  // not configurable
     this->sensor_value_type = sensor_value_type;
     this->set_address(start_address);
     this->set_offset_from_start_address(0);  // not configurable
     this->bitmask = 0xFFFFFFFF;              // not configurable
-    this->register_count = register_count;
-    this->response_bytes = 0;  // not configurable
-    this->force_new_range = force_new_range;
+    this->response_bytes = 0;                // not configurable
+    this->reuse_previous_range = reuse_previous_range;
     this->mapping_ = std::move(mapping);
   }
 
