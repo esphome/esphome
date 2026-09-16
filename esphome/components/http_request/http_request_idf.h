@@ -30,6 +30,9 @@ class HttpContainerIDF : public HttpContainer {
 
 class HttpRequestIDF final : public HttpRequestComponent {
  public:
+  // User provided, not "= default": `new(p) HttpRequestIDF()` would zero-fill .bss that is already zero.
+  HttpRequestIDF() {}
+
   void dump_config() override;
 
   void set_buffer_size_rx(uint16_t buffer_size_rx) { this->buffer_size_rx_ = buffer_size_rx; }
