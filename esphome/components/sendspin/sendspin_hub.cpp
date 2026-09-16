@@ -21,10 +21,6 @@ namespace esphome::sendspin_ {
 
 static const char *const TAG = "sendspin.hub";
 
-#ifdef USE_MDNS_SUPPORTS_ENABLE_DISABLE
-static constexpr uint32_t MDNS_ENABLE_RETRY_MS = 1000;
-#endif
-
 #ifdef USE_SENDSPIN_ARTWORK
 // Indexed by the library enums, which start at zero and are contiguous.
 static const char *const IMAGE_SOURCE_NAMES[] = {"ALBUM", "ARTIST", "NONE"};
@@ -136,14 +132,10 @@ void SendspinHub::update_mdns_service_() {
   if (advertise == this->mdns_advertised_) {
     return;
   }
-  // Failed requests retry, rate limited so a persistent failure does not flood the log every loop pass.
-  const uint32_t now = App.get_loop_component_start_time();
-  if (this->mdns_enable_attempt_ms_ != 0 && now - this->mdns_enable_attempt_ms_ < MDNS_ENABLE_RETRY_MS) {
-    return;
-  }
-  this->mdns_enable_attempt_ms_ = now;
-  if (this->mdns_->set_service_enabled("_sendspin", "_tcp", advertise)) {
-    this->mdns_advertised_ = advertise;
+  // One attempt per change
+  this->mdns_advertised_ = advertise;
+  if (!this->mdns_->set_service_enabled("_sendspin", "_tcp", advertise)) {
+    ESP_LOGE(TAG, "Failed to %s mDNS service", advertise ? LOG_STR_LITERAL("enable") : LOG_STR_LITERAL("disable"));
   }
 }
 #endif
