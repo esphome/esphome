@@ -6,4 +6,19 @@ substitutions:
   switch_pin_3: GPIO6
   switch_pin_4: GPIO7
 
-<<: !include common.yaml
+packages:
+  gpio: !include common.yaml
+
+binary_sensor:
+  - platform: gpio
+    pin:
+      number: GPIO18
+      hold_during_sleep: true
+    id: gpio_binary_sensor_esp32
+
+output:
+  - platform: gpio
+    pin:
+      number: GPIO19
+      hold_during_sleep: true
+    id: gpio_output_esp32

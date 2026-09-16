@@ -13,6 +13,12 @@ deep_sleep:
   run_duration: 10s
   sleep_duration: 10s
 
+power_supply:
+  - id: power_supply_esp32
+    pin:
+      number: GPIO5
+      hold_during_sleep: true
+
 binary_sensor:
   - platform: gpio
     pin:
@@ -26,6 +32,7 @@ output:
       number: GPIO19
       hold_during_sleep: true
     id: gpio_output_esp32
+    power_supply: power_supply_esp32
 
 switch:
   - platform: gpio
