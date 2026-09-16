@@ -84,6 +84,7 @@ from .schemas import (
     apply_style_driven_defines,
     container_schema,
     container_schema_value,
+    is_widget_child_ref,
     theme_schema,
 )
 from .styles import styles_to_code, theme_to_code
@@ -303,6 +304,12 @@ def final_validation(config_list):
         for conf in update_configs:
             for id_conf in conf.get(CONF_ID, ()):
                 name = id_conf[CONF_ID]
+                if is_widget_child_ref(name):
+                    # A widget-child-ref has no single static YAML node to check
+                    # against -- the widget it points to lives inside a dynamically
+                    # walked child, not a declared widget -- so there's nothing here
+                    # for final_validate to run against.
+                    continue
                 path = global_config.get_path_for_id(name)
                 widget_conf = global_config.get_config_for_path(path[:-1])
                 widget_type.final_validate(name, conf, widget_conf, path[1:])
