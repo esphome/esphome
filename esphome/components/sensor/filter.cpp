@@ -512,7 +512,7 @@ optional<float> RHCorrectionFilter::new_value(float value) {
     // Not reliable if the range is outside -40 +50 °C
     // This check will also prevents invalid values for the calculation below and NaN values
     ESP_LOGW(TAG, "RHCorrectionFilter(%s): Invalid temperature values. Tc=%f Tnc=%f",
-             this->temperature_sensor_->get_name(), tc, tnc);
+             this->temperature_sensor_->get_name().c_str(), tc, tnc);
     return value;
   }
   float rh = value * std::exp(b * (tnc / (tnc + c) - tc / (tc + c)));
