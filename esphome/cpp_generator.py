@@ -5,11 +5,13 @@ import math
 import re
 from typing import Any
 
+from esphome import lambda_shorthand
 from esphome.core import (
     CORE,
     ID,
     Define,
     EnumValue,
+    EsphomeError,
     HexInt,
     Lambda,
     Library,
@@ -764,6 +766,93 @@ async def get_variable_with_full_id(id_: ID) -> tuple[ID, "MockObj"]:
     return await CORE.get_variable_with_full_id(id_)
 
 
+def _lambda_location(value: Lambda) -> str:
+    """`' at <file> <line>:<col>'`, or `''` if `value` carries no YAML location --
+    shared by the `argument:` and `entity_state:` shorthand codegen checks below.
+    """
+    if isinstance(value, ESPHomeDataBase) and value.esp_range is not None:
+        return f" at {value.esp_range.start_mark}"
+    return ""
+
+
+def _check_argument_shorthand(
+    value: Lambda, parameters: TemplateArgsType, return_type: SafeExpType
+) -> None:
+    """Validate an `argument:` shorthand lambda against the parameters actually available
+    at this call site. Only known here (not at config-validation time, which has no
+    visibility into the call site's parameter list).
+    """
+    name = value.argument_name
+    if name is None:
+        return
+    location = _lambda_location(value)
+    match = next((t for t, pname in parameters if pname == name), None)
+    if match is None:
+        available = ", ".join(f"'{pname}'" for _, pname in parameters)
+        raise EsphomeError(
+            f"'argument: {name}' does not match any available parameter "
+            f"({available or 'none available here'}){location}."
+        )
+    if return_type is None:
+        # Most process_lambda() call sites don't pass return_type, so this check is
+        # skipped for them -- a mismatched argument: is only caught at those sites
+        # that do, otherwise it surfaces later as a C++ compile error.
+        return
+    param_kind = lambda_shorthand.arg_kind(match)
+    return_kind = lambda_shorthand.arg_kind(return_type)
+    if (
+        param_kind is not None
+        and return_kind is not None
+        and not lambda_shorthand.kinds_compatible(param_kind, return_kind)
+    ):
+        raise EsphomeError(
+            f"'argument: {name}' has type '{match}', which is not compatible with the "
+            f"expected type '{return_type}'{location}."
+        )
+
+
+def _check_entity_state_shorthand(
+    value: Lambda, id: ID, full_id: ID | None, return_type: SafeExpType
+) -> None:
+    """Validate an `entity_state:` shorthand id's *resolved* declared type against the
+    field's expected return type -- e.g. a `TextSensor` id (a std::string state) fed
+    into a float-returning field.
+
+    Only known here, not at config-validation time: the id-resolution pass (see
+    `IDPassValidationStep` in config.py) narrows `entity_state:` to declared ids with
+    *some* usable `.state` field, using `id.type`, a tuple of every state-bearing type
+    set by `convert_id_state_to_lambda`. It does not narrow by kind, since which
+    kind the field expects is often not recoverable from its validator alone (a
+    composed validator like `cv.int_range(...)` isn't a recognized single kind). Here,
+    after id resolution, `full_id.type` is the entity's one real declared type, and
+    `return_type` is the field's real C++ return type -- both known precisely,
+    regardless of how the field's validator was built.
+    """
+    if not isinstance(id.type, tuple) or full_id is None or return_type is None:
+        return
+    if not isinstance(full_id.type, MockObjClass):
+        return
+    entity_kind = next(
+        (
+            kind
+            for entity_type, kind in lambda_shorthand.state_bearing_types()
+            if full_id.type.inherits_from(entity_type)
+        ),
+        None,
+    )
+    if entity_kind is None:
+        return
+    return_kind = lambda_shorthand.arg_kind(return_type)
+    if return_kind is not None and not lambda_shorthand.kinds_compatible(
+        entity_kind, return_kind
+    ):
+        raise EsphomeError(
+            f"'entity_state: {id.id}' resolves to type '{full_id.type}', whose state "
+            f"is not compatible with the expected type '{return_type}'"
+            f"{_lambda_location(value)}."
+        )
+
+
 async def process_lambda(
     value: Lambda | Expression,
     parameters: TemplateArgsType,
@@ -796,10 +885,12 @@ async def process_lambda(
     )
     if isinstance(value, Expression):
         value = Lambda(value)
+    _check_argument_shorthand(value, parameters, return_type)
 
     parts = value.parts[:]
     for i, id in enumerate(value.requires_ids):
         full_id, var = await get_variable_with_full_id(id)
+        _check_entity_state_shorthand(value, id, full_id, return_type)
         if (
             full_id is not None
             and isinstance(full_id.type, MockObjClass)
