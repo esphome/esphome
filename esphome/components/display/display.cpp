@@ -52,36 +52,51 @@ void Display::line_at_angle(int x, int y, int angle, int start_radius, int stop_
   this->line(x1, y1, x2, y2, color);
 }
 
+// Reads one source pixel of draw_pixels_at() into the packed value to_color() takes.
+static inline ESPHOME_ALWAYS_INLINE uint32_t read_packed_pixel(const uint8_t *ptr, size_t source_idx,
+                                                               ColorBitness bitness, bool big_endian) {
+  switch (bitness) {
+    default:
+      return ptr[source_idx];
+    case COLOR_BITNESS_565: {
+      const size_t idx = source_idx * 2;
+      if (big_endian)
+        return (ptr[idx] << 8) + ptr[idx + 1];
+      return ptr[idx] + (ptr[idx + 1] << 8);
+    }
+    case COLOR_BITNESS_888: {
+      const size_t idx = source_idx * 3;
+      if (big_endian)
+        return (ptr[idx + 0] << 16) + (ptr[idx + 1] << 8) + ptr[idx + 2];
+      return ptr[idx + 0] + (ptr[idx + 1] << 8) + (ptr[idx + 2] << 16);
+    }
+  }
+}
+
 void Display::draw_pixels_at(int x_start, int y_start, int w, int h, const uint8_t *ptr, ColorOrder order,
                              ColorBitness bitness, bool big_endian, int x_offset, int y_offset, int x_pad) {
-  size_t line_stride = x_offset + w + x_pad;  // length of each source line in pixels
-  uint32_t color_value;
+  const size_t line_stride = x_offset + w + x_pad;  // length of each source line in pixels
+#ifdef USE_PSRAM
+  // The source is row-major; when the display swaps the axes before writing,
+  // walking columns keeps the frame buffer write sequential instead. Without
+  // PSRAM the frame buffer is in uncached RAM where the strided write is free.
+  if (this->pixel_axes_swapped()) {
+    for (int x = 0; x != w; x++) {
+      size_t source_idx = y_offset * line_stride + x_offset + x;
+      for (int y = 0; y != h; y++, source_idx += line_stride) {
+        this->draw_pixel_at(
+            x + x_start, y + y_start,
+            ColorUtil::to_color(read_packed_pixel(ptr, source_idx, bitness, big_endian), order, bitness));
+      }
+    }
+    return;
+  }
+#endif
   for (int y = 0; y != h; y++) {
     size_t source_idx = (y_offset + y) * line_stride + x_offset;
-    size_t source_idx_mod;
     for (int x = 0; x != w; x++, source_idx++) {
-      switch (bitness) {
-        default:
-          color_value = ptr[source_idx];
-          break;
-        case COLOR_BITNESS_565:
-          source_idx_mod = source_idx * 2;
-          if (big_endian) {
-            color_value = (ptr[source_idx_mod] << 8) + ptr[source_idx_mod + 1];
-          } else {
-            color_value = ptr[source_idx_mod] + (ptr[source_idx_mod + 1] << 8);
-          }
-          break;
-        case COLOR_BITNESS_888:
-          source_idx_mod = source_idx * 3;
-          if (big_endian) {
-            color_value = (ptr[source_idx_mod + 0] << 16) + (ptr[source_idx_mod + 1] << 8) + ptr[source_idx_mod + 2];
-          } else {
-            color_value = ptr[source_idx_mod + 0] + (ptr[source_idx_mod + 1] << 8) + (ptr[source_idx_mod + 2] << 16);
-          }
-          break;
-      }
-      this->draw_pixel_at(x + x_start, y + y_start, ColorUtil::to_color(color_value, order, bitness));
+      this->draw_pixel_at(x + x_start, y + y_start,
+                          ColorUtil::to_color(read_packed_pixel(ptr, source_idx, bitness, big_endian), order, bitness));
     }
   }
 }
