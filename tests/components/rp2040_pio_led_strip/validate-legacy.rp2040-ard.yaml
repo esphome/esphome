@@ -1,0 +1,18 @@
+# The deprecated rgb_order / is_rgbw keys, kept working until 2027.3.0.
+# Config-only: each strip below must migrate to the channel_colors shown in the comment.
+light:
+  - platform: rp2040_pio_led_strip
+    id: legacy_rgb
+    pin: 4
+    num_leds: 60
+    pio: 0
+    chipset: WS2812
+    rgb_order: GRB # -> GRB
+  - platform: rp2040_pio_led_strip
+    id: legacy_rgbw
+    pin: 5
+    num_leds: 60
+    pio: 1
+    chipset: SK6812
+    rgb_order: GRB
+    is_rgbw: true # -> GRBW

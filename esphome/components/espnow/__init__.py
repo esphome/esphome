@@ -1,6 +1,9 @@
+from typing import Any
+
 from esphome import automation, core
 import esphome.codegen as cg
 from esphome.components import wifi
+from esphome.components.esp32 import VARIANT_ESP32P4, get_esp32_variant
 from esphome.components.udp import CONF_ON_RECEIVE
 import esphome.config_validation as cv
 from esphome.const import (
@@ -13,7 +16,9 @@ from esphome.const import (
     CONF_TRIGGER_ID,
     CONF_WIFI,
 )
-from esphome.core import HexInt
+from esphome.core import CORE, HexInt
+from esphome.cpp_generator import MockObj, TemplateArgsType
+import esphome.final_validate as fv
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@jesserockz"]
@@ -78,7 +83,7 @@ CONF_CONTINUE_ON_ERROR = "continue_on_error"
 CONF_WAIT_FOR_SENT = "wait_for_sent"
 
 
-def _validate_max_payload_size(value: int) -> int:
+def _validate_max_payload_size(value: Any) -> int:
     if value > ESPNOW_PAYLOAD_V1:
         return cv.require_framework_version(
             esp_idf=cv.Version(5, 4, 0),
@@ -88,7 +93,7 @@ def _validate_max_payload_size(value: int) -> int:
     return value
 
 
-def validate_channel(value):
+def validate_channel(value: Any) -> int:
     if value is None:
         raise cv.Invalid("channel is required if wifi is not configured")
     return wifi.validate_channel(value)
@@ -129,7 +134,25 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-async def _trigger_to_code(config):
+def _validate_variant(config: ConfigType) -> ConfigType:
+    # ESP-NOW rides the Wi-Fi PHY. Radio-less esp32 variants have no native
+    # ESP-NOW; only the ESP32-P4 has a path, via the esp32_hosted shim that
+    # supplies the esp_now_* symbols. Fail here with a clear message instead of
+    # letting the build reach an "undefined reference to esp_now_*" link error.
+    variant = get_esp32_variant()
+    if wifi.variant_has_wifi(variant):
+        return config
+    if variant != VARIANT_ESP32P4:
+        raise cv.Invalid(f"ESP-NOW is not supported on {variant} (no Wi-Fi radio)")
+    if "esp32_hosted" not in fv.full_config.get():
+        raise cv.Invalid(f"ESP-NOW on {variant} requires the esp32_hosted component")
+    return config
+
+
+FINAL_VALIDATE_SCHEMA = _validate_variant
+
+
+async def _trigger_to_code(config: ConfigType) -> MockObj:
     if address := config.get(CONF_ADDRESS):
         address = address.parts
     trigger = cg.new_Pvariable(config[CONF_TRIGGER_ID], address)
@@ -145,12 +168,21 @@ async def _trigger_to_code(config):
     return trigger
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
 
     cg.add_define("USE_ESPNOW")
     cg.add_define("USE_ESPNOW_MAX_PAYLOAD_SIZE", config[CONF_MAX_PAYLOAD_SIZE])
+
+    if CORE.is_esp32:
+        from esphome.components.esp32 import include_builtin_idf_component
+
+        include_builtin_idf_component("esp_wifi")
+
+    if CONF_WIFI in CORE.config:
+        # Track the Wi-Fi channel via connect events instead of polling every loop
+        wifi.request_wifi_connect_state_listener()
     if wifi_channel := config.get(CONF_CHANNEL):
         cg.add(var.set_wifi_channel(wifi_channel))
 
@@ -176,13 +208,13 @@ async def to_code(config):
 # ========================================== A C T I O N S ================================================
 
 
-def validate_peer(value):
+def validate_peer(value: Any) -> Any:
     if isinstance(value, cv.Lambda):
         return cv.returning_lambda(value)
     return cv.mac_address(value)
 
 
-def _validate_raw_data(value):
+def _validate_raw_data(value: Any) -> str | list:
     if isinstance(value, str):
         if len(value) > MAX_ESPNOW_PACKET_SIZE:
             raise cv.Invalid(
@@ -200,7 +232,9 @@ def _validate_raw_data(value):
     )
 
 
-async def register_peer(var, config, args):
+async def register_peer(
+    var: MockObj, config: ConfigType, args: TemplateArgsType
+) -> None:
     peer = config[CONF_ADDRESS]
     if isinstance(peer, core.MACAddress):
         peer = [HexInt(p) for p in peer.parts]
@@ -227,7 +261,7 @@ SEND_SCHEMA = PEER_SCHEMA.extend(
 )
 
 
-def _validate_send_action(config):
+def _validate_send_action(config: ConfigType) -> ConfigType:
     if not config[CONF_WAIT_FOR_SENT] and not config[CONF_CONTINUE_ON_ERROR]:
         raise cv.Invalid(
             f"'{CONF_CONTINUE_ON_ERROR}' cannot be false if '{CONF_WAIT_FOR_SENT}' is false as the automation will not wait for the failed result.",
@@ -263,7 +297,7 @@ async def send_action(
     action_id: core.ID,
     template_arg: cg.TemplateArguments,
     args: list[tuple],
-):
+) -> MockObj:
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
 
@@ -312,7 +346,7 @@ async def peer_action(
     action_id: core.ID,
     template_arg: cg.TemplateArguments,
     args: list[tuple],
-):
+) -> MockObj:
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
     await register_peer(var, config, args)
@@ -337,7 +371,7 @@ async def channel_action(
     action_id: core.ID,
     template_arg: cg.TemplateArguments,
     args: list[tuple],
-):
+) -> MockObj:
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
     template_ = await cg.templatable(config[CONF_CHANNEL], args, cg.uint8)

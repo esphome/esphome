@@ -7,6 +7,8 @@ from esphome.types import ConfigType
 CODEOWNERS = ["@kahrendt"]
 AUTO_LOAD = ["audio"]
 
+CONF_PERSISTENT_RING_BUFFER = "persistent_ring_buffer"
+
 audio_http_ns = cg.esphome_ns.namespace("audio_http")
 AudioHTTPMediaSource = audio_http_ns.class_(
     "AudioHTTPMediaSource", cg.Component, media_source.MediaSource
@@ -28,6 +30,7 @@ CONFIG_SCHEMA = cv.All(
                 min=5000, max=1000000
             ),
             cv.Optional(CONF_TASK_STACK_IN_PSRAM): psram.validate_task_stack_in_psram,
+            cv.Optional(CONF_PERSISTENT_RING_BUFFER, default=False): cv.boolean,
         }
     )
     .extend(cv.COMPONENT_SCHEMA),
@@ -45,3 +48,4 @@ async def to_code(config: ConfigType) -> None:
         cg.add(var.set_task_stack_in_psram(True))
         psram.request_external_task_stack()
     cg.add(var.set_buffer_size(config[CONF_BUFFER_SIZE]))
+    cg.add(var.set_persistent_ring_buffer(config[CONF_PERSISTENT_RING_BUFFER]))
