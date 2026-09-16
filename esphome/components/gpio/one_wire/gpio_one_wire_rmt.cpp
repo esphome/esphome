@@ -228,11 +228,9 @@ int GPIOOneWireBus::reset_rmt_() {
   const rmt_symbol_word_t *symbols = rx_data.received_symbols;
   bool present;
   if (symbols[0].level1 == 1) {
-    present = symbols[0].duration1 > RESET_PRESENCE_WAIT_MIN &&
-              symbols[1].duration0 > RESET_PRESENCE_DURATION_MIN;
+    present = symbols[0].duration1 > RESET_PRESENCE_WAIT_MIN && symbols[1].duration0 > RESET_PRESENCE_DURATION_MIN;
   } else {
-    present = symbols[0].duration0 > RESET_PRESENCE_WAIT_MIN &&
-              symbols[1].duration1 > RESET_PRESENCE_DURATION_MIN;
+    present = symbols[0].duration0 > RESET_PRESENCE_WAIT_MIN && symbols[1].duration1 > RESET_PRESENCE_DURATION_MIN;
   }
   return present ? 1 : 0;
 }
@@ -305,8 +303,7 @@ bool GPIOOneWireBus::read_bit_rmt_() {
   xQueueReset(this->receive_queue_);
   if (rmt_receive(this->rx_channel_, this->rx_symbols_buf_, sizeof(rmt_symbol_word_t), &RX_CONFIG) != ESP_OK)
     return false;
-  if (rmt_transmit(this->tx_channel_, this->tx_copy_encoder_, &read_symbol, sizeof(read_symbol), &TX_CONFIG) !=
-      ESP_OK)
+  if (rmt_transmit(this->tx_channel_, this->tx_copy_encoder_, &read_symbol, sizeof(read_symbol), &TX_CONFIG) != ESP_OK)
     return false;
 
   rmt_rx_done_event_data_t rx_data;
