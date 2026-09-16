@@ -87,5 +87,8 @@ class EpaperModel:
         initsequence = list(kwargs.pop("initsequence", self.initsequence) or ())
         initsequence.extend(kwargs.pop("add_init_sequence", ()))
         defaults = self.defaults.copy()
+        class_name = kwargs.pop("class_name", self.class_name)
         defaults.update(kwargs)
-        return self.__class__(name, initsequence=tuple(initsequence), **defaults)
+        return self.__class__(
+            name, class_name=class_name, initsequence=tuple(initsequence), **defaults
+        )

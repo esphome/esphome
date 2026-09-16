@@ -16,6 +16,19 @@ namespace esphome::epaper_spi {
 /** Delta for when to regard as gray */
 static constexpr uint8_t COLORCONV_GRAY_THRESHOLD = 50;
 
+/** Map RGB color to one of 4 discrete gray levels (2 bits per pixel)
+ *
+ * Derives luma using Rec.601 weights (0.299/0.587/0.114, scaled by 256) for optimum perceptual brightness
+ *
+ * @param color RGB color to convert from
+ * @return      Gray level: 0 = black, 3 = white
+ */
+constexpr uint8_t color_to_gray4(Color color) {
+  const uint8_t luma = (uint8_t) ((77u * color.r + 150u * color.g + 29u * color.b + 128u) >> 8);
+  const uint8_t level = (uint8_t) ((luma + 32u) >> 6);  // quantize 0..255 to 0..3, rounded
+  return level > 3 ? 3 : level;
+}
+
 /** Map RGB color to discrete BWYR hex 4 color key
  *
  * @tparam NATIVE_COLOR  Type of native hardware color values
@@ -25,7 +38,6 @@ static constexpr uint8_t COLORCONV_GRAY_THRESHOLD = 50;
  * @param hw_yellow Native value for yellow
  * @param hw_red    Native value for red
  * @return          Converted native hardware color value
- * @internal Constexpr. Does not depend on side effects ("pure").
  */
 template<typename NATIVE_COLOR>
 constexpr NATIVE_COLOR color_to_bwyr(Color color, NATIVE_COLOR hw_black, NATIVE_COLOR hw_white, NATIVE_COLOR hw_yellow,
@@ -96,7 +108,6 @@ constexpr NATIVE_COLOR color_to_bwr(Color color, NATIVE_COLOR hw_black, NATIVE_C
  * @param hw_green  Native value for green
  * @param hw_blue   Native value for blue
  * @return          Converted native hardware color value
- * @internal Constexpr. Does not depend on side effects ("pure").
  */
 template<typename NATIVE_COLOR>
 constexpr NATIVE_COLOR color_to_bwyrgb(Color color, NATIVE_COLOR hw_black, NATIVE_COLOR hw_white,
@@ -158,7 +169,6 @@ constexpr NATIVE_COLOR color_to_bwyrgb(Color color, NATIVE_COLOR hw_black, NATIV
  * @param hw_blue   Native value for blue
  * @param hw_orange Native value for orange
  * @return          Converted native hardware color value
- * @internal Constexpr. Does not depend on side effects ("pure").
  */
 template<typename NATIVE_COLOR>
 constexpr NATIVE_COLOR color_to_bwyrgbo(Color color, NATIVE_COLOR hw_black, NATIVE_COLOR hw_white,

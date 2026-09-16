@@ -39,14 +39,22 @@ void EPaperMono::set_window() {
     this->y_high_ = this->height_;
   }
   // round x-coordinates to byte boundaries
-  this->x_low_ &= ~7;
-  this->x_high_ += 7;
-  this->x_high_ &= ~7;
-  this->cmd_data(0x44, {(uint8_t) this->x_low_, (uint8_t) (this->x_low_ / 256), (uint8_t) (this->x_high_ - 1),
-                        (uint8_t) ((this->x_high_ - 1) / 256)});
+  this->x_low_ &= ~7u;
+  this->x_high_ += 7u;
+  this->x_high_ &= ~7u;
+  this->cmd_data(0x44, {
+                           (uint8_t) this->x_low_,
+                           (uint8_t) (this->x_low_ / 256),
+                           (uint8_t) (this->x_high_ - 1),
+                           (uint8_t) ((this->x_high_ - 1) / 256),
+                       });
   this->cmd_data(0x4E, {(uint8_t) this->x_low_, (uint8_t) (this->x_low_ / 256)});
-  this->cmd_data(0x45, {(uint8_t) this->y_low_, (uint8_t) (this->y_low_ / 256), (uint8_t) (this->y_high_ - 1),
-                        (uint8_t) ((this->y_high_ - 1) / 256)});
+  this->cmd_data(0x45, {
+                           (uint8_t) this->y_low_,
+                           (uint8_t) (this->y_low_ / 256),
+                           (uint8_t) (this->y_high_ - 1),
+                           (uint8_t) ((this->y_high_ - 1) / 256),
+                       });
   this->cmd_data(0x4F, {(uint8_t) this->y_low_, (uint8_t) (this->y_low_ / 256)});
 }
 
