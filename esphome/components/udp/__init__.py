@@ -1,6 +1,5 @@
-from collections.abc import Callable
 import functools
-from typing import Any, NoReturn
+from typing import Any
 
 from esphome import automation
 from esphome.automation import Trigger
@@ -50,17 +49,10 @@ UDP_SCHEMA = cv.Schema(
 )
 
 
-def is_relocated(option: str) -> Callable[[Any], NoReturn]:
-    def validator(value: Any) -> NoReturn:
-        raise cv.Invalid(
-            f"The '{option}' option should now be configured in the 'packet_transport' component"
-        )
-
-    return validator
-
-
 RELOCATED = {
-    cv.Optional(x): is_relocated(x)
+    cv.Optional(x): cv.invalid(
+        f"The '{x}' option should now be configured in the 'packet_transport' component"
+    )
     for x in (
         CONF_PROVIDERS,
         CONF_ENCRYPTION,

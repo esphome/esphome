@@ -423,7 +423,9 @@ def _validate(config: ConfigType) -> ConfigType:
 BASE_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(EthernetComponent),
-        cv.Optional(CONF_MANUAL_IP): MANUAL_IP_SCHEMA,
+        cv.Optional(
+            CONF_MANUAL_IP, visibility=cv.Visibility.ADVANCED
+        ): MANUAL_IP_SCHEMA,
         cv.Optional(CONF_DOMAIN, default=".local"): cv.domain_name,
         cv.Optional(CONF_USE_ADDRESS): cv.string_strict,
         cv.Optional(CONF_MAC_ADDRESS): cv.mac_address,
