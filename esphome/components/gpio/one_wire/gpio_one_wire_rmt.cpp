@@ -24,7 +24,9 @@ static constexpr uint32_t RMT_OPERATION_TIMEOUT_MS = 20;
 
 // 1-wire timing constants, in microseconds.
 static constexpr uint32_t RESET_PULSE_DURATION = 500;
-static constexpr uint32_t RESET_WAIT_DURATION = 200;
+// Keep the recovery/presence window at the 1-wire minimum tRSTH. The current
+// Espressif RMT 1-wire implementation also uses 480 us here.
+static constexpr uint32_t RESET_WAIT_DURATION = 480;
 static constexpr uint32_t RESET_PRESENCE_WAIT_MIN = 15;
 static constexpr uint32_t RESET_PRESENCE_DURATION_MIN = 60;
 static constexpr uint32_t SLOT_START = 2;
@@ -155,10 +157,11 @@ void GPIOOneWireBus::setup_rmt_() {
   tx_cfg.resolution_hz = RMT_RESOLUTION_HZ;
   tx_cfg.gpio_num = gpio_num;
   tx_cfg.mem_block_symbols = SOC_RMT_MEM_WORDS_PER_CHANNEL;
-  // The OneWireBus API is synchronous and never intentionally has more than
-  // one TX in flight. A single descriptor also makes payload lifetime/order
-  // explicit, matching current ESPHome RMT users with synchronous semantics.
-  tx_cfg.trans_queue_depth = 1;
+  // A read completes from the RX side, which can happen just before the TX
+  // channel has released its final recovery-high symbol. Keep the same queue
+  // depth as Espressif's current RMT 1-wire driver so back-to-back search/read
+  // slots on a multidrop bus can be accepted without a transient busy error.
+  tx_cfg.trans_queue_depth = 4;
 #if ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(6, 0, 0)
   tx_cfg.flags.io_loop_back = true;
   tx_cfg.flags.io_od_mode = true;
