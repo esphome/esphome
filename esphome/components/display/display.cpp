@@ -5,6 +5,7 @@
 #include "display_color_utils.h"
 #include "esphome/core/application.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 namespace esphome::display {
@@ -73,33 +74,39 @@ static inline ESPHOME_ALWAYS_INLINE uint32_t read_packed_pixel(const uint8_t *pt
   }
 }
 
-// flatten keeps to_color() inlined in both loops; GCC at -Os stops inlining
-// it once there are two call sites, which costs a call and spills per pixel.
-__attribute__((flatten)) void Display::draw_pixels_at(int x_start, int y_start, int w, int h, const uint8_t *ptr,
-                                                      ColorOrder order, ColorBitness bitness, bool big_endian,
-                                                      int x_offset, int y_offset, int x_pad) {
+// flatten keeps to_color() inlined in the pixel loop; in PSRAM builds GCC at
+// -Os stops inlining it once there are two call sites, which costs a call and
+// spills per pixel.
+void __attribute__((flatten))
+Display::draw_pixels_at(int x_start, int y_start, int w, int h, const uint8_t *ptr, ColorOrder order,
+                        ColorBitness bitness, bool big_endian, int x_offset, int y_offset, int x_pad) {
   const size_t line_stride = x_offset + w + x_pad;  // length of each source line in pixels
+  const auto draw_source_pixel = [&](int x, int y, size_t source_idx) ESPHOME_ALWAYS_INLINE {
+    this->draw_pixel_at(x + x_start, y + y_start,
+                        ColorUtil::to_color(read_packed_pixel(ptr, source_idx, bitness, big_endian), order, bitness));
+  };
+  // The source and frame buffers are row-major, so walking rows keeps the read
+  // and the write sequential. When the display swaps the axes before writing,
+  // walking columns keeps the write sequential instead; with the frame buffer
+  // in PSRAM a strided write costs more than a strided read.
 #ifdef USE_PSRAM
-  // The source is row-major; when the display swaps the axes before writing,
-  // walking columns keeps the frame buffer write sequential instead. Without
-  // PSRAM the frame buffer is in uncached RAM where the strided write is free.
   if (this->pixel_axes_swapped()) {
-    for (int x = 0; x != w; x++) {
-      size_t source_idx = y_offset * line_stride + x_offset + x;
+    size_t column_idx = y_offset * line_stride + x_offset;
+    for (int x = 0; x != w; x++, column_idx++) {
+      size_t source_idx = column_idx;
       for (int y = 0; y != h; y++, source_idx += line_stride) {
-        this->draw_pixel_at(
-            x + x_start, y + y_start,
-            ColorUtil::to_color(read_packed_pixel(ptr, source_idx, bitness, big_endian), order, bitness));
+        draw_source_pixel(x, y, source_idx);
       }
     }
     return;
   }
 #endif
+  // Without PSRAM the frame buffer is in uncached RAM, where the strided write
+  // is free, so one copy of the loop is enough.
   for (int y = 0; y != h; y++) {
     size_t source_idx = (y_offset + y) * line_stride + x_offset;
     for (int x = 0; x != w; x++, source_idx++) {
-      this->draw_pixel_at(x + x_start, y + y_start,
-                          ColorUtil::to_color(read_packed_pixel(ptr, source_idx, bitness, big_endian), order, bitness));
+      draw_source_pixel(x, y, source_idx);
     }
   }
 }
