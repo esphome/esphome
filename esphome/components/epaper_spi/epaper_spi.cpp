@@ -4,6 +4,10 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
+#ifdef USE_ESP32
+#include <esp_system.h>
+#endif
+
 namespace esphome::epaper_spi {
 
 static const char *const TAG = "epaper_spi";
@@ -27,6 +31,34 @@ void EPaperBase::setup() {
   }
   this->setup_pins_();
   this->spi_setup();
+  this->restore_update_count_();
+}
+
+void EPaperBase::restore_update_count_() {
+  if (!this->is_using_partial_update_() || this->full_refresh_after_deep_sleep_)
+    return;
+  // update_count_ decides whether the next refresh is partial. It lives in RAM,
+  // so a device that deep sleeps between refreshes restarts the cycle on every
+  // wake and never takes the partial path, making full_update_every ineffective
+  // exactly where it matters most for battery life.
+  //
+  // Resuming the cycle is only sound when the panel kept the base image a
+  // partial refresh differences against, which needs both its RAM-retaining
+  // sleep mode and uninterrupted supply. The latter is a board property the
+  // driver cannot observe, hence the opt-in; the former rules out a power cycle,
+  // so only a deep sleep wake resumes, and any other reset refreshes fully.
+  char pin_summary[64];
+  this->dc_pin_->dump_summary(pin_summary, sizeof(pin_summary));
+  const uint32_t hash = fnv1_hash(std::string("epaper_spi_update_count_") + pin_summary);
+  this->update_count_pref_ = global_preferences->make_preference<uint8_t>(hash);
+  this->persist_update_count_ = true;
+#ifdef USE_ESP32
+  if (esp_reset_reason() != ESP_RST_DEEPSLEEP)
+    return;
+  uint8_t update_count = 0;
+  if (this->update_count_pref_.load(&update_count) && update_count < this->full_update_every_)
+    this->update_count_ = update_count;
+#endif
 }
 
 bool EPaperBase::init_buffer_(size_t buffer_length) {
@@ -225,6 +257,8 @@ void EPaperBase::process_state_() {
     case EPaperState::REFRESH_SCREEN:
       this->refresh_screen(this->update_count_ != 0);
       this->update_count_ = (this->update_count_ + 1) % this->full_update_every_;
+      if (this->persist_update_count_)
+        this->update_count_pref_.save(&this->update_count_);
       this->set_state_(EPaperState::POWER_OFF);
       break;
     case EPaperState::POWER_OFF:
@@ -342,12 +376,13 @@ void EPaperBase::dump_config() {
                 "  Model: %s\n"
                 "  SPI Data Rate: %uMHz\n"
                 "  Full update every: %d\n"
+                "  Full refresh after deep sleep: %s\n"
                 "  Swap X/Y: %s\n"
                 "  Mirror X: %s\n"
                 "  Mirror Y: %s",
                 this->name_, (unsigned) (this->data_rate_ / 1000000), this->full_update_every_,
-                YESNO(this->transform_ & SWAP_XY), YESNO(this->transform_ & MIRROR_X),
-                YESNO(this->transform_ & MIRROR_Y));
+                YESNO(this->full_refresh_after_deep_sleep_), YESNO(this->transform_ & SWAP_XY),
+                YESNO(this->transform_ & MIRROR_X), YESNO(this->transform_ & MIRROR_Y));
   LOG_PIN("  Reset Pin: ", this->reset_pin_);
   LOG_PIN("  DC Pin: ", this->dc_pin_);
   LOG_PIN("  Busy Pin: ", this->busy_pin_);
