@@ -21,9 +21,12 @@ struct Status {
   uint8_t mode;
 };
 
+// Longest args payload is a two-point setpoint: {0x20,0x02,hi,lo,0x21,0x02,hi,lo}
+static const uint8_t MAX_QUERY_ARGS = 8;
+
 struct Query {
   uint16_t cmd;
-  std::vector<uint8_t> args;
+  StaticVector<uint8_t, MAX_QUERY_ARGS> args;
 };
 
 namespace espbt = esphome::esp32_ble_tracker;
@@ -32,6 +35,8 @@ static const uint8_t MAX_CHUNK_SIZE = 20;
 static const uint8_t BLE_SEND_MAX_RETRIES = 5;
 // Chunks are fully drained every loop; a 255-byte message spans at most 14 chunks
 static const uint8_t RECEIVED_CHUNKS_QUEUE_SIZE = 16;
+// Deepest backlog is one control() burst (4) plus a full update() poll (5)
+static const uint8_t QUERY_QUEUE_SIZE = 16;
 
 static const espbt::ESPBTUUID MADOKA_SERVICE_UUID = espbt::ESPBTUUID::from_raw("2141e110-213a-11e6-b67b-9e71128cae77");
 static const espbt::ESPBTUUID NOTIFY_CHARACTERISTIC_UUID =
@@ -41,43 +46,6 @@ static const espbt::ESPBTUUID WWR_CHARACTERISTIC_UUID =
 
 static const float MIN_TEMP = 16.0f;
 static const float MAX_TEMP = 32.0f;
-
-template<typename T> class VectorFIFO : std::vector<T> {
- protected:
-  size_t pop_index_ = 0;
-
-  void compact_() {
-    this->erase(this->begin(), this->begin() + this->pop_index_);
-    this->pop_index_ = 0;
-  }
-
- public:
-  bool empty() const { return this->pop_index_ >= this->size(); }
-
-  T &front() { return this->at(this->pop_index_); }
-  const T &front() const { return this->at(this->pop_index_); }
-
-  void clear() {
-    this->std::vector<T>::clear();
-    this->pop_index_ = 0;
-  }
-
-  void pop() {
-    if (this->empty()) {
-      return;
-    }
-    this->pop_index_++;
-    if (this->pop_index_ >= this->size() / 2) {
-      this->compact_();
-    }
-  }
-
-  void push(const T &value) { this->std::vector<T>::push_back(value); }
-  void push(T &&value) { this->std::vector<T>::push_back(std::move(value)); }
-  template<typename... Args> void emplace(Args &&...args) {
-    this->std::vector<T>::emplace_back(std::forward<Args>(args)...);
-  }
-};
 
 struct Chunk {
   std::array<uint8_t, MAX_CHUNK_SIZE> data = {};
@@ -92,7 +60,7 @@ class DaikinMadoka : public climate::Climate, public esphome::ble_client::BLECli
     std::vector<uint8_t> data = {};
     size_t expected_chunk_id = 0;
   } partial_incoming_message_ = {};
-  VectorFIFO<Query> query_queue_ = {};
+  StaticRingBuffer<Query, QUERY_QUEUE_SIZE> query_queue_;
   bool pending_message_ = false;
   uint16_t notify_handle_{0};
   uint16_t wwr_handle_{0};
@@ -102,7 +70,8 @@ class DaikinMadoka : public climate::Climate, public esphome::ble_client::BLECli
   };
 
   esp_err_t send_message_(std::span<uint8_t> chk);
-  void query_(uint16_t cmd, std::vector<uint8_t> &args);
+  void enqueue_query_(uint16_t cmd, StaticVector<uint8_t, MAX_QUERY_ARGS> args);
+  void query_(uint16_t cmd, std::span<const uint8_t> args);
   void parse_cb_(std::span<const uint8_t> msg);
   void process_incoming_chunk_(const Chunk &chk);
 

@@ -120,25 +120,29 @@ void DaikinMadoka::control(const ClimateCall &call) {
     }
     ESP_LOGD(TAG, "status: %d, mode: %d", status_out, mode_out);
     if (mode_out != 255) {
-      this->query_queue_.emplace(CMD_SET_OPERATION_MODE, std::vector<uint8_t>{0x20, 0x01, (uint8_t) mode_out});
+      this->enqueue_query_(CMD_SET_OPERATION_MODE, {0x20, 0x01, (uint8_t) mode_out});
     }
-    this->query_queue_.emplace(CMD_SET_SETTING_STATUS, std::vector<uint8_t>{0x20, 0x01, (uint8_t) status_out});
+    this->enqueue_query_(CMD_SET_SETTING_STATUS, {0x20, 0x01, (uint8_t) status_out});
   }
-  std::vector<uint8_t> temp_setpoint_args;
+  StaticVector<uint8_t, MAX_QUERY_ARGS> temp_setpoint_args;
   auto target_temperature_high_opt = call.get_target_temperature_high();
   if (target_temperature_high_opt.has_value()) {
     uint16_t target_high = std::clamp(target_temperature_high_opt.value(), MIN_TEMP, MAX_TEMP) * 128;
-    temp_setpoint_args.insert(temp_setpoint_args.end(),
-                              {0x20, 0x02, (uint8_t) ((target_high >> 8) & 0xFF), (uint8_t) (target_high & 0xFF)});
+    temp_setpoint_args.push_back(0x20);
+    temp_setpoint_args.push_back(0x02);
+    temp_setpoint_args.push_back((uint8_t) ((target_high >> 8) & 0xFF));
+    temp_setpoint_args.push_back((uint8_t) (target_high & 0xFF));
   }
   auto target_temperature_low_opt = call.get_target_temperature_low();
   if (target_temperature_low_opt.has_value()) {
     uint16_t target_low = std::clamp(target_temperature_low_opt.value(), MIN_TEMP, MAX_TEMP) * 128;
-    temp_setpoint_args.insert(temp_setpoint_args.end(),
-                              {0x21, 0x02, (uint8_t) ((target_low >> 8) & 0xFF), (uint8_t) (target_low & 0xFF)});
+    temp_setpoint_args.push_back(0x21);
+    temp_setpoint_args.push_back(0x02);
+    temp_setpoint_args.push_back((uint8_t) ((target_low >> 8) & 0xFF));
+    temp_setpoint_args.push_back((uint8_t) (target_low & 0xFF));
   }
   if (!temp_setpoint_args.empty()) {
-    this->query_queue_.emplace(CMD_SET_SETPOINT, std::move(temp_setpoint_args));
+    this->enqueue_query_(CMD_SET_SETPOINT, temp_setpoint_args);
   }
   auto fan_mode_opt = call.get_fan_mode();
   if (fan_mode_opt.has_value()) {
@@ -162,8 +166,7 @@ void DaikinMadoka::control(const ClimateCall &call) {
         break;
     }
     if (fan_mode_out != 255) {
-      this->query_queue_.emplace(CMD_SET_FAN_SPEED, std::vector<uint8_t>{0x20, 0x01, (uint8_t) fan_mode_out, 0x21, 0x01,
-                                                                         (uint8_t) fan_mode_out});
+      this->enqueue_query_(CMD_SET_FAN_SPEED, {0x20, 0x01, (uint8_t) fan_mode_out, 0x21, 0x01, (uint8_t) fan_mode_out});
     }
   }
   this->should_update_ = true;
@@ -288,7 +291,7 @@ void DaikinMadoka::update() {
     return;
   }
   for (auto cmd : ALL_CMDS) {
-    this->query_queue_.emplace(cmd, std::vector<uint8_t>{0x00, 0x00});
+    this->enqueue_query_(cmd, {0x00, 0x00});
   }
   // update() also fires from the polling interval while the loop is asleep
   this->enable_loop();
@@ -352,7 +355,13 @@ esp_err_t DaikinMadoka::send_message_(std::span<uint8_t> chk) {
   return status;
 }
 
-void DaikinMadoka::query_(uint16_t cmd, std::vector<uint8_t> &args) {
+void DaikinMadoka::enqueue_query_(uint16_t cmd, StaticVector<uint8_t, MAX_QUERY_ARGS> args) {
+  if (!this->query_queue_.push(Query{cmd, args})) {
+    ESP_LOGW(TAG, "Query queue full, dropping command 0x%04X", cmd);
+  }
+}
+
+void DaikinMadoka::query_(uint16_t cmd, std::span<const uint8_t> args) {
   if (this->node_state != espbt::ClientState::ESTABLISHED) {
     return;
   }
