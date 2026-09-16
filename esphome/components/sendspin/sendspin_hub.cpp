@@ -141,21 +141,21 @@ void SendspinHub::update_mdns_service_() {
 
 // THREAD CONTEXT: Main loop (invoked from Sendspin components)
 void SendspinHub::connect_to_server(const std::string &url) {
-  if (this->is_enabled()) {
+  if (this->is_client_running()) {
     this->client_->connect_to(url);
   }
 }
 
 // THREAD CONTEXT: Main loop (invoked from Sendspin components)
 void SendspinHub::disconnect_from_server(sendspin::SendspinGoodbyeReason reason) {
-  if (this->is_enabled()) {
+  if (this->is_client_running()) {
     this->client_->disconnect(reason);
   }
 }
 
 // THREAD CONTEXT: Main loop (invoked from Sendspin components)
 void SendspinHub::update_state(sendspin::SendspinClientState state) {
-  if (this->is_enabled()) {
+  if (this->is_client_running()) {
     this->client_->update_state(state);
   }
 }
@@ -274,7 +274,7 @@ void SendspinHub::artwork_frame_done(uint8_t slot) {
 // THREAD CONTEXT: Main loop (invoked from ESPHome actions / other components)
 void SendspinHub::send_client_command(sendspin::SendspinControllerCommand command, std::optional<uint8_t> volume,
                                       std::optional<bool> mute) {
-  if (this->is_enabled()) {
+  if (this->is_client_running()) {
     sendspin::ClientCommandControllerObject obj = {
         .command = command,
         .volume = volume,

@@ -97,7 +97,7 @@ class SendspinHub final : public Component,
 
   /// @brief Connects the underlying client to the given Sendspin server.
   ///
-  /// No-op if the hub's client is not running (see is_enabled()).
+  /// No-op if the hub's client is not running (see is_client_running()).
   /// Must be called from the main loop thread.
   /// @param url WebSocket URL of the Sendspin server, starting with `ws://` (e.g. `ws://host:port/path`).
   void connect_to_server(const std::string &url);
@@ -139,7 +139,7 @@ class SendspinHub final : public Component,
   void set_enabled(bool enabled);
 
   /// @brief Returns whether the Sendspin client is running.
-  bool is_enabled() const { return this->client_ != nullptr && this->client_->is_started(); }
+  bool is_client_running() const { return this->client_ != nullptr && this->client_->is_started(); }
 
   /// @brief Sets the device information reported to the server in the `client/hello` message.
   ///
