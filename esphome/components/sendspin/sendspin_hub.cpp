@@ -21,6 +21,10 @@ namespace esphome::sendspin_ {
 
 static const char *const TAG = "sendspin.hub";
 
+#ifdef USE_MDNS_SUPPORTS_ENABLE_DISABLE
+static constexpr uint32_t MDNS_ENABLE_RETRY_MS = 1000;
+#endif
+
 #ifdef USE_SENDSPIN_ARTWORK
 // Indexed by the library enums, which start at zero and are contiguous.
 static const char *const IMAGE_SOURCE_NAMES[] = {"ALBUM", "ARTIST", "NONE"};
@@ -62,14 +66,28 @@ void SendspinHub::setup() {
   this->client_->add_player(this->player_config_).set_listener(this->player_listener_);
 #endif
 
-  if (!this->client_->start_server()) {
-    ESP_LOGE(TAG, "Failed to start Sendspin server");
+  if (!this->client_->start()) {
+    ESP_LOGE(TAG, "Failed to start Sendspin client");
     this->mark_failed();
     return;
   }
 }
 
-void SendspinHub::loop() { this->client_->loop(); }
+void SendspinHub::loop() {
+  this->client_->loop();
+
+#ifdef USE_MDNS_SUPPORTS_ENABLE_DISABLE
+  // mdns sets up after this hub, so the service is enabled here once mdns is ready. A failed enable retries,
+  // rate limited so a persistent failure does not flood the log or block on the mdns task every loop pass.
+  if (!this->mdns_advertised_ && this->mdns_->is_ready()) {
+    const uint32_t now = App.get_loop_component_start_time();
+    if (this->mdns_enable_attempt_ms_ == 0 || now - this->mdns_enable_attempt_ms_ >= MDNS_ENABLE_RETRY_MS) {
+      this->mdns_enable_attempt_ms_ = now;
+      this->mdns_advertised_ = this->mdns_->set_service_enabled("_sendspin", "_tcp", true);
+    }
+  }
+#endif
+}
 
 void SendspinHub::dump_config() {
   char mac_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];

@@ -319,6 +319,32 @@ def test_encryption_with_captive_portal_does_not_warn(
         fv.full_config.reset(token)
 
 
+@pytest.mark.parametrize("extra", [{}, {"prometheus": {}}])
+def test_encryption_with_web_server_ota_disabled_does_not_warn(
+    caplog: pytest.LogCaptureFixture, extra: dict[str, Any]
+) -> None:
+    """web_server `ota: false` only serves /update while the captive portal is
+    active, on every listener, so there is no plaintext endpoint to warn about."""
+    full_conf = {
+        "web_server": {CONF_OTA: False},
+        **extra,
+        CONF_OTA: [
+            _make_ota_config(port=3232, **{CONF_ENCRYPTION: {CONF_KEY: OTHER_KEY}}),
+            {CONF_PLATFORM: "web_server", CONF_ID: ID("ota_ws", is_manual=False)},
+        ],
+    }
+    token = fv.full_config.set(full_conf)
+    try:
+        with caplog.at_level(logging.WARNING):
+            ota_esphome_final_validate({})
+        assert not any(
+            "OTA encryption does not cover" in record.message
+            for record in caplog.records
+        )
+    finally:
+        fv.full_config.reset(token)
+
+
 def test_password_with_api_key_warns(caplog: pytest.LogCaptureFixture) -> None:
     """A static api key makes the device offer encryption and the CLI take
     it, so the password is dead weight; the config validates with a warning."""
