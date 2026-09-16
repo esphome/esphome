@@ -301,10 +301,10 @@ void LD6002BComponent::setup() {
       target_display_controlled = true;
       // Nothing reports this switch back, so its restored state is the only state
       // there is.  Restoring through the switch keeps its inversion in the path:
-      // the restored value is logical, and turn_on()/turn_off() are what turn it
+      // the restored value is logical, and driving the switch is what turns it
       // into the raw command, the published state and the stream flag.
-      this->target_display_switch_->control(
-          this->target_display_switch_->get_initial_state_with_restore_mode().value_or(true));
+      const bool state = this->target_display_switch_->get_initial_state_with_restore_mode().value_or(true);
+      this->target_display_switch_->control(state);
     }
 #endif
     if (!target_display_controlled) {
@@ -323,8 +323,8 @@ void LD6002BComponent::setup() {
       point_cloud_controlled = true;
       // The switch owns the stream, so it is also what applies the restored state:
       // driving it rather than the module keeps the entity's inversion in the path.
-      this->point_cloud_switch_->control(
-          this->point_cloud_switch_->get_initial_state_with_restore_mode().value_or(false));
+      const bool state = this->point_cloud_switch_->get_initial_state_with_restore_mode().value_or(false);
+      this->point_cloud_switch_->control(state);
     }
 #endif
     if (!point_cloud_controlled) {
@@ -366,7 +366,8 @@ void LD6002BComponent::setup() {
       // The module reports this one back, so the query below confirms what it took.
       // Driving the switch applies its inversion; it also marks the restored value
       // as reported, so the work mode fallback runs on that until the query lands.
-      this->low_power_switch_->control(this->low_power_switch_->get_initial_state_with_restore_mode().value_or(false));
+      const bool state = this->low_power_switch_->get_initial_state_with_restore_mode().value_or(false);
+      this->low_power_switch_->control(state);
     }
 #else
     bool want_low_power = false;
