@@ -97,6 +97,10 @@ void SendspinMediaPlayer::control(const media_player::MediaPlayerCall &call) {
     // Ignore any commands sent before the media player is setup
     return;
   }
+  if (!this->parent_->is_enabled()) {
+    ESP_LOGE(TAG, "Cannot control media player: Sendspin is disabled");
+    return;
+  }
 
   auto volume = call.get_volume();
   if (volume.has_value()) {
