@@ -1,1 +1,2 @@
-<<: !include common.yaml
+packages:
+  daikin_madoka: !include common.yaml
