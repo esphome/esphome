@@ -76,8 +76,12 @@ void SendspinHub::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "Sendspin Hub:\n"
                 "  Client ID: %s\n"
+                "  Manufacturer: %s\n"
+                "  Model: %s\n"
+                "  Firmware version: %s\n"
                 "  Task stack in PSRAM: %s",
-                get_client_id_into_buffer(mac_buf), YESNO(this->task_stack_in_psram_));
+                get_client_id_into_buffer(mac_buf), this->manufacturer_, this->get_product_name_(),
+                this->firmware_version_, YESNO(this->task_stack_in_psram_));
 
 #ifdef USE_SENDSPIN_ARTWORK
   // Slot indices come from the order the image platform entries were declared, so the log is the
@@ -127,15 +131,19 @@ const char *SendspinHub::get_client_id_into_buffer(std::span<char, MAC_ADDRESS_P
   return get_mac_address_pretty_into_buffer(buf);
 }
 
+const char *SendspinHub::get_product_name_() const {
+  return this->model_ != nullptr ? this->model_ : App.get_name().c_str();
+}
+
 sendspin::SendspinClientConfig SendspinHub::build_client_config_() {
   sendspin::SendspinClientConfig config;
 
   char mac_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
   config.client_id = SendspinHub::get_client_id_into_buffer(mac_buf);
   config.name = App.get_friendly_name();
-  config.product_name = App.get_name();
-  config.manufacturer = "ESPHome";
-  config.software_version = ESPHOME_VERSION;
+  config.product_name = this->get_product_name_();
+  config.manufacturer = this->manufacturer_;
+  config.software_version = this->firmware_version_;
   config.httpd_psram_stack = this->task_stack_in_psram_;
 
   return config;

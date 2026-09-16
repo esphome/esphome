@@ -356,7 +356,7 @@ class LightState : public EntityBase, public Component {
   /// Default transition length for all transitions in ms.
   uint32_t default_transition_length_{};
   /// Transition length to use for flash transitions.
-  uint32_t flash_transition_length_{};
+  uint32_t flash_transition_length_{};  // Keep in sync with DEFAULT_FLASH_TRANSITION_LENGTH in __init__.py
   /// Gamma correction factor for the light.
   float gamma_correct_{};
 #ifdef USE_LIGHT_GAMMA_LUT
