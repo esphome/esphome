@@ -62,6 +62,11 @@ void ESP32BLETracker::on_ota_global_state(ota::OTAState state, float progress, u
     for (auto *client : this->clients_) {
       client->disconnect();
     }
+#ifdef USE_ESP32_BLE_SOFTWARE_COEXISTENCE
+    // The OTA transfer blocks the main loop, so the revert in loop() cannot run. No
+    // active-connection gate here: every client was just told to disconnect.
+    this->update_coex_preference_(false);
+#endif
 #endif
   } else if ((state == ota::OTA_ERROR || state == ota::OTA_ABORT) && this->scan_continuous_before_ota_) {
     this->scan_continuous_before_ota_ = false;
@@ -74,11 +79,11 @@ void ESP32BLETracker::on_ota_global_state(ota::OTAState state, float progress, u
 
 void ESP32BLETracker::loop() {
   if (!this->parent_->is_active()) {
-    this->ble_was_disabled_ = true;
     return;
-  } else if (this->ble_was_disabled_) {
+  }
+  if (this->ble_was_disabled_) {
     this->ble_was_disabled_ = false;
-    // If the BLE stack was disabled, we need to start the scan again.
+    // First start after boot or after the stack came back.
     if (this->scan_continuous_) {
       this->start_scan();
     }
@@ -218,7 +223,27 @@ void ESP32BLETracker::stop_scan() {
   this->stop_scan_();
 }
 
-void ESP32BLETracker::ble_before_disabled_event_handler() { this->stop_scan_(); }
+void ESP32BLETracker::ble_before_disabled_event_handler() {
+  // Tell the controller to stop; a scan still starting has nothing to stop yet.
+  if (this->scanner_state_ == ScannerState::RUNNING || this->scanner_state_ == ScannerState::FAILED) {
+    this->stop_scan_();
+  }
+#ifdef ESPHOME_ESP32_BLE_TRACKER_CLIENT_COUNT
+  for (auto *client : this->clients_) {
+    client->ble_before_disabled_event_handler();
+  }
+  this->skip_next_scan_end_ = false;
+#endif
+  // The stop above never completes (stack torn down, events dropped); settle
+  // here so start_scan_() sees IDLE once the stack is back.
+  if (this->scanner_state_ != ScannerState::IDLE) {
+    this->cleanup_scan_state_(true);
+  }
+  // A failure latched by the old stack must not be handled against the next.
+  this->scan_start_failed_ = ESP_BT_STATUS_SUCCESS;
+  this->scan_set_param_failed_ = ESP_BT_STATUS_SUCCESS;
+  this->ble_was_disabled_ = true;
+}
 
 bool ESP32BLETracker::stop_scan_() {
   if (this->scanner_state_ != ScannerState::RUNNING && this->scanner_state_ != ScannerState::FAILED) {

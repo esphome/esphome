@@ -12,7 +12,7 @@ output:
     pin: 2
     id: built_in_led
 
-esp32_improv:
+improv_ble:
   authorizer: io0_button
   authorized_duration: 1min
   status_indicator: built_in_led
