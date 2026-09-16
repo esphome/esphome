@@ -163,10 +163,7 @@ void Mk2PVRouter::publish_value_(const char *tag, const char *val) {
 #endif
 }
 
-void Mk2PVRouter::dump_config() {
-  ESP_LOGCONFIG(TAG, "Mk2PVRouter:");
-  this->check_uart_settings(BAUD_RATE, 1, uart::UART_CONFIG_PARITY_EVEN, 7);
-}
+void Mk2PVRouter::dump_config() { ESP_LOGCONFIG(TAG, "Mk2PVRouter:"); }
 
 #ifdef MK2PVROUTER_LISTENER_COUNT
 void Mk2PVRouter::register_mk2pvrouter_listener(Mk2PVRouterListener *listener) {
