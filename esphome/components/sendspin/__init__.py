@@ -3,6 +3,7 @@ from dataclasses import dataclass, field
 from esphome import automation
 import esphome.codegen as cg
 from esphome.components import esp32, network, psram, socket, wifi
+from esphome.components.const import CONF_MANUFACTURER
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BUFFER_SIZE,
@@ -33,7 +34,6 @@ CONF_DISPLAY_OFFSET = "display_offset"
 CONF_SENDSPIN_ID = "sendspin_id"
 
 CONF_FIRMWARE_VERSION = "firmware_version"
-CONF_MANUFACTURER = "manufacturer"
 
 # An empty device information string would be sent to the server as an empty value rather than
 # falling back, so reject it instead of silently substituting the fallback. The 127 byte cap keeps
