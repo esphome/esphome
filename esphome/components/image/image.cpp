@@ -44,11 +44,15 @@ void Image::draw(int x, int y, display::Display *display, Color color_on, Color 
   // image read and the frame buffer write sequential. When the display swaps
   // the axes before writing, walking columns keeps the write sequential
   // instead; a strided write costs more than a strided read.
+#ifdef USE_PSRAM
   if (display->pixel_axes_swapped()) {
     this->draw_<false>(x, y, display, color_on, color_off, x_start, x_end, y_start, y_end);
-  } else {
-    this->draw_<true>(x, y, display, color_on, color_off, x_start, x_end, y_start, y_end);
+    return;
   }
+#endif
+  // Without PSRAM the frame buffer is in uncached RAM, where the strided write
+  // is free, so one copy of the loops is enough.
+  this->draw_<true>(x, y, display, color_on, color_off, x_start, x_end, y_start, y_end);
 }
 
 template<bool ROWS_OUTER>

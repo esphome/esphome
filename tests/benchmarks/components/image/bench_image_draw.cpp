@@ -76,6 +76,21 @@ static void ImageDraw_RGB_Rotated(benchmark::State &state) {
 }
 BENCHMARK(ImageDraw_RGB_Rotated);
 
+static void ImageDraw_Binary_Transparent(benchmark::State &state) {
+  draw_image(state, IMAGE_TYPE_BINARY, TRANSPARENCY_CHROMA_KEY);
+}
+BENCHMARK(ImageDraw_Binary_Transparent);
+
+static void ImageDraw_Grayscale_ChromaKey(benchmark::State &state) {
+  draw_image(state, IMAGE_TYPE_GRAYSCALE, TRANSPARENCY_CHROMA_KEY);
+}
+BENCHMARK(ImageDraw_Grayscale_ChromaKey);
+
+static void ImageDraw_Grayscale_Alpha(benchmark::State &state) {
+  draw_image(state, IMAGE_TYPE_GRAYSCALE, TRANSPARENCY_ALPHA_CHANNEL);
+}
+BENCHMARK(ImageDraw_Grayscale_Alpha);
+
 static void ImageDraw_RGB_Alpha(benchmark::State &state) {
   draw_image(state, IMAGE_TYPE_RGB, TRANSPARENCY_ALPHA_CHANNEL);
 }
