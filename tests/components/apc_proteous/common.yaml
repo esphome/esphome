@@ -1,0 +1,6 @@
+cover:
+  - platform: apc_proteous
+    id: apc_proteous_gate
+    name: Gate
+    device_class: gate
+    update_interval: 500ms
