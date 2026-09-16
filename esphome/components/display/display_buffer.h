@@ -28,9 +28,9 @@ class DisplayBuffer : public Display {
   void init_internal_(uint32_t buffer_length);
 
   /// Internal size read once through the virtual accessors; the rotated
-  /// branches of draw_pixel_at() need it on every pixel. Every DisplayBuffer
-  /// driver's size is fixed once its setup ran, and the zero test keeps a draw
-  /// during setup correct.
+  /// branches of draw_pixel_at() need it on every pixel. Every driver
+  /// finalises its size before its first draw (the ones that clear during
+  /// setup size themselves first), so the zero test only covers the cold read.
   int ESPHOME_ALWAYS_INLINE internal_width_() {
     if (this->width_internal_ == 0)
       this->width_internal_ = this->get_width_internal();
@@ -43,8 +43,8 @@ class DisplayBuffer : public Display {
   }
 
   uint8_t *buffer_{nullptr};
-  int16_t width_internal_{0};
-  int16_t height_internal_{0};
+  int width_internal_{0};
+  int height_internal_{0};
 };
 
 }  // namespace esphome::display
