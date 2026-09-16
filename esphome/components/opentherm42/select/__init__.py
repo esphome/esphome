@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 from esphome.components import select
 import esphome.config_validation as cv
-from esphome.const import CONF_INITIAL_OPTION, ENTITY_CATEGORY_CONFIG
+from esphome.const import CONF_INITIAL_OPTION
 
 from .. import OpenTherm42Hub, opentherm42_ns
 from ..const import (
@@ -17,6 +17,8 @@ OpenTherm42Select = opentherm42_ns.class_(
 # same "R -" idiom as ID 0/70's master status (see hub.h's RequestKind::SOLAR_STORAGE_STATUS
 # comment): the wire message type is always READ-DATA, but the byte's content is this master's own
 # commanded solar mode, with no readback. Fixed, spec-defined option list, not user-configurable.
+# entity_category is left unset (primary): this is chosen situationally, same as an active demand,
+# the same nature as the switch platform's Class 1 enable/demand entries.
 SOLAR_MODE_OPTIONS = [
     "Off",
     "DHW Eco",
@@ -30,9 +32,7 @@ CONFIG_SCHEMA = cv.Schema(
         cv.GenerateID(CONF_OPENTHERM42_ID): cv.use_id(OpenTherm42Hub),
         cv.Optional(
             CONF_CONTROL_AND_STATUS_INFORMATION_MASTER_SOLAR_STORAGE_STATUS_SOLAR_MODE
-        ): select.select_schema(
-            OpenTherm42Select, entity_category=ENTITY_CATEGORY_CONFIG
-        ).extend(
+        ): select.select_schema(OpenTherm42Select).extend(
             {
                 # Required, not merely defaulted: this is the value actually written to the boiler
                 # on first boot / after a corrupt-or-missing preference, so it must be a deliberate
