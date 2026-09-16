@@ -209,3 +209,76 @@ def test_runner_streams_output_before_the_build_finishes(
             # Join before leaving the block, so the reader is done rather than
             # racing ``Popen`` closing the pipe under it.
             reader.join(1.0)
+
+
+class _FakeKernel32:
+    """Stand-in for the Windows kernel32 console code page calls."""
+
+    def __init__(self, input_cp: int, output_cp: int) -> None:
+        self.input_cp = input_cp
+        self.output_cp = output_cp
+        self.calls: list[tuple[str, int]] = []
+
+    def GetConsoleCP(self) -> int:  # noqa: N802
+        return self.input_cp
+
+    def GetConsoleOutputCP(self) -> int:  # noqa: N802
+        return self.output_cp
+
+    def SetConsoleCP(self, codepage: int) -> int:  # noqa: N802
+        self.calls.append(("SetConsoleCP", codepage))
+        self.input_cp = codepage
+        return 1
+
+    def SetConsoleOutputCP(self, codepage: int) -> int:  # noqa: N802
+        self.calls.append(("SetConsoleOutputCP", codepage))
+        self.output_cp = codepage
+        return 1
+
+
+def test_main_runs_the_build_with_a_utf8_console(
+    monkeypatch: pytest.MonkeyPatch, fixture_path: Path
+) -> None:
+    """An attached console is switched to UTF-8 and then put back."""
+    kernel32 = _FakeKernel32(850, 850)
+    monkeypatch.setattr(runner, "_get_kernel32", lambda: kernel32)
+
+    _run_main(monkeypatch, fixture_path / "espidf" / "filtering_probe.py")
+
+    assert kernel32.calls == [
+        ("SetConsoleCP", runner.UTF8_CODEPAGE),
+        ("SetConsoleOutputCP", runner.UTF8_CODEPAGE),
+        ("SetConsoleCP", 850),
+        ("SetConsoleOutputCP", 850),
+    ]
+
+
+def test_main_restores_the_console_when_the_build_dies(
+    monkeypatch: pytest.MonkeyPatch, fixture_path: Path
+) -> None:
+    """A failing build must not leave the user's console on UTF-8."""
+    kernel32 = _FakeKernel32(437, 437)
+    monkeypatch.setattr(runner, "_get_kernel32", lambda: kernel32)
+    _prepare_main(monkeypatch, fixture_path / "espidf" / "crashing_probe.py")
+
+    with pytest.raises(SystemExit):
+        runner.main()
+
+    assert (kernel32.input_cp, kernel32.output_cp) == (437, 437)
+
+
+def test_main_leaves_the_console_alone_when_there_is_none(
+    monkeypatch: pytest.MonkeyPatch, fixture_path: Path
+) -> None:
+    """Without a console the code page calls return 0 and nothing is set."""
+    kernel32 = _FakeKernel32(0, 0)
+    monkeypatch.setattr(runner, "_get_kernel32", lambda: kernel32)
+
+    _run_main(monkeypatch, fixture_path / "espidf" / "filtering_probe.py")
+
+    assert kernel32.calls == []
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="kernel32 exists on Windows")
+def test_get_kernel32_is_none_off_windows() -> None:
+    assert runner._get_kernel32() is None
