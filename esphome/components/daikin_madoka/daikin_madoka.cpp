@@ -58,7 +58,7 @@ void DaikinMadoka::loop() {
   }
 
   if (!this->query_queue_.empty() && !this->pending_message_) {
-    Query query = std::move(this->query_queue_.front());
+    Query query = this->query_queue_.front();
     this->query_queue_.pop();
     this->query_(query.cmd, query.args);
     this->pending_message_ = true;
@@ -380,8 +380,8 @@ void DaikinMadoka::query_(uint16_t cmd, std::span<const uint8_t> args) {
 
   Chunk chunk{};
   for (size_t i = 0; i * (MAX_CHUNK_SIZE - 1) < len; i++) {
-    auto chunk_start = payload.begin() + (i * (MAX_CHUNK_SIZE - 1));
-    auto chunk_end = payload.begin() + std::min(payload.size(), (i + 1) * (MAX_CHUNK_SIZE - 1));
+    auto *chunk_start = payload.begin() + (i * (MAX_CHUNK_SIZE - 1));
+    auto *chunk_end = payload.begin() + std::min(payload.size(), (i + 1) * (MAX_CHUNK_SIZE - 1));
     chunk.data[0] = (uint8_t) i;
     std::copy(chunk_start, chunk_end, chunk.data.begin() + 1);
     chunk.length = chunk_end - chunk_start + 1;
