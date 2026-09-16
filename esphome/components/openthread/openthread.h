@@ -56,13 +56,6 @@ class OpenThreadComponent final : public Component {
   void set_connected(bool connected) { this->connected_ = connected; }
   static void on_state_changed(otChangedFlags flags, void *context);
 
-  template<typename F> void add_on_state_callback(F &&callback) {
-    this->state_callbacks_.add(std::forward<F>(callback));
-  }
-  template<typename F> void add_full_state_callback(F &&callback) {
-    this->full_state_callbacks_.add(std::forward<F>(callback));
-  }
-
  protected:
   // Actions re-apply link mode under the OT lock; allow them to call apply_linkmode_()
   // without exposing this lock-sensitive, raw-instance method on the public API.
@@ -72,7 +65,6 @@ class OpenThreadComponent final : public Component {
    * Callers running outside the OpenThread task must hold InstanceLock.
    */
   void apply_linkmode_(otInstance *instance);
-  void publish_state_(otDeviceRole role);
 
   std::optional<otIp6Address> get_omr_address_(InstanceLock &lock);
   otInstance *get_openthread_instance_();
@@ -86,11 +78,6 @@ class OpenThreadComponent final : public Component {
   // Only ever written from teardown(), on the main task -- no atomic needed.
   TeardownStage teardown_stage_{TeardownStage::TEARDOWN_STAGE_NOT_STARTED};
   std::atomic<bool> connected_{false};
-
-  otDeviceRole active_role_{OT_DEVICE_ROLE_DISABLED};
-
-  LazyCallbackManager<void(otDeviceRole)> state_callbacks_{};
-  LazyCallbackManager<void(otDeviceRole previous, otDeviceRole current)> full_state_callbacks_;
 
  private:
   // Stores a pointer to a string literal (static storage duration).
