@@ -98,7 +98,7 @@ void SendspinMediaPlayer::control(const media_player::MediaPlayerCall &call) {
     return;
   }
   if (!this->parent_->is_client_running()) {
-    ESP_LOGE(TAG, "Cannot control media player: Sendspin is disabled");
+    ESP_LOGW(TAG, "Cannot control media player: Sendspin is disabled");
     return;
   }
 
