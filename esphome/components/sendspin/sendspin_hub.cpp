@@ -65,16 +65,13 @@ void SendspinHub::setup() {
 #ifdef USE_SENDSPIN_PLAYER
   this->client_->add_player(this->player_config_).set_listener(this->player_listener_);
 #endif
+
+  if (this->enabled_ && !this->start_client_()) {
+    this->mark_failed();
+  }
 }
 
 void SendspinHub::loop() {
-  // The client starts here rather than in setup() so a child that restores a disabled state in
-  // its own setup(), which runs after the hub's, never starts the role threads only to stop them.
-  if (this->enabled_ && !this->client_->is_started() && !this->start_client_()) {
-    this->mark_failed();
-    return;
-  }
-
   this->client_->loop();
 
 #ifdef USE_MDNS_SUPPORTS_ENABLE_DISABLE
@@ -109,17 +106,15 @@ void SendspinHub::dump_config() {
 
 // THREAD CONTEXT: Main loop (invoked from Sendspin components)
 bool SendspinHub::set_enabled(bool enabled) {
-  this->enabled_ = enabled;
   if (!this->is_ready()) {
+    this->enabled_ = enabled;
     return false;
   }
   if (!enabled) {
     this->client_->stop();
     return true;
   }
-  // A failed start leaves the flag off so loop() does not retry it every tick and fail the hub.
-  this->enabled_ = this->start_client_();
-  return this->enabled_;
+  return this->start_client_();
 }
 
 bool SendspinHub::start_client_() {

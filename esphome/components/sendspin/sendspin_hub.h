@@ -42,11 +42,14 @@ namespace esphome::sendspin_ {
 /// Centralized here so every sendspin component orders itself relative to the hub
 /// without each subcomponent having to pick a priority independently. Children run
 /// one step later than hub so they can assume hub's setup() has already completed.
+/// The enable switch runs one step earlier so its restored state decides whether the
+/// hub starts the client in setup().
 namespace sendspin_priority {
 // AFTER_WIFI so the hub runs after the wifi/ethernet drivers are up and we can read the active
 // interface's MAC for client_id.
 inline constexpr float HUB = esphome::setup_priority::AFTER_WIFI;
 inline constexpr float CHILD = HUB - 1.0f;
+inline constexpr float ENABLE_SWITCH = HUB + 1.0f;
 }  // namespace sendspin_priority
 
 /// @brief Persistent storage structure for last played server hash.
@@ -134,14 +137,13 @@ class SendspinHub final : public Component,
   ///
   /// Disabling sends `client/goodbye` to every peer and blocks until the client is fully stopped; the roles' clear
   /// callbacks fire from inside this call. Enabling starts it again with no connection or role state from before.
-  /// No-op if the client is already in the requested state. Called before the hub's first loop() (for example from
-  /// a child's setup()), it only decides whether the client starts on that first tick. Must be called from the main
-  /// loop thread.
-  /// @return true if the client is in the requested state afterwards.
+  /// No-op if the client is already in the requested state. Called before the hub's setup(), it only records whether
+  /// setup() starts the client. Must be called from the main loop thread.
+  /// @return true if the client is in the requested state afterwards, false before setup() or if a start failed.
   bool set_enabled(bool enabled);
 
-  /// @brief Returns whether the Sendspin client is running, or will start on the hub's first loop(). See set_enabled().
-  bool is_enabled() const { return this->is_ready() && (this->client_->is_started() || this->enabled_); }
+  /// @brief Returns whether the Sendspin client is running. See set_enabled().
+  bool is_enabled() const { return this->is_ready() && this->client_->is_started(); }
 
   /// @brief Sets the device information reported to the server in the `client/hello` message.
   ///
@@ -311,8 +313,8 @@ class SendspinHub final : public Component,
 
   bool task_stack_in_psram_{false};
 
-  // Whether the client should be running. Only read by loop() before the client has started for the first time;
-  // afterwards the client's own is_started() is the source of truth.
+  // Whether setup() starts the client. Only meaningful before setup(); afterwards the client's own is_started()
+  // is the source of truth.
   bool enabled_{true};
 
   // Device information sent in the `client/hello` message. Defaults apply when neither the

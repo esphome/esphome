@@ -11,10 +11,17 @@ static const char *const TAG = "sendspin.switch";
 void SendspinSwitch::setup() {
   auto initial_state = this->get_initial_state_with_restore_mode();
   if (initial_state.has_value()) {
-    this->write_state(*initial_state);
-  } else {
-    this->publish_state(this->parent_->is_enabled());
+    this->parent_->set_enabled(*initial_state);
   }
+  // The hub has not set up yet, so its state is read once every setup() has run. A failed hub
+  // fails the switch too rather than publishing (and persisting) off.
+  this->defer([this] {
+    if (this->parent_->is_failed()) {
+      this->mark_failed();
+      return;
+    }
+    this->publish_state(this->parent_->is_enabled());
+  });
 }
 
 void SendspinSwitch::dump_config() { LOG_SWITCH("", "Sendspin Switch", this); }
