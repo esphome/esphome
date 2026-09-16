@@ -11,7 +11,7 @@ DEPENDENCIES = ["sendspin"]
 
 SendspinSwitch = sendspin_ns.class_("SendspinSwitch", switch.Switch, cg.Component)
 
-CONFIG_SCHEMA = (
+CONFIG_SCHEMA = cv.All(
     switch.switch_schema(
         SendspinSwitch,
         block_inverted=True,
@@ -19,7 +19,8 @@ CONFIG_SCHEMA = (
         entity_category=ENTITY_CATEGORY_CONFIG,
     )
     .extend({cv.GenerateID(CONF_SENDSPIN_ID): cv.use_id(SendspinHub)})
-    .extend(cv.COMPONENT_SCHEMA)
+    .extend(cv.COMPONENT_SCHEMA),
+    cv.only_on_esp32,
 )
 
 
