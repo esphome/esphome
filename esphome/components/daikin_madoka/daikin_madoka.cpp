@@ -24,8 +24,6 @@ static const uint16_t CMD_GET_SENSOR_INFORMATION = 0x0110;
 
 void DaikinMadoka::dump_config() { LOG_CLIMATE(TAG, "Daikin Madoka Climate Controller", this); }
 
-void DaikinMadoka::setup() {}
-
 inline static uint32_t get_command_cooldown(uint16_t cmd) {
   switch (cmd) {
     case CMD_GET_SETTING_STATUS:

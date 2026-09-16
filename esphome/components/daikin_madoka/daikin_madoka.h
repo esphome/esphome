@@ -106,7 +106,6 @@ class DaikinMadoka : public climate::Climate, public esphome::ble_client::BLECli
   void control(const climate::ClimateCall &call) override;
 
  public:
-  void setup() override;
   void loop() override;
   void update() override;
   void gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if,
