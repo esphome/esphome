@@ -76,7 +76,8 @@ static inline ESPHOME_ALWAYS_INLINE uint32_t read_packed_pixel(const uint8_t *pt
 
 // flatten keeps to_color() inlined in the pixel loop; in PSRAM builds GCC at
 // -Os stops inlining it once there are two call sites, which costs a call and
-// spills per pixel.
+// spills per pixel. Without PSRAM there is one call site and it changes
+// nothing, and draw_pixel_at() stays a virtual call either way.
 void __attribute__((flatten))
 Display::draw_pixels_at(int x_start, int y_start, int w, int h, const uint8_t *ptr, ColorOrder order,
                         ColorBitness bitness, bool big_endian, int x_offset, int y_offset, int x_pad) {
