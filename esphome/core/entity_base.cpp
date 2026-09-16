@@ -56,6 +56,15 @@ void EntityBase::configure_entity_(const char *name, uint32_t object_id_hash, ui
   this->flags_.entity_category = (entity_fields >> ENTITY_FIELD_ENTITY_CATEGORY_SHIFT) & 0x3;
 }
 
+void EntityBase::set_internal(bool internal) {
+  // Remove the after-setup path in 2027.3.0 and ignore the call instead.
+  if (App.is_setup_complete()) {
+    ESP_LOGE(TAG, "'%s': set_internal() after setup is undefined behavior, stops working in 2027.3.0",
+             this->get_name().c_str());
+  }
+  this->flags_.internal = internal;
+}
+
 // Weak default lookup functions — overridden by generated code in main.cpp
 __attribute__((weak)) const char *entity_device_class_lookup(uint8_t) { return ""; }
 __attribute__((weak)) const char *entity_uom_lookup(uint8_t) { return ""; }
@@ -80,24 +89,6 @@ const char *EntityBase::get_device_class_to([[maybe_unused]] std::span<char, MAX
 #endif
 }
 
-#ifndef USE_ESP8266
-// Deprecated device class accessors — not available on ESP8266 (rodata is RAM)
-StringRef EntityBase::get_device_class_ref() const {
-#ifdef USE_ENTITY_DEVICE_CLASS
-  return StringRef(entity_device_class_lookup(this->device_class_idx_));
-#else
-  return StringRef(entity_device_class_lookup(0));
-#endif
-}
-std::string EntityBase::get_device_class() const {
-#ifdef USE_ENTITY_DEVICE_CLASS
-  return std::string(entity_device_class_lookup(this->device_class_idx_));
-#else
-  return std::string(entity_device_class_lookup(0));
-#endif
-}
-#endif  // !USE_ESP8266
-
 // Entity unit of measurement (from index)
 StringRef EntityBase::get_unit_of_measurement_ref() const {
 #ifdef USE_ENTITY_UNIT_OF_MEASUREMENT
@@ -106,10 +97,6 @@ StringRef EntityBase::get_unit_of_measurement_ref() const {
   return StringRef(entity_uom_lookup(0));
 #endif
 }
-std::string EntityBase::get_unit_of_measurement() const {
-  return std::string(this->get_unit_of_measurement_ref().c_str());
-}
-
 // Entity icon — buffer-based API for PROGMEM safety on ESP8266
 const char *EntityBase::get_icon_to([[maybe_unused]] std::span<char, MAX_ICON_LENGTH> buffer) const {
 #ifdef USE_ENTITY_ICON
@@ -128,24 +115,6 @@ const char *EntityBase::get_icon_to([[maybe_unused]] std::span<char, MAX_ICON_LE
   return entity_icon_lookup(idx);
 #endif
 }
-
-#ifndef USE_ESP8266
-// Deprecated icon accessors — not available on ESP8266 (rodata is RAM)
-StringRef EntityBase::get_icon_ref() const {
-#ifdef USE_ENTITY_ICON
-  return StringRef(entity_icon_lookup(this->icon_idx_));
-#else
-  return StringRef(entity_icon_lookup(0));
-#endif
-}
-std::string EntityBase::get_icon() const {
-#ifdef USE_ENTITY_ICON
-  return std::string(entity_icon_lookup(this->icon_idx_));
-#else
-  return std::string(entity_icon_lookup(0));
-#endif
-}
-#endif  // !USE_ESP8266
 
 // Calculate Object ID Hash directly from name using snake_case + sanitize
 void EntityBase::calc_object_id_() {
