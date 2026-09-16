@@ -511,9 +511,11 @@ TYPES: dict[str, cv.Schema] = {
         accuracy_decimals=0, entity_category=ENTITY_CATEGORY_DIAGNOSTIC
     ),
     # §5.3.8.3 Class 8, ID 9: Remote Override Room Setpoint (degrees C, 0..30).
-    # 0 = No override, 1..30 = Remote override room Setpoint.
+    # 0 = No override, 1..30 = Remote override room Setpoint. Unlike the fixed capability/rating
+    # values just above, this is the setpoint actually in effect right now, so primary.
     CONF_CONTROL_OF_SPECIAL_APPLICATIONS_REMOTE_OVERRIDE_ROOM_SETPOINT: _TEMPERATURE_SCHEMA,
-    # §5.3.8.3 Class 8, ID 39: Remote Override Room Setpoint 2 (degrees C, 0..30), same encoding.
+    # §5.3.8.3 Class 8, ID 39: Remote Override Room Setpoint 2 (degrees C, 0..30), same encoding
+    # and reasoning as ID 9 above.
     CONF_CONTROL_OF_SPECIAL_APPLICATIONS_REMOTE_OVERRIDE_ROOM_SETPOINT_2: _TEMPERATURE_SCHEMA,
 }
 
