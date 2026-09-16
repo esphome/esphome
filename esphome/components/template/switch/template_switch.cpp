@@ -29,7 +29,6 @@ void TemplateSwitch::write_state(bool state) {
   if (this->optimistic_)
     this->publish_state(state);
 }
-void TemplateSwitch::set_optimistic(bool optimistic) { this->optimistic_ = optimistic; }
 bool TemplateSwitch::assumed_state() { return this->assumed_state_; }
 float TemplateSwitch::get_setup_priority() const { return setup_priority::HARDWARE - 2.0f; }
 Trigger<> *TemplateSwitch::get_turn_on_trigger() { return &this->turn_on_trigger_; }
@@ -54,6 +53,5 @@ void TemplateSwitch::dump_config() {
   LOG_SWITCH("", "Template Switch", this);
   ESP_LOGCONFIG(TAG, "  Optimistic: %s", YESNO(this->optimistic_));
 }
-void TemplateSwitch::set_assumed_state(bool assumed_state) { this->assumed_state_ = assumed_state; }
 
 }  // namespace esphome::template_

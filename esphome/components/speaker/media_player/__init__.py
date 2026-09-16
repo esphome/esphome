@@ -1,7 +1,5 @@
 """Speaker Media Player Setup."""
 
-import logging
-
 from esphome import automation
 import esphome.codegen as cg
 from esphome.components import (
@@ -33,9 +31,6 @@ from esphome.const import (
     CONF_TASK_STACK_IN_PSRAM,
 )
 
-_LOGGER = logging.getLogger(__name__)
-
-
 AUTO_LOAD = ["audio"]
 DEPENDENCIES = ["network"]
 
@@ -44,7 +39,7 @@ DOMAIN = "media_player"
 
 CONF_ANNOUNCEMENT = "announcement"
 CONF_ANNOUNCEMENT_PIPELINE = "announcement_pipeline"
-CONF_CODEC_SUPPORT_ENABLED = "codec_support_enabled"  # Remove before 2026.10.0
+CONF_CODEC_SUPPORT_ENABLED = "codec_support_enabled"  # Remove before 2027.4.0
 CONF_ENQUEUE = "enqueue"
 CONF_MEDIA_FILE = "media_file"
 CONF_MEDIA_PIPELINE = "media_pipeline"
@@ -103,15 +98,6 @@ def _validate_repeated_speaker(config):
 
 
 def _final_validate(config):
-    # Remove before 2026.10.0
-    if CONF_CODEC_SUPPORT_ENABLED in config:
-        _LOGGER.warning(
-            "'%s' is deprecated and will be removed in 2026.10.0. "
-            "Codec support is now automatically determined from the pipeline "
-            "'format' setting. Set format to 'NONE' to enable all codecs.",
-            CONF_CODEC_SUPPORT_ENABLED,
-        )
-
     # Request codecs based on pipeline formats. Codecs needed by local files are
     # already requested during CONFIG_SCHEMA validation (via audio_files_schema).
     media_player.request_codecs_for_format_configs(
@@ -151,8 +137,12 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_BUFFER_SIZE, default=1000000): cv.int_range(
                 min=4000, max=4000000
             ),
-            # Remove before 2026.10.0
-            cv.Optional(CONF_CODEC_SUPPORT_ENABLED): cv.Any(cv.boolean, cv.string),
+            # Removed in 2026.10.0 - kept to provide helpful error message
+            cv.Optional(CONF_CODEC_SUPPORT_ENABLED): cv.invalid(
+                "The 'codec_support_enabled' option has been removed in ESPHome 2026.10.0.\n"
+                "Codec support is now determined from the pipeline 'format' setting.\n"
+                "Set 'format: NONE' on the pipeline to enable all codecs."
+            ),
             cv.Optional(CONF_FILES): audio_file.audio_files_schema(),
             cv.Optional(CONF_TASK_STACK_IN_PSRAM): psram.validate_task_stack_in_psram,
             cv.Optional(CONF_VOLUME_INCREMENT, default=0.05): cv.percentage,
