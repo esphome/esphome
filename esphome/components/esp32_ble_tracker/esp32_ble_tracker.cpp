@@ -55,12 +55,18 @@ void ESP32BLETracker::setup() {
 #ifdef USE_OTA_STATE_LISTENER
 void ESP32BLETracker::on_ota_global_state(ota::OTAState state, float progress, uint8_t error, ota::OTAComponent *comp) {
   if (state == ota::OTA_STARTED) {
+    ESP_LOGD(TAG, "Stopping scan for OTA");
     this->scan_continuous_before_ota_ = this->scan_continuous_;
     this->stop_scan();
 #ifdef ESPHOME_ESP32_BLE_TRACKER_CLIENT_COUNT
     for (auto *client : this->clients_) {
       client->disconnect();
     }
+#ifdef USE_ESP32_BLE_SOFTWARE_COEXISTENCE
+    // The OTA transfer blocks the main loop, so the revert in loop() cannot run. No
+    // active-connection gate here: every client was just told to disconnect.
+    this->update_coex_preference_(false);
+#endif
 #endif
   } else if ((state == ota::OTA_ERROR || state == ota::OTA_ABORT) && this->scan_continuous_before_ota_) {
     this->scan_continuous_before_ota_ = false;
@@ -73,11 +79,11 @@ void ESP32BLETracker::on_ota_global_state(ota::OTAState state, float progress, u
 
 void ESP32BLETracker::loop() {
   if (!this->parent_->is_active()) {
-    this->ble_was_disabled_ = true;
     return;
-  } else if (this->ble_was_disabled_) {
+  }
+  if (this->ble_was_disabled_) {
     this->ble_was_disabled_ = false;
-    // If the BLE stack was disabled, we need to start the scan again.
+    // First start after boot or after the stack came back.
     if (this->scan_continuous_) {
       this->start_scan();
     }
@@ -121,6 +127,9 @@ void ESP32BLETracker::loop() {
   // - start_scan_(): scanner_state_ becomes IDLE via set_scanner_state_() in cleanup_scan_state_()
   // - try_promote_discovered_clients_(): client enters DISCOVERED via set_state(), or
   //   connecting client finishes (state change), or scanner reaches RUNNING/IDLE
+  // - connection-window restart: scan_params_ is only written in start_scan_()
+  //   (which changes scanner state via set_scanner_state_()), and
+  //   counts.active/disconnecting only change on client state changes
   //
   // All conditions that affect the logic below are tied to state changes that increment
   // state_version_, so the fast path is safe.
@@ -143,6 +152,19 @@ void ESP32BLETracker::loop() {
       (this->scan_set_param_failed_ && this->scanner_state_ == ScannerState::RUNNING)) {
     this->handle_scanner_failure_();
   }
+
+#ifdef ESPHOME_ESP32_BLE_TRACKER_CLIENT_COUNT
+  // The programmed window no longer matches the connection state (typically
+  // the last connection dropped): restart so the right window applies now
+  // instead of at the end of the scan period. Continuous only (a user-started
+  // scan would not restart); !disconnecting matches the restart gate below.
+  if (this->scanner_state_ == ScannerState::RUNNING && this->scan_continuous_ && !counts.disconnecting &&
+      this->scan_params_.scan_window != this->desired_scan_window_(counts.active)) {
+    // Same logical scan period continues: no on_scan_end sweeps for this
+    // restart. Only armed when the stop was issued.
+    this->skip_next_scan_end_ = this->stop_scan_();
+  }
+#endif
   /*
 
     Avoid starting the scanner if:
@@ -190,20 +212,47 @@ void ESP32BLETracker::loop() {
 void ESP32BLETracker::start_scan() { this->start_scan_(true); }
 
 void ESP32BLETracker::stop_scan() {
-  ESP_LOGD(TAG, "Stopping scan.");
+  // V to match the start log: the mode-switch and OTA callers narrate their
+  // reason at D themselves, and the user-facing stop action is deliberate.
+  ESP_LOGV(TAG, "Stopping scan.");
   this->scan_continuous_ = false;
+#ifdef ESPHOME_ESP32_BLE_TRACKER_CLIENT_COUNT
+  // The window-change restart is abandoned with continuous scanning.
+  this->skip_next_scan_end_ = false;
+#endif
   this->stop_scan_();
 }
 
-void ESP32BLETracker::ble_before_disabled_event_handler() { this->stop_scan_(); }
+void ESP32BLETracker::ble_before_disabled_event_handler() {
+  // Tell the controller to stop; a scan still starting has nothing to stop yet.
+  if (this->scanner_state_ == ScannerState::RUNNING || this->scanner_state_ == ScannerState::FAILED) {
+    this->stop_scan_();
+  }
+#ifdef ESPHOME_ESP32_BLE_TRACKER_CLIENT_COUNT
+  for (auto *client : this->clients_) {
+    client->ble_before_disabled_event_handler();
+  }
+  this->skip_next_scan_end_ = false;
+#endif
+  // The stop above never completes (stack torn down, events dropped); settle
+  // here so start_scan_() sees IDLE once the stack is back.
+  if (this->scanner_state_ != ScannerState::IDLE) {
+    this->cleanup_scan_state_(true);
+  }
+  // A failure latched by the old stack must not be handled against the next.
+  this->scan_start_failed_ = ESP_BT_STATUS_SUCCESS;
+  this->scan_set_param_failed_ = ESP_BT_STATUS_SUCCESS;
+  this->ble_was_disabled_ = true;
+}
 
-void ESP32BLETracker::stop_scan_() {
+bool ESP32BLETracker::stop_scan_() {
   if (this->scanner_state_ != ScannerState::RUNNING && this->scanner_state_ != ScannerState::FAILED) {
-    // If scanner is already idle, there's nothing to stop - this is not an error
-    if (this->scanner_state_ != ScannerState::IDLE) {
+    // IDLE means there is nothing to stop; STOPPING means a stop is already in
+    // flight and will finish on its own. Neither is an error.
+    if (this->scanner_state_ != ScannerState::IDLE && this->scanner_state_ != ScannerState::STOPPING) {
       ESP_LOGE(TAG, "Cannot stop scan: %s", this->scanner_state_to_string_(this->scanner_state_));
     }
-    return;
+    return false;
   }
   // Reset timeout state machine when stopping scan
   this->scan_timeout_state_ = ScanTimeoutState::INACTIVE;
@@ -211,8 +260,9 @@ void ESP32BLETracker::stop_scan_() {
   esp_err_t err = esp_ble_gap_stop_scanning();
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "esp_ble_gap_stop_scanning failed: %d", err);
-    return;
+    return false;
   }
+  return true;
 }
 
 void ESP32BLETracker::start_scan_(bool first) {
@@ -226,16 +276,11 @@ void ESP32BLETracker::start_scan_(bool first) {
   }
   this->set_scanner_state_(ScannerState::STARTING);
   ESP_LOGV(TAG, "Starting scan, set scanner state to STARTING.");
-  if (!first) {
-#ifdef ESPHOME_ESP32_BLE_TRACKER_LISTENER_COUNT
-    for (auto *listener : this->listeners_)
-      listener->on_scan_end();
+  if (!first)
+    this->notify_scan_end_();
+#ifdef ESPHOME_ESP32_BLE_TRACKER_CLIENT_COUNT
+  this->skip_next_scan_end_ = false;
 #endif
-#ifdef ESPHOME_BLE_DEVICE_BASE_LISTENER_COUNT
-    for (auto *listener : this->neutral_listeners_)
-      listener->on_scan_end();
-#endif
-  }
 #ifdef USE_ESP32_BLE_DEVICE
   this->discovered_log_.clear();
 #endif
@@ -243,7 +288,17 @@ void ESP32BLETracker::start_scan_(bool first) {
   this->scan_params_.own_addr_type = BLE_ADDR_TYPE_PUBLIC;
   this->scan_params_.scan_filter_policy = BLE_SCAN_FILTER_ALLOW_ALL;
   this->scan_params_.scan_interval = this->scan_interval_;
-  this->scan_params_.scan_window = this->scan_window_;
+#ifdef ESPHOME_ESP32_BLE_TRACKER_CLIENT_COUNT
+  // Count fresh: an automation can start a scan before loop() refreshes the counts.
+  const uint32_t window = this->desired_scan_window_(this->count_client_states_().active);
+  if (window != this->scan_window_) {
+    // Guarantee the connection airtime instead of scanning wall to wall.
+    ESP_LOGV(TAG, "Connection active, using %" PRIu32 " unit scan window", window);
+  }
+#else
+  const uint32_t window = this->scan_window_;
+#endif
+  this->scan_params_.scan_window = window;
 
   // Start timeout monitoring in loop() instead of using scheduler
   // This prevents false reboots when the loop is blocked
@@ -404,6 +459,11 @@ void ESP32BLETracker::dump_config() {
                 "  Continuous Scanning: %s",
                 this->scan_duration_, this->scan_interval_ * 0.625f, this->scan_window_ * 0.625f,
                 this->scan_active_ ? "ACTIVE" : "PASSIVE", YESNO(this->scan_continuous_));
+#ifdef ESPHOME_ESP32_BLE_TRACKER_CLIENT_COUNT
+  if (this->connection_scan_window_ != 0) {
+    ESP_LOGCONFIG(TAG, "  Connection Scan Window: %.1f ms", this->connection_scan_window_ * 0.625f);
+  }
+#endif
   ESP_LOGCONFIG(TAG,
                 "  Scanner State: %s\n"
                 "  Connecting: %d, discovered: %d, disconnecting: %d, active: %d",
@@ -483,6 +543,18 @@ void ESP32BLETracker::cleanup_scan_state_(bool is_stop_complete) {
   // Reset timeout state machine instead of cancelling scheduler timeout
   this->scan_timeout_state_ = ScanTimeoutState::INACTIVE;
 
+  this->notify_scan_end_();
+
+  this->set_scanner_state_(ScannerState::IDLE);
+}
+
+void ESP32BLETracker::notify_scan_end_() {
+#ifdef ESPHOME_ESP32_BLE_TRACKER_CLIENT_COUNT
+  // Window-change restart continues the same scan period; the flag stays set
+  // across the stop and is cleared by the restart in start_scan_.
+  if (this->skip_next_scan_end_)
+    return;
+#endif
 #ifdef ESPHOME_ESP32_BLE_TRACKER_LISTENER_COUNT
   for (auto *listener : this->listeners_)
     listener->on_scan_end();
@@ -491,8 +563,6 @@ void ESP32BLETracker::cleanup_scan_state_(bool is_stop_complete) {
   for (auto *listener : this->neutral_listeners_)
     listener->on_scan_end();
 #endif
-
-  this->set_scanner_state_(ScannerState::IDLE);
 }
 
 void ESP32BLETracker::handle_scanner_failure_() {
@@ -530,6 +600,8 @@ void ESP32BLETracker::try_promote_discovered_clients_() {
     }
 
     ESP_LOGD(TAG, "Promoting client to connect");
+    // A connect ends the scan period a window-change restart was continuing.
+    this->skip_next_scan_end_ = false;
 #ifdef USE_ESP32_BLE_SOFTWARE_COEXISTENCE
     this->update_coex_preference_(true);
 #endif

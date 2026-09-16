@@ -4,7 +4,7 @@
 
 namespace esphome::mitsubishi_cn105 {
 
-// NOTE: This order must match VERTICAL_VANE_DIRECTIONS in select.py.
+// NOTE: This order must match VERTICAL_VANE_DIRECTIONS in the hub's __init__.py.
 // MitsubishiCN105VerticalVaneDirectionSelect uses the preferred index-based
 // Select API, so Python option order and this array must stay aligned.
 static constexpr std::array VALUES{

@@ -3,6 +3,7 @@ from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 import io
 import logging
+import os
 from pathlib import Path
 import re
 import sys
@@ -140,6 +141,10 @@ def shlex_quote(s: str | Path) -> str:
 
     return "'" + s.replace("'", "'\"'\"'") + "'"
 
+
+# Tells the PlatformIO runner subprocess, which has no configured CORE, that
+# this is an ESP32 Arduino build.
+ESP32_ARDUINO_ENV = "ESPHOME_ESP32_ARDUINO_BUILD"
 
 ANSI_ESCAPE = re.compile(r"\033[@-_][0-?]*[ -/]*[@-~]")
 
@@ -385,6 +390,20 @@ def is_dev_esphome_version():
     return "dev" in const.__version__
 
 
+# Remove before 2027.2.0
+def parse_esphome_version() -> tuple[int, int, int]:
+    """Deprecated: use esphome.config_validation.require_esphome_version instead."""
+    from esphome.core import Version
+
+    _LOGGER.warning(
+        "parse_esphome_version() is deprecated. Use "
+        "cv.require_esphome_version to gate on a minimum version. "
+        "Removed in 2027.2.0"
+    )
+    version = Version.parse(const.__version__)
+    return version.major, version.minor, version.patch
+
+
 # Custom OrderedDict with nicer repr method for debugging
 class OrderedDict(collections.OrderedDict):
     def __repr__(self):
@@ -520,11 +539,24 @@ def detect_rp2040_bootsel(picotool_path: str | Path) -> BootselResult:
         return BootselResult(0)
 
 
-def get_esp32_arduino_flash_error_help() -> str | None:
-    """Returns helpful message when ESP32 with Arduino runs out of flash space."""
+def is_esp32_arduino_build() -> bool:
+    """Whether the build targets ESP32 with the Arduino framework.
+
+    The PlatformIO runner subprocess has no configured CORE, so the parent
+    passes the answer in the environment.
+    """
     from esphome.core import CORE
 
-    if not (CORE.is_esp32 and CORE.using_arduino):
+    if not CORE.is_configured:
+        # The runner subprocess. A half filled in CORE still counts as
+        # configured, so reading from it raises instead of landing here.
+        return os.environ.get(ESP32_ARDUINO_ENV) == "1"
+    return CORE.is_esp32 and CORE.using_arduino
+
+
+def get_esp32_arduino_flash_error_help() -> str | None:
+    """Returns helpful message when ESP32 with Arduino runs out of flash space."""
+    if not is_esp32_arduino_build():
         return None
 
     from esphome.log import AnsiFore, color

@@ -8,6 +8,7 @@ from esphome.const import (
     STATE_CLASS_MEASUREMENT,
     UNIT_VOLT,
 )
+from esphome.types import ConfigType
 
 AUTO_LOAD = ["voltage_sampler"]
 DEPENDENCIES = ["i2c"]
@@ -42,7 +43,7 @@ CONFIG_SCHEMA = (
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = await sensor.new_sensor(config)
     cg.add(var.set_reference_voltage(config[CONF_REFERENCE_VOLTAGE]))
     await cg.register_component(var, config)

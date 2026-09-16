@@ -92,7 +92,7 @@ def _esp32_config_schema() -> cv.All:
 
     CONNECTION_SCHEMA = bluetooth_connection.hub_connection_schema(PLATFORM_ESP32)
 
-    def validate_connections(config):
+    def validate_connections(config: ConfigType) -> ConfigType:
         if CONF_CONNECTIONS in config:
             if not config[CONF_ACTIVE]:
                 raise cv.Invalid(
@@ -208,6 +208,11 @@ async def _connections_to_code(var: cg.MockObj, config: ConfigType) -> None:
     # this define whenever a proxy is present (zero on advertisement-only
     # hubs); sized here so it can never diverge from the loop below.
     cg.add_define("BLUETOOTH_PROXY_MAX_CONNECTIONS", len(connections))
+    if connections:
+        # Gates the connection and GATT half of the API surface. A proxy
+        # without slots omits FEATURE_ACTIVE_CONNECTIONS, so a client never
+        # sends those requests and their handlers and encoders are dead.
+        cg.add_define("USE_BLUETOOTH_PROXY_CONNECTIONS")
     for connection_conf in connections:
         backend = await bluetooth_connection.new_gatt_backend(connection_conf)
         connection = cg.new_Pvariable(connection_conf[CONF_ID])
@@ -388,6 +393,17 @@ async def _to_code_ble_hub(config: ConfigType) -> None:
     cg.add(var.set_ble_hub(hub))
 
     await _connections_to_code(var, config)
+
+
+def enable_advertisement_filter() -> None:
+    """Compile the advertisement filter hook into bluetooth_proxy.
+
+    Called by external filtering components from to_code(). The define behind
+    this is an implementation detail; do not emit it directly.
+
+    Public API for external components. Do not remove.
+    """
+    cg.add_define("USE_BLUETOOTH_PROXY_ADVERTISEMENT_FILTER")
 
 
 async def to_code(config: ConfigType) -> None:

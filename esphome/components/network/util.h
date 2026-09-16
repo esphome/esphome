@@ -26,33 +26,38 @@ namespace esphome::network {
 
 /// Return whether the node is connected to the network (through wifi, eth, ...)
 ESPHOME_ALWAYS_INLINE inline bool is_connected() {
+  // With a single interface enabled the checks below collapse to `if (x) return true; return false;`, which
+  // clang-tidy wants folded into one return. Keep the per-interface form so every enabled interface is checked.
+  // NOLINTBEGIN(readability-simplify-boolean-expr)
 #ifdef USE_ETHERNET
   if (ethernet::global_eth_component != nullptr && ethernet::global_eth_component->is_connected())
     return true;
 #endif
 
 #ifdef USE_MODEM
-  if (modem::global_modem_component != nullptr)
-    return modem::global_modem_component->is_connected();
+  if (modem::global_modem_component != nullptr && modem::global_modem_component->is_connected())
+    return true;
 #endif
 
 #ifdef USE_WIFI
-  if (wifi::global_wifi_component != nullptr)
-    return wifi::global_wifi_component->is_connected();
+  if (wifi::global_wifi_component != nullptr && wifi::global_wifi_component->is_connected())
+    return true;
 #endif
 
 #ifdef USE_OPENTHREAD
-  if (openthread::global_openthread_component != nullptr)
-    return openthread::global_openthread_component->is_connected();
+  if (openthread::global_openthread_component != nullptr && openthread::global_openthread_component->is_connected())
+    return true;
 #endif
 
 #ifdef USE_HOST
   return true;  // Assume it's connected
 #endif
   return false;
+  // NOLINTEND(readability-simplify-boolean-expr)
 }
 
-/// Return whether the network is disabled (only wifi for now)
+/// Return whether the network is disabled: every configured interface with a
+/// disable() lifecycle (modem, wifi, ethernet) is disabled.
 bool is_disabled();
 /// Buffer size for get_use_address_to(): 63-char DNS label + ".local" + null terminator
 static constexpr size_t USE_ADDRESS_BUFFER_SIZE = 70;

@@ -3,6 +3,7 @@ mitsubishi_cn105:
   uart_id: uart_bus
   update_interval: 30s
   telemetry_request_min_interval: 120s
+  use_fahrenheit: true
   vane:
     on_state:
       - logger.log:
@@ -29,3 +30,11 @@ esphome:
           temperature: 22.0
       - mitsubishi_cn105.clear_remote_temperature:
           id: ac
+      - mitsubishi_cn105.vane.control:
+          id: ac
+          vertical:
+            direction: SWING
+      - mitsubishi_cn105.vane.control:
+          id: ac
+          vertical:
+            direction: !lambda return esphome::mitsubishi_cn105::VERTICAL_VANE_MODE_SWING;

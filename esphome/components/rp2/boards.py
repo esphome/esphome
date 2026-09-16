@@ -1533,6 +1533,10 @@ RP2_BOARD_PINS = {
     },
 }
 
+# RP2350 boards carry a 'die' key holding the die letter:
+# 'A' for the RP2350A (GPIO 0-29, 5 ADC channels), 'B' for the RP2350B
+# (GPIO 0-47, 9 ADC channels), and None when the die is a build-time menu
+# choice and so is not known here. The key is absent on non-RP2350 boards.
 BOARDS = {
     "0xcb_helios": {
         "name": "0xCB Helios",
@@ -1548,6 +1552,7 @@ BOARDS = {
         "name": "MyMakers RP2350B",
         "mcu": "rp2350",
         "max_pin": 47,
+        "die": "B",
     },
     "MyRP_bot": {
         "name": "MyMakers RP2040",
@@ -1588,11 +1593,13 @@ BOARDS = {
         "name": "Adafruit Feather RP2350 Adalogger",
         "mcu": "rp2350",
         "max_pin": 29,
+        "die": "A",
     },
     "adafruit_feather_rp2350_hstx": {
         "name": "Adafruit Feather RP2350 HSTX",
         "mcu": "rp2350",
         "max_pin": 29,
+        "die": "A",
     },
     "adafruit_feather_scorpio": {
         "name": "Adafruit Feather RP2040 SCORPIO",
@@ -1618,6 +1625,7 @@ BOARDS = {
         "name": "Adafruit Fruit Jam RP2350",
         "mcu": "rp2350",
         "max_pin": 47,
+        "die": "B",
     },
     "adafruit_itsybitsy": {
         "name": "Adafruit ItsyBitsy RP2040",
@@ -1643,6 +1651,7 @@ BOARDS = {
         "name": "Adafruit Metro RP2350",
         "mcu": "rp2350",
         "max_pin": 47,
+        "die": "B",
     },
     "adafruit_qtpy": {
         "name": "Adafruit QT Py RP2040",
@@ -1763,16 +1772,19 @@ BOARDS = {
         "name": "iLabs Challenger 2350 BConnect",
         "mcu": "rp2350",
         "max_pin": 29,
+        "die": "A",
     },
     "challenger_2350_nbiot": {
         "name": "iLabs Challenger 2350 NB-IoT",
         "mcu": "rp2350",
         "max_pin": 29,
+        "die": "A",
     },
     "challenger_2350_wifi6_ble5": {
         "name": "iLabs Challenger 2350 WiFi/BLE",
         "mcu": "rp2350",
         "max_pin": 29,
+        "die": "A",
     },
     "challenger_nb_2040_wifi": {
         "name": "iLabs Challenger NB 2040 WiFi",
@@ -1788,6 +1800,7 @@ BOARDS = {
         "name": "Cytron IRIV IO Controller",
         "mcu": "rp2350",
         "max_pin": 29,
+        "die": "A",
     },
     "cytron_maker_nano_rp2040": {
         "name": "Cytron Maker Nano RP2040",
@@ -1808,6 +1821,7 @@ BOARDS = {
         "name": "Cytron Motion 2350 Pro",
         "mcu": "rp2350",
         "max_pin": 29,
+        "die": "A",
     },
     "datanoisetv_picoadk": {
         "name": "DatanoiseTV PicoADK",
@@ -1818,6 +1832,7 @@ BOARDS = {
         "name": "DatanoiseTV PicoADK v2",
         "mcu": "rp2350",
         "max_pin": 29,
+        "die": "A",
     },
     "degz_suibo": {
         "name": "Degz Robotics Suibo RP2040",
@@ -1863,6 +1878,7 @@ BOARDS = {
         "name": "Generic RP2350",
         "mcu": "rp2350",
         "max_pin": 47,
+        "die": None,
     },
     "groundstudio_marble_pico": {
         "name": "GroundStudio Marble Pico",
@@ -1873,6 +1889,7 @@ BOARDS = {
         "name": "iLabs CPico 2350",
         "mcu": "rp2350",
         "max_pin": 29,
+        "die": "A",
     },
     "ilabs_rpico32": {
         "name": "iLabs RPICO32",
@@ -1888,6 +1905,7 @@ BOARDS = {
         "name": "Architeuthis Flux Jumperless V5",
         "mcu": "rp2350",
         "max_pin": 47,
+        "die": "B",
     },
     "melopero_cookie_rp2040": {
         "name": "Melopero Cookie RP2040",
@@ -1928,16 +1946,19 @@ BOARDS = {
         "name": "Olimex Pico2BB48",
         "mcu": "rp2350",
         "max_pin": 47,
+        "die": "B",
     },
     "olimex_pico2xl": {
         "name": "Olimex Pico2XL",
         "mcu": "rp2350",
         "max_pin": 47,
+        "die": "B",
     },
     "olimex_pico2xxl": {
         "name": "Olimex Pico2XXL",
         "mcu": "rp2350",
         "max_pin": 47,
+        "die": "B",
     },
     "olimex_rp2040pico30": {
         "name": "Olimex RP2040-Pico30",
@@ -1963,6 +1984,7 @@ BOARDS = {
         "name": "Pimoroni Explorer",
         "mcu": "rp2350",
         "max_pin": 47,
+        "die": "B",
     },
     "pimoroni_pga2040": {
         "name": "Pimoroni PGA2040",
@@ -1973,16 +1995,19 @@ BOARDS = {
         "name": "Pimoroni PGA2350",
         "mcu": "rp2350",
         "max_pin": 47,
+        "die": "B",
     },
     "pimoroni_pico_plus_2": {
         "name": "Pimoroni PicoPlus2",
         "mcu": "rp2350",
         "max_pin": 47,
+        "die": "B",
     },
     "pimoroni_pico_plus_2w": {
         "name": "Pimoroni PicoPlus2W",
         "mcu": "rp2350",
         "max_pin": 47,
+        "die": "B",
         "wifi": True,
         "max_virtual_pin": 64,
     },
@@ -1995,11 +2020,13 @@ BOARDS = {
         "name": "Pimoroni Plasma2350",
         "mcu": "rp2350",
         "max_pin": 29,
+        "die": "A",
     },
     "pimoroni_plasma2350w": {
         "name": "Pimoroni Plasma2350W",
         "mcu": "rp2350",
         "max_pin": 29,
+        "die": "A",
         "wifi": True,
     },
     "pimoroni_servo2040": {
@@ -2016,6 +2043,7 @@ BOARDS = {
         "name": "Pimoroni Tiny2350",
         "mcu": "rp2350",
         "max_pin": 29,
+        "die": "A",
     },
     "pintronix_pinmax": {
         "name": "Pintronix PinMax",
@@ -2046,11 +2074,13 @@ BOARDS = {
         "name": "Raspberry Pi Pico 2",
         "mcu": "rp2350",
         "max_pin": 29,
+        "die": "A",
     },
     "rpipico2w": {
         "name": "Raspberry Pi Pico 2W",
         "mcu": "rp2350",
         "max_pin": 29,
+        "die": "A",
         "wifi": True,
         "max_virtual_pin": 64,
     },
@@ -2085,6 +2115,7 @@ BOARDS = {
         "name": "Seeed XIAO RP2350",
         "mcu": "rp2350",
         "max_pin": 29,
+        "die": "A",
     },
     "silicognition_rp2040_shim": {
         "name": "Silicognition RP2040-Shim",
@@ -2100,6 +2131,7 @@ BOARDS = {
         "name": "Soldered Electronics NULA RP2350",
         "mcu": "rp2350",
         "max_pin": 47,
+        "die": "B",
         "wifi": True,
     },
     "solderparty_rp2040_stamp": {
@@ -2111,21 +2143,25 @@ BOARDS = {
         "name": "Solder Party RP2350 Stamp",
         "mcu": "rp2350",
         "max_pin": 29,
+        "die": "A",
     },
     "solderparty_rp2350_stamp_xl": {
         "name": "Solder Party RP2350 Stamp XL",
         "mcu": "rp2350",
         "max_pin": 47,
+        "die": "B",
     },
     "sparkfun_iotnode_lorawanrp2350": {
         "name": "SparkFun IoT Node LoRaWAN",
         "mcu": "rp2350",
         "max_pin": 29,
+        "die": "A",
     },
     "sparkfun_iotredboard_rp2350": {
         "name": "SparkFun IoT RedBoard RP2350",
         "mcu": "rp2350",
         "max_pin": 47,
+        "die": "B",
         "wifi": True,
     },
     "sparkfun_micromodrp2040": {
@@ -2142,6 +2178,7 @@ BOARDS = {
         "name": "SparkFun ProMicro RP2350",
         "mcu": "rp2350",
         "max_pin": 29,
+        "die": "A",
     },
     "sparkfun_thingplusrp2040": {
         "name": "SparkFun Thing Plus RP2040",
@@ -2152,6 +2189,7 @@ BOARDS = {
         "name": "SparkFun Thing Plus RP2350",
         "mcu": "rp2350",
         "max_pin": 29,
+        "die": "A",
         "wifi": True,
         "max_virtual_pin": 64,
     },
@@ -2159,6 +2197,7 @@ BOARDS = {
         "name": "SparkFun XRP Controller",
         "mcu": "rp2350",
         "max_pin": 47,
+        "die": "B",
         "wifi": True,
         "max_virtual_pin": 64,
     },
@@ -2233,32 +2272,38 @@ BOARDS = {
         "name": "Waveshare RP2350 LCD 0.96",
         "mcu": "rp2350",
         "max_pin": 29,
+        "die": "A",
     },
     "waveshare_rp2350_pizero": {
         "name": "Waveshare RP2350 PiZero",
         "mcu": "rp2350",
         "max_pin": 47,
+        "die": "B",
     },
     "waveshare_rp2350_plus": {
         "name": "Waveshare RP2350 Plus",
         "mcu": "rp2350",
         "max_pin": 29,
+        "die": "A",
     },
     "waveshare_rp2350_zero": {
         "name": "Waveshare RP2350 Zero",
         "mcu": "rp2350",
         "max_pin": 29,
+        "die": "A",
     },
     "waveshare_rp2350b_plus_w": {
         "name": "Waveshare RP2350B Plus W",
         "mcu": "rp2350",
         "max_pin": 47,
+        "die": "B",
         "wifi": True,
     },
     "weact_rp2350b": {
         "name": "WeAct Studio RP2350B Core Board",
         "mcu": "rp2350",
         "max_pin": 47,
+        "die": "B",
     },
     "wiznet_5100s_evb_pico": {
         "name": "WIZnet W5100S-EVB-Pico",
@@ -2269,6 +2314,7 @@ BOARDS = {
         "name": "WIZnet W5100S-EVB-Pico2",
         "mcu": "rp2350",
         "max_pin": 29,
+        "die": "A",
     },
     "wiznet_5500_evb_pico": {
         "name": "WIZnet W5500-EVB-Pico",
@@ -2279,6 +2325,7 @@ BOARDS = {
         "name": "WIZnet W5500-EVB-Pico2",
         "mcu": "rp2350",
         "max_pin": 29,
+        "die": "A",
     },
     "wiznet_55rp20_evb_pico": {
         "name": "WIZnet W55RP20-EVB-Pico",
@@ -2294,6 +2341,7 @@ BOARDS = {
         "name": "WIZnet W6300-EVB-Pico2",
         "mcu": "rp2350",
         "max_pin": 29,
+        "die": "A",
     },
     "wiznet_wizfi360_evb_pico": {
         "name": "WIZnet WizFi360-EVB-Pico",
