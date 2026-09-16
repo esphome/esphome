@@ -23,10 +23,33 @@ void Image::draw(int x, int y, display::Display *display, Color color_on, Color 
       h = clipping.y2() - y;
   }
 
+  // Pixel data and frame buffers are row-major, so walking rows keeps both the
+  // image read and the frame buffer write sequential. A rotated display swaps
+  // x and y before the write, so there the columns are walked to keep the
+  // write sequential; a strided write costs more than a strided read.
+  const auto rotation = display->get_rotation();
+  if (rotation == display::DISPLAY_ROTATION_0_DEGREES || rotation == display::DISPLAY_ROTATION_180_DEGREES) {
+    this->draw_<true>(x, y, display, color_on, color_off, img_x0, img_y0, w, h);
+  } else {
+    this->draw_<false>(x, y, display, color_on, color_off, img_x0, img_y0, w, h);
+  }
+}
+
+template<bool ROWS_OUTER>
+void Image::draw_(int x, int y, display::Display *display, Color color_on, Color color_off, int img_x0, int img_y0,
+                  int w, int h) {
+  // The outer loop runs over rows or columns; the selects fold at compile time.
+  const int outer0 = ROWS_OUTER ? img_y0 : img_x0;
+  const int outer_end = ROWS_OUTER ? h : w;
+  const int inner0 = ROWS_OUTER ? img_x0 : img_y0;
+  const int inner_end = ROWS_OUTER ? w : h;
+
   switch (type_) {
     case IMAGE_TYPE_BINARY: {
-      for (int img_y = img_y0; img_y < h; img_y++) {
-        for (int img_x = img_x0; img_x < w; img_x++) {
+      for (int outer = outer0; outer < outer_end; outer++) {
+        for (int inner = inner0; inner < inner_end; inner++) {
+          const int img_x = ROWS_OUTER ? inner : outer;
+          const int img_y = ROWS_OUTER ? outer : inner;
           if (this->get_binary_pixel_(img_x, img_y)) {
             display->draw_pixel_at(x + img_x, y + img_y, color_on);
           } else if (!this->transparency_) {
@@ -37,8 +60,10 @@ void Image::draw(int x, int y, display::Display *display, Color color_on, Color 
       break;
     }
     case IMAGE_TYPE_GRAYSCALE:
-      for (int img_y = img_y0; img_y < h; img_y++) {
-        for (int img_x = img_x0; img_x < w; img_x++) {
+      for (int outer = outer0; outer < outer_end; outer++) {
+        for (int inner = inner0; inner < inner_end; inner++) {
+          const int img_x = ROWS_OUTER ? inner : outer;
+          const int img_y = ROWS_OUTER ? outer : inner;
           const uint32_t pos = (img_x + img_y * this->width_);
           const uint8_t gray = progmem_read_byte(this->data_start_ + pos);
           Color color = Color(gray, gray, gray, 0xFF);
@@ -62,8 +87,10 @@ void Image::draw(int x, int y, display::Display *display, Color color_on, Color 
       }
       break;
     case IMAGE_TYPE_RGB565:
-      for (int img_y = img_y0; img_y < h; img_y++) {
-        for (int img_x = img_x0; img_x < w; img_x++) {
+      for (int outer = outer0; outer < outer_end; outer++) {
+        for (int inner = inner0; inner < inner_end; inner++) {
+          const int img_x = ROWS_OUTER ? inner : outer;
+          const int img_y = ROWS_OUTER ? outer : inner;
           auto color = this->get_rgb565_pixel_(img_x, img_y);
           if (color.w >= 0x80) {
             display->draw_pixel_at(x + img_x, y + img_y, color);
@@ -72,8 +99,10 @@ void Image::draw(int x, int y, display::Display *display, Color color_on, Color 
       }
       break;
     case IMAGE_TYPE_RGB:
-      for (int img_y = img_y0; img_y < h; img_y++) {
-        for (int img_x = img_x0; img_x < w; img_x++) {
+      for (int outer = outer0; outer < outer_end; outer++) {
+        for (int inner = inner0; inner < inner_end; inner++) {
+          const int img_x = ROWS_OUTER ? inner : outer;
+          const int img_y = ROWS_OUTER ? outer : inner;
           auto color = this->get_rgb_pixel_(img_x, img_y);
           if (color.w >= 0x80) {
             display->draw_pixel_at(x + img_x, y + img_y, color);

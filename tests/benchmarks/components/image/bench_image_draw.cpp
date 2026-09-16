@@ -41,10 +41,12 @@ static std::unique_ptr<uint8_t[]> make_pixels() {
   return data;
 }
 
-static void draw_image(benchmark::State &state, ImageType type, Transparency transparency) {
+static void draw_image(benchmark::State &state, ImageType type, Transparency transparency,
+                       display::DisplayRotation rotation = display::DISPLAY_ROTATION_0_DEGREES) {
   auto data = make_pixels();
   Image image(data.get(), kWidth, kHeight, type, transparency);
   BenchDisplay display;
+  display.set_rotation(rotation);
 
   for (auto _ : state) {
     image.draw(0, 0, &display, display::COLOR_ON, display::COLOR_OFF);
@@ -65,6 +67,11 @@ BENCHMARK(ImageDraw_RGB565);
 
 static void ImageDraw_RGB(benchmark::State &state) { draw_image(state, IMAGE_TYPE_RGB, TRANSPARENCY_OPAQUE); }
 BENCHMARK(ImageDraw_RGB);
+
+static void ImageDraw_RGB_Rotated(benchmark::State &state) {
+  draw_image(state, IMAGE_TYPE_RGB, TRANSPARENCY_OPAQUE, display::DISPLAY_ROTATION_90_DEGREES);
+}
+BENCHMARK(ImageDraw_RGB_Rotated);
 
 static void ImageDraw_RGB_Alpha(benchmark::State &state) {
   draw_image(state, IMAGE_TYPE_RGB, TRANSPARENCY_ALPHA_CHANNEL);
