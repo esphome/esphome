@@ -11,9 +11,12 @@ import pytest
 
 from esphome.components.esp32 import (
     KEY_FATFS_REQUIRED,
+    KEY_MBEDTLS_TLS_EXTRAS_REQUIRED,
+    KEY_MBEDTLS_TLS_SERVER_REQUIRED,
     KEY_VFS_DIR_REQUIRED,
     KEY_VFS_SELECT_REQUIRED,
     KEY_VFS_TERMIOS_REQUIRED,
+    MBEDTLS_TLS_EXTRA_OPTIONS,
     VARIANT_ESP32,
     VARIANTS,
     NetworkSdkconfigData,
@@ -202,6 +205,18 @@ def test_esp32_rejects_unsupported_cli_toolchain(
             },
             r"'execute_from_psram' requires PSRAM to be configured @ data\['framework'\]\['advanced'\]\['execute_from_psram'\]",
             id="execute_from_psram_requires_psram_p4_config",
+        ),
+        pytest.param(
+            {
+                "variant": "esp32s31",
+                "board": "esp32-s31-devkitc",
+                "framework": {
+                    "type": "esp-idf",
+                    "advanced": {"execute_from_psram": True},
+                },
+            },
+            r"'execute_from_psram' requires PSRAM to be configured @ data\['framework'\]\['advanced'\]\['execute_from_psram'\]",
+            id="execute_from_psram_requires_psram_s31_config",
         ),
         pytest.param(
             {
@@ -422,12 +437,12 @@ def test_execute_from_psram_s3_sdkconfig(
     generate_main: Callable[[str | Path], str],
     component_config_path: Callable[[str], Path],
 ) -> None:
-    """Test that execute_from_psram on ESP32-S3 sets the correct sdkconfig options."""
+    """Test that execute_from_psram on ESP32-S3 sets the correct sdkconfig option."""
     generate_main(component_config_path("execute_from_psram_s3.yaml"))
     sdkconfig = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
-    assert sdkconfig.get("CONFIG_SPIRAM_FETCH_INSTRUCTIONS") is True
-    assert sdkconfig.get("CONFIG_SPIRAM_RODATA") is True
-    assert "CONFIG_SPIRAM_XIP_FROM_PSRAM" not in sdkconfig
+    assert sdkconfig.get("CONFIG_SPIRAM_XIP_FROM_PSRAM") is True
+    assert "CONFIG_SPIRAM_FETCH_INSTRUCTIONS" not in sdkconfig
+    assert "CONFIG_SPIRAM_RODATA" not in sdkconfig
 
 
 def test_execute_from_psram_p4_sdkconfig(
@@ -436,6 +451,18 @@ def test_execute_from_psram_p4_sdkconfig(
 ) -> None:
     """Test that execute_from_psram on ESP32-P4 sets the correct sdkconfig options."""
     generate_main(component_config_path("execute_from_psram_p4.yaml"))
+    sdkconfig = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
+    assert sdkconfig.get("CONFIG_SPIRAM_XIP_FROM_PSRAM") is True
+    assert "CONFIG_SPIRAM_FETCH_INSTRUCTIONS" not in sdkconfig
+    assert "CONFIG_SPIRAM_RODATA" not in sdkconfig
+
+
+def test_execute_from_psram_s31_sdkconfig(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """Test that execute_from_psram on ESP32-S31 sets the correct sdkconfig option."""
+    generate_main(component_config_path("execute_from_psram_s31.yaml"))
     sdkconfig = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
     assert sdkconfig.get("CONFIG_SPIRAM_XIP_FROM_PSRAM") is True
     assert "CONFIG_SPIRAM_FETCH_INSTRUCTIONS" not in sdkconfig
@@ -1268,3 +1295,146 @@ def test_parse_pio_platform_version(value: str, expected: str) -> None:
     from esphome.components.esp32 import _parse_pio_platform_version
 
     assert _parse_pio_platform_version(value) == expected
+
+
+def test_esp32_s31_gpio_validation(
+    set_core_config: SetCoreConfigCallable,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """S31: GPIO26-28/30-32 are reserved for the SPI flash interface, GPIO29
+    and GPIO41 do not exist, GPIO33 is a normal pin, and GPIO36 is a
+    strapping pin."""
+    from esphome.components.esp32.const import VARIANT_ESP32S31
+    from esphome.components.esp32.gpio import validate_supports
+    from esphome.const import CONF_INPUT, CONF_MODE, CONF_OPEN_DRAIN, CONF_OUTPUT
+
+    set_core_config(
+        PlatformFramework.ESP32_IDF, platform_data={KEY_VARIANT: VARIANT_ESP32S31}
+    )
+
+    input_mode = {CONF_INPUT: True, CONF_OUTPUT: False, CONF_OPEN_DRAIN: False}
+
+    # Not reserved; a normal GPIO
+    pin = {CONF_NUMBER: 33, CONF_IGNORE_PIN_VALIDATION_ERROR: False}
+    assert validate_gpio_pin(pin)[CONF_NUMBER] == 33
+
+    # Reserved for the SPI flash interface, but can be bypassed with
+    # ignore_pin_validation_error
+    for num in (26, 27, 28, 30, 31, 32):
+        with pytest.raises(cv.Invalid, match=f"GPIO{num} is reserved"):
+            validate_gpio_pin(
+                {CONF_NUMBER: num, CONF_IGNORE_PIN_VALIDATION_ERROR: False}
+            )
+        pin = {CONF_NUMBER: num, CONF_IGNORE_PIN_VALIDATION_ERROR: True}
+        assert validate_gpio_pin(pin)[CONF_NUMBER] == num
+
+    for num in (29, 41):
+        with pytest.raises(cv.Invalid, match=f"GPIO{num} does not exist"):
+            validate_gpio_pin(
+                {CONF_NUMBER: num, CONF_IGNORE_PIN_VALIDATION_ERROR: False}
+            )
+        # Also rejected in validate_supports so ignore_pin_validation_error
+        # cannot bypass it
+        with pytest.raises(cv.Invalid, match=f"GPIO{num} does not exist"):
+            validate_supports({CONF_NUMBER: num, CONF_MODE: input_mode})
+
+    pin = {CONF_NUMBER: 36, CONF_MODE: input_mode}
+    with caplog.at_level("WARNING"):
+        validate_supports(pin)
+    assert "GPIO36 is a strapping PIN" in caplog.text
+
+
+_TLS_SERVER_OPTIONS = (
+    "CONFIG_MBEDTLS_TLS_CLIENT_ONLY",
+    "CONFIG_MBEDTLS_TLS_SERVER_AND_CLIENT",
+)
+
+
+@pytest.mark.parametrize(
+    ("config_file", "server", "extras"),
+    [
+        pytest.param("mbedtls_tls_default.yaml", (True, False), False, id="default"),
+        pytest.param("mbedtls_tls_opt_out.yaml", (None, None), None, id="opt_out"),
+        pytest.param("mbedtls_tls_wifi_eap.yaml", (True, False), None, id="wifi_eap"),
+    ],
+)
+def test_mbedtls_tls_trim_sdkconfig(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+    config_file: str,
+    server: tuple[bool | None, bool | None],
+    extras: bool | None,
+) -> None:
+    """Client-only TLS and the unused-feature trims apply unless opted out or required."""
+    generate_main(component_config_path(config_file))
+    sdkconfig = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
+    assert tuple(sdkconfig.get(name) for name in _TLS_SERVER_OPTIONS) == server
+    assert {sdkconfig.get(name) for name in MBEDTLS_TLS_EXTRA_OPTIONS} == {extras}
+
+
+_OPENTHREAD_EXTRAS = {"CONFIG_MBEDTLS_CCM_C", "CONFIG_MBEDTLS_ECDSA_DETERMINISTIC"}
+
+
+def test_mbedtls_tls_openthread_keeps_only_what_it_uses(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """The OpenThread config keeps the DTLS server, CCM and deterministic ECDSA; the rest is trimmed."""
+    generate_main(component_config_path("mbedtls_tls_openthread.yaml"))
+    sdkconfig = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
+    assert tuple(sdkconfig.get(name) for name in _TLS_SERVER_OPTIONS) == (None, None)
+    for name in MBEDTLS_TLS_EXTRA_OPTIONS:
+        assert sdkconfig.get(name) is (None if name in _OPENTHREAD_EXTRAS else False)
+
+
+def test_mbedtls_tls_user_sdkconfig_wins(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """A user-set TLS role member leaves the whole choice alone; other user values are kept."""
+    generate_main(component_config_path("mbedtls_tls_user_sdkconfig.yaml"))
+    sdkconfig = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
+    assert sdkconfig.get("CONFIG_MBEDTLS_TLS_CLIENT_ONLY") is None
+    role = sdkconfig["CONFIG_MBEDTLS_TLS_SERVER_AND_CLIENT"]
+    assert isinstance(role, RawSdkconfigValue) and role.value == "y"
+    ccm = sdkconfig["CONFIG_MBEDTLS_CCM_C"]
+    assert isinstance(ccm, RawSdkconfigValue) and ccm.value == "y"
+    assert {
+        sdkconfig.get(name)
+        for name in MBEDTLS_TLS_EXTRA_OPTIONS
+        if name != "CONFIG_MBEDTLS_CCM_C"
+    } == {False}
+
+
+def test_mbedtls_tls_openthread_requires_server_and_extras(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """The OpenThread hooks mark the DTLS server and CCM/deterministic ECDSA as required."""
+    generate_main(component_config_path("mbedtls_tls_openthread.yaml"))
+    assert CORE.data[KEY_ESP32][KEY_MBEDTLS_TLS_SERVER_REQUIRED] is True
+    assert CORE.data[KEY_ESP32][KEY_MBEDTLS_TLS_EXTRAS_REQUIRED] == _OPENTHREAD_EXTRAS
+
+
+_VASPRINTF_STUB_FLAGS = {"-Wl,--wrap=vasprintf", "-Wl,--undefined=__wrap_vasprintf"}
+
+
+@pytest.mark.parametrize(
+    ("config_file", "expected"),
+    [
+        pytest.param("vasprintf_stub_c6.yaml", True, id="c6"),
+        pytest.param("vasprintf_stub_c6_full_printf.yaml", False, id="c6_full_printf"),
+        pytest.param("exclusion_reincludes.yaml", False, id="esp32"),
+    ],
+)
+def test_vasprintf_stub_only_on_rom_vsnprintf_variants(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+    config_file: str,
+    expected: bool,
+) -> None:
+    """The vasprintf wrap is emitted only where the ROM lacks vasprintf but has vsnprintf."""
+    generate_main(component_config_path(config_file))
+    assert (CORE.build_flags >= _VASPRINTF_STUB_FLAGS) is expected
+    defines = {define.name for define in CORE.defines}
+    assert ("USE_ESP32_VASPRINTF_STUB" in defines) is expected

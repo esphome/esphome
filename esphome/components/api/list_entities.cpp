@@ -99,7 +99,8 @@ ListEntitiesIterator::ListEntitiesIterator(APIConnection *client) : client_(clie
 static constexpr uint8_t SERVICE_YIELD_INTERVAL = 3;
 
 bool ListEntitiesIterator::on_service(UserServiceDescriptor *service) {
-  auto resp = service->encode_list_service_response();
+  UserActionScratch scratch;
+  auto resp = service->encode_list_service_response(scratch);
   if (!this->client_->send_message(resp))
     return false;
   // at_ is this service's index
