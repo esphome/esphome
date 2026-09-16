@@ -4,8 +4,8 @@
 
 #include <cstring>
 #include <driver/gpio.h>
+#include <esp_heap_caps.h>
 
-#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 namespace esphome::gpio {
@@ -79,8 +79,7 @@ void GPIOOneWireBus::destroy_rmt_() {
     this->receive_queue_ = nullptr;
   }
   if (this->rx_symbols_buf_ != nullptr) {
-    RAMAllocator<rmt_symbol_word_t>(RAMAllocator<rmt_symbol_word_t>::ALLOC_INTERNAL)
-        .deallocate(this->rx_symbols_buf_, MAX_RX_SYMBOLS);
+    heap_caps_free(this->rx_symbols_buf_);
     this->rx_symbols_buf_ = nullptr;
   }
 }
@@ -110,8 +109,8 @@ void GPIOOneWireBus::setup_rmt_() {
     return;
   }
 
-  this->rx_symbols_buf_ =
-      RAMAllocator<rmt_symbol_word_t>(RAMAllocator<rmt_symbol_word_t>::ALLOC_INTERNAL).allocate(MAX_RX_SYMBOLS);
+  this->rx_symbols_buf_ = static_cast<rmt_symbol_word_t *>(
+      heap_caps_malloc(MAX_RX_SYMBOLS * sizeof(rmt_symbol_word_t), MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT));
   if (this->rx_symbols_buf_ == nullptr) {
     this->destroy_rmt_();
     this->mark_failed(LOG_STR("Failed to allocate RMT receive buffer"));
