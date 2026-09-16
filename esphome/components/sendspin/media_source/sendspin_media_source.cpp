@@ -88,7 +88,7 @@ bool SendspinMediaSource::play_uri(const std::string &uri) {
 // THREAD CONTEXT: Main loop (media_source.h documents handle_command as main-loop only)
 void SendspinMediaSource::handle_command(media_source::MediaSourceCommand command) {
   if (!this->parent_->is_client_running()) {
-    ESP_LOGE(TAG, "Cannot handle command: Sendspin is disabled");
+    ESP_LOGW(TAG, "Cannot handle command: Sendspin is disabled");
     return;
   }
   switch (command) {
