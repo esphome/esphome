@@ -109,14 +109,14 @@ async def to_code(config: ConfigType) -> None:
     for x in range(14):
         if gate_conf := config.get(f"gate_{x}"):
             move_config = gate_conf[CONF_MOVE_THRESHOLD]
-            n = cg.new_Pvariable(move_config[CONF_ID], x)
+            n = cg.new_Pvariable(move_config[CONF_ID])
             await number.register_number(
                 n, move_config, min_value=0, max_value=100, step=1
             )
             await cg.register_parented(n, config[CONF_LD2412_ID])
             cg.add(LD2412_component.set_gate_move_threshold_number(x, n))
             still_config = gate_conf[CONF_STILL_THRESHOLD]
-            n = cg.new_Pvariable(still_config[CONF_ID], x)
+            n = cg.new_Pvariable(still_config[CONF_ID])
             await number.register_number(
                 n, still_config, min_value=0, max_value=100, step=1
             )
