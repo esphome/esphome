@@ -4,10 +4,10 @@
 namespace esphome::icnt86 {
 
 static const char *const TAG = "icnt86";
-static const uint16_t REG_TOUCH_NUM = 0x1001;
-static const uint16_t REG_POINT1 = 0x1002;
-static const uint8_t MAX_TOUCHES = 5;
-static const uint8_t POINT_SIZE = 7;
+static constexpr uint16_t REG_TOUCH_NUM = 0x1001;
+static constexpr uint16_t REG_POINT1 = 0x1002;
+static constexpr uint8_t MAX_TOUCHES = 5;
+static constexpr uint8_t POINT_SIZE = 7;
 
 void ICNT86Touchscreen::setup() {
   ESP_LOGCONFIG(TAG, "Setting up icnt86 Touchscreen...");
