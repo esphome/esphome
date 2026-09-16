@@ -66,9 +66,19 @@ static struct CrashData {
   uint8_t backtrace_count;
 } s_crash_data __attribute__((section(".noinit")));  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
-bool crash_handler_has_data() { return s_crash_data.valid; }
+// Logger::pre_setup() logs the record before App.pre_setup() reaches
+// arch_init(), so the first caller reads it and later calls are no-ops.
+static bool s_crash_data_read = false;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+
+bool crash_handler_has_data() {
+  crash_handler_read_and_clear();
+  return s_crash_data.valid;
+}
 
 void crash_handler_read_and_clear() {
+  if (s_crash_data_read)
+    return;
+  s_crash_data_read = true;
   s_crash_data.valid = false;
   uint32_t magic = watchdog_hw->scratch[0];
   if ((magic & 0xFFFF0000) == CRASH_MAGIC_SENTINEL && (magic & 0xFFFF) == CRASH_DATA_VERSION) {
@@ -97,7 +107,7 @@ void crash_handler_read_and_clear() {
 // the device crashes again during boot, and allowing the CLI's process_stacktrace
 // to match and decode each address individually.
 void crash_handler_log() {
-  if (!s_crash_data.valid)
+  if (!crash_handler_has_data())
     return;
 
   ESP_LOGE(TAG, "*** CRASH DETECTED ON PREVIOUS BOOT ***");
