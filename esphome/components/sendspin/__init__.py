@@ -118,6 +118,7 @@ SendspinSwitchCommandAction = sendspin_ns.class_(
 @dataclass
 class SendspinConfiguration:
     artwork_support: bool = False
+    color_support: bool = False
     controller_support: bool = False
     metadata_support: bool = False
     player_support: bool = False
@@ -136,6 +137,11 @@ def _get_data() -> SendspinConfiguration:
 def request_artwork_support() -> None:
     """Request artwork role support for Sendspin."""
     _get_data().artwork_support = True
+
+
+def request_color_support() -> None:
+    """Request color role support for Sendspin."""
+    _get_data().color_support = True
 
 
 def request_controller_support() -> None:
@@ -287,9 +293,6 @@ async def to_code(config: ConfigType) -> None:
 
     data = _get_data()
 
-    # The color role is not yet wired up in ESPHome; disable it in the library for now.
-    esp32.add_idf_sdkconfig_option("CONFIG_SENDSPIN_ENABLE_COLOR", False)
-
     # Configure Sendspin roles based on requested features (ESPHome internally via USE_SENDSPIN_*)
     # and disable building unused code paths in the sendspin-cpp library (IDF SDKConfig via CONFIG_SENDSPIN_ENABLE_*).
     if data.artwork_support:
@@ -319,6 +322,11 @@ async def to_code(config: ConfigType) -> None:
         cg.add(var.set_artwork_config(artwork_config))
     else:
         esp32.add_idf_sdkconfig_option("CONFIG_SENDSPIN_ENABLE_ARTWORK", False)
+
+    if data.color_support:
+        cg.add_define("USE_SENDSPIN_COLOR", True)
+    else:
+        esp32.add_idf_sdkconfig_option("CONFIG_SENDSPIN_ENABLE_COLOR", False)
 
     if data.controller_support:
         cg.add_define("USE_SENDSPIN_CONTROLLER", True)
