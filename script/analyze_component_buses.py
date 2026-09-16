@@ -81,6 +81,7 @@ ISOLATED_SIGNATURE_PREFIX = "isolated_"
 # NOTE: This should be kept in sync with both test_build_components and split_components_for_ci.py
 ISOLATED_COMPONENTS = {
     "animation": "Has display lambda in common.yaml that requires existing display platform - breaks when merged without display",
+    "cdc_acm_uart": "Depends on tinyusb which conflicts with usb_host",
     "esphome": "Defines devices/areas in esphome: section that are referenced in other sections - breaks when merged",
     "ethernet": "Defines ethernet: which conflicts with wifi: used by most components",
     "ethernet_info": "Related to ethernet component which conflicts with wifi",
@@ -96,6 +97,7 @@ ISOLATED_COMPONENTS = {
     "neopixelbus": "RMT type conflict with ESP32 Arduino/ESP-IDF headers (enum vs struct rmt_channel_t)",
     "packages": "cannot merge packages",
     "tinyusb": "Conflicts with usb_host component - cannot be used together",
+    "uart_mux": "Depends on tinyusb which conflicts with usb_host",
     "usb_cdc_acm": "Depends on tinyusb which conflicts with usb_host",
     "zigbee": "Defines zigbee: which conflicts with network: used by most components on nrf52",
 }
