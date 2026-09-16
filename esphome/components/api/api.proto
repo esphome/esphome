@@ -76,7 +76,7 @@ service APIConnection {
   rpc serial_proxy_write(SerialProxyWriteRequest) returns (void) {}
   rpc serial_proxy_set_modem_pins(SerialProxySetModemPinsRequest) returns (void) {}
   rpc serial_proxy_get_modem_pins(SerialProxyGetModemPinsRequest) returns (void) {}
-  rpc serial_proxy_get_usb_info(SerialProxyGetUsbInfoRequest) returns (void) {}
+  rpc subscribe_serial_proxy_identity(SubscribeSerialProxyIdentityRequest) returns (void) {}
   rpc serial_proxy_request(SerialProxyRequest) returns (void) {}
   rpc serial_proxy_set_mode(SerialProxySetModeRequest) returns (void) {}
 }
@@ -2869,42 +2869,51 @@ message SerialProxySetModeRequest {
   SerialProxyMode mode = 2;
 }
 
-// Ask for the USB identity of the device behind a port on a USB bridge. Read-only, so no
-// subscription is required. Answered with NOT_SUPPORTED on ports without a USB bridge
-// (since API 1.18).
-message SerialProxyGetUsbInfoRequest {
+// Subscribe to the identity of every serial proxy port. The device answers with one
+// SerialProxyIdentity per port, then sends another whenever a port's identity changes,
+// for the life of the connection (since API 1.18).
+message SubscribeSerialProxyIdentityRequest {
   option (id) = 154;
   option (source) = SOURCE_CLIENT;
   option (ifdef) = "USE_SERIAL_PROXY";
-
-  uint32 instance = 1;
 }
 
-enum SerialProxyUsbInfoFlag {
-  SERIAL_PROXY_USB_INFO_FLAG_NONE = 0;
-  SERIAL_PROXY_USB_INFO_FLAG_CONNECTED = 1;  // A USB device is currently attached
+// Where a port's identity comes from
+enum SerialProxyIdentitySource {
+  SERIAL_PROXY_IDENTITY_SOURCE_NONE = 0;        // The port carries no identity
+  SERIAL_PROXY_IDENTITY_SOURCE_CONFIGURED = 1;  // Stated in the device configuration; fixed for the life of the firmware
+  SERIAL_PROXY_IDENTITY_SOURCE_USB = 2;         // Read from the descriptors of the USB device behind the port;
+                                                // changes when a device is attached or removed
 }
 
-// The USB identity of the device currently behind a port. Fields are zero/empty while
-// no device is connected. Sent in reply to SerialProxyGetUsbInfoRequest, and also
-// unsolicited to every connected client whenever a USB device is attached to or
-// removed from a port on a USB bridge (since API 1.18).
-message SerialProxyUsbInfo {
+enum SerialProxyIdentityFlag {
+  SERIAL_PROXY_IDENTITY_FLAG_NONE = 0;
+  SERIAL_PROXY_IDENTITY_FLAG_CONNECTED = 1;  // The backend believes the device is present. Always set for a
+                                             // CONFIGURED identity, which cannot observe presence
+  SERIAL_PROXY_IDENTITY_FLAG_ERROR = 2;      // The USB host stack refused the descriptor query; the strings and
+                                             // IDs below are empty
+}
+
+// The identity of the device behind a port. Identifies one physical device among others of
+// the same kind, so a client matches on manufacturer and product regardless of source. The
+// strings and IDs are zero/empty for source NONE, and for source USB while nothing is
+// connected (since API 1.18).
+message SerialProxyIdentity {
   option (id) = 155;
   option (source) = SOURCE_SERVER;
   option (ifdef) = "USE_SERIAL_PROXY";
 
   uint32 instance = 1;
-  SerialProxyStatus status = 2;   // NOT_SUPPORTED when the port has no USB bridge, ERROR when the
-                                  // host stack refused the descriptor query
-  uint32 flags = 3;               // Bitmask of SerialProxyUsbInfoFlag
-  uint32 vendor_id = 4;
-  uint32 product_id = 5;
-  uint32 bcd_device = 6;
-  uint32 interface_number = 7;    // bInterfaceNumber a host driver binds to
-  string manufacturer = 8;
-  string product = 9;
-  string serial_number = 10;
+  SerialProxyIdentitySource source = 2;
+  uint32 flags = 3;               // Bitmask of SerialProxyIdentityFlag
+  string manufacturer = 4;
+  string product = 5;
+  string serial_number = 6;
+  // Zero for sources other than USB
+  uint32 usb_vendor_id = 7;
+  uint32 usb_product_id = 8;
+  uint32 usb_bcd_device = 9;
+  uint32 usb_interface_number = 10;   // bInterfaceNumber the host driver binds to
 }
 
 // ==================== BLUETOOTH CONNECTION PARAMS ====================

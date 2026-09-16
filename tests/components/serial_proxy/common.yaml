@@ -8,3 +8,7 @@ serial_proxy:
   - id: serial_proxy_1
     name: Test Serial Port
     port_type: RS232
+    identity:
+      manufacturer: Test Vendor
+      product: Test Device
+      serial_number: !lambda return str_upper_case(get_mac_address());

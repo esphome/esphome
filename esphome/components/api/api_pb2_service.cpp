@@ -724,13 +724,11 @@ void APIConnection::read_message_(uint32_t msg_size, uint32_t msg_type, const ui
     }
 #endif
 #ifdef USE_SERIAL_PROXY
-    case SerialProxyGetUsbInfoRequest::MESSAGE_TYPE: {
-      SerialProxyGetUsbInfoRequest msg;
-      msg.decode(msg_data, msg_size);
+    case 154 /* SubscribeSerialProxyIdentityRequest is empty */: {
 #ifdef HAS_PROTO_MESSAGE_DUMP
-      this->log_receive_message_(LOG_STR("on_serial_proxy_get_usb_info_request"), msg);
+      this->log_receive_message_(LOG_STR("on_subscribe_serial_proxy_identity_request"));
 #endif
-      this->on_serial_proxy_get_usb_info_request(msg);
+      this->on_subscribe_serial_proxy_identity_request();
       break;
     }
 #endif

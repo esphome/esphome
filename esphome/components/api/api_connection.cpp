@@ -48,9 +48,6 @@
 #ifdef USE_ZWAVE_PROXY
 #include "esphome/components/zwave_proxy/zwave_proxy.h"
 #endif
-#ifdef USE_SERIAL_PROXY_USB_INFO
-#include "esphome/components/usb_host/usb_host.h"
-#endif
 #ifdef USE_WATER_HEATER
 #include "esphome/components/water_heater/water_heater.h"
 #endif
@@ -1648,26 +1645,19 @@ void APIConnection::on_serial_proxy_get_modem_pins_request(const SerialProxyGetM
   }
 }
 
-void APIConnection::on_serial_proxy_get_usb_info_request(const SerialProxyGetUsbInfoRequest &msg) {
-  auto &proxies = App.get_serial_proxies();
-  SerialProxyUsbInfo resp{};
-  resp.instance = msg.instance;
-#ifdef USE_SERIAL_PROXY_USB_INFO
-  // The message's strings are views into this buffer, so it must outlive the send below
-  usb_host::UsbDeviceInfo info;
-#endif
-  if (msg.instance >= proxies.size()) {
-    ESP_LOGW(TAG, "Serial proxy instance %" PRIu32 " out of range", msg.instance);
-    resp.status = enums::SERIAL_PROXY_STATUS_INVALID_ARGUMENT;
-  } else {
-#ifdef USE_SERIAL_PROXY_USB_INFO
-    proxies[msg.instance]->get_usb_info(info, resp);
-#else
-    resp.status = enums::SERIAL_PROXY_STATUS_NOT_SUPPORTED;
-#endif
+void APIConnection::on_subscribe_serial_proxy_identity_request() {
+  this->flags_.serial_proxy_identity_subscription = true;
+  for (auto *proxy : App.get_serial_proxies()) {
+    proxy->send_identity(this);
   }
-  if (!this->send_message(resp)) {
-    API_LOG_MSG_DROPPED(TAG, "Serial proxy response");
+}
+
+void APIConnection::send_serial_proxy_identity(const SerialProxyIdentity &msg) {
+  if (!this->flags_.serial_proxy_identity_subscription) {
+    return;
+  }
+  if (!this->send_message(msg)) {
+    API_LOG_MSG_DROPPED(TAG, "Serial proxy identity");
   }
 }
 

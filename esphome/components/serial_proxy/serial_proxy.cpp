@@ -12,7 +12,7 @@
 #include "esphome/components/api/api_server.h"
 #endif
 
-#ifdef USE_SERIAL_PROXY_USB_INFO
+#ifdef USE_SERIAL_PROXY_USB_IDENTITY
 #include "esphome/components/usb_uart/usb_uart.h"
 #endif
 
@@ -34,10 +34,19 @@ void SerialProxy::setup() {
   // instance_index_ is fixed at registration time; pre-set it so loop() only needs to update data
   this->outgoing_msg_.instance = this->instance_index_;
 #endif
-#ifdef USE_SERIAL_PROXY_USB_INFO
+#ifdef USE_SERIAL_PROXY_USB_IDENTITY
   if (this->usb_channel_ != nullptr) {
     this->usb_channel_->get_parent()->add_on_connection_callback(
         [this](bool connected) { this->on_usb_connection_changed_(connected); });
+  }
+#endif
+#ifdef USE_SERIAL_PROXY_CONFIGURED_IDENTITY
+  // A configured identity is fixed, so run each lambda once and keep the result. This also
+  // lets fill_identity_() hand out views of the stored strings without allocating.
+  for (auto *value : {&this->identity_manufacturer_, &this->identity_product_, &this->identity_serial_number_}) {
+    if (value->has_value() && !value->is_static_string()) {
+      *value = TemplatableValue<std::string>(value->value());
+    }
   }
 #endif
 #ifdef USE_SERIAL_PROXY_TAP
@@ -344,7 +353,57 @@ SerialProxyResult SerialProxy::set_modem_pins(api::APIConnection *api_connection
   return SerialProxyResult::SERIAL_PROXY_RESULT_OK;
 }
 
-#ifdef USE_SERIAL_PROXY_USB_INFO
+#ifdef USE_API
+void SerialProxy::send_identity(api::APIConnection *api_connection) {
+  IdentityScratch scratch;
+  api::SerialProxyIdentity msg{};
+  this->fill_identity_(scratch, msg);
+  api_connection->send_serial_proxy_identity(msg);
+}
+
+void SerialProxy::fill_identity_([[maybe_unused]] IdentityScratch &scratch, api::SerialProxyIdentity &msg) const {
+  msg.instance = this->instance_index_;
+#ifdef USE_SERIAL_PROXY_USB_IDENTITY
+  // The define is global, so a hardware UART port in the same config also gets here
+  if (this->usb_channel_ != nullptr) {
+    msg.source = api::enums::SERIAL_PROXY_IDENTITY_SOURCE_USB;
+    auto *client = this->usb_channel_->get_parent();
+    if (!client->is_connected()) {
+      return;
+    }
+    msg.flags = api::enums::SERIAL_PROXY_IDENTITY_FLAG_CONNECTED;
+    if (!client->get_device_info(scratch)) {
+      msg.flags |= api::enums::SERIAL_PROXY_IDENTITY_FLAG_ERROR;
+      return;
+    }
+    msg.usb_vendor_id = scratch.vendor_id;
+    msg.usb_product_id = scratch.product_id;
+    msg.usb_bcd_device = scratch.bcd_device;
+    msg.usb_interface_number = this->usb_channel_->get_interface_number();
+    msg.manufacturer = StringRef(scratch.manufacturer);
+    msg.product = StringRef(scratch.product);
+    msg.serial_number = StringRef(scratch.serial_number);
+    return;
+  }
+#endif
+#ifdef USE_SERIAL_PROXY_CONFIGURED_IDENTITY
+  if (this->identity_manufacturer_.has_value() || this->identity_product_.has_value() ||
+      this->identity_serial_number_.has_value()) {
+    msg.source = api::enums::SERIAL_PROXY_IDENTITY_SOURCE_CONFIGURED;
+    // Nothing observes presence on a plain UART, so the device is taken to be there
+    msg.flags = api::enums::SERIAL_PROXY_IDENTITY_FLAG_CONNECTED;
+    // setup() left only plain strings behind, so no copy buffer is ever needed
+    msg.manufacturer = this->identity_manufacturer_.ref_or_copy_to(nullptr, 0);
+    msg.product = this->identity_product_.ref_or_copy_to(nullptr, 0);
+    msg.serial_number = this->identity_serial_number_.ref_or_copy_to(nullptr, 0);
+    return;
+  }
+#endif
+  // Zero-initialized message: source NONE, no flags
+}
+#endif
+
+#ifdef USE_SERIAL_PROXY_USB_IDENTITY
 void SerialProxy::on_usb_connection_changed_(bool connected) {
   ESP_LOGD(TAG, "USB device %s serial proxy [%" PRIu32 "]",
            connected ? LOG_STR_LITERAL("attached to") : LOG_STR_LITERAL("removed from"), this->instance_index_);
@@ -352,40 +411,12 @@ void SerialProxy::on_usb_connection_changed_(bool connected) {
   if (api::global_api_server == nullptr) {
     return;
   }
-  // The message's strings are views into this buffer, which outlives the send below
-  usb_host::UsbDeviceInfo info;
-  api::SerialProxyUsbInfo msg{};
-  msg.instance = this->instance_index_;
-  this->get_usb_info(info, msg);
-  api::global_api_server->send_serial_proxy_usb_info(msg);
+  IdentityScratch scratch;
+  api::SerialProxyIdentity msg{};
+  this->fill_identity_(scratch, msg);
+  api::global_api_server->send_serial_proxy_identity(msg);
 #endif
 }
-
-#ifdef USE_API
-void SerialProxy::get_usb_info(usb_host::UsbDeviceInfo &info, api::SerialProxyUsbInfo &msg) const {
-  // The define is global, so a hardware UART port in the same config also gets here
-  if (this->usb_channel_ == nullptr) {
-    msg.status = api::enums::SERIAL_PROXY_STATUS_NOT_SUPPORTED;
-    return;
-  }
-  auto *client = this->usb_channel_->get_parent();
-  if (!client->is_connected()) {
-    return;
-  }
-  if (!client->get_device_info(info)) {
-    msg.status = api::enums::SERIAL_PROXY_STATUS_ERROR;
-    return;
-  }
-  msg.flags = api::enums::SERIAL_PROXY_USB_INFO_FLAG_CONNECTED;
-  msg.vendor_id = info.vendor_id;
-  msg.product_id = info.product_id;
-  msg.bcd_device = info.bcd_device;
-  msg.interface_number = this->usb_channel_->get_interface_number();
-  msg.manufacturer = StringRef(info.manufacturer);
-  msg.product = StringRef(info.product);
-  msg.serial_number = StringRef(info.serial_number);
-}
-#endif
 #endif
 
 uint32_t SerialProxy::get_modem_pins() const {

@@ -892,13 +892,27 @@ template<> const char *proto_enum_to_string<enums::SerialProxyMode>(enums::Seria
       return ESPHOME_PSTR("UNKNOWN");
   }
 }
-#endif
-template<> const char *proto_enum_to_string<enums::SerialProxyUsbInfoFlag>(enums::SerialProxyUsbInfoFlag value) {
+template<> const char *proto_enum_to_string<enums::SerialProxyIdentitySource>(enums::SerialProxyIdentitySource value) {
   switch (value) {
-    case enums::SERIAL_PROXY_USB_INFO_FLAG_NONE:
-      return ESPHOME_PSTR("SERIAL_PROXY_USB_INFO_FLAG_NONE");
-    case enums::SERIAL_PROXY_USB_INFO_FLAG_CONNECTED:
-      return ESPHOME_PSTR("SERIAL_PROXY_USB_INFO_FLAG_CONNECTED");
+    case enums::SERIAL_PROXY_IDENTITY_SOURCE_NONE:
+      return ESPHOME_PSTR("SERIAL_PROXY_IDENTITY_SOURCE_NONE");
+    case enums::SERIAL_PROXY_IDENTITY_SOURCE_CONFIGURED:
+      return ESPHOME_PSTR("SERIAL_PROXY_IDENTITY_SOURCE_CONFIGURED");
+    case enums::SERIAL_PROXY_IDENTITY_SOURCE_USB:
+      return ESPHOME_PSTR("SERIAL_PROXY_IDENTITY_SOURCE_USB");
+    default:
+      return ESPHOME_PSTR("UNKNOWN");
+  }
+}
+#endif
+template<> const char *proto_enum_to_string<enums::SerialProxyIdentityFlag>(enums::SerialProxyIdentityFlag value) {
+  switch (value) {
+    case enums::SERIAL_PROXY_IDENTITY_FLAG_NONE:
+      return ESPHOME_PSTR("SERIAL_PROXY_IDENTITY_FLAG_NONE");
+    case enums::SERIAL_PROXY_IDENTITY_FLAG_CONNECTED:
+      return ESPHOME_PSTR("SERIAL_PROXY_IDENTITY_FLAG_CONNECTED");
+    case enums::SERIAL_PROXY_IDENTITY_FLAG_ERROR:
+      return ESPHOME_PSTR("SERIAL_PROXY_IDENTITY_FLAG_ERROR");
     default:
       return ESPHOME_PSTR("UNKNOWN");
   }
@@ -2835,23 +2849,18 @@ const char *SerialProxySetModeRequest::dump_to(DumpBuffer &out) const {
   dump_field(out, ESPHOME_PSTR("mode"), static_cast<enums::SerialProxyMode>(this->mode));
   return out.c_str();
 }
-const char *SerialProxyGetUsbInfoRequest::dump_to(DumpBuffer &out) const {
-  MessageDumpHelper helper(out, ESPHOME_PSTR("SerialProxyGetUsbInfoRequest"));
+const char *SerialProxyIdentity::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("SerialProxyIdentity"));
   dump_field(out, ESPHOME_PSTR("instance"), this->instance);
-  return out.c_str();
-}
-const char *SerialProxyUsbInfo::dump_to(DumpBuffer &out) const {
-  MessageDumpHelper helper(out, ESPHOME_PSTR("SerialProxyUsbInfo"));
-  dump_field(out, ESPHOME_PSTR("instance"), this->instance);
-  dump_field(out, ESPHOME_PSTR("status"), static_cast<enums::SerialProxyStatus>(this->status));
+  dump_field(out, ESPHOME_PSTR("source"), static_cast<enums::SerialProxyIdentitySource>(this->source));
   dump_field(out, ESPHOME_PSTR("flags"), this->flags);
-  dump_field(out, ESPHOME_PSTR("vendor_id"), this->vendor_id);
-  dump_field(out, ESPHOME_PSTR("product_id"), this->product_id);
-  dump_field(out, ESPHOME_PSTR("bcd_device"), this->bcd_device);
-  dump_field(out, ESPHOME_PSTR("interface_number"), this->interface_number);
   dump_field(out, ESPHOME_PSTR("manufacturer"), this->manufacturer);
   dump_field(out, ESPHOME_PSTR("product"), this->product);
   dump_field(out, ESPHOME_PSTR("serial_number"), this->serial_number);
+  dump_field(out, ESPHOME_PSTR("usb_vendor_id"), this->usb_vendor_id);
+  dump_field(out, ESPHOME_PSTR("usb_product_id"), this->usb_product_id);
+  dump_field(out, ESPHOME_PSTR("usb_bcd_device"), this->usb_bcd_device);
+  dump_field(out, ESPHOME_PSTR("usb_interface_number"), this->usb_interface_number);
   return out.c_str();
 }
 #endif

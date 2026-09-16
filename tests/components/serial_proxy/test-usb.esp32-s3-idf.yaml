@@ -1,5 +1,5 @@
-# A hardware UART port alongside the USB one, so the USB info define is exercised on a
-# port that has no USB channel
+# A hardware UART port alongside the USB one, so the USB identity define is exercised on a
+# port that has no USB channel, and both identity sources are compiled into one build
 packages:
   uart: !include ../../test_build_components/common/uart/esp32-idf.yaml
 
@@ -28,3 +28,6 @@ serial_proxy:
     uart_id: uart_bus
     name: Hardware Serial Port
     port_type: TTL
+    identity:
+      manufacturer: Test Vendor
+      product: Onboard Radio

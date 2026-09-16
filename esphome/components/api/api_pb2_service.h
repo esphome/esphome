@@ -239,7 +239,7 @@ class APIServerConnectionBase {
   void on_serial_proxy_set_mode_request(const SerialProxySetModeRequest &value){};
 #endif
 #ifdef USE_SERIAL_PROXY
-  void on_serial_proxy_get_usb_info_request(const SerialProxyGetUsbInfoRequest &value){};
+  void on_subscribe_serial_proxy_identity_request(){};
 #endif
 
 #ifdef USE_BLUETOOTH_PROXY_CONNECTIONS
