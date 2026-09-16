@@ -100,8 +100,7 @@ void ESP32RMTLEDStripLightOutput::setup() {
                                 this->params_.bit1.duration0 + this->params_.bit1.duration1);
   uint64_t frame_ticks = (uint64_t) bit_ticks * buffer_size * RMT_SYMBOLS_PER_BYTE + this->params_.reset.duration0 +
                          this->params_.reset.duration1;
-  uint32_t frame_time_us = frame_ticks * 1000000 / resolution_hz + RESET_GAP_US;
-  this->min_frame_interval_us_ = std::max(frame_time_us, this->max_refresh_rate_);
+  this->frame_time_us_ = frame_ticks * 1000000 / resolution_hz + RESET_GAP_US;
 
   rmt_tx_channel_config_t channel;
   memset(&channel, 0, sizeof(channel));
@@ -171,7 +170,7 @@ void ESP32RMTLEDStripLightOutput::set_led_params(uint32_t bit0_high, uint32_t bi
 void ESP32RMTLEDStripLightOutput::write_state(light::LightState *state) {
   // Previous frame still on the wire, inside its reset gap, or refreshing too often:
   // try again next loop iteration instead of blocking, so that this change won't get lost
-  if (micros() - this->last_refresh_ < this->min_frame_interval_us_) {
+  if (micros() - this->last_refresh_ < std::max(this->frame_time_us_, this->max_refresh_rate_)) {
     this->schedule_show();
     return;
   }
