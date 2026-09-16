@@ -508,7 +508,7 @@ optional<float> RHCorrectionFilter::new_value(float value) {
     tc = (tc - 32.0f) / 1.8f;
     tnc = (tnc - 32.0f) / 1.8f;
   }
-  if (!(tc >= -40.0f && tc <= 50.0f && tnc >= -40.0f && tnc <= 50.0f)) {
+  if (std::isnan(tc) || tc < -40.0f || tc > 50.0f || tnc < -40.0f || tnc > 50.0f) {
     // Not reliable if the range is outside -40 +50 °C
     // This check will also prevents invalid values for the calculation below and NaN values
     ESP_LOGW(TAG, "RHCorrectionFilter(%s): Invalid temperature values. Tc=%f Tnc=%f",
