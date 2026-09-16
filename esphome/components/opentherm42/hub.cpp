@@ -827,7 +827,7 @@ Frame OpenTherm42Hub::build_startup_request_() {
       this->pending_request_kind_ = RequestKind::MASTER_OPENTHERM_VERSION;
       frame.type = static_cast<uint8_t>(MessageType::WRITE_DATA);
       frame.id = 124;
-      frame.set_value_f88(this->controller_opentherm_version_);
+      frame.set_value_f88(CONTROLLER_OPENTHERM_VERSION);
       return frame;
     case StartupPhase::MASTER_PRODUCT_VERSION:
       this->pending_request_kind_ = RequestKind::MASTER_PRODUCT_VERSION;

@@ -15,8 +15,6 @@ opentherm42:
   # §5.3.2 Class 2, ID 2 LB: this master's own MemberID code (0..255). A value of 0 signifies a
   # customer non-specific device.
   controller_member_id_code: 0
-  # §5.3.2 Class 2, ID 124: this master's own OpenTherm protocol version (0..127).
-  controller_opentherm_version: 4.2
   # §5.3.2 Class 2, ID 126 HB: this master's own product type (0..255), as defined by the manufacturer.
   controller_product_type: 0
   # §5.3.2 Class 2, ID 126 LB: this master's own product version (0..255), as defined by the manufacturer.

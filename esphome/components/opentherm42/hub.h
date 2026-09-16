@@ -309,7 +309,6 @@ class OpenTherm42Hub : public Component {
   // §5.3.2 Class 2: this master's own identity, written to the boiler once at startup. Static config,
   // not entities -- see opentherm42/__init__.py's CONF_CONTROLLER_* options.
   void set_controller_member_id_code(uint8_t member_id_code) { this->controller_member_id_code_ = member_id_code; }
-  void set_controller_opentherm_version(float version) { this->controller_opentherm_version_ = version; }
   void set_controller_product_type(uint8_t product_type) { this->controller_product_type_ = product_type; }
   void set_controller_product_version(uint8_t product_version) { this->controller_product_version_ = product_version; }
 
@@ -678,6 +677,12 @@ class OpenTherm42Hub : public Component {
   // §4.3.1: the legal boiler answering-time window is 20-400 ms from the end of the master's
   // transmission; 400 ms is the longest a compliant boiler is allowed to take.
   static constexpr uint32_t RESPONSE_TIMEOUT_MS = 400;
+  // §5.3.2 Class 2, ID 124: this master's own OpenTherm protocol version, written to the boiler once
+  // at startup. Fixed, not user-configurable: it states which version of the spec this component
+  // itself implements, not a fact about the user's installation -- unlike controller_product_type_/
+  // controller_product_version_ below, there's no legitimate reason for it to differ from the
+  // version this component actually speaks.
+  static constexpr float CONTROLLER_OPENTHERM_VERSION = 4.2f;
 
   // Populates essential_requests_/informational_requests_ from whichever entities got configured --
   // called once from setup().
@@ -770,7 +775,6 @@ class OpenTherm42Hub : public Component {
 
   // §5.3.2 Class 2 entities.
   uint8_t controller_member_id_code_{0};
-  float controller_opentherm_version_{4.2f};
   uint8_t controller_product_type_{0};
   uint8_t controller_product_version_{0};
 
