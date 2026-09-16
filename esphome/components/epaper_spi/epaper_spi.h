@@ -111,8 +111,8 @@ class EPaperBase : public Display,
     this->fill(COLOR_ON);
   }
 
-  int get_width() override { return (this->effective_transform_ & SWAP_XY) ? this->height_ : this->width_; }
-  int get_height() override { return (this->effective_transform_ & SWAP_XY) ? this->width_ : this->height_; }
+  int get_width() override { return this->effective_transform_ & SWAP_XY ? this->height_ : this->width_; }
+  int get_height() override { return this->effective_transform_ & SWAP_XY ? this->width_ : this->height_; }
   bool pixel_axes_swapped() const override { return this->effective_transform_ & SWAP_XY; }
   void draw_pixel_at(int x, int y, Color color) override;
 
