@@ -23,8 +23,7 @@ class NextionComponentBase;
 
 class NextionQueue {
  public:
-  virtual ~NextionQueue() = default;
-  NextionComponentBase *component;
+  NextionComponentBase *component{nullptr};
   uint32_t queue_time = 0;
 
   // Store command for retry if spacing blocked it
@@ -105,6 +104,6 @@ class NextionComponentBase {
   int wave_max_length_ = 255;
 #endif  // USE_NEXTION_WAVEFORM
 
-  bool needs_to_send_update_;
+  bool needs_to_send_update_{false};
 };
 }  // namespace esphome::nextion
