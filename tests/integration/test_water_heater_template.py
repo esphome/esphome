@@ -155,3 +155,36 @@ async def test_water_heater_template(
         client.water_heater_command(test_water_heater.key, mode=WaterHeaterMode.ECO)
         eco_state = await wait_for_state()
         assert eco_state.mode == WaterHeaterMode.ECO
+
+
+@pytest.mark.asyncio
+async def test_water_heater_template_unknown_temperature(
+    yaml_config: str,
+    run_compiled: RunCompiledFunction,
+    api_client_connected: APIClientConnectedFactory,
+) -> None:
+    """Test a template water heater whose temperature lambdas stay unknown.
+
+    NAN never compares equal to itself, so a lambda that keeps returning NAN must not be
+    mistaken for a changed value and republish the state on every loop iteration.
+    """
+    async with run_compiled(yaml_config), api_client_connected() as client:
+        state_count = 0
+
+        def on_state(state: aioesphomeapi.EntityState) -> None:
+            nonlocal state_count
+            if isinstance(state, WaterHeaterState):
+                state_count += 1
+
+        entities, _ = await client.list_entities_services()
+        water_heater_infos = [e for e in entities if isinstance(e, WaterHeaterInfo)]
+        assert len(water_heater_infos) == 1
+
+        client.subscribe_states(on_state)
+
+        # Let the device run for a while; only the single initial state may arrive.
+        await asyncio.sleep(1.0)
+        assert state_count <= 1, (
+            f"Expected at most 1 state publish, got {state_count} - "
+            "an unknown (NAN) temperature is republishing every loop"
+        )
