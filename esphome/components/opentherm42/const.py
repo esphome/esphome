@@ -251,6 +251,9 @@ CONF_REMOTE_REQUEST_AUTOMATIC_HYDRONIC_AIR_PURGE = (
 
 # §5.3.3 Class 3, ID 4 LB: the most recent Request-Response-Code (0..127 = refused, 128..255 = accepted).
 CONF_REMOTE_REQUEST_LAST_RESPONSE_CODE = "remote_request_last_response_code"
+# Same id=4 LB value as above, as its spec-defined meaning ("Request refused"/"Request accepted")
+# rather than the raw code.
+CONF_REMOTE_REQUEST_LAST_RESPONSE = "remote_request_last_response"
 
 # §5.3.4 Class 4: write-only numbers this master provides to the boiler.
 CONF_SENSOR_AND_INFORMATIONAL_DATA_ROOM_SETPOINT = (

@@ -412,6 +412,9 @@ text_sensor:
     # [ 0 = DHW preheat system, 1 = DHW parallel system ]
     configuration_information_solar_storage_configuration_system_type:
       name: "Configuration Information: Solar Storage configuration: System type"
+    # §5.3.3 Class 3, ID 4 LB: the most recent Request-Response-Code's meaning.
+    remote_request_last_response:
+      name: "Remote request: Last response"
     # §5.3.1 Class 1, ID 101 LB bits 3,2,1: Solar Storage mode and status: Solar mode -- the
     # boiler's own reported mode, independent of the select platform's ID 101 HB below.
     control_and_status_information_solar_storage_mode_and_status_solar_mode:

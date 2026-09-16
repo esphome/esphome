@@ -26,6 +26,7 @@ from ..const import (
     CONF_CONTROL_OF_SPECIAL_APPLICATIONS_REMOTE_OVERRIDE_OPERATING_MODE_HEATING_HC1,
     CONF_CONTROL_OF_SPECIAL_APPLICATIONS_REMOTE_OVERRIDE_OPERATING_MODE_HEATING_HC2,
     CONF_OPENTHERM42_ID,
+    CONF_REMOTE_REQUEST_LAST_RESPONSE,
 )
 
 # device_class is left unset throughout: Home Assistant text sensors only support "date" and
@@ -99,6 +100,13 @@ TYPES: dict[str, cv.Schema] = {
     # §5.3.2 Class 2, ID 103 HB bit 0: Solar Storage configuration: system type
     # [ 0 = DHW preheat system, 1 = DHW parallel system ].
     CONF_CONFIGURATION_INFORMATION_SOLAR_STORAGE_CONFIGURATION_SYSTEM_TYPE: text_sensor.text_sensor_schema(
+        entity_category=ENTITY_CATEGORY_DIAGNOSTIC
+    ),
+    # §5.3.3 Class 3, ID 4 LB: the most recent Request-Response-Code's meaning (0..127 = request
+    # refused, 128..255 = request accepted), alongside the raw code exposed by the sensor platform's
+    # remote_request_last_response_code. Feedback for the Class 3 remote-request buttons (all
+    # entity_category CONFIG) -- not a value anyone watches day-to-day, so DIAGNOSTIC.
+    CONF_REMOTE_REQUEST_LAST_RESPONSE: text_sensor.text_sensor_schema(
         entity_category=ENTITY_CATEGORY_DIAGNOSTIC
     ),
     # §5.3.1 Class 1, ID 101 LB bits 3,2,1: Solar Storage mode and status: Solar mode -- the

@@ -488,6 +488,7 @@ class OpenTherm42Hub : public Component {
     this->remote_request_code_ = code;
   }
   OT42_SET_SENSOR(remote_request_last_response_code, remote_request_last_response_code_sensor_)
+  OT42_SET_PLAIN_TEXT_SENSOR(remote_request_last_response, remote_request_last_response_text_sensor_)
 
   // §5.3.4 Class 4, IDs 20/21/22: the clock this master's Day-of-week/Time, Date and Year writes are
   // sourced from. Left unset (nullptr), those three ids are simply never sent.
@@ -818,6 +819,7 @@ class OpenTherm42Hub : public Component {
   bool remote_request_pending_{false};
   uint8_t remote_request_code_{0};
   sensor::Sensor *remote_request_last_response_code_sensor_{nullptr};
+  text_sensor::TextSensor *remote_request_last_response_text_sensor_{nullptr};
 
   // §5.3.4 Class 4 entities.
   time::RealTimeClock *time_id_{nullptr};

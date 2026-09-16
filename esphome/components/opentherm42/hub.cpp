@@ -1271,6 +1271,11 @@ void OpenTherm42Hub::handle_response_(const Frame &frame) {
       if (this->remote_request_last_response_code_sensor_ != nullptr) {
         this->remote_request_last_response_code_sensor_->publish_state(frame.value_lb);
       }
+      if (this->remote_request_last_response_text_sensor_ != nullptr) {
+        // §5.3.3: 0..127 = request refused, 128..255 = request accepted.
+        this->remote_request_last_response_text_sensor_->publish_state((frame.value_lb >= 128) ? "Request accepted"
+                                                                                               : "Request refused");
+      }
       return;
 
     case RequestKind::ROOM_SETPOINT:
@@ -1980,6 +1985,9 @@ void OpenTherm42Hub::invalidate_response_(RequestKind kind) {
     case RequestKind::REMOTE_REQUEST:
       if (this->remote_request_last_response_code_sensor_ != nullptr) {
         invalidate_entity(this->remote_request_last_response_code_sensor_);
+      }
+      if (this->remote_request_last_response_text_sensor_ != nullptr) {
+        invalidate_entity(this->remote_request_last_response_text_sensor_);
       }
       return;
 
