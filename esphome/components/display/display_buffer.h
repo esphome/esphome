@@ -27,6 +27,7 @@ class DisplayBuffer : public Display {
   void init_internal_(uint32_t buffer_length);
 
   uint8_t *buffer_{nullptr};
+  uint8_t wdt_pixel_counter_{0};
 };
 
 }  // namespace esphome::display
