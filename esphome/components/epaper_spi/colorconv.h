@@ -59,11 +59,7 @@ constexpr NATIVE_COLOR color_to_bwyr(Color color, NATIVE_COLOR hw_black, NATIVE_
 
   if ((max_rgb - min_rgb) < COLORCONV_GRAY_THRESHOLD) {
     // It's a shade of gray. Map to BLACK or WHITE.
-    // We split the luminance at the halfway point (382 = (255*3)/2)
-    if ((static_cast<int>(color.r) + color.g + color.b) > 382) {
-      return hw_white;
-    }
-    return hw_black;
+    return color_to_mono(color) ? hw_white : hw_black;
   }
 
   // --- Step 2: Check for Primary/Secondary Colors ---
@@ -125,10 +121,7 @@ constexpr NATIVE_COLOR color_to_bwyrgb(Color color, NATIVE_COLOR hw_black, NATIV
   const auto [min_rgb, max_rgb] = std::minmax({color.r, color.g, color.b});
 
   if ((max_rgb - min_rgb) < COLORCONV_GRAY_THRESHOLD) {
-    if ((static_cast<int>(color.r) + color.g + color.b) > 382) {
-      return hw_white;
-    }
-    return hw_black;
+    return color_to_mono(color) ? hw_white : hw_black;
   }
 
   const bool r_on = (color.r > 128);
@@ -186,10 +179,7 @@ constexpr NATIVE_COLOR color_to_bwyrgbo(Color color, NATIVE_COLOR hw_black, NATI
   const auto [min_rgb, max_rgb] = std::minmax({color.r, color.g, color.b});
 
   if ((max_rgb - min_rgb) < COLORCONV_GRAY_THRESHOLD) {
-    if ((static_cast<int>(color.r) + color.g + color.b) > 382) {
-      return hw_white;
-    }
-    return hw_black;
+    return color_to_mono(color) ? hw_white : hw_black;
   }
 
   const bool r_on = (color.r > 128);
