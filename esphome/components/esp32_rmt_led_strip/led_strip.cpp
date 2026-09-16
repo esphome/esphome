@@ -216,6 +216,8 @@ void ESP32RMTLEDStripLightOutput::write_state(light::LightState *state) {
   if (error != ESP_OK) {
     ESP_LOGE(TAG, "RMT TX error");
     this->status_set_warning();
+    // retry next loop iteration so the frame is not lost
+    this->schedule_show();
     return;
   }
   // Stamped after the transfer started so the gate above stays conservative
