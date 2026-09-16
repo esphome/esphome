@@ -23,7 +23,8 @@ For this repository there are two trusted inputs by design:
 1. **The configuration.** Anyone who can supply or edit a YAML config is trusted
    (see below).
 2. **Authenticated peers of a running device** — clients holding the device's
-   API encryption key / password, OTA password, or web server credentials.
+   API/OTA encryption key, API password, OTA password, or web server
+   credentials.
 
 The security boundary is therefore **unauthenticated network traffic vs. those
 trusted inputs.** A bug that lets an unauthenticated attacker cross it is a
@@ -76,8 +77,8 @@ These *are* security bugs in this repo, and we want to hear about them privately
   captive portal, etc.) **without** valid credentials.
 - Authentication or encryption bypass on the device — reaching API calls, OTA
   updates, or the web server without the configured key/password.
-- Flaws that weaken the device's API encryption (Noise), OTA, or web server auth
-  below their documented guarantees.
+- Flaws that weaken the device's API or OTA encryption (Noise), OTA auth, or
+  web server auth below their documented guarantees.
 
 ## The web server is an open HTTP API by design
 
@@ -120,6 +121,54 @@ and any memory-safety or protocol bug in the server reachable without credential
 
 This section documents the current design and scope; it is not a judgment that the
 design is optimal or that it will not change.
+
+## OTA update encryption
+
+The `esphome` OTA platform optionally encrypts updates with the same Noise
+`NNpsk0` pattern the native API uses; one key protects the device. A device
+whose `api:` block has an encryption key, static in the YAML or provisioned at
+runtime, compiles in the transport and offers it on every OTA connection once
+it holds a key, so an uploader presenting that key gets the guarantees below
+even without an `ota: encryption:` block; only that block makes the device
+require encryption. The guarantees are: the firmware image is confidential in
+transit, the uploader is authenticated by the pre-shared key, and the plaintext
+negotiation preceding the handshake is bound into the handshake prologue, so
+stripping or tampering with it fails the first MAC. With `ota: encryption:`
+configured both ends fail closed with no override: the device refuses
+plaintext uploads, and the CLI refuses to send plaintext when a key is
+configured. Without that block the CLI tries a static api key when the device
+offers and, until 2027.3.0, falls back to plaintext with a warning when the
+offer is missing or the handshake fails; a runtime provisioned key never
+reaches the CLI, so those uploads stay plaintext.
+
+Defeating any of that without the key is in scope: a device that requires
+encryption accepting a plaintext or downgraded upload, getting past the MAC,
+or recovering image contents from captured traffic.
+
+The following are **not** vulnerabilities, by design:
+
+- Plaintext OTA on a device with no `ota: encryption:` block, including one
+  that offers encryption because it has an api key. That is the documented
+  default, authenticated (if at all) by the OTA password. An uploader that
+  takes the offer skips the password; the key authenticates it. With a
+  runtime provisioned key and no `provisioning:` window, whoever provisions
+  the key gains that upload path too; validation warns about the pair.
+- The CLI plaintext fallback until 2027.3.0: without `ota: encryption:` an
+  active attacker who strips the offer or breaks the handshake can make a
+  keyed CLI upload plaintext, with the pre-existing plaintext exposure. A
+  device that requires encryption still refuses that upload.
+- The enablement window: firmware built with a static api key already offers
+  encryption, so turning on `ota: encryption:` is itself an encrypted upload.
+  Older firmware needs one last plaintext upload of an offering build, with
+  the pre-existing plaintext exposure.
+- The web OTA `/update` endpoint alongside encryption. With the `web_server`
+  or `prometheus` component the shared listener is always up, so the endpoint
+  stays reachable and validation warns about that combination;
+  `captive_portal:` alone brings the listener up only for the fallback AP
+  window, which is the intended recovery path, so that is not warned about.
+- CLI retry behavior on transport or MAC failures; every attempt renegotiates
+  a fresh handshake with fresh ephemerals, so retrying does not weaken
+  authentication.
 
 ## Explicitly out of scope
 
