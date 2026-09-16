@@ -29,6 +29,7 @@ class TemplateSwitch final : public switch_::Switch, public Component {
   void write_state(bool state) override;
 
   TemplateLambda<bool> f_;
+  // Codegen only emits these setters to turn them on
   bool optimistic_{false};
   bool assumed_state_{false};
   Trigger<> turn_on_trigger_;
