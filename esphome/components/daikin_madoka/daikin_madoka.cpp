@@ -1,6 +1,7 @@
 #include "daikin_madoka.h"
 
 #include <algorithm>
+#include <cinttypes>
 #include <utility>
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
@@ -180,7 +181,8 @@ void DaikinMadoka::gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_c
       if (!this->parent()->check_addr(param->ble_security.key_notif.bd_addr))
         return;
       esp_ble_confirm_reply(param->ble_security.key_notif.bd_addr, true);
-      ESP_LOGI(TAG, "ESP_GAP_BLE_NC_REQ_EVT, the passkey Notify number: %06u", param->ble_security.key_notif.passkey);
+      ESP_LOGI(TAG, "ESP_GAP_BLE_NC_REQ_EVT, the passkey Notify number: %06" PRIu32,
+               param->ble_security.key_notif.passkey);
       break;
     case ESP_GAP_BLE_AUTH_CMPL_EVT: {
       if (!this->parent()->check_addr(param->ble_security.auth_cmpl.bd_addr))
