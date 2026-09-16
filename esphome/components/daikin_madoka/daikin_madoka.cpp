@@ -1,8 +1,8 @@
 #include "daikin_madoka.h"
 
-#include "esphome/core/log.h"
-#include <utility>
 #include <algorithm>
+#include <utility>
+#include "esphome/core/log.h"
 
 #ifdef USE_ESP32
 
