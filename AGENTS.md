@@ -431,7 +431,17 @@ file does, and it is the authority when they disagree. The most useful starting 
           MyComponent *parent_;
         };
         ```
-        Register with `@automation.register_action("my_component.do_something", MyAction, schema, synchronous=True)`. Use `synchronous=True` for actions that run to completion inside `play()` without deferring. Use `synchronous=False` if the action may suspend/defer execution (e.g. `delay`, `wait_until`, `script.wait`) or store trigger arguments for later use.
+        Register it without writing a builder:
+        ```python
+        automation.register_simple_action(
+            "my_component.do_something", MyAction, schema, synchronous=True
+        )
+        ```
+        The constructor receives the object named by `config[CONF_ID]`. Use `register_bare_action` for a
+        no-argument constructor, `register_parented_action` for a class deriving from `Parented<T>`, and
+        the `@automation.register_action(...)` decorator only when the builder must also set fields.
+
+        Use `synchronous=True` for actions that run to completion inside `play()` without deferring. Use `synchronous=False` if the action may suspend/defer execution (e.g. `delay`, `wait_until`, `script.wait`) or store trigger arguments for later use.
 
     *   **Conditions:**
         ```cpp
@@ -443,7 +453,8 @@ file does, and it is the authority when they disagree. The most useful starting 
           MyComponent *parent_;
         };
         ```
-        Register with `@automation.register_condition("my_component.is_active", MyCondition, schema)`.
+        Register with `automation.register_simple_condition("my_component.is_active", MyCondition, schema)`;
+        `register_bare_condition`, `register_parented_condition` and the decorator follow the action rules.
 
 *   **Type Hints:** Type-hint all function signatures, including test functions and config validators (e.g. `def validate_x(config: ConfigType) -> ConfigType:`, `def test_x() -> None:`). Import `ConfigType` from `esphome.types`.
 
@@ -553,6 +564,7 @@ file does, and it is the authority when they disagree. The most useful starting 
     4.  **Lint:** Run `prek` to ensure code is compliant.
     5.  **Commit:** Commit your changes. There is no strict format for commit messages.
     6.  **Pull Request:** Submit a PR against the `dev` branch. The Pull Request title must start with a `[tag]` prefix. For component work, use the component name (e.g., `[display] Fix bug`, `[abc123] Add new component`); for changes to shared/core code that isn't tied to a single component, use `[core]` (e.g., `[core] Add validator`). Update documentation, examples, and add `CODEOWNERS` entries as needed. Pull requests should always be made using the `.github/PULL_REQUEST_TEMPLATE.md` template - fill out all sections completely without removing any parts of the template.
+    7.  **Comments:** When commenting on GitHub PRs or issues, don't tag contributors, especially bots. Avoid referring to list items (e.g. from reviews) with the form #nn - this will be interpreted by GitHub as a reference to issue or PR nn. Keep comments short and exclude irrelevant details, backstories, restatement of previous comments and anything that is already obvious to the reader.
 
 *   **Documentation Contributions:**
     *   Documentation is hosted in the separate `esphome/esphome.io` repository.
@@ -628,6 +640,9 @@ file does, and it is the authority when they disagree. The most useful starting 
                _request_listener_slot()
                cg.add(hub.register_listener(var))
            ```
+           When several instances each own a list declared at the same size (one per hub of a
+           `MULTI_CONF` component), pass the owning object as the key, `_request_listener_slot(str(hub))`;
+           the define is then the largest count any one key requested instead of the total.
            ```cpp
            #ifdef MY_COMPONENT_LISTENER_COUNT
              void register_listener(MyComponentListener *listener);
@@ -839,7 +854,7 @@ file does, and it is the authority when they disagree. The most useful starting 
         cv.rename_key(
             CONF_OLD_KEY, CONF_NEW_KEY, removed_in="2026.6.0", component="my_component"
         ),
-        cv.Schema({ ... }),
+        cv.Schema({...}),
     )
     ```
     For other deprecations, warn manually during validation:
