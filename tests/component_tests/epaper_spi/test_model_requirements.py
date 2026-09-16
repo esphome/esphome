@@ -145,6 +145,67 @@ def test_border_waveform_in_generated_init_sequence(
     assert re.search(r"60,\s*1,\s*0x1A,", main_cpp)
 
 
+# --- full_update_every / supports_partial_update ------------------------------
+
+
+def test_full_update_every_rejected_for_gray4(
+    set_core_config: SetCoreConfigCallable,
+    set_component_config: Callable[[str, Any], None],
+) -> None:
+    """The gray4 driver has no partial waveform, so full_update_every must stay 1."""
+    _setup_esp32(
+        set_core_config, set_component_config, VARIANT_ESP32S3, "esp32-s3-devkitc-1"
+    )
+    CORE.raw_config = {"psram": {}}
+
+    with pytest.raises(cv.Invalid, match="does not support partial update"):
+        CONFIG_SCHEMA(
+            {
+                "id": "test_display",
+                "model": "seeed-reterminal-sticky-gray4",
+                "full_update_every": 5,
+            }
+        )
+
+
+def test_full_update_every_default_accepted_for_gray4(
+    set_core_config: SetCoreConfigCallable,
+    set_component_config: Callable[[str, Any], None],
+) -> None:
+    """Leaving full_update_every at its default of 1 is fine for the gray4 driver."""
+    _setup_esp32(
+        set_core_config, set_component_config, VARIANT_ESP32S3, "esp32-s3-devkitc-1"
+    )
+    CORE.raw_config = {"psram": {}}
+
+    result = CONFIG_SCHEMA(
+        {"id": "test_display", "model": "seeed-reterminal-sticky-gray4"}
+    )
+
+    assert result["full_update_every"] == 1
+
+
+def test_full_update_every_accepted_for_mono_sticky(
+    set_core_config: SetCoreConfigCallable,
+    set_component_config: Callable[[str, Any], None],
+) -> None:
+    """The mono sibling model supports partial update, unaffected by the gray4 restriction."""
+    _setup_esp32(
+        set_core_config, set_component_config, VARIANT_ESP32S3, "esp32-s3-devkitc-1"
+    )
+    CORE.raw_config = {"psram": {}}
+
+    result = CONFIG_SCHEMA(
+        {
+            "id": "test_display",
+            "model": "seeed-reterminal-sticky",
+            "full_update_every": 5,
+        }
+    )
+
+    assert result["full_update_every"] == 5
+
+
 # --- check_requirements -------------------------------------------------------
 
 

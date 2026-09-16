@@ -79,6 +79,21 @@ DIMENSION_SCHEMA = cv.Schema(
 TRANSFORM_OPTIONS = {CONF_MIRROR_X, CONF_MIRROR_Y, CONF_SWAP_XY}
 
 
+def _full_update_every_validator(model):
+    if model.supports_partial_update:
+        return cv.int_range(1, 255)
+
+    def validate(value):
+        value = cv.int_range(1, 255)(value)
+        if value != 1:
+            raise cv.Invalid(
+                f"{model.name} does not support partial update; full_update_every must be 1"
+            )
+        return value
+
+    return validate
+
+
 def model_schema(config):
     model = MODELS[config[CONF_MODEL]]
     class_name = epaper_spi_ns.class_(model.class_name, EPaperBase)
@@ -105,7 +120,9 @@ def model_schema(config):
                     cv.Required(CONF_MIRROR_Y): cv.boolean,
                 }
             ),
-            cv.Optional(CONF_FULL_UPDATE_EVERY, default=1): cv.int_range(1, 255),
+            cv.Optional(
+                CONF_FULL_UPDATE_EVERY, default=1
+            ): _full_update_every_validator(model),
             model.option(CONF_BUSY_PIN): pins.gpio_input_pin_schema,
             model.option(CONF_CS_PIN): pins.gpio_output_pin_schema,
             model.option(CONF_DC_PIN, fallback=None): pins.gpio_output_pin_schema,

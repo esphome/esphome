@@ -89,7 +89,7 @@ bool HOT EPaperSSD1677Gray4::transfer_data() {
 }
 
 void EPaperSSD1677Gray4::refresh_screen(bool partial) {
-  // Phase 1: full refresh only; grayscale partial refresh is not implemented yet.
+  // Full refresh only; the model schema rejects full_update_every other than 1 for this class.
   ESP_LOGV(TAG, "Four-level refresh");
   this->cmd_data(0x1A, {0x67, 0x00});  // force temperature by OTP
   this->cmd_data(0x22, {0xD7});        // four-level update sequence, panel's OTP waveform

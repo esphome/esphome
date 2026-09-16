@@ -329,7 +329,7 @@ void HOT EPaperBase::draw_pixel_at(int x, int y, Color color) {
   const uint8_t bit_position = x % 8;
   const uint8_t pixel_bit = 0x80 >> bit_position;
   const auto original = this->buffer_[byte_position];
-  if ((color_to_bit(color) == 0)) {
+  if (color_to_mono(color) == 0) {
     this->buffer_[byte_position] = original & ~pixel_bit;
   } else {
     this->buffer_[byte_position] = original | pixel_bit;

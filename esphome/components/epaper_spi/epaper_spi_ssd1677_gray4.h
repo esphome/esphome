@@ -6,21 +6,22 @@
 namespace esphome::epaper_spi {
 
 /**
- * Four-level grayscale for SSD1677 panels (phase 1: full refresh only).
+ * Four-level grayscale for SSD1677 panels. Full refresh only: the panel's OTP grayscale waveform
+ * has no lighter/quicker mode, and master activation redraws the whole panel regardless of the RAM
+ * window, so there is no way to do a partial update without discarding gray levels across the
+ * whole screen, not just the changed area. The model schema rejects full_update_every other than 1
+ * for this driver (see SSD1677Gray4.supports_partial_update in models/ssd1677.py).
  *
  * The SSD1677 has two independent 1-bit RAM planes, normally used for a
- * black/white and a red plane. EPaperMono already writes one of them and
- * clears the other; this class writes image data to both instead, splitting
- * each pixel's 2-bit gray level across them, and triggers the panel's own
- * OTP grayscale waveform instead of the normal monochrome update sequence.
- * No custom LUT upload needed for any currently supported panel, the OTP waveform is used instead.
+ * black/white and a red plane. This class writes image data to both,
+ * splitting each pixel's 2-bit gray level across them, and triggers the
+ * panel's own OTP grayscale waveform instead of the normal monochrome update
+ * sequence. No custom LUT upload needed for any currently supported panel,
+ * the OTP waveform is used instead.
  *
  * The framebuffer therefore packs 2 bits per pixel (4 per byte, most
  * significant pixel first) instead of EPaperMono's 1 bit; everything else -
  * window setup, reset and sleep handling - is inherited unchanged.
- *
- * Partial refresh is not implemented yet: every push rewrites the whole
- * buffer as a full four-level refresh.
  */
 class EPaperSSD1677Gray4 : public EPaperMono {
  public:

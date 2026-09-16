@@ -16,16 +16,25 @@ namespace esphome::epaper_spi {
 /** Delta for when to regard as gray */
 static constexpr uint8_t COLORCONV_GRAY_THRESHOLD = 50;
 
-/** Map RGB color to one of 4 discrete gray levels (2 bits per pixel)
+/** Rec.601 luma (0.299/0.587/0.114 weights, scaled by 256) for optimum perceptual brightness */
+constexpr uint8_t rec601_luma(Color color) {
+  return (uint8_t) ((77u * color.r + 150u * color.g + 29u * color.b + 128u) >> 8);
+}
+
+/** Map RGB color to a single monochrome bit
  *
- * Derives luma using Rec.601 weights (0.299/0.587/0.114, scaled by 256) for optimum perceptual brightness
+ * @param color RGB color to convert from
+ * @return      1 = white, 0 = black
+ */
+constexpr uint8_t color_to_mono(Color color) { return rec601_luma(color) >= 128 ? 1 : 0; }
+
+/** Map RGB color to one of 4 discrete gray levels (2 bits per pixel)
  *
  * @param color RGB color to convert from
  * @return      Gray level: 0 = black, 3 = white
  */
 constexpr uint8_t color_to_gray4(Color color) {
-  const uint8_t luma = (uint8_t) ((77u * color.r + 150u * color.g + 29u * color.b + 128u) >> 8);
-  const uint8_t level = (uint8_t) ((luma + 32u) >> 6);  // quantize 0..255 to 0..3, rounded
+  const uint8_t level = (uint8_t) ((rec601_luma(color) + 32u) >> 6);  // quantize 0..255 to 0..3, rounded
   return level > 3 ? 3 : level;
 }
 
