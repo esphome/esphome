@@ -1,9 +1,9 @@
 from esphome import pins
 import esphome.codegen as cg
 from esphome.components.one_wire import OneWireBus
-from esphome.config_helpers import filter_source_files_from_platform
+from esphome.config_helpers import filter_source_files_from_defines
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, CONF_PIN, PlatformFramework
+from esphome.const import CONF_ID, CONF_PIN
 from esphome.core import CORE
 from esphome.types import ConfigType
 
@@ -12,6 +12,7 @@ from .. import gpio_ns
 CODEOWNERS = ["@ssieb"]
 
 CONF_USE_RMT = "use_rmt"
+RMT_DEFINE = "USE_ONE_WIRE_RMT"
 
 GPIOOneWireBus = gpio_ns.class_("GPIOOneWireBus", OneWireBus, cg.Component)
 
@@ -44,7 +45,7 @@ async def to_code(config: ConfigType) -> None:
         # This define only controls whether RMT support is compiled into the
         # firmware. The transport selection itself is stored per bus instance.
         include_builtin_idf_component("esp_driver_rmt")
-        cg.add_define("USE_ONE_WIRE_RMT")
+        cg.add_define(RMT_DEFINE)
 
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
@@ -54,20 +55,10 @@ async def to_code(config: ConfigType) -> None:
     cg.add(var.set_use_rmt(use_rmt))
 
 
-FILTER_SOURCE_FILES = filter_source_files_from_platform(
+# The GPIO implementation is portable and must always be compiled. Only the
+# ESP32-specific RMT transport is conditional on an RMT-enabled bus existing.
+FILTER_SOURCE_FILES = filter_source_files_from_defines(
     {
-        "gpio_one_wire_rmt.cpp": {
-            PlatformFramework.ESP32_ARDUINO,
-            PlatformFramework.ESP32_IDF,
-        },
-        "gpio_one_wire.cpp": {
-            PlatformFramework.ESP32_ARDUINO,
-            PlatformFramework.ESP32_IDF,
-            PlatformFramework.ESP8266_ARDUINO,
-            PlatformFramework.BK72XX_ARDUINO,
-            PlatformFramework.RTL87XX_ARDUINO,
-            PlatformFramework.LN882X_ARDUINO,
-            PlatformFramework.RP2040_ARDUINO,
-        },
+        "gpio_one_wire_rmt.cpp": RMT_DEFINE,
     }
 )

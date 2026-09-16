@@ -66,14 +66,28 @@ def test_mixed_buses_select_transport_independently(
     assert not _rmt_driver_excluded()
 
 
-def test_rmt_source_is_kept_for_esp32(
+def test_rmt_source_is_kept_when_enabled(
     generate_main: Callable[[str | Path], str],
 ) -> None:
     generate_main(HERE / "test_gpio_one_wire_esp32_idf_use_rmt_true.yaml")
 
     from esphome.components.gpio.one_wire import FILTER_SOURCE_FILES
 
-    assert "gpio_one_wire_rmt.cpp" not in FILTER_SOURCE_FILES()
+    excluded = FILTER_SOURCE_FILES()
+    assert "gpio_one_wire_rmt.cpp" not in excluded
+    assert "gpio_one_wire.cpp" not in excluded
+
+
+def test_rmt_source_is_excluded_when_unused(
+    generate_main: Callable[[str | Path], str],
+) -> None:
+    generate_main(HERE / "test_gpio_one_wire_esp32_idf.yaml")
+
+    from esphome.components.gpio.one_wire import FILTER_SOURCE_FILES
+
+    excluded = FILTER_SOURCE_FILES()
+    assert "gpio_one_wire_rmt.cpp" in excluded
+    assert "gpio_one_wire.cpp" not in excluded
 
 
 def test_use_rmt_on_esp8266_is_rejected(

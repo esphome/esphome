@@ -4,7 +4,9 @@
 
 #include <cstring>
 #include <driver/gpio.h>
+#include <esp_err.h>
 #include <esp_heap_caps.h>
+#include <esp_idf_version.h>
 
 #include "esphome/core/log.h"
 
@@ -55,6 +57,12 @@ static bool IRAM_ATTR rx_done_cb(rmt_channel_handle_t /*channel*/, const rmt_rx_
   return task_woken;
 }
 
+void GPIOOneWireBus::fail_rmt_(esp_err_t error, const LogString *reason) {
+  ESP_LOGE(TAG, "RMT driver failed: %s", esp_err_to_name(error));
+  this->destroy_rmt_();
+  this->mark_failed(reason);
+}
+
 void GPIOOneWireBus::destroy_rmt_() {
   if (this->tx_bytes_encoder_ != nullptr) {
     rmt_del_encoder(this->tx_bytes_encoder_);
@@ -89,16 +97,16 @@ void GPIOOneWireBus::setup_rmt_() {
   bytes_enc_cfg.bit0 = make_symbol(SLOT_START + SLOT_BIT, 0, SLOT_RECOVERY, 1);
   bytes_enc_cfg.bit1 = make_symbol(SLOT_START, 0, SLOT_BIT + SLOT_RECOVERY, 1);
   bytes_enc_cfg.flags.msb_first = 0;
-  if (rmt_new_bytes_encoder(&bytes_enc_cfg, &this->tx_bytes_encoder_) != ESP_OK) {
-    this->destroy_rmt_();
-    this->mark_failed(LOG_STR("Failed to create RMT bytes encoder"));
+  esp_err_t error = rmt_new_bytes_encoder(&bytes_enc_cfg, &this->tx_bytes_encoder_);
+  if (error != ESP_OK) {
+    this->fail_rmt_(error, LOG_STR("Failed to create RMT bytes encoder"));
     return;
   }
 
   rmt_copy_encoder_config_t copy_enc_cfg{};
-  if (rmt_new_copy_encoder(&copy_enc_cfg, &this->tx_copy_encoder_) != ESP_OK) {
-    this->destroy_rmt_();
-    this->mark_failed(LOG_STR("Failed to create RMT copy encoder"));
+  error = rmt_new_copy_encoder(&copy_enc_cfg, &this->tx_copy_encoder_);
+  if (error != ESP_OK) {
+    this->fail_rmt_(error, LOG_STR("Failed to create RMT copy encoder"));
     return;
   }
 
@@ -119,23 +127,23 @@ void GPIOOneWireBus::setup_rmt_() {
 
   auto gpio_num = static_cast<gpio_num_t>(this->t_pin_->get_pin());
 
-  // Create RX before TX. In loop-back mode RX owns the GPIO first and TX is
-  // then attached to the same pin.
+  // Create RX before TX. The TX channel is then attached to the same GPIO and
+  // configured as open-drain so the device can pull the 1-wire bus low.
   rmt_rx_channel_config_t rx_cfg{};
   rx_cfg.clk_src = RMT_CLK_SRC_DEFAULT;
   rx_cfg.resolution_hz = RMT_RESOLUTION_HZ;
   rx_cfg.gpio_num = gpio_num;
   rx_cfg.mem_block_symbols = SOC_RMT_MEM_WORDS_PER_CHANNEL;
-  if (rmt_new_rx_channel(&rx_cfg, &this->rx_channel_) != ESP_OK) {
-    this->destroy_rmt_();
-    this->mark_failed(LOG_STR("Failed to create RMT RX channel"));
+  error = rmt_new_rx_channel(&rx_cfg, &this->rx_channel_);
+  if (error != ESP_OK) {
+    this->fail_rmt_(error, LOG_STR("Failed to create RMT RX channel"));
     return;
   }
 
   rmt_rx_event_callbacks_t callbacks{.on_recv_done = rx_done_cb};
-  if (rmt_rx_register_event_callbacks(this->rx_channel_, &callbacks, this->receive_queue_) != ESP_OK) {
-    this->destroy_rmt_();
-    this->mark_failed(LOG_STR("Failed to register RMT RX callback"));
+  error = rmt_rx_register_event_callbacks(this->rx_channel_, &callbacks, this->receive_queue_);
+  if (error != ESP_OK) {
+    this->fail_rmt_(error, LOG_STR("Failed to register RMT RX callback"));
     return;
   }
 
@@ -145,33 +153,46 @@ void GPIOOneWireBus::setup_rmt_() {
   tx_cfg.gpio_num = gpio_num;
   tx_cfg.mem_block_symbols = SOC_RMT_MEM_WORDS_PER_CHANNEL;
   tx_cfg.trans_queue_depth = 4;
+#if ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(6, 0, 0)
   tx_cfg.flags.io_loop_back = true;
   tx_cfg.flags.io_od_mode = true;
-  if (rmt_new_tx_channel(&tx_cfg, &this->tx_channel_) != ESP_OK) {
-    this->destroy_rmt_();
-    this->mark_failed(LOG_STR("Failed to create RMT TX channel"));
+#endif
+  error = rmt_new_tx_channel(&tx_cfg, &this->tx_channel_);
+  if (error != ESP_OK) {
+    this->fail_rmt_(error, LOG_STR("Failed to create RMT TX channel"));
     return;
   }
+
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
+  // IDF 6 removed the RMT loop-back/open-drain channel flags. Configure the
+  // GPIO explicitly, matching the current ESPHome RMT transmitter path.
+  gpio_od_enable(gpio_num);
+  gpio_input_enable(gpio_num);
+#endif
 
   gpio_set_pull_mode(gpio_num, GPIO_PULLUP_ONLY);
 
-  if (rmt_enable(this->rx_channel_) != ESP_OK) {
-    this->destroy_rmt_();
-    this->mark_failed(LOG_STR("Failed to enable RMT RX channel"));
+  error = rmt_enable(this->rx_channel_);
+  if (error != ESP_OK) {
+    this->fail_rmt_(error, LOG_STR("Failed to enable RMT RX channel"));
     return;
   }
-  if (rmt_enable(this->tx_channel_) != ESP_OK) {
-    this->destroy_rmt_();
-    this->mark_failed(LOG_STR("Failed to enable RMT TX channel"));
+  error = rmt_enable(this->tx_channel_);
+  if (error != ESP_OK) {
+    this->fail_rmt_(error, LOG_STR("Failed to enable RMT TX channel"));
     return;
   }
 
   // Leave the bus released (high) before the first reset/search cycle.
   rmt_symbol_word_t release = make_symbol(1, 1, 0, 1);
-  if (rmt_transmit(this->tx_channel_, this->tx_copy_encoder_, &release, sizeof(release), &TX_CONFIG) != ESP_OK ||
-      rmt_tx_wait_all_done(this->tx_channel_, RMT_OPERATION_TIMEOUT_MS) != ESP_OK) {
-    this->destroy_rmt_();
-    this->mark_failed(LOG_STR("Failed to release 1-wire bus"));
+  error = rmt_transmit(this->tx_channel_, this->tx_copy_encoder_, &release, sizeof(release), &TX_CONFIG);
+  if (error != ESP_OK) {
+    this->fail_rmt_(error, LOG_STR("Failed to release 1-wire bus"));
+    return;
+  }
+  error = rmt_tx_wait_all_done(this->tx_channel_, RMT_OPERATION_TIMEOUT_MS);
+  if (error != ESP_OK) {
+    this->fail_rmt_(error, LOG_STR("Failed to release 1-wire bus"));
     return;
   }
 

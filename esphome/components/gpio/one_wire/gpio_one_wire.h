@@ -55,6 +55,7 @@ class GPIOOneWireBus final : public one_wire::OneWireBus, public Component {
 
   void setup_rmt_();
   void destroy_rmt_();
+  void fail_rmt_(esp_err_t error, const LogString *reason);
   int reset_rmt_();
   void write8_rmt_(uint8_t val);
   void write64_rmt_(uint64_t val);
