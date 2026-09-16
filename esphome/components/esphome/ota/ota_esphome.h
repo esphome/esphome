@@ -44,7 +44,7 @@ class ESPHomeOTAComponent final : public ota::OTAComponent {
   }
 #endif  // USE_OTA_PASSWORD
 
-#if defined(USE_OTA_ENCRYPTION) && !defined(USE_OTA_ENCRYPTION_FROM_API)
+#if defined(USE_OTA_ENCRYPTION) && !defined(USE_OTA_ENCRYPTION_PROVISIONED)
   /// psk points at 32 bytes that live in flash for the life of the program
   void set_noise_psk(const uint8_t *psk) { this->noise_ctx_.set_psk(psk); }
 #endif
@@ -86,8 +86,12 @@ class ESPHomeOTAComponent final : public ota::OTAComponent {
     bool writing{false};    // a produced handshake frame is still being flushed
     uint8_t frame_buf[noise::FRAME_HEADER_SIZE + 1 + noise::MAX_HANDSHAKE_SIZE];
   };
-  // The api server's live context when the api has encryption, else our own
+  // Our own context for a build time key, the api server's live one for a
+  // runtime provisioned key
   const noise::NoiseContext &noise_context_() const;
+#ifdef USE_OTA_ENCRYPTION_PROVISIONED
+  bool has_noise_psk_() const;
+#endif
   bool noise_start_session_(uint8_t server_feature_flags);
   bool handle_noise_handshake_();
   bool noise_try_read_frame_();
@@ -148,7 +152,7 @@ class ESPHomeOTAComponent final : public ota::OTAComponent {
   RAMUniquePtr<uint8_t[]> auth_buf_;
 #endif  // USE_OTA_PASSWORD
 #ifdef USE_OTA_ENCRYPTION
-#ifndef USE_OTA_ENCRYPTION_FROM_API
+#ifndef USE_OTA_ENCRYPTION_PROVISIONED
   noise::NoiseContext noise_ctx_;
 #endif
   RAMUniquePtr<NoiseSession> noise_;

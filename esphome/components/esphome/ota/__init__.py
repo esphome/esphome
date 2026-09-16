@@ -306,22 +306,19 @@ async def to_code(config: ConfigType) -> None:
         cg.add_define("USE_OTA_PARTITIONS")
 
     # One key per device: an api encryption block supplies it (static or
-    # runtime) and offers; the ota block only adds the requirement
+    # runtime) and offers; the ota block only adds the requirement. A build
+    # time key is the ota component's own pointer, never borrowed from the
+    # api server: safe mode boots without one
     api_conf = CORE.config.get(CONF_API) or {}
-    encryption_conf = config.get(CONF_ENCRYPTION)
-    own_key = None
-    if encryption_conf is not None and static_encryption_key(api_conf) is None:
-        own_key = encryption_conf[CONF_KEY]
-    if own_key is not None:
+    if key := static_encryption_key(config) or static_encryption_key(api_conf):
         cg.add_define("USE_OTA_ENCRYPTION")
-        cg.add(var.set_noise_psk(new_psk_progmem(config[CONF_ID], own_key)))
+        cg.add(var.set_noise_psk(new_psk_progmem(config[CONF_ID], key)))
     elif CONF_ENCRYPTION in api_conf:
+        # The key arrives at runtime and lives in the api server, so the
+        # offer has to look for it
         cg.add_define("USE_OTA_ENCRYPTION")
-        cg.add_define("USE_OTA_ENCRYPTION_FROM_API")
-        if static_encryption_key(api_conf) is None:
-            # The key arrives at runtime, so the offer has to look for it
-            cg.add_define("USE_OTA_ENCRYPTION_PROVISIONED")
-    if encryption_conf is not None:
+        cg.add_define("USE_OTA_ENCRYPTION_PROVISIONED")
+    if CONF_ENCRYPTION in config:
         cg.add_define("USE_OTA_ENCRYPTION_REQUIRED")
 
     # Build flag so lwip_fast_select.c (a .c file that can't include defines.h) sees it.

@@ -15,6 +15,11 @@ import os
 from pathlib import Path
 import struct
 
+# Must match esphome::safe_mode::RTC_KEY in safe_mode.h
+_SAFE_MODE_RTC_KEY = 233825507
+# Must match esphome::safe_mode::SafeModeComponent::ENTER_SAFE_MODE_MAGIC
+_ENTER_SAFE_MODE_MAGIC = 0x5AFE5AFE
+
 
 def host_prefs_path(device_name: str) -> Path:
     """Return the on-disk prefs file path for a host-platform device.
@@ -55,3 +60,13 @@ def write_host_pref(device_name: str, key: int, data: bytes) -> Path:
     Returns the path that was written.
     """
     return write_host_prefs(device_name, {key: data})
+
+
+def force_safe_mode(device_name: str) -> Path:
+    """Make the next boot of a host-platform device enter safe mode.
+
+    Replaces the file's contents. Returns the path that was written.
+    """
+    return write_host_pref(
+        device_name, _SAFE_MODE_RTC_KEY, struct.pack("<I", _ENTER_SAFE_MODE_MAGIC)
+    )
