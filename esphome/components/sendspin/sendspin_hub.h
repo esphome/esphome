@@ -10,6 +10,10 @@
 #include "esphome/core/preferences.h"
 #include "esphome/core/version.h"
 
+#ifdef USE_MDNS_SUPPORTS_ENABLE_DISABLE
+#include "esphome/components/mdns/mdns_component.h"
+#endif
+
 #include <sendspin/client.h>
 #include <sendspin/config.h>
 #include <sendspin/types.h>
@@ -134,6 +138,10 @@ class SendspinHub final : public Component,
   void set_manufacturer(const char *manufacturer) { this->manufacturer_ = manufacturer; }
   void set_model(const char *model) { this->model_ = model; }
   void set_firmware_version(const char *firmware_version) { this->firmware_version_ = firmware_version; }
+
+#ifdef USE_MDNS_SUPPORTS_ENABLE_DISABLE
+  void set_mdns(mdns::MDNSComponent *mdns) { this->mdns_ = mdns; }
+#endif
 
   // --- Sendspin role specific methods ---
 
@@ -287,6 +295,12 @@ class SendspinHub final : public Component,
   const char *manufacturer_{"ESPHome"};
   const char *model_{nullptr};  // nullptr reports the device name instead
   const char *firmware_version_{ESPHOME_VERSION};
+
+#ifdef USE_MDNS_SUPPORTS_ENABLE_DISABLE
+  mdns::MDNSComponent *mdns_{nullptr};
+  uint32_t mdns_enable_attempt_ms_{0};
+  bool mdns_advertised_{false};
+#endif
 };
 
 /// @brief Base class for all sendspin subcomponents.
