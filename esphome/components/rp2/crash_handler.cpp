@@ -55,8 +55,7 @@ namespace esphome::rp2 {
 
 static const char *const TAG = "rp2.crash";
 
-// Placed in .noinit so BSS zero-init cannot race with crash_handler_read_and_clear().
-// The valid field is explicitly cleared in crash_handler_read_and_clear() instead.
+// Filled from the watchdog scratch registers on the first read.
 static struct CrashData {
   bool valid;
   uint32_t pc;
@@ -64,7 +63,7 @@ static struct CrashData {
   uint32_t sp;
   uint32_t backtrace[MAX_BACKTRACE];
   uint8_t backtrace_count;
-} s_crash_data __attribute__((section(".noinit")));  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+} s_crash_data;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 // Logger::pre_setup() logs the record before App.pre_setup() reaches
 // arch_init(), so the first caller reads it and later calls are no-ops.

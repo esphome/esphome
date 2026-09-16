@@ -173,9 +173,10 @@ static const char *const TAG = "esp32.crash";
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
 static uint32_t s_current_build_time = static_cast<uint32_t>(ESPHOME_BUILD_TIME);
 
-// Logger::pre_setup() logs the record before App.pre_setup() reaches
-// arch_init(), so has_data() reads on demand; re-reading is harmless.
-void crash_handler_read_and_clear() {
+// Validate the NOINIT record. Runs on every has_data() call; re-running is
+// harmless and the magic is left alone so the record survives an OTA
+// rollback reboot, crash_handler_clear() drops it once an API client has it.
+static void read_crash_data() {
   if (s_raw_crash_data.magic == CRASH_MAGIC && s_raw_crash_data.version == CRASH_DATA_VERSION) {
     s_crash_data_valid = true;
     // Clamp counts to prevent out-of-bounds reads from corrupt .noinit data
@@ -196,12 +197,10 @@ void crash_handler_read_and_clear() {
       s_raw_crash_data.other_reg_frame_count = s_raw_crash_data.other_backtrace_count;
 #endif
   }
-  // Don't clear magic here — crash data must survive OTA rollback reboots.
-  // Magic is cleared by crash_handler_clear() after an API client receives the data.
 }
 
 bool crash_handler_has_data() {
-  crash_handler_read_and_clear();
+  read_crash_data();
   return s_crash_data_valid;
 }
 
