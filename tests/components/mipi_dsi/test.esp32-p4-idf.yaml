@@ -11,8 +11,11 @@ display:
     model: JC1060P470
     enable_pin: GPIO22
 
-#light:
-  #- platform: mipi_dsi
-    #id: backlight_id
+light:
+  - platform: mipi_dsi
+    id: backlight_id
+    address: 0x45
+    pwm_register: 0x96
+    inverted: true
 
 psram:

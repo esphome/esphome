@@ -45,6 +45,6 @@ i2c:
   scan: true
   frequency: 400kHz
 
-#light:
-  #- platform: mipi_dsi
-    #id: backlight_id
+light:
+  - platform: mipi_dsi
+    id: backlight_id
