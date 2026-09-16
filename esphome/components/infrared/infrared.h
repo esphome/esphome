@@ -119,7 +119,8 @@ class Infrared : public Component, public EntityBase, public remote_base::Remote
   void dump_config() override;
   float get_setup_priority() const override { return setup_priority::AFTER_CONNECTION; }
 
-  /// Set the remote receiver component
+  /// Set the remote receiver component; the listener registration happens from codegen, see
+  /// remote_base.attach_receiver
   void set_receiver(remote_base::RemoteReceiverBase *receiver) { this->receiver_ = receiver; }
   /// Set the remote transmitter component
   void set_transmitter(remote_base::RemoteTransmitterBase *transmitter) { this->transmitter_ = transmitter; }

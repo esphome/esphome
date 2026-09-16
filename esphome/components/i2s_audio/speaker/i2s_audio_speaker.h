@@ -16,6 +16,8 @@
 #include "esphome/core/gpio.h"
 #include "esphome/core/helpers.h"
 
+#include <gain.h>  // esp-audio-libs
+
 namespace esphome::i2s_audio {
 
 // Shared constants used by both standard and SPDIF speaker implementations
@@ -77,19 +79,23 @@ class I2SAudioSpeakerBase : public I2SAudioOut, public speaker::Speaker, public 
 
   bool has_buffered_data() const override;
 
-  /// @brief Sets the volume of the speaker. Uses the speaker's configured audio dac component. If unavailble, it is
-  /// implemented as a software volume control. Overrides the default setter to convert the floating point volume to a
-  /// Q15 fixed-point factor.
+  /// @brief Sets the volume of the speaker. Uses the speaker's configured audio dac component. If unavailable, it is
+  /// implemented as a software volume control. Overrides the default setter to convert the volume to a dB target for
+  /// the gain ramp.
   /// @param volume between 0.0 and 1.0
   void set_volume(float volume) override;
 
-  /// @brief Mutes or unmute the speaker. Uses the speaker's configured audio dac component. If unavailble, it is
-  /// implemented as a software volume control. Overrides the default setter to convert the floating point volume to a
-  /// Q15 fixed-point factor.
+  /// @brief Mutes or unmutes the speaker. Uses the speaker's configured audio dac component. If unavailable, it is
+  /// implemented as a software volume control. Overrides the default setter to post the mute state to the gain ramp.
   /// @param mute_state true for muting, false for unmuting
   void set_mute_state(bool mute_state) override;
 
  protected:
+  /// @brief Posts the ramp target derived from the current volume and mute state. No-op when an audio dac owns
+  /// volume. Main loop only.
+  /// @param rate_samples Samples the ramp takes per dB of change; 0 adopts the target at once
+  void post_software_gain_(uint32_t rate_samples);
+
   /// @brief FreeRTOS task entry point. Casts params to I2SAudioSpeakerBase and calls run_speaker_task_().
   /// @param params I2SAudioSpeakerBase component pointer
   static void speaker_task(void *params);
@@ -128,7 +134,8 @@ class I2SAudioSpeakerBase : public I2SAudioOut, public speaker::Speaker, public 
   /// @brief Called in loop() when the task has stopped. Override for mode-specific cleanup.
   virtual void on_task_stopped() {}
 
-  /// @brief Apply software volume control using Q15 fixed-point scaling.
+  /// @brief Apply software volume control by running the samples through the gain ramp. Called from the
+  /// speaker task only.
   /// @param data Pointer to audio sample data (modified in place)
   /// @param bytes_read Number of bytes of audio data
   void apply_software_volume_(uint8_t *data, size_t bytes_read);
@@ -155,7 +162,9 @@ class I2SAudioSpeakerBase : public I2SAudioOut, public speaker::Speaker, public 
 
   bool pause_state_{false};
 
-  int32_t q31_volume_factor_{INT32_MAX};
+  // Smooths software gain changes. The main loop posts targets, the speaker task processes;
+  // GainRamp's mailbox makes that safe. The main loop is the only poster.
+  esp_audio_libs::gain::GainRamp gain_ramp_;
 
   audio::AudioStreamInfo current_stream_info_;  // Format of the audio in the ring buffer (the I2S input)
   // Format actually clocked out of the I2S peripheral. Same channel count and sample rate as
