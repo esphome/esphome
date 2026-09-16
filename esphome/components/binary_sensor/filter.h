@@ -53,6 +53,9 @@ class DelayedOnOffFilter final : public Filter {
 
 class DelayedOnFilter : public Filter {
  public:
+  // User provided, not "= default": `new(p) DelayedOnFilter()` would zero-fill .bss that is already zero.
+  DelayedOnFilter() {}
+
   optional<bool> new_value(bool value) override;
 
   template<typename T> void set_delay(T delay) { this->delay_ = delay; }
@@ -63,6 +66,9 @@ class DelayedOnFilter : public Filter {
 
 class DelayedOffFilter : public Filter {
  public:
+  // User provided, not "= default": `new(p) DelayedOffFilter()` would zero-fill .bss that is already zero.
+  DelayedOffFilter() {}
+
   optional<bool> new_value(bool value) override;
 
   template<typename T> void set_delay(T delay) { this->delay_ = delay; }
@@ -143,6 +149,8 @@ class StatelessLambdaFilter : public Filter {
 
 class SettleFilter : public Filter {
  public:
+  // User provided, not "= default": `new(p) SettleFilter()` would zero-fill .bss that is already zero.
+  SettleFilter() {}
   optional<bool> new_value(bool value) override;
 
   template<typename T> void set_delay(T delay) { this->delay_ = delay; }

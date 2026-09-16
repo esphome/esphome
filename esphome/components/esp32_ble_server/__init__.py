@@ -597,7 +597,7 @@ async def to_code(config):
     cg.add(parent.advertising_set_appearance(config[CONF_APPEARANCE]))
     cg.add(var.set_max_clients(config[CONF_MAX_CLIENTS]))
     # Only advertise for the server itself when the configuration gives clients something to
-    # find. A server that is auto-loaded purely to host a runtime service (esp32_improv) stays
+    # find. A server that is auto-loaded purely to host a runtime service (improv_ble) stays
     # silent until that service asks for advertising.
     cg.add(
         var.set_advertising_required(
