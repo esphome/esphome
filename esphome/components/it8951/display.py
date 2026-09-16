@@ -62,6 +62,8 @@ VCOM_REGISTER_OPTIONS = (VCOM_REGISTER_DEFAULT, VCOM_REGISTER_ALT)
 it8951_ns = cg.esphome_ns.namespace("it8951")
 IT8951Display = it8951_ns.class_("IT8951Display", display.Display, spi.SPIDevice)
 IT8951UpdateAction = it8951_ns.class_("IT8951UpdateAction", automation.Action)
+IT8951LoadAction = it8951_ns.class_("IT8951LoadAction", automation.Action)
+IT8951RefreshAction = it8951_ns.class_("IT8951RefreshAction", automation.Action)
 
 # Hardware waveform modes exposed to YAML. Strings are mapped to the C++
 # UpdateMode enum so the runtime can store the mode as a uint16_t rather
@@ -436,6 +438,37 @@ async def it8951_update_action_to_code(
     template_arg: cg.TemplateArguments,
     args: TemplateArgsType,
 ) -> MockObj:
+    display_var = await cg.get_variable(config[CONF_ID])
+    var = cg.new_Pvariable(action_id, template_arg, display_var)
+    if mode := config.get(CONF_MODE):
+        mode = await cg.templatable(mode, args, UpdateMode)
+        cg.add(var.set_mode(mode))
+    return var
+
+
+@automation.register_action(
+    "it8951.load",
+    IT8951LoadAction,
+    automation.maybe_simple_id({cv.Required(CONF_ID): cv.use_id(IT8951Display)}),
+    synchronous=True,
+)
+async def it8951_load_action_to_code(config, action_id, template_arg, args):
+    display_var = await cg.get_variable(config[CONF_ID])
+    return cg.new_Pvariable(action_id, template_arg, display_var)
+
+
+@automation.register_action(
+    "it8951.refresh",
+    IT8951RefreshAction,
+    automation.maybe_simple_id(
+        {
+            cv.Required(CONF_ID): cv.use_id(IT8951Display),
+            cv.Optional(CONF_MODE): cv.templatable(update_mode),
+        }
+    ),
+    synchronous=True,
+)
+async def it8951_refresh_action_to_code(config, action_id, template_arg, args):
     display_var = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, display_var)
     if mode := config.get(CONF_MODE):

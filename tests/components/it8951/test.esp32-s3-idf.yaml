@@ -107,3 +107,17 @@ interval:
           id: m5epd_display
           mode: A2
       - it8951.update: m5epd_display
+  # Exercise the load/refresh split: preload the framebuffer into controller
+  # RAM, then present it later with a single waveform (explicit-mode, bare,
+  # and is_idle()-gated forms).
+  - interval: 60s
+    then:
+      - it8951.load: m5epd_display
+      - wait_until:
+          condition:
+            lambda: 'return id(m5epd_display).is_idle();'
+          timeout: 15s
+      - it8951.refresh:
+          id: m5epd_display
+          mode: GC16
+      - it8951.refresh: m5epd_display
