@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <utility>
+#include <vector>
 #include "esphome/core/log.h"
 
 #ifdef USE_ESP32
@@ -318,12 +319,9 @@ void DaikinMadoka::process_incoming_chunk_(const Chunk &chk) {
       return;
   }
 
-  if (chunk_id == 0) {
-    this->partial_incoming_message_.data.reserve(stripped[0]);
+  for (uint8_t byte : stripped) {
+    this->partial_incoming_message_.data.push_back(byte);
   }
-
-  this->partial_incoming_message_.data.insert(this->partial_incoming_message_.data.end(), stripped.begin(),
-                                              stripped.end());
   this->partial_incoming_message_.expected_chunk_id++;
 
   if (this->partial_incoming_message_.data.size() > this->partial_incoming_message_.data[0]) {

@@ -2,7 +2,6 @@
 
 #include <array>
 #include <span>
-#include <vector>
 
 #include "esphome/components/ble_client/ble_client.h"
 #include "esphome/components/climate/climate.h"
@@ -33,6 +32,8 @@ namespace espbt = esphome::esp32_ble_tracker;
 
 static const uint8_t MAX_CHUNK_SIZE = 20;
 static const uint8_t BLE_SEND_MAX_RETRIES = 5;
+// A message's leading length byte is a uint8_t, so a full message is at most 255 bytes
+static const uint16_t MAX_MESSAGE_SIZE = 255;
 // Chunks are fully drained every loop; a 255-byte message spans at most 14 chunks
 static const uint8_t RECEIVED_CHUNKS_QUEUE_SIZE = 16;
 // Deepest backlog is one control() burst (4) plus a full update() poll (5)
@@ -57,9 +58,9 @@ class DaikinMadoka : public climate::Climate, public esphome::ble_client::BLECli
   bool should_update_ = false;
   StaticRingBuffer<Chunk, RECEIVED_CHUNKS_QUEUE_SIZE> received_chunks_;
   struct {
-    std::vector<uint8_t> data = {};
+    StaticVector<uint8_t, MAX_MESSAGE_SIZE> data;
     size_t expected_chunk_id = 0;
-  } partial_incoming_message_ = {};
+  } partial_incoming_message_;
   StaticRingBuffer<Query, QUERY_QUEUE_SIZE> query_queue_;
   bool pending_message_ = false;
   uint16_t notify_handle_{0};
