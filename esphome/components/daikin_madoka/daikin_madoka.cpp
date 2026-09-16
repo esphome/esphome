@@ -266,7 +266,10 @@ void DaikinMadoka::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t
       Chunk chk{};
       chk.length = param->notify.value_len;
       std::copy(param->notify.value, param->notify.value + param->notify.value_len, chk.data.begin());
-      this->received_chunks_.push(chk);
+      if (!this->received_chunks_.push(chk)) {
+        ESP_LOGW(TAG, "Received chunks queue full, dropping chunk");
+        break;
+      }
       this->enable_loop();
       break;
     }

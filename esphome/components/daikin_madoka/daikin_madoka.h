@@ -8,6 +8,7 @@
 #include "esphome/components/climate/climate.h"
 #include "esphome/components/esp32_ble_tracker/esp32_ble_tracker.h"
 #include "esphome/core/component.h"
+#include "esphome/core/helpers.h"
 
 #ifdef USE_ESP32
 
@@ -29,6 +30,8 @@ namespace espbt = esphome::esp32_ble_tracker;
 
 static const uint8_t MAX_CHUNK_SIZE = 20;
 static const uint8_t BLE_SEND_MAX_RETRIES = 5;
+// Chunks are fully drained every loop; a 255-byte message spans at most 14 chunks
+static const uint8_t RECEIVED_CHUNKS_QUEUE_SIZE = 16;
 
 static const espbt::ESPBTUUID MADOKA_SERVICE_UUID = espbt::ESPBTUUID::from_raw("2141e110-213a-11e6-b67b-9e71128cae77");
 static const espbt::ESPBTUUID NOTIFY_CHARACTERISTIC_UUID =
@@ -84,7 +87,7 @@ struct Chunk {
 class DaikinMadoka : public climate::Climate, public esphome::ble_client::BLEClientNode, public PollingComponent {
  protected:
   bool should_update_ = false;
-  VectorFIFO<Chunk> received_chunks_ = {};
+  StaticRingBuffer<Chunk, RECEIVED_CHUNKS_QUEUE_SIZE> received_chunks_;
   struct {
     std::vector<uint8_t> data = {};
     size_t expected_chunk_id = 0;
