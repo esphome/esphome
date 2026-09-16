@@ -710,6 +710,13 @@ class Display : public PollingComponent {
 
   DisplayRotation get_rotation() const { return this->rotation_; }
 
+  /// True when draw_pixel_at() swaps x and y before writing, so pixels that are
+  /// neighbours along x land a row apart in the frame buffer. Callers drawing
+  /// many pixels use it to pick the loop order that keeps the writes sequential.
+  virtual bool pixel_axes_swapped() const {
+    return this->rotation_ == DISPLAY_ROTATION_90_DEGREES || this->rotation_ == DISPLAY_ROTATION_270_DEGREES;
+  }
+
   /** Get the type of display that the buffer corresponds to. In case of dynamically configurable displays,
    * returns the type the display is currently configured to.
    */

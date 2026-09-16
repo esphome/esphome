@@ -602,6 +602,9 @@ class MipiSpiBuffer
 #endif
   }
 
+  // With hardware rotation the buffer is written in drawn coordinates.
+  bool pixel_axes_swapped() const override { return !HAS_HARDWARE_ROTATION && display::Display::pixel_axes_swapped(); }
+
   // Draw a pixel at the given coordinates.
   void draw_pixel_at(int x, int y, Color color) override {
     if (this->is_point_clipped(x, y))

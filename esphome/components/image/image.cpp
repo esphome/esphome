@@ -6,110 +6,108 @@
 namespace esphome::image {
 
 void Image::draw(int x, int y, display::Display *display, Color color_on, Color color_off) {
-  int img_x0 = 0;
-  int img_y0 = 0;
-  int w = width_;
-  int h = height_;
+  int x_start = 0;
+  int y_start = 0;
+  int x_end = width_;
+  int y_end = height_;
 
   auto clipping = display->get_clipping();
   if (clipping.is_set()) {
     if (clipping.x > x)
-      img_x0 += clipping.x - x;
+      x_start += clipping.x - x;
     if (clipping.y > y)
-      img_y0 += clipping.y - y;
-    if (w > clipping.x2() - x)
-      w = clipping.x2() - x;
-    if (h > clipping.y2() - y)
-      h = clipping.y2() - y;
+      y_start += clipping.y - y;
+    if (x_end > clipping.x2() - x)
+      x_end = clipping.x2() - x;
+    if (y_end > clipping.y2() - y)
+      y_end = clipping.y2() - y;
   }
 
-  // Pixel data and frame buffers are row-major, so walking rows keeps both the
-  // image read and the frame buffer write sequential. A rotated display swaps
-  // x and y before the write, so there the columns are walked to keep the
-  // write sequential; a strided write costs more than a strided read.
-  const auto rotation = display->get_rotation();
-  if (rotation == display::DISPLAY_ROTATION_0_DEGREES || rotation == display::DISPLAY_ROTATION_180_DEGREES) {
-    this->draw_<true>(x, y, display, color_on, color_off, img_x0, img_y0, w, h);
-  } else {
-    this->draw_<false>(x, y, display, color_on, color_off, img_x0, img_y0, w, h);
-  }
-}
-
-template<bool ROWS_OUTER>
-void Image::draw_(int x, int y, display::Display *display, Color color_on, Color color_off, int img_x0, int img_y0,
-                  int w, int h) {
-  // The outer loop runs over rows or columns; the selects fold at compile time.
-  const int outer0 = ROWS_OUTER ? img_y0 : img_x0;
-  const int outer_end = ROWS_OUTER ? h : w;
-  const int inner0 = ROWS_OUTER ? img_x0 : img_y0;
-  const int inner_end = ROWS_OUTER ? w : h;
-
+  // Pixel data and frame buffers are row-major, so walking rows keeps the
+  // image read and the frame buffer write sequential. When the display swaps
+  // the axes before writing, walking columns keeps the write sequential
+  // instead; a strided write costs more than a strided read.
+  const bool rows_outer = !display->pixel_axes_swapped();
   switch (type_) {
-    case IMAGE_TYPE_BINARY: {
-      for (int outer = outer0; outer < outer_end; outer++) {
-        for (int inner = inner0; inner < inner_end; inner++) {
-          const int img_x = ROWS_OUTER ? inner : outer;
-          const int img_y = ROWS_OUTER ? outer : inner;
-          if (this->get_binary_pixel_(img_x, img_y)) {
-            display->draw_pixel_at(x + img_x, y + img_y, color_on);
-          } else if (!this->transparency_) {
-            display->draw_pixel_at(x + img_x, y + img_y, color_off);
-          }
-        }
+    case IMAGE_TYPE_BINARY:
+      if (rows_outer) {
+        this->draw_<true, IMAGE_TYPE_BINARY>(x, y, display, color_on, color_off, x_start, x_end, y_start, y_end);
+      } else {
+        this->draw_<false, IMAGE_TYPE_BINARY>(x, y, display, color_on, color_off, x_start, x_end, y_start, y_end);
       }
       break;
-    }
     case IMAGE_TYPE_GRAYSCALE:
-      for (int outer = outer0; outer < outer_end; outer++) {
-        for (int inner = inner0; inner < inner_end; inner++) {
-          const int img_x = ROWS_OUTER ? inner : outer;
-          const int img_y = ROWS_OUTER ? outer : inner;
-          const uint32_t pos = (img_x + img_y * this->width_);
-          const uint8_t gray = progmem_read_byte(this->data_start_ + pos);
-          Color color = Color(gray, gray, gray, 0xFF);
-          switch (this->transparency_) {
-            case TRANSPARENCY_CHROMA_KEY:
-              if (gray == 1) {
-                continue;  // skip drawing
-              }
-              break;
-            case TRANSPARENCY_ALPHA_CHANNEL:
-              // gray is the alpha: blend from color_off to color_on, drawn opaque
-              color = Color(Color::blend_channel(color_off.r, color_on.r, gray),
-                            Color::blend_channel(color_off.g, color_on.g, gray),
-                            Color::blend_channel(color_off.b, color_on.b, gray), 0xFF);
-              break;
-            default:
-              break;
-          }
-          display->draw_pixel_at(x + img_x, y + img_y, color);
-        }
+      if (rows_outer) {
+        this->draw_<true, IMAGE_TYPE_GRAYSCALE>(x, y, display, color_on, color_off, x_start, x_end, y_start, y_end);
+      } else {
+        this->draw_<false, IMAGE_TYPE_GRAYSCALE>(x, y, display, color_on, color_off, x_start, x_end, y_start, y_end);
       }
       break;
     case IMAGE_TYPE_RGB565:
-      for (int outer = outer0; outer < outer_end; outer++) {
-        for (int inner = inner0; inner < inner_end; inner++) {
-          const int img_x = ROWS_OUTER ? inner : outer;
-          const int img_y = ROWS_OUTER ? outer : inner;
-          auto color = this->get_rgb565_pixel_(img_x, img_y);
-          if (color.w >= 0x80) {
-            display->draw_pixel_at(x + img_x, y + img_y, color);
-          }
-        }
+      if (rows_outer) {
+        this->draw_<true, IMAGE_TYPE_RGB565>(x, y, display, color_on, color_off, x_start, x_end, y_start, y_end);
+      } else {
+        this->draw_<false, IMAGE_TYPE_RGB565>(x, y, display, color_on, color_off, x_start, x_end, y_start, y_end);
       }
       break;
     case IMAGE_TYPE_RGB:
-      for (int outer = outer0; outer < outer_end; outer++) {
-        for (int inner = inner0; inner < inner_end; inner++) {
-          const int img_x = ROWS_OUTER ? inner : outer;
-          const int img_y = ROWS_OUTER ? outer : inner;
-          auto color = this->get_rgb_pixel_(img_x, img_y);
-          if (color.w >= 0x80) {
-            display->draw_pixel_at(x + img_x, y + img_y, color);
-          }
-        }
+      if (rows_outer) {
+        this->draw_<true, IMAGE_TYPE_RGB>(x, y, display, color_on, color_off, x_start, x_end, y_start, y_end);
+      } else {
+        this->draw_<false, IMAGE_TYPE_RGB>(x, y, display, color_on, color_off, x_start, x_end, y_start, y_end);
       }
       break;
+  }
+}
+
+template<bool ROWS_OUTER, ImageType TYPE>
+void Image::draw_(int x, int y, display::Display *display, Color color_on, Color color_off, int x_start, int x_end,
+                  int y_start, int y_end) {
+  // The selects below fold at compile time, so each instantiation is a plain
+  // nested loop with one pixel format inside.
+  const int outer_start = ROWS_OUTER ? y_start : x_start;
+  const int outer_end = ROWS_OUTER ? y_end : x_end;
+  const int inner_start = ROWS_OUTER ? x_start : y_start;
+  const int inner_end = ROWS_OUTER ? x_end : y_end;
+
+  for (int outer = outer_start; outer < outer_end; outer++) {
+    for (int inner = inner_start; inner < inner_end; inner++) {
+      const int img_x = ROWS_OUTER ? inner : outer;
+      const int img_y = ROWS_OUTER ? outer : inner;
+      if constexpr (TYPE == IMAGE_TYPE_BINARY) {
+        if (this->get_binary_pixel_(img_x, img_y)) {
+          display->draw_pixel_at(x + img_x, y + img_y, color_on);
+        } else if (!this->transparency_) {
+          display->draw_pixel_at(x + img_x, y + img_y, color_off);
+        }
+      } else if constexpr (TYPE == IMAGE_TYPE_GRAYSCALE) {
+        const uint32_t pos = (img_x + img_y * this->width_);
+        const uint8_t gray = progmem_read_byte(this->data_start_ + pos);
+        Color color = Color(gray, gray, gray, 0xFF);
+        switch (this->transparency_) {
+          case TRANSPARENCY_CHROMA_KEY:
+            if (gray == 1) {
+              continue;  // skip drawing
+            }
+            break;
+          case TRANSPARENCY_ALPHA_CHANNEL:
+            // gray is the alpha: blend from color_off to color_on, drawn opaque
+            color = Color(Color::blend_channel(color_off.r, color_on.r, gray),
+                          Color::blend_channel(color_off.g, color_on.g, gray),
+                          Color::blend_channel(color_off.b, color_on.b, gray), 0xFF);
+            break;
+          default:
+            break;
+        }
+        display->draw_pixel_at(x + img_x, y + img_y, color);
+      } else {
+        auto color =
+            TYPE == IMAGE_TYPE_RGB565 ? this->get_rgb565_pixel_(img_x, img_y) : this->get_rgb_pixel_(img_x, img_y);
+        if (color.w >= 0x80) {
+          display->draw_pixel_at(x + img_x, y + img_y, color);
+        }
+      }
+    }
   }
 }
 Color Image::get_pixel(int x, int y, const Color color_on, const Color color_off) const {

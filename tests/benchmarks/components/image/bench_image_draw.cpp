@@ -16,14 +16,14 @@ static constexpr int kHeight = 96;
 // buffered display shares.
 class BenchDisplay : public display::DisplayBuffer {
  public:
-  BenchDisplay() : frame_(std::make_unique<uint8_t[]>(kWidth * kHeight)) { this->buffer_ = this->frame_.get(); }
+  BenchDisplay() : frame_(std::make_unique<uint8_t[]>(kWidth * kHeight)) {}
   void update() override {}
   display::DisplayType get_display_type() override { return display::DisplayType::DISPLAY_TYPE_COLOR; }
   int get_width_internal() override { return kWidth; }
   int get_height_internal() override { return kHeight; }
 
  protected:
-  void draw_absolute_pixel_internal(int x, int y, Color color) override { this->buffer_[y * kWidth + x] = color.r; }
+  void draw_absolute_pixel_internal(int x, int y, Color color) override { this->frame_[y * kWidth + x] = color.r; }
 
   std::unique_ptr<uint8_t[]> frame_;
 };
