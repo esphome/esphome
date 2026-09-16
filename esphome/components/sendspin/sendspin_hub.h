@@ -130,6 +130,19 @@ class SendspinHub final : public Component,
 
   void set_task_stack_in_psram(bool task_stack_in_psram) { this->task_stack_in_psram_ = task_stack_in_psram; }
 
+  /// @brief Starts or stops the Sendspin client, and with it the server, the roles and the mDNS advertisement.
+  ///
+  /// Disabling sends `client/goodbye` to every peer and blocks until the client is fully stopped; the roles' clear
+  /// callbacks fire from inside this call. Enabling starts it again with no connection or role state from before.
+  /// No-op if the client is already in the requested state. Called before the hub's first loop() (for example from
+  /// a child's setup()), it only decides whether the client starts on that first tick. Must be called from the main
+  /// loop thread.
+  /// @return true if the client is in the requested state afterwards.
+  bool set_enabled(bool enabled);
+
+  /// @brief Returns whether the Sendspin client is running, or will start on the hub's first loop(). See set_enabled().
+  bool is_enabled() const { return this->is_ready() && (this->client_->is_started() || this->enabled_); }
+
   /// @brief Sets the device information reported to the server in the `client/hello` message.
   ///
   /// Each takes a pointer to a string literal emitted by codegen, so it must stay valid for the
@@ -212,6 +225,14 @@ class SendspinHub final : public Component,
   /// Uses the ethernet MAC if ethernet is configured, otherwise the base MAC (used by wifi).
   static const char *get_client_id_into_buffer(std::span<char, MAC_ADDRESS_PRETTY_BUFFER_SIZE> buf);
 
+  /// @brief Starts the client, logging on failure.
+  bool start_client_();
+
+#ifdef USE_MDNS_SUPPORTS_ENABLE_DISABLE
+  /// @brief Keeps the `_sendspin` mDNS service advertised exactly while the client is running.
+  void update_mdns_service_();
+#endif
+
   // --- SendspinClientListener overrides ---
   void on_group_update(const sendspin::GroupUpdateObject &group) override;
 
@@ -289,6 +310,10 @@ class SendspinHub final : public Component,
   CallbackManager<void(const sendspin::GroupUpdateObject &)> group_update_callbacks_{};
 
   bool task_stack_in_psram_{false};
+
+  // Whether the client should be running. Only read by loop() before the client has started for the first time;
+  // afterwards the client's own is_started() is the source of truth.
+  bool enabled_{true};
 
   // Device information sent in the `client/hello` message. Defaults apply when neither the
   // sendspin configuration nor the project information supplies a value.
