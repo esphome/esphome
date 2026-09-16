@@ -267,6 +267,25 @@ def test_main_restores_the_console_when_the_build_dies(
     assert (kernel32.input_cp, kernel32.output_cp) == (437, 437)
 
 
+def test_main_restores_the_console_when_the_switch_fails_part_way(
+    monkeypatch: pytest.MonkeyPatch, fixture_path: Path
+) -> None:
+    """A failed output page switch must not strand the changed input page."""
+    kernel32 = _FakeKernel32(850, 850)
+
+    def _refuse(codepage: int) -> int:
+        kernel32.calls.append(("SetConsoleOutputCP", codepage))
+        return 0
+
+    kernel32.SetConsoleOutputCP = _refuse  # type: ignore[method-assign]
+    monkeypatch.setattr(runner, "_get_kernel32", lambda: kernel32)
+
+    _run_main(monkeypatch, fixture_path / "espidf" / "filtering_probe.py")
+
+    assert kernel32.input_cp == 850
+    assert kernel32.calls[-2:] == [("SetConsoleCP", 850), ("SetConsoleOutputCP", 850)]
+
+
 def test_main_leaves_the_console_alone_when_there_is_none(
     monkeypatch: pytest.MonkeyPatch, fixture_path: Path
 ) -> None:

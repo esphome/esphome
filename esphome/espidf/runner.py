@@ -118,9 +118,11 @@ class _Utf8Console:
             return
         if old_in == UTF8_CODEPAGE and old_out == UTF8_CODEPAGE:
             return
+        # Record the old pages first so a switch that fails part way through
+        # still gets put back on exit.
+        self._codepages = (old_in, old_out)
         kernel32.SetConsoleCP(UTF8_CODEPAGE)
         kernel32.SetConsoleOutputCP(UTF8_CODEPAGE)
-        self._codepages = (old_in, old_out)
 
     def __exit__(self, *exc_info: object) -> None:
         if self._codepages is None:
