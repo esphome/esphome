@@ -18,8 +18,10 @@ namespace esphome::bluetooth_connection {
 class BluedroidServiceTable {
  public:
   ~BluedroidServiceTable() { this->free(); }
-  // Owns storage_; a copy would double-free.
-  BluedroidServiceTable() = default;
+  // Owns storage_; a copy would double-free. The default constructor is user
+  // provided, not "= default", so value-initializing the enclosing backend
+  // cannot zero-fill .bss that is already zero.
+  BluedroidServiceTable() {}
   BluedroidServiceTable(const BluedroidServiceTable &) = delete;
   BluedroidServiceTable &operator=(const BluedroidServiceTable &) = delete;
 
