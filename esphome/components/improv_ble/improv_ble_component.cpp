@@ -1,10 +1,7 @@
-#include "esp32_improv_component.h"
+#include "improv_ble_component.h"
 
 #include <array>
 
-#include "esphome/components/bytebuffer/bytebuffer.h"
-#include "esphome/components/esp32_ble/ble.h"
-#include "esphome/components/esp32_ble_server/ble_2902.h"
 #include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
@@ -15,11 +12,15 @@
 
 #ifdef USE_ESP32
 
-namespace esphome::esp32_improv {
+#include "esphome/components/bytebuffer/bytebuffer.h"
+#include "esphome/components/esp32_ble/ble.h"
+#include "esphome/components/esp32_ble_server/ble_2902.h"
+
+namespace esphome::improv_ble {
 
 using namespace bytebuffer;
 
-static const char *const TAG = "esp32_improv.component";
+static const char *const TAG = "improv_ble.component";
 static constexpr size_t IMPROV_MAX_LOG_BYTES = 128;
 static constexpr char ESPHOME_MY_LINK[] = "https://my.home-assistant.io/redirect/config_flow_start?domain=esphome";
 // command + data length + trailing byte
@@ -38,9 +39,9 @@ static constexpr uint8_t IMPROV_SERVICE_DATA_SIZE = 8;
 static constexpr uint8_t IMPROV_PROTOCOL_ID_1 = 0x77;  // 'P' << 1 | 'R' >> 7
 static constexpr uint8_t IMPROV_PROTOCOL_ID_2 = 0x46;  // 'I' << 1 | 'M' >> 7
 
-ESP32ImprovComponent::ESP32ImprovComponent() { global_improv_component = this; }
+ImprovBLEComponent::ImprovBLEComponent() { global_improv_component = this; }
 
-void ESP32ImprovComponent::setup() {
+void ImprovBLEComponent::setup() {
 #ifdef USE_BINARY_SENSOR
   if (this->authorizer_ != nullptr) {
     this->authorizer_->add_on_state_callback([this](bool state) {
@@ -66,7 +67,7 @@ void ESP32ImprovComponent::setup() {
   this->disable_loop();
 }
 
-void ESP32ImprovComponent::setup_characteristics() {
+void ImprovBLEComponent::setup_characteristics() {
   this->status_ = this->service_->create_characteristic(
       improv::STATUS_UUID, BLECharacteristic::PROPERTY_READ | BLECharacteristic::PROPERTY_NOTIFY);
   BLEDescriptor *status_descriptor = new BLE2902();
@@ -104,11 +105,11 @@ void ESP32ImprovComponent::setup_characteristics() {
   this->setup_complete_ = true;
 }
 
-void ESP32ImprovComponent::loop() {
+void ImprovBLEComponent::loop() {
   if (!global_ble_server->is_running()) {
     if (this->state_ != improv::STATE_STOPPED) {
       this->state_ = improv::STATE_STOPPED;
-#ifdef USE_ESP32_IMPROV_STATE_CALLBACK
+#ifdef USE_IMPROV_BLE_STATE_CALLBACK
       this->state_callback_.call(this->state_, this->error_state_);
 #endif
     }
@@ -200,7 +201,7 @@ void ESP32ImprovComponent::loop() {
   }
 }
 
-void ESP32ImprovComponent::set_status_indicator_state_(bool state) {
+void ImprovBLEComponent::set_status_indicator_state_(bool state) {
 #ifdef USE_OUTPUT
   if (this->status_indicator_ == nullptr)
     return;
@@ -216,7 +217,7 @@ void ESP32ImprovComponent::set_status_indicator_state_(bool state) {
 }
 
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_DEBUG
-const char *ESP32ImprovComponent::state_to_string_(improv::State state) {
+const char *ImprovBLEComponent::state_to_string_(improv::State state) {
   switch (state) {
     case improv::STATE_STOPPED:
       return "STOPPED";
@@ -234,7 +235,7 @@ const char *ESP32ImprovComponent::state_to_string_(improv::State state) {
 }
 #endif
 
-bool ESP32ImprovComponent::check_identify_() {
+bool ImprovBLEComponent::check_identify_() {
   uint32_t now = millis();
 
   bool identify = this->identify_start_ != 0 && now - this->identify_start_ <= this->identify_duration_;
@@ -246,7 +247,7 @@ bool ESP32ImprovComponent::check_identify_() {
   return identify;
 }
 
-void ESP32ImprovComponent::set_state_(improv::State state, bool update_advertising) {
+void ImprovBLEComponent::set_state_(improv::State state, bool update_advertising) {
   // Skip if state hasn't changed
   if (this->state_ == state) {
     return;
@@ -274,12 +275,12 @@ void ESP32ImprovComponent::set_state_(improv::State state, bool update_advertisi
     // Advertise the new state via service data
     this->advertise_service_data_();
   }
-#ifdef USE_ESP32_IMPROV_STATE_CALLBACK
+#ifdef USE_IMPROV_BLE_STATE_CALLBACK
   this->state_callback_.call(this->state_, this->error_state_);
 #endif
 }
 
-void ESP32ImprovComponent::set_error_(improv::Error error) {
+void ImprovBLEComponent::set_error_(improv::Error error) {
   if (error != improv::ERROR_NONE) {
     ESP_LOGE(TAG, "Error: %d", error);
   }
@@ -295,14 +296,14 @@ void ESP32ImprovComponent::set_error_(improv::Error error) {
   }
 }
 
-void ESP32ImprovComponent::send_response_(std::span<const uint8_t> response) {
+void ImprovBLEComponent::send_response_(std::span<const uint8_t> response) {
   // The BLE characteristic owns its value, so one exact-size copy is required here
   this->rpc_response_->set_value(std::vector<uint8_t>(response.begin(), response.end()));
   if (this->state_ != improv::STATE_STOPPED)
     this->rpc_response_->notify();
 }
 
-void ESP32ImprovComponent::start() {
+void ImprovBLEComponent::start() {
   if (this->should_start_ || this->state_ != improv::STATE_STOPPED)
     return;
 
@@ -320,7 +321,7 @@ void ESP32ImprovComponent::start() {
   this->enable_loop();
 }
 
-void ESP32ImprovComponent::stop() {
+void ImprovBLEComponent::stop() {
   this->should_start_ = false;
   // Wait before stopping the service to ensure all BLE clients see the state change.
   // This prevents clients from repeatedly reconnecting and wasting resources by allowing
@@ -335,10 +336,10 @@ void ESP32ImprovComponent::stop() {
   });
 }
 
-float ESP32ImprovComponent::get_setup_priority() const { return setup_priority::AFTER_BLUETOOTH; }
+float ImprovBLEComponent::get_setup_priority() const { return setup_priority::AFTER_BLUETOOTH; }
 
-void ESP32ImprovComponent::dump_config() {
-  ESP_LOGCONFIG(TAG, "ESP32 Improv:");
+void ImprovBLEComponent::dump_config() {
+  ESP_LOGCONFIG(TAG, "Improv BLE:");
 #ifdef USE_BINARY_SENSOR
   LOG_BINARY_SENSOR("  ", "Authorizer", this->authorizer_);
 #endif
@@ -347,7 +348,7 @@ void ESP32ImprovComponent::dump_config() {
 #endif
 }
 
-void ESP32ImprovComponent::process_incoming_data_() {
+void ImprovBLEComponent::process_incoming_data_() {
   if (this->incoming_data_.size() < 3)
     return;
   uint8_t length = this->incoming_data_[1];
@@ -422,7 +423,7 @@ void ESP32ImprovComponent::process_incoming_data_() {
   }
 }
 
-void ESP32ImprovComponent::on_wifi_connect_timeout_() {
+void ImprovBLEComponent::on_wifi_connect_timeout_() {
   this->set_error_(improv::ERROR_UNABLE_TO_CONNECT);
   this->set_state_(improv::STATE_AUTHORIZED);
 #ifdef USE_BINARY_SENSOR
@@ -433,7 +434,7 @@ void ESP32ImprovComponent::on_wifi_connect_timeout_() {
   wifi::global_wifi_component->clear_sta();
 }
 
-void ESP32ImprovComponent::check_wifi_connection_() {
+void ImprovBLEComponent::check_wifi_connection_() {
   if (!wifi::global_wifi_component->is_connected()) {
     return;
   }
@@ -447,7 +448,7 @@ void ESP32ImprovComponent::check_wifi_connection_() {
     std::array<uint8_t, improv::RPC_RESPONSE_MAX_SIZE> buf;
     improv::RpcResponseBuilder builder(buf, improv::WIFI_SETTINGS);
 
-#ifdef USE_ESP32_IMPROV_NEXT_URL
+#ifdef USE_IMPROV_NEXT_URL
     // Add next_url if configured (should be first per Improv BLE spec)
     this->add_next_url_(builder, MAX_NEXT_URL_LEN);
 #endif
@@ -480,7 +481,7 @@ void ESP32ImprovComponent::check_wifi_connection_() {
   this->stop();
 }
 
-void ESP32ImprovComponent::advertise_service_data_() {
+void ImprovBLEComponent::advertise_service_data_() {
   uint8_t service_data[IMPROV_SERVICE_DATA_SIZE] = {};
   service_data[0] = IMPROV_PROTOCOL_ID_1;  // PR
   service_data[1] = IMPROV_PROTOCOL_ID_2;  // IM
@@ -499,7 +500,7 @@ void ESP32ImprovComponent::advertise_service_data_() {
   esp32_ble::global_ble->advertising_set_service_data_and_name(std::span<const uint8_t>(service_data), false);
 }
 
-void ESP32ImprovComponent::update_advertising_type_() {
+void ImprovBLEComponent::update_advertising_type_() {
   uint32_t now = App.get_loop_component_start_time();
 
   // If we're advertising the device name and it's been more than NAME_ADVERTISING_DURATION, switch back to service data
@@ -524,21 +525,21 @@ void ESP32ImprovComponent::update_advertising_type_() {
   }
 }
 
-void ESP32ImprovComponent::request_advertising_() {
+void ImprovBLEComponent::request_advertising_() {
   if (this->advertising_requested_)
     return;
   this->advertising_requested_ = true;
   esp32_ble::global_ble->advertising_start();
 }
 
-void ESP32ImprovComponent::release_advertising_() {
+void ImprovBLEComponent::release_advertising_() {
   if (!this->advertising_requested_)
     return;
   this->advertising_requested_ = false;
   esp32_ble::global_ble->advertising_stop();
 }
 
-improv::State ESP32ImprovComponent::get_initial_state_() const {
+improv::State ImprovBLEComponent::get_initial_state_() const {
 #ifdef USE_BINARY_SENSOR
   // If we have an authorizer, start in awaiting authorization state
   return this->authorizer_ == nullptr ? improv::STATE_AUTHORIZED : improv::STATE_AWAITING_AUTHORIZATION;
@@ -548,8 +549,8 @@ improv::State ESP32ImprovComponent::get_initial_state_() const {
 #endif
 }
 
-ESP32ImprovComponent *global_improv_component = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+ImprovBLEComponent *global_improv_component = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
-}  // namespace esphome::esp32_improv
+}  // namespace esphome::improv_ble
 
 #endif
