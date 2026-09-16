@@ -16,8 +16,9 @@ name and promote with an atomic rename.
 
 from __future__ import annotations
 
+from collections.abc import Iterator
 from concurrent.futures import ThreadPoolExecutor
-from contextlib import suppress
+from contextlib import contextmanager, suppress
 import hashlib
 import json
 import logging
@@ -32,16 +33,30 @@ import time
 from typing import Any, NamedTuple
 
 from esphome.framework_helpers import (
+    DownloadLockUnavailable,
     content_length,
     discard_partial_download,
+    downloaded_bytes,
     failure_reason,
     resume_fetch_job,
     run_batch_downloads,
+    wait_for_download_lock,
     warn_prefetch_failures,
 )
 from esphome.helpers import get_bool_env, get_usable_cpu_count, rmtree
 
 _LOGGER = logging.getLogger(__name__)
+
+
+@contextmanager
+def _preserved_sys_path() -> Iterator[None]:
+    """Platform setup may rewrite sys.path (pioarduino's penv does); undo it."""
+    saved = list(sys.path)
+    try:
+        yield
+    finally:
+        sys.path[:] = saved
+
 
 # Concurrent registry resolutions / HEAD probes (each is network-bound)
 _RESOLVE_WORKERS = 8
@@ -49,15 +64,9 @@ _RESOLVE_WORKERS = 8
 # A hung child must not block the build; downloads resume on the next run
 _PREFETCH_TIMEOUT = 20 * 60
 
-# Waiting on another process's URL download; past this, leave it to pio
-_DOWNLOAD_LOCK_TIMEOUT = 60
-
 # Child exit for a handled, already-warned failure; 1 would collide with
 # the interpreter's own import-failure exit
 _EXIT_HANDLED = 3
-
-# Short lock-acquire slices so a waiting worker still observes Ctrl-C
-_URI_LOCK_POLL = 1
 
 # Resolution errored (vs a clean skip); suppresses the warm sentinel
 _RESOLVE_FAILED = object()
@@ -94,6 +103,14 @@ class _Resolved(NamedTuple):
     dl_path: Path
     checksum: str
     cached: bool
+
+
+class _Group(NamedTuple):
+    """The installable ``(name, spec)`` entries of one package manager."""
+
+    manager: Any
+    entries: list[tuple[str, Any]]
+    is_platform: bool
 
 
 # Child records a no-work run; the parent skips the next spawn while valid
@@ -442,17 +459,26 @@ def _uri_jobs(
 
 
 def _serialized_fetch_job(
-    dl_path: Path, lock_path: str, body: Any, unlocked_ok: bool = True
+    dl_path: Path,
+    lock_path: str,
+    body: Any,
+    size: int,
+    stream_dest: Path | None = None,
+    unlocked_ok: bool = True,
 ) -> Any:
-    """Wrap ``body`` so the shared destination is single-writer.
-
-    Interleaved writers truncate each other's ``.part`` bytes (see
-    registry.py). The bounded poll observes Ctrl-C via the tracker; a
-    blown deadline is a clean skip (the holder's copy is what the build
-    needs). On a lock-less filesystem a sha256-verified body runs
-    unlocked with one warning; a checksum-less one
-    (``unlocked_ok=False``) is a counted failure instead.
+    """Wrap ``body`` so the shared destination is single-writer (interleaved
+    writers truncate each other's ``.part``, see registry.py). A blown deadline
+    is a clean skip. On a lock-less filesystem a sha256-verified body runs
+    unlocked with one warning; a checksum-less one (``unlocked_ok=False``) fails.
     """
+
+    def on_disk() -> int:
+        # A URL job's holder streams beside the staging path until it
+        # promotes; after that only dl_path is left
+        done = downloaded_bytes(dl_path, size)
+        if not done and stream_dest is not None:
+            done = downloaded_bytes(stream_dest, size)
+        return done
 
     def run(tracker: Any) -> None:
         from filelock import FileLock, Timeout
@@ -460,33 +486,27 @@ def _serialized_fetch_job(
         # fallback_to_soft would leave a stale marker on lock-less
         # filesystems that blocks every later build (see git.py)
         lock = FileLock(lock_path, fallback_to_soft=False)
-        deadline = time.monotonic() + _DOWNLOAD_LOCK_TIMEOUT
-        while True:
-            try:
-                lock.acquire(timeout=_URI_LOCK_POLL)
-                break
-            except Timeout:
-                tracker(0)  # raises when the batch is cancelled
-                if time.monotonic() >= deadline:
-                    # Another process is fetching this same file; its copy
-                    # is what the build needs (a large framework archive
-                    # can hold the lock far longer than this deadline)
-                    _LOGGER.debug("Leaving %s to its current downloader", dl_path.name)
-                    return
-            except OSError as err:
-                if not unlocked_ok:
-                    # A body with no checksum to catch interleaved corruption
-                    raise
-                lock = None
-                _LOGGER.warning(
-                    "Could not lock %s (%s); downloading unlocked",
-                    dl_path.name,
-                    err,
-                )
-                break
+        try:
+            wait_for_download_lock(lock, tracker, on_disk, dl_path.name)
+        except Timeout:
+            # The holder's copy is what the build needs (a large
+            # framework archive can outlast this deadline)
+            _LOGGER.debug("Leaving %s to its current downloader", dl_path.name)
+            return
+        except DownloadLockUnavailable as err:
+            if not unlocked_ok:
+                # A body with no checksum to catch interleaved corruption
+                raise
+            lock = None
+            _LOGGER.warning(
+                "Could not lock %s (%s); downloading unlocked",
+                dl_path.name,
+                err,
+            )
         try:
             if dl_path.is_file():
-                return  # another process finished it while we waited
+                tracker(size)  # another process finished it while we waited
+                return
             body(tracker)
         finally:
             if lock is not None:
@@ -520,6 +540,7 @@ def _registry_fetch_job(
         dl_path,
         f"{dl_path}.esphome.lock",
         resume_fetch_job(url, dl_path, sha256=checksum, size=size),
+        size,
     )
 
     def run(tracker: Any) -> None:
@@ -551,9 +572,9 @@ def _uri_fetch_job(manager: Any, url: str, dl_path: Path, size: int) -> Any:
         tmp.replace(dl_path)
 
     def run(tracker: Any) -> None:
-        _serialized_fetch_job(dl_path, f"{tmp}.lock", promote, unlocked_ok=False)(
-            tracker
-        )
+        _serialized_fetch_job(
+            dl_path, f"{tmp}.lock", promote, size, tmp, unlocked_ok=False
+        )(tracker)
         if dl_path.is_file():
             # Won or lost, the race is over; staging files left behind
             # are dead weight PlatformIO's cache never prunes
@@ -772,13 +793,9 @@ def _preinstall(
         # poison the next wave; pio run installs the rest cleanly
         _LOGGER.warning("Skipping the dependency wave")
         return
-    # The builtin probe may construct platforms whose setup rewrites
-    # sys.path (see _prefetch); restore it for later imports
-    saved_sys_path = list(sys.path)
-    try:
+    # The builtin probe may construct platforms
+    with _preserved_sys_path():
         next_entries = _dependency_entries(manager, installed, seen)
-    finally:
-        sys.path[:] = saved_sys_path
     if next_entries:
         # Terminates without a cap: every wave admits only never-seen
         # names, so a cycle yields an empty next wave
@@ -803,31 +820,29 @@ def _prefetch(build_dir: Path, env: str) -> None:
         return
 
     # The platform (manifest plus build scripts) installs first and
-    # resolves the rest. Its setup may rewrite sys.path (pioarduino's penv
-    # setup does); restore it so later imports here still resolve.
-    saved_sys_path = list(sys.path)
-    pm = PlatformPackageManager()
-    _sweep_stale_sidecars(Path(pm.get_download_dir()), pm.DOWNLOAD_CACHE_EXPIRE)
-    pkg = pm.install(platform_spec, skip_dependencies=True)
-    p = PlatformFactory.new(pkg)
-    p.configure_project_packages(env, ["run"])
-    sys.path[:] = saved_sys_path
+    # resolves the rest
+    with _preserved_sys_path():
+        pm = PlatformPackageManager()
+        _sweep_stale_sidecars(Path(pm.get_download_dir()), pm.DOWNLOAD_CACHE_EXPIRE)
+        pkg = pm.install(platform_spec, skip_dependencies=True)
+        p = PlatformFactory.new(pkg)
+        p.configure_project_packages(env, ["run"])
 
     specs = [
         p.get_package_spec(name)
         for name, opts in p.packages.items()
         if not opts.get("optional")
     ]
-    # PIO's build engine installs outside the platform package list;
-    # skipped when the platform lists it itself
-    if not any(s.name == "tool-scons" for s in specs):
-        specs.append(
-            PackageSpec(
-                owner="platformio",
-                name="tool-scons",
-                requirements=get_core_dependencies()["tool-scons"],
-            )
+    # PIO's build engine installs tool-scons by its own registry spec at build
+    # start; a platform URL copy has no owner to match it, so prefetch that spec
+    specs = [s for s in specs if s.name != "tool-scons"]
+    specs.append(
+        PackageSpec(
+            owner="platformio",
+            name="tool-scons",
+            requirements=get_core_dependencies()["tool-scons"],
         )
+    )
     lib_deps = config.get(f"env:{env}", "lib_deps", [])
     # pio run's storage dir for this env, with its compatibility
     # qualifiers: an unqualified library install could land a different
@@ -851,9 +866,9 @@ def _prefetch(build_dir: Path, env: str) -> None:
 
     seen: set[str] = set()
     jobs: list[tuple[str, int, Any]] = []
-    groups: list[tuple[Any, list[tuple[str, Any]]]] = []
+    groups: list[_Group] = []
     unresolved = 0
-    for mgr, batch in ((p.pm, specs), (lm, lib_specs)):
+    for mgr, batch, is_platform in ((p.pm, specs, True), (lm, lib_specs, False)):
         entries: list[tuple[str, Any]] = []
         for build_jobs in (_registry_jobs, _uri_jobs):
             batch_jobs, failed, installable = build_jobs(mgr, batch, seen)
@@ -861,7 +876,7 @@ def _prefetch(build_dir: Path, env: str) -> None:
             unresolved += failed
             entries += installable
         if entries:
-            groups.append((mgr, entries))
+            groups.append(_Group(mgr, entries, is_platform))
 
     sentinel = build_dir / _SENTINEL_NAME
     if jobs or groups:
@@ -890,7 +905,8 @@ def _prefetch(build_dir: Path, env: str) -> None:
             encoding="utf-8",
         )
 
-    for mgr, entries in groups:
+    platform_packages_installed = False
+    for mgr, entries, is_platform in groups:
         # One install per destination: pio derives the directory from
         # the package name, so key on the name part
         to_install = {
@@ -901,6 +917,8 @@ def _prefetch(build_dir: Path, env: str) -> None:
         if to_install:
             try:
                 _preinstall(mgr, list(to_install.values()))
+                if is_platform:
+                    platform_packages_installed = True
             except Exception as err:  # noqa: BLE001  # pylint: disable=broad-exception-caught
                 # Each group degrades independently; pio run installs
                 # whatever this one did not
@@ -910,6 +928,17 @@ def _prefetch(build_dir: Path, env: str) -> None:
                     failure_reason(err),
                 )
                 _LOGGER.debug("Pre-install group failure detail", exc_info=True)
+    if platform_packages_installed:
+        # pioarduino installs its real toolchains from configure (the registry
+        # package is a stub); settle that here so pio run does not redo it
+        with _preserved_sys_path(), ThreadPoolExecutor(max_workers=1) as ex:
+            # A worker so SIGTERM joins it; exception() so a postinstall exit only warns
+            err = ex.submit(p.configure_project_packages, env, ["run"]).exception()
+        if err is not None:
+            _LOGGER.warning(
+                "Could not settle platform packages: %s", failure_reason(err)
+            )
+            _LOGGER.debug("Platform settle failure detail", exc_info=err)
 
 
 def _sigterm(_signum, _frame) -> None:
@@ -922,8 +951,10 @@ def main(argv: list[str]) -> int:
     """Subprocess entry point: ``prefetch <build_dir> <env_name>``."""
     from esphome.core import CORE
     from esphome.log import setup_log
+    from esphome.platformio.runner import patch_registry_private_packages
 
     signal.signal(signal.SIGTERM, _sigterm)
+    patch_registry_private_packages()
     raw_level = os.environ.get("ESPHOME_PREFETCH_LOG_LEVEL")
     try:
         level = int(raw_level) if raw_level is not None else logging.INFO
