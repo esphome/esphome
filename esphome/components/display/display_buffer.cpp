@@ -44,9 +44,7 @@ int DisplayBuffer::get_height() {
 }
 
 void HOT DisplayBuffer::draw_pixel_at(int x, int y, Color color) {
-  // Test the active clipping rectangle in place; copying it out through
-  // get_clipping() cost a call and a copy per pixel when nothing is clipped.
-  if (!this->clipping_rectangle_.empty() && !this->clipping_rectangle_.back().inside(x, y))
+  if (this->is_clipped(x, y))
     return;  // NOLINT
 
   switch (this->rotation_) {
@@ -66,10 +64,7 @@ void HOT DisplayBuffer::draw_pixel_at(int x, int y, Color color) {
       break;
   }
   this->draw_absolute_pixel_internal(x, y, color);
-  // Feeding the watchdog reads the clock, so do it every 256 pixels rather
-  // than every pixel; that is microseconds, far inside any watchdog window.
-  if (++this->wdt_pixel_counter_ == 0)
-    App.feed_wdt();
+  this->feed_wdt_per_pixel_();
 }
 
 }  // namespace esphome::display

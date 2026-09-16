@@ -758,6 +758,13 @@ class Display : public PollingComponent {
 
   bool is_clipping() const { return !this->clipping_rectangle_.empty(); }
 
+  /// Whether (x, y) falls outside the active clipping rectangle. Tests the
+  /// stack top in place: get_clipping() is out of line and returns the Rect
+  /// by value, which per pixel drawing cannot afford.
+  bool ESPHOME_ALWAYS_INLINE is_clipped(int x, int y) const {
+    return !this->clipping_rectangle_.empty() && !this->clipping_rectangle_.back().inside(x, y);
+  }
+
   /** Check if pixel is within region of display.
    */
   bool clip(int x, int y);
@@ -793,6 +800,17 @@ class Display : public PollingComponent {
   std::vector<DisplayOnPageChangeTrigger *> on_page_change_triggers_;
   bool auto_clear_enabled_{true};
   std::vector<Rect> clipping_rectangle_;
+
+  /// Watchdog feed for per pixel loops. App.feed_wdt() reads the clock on
+  /// every call, so only every 256th pixel reaches it: at 20 us per pixel on
+  /// the slowest e-paper path that is about 5 ms between reads, against a
+  /// feed interval of at least 100 ms.
+  void ESPHOME_ALWAYS_INLINE feed_wdt_per_pixel_() {
+    if (++this->wdt_pixel_counter_ == 0)
+      this->feed_wdt_pixel_slow_();
+  }
+  void feed_wdt_pixel_slow_();
+  uint8_t wdt_pixel_counter_{0};
   bool show_test_card_{false};
 };
 

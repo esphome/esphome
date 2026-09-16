@@ -259,7 +259,7 @@ bool MipiDsi::check_buffer_() {
 }
 
 void MipiDsi::draw_pixel_at(int x, int y, Color color) {
-  if (!this->get_clipping().inside(x, y))
+  if (this->is_clipped(x, y))
     return;
 
   switch (this->rotation_) {
