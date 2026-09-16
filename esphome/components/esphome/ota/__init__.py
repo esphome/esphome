@@ -306,16 +306,15 @@ async def to_code(config: ConfigType) -> None:
         cg.add_define("USE_OTA_PARTITIONS")
 
     # One key per device: an api encryption block supplies it (static or
-    # runtime) and offers; the ota block only adds the requirement. A build
-    # time key is the ota component's own pointer, never borrowed from the
-    # api server: safe mode boots without one
+    # runtime) and offers; the ota block only adds the requirement
     api_conf = CORE.config.get(CONF_API) or {}
     if key := static_encryption_key(config) or static_encryption_key(api_conf):
+        # Build time key: the ota keeps its own pointer so safe mode, which
+        # has no api server, still has it
         cg.add_define("USE_OTA_ENCRYPTION")
         cg.add(var.set_noise_psk(new_psk_progmem(config[CONF_ID], key)))
     elif CONF_ENCRYPTION in api_conf:
-        # The key arrives at runtime and lives in the api server, so the
-        # offer has to look for it
+        # Runtime key: found in the api server, or in preferences in safe mode
         cg.add_define("USE_OTA_ENCRYPTION")
         cg.add_define("USE_OTA_ENCRYPTION_PROVISIONED")
     if CONF_ENCRYPTION in config:

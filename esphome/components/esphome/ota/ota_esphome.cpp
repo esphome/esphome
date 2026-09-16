@@ -33,17 +33,13 @@ static const char *const TAG = "esphome.ota";
 #ifdef USE_OTA_ENCRYPTION
 const noise::NoiseContext &ESPHomeOTAComponent::noise_context_() const {
 #ifdef USE_OTA_ENCRYPTION_PROVISIONED
-  return api::global_api_server->get_noise_ctx();
-#else
+  // The api server holds the live key; safe mode never constructs it, and then
+  // noise_ctx_ holds the saved key setup() found, if any
+  if (api::global_api_server != nullptr)
+    return api::global_api_server->get_noise_ctx();
+#endif
   return this->noise_ctx_;
-#endif
 }
-#ifdef USE_OTA_ENCRYPTION_PROVISIONED
-bool ESPHomeOTAComponent::has_noise_psk_() const {
-  // Safe mode never constructs the api server, so the key is out of reach
-  return api::global_api_server != nullptr && this->noise_context_().has_psk();
-}
-#endif
 #endif
 static constexpr uint16_t OTA_BLOCK_SIZE = 8192;
 static constexpr uint32_t OTA_SOCKET_TIMEOUT_HANDSHAKE = 20000;  // milliseconds for initial handshake
@@ -64,6 +60,16 @@ extern "C" void esphome_wake_ota_component_any_context() {
 }
 
 void ESPHomeOTAComponent::setup() {
+#ifdef USE_OTA_ENCRYPTION_PROVISIONED
+  // Safe mode never constructs the api server, so read the key it saved
+  noise::psk_t psk;
+  if (api::global_api_server == nullptr && api::load_saved_noise_psk(psk)) {
+    this->saved_psk_ = RAMAllocator<noise::psk_t>().make_unique(psk);
+    if (this->saved_psk_ != nullptr) {
+      this->noise_ctx_.set_psk(this->saved_psk_->data());
+    }
+  }
+#endif
   this->server_ = socket::socket_ip_loop_monitored(SOCK_STREAM, 0).release();  // monitored for incoming connections
   if (this->server_ == nullptr) {
     this->server_failed_(LOG_STR("creation"));
@@ -131,7 +137,7 @@ void ESPHomeOTAComponent::dump_config() {
 #elif defined(USE_OTA_ENCRYPTION_PROVISIONED)
                 // A runtime provisioned key may not exist yet
                 ,
-                this->has_noise_psk_() ? LOG_STR_LITERAL("offered, plaintext accepted")
+                this->noise_context_().has_psk() ? LOG_STR_LITERAL("offered, plaintext accepted")
                                                  : LOG_STR_LITERAL("offered once the api key is provisioned")
 #elif defined(USE_OTA_ENCRYPTION)
                 ,
@@ -313,7 +319,7 @@ void ESPHomeOTAComponent::handle_handshake_() {
 #endif
 #ifdef USE_OTA_ENCRYPTION_PROVISIONED
         // A runtime provisioned key may not exist yet
-        if (this->has_noise_psk_()) {
+        if (this->noise_context_().has_psk()) {
           this->handshake_buf_[1] |= SERVER_FEATURE_SUPPORTS_NOISE;
         }
 #elif defined(USE_OTA_ENCRYPTION)
