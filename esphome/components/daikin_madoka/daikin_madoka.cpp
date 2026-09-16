@@ -2,7 +2,6 @@
 
 #include <algorithm>
 #include <utility>
-#include <vector>
 #include "esphome/core/log.h"
 
 #ifdef USE_ESP32
@@ -394,9 +393,17 @@ void DaikinMadoka::query_(uint16_t cmd, std::span<const uint8_t> args) {
 
 using ArgPair = std::pair<uint16_t, std::span<const uint8_t>>;
 
-static auto find_arg(const std::vector<ArgPair> &args, uint16_t arg_id) {
-  return std::find_if(args.begin(), args.end(), [arg_id](const ArgPair &p) { return p.first == arg_id; });
-};
+// Practical cap on the number of arguments in a response; messages carrying more are discarded
+static constexpr size_t MAX_MESSAGE_ARGS = 32;
+
+static const ArgPair *find_arg(std::span<const ArgPair> args, uint16_t arg_id) {
+  for (const ArgPair &arg : args) {
+    if (arg.first == arg_id) {
+      return &arg;
+    }
+  }
+  return nullptr;
+}
 
 void DaikinMadoka::parse_cb_(std::span<const uint8_t> msg) {
   if (msg.size() < 4) {
@@ -407,7 +414,7 @@ void DaikinMadoka::parse_cb_(std::span<const uint8_t> msg) {
   size_t i = 4;
   const size_t message_size = msg.size();
 
-  std::vector<ArgPair> parsed_args;
+  StaticVector<ArgPair, MAX_MESSAGE_ARGS> parsed_args;
   while (i <= message_size - 2) {  // `-2` accounts for arg_id and len bytes
     uint8_t argument_id = msg[i++];
     uint8_t len = msg[i++];
@@ -415,15 +422,19 @@ void DaikinMadoka::parse_cb_(std::span<const uint8_t> msg) {
       ESP_LOGE(TAG, "Discarding message: invalid argument length.");
       return;
     }
-    parsed_args.emplace_back(argument_id, std::span<const uint8_t>{msg.begin() + i, len});
+    if (parsed_args.size() == MAX_MESSAGE_ARGS) {
+      ESP_LOGE(TAG, "Discarding message: too many arguments.");
+      return;
+    }
+    parsed_args.push_back(ArgPair{argument_id, std::span<const uint8_t>{msg.begin() + i, len}});
     i += len;
   }
 
   switch (function_id) {
     case CMD_GET_SETTING_STATUS:
     case CMD_GET_OPERATION_MODE: {
-      auto arg = find_arg(parsed_args, 0x20);
-      if (arg == parsed_args.end() || arg->second.size() != 1) {
+      const ArgPair *arg = find_arg(parsed_args, 0x20);
+      if (arg == nullptr || arg->second.size() != 1) {
         break;
       }
       if (function_id == CMD_GET_SETTING_STATUS) {
@@ -455,19 +466,19 @@ void DaikinMadoka::parse_cb_(std::span<const uint8_t> msg) {
       break;
     }
     case CMD_GET_SETPOINT: {
-      auto arg_high = find_arg(parsed_args, 0x20);
-      if (arg_high != parsed_args.end() && arg_high->second.size() == 2) {
+      const ArgPair *arg_high = find_arg(parsed_args, 0x20);
+      if (arg_high != nullptr && arg_high->second.size() == 2) {
         this->target_temperature_high = (float) (arg_high->second[0] << 8 | arg_high->second[1]) / 128;
       }
 
-      auto arg_low = find_arg(parsed_args, 0x21);
-      if (arg_low != parsed_args.end() && arg_low->second.size() == 2) {
+      const ArgPair *arg_low = find_arg(parsed_args, 0x21);
+      if (arg_low != nullptr && arg_low->second.size() == 2) {
         this->target_temperature_low = (float) (arg_low->second[0] << 8 | arg_low->second[1]) / 128;
       }
       break;
     }
     case CMD_GET_FAN_SPEED: {
-      auto arg_fan = parsed_args.cend();
+      const ArgPair *arg_fan = nullptr;
       switch (this->cur_status_.mode) {
         case 0:
         case 2:
@@ -480,7 +491,7 @@ void DaikinMadoka::parse_cb_(std::span<const uint8_t> msg) {
         default:
           break;
       }
-      if (arg_fan == parsed_args.end() || arg_fan->second.size() != 1) {
+      if (arg_fan == nullptr || arg_fan->second.size() != 1) {
         break;
       }
       switch (arg_fan->second[0]) {
@@ -504,8 +515,8 @@ void DaikinMadoka::parse_cb_(std::span<const uint8_t> msg) {
       break;
     }
     case CMD_GET_SENSOR_INFORMATION: {
-      auto arg_temp = find_arg(parsed_args, 0x40);
-      if (arg_temp != parsed_args.end() && arg_temp->second.size() == 1) {
+      const ArgPair *arg_temp = find_arg(parsed_args, 0x40);
+      if (arg_temp != nullptr && arg_temp->second.size() == 1) {
         this->current_temperature = (float) arg_temp->second[0];
       }
       break;
