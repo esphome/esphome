@@ -107,7 +107,7 @@ void ST7701S::draw_pixel_at(int x, int y, Color color) {
 
   this->draw_pixels_at(x, y, 1, 1, (const uint8_t *) &pixel, display::COLOR_ORDER_RGB, display::COLOR_BITNESS_565, true,
                        0, 0, 0);
-  App.feed_wdt();
+  this->feed_wdt_per_pixel_();
 }
 
 void ST7701S::write_command_(uint8_t value) {
