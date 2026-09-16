@@ -51,15 +51,15 @@ void HOT DisplayBuffer::draw_pixel_at(int x, int y, Color color) {
       break;
     case DISPLAY_ROTATION_90_DEGREES:
       std::swap(x, y);
-      x = this->get_width_internal() - x - 1;
+      x = this->internal_width_() - x - 1;
       break;
     case DISPLAY_ROTATION_180_DEGREES:
-      x = this->get_width_internal() - x - 1;
-      y = this->get_height_internal() - y - 1;
+      x = this->internal_width_() - x - 1;
+      y = this->internal_height_() - y - 1;
       break;
     case DISPLAY_ROTATION_270_DEGREES:
       std::swap(x, y);
-      y = this->get_height_internal() - y - 1;
+      y = this->internal_height_() - y - 1;
       break;
   }
   this->draw_absolute_pixel_internal(x, y, color);

@@ -4,6 +4,7 @@
 #include <vector>
 
 #include "display.h"
+#include "esphome/core/helpers.h"
 #include "display_color_utils.h"
 
 #include "esphome/core/component.h"
@@ -26,7 +27,24 @@ class DisplayBuffer : public Display {
 
   void init_internal_(uint32_t buffer_length);
 
+  /// Internal size read once through the virtual accessors; the rotated
+  /// branches of draw_pixel_at() need it on every pixel. Every DisplayBuffer
+  /// driver's size is fixed once its setup ran, and the zero test keeps a draw
+  /// during setup correct.
+  int ESPHOME_ALWAYS_INLINE internal_width_() {
+    if (this->width_internal_ == 0)
+      this->width_internal_ = this->get_width_internal();
+    return this->width_internal_;
+  }
+  int ESPHOME_ALWAYS_INLINE internal_height_() {
+    if (this->height_internal_ == 0)
+      this->height_internal_ = this->get_height_internal();
+    return this->height_internal_;
+  }
+
   uint8_t *buffer_{nullptr};
+  int16_t width_internal_{0};
+  int16_t height_internal_{0};
 };
 
 }  // namespace esphome::display
