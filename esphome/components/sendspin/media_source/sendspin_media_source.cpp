@@ -45,6 +45,8 @@ bool SendspinMediaSource::can_handle(const std::string &uri) const { return uri.
 
 // THREAD CONTEXT: Main loop (media_source.h documents play_uri as main-loop only)
 bool SendspinMediaSource::play_uri(const std::string &uri) {
+  // The queued request has been delivered, whatever the outcome, so the next stream start may request again
+  this->pending_start_ = false;
   if (!this->is_ready() || this->is_failed() || !this->has_listener()) {
     return false;
   }
@@ -79,7 +81,6 @@ bool SendspinMediaSource::play_uri(const std::string &uri) {
   }
 
   // Tell the orchestrator we're now playing so it routes audio output from us
-  this->pending_start_ = false;
   this->set_state_(media_source::MediaSourceState::PLAYING);
 
   return true;
@@ -196,8 +197,6 @@ void SendspinMediaSource::on_stream_start() {
 
 // THREAD CONTEXT: Main loop (PlayerRoleListener lifecycle callback)
 void SendspinMediaSource::on_stream_end() {
-  // A play request queued for this stream is moot, and must not suppress the next stream's request
-  this->pending_start_ = false;
   if (this->get_state() != media_source::MediaSourceState::IDLE) {
     // Only set to IDLE if we were previously in a non-IDLE state, to avoid duplicate state changes
     this->set_state_(media_source::MediaSourceState::IDLE);
