@@ -28,7 +28,8 @@ def _final_validate(config: ConfigType) -> None:
     ps_config = fconf.get_config_for_path(fconf.get_path_for_id(ps_id)[:-1])
     if not ps_config[CONF_PIN].get(CONF_HOLD_DURING_SLEEP):
         raise cv.Invalid(
-            f"{CONF_HOLD_DURING_SLEEP} can only be used with a power supply component if the power supply pin is also configured with {CONF_HOLD_DURING_SLEEP}."
+            f"{CONF_HOLD_DURING_SLEEP} can only be used with a power supply component if the power supply pin is also configured with {CONF_HOLD_DURING_SLEEP}.",
+            [CONF_POWER_SUPPLY],
         )
 
 
