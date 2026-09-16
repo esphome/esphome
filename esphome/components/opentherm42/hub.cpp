@@ -303,10 +303,13 @@ void OpenTherm42Hub::build_schedule_() {
     this->informational_requests_.push_back(RequestKind::OEM_DIAGNOSTIC_CODE_VENTILATION);
   }
 
-  if (this->ventilation_configuration_read_.any_configured() || this->member_id_code_ventilation_sensor_ != nullptr) {
+  if (this->configuration_information_configuration_ventilation_heat_recovery_system_type_text_sensor_ != nullptr ||
+      this->configuration_information_configuration_ventilation_heat_recovery_bypass_text_sensor_ != nullptr ||
+      this->configuration_information_configuration_ventilation_heat_recovery_speed_control_text_sensor_ != nullptr ||
+      this->member_id_code_ventilation_sensor_ != nullptr) {
     this->informational_requests_.push_back(RequestKind::VENTILATION_CONFIGURATION);
   }
-  if (this->solar_storage_configuration_system_type_binary_sensor_ != nullptr ||
+  if (this->configuration_information_solar_storage_configuration_system_type_text_sensor_ != nullptr ||
       this->solar_storage_member_id_sensor_ != nullptr) {
     this->informational_requests_.push_back(RequestKind::SOLAR_STORAGE_CONFIGURATION);
   }
@@ -942,7 +945,39 @@ void OpenTherm42Hub::handle_response_(const Frame &frame) {
       }
       this->boiler_config_flags_ = frame.value_hb;
       this->boiler_member_id_code_ = frame.value_lb;
-      this->boiler_configuration_read_.publish(frame.value_hb);
+      if (this->configuration_information_boiler_configuration_dhw_present_text_sensor_ != nullptr) {
+        this->configuration_information_boiler_configuration_dhw_present_text_sensor_->publish_state(
+            (frame.value_hb & 0x01) ? "DHW is present" : "DHW not present");
+      }
+      if (this->configuration_information_boiler_configuration_control_type_text_sensor_ != nullptr) {
+        this->configuration_information_boiler_configuration_control_type_text_sensor_->publish_state(
+            (frame.value_hb & 0x02) ? "On/off" : "Modulating");
+      }
+      if (this->configuration_information_boiler_configuration_cooling_config_text_sensor_ != nullptr) {
+        this->configuration_information_boiler_configuration_cooling_config_text_sensor_->publish_state(
+            (frame.value_hb & 0x04) ? "Cooling supported" : "Cooling not supported");
+      }
+      if (this->configuration_information_boiler_configuration_dhw_config_text_sensor_ != nullptr) {
+        this->configuration_information_boiler_configuration_dhw_config_text_sensor_->publish_state(
+            (frame.value_hb & 0x08) ? "Storage tank" : "Instantaneous or not-specified");
+      }
+      if (this->configuration_information_boiler_configuration_master_low_off_and_pump_control_function_text_sensor_ !=
+          nullptr) {
+        this->configuration_information_boiler_configuration_master_low_off_and_pump_control_function_text_sensor_
+            ->publish_state((frame.value_hb & 0x10) ? "Not allowed" : "Allowed");
+      }
+      if (this->configuration_information_boiler_configuration_ch2_present_text_sensor_ != nullptr) {
+        this->configuration_information_boiler_configuration_ch2_present_text_sensor_->publish_state(
+            (frame.value_hb & 0x20) ? "CH2 present" : "CH2 not present");
+      }
+      if (this->configuration_information_boiler_configuration_remote_water_filling_function_text_sensor_ != nullptr) {
+        this->configuration_information_boiler_configuration_remote_water_filling_function_text_sensor_->publish_state(
+            (frame.value_hb & 0x40) ? "Not available" : "Available or unknown");
+      }
+      if (this->configuration_information_boiler_configuration_heat_cool_mode_control_text_sensor_ != nullptr) {
+        this->configuration_information_boiler_configuration_heat_cool_mode_control_text_sensor_->publish_state(
+            (frame.value_hb & 0x80) ? "Switching done by boiler" : "Switching done by master");
+      }
       if (this->boiler_member_id_code_sensor_ != nullptr) {
         this->boiler_member_id_code_sensor_->publish_state(frame.value_lb);
       }
@@ -1134,7 +1169,19 @@ void OpenTherm42Hub::handle_response_(const Frame &frame) {
         this->invalidate_response_(RequestKind::VENTILATION_CONFIGURATION);
         return;
       }
-      this->ventilation_configuration_read_.publish(frame.value_hb);
+      if (this->configuration_information_configuration_ventilation_heat_recovery_system_type_text_sensor_ != nullptr) {
+        this->configuration_information_configuration_ventilation_heat_recovery_system_type_text_sensor_->publish_state(
+            (frame.value_hb & 0x01) ? "Heat-recovery ventilation" : "Central exhaust ventilation");
+      }
+      if (this->configuration_information_configuration_ventilation_heat_recovery_bypass_text_sensor_ != nullptr) {
+        this->configuration_information_configuration_ventilation_heat_recovery_bypass_text_sensor_->publish_state(
+            (frame.value_hb & 0x02) ? "Present" : "Not present");
+      }
+      if (this->configuration_information_configuration_ventilation_heat_recovery_speed_control_text_sensor_ !=
+          nullptr) {
+        this->configuration_information_configuration_ventilation_heat_recovery_speed_control_text_sensor_
+            ->publish_state((frame.value_hb & 0x04) ? "Variable" : "3-speed");
+      }
       if (this->member_id_code_ventilation_sensor_ != nullptr) {
         this->member_id_code_ventilation_sensor_->publish_state(frame.value_lb);
       }
@@ -1146,8 +1193,9 @@ void OpenTherm42Hub::handle_response_(const Frame &frame) {
         this->invalidate_response_(RequestKind::SOLAR_STORAGE_CONFIGURATION);
         return;
       }
-      if (this->solar_storage_configuration_system_type_binary_sensor_ != nullptr) {
-        this->solar_storage_configuration_system_type_binary_sensor_->publish_state(frame.value_hb & 0x1);
+      if (this->configuration_information_solar_storage_configuration_system_type_text_sensor_ != nullptr) {
+        this->configuration_information_solar_storage_configuration_system_type_text_sensor_->publish_state(
+            (frame.value_hb & 0x01) ? "DHW parallel system" : "DHW preheat system");
       }
       if (this->solar_storage_member_id_sensor_ != nullptr) {
         this->solar_storage_member_id_sensor_->publish_state(frame.value_lb);
@@ -1876,15 +1924,26 @@ void OpenTherm42Hub::invalidate_response_(RequestKind kind) {
       return;
 
     case RequestKind::VENTILATION_CONFIGURATION:
-      this->ventilation_configuration_read_.invalidate();
+      if (this->configuration_information_configuration_ventilation_heat_recovery_system_type_text_sensor_ != nullptr) {
+        invalidate_entity(
+            this->configuration_information_configuration_ventilation_heat_recovery_system_type_text_sensor_);
+      }
+      if (this->configuration_information_configuration_ventilation_heat_recovery_bypass_text_sensor_ != nullptr) {
+        invalidate_entity(this->configuration_information_configuration_ventilation_heat_recovery_bypass_text_sensor_);
+      }
+      if (this->configuration_information_configuration_ventilation_heat_recovery_speed_control_text_sensor_ !=
+          nullptr) {
+        invalidate_entity(
+            this->configuration_information_configuration_ventilation_heat_recovery_speed_control_text_sensor_);
+      }
       if (this->member_id_code_ventilation_sensor_ != nullptr) {
         invalidate_entity(this->member_id_code_ventilation_sensor_);
       }
       return;
 
     case RequestKind::SOLAR_STORAGE_CONFIGURATION:
-      if (this->solar_storage_configuration_system_type_binary_sensor_ != nullptr) {
-        invalidate_entity(this->solar_storage_configuration_system_type_binary_sensor_);
+      if (this->configuration_information_solar_storage_configuration_system_type_text_sensor_ != nullptr) {
+        invalidate_entity(this->configuration_information_solar_storage_configuration_system_type_text_sensor_);
       }
       if (this->solar_storage_member_id_sensor_ != nullptr) {
         invalidate_entity(this->solar_storage_member_id_sensor_);

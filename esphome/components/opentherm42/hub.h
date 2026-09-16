@@ -415,34 +415,44 @@ class OpenTherm42Hub : public Component {
   OT42_SET_SENSOR(control_and_status_information_oem_diagnostic_code_ventilation_heat_recovery,
                   oem_diagnostic_code_ventilation_sensor_)
 
-  // §5.3.2 Class 2, ID 3 HB: Boiler configuration; LB: Boiler MemberID code.
-  OT42_FLAG_READ_BIT(configuration_information_boiler_configuration_dhw_present, boiler_configuration_read_, 0)
-  OT42_FLAG_READ_BIT(configuration_information_boiler_configuration_control_type, boiler_configuration_read_, 1)
-  OT42_FLAG_READ_BIT(configuration_information_boiler_configuration_cooling_config, boiler_configuration_read_, 2)
-  OT42_FLAG_READ_BIT(configuration_information_boiler_configuration_dhw_config, boiler_configuration_read_, 3)
-  OT42_FLAG_READ_BIT(configuration_information_boiler_configuration_master_low_off_and_pump_control_function,
-                     boiler_configuration_read_, 4)
-  OT42_FLAG_READ_BIT(configuration_information_boiler_configuration_ch2_present, boiler_configuration_read_, 5)
-  OT42_FLAG_READ_BIT(configuration_information_boiler_configuration_remote_water_filling_function,
-                     boiler_configuration_read_, 6)
-  OT42_FLAG_READ_BIT(configuration_information_boiler_configuration_heat_cool_mode_control, boiler_configuration_read_,
-                     7)
+  // §5.3.2 Class 2, ID 3 HB: Boiler configuration; LB: Boiler MemberID code. Each HB bit is a small
+  // 2-state named enum, so a text_sensor showing the spec's own wording rather than a bare on/off --
+  // see hub.cpp's handle_response_() BOILER_CONFIG case.
+  OT42_SET_PLAIN_TEXT_SENSOR(configuration_information_boiler_configuration_dhw_present,
+                             configuration_information_boiler_configuration_dhw_present_text_sensor_)
+  OT42_SET_PLAIN_TEXT_SENSOR(configuration_information_boiler_configuration_control_type,
+                             configuration_information_boiler_configuration_control_type_text_sensor_)
+  OT42_SET_PLAIN_TEXT_SENSOR(configuration_information_boiler_configuration_cooling_config,
+                             configuration_information_boiler_configuration_cooling_config_text_sensor_)
+  OT42_SET_PLAIN_TEXT_SENSOR(configuration_information_boiler_configuration_dhw_config,
+                             configuration_information_boiler_configuration_dhw_config_text_sensor_)
+  OT42_SET_PLAIN_TEXT_SENSOR(
+      configuration_information_boiler_configuration_master_low_off_and_pump_control_function,
+      configuration_information_boiler_configuration_master_low_off_and_pump_control_function_text_sensor_)
+  OT42_SET_PLAIN_TEXT_SENSOR(configuration_information_boiler_configuration_ch2_present,
+                             configuration_information_boiler_configuration_ch2_present_text_sensor_)
+  OT42_SET_PLAIN_TEXT_SENSOR(configuration_information_boiler_configuration_remote_water_filling_function,
+                             configuration_information_boiler_configuration_remote_water_filling_function_text_sensor_)
+  OT42_SET_PLAIN_TEXT_SENSOR(configuration_information_boiler_configuration_heat_cool_mode_control,
+                             configuration_information_boiler_configuration_heat_cool_mode_control_text_sensor_)
   OT42_SET_SENSOR(configuration_information_boiler_member_id_code, boiler_member_id_code_sensor_)
 
   // §5.3.2 Class 2, ID 74 HB: Configuration ventilation/heat-recovery (bits 3-7 reserved); LB: MemberID
-  // code ventilation/heat-recovery.
-  OT42_FLAG_READ_BIT(configuration_information_configuration_ventilation_heat_recovery_system_type,
-                     ventilation_configuration_read_, 0)
-  OT42_FLAG_READ_BIT(configuration_information_configuration_ventilation_heat_recovery_bypass,
-                     ventilation_configuration_read_, 1)
-  OT42_FLAG_READ_BIT(configuration_information_configuration_ventilation_heat_recovery_speed_control,
-                     ventilation_configuration_read_, 2)
+  // code ventilation/heat-recovery. Same named-enum-per-bit treatment as ID 3 HB above.
+  OT42_SET_PLAIN_TEXT_SENSOR(configuration_information_configuration_ventilation_heat_recovery_system_type,
+                             configuration_information_configuration_ventilation_heat_recovery_system_type_text_sensor_)
+  OT42_SET_PLAIN_TEXT_SENSOR(configuration_information_configuration_ventilation_heat_recovery_bypass,
+                             configuration_information_configuration_ventilation_heat_recovery_bypass_text_sensor_)
+  OT42_SET_PLAIN_TEXT_SENSOR(
+      configuration_information_configuration_ventilation_heat_recovery_speed_control,
+      configuration_information_configuration_ventilation_heat_recovery_speed_control_text_sensor_)
   OT42_SET_SENSOR(configuration_information_member_id_code_ventilation_heat_recovery,
                   member_id_code_ventilation_sensor_)
 
   // §5.3.2 Class 2, ID 103 HB bit 0: Solar Storage configuration: system type; LB: Solar Storage member ID.
-  OT42_SET_BINARY_SENSOR(configuration_information_solar_storage_configuration_system_type,
-                         solar_storage_configuration_system_type_binary_sensor_)
+  // Same named-enum-per-bit treatment as ID 3 HB above.
+  OT42_SET_PLAIN_TEXT_SENSOR(configuration_information_solar_storage_configuration_system_type,
+                             configuration_information_solar_storage_configuration_system_type_text_sensor_)
   OT42_SET_SENSOR(configuration_information_solar_storage_member_id, solar_storage_member_id_sensor_)
 
   // §5.3.2 Class 2, IDs 125/127: OpenTherm version + product version/type implemented by the boiler.
@@ -764,8 +774,16 @@ class OpenTherm42Hub : public Component {
   uint8_t controller_product_type_{0};
   uint8_t controller_product_version_{0};
 
-  FlagReadBits boiler_configuration_read_;
-  FlagReadBits ventilation_configuration_read_;
+  text_sensor::TextSensor *configuration_information_boiler_configuration_dhw_present_text_sensor_{nullptr};
+  text_sensor::TextSensor *configuration_information_boiler_configuration_control_type_text_sensor_{nullptr};
+  text_sensor::TextSensor *configuration_information_boiler_configuration_cooling_config_text_sensor_{nullptr};
+  text_sensor::TextSensor *configuration_information_boiler_configuration_dhw_config_text_sensor_{nullptr};
+  text_sensor::TextSensor
+      *configuration_information_boiler_configuration_master_low_off_and_pump_control_function_text_sensor_{nullptr};
+  text_sensor::TextSensor *configuration_information_boiler_configuration_ch2_present_text_sensor_{nullptr};
+  text_sensor::TextSensor *configuration_information_boiler_configuration_remote_water_filling_function_text_sensor_{
+      nullptr};
+  text_sensor::TextSensor *configuration_information_boiler_configuration_heat_cool_mode_control_text_sensor_{nullptr};
 
   sensor::Sensor *boiler_member_id_code_sensor_{nullptr};
   sensor::Sensor *member_id_code_ventilation_sensor_{nullptr};
@@ -778,7 +796,15 @@ class OpenTherm42Hub : public Component {
   sensor::Sensor *ventilation_product_version_sensor_{nullptr};
   sensor::Sensor *solar_storage_product_type_sensor_{nullptr};
   sensor::Sensor *solar_storage_product_version_sensor_{nullptr};
-  binary_sensor::BinarySensor *solar_storage_configuration_system_type_binary_sensor_{nullptr};
+
+  text_sensor::TextSensor *configuration_information_configuration_ventilation_heat_recovery_system_type_text_sensor_{
+      nullptr};
+  text_sensor::TextSensor *configuration_information_configuration_ventilation_heat_recovery_bypass_text_sensor_{
+      nullptr};
+  text_sensor::TextSensor *configuration_information_configuration_ventilation_heat_recovery_speed_control_text_sensor_{
+      nullptr};
+
+  text_sensor::TextSensor *configuration_information_solar_storage_configuration_system_type_text_sensor_{nullptr};
 
   BrandRead brand_;
   BrandRead brand_version_;

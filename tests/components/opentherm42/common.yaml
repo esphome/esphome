@@ -237,44 +237,6 @@ binary_sensor:
     # §5.3.1 Class 1, ID 101 LB bit 0: fault indication
     control_and_status_information_solar_storage_mode_and_status_fault_indication:
       name: "Control and Status Information: Solar Storage mode and status: Fault indication"
-    # §5.3.2 Class 2, ID 3 HB bit 0: DHW present [ dhw not present, dhw is present ]
-    configuration_information_boiler_configuration_dhw_present:
-      name: "Configuration Information: Boiler configuration: DHW present"
-    # §5.3.2 Class 2, ID 3 HB bit 1: Control type [ modulating, on/off ]
-    configuration_information_boiler_configuration_control_type:
-      name: "Configuration Information: Boiler configuration: Control type"
-    # §5.3.2 Class 2, ID 3 HB bit 2: Cooling config [ cooling not supported, cooling supported ]
-    configuration_information_boiler_configuration_cooling_config:
-      name: "Configuration Information: Boiler configuration: Cooling config"
-    # §5.3.2 Class 2, ID 3 HB bit 3: DHW config [ instantaneous or not-specified, storage tank ]
-    configuration_information_boiler_configuration_dhw_config:
-      name: "Configuration Information: Boiler configuration: DHW config"
-    # §5.3.2 Class 2, ID 3 HB bit 4: Master low-off&pump control function [ allowed, not allowed ]
-    configuration_information_boiler_configuration_master_low_off_and_pump_control_function:
-      name: "Configuration Information: Boiler configuration: Master low-off&pump control function"
-    # §5.3.2 Class 2, ID 3 HB bit 5: CH2 present [ CH2 not present, CH2 present ]
-    configuration_information_boiler_configuration_ch2_present:
-      name: "Configuration Information: Boiler configuration: CH2 present"
-    # §5.3.2 Class 2, ID 3 HB bit 6: Remote water filling function [ available or unknown, not available ].
-    # Unknown for applications with protocol version 2.2 or older.
-    configuration_information_boiler_configuration_remote_water_filling_function:
-      name: "Configuration Information: Boiler configuration: Remote water filling function"
-    # §5.3.2 Class 2, ID 3 HB bit 7: Heat/cool mode control [ switching done by master, switching done by boiler ]
-    configuration_information_boiler_configuration_heat_cool_mode_control:
-      name: "Configuration Information: Boiler configuration: Heat-cool mode control"
-    # §5.3.2 Class 2, ID 74 HB bit 0: System type [ 0 = central exhaust ventilation, 1 = heat-recovery ventilation ]
-    configuration_information_configuration_ventilation_heat_recovery_system_type:
-      name: "Configuration Information: Configuration ventilation-heat-recovery: System type"
-    # §5.3.2 Class 2, ID 74 HB bit 1: Bypass [ not present, present ]
-    configuration_information_configuration_ventilation_heat_recovery_bypass:
-      name: "Configuration Information: Configuration ventilation-heat-recovery: Bypass"
-    # §5.3.2 Class 2, ID 74 HB bit 2: Speed control [ 3-speed, variable ]
-    configuration_information_configuration_ventilation_heat_recovery_speed_control:
-      name: "Configuration Information: Configuration ventilation-heat-recovery: Speed control"
-    # §5.3.2 Class 2, ID 103 HB bit 0: Solar Storage configuration: system type
-    # [ 0 = DHW preheat system, 1 = DHW parallel system ]
-    configuration_information_solar_storage_configuration_system_type:
-      name: "Configuration Information: Solar Storage configuration: System type"
     # §5.3.5 Class 5, ID 6 HB bit 0: DHW Setpoint [ transfer disabled, transfer enabled ]
     pre_defined_remote_boiler_parameters_transfer_enable_flags_dhw_setpoint:
       name: "Pre-Defined Remote Boiler Parameters: Remote-parameter transfer-enable flags: DHW Setpoint"
@@ -414,6 +376,44 @@ text_sensor:
     # §5.3.2 Class 2, ID 95: Brand serial number, read the same way as ID 93.
     configuration_information_brand_serial_number:
       name: "Configuration Information: Brand serial number"
+    # §5.3.2 Class 2, ID 3 HB bit 0: DHW present [ dhw not present, dhw is present ]
+    configuration_information_boiler_configuration_dhw_present:
+      name: "Configuration Information: Boiler configuration: DHW present"
+    # §5.3.2 Class 2, ID 3 HB bit 1: Control type [ modulating, on/off ]
+    configuration_information_boiler_configuration_control_type:
+      name: "Configuration Information: Boiler configuration: Control type"
+    # §5.3.2 Class 2, ID 3 HB bit 2: Cooling config [ cooling not supported, cooling supported ]
+    configuration_information_boiler_configuration_cooling_config:
+      name: "Configuration Information: Boiler configuration: Cooling config"
+    # §5.3.2 Class 2, ID 3 HB bit 3: DHW config [ instantaneous or not-specified, storage tank ]
+    configuration_information_boiler_configuration_dhw_config:
+      name: "Configuration Information: Boiler configuration: DHW config"
+    # §5.3.2 Class 2, ID 3 HB bit 4: Master low-off&pump control function [ allowed, not allowed ]
+    configuration_information_boiler_configuration_master_low_off_and_pump_control_function:
+      name: "Configuration Information: Boiler configuration: Master low-off&pump control function"
+    # §5.3.2 Class 2, ID 3 HB bit 5: CH2 present [ CH2 not present, CH2 present ]
+    configuration_information_boiler_configuration_ch2_present:
+      name: "Configuration Information: Boiler configuration: CH2 present"
+    # §5.3.2 Class 2, ID 3 HB bit 6: Remote water filling function [ available or unknown, not available ].
+    # Unknown for applications with protocol version 2.2 or older.
+    configuration_information_boiler_configuration_remote_water_filling_function:
+      name: "Configuration Information: Boiler configuration: Remote water filling function"
+    # §5.3.2 Class 2, ID 3 HB bit 7: Heat/cool mode control [ switching done by master, switching done by boiler ]
+    configuration_information_boiler_configuration_heat_cool_mode_control:
+      name: "Configuration Information: Boiler configuration: Heat-cool mode control"
+    # §5.3.2 Class 2, ID 74 HB bit 0: System type [ 0 = central exhaust ventilation, 1 = heat-recovery ventilation ]
+    configuration_information_configuration_ventilation_heat_recovery_system_type:
+      name: "Configuration Information: Configuration ventilation-heat-recovery: System type"
+    # §5.3.2 Class 2, ID 74 HB bit 1: Bypass [ not present, present ]
+    configuration_information_configuration_ventilation_heat_recovery_bypass:
+      name: "Configuration Information: Configuration ventilation-heat-recovery: Bypass"
+    # §5.3.2 Class 2, ID 74 HB bit 2: Speed control [ 3-speed, variable ]
+    configuration_information_configuration_ventilation_heat_recovery_speed_control:
+      name: "Configuration Information: Configuration ventilation-heat-recovery: Speed control"
+    # §5.3.2 Class 2, ID 103 HB bit 0: Solar Storage configuration: system type
+    # [ 0 = DHW preheat system, 1 = DHW parallel system ]
+    configuration_information_solar_storage_configuration_system_type:
+      name: "Configuration Information: Solar Storage configuration: System type"
     # §5.3.1 Class 1, ID 101 LB bits 3,2,1: Solar Storage mode and status: Solar mode -- the
     # boiler's own reported mode, independent of the select platform's ID 101 HB below.
     control_and_status_information_solar_storage_mode_and_status_solar_mode:
