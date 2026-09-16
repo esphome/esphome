@@ -200,8 +200,6 @@ void TSL2591Component::set_infrared_sensor(sensor::Sensor *infrared_sensor) {
   this->infrared_sensor_ = infrared_sensor;
 }
 
-void TSL2591Component::set_visible_sensor(sensor::Sensor *visible_sensor) { this->visible_sensor_ = visible_sensor; }
-
 void TSL2591Component::set_full_spectrum_sensor(sensor::Sensor *full_spectrum_sensor) {
   this->full_spectrum_sensor_ = full_spectrum_sensor;
 }
@@ -239,10 +237,6 @@ void TSL2591Component::set_integration_time_and_gain(TSL2591IntegrationTime inte
     this->enable();
   }
 }
-
-void TSL2591Component::set_power_save_mode(bool enable) { this->power_save_mode_enabled_ = enable; }
-
-void TSL2591Component::set_name(const char *name) { this->name_ = name; }
 
 bool TSL2591Component::is_adc_valid() {
   uint8_t status;

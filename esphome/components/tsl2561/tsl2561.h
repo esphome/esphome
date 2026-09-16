@@ -59,7 +59,7 @@ class TSL2561Sensor final : public sensor::Sensor, public PollingComponent, publ
    *
    * @param package_cs Is this a CS package.
    */
-  void set_is_cs_package(bool package_cs);
+  void set_is_cs_package(bool package_cs) { this->package_cs_ = package_cs; }
 
   // ========== INTERNAL METHODS ==========
   // (In most use cases you won't need these)

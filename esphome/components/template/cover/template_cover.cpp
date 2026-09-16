@@ -53,7 +53,6 @@ void TemplateCover::loop() {
   if (changed)
     this->publish_state();
 }
-void TemplateCover::set_optimistic(bool optimistic) { this->optimistic_ = optimistic; }
 void TemplateCover::set_assumed_state(bool assumed_state) { this->assumed_state_ = assumed_state; }
 float TemplateCover::get_setup_priority() const { return setup_priority::HARDWARE; }
 Trigger<> *TemplateCover::get_open_trigger() { return &this->open_trigger_; }
@@ -117,10 +116,6 @@ CoverTraits TemplateCover::get_traits() {
 }
 Trigger<float> *TemplateCover::get_position_trigger() { return &this->position_trigger_; }
 Trigger<float> *TemplateCover::get_tilt_trigger() { return &this->tilt_trigger_; }
-void TemplateCover::set_has_stop(bool has_stop) { this->has_stop_ = has_stop; }
-void TemplateCover::set_has_toggle(bool has_toggle) { this->has_toggle_ = has_toggle; }
-void TemplateCover::set_has_position(bool has_position) { this->has_position_ = has_position; }
-void TemplateCover::set_has_tilt(bool has_tilt) { this->has_tilt_ = has_tilt; }
 void TemplateCover::stop_prev_trigger_() {
   if (this->prev_command_trigger_ != nullptr) {
     this->prev_command_trigger_->stop_action();
