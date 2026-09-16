@@ -935,8 +935,8 @@ void AsyncEventSourceResponse::process_buffer_() {
 void AsyncEventSourceResponse::loop() {
   process_buffer_();
   process_deferred_queue_();
-  if (!this->entities_iterator_.completed())
-    this->entities_iterator_.advance();
+  // One step per loop; refusals retry next pass
+  this->entities_iterator_.try_advance(1);
 }
 
 bool AsyncEventSourceResponse::try_send_nodefer(const char *message, size_t message_len, const char *event, uint32_t id,

@@ -119,7 +119,8 @@ void PCM5122::dump_config() {
                 "  Channel mix: %s\n"
                 "  Volume range: %.1f dB to %.1f dB\n"
                 "  Muted: %s",
-                this->bits_per_sample_, this->analog_gain_ == PCM5122_ANALOG_GAIN_0DB ? "0 dB" : "-6 dB",
+                this->bits_per_sample_,
+                this->analog_gain_ == PCM5122_ANALOG_GAIN_0DB ? LOG_STR_LITERAL("0 dB") : LOG_STR_LITERAL("-6 dB"),
                 channel_mix_str, this->volume_min_db_, this->volume_max_db_, YESNO(this->is_muted_));
   LOG_PIN("  Enable Pin: ", this->enable_pin_);
 }

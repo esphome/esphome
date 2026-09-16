@@ -1,4 +1,5 @@
 #include "automation.h"
+#ifdef USE_TIME_TRIGGERS
 
 #include "esphome/core/log.h"
 
@@ -98,3 +99,5 @@ SyncTrigger::SyncTrigger(RealTimeClock *rtc) : rtc_(rtc) {
 }
 
 }  // namespace esphome::time
+
+#endif  // USE_TIME_TRIGGERS
