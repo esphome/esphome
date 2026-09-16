@@ -17,6 +17,9 @@ static const char *const TAG = "gpio.one_wire";
 // 1 MHz resolution gives 1 us per RMT tick.
 static constexpr uint32_t RMT_RESOLUTION_HZ = 1000000;
 static constexpr size_t MAX_RX_SYMBOLS = 64;
+// OneWireBus operations are synchronous, so unlike output-only RMT users the
+// caller cannot defer completion to a later loop iteration. Normal 64-bit
+// transactions finish in under 5 ms; this is only a fault timeout ceiling.
 static constexpr uint32_t RMT_OPERATION_TIMEOUT_MS = 20;
 
 // 1-wire timing constants, in microseconds.
@@ -152,7 +155,10 @@ void GPIOOneWireBus::setup_rmt_() {
   tx_cfg.resolution_hz = RMT_RESOLUTION_HZ;
   tx_cfg.gpio_num = gpio_num;
   tx_cfg.mem_block_symbols = SOC_RMT_MEM_WORDS_PER_CHANNEL;
-  tx_cfg.trans_queue_depth = 4;
+  // The OneWireBus API is synchronous and never intentionally has more than
+  // one TX in flight. A single descriptor also makes payload lifetime/order
+  // explicit, matching current ESPHome RMT users with synchronous semantics.
+  tx_cfg.trans_queue_depth = 1;
 #if ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(6, 0, 0)
   tx_cfg.flags.io_loop_back = true;
   tx_cfg.flags.io_od_mode = true;
