@@ -10,7 +10,7 @@ static const char *const TAG = "sendspin.switch";
 
 void SendspinSwitch::setup() {
   // The hub waits for this request, so a restore mode without a state still has to answer.
-  if (this->get_initial_state_with_restore_mode().value_or(false)) {
+  if (this->get_initial_state_with_restore_mode().value_or(true)) {
     this->turn_on();
   } else {
     this->turn_off();
