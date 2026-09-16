@@ -10,6 +10,8 @@ static const uint8_t PZEM_REGISTER_COUNT = 10;  // 10x 16-bit registers
 
 // Register map, see https://github.com/esphome/feature-requests/issues/49#issuecomment-538636809
 // 32-bit values are two registers, low word first.
+// PZEM-004T V3.0 user manual, section 2.3 (register layout, units and alarm flags):
+// https://innovatorsguru.com/wp-content/uploads/2019/06/PZEM-004T-V3.0-Datasheet-User-Manual.pdf#page=3
 static const uint16_t PZEM_REGISTER_VOLTAGE = 0;        // 1 register, 0.1 V
 static const uint16_t PZEM_REGISTER_CURRENT = 1;        // 2 registers, 0.001 A
 static const uint16_t PZEM_REGISTER_ACTIVE_POWER = 3;   // 2 registers, 0.1 W
@@ -20,6 +22,10 @@ static const uint16_t PZEM_REGISTER_ALARM = 9;          // 1 register
 
 // Installation sanity limits, expressed in raw register units.
 // Voltage headroom allows recording an open-neutral fault in a 230/400 V system.
+// Manual sections 1.1-1.5 specify 80-260 V, 0-100 A / 0-23 kW (100 A model),
+// power factor 0.00-1.00 and 45-65 Hz (0.1 Hz per register unit).
+// The 450 V / 45 kW limits below are deliberate headroom for rejecting startup garbage,
+// not rated measurement limits or a guarantee of safe/accurate operation above 260 V.
 static const uint16_t PZEM_MAX_VOLTAGE = 4500;         // 450.0 V
 static const uint32_t PZEM_MAX_CURRENT = 100000;       // 100.000 A
 static const uint32_t PZEM_MAX_ACTIVE_POWER = 450000;  // 45.0 kW at 450 V / 100 A
@@ -52,6 +58,8 @@ void PZEMAC::on_read_input_registers(uint16_t start_address, std::span<const uin
 
   // The meter can return a CRC-valid but nonsensical frame while powering up.
   // Reject the whole frame so no sensor receives a mixture of fresh and stale data.
+  // The frequency check follows section 1.5.1; a 0 Hz frame is outside that specified range.
+  // The manual does not specify an all-zero measurement frame as a power-loss indication.
   if (raw_voltage > PZEM_MAX_VOLTAGE || raw_current > PZEM_MAX_CURRENT || raw_active_power > PZEM_MAX_ACTIVE_POWER ||
       raw_frequency < PZEM_MIN_FREQUENCY || raw_frequency > PZEM_MAX_FREQUENCY ||
       raw_power_factor > PZEM_MAX_POWER_FACTOR || (raw_alarm != 0 && raw_alarm != 0xFFFF)) {
@@ -102,6 +110,14 @@ void PZEMAC::on_custom_response(std::span<const uint8_t> request_pdu, std::span<
 void PZEMAC::update() {
   this->read_input_registers(0, PZEM_REGISTER_COUNT);
 
+  // Manual section 5.1 requires external 5 V for the passive TTL interface:
+  // https://innovatorsguru.com/wp-content/uploads/2019/06/PZEM-004T-V3.0-Datasheet-User-Manual.pdf#page=7
+  // This does not mean the metering chip runs from 5 V; ESPHome documents AC-side power:
+  // https://esphome.io/components/sensor/pzemac/
+  // In this UPS-backed installation, removing AC stops replies instead of delivering a zero frame.
+  // The timer tracks the last accepted frame, including startup with no valid frames yet.
+  // The zeros below are an installation policy, not readings specified by the manual;
+  // a timeout alone cannot distinguish loss of mains from a communication fault.
   if (this->get_update_interval() != SCHEDULER_DONT_RUN &&
       (millis() - this->last_update_time_) > this->get_update_interval() * 2) {
     ESP_LOGE(TAG, "PZEM AC Addr 0x%02X: Timeout!", int(this->address_));
