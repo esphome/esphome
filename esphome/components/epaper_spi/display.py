@@ -132,6 +132,7 @@ def customise_schema(config):
         extra=cv.ALLOW_EXTRA,
     )(config)
     model = MODELS[config[CONF_MODEL]]
+    model.check_requirements()
     config = model_schema(config)(config)
     width, height = model.get_dimensions(config)
     display.add_metadata(

@@ -81,6 +81,7 @@ seeed_sticky = ssd1677.extend(
     reset_pin=17,
     busy_pin=18,
     data_rate="10MHz",
+    requires={"psram"},
 )
 
 # Sticky - 4 level grayscale

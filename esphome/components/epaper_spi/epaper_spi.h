@@ -114,6 +114,7 @@ class EPaperBase : public Display,
   int get_width() override { return this->effective_transform_ & SWAP_XY ? this->height_ : this->width_; }
   int get_height() override { return this->effective_transform_ & SWAP_XY ? this->width_ : this->height_; }
   void draw_pixel_at(int x, int y, Color color) override;
+  void reset_update_count() { this->update_count_ = 0; }
 
  protected:
   int get_height_internal() override { return this->height_; };
