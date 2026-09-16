@@ -26,7 +26,8 @@ void Switch::turn_off() {
   this->write_state(this->inverted_);
 }
 void Switch::toggle() {
-  ESP_LOGV(TAG, "'%s' Toggling %s.", this->get_name().c_str(), this->state ? "OFF" : "ON");
+  ESP_LOGV(TAG, "'%s' Toggling %s.", this->get_name().c_str(),
+           this->state ? LOG_STR_LITERAL("OFF") : LOG_STR_LITERAL("ON"));
   this->write_state(this->inverted_ == this->state);
 }
 optional<bool> Switch::get_initial_state() {
@@ -68,9 +69,6 @@ void Switch::publish_state(bool state) {
 #endif
 }
 bool Switch::assumed_state() { return false; }
-
-void Switch::set_inverted(bool inverted) { this->inverted_ = inverted; }
-bool Switch::is_inverted() const { return this->inverted_; }
 
 void log_switch(const char *tag, const char *prefix, const char *type, Switch *obj) {
   if (obj != nullptr) {

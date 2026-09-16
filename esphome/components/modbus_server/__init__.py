@@ -151,7 +151,7 @@ def _final_validate(config: ConfigType) -> None:
 FINAL_VALIDATE_SCHEMA = _final_validate
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     if server_courtesy_response := config.get(CONF_COURTESY_RESPONSE):
         cg.add(

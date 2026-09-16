@@ -1,6 +1,7 @@
 """ESP-IDF direct build API for ESPHome."""
 
 from dataclasses import dataclass, field
+import hashlib
 import json
 import logging
 import os
@@ -23,7 +24,7 @@ from esphome.core import CORE, EsphomeError
 from esphome.espidf import variant_to_idf_target
 from esphome.espidf.framework import check_esp_idf_install, get_framework_env
 from esphome.espidf.size_summary import print_summary
-from esphome.helpers import add_git_ceiling_directory
+from esphome.helpers import add_git_ceiling_directory, write_file
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -256,6 +257,106 @@ def run_reconfigure() -> int:
     return run_idf_py(*_get_sdkconfig_args(), "reconfigure")
 
 
+def _builtin_component_cache_path() -> Path | None:
+    """Cache file for this build's built-in component list.
+
+    The file lives inside the extracted framework directory so it is
+    discarded together with that exact checkout (re-extract, source
+    override, clean-all); the target and the EXCLUDE_COMPONENTS set name it.
+    The sdkconfig is not part of the key: IDF components register regardless
+    of CONFIG_* options and only gate their sources on them. A checkout
+    supplied through IDF_PATH is not managed by ESPHome and is never cached.
+    """
+    if "IDF_PATH" in os.environ:
+        return None
+    target = variant_to_idf_target(CORE.data[KEY_ESP32][KEY_VARIANT])
+    excluded = CORE.cmake_args.get("EXCLUDE_COMPONENTS", "")
+    excluded_key = hashlib.sha256(excluded.encode()).hexdigest()[:12]
+    return (
+        _get_idf_path() / ".esphome_component_lists" / f"{target}-{excluded_key}.json"
+    )
+
+
+def load_cached_builtin_components() -> list[str] | None:
+    """Return the cached built-in component list for this build, if valid.
+
+    Every name must still exist under ``$IDF_PATH/components`` so a stale
+    entry is treated as a miss instead of failing the configure.
+    """
+    if (path := _builtin_component_cache_path()) is None:
+        return None
+    try:
+        components = json.loads(path.read_text(encoding="utf-8"))
+        present = {
+            entry.name
+            for entry in (path.parents[1] / "components").iterdir()
+            if entry.is_dir()
+        }
+    except (OSError, ValueError):
+        return None
+    if (
+        isinstance(components, list)
+        and all(isinstance(c, str) for c in components)
+        and present.issuperset(components)
+    ):
+        return components
+    return None
+
+
+def save_cached_builtin_components(components: list[str]) -> None:
+    """Store a built-in component list that just configured successfully."""
+    if not components or (path := _builtin_component_cache_path()) is None:
+        return
+    try:
+        write_file(path, json.dumps(components, separators=(",", ":")))
+    except EsphomeError as err:
+        _LOGGER.warning("Could not write component list cache %s: %s", path, err)
+
+
+def _write_project_and_reconfigure(builtin_components: list[str] | None) -> int:
+    """Write the full CMakeLists.txt and run the configure for it."""
+    from esphome.build_gen.espidf import write_project
+
+    _LOGGER.info("Writing CMakeLists.txt with the built-in component list...")
+    write_project(minimal=False, builtin_components=builtin_components)
+    # Explicit reconfigure: ninja only re-runs cmake when CMakeLists.txt
+    # is strictly newer than build.ninja, which fails on coarse-mtime
+    # filesystems (#18682). Also keeps idf.py from regenerating memory.ld
+    # in testing mode.
+    return run_reconfigure()
+
+
+def _configure_project() -> int:
+    """Configure the project, discovering the built-in components if needed.
+
+    A cached component list skips the discovery configure. If the configure
+    with a cached list fails the entry is dropped and discovery runs once; a
+    list is only cached after it configured successfully.
+    """
+    from esphome.build_gen.espidf import get_available_components, write_project
+
+    if (cached := load_cached_builtin_components()) is not None:
+        _LOGGER.info("Using cached ESP-IDF component list")
+        if _write_project_and_reconfigure(cached) == 0:
+            return 0
+        _LOGGER.warning("Cached component list failed; rediscovering")
+        _builtin_component_cache_path().unlink(missing_ok=True)
+    _LOGGER.info("Discovering available ESP-IDF components...")
+    write_project(minimal=True)
+    if (rc := run_reconfigure()) != 0:
+        _LOGGER.error("Component discovery failed")
+        return rc
+    discovered = get_available_components()
+    if not discovered:
+        _LOGGER.error("Component discovery found no built-in ESP-IDF components")
+        return 1
+    if (rc := _write_project_and_reconfigure(discovered)) != 0:
+        _LOGGER.error("Reconfigure with discovered components failed")
+        return rc
+    save_cached_builtin_components(discovered)
+    return 0
+
+
 def has_outdated_files():
     """Check if the build configuration is stale.
 
@@ -273,6 +374,11 @@ def has_outdated_files():
       happen without any sdkconfig impact, and ``_write_idf_component_yml``
       already deletes ``dependencies.lock`` on a change but that signal
       gets lost as soon as the lock is missing.
+    - ``exclude_components.esphomeinternal`` -- the resolved
+      EXCLUDE_COMPONENTS set. Excluded components never register in
+      ``project_description.json``, so re-including one needs a fresh
+      discovery pass before it can appear in the builtin-components
+      property that ``src`` REQUIRES.
 
     We deliberately don't watch:
     - The top-level/src ``CMakeLists.txt`` -- ESPHome owns those, and
@@ -291,6 +397,9 @@ def has_outdated_files():
         f"sdkconfig.{CORE.name}.esphomeinternal"
     )
     idf_component_yml_path = CORE.relative_build_path("src/idf_component.yml")
+    exclude_components_path = CORE.relative_build_path(
+        "exclude_components.esphomeinternal"
+    )
     dependency_lock_path = CORE.relative_build_path("dependencies.lock")
     build_ninja_path = CORE.relative_build_path("build/build.ninja")
 
@@ -309,7 +418,11 @@ def has_outdated_files():
     cmakecache_txt_mtime = cmakecache_txt_path.stat().st_mtime
     return any(
         f.stat().st_mtime > cmakecache_txt_mtime
-        for f in [sdkconfig_internal_path, idf_component_yml_path]
+        for f in [
+            sdkconfig_internal_path,
+            idf_component_yml_path,
+            exclude_components_path,
+        ]
         if f.exists()
     )
 
@@ -370,33 +483,27 @@ def run_compile(config, verbose: bool) -> int:
     """Compile the ESP-IDF project.
 
     Uses two-phase configure to auto-discover available components:
-    1. If no previous build, configure with minimal REQUIRES to discover components
+    1. If no previous build, configure with minimal REQUIRES to discover
+       components (skipped when a cached list for this IDF/target/exclusion
+       set exists)
     2. Regenerate CMakeLists.txt with discovered components
     3. Run full build
     """
-    from esphome.build_gen.espidf import write_project
-
     # Check if we need to do discovery phase
-    if need_reconfigure():
-        _LOGGER.info("Discovering available ESP-IDF components...")
-        write_project(minimal=True)
-        rc = run_reconfigure()
-        if rc != 0:
-            _LOGGER.error("Component discovery failed")
+    if not need_reconfigure():
+        _LOGGER.info("Build configuration is up to date")
+    else:
+        if (rc := _configure_project()) != 0:
             return rc
-        _LOGGER.info("Regenerating CMakeLists.txt with discovered components...")
-        write_project(minimal=False)
-        if CORE.testing_mode:
-            # Reconfigure again so cmake is up to date with the full
-            # component list before the build's idf.py invocation runs --
-            # idf.py build would otherwise re-run cmake and regenerate
-            # memory.ld, wiping the DRAM/IRAM patches applied below.
-            # Outside testing mode ninja's own configure-time dep on
-            # CMakeLists.txt handles the re-run as part of the build step.
-            rc = run_reconfigure()
-            if rc != 0:
-                _LOGGER.error("Reconfigure with discovered components failed")
-                return rc
+        # cmake does not rewrite CMakeCache.txt when only properties change,
+        # so restamp it or every build repeats discovery. Only after success,
+        # or a failed reconfigure would be marked fresh. build.ninja is
+        # restamped too so the cache is not newer and ninja does not
+        # re-run cmake.
+        for name in ("build/CMakeCache.txt", "build/build.ninja"):
+            path = CORE.relative_build_path(name)
+            if path.is_file():
+                os.utime(path)
 
     # In testing mode, generate the linker script first, patch DRAM/IRAM sizes,
     # then build. memory.ld is regenerated by ninja during the build phase,
@@ -504,32 +611,15 @@ def get_idedata() -> dict | None:
     idedata fields IDE integrations and clang-tidy expect, cached alongside the
     PlatformIO idedata path. Returns None if the compile DB doesn't exist yet.
     """
-    from esphome.espidf.idedata import idedata_from_build
+    from esphome.build_helpers.idedata import load_or_build_idedata
 
-    compile_commands = CORE.relative_build_path("build", "compile_commands.json")
-    if not compile_commands.is_file():
-        _LOGGER.debug("No %s yet; skipping idedata generation", compile_commands)
-        return None
-
-    cache = CORE.relative_internal_path("idedata", f"{CORE.name}.json")
-    if cache.is_file() and cache.stat().st_mtime >= compile_commands.stat().st_mtime:
-        try:
-            cached = json.loads(cache.read_text(encoding="utf-8"))
-        except ValueError:
-            pass
-        else:
-            # Caches written before cc_path was emitted stay newer than
-            # compile_commands.json forever, so rebuild them on the field rather
-            # than on the timestamp. Check the type too: a corrupted cache can
-            # still be valid JSON, and "in" would match a substring of a string.
-            if isinstance(cached, dict) and "cc_path" in cached:
-                return cached
-
-    data = idedata_from_build(compile_commands)
-    data["prog_path"] = str(get_elf_path())
-    cache.parent.mkdir(parents=True, exist_ok=True)
-    cache.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
-    return data
+    # No launcher: CMake excludes CMAKE_<LANG>_COMPILER_LAUNCHER (ccache)
+    # from the exported compile database, unlike ninja's compdb dump.
+    return load_or_build_idedata(
+        CORE.relative_build_path("build", "compile_commands.json"),
+        get_elf_path(),
+        CORE.relative_internal_path("idedata", f"{CORE.name}.json"),
+    )
 
 
 def create_factory_bin() -> bool:

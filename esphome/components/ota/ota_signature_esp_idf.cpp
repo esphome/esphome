@@ -9,7 +9,6 @@
 #include <array>
 #include <cstring>
 #include <memory>
-#include <new>
 #include <esp_image_format.h>
 #include <esp_partition.h>
 #include <esp_rom_crc.h>
@@ -211,7 +210,7 @@ bool rsa_pss_verify(uint8_t *block, const uint8_t *digest) {
 bool IDFOTABackend::verify_signed_image_(const esp_partition_t *incoming) {
   // Verification re-hashes the full image (after esp_ota_end already did one
   // pass), which can approach the task WDT budget on a large app. Extend it for
-  // the duration, mirroring the erase budget in begin().
+  // the duration, scaled to the image size over a 15 s floor.
   const uint32_t verify_budget_ms = 15000 + (incoming->size >> 10) * 10;
   watchdog::WatchdogManager watchdog(verify_budget_ms);
 
@@ -235,9 +234,11 @@ bool IDFOTABackend::verify_signed_image_(const esp_partition_t *incoming) {
   // runs mid-OTA on the loop task, on top of the caller's live 1 KB OTA buffer
   // and mbedtls's own ~1 KB verify scratch, so keeping it off the stack widens
   // a thin margin. One short-lived allocation right before reboot is not the
-  // fragmentation pattern the project guards against. nothrow so an OOM here
-  // fails closed like every other error path, rather than aborting.
-  std::unique_ptr<uint8_t[]> block(new (std::nothrow) uint8_t[SIG_BLOCK_SIZE]);
+  // fragmentation pattern the project guards against. An OOM returns nullptr
+  // and fails closed like every other error path. Internal RAM first: the
+  // block is an esp_partition_read target.
+  auto block =
+      RAMAllocator<uint8_t>(RAMAllocator<uint8_t>::PREFER_INTERNAL).make_unique_array_for_overwrite(SIG_BLOCK_SIZE);
   if (!block) {
     OTA_IDF_SIG_LOG(ESP_LOGE, "out of memory");
     return false;
