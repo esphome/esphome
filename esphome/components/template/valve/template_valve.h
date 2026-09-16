@@ -25,9 +25,9 @@ class TemplateValve final : public valve::Valve, public Component {
   Trigger<float> *get_position_trigger();
   void set_optimistic(bool optimistic) { this->optimistic_ = optimistic; }
   void set_assumed_state(bool assumed_state);
-  void set_has_stop(bool has_stop);
-  void set_has_position(bool has_position);
-  void set_has_toggle(bool has_toggle);
+  void set_has_stop(bool has_stop) { this->has_stop_ = has_stop; }
+  void set_has_position(bool has_position) { this->has_position_ = has_position; }
+  void set_has_toggle(bool has_toggle) { this->has_toggle_ = has_toggle; }
   void set_restore_mode(TemplateValveRestoreMode restore_mode) { restore_mode_ = restore_mode; }
 
   void setup() override;

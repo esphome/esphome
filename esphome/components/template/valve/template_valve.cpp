@@ -110,10 +110,6 @@ ValveTraits TemplateValve::get_traits() {
 
 Trigger<float> *TemplateValve::get_position_trigger() { return &this->position_trigger_; }
 
-void TemplateValve::set_has_stop(bool has_stop) { this->has_stop_ = has_stop; }
-void TemplateValve::set_has_toggle(bool has_toggle) { this->has_toggle_ = has_toggle; }
-void TemplateValve::set_has_position(bool has_position) { this->has_position_ = has_position; }
-
 void TemplateValve::stop_prev_trigger_() {
   if (this->prev_command_trigger_ != nullptr) {
     this->prev_command_trigger_->stop_action();
