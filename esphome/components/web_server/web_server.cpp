@@ -341,13 +341,6 @@ void DeferredUpdateEventSourceList::on_client_disconnect_(DeferredUpdateEventSou
 
 WebServer::WebServer(web_server_base::WebServerBase *base) : base_(base) {}
 
-#ifdef USE_WEBSERVER_CSS_INCLUDE
-void WebServer::set_css_include(const char *css_include) { this->css_include_ = css_include; }
-#endif
-#ifdef USE_WEBSERVER_JS_INCLUDE
-void WebServer::set_js_include(const char *js_include) { this->js_include_ = js_include; }
-#endif
-
 // Kept out of the callers so the 64 bit division is emitted once
 __attribute__((noinline)) static uint32_t uptime_seconds() { return static_cast<uint32_t>(millis_64() / 1000); }
 
