@@ -368,15 +368,12 @@ void DaikinMadoka::query_(uint16_t cmd, std::span<const uint8_t> args) {
 
   const char *addr = this->parent_->address_str();
 
-  // Leave first byte for length, then add 3 bytes for command, then add the args
-  std::vector<uint8_t> payload({0x00, 0x00, (uint8_t) ((cmd >> 8) & 0xFF), (uint8_t) (cmd & 0xFF)});
-  payload.insert(payload.end(), args.begin(), args.end());
-  size_t len = payload.size();
-
-  if (len > 255) {
-    ESP_LOGE(TAG, "[%s] Command too long to send, len=%zu", addr, len);
-    return;
+  // Leave first byte for length, then a reserved byte and 2 command bytes, then the args
+  StaticVector<uint8_t, MAX_QUERY_ARGS + 4> payload{0x00, 0x00, (uint8_t) ((cmd >> 8) & 0xFF), (uint8_t) (cmd & 0xFF)};
+  for (uint8_t arg : args) {
+    payload.push_back(arg);
   }
+  size_t len = payload.size();
 
   // Populate leading length byte
   payload[0] = (uint8_t) len;
