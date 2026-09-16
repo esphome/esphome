@@ -228,8 +228,6 @@ void *OpenThreadSrpComponent::pool_alloc_(size_t size) {
   return ptr;
 }
 
-void OpenThreadSrpComponent::set_mdns(esphome::mdns::MDNSComponent *mdns) { this->mdns_ = mdns; }
-
 bool OpenThreadComponent::teardown() {
   switch (this->teardown_stage_) {
     case TeardownStage::TEARDOWN_STAGE_NOT_STARTED: {

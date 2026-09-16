@@ -13,6 +13,8 @@ from esphome.components.esp32 import (
     get_esp32_variant,
     include_builtin_idf_component,
     only_on_variant,
+    require_mbedtls_tls_extras,
+    require_mbedtls_tls_server,
     require_vfs_select,
 )
 from esphome.components.mdns import MDNSComponent, enable_mdns_storage
@@ -108,6 +110,14 @@ def set_sdkconfig_options(config: ConfigType) -> None:
     add_idf_sdkconfig_option("CONFIG_OPENTHREAD_DIAG", False)
 
     add_idf_sdkconfig_option("CONFIG_OPENTHREAD_ENABLED", True)
+
+    # OpenThread's DTLS commissioner is a TLS server, and its crypto platform
+    # uses AES-CCM and deterministic ECDSA directly. Keep the esp32 component
+    # from trimming them out of mbedTLS.
+    require_mbedtls_tls_server()
+    require_mbedtls_tls_extras(
+        ("CONFIG_MBEDTLS_CCM_C", "CONFIG_MBEDTLS_ECDSA_DETERMINISTIC")
+    )
 
     if not config.get(CONF_TLV):
         if pan_id := config.get(CONF_PAN_ID):
