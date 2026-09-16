@@ -73,8 +73,11 @@ static inline ESPHOME_ALWAYS_INLINE uint32_t read_packed_pixel(const uint8_t *pt
   }
 }
 
-void Display::draw_pixels_at(int x_start, int y_start, int w, int h, const uint8_t *ptr, ColorOrder order,
-                             ColorBitness bitness, bool big_endian, int x_offset, int y_offset, int x_pad) {
+// flatten keeps to_color() inlined in both loops; GCC at -Os stops inlining
+// it once there are two call sites, which costs a call and spills per pixel.
+__attribute__((flatten)) void Display::draw_pixels_at(int x_start, int y_start, int w, int h, const uint8_t *ptr,
+                                                      ColorOrder order, ColorBitness bitness, bool big_endian,
+                                                      int x_offset, int y_offset, int x_pad) {
   const size_t line_stride = x_offset + w + x_pad;  // length of each source line in pixels
 #ifdef USE_PSRAM
   // The source is row-major; when the display swaps the axes before writing,
