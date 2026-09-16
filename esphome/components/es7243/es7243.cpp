@@ -18,7 +18,7 @@ static uint8_t gain_to_reg(float gain_db) {
     uint8_t reg;
   };
   static const Entry TABLE[] = {
-      {1.0f, 0x11}, {3.5f, 0x13}, {18.0f, 0x21}, {20.5f, 0x23},
+      {1.0f, 0x11},  {3.5f, 0x13},  {18.0f, 0x21}, {20.5f, 0x23},
       {22.5f, 0x06}, {24.5f, 0x41}, {25.0f, 0x07}, {27.0f, 0x43},
   };
   const Entry *best = &TABLE[0];
