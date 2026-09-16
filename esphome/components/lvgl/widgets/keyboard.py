@@ -15,6 +15,7 @@ from ..defines import (
 from ..types import LvCompound, LvType
 from . import Widget, WidgetType, get_widgets
 from .buttonmatrix import CONF_BUTTONMATRIX
+from .label import CONF_LABEL
 from .textarea import CONF_TEXTAREA, lv_textarea_t
 
 CONF_KEYBOARD = "keyboard"
@@ -49,7 +50,7 @@ class KeyboardType(WidgetType):
         )
 
     def get_uses(self):
-        return CONF_KEYBOARD, CONF_TEXTAREA, CONF_BUTTONMATRIX
+        return CONF_KEYBOARD, CONF_TEXTAREA, CONF_BUTTONMATRIX, CONF_LABEL
 
     async def to_code(self, w: Widget, config: dict):
         add_lv_use("KEY_LISTENER")

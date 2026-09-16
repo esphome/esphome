@@ -1,0 +1,106 @@
+esphome:
+  name: uart-mock-modbus-dep-buffer
+
+host:
+api:
+logger:
+  level: VERBOSE
+
+external_components:
+  - source:
+      type: local
+      path: EXTERNAL_COMPONENT_PATH
+
+# Dummy uart entry to satisfy modbus's DEPENDENCIES = ["uart"]
+# The actual UART bus used is the uart_mock component below
+uart:
+  baud_rate: 115200
+  port: /dev/null
+
+uart_mock:
+  - id: virtual_uart_server
+    baud_rate: 9600
+    auto_start: true
+    debug:
+    on_tx:
+      - then:
+          - uart_mock.inject_rx:
+              id: virtual_uart_controller
+              data: !lambda return data;
+  - id: virtual_uart_controller
+    baud_rate: 9600
+    auto_start: true
+    debug:
+    on_tx:
+      - then:
+          - uart_mock.inject_rx:
+              id: virtual_uart_server
+              data: !lambda return data;
+
+globals:
+  - id: reg10
+    type: uint16_t
+    initial_value: "0"
+
+modbus:
+  - uart_id: virtual_uart_server
+    id: virtual_modbus_server
+    role: server
+  - uart_id: virtual_uart_controller
+    id: virtual_modbus_controller
+    role: client
+    turnaround_time: 10ms
+
+modbus_controller:
+  - address: 1
+    modbus_id: virtual_modbus_controller
+    id: modbus_controller_1
+    update_interval: 1s
+
+modbus_server:
+  - address: 1
+    modbus_id: virtual_modbus_server
+    id: modbus_server_1
+    registers:
+      - address: 0x10
+        value_type: U_WORD
+        read_lambda: return id(reg10);
+        write_lambda: |-
+          id(reg10) = x;
+          return true;
+
+# A number whose write_lambda uses the DEPRECATED buffer parameter (fills `payload` with a legacy raw
+# frame as words: device address + function code + data) instead of the new item->write_* API. The write
+# must still land with its legacy semantics, and the one-time deprecation warning must fire only once per
+# entity no matter how many writes happen.
+number:
+  - platform: modbus_controller
+    modbus_controller_id: modbus_controller_1
+    name: "buf_number"
+    id: buf_number
+    address: 0x10
+    register_type: holding
+    value_type: U_WORD
+    min_value: 0
+    max_value: 1000
+    step: 1
+    write_lambda: |-
+      // Legacy raw frame as words: [addr 0x01 | fc 0x06], register 0x0010, value.
+      payload.push_back(0x0106);
+      payload.push_back(0x0010);
+      payload.push_back((uint16_t) x);
+      return {};
+
+# Reports the server-side register so the test can observe that the deprecated buffer write landed.
+sensor:
+  - platform: template
+    name: "written_value"
+    id: written_value
+    update_interval: 0.5s
+    lambda: "return id(reg10);"
+
+button:
+  - platform: template
+    name: "Start Scenario"
+    id: start_scenario_btn
+    # The test drives the writes via number_command; the mock is autostart.

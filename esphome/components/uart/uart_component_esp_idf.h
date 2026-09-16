@@ -52,9 +52,11 @@ class IDFUARTComponent final : public UARTComponent, public Component {
   void load_settings(bool dump_config) override;
   using UARTComponent::load_settings;  // also bring in the no-arg overload for convenience
 
+  void on_shutdown() override;
+
  protected:
   void check_logger_conflict() override;
-  uart_port_t uart_num_;
+  uart_port_t uart_num_{UART_NUM_MAX};
   uart_config_t get_config_();
 
   bool has_peek_{false};

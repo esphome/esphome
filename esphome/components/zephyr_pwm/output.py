@@ -1,4 +1,5 @@
 from dataclasses import dataclass, field
+from typing import Any
 
 from esphome import pins
 import esphome.codegen as cg
@@ -29,7 +30,7 @@ ZephyrPWMChannel = zephyr_pwm_ns.class_(
 validate_frequency = cv.All(cv.frequency, cv.float_range(min=3.815, max=1e7))
 
 
-def _pin_schema(value):
+def _pin_schema(value: Any) -> ConfigType:
     value = pins.internal_gpio_output_pin_schema(value)
     if value.get(CONF_ALLOW_OTHER_USES, False):
         raise cv.Invalid("allow_other_uses is not supported for zephyr_pwm pins")
@@ -109,7 +110,7 @@ def _final_validate(config: ConfigType) -> None:
 FINAL_VALIDATE_SCHEMA = _final_validate
 
 
-def _overlay_pwm():
+def _overlay_pwm() -> str:
     pwm_blocks: list[PWMBlock] = _get_data().pwm_blocks
 
     assert CORE.is_nrf52
@@ -153,7 +154,7 @@ def _overlay_pwm():
     return "\n".join(overlay_parts)
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     zephyr_add_prj_conf("PWM", True)
     pin = config[CONF_PIN]
     pwm_blocks: list[PWMBlock] = _get_data().pwm_blocks
