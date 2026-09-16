@@ -11,6 +11,7 @@ from esphome.const import (
     CONF_FORMAT,
     CONF_HEIGHT,
     CONF_ID,
+    CONF_MDNS,
     CONF_MODEL,
     CONF_NAME,
     CONF_PROJECT,
@@ -287,7 +288,7 @@ async def to_code(config: ConfigType) -> None:
 
     # Service starts disabled and the hub enables it; always advertised where unsupported
     if mdns.request_service_enable_disable():
-        mdns_var = await cg.get_variable(CORE.config["mdns"][CONF_ID])
+        mdns_var = await cg.get_variable(CORE.config[CONF_MDNS][CONF_ID])
         cg.add(var.set_mdns(mdns_var))
 
     data = _get_data()
