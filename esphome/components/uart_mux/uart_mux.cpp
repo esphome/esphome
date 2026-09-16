@@ -2,8 +2,6 @@
 #include "uart_mux.h"
 #include "esphome/core/log.h"
 
-#include "driver/uart.h"
-
 namespace esphome::uart_mux {
 
 static const char *const TAG = "uart_mux";
@@ -36,7 +34,7 @@ void UARTMux::loop() {
     return;
   }
   // Bytes that arrived during the hand-off belong to neither owner.
-  this->flush_input_();
+  this->uart_->flush_input();
   this->route_ = Route::ROUTE_LOCAL;
   ESP_LOGD(TAG, "UART routed to local consumers");
   this->disable_loop();
@@ -97,22 +95,12 @@ void UARTMux::select_bridge() {
   // uart_read_bytes() on this port, and nothing local has run, so flush only a
   // completed hand-off.
   if (this->route_ == Route::ROUTE_LOCAL) {
-    this->flush_input_();
+    this->uart_->flush_input();
   }
   this->route_ = Route::ROUTE_BRIDGE;
   ESP_LOGD(TAG, "UART routed to bridge");
   this->bridge_->resume();
   this->disable_loop();
-}
-
-void UARTMux::flush_input_() {
-  // Drain the UART component's one-byte peek cache first: the driver flush does not
-  // clear it, and draining afterwards could discard a freshly arrived byte instead.
-  uint8_t discard;
-  if (this->uart_->available() > 0) {
-    this->uart_->read_byte(&discard);
-  }
-  uart_flush_input(static_cast<uart_port_t>(this->uart_->get_hw_serial_number()));
 }
 
 void UARTMux::write_array(const uint8_t *data, size_t len) {
