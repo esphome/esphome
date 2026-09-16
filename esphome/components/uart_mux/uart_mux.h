@@ -66,7 +66,6 @@ class UARTMux final : public uart::UARTComponent, public Component {
   };
 
   void check_logger_conflict() override {}
-  void flush_input_();
   // Publish settings_ through the UARTComponent getters.
   void apply_settings_();
 
