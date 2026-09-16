@@ -12,13 +12,13 @@ packages:
 binary_sensor:
   - platform: gpio
     pin:
-      number: GPIO18
+      number: GPIO8
       hold_during_sleep: true
     id: gpio_binary_sensor_esp32
 
 output:
   - platform: gpio
     pin:
-      number: GPIO19
+      number: GPIO9
       hold_during_sleep: true
     id: gpio_output_esp32
