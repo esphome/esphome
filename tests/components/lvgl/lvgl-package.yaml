@@ -30,6 +30,18 @@ binary_sensor:
     widget: button_button
     state: pressed
 
+globals:
+  - id: counter
+    type: int
+
+script:
+  - id: add_row
+    then:
+      - lvgl.list.add:
+          id: test_list_id
+          label:
+            text: row
+
 lvgl:
   id: lvgl_id
   rotation: 90
@@ -188,6 +200,8 @@ lvgl:
     dark_mode: true
     obj:
       border_width: 1
+      user_1:
+        bg_color: black
 
   gradients:
     - id: color_bar
@@ -716,6 +730,30 @@ lvgl:
               lvgl.button.update:
                 id: button_with_text
                 text: Clicked
+
+        # Exercises the LV_STATE_USER_1..USER_4 states: setting them at creation
+        # (both literal and lambda), styling each of them individually, and
+        # setting/clearing them at runtime with lvgl.widget.update.
+        - button:
+            id: user_flags_button
+            text: User flags
+            state:
+              user_1: true
+              user_2: !lambda return true;
+            user_1:
+              bg_color: 0xFF00FF
+            user_2:
+              bg_color: 0x00FFFF
+            user_3:
+              bg_color: 0xFFFF00
+            user_4:
+              bg_color: 0x808080
+            on_click:
+              - lvgl.widget.update:
+                  id: user_flags_button
+                  state:
+                    user_3: true
+                    user_4: !lambda return !lv_obj_has_state(id(user_flags_button), LV_STATE_USER_4);
 
         - button:
             layout: 2x1
@@ -1265,7 +1303,7 @@ lvgl:
               then:
                 - logger.log:
                     format: "table selected row %u col %u"
-                    args: [row, column]
+                    args: [(unsigned)row, (unsigned)column]
             on_click:
               then:
                 - lvgl.table.cell.update:
@@ -1321,10 +1359,12 @@ lvgl:
               - logger.log:
                   format: "list entry added at %d"
                   args: [list_index]
+              - lambda: "id(counter)++;"
             on_remove:
               - logger.log:
                   format: "list entry removed at %d"
                   args: [list_index]
+              - lambda: "id(counter)--;"
             on_click:
               - lvgl.list.add_text:
                   id: test_list_id
