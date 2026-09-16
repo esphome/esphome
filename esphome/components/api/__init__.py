@@ -140,6 +140,12 @@ CONF_MAX_SEND_QUEUE = "max_send_queue"
 CONF_OUTGOING_CONNECTION = "outgoing_connection"
 CONF_STATE_SUBSCRIPTION_ONLY = "state_subscription_only"
 
+# Schema defaults that also match the C++ initializers in api_server.h; codegen
+# skips the setter when the config equals them.
+DEFAULT_PORT = 6053
+DEFAULT_REBOOT_TIMEOUT = "15min"
+DEFAULT_BATCH_DELAY = "100ms"
+
 
 def _register_provisioning_source(config: ConfigType) -> ConfigType:
     """Register the API as a provisioning source when encryption is enabled.
@@ -331,7 +337,7 @@ CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(APIServer),
-            cv.Optional(CONF_PORT, default=6053): cv.port,
+            cv.Optional(CONF_PORT, default=DEFAULT_PORT): cv.port,
             # Removed in 2026.1.0 - kept to provide helpful error message
             cv.Optional(CONF_PASSWORD): cv.invalid(
                 "The 'password' option has been removed in ESPHome 2026.1.0.\n"
@@ -344,7 +350,7 @@ CONFIG_SCHEMA = cv.All(
                 "Or visit https://esphome.io/components/api/#configuration-variables"
             ),
             cv.Optional(
-                CONF_REBOOT_TIMEOUT, default="15min"
+                CONF_REBOOT_TIMEOUT, default=DEFAULT_REBOOT_TIMEOUT
             ): cv.positive_time_period_milliseconds,
             cv.Exclusive(
                 CONF_SERVICES, group_of_exclusion=CONF_ACTIONS
@@ -352,7 +358,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Exclusive(CONF_ACTIONS, group_of_exclusion=CONF_ACTIONS): ACTIONS_SCHEMA,
             cv.Optional(CONF_ENCRYPTION): encryption_schema,
             cv.Optional(CONF_OUTGOING_CONNECTION): _outgoing_connection_schema,
-            cv.Optional(CONF_BATCH_DELAY, default="100ms"): cv.All(
+            cv.Optional(CONF_BATCH_DELAY, default=DEFAULT_BATCH_DELAY): cv.All(
                 cv.positive_time_period_milliseconds,
                 cv.Range(max=cv.TimePeriod(milliseconds=65535)),
             ),
@@ -390,10 +396,9 @@ CONFIG_SCHEMA = cv.All(
                 ln882x=5,  # Moderate RAM
                 nrf52=4,  # ~256KB RAM, BSD sockets, Thread (single HA controller)
             ): cv.int_range(min=1, max=20),
-            # Maximum queued send buffers per connection before dropping connection
-            # Each buffer uses ~8-12 bytes overhead plus actual message size
+            # Max queued messages per connection, and 2 KB of backlog per slot up
+            # to 64 KB (a lone message is exempt), before the connection is dropped
             # Platform defaults based on available RAM and typical message rates:
-            # CONF_MAX_SEND_QUEUE defaults are power of 2 for efficient modulo
             cv.SplitDefault(
                 CONF_MAX_SEND_QUEUE,
                 esp8266=4,  # Limited RAM, need to fail fast
@@ -549,9 +554,15 @@ async def to_code(config: ConfigType) -> None:
     # Request a log listener slot for API log streaming
     request_log_listener()
 
-    cg.add(var.set_port(config[CONF_PORT]))
-    cg.add(var.set_reboot_timeout(config[CONF_REBOOT_TIMEOUT]))
-    cg.add(var.set_batch_delay(config[CONF_BATCH_DELAY]))
+    # Skip the setters when the config matches the C++ initializers (DEFAULT_*).
+    if (port := config[CONF_PORT]) != DEFAULT_PORT:
+        cg.add(var.set_port(port))
+    if (reboot_timeout := config[CONF_REBOOT_TIMEOUT]) != cv.time_period(
+        DEFAULT_REBOOT_TIMEOUT
+    ):
+        cg.add(var.set_reboot_timeout(reboot_timeout))
+    if (batch_delay := config[CONF_BATCH_DELAY]) != cv.time_period(DEFAULT_BATCH_DELAY):
+        cg.add(var.set_batch_delay(batch_delay))
     if CONF_LISTEN_BACKLOG in config:
         cg.add(var.set_listen_backlog(config[CONF_LISTEN_BACKLOG]))
     cg.add_define("MAX_API_CONNECTIONS", config[CONF_MAX_CONNECTIONS])
