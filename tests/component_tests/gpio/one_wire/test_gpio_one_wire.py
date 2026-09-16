@@ -7,6 +7,7 @@ from pathlib import Path
 
 import pytest
 
+import esphome.config_validation as cv
 from esphome.core import CORE
 
 HERE = Path(__file__).parent
@@ -78,12 +79,12 @@ def test_rmt_source_is_kept_for_esp32(
 def test_use_rmt_on_esp8266_is_rejected(
     generate_main: Callable[[str | Path], str],
 ) -> None:
-    with pytest.raises(Exception, match="use_rmt.*ESP32|ESP32.*use_rmt"):
+    with pytest.raises(cv.Invalid, match="use_rmt.*ESP32|ESP32.*use_rmt"):
         generate_main(HERE / "test_gpio_one_wire_esp8266_use_rmt_true.yaml")
 
 
 def test_use_rmt_on_esp32_without_rmt_is_rejected(
     generate_main: Callable[[str | Path], str],
 ) -> None:
-    with pytest.raises(Exception, match="RMT.*not supported|not supported.*RMT"):
+    with pytest.raises(cv.Invalid, match="RMT.*not supported|not supported.*RMT"):
         generate_main(HERE / "test_gpio_one_wire_esp32c2_use_rmt_true.yaml")
