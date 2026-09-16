@@ -101,6 +101,8 @@ void ESP32RMTLEDStripLightOutput::setup() {
   uint64_t frame_ticks = (uint64_t) bit_ticks * buffer_size * RMT_SYMBOLS_PER_BYTE + this->params_.reset.duration0 +
                          this->params_.reset.duration1;
   this->frame_time_us_ = frame_ticks * 1000000 / resolution_hz + RESET_GAP_US;
+  // Seed so the first frame is not deferred until uptime exceeds the frame time
+  this->last_refresh_ = micros() - this->frame_time_us_;
 
   rmt_tx_channel_config_t channel;
   memset(&channel, 0, sizeof(channel));
