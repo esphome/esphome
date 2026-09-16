@@ -491,10 +491,6 @@ optional<float> RHCorrectionFilter::new_value(float value) {
 
   const float b = 17.67f;
   const float c = 243.5f;
-  if (this->temperature_sensor_ == nullptr) {
-    ESP_LOGW(TAG, "RHCorrectionFilter(%p): No temperature sensor set.", this);
-    return value;
-  }
   if (!this->temperature_sensor_->has_state()) {
     ESP_LOGVV(TAG, "RHCorrectionFilter(%p): no temp available.", this);
     return value;
@@ -509,16 +505,18 @@ optional<float> RHCorrectionFilter::new_value(float value) {
   if (this->use_fahrenheit_) {
     // The formula described above only works with °C
     // so we need to convert the temperatures if they are in °F
-    tc = (tc - 32) / 1.8;
-    tnc = (tnc - 32) / 1.8;
+    tc = (tc - 32.0f) / 1.8f;
+    tnc = (tnc - 32.0f) / 1.8f;
   }
-  if (tc < -10 || tc > 60 || tnc < -10 || tnc > 60) {
-    // Not reliable if the range is outside -10 60°C
-    // This check will also prevents invalid values for the calculation below
-    ESP_LOGW(TAG, "RHCorrectionFilter(%p): Invalid temperature values. Tc=%f Tnc=%f", this, tc, tnc);
+  if (!(tc >= -40.0f && tc <= 50.0f && tnc >= -40.0f && tnc <= 50.0f)) {
+    // Not reliable if the range is outside -40 +50 °C
+    // This check will also prevents invalid values for the calculation below and NaN values
+    ESP_LOGW(TAG, "RHCorrectionFilter(%s): Invalid temperature values. Tc=%f Tnc=%f", this->temperature_sensor_->get_name(), tc, tnc);
     return value;
   }
   float rh = value * std::exp(b * (tnc / (tnc + c) - tc / (tc + c)));
+  if (rh > 100.0f) rh = 100;
+  if (rh < 0.0f) rh = 0;
   ESP_LOGVV(TAG, "RHCorrectionFilter(%p)::new_value(%f) -> %f", this, value, rh);
   return rh;
 }

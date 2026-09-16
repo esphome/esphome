@@ -674,7 +674,7 @@ class RHCorrectionFilter : public Filter {
 
  protected:
   TemplatableFn<float> temperature_offset_;
-  const Sensor *temperature_sensor_{nullptr};
+  const Sensor *temperature_sensor_;
   const bool use_fahrenheit_{false};
 };
 
