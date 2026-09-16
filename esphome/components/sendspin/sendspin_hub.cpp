@@ -66,8 +66,8 @@ void SendspinHub::setup() {
   this->client_->add_player(this->player_config_).set_listener(this->player_listener_);
 #endif
 
-  if (!this->client_->start_server()) {
-    ESP_LOGE(TAG, "Failed to start Sendspin server");
+  if (!this->client_->start()) {
+    ESP_LOGE(TAG, "Failed to start Sendspin client");
     this->mark_failed();
     return;
   }
