@@ -301,6 +301,8 @@
 #ifdef USE_ARDUINO
 #define USE_PROMETHEUS
 #define USE_WIFI_WPA2_EAP
+// Kept in the Arduino block so clang-tidy sees both scan storage paths
+#define USE_WIFI_MULTI_SSID
 #endif
 
 // Platforms with native 64-bit time sources (no rollover tracking needed)
@@ -479,6 +481,9 @@
 #if defined(USE_ESP32_VARIANT_ESP32C6) || defined(USE_ESP32_VARIANT_ESP32H2)
 #define USE_OPENTHREAD
 #define USE_ZIGBEE
+#endif
+#ifndef USE_OPENTHREAD
+#define USE_MDNS_SUPPORTS_ENABLE_DISABLE
 #endif
 #endif
 
