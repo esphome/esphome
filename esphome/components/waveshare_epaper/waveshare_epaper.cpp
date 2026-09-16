@@ -1340,6 +1340,12 @@ void WaveshareEPaper2P9InB::initialize() {
   // EPD hardware init end
 }
 void HOT WaveshareEPaper2P9InB::display() {
+  // Power on each frame: display() ends with 0x02 (power off); without this the next
+  // update talks to the panel while off and the image never updates (esphome/issues#2334).
+  this->command(0x04);
+  this->wait_until_idle_();
+
+  // Single-plane framebuffer (WaveshareEPaper): full bitmap to 0x10, fixed red plane to 0x13.
   // COMMAND DATA START TRANSMISSION 1 (B/W data)
   this->command(0x10);
   delay(2);
@@ -1619,6 +1625,11 @@ void WaveshareEPaper2P9InBV3::initialize() {
   this->data(0x77);
 }
 void HOT WaveshareEPaper2P9InBV3::display() {
+  // Power on each frame (see WaveshareEPaper2P9InB::display).
+  this->command(0x04);
+  this->wait_until_idle_();
+
+  // Single-plane framebuffer (WaveshareEPaper): full bitmap to 0x10, fixed red plane to 0x13.
   // COMMAND DATA START TRANSMISSION 1 (B/W data)
   this->command(0x10);
   delay(2);
@@ -1813,6 +1824,11 @@ void WaveshareEPaper2P9InV2R2::display() {
   }
 
   this->at_update_ = (this->at_update_ + 1) % this->full_update_every_;
+}
+
+uint32_t WaveshareEPaper2P9InV2R2::idle_timeout_() {
+  // BUSY can stay asserted > 1 s during refresh; base default caused false timeouts (issues #2334).
+  return 10000;
 }
 
 void WaveshareEPaper2P9InV2R2::write_lut_(const uint8_t *lut, const uint8_t size) {

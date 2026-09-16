@@ -1,0 +1,90 @@
+# Manual test: MH-ET LIVE / WeAct 2.9" e-paper BWR (128x296, SSD1680 class)
+#
+# waveshare_epaper model 2.90in-b is a different controller (IL0373 / different sequence).
+# On MH-ET LIVE 2.9" tri-color panels, epaper_spi + WEACT-2.9IN-3C usually works well.
+#
+# Pins: edit substitutions to match your wiring (same GPIOs as before if reusing).
+# If stuck on BUSY, try busy_pin with inverted: true.
+#
+# update_interval must be longer than one refresh (~25s for a full update) or epaper_spi
+# logs "Display already in state POWER_OFF" when another update is queued too soon.
+#
+# .venv/bin/esphome run tests/manual/waveshare_2_9_v2_hardware_test.yaml
+
+substitutions:
+  epaper_update_interval: 35s
+  pin_spi_clk: GPIO25
+  pin_spi_mosi: GPIO26
+  pin_epd_cs: GPIO27
+  pin_epd_dc: GPIO32
+  pin_epd_busy: GPIO33
+  pin_epd_rst: GPIO19
+
+esphome:
+  name: waveshare-29-test
+
+esp32:
+  board: esp32dev
+
+logger:
+  level: DEBUG
+
+globals:
+  - id: refresh_counter
+    type: int
+    restore_value: no
+    initial_value: "0"
+
+spi:
+  id: spi_epaper
+  clk_pin: ${pin_spi_clk}
+  mosi_pin: ${pin_spi_mosi}
+
+font:
+  - file: "https://media.esphome.io/tests/fonts/Monocraft.ttf"
+    id: test_font
+    size: 18
+    glyphs:
+      - " "
+      - "0"
+      - "1"
+      - "2"
+      - "3"
+      - "4"
+      - "5"
+      - "6"
+      - "7"
+      - "8"
+      - "9"
+      - "R"
+      - "E"
+      - "D"
+
+display:
+  - platform: epaper_spi
+    id: epd
+    spi_id: spi_epaper
+    model: WEACT-2.9IN-3C
+    cs_pin: ${pin_epd_cs}
+    dc_pin: ${pin_epd_dc}
+    busy_pin:
+      number: ${pin_epd_busy}
+      mode:
+        input: true
+        pullup: true
+    reset_pin: ${pin_epd_rst}
+    update_interval: ${epaper_update_interval}
+    full_update_every: 6
+    lambda: |-
+      it.fill(Color::WHITE);
+      it.printf(0, 0, id(test_font), Color::BLACK, "%d", id(refresh_counter));
+      // BWR red via RGB (Color has no ::RED, only BLACK/WHITE statics)
+      it.filled_rectangle(88, 8, 36, 22, Color(255, 0, 0));
+      it.printf(0, 28, id(test_font), Color(255, 0, 0), "RED");
+      id(refresh_counter) += 1;
+
+interval:
+  - interval: ${epaper_update_interval}
+    then:
+      - lambda: |-
+          ESP_LOGI("epaper_test", "refresh_counter=%d", id(refresh_counter));
