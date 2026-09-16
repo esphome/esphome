@@ -6,9 +6,9 @@
 namespace esphome::image {
 
 // Walks the clipped image range with rows (ROWS_OUTER) or columns as the outer
-// loop. The selects fold at compile time and the pixel body must be
-// ESPHOME_ALWAYS_INLINE: at -Os GCC otherwise leaves it out of line and calls it
-// once per pixel.
+// loop. The coordinate selection folds at compile time, and the pixel body must
+// be ESPHOME_ALWAYS_INLINE: at -Os GCC otherwise leaves it out of line and calls
+// it once per pixel.
 template<bool ROWS_OUTER, typename F>
 static void for_each_pixel(int x_start, int x_end, int y_start, int y_end, F &&f) {
   const int outer_start = ROWS_OUTER ? y_start : x_start;

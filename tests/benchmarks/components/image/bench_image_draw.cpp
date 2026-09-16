@@ -29,7 +29,28 @@ class BenchDisplay : public display::DisplayBuffer {
   void draw_absolute_pixel_internal(int x, int y, Color color) override { this->frame_[y * kStride + x] = color.r; }
 
   std::unique_ptr<uint8_t[]> frame_;
+
+ public:
+  uint8_t pixel(int x, int y) const { return this->frame_[y * kStride + x]; }
 };
+
+// Draws the image at rotation 0 and 90 and checks the second frame is the
+// transpose of the first, which is what a wrong traversal order would break.
+static bool frames_match(const Image &image) {
+  BenchDisplay plain;
+  BenchDisplay rotated;
+  rotated.set_rotation(display::DISPLAY_ROTATION_90_DEGREES);
+  const_cast<Image &>(image).draw(0, 0, &plain, display::COLOR_ON, display::COLOR_OFF);
+  const_cast<Image &>(image).draw(0, 0, &rotated, display::COLOR_ON, display::COLOR_OFF);
+  for (int y = 0; y < kHeight; y++) {
+    for (int x = 0; x < kWidth; x++) {
+      // DisplayBuffer maps (x, y) to (width - y - 1, x) at 90 degrees
+      if (plain.pixel(x, y) != rotated.pixel(kStride - y - 1, x))
+        return false;
+    }
+  }
+  return true;
+}
 
 // Deterministic pseudo random pixel bytes so the alpha branch sees a mix of
 // pixels. Sized for the widest format, the image reads only what it needs.
@@ -50,6 +71,10 @@ static void draw_image(benchmark::State &state, ImageType type, Transparency tra
   Image image(data.get(), kWidth, kHeight, type, transparency);
   BenchDisplay display;
   display.set_rotation(rotation);
+  if (!frames_match(image)) {
+    state.SkipWithError("rotated draw is not the transpose of the plain draw");
+    return;
+  }
 
   for (auto _ : state) {
     image.draw(0, 0, &display, display::COLOR_ON, display::COLOR_OFF);
