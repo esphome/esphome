@@ -298,6 +298,7 @@ class SendspinHub final : public Component,
 
 #ifdef USE_MDNS_SUPPORTS_ENABLE_DISABLE
   mdns::MDNSComponent *mdns_{nullptr};
+  uint32_t mdns_enable_attempt_ms_{0};
   bool mdns_advertised_{false};
 #endif
 };
