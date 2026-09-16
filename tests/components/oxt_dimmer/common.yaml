@@ -1,0 +1,10 @@
+light:
+  - platform: oxt_dimmer
+    channels:
+      - name: lamp1
+        id: lamp1
+        min_value: 0
+        max_value: 255
+      - name: lamp2
+        id: lamp2
+        default_transition_length: 1s

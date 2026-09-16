@@ -1,0 +1,8 @@
+bk72xx:
+  board: cb3s
+
+uart:
+  tx_pin: GPIO11
+  baud_rate: 9600
+
+<<: !include common.yaml
