@@ -541,6 +541,18 @@ def test_enable_pin_code_generation(
     assert f"set_enable_pins({{{pin_25}, {pin_26}}});" in main_cpp
 
 
+def test_full_update_next_action_code_generation(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """The epaper_spi.full_update_next action targets the configured display."""
+    main_cpp = generate_main(component_config_path("full_update_next_test.yaml"))
+
+    assert re.search(
+        r"epaper_spi::FullUpdateNextAction<>\([^;]*epaper_display\);", main_cpp
+    )
+
+
 def test_model_with_no_default_init_sequence_generates(
     generate_main: Callable[[str | Path], str],
     component_config_path: Callable[[str], Path],

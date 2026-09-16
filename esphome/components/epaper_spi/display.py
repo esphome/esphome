@@ -1,7 +1,7 @@
 import importlib
 import pkgutil
 
-from esphome import core, pins
+from esphome import automation, core, pins
 import esphome.codegen as cg
 from esphome.components import display, spi
 from esphome.components.display import CONF_SHOW_TEST_CARD, validate_rotation
@@ -53,6 +53,15 @@ EPaperBase = epaper_spi_ns.class_(
     "EPaperBase", cg.PollingComponent, spi.SPIDevice, display.Display
 )
 Transform = epaper_spi_ns.enum("Transform")
+
+FullUpdateNextAction = epaper_spi_ns.class_("FullUpdateNextAction", automation.Action)
+
+automation.register_simple_action(
+    "epaper_spi.full_update_next",
+    FullUpdateNextAction,
+    automation.maybe_simple_id({cv.Required(CONF_ID): cv.use_id(EPaperBase)}),
+    synchronous=True,
+)
 
 # Import all models dynamically from the models package
 for module_info in pkgutil.iter_modules(models.__path__):
