@@ -803,7 +803,7 @@ class WiFiComponent final : public Component {
   void start_ap_portal_();
   void end_ap_portal_();
 #endif
-  bool is_esp32_improv_active_();
+  bool is_improv_ble_active_();
 
 #ifdef USE_WIFI_FAST_CONNECT
   bool load_fast_connect_settings_(WiFiAP &params);
