@@ -12,5 +12,6 @@ def override_manifest(manifest: ComponentManifestOverride) -> None:
         await original_to_code(config)
         cg.add_define("USE_PSRAM")
 
-    to_code.priority = original_to_code.priority
+    if hasattr(original_to_code, "priority"):
+        to_code.priority = original_to_code.priority
     manifest.to_code = to_code
