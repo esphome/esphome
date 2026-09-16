@@ -55,7 +55,7 @@ def test_uuid_is_matches_descriptor_short_strings(uuid16) -> None:
 @pytest.mark.parametrize(
     ("config_file", "required"),
     [
-        # Auto-loaded by esp32_improv only: nothing to find until Improv asks for it
+        # Auto-loaded by improv_ble only: nothing to find until Improv asks for it
         ("improv_only.yaml", False),
         # The configuration defines a service clients are meant to connect to
         ("own_service.yaml", True),
