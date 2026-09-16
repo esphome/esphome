@@ -88,7 +88,12 @@ bool SendspinMediaSource::play_uri(const std::string &uri) {
 // THREAD CONTEXT: Main loop (media_source.h documents handle_command as main-loop only)
 void SendspinMediaSource::handle_command(media_source::MediaSourceCommand command) {
   if (!this->parent_->is_client_running()) {
-    ESP_LOGW(TAG, "Cannot handle command: Sendspin is disabled");
+    if (command == media_source::MediaSourceCommand::STOP) {
+      // Nothing is playing, so the orchestrator gets its pipeline back straight away
+      this->on_stream_end();
+    } else {
+      ESP_LOGW(TAG, "Cannot handle command: Sendspin is disabled");
+    }
     return;
   }
   switch (command) {
@@ -191,6 +196,8 @@ void SendspinMediaSource::on_stream_start() {
 
 // THREAD CONTEXT: Main loop (PlayerRoleListener lifecycle callback)
 void SendspinMediaSource::on_stream_end() {
+  // A play request queued for this stream is moot, and must not suppress the next stream's request
+  this->pending_start_ = false;
   if (this->get_state() != media_source::MediaSourceState::IDLE) {
     // Only set to IDLE if we were previously in a non-IDLE state, to avoid duplicate state changes
     this->set_state_(media_source::MediaSourceState::IDLE);
