@@ -55,20 +55,21 @@ struct Chunk {
 
 class DaikinMadoka : public climate::Climate, public esphome::ble_client::BLEClientNode, public PollingComponent {
  protected:
-  bool should_update_ = false;
+  // Members are ordered by descending alignment to minimise padding.
   StaticRingBuffer<Chunk, RECEIVED_CHUNKS_QUEUE_SIZE> received_chunks_;
+  StaticRingBuffer<Query, QUERY_QUEUE_SIZE> query_queue_;
   struct {
     StaticVector<uint8_t, MAX_MESSAGE_SIZE> data;
     size_t expected_chunk_id = 0;
   } partial_incoming_message_;
-  StaticRingBuffer<Query, QUERY_QUEUE_SIZE> query_queue_;
-  bool pending_message_ = false;
   uint16_t notify_handle_{0};
   uint16_t wwr_handle_{0};
   Status cur_status_{
       .status = false,
       .mode = 0,
   };
+  bool should_update_ = false;
+  bool pending_message_ = false;
 
   esp_err_t send_message_(std::span<uint8_t> chk);
   void enqueue_query_(uint16_t cmd, StaticVector<uint8_t, MAX_QUERY_ARGS> args);
