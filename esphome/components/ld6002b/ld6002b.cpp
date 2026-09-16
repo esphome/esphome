@@ -303,12 +303,8 @@ void LD6002BComponent::setup() {
       // there is.  Restoring through the switch keeps its inversion in the path:
       // the restored value is logical, and turn_on()/turn_off() are what turn it
       // into the raw command, the published state and the stream flag.
-      const bool state = this->target_display_switch_->get_initial_state_with_restore_mode().value_or(true);
-      if (state) {
-        this->target_display_switch_->turn_on();
-      } else {
-        this->target_display_switch_->turn_off();
-      }
+      this->target_display_switch_->control(
+          this->target_display_switch_->get_initial_state_with_restore_mode().value_or(true));
     }
 #endif
     if (!target_display_controlled) {
@@ -327,12 +323,8 @@ void LD6002BComponent::setup() {
       point_cloud_controlled = true;
       // The switch owns the stream, so it is also what applies the restored state:
       // driving it rather than the module keeps the entity's inversion in the path.
-      const bool state = this->point_cloud_switch_->get_initial_state_with_restore_mode().value_or(false);
-      if (state) {
-        this->point_cloud_switch_->turn_on();
-      } else {
-        this->point_cloud_switch_->turn_off();
-      }
+      this->point_cloud_switch_->control(
+          this->point_cloud_switch_->get_initial_state_with_restore_mode().value_or(false));
     }
 #endif
     if (!point_cloud_controlled) {
@@ -374,12 +366,7 @@ void LD6002BComponent::setup() {
       // The module reports this one back, so the query below confirms what it took.
       // Driving the switch applies its inversion; it also marks the restored value
       // as reported, so the work mode fallback runs on that until the query lands.
-      const bool state = this->low_power_switch_->get_initial_state_with_restore_mode().value_or(false);
-      if (state) {
-        this->low_power_switch_->turn_on();
-      } else {
-        this->low_power_switch_->turn_off();
-      }
+      this->low_power_switch_->control(this->low_power_switch_->get_initial_state_with_restore_mode().value_or(false));
     }
 #else
     bool want_low_power = false;
