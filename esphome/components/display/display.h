@@ -137,6 +137,11 @@ enum DisplayRotation {
   DISPLAY_ROTATION_270_DEGREES = 270,
 };
 
+/// Whether a rotation swaps the x and y axes.
+constexpr bool rotation_swaps_axes(DisplayRotation rotation) {
+  return rotation == DISPLAY_ROTATION_90_DEGREES || rotation == DISPLAY_ROTATION_270_DEGREES;
+}
+
 const int EDGES_TRIGON = 3;
 const int EDGES_TRIANGLE = 3;
 const int EDGES_TETRAGON = 4;
@@ -711,11 +716,10 @@ class Display : public PollingComponent {
   DisplayRotation get_rotation() const { return this->rotation_; }
 
   /// True when draw_pixel_at() swaps x and y before writing, so pixels that are
-  /// neighbours along x land a row apart in the frame buffer. Callers drawing
-  /// many pixels use it to pick the loop order that keeps the writes sequential.
-  virtual bool pixel_axes_swapped() const {
-    return this->rotation_ == DISPLAY_ROTATION_90_DEGREES || this->rotation_ == DISPLAY_ROTATION_270_DEGREES;
-  }
+  /// neighbours along x land a row apart in the frame buffer. Not the same as
+  /// get_width()/get_height() swapping: a display that rotates in hardware
+  /// reports swapped dimensions but writes unswapped pixels.
+  virtual bool pixel_axes_swapped() const { return rotation_swaps_axes(this->rotation_); }
 
   /** Get the type of display that the buffer corresponds to. In case of dynamically configurable displays,
    * returns the type the display is currently configured to.

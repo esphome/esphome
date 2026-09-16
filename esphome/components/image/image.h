@@ -43,9 +43,8 @@ class Image : public display::BaseImage {
   lv_image_dsc_t *get_lv_image_dsc();
 #endif
  protected:
-  /// Per-pixel draw of the clipped image range with rows (true) or columns
-  /// (false) as the outer loop; the pixel format is resolved at compile time.
-  template<bool ROWS_OUTER, ImageType TYPE>
+  /// Per-pixel draw of the clipped range, rows (true) or columns (false) outer.
+  template<bool ROWS_OUTER>
   void draw_(int x, int y, display::Display *display, Color color_on, Color color_off, int x_start, int x_end,
              int y_start, int y_end);
   bool get_binary_pixel_(int x, int y) const;

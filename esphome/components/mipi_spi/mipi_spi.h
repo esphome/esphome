@@ -119,19 +119,8 @@ class MipiSpi : public display::Display,
   }
   display::DisplayType get_display_type() override { return display::DisplayType::DISPLAY_TYPE_COLOR; }
 
-  int get_width() override {
-    if (this->rotation_ == display::DISPLAY_ROTATION_90_DEGREES ||
-        this->rotation_ == display::DISPLAY_ROTATION_270_DEGREES)
-      return HEIGHT;
-    return WIDTH;
-  }
-
-  int get_height() override {
-    if (this->rotation_ == display::DISPLAY_ROTATION_90_DEGREES ||
-        this->rotation_ == display::DISPLAY_ROTATION_270_DEGREES)
-      return WIDTH;
-    return HEIGHT;
-  }
+  int get_width() override { return display::rotation_swaps_axes(this->rotation_) ? HEIGHT : WIDTH; }
+  int get_height() override { return display::rotation_swaps_axes(this->rotation_) ? WIDTH : HEIGHT; }
 
   void set_init_sequence(const std::vector<uint8_t> &sequence) { this->init_sequence_ = sequence; }
 

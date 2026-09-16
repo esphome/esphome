@@ -5,6 +5,23 @@
 
 namespace esphome::image {
 
+// Walks the clipped image range with rows (ROWS_OUTER) or columns as the outer
+// loop. The selects fold at compile time and the pixel body must be
+// ESPHOME_ALWAYS_INLINE: at -Os GCC otherwise leaves it out of line and calls it
+// once per pixel.
+template<bool ROWS_OUTER, typename F>
+static void for_each_pixel(int x_start, int x_end, int y_start, int y_end, F &&f) {
+  const int outer_start = ROWS_OUTER ? y_start : x_start;
+  const int outer_end = ROWS_OUTER ? y_end : x_end;
+  const int inner_start = ROWS_OUTER ? x_start : y_start;
+  const int inner_end = ROWS_OUTER ? x_end : y_end;
+  for (int outer = outer_start; outer < outer_end; outer++) {
+    for (int inner = inner_start; inner < inner_end; inner++) {
+      f(ROWS_OUTER ? inner : outer, ROWS_OUTER ? outer : inner);
+    }
+  }
+}
+
 void Image::draw(int x, int y, display::Display *display, Color color_on, Color color_off) {
   int x_start = 0;
   int y_start = 0;
@@ -27,87 +44,65 @@ void Image::draw(int x, int y, display::Display *display, Color color_on, Color 
   // image read and the frame buffer write sequential. When the display swaps
   // the axes before writing, walking columns keeps the write sequential
   // instead; a strided write costs more than a strided read.
-  const bool rows_outer = !display->pixel_axes_swapped();
-  switch (type_) {
-    case IMAGE_TYPE_BINARY:
-      if (rows_outer) {
-        this->draw_<true, IMAGE_TYPE_BINARY>(x, y, display, color_on, color_off, x_start, x_end, y_start, y_end);
-      } else {
-        this->draw_<false, IMAGE_TYPE_BINARY>(x, y, display, color_on, color_off, x_start, x_end, y_start, y_end);
-      }
-      break;
-    case IMAGE_TYPE_GRAYSCALE:
-      if (rows_outer) {
-        this->draw_<true, IMAGE_TYPE_GRAYSCALE>(x, y, display, color_on, color_off, x_start, x_end, y_start, y_end);
-      } else {
-        this->draw_<false, IMAGE_TYPE_GRAYSCALE>(x, y, display, color_on, color_off, x_start, x_end, y_start, y_end);
-      }
-      break;
-    case IMAGE_TYPE_RGB565:
-      if (rows_outer) {
-        this->draw_<true, IMAGE_TYPE_RGB565>(x, y, display, color_on, color_off, x_start, x_end, y_start, y_end);
-      } else {
-        this->draw_<false, IMAGE_TYPE_RGB565>(x, y, display, color_on, color_off, x_start, x_end, y_start, y_end);
-      }
-      break;
-    case IMAGE_TYPE_RGB:
-      if (rows_outer) {
-        this->draw_<true, IMAGE_TYPE_RGB>(x, y, display, color_on, color_off, x_start, x_end, y_start, y_end);
-      } else {
-        this->draw_<false, IMAGE_TYPE_RGB>(x, y, display, color_on, color_off, x_start, x_end, y_start, y_end);
-      }
-      break;
+  if (display->pixel_axes_swapped()) {
+    this->draw_<false>(x, y, display, color_on, color_off, x_start, x_end, y_start, y_end);
+  } else {
+    this->draw_<true>(x, y, display, color_on, color_off, x_start, x_end, y_start, y_end);
   }
 }
 
-template<bool ROWS_OUTER, ImageType TYPE>
+template<bool ROWS_OUTER>
 void Image::draw_(int x, int y, display::Display *display, Color color_on, Color color_off, int x_start, int x_end,
                   int y_start, int y_end) {
-  // The selects below fold at compile time, so each instantiation is a plain
-  // nested loop with one pixel format inside.
-  const int outer_start = ROWS_OUTER ? y_start : x_start;
-  const int outer_end = ROWS_OUTER ? y_end : x_end;
-  const int inner_start = ROWS_OUTER ? x_start : y_start;
-  const int inner_end = ROWS_OUTER ? x_end : y_end;
-
-  for (int outer = outer_start; outer < outer_end; outer++) {
-    for (int inner = inner_start; inner < inner_end; inner++) {
-      const int img_x = ROWS_OUTER ? inner : outer;
-      const int img_y = ROWS_OUTER ? outer : inner;
-      if constexpr (TYPE == IMAGE_TYPE_BINARY) {
+  // Local copies: draw_pixel_at() is an opaque virtual call, so members read
+  // in the loop would otherwise be reloaded every pixel.
+  const Transparency transparency = this->transparency_;
+  switch (this->type_) {
+    case IMAGE_TYPE_BINARY:
+      for_each_pixel<ROWS_OUTER>(x_start, x_end, y_start, y_end, [&](int img_x, int img_y) ESPHOME_ALWAYS_INLINE {
         if (this->get_binary_pixel_(img_x, img_y)) {
           display->draw_pixel_at(x + img_x, y + img_y, color_on);
-        } else if (!this->transparency_) {
+        } else if (transparency == TRANSPARENCY_OPAQUE) {
           display->draw_pixel_at(x + img_x, y + img_y, color_off);
         }
-      } else if constexpr (TYPE == IMAGE_TYPE_GRAYSCALE) {
-        const uint32_t pos = (img_x + img_y * this->width_);
-        const uint8_t gray = progmem_read_byte(this->data_start_ + pos);
+      });
+      break;
+    case IMAGE_TYPE_GRAYSCALE: {
+      const int width = this->width_;
+      const uint8_t *const data = this->data_start_;
+      for_each_pixel<ROWS_OUTER>(x_start, x_end, y_start, y_end, [&](int img_x, int img_y) ESPHOME_ALWAYS_INLINE {
+        const uint8_t gray = progmem_read_byte(data + img_x + img_y * width);
         Color color = Color(gray, gray, gray, 0xFF);
-        switch (this->transparency_) {
-          case TRANSPARENCY_CHROMA_KEY:
-            if (gray == 1) {
-              continue;  // skip drawing
-            }
-            break;
-          case TRANSPARENCY_ALPHA_CHANNEL:
-            // gray is the alpha: blend from color_off to color_on, drawn opaque
-            color = Color(Color::blend_channel(color_off.r, color_on.r, gray),
-                          Color::blend_channel(color_off.g, color_on.g, gray),
-                          Color::blend_channel(color_off.b, color_on.b, gray), 0xFF);
-            break;
-          default:
-            break;
+        if (transparency == TRANSPARENCY_CHROMA_KEY) {
+          if (gray == 1) {
+            return;  // transparent pixel, skip drawing
+          }
+        } else if (transparency == TRANSPARENCY_ALPHA_CHANNEL) {
+          // gray is the alpha: blend from color_off to color_on, drawn opaque
+          color = Color(Color::blend_channel(color_off.r, color_on.r, gray),
+                        Color::blend_channel(color_off.g, color_on.g, gray),
+                        Color::blend_channel(color_off.b, color_on.b, gray), 0xFF);
         }
         display->draw_pixel_at(x + img_x, y + img_y, color);
-      } else {
-        auto color =
-            TYPE == IMAGE_TYPE_RGB565 ? this->get_rgb565_pixel_(img_x, img_y) : this->get_rgb_pixel_(img_x, img_y);
+      });
+      break;
+    }
+    case IMAGE_TYPE_RGB565:
+      for_each_pixel<ROWS_OUTER>(x_start, x_end, y_start, y_end, [&](int img_x, int img_y) ESPHOME_ALWAYS_INLINE {
+        auto color = this->get_rgb565_pixel_(img_x, img_y);
         if (color.w >= 0x80) {
           display->draw_pixel_at(x + img_x, y + img_y, color);
         }
-      }
-    }
+      });
+      break;
+    case IMAGE_TYPE_RGB:
+      for_each_pixel<ROWS_OUTER>(x_start, x_end, y_start, y_end, [&](int img_x, int img_y) ESPHOME_ALWAYS_INLINE {
+        auto color = this->get_rgb_pixel_(img_x, img_y);
+        if (color.w >= 0x80) {
+          display->draw_pixel_at(x + img_x, y + img_y, color);
+        }
+      });
+      break;
   }
 }
 Color Image::get_pixel(int x, int y, const Color color_on, const Color color_off) const {

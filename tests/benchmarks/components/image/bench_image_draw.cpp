@@ -10,20 +10,23 @@ namespace esphome::image::benchmarks {
 
 static constexpr int kWidth = 128;
 static constexpr int kHeight = 96;
+// Square frame so a rotated draw of the image stays inside it.
+static constexpr int kStride = kWidth > kHeight ? kWidth : kHeight;
 
 // One byte per pixel frame buffer with no hardware behind it, so the
 // measurement is Image::draw() plus the DisplayBuffer pixel path every
-// buffered display shares.
+// buffered display shares. Everything fits the host cache, so this counts
+// the per pixel work; the memory locality win only shows on hardware.
 class BenchDisplay : public display::DisplayBuffer {
  public:
-  BenchDisplay() : frame_(std::make_unique<uint8_t[]>(kWidth * kHeight)) {}
+  BenchDisplay() : frame_(std::make_unique<uint8_t[]>(kStride * kStride)) {}
   void update() override {}
   display::DisplayType get_display_type() override { return display::DisplayType::DISPLAY_TYPE_COLOR; }
-  int get_width_internal() override { return kWidth; }
-  int get_height_internal() override { return kHeight; }
+  int get_width_internal() override { return kStride; }
+  int get_height_internal() override { return kStride; }
 
  protected:
-  void draw_absolute_pixel_internal(int x, int y, Color color) override { this->frame_[y * kWidth + x] = color.r; }
+  void draw_absolute_pixel_internal(int x, int y, Color color) override { this->frame_[y * kStride + x] = color.r; }
 
   std::unique_ptr<uint8_t[]> frame_;
 };
