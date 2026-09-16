@@ -5,12 +5,10 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/preferences.h"
 
-#include "esphome/components/esp32_ble_server/ble_characteristic.h"
-#include "esphome/components/esp32_ble_server/ble_server.h"
 #include "esphome/components/improv_base/improv_base.h"
 #include "esphome/components/wifi/wifi_component.h"
 
-#ifdef USE_ESP32_IMPROV_STATE_CALLBACK
+#ifdef USE_IMPROV_BLE_STATE_CALLBACK
 #include "esphome/core/automation.h"
 #endif
 
@@ -25,17 +23,23 @@
 #include <span>
 #include <vector>
 
+// ESP-IDF is currently the only target platform with a BLE GATT server, so it is
+// the only backend this component has. The Python side keeps the platform table
+// (BLE_SERVER_BACKENDS in __init__.py); a second backend adds another arm here.
 #ifdef USE_ESP32
+
+#include "esphome/components/esp32_ble_server/ble_characteristic.h"
+#include "esphome/components/esp32_ble_server/ble_server.h"
 
 #include <improv.h>
 
-namespace esphome::esp32_improv {
+namespace esphome::improv_ble {
 
 using namespace esp32_ble_server;
 
-class ESP32ImprovComponent final : public Component, public improv_base::ImprovBase {
+class ImprovBLEComponent final : public Component, public improv_base::ImprovBase {
  public:
-  ESP32ImprovComponent();
+  ImprovBLEComponent();
   void dump_config() override;
   void loop() override;
   void setup() override;
@@ -47,7 +51,7 @@ class ESP32ImprovComponent final : public Component, public improv_base::ImprovB
   bool is_active() const { return this->state_ != improv::STATE_STOPPED; }
   bool should_start() const { return this->should_start_; }
 
-#ifdef USE_ESP32_IMPROV_STATE_CALLBACK
+#ifdef USE_IMPROV_BLE_STATE_CALLBACK
   template<typename F> void add_on_state_callback(F &&callback) {
     this->state_callback_.add(std::forward<F>(callback));
   }
@@ -97,7 +101,7 @@ class ESP32ImprovComponent final : public Component, public improv_base::ImprovB
 
   improv::State state_{improv::STATE_STOPPED};
   improv::Error error_state_{improv::ERROR_NONE};
-#ifdef USE_ESP32_IMPROV_STATE_CALLBACK
+#ifdef USE_IMPROV_BLE_STATE_CALLBACK
   CallbackManager<void(improv::State, improv::Error)> state_callback_{};
 #endif
 
@@ -125,8 +129,8 @@ class ESP32ImprovComponent final : public Component, public improv_base::ImprovB
 };
 
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
-extern ESP32ImprovComponent *global_improv_component;
+extern ImprovBLEComponent *global_improv_component;
 
-}  // namespace esphome::esp32_improv
+}  // namespace esphome::improv_ble
 
 #endif
