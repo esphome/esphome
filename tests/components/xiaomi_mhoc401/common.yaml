@@ -1,12 +1,15 @@
 esp32_ble_tracker:
+  id: ble_tracker_hub
 
 sensor:
+  # Explicit ble_hub_id: pins the neutral binding as a declared key.
   - platform: xiaomi_mhoc401
+    ble_hub_id: ble_tracker_hub
     mac_address: E7:50:59:32:A0:1C
     bindkey: "eef418daf699a0c188f3bfd17e4565d9"
     temperature:
-      name: MHO-C303 Temperature
+      name: MHO-C401 Temperature
     humidity:
-      name: MHO-C303 Humidity
+      name: MHO-C401 Humidity
     battery_level:
-      name: MHO-C303 Battery Level
+      name: MHO-C401 Battery Level

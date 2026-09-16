@@ -1474,6 +1474,8 @@ class Nextion final : public NextionBase, public PollingComponent, public uart::
   void all_components_send_state_(bool force_update = false);
   uint32_t comok_sent_ = 0;
   bool remove_from_q_(bool report_empty = true);
+  void release_queue_entry_(NextionQueue *nb);
+  NextionQueue *make_no_result_entry_(const std::string &variable_name);
 
   /// Payload for deliver_queue_response_(): either a numeric (0x71) or string (0x70) return value.
   struct NextionQueueResponse {

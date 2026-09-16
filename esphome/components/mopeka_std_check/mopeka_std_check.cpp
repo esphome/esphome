@@ -3,8 +3,6 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-#ifdef USE_ESP32
-
 namespace esphome::mopeka_std_check {
 
 static const char *const TAG = "mopeka_std_check";
@@ -33,7 +31,7 @@ void MopekaStdCheck::dump_config() {
  * Check if advertisement is for our sensor and if so decode it and
  * update the sensor state data.
  */
-bool MopekaStdCheck::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
+bool MopekaStdCheck::parse_device(const ble_device_base::ESPBTDevice &device) {
   // Validate address.
   if (device.address_uint64() != this->address_) {
     return false;
@@ -52,7 +50,7 @@ bool MopekaStdCheck::parse_device(const esp32_ble_tracker::ESPBTDevice &device) 
       return false;
     }
     const auto &service_uuid = service_uuids[0];
-    if (service_uuid != esp32_ble_tracker::ESPBTUUID::from_uint16(SERVICE_UUID)) {
+    if (service_uuid != ble_device_base::ESPBTUUID::from_uint16(SERVICE_UUID)) {
       return false;
     }
   }
@@ -232,5 +230,3 @@ int8_t MopekaStdCheck::parse_temperature_(const mopeka_std_package *message) {
 }
 
 }  // namespace esphome::mopeka_std_check
-
-#endif

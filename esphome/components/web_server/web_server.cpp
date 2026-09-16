@@ -214,8 +214,8 @@ void DeferredUpdateEventSource::process_deferred_queue_() {
 
 void DeferredUpdateEventSource::loop() {
   process_deferred_queue_();
-  if (!this->entities_iterator_.completed())
-    this->entities_iterator_.advance();
+  // One step per loop; refusals retry next pass
+  this->entities_iterator_.try_advance(1);
 }
 
 void DeferredUpdateEventSource::deferrable_send_state(void *source, const char *event_type,
@@ -321,12 +321,6 @@ void DeferredUpdateEventSourceList::on_client_connect_(DeferredUpdateEventSource
 #endif
 
     source->entities_iterator_.begin(ws->include_internal_);
-
-    // just dump them all up-front and take advantage of the deferred queue
-    //     on second thought that takes too long, but leaving the commented code here for debug purposes
-    // while(!source->entities_iterator_.completed()) {
-    //  source->entities_iterator_.advance();
-    //}
   });
 }
 
@@ -341,13 +335,6 @@ void DeferredUpdateEventSourceList::on_client_disconnect_(DeferredUpdateEventSou
 #endif
 
 WebServer::WebServer(web_server_base::WebServerBase *base) : base_(base) {}
-
-#ifdef USE_WEBSERVER_CSS_INCLUDE
-void WebServer::set_css_include(const char *css_include) { this->css_include_ = css_include; }
-#endif
-#ifdef USE_WEBSERVER_JS_INCLUDE
-void WebServer::set_js_include(const char *js_include) { this->js_include_ = js_include; }
-#endif
 
 json::SerializationBuffer<> WebServer::get_config_json() {
   json::JsonBuilder builder;
@@ -510,7 +497,7 @@ void WebServer::handle_pna_cors_request(AsyncWebServerRequest *request) {
   response->addHeader(ESPHOME_F("Access-Control-Allow-Origin"), origin.empty() ? "*" : origin.c_str());
   response->addHeader(ESPHOME_F("Access-Control-Allow-Private-Network"), ESPHOME_F("true"));
   response->addHeader(ESPHOME_F("Private-Network-Access-Name"), App.get_name().c_str());
-  char mac_s[18];
+  char mac_s[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
   response->addHeader(ESPHOME_F("Private-Network-Access-ID"), get_mac_address_pretty_into_buffer(mac_s));
   request->send(response);
 }
