@@ -279,6 +279,18 @@ def test_main_leaves_the_console_alone_when_there_is_none(
     assert kernel32.calls == []
 
 
+def test_main_leaves_a_console_already_on_utf8_alone(
+    monkeypatch: pytest.MonkeyPatch, fixture_path: Path
+) -> None:
+    """An overlapping build must not save UTF-8 as the page to restore."""
+    kernel32 = _FakeKernel32(runner.UTF8_CODEPAGE, runner.UTF8_CODEPAGE)
+    monkeypatch.setattr(runner, "_get_kernel32", lambda: kernel32)
+
+    _run_main(monkeypatch, fixture_path / "espidf" / "filtering_probe.py")
+
+    assert kernel32.calls == []
+
+
 @pytest.mark.skipif(sys.platform == "win32", reason="kernel32 exists on Windows")
 def test_get_kernel32_is_none_off_windows() -> None:
     assert runner._get_kernel32() is None

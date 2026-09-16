@@ -87,38 +87,48 @@ def _get_kernel32():
     return ctypes.windll.kernel32
 
 
-def _switch_console_to_utf8(kernel32) -> tuple[int, int] | None:
-    """Set an attached Windows console to UTF-8 for the length of the build.
+class _Utf8Console:
+    """Keep an attached Windows console on UTF-8 for the length of the build.
 
     The build tree runs in UTF-8 mode, so esp_idf_size draws its table with
     Unicode box characters. ``idf.py size`` reaches it through ``cmake -P``,
     and CMake re-decodes the child's output with the console code page before
     printing it, which turns the table into mojibake on any code page but
     UTF-8. Every process in the build shares this console, so switching it
-    here covers CMake too.
+    here covers CMake too. The old code pages go back on exit so the user's
+    terminal is left as it was.
 
-    Returns the previous (input, output) code pages so the caller can put them
-    back, or None when there is no console to switch.
+    A console that is already on UTF-8 is left alone. The code page belongs to
+    the console, not to this process, so a build that overlaps another one
+    must not save UTF-8 as the page to go back to.
     """
-    if kernel32 is None:
-        return None
-    old_in = kernel32.GetConsoleCP()
-    old_out = kernel32.GetConsoleOutputCP()
-    # Both calls return 0 when no console is attached.
-    if not old_in or not old_out:
-        return None
-    kernel32.SetConsoleCP(UTF8_CODEPAGE)
-    kernel32.SetConsoleOutputCP(UTF8_CODEPAGE)
-    return old_in, old_out
 
+    def __init__(self, kernel32) -> None:
+        self._kernel32 = kernel32
+        self._codepages: tuple[int, int] | None = None
 
-def _restore_console(kernel32, codepages: tuple[int, int] | None) -> None:
-    """Undo ``_switch_console_to_utf8`` so the user's terminal is left as it was."""
-    if codepages is None:
-        return
-    old_in, old_out = codepages
-    kernel32.SetConsoleCP(old_in)
-    kernel32.SetConsoleOutputCP(old_out)
+    def __enter__(self) -> None:
+        kernel32 = self._kernel32
+        if kernel32 is None:
+            return
+        old_in = kernel32.GetConsoleCP()
+        old_out = kernel32.GetConsoleOutputCP()
+        # Both calls return 0 when no console is attached.
+        if not old_in or not old_out:
+            return
+        if old_in == UTF8_CODEPAGE and old_out == UTF8_CODEPAGE:
+            return
+        kernel32.SetConsoleCP(UTF8_CODEPAGE)
+        kernel32.SetConsoleOutputCP(UTF8_CODEPAGE)
+        self._codepages = (old_in, old_out)
+
+    def __exit__(self, *exc_info: object) -> None:
+        if self._codepages is None:
+            return
+        old_in, old_out = self._codepages
+        self._codepages = None
+        self._kernel32.SetConsoleCP(old_in)
+        self._kernel32.SetConsoleOutputCP(old_out)
 
 
 def main() -> int:
@@ -338,12 +348,10 @@ def main() -> int:
     # release a last line that never got its terminator. Drain the shims we
     # made rather than sys.stdout, which the script is free to replace, and
     # report instead of raising so cleanup cannot bury the real exit code.
-    kernel32 = _get_kernel32()
-    codepages = _switch_console_to_utf8(kernel32)
     try:
-        runpy.run_path(script_path, run_name="__main__")
+        with _Utf8Console(_get_kernel32()):
+            runpy.run_path(script_path, run_name="__main__")
     finally:
-        _restore_console(kernel32, codepages)
         # Drain stderr from a finally so a surprise from the first one cannot
         # strand the second.
         try:
