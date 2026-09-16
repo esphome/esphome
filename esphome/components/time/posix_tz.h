@@ -39,28 +39,6 @@ struct ParsedTimezone {
 /// Format a POSIX offset as "+HHMM"/"-HHMM" into buf (must be >= 6 bytes).
 void format_designation(int32_t posix_offset, char *buf, size_t buf_size);
 
-/// Parse a POSIX TZ string into a ParsedTimezone struct.
-///
-/// @deprecated Remove before 2026.9.0 (bridge code for backward compatibility).
-/// This parser only exists so that older Home Assistant clients that send the timezone
-/// as a string (instead of the pre-parsed ParsedTimezone protobuf struct) can still
-/// set the timezone on the device. Once all clients are updated to send the struct
-/// directly, this function and all internal parsing helpers will be removed.
-/// See https://github.com/esphome/backlog/issues/91
-///
-/// Supports formats like:
-///   - "EST5" (simple offset, no DST)
-///   - "EST5EDT,M3.2.0,M11.1.0" (with DST, M-format rules)
-///   - "CST6CDT,M3.2.0/2,M11.1.0/2" (with transition times)
-///   - "<+07>-7" (angle-bracket notation for special names)
-///   - "IST-5:30" (half-hour offsets)
-///   - "EST5EDT,J60,J300" (J-format: Julian day without leap day)
-///   - "EST5EDT,60,300" (plain day number: day of year with leap day)
-/// @param tz_string The POSIX TZ string to parse
-/// @param result Output: the parsed timezone data
-/// @return true if parsing succeeded, false on error
-bool parse_posix_tz(const char *tz_string, ParsedTimezone &result);
-
 /// Convert a UTC epoch to local time using the parsed timezone.
 /// This replaces libc's localtime() to avoid scanf dependency.
 /// @param utc_epoch Unix timestamp in UTC
@@ -70,8 +48,7 @@ bool parse_posix_tz(const char *tz_string, ParsedTimezone &result);
 bool epoch_to_local_tm(time_t utc_epoch, const ParsedTimezone &tz, struct tm *out_tm);
 
 /// Set the global timezone used by epoch_to_local_tm() when called without a timezone.
-/// This is called by RealTimeClock::apply_timezone_() to enable ESPTime::from_epoch_local()
-/// to work without libc's localtime().
+/// This enables ESPTime::from_epoch_local() to work without libc's localtime().
 void set_global_tz(const ParsedTimezone &tz);
 
 /// Get the global timezone.
@@ -84,28 +61,8 @@ const ParsedTimezone &get_global_tz();
 bool is_in_dst(time_t utc_epoch, const ParsedTimezone &tz);
 
 // Internal helper functions exposed for testing.
-// Remove before 2026.9.0: skip_tz_name, parse_offset, parse_dst_rule are only
-// used by parse_posix_tz() which is bridge code for backward compatibility.
-// The remaining helpers (epoch_to_tm_utc, day_of_week, days_in_month, etc.)
-// are used by the conversion functions and will stay.
 
 namespace internal {
-
-/// Skip a timezone name (letters or <...> quoted format)
-/// @param p Pointer to current position, updated on return
-/// @return true if a valid name was found
-bool skip_tz_name(const char *&p);
-
-/// Parse an offset in format [-]hh[:mm[:ss]]
-/// @param p Pointer to current position, updated on return
-/// @return Offset in seconds
-int32_t parse_offset(const char *&p);
-
-/// Parse a DST rule in format Mm.w.d[/time], Jn[/time], or n[/time]
-/// @param p Pointer to current position, updated on return
-/// @param rule Output: the parsed rule
-/// @return true if parsing succeeded
-bool parse_dst_rule(const char *&p, DSTRule &rule);
 
 /// Convert Julian day (J format, 1-365 not counting Feb 29) to month/day
 /// @param julian_day Day number 1-365

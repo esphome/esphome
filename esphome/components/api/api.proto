@@ -77,6 +77,7 @@ service APIConnection {
   rpc serial_proxy_set_modem_pins(SerialProxySetModemPinsRequest) returns (void) {}
   rpc serial_proxy_get_modem_pins(SerialProxyGetModemPinsRequest) returns (void) {}
   rpc serial_proxy_request(SerialProxyRequest) returns (void) {}
+  rpc serial_proxy_set_mode(SerialProxySetModeRequest) returns (void) {}
 }
 
 
@@ -232,6 +233,7 @@ enum SerialProxyPortType {
 message SerialProxyInfo {
   string name = 1;                    // Human-readable port name
   SerialProxyPortType port_type = 2;  // Port type (RS232, RS485)
+  uint32 configured_line_states = 3;  // Bitmask of SerialProxyLineStateFlags this instance can drive
 }
 
 // DeviceInfoResponse max_data_length values:
@@ -1002,8 +1004,12 @@ message GetTimeResponse {
   option (no_delay) = true;
 
   fixed32 epoch_seconds = 1;
-  string timezone = 2;
-  ParsedTimezone parsed_timezone = 3;
+  // Deprecated in 2026.9.0: clients still send this string for older firmware,
+  // but new firmware only reads parsed_timezone. Clients older than Home
+  // Assistant 2026.3.0 that send only the string leave the device on its
+  // codegen-configured timezone (or UTC).
+  string timezone = 2 [deprecated = true];
+  ParsedTimezone parsed_timezone = 3 [(track_presence) = true];
 }
 
 // ==================== USER-DEFINES SERVICES ====================
@@ -1029,6 +1035,8 @@ message ListEntitiesServicesArgument {
   option (ifdef) = "USE_API_USER_DEFINED_ACTIONS";
   string name = 1;
   ServiceArgType type = 2;
+  string description = 3 [(field_ifdef) = "USE_API_USER_DEFINED_ACTION_METADATA"];
+  string example = 4 [(field_ifdef) = "USE_API_USER_DEFINED_ACTION_METADATA"];
 }
 message ListEntitiesServicesResponse {
   option (id) = 41;
@@ -1039,6 +1047,7 @@ message ListEntitiesServicesResponse {
   fixed32 key = 2 [(force) = true];
   repeated ListEntitiesServicesArgument args = 3 [(fixed_vector) = true];
   SupportsResponseType supports_response = 4;
+  string description = 5 [(field_ifdef) = "USE_API_USER_DEFINED_ACTION_METADATA"];
 }
 message ExecuteServiceArgument {
   option (ifdef) = "USE_API_USER_DEFINED_ACTIONS";
@@ -1649,7 +1658,8 @@ message ListEntitiesMediaPlayerResponse {
   bool disabled_by_default = 6;
   EntityCategory entity_category = 7;
 
-  bool supports_pause = 8;
+  // Deprecated in ESPHome 2026.9.0; use feature_flags instead.
+  bool supports_pause = 8 [deprecated = true];
 
   repeated MediaPlayerSupportedFormat supported_formats = 9;
 
@@ -2622,6 +2632,22 @@ message ZWaveProxyRequest {
   bytes data = 2;
 }
 
+enum ZWaveProxyStatus {
+  ZWAVE_PROXY_STATUS_OK = 0;             // Request completed successfully
+  ZWAVE_PROXY_STATUS_IN_USE = 1;         // Denied: another client is already subscribed
+  ZWAVE_PROXY_STATUS_NOT_SUPPORTED = 2;  // Request type not supported
+}
+
+// Acknowledges a ZWaveProxyRequest (subscribe/unsubscribe). Sent since API 1.16.
+message ZWaveProxyRequestResponse {
+  option (id) = 151;
+  option (source) = SOURCE_SERVER;
+  option (ifdef) = "USE_ZWAVE_PROXY";
+
+  ZWaveProxyRequestType type = 1;  // Which request type this responds to
+  ZWaveProxyStatus status = 2;     // Result status
+}
+
 // ==================== INFRARED ====================
 // Note: Feature and capability flag enums are defined in
 // esphome/components/infrared/infrared.h
@@ -2701,7 +2727,8 @@ enum SerialProxyParity {
   SERIAL_PROXY_PARITY_ODD = 2;
 }
 
-// Configure UART parameters for a serial proxy instance
+// Configure UART parameters for a serial proxy instance. Only the subscribed client may
+// configure the port; others are refused with PORT_IN_USE (since API 1.17).
 message SerialProxyConfigureRequest {
   option (id) = 138;
   option (source) = SOURCE_CLIENT;
@@ -2727,7 +2754,8 @@ message SerialProxyDataReceived {
   bytes data = 2;               // Raw data received from the serial device
 }
 
-// Write data to a serial device
+// Write data to a serial device. Only the subscribed client may write; writes from
+// others are ignored (since API 1.17).
 message SerialProxyWriteRequest {
   option (id) = 140;
   option (source) = SOURCE_CLIENT;
@@ -2738,7 +2766,8 @@ message SerialProxyWriteRequest {
   bytes data = 2;               // Raw data to write to the serial device
 }
 
-// Set modem control pin states (RTS and DTR)
+// Set modem control pin states (RTS and DTR). Only the subscribed client may set them;
+// others are refused with PORT_IN_USE (since API 1.17).
 message SerialProxySetModemPinsRequest {
   option (id) = 141;
   option (source) = SOURCE_CLIENT;
@@ -2765,12 +2794,19 @@ message SerialProxyGetModemPinsResponse {
 
   uint32 instance = 1;          // Instance index (0-based)
   uint32 line_states = 2;       // Bitmask of SerialProxyLineStateFlags
+  SerialProxyStatus status = 3; // INVALID_ARGUMENT if the instance index is out of range (since API 1.16)
 }
 
 enum SerialProxyRequestType {
   SERIAL_PROXY_REQUEST_TYPE_SUBSCRIBE = 0;   // Subscribe to receive data from this serial proxy instance
   SERIAL_PROXY_REQUEST_TYPE_UNSUBSCRIBE = 1; // Unsubscribe from this serial proxy instance
   SERIAL_PROXY_REQUEST_TYPE_FLUSH = 2;       // Flush the serial port (block until all TX data is sent)
+  // Values below are only valid in SerialProxyRequestResponse.type, identifying which
+  // operation is being acknowledged. Sending them in SerialProxyRequest.type is an
+  // error the device answers with INVALID_ARGUMENT.
+  SERIAL_PROXY_REQUEST_TYPE_CONFIGURE = 3;      // Acknowledges a SerialProxyConfigureRequest
+  SERIAL_PROXY_REQUEST_TYPE_SET_MODEM_PINS = 4; // Acknowledges a SerialProxySetModemPinsRequest
+  SERIAL_PROXY_REQUEST_TYPE_SET_MODE = 5;       // Acknowledges a SerialProxySetModeRequest (since API 1.17)
 }
 
 enum SerialProxyStatus {
@@ -2779,9 +2815,12 @@ enum SerialProxyStatus {
   SERIAL_PROXY_STATUS_ERROR = 2;           // Driver or hardware error
   SERIAL_PROXY_STATUS_TIMEOUT = 3;         // Timed out before TX completed
   SERIAL_PROXY_STATUS_NOT_SUPPORTED = 4;   // Request type not supported by this instance
+  SERIAL_PROXY_STATUS_PORT_IN_USE = 5;     // Denied: another client holds the port
+  SERIAL_PROXY_STATUS_INVALID_ARGUMENT = 6; // Invalid instance index or parameter value
 }
 
-// Generic request message for simple serial proxy operations
+// Generic request message for simple serial proxy operations. FLUSH requires an active
+// subscription; it is refused with PORT_IN_USE otherwise (since API 1.17).
 message SerialProxyRequest {
   option (id) = 144;
   option (source) = SOURCE_CLIENT;
@@ -2791,7 +2830,9 @@ message SerialProxyRequest {
   SerialProxyRequestType type = 2;      // Request type
 }
 
-// Response to a SerialProxyRequest (e.g. flush completion or failure)
+// Acknowledges a serial proxy operation; the type field identifies which
+// operation is being acknowledged. Flush has been acknowledged since the
+// message was introduced; all other acknowledgements are sent since API 1.16.
 message SerialProxyRequestResponse {
   option (id) = 147;
   option (source) = SOURCE_SERVER;
@@ -2801,6 +2842,29 @@ message SerialProxyRequestResponse {
   SerialProxyRequestType type = 2;      // Which request type this responds to
   SerialProxyStatus status = 3;         // Result status
   string error_message = 4;            // Additional detail on failure (optional)
+}
+
+// How a port treats the bytes passing through it. RAW is a plain byte pipe; PROTOCOL
+// activates the port's protocol-aware tap (if one is configured), letting it observe
+// traffic and inject protocol bytes such as acknowledgements. Which protocol the tap
+// speaks is a property of the device configuration, discoverable from the tap
+// component's own API surface. A client that is about to flash firmware selects RAW
+// first, which definitively disables that injection.
+enum SerialProxyMode {
+  SERIAL_PROXY_MODE_RAW = 0;
+  SERIAL_PROXY_MODE_PROTOCOL = 1;
+}
+
+// Only the subscribed client may change the mode; any other caller -- including one that
+// never subscribed -- is refused with PORT_IN_USE. PROTOCOL is refused with NOT_SUPPORTED
+// when the port has no protocol-aware tap configured.
+message SerialProxySetModeRequest {
+  option (id) = 152;
+  option (source) = SOURCE_CLIENT;
+  option (ifdef) = "USE_SERIAL_PROXY";
+
+  uint32 instance = 1;
+  SerialProxyMode mode = 2;
 }
 
 // ==================== BLUETOOTH CONNECTION PARAMS ====================

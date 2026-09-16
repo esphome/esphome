@@ -7,6 +7,7 @@ from esphome.components.packet_transport import (
 )
 from esphome.const import CONF_BINARY_SENSORS, CONF_ENCRYPTION, CONF_SENSORS
 from esphome.cpp_types import PollingComponent
+from esphome.types import ConfigType
 
 from .. import UDP_SCHEMA, register_udp_client, udp_ns
 
@@ -15,7 +16,7 @@ UDPTransport = udp_ns.class_("UDPTransport", PacketTransport, PollingComponent)
 CONFIG_SCHEMA = transport_schema(UDPTransport).extend(UDP_SCHEMA)
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var, providers = await new_packet_transport(config)
     udp_var = await register_udp_client(var, config)
     if CONF_ENCRYPTION in config or providers:

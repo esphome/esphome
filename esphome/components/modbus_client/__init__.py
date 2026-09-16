@@ -156,16 +156,23 @@ _ACTION_BASE_SCHEMA = cv.Schema(
     }
 )
 
-MODBUS_CLIENT_SEND_SCHEMA = _ACTION_BASE_SCHEMA.extend(
-    {
-        cv.Required(CONF_PDU): cv.templatable(
-            cv.All(
-                cv.ensure_list(cv.hex_uint8_t),
-                cv.Length(min=1, max=modbus.MAX_PDU_SIZE),
-            )
-        ),
-        cv.Optional(CONF_ON_RESPONSE): _handler_schema(),
-    }
+
+MODBUS_CLIENT_SEND_SCHEMA = cv.All(
+    _ACTION_BASE_SCHEMA.extend(
+        {
+            cv.Required(CONF_PDU): cv.templatable(
+                cv.All(
+                    cv.ensure_list(cv.hex_uint8_t),
+                    cv.Length(min=1, max=modbus.MAX_PDU_SIZE),
+                )
+            ),
+            **modbus.command_options_schema(direction="read", templatable=True),
+            **modbus.command_options_schema(direction="write", templatable=True),
+            cv.Optional(CONF_ON_RESPONSE): _handler_schema(),
+        }
+    ),
+    modbus.reject_inapplicable_command_options(CONF_PDU),
+    modbus.reject_broadcast_options_for_unicast(CONF_ADDRESS),
 )
 
 
@@ -174,6 +181,7 @@ async def register_client_action(
     config: ConfigType,
     args: TemplateArgsType,
     response_args: TemplateArgsType,
+    command_direction: str = "read",
 ) -> cg.MockObj:
     """Wire the shared action plumbing: hub parent, templated device address, outcome triggers.
 
@@ -235,6 +243,11 @@ async def register_client_action(
         await automation.build_automation(
             var.get_not_sent_trigger(), [(_PDU_SPAN, "request")], not_sent_conf
         )
+    # Wire any command options the action's schema opted into (e.g. continuous on reads). Pass the
+    # matching direction so a write action never generates a read option's setter.
+    await modbus.register_templatable_command_options(
+        var, config, args, command_direction
+    )
     return var
 
 
@@ -248,6 +261,8 @@ async def modbus_client_send_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
     template_ = await cg.templatable(config[CONF_PDU], args, _PDU_BUFFER)
     cg.add(var.set_pdu(template_))
+    # The read set is wired by register_client_action() below.
+    await modbus.register_templatable_command_options(var, config, args, "write")
     return await register_client_action(
         var,
         config,
@@ -318,9 +333,11 @@ def _read_schema(max_count: int) -> cv.All:
                 cv.Optional(CONF_COUNT, default=1): cv.templatable(
                     cv.int_range(min=1, max=max_count)
                 ),
+                **modbus.command_options_schema(direction="read", templatable=True),
             }
         ),
         _no_address_overflow(CONF_COUNT),
+        modbus.reject_broadcast_options_for_unicast(CONF_ADDRESS),
     )
 
 
@@ -332,21 +349,35 @@ def _write_multiple_schema(item: Callable[[Any], Any], max_values: int) -> cv.Al
                 cv.Required(CONF_VALUES): cv.templatable(
                     cv.All(cv.ensure_list(item), cv.Length(min=1, max=max_values))
                 ),
+                **modbus.command_options_schema(direction="write", templatable=True),
             }
         ),
         _no_address_overflow(CONF_VALUES),
+        modbus.reject_broadcast_options_for_unicast(CONF_ADDRESS),
     )
 
 
 _READ_REGISTERS_SCHEMA = _read_schema(modbus.MAX_NUM_OF_REGISTERS_TO_READ)
 
-_WRITE_SINGLE_REGISTER_SCHEMA = _TYPED_ACTION_SCHEMA.extend(
-    {cv.Required(CONF_VALUE): cv.templatable(cv.hex_uint16_t)}
+_WRITE_SINGLE_REGISTER_SCHEMA = cv.All(
+    _TYPED_ACTION_SCHEMA.extend(
+        {
+            cv.Required(CONF_VALUE): cv.templatable(cv.hex_uint16_t),
+            **modbus.command_options_schema(direction="write", templatable=True),
+        }
+    ),
+    modbus.reject_broadcast_options_for_unicast(CONF_ADDRESS),
 )
 
 # A coil is one bit, so the value is a boolean - the wire only carries 0x0000 or 0xFF00.
-_WRITE_SINGLE_COIL_SCHEMA = _TYPED_ACTION_SCHEMA.extend(
-    {cv.Required(CONF_VALUE): cv.templatable(cv.boolean)}
+_WRITE_SINGLE_COIL_SCHEMA = cv.All(
+    _TYPED_ACTION_SCHEMA.extend(
+        {
+            cv.Required(CONF_VALUE): cv.templatable(cv.boolean),
+            **modbus.command_options_schema(direction="write", templatable=True),
+        }
+    ),
+    modbus.reject_broadcast_options_for_unicast(CONF_ADDRESS),
 )
 
 
@@ -379,7 +410,9 @@ async def read_input_registers_to_code(config, action_id, template_arg, args):
 async def _write_single_to_code(config, action_id, template_arg, args, value_type):
     var = cg.new_Pvariable(action_id, template_arg)
     cg.add(var.set_value(await cg.templatable(config[CONF_VALUE], args, value_type)))
-    return await register_client_action(var, config, args, [])
+    return await register_client_action(
+        var, config, args, [], command_direction="write"
+    )
 
 
 @automation.register_action(
@@ -458,7 +491,9 @@ async def write_multiple_registers_to_code(config, action_id, template_arg, args
         arr_id = ID(f"{action_id}_values", is_declaration=True, type=cg.uint16)
         arr = cg.static_const_array(arr_id, cg.ArrayInitializer(*values))
         cg.add(var.set_values_static(arr, len(values)))
-    return await register_client_action(var, config, args, [])
+    return await register_client_action(
+        var, config, args, [], command_direction="write"
+    )
 
 
 @automation.register_action(
@@ -482,7 +517,9 @@ async def write_multiple_coils_to_code(config, action_id, template_arg, args):
         arr_id = ID(f"{action_id}_values", is_declaration=True, type=cg.uint8)
         arr = cg.static_const_array(arr_id, cg.ArrayInitializer(*packed))
         cg.add(var.set_values_static(arr, len(values)))
-    return await register_client_action(var, config, args, [])
+    return await register_client_action(
+        var, config, args, [], command_direction="write"
+    )
 
 
 # Read/write multiple registers (FC 0x17) writes one register block and reads another in a single
@@ -504,10 +541,15 @@ _READ_WRITE_MULTIPLE_REGISTERS_SCHEMA = cv.All(
                     cv.Length(min=1, max=modbus.MAX_NUM_OF_REGISTERS_TO_WRITE_RW),
                 )
             ),
+            # 0x17 counts as a read at address 0, so it takes allow_broadcast_read only.
+            **modbus.command_options_schema(
+                direction="read", templatable=True, function_code=0x17
+            ),
         }
     ),
     _no_address_overflow(CONF_READ_COUNT, CONF_READ_ADDRESS),
     _no_address_overflow(CONF_VALUES, CONF_WRITE_ADDRESS),
+    modbus.reject_broadcast_options_for_unicast(CONF_ADDRESS),
 )
 
 

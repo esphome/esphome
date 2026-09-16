@@ -203,8 +203,9 @@ void UDPComponent::dump_config() {
                 "  Listen Port: %u\n"
                 "  Broadcast Port: %u",
                 this->listen_port_, this->broadcast_port_);
-  for (const char *address : this->addresses_)
+  for (const char *address : this->addresses_) {
     ESP_LOGCONFIG(TAG, "  Address: %s", address);
+  }
   if (this->listen_address_.has_value()) {
     char addr_buf[network::IP_ADDRESS_BUFFER_SIZE];
     ESP_LOGCONFIG(TAG, "  Listen address: %s", this->listen_address_.value().str_to(addr_buf));
@@ -249,8 +250,9 @@ void UDPComponent::send_packet(const uint8_t *data, size_t size) {
     if (this->udp_client_.beginPacketMulticast(saddr, this->broadcast_port_, iface, 128) != 0) {
       this->udp_client_.write(data, size);
       auto result = this->udp_client_.endPacket();
-      if (result == 0)
+      if (result == 0) {
         ESP_LOGW(TAG, "udp.write() error");
+      }
     }
   }
 #endif

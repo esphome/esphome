@@ -9,7 +9,7 @@
 namespace esphome::mitsubishi_cn105 {
 
 template<typename... Ts>
-class SetRemoteTemperatureAction : public Action<Ts...>, public Parented<MitsubishiCN105Component> {
+class SetRemoteTemperatureAction final : public Action<Ts...>, public Parented<MitsubishiCN105Component> {
  public:
   TEMPLATABLE_VALUE(float, temperature)
 
@@ -17,12 +17,12 @@ class SetRemoteTemperatureAction : public Action<Ts...>, public Parented<Mitsubi
 };
 
 template<typename... Ts>
-class ClearRemoteTemperatureAction : public Action<Ts...>, public Parented<MitsubishiCN105Component> {
+class ClearRemoteTemperatureAction final : public Action<Ts...>, public Parented<MitsubishiCN105Component> {
  public:
   void play(const Ts &...x) override { this->parent_->clear_remote_temperature(); }
 };
 
-template<typename... Ts> class VaneControlAction : public Action<Ts...> {
+template<typename... Ts> class VaneControlAction final : public Action<Ts...> {
  public:
   using ApplyFn = void (*)(VaneCall &, const std::remove_cvref_t<Ts> &...);
 
