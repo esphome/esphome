@@ -128,10 +128,7 @@ bool SendspinHub::start_client_() {
 #ifdef USE_MDNS_SUPPORTS_ENABLE_DISABLE
 // THREAD CONTEXT: Main loop
 void SendspinHub::update_mdns_service_() {
-  // The _sendspin service starts disabled in mdns's compiled records and is kept in step with
-  // the client from loop() rather than from setup() or set_enabled(): mdns sets up after this
-  // hub and only builds its service list then. is_ready() stays false while mdns is still
-  // starting up or has failed.
+  // Synced from loop() because mdns sets up after this hub and only builds its service list then.
   if (!this->mdns_->is_ready()) {
     return;
   }
@@ -139,8 +136,7 @@ void SendspinHub::update_mdns_service_() {
   if (advertise == this->mdns_advertised_) {
     return;
   }
-  // A failed request is left unrecorded so it retries, rate limited so a persistent failure does not flood
-  // the log or block on the mdns task every loop pass.
+  // Failed requests retry, rate limited so a persistent failure does not flood the log every loop pass.
   const uint32_t now = App.get_loop_component_start_time();
   if (this->mdns_enable_attempt_ms_ != 0 && now - this->mdns_enable_attempt_ms_ < MDNS_ENABLE_RETRY_MS) {
     return;

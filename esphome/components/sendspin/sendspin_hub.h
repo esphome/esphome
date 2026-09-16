@@ -133,12 +133,11 @@ class SendspinHub final : public Component,
 
   void set_task_stack_in_psram(bool task_stack_in_psram) { this->task_stack_in_psram_ = task_stack_in_psram; }
 
-  /// @brief Starts or stops the Sendspin client, and with it the server, the roles and the mDNS advertisement.
+  /// @brief Starts or stops the Sendspin client, including the server, the roles and the mDNS advertisement.
   ///
-  /// Disabling sends `client/goodbye` to every peer and blocks until the client is fully stopped; the roles' clear
-  /// callbacks fire from inside this call. Enabling starts it again with no connection or role state from before.
-  /// No-op if the client is already in the requested state. Called before the hub's setup(), it only records whether
-  /// setup() starts the client. Must be called from the main loop thread.
+  /// Disabling blocks until the client is fully stopped; the roles' clear callbacks fire from inside this call.
+  /// Before the hub's setup() it only records whether setup() starts the client. Must be called from the main
+  /// loop thread.
   /// @return true if the client is in the requested state afterwards, false before setup() or if a start failed.
   bool set_enabled(bool enabled);
 
@@ -231,7 +230,7 @@ class SendspinHub final : public Component,
   bool start_client_();
 
 #ifdef USE_MDNS_SUPPORTS_ENABLE_DISABLE
-  /// @brief Keeps the `_sendspin` mDNS service advertised exactly while the client is running.
+  /// @brief Keeps the `_sendspin` mDNS service advertised while the client is running.
   void update_mdns_service_();
 #endif
 
@@ -313,8 +312,7 @@ class SendspinHub final : public Component,
 
   bool task_stack_in_psram_{false};
 
-  // Whether setup() starts the client. Only meaningful before setup(); afterwards the client's own is_started()
-  // is the source of truth.
+  // Whether setup() starts the client; afterwards the client's own is_started() is the source of truth.
   bool enabled_{true};
 
   // Device information sent in the `client/hello` message. Defaults apply when neither the

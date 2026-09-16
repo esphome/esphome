@@ -13,8 +13,8 @@ void SendspinSwitch::setup() {
   if (initial_state.has_value()) {
     this->parent_->set_enabled(*initial_state);
   }
-  // The hub has not set up yet, so its state is read once every setup() has run. A failed hub
-  // fails the switch too rather than publishing (and persisting) off.
+  // The hub sets up later, so read its state after every setup() has run. A failed hub fails the
+  // switch too rather than persisting off.
   this->defer([this] {
     if (this->parent_->is_failed()) {
       this->mark_failed();
@@ -29,7 +29,7 @@ void SendspinSwitch::dump_config() { LOG_SWITCH("", "Sendspin Switch", this); }
 // THREAD CONTEXT: Main loop
 void SendspinSwitch::write_state(bool state) {
   this->parent_->set_enabled(state);
-  // Publish what the hub actually did rather than what was asked, so a failed start reads as off.
+  // A failed start reads as off.
   this->publish_state(this->parent_->is_enabled());
 }
 
