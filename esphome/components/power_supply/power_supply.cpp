@@ -9,6 +9,7 @@ void PowerSupply::setup() {
   this->pin_->setup();
   if (!pin_state_held_from_deep_sleep(this->pin_)) {
     this->pin_->digital_write(false);
+    this->disable_loop();  // nothing to reconcile: pin is already off
   }
   if (this->enable_on_boot_)
     this->request_high_power();
