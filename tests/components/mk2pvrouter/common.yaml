@@ -1,0 +1,46 @@
+mk2pvrouter:
+  id: test_mk2pvrouter
+  uart_id: uart_bus
+
+sensor:
+  - platform: mk2pvrouter
+    name: Power
+    tag: P
+    mk2pvrouter_id: test_mk2pvrouter
+    unit_of_measurement: W
+    device_class: power
+    state_class: measurement
+    accuracy_decimals: 0
+
+  - platform: mk2pvrouter
+    name: Voltage
+    tag: V
+    mk2pvrouter_id: test_mk2pvrouter
+    unit_of_measurement: V
+    device_class: voltage
+    state_class: measurement
+    accuracy_decimals: 2
+    filters:
+      # Device sends voltage * 100
+      - multiply: 0.01
+
+  - platform: mk2pvrouter
+    name: Energy
+    tag: E
+    mk2pvrouter_id: test_mk2pvrouter
+    unit_of_measurement: Wh
+    device_class: energy
+    state_class: total_increasing
+    accuracy_decimals: 0
+
+  - platform: mk2pvrouter
+    name: Temperature
+    tag: T1
+    mk2pvrouter_id: test_mk2pvrouter
+    unit_of_measurement: "°C"
+    device_class: temperature
+    state_class: measurement
+    accuracy_decimals: 2
+    filters:
+      # Device sends temperature * 100
+      - multiply: 0.01

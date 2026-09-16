@@ -23,7 +23,7 @@ public ble_api.h.
 import logging
 
 import esphome.codegen as cg
-from esphome.components import libretiny
+from esphome.components import libretiny, wifi
 from esphome.components.libretiny.const import (
     FAMILY_BK7231N,
     FAMILY_BK7231Q,
@@ -79,12 +79,20 @@ def _unsupported_family_message(family: str) -> str | None:
     return None
 
 
-def _final_validate(config: ConfigType) -> ConfigType:
+def _final_validate(config: ConfigType) -> None:
     # Warn only: a hard error here would break the validate-only CI fixtures,
     # which run on a BLE 4.2 board. The hard error is raised at codegen.
     if msg := _unsupported_family_message(libretiny.get_libretiny_family()):
         _LOGGER.warning("%s (this configuration cannot compile)", msg)
-    return config
+    # Any wifi power_save_mode other than NONE also arms the Beken SDK's MCU
+    # sleep. With the BLE controller running, that sleep never wakes up once the
+    # station is stopped (adapter restart after failed roams, wifi.disable): the
+    # device is dead until a power cycle (esphome#18592). Keep power save off
+    # until LibreTiny ships the SDK-side fix (libretiny-eu/libretiny#414).
+    wifi.force_power_save_off(
+        "with BLE running, the Beken SDK's MCU sleep halts the device once the "
+        "station is stopped (https://github.com/esphome/esphome/issues/18592)"
+    )
 
 
 FINAL_VALIDATE_SCHEMA = _final_validate

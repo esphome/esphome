@@ -7,6 +7,7 @@ import esphome.automation as auto
 import esphome.codegen as cg
 from esphome.components import mqtt, power_supply, web_server
 from esphome.components.const import CONF_CHANNEL_COLORS, CONF_IS_WRGB
+from esphome.config_helpers import filter_source_files_from_defines
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BLUE,
@@ -279,7 +280,7 @@ def _final_validate(config: ConfigType) -> None:
     """
     data = _get_data()
     if not data.effect_refs and not data.effect_cycle_refs:
-        return config
+        return
 
     # Drain the lists so we only validate once even though
     # FINAL_VALIDATE_SCHEMA runs for each light platform instance.
@@ -323,8 +324,6 @@ def _final_validate(config: ConfigType) -> None:
                 path=[cv.ROOT_CONFIG_PATH] + ref.component_path,
             )
 
-    return config
-
 
 FINAL_VALIDATE_SCHEMA = _final_validate
 
@@ -340,6 +339,10 @@ RESTORE_MODES = {
     "RESTORE_AND_OFF": LightRestoreMode.LIGHT_RESTORE_AND_OFF,
     "RESTORE_AND_ON": LightRestoreMode.LIGHT_RESTORE_AND_ON,
 }
+
+# Schema default that also matches the C++ initializer in light_state.h; codegen
+# skips the setter when the config equals it.
+DEFAULT_FLASH_TRANSITION_LENGTH = "0s"
 
 LIGHT_SCHEMA = (
     cv.ENTITY_BASE_SCHEMA.extend(web_server.WEBSERVER_SORTING_SCHEMA)
@@ -388,7 +391,7 @@ BRIGHTNESS_ONLY_LIGHT_SCHEMA = LIGHT_SCHEMA.extend(
             CONF_DEFAULT_TRANSITION_LENGTH, default="1s"
         ): cv.positive_time_period_milliseconds,
         cv.Optional(
-            CONF_FLASH_TRANSITION_LENGTH, default="0s"
+            CONF_FLASH_TRANSITION_LENGTH, default=DEFAULT_FLASH_TRANSITION_LENGTH
         ): cv.positive_time_period_milliseconds,
         cv.Optional(CONF_EFFECTS): validate_effects(MONOCHROMATIC_EFFECTS),
     }
@@ -503,9 +506,12 @@ async def setup_light_core_(light_var, config, output_var):
         default_transition_length := config.get(CONF_DEFAULT_TRANSITION_LENGTH)
     ) is not None:
         cg.add(light_var.set_default_transition_length(default_transition_length))
+    # Skip the setter when the config matches the C++ initializer.
     if (
         flash_transition_length := config.get(CONF_FLASH_TRANSITION_LENGTH)
-    ) is not None:
+    ) is not None and flash_transition_length != cv.time_period(
+        DEFAULT_FLASH_TRANSITION_LENGTH
+    ):
         cg.add(light_var.set_flash_transition_length(flash_transition_length))
     if (gamma_correct := config.get(CONF_GAMMA_CORRECT)) is not None:
         cg.add(light_var.set_gamma_correct(gamma_correct))
@@ -515,7 +521,8 @@ async def setup_light_core_(light_var, config, output_var):
     effects = await cg.build_registry_list(
         EFFECTS_REGISTRY, config.get(CONF_EFFECTS, [])
     )
-    cg.add(light_var.add_effects(effects))
+    if effects:
+        cg.add(light_var.add_effects(effects))
 
     for conf in config.get(CONF_ON_TURN_ON, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], light_var)
@@ -559,3 +566,10 @@ async def new_light(config, *args):
 @coroutine_with_priority(CoroPriority.CORE)
 async def to_code(config):
     cg.add_global(light_ns.using)
+
+
+# light_json_schema.cpp is only used by mqtt and web_server, which both
+# auto load json; USE_JSON alone is too broad since other components load it.
+FILTER_SOURCE_FILES = filter_source_files_from_defines(
+    {"light_json_schema.cpp": ("USE_MQTT", "USE_WEBSERVER")}
+)

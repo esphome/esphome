@@ -16,7 +16,7 @@ static constexpr int kInnerIterations = 2000;
 template<typename T> static APIBuffer encode_message(const T &msg) {
   APIBuffer buffer;
   uint32_t size = msg.calculate_size();
-  buffer.resize(size);
+  (void) buffer.resize(size);
   ProtoWriteBuffer writer(&buffer, 0);
   msg.encode(writer);
   return buffer;

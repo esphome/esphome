@@ -57,6 +57,21 @@ sensor:
     name: Power Factor 1
     emontx_id: test_emontx
 
+  # Apparent power sensor (AP pattern): expects state_class=measurement,
+  # unit=VA, device_class=apparent_power, accuracy_decimals=2
+  - platform: emontx
+    tag_name: AP1
+    name: Apparent Power 1
+    emontx_id: test_emontx
+
+  # Frequency sensor (F, matched exactly, not as a prefix): expects
+  # state_class=measurement, unit=Hz, device_class=frequency,
+  # accuracy_decimals=2
+  - platform: emontx
+    tag_name: F
+    name: Frequency
+    emontx_id: test_emontx
+
   # Unknown tag: no prefix match, falls back to state_class=measurement,
   # accuracy_decimals=0
   - platform: emontx
