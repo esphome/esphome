@@ -312,6 +312,66 @@ def test_model_with_full_update_every(
     )
 
 
+def test_update_interval_below_model_minimum_rejected(
+    set_core_config: SetCoreConfigCallable,
+    set_component_config: Callable[[str, Any], None],
+) -> None:
+    """update_interval faster than the model's minimum_update_interval is rejected."""
+    set_core_config(
+        PlatformFramework.ESP32_IDF,
+        platform_data={KEY_BOARD: "esp32dev", KEY_VARIANT: VARIANT_ESP32},
+    )
+
+    set_component_config("spi", {"id": "spi_bus", "clk_pin": 18, "mosi_pin": 19})
+
+    with pytest.raises(cv.Invalid, match="at least"):
+        run_schema_validation(
+            {
+                "id": "test_display",
+                "model": "ssd1677",
+                "dc_pin": 21,
+                "busy_pin": 22,
+                "reset_pin": 23,
+                "cs_pin": 5,
+                "dimensions": {
+                    "width": 200,
+                    "height": 200,
+                },
+                "update_interval": "500ms",
+            }
+        )
+
+
+def test_reset_duration_over_max_rejected(
+    set_core_config: SetCoreConfigCallable,
+    set_component_config: Callable[[str, Any], None],
+) -> None:
+    """reset_duration over the 500ms cap is rejected."""
+    set_core_config(
+        PlatformFramework.ESP32_IDF,
+        platform_data={KEY_BOARD: "esp32dev", KEY_VARIANT: VARIANT_ESP32},
+    )
+
+    set_component_config("spi", {"id": "spi_bus", "clk_pin": 18, "mosi_pin": 19})
+
+    with pytest.raises(cv.Invalid, match="at most"):
+        run_schema_validation(
+            {
+                "id": "test_display",
+                "model": "ssd1677",
+                "dc_pin": 21,
+                "busy_pin": 22,
+                "reset_pin": 23,
+                "cs_pin": 5,
+                "dimensions": {
+                    "width": 200,
+                    "height": 200,
+                },
+                "reset_duration": "600ms",
+            }
+        )
+
+
 def test_busy_pin_input_mode_ssd1677(
     set_core_config: SetCoreConfigCallable,
     set_component_config: Callable[[str, Any], None],
