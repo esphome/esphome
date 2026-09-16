@@ -1157,11 +1157,6 @@ def lint_no_std_bind(fname, match):
     mask=True,
     prefilter="nothrow",
     include=cpp_include,
-    exclude=[
-        # Still use new (std::nothrow); migrated to RAMAllocator in a follow up PR
-        "esphome/components/api/api_buffer.cpp",
-        "esphome/components/api/api_overflow_buffer.cpp",
-    ],
 )
 def lint_no_std_nothrow(fname, match):
     return (
