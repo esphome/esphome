@@ -23,7 +23,7 @@ class TemplateValve final : public valve::Valve, public Component {
   Trigger<> *get_stop_trigger();
   Trigger<> *get_toggle_trigger();
   Trigger<float> *get_position_trigger();
-  void set_optimistic(bool optimistic);
+  void set_optimistic(bool optimistic) { this->optimistic_ = optimistic; }
   void set_assumed_state(bool assumed_state);
   void set_has_stop(bool has_stop);
   void set_has_position(bool has_position);

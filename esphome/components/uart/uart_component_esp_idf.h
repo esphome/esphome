@@ -37,6 +37,12 @@ class IDFUARTComponent final : public UARTComponent, public Component {
 
   uint8_t get_hw_serial_number() { return this->uart_num_; }
 
+  /// Discard everything received so far: the peek cache and the driver's RX buffer.
+  void flush_input() {
+    this->has_peek_ = false;
+    uart_flush_input(this->uart_num_);
+  }
+
   /**
    * Load the UART with the current settings.
    * @param dump_config (Optional, default `true`): True for displaying new settings or
