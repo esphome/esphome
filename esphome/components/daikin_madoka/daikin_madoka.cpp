@@ -62,11 +62,23 @@ void DaikinMadoka::loop() {
     this->query_queue_.pop();
     this->query_(query.cmd, query.args);
     this->pending_message_ = true;
-    this->set_timeout("query", get_command_cooldown(query.cmd), [this]() { this->pending_message_ = false; });
+    this->set_timeout("query", get_command_cooldown(query.cmd), [this]() {
+      this->pending_message_ = false;
+      // Re-enable the loop so the next queued query can be pumped
+      if (!this->query_queue_.empty()) {
+        this->enable_loop();
+      }
+    });
   }
   if (this->should_update_) {
     this->should_update_ = false;
     this->update();
+  }
+
+  // Nothing actionable until a chunk arrives, a query is enqueued, or the command
+  // cooldown expires - sleep the loop until a producer re-enables it.
+  if (this->received_chunks_.empty() && (this->query_queue_.empty() || this->pending_message_)) {
+    this->disable_loop();
   }
 }
 
@@ -157,6 +169,7 @@ void DaikinMadoka::control(const ClimateCall &call) {
     }
   }
   this->should_update_ = true;
+  this->enable_loop();
 }
 
 void DaikinMadoka::gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param) {
@@ -240,6 +253,7 @@ void DaikinMadoka::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t
       }
       this->node_state = espbt::ClientState::ESTABLISHED;
       this->should_update_ = true;
+      this->enable_loop();
       break;
     }
     case ESP_GATTC_NOTIFY_EVT: {
@@ -255,6 +269,7 @@ void DaikinMadoka::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t
       chk.length = param->notify.value_len;
       std::copy(param->notify.value, param->notify.value + param->notify.value_len, chk.data.begin());
       this->received_chunks_.push(chk);
+      this->enable_loop();
       break;
     }
     default:
@@ -274,6 +289,8 @@ void DaikinMadoka::update() {
   for (auto cmd : ALL_CMDS) {
     this->query_queue_.emplace(cmd, std::vector<uint8_t>{0x00, 0x00});
   }
+  // update() also fires from the polling interval while the loop is asleep
+  this->enable_loop();
 }
 
 void DaikinMadoka::process_incoming_chunk_(const Chunk &chk) {
