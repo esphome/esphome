@@ -10,11 +10,8 @@
 namespace esphome::sendspin_ {
 
 /// @brief Switch that starts and stops the Sendspin client through the hub (see SendspinHub::set_enabled()).
-///
-/// Sets up before the hub so the restored state decides whether the hub's setup() starts the client.
-class SendspinSwitch final : public switch_::Switch, public Component, public Parented<SendspinHub> {
+class SendspinSwitch final : public switch_::Switch, public SendspinChild {
  public:
-  float get_setup_priority() const override { return sendspin_priority::ENABLE_SWITCH; }
   void setup() override;
   void dump_config() override;
 

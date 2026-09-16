@@ -62,12 +62,20 @@ void SendspinHub::setup() {
   this->client_->add_player(this->player_config_).set_listener(this->player_listener_);
 #endif
 
-  if (this->enabled_ && !this->start_client_()) {
-    this->mark_failed();
-  }
+#ifndef USE_SENDSPIN_SWITCH
+  this->enabled_ = true;
+#endif
 }
 
 void SendspinHub::loop() {
+  if (this->enabled_.has_value() && this->enabled_.value() != this->client_->is_started() &&
+      !this->status_has_error()) {
+    if (!this->enabled_.value()) {
+      this->client_->stop();
+    } else if (!this->client_->start()) {
+      this->status_set_error(LOG_STR("Failed to start Sendspin client"));
+    }
+  }
   this->client_->loop();
 
 #ifdef USE_MDNS_SUPPORTS_ENABLE_DISABLE
@@ -101,24 +109,13 @@ void SendspinHub::dump_config() {
 }
 
 // THREAD CONTEXT: Main loop (invoked from Sendspin components)
-bool SendspinHub::set_enabled(bool enabled) {
-  if (!this->is_ready()) {
-    this->enabled_ = enabled;
-    return false;
+void SendspinHub::set_enabled(bool enabled) {
+  if (this->status_has_error()) {
+    ESP_LOGE(TAG, "Cannot %s: Sendspin failed to start, reboot to retry",
+             enabled ? LOG_STR_LITERAL("enable") : LOG_STR_LITERAL("disable"));
+    return;
   }
-  if (!enabled) {
-    this->client_->stop();
-    return true;
-  }
-  return this->start_client_();
-}
-
-bool SendspinHub::start_client_() {
-  if (this->client_->start()) {
-    return true;
-  }
-  ESP_LOGE(TAG, "Failed to start Sendspin client");
-  return false;
+  this->enabled_ = enabled;
 }
 
 #ifdef USE_MDNS_SUPPORTS_ENABLE_DISABLE

@@ -42,14 +42,11 @@ namespace esphome::sendspin_ {
 /// Centralized here so every sendspin component orders itself relative to the hub
 /// without each subcomponent having to pick a priority independently. Children run
 /// one step later than hub so they can assume hub's setup() has already completed.
-/// The enable switch runs one step earlier so its restored state decides whether the
-/// hub starts the client in setup().
 namespace sendspin_priority {
 // AFTER_WIFI so the hub runs after the wifi/ethernet drivers are up and we can read the active
 // interface's MAC for client_id.
 inline constexpr float HUB = esphome::setup_priority::AFTER_WIFI;
 inline constexpr float CHILD = HUB - 1.0f;
-inline constexpr float ENABLE_SWITCH = HUB + 1.0f;
 }  // namespace sendspin_priority
 
 /// @brief Persistent storage structure for last played server hash.
@@ -133,16 +130,16 @@ class SendspinHub final : public Component,
 
   void set_task_stack_in_psram(bool task_stack_in_psram) { this->task_stack_in_psram_ = task_stack_in_psram; }
 
-  /// @brief Starts or stops the Sendspin client, including the server, the roles and the mDNS advertisement.
+  /// @brief Requests the Sendspin client, including the server, the roles and the mDNS advertisement, to start or
+  /// stop.
   ///
-  /// Disabling blocks until the client is fully stopped; the roles' clear callbacks fire from inside this call.
-  /// Before the hub's setup() it only records whether setup() starts the client. Must be called from the main
-  /// loop thread.
-  /// @return true if the client is in the requested state afterwards, false before setup() or if a start failed.
-  bool set_enabled(bool enabled);
+  /// Applied from the hub's loop(). Stopping blocks until the client is fully stopped; the roles' clear callbacks
+  /// fire from inside that call. With a sendspin switch configured the client stays stopped until the switch has
+  /// called this once. Must be called from the main loop thread.
+  void set_enabled(bool enabled);
 
-  /// @brief Returns whether the Sendspin client is running. See set_enabled().
-  bool is_enabled() const { return this->is_ready() && this->client_->is_started(); }
+  /// @brief Returns whether the Sendspin client is running.
+  bool is_enabled() const { return this->client_ != nullptr && this->client_->is_started(); }
 
   /// @brief Sets the device information reported to the server in the `client/hello` message.
   ///
@@ -225,9 +222,6 @@ class SendspinHub final : public Component,
   /// @brief Writes the active network interface's MAC into @p buf and returns its data pointer.
   /// Uses the ethernet MAC if ethernet is configured, otherwise the base MAC (used by wifi).
   static const char *get_client_id_into_buffer(std::span<char, MAC_ADDRESS_PRETTY_BUFFER_SIZE> buf);
-
-  /// @brief Starts the client, logging on failure.
-  bool start_client_();
 
 #ifdef USE_MDNS_SUPPORTS_ENABLE_DISABLE
   /// @brief Keeps the `_sendspin` mDNS service advertised while the client is running.
@@ -312,8 +306,8 @@ class SendspinHub final : public Component,
 
   bool task_stack_in_psram_{false};
 
-  // Whether setup() starts the client; afterwards the client's own is_started() is the source of truth.
-  bool enabled_{true};
+  // Requested client state, applied from loop(). Empty until the switch restores its state.
+  std::optional<bool> enabled_;
 
   // Device information sent in the `client/hello` message. Defaults apply when neither the
   // sendspin configuration nor the project information supplies a value.

@@ -27,3 +27,4 @@ async def to_code(config: ConfigType) -> None:
     var = await switch.new_switch(config)
     await cg.register_component(var, config)
     await cg.register_parented(var, config[CONF_SENDSPIN_ID])
+    cg.add_define("USE_SENDSPIN_SWITCH", True)
