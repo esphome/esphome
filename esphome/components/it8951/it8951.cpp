@@ -855,7 +855,7 @@ void IT8951Display::apply_transform_(int &x, int &y) const {
 }
 
 bool IT8951Display::rotate_coordinates_(int &x, int &y) {
-  if (this->is_clipped(x, y))
+  if (this->is_point_clipped(x, y))
     return false;
   this->apply_transform_(x, y);
   if (x >= this->width_ || y >= this->height_ || x < 0 || y < 0)

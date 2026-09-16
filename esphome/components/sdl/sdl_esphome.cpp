@@ -164,7 +164,7 @@ void Sdl::draw_pixels_at(int x_start, int y_start, int w, int h, const uint8_t *
 }
 
 void Sdl::draw_pixel_at(int x, int y, Color color) {
-  if (this->texture_ == nullptr || this->is_clipped(x, y))
+  if (this->texture_ == nullptr || this->is_point_clipped(x, y))
     return;
 
   if (this->rotation_ == display::DISPLAY_ROTATION_180_DEGREES) {

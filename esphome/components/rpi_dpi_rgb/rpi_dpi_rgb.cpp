@@ -101,7 +101,7 @@ int RpiDpiRgb::get_height() {
 }
 
 void RpiDpiRgb::draw_pixel_at(int x, int y, Color color) {
-  if (this->is_clipped(x, y))
+  if (this->is_point_clipped(x, y))
     return;  // NOLINT
 
   switch (this->rotation_) {
