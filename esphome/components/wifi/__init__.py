@@ -167,6 +167,9 @@ MAX_WIFI_NETWORKS = 127
 # get best-effort connection attempts. Longer timeout ensures we exhaust all options
 # before falling back to AP mode. Aligned with improv wifi_timeout default.
 DEFAULT_AP_TIMEOUT = "90s"
+DEFAULT_REBOOT_TIMEOUT = "15min"
+# Both defaults also match the C++ initializers in wifi_component.h; codegen skips
+# the setter when the config equals them.
 
 wifi_ns = cg.esphome_ns.namespace("wifi")
 EAPAuth = wifi_ns.struct("EAPAuth")
@@ -285,7 +288,9 @@ WIFI_NETWORK_BASE = cv.Schema(
         cv.Optional(CONF_SSID): cv.sensitive(cv.ssid),
         cv.Optional(CONF_PASSWORD): cv.sensitive(validate_password),
         cv.Optional(CONF_CHANNEL): validate_channel,
-        cv.Optional(CONF_MANUAL_IP): STA_MANUAL_IP_SCHEMA,
+        cv.Optional(
+            CONF_MANUAL_IP, visibility=cv.Visibility.ADVANCED
+        ): STA_MANUAL_IP_SCHEMA,
     }
 )
 
@@ -484,12 +489,14 @@ CONFIG_SCHEMA = cv.All(
             ),
             cv.Optional(CONF_SSID): cv.sensitive(cv.ssid),
             cv.Optional(CONF_PASSWORD): cv.sensitive(validate_password),
-            cv.Optional(CONF_MANUAL_IP): STA_MANUAL_IP_SCHEMA,
+            cv.Optional(
+                CONF_MANUAL_IP, visibility=cv.Visibility.ADVANCED
+            ): STA_MANUAL_IP_SCHEMA,
             cv.Optional(CONF_EAP): EAP_AUTH_SCHEMA,
             cv.Optional(CONF_AP): wifi_network_ap,
             cv.Optional(CONF_DOMAIN, default=".local"): cv.domain_name,
             cv.Optional(
-                CONF_REBOOT_TIMEOUT, default="15min"
+                CONF_REBOOT_TIMEOUT, default=DEFAULT_REBOOT_TIMEOUT
             ): cv.positive_time_period_milliseconds,
             cv.SplitDefault(
                 CONF_POWER_SAVE_MODE,
@@ -599,7 +606,8 @@ def wifi_network(config, ap, static_ip):
         cg.add(ap.set_channel(config[CONF_CHANNEL]))
     if static_ip is not None:
         cg.add(ap.set_manual_ip(manual_ip(static_ip)))
-    if CONF_PRIORITY in config:
+    # priority_ is 0 in C++; skip the setter when the config matches it.
+    if config.get(CONF_PRIORITY, 0) != 0:
         cg.add(ap.set_priority(config[CONF_PRIORITY]))
 
     return ap
@@ -648,7 +656,9 @@ async def to_code(config):
             WiFiAP(),
             lambda ap: cg.add(var.set_ap(wifi_network(conf, ap, ip_config))),
         )
-        cg.add(var.set_ap_timeout(conf[CONF_AP_TIMEOUT]))
+        # Skip the setter when the config matches the C++ initializer.
+        if (ap_timeout := conf[CONF_AP_TIMEOUT]) != cv.time_period(DEFAULT_AP_TIMEOUT):
+            cg.add(var.set_ap_timeout(ap_timeout))
         cg.add_define("USE_WIFI_AP")
 
     # ESP32: register the WiFi stack with the esp32 sdkconfig reconciler, which
@@ -664,10 +674,27 @@ async def to_code(config):
     if has_manual_ip:
         cg.add_define("USE_WIFI_MANUAL_IP")
 
-    cg.add(var.set_reboot_timeout(config[CONF_REBOOT_TIMEOUT]))
-    cg.add(var.set_power_save_mode(config[CONF_POWER_SAVE_MODE]))
-    if CONF_MIN_AUTH_MODE in config:
-        cg.add(var.set_min_auth_mode(config[CONF_MIN_AUTH_MODE]))
+    # The C++ initializers are DEFAULT_REBOOT_TIMEOUT, power save NONE and minimum
+    # auth WPA2; skip the setters when the config matches them.
+    if (reboot_timeout := config[CONF_REBOOT_TIMEOUT]) != cv.time_period(
+        DEFAULT_REBOOT_TIMEOUT
+    ):
+        cg.add(var.set_reboot_timeout(reboot_timeout))
+    if (power_save_mode := config[CONF_POWER_SAVE_MODE]) != "NONE":
+        if reasons := CORE.data.get(POWER_SAVE_OFF_REASONS_KEY):
+            _LOGGER.warning(
+                "power_save_mode %s is not applied: %s",
+                power_save_mode,
+                "; ".join(reasons),
+            )
+        else:
+            cg.add(var.set_power_save_mode(power_save_mode))
+    # From here on force_power_save_off() can no longer take effect
+    CORE.data[POWER_SAVE_APPLIED_KEY] = True
+    if (
+        min_auth_mode := config.get(CONF_MIN_AUTH_MODE)
+    ) is not None and min_auth_mode != "WPA2":
+        cg.add(var.set_min_auth_mode(min_auth_mode))
     fast_connect = config[CONF_FAST_CONNECT]
     if fast_connect[CONF_ENABLED]:
         cg.add_define("USE_WIFI_FAST_CONNECT")
@@ -825,6 +852,8 @@ async def wifi_disable_to_code(config, action_id, template_arg, args):
 
 KEEP_SCAN_RESULTS_KEY = "wifi_keep_scan_results"
 RUNTIME_POWER_SAVE_KEY = "wifi_runtime_power_save"
+POWER_SAVE_OFF_REASONS_KEY = "wifi_power_save_off_reasons"
+POWER_SAVE_APPLIED_KEY = "wifi_power_save_applied"
 RUNTIME_ROAMING_SUPPRESSION_KEY = "wifi_runtime_roaming_suppression"
 # Keys for listener counts
 IP_STATE_LISTENERS_KEY = "wifi_ip_state_listeners"
@@ -855,6 +884,25 @@ def request_wifi_scan_results_lock() -> None:
     to nothing.
     """
     CORE.data[SCAN_RESULTS_LOCK_KEY] = True
+
+
+def force_power_save_off(reason: str) -> None:
+    """Keep the station out of WiFi power save regardless of power_save_mode.
+
+    Components whose platform cannot run power save safely call this from their
+    final validation (FINAL_VALIDATE_SCHEMA), which always runs before any code
+    generation. Every distinct reason is kept; when the configured mode is not
+    NONE, wifi's code generation logs them and skips the mode. Calling it once
+    wifi has generated its code is too late and raises.
+    """
+    if POWER_SAVE_APPLIED_KEY in CORE.data:
+        raise EsphomeError(
+            "wifi.force_power_save_off() must be called from final validation, "
+            "before wifi generates its code"
+        )
+    reasons: list[str] = CORE.data.setdefault(POWER_SAVE_OFF_REASONS_KEY, [])
+    if reason not in reasons:
+        reasons.append(reason)
 
 
 def enable_runtime_power_save_control():

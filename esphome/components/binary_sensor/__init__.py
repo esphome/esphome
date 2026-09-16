@@ -452,7 +452,9 @@ _BINARY_SENSOR_SCHEMA = (
             cv.Optional(
                 CONF_DEVICE_CLASS, visibility=cv.Visibility.ADVANCED
             ): validate_device_class,
-            cv.Optional(CONF_FILTERS): validate_filters,
+            cv.Optional(
+                CONF_FILTERS, visibility=cv.Visibility.ADVANCED
+            ): validate_filters,
             cv.Optional(CONF_ON_PRESS): automation.validate_automation({}),
             cv.Optional(CONF_ON_RELEASE): automation.validate_automation({}),
             cv.Optional(CONF_ON_CLICK): cv.All(
