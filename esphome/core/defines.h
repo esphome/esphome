@@ -479,6 +479,9 @@
 #define USE_OPENTHREAD
 #define USE_ZIGBEE
 #endif
+#ifndef USE_OPENTHREAD
+#define USE_MDNS_SUPPORTS_ENABLE_DISABLE
+#endif
 #endif
 
 #if defined(USE_ESP32_VARIANT_ESP32S2)
