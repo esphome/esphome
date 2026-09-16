@@ -4,7 +4,7 @@ from enum import Enum
 
 from esphome.enum import StrEnum
 
-__version__ = "2026.9.0"
+__version__ = "2026.10.0-dev"
 
 ALLOWED_NAME_CHARS = "abcdefghijklmnopqrstuvwxyz0123456789-_"
 VALID_SUBSTITUTIONS_CHARACTERS = (
@@ -1345,6 +1345,7 @@ DEVICE_CLASS_GARAGE = "garage"
 DEVICE_CLASS_GARAGE_DOOR = "garage_door"
 DEVICE_CLASS_GAS = "gas"
 DEVICE_CLASS_GATE = "gate"
+DEVICE_CLASS_GLASS_BREAK = "glass_break"
 DEVICE_CLASS_HEAT = "heat"
 DEVICE_CLASS_HUMIDITY = "humidity"
 DEVICE_CLASS_IDENTIFY = "identify"
