@@ -893,7 +893,8 @@ void AsyncEventSourceResponse::process_deferred_queue_() {
   }
   while (!deferred_queue_.empty()) {
     DeferredEvent &de = deferred_queue_.front();
-    json::JsonBuilder builder;
+    json::JsonArena<JSON_ARENA_SIZE> arena;
+    json::JsonBuilder builder(&arena);
     de.message_generator_(web_server_, de.source_, builder);
     if (this->send_json_(builder)) {
       if (this->close_requested_ || deferred_queue_.empty()) {
@@ -1250,7 +1251,8 @@ void AsyncEventSourceResponse::deferrable_send_state(void *source, const char *e
     // trying to send first
     deq_push_back_with_dedup_(source, message_generator);
   } else {
-    json::JsonBuilder builder;
+    json::JsonArena<JSON_ARENA_SIZE> arena;
+    json::JsonBuilder builder(&arena);
     message_generator(web_server_, source, builder);
     // A send error closes the session and clears the queue; nothing is queued after that
     if (!this->send_json_(builder) && !this->close_requested_) {

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <algorithm>
 #include <cstring>
 #include <string>
 #include <vector>
@@ -165,11 +166,61 @@ inline JsonDocument parse_json(const std::string &data) {
   return parse_json(reinterpret_cast<const uint8_t *>(data.c_str()), data.size());
 }
 
+/// The allocator a JsonBuilder uses by default (PSRAM first when available)
+ArduinoJson::Allocator *heap_json_allocator();
+
+/// Bump allocator over a fixed buffer, for a document that is built and serialized in one scope.
+/// A request the buffer cannot hold goes to the heap allocator instead, so an oversized document
+/// still works. Nothing is returned to the buffer until the arena itself goes away.
+template<size_t N> class JsonArena final : public ArduinoJson::Allocator {
+ public:
+  void *allocate(size_t size) override {
+    size = (size + ALIGN - 1) & ~(ALIGN - 1);
+    if (size > N - this->used_) {
+      return heap_json_allocator()->allocate(size);
+    }
+    this->last_ = this->used_;
+    this->used_ += size;
+    return this->buf_ + this->last_;
+  }
+  void deallocate(void *ptr) override {
+    if (!this->owns_(ptr)) {
+      heap_json_allocator()->deallocate(ptr);
+    }
+  }
+  void *reallocate(void *ptr, size_t new_size) override {
+    if (!this->owns_(ptr)) {
+      return heap_json_allocator()->reallocate(ptr, new_size);
+    }
+    const size_t off = static_cast<uint8_t *>(ptr) - this->buf_;
+    const size_t size = (new_size + ALIGN - 1) & ~(ALIGN - 1);
+    if (off == this->last_ && size <= N - off) {
+      this->used_ = off + size;  // the newest block grows or shrinks in place
+      return ptr;
+    }
+    // The old size of an older block is unknown; copying up to the end of the buffer stays in
+    // bounds and covers whatever the block held
+    void *moved = heap_json_allocator()->allocate(new_size);
+    if (moved != nullptr) {
+      std::memcpy(moved, ptr, std::min(new_size, N - off));
+    }
+    return moved;
+  }
+
+ private:
+  static constexpr size_t ALIGN = alignof(std::max_align_t);
+  bool owns_(const void *ptr) const { return ptr >= this->buf_ && ptr < this->buf_ + N; }
+  alignas(ALIGN) uint8_t buf_[N];
+  size_t used_{0};
+  size_t last_{0};
+};
+
 /// Builder class for creating JSON documents without lambdas
 class JsonBuilder {
  public:
   // Out of line: inlining the JsonDocument constructor duplicates it at every call site
   JsonBuilder();
+  explicit JsonBuilder(ArduinoJson::Allocator *allocator);
 
   JsonObject root() {
     if (!root_created_) {

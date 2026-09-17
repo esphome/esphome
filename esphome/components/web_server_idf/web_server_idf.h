@@ -303,10 +303,12 @@ class AsyncEventSourceResponse {
 
   void deq_push_back_with_dedup_(void *source, message_generator_t *message_generator);
   void process_deferred_queue_();
-  // A new chunk may go out: not re-entered from a log line, session alive, tail empty
+  // True when a new chunk may go out: not re-entered from a log line emitted inside a send (see
+  // SendGuard), the session is alive, and nothing from an earlier chunk is still waiting.
   bool ready_to_send_();
-  // Non-blocking gather write. Returns bytes written, 0 on would-block or a socket that is not
-  // ours, -1 after requesting the close on any other error.
+  // Non-blocking gather write on the session socket. Returns bytes written, 0 when the socket
+  // would block or the session is not (yet, or no longer) ours, -1 after requesting the close on
+  // any other error.
   ssize_t send_(struct iovec *iov, int iovcnt);
   // Push what is left of the chunk in tail_ to the socket; owns the stall timer.
   void drain_tail_();
@@ -315,13 +317,13 @@ class AsyncEventSourceResponse {
   // Keep the whole chunk in tail_ and continue from sent; false when the tail cannot be allocated.
   bool stash_chunk_(const char *prefix, size_t prefix_len, const char *message, size_t message_len, size_t total,
                     size_t sent);
-  // Send a state event; JSON too large for the stack buffer is serialized into tail_ instead
+  // Send a state event. The JSON is serialized into a stack buffer and goes out like any other
+  // message; one too large for it is serialized straight into tail_ and drained from there.
   bool send_json_(json::JsonBuilder &builder);
-  // Warn once, and close the session once the stall timeout passes with no memory for the tail
-  void tail_alloc_failed_(size_t cap);
   void request_close_();
 
-  // A log line emitted inside a send re-enters try_send_nodefer on this session; refuse it
+  // Marks a send in progress: a log line emitted inside it re-enters try_send_nodefer on this
+  // session and must not touch the socket or the tail
   struct SendGuard {
     AsyncEventSourceResponse &owner;
     explicit SendGuard(AsyncEventSourceResponse &owner) : owner(owner) { owner.sending_ = true; }
@@ -342,8 +344,9 @@ class AsyncEventSourceResponse {
   std::vector<DeferredEvent> deferred_queue_;
   esphome::web_server::WebServer *web_server_;
   esphome::web_server::ListEntitiesIterator entities_iterator_;
-  // One chunk the socket did not take whole, allocated on the first stall; the only heap use
-  // on the send path
+  // One chunk the socket did not take whole, allocated on the first stall. Events are sent
+  // straight from the caller's buffers with a gather write, so this is the only heap use on
+  // the send path.
   RAMUniquePtr<uint8_t[]> tail_;
   uint32_t send_failure_started_ms_{0};  // Zero means no send stall in progress.
   uint32_t next_close_attempt_ms_{0};
@@ -356,18 +359,26 @@ class AsyncEventSourceResponse {
   bool close_requested_{false};
   bool close_retry_warning_logged_{false};
   bool sending_{false};
-  // The longest multi line log message in the tree (a climate dump_config) has 22 lines; a
-  // longer one goes through the tail
+  // Only log messages span lines, and the longest one in the tree (a climate dump_config) has
+  // 22. The gather list holds the prefix plus a line and a separator per data line, so no message
+  // in the tree needs the heap copy through the tail; a longer one still works, it just takes it.
   static constexpr size_t MAX_SEND_LINES = 22;
   static constexpr size_t MAX_SEND_IOV = 1 + 2 * MAX_SEND_LINES;
   // Chunk header, retry/id/event lines and the first "data: "
   static constexpr size_t PREFIX_BUF_SIZE = 128;
-  // Stack buffer for a state event's JSON; a larger document is serialized into the tail
+  // Stack arena for building a state document: two ArduinoJson pools of 1 KB plus the copied id
+  // and value nodes, which is what a 40 option select needs. Every smaller document fits in one
+  // pool. A larger document spills to the heap instead of failing.
+  static constexpr size_t JSON_ARENA_SIZE = 2176;
+  // Stack buffer for a state event's JSON. A larger document is serialized into the tail,
+  // which grows by doubling up to TAIL_MAX_SIZE; measuring first would cost more flash.
   static constexpr size_t JSON_BUF_SIZE = 1024;
-  // Same ceiling JsonBuilder::serialize() applies (max_heap_size in json_util.cpp); a larger
-  // document is dropped before anything is on the wire
+  // Largest state document, the same ceiling JsonBuilder::serialize() applies (its 10 KB heap
+  // cap, see json_util.cpp); a larger one is dropped before anything is on the wire.
   static constexpr size_t JSON_MAX_SIZE = 5120;
-  // Most RAM a stalled session keeps: the largest state document plus any accepted framing
+  // Largest chunk the tail holds, and so the most RAM a stalled session keeps: the largest state
+  // document plus any framing try_send_nodefer accepts. Every other chunk is small, the web
+  // server cuts a log event at 512 bytes, so even 22 lines of framing stay well under it.
   static constexpr size_t TAIL_MAX_SIZE = JSON_MAX_SIZE + PREFIX_BUF_SIZE + SSE_SUFFIX_LEN;
   static constexpr uint32_t SEND_STALL_TIMEOUT_MS = 20000;
   static constexpr uint32_t CLOSE_RETRY_INTERVAL_MS = 250;
