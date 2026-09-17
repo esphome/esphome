@@ -25,11 +25,9 @@ constexpr size_t SSE_SUFFIX_LEN = sizeof(SSE_SUFFIX) - 1;
 // Receives one piece of the chunk; ctx is whatever the caller passed to for_each_chunk_piece()
 using ChunkPieceSink = void (*)(void *ctx, const char *piece, size_t len);
 
-// Calls sink for each piece of the chunk after the prefix: the data lines split on \n, \r or
-// \r\n with SSE_SEP between them and SSE_SUFFIX after the last (matching ESPAsyncWebServer: a
-// trailing line break adds no empty last line, an inner empty line is kept). A null message has
-// no data line and no blank line, only the chunk terminator. Out of line on purpose: one copy
-// serves the gather list and the tail.
+// Calls sink for each piece after the prefix: data lines split on \n, \r or \r\n with SSE_SEP
+// between them and SSE_SUFFIX after the last (as ESPAsyncWebServer: a trailing break adds no
+// empty line, an inner one is kept). A null message yields only the chunk terminator.
 void for_each_chunk_piece(const char *message, size_t message_len, ChunkPieceSink sink, void *ctx);
 
 // Writes the chunk header placeholder, the retry/id/event lines and, with_data, the first

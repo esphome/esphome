@@ -237,9 +237,8 @@ class JsonBuilder {
     return root_;
   }
 
-  /// Serialize into a buffer the caller owns. Returns the length, which is cap or more when the
-  /// document did not fit (buf then holds a truncated, unterminated copy). An overflowed document
-  /// serializes as "{}".
+  /// Serialize into a caller owned buffer. Returns the length; cap or more means it did not fit
+  /// and buf holds a truncated, unterminated copy. An overflowed document serializes as "{}".
   size_t serialize_to(char *buf, size_t cap);
 
   /// Serialize the JSON document to a SerializationBuffer (stack-first allocation)

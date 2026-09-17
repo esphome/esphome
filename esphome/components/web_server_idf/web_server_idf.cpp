@@ -759,11 +759,9 @@ void AsyncEventSource::adopt_pending_sessions_main_loop_() {
       delete rsp;  // NOLINT(cppcoreguidelines-owning-memory)
       continue;
     }
-    // httpd copies the session context into its table only after the handler that created the
-    // session returns. Until then send_() would refuse the socket and the greeting would end up
-    // in the tail, so leave the session pending for another pass. Bounded because the handler
-    // always returns ESP_OK, so httpd_req_cleanup() always runs and either commits the context
-    // or, on a dead socket, invokes destroy().
+    // httpd commits the session context only after the creating handler returns; until then
+    // send_() would refuse the socket, so stay pending. Bounded: httpd_req_cleanup() always
+    // commits the context or, on a dead socket, invokes destroy().
     if (httpd_sess_get_ctx(rsp->hd_, rsp->fd_.load()) != rsp) {
       LockGuard guard{this->pending_mutex_};
       this->pending_sessions_.push_back(rsp);
@@ -834,9 +832,8 @@ AsyncEventSourceResponse::AsyncEventSourceResponse(const AsyncWebServerRequest *
 void AsyncEventSourceResponse::start_session_main_loop_() {
   auto *ws = this->web_server_;
 
-  // tcp send buffer is empty on connect, so these should always go through. A refusal here is
-  // either a session already closing or a tail that could not be allocated; nothing retries the
-  // greeting, so close and let the client reconnect instead of leaving a silent stream.
+  // The tcp send buffer is empty on connect. A refusal is a closing session or a failed tail
+  // allocation; nothing retries the greeting, so close and let the client reconnect.
   auto message = ws->get_config_json();
   if (!this->try_send_nodefer(message.c_str(), message.size(), "ping", millis(), 30000)) {
     ESP_LOGW(TAG, "Config not sent to fd %d", this->fd_.load());
@@ -969,10 +966,9 @@ void AsyncEventSourceResponse::close_session_work(void *arg) {
 }
 
 ssize_t AsyncEventSourceResponse::send_(struct iovec *iov, int iovcnt) {
-  // httpd frees the session before it closes the socket, so the fd number can already belong to
-  // a new client. Checking the session table narrows that window; it cannot close it. Treated
-  // as would-block: the chunk waits in the tail and the stall timer ends a session that never
-  // becomes ours again. A new session is adopted only once httpd has committed its context.
+  // httpd frees the session before closing the socket, so the fd can already belong to a new
+  // client. The session table check narrows that window; treated as would-block, the stall
+  // timer ends a session that never becomes ours again.
   const int fd = this->fd_.load();
   if (httpd_sess_get_ctx(this->hd_, fd) != this) {
     return 0;
@@ -1038,9 +1034,8 @@ bool AsyncEventSourceResponse::reserve_tail_(size_t len) {
   if (len > TAIL_MAX_SIZE) {
     return false;
   }
-  // Nothing is pending when the tail grows, so free the old block before asking for the new one;
-  // a failed growth therefore leaves no tail at all. PREFER_INTERNAL keeps the tail where plain
-  // new put it.
+  // Nothing is pending while the tail grows, so free the old block first. PREFER_INTERNAL keeps
+  // the tail where plain new put it.
   this->tail_.reset();
   this->tail_ = RAMAllocator<uint8_t>(RAMAllocator<uint8_t>::PREFER_INTERNAL).make_unique_array_for_overwrite(len);
   this->tail_cap_ = this->tail_ ? len : 0;
@@ -1050,9 +1045,8 @@ bool AsyncEventSourceResponse::reserve_tail_(size_t len) {
 bool AsyncEventSourceResponse::stash_chunk_(const char *prefix, size_t prefix_len, const char *message,
                                             size_t message_len, size_t total, size_t sent) {
   if (!this->reserve_tail_(total)) {
-    // Either the heap is exhausted or the chunk is beyond what the tail may hold. With part
-    // of the chunk already on the wire the stream is broken and the client has to go; otherwise
-    // only this event is lost.
+    // No memory or over the ceiling: with part of the chunk on the wire the stream is broken
+    // and the client has to go; otherwise only this event is lost.
     ESP_LOGW(TAG, "EventSource cannot buffer a %zu byte chunk; %s", total,
              sent != 0 ? LOG_STR_LITERAL("closing") : LOG_STR_LITERAL("event dropped"));
     if (sent != 0) {
@@ -1097,7 +1091,7 @@ bool AsyncEventSourceResponse::send_json_(json::JsonBuilder &builder) {
   }
 
   // Too large for the stack: the tail holds the whole chunk and loop() drains it. Serialized
-  // JSON never contains a raw line break, so the body is one data line and needs no splitting.
+  // JSON has no raw line break, so the body is one data line.
   if (!this->ready_to_send_()) {
     return false;
   }
@@ -1105,24 +1099,15 @@ bool AsyncEventSourceResponse::send_json_(json::JsonBuilder &builder) {
     SendGuard guard{*this};
     char prefix[PREFIX_BUF_SIZE];
     const size_t prefix_len = build_chunk_prefix(prefix, sizeof(prefix), "state", 0, 0, true);
-    // Grow the tail until the document fits, starting from what it already holds; nothing is
-    // pending, so each step just reallocates. Nothing has reached the wire, so a document that
-    // cannot be held costs only this event, and a tail grown for an abandoned event is released.
+
+    // Grow the tail until the document fits. Nothing has reached the wire, so a document that
+    // cannot be held costs only this event, and the tail grown for it is released.
     size_t json_len = 0;
     size_t cap = std::max<size_t>(JSON_BUF_SIZE * 2, this->tail_cap_);
     for (;;) {
       if (!this->reserve_tail_(cap)) {
-        // Transient: the caller keeps the event deferred and retries on a later pass, on the
-        // same stall clock as a socket that stops draining, so a session cannot spin forever
-        const uint32_t now = App.get_loop_component_start_time();
-        if (this->send_failure_started_ms_ == 0) {
-          this->send_failure_started_ms_ = now != 0 ? now : 1;  // Reserve zero for no stall.
-          ESP_LOGW(TAG, "EventSource has no memory for a %zu byte state event", cap);
-        } else if (static_cast<int32_t>(now - (this->send_failure_started_ms_ + SEND_STALL_TIMEOUT_MS)) >= 0) {
-          ESP_LOGW(TAG, "EventSource had no memory for %" PRIu32 " ms, closing", now - this->send_failure_started_ms_);
-          this->request_close_();
-        }
-        return false;
+        this->tail_alloc_failed_(cap);
+        return false;  // stays deferred, retried on a later pass
       }
       const size_t room = cap - prefix_len - SSE_SUFFIX_LEN;
       json_len = builder.serialize_to(reinterpret_cast<char *>(this->tail_.get()) + prefix_len, room);
@@ -1130,14 +1115,14 @@ bool AsyncEventSourceResponse::send_json_(json::JsonBuilder &builder) {
         break;
       }
       if (cap >= TAIL_MAX_SIZE) {
-        // Would never fit on a retry either, so it is reported as sent
         ESP_LOGW(TAG, "EventSource state event over %zu bytes dropped", JSON_MAX_SIZE);
         this->tail_.reset();
         this->tail_cap_ = 0;
-        return true;
+        return true;  // would never fit, reported as sent
       }
       cap = std::min<size_t>(cap * 2, TAIL_MAX_SIZE);
     }
+
     const size_t total = prefix_len + json_len + SSE_SUFFIX_LEN;
     write_chunk_header(prefix, total - CHUNK_HDR_LEN - CHUNK_END_LEN);
     uint8_t *dst = this->tail_.get();
@@ -1148,6 +1133,20 @@ bool AsyncEventSourceResponse::send_json_(json::JsonBuilder &builder) {
   }
   drain_tail_();
   return true;
+}
+
+void AsyncEventSourceResponse::tail_alloc_failed_(size_t cap) {
+  // Same stall clock as a socket that stops draining, so a session cannot retry forever
+  const uint32_t now = App.get_loop_component_start_time();
+  if (this->send_failure_started_ms_ == 0) {
+    this->send_failure_started_ms_ = now != 0 ? now : 1;  // Reserve zero for no stall.
+    ESP_LOGW(TAG, "EventSource has no memory for a %zu byte state event", cap);
+    return;
+  }
+  if (static_cast<int32_t>(now - (this->send_failure_started_ms_ + SEND_STALL_TIMEOUT_MS)) >= 0) {
+    ESP_LOGW(TAG, "EventSource had no memory for %" PRIu32 " ms, closing", now - this->send_failure_started_ms_);
+    this->request_close_();
+  }
 }
 
 bool AsyncEventSourceResponse::ready_to_send_() {
