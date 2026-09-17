@@ -18,6 +18,7 @@
 #ifdef USE_WEBSERVER
 #include "esphome/components/json/json_util.h"
 #include "esphome/components/web_server/list_entities.h"
+#include "sse_chunk.h"
 #endif
 
 struct iovec;  // NOLINT(readability-identifier-naming) - forward decl of lwip's gather list entry
@@ -368,13 +369,13 @@ class AsyncEventSourceResponse {
   // Stack buffer for a state event's JSON. A larger document is serialized into the tail,
   // which grows by doubling up to TAIL_MAX_SIZE; measuring first would cost more flash.
   static constexpr size_t JSON_BUF_SIZE = 1024;
-  // Largest state document, the limit JsonBuilder::serialize() has always applied; a larger one
-  // is dropped before anything is on the wire.
+  // Largest state document, the same ceiling JsonBuilder::serialize() applies (its 10 KB heap
+  // cap, see json_util.cpp); a larger one is dropped before anything is on the wire.
   static constexpr size_t JSON_MAX_SIZE = 5120;
   // Largest chunk the tail holds, and so the most RAM a stalled session keeps: the largest state
-  // document plus its framing. Every other chunk is small, the web server cuts a log event at
-  // 512 bytes, so even 22 lines of framing stay well under it.
-  static constexpr size_t TAIL_MAX_SIZE = JSON_MAX_SIZE + PREFIX_BUF_SIZE;
+  // document plus any framing try_send_nodefer accepts. Every other chunk is small, the web
+  // server cuts a log event at 512 bytes, so even 22 lines of framing stay well under it.
+  static constexpr size_t TAIL_MAX_SIZE = JSON_MAX_SIZE + PREFIX_BUF_SIZE + SSE_SUFFIX_LEN;
   static constexpr uint32_t SEND_STALL_TIMEOUT_MS = 20000;
   static constexpr uint32_t CLOSE_RETRY_INTERVAL_MS = 250;
   static constexpr uint32_t CLOSE_CONFIRM_INTERVAL_MS = 1000;

@@ -412,7 +412,7 @@ void WebServer::loop() {
 
 #ifdef USE_LOGGER
 // A log line longer than this is cut before it goes out as an event. Nothing a browser log
-// view needs is longer, and it bounds the chunk a stalled client can leave in the tail.
+// view needs is longer, and on ESP-IDF it bounds the chunk a stalled client can leave in the tail.
 static constexpr size_t LOG_EVENT_MAX_LEN = 512;
 
 void WebServer::on_log(uint8_t level, const char *tag, const char *message, size_t message_len) {
