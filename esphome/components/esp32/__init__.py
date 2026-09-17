@@ -111,6 +111,7 @@ CONF_ENGINEERING_SAMPLE = "engineering_sample"
 CONF_INCLUDE_BUILTIN_IDF_COMPONENTS = "include_builtin_idf_components"
 CONF_ENABLE_LWIP_ASSERT = "enable_lwip_assert"
 CONF_EXECUTE_FROM_PSRAM = "execute_from_psram"
+CONF_NVS_CACHE_IN_PSRAM = "nvs_cache_in_psram"
 CONF_FLASH_CHIP = "flash_chip"
 CONF_KEY_ID = "key_id"
 CONF_MINIMUM_CHIP_REVISION = "minimum_chip_revision"
@@ -2032,6 +2033,7 @@ FRAMEWORK_SCHEMA = cv.Schema(
                 cv.Optional(CONF_RINGBUF_IN_IRAM, default=False): cv.boolean,
                 cv.Optional(CONF_HEAP_IN_IRAM, default=False): cv.boolean,
                 cv.Optional(CONF_EXECUTE_FROM_PSRAM, default=False): cv.boolean,
+                cv.Optional(CONF_NVS_CACHE_IN_PSRAM, default=True): cv.boolean,
                 cv.Optional(CONF_LOOP_TASK_STACK_SIZE, default=8192): cv.int_range(
                     min=8192, max=32768
                 ),
@@ -2904,6 +2906,15 @@ async def to_code(config):
 
     if advanced[CONF_EXECUTE_FROM_PSRAM]:
         add_idf_sdkconfig_option("CONFIG_SPIRAM_XIP_FROM_PSRAM", True)
+
+    if advanced[CONF_NVS_CACHE_IN_PSRAM]:
+        # Imported here as psram imports this module
+        from esphome.components.psram import is_guaranteed as psram_is_guaranteed
+
+        # The NVS page cache and key hash lists scale with the partition size; NVS
+        # gets slower, which a few preference writes do not notice.
+        if psram_is_guaranteed():
+            add_idf_sdkconfig_option("CONFIG_NVS_ALLOCATE_CACHE_IN_SPIRAM", True)
 
     # Apply LWIP core locking for better socket performance
     # This is already enabled by default in Arduino framework, where it provides

@@ -1554,3 +1554,23 @@ def test_vasprintf_stub_only_on_rom_vsnprintf_variants(
     assert (CORE.build_flags >= _VASPRINTF_STUB_FLAGS) is expected
     defines = {define.name for define in CORE.defines}
     assert ("USE_ESP32_VASPRINTF_STUB" in defines) is expected
+
+
+@pytest.mark.parametrize(
+    ("fixture", "expected"),
+    [
+        ("nvs_cache_psram_guaranteed.yaml", True),
+        ("nvs_cache_psram_default.yaml", None),
+        ("nvs_cache_psram_disabled.yaml", None),
+    ],
+)
+def test_nvs_cache_in_psram_sdkconfig(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+    fixture: str,
+    expected: bool | None,
+) -> None:
+    """The NVS cache moves to PSRAM only when PSRAM is guaranteed and the option is on."""
+    generate_main(component_config_path(fixture))
+    sdkconfig = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
+    assert sdkconfig.get("CONFIG_NVS_ALLOCATE_CACHE_IN_SPIRAM") is expected
