@@ -99,6 +99,7 @@ ISOLATED_COMPONENTS = {
     "tinyusb": "Conflicts with usb_host component - cannot be used together",
     "uart_mux": "Depends on tinyusb which conflicts with usb_host",
     "usb_cdc_acm": "Depends on tinyusb which conflicts with usb_host",
+    "zigbee": "Defines zigbee: which conflicts with network: used by most components on nrf52",
 }
 
 

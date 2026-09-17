@@ -4,8 +4,10 @@ import os
 from pathlib import Path
 import platform
 import shutil
+import subprocess
 import sys
 
+from esphome import yaml_util
 from esphome.build_helpers.tools_cache import SDK_NRF_TOOLS_CACHE, tools_cache_path
 import esphome.config_validation as cv
 from esphome.const import KEY_CORE, KEY_FRAMEWORK_VERSION
@@ -22,7 +24,17 @@ from esphome.framework_helpers import (
 _LOGGER = logging.getLogger(__name__)
 
 _REQUIREMENTS = Path(__file__).parent / "requirements.txt"
-TOOLCHAIN_VERSION = "0.17.4"
+# NCS 3.4.0's bundled Zephyr (4.4.0) requires Zephyr SDK 1.0.1 (SDK_VERSION file in its
+# zephyr/ tree) -- the SDK's own versioning scheme moved from 0.x to 1.x alongside this,
+# and its release asset naming changed too (see SDK_NG_TOOLCHAIN_MIRRORS's "gnu_" infix).
+TOOLCHAIN_VERSION = "1.0.1"
+
+# sdk-nrf tag -> paired nrfconnect/ncs-zigbee tag. Nordic versions the two independently (no
+# formula between them) -- add an entry here whenever RECOMMENDED_SDK_NRF_VERSION bumps and
+# Nordic has shipped a paired ncs-zigbee release.
+NCS_ZIGBEE_VERSIONS: dict[str, str] = {
+    "v3.4.0": "v1.4.0",
+}
 
 # Packages the PlatformIO toolchain's Zephyr build script needs beyond west
 # (which comes from requirements.txt). Keep the pin in sync with
@@ -32,7 +44,7 @@ _PLATFORMIO_PENV_REQUIREMENTS: tuple[str, ...] = ("cbor2==5.6.5",)
 SDK_NG_TOOLCHAIN_MIRRORS = str_to_lst_of_str(
     os.environ.get(
         "ESPHOME_SDK_NG_TOOLCHAIN_MIRRORS",
-        "https://github.com/zephyrproject-rtos/sdk-ng/releases/download/v{VERSION}/toolchain_{sysname}-{machine}_arm-zephyr-eabi.{extension}",
+        "https://github.com/zephyrproject-rtos/sdk-ng/releases/download/v{VERSION}/toolchain_gnu_{sysname}-{machine}_arm-zephyr-eabi.{extension}",
     )
 )
 
@@ -128,23 +140,34 @@ def _get_version_str() -> str:
     return f"v{framework_ver.major}.{framework_ver.minor}.{framework_ver.patch}"
 
 
-def get_build_paths() -> dict:
+def _get_framework_cache_key(version: str, zigbee: bool) -> str:
+    # A zigbee-enabled workspace has extra west projects (ncs-zigbee's ZBOSS
+    # library) fetched into it that a plain one doesn't -- give it its own
+    # cache dir rather than mutating an existing plain workspace in place.
+    return f"{version}-zigbee" if zigbee else version
+
+
+def get_build_paths(zigbee: bool = False) -> dict:
     version = _get_version_str()
     env_path = _get_python_env_path(version)
     return {
         "python_executable": get_python_env_executable_path(env_path, "python"),
-        "framework_path": _get_framework_path(version),
+        "framework_path": _get_framework_path(
+            _get_framework_cache_key(version, zigbee)
+        ),
     }
 
 
-def get_build_env() -> dict:
+def get_build_env(zigbee: bool = False) -> dict:
     version = _get_version_str()
     venv_bin_dir = get_python_env_executable_path(
         _get_python_env_path(version), "python"
     ).parent
     env = os.environ.copy()
     env["PATH"] = str(venv_bin_dir) + os.pathsep + env.get("PATH", "")
-    env["ZEPHYR_BASE"] = str(_get_framework_path(version) / "zephyr")
+    env["ZEPHYR_BASE"] = str(
+        _get_framework_path(_get_framework_cache_key(version, zigbee)) / "zephyr"
+    )
     # ZEPHYR_SDK_INSTALL_DIR is the variable Zephyr documents for pointing at
     # the SDK: FindZephyr-sdk.cmake reads it (from the environment, via
     # zephyr_get) and passes it straight to find_package as a HINT. This
@@ -247,7 +270,106 @@ def _patch_uf2conv_escape_sequences(framework_path: Path) -> None:
     tmp.replace(uf2conv)
 
 
-def check_and_install() -> None:
+def _generate_zigbee_manifest(framework_path: Path, version: str) -> Path:
+    """Compose a local west manifest importing sdk-nrf and ncs-zigbee as sibling
+    projects, so a single `west init -l` + `west update` fetches both together.
+
+    ncs-zigbee is versioned independently of sdk-nrf (no formula between the two) --
+    see NCS_ZIGBEE_VERSIONS. The root project must be named "nrf" (not the
+    URL-basename "sdk-nrf") to match sdk-nrf's own manifest and NCS's sysbuild/
+    Kconfig scripts, which hardcode that project name.
+    """
+    ncs_zigbee_version = NCS_ZIGBEE_VERSIONS.get(version)
+    if ncs_zigbee_version is None:
+        raise EsphomeError(
+            f"zigbee: has no known compatible ncs-zigbee version for nRF Connect "
+            f"SDK {version} -- add an entry to NCS_ZIGBEE_VERSIONS."
+        )
+    manifest_dir = framework_path / "esphome-manifest"
+    manifest_yaml = yaml_util.dump(
+        {
+            "manifest": {
+                "projects": [
+                    {
+                        "name": "nrf",
+                        "url": "https://github.com/nrfconnect/sdk-nrf",
+                        "revision": version,
+                        "import": True,
+                    },
+                    {
+                        "name": "ncs-zigbee",
+                        "url": "https://github.com/nrfconnect/ncs-zigbee",
+                        "revision": ncs_zigbee_version,
+                        "import": True,
+                    },
+                ],
+                "self": {"path": "esphome-manifest"},
+            }
+        }
+    )
+    manifest_dir.mkdir(parents=True, exist_ok=True)
+    (manifest_dir / "west.yml").write_text(manifest_yaml, encoding="utf-8")
+
+    # `west init -l` treats the given directory as a manifest repository -- its own
+    # git working tree, not just a plain directory of files.
+    if not run_command_ok(["git", "init", "-q"], cwd=str(manifest_dir)):
+        raise EsphomeError("Can't initialize the generated Zephyr manifest repository")
+    if not run_command_ok(["git", "add", "west.yml"], cwd=str(manifest_dir)):
+        raise EsphomeError("Can't stage the generated Zephyr manifest")
+    # -c user.*: this commit is purely internal (never pushed, never read by a
+    # human), so it shouldn't depend on the user's own global git identity.
+    run_command_ok(
+        [
+            "git",
+            "-c",
+            "user.name=ESPHome",
+            "-c",
+            "user.email=esphome@esphome.io",
+            "commit",
+            "-q",
+            "--allow-empty",
+            "-m",
+            "esphome-generated Zephyr manifest",
+        ],
+        cwd=str(manifest_dir),
+    )
+    return manifest_dir
+
+
+# hidapi builds two Linux C extensions: "hid" (libusb backend) and "hidraw"
+# (udev backend) -- each needs its own -dev package.
+_HIDAPI_APT_PACKAGES = ("pkg-config", "libusb-1.0-0-dev", "libudev-dev")
+_HIDAPI_PKG_CONFIG_MODULES = ("libusb-1.0", "libudev")
+
+
+def _ensure_hidapi_build_deps() -> None:
+    """Install pkg-config/libusb-1.0-0-dev/libudev-dev if hidapi's wheel build needs them.
+
+    Remove when these are added to ghcr.io/esphome/docker-base:debian-* --
+    hidapi's wheel build (pulled in for west/pyOCD tooling) needs all three,
+    and none is a pip package.
+    """
+    have_pkg_config = shutil.which("pkg-config") is not None
+    have_deps = have_pkg_config and all(
+        subprocess.run(["pkg-config", "--exists", module], check=False).returncode == 0
+        for module in _HIDAPI_PKG_CONFIG_MODULES
+    )
+    if have_deps or shutil.which("apt") is None:
+        return
+    if os.geteuid() != 0:
+        raise EsphomeError(
+            "pkg-config, libusb-1.0-0-dev, and libudev-dev are required to "
+            "build Zephyr requirements. Install them with: sudo apt install "
+            + " ".join(_HIDAPI_APT_PACKAGES)
+        )
+    _LOGGER.info("Installing %s ...", ", ".join(_HIDAPI_APT_PACKAGES))
+    if not run_command_ok(["apt", "update"]):
+        raise EsphomeError("Failed to update apt package index")
+    if not run_command_ok(["apt", "install", "-y", *_HIDAPI_APT_PACKAGES]):
+        raise EsphomeError(f"Failed to install {'/'.join(_HIDAPI_APT_PACKAGES)}")
+
+
+def check_and_install(zigbee: bool = False) -> None:
     version = _get_version_str()
     python_env_path = _get_python_env_path(version)
     env_python_path = get_python_env_executable_path(python_env_path, "python")
@@ -276,27 +398,46 @@ def check_and_install() -> None:
             )
         sentinel.write_text(requirements_hash, encoding="utf-8")
 
-    framework_path = _get_framework_path(version)
+    framework_cache_key = _get_framework_cache_key(version, zigbee)
+    framework_path = _get_framework_path(framework_cache_key)
     sentinel = framework_path / ".ready"
     zephyr_reqs = framework_path / "zephyr" / "scripts" / "requirements.txt"
     if not sentinel.exists() or not zephyr_reqs.exists():
-        rmdir(framework_path, msg=f"Clean up {version} framework environment")
-        _LOGGER.info("Initializing nRF Connect SDK %s ...", version)
-        cmd = [
-            str(env_python_path),
-            "-m",
-            "west",
-            "init",
-            "-m",
-            "https://github.com/nrfconnect/sdk-nrf",
-            "-o=--depth=1",
-            "--mr",
-            version,
-            str(framework_path),
-        ]
+        rmdir(
+            framework_path, msg=f"Clean up {framework_cache_key} framework environment"
+        )
+        _LOGGER.info("Initializing nRF Connect SDK %s ...", framework_cache_key)
+        if zigbee:
+            manifest_dir = _generate_zigbee_manifest(framework_path, version)
+            cmd = [
+                str(env_python_path),
+                "-m",
+                "west",
+                "init",
+                "-l",
+                str(manifest_dir),
+            ]
+        else:
+            cmd = [
+                str(env_python_path),
+                "-m",
+                "west",
+                "init",
+                "-m",
+                "https://github.com/nrfconnect/sdk-nrf",
+                "-o=--depth=1",
+                "--mr",
+                version,
+                str(framework_path),
+            ]
         if not run_command_ok(cmd):
-            raise EsphomeError(f"Can't initialize nRF Connect SDK {version}")
-        _LOGGER.info("Updating nRF Connect SDK %s (this may take a while) ...", version)
+            raise EsphomeError(
+                f"Can't initialize nRF Connect SDK {framework_cache_key}"
+            )
+        _LOGGER.info(
+            "Updating nRF Connect SDK %s (this may take a while) ...",
+            framework_cache_key,
+        )
         cmd = [
             str(env_python_path),
             "-m",
@@ -306,7 +447,7 @@ def check_and_install() -> None:
             "--fetch-opt=--depth=1",
         ]
         if not run_command_ok(cmd, cwd=framework_path):
-            raise EsphomeError(f"Can't update nRF Connect SDK {version}")
+            raise EsphomeError(f"Can't update nRF Connect SDK {framework_cache_key}")
         framework_ver = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
         if framework_ver < cv.Version(2, 9, 2):
             _patch_uf2conv_escape_sequences(framework_path)
@@ -318,6 +459,8 @@ def check_and_install() -> None:
         or not zephyr_sentinel.exists()
         or zephyr_reqs.stat().st_mtime > zephyr_sentinel.stat().st_mtime
     ):
+        _ensure_hidapi_build_deps()
+
         _LOGGER.info("Installing Zephyr requirements ...")
         cmd = [
             str(env_python_path),
@@ -348,7 +491,11 @@ def check_and_install() -> None:
             (SDK_NG_MINIMAL_MIRRORS, toolchains_dir, "Zephyr SDK minimal", "minimal"),
             (
                 SDK_NG_TOOLCHAIN_MIRRORS,
-                toolchains_dir / "arm-zephyr-eabi",
+                # SDK 1.0.1's CMake scripts (cmake/zephyr/gnu/generic.cmake) glob for
+                # the cross-compiler under $ZEPHYR_SDK_INSTALL_DIR/gnu/*-*zephyr-*,
+                # not flat at the toolchain root as the pre-1.0 SDK generation
+                # expected.
+                toolchains_dir / "gnu" / "arm-zephyr-eabi",
                 "toolchain",
                 "toolchain",
             ),
