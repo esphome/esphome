@@ -102,7 +102,7 @@ TEST(SseChunk, NullMessageHasNoDataLineAndNoBlankLine) {
 TEST(SseChunk, SingleLine) {
   EXPECT_EQ(build_chunk("{}", 2, "state", 0, 0), "0000001a\r\nevent: state\r\ndata: {}\r\n\r\n\r\n");
   expect_same("", "state", 0, 0);
-  expect_same("{\"id\":\"light-x\"}", "state_detail_all", 0, 0);
+  expect_same(R"({"id":"light-x"})", "state_detail_all", 0, 0);
 }
 
 TEST(SseChunk, LineBreaks) {
@@ -115,7 +115,7 @@ TEST(SseChunk, LineBreaks) {
 }
 
 TEST(SseChunk, MatchesReferenceOnRandomMessages) {
-  std::mt19937 rng(1234);
+  std::mt19937 rng(1234);  // NOLINT(cert-msc32-c,cert-msc51-cpp,bugprone-random-generator-seed) reproducible
   const char *events[] = {nullptr, "", "ping", "state", "log", "state_detail_all", "sorting_group"};
   const char alphabet[] = "ab{}\":,\n\r ";
   for (int i = 0; i < 20000; i++) {

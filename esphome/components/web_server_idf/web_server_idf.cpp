@@ -1071,13 +1071,9 @@ bool AsyncEventSourceResponse::send_json_(json::JsonBuilder &builder) {
     return this->try_send_nodefer(buf, len, "state");
   }
 
-  // Too large for the stack: the tail holds the whole chunk and loop() drains it. Same entry
-  // checks as try_send_nodefer.
-  if (this->sending_ || this->fd_.load() == 0 || this->close_requested_) {
-    return false;
-  }
-  drain_tail_();
-  if (this->close_requested_ || this->tail_len_ != 0) {
+  // Too large for the stack: the tail holds the whole chunk and loop() drains it. Serialized
+  // JSON never contains a raw line break, so the body is one data line and needs no splitting.
+  if (!this->ready_to_send_()) {
     return false;
   }
   {
@@ -1115,22 +1111,19 @@ bool AsyncEventSourceResponse::send_json_(json::JsonBuilder &builder) {
   return true;
 }
 
+bool AsyncEventSourceResponse::ready_to_send_() {
+  if (this->sending_ || this->fd_.load() == 0 || this->close_requested_) {
+    return false;
+  }
+  drain_tail_();
+  return !this->close_requested_ && this->tail_len_ == 0;
+}
+
 bool AsyncEventSourceResponse::try_send_nodefer(const char *message, size_t message_len, const char *event, uint32_t id,
                                                 uint32_t reconnect) {
-  // Re-entered from a log line emitted inside a send on this session; see SendGuard
-  if (this->sending_) {
+  if (!this->ready_to_send_()) {
     return false;
   }
-  if (this->fd_.load() == 0 || this->close_requested_) {
-    return false;
-  }
-
-  drain_tail_();
-  if (this->close_requested_ || this->tail_len_ != 0) {
-    // there is still pending event data to send first
-    return false;
-  }
-
   SendGuard guard{*this};
 
   // Everything after the prefix goes out straight from the caller's buffer
@@ -1168,24 +1161,20 @@ bool AsyncEventSourceResponse::try_send_nodefer(const char *message, size_t mess
         g.iov[g.iovcnt++] = {const_cast<char *>(piece), len};
       },
       &g);
-  struct iovec *iov = g.iov;
-  const int iovcnt = g.iovcnt;
-  const size_t total = g.total;
-  const bool fits = g.fits;
   // The header and the terminator are not part of the chunk length
-  write_chunk_header(prefix, total - CHUNK_HDR_LEN - CHUNK_END_LEN);
-  iov[0] = {prefix, prefix_len};
+  write_chunk_header(prefix, g.total - CHUNK_HDR_LEN - CHUNK_END_LEN);
+  g.iov[0] = {prefix, prefix_len};
 
   // A message with more lines than the list holds skips straight to the tail
-  const ssize_t sent = fits ? this->send_(iov, iovcnt) : 0;
+  const ssize_t sent = g.fits ? this->send_(g.iov, g.iovcnt) : 0;
   if (sent < 0) {
     return false;
   }
-  if (static_cast<size_t>(sent) == total) {
+  if (static_cast<size_t>(sent) == g.total) {
     return true;
   }
   // The caller's buffers do not outlive this call, so keep the chunk and continue from loop()
-  return this->stash_chunk_(prefix, prefix_len, message, message_len, total, sent);
+  return this->stash_chunk_(prefix, prefix_len, message, message_len, g.total, sent);
 }
 
 void AsyncEventSourceResponse::deferrable_send_state(void *source, const char *event_type,
