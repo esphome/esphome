@@ -385,9 +385,7 @@ void MixerSpeaker::loop() {
   // Retries on a subsequent loop if the task is still running on the other core
   if ((event_group_bits & MIXER_TASK_STATE_STOPPED) && this->task_.deallocate()) {
     ESP_LOGD(TAG, "Stopped");
-    // Reap the finished task's own bits, but not a start request that arrived while it was shutting down. The
-    // handler above cannot consume such a request, since the task is still allocated, so clearing it here loses
-    // it permanently: start() is edge triggered and has already returned, and the mixer never restarts.
+    // Keep a start request that arrived while the task was stopping, otherwise it is lost for good
     xEventGroupClearBits(this->event_group_, MIXER_TASK_ALL_BITS & ~MIXER_TASK_COMMAND_START);
     this->all_stopped_since_ms_ = 0;
   }
