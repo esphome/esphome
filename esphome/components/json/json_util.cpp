@@ -57,11 +57,7 @@ JsonDocument parse_json(const uint8_t *data, size_t len) {
     ESP_LOGE(TAG, "No data to parse");
     return JsonObject();  // return unbound object
   }
-#ifdef USE_PSRAM
-  JsonDocument json_document(&global_json_allocator);
-#else
-  JsonDocument json_document;
-#endif
+  JsonDocument json_document(heap_json_allocator());
   if (json_document.overflowed()) {
     ESP_LOGE(TAG, "Could not allocate memory for JSON document!");
     return JsonObject();  // return unbound object
@@ -79,7 +75,7 @@ JsonDocument parse_json(const uint8_t *data, size_t len) {
   // NOLINTEND(clang-analyzer-cplusplus.NewDeleteLeaks,clang-analyzer-core.StackAddressEscape)
 }
 
-JsonBuilder::JsonBuilder() = default;
+JsonBuilder::JsonBuilder() : doc_(heap_json_allocator()) {}
 JsonBuilder::JsonBuilder(ArduinoJson::Allocator *allocator) : doc_(allocator) {}
 
 ArduinoJson::Allocator *heap_json_allocator() { return &global_json_allocator; }
