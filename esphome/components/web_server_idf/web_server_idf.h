@@ -369,8 +369,8 @@ class AsyncEventSourceResponse {
   // Stack buffer for a state event's JSON. A larger document is serialized into the tail,
   // which grows by doubling up to TAIL_MAX_SIZE; measuring first would cost more flash.
   static constexpr size_t JSON_BUF_SIZE = 1024;
-  // Largest state document, the same ceiling JsonBuilder::serialize() applies (its 10 KB heap
-  // cap, see json_util.cpp); a larger one is dropped before anything is on the wire.
+  // Largest state document, the same ceiling JsonBuilder::serialize() applies (max_heap_size in
+  // json_util.cpp, 5119 bytes of content); a larger one is dropped before anything is on the wire.
   static constexpr size_t JSON_MAX_SIZE = 5120;
   // Largest chunk the tail holds, and so the most RAM a stalled session keeps: the largest state
   // document plus any framing try_send_nodefer accepts. Every other chunk is small, the web
