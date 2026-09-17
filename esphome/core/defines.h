@@ -405,6 +405,7 @@
 #define USE_SENDSPIN_CONTROLLER
 #define USE_SENDSPIN_METADATA
 #define USE_SENDSPIN_PLAYER
+#define USE_SENDSPIN_SWITCH
 #define USE_SENDSPIN_VISUALIZER
 #define USE_SENDSPIN_PORT 8928  // NOLINT
 #define USE_SOCKET_IMPL_BSD_SOCKETS
@@ -541,7 +542,7 @@
 // rp2/__init__.py codegen also defines USE_RP2040 as a back-compat alias
 // for external custom components that may still test for it.
 #ifdef USE_RP2
-#define USE_ARDUINO_VERSION_CODE VERSION_CODE(6, 0, 0)
+#define USE_ARDUINO_VERSION_CODE VERSION_CODE(6, 1, 0)
 #define USE_RP2_CRASH_HANDLER
 #define USE_HTTP_REQUEST_RESPONSE
 #define USE_I2C
