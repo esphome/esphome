@@ -1027,7 +1027,7 @@ bool AsyncEventSourceResponse::reserve_tail_(size_t len) {
   if (this->tail_cap_ >= len) {
     return true;
   }
-  if (len > UINT16_MAX) {
+  if (len > TAIL_MAX_SIZE) {
     return false;
   }
   // Nothing is pending when the tail grows, so free the old block before asking for the new one;
@@ -1042,7 +1042,7 @@ bool AsyncEventSourceResponse::reserve_tail_(size_t len) {
 bool AsyncEventSourceResponse::stash_chunk_(const char *prefix, size_t prefix_len, const char *message,
                                             size_t message_len, size_t total, size_t sent) {
   if (!this->reserve_tail_(total)) {
-    // Either the heap is exhausted or the chunk is beyond the 64 KB the tail can hold. With part
+    // Either the heap is exhausted or the chunk is beyond what the tail may hold. With part
     // of the chunk already on the wire the stream is broken and the client has to go; otherwise
     // only this event is lost.
     ESP_LOGW(TAG, "EventSource cannot buffer a %zu byte chunk; %s", total,
@@ -1101,8 +1101,7 @@ bool AsyncEventSourceResponse::send_json_(json::JsonBuilder &builder) {
     // pending, so each step just reallocates. Nothing has reached the wire, so a document that
     // cannot be held costs only this event, and a tail grown for an abandoned event is released.
     size_t json_len = 0;
-    // Clamped so JSON_MAX_SIZE still bounds a document after a log chunk has grown the tail past it
-    size_t cap = std::min<size_t>(std::max<size_t>(JSON_BUF_SIZE * 2, this->tail_cap_), JSON_MAX_SIZE);
+    size_t cap = std::max<size_t>(JSON_BUF_SIZE * 2, this->tail_cap_);
     for (;;) {
       if (!this->reserve_tail_(cap)) {
         // Transient: the caller keeps the event deferred and retries on a later pass
@@ -1114,14 +1113,14 @@ bool AsyncEventSourceResponse::send_json_(json::JsonBuilder &builder) {
       if (json_len < room) {
         break;
       }
-      if (cap >= JSON_MAX_SIZE) {
+      if (cap >= TAIL_MAX_SIZE) {
         // Would never fit on a retry either, so it is reported as sent
-        ESP_LOGW(TAG, "EventSource state event over %zu bytes dropped", JSON_MAX_SIZE);
+        ESP_LOGW(TAG, "EventSource state event over %zu bytes dropped", TAIL_MAX_SIZE);
         this->tail_.reset();
         this->tail_cap_ = 0;
         return true;
       }
-      cap = std::min<size_t>(cap * 2, JSON_MAX_SIZE);
+      cap = std::min<size_t>(cap * 2, TAIL_MAX_SIZE);
     }
     const size_t total = prefix_len + json_len + SSE_SUFFIX_LEN;
     write_chunk_header(prefix, total - CHUNK_HDR_LEN - CHUNK_END_LEN);
