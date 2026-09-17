@@ -834,11 +834,13 @@ AsyncEventSourceResponse::AsyncEventSourceResponse(const AsyncWebServerRequest *
 void AsyncEventSourceResponse::start_session_main_loop_() {
   auto *ws = this->web_server_;
 
-  // tcp send buffer is empty on connect, so these should always go through. A refusal here
-  // means the session is already closing, so there is nothing to list.
+  // tcp send buffer is empty on connect, so these should always go through. A refusal here is
+  // either a session already closing or a tail that could not be allocated; nothing retries the
+  // greeting, so close and let the client reconnect instead of leaving a silent stream.
   auto message = ws->get_config_json();
   if (!this->try_send_nodefer(message.c_str(), message.size(), "ping", millis(), 30000)) {
     ESP_LOGW(TAG, "Config not sent to fd %d", this->fd_.load());
+    this->request_close_();
     return;
   }
 
