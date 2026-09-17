@@ -17,6 +17,7 @@ from tests.component_tests.network import sdkconfig_option
     ("fixture", "window", "mailbox", "window_scale", "wifi_rx_buffers"),
     [
         ("high_perf_wifi_psram.yaml", 512000, 512, True, 512),
+        ("high_perf_wifi_no_psram.yaml", 65534, 64, None, 64),
         ("high_perf_wifi_ethernet_psram.yaml", 32768, 64, None, 512),
         ("high_perf_ethernet_no_psram.yaml", 32768, 64, None, None),
     ],
