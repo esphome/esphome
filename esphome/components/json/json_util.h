@@ -169,13 +169,12 @@ inline JsonDocument parse_json(const std::string &data) {
 /// The allocator a JsonBuilder uses by default (PSRAM first when available)
 ArduinoJson::Allocator *heap_json_allocator();
 
-/// Bump allocator over a fixed buffer, for a document that is built and serialized in one scope.
-/// A request the buffer cannot hold goes to the heap allocator instead, so an oversized document
-/// still works. Nothing is returned to the buffer until the arena itself goes away.
+/// Bump allocator over a fixed buffer for a document built and serialized in one scope. What the
+/// buffer cannot hold goes to the heap allocator; nothing is freed until the arena goes away.
 template<size_t N> class JsonArena final : public ArduinoJson::Allocator {
  public:
   JsonArena() = default;
-  // The document holds pointers into buf_, so the arena must stay where it is
+  // The document points into buf_
   JsonArena(const JsonArena &) = delete;
   JsonArena &operator=(const JsonArena &) = delete;
 
@@ -206,8 +205,7 @@ template<size_t N> class JsonArena final : public ArduinoJson::Allocator {
       }
       this->used_ = off;  // it moves to the heap, so its arena space is free again
     }
-    // The old size of an older block is unknown; copying up to the end of the buffer stays in
-    // bounds and covers whatever the block held
+    // An older block's size is unknown; copying to the end of the buffer stays in bounds
     void *moved = heap_json_allocator()->allocate(new_size);
     if (moved != nullptr) {
       std::memcpy(moved, ptr, std::min(new_size, N - off));
@@ -228,7 +226,7 @@ class JsonBuilder {
  public:
   // Out of line: inlining the JsonDocument constructor duplicates it at every call site
   JsonBuilder();
-  // The builder must not outlive the allocator, the document holds memory it handed out
+  // The builder must not outlive the allocator
   explicit JsonBuilder(ArduinoJson::Allocator *allocator);
 
   JsonObject root() {
