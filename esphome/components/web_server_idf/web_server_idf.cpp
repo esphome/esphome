@@ -1117,6 +1117,7 @@ bool AsyncEventSourceResponse::send_json_(json::JsonBuilder &builder) {
         ESP_LOGW(TAG, "State event over %zu bytes dropped", JSON_MAX_SIZE);
         this->tail_.reset();
         this->tail_cap_ = 0;
+        this->send_failure_started_ms_ = 0;
         return true;  // would never fit, reported as sent
       }
       cap = std::min<size_t>(cap * 2, TAIL_MAX_SIZE);
@@ -1208,6 +1209,7 @@ bool AsyncEventSourceResponse::try_send_nodefer(const char *message, size_t mess
     return false;
   }
   if (static_cast<size_t>(sent) == g.total) {
+    this->send_failure_started_ms_ = 0;  // progress, whichever stall clock was running
     return true;
   }
   // The caller's buffers do not outlive this call, so keep the chunk and continue from loop()
