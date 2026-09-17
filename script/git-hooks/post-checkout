@@ -1,20 +1,72 @@
 #!/bin/sh
 # Prepare the dev environment for a new checkout or worktree.
 #
-# Installed into the git hooks directory by script/setup. Deliberately tiny and
-# self-contained: it stays valid on branches where script/setup does not exist,
-# and simply does nothing there.
+# Installed into the git hooks directory by script/setup.py. Deliberately tiny
+# and self-contained: it stays valid on branches where the setup script does not
+# exist, and simply does nothing there.
 
 # $3 is 1 for a branch checkout, 0 for a file checkout.
 [ "$3" = "1" ] || exit 0
 
 top=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0
 
-# This also runs on ordinary branch switches, where there is nothing to do.
+# This also runs on ordinary branch switches, where there is nothing to do. Both
+# layouts are checked because git for Windows runs hooks under its own bundled
+# shell, where the environment lives in venv/Scripts rather than venv/bin.
 [ -x "$top/venv/bin/python" ] && exit 0
-[ -x "$top/script/setup" ] || exit 0
+[ -f "$top/venv/Scripts/python.exe" ] && exit 0
+
+# Branches from before the setup script moved to Python carry only the shell
+# entry point, so whichever one the checked out branch has is used.
+py=
+if [ -f "$top/script/setup.py" ]; then
+  # The interpreter goes by different names across platforms, and on Windows
+  # "python3" is often a stub that opens the app store instead of running
+  # anything, so each candidate is tried before it is used. Doing nothing is the
+  # right outcome when none of them work.
+  for candidate in "python3" "python" "py -3"; do
+    # Unquoted on purpose: the launcher candidate is a command plus a flag.
+    if $candidate -c "" >/dev/null 2>&1; then
+      py=$candidate
+      break
+    fi
+  done
+  [ -n "$py" ] || exit 0
+elif ! [ -x "$top/script/setup" ]; then
+  exit 0
+fi
+
+# Every worktree shares the hooks directory of the checkout it was created
+# from, and the setup script run below is the one from whichever branch was just
+# checked out. Older branches install their own pre-commit hook without checking
+# for a worktree: that moves the shared hook aside as pre-commit.legacy and
+# replaces it with one tied to this worktree's virtual environment, so commits
+# break in every checkout. To rule that out, the hooks directory is copied
+# before the setup script runs and put back exactly as it was afterwards,
+# including removing any file the setup script added.
+hooks=$(git rev-parse --path-format=absolute --git-path hooks 2>/dev/null) || exit 0
+snap=$(mktemp -d "$hooks/.post-checkout.XXXXXX") || exit 0
+cp -p "$hooks"/* "$snap"/ 2>/dev/null
 
 # Clear VIRTUAL_ENV so a checkout made from a shell with an environment already
 # activated still gets its own, rather than having the active one repointed at
 # this working tree.
-exec env -u VIRTUAL_ENV "$top/script/setup"
+unset VIRTUAL_ENV
+if [ -n "$py" ]; then
+  # Unquoted on purpose, as above.
+  $py "$top/script/setup.py"
+else
+  "$top/script/setup"
+fi
+status=$?
+
+for f in "$hooks"/*; do
+  [ -e "$snap/${f##*/}" ] || rm -f "$f"
+done
+# Files are moved rather than copied so a hook that is still running, such as
+# this one, is swapped out atomically instead of being rewritten in place.
+for f in "$snap"/*; do
+  cmp -s "$f" "$hooks/${f##*/}" 2>/dev/null || mv -f "$f" "$hooks/${f##*/}"
+done
+rm -rf "$snap"
+exit $status

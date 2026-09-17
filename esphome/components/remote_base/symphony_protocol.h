@@ -17,9 +17,9 @@ struct SymphonyData {
 
 class SymphonyProtocol : public RemoteProtocol<SymphonyData> {
  public:
-  void encode(RemoteTransmitData *dst, const SymphonyData &data) override;
-  optional<SymphonyData> decode(RemoteReceiveData src) override;
-  void dump(const SymphonyData &data) override;
+  void encode(RemoteTransmitData *dst, const SymphonyData &data);
+  optional<SymphonyData> decode(RemoteReceiveData src);
+  void dump(const SymphonyData &data);
 };
 
 DECLARE_REMOTE_PROTOCOL(Symphony)
