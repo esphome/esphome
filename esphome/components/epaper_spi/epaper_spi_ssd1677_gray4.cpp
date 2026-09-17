@@ -57,8 +57,10 @@ bool HOT EPaperSSD1677Gray4::transfer_data() {
     this->current_data_index_ = this->y_low_;
   }
   const size_t plane_row_length = (this->x_high_ - this->x_low_) / 8;
-  FixedVector<uint8_t> bytes_to_send{};
-  bytes_to_send.init(plane_row_length);
+  // Stack-backed for every panel width in practice; only a custom `dimensions:` far wider than any
+  // supported panel would fall back to the heap.
+  SmallBufferWithHeapFallback<128> bytes_to_send_alloc(plane_row_length);
+  uint8_t *bytes_to_send = bytes_to_send_alloc.get();
   ESP_LOGV(TAG, "Writing %u bytes at line %zu at %ums", plane_row_length, this->current_data_index_,
            (unsigned) millis());
   this->start_data_();
@@ -70,7 +72,7 @@ bool HOT EPaperSSD1677Gray4::transfer_data() {
       bytes_to_send[i] = (uint8_t) ~plane;
     }
     ++this->current_data_index_;
-    this->write_array(&bytes_to_send.front(), plane_row_length);  // NOLINT
+    this->write_array(bytes_to_send, plane_row_length);
     if (millis() - start_time > MAX_TRANSFER_TIME) {
       // Let the main loop run and come back next loop
       this->disable();
