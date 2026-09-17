@@ -20,7 +20,7 @@
 #include "esphome/components/web_server/list_entities.h"
 #endif
 
-struct iovec;
+struct iovec;  // NOLINT(readability-identifier-naming) - forward decl of lwip's gather list entry
 
 namespace esphome {
 #ifdef USE_WEBSERVER
