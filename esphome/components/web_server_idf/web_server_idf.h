@@ -302,6 +302,9 @@ class AsyncEventSourceResponse {
 
   void deq_push_back_with_dedup_(void *source, message_generator_t *message_generator);
   void process_deferred_queue_();
+  // True when a new chunk may go out: not re-entered from a log line emitted inside a send (see
+  // SendGuard), the session is alive, and nothing from an earlier chunk is still waiting.
+  bool ready_to_send_();
   // Non-blocking gather write on the session socket. Returns bytes written, 0 when the socket
   // would block or the session is not (yet, or no longer) ours, -1 after requesting the close on
   // any other error.
