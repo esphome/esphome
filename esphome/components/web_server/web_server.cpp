@@ -56,8 +56,16 @@ namespace esphome::web_server {
 
 static const char *const TAG = "web_server";
 
+// ArduinoJson copies a plain pointer into the document. A string that outlives the document,
+// an entity name, a codegen literal or a flash string, is stored as a link instead.
+static inline JsonString linked(const char *s) { return JsonString(s, true); }
+
+#ifdef USE_STORE_LOG_STR_IN_FLASH
 // View a state LogString as a ProgmemStr so ArduinoJson serializes it PROGMEM-aware on ESP8266.
 [[maybe_unused]] static ProgmemStr json_state_str(const LogString *s) { return reinterpret_cast<ProgmemStr>(s); }
+#else
+[[maybe_unused]] static JsonString json_state_str(const LogString *s) { return linked(LOG_STR_ARG(s)); }
+#endif
 
 // Parse URL and return match info
 // URL formats (disambiguated by HTTP method for 3-segment case):
@@ -316,7 +324,7 @@ void DeferredUpdateEventSourceList::on_client_connect_(DeferredUpdateEventSource
     for (auto &group : ws->sorting_groups_) {
       json::JsonBuilder builder;
       JsonObject root = builder.root();
-      root[ESPHOME_F("name")] = group.second.name;
+      root[ESPHOME_F("name")] = linked(group.second.name.c_str());
       root[ESPHOME_F("sorting_weight")] = group.second.weight;
       auto group_msg = builder.serialize();
 
@@ -348,7 +356,8 @@ json::SerializationBuffer<> WebServer::get_config_json() {
   json::JsonBuilder builder;
   JsonObject root = builder.root();
 
-  root[ESPHOME_F("title")] = App.get_friendly_name().empty() ? App.get_name().c_str() : App.get_friendly_name().c_str();
+  root[ESPHOME_F("title")] =
+      linked(App.get_friendly_name().empty() ? App.get_name().c_str() : App.get_friendly_name().c_str());
   char comment_buffer[Application::ESPHOME_COMMENT_SIZE_MAX];
   App.get_comment_string(comment_buffer);
   root[ESPHOME_F("comment")] = static_cast<const char *>(comment_buffer);
@@ -583,12 +592,12 @@ static void set_json_id(JsonObject root, EntityBase *obj, const char *prefix, Js
   root[ESPHOME_F("id")] = static_cast<const char *>(id_buf);
 
   if (start_config == DETAIL_ALL) {
-    root[ESPHOME_F("domain")] = prefix;
+    root[ESPHOME_F("domain")] = linked(prefix);
     // Use .c_str() to avoid instantiating set<StringRef> template (saves ~24B)
-    root[ESPHOME_F("name")] = name.c_str();
+    root[ESPHOME_F("name")] = linked(name.c_str());
 #ifdef USE_DEVICES
     if (device_name) {
-      root[ESPHOME_F("device")] = device_name;
+      root[ESPHOME_F("device")] = linked(device_name);
     }
 #endif
 #ifdef USE_ENTITY_ICON
@@ -662,7 +671,7 @@ json::SerializationBuffer<> WebServer::sensor_json_(sensor::Sensor *obj, float v
   if (start_config == DETAIL_ALL) {
     this->add_sorting_info_(root, obj);
     if (!uom_ref.empty())
-      root[ESPHOME_F("uom")] = uom_ref.c_str();
+      root[ESPHOME_F("uom")] = linked(uom_ref.c_str());
   }
 
   return builder.serialize();
@@ -1022,7 +1031,7 @@ json::SerializationBuffer<> WebServer::light_json_(light::LightState *obj, JsonD
     JsonArray opt = root[ESPHOME_F("effects")].to<JsonArray>();
     opt.add("None");
     for (auto const &option : obj->get_effects()) {
-      opt.add(option->get_name());
+      opt.add(linked(option->get_name().c_str()));
     }
     this->add_sorting_info_(root, obj);
   }
@@ -1103,7 +1112,7 @@ json::SerializationBuffer<> WebServer::cover_json_(cover::Cover *obj, JsonDetail
   json::JsonBuilder builder;
   JsonObject root = builder.root();
 
-  set_json_icon_state_value(root, obj, "cover", obj->is_fully_closed() ? "CLOSED" : "OPEN", obj->position,
+  set_json_icon_state_value(root, obj, "cover", linked(obj->is_fully_closed() ? "CLOSED" : "OPEN"), obj->position,
                             start_config);
   root[ESPHOME_F("current_operation")] = json_state_str(cover::cover_operation_to_str(obj->current_operation));
 
@@ -1180,7 +1189,7 @@ json::SerializationBuffer<> WebServer::number_json_(number::Number *obj, float v
     root[ESPHOME_F("step")] = (value_accuracy_to_buf(val_buf, obj->traits.get_step(), accuracy), val_buf);
     root[ESPHOME_F("mode")] = (int) obj->traits.get_mode();
     if (!uom_ref.empty())
-      root[ESPHOME_F("uom")] = uom_ref.c_str();
+      root[ESPHOME_F("uom")] = linked(uom_ref.c_str());
     this->add_sorting_info_(root, obj);
   }
 
@@ -1419,7 +1428,7 @@ json::SerializationBuffer<> WebServer::text_json_(text::Text *obj, const std::st
   set_json_icon_state_value(root, obj, "text", state, value.c_str(), start_config);
   root[ESPHOME_F("min_length")] = obj->traits.get_min_length();
   root[ESPHOME_F("max_length")] = obj->traits.get_max_length();
-  root[ESPHOME_F("pattern")] = obj->traits.get_pattern_c_str();
+  root[ESPHOME_F("pattern")] = linked(obj->traits.get_pattern_c_str());
   if (start_config == DETAIL_ALL) {
     root[ESPHOME_F("mode")] = (int) obj->traits.get_mode();
     this->add_sorting_info_(root, obj);
@@ -1477,11 +1486,11 @@ json::SerializationBuffer<> WebServer::select_json_(select::Select *obj, StringR
   JsonObject root = builder.root();
 
   // value points to null-terminated string literals from codegen (via current_option())
-  set_json_icon_state_value(root, obj, "select", value.c_str(), value.c_str(), start_config);
+  set_json_icon_state_value(root, obj, "select", linked(value.c_str()), linked(value.c_str()), start_config);
   if (start_config == DETAIL_ALL) {
     JsonArray opt = root[ESPHOME_F("option")].to<JsonArray>();
     for (auto &option : obj->traits.get_options()) {
-      opt.add(option);
+      opt.add(linked(option));
     }
     this->add_sorting_info_(root, obj);
   }
@@ -1577,7 +1586,7 @@ json::SerializationBuffer<> WebServer::climate_json_(climate::Climate *obj, Json
     if (!traits.get_supported_custom_fan_modes().empty()) {
       JsonArray opt = root[ESPHOME_F("custom_fan_modes")].to<JsonArray>();
       for (auto const &custom_fan_mode : traits.get_supported_custom_fan_modes())
-        opt.add(custom_fan_mode);
+        opt.add(linked(custom_fan_mode));
     }
     if (traits.get_supports_swing_modes()) {
       JsonArray opt = root[ESPHOME_F("swing_modes")].to<JsonArray>();
@@ -1592,7 +1601,7 @@ json::SerializationBuffer<> WebServer::climate_json_(climate::Climate *obj, Json
     if (!traits.get_supported_custom_presets().empty()) {
       JsonArray opt = root[ESPHOME_F("custom_presets")].to<JsonArray>();
       for (auto const &custom_preset : traits.get_supported_custom_presets())
-        opt.add(custom_preset);
+        opt.add(linked(custom_preset));
     }
     root[ESPHOME_F("max_temp")] =
         (value_accuracy_to_buf(temp_buf, traits.get_visual_max_temperature(), target_accuracy), temp_buf);
@@ -1805,7 +1814,7 @@ json::SerializationBuffer<> WebServer::valve_json_(valve::Valve *obj, JsonDetail
   json::JsonBuilder builder;
   JsonObject root = builder.root();
 
-  set_json_icon_state_value(root, obj, "valve", obj->is_fully_closed() ? "CLOSED" : "OPEN", obj->position,
+  set_json_icon_state_value(root, obj, "valve", linked(obj->is_fully_closed() ? "CLOSED" : "OPEN"), obj->position,
                             start_config);
   root[ESPHOME_F("current_operation")] = json_state_str(valve::valve_operation_to_str(obj->current_operation));
 
@@ -1967,7 +1976,7 @@ json::SerializationBuffer<> WebServer::water_heater_json_(water_heater::WaterHea
   JsonObject root = builder.root();
 
   const auto mode = obj->get_mode();
-  ProgmemStr mode_s = json_state_str(water_heater::water_heater_mode_to_string(mode));
+  auto mode_s = json_state_str(water_heater::water_heater_mode_to_string(mode));
 
   set_json_icon_state_value(root, obj, "water_heater", mode_s, mode, start_config);
 
@@ -2251,7 +2260,7 @@ json::SerializationBuffer<> WebServer::event_json_(event::Event *obj, StringRef 
   if (start_config == DETAIL_ALL) {
     JsonArray event_types = root[ESPHOME_F("event_types")].to<JsonArray>();
     for (const char *event_type : obj->get_event_types()) {
-      event_types.add(event_type);
+      event_types.add(linked(event_type));
     }
     char dc_buf[MAX_DEVICE_CLASS_LENGTH];
     root[ESPHOME_F("device_class")] = obj->get_device_class_to(dc_buf);
