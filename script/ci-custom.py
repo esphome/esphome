@@ -1168,8 +1168,9 @@ def lint_no_std_nothrow(fname, match):
         f"there, so it never returns nullptr.\n"
         f"Please use {highlight('RAMAllocator')} from esphome/core/helpers.h, which does.\n"
         f"  Before: {highlight('auto *buf = new (std::nothrow) uint8_t[n];')}\n"
-        f"  After:  {highlight('auto *buf = RAMAllocator<uint8_t>().allocate(n);')}\n"
-        f"allocate() does not construct: for an object, allocate(1) and placement new as core/event_pool.h does.\n"
+        f"  After:  {highlight('auto buf = RAMAllocator<uint8_t>().make_unique_array_for_overwrite(n);')}\n"
+        f"For one object use {highlight('RAMAllocator<T>().make_unique(args...)')}; both return empty on failure.\n"
+        f"Default flags prefer PSRAM; pass RAMAllocator<T>::PREFER_INTERNAL to keep it where new put it.\n"
         f"(If strictly necessary, add `// NOLINT` to the end of the line)"
     )
 
