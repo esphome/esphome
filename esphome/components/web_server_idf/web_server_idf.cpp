@@ -1112,8 +1112,16 @@ bool AsyncEventSourceResponse::send_json_(json::JsonBuilder &builder) {
     size_t cap = std::max<size_t>(JSON_BUF_SIZE * 2, this->tail_cap_);
     for (;;) {
       if (!this->reserve_tail_(cap)) {
-        // Transient: the caller keeps the event deferred and retries on a later pass
-        ESP_LOGW(TAG, "EventSource has no memory for a %zu byte state event", cap);
+        // Transient: the caller keeps the event deferred and retries on a later pass, on the
+        // same stall clock as a socket that stops draining, so a session cannot spin forever
+        const uint32_t now = App.get_loop_component_start_time();
+        if (this->send_failure_started_ms_ == 0) {
+          this->send_failure_started_ms_ = now != 0 ? now : 1;  // Reserve zero for no stall.
+          ESP_LOGW(TAG, "EventSource has no memory for a %zu byte state event", cap);
+        } else if (static_cast<int32_t>(now - (this->send_failure_started_ms_ + SEND_STALL_TIMEOUT_MS)) >= 0) {
+          ESP_LOGW(TAG, "EventSource had no memory for %" PRIu32 " ms, closing", now - this->send_failure_started_ms_);
+          this->request_close_();
+        }
         return false;
       }
       const size_t room = cap - prefix_len - SSE_SUFFIX_LEN;

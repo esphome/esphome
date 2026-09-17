@@ -61,6 +61,12 @@ static const char *const TAG = "web_server";
 // View a state LogString as a ProgmemStr so ArduinoJson serializes it PROGMEM-aware on ESP8266.
 [[maybe_unused]] static ProgmemStr json_state_str(const LogString *s) { return reinterpret_cast<ProgmemStr>(s); }
 
+// Serialize a REST response document and send it; out of line, it is used by every GET handler
+static void send_json(AsyncWebServerRequest *request, json::JsonBuilder &builder) {
+  auto data = builder.serialize();
+  request->send(200, ESPHOME_F("application/json"), data.c_str());
+}
+
 // Parse URL and return match info
 // URL formats (disambiguated by HTTP method for 3-segment case):
 //   GET  /{domain}/{entity_name} - main device state
@@ -413,8 +419,9 @@ void WebServer::loop() {
 }
 
 #ifdef USE_LOGGER
-// A log line longer than this is cut before it goes out as an event. Nothing a browser log
-// view needs is longer, and on ESP-IDF it bounds the chunk a stalled client can leave in the tail.
+// On ESP-IDF a log line longer than this is cut before it goes out as an event: nothing a browser
+// log view needs is longer, and it bounds the chunk a stalled client can leave in the tail. The
+// Arduino backend takes a C string and sends the whole line.
 static constexpr size_t LOG_EVENT_MAX_LEN = 512;
 
 void WebServer::on_log(uint8_t level, const char *tag, const char *message, size_t message_len) {
@@ -648,8 +655,7 @@ void WebServer::handle_sensor_request(AsyncWebServerRequest *request, const UrlM
       auto detail = get_request_detail(request);
       json::JsonBuilder builder;
       this->sensor_json_(obj, obj->state, detail, builder);
-      auto data = builder.serialize();
-      request->send(200, "application/json", data.c_str());
+      send_json(request, builder);
       return;
     }
   }
@@ -694,8 +700,7 @@ void WebServer::handle_text_sensor_request(AsyncWebServerRequest *request, const
       auto detail = get_request_detail(request);
       json::JsonBuilder builder;
       this->text_sensor_json_(obj, obj->state, detail, builder);
-      auto data = builder.serialize();
-      request->send(200, "application/json", data.c_str());
+      send_json(request, builder);
       return;
     }
   }
@@ -754,8 +759,7 @@ void WebServer::handle_switch_request(AsyncWebServerRequest *request, const UrlM
       auto detail = get_request_detail(request);
       json::JsonBuilder builder;
       this->switch_json_(obj, obj->state, detail, builder);
-      auto data = builder.serialize();
-      request->send(200, "application/json", data.c_str());
+      send_json(request, builder);
       return;
     }
 
@@ -806,8 +810,7 @@ void WebServer::handle_button_request(AsyncWebServerRequest *request, const UrlM
       auto detail = get_request_detail(request);
       json::JsonBuilder builder;
       this->button_json_(obj, detail, builder);
-      auto data = builder.serialize();
-      request->send(200, "application/json", data.c_str());
+      send_json(request, builder);
     } else if (match.method_equals(ESPHOME_F("press"))) {
       DEFER_ACTION(obj, obj->press());
       request->send(200);
@@ -848,8 +851,7 @@ void WebServer::handle_binary_sensor_request(AsyncWebServerRequest *request, con
       auto detail = get_request_detail(request);
       json::JsonBuilder builder;
       this->binary_sensor_json_(obj, obj->state, detail, builder);
-      auto data = builder.serialize();
-      request->send(200, "application/json", data.c_str());
+      send_json(request, builder);
       return;
     }
   }
@@ -890,8 +892,7 @@ void WebServer::handle_fan_request(AsyncWebServerRequest *request, const UrlMatc
       auto detail = get_request_detail(request);
       json::JsonBuilder builder;
       this->fan_json_(obj, detail, builder);
-      auto data = builder.serialize();
-      request->send(200, "application/json", data.c_str());
+      send_json(request, builder);
     } else if (match.method_equals(ESPHOME_F("toggle"))) {
       DEFER_ACTION(obj, obj->toggle().perform());
       request->send(200);
@@ -970,8 +971,7 @@ void WebServer::handle_light_request(AsyncWebServerRequest *request, const UrlMa
       auto detail = get_request_detail(request);
       json::JsonBuilder builder;
       this->light_json_(obj, detail, builder);
-      auto data = builder.serialize();
-      request->send(200, "application/json", data.c_str());
+      send_json(request, builder);
     } else if (match.method_equals(ESPHOME_F("toggle"))) {
       DEFER_ACTION(obj, obj->toggle().perform());
       request->send(200);
@@ -1050,8 +1050,7 @@ void WebServer::handle_cover_request(AsyncWebServerRequest *request, const UrlMa
       auto detail = get_request_detail(request);
       json::JsonBuilder builder;
       this->cover_json_(obj, detail, builder);
-      auto data = builder.serialize();
-      request->send(200, "application/json", data.c_str());
+      send_json(request, builder);
       return;
     }
 
@@ -1138,8 +1137,7 @@ void WebServer::handle_number_request(AsyncWebServerRequest *request, const UrlM
       auto detail = get_request_detail(request);
       json::JsonBuilder builder;
       this->number_json_(obj, obj->state, detail, builder);
-      auto data = builder.serialize();
-      request->send(200, "application/json", data.c_str());
+      send_json(request, builder);
       return;
     }
     if (!match.method_equals(ESPHOME_F("set"))) {
@@ -1204,8 +1202,7 @@ void WebServer::handle_date_request(AsyncWebServerRequest *request, const UrlMat
       auto detail = get_request_detail(request);
       json::JsonBuilder builder;
       this->date_json_(obj, detail, builder);
-      auto data = builder.serialize();
-      request->send(200, "application/json", data.c_str());
+      send_json(request, builder);
       return;
     }
     if (!match.method_equals(ESPHOME_F("set"))) {
@@ -1264,8 +1261,7 @@ void WebServer::handle_time_request(AsyncWebServerRequest *request, const UrlMat
       auto detail = get_request_detail(request);
       json::JsonBuilder builder;
       this->time_json_(obj, detail, builder);
-      auto data = builder.serialize();
-      request->send(200, "application/json", data.c_str());
+      send_json(request, builder);
       return;
     }
     if (!match.method_equals(ESPHOME_F("set"))) {
@@ -1323,8 +1319,7 @@ void WebServer::handle_datetime_request(AsyncWebServerRequest *request, const Ur
       auto detail = get_request_detail(request);
       json::JsonBuilder builder;
       this->datetime_json_(obj, detail, builder);
-      auto data = builder.serialize();
-      request->send(200, "application/json", data.c_str());
+      send_json(request, builder);
       return;
     }
     if (!match.method_equals(ESPHOME_F("set"))) {
@@ -1384,8 +1379,7 @@ void WebServer::handle_text_request(AsyncWebServerRequest *request, const UrlMat
       auto detail = get_request_detail(request);
       json::JsonBuilder builder;
       this->text_json_(obj, obj->state, detail, builder);
-      auto data = builder.serialize();
-      request->send(200, "application/json", data.c_str());
+      send_json(request, builder);
       return;
     }
     if (!match.method_equals(ESPHOME_F("set"))) {
@@ -1443,8 +1437,7 @@ void WebServer::handle_select_request(AsyncWebServerRequest *request, const UrlM
       auto detail = get_request_detail(request);
       json::JsonBuilder builder;
       this->select_json_(obj, obj->has_state() ? obj->current_option() : StringRef(), detail, builder);
-      auto data = builder.serialize();
-      request->send(200, "application/json", data.c_str());
+      send_json(request, builder);
       return;
     }
 
@@ -1504,8 +1497,7 @@ void WebServer::handle_climate_request(AsyncWebServerRequest *request, const Url
       auto detail = get_request_detail(request);
       json::JsonBuilder builder;
       this->climate_json_(obj, detail, builder);
-      auto data = builder.serialize();
-      request->send(200, "application/json", data.c_str());
+      send_json(request, builder);
       return;
     }
 
@@ -1691,8 +1683,7 @@ void WebServer::handle_lock_request(AsyncWebServerRequest *request, const UrlMat
       auto detail = get_request_detail(request);
       json::JsonBuilder builder;
       this->lock_json_(obj, obj->state, detail, builder);
-      auto data = builder.serialize();
-      request->send(200, "application/json", data.c_str());
+      send_json(request, builder);
       return;
     }
 
@@ -1749,8 +1740,7 @@ void WebServer::handle_valve_request(AsyncWebServerRequest *request, const UrlMa
       auto detail = get_request_detail(request);
       json::JsonBuilder builder;
       this->valve_json_(obj, detail, builder);
-      auto data = builder.serialize();
-      request->send(200, "application/json", data.c_str());
+      send_json(request, builder);
       return;
     }
 
@@ -1832,8 +1822,7 @@ void WebServer::handle_alarm_control_panel_request(AsyncWebServerRequest *reques
       auto detail = get_request_detail(request);
       json::JsonBuilder builder;
       this->alarm_control_panel_json_(obj, obj->get_state(), detail, builder);
-      auto data = builder.serialize();
-      request->send(200, "application/json", data.c_str());
+      send_json(request, builder);
       return;
     }
 
@@ -1916,8 +1905,7 @@ void WebServer::handle_water_heater_request(AsyncWebServerRequest *request, cons
       auto detail = get_request_detail(request);
       json::JsonBuilder builder;
       this->water_heater_json_(obj, detail, builder);
-      auto data = builder.serialize();
-      request->send(200, "application/json", data.c_str());
+      send_json(request, builder);
       return;
     }
     if (!match.method_equals(ESPHOME_F("set"))) {
@@ -2023,8 +2011,7 @@ void WebServer::handle_infrared_request(AsyncWebServerRequest *request, const Ur
       auto detail = get_request_detail(request);
       json::JsonBuilder builder;
       this->infrared_json_(obj, detail, builder);
-      auto data = builder.serialize();
-      request->send(200, ESPHOME_F("application/json"), data.c_str());
+      send_json(request, builder);
       return;
     }
     if (!match.method_equals(ESPHOME_F("transmit"))) {
@@ -2115,8 +2102,7 @@ void WebServer::handle_radio_frequency_request(AsyncWebServerRequest *request, c
       auto detail = get_request_detail(request);
       json::JsonBuilder builder;
       this->radio_frequency_json_(obj, detail, builder);
-      auto data = builder.serialize();
-      request->send(200, ESPHOME_F("application/json"), data.c_str());
+      send_json(request, builder);
       return;
     }
     if (!match.method_equals(ESPHOME_F("transmit"))) {
@@ -2219,8 +2205,7 @@ void WebServer::handle_event_request(AsyncWebServerRequest *request, const UrlMa
       auto detail = get_request_detail(request);
       json::JsonBuilder builder;
       this->event_json_(obj, StringRef(), detail, builder);
-      auto data = builder.serialize();
-      request->send(200, "application/json", data.c_str());
+      send_json(request, builder);
       return;
     }
   }
@@ -2273,8 +2258,7 @@ void WebServer::handle_update_request(AsyncWebServerRequest *request, const UrlM
       auto detail = get_request_detail(request);
       json::JsonBuilder builder;
       this->update_json_(obj, detail, builder);
-      auto data = builder.serialize();
-      request->send(200, "application/json", data.c_str());
+      send_json(request, builder);
       return;
     }
 
