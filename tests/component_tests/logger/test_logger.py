@@ -52,3 +52,35 @@ def test_logger_pre_setup_before_other_components(generate_main):
             f"Component allocation '{alloc.group()}' at position {alloc.start()} "
             f"appears before logger pre_setup() at position {logger_pre_setup.start()}"
         )
+
+
+def test_default_uart_selection_is_not_emitted(generate_main):
+    """UART0 is the C++ initializer on ESP8266, so the setter is skipped."""
+    main_cpp = generate_main("tests/component_tests/logger/test_logger.yaml")
+
+    assert "set_uart_selection(" not in main_cpp
+
+
+def test_custom_uart_selection_is_emitted(generate_main):
+    """A non default UART still reaches the setter before pre_setup()."""
+    main_cpp = generate_main("tests/component_tests/logger/test_logger_uart1.yaml")
+
+    assert "set_uart_selection(logger::UART_SELECTION_UART1);" in main_cpp
+
+
+def test_libretiny_default_uart_selection_is_not_emitted(generate_main):
+    """DEFAULT is the C++ initializer on LibreTiny, so the setter is skipped."""
+    main_cpp = generate_main(
+        "tests/component_tests/logger/test_logger_libretiny_default.yaml"
+    )
+
+    assert "set_uart_selection(" not in main_cpp
+
+
+def test_libretiny_uart0_is_emitted(generate_main):
+    """UART0 is not the LibreTiny initializer, so it must still be set."""
+    main_cpp = generate_main(
+        "tests/component_tests/logger/test_logger_libretiny_uart0.yaml"
+    )
+
+    assert "set_uart_selection(logger::UART_SELECTION_UART0);" in main_cpp

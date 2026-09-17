@@ -15,19 +15,11 @@ void GPIOSwitch::setup() {
   if (!pin_state_held_from_deep_sleep(this->pin_)) {
     // write state before setup. If waking up from deepsleep and state is held
     // we need to setup first
-    if (initial_state) {
-      this->turn_on();
-    } else {
-      this->turn_off();
-    }
+    this->control(initial_state);
   }
   this->pin_->setup();
   // write after setup again for other IOs and for held IOs
-  if (initial_state) {
-    this->turn_on();
-  } else {
-    this->turn_off();
-  }
+  this->control(initial_state);
 }
 void GPIOSwitch::dump_config() {
   LOG_SWITCH("", "GPIO Switch", this);

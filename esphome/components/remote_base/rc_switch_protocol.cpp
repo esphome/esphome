@@ -1,29 +1,21 @@
 #include "rc_switch_protocol.h"
+
+#include <iterator>
+#include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
 namespace esphome::remote_base {
 
 static const char *const TAG = "remote.rc_switch";
 
-const RCSwitchBase RC_SWITCH_PROTOCOLS[9] = {RCSwitchBase(0, 0, 0, 0, 0, 0, false),
-                                             RCSwitchBase(350, 10850, 350, 1050, 1050, 350, false),
-                                             RCSwitchBase(650, 6500, 650, 1300, 1300, 650, false),
-                                             RCSwitchBase(3000, 7100, 400, 1100, 900, 600, false),
-                                             RCSwitchBase(380, 2280, 380, 1140, 1140, 380, false),
-                                             RCSwitchBase(3000, 7000, 500, 1000, 1000, 500, false),
-                                             RCSwitchBase(10350, 450, 450, 900, 900, 450, true),
-                                             RCSwitchBase(300, 9300, 150, 900, 900, 150, false),
-                                             RCSwitchBase(250, 2500, 250, 1250, 250, 250, false)};
-
-RCSwitchBase::RCSwitchBase(uint32_t sync_high, uint32_t sync_low, uint32_t zero_high, uint32_t zero_low,
-                           uint32_t one_high, uint32_t one_low, bool inverted)
-    : sync_high_(sync_high),
-      sync_low_(sync_low),
-      zero_high_(zero_high),
-      zero_low_(zero_low),
-      one_high_(one_high),
-      one_low_(one_low),
-      inverted_(inverted) {}
+RCSwitchBase rc_switch_protocol(uint8_t index) {
+  RCSwitchBase protocol;
+  // entry 0 is the all-zero protocol, so an out of range index from a lambda transmits nothing
+  if (index >= std::size(RC_SWITCH_PROTOCOLS))
+    index = 0;
+  progmem_memcpy(&protocol, &RC_SWITCH_PROTOCOLS[index], sizeof(protocol));
+  return protocol;
+}
 
 void RCSwitchBase::one(RemoteTransmitData *dst) const {
   if (!this->inverted_) {
@@ -133,11 +125,11 @@ bool RCSwitchBase::decode(RemoteReceiveData &src, uint64_t *out_data, uint8_t *o
 optional<RCSwitchData> RCSwitchBase::decode(RemoteReceiveData &src) const {
   RCSwitchData out;
   uint8_t out_nbits;
-  for (uint8_t i = 1; i <= 8; i++) {
+  for (size_t i = 1; i < std::size(RC_SWITCH_PROTOCOLS); i++) {
     src.reset();
     const RCSwitchBase *protocol = &RC_SWITCH_PROTOCOLS[i];
     if (protocol->decode(src, &out.code, &out_nbits) && out_nbits >= 3) {
-      out.protocol = i;
+      out.protocol = static_cast<uint8_t>(i);
       return out;
     }
   }
@@ -246,7 +238,7 @@ bool RCSwitchRawReceiver::matches(RemoteReceiveData src) {
   return decoded_nbits == this->nbits_ && (decoded_code & this->mask_) == (this->code_ & this->mask_);
 }
 bool RCSwitchDumper::dump(RemoteReceiveData src) {
-  for (uint8_t i = 1; i <= 8; i++) {
+  for (size_t i = 1; i < std::size(RC_SWITCH_PROTOCOLS); i++) {
     src.reset();
     uint64_t out_data;
     uint8_t out_nbits;
@@ -257,7 +249,7 @@ bool RCSwitchDumper::dump(RemoteReceiveData src) {
         buffer[j] = (out_data & ((uint64_t) 1 << (out_nbits - j - 1))) ? '1' : '0';
 
       buffer[out_nbits] = '\0';
-      ESP_LOGI(TAG, "Received RCSwitch Raw: protocol=%u data='%s'", i, buffer);
+      ESP_LOGI(TAG, "Received RCSwitch Raw: protocol=%u data='%s'", static_cast<unsigned>(i), buffer);
 
       // only send first decoded protocol
       return true;
