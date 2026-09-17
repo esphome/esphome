@@ -95,6 +95,21 @@ def test_cpp_string_escape(string, expected):
 
 
 @pytest.mark.parametrize(
+    "string, expected",
+    (
+        ("foo", 'u"foo"'),
+        ("foo\nbar", 'u"foo\\012bar"'),
+        ("foo\\bar", 'u"foo\\134bar"'),
+        ('foo "bar"', 'u"foo \\042bar\\042"'),
+        ("caf\u00e9", 'u"caf\\U000000E9"'),
+        ("foo 🐍", 'u"foo \\U0001F40D"'),
+    ),
+)
+def test_cpp_u16string_escape(string: str, expected: str) -> None:
+    assert helpers.cpp_u16string_escape(string) == expected
+
+
+@pytest.mark.parametrize(
     "value, expected",
     (
         # Basic underscore→dash conversion.
