@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstddef>
+#include <cstdint>
 
 namespace esphome::web_server_idf {
 
@@ -30,5 +31,12 @@ using ChunkPieceSink = void (*)(void *ctx, const char *piece, size_t len);
 // no data line and no blank line, only the chunk terminator. Out of line on purpose: one copy
 // serves the gather list and the tail.
 void for_each_chunk_piece(const char *message, size_t message_len, ChunkPieceSink sink, void *ctx);
+
+// Writes the chunk header placeholder, the retry/id/event lines and, with_data, the first
+// "data: " into buf. Returns the prefix length; size - 1 or more means the event name did not fit.
+size_t build_chunk_prefix(char *buf, size_t size, const char *event, uint32_t id, uint32_t reconnect, bool with_data);
+
+// Fills the header placeholder at the start of buf once the chunk length is known
+void write_chunk_header(char *buf, size_t chunk_len);
 
 }  // namespace esphome::web_server_idf

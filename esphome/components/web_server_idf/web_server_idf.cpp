@@ -946,10 +946,12 @@ void AsyncEventSourceResponse::close_session_work(void *arg) {
 
 ssize_t AsyncEventSourceResponse::send_(struct iovec *iov, int iovcnt) {
   // httpd frees the session before it closes the socket, so the fd number can already belong to
-  // a new client. Checking the session table narrows that window; it cannot close it.
+  // a new client. Checking the session table narrows that window; it cannot close it. Treated
+  // as would-block: the chunk waits in the tail and the stall timer ends a session that never
+  // becomes ours again.
   const int fd = this->fd_.load();
   if (httpd_sess_get_ctx(this->hd_, fd) != this) {
-    return -1;
+    return 0;
   }
   struct msghdr msg {};
   msg.msg_iov = iov;
@@ -1023,9 +1025,14 @@ bool AsyncEventSourceResponse::reserve_tail_(size_t len) {
 bool AsyncEventSourceResponse::stash_chunk_(const char *prefix, size_t prefix_len, const char *message,
                                             size_t message_len, size_t total, size_t sent) {
   if (!this->reserve_tail_(total)) {
-    // Either the heap is exhausted or the chunk is beyond the 64 KB the tail can hold
-    ESP_LOGW(TAG, "EventSource cannot buffer a %zu byte chunk; closing", total);
-    this->request_close_();
+    // Either the heap is exhausted or the chunk is beyond the 64 KB the tail can hold. With part
+    // of the chunk already on the wire the stream is broken and the client has to go; otherwise
+    // only this event is lost.
+    ESP_LOGW(TAG, "EventSource cannot buffer a %zu byte chunk; %s", total,
+             sent != 0 ? LOG_STR_LITERAL("closing") : LOG_STR_LITERAL("event dropped"));
+    if (sent != 0) {
+      this->request_close_();
+    }
     return false;
   }
   uint8_t *dst = this->tail_.get();
@@ -1057,27 +1064,6 @@ void AsyncEventSourceResponse::loop() {
   this->entities_iterator_.try_advance(1);
 }
 
-size_t AsyncEventSourceResponse::build_prefix(char *prefix, const char *event, uint32_t id, uint32_t reconnect,
-                                              bool with_data) {
-  // The chunk header is formatted by the caller once the length is known
-  size_t len = CHUNK_HDR_LEN;
-  if (reconnect) {
-    len = buf_append_printf(prefix, PREFIX_BUF_SIZE, len, "retry: %" PRIu32 CRLF_STR, reconnect);
-  }
-  if (id) {
-    len = buf_append_printf(prefix, PREFIX_BUF_SIZE, len, "id: %" PRIu32 CRLF_STR, id);
-  }
-  if (event && *event) {
-    len = buf_append_str(prefix, PREFIX_BUF_SIZE, len, "event: ");
-    len = buf_append_str(prefix, PREFIX_BUF_SIZE, len, event);
-    len = buf_append_str(prefix, PREFIX_BUF_SIZE, len, CRLF_STR);
-  }
-  if (with_data) {
-    len = buf_append_str(prefix, PREFIX_BUF_SIZE, len, "data: ");
-  }
-  return len;
-}
-
 bool AsyncEventSourceResponse::send_json_(json::JsonBuilder &builder) {
   char buf[JSON_BUF_SIZE];
   const size_t len = builder.serialize_to(buf, sizeof(buf));
@@ -1097,14 +1083,19 @@ bool AsyncEventSourceResponse::send_json_(json::JsonBuilder &builder) {
   {
     SendGuard guard{*this};
     char prefix[PREFIX_BUF_SIZE];
-    const size_t prefix_len = build_prefix(prefix, "state", 0, 0, true);
-    // Grow the tail until the document fits; nothing is pending, so each step just reallocates
+    const size_t prefix_len = build_chunk_prefix(prefix, sizeof(prefix), "state", 0, 0, true);
+    // Grow the tail until the document fits; nothing is pending, so each step just reallocates.
+    // Nothing has reached the wire, so a document that cannot be held costs only this event;
+    // it is reported as sent because it would never fit on a retry either.
     size_t json_len = 0;
     for (size_t cap = JSON_BUF_SIZE * 2;; cap *= 2) {
-      if (cap > JSON_MAX_SIZE || !this->reserve_tail_(cap)) {
-        ESP_LOGW(TAG, "EventSource cannot buffer a state event of %zu bytes or more; closing", cap / 2);
-        this->request_close_();
-        return false;
+      if (cap > JSON_MAX_SIZE) {
+        ESP_LOGW(TAG, "EventSource state event over %zu bytes dropped", JSON_MAX_SIZE);
+        return true;
+      }
+      if (!this->reserve_tail_(cap)) {
+        ESP_LOGW(TAG, "EventSource has no memory for a %zu byte state event; dropped", cap);
+        return true;
       }
       const size_t room = cap - prefix_len - SSE_SUFFIX_LEN;
       json_len = builder.serialize_to(reinterpret_cast<char *>(this->tail_.get()) + prefix_len, room);
@@ -1113,9 +1104,7 @@ bool AsyncEventSourceResponse::send_json_(json::JsonBuilder &builder) {
       }
     }
     const size_t total = prefix_len + json_len + SSE_SUFFIX_LEN;
-    format_hex_to(prefix, static_cast<uint32_t>(total - CHUNK_HDR_LEN - CHUNK_END_LEN));
-    prefix[8] = '\r';
-    prefix[9] = '\n';
+    write_chunk_header(prefix, total - CHUNK_HDR_LEN - CHUNK_END_LEN);
     uint8_t *dst = this->tail_.get();
     std::memcpy(dst, prefix, prefix_len);
     std::memcpy(dst + prefix_len + json_len, SSE_SUFFIX, SSE_SUFFIX_LEN);
@@ -1146,7 +1135,7 @@ bool AsyncEventSourceResponse::try_send_nodefer(const char *message, size_t mess
 
   // Everything after the prefix goes out straight from the caller's buffer
   char prefix[PREFIX_BUF_SIZE];
-  const size_t prefix_len = build_prefix(prefix, event, id, reconnect, message != nullptr);
+  const size_t prefix_len = build_chunk_prefix(prefix, sizeof(prefix), event, id, reconnect, message != nullptr);
   if (message == nullptr && prefix_len == CHUNK_HDR_LEN) {
     return true;  // Match ESPAsyncWebServer: nothing to send
   }
@@ -1184,9 +1173,7 @@ bool AsyncEventSourceResponse::try_send_nodefer(const char *message, size_t mess
   const size_t total = g.total;
   const bool fits = g.fits;
   // The header and the terminator are not part of the chunk length
-  format_hex_to(prefix, static_cast<uint32_t>(total - CHUNK_HDR_LEN - CHUNK_END_LEN));
-  prefix[8] = '\r';
-  prefix[9] = '\n';
+  write_chunk_header(prefix, total - CHUNK_HDR_LEN - CHUNK_END_LEN);
   iov[0] = {prefix, prefix_len};
 
   // A message with more lines than the list holds skips straight to the tail

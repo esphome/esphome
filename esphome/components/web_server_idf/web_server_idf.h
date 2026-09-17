@@ -302,8 +302,9 @@ class AsyncEventSourceResponse {
 
   void deq_push_back_with_dedup_(void *source, message_generator_t *message_generator);
   void process_deferred_queue_();
-  // Non-blocking gather write on the session socket. Returns bytes written, 0 when the
-  // socket would block, -1 after requesting the close on any other error.
+  // Non-blocking gather write on the session socket. Returns bytes written, 0 when the socket
+  // would block or the session is not (yet, or no longer) ours, -1 after requesting the close on
+  // any other error.
   ssize_t send_(struct iovec *iov, int iovcnt);
   // Push what is left of the chunk in tail_ to the socket; owns the stall timer.
   void drain_tail_();
@@ -312,9 +313,6 @@ class AsyncEventSourceResponse {
   // Keep the whole chunk in tail_ and continue from sent; false when the tail cannot be allocated.
   bool stash_chunk_(const char *prefix, size_t prefix_len, const char *message, size_t message_len, size_t total,
                     size_t sent);
-  // Chunk header placeholder, the retry/id/event lines and, with_data, the first "data: ".
-  // Returns the prefix length; PREFIX_BUF_SIZE - 1 or more means the event name did not fit.
-  static size_t build_prefix(char *prefix, const char *event, uint32_t id, uint32_t reconnect, bool with_data);
   // Send a state event. The JSON is serialized into a stack buffer and goes out like any other
   // message; one too large for it is serialized straight into tail_ and drained from there.
   bool send_json_(json::JsonBuilder &builder);
