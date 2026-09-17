@@ -70,7 +70,10 @@ TEST(StringRefNullEmpty, BehavesAsEmptyString) {
   EXPECT_TRUE(null_empty.empty());
   EXPECT_EQ(null_empty.size(), 0u);
   EXPECT_EQ(null_empty.c_str(), nullptr);
+  EXPECT_EQ(null_empty.byte(), nullptr);
   EXPECT_TRUE(null_empty == empty);
+  EXPECT_FALSE(null_empty < empty);
+  EXPECT_FALSE(empty < null_empty);
   EXPECT_TRUE(null_empty == "");             // NOLINT(readability-container-size-empty) - operator under test
   EXPECT_TRUE(null_empty == std::string());  // NOLINT(readability-container-size-empty) - operator under test
   EXPECT_EQ(null_empty.compare(empty), 0);
@@ -94,6 +97,8 @@ TEST(StringRefNullEmpty, ComparesAgainstText) {
   EXPECT_FALSE(text == null_empty);
   EXPECT_LT(null_empty.compare(text), 0);
   EXPECT_GT(text.compare(null_empty), 0);
+  EXPECT_TRUE(null_empty < text);
+  EXPECT_FALSE(text < null_empty);
   EXPECT_TRUE(text.starts_with(null_empty));
 }
 
@@ -101,6 +106,7 @@ TEST(StringRefNullEmpty, TwoNullViewsAreEqual) {
   const StringRef a{nullptr, 0};
   const StringRef b{nullptr, 0};
   EXPECT_TRUE(a == b);
+  EXPECT_FALSE(a < b);
   EXPECT_EQ(a.compare(b), 0);
   EXPECT_TRUE(a.starts_with(b));
 }
