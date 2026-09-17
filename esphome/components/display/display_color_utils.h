@@ -1,5 +1,6 @@
 #pragma once
 #include "esphome/core/color.h"
+#include "esphome/core/helpers.h"
 
 namespace esphome::display {
 enum ColorOrder : uint8_t { COLOR_ORDER_RGB = 0, COLOR_ORDER_BGR = 1, COLOR_ORDER_GRB = 2 };
@@ -8,6 +9,27 @@ inline static uint8_t esp_scale(uint8_t i, uint8_t scale, uint8_t max_value = 25
 
 class ColorUtil {
  public:
+  /// Reads one packed pixel of the given bitness from a source buffer into the
+  /// value to_color() takes. BITNESS is a template argument so the byte layout
+  /// folds; pass it on to to_color() as a constant too, and its channel scaling
+  /// divides by a constant, which the compiler turns into a multiply and shift.
+  template<ColorBitness BITNESS>
+  static ESPHOME_ALWAYS_INLINE uint32_t read_packed(const uint8_t *ptr, size_t index, bool big_endian) {
+    if constexpr (BITNESS == COLOR_BITNESS_565) {
+      const size_t idx = index * 2;
+      if (big_endian)
+        return (ptr[idx] << 8) + ptr[idx + 1];
+      return ptr[idx] + (ptr[idx + 1] << 8);
+    } else if constexpr (BITNESS == COLOR_BITNESS_888) {
+      const size_t idx = index * 3;
+      if (big_endian)
+        return (ptr[idx + 0] << 16) + (ptr[idx + 1] << 8) + ptr[idx + 2];
+      return ptr[idx + 0] + (ptr[idx + 1] << 8) + (ptr[idx + 2] << 16);
+    } else {
+      return ptr[index];
+    }
+  }
+
   static Color to_color(uint32_t colorcode, ColorOrder color_order,
                         ColorBitness color_bitness = ColorBitness::COLOR_BITNESS_888, bool right_bit_aligned = true) {
     uint8_t first_color, second_color, third_color;

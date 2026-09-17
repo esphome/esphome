@@ -53,27 +53,6 @@ void Display::line_at_angle(int x, int y, int angle, int start_radius, int stop_
   this->line(x1, y1, x2, y2, color);
 }
 
-// Reads one source pixel of draw_pixels_at(). BITNESS is a template argument so
-// the byte layout folds and to_color()'s channel scaling divides by a constant,
-// which the compiler turns into a multiply and shift; at runtime it was three
-// divisions per pixel.
-template<ColorBitness BITNESS>
-static inline ESPHOME_ALWAYS_INLINE uint32_t read_packed_pixel(const uint8_t *ptr, size_t source_idx, bool big_endian) {
-  if constexpr (BITNESS == COLOR_BITNESS_565) {
-    const size_t idx = source_idx * 2;
-    if (big_endian)
-      return (ptr[idx] << 8) + ptr[idx + 1];
-    return ptr[idx] + (ptr[idx + 1] << 8);
-  } else if constexpr (BITNESS == COLOR_BITNESS_888) {
-    const size_t idx = source_idx * 3;
-    if (big_endian)
-      return (ptr[idx + 0] << 16) + (ptr[idx + 1] << 8) + ptr[idx + 2];
-    return ptr[idx + 0] + (ptr[idx + 1] << 8) + (ptr[idx + 2] << 16);
-  } else {
-    return ptr[source_idx];
-  }
-}
-
 // flatten keeps to_color() inlined in the pixel loop; in PSRAM builds GCC at
 // -Os stops inlining it once there are two call sites, which costs a call and
 // spills per pixel. Without PSRAM there is one call site and it changes
@@ -83,10 +62,12 @@ static void __attribute__((flatten))
 draw_packed_pixels(Display *display, int x_start, int y_start, int w, int h, const uint8_t *ptr, ColorOrder order,
                    bool big_endian, int x_offset, int y_offset, int x_pad) {
   const size_t line_stride = x_offset + w + x_pad;  // length of each source line in pixels
+  // BITNESS is a constant here, so to_color()'s three per pixel divisions
+  // become a multiply and shift and its bitness switch folds.
   const auto draw_source_pixel = [&](int x, int y, size_t source_idx) ESPHOME_ALWAYS_INLINE {
     display->draw_pixel_at(
         x + x_start, y + y_start,
-        ColorUtil::to_color(read_packed_pixel<BITNESS>(ptr, source_idx, big_endian), order, BITNESS));
+        ColorUtil::to_color(ColorUtil::read_packed<BITNESS>(ptr, source_idx, big_endian), order, BITNESS));
   };
   // The source and frame buffers are row-major, so walking rows keeps the read
   // and the write sequential. When the display swaps the axes before writing,
@@ -104,8 +85,7 @@ draw_packed_pixels(Display *display, int x_start, int y_start, int w, int h, con
     return;
   }
 #endif
-  // Without PSRAM the frame buffer is in uncached RAM, where the strided write
-  // is free, so one copy of the loop is enough.
+  // Row walk: builds without PSRAM, and PSRAM builds whose axes are not swapped.
   for (int y = 0; y != h; y++) {
     size_t source_idx = (y_offset + y) * line_stride + x_offset;
     for (int x = 0; x != w; x++, source_idx++) {
