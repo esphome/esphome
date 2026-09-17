@@ -257,8 +257,10 @@ inline double stod(const StringRef &str, size_t *pos = nullptr) {
 // NOLINTEND(readability-identifier-naming,google-runtime-int,readability-non-const-parameter)
 
 #ifdef USE_JSON
+// A StringRef never owns its string, so the document links it instead of copying it into a heap
+// node. The referenced string has to outlive the serialization, which a stack buffer may not.
 // NOLINTNEXTLINE(readability-identifier-naming)
-inline void convertToJson(const StringRef &src, JsonVariant dst) { dst.set(src.c_str()); }
+inline void convertToJson(const StringRef &src, JsonVariant dst) { dst.set(JsonString(src.c_str(), src.size(), true)); }
 #endif  // USE_JSON
 
 }  // namespace esphome

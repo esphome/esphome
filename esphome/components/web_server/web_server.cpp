@@ -56,9 +56,7 @@ namespace esphome::web_server {
 
 static const char *const TAG = "web_server";
 
-// ArduinoJson copies a plain pointer into the document. A string that outlives the document,
-// an entity name, a codegen literal or a flash string, is stored as a link instead.
-static inline JsonString linked(const char *s) { return JsonString(s, true); }
+using json::linked;
 
 #ifdef USE_STORE_LOG_STR_IN_FLASH
 // View a state LogString as a ProgmemStr so ArduinoJson serializes it PROGMEM-aware on ESP8266.
@@ -324,7 +322,7 @@ void DeferredUpdateEventSourceList::on_client_connect_(DeferredUpdateEventSource
     for (auto &group : ws->sorting_groups_) {
       json::JsonBuilder builder;
       JsonObject root = builder.root();
-      root[ESPHOME_F("name")] = linked(group.second.name.c_str());
+      root[ESPHOME_F("name")] = linked(group.second.name);
       root[ESPHOME_F("sorting_weight")] = group.second.weight;
       auto group_msg = builder.serialize();
 
@@ -356,8 +354,7 @@ json::SerializationBuffer<> WebServer::get_config_json() {
   json::JsonBuilder builder;
   JsonObject root = builder.root();
 
-  root[ESPHOME_F("title")] =
-      linked(App.get_friendly_name().empty() ? App.get_name().c_str() : App.get_friendly_name().c_str());
+  root[ESPHOME_F("title")] = App.get_friendly_name().empty() ? App.get_name() : App.get_friendly_name();
   char comment_buffer[Application::ESPHOME_COMMENT_SIZE_MAX];
   App.get_comment_string(comment_buffer);
   root[ESPHOME_F("comment")] = static_cast<const char *>(comment_buffer);
@@ -592,17 +589,21 @@ static void set_json_id(JsonObject root, EntityBase *obj, const char *prefix, Js
   root[ESPHOME_F("id")] = static_cast<const char *>(id_buf);
 
   if (start_config == DETAIL_ALL) {
-    root[ESPHOME_F("domain")] = linked(prefix);
-    // Use .c_str() to avoid instantiating set<StringRef> template (saves ~24B)
-    root[ESPHOME_F("name")] = linked(name.c_str());
+    root[ESPHOME_F("domain")] = JsonString(prefix, prefix_len, true);
+    root[ESPHOME_F("name")] = JsonString(name.c_str(), name_len, true);
 #ifdef USE_DEVICES
     if (device_name) {
-      root[ESPHOME_F("device")] = linked(device_name);
+      root[ESPHOME_F("device")] = JsonString(device_name, device_len, true);
     }
 #endif
 #ifdef USE_ENTITY_ICON
     char icon_buf[MAX_ICON_LENGTH];
+#ifdef USE_ESP8266
     root[ESPHOME_F("icon")] = obj->get_icon_to(icon_buf);
+#else
+    // Elsewhere the accessor returns a pointer into the icon table, so nothing is copied
+    root[ESPHOME_F("icon")] = linked(obj->get_icon_to(icon_buf));
+#endif
 #endif
     root[ESPHOME_F("entity_category")] = obj->get_entity_category();
     bool is_disabled = obj->is_disabled_by_default();
@@ -671,7 +672,7 @@ json::SerializationBuffer<> WebServer::sensor_json_(sensor::Sensor *obj, float v
   if (start_config == DETAIL_ALL) {
     this->add_sorting_info_(root, obj);
     if (!uom_ref.empty())
-      root[ESPHOME_F("uom")] = linked(uom_ref.c_str());
+      root[ESPHOME_F("uom")] = uom_ref;
   }
 
   return builder.serialize();
@@ -712,7 +713,8 @@ json::SerializationBuffer<> WebServer::text_sensor_json_(text_sensor::TextSensor
   json::JsonBuilder builder;
   JsonObject root = builder.root();
 
-  set_json_icon_state_value(root, obj, "text_sensor", value.c_str(), value.c_str(), start_config);
+  const JsonString state = linked(value);
+  set_json_icon_state_value(root, obj, "text_sensor", state, state, start_config);
   if (start_config == DETAIL_ALL) {
     this->add_sorting_info_(root, obj);
   }
@@ -1029,9 +1031,9 @@ json::SerializationBuffer<> WebServer::light_json_(light::LightState *obj, JsonD
   light::LightJSONSchema::dump_json(*obj, root);
   if (start_config == DETAIL_ALL) {
     JsonArray opt = root[ESPHOME_F("effects")].to<JsonArray>();
-    opt.add("None");
+    opt.add(linked("None"));
     for (auto const &option : obj->get_effects()) {
-      opt.add(linked(option->get_name().c_str()));
+      opt.add(option->get_name());
     }
     this->add_sorting_info_(root, obj);
   }
@@ -1178,9 +1180,14 @@ json::SerializationBuffer<> WebServer::number_json_(number::Number *obj, float v
   // Need two buffers: one for value, one for state with UOM
   char val_buf[VALUE_ACCURACY_MAX_LEN];
   char state_buf[VALUE_ACCURACY_MAX_LEN];
-  const char *val_str = std::isnan(value) ? "\"NaN\"" : (value_accuracy_to_buf(val_buf, value, accuracy), val_buf);
-  const char *state_str =
-      std::isnan(value) ? "NA" : (value_accuracy_with_uom_to_buf(state_buf, value, accuracy, uom_ref), state_buf);
+  JsonString val_str = linked("\"NaN\"");
+  JsonString state_str = linked("NA");
+  if (!std::isnan(value)) {
+    value_accuracy_to_buf(val_buf, value, accuracy);
+    value_accuracy_with_uom_to_buf(state_buf, value, accuracy, uom_ref);
+    val_str = JsonString(val_buf);
+    state_str = JsonString(state_buf);
+  }
   set_json_icon_state_value(root, obj, "number", state_str, val_str, start_config);
   if (start_config == DETAIL_ALL) {
     // ArduinoJson copies the string immediately, so we can reuse val_buf
@@ -1189,7 +1196,7 @@ json::SerializationBuffer<> WebServer::number_json_(number::Number *obj, float v
     root[ESPHOME_F("step")] = (value_accuracy_to_buf(val_buf, obj->traits.get_step(), accuracy), val_buf);
     root[ESPHOME_F("mode")] = (int) obj->traits.get_mode();
     if (!uom_ref.empty())
-      root[ESPHOME_F("uom")] = linked(uom_ref.c_str());
+      root[ESPHOME_F("uom")] = uom_ref;
     this->add_sorting_info_(root, obj);
   }
 
@@ -1424,8 +1431,10 @@ json::SerializationBuffer<> WebServer::text_json_(text::Text *obj, const std::st
   json::JsonBuilder builder;
   JsonObject root = builder.root();
 
-  const char *state = obj->traits.get_mode() == text::TextMode::TEXT_MODE_PASSWORD ? "********" : value.c_str();
-  set_json_icon_state_value(root, obj, "text", state, value.c_str(), start_config);
+  const JsonString linked_value = linked(value);
+  const JsonString state =
+      obj->traits.get_mode() == text::TextMode::TEXT_MODE_PASSWORD ? linked("********") : linked_value;
+  set_json_icon_state_value(root, obj, "text", state, linked_value, start_config);
   root[ESPHOME_F("min_length")] = obj->traits.get_min_length();
   root[ESPHOME_F("max_length")] = obj->traits.get_max_length();
   root[ESPHOME_F("pattern")] = linked(obj->traits.get_pattern_c_str());
@@ -1485,8 +1494,7 @@ json::SerializationBuffer<> WebServer::select_json_(select::Select *obj, StringR
   json::JsonBuilder builder;
   JsonObject root = builder.root();
 
-  // value points to null-terminated string literals from codegen (via current_option())
-  set_json_icon_state_value(root, obj, "select", linked(value.c_str()), linked(value.c_str()), start_config);
+  set_json_icon_state_value(root, obj, "select", value, value, start_config);
   if (start_config == DETAIL_ALL) {
     JsonArray opt = root[ESPHOME_F("option")].to<JsonArray>();
     for (auto &option : obj->traits.get_options()) {
@@ -1976,9 +1984,8 @@ json::SerializationBuffer<> WebServer::water_heater_json_(water_heater::WaterHea
   JsonObject root = builder.root();
 
   const auto mode = obj->get_mode();
-  auto mode_s = json_state_str(water_heater::water_heater_mode_to_string(mode));
-
-  set_json_icon_state_value(root, obj, "water_heater", mode_s, mode, start_config);
+  set_json_icon_state_value(root, obj, "water_heater", json_state_str(water_heater::water_heater_mode_to_string(mode)),
+                            mode, start_config);
 
   auto traits = obj->get_traits();
 
@@ -2263,7 +2270,12 @@ json::SerializationBuffer<> WebServer::event_json_(event::Event *obj, StringRef 
       event_types.add(linked(event_type));
     }
     char dc_buf[MAX_DEVICE_CLASS_LENGTH];
+#ifdef USE_ESP8266
     root[ESPHOME_F("device_class")] = obj->get_device_class_to(dc_buf);
+#else
+    // Elsewhere the accessor returns a pointer into the device class table, so nothing is copied
+    root[ESPHOME_F("device_class")] = linked(obj->get_device_class_to(dc_buf));
+#endif
     this->add_sorting_info_(root, obj);
   }
 
@@ -2313,17 +2325,16 @@ json::SerializationBuffer<> WebServer::update_json_(update::UpdateEntity *obj, J
   json::JsonBuilder builder;
   JsonObject root = builder.root();
 
+  const auto &info = obj->update_info;
   set_json_icon_state_value(root, obj, "update", json_state_str(update::update_state_to_string(obj->state)),
-                            obj->update_info.latest_version.c_str(), start_config);
+                            linked(info.latest_version), start_config);
   if (start_config == DETAIL_ALL) {
-    root[ESPHOME_F("current_version")] = obj->update_info.current_version;
-    root[ESPHOME_F("title")] = obj->update_info.title;
-    // Truncate long changelogs — full text available via release_url
+    root[ESPHOME_F("current_version")] = linked(info.current_version);
+    root[ESPHOME_F("title")] = linked(info.title);
+    // Truncate long changelogs, the full text is available via release_url
     constexpr size_t max_summary_len = 256;
-    root[ESPHOME_F("summary")] = obj->update_info.summary.size() <= max_summary_len
-                                     ? obj->update_info.summary
-                                     : obj->update_info.summary.substr(0, max_summary_len);
-    root[ESPHOME_F("release_url")] = obj->update_info.release_url;
+    root[ESPHOME_F("summary")] = JsonString(info.summary.c_str(), std::min(info.summary.size(), max_summary_len), true);
+    root[ESPHOME_F("release_url")] = linked(info.release_url);
     this->add_sorting_info_(root, obj);
   }
 
@@ -2659,7 +2670,7 @@ void WebServer::add_sorting_info_(JsonObject &root, EntityBase *entity) {
   if (this->sorting_entitys_.contains(entity)) {
     root[ESPHOME_F("sorting_weight")] = this->sorting_entitys_[entity].weight;
     if (this->sorting_groups_.contains(this->sorting_entitys_[entity].group_id)) {
-      root[ESPHOME_F("sorting_group")] = this->sorting_groups_[this->sorting_entitys_[entity].group_id].name;
+      root[ESPHOME_F("sorting_group")] = linked(this->sorting_groups_[this->sorting_entitys_[entity].group_id].name);
     }
   }
 #endif
