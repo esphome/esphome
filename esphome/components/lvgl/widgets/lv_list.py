@@ -1,4 +1,3 @@
-from collections.abc import Generator
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -15,8 +14,6 @@ from esphome.const import (
     CONF_TEXT,
     CONF_TRIGGER_ID,
 )
-from esphome.core import CORE
-from esphome.coroutine import FakeAwaitable
 from esphome.cpp_generator import MockObj
 from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 
@@ -31,6 +28,7 @@ from ..defines import (
     SWIPE_TRIGGERS,
     TYPE_FLEX,
     add_lv_use,
+    get_list_triggers,
     literal,
 )
 from ..lv_validation import lv_int, lv_text, padding
@@ -64,6 +62,7 @@ from . import (
 )
 from .buttonmatrix import CONF_BUTTONMATRIX
 from .canvas import CONF_CANVAS
+from .keyboard import CONF_KEYBOARD
 from .label import CONF_LABEL
 from .meter import CONF_METER
 from .tabview import CONF_TABVIEW
@@ -73,8 +72,6 @@ CONF_LIST = "list"
 CONF_WIDGET = "widget"
 CONF_ON_ADD = "on_add"
 CONF_ON_REMOVE = "on_remove"
-
-DOMAIN = "lvgl_list"
 
 lv_list_t = LvType("lv_list_t")
 
@@ -86,76 +83,49 @@ class ListTriggers:
 
 
 def _get_list_triggers(list_id) -> ListTriggers:
-    """
-    Trigger Pvariables built for a given list's `on_add`/`on_remove` config, indexed by the
-    list's own ID.
-    """
-    triggers_by_list = CORE.data.setdefault(DOMAIN, {})
-    return triggers_by_list.setdefault(list_id, ListTriggers())
+    """Every on_add/on_remove automation config declared for a list, indexed by the list's own ID."""
+    return get_list_triggers().get(list_id, ListTriggers())
 
 
-def _get_pending_list_triggers(list_id) -> ListTriggers:
-    """
-    Same shape as _get_list_triggers(), but holding raw on_add/on_remove automation
-    configs, not yet built.
-    """
-    pending_by_list = CORE.data.setdefault(DOMAIN + "_pending", {})
-    return pending_by_list.setdefault(list_id, ListTriggers())
-
-
-def _list_triggers_completed_flag() -> list[bool]:
-    return CORE.data.setdefault(DOMAIN + "_completed", [False])
-
-
-def _list_triggers_completed_generator() -> Generator[None, None, None]:
-    while True:
-        if _list_triggers_completed_flag()[0]:
-            return
-        yield
-
-
-async def _wait_list_triggers_completed() -> None:
-    """Waits until finish_list_triggers() has built every list's on_add/on_remove automations."""
-    if _list_triggers_completed_flag()[0]:
-        return
-    await FakeAwaitable(_list_triggers_completed_generator())
+def _declare_list_triggers(list_id) -> ListTriggers:
+    """Get-or-create a list's trigger record, for ListType.on_create() to populate."""
+    return get_list_triggers().setdefault(list_id, ListTriggers())
 
 
 async def finish_list_triggers() -> None:
     """
-    Builds every list's on_add/on_remove automations, collected by ListType.to_code()
-    instead of being built there directly. Must run after set_widgets_completed(True).
+    Builds every list's on_add/on_remove automations, collected by ListType.on_create()
+    instead of being built there directly.
     """
-    for list_id, pending in CORE.data.get(DOMAIN + "_pending", {}).items():
-        triggers = _get_list_triggers(list_id)
-        for conf in pending.on_add:
-            trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID])
-            await automation.build_automation(trigger, [(cg.int_, "list_index")], conf)
-            triggers.on_add.append(trigger)
-        for conf in pending.on_remove:
-            trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID])
-            await automation.build_automation(trigger, [(cg.int_, "list_index")], conf)
-            triggers.on_remove.append(trigger)
-    _list_triggers_completed_flag()[0] = True
+    # Avoid circular references by creating the trigger Pvariables first
+    built_triggers = [
+        (cg.new_Pvariable(conf[CONF_TRIGGER_ID]), conf)
+        for triggers in get_list_triggers().values()
+        for conf in triggers.on_add + triggers.on_remove
+    ]
+    for trigger, conf in built_triggers:
+        await automation.build_automation(trigger, [(cg.int_, "list_index")], conf)
 
 
-def _fire_index_triggers(triggers: list, index) -> None:
-    for trigger in triggers:
+async def _fire_index_triggers(confs: list, index) -> None:
+    for conf in confs:
+        # finish_list_triggers() may not have built this trigger yet if it runs as
+        # part of a different component's own to_code() job than this one -
+        # get_variable() blocks until it does, regardless of scheduling order.
+        trigger = await cg.get_variable(conf[CONF_TRIGGER_ID])
         lv_add(trigger.trigger(index))
 
 
 async def _fire_on_add(list_id, list_obj, entry_obj) -> None:
-    await _wait_list_triggers_completed()
-    triggers = _get_list_triggers(list_id).on_add
-    if not triggers:
+    confs = _get_list_triggers(list_id).on_add
+    if not confs:
         return
     index = cg.RawExpression(f"lvgl::lv_list_get_row_index({list_obj}, {entry_obj})")
-    _fire_index_triggers(triggers, index)
+    await _fire_index_triggers(confs, index)
 
 
 async def _fire_on_remove(list_id, index) -> None:
-    await _wait_list_triggers_completed()
-    _fire_index_triggers(_get_list_triggers(list_id).on_remove, index)
+    await _fire_index_triggers(_get_list_triggers(list_id).on_remove, index)
 
 
 LIST_SCHEMA = cv.Schema(
@@ -199,14 +169,15 @@ class ListType(WidgetType):
     def get_uses(self):
         return TYPE_FLEX, CONF_LABEL, CONF_BUTTON
 
-    async def to_code(self, w: Widget, config: dict):
+    async def on_create(self, var: MockObj, config: dict) -> None:
+        # Runs before Widget.create() registers this list
         on_add = config.get(CONF_ON_ADD, ())
         on_remove = config.get(CONF_ON_REMOVE, ())
         if not on_add and not on_remove:
             return
-        pending = _get_pending_list_triggers(w.config[CONF_ID])
-        pending.on_add.extend(on_add)
-        pending.on_remove.extend(on_remove)
+        triggers = _declare_list_triggers(config[CONF_ID])
+        triggers.on_add.extend(on_add)
+        triggers.on_remove.extend(on_remove)
 
 
 list_spec = ListType()
@@ -227,7 +198,6 @@ LIST_ID_SCHEMA = cv.Schema({cv.Required(CONF_ID): cv.use_id(lv_list_t)})
 )
 async def list_add_text_to_code(config, action_id, template_arg, args):
     widgets = await get_widgets(config)
-    await _wait_list_triggers_completed()
 
     async def do_add_text(w: Widget):
         text = await lv_text.process(config[CONF_TEXT])
@@ -243,12 +213,16 @@ async def list_add_text_to_code(config, action_id, template_arg, args):
     )
 
 
+# These types of widgets are not compatible with lvgl.list.add, some since they manage their own children in a way
+# that can't be rebuilt on every call, others are just Too Hard.
 _DYNAMIC_WIDGET_UNSUPPORTED = (
     CONF_BUTTONMATRIX,
+    CONF_CANVAS,
+    CONF_KEYBOARD,
+    CONF_LIST,
+    CONF_METER,
     CONF_TABVIEW,
     CONF_TILEVIEW,
-    CONF_METER,
-    CONF_CANVAS,
 )
 
 
@@ -371,7 +345,6 @@ async def list_add_to_code(config, action_id, template_arg, args):
     _register_lv_uses(w_type_name, w_conf)
     _register_dynamic_widget_style_uses(w_conf)
     widgets = await get_widgets(config)
-    await _wait_list_triggers_completed()
 
     async def do_add(w: Widget):
         index = None
@@ -505,7 +478,6 @@ LIST_REMOVE_SCHEMA = LIST_ID_SCHEMA.extend(
 )
 async def list_remove_to_code(config, action_id, template_arg, args):
     widgets = await get_widgets(config)
-    await _wait_list_triggers_completed()
 
     async def do_remove(w: Widget):
         index = await lv_int.process(config[CONF_INDEX])
@@ -539,16 +511,14 @@ async def list_remove_to_code(config, action_id, template_arg, args):
 )
 async def list_clear_to_code(config, action_id, template_arg, args):
     widgets = await get_widgets(config)
-    await _wait_list_triggers_completed()
 
     async def do_clear(w: Widget):
-        await _wait_list_triggers_completed()
-        triggers = _get_list_triggers(config[CONF_ID]).on_remove
-        if triggers:
+        confs = _get_list_triggers(config[CONF_ID]).on_remove
+        if confs:
             # Fire on_remove for every entry, newest to oldest, before wiping them all out,
             # so on_remove's semantics ("an entry left the list") hold
             with LvCountdown("list_index", lv_expr.obj_get_child_count(w.obj)) as index:
-                _fire_index_triggers(triggers, index)
+                await _fire_index_triggers(confs, index)
         # lv_obj_clean recursively destroys every child's whole subtree
         lv.obj_clean(w.obj)
 

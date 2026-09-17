@@ -1,17 +1,22 @@
 from esphome import automation
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome.const import CONF_ID
+from esphome.const import CONF_DEFAULT, CONF_ID
 from esphome.core import ID
+from esphome.cpp_generator import MockObj
 
 from .defines import (
     CONF_STYLE_DEFINITIONS,
     CONF_THEME,
+    PARTS,
+    STATES,
     LValidator,
     add_lv_use,
+    get_part_state_selector,
     get_styles_used,
+    get_theme_styles,
     get_theme_update_requests,
-    get_theme_widget_map,
+    get_widget_theme_style_data,
     literal,
 )
 from .lvcode import LambdaContext, lv
@@ -23,7 +28,7 @@ from .schemas import (
     theme_update_schema,
 )
 from .types import ObjUpdateAction, lv_style_t
-from .widgets import collect_parts, wait_for_widgets
+from .widgets import collect_parts
 
 
 def has_style_props(config) -> bool:
@@ -89,7 +94,6 @@ async def styles_to_code(config):
     synchronous=True,
 )
 async def style_update_to_code(config, action_id, template_arg, args):
-    await wait_for_widgets()
     style = await cg.get_variable(config[CONF_ID])
     async with LambdaContext(parameters=args, where=action_id) as context:
         await style_set(style, config)
@@ -101,33 +105,58 @@ async def style_update_to_code(config, action_id, template_arg, args):
     return cg.new_Pvariable(action_id, template_arg, await context.get_lambda())
 
 
+def _get_theme_style_name(w_name: str, part: str, state: str) -> str:
+    return f"_lv_theme_style_{w_name}_{part}_{state}"
+
+
+def get_widget_theme_styles(w_name: str) -> list[tuple[MockObj, MockObj]]:
+    """Return a list of (style variable, part/state name) for all theme styles used by the given widget type."""
+    widget_styles = get_widget_theme_style_data()
+    if w_name in widget_styles:
+        return widget_styles[w_name]
+    theme_styles = get_theme_styles()
+    style_list = []
+    for part in PARTS:
+        for state in STATES + (CONF_DEFAULT,):
+            style_name = _get_theme_style_name(w_name, part, state)
+            if style_name in theme_styles:
+                style_list.append(
+                    (theme_styles[style_name], get_part_state_selector(part, state))
+                )
+    widget_styles[w_name] = style_list
+    return style_list
+
+
 async def theme_to_code(config):
+    """
+    Convert theme to C++ code. May be called multiple times for different LVGL instances.
+    A style is created for each (widget type, part, state) combo declared in the `theme:` section of the config,
+    or requested by a `theme.update` action.
+    If a style is requested but not declared, it is created as an empty placeholder.
+    :param config:
+    :return:
+    """
     theme = config.get(CONF_THEME) or {}
     requests = get_theme_update_requests()
-    # Iterate in WIDGET_TYPES' (deterministic, registration-order) sequence rather
-    # than a set -- a set of strings/tuples iterates in an order that depends on
-    # per-process hash randomization, which would otherwise churn the order hidden
-    # style variables are declared in main.cpp between builds of the same config.
     widget_names = [
         w_name for w_name in WIDGET_TYPES if w_name in theme or w_name in requests
     ]
     if not widget_names:
         return
     add_lv_use(CONF_THEME)
-    theme_map = get_theme_widget_map()
+    style_map = get_theme_styles()
     for w_name in widget_names:
         declared_parts = collect_parts(theme[w_name]) if w_name in theme else {}
         parts = {part: dict(states) for part, states in declared_parts.items()}
         for part, state in requests.get(w_name, {}):
             parts.setdefault(part, {}).setdefault(state, {})
-        widget_styles = theme_map.setdefault(w_name, {})
         for part, states in parts.items():
-            part_styles = widget_styles.setdefault(part, {})
             declared_states = declared_parts.get(part, {})
             for state, props in states.items():
-                if state not in part_styles:
-                    part_styles[state] = await create_style(
-                        "_lv_theme_style_" + w_name + "_" + part + "_" + state, props
+                style_name = _get_theme_style_name(w_name, part, state)
+                if style_name not in style_map:
+                    style_map[style_name] = await create_style(
+                        _get_theme_style_name(w_name, part, state), props
                     )
                 elif state in declared_states:
                     # A `theme.update` request for this combo (possibly from
@@ -135,7 +164,7 @@ async def theme_to_code(config):
                     # empty placeholder before this instance's real `theme:`
                     # declaration was reached -- apply the real values now
                     # instead of silently leaving it empty.
-                    await style_set(part_styles[state], props)
+                    await style_set(style_map[style_name], props)
 
 
 @automation.register_action(
@@ -144,40 +173,25 @@ async def theme_to_code(config):
     theme_update_schema,
     synchronous=True,
 )
-async def theme_update_to_code(config, action_id, template_arg, args):
-    await wait_for_widgets()
-    theme_map = get_theme_widget_map()
-    # Invariant this relies on: theme_update_schema() records every (widget
-    # type, part, state) combo this action targets as a request during config
-    # validation (which completes for the whole config tree before any
-    # to_code runs), and theme_to_code() -- which runs for every LVGL
-    # instance before any action's own to_code -- materialises a style for
-    # each recorded request. If that handshake is ever broken by a future
-    # change, fail with a diagnosable message rather than a bare KeyError.
-    to_update = []
+async def theme_update_to_code(config, action_id, template_arg, args) -> MockObj:
+    # The theme_update_schema records the requested (widget type, part, state) combos in a global dict so that
+    # theme_to_code() can create the corresponding styles variables. Here we await get_variable(), which will
+    # context switch if required so theme_to_code() can run and create the style variable.
+    to_update: list[tuple] = []
     for w_name, style in config.items():
         for part, states in collect_parts(style).items():
             for state, props in states.items():
-                # collect_parts() unconditionally seeds an (empty) main/default
-                # entry even when this action didn't target it -- skip it, both
-                # because there's nothing to update and because
-                # theme_update_schema no longer pre-creates a placeholder style
-                # for combos with no properties.
+                # Skip states with no properties to set.
                 if not props:
                     continue
-                style_var = theme_map.get(w_name, {}).get(part, {}).get(state)
-                if style_var is None:
-                    raise cv.Invalid(
-                        f"No theme style exists for '{w_name}' {part}/{state}. "
-                        "This is an internal error -- please report it."
-                    )
+                style_var = await cg.get_variable(
+                    ID(_get_theme_style_name(w_name, part, state))
+                )
                 to_update.append((style_var, props))
     async with LambdaContext(parameters=args, where=action_id) as context:
         for style_var, props in to_update:
             await style_set(style_var, props)
-            # Refresh and redraw every widget using this style -- otherwise the
-            # updated properties would sit unused until something else happens
-            # to invalidate the affected widgets.
+            # Trigger a redraw for affected widgets.
             lv.obj_report_style_change(style_var)
 
     return cg.new_Pvariable(action_id, template_arg, await context.get_lambda())
