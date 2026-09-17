@@ -1,0 +1,7 @@
+esphome:
+  name: test
+  suspend_loop: true
+  loop_interval: 5000ms
+
+bk72xx:
+  board: generic-bk7252
