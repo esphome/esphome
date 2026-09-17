@@ -22,8 +22,9 @@ class EPaper4bpp : public EPaperBase {
   void fill(Color color) override;
   void clear() override;
 
- protected:
   void draw_pixel_at(int x, int y, Color color) override;
+
+ protected:
   bool transfer_data() override;
 
   /// Map an RGB color to this panel's native 4-bit color key (low nibble).
