@@ -10,6 +10,7 @@ from typing import Any
 import pytest
 
 from esphome.components.esp32 import (
+    ESP32_FLASH_CHIPS,
     KEY_FATFS_REQUIRED,
     KEY_MBEDTLS_TLS_EXTRAS_REQUIRED,
     KEY_MBEDTLS_TLS_SERVER_REQUIRED,
@@ -251,6 +252,51 @@ def test_esp32_rejects_unsupported_cli_toolchain(
             },
             r"value must be at most 5 .* @ data\['framework'\]\['advanced'\]\['nvs_encryption'\]\['key_id'\]",
             id="nvs_encryption_key_id_out_of_range",
+        ),
+        pytest.param(
+            {
+                "variant": "esp32",
+                "board": "esp32dev",
+                "framework": {
+                    "type": "esp-idf",
+                    "advanced": {"flash_chip": "mxic_opi"},
+                },
+            },
+            r"'flash_chip: mxic_opi' is only supported on ESP32S3 @ data\['framework'\]\['advanced'\]\['flash_chip'\]",
+            id="flash_chip_mxic_opi_only_on_s3",
+        ),
+        pytest.param(
+            {
+                "variant": "esp32s3",
+                "flash_mode": "opi",
+                "framework": {
+                    "type": "esp-idf",
+                    "advanced": {"flash_chip": "gd"},
+                },
+            },
+            r"'flash_chip: gd' does not match 'flash_mode: opi'; octal flash uses mxic_opi @ data\['framework'\]\['advanced'\]\['flash_chip'\]",
+            id="flash_chip_must_match_opi_mode",
+        ),
+        pytest.param(
+            {
+                "variant": "esp32s3",
+                "framework": {
+                    "type": "esp-idf",
+                    "advanced": {"flash_chip": "mxic_opi"},
+                },
+            },
+            r"'flash_chip: mxic_opi' requires 'flash_mode: opi' @ data\['framework'\]\['advanced'\]\['flash_chip'\]",
+            id="flash_chip_mxic_opi_requires_opi_mode",
+        ),
+        pytest.param(
+            {
+                "variant": "esp32",
+                "board": "esp32dev",
+                "flash_mode": "opi",
+                "framework": {"type": "esp-idf"},
+            },
+            r"'flash_mode: opi' is only supported on ESP32S3 @ data\['flash_mode'\]",
+            id="flash_mode_opi_only_on_s3",
         ),
     ],
 )
@@ -658,6 +704,27 @@ def test_platformio_arduino_enables_reproducible_build(
     assert sdkconfig.get("CONFIG_APP_REPRODUCIBLE_BUILD") is True
 
 
+@pytest.mark.parametrize(
+    ("config_file", "expected"),
+    [
+        ("reproducible_build.yaml", True),
+        ("reproducible_build_arduino.yaml", True),
+        ("file_macro_idf_5_0.yaml", False),
+    ],
+)
+def test_file_macro_is_basename_only(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+    config_file: str,
+    expected: bool,
+) -> None:
+    """__FILE__ becomes the basename on GCC 12 toolchains; IDF 5.0 (GCC 11) is skipped."""
+    generate_main(component_config_path(config_file))
+
+    assert ("-D__FILE__=__FILE_NAME__" in CORE.build_flags) is expected
+    assert ("-Wno-builtin-macro-redefined" in CORE.build_flags) is expected
+
+
 def test_native_idf_enables_reproducible_build(
     component_config_path: Callable[[str], Path],
 ) -> None:
@@ -683,8 +750,57 @@ def test_flash_mode_sets_sdkconfig_and_pio_option(
     sdkconfig = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
     assert sdkconfig.get("CONFIG_ESPTOOLPY_FLASHMODE_QIO") is True
     assert sdkconfig.get("CONFIG_ESPTOOLPY_FLASHFREQ_80M") is True
+    assert sdkconfig.get("CONFIG_ESPTOOLPY_OCT_FLASH") is False
     assert CORE.platformio_options.get("board_build.flash_mode") == "qio"
     assert CORE.platformio_options.get("board_build.f_flash") == "80000000L"
+
+
+@pytest.mark.parametrize(
+    ("config_file", "enabled"),
+    [
+        pytest.param("flash_chip_gd.yaml", "CONFIG_SPI_FLASH_SUPPORT_GD_CHIP", id="gd"),
+        pytest.param("flash_chip_generic.yaml", None, id="generic"),
+        pytest.param(
+            "flash_chip_mxic_opi_s3.yaml",
+            "CONFIG_SPI_FLASH_SUPPORT_MXIC_OPI_CHIP",
+            id="mxic_opi_s3",
+        ),
+    ],
+)
+def test_flash_chip_keeps_one_vendor_driver(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+    config_file: str,
+    enabled: str | None,
+) -> None:
+    """flash_chip enables only the chosen vendor driver."""
+    generate_main(component_config_path(config_file))
+    sdkconfig = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
+    vendors = {
+        k: v for k, v in sdkconfig.items() if k.startswith("CONFIG_SPI_FLASH_SUPPORT_")
+    }
+    assert vendors == {flag: flag == enabled for flag in ESP32_FLASH_CHIPS.values()}
+
+
+def test_flash_chip_unset_keeps_idf_defaults(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """Without flash_chip every vendor driver stays at its ESP-IDF default."""
+    generate_main(component_config_path("flash_mode_default.yaml"))
+    sdkconfig = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
+    assert not any(key.startswith("CONFIG_SPI_FLASH_SUPPORT_") for key in sdkconfig)
+
+
+def test_flash_mode_opi_enables_octal_flash(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """flash_mode: opi needs the octal flash switch or ESP-IDF ignores the mode."""
+    generate_main(component_config_path("flash_mode_opi_s3.yaml"))
+    sdkconfig = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
+    assert sdkconfig.get("CONFIG_ESPTOOLPY_FLASHMODE_OPI") is True
+    assert sdkconfig.get("CONFIG_ESPTOOLPY_OCT_FLASH") is True
 
 
 def test_flash_mode_unset_leaves_defaults(
