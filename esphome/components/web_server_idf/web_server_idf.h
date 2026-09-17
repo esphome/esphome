@@ -351,9 +351,11 @@ class AsyncEventSourceResponse {
   bool close_requested_{false};
   bool close_retry_warning_logged_{false};
   bool sending_{false};
-  // Gather list: the prefix plus a line and a separator per data line, so seven lines go out
-  // without a copy. Longer messages (only log lines) take one heap copy through the tail.
-  static constexpr size_t MAX_SEND_IOV = 16;
+  // Only log messages span lines, and the longest one in the tree (a climate dump_config) has
+  // 22. The gather list holds the prefix plus a line and a separator per data line, so no message
+  // in the tree needs the heap copy through the tail; a longer one still works, it just takes it.
+  static constexpr size_t MAX_SEND_LINES = 22;
+  static constexpr size_t MAX_SEND_IOV = 1 + 2 * MAX_SEND_LINES;
   // Chunk header, retry/id/event lines and the first "data: "
   static constexpr size_t PREFIX_BUF_SIZE = 128;
   static constexpr uint32_t SEND_STALL_TIMEOUT_MS = 20000;
