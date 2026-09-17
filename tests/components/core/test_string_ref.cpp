@@ -2,6 +2,9 @@
 
 #include "esphome/core/string_ref.h"
 
+#include <iterator>
+#include <string>
+
 namespace esphome::core::testing {
 
 TEST(StringRefStartsWith, ProperPrefixMatches) {
@@ -100,6 +103,36 @@ TEST(StringRefNullEmpty, TwoNullViewsAreEqual) {
   EXPECT_TRUE(a == b);
   EXPECT_EQ(a.compare(b), 0);
   EXPECT_TRUE(a.starts_with(b));
+}
+
+// Every iterator endpoint of a null view is the same null position: nothing is dereferenced and
+// no offset is applied to the null pointer, so the range is simply empty.
+TEST(StringRefNullEmpty, IteratorEndpointsFormAnEmptyRange) {
+  const StringRef null_empty{nullptr, 0};
+  EXPECT_EQ(null_empty.cbegin(), null_empty.cend());
+  EXPECT_EQ(null_empty.rbegin(), null_empty.rend());
+  EXPECT_EQ(null_empty.crbegin(), null_empty.crend());
+  EXPECT_EQ(std::distance(null_empty.begin(), null_empty.end()), 0);
+  size_t visited = 0;
+  for (char c : null_empty) {
+    (void) c;
+    visited++;
+  }
+  EXPECT_EQ(visited, 0u);
+  EXPECT_EQ(std::string(null_empty.begin(), null_empty.end()), std::string());
+}
+
+// The pointer and length constructor accepts an empty range at a null pointer; the copy into a
+// std::string reads nothing.
+TEST(StringRefNullEmpty, ConvertsToEmptyStdString) {
+  const StringRef null_empty{nullptr, 0};
+  const std::string copy = null_empty.str();
+  EXPECT_TRUE(copy.empty());
+  EXPECT_EQ(static_cast<std::string>(null_empty), std::string());
+  EXPECT_EQ(null_empty.substr(0, 5), std::string());
+  std::string target("keep");
+  target += null_empty;
+  EXPECT_EQ(target, "keep");
 }
 
 }  // namespace esphome::core::testing

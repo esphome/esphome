@@ -18,7 +18,9 @@ sys.path.insert(0, str(Path(__file__).parents[4] / "script" / "api_protobuf"))
 import aioesphomeapi.api_options_pb2 as pb  # noqa: E402
 from api_protobuf import (  # noqa: E402
     MAX_MESSAGE_ID,
+    SOURCE_BOTH,
     SOURCE_CLIENT,
+    SOURCE_SERVER,
     _make_ifdef_line,
     build_message_type,
     create_field_type_info,
@@ -308,3 +310,21 @@ def test_message_gets_a_single_decode_field_override() -> None:
         (3, "WIRE_TYPE_FIXED32"),
     ):
         assert f"case proto_tag({number}, {wire_type}):" in cpp, cpp
+
+
+@pytest.mark.parametrize("source", [SOURCE_CLIENT, SOURCE_SERVER, SOURCE_BOTH])
+def test_repeated_strings_generate_in_every_direction(source: int) -> None:
+    """A repeated string builds its element type from the type map, so the null
+    default plumbing on the pointer string type never sees it."""
+    desc = descriptor_pb2.DescriptorProto(name="Names")
+    desc.field.add(
+        name="names",
+        number=1,
+        type=STRING,
+        label=descriptor_pb2.FieldDescriptorProto.LABEL_REPEATED,
+    )
+    header, cpp, _ = build_message_type(desc, {}, {"Names": source})
+    assert "std::vector<std::string> names{};" in header
+    assert "nullptr" not in header
+    if source != SOURCE_SERVER:
+        assert "case proto_tag(1, WIRE_TYPE_LENGTH_DELIMITED):" in cpp
