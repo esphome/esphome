@@ -74,9 +74,11 @@ static const char *const TAG = "ethernet";
 // PHY register size for hex logging
 static constexpr size_t PHY_REG_SIZE = 2;
 
-// SPI MACs only: the bus is the bottleneck there, the extra copy is unmeasured on the 100 Mbit EMAC.
-// Replacing the glue's input path would bypass its L2 TAP filter, so leave it alone when that is on.
-#if defined(USE_PSRAM) && defined(USE_ETHERNET_SPI) && !CONFIG_ESP_NETIF_L2_TAP
+// Dual wifi + ethernet builds only: wifi's fixed costs leave little internal RAM and its buffers are
+// already in PSRAM, while an ethernet-only build has room to spare. SPI MACs only: the bus is the
+// bottleneck there, the extra copy is unmeasured on the 100 Mbit EMAC. Not with L2 TAP, whose filter
+// lives in the glue's input path.
+#if defined(USE_PSRAM) && defined(USE_ETHERNET_SPI) && defined(USE_WIFI) && !CONFIG_ESP_NETIF_L2_TAP
 #define USE_ETHERNET_RX_PSRAM
 // ESP-IDF ethernet drivers malloc() every received frame in internal RAM, where it stays until lwIP
 // hands it to the application. Move it to PSRAM; if that fails the frame is passed on where it is.
