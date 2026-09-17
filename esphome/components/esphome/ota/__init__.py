@@ -166,9 +166,17 @@ def ota_esphome_final_validate(config: ConfigType) -> None:
                 CONF_PASSWORD,
             )
     # web_server and prometheus keep the shared listener up; the captive
-    # portal's copy only exists on the fallback AP and is the recovery path
+    # portal's copy only exists on the fallback AP and is the recovery path.
+    # web_server `ota: false` gates /update behind the captive portal on
+    # every listener
+    web_server_conf = full_conf.get(CONF_WEB_SERVER)
+    plaintext_update_reachable = (
+        web_server_conf.get(CONF_OTA) is not False
+        if web_server_conf is not None
+        else "prometheus" in full_conf
+    )
     if (
-        (CONF_WEB_SERVER in full_conf or "prometheus" in full_conf)
+        plaintext_update_reachable
         and any(conf.get(CONF_PLATFORM) == CONF_WEB_SERVER for conf in full_ota_conf)
         and any(
             CONF_ENCRYPTION in conf
