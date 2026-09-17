@@ -872,8 +872,9 @@ void AsyncEventSourceResponse::process_deferred_queue_() {
   }
   while (!deferred_queue_.empty()) {
     DeferredEvent &de = deferred_queue_.front();
-    auto message = de.message_generator_(web_server_, de.source_);
-    if (this->try_send_nodefer(message.c_str(), message.size(), "state")) {
+    json::JsonBuilder builder;
+    de.message_generator_(web_server_, de.source_, builder);
+    if (this->send_json_(builder)) {
       if (this->close_requested_ || deferred_queue_.empty()) {
         return;
       }
@@ -1052,6 +1053,75 @@ void AsyncEventSourceResponse::loop() {
   this->entities_iterator_.try_advance(1);
 }
 
+size_t AsyncEventSourceResponse::build_prefix_(char *prefix, const char *event, uint32_t id, uint32_t reconnect,
+                                               bool with_data) {
+  // The chunk header is formatted by the caller once the length is known
+  size_t len = CHUNK_HDR_LEN;
+  if (reconnect) {
+    len = buf_append_printf(prefix, PREFIX_BUF_SIZE, len, "retry: %" PRIu32 CRLF_STR, reconnect);
+  }
+  if (id) {
+    len = buf_append_printf(prefix, PREFIX_BUF_SIZE, len, "id: %" PRIu32 CRLF_STR, id);
+  }
+  if (event && *event) {
+    len = buf_append_str(prefix, PREFIX_BUF_SIZE, len, "event: ");
+    len = buf_append_str(prefix, PREFIX_BUF_SIZE, len, event);
+    len = buf_append_str(prefix, PREFIX_BUF_SIZE, len, CRLF_STR);
+  }
+  if (with_data) {
+    len = buf_append_str(prefix, PREFIX_BUF_SIZE, len, "data: ");
+  }
+  return len;
+}
+
+bool AsyncEventSourceResponse::send_json_(json::JsonBuilder &builder) {
+  char buf[JSON_BUF_SIZE];
+  const size_t len = builder.serialize_to(buf, sizeof(buf));
+  if (len < sizeof(buf)) {
+    return this->try_send_nodefer(buf, len, "state");
+  }
+
+  // Too large for the stack: the tail holds the whole chunk and loop() drains it. Same entry
+  // checks as try_send_nodefer.
+  if (this->sending_ || this->fd_.load() == 0 || this->close_requested_) {
+    return false;
+  }
+  drain_tail_();
+  if (this->close_requested_ || this->tail_len_ != 0) {
+    return false;
+  }
+  {
+    SendGuard guard{*this};
+    char prefix[PREFIX_BUF_SIZE];
+    const size_t prefix_len = build_prefix_(prefix, "state", 0, 0, true);
+    // Grow the tail until the document fits; nothing is pending, so each step just reallocates
+    size_t json_len = 0;
+    for (size_t cap = JSON_BUF_SIZE * 2;; cap *= 2) {
+      if (cap > JSON_MAX_SIZE || !this->reserve_tail_(cap)) {
+        ESP_LOGW(TAG, "EventSource cannot buffer a state event of %zu bytes or more; closing", cap / 2);
+        this->request_close_();
+        return false;
+      }
+      const size_t room = cap - prefix_len - SSE_SUFFIX_LEN;
+      json_len = builder.serialize_to(reinterpret_cast<char *>(this->tail_.get()) + prefix_len, room);
+      if (json_len < room) {
+        break;
+      }
+    }
+    const size_t total = prefix_len + json_len + SSE_SUFFIX_LEN;
+    format_hex_to(prefix, static_cast<uint32_t>(total - CHUNK_HDR_LEN - CHUNK_END_LEN));
+    prefix[8] = '\r';
+    prefix[9] = '\n';
+    uint8_t *dst = this->tail_.get();
+    std::memcpy(dst, prefix, prefix_len);
+    std::memcpy(dst + prefix_len + json_len, SSE_SUFFIX, SSE_SUFFIX_LEN);
+    this->tail_len_ = total;
+    this->tail_sent_ = 0;
+  }
+  drain_tail_();
+  return true;
+}
+
 bool AsyncEventSourceResponse::try_send_nodefer(const char *message, size_t message_len, const char *event, uint32_t id,
                                                 uint32_t reconnect) {
   // Re-entered from a log line emitted inside a send on this session; see SendGuard
@@ -1070,27 +1140,13 @@ bool AsyncEventSourceResponse::try_send_nodefer(const char *message, size_t mess
 
   SendGuard guard{*this};
 
-  // Chunk header placeholder (formatted once the length is known), the retry/id/event lines and
-  // the first data line prefix. Everything else goes out straight from the caller's buffer.
+  // Everything after the prefix goes out straight from the caller's buffer
   char prefix[PREFIX_BUF_SIZE];
-  size_t prefix_len = CHUNK_HDR_LEN;
-  if (reconnect) {
-    prefix_len = buf_append_printf(prefix, sizeof(prefix), prefix_len, "retry: %" PRIu32 CRLF_STR, reconnect);
-  }
-  if (id) {
-    prefix_len = buf_append_printf(prefix, sizeof(prefix), prefix_len, "id: %" PRIu32 CRLF_STR, id);
-  }
-  if (event && *event) {
-    prefix_len = buf_append_str(prefix, sizeof(prefix), prefix_len, "event: ");
-    prefix_len = buf_append_str(prefix, sizeof(prefix), prefix_len, event);
-    prefix_len = buf_append_str(prefix, sizeof(prefix), prefix_len, CRLF_STR);
-  }
-  if (message) {
-    prefix_len = buf_append_str(prefix, sizeof(prefix), prefix_len, "data: ");
-  } else if (prefix_len == CHUNK_HDR_LEN) {
+  const size_t prefix_len = build_prefix_(prefix, event, id, reconnect, message != nullptr);
+  if (message == nullptr && prefix_len == CHUNK_HDR_LEN) {
     return true;  // Match ESPAsyncWebServer: nothing to send
   }
-  if (prefix_len >= sizeof(prefix) - 1) {
+  if (prefix_len >= PREFIX_BUF_SIZE - 1) {
     // The appenders truncate silently, which would put a malformed event on the wire
     ESP_LOGW(TAG, "EventSource event name too long; dropped");
     return true;
@@ -1160,8 +1216,9 @@ void AsyncEventSourceResponse::deferrable_send_state(void *source, const char *e
     // trying to send first
     deq_push_back_with_dedup_(source, message_generator);
   } else {
-    auto message = message_generator(web_server_, source);
-    if (!this->try_send_nodefer(message.c_str(), message.size(), "state")) {
+    json::JsonBuilder builder;
+    message_generator(web_server_, source, builder);
+    if (!this->send_json_(builder)) {
       deq_push_back_with_dedup_(source, message_generator);
     }
   }
