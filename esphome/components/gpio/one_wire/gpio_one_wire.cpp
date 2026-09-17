@@ -110,8 +110,10 @@ void HOT IRAM_ATTR GPIOOneWireBus::write_bit_(bool bit) {
 
 bool HOT IRAM_ATTR GPIOOneWireBus::read_bit_() {
 #ifdef USE_ONE_WIRE_RMT
-  if (this->use_rmt_)
-    return this->read_bit_rmt_();
+  if (this->use_rmt_) {
+    bool bit;
+    return this->read_bit_rmt_(&bit) && bit;
+  }
 #endif
 
   this->pin_.digital_write(false);

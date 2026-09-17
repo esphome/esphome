@@ -7,8 +7,11 @@
 #ifdef USE_ONE_WIRE_RMT
 #include <driver/rmt_rx.h>
 #include <driver/rmt_tx.h>
+#include <esp_err.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/queue.h>
+
+#include "esphome/core/log.h"
 #endif
 
 namespace esphome::gpio {
@@ -61,8 +64,8 @@ class GPIOOneWireBus final : public one_wire::OneWireBus, public Component {
   void write64_rmt_(uint64_t val);
   uint8_t read8_rmt_();
   uint64_t read64_rmt_();
-  void write_bit_rmt_(bool bit);
-  bool read_bit_rmt_();
+  bool write_bit_rmt_(bool bit);
+  bool read_bit_rmt_(bool *bit);
   uint64_t search_rmt_();
 #endif
 };

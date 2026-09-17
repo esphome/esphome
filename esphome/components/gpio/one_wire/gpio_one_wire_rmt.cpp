@@ -7,6 +7,7 @@
 #include <esp_err.h>
 #include <esp_heap_caps.h>
 #include <esp_idf_version.h>
+#include <soc/soc_caps.h>
 
 #include "esphome/core/log.h"
 
@@ -297,31 +298,52 @@ uint64_t GPIOOneWireBus::read64_rmt_() {
   return result;
 }
 
-bool GPIOOneWireBus::read_bit_rmt_() {
+bool GPIOOneWireBus::read_bit_rmt_(bool *bit) {
   rmt_symbol_word_t read_symbol = make_symbol(SLOT_START, 0, SLOT_BIT + SLOT_RECOVERY, 1);
 
   xQueueReset(this->receive_queue_);
-  if (rmt_receive(this->rx_channel_, this->rx_symbols_buf_, sizeof(rmt_symbol_word_t), &RX_CONFIG) != ESP_OK)
+  esp_err_t error =
+      rmt_receive(this->rx_channel_, this->rx_symbols_buf_, sizeof(rmt_symbol_word_t), &RX_CONFIG);
+  if (error != ESP_OK) {
+    ESP_LOGE(TAG, "RMT read bit receive failed: %s", esp_err_to_name(error));
     return false;
-  if (rmt_transmit(this->tx_channel_, this->tx_copy_encoder_, &read_symbol, sizeof(read_symbol), &TX_CONFIG) != ESP_OK)
+  }
+
+  error = rmt_transmit(this->tx_channel_, this->tx_copy_encoder_, &read_symbol, sizeof(read_symbol), &TX_CONFIG);
+  if (error != ESP_OK) {
+    ESP_LOGE(TAG, "RMT read bit transmit failed: %s", esp_err_to_name(error));
     return false;
+  }
 
   rmt_rx_done_event_data_t rx_data;
-  if (xQueueReceive(this->receive_queue_, &rx_data, pdMS_TO_TICKS(RMT_OPERATION_TIMEOUT_MS)) != pdPASS)
+  if (xQueueReceive(this->receive_queue_, &rx_data, pdMS_TO_TICKS(RMT_OPERATION_TIMEOUT_MS)) != pdPASS) {
+    ESP_LOGE(TAG, "RMT read bit timeout");
     return false;
-  if (rx_data.num_symbols == 0)
+  }
+  if (rx_data.num_symbols == 0) {
+    ESP_LOGE(TAG, "RMT read bit returned no symbols");
     return false;
+  }
 
-  return rx_data.received_symbols[0].duration0 <= SLOT_SAMPLE_TIME;
+  *bit = rx_data.received_symbols[0].duration0 <= SLOT_SAMPLE_TIME;
+  return true;
 }
 
-void GPIOOneWireBus::write_bit_rmt_(bool bit) {
+bool GPIOOneWireBus::write_bit_rmt_(bool bit) {
   rmt_symbol_word_t symbol = bit ? make_symbol(SLOT_START, 0, SLOT_BIT + SLOT_RECOVERY, 1)
                                  : make_symbol(SLOT_START + SLOT_BIT, 0, SLOT_RECOVERY, 1);
-  if (rmt_transmit(this->tx_channel_, this->tx_copy_encoder_, &symbol, sizeof(symbol), &TX_CONFIG) != ESP_OK ||
-      rmt_tx_wait_all_done(this->tx_channel_, RMT_OPERATION_TIMEOUT_MS) != ESP_OK) {
-    ESP_LOGE(TAG, "RMT write bit failed");
+  esp_err_t error = rmt_transmit(this->tx_channel_, this->tx_copy_encoder_, &symbol, sizeof(symbol), &TX_CONFIG);
+  if (error != ESP_OK) {
+    ESP_LOGE(TAG, "RMT write bit transmit failed: %s", esp_err_to_name(error));
+    return false;
   }
+
+  error = rmt_tx_wait_all_done(this->tx_channel_, RMT_OPERATION_TIMEOUT_MS);
+  if (error != ESP_OK) {
+    ESP_LOGE(TAG, "RMT write bit wait failed: %s", esp_err_to_name(error));
+    return false;
+  }
+  return true;
 }
 
 uint64_t GPIOOneWireBus::search_rmt_() {
@@ -333,8 +355,10 @@ uint64_t GPIOOneWireBus::search_rmt_() {
   uint64_t address = this->address_;
 
   for (int bit_number = 1; bit_number <= 64; bit_number++, bit_mask <<= 1) {
-    bool id_bit = this->read_bit_rmt_();
-    bool cmp_id_bit = this->read_bit_rmt_();
+    bool id_bit;
+    bool cmp_id_bit;
+    if (!this->read_bit_rmt_(&id_bit) || !this->read_bit_rmt_(&cmp_id_bit))
+      return 0;
 
     if (id_bit && cmp_id_bit)
       return 0;
@@ -358,7 +382,8 @@ uint64_t GPIOOneWireBus::search_rmt_() {
       address &= ~bit_mask;
     }
 
-    this->write_bit_rmt_(branch);
+    if (!this->write_bit_rmt_(branch))
+      return 0;
   }
 
   this->last_discrepancy_ = last_zero;

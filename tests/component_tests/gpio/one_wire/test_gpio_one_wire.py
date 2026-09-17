@@ -93,12 +93,22 @@ def test_rmt_source_is_excluded_when_unused(
 def test_use_rmt_on_esp8266_is_rejected(
     generate_main: Callable[[str | Path], str],
 ) -> None:
-    with pytest.raises(cv.Invalid, match="use_rmt.*ESP32|ESP32.*use_rmt"):
+    with pytest.raises(cv.Invalid, match="ESP32"):
         generate_main(HERE / "test_gpio_one_wire_esp8266_use_rmt_true.yaml")
 
 
 def test_use_rmt_on_esp32_without_rmt_is_rejected(
     generate_main: Callable[[str | Path], str],
 ) -> None:
-    with pytest.raises(cv.Invalid, match="RMT.*not supported|not supported.*RMT"):
+    with pytest.raises(cv.Invalid, match="use_rmt.*not available.*ESP32C2|no RMT hardware"):
         generate_main(HERE / "test_gpio_one_wire_esp32c2_use_rmt_true.yaml")
+
+
+def test_default_gpio_on_esp32_without_rmt_is_allowed(
+    generate_main: Callable[[str | Path], str],
+) -> None:
+    main_cpp = generate_main(HERE / "test_gpio_one_wire_esp32c2_default.yaml")
+
+    assert "ow_bus->set_use_rmt(false);" in main_cpp
+    assert RMT_DEFINE not in {define.name for define in CORE.defines}
+    assert _rmt_driver_excluded()

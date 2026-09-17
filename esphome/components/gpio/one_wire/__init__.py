@@ -1,26 +1,39 @@
 from esphome import pins
 import esphome.codegen as cg
+from esphome.components import esp32, esp32_rmt
 from esphome.components.one_wire import OneWireBus
 from esphome.config_helpers import filter_source_files_from_defines
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_PIN
-from esphome.core import CORE
 from esphome.types import ConfigType
 
 from .. import gpio_ns
 
 CODEOWNERS = ["@ssieb"]
 
-CONF_USE_RMT = "use_rmt"
-RMT_DEFINE = "USE_ONE_WIRE_RMT"
+CONF_USE_RMT: str = "use_rmt"
+RMT_DEFINE: str = "USE_ONE_WIRE_RMT"
 
 GPIOOneWireBus = gpio_ns.class_("GPIOOneWireBus", OneWireBus, cg.Component)
+
+
+def _validate_use_rmt(value: bool) -> bool:
+    if not value:
+        return value
+
+    cv.only_on_esp32(value)
+    esp32_rmt.validate_rmt_not_supported([CONF_USE_RMT])({CONF_USE_RMT: value})
+    return value
+
 
 CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(GPIOOneWireBus),
         cv.Required(CONF_PIN): pins.internal_gpio_output_pin_schema,
-        cv.Optional(CONF_USE_RMT, default=False): cv.boolean,
+        cv.Optional(CONF_USE_RMT, default=False): cv.All(
+            cv.boolean,
+            _validate_use_rmt,
+        ),
     }
 ).extend(cv.COMPONENT_SCHEMA)
 
@@ -29,22 +42,7 @@ async def to_code(config: ConfigType) -> None:
     use_rmt = config[CONF_USE_RMT]
 
     if use_rmt:
-        if not CORE.is_esp32:
-            raise cv.Invalid("use_rmt is only available on ESP32")
-
-        from esphome.components import esp32_rmt
-        from esphome.components.esp32 import (
-            get_esp32_variant,
-            include_builtin_idf_component,
-        )
-
-        variant = get_esp32_variant()
-        if variant in esp32_rmt.VARIANTS_NO_RMT:
-            raise cv.Invalid(f"RMT is not supported on ESP32 variant {variant}")
-
-        # This define only controls whether RMT support is compiled into the
-        # firmware. The transport selection itself is stored per bus instance.
-        include_builtin_idf_component("esp_driver_rmt")
+        esp32.include_builtin_idf_component("esp_driver_rmt")
         cg.add_define(RMT_DEFINE)
 
     var = cg.new_Pvariable(config[CONF_ID])
