@@ -16,11 +16,7 @@ void OutputSwitch::setup() {
   }
 }
 void OutputSwitch::write_state(bool state) {
-  if (state) {
-    this->output_->turn_on();
-  } else {
-    this->output_->turn_off();
-  }
+  this->output_->set_state(state);
   this->publish_state(state);
 }
 
