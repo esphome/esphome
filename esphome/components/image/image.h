@@ -38,6 +38,8 @@ class Image : public display::BaseImage {
   void draw(int x, int y, display::Display *display, Color color_on, Color color_off) override;
 
   bool has_transparency() const { return this->transparency_ != TRANSPARENCY_OPAQUE; }
+  /// RGB565 pixel byte order; static images default to little endian.
+  void set_big_endian(bool big_endian) { this->big_endian_ = big_endian; }
 
 #ifdef USE_LVGL
   lv_image_dsc_t *get_lv_image_dsc();
@@ -57,6 +59,7 @@ class Image : public display::BaseImage {
   ImageType type_;
   const uint8_t *data_start_;
   Transparency transparency_;
+  bool big_endian_{false};
   size_t bpp_{};
 #ifdef USE_LVGL
   lv_img_dsc_t dsc_{};

@@ -1,5 +1,7 @@
 #include "image.h"
 
+#include <algorithm>
+
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 
@@ -38,6 +40,29 @@ void Image::draw(int x, int y, display::Display *display, Color color_on, Color 
       x_end = clipping.x2() - x;
     if (y_end > clipping.y2() - y)
       y_end = clipping.y2() - y;
+  }
+
+  // Clamp to the display so the bulk path below never writes off screen; the
+  // per pixel path bounds checks itself, this just saves it the work.
+  if (x < 0)
+    x_start = std::max(x_start, -x);
+  if (y < 0)
+    y_start = std::max(y_start, -y);
+  x_end = std::min(x_end, display->get_width() - x);
+  y_end = std::min(y_end, display->get_height() - y);
+  if (x_end <= x_start || y_end <= y_start)
+    return;
+
+  // Opaque RGB565 and RGB pixels are already in the layout draw_pixels_at()
+  // takes, so hand the window to the display: drivers with a bulk path blit
+  // it, the others walk it per pixel as before.
+  if (this->transparency_ == TRANSPARENCY_OPAQUE &&
+      (this->type_ == IMAGE_TYPE_RGB565 || this->type_ == IMAGE_TYPE_RGB)) {
+    const bool rgb565 = this->type_ == IMAGE_TYPE_RGB565;
+    display->draw_pixels_at(x + x_start, y + y_start, x_end - x_start, y_end - y_start, this->data_start_,
+                            display::COLOR_ORDER_RGB, rgb565 ? display::COLOR_BITNESS_565 : display::COLOR_BITNESS_888,
+                            rgb565 && this->big_endian_, x_start, y_start, this->width_ - x_end);
+    return;
   }
 
   // Pixel data and frame buffers are row-major, so walking rows keeps the
@@ -200,7 +225,8 @@ Color Image::get_rgb_pixel_(int x, int y) const {
 }
 Color Image::get_rgb565_pixel_(int x, int y) const {
   const uint8_t *pos = this->data_start_ + (x + y * this->width_) * this->bpp_ / 8;
-  uint16_t rgb565 = encode_uint16(progmem_read_byte(pos + 1), progmem_read_byte(pos));
+  const uint16_t rgb565 = this->big_endian_ ? encode_uint16(progmem_read_byte(pos), progmem_read_byte(pos + 1))
+                                            : encode_uint16(progmem_read_byte(pos + 1), progmem_read_byte(pos));
   auto r = (rgb565 & 0xF800) >> 11;
   auto g = (rgb565 & 0x07E0) >> 5;
   auto b = rgb565 & 0x001F;

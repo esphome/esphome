@@ -1,6 +1,6 @@
 from esphome import automation
 import esphome.codegen as cg
-from esphome.components.const import CONF_LOOP
+from esphome.components.const import CONF_BYTE_ORDER, CONF_LOOP
 from esphome.components.file import image as file_image
 from esphome.components.file.image import image_schema, write_image
 from esphome.components.image import Image_, validate_settings
@@ -115,6 +115,8 @@ async def setup_animation(config: ConfigType) -> None:
         image_type,
         trans_value,
     )
+    if config.get(CONF_BYTE_ORDER) == "BIG_ENDIAN":
+        cg.add(var.set_big_endian(True))
     if loop_config := config.get(CONF_LOOP):
         start = loop_config[CONF_START_FRAME]
         end = loop_config.get(CONF_END_FRAME, frame_count)
