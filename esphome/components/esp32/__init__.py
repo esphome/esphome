@@ -2907,14 +2907,18 @@ async def to_code(config):
     if advanced[CONF_EXECUTE_FROM_PSRAM]:
         add_idf_sdkconfig_option("CONFIG_SPIRAM_XIP_FROM_PSRAM", True)
 
-    if advanced[CONF_NVS_CACHE_IN_PSRAM]:
-        # Imported here as psram imports this module
-        from esphome.components.psram import is_guaranteed as psram_is_guaranteed
+    # Imported here as psram imports this module
+    from esphome.components.psram import is_guaranteed as psram_is_guaranteed
 
-        # The NVS page cache and key hash lists scale with the partition size; NVS
-        # gets slower, which a few preference writes do not notice.
-        if psram_is_guaranteed():
-            add_idf_sdkconfig_option("CONFIG_NVS_ALLOCATE_CACHE_IN_SPIRAM", True)
+    # Frees internal heap (the cache scales with the NVS partition) but slows NVS, so only where
+    # PSRAM is known to be fitted. Never with NVS encryption: its keys live in these objects.
+    if (
+        advanced[CONF_NVS_CACHE_IN_PSRAM]
+        and psram_is_guaranteed()
+        and advanced.get(CONF_NVS_ENCRYPTION) is None
+        and conf[CONF_SDKCONFIG_OPTIONS].get("CONFIG_NVS_ENCRYPTION") != "y"
+    ):
+        add_idf_sdkconfig_option("CONFIG_NVS_ALLOCATE_CACHE_IN_SPIRAM", True)
 
     # Apply LWIP core locking for better socket performance
     # This is already enabled by default in Arduino framework, where it provides

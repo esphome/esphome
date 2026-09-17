@@ -1560,8 +1560,11 @@ def test_vasprintf_stub_only_on_rom_vsnprintf_variants(
     ("fixture", "expected"),
     [
         ("nvs_cache_psram_guaranteed.yaml", True),
-        ("nvs_cache_psram_default.yaml", None),
+        # psram configured but not guaranteed
+        ("execute_from_psram_disabled.yaml", None),
         ("nvs_cache_psram_disabled.yaml", None),
+        # the encryption keys must stay in internal RAM
+        ("nvs_cache_psram_encrypted.yaml", None),
     ],
 )
 def test_nvs_cache_in_psram_sdkconfig(
@@ -1570,7 +1573,7 @@ def test_nvs_cache_in_psram_sdkconfig(
     fixture: str,
     expected: bool | None,
 ) -> None:
-    """The NVS cache moves to PSRAM only when PSRAM is guaranteed and the option is on."""
+    """The NVS cache moves to PSRAM only with guaranteed PSRAM, the option on and no NVS encryption."""
     generate_main(component_config_path(fixture))
     sdkconfig = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
     assert sdkconfig.get("CONFIG_NVS_ALLOCATE_CACHE_IN_SPIRAM") is expected
