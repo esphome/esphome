@@ -2265,8 +2265,8 @@ template<class T> class RAMAllocator {
     uint32_t primary;
     uint32_t fallback;
     uint8_t num;  // distinct capability sets to hand to heap_caps_*_prefer
-    constexpr Caps(uint32_t primary, uint32_t fallback)
-        : primary(primary), fallback(fallback), num(primary == fallback ? 1 : 2) {}
+    constexpr Caps(uint32_t primary_caps, uint32_t fallback_caps)
+        : primary(primary_caps), fallback(fallback_caps), num(primary_caps == fallback_caps ? 1 : 2) {}
   };
 
   /// Returns the capability sets for heap_caps_*_prefer based on the configured flags.
