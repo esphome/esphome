@@ -17,6 +17,17 @@ constexpr uint32_t BIT_ZERO_SPACE_US = 350;
 
 constexpr unsigned int PIONEER_WYT_IR_PACKET_BIT_SIZE = 112;
 
+constexpr float TARGET_TEMPERATURE_MIN_C = 16.0f;
+constexpr float TARGET_TEMPERATURE_MAX_C = 31.0f;
+
+// Multi-bit fields reverse-engineered from factory remote captures, named by the packet type and
+// byte they live in. Both packet types carry a vertical swing flag, in different places. Each value
+// is the field contents the remote sends, not a bit index.
+constexpr uint8_t GENERAL_BYTE8_VERTICAL_SWING = 7 << 3;  // bits 3-5
+constexpr uint8_t FAN_BYTE7_VERTICAL_SWING = 4 << 2;      // bits 2-4
+constexpr uint8_t FAN_BYTE7_HORIZONTAL_SWING = 4 << 5;    // bits 5-7
+constexpr uint8_t FAN_BYTE8_CONSTANT = 0xC0;              // same in every captured FAN message
+
 uint8_t PioneerWytData::calc_cs_(uint8_t checksum_offset) const {
   for (uint8_t i = 0; i < WYT_REMOTE_COMMAND_SIZE - 1; i++) {
     checksum_offset += this->data_[i];
@@ -78,6 +89,8 @@ PioneerWytData PioneerWytData::make_general(bool power, uint8_t mode, float targ
     b6 |= (1 << 7);
   d[6] = b6;
 
+  // A lambda can bypass the schema range check, so clamp to keep the temperature byte in range
+  target_temperature = clamp(target_temperature, TARGET_TEMPERATURE_MIN_C, TARGET_TEMPERATURE_MAX_C);
   uint8_t temp_whole = static_cast<uint8_t>(target_temperature);
   d[7] = 31 - temp_whole;
 
@@ -90,7 +103,7 @@ PioneerWytData PioneerWytData::make_general(bool power, uint8_t mode, float targ
     b8 |= 2;
   }
   if (up_down_swing) {
-    b8 |= (7 << 3);
+    b8 |= GENERAL_BYTE8_VERTICAL_SWING;
   }
   d[8] = b8;
   d[9] = 0x00;
@@ -131,14 +144,14 @@ PioneerWytData PioneerWytData::make_fan(uint8_t fan_speed, bool mute, bool verti
 
   uint8_t b7 = 0;
   if (vertical_swing) {
-    b7 |= (4 << 2);
+    b7 |= FAN_BYTE7_VERTICAL_SWING;
   }
   if (horizontal_swing) {
-    b7 |= (4 << 5);
+    b7 |= FAN_BYTE7_HORIZONTAL_SWING;
   }
   d[7] = b7;
 
-  d[8] = 0xC0;
+  d[8] = FAN_BYTE8_CONSTANT;
   d[9] = 0x00;
   d[10] = 0x00;
   d[11] = 0x00;

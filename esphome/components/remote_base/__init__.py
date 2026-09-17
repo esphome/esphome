@@ -53,7 +53,7 @@ from esphome.const import (
 from esphome.core import ID, coroutine
 from esphome.cpp_generator import MockObj
 from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
-from esphome.types import ConfigType
+from esphome.types import ConfigType, TemplateArgsType
 from esphome.util import Registry, SimpleRegistry
 
 AUTO_LOAD = ["binary_sensor"]
@@ -81,13 +81,14 @@ RemoteReceiverBase = ns.class_("RemoteReceiverBase")
 RemoteTransmitterBase = ns.class_("RemoteTransmitterBase")
 
 
-def templatize(value):
+def templatize(value: cv.Schema | dict) -> cv.Schema:
+    extra_schemas = []
     if isinstance(value, cv.Schema):
+        # Keep validators attached with add_extra(); rebuilding from .schema alone drops them
+        extra_schemas = value.extra_schemas
         value = value.schema
-    ret = {}
-    for key, val in value.items():
-        ret[key] = cv.templatable(val)
-    return cv.Schema(ret)
+    ret = {key: cv.templatable(val) for key, val in value.items()}
+    return cv.Schema(ret, extra_schemas=extra_schemas)
 
 
 REMOTE_LISTENER_SCHEMA = cv.Schema(
@@ -1108,7 +1109,7 @@ PIONEER_WYT_TYPES = {
 }
 
 
-def validate_pioneer_wyt(config):
+def validate_pioneer_wyt(config: ConfigType) -> ConfigType:
     if CONF_CODE in config:
         extra_keys = {
             CONF_TYPE,
@@ -1135,8 +1136,7 @@ def validate_pioneer_wyt(config):
     return config
 
 
-def validate_target_temperature(value):
-    value = cv.float_(value)
+def validate_target_temperature(value: float) -> float:
     if abs(value - round(value * 2.0) / 2.0) > 1e-3:
         raise cv.Invalid("Target temperature must be a multiple of 0.5°C")
     return value
@@ -1168,7 +1168,9 @@ PIONEER_WYT_ACTION_SCHEMA = cv.Schema(
 
 
 @register_action("pioneer_wyt", PioneerWytAction, PIONEER_WYT_ACTION_SCHEMA)
-async def pioneer_wyt_action(var, config, args):
+async def pioneer_wyt_action(
+    var: MockObj, config: ConfigType, args: TemplateArgsType
+) -> None:
     if CONF_CODE in config:
         vec_ = cg.std_vector.template(cg.uint8)
         template_ = await cg.templatable(config[CONF_CODE], args, vec_, vec_)
