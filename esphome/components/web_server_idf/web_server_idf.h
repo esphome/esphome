@@ -126,7 +126,8 @@ class AsyncWebServerRequest {
   void requestAuthentication() const;
 #endif
 
-  void redirect(const std::string &url);
+  void redirect(const char *url);
+  void redirect(const std::string &url) { this->redirect(url.c_str()); }
 
   inline void ESPHOME_ALWAYS_INLINE send(AsyncWebServerResponse *response) {
     httpd_resp_send(*this, response->get_content_data(), response->get_content_size());

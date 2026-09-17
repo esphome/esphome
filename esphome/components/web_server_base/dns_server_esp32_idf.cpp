@@ -1,5 +1,5 @@
 #include "dns_server_esp32_idf.h"
-#ifdef USE_ESP32
+#if defined(USE_ESP32) && (defined(USE_CAPTIVE_PORTAL) || defined(USE_WEBSERVER_CAPTIVE))
 
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
@@ -7,9 +7,9 @@
 #include <lwip/sockets.h>
 #include <lwip/inet.h>
 
-namespace esphome::captive_portal {
+namespace esphome::web_server_base {
 
-static const char *const TAG = "captive_portal.dns";
+static const char *const TAG = "web_server_base.dns";
 
 // DNS constants
 static constexpr uint16_t DNS_PORT = 53;
@@ -202,6 +202,6 @@ void DNSServer::process_next_request() {
   }
 }
 
-}  // namespace esphome::captive_portal
+}  // namespace esphome::web_server_base
 
-#endif  // USE_ESP32
+#endif  // USE_ESP32 && (USE_CAPTIVE_PORTAL || USE_WEBSERVER_CAPTIVE)
