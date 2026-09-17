@@ -60,7 +60,7 @@ MCP23016_PIN_SCHEMA = pins.gpio_base_schema(
     invertible=True,
 ).extend(
     {
-        cv.Required(CONF_MCP23016): cv.use_id(MCP23016),
+        cv.Required(CONF_MCP23016): pins.use_id_or_address(MCP23016),
     }
 )
 

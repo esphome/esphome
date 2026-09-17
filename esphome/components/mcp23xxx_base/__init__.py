@@ -74,7 +74,7 @@ MCP23XXX_PIN_SCHEMA = pins.gpio_base_schema(
     invertible=True,
 ).extend(
     {
-        cv.Required(CONF_MCP23XXX): cv.use_id(MCP23XXXBase),
+        cv.Required(CONF_MCP23XXX): pins.use_id_or_address(MCP23XXXBase),
         cv.Optional(CONF_INTERRUPT, default="NO_INTERRUPT"): cv.enum(
             MCP23XXX_INTERRUPT_MODES, upper=True
         ),
