@@ -477,8 +477,11 @@ void EthernetComponent::ethernet_lazy_init_() {
   // Replaces the input path the glue installed during attach. The glue frees every receive buffer
   // with free(), so the replacement buffer must come from the heap.
   if (esp_psram_is_initialized()) {
+    // Not fatal: the glue's own input path stays in place and frames just remain in internal RAM
     err = esp_eth_update_input_path(this->eth_handle_, eth_input_to_psram, this->eth_netif_);
-    ESPHL_ERROR_CHECK(err, "ETH input path error");
+    if (err != ESP_OK) {
+      ESP_LOGW(TAG, "PSRAM RX path not installed: %s", esp_err_to_name(err));
+    }
   }
 #endif
 
