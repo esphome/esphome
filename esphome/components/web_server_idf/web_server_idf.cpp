@@ -892,10 +892,7 @@ void AsyncEventSourceResponse::process_deferred_queue_() {
   }
   while (!deferred_queue_.empty()) {
     DeferredEvent &de = deferred_queue_.front();
-    json::JsonArena<JSON_ARENA_SIZE> arena;
-    json::JsonBuilder builder(&arena);
-    de.message_generator_(web_server_, de.source_, builder);
-    if (this->send_json_(builder)) {
+    if (this->send_json_(de.source_, de.message_generator_)) {
       if (this->close_requested_ || deferred_queue_.empty()) {
         return;
       }
@@ -1082,7 +1079,11 @@ void AsyncEventSourceResponse::loop() {
   this->entities_iterator_.try_advance(1);
 }
 
-bool AsyncEventSourceResponse::send_json_(json::JsonBuilder &builder) {
+bool AsyncEventSourceResponse::send_json_(void *source, message_generator_t *generator) {
+  // The arena lives only in this frame, so no call chain ever holds two of them
+  json::JsonArena<JSON_ARENA_SIZE> arena;
+  json::JsonBuilder builder(&arena);
+  generator(this->web_server_, source, builder);
   char buf[JSON_BUF_SIZE];
   const size_t len = builder.serialize_to(buf, sizeof(buf));
   if (len < sizeof(buf)) {
@@ -1246,11 +1247,8 @@ void AsyncEventSourceResponse::deferrable_send_state(void *source, const char *e
     // trying to send first
     deq_push_back_with_dedup_(source, message_generator);
   } else {
-    json::JsonArena<JSON_ARENA_SIZE> arena;
-    json::JsonBuilder builder(&arena);
-    message_generator(web_server_, source, builder);
     // A send error closes the session and clears the queue; nothing is queued after that
-    if (!this->send_json_(builder) && !this->close_requested_) {
+    if (!this->send_json_(source, message_generator) && !this->close_requested_) {
       deq_push_back_with_dedup_(source, message_generator);
     }
   }

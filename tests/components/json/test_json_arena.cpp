@@ -132,19 +132,24 @@ TEST(JsonArena, FailedMoveKeepsTheBlockReserved) {
 }
 
 // NOLINTBEGIN(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
-// The web_server_idf arena is one pool plus 1152 bytes; the documents the event stream sends must
-// fit without touching the fallback
+// Mirrors JSON_ARENA_SIZE in web_server_idf.h: one pool plus 1152 bytes for copied string nodes
+constexpr size_t ARENA = esphome::json::JSON_POOL_BYTES + 1152;
+
+// The documents the event stream sends must fit without touching the fallback, and their copied
+// strings must land in the headroom above the pool
 TEST(JsonArena, StateDocumentsFitWithoutTouchingTheFallback) {
   Counting counting;
-  JsonArena<esphome::json::JSON_POOL_BYTES + 1152> arena(&counting);
+  JsonArena<ARENA> arena(&counting);
   {
-    // A switch state event: copied id, literal domain and name, bool value
+    // A switch state event: copied id, domain and name, bool value
     JsonBuilder builder(&arena);
     JsonObject root = builder.root();
     char id_buf[] = "switch/SSE Toggle";
+    char domain_buf[] = "switch";
+    char name_buf[] = "SSE Toggle";
     root["id"] = static_cast<const char *>(id_buf);
-    root["domain"] = JsonString("switch", true);
-    root["name"] = JsonString("SSE Toggle", true);
+    root["domain"] = static_cast<const char *>(domain_buf);
+    root["name"] = static_cast<const char *>(name_buf);
     root["icon"] = "";
     root["entity_category"] = 0;
     root["value"] = true;
@@ -154,35 +159,36 @@ TEST(JsonArena, StateDocumentsFitWithoutTouchingTheFallback) {
     EXPECT_LT(builder.serialize_to(out, sizeof(out)), sizeof(out));
   }
   EXPECT_EQ(counting.allocs, 0);
+  EXPECT_GT(arena.used(), esphome::json::JSON_POOL_BYTES);
+
   Counting counting_select;
-  JsonArena<esphome::json::JSON_POOL_BYTES + 1152> select_arena(&counting_select);
+  JsonArena<ARENA> select_arena(&counting_select);
   {
-    // A 40 option select detail document: copied id and value, linked options
+    // A 40 option select detail document: copied id, domain, name and value, linked options
     JsonBuilder builder(&select_arena);
     JsonObject root = builder.root();
     char id_buf[] = "select/SSE Big Select";
+    char domain_buf[] = "select";
+    char name_buf[] = "SSE Big Select";
     char value_buf[] = "option number 17 padded to twenty";
     root["id"] = static_cast<const char *>(id_buf);
-    root["domain"] = JsonString("select", true);
-    root["name"] = JsonString("SSE Big Select", true);
+    root["domain"] = static_cast<const char *>(domain_buf);
+    root["name"] = static_cast<const char *>(name_buf);
     root["icon"] = "";
     root["entity_category"] = 0;
     root["value"] = static_cast<const char *>(value_buf);
     root["state"] = static_cast<const char *>(value_buf);
     JsonArray options = root["option"].to<JsonArray>();
-    static const char *const OPTIONS[] = {
-        "option number 00 padded to twenty", "option number 01 padded to twenty", "option number 02 padded to twenty",
-        "option number 03 padded to twenty", "option number 04 padded to twenty", "option number 05 padded to twenty",
-        "option number 06 padded to twenty", "option number 07 padded to twenty", "option number 08 padded to twenty",
-        "option number 09 padded to twenty",
-    };
+    char option_bufs[40][34];
     for (int i = 0; i < 40; i++) {
-      options.add(JsonString(OPTIONS[i % 10], true));
+      snprintf(option_bufs[i], sizeof(option_bufs[i]), "option number %02d padded to twenty", i);
+      options.add(JsonString(option_bufs[i], true));
     }
     char out[2048];
     EXPECT_LT(builder.serialize_to(out, sizeof(out)), sizeof(out));
   }
   EXPECT_EQ(counting_select.allocs, 0);
+  EXPECT_GT(select_arena.used(), esphome::json::JSON_POOL_BYTES);
 }
 
 TEST(JsonArena, DocumentMatchesTheHeapAllocator) {
@@ -199,7 +205,7 @@ TEST(JsonArena, DocumentMatchesTheHeapAllocator) {
       strings.add(buf);
     }
   };
-  JsonArena<2176> arena;
+  JsonArena<ARENA> arena;
   JsonBuilder with_arena(&arena);
   build(with_arena);
   JsonBuilder with_heap;
