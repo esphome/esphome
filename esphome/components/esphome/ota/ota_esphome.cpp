@@ -22,8 +22,10 @@
 #include "esphome/core/lwip_fast_select.h"
 #endif
 
+#include <algorithm>
 #include <cerrno>
 #include <cstdio>
+#include <cstring>
 #include <sys/time.h>
 
 namespace esphome {
@@ -45,6 +47,8 @@ static constexpr uint32_t OTA_SOCKET_TIMEOUT_HANDSHAKE = 20000;  // milliseconds
 // practice for a lost chunk ack (1.5 + 3 + 6 + 12 + 24 + 48 s); the CLI waits
 // longer (espota2.DATA_PHASE_TIMEOUT) so the device is free before it retries
 static constexpr uint32_t OTA_SOCKET_TIMEOUT_DATA = 105000;
+static constexpr uint32_t OTA_PROGRESS_INTERVAL_MS = 1000;
+static constexpr size_t OTA_SIZE_FIELD_BYTES = 4;  // sizes on the wire are 4 bytes MSB first
 
 // Single-instance pointer — multi-port configs are rejected in final_validate.
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
@@ -182,12 +186,23 @@ static constexpr uint8_t CLIENT_FEATURE_SUPPORTS_COMPRESSION = 0x01;
 static constexpr uint8_t CLIENT_FEATURE_SUPPORTS_SHA256_AUTH = 0x02;
 static constexpr uint8_t CLIENT_FEATURE_SUPPORTS_EXTENDED_PROTOCOL = 0x04;
 static constexpr uint8_t CLIENT_FEATURE_SUPPORTS_NOISE = 0x08;
+static constexpr uint8_t CLIENT_FEATURE_SUPPORTS_DEFLATE = 0x10;
 // Noise needs the extended protocol: the prologue binds the 2-byte feature ack
 static constexpr uint8_t CLIENT_NOISE_FEATURES =
     CLIENT_FEATURE_SUPPORTS_NOISE | CLIENT_FEATURE_SUPPORTS_EXTENDED_PROTOCOL;
 static constexpr uint8_t SERVER_FEATURE_SUPPORTS_COMPRESSION = 0x01;
 static constexpr uint8_t SERVER_FEATURE_SUPPORTS_PARTITION_ACCESS = 0x02;
 static constexpr uint8_t SERVER_FEATURE_SUPPORTS_NOISE = 0x04;
+// Raw deflate, window <= OTA_INFLATE_WINDOW_SIZE. Binding once offered: the
+// client must then send the image size frame and a deflate stream.
+static constexpr uint8_t SERVER_FEATURE_SUPPORTS_DEFLATE = 0x08;
+
+#ifdef USE_OTA_ENCRYPTION
+inline bool ESPHomeOTAComponent::noise_offered_() const {
+  return (this->handshake_buf_[1] & SERVER_FEATURE_SUPPORTS_NOISE) != 0 &&
+         (this->ota_features_ & CLIENT_NOISE_FEATURES) == CLIENT_NOISE_FEATURES;
+}
+#endif
 
 inline bool ESPHomeOTAComponent::extended_proto_() const {
 #ifdef USE_OTA_ENCRYPTION_REQUIRED
@@ -293,7 +308,7 @@ void ESPHomeOTAComponent::handle_handshake_() {
       this->transition_ota_state_(OTAState::FEATURE_ACK);
 
       const bool supports_compression =
-          (this->ota_features_ & CLIENT_FEATURE_SUPPORTS_COMPRESSION) != 0 && this->backend_->supports_compression();
+          (this->ota_features_ & CLIENT_FEATURE_SUPPORTS_COMPRESSION) != 0 && ota::OTABackend::supports_compression();
 
       // Compose the feature-ack response. When the client negotiates the extended protocol we emit
       // a 2-byte response (marker + server feature flags); otherwise we emit the single-byte
@@ -314,6 +329,28 @@ void ESPHomeOTAComponent::handle_handshake_() {
         // A yaml key always exists: validation rejects the all-zeros key
         this->handshake_buf_[1] |= SERVER_FEATURE_SUPPORTS_NOISE;
 #endif
+#ifdef USE_OTA_ENCRYPTION
+        // Reserve the noise session before the optional inflate buffer, so the
+        // required allocation is not starved by the compression window
+        if (this->noise_offered_()) {
+          this->noise_reserve_session_();
+        }
+#endif
+#ifdef USE_OTA_DEFLATE
+        // Offered only once the session memory is in hand; else uncompressed
+        if ((this->ota_features_ & CLIENT_FEATURE_SUPPORTS_DEFLATE) != 0) {
+          // Value initialized: a corrupt stream that back references the
+          // window before it is filled then copies zeros, never stale memory.
+          // Default placement, PSRAM first where present: the session lives for one
+          // upload and keeps 4.9 KB of internal heap free while it runs
+          this->inflate_ = RAMAllocator<InflateSession>().make_unique();
+          if (this->inflate_ != nullptr) {
+            this->handshake_buf_[1] |= SERVER_FEATURE_SUPPORTS_DEFLATE;
+          } else {
+            ESP_LOGW(TAG, "No memory to inflate");
+          }
+        }
+#endif
       } else {
         this->handshake_buf_[0] =
             supports_compression ? ota::OTA_RESPONSE_SUPPORTS_COMPRESSION : ota::OTA_RESPONSE_HEADER_OK;
@@ -331,8 +368,7 @@ void ESPHomeOTAComponent::handle_handshake_() {
 #ifdef USE_OTA_ENCRYPTION
       // Latch the offer actually sent: a key activating between the two
       // states must not start a session the client never expects
-      if ((this->handshake_buf_[1] & SERVER_FEATURE_SUPPORTS_NOISE) != 0 &&
-          (this->ota_features_ & CLIENT_NOISE_FEATURES) == CLIENT_NOISE_FEATURES) {
+      if (this->noise_offered_()) {
         // handshake_buf_ still holds the feature ack composed above; a
         // would-block re-entry lands here without rebuilding it
         if (!this->noise_start_session_(this->handshake_buf_[1])) {
@@ -430,16 +466,11 @@ void ESPHomeOTAComponent::handle_data_() {
   // Backend calls overwrite this with OK; reset to UNKNOWN before any
   // goto error that follows a successful begin()/write()
   ota::OTAResponseTypes error_code = ota::OTA_RESPONSE_ERROR_UNKNOWN;
-  size_t total = 0;
-  uint32_t last_progress = 0;
-  uint32_t last_data_ms = 0;
+  DataTransfer xfer;
   uint8_t buf[OTA_BUFFER_SIZE];
   char *sbuf = reinterpret_cast<char *>(buf);
-  size_t ota_size;
+  size_t image_size;
   ota::OTAType ota_type = ota::OTA_TYPE_UPDATE_APP;
-#if USE_OTA_VERSION == 2
-  size_t size_acknowledged = 0;
-#endif
 
   // Set socket timeouts and blocking mode (see strategy table above)
   struct timeval tv;
@@ -462,14 +493,13 @@ void ESPHomeOTAComponent::handle_data_() {
   }
   ESP_LOGV(TAG, "OTA type is 0x%02x", ota_type);
 
-  // Read size, 4 bytes MSB first
-  if (!this->data_readall_(buf, 4)) {
-    this->log_read_error_(LOG_STR("size"));
+  if (!this->read_size_(buf, xfer.ota_size, LOG_STR("size")))
     goto error;  // NOLINT(cppcoreguidelines-avoid-goto)
-  }
-  ota_size = (static_cast<size_t>(buf[0]) << 24) | (static_cast<size_t>(buf[1]) << 16) |
-             (static_cast<size_t>(buf[2]) << 8) | buf[3];
-  ESP_LOGV(TAG, "Size is %zu bytes", ota_size);
+  image_size = xfer.ota_size;
+#ifdef USE_OTA_DEFLATE
+  if (this->inflate_ != nullptr && !this->read_size_(buf, image_size, LOG_STR("image size")))
+    goto error;  // NOLINT(cppcoreguidelines-avoid-goto)
+#endif
 
 #ifndef USE_OTA_PARTITIONS
   if (ota_type != ota::OTA_TYPE_UPDATE_APP) {
@@ -489,7 +519,7 @@ void ESPHomeOTAComponent::handle_data_() {
 #endif
 
   // begin() returns quickly; flash sectors are erased incrementally during write().
-  error_code = this->backend_->begin(ota_size, ota_type);
+  error_code = this->backend_->begin(image_size, ota_type);
   if (error_code != ota::OTA_RESPONSE_OK)
     goto error;  // NOLINT(cppcoreguidelines-avoid-goto)
 
@@ -509,75 +539,25 @@ void ESPHomeOTAComponent::handle_data_() {
   // Acknowledge MD5 OK - 1 byte
   this->data_write_byte_(ota::OTA_RESPONSE_BIN_MD5_OK);
 
-  // Track when we last received data so a silently-vanished peer (no FIN/RST
-  // delivered, e.g. uploader killed mid-transfer or NAT/router dropped state)
-  // can't wedge the device indefinitely. Without this, the loop only exits
-  // on actual data, EOF, or a non-EWOULDBLOCK error from read(), and lwIP
-  // TCP keepalive isn't enabled here.
-  last_data_ms = millis();
-  while (total < ota_size) {
-    if (millis() - last_data_ms > OTA_SOCKET_TIMEOUT_DATA) {
-      ESP_LOGW(TAG, "No data received for %u ms", (unsigned) OTA_SOCKET_TIMEOUT_DATA);
-      error_code = ota::OTA_RESPONSE_ERROR_UNKNOWN;
+  xfer.last_data_ms = millis();
+#ifdef USE_OTA_DEFLATE
+  if (this->inflate_ != nullptr) {
+    error_code = this->inflate_data_(buf, image_size, xfer);
+    if (error_code != ota::OTA_RESPONSE_OK)
       goto error;  // NOLINT(cppcoreguidelines-avoid-goto)
-    }
-    size_t remaining = ota_size - total;
-    size_t requested = remaining < OTA_BUFFER_SIZE ? remaining : OTA_BUFFER_SIZE;
-    ssize_t read;
-#ifdef USE_OTA_ENCRYPTION
-    if (this->noise_ != nullptr) {
-      // One frame per call; noise_read_data_ waits internally (readall_), so
-      // there is no would-block retry here and failures are already logged.
-      read = this->noise_read_data_(buf, requested);
-      if (read <= 0) {
+  } else
+#endif
+  {
+    while (xfer.total < xfer.ota_size) {
+      ssize_t read = this->receive_data_(buf, xfer);
+      if (read < 0) {
         error_code = ota::OTA_RESPONSE_ERROR_UNKNOWN;
         goto error;  // NOLINT(cppcoreguidelines-avoid-goto)
       }
-    } else
-#endif
-    {
-      read = this->client_->read(buf, requested);
-      if (read == -1) {
-        const int err = errno;
-        if (this->would_block_(err)) {
-          // read() already waited up to SO_RCVTIMEO for data, just feed WDT
-          App.feed_wdt();
-          continue;
-        }
-        ESP_LOGW(TAG, "Read err %d", err);
-        error_code = ota::OTA_RESPONSE_ERROR_UNKNOWN;
+      error_code = this->write_flash_(buf, read);
+      if (error_code != ota::OTA_RESPONSE_OK)
         goto error;  // NOLINT(cppcoreguidelines-avoid-goto)
-      } else if (read == 0) {
-        ESP_LOGW(TAG, "Remote closed");
-        error_code = ota::OTA_RESPONSE_ERROR_UNKNOWN;
-        goto error;  // NOLINT(cppcoreguidelines-avoid-goto)
-      }
-    }
-
-    last_data_ms = millis();
-    error_code = this->backend_->write(buf, read);
-    if (error_code != ota::OTA_RESPONSE_OK) {
-      ESP_LOGW(TAG, "Flash write err %d", error_code);
-      goto error;  // NOLINT(cppcoreguidelines-avoid-goto)
-    }
-    total += read;
-#if USE_OTA_VERSION == 2
-    while (size_acknowledged + OTA_BLOCK_SIZE <= total || (total == ota_size && size_acknowledged < ota_size)) {
-      this->data_write_byte_(ota::OTA_RESPONSE_CHUNK_OK);
-      size_acknowledged += OTA_BLOCK_SIZE;
-    }
-#endif
-
-    uint32_t now = millis();
-    if (now - last_progress > 1000) {
-      last_progress = now;
-      float percentage = (total * 100.0f) / ota_size;
-      ESP_LOGD(TAG, "Progress: %0.1f%%", percentage);
-#ifdef USE_OTA_STATE_LISTENER
-      this->notify_state_(ota::OTA_IN_PROGRESS, percentage, 0);
-#endif
-      // feed watchdog and give other tasks a chance to run
-      this->yield_and_feed_watchdog_();
+      this->ack_written_(xfer);
     }
   }
 
@@ -774,6 +754,89 @@ bool ESPHomeOTAComponent::try_write_(size_t to_write, const LogString *desc) {
   return this->handshake_buf_pos_ >= to_write;
 }
 
+bool ESPHomeOTAComponent::read_size_(uint8_t *buf, size_t &size, const LogString *desc) {
+  if (!this->data_readall_(buf, OTA_SIZE_FIELD_BYTES)) {
+    this->log_read_error_(desc);
+    return false;
+  }
+  size = encode_uint32(buf[0], buf[1], buf[2], buf[3]);
+  ESP_LOGV(TAG, "%s is %zu bytes", LOG_STR_ARG(desc), size);
+  return true;
+}
+
+ota::OTAResponseTypes ESPHomeOTAComponent::write_flash_(uint8_t *data, size_t len) {
+  ota::OTAResponseTypes result = this->backend_->write(data, len);
+  if (result != ota::OTA_RESPONSE_OK) {
+    ESP_LOGW(TAG, "Flash write err %d", result);
+  }
+  return result;
+}
+
+ssize_t ESPHomeOTAComponent::receive_data_(uint8_t *buf, DataTransfer &xfer) {
+  const size_t remaining = xfer.ota_size - xfer.total;
+  const size_t requested = std::min(remaining, OTA_BUFFER_SIZE);
+  ssize_t read;
+  for (;;) {
+    // A silently-vanished peer (no FIN/RST delivered, e.g. uploader killed
+    // mid-transfer or NAT/router dropped state) must not wedge the device:
+    // read() only fails on EOF or a real error, and lwIP TCP keepalive isn't
+    // enabled here.
+    if (millis() - xfer.last_data_ms > OTA_SOCKET_TIMEOUT_DATA) {
+      ESP_LOGW(TAG, "No data received for %u ms", (unsigned) OTA_SOCKET_TIMEOUT_DATA);
+      return -1;
+    }
+#ifdef USE_OTA_ENCRYPTION
+    if (this->noise_ != nullptr) {
+      // One frame per call; noise_read_data_ waits internally (readall_), so
+      // there is no would-block retry here and failures are already logged.
+      read = this->noise_read_data_(buf, requested);
+      if (read <= 0)
+        return -1;
+      break;
+    }
+#endif
+    read = this->client_->read(buf, requested);
+    if (read > 0)
+      break;
+    if (read == 0) {
+      this->log_remote_closed_(LOG_STR("data"));
+      return -1;
+    }
+    if (!this->would_block_(errno)) {
+      this->log_socket_error_(LOG_STR("data"));
+      return -1;
+    }
+    // read() already waited up to SO_RCVTIMEO for data, just feed WDT
+    App.feed_wdt();
+  }
+
+  const uint32_t now = millis();
+  xfer.last_data_ms = now;
+  xfer.total += read;
+  this->ack_received_(xfer);
+  if (now - xfer.last_progress > OTA_PROGRESS_INTERVAL_MS) {
+    xfer.last_progress = now;
+    float percentage = (xfer.total * 100.0f) / xfer.ota_size;
+    ESP_LOGD(TAG, "Progress: %0.1f%%", percentage);
+#ifdef USE_OTA_STATE_LISTENER
+    this->notify_state_(ota::OTA_IN_PROGRESS, percentage, 0);
+#endif
+    // feed watchdog and give other tasks a chance to run
+    this->yield_and_feed_watchdog_();
+  }
+  return read;
+}
+
+void ESPHomeOTAComponent::send_chunk_acks_(DataTransfer &xfer) {
+#if USE_OTA_VERSION == 2
+  while (xfer.acknowledged + OTA_BLOCK_SIZE <= xfer.total ||
+         (xfer.total == xfer.ota_size && xfer.acknowledged < xfer.ota_size)) {
+    this->data_write_byte_(ota::OTA_RESPONSE_CHUNK_OK);
+    xfer.acknowledged += OTA_BLOCK_SIZE;
+  }
+#endif
+}
+
 void ESPHomeOTAComponent::cleanup_connection_() {
   this->client_->close();
   this->client_ = nullptr;
@@ -787,6 +850,9 @@ void ESPHomeOTAComponent::cleanup_connection_() {
 #endif
 #ifdef USE_OTA_ENCRYPTION
   this->noise_ = nullptr;
+#endif
+#ifdef USE_OTA_DEFLATE
+  this->inflate_ = nullptr;
 #endif
   // Intentionally no disable_loop() — letting loop() run one more iteration catches
   // any connection that queued on the listener mid-session (otherwise the wake flag,
