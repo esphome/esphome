@@ -4,6 +4,7 @@ from typing import Any
 
 import esphome.codegen as cg
 from esphome.components import display
+from esphome.components.snapshot import Snapshot, register_snapshot
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_DIMENSIONS,
@@ -16,14 +17,21 @@ from esphome.const import (
     CONF_Y,
     PLATFORM_HOST,
 )
+import esphome.final_validate as fv
 from esphome.types import ConfigType
 
+from . import SDL_KEYMAP
+
+AUTO_LOAD = ["snapshot"]
+
 sdl_ns = cg.esphome_ns.namespace("sdl")
-Sdl = sdl_ns.class_("Sdl", display.Display, cg.Component)
+Sdl = sdl_ns.class_("Sdl", display.Display, cg.Component, Snapshot)
 sdl_window_flags = cg.global_ns.enum("SDL_WindowFlags")
 
 
 CONF_CENTERED_ON_DISPLAY = "centered_on_display"
+CONF_HEADLESS = "headless"
+CONF_SNAPSHOT_KEY = "snapshot_key"
 CONF_SDL_OPTIONS = "sdl_options"
 CONF_SDL_ID = "sdl_id"
 CONF_WINDOW_OPTIONS = "window_options"
@@ -67,12 +75,29 @@ def _validate_position(config: dict) -> dict:
     raise cv.Invalid("Must specify either 'x' and 'y' or 'centered_on_display'")
 
 
+def _validate_headless(config: ConfigType) -> ConfigType:
+    if not config[CONF_HEADLESS]:
+        return config
+    if CONF_WINDOW_OPTIONS in config:
+        raise cv.Invalid(
+            f"'{CONF_WINDOW_OPTIONS}' has no effect when '{CONF_HEADLESS}' is set - there is no window"
+        )
+    if CONF_SNAPSHOT_KEY in config:
+        raise cv.Invalid(
+            f"'{CONF_SNAPSHOT_KEY}' cannot be used when '{CONF_HEADLESS}' is set - "
+            f"there is no keyboard. Use the 'snapshot.take' action instead"
+        )
+    return config
+
+
 CONFIG_SCHEMA = cv.All(
     display.FULL_DISPLAY_SCHEMA.extend(
         cv.Schema(
             {
                 cv.GenerateID(): cv.declare_id(Sdl),
                 cv.Optional(CONF_SDL_OPTIONS, default=""): get_sdl_options,
+                cv.Optional(CONF_HEADLESS, default=False): cv.boolean,
+                cv.Optional(CONF_SNAPSHOT_KEY): cv.enum(SDL_KEYMAP),
                 cv.Required(CONF_DIMENSIONS): cv.Any(
                     cv.dimensions,
                     cv.Schema(
@@ -99,8 +124,30 @@ CONFIG_SCHEMA = cv.All(
             }
         )
     ),
+    _validate_headless,
     cv.only_on(PLATFORM_HOST),
 )
+
+
+def headless_final_validate(platform: str) -> cv.Schema:
+    """Build a FINAL_VALIDATE_SCHEMA rejecting a platform whose sdl display is headless.
+
+    Mouse and keyboard platforms are driven by window events, so under a headless display they
+    would never report anything.
+    """
+
+    def validate_display(display_config: ConfigType) -> ConfigType:
+        if display_config.get(CONF_HEADLESS):
+            raise cv.Invalid(
+                f"The sdl {platform} platform needs a window, but its display has "
+                f"'{CONF_HEADLESS}' set"
+            )
+        return display_config
+
+    return cv.Schema(
+        {cv.Required(CONF_SDL_ID): fv.id_declaration_match_schema(validate_display)},
+        extra=cv.ALLOW_EXTRA,
+    )
 
 
 async def to_code(config: ConfigType) -> None:
@@ -109,6 +156,10 @@ async def to_code(config: ConfigType) -> None:
     cg.add_build_flag("-DSDL_BYTEORDER=4321")
     var = cg.new_Pvariable(config[CONF_ID])
     await display.register_display(var, config)
+    await register_snapshot(var, config)
+    cg.add(var.set_headless(config[CONF_HEADLESS]))
+    if (key := config.get(CONF_SNAPSHOT_KEY)) is not None:
+        cg.add(var.set_snapshot_key(key))
 
     dimensions = config[CONF_DIMENSIONS]
     if isinstance(dimensions, dict):
