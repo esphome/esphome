@@ -742,7 +742,8 @@ bool AsyncEventSource::loop() {
       ++i;
     }
   }
-  return !this->sessions_.empty();
+  // A session still waiting for httpd to commit its context keeps the loop alive too
+  return !this->sessions_.empty() || this->has_pending_sessions_.load(std::memory_order_acquire);
 }
 
 void AsyncEventSource::adopt_pending_sessions_main_loop_() {
@@ -756,6 +757,15 @@ void AsyncEventSource::adopt_pending_sessions_main_loop_() {
     // Already disconnected? Drop it; skip on_connect_/session start on a dead session.
     if (rsp->safe_to_delete_()) {
       delete rsp;  // NOLINT(cppcoreguidelines-owning-memory)
+      continue;
+    }
+    // httpd copies the session context into its table only after the handler that created the
+    // session returns. Until then send_() would refuse the socket and the greeting would end up
+    // in the tail, so leave the session pending for another pass.
+    if (httpd_sess_get_ctx(rsp->hd_, rsp->fd_.load()) != rsp) {
+      LockGuard guard{this->pending_mutex_};
+      this->pending_sessions_.push_back(rsp);
+      this->has_pending_sessions_.store(true, std::memory_order_release);
       continue;
     }
     this->sessions_.push_back(rsp);
@@ -949,9 +959,7 @@ ssize_t AsyncEventSourceResponse::send_(struct iovec *iov, int iovcnt) {
   // httpd frees the session before it closes the socket, so the fd number can already belong to
   // a new client. Checking the session table narrows that window; it cannot close it. Treated
   // as would-block: the chunk waits in the tail and the stall timer ends a session that never
-  // becomes ours again. A new session passes from the start: while its request is in flight the
-  // lookup answers from the request, and httpd_req_cleanup() copies the context into the table
-  // before it clears the in-flight marker.
+  // becomes ours again. A new session is adopted only once httpd has committed its context.
   const int fd = this->fd_.load();
   if (httpd_sess_get_ctx(this->hd_, fd) != this) {
     return 0;
