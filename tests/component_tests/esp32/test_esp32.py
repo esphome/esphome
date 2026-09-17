@@ -1561,6 +1561,7 @@ def test_vasprintf_stub_only_on_rom_vsnprintf_variants(
     ("fixture", "expected"),
     [
         ("nvs_cache_psram_guaranteed.yaml", True),
+        ("nvs_cache_psram_explicit.yaml", True),
         ("nvs_cache_psram_not_guaranteed.yaml", None),
         ("nvs_cache_psram_disabled.yaml", None),
         # the encryption keys must stay in internal RAM, whichever way encryption is enabled
@@ -1675,3 +1676,16 @@ async def test_nvs_cache_in_psram_explicit_request_warns_when_encrypted(
         "CONFIG_NVS_ALLOCATE_CACHE_IN_SPIRAM"
         not in CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
     )
+
+
+def test_nvs_cache_in_psram_explicit_true_on_valid_board_is_quiet(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """An explicit true that applies sets the option and warns about nothing."""
+    with caplog.at_level(logging.WARNING):
+        generate_main(component_config_path("nvs_cache_psram_explicit.yaml"))
+    sdkconfig = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
+    assert sdkconfig.get("CONFIG_NVS_ALLOCATE_CACHE_IN_SPIRAM") is True
+    assert "nvs_cache_in_psram" not in caplog.text
