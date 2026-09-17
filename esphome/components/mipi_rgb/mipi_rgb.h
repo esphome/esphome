@@ -70,6 +70,8 @@ class MipiRgb : public display::Display {
   void write_to_display_(int x_start, int y_start, int w, int h, const uint8_t *ptr, int x_offset, int y_offset,
                          int x_pad);
   bool check_buffer_();
+  /// Send the region touched since the last flush to the panel.
+  void flush_dirty_();
   void dump_pins_(uint8_t start, uint8_t end, const char *name, uint8_t offset);
   void setup_enables_();
   void common_setup_();

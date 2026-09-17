@@ -77,6 +77,8 @@ class ST7701S final : public display::Display,
 
   // this will be horribly slow.
  protected:
+  void write_to_display_(int x_start, int y_start, int w, int h, const uint8_t *ptr, int x_offset, int y_offset,
+                         int x_pad);
   void write_command_(uint8_t value);
   void write_data_(uint8_t value);
   void write_sequence_(uint8_t cmd, size_t len, const uint8_t *bytes);

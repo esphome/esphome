@@ -192,6 +192,10 @@ void MipiRgb::update() {
   } else {
     this->stop_poller();
   }
+  this->flush_dirty_();
+}
+
+void MipiRgb::flush_dirty_() {
   if (this->buffer_ == nullptr || this->x_low_ > this->x_high_ || this->y_low_ > this->y_high_)
     return;
   ESP_LOGV(TAG, "x_low %d, y_low %d, x_high %d, y_high %d", this->x_low_, this->y_low_, this->x_high_, this->y_high_);
@@ -210,12 +214,11 @@ void MipiRgb::draw_pixels_at(int x_start, int y_start, int w, int h, const uint8
                              display::ColorBitness bitness, bool big_endian, int x_offset, int y_offset, int x_pad) {
   if (w <= 0 || h <= 0 || this->is_failed())
     return;
-  // if color mapping is required, pass the buck.
-  // note that endianness is not considered here - it is assumed to match!
-  if (bitness != display::COLOR_BITNESS_565) {
+  // The panel takes big endian 565 in its own orientation; anything else goes through the base
+  // class, which converts and rotates one pixel at a time into the buffer, then gets flushed.
+  if (bitness != display::COLOR_BITNESS_565 || !big_endian || this->rotation_ != display::DISPLAY_ROTATION_0_DEGREES) {
     Display::draw_pixels_at(x_start, y_start, w, h, ptr, order, bitness, big_endian, x_offset, y_offset, x_pad);
-    this->write_to_display_(x_start, y_start, w, h, reinterpret_cast<const uint8_t *>(this->buffer_), x_start, y_start,
-                            this->width_ - w - x_start);
+    this->flush_dirty_();
   } else {
     this->write_to_display_(x_start, y_start, w, h, ptr, x_offset, y_offset, x_pad);
   }

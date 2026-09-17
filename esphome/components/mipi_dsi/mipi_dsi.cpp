@@ -206,9 +206,10 @@ void MipiDsi::draw_pixels_at(int x_start, int y_start, int w, int h, const uint8
                              display::ColorBitness bitness, bool big_endian, int x_offset, int y_offset, int x_pad) {
   if (w <= 0 || h <= 0)
     return;
-  // if color mapping is required, pass the buck.
-  // note that endianness is not considered here - it is assumed to match!
-  if (bitness != this->color_depth_) {
+  // The buffer holds little endian pixels in the panel's own orientation; anything else goes through
+  // the base class, which converts and rotates one pixel at a time.
+  if (bitness != this->color_depth_ || (bitness == display::COLOR_BITNESS_565 && big_endian) ||
+      this->rotation_ != display::DISPLAY_ROTATION_0_DEGREES) {
     display::Display::draw_pixels_at(x_start, y_start, w, h, ptr, order, bitness, big_endian, x_offset, y_offset,
                                      x_pad);
     return;
