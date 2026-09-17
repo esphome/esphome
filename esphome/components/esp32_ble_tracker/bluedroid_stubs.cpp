@@ -13,7 +13,7 @@
 
 #include "esphome/core/defines.h"
 
-#if defined(USE_ESP32) && defined(USE_ESP32_BLE_DIRECT_CONN_GUARD)
+#ifdef USE_ESP32_BLE_TRACKER_DIRECT_CONN_GUARD
 
 namespace esphome::esp32_ble_tracker {}
 
@@ -23,7 +23,7 @@ extern "C" {
 bool __real_l2cble_init_direct_conn(void *p_lcb);
 
 bool __wrap_l2cble_init_direct_conn(void *p_lcb) {
-  // in_use is the first member of tL2C_LCB
+  // in_use (bool) is the first member of tL2C_LCB, checked from ESP-IDF 5.3.2 to 6.1
   if (p_lcb == nullptr || !*static_cast<const bool *>(p_lcb)) {
     return false;
   }
@@ -33,4 +33,4 @@ bool __wrap_l2cble_init_direct_conn(void *p_lcb) {
 }  // extern "C"
 // NOLINTEND(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp,readability-identifier-naming)
 
-#endif  // USE_ESP32 && USE_ESP32_BLE_DIRECT_CONN_GUARD
+#endif  // USE_ESP32_BLE_TRACKER_DIRECT_CONN_GUARD

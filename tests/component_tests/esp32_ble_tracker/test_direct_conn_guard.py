@@ -1,39 +1,41 @@
-"""The Bluedroid queued connection guard: builds that open BLE connections
-wrap l2cble_init_direct_conn, scan-only builds emit nothing."""
+"""Tests for the Bluedroid queued connection guard.
+
+Builds that open BLE connections wrap l2cble_init_direct_conn, scan-only
+builds emit nothing.
+"""
 
 from __future__ import annotations
 
 from collections.abc import Callable
 from pathlib import Path
 
+import pytest
+
 from esphome.core import CORE
 
 # Spelled out rather than derived from the component, so a typo in the
 # component's flags fails here instead of mirroring into the test.
-GUARD_FLAGS = (
+_GUARD_FLAGS = {
     "-Wl,--wrap=l2cble_init_direct_conn",
     "-Wl,--undefined=__wrap_l2cble_init_direct_conn",
+}
+
+
+@pytest.mark.parametrize(
+    ("config_file", "expected"),
+    [
+        pytest.param("scan_window_raised.yaml", True, id="client"),
+        pytest.param("scan_window_scan_only.yaml", False, id="scan_only"),
+    ],
 )
-GUARD_DEFINE = "USE_ESP32_BLE_DIRECT_CONN_GUARD"
-
-
-def _define_names() -> set[str]:
-    return {define.name for define in CORE.defines}
-
-
-def test_client_build_emits_the_guard(
+def test_guard_only_in_builds_with_a_client(
     generate_main: Callable[[str | Path], str],
     component_config_path: Callable[[str], Path],
+    config_file: str,
+    expected: bool,
 ) -> None:
-    generate_main(component_config_path("scan_window_raised.yaml"))
-    assert all(flag in CORE.build_flags for flag in GUARD_FLAGS)
-    assert GUARD_DEFINE in _define_names()
-
-
-def test_scan_only_build_has_no_guard(
-    generate_main: Callable[[str | Path], str],
-    component_config_path: Callable[[str], Path],
-) -> None:
-    generate_main(component_config_path("scan_window_scan_only.yaml"))
-    assert not any(flag in CORE.build_flags for flag in GUARD_FLAGS)
-    assert GUARD_DEFINE not in _define_names()
+    generate_main(component_config_path(config_file))
+    assert (CORE.build_flags >= _GUARD_FLAGS) is expected
+    assert CORE.build_flags.isdisjoint(_GUARD_FLAGS) is not expected
+    defines = {define.name for define in CORE.defines}
+    assert ("USE_ESP32_BLE_TRACKER_DIRECT_CONN_GUARD" in defines) is expected
