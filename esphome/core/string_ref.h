@@ -24,8 +24,8 @@ namespace esphome {
  * <https://github.com/nghttp2/nghttp2/blob/29cbf8b83ff78faf405d1086b16adc09a8772eca/src/template.h#L376>
  *
  * A StringRef may carry a null pointer while its length is zero (the generated api messages start their encode only
- * string fields that way). Every member treats that as the empty string; only c_str() hands the null pointer on, so
- * callers that print or copy through c_str() must check empty() first.
+ * string fields that way). Every member treats that as the empty string: the iterators form an empty range, and
+ * c_str() and byte() return the null pointer, so callers that print or copy through those must check empty() first.
  */
 class StringRef {
  public:
