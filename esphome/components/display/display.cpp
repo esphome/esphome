@@ -53,24 +53,24 @@ void Display::line_at_angle(int x, int y, int angle, int start_radius, int stop_
   this->line(x1, y1, x2, y2, color);
 }
 
-// Reads one source pixel of draw_pixels_at() into the packed value to_color() takes.
-static inline ESPHOME_ALWAYS_INLINE uint32_t read_packed_pixel(const uint8_t *ptr, size_t source_idx,
-                                                               ColorBitness bitness, bool big_endian) {
-  switch (bitness) {
-    default:
-      return ptr[source_idx];
-    case COLOR_BITNESS_565: {
-      const size_t idx = source_idx * 2;
-      if (big_endian)
-        return (ptr[idx] << 8) + ptr[idx + 1];
-      return ptr[idx] + (ptr[idx + 1] << 8);
-    }
-    case COLOR_BITNESS_888: {
-      const size_t idx = source_idx * 3;
-      if (big_endian)
-        return (ptr[idx + 0] << 16) + (ptr[idx + 1] << 8) + ptr[idx + 2];
-      return ptr[idx + 0] + (ptr[idx + 1] << 8) + (ptr[idx + 2] << 16);
-    }
+// Reads one source pixel of draw_pixels_at(). BITNESS is a template argument so
+// the byte layout folds and to_color()'s channel scaling divides by a constant,
+// which the compiler turns into a multiply and shift; at runtime it was three
+// divisions per pixel.
+template<ColorBitness BITNESS>
+static inline ESPHOME_ALWAYS_INLINE uint32_t read_packed_pixel(const uint8_t *ptr, size_t source_idx, bool big_endian) {
+  if constexpr (BITNESS == COLOR_BITNESS_565) {
+    const size_t idx = source_idx * 2;
+    if (big_endian)
+      return (ptr[idx] << 8) + ptr[idx + 1];
+    return ptr[idx] + (ptr[idx + 1] << 8);
+  } else if constexpr (BITNESS == COLOR_BITNESS_888) {
+    const size_t idx = source_idx * 3;
+    if (big_endian)
+      return (ptr[idx + 0] << 16) + (ptr[idx + 1] << 8) + ptr[idx + 2];
+    return ptr[idx + 0] + (ptr[idx + 1] << 8) + (ptr[idx + 2] << 16);
+  } else {
+    return ptr[source_idx];
   }
 }
 
@@ -78,20 +78,22 @@ static inline ESPHOME_ALWAYS_INLINE uint32_t read_packed_pixel(const uint8_t *pt
 // -Os stops inlining it once there are two call sites, which costs a call and
 // spills per pixel. Without PSRAM there is one call site and it changes
 // nothing, and draw_pixel_at() stays a virtual call either way.
-void __attribute__((flatten))
-Display::draw_pixels_at(int x_start, int y_start, int w, int h, const uint8_t *ptr, ColorOrder order,
-                        ColorBitness bitness, bool big_endian, int x_offset, int y_offset, int x_pad) {
+template<ColorBitness BITNESS>
+static void __attribute__((flatten))
+draw_packed_pixels(Display *display, int x_start, int y_start, int w, int h, const uint8_t *ptr, ColorOrder order,
+                   bool big_endian, int x_offset, int y_offset, int x_pad) {
   const size_t line_stride = x_offset + w + x_pad;  // length of each source line in pixels
   const auto draw_source_pixel = [&](int x, int y, size_t source_idx) ESPHOME_ALWAYS_INLINE {
-    this->draw_pixel_at(x + x_start, y + y_start,
-                        ColorUtil::to_color(read_packed_pixel(ptr, source_idx, bitness, big_endian), order, bitness));
+    display->draw_pixel_at(
+        x + x_start, y + y_start,
+        ColorUtil::to_color(read_packed_pixel<BITNESS>(ptr, source_idx, big_endian), order, BITNESS));
   };
   // The source and frame buffers are row-major, so walking rows keeps the read
   // and the write sequential. When the display swaps the axes before writing,
   // walking columns keeps the write sequential instead; with the frame buffer
   // in PSRAM a strided write costs more than a strided read.
 #ifdef USE_PSRAM
-  if (this->pixel_axes_swapped()) {
+  if (display->pixel_axes_swapped()) {
     size_t column_idx = y_offset * line_stride + x_offset;
     for (int x = 0; x != w; x++, column_idx++) {
       size_t source_idx = column_idx;
@@ -109,6 +111,24 @@ Display::draw_pixels_at(int x_start, int y_start, int w, int h, const uint8_t *p
     for (int x = 0; x != w; x++, source_idx++) {
       draw_source_pixel(x, y, source_idx);
     }
+  }
+}
+
+void Display::draw_pixels_at(int x_start, int y_start, int w, int h, const uint8_t *ptr, ColorOrder order,
+                             ColorBitness bitness, bool big_endian, int x_offset, int y_offset, int x_pad) {
+  switch (bitness) {
+    case COLOR_BITNESS_565:
+      draw_packed_pixels<COLOR_BITNESS_565>(this, x_start, y_start, w, h, ptr, order, big_endian, x_offset, y_offset,
+                                            x_pad);
+      break;
+    case COLOR_BITNESS_888:
+      draw_packed_pixels<COLOR_BITNESS_888>(this, x_start, y_start, w, h, ptr, order, big_endian, x_offset, y_offset,
+                                            x_pad);
+      break;
+    default:
+      draw_packed_pixels<COLOR_BITNESS_332>(this, x_start, y_start, w, h, ptr, order, big_endian, x_offset, y_offset,
+                                            x_pad);
+      break;
   }
 }
 
