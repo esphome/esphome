@@ -15,6 +15,7 @@
 #include <freertos/task.h>
 
 #include "utils.h"
+#include "sse_chunk.h"
 #include "web_server_idf.h"
 
 #ifdef USE_WEBSERVER_AUTH_DIGEST
@@ -692,49 +693,6 @@ void AsyncResponseStream::printf(const char *fmt, ...) {
 }
 
 #ifdef USE_WEBSERVER
-namespace {
-
-// HTTP chunk header "%08x\r\n"
-constexpr size_t CHUNK_HDR_LEN = 10;
-// Between two data lines: the end of one and the prefix of the next
-constexpr char SSE_SEP[] = "\r\ndata: ";
-constexpr size_t SSE_SEP_LEN = sizeof(SSE_SEP) - 1;
-// End of the last data line, the blank line ending the event, and the chunk terminator
-constexpr char SSE_SUFFIX[] = "\r\n\r\n\r\n";
-constexpr size_t SSE_SUFFIX_LEN = sizeof(SSE_SUFFIX) - 1;
-
-// Calls sink(ptr, len) for each piece of the chunk after the prefix: the data lines split on
-// \n, \r or \r\n with SSE_SEP between them and SSE_SUFFIX after the last (matching
-// ESPAsyncWebServer: a trailing line break adds no empty last line, an inner empty line is
-// kept). A null message has no data line and no blank line, only the chunk terminator.
-template<typename Sink> void for_each_chunk_piece(const char *message, size_t message_len, Sink &&sink) {
-  if (message == nullptr) {
-    sink(CRLF_STR, CRLF_LEN);
-    return;
-  }
-  const char *pos = message;
-  const char *end = message + message_len;
-  for (;;) {
-    const size_t remaining = end - pos;
-    const auto *n = static_cast<const char *>(memchr(pos, '\n', remaining));
-    const auto *r = static_cast<const char *>(memchr(pos, '\r', remaining));
-    if (n == nullptr && r == nullptr) {
-      sink(pos, remaining);
-      break;
-    }
-    const char *brk = (r != nullptr && (n == nullptr || r < n)) ? r : n;
-    sink(pos, brk - pos);
-    pos = brk + ((brk == r && brk + 1 == n) ? 2 : 1);
-    if (pos >= end) {
-      break;
-    }
-    sink(SSE_SEP, SSE_SEP_LEN);
-  }
-  sink(SSE_SUFFIX, SSE_SUFFIX_LEN);
-}
-
-}  // namespace
-
 AsyncEventSource::~AsyncEventSource() {
   LockGuard guard{this->pending_mutex_};
   for (auto *vec : {&this->sessions_, &this->pending_sessions_}) {
@@ -1155,7 +1113,7 @@ bool AsyncEventSourceResponse::try_send_nodefer(const char *message, size_t mess
     iov[iovcnt++] = {const_cast<char *>(piece), len};
   });
   // The header and the terminator are not part of the chunk length
-  format_hex_to(prefix, static_cast<uint32_t>(total - CHUNK_HDR_LEN - CRLF_LEN));
+  format_hex_to(prefix, static_cast<uint32_t>(total - CHUNK_HDR_LEN - CHUNK_END_LEN));
   prefix[8] = '\r';
   prefix[9] = '\n';
   iov[0] = {prefix, prefix_len};
