@@ -1519,6 +1519,13 @@ def final_validate(config) -> None:
                 path=[CONF_FRAMEWORK, CONF_ADVANCED, CONF_MINIMUM_CHIP_REVISION],
             )
         )
+    if config[CONF_VARIANT] != VARIANT_ESP32S3 and config.get(CONF_FLASH_MODE) == "opi":
+        errs.append(
+            cv.Invalid(
+                f"'{CONF_FLASH_MODE}: opi' is only supported on {VARIANT_ESP32S3}",
+                path=[CONF_FLASH_MODE],
+            )
+        )
     if config[CONF_VARIANT] != VARIANT_ESP32 and advanced[CONF_SRAM1_AS_IRAM]:
         errs.append(
             cv.Invalid(
@@ -2609,6 +2616,13 @@ async def to_code(config):
     # NVS finds stored preferences by key, so preference key migration is possible
     cg.add_define("USE_PREFERENCE_KEY_LOOKUP")
     cg.add_build_flag("-Wl,-z,noexecstack")
+    # assert(), HAL_ASSERT and ESP_ERROR_CHECK bake __FILE__ into rodata, and
+    # IDF's noflash placement puts the flash driver's copies in DRAM. The
+    # basename keeps the panic output useful at a fraction of the size.
+    # __FILE_NAME__ is a GCC 12 builtin; IDF 5.0 still ships GCC 11.2.
+    if idf_version() >= cv.Version(5, 1, 0):
+        cg.add_build_flag("-D__FILE__=__FILE_NAME__")
+        cg.add_build_flag("-Wno-builtin-macro-redefined")
     # Deferred so KEY_COMPONENTS is fully populated -- see the coroutine.
     CORE.add_job(_finalize_arduino_aware_flags)
     cg.add_define("ESPHOME_BOARD", config[CONF_BOARD])
@@ -2725,6 +2739,8 @@ async def to_code(config):
         add_idf_sdkconfig_option(
             f"CONFIG_ESPTOOLPY_FLASHMODE_{flash_mode.upper()}", True
         )
+        # the opi mode choice only exists once octal flash is enabled
+        add_idf_sdkconfig_option("CONFIG_ESPTOOLPY_OCT_FLASH", flash_mode == "opi")
     if flash_frequency := config.get(CONF_FLASH_FREQUENCY):
         add_idf_sdkconfig_option(
             f"CONFIG_ESPTOOLPY_FLASHFREQ_{flash_frequency[:-3]}M", True
