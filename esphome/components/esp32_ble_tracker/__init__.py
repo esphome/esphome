@@ -443,15 +443,13 @@ async def to_code(config: ConfigType) -> None:
         cg.add_define("USE_ESP32_BLE_SOFTWARE_COEXISTENCE")
 
 
-# First release per series with espressif/esp-idf@82e71c1767 (see bluedroid_stubs.cpp).
-# 5.4.5, 5.5.6 and 6.1.1 are not tagged yet but the fix is on their branches.
+# First tagged release per series with espressif/esp-idf@82e71c1767 (see bluedroid_stubs.cpp).
+# A series without an entry keeps the guard until a fixed release is tagged; the guard is
+# harmless on fixed sources. The 5.4, 5.5 and 6.1 branches carry the fix but have no tag yet.
 DIRECT_CONN_FIX_VERSIONS = {
     (5, 2): cv.Version(5, 2, 8),
     (5, 3): cv.Version(5, 3, 6),
-    (5, 4): cv.Version(5, 4, 5),
-    (5, 5): cv.Version(5, 5, 6),
     (6, 0): cv.Version(6, 0, 3),
-    (6, 1): cv.Version(6, 1, 1),
 }
 DIRECT_CONN_FIX_ALL_FROM = cv.Version(6, 2, 0)
 
