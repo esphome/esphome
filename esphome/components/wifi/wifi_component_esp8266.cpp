@@ -42,8 +42,9 @@ extern "C" {
 // Larger frames are allocated from the heap and freed on completion.
 static constexpr int SMALL_MGMT_FRAME_MAX = 64;
 // Times the small pool was empty and a heap buffer was handed out instead.
-static uint8_t small_mgmt_pool_exhausted_count = 0;
+static uint8_t s_small_mgmt_pool_exhausted_count = 0;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
+// NOLINTBEGIN(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp,readability-identifier-naming)
 extern "C" {
 void *__real_ieee80211_getmgtframe(void **frm, int headroom, int pktlen);
 
@@ -54,11 +55,12 @@ void *__wrap_ieee80211_getmgtframe(void **frm, int headroom, int pktlen) {
   void *buf = __real_ieee80211_getmgtframe(frm, headroom, pktlen);
   if (buf != nullptr || headroom + pktlen > SMALL_MGMT_FRAME_MAX)
     return buf;
-  if (small_mgmt_pool_exhausted_count != UINT8_MAX)
-    small_mgmt_pool_exhausted_count++;
+  if (s_small_mgmt_pool_exhausted_count != UINT8_MAX)
+    s_small_mgmt_pool_exhausted_count++;
   return __real_ieee80211_getmgtframe(frm, headroom, SMALL_MGMT_FRAME_MAX + 1 - headroom);
 }
 }
+// NOLINTEND(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp,readability-identifier-naming)
 
 namespace esphome::wifi {
 
@@ -1003,9 +1005,10 @@ void WiFiComponent::process_pending_callbacks_() {
   // to main loop context (full stack). Connect state listeners are handled
   // by notify_connect_state_listeners_() in the shared state machine code.
 
-  if (small_mgmt_pool_exhausted_count != 0) {
-    ESP_LOGW(TAG, "SDK small management frame pool empty %u times, used heap instead", small_mgmt_pool_exhausted_count);
-    small_mgmt_pool_exhausted_count = 0;
+  if (s_small_mgmt_pool_exhausted_count != 0) {
+    ESP_LOGW(TAG, "SDK small management frame pool empty %u times, used heap instead",
+             s_small_mgmt_pool_exhausted_count);
+    s_small_mgmt_pool_exhausted_count = 0;
   }
 
 #ifdef USE_WIFI_CONNECT_STATE_LISTENERS
