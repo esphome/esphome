@@ -72,7 +72,6 @@
 #define USE_ESP32_CAMERA_JPEG_CONVERSION
 #define USE_ESP32_HOSTED
 #define USE_ESP32_HOSTED_HTTP_UPDATE
-#define USE_ESP32_IMPROV_STATE_CALLBACK
 #define USE_ESP_NOW_HOSTED
 #define USE_EVENT
 #define USE_FAN
@@ -85,6 +84,7 @@
 #define USE_HTTP_REQUEST_OTA_WATCHDOG_TIMEOUT 8000  // NOLINT
 #define USE_I2S_AUDIO_SPDIF_MODE
 #define USE_IMAGE
+#define USE_IMPROV_BLE_STATE_CALLBACK
 #define USE_INFRARED
 #define USE_IR_RF
 #define USE_JSON
@@ -268,7 +268,7 @@
 #define MAX_API_CONNECTIONS 6
 // The Improv library is not in the Zephyr tidy environment
 #define USE_IMPROV_SERIAL
-#define USE_IMPROV_SERIAL_NEXT_URL
+#define USE_IMPROV_NEXT_URL
 #define USE_MD5
 #define USE_NOISE
 #define USE_SHA256
@@ -394,8 +394,7 @@
 #define USE_ESP32_CAMERA_JPEG_ENCODER
 #define USE_HTTP_REQUEST_RESPONSE
 #define USE_I2C
-#define USE_IMPROV
-#define USE_ESP32_IMPROV_NEXT_URL
+#define USE_IMPROV_BLE
 #define USE_MICROPHONE
 #define USE_PSRAM
 #define USE_SENDSPIN
@@ -403,6 +402,7 @@
 #define USE_SENDSPIN_CONTROLLER
 #define USE_SENDSPIN_METADATA
 #define USE_SENDSPIN_PLAYER
+#define USE_SENDSPIN_SWITCH
 #define USE_SENDSPIN_VISUALIZER
 #define USE_SENDSPIN_PORT 8928  // NOLINT
 #define USE_SOCKET_IMPL_BSD_SOCKETS
@@ -481,6 +481,9 @@
 #define USE_OPENTHREAD
 #define USE_ZIGBEE
 #endif
+#ifndef USE_OPENTHREAD
+#define USE_MDNS_SUPPORTS_ENABLE_DISABLE
+#endif
 #endif
 
 #if defined(USE_ESP32_VARIANT_ESP32S2)
@@ -536,7 +539,7 @@
 // rp2/__init__.py codegen also defines USE_RP2040 as a back-compat alias
 // for external custom components that may still test for it.
 #ifdef USE_RP2
-#define USE_ARDUINO_VERSION_CODE VERSION_CODE(6, 0, 0)
+#define USE_ARDUINO_VERSION_CODE VERSION_CODE(6, 1, 0)
 #define USE_RP2_CRASH_HANDLER
 #define USE_HTTP_REQUEST_RESPONSE
 #define USE_I2C
