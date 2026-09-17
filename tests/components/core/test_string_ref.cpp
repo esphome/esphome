@@ -119,8 +119,8 @@ TEST(StringRefNullEmpty, IteratorEndpointsFormAnEmptyRange) {
     visited++;
   }
   EXPECT_EQ(visited, 0u);
-  EXPECT_EQ(std::string(null_empty.begin(), null_empty.end()),
-            std::string());  // NOLINT(bugprone-string-constructor) - empty range under test
+  // NOLINTNEXTLINE(bugprone-string-constructor) - empty range under test
+  EXPECT_EQ(std::string(null_empty.begin(), null_empty.end()), std::string());
 }
 
 // The pointer and length constructor accepts an empty range at a null pointer; the copy into a
@@ -134,6 +134,25 @@ TEST(StringRefNullEmpty, ConvertsToEmptyStdString) {
   std::string target("keep");
   target += null_empty;
   EXPECT_EQ(target, "keep");
+}
+
+// The number conversions hand the pointer to the C library; a null view must stop before that.
+TEST(StringRefNullEmpty, NumericConversionsReturnZero) {
+  const StringRef null_empty{nullptr, 0};
+  size_t pos = 99;
+  EXPECT_EQ(stoi(null_empty, &pos), 0);
+  EXPECT_EQ(pos, 0u);
+  pos = 99;
+  EXPECT_EQ(stol(null_empty, &pos, 16), 0L);
+  EXPECT_EQ(pos, 0u);
+  pos = 99;
+  EXPECT_EQ(stof(null_empty, &pos), 0.0f);
+  EXPECT_EQ(pos, 0u);
+  pos = 99;
+  EXPECT_EQ(stod(null_empty, &pos), 0.0);
+  EXPECT_EQ(pos, 0u);
+  EXPECT_EQ(stoi(null_empty), 0);
+  EXPECT_EQ(stof(null_empty), 0.0f);
 }
 
 }  // namespace esphome::core::testing
