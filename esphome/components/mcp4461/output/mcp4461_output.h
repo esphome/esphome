@@ -13,9 +13,6 @@ class Mcp4461Wiper final : public output::FloatOutput, public Parented<Mcp4461Co
   /// @brief Set level of wiper
   /// @param[in] state - The desired float level in range 0-1.0
   void set_level(float state);
-  /// @brief Enables/Disables current output using bool parameter
-  /// @param[in] state boolean var representing desired state (true=ON, false=OFF)
-  void set_state(bool state) override;
   /// @brief Enables current output
   void turn_on() override;
   /// @brief Disables current output

@@ -302,7 +302,13 @@ CONFIG_SCHEMA = cv.All(
 def final_validate(config: ConfigType) -> None:
     require_tx = config[CONF_UPDATE_INTERVAL] > cv.time_period("0s")
     schema = uart.final_validate_device_schema(
-        "pmsx003", baud_rate=9600, require_rx=True, require_tx=require_tx
+        "pmsx003",
+        baud_rate=9600,
+        require_rx=True,
+        require_tx=require_tx,
+        data_bits=8,
+        parity="NONE",
+        stop_bits=1,
     )
     schema(config)
 

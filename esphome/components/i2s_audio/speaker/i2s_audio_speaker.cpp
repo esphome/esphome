@@ -14,16 +14,18 @@
 
 #include "esp_timer.h"
 
-// esp-audio-libs
-#include <gain.h>
+#include <cmath>
 
 namespace esphome::i2s_audio {
 
 static const char *const TAG = "i2s_audio.speaker";
 
-// Software volume control maps the user-facing [0.0, 1.0] range to a Q31 scale factor.
-// Volumes in (0.0, 1.0) map linearly to a dB reduction in [-49.0, 0.0] dB.
+// Software volume control maps the user-facing (0.0, 1.0) range linearly to a dB reduction in
+// [-49.0, 0.0] dB; 0.0 is silence.
 static constexpr float SOFTWARE_VOLUME_MIN_DB = -49.0f;
+
+// Rate at which the software gain moves toward a new target.
+static constexpr uint32_t GAIN_RAMP_MS_PER_DB = 1;
 
 void I2SAudioSpeakerBase::setup() {
   this->event_group_ = xEventGroupCreate();
@@ -34,9 +36,10 @@ void I2SAudioSpeakerBase::setup() {
     return;
   }
 
-  // Initialize volume control. When audio_dac is configured, this sets the DAC volume.
+  // Initialize volume control. When audio_dac is configured, this sets the DAC volume and mute state.
   // When no audio_dac is configured, this initializes software volume control.
   this->set_volume(this->volume_);
+  this->set_mute_state(this->mute_state_);
 }
 
 void I2SAudioSpeakerBase::dump_config() {
@@ -52,6 +55,13 @@ void I2SAudioSpeakerBase::dump_config() {
 
 void I2SAudioSpeakerBase::loop() {
   uint32_t event_group_bits = xEventGroupGetBits(this->event_group_);
+
+  // A stop that arrives while stopped cancels any start that has not been processed yet
+  constexpr uint32_t stop_bits = SpeakerEventGroupBits::COMMAND_STOP | SpeakerEventGroupBits::COMMAND_STOP_GRACEFULLY;
+  if ((event_group_bits & stop_bits) && (this->state_ == speaker::STATE_STOPPED)) {
+    xEventGroupClearBits(this->event_group_, stop_bits | SpeakerEventGroupBits::COMMAND_START);
+    event_group_bits &= ~(stop_bits | SpeakerEventGroupBits::COMMAND_START);
+  }
 
   if ((event_group_bits & SpeakerEventGroupBits::COMMAND_START) && (this->state_ == speaker::STATE_STOPPED)) {
     this->state_ = speaker::STATE_STARTING;
@@ -70,17 +80,6 @@ void I2SAudioSpeakerBase::loop() {
   }
   if (event_group_bits & SpeakerEventGroupBits::TASK_STOPPING) {
     ESP_LOGV(TAG, "Stopping");
-    // Lockstep-breaking error bits are latched by the task and cleared along with all other bits
-    // when TASK_STOPPED is processed; log them here, exactly once, as the task winds down.
-    if (event_group_bits & SpeakerEventGroupBits::ERR_DROPPED_EVENT) {
-      ESP_LOGE(TAG, "ISR event queue overflow, restarting speaker task to recover timestamp sync");
-    }
-    if (event_group_bits & SpeakerEventGroupBits::ERR_PARTIAL_WRITE) {
-      ESP_LOGE(TAG, "Partial DMA write broke buffer alignment, restarting speaker task");
-    }
-    if (event_group_bits & SpeakerEventGroupBits::ERR_LOCKSTEP_DESYNC) {
-      ESP_LOGE(TAG, "Event/record queues desynced, restarting speaker task");
-    }
     xEventGroupClearBits(this->event_group_, SpeakerEventGroupBits::TASK_STOPPING);
     this->state_ = speaker::STATE_STOPPING;
   }
@@ -91,7 +90,14 @@ void I2SAudioSpeakerBase::loop() {
     this->speaker_task_handle_ = nullptr;
 
     this->stop_i2s_driver_();
-    xEventGroupClearBits(this->event_group_, SpeakerEventGroupBits::ALL_BITS);
+    // ALL_BITS includes COMMAND_START. Take the bits from the clear itself, not from the snapshot at
+    // the top of loop(): the audio source's task can raise a start at any point above, including
+    // during stop_i2s_driver_(), and nothing would ever re-issue it.
+    const EventBits_t bits_before_clear = xEventGroupClearBits(this->event_group_, SpeakerEventGroupBits::ALL_BITS);
+    if (bits_before_clear & SpeakerEventGroupBits::COMMAND_START) {
+      ESP_LOGD(TAG, "Start requested while stopping; keeping the request");
+      xEventGroupSetBits(this->event_group_, SpeakerEventGroupBits::COMMAND_START);
+    }
     this->status_clear_error();
 
     this->on_task_stopped();
@@ -111,21 +117,28 @@ void I2SAudioSpeakerBase::loop() {
         break;
       }
 
+      // Still starting up or winding down from a previous run
+      if ((this->tx_handle_ != nullptr) || (this->speaker_task_handle_ != nullptr)) {
+        break;
+      }
+
       if (this->start_i2s_driver(this->audio_stream_info_) != ESP_OK) {
         ESP_LOGE(TAG, "Driver failed to start; retrying in 1 second");
         this->status_momentary_error("driver-failure", 1000);
         break;
       }
 
-      if (this->speaker_task_handle_ == nullptr) {
-        xTaskCreate(I2SAudioSpeakerBase::speaker_task, "speaker_task", TASK_STACK_SIZE, (void *) this, TASK_PRIORITY,
-                    &this->speaker_task_handle_);
+      // Seed the ramp at the live target so this run adopts it instantly rather than fading to it
+      // from wherever the previous run left off. Posted here, not in the task: the ramp's mailbox
+      // allows one writer, and that is the main loop.
+      this->post_software_gain_(0);
+      xTaskCreate(I2SAudioSpeakerBase::speaker_task, "speaker_task", TASK_STACK_SIZE, (void *) this, TASK_PRIORITY,
+                  &this->speaker_task_handle_);
 
-        if (this->speaker_task_handle_ == nullptr) {
-          ESP_LOGE(TAG, "Task failed to start, retrying in 1 second");
-          this->status_momentary_error("task-failure", 1000);
-          this->stop_i2s_driver_();  // Stops the driver to return the lock; will be reloaded in next attempt
-        }
+      if (this->speaker_task_handle_ == nullptr) {
+        ESP_LOGE(TAG, "Task failed to start, retrying in 1 second");
+        this->status_momentary_error("task-failure", 1000);
+        this->stop_i2s_driver_();  // Stops the driver to return the lock; will be reloaded in next attempt
       }
       break;
     case speaker::STATE_RUNNING:   // Intentional fallthrough
@@ -136,50 +149,31 @@ void I2SAudioSpeakerBase::loop() {
 }
 
 void I2SAudioSpeakerBase::set_volume(float volume) {
-  this->volume_ = volume;
-#ifdef USE_AUDIO_DAC
-  if (this->audio_dac_ != nullptr) {
-    if (volume > 0.0f) {
-      this->audio_dac_->set_mute_off();
-    }
-    this->audio_dac_->set_volume(volume);
-  } else
-#endif  // USE_AUDIO_DAC
-  {
-    // Fallback to software volume control by using a Q31 fixed point scaling factor.
-    // At maximum volume (1.0), set to INT32_MAX to bypass volume processing entirely
-    // and avoid any floating-point precision issues that could cause slight volume reduction.
-    if (volume >= 1.0f) {
-      this->q31_volume_factor_ = INT32_MAX;
-    } else if (volume <= 0.0f) {
-      this->q31_volume_factor_ = 0;
-    } else {
-      this->q31_volume_factor_ =
-          esp_audio_libs::gain::db_to_q31(remap<float, float>(volume, 0.0f, 1.0f, SOFTWARE_VOLUME_MIN_DB, 0.0f));
-    }
-  }
+  speaker::Speaker::set_volume(volume);
+  this->post_software_gain_(this->audio_stream_info_.ms_to_samples(GAIN_RAMP_MS_PER_DB));
 }
 
 void I2SAudioSpeakerBase::set_mute_state(bool mute_state) {
-  this->mute_state_ = mute_state;
+  speaker::Speaker::set_mute_state(mute_state);
+  this->post_software_gain_(this->audio_stream_info_.ms_to_samples(GAIN_RAMP_MS_PER_DB));
+}
+
+void I2SAudioSpeakerBase::post_software_gain_(uint32_t rate_samples) {
 #ifdef USE_AUDIO_DAC
-  if (this->audio_dac_) {
-    if (mute_state) {
-      this->audio_dac_->set_mute_on();
-    } else {
-      this->audio_dac_->set_mute_off();
-    }
-  } else
-#endif  // USE_AUDIO_DAC
-  {
-    if (mute_state) {
-      // Fallback to software volume control and scale by 0
-      this->q31_volume_factor_ = 0;
-    } else {
-      // Revert to previous volume when unmuting
-      this->set_volume(this->volume_);
-    }
+  if (this->audio_dac_ != nullptr) {
+    return;  // Hardware volume; the ramp stays at unity
   }
+#endif  // USE_AUDIO_DAC
+  // Software volume control. The ramp treats 0 dB as unity and skips processing there.
+  float target_db;
+  if (this->is_silent_()) {
+    target_db = -INFINITY;
+  } else if (this->volume_ >= 1.0f) {
+    target_db = 0.0f;
+  } else {
+    target_db = remap<float, float>(this->volume_, 0.0f, 1.0f, SOFTWARE_VOLUME_MIN_DB, 0.0f);
+  }
+  this->gain_ramp_.set_target_db_at_rate(target_db, rate_samples);
 }
 
 size_t I2SAudioSpeakerBase::play(const uint8_t *data, size_t length, TickType_t ticks_to_wait) {
@@ -211,8 +205,8 @@ size_t I2SAudioSpeakerBase::play(const uint8_t *data, size_t length, TickType_t 
 }
 
 bool I2SAudioSpeakerBase::has_buffered_data() const {
-  if (this->audio_ring_buffer_.use_count() > 0) {
-    std::shared_ptr<ring_buffer::RingBuffer> temp_ring_buffer = this->audio_ring_buffer_.lock();
+  std::shared_ptr<ring_buffer::RingBuffer> temp_ring_buffer = this->audio_ring_buffer_.lock();
+  if (temp_ring_buffer != nullptr) {
     return temp_ring_buffer->available() > 0;
   }
   return false;
@@ -229,8 +223,6 @@ void I2SAudioSpeakerBase::start() {
   if ((this->state_ == speaker::STATE_STARTING) || (this->state_ == speaker::STATE_RUNNING))
     return;
 
-  // Mark STARTING immediately to avoid transient STOPPED observations before loop() processes COMMAND_START.
-  this->state_ = speaker::STATE_STARTING;
   xEventGroupSetBits(this->event_group_, SpeakerEventGroupBits::COMMAND_START);
 }
 
@@ -239,11 +231,10 @@ void I2SAudioSpeakerBase::stop() { this->stop_(false); }
 void I2SAudioSpeakerBase::finish() { this->stop_(true); }
 
 void I2SAudioSpeakerBase::stop_(bool wait_on_empty) {
-  if (this->is_failed())
-    return;
-  if (this->state_ == speaker::STATE_STOPPED)
+  if (!this->is_ready() || this->is_failed())
     return;
 
+  // Always set the bit, even when stopped, so loop() can cancel a start that is still pending
   if (wait_on_empty) {
     xEventGroupSetBits(this->event_group_, SpeakerEventGroupBits::COMMAND_STOP_GRACEFULLY);
   } else {
@@ -323,16 +314,10 @@ bool IRAM_ATTR I2SAudioSpeakerBase::i2s_on_sent_cb(i2s_chan_handle_t handle, i2s
   I2SAudioSpeakerBase *this_speaker = (I2SAudioSpeakerBase *) user_ctx;
 
   if (xQueueIsQueueFullFromISR(this_speaker->i2s_event_queue_)) {
-    // Queue is full, so discard the oldest event. Once we drop a completion event, ``i2s_event_queue_``
-    // and any per-buffer record queue maintained by the task are permanently desynced, so the task
-    // must restart to recover. Set both ERR_DROPPED_EVENT (so loop() can log it) and COMMAND_STOP
-    // (so the task bails immediately, closing the race where loop() could clear the error bit
-    // before the task observes it).
+    // Queue is full, so discard the oldest event. The lockstep queues are now desynced; the task resyncs them.
     int64_t dummy;
     xQueueReceiveFromISR(this_speaker->i2s_event_queue_, &dummy, &need_yield1);
-    xEventGroupSetBitsFromISR(this_speaker->event_group_,
-                              SpeakerEventGroupBits::ERR_DROPPED_EVENT | SpeakerEventGroupBits::COMMAND_STOP,
-                              &need_yield2);
+    xEventGroupSetBitsFromISR(this_speaker->event_group_, SpeakerEventGroupBits::ERR_DROPPED_EVENT, &need_yield2);
   }
 
   xQueueSendToBackFromISR(this_speaker->i2s_event_queue_, &now, &need_yield3);
@@ -340,15 +325,33 @@ bool IRAM_ATTR I2SAudioSpeakerBase::i2s_on_sent_cb(i2s_chan_handle_t handle, i2s
   return need_yield1 | need_yield2 | need_yield3;
 }
 
-void I2SAudioSpeakerBase::apply_software_volume_(uint8_t *data, size_t bytes_read) {
-  if (this->q31_volume_factor_ == INT32_MAX) {
-    return;  // Max volume, no processing needed
+void I2SAudioSpeakerBase::drain_lockstep_(uint32_t extra_frames) {
+  // Stop DMA so no more completion events arrive while the queues are rebuilt
+  i2s_channel_disable(this->tx_handle_);
+  xEventGroupClearBits(this->event_group_, SpeakerEventGroupBits::ERR_DROPPED_EVENT);
+
+  uint32_t frames = extra_frames;
+  uint32_t record_frames = 0;
+  while (xQueueReceive(this->write_records_queue_, &record_frames, 0) == pdTRUE) {
+    frames += record_frames;
   }
+  xQueueReset(this->i2s_event_queue_);
 
+  if (frames > 0) {
+    ESP_LOGV(TAG, "Crediting %" PRIu32 " dropped frames as played", frames);
+    this->audio_output_callback_(frames, esp_timer_get_time());
+  }
+}
+
+void I2SAudioSpeakerBase::apply_software_volume_(uint8_t *data, size_t bytes_read) {
+#ifdef USE_AUDIO_DAC
+  if (this->audio_dac_ != nullptr) {
+    return;  // Hardware volume; the ramp is never targeted
+  }
+#endif  // USE_AUDIO_DAC
   const size_t bytes_per_sample = this->current_stream_info_.samples_to_bytes(1);
-  const uint32_t len = bytes_read / bytes_per_sample;
-
-  esp_audio_libs::gain::apply(data, data, this->q31_volume_factor_, len, bytes_per_sample);
+  this->gain_ramp_.process(data, static_cast<uint8_t>(bytes_per_sample),
+                           this->current_stream_info_.bytes_to_samples(bytes_read));
 }
 
 void I2SAudioSpeakerBase::swap_esp32_mono_samples_(uint8_t *data, size_t bytes_read) {

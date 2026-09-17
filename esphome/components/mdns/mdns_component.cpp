@@ -225,6 +225,10 @@ void MDNSComponent::compile_records_(StaticVector<MDNSService, MDNS_SERVICE_COUN
   sendspin_service.proto = MDNS_STR(SERVICE_TCP);
   sendspin_service.port = []() -> uint16_t { return USE_SENDSPIN_PORT; };
   sendspin_service.txt_records = {{MDNS_STR(TXT_SENDSPIN_PATH), MDNS_STR(VALUE_SENDSPIN_PATH)}};
+#ifdef USE_MDNS_SUPPORTS_ENABLE_DISABLE
+  // Starts disabled; the sendspin hub enables it once its server is running
+  sendspin_service.enabled = false;
+#endif
 #endif
 
 #ifdef USE_WEBSERVER

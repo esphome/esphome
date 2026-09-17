@@ -9,7 +9,7 @@ def test_synchronous_chain_keeps_zero_copy_args(generate_main):
 
     assert (
         "api::UserServiceTrigger<api::enums::SUPPORTS_RESPONSE_NONE, StringRef>"
-        '("zero_copy_args", {"message"})' in main_cpp
+        "(api_action0_strings," in main_cpp
     )
 
 
@@ -22,7 +22,7 @@ def test_response_callback_args_are_owning(generate_main):
 
     assert (
         "api::UserServiceTrigger<api::enums::SUPPORTS_RESPONSE_NONE, std::string>"
-        '("response_args", {"message"})' in main_cpp
+        "(api_action1_strings," in main_cpp
     )
     assert "api::HomeAssistantServiceCallAction<std::string>" in main_cpp
     assert "api::HomeAssistantServiceCallAction<StringRef>" not in main_cpp

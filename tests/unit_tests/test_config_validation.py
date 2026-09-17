@@ -1,4 +1,5 @@
 import importlib
+import io
 import json
 import logging
 from pathlib import Path
@@ -20,6 +21,7 @@ from esphome.components.esp32 import (
     VARIANT_ESP32S2,
     VARIANT_ESP32S3,
 )
+from esphome.components.substitutions import do_substitution_pass
 from esphome.config_validation import Invalid
 from esphome.const import (
     CONF_DAY,
@@ -65,7 +67,13 @@ from esphome.core import (
 )
 from esphome.schema_extractors import SCHEMA_EXTRACT
 from esphome.util import Registry
-from esphome.yaml_util import ESPHomeDataBase, SensitiveStr, make_data_base
+from esphome.yaml_util import (
+    ESPHomeDataBase,
+    SensitiveStr,
+    load_yaml,
+    make_data_base,
+    parse_yaml,
+)
 
 
 def test_check_not_templatable__invalid():
@@ -1392,6 +1400,35 @@ def test_entity_metadata_visibility_hints() -> None:
     # via the consumer cascade, so only the parent key carries the hint.
     web = {str(k): k for k in WEBSERVER_SORTING_SCHEMA.schema}
     assert web["web_server"].visibility is advanced
+
+
+def test_with_visibility_remarks_keys() -> None:
+    """``with_visibility`` re-marks the named keys, preserving each field's
+    default and validator, without touching the other keys or the input schema.
+    """
+    base = cv.Schema(
+        {
+            cv.Optional("a", default=7): cv.int_,
+            cv.Optional("b", visibility=cv.Visibility.ADVANCED): cv.string,
+        }
+    )
+    promoted = cv.with_visibility(base, cv.Visibility.UI, "a")
+
+    pm = {str(k): k for k in promoted.schema}
+    assert pm["a"].visibility is cv.Visibility.UI  # re-marked
+    assert pm["a"].default() == 7  # default preserved
+    assert pm["b"].visibility is cv.Visibility.ADVANCED  # sibling untouched
+    assert promoted({}) == {"a": 7}  # validator/default still applied
+
+    # The input schema is left untouched (no shared-marker mutation).
+    assert {str(k): k for k in base.schema}["a"].visibility is None
+
+
+def test_with_visibility_unknown_key_raises() -> None:
+    """A key not present in the schema is a typo — fail at build time."""
+    base = cv.Schema({cv.Optional("a"): cv.int_})
+    with pytest.raises(ValueError, match="not in schema"):
+        cv.with_visibility(base, cv.Visibility.UI, "nope")
 
 
 def _wrap_str(value: str) -> ESPHomeDataBase:
@@ -3153,6 +3190,116 @@ def test_file__existing_relative_path(setup_core: Path) -> None:
     (setup_core / "partitions.csv").write_text("csv\n")
 
     assert cv.file_("partitions.csv") == setup_core / "partitions.csv"
+
+
+def _package_value(setup_core: Path, path: str = "assets/ui.js") -> tuple[Path, str]:
+    """Write a package file next to an ``assets/`` dir; return the dir and its loaded *path* value."""
+    package_dir = setup_core / ".esphome" / "packages" / "abc123" / "vendor"
+    (package_dir / "assets").mkdir(parents=True)
+    (package_dir / "assets" / "ui.js").write_text("js\n")
+    (package_dir / "device.yaml").write_text(f"path: {path}\n")
+    return package_dir, load_yaml(package_dir / "device.yaml")["path"]
+
+
+def test_file__resolves_relative_to_the_declaring_document(setup_core: Path) -> None:
+    """A package's own asset path resolves against the package file when the config dir lacks it."""
+    package_dir, value = _package_value(setup_core)
+
+    assert cv.file_(value) == package_dir / "assets" / "ui.js"
+
+
+def test_file__resolves_a_substituted_path_against_the_use_site(
+    setup_core: Path,
+) -> None:
+    package_dir, _ = _package_value(setup_core)
+    (package_dir / "device.yaml").write_text(
+        "substitutions:\n  ui: assets/ui.js\npath: ${ui}\n"
+    )
+    config = do_substitution_pass(load_yaml(package_dir / "device.yaml"))
+
+    assert cv.file_(config["path"]) == package_dir / "assets" / "ui.js"
+
+
+def test_file__result_is_absolute_for_a_relative_document(
+    setup_core: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A document loaded by a cwd-relative path still yields an absolute result."""
+    package_dir, _ = _package_value(setup_core)
+    monkeypatch.chdir(setup_core)
+    value = load_yaml(Path(".esphome/packages/abc123/vendor/device.yaml"))["path"]
+
+    result = cv.file_(value)
+
+    assert result.is_absolute()
+    assert result == package_dir / "assets" / "ui.js"
+
+
+def test_file__config_dir_entry_of_the_wrong_kind_does_not_shadow_the_package(
+    setup_core: Path,
+) -> None:
+    package_dir, value = _package_value(setup_core)
+    (setup_core / "assets" / "ui.js").mkdir(parents=True)
+
+    assert cv.file_(value) == package_dir / "assets" / "ui.js"
+
+
+def test_file__miss_names_the_declaring_document(setup_core: Path) -> None:
+    package_dir, value = _package_value(setup_core, "assets/other.js")
+
+    with pytest.raises(Invalid, match="Could not find file") as excinfo:
+        cv.file_(value)
+
+    assert f"Also looked next to {package_dir / 'device.yaml'}" in str(excinfo.value)
+
+
+def test_file__document_spelled_through_dotdot_in_the_config_dir_adds_no_hint(
+    setup_core: Path,
+) -> None:
+    (setup_core / "sub").mkdir()
+    (setup_core / "device.yaml").write_text("path: assets/other.js\n")
+    value = load_yaml(setup_core / "sub" / ".." / "device.yaml")["path"]
+
+    with pytest.raises(Invalid) as excinfo:
+        cv.file_(value)
+
+    assert "Also looked" not in str(excinfo.value)
+
+
+def test_file__wrong_kind_beside_the_document_is_reported(setup_core: Path) -> None:
+    package_dir, value = _package_value(setup_core, "assets")
+
+    with pytest.raises(Invalid, match="is not a file") as excinfo:
+        cv.file_(value)
+
+    assert str(package_dir / "assets") in str(excinfo.value)
+
+
+def test_file__config_dir_wins_over_the_declaring_document(setup_core: Path) -> None:
+    _, value = _package_value(setup_core)
+    (setup_core / "assets").mkdir()
+    (setup_core / "assets" / "ui.js").write_text("local\n")
+
+    assert cv.file_(value) == setup_core / "assets" / "ui.js"
+
+
+def test_file__declared_in_an_in_memory_document_is_not_resolved(
+    setup_core: Path,
+) -> None:
+    """A value whose source document isn't on disk falls through to the config-dir error."""
+    value = parse_yaml(Path("<unicode string>"), io.StringIO("path: assets/ui.js\n"))[
+        "path"
+    ]
+
+    with pytest.raises(Invalid, match="Could not find file"):
+        cv.file_(value)
+
+
+def test_directory_resolves_relative_to_the_declaring_document(
+    setup_core: Path,
+) -> None:
+    package_dir, value = _package_value(setup_core, "assets")
+
+    assert cv.directory(value) == package_dir / "assets"
 
 
 def test_file__missing_raises(setup_core: Path) -> None:
