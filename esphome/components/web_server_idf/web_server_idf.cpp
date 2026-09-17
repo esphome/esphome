@@ -759,9 +759,8 @@ void AsyncEventSource::adopt_pending_sessions_main_loop_() {
       delete rsp;  // NOLINT(cppcoreguidelines-owning-memory)
       continue;
     }
-    // httpd commits the session context only after the creating handler returns; until then
-    // send_() would refuse the socket, so stay pending. Bounded: httpd_req_cleanup() always
-    // commits the context or, on a dead socket, invokes destroy().
+    // httpd commits the session context only after the creating handler returns, so stay
+    // pending until then; httpd_req_cleanup() always commits it or calls destroy()
     if (httpd_sess_get_ctx(rsp->hd_, rsp->fd_.load()) != rsp) {
       LockGuard guard{this->pending_mutex_};
       this->pending_sessions_.push_back(rsp);
@@ -966,9 +965,8 @@ void AsyncEventSourceResponse::close_session_work(void *arg) {
 }
 
 ssize_t AsyncEventSourceResponse::send_(struct iovec *iov, int iovcnt) {
-  // httpd frees the session before closing the socket, so the fd can already belong to a new
-  // client. The session table check narrows that window; treated as would-block, the stall
-  // timer ends a session that never becomes ours again.
+  // httpd frees a session before closing its socket, so the fd may already be a new client's.
+  // Treated as would-block; the stall timer ends a session that never becomes ours again.
   const int fd = this->fd_.load();
   if (httpd_sess_get_ctx(this->hd_, fd) != this) {
     return 0;
