@@ -1,4 +1,6 @@
 #include "web_server.h"
+
+#include <algorithm>
 #ifdef USE_WEBSERVER
 #include "esphome/components/json/json_util.h"
 #include "esphome/core/progmem.h"
@@ -409,10 +411,14 @@ void WebServer::loop() {
 }
 
 #ifdef USE_LOGGER
+// A log line longer than this is cut before it goes out as an event. Nothing a browser log
+// view needs is longer, and it bounds the chunk a stalled client can leave in the tail.
+static constexpr size_t LOG_EVENT_MAX_LEN = 512;
+
 void WebServer::on_log(uint8_t level, const char *tag, const char *message, size_t message_len) {
   (void) level;
   (void) tag;
-  this->events_.try_send_nodefer(message, message_len, "log", millis());
+  this->events_.try_send_nodefer(message, std::min(message_len, LOG_EVENT_MAX_LEN), "log", millis());
 }
 #endif
 

@@ -1115,7 +1115,7 @@ bool AsyncEventSourceResponse::send_json_(json::JsonBuilder &builder) {
       }
       if (cap >= TAIL_MAX_SIZE) {
         // Would never fit on a retry either, so it is reported as sent
-        ESP_LOGW(TAG, "EventSource state event over %zu bytes dropped", TAIL_MAX_SIZE);
+        ESP_LOGW(TAG, "EventSource state event over %zu bytes dropped", JSON_MAX_SIZE);
         this->tail_.reset();
         this->tail_cap_ = 0;
         return true;
