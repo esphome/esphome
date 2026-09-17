@@ -9,16 +9,19 @@ byte-identical to PlatformIO's output:
     Flash: [===       ]  48.4% (used 888511 bytes from 1835008 bytes)
 
 The format matches ``script/ci_memory_impact_extract.py`` so CI memory
-analysis works unchanged on native ESP-IDF builds. RAM total is the
-DRAM region size from the linker map; Flash total is taken from
+analysis works unchanged on native ESP-IDF builds. RAM usage comes from
+the DRAM (or unified DIRAM) region of the linker map. Flash used is the
+exact image size matching the ``Total image size`` line: json2
+``total_size`` when present, otherwise derived from the ELF (see
+``_image_size_from_elf``). Flash total is taken from
 ``partitions.csv`` using PlatformIO's rule (first app partition whose
 subtype is ``factory`` or ``ota_0``; see
 ``platform-espressif32/builder/main.py::_update_max_upload_size``).
 
 Structured size data is produced at link time by a CMake POST_BUILD
 custom command (see ``build_gen/espidf.py``) which writes
-``esp_idf_size.json`` next to the ELF. We read that file here rather
-than re-running ``esp_idf_size`` from Python.
+``esp_idf_size.json`` (``--format=json2``, a per-memory-type summary)
+next to the ELF; we read that rather than re-running ``esp_idf_size``.
 """
 
 from __future__ import annotations
@@ -27,6 +30,7 @@ import csv
 import json
 import logging
 from pathlib import Path
+import struct
 
 from esphome.build_helpers.size_summary import print_size_line
 
@@ -69,11 +73,43 @@ def _find_app_partition_size(partitions_csv: Path) -> int:
     raise ValueError(f"No app+factory or app+ota_0 partition in {partitions_csv}")
 
 
-def print_summary(size_json: Path, partitions_csv: Path | None) -> None:
+def _image_size_from_elf(elf: Path) -> int:
+    """Sum the allocated PROGBITS section sizes from an ELF32 file.
+
+    Matches ``esp_idf_size.ng.memorymap._get_image_size`` byte for byte;
+    esptool's ``ELFFile`` filters sections differently and would not.
+    Raises ``ValueError`` for anything but a well-formed ELF32 LE file.
+    """
+    with elf.open("rb") as f:
+        header = f.read(52)  # ELF32 header
+        if len(header) < 52 or header[:6] != b"\x7fELF\x01\x01":
+            raise ValueError(f"{elf} is not a 32-bit little-endian ELF")
+        (e_shoff,) = struct.unpack_from("<I", header, 0x20)  # e_shoff
+        e_shentsize, e_shnum = struct.unpack_from("<HH", header, 0x2E)
+        if e_shentsize < 40:  # sizeof(Elf32_Shdr)
+            raise ValueError(f"{elf} has an invalid section header size")
+        f.seek(e_shoff)
+        table = f.read(e_shnum * e_shentsize)
+    if len(table) < e_shnum * e_shentsize:
+        raise ValueError(f"{elf} has a truncated section header table")
+    total = 0
+    for off in range(0, e_shnum * e_shentsize, e_shentsize):
+        sh_type, sh_flags = struct.unpack_from("<II", table, off + 4)
+        (sh_size,) = struct.unpack_from("<I", table, off + 20)
+        if sh_type == 1 and sh_flags & 0x2:  # SHT_PROGBITS with SHF_ALLOC
+            total += sh_size
+    if total == 0:
+        # A used-0-bytes Flash line would read as a real measurement
+        raise ValueError(f"{elf} has no allocated PROGBITS sections")
+    return total
+
+
+def print_summary(size_json: Path, partitions_csv: Path, firmware_elf: Path) -> None:
     """Print PlatformIO-shaped RAM and Flash one-liners.
 
     Failures are non-fatal: the build has already succeeded, we just couldn't
-    summarize. Logs the cause at debug level.
+    summarize. Anomalies (missing region, unreadable ELF) warn; expected
+    optional inputs (no size json, no partitions.csv) log at debug.
     """
     if not size_json.is_file():
         _LOGGER.debug("Skipping size summary: %s not found", size_json)
@@ -83,20 +119,49 @@ def print_summary(size_json: Path, partitions_csv: Path | None) -> None:
     except (OSError, json.JSONDecodeError) as e:
         _LOGGER.debug("Skipping size summary: %s", e)
         return
-
-    memory_types = data.get("memory_types", {})
-    ram_region = memory_types.get("DRAM") or memory_types.get("DIRAM") or {}
-    ram_used = ram_region.get("used")
-    ram_total = ram_region.get("size")
-    if ram_total and ram_used is not None:
-        print_size_line("RAM", ram_used, ram_total)
-
-    image_size = data.get("image_size")
-    if image_size is None or partitions_csv is None:
+    if not isinstance(data, dict):
+        _LOGGER.warning("Skipping size summary: unexpected json shape in %s", size_json)
         return
+
+    layout = data.get("layout")
+    regions = {
+        entry.get("name"): entry
+        for entry in (layout if isinstance(layout, list) else [])
+        if isinstance(entry, dict)
+    }
+    # Every chip has a DRAM or DIRAM region, so a warning here usually
+    # means the esp_idf_size json schema changed
+    ram_region = regions.get("DRAM") or regions.get("DIRAM")
+    if ram_region is None:
+        _LOGGER.warning("Skipping RAM summary: no DRAM/DIRAM region in %s", size_json)
+    elif (
+        isinstance(ram_total := ram_region.get("total"), int)
+        and ram_total > 0
+        and isinstance(ram_used := ram_region.get("used"), int)
+    ):
+        print_size_line("RAM", ram_used, ram_total)
+    else:
+        _LOGGER.warning(
+            "Skipping RAM summary: unusable region %s in %s", ram_region, size_json
+        )
+
+    # esp-idf-size >= 2.1 (IDF >= 6.0) reports the exact image size in
+    # json2; older 1.x omits it, so derive the same figure from the ELF.
+    flash_used = data.get("total_size")
+    if not (isinstance(flash_used, int) and flash_used > 0):
+        _LOGGER.debug("No total_size in %s, deriving from %s", size_json, firmware_elf)
+        try:
+            flash_used = _image_size_from_elf(firmware_elf)
+        except (OSError, ValueError) as e:
+            # The ELF must be present and well formed after a successful build
+            _LOGGER.warning("Skipping Flash summary: %s", e)
+            return
     try:
         app_size = _find_app_partition_size(partitions_csv)
-    except ValueError as e:
+    except (OSError, ValueError) as e:
         _LOGGER.debug("Skipping Flash summary: %s", e)
         return
-    print_size_line("Flash", image_size, app_size)
+    if app_size <= 0:
+        _LOGGER.debug("Skipping Flash summary: app partition size is 0")
+        return
+    print_size_line("Flash", flash_used, app_size)
