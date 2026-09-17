@@ -3,6 +3,8 @@ import esphome.codegen as cg
 from esphome.components import display
 import esphome.config_validation as cv
 from esphome.const import CONF_BRIGHTNESS, CONF_LAMBDA, CONF_RESET_PIN
+from esphome.cpp_generator import MockObj
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@kbx81"]
 
@@ -17,7 +19,7 @@ SSD1331_SCHEMA = display.FULL_DISPLAY_SCHEMA.extend(
 ).extend(cv.polling_component_schema("1s"))
 
 
-async def setup_ssd1331(var, config):
+async def setup_ssd1331(var: MockObj, config: ConfigType) -> None:
     await display.register_display(var, config)
 
     if CONF_RESET_PIN in config:
