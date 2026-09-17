@@ -57,6 +57,12 @@ namespace esphome::web_server_idf {
 
 static const char *const TAG = "web_server_idf";
 
+// The main loop stack is 8 KB. Only send_json_() may hold the JSON arena, so every other frame in
+// this file is capped below one arena and a second arena fails the build.
+#if defined(__GNUC__) && !defined(__clang__)
+#pragma GCC diagnostic error "-Wstack-usage=2048"
+#endif
+
 // Chunk size for streaming request bodies; matches the Arduino AsyncWebServer buffer size.
 // Buffers of this size must live on the heap - the httpd task stack is too small.
 static constexpr size_t RECV_CHUNK_SIZE = 1460;
@@ -1084,6 +1090,10 @@ void AsyncEventSourceResponse::loop() {
   this->entities_iterator_.try_advance(1);
 }
 
+#if defined(__GNUC__) && !defined(__clang__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wstack-usage="  // the one frame that holds the arena and the JSON buffer
+#endif
 bool AsyncEventSourceResponse::send_json_(void *source, message_generator_t *generator) {
   // The arena lives only in this frame, so no call chain ever holds two of them
   json::JsonArena<JSON_ARENA_SIZE> arena;
@@ -1140,6 +1150,9 @@ bool AsyncEventSourceResponse::send_json_(void *source, message_generator_t *gen
   drain_tail_();
   return true;
 }
+#if defined(__GNUC__) && !defined(__clang__)
+#pragma GCC diagnostic pop
+#endif
 
 void AsyncEventSourceResponse::tail_alloc_failed_(size_t cap) {
   // Same stall clock as a socket that stops draining, so a session cannot retry forever
