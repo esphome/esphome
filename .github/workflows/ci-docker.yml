@@ -119,16 +119,22 @@ jobs:
       # pushed image) keeps it working for fork PRs, which never push to ghcr.io.
       - name: Export image for compile-test
         if: matrix.os == 'ubuntu-24.04' && matrix.build_type == 'docker'
-        run: docker save "ghcr.io/esphome/esphome-amd64:${{ steps.tag.outputs.tag }}" | gzip > compile-test-image.tar.gz
+        # zstd over gzip: docker save is on the critical path for every
+        # compile-test job, and zstd -T0 is multithreaded (export 50s -> 9s).
+        # docker load auto-detects the format; its time is layer extraction,
+        # not decompression, so it is unchanged. shell: bash adds pipefail so
+        # a failed docker save cannot upload a truncated artifact.
+        shell: bash
+        run: docker save "ghcr.io/esphome/esphome-amd64:${{ steps.tag.outputs.tag }}" | zstd -T0 -3 > compile-test-image.tar.zst
 
       - name: Upload compile-test image artifact
         if: matrix.os == 'ubuntu-24.04' && matrix.build_type == 'docker'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          # The tar is already gzipped, so upload it as-is. archive: false skips
-          # the redundant zip and makes the file name the artifact name (the
-          # `name` input is ignored in that mode).
-          path: compile-test-image.tar.gz
+          # The tar is already compressed, so upload it as-is. archive: false
+          # skips the redundant zip and makes the file name the artifact name
+          # (the `name` input is ignored in that mode).
+          path: compile-test-image.tar.zst
           retention-days: 1
           archive: false
 
@@ -206,9 +212,9 @@ jobs:
       - name: Download image artifact
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
-          name: compile-test-image.tar.gz
+          name: compile-test-image.tar.zst
       - name: Load image
-        run: docker load --input compile-test-image.tar.gz
+        run: docker load --input compile-test-image.tar.zst
       - name: Compile ${{ matrix.id }}
         run: |
           docker run --rm \

@@ -363,12 +363,13 @@ async def to_code(config: ConfigType) -> None:
     # pre_setup() switches on uart_ to decide which hardware to initialize
     # (e.g. UART0 vs USB_SERIAL_JTAG). Without this, uart_ is still the
     # default UART_SELECTION_UART0 and the wrong hardware gets initialized.
-    if CONF_HARDWARE_UART in config:
-        cg.add(
-            log.set_uart_selection(
-                HARDWARE_UART_TO_UART_SELECTION[config[CONF_HARDWARE_UART]]
-            )
-        )
+    # uart_ is UART0 in C++ except on LibreTiny where it is DEFAULT; skip the
+    # setter when the config matches it.
+    cpp_default_uart = DEFAULT if CORE.is_libretiny else UART0
+    if (
+        hardware_uart := config.get(CONF_HARDWARE_UART)
+    ) is not None and hardware_uart != cpp_default_uart:
+        cg.add(log.set_uart_selection(HARDWARE_UART_TO_UART_SELECTION[hardware_uart]))
     # pre_setup() sets global_logger and must run before any other code
     # that may call ESP_LOG* (e.g. setup_preferences contains ESP_LOGVV).
     cg.add(log.pre_setup())

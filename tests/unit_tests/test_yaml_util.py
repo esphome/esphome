@@ -1706,6 +1706,53 @@ def test_dump_path_dotdot_reference_outside_anchor() -> None:
     assert output.strip() == "file: ../shared/font.ttf"
 
 
+@pytest.mark.parametrize(
+    "data_dir",
+    [
+        pytest.param(Path("/config/.esphome"), id="cli"),
+        pytest.param(Path("/data"), id="addon"),
+    ],
+)
+def test_dump_path_under_data_dir_uses_default_location(data_dir: Path) -> None:
+    """Test that Path values under data_dir dump as .esphome/<rest> for any layout."""
+    anchor = Path("/config").absolute()
+    path = data_dir.absolute() / "image" / "c44630d6"
+    output = yaml_util.dump(
+        {"file": path}, relative_to=anchor, data_dir=data_dir.absolute()
+    )
+    assert output.strip() == "file: .esphome/image/c44630d6"
+
+
+def test_dump_path_equal_to_data_dir() -> None:
+    """Test that the data dir itself dumps as .esphome, matching the default layout."""
+    anchor = Path("/config").absolute()
+    data_dir = Path("/data").absolute()
+    output = yaml_util.dump({"dir": data_dir}, relative_to=anchor, data_dir=data_dir)
+    assert output.strip() == "dir: .esphome"
+    default = yaml_util.dump(
+        {"dir": anchor / ".esphome"}, relative_to=anchor, data_dir=anchor / ".esphome"
+    )
+    assert default == output
+
+
+def test_dump_path_outside_data_dir_still_relative_to_anchor() -> None:
+    """Test that data_dir does not affect paths that are not under it."""
+    anchor = Path("/config").absolute()
+    path = anchor / "fonts" / "arial.ttf"
+    output = yaml_util.dump(
+        {"file": path}, relative_to=anchor, data_dir=Path("/data").absolute()
+    )
+    assert output.strip() == "file: fonts/arial.ttf"
+
+
+def test_dump_path_data_dir_without_relative_to_is_unchanged() -> None:
+    """Test that data_dir alone does not change the output."""
+    data_dir = Path("/data").absolute()
+    path = data_dir / "image" / "c44630d6"
+    output = yaml_util.dump({"file": path}, data_dir=data_dir)
+    assert output.strip() == f"file: {path}"
+
+
 def test_dump_relative_to_does_not_leak_between_calls() -> None:
     """Test that the relative_to flag is scoped to a single dump call."""
     anchor = Path("/config/esphome").absolute()

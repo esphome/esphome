@@ -172,7 +172,10 @@ APIError APIPlaintextFrameHelper::try_read_frame_() {
 
   // Reserve space for body (+ null terminator so protobuf StringRef fields
   // can be safely null-terminated in-place after decode)
-  this->rx_buf_.resize(this->rx_header_parsed_len_ + RX_BUF_NULL_TERMINATOR);
+  if (!this->rx_buf_.resize(this->rx_header_parsed_len_ + RX_BUF_NULL_TERMINATOR)) [[unlikely]] {
+    state_ = State::FAILED;
+    return APIError::OUT_OF_MEMORY;
+  }
 
   if (rx_buf_len_ < rx_header_parsed_len_) {
     // more data to read

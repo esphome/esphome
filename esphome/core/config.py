@@ -55,6 +55,7 @@ from esphome.helpers import (
     cpp_string_escape,
     fnv1a_32bit_hash,
     get_str_env,
+    get_usable_cpu_count,
     walk_files,
 )
 from esphome.types import ConfigType
@@ -203,16 +204,6 @@ def valid_project_name(value: str):
     if value.count(".") != 1:
         raise cv.Invalid("project name needs to have a namespace")
     return value
-
-
-def get_usable_cpu_count() -> int:
-    """Return the number of CPUs that can be used for processes.
-    On Python 3.13+ this is the number of CPUs that can be used for processes.
-    On older Python versions this is the number of CPUs.
-    """
-    return (
-        os.process_cpu_count() if hasattr(os, "process_cpu_count") else os.cpu_count()
-    )
 
 
 if "ESPHOME_DEFAULT_COMPILE_PROCESS_LIMIT" in os.environ:
@@ -726,9 +717,10 @@ async def to_code(config: ConfigType) -> None:
     cg.add_global(cg.RawExpression("using std::min"))
     cg.add_global(cg.RawExpression("using std::max"))
 
-    # Construct App via placement new — see application.cpp for storage details
+    # Construct App via placement new — see application.cpp for storage details.
+    # No parens: `Application()` would zero-fill storage that is already zero.
     cg.add_global(cg.RawStatement("#include <new>"))
-    cg.add(cg.RawExpression("new (&App) Application()"))
+    cg.add(cg.RawExpression("new (&App) Application"))
     name = config[CONF_NAME]
     friendly_name = config[CONF_FRIENDLY_NAME]
     name_add_mac_suffix = config[CONF_NAME_ADD_MAC_SUFFIX]

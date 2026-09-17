@@ -204,14 +204,14 @@ class WebServer final : public Controller, public Component, public AsyncWebHand
    *
    * @param css_url The url to the web server stylesheet.
    */
-  void set_css_url(const char *css_url);
+  void set_css_url(const char *css_url) { this->css_url_ = css_url; }
 
   /** Set the URL to the script that's embedded in the index page. Defaults to
    * https://oi.esphome.io/v1/webserver-v1.min.js
    *
    * @param js_url The url to the web server script.
    */
-  void set_js_url(const char *js_url);
+  void set_js_url(const char *js_url) { this->js_url_ = js_url; }
 #endif
 
 #ifdef USE_WEBSERVER_CSS_INCLUDE
@@ -219,7 +219,7 @@ class WebServer final : public Controller, public Component, public AsyncWebHand
    *
    * @param css_include Local path to web server script.
    */
-  void set_css_include(const char *css_include);
+  void set_css_include(const char *css_include) { this->css_include_ = css_include; }
 #endif
 
 #ifdef USE_WEBSERVER_JS_INCLUDE
@@ -227,7 +227,7 @@ class WebServer final : public Controller, public Component, public AsyncWebHand
    *
    * @param js_include Local path to web server script.
    */
-  void set_js_include(const char *js_include);
+  void set_js_include(const char *js_include) { this->js_include_ = js_include; }
 #endif
 
   /** Determine whether internal components should be displayed on the web server.
@@ -593,7 +593,7 @@ class WebServer final : public Controller, public Component, public AsyncWebHand
 
   web_server_base::WebServerBase *base_;
 #ifdef USE_ESP32
-  AsyncEventSource events_{"/events", this};
+  AsyncEventSource events_{StringRef::from_lit("/events"), this};
 #elif USE_ARDUINO
   DeferredUpdateEventSourceList events_;
 #endif

@@ -406,8 +406,9 @@ class SPIClient {
                                                      this->release_device_, this->write_only_);
 #ifdef USE_SPI_PSRAM_DMA
     this->delegate_->set_psram_dma(this->psram_dma_);
-    if (this->psram_dma_)
+    if (this->psram_dma_) {
       esph_log_config("spi_device", "PSRAM DMA: enabled");
+    }
 #endif
   }
 
