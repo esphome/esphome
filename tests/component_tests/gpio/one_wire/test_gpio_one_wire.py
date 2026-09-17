@@ -100,7 +100,9 @@ def test_use_rmt_on_esp8266_is_rejected(
 def test_use_rmt_on_esp32_without_rmt_is_rejected(
     generate_main: Callable[[str | Path], str],
 ) -> None:
-    with pytest.raises(cv.Invalid, match="use_rmt.*not available.*ESP32C2|no RMT hardware"):
+    with pytest.raises(
+        cv.Invalid, match="use_rmt.*not available.*ESP32C2|no RMT hardware"
+    ):
         generate_main(HERE / "test_gpio_one_wire_esp32c2_use_rmt_true.yaml")
 
 

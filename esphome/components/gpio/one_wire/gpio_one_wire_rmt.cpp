@@ -302,8 +302,7 @@ bool GPIOOneWireBus::read_bit_rmt_(bool *bit) {
   rmt_symbol_word_t read_symbol = make_symbol(SLOT_START, 0, SLOT_BIT + SLOT_RECOVERY, 1);
 
   xQueueReset(this->receive_queue_);
-  esp_err_t error =
-      rmt_receive(this->rx_channel_, this->rx_symbols_buf_, sizeof(rmt_symbol_word_t), &RX_CONFIG);
+  esp_err_t error = rmt_receive(this->rx_channel_, this->rx_symbols_buf_, sizeof(rmt_symbol_word_t), &RX_CONFIG);
   if (error != ESP_OK) {
     ESP_LOGE(TAG, "RMT read bit receive failed: %s", esp_err_to_name(error));
     return false;
