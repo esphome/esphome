@@ -314,7 +314,7 @@ class AsyncEventSourceResponse {
                     size_t sent);
   // Chunk header placeholder, the retry/id/event lines and, with_data, the first "data: ".
   // Returns the prefix length; PREFIX_BUF_SIZE - 1 or more means the event name did not fit.
-  static size_t build_prefix_(char *prefix, const char *event, uint32_t id, uint32_t reconnect, bool with_data);
+  static size_t build_prefix(char *prefix, const char *event, uint32_t id, uint32_t reconnect, bool with_data);
   // Send a state event. The JSON is serialized into a stack buffer and goes out like any other
   // message; one too large for it is serialized straight into tail_ and drained from there.
   bool send_json_(json::JsonBuilder &builder);

@@ -30,7 +30,9 @@ static std::string build_chunk(const char *message, size_t message_len, const ch
     return "";
   }
   std::string out(prefix, prefix_len);
-  for_each_chunk_piece(message, message_len, [&out](const char *piece, size_t len) { out.append(piece, len); });
+  for_each_chunk_piece(
+      message, message_len,
+      [](void *ctx, const char *piece, size_t len) { static_cast<std::string *>(ctx)->append(piece, len); }, &out);
   format_hex_to(prefix, static_cast<uint32_t>(out.size() - CHUNK_HDR_LEN - CHUNK_END_LEN));
   prefix[8] = '\r';
   prefix[9] = '\n';

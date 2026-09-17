@@ -1031,10 +1031,14 @@ bool AsyncEventSourceResponse::stash_chunk_(const char *prefix, size_t prefix_le
   uint8_t *dst = this->tail_.get();
   std::memcpy(dst, prefix, prefix_len);
   dst += prefix_len;
-  for_each_chunk_piece(message, message_len, [&dst](const char *piece, size_t len) {
-    std::memcpy(dst, piece, len);
-    dst += len;
-  });
+  for_each_chunk_piece(
+      message, message_len,
+      [](void *ctx, const char *piece, size_t len) {
+        auto &out = *static_cast<uint8_t **>(ctx);
+        std::memcpy(out, piece, len);
+        out += len;
+      },
+      &dst);
   this->tail_len_ = total;
   this->tail_sent_ = sent;
   return true;
@@ -1053,8 +1057,8 @@ void AsyncEventSourceResponse::loop() {
   this->entities_iterator_.try_advance(1);
 }
 
-size_t AsyncEventSourceResponse::build_prefix_(char *prefix, const char *event, uint32_t id, uint32_t reconnect,
-                                               bool with_data) {
+size_t AsyncEventSourceResponse::build_prefix(char *prefix, const char *event, uint32_t id, uint32_t reconnect,
+                                              bool with_data) {
   // The chunk header is formatted by the caller once the length is known
   size_t len = CHUNK_HDR_LEN;
   if (reconnect) {
@@ -1093,7 +1097,7 @@ bool AsyncEventSourceResponse::send_json_(json::JsonBuilder &builder) {
   {
     SendGuard guard{*this};
     char prefix[PREFIX_BUF_SIZE];
-    const size_t prefix_len = build_prefix_(prefix, "state", 0, 0, true);
+    const size_t prefix_len = build_prefix(prefix, "state", 0, 0, true);
     // Grow the tail until the document fits; nothing is pending, so each step just reallocates
     size_t json_len = 0;
     for (size_t cap = JSON_BUF_SIZE * 2;; cap *= 2) {
@@ -1142,7 +1146,7 @@ bool AsyncEventSourceResponse::try_send_nodefer(const char *message, size_t mess
 
   // Everything after the prefix goes out straight from the caller's buffer
   char prefix[PREFIX_BUF_SIZE];
-  const size_t prefix_len = build_prefix_(prefix, event, id, reconnect, message != nullptr);
+  const size_t prefix_len = build_prefix(prefix, event, id, reconnect, message != nullptr);
   if (message == nullptr && prefix_len == CHUNK_HDR_LEN) {
     return true;  // Match ESPAsyncWebServer: nothing to send
   }
@@ -1153,21 +1157,32 @@ bool AsyncEventSourceResponse::try_send_nodefer(const char *message, size_t mess
   }
 
   // Gather list: the prefix, then the data lines and their separators from the message
-  struct iovec iov[MAX_SEND_IOV];
-  int iovcnt = 1;
-  size_t total = prefix_len;
-  bool fits = true;
-  for_each_chunk_piece(message, message_len, [&](const char *piece, size_t len) {
-    total += len;
-    if (len == 0) {
-      return;
-    }
-    if (iovcnt == MAX_SEND_IOV) {
-      fits = false;
-      return;
-    }
-    iov[iovcnt++] = {const_cast<char *>(piece), len};
-  });
+  struct Gather {
+    struct iovec iov[MAX_SEND_IOV];  // left uninitialized on purpose
+    int iovcnt{1};
+    size_t total{0};
+    bool fits{true};
+  } g;
+  g.total = prefix_len;
+  for_each_chunk_piece(
+      message, message_len,
+      [](void *ctx, const char *piece, size_t len) {
+        auto &g = *static_cast<Gather *>(ctx);
+        g.total += len;
+        if (len == 0) {
+          return;
+        }
+        if (g.iovcnt == MAX_SEND_IOV) {
+          g.fits = false;
+          return;
+        }
+        g.iov[g.iovcnt++] = {const_cast<char *>(piece), len};
+      },
+      &g);
+  struct iovec *iov = g.iov;
+  const int iovcnt = g.iovcnt;
+  const size_t total = g.total;
+  const bool fits = g.fits;
   // The header and the terminator are not part of the chunk length
   format_hex_to(prefix, static_cast<uint32_t>(total - CHUNK_HDR_LEN - CHUNK_END_LEN));
   prefix[8] = '\r';

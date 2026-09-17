@@ -1,7 +1,6 @@
 #pragma once
 
 #include <cstddef>
-#include <cstring>
 
 namespace esphome::web_server_idf {
 
@@ -22,34 +21,14 @@ constexpr size_t SSE_SEP_LEN = sizeof(SSE_SEP) - 1;
 constexpr char SSE_SUFFIX[] = "\r\n\r\n\r\n";
 constexpr size_t SSE_SUFFIX_LEN = sizeof(SSE_SUFFIX) - 1;
 
-// Calls sink(ptr, len) for each piece of the chunk after the prefix: the data lines split on
-// \n, \r or \r\n with SSE_SEP between them and SSE_SUFFIX after the last (matching
-// ESPAsyncWebServer: a trailing line break adds no empty last line, an inner empty line is
-// kept). A null message has no data line and no blank line, only the chunk terminator.
-template<typename Sink> void for_each_chunk_piece(const char *message, size_t message_len, Sink &&sink) {
-  if (message == nullptr) {
-    sink(CHUNK_END, CHUNK_END_LEN);
-    return;
-  }
-  const char *pos = message;
-  const char *end = message + message_len;
-  for (;;) {
-    const size_t remaining = end - pos;
-    const auto *n = static_cast<const char *>(memchr(pos, '\n', remaining));
-    const auto *r = static_cast<const char *>(memchr(pos, '\r', remaining));
-    if (n == nullptr && r == nullptr) {
-      sink(pos, remaining);
-      break;
-    }
-    const char *brk = (r != nullptr && (n == nullptr || r < n)) ? r : n;
-    sink(pos, brk - pos);
-    pos = brk + ((brk == r && brk + 1 == n) ? 2 : 1);
-    if (pos >= end) {
-      break;
-    }
-    sink(SSE_SEP, SSE_SEP_LEN);
-  }
-  sink(SSE_SUFFIX, SSE_SUFFIX_LEN);
-}
+// Receives one piece of the chunk; ctx is whatever the caller passed to for_each_chunk_piece()
+using ChunkPieceSink = void (*)(void *ctx, const char *piece, size_t len);
+
+// Calls sink for each piece of the chunk after the prefix: the data lines split on \n, \r or
+// \r\n with SSE_SEP between them and SSE_SUFFIX after the last (matching ESPAsyncWebServer: a
+// trailing line break adds no empty last line, an inner empty line is kept). A null message has
+// no data line and no blank line, only the chunk terminator. Out of line on purpose: one copy
+// serves the gather list and the tail.
+void for_each_chunk_piece(const char *message, size_t message_len, ChunkPieceSink sink, void *ctx);
 
 }  // namespace esphome::web_server_idf
