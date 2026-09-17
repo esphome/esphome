@@ -984,10 +984,16 @@ void AsyncEventSourceResponse::close_session_work(void *arg) {
 }
 
 ssize_t AsyncEventSourceResponse::send_(struct iovec *iov, int iovcnt) {
+  // httpd frees the session before it closes the socket, so the fd number can already belong to
+  // a new client. Checking the session table narrows that window; it cannot close it.
+  const int fd = this->fd_.load();
+  if (httpd_sess_get_ctx(this->hd_, fd) != this) {
+    return -1;
+  }
   struct msghdr msg {};
   msg.msg_iov = iov;
   msg.msg_iovlen = iovcnt;
-  const ssize_t sent = sendmsg(this->fd_.load(), &msg, MSG_DONTWAIT);
+  const ssize_t sent = sendmsg(fd, &msg, MSG_DONTWAIT);
   if (sent >= 0) {
     return sent;
   }
@@ -1122,6 +1128,11 @@ bool AsyncEventSourceResponse::try_send_nodefer(const char *message, size_t mess
     prefix_len = buf_append_str(prefix, sizeof(prefix), prefix_len, "data: ");
   } else if (prefix_len == CHUNK_HDR_LEN) {
     return true;  // Match ESPAsyncWebServer: nothing to send
+  }
+  if (prefix_len >= sizeof(prefix) - 1) {
+    // The appenders truncate silently, which would put a malformed event on the wire
+    ESP_LOGW(TAG, "EventSource event name too long; dropped");
+    return true;
   }
 
   // Gather list: the prefix, then the data lines and their separators from the message
