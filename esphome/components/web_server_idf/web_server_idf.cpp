@@ -761,7 +761,9 @@ void AsyncEventSource::adopt_pending_sessions_main_loop_() {
     }
     // httpd copies the session context into its table only after the handler that created the
     // session returns. Until then send_() would refuse the socket and the greeting would end up
-    // in the tail, so leave the session pending for another pass.
+    // in the tail, so leave the session pending for another pass. Bounded because the handler
+    // always returns ESP_OK, so httpd_req_cleanup() always runs and either commits the context
+    // or, on a dead socket, invokes destroy().
     if (httpd_sess_get_ctx(rsp->hd_, rsp->fd_.load()) != rsp) {
       LockGuard guard{this->pending_mutex_};
       this->pending_sessions_.push_back(rsp);
@@ -845,8 +847,11 @@ void AsyncEventSourceResponse::start_session_main_loop_() {
     message = builder.serialize();
 
     // a (very) large number of these should be able to be queued initially without defer
-    // since the only thing in the send buffer at this point is the initial ping/config
-    this->try_send_nodefer(message.c_str(), message.size(), "sorting_group");
+    // since the only thing in the send buffer at this point is the initial ping/config.
+    // A refusal means the socket is already full; stop rather than send a partial set.
+    if (!this->try_send_nodefer(message.c_str(), message.size(), "sorting_group")) {
+      break;
+    }
   }
 #endif
 
@@ -1025,8 +1030,9 @@ bool AsyncEventSourceResponse::reserve_tail_(size_t len) {
   if (len > UINT16_MAX) {
     return false;
   }
-  // Nothing is pending when the tail grows, so free the old block before asking for the new one.
-  // PREFER_INTERNAL keeps the tail where plain new put it.
+  // Nothing is pending when the tail grows, so free the old block before asking for the new one;
+  // a failed growth therefore leaves no tail at all. PREFER_INTERNAL keeps the tail where plain
+  // new put it.
   this->tail_.reset();
   this->tail_ = RAMAllocator<uint8_t>(RAMAllocator<uint8_t>::PREFER_INTERNAL).make_unique_array_for_overwrite(len);
   this->tail_cap_ = this->tail_ ? len : 0;
@@ -1095,7 +1101,8 @@ bool AsyncEventSourceResponse::send_json_(json::JsonBuilder &builder) {
     // pending, so each step just reallocates. Nothing has reached the wire, so a document that
     // cannot be held costs only this event, and a tail grown for an abandoned event is released.
     size_t json_len = 0;
-    size_t cap = std::max<size_t>(JSON_BUF_SIZE * 2, this->tail_cap_);
+    // Clamped so JSON_MAX_SIZE still bounds a document after a log chunk has grown the tail past it
+    size_t cap = std::min<size_t>(std::max<size_t>(JSON_BUF_SIZE * 2, this->tail_cap_), JSON_MAX_SIZE);
     for (;;) {
       if (!this->reserve_tail_(cap)) {
         // Transient: the caller keeps the event deferred and retries on a later pass
