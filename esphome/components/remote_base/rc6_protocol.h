@@ -15,9 +15,9 @@ struct RC6Data {
 
 class RC6Protocol : public RemoteProtocol<RC6Data> {
  public:
-  void encode(RemoteTransmitData *dst, const RC6Data &data) override;
-  optional<RC6Data> decode(RemoteReceiveData src) override;
-  void dump(const RC6Data &data) override;
+  void encode(RemoteTransmitData *dst, const RC6Data &data);
+  optional<RC6Data> decode(RemoteReceiveData src);
+  void dump(const RC6Data &data);
 };
 
 DECLARE_REMOTE_PROTOCOL(RC6)

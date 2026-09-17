@@ -4,7 +4,7 @@ dependencies:
   esphome/dlms_parser:
     version: 1.1.0
   esphome/esp-audio-libs:
-    version: 3.2.1
+    version: 4.0.0
   esphome/esp-micro-speech-features:
     version: 1.2.3
   esphome/micro-decoder:
@@ -98,7 +98,7 @@ dependencies:
   esp32async/asynctcp:
     version: 3.4.91
   sendspin/sendspin-cpp:
-    version: 0.7.2
+    version: 0.8.0
   lvgl/lvgl:
     version: 9.5.0
   fastled/FastLED:
