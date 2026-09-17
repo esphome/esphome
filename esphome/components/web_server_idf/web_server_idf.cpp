@@ -834,9 +834,13 @@ AsyncEventSourceResponse::AsyncEventSourceResponse(const AsyncWebServerRequest *
 void AsyncEventSourceResponse::start_session_main_loop_() {
   auto *ws = this->web_server_;
 
-  // tcp send buffer is empty on connect, so these should always go through
+  // tcp send buffer is empty on connect, so these should always go through. A refusal here
+  // means the session is already closing, so there is nothing to list.
   auto message = ws->get_config_json();
-  this->try_send_nodefer(message.c_str(), message.size(), "ping", millis(), 30000);
+  if (!this->try_send_nodefer(message.c_str(), message.size(), "ping", millis(), 30000)) {
+    ESP_LOGW(TAG, "Config not sent to fd %d", this->fd_.load());
+    return;
+  }
 
 #ifdef USE_WEBSERVER_SORTING
   for (auto &group : ws->sorting_groups_) {
@@ -848,8 +852,9 @@ void AsyncEventSourceResponse::start_session_main_loop_() {
 
     // a (very) large number of these should be able to be queued initially without defer
     // since the only thing in the send buffer at this point is the initial ping/config.
-    // A refusal means the socket is already full; stop rather than send a partial set.
+    // A refusal means the socket is full or closing; the remaining groups are not sent.
     if (!this->try_send_nodefer(message.c_str(), message.size(), "sorting_group")) {
+      ESP_LOGW(TAG, "Sorting groups not sent to fd %d", this->fd_.load());
       break;
     }
   }
@@ -1232,7 +1237,8 @@ void AsyncEventSourceResponse::deferrable_send_state(void *source, const char *e
   } else {
     json::JsonBuilder builder;
     message_generator(web_server_, source, builder);
-    if (!this->send_json_(builder)) {
+    // A send error closes the session and clears the queue; nothing is queued after that
+    if (!this->send_json_(builder) && !this->close_requested_) {
       deq_push_back_with_dedup_(source, message_generator);
     }
   }
