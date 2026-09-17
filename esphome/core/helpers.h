@@ -2264,7 +2264,9 @@ template<class T> class RAMAllocator {
   struct Caps {
     uint32_t primary;
     uint32_t fallback;
-    uint8_t num;  // capability sets to hand to heap_caps_*_prefer
+    uint8_t num;  // distinct capability sets to hand to heap_caps_*_prefer
+    constexpr Caps(uint32_t primary, uint32_t fallback)
+        : primary(primary), fallback(fallback), num(primary == fallback ? 1 : 2) {}
   };
 
   /// Returns the capability sets for heap_caps_*_prefer based on the configured flags.
@@ -2273,15 +2275,15 @@ template<class T> class RAMAllocator {
   /// is enabled (external preferred when both are enabled), and the fallback is the other region (or the
   /// same region when only one is enabled). With a single region enabled num is 1, so the duplicate
   /// fallback is never searched.
-  Caps get_caps_() const {
+  constexpr Caps get_caps_() const {
     constexpr uint32_t external_caps = MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT;
     constexpr uint32_t internal_caps = MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT;
     if (this->flags_ & PREFER_INTERNAL) {
-      return {internal_caps, external_caps, 2};
+      return {internal_caps, external_caps};
     }
     const uint32_t primary = (this->flags_ & ALLOC_EXTERNAL) ? external_caps : internal_caps;
     const uint32_t fallback = (this->flags_ & ALLOC_INTERNAL) ? internal_caps : external_caps;
-    return {primary, fallback, static_cast<uint8_t>(primary == fallback ? 1 : 2)};
+    return {primary, fallback};
   }
 #endif
 
