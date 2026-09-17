@@ -440,14 +440,6 @@ async def to_code(config: ConfigType) -> None:
     if config.get(CONF_ENABLE_SERIAL1):
         enable_serial1()
 
-    # Arduino 2 has a non-standards conformant new that returns a nullptr instead of failing when
-    # out of memory and exceptions are disabled. Since Arduino 2.6.0, this flag can be used to make
-    # new abort instead. Use it so that OOM fails early (on allocation) instead of on dereference of
-    # a NULL pointer (so the stacktrace makes more sense), and for consistency with Arduino 3,
-    # which always aborts if exceptions are disabled.
-    # For cases where nullptrs can be handled, use nothrow: `new (std::nothrow) T;`
-    cg.add_build_flag("-DNEW_OOM_ABORT")
-
     # Force-include inline std::__throw_* overrides so GCC dead-strips the unused
     # libstdc++ error message strings (e.g. "basic_string::_M_create") from DRAM.
     # See throw_stubs.h for details. Must be prepended before <string>, so this
