@@ -4,6 +4,7 @@ Test ESP32 configuration
 
 import asyncio
 from collections.abc import Callable
+import logging
 from pathlib import Path
 from typing import Any
 
@@ -1640,3 +1641,37 @@ def test_nvs_cache_in_psram_explicit_true_rejects_encryption(
     }
     with pytest.raises(cv.Invalid, match="cannot be used with NVS encryption"):
         FINAL_VALIDATE_SCHEMA(CONFIG_SCHEMA(config))
+
+
+def test_nvs_cache_in_psram_default_with_encryption_is_quiet(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Encryption on a board that never mentioned the option must not warn about it."""
+    with caplog.at_level(logging.WARNING):
+        generate_main(component_config_path("nvs_cache_psram_encrypted.yaml"))
+    assert "nvs_cache_in_psram" not in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_nvs_cache_in_psram_explicit_request_warns_when_encrypted(
+    set_core_config: SetCoreConfigCallable, caplog: pytest.LogCaptureFixture
+) -> None:
+    """An explicit request dropped for NVS encryption enabled elsewhere logs a warning."""
+    set_core_config(
+        PlatformFramework.ESP32_IDF, platform_data={KEY_SDKCONFIG_OPTIONS: {}}
+    )
+    from esphome.components.esp32 import (
+        _apply_nvs_cache_in_psram,
+        add_idf_sdkconfig_option,
+    )
+
+    add_idf_sdkconfig_option("CONFIG_NVS_ENCRYPTION", True)
+    with caplog.at_level(logging.WARNING):
+        await _apply_nvs_cache_in_psram(True)
+    assert "nvs_cache_in_psram ignored" in caplog.text
+    assert (
+        "CONFIG_NVS_ALLOCATE_CACHE_IN_SPIRAM"
+        not in CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
+    )

@@ -2953,9 +2953,9 @@ async def to_code(config):
     # Frees internal heap (the cache scales with the NVS partition) but slows NVS, so only
     # where PSRAM is known to be fitted. Decided at FINAL so every way of enabling NVS
     # encryption has been seen and a user's sdkconfig_options value wins.
-    if (
-        requested := advanced.get(CONF_NVS_CACHE_IN_PSRAM, True)
-    ) and psram_is_guaranteed():
+    # Unset means on; only an explicit true is worth a warning when it has to be dropped.
+    requested = advanced.get(CONF_NVS_CACHE_IN_PSRAM)
+    if requested is not False and psram_is_guaranteed():
         CORE.add_job(_apply_nvs_cache_in_psram, requested is True)
 
     # Apply LWIP core locking for better socket performance
