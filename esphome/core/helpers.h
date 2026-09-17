@@ -2270,8 +2270,9 @@ template<class T> class RAMAllocator {
   /// Returns the capability sets for heap_caps_*_prefer based on the configured flags.
   /// PREFER_INTERNAL implies both regions are enabled (enforced by the constructor), so when it is set
   /// the primary is internal and the fallback is external. Otherwise the primary is whichever region
-  /// is enabled (external preferred when both are enabled) and the fallback is the other region. With
-  /// a single region enabled num is 1, as a second attempt would search the same heap again.
+  /// is enabled (external preferred when both are enabled), and the fallback is the other region (or the
+  /// same region when only one is enabled). With a single region enabled num is 1, so the duplicate
+  /// fallback is never searched.
   Caps get_caps_() const {
     constexpr uint32_t external_caps = MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT;
     constexpr uint32_t internal_caps = MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT;
