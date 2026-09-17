@@ -74,20 +74,27 @@ static const char *const TAG = "ethernet";
 // PHY register size for hex logging
 static constexpr size_t PHY_REG_SIZE = 2;
 
-// Dual wifi + ethernet builds only: wifi's fixed costs leave little internal RAM and its buffers are
-// already in PSRAM, while an ethernet-only build has room to spare. SPI MACs only: the bus is the
-// bottleneck there, the extra copy is unmeasured on the 100 Mbit EMAC. Not with L2 TAP, whose filter
-// lives in the glue's input path.
-#if defined(USE_PSRAM) && defined(USE_ETHERNET_SPI) && defined(USE_WIFI) && !CONFIG_ESP_NETIF_L2_TAP
+// Dual wifi + ethernet SPI builds: the one place internal RAM is short and lwip's other buffers are
+// already in PSRAM. Not with L2 TAP, whose filter lives in the glue's input path this replaces.
+#if defined(USE_PSRAM) && defined(USE_ETHERNET_SPI) && defined(USE_WIFI) && !defined(CONFIG_ESP_NETIF_L2_TAP)
 #define USE_ETHERNET_RX_PSRAM
+// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables) - reported by dump_config()
+static bool rx_psram_installed = false;
+
 // ESP-IDF ethernet drivers malloc() every received frame in internal RAM, where it stays until lwIP
 // hands it to the application. Move it to PSRAM; if that fails the frame is passed on where it is.
 static esp_err_t eth_input_to_psram(esp_eth_handle_t handle, uint8_t *buffer, uint32_t length, void *priv) {
-  auto *copy = RAMAllocator<uint8_t>(RAMAllocator<uint8_t>::ALLOC_EXTERNAL).allocate(length);
+  auto *copy = static_cast<uint8_t *>(heap_caps_malloc(length, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
   if (copy != nullptr) {
     memcpy(copy, buffer, length);
     free(buffer);  // NOLINT(cppcoreguidelines-no-malloc) - allocated by the driver with malloc()
     buffer = copy;
+  } else {
+    static bool warned = false;  // once, this runs per frame in the driver's task
+    if (!warned) {
+      warned = true;
+      ESP_LOGW(TAG, "PSRAM full, received frames stay in internal RAM");
+    }
   }
   return esp_netif_receive(static_cast<esp_netif_t *>(priv), buffer, length, nullptr);
 }
@@ -476,12 +483,11 @@ void EthernetComponent::ethernet_lazy_init_() {
   err = esp_netif_attach(this->eth_netif_, esp_eth_new_netif_glue(this->eth_handle_));
   ESPHL_ERROR_CHECK(err, "ETH netif attach error");
 #ifdef USE_ETHERNET_RX_PSRAM
-  // Replaces the input path the glue installed during attach. The glue frees every receive buffer
-  // with free(), so the replacement buffer must come from the heap.
+  // The glue frees every receive buffer with free(), so the replacement buffer must come from the heap
   if (esp_psram_is_initialized()) {
-    // Not fatal: the glue's own input path stays in place and frames just remain in internal RAM
     err = esp_eth_update_input_path(this->eth_handle_, eth_input_to_psram, this->eth_netif_);
-    if (err != ESP_OK) {
+    rx_psram_installed = err == ESP_OK;
+    if (!rx_psram_installed) {
       ESP_LOGW(TAG, "PSRAM RX path not installed: %s", esp_err_to_name(err));
     }
   }
@@ -663,6 +669,10 @@ void EthernetComponent::dump_config() {
                 this->clk_pin_, this->mdc_pin_, this->mdio_pin_, this->phy_addr_);
 #endif
   ESP_LOGCONFIG(TAG, "  Type: %s", eth_type);
+#ifdef USE_ETHERNET_RX_PSRAM
+  ESP_LOGCONFIG(TAG, "  RX frames: %s",
+                rx_psram_installed ? LOG_STR_LITERAL("PSRAM") : LOG_STR_LITERAL("internal RAM"));
+#endif
 }
 
 network::IPAddresses EthernetComponent::get_ip_addresses() {
