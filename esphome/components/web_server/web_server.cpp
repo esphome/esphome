@@ -354,7 +354,7 @@ json::SerializationBuffer<> WebServer::get_config_json() {
   json::JsonBuilder builder;
   JsonObject root = builder.root();
 
-  root[ESPHOME_F("title")] = App.get_friendly_name().empty() ? App.get_name() : App.get_friendly_name();
+  root[ESPHOME_F("title")] = linked(App.get_friendly_name().empty() ? App.get_name() : App.get_friendly_name());
   char comment_buffer[Application::ESPHOME_COMMENT_SIZE_MAX];
   App.get_comment_string(comment_buffer);
   root[ESPHOME_F("comment")] = static_cast<const char *>(comment_buffer);
@@ -672,7 +672,7 @@ json::SerializationBuffer<> WebServer::sensor_json_(sensor::Sensor *obj, float v
   if (start_config == DETAIL_ALL) {
     this->add_sorting_info_(root, obj);
     if (!uom_ref.empty())
-      root[ESPHOME_F("uom")] = uom_ref;
+      root[ESPHOME_F("uom")] = linked(uom_ref);
   }
 
   return builder.serialize();
@@ -1033,7 +1033,7 @@ json::SerializationBuffer<> WebServer::light_json_(light::LightState *obj, JsonD
     JsonArray opt = root[ESPHOME_F("effects")].to<JsonArray>();
     opt.add(linked("None"));
     for (auto const &option : obj->get_effects()) {
-      opt.add(option->get_name());
+      opt.add(linked(option->get_name()));
     }
     this->add_sorting_info_(root, obj);
   }
@@ -1196,7 +1196,7 @@ json::SerializationBuffer<> WebServer::number_json_(number::Number *obj, float v
     root[ESPHOME_F("step")] = (value_accuracy_to_buf(val_buf, obj->traits.get_step(), accuracy), val_buf);
     root[ESPHOME_F("mode")] = (int) obj->traits.get_mode();
     if (!uom_ref.empty())
-      root[ESPHOME_F("uom")] = uom_ref;
+      root[ESPHOME_F("uom")] = linked(uom_ref);
     this->add_sorting_info_(root, obj);
   }
 
@@ -1494,7 +1494,8 @@ json::SerializationBuffer<> WebServer::select_json_(select::Select *obj, StringR
   json::JsonBuilder builder;
   JsonObject root = builder.root();
 
-  set_json_icon_state_value(root, obj, "select", value, value, start_config);
+  const JsonString state = linked(value);
+  set_json_icon_state_value(root, obj, "select", state, state, start_config);
   if (start_config == DETAIL_ALL) {
     JsonArray opt = root[ESPHOME_F("option")].to<JsonArray>();
     for (auto &option : obj->traits.get_options()) {
@@ -1630,13 +1631,13 @@ json::SerializationBuffer<> WebServer::climate_json_(climate::Climate *obj, Json
     root[ESPHOME_F("fan_mode")] = json_state_str(climate_fan_mode_to_string(obj->fan_mode.value()));
   }
   if (!traits.get_supported_custom_fan_modes().empty() && obj->has_custom_fan_mode()) {
-    root[ESPHOME_F("custom_fan_mode")] = obj->get_custom_fan_mode();
+    root[ESPHOME_F("custom_fan_mode")] = linked(obj->get_custom_fan_mode());
   }
   if (traits.get_supports_presets() && obj->preset.has_value()) {
     root[ESPHOME_F("preset")] = json_state_str(climate_preset_to_string(obj->preset.value()));
   }
   if (!traits.get_supported_custom_presets().empty() && obj->has_custom_preset()) {
-    root[ESPHOME_F("custom_preset")] = obj->get_custom_preset();
+    root[ESPHOME_F("custom_preset")] = linked(obj->get_custom_preset());
   }
   if (traits.get_supports_swing_modes()) {
     root[ESPHOME_F("swing_mode")] = json_state_str(climate_swing_mode_to_string(obj->swing_mode));
@@ -2262,7 +2263,7 @@ json::SerializationBuffer<> WebServer::event_json_(event::Event *obj, StringRef 
 
   set_json_id(root, obj, "event", start_config);
   if (!event_type.empty()) {
-    root[ESPHOME_F("event_type")] = event_type;
+    root[ESPHOME_F("event_type")] = linked(event_type);
   }
   if (start_config == DETAIL_ALL) {
     JsonArray event_types = root[ESPHOME_F("event_types")].to<JsonArray>();
