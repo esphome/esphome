@@ -710,7 +710,9 @@ file does, and it is the authority when they disagree. The most useful starting 
 
         6. **Avoid `std::deque`:** It allocates in 512-byte blocks regardless of element size, guaranteeing at least 512 bytes of RAM usage immediately. This is a major source of crashes on memory-constrained devices.
 
-        7. **Detection:** Look for these patterns in compiler output:
+        7. **Never use `new (std::nothrow)`:** On ESP-IDF exceptions are disabled, so a failed nothrow allocation aborts instead of returning `nullptr`. Use `RAMAllocator` from `esphome/core/helpers.h`; CI rejects `std::nothrow`.
+
+        8. **Detection:** Look for these patterns in compiler output:
            - Large code sections with STL symbols (vector, map, set)
            - `alloc`, `realloc`, `dealloc` in symbol names
            - `_M_realloc_insert`, `_M_default_append` (vector reallocation)
