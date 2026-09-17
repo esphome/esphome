@@ -33,27 +33,29 @@ class Select : public EntityBase {
   Select() = default;
   ~Select() = default;
 
-  void publish_state(const std::string &state);
+  void publish_state(const std::string &state) { this->publish_state(state.c_str()); }
   void publish_state(const char *state);
   void publish_state(size_t index);
 
   /// Return the currently selected option, or empty StringRef if no state.
   /// The returned StringRef points to string literals from codegen (static storage).
   /// Traits are set once at startup and valid for the lifetime of the program.
-  StringRef current_option() const;
+  StringRef current_option() const {
+    return this->has_state() ? StringRef(this->option_at(this->active_index_)) : StringRef();
+  }
 
   /// Instantiate a SelectCall object to modify this select component's state.
   SelectCall make_call() { return SelectCall(this); }
 
   /// Return whether this select component contains the provided option.
-  bool has_option(const std::string &option) const;
-  bool has_option(const char *option) const;
+  bool has_option(const std::string &option) const { return this->index_of(option).has_value(); }
+  bool has_option(const char *option) const { return this->index_of(option).has_value(); }
 
   /// Return whether this select component contains the provided index offset.
-  bool has_index(size_t index) const;
+  bool has_index(size_t index) const { return index < this->size(); }
 
   /// Return the number of options in this select component.
-  size_t size() const;
+  size_t size() const { return this->traits.get_options().size(); }
 
   /// Find the (optional) index offset of the provided option value.
   optional<size_t> index_of(const char *option, size_t len) const;
