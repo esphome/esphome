@@ -16,9 +16,9 @@
 
 namespace esphome::json {
 
-// Store a string that outlives the document as a link instead of copying it into a heap node.
-// A builder is filled and serialized in one function, so a literal, an entity name or an
-// entity's own state string all qualify; a stack buffer does not.
+// Store a string as a link instead of copying it into a heap node. Only for a string that no
+// other task can rewrite before the document is serialized: a literal, a codegen table entry or
+// a name set once during setup. Not for a stack buffer or an entity state.
 inline JsonString linked(const char *s) { return JsonString(s, true); }
 inline JsonString linked(const std::string &s) { return JsonString(s.c_str(), s.size(), true); }
 #ifdef USE_ESP8266

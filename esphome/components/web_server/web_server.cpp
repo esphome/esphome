@@ -713,7 +713,8 @@ json::SerializationBuffer<> WebServer::text_sensor_json_(text_sensor::TextSensor
   json::JsonBuilder builder;
   JsonObject root = builder.root();
 
-  const JsonString state = linked(value);
+  // The state is rewritten on the main loop while the REST handler runs on the httpd task, so copy it
+  const JsonString state(value.c_str(), value.size());
   set_json_icon_state_value(root, obj, "text_sensor", state, state, start_config);
   if (start_config == DETAIL_ALL) {
     this->add_sorting_info_(root, obj);
@@ -1431,10 +1432,11 @@ json::SerializationBuffer<> WebServer::text_json_(text::Text *obj, const std::st
   json::JsonBuilder builder;
   JsonObject root = builder.root();
 
-  const JsonString linked_value = linked(value);
+  // The state is rewritten on the main loop while the REST handler runs on the httpd task, so copy it
+  const JsonString copied_value(value.c_str(), value.size());
   const JsonString state =
-      obj->traits.get_mode() == text::TextMode::TEXT_MODE_PASSWORD ? linked("********") : linked_value;
-  set_json_icon_state_value(root, obj, "text", state, linked_value, start_config);
+      obj->traits.get_mode() == text::TextMode::TEXT_MODE_PASSWORD ? linked("********") : copied_value;
+  set_json_icon_state_value(root, obj, "text", state, copied_value, start_config);
   root[ESPHOME_F("min_length")] = obj->traits.get_min_length();
   root[ESPHOME_F("max_length")] = obj->traits.get_max_length();
   root[ESPHOME_F("pattern")] = linked(obj->traits.get_pattern_c_str());
@@ -2326,16 +2328,17 @@ json::SerializationBuffer<> WebServer::update_json_(update::UpdateEntity *obj, J
   json::JsonBuilder builder;
   JsonObject root = builder.root();
 
+  // update_info is rewritten on the main loop while the REST handler runs on the httpd task, so copy it
   const auto &info = obj->update_info;
   set_json_icon_state_value(root, obj, "update", json_state_str(update::update_state_to_string(obj->state)),
-                            linked(info.latest_version), start_config);
+                            info.latest_version.c_str(), start_config);
   if (start_config == DETAIL_ALL) {
-    root[ESPHOME_F("current_version")] = linked(info.current_version);
-    root[ESPHOME_F("title")] = linked(info.title);
+    root[ESPHOME_F("current_version")] = info.current_version;
+    root[ESPHOME_F("title")] = info.title;
     // Truncate long changelogs, the full text is available via release_url
     constexpr size_t max_summary_len = 256;
-    root[ESPHOME_F("summary")] = JsonString(info.summary.c_str(), std::min(info.summary.size(), max_summary_len), true);
-    root[ESPHOME_F("release_url")] = linked(info.release_url);
+    root[ESPHOME_F("summary")] = JsonString(info.summary.c_str(), std::min(info.summary.size(), max_summary_len));
+    root[ESPHOME_F("release_url")] = info.release_url;
     this->add_sorting_info_(root, obj);
   }
 
