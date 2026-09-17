@@ -7,6 +7,7 @@
 #include <cstring>
 
 #include "alpha3_payload.h"
+#include "alpha3_telemetry.h"
 #include "esphome/core/application.h"
 #include "esphome/core/log.h"
 
@@ -308,6 +309,13 @@ void Alpha3::reset_connection_state_() {
   this->setpoint_ranges_.clear();
   this->registration_requested_ = false;
   this->geni_handle_ = 0;
+}
+
+void Alpha3::invalidate_telemetry_() {
+  invalidate_sensor_states<sensor::Sensor>(
+      {{this->flow_sensor_, this->head_sensor_, this->power_sensor_, this->current_sensor_, this->speed_sensor_,
+        this->voltage_sensor_, this->operating_hours_sensor_, this->energy_sensor_, this->starts_sensor_,
+        this->alarm_code_sensor_, this->warning_code_sensor_}});
 }
 
 void Alpha3::enqueue_initial_reads_() { this->update(); }
@@ -971,6 +979,7 @@ void Alpha3::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t, esp_
       if (!this->parent()->check_addr(param->disconnect.remote_bda))
         return;
       this->reset_connection_state_();
+      this->invalidate_telemetry_();
       this->node_state = espbt::ClientState::IDLE;
       break;
     default:

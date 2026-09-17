@@ -92,6 +92,7 @@ class Alpha3 final : public ble_client::BLEClientNode, public PollingComponent {
   void try_subscribe_();
   void set_ready_(bool ready, bool force_publish = false);
   void reset_connection_state_();
+  void invalidate_telemetry_();
   void enqueue_initial_reads_();
   void start_next_work_();
   void send_next_fragment_();
