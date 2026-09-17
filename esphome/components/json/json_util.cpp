@@ -1,7 +1,5 @@
 #include "json_util.h"
 
-#include <algorithm>
-#include <cstdlib>
 #include <cstring>
 #include "esphome/core/log.h"
 
@@ -16,15 +14,6 @@ static const char *const TAG = "json";
 // This prevents dangling pointer issues when JsonDocuments are returned from functions
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables) - Must be mutable for ArduinoJson::Allocator
 static SpiRamAllocator global_json_allocator;
-#else
-// ArduinoJson's default allocator lives in its private namespace
-struct HeapAllocator final : ArduinoJson::Allocator {
-  void *allocate(size_t size) override { return malloc(size); }                             // NOLINT
-  void deallocate(void *ptr) override { free(ptr); }                                        // NOLINT
-  void *reallocate(void *ptr, size_t new_size) override { return realloc(ptr, new_size); }  // NOLINT
-};
-// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables) - Must be mutable for ArduinoJson::Allocator
-static HeapAllocator global_json_allocator;
 #endif
 
 SerializationBuffer<> build_json(const json_build_t &f) {
@@ -78,17 +67,25 @@ JsonDocument parse_json(const uint8_t *data, size_t len) {
 JsonBuilder::JsonBuilder() : doc_(heap_json_allocator()) {}
 JsonBuilder::JsonBuilder(ArduinoJson::Allocator *allocator) : doc_(allocator) {}
 
-ArduinoJson::Allocator *heap_json_allocator() { return &global_json_allocator; }
+ArduinoJson::Allocator *heap_json_allocator() {
+#ifdef USE_PSRAM
+  return &global_json_allocator;
+#else
+  return ArduinoJson::detail::DefaultAllocator::instance();
+#endif
+}
 
 size_t JsonBuilder::serialize_to(char *buf, size_t cap) {
   if (doc_.overflowed()) {
     ESP_LOGE(TAG, "JSON document overflow");
-    // Same contract as serializeJson: copy what fits, terminate when there is room
-    const size_t n = std::min<size_t>(2, cap);
-    std::memcpy(buf, "{}", n);
-    if (n < cap) {
+    // Same contract as serializeJson; written by hand so no "{}" literal lives in RAM on ESP8266
+    size_t n = 0;
+    if (n < cap)
+      buf[n++] = '{';
+    if (n < cap)
+      buf[n++] = '}';
+    if (n < cap)
       buf[n] = '\0';
-    }
     return n;
   }
   return serializeJson(doc_, buf, cap);

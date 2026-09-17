@@ -183,6 +183,9 @@ template<size_t N> class JsonArena final : public ArduinoJson::Allocator {
   JsonArena &operator=(const JsonArena &) = delete;
 
   void *allocate(size_t size) override {
+    if (size > N) {
+      return this->fallback_->allocate(size);  // also keeps the rounding below from wrapping
+    }
     size = (size + ALIGN - 1) & ~(ALIGN - 1);
     if (size > N - this->used_) {
       return this->fallback_->allocate(size);
@@ -201,7 +204,7 @@ template<size_t N> class JsonArena final : public ArduinoJson::Allocator {
       return this->fallback_->reallocate(ptr, new_size);
     }
     const size_t off = static_cast<uint8_t *>(ptr) - this->buf_;
-    const size_t size = (new_size + ALIGN - 1) & ~(ALIGN - 1);
+    const size_t size = new_size > N ? N + ALIGN : (new_size + ALIGN - 1) & ~(ALIGN - 1);
     const bool newest = off == this->last_;
     if (newest && size <= N - off) {
       this->used_ = off + size;  // the newest block grows or shrinks in place
@@ -219,6 +222,8 @@ template<size_t N> class JsonArena final : public ArduinoJson::Allocator {
     }
     return moved;
   }
+  /// Bytes of the buffer handed out so far
+  size_t used() const { return this->used_; }
 
  private:
   static constexpr size_t ALIGN = alignof(std::max_align_t);
