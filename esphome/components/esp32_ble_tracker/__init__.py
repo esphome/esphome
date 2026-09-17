@@ -459,6 +459,12 @@ async def _add_ble_features() -> None:
     if BLEFeatures.ESP_BT_DEVICE in required_features:
         cg.add_define("USE_ESP32_BLE_DEVICE")
         cg.add_define("USE_ESP32_BLE_UUID")
+    if cg.get_slot_count(CLIENT_COUNT_DEFINE):
+        # Only builds that open connections need the guard in bluedroid_stubs.cpp.
+        # --undefined keeps the wrapper when libsrc.a is scanned before the IDF libraries.
+        cg.add_define("USE_ESP32_BLE_DIRECT_CONN_GUARD")
+        cg.add_build_flag("-Wl,--wrap=l2cble_init_direct_conn")
+        cg.add_build_flag("-Wl,--undefined=__wrap_l2cble_init_direct_conn")
 
 
 ESP32_BLE_START_SCAN_ACTION_SCHEMA = cv.Schema(
