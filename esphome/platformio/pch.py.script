@@ -20,10 +20,21 @@ except Exception as err:  # noqa: BLE001 -- not exported under -t nobuild
 # Precompile the src force-includes plus defines.h and force-include the
 # result into C++ src compiles only; their preprocessed output is unchanged.
 # Registration is gated host-side (pch_enabled()). Keep the closure, ccache
-# values, and stamp flow in sync with build_helpers/pch.py.
+# values, probe flow, stamp flow, and env-knob spellings in sync with
+# build_helpers/pch.py.
 
 # Compiler failures that clear on their own must not latch the .failed marker
 _TRANSIENT_ERRORS = ("No space left", "Cannot allocate", "Resource temporarily")
+
+# Keep in sync with helpers.TRUTHY_ENV_STRINGS / FALSY_ENV_STRINGS
+_TRUTHY = ("1", "true", "yes", "on", "enable")
+_FALSY = ("", "0", "false", "no", "off", "disable")
+_STRICT_RAW = os.environ.get("ESPHOME_PCH_STRICT")
+_STRICT_VALUE = (_STRICT_RAW or "").strip().lower()
+_STRICT = _STRICT_VALUE in _TRUTHY
+if _STRICT_RAW is not None and _STRICT_VALUE not in _TRUTHY + _FALSY:
+    # A typo must not silently turn the gate into a no-op
+    raise RuntimeError(f"Unrecognized ESPHOME_PCH_STRICT={_STRICT_RAW!r}; use 1 or 0")
 
 _INCLUDE_RE = re.compile(rb'^\s*#\s*include\s+["<]([^">]+)[">]', re.MULTILINE)
 _CORE_HEADER = "esphome/core/defines.h"
@@ -117,26 +128,12 @@ def _compile_gch(cxx, flags, header: Path, gch: Path, proj_dir: Path):
         raise OSError(f"compiler killed by signal {-result.returncode}")
     if result.returncode != 0:
         return result.stderr
-    # -MF is only legal alongside a dependency flag; pass it solely to
-    # redirect a depfile that -MD/-MMD in the flags would otherwise write
-    dep_redirect = (
-        ["-MF", os.devnull]
-        if any(f in ("-MD", "-MMD", "-M", "-MM") for f in flags)
-        else []
-    )
+    return _probe_gch(cxx, flags, header, proj_dir)
+
+
+def _probe_run(cxx, flags, extra, proj_dir: Path):
     probe = subprocess.run(  # noqa: PLW1510
-        [
-            cxx,
-            *flags,
-            *dep_redirect,
-            "-Winvalid-pch",
-            "-include",
-            str(header),
-            "-fsyntax-only",
-            "-x",
-            "c++",
-            "-",
-        ],
+        [cxx, *flags, *extra, "-fsyntax-only", "-x", "c++", "-"],
         cwd=proj_dir,
         env={**os.environ, "LC_ALL": "C"},
         input="",
@@ -145,9 +142,34 @@ def _compile_gch(cxx, flags, header: Path, gch: Path, proj_dir: Path):
     )
     if probe.returncode < 0:
         raise OSError(f"probe killed by signal {-probe.returncode}")
-    if probe.returncode != 0 or ".gch" in probe.stderr:
-        return f"toolchain cannot load the pch: {probe.stderr.strip()}"
-    return None
+    return probe
+
+
+def _probe_gch(cxx, flags, header: Path, proj_dir: Path):
+    """Load-check an existing .gch; error string or None. Rejection must
+    be a nonzero exit (keep in sync with pch_probe_args); a baseline run
+    without the pch keeps environmental failures from being blamed on it."""
+    # -MF is only legal alongside a dependency flag; pass it solely to
+    # redirect a depfile that -MD/-MMD in the flags would otherwise write
+    dep_redirect = (
+        ["-MF", os.devnull]
+        if any(f in ("-MD", "-MMD", "-M", "-MM") for f in flags)
+        else []
+    )
+    probe = _probe_run(
+        cxx,
+        flags,
+        [*dep_redirect, "-Winvalid-pch", "-Werror=invalid-pch", "-include", str(header)],
+        proj_dir,
+    )
+    if probe.returncode == 0:
+        return None
+    baseline = _probe_run(cxx, flags, dep_redirect, proj_dir)
+    if baseline.returncode != 0:
+        # Deterministic and latchable; the transient filter at the caller
+        # keeps resource exhaustion from latching
+        return f"probe cannot run at all: {baseline.stderr.strip()[:200]}"
+    return f"toolchain cannot load the pch: {probe.stderr.strip()}"
 
 
 def _read_stamp(path: Path) -> str:
@@ -158,11 +180,18 @@ def _read_stamp(path: Path) -> str:
         return ""
 
 
-def _setup_pch() -> None:
+def _setup_pch() -> bool | None:
     if projenv is None:
-        # Expected under -t nobuild; anything else must leave a trail
         print(f"ESPHome: projenv unavailable ({_projenv_error}); skipping pch")
-        return
+        try:
+            from SCons.Script import COMMAND_LINE_TARGETS
+        except ImportError:
+            # No SCons is an anomaly under PlatformIO: the unknown state
+            # must not read as success (strict decides fatality at the gate)
+            return False
+        # Expected under -t nobuild (nothing compiles); a missing
+        # projenv on a real compile must not pass strict
+        return "nobuild" in [str(t) for t in COMMAND_LINE_TARGETS]
     # Project root: SCons compiles run here, so the relative -include
     # resolves; an absolute path would break cross-device ccache sharing.
     proj_dir = Path(env.subst("$PROJECT_DIR"))  # noqa: F821
@@ -286,12 +315,22 @@ def _setup_pch() -> None:
     checksum = digest.hexdigest()
 
     # The ccache .sum sidecar doubles as the freshness stamp
-    if (
-        not header.is_file()
-        or not gch.is_file()
-        or not sum_path.is_file()
-        or (_read_stamp(sum_path) != checksum)
-    ):
+    fresh = (
+        header.is_file()
+        and gch.is_file()
+        and sum_path.is_file()
+        and (_read_stamp(sum_path) == checksum)
+    )
+    if fresh and _STRICT:
+        # Rejection is per-process: strict re-proves a cached .gch loads
+        # (mirrors the pch_strict() re-probe in build_helpers/pch.py)
+        error = _probe_gch(cxx, flags, header, proj_dir)
+        if error is not None:
+            print(f"ESPHome: {error}")
+            gch.unlink(missing_ok=True)
+            sum_path.unlink(missing_ok=True)
+            return
+    if not fresh:
         failed_marker = Path(f"{gch}.failed")
         if _read_stamp(failed_marker) == checksum:
             print(
@@ -351,14 +390,27 @@ def _setup_pch() -> None:
     # -Wno-error: the per-process probe can pass while a later cc1plus
     # rejects the .gch; that must stay a warning under user -Werror.
     projenv.Prepend(  # noqa: F821
-        CXXFLAGS=["-Winvalid-pch", "-Wno-error=invalid-pch", "-include", header.name]
+        CXXFLAGS=[
+            "-Winvalid-pch",
+            # Strict inverts: a per-process consumer rejection reds the build
+            "-Werror=invalid-pch" if _STRICT else "-Wno-error=invalid-pch",
+            "-include",
+            header.name,
+        ]
     )
     projenv["ENV"].update(ccache_updates)  # noqa: F821
     print("ESPHome: Compiling with precompiled header")
+    return True
+
 
 
 try:
-    _setup_pch()
+    _used = _setup_pch()
 except Exception:  # noqa: BLE001 -- a speedup must never break the build
+    if _STRICT:
+        raise
     print("ESPHome: pch internal error; compiling without it")
     traceback.print_exc()
+else:
+    if _STRICT and not _used:
+        raise RuntimeError("ESPHOME_PCH_STRICT: precompiled header was not used")
