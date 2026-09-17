@@ -593,7 +593,7 @@ class WebServer final : public Controller, public Component, public AsyncWebHand
 
   web_server_base::WebServerBase *base_;
 #ifdef USE_ESP32
-  AsyncEventSource events_{"/events", this};
+  AsyncEventSource events_{StringRef::from_lit("/events"), this};
 #elif USE_ARDUINO
   DeferredUpdateEventSourceList events_;
 #endif
