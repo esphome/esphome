@@ -1,0 +1,12 @@
+# Deprecated forms: `update_interval` on the hub and the enrolling binary sensor
+# configured directly under the platform entry.
+# Remove before 2027.3.0
+packages:
+  uart_115200: !include ../../test_build_components/common/uart_115200/esp32-idf.yaml
+
+hlk_fm22x:
+  update_interval: 50ms
+
+binary_sensor:
+  - platform: hlk_fm22x
+    name: "Face Enrolling"
