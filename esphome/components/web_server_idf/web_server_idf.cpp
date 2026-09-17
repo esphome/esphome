@@ -850,7 +850,8 @@ void AsyncEventSourceResponse::start_session_main_loop_() {
 
     // a (very) large number of these should be able to be queued initially without defer
     // since the only thing in the send buffer at this point is the initial ping/config.
-    // A refusal means the socket is full or closing; the remaining groups are not sent.
+    // A refusal means the socket is full or closing; the remaining groups are not sent. The
+    // session stays up on purpose: partial grouping beats a reconnect loop on a slow link.
     if (!this->try_send_nodefer(message.c_str(), message.size(), "sorting_group")) {
       ESP_LOGW(TAG, "Sorting groups not sent to fd %d", this->fd_.load());
       break;
@@ -1113,7 +1114,7 @@ bool AsyncEventSourceResponse::send_json_(json::JsonBuilder &builder) {
         break;
       }
       if (cap >= TAIL_MAX_SIZE) {
-        ESP_LOGW(TAG, "State event over %zu bytes dropped", JSON_MAX_SIZE);
+        ESP_LOGW(TAG, "State event does not fit %zu bytes, dropped", room);
         this->tail_.reset();
         this->tail_cap_ = 0;
         this->send_failure_started_ms_ = 0;
