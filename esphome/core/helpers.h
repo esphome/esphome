@@ -2174,7 +2174,7 @@ template<class T> class RAMAllocator {
     T *ptr = nullptr;
 #ifdef USE_ESP32
     const auto caps = this->get_caps_();
-    ptr = static_cast<T *>(heap_caps_malloc_prefer(size, 2, caps[0], caps[1]));
+    ptr = static_cast<T *>(heap_caps_malloc_prefer(size, caps.num, caps.primary, caps.fallback));
 #else
     // Ignore ALLOC_EXTERNAL/ALLOC_INTERNAL flags if external allocation is not supported
     ptr = static_cast<T *>(malloc(size));  // NOLINT(cppcoreguidelines-owning-memory,cppcoreguidelines-no-malloc)
@@ -2189,7 +2189,7 @@ template<class T> class RAMAllocator {
     T *ptr = nullptr;
 #ifdef USE_ESP32
     const auto caps = this->get_caps_();
-    ptr = static_cast<T *>(heap_caps_realloc_prefer(p, size, 2, caps[0], caps[1]));
+    ptr = static_cast<T *>(heap_caps_realloc_prefer(p, size, caps.num, caps.primary, caps.fallback));
 #else
     // Ignore ALLOC_EXTERNAL/ALLOC_INTERNAL flags if external allocation is not supported
     ptr = static_cast<T *>(realloc(p, size));  // NOLINT(cppcoreguidelines-owning-memory,cppcoreguidelines-no-malloc)
@@ -2261,20 +2261,26 @@ template<class T> class RAMAllocator {
 
  private:
 #ifdef USE_ESP32
-  /// Returns {primary_caps, fallback_caps} for heap_caps_*_prefer based on the configured flags.
+  struct Caps {
+    uint32_t primary;
+    uint32_t fallback;
+    uint8_t num;  // capability sets to hand to heap_caps_*_prefer
+  };
+
+  /// Returns the capability sets for heap_caps_*_prefer based on the configured flags.
   /// PREFER_INTERNAL implies both regions are enabled (enforced by the constructor), so when it is set
   /// the primary is internal and the fallback is external. Otherwise the primary is whichever region
-  /// is enabled (external preferred when both are enabled), and the fallback is the other region (or
-  /// the same region when only one is enabled, making the second attempt a no-op).
-  std::array<uint32_t, 2> get_caps_() const {
+  /// is enabled (external preferred when both are enabled) and the fallback is the other region. With
+  /// a single region enabled num is 1, as a second attempt would search the same heap again.
+  Caps get_caps_() const {
     constexpr uint32_t external_caps = MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT;
     constexpr uint32_t internal_caps = MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT;
     if (this->flags_ & PREFER_INTERNAL) {
-      return {internal_caps, external_caps};
+      return {internal_caps, external_caps, 2};
     }
     const uint32_t primary = (this->flags_ & ALLOC_EXTERNAL) ? external_caps : internal_caps;
     const uint32_t fallback = (this->flags_ & ALLOC_INTERNAL) ? internal_caps : external_caps;
-    return {primary, fallback};
+    return {primary, fallback, static_cast<uint8_t>(primary == fallback ? 1 : 2)};
   }
 #endif
 
