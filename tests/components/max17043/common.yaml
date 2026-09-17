@@ -2,6 +2,7 @@ esphome:
   on_boot:
     then:
       - max17043.sleep_mode: max17043_id
+      - max17043.sleep_mode: max17048_id
 
 sensor:
   - platform: max17043
@@ -11,4 +12,16 @@ sensor:
       name: "Battery Voltage"
     battery_level:
       name: Battery
+    update_interval: 10s
+
+  - platform: max17043
+    i2c_id: i2c_bus
+    id: max17048_id
+    model: MAX17048
+    battery_voltage:
+      name: "MAX17048 Battery Voltage"
+    battery_level:
+      name: MAX17048 Battery
+    battery_charge_rate:
+      name: MAX17048 Battery Charge Rate
     update_interval: 10s
