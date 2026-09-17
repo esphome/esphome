@@ -323,7 +323,7 @@ class AsyncEventSource : public AsyncWebHandler {
   using connect_handler_t = std::function<void(AsyncEventSourceClient *)>;
 
  public:
-  AsyncEventSource(std::string url, esphome::web_server::WebServer *ws) : url_(std::move(url)), web_server_(ws) {}
+  AsyncEventSource(StringRef url, esphome::web_server::WebServer *ws) : url_(url), web_server_(ws) {}
   ~AsyncEventSource() override;
 
   // NOLINTNEXTLINE(readability-identifier-naming)
@@ -353,7 +353,7 @@ class AsyncEventSource : public AsyncWebHandler {
   // Cold path: move sessions from pending_sessions_ into sessions_ and greet each one.
   void __attribute__((noinline, cold)) adopt_pending_sessions_main_loop_();
 
-  std::string url_;
+  StringRef url_;  // Must outlive this object (string literal)
   // Main-loop only. Vector: SSE sessions are 1-5 connections, linear search beats set.
   std::vector<AsyncEventSourceResponse *> sessions_;
   // Httpd-task intake; guarded by pending_mutex_, gated by has_pending_sessions_.
