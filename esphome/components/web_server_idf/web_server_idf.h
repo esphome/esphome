@@ -366,9 +366,11 @@ class AsyncEventSourceResponse {
   // Chunk header, retry/id/event lines and the first "data: "
   static constexpr size_t PREFIX_BUF_SIZE = 128;
   // Stack buffer for a state event's JSON. A larger document is serialized into the tail,
-  // which grows by doubling up to JSON_MAX_SIZE; measuring first would cost more flash.
+  // which grows by doubling up to TAIL_MAX_SIZE; measuring first would cost more flash.
   static constexpr size_t JSON_BUF_SIZE = 1024;
-  static constexpr size_t JSON_MAX_SIZE = 8192;
+  // Largest chunk the tail holds, and so the most RAM a stalled session keeps. Real chunks are a
+  // few hundred bytes for a log line and under 2 KB for the largest entity detail JSON.
+  static constexpr size_t TAIL_MAX_SIZE = 4096;
   static constexpr uint32_t SEND_STALL_TIMEOUT_MS = 20000;
   static constexpr uint32_t CLOSE_RETRY_INTERVAL_MS = 250;
   static constexpr uint32_t CLOSE_CONFIRM_INTERVAL_MS = 1000;
