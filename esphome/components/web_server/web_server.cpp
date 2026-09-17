@@ -62,12 +62,12 @@ using json::linked;
 // View a state LogString as a ProgmemStr so ArduinoJson serializes it PROGMEM-aware on ESP8266.
 [[maybe_unused]] static ProgmemStr json_state_str(const LogString *s) { return reinterpret_cast<ProgmemStr>(s); }
 #else
-// Without that define log.h stores a LogString in RAM, so LOG_STR_ARG yields a linkable pointer
+// Without the define a LogString is in RAM and can be linked
 [[maybe_unused]] static JsonString json_state_str(const LogString *s) { return linked(LOG_STR_ARG(s)); }
 #endif
 
-// get_icon_to() and get_device_class_to() return a pointer into a table, except on ESP8266 where
-// the table is in PROGMEM and they copy the string into the caller's buffer
+// get_icon_to() and get_device_class_to() return a table pointer, except on ESP8266 where they
+// copy out of PROGMEM into the caller's buffer
 [[maybe_unused]] static JsonString json_table_str(const char *s) {
 #ifdef USE_ESP8266
   return JsonString(s);
@@ -719,7 +719,7 @@ json::SerializationBuffer<> WebServer::text_sensor_json_(text_sensor::TextSensor
   json::JsonBuilder builder;
   JsonObject root = builder.root();
 
-  // The state is rewritten on the main loop while the REST handler runs on the httpd task, so copy it
+  // The main loop rewrites the state while a REST handler runs on the httpd task, so copy it
   const JsonString state(value.c_str(), value.size());
   set_json_icon_state_value(root, obj, "text_sensor", state, state, start_config);
   if (start_config == DETAIL_ALL) {
@@ -1438,7 +1438,7 @@ json::SerializationBuffer<> WebServer::text_json_(text::Text *obj, const std::st
   json::JsonBuilder builder;
   JsonObject root = builder.root();
 
-  // The state is rewritten on the main loop while the REST handler runs on the httpd task, so copy it
+  // The main loop rewrites the state while a REST handler runs on the httpd task, so copy it
   const JsonString copied_value(value.c_str(), value.size());
   const JsonString state =
       obj->traits.get_mode() == text::TextMode::TEXT_MODE_PASSWORD ? linked("********") : copied_value;
@@ -2329,8 +2329,7 @@ json::SerializationBuffer<> WebServer::update_json_(update::UpdateEntity *obj, J
   json::JsonBuilder builder;
   JsonObject root = builder.root();
 
-  // update_info is rewritten on the main loop while the REST handler runs on the httpd task, so its
-  // strings are copied below rather than linked
+  // The main loop rewrites update_info while a REST handler runs on the httpd task, so copy
   const auto &info = obj->update_info;
   set_json_icon_state_value(root, obj, "update", json_state_str(update::update_state_to_string(obj->state)),
                             info.latest_version.c_str(), start_config);
