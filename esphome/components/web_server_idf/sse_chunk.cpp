@@ -17,7 +17,9 @@ void for_each_chunk_piece(const char *message, size_t message_len, ChunkPieceSin
   for (;;) {
     const size_t remaining = end - pos;
     const auto *n = static_cast<const char *>(memchr(pos, '\n', remaining));
-    const auto *r = static_cast<const char *>(memchr(pos, '\r', remaining));
+    // Only a \r before the next \n can end this line, so the search stops there instead of
+    // rescanning the rest of the message for every line
+    const auto *r = static_cast<const char *>(memchr(pos, '\r', n != nullptr ? n - pos : remaining));
     if (n == nullptr && r == nullptr) {
       sink(ctx, pos, remaining);
       break;
