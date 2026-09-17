@@ -174,6 +174,11 @@ ArduinoJson::Allocator *heap_json_allocator();
 /// still works. Nothing is returned to the buffer until the arena itself goes away.
 template<size_t N> class JsonArena final : public ArduinoJson::Allocator {
  public:
+  JsonArena() = default;
+  // The document holds pointers into buf_, so the arena must stay where it is
+  JsonArena(const JsonArena &) = delete;
+  JsonArena &operator=(const JsonArena &) = delete;
+
   void *allocate(size_t size) override {
     size = (size + ALIGN - 1) & ~(ALIGN - 1);
     if (size > N - this->used_) {
@@ -194,9 +199,12 @@ template<size_t N> class JsonArena final : public ArduinoJson::Allocator {
     }
     const size_t off = static_cast<uint8_t *>(ptr) - this->buf_;
     const size_t size = (new_size + ALIGN - 1) & ~(ALIGN - 1);
-    if (off == this->last_ && size <= N - off) {
-      this->used_ = off + size;  // the newest block grows or shrinks in place
-      return ptr;
+    if (off == this->last_) {
+      if (size <= N - off) {
+        this->used_ = off + size;  // the newest block grows or shrinks in place
+        return ptr;
+      }
+      this->used_ = off;  // it moves to the heap, so its arena space is free again
     }
     // The old size of an older block is unknown; copying up to the end of the buffer stays in
     // bounds and covers whatever the block held
@@ -220,6 +228,7 @@ class JsonBuilder {
  public:
   // Out of line: inlining the JsonDocument constructor duplicates it at every call site
   JsonBuilder();
+  // The builder must not outlive the allocator, the document holds memory it handed out
   explicit JsonBuilder(ArduinoJson::Allocator *allocator);
 
   JsonObject root() {
@@ -240,12 +249,7 @@ class JsonBuilder {
   SerializationBuffer<> serialize();
 
  private:
-#ifdef USE_PSRAM
-  SpiRamAllocator allocator_;
-  JsonDocument doc_{&allocator_};
-#else
   JsonDocument doc_;
-#endif
   JsonObject root_;
   bool root_created_{false};
 };
