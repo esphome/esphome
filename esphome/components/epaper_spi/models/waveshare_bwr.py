@@ -14,8 +14,8 @@ from . import EpaperModel
 class WaveshareBWR(EpaperModel):
     """EpaperModel class for Waveshare Black/White/Red displays using UC8179 controller."""
 
-    def __init__(self, name, **defaults):
-        super().__init__(name, "EPaperWaveshareBWR", **defaults)
+    def __init__(self, name, class_name="EPaperWaveshareBWR", **defaults):
+        super().__init__(name, class_name=class_name, **defaults)
 
     def get_init_sequence(self, config):
         """Generate initialization sequence for UC8179 BWR displays.

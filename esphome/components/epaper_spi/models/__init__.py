@@ -17,6 +17,7 @@ class EpaperModel:
     def __init__(
         self,
         name: str,
+        *,  # require keyword-only arguments
         class_name: str,
         initsequence=(),
         **defaults,

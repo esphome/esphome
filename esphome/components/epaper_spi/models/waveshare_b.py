@@ -2,8 +2,8 @@ from . import EpaperModel
 
 
 class WaveshareB(EpaperModel):
-    def __init__(self, name, **defaults):
-        super().__init__(name, "EpaperWaveshareB", **defaults)
+    def __init__(self, name, class_name="EpaperWaveshareB", **defaults):
+        super().__init__(name, class_name=class_name, **defaults)
 
     def get_init_sequence(self, config):
         _, height = self.get_dimensions(config)

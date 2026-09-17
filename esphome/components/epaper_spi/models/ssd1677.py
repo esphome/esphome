@@ -18,7 +18,7 @@ class SSD1677(EpaperModel):
         defaults[CONF_DATA_RATE] = data_rate
         defaults[CONF_BORDER_WAVEFORM] = border_waveform
         defaults.setdefault("partial_update", True)
-        super().__init__(name, class_name, **defaults)
+        super().__init__(name, class_name=class_name, **defaults)
 
     def get_config_options(self) -> dict:
         return {

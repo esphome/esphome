@@ -33,7 +33,7 @@ class UC8179(EpaperModel):
     ) -> None:
         defaults.setdefault(CONF_DATA_RATE, data_rate)
         defaults.setdefault("partial_update", True)
-        super().__init__(name, class_name, **defaults)
+        super().__init__(name, class_name=class_name, **defaults)
 
     def get_init_sequence(self, config: dict) -> tuple:
         """Generate the initialization sequence for UC8179 mono displays.

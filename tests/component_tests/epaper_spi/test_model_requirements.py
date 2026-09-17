@@ -56,7 +56,7 @@ def temp_model() -> Generator[Callable[..., EpaperModel]]:
     created: list[EpaperModel] = []
 
     def _make(name: str, **defaults: Any) -> EpaperModel:
-        model = EpaperModel(name, "EPaperMono", **defaults)
+        model = EpaperModel(name, class_name="EPaperMono", **defaults)
         created.append(model)
         return model
 
