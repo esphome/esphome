@@ -1027,6 +1027,7 @@ def test_components(
     isolated_components: set[str] | None = None,
     base_only: bool = False,
     toolchain: str | None = None,
+    fail_on_no_tests: bool = False,
 ) -> int:
     """Test components with optional intelligent grouping.
 
@@ -1061,20 +1062,34 @@ def test_components(
     # toolchain build.
     include_validate = esphome_command != "compile"
 
-    # Find all component tests
+    # Find all component tests; remember which components each pattern
+    # (wildcards included) matched, for the deferred no-tests accounting
     all_tests = {}
+    pattern_components: dict[str, set[str]] = {}
     for pattern in component_patterns:
         # Skip empty patterns (happens when components list is empty string)
         if not pattern:
             continue
-        all_tests.update(
-            find_component_tests(
-                tests_dir, pattern, base_only, include_validate=include_validate
-            )
+        found = find_component_tests(
+            tests_dir, pattern, base_only, include_validate=include_validate
         )
+        pattern_components[pattern] = set(found)
+        all_tests.update(found)
 
-    # If no components found, build a reference configuration for baseline comparison
-    # Create a synthetic "empty" component test that will build just the base config
+    # The flag's contract is "no test matched fails": a fully blank pattern
+    # list would otherwise slide into the reference-baseline fallback and
+    # exit green while building nothing a caller asked for
+    if fail_on_no_tests and not any(component_patterns):
+        print("No components requested (blank component list)")
+        return 1
+
+    if fail_on_no_tests and not all_tests:
+        # Nothing matched at all: fail before the synthetic baseline build,
+        # which would spend a compile reporting success on nothing. Partial
+        # matches defer to the per-pattern accounting after the summary.
+        print(f"No components found matching: {component_patterns}")
+        return 1
+
     if not all_tests:
         print(f"No components found matching: {component_patterns}")
         print(
@@ -1178,6 +1193,26 @@ def test_components(
                         toolchain=toolchain,
                     )
 
+    silent: list[str] = []
+    if fail_on_no_tests:
+        # A green run that built nothing for a requested pattern (renamed
+        # fixture, missing base file, version-suffix mismatch, a wildcard
+        # matching no component) must not pass CI. Per pattern: an
+        # all-or-nothing check would let one silent pattern hide behind the
+        # others. Opt-in: some legs (the esp32-ard smoke subset)
+        # legitimately match nothing. Failing is deferred past the summary
+        # so a real failure's reproduce commands still print.
+        built = {c for r in test_results for c in r.components}
+        # A pattern is silent when it matched no fixture, or when none of
+        # its matched components produced a build (wildcards included)
+        silent = [
+            p
+            for p in component_patterns
+            if p and not (pattern_components.get(p, set()) & built)
+        ]
+        if silent:
+            print(f"No tests ran for requested pattern(s): {', '.join(silent)}")
+
     # Separate results into passed and failed
     passed_results = [r for r in test_results if r.success]
     failed_results = [r for r in test_results if not r.success]
@@ -1209,7 +1244,7 @@ def test_components(
     if os.environ.get("GITHUB_STEP_SUMMARY"):
         write_github_summary(test_results, toolchain=toolchain)
 
-    if failed_results:
+    if failed_results or silent:
         return 1
 
     return 0
@@ -1264,6 +1299,12 @@ def main() -> int:
         "--toolchain",
         help="Select toolchain for compiling.",
     )
+    parser.add_argument(
+        "--fail-on-no-tests",
+        action="store_true",
+        help="Exit non-zero when no test matched (for CI legs whose "
+        "components must all have fixtures)",
+    )
 
     args = parser.parse_args()
 
@@ -1282,6 +1323,7 @@ def main() -> int:
         continue_on_fail=args.continue_on_fail,
         enable_grouping=not args.no_grouping,
         isolated_components=isolated_components,
+        fail_on_no_tests=args.fail_on_no_tests,
         base_only=args.base_only,
         toolchain=args.toolchain,
     )
