@@ -73,8 +73,7 @@ JsonBuilder::JsonBuilder() = default;
 size_t JsonBuilder::serialize_to(char *buf, size_t cap) {
   if (doc_.overflowed()) {
     ESP_LOGE(TAG, "JSON document overflow");
-    // Same contract as serializeJson: write what fits, terminate when there is room. Written
-    // character by character so no "{}" literal has to live in RAM on ESP8266.
+    // Same contract as serializeJson; written by hand so no "{}" literal lives in RAM on ESP8266
     size_t n = 0;
     if (n < cap)
       buf[n++] = '{';

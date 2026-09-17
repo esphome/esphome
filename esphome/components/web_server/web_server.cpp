@@ -61,7 +61,7 @@ static const char *const TAG = "web_server";
 // View a state LogString as a ProgmemStr so ArduinoJson serializes it PROGMEM-aware on ESP8266.
 [[maybe_unused]] static ProgmemStr json_state_str(const LogString *s) { return reinterpret_cast<ProgmemStr>(s); }
 
-// Serialize a REST response document and send it; out of line, it is used by every GET handler
+// Out of line: every GET handler ends with this
 static void send_json(AsyncWebServerRequest *request, json::JsonBuilder &builder) {
   auto data = builder.serialize();
   request->send(200, ESPHOME_F("application/json"), data.c_str());
@@ -419,9 +419,8 @@ void WebServer::loop() {
 }
 
 #ifdef USE_LOGGER
-// On ESP-IDF a log line longer than this is cut before it goes out as an event: nothing a browser
-// log view needs is longer, and it bounds the chunk a stalled client can leave in the tail. The
-// Arduino backend takes a C string and sends the whole line.
+// ESP-IDF cuts a log event here: nothing a browser log view needs is longer, and it bounds the
+// tail a stalled client keeps. The Arduino backend takes a C string and sends the whole line.
 static constexpr size_t LOG_EVENT_MAX_LEN = 512;
 
 void WebServer::on_log(uint8_t level, const char *tag, const char *message, size_t message_len) {
