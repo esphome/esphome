@@ -28,6 +28,8 @@ from tests.component_tests.network import sdkconfig_option
         # dual builds keep wifi's sizes; the ethernet component moves frames to PSRAM
         ("high_perf_wifi_ethernet_psram.yaml", 512000, 512, 512, True, 512),
         ("high_perf_ethernet_no_psram.yaml", 16384, 64, 32, None, None),
+        # ethernet only with PSRAM guaranteed: the cell the guard exists for
+        ("high_perf_ethernet_psram.yaml", 16384, 64, 32, None, None),
     ],
 )
 def test_lwip_tier(
