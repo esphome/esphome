@@ -53,7 +53,7 @@ size_t build_chunk_prefix(char *buf, size_t size, const char *event, uint32_t id
 }
 
 void write_chunk_header(char *buf, size_t chunk_len) {
-  // Eight lowercase hex digits; the terminator format_hex_to writes lands on the CR slot
+  // Eight lowercase hex digits; the temp keeps the terminator format_hex_to writes out of buf
   char digits[9];
   format_hex_to(digits, static_cast<uint32_t>(chunk_len));
   std::memcpy(buf, digits, 8);
