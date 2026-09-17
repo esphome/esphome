@@ -227,6 +227,11 @@ inline std::string operator+(const std::string &lhs, const StringRef &rhs) {
 namespace internal {
 // NOLINTBEGIN(google-runtime-int)
 template<typename R, typename F> inline R parse_number(const StringRef &str, size_t *pos, F conv) {
+  if (str.empty()) {  // nothing to parse, and a null view must not reach the C library
+    if (pos)
+      *pos = 0;
+    return R{};
+  }
   char *end;
   R result = conv(str.c_str(), &end);
   // Set pos to 0 on conversion failure (when no characters consumed), otherwise index after number
@@ -235,6 +240,11 @@ template<typename R, typename F> inline R parse_number(const StringRef &str, siz
   return result;
 }
 template<typename R, typename F> inline R parse_number(const StringRef &str, size_t *pos, int base, F conv) {
+  if (str.empty()) {  // nothing to parse, and a null view must not reach the C library
+    if (pos)
+      *pos = 0;
+    return R{};
+  }
   char *end;
   R result = conv(str.c_str(), &end, base);
   // Set pos to 0 on conversion failure (when no characters consumed), otherwise index after number
