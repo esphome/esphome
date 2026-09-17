@@ -68,7 +68,7 @@ using json::linked;
 
 // get_icon_to() and get_device_class_to() return a pointer into a table, except on ESP8266 where
 // the table is in PROGMEM and they copy the string into the caller's buffer
-static JsonString json_table_str(const char *s) {
+[[maybe_unused]] static JsonString json_table_str(const char *s) {
 #ifdef USE_ESP8266
   return JsonString(s);
 #else
