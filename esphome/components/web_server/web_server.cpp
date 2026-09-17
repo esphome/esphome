@@ -62,8 +62,19 @@ using json::linked;
 // View a state LogString as a ProgmemStr so ArduinoJson serializes it PROGMEM-aware on ESP8266.
 [[maybe_unused]] static ProgmemStr json_state_str(const LogString *s) { return reinterpret_cast<ProgmemStr>(s); }
 #else
+// Without that define log.h stores a LogString in RAM, so LOG_STR_ARG yields a linkable pointer
 [[maybe_unused]] static JsonString json_state_str(const LogString *s) { return linked(LOG_STR_ARG(s)); }
 #endif
+
+// get_icon_to() and get_device_class_to() return a pointer into a table, except on ESP8266 where
+// the table is in PROGMEM and they copy the string into the caller's buffer
+static JsonString json_table_str(const char *s) {
+#ifdef USE_ESP8266
+  return JsonString(s);
+#else
+  return linked(s);
+#endif
+}
 
 // Parse URL and return match info
 // URL formats (disambiguated by HTTP method for 3-segment case):
@@ -589,21 +600,16 @@ static void set_json_id(JsonObject root, EntityBase *obj, const char *prefix, Js
   root[ESPHOME_F("id")] = static_cast<const char *>(id_buf);
 
   if (start_config == DETAIL_ALL) {
-    root[ESPHOME_F("domain")] = JsonString(prefix, prefix_len, true);
-    root[ESPHOME_F("name")] = JsonString(name.c_str(), name_len, true);
+    root[ESPHOME_F("domain")] = linked(prefix, prefix_len);
+    root[ESPHOME_F("name")] = linked(name);
 #ifdef USE_DEVICES
     if (device_name) {
-      root[ESPHOME_F("device")] = JsonString(device_name, device_len, true);
+      root[ESPHOME_F("device")] = linked(device_name, device_len);
     }
 #endif
 #ifdef USE_ENTITY_ICON
     char icon_buf[MAX_ICON_LENGTH];
-#ifdef USE_ESP8266
-    root[ESPHOME_F("icon")] = obj->get_icon_to(icon_buf);
-#else
-    // Elsewhere the accessor returns a pointer into the icon table, so nothing is copied
-    root[ESPHOME_F("icon")] = linked(obj->get_icon_to(icon_buf));
-#endif
+    root[ESPHOME_F("icon")] = json_table_str(obj->get_icon_to(icon_buf));
 #endif
     root[ESPHOME_F("entity_category")] = obj->get_entity_category();
     bool is_disabled = obj->is_disabled_by_default();
@@ -2273,12 +2279,7 @@ json::SerializationBuffer<> WebServer::event_json_(event::Event *obj, StringRef 
       event_types.add(linked(event_type));
     }
     char dc_buf[MAX_DEVICE_CLASS_LENGTH];
-#ifdef USE_ESP8266
-    root[ESPHOME_F("device_class")] = obj->get_device_class_to(dc_buf);
-#else
-    // Elsewhere the accessor returns a pointer into the device class table, so nothing is copied
-    root[ESPHOME_F("device_class")] = linked(obj->get_device_class_to(dc_buf));
-#endif
+    root[ESPHOME_F("device_class")] = json_table_str(obj->get_device_class_to(dc_buf));
     this->add_sorting_info_(root, obj);
   }
 
@@ -2328,7 +2329,8 @@ json::SerializationBuffer<> WebServer::update_json_(update::UpdateEntity *obj, J
   json::JsonBuilder builder;
   JsonObject root = builder.root();
 
-  // update_info is rewritten on the main loop while the REST handler runs on the httpd task, so copy it
+  // update_info is rewritten on the main loop while the REST handler runs on the httpd task, so its
+  // strings are copied below rather than linked
   const auto &info = obj->update_info;
   set_json_icon_state_value(root, obj, "update", json_state_str(update::update_state_to_string(obj->state)),
                             info.latest_version.c_str(), start_config);
