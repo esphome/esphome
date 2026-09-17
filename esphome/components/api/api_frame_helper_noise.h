@@ -29,6 +29,12 @@ class APINoiseFrameHelper final : public APIFrameHelper {
   // until it would block.
   APIError init_from_handoff(const uint8_t *header, uint8_t header_len);
 #endif
+#ifdef USE_API_OUTGOING_CONNECTION
+  // Send the server hello immediately so the peer can pick the key before
+  // its PSK-mixed message. Call after init(); the mode is tracked in state_
+  // so the helper does not grow.
+  APIError send_server_hello_first();
+#endif
   APIError loop() override;
   APIError read_packet(ReadPacketBuffer *buffer) override;
   APIError write_protobuf_packet(uint16_t type, ProtoWriteBuffer buffer) override;
@@ -39,6 +45,8 @@ class APINoiseFrameHelper final : public APIFrameHelper {
   APIError state_action_();
   APIError state_action_client_hello_();
   APIError state_action_server_hello_();
+  APIError send_server_hello_frame_();
+  APIError start_handshake_();
   APIError state_action_handshake_();
   APIError state_action_handshake_read_();
   APIError state_action_handshake_write_();
