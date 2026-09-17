@@ -568,7 +568,7 @@ size_t value_accuracy_to_buf(std::span<char, VALUE_ACCURACY_MAX_LEN> buf, float 
   }
 
   // Fallback for NaN/Inf/high accuracy/out-of-range
-  int len = snprintf(buf.data(), buf.size(), "%.*f", accuracy_decimals, value);
+  int len = snprintf(buf.data(), buf.size(), "%.*f", accuracy_decimals, static_cast<double>(value));
   if (len < 0)
     return 0;
   return static_cast<size_t>(len) >= buf.size() ? buf.size() - 1 : static_cast<size_t>(len);
@@ -586,16 +586,30 @@ size_t value_accuracy_with_uom_to_buf(std::span<char, VALUE_ACCURACY_MAX_LEN> bu
 }
 
 int8_t step_to_accuracy_decimals(float step) {
-  // use printf %g to find number of digits based on temperature step
-  char buf[32];
-  snprintf(buf, sizeof buf, "%.5g", step);
-
-  std::string str{buf};
-  size_t dot_pos = str.find('.');
-  if (dot_pos == std::string::npos)
+  // Decimals needed to show the step at five significant digits, trailing zeros dropped.
+  if (!std::isfinite(step) || step == 0.0f)
     return 0;
-
-  return str.length() - dot_pos - 1;
+  float mantissa = std::fabs(step);
+  int8_t decimals = 4;  // decimals needed for five significant digits when mantissa is in [1, 10)
+  while (mantissa >= 10.0f) {
+    mantissa /= 10.0f;
+    decimals--;
+  }
+  while (mantissa < 1.0f) {
+    mantissa *= 10.0f;
+    decimals++;
+  }
+  if (decimals <= 0)
+    return 0;
+  float scaled = mantissa * 10000.0f;
+  auto digits = static_cast<uint32_t>(scaled);
+  if (scaled - static_cast<float>(digits) >= 0.5f)
+    digits++;
+  while (decimals > 0 && digits % 10 == 0) {
+    digits /= 10;
+    decimals--;
+  }
+  return decimals;
 }
 
 // Map a base64/base64url character to its 6-bit value (0-63) arithmetically.

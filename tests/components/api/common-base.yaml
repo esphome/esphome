@@ -61,8 +61,12 @@ api:
   reboot_timeout: 0min
   actions:
     - action: hello_world
+      description: Log a greeting
       variables:
-        name: string
+        name:
+          type: string
+          description: Name to greet
+          example: World
       then:
         - logger.log:
             format: Hello World %s!

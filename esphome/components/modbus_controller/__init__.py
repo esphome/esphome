@@ -41,6 +41,7 @@ from .const import (
     CONF_REGISTER_COUNT,
     CONF_REGISTER_TYPE,
     CONF_RESPONSE_SIZE,
+    CONF_REUSE_PREVIOUS_RANGE,
     CONF_SERVER_COURTESY_RESPONSE,
     CONF_SERVER_REGISTERS,
     CONF_SKIP_UPDATES,
@@ -59,6 +60,13 @@ modbus_controller_ns = cg.esphome_ns.namespace("modbus_controller")
 ModbusController = modbus_controller_ns.class_("ModbusController", cg.PollingComponent)
 
 SensorItem = modbus_controller_ns.struct("SensorItem")
+
+RangeReuse = modbus_controller_ns.enum("RangeReuse", is_class=True)
+RANGE_REUSE = {
+    "auto": RangeReuse.AUTO,
+    True: RangeReuse.ALWAYS,
+    False: RangeReuse.NEVER,
+}
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -95,12 +103,20 @@ def _warn_removed_options(config: ConfigType) -> ConfigType:
 
 
 def _reject_broadcast_address(config: ConfigType) -> ConfigType:
-    """A modbus_controller polls one device, so its address cannot be the broadcast address (0):
-    a broadcast is never answered (Modbus 4.1), so no register could ever read back."""
+    """Address 0 is rejected unless allow_broadcast_read, which in turn requires address 0."""
+    if config[modbus.CONF_ALLOW_BROADCAST_READ]:
+        if config.get(CONF_ADDRESS) != modbus.BROADCAST_ADDRESS:
+            raise cv.Invalid(
+                f"'{modbus.CONF_ALLOW_BROADCAST_READ}' only applies to the broadcast address; "
+                f"set 'address: 0' or remove the option.",
+                [modbus.CONF_ALLOW_BROADCAST_READ],
+            )
+        return config
     modbus.reject_broadcast_address(
         config.get(CONF_ADDRESS),
         "a modbus_controller device address",
-        "Assign the unit address of the device you want to poll.",
+        "Assign the unit address of the device you want to poll, or set allow_broadcast_read if "
+        "it answers address 0.",
         [CONF_ADDRESS],
     )
     return config
@@ -184,11 +200,86 @@ ModbusItemBaseSchema = cv.Schema(
         ): cv.positive_int,
         cv.Optional(CONF_BITMASK, default=0xFFFFFFFF): cv.hex_uint32_t,
         cv.Optional(CONF_SKIP_UPDATES): validate_skip_updates_deprecated,
-        cv.Optional(CONF_FORCE_NEW_RANGE, default=False): cv.boolean,
+        cv.Optional(CONF_REUSE_PREVIOUS_RANGE, default="auto"): cv.Any(
+            cv.boolean, cv.one_of("auto", lower=True)
+        ),
+        # Deprecated options, migrated by validate_range_reuse_migration(). Remove before 2027.3.0
+        cv.Optional(CONF_FORCE_NEW_RANGE): cv.boolean,
+        cv.Optional(CONF_REGISTER_COUNT): cv.positive_int,
         cv.Optional(CONF_LAMBDA): cv.returning_lambda,
-        cv.Optional(CONF_RESPONSE_SIZE, default=0): cv.positive_int,
+        cv.Optional(CONF_RESPONSE_SIZE, default=0): cv.int_range(min=0, max=250),
     },
 )
+
+
+def _derived_register_widths(config: ConfigType) -> set[int]:
+    """Register widths an item derives on its own; a matching register_count is redundant."""
+    response_size = config.get(CONF_RESPONSE_SIZE, 0)
+    if (value_type := config.get(CONF_VALUE_TYPE)) is not None:
+        widths = {TYPE_REGISTER_MAP[value_type]}
+        if value_type == "RAW" and response_size > 0:
+            widths.add((response_size + 1) // 2)
+        return widths
+    if response_size > 0:
+        # text sensors: the old default was floor(response_size / 2); the derived width is now ceil
+        return {response_size // 2, (response_size + 1) // 2}
+    return {1}
+
+
+def entity_label(config: ConfigType) -> str:
+    """The entity's name or id, so migration messages say which entry to edit."""
+    label = config.get(CONF_NAME) or config.get(CONF_ID)
+    return str(label) if label is not None else "<unnamed>"
+
+
+# Remove before 2027.3.0
+def validate_range_reuse_migration(config: ConfigType) -> ConfigType:
+    """Migrate the removed force_new_range/register_count options to reuse_previous_range."""
+    if (force_new_range := config.pop(CONF_FORCE_NEW_RANGE, None)) is not None:
+        if config[CONF_REUSE_PREVIOUS_RANGE] != "auto":
+            raise cv.Invalid(
+                f"'{CONF_FORCE_NEW_RANGE}' and '{CONF_REUSE_PREVIOUS_RANGE}' can't be used together; "
+                f"remove '{CONF_FORCE_NEW_RANGE}'"
+            )
+        if force_new_range:
+            _LOGGER.warning(
+                "%s: '%s' is deprecated; '%s: false' replaces it but only stops this entity joining "
+                "the PREVIOUS range - set it on the following entity too if the range must stay "
+                "isolated. Removed in 2027.3.0",
+                entity_label(config),
+                CONF_FORCE_NEW_RANGE,
+                CONF_REUSE_PREVIOUS_RANGE,
+            )
+            config[CONF_REUSE_PREVIOUS_RANGE] = False
+        else:
+            _LOGGER.warning(
+                "%s: '%s: false' has no effect; remove it. Removed in 2027.3.0",
+                entity_label(config),
+                CONF_FORCE_NEW_RANGE,
+            )
+    if (register_count := config.pop(CONF_REGISTER_COUNT, None)) is not None:
+        if (
+            register_count not in _derived_register_widths(config)
+            and register_count != 0
+        ):
+            raise cv.Invalid(
+                f"'{CONF_REGISTER_COUNT}' has been removed; the number of registers to read is now "
+                f"derived from '{CONF_VALUE_TYPE}' (or '{CONF_RESPONSE_SIZE}' for RAW values and text "
+                f"sensors). To make one request span extra registers up to the next sensor, set "
+                f"'{CONF_REUSE_PREVIOUS_RANGE}: true' on the NEXT sensor instead; for RAW or text block "
+                f"reads set '{CONF_RESPONSE_SIZE}' to the byte count; to force multi-register writes set "
+                f"'use_write_multiple: true'. See "
+                "https://esphome.io/components/modbus_controller/"
+            )
+        _LOGGER.warning(
+            "%s: '%s' is now derived from '%s' (or '%s' for RAW values and text sensors) and has no "
+            "effect; remove it. Removed in 2027.3.0",
+            entity_label(config),
+            CONF_REGISTER_COUNT,
+            CONF_VALUE_TYPE,
+            CONF_RESPONSE_SIZE,
+        )
+    return config
 
 
 def validate_modbus_register(config: ConfigType) -> ConfigType:
@@ -263,12 +354,52 @@ def _reject_continuous_write_custom_pdu(config: ConfigType) -> None:
         )
 
 
+def _reject_broadcastable_custom_pdu(config: ConfigType) -> None:
+    """A broadcastable custom_pdu under an address-0 controller is a real broadcast, never answered."""
+    pdu = config.get(CONF_CUSTOM_PDU)
+    if pdu is None or not modbus.is_function_code_broadcastable(pdu[0]):
+        return
+    fconf = fv.full_config.get()
+    path = fconf.get_path_for_id(config[CONF_MODBUS_CONTROLLER_ID])[:-1]
+    controller = fconf.get_config_for_path(path)
+    if (
+        controller.get(CONF_ADDRESS) == modbus.BROADCAST_ADDRESS
+        and controller.get(modbus.CONF_ALLOW_BROADCAST_READ) is True
+    ):
+        raise cv.Invalid(
+            f"a '{CONF_CUSTOM_PDU}' with function code 0x{pdu[0] & 0x7F:02X} is a real broadcast at "
+            f"address 0 and is never answered, so it can't be polled through the "
+            f"'{controller[CONF_ID]}' modbus_controller; use a read function code.",
+            [CONF_CUSTOM_PDU],
+        )
+
+
 def validate_custom_pdu_item(config: ConfigType) -> None:
-    """Final-validate for the read platforms that accept custom_pdu (sensor, binary_sensor,
-    text_sensor): migrate the deprecated custom_command, then reject a write-coded custom_pdu under a
-    continuously-polling controller."""
+    """Final-validate for the platforms that accept custom_pdu."""
     migrate_custom_command(config)
     _reject_continuous_write_custom_pdu(config)
+    _reject_broadcastable_custom_pdu(config)
+
+
+def _reject_write_option_off_broadcast(config: ConfigType) -> None:
+    if not any(config.get(key) is True for key in modbus.broadcast_only_option_keys()):
+        return
+    fconf = fv.full_config.get()
+    path = fconf.get_path_for_id(config[CONF_MODBUS_CONTROLLER_ID])[:-1]
+    controller = fconf.get_config_for_path(path)
+    if controller.get(CONF_ADDRESS) != modbus.BROADCAST_ADDRESS:
+        raise cv.Invalid(
+            f"'{modbus.CONF_EXPECT_BROADCAST_WRITE_RESPONSE}' only applies when the "
+            f"'{controller[CONF_ID]}' modbus_controller is at address 0; remove the option.",
+            [modbus.CONF_EXPECT_BROADCAST_WRITE_RESPONSE],
+        )
+
+
+def validate_writer_item(config: ConfigType) -> None:
+    """Final-validate for the writer platforms (number, output, select, switch)."""
+    if CONF_CUSTOM_PDU in config or CONF_CUSTOM_COMMAND in config:
+        validate_custom_pdu_item(config)
+    _reject_write_option_off_broadcast(config)
 
 
 def _final_validate(config: ConfigType) -> None:
@@ -293,20 +424,13 @@ def reject_odd_holding_write_offset(config: ConfigType) -> ConfigType:
     return config
 
 
-def modbus_calc_properties(config: ConfigType) -> tuple[int, int]:
+def modbus_calc_properties(config: ConfigType) -> int:
     byte_offset = 0
-    reg_count = 0
     if CONF_OFFSET in config:
         byte_offset = config[CONF_OFFSET]
     # A CONF_BYTE_OFFSET setting overrides CONF_OFFSET
     if CONF_BYTE_OFFSET in config:
         byte_offset = config[CONF_BYTE_OFFSET]
-    if CONF_REGISTER_COUNT in config:
-        reg_count = config[CONF_REGISTER_COUNT]
-    if CONF_VALUE_TYPE in config:
-        value_type = config[CONF_VALUE_TYPE]
-        if reg_count == 0:
-            reg_count = TYPE_REGISTER_MAP[value_type]
     if CONF_CUSTOM_PDU in config:
         if CONF_ADDRESS not in config:
             # generate a unique modbus address using the hash of the name
@@ -317,8 +441,7 @@ def modbus_calc_properties(config: ConfigType) -> tuple[int, int]:
                 value = value.encode()
             config[CONF_ADDRESS] = binascii.crc_hqx(value, 0)
         config[CONF_REGISTER_TYPE] = cv.enum(MODBUS_REGISTER_TYPE)("custom")
-        config[CONF_FORCE_NEW_RANGE] = True
-    return byte_offset, reg_count
+    return byte_offset
 
 
 async def add_modbus_base_properties(
@@ -373,11 +496,7 @@ async def to_code(config: ConfigType) -> None:
     await cg.register_component(var, config)
     cg.add(var.set_max_cmd_retries(config[CONF_MAX_CMD_RETRIES]))
     cg.add(var.set_offline_skip_updates(config[CONF_OFFLINE_SKIP_UPDATES]))
-    cg.add(
-        var.set_read_options(
-            modbus.command_options_expression(config, direction="read")
-        )
-    )
+    modbus.add_command_options(var, "set_read_options", config, direction="read")
     await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
 
 

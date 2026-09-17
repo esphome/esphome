@@ -520,6 +520,33 @@ def test_check_esp_idf_install_feature_failure(espidf_mocks: SimpleNamespace) ->
         check_esp_idf_install(_IDF_VERSION, force=True, features=["fb"])
 
 
+def test_python_deps_use_uv_when_available(
+    espidf_mocks: SimpleNamespace, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The python env installs go through uv when on the PATH, pip otherwise."""
+    monkeypatch.delenv("UV_HTTP_RETRIES", raising=False)
+    with patch(
+        "esphome.espidf.framework.shutil.which",
+        # Keyed on the name: the same which() also probes the default tools
+        side_effect=lambda name: "/usr/bin/uv" if name == "uv" else None,
+    ):
+        check_esp_idf_install(_IDF_VERSION, force=True, features=["fb"])
+    upgrade_call, feature_call = espidf_mocks.run_ok.call_args_list[1:3]
+    upgrade_cmd, feature_cmd = upgrade_call.args[0], feature_call.args[0]
+    assert upgrade_cmd[:3] == ["/usr/bin/uv", "pip", "install"]
+    assert "--python" in upgrade_cmd
+    assert feature_cmd[:3] == ["/usr/bin/uv", "pip", "install"]
+    assert upgrade_call.kwargs["env"]["UV_HTTP_RETRIES"] == "10"
+
+    espidf_mocks.run_ok.reset_mock()
+    monkeypatch.setenv("UV_HTTP_RETRIES", "3")  # an explicit user value wins
+    with patch("esphome.espidf.framework.shutil.which", return_value=None):
+        check_esp_idf_install(_IDF_VERSION, force=True, features=["fb"])
+    upgrade_call = espidf_mocks.run_ok.call_args_list[1]
+    assert upgrade_call.args[0][1:4] == ["-m", "pip", "install"]
+    assert upgrade_call.kwargs["env"]["UV_HTTP_RETRIES"] == "3"
+
+
 def _mark_installed() -> None:
     """Create the extracted marker and python-env interpreter so the install
     check takes the already-installed path rather than force-installing."""

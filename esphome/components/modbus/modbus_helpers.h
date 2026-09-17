@@ -60,14 +60,11 @@ inline bool is_function_code_custom(uint8_t function_code) {
 /// in step with those switches). Deliberately wider than is_function_code_custom(): the user-defined
 /// ranges are unknown to the parser too, but so are the assigned-but-unimplemented codes
 /// (READ_EXCEPTION_STATUS, DIAGNOSTICS, GET_COMM_EVENT_*, REPORT_SERVER_ID) and every unassigned value.
-/// The 0x80 exception flag is masked off first, so a frame with it set classifies by its base code -
-/// even though a spec exception reply has a known 2-byte PDU. That is deliberate, matching what
-/// is_function_code_custom() has always done: some vendors use codes with the 0x80 bit set as ordinary
-/// codes with longer payloads, so the response parser CRC-scans these rather than assuming the spec
-/// length. For an intact spec exception the scan matches at its first candidate, so only a corrupt one
-/// pays (recovery by timeout instead of an immediate CRC failure).
+/// Exception-flagged codes (0x80 set) are always the 2-byte spec exception shape, so never unknown.
 inline bool is_function_code_unknown_length(uint8_t function_code) {
-  switch (static_cast<FunctionCode>(function_code & FUNCTION_CODE_MASK)) {
+  if (is_function_code_exception(function_code))
+    return false;
+  switch (static_cast<FunctionCode>(function_code)) {
     case FunctionCode::READ_COILS:
     case FunctionCode::READ_DISCRETE_INPUTS:
     case FunctionCode::READ_HOLDING_REGISTERS:
@@ -85,6 +82,17 @@ inline bool is_function_code_unknown_length(uint8_t function_code) {
     default:
       return true;
   }
+}
+
+/// True when the underlying function code (exception bit masked off) may be broadcast (address 0).
+/// Refused: the reads (including read-write), plus every other code whose response length the parser
+/// knows (file record, FIFO). Allowed: the writes, and any code the parser does not know, since the
+/// hub cannot tell one of those apart from a vendor write.
+inline bool is_function_code_broadcastable(uint8_t function_code) {
+  uint8_t masked_function_code = function_code & FUNCTION_CODE_MASK;
+  if (is_function_code_read(masked_function_code))
+    return false;
+  return is_function_code_write(masked_function_code) || is_function_code_unknown_length(masked_function_code);
 }
 
 // Returns the expected length of a server response PDU based on the function code.
@@ -205,7 +213,7 @@ enum class SensorValueType : uint8_t {
   S_DWORD = 0x4,  // 2 Registers signed
   BIT = 0x5,
   U_DWORD_R = 0x6,  // 2 Registers unsigned
-  S_DWORD_R = 0x7,  // 2 Registers unsigned
+  S_DWORD_R = 0x7,  // 2 Registers signed
   U_QWORD = 0x8,
   S_QWORD = 0x9,
   U_QWORD_R = 0xA,
@@ -218,6 +226,26 @@ enum class SensorValueType : uint8_t {
 
 inline bool value_type_is_float(SensorValueType v) {
   return v == SensorValueType::FP32 || v == SensorValueType::FP32_R;
+}
+
+/// Number of 16-bit registers a value of this type occupies (RAW counts as one register).
+constexpr uint16_t register_width_for(SensorValueType v) {
+  switch (v) {
+    case SensorValueType::U_DWORD:
+    case SensorValueType::S_DWORD:
+    case SensorValueType::U_DWORD_R:
+    case SensorValueType::S_DWORD_R:
+    case SensorValueType::FP32:
+    case SensorValueType::FP32_R:
+      return 2;
+    case SensorValueType::U_QWORD:
+    case SensorValueType::S_QWORD:
+    case SensorValueType::U_QWORD_R:
+    case SensorValueType::S_QWORD_R:
+      return 4;
+    default:
+      return 1;
+  }
 }
 
 /// Coils and discrete inputs are the bit-addressed entity tables; the other types are 16-bit registers.
@@ -260,7 +288,7 @@ inline uint8_t c_to_hex(char c) { return (c >= 'A') ? (c >= 'a') ? (c - 'a' + 10
  *  byte_from_hex_str("1122", 1) returns uint_8 value 0x22 == 34
  *  byte_from_hex_str("1122", 0) returns 0x11
  * @param value string containing hex encoding
- * @param position  offset in bytes. Because each byte is encoded in 2 hex digits the position of the original byte in
+ * @param pos  offset in bytes. Because each byte is encoded in 2 hex digits the position of the original byte in
  * the hex string is byte_pos * 2
  * @return byte value
  */
@@ -272,8 +300,7 @@ inline uint8_t byte_from_hex_str(const std::string &value, uint8_t pos) {
 
 /** Get a word from a hex string
  * @param value string containing hex encoding
- * @param position  offset in bytes. Because each byte is encoded in 2 hex digits the position of the original byte in
- * the hex string is byte_pos * 2
+ * @param pos offset in bytes (see byte_from_hex_str)
  * @return word value
  */
 inline uint16_t word_from_hex_str(const std::string &value, uint8_t pos) {
@@ -282,8 +309,7 @@ inline uint16_t word_from_hex_str(const std::string &value, uint8_t pos) {
 
 /** Get a dword from a hex string
  * @param value string containing hex encoding
- * @param position  offset in bytes. Because each byte is encoded in 2 hex digits the position of the original byte in
- * the hex string is byte_pos * 2
+ * @param pos offset in bytes (see byte_from_hex_str)
  * @return dword value
  */
 inline uint32_t dword_from_hex_str(const std::string &value, uint8_t pos) {
@@ -292,8 +318,7 @@ inline uint32_t dword_from_hex_str(const std::string &value, uint8_t pos) {
 
 /** Get a qword from a hex string
  * @param value string containing hex encoding
- * @param position  offset in bytes. Because each byte is encoded in 2 hex digits the position of the original byte in
- * the hex string is byte_pos * 2
+ * @param pos offset in bytes (see byte_from_hex_str)
  * @return qword value
  */
 inline uint64_t qword_from_hex_str(const std::string &value, uint8_t pos) {
@@ -308,9 +333,9 @@ template<typename T> T get_data(const std::vector<uint8_t> &data, size_t buffer_
  * Responses for coil are packed into bytes .
  * coil 3 is bit 3 of the first response byte
  * coil 9 is bit 2 of the second response byte
- * @param coil number of the cil
+ * @param bit index of the bit to extract
  * @param data modbus response buffer (uint8_t)
- * @return content of coil register
+ * @return value of the requested bit
  */
 inline bool bit_from_packed(int bit, std::span<const uint8_t> data) {
   auto data_byte = bit / 8;
@@ -448,11 +473,96 @@ inline int64_t payload_to_number(const std::vector<uint8_t> &data, SensorValueTy
  */
 std::optional<int64_t> registers_to_number(const uint16_t *registers, size_t count, SensorValueType sensor_value_type);
 
+/// Combine two register words into a 32-bit value.
+constexpr uint32_t registers_to_uint32(uint16_t high_word, uint16_t low_word) {
+  return (static_cast<uint32_t>(high_word) << 16) | low_word;
+}
+
+/// Combine four register words into a 64-bit value, most significant word first.
+constexpr uint64_t registers_to_uint64(uint16_t word0, uint16_t word1, uint16_t word2, uint16_t word3) {
+  return (static_cast<uint64_t>(registers_to_uint32(word0, word1)) << 32) | registers_to_uint32(word2, word3);
+}
+
+// Always false, whatever the type: it exists only to make the static_assert below depend on the
+// template argument. Not a queryable trait.
+template<SensorValueType> inline constexpr bool VALUE_TYPE_SUPPORTED = false;
+
+/** Decode one value whose type is known at compile time, from registers in host byte order.
+ * Unlike registers_to_number(), the type is a template argument, so only the one decode is compiled
+ * and the caller gets the value's natural type back rather than an int64_t. The "_R" types take the
+ * low word first; the rest take the high word first.
+ * Supports every fixed-width type: the WORD, DWORD, QWORD and FP32 families, including their _S and
+ * _R forms. RAW and BIT have no fixed width and fail to compile.
+ * Use register_width_for() for the number of registers the caller must supply.
+ * Note that the FP32 branches are only usable in a constant expression where std::bit_cast is
+ * available; elsewhere bit_cast falls back to a non-constexpr memcpy (see core/helpers.h).
+ */
+template<SensorValueType VALUE_TYPE> constexpr auto registers_to_value(const uint16_t *registers) {
+  if constexpr (VALUE_TYPE == SensorValueType::U_WORD) {
+    return registers[0];
+  } else if constexpr (VALUE_TYPE == SensorValueType::S_WORD) {
+    return static_cast<int16_t>(registers[0]);
+  } else if constexpr (VALUE_TYPE == SensorValueType::U_WORD_S) {
+    return byteswap(registers[0]);
+  } else if constexpr (VALUE_TYPE == SensorValueType::S_WORD_S) {
+    return static_cast<int16_t>(byteswap(registers[0]));
+  } else if constexpr (VALUE_TYPE == SensorValueType::U_DWORD) {
+    return registers_to_uint32(registers[0], registers[1]);
+  } else if constexpr (VALUE_TYPE == SensorValueType::U_DWORD_R) {
+    return registers_to_uint32(registers[1], registers[0]);
+  } else if constexpr (VALUE_TYPE == SensorValueType::S_DWORD) {
+    return static_cast<int32_t>(registers_to_uint32(registers[0], registers[1]));
+  } else if constexpr (VALUE_TYPE == SensorValueType::S_DWORD_R) {
+    return static_cast<int32_t>(registers_to_uint32(registers[1], registers[0]));
+  } else if constexpr (VALUE_TYPE == SensorValueType::FP32) {
+    return bit_cast<float>(registers_to_uint32(registers[0], registers[1]));
+  } else if constexpr (VALUE_TYPE == SensorValueType::FP32_R) {
+    return bit_cast<float>(registers_to_uint32(registers[1], registers[0]));
+  } else if constexpr (VALUE_TYPE == SensorValueType::U_QWORD) {
+    return registers_to_uint64(registers[0], registers[1], registers[2], registers[3]);
+  } else if constexpr (VALUE_TYPE == SensorValueType::U_QWORD_R) {
+    return registers_to_uint64(registers[3], registers[2], registers[1], registers[0]);
+  } else if constexpr (VALUE_TYPE == SensorValueType::S_QWORD) {
+    return static_cast<int64_t>(registers_to_uint64(registers[0], registers[1], registers[2], registers[3]));
+  } else if constexpr (VALUE_TYPE == SensorValueType::S_QWORD_R) {
+    return static_cast<int64_t>(registers_to_uint64(registers[3], registers[2], registers[1], registers[0]));
+  } else {
+    static_assert(VALUE_TYPE_SUPPORTED<VALUE_TYPE>, "registers_to_value() does not support this value type");
+  }
+}
+
+/// The type registers_to_value() yields for a given value type. Distinct from modbus::RegisterValues,
+/// which is a container of raw words.
+template<SensorValueType VALUE_TYPE>
+using RegisterValueType = decltype(registers_to_value<VALUE_TYPE>(static_cast<const uint16_t *>(nullptr)));
+
+/** The value stored at an absolute register address, or nullopt when it is not wholly inside this
+ * response. Lets a device decode by address rather than by offset, so a poll split across several
+ * requests needs no extra bookkeeping: a value outside the response simply yields nullopt.
+ * @param registers the response registers, in host byte order
+ * @param start_address the address the response begins at
+ * @param address the address of the wanted value
+ */
+template<SensorValueType VALUE_TYPE>
+constexpr std::optional<RegisterValueType<VALUE_TYPE>> value_at(std::span<const uint16_t> registers,
+                                                                uint16_t start_address, uint16_t address) {
+  if (address < start_address)
+    return std::nullopt;
+  const size_t offset = static_cast<size_t>(address) - start_address;
+  if (offset + register_width_for(VALUE_TYPE) > registers.size())
+    return std::nullopt;
+  return registers_to_value<VALUE_TYPE>(registers.data() + offset);
+}
+
+/// The widest standard numeric value (a QWORD) spans 4 registers, so one entity value never writes more.
+static constexpr uint16_t MAX_FEW_REGISTERS = 4;
+
 // Named PDU buffer types: the builders' storage strategy (currently stack-allocated StaticVector,
 // right-sized per shape) can be swapped in one place without touching every signature.
 using PduBuffer = StaticVector<uint8_t, MAX_PDU_SIZE>;
 using ReadPdu = StaticVector<uint8_t, READ_PDU_SIZE>;
 using WriteSinglePdu = StaticVector<uint8_t, WRITE_SINGLE_PDU_SIZE>;
+using WriteFewRegistersPdu = StaticVector<uint8_t, WRITE_MULTIPLE_HEADER_SIZE + 2 * MAX_FEW_REGISTERS>;
 /// Scratch space for packing coils into wire layout: one bit per coil, sized for the spec maximum.
 using CoilPackBuffer = StaticVector<uint8_t, packed_bit_bytes(MAX_NUM_OF_COILS_TO_WRITE)>;
 
@@ -495,6 +605,15 @@ PduBuffer create_client_pdu(FunctionCode function_code, uint16_t start_address, 
  * @return PDU (function code + data, no address, no CRC)
  */
 PduBuffer create_write_registers_pdu(uint16_t start_address, std::span<const uint16_t> values);
+
+/** Create modbus write multiple registers command (function 0x10) on a right-sized stack buffer.
+ * Identical wire bytes to create_write_registers_pdu() for any accepted input.
+ * @param start_address modbus address of the first register to write
+ * @param values register values to write, at most MAX_FEW_REGISTERS (an over-long or empty set is
+ *               rejected and an empty PDU is returned)
+ * @return PDU (function code + data, no address, no CRC)
+ */
+WriteFewRegistersPdu create_write_few_registers_pdu(uint16_t start_address, std::span<const uint16_t> values);
 
 /** Create modbus read/write multiple registers command
  *  Function 0x17 Read/Write Multiple Registers

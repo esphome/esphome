@@ -328,10 +328,10 @@ TEST(StepToAccuracyDecimals, RoundsUpToWholeNumber) {
 }
 
 TEST(StepToAccuracyDecimals, OutsideFixedNotationRange) {
-  // %.5g prints these in exponent form, so the count comes from parsing "1e-05" or "1.2346e+05".
-  EXPECT_EQ(step_to_accuracy_decimals(0.00001f), 0);
+  // %.5g would print these in exponent form; the count is now the real one rather than a parse of "1e-05".
+  EXPECT_EQ(step_to_accuracy_decimals(0.00001f), 5);
   EXPECT_EQ(step_to_accuracy_decimals(0.000125f), 6);
-  EXPECT_EQ(step_to_accuracy_decimals(123456.0f), 8);
+  EXPECT_EQ(step_to_accuracy_decimals(123456.0f), 0);
   EXPECT_EQ(step_to_accuracy_decimals(1000000.0f), 0);
 }
 
@@ -346,6 +346,77 @@ TEST(StepToAccuracyDecimals, NonFiniteAndZero) {
   EXPECT_EQ(step_to_accuracy_decimals(NAN), 0);
   EXPECT_EQ(step_to_accuracy_decimals(INFINITY), 0);
   EXPECT_EQ(step_to_accuracy_decimals(-INFINITY), 0);
+}
+
+// --- FixedVector::try_init() ---
+
+// Keeps the block observable, else the compiler may drop the malloc and free pair and fold the check
+static void escape(const void *p) { asm volatile("" : : "g"(p) : "memory"); }
+
+TEST(FixedVectorTryInit, ReportsExhaustionAndStaysEmpty) {
+  FixedVector<uint32_t> v;
+  const bool ok = v.try_init(SIZE_MAX / sizeof(uint32_t));
+  escape(&v);
+  EXPECT_FALSE(ok);
+  EXPECT_EQ(v.capacity(), 0u);
+  EXPECT_FALSE(v.try_init(SIZE_MAX / sizeof(uint32_t) + 1));  // byte count would wrap
+  EXPECT_EQ(v.capacity(), 0u);
+  EXPECT_TRUE(v.try_init(0));
+  EXPECT_TRUE(v.try_init(4));
+  v.push_back(7);
+  EXPECT_EQ(v.size(), 1u);
+}
+
+// --- RAMAllocator::make_unique() ---
+
+namespace {
+struct Probe {
+  static inline int live = 0;
+  int a;
+  int b;
+  Probe(int a, int b) : a(a), b(b) { live++; }
+  ~Probe() { live--; }
+};
+}  // namespace
+
+static_assert(sizeof(RAMUniquePtr<Probe>) == sizeof(Probe *), "the deleter must not add storage");
+
+TEST(RAMAllocatorMakeUnique, ForwardsArgsAndDestroysOnce) {
+  auto p = RAMAllocator<Probe>().make_unique(3, 4);
+  ASSERT_NE(p, nullptr);
+  EXPECT_EQ(p->a, 3);
+  EXPECT_EQ(p->b, 4);
+  EXPECT_EQ(Probe::live, 1);
+  p.reset();
+  EXPECT_EQ(Probe::live, 0);
+}
+
+TEST(RAMAllocatorMakeUnique, ValueInitializesLikeMakeUnique) {
+  struct Plain {
+    uint32_t words[8];
+  };
+  // Dirty a block of the same size first so a recycled allocation is not zero by chance
+  auto dirty = RAMAllocator<uint8_t>().make_unique_array_for_overwrite(sizeof(Plain));
+  std::memset(dirty.get(), 0xFF, sizeof(Plain));
+  dirty.reset();
+  auto p = RAMAllocator<Plain>().make_unique();
+  ASSERT_NE(p, nullptr);
+  // Under ASan fresh blocks are filled with 0xbe, so this holds even when the dirtied block is not reused
+  EXPECT_TRUE(std::all_of(std::begin(p->words), std::end(p->words), [](uint32_t w) { return w == 0; }));
+}
+
+TEST(RAMAllocatorMakeUnique, ArrayFormRejectsOverflowAndZero) {
+  EXPECT_EQ(RAMAllocator<uint32_t>().make_unique_array_for_overwrite(SIZE_MAX / sizeof(uint32_t) + 1), nullptr);
+  EXPECT_EQ(RAMAllocator<uint32_t>().make_unique_array_for_overwrite(0), nullptr);
+  EXPECT_NE(RAMAllocator<uint32_t>().make_unique_array_for_overwrite(1), nullptr);
+}
+
+TEST(RAMAllocatorMakeUnique, ArrayFormAllocatesElements) {
+  RAMUniquePtr<uint8_t[]> buf = RAMAllocator<uint8_t>().make_unique_array_for_overwrite(256);
+  ASSERT_NE(buf, nullptr);
+  std::memset(buf.get(), 0xA5, 256);
+  EXPECT_EQ(buf[0], 0xA5);
+  EXPECT_EQ(buf[255], 0xA5);
 }
 
 }  // namespace esphome::core::testing

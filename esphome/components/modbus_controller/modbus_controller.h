@@ -30,53 +30,10 @@ using modbus::ModbusFunctionCode;
 using modbus::ModbusRegisterType;
 #pragma GCC diagnostic pop
 
-// Remove before 2026.10.0 — these helpers have moved to modbus::helpers
-ESPDEPRECATED("Use modbus::helpers::value_type_is_float() instead. Removed in 2026.10.0", "2026.4.0")
-inline bool value_type_is_float(SensorValueType v) { return modbus::helpers::value_type_is_float(v); }
-
-ESPDEPRECATED("Use modbus::helpers::modbus_register_read_function() instead. Removed in 2026.10.0", "2026.4.0")
-inline FunctionCode modbus_register_read_function(modbus::EntityType reg_type) {
-  return modbus::helpers::modbus_register_read_function(reg_type);
-}
-
-ESPDEPRECATED("Use modbus::helpers::modbus_register_write_function() instead. Removed in 2026.10.0", "2026.4.0")
-inline FunctionCode modbus_register_write_function(modbus::EntityType reg_type) {
-  return modbus::helpers::modbus_register_write_function(reg_type);
-}
-
-ESPDEPRECATED("Use modbus::helpers::c_to_hex() instead. Removed in 2026.10.0", "2026.4.0")
-inline uint8_t c_to_hex(char c) { return modbus::helpers::c_to_hex(c); }
-
-ESPDEPRECATED("Use modbus::helpers::byte_from_hex_str() instead. Removed in 2026.10.0", "2026.4.0")
-inline uint8_t byte_from_hex_str(const std::string &value, uint8_t pos) {
-  return modbus::helpers::byte_from_hex_str(value, pos);
-}
-
-ESPDEPRECATED("Use modbus::helpers::word_from_hex_str() instead. Removed in 2026.10.0", "2026.4.0")
-inline uint16_t word_from_hex_str(const std::string &value, uint8_t pos) {
-  return modbus::helpers::word_from_hex_str(value, pos);
-}
-
-ESPDEPRECATED("Use modbus::helpers::dword_from_hex_str() instead. Removed in 2026.10.0", "2026.4.0")
-inline uint32_t dword_from_hex_str(const std::string &value, uint8_t pos) {
-  return modbus::helpers::dword_from_hex_str(value, pos);
-}
-
-ESPDEPRECATED("Use modbus::helpers::qword_from_hex_str() instead. Removed in 2026.10.0", "2026.4.0")
-inline uint64_t qword_from_hex_str(const std::string &value, uint8_t pos) {
-  return modbus::helpers::qword_from_hex_str(value, pos);
-}
-
-template<typename T>
-ESPDEPRECATED("Use modbus::helpers::get_data() instead. Removed in 2026.10.0", "2026.4.0")
-T get_data(const std::vector<uint8_t> &data, size_t buffer_offset) {
-  return modbus::helpers::get_data<T>(data, buffer_offset);
-}
-
-// Span overloads of the deprecated helpers below: read lambdas receive their payload as a
+// Span overloads of the former modbus_controller helpers: read lambdas receive their payload as a
 // std::span<const uint8_t> (previously a const std::vector<uint8_t> &), and a span does not convert to
 // a vector, so existing lambdas calling these by name need an overload that accepts one. These carry
-// this release's deprecation window, since the span forms only exist from it.
+// the 2026.8.0 deprecation window, since the span forms only exist from it.
 // payload_to_number() deliberately has no such overload: one of its arguments is a modbus::helpers
 // type, so a span call already reaches the helper by argument-dependent lookup, and a forwarder here
 // would only make that call ambiguous.
@@ -99,32 +56,15 @@ inline bool coil_from_vector(int coil, std::span<const uint8_t> data) {
   return modbus::helpers::bit_from_packed(coil, data);
 }
 
-template<typename N>
-ESPDEPRECATED("Use modbus::helpers::mask_and_shift_by_rightbit() instead. Removed in 2026.10.0", "2026.4.0")
-N mask_and_shift_by_rightbit(N data, uint32_t mask) {
-  return modbus::helpers::mask_and_shift_by_rightbit(data, mask);
-}
-
-ESPDEPRECATED("Use modbus::helpers::number_to_payload() instead. Removed in 2026.10.0", "2026.4.0")
-inline void number_to_payload(std::vector<uint16_t> &data, int64_t value, SensorValueType value_type) {
-  modbus::helpers::number_to_payload(data, value, value_type);
-}
-
-ESPDEPRECATED("Use modbus::helpers::payload_to_number() instead. Removed in 2026.10.0", "2026.4.0")
-inline int64_t payload_to_number(const std::vector<uint8_t> &data, SensorValueType sensor_value_type, uint8_t offset,
-                                 uint32_t bitmask) {
-  return modbus::helpers::payload_to_number(std::span<const uint8_t>(data), sensor_value_type, offset, bitmask)
-      .value_or(0);
-}
-
-ESPDEPRECATED("Use modbus::helpers::float_to_payload() instead. Removed in 2026.10.0", "2026.4.0")
-inline std::vector<uint16_t> float_to_payload(float value, SensorValueType value_type) {
-  std::vector<uint16_t> data;
-  modbus::helpers::float_to_payload(data, value, value_type);
-  return data;
-}
-
-class ModbusController;
+/// How an item relates to the register range built just before it (same register type, address order).
+/// The numeric order doubles as the comparator tiebreak for items at the same address (see
+/// SensorItemsComparator): AUTO items form the shared range first, so a NEVER item comes last and
+/// shares a range it did not start (items on one address must share, see create_polling_commands_()).
+enum class RangeReuse : uint8_t {
+  AUTO = 0,    // join when adjacent and the position in the reply is exact (no non-standard response_size ahead)
+  ALWAYS = 1,  // join unconditionally, reading across any address gap
+  NEVER = 2,   // never join backward (later items may still extend this item's range)
+};
 
 class SensorItem {
  public:
@@ -159,11 +99,26 @@ class SensorItem {
   }
 
   void set_custom_pdu(std::initializer_list<uint8_t> pdu) { this->custom_pdu.set(pdu.begin(), pdu.size()); }
+
+  /// Entities this item spans: one bit for bit-addressed types, ceil(bytes / 2) registers for RAW
+  /// with a response_size, else the value type's register width.
+  virtual uint16_t entity_count() const {
+    if (modbus::helpers::is_entity_type_binary(this->register_type)) {
+      return 1;
+    }
+    if (this->sensor_value_type == SensorValueType::RAW && this->response_bytes > 0) {
+      return (this->response_bytes + 1) / 2;
+    }
+    return modbus::helpers::register_width_for(this->sensor_value_type);
+  }
+
+  /// Bytes this item's registers occupy in a response: one per bit for bit-addressed types; response_size
+  /// when set (devices that answer more bytes per register than the standard two); else two per register.
   size_t virtual get_register_size() const {
     if (this->addresses_bits()) {
       return 1;
     } else {  // if CONF_RESPONSE_BYTES is used override the default
-      return response_bytes > 0 ? response_bytes : register_count * 2;
+      return response_bytes > 0 ? response_bytes : this->entity_count() * 2;
     }
   }
   // Override register size for modbus devices not using 1 register for one dword
@@ -177,7 +132,6 @@ class SensorItem {
   /// for the registers ahead of it (including wide response_size ones) and for any offset inherited
   /// from an earlier sensor sharing the same register.
   uint8_t offset{0};
-  uint8_t register_count{0};
   uint8_t response_bytes{0};
   /// The offset exactly as configured: measured from this sensor's own start_address, where `offset`
   /// is measured from the first register of the range it ends up polled in. Same units as `offset` -
@@ -188,7 +142,7 @@ class SensorItem {
   /// First register of the range this sensor is polled in; equals start_address for an unpolled item.
   uint16_t range_start_address{0};
   SmallInlineBuffer<8> custom_pdu{};
-  bool force_new_range{false};
+  RangeReuse reuse_previous_range{RangeReuse::AUTO};
 };
 
 // ModbusController::create_polling_commands_ tries to optimize register range
@@ -201,14 +155,15 @@ class SensorItemsComparator {
       return lhs->register_type < rhs->register_type;
     }
 
-    // ensure that sensor with force_new_range set are before the others
-    if (lhs->force_new_range != rhs->force_new_range) {
-      return lhs->force_new_range > rhs->force_new_range;
-    }
-
     // sort by start address
     if (lhs->start_address != rhs->start_address) {
       return lhs->start_address < rhs->start_address;
+    }
+
+    // at the same address: AUTO before ALWAYS before NEVER, so a NEVER item never starts the range
+    // the others at that address are then forced to share (see RangeReuse)
+    if (lhs->reuse_previous_range != rhs->reuse_previous_range) {
+      return lhs->reuse_previous_range < rhs->reuse_previous_range;
     }
 
     // sort by the offset as configured (ensures update of sensors in ascending order). The resolved
@@ -229,8 +184,8 @@ using SensorSet = std::set<SensorItem *, SensorItemsComparator>;
 struct RegisterRange {
   uint16_t start_address;
   modbus::EntityType register_type;
-  uint8_t register_count;
-  SensorSet sensors;  // all sensors of this range
+  uint16_t register_count;  // registers (or bits) the poll command reads; joins across gaps can exceed 255
+  SensorSet sensors;        // all sensors of this range
   /// A custom range polls this PDU, referenced from the sensor that opened the range.
   const SmallInlineBuffer<8> *custom_pdu{nullptr};
 };
@@ -255,10 +210,11 @@ class ControllerDevice : protected modbus::ModbusClientDevice {
 
   void notify_online_(std::span<const uint8_t> request_pdu);
 
-  /// Write-path state owned by WriterEntity's forwarders, stored here so both bools land in the base's
-  /// tail padding instead of adding a word to every writer entity. The warn flag leaves in 2027.3.0.
-  bool dispatched_{false};
-  bool write_buffer_deprecated_warned_{false};
+  /// Write-path state for WriterEntity's forwarders, packed into the base's tail padding. The warn flag
+  /// leaves in 2027.3.0.
+  bool dispatched_ : 1 {false};
+  bool write_buffer_deprecated_warned_ : 1 {false};
+  modbus::CommandOptions write_options_{};
   ModbusController *controller_{nullptr};
 };
 
@@ -280,6 +236,8 @@ class WriterDevice final : public ControllerDevice {
   bool dispatched() const { return this->dispatched_; }
   void set_dispatched() { this->dispatched_ = true; }
   void clear_dispatched() { this->dispatched_ = false; }
+  modbus::CommandOptions write_options() const { return this->write_options_; }
+  void set_write_options(modbus::CommandOptions options) { this->write_options_ = options; }
   /// Warn once per entity that filling the write_lambda buffer parameter is deprecated (the entity is now the
   /// command - call a write helper / queue_pdu() on `item` instead). The buffer parameter is removed in 2027.3.0.
   void warn_write_buffer_deprecated(const LogString *platform, uint16_t address);
@@ -301,27 +259,29 @@ class WriterEntity {
   /// Whether the lambda called a request helper since the last clear_dispatched_(). Deliberately records
   /// the call, not the hub's accept/refuse: a refused lambda write must not fall through to the default write.
   bool dispatched() const { return this->device_.dispatched(); }
+  void set_write_options(modbus::CommandOptions options) { this->device_.set_write_options(options); }
   bool write_single_register(uint16_t address, uint16_t value) {
     this->device_.set_dispatched();
-    return this->device_.write_single_register(address, value);
+    return this->device_.write_single_register(address, value, this->device_.write_options());
   }
   bool write_single_coil(uint16_t address, bool value) {
     this->device_.set_dispatched();
-    return this->device_.write_single_coil(address, value);
+    return this->device_.write_single_coil(address, value, this->device_.write_options());
   }
   bool write_multiple_registers(uint16_t address, std::span<const uint16_t> values) {
     this->device_.set_dispatched();
-    return this->device_.write_multiple_registers(address, values);
+    return this->device_.write_multiple_registers(address, values, this->device_.write_options());
   }
   bool write_multiple_coils(uint16_t address, std::span<const bool> values) {
     this->device_.set_dispatched();
-    return this->device_.write_multiple_coils(address, values);
+    return this->device_.write_multiple_coils(address, values, this->device_.write_options());
   }
   bool write_multiple_coils(uint16_t address, modbus::PackedBits bits) {
     this->device_.set_dispatched();
-    return this->device_.write_multiple_coils(address, bits);
+    return this->device_.write_multiple_coils(address, bits, this->device_.write_options());
   }
-  bool queue_pdu(std::span<const uint8_t> pdu, modbus::CommandOptions options = {}) {
+  bool queue_pdu(std::span<const uint8_t> pdu) { return this->queue_pdu(pdu, this->device_.write_options()); }
+  bool queue_pdu(std::span<const uint8_t> pdu, modbus::CommandOptions options) {
     this->device_.set_dispatched();
     return this->device_.queue_pdu(pdu, options);
   }
