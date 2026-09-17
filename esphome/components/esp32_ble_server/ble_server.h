@@ -40,7 +40,7 @@ class BLEServer final : public Component, public Parented<ESP32BLE> {
 
   /** Whether this server needs the device to advertise so clients can find and connect to it.
    *
-   * False for a server that only hosts services created at runtime (e.g. esp32_improv), which
+   * False for a server that only hosts services created at runtime (e.g. improv_ble), which
    * request advertising themselves for as long as they need it.
    */
   void set_advertising_required(bool required) { this->advertising_required_ = required; }
