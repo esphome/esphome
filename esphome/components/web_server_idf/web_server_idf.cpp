@@ -933,6 +933,8 @@ void AsyncEventSourceResponse::request_close_() {
     this->deferred_queue_.clear();
     this->tail_.reset();
     this->tail_cap_ = 0;
+    this->tail_len_ = 0;
+    this->tail_sent_ = 0;
     this->next_close_attempt_ms_ = App.get_loop_component_start_time();
   }
 
@@ -1062,7 +1064,8 @@ bool AsyncEventSourceResponse::reserve_tail_(size_t len) {
 bool AsyncEventSourceResponse::stash_chunk_(const char *prefix, size_t prefix_len, const char *message,
                                             size_t message_len, size_t total, size_t sent) {
   if (!this->reserve_tail_(total)) {
-    ESP_LOGW(TAG, "EventSource tail allocation failed (%zu bytes); closing", total);
+    // Either the heap is exhausted or the chunk is beyond the 64 KB the tail can hold
+    ESP_LOGW(TAG, "EventSource cannot buffer a %zu byte chunk; closing", total);
     this->request_close_();
     return false;
   }
