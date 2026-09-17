@@ -119,7 +119,8 @@ TEST(StringRefNullEmpty, IteratorEndpointsFormAnEmptyRange) {
     visited++;
   }
   EXPECT_EQ(visited, 0u);
-  EXPECT_EQ(std::string(null_empty.begin(), null_empty.end()), std::string());
+  EXPECT_EQ(std::string(null_empty.begin(), null_empty.end()),
+            std::string());  // NOLINT(bugprone-string-constructor) - empty range under test
 }
 
 // The pointer and length constructor accepts an empty range at a null pointer; the copy into a
