@@ -21,10 +21,6 @@ namespace esphome::sendspin_ {
 
 static const char *const TAG = "sendspin.hub";
 
-#ifdef USE_MDNS_SUPPORTS_ENABLE_DISABLE
-static constexpr uint32_t MDNS_ENABLE_RETRY_MS = 1000;
-#endif
-
 #ifdef USE_SENDSPIN_ARTWORK
 // Indexed by the library enums, which start at zero and are contiguous.
 static const char *const IMAGE_SOURCE_NAMES[] = {"ALBUM", "ARTIST", "NONE"};
@@ -66,26 +62,24 @@ void SendspinHub::setup() {
   this->client_->add_player(this->player_config_).set_listener(this->player_listener_);
 #endif
 
-  if (!this->client_->start()) {
-    ESP_LOGE(TAG, "Failed to start Sendspin client");
-    this->mark_failed();
-    return;
-  }
+#ifndef USE_SENDSPIN_SWITCH
+  this->enabled_ = true;
+#endif
 }
 
 void SendspinHub::loop() {
+  if (this->enabled_.has_value() && this->enabled_.value() != this->client_->is_started() &&
+      !this->status_has_error()) {
+    if (!this->enabled_.value()) {
+      this->client_->stop();
+    } else if (!this->client_->start()) {
+      this->status_set_error(LOG_STR("Failed to start Sendspin client"));
+    }
+  }
   this->client_->loop();
 
 #ifdef USE_MDNS_SUPPORTS_ENABLE_DISABLE
-  // mdns sets up after this hub, so the service is enabled here once mdns is ready. A failed enable retries,
-  // rate limited so a persistent failure does not flood the log or block on the mdns task every loop pass.
-  if (!this->mdns_advertised_ && this->mdns_->is_ready()) {
-    const uint32_t now = App.get_loop_component_start_time();
-    if (this->mdns_enable_attempt_ms_ == 0 || now - this->mdns_enable_attempt_ms_ >= MDNS_ENABLE_RETRY_MS) {
-      this->mdns_enable_attempt_ms_ = now;
-      this->mdns_advertised_ = this->mdns_->set_service_enabled("_sendspin", "_tcp", true);
-    }
-  }
+  this->update_mdns_service_();
 #endif
 }
 
@@ -114,25 +108,54 @@ void SendspinHub::dump_config() {
 #endif
 }
 
+// THREAD CONTEXT: Main loop (invoked from Sendspin components)
+void SendspinHub::set_enabled(bool enabled) {
+  if (this->status_has_error()) {
+    ESP_LOGE(TAG, "Cannot %s: Sendspin failed to start, reboot to retry",
+             enabled ? LOG_STR_LITERAL("enable") : LOG_STR_LITERAL("disable"));
+    return;
+  }
+  this->enabled_ = enabled;
+}
+
+#ifdef USE_MDNS_SUPPORTS_ENABLE_DISABLE
+// THREAD CONTEXT: Main loop
+void SendspinHub::update_mdns_service_() {
+  // Synced from loop() because mdns sets up after this hub and only builds its service list then.
+  if (!this->mdns_->is_ready()) {
+    return;
+  }
+  bool advertise = this->client_->is_started();
+  if (advertise == this->mdns_advertised_) {
+    return;
+  }
+  // One attempt per change
+  this->mdns_advertised_ = advertise;
+  if (!this->mdns_->set_service_enabled("_sendspin", "_tcp", advertise)) {
+    ESP_LOGE(TAG, "Failed to %s mDNS service", advertise ? LOG_STR_LITERAL("enable") : LOG_STR_LITERAL("disable"));
+  }
+}
+#endif
+
 // --- Delegating methods ---
 
 // THREAD CONTEXT: Main loop (invoked from Sendspin components)
 void SendspinHub::connect_to_server(const std::string &url) {
-  if (this->is_ready()) {
+  if (this->is_client_running()) {
     this->client_->connect_to(url);
   }
 }
 
 // THREAD CONTEXT: Main loop (invoked from Sendspin components)
 void SendspinHub::disconnect_from_server(sendspin::SendspinGoodbyeReason reason) {
-  if (this->is_ready()) {
+  if (this->is_client_running()) {
     this->client_->disconnect(reason);
   }
 }
 
 // THREAD CONTEXT: Main loop (invoked from Sendspin components)
 void SendspinHub::update_state(sendspin::SendspinClientState state) {
-  if (this->is_ready()) {
+  if (this->is_client_running()) {
     this->client_->update_state(state);
   }
 }
@@ -251,7 +274,7 @@ void SendspinHub::artwork_frame_done(uint8_t slot) {
 // THREAD CONTEXT: Main loop (invoked from ESPHome actions / other components)
 void SendspinHub::send_client_command(sendspin::SendspinControllerCommand command, std::optional<uint8_t> volume,
                                       std::optional<bool> mute) {
-  if (this->is_ready()) {
+  if (this->is_client_running()) {
     sendspin::ClientCommandControllerObject obj = {
         .command = command,
         .volume = volume,
