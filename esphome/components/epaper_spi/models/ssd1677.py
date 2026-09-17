@@ -84,22 +84,24 @@ ssd1677.extend(
     mirror_x=True,
 )
 
-STICKY_BOARD = {
-    "width": 800,
-    "height": 480,
-    "mirror_x": True,
-    "enable_pin": 47,
-    "cs_pin": 15,
-    "dc_pin": 16,
-    "reset_pin": 17,
-    "busy_pin": 18,
-    "data_rate": "10MHz",
-    "requires": {"psram"},
-}
-
 # Sticky - monochrome version
-seeed_sticky = ssd1677.extend("seeed-reterminal-sticky", **STICKY_BOARD)
+seeed_sticky = ssd1677.extend(
+    "seeed-reterminal-sticky",
+    width=800,
+    height=480,
+    mirror_x=True,
+    enable_pin=47,
+    cs_pin=15,
+    dc_pin=16,
+    reset_pin=17,
+    busy_pin=18,
+    data_rate="10MHz",
+    requires={"psram"},
+)
 
-# Sticky - 4 level grayscale. A separate model class (not seeed_sticky.extend(...)) so that
-# supports_partial_update = False applies to it and not to the mono variant above.
-SSD1677Gray4("seeed-reterminal-sticky-gray4", **STICKY_BOARD)
+# Sticky - 4 level grayscale
+seeed_sticky.extend(
+    "seeed-reterminal-sticky-gray4",
+    class_name="EPaperSSD1677Gray4",
+    border_waveform=0x00,
+)
