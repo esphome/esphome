@@ -719,7 +719,7 @@ json::SerializationBuffer<> WebServer::text_sensor_json_(text_sensor::TextSensor
   json::JsonBuilder builder;
   JsonObject root = builder.root();
 
-  // The main loop rewrites the state while a REST handler runs on the httpd task, so copy it
+  // Not linked: the main loop can rewrite the state before the document is serialized
   const JsonString state(value.c_str(), value.size());
   set_json_icon_state_value(root, obj, "text_sensor", state, state, start_config);
   if (start_config == DETAIL_ALL) {
@@ -1438,7 +1438,7 @@ json::SerializationBuffer<> WebServer::text_json_(text::Text *obj, const std::st
   json::JsonBuilder builder;
   JsonObject root = builder.root();
 
-  // The main loop rewrites the state while a REST handler runs on the httpd task, so copy it
+  // Not linked: the main loop can rewrite the state before the document is serialized
   const JsonString copied_value(value.c_str(), value.size());
   const JsonString state =
       obj->traits.get_mode() == text::TextMode::TEXT_MODE_PASSWORD ? linked("********") : copied_value;
@@ -2329,7 +2329,7 @@ json::SerializationBuffer<> WebServer::update_json_(update::UpdateEntity *obj, J
   json::JsonBuilder builder;
   JsonObject root = builder.root();
 
-  // The main loop rewrites update_info while a REST handler runs on the httpd task, so copy
+  // Not linked: the main loop can rewrite update_info before the document is serialized
   const auto &info = obj->update_info;
   set_json_icon_state_value(root, obj, "update", json_state_str(update::update_state_to_string(obj->state)),
                             info.latest_version.c_str(), start_config);
