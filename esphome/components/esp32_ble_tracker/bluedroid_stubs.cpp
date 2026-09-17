@@ -7,6 +7,10 @@
  * released block to l2cble_init_direct_conn(). That arms the link timer with
  * a null parameter, and l2c_link_timeout() crashes when it expires.
  *
+ * The same commit also releases a live block that l2cble_init_direct_conn()
+ * rejects on its unknown device path, which every other failure path already
+ * does; the wrapper releases it when the block is still in use afterwards.
+ *
  * The wrap only covers calls from other files, which is where the stale
  * pointer comes from; callers inside l2c_ble.c pass a live block.
  *
@@ -33,12 +37,17 @@ static_assert(sizeof(bool) == 1, "in_use is read as a single byte");
 extern "C" {
 
 bool __real_l2cble_init_direct_conn(void *p_lcb);
+void l2cu_release_lcb(void *p_lcb);
 
 bool __wrap_l2cble_init_direct_conn(void *p_lcb) {
   if (p_lcb == nullptr || !*static_cast<const bool *>(p_lcb)) {
     return false;
   }
-  return __real_l2cble_init_direct_conn(p_lcb);
+  const bool started = __real_l2cble_init_direct_conn(p_lcb);
+  if (!started && *static_cast<const bool *>(p_lcb)) {
+    l2cu_release_lcb(p_lcb);
+  }
+  return started;
 }
 
 }  // extern "C"
