@@ -13,6 +13,7 @@ from esphome.const import (
     CONF_ID,
     CONF_MIN_IPV6_ADDR_COUNT,
     CONF_PRIORITY,
+    CONF_WIFI,
 )
 from esphome.core import CORE, CoroPriority, coroutine_with_priority
 import esphome.final_validate as fv
@@ -31,8 +32,10 @@ CONF_TCP_SEND_BUFFER = "tcp_send_buffer"
 
 # TCP receive window of the optimized lwip tier (PSRAM not guaranteed)
 TCP_WND_OPTIMIZED = 65534
-# Ethernet drivers keep every queued frame in internal RAM, so ethernet builds get
-# a window sized for a LAN round trip and the stock lwip input mailbox
+# Ethernet drivers keep every queued frame in internal RAM, so ethernet-only builds
+# get a window sized for a LAN round trip and the stock lwip input mailbox. Dual
+# wifi + ethernet builds keep wifi's sizes; the ethernet component moves their
+# received frames to PSRAM instead.
 TCP_WND_ETHERNET = 16384
 TCPIP_RECVMBOX_ETHERNET = 32
 TCPIP_RECVMBOX_OPTIMIZED = 64
@@ -175,8 +178,8 @@ def require_high_performance_networking() -> None:
     Configuration is PSRAM-aware:
     - With PSRAM guaranteed: Aggressive settings (512 RX buffers, 512KB TCP windows)
     - Without PSRAM: Conservative optimized settings (64 buffers, 65KB TCP windows)
-    - With Ethernet configured: 16KB TCP windows regardless of PSRAM, because
-      ESP-IDF ethernet drivers keep received frames in internal RAM
+    - Ethernet only: 16KB TCP windows regardless of PSRAM, because ESP-IDF
+      ethernet drivers keep received frames in internal RAM
 
     Example:
         from esphome.components import network
@@ -429,10 +432,10 @@ async def to_code(config: ConfigType) -> None:
         # Check if PSRAM is guaranteed (set by psram component during final validation)
         psram_guaranteed = psram_is_guaranteed()
         # ESP-IDF ethernet drivers malloc() received frames into internal RAM, so
-        # lwip is never sized for PSRAM when any ethernet interface is configured.
-        has_ethernet = CONF_ETHERNET in CORE.config
+        # lwip is never sized for PSRAM on an ethernet-only build.
+        ethernet_only = CONF_ETHERNET in CORE.config and CONF_WIFI not in CORE.config
 
-        if psram_guaranteed and not has_ethernet:
+        if psram_guaranteed and not ethernet_only:
             _LOGGER.info(
                 "Applying high-performance lwip settings (PSRAM guaranteed): 512KB TCP windows, 512 mailbox sizes"
             )
@@ -467,7 +470,7 @@ async def to_code(config: ConfigType) -> None:
         else:
             # Every queued byte is internal RAM on ethernet and a LAN round trip needs
             # little window; wifi keeps the larger sizes.
-            if has_ethernet:
+            if ethernet_only:
                 tcp_window, tcpip_mailbox = TCP_WND_ETHERNET, TCPIP_RECVMBOX_ETHERNET
             else:
                 tcp_window, tcpip_mailbox = TCP_WND_OPTIMIZED, TCPIP_RECVMBOX_OPTIMIZED

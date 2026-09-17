@@ -1,7 +1,7 @@
 """Tests for the ``network: enable_high_performance:`` lwip tier selection.
 
-Ethernet drivers keep received frames in internal RAM, so any ethernet
-interface must keep lwip off the PSRAM tier even when PSRAM is guaranteed.
+Ethernet drivers keep received frames in internal RAM, so an ethernet-only
+build must keep lwip off the PSRAM tier even when PSRAM is guaranteed.
 """
 
 from collections.abc import Callable
@@ -25,7 +25,8 @@ from tests.component_tests.network import sdkconfig_option
     [
         ("high_perf_wifi_psram.yaml", 512000, 512, 512, True, 512),
         ("high_perf_wifi_no_psram.yaml", 65534, 64, 64, None, 64),
-        ("high_perf_wifi_ethernet_psram.yaml", 16384, 64, 32, None, 512),
+        # dual builds keep wifi's sizes; the ethernet component moves frames to PSRAM
+        ("high_perf_wifi_ethernet_psram.yaml", 512000, 512, 512, True, 512),
         ("high_perf_ethernet_no_psram.yaml", 16384, 64, 32, None, None),
     ],
 )
