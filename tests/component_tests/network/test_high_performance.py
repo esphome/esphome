@@ -14,12 +14,19 @@ from tests.component_tests.network import sdkconfig_option
 
 
 @pytest.mark.parametrize(
-    ("fixture", "window", "mailbox", "window_scale", "wifi_rx_buffers"),
+    (
+        "fixture",
+        "window",
+        "tcp_mailbox",
+        "tcpip_mailbox",
+        "window_scale",
+        "wifi_rx_buffers",
+    ),
     [
-        ("high_perf_wifi_psram.yaml", 512000, 512, True, 512),
-        ("high_perf_wifi_no_psram.yaml", 65534, 64, None, 64),
-        ("high_perf_wifi_ethernet_psram.yaml", 32768, 64, None, 512),
-        ("high_perf_ethernet_no_psram.yaml", 32768, 64, None, None),
+        ("high_perf_wifi_psram.yaml", 512000, 512, 512, True, 512),
+        ("high_perf_wifi_no_psram.yaml", 65534, 64, 64, None, 64),
+        ("high_perf_wifi_ethernet_psram.yaml", 16384, 64, 32, None, 512),
+        ("high_perf_ethernet_no_psram.yaml", 16384, 64, 32, None, None),
     ],
 )
 def test_lwip_tier(
@@ -27,7 +34,8 @@ def test_lwip_tier(
     component_config_path: Callable[[str], Path],
     fixture: str,
     window: int,
-    mailbox: int,
+    tcp_mailbox: int,
+    tcpip_mailbox: int,
     window_scale: bool | None,
     wifi_rx_buffers: int | None,
 ) -> None:
@@ -36,8 +44,8 @@ def test_lwip_tier(
     require_high_performance_networking()
     generate_main(component_config_path(fixture))
     assert sdkconfig_option("CONFIG_LWIP_TCP_WND_DEFAULT") == window
-    assert sdkconfig_option("CONFIG_LWIP_TCP_RECVMBOX_SIZE") == mailbox
-    assert sdkconfig_option("CONFIG_LWIP_TCPIP_RECVMBOX_SIZE") == mailbox
+    assert sdkconfig_option("CONFIG_LWIP_TCP_RECVMBOX_SIZE") == tcp_mailbox
+    assert sdkconfig_option("CONFIG_LWIP_TCPIP_RECVMBOX_SIZE") == tcpip_mailbox
     assert sdkconfig_option("CONFIG_LWIP_WND_SCALE") is window_scale
     # Wifi RX buffers really go to PSRAM, so the wifi tier is never downgraded
     assert sdkconfig_option("CONFIG_ESP_WIFI_DYNAMIC_RX_BUFFER_NUM") == wifi_rx_buffers

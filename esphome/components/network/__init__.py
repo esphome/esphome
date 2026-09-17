@@ -31,9 +31,11 @@ CONF_TCP_SEND_BUFFER = "tcp_send_buffer"
 
 # TCP receive window of the optimized lwip tier (PSRAM not guaranteed)
 TCP_WND_OPTIMIZED = 65534
-# Ethernet drivers keep received frames in internal RAM and a LAN round trip
-# needs far less window than wifi, so ethernet builds get a smaller window
-TCP_WND_ETHERNET = 32768
+# Ethernet drivers keep every queued frame in internal RAM, so ethernet builds get
+# a window sized for a LAN round trip and the stock lwip input mailbox
+TCP_WND_ETHERNET = 16384
+TCPIP_RECVMBOX_ETHERNET = 32
+TCPIP_RECVMBOX_OPTIMIZED = 64
 
 # lwIP queues at most this many unsent/unacked bytes per TCP socket; the
 # stock ESP-IDF default (5744 bytes) stalls bursty senders like a Bluetooth
@@ -173,7 +175,7 @@ def require_high_performance_networking() -> None:
     Configuration is PSRAM-aware:
     - With PSRAM guaranteed: Aggressive settings (512 RX buffers, 512KB TCP windows)
     - Without PSRAM: Conservative optimized settings (64 buffers, 65KB TCP windows)
-    - With Ethernet configured: 32KB TCP windows regardless of PSRAM, because
+    - With Ethernet configured: 16KB TCP windows regardless of PSRAM, because
       ESP-IDF ethernet drivers keep received frames in internal RAM
 
     Example:
@@ -463,19 +465,23 @@ async def to_code(config: ConfigType) -> None:
             add_idf_sdkconfig_option("CONFIG_LWIP_TCP_OVERSIZE_MSS", True)
             add_idf_sdkconfig_option("CONFIG_LWIP_TCP_QUEUE_OOSEQ", True)
         else:
-            # A LAN needs well under 32KB of window, and every byte of it is
-            # internal RAM on ethernet; wifi keeps the larger window.
-            tcp_window = TCP_WND_ETHERNET if has_ethernet else TCP_WND_OPTIMIZED
+            # Every queued byte is internal RAM on ethernet and a LAN round trip needs
+            # little window; wifi keeps the larger sizes.
+            if has_ethernet:
+                tcp_window, tcpip_mailbox = TCP_WND_ETHERNET, TCPIP_RECVMBOX_ETHERNET
+            else:
+                tcp_window, tcpip_mailbox = TCP_WND_OPTIMIZED, TCPIP_RECVMBOX_OPTIMIZED
             _LOGGER.info(
-                "Applying optimized lwip settings: %dKB TCP windows, 64 mailbox sizes",
+                "Applying optimized lwip settings: %dKB TCP windows, %d entry input mailbox",
                 tcp_window // 1000,
+                tcpip_mailbox,
             )
             # PSRAM not guaranteed - use more conservative, but still optimized settings
             # Based on https://github.com/espressif/esp-idf/blob/release/v5.4/examples/wifi/iperf/sdkconfig.defaults.esp32
             add_idf_sdkconfig_option("CONFIG_LWIP_TCP_SND_BUF_DEFAULT", 65534)
             add_idf_sdkconfig_option("CONFIG_LWIP_TCP_WND_DEFAULT", tcp_window)
             add_idf_sdkconfig_option("CONFIG_LWIP_TCP_RECVMBOX_SIZE", 64)
-            add_idf_sdkconfig_option("CONFIG_LWIP_TCPIP_RECVMBOX_SIZE", 64)
+            add_idf_sdkconfig_option("CONFIG_LWIP_TCPIP_RECVMBOX_SIZE", tcpip_mailbox)
 
     # After the high performance block so an explicit size wins over the
     # bundle's 65534 (last write wins in the sdkconfig store).
