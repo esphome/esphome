@@ -1,9 +1,4 @@
-"""Tests for the Bluedroid queued connection guard.
-
-Builds that open BLE connections on an ESP-IDF release without the upstream
-fix wrap l2cble_init_direct_conn; scan-only builds and fixed releases emit
-nothing.
-"""
+"""The Bluedroid queued connection guard is emitted only for client builds on unfixed ESP-IDF."""
 
 from __future__ import annotations
 
@@ -16,8 +11,7 @@ from esphome import config_validation as cv
 from esphome.components import esp32_ble_tracker
 from esphome.core import CORE
 
-# Spelled out rather than derived from the component, so a typo in the
-# component's flags fails here instead of mirroring into the test.
+# Spelled out so a typo in the component's flags fails here
 _GUARD_FLAGS = {
     "-Wl,--wrap=l2cble_init_direct_conn",
     "-Wl,--undefined=__wrap_l2cble_init_direct_conn",
@@ -44,7 +38,6 @@ def test_guard_only_in_client_builds_on_unfixed_idf(
     idf: str,
     expected: bool,
 ) -> None:
-    # Pinned so the test does not follow the default framework version.
     _pin_idf(monkeypatch, idf)
     generate_main(component_config_path(config_file))
     assert (CORE.build_flags >= _GUARD_FLAGS) is expected
