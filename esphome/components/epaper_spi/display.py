@@ -80,7 +80,7 @@ TRANSFORM_OPTIONS = {CONF_MIRROR_X, CONF_MIRROR_Y, CONF_SWAP_XY}
 
 
 def _full_update_every_validator(model):
-    if model.supports_partial_update:
+    if model.get_default("partial_update"):
         return cv.int_range(1, 255)
 
     def validate(value):

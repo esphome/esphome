@@ -17,6 +17,7 @@ class SSD1677(EpaperModel):
     ):
         defaults[CONF_DATA_RATE] = data_rate
         defaults[CONF_BORDER_WAVEFORM] = border_waveform
+        defaults.setdefault("partial_update", True)
         super().__init__(name, class_name, **defaults)
 
     def get_config_options(self) -> dict:
@@ -99,9 +100,10 @@ seeed_sticky = ssd1677.extend(
     requires={"psram"},
 )
 
-# Sticky - 4 level grayscale
+# Sticky - 4 level grayscale, no partial refresh support
 seeed_sticky.extend(
     "seeed-reterminal-sticky-gray4",
     class_name="EPaperSSD1677Gray4",
     border_waveform=0x00,
+    partial_update=False,
 )

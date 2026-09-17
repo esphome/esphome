@@ -32,6 +32,7 @@ class UC8179(EpaperModel):
         **defaults: Any,
     ) -> None:
         defaults.setdefault(CONF_DATA_RATE, data_rate)
+        defaults.setdefault("partial_update", True)
         super().__init__(name, class_name, **defaults)
 
     def get_init_sequence(self, config: dict) -> tuple:
