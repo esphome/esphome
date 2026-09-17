@@ -2387,10 +2387,15 @@ async def _set_libc_picolibc_newlib_compat() -> None:
 
 
 @coroutine_with_priority(CoroPriority.FINAL)
-async def _apply_nvs_cache_in_psram() -> None:
+async def _apply_nvs_cache_in_psram(explicit: bool) -> None:
     """Keep the NVS cache in PSRAM unless NVS encryption is on, however it was enabled."""
     # The encrypted partition object holds the derived keys, which must stay in internal RAM
     if is_idf_sdkconfig_option_enabled("CONFIG_NVS_ENCRYPTION"):
+        if explicit:
+            _LOGGER.warning(
+                "%s ignored: NVS encryption keeps the NVS cache in internal RAM",
+                CONF_NVS_CACHE_IN_PSRAM,
+            )
         return
     set_idf_sdkconfig_default("CONFIG_NVS_ALLOCATE_CACHE_IN_SPIRAM", True)
 
@@ -2948,8 +2953,10 @@ async def to_code(config):
     # Frees internal heap (the cache scales with the NVS partition) but slows NVS, so only
     # where PSRAM is known to be fitted. Decided at FINAL so every way of enabling NVS
     # encryption has been seen and a user's sdkconfig_options value wins.
-    if advanced.get(CONF_NVS_CACHE_IN_PSRAM, True) and psram_is_guaranteed():
-        CORE.add_job(_apply_nvs_cache_in_psram)
+    if (
+        requested := advanced.get(CONF_NVS_CACHE_IN_PSRAM, True)
+    ) and psram_is_guaranteed():
+        CORE.add_job(_apply_nvs_cache_in_psram, requested is True)
 
     # Apply LWIP core locking for better socket performance
     # This is already enabled by default in Arduino framework, where it provides

@@ -1586,7 +1586,7 @@ def test_nvs_cache_in_psram_user_sdkconfig_wins(
     """A raw sdkconfig_options value for the NVS cache option is left alone."""
     generate_main(component_config_path("nvs_cache_psram_user_off.yaml"))
     sdkconfig = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
-    assert sdkconfig["CONFIG_NVS_ALLOCATE_CACHE_IN_SPIRAM"] is not True
+    assert sdkconfig["CONFIG_NVS_ALLOCATE_CACHE_IN_SPIRAM"] == RawSdkconfigValue("n")
 
 
 @pytest.mark.parametrize(
