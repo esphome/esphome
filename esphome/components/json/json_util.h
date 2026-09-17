@@ -173,7 +173,8 @@ ArduinoJson::Allocator *heap_json_allocator();
 /// buffer cannot hold goes to the heap allocator; nothing is freed until the arena goes away.
 template<size_t N> class JsonArena final : public ArduinoJson::Allocator {
  public:
-  JsonArena() = default;
+  // fallback takes what the buffer cannot hold; a test passes one that fails on demand
+  explicit JsonArena(ArduinoJson::Allocator *fallback = heap_json_allocator()) : fallback_(fallback) {}
   // The document points into buf_
   JsonArena(const JsonArena &) = delete;
   JsonArena &operator=(const JsonArena &) = delete;
@@ -181,7 +182,7 @@ template<size_t N> class JsonArena final : public ArduinoJson::Allocator {
   void *allocate(size_t size) override {
     size = (size + ALIGN - 1) & ~(ALIGN - 1);
     if (size > N - this->used_) {
-      return heap_json_allocator()->allocate(size);
+      return this->fallback_->allocate(size);
     }
     this->last_ = this->used_;
     this->used_ += size;
@@ -189,12 +190,12 @@ template<size_t N> class JsonArena final : public ArduinoJson::Allocator {
   }
   void deallocate(void *ptr) override {
     if (!this->owns_(ptr)) {
-      heap_json_allocator()->deallocate(ptr);
+      this->fallback_->deallocate(ptr);
     }
   }
   void *reallocate(void *ptr, size_t new_size) override {
     if (!this->owns_(ptr)) {
-      return heap_json_allocator()->reallocate(ptr, new_size);
+      return this->fallback_->reallocate(ptr, new_size);
     }
     const size_t off = static_cast<uint8_t *>(ptr) - this->buf_;
     const size_t size = (new_size + ALIGN - 1) & ~(ALIGN - 1);
@@ -205,7 +206,7 @@ template<size_t N> class JsonArena final : public ArduinoJson::Allocator {
     }
     // An older block's size is unknown; copying to the end of the buffer stays in bounds
     const size_t old_size = newest ? this->used_ - off : N - off;
-    void *moved = heap_json_allocator()->allocate(new_size);
+    void *moved = this->fallback_->allocate(new_size);
     if (moved == nullptr) {
       return nullptr;  // the caller keeps ptr, so its arena space stays reserved
     }
@@ -219,6 +220,7 @@ template<size_t N> class JsonArena final : public ArduinoJson::Allocator {
  private:
   static constexpr size_t ALIGN = alignof(std::max_align_t);
   bool owns_(const void *ptr) const { return ptr >= this->buf_ && ptr < this->buf_ + N; }
+  ArduinoJson::Allocator *fallback_;
   alignas(ALIGN) uint8_t buf_[N];
   size_t used_{0};
   size_t last_{0};

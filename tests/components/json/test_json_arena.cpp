@@ -6,7 +6,6 @@
 
 #include "esphome/components/json/json_util.h"
 
-using esphome::json::heap_json_allocator;
 using esphome::json::JsonArena;
 using esphome::json::JsonBuilder;
 
@@ -14,6 +13,13 @@ namespace {
 
 constexpr size_t ALIGN = alignof(std::max_align_t);
 constexpr size_t round_up(size_t n) { return (n + ALIGN - 1) & ~(ALIGN - 1); }
+
+// Refuses everything, so a spill or a move sees the heap as exhausted
+struct NoMemory final : ArduinoJson::Allocator {
+  void *allocate(size_t) override { return nullptr; }
+  void deallocate(void *) override {}
+  void *reallocate(void *, size_t) override { return nullptr; }
+};
 
 template<size_t N> bool inside(const JsonArena<N> &arena, const void *p) {
   auto base = reinterpret_cast<uintptr_t>(&arena);
@@ -98,6 +104,20 @@ TEST(JsonArena, HeapBlocksReallocateOnTheHeap) {
   arena.deallocate(grown);
 }
 
+TEST(JsonArena, FailedMoveKeepsTheBlockReserved) {
+  NoMemory no_memory;
+  JsonArena<64> arena(&no_memory);
+  void *a = arena.allocate(32);
+  std::memset(a, 'k', 32);
+  EXPECT_EQ(arena.reallocate(a, 200), nullptr);
+  EXPECT_EQ(std::memcmp(a, "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk", 32), 0);
+  auto *b = static_cast<uint8_t *>(arena.allocate(16));  // must not hand out a's bytes again
+  ASSERT_NE(b, nullptr);
+  EXPECT_EQ(static_cast<size_t>(b - static_cast<uint8_t *>(a)), round_up(32));
+  EXPECT_EQ(arena.allocate(64), nullptr);  // nothing left and the fallback refuses
+}
+
+// NOLINTBEGIN(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
 TEST(JsonArena, DocumentMatchesTheHeapAllocator) {
   // 700 integers need six pools, which also grows ArduinoJson's pool list past its preallocated four
   auto build = [](JsonBuilder &builder) {
@@ -122,3 +142,4 @@ TEST(JsonArena, DocumentMatchesTheHeapAllocator) {
   EXPECT_GT(a.size(), 4000u);
   EXPECT_EQ(a, b);
 }
+// NOLINTEND(clang-analyzer-cplusplus.NewDeleteLeaks)
