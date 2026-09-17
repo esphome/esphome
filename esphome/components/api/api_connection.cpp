@@ -730,12 +730,7 @@ uint16_t APIConnection::try_send_switch_info(EntityBase *entity, APIConnection *
 }
 void APIConnection::on_switch_command_request(const SwitchCommandRequest &msg) {
   ENTITY_COMMAND_GET(switch_::Switch, a_switch, switch)
-
-  if (msg.state) {
-    a_switch->turn_on();
-  } else {
-    a_switch->turn_off();
-  }
+  a_switch->control(msg.state);
 }
 #endif
 

@@ -98,6 +98,7 @@ ISOLATED_COMPONENTS = {
     "packages": "cannot merge packages",
     "store_yaml": "Embeds the whole merged config in firmware; grouping would make the blob and its secret redaction depend on every grouped component's test config",
     "tinyusb": "Conflicts with usb_host component - cannot be used together",
+    "uart_mux": "Depends on tinyusb which conflicts with usb_host",
     "usb_cdc_acm": "Depends on tinyusb which conflicts with usb_host",
 }
 

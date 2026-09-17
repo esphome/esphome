@@ -433,25 +433,10 @@ void ESP32Camera::set_pixel_format(ESP32CameraPixelFormat format) {
   }
 }
 void ESP32Camera::set_jpeg_quality(uint8_t quality) { this->config_.jpeg_quality = quality; }
-void ESP32Camera::set_vertical_flip(bool vertical_flip) { this->vertical_flip_ = vertical_flip; }
-void ESP32Camera::set_horizontal_mirror(bool horizontal_mirror) { this->horizontal_mirror_ = horizontal_mirror; }
-void ESP32Camera::set_contrast(int contrast) { this->contrast_ = contrast; }
-void ESP32Camera::set_brightness(int brightness) { this->brightness_ = brightness; }
-void ESP32Camera::set_saturation(int saturation) { this->saturation_ = saturation; }
-void ESP32Camera::set_special_effect(ESP32SpecialEffect effect) { this->special_effect_ = effect; }
 /* set exposure parameters */
-void ESP32Camera::set_aec_mode(ESP32GainControlMode mode) { this->aec_mode_ = mode; }
-void ESP32Camera::set_aec2(bool aec2) { this->aec2_ = aec2; }
-void ESP32Camera::set_ae_level(int ae_level) { this->ae_level_ = ae_level; }
-void ESP32Camera::set_aec_value(uint32_t aec_value) { this->aec_value_ = aec_value; }
 /* set gains parameters */
-void ESP32Camera::set_agc_mode(ESP32GainControlMode mode) { this->agc_mode_ = mode; }
-void ESP32Camera::set_agc_value(uint8_t agc_value) { this->agc_value_ = agc_value; }
-void ESP32Camera::set_agc_gain_ceiling(ESP32AgcGainCeiling gain_ceiling) { this->agc_gain_ceiling_ = gain_ceiling; }
 /* set white balance */
-void ESP32Camera::set_wb_mode(ESP32WhiteBalanceMode mode) { this->wb_mode_ = mode; }
 /* set test mode */
-void ESP32Camera::set_test_pattern(bool test_pattern) { this->test_pattern_ = test_pattern; }
 /* set fps */
 void ESP32Camera::set_max_update_interval(uint32_t max_update_interval) {
   this->max_update_interval_ = max_update_interval;
