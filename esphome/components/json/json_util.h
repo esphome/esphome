@@ -198,17 +198,20 @@ template<size_t N> class JsonArena final : public ArduinoJson::Allocator {
     }
     const size_t off = static_cast<uint8_t *>(ptr) - this->buf_;
     const size_t size = (new_size + ALIGN - 1) & ~(ALIGN - 1);
-    if (off == this->last_) {
-      if (size <= N - off) {
-        this->used_ = off + size;  // the newest block grows or shrinks in place
-        return ptr;
-      }
-      this->used_ = off;  // it moves to the heap, so its arena space is free again
+    const bool newest = off == this->last_;
+    if (newest && size <= N - off) {
+      this->used_ = off + size;  // the newest block grows or shrinks in place
+      return ptr;
     }
     // An older block's size is unknown; copying to the end of the buffer stays in bounds
+    const size_t old_size = newest ? this->used_ - off : N - off;
     void *moved = heap_json_allocator()->allocate(new_size);
-    if (moved != nullptr) {
-      std::memcpy(moved, ptr, std::min(new_size, N - off));
+    if (moved == nullptr) {
+      return nullptr;  // the caller keeps ptr, so its arena space stays reserved
+    }
+    std::memcpy(moved, ptr, std::min(new_size, old_size));
+    if (newest) {
+      this->used_ = off;  // it moved to the heap, so its arena space is free again
     }
     return moved;
   }
