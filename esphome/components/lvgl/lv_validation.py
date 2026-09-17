@@ -307,10 +307,12 @@ padding = LValidator(padding_validator, int32, retmapper=literal)
 
 
 def scale_validator(value):
-    return cv.float_range(0.1, 10.0)(value)
+    return cv.float_range(0.0, 10.0)(value)
 
 
-scale = LValidator(scale_validator, uint32, retmapper=lambda x: int(x * 256))
+scale = LValidator(
+    scale_validator, uint32, retmapper=lambda x: int(x * 256), animatable=True
+)
 
 
 def angle(value):
