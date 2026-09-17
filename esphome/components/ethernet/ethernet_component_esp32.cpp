@@ -93,7 +93,7 @@ static esp_err_t eth_input_to_psram(esp_eth_handle_t handle, uint8_t *buffer, ui
     static bool warned = false;  // once, this runs per frame in the driver's task
     if (!warned) {
       warned = true;
-      ESP_LOGW(TAG, "PSRAM full, received frames stay in internal RAM");
+      ESP_LOGW(TAG, "PSRAM allocation failed, frame kept in internal RAM (reported once)");
     }
   }
   return esp_netif_receive(static_cast<esp_netif_t *>(priv), buffer, length, nullptr);
@@ -670,8 +670,11 @@ void EthernetComponent::dump_config() {
 #endif
   ESP_LOGCONFIG(TAG, "  Type: %s", eth_type);
 #ifdef USE_ETHERNET_RX_PSRAM
-  ESP_LOGCONFIG(TAG, "  RX frames: %s",
-                rx_psram_installed ? LOG_STR_LITERAL("PSRAM") : LOG_STR_LITERAL("internal RAM"));
+  // Only known once the driver is up; with enable_on_boot: false that is after this dump
+  if (this->ethernet_initialized_) {
+    ESP_LOGCONFIG(TAG, "  RX frames: %s",
+                  rx_psram_installed ? LOG_STR_LITERAL("PSRAM") : LOG_STR_LITERAL("internal RAM"));
+  }
 #endif
 }
 
