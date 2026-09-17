@@ -6,7 +6,6 @@
 #include <string>
 
 #include "esphome/components/web_server_idf/sse_chunk.h"
-#include "esphome/core/helpers.h"
 
 namespace esphome::web_server_idf::testing {
 
@@ -14,28 +13,15 @@ namespace esphome::web_server_idf::testing {
 static std::string build_chunk(const char *message, size_t message_len, const char *event, uint32_t id,
                                uint32_t reconnect) {
   char prefix[128];
-  size_t prefix_len = CHUNK_HDR_LEN;
-  if (reconnect)
-    prefix_len = buf_append_printf(prefix, sizeof(prefix), prefix_len, "retry: %u\r\n", reconnect);
-  if (id)
-    prefix_len = buf_append_printf(prefix, sizeof(prefix), prefix_len, "id: %u\r\n", id);
-  if (event && *event) {
-    prefix_len = buf_append_str(prefix, sizeof(prefix), prefix_len, "event: ");
-    prefix_len = buf_append_str(prefix, sizeof(prefix), prefix_len, event);
-    prefix_len = buf_append_str(prefix, sizeof(prefix), prefix_len, "\r\n");
-  }
-  if (message) {
-    prefix_len = buf_append_str(prefix, sizeof(prefix), prefix_len, "data: ");
-  } else if (prefix_len == CHUNK_HDR_LEN) {
+  const size_t prefix_len = build_chunk_prefix(prefix, sizeof(prefix), event, id, reconnect, message != nullptr);
+  if (message == nullptr && prefix_len == CHUNK_HDR_LEN) {
     return "";
   }
   std::string out(prefix, prefix_len);
   for_each_chunk_piece(
       message, message_len,
       [](void *ctx, const char *piece, size_t len) { static_cast<std::string *>(ctx)->append(piece, len); }, &out);
-  format_hex_to(prefix, static_cast<uint32_t>(out.size() - CHUNK_HDR_LEN - CHUNK_END_LEN));
-  prefix[8] = '\r';
-  prefix[9] = '\n';
+  write_chunk_header(prefix, out.size() - CHUNK_HDR_LEN - CHUNK_END_LEN);
   out.replace(0, CHUNK_HDR_LEN, prefix, CHUNK_HDR_LEN);
   return out;
 }
