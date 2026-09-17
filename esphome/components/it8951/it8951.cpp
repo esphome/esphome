@@ -855,7 +855,7 @@ void IT8951Display::apply_transform_(int &x, int &y) const {
 }
 
 bool IT8951Display::rotate_coordinates_(int &x, int &y) {
-  if (!this->get_clipping().inside(x, y))
+  if (this->is_point_clipped(x, y))
     return false;
   this->apply_transform_(x, y);
   if (x >= this->width_ || y >= this->height_ || x < 0 || y < 0)
@@ -929,7 +929,7 @@ void IT8951Display::fill(Color color) {
 void HOT IT8951Display::draw_pixel_at(int x, int y, Color color) {
   if (this->buffer_ == nullptr)
     return;
-  App.feed_wdt();
+  this->feed_wdt_per_pixel_();
   if (!this->rotate_coordinates_(x, y))
     return;
   this->write_pixel_native_(static_cast<uint16_t>(x), static_cast<uint16_t>(y), color);
