@@ -14,11 +14,6 @@ class EpaperModel:
     # Whether the driver manages chip-select itself instead of via the SPI bus.
     manages_cs: bool = False
 
-    # Whether the driver can do a lighter/quicker update in between full refreshes. Models that
-    # can't (e.g. a waveform that only supports a full refresh) must reject full_update_every
-    # values other than 1.
-    supports_partial_update: bool = True
-
     def __init__(
         self,
         name: str,

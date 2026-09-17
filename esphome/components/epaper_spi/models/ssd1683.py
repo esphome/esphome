@@ -6,6 +6,7 @@ from . import EpaperModel
 class SSD1683(EpaperModel):
     def __init__(self, name, class_name="EPaperSSD1683", data_rate="20MHz", **defaults):
         defaults[CONF_DATA_RATE] = data_rate
+        defaults.setdefault("partial_update", True)
         super().__init__(name, class_name, **defaults)
 
     # fmt: off

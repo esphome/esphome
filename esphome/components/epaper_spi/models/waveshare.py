@@ -7,6 +7,8 @@ from . import EpaperModel
 
 class WaveshareModel(EpaperModel):
     def __init__(self, name, lut, lut_partial=None, **defaults):
+        # A partial LUT is what lets EpaperWaveshare do partial refresh
+        defaults.setdefault("partial_update", lut_partial is not None)
         super().__init__(name, "EpaperWaveshare", **defaults)
         self.lut = lut
         self.lut_partial = lut_partial
