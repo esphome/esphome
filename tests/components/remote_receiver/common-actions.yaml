@@ -103,6 +103,11 @@ on_nexa:
     - logger.log:
         format: "on_nexa: %lu %u %u %u %u"
         args: ["long(x.device)", "x.group", "x.state", "x.channel", "x.level"]
+on_nexus:
+  then:
+    - logger.log:
+        format: "on_nexus: %u %u %.1f %u %d %d"
+        args: ["x.channel", "x.address", "x.temperature", "x.humidity", "x.battery_level", "x.force_update"]
 on_panasonic:
   then:
     - logger.log:
