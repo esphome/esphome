@@ -195,9 +195,9 @@ void EPaperUC8179G4::power_on() {
 
 void EPaperUC8179G4::refresh_screen(bool partial) {
   ESP_LOGD(TAG, "Refreshing (%s)",
-           this->mode_ == Mode::FULL      ? "full 4-gray"
-           : this->mode_ == Mode::PARTIAL ? "differential partial"
-                                          : "fast flip");
+           this->mode_ == Mode::FULL      ? LOG_STR_LITERAL("full 4-gray")
+           : this->mode_ == Mode::PARTIAL ? LOG_STR_LITERAL("differential partial")
+                                          : LOG_STR_LITERAL("fast flip"));
   this->command(CMD_REFRESH);
   this->next_delay_ = 100;
 }
