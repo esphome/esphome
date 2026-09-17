@@ -7,7 +7,7 @@ from pathlib import Path
 
 from esphome import automation, core
 import esphome.codegen as cg
-from esphome.config_helpers import filter_source_files_from_platform
+from esphome.config_helpers import filter_source_files_from_platform, iter_include_files
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_AREA,
@@ -41,6 +41,7 @@ from esphome.const import (
     CONF_TRIGGER_ID,
     CONF_VERSION,
     KEY_CORE,
+    SOURCE_FILE_EXTENSIONS,
     PlatformFramework,
     __version__ as ESPHOME_VERSION,
 )
@@ -56,7 +57,6 @@ from esphome.helpers import (
     fnv1a_32bit_hash,
     get_str_env,
     get_usable_cpu_count,
-    walk_files,
 )
 from esphome.types import ConfigType
 
@@ -109,7 +109,7 @@ ProjectUpdateTrigger = cg.esphome_ns.class_(
 Device = cg.esphome_ns.class_("Device")
 Area = cg.esphome_ns.class_("Area")
 
-VALID_INCLUDE_EXTS = {".h", ".hpp", ".tcc", ".ino", ".cpp", ".c"}
+VALID_INCLUDE_EXTS = SOURCE_FILE_EXTENSIONS
 
 
 def validate_hostname(config):
@@ -516,17 +516,8 @@ async def add_arduino_global_workaround():
 @coroutine_with_priority(CoroPriority.FINAL)
 async def add_includes(includes: list[str], is_c_header: bool = False) -> None:
     # Add includes at the very end, so that the included files can access global variables
-    for include in includes:
-        path = CORE.relative_config_path(include)
-        if path.is_dir():
-            # Directory, copy tree
-            for p in walk_files(path):
-                basename = p.relative_to(path.parent)
-                include_file(p, basename, is_c_header)
-        else:
-            # Copy file
-            basename = Path(path.name)
-            include_file(path, basename, is_c_header)
+    for path, basename in iter_include_files(includes):
+        include_file(path, basename, is_c_header)
 
 
 def _add_library_str(lib: str) -> None:
