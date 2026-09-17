@@ -1,6 +1,5 @@
 #include "json_util.h"
 
-#include <algorithm>
 #include <cstring>
 #include "esphome/core/log.h"
 
