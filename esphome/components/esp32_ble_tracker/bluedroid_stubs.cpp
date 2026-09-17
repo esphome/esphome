@@ -10,8 +10,9 @@
  * The wrap only covers calls from other files, which is where the stale
  * pointer comes from; callers inside l2c_ble.c pass a live block.
  *
- * Fixed upstream in espressif/esp-idf commit 82e71c1767, which is not in a
- * tagged release yet. Remove once the minimum ESP-IDF includes it.
+ * Fixed upstream in espressif/esp-idf commit 82e71c1767. Codegen only enables
+ * this guard for ESP-IDF releases without that commit; remove it once the
+ * minimum ESP-IDF includes it.
  */
 
 #include "esphome/core/defines.h"
@@ -25,7 +26,7 @@ namespace esphome::esp32_ble_tracker {}
 // tL2C_LCB is private to Bluedroid, so its layout was checked by hand from ESP-IDF 5.0 to 6.1:
 // in_use is the first member and BOOLEAN is bool.
 static_assert(ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(6, 2, 0),
-              "Check that in_use is still the first member of tL2C_LCB, or remove this guard if ESP-IDF has the fix");
+              "ESP-IDF 6.2 and later have the fix, this guard should not be enabled (esphome/esphome#19373)");
 static_assert(sizeof(bool) == 1, "in_use is read as a single byte");
 
 // NOLINTBEGIN(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp,readability-identifier-naming)

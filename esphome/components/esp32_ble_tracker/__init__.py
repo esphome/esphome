@@ -443,6 +443,29 @@ async def to_code(config: ConfigType) -> None:
         cg.add_define("USE_ESP32_BLE_SOFTWARE_COEXISTENCE")
 
 
+# First release of each ESP-IDF series with espressif/esp-idf@82e71c1767, which
+# stops Bluedroid from starting a queued connection on a released link block.
+# 5.4.5, 5.5.6 and 6.1.1 are not tagged yet; the fix is on their release branches.
+# Series older than 5.2 never got the fix, 6.2 and later always have it.
+DIRECT_CONN_FIX_VERSIONS = {
+    (5, 2): cv.Version(5, 2, 8),
+    (5, 3): cv.Version(5, 3, 6),
+    (5, 4): cv.Version(5, 4, 5),
+    (5, 5): cv.Version(5, 5, 6),
+    (6, 0): cv.Version(6, 0, 3),
+    (6, 1): cv.Version(6, 1, 1),
+}
+DIRECT_CONN_FIX_ALL_FROM = cv.Version(6, 2, 0)
+
+
+def _needs_direct_conn_guard() -> bool:
+    ver = idf_version()
+    if ver >= DIRECT_CONN_FIX_ALL_FROM:
+        return False
+    fixed = DIRECT_CONN_FIX_VERSIONS.get((ver.major, ver.minor))
+    return fixed is None or ver < fixed
+
+
 # This needs to be run as a job with very low priority so that all components have
 # chance to call register_ble_tracker and register_client before the list is checked
 # and added to the global defines list.
@@ -459,7 +482,7 @@ async def _add_ble_features() -> None:
     if BLEFeatures.ESP_BT_DEVICE in required_features:
         cg.add_define("USE_ESP32_BLE_DEVICE")
         cg.add_define("USE_ESP32_BLE_UUID")
-    if cg.get_slot_count(CLIENT_COUNT_DEFINE):
+    if cg.get_slot_count(CLIENT_COUNT_DEFINE) and _needs_direct_conn_guard():
         # See bluedroid_stubs.cpp; --undefined keeps the wrapper because libsrc.a
         # is scanned before the IDF libraries.
         cg.add_define("USE_ESP32_BLE_TRACKER_DIRECT_CONN_GUARD")
