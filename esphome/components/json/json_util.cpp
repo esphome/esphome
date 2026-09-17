@@ -2,7 +2,6 @@
 
 #include <cstdlib>
 #include <cstring>
-#include <cstring>
 #include "esphome/core/log.h"
 
 // ArduinoJson::Allocator is included via ArduinoJson.h in json_util.h
