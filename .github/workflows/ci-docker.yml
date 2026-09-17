@@ -219,5 +219,6 @@ jobs:
         run: |
           docker run --rm \
             -v "${{ github.workspace }}/docker/test_configs:/config" \
+            -e ESPHOME_LDGEN_STRICT=1 \
             "ghcr.io/esphome/esphome-amd64:${{ needs.check-docker.outputs.tag }}" \
             compile "${{ matrix.id }}.yaml"
