@@ -3,6 +3,12 @@
 # it must actually compile (not just validate) to guard the reconciler wiring.
 # WiFi is listed first so the build also exercises the wifi-primary branch in
 # network/util.cpp (the ethernet-primary branch matches the legacy order).
+# PSRAM guaranteed plus high performance networking: ethernet must keep lwip
+# off the PSRAM tier, so this compiles the sdkconfig a wifi + ethernet audio
+# device actually gets.
+psram:
+  ignore_not_found: false
+
 wifi:
   ssid: MySSID
   password: password1
@@ -21,3 +27,4 @@ network:
   priority:
     - wifi
     - ethernet
+  enable_high_performance: true

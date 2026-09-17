@@ -9,6 +9,7 @@ from esphome.components.zephyr import zephyr_add_prj_conf
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ENABLE_IPV6,
+    CONF_ETHERNET,
     CONF_ID,
     CONF_MIN_IPV6_ADDR_COUNT,
     CONF_PRIORITY,
@@ -27,6 +28,12 @@ _LOGGER = logging.getLogger(__name__)
 KEY_HIGH_PERFORMANCE_NETWORKING = "high_performance_networking"
 CONF_ENABLE_HIGH_PERFORMANCE = "enable_high_performance"
 CONF_TCP_SEND_BUFFER = "tcp_send_buffer"
+
+# TCP receive window of the optimized lwip tier (PSRAM not guaranteed)
+TCP_WND_OPTIMIZED = 65534
+# Ethernet drivers keep received frames in internal RAM and a LAN round trip
+# needs far less window than wifi, so ethernet builds get a smaller window
+TCP_WND_ETHERNET = 32768
 
 # lwIP queues at most this many unsent/unacked bytes per TCP socket; the
 # stock ESP-IDF default (5744 bytes) stalls bursty senders like a Bluetooth
@@ -166,6 +173,8 @@ def require_high_performance_networking() -> None:
     Configuration is PSRAM-aware:
     - With PSRAM guaranteed: Aggressive settings (512 RX buffers, 512KB TCP windows)
     - Without PSRAM: Conservative optimized settings (64 buffers, 65KB TCP windows)
+    - With Ethernet configured: 32KB TCP windows regardless of PSRAM, because
+      ESP-IDF ethernet drivers keep received frames in internal RAM
 
     Example:
         from esphome.components import network
@@ -417,8 +426,11 @@ async def to_code(config: ConfigType) -> None:
     if CORE.is_esp32 and should_enable:
         # Check if PSRAM is guaranteed (set by psram component during final validation)
         psram_guaranteed = psram_is_guaranteed()
+        # ESP-IDF ethernet drivers malloc() received frames into internal RAM, so
+        # lwip is never sized for PSRAM when any ethernet interface is configured.
+        has_ethernet = CONF_ETHERNET in CORE.config
 
-        if psram_guaranteed:
+        if psram_guaranteed and not has_ethernet:
             _LOGGER.info(
                 "Applying high-performance lwip settings (PSRAM guaranteed): 512KB TCP windows, 512 mailbox sizes"
             )
@@ -451,13 +463,17 @@ async def to_code(config: ConfigType) -> None:
             add_idf_sdkconfig_option("CONFIG_LWIP_TCP_OVERSIZE_MSS", True)
             add_idf_sdkconfig_option("CONFIG_LWIP_TCP_QUEUE_OOSEQ", True)
         else:
+            # A LAN needs well under 32KB of window, and every byte of it is
+            # internal RAM on ethernet; wifi keeps the larger window.
+            tcp_window = TCP_WND_ETHERNET if has_ethernet else TCP_WND_OPTIMIZED
             _LOGGER.info(
-                "Applying optimized lwip settings: 65KB TCP windows, 64 mailbox sizes"
+                "Applying optimized lwip settings: %dKB TCP windows, 64 mailbox sizes",
+                tcp_window // 1000,
             )
             # PSRAM not guaranteed - use more conservative, but still optimized settings
             # Based on https://github.com/espressif/esp-idf/blob/release/v5.4/examples/wifi/iperf/sdkconfig.defaults.esp32
             add_idf_sdkconfig_option("CONFIG_LWIP_TCP_SND_BUF_DEFAULT", 65534)
-            add_idf_sdkconfig_option("CONFIG_LWIP_TCP_WND_DEFAULT", 65534)
+            add_idf_sdkconfig_option("CONFIG_LWIP_TCP_WND_DEFAULT", tcp_window)
             add_idf_sdkconfig_option("CONFIG_LWIP_TCP_RECVMBOX_SIZE", 64)
             add_idf_sdkconfig_option("CONFIG_LWIP_TCPIP_RECVMBOX_SIZE", 64)
 
