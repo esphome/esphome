@@ -1044,12 +1044,12 @@ bool AsyncEventSourceResponse::reserve_tail_(size_t len) {
 bool AsyncEventSourceResponse::stash_chunk_(const char *prefix, size_t prefix_len, const char *message,
                                             size_t message_len, size_t total, size_t sent) {
   if (!this->reserve_tail_(total)) {
-    // No memory or over the ceiling: with part of the chunk on the wire the stream is broken
-    // and the client has to go; otherwise only this event is lost.
-    ESP_LOGW(TAG, "Cannot buffer a %zu byte chunk; %s", total,
-             sent != 0 ? LOG_STR_LITERAL("closing") : LOG_STR_LITERAL("event dropped"));
     if (sent != 0) {
+      // Part of the chunk is on the wire, so the stream is broken and the client has to go
+      ESP_LOGW(TAG, "Cannot buffer a %zu byte chunk, closing", total);
       this->request_close_();
+    } else {
+      this->tail_alloc_failed_(total);  // nothing on the wire, the caller retries on the stall clock
     }
     return false;
   }
@@ -1140,7 +1140,7 @@ void AsyncEventSourceResponse::tail_alloc_failed_(size_t cap) {
   const uint32_t now = App.get_loop_component_start_time();
   if (this->send_failure_started_ms_ == 0) {
     this->send_failure_started_ms_ = now != 0 ? now : 1;  // Reserve zero for no stall.
-    ESP_LOGW(TAG, "No memory for a %zu byte state event", cap);
+    ESP_LOGW(TAG, "No memory for a %zu byte chunk", cap);
     return;
   }
   if (static_cast<int32_t>(now - (this->send_failure_started_ms_ + SEND_STALL_TIMEOUT_MS)) >= 0) {
