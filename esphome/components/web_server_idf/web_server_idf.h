@@ -300,7 +300,13 @@ class AsyncEventSourceResponse {
 
   void deq_push_back_with_dedup_(void *source, message_generator_t *message_generator);
   void process_deferred_queue_();
-  void process_buffer_();
+  // Push the unsent tail of the last chunk to the socket; owns the stall timer.
+  void drain_tail_();
+  // Grow tail_ to hold len bytes, kept at its high-water mark. False on OOM.
+  bool reserve_tail_(size_t len);
+  // Cold path for a message with more lines than the gather list holds: build the
+  // whole chunk in tail_, drained by loop().
+  bool send_from_tail_(const char *prefix, size_t prefix_len, const char *message, size_t message_len, size_t total);
   void request_close_();
   void process_close_();
   static void close_session_work(void *arg);
@@ -317,15 +323,26 @@ class AsyncEventSourceResponse {
   std::vector<DeferredEvent> deferred_queue_;
   esphome::web_server::WebServer *web_server_;
   esphome::web_server::ListEntitiesIterator entities_iterator_;
-  std::string event_buffer_;
-  size_t event_bytes_sent_;
+  // Unsent bytes of one chunk, allocated on the first partial send. Events are sent straight
+  // from the caller's buffers with a gather write, so this is the only heap use on the send path.
+  RAMUniquePtr<uint8_t[]> tail_;
   uint32_t send_failure_started_ms_{0};  // Zero means no send stall in progress.
   uint32_t next_close_attempt_ms_{0};
-  // Main-loop only; the HTTPD task never reads or writes this flag.
-  bool close_requested_{false};
-  bool close_retry_warning_logged_{false};
+  uint16_t tail_cap_{0};
+  uint16_t tail_len_{0};  // Zero means nothing pending
+  uint16_t tail_sent_{0};
   // Set on the main loop before queueing close work, cleared by the HTTPD-task callback when done.
   std::atomic<bool> close_work_queued_{false};
+  // Main-loop only; the HTTPD task never reads or writes these flags.
+  bool close_requested_ : 1 {false};
+  bool close_retry_warning_logged_ : 1 {false};
+  // A send is in progress: a log line emitted inside it re-enters try_send_nodefer and must not
+  // touch the socket or the tail
+  bool sending_ : 1 {false};
+  // Gather list size: prefix plus two entries per data line, so 31 lines go out without a copy
+  static constexpr size_t MAX_SEND_IOV = 64;
+  // Chunk header, retry/id/event lines and the first "data: "
+  static constexpr size_t PREFIX_BUF_SIZE = 128;
   static constexpr uint32_t SEND_STALL_TIMEOUT_MS = 20000;
   static constexpr uint32_t CLOSE_RETRY_INTERVAL_MS = 250;
   static constexpr uint32_t CLOSE_CONFIRM_INTERVAL_MS = 1000;
