@@ -61,7 +61,7 @@ static const char *const TAG = "web_server";
 [[maybe_unused]] static ProgmemStr json_state_str(const LogString *s) { return reinterpret_cast<ProgmemStr>(s); }
 
 // Out of line: every GET handler ends with this
-static void send_json(AsyncWebServerRequest *request, json::JsonBuilder &builder) {
+[[maybe_unused]] static void send_json(AsyncWebServerRequest *request, json::JsonBuilder &builder) {
   auto data = builder.serialize();
   request->send(200, ESPHOME_F("application/json"), data.c_str());
 }
