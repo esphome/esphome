@@ -9,12 +9,13 @@
 namespace esphome::rp2 {
 
 /// Read crash data from watchdog scratch registers and clear them.
+/// Only the first call reads; later calls are no-ops.
 void crash_handler_read_and_clear();
 
 /// Log crash data if a crash was detected on previous boot.
 void crash_handler_log();
 
-/// Returns true if crash data was found this boot.
+/// Returns true if crash data was found this boot, reading it first if needed.
 bool crash_handler_has_data();
 
 }  // namespace esphome::rp2
