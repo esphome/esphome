@@ -68,8 +68,8 @@ TEST(StringRefNullEmpty, BehavesAsEmptyString) {
   EXPECT_EQ(null_empty.size(), 0u);
   EXPECT_EQ(null_empty.c_str(), nullptr);
   EXPECT_TRUE(null_empty == empty);
-  EXPECT_TRUE(null_empty == "");
-  EXPECT_TRUE(null_empty == std::string());
+  EXPECT_TRUE(null_empty == "");             // NOLINT(readability-container-size-empty) - operator under test
+  EXPECT_TRUE(null_empty == std::string());  // NOLINT(readability-container-size-empty) - operator under test
   EXPECT_EQ(null_empty.compare(empty), 0);
   EXPECT_EQ(null_empty.compare(""), 0);
   EXPECT_LT(null_empty.compare("a"), 0);
