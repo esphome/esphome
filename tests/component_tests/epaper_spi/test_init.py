@@ -499,4 +499,5 @@ def test_model_with_no_default_init_sequence_generates(
     # The generated constructor call takes (name, width, height, init_sequence,
     # init_sequence_length, ...); a length of 0 confirms the empty init
     # sequence array was generated instead of raising during code generation.
-    assert re.search(r"epaper_spi::EPaperT133A01\([^;]*,\s*\w+,\s*0\);", main_cpp)
+    # Allow trailing constructor args (e.g. toggle_dc) after the length.
+    assert re.search(r"epaper_spi::EPaperT133A01\([^;]*,\s*\w+,\s*0[^;]*\);", main_cpp)
