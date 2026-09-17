@@ -1047,7 +1047,7 @@ bool AsyncEventSourceResponse::stash_chunk_(const char *prefix, size_t prefix_le
   if (!this->reserve_tail_(total)) {
     // No memory or over the ceiling: with part of the chunk on the wire the stream is broken
     // and the client has to go; otherwise only this event is lost.
-    ESP_LOGW(TAG, "EventSource cannot buffer a %zu byte chunk; %s", total,
+    ESP_LOGW(TAG, "Cannot buffer a %zu byte chunk; %s", total,
              sent != 0 ? LOG_STR_LITERAL("closing") : LOG_STR_LITERAL("event dropped"));
     if (sent != 0) {
       this->request_close_();
@@ -1115,7 +1115,7 @@ bool AsyncEventSourceResponse::send_json_(json::JsonBuilder &builder) {
         break;
       }
       if (cap >= TAIL_MAX_SIZE) {
-        ESP_LOGW(TAG, "EventSource state event over %zu bytes dropped", JSON_MAX_SIZE);
+        ESP_LOGW(TAG, "State event over %zu bytes dropped", JSON_MAX_SIZE);
         this->tail_.reset();
         this->tail_cap_ = 0;
         return true;  // would never fit, reported as sent
@@ -1140,11 +1140,11 @@ void AsyncEventSourceResponse::tail_alloc_failed_(size_t cap) {
   const uint32_t now = App.get_loop_component_start_time();
   if (this->send_failure_started_ms_ == 0) {
     this->send_failure_started_ms_ = now != 0 ? now : 1;  // Reserve zero for no stall.
-    ESP_LOGW(TAG, "EventSource has no memory for a %zu byte state event", cap);
+    ESP_LOGW(TAG, "No memory for a %zu byte state event", cap);
     return;
   }
   if (static_cast<int32_t>(now - (this->send_failure_started_ms_ + SEND_STALL_TIMEOUT_MS)) >= 0) {
-    ESP_LOGW(TAG, "EventSource had no memory for %" PRIu32 " ms, closing", now - this->send_failure_started_ms_);
+    ESP_LOGW(TAG, "Closing EventSource after %" PRIu32 " ms without memory", now - this->send_failure_started_ms_);
     this->request_close_();
   }
 }
@@ -1172,7 +1172,7 @@ bool AsyncEventSourceResponse::try_send_nodefer(const char *message, size_t mess
   }
   if (prefix_len >= PREFIX_BUF_SIZE - 1) {
     // The appenders truncate silently, which would put a malformed event on the wire
-    ESP_LOGW(TAG, "EventSource event name too long; dropped");
+    ESP_LOGW(TAG, "Event name too long, dropped");
     return true;
   }
 
