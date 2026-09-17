@@ -366,9 +366,8 @@ class AsyncEventSourceResponse {
   static constexpr size_t MAX_SEND_IOV = 1 + 2 * MAX_SEND_LINES;
   // Chunk header, retry/id/event lines and the first "data: "
   static constexpr size_t PREFIX_BUF_SIZE = 128;
-  // Stack arena for building a state document: two ArduinoJson pools of 1 KB plus the copied id
-  // and value nodes. Every ordinary document fits in one pool; a 40 option select needs the
-  // second. A larger document spills to the heap instead of failing.
+  // Stack arena for a state document: two ArduinoJson pools plus the copied id and value nodes,
+  // enough for a 40 option select. A larger document spills to the heap.
   static constexpr size_t JSON_ARENA_SIZE = 2176;
   // Stack buffer for a state event's JSON. A larger document is serialized into the tail,
   // which grows by doubling up to TAIL_MAX_SIZE; measuring first would cost more flash.

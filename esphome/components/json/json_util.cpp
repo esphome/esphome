@@ -16,7 +16,7 @@ static const char *const TAG = "json";
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables) - Must be mutable for ArduinoJson::Allocator
 static SpiRamAllocator global_json_allocator;
 #else
-// Same as ArduinoJson's own default allocator, which lives in its private namespace
+// ArduinoJson's default allocator lives in its private namespace
 struct HeapAllocator final : ArduinoJson::Allocator {
   void *allocate(size_t size) override { return malloc(size); }                             // NOLINT
   void deallocate(void *ptr) override { free(ptr); }                                        // NOLINT
