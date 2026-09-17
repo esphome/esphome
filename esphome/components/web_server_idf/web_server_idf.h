@@ -20,6 +20,8 @@
 #include "esphome/components/web_server/list_entities.h"
 #endif
 
+struct iovec;
+
 namespace esphome {
 #ifdef USE_WEBSERVER
 namespace web_server {
@@ -300,14 +302,25 @@ class AsyncEventSourceResponse {
 
   void deq_push_back_with_dedup_(void *source, message_generator_t *message_generator);
   void process_deferred_queue_();
-  // Push the unsent tail of the last chunk to the socket; owns the stall timer.
+  // Non-blocking gather write on the session socket. Returns bytes written, 0 when the
+  // socket would block, -1 after requesting the close on any other error.
+  ssize_t send_(struct iovec *iov, int iovcnt);
+  // Push what is left of the chunk in tail_ to the socket; owns the stall timer.
   void drain_tail_();
   // Grow tail_ to hold len bytes, kept at its high-water mark. False on OOM.
   bool reserve_tail_(size_t len);
-  // Cold path for a message with more lines than the gather list holds: build the
-  // whole chunk in tail_, drained by loop().
-  bool send_from_tail_(const char *prefix, size_t prefix_len, const char *message, size_t message_len, size_t total);
+  // Keep the whole chunk in tail_ and continue from sent; false when the tail cannot be allocated.
+  bool stash_chunk_(const char *prefix, size_t prefix_len, const char *message, size_t message_len, size_t total,
+                    size_t sent);
   void request_close_();
+
+  // Marks a send in progress: a log line emitted inside it re-enters try_send_nodefer on this
+  // session and must not touch the socket or the tail
+  struct SendGuard {
+    AsyncEventSourceResponse &owner;
+    explicit SendGuard(AsyncEventSourceResponse &owner) : owner(owner) { owner.sending_ = true; }
+    ~SendGuard() { this->owner.sending_ = false; }
+  };
   void process_close_();
   static void close_session_work(void *arg);
 
@@ -323,8 +336,9 @@ class AsyncEventSourceResponse {
   std::vector<DeferredEvent> deferred_queue_;
   esphome::web_server::WebServer *web_server_;
   esphome::web_server::ListEntitiesIterator entities_iterator_;
-  // Unsent bytes of one chunk, allocated on the first partial send. Events are sent straight
-  // from the caller's buffers with a gather write, so this is the only heap use on the send path.
+  // One chunk the socket did not take whole, allocated on the first stall. Events are sent
+  // straight from the caller's buffers with a gather write, so this is the only heap use on
+  // the send path.
   RAMUniquePtr<uint8_t[]> tail_;
   uint32_t send_failure_started_ms_{0};  // Zero means no send stall in progress.
   uint32_t next_close_attempt_ms_{0};
@@ -334,13 +348,12 @@ class AsyncEventSourceResponse {
   // Set on the main loop before queueing close work, cleared by the HTTPD-task callback when done.
   std::atomic<bool> close_work_queued_{false};
   // Main-loop only; the HTTPD task never reads or writes these flags.
-  bool close_requested_ : 1 {false};
-  bool close_retry_warning_logged_ : 1 {false};
-  // A send is in progress: a log line emitted inside it re-enters try_send_nodefer and must not
-  // touch the socket or the tail
-  bool sending_ : 1 {false};
-  // Gather list size: prefix plus two entries per data line, so 31 lines go out without a copy
-  static constexpr size_t MAX_SEND_IOV = 64;
+  bool close_requested_{false};
+  bool close_retry_warning_logged_{false};
+  bool sending_{false};
+  // Gather list: the prefix plus a line and a separator per data line, so seven lines go out
+  // without a copy. Longer messages (only log lines) take one heap copy through the tail.
+  static constexpr size_t MAX_SEND_IOV = 16;
   // Chunk header, retry/id/event lines and the first "data: "
   static constexpr size_t PREFIX_BUF_SIZE = 128;
   static constexpr uint32_t SEND_STALL_TIMEOUT_MS = 20000;

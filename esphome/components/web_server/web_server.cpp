@@ -199,7 +199,7 @@ void DeferredUpdateEventSource::process_deferred_queue_() {
       deferred_queue_.erase(deferred_queue_.begin());
       this->consecutive_send_failures_ = 0;  // Reset failure count on successful send
     } else {
-      // NOTE: Similar logic exists in web_server_idf/web_server_idf.cpp in AsyncEventSourceResponse::process_buffer_().
+      // NOTE: Similar logic exists in web_server_idf/web_server_idf.cpp in AsyncEventSourceResponse::drain_tail_().
       // The close mechanisms are platform-specific (this path calls close() directly; the IDF path is time-based and
       // closes through HTTPD to preserve session ownership), but both drop a client after roughly 20 seconds without
       // send progress. Keep that stall policy in sync when changing either side.

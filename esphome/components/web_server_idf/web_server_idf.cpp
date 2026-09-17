@@ -702,49 +702,35 @@ constexpr size_t SSE_SEP_LEN = sizeof(SSE_SEP) - 1;
 // End of the last data line, the blank line ending the event, and the chunk terminator
 constexpr char SSE_SUFFIX[] = "\r\n\r\n\r\n";
 constexpr size_t SSE_SUFFIX_LEN = sizeof(SSE_SUFFIX) - 1;
-// The suffix bytes that count toward the chunk length (the terminator does not)
-constexpr size_t SSE_SUFFIX_BODY_LEN = SSE_SUFFIX_LEN - CRLF_LEN;
 
-// Splits a message into SSE data lines on \n, \r or \r\n (matching ESPAsyncWebServer).
-// A trailing line break does not yield an empty last line; an inner empty line is kept.
-struct SseLineIter {
-  const char *pos;
-  const char *end;
-  bool done{false};
-
-  bool next(const char *&line, size_t &len) {
-    if (this->done) {
-      return false;
-    }
-    const size_t remaining = this->end - this->pos;
-    const auto *n = static_cast<const char *>(memchr(this->pos, '\n', remaining));
-    const auto *r = static_cast<const char *>(memchr(this->pos, '\r', remaining));
-    line = this->pos;
+// Calls sink(ptr, len) for each piece of the chunk after the prefix: the data lines split on
+// \n, \r or \r\n with SSE_SEP between them and SSE_SUFFIX after the last (matching
+// ESPAsyncWebServer: a trailing line break adds no empty last line, an inner empty line is
+// kept). A null message has no data line and no blank line, only the chunk terminator.
+template<typename Sink> void for_each_chunk_piece(const char *message, size_t message_len, Sink &&sink) {
+  if (message == nullptr) {
+    sink(CRLF_STR, CRLF_LEN);
+    return;
+  }
+  const char *pos = message;
+  const char *end = message + message_len;
+  for (;;) {
+    const size_t remaining = end - pos;
+    const auto *n = static_cast<const char *>(memchr(pos, '\n', remaining));
+    const auto *r = static_cast<const char *>(memchr(pos, '\r', remaining));
     if (n == nullptr && r == nullptr) {
-      len = remaining;
-      this->done = true;
-      return true;
+      sink(pos, remaining);
+      break;
     }
     const char *brk = (r != nullptr && (n == nullptr || r < n)) ? r : n;
-    len = brk - this->pos;
-    this->pos = brk + ((brk == r && brk + 1 == n) ? 2 : 1);
-    this->done = this->pos >= this->end;
-    return true;
-  }
-};
-
-// Copy the bytes of a gather list from offset skip onward into dst
-void copy_unsent(uint8_t *dst, const struct iovec *iov, int iovcnt, size_t skip) {
-  for (const struct iovec *end = iov + iovcnt; iov != end; iov++) {
-    if (skip >= iov->iov_len) {
-      skip -= iov->iov_len;
-      continue;
+    sink(pos, brk - pos);
+    pos = brk + ((brk == r && brk + 1 == n) ? 2 : 1);
+    if (pos >= end) {
+      break;
     }
-    const size_t len = iov->iov_len - skip;
-    std::memcpy(dst, static_cast<const uint8_t *>(iov->iov_base) + skip, len);
-    dst += len;
-    skip = 0;
+    sink(SSE_SEP, SSE_SEP_LEN);
   }
+  sink(SSE_SUFFIX, SSE_SUFFIX_LEN);
 }
 
 }  // namespace
@@ -947,8 +933,6 @@ void AsyncEventSourceResponse::request_close_() {
     this->deferred_queue_.clear();
     this->tail_.reset();
     this->tail_cap_ = 0;
-    this->tail_len_ = 0;
-    this->tail_sent_ = 0;
     this->next_close_attempt_ms_ = App.get_loop_component_start_time();
   }
 
@@ -999,21 +983,37 @@ void AsyncEventSourceResponse::close_session_work(void *arg) {
   response->close_work_queued_.store(false, std::memory_order_release);
 }
 
+ssize_t AsyncEventSourceResponse::send_(struct iovec *iov, int iovcnt) {
+  struct msghdr msg {};
+  msg.msg_iov = iov;
+  msg.msg_iovlen = iovcnt;
+  const ssize_t sent = sendmsg(this->fd_.load(), &msg, MSG_DONTWAIT);
+  if (sent >= 0) {
+    return sent;
+  }
+  const int err = errno;
+  if (err == EAGAIN || err == EWOULDBLOCK) {
+    return 0;
+  }
+  ESP_LOGD(TAG, "send error: errno %d", err);
+  this->request_close_();
+  return -1;
+}
+
 void AsyncEventSourceResponse::drain_tail_() {
   if (this->sending_ || this->close_requested_ || this->tail_len_ == 0) {
     return;
   }
-  struct SendGuard {
-    AsyncEventSourceResponse &owner;
-    ~SendGuard() { this->owner.sending_ = false; }
-  } guard{*this};
-  this->sending_ = true;
+  SendGuard guard{*this};
 
   const size_t remaining = this->tail_len_ - this->tail_sent_;
-  const char *data = reinterpret_cast<const char *>(this->tail_.get()) + this->tail_sent_;
-  int bytes_sent = httpd_socket_send(this->hd_, this->fd_.load(), data, remaining, 0);
-  if (bytes_sent == HTTPD_SOCK_ERR_TIMEOUT) {
-    // EAGAIN/EWOULDBLOCK - socket buffer full, try again later
+  struct iovec iov = {this->tail_.get() + this->tail_sent_, remaining};
+  const ssize_t sent = this->send_(&iov, 1);
+  if (sent < 0) {
+    return;
+  }
+  if (sent == 0) {
+    // Socket buffer full, try again later
     // NOTE: Similar logic exists in web_server/web_server.cpp in DeferredUpdateEventSource::process_deferred_queue_().
     // The IDF path is intentionally time-based and closes through HTTPD to preserve session ownership.
     const uint32_t now = App.get_loop_component_start_time();
@@ -1027,52 +1027,34 @@ void AsyncEventSourceResponse::drain_tail_() {
     }
     return;
   }
-  if (bytes_sent == HTTPD_SOCK_ERR_FAIL) {
-    // Low-level asynchronous sends do not make HTTPD close the session automatically.
-    this->request_close_();
-    return;
-  }
-  if (bytes_sent <= 0) {
-    // Unexpected error or zero bytes sent
-    ESP_LOGW(TAG, "Unexpected send result: %d", bytes_sent);
-    this->request_close_();
-    return;
-  }
 
-  // Successful send - reset stall tracking
   this->send_failure_started_ms_ = 0;
-  this->tail_sent_ += bytes_sent;
+  this->tail_sent_ += sent;
   if (this->tail_sent_ < this->tail_len_) {
-    ESP_LOGV(TAG, "Partial send: %d/%zu bytes (total: %u/%u)", bytes_sent, remaining, this->tail_sent_,
-             this->tail_len_);
+    ESP_LOGV(TAG, "Partial send: %zd/%zu bytes (total: %u/%u)", sent, remaining, this->tail_sent_, this->tail_len_);
     return;
   }
   // Fully sent; the storage stays for the next stall
   this->tail_len_ = 0;
-  this->tail_sent_ = 0;
 }
 
 bool AsyncEventSourceResponse::reserve_tail_(size_t len) {
-  if (len > UINT16_MAX) {
-    return false;
-  }
   if (this->tail_cap_ >= len) {
     return true;
+  }
+  if (len > UINT16_MAX) {
+    return false;
   }
   // Nothing is pending when the tail grows, so free the old block before asking for the new one.
   // PREFER_INTERNAL keeps the tail where plain new put it.
   this->tail_.reset();
-  this->tail_cap_ = 0;
   this->tail_ = RAMAllocator<uint8_t>(RAMAllocator<uint8_t>::PREFER_INTERNAL).make_unique_array_for_overwrite(len);
-  if (!this->tail_) {
-    return false;
-  }
-  this->tail_cap_ = len;
-  return true;
+  this->tail_cap_ = this->tail_ ? len : 0;
+  return this->tail_cap_ != 0;
 }
 
-bool AsyncEventSourceResponse::send_from_tail_(const char *prefix, size_t prefix_len, const char *message,
-                                               size_t message_len, size_t total) {
+bool AsyncEventSourceResponse::stash_chunk_(const char *prefix, size_t prefix_len, const char *message,
+                                            size_t message_len, size_t total, size_t sent) {
   if (!this->reserve_tail_(total)) {
     ESP_LOGW(TAG, "EventSource tail allocation failed (%zu bytes); closing", total);
     this->request_close_();
@@ -1081,19 +1063,12 @@ bool AsyncEventSourceResponse::send_from_tail_(const char *prefix, size_t prefix
   uint8_t *dst = this->tail_.get();
   std::memcpy(dst, prefix, prefix_len);
   dst += prefix_len;
-  SseLineIter it{message, message + message_len};
-  const char *line;
-  size_t len;
-  while (it.next(line, len)) {
-    std::memcpy(dst, line, len);
+  for_each_chunk_piece(message, message_len, [&dst](const char *piece, size_t len) {
+    std::memcpy(dst, piece, len);
     dst += len;
-    const char *sep = it.done ? SSE_SUFFIX : SSE_SEP;
-    const size_t sep_len = it.done ? SSE_SUFFIX_LEN : SSE_SEP_LEN;
-    std::memcpy(dst, sep, sep_len);
-    dst += sep_len;
-  }
+  });
   this->tail_len_ = total;
-  this->tail_sent_ = 0;
+  this->tail_sent_ = sent;
   return true;
 }
 
@@ -1112,12 +1087,11 @@ void AsyncEventSourceResponse::loop() {
 
 bool AsyncEventSourceResponse::try_send_nodefer(const char *message, size_t message_len, const char *event, uint32_t id,
                                                 uint32_t reconnect) {
-  // Re-entered from a log line emitted inside a send on this session; see sending_
+  // Re-entered from a log line emitted inside a send on this session; see SendGuard
   if (this->sending_) {
     return false;
   }
-  const int fd = this->fd_.load();
-  if (fd == 0 || this->close_requested_) {
+  if (this->fd_.load() == 0 || this->close_requested_) {
     return false;
   }
 
@@ -1127,11 +1101,7 @@ bool AsyncEventSourceResponse::try_send_nodefer(const char *message, size_t mess
     return false;
   }
 
-  struct SendGuard {
-    AsyncEventSourceResponse &owner;
-    ~SendGuard() { this->owner.sending_ = false; }
-  } guard{*this};
-  this->sending_ = true;
+  SendGuard guard{*this};
 
   // Chunk header placeholder (formatted once the length is known), the retry/id/event lines and
   // the first data line prefix. Everything else goes out straight from the caller's buffer.
@@ -1144,108 +1114,48 @@ bool AsyncEventSourceResponse::try_send_nodefer(const char *message, size_t mess
     prefix_len = buf_append_printf(prefix, sizeof(prefix), prefix_len, "id: %" PRIu32 CRLF_STR, id);
   }
   if (event && *event) {
-    prefix_len = buf_append_printf(prefix, sizeof(prefix), prefix_len, "event: %s" CRLF_STR, event);
+    prefix_len = buf_append_str(prefix, sizeof(prefix), prefix_len, "event: ");
+    prefix_len = buf_append_str(prefix, sizeof(prefix), prefix_len, event);
+    prefix_len = buf_append_str(prefix, sizeof(prefix), prefix_len, CRLF_STR);
   }
   if (message) {
     prefix_len = buf_append_str(prefix, sizeof(prefix), prefix_len, "data: ");
+  } else if (prefix_len == CHUNK_HDR_LEN) {
+    return true;  // Match ESPAsyncWebServer: nothing to send
   }
 
-  // SSE spec requires each line of a multi-line message to have its own "data:" prefix.
-  // Count the lines first so the chunk length is known before anything is written.
-  size_t lines = 0;
-  size_t line_bytes = 0;
-  size_t first_len = 0;
-  if (message) {
-    SseLineIter it{message, message + message_len};
-    const char *line;
-    size_t len;
-    while (it.next(line, len)) {
-      if (lines++ == 0) {
-        first_len = len;
-      }
-      line_bytes += len;
-    }
-  }
-  size_t chunk_len = prefix_len - CHUNK_HDR_LEN + line_bytes;
-  if (lines != 0) {
-    chunk_len += (lines - 1) * SSE_SEP_LEN + SSE_SUFFIX_BODY_LEN;
-  }
-  if (chunk_len == 0) {
-    // Match ESPAsyncWebServer: a null message with no fields sends nothing
-    return true;
-  }
-  const size_t total = CHUNK_HDR_LEN + chunk_len + CRLF_LEN;
-  if (total > UINT16_MAX) {
-    return true;  // Beyond what the tail can hold; no caller produces this
-  }
-  // The temp keeps snprintf's terminator out of the prefix
-  char hdr[CHUNK_HDR_LEN + 1];
-  snprintf(hdr, sizeof(hdr), "%08x" CRLF_STR, static_cast<unsigned>(chunk_len));
-  std::memcpy(prefix, hdr, CHUNK_HDR_LEN);
-
-  if (1 + 2 * lines > MAX_SEND_IOV) {
-    return this->send_from_tail_(prefix, prefix_len, message, message_len, total);
-  }
-
+  // Gather list: the prefix, then the data lines and their separators from the message
   struct iovec iov[MAX_SEND_IOV];
-  int iovcnt = 0;
-  iov[iovcnt++] = {prefix, prefix_len};
-  if (lines == 0) {
-    // Null message: no data line and no blank line, only the chunk terminator
-    iov[iovcnt++] = {const_cast<char *>(SSE_SUFFIX + SSE_SUFFIX_BODY_LEN), CRLF_LEN};
-  } else if (lines == 1) {
-    if (first_len != 0) {
-      iov[iovcnt++] = {const_cast<char *>(message), first_len};
+  int iovcnt = 1;
+  size_t total = prefix_len;
+  bool fits = true;
+  for_each_chunk_piece(message, message_len, [&](const char *piece, size_t len) {
+    total += len;
+    if (len == 0) {
+      return;
     }
-    iov[iovcnt++] = {const_cast<char *>(SSE_SUFFIX), SSE_SUFFIX_LEN};
-  } else {
-    SseLineIter it{message, message + message_len};
-    const char *line;
-    size_t len;
-    while (it.next(line, len)) {
-      if (len != 0) {
-        iov[iovcnt++] = {const_cast<char *>(line), len};
-      }
-      if (it.done) {
-        iov[iovcnt++] = {const_cast<char *>(SSE_SUFFIX), SSE_SUFFIX_LEN};
-      } else {
-        iov[iovcnt++] = {const_cast<char *>(SSE_SEP), SSE_SEP_LEN};
-      }
+    if (iovcnt == MAX_SEND_IOV) {
+      fits = false;
+      return;
     }
-  }
+    iov[iovcnt++] = {const_cast<char *>(piece), len};
+  });
+  // The header and the terminator are not part of the chunk length
+  format_hex_to(prefix, static_cast<uint32_t>(total - CHUNK_HDR_LEN - CRLF_LEN));
+  prefix[8] = '\r';
+  prefix[9] = '\n';
+  iov[0] = {prefix, prefix_len};
 
-  // Same non-blocking send as nonblocking_send(), as one gather write
-  struct msghdr msg {};
-  msg.msg_iov = iov;
-  msg.msg_iovlen = iovcnt;
-  ssize_t sent = sendmsg(fd, &msg, MSG_DONTWAIT);
-  if (sent == static_cast<ssize_t>(total)) [[likely]] {
-    this->send_failure_started_ms_ = 0;
-    return true;
-  }
+  // A message with more lines than the list holds skips straight to the tail
+  const ssize_t sent = fits ? this->send_(iov, iovcnt) : 0;
   if (sent < 0) {
-    const int err = errno;
-    if (err != EAGAIN && err != EWOULDBLOCK) {
-      ESP_LOGD(TAG, "sendmsg error: errno %d", err);
-      this->request_close_();
-      return false;
-    }
-    sent = 0;
-  } else if (sent > 0) {
-    this->send_failure_started_ms_ = 0;
-  }
-
-  // Keep what the socket did not take; the caller's buffers do not outlive this call
-  const size_t unsent = total - sent;
-  if (!this->reserve_tail_(unsent)) {
-    ESP_LOGW(TAG, "EventSource tail allocation failed (%zu bytes); closing", unsent);
-    this->request_close_();
     return false;
   }
-  copy_unsent(this->tail_.get(), iov, iovcnt, sent);
-  this->tail_len_ = unsent;
-  this->tail_sent_ = 0;
-  return true;
+  if (static_cast<size_t>(sent) == total) {
+    return true;
+  }
+  // The caller's buffers do not outlive this call, so keep the chunk and continue from loop()
+  return this->stash_chunk_(prefix, prefix_len, message, message_len, total, sent);
 }
 
 void AsyncEventSourceResponse::deferrable_send_state(void *source, const char *event_type,
