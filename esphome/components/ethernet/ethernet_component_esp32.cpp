@@ -10,6 +10,10 @@
 #include <lwip/dns.h>
 #include <cinttypes>
 #include "esp_event.h"
+#ifdef USE_PSRAM
+#include <esp_heap_caps.h>
+#include <cstring>
+#endif
 
 // IDF 6.0 moved per-chip PHY/MAC drivers to the Espressif Component Registry;
 // they are no longer included via esp_eth.h and need explicit includes.
@@ -70,6 +74,20 @@ static const char *const TAG = "ethernet";
 
 // PHY register size for hex logging
 static constexpr size_t PHY_REG_SIZE = 2;
+
+#ifdef USE_PSRAM
+// ESP-IDF ethernet drivers malloc() every received frame in internal RAM, where it stays until lwIP
+// hands it to the application. Move it to PSRAM; if that fails the frame is passed on where it is.
+static esp_err_t eth_input_to_psram(esp_eth_handle_t handle, uint8_t *buffer, uint32_t length, void *priv) {
+  auto *copy = static_cast<uint8_t *>(heap_caps_malloc(length, MALLOC_CAP_SPIRAM));
+  if (copy != nullptr) {
+    memcpy(copy, buffer, length);
+    free(buffer);  // NOLINT(cppcoreguidelines-no-malloc) - allocated by the driver with malloc()
+    buffer = copy;
+  }
+  return esp_netif_receive(static_cast<esp_netif_t *>(priv), buffer, length, nullptr);
+}
+#endif
 
 void EthernetComponent::log_error_and_mark_failed_(esp_err_t err, const char *message) {
   ESP_LOGE(TAG, "%s: (%d) %s", message, err, esp_err_to_name(err));
@@ -453,6 +471,11 @@ void EthernetComponent::ethernet_lazy_init_() {
   /* attach Ethernet driver to TCP/IP stack */
   err = esp_netif_attach(this->eth_netif_, esp_eth_new_netif_glue(this->eth_handle_));
   ESPHL_ERROR_CHECK(err, "ETH netif attach error");
+#ifdef USE_PSRAM
+  // Replaces the input path the glue installed during attach; its free function is a plain free()
+  err = esp_eth_update_input_path(this->eth_handle_, eth_input_to_psram, this->eth_netif_);
+  ESPHL_ERROR_CHECK(err, "ETH input path error");
+#endif
 
   // Register user defined event handers
   err = esp_event_handler_register(ETH_EVENT, ESP_EVENT_ANY_ID, &EthernetComponent::eth_event_handler, nullptr);
