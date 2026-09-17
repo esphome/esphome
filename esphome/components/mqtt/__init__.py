@@ -248,8 +248,8 @@ CONFIG_SCHEMA = cv.All(
             cv.Inclusive(CONF_CLIENT_CERTIFICATE, "cert-key-pair"): cv.All(
                 cv.string, cv.only_on_esp32
             ),
-            cv.Inclusive(CONF_CLIENT_CERTIFICATE_KEY, "cert-key-pair"): cv.All(
-                cv.string, cv.only_on_esp32
+            cv.Inclusive(CONF_CLIENT_CERTIFICATE_KEY, "cert-key-pair"): cv.sensitive(
+                cv.All(cv.string, cv.only_on_esp32)
             ),
             cv.SplitDefault(CONF_SKIP_CERT_CN_CHECK, esp32=False): cv.All(
                 cv.boolean, cv.only_on_esp32

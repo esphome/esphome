@@ -94,7 +94,7 @@ BluetoothPasswordSetAction = ld2410_ns.class_(
 BLUETOOTH_PASSWORD_SET_SCHEMA = cv.Schema(
     {
         cv.Required(CONF_ID): cv.use_id(LD2410Component),
-        cv.Required(CONF_PASSWORD): cv.templatable(cv.string_strict),
+        cv.Required(CONF_PASSWORD): cv.sensitive(cv.templatable(cv.string_strict)),
     }
 )
 
