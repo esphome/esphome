@@ -169,6 +169,9 @@ inline JsonDocument parse_json(const std::string &data) {
 /// The allocator a JsonBuilder uses by default (PSRAM first when available)
 ArduinoJson::Allocator *heap_json_allocator();
 
+/// Size of one ArduinoJson slot pool, the first allocation every document makes (1 KB on 32 bit targets)
+constexpr size_t JSON_POOL_BYTES = ARDUINOJSON_POOL_CAPACITY * sizeof(ArduinoJson::detail::VariantData);
+
 /// Bump allocator over a fixed buffer for a document built and serialized in one scope. What the
 /// buffer cannot hold goes to the heap allocator; nothing is freed until the arena goes away.
 template<size_t N> class JsonArena final : public ArduinoJson::Allocator {
