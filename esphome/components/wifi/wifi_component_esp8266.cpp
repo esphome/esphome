@@ -38,6 +38,28 @@ extern "C" {
 #include "esphome/core/progmem.h"
 #include "esphome/core/util.h"
 
+// Management frames of 64 bytes or less come from a fixed pool of eight SDK buffers.
+// Larger frames are allocated from the heap and freed on completion.
+static constexpr int SMALL_MGMT_FRAME_MAX = 64;
+// Times the small pool was empty and a heap buffer was handed out instead.
+static uint8_t small_mgmt_pool_exhausted_count = 0;
+
+extern "C" {
+void *__real_ieee80211_getmgtframe(void **frm, int headroom, int pktlen);
+
+// When the small pool is empty the SDK returns nullptr and pm_send_nullfunc spins in an
+// assert until the soft watchdog resets the device (#19371). Retry with a size just above
+// the pool limit so the SDK takes the heap backed path it already uses for larger frames.
+void *__wrap_ieee80211_getmgtframe(void **frm, int headroom, int pktlen) {
+  void *buf = __real_ieee80211_getmgtframe(frm, headroom, pktlen);
+  if (buf != nullptr || headroom + pktlen > SMALL_MGMT_FRAME_MAX)
+    return buf;
+  if (small_mgmt_pool_exhausted_count != UINT8_MAX)
+    small_mgmt_pool_exhausted_count++;
+  return __real_ieee80211_getmgtframe(frm, headroom, SMALL_MGMT_FRAME_MAX + 1 - headroom);
+}
+}
+
 namespace esphome::wifi {
 
 static const char *const TAG = "wifi_esp8266";
@@ -980,6 +1002,11 @@ void WiFiComponent::process_pending_callbacks_() {
   // Process callbacks deferred from ESP8266 SDK system context (~2KB stack)
   // to main loop context (full stack). Connect state listeners are handled
   // by notify_connect_state_listeners_() in the shared state machine code.
+
+  if (small_mgmt_pool_exhausted_count != 0) {
+    ESP_LOGW(TAG, "SDK small management frame pool empty %u times, used heap instead", small_mgmt_pool_exhausted_count);
+    small_mgmt_pool_exhausted_count = 0;
+  }
 
 #ifdef USE_WIFI_CONNECT_STATE_LISTENERS
   if (this->pending_.disconnect) {
