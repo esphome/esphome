@@ -1560,11 +1560,11 @@ def test_vasprintf_stub_only_on_rom_vsnprintf_variants(
     ("fixture", "expected"),
     [
         ("nvs_cache_psram_guaranteed.yaml", True),
-        # psram configured but not guaranteed
-        ("execute_from_psram_disabled.yaml", None),
+        ("nvs_cache_psram_not_guaranteed.yaml", None),
         ("nvs_cache_psram_disabled.yaml", None),
-        # the encryption keys must stay in internal RAM
+        # the encryption keys must stay in internal RAM, whichever way encryption is enabled
         ("nvs_cache_psram_encrypted.yaml", None),
+        ("nvs_cache_psram_encrypted_sdkconfig.yaml", None),
     ],
 )
 def test_nvs_cache_in_psram_sdkconfig(
@@ -1573,7 +1573,70 @@ def test_nvs_cache_in_psram_sdkconfig(
     fixture: str,
     expected: bool | None,
 ) -> None:
-    """The NVS cache moves to PSRAM only with guaranteed PSRAM, the option on and no NVS encryption."""
+    """The NVS cache moves to PSRAM only with guaranteed PSRAM, the option not off and no NVS encryption."""
     generate_main(component_config_path(fixture))
     sdkconfig = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
     assert sdkconfig.get("CONFIG_NVS_ALLOCATE_CACHE_IN_SPIRAM") is expected
+
+
+def test_nvs_cache_in_psram_user_sdkconfig_wins(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """A raw sdkconfig_options value for the NVS cache option is left alone."""
+    generate_main(component_config_path("nvs_cache_psram_user_off.yaml"))
+    sdkconfig = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
+    assert sdkconfig["CONFIG_NVS_ALLOCATE_CACHE_IN_SPIRAM"] is not True
+
+
+@pytest.mark.parametrize(
+    ("full_config", "error_match"),
+    [
+        pytest.param(
+            {CONF_ESPHOME: {}, "psram": {"disabled": False, "ignore_not_found": True}},
+            r"'nvs_cache_in_psram' requires PSRAM with 'ignore_not_found: false'",
+            id="nvs_cache_in_psram_needs_guaranteed_psram",
+        ),
+        pytest.param(
+            {CONF_ESPHOME: {}},
+            r"'nvs_cache_in_psram' requires PSRAM with 'ignore_not_found: false'",
+            id="nvs_cache_in_psram_needs_psram",
+        ),
+    ],
+)
+def test_nvs_cache_in_psram_explicit_true_errors(
+    full_config: dict, error_match: str, set_core_config: SetCoreConfigCallable
+) -> None:
+    """An explicit nvs_cache_in_psram: true that cannot apply is a config error, not a silent no-op."""
+    set_core_config(PlatformFramework.ESP32_IDF, full_config=full_config)
+    from esphome.components.esp32 import CONFIG_SCHEMA, FINAL_VALIDATE_SCHEMA
+
+    config = {
+        "variant": "esp32s3",
+        "framework": {"type": "esp-idf", "advanced": {"nvs_cache_in_psram": True}},
+    }
+    with pytest.raises(cv.Invalid, match=error_match):
+        FINAL_VALIDATE_SCHEMA(CONFIG_SCHEMA(config))
+
+
+def test_nvs_cache_in_psram_explicit_true_rejects_encryption(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    set_core_config(
+        PlatformFramework.ESP32_IDF,
+        full_config={
+            CONF_ESPHOME: {},
+            "psram": {"disabled": False, "ignore_not_found": False},
+        },
+    )
+    from esphome.components.esp32 import CONFIG_SCHEMA, FINAL_VALIDATE_SCHEMA
+
+    config = {
+        "variant": "esp32s3",
+        "framework": {
+            "type": "esp-idf",
+            "advanced": {"nvs_cache_in_psram": True, "nvs_encryption": {"key_id": 0}},
+        },
+    }
+    with pytest.raises(cv.Invalid, match="cannot be used with NVS encryption"):
+        FINAL_VALIDATE_SCHEMA(CONFIG_SCHEMA(config))
