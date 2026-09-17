@@ -5,8 +5,6 @@ namespace esphome::template_ {
 void TemplateRealTimeClock::update() {
   if (this->sync_system_time_) {
     this->synchronize_epoch_(static_cast<uint32_t>(this->timestamp_now()));
-  } else {
-    this->stop_poller();
   }
 }
 

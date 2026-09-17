@@ -13,7 +13,7 @@ CONFIG_SCHEMA = time_.TIME_SCHEMA.extend(
         cv.Required(CONF_LAMBDA): cv.returning_lambda,
         cv.Optional(CONF_SYNC, default=False): cv.boolean,
     }
-).extend(cv.COMPONENT_SCHEMA)
+).extend(cv.polling_component_schema("never"))
 
 
 async def to_code(config):
