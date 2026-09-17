@@ -11,8 +11,7 @@
 #include <cinttypes>
 #include "esp_event.h"
 #ifdef USE_PSRAM
-#include <esp_heap_caps.h>
-#include <cstring>
+#include <esp_psram.h>
 #endif
 
 // IDF 6.0 moved per-chip PHY/MAC drivers to the Espressif Component Registry;
@@ -75,11 +74,14 @@ static const char *const TAG = "ethernet";
 // PHY register size for hex logging
 static constexpr size_t PHY_REG_SIZE = 2;
 
-#ifdef USE_PSRAM
+// SPI MACs only: the bus is the bottleneck there, the extra copy is unmeasured on the 100 Mbit EMAC.
+// Replacing the glue's input path would bypass its L2 TAP filter, so leave it alone when that is on.
+#if defined(USE_PSRAM) && defined(USE_ETHERNET_SPI) && !CONFIG_ESP_NETIF_L2_TAP
+#define USE_ETHERNET_RX_PSRAM
 // ESP-IDF ethernet drivers malloc() every received frame in internal RAM, where it stays until lwIP
 // hands it to the application. Move it to PSRAM; if that fails the frame is passed on where it is.
 static esp_err_t eth_input_to_psram(esp_eth_handle_t handle, uint8_t *buffer, uint32_t length, void *priv) {
-  auto *copy = static_cast<uint8_t *>(heap_caps_malloc(length, MALLOC_CAP_SPIRAM));
+  auto *copy = RAMAllocator<uint8_t>(RAMAllocator<uint8_t>::ALLOC_EXTERNAL).allocate(length);
   if (copy != nullptr) {
     memcpy(copy, buffer, length);
     free(buffer);  // NOLINT(cppcoreguidelines-no-malloc) - allocated by the driver with malloc()
@@ -471,10 +473,13 @@ void EthernetComponent::ethernet_lazy_init_() {
   /* attach Ethernet driver to TCP/IP stack */
   err = esp_netif_attach(this->eth_netif_, esp_eth_new_netif_glue(this->eth_handle_));
   ESPHL_ERROR_CHECK(err, "ETH netif attach error");
-#ifdef USE_PSRAM
-  // Replaces the input path the glue installed during attach; its free function is a plain free()
-  err = esp_eth_update_input_path(this->eth_handle_, eth_input_to_psram, this->eth_netif_);
-  ESPHL_ERROR_CHECK(err, "ETH input path error");
+#ifdef USE_ETHERNET_RX_PSRAM
+  // Replaces the input path the glue installed during attach. The glue frees every receive buffer
+  // with free(), so the replacement buffer must come from the heap.
+  if (esp_psram_is_initialized()) {
+    err = esp_eth_update_input_path(this->eth_handle_, eth_input_to_psram, this->eth_netif_);
+    ESPHL_ERROR_CHECK(err, "ETH input path error");
+  }
 #endif
 
   // Register user defined event handers
