@@ -6,6 +6,7 @@
 #include <cctype>
 #include <cinttypes>
 
+#include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
@@ -889,7 +890,7 @@ void AsyncEventSourceResponse::request_close_() {
     this->deferred_queue_.clear();
     this->event_buffer_.clear();
     this->event_bytes_sent_ = 0;
-    this->next_close_attempt_ms_ = millis();
+    this->next_close_attempt_ms_ = App.get_loop_component_start_time();
   }
 
   this->process_close_();
@@ -904,7 +905,7 @@ void AsyncEventSourceResponse::process_close_() {
     return;
   }
 
-  const uint32_t now = millis();
+  const uint32_t now = App.get_loop_component_start_time();
   if (static_cast<int32_t>(now - this->next_close_attempt_ms_) < 0) {
     return;
   }
@@ -956,7 +957,7 @@ void AsyncEventSourceResponse::process_buffer_() {
     // EAGAIN/EWOULDBLOCK - socket buffer full, try again later
     // NOTE: Similar logic exists in web_server/web_server.cpp in DeferredUpdateEventSource::process_deferred_queue_().
     // The IDF path is intentionally time-based and closes through HTTPD to preserve session ownership.
-    const uint32_t now = millis();
+    const uint32_t now = App.get_loop_component_start_time();
     if (this->send_failure_started_ms_ == 0) {
       this->send_failure_started_ms_ = now != 0 ? now : 1;  // Reserve zero for no stall.
     }
@@ -1001,8 +1002,6 @@ void AsyncEventSourceResponse::loop() {
     return;
   }
   process_buffer_();
-  if (this->close_requested_)
-    return;
   process_deferred_queue_();
   if (this->close_requested_)
     return;
