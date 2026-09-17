@@ -247,6 +247,9 @@ def lint_ext_check(fname):
         "CLAUDE.md",
         "GEMINI.md",
         ".github/copilot-instructions.md",
+        # Symlinks to the shared .agents/skills directory
+        ".claude/skills",
+        ".github/skills",
         # Symlink to the real wifi scan_list.h so the test stub cannot drift
         "tests/integration/fixtures/external_components/wifi/scan_list.h",
     ]
