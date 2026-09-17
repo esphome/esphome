@@ -179,6 +179,11 @@ class JsonBuilder {
     return root_;
   }
 
+  /// Serialize into a buffer the caller owns. Returns the length, which is cap or more when the
+  /// document did not fit (buf then holds a truncated, unterminated copy). An overflowed document
+  /// serializes as "{}".
+  size_t serialize_to(char *buf, size_t cap);
+
   /// Serialize the JSON document to a SerializationBuffer (stack-first allocation)
   /// Uses 512-byte stack buffer by default, falls back to heap for larger JSON
   SerializationBuffer<> serialize();

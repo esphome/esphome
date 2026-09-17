@@ -257,7 +257,7 @@ class AsyncWebHandler {
 class AsyncEventSource;
 class AsyncEventSourceResponse;
 
-using message_generator_t = json::SerializationBuffer<>(esphome::web_server::WebServer *, void *);
+using message_generator_t = void(esphome::web_server::WebServer *, void *, json::JsonBuilder &);
 
 /*
   This class holds a pointer to the source component that wants to publish a state event, and a pointer to a function
@@ -312,6 +312,12 @@ class AsyncEventSourceResponse {
   // Keep the whole chunk in tail_ and continue from sent; false when the tail cannot be allocated.
   bool stash_chunk_(const char *prefix, size_t prefix_len, const char *message, size_t message_len, size_t total,
                     size_t sent);
+  // Chunk header placeholder, the retry/id/event lines and, with_data, the first "data: ".
+  // Returns the prefix length; PREFIX_BUF_SIZE - 1 or more means the event name did not fit.
+  static size_t build_prefix_(char *prefix, const char *event, uint32_t id, uint32_t reconnect, bool with_data);
+  // Send a state event. The JSON is serialized into a stack buffer and goes out like any other
+  // message; one too large for it is serialized straight into tail_ and drained from there.
+  bool send_json_(json::JsonBuilder &builder);
   void request_close_();
 
   // Marks a send in progress: a log line emitted inside it re-enters try_send_nodefer on this
@@ -358,6 +364,10 @@ class AsyncEventSourceResponse {
   static constexpr size_t MAX_SEND_IOV = 1 + 2 * MAX_SEND_LINES;
   // Chunk header, retry/id/event lines and the first "data: "
   static constexpr size_t PREFIX_BUF_SIZE = 128;
+  // Stack buffer for a state event's JSON. A larger document is serialized into the tail,
+  // which grows by doubling up to JSON_MAX_SIZE; measuring first would cost more flash.
+  static constexpr size_t JSON_BUF_SIZE = 1024;
+  static constexpr size_t JSON_MAX_SIZE = 8192;
   static constexpr uint32_t SEND_STALL_TIMEOUT_MS = 20000;
   static constexpr uint32_t CLOSE_RETRY_INTERVAL_MS = 250;
   static constexpr uint32_t CLOSE_CONFIRM_INTERVAL_MS = 1000;
