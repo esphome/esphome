@@ -1,5 +1,6 @@
 #ifdef USE_ESP32
 
+#include <algorithm>
 #include <cstdarg>
 #include <memory>
 #include <cstring>
@@ -948,7 +949,9 @@ ssize_t AsyncEventSourceResponse::send_(struct iovec *iov, int iovcnt) {
   // httpd frees the session before it closes the socket, so the fd number can already belong to
   // a new client. Checking the session table narrows that window; it cannot close it. Treated
   // as would-block: the chunk waits in the tail and the stall timer ends a session that never
-  // becomes ours again.
+  // becomes ours again. A new session passes from the start: while its request is in flight the
+  // lookup answers from the request, and httpd_req_cleanup() copies the context into the table
+  // before it clears the in-flight marker.
   const int fd = this->fd_.load();
   if (httpd_sess_get_ctx(this->hd_, fd) != this) {
     return 0;
@@ -1080,24 +1083,30 @@ bool AsyncEventSourceResponse::send_json_(json::JsonBuilder &builder) {
     SendGuard guard{*this};
     char prefix[PREFIX_BUF_SIZE];
     const size_t prefix_len = build_chunk_prefix(prefix, sizeof(prefix), "state", 0, 0, true);
-    // Grow the tail until the document fits; nothing is pending, so each step just reallocates.
-    // Nothing has reached the wire, so a document that cannot be held costs only this event;
-    // it is reported as sent because it would never fit on a retry either.
+    // Grow the tail until the document fits, starting from what it already holds; nothing is
+    // pending, so each step just reallocates. Nothing has reached the wire, so a document that
+    // cannot be held costs only this event, and a tail grown for an abandoned event is released.
     size_t json_len = 0;
-    for (size_t cap = JSON_BUF_SIZE * 2;; cap *= 2) {
-      if (cap > JSON_MAX_SIZE) {
-        ESP_LOGW(TAG, "EventSource state event over %zu bytes dropped", JSON_MAX_SIZE);
-        return true;
-      }
+    size_t cap = std::max<size_t>(JSON_BUF_SIZE * 2, this->tail_cap_);
+    for (;;) {
       if (!this->reserve_tail_(cap)) {
-        ESP_LOGW(TAG, "EventSource has no memory for a %zu byte state event; dropped", cap);
-        return true;
+        // Transient: the caller keeps the event deferred and retries on a later pass
+        ESP_LOGW(TAG, "EventSource has no memory for a %zu byte state event", cap);
+        return false;
       }
       const size_t room = cap - prefix_len - SSE_SUFFIX_LEN;
       json_len = builder.serialize_to(reinterpret_cast<char *>(this->tail_.get()) + prefix_len, room);
       if (json_len < room) {
         break;
       }
+      if (cap >= JSON_MAX_SIZE) {
+        // Would never fit on a retry either, so it is reported as sent
+        ESP_LOGW(TAG, "EventSource state event over %zu bytes dropped", JSON_MAX_SIZE);
+        this->tail_.reset();
+        this->tail_cap_ = 0;
+        return true;
+      }
+      cap = std::min<size_t>(cap * 2, JSON_MAX_SIZE);
     }
     const size_t total = prefix_len + json_len + SSE_SUFFIX_LEN;
     write_chunk_header(prefix, total - CHUNK_HDR_LEN - CHUNK_END_LEN);
