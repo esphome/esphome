@@ -2,6 +2,7 @@ import json
 import logging
 from pathlib import Path
 
+from esphome.build_helpers.pch import pch_extra_scripts
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.const import (
@@ -26,7 +27,7 @@ from esphome.const import (
 from esphome.core import CORE
 from esphome.core.config import BOARD_MAX_LENGTH
 from esphome.helpers import copy_file_if_changed
-from esphome.platformio.toolchain import copy_ccache_script
+from esphome.platformio.toolchain import copy_ccache_script, copy_pch_script
 from esphome.storage_json import StorageJSON
 
 from . import gpio  # noqa: F401
@@ -513,7 +514,7 @@ async def component_to_code(config):
         # it for project source files only. GCC uses the last -O flag.
         build_src_flags += " -Os"
     cg.add_platformio_option("build_src_flags", build_src_flags)
-    cg.add_platformio_option("extra_scripts", ["pre:ccache.py"])
+    cg.add_platformio_option("extra_scripts", ["pre:ccache.py", *pch_extra_scripts()])
     # IRAM_ATTR is a no-op on BK72xx (SDK masks FIQ+IRQ around flash ops).
     # On other families, patch_linker.py routes .sram.text into the right
     # RAM-executable output section and prints a post-link placement summary.
@@ -619,3 +620,4 @@ def copy_files() -> None:
         CORE.relative_build_path("patch_linker.py"),
     )
     copy_ccache_script()
+    copy_pch_script()
