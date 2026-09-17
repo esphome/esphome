@@ -14,3 +14,10 @@ text_sensor:
     name: "ESPHome Version Shortest"
     hide_timestamp: true
     hide_hash: true
+
+  # Reporting a component's version rather than ESPHome's. `version` declares no
+  # COMPONENT_VERSION itself, which is the point: it must still compile and simply
+  # read as unknown, since declaring one is optional and most components never will.
+  - platform: version
+    component: version
+    name: "Component Version Unreported"
