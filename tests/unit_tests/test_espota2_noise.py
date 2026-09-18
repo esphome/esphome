@@ -244,8 +244,9 @@ def _run_ota(
     tmp_path: Path,
     noise_psk: str,
     plaintext_fallback: bool = True,
+    old_noise_psk: str | None = None,
 ) -> int:
-    """Drive the retry loop, which is where the plaintext fallback reconnects."""
+    """Drive the retry loop, which is where the fallback and the old key reconnect."""
     path = tmp_path / "firmware.bin"
     path.write_bytes(firmware)
     device.start()
@@ -256,8 +257,55 @@ def _run_ota(
         path,
         noise_psk=noise_psk,
         plaintext_fallback=plaintext_fallback,
+        old_noise_psk=old_noise_psk,
     )
     return rc
+
+
+THIRD_PSK = base64.b64encode(bytes(range(2, 34))).decode()
+
+
+@pytest.mark.parametrize(
+    ("device_psk", "old_noise_psk", "expected_rc", "retried"),
+    [
+        # The device still runs the previous key: one reconnect with old_key
+        (OTHER_PSK, OTHER_PSK, 0, True),
+        # The device already runs the new key: old_key is never presented
+        (PSK, OTHER_PSK, 0, False),
+        # Neither key matches: the retry is spent, then it fails closed
+        (THIRD_PSK, OTHER_PSK, 1, True),
+        # No old_key configured: a rejected key is a device error
+        (OTHER_PSK, None, 1, False),
+    ],
+    ids=["old_key_accepted", "key_accepted", "both_rejected", "no_old_key"],
+)
+def test_old_key_retry(
+    caplog: pytest.LogCaptureFixture,
+    tmp_path: Path,
+    device_psk: str,
+    old_noise_psk: str | None,
+    expected_rc: int,
+    retried: bool,
+) -> None:
+    pytest.importorskip("aioesphomeapi.noise")
+    firmware = b"firmware"
+    device = FakeEncryptedDevice(psk=device_psk, connections=2 if retried else 1)
+    with patch("time.sleep"), caplog.at_level(logging.WARNING):
+        rc = _run_ota(
+            device,
+            firmware,
+            tmp_path,
+            PSK,
+            plaintext_fallback=False,
+            old_noise_psk=old_noise_psk,
+        )
+    device.join_and_check()
+    assert rc == expected_rc
+    assert (device.received == firmware) is (expected_rc == 0)
+    assert (
+        any("retrying with 'old_key'" in r.message for r in caplog.records) is retried
+    )
+    assert not any("plaintext" in r.message for r in caplog.records)
 
 
 def test_encrypted_upload_success() -> None:
