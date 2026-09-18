@@ -2279,9 +2279,10 @@ def command_rotate_key(args: ArgsProtocol, config: ConfigType) -> int | None:
         retry_rejected=False,
     ):
         return fail(
-            "The device did not accept the current key over an encrypted OTA "
-            "connection. It needs to run the key in the yaml on ESPHome 2026.9.0 "
-            "or newer; install the current configuration first, then rotate."
+            "The device did not complete an encrypted handshake with the current "
+            "key (see the warning above for the reason). If it is reachable, it "
+            "has to run the key in the yaml on ESPHome 2026.9.0 or newer; install "
+            "the current configuration first, then rotate."
         )
 
     try:
