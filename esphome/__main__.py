@@ -68,6 +68,7 @@ from esphome.util import (
     get_serial_ports,
     is_picotool_usb_permission_error,
     list_yaml_files,
+    read_secret_line,
     run_external_command,
     run_external_process,
     safe_print,
@@ -1243,6 +1244,14 @@ def upload_program(
             f"The option {option_string} can only be used for Over The Air updates."
         )
 
+    if getattr(args, "ota_key", None) and port_type in (
+        PortType.SERIAL,
+        PortType.BOOTSEL,
+    ):
+        _LOGGER.warning(
+            "--prompt-ota-key only applies to network uploads; ignored for %s", host
+        )
+
     if port_type == PortType.BOOTSEL:
         exit_code = upload_using_picotool(config)
         # Return None for device - BOOTSEL can't be used for logging,
@@ -1273,6 +1282,10 @@ def upload_program(
             raise EsphomeError(
                 f"{option_string} is only supported with the esphome OTA platform; "
                 "the web_server OTA path can only update the firmware image."
+            )
+        if getattr(args, "ota_key", None):
+            raise EsphomeError(
+                f"--prompt-ota-key only applies to the {CONF_ESPHOME} OTA platform"
             )
         binary = CORE.firmware_bin
         if getattr(args, "file", None) is not None:
@@ -1344,7 +1357,12 @@ def _upload_via_native_api(
     noise_psk = None
     plaintext_fallback = False
     allow_plaintext_upload = False
-    if (encryption_conf := ota_conf.get(CONF_ENCRYPTION)) is not None:
+    if ota_key := getattr(args, "ota_key", None):
+        # The user presents a key the device still runs instead of the
+        # configured one (a key change in progress); an explicit key never
+        # downgrades to plaintext
+        noise_psk = ota_key
+    elif (encryption_conf := ota_conf.get(CONF_ENCRYPTION)) is not None:
         noise_psk = encryption_conf.get(CONF_KEY)
         allow_plaintext_upload = bool(
             encryption_conf.get(espota2.CONF_ALLOW_PLAINTEXT_UPLOAD)
@@ -1734,7 +1752,33 @@ def _host_program_path(config: ConfigType) -> str:
     return str(get_idedata(config).firmware_elf_path)
 
 
+def _read_ota_key(args: ArgsProtocol) -> None:
+    """Ask for the key to present to the device for this upload.
+
+    Read before any compile so the prompt is not buried after minutes of
+    build output; the key stays in memory and never reaches argv.
+    """
+    if not getattr(args, "prompt_ota_key", False):
+        return
+    if getattr(args, "ota_platform", None) == CONF_WEB_SERVER:
+        raise EsphomeError(
+            f"--prompt-ota-key only applies to the {CONF_ESPHOME} OTA platform"
+        )
+    from esphome.components.noise import validate_encryption_key
+    from esphome.config_validation import Invalid
+
+    key = read_secret_line("OTA encryption key: ")
+    if not key:
+        raise EsphomeError("No OTA encryption key was entered")
+    try:
+        validate_encryption_key(key)
+    except Invalid as err:
+        raise EsphomeError(f"Invalid OTA encryption key: {err}") from err
+    args.ota_key = key
+
+
 def command_upload(args: ArgsProtocol, config: ConfigType) -> int | None:
+    _read_ota_key(args)
     # Get devices, resolving special identifiers like OTA
     devices = choose_upload_log_host(
         default=args.device,
@@ -1770,6 +1814,7 @@ def command_logs(args: ArgsProtocol, config: ConfigType) -> int | None:
 
 
 def command_run(args: ArgsProtocol, config: ConfigType) -> int | None:
+    _read_ota_key(args)
     exit_code = write_cpp(config)
     if exit_code != 0:
         return exit_code
@@ -2291,6 +2336,14 @@ def _add_states_args(parser: argparse.ArgumentParser) -> None:
     )
 
 
+ARGUMENT_HELP_PROMPT_OTA_KEY = (
+    "Ask for the OTA encryption key to present to the device instead of using "
+    "the one in the configuration, for a device that still runs a previous key. "
+    "The key is read without echo, or as one line from stdin when that is not "
+    "a terminal; it is never taken from the command line."
+)
+
+
 def parse_args(argv):
     options_parser = argparse.ArgumentParser(add_help=False)
     options_parser.add_argument(
@@ -2447,6 +2500,11 @@ def parse_args(argv):
         action="store_true",
     )
     parser_upload.add_argument(
+        "--prompt-ota-key",
+        action="store_true",
+        help=ARGUMENT_HELP_PROMPT_OTA_KEY,
+    )
+    parser_upload.add_argument(
         "--bootloader",
         help="Upload as bootloader (OTA).",
         action="store_true",
@@ -2524,6 +2582,11 @@ def parse_args(argv):
             f"cleartext on the wire. Falls back to '{CONF_WEB_SERVER}' "
             "(HTTP Basic auth) when that is the only configured platform."
         ),
+    )
+    parser_run.add_argument(
+        "--prompt-ota-key",
+        action="store_true",
+        help=ARGUMENT_HELP_PROMPT_OTA_KEY,
     )
 
     parser_clean = subparsers.add_parser(
