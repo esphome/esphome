@@ -93,16 +93,18 @@ def ota_esphome_final_validate(config: ConfigType) -> None:
                 # Encryption blocks conflict only when both pin a key; a bare
                 # `encryption:` (a package/device split) is compatible with a
                 # keyed one, and merge_config yields the keyed result
-                merged_key = (
-                    merged_ota_esphome_configs_by_port[conf_port]
-                    .get(CONF_ENCRYPTION, {})
-                    .get(CONF_KEY)
+                merged_enc = merged_ota_esphome_configs_by_port[conf_port].get(
+                    CONF_ENCRYPTION, {}
                 )
-                other_key = ota_conf.get(CONF_ENCRYPTION, {}).get(CONF_KEY)
-                if merged_key and other_key and merged_key != other_key:
-                    raise cv.Invalid(
-                        f"Found multiple configurations but {CONF_ENCRYPTION} is inconsistent"
-                    )
+                other_enc = ota_conf.get(CONF_ENCRYPTION, {})
+                for option in (CONF_KEY, CONF_OLD_KEY):
+                    merged_key = merged_enc.get(option)
+                    other_key = other_enc.get(option)
+                    if merged_key and other_key and merged_key != other_key:
+                        raise cv.Invalid(
+                            f"Found multiple configurations but {CONF_ENCRYPTION} "
+                            f"{option} is inconsistent"
+                        )
 
                 ports_with_merged_configs.append(conf_port)
                 merged_ota_esphome_configs_by_port[conf_port] = merge_config(

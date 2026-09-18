@@ -70,10 +70,12 @@ class FakeEncryptedDevice(threading.Thread):
         prologue_features_override: int | None = None,
         connections: int = 1,
         drop_handshakes: int = 0,
+        reject_reason: str | None = None,
     ) -> None:
         super().__init__(daemon=True)
         self.connections = connections
         self.drop_handshakes = drop_handshakes  # hang up mid-handshake this many times
+        self.reject_reason = reject_reason  # refuse every handshake with this reason
         self.psk = psk
         self.version = version
         self.offer_noise = offer_noise
@@ -160,6 +162,9 @@ class FakeEncryptedDevice(threading.Thread):
         if self.drop_handshakes > 0:
             self.drop_handshakes -= 1
             return  # a transport fault: the socket closes with no reply
+        if self.reject_reason is not None:
+            _send_frame(sock, b"\x01" + self.reject_reason.encode())
+            return
         try:
             proto.read_message(msg1[1:])
         except InvalidTag:
@@ -636,6 +641,51 @@ def test_recv_serves_buffered_plaintext_without_new_frame() -> None:
     assert wrapper.recv(1) == b"A"  # reads and decrypts one frame
     assert wrapper.recv(1) == b"B"  # served from the buffer, no new frame
     wrapper._decrypt.decrypt.assert_called_once()
+
+
+def test_old_key_notice_only_after_an_app_image(tmp_path: Path) -> None:
+    """A partition table or bootloader leaves the running key alone."""
+    pytest.importorskip("aioesphomeapi.noise")
+    device = FakeEncryptedDevice()
+    path = tmp_path / "firmware.bin"
+    path.write_bytes(b"firmware")
+    device.start()
+    with patch("time.sleep"), patch("esphome.espota2._LOGGER") as logger:
+        rc, _ = espota2.run_ota(
+            "127.0.0.1",
+            device.port,
+            None,
+            path,
+            espota2.OTA_TYPE_UPDATE_APP,
+            noise_psk=PSK,
+            old_noise_psk=OTHER_PSK,
+        )
+    device.join_and_check()
+    assert rc == 0
+    assert any(
+        "remove 'old_key'" in str(c.args[0]) for c in logger.warning.call_args_list
+    )
+
+
+def test_non_key_reject_reason_is_not_retried_with_old_key(
+    caplog: pytest.LogCaptureFixture, tmp_path: Path
+) -> None:
+    """Only a key failure spends the old_key retry; another reject reason
+    is a device error."""
+    pytest.importorskip("aioesphomeapi.noise")
+    device = FakeEncryptedDevice(reject_reason="Busy")
+    with patch("time.sleep"), caplog.at_level(logging.WARNING):
+        rc = _run_ota(
+            device,
+            b"firmware",
+            tmp_path,
+            PSK,
+            plaintext_fallback=False,
+            old_noise_psk=OTHER_PSK,
+        )
+    device.join_and_check()
+    assert rc == 1
+    assert not any("retrying with 'old_key'" in r.message for r in caplog.records)
 
 
 def test_bare_block_refuses_a_device_that_cannot_encrypt(
