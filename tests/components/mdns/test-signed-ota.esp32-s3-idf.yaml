@@ -1,5 +1,4 @@
-# Signed OTA verification alongside the native api, so the ota_signed TXT
-# record is compiled into the _esphomelib service.
+# Signed OTA plus the native api: the only combination that emits ota_signed.
 esp32:
   variant: esp32s3
   framework:

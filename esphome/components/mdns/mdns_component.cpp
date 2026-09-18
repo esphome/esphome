@@ -190,8 +190,7 @@ void MDNSComponent::compile_records_(StaticVector<MDNSService, MDNS_SERVICE_COUN
 #endif
 
 #ifdef USE_OTA_SIGNED_VERIFICATION
-    // The running app rejects OTA images that are not signed by a trusted key,
-    // so tools cannot install their own build over the air (serial still works).
+    // Signals that an unsigned OTA image is rejected; serial flash is unaffected.
     MDNS_STATIC_CONST_CHAR(TXT_OTA_SIGNED, "ota_signed");
     MDNS_STATIC_CONST_CHAR(VALUE_TRUE, "1");
     txt_records.push_back({MDNS_STR(TXT_OTA_SIGNED), MDNS_STR(VALUE_TRUE)});

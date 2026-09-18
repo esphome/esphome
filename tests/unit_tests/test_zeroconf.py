@@ -213,10 +213,8 @@ def test_network_defaults_to_wifi_when_txt_absent() -> None:
 def test_ota_signed_txt_is_parsed() -> None:
     """``ota_signed=1`` marks a device that only accepts signed OTA images.
 
-    Devices built with signed OTA verification reject any image not
-    signed by a trusted key, so device-builder cannot install a build
-    it compiled itself — the user has to flash over serial. The flag
-    is what lets it say so before the install fails.
+    Lets a consumer check whether it holds a key the device trusts before
+    an update is attempted, instead of failing at install time.
     """
     discovery = DashboardImportDiscovery()
     info = _make_service_info(ota_signed="1")

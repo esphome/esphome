@@ -77,9 +77,7 @@ class DiscoveredImport:
     project_name: str
     project_version: str
     network: str
-    # Device rejects OTA images not signed by a trusted key; installing a
-    # locally-built firmware needs a serial flash. Defaults to False so
-    # entries persisted before this field was added still load.
+    # Defaults False so entries persisted before this field still load.
     ota_signed: bool = False
 
 
