@@ -192,7 +192,7 @@ def test_refuses_a_secret_defined_elsewhere(tmp_path: Path) -> None:
     scalar, is refused rather than guessed at."""
     secrets = f"device_key: >-\n  {OLD_KEY}\n"
     _setup(tmp_path, SECRET_YAML, secrets)
-    with pytest.raises(EsphomeError, match="Expected exactly one"):
+    with pytest.raises(EsphomeError, match="No 'device_key:' line"):
         locate_key_edits(OLD_KEY, NEW_KEY)
 
 
@@ -242,7 +242,7 @@ def test_clears_the_validated_cache(tmp_path: Path) -> None:
 def test_old_key_added_to_a_bare_block(tmp_path: Path) -> None:
     """A bare block gets old_key one level in; the api line is rewritten."""
     path = _setup(tmp_path, API_YAML)
-    edits = [*locate_key_edits(OLD_KEY, NEW_KEY), old_key_edit(OLD_KEY)]
+    edits = [*locate_key_edits(OLD_KEY, NEW_KEY), *old_key_edit(OLD_KEY)]
     apply_key_edits(edits)
     assert path.read_text() == (
         API_YAML.replace(OLD_KEY, NEW_KEY) + f'      old_key: "{OLD_KEY}"\n'
@@ -263,7 +263,7 @@ ota:
     port: 3232
 """
     path = _setup(tmp_path, yaml_text)
-    apply_key_edits([*locate_key_edits(OLD_KEY, NEW_KEY), old_key_edit(OLD_KEY)])
+    apply_key_edits([*locate_key_edits(OLD_KEY, NEW_KEY), *old_key_edit(OLD_KEY)])
     assert path.read_text() == yaml_text.replace(
         f'      key: "{OLD_KEY}"\n',
         f'      key: "{NEW_KEY}"\n      old_key: "{OLD_KEY}"\n',
@@ -286,7 +286,7 @@ ota:
       old_key: '{older}'  # from the last rotation
 """
     path = _setup(tmp_path, yaml_text)
-    apply_key_edits([*locate_key_edits(OLD_KEY, NEW_KEY), old_key_edit(OLD_KEY)])
+    apply_key_edits([*locate_key_edits(OLD_KEY, NEW_KEY), *old_key_edit(OLD_KEY)])
     assert path.read_text() == yaml_text.replace(OLD_KEY, NEW_KEY).replace(
         older, OLD_KEY
     )
@@ -303,7 +303,7 @@ ota:
     key: "{OLD_KEY}"
 """
     path = _setup(tmp_path, yaml_text)
-    apply_key_edits([*locate_key_edits(OLD_KEY, NEW_KEY), old_key_edit(OLD_KEY)])
+    apply_key_edits([*locate_key_edits(OLD_KEY, NEW_KEY), *old_key_edit(OLD_KEY)])
     assert path.read_text() == yaml_text.replace(OLD_KEY, NEW_KEY) + (
         f'    old_key: "{OLD_KEY}"\n'
     )
@@ -312,7 +312,7 @@ ota:
 def test_keeps_windows_line_endings_and_a_bare_last_line(tmp_path: Path) -> None:
     text = API_YAML.replace("\n", "\r\n").rstrip("\r\n")
     path = _setup(tmp_path, text)
-    apply_key_edits([*locate_key_edits(OLD_KEY, NEW_KEY), old_key_edit(OLD_KEY)])
+    apply_key_edits([*locate_key_edits(OLD_KEY, NEW_KEY), *old_key_edit(OLD_KEY)])
     assert (
         path.read_bytes()
         == (text.replace(OLD_KEY, NEW_KEY) + f'\r\n      old_key: "{OLD_KEY}"').encode()
@@ -346,7 +346,7 @@ def test_inherited_key_in_a_bare_block_is_not_a_line(tmp_path: Path) -> None:
         CORE.raw_config["ota"][0]["encryption"] or {}
     )
     CORE.raw_config["ota"][0]["encryption"]["key"] = OLD_KEY
-    edits = [*locate_key_edits(OLD_KEY, NEW_KEY), old_key_edit(OLD_KEY)]
+    edits = [*locate_key_edits(OLD_KEY, NEW_KEY), *old_key_edit(OLD_KEY)]
     assert [(e.line, e.insert_after) for e in edits] == [(5, False), (9, True)]
     apply_key_edits(edits)
     assert path.read_text() == (
@@ -365,7 +365,7 @@ def test_values_replaced_by_validation_still_locate(tmp_path: Path) -> None:
     api["key"] = str(api["key"])
     ota = CORE.raw_config["ota"][0]["encryption"]
     ota["old_key"] = str(ota["old_key"])
-    apply_key_edits([*locate_key_edits(OLD_KEY, NEW_KEY), old_key_edit(OLD_KEY)])
+    apply_key_edits([*locate_key_edits(OLD_KEY, NEW_KEY), *old_key_edit(OLD_KEY)])
     assert path.read_text() == yaml_text.replace(OLD_KEY, "TMP").replace(
         NEW_KEY, OLD_KEY
     ).replace("TMP", NEW_KEY)
@@ -481,7 +481,7 @@ ota:
     encryption:
 """
     path = _setup(tmp_path, yaml_text)
-    apply_key_edits([*locate_key_edits(OLD_KEY, NEW_KEY), old_key_edit(OLD_KEY)])
+    apply_key_edits([*locate_key_edits(OLD_KEY, NEW_KEY), *old_key_edit(OLD_KEY)])
     assert path.read_text() == yaml_text.replace(OLD_KEY, NEW_KEY) + (
         f'      old_key: "{OLD_KEY}"\n'
     )
@@ -520,7 +520,7 @@ ota:
     port: 3232
 """
     path = _setup(tmp_path, yaml_text)
-    apply_key_edits([*locate_key_edits(OLD_KEY, NEW_KEY), old_key_edit(OLD_KEY)])
+    apply_key_edits([*locate_key_edits(OLD_KEY, NEW_KEY), *old_key_edit(OLD_KEY)])
     assert path.read_text() == yaml_text.replace(
         f'      key: "{OLD_KEY}"\n',
         f'      key: "{NEW_KEY}"\n      old_key: "{OLD_KEY}"\n',
@@ -606,7 +606,7 @@ def test_old_key_goes_into_the_included_block(tmp_path: Path) -> None:
         "    encryption: !include enc.yaml\n",
     )
     CORE.raw_config = do_substitution_pass(CORE.raw_config, None)
-    edit = old_key_edit(OLD_KEY)
+    (edit,) = old_key_edit(OLD_KEY)
     assert (edit.path, edit.line, edit.insert_after) == (
         (tmp_path / "enc.yaml").resolve(),
         0,
@@ -647,6 +647,123 @@ def test_secret_shared_with_other_configs_is_reported(tmp_path: Path) -> None:
     assert [e.shared_with for e in edits] == [
         [tmp_path.resolve() / "other.yaml", tmp_path.resolve() / "quoted.yaml"]
     ]
+
+
+def test_secret_key_keeps_the_previous_key_in_secrets(tmp_path: Path) -> None:
+    """A key from secrets.yaml never lands in the device yaml as text: the
+    ota block gets `old_key: !secret device_key_old` and the secrets file
+    the line it points to, right under the rewritten one."""
+    _setup(tmp_path, SECRET_YAML, f"wifi: hunter2\ndevice_key: {OLD_KEY}\n")
+    edits = [*locate_key_edits(OLD_KEY, NEW_KEY), *old_key_edit(OLD_KEY)]
+    apply_key_edits(edits)
+    assert CORE.config_path.read_text() == SECRET_YAML.replace(
+        "      key: !secret device_key\n",
+        "      key: !secret device_key\n      old_key: !secret device_key_old\n",
+    )
+    assert (tmp_path / "secrets.yaml").read_text() == (
+        f'wifi: hunter2\ndevice_key: {NEW_KEY}\ndevice_key_old: "{OLD_KEY}"\n'
+    )
+
+
+def test_secret_old_key_rewritten_in_secrets(tmp_path: Path) -> None:
+    """A second rotation replaces the value the `!secret` old_key points to."""
+    older = "AgMEBQYHCAkKCwwNDg8QERITFBUWFxgZGhscHR4fICE="
+    yaml_text = SECRET_YAML.replace(
+        "      key: !secret device_key\n",
+        "      key: !secret device_key\n      old_key: !secret device_key_old\n",
+    )
+    secrets = f"device_key: {OLD_KEY}\ndevice_key_old: '{older}'  # keep\n"
+    _setup(tmp_path, yaml_text, secrets)
+    apply_key_edits([*locate_key_edits(OLD_KEY, NEW_KEY), *old_key_edit(OLD_KEY)])
+    assert CORE.config_path.read_text() == yaml_text
+    assert (tmp_path / "secrets.yaml").read_text() == (
+        f"device_key: {NEW_KEY}\ndevice_key_old: '{OLD_KEY}'  # keep\n"
+    )
+
+
+def test_bare_block_with_a_secret_api_key(tmp_path: Path) -> None:
+    """The inherited key is a secret too, so old_key points at secrets.yaml."""
+    yaml_text = SECRET_YAML.replace(
+        "    encryption:\n      key: !secret device_key\n", "    encryption:\n"
+    )
+    _setup(tmp_path, yaml_text, f"device_key: {OLD_KEY}\n")
+    apply_key_edits([*locate_key_edits(OLD_KEY, NEW_KEY), *old_key_edit(OLD_KEY)])
+    assert CORE.config_path.read_text() == yaml_text.replace(
+        "    encryption:\n", "    encryption:\n      old_key: !secret device_key_old\n"
+    )
+
+
+def test_shared_secret_scan_covers_yml_and_skips_unreadable_files(
+    tmp_path: Path,
+) -> None:
+    (tmp_path / "other.yml").write_bytes(
+        b"api:\n  encryption:\n    key: !secret device_key\n"
+    )
+    (tmp_path / "latin1.yaml").write_bytes(b"caf\xe9: !secret device_key\n")
+    _setup(tmp_path, SECRET_YAML, f"device_key: {OLD_KEY}\n")
+    edits = locate_key_edits(OLD_KEY, NEW_KEY)
+    assert [e.shared_with for e in edits] == [[tmp_path.resolve() / "other.yml"]]
+
+
+def test_literal_key_in_a_shared_include_is_reported(tmp_path: Path) -> None:
+    """Another configuration including the file that holds the key is
+    listed, like a shared secret."""
+    (tmp_path / "common.yaml").write_bytes(
+        f'encryption:\n  key: "{OLD_KEY}"\n'.encode()
+    )
+    (tmp_path / "other.yaml").write_bytes(b"api: !include common.yaml\n")
+    _setup(
+        tmp_path,
+        "esphome:\n  name: test\n\napi: !include common.yaml\n\n"
+        "ota:\n  - platform: esphome\n    encryption:\n",
+    )
+    CORE.raw_config = do_substitution_pass(CORE.raw_config, None)
+    edits = locate_key_edits(OLD_KEY, NEW_KEY)
+    assert [(e.path.name, e.shared_with) for e in edits] == [
+        ("common.yaml", [tmp_path.resolve() / "other.yaml"])
+    ]
+
+
+def test_restore_reports_a_missing_file(tmp_path: Path) -> None:
+    _setup(tmp_path, API_YAML)
+    with pytest.raises(
+        EsphomeError, match="Could not restore .*gone.yaml: Could not read"
+    ):
+        restore_key_files({tmp_path / "gone.yaml": "x"})
+
+
+def test_mode_failure_is_reported(tmp_path: Path) -> None:
+    path = _setup(tmp_path, API_YAML)
+    edits = locate_key_edits(OLD_KEY, NEW_KEY)
+    with (
+        patch("pathlib.Path.chmod", side_effect=OSError("denied")),
+        pytest.raises(EsphomeError, match="Could not keep the mode"),
+    ):
+        apply_key_edits(edits)
+    assert path.read_text() == API_YAML
+
+
+def test_indented_secrets_root_and_space_before_colon(tmp_path: Path) -> None:
+    """A secrets file may indent its whole root mapping, and `key :` is
+    valid yaml; the added line follows the root indent."""
+    secrets = f"  wifi : hunter2\n  device_key : {OLD_KEY}\n"
+    _setup(tmp_path, SECRET_YAML.replace("key: !secret", "key : !secret"), secrets)
+    apply_key_edits([*locate_key_edits(OLD_KEY, NEW_KEY), *old_key_edit(OLD_KEY)])
+    assert (tmp_path / "secrets.yaml").read_text() == (
+        f'  wifi : hunter2\n  device_key : {NEW_KEY}\n  device_key_old: "{OLD_KEY}"\n'
+    )
+    assert "old_key: !secret device_key_old" in CORE.config_path.read_text()
+
+
+def test_old_key_refuses_a_flow_style_key(tmp_path: Path) -> None:
+    """`encryption: {key: ...}` puts the key on the block's own line."""
+    _setup(
+        tmp_path,
+        "esphome:\n  name: test\n\nota:\n  - platform: esphome\n"
+        f'    encryption: {{key: "{OLD_KEY}"}}\n',
+    )
+    with pytest.raises(EsphomeError, match="does not hold 'key'"):
+        old_key_edit(OLD_KEY)
 
 
 def test_rolls_back_when_the_cache_cannot_be_dropped(tmp_path: Path) -> None:
@@ -699,7 +816,7 @@ ota:
       key: "{OLD_KEY}"
 """
     path = _setup(tmp_path, yaml_text)
-    apply_key_edits([*locate_key_edits(OLD_KEY, NEW_KEY), old_key_edit(OLD_KEY)])
+    apply_key_edits([*locate_key_edits(OLD_KEY, NEW_KEY), *old_key_edit(OLD_KEY)])
     assert path.read_text() == yaml_text.replace(
         f'      key: "{OLD_KEY}"\n',
         f'      key: "{NEW_KEY}"\n      old_key: "{OLD_KEY}"\n',

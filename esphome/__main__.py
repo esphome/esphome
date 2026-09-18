@@ -2250,7 +2250,7 @@ def command_rotate_key(args: ArgsProtocol, config: ConfigType) -> int | None:
     try:
         # The previous key stays in the config as old_key so an install still
         # reaches the device if it ends up running either key
-        edits = [*locate_key_edits(old_key, new_key), old_key_edit(old_key)]
+        edits = [*locate_key_edits(old_key, new_key), *old_key_edit(old_key)]
     except EsphomeError as err:
         return fail(str(err))
 

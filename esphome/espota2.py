@@ -939,9 +939,6 @@ class _DeadlineSocket:
         self._arm()
         self._sock.sendall(data)
 
-    def settimeout(self, timeout: float | None) -> None:
-        pass  # the deadline governs
-
     def setsockopt(self, level: int, optname: int, value: int) -> None:
         self._sock.setsockopt(level, optname, value)
 
@@ -981,14 +978,28 @@ def probe_ota_key(
                 session, _, _, _ = _negotiate_session(
                     _DeadlineSocket(sock, deadline), noise_psk, False, False
                 )
-                receive_exactly(session, 1, "auth", RESPONSE_AUTH_OK)
+                # A password challenge also proves the key: it comes encrypted
+                receive_exactly(
+                    session,
+                    1,
+                    "auth",
+                    [
+                        RESPONSE_REQUEST_AUTH,
+                        RESPONSE_REQUEST_SHA256_AUTH,
+                        RESPONSE_AUTH_OK,
+                    ],
+                )
             except (OTAKeyRejected, OTAEncryptionNotOffered) as err:
                 # Definitive for this address; every address gets one answer
                 last_error = str(err)
                 if not retry_rejected and attempts >= len(res):
                     break
-            except (OSError, OTAError) as err:
+            except (OSError, OTANetworkError) as err:
                 last_error = str(err)
+            except OTAError as err:
+                # The device answered and no retry changes its answer
+                last_error = str(err)
+                break
             else:
                 _LOGGER.info("Device %s accepted the key", sa[0])
                 return True
