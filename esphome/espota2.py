@@ -622,8 +622,9 @@ def perform_ota(
                 "The running firmware predates ESPHome 2026.9.0 or has no "
                 "'api: encryption: key'. With an api key, install once "
                 "without the 'ota: encryption:' block (that build offers "
-                "encryption), then restore it; otherwise flash by serial or "
-                "the web_server OTA platform."
+                f"encryption), then restore it; otherwise set '{CONF_ALLOW_PLAINTEXT_UPLOAD}: "
+                "true' under 'ota: encryption:' for this one install, or flash by "
+                "serial or the web_server OTA platform."
             )
     if noise_psk:
         # The prologue binds every negotiation byte both sides saw, so any
