@@ -214,9 +214,18 @@ class OTAEncryptionFallback(OTAError):
 # Uploader side option under `ota: encryption:`; the ota component imports the
 # name so the upload path never loads the component module
 CONF_ALLOW_PLAINTEXT_UPLOAD = "allow_plaintext_upload"
+# Remove before 2027.3.0: flip to False. Until then a block that does not set
+# the option still gets an unmigrated device its one plaintext install
+ALLOW_PLAINTEXT_UPLOAD_DEFAULT = True
 ALLOW_PLAINTEXT_UPLOAD_NOTICE = (
     f"'{CONF_ALLOW_PLAINTEXT_UPLOAD}' is set and this build offers encryption, "
     "so the next upload is encrypted and says when to remove the option."
+)
+# Remove before 2027.3.0
+ALLOW_PLAINTEXT_UPLOAD_DEFAULT_NOTICE = (
+    f"'{CONF_ALLOW_PLAINTEXT_UPLOAD}' is not set and defaults to true until "
+    "2027.3.0; this build offers encryption, so the next upload is encrypted. "
+    "Set it to false to refuse plaintext already."
 )
 # Logged only once the device is seen encrypting, so the migration install
 # itself is never nagged and the user learns exactly when removal is safe
@@ -530,7 +539,7 @@ def perform_ota(
     ota_type: int = OTA_TYPE_UPDATE_APP,
     noise_psk: str | None = None,
     plaintext_fallback: bool = False,
-    allow_plaintext_upload: bool = False,
+    allow_plaintext_upload: bool | None = False,
 ) -> None:
     # Validate up front; an out-of-range value would only surface as a
     # ValueError deep inside send_check, bypassing OTAError handling
@@ -595,16 +604,25 @@ def perform_ota(
     else:
         features = 0
 
+    # None follows the release default; only an explicit opt in is nagged
+    # about later, since only then is there something to remove
+    explicit_opt_in = allow_plaintext_upload is True
+    if allow_plaintext_upload is None:
+        allow_plaintext_upload = ALLOW_PLAINTEXT_UPLOAD_DEFAULT
     if noise_psk and not (extended_proto and features & SERVER_FEATURE_SUPPORTS_NOISE):
         # Remove before 2027.3.0: the fallback goes, the explicit opt in stays
         if allow_plaintext_upload or plaintext_fallback:
             # The running firmware cannot encrypt; it still gets this update,
             # and the build being sent offers encryption for the next one
+            if explicit_opt_in:
+                notice = ALLOW_PLAINTEXT_UPLOAD_NOTICE
+            elif allow_plaintext_upload:
+                notice = ALLOW_PLAINTEXT_UPLOAD_DEFAULT_NOTICE
+            else:
+                notice = PLAINTEXT_FALLBACK_NOTICE
             _LOGGER.warning(
                 "The device did not offer OTA encryption; continuing in plaintext. %s",
-                ALLOW_PLAINTEXT_UPLOAD_NOTICE
-                if allow_plaintext_upload
-                else PLAINTEXT_FALLBACK_NOTICE,
+                notice,
             )
             noise_psk = None
         else:
@@ -614,10 +632,10 @@ def perform_ota(
                 "An OTA encryption key is configured but the device did not "
                 "offer encryption; refusing to send the image in plaintext. "
                 "The running firmware predates ESPHome 2026.9.0 or has no "
-                "'api: encryption: key'. With an api key, install once "
-                "without the 'ota: encryption:' block (that build offers "
-                "encryption), then restore it; otherwise flash by serial or "
-                "the web_server OTA platform."
+                f"'api: encryption: key'. Set '{CONF_ALLOW_PLAINTEXT_UPLOAD}: "
+                "true' under 'ota: encryption:' to send this one install in "
+                "plaintext (the build it sends offers encryption), then remove "
+                "it; otherwise flash by serial or the web_server OTA platform."
             )
     if noise_psk:
         # The prologue binds every negotiation byte both sides saw, so any
@@ -641,7 +659,7 @@ def perform_ota(
                 raise OTAEncryptionFallback(str(err)) from err
             raise
         _LOGGER.info("Encrypted connection established")
-        if allow_plaintext_upload:
+        if explicit_opt_in:
             _LOGGER.warning(ALLOW_PLAINTEXT_UPLOAD_REMOVE_WARNING)
 
     if ota_type != OTA_TYPE_UPDATE_APP:
@@ -848,7 +866,7 @@ def run_ota_impl_(
     ota_type: int = OTA_TYPE_UPDATE_APP,
     noise_psk: str | None = None,
     plaintext_fallback: bool = False,
-    allow_plaintext_upload: bool = False,
+    allow_plaintext_upload: bool | None = False,
 ) -> tuple[int, str | None]:
     from esphome.core import CORE
 
@@ -966,7 +984,7 @@ def run_ota(
     ota_type: int = OTA_TYPE_UPDATE_APP,
     noise_psk: str | None = None,
     plaintext_fallback: bool = False,
-    allow_plaintext_upload: bool = False,
+    allow_plaintext_upload: bool | None = False,
 ) -> tuple[int, str | None]:
     try:
         return run_ota_impl_(

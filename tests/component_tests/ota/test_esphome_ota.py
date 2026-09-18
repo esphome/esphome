@@ -201,15 +201,14 @@ def test_encryption_without_any_key_rejected() -> None:
 
 
 def test_encryption_schema_allow_plaintext_upload() -> None:
-    """The opt in is an ota only option that defaults off; the shared api
-    schema does not know it."""
-    assert _encryption_schema(None) == {CONF_ALLOW_PLAINTEXT_UPLOAD: False}
+    """The opt in is an ota only option with no default, so a merged block
+    that does not mention it cannot clear it; the shared api schema does not
+    know it."""
+    assert _encryption_schema(None) == {}
     assert _encryption_schema({CONF_ALLOW_PLAINTEXT_UPLOAD: True}) == {
         CONF_ALLOW_PLAINTEXT_UPLOAD: True
     }
-    conf = _encryption_schema({CONF_KEY: API_KEY})
-    assert conf[CONF_KEY] == API_KEY
-    assert conf[CONF_ALLOW_PLAINTEXT_UPLOAD] is False
+    assert _encryption_schema({CONF_KEY: API_KEY}) == {CONF_KEY: API_KEY}
     with pytest.raises(cv.Invalid):
         encryption_schema({CONF_ALLOW_PLAINTEXT_UPLOAD: True})
 
@@ -505,6 +504,13 @@ def test_static_encryption_key() -> None:
             {"USE_OTA_ENCRYPTION", "USE_OTA_PASSWORD"},
             {"USE_OTA_ENCRYPTION_REQUIRED", "USE_OTA_ENCRYPTION_PROVISIONED"},
         ),
+        # The migration install keeps the password for the old firmware's
+        # prompt but the build it sends is authenticated by the key alone
+        (
+            "migration_password",
+            {"USE_OTA_ENCRYPTION", "USE_OTA_ENCRYPTION_REQUIRED"},
+            {"USE_OTA_PASSWORD", "USE_OTA_ENCRYPTION_PROVISIONED"},
+        ),
         # The ota encryption block is what makes the device refuse plaintext
         (
             "encryption_required",
@@ -563,6 +569,16 @@ def test_password_with_encryption_rejected() -> None:
     config = {CONF_PASSWORD: "pw", CONF_ENCRYPTION: {CONF_KEY: API_KEY}}
     with pytest.raises(cv.Invalid, match="cannot be combined"):
         _validate_no_password_with_encryption(config)
+
+
+def test_password_with_migration_install_accepted() -> None:
+    """The old firmware may still ask for the password on the plaintext
+    leg of the migration install."""
+    config = {
+        CONF_PASSWORD: "pw",
+        CONF_ENCRYPTION: {CONF_KEY: API_KEY, CONF_ALLOW_PLAINTEXT_UPLOAD: True},
+    }
+    assert _validate_no_password_with_encryption(config) is config
 
 
 def test_password_alone_accepted() -> None:

@@ -2154,7 +2154,7 @@ def test_upload_program_ota_encryption_key(
         OTA_TYPE_UPDATE_APP,
         key,
         plaintext_fallback=False,
-        allow_plaintext_upload=False,
+        allow_plaintext_upload=None,
     )
 
 
@@ -2174,6 +2174,7 @@ def test_upload_program_ota_allow_plaintext_upload(
             {
                 CONF_PLATFORM: CONF_ESPHOME,
                 CONF_PORT: 3232,
+                CONF_PASSWORD: "pw",
                 CONF_ENCRYPTION: {CONF_KEY: key, "allow_plaintext_upload": True},
             }
         ]
@@ -2181,6 +2182,7 @@ def test_upload_program_ota_allow_plaintext_upload(
     exit_code, _ = upload_program(config, MockArgs(), ["192.168.1.100"])
 
     assert exit_code == 0
+    assert mock_run_ota.call_args.args[2] == "pw"
     assert mock_run_ota.call_args.args[5] == key
     assert mock_run_ota.call_args.kwargs == {
         "plaintext_fallback": False,
