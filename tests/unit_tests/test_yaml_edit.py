@@ -315,8 +315,24 @@ def test_key_without_a_source_location(tmp_path: Path) -> None:
     """A raw config built in code has no ranges to edit from."""
     _setup(tmp_path, API_YAML)
     CORE.raw_config = {"api": {"encryption": {"key": OLD_KEY}}}
-    with pytest.raises(EsphomeError, match="no source location"):
+    with pytest.raises(EsphomeError, match="not found on a line"):
         locate_key_edits(OLD_KEY, NEW_KEY)
+
+
+def test_inherited_key_in_a_bare_block_is_not_a_line(tmp_path: Path) -> None:
+    """Final validate writes the api key into a bare ota block; that entry
+    has no line to rewrite and the api line is the only edit."""
+    path = _setup(tmp_path, API_YAML)
+    CORE.raw_config["ota"][0]["encryption"] = (
+        CORE.raw_config["ota"][0]["encryption"] or {}
+    )
+    CORE.raw_config["ota"][0]["encryption"]["key"] = OLD_KEY
+    edits = [*locate_key_edits(OLD_KEY, NEW_KEY), old_key_edit(OLD_KEY)]
+    assert [(e.line, e.insert_after) for e in edits] == [(5, False), (9, True)]
+    apply_key_edits(edits)
+    assert path.read_text() == (
+        API_YAML.replace(OLD_KEY, NEW_KEY) + f'      old_key: "{OLD_KEY}"\n'
+    )
 
 
 def test_values_replaced_by_validation_still_locate(tmp_path: Path) -> None:

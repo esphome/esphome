@@ -60,10 +60,14 @@ def _key_blocks(raw: ConfigType, key: str) -> list[ConfigType]:
     blocks = [raw.get(CONF_API) or {}]
     if (item := _esphome_ota_item(raw)) is not None:
         blocks.append(item)
+    # Validation writes the inherited api key into a bare ota block; only a
+    # `key:` that was read from a file has a range
     return [
         block[CONF_ENCRYPTION]
         for block in blocks
-        if (node := static_encryption_key(block)) is not None and str(node) == key
+        if (node := static_encryption_key(block)) is not None
+        and str(node) == key
+        and _source_of(block[CONF_ENCRYPTION], CONF_KEY) is not None
     ]
 
 
@@ -76,18 +80,20 @@ def _rewrite(match: re.Match[str], new_key: str) -> str:
     return f"{match.group(1)}{match.group(2)}{new_key}{match.group(2)}{match.group(3)}"
 
 
-def _editable_source(mapping: ConfigType, name: str) -> tuple[Path, int]:
-    """The file and line ``name:`` was read from; refuses uneditable sources.
-
-    Mapping keys keep their source range through validation, values may not.
-    """
-    rng = getattr(next(k for k in mapping if k == name), "esp_range", None)
+def _source_of(mapping: ConfigType, name: str) -> tuple[Path, int] | None:
+    """The file and line ``name:`` was read from, None when validation added
+    it. Mapping keys keep their range through validation, values may not."""
+    rng = getattr(next((k for k in mapping if k == name), None), "esp_range", None)
     if rng is None:
-        raise EsphomeError(
-            "The key has no source location; it comes from a package or "
-            "substitution that cannot be edited in place"
-        )
-    doc = Path(rng.start_mark.document)
+        return None
+    return Path(rng.start_mark.document), rng.start_mark.line
+
+
+def _editable_source(mapping: ConfigType, name: str) -> tuple[Path, int]:
+    """The file and line ``name:`` was read from; refuses uneditable sources."""
+    if (source := _source_of(mapping, name)) is None:
+        raise EsphomeError(f"'{name}' was not read from a file")
+    doc, line_no = source
     resolved = doc.resolve()
     if (
         not doc.is_file()
@@ -98,7 +104,7 @@ def _editable_source(mapping: ConfigType, name: str) -> tuple[Path, int]:
             f"The key comes from {doc}, which is not an editable file in the "
             "configuration directory"
         )
-    return doc, rng.start_mark.line
+    return doc, line_no
 
 
 def _secret_edit(doc: Path, name: str, old_key: str, new_key: str) -> KeyEdit:
@@ -126,7 +132,7 @@ def locate_key_edits(old_key: str, new_key: str) -> list[KeyEdit]:
     secret_re = re.compile(rf"^\s*{CONF_KEY}:\s*!secret\s+([^\s#]+)")
     blocks = _key_blocks(CORE.raw_config or {}, old_key)
     if not blocks:
-        raise EsphomeError("The current key was not found in the yaml")
+        raise EsphomeError("The current key was not found on a line of the yaml")
     edits: list[KeyEdit] = []
     for block in blocks:
         doc, line_no = _editable_source(block, CONF_KEY)
@@ -169,8 +175,8 @@ def old_key_edit(old_key: str) -> KeyEdit:
     # level below the `encryption:` key
     doc, line_no = _editable_source(item, CONF_ENCRYPTION)
     lines = _read_text(doc).splitlines()
-    if CONF_KEY in encryption:
-        _, key_line = _editable_source(encryption, CONF_KEY)
+    if (key_source := _source_of(encryption, CONF_KEY)) is not None:
+        _, key_line = key_source
         key_text = lines[key_line]
         indent = key_text[: len(key_text) - len(key_text.lstrip())]
         return KeyEdit(doc, key_line, f"{indent}{rendered}", insert_after=True)
