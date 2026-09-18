@@ -22,10 +22,6 @@ from esphome.yaml_edit import (
     restore_files,
     rewrite,
     rewritten_text,
-    secret_insert,
-    secret_line,
-    secret_rewrite,
-    secrets_path_for,
     source_line,
 )
 
@@ -129,21 +125,11 @@ def test_a_file_that_no_longer_loads_is_rolled_back(tmp_path: Path) -> None:
 
 def test_rollback_reports_a_restore_that_also_failed(tmp_path: Path) -> None:
     """The rewrite lands, the reload fails, and the rollback write fails too."""
-    from esphome.yaml_edit import write_file
-
     _setup(tmp_path, YAML)
     edit = _name_edit("garage")
-    writes: list[int] = []
-
-    def write_then_fail(*args: object, **kwargs: object) -> None:
-        writes.append(1)
-        if len(writes) > 1:
-            raise EsphomeError("disk")
-        write_file(*args, **kwargs)
-
     with (
         patch("esphome.yaml_util.load_yaml", side_effect=EsphomeError("broken")),
-        patch("esphome.yaml_edit.write_file", side_effect=write_then_fail),
+        patch("pathlib.Path.chmod", side_effect=[None, OSError("disk")]),
         pytest.raises(EsphomeError, match="broken; Could not restore .*disk"),
     ):
         apply_line_edits([edit])
@@ -174,7 +160,7 @@ def test_restore_reports_every_file_it_could_not_write(tmp_path: Path) -> None:
     with pytest.raises(
         EsphomeError, match="Could not restore .*gone.yaml: Error reading"
     ):
-        restore_files({tmp_path / "gone.yaml": Snapshot("x")})
+        restore_files({tmp_path / "gone.yaml": Snapshot("x", "x")})
 
 
 def test_restore_reports_a_cache_it_could_not_drop(tmp_path: Path) -> None:
@@ -186,7 +172,7 @@ def test_restore_reports_a_cache_it_could_not_drop(tmp_path: Path) -> None:
         ),
         pytest.raises(EsphomeError, match="Could not restore busy"),
     ):
-        restore_files({path: Snapshot(YAML)})
+        restore_files({path: Snapshot(YAML, YAML)})
 
 
 def test_clears_the_validated_cache(tmp_path: Path) -> None:
@@ -249,47 +235,19 @@ def test_symlinked_file_is_edited_at_its_target(tmp_path: Path) -> None:
     CORE.raw_config = yaml_util.load_yaml(CORE.config_path)
     edit = _name_edit("garage")
     assert edit.path == target.resolve()
+    # A hand-built edit through the link lands on the target as well
+    edit.path = CORE.config_path
     apply_line_edits([edit])
     assert CORE.config_path.is_symlink()
     assert "name: garage" in target.read_text()
+    edit.path = tmp_path.parent / "outside.yaml"
+    with pytest.raises(EsphomeError, match="not an editable file"):
+        apply_line_edits([edit])
 
 
-def test_secret_lines(tmp_path: Path) -> None:
-    """An indented root, `key :` spacing, quoted names and comments are all
-    matched; a block scalar is not a plain line."""
-    secrets = "  # keys\n  'wifi' : hunter2  # keep\n  device_key: >-\n    abc\n"
-    _setup(tmp_path, YAML, secrets)
-    path = secrets_path_for(CORE.config_path)
-    assert path == tmp_path / "secrets.yaml"
-    edit = secret_rewrite(path, "wifi", "swordfish", expect="hunter2")
-    assert (edit.line, edit.new_line) == (1, "  'wifi' : swordfish  # keep")
-    assert secret_rewrite(path, "wifi", "x", expect="other") is None
-    assert secret_rewrite(path, "device_key", "x") is None
-    assert secret_line(path, "missing") is None
-    insert = secret_insert(path, "wifi", "wifi_old", "hunter2")
-    assert (insert.line, insert.new_line, insert.insert_after) == (
-        1,
-        '  wifi_old: "hunter2"',
-        True,
-    )
-    with pytest.raises(EsphomeError, match="No plain 'device_key:' line"):
-        secret_insert(path, "device_key", "x", "y")
-    apply_line_edits([edit, insert])
-    assert path.read_text() == (
-        "  # keys\n  'wifi' : swordfish  # keep\n  wifi_old: \"hunter2\"\n  device_key: >-\n    abc\n"
-    )
-
-
-def test_secrets_path_beside_an_include_falls_back_to_the_main_one(
-    tmp_path: Path,
-) -> None:
-    _setup(tmp_path, YAML, "wifi: x\n")
-    include = tmp_path / "sub" / "part.yaml"
-    include.parent.mkdir()
-    assert secrets_path_for(include) == tmp_path / "secrets.yaml"
-    (include.parent / "secrets.yaml").write_bytes(b"wifi: y\n")
-    assert secrets_path_for(include) == include.parent / "secrets.yaml"
-    # The loader also falls back over a file beside the include that does
-    # not parse, so the edit must target the file the loader read
-    (include.parent / "secrets.yaml").write_bytes(b": :\n")
-    assert secrets_path_for(include) == tmp_path / "secrets.yaml"
+def test_a_comment_needs_whitespace_and_a_scalar_is_not_empty() -> None:
+    """`abc#def` is one value to the loader, and a bare `key:` heads a block."""
+    assert field_line_re("key", "abc").match("key: abc#def") is None
+    assert field_line_re("key").match("key:") is None
+    assert field_line_re("key").match("key: abc  # c")["trail"] == "  # c"
+    assert field_line_re("key", "abc#def").match("key: abc#def") is not None

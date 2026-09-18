@@ -9,16 +9,16 @@ from pathlib import Path
 import re
 import stat
 
+from esphome import compiled_config, yaml_util
 from esphome.core import CORE, EsphomeError
 from esphome.helpers import write_file
 from esphome.types import ConfigType
-from esphome.yaml_util import SECRET_YAML
 
-INDENT_RE = re.compile(r"\s*")
-# A plain scalar with no yaml indicator, so a block scalar (`>-`, `|`) or a
-# flow collection never counts; then optional matching quotes and the trailer
-PLAIN_SCALAR = r"[^\s#\"'>|&*!%@`\[\]{},]*"
-TRAILER = r"(?P<quote>[\"']?){value}(?P=quote)(?P<trail>\s*(?:#.*)?)$"
+# A plain scalar with no yaml indicator, so an empty value, a block scalar
+# (`>-`, `|`) or a flow collection never counts; then optional matching
+# quotes and the trailer, where a comment needs whitespace before its `#`
+PLAIN_SCALAR = r"[^\s#\"'>|&*!%@`\[\]{},]+"
+TRAILER = r"(?P<quote>[\"']?){value}(?P=quote)(?P<trail>(?:\s+#.*)?\s*)$"
 
 
 def read_text(path: Path) -> str:
@@ -47,27 +47,18 @@ class Snapshot:
     ``original`` back over ``written``, never over the user's own edit."""
 
     original: str
-    written: str | None = None
-
-    def __post_init__(self) -> None:
-        if self.written is None:
-            self.written = self.original
+    written: str
 
 
-def indent(text: str) -> str:
-    return INDENT_RE.match(text).group()
-
-
-def scalar_line_re(prefix: str, value: str | None = None) -> re.Pattern[str]:
-    """Match ``prefix`` followed by ``value``, or by any plain scalar, keeping
-    the prefix, the quotes and the trailer for rewrite."""
+def field_line_re(
+    name: str, value: str | None = None, indent: str = r"\s*"
+) -> re.Pattern[str]:
+    """Match ``name: value``, or ``name:`` with any plain scalar, at
+    ``indent``; the name may be quoted. Keeps the prefix, the quotes and the
+    trailer for rewrite."""
     scalar = PLAIN_SCALAR if value is None else re.escape(value)
+    prefix = rf"{indent}[\"']?{re.escape(name)}[\"']?\s*:\s*"
     return re.compile(rf"^(?P<prefix>{prefix}){TRAILER.format(value=scalar)}")
-
-
-def field_line_re(name: str, value: str | None = None) -> re.Pattern[str]:
-    """``name: value`` at any indent."""
-    return scalar_line_re(rf"\s*{re.escape(name)}\s*:\s*", value)
 
 
 def rewrite(match: re.Match[str], value: str, quote: str | None = None) -> str:
@@ -75,15 +66,6 @@ def rewrite(match: re.Match[str], value: str, quote: str | None = None) -> str:
     quotes stay unless ``quote`` is given."""
     quote = match["quote"] if quote is None else quote
     return f"{match['prefix']}{quote}{value}{quote}{match['trail']}"
-
-
-def root_indent(lines: list[str]) -> str:
-    """The indent of the first content line: a secrets file may indent its
-    whole root mapping."""
-    content = (
-        t for t in lines if t.strip() and not t.strip().startswith(("#", "---", "%"))
-    )
-    return next((indent(t) for t in content), "")
 
 
 def line_at(doc: Path, line_no: int) -> str:
@@ -127,72 +109,11 @@ def source_line(mapping: ConfigType, name: str) -> tuple[Path, int, str]:
     return doc, line_no, line_at(doc, line_no)
 
 
-def secrets_path_for(document: Path) -> Path:
-    """The secrets.yaml a ``!secret`` in ``document`` resolves against: the
-    one beside the document when it loads, else the main config's, the
-    way the loader falls back."""
-    from esphome import yaml_util
-
-    beside = document.parent / SECRET_YAML
-    if document == CORE.config_path:
-        return beside
+def write_keeping_mode(path: Path, text: str, like: Path | None = None) -> None:
+    """Write with the mode of ``like`` (default: the file itself) rather
+    than write_file's 0644; a 0600 secrets file stays 0600."""
     try:
-        yaml_util.load_yaml(beside, clear_secrets=False, track_document_range=False)
-    except EsphomeError:
-        return CORE.config_path.parent / SECRET_YAML
-    return beside
-
-
-def secret_line_re(indent_: str, name: str, value: str | None) -> re.Pattern[str]:
-    """The ``name:`` line of a secrets file whose root sits at ``indent_``."""
-    return scalar_line_re(
-        rf"{re.escape(indent_)}[\"']?{re.escape(name)}[\"']?\s*:\s*", value
-    )
-
-
-def secret_line(
-    secrets_path: Path, name: str, value: str | None = None
-) -> tuple[int, re.Match[str]] | None:
-    """The root level ``name:`` line, None when absent; the loader already
-    refused a duplicate key."""
-    lines = read_text(secrets_path).splitlines()
-    line_re = secret_line_re(root_indent(lines), name, value)
-    return next(
-        ((i, m) for i, text in enumerate(lines) if (m := line_re.match(text))), None
-    )
-
-
-def secret_rewrite(
-    secrets_path: Path, name: str, value: str, expect: str | None = None
-) -> LineEdit | None:
-    """Set the root level ``name:`` line to ``value``; None when the line
-    is not a plain scalar, or with ``expect``, does not hold it."""
-    if (hit := secret_line(secrets_path, name, expect)) is None:
-        return None
-    i, m = hit
-    return LineEdit(secrets_path, i, m.string, rewrite(m, value))
-
-
-def secret_insert(secrets_path: Path, after: str, name: str, value: str) -> LineEdit:
-    """Add ``name: value`` under the root level ``after`` line."""
-    if (hit := secret_line(secrets_path, after)) is None:
-        raise EsphomeError(
-            f"No plain '{after}:' line in {secrets_path}; edit it by hand"
-        )
-    i, m = hit
-    return LineEdit(
-        secrets_path,
-        i,
-        m.string,
-        f'{indent(m.string)}{name}: "{value}"',
-        insert_after=True,
-    )
-
-
-def write_keeping_mode(path: Path, text: str) -> None:
-    """secrets.yaml is often 0600; write_file would widen it to 0644."""
-    try:
-        mode = stat.S_IMODE(path.stat().st_mode)
+        mode = stat.S_IMODE((like or path).stat().st_mode)
         write_file(path, text, private=True)
         path.chmod(mode)
     except OSError as err:
@@ -203,6 +124,7 @@ def rewritten_text(original: str, edits: list[LineEdit]) -> str:
     """``original`` with the edits applied; every edit must still find the
     line it was located on."""
     lines = original.splitlines(keepends=True)
+    file_newline = "\r\n" if "\r\n" in original else "\n"
     # Highest line first, so an insertion never shifts a later edit; an
     # insertion after a line goes before that line's own rewrite
     for edit in sorted(edits, key=lambda e: (e.line, e.insert_after), reverse=True):
@@ -212,8 +134,7 @@ def rewritten_text(original: str, edits: list[LineEdit]) -> str:
         ending = lines[edit.line][len(text) :]
         if edit.insert_after:
             # A last line without a newline gets the file's own kind
-            nl = ending or ("\r\n" if "\r\n" in original else "\n")
-            lines[edit.line] = text + nl
+            lines[edit.line] = text + (ending or file_newline)
             lines.insert(edit.line + 1, edit.new_line + ending)
         else:
             lines[edit.line] = edit.new_line + ending
@@ -222,26 +143,27 @@ def rewritten_text(original: str, edits: list[LineEdit]) -> str:
 
 def apply_line_edits(edits: list[LineEdit]) -> dict[Path, Snapshot]:
     """Rewrite the located lines in place and return each touched file's
-    text before and after, for a rollback; a file that no longer loads is
-    undone here."""
-    from esphome import yaml_util
-    from esphome.compiled_config import invalidate_compiled_config
-
-    snapshots: dict[Path, Snapshot] = {}
+    text before and after, for a rollback. Every file is rewritten in
+    memory before any is written, so a stale line touches nothing; a file
+    that no longer loads is undone here."""
+    by_path: dict[Path, list[LineEdit]] = {}
+    for edit in edits:
+        # Resolved here as well, so a hand-built edit cannot reach a symlink
+        # itself or a file outside the configuration directory
+        by_path.setdefault(editable_file(edit.path), []).append(edit)
+    snapshots = {}
+    for path, own in by_path.items():
+        original = read_text(path)
+        snapshots[path] = Snapshot(original, rewritten_text(original, own))
     try:
-        for path in {edit.path for edit in edits}:
-            snapshots[path] = Snapshot(read_text(path))
         for path, snapshot in snapshots.items():
-            snapshot.written = rewritten_text(
-                snapshot.original, [e for e in edits if e.path == path]
-            )
             write_keeping_mode(path, snapshot.written)
         for path in snapshots:
             try:
                 yaml_util.load_yaml(path, track_document_range=False)
             except EsphomeError as err:
                 raise EsphomeError(f"{path} no longer loads: {err}") from err
-        invalidate_compiled_config()
+        compiled_config.invalidate_compiled_config()
     except BaseException as err:
         try:
             restore_files(snapshots)
@@ -255,8 +177,6 @@ def restore_files(snapshots: dict[Path, Snapshot]) -> None:
     """Put back the files apply_line_edits rewrote; every file is tried and
     the ones that failed, or that the user changed meanwhile, are reported
     together and left alone."""
-    from esphome.compiled_config import invalidate_compiled_config
-
     failed = []
     for path, snapshot in snapshots.items():
         try:
@@ -266,7 +186,7 @@ def restore_files(snapshots: dict[Path, Snapshot]) -> None:
         except EsphomeError as err:
             failed.append(f"{path}: {err}")
     try:
-        invalidate_compiled_config()
+        compiled_config.invalidate_compiled_config()
     except EsphomeError as err:
         failed.append(str(err))
     if failed:

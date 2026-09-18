@@ -5074,19 +5074,24 @@ def test_command_rename_keeps_line_endings_and_mode(
 
 
 @pytest.mark.parametrize(
-    "yaml_text",
+    ("yaml_text", "extra"),
     [
-        "esphome:\n  name: ${missing}\n",
-        "esphome: {name: oldname}\n",
+        ("esphome:\n  name: ${missing}\n", {}),
+        ("esphome: {name: oldname}\n", {}),
+        ("esphome: !include base.yaml\n", {"base.yaml": "name: oldname\n"}),
     ],
-    ids=["missing_substitution", "flow_mapping"],
+    ids=["missing_substitution", "flow_mapping", "included_name"],
 )
 def test_command_rename_refuses_shapes_without_a_plain_name_line(
     tmp_path: Path,
     capfd: CaptureFixture[str],
     mock_run_external_process: Mock,
     yaml_text: str,
+    extra: dict[str, str],
 ) -> None:
+    """The name line must be a plain value in the file being renamed."""
+    for name, text in extra.items():
+        (tmp_path / name).write_text(text)
     config_file = tmp_path / "oldname.yaml"
     config_file.write_text(yaml_text)
     setup_core(tmp_path=tmp_path)
@@ -5095,6 +5100,24 @@ def test_command_rename_refuses_shapes_without_a_plain_name_line(
     assert command_rename(MockArgs(name="newname", dashboard=False), {}) == 1
     mock_run_external_process.assert_not_called()
     assert "complex yaml" in capfd.readouterr().out.lower()
+
+
+def test_command_rename_removes_the_new_file_when_its_mode_cannot_be_set(
+    tmp_path: Path,
+    capfd: CaptureFixture[str],
+    mock_run_external_process: Mock,
+) -> None:
+    """No orphan is left for the next attempt to trip over."""
+    config_file = tmp_path / "oldname.yaml"
+    config_file.write_text("esphome:\n  name: oldname\n")
+    setup_core(tmp_path=tmp_path)
+    CORE.config_path = config_file
+    CORE.config = {CONF_ESPHOME: {CONF_NAME: "oldname"}}
+    with patch("pathlib.Path.chmod", side_effect=OSError("read-only share")):
+        assert command_rename(MockArgs(name="newname", dashboard=False), {}) == 1
+    assert not (tmp_path / "newname.yaml").exists()
+    mock_run_external_process.assert_not_called()
+    assert "Rename failed" in capfd.readouterr().out
 
 
 def test_command_rename_refuses_a_config_linked_from_outside(
@@ -5110,25 +5133,6 @@ def test_command_rename_refuses_a_config_linked_from_outside(
     config_file = config_dir / "oldname.yaml"
     config_file.symlink_to(outside)
     setup_core(tmp_path=config_dir)
-    CORE.config_path = config_file
-    CORE.config = {CONF_ESPHOME: {CONF_NAME: "oldname"}}
-    assert command_rename(MockArgs(name="newname", dashboard=False), {}) == 1
-    mock_run_external_process.assert_not_called()
-    assert "complex yaml" in capfd.readouterr().out.lower()
-
-
-def test_command_rename_refuses_a_name_from_an_include(
-    tmp_path: Path,
-    capfd: CaptureFixture[str],
-    mock_run_external_process: Mock,
-) -> None:
-    """The name line must be in the file being renamed."""
-    (tmp_path / "base.yaml").write_text("name: oldname\n")
-    config_file = tmp_path / "oldname.yaml"
-    config_file.write_text(
-        "esphome: !include base.yaml\n\nesp32:\n  board: nodemcu-32s\n"
-    )
-    setup_core(tmp_path=tmp_path)
     CORE.config_path = config_file
     CORE.config = {CONF_ESPHOME: {CONF_NAME: "oldname"}}
     assert command_rename(MockArgs(name="newname", dashboard=False), {}) == 1
