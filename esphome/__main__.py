@@ -2896,6 +2896,7 @@ def parse_args(argv):
             "Change the OTA encryption key over the air: write a new key to the "
             "yaml, build with it, upload with the current key, confirm."
         ),
+        parents=[mqtt_options],
     )
     parser_rotate_key.add_argument(
         "configuration", help="Your YAML configuration file.", nargs=1

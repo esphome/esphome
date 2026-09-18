@@ -547,6 +547,35 @@ nested:
     assert [(e.line, e.new_line) for e in edits] == [(3, f'"device_key": {NEW_KEY}')]
 
 
+def test_quoted_secret_reference(tmp_path: Path) -> None:
+    """`!secret "name"` is valid yaml; the quotes are not part of the name."""
+    _setup(
+        tmp_path,
+        SECRET_YAML.replace("!secret device_key", '!secret "device_key"'),
+        f"device_key: {OLD_KEY}\n",
+    )
+    edits = locate_key_edits(OLD_KEY, NEW_KEY)
+    assert [(e.path.name, e.new_line) for e in edits] == [
+        ("secrets.yaml", f"device_key: {NEW_KEY}")
+    ]
+
+
+def test_rolls_back_when_the_cache_cannot_be_dropped(tmp_path: Path) -> None:
+    from unittest.mock import patch
+
+    path = _setup(tmp_path, API_YAML)
+    edits = locate_key_edits(OLD_KEY, NEW_KEY)
+    with (
+        patch(
+            "esphome.compiled_config.invalidate_compiled_config",
+            side_effect=[EsphomeError("busy"), None],
+        ),
+        pytest.raises(EsphomeError, match="busy"),
+    ):
+        apply_key_edits(edits)
+    assert path.read_text() == API_YAML
+
+
 def test_rolls_back_on_an_interrupt_during_the_reload(tmp_path: Path) -> None:
     from unittest.mock import patch
 

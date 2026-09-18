@@ -760,6 +760,29 @@ def test_bare_block_refuses_a_device_that_cannot_encrypt(
     assert not any("Retrying in plaintext" in r.message for r in caplog.records)
 
 
+def test_probe_ota_key_recomputes_the_budget_after_connect() -> None:
+    """A slow connect leaves less for the handshake than the budget had."""
+    clock = [0.0]
+    with (
+        patch(
+            "esphome.espota2.resolve_ip_address",
+            return_value=[(2, 1, 0, "", ("127.0.0.1", 1))],
+        ),
+        patch("socket.socket") as sock_cls,
+        patch("time.sleep"),
+        patch("time.monotonic", side_effect=lambda: clock[0]),
+    ):
+        sock = sock_cls.return_value
+        sock.connect.side_effect = lambda _sa: clock.__setitem__(0, clock[0] + 0.4)
+        sock.recv.return_value = b""
+        assert espota2.probe_ota_key("h", 1, PSK, timeout=0.5) is False
+    connect_timeout, handshake_timeout = (
+        c.args[0] for c in sock.settimeout.call_args_list[:2]
+    )
+    assert connect_timeout == 0.5
+    assert handshake_timeout == pytest.approx(0.1)
+
+
 def test_probe_ota_key_never_waits_past_its_deadline() -> None:
     """Connect and handshake timeouts and the retry sleep are all capped by
     what is left of the budget."""

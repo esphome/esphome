@@ -939,11 +939,11 @@ def probe_ota_key(
         started = time.monotonic()
         sock = socket.socket(af, socktype)
         # A dead host must not eat the budget; the handshake is one round trip
-        remaining = max(0.1, deadline - started)
-        sock.settimeout(min(PROBE_CONNECT_TIMEOUT, remaining))
+        sock.settimeout(min(PROBE_CONNECT_TIMEOUT, max(0.1, deadline - started)))
         with contextlib.closing(sock):
             try:
                 sock.connect(sa)
+                remaining = max(0.1, deadline - time.monotonic())
                 sock.settimeout(min(PROBE_HANDSHAKE_TIMEOUT, remaining))
                 session, _, _, _ = _negotiate_session(sock, noise_psk, False, False)
                 receive_exactly(session, 1, "auth", RESPONSE_AUTH_OK)

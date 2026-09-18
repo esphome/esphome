@@ -8283,6 +8283,8 @@ def test_parse_args_rotate_key() -> None:
             "dev.local",
             "--prompt-new-key",
             "-y",
+            "--username",
+            "mqtt-user",
             "device.yaml",
         ]
     )
@@ -8290,6 +8292,8 @@ def test_parse_args_rotate_key() -> None:
     assert args.device == ["dev.local"]
     assert args.prompt_new_key is True
     assert args.yes is True
+    # MQTT device resolution reads these like upload does
+    assert args.username == "mqtt-user"
 
 
 def test_command_rotate_key_refuses_host(rotate_env: dict[str, Mock]) -> None:
