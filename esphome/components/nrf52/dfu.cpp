@@ -19,7 +19,7 @@ void DeviceFirmwareUpdate::setup() {
   if (this->reset_pin_ != nullptr) {
     this->reset_pin_->setup();
   }
-#if defined(CONFIG_CDC_ACM_DTE_RATE_CALLBACK_SUPPORT)
+#if defined(CONFIG_CDC_ACM_DTE_RATE_CALLBACK_SUPPORT) || defined(CONFIG_USB_DEVICE_STACK_NEXT)
   zephyr::global_cdc_acm->add_on_rate_callback([this](const device *, uint32_t rate) {
     if (rate == 1200) {
       volatile uint32_t *dbl_reset_mem = (volatile uint32_t *) 0x20007F7C;

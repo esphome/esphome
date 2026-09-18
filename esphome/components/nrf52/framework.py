@@ -26,17 +26,41 @@ from esphome.helpers import get_str_env
 _LOGGER = logging.getLogger(__name__)
 
 _REQUIREMENTS = Path(__file__).parent / "requirements.txt"
+# Zephyr SDK version used for sdk-nrf 2.x.x (Zephyr 3.x). Also exported
+# for the CI cache-key action (cache-sdk-nrf/action.yml).
 TOOLCHAIN_VERSION = "0.17.4"
+# sdk-nrf 3.x.x (Zephyr 4.x) requires SDK 1.0+ due to the sdk-ng
+# versioning change.
+_TOOLCHAIN_VERSION_V1 = "1.0.1"
+
+
+def _get_current_toolchain_version() -> str:
+    """Return the Zephyr SDK version compatible with the active framework."""
+    framework_ver = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
+    if framework_ver.major >= 3:
+        return _TOOLCHAIN_VERSION_V1
+    return TOOLCHAIN_VERSION
+
 
 # Packages the PlatformIO toolchain's Zephyr build script needs beyond west
 # (which comes from requirements.txt). Keep the pin in sync with
 # framework-sdk-nrf scripts/platformio/platformio-build.py.
 _PLATFORMIO_PENV_REQUIREMENTS: tuple[str, ...] = ("cbor2==5.6.5",)
 
+# SDK 0.x used "toolchain_<host>_arm-zephyr-eabi.<ext>" (no version in filename).
+# SDK 1.0+ unified the naming: "zephyr-sdk-<VERSION>_<host>_arm-zephyr-eabi.<ext>".
+# Both constants honour the same env-var override so mirror operators need only
+# one setting; the default URL differs by version.
 SDK_NG_TOOLCHAIN_MIRRORS = str_to_lst_of_str(
     os.environ.get(
         "ESPHOME_SDK_NG_TOOLCHAIN_MIRRORS",
         "https://github.com/zephyrproject-rtos/sdk-ng/releases/download/v{VERSION}/toolchain_{sysname}-{machine}_arm-zephyr-eabi.{extension}",
+    )
+)
+SDK_NG_TOOLCHAIN_V1_MIRRORS = str_to_lst_of_str(
+    os.environ.get(
+        "ESPHOME_SDK_NG_TOOLCHAIN_MIRRORS",
+        "https://github.com/zephyrproject-rtos/sdk-ng/releases/download/v{VERSION}/toolchain_gnu_{sysname}-{machine}_arm-zephyr-eabi.{extension}",
     )
 )
 
@@ -147,7 +171,9 @@ def get_build_env() -> dict:
     # "Zephyr-sdk_DIR" environment hint proved unreliable here: containerized
     # non-root builds failed to locate the SDK with it, while
     # ZEPHYR_SDK_INSTALL_DIR fixed the same invocation.
-    env["ZEPHYR_SDK_INSTALL_DIR"] = str(_get_toolchain_path(TOOLCHAIN_VERSION))
+    env["ZEPHYR_SDK_INSTALL_DIR"] = str(
+        _get_toolchain_path(_get_current_toolchain_version())
+    )
     return env
 
 
@@ -331,17 +357,18 @@ def check_and_install() -> None:
             raise EsphomeError(f"Install Zephyr requirements for {version} failure")
         zephyr_sentinel.touch()
 
-    toolchains_dir = _get_toolchain_path(TOOLCHAIN_VERSION)
+    toolchain_version = _get_current_toolchain_version()
+    toolchains_dir = _get_toolchain_path(toolchain_version)
     sentinel = toolchains_dir / ".ready"
     if not sentinel.exists():
-        rmdir(toolchains_dir, msg=f"Clean up {TOOLCHAIN_VERSION} toolchain environment")
+        rmdir(toolchains_dir, msg=f"Clean up {toolchain_version} toolchain environment")
         sysname, machine, extension = _get_toolchain_platform_info()
         with tempfile.NamedTemporaryFile() as tmp:
-            _LOGGER.info("Downloading Zephyr SDK %s minimal ...", TOOLCHAIN_VERSION)
+            _LOGGER.info("Downloading Zephyr SDK %s minimal ...", toolchain_version)
             download_from_mirrors(
                 SDK_NG_MINIMAL_MIRRORS,
                 {
-                    "VERSION": TOOLCHAIN_VERSION,
+                    "VERSION": toolchain_version,
                     "sysname": sysname,
                     "machine": machine,
                     "extension": extension,
@@ -350,20 +377,37 @@ def check_and_install() -> None:
             )
             archive_extract_all(tmp.file, toolchains_dir, progress_header="Extracting")
         with tempfile.NamedTemporaryFile() as tmp:
-            _LOGGER.info("Downloading %s toolchain ...", TOOLCHAIN_VERSION)
+            _LOGGER.info("Downloading %s toolchain ...", toolchain_version)
+            toolchain_mirrors = (
+                SDK_NG_TOOLCHAIN_V1_MIRRORS
+                if toolchain_version == _TOOLCHAIN_VERSION_V1
+                else SDK_NG_TOOLCHAIN_MIRRORS
+            )
             download_from_mirrors(
-                SDK_NG_TOOLCHAIN_MIRRORS,
+                toolchain_mirrors,
                 {
-                    "VERSION": TOOLCHAIN_VERSION,
+                    "VERSION": toolchain_version,
                     "sysname": sysname,
                     "machine": machine,
                     "extension": extension,
                 },
                 tmp.file,
             )
+            # SDK 0.x extracted the arm toolchain directly into
+            # toolchains/<ver>/arm-zephyr-eabi/. SDK 1.0+ reorganised
+            # toolchains under a gnu/ layer: CMake looks for
+            # toolchains/<ver>/gnu/arm-zephyr-eabi/. archive_extract_all
+            # strips the single common root (arm-zephyr-eabi/), so we
+            # must extract to gnu/arm-zephyr-eabi/ to land in the right
+            # place after stripping.
+            toolchain_extract_dir = (
+                toolchains_dir / "gnu" / "arm-zephyr-eabi"
+                if toolchain_version == _TOOLCHAIN_VERSION_V1
+                else toolchains_dir / "arm-zephyr-eabi"
+            )
             archive_extract_all(
                 tmp.file,
-                toolchains_dir / "arm-zephyr-eabi",
+                toolchain_extract_dir,
                 progress_header="Extracting",
             )
         sentinel.touch()
