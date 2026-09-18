@@ -561,13 +561,8 @@ def _negotiate_session(
     plaintext_fallback: bool,
     allow_plaintext_upload: bool,
 ) -> tuple[socket.socket | NoiseSocketWrapper, int, int, bool]:
-    """Magic, version and feature exchange, then the Noise handshake when a
-    key is given and the device offers.
-
-    Returns the socket to continue on (wrapped once encrypted), the protocol
-    version, the server feature flags and whether the extended protocol is
-    in use.
-    """
+    """Negotiate up to and including the Noise handshake; returns the socket
+    to continue on (wrapped once encrypted), version, features, extended."""
     # Enable nodelay, we need it for phase 1
     sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
     send_check(sock, MAGIC_BYTES, "magic bytes")
@@ -929,15 +924,9 @@ def probe_ota_key(
     timeout: float = PROBE_TIMEOUT,
     retry_rejected: bool = True,
 ) -> bool:
-    """Whether the device accepts a Noise handshake with the key.
-
-    Completes the handshake, reads the auth byte the device sends over the
-    encrypted channel and closes without sending an image. Transport faults
-    are retried until the deadline, since right after an upload the device
-    is still rebooting. A device that rejects the key or does not offer
-    encryption is retried too when ``retry_rejected`` is set, because the
-    old firmware may answer once more before the new one is up; a device in
-    steady state gives its final answer on the first attempt.
+    """Whether the device completes a Noise handshake with the key; no image
+    is sent. Retries until the deadline, a rejection too when
+    ``retry_rejected`` (the old firmware may answer once more after an upload).
     """
     res = _resolve_targets(remote_host, remote_port)
     if not res:
