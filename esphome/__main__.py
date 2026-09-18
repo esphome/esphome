@@ -2798,18 +2798,19 @@ def run_esphome(argv):
     # Taken out of the environment before any command runs, so no build
     # tool inherits a key a calling program handed over
     args.env_ota_key = os.environ.pop(ENV_OTA_KEY, None)
-    if args.env_ota_key is not None and args.command not in ("upload", "run"):
+    if args.command in ("upload", "run"):
+        # One key is one device's; several configs run in child processes
+        # that would never see it
+        if (args.env_ota_key is not None or args.prompt_ota_key) and len(
+            args.configuration
+        ) > 1:
+            raise EsphomeError(
+                f"--prompt-ota-key and {ENV_OTA_KEY} take one configuration; "
+                f"{len(args.configuration)} were given"
+            )
+    elif args.env_ota_key is not None:
         _LOGGER.warning(
             "%s is set but the %s command does not use it", ENV_OTA_KEY, args.command
-        )
-    # One key is one device's; several configs run in child processes that
-    # would never see it
-    if (args.env_ota_key is not None or getattr(args, "prompt_ota_key", False)) and len(
-        getattr(args, "configuration", []) or []
-    ) > 1:
-        raise EsphomeError(
-            f"--prompt-ota-key and {ENV_OTA_KEY} take one configuration; "
-            f"{len(args.configuration)} were given"
         )
     _warn_if_source_tree_mismatch()
 

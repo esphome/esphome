@@ -2439,6 +2439,22 @@ def test_run_esphome_refuses_one_key_for_several_configs(
         run_esphome(argv)
 
 
+def test_run_esphome_only_warns_for_a_command_with_one_string_config(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """The wizard takes one config as a string; only upload and run count."""
+    from esphome.__main__ import run_esphome
+
+    monkeypatch.setenv("ESPHOME_OTA_KEY", "x")
+    wizard = Mock(return_value=0)
+    with (
+        patch.dict("esphome.__main__.PRE_CONFIG_ACTIONS", {"wizard": wizard}),
+        caplog.at_level(logging.WARNING),
+    ):
+        assert run_esphome(["esphome", "wizard", "living-room.yaml"]) == 0
+    assert any("does not use it" in r.message for r in caplog.records)
+
+
 def test_run_esphome_scrubs_the_key_from_the_environment(
     monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ) -> None:
