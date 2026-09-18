@@ -2262,14 +2262,21 @@ def command_rotate_key(args: ArgsProtocol, config: ConfigType) -> int | None:
             "The api encryption key changes too; Home Assistant will ask for "
             "the new key after the install."
         )
-    if shared := sorted({path for edit in edits for path in edit.shared_with}):
+    shared: dict[str, set[str]] = {}
+    for edit in edits:
+        what = f"secret '{edit.secret}'" if edit.secret else edit.path.name
+        for path in edit.shared_with:
+            shared.setdefault(
+                str(path.relative_to(CORE.config_dir.resolve())), set()
+            ).add(what)
+    if shared:
         warnings.append(
-            "The secret is also used by "
-            + ", ".join(
-                str(path.relative_to(CORE.config_dir.resolve())) for path in shared
+            "Other configurations share what is rewritten: "
+            + "; ".join(
+                f"{p} ({', '.join(sorted(w))})" for p, w in sorted(shared.items())
             )
-            + "; those devices keep the previous key and get no old_key, so add "
-            "it there before their next install."
+            + ". Their devices keep the previous key until their next install; "
+            "make sure those configurations carry it as old_key."
         )
     if warnings:
         for warning in warnings:

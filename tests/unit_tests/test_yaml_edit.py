@@ -13,6 +13,7 @@ from esphome.compiled_config import compiled_config_path
 from esphome.config import do_substitution_pass
 from esphome.core import CORE, EsphomeError
 from esphome.yaml_edit import (
+    KeyEdit,
     apply_key_edits,
     locate_key_edits,
     old_key_edit,
@@ -20,6 +21,7 @@ from esphome.yaml_edit import (
 )
 
 OLD_KEY = "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="
+OLDER_KEY = "AgMEBQYHCAkKCwwNDg8QERITFBUWFxgZGhscHR4fICE="
 NEW_KEY = "AQIDBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyA="
 
 API_YAML = f"""esphome:
@@ -57,8 +59,15 @@ def _setup(tmp_path: Path, yaml_text: str, secrets: str | None = None) -> Path:
     CORE.config_path.write_bytes(yaml_text.encode())
     if secrets is not None:
         (tmp_path / "secrets.yaml").write_bytes(secrets.encode())
-    CORE.raw_config = yaml_util.load_yaml(CORE.config_path)
+    CORE.raw_config = do_substitution_pass(yaml_util.load_yaml(CORE.config_path), None)
     return CORE.config_path
+
+
+def _rotate() -> list[KeyEdit]:
+    """Locate and apply everything a rotation writes."""
+    edits = [*locate_key_edits(OLD_KEY, NEW_KEY), *old_key_edit(OLD_KEY)]
+    apply_key_edits(edits)
+    return edits
 
 
 def test_inline_api_key(tmp_path: Path) -> None:
@@ -131,7 +140,6 @@ ota:
 """
     _setup(tmp_path, yaml_text)
     # Includes are deferred until the substitution pass, as in read_config
-    CORE.raw_config = do_substitution_pass(CORE.raw_config, None)
     edits = locate_key_edits(OLD_KEY, NEW_KEY)
     assert [(e.path, e.line) for e in edits] == [(tmp_path / "api.yaml", 1)]
     apply_key_edits(edits)
@@ -182,7 +190,6 @@ ota:
 )
 def test_refuses_what_it_cannot_rewrite(tmp_path: Path, yaml_text: str) -> None:
     _setup(tmp_path, yaml_text)
-    CORE.raw_config = do_substitution_pass(CORE.raw_config, None)
     with pytest.raises(EsphomeError, match="edit the key by hand"):
         locate_key_edits(OLD_KEY, NEW_KEY)
 
@@ -263,7 +270,7 @@ ota:
     port: 3232
 """
     path = _setup(tmp_path, yaml_text)
-    apply_key_edits([*locate_key_edits(OLD_KEY, NEW_KEY), *old_key_edit(OLD_KEY)])
+    _rotate()
     assert path.read_text() == yaml_text.replace(
         f'      key: "{OLD_KEY}"\n',
         f'      key: "{NEW_KEY}"\n      old_key: "{OLD_KEY}"\n',
@@ -272,7 +279,6 @@ ota:
 
 def test_old_key_rewritten_when_present(tmp_path: Path) -> None:
     """A second rotation replaces the previous old_key in place."""
-    older = "AgMEBQYHCAkKCwwNDg8QERITFBUWFxgZGhscHR4fICE="
     yaml_text = f"""esphome:
   name: test
 
@@ -283,12 +289,12 @@ api:
 ota:
   - platform: esphome
     encryption:
-      old_key: '{older}'  # from the last rotation
+      old_key: '{OLDER_KEY}'  # from the last rotation
 """
     path = _setup(tmp_path, yaml_text)
-    apply_key_edits([*locate_key_edits(OLD_KEY, NEW_KEY), *old_key_edit(OLD_KEY)])
+    _rotate()
     assert path.read_text() == yaml_text.replace(OLD_KEY, NEW_KEY).replace(
-        older, OLD_KEY
+        OLDER_KEY, OLD_KEY
     )
 
 
@@ -303,7 +309,7 @@ ota:
     key: "{OLD_KEY}"
 """
     path = _setup(tmp_path, yaml_text)
-    apply_key_edits([*locate_key_edits(OLD_KEY, NEW_KEY), *old_key_edit(OLD_KEY)])
+    _rotate()
     assert path.read_text() == yaml_text.replace(OLD_KEY, NEW_KEY) + (
         f'    old_key: "{OLD_KEY}"\n'
     )
@@ -312,7 +318,7 @@ ota:
 def test_keeps_windows_line_endings_and_a_bare_last_line(tmp_path: Path) -> None:
     text = API_YAML.replace("\n", "\r\n").rstrip("\r\n")
     path = _setup(tmp_path, text)
-    apply_key_edits([*locate_key_edits(OLD_KEY, NEW_KEY), *old_key_edit(OLD_KEY)])
+    _rotate()
     assert (
         path.read_bytes()
         == (text.replace(OLD_KEY, NEW_KEY) + f'\r\n      old_key: "{OLD_KEY}"').encode()
@@ -365,7 +371,7 @@ def test_values_replaced_by_validation_still_locate(tmp_path: Path) -> None:
     api["key"] = str(api["key"])
     ota = CORE.raw_config["ota"][0]["encryption"]
     ota["old_key"] = str(ota["old_key"])
-    apply_key_edits([*locate_key_edits(OLD_KEY, NEW_KEY), *old_key_edit(OLD_KEY)])
+    _rotate()
     assert path.read_text() == yaml_text.replace(OLD_KEY, "TMP").replace(
         NEW_KEY, OLD_KEY
     ).replace("TMP", NEW_KEY)
@@ -389,7 +395,6 @@ ota:
     encryption:
 """,
     )
-    CORE.raw_config = do_substitution_pass(CORE.raw_config, None)
     with pytest.raises(EsphomeError, match="not an editable file"):
         locate_key_edits(OLD_KEY, NEW_KEY)
 
@@ -412,7 +417,6 @@ ota:
 """,
         f"device_key: {OLD_KEY}\n",
     )
-    CORE.raw_config = do_substitution_pass(CORE.raw_config, None)
     edits = locate_key_edits(OLD_KEY, NEW_KEY)
     assert [(e.path, e.line) for e in edits] == [(tmp_path / "secrets.yaml", 0)]
 
@@ -451,7 +455,6 @@ ota:
       old_key: ${{prev}}
 """,
     )
-    CORE.raw_config = do_substitution_pass(CORE.raw_config, None)
     with pytest.raises(EsphomeError, match="edit it by hand"):
         old_key_edit(OLD_KEY)
 
@@ -481,7 +484,7 @@ ota:
     encryption:
 """
     path = _setup(tmp_path, yaml_text)
-    apply_key_edits([*locate_key_edits(OLD_KEY, NEW_KEY), *old_key_edit(OLD_KEY)])
+    _rotate()
     assert path.read_text() == yaml_text.replace(OLD_KEY, NEW_KEY) + (
         f'      old_key: "{OLD_KEY}"\n'
     )
@@ -520,7 +523,7 @@ ota:
     port: 3232
 """
     path = _setup(tmp_path, yaml_text)
-    apply_key_edits([*locate_key_edits(OLD_KEY, NEW_KEY), *old_key_edit(OLD_KEY)])
+    _rotate()
     assert path.read_text() == yaml_text.replace(
         f'      key: "{OLD_KEY}"\n',
         f'      key: "{NEW_KEY}"\n      old_key: "{OLD_KEY}"\n',
@@ -605,7 +608,6 @@ def test_old_key_goes_into_the_included_block(tmp_path: Path) -> None:
         "esphome:\n  name: test\n\nota:\n  - platform: esphome\n"
         "    encryption: !include enc.yaml\n",
     )
-    CORE.raw_config = do_substitution_pass(CORE.raw_config, None)
     (edit,) = old_key_edit(OLD_KEY)
     assert (edit.path, edit.line, edit.insert_after) == (
         (tmp_path / "enc.yaml").resolve(),
@@ -667,14 +669,13 @@ def test_secret_key_keeps_the_previous_key_in_secrets(tmp_path: Path) -> None:
 
 def test_secret_old_key_rewritten_in_secrets(tmp_path: Path) -> None:
     """A second rotation replaces the value the `!secret` old_key points to."""
-    older = "AgMEBQYHCAkKCwwNDg8QERITFBUWFxgZGhscHR4fICE="
     yaml_text = SECRET_YAML.replace(
         "      key: !secret device_key\n",
         "      key: !secret device_key\n      old_key: !secret device_key_old\n",
     )
-    secrets = f"device_key: {OLD_KEY}\ndevice_key_old: '{older}'  # keep\n"
+    secrets = f"device_key: {OLD_KEY}\ndevice_key_old: '{OLDER_KEY}'  # keep\n"
     _setup(tmp_path, yaml_text, secrets)
-    apply_key_edits([*locate_key_edits(OLD_KEY, NEW_KEY), *old_key_edit(OLD_KEY)])
+    _rotate()
     assert CORE.config_path.read_text() == yaml_text
     assert (tmp_path / "secrets.yaml").read_text() == (
         f"device_key: {NEW_KEY}\ndevice_key_old: '{OLD_KEY}'  # keep\n"
@@ -687,7 +688,7 @@ def test_bare_block_with_a_secret_api_key(tmp_path: Path) -> None:
         "    encryption:\n      key: !secret device_key\n", "    encryption:\n"
     )
     _setup(tmp_path, yaml_text, f"device_key: {OLD_KEY}\n")
-    apply_key_edits([*locate_key_edits(OLD_KEY, NEW_KEY), *old_key_edit(OLD_KEY)])
+    _rotate()
     assert CORE.config_path.read_text() == yaml_text.replace(
         "    encryption:\n", "    encryption:\n      old_key: !secret device_key_old\n"
     )
@@ -717,7 +718,6 @@ def test_literal_key_in_a_shared_include_is_reported(tmp_path: Path) -> None:
         "esphome:\n  name: test\n\napi: !include common.yaml\n\n"
         "ota:\n  - platform: esphome\n    encryption:\n",
     )
-    CORE.raw_config = do_substitution_pass(CORE.raw_config, None)
     edits = locate_key_edits(OLD_KEY, NEW_KEY)
     assert [(e.path.name, e.shared_with) for e in edits] == [
         ("common.yaml", [tmp_path.resolve() / "other.yaml"])
@@ -748,7 +748,7 @@ def test_indented_secrets_root_and_space_before_colon(tmp_path: Path) -> None:
     valid yaml; the added line follows the root indent."""
     secrets = f"  wifi : hunter2\n  device_key : {OLD_KEY}\n"
     _setup(tmp_path, SECRET_YAML.replace("key: !secret", "key : !secret"), secrets)
-    apply_key_edits([*locate_key_edits(OLD_KEY, NEW_KEY), *old_key_edit(OLD_KEY)])
+    _rotate()
     assert (tmp_path / "secrets.yaml").read_text() == (
         f'  wifi : hunter2\n  device_key : {NEW_KEY}\n  device_key_old: "{OLD_KEY}"\n'
     )
@@ -762,7 +762,7 @@ def test_old_key_refuses_a_flow_style_key(tmp_path: Path) -> None:
         "esphome:\n  name: test\n\nota:\n  - platform: esphome\n"
         f'    encryption: {{key: "{OLD_KEY}"}}\n',
     )
-    with pytest.raises(EsphomeError, match="does not hold 'key'"):
+    with pytest.raises(EsphomeError, match="does not hold 'key:' as a block line"):
         old_key_edit(OLD_KEY)
 
 
@@ -790,23 +790,32 @@ def test_own_includes_and_similar_names_are_not_shared_users(tmp_path: Path) -> 
         "esphome:\n  name: test\n\napi: !include base.yaml\n\n"
         "ota:\n  - platform: esphome\n    encryption:\n",
     )
-    CORE.raw_config = do_substitution_pass(CORE.raw_config, None)
     edits = locate_key_edits(OLD_KEY, NEW_KEY)
     assert [(e.path.name, e.shared_with) for e in edits] == [("common.yaml", [])]
 
 
-def test_existing_old_secret_used_elsewhere_is_reported(tmp_path: Path) -> None:
-    """A `<name>_old` line another configuration uses is rewritten with a
-    warning, like the shared key itself."""
+def test_existing_old_secret_used_elsewhere_is_not_overwritten(
+    tmp_path: Path,
+) -> None:
+    """A `<name>_old` line this configuration does not use belongs to
+    whoever references it; a leftover nobody uses is reused."""
+    _setup(tmp_path, SECRET_YAML, f"device_key: {OLD_KEY}\ndevice_key_old: hunter2\n")
+    (edit, kept) = old_key_edit(OLD_KEY)
+    assert (kept.new_line, kept.shared_with) == (f"device_key_old: {OLD_KEY}", [])
     (tmp_path / "other.yaml").write_bytes(
         b"wifi:\n  password: !secret device_key_old\n"
     )
-    _setup(tmp_path, SECRET_YAML, f"device_key: {OLD_KEY}\ndevice_key_old: hunter2\n")
-    edits = old_key_edit(OLD_KEY)
-    assert [(e.new_line, e.shared_with) for e in edits] == [
-        ("      old_key: !secret device_key_old", []),
-        (f"device_key_old: {OLD_KEY}", [tmp_path.resolve() / "other.yaml"]),
-    ]
+    with pytest.raises(
+        EsphomeError, match="'device_key_old:' in .* is used by .*other.yaml"
+    ):
+        old_key_edit(OLD_KEY)
+
+
+def test_key_secret_with_a_folded_value_gets_no_old_line(tmp_path: Path) -> None:
+    """The `<name>_old` line goes under the key's own line, which must be plain."""
+    _setup(tmp_path, SECRET_YAML, f"device_key: >-\n  {OLD_KEY}\n")
+    with pytest.raises(EsphomeError, match="No plain 'device_key:' line"):
+        old_key_edit(OLD_KEY)
 
 
 def test_old_key_secret_with_a_folded_value_is_refused(tmp_path: Path) -> None:
@@ -878,7 +887,7 @@ ota:
       key: "{OLD_KEY}"
 """
     path = _setup(tmp_path, yaml_text)
-    apply_key_edits([*locate_key_edits(OLD_KEY, NEW_KEY), *old_key_edit(OLD_KEY)])
+    _rotate()
     assert path.read_text() == yaml_text.replace(
         f'      key: "{OLD_KEY}"\n',
         f'      key: "{NEW_KEY}"\n      old_key: "{OLD_KEY}"\n',
@@ -898,5 +907,7 @@ ota:
     encryption: {{}}
 """
     _setup(tmp_path, yaml_text)
-    with pytest.raises(EsphomeError, match="flow style"):
+    with pytest.raises(
+        EsphomeError, match="does not hold 'encryption:' as a block line"
+    ):
         old_key_edit(OLD_KEY)

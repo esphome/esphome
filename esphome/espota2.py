@@ -5,7 +5,6 @@ import contextlib
 import gzip
 import hashlib
 import io
-import itertools
 import logging
 from pathlib import Path
 import secrets
@@ -913,7 +912,7 @@ def _resolve_targets(remote_host: str | list[str], remote_port: int) -> list[Any
         )
         raise OTAError(err) from err
     if not res:
-        _LOGGER.error("No addresses to connect to for %s", remote_host)
+        raise OTAError(f"No addresses to connect to for {remote_host}")
     return res
 
 
@@ -959,14 +958,13 @@ def probe_ota_key(
     ``retry_rejected`` (the old firmware may answer once more after an upload).
     """
     res = _resolve_targets(remote_host, remote_port)
-    if not res:
-        raise OTAError(f"No addresses to connect to for {remote_host}")
     deadline = time.monotonic() + timeout
-    addresses = itertools.cycle(res)
     attempts = 0
+    answered: set[int] = set()  # addresses whose answer no retry changes
     last_error = "no time left"
     while (remaining := deadline - time.monotonic()) > 0:
-        af, socktype, _, _, sa = next(addresses)
+        index = attempts % len(res)
+        af, socktype, _, _, sa = res[index]
         attempts += 1
         started = time.monotonic()
         sock = socket.socket(af, socktype)
@@ -990,21 +988,21 @@ def probe_ota_key(
                     ],
                 )
             except (OTAKeyRejected, OTAEncryptionNotOffered) as err:
-                # Definitive for this address; every address gets one answer
                 last_error = str(err)
-                if not retry_rejected and attempts >= len(res):
-                    break
+                if not retry_rejected:
+                    answered.add(index)
             except (OSError, OTANetworkError) as err:
                 last_error = str(err)
             except OTAError as err:
-                # The device answered and no retry changes its answer
                 last_error = str(err)
-                break
+                answered.add(index)
             else:
                 _LOGGER.info("Device %s accepted the key", sa[0])
                 return True
+        # A stale cached address must not answer for the device: every
+        # address gets its own final say
         now = time.monotonic()
-        if now >= deadline:
+        if len(answered) == len(res) or now >= deadline:
             break
         _LOGGER.debug("Key not accepted yet (%s); retrying", last_error)
         if attempts % len(res):
@@ -1027,8 +1025,6 @@ def run_ota_impl_(
     on_connect: Callable[[], None] | None = None,
 ) -> tuple[int, str | None]:
     res = _resolve_targets(remote_host, remote_port)
-    if not res:
-        return 1, None
 
     # Every address is tried at least once and EXTRA_UPLOAD_ATTEMPTS retries
     # are shared across the addresses, cycling through them. Wait before an

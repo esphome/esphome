@@ -5,6 +5,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 import logging
+import os
 from pathlib import Path
 import re
 import stat
@@ -45,7 +46,9 @@ class KeyEdit:
     old_line: str
     new_line: str
     insert_after: bool = False
-    # Other configurations that use the rewritten secret
+    # The secrets file name this line holds, when it is one
+    secret: str | None = None
+    # Other configurations that use the rewritten secret or include
     shared_with: list[Path] = field(default_factory=list)
 
 
@@ -186,12 +189,14 @@ def _editable_file(path: Path) -> Path:
     return resolved
 
 
-def _editable_source(mapping: ConfigType, name: str) -> tuple[Path, int]:
-    """The file and line ``name:`` was read from; refuses uneditable sources."""
+def _source_line(mapping: ConfigType, name: str) -> tuple[Path, int, str]:
+    """The file, line number and text ``name:`` was read from; refuses a
+    source that was not read from an editable file."""
     if (source := _source_of(mapping, name)) is None:
         raise EsphomeError(f"'{name}' was not read from a file")
     doc, line_no = source
-    return _editable_file(doc), line_no
+    doc = _editable_file(doc)
+    return doc, line_no, _line_at(doc, line_no)
 
 
 def _write_keeping_mode(path: Path, text: str) -> None:
@@ -207,25 +212,46 @@ def _write_keeping_mode(path: Path, text: str) -> None:
         raise EsphomeError(f"Could not keep the mode of {path}: {err}") from err
 
 
-def _files_referencing(ref: re.Pattern[str], own: set[Path]) -> list[Path]:
-    """Yaml files in the configuration directory, outside ``own`` and the
-    build data, whose text matches ``ref``; the scan only feeds a warning,
-    so a file that cannot be read is skipped."""
+def _other_config_texts(own: set[Path]) -> list[tuple[Path, str]]:
+    """Every yaml file in the configuration directory outside ``own`` and
+    the build data, with its text; a file that cannot be read is skipped,
+    the scan only feeds a warning."""
     data_dir = CORE.data_dir.resolve()
-    hits = []
-    for path in CORE.config_dir.resolve().rglob("*"):
-        if path.suffix not in _YAML_SUFFIXES or path in own:
-            continue
-        if path.is_relative_to(data_dir) or not path.is_file():
-            continue
-        try:
-            text = _read_text(path)
-        except EsphomeError as err:
-            _LOGGER.debug("Skipping %s: %s", path, err)
-            continue
-        if ref.search(text):
-            hits.append(path)
-    return sorted(hits)
+    found = []
+    for dirpath, dirnames, filenames in os.walk(CORE.config_dir.resolve()):
+        dirnames[:] = [d for d in dirnames if Path(dirpath, d) != data_dir]
+        for filename in filenames:
+            path = Path(dirpath, filename)
+            if path.suffix not in _YAML_SUFFIXES or path in own:
+                continue
+            try:
+                found.append((path, _read_text(path)))
+            except EsphomeError as err:
+                _LOGGER.debug("Skipping %s: %s", path, err)
+    return sorted(found)
+
+
+def _with_sharers(edits: list[KeyEdit]) -> list[KeyEdit]:
+    """Fill in the other configurations each rewritten line serves: users of
+    its secret, or of the include it sits in; an added line serves none."""
+    main = CORE.config_path.resolve()
+    refs = {
+        id(edit): _secret_use_re(edit.secret)
+        if edit.secret
+        else _file_use_re(edit.path.name)
+        for edit in edits
+        if not edit.insert_after and (edit.secret or edit.path != main)
+    }
+    if refs:
+        texts = _other_config_texts(_own_documents())
+        for edit in edits:
+            if (ref := refs.get(id(edit))) is not None:
+                edit.shared_with = [path for path, text in texts if ref.search(text)]
+    return edits
+
+
+def _secret_file(doc: Path) -> Path:
+    return _editable_file(secrets_path_for(doc))
 
 
 def _secret_line(
@@ -240,51 +266,29 @@ def _secret_line(
     )
 
 
-def _secret_edit(
-    doc: Path, name: str, old_key: str, new_key: str, own: set[Path]
-) -> KeyEdit:
-    """The secrets.yaml line ``!secret name`` in ``doc`` resolves to; notes
-    the other configurations that share it, since their devices keep the
-    previous key and get no old_key."""
-    secrets_path = _editable_file(secrets_path_for(doc))
-    if (hit := _secret_line(secrets_path, name, old_key)) is None:
-        raise EsphomeError(f"No '{name}:' line with the current key in {secrets_path}")
+def _secret_rewrite(
+    secrets_path: Path, name: str, value: str, expect: str | None = None
+) -> KeyEdit | None:
+    """Set the root level ``name:`` line to ``value``; None when the line
+    is not a plain scalar, or with ``expect``, does not hold it."""
+    if (hit := _secret_line(secrets_path, name, expect)) is None:
+        return None
     i, m = hit
-    return KeyEdit(
-        secrets_path,
-        i,
-        m.string,
-        _rewrite(m, new_key),
-        shared_with=_files_referencing(_secret_use_re(name), own),
-    )
+    return KeyEdit(secrets_path, i, m.string, _rewrite(m, value), secret=name)
 
 
-def _old_secret_edit(
-    doc: Path, name: str, old_key: str, own: set[Path], after: str | None = None
-) -> KeyEdit:
-    """Keep the previous key in the secrets file as ``name``: rewritten in
-    place, noting other configurations that use it, or added under the
-    ``after`` line it came from."""
-    secrets_path = _editable_file(secrets_path_for(doc))
-    if (hit := _secret_line(secrets_path, name)) is not None:
-        i, m = hit
-        return KeyEdit(
-            secrets_path,
-            i,
-            m.string,
-            _rewrite(m, old_key),
-            shared_with=_files_referencing(_secret_use_re(name), own),
-        )
-    if after is None or (hit := _secret_line(secrets_path, after)) is None:
+def _secret_insert(secrets_path: Path, after: str, name: str, value: str) -> KeyEdit:
+    """Add ``name: value`` under the root level ``after`` line."""
+    if (hit := _secret_line(secrets_path, after)) is None:
         raise EsphomeError(
-            f"No plain '{after or name}:' line in {secrets_path}; edit it by hand"
+            f"No plain '{after}:' line in {secrets_path}; edit it by hand"
         )
     i, m = hit
     return KeyEdit(
         secrets_path,
         i,
         m.string,
-        f'{_indent(m.string)}{name}: "{old_key}"',
+        f'{_indent(m.string)}{name}: "{value}"',
         insert_after=True,
     )
 
@@ -296,19 +300,18 @@ def locate_key_edits(old_key: str, new_key: str) -> list[KeyEdit]:
     blocks = _key_blocks(CORE.raw_config or {}, old_key)
     if not blocks:
         raise EsphomeError("The current key was not found on a line of the yaml")
-    sources = [_editable_source(block, CONF_KEY) for block in blocks]
-    main = CORE.config_path.resolve()
-    own = _own_documents()
     edits: list[KeyEdit] = []
-    for doc, line_no in sources:
-        text = _line_at(doc, line_no)
+    for block in blocks:
+        doc, line_no, text = _source_line(block, CONF_KEY)
         if match := _KEY_SECRET_RE.match(text):
-            edit = _secret_edit(doc, match["name"], old_key, new_key, own)
+            name, secrets_path = match["name"], _secret_file(doc)
+            edit = _secret_rewrite(secrets_path, name, new_key, expect=old_key)
+            if edit is None:
+                raise EsphomeError(
+                    f"No '{name}:' line with the current key in {secrets_path}"
+                )
         elif match := literal_re.match(text):
             edit = KeyEdit(doc, line_no, text, _rewrite(match, new_key))
-            if doc != main:
-                # An include or local package may serve other configurations
-                edit.shared_with = _files_referencing(_file_use_re(doc.name), own)
         else:
             raise EsphomeError(
                 f"{doc}:{line_no + 1} does not hold the key as a plain value or "
@@ -317,14 +320,14 @@ def locate_key_edits(old_key: str, new_key: str) -> list[KeyEdit]:
         # The api and ota blocks may share one !secret line
         if edit not in edits:
             edits.append(edit)
-    return edits
+    return _with_sharers(edits)
 
 
 def _key_secret(old_key: str) -> tuple[Path, str] | None:
     """The file and name of a ``key: !secret name`` line holding the key."""
     for block in _key_blocks(CORE.raw_config or {}, old_key):
-        doc, line_no = _editable_source(block, CONF_KEY)
-        if match := _KEY_SECRET_RE.match(_line_at(doc, line_no)):
+        doc, _, text = _source_line(block, CONF_KEY)
+        if match := _KEY_SECRET_RE.match(text):
             return doc, match["name"]
     return None
 
@@ -355,49 +358,55 @@ def old_key_edit(old_key: str) -> list[KeyEdit]:
     )
     encryption = item[CONF_ENCRYPTION] or {}
     if (existing := encryption.get(CONF_OLD_KEY)) is not None:
-        doc, line_no = _editable_source(encryption, CONF_OLD_KEY)
-        text = _line_at(doc, line_no)
+        doc, line_no, text = _source_line(encryption, CONF_OLD_KEY)
         if match := _OLD_KEY_SECRET_RE.match(text):
-            return [_old_secret_edit(doc, match["name"], old_key, _own_documents())]
+            name, secrets_path = match["name"], _secret_file(doc)
+            if (edit := _secret_rewrite(secrets_path, name, old_key)) is None:
+                raise EsphomeError(
+                    f"No plain '{name}:' line in {secrets_path}; edit it by hand"
+                )
+            return _with_sharers([edit])
         match = _field_line_re(CONF_OLD_KEY, str(existing)).match(text)
         if match is None:
             raise EsphomeError(
                 f"{doc}:{line_no + 1} does not hold '{CONF_OLD_KEY}' as a plain "
                 "value; edit it by hand"
             )
-        return [KeyEdit(doc, line_no, text, _rewrite(match, old_key))]
+        return _with_sharers([KeyEdit(doc, line_no, text, _rewrite(match, old_key))])
     if (secret := _key_secret(old_key)) is None:
         rendered = f'{CONF_OLD_KEY}: "{old_key}"'
         extra = []
     else:
         secret_doc, name = secret
         rendered = f"{CONF_OLD_KEY}: !secret {name}_old"
-        extra = [
-            _old_secret_edit(
-                secret_doc, f"{name}_old", old_key, _own_documents(), after=name
-            )
-        ]
-    # The block's own key line sets the indent, in whichever file holds it
+        secrets_path = _secret_file(secret_doc)
+        # A `<name>_old` line this configuration does not use is a leftover
+        # of an earlier rotation, unless another configuration uses it
+        if (kept := _secret_rewrite(secrets_path, f"{name}_old", old_key)) is not None:
+            if users := _with_sharers([kept])[0].shared_with:
+                raise EsphomeError(
+                    f"'{name}_old:' in {secrets_path} is used by "
+                    + ", ".join(str(p) for p in users)
+                    + f"; rename it or add '{CONF_OLD_KEY}' by hand"
+                )
+            kept.shared_with = []
+        extra = [kept or _secret_insert(secrets_path, name, f"{name}_old", old_key)]
+    # The anchor sets the indent: the block's own key line, in whichever
+    # file holds it, else one level under a bare `encryption:` line
     if _source_of(encryption, CONF_KEY) is not None:
-        doc, line_no = _editable_source(encryption, CONF_KEY)
-        text = _line_at(doc, line_no)
-        if not _KEY_FIELD_RE.match(text):
-            raise EsphomeError(
-                f"{doc}:{line_no + 1} does not hold '{CONF_KEY}'; edit it by hand"
-            )
-        edit = KeyEdit(doc, line_no, text, _indent(text) + rendered, insert_after=True)
-        return [edit, *extra]
-    # A bare block indents one level below the `encryption:` key
-    doc, line_no = _editable_source(item, CONF_ENCRYPTION)
-    text = _line_at(doc, line_no)
-    if not _BARE_BLOCK_RE.match(text):
+        mapping, anchor, anchor_re, step = encryption, CONF_KEY, _KEY_FIELD_RE, ""
+    else:
+        mapping, anchor, anchor_re, step = item, CONF_ENCRYPTION, _BARE_BLOCK_RE, "  "
+    doc, line_no, text = _source_line(mapping, anchor)
+    if not anchor_re.match(text):
         raise EsphomeError(
-            f"{doc}:{line_no + 1} writes the block in flow style; edit it by hand"
+            f"{doc}:{line_no + 1} does not hold '{anchor}:' as a block line; "
+            "edit it by hand"
         )
     edit = KeyEdit(
-        doc, line_no, text, f"{_indent(text)}  {rendered}", insert_after=True
+        doc, line_no, text, f"{_indent(text)}{step}{rendered}", insert_after=True
     )
-    return [edit, *extra]
+    return _with_sharers([edit, *extra])
 
 
 def apply_key_edits(edits: list[KeyEdit]) -> dict[Path, str]:
@@ -408,7 +417,6 @@ def apply_key_edits(edits: list[KeyEdit]) -> dict[Path, str]:
 
     originals: dict[Path, str] = {}
     current: dict[Path, list[str]] = {}
-    newline: dict[Path, str] = {}
     try:
         # Highest line first, so an insertion never shifts a later edit; an
         # insertion after a line goes before that line's own rewrite
@@ -416,9 +424,7 @@ def apply_key_edits(edits: list[KeyEdit]) -> dict[Path, str]:
             if edit.path not in originals:
                 originals[edit.path] = _read_text(edit.path)
                 current[edit.path] = originals[edit.path].splitlines(keepends=True)
-                newline[edit.path] = "\r\n" if "\r\n" in originals[edit.path] else "\n"
             lines = current[edit.path]
-            nl = newline[edit.path]
             text = lines[edit.line].rstrip("\r\n") if edit.line < len(lines) else None
             if text != edit.old_line:
                 raise EsphomeError(
@@ -426,6 +432,8 @@ def apply_key_edits(edits: list[KeyEdit]) -> dict[Path, str]:
                 )
             ending = lines[edit.line][len(text) :]
             if edit.insert_after:
+                # A last line without a newline gets the file's own kind
+                nl = ending or ("\r\n" if "\r\n" in originals[edit.path] else "\n")
                 lines[edit.line] = text + nl
                 lines.insert(edit.line + 1, edit.new_line + ending)
             else:
