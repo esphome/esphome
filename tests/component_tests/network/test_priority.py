@@ -19,6 +19,7 @@ from esphome.components.network import (
 from esphome.const import CONF_PRIORITY, PlatformFramework
 from esphome.core import CORE
 import esphome.final_validate as fv
+from tests.component_tests.network import sdkconfig_option
 from tests.component_tests.types import SetCoreConfigCallable
 
 
@@ -217,13 +218,7 @@ def test_no_primary_interface_define_without_priority(
 
 
 def _dns_per_default_netif_option() -> bool | None:
-    from esphome.components.esp32.const import KEY_ESP32, KEY_SDKCONFIG_OPTIONS
-
-    if KEY_ESP32 not in CORE.data:  # non-ESP32 configs have no sdkconfig at all
-        return None
-    return CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS].get(
-        "CONFIG_ESP_NETIF_SET_DNS_PER_DEFAULT_NETIF"
-    )
+    return sdkconfig_option("CONFIG_ESP_NETIF_SET_DNS_PER_DEFAULT_NETIF")
 
 
 @pytest.mark.parametrize(
