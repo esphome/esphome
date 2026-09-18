@@ -2420,17 +2420,22 @@ def test_read_ota_key_without_ota_block_is_left_to_the_upload() -> None:
 
 
 def test_run_esphome_scrubs_the_key_from_the_environment(
-    monkeypatch: pytest.MonkeyPatch,
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ) -> None:
     """Every command takes the key out before any tool it runs could see it."""
     from esphome.__main__ import run_esphome
 
     monkeypatch.setenv("ESPHOME_OTA_KEY", "x")
     version = Mock(return_value=0)
-    with patch.dict("esphome.__main__.PRE_CONFIG_ACTIONS", {"version": version}):
+    with (
+        patch.dict("esphome.__main__.PRE_CONFIG_ACTIONS", {"version": version}),
+        caplog.at_level(logging.WARNING),
+    ):
         run_esphome(["esphome", "version"])
     assert "ESPHOME_OTA_KEY" not in os.environ
     assert version.call_args.args[0].env_ota_key == "x"
+    # A command that never uploads says so rather than dropping it silently
+    assert any("does not use it" in r.message for r in caplog.records)
 
 
 @pytest.mark.parametrize("line", ["", "not-base64"], ids=["empty", "invalid"])
@@ -2461,6 +2466,16 @@ def test_read_ota_key_rejects_bad_input(line: str) -> None:
     ],
     ids=["requested", "only_platform"],
 )
+def test_read_ota_key_reports_a_bad_platform_before_prompting() -> None:
+    args = MockArgs(prompt_ota_key=True, ota_platform=CONF_WEB_SERVER)
+    with (
+        patch("esphome.__main__.read_secret_line") as read,
+        pytest.raises(EsphomeError, match="only provides"),
+    ):
+        _read_ota_key(args, {CONF_OTA: [{CONF_PLATFORM: CONF_ESPHOME}]})
+    read.assert_not_called()
+
+
 def test_read_ota_key_refuses_web_server_platform(
     ota_platform: str | None, config: dict[str, Any]
 ) -> None:
