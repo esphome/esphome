@@ -8,7 +8,6 @@ import logging
 import os
 from pathlib import Path
 import re
-import stat
 import sys
 import time
 from typing import TYPE_CHECKING, Protocol
@@ -56,7 +55,7 @@ from esphome.const import (
 )
 from esphome.core import CORE, EsphomeError, coroutine
 from esphome.enum import StrEnum
-from esphome.helpers import get_bool_env, indent, is_ip_address, write_file
+from esphome.helpers import get_bool_env, indent, is_ip_address
 from esphome.log import AnsiFore, color, setup_log
 from esphome.stacktrace import LogLineProcessor
 from esphome.types import ConfigType
@@ -2089,6 +2088,7 @@ def command_rename(args: ArgsProtocol, config: ConfigType) -> int | None:
         rewrite,
         rewritten_text,
         source_line,
+        write_keeping_mode,
     )
 
     new_name = args.name
@@ -2103,37 +2103,42 @@ def command_rename(args: ArgsProtocol, config: ConfigType) -> int | None:
             )
             return 1
 
-    def complex_yaml() -> int:
+    yaml = yaml_util.load_yaml(CORE.config_path)
+
+    def name_edit() -> tuple[str, LineEdit]:
+        """The name and the line to rewrite: the name's own line, or the
+        substitution's line it comes from, as a plain value in this file."""
+        esphome_conf = yaml.get(CONF_ESPHOME)
+        if not isinstance(esphome_conf, dict) or CONF_NAME not in esphome_conf:
+            raise EsphomeError(f"no '{CONF_ESPHOME}: {CONF_NAME}:' in the file")
+        old_name = str(esphome_conf[CONF_NAME])
+        mapping, field = esphome_conf, CONF_NAME
+        if match := re.match(r"^\$\{?([a-zA-Z0-9_]+)\}?$", old_name):
+            mapping, field = yaml.get(CONF_SUBSTITUTIONS), match.group(1)
+            if not isinstance(mapping, dict) or field not in mapping:
+                raise EsphomeError(f"the substitution '{field}' is not in the file")
+            old_name = str(mapping[field])
+        doc, line_no, text = source_line(mapping, field)
+        line_match = field_line_re(field, old_name).match(text)
+        if doc != CORE.config_path.resolve() or line_match is None:
+            raise EsphomeError(
+                f"'{field}' is not a plain value on a line of {CORE.config_path}"
+            )
+        # The new value is always quoted, whatever the old line had
+        return old_name, LineEdit(
+            doc, line_no, text, rewrite(line_match, new_name, '"')
+        )
+
+    try:
+        old_name, edit = name_edit()
+    except EsphomeError as err:
         safe_print(
             color(
-                AnsiFore.BOLD_RED, "Complex YAML files cannot be automatically renamed."
+                AnsiFore.BOLD_RED,
+                f"Complex YAML files cannot be automatically renamed: {err}",
             )
         )
         return 1
-
-    yaml = yaml_util.load_yaml(CORE.config_path)
-    esphome_conf = yaml.get(CONF_ESPHOME)
-    if not isinstance(esphome_conf, dict) or CONF_NAME not in esphome_conf:
-        return complex_yaml()
-    old_name = esphome_conf[CONF_NAME]
-    # The name's own line, or the substitution's line it comes from; only a
-    # plain value on a line of this file can be rewritten
-    if match := re.match(r"^\$\{?([a-zA-Z0-9_]+)\}?$", str(old_name)):
-        mapping, field = yaml.get(CONF_SUBSTITUTIONS), match.group(1)
-        if not isinstance(mapping, dict) or field not in mapping:
-            return complex_yaml()
-        old_name = mapping[field]
-    else:
-        mapping, field = esphome_conf, CONF_NAME
-    try:
-        doc, line_no, text = source_line(mapping, field)
-    except EsphomeError:
-        return complex_yaml()
-    line_match = field_line_re(field, str(old_name)).match(text)
-    if doc != CORE.config_path.resolve() or line_match is None:
-        return complex_yaml()
-    # The new value is always quoted, whatever the old line had
-    edit = LineEdit(doc, line_no, text, rewrite(line_match, new_name, quote='"'))
 
     # ``new_name == old_name`` (after substitution resolution) is
     # a no-op rewrite that would still queue a pointless re-flash.
@@ -2174,11 +2179,16 @@ def command_rename(args: ArgsProtocol, config: ConfigType) -> int | None:
     )
     print()
 
-    source_mode = stat.S_IMODE(CORE.config_path.stat().st_mode)
-    write_file(
-        new_path, rewritten_text(read_text(CORE.config_path), [edit]), private=True
-    )
-    new_path.chmod(source_mode)
+    try:
+        write_keeping_mode(
+            new_path,
+            rewritten_text(read_text(CORE.config_path), [edit]),
+            like=CORE.config_path,
+        )
+    except EsphomeError as err:
+        new_path.unlink(missing_ok=True)
+        safe_print(color(AnsiFore.BOLD_RED, f"Rename failed: {err}"))
+        return 1
 
     rc = run_external_process(*ESPHOME_COMMAND, "config", str(new_path))
     if rc != 0:
