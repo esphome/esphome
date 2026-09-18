@@ -611,14 +611,16 @@ def perform_ota(
         else:
             # Fail closed: an attacker could otherwise strip the offer and
             # capture the image (wifi credentials, api key)
+            # Remove before 2027.3.0: installing without the block no longer
+            # falls back then; advise 'allow_plaintext_upload: true' instead
             raise OTAError(
                 "An OTA encryption key is configured but the device did not "
                 "offer encryption; refusing to send the image in plaintext. "
                 "The running firmware predates ESPHome 2026.9.0 or has no "
-                f"'api: encryption: key'. Set '{CONF_ALLOW_PLAINTEXT_UPLOAD}: "
-                "true' under 'ota: encryption:' to send this one install in "
-                "plaintext (the build it sends offers encryption), then remove "
-                "it; otherwise flash by serial or the web_server OTA platform."
+                "'api: encryption: key'. With an api key, install once "
+                "without the 'ota: encryption:' block (that build offers "
+                "encryption), then restore it; otherwise flash by serial or "
+                "the web_server OTA platform."
             )
     if noise_psk:
         # The prologue binds every negotiation byte both sides saw, so any
