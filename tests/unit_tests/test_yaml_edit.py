@@ -319,6 +319,23 @@ def test_key_without_a_source_location(tmp_path: Path) -> None:
         locate_key_edits(OLD_KEY, NEW_KEY)
 
 
+def test_values_replaced_by_validation_still_locate(tmp_path: Path) -> None:
+    """Validation may swap a value for a plain string; the mapping key keeps
+    the range the edit needs."""
+    yaml_text = API_YAML.replace(
+        "    encryption:\n", f'    encryption:\n      old_key: "{NEW_KEY}"\n', 1
+    )
+    path = _setup(tmp_path, yaml_text)
+    api = CORE.raw_config["api"]["encryption"]
+    api["key"] = str(api["key"])
+    ota = CORE.raw_config["ota"][0]["encryption"]
+    ota["old_key"] = str(ota["old_key"])
+    apply_key_edits([*locate_key_edits(OLD_KEY, NEW_KEY), old_key_edit(OLD_KEY)])
+    assert path.read_text() == yaml_text.replace(OLD_KEY, "TMP").replace(
+        NEW_KEY, OLD_KEY
+    ).replace("TMP", NEW_KEY)
+
+
 def test_key_from_the_data_dir_is_refused(tmp_path: Path) -> None:
     """Remote packages are checked out under .esphome and are not the user's."""
     from esphome.config import do_substitution_pass
