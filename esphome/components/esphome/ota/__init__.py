@@ -132,21 +132,6 @@ def ota_esphome_final_validate(config: ConfigType) -> None:
         _validate_no_password_with_encryption(ota_conf)
         if (encryption_conf := ota_conf.get(CONF_ENCRYPTION)) is not None:
             _resolve_encryption_key(encryption_conf, api_conf)
-            if (old_key := encryption_conf.get(CONF_OLD_KEY)) is not None:
-                if old_key == encryption_conf[CONF_KEY]:
-                    raise cv.Invalid(
-                        f"'{CONF_OLD_KEY}' is the same as '{CONF_KEY}'; remove "
-                        f"'{CONF_OLD_KEY}' once the device runs the new key"
-                    )
-                _LOGGER.warning(
-                    "'%s' is set under '%s' %s: an upload retries with it when "
-                    "the device rejects '%s'. Remove it once the device runs "
-                    "the new key",
-                    CONF_OLD_KEY,
-                    CONF_OTA,
-                    CONF_ENCRYPTION,
-                    CONF_KEY,
-                )
         elif CONF_PASSWORD in ota_conf and static_encryption_key(api_conf) is not None:
             _LOGGER.warning(
                 "'%s' %s wastes significant flash and RAM (about 3.5 KB and 60 "
@@ -223,7 +208,8 @@ def _resolve_encryption_key(encryption_conf: ConfigType, api_conf: ConfigType) -
     """Resolve the one encryption key per device into the ota block.
 
     An explicit ota key must match the api key, a bare block inherits it,
-    a runtime provisioned api key cannot be inherited.
+    a runtime provisioned api key cannot be inherited, and an old_key equal
+    to the resolved key is a leftover from a finished rotation.
     """
     api_key = api_conf.get(CONF_ENCRYPTION, {}).get(CONF_KEY)
     if ota_key := encryption_conf.get(CONF_KEY):
@@ -246,6 +232,11 @@ def _resolve_encryption_key(encryption_conf: ConfigType, api_conf: ConfigType) -
         )
     else:
         encryption_conf[CONF_KEY] = api_key
+    if encryption_conf.get(CONF_OLD_KEY) == encryption_conf[CONF_KEY]:
+        raise cv.Invalid(
+            f"'{CONF_OLD_KEY}' is the same as '{CONF_KEY}'; remove '{CONF_OLD_KEY}' "
+            "once the device runs the new key"
+        )
 
 
 # Uploader side options live only on the ota block; the api block keeps the
