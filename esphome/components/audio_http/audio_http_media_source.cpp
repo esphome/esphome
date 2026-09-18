@@ -39,7 +39,7 @@ void AudioHTTPMediaSource::dump_config() {
 
 void AudioHTTPMediaSource::setup() {
   this->disable_loop();
-  
+
   micro_decoder::DecoderConfig config;
   config.ring_buffer_size = this->buffer_size_;
   config.persistent_ring_buffer = this->persistent_ring_buffer_;
@@ -58,13 +58,13 @@ void AudioHTTPMediaSource::setup() {
     // micro-decoder verifies HTTPS against this PEM only, skipping the built-in certificate bundle.
     config.http_ca_certificate = this->http_ca_certificate_;
   }
-  
+
   this->decoder_ = std::make_unique<micro_decoder::DecoderSource>(config);
   if (this->decoder_ == nullptr) {
     ESP_LOGE(TAG, "Failed to allocate decoder");
     this->mark_failed();
     return;
-  }  
+  }
   this->decoder_->set_listener(this);  // We inherit from micro_decoder::DecoderListener
 }
 
@@ -79,25 +79,25 @@ bool AudioHTTPMediaSource::play_uri(const std::string &uri) {
   if (!this->is_ready() || this->is_failed() || this->status_has_error() || !this->has_listener()) {
     return false;
   }
-  
+
   // Check if source is already playing
   if (this->get_state() != media_source::MediaSourceState::IDLE) {
     ESP_LOGE(TAG, "Cannot play '%s': source is busy", uri.c_str());
     return false;
   }
-  
+
   // Validate URI starts with "http://" or "https://"
   if (!uri.starts_with(HTTP_URI_PREFIX) && !uri.starts_with(HTTPS_URI_PREFIX)) {
     ESP_LOGE(TAG, "Invalid URI: '%s'", uri.c_str());
     return false;
   }
-  
+
   if (this->decoder_->play_url(uri)) {
     this->pause_.store(false, std::memory_order_relaxed);
     this->enable_loop();
     return true;
   }
-  
+
   ESP_LOGE(TAG, "Failed to start playback of '%s'", uri.c_str());
   return false;
 }
