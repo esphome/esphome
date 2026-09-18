@@ -1224,7 +1224,8 @@ def upload_program(
     ota_key = getattr(args, "ota_key", None)
     if ota_key and port_type in (PortType.SERIAL, PortType.BOOTSEL):
         _LOGGER.warning(
-            "--prompt-ota-key only applies to network uploads; ignored for %s", host
+            "The presented OTA key only applies to network uploads; ignored for %s",
+            host,
         )
 
     platform_upload = platform_hooks.get_platform_hook(
@@ -1234,7 +1235,8 @@ def upload_program(
         if ota_key and port_type not in (PortType.SERIAL, PortType.BOOTSEL):
             # A platform's own network path (nrf52 mcumgr) has no key handshake
             _LOGGER.warning(
-                "--prompt-ota-key only applies to the %s OTA platform; ignored for %s",
+                "The presented OTA key only applies to the %s OTA platform; "
+                "ignored for %s",
                 CONF_ESPHOME,
                 host,
             )
@@ -1756,23 +1758,20 @@ ENV_OTA_KEY = "ESPHOME_OTA_KEY"
 
 
 def _read_ota_key(args: ArgsProtocol, config: ConfigType) -> None:
-    """Take the key to present to the device for this upload.
-
-    Asked for with --prompt-ota-key, or handed over by a trusted parent such
-    as the Device Builder in ESPHOME_OTA_KEY. Read before any compile so the
-    prompt is not buried after minutes of build output; the key stays in
-    memory, never reaches argv, and leaves the environment so no build tool
-    inherits it.
-    """
+    """Take the key to present to the device for this upload, from the
+    prompt or from ESPHOME_OTA_KEY, before any compile so the prompt is
+    not buried in build output."""
     prompt = getattr(args, "prompt_ota_key", False)
-    env_key = os.environ.pop(ENV_OTA_KEY, None)
-    if not prompt and not env_key:
+    env_key = getattr(args, "env_ota_key", None)
+    if not prompt and env_key is None:
         return
-    # The HTTP path has no key handshake; decide before prompting or compiling
-    if (
-        _choose_ota_platform(config, getattr(args, "ota_platform", None))
-        != CONF_ESPHOME
-    ):
+    # The HTTP path has no key handshake; decide before prompting or
+    # compiling. A config without OTA is a serial flash, which warns later.
+    try:
+        chosen = _choose_ota_platform(config, getattr(args, "ota_platform", None))
+    except EsphomeError:
+        chosen = None
+    if chosen == CONF_WEB_SERVER:
         raise EsphomeError(
             f"--prompt-ota-key and {ENV_OTA_KEY} only apply to the "
             f"{CONF_ESPHOME} OTA platform"
@@ -2782,6 +2781,9 @@ def run_esphome(argv):
     args = parse_args(argv)
     CORE.dashboard = args.dashboard
     CORE.testing_mode = args.testing_mode
+    # Taken out of the environment before any command runs, so no build
+    # tool inherits a key a calling program handed over
+    args.env_ota_key = os.environ.pop(ENV_OTA_KEY, None)
 
     # Create address cache from command-line arguments
     CORE.address_cache = AddressCache.from_cli_args(

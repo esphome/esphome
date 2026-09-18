@@ -1554,6 +1554,7 @@ class MockArgs:
     states: bool | None = None
     prompt_ota_key: bool = False
     ota_key: str | None = None
+    env_ota_key: str | None = None
 
 
 def test_upload_program_serial_esp32(
@@ -2360,31 +2361,55 @@ def test_read_ota_key_not_requested() -> None:
     assert args.ota_key is None
 
 
-def test_read_ota_key_from_environment(monkeypatch: pytest.MonkeyPatch) -> None:
-    """A calling program hands the key over in the environment; it is taken
-    out again so the build tools never inherit it."""
+def test_read_ota_key_from_environment() -> None:
+    """A calling program hands the key over in the environment."""
     key = "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="
-    monkeypatch.setenv("ESPHOME_OTA_KEY", key)
-    args = MockArgs()
+    args = MockArgs(env_ota_key=key)
     with patch("esphome.__main__.read_secret_line") as read:
         _read_ota_key(args, {CONF_OTA: [{CONF_PLATFORM: CONF_ESPHOME}]})
     read.assert_not_called()
     assert args.ota_key == key
-    assert "ESPHOME_OTA_KEY" not in os.environ
 
 
-def test_read_ota_key_prompt_wins_over_environment(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
+def test_read_ota_key_empty_environment_value_is_an_error() -> None:
+    """An exported empty value is a failed lookup upstream, not "unset"."""
+    args = MockArgs(env_ota_key="")
+    with pytest.raises(EsphomeError, match="Invalid OTA encryption key"):
+        _read_ota_key(args, {CONF_OTA: [{CONF_PLATFORM: CONF_ESPHOME}]})
+
+
+def test_read_ota_key_prompt_wins_over_environment() -> None:
     key = "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="
-    monkeypatch.setenv(
-        "ESPHOME_OTA_KEY", "AQIDBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyA="
+    args = MockArgs(
+        prompt_ota_key=True, env_ota_key="AQIDBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyA="
     )
-    args = MockArgs(prompt_ota_key=True)
     with patch("esphome.__main__.read_secret_line", return_value=key):
         _read_ota_key(args, {CONF_OTA: [{CONF_PLATFORM: CONF_ESPHOME}]})
     assert args.ota_key == key
+
+
+def test_read_ota_key_without_ota_block_is_left_to_the_upload() -> None:
+    """A serial flash config has no OTA; the key is ignored with a warning
+    at upload time instead of refusing here."""
+    key = "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="
+    args = MockArgs(prompt_ota_key=True)
+    with patch("esphome.__main__.read_secret_line", return_value=key):
+        _read_ota_key(args, {})
+    assert args.ota_key == key
+
+
+def test_run_esphome_scrubs_the_key_from_the_environment(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Every command takes the key out before any tool it runs could see it."""
+    from esphome.__main__ import run_esphome
+
+    monkeypatch.setenv("ESPHOME_OTA_KEY", "x")
+    version = Mock(return_value=0)
+    with patch.dict("esphome.__main__.PRE_CONFIG_ACTIONS", {"version": version}):
+        run_esphome(["esphome", "version"])
     assert "ESPHOME_OTA_KEY" not in os.environ
+    assert version.call_args.args[0].env_ota_key == "x"
 
 
 @pytest.mark.parametrize("line", ["", "not-base64"], ids=["empty", "invalid"])
