@@ -18,6 +18,7 @@ from esphome.__main__ import run_esphome
 from esphome.compiled_config import (
     _LAMBDA_KEY,
     compiled_config_path,
+    invalidate_compiled_config,
     load_compiled_config,
     save_compiled_config,
     save_compiled_config_and_sidecar,
@@ -937,3 +938,31 @@ def test_load_compiled_config_rejects_wizard_only_sidecar(
     _set_cache_mtime(cache_path, yaml_path, offset=5)
 
     assert load_compiled_config(yaml_path) is None
+
+
+def test_invalidate_compiled_config_reports_an_unlink_failure(
+    tmp_path: Path,
+) -> None:
+    """A cache that cannot be removed would keep serving the text before the edit."""
+    CORE.config_path = tmp_path / "test.yaml"
+    cache = compiled_config_path("test.yaml")
+    cache.parent.mkdir(parents=True)
+    cache.write_text("{}")
+    with (
+        patch("pathlib.Path.unlink", side_effect=OSError("busy")),
+        pytest.raises(EsphomeError, match="validated config cache"),
+    ):
+        invalidate_compiled_config()
+
+
+def test_invalidate_compiled_config_drops_every_cache(tmp_path: Path) -> None:
+    """Another configuration sharing the edited secrets.yaml or include has
+    a cache the mtime check would keep serving."""
+    CORE.config_path = tmp_path / "test.yaml"
+    storage = compiled_config_path("test.yaml").parent
+    storage.mkdir(parents=True)
+    for name in ("test.yaml", "other.yaml"):
+        (storage / f"{name}.validated.json").write_text("{}")
+    (storage / "other.json").write_text("{}")
+    invalidate_compiled_config()
+    assert sorted(p.name for p in storage.iterdir()) == ["other.json"]
