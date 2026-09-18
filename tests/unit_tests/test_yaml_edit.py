@@ -786,7 +786,7 @@ def test_restore_reports_a_missing_file(tmp_path: Path) -> None:
     with pytest.raises(
         EsphomeError, match="Could not restore .*gone.yaml: Error reading file"
     ):
-        restore_key_files({tmp_path / "gone.yaml": Snapshot("x")})
+        restore_key_files({tmp_path / "gone.yaml": Snapshot("x", "x")})
 
 
 def test_mode_failure_is_reported(tmp_path: Path) -> None:
@@ -832,7 +832,7 @@ def test_restore_reports_a_cache_it_could_not_drop(tmp_path: Path) -> None:
         ),
         pytest.raises(EsphomeError, match="Could not restore busy"),
     ):
-        restore_key_files({path: Snapshot(API_YAML)})
+        restore_key_files({path: Snapshot(API_YAML, API_YAML)})
 
 
 def test_own_includes_and_similar_names_are_not_shared_users(tmp_path: Path) -> None:
@@ -1011,3 +1011,25 @@ ota:
         EsphomeError, match="does not hold 'encryption:' as a block line"
     ):
         old_key_edit(OLD_KEY)
+
+
+def test_a_comment_needs_whitespace_and_a_scalar_is_not_empty() -> None:
+    """`abc#def` is one value to the loader, and a bare `key:` heads a block."""
+    assert yaml_edit._field_line_re("key", "abc").match("key: abc#def") is None
+    assert yaml_edit._field_line_re("key").match("key:") is None
+    assert yaml_edit._field_line_re("key", "abc#def").match("key: abc#def") is not None
+
+
+def test_secret_beside_a_symlinked_main_config(tmp_path: Path) -> None:
+    """The loader looks beside the config path as given, not its target."""
+    target = tmp_path / "shared" / "test.yaml"
+    target.parent.mkdir()
+    target.write_bytes(SECRET_YAML.encode())
+    (target.parent / "secrets.yaml").write_bytes(b"device_key: other\n")
+    (tmp_path / "secrets.yaml").write_bytes(f"device_key: {OLD_KEY}\n".encode())
+    CORE.reset()
+    CORE.config_path = tmp_path / "test.yaml"
+    CORE.config_path.symlink_to(target)
+    CORE.raw_config = yaml_util.load_yaml(CORE.config_path)
+    edits = locate_key_edits(OLD_KEY, NEW_KEY)
+    assert [e.path for e in edits] == [(tmp_path / "secrets.yaml").resolve()]

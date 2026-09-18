@@ -1110,9 +1110,11 @@ def secrets_path_for(document: Path) -> Path:
     """The secrets.yaml a ``!secret`` in ``document`` resolves against: the
     one beside the document when it loads, else the main config's, the
     way construct_secret falls back."""
+    # source ranges carry resolved paths; the loader looked beside the
+    # config path as given, a symlink included
+    if document.resolve() == CORE.config_path.resolve():
+        return CORE.config_path.parent / SECRET_YAML
     beside = document.parent / SECRET_YAML
-    if document == CORE.config_path:
-        return beside
     try:
         load_yaml(beside, clear_secrets=False, track_document_range=False)
     except EsphomeError:

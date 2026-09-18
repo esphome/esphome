@@ -10,6 +10,7 @@ from pathlib import Path
 import re
 import stat
 
+from esphome import compiled_config, yaml_util
 from esphome.components.noise import static_encryption_key
 from esphome.const import (
     CONF_API,
@@ -58,11 +59,7 @@ class Snapshot:
     ``original`` back over ``written``, never over the user's own edit."""
 
     original: str
-    written: str | None = None
-
-    def __post_init__(self) -> None:
-        if self.written is None:
-            self.written = self.original
+    written: str
 
 
 def _esphome_ota_items(raw: ConfigType) -> list[ConfigType]:
@@ -120,8 +117,10 @@ def _own_documents() -> set[Path]:
 _INDENT_RE = re.compile(r"\s*")
 # A plain scalar with no yaml indicator, so a block scalar (`>-`, `|`) or a
 # flow collection never counts; then optional matching quotes and the trailer
-_PLAIN_SCALAR = r"[^\s#\"'>|&*!%@`\[\]{},]*"
-_TRAILER = r"(?P<quote>[\"']?){value}(?P=quote)(?P<trail>\s*(?:#.*)?)$"
+# An empty value never counts either, and a comment needs whitespace before
+# its `#`, as the loader reads it
+_PLAIN_SCALAR = r"[^\s#\"'>|&*!%@`\[\]{},]+"
+_TRAILER = r"(?P<quote>[\"']?){value}(?P=quote)(?P<trail>(?:\s+#.*)?\s*)$"
 # `!secret name`, the name optionally quoted
 _SECRET_REF = r"!secret\s+(?P<q>[\"']?)(?P<name>[^\s#\"']+)(?P=q)"
 _KEY_SECRET_RE = re.compile(rf"^\s*{CONF_KEY}\s*:\s*{_SECRET_REF}")
@@ -135,23 +134,15 @@ def _indent(text: str) -> str:
     return _INDENT_RE.match(text).group()
 
 
-def _scalar_line_re(prefix: str, value: str | None = None) -> re.Pattern[str]:
-    """Match ``prefix`` followed by ``value``, or by any plain scalar, keeping
-    the prefix, the quotes and the trailer for _rewrite."""
+def _field_line_re(
+    name: str, value: str | None = None, indent: str = r"\s*"
+) -> re.Pattern[str]:
+    """Match ``name: value``, or ``name:`` with any plain scalar, at
+    ``indent``; the name may be quoted. Keeps the prefix, the quotes and the
+    trailer for _rewrite."""
     scalar = _PLAIN_SCALAR if value is None else re.escape(value)
+    prefix = rf"{indent}[\"']?{re.escape(name)}[\"']?\s*:\s*"
     return re.compile(rf"^(?P<prefix>{prefix}){_TRAILER.format(value=scalar)}")
-
-
-def _field_line_re(name: str, value: str) -> re.Pattern[str]:
-    """``name: value`` at any indent."""
-    return _scalar_line_re(rf"\s*{name}\s*:\s*", value)
-
-
-def _secret_line_re(indent: str, name: str, value: str | None) -> re.Pattern[str]:
-    """The ``name:`` line of a secrets file whose root sits at ``indent``."""
-    return _scalar_line_re(
-        rf"{re.escape(indent)}[\"']?{re.escape(name)}[\"']?\s*:\s*", value
-    )
 
 
 def _secret_use_re(name: str) -> re.Pattern[str]:
@@ -282,7 +273,7 @@ def _secret_line(
     """The root level ``name:`` line, None when absent; the loader already
     refused a duplicate key."""
     lines = _read_text(secrets_path).splitlines()
-    line_re = _secret_line_re(_root_indent(lines), name, value)
+    line_re = _field_line_re(name, value, re.escape(_root_indent(lines)))
     return next(
         ((i, m) for i, text in enumerate(lines) if (m := line_re.match(text))), None
     )
@@ -434,48 +425,50 @@ def old_key_edit(old_key: str) -> list[KeyEdit]:
     return _with_sharers([edit, *extra])
 
 
-def apply_key_edits(edits: list[KeyEdit]) -> dict[Path, Snapshot]:
-    """Rewrite the located lines and return each touched file's text before
-    and after, for a rollback; a file that no longer loads is undone here."""
-    from esphome import yaml_util
-    from esphome.compiled_config import invalidate_compiled_config
+def _rewritten_text(original: str, edits: list[KeyEdit]) -> str:
+    """``original`` with the edits applied; every edit must still find the
+    line it was located on."""
+    lines = original.splitlines(keepends=True)
+    file_newline = "\r\n" if "\r\n" in original else "\n"
+    # Highest line first, so an insertion never shifts a later edit; an
+    # insertion after a line goes before that line's own rewrite
+    for edit in sorted(edits, key=lambda e: (e.line, e.insert_after), reverse=True):
+        text = lines[edit.line].rstrip("\r\n") if edit.line < len(lines) else None
+        if text != edit.old_line:
+            raise EsphomeError(f"{edit.path}:{edit.line + 1} changed since it was read")
+        ending = lines[edit.line][len(text) :]
+        if edit.insert_after:
+            # A last line without a newline gets the file's own kind
+            lines[edit.line] = text + (ending or file_newline)
+            lines.insert(edit.line + 1, edit.new_line + ending)
+        else:
+            lines[edit.line] = edit.new_line + ending
+    return "".join(lines)
 
-    originals: dict[Path, Snapshot] = {}
-    current: dict[Path, list[str]] = {}
+
+def apply_key_edits(edits: list[KeyEdit]) -> dict[Path, Snapshot]:
+    """Rewrite the located lines in place and return each touched file's
+    text before and after, for a rollback. Every file is rewritten in
+    memory before any is written, so a stale line touches nothing; a file
+    that no longer loads is undone here."""
+    by_path: dict[Path, list[KeyEdit]] = {}
+    for edit in edits:
+        # Resolved here as well, so a hand-built edit cannot reach a symlink
+        # itself or a file outside the configuration directory
+        by_path.setdefault(_editable_file(edit.path), []).append(edit)
+    originals = {}
+    for path, own in by_path.items():
+        original = _read_text(path)
+        originals[path] = Snapshot(original, _rewritten_text(original, own))
     try:
-        # Highest line first, so an insertion never shifts a later edit; an
-        # insertion after a line goes before that line's own rewrite
-        for edit in sorted(edits, key=lambda e: (e.line, e.insert_after), reverse=True):
-            if edit.path not in originals:
-                originals[edit.path] = Snapshot(_read_text(edit.path))
-                current[edit.path] = originals[edit.path].original.splitlines(
-                    keepends=True
-                )
-            lines = current[edit.path]
-            text = lines[edit.line].rstrip("\r\n") if edit.line < len(lines) else None
-            if text != edit.old_line:
-                raise EsphomeError(
-                    f"{edit.path}:{edit.line + 1} changed since it was read"
-                )
-            ending = lines[edit.line][len(text) :]
-            if edit.insert_after:
-                # A last line without a newline gets the file's own kind
-                nl = ending or (
-                    "\r\n" if "\r\n" in originals[edit.path].original else "\n"
-                )
-                lines[edit.line] = text + nl
-                lines.insert(edit.line + 1, edit.new_line + ending)
-            else:
-                lines[edit.line] = edit.new_line + ending
-        for path, lines in current.items():
-            originals[path].written = "".join(lines)
-            _write_keeping_mode(path, originals[path].written)
+        for path, snapshot in originals.items():
+            _write_keeping_mode(path, snapshot.written)
         for path in originals:
             try:
                 yaml_util.load_yaml(path, track_document_range=False)
             except EsphomeError as err:
                 raise EsphomeError(f"{path} no longer loads: {err}") from err
-        invalidate_compiled_config()
+        compiled_config.invalidate_compiled_config()
     except BaseException as err:
         try:
             restore_key_files(originals)
@@ -489,8 +482,6 @@ def restore_key_files(originals: dict[Path, Snapshot]) -> None:
     """Put back the files apply_key_edits rewrote; every file is tried and
     the ones that failed, or that the user changed meanwhile, are reported
     together and left alone."""
-    from esphome.compiled_config import invalidate_compiled_config
-
     failed = []
     for path, snapshot in originals.items():
         try:
@@ -500,7 +491,7 @@ def restore_key_files(originals: dict[Path, Snapshot]) -> None:
         except EsphomeError as err:
             failed.append(f"{path}: {err}")
     try:
-        invalidate_compiled_config()
+        compiled_config.invalidate_compiled_config()
     except EsphomeError as err:
         failed.append(str(err))
     if failed:
