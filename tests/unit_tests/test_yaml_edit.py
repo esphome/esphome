@@ -605,6 +605,62 @@ def test_refuses_a_secrets_file_linked_outside_the_config_dir(
         locate_key_edits(OLD_KEY, NEW_KEY)
 
 
+def test_old_key_goes_into_the_included_block(tmp_path: Path) -> None:
+    """`encryption: !include enc.yaml` keeps the key in another file; old_key
+    is inserted after that file's key line, not at the same line number of
+    the main yaml."""
+    from esphome.config import do_substitution_pass
+
+    (tmp_path / "enc.yaml").write_bytes(f'key: "{OLD_KEY}"\n'.encode())
+    _setup(
+        tmp_path,
+        "esphome:\n  name: test\n\nota:\n  - platform: esphome\n"
+        "    encryption: !include enc.yaml\n",
+    )
+    CORE.raw_config = do_substitution_pass(CORE.raw_config, None)
+    edit = old_key_edit(OLD_KEY)
+    assert (edit.path, edit.line, edit.insert_after) == (
+        (tmp_path / "enc.yaml").resolve(),
+        0,
+        True,
+    )
+    assert edit.new_line == f'old_key: "{OLD_KEY}"'
+    apply_key_edits([*locate_key_edits(OLD_KEY, NEW_KEY), edit])
+    assert (tmp_path / "enc.yaml").read_text() == (
+        f'key: "{NEW_KEY}"\nold_key: "{OLD_KEY}"\n'
+    )
+
+
+def test_truncated_file_is_a_stale_edit(tmp_path: Path) -> None:
+    path = _setup(tmp_path, API_YAML)
+    edits = locate_key_edits(OLD_KEY, NEW_KEY)
+    path.write_bytes(b"esphome:\n  name: test\n")
+    with pytest.raises(EsphomeError, match="changed since it was read"):
+        apply_key_edits(edits)
+
+
+def test_secret_shared_with_other_configs_is_reported(tmp_path: Path) -> None:
+    """Other yaml files using the same secret are listed; this config's own
+    files, the build data and other secret names are not."""
+    (tmp_path / "other.yaml").write_bytes(
+        b"api:\n  encryption:\n    key: !secret device_key\n"
+    )
+    (tmp_path / "quoted.yaml").write_bytes(
+        b'ota:\n  - platform: esphome\n    encryption:\n      key: !secret "device_key"\n'
+    )
+    (tmp_path / "unrelated.yaml").write_bytes(
+        b"wifi:\n  password: !secret device_key_old\n"
+    )
+    build = tmp_path / ".esphome" / "build"
+    build.mkdir(parents=True)
+    (build / "copy.yaml").write_bytes(b"key: !secret device_key\n")
+    _setup(tmp_path, SECRET_YAML, f"device_key: {OLD_KEY}\ndevice_key_old: x\n")
+    edits = locate_key_edits(OLD_KEY, NEW_KEY)
+    assert [e.shared_with for e in edits] == [
+        [tmp_path.resolve() / "other.yaml", tmp_path.resolve() / "quoted.yaml"]
+    ]
+
+
 def test_rolls_back_when_the_cache_cannot_be_dropped(tmp_path: Path) -> None:
     from unittest.mock import patch
 

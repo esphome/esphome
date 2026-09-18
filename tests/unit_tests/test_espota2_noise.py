@@ -805,6 +805,53 @@ def test_probe_ota_key_recomputes_the_budget_after_connect() -> None:
     assert handshake_timeout == pytest.approx(0.1)
 
 
+def test_probe_ota_key_tries_every_address_before_a_final_no() -> None:
+    """With retry_rejected off a rejection is final only once every resolved
+    address has answered; a stale cached IP must not veto the real device."""
+    session = Mock()
+    with (
+        patch(
+            "esphome.espota2.resolve_ip_address",
+            return_value=[
+                (2, 1, 0, "", ("10.0.0.1", 1)),
+                (2, 1, 0, "", ("10.0.0.2", 1)),
+            ],
+        ),
+        patch("socket.socket"),
+        patch(
+            "esphome.espota2._negotiate_session",
+            side_effect=[espota2.OTAKeyRejected("no"), (session, 2, 0, True)],
+        ) as negotiate,
+        patch("esphome.espota2.receive_exactly"),
+        patch("time.sleep") as sleep,
+    ):
+        assert espota2.probe_ota_key("h", 1, PSK, timeout=30, retry_rejected=False)
+    assert negotiate.call_count == 2
+    sleep.assert_not_called()
+
+
+def test_probe_ota_key_deadline_spans_the_whole_negotiation() -> None:
+    """Each read re-arms the timeout from what is left, so a slow peer
+    cannot stretch the probe one full timeout per read."""
+    clock = [0.0]
+    sock = Mock()
+
+    def slow_recv(_amount: int) -> bytes:
+        clock[0] += 0.3
+        return b"\x00\x02"
+
+    sock.recv.side_effect = slow_recv
+    with patch("time.monotonic", side_effect=lambda: clock[0]):
+        wrapped = espota2._DeadlineSocket(sock, 0.5)
+        wrapped.sendall(b"x")
+        assert wrapped.recv(2) == b"\x00\x02"
+        assert wrapped.recv(2) == b"\x00\x02"
+        with pytest.raises(TimeoutError):
+            wrapped.recv(1)
+    timeouts = [c.args[0] for c in sock.settimeout.call_args_list]
+    assert timeouts == [0.5, 0.5, pytest.approx(0.2)]
+
+
 def test_probe_ota_key_stops_when_connect_used_the_budget() -> None:
     """No handshake timeout is granted past the deadline."""
     clock = [0.0]

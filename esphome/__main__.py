@@ -2254,16 +2254,26 @@ def command_rotate_key(args: ArgsProtocol, config: ConfigType) -> int | None:
     except EsphomeError as err:
         return fail(str(err))
 
+    warnings = []
     # With the recommended shape the ota inherits the api key, so rotating
     # it changes what Home Assistant connects with
     if str(static_encryption_key(config.get(CONF_API) or {})) == old_key:
-        safe_print(
-            color(
-                AnsiFore.BOLD_YELLOW,
-                "The api encryption key changes too; Home Assistant will ask for "
-                "the new key after the install.",
-            )
+        warnings.append(
+            "The api encryption key changes too; Home Assistant will ask for "
+            "the new key after the install."
         )
+    if shared := sorted({path for edit in edits for path in edit.shared_with}):
+        warnings.append(
+            "The secret is also used by "
+            + ", ".join(
+                str(path.relative_to(CORE.config_dir.resolve())) for path in shared
+            )
+            + "; those devices keep the previous key and get no old_key, so add "
+            "it there before their next install."
+        )
+    if warnings:
+        for warning in warnings:
+            safe_print(color(AnsiFore.BOLD_YELLOW, warning))
         if not getattr(args, "yes", False):
             if not sys.stdin.isatty():
                 return fail("Confirm with --yes when there is no terminal")

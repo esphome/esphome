@@ -917,6 +917,38 @@ def _resolve_targets(remote_host: str | list[str], remote_port: int) -> list[Any
     return res
 
 
+class _DeadlineSocket:
+    """Re-arms the timeout before every operation so the whole negotiation,
+    not each read, ends by the deadline."""
+
+    def __init__(self, sock: socket.socket, deadline: float) -> None:
+        self._sock = sock
+        self._deadline = deadline
+
+    def _arm(self) -> None:
+        remaining = self._deadline - time.monotonic()
+        if remaining <= 0:
+            raise TimeoutError("probe deadline reached")
+        self._sock.settimeout(min(PROBE_HANDSHAKE_TIMEOUT, remaining))
+
+    def recv(self, amount: int) -> bytes:
+        self._arm()
+        return self._sock.recv(amount)
+
+    def sendall(self, data: bytes) -> None:
+        self._arm()
+        self._sock.sendall(data)
+
+    def settimeout(self, timeout: float | None) -> None:
+        pass  # the deadline governs
+
+    def setsockopt(self, level: int, optname: int, value: int) -> None:
+        self._sock.setsockopt(level, optname, value)
+
+    def close(self) -> None:
+        self._sock.close()
+
+
 def probe_ota_key(
     remote_host: str | list[str],
     remote_port: int,
@@ -934,25 +966,26 @@ def probe_ota_key(
         raise OTAError(f"No addresses to connect to for {remote_host}")
     deadline = time.monotonic() + timeout
     addresses = itertools.cycle(res)
+    attempts = 0
     last_error = "no time left"
     while (remaining := deadline - time.monotonic()) > 0:
         af, socktype, _, _, sa = next(addresses)
+        attempts += 1
         started = time.monotonic()
         sock = socket.socket(af, socktype)
-        # A dead host must not eat the budget; the handshake is one round trip
+        # A dead host must not eat the budget
         sock.settimeout(min(PROBE_CONNECT_TIMEOUT, remaining))
         with contextlib.closing(sock):
             try:
                 sock.connect(sa)
-                if (remaining := deadline - time.monotonic()) <= 0:
-                    last_error = "connected with no time left for the handshake"
-                    break
-                sock.settimeout(min(PROBE_HANDSHAKE_TIMEOUT, remaining))
-                session, _, _, _ = _negotiate_session(sock, noise_psk, False, False)
+                session, _, _, _ = _negotiate_session(
+                    _DeadlineSocket(sock, deadline), noise_psk, False, False
+                )
                 receive_exactly(session, 1, "auth", RESPONSE_AUTH_OK)
             except (OTAKeyRejected, OTAEncryptionNotOffered) as err:
+                # Definitive for this address; every address gets one answer
                 last_error = str(err)
-                if not retry_rejected:
+                if not retry_rejected and attempts >= len(res):
                     break
             except (OSError, OTAError) as err:
                 last_error = str(err)
@@ -962,6 +995,8 @@ def probe_ota_key(
         if time.monotonic() >= deadline:
             break
         _LOGGER.debug("Key not accepted yet (%s); retrying", last_error)
+        if attempts % len(res):
+            continue  # the next address is fresh; nothing to wait for
         now = time.monotonic()
         time.sleep(max(0.0, min(PROBE_RETRY_DELAY - (now - started), deadline - now)))
     _LOGGER.warning("The device did not accept the key: %s", last_error)

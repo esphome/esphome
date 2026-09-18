@@ -8130,6 +8130,22 @@ def test_command_rotate_key_declined(rotate_env: dict[str, Mock]) -> None:
     rotate_env["probe"].assert_not_called()
 
 
+def test_command_rotate_key_warns_about_a_shared_secret(
+    rotate_env: dict[str, Mock], capfd: pytest.CaptureFixture[str]
+) -> None:
+    """Other configurations using the rewritten secret are named before the
+    confirmation."""
+    from esphome.yaml_edit import KeyEdit
+
+    edit = KeyEdit(
+        CORE.config_path, 0, "x", "y", shared_with=[CORE.config_dir / "b.yaml"]
+    )
+    with patch("esphome.yaml_edit.locate_key_edits", return_value=[edit]):
+        rotate_env["confirm"].return_value = "n"
+        assert command_rotate_key(MockArgs(), CORE.config) == 1
+    assert "also used by b.yaml" in capfd.readouterr().out
+
+
 def test_command_rotate_key_no_terminal_needs_yes(
     rotate_env: dict[str, Mock],
 ) -> None:
