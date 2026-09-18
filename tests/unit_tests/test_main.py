@@ -8162,7 +8162,7 @@ def test_command_rotate_key_precheck_fails_writes_nothing(
     assert command_rotate_key(MockArgs(), CORE.config) == 1
     assert CORE.config_path.read_text() == ROTATE_API_YAML
     rotate_env["compile"].assert_not_called()
-    assert "did not accept the current key" in capfd.readouterr().out
+    assert "did not complete an encrypted handshake" in capfd.readouterr().out
 
 
 @pytest.mark.parametrize("step", ["compile", "interrupt"])
