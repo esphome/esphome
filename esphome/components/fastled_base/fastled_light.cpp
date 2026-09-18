@@ -9,8 +9,7 @@ static const char *const TAG = "fastled";
 
 void FastLEDLightOutput::setup() {
   this->controller_->init();
-  this->controller_->setLeds(this->leds_, this->num_leds_);
-  this->effect_data_ = new uint8_t[this->num_leds_];  // NOLINT
+  this->controller_->setLeds(this->led_data_, this->num_leds_);
   if (!this->max_refresh_rate_.has_value()) {
     this->set_max_refresh_rate(this->controller_->getMaxRefreshRate());
   }
@@ -18,11 +17,14 @@ void FastLEDLightOutput::setup() {
 void FastLEDLightOutput::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "FastLED light:\n"
-                "  Num LEDs: %u\n"
+                "  Number of LEDs: %u\n"
                 "  Max refresh rate: %" PRIu32,
                 this->num_leds_, this->max_refresh_rate_.value_or(0));
 }
 void FastLEDLightOutput::write_state(light::LightState *state) {
+  if (!this->is_ready()) {
+    return;
+  }
   // protect from refreshing too often
   uint32_t now = micros();
   uint32_t max_rate = this->max_refresh_rate_.value_or(0);
