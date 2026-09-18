@@ -18,7 +18,6 @@ from esphome.const import (
     CONF_DAYS_OF_WEEK,
     CONF_HOUR,
     CONF_HOURS,
-    CONF_ID,
     CONF_MINUTE,
     CONF_MINUTES,
     CONF_MONTHS,
@@ -469,7 +468,7 @@ async def to_code(config):
     cg.add_global(time_ns.using)
 
 
-@automation.register_condition(
+automation.register_simple_condition(
     "time.has_time",
     TimeHasTimeCondition,
     cv.Schema(
@@ -478,9 +477,6 @@ async def to_code(config):
         }
     ),
 )
-async def time_has_time_to_code(config, condition_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(condition_id, template_arg, paren)
 
 
 # posix_tz.cpp is fully #ifdef'd on USE_TIME_TIMEZONE, set only when a

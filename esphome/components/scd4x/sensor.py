@@ -166,18 +166,9 @@ SCD4X_RESET_ACTION_SCHEMA = maybe_simple_id(
 )
 
 
-@automation.register_action(
+automation.register_parented_action(
     "scd4x.factory_reset",
     FactoryResetAction,
     SCD4X_RESET_ACTION_SCHEMA,
     synchronous=True,
 )
-async def scd4x_reset_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    return var

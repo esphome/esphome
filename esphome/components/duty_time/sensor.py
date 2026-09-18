@@ -1,10 +1,5 @@
-from esphome.automation import (
-    Action,
-    Condition,
-    maybe_simple_id,
-    register_action,
-    register_condition,
-)
+from esphome import automation
+from esphome.automation import Action, Condition, maybe_simple_id, register_condition
 import esphome.codegen as cg
 from esphome.components import binary_sensor, sensor
 import esphome.config_validation as cv
@@ -93,46 +88,28 @@ DUTY_TIME_ID_SCHEMA = maybe_simple_id(
 )
 
 
-@register_action(
-    "sensor.duty_time.start", StartAction, DUTY_TIME_ID_SCHEMA, synchronous=True
+automation.register_parented_action(
+    "sensor.duty_time.start",
+    StartAction,
+    DUTY_TIME_ID_SCHEMA,
+    synchronous=True,
 )
-async def sensor_runtime_start_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    return var
 
 
-@register_action(
-    "sensor.duty_time.stop", StopAction, DUTY_TIME_ID_SCHEMA, synchronous=True
+automation.register_parented_action(
+    "sensor.duty_time.stop",
+    StopAction,
+    DUTY_TIME_ID_SCHEMA,
+    synchronous=True,
 )
-async def sensor_runtime_stop_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    return var
 
 
-@register_action(
-    "sensor.duty_time.reset", ResetAction, DUTY_TIME_ID_SCHEMA, synchronous=True
+automation.register_parented_action(
+    "sensor.duty_time.reset",
+    ResetAction,
+    DUTY_TIME_ID_SCHEMA,
+    synchronous=True,
 )
-async def sensor_runtime_reset_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    return var
 
 
 @register_condition(

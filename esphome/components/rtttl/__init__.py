@@ -126,7 +126,7 @@ async def rtttl_play_to_code(
     return var
 
 
-@automation.register_action(
+automation.register_parented_action(
     "rtttl.stop",
     StopAction,
     cv.Schema(
@@ -136,18 +136,9 @@ async def rtttl_play_to_code(
     ),
     synchronous=True,
 )
-async def rtttl_stop_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    return var
 
 
-@automation.register_condition(
+automation.register_parented_condition(
     "rtttl.is_playing",
     IsPlayingCondition,
     cv.Schema(
@@ -156,12 +147,3 @@ async def rtttl_stop_to_code(
         }
     ),
 )
-async def rtttl_is_playing_to_code(
-    config: ConfigType,
-    condition_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    var = cg.new_Pvariable(condition_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    return var

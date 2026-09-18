@@ -85,20 +85,20 @@ BINARY_OUTPUT_ACTION_SCHEMA = maybe_simple_id(
 )
 
 
-@automation.register_action(
-    "output.turn_on", TurnOnAction, BINARY_OUTPUT_ACTION_SCHEMA, synchronous=True
+automation.register_simple_action(
+    "output.turn_on",
+    TurnOnAction,
+    BINARY_OUTPUT_ACTION_SCHEMA,
+    synchronous=True,
 )
-async def output_turn_on_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, paren)
 
 
-@automation.register_action(
-    "output.turn_off", TurnOffAction, BINARY_OUTPUT_ACTION_SCHEMA, synchronous=True
+automation.register_simple_action(
+    "output.turn_off",
+    TurnOffAction,
+    BINARY_OUTPUT_ACTION_SCHEMA,
+    synchronous=True,
 )
-async def output_turn_off_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, paren)
 
 
 @automation.register_action(

@@ -144,36 +144,28 @@ TERMINAL_ACTION_SCHEMA = cv.Schema(
 )
 
 
-@automation.register_action(
-    "mcp4461.wiper.increase", WiperIncreaseAction, WIPER_ACTION_SCHEMA, synchronous=True
+automation.register_simple_action(
+    "mcp4461.wiper.increase",
+    WiperIncreaseAction,
+    WIPER_ACTION_SCHEMA,
+    synchronous=True,
 )
-@automation.register_action(
-    "mcp4461.wiper.decrease", WiperDecreaseAction, WIPER_ACTION_SCHEMA, synchronous=True
-)
-async def mcp4461_wiper_step_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    wiper = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, wiper)
 
 
-@automation.register_action(
+automation.register_simple_action(
+    "mcp4461.wiper.decrease",
+    WiperDecreaseAction,
+    WIPER_ACTION_SCHEMA,
+    synchronous=True,
+)
+
+
+automation.register_simple_action(
     "mcp4461.wiper.store_nonvolatile",
     WiperStoreNonvolatileAction,
     WIPER_ACTION_SCHEMA,
     synchronous=True,
 )
-async def mcp4461_wiper_store_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    wiper = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, wiper)
 
 
 @automation.register_action(

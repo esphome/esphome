@@ -383,19 +383,14 @@ _register_command_actions()
 
 
 def _register_state_conditions():
-    async def handler(config, action_id, template_arg, args):
-        var = cg.new_Pvariable(action_id, template_arg)
-        await cg.register_parented(var, config[CONF_ID])
-        return var
-
     for condition_name in _STATE_CONDITIONS:
         class_name = f"Is{_snake_to_camel(condition_name)}Condition"
         condition_class = media_player_ns.class_(class_name, automation.Condition)
-        automation.register_condition(
+        automation.register_parented_condition(
             f"media_player.is_{condition_name}",
             condition_class,
             MEDIA_PLAYER_CONDITION_SCHEMA,
-        )(handler)
+        )
 
 
 _register_state_conditions()

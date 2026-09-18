@@ -16,7 +16,6 @@ from esphome.const import (
     CONF_WIDTH,
 )
 from esphome.core import ID
-from esphome.cpp_generator import TemplateArgsType
 from esphome.types import ConfigType
 
 from .. import (
@@ -205,7 +204,7 @@ SendspinImageTransitionFinishedAction = sendspin_ns.class_(
 )
 
 
-@automation.register_action(
+automation.register_parented_action(
     "sendspin.image.transition_finished",
     SendspinImageTransitionFinishedAction,
     automation.maybe_simple_id(
@@ -217,12 +216,3 @@ SendspinImageTransitionFinishedAction = sendspin_ns.class_(
     ),
     synchronous=True,
 )
-async def sendspin_image_transition_finished_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> cg.MockObj:
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    return var

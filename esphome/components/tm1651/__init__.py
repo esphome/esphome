@@ -141,32 +141,17 @@ async def tm1651_set_level_percent_to_code(
     return var
 
 
-@automation.register_action(
+automation.register_parented_action(
     "tm1651.turn_off",
     TurnOffAction,
     BINARY_OUTPUT_ACTION_SCHEMA,
     synchronous=True,
 )
-async def output_turn_off_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    return var
 
 
-@automation.register_action(
-    "tm1651.turn_on", TurnOnAction, BINARY_OUTPUT_ACTION_SCHEMA, synchronous=True
+automation.register_parented_action(
+    "tm1651.turn_on",
+    TurnOnAction,
+    BINARY_OUTPUT_ACTION_SCHEMA,
+    synchronous=True,
 )
-async def output_turn_on_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    return var

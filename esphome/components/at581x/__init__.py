@@ -84,7 +84,7 @@ AT581XResetAction = at581x_ns.class_("AT581XResetAction", automation.Action)
 AT581XSettingsAction = at581x_ns.class_("AT581XSettingsAction", automation.Action)
 
 
-@automation.register_action(
+automation.register_parented_action(
     "at581x.reset",
     AT581XResetAction,
     maybe_simple_id(
@@ -94,16 +94,6 @@ AT581XSettingsAction = at581x_ns.class_("AT581XSettingsAction", automation.Actio
     ),
     synchronous=True,
 )
-async def at581x_reset_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-
-    return var
 
 
 RADAR_SETTINGS_SCHEMA = cv.Schema(

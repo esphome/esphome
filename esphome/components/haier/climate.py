@@ -284,56 +284,53 @@ HAIER_HON_BASE_ACTION_SCHEMA = automation.maybe_simple_id(
 )
 
 
-@automation.register_action(
+automation.register_simple_action(
     "climate.haier.display_on",
     DisplayOnAction,
     HAIER_BASE_ACTION_SCHEMA,
     synchronous=True,
 )
-@automation.register_action(
+
+
+automation.register_simple_action(
     "climate.haier.display_off",
     DisplayOffAction,
     HAIER_BASE_ACTION_SCHEMA,
     synchronous=True,
 )
-async def display_action_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, paren)
 
 
-@automation.register_action(
+automation.register_simple_action(
     "climate.haier.beeper_on",
     BeeperOnAction,
     HAIER_HON_BASE_ACTION_SCHEMA,
     synchronous=True,
 )
-@automation.register_action(
+
+
+automation.register_simple_action(
     "climate.haier.beeper_off",
     BeeperOffAction,
     HAIER_HON_BASE_ACTION_SCHEMA,
     synchronous=True,
 )
-async def beeper_action_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, paren)
 
 
 # Start self cleaning or steri-cleaning action action
-@automation.register_action(
+automation.register_simple_action(
     "climate.haier.start_self_cleaning",
     StartSelfCleaningAction,
     HAIER_HON_BASE_ACTION_SCHEMA,
     synchronous=True,
 )
-@automation.register_action(
+
+
+automation.register_simple_action(
     "climate.haier.start_steri_cleaning",
     StartSteriCleaningAction,
     HAIER_HON_BASE_ACTION_SCHEMA,
     synchronous=True,
 )
-async def start_cleaning_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, paren)
 
 
 # Set vertical airflow direction action
@@ -384,44 +381,44 @@ async def haier_set_horizontal_airflow_to_code(config, action_id, template_arg, 
     return var
 
 
-@automation.register_action(
+automation.register_simple_action(
     "climate.haier.health_on",
     HealthOnAction,
     HAIER_BASE_ACTION_SCHEMA,
     synchronous=True,
 )
-@automation.register_action(
+
+
+automation.register_simple_action(
     "climate.haier.health_off",
     HealthOffAction,
     HAIER_BASE_ACTION_SCHEMA,
     synchronous=True,
 )
-async def health_action_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, paren)
 
 
-@automation.register_action(
+automation.register_simple_action(
     "climate.haier.power_on",
     PowerOnAction,
     HAIER_BASE_ACTION_SCHEMA,
     synchronous=True,
 )
-@automation.register_action(
+
+
+automation.register_simple_action(
     "climate.haier.power_off",
     PowerOffAction,
     HAIER_BASE_ACTION_SCHEMA,
     synchronous=True,
 )
-@automation.register_action(
+
+
+automation.register_simple_action(
     "climate.haier.power_toggle",
     PowerToggleAction,
     HAIER_BASE_ACTION_SCHEMA,
     synchronous=True,
 )
-async def power_action_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, paren)
 
 
 def _final_validate(config) -> None:

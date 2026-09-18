@@ -14,9 +14,9 @@ from esphome.const import (
     CONF_ON_DATA,
     CONF_TRIGGER_ID,
 )
-from esphome.core import CORE, ID
+from esphome.core import CORE
 from esphome.coroutine import CoroPriority, coroutine_with_priority
-from esphome.cpp_generator import MockObj, TemplateArgsType
+from esphome.cpp_generator import MockObj
 from esphome.types import ConfigType
 
 AUTO_LOAD = ["audio"]
@@ -189,44 +189,43 @@ async def microphone_source_to_code(
     return mic_source
 
 
-async def microphone_action(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    return var
-
-
-automation.register_action(
+automation.register_parented_action(
     "microphone.capture",
     CaptureAction,
     MICROPHONE_ACTION_SCHEMA,
     synchronous=True,
-)(microphone_action)
+)
 
-automation.register_action(
+automation.register_parented_action(
     "microphone.stop_capture",
     StopCaptureAction,
     MICROPHONE_ACTION_SCHEMA,
     synchronous=True,
-)(microphone_action)
+)
 
-automation.register_action(
-    "microphone.mute", MuteAction, MICROPHONE_ACTION_SCHEMA, synchronous=True
-)(microphone_action)
-automation.register_action(
-    "microphone.unmute", UnmuteAction, MICROPHONE_ACTION_SCHEMA, synchronous=True
-)(microphone_action)
+automation.register_parented_action(
+    "microphone.mute",
+    MuteAction,
+    MICROPHONE_ACTION_SCHEMA,
+    synchronous=True,
+)
+automation.register_parented_action(
+    "microphone.unmute",
+    UnmuteAction,
+    MICROPHONE_ACTION_SCHEMA,
+    synchronous=True,
+)
 
-automation.register_condition(
-    "microphone.is_capturing", IsCapturingCondition, MICROPHONE_ACTION_SCHEMA
-)(microphone_action)
-automation.register_condition(
-    "microphone.is_muted", IsMutedCondition, MICROPHONE_ACTION_SCHEMA
-)(microphone_action)
+automation.register_parented_condition(
+    "microphone.is_capturing",
+    IsCapturingCondition,
+    MICROPHONE_ACTION_SCHEMA,
+)
+automation.register_parented_condition(
+    "microphone.is_muted",
+    IsMutedCondition,
+    MICROPHONE_ACTION_SCHEMA,
+)
 
 
 @coroutine_with_priority(CoroPriority.CORE)
