@@ -1744,13 +1744,21 @@ def _host_program_path(config: ConfigType) -> str:
     return str(get_idedata(config).firmware_elf_path)
 
 
-def _read_ota_key(args: ArgsProtocol, config: ConfigType) -> None:
-    """Ask for the key to present to the device for this upload.
+ENV_OTA_KEY = "ESPHOME_OTA_KEY"
 
-    Read before any compile so the prompt is not buried after minutes of
-    build output; the key stays in memory and never reaches argv.
+
+def _read_ota_key(args: ArgsProtocol, config: ConfigType) -> None:
+    """Take the key to present to the device for this upload.
+
+    Asked for with --prompt-ota-key, or handed over by a trusted parent such
+    as the Device Builder in ESPHOME_OTA_KEY. Read before any compile so the
+    prompt is not buried after minutes of build output; the key stays in
+    memory, never reaches argv, and leaves the environment so no build tool
+    inherits it.
     """
-    if not getattr(args, "prompt_ota_key", False):
+    prompt = getattr(args, "prompt_ota_key", False)
+    env_key = os.environ.pop(ENV_OTA_KEY, None)
+    if not prompt and not env_key:
         return
     # The HTTP path has no key handshake; decide before prompting or compiling
     if (
@@ -1758,12 +1766,13 @@ def _read_ota_key(args: ArgsProtocol, config: ConfigType) -> None:
         != CONF_ESPHOME
     ):
         raise EsphomeError(
-            f"--prompt-ota-key only applies to the {CONF_ESPHOME} OTA platform"
+            f"--prompt-ota-key and {ENV_OTA_KEY} only apply to the "
+            f"{CONF_ESPHOME} OTA platform"
         )
     from esphome.components.noise import validate_encryption_key
     from esphome.config_validation import Invalid
 
-    key = read_secret_line("OTA encryption key: ")
+    key = read_secret_line("OTA encryption key: ") if prompt else env_key
     try:
         validate_encryption_key(key)
     except Invalid as err:
@@ -2334,7 +2343,8 @@ ARGUMENT_HELP_PROMPT_OTA_KEY = (
     "Ask for the OTA encryption key to present to the device instead of using "
     "the one in the configuration, for a device that still runs a previous key. "
     "The key is read without echo, or as one line from stdin when that is not "
-    "a terminal; it is never taken from the command line."
+    "a terminal; it is never taken from the command line. A calling program "
+    f"can hand the key over in the {ENV_OTA_KEY} environment variable instead."
 )
 
 

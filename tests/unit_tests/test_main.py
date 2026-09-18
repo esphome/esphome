@@ -2310,6 +2310,33 @@ def test_read_ota_key_not_requested() -> None:
     assert args.ota_key is None
 
 
+def test_read_ota_key_from_environment(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A calling program hands the key over in the environment; it is taken
+    out again so the build tools never inherit it."""
+    key = "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="
+    monkeypatch.setenv("ESPHOME_OTA_KEY", key)
+    args = MockArgs()
+    with patch("esphome.__main__.read_secret_line") as read:
+        _read_ota_key(args, {CONF_OTA: [{CONF_PLATFORM: CONF_ESPHOME}]})
+    read.assert_not_called()
+    assert args.ota_key == key
+    assert "ESPHOME_OTA_KEY" not in os.environ
+
+
+def test_read_ota_key_prompt_wins_over_environment(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    key = "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="
+    monkeypatch.setenv(
+        "ESPHOME_OTA_KEY", "AQIDBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyA="
+    )
+    args = MockArgs(prompt_ota_key=True)
+    with patch("esphome.__main__.read_secret_line", return_value=key):
+        _read_ota_key(args, {CONF_OTA: [{CONF_PLATFORM: CONF_ESPHOME}]})
+    assert args.ota_key == key
+    assert "ESPHOME_OTA_KEY" not in os.environ
+
+
 @pytest.mark.parametrize("line", ["", "not-base64"], ids=["empty", "invalid"])
 def test_read_ota_key_rejects_bad_input(line: str) -> None:
     args = MockArgs(prompt_ota_key=True)
@@ -2347,7 +2374,7 @@ def test_read_ota_key_refuses_web_server_platform(
     args = MockArgs(prompt_ota_key=True, ota_platform=ota_platform)
     with (
         patch("esphome.__main__.read_secret_line") as read,
-        pytest.raises(EsphomeError, match="only applies to the esphome OTA"),
+        pytest.raises(EsphomeError, match="only apply to the esphome OTA"),
     ):
         _read_ota_key(args, config)
     read.assert_not_called()
