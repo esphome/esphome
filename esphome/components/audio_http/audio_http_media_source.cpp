@@ -31,10 +31,11 @@ void AudioHTTPMediaSource::dump_config() {
                 "Audio HTTP Media Source:\n"
                 "  Buffer Size: %zu bytes\n"
                 "  Persistent Ring Buffer: %s\n"
-                "  Decoder Task Stack in PSRAM: %s\n"
-                "  Custom CA Certificate: %s",
-                this->buffer_size_, YESNO(this->persistent_ring_buffer_), YESNO(this->decoder_task_stack_in_psram_),
-                YESNO(!this->http_ca_certificate_.empty()));
+                "  Decoder Task Stack in PSRAM: %s",
+                this->buffer_size_, YESNO(this->persistent_ring_buffer_), YESNO(this->decoder_task_stack_in_psram_));
+#ifdef USE_AUDIO_HTTP_CA_CERTIFICATE
+  ESP_LOGCONFIG(TAG, "  Custom CA Certificate: %s", YESNO(!this->http_ca_certificate_.empty()));
+#endif
 }
 
 void AudioHTTPMediaSource::setup() {
@@ -54,10 +55,10 @@ void AudioHTTPMediaSource::setup() {
   config.reader_stack_size = READER_TASK_STACK_SIZE;
   config.decoder_stack_size = DECODER_TASK_STACK_SIZE;
   config.decoder_stack_in_psram = this->decoder_task_stack_in_psram_;
-  if (!this->http_ca_certificate_.empty()) {
-    // micro-decoder verifies HTTPS against this PEM only, skipping the built-in certificate bundle.
-    config.http_ca_certificate = this->http_ca_certificate_;
-  }
+#ifdef USE_AUDIO_HTTP_CA_CERTIFICATE
+  // micro-decoder verifies HTTPS against this PEM only, skipping the built-in certificate bundle.
+  config.http_ca_certificate = this->http_ca_certificate_;
+#endif
 
   this->decoder_ = std::make_unique<micro_decoder::DecoderSource>(config);
   if (this->decoder_ == nullptr) {
