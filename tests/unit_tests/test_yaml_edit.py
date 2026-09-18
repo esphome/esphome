@@ -439,6 +439,15 @@ ota:
         old_key_edit(OLD_KEY)
 
 
+def test_key_from_an_include_tag_is_refused(tmp_path: Path) -> None:
+    """`key: !include file` is indirect like a substitution; the value it
+    loads is not a line of this yaml."""
+    (tmp_path / "key.yaml").write_bytes(f'"{OLD_KEY}"\n'.encode())
+    _setup(tmp_path, API_YAML.replace(f'key: "{OLD_KEY}"', "key: !include key.yaml"))
+    with pytest.raises(EsphomeError, match="edit the key by hand"):
+        locate_key_edits(OLD_KEY, NEW_KEY)
+
+
 def test_old_key_from_a_substitution_is_refused(tmp_path: Path) -> None:
     _setup(
         tmp_path,
