@@ -47,7 +47,6 @@ def invalidate_compiled_config() -> None:
         try:
             path.unlink(missing_ok=True)
         except OSError as err:
-            # A stale cache would keep serving the text before the edit
             raise EsphomeError(
                 f"Could not remove the validated config cache {path}: {err}"
             ) from err

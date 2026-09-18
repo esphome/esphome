@@ -943,7 +943,6 @@ def test_load_compiled_config_rejects_wizard_only_sidecar(
 def test_invalidate_compiled_config_reports_an_unlink_failure(
     tmp_path: Path,
 ) -> None:
-    """A cache that cannot be removed would keep serving the text before the edit."""
     CORE.config_path = tmp_path / "test.yaml"
     cache = compiled_config_path("test.yaml")
     cache.parent.mkdir(parents=True)
