@@ -1770,9 +1770,9 @@ def _read_ota_key(args: ArgsProtocol, config: ConfigType) -> None:
     # compiling. A serial target, or a config without OTA, is a serial
     # flash, which warns later instead.
     devices = getattr(args, "device", None) or []
-    serial_target = bool(devices) and get_port_type(devices[0]) in (
-        PortType.SERIAL,
-        PortType.BOOTSEL,
+    serial_target = bool(devices) and (
+        devices[0] == "SERIAL"
+        or get_port_type(devices[0]) in (PortType.SERIAL, PortType.BOOTSEL)
     )
     chosen = (
         _choose_ota_platform(config, getattr(args, "ota_platform", None))
