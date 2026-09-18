@@ -673,8 +673,11 @@ bool ESPHomeOTAComponent::readall_(uint8_t *buf, size_t len) {
         return false;
       }
     } else if (read == 0) {
-      // A partial message is a cut-off request, not a clean close
+      // A partial message is a cut-off request, not a clean close; the caller reports the clean one
       this->remote_closed_ = at == 0;
+      if (at > 0) {
+        ESP_LOGW(TAG, "Remote closed after %u of %zu bytes", (unsigned) at, len);
+      }
       return false;
     } else {
       at += read;
