@@ -1108,11 +1108,16 @@ def find_files(directory: Path, pattern: str) -> Iterator[Path]:
 
 def secrets_path_for(document: Path) -> Path:
     """The secrets.yaml a ``!secret`` in ``document`` resolves against: the
-    one beside the document when it exists, else the main config's."""
+    one beside the document when it loads, else the main config's, the
+    way construct_secret falls back."""
     beside = document.parent / SECRET_YAML
-    if beside.is_file() or document == CORE.config_path:
+    if document == CORE.config_path:
         return beside
-    return CORE.config_path.parent / SECRET_YAML
+    try:
+        load_yaml(beside, clear_secrets=False, track_document_range=False)
+    except EsphomeError:
+        return CORE.config_path.parent / SECRET_YAML
+    return beside
 
 
 def is_secret(value):
