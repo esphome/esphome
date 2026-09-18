@@ -417,9 +417,6 @@ void WebServer::loop() {
 }
 
 #ifdef USE_LOGGER
-// ESP-IDF cuts a log event here: nothing a browser log view needs is longer, and it bounds the
-// tail a stalled client keeps. The Arduino backend takes a C string and sends the whole line.
-static constexpr size_t LOG_EVENT_MAX_LEN = 512;
 
 void WebServer::on_log(uint8_t level, const char *tag, const char *message, size_t message_len) {
   (void) level;
