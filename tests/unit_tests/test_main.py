@@ -2176,43 +2176,7 @@ def test_upload_program_ota_encryption_key(
         key,
         **RUN_OTA_DEFAULT_KWARGS | {"old_noise_psk": old_key},
     )
-    assert any("remove 'old_key'" in r.message for r in caplog.records) is (
-        old_key is not None
-    )
-
-
-@pytest.mark.parametrize(
-    "args", [MockArgs(file="other.bin"), MockArgs(bootloader=True)]
-)
-def test_upload_program_old_key_notice_needs_an_app_image_from_this_config(
-    mock_run_ota: Mock,
-    mock_get_port_type: Mock,
-    tmp_path: Path,
-    caplog: pytest.LogCaptureFixture,
-    args: MockArgs,
-) -> None:
-    """A foreign image or a bootloader leaves the running key unknown."""
-    setup_core(platform=PLATFORM_ESP32, tmp_path=tmp_path)
-    mock_get_port_type.return_value = "NETWORK"
-    mock_run_ota.return_value = (0, "192.168.1.100")
-    config = {
-        CONF_OTA: [
-            {
-                CONF_PLATFORM: CONF_ESPHOME,
-                CONF_PORT: 3232,
-                "allow_partition_access": True,
-                CONF_ENCRYPTION: {
-                    CONF_KEY: "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=",
-                    "old_key": "AQIDBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyA=",
-                },
-            }
-        ]
-    }
-    with (
-        patch("esphome.__main__._validate_bootloader_binary"),
-        caplog.at_level(logging.WARNING),
-    ):
-        assert upload_program(config, args, ["192.168.1.100"])[0] == 0
+    # The notice belongs to run, whose image was just built from this config
     assert not any("remove 'old_key'" in r.message for r in caplog.records)
 
 
@@ -2364,6 +2328,46 @@ def test_command_run_prompts_for_ota_key_before_compile() -> None:
     ):
         assert command_run(args, CORE.config) == 1
     assert calls == ["prompt", "compile"]
+
+
+@pytest.mark.parametrize(
+    "old_key", [None, "AQIDBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyA="]
+)
+def test_command_run_says_when_old_key_can_go(
+    caplog: pytest.LogCaptureFixture, old_key: str | None
+) -> None:
+    """Only run has just built the image from this config, so only run can
+    say the device will run `key` alone once it boots."""
+    encryption = {CONF_KEY: "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="}
+    if old_key is not None:
+        encryption["old_key"] = old_key
+    setup_core(
+        config={
+            CONF_OTA: [
+                {
+                    CONF_PLATFORM: CONF_ESPHOME,
+                    CONF_PORT: 3232,
+                    CONF_ENCRYPTION: encryption,
+                }
+            ]
+        },
+        platform=PLATFORM_ESP32,
+    )
+    args = MockArgs()
+    args.device = ["dev.local"]
+    args.no_logs = True
+    with (
+        patch("esphome.__main__.write_cpp", return_value=0),
+        patch("esphome.__main__.compile_program", return_value=0),
+        patch("esphome.__main__.choose_upload_log_host", return_value=["dev.local"]),
+        patch("esphome.__main__.get_serial_ports", return_value=[]),
+        patch("esphome.__main__.upload_program", return_value=(0, "dev.local")),
+        caplog.at_level(logging.WARNING),
+    ):
+        assert command_run(args, CORE.config) == 0
+    assert any("remove 'old_key'" in r.message for r in caplog.records) is (
+        old_key is not None
+    )
 
 
 def test_upload_program_platform_hook_ignores_prompted_key(
