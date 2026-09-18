@@ -218,7 +218,7 @@ def _upload(
     firmware: bytes,
     noise_psk: str | None,
     plaintext_fallback: bool = False,
-    allow_plaintext_upload: bool | None = False,
+    allow_plaintext_upload: bool = False,
 ) -> None:
     device.start()
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -342,26 +342,6 @@ def test_allow_plaintext_upload_warns_once_device_encrypts(
     with caplog.at_level(logging.WARNING):
         caplog.clear()
         _upload(FakeEncryptedDevice(), firmware, PSK)
-    assert not caplog.records
-
-
-# Remove before 2027.3.0
-def test_allow_plaintext_upload_unset_follows_default(
-    caplog: pytest.LogCaptureFixture,
-) -> None:
-    """A block that does not mention the option gets the release default and
-    is told so; nothing is set, so nothing is asked to be removed."""
-    firmware = b"firmware"
-    device = FakeEncryptedDevice(offer_noise=False, require_noise=False)
-    with patch("time.sleep"), caplog.at_level(logging.WARNING):
-        _upload(device, firmware, PSK, allow_plaintext_upload=None)
-    device.join_and_check()
-    assert device.received == firmware
-    assert any("defaults to true until 2027.3.0" in r.message for r in caplog.records)
-    pytest.importorskip("aioesphomeapi.noise")
-    caplog.clear()
-    with caplog.at_level(logging.WARNING):
-        _upload(FakeEncryptedDevice(), firmware, PSK, allow_plaintext_upload=None)
     assert not caplog.records
 
 
