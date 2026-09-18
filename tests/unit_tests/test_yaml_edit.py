@@ -439,9 +439,13 @@ ota:
     assert [(e.path, e.line) for e in edits] == [(tmp_path / "secrets.yaml", 0)]
     # A file beside the include that does not parse is skipped by the
     # loader too, so the main one is still the target
-    (tmp_path / "sub" / "secrets.yaml").write_bytes(b": :\n")
+    (tmp_path / "sub" / "secrets.yaml").write_bytes(b"a: [\n")
     edits = locate_key_edits(OLD_KEY, NEW_KEY)
     assert [(e.path, e.line) for e in edits] == [(tmp_path / "secrets.yaml", 0)]
+    # One beside the include that loads is the loader's first choice
+    (tmp_path / "sub" / "secrets.yaml").write_bytes(f"device_key: {OLD_KEY}\n".encode())
+    edits = locate_key_edits(OLD_KEY, NEW_KEY)
+    assert [(e.path, e.line) for e in edits] == [(tmp_path / "sub" / "secrets.yaml", 0)]
 
 
 def test_split_with_key_first_and_old_key_later(tmp_path: Path) -> None:
