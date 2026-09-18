@@ -57,9 +57,8 @@ namespace esphome::web_server_idf {
 
 static const char *const TAG = "web_server_idf";
 
-// The main loop stack is 8 KB. Only send_json_() may hold the JSON arena, so every other frame in
-// this file is capped below one arena and a second arena fails the build. The budget is measured
-// at -Os; the pragma argument is honoured by GCC 14 and 15, older toolchains skip the check.
+// Only send_json_() may hold the JSON arena: every other frame in this file is capped below one
+// arena. Measured at -Os on GCC 14 and 15; older toolchains skip the check.
 #if defined(__GNUC__) && !defined(__clang__) && __GNUC__ >= 14 && defined(__OPTIMIZE_SIZE__)
 #pragma GCC diagnostic error "-Wstack-usage=2048"
 #endif
@@ -1097,7 +1096,7 @@ void AsyncEventSourceResponse::loop() {
 #endif
 bool AsyncEventSourceResponse::send_json_(void *source, message_generator_t *generator) {
   // The arena lives only in this frame, so no call chain ever holds two of them
-  json::JsonArena<JSON_ARENA_SIZE> arena;
+  json::JsonArena<json::JSON_ARENA_SIZE> arena;
   json::JsonBuilder builder(&arena);
   generator(this->web_server_, source, builder);
   char buf[JSON_BUF_SIZE];

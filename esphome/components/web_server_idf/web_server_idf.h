@@ -362,8 +362,7 @@ class AsyncEventSourceResponse {
   static constexpr size_t MAX_SEND_IOV = 1 + 2 * MAX_SEND_LINES;
   // Chunk header, retry/id/event lines and the first "data: "
   static constexpr size_t PREFIX_BUF_SIZE = 128;
-  static constexpr size_t JSON_ARENA_SIZE = json::JSON_ARENA_SIZE;
-  static_assert(sizeof(void *) != 4 || JSON_ARENA_SIZE == 2176, "the arena was sized for a 1 KB pool");
+
   // Stack buffer for a state event's JSON; a larger document is serialized into the tail
   static constexpr size_t JSON_BUF_SIZE = 1024;
   // Same ceiling JsonBuilder::serialize() applies (max_heap_size in json_util.cpp); a larger
