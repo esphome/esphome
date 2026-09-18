@@ -173,15 +173,15 @@ ArduinoJson::Allocator *heap_json_allocator();
 #ifdef USE_JSON_ARENA
 /// Size of one ArduinoJson slot pool, the first allocation every document makes (1 KB on 32 bit targets)
 constexpr size_t JSON_POOL_BYTES = ARDUINOJSON_POOL_CAPACITY * sizeof(ArduinoJson::detail::VariantData);
-/// Arena for a state document: one pool plus room for copied string nodes (2176 bytes on 32 bit
-/// targets). A 40 option select fits once its options are linked; anything larger spills to the heap.
+/// One pool plus room for copied string nodes; a 40 option select with linked options fits
 constexpr size_t JSON_ARENA_SIZE = JSON_POOL_BYTES + 1152;
+static_assert(sizeof(void *) != 4 || JSON_ARENA_SIZE == 2176, "the arena was sized for a 1 KB pool");
 
 /// Bump allocator over a fixed buffer for a document built and serialized in one scope. What the
 /// buffer cannot hold goes to the heap allocator; nothing is freed until the arena goes away.
 template<size_t N> class JsonArena final : public ArduinoJson::Allocator {
  public:
-  // fallback takes what the buffer cannot hold; a test passes one that fails on demand
+  // Takes what the buffer cannot hold
   explicit JsonArena(ArduinoJson::Allocator *fallback = heap_json_allocator()) : fallback_(fallback) {}
   // The document points into buf_
   JsonArena(const JsonArena &) = delete;
