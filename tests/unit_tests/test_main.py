@@ -2450,6 +2450,16 @@ def test_read_ota_key_rejects_bad_input(line: str) -> None:
     assert args.ota_key is None
 
 
+def test_read_ota_key_reports_a_bad_platform_before_prompting() -> None:
+    args = MockArgs(prompt_ota_key=True, ota_platform=CONF_WEB_SERVER)
+    with (
+        patch("esphome.__main__.read_secret_line") as read,
+        pytest.raises(EsphomeError, match="only provides"),
+    ):
+        _read_ota_key(args, {CONF_OTA: [{CONF_PLATFORM: CONF_ESPHOME}]})
+    read.assert_not_called()
+
+
 @pytest.mark.parametrize(
     ("ota_platform", "config"),
     [
@@ -2466,16 +2476,6 @@ def test_read_ota_key_rejects_bad_input(line: str) -> None:
     ],
     ids=["requested", "only_platform"],
 )
-def test_read_ota_key_reports_a_bad_platform_before_prompting() -> None:
-    args = MockArgs(prompt_ota_key=True, ota_platform=CONF_WEB_SERVER)
-    with (
-        patch("esphome.__main__.read_secret_line") as read,
-        pytest.raises(EsphomeError, match="only provides"),
-    ):
-        _read_ota_key(args, {CONF_OTA: [{CONF_PLATFORM: CONF_ESPHOME}]})
-    read.assert_not_called()
-
-
 def test_read_ota_key_refuses_web_server_platform(
     ota_platform: str | None, config: dict[str, Any]
 ) -> None:
