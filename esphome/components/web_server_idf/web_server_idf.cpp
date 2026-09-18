@@ -1043,6 +1043,10 @@ bool AsyncEventSourceResponse::reserve_tail_(size_t len) {
 
 bool AsyncEventSourceResponse::stash_chunk_(const char *prefix, size_t prefix_len, const char *message,
                                             size_t message_len, size_t total, size_t sent) {
+  // A log event of nothing but line breaks is the largest chunk; reserve_tail_() must never
+  // refuse it for size, only for memory
+  static_assert(SSE_SEP_LEN * web_server::LOG_EVENT_MAX_LEN + PREFIX_BUF_SIZE + SSE_SUFFIX_LEN <= TAIL_MAX_SIZE,
+                "the log cut in web_server.h must keep a worst case log event inside the tail ceiling");
   if (!this->reserve_tail_(total)) {
     if (sent != 0) {
       // Part of the chunk is on the wire, so the stream is broken and the client has to go
