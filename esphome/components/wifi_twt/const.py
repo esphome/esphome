@@ -1,0 +1,8 @@
+CONF_WAKE_INTERVAL = "wake_interval"
+CONF_WAKE_DURATION = "wake_duration"
+CONF_SETUP_CMD = "setup_cmd"
+CONF_FLOW_TYPE = "flow_type"
+CONF_AUTO_SETUP = "auto_setup"
+CONF_ON_TWT_START = "on_twt_start"
+CONF_ON_TWT_STOP = "on_twt_stop"
+CONF_ON_TWT_WAKEUP = "on_twt_wakeup"
