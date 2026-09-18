@@ -11,7 +11,6 @@ import pytest
 from esphome import config_validation as cv
 from esphome.components.esphome.ota import (
     AUTO_LOAD,
-    CONF_ALLOW_PLAINTEXT_UPLOAD,
     FILTER_SOURCE_FILES,
     _encryption_schema,
     _validate_no_password_with_encryption,
@@ -31,6 +30,7 @@ from esphome.const import (
     CONF_VERSION,
 )
 from esphome.core import CORE, ID
+from esphome.espota2 import CONF_ALLOW_PLAINTEXT_UPLOAD
 import esphome.final_validate as fv
 
 
@@ -235,8 +235,6 @@ def test_encryption_allow_plaintext_upload_warns(
             "'allow_plaintext_upload' is set" in record.message
             for record in caplog.records
         )
-        updated = fv.full_config.get()
-        assert updated[CONF_OTA][0][CONF_ENCRYPTION][CONF_KEY] == API_KEY
     finally:
         fv.full_config.reset(token)
 

@@ -1350,7 +1350,6 @@ def _upload_via_native_api(
             break
 
     from esphome import espota2
-    from esphome.components.esphome.ota import CONF_ALLOW_PLAINTEXT_UPLOAD
     from esphome.components.noise import static_encryption_key
 
     remote_port = int(ota_conf[CONF_PORT])
@@ -1362,8 +1361,10 @@ def _upload_via_native_api(
     allow_plaintext_upload = False
     if (encryption_conf := ota_conf.get(CONF_ENCRYPTION)) is not None:
         noise_psk = encryption_conf.get(CONF_KEY)
-        if encryption_conf.get(CONF_ALLOW_PLAINTEXT_UPLOAD):
-            allow_plaintext_upload = True
+        allow_plaintext_upload = bool(
+            encryption_conf.get(espota2.CONF_ALLOW_PLAINTEXT_UPLOAD)
+        )
+        if allow_plaintext_upload:
             _LOGGER.warning(ALLOW_PLAINTEXT_UPLOAD_WARNING)
         if not noise_psk:
             raise EsphomeError(
