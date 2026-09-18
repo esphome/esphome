@@ -13,7 +13,7 @@ import sys
 import time
 from types import SimpleNamespace
 from typing import Any, Self
-from unittest.mock import AsyncMock, MagicMock, Mock, patch
+from unittest.mock import ANY, AsyncMock, MagicMock, Mock, patch
 
 import pytest
 from pytest import CaptureFixture
@@ -8058,9 +8058,7 @@ def rotate_env(tmp_path: Path) -> Generator[dict[str, Mock]]:
         patch("esphome.__main__.get_port_type", return_value="NETWORK"),
         patch("esphome.espota2.probe_ota_key", return_value=True) as probe,
         patch("esphome.__main__.run_external_process", return_value=0) as compile_,
-        patch(
-            "esphome.__main__.upload_program", return_value=(0, "dev.local")
-        ) as upload,
+        patch("esphome.espota2.run_ota") as upload,
         patch("esphome.__main__.safe_input", return_value="y") as confirm,
         patch("esphome.__main__.sys.stdin") as stdin,
         patch(
@@ -8069,6 +8067,12 @@ def rotate_env(tmp_path: Path) -> Generator[dict[str, Mock]]:
         ),
     ):
         stdin.isatty.return_value = True
+        # The real upload reports the connection before its result
+        upload.return_value = (0, "dev.local")
+        upload.side_effect = lambda *_a, **kw: (
+            kw["on_connect"](),
+            upload.return_value,
+        )[1]
         yield {
             "probe": probe,
             "compile": compile_,
@@ -8098,8 +8102,15 @@ def test_command_rotate_key_success(
     assert confirm.args[2] == ROTATE_NEW_KEY
     compile_args = rotate_env["compile"].call_args.args
     assert compile_args[-2:] == ("compile", str(CORE.config_path))
-    assert args.ota_key == ROTATE_OLD_KEY
-    rotate_env["upload"].assert_called_once_with(CORE.config, args, ["dev.local"])
+    rotate_env["upload"].assert_called_once_with(
+        ["dev.local"],
+        3232,
+        None,
+        CORE.firmware_bin,
+        noise_psk=ROTATE_OLD_KEY,
+        plaintext_fallback=False,
+        on_connect=ANY,
+    )
     out = capfd.readouterr().out
     assert ROTATE_NEW_KEY in out
     assert "SUCCESS" in out
@@ -8179,6 +8190,17 @@ def test_command_rotate_key_restores_before_the_upload(
     assert ("Interrupted before the upload" in capfd.readouterr().out) is (
         step == "interrupt"
     )
+
+
+def test_command_rotate_key_restores_when_the_device_was_never_reached(
+    rotate_env: dict[str, Mock], capfd: pytest.CaptureFixture[str]
+) -> None:
+    """An upload that fails before a connection opens cannot have committed."""
+    rotate_env["upload"].side_effect = None
+    rotate_env["upload"].return_value = (1, None)
+    assert command_rotate_key(MockArgs(), CORE.config) == 1
+    assert CORE.config_path.read_text() == ROTATE_API_YAML
+    assert "Restored the previous key" in capfd.readouterr().out
 
 
 def test_command_rotate_key_keeps_the_edit_after_a_failed_upload(
