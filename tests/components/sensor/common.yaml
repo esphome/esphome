@@ -243,3 +243,29 @@ sensor:
     lambda: return 42.0;
     update_interval: 1s
     state_class: "measurement_angle"
+
+  # Testing rh_correction filter
+  - platform: copy
+    source_id: source_sensor
+    name: "RH Correction Filter"
+    filters:
+      - rh_correction:
+          sensor_id: source_sensor
+          temperature_offset: -10.0
+
+  - platform: copy
+    source_id: source_sensor
+    name: "RH Correction Filter Template"
+    filters:
+      - rh_correction:
+          sensor_id: source_sensor
+          temperature_offset: !lambda return -10.0;
+
+  - platform: copy
+    source_id: source_sensor
+    name: "RH Correction Filter Fahrenheit"
+    filters:
+      - rh_correction:
+          sensor_id: source_sensor
+          temperature_offset: -10.0
+          use_fahrenheit: true
