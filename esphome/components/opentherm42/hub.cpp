@@ -418,12 +418,16 @@ void OpenTherm42Hub::build_schedule_() {
   }
 
   // §5.3.5 Class 5.
-  if (this->remote_parameter_transfer_enable_flags_read_.any_configured() ||
-      this->remote_parameter_read_write_flags_read_.any_configured()) {
+  if (this->pre_defined_remote_boiler_parameters_transfer_enable_flags_dhw_setpoint_text_sensor_ != nullptr ||
+      this->pre_defined_remote_boiler_parameters_transfer_enable_flags_max_chsetpoint_text_sensor_ != nullptr ||
+      this->pre_defined_remote_boiler_parameters_read_write_flags_dhw_setpoint_text_sensor_ != nullptr ||
+      this->pre_defined_remote_boiler_parameters_read_write_flags_max_chsetpoint_text_sensor_ != nullptr) {
     this->informational_requests_.push_back(RequestKind::REMOTE_PARAMETER_FLAGS);
   }
-  if (this->remote_parameter_transfer_enable_flags_ventilation_read_.any_configured() ||
-      this->remote_parameter_read_write_flags_ventilation_read_.any_configured()) {
+  if (this->pre_defined_remote_boiler_parameters_transfer_enable_flags_ventilation_heat_recovery_nominal_ventilation_value_text_sensor_ !=
+          nullptr ||
+      this->pre_defined_remote_boiler_parameters_read_write_flags_ventilation_heat_recovery_nominal_ventilation_value_text_sensor_ !=
+          nullptr) {
     this->informational_requests_.push_back(RequestKind::REMOTE_PARAMETER_FLAGS_VENTILATION);
   }
   if (this->dhwsetp_upper_bound_sensor_ != nullptr || this->dhwsetp_lower_bound_sensor_ != nullptr) {
@@ -1575,8 +1579,22 @@ void OpenTherm42Hub::handle_response_(const Frame &frame) {
         this->invalidate_response_(RequestKind::REMOTE_PARAMETER_FLAGS);
         return;
       }
-      this->remote_parameter_transfer_enable_flags_read_.publish(frame.value_hb);
-      this->remote_parameter_read_write_flags_read_.publish(frame.value_lb);
+      if (this->pre_defined_remote_boiler_parameters_transfer_enable_flags_dhw_setpoint_text_sensor_ != nullptr) {
+        this->pre_defined_remote_boiler_parameters_transfer_enable_flags_dhw_setpoint_text_sensor_->publish_state(
+            (frame.value_hb & 0x01) ? "Transfer enabled" : "Transfer disabled");
+      }
+      if (this->pre_defined_remote_boiler_parameters_transfer_enable_flags_max_chsetpoint_text_sensor_ != nullptr) {
+        this->pre_defined_remote_boiler_parameters_transfer_enable_flags_max_chsetpoint_text_sensor_->publish_state(
+            (frame.value_hb & 0x02) ? "Transfer enabled" : "Transfer disabled");
+      }
+      if (this->pre_defined_remote_boiler_parameters_read_write_flags_dhw_setpoint_text_sensor_ != nullptr) {
+        this->pre_defined_remote_boiler_parameters_read_write_flags_dhw_setpoint_text_sensor_->publish_state(
+            (frame.value_lb & 0x01) ? "Read/write" : "Read-only");
+      }
+      if (this->pre_defined_remote_boiler_parameters_read_write_flags_max_chsetpoint_text_sensor_ != nullptr) {
+        this->pre_defined_remote_boiler_parameters_read_write_flags_max_chsetpoint_text_sensor_->publish_state(
+            (frame.value_lb & 0x02) ? "Read/write" : "Read-only");
+      }
       return;
 
     case RequestKind::REMOTE_PARAMETER_FLAGS_VENTILATION:
@@ -1588,8 +1606,16 @@ void OpenTherm42Hub::handle_response_(const Frame &frame) {
         this->invalidate_response_(RequestKind::REMOTE_PARAMETER_FLAGS_VENTILATION);
         return;
       }
-      this->remote_parameter_transfer_enable_flags_ventilation_read_.publish(frame.value_hb);
-      this->remote_parameter_read_write_flags_ventilation_read_.publish(frame.value_lb);
+      if (this->pre_defined_remote_boiler_parameters_transfer_enable_flags_ventilation_heat_recovery_nominal_ventilation_value_text_sensor_ !=
+          nullptr) {
+        this->pre_defined_remote_boiler_parameters_transfer_enable_flags_ventilation_heat_recovery_nominal_ventilation_value_text_sensor_
+            ->publish_state((frame.value_hb & 0x01) ? "Transfer enabled" : "Transfer disabled");
+      }
+      if (this->pre_defined_remote_boiler_parameters_read_write_flags_ventilation_heat_recovery_nominal_ventilation_value_text_sensor_ !=
+          nullptr) {
+        this->pre_defined_remote_boiler_parameters_read_write_flags_ventilation_heat_recovery_nominal_ventilation_value_text_sensor_
+            ->publish_state((frame.value_lb & 0x01) ? "Read/write" : "Read-only");
+      }
       return;
 
     case RequestKind::DHWSETP_BOUNDS:
@@ -2235,13 +2261,31 @@ void OpenTherm42Hub::invalidate_response_(RequestKind kind) {
       return;
 
     case RequestKind::REMOTE_PARAMETER_FLAGS:
-      this->remote_parameter_transfer_enable_flags_read_.invalidate();
-      this->remote_parameter_read_write_flags_read_.invalidate();
+      if (this->pre_defined_remote_boiler_parameters_transfer_enable_flags_dhw_setpoint_text_sensor_ != nullptr) {
+        invalidate_entity(this->pre_defined_remote_boiler_parameters_transfer_enable_flags_dhw_setpoint_text_sensor_);
+      }
+      if (this->pre_defined_remote_boiler_parameters_transfer_enable_flags_max_chsetpoint_text_sensor_ != nullptr) {
+        invalidate_entity(this->pre_defined_remote_boiler_parameters_transfer_enable_flags_max_chsetpoint_text_sensor_);
+      }
+      if (this->pre_defined_remote_boiler_parameters_read_write_flags_dhw_setpoint_text_sensor_ != nullptr) {
+        invalidate_entity(this->pre_defined_remote_boiler_parameters_read_write_flags_dhw_setpoint_text_sensor_);
+      }
+      if (this->pre_defined_remote_boiler_parameters_read_write_flags_max_chsetpoint_text_sensor_ != nullptr) {
+        invalidate_entity(this->pre_defined_remote_boiler_parameters_read_write_flags_max_chsetpoint_text_sensor_);
+      }
       return;
 
     case RequestKind::REMOTE_PARAMETER_FLAGS_VENTILATION:
-      this->remote_parameter_transfer_enable_flags_ventilation_read_.invalidate();
-      this->remote_parameter_read_write_flags_ventilation_read_.invalidate();
+      if (this->pre_defined_remote_boiler_parameters_transfer_enable_flags_ventilation_heat_recovery_nominal_ventilation_value_text_sensor_ !=
+          nullptr) {
+        invalidate_entity(
+            this->pre_defined_remote_boiler_parameters_transfer_enable_flags_ventilation_heat_recovery_nominal_ventilation_value_text_sensor_);
+      }
+      if (this->pre_defined_remote_boiler_parameters_read_write_flags_ventilation_heat_recovery_nominal_ventilation_value_text_sensor_ !=
+          nullptr) {
+        invalidate_entity(
+            this->pre_defined_remote_boiler_parameters_read_write_flags_ventilation_heat_recovery_nominal_ventilation_value_text_sensor_);
+      }
       return;
 
     case RequestKind::DHWSETP_BOUNDS:

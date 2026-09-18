@@ -235,24 +235,6 @@ binary_sensor:
     # §5.3.1 Class 1, ID 101 LB bit 0: fault indication
     control_and_status_information_solar_storage_mode_and_status_fault_indication:
       name: "Control and Status Information: Solar Storage mode and status: Fault indication"
-    # §5.3.5 Class 5, ID 6 HB bit 0: DHW Setpoint [ transfer disabled, transfer enabled ]
-    pre_defined_remote_boiler_parameters_transfer_enable_flags_dhw_setpoint:
-      name: "Pre-Defined Remote Boiler Parameters: Remote-parameter transfer-enable flags: DHW Setpoint"
-    # §5.3.5 Class 5, ID 6 HB bit 1: max CHsetpoint [ transfer disabled, transfer enabled ]
-    pre_defined_remote_boiler_parameters_transfer_enable_flags_max_chsetpoint:
-      name: "Pre-Defined Remote Boiler Parameters: Remote-parameter transfer-enable flags: max CHsetpoint"
-    # §5.3.5 Class 5, ID 6 LB bit 0: DHW Setpoint [ read-only, read/write ]
-    pre_defined_remote_boiler_parameters_read_write_flags_dhw_setpoint:
-      name: "Pre-Defined Remote Boiler Parameters: Remote-parameter read-write flags: DHW Setpoint"
-    # §5.3.5 Class 5, ID 6 LB bit 1: max CHsetpoint [ read-only, read/write ]
-    pre_defined_remote_boiler_parameters_read_write_flags_max_chsetpoint:
-      name: "Pre-Defined Remote Boiler Parameters: Remote-parameter read-write flags: max CHsetpoint"
-    # §5.3.5 Class 5, ID 86 HB bit 0: Nominal ventilation value [ transfer disabled, transfer enabled ]
-    pre_defined_remote_boiler_parameters_transfer_enable_flags_ventilation_heat_recovery_nominal_ventilation_value:
-      name: "Pre-Defined Remote Boiler Parameters: Transfer-enable flags ventilation-heat-recovery: Nominal ventilation value"
-    # §5.3.5 Class 5, ID 86 LB bit 0: Nominal ventilation value [ read-only, read/write ]
-    pre_defined_remote_boiler_parameters_read_write_flags_ventilation_heat_recovery_nominal_ventilation_value:
-      name: "Pre-Defined Remote Boiler Parameters: Read-write flags ventilation-heat-recovery: Nominal ventilation value"
     # §5.3.8.3 Class 8, ID 100 LB bit 0: Manual change priority [ disable overruling remote Setpoint
     # by manual Setpoint change, enable overruling remote Setpoint by manual Setpoint change ]
     control_of_special_applications_remote_override_room_setpoint_function_manual_change_priority:
@@ -412,6 +394,24 @@ text_sensor:
     # [ 0 = DHW preheat system, 1 = DHW parallel system ]
     configuration_information_solar_storage_configuration_system_type:
       name: "Configuration Information: Solar Storage configuration: System type"
+    # §5.3.5 Class 5, ID 6 HB bit 0: DHW Setpoint [ transfer disabled, transfer enabled ]
+    pre_defined_remote_boiler_parameters_transfer_enable_flags_dhw_setpoint:
+      name: "Pre-Defined Remote Boiler Parameters: Remote-parameter transfer-enable flags: DHW Setpoint"
+    # §5.3.5 Class 5, ID 6 HB bit 1: max CHsetpoint [ transfer disabled, transfer enabled ]
+    pre_defined_remote_boiler_parameters_transfer_enable_flags_max_chsetpoint:
+      name: "Pre-Defined Remote Boiler Parameters: Remote-parameter transfer-enable flags: max CHsetpoint"
+    # §5.3.5 Class 5, ID 6 LB bit 0: DHW Setpoint [ read-only, read/write ]
+    pre_defined_remote_boiler_parameters_read_write_flags_dhw_setpoint:
+      name: "Pre-Defined Remote Boiler Parameters: Remote-parameter read-write flags: DHW Setpoint"
+    # §5.3.5 Class 5, ID 6 LB bit 1: max CHsetpoint [ read-only, read/write ]
+    pre_defined_remote_boiler_parameters_read_write_flags_max_chsetpoint:
+      name: "Pre-Defined Remote Boiler Parameters: Remote-parameter read-write flags: max CHsetpoint"
+    # §5.3.5 Class 5, ID 86 HB bit 0: Nominal ventilation value [ transfer disabled, transfer enabled ]
+    pre_defined_remote_boiler_parameters_transfer_enable_flags_ventilation_heat_recovery_nominal_ventilation_value:
+      name: "Pre-Defined Remote Boiler Parameters: Transfer-enable flags ventilation-heat-recovery: Nominal ventilation value"
+    # §5.3.5 Class 5, ID 86 LB bit 0: Nominal ventilation value [ read-only, read/write ]
+    pre_defined_remote_boiler_parameters_read_write_flags_ventilation_heat_recovery_nominal_ventilation_value:
+      name: "Pre-Defined Remote Boiler Parameters: Read-write flags ventilation-heat-recovery: Nominal ventilation value"
     # §5.3.3 Class 3, ID 4 LB: the most recent Request-Response-Code's meaning.
     remote_request_last_response:
       name: "Remote request: Last response"

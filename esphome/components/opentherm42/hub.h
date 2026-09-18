@@ -594,23 +594,25 @@ class OpenTherm42Hub : public Component {
     this->reset_counter_data_id_ = data_id;
   }
 
-  // §5.3.5 Class 5, ID 6: Remote-parameter transfer-enable/read-write flags.
-  OT42_FLAG_READ_BIT(pre_defined_remote_boiler_parameters_transfer_enable_flags_dhw_setpoint,
-                     remote_parameter_transfer_enable_flags_read_, 0)
-  OT42_FLAG_READ_BIT(pre_defined_remote_boiler_parameters_transfer_enable_flags_max_chsetpoint,
-                     remote_parameter_transfer_enable_flags_read_, 1)
-  OT42_FLAG_READ_BIT(pre_defined_remote_boiler_parameters_read_write_flags_dhw_setpoint,
-                     remote_parameter_read_write_flags_read_, 0)
-  OT42_FLAG_READ_BIT(pre_defined_remote_boiler_parameters_read_write_flags_max_chsetpoint,
-                     remote_parameter_read_write_flags_read_, 1)
+  // §5.3.5 Class 5, ID 6: Remote-parameter transfer-enable/read-write flags. Each bit is a small
+  // 2-state named enum, so a text_sensor showing the spec's own wording rather than a bare on/off
+  // -- see hub.cpp's handle_response_() REMOTE_PARAMETER_FLAGS case.
+  OT42_SET_PLAIN_TEXT_SENSOR(pre_defined_remote_boiler_parameters_transfer_enable_flags_dhw_setpoint,
+                             pre_defined_remote_boiler_parameters_transfer_enable_flags_dhw_setpoint_text_sensor_)
+  OT42_SET_PLAIN_TEXT_SENSOR(pre_defined_remote_boiler_parameters_transfer_enable_flags_max_chsetpoint,
+                             pre_defined_remote_boiler_parameters_transfer_enable_flags_max_chsetpoint_text_sensor_)
+  OT42_SET_PLAIN_TEXT_SENSOR(pre_defined_remote_boiler_parameters_read_write_flags_dhw_setpoint,
+                             pre_defined_remote_boiler_parameters_read_write_flags_dhw_setpoint_text_sensor_)
+  OT42_SET_PLAIN_TEXT_SENSOR(pre_defined_remote_boiler_parameters_read_write_flags_max_chsetpoint,
+                             pre_defined_remote_boiler_parameters_read_write_flags_max_chsetpoint_text_sensor_)
 
   // §5.3.5 Class 5, ID 86: same flags, for ventilation/heat-recovery's Nominal ventilation value.
-  OT42_FLAG_READ_BIT(
+  OT42_SET_PLAIN_TEXT_SENSOR(
       pre_defined_remote_boiler_parameters_transfer_enable_flags_ventilation_heat_recovery_nominal_ventilation_value,
-      remote_parameter_transfer_enable_flags_ventilation_read_, 0)
-  OT42_FLAG_READ_BIT(
+      pre_defined_remote_boiler_parameters_transfer_enable_flags_ventilation_heat_recovery_nominal_ventilation_value_text_sensor_)
+  OT42_SET_PLAIN_TEXT_SENSOR(
       pre_defined_remote_boiler_parameters_read_write_flags_ventilation_heat_recovery_nominal_ventilation_value,
-      remote_parameter_read_write_flags_ventilation_read_, 0)
+      pre_defined_remote_boiler_parameters_read_write_flags_ventilation_heat_recovery_nominal_ventilation_value_text_sensor_)
 
   // §5.3.5 Class 5, IDs 48/49: adjustment bounds.
   OT42_SET_SENSOR(pre_defined_remote_boiler_parameters_dhwsetp_upper_bound, dhwsetp_upper_bound_sensor_)
@@ -920,10 +922,18 @@ class OpenTherm42Hub : public Component {
   uint8_t reset_counter_data_id_{0};
 
   // §5.3.5 Class 5 entities.
-  FlagReadBits remote_parameter_transfer_enable_flags_read_;
-  FlagReadBits remote_parameter_read_write_flags_read_;
-  FlagReadBits remote_parameter_transfer_enable_flags_ventilation_read_;
-  FlagReadBits remote_parameter_read_write_flags_ventilation_read_;
+  text_sensor::TextSensor *pre_defined_remote_boiler_parameters_transfer_enable_flags_dhw_setpoint_text_sensor_{
+      nullptr};
+  text_sensor::TextSensor *pre_defined_remote_boiler_parameters_transfer_enable_flags_max_chsetpoint_text_sensor_{
+      nullptr};
+  text_sensor::TextSensor *pre_defined_remote_boiler_parameters_read_write_flags_dhw_setpoint_text_sensor_{nullptr};
+  text_sensor::TextSensor *pre_defined_remote_boiler_parameters_read_write_flags_max_chsetpoint_text_sensor_{nullptr};
+  text_sensor::TextSensor *
+      pre_defined_remote_boiler_parameters_transfer_enable_flags_ventilation_heat_recovery_nominal_ventilation_value_text_sensor_{
+          nullptr};
+  text_sensor::TextSensor *
+      pre_defined_remote_boiler_parameters_read_write_flags_ventilation_heat_recovery_nominal_ventilation_value_text_sensor_{
+          nullptr};
 
   sensor::Sensor *dhwsetp_upper_bound_sensor_{nullptr};
   sensor::Sensor *dhwsetp_lower_bound_sensor_{nullptr};

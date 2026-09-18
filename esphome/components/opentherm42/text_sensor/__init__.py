@@ -26,6 +26,12 @@ from ..const import (
     CONF_CONTROL_OF_SPECIAL_APPLICATIONS_REMOTE_OVERRIDE_OPERATING_MODE_HEATING_HC1,
     CONF_CONTROL_OF_SPECIAL_APPLICATIONS_REMOTE_OVERRIDE_OPERATING_MODE_HEATING_HC2,
     CONF_OPENTHERM42_ID,
+    CONF_PRE_DEFINED_REMOTE_BOILER_PARAMETERS_READ_WRITE_FLAGS_DHW_SETPOINT,
+    CONF_PRE_DEFINED_REMOTE_BOILER_PARAMETERS_READ_WRITE_FLAGS_MAX_CHSETPOINT,
+    CONF_PRE_DEFINED_REMOTE_BOILER_PARAMETERS_READ_WRITE_FLAGS_VENTILATION_HEAT_RECOVERY_NOMINAL_VENTILATION_VALUE,
+    CONF_PRE_DEFINED_REMOTE_BOILER_PARAMETERS_TRANSFER_ENABLE_FLAGS_DHW_SETPOINT,
+    CONF_PRE_DEFINED_REMOTE_BOILER_PARAMETERS_TRANSFER_ENABLE_FLAGS_MAX_CHSETPOINT,
+    CONF_PRE_DEFINED_REMOTE_BOILER_PARAMETERS_TRANSFER_ENABLE_FLAGS_VENTILATION_HEAT_RECOVERY_NOMINAL_VENTILATION_VALUE,
     CONF_REMOTE_REQUEST_LAST_RESPONSE,
     CONF_SENSOR_AND_INFORMATIONAL_DATA_DATE_TIME,
 )
@@ -101,6 +107,34 @@ TYPES: dict[str, cv.Schema] = {
     # §5.3.2 Class 2, ID 103 HB bit 0: Solar Storage configuration: system type
     # [ 0 = DHW preheat system, 1 = DHW parallel system ].
     CONF_CONFIGURATION_INFORMATION_SOLAR_STORAGE_CONFIGURATION_SYSTEM_TYPE: text_sensor.text_sensor_schema(
+        entity_category=ENTITY_CATEGORY_DIAGNOSTIC
+    ),
+    # §5.3.5 Class 5, ID 6 HB bit 0: DHW Setpoint [ transfer disabled, transfer enabled ] -- a small
+    # named enum, so a text_sensor showing the spec's own wording rather than a bare on/off. Same
+    # DIAGNOSTIC nature as the Class 2 capability flags above: a static capability flag, not
+    # watched day-to-day.
+    CONF_PRE_DEFINED_REMOTE_BOILER_PARAMETERS_TRANSFER_ENABLE_FLAGS_DHW_SETPOINT: text_sensor.text_sensor_schema(
+        entity_category=ENTITY_CATEGORY_DIAGNOSTIC
+    ),
+    # §5.3.5 Class 5, ID 6 HB bit 1: max CHsetpoint [ transfer disabled, transfer enabled ].
+    CONF_PRE_DEFINED_REMOTE_BOILER_PARAMETERS_TRANSFER_ENABLE_FLAGS_MAX_CHSETPOINT: text_sensor.text_sensor_schema(
+        entity_category=ENTITY_CATEGORY_DIAGNOSTIC
+    ),
+    # §5.3.5 Class 5, ID 6 LB bit 0: DHW Setpoint [ read-only, read/write ].
+    CONF_PRE_DEFINED_REMOTE_BOILER_PARAMETERS_READ_WRITE_FLAGS_DHW_SETPOINT: text_sensor.text_sensor_schema(
+        entity_category=ENTITY_CATEGORY_DIAGNOSTIC
+    ),
+    # §5.3.5 Class 5, ID 6 LB bit 1: max CHsetpoint [ read-only, read/write ].
+    CONF_PRE_DEFINED_REMOTE_BOILER_PARAMETERS_READ_WRITE_FLAGS_MAX_CHSETPOINT: text_sensor.text_sensor_schema(
+        entity_category=ENTITY_CATEGORY_DIAGNOSTIC
+    ),
+    # §5.3.5 Class 5, ID 86 HB bit 0: Nominal ventilation value [ transfer disabled, transfer
+    # enabled ].
+    CONF_PRE_DEFINED_REMOTE_BOILER_PARAMETERS_TRANSFER_ENABLE_FLAGS_VENTILATION_HEAT_RECOVERY_NOMINAL_VENTILATION_VALUE: text_sensor.text_sensor_schema(
+        entity_category=ENTITY_CATEGORY_DIAGNOSTIC
+    ),
+    # §5.3.5 Class 5, ID 86 LB bit 0: Nominal ventilation value [ read-only, read/write ].
+    CONF_PRE_DEFINED_REMOTE_BOILER_PARAMETERS_READ_WRITE_FLAGS_VENTILATION_HEAT_RECOVERY_NOMINAL_VENTILATION_VALUE: text_sensor.text_sensor_schema(
         entity_category=ENTITY_CATEGORY_DIAGNOSTIC
     ),
     # §5.3.3 Class 3, ID 4 LB: the most recent Request-Response-Code's meaning (0..127 = request
