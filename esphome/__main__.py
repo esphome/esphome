@@ -1363,6 +1363,7 @@ def _upload_via_native_api(
     # Fail closed: an encryption block whose key did not resolve must never
     # fall back to a plaintext upload
     noise_psk = None
+    old_noise_psk = None
     plaintext_fallback = False
     allow_plaintext_upload = False
     if ota_key := getattr(args, "ota_key", None):
@@ -1383,6 +1384,8 @@ def _upload_via_native_api(
         # Ensure the key is a string, as required by the underlying OTA implementation.
         # It arrives here as a SensitiveStr which aioesphomeapi rejects.
         noise_psk = str(noise_psk)
+        if old_key := encryption_conf.get(espota2.CONF_OLD_KEY):
+            old_noise_psk = str(old_key)
     elif api_key := static_encryption_key(config.get(CONF_API) or {}):
         # Remove before 2027.3.0: the api key is tried, falling back to plaintext
         noise_psk = str(api_key)
@@ -1426,6 +1429,7 @@ def _upload_via_native_api(
         noise_psk,
         plaintext_fallback=plaintext_fallback,
         allow_plaintext_upload=allow_plaintext_upload,
+        old_noise_psk=old_noise_psk,
     )
 
 

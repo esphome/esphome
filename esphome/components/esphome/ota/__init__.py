@@ -5,6 +5,7 @@ from esphome.components.noise import (
     ENCRYPTION_SCHEMA,
     new_psk_progmem,
     static_encryption_key,
+    validate_encryption_key,
 )
 from esphome.components.ota import BASE_OTA_SCHEMA, OTAComponent, ota_to_code
 from esphome.config_helpers import filter_source_files_from_defines, merge_config
@@ -27,7 +28,7 @@ from esphome.const import (
 )
 from esphome.core import CORE, coroutine_with_priority
 from esphome.coroutine import CoroPriority
-from esphome.espota2 import CONF_ALLOW_PLAINTEXT_UPLOAD
+from esphome.espota2 import CONF_ALLOW_PLAINTEXT_UPLOAD, CONF_OLD_KEY
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
@@ -131,6 +132,21 @@ def ota_esphome_final_validate(config: ConfigType) -> None:
         _validate_no_password_with_encryption(ota_conf)
         if (encryption_conf := ota_conf.get(CONF_ENCRYPTION)) is not None:
             _resolve_encryption_key(encryption_conf, api_conf)
+            if (old_key := encryption_conf.get(CONF_OLD_KEY)) is not None:
+                if old_key == encryption_conf[CONF_KEY]:
+                    raise cv.Invalid(
+                        f"'{CONF_OLD_KEY}' is the same as '{CONF_KEY}'; remove "
+                        f"'{CONF_OLD_KEY}' once the device runs the new key"
+                    )
+                _LOGGER.warning(
+                    "'%s' is set under '%s' %s: an upload retries with it when "
+                    "the device rejects '%s'. Remove it once the device runs "
+                    "the new key",
+                    CONF_OLD_KEY,
+                    CONF_OTA,
+                    CONF_ENCRYPTION,
+                    CONF_KEY,
+                )
         elif CONF_PASSWORD in ota_conf and static_encryption_key(api_conf) is not None:
             _LOGGER.warning(
                 "'%s' %s wastes significant flash and RAM (about 3.5 KB and 60 "
@@ -233,9 +249,11 @@ def _resolve_encryption_key(encryption_conf: ConfigType, api_conf: ConfigType) -
 
 
 # Uploader side options live only on the ota block; the api block keeps the
-# shared schema
+# shared schema. The firmware is built with `key` alone, `old_key` never
+# reaches the device
 _ENCRYPTION_SCHEMA = ENCRYPTION_SCHEMA.extend(
     {
+        cv.Optional(CONF_OLD_KEY): cv.sensitive(validate_encryption_key),
         cv.Optional(CONF_ALLOW_PLAINTEXT_UPLOAD): cv.boolean,
     }
 )
