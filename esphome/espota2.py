@@ -596,7 +596,8 @@ def perform_ota(
         features = 0
 
     if noise_psk and not (extended_proto and features & SERVER_FEATURE_SUPPORTS_NOISE):
-        # Remove before 2027.3.0: the fallback goes, the explicit opt in stays
+        # Remove before 2027.3.0: drop `or plaintext_fallback` and
+        # PLAINTEXT_FALLBACK_NOTICE here; allow_plaintext_upload stays
         if allow_plaintext_upload or plaintext_fallback:
             # The running firmware cannot encrypt; it still gets this update,
             # and the build being sent offers encryption for the next one
