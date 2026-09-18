@@ -2487,24 +2487,24 @@ def test_read_ota_key_rejects_bad_input(line: str) -> None:
 
 
 @pytest.mark.parametrize(
-    ("devices", "port_type"),
+    ("device", "port_type", "ota_platform"),
     [
-        (["/dev/ttyUSB0"], PortType.SERIAL),
-        (["SERIAL"], PortType.NETWORK),
-        (None, PortType.NETWORK),
+        ("/dev/ttyUSB0", PortType.SERIAL, None),
+        ("/dev/ttyUSB0", PortType.SERIAL, CONF_WEB_SERVER),
+        ("SERIAL", PortType.NETWORK, None),
     ],
-    ids=["port", "selector", "chooser"],
+    ids=["port", "port_with_ota_platform", "selector"],
 )
 def test_read_ota_key_lets_a_serial_target_through(
-    mock_get_port_type: Mock, devices: list[str] | None, port_type: PortType
+    mock_get_port_type: Mock, device: str, port_type: PortType, ota_platform: str | None
 ) -> None:
-    """A serial flash of a web_server only config is not refused here; the
-    key is ignored with a warning at upload time. The SERIAL selector and
-    the chooser only resolve to a port later."""
+    """A serial flash of a web_server only config is not refused, whatever
+    --ota-platform says; the key is ignored with a warning at upload time.
+    The SERIAL selector only resolves to a port later, so it counts by name."""
     mock_get_port_type.return_value = port_type
     key = "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="
-    args = MockArgs(prompt_ota_key=True)
-    args.device = devices
+    args = MockArgs(prompt_ota_key=True, ota_platform=ota_platform)
+    args.device = [device]
     with patch("esphome.__main__.read_secret_line", return_value=key):
         _read_ota_key(args, {CONF_OTA: [{CONF_PLATFORM: CONF_WEB_SERVER}]})
     assert args.ota_key == key
@@ -2536,15 +2536,19 @@ def test_read_ota_key_reports_a_bad_platform_before_prompting() -> None:
     ],
     ids=["requested", "only_platform"],
 )
+@pytest.mark.parametrize("devices", [["192.168.1.100"], None], ids=["host", "chooser"])
 def test_read_ota_key_refuses_web_server_platform(
-    mock_get_port_type: Mock, ota_platform: str | None, config: dict[str, Any]
+    mock_get_port_type: Mock,
+    ota_platform: str | None,
+    config: dict[str, Any],
+    devices: list[str] | None,
 ) -> None:
     """The HTTP path has no key handshake, so the flag is refused before the
     prompt and before any compile, whether web_server was asked for or is the
-    only platform in the config for a network target."""
+    only platform in the config, for a network target or none named yet."""
     mock_get_port_type.return_value = PortType.NETWORK
     args = MockArgs(prompt_ota_key=True, ota_platform=ota_platform)
-    args.device = ["192.168.1.100"]
+    args.device = devices
     with (
         patch("esphome.__main__.read_secret_line") as read,
         pytest.raises(EsphomeError, match="only apply to the esphome OTA"),

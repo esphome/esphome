@@ -1759,7 +1759,8 @@ def _host_program_path(config: ConfigType) -> str:
 
 ENV_OTA_KEY = "ESPHOME_OTA_KEY"
 OTA_KEY_PLATFORM_ERROR = (
-    f"--prompt-ota-key and {ENV_OTA_KEY} only apply to the {CONF_ESPHOME} OTA platform"
+    f"--prompt-ota-key and {ENV_OTA_KEY} only apply to the {CONF_ESPHOME} OTA "
+    "platform; to flash by serial instead, name the port with --device"
 )
 
 
@@ -1772,18 +1773,16 @@ def _read_ota_key(args: ArgsProtocol, config: ConfigType) -> None:
     if not prompt and env_key is None:
         return
     # The HTTP path has no key handshake; decide before prompting or
-    # compiling when the platform or a network target is named. A serial
-    # target, or none yet (the chooser may pick a serial port), is left to
-    # upload_program, which warns or refuses there.
-    requested = getattr(args, "ota_platform", None)
+    # compiling. A serial target is a serial flash, which warns later
+    # instead, and --ota-platform means nothing to it.
     devices = getattr(args, "device", None) or []
-    network_target = bool(devices) and (
-        devices[0] != "SERIAL"
-        and get_port_type(devices[0]) not in (PortType.SERIAL, PortType.BOOTSEL)
+    serial_target = bool(devices) and (
+        devices[0] == "SERIAL"
+        or get_port_type(devices[0]) in (PortType.SERIAL, PortType.BOOTSEL)
     )
     chosen = (
-        _choose_ota_platform(config, requested)
-        if (requested is not None or network_target) and _ota_upload_platforms(config)
+        _choose_ota_platform(config, getattr(args, "ota_platform", None))
+        if not serial_target and _ota_upload_platforms(config)
         else None
     )
     if chosen == CONF_WEB_SERVER:
