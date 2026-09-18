@@ -419,6 +419,24 @@ def send_check(
         raise OTANetworkError(f"sending {msg}: {err}") from err
 
 
+def noise_handshake(psk: str, prologue: bytes) -> Any:
+    """A fresh NNpsk0 initiator; a missing noise stack or a malformed key is
+    a local fault, raised before any device is asked."""
+    # Deliberately lazy: the noise stack (noiseprotocol, cryptography) is
+    # only imported when an encrypted upload actually runs.
+    try:
+        from aioesphomeapi.noise import NoiseHandshake
+    except ImportError as err:
+        raise OTAError(
+            "OTA encryption requires a newer aioesphomeapi; update your "
+            "esphome installation (pip install -U esphome) and retry"
+        ) from err
+    try:
+        return NoiseHandshake(psk, prologue)
+    except ValueError as err:
+        raise OTAError(f"Invalid OTA encryption key: {err}") from err
+
+
 class NoiseSocketWrapper:
     """Runs the OTA session inside a Noise (ChaCha20-Poly1305) transport.
 
@@ -429,25 +447,13 @@ class NoiseSocketWrapper:
     """
 
     def __init__(self, sock: socket.socket, psk: str, prologue: bytes) -> None:
-        # Deliberately lazy: the noise stack (noiseprotocol, cryptography) is
-        # only imported when an encrypted upload actually runs.
-        try:
-            from aioesphomeapi.noise import NoiseHandshake
-        except ImportError as err:
-            raise OTAError(
-                "OTA encryption requires a newer aioesphomeapi; update your "
-                "esphome installation (pip install -U esphome) and retry"
-            ) from err
+        self._handshake = noise_handshake(psk, prologue)
         # The aioesphomeapi import above already loaded cryptography; bind
         # the exception once so recv() pays no per-frame import lookup
         from cryptography.exceptions import InvalidTag
 
         self._invalid_tag = InvalidTag
         self._sock = sock
-        try:
-            self._handshake = NoiseHandshake(psk, prologue)
-        except ValueError as err:
-            raise OTAError(f"Invalid OTA encryption key: {err}") from err
         self._encrypt = None
         self._decrypt = None
         self._buffer = b""
@@ -957,6 +963,7 @@ def probe_ota_key(
     is sent. Retries until the deadline, a rejection too when
     ``retry_rejected`` (the old firmware may answer once more after an upload).
     """
+    noise_handshake(noise_psk, b"")  # a local fault must not read as the device's no
     res = _resolve_targets(remote_host, remote_port)
     deadline = time.monotonic() + timeout
     attempts = 0

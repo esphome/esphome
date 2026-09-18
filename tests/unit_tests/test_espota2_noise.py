@@ -880,6 +880,17 @@ def test_probe_ota_key_waits_for_every_address_to_answer() -> None:
     assert negotiate.call_count == 4
 
 
+def test_probe_ota_key_reports_a_local_fault_as_its_own() -> None:
+    """A malformed key never reads as the device refusing it."""
+    pytest.importorskip("aioesphomeapi.noise")
+    with (
+        patch("esphome.espota2.resolve_ip_address") as resolve,
+        pytest.raises(espota2.OTAError, match="Invalid OTA encryption key"),
+    ):
+        espota2.probe_ota_key("h", 1, "not-base64!!!", timeout=30)
+    resolve.assert_not_called()
+
+
 def test_probe_ota_key_takes_another_device_answer_as_final() -> None:
     """An unsupported protocol version does not change with a retry."""
     with (
