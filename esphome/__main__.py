@@ -8,6 +8,7 @@ import logging
 import os
 from pathlib import Path
 import re
+import stat
 import sys
 import time
 from typing import TYPE_CHECKING, Protocol
@@ -55,7 +56,7 @@ from esphome.const import (
 )
 from esphome.core import CORE, EsphomeError, coroutine
 from esphome.enum import StrEnum
-from esphome.helpers import get_bool_env, indent, is_ip_address
+from esphome.helpers import get_bool_env, indent, is_ip_address, write_file
 from esphome.log import AnsiFore, color, setup_log
 from esphome.stacktrace import LogLineProcessor
 from esphome.types import ConfigType
@@ -2086,6 +2087,14 @@ def command_analyze_memory(args: ArgsProtocol, config: ConfigType) -> int:
 
 def command_rename(args: ArgsProtocol, config: ConfigType) -> int | None:
     from esphome import yaml_util
+    from esphome.yaml_edit import (
+        LineEdit,
+        field_line_re,
+        read_text,
+        rewrite,
+        rewritten_text,
+        source_line,
+    )
 
     new_name = args.name
     for c in new_name:
@@ -2098,69 +2107,38 @@ def command_rename(args: ArgsProtocol, config: ConfigType) -> int | None:
                 )
             )
             return 1
-    # Load existing yaml file
-    raw_contents = CORE.config_path.read_text(encoding="utf-8")
 
-    yaml = yaml_util.load_yaml(CORE.config_path)
-    if CONF_ESPHOME not in yaml or CONF_NAME not in yaml[CONF_ESPHOME]:
+    def complex_yaml() -> int:
         safe_print(
             color(
                 AnsiFore.BOLD_RED, "Complex YAML files cannot be automatically renamed."
             )
         )
         return 1
-    old_name = yaml[CONF_ESPHOME][CONF_NAME]
-    match = re.match(r"^\$\{?([a-zA-Z0-9_]+)\}?$", old_name)
-    if match is None:
-        # Only swap the ``name:`` line that sits directly under the
-        # top-level ``esphome:`` block. A naked ``re.sub`` would
-        # also clobber any other ``name:`` line whose value happens
-        # to match (e.g. a sensor / output / wifi entry sharing the
-        # device's hostname), silently rewriting unrelated user
-        # configuration. The pattern anchors:
-        # - at the start of the line so ``friendly_name:``,
-        #   ``device_name:`` etc. don't match the trailing ``name:``
-        #   substring; and
-        # - at the end of the value (lookahead for whitespace +
-        #   comment + EOL) so ``old_name`` doesn't match as a
-        #   prefix of a longer value (``kitchen`` vs ``kitchen2``).
-        name_pattern = re.compile(
-            rf"^(\s*)name:\s+[\"']?{re.escape(old_name)}[\"']?(?=\s*(?:#|$))"
-        )
-        out_lines: list[str] = []
-        in_esphome_block = False
-        for line in raw_contents.splitlines(keepends=True):
-            if line and not line[0].isspace() and line.strip():
-                in_esphome_block = line.lstrip().startswith("esphome:")
-                out_lines.append(line)
-                continue
-            if in_esphome_block:
-                line = name_pattern.sub(rf'\1name: "{new_name}"', line, count=1)
-            out_lines.append(line)
-        new_raw = "".join(out_lines)
-    else:
-        old_name = yaml[CONF_SUBSTITUTIONS][match.group(1)]
-        if (
-            len(
-                re.findall(
-                    rf"^\s+{match.group(1)}:\s+[\"']?{old_name}[\"']?",
-                    raw_contents,
-                    flags=re.MULTILINE,
-                )
-            )
-            > 1
-        ):
-            safe_print(
-                color(AnsiFore.BOLD_RED, "Too many matches in YAML to safely rename")
-            )
-            return 1
 
-        new_raw = re.sub(
-            rf"^(\s+{match.group(1)}):\s+[\"']?{old_name}[\"']?",
-            f'\\1: "{new_name}"',
-            raw_contents,
-            flags=re.MULTILINE,
-        )
+    yaml = yaml_util.load_yaml(CORE.config_path)
+    esphome_conf = yaml.get(CONF_ESPHOME)
+    if not isinstance(esphome_conf, dict) or CONF_NAME not in esphome_conf:
+        return complex_yaml()
+    old_name = esphome_conf[CONF_NAME]
+    # The name's own line, or the substitution's line it comes from; only a
+    # plain value on a line of this file can be rewritten
+    if match := re.match(r"^\$\{?([a-zA-Z0-9_]+)\}?$", str(old_name)):
+        mapping, field = yaml.get(CONF_SUBSTITUTIONS), match.group(1)
+        if not isinstance(mapping, dict) or field not in mapping:
+            return complex_yaml()
+        old_name = mapping[field]
+    else:
+        mapping, field = esphome_conf, CONF_NAME
+    try:
+        doc, line_no, text = source_line(mapping, field)
+    except EsphomeError:
+        return complex_yaml()
+    line_match = field_line_re(field, str(old_name)).match(text)
+    if doc != CORE.config_path.resolve() or line_match is None:
+        return complex_yaml()
+    # The new value is always quoted, whatever the old line had
+    edit = LineEdit(doc, line_no, text, rewrite(line_match, new_name, quote='"'))
 
     # ``new_name == old_name`` (after substitution resolution) is
     # a no-op rewrite that would still queue a pointless re-flash.
@@ -2201,7 +2179,11 @@ def command_rename(args: ArgsProtocol, config: ConfigType) -> int | None:
     )
     print()
 
-    new_path.write_text(new_raw, encoding="utf-8")
+    source_mode = stat.S_IMODE(CORE.config_path.stat().st_mode)
+    write_file(
+        new_path, rewritten_text(read_text(CORE.config_path), [edit]), private=True
+    )
+    new_path.chmod(source_mode)
 
     rc = run_external_process(*ESPHOME_COMMAND, "config", str(new_path))
     if rc != 0:
