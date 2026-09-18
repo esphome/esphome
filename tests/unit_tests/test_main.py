@@ -2419,6 +2419,26 @@ def test_read_ota_key_without_ota_block_is_left_to_the_upload() -> None:
     assert args.ota_key == key
 
 
+@pytest.mark.parametrize(
+    "argv",
+    [
+        ["esphome", "run", "--prompt-ota-key", "a.yaml", "b.yaml"],
+        ["esphome", "upload", "a.yaml", "b.yaml"],
+    ],
+    ids=["prompt", "environment"],
+)
+def test_run_esphome_refuses_one_key_for_several_configs(
+    monkeypatch: pytest.MonkeyPatch, argv: list[str]
+) -> None:
+    """Several configs run in child processes that never see the key."""
+    from esphome.__main__ import run_esphome
+
+    if "--prompt-ota-key" not in argv:
+        monkeypatch.setenv("ESPHOME_OTA_KEY", "x")
+    with pytest.raises(EsphomeError, match="take one configuration; 2 were given"):
+        run_esphome(argv)
+
+
 def test_run_esphome_scrubs_the_key_from_the_environment(
     monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ) -> None:
