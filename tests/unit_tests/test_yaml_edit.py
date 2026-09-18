@@ -121,6 +121,20 @@ ota:
     assert path.read_text() == yaml_text.replace(OLD_KEY, NEW_KEY)
 
 
+def test_secret_api_key_next_to_a_literal_ota_key(tmp_path: Path) -> None:
+    """An explicit ota key must match the api key at validation; both the
+    secrets line and the literal line change so they still do."""
+    yaml_text = SECRET_YAML.replace(
+        "      key: !secret device_key\n", f'      key: "{OLD_KEY}"\n'
+    )
+    _setup(tmp_path, yaml_text, f"device_key: {OLD_KEY}\n")
+    edits = locate_key_edits(OLD_KEY, NEW_KEY)
+    assert sorted(e.path.name for e in edits) == ["secrets.yaml", "test.yaml"]
+    apply_key_edits(edits)
+    assert (tmp_path / "secrets.yaml").read_text() == f"device_key: {NEW_KEY}\n"
+    assert CORE.config_path.read_text() == yaml_text.replace(OLD_KEY, NEW_KEY)
+
+
 def test_key_in_an_included_file(tmp_path: Path) -> None:
     """A key that lives in an included file is rewritten there."""
     (tmp_path / "api.yaml").write_text(
