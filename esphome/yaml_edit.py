@@ -14,8 +14,16 @@ from pathlib import Path
 import re
 
 from esphome.components.noise import static_encryption_key
-from esphome.const import CONF_API, CONF_ESPHOME, CONF_KEY, CONF_OTA, CONF_PLATFORM
+from esphome.const import (
+    CONF_API,
+    CONF_ENCRYPTION,
+    CONF_ESPHOME,
+    CONF_KEY,
+    CONF_OTA,
+    CONF_PLATFORM,
+)
 from esphome.core import CORE, EsphomeError
+from esphome.espota2 import CONF_OLD_KEY
 from esphome.helpers import read_file, write_file
 from esphome.types import ConfigType
 from esphome.yaml_util import secrets_path_for
@@ -23,11 +31,12 @@ from esphome.yaml_util import secrets_path_for
 
 @dataclass
 class KeyEdit:
-    """One yaml line that holds the current key, and its replacement."""
+    """One yaml line to rewrite, or a line to add right after it."""
 
     path: Path
     line: int
     new_line: str
+    insert_after: bool = False
 
 
 def _key_nodes(raw: ConfigType, key: str) -> list[str]:
@@ -124,6 +133,52 @@ def locate_key_edits(old_key: str, new_key: str) -> list[KeyEdit]:
     return edits
 
 
+def _esphome_ota_item(raw: ConfigType) -> ConfigType | None:
+    return next(
+        (
+            item
+            for item in raw.get(CONF_OTA) or []
+            if item.get(CONF_PLATFORM) == CONF_ESPHOME
+        ),
+        None,
+    )
+
+
+def old_key_edit(old_key: str) -> KeyEdit:
+    """Keep the key being replaced as ``old_key:`` under the esphome ota
+    ``encryption:`` block, so an install still reaches a device that runs
+    it. Rewrites an existing ``old_key:`` line or adds one to the block."""
+    item = _esphome_ota_item(CORE.raw_config or {})
+    if item is None or CONF_ENCRYPTION not in item:
+        raise EsphomeError("The esphome OTA platform has no 'encryption:' block")
+    encryption = item[CONF_ENCRYPTION] or {}
+    rendered = f'{CONF_OLD_KEY}: "{old_key}"'
+    if (existing := encryption.get(CONF_OLD_KEY)) is not None:
+        doc, line_no = _editable_source(existing)
+        lines = read_file(doc).splitlines()
+        text = lines[line_no] if line_no < len(lines) else ""
+        match = _key_line_re(rf"\s*{CONF_OLD_KEY}:\s*", str(existing)).match(text)
+        if match is None:
+            raise EsphomeError(
+                f"{doc}:{line_no + 1} does not hold '{CONF_OLD_KEY}' as a plain "
+                "value; edit it by hand"
+            )
+        return KeyEdit(doc, line_no, _rewrite(match, old_key))
+    # The block's own key line sets the indent; a bare block indents one
+    # level below the `encryption:` key
+    block_key = next(k for k in item if k == CONF_ENCRYPTION)
+    doc, line_no = _editable_source(block_key)
+    lines = read_file(doc).splitlines()
+    if (key := encryption.get(CONF_KEY)) is not None:
+        _, key_line = _editable_source(key)
+        key_text = lines[key_line]
+        indent = key_text[: len(key_text) - len(key_text.lstrip())]
+        return KeyEdit(doc, key_line, f"{indent}{rendered}", insert_after=True)
+    block_text = lines[line_no]
+    indent = block_text[: len(block_text) - len(block_text.lstrip())] + "  "
+    return KeyEdit(doc, line_no, f"{indent}{rendered}", insert_after=True)
+
+
 def apply_key_edits(edits: list[KeyEdit]) -> dict[Path, str]:
     """Rewrite the located lines, atomically per file, and return the
     original text of every touched file for a rollback.
@@ -138,13 +193,19 @@ def apply_key_edits(edits: list[KeyEdit]) -> dict[Path, str]:
     originals: dict[Path, str] = {}
     current: dict[Path, list[str]] = {}
     try:
-        for edit in edits:
+        # Highest line first, so an insertion never shifts a later edit
+        for edit in sorted(edits, key=lambda e: e.line, reverse=True):
             if edit.path not in originals:
                 originals[edit.path] = read_file(edit.path)
                 current[edit.path] = originals[edit.path].splitlines(keepends=True)
             lines = current[edit.path]
             ending = "\n" if lines[edit.line].endswith("\n") else ""
-            lines[edit.line] = edit.new_line + ending
+            if edit.insert_after:
+                lines.insert(edit.line + 1, edit.new_line + "\n")
+                if not ending:
+                    lines[edit.line] += "\n"
+            else:
+                lines[edit.line] = edit.new_line + ending
         for path, lines in current.items():
             write_file(path, "".join(lines))
         for path in originals:
