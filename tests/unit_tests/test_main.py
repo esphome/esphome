@@ -8299,5 +8299,8 @@ def test_command_rotate_key_reports_edit_errors(
 ) -> None:
     with patch(f"esphome.yaml_edit.{helper}", side_effect=EsphomeError("nope")):
         assert command_rotate_key(MockArgs(), CORE.config) == 1
-    assert "nope" in capfd.readouterr().out
+    out = capfd.readouterr().out
+    assert "nope" in out
+    # A failed apply may have left files half done; both keys are printed
+    assert (ROTATE_NEW_KEY in out) is (helper == "apply_key_edits")
     assert CORE.config_path.read_text() == ROTATE_API_YAML

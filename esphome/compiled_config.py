@@ -12,7 +12,6 @@ validator is ``cv.string``). mtime gates staleness.
 
 from __future__ import annotations
 
-import contextlib
 import json
 import logging
 from pathlib import Path
@@ -42,8 +41,11 @@ def compiled_config_path(config_filename: str) -> Path:
 def invalidate_compiled_config() -> None:
     """Drop the cache after a change to a file its mtime check cannot see,
     such as secrets.yaml or an include."""
-    with contextlib.suppress(OSError):
-        compiled_config_path(CORE.config_filename).unlink(missing_ok=True)
+    path = compiled_config_path(CORE.config_filename)
+    try:
+        path.unlink(missing_ok=True)
+    except OSError as err:
+        _LOGGER.warning("Could not remove the validated config cache %s: %s", path, err)
 
 
 def save_compiled_config(config: ConfigType) -> None:
