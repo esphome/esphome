@@ -5018,19 +5018,12 @@ esp32:
     assert 'name: "garage"' in new_file.read_text()
 
 
-def test_command_rename_too_many_substitution_matches_refuses(
+def test_command_rename_leaves_a_lookalike_substitution_line_alone(
     tmp_path: Path,
-    capfd: CaptureFixture[str],
     mock_run_external_process: Mock,
 ) -> None:
-    """Test rename refuses when ``${var}`` resolves to multiple matches.
-
-    When ``esphome.name: ${device_name}`` and the substitution
-    definition ``device_name: foo`` appears more than once in the
-    YAML (e.g. inside multiple included blocks), the regex rewrite
-    can't tell which one to flip. Rather than silently picking one
-    or rewriting both, the command refuses.
-    """
+    """Only the substitution's own line changes; another block's field of
+    the same name and value is not it."""
     config_file = tmp_path / "oldname.yaml"
     config_file.write_text("""
 substitutions:
@@ -5039,9 +5032,6 @@ substitutions:
 esphome:
   name: ${device_name}
 
-# A copy-pasted block that re-declares the substitution at the
-# same indent level - happens when users splice in a packaged
-# fragment without renaming the variable.
 example:
   device_name: oldname
 
@@ -5054,19 +5044,96 @@ esp32:
         CONF_ESPHOME: {CONF_NAME: "oldname"},
         CONF_SUBSTITUTIONS: {"device_name": "oldname"},
     }
+    assert command_rename(MockArgs(name="newname", dashboard=False), {}) == 0
+    content = (tmp_path / "newname.yaml").read_text()
+    assert 'device_name: "newname"' in content
+    assert "example:\n  device_name: oldname\n" in content
 
-    args = MockArgs(name="newname", dashboard=False)
 
-    result = command_rename(args, {})
+def test_command_rename_keeps_line_endings_and_mode(
+    tmp_path: Path,
+    mock_run_external_process: Mock,
+) -> None:
+    """A CRLF file stays CRLF and the new file gets the old one's mode."""
+    config_file = tmp_path / "oldname.yaml"
+    config_file.write_bytes(
+        b"esphome:\r\n  name: oldname  # device\r\n\r\nesp32:\r\n  board: nodemcu-32s\r\n"
+    )
+    if sys.platform != "win32":
+        config_file.chmod(0o600)
+    setup_core(tmp_path=tmp_path)
+    CORE.config_path = config_file
+    CORE.config = {CONF_ESPHOME: {CONF_NAME: "oldname"}}
+    assert command_rename(MockArgs(name="newname", dashboard=False), {}) == 0
+    new_file = tmp_path / "newname.yaml"
+    assert new_file.read_bytes() == (
+        b'esphome:\r\n  name: "newname"  # device\r\n\r\nesp32:\r\n  board: nodemcu-32s\r\n'
+    )
+    if sys.platform != "win32":
+        assert new_file.stat().st_mode & 0o777 == 0o600
 
-    assert result == 1
+
+@pytest.mark.parametrize(
+    "yaml_text",
+    [
+        "esphome:\n  name: ${missing}\n",
+        "esphome: {name: oldname}\n",
+    ],
+    ids=["missing_substitution", "flow_mapping"],
+)
+def test_command_rename_refuses_shapes_without_a_plain_name_line(
+    tmp_path: Path,
+    capfd: CaptureFixture[str],
+    mock_run_external_process: Mock,
+    yaml_text: str,
+) -> None:
+    config_file = tmp_path / "oldname.yaml"
+    config_file.write_text(yaml_text)
+    setup_core(tmp_path=tmp_path)
+    CORE.config_path = config_file
+    CORE.config = {CONF_ESPHOME: {CONF_NAME: "oldname"}}
+    assert command_rename(MockArgs(name="newname", dashboard=False), {}) == 1
     mock_run_external_process.assert_not_called()
-    # File untouched.
-    assert config_file.exists()
-    assert "device_name: oldname" in config_file.read_text()
+    assert "complex yaml" in capfd.readouterr().out.lower()
 
-    captured = capfd.readouterr()
-    assert "Too many matches" in captured.out
+
+def test_command_rename_refuses_a_config_linked_from_outside(
+    tmp_path: Path,
+    capfd: CaptureFixture[str],
+    mock_run_external_process: Mock,
+) -> None:
+    """The file is not the user's to rewrite when it lives elsewhere."""
+    outside = tmp_path / "elsewhere.yaml"
+    outside.write_text("esphome:\n  name: oldname\n")
+    config_dir = tmp_path / "config"
+    config_dir.mkdir()
+    config_file = config_dir / "oldname.yaml"
+    config_file.symlink_to(outside)
+    setup_core(tmp_path=config_dir)
+    CORE.config_path = config_file
+    CORE.config = {CONF_ESPHOME: {CONF_NAME: "oldname"}}
+    assert command_rename(MockArgs(name="newname", dashboard=False), {}) == 1
+    mock_run_external_process.assert_not_called()
+    assert "complex yaml" in capfd.readouterr().out.lower()
+
+
+def test_command_rename_refuses_a_name_from_an_include(
+    tmp_path: Path,
+    capfd: CaptureFixture[str],
+    mock_run_external_process: Mock,
+) -> None:
+    """The name line must be in the file being renamed."""
+    (tmp_path / "base.yaml").write_text("name: oldname\n")
+    config_file = tmp_path / "oldname.yaml"
+    config_file.write_text(
+        "esphome: !include base.yaml\n\nesp32:\n  board: nodemcu-32s\n"
+    )
+    setup_core(tmp_path=tmp_path)
+    CORE.config_path = config_file
+    CORE.config = {CONF_ESPHOME: {CONF_NAME: "oldname"}}
+    assert command_rename(MockArgs(name="newname", dashboard=False), {}) == 1
+    mock_run_external_process.assert_not_called()
+    assert "complex yaml" in capfd.readouterr().out.lower()
 
 
 def test_command_update_all_path_string_conversion(

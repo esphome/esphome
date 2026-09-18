@@ -38,6 +38,21 @@ def compiled_config_path(config_filename: str) -> Path:
     return CORE.data_dir / "storage" / f"{config_filename}.validated.json"
 
 
+def invalidate_compiled_config() -> None:
+    """Drop every cache in the storage dir after a change to a file the
+    mtime check cannot see, such as secrets.yaml or an include; other
+    configurations may share that file."""
+    storage = compiled_config_path(CORE.config_filename).parent
+    for path in storage.glob("*.validated.json"):
+        try:
+            path.unlink(missing_ok=True)
+        except OSError as err:
+            # A stale cache would keep serving the text before the edit
+            raise EsphomeError(
+                f"Could not remove the validated config cache {path}: {err}"
+            ) from err
+
+
 def save_compiled_config(config: ConfigType) -> None:
     """Write the validated-config cache. Always-write so mtime stays fresh.
 
