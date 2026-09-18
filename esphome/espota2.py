@@ -215,8 +215,10 @@ class OTAEncryptionFallback(OTAError):
 # name so the upload path never loads the component module
 CONF_ALLOW_PLAINTEXT_UPLOAD = "allow_plaintext_upload"
 ALLOW_PLAINTEXT_UPLOAD_NOTICE = (
-    f"'{CONF_ALLOW_PLAINTEXT_UPLOAD}' is set and this build offers encryption, "
-    "so the next upload is encrypted and says when to remove the option."
+    f"'{CONF_ALLOW_PLAINTEXT_UPLOAD}' is set; expected once, on the install that "
+    "migrates a device which never encrypted. If this device encrypted before, "
+    "something on the network stripped the offer: remove the option and check "
+    "the network."
 )
 # Logged only once the device is seen encrypting, so the migration install
 # itself is never nagged and the user learns exactly when removal is safe
@@ -224,9 +226,10 @@ ALLOW_PLAINTEXT_UPLOAD_REMOVE_WARNING = f"""
 ******************************************************************
 *  This device offers OTA encryption and accepted the key, so
 *  '{CONF_ALLOW_PLAINTEXT_UPLOAD}' under 'ota: encryption:' has done
-*  its job. Remove it from the configuration now: leaving it in
-*  place lets an attacker on the network strip the encryption offer
-*  and downgrade a future upload to plaintext.
+*  its job. Remove it from the configuration now, together with
+*  any 'password:' on that block: leaving the option in place lets
+*  an attacker on the network strip the encryption offer and
+*  downgrade a future upload to plaintext.
 ******************************************************************"""
 
 # Remove before 2027.3.0

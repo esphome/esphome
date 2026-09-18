@@ -328,8 +328,9 @@ async def to_code(config: ConfigType) -> None:
     # An empty password opts in to the auth code path so set_auth_password() can be
     # called at runtime (e.g. to rotate the password from a lambda). When `password:`
     # is omitted entirely, the auth path is excluded to save flash on small devices.
-    # Next to encryption the password only answers the old firmware on the
-    # migration install; the build itself is authenticated by the key
+    # A password is never built in next to encryption: validation only lets
+    # the two coexist for the migration install, where the password answers
+    # the running firmware and the build is authenticated by the key
     if CONF_PASSWORD in config and CONF_ENCRYPTION not in config:
         cg.add_define("USE_OTA_PASSWORD")
         if config[CONF_PASSWORD]:
