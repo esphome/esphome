@@ -982,9 +982,6 @@ def run_ota_impl_(
                 _LOGGER.error(str(err))
                 return 1, None
 
-        # Only an app image replaces the key the device runs
-        if old_noise_psk and ota_type == OTA_TYPE_UPDATE_APP:
-            _LOGGER.warning(OLD_KEY_REMOVE_NOTICE)
         return 0, sa[0]
 
     _LOGGER.error("Upload failed after %d attempts: %s", total_attempts, last_error)
