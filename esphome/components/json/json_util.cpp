@@ -65,7 +65,9 @@ JsonDocument parse_json(const uint8_t *data, size_t len) {
 }
 
 JsonBuilder::JsonBuilder() : doc_(heap_json_allocator()) {}
+#ifdef USE_JSON_ARENA
 JsonBuilder::JsonBuilder(ArduinoJson::Allocator *allocator) : doc_(allocator) {}
+#endif
 
 ArduinoJson::Allocator *heap_json_allocator() {
 #ifdef USE_PSRAM

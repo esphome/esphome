@@ -169,6 +169,7 @@ inline JsonDocument parse_json(const std::string &data) {
 /// The allocator a JsonBuilder uses by default (PSRAM first when available)
 ArduinoJson::Allocator *heap_json_allocator();
 
+#ifdef USE_JSON_ARENA
 /// Size of one ArduinoJson slot pool, the first allocation every document makes (1 KB on 32 bit targets)
 constexpr size_t JSON_POOL_BYTES = ARDUINOJSON_POOL_CAPACITY * sizeof(ArduinoJson::detail::VariantData);
 
@@ -233,14 +234,17 @@ template<size_t N> class JsonArena final : public ArduinoJson::Allocator {
   size_t used_{0};
   size_t last_{0};
 };
+#endif  // USE_JSON_ARENA
 
 /// Builder class for creating JSON documents without lambdas
 class JsonBuilder {
  public:
   // Out of line: inlining the JsonDocument constructor duplicates it at every call site
   JsonBuilder();
+#ifdef USE_JSON_ARENA
   // The builder must not outlive the allocator
   explicit JsonBuilder(ArduinoJson::Allocator *allocator);
+#endif
 
   JsonObject root() {
     if (!root_created_) {
