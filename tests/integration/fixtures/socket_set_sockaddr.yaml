@@ -1,0 +1,17 @@
+esphome:
+  name: socket-set-sockaddr
+  on_boot:
+    then:
+      - lambda: |-
+          // 0 for text that is not an address, the length otherwise, broadcast included
+          struct sockaddr_storage addr;
+          auto *sa = reinterpret_cast<struct sockaddr *>(&addr);
+          ESP_LOGI("test", "SET_SOCKADDR invalid=%u valid=%u broadcast=%u",
+                   (unsigned) socket::set_sockaddr(sa, sizeof(addr), "not an address", 1234),
+                   (unsigned) socket::set_sockaddr(sa, sizeof(addr), "192.0.2.1", 1234),
+                   (unsigned) socket::set_sockaddr(sa, sizeof(addr), "255.255.255.255", 1234));
+
+host:
+api:
+logger:
+  level: INFO
