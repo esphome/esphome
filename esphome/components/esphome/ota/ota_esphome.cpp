@@ -478,7 +478,8 @@ void ESPHomeOTAComponent::handle_data_() {
 
   // Read size, 4 bytes MSB first
   if (!this->data_readall_(buf, 4)) {
-    if (this->client_left_before_start_())
+    // The first request byte is the type on the extended protocol; a close after it was a cut-off request
+    if (!this->extended_proto_() && this->client_left_before_start_())
       return;
     this->log_read_error_(LOG_STR("size"));
     goto error;  // NOLINT(cppcoreguidelines-avoid-goto)
@@ -672,7 +673,8 @@ bool ESPHomeOTAComponent::readall_(uint8_t *buf, size_t len) {
         return false;
       }
     } else if (read == 0) {
-      this->remote_closed_ = true;
+      // A partial message is a cut-off request, not a clean close
+      this->remote_closed_ = at == 0;
       return false;
     } else {
       at += read;
