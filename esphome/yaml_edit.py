@@ -3,7 +3,7 @@ it from, or the secrets.yaml line a `!secret` on it points to."""
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 import re
 import stat
@@ -42,6 +42,8 @@ class KeyEdit:
     old_line: str
     new_line: str
     insert_after: bool = False
+    # Other configurations that use the rewritten secret
+    shared_with: list[Path] = field(default_factory=list)
 
 
 def _esphome_ota_items(raw: ConfigType) -> list[ConfigType]:
@@ -125,8 +127,26 @@ def _write_keeping_mode(path: Path, text: str) -> None:
         raise EsphomeError(f"Could not keep the mode of {path}: {err}") from err
 
 
-def _secret_edit(doc: Path, name: str, old_key: str, new_key: str) -> KeyEdit:
-    """The secrets.yaml line ``!secret name`` in ``doc`` resolves to."""
+def _other_users(name: str, own: set[Path]) -> list[Path]:
+    """Yaml files in the configuration directory, outside ``own`` and the
+    build data, that reference ``!secret name``."""
+    ref = re.compile(rf"!secret\s+[\"']?{re.escape(name)}[\"']?(?=[\s#]|$)")
+    data_dir = CORE.data_dir.resolve()
+    return sorted(
+        path
+        for path in CORE.config_dir.resolve().rglob("*.yaml")
+        if path not in own
+        and not path.is_relative_to(data_dir)
+        and ref.search(_read_text(path))
+    )
+
+
+def _secret_edit(
+    doc: Path, name: str, old_key: str, new_key: str, own: set[Path]
+) -> KeyEdit:
+    """The secrets.yaml line ``!secret name`` in ``doc`` resolves to; notes
+    the other configurations that share it, since their devices keep the
+    previous key and get no old_key."""
     secrets_path = _editable_file(secrets_path_for(doc))
     # The name may be quoted; nested lines are indented and never match
     line_re = _key_line_re(rf"[\"']?{re.escape(name)}[\"']?:\s*", old_key)
@@ -141,7 +161,13 @@ def _secret_edit(doc: Path, name: str, old_key: str, new_key: str) -> KeyEdit:
             f"{secrets_path}, found {len(hits)}"
         )
     i, m = hits[0]
-    return KeyEdit(secrets_path, i, m.string, _rewrite(m, new_key))
+    return KeyEdit(
+        secrets_path,
+        i,
+        m.string,
+        _rewrite(m, new_key),
+        shared_with=_other_users(name, own),
+    )
 
 
 def locate_key_edits(old_key: str, new_key: str) -> list[KeyEdit]:
@@ -152,13 +178,14 @@ def locate_key_edits(old_key: str, new_key: str) -> list[KeyEdit]:
     blocks = _key_blocks(CORE.raw_config or {}, old_key)
     if not blocks:
         raise EsphomeError("The current key was not found on a line of the yaml")
+    sources = [_editable_source(block, CONF_KEY) for block in blocks]
+    own = {doc for doc, _ in sources} | {CORE.config_path.resolve()}
     edits: list[KeyEdit] = []
-    for block in blocks:
-        doc, line_no = _editable_source(block, CONF_KEY)
+    for doc, line_no in sources:
         lines = _read_text(doc).splitlines()
         text = lines[line_no] if line_no < len(lines) else ""
         if match := secret_re.match(text):
-            edit = _secret_edit(doc, match.group(2), old_key, new_key)
+            edit = _secret_edit(doc, match.group(2), old_key, new_key, own)
         elif match := literal_re.match(text):
             edit = KeyEdit(doc, line_no, text, _rewrite(match, new_key))
         else:
@@ -207,18 +234,21 @@ def old_key_edit(old_key: str) -> KeyEdit:
                 "value; edit it by hand"
             )
         return KeyEdit(doc, line_no, text, _rewrite(match, old_key))
-    # The block's own key line sets the indent; a bare block indents one
-    # level below the `encryption:` key
+    # The block's own key line sets the indent, in whichever file holds it
+    if _source_of(encryption, CONF_KEY) is not None:
+        doc, line_no = _editable_source(encryption, CONF_KEY)
+        lines = _read_text(doc).splitlines()
+        text = lines[line_no] if line_no < len(lines) else ""
+        if not re.match(rf"\s*{CONF_KEY}:", text):
+            raise EsphomeError(
+                f"{doc}:{line_no + 1} does not hold '{CONF_KEY}'; edit it by hand"
+            )
+        indent = text[: len(text) - len(text.lstrip())]
+        return KeyEdit(doc, line_no, text, f"{indent}{rendered}", insert_after=True)
+    # A bare block indents one level below the `encryption:` key
     doc, line_no = _editable_source(item, CONF_ENCRYPTION)
     lines = _read_text(doc).splitlines()
-    if (key_source := _source_of(encryption, CONF_KEY)) is not None:
-        _, key_line = key_source
-        key_text = lines[key_line]
-        indent = key_text[: len(key_text) - len(key_text.lstrip())]
-        return KeyEdit(
-            doc, key_line, key_text, f"{indent}{rendered}", insert_after=True
-        )
-    block_text = lines[line_no]
+    block_text = lines[line_no] if line_no < len(lines) else ""
     if not re.fullmatch(rf"\s*{CONF_ENCRYPTION}:\s*(#.*)?", block_text):
         raise EsphomeError(
             f"{doc}:{line_no + 1} writes the block in flow style; edit it by hand"
@@ -244,7 +274,7 @@ def apply_key_edits(edits: list[KeyEdit]) -> dict[Path, str]:
                 current[edit.path] = originals[edit.path].splitlines(keepends=True)
             lines = current[edit.path]
             nl = "\r\n" if "\r\n" in originals[edit.path] else "\n"
-            text = lines[edit.line].rstrip("\r\n")
+            text = lines[edit.line].rstrip("\r\n") if edit.line < len(lines) else None
             if text != edit.old_line:
                 raise EsphomeError(
                     f"{edit.path}:{edit.line + 1} changed since it was read"
