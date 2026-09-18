@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cstdarg>
 #include <memory>
+#include <cstdio>
 #include <cstring>
 #include <cctype>
 #include <cinttypes>
