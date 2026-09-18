@@ -472,3 +472,76 @@ def test_old_key_on_a_block_without_source(tmp_path: Path) -> None:
     }
     with pytest.raises(EsphomeError, match="was not read from a file"):
         old_key_edit(OLD_KEY)
+
+
+def test_other_platform_listed_first(tmp_path: Path) -> None:
+    yaml_text = f"""esphome:
+  name: test
+
+api:
+  encryption:
+    key: "{OLD_KEY}"
+
+ota:
+  - platform: web_server
+  - platform: esphome
+    encryption:
+"""
+    path = _setup(tmp_path, yaml_text)
+    apply_key_edits([*locate_key_edits(OLD_KEY, NEW_KEY), old_key_edit(OLD_KEY)])
+    assert path.read_text() == yaml_text.replace(OLD_KEY, NEW_KEY) + (
+        f'      old_key: "{OLD_KEY}"\n'
+    )
+
+
+def test_block_scalar_key_in_the_config_is_refused(tmp_path: Path) -> None:
+    yaml_text = f"""esphome:
+  name: test
+
+api:
+  encryption:
+    key: >-
+      {OLD_KEY}
+
+ota:
+  - platform: esphome
+    encryption:
+"""
+    _setup(tmp_path, yaml_text)
+    with pytest.raises(EsphomeError, match="edit the key by hand"):
+        locate_key_edits(OLD_KEY, NEW_KEY)
+
+
+def test_comment_after_the_key_line_stays_below_old_key(tmp_path: Path) -> None:
+    yaml_text = f"""esphome:
+  name: test
+
+mqtt:
+  broker: broker.local
+
+ota:
+  - platform: esphome
+    encryption:
+      key: "{OLD_KEY}"
+      # rotated on install
+    port: 3232
+"""
+    path = _setup(tmp_path, yaml_text)
+    apply_key_edits([*locate_key_edits(OLD_KEY, NEW_KEY), old_key_edit(OLD_KEY)])
+    assert path.read_text() == yaml_text.replace(
+        f'      key: "{OLD_KEY}"\n',
+        f'      key: "{NEW_KEY}"\n      old_key: "{OLD_KEY}"\n',
+    )
+
+
+def test_quoted_and_prefixed_secret_names(tmp_path: Path) -> None:
+    """A quoted name still matches, a longer name that starts the same and a
+    nested same-named key do not."""
+    secrets = f"""device_key_old: {OLD_KEY}
+nested:
+  device_key: {OLD_KEY}
+"device_key": {OLD_KEY}
+"""
+    _setup(tmp_path, SECRET_YAML, secrets)
+    edits = locate_key_edits(OLD_KEY, NEW_KEY)
+    assert [(e.line, e.new_line) for e in edits] == [(3, f'"device_key": {NEW_KEY}')]
