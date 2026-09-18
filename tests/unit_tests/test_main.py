@@ -2227,28 +2227,37 @@ def test_upload_program_ota_allow_plaintext_upload(
     }
 
 
-def test_upload_program_ota_prompted_key_overrides_config(
+@pytest.mark.parametrize(
+    "ota_conf",
+    [
+        {
+            CONF_ENCRYPTION: {
+                CONF_KEY: "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=",
+                "allow_plaintext_upload": True,
+            }
+        },
+        {},
+    ],
+    ids=["with_encryption_block", "without_encryption_block"],
+)
+def test_upload_program_ota_prompted_key_is_presented(
     mock_run_ota: Mock,
     mock_get_port_type: Mock,
     tmp_path: Path,
+    ota_conf: dict[str, Any],
 ) -> None:
-    """A prompted key replaces the configured one for this upload and never
-    downgrades, whatever the config allows."""
+    """A prompted key replaces whatever the config holds for this upload and
+    never downgrades, whatever the config allows."""
     setup_core(platform=PLATFORM_ESP32, tmp_path=tmp_path)
     mock_get_port_type.return_value = "NETWORK"
     mock_run_ota.return_value = (0, "192.168.1.100")
 
-    key = "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="
     old_key = "AQIDBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyA="
     config = {
-        CONF_API: {CONF_ENCRYPTION: {CONF_KEY: key}},
-        CONF_OTA: [
-            {
-                CONF_PLATFORM: CONF_ESPHOME,
-                CONF_PORT: 3232,
-                CONF_ENCRYPTION: {CONF_KEY: key, "allow_plaintext_upload": True},
-            }
-        ],
+        CONF_API: {
+            CONF_ENCRYPTION: {CONF_KEY: "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="}
+        },
+        CONF_OTA: [{CONF_PLATFORM: CONF_ESPHOME, CONF_PORT: 3232, **ota_conf}],
     }
     exit_code, _ = upload_program(config, MockArgs(ota_key=old_key), ["192.168.1.100"])
 
@@ -2258,26 +2267,6 @@ def test_upload_program_ota_prompted_key_overrides_config(
         "plaintext_fallback": False,
         "allow_plaintext_upload": False,
     }
-
-
-def test_upload_program_ota_prompted_key_without_encryption_block(
-    mock_run_ota: Mock,
-    mock_get_port_type: Mock,
-    tmp_path: Path,
-) -> None:
-    """The device may require a key the config no longer holds; the prompted
-    key is presented without the api key fallback."""
-    setup_core(platform=PLATFORM_ESP32, tmp_path=tmp_path)
-    mock_get_port_type.return_value = "NETWORK"
-    mock_run_ota.return_value = (0, "192.168.1.100")
-
-    old_key = "AQIDBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyA="
-    config = {CONF_OTA: [{CONF_PLATFORM: CONF_ESPHOME, CONF_PORT: 3232}]}
-    exit_code, _ = upload_program(config, MockArgs(ota_key=old_key), ["192.168.1.100"])
-
-    assert exit_code == 0
-    assert mock_run_ota.call_args.args[5] == old_key
-    assert mock_run_ota.call_args.kwargs["plaintext_fallback"] is False
 
 
 def test_upload_program_serial_ignores_prompted_key(
@@ -2302,69 +2291,66 @@ def test_upload_program_serial_ignores_prompted_key(
     assert any("ignored for /dev/ttyUSB0" in r.message for r in caplog.records)
 
 
-def test_upload_program_web_server_rejects_prompted_key(
-    mock_run_web_server_ota: Mock,
-    mock_run_ota: Mock,
-    mock_get_port_type: Mock,
-    tmp_path: Path,
-) -> None:
-    """The HTTP path has no key handshake, so a prompted key is refused
-    rather than silently dropped."""
-    setup_core(platform=PLATFORM_ESP32, tmp_path=tmp_path)
-    mock_get_port_type.return_value = "NETWORK"
-
-    config = {
-        CONF_OTA: [{CONF_PLATFORM: CONF_WEB_SERVER}],
-        CONF_WEB_SERVER: {CONF_PORT: 80},
-    }
-    with pytest.raises(EsphomeError, match="only applies to the esphome OTA"):
-        upload_program(config, MockArgs(ota_key="key"), ["192.168.1.100"])
-    mock_run_web_server_ota.assert_not_called()
-    mock_run_ota.assert_not_called()
-
-
-@pytest.mark.parametrize("is_tty", [True, False], ids=["tty", "pipe"])
-def test_read_ota_key_reads_from_terminal_or_pipe(is_tty: bool) -> None:
-    """The key is read without echo on a terminal and as one line from a
-    pipe; either way it lands on args and never in argv."""
+def test_read_ota_key_stores_prompted_key() -> None:
+    """The key lands on args and never in argv."""
     key = "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="
     args = MockArgs(prompt_ota_key=True)
-    with (
-        patch("esphome.util.sys.stdin") as stdin,
-        patch("getpass.getpass", return_value=f" {key} ") as getpass,
-    ):
-        stdin.isatty.return_value = is_tty
-        stdin.readline.return_value = f"{key}\n"
-        _read_ota_key(args)
+    config = {CONF_OTA: [{CONF_PLATFORM: CONF_ESPHOME}]}
+    with patch("esphome.__main__.read_secret_line", return_value=key) as read:
+        _read_ota_key(args, config)
+    read.assert_called_once_with("OTA encryption key: ")
     assert args.ota_key == key
-    assert getpass.called is is_tty
 
 
 def test_read_ota_key_not_requested() -> None:
     args = MockArgs()
-    _read_ota_key(args)
+    with patch("esphome.__main__.read_secret_line") as read:
+        _read_ota_key(args, {CONF_OTA: [{CONF_PLATFORM: CONF_ESPHOME}]})
+    read.assert_not_called()
+    assert args.ota_key is None
+
+
+@pytest.mark.parametrize("line", ["", "not-base64"], ids=["empty", "invalid"])
+def test_read_ota_key_rejects_bad_input(line: str) -> None:
+    args = MockArgs(prompt_ota_key=True)
+    config = {CONF_OTA: [{CONF_PLATFORM: CONF_ESPHOME}]}
+    with (
+        patch("esphome.__main__.read_secret_line", return_value=line),
+        pytest.raises(EsphomeError, match="Invalid OTA encryption key"),
+    ):
+        _read_ota_key(args, config)
     assert args.ota_key is None
 
 
 @pytest.mark.parametrize(
-    ("line", "match"),
-    [("", "No OTA encryption key"), ("not-base64", "Invalid OTA encryption key")],
-    ids=["empty", "invalid"],
+    ("ota_platform", "config"),
+    [
+        (
+            CONF_WEB_SERVER,
+            {
+                CONF_OTA: [
+                    {CONF_PLATFORM: CONF_ESPHOME},
+                    {CONF_PLATFORM: CONF_WEB_SERVER},
+                ]
+            },
+        ),
+        (None, {CONF_OTA: [{CONF_PLATFORM: CONF_WEB_SERVER}]}),
+    ],
+    ids=["requested", "only_platform"],
 )
-def test_read_ota_key_rejects_bad_input(line: str, match: str) -> None:
-    args = MockArgs(prompt_ota_key=True)
-    with patch("esphome.util.sys.stdin") as stdin:
-        stdin.isatty.return_value = False
-        stdin.readline.return_value = f"{line}\n"
-        with pytest.raises(EsphomeError, match=match):
-            _read_ota_key(args)
-    assert args.ota_key is None
-
-
-def test_read_ota_key_refuses_web_server_platform() -> None:
-    args = MockArgs(prompt_ota_key=True, ota_platform=CONF_WEB_SERVER)
-    with pytest.raises(EsphomeError, match="only applies to the esphome OTA"):
-        _read_ota_key(args)
+def test_read_ota_key_refuses_web_server_platform(
+    ota_platform: str | None, config: dict[str, Any]
+) -> None:
+    """The HTTP path has no key handshake, so the flag is refused before the
+    prompt and before any compile, whether web_server was asked for or is the
+    only platform in the config."""
+    args = MockArgs(prompt_ota_key=True, ota_platform=ota_platform)
+    with (
+        patch("esphome.__main__.read_secret_line") as read,
+        pytest.raises(EsphomeError, match="only applies to the esphome OTA"),
+    ):
+        _read_ota_key(args, config)
+    read.assert_not_called()
 
 
 def test_upload_program_ota_api_key_opportunistic(
