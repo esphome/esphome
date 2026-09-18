@@ -247,10 +247,8 @@ OLD_KEY_REMOVE_NOTICE = (
 
 
 class _EncryptionAttempt:
-    """The key an upload tries, the previous key to retry with when the
-    device rejects it, and (until 2027.3.0) whether it may fall back to
-    plaintext; a rejected handshake falls back at once, a transport fault
-    only on repeat."""
+    """The key an upload tries, the previous key to retry with once, and
+    (until 2027.3.0) whether it may fall back to plaintext."""
 
     def __init__(
         self, noise_psk: str | None, plaintext_fallback: bool, old_noise_psk: str | None
