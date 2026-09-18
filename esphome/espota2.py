@@ -211,6 +211,14 @@ class OTAEncryptionFallback(OTAError):
     """The encrypted attempt failed and the caller may retry in plaintext."""
 
 
+# Uploader side option under `ota: encryption:`; the ota component imports the
+# name so the upload path never loads the component module
+CONF_ALLOW_PLAINTEXT_UPLOAD = "allow_plaintext_upload"
+ALLOW_PLAINTEXT_UPLOAD_NOTICE = (
+    f"'{CONF_ALLOW_PLAINTEXT_UPLOAD}' is set; remove it once the device runs "
+    "this build."
+)
+
 # Remove before 2027.3.0
 PLAINTEXT_FALLBACK_NOTICE = (
     "A device with an api encryption key offers encryption after this "
@@ -578,21 +586,15 @@ def perform_ota(
         features = 0
 
     if noise_psk and not (extended_proto and features & SERVER_FEATURE_SUPPORTS_NOISE):
-        if allow_plaintext_upload:
-            # The running firmware cannot encrypt and the user opted in; the
-            # build being sent requires encryption, so this is a one time path
-            _LOGGER.warning(
-                "The device did not offer OTA encryption; continuing in plaintext "
-                "because 'allow_plaintext_upload' is set. Remove it once the "
-                "device runs this build."
-            )
-            noise_psk = None
-        elif plaintext_fallback:
-            # Remove before 2027.3.0: older firmware that cannot encrypt still
-            # gets its update on this connection
+        # Remove before 2027.3.0: the fallback goes, the explicit opt in stays
+        if allow_plaintext_upload or plaintext_fallback:
+            # The running firmware cannot encrypt; it still gets this update,
+            # and the build being sent offers encryption for the next one
             _LOGGER.warning(
                 "The device did not offer OTA encryption; continuing in plaintext. %s",
-                PLAINTEXT_FALLBACK_NOTICE,
+                ALLOW_PLAINTEXT_UPLOAD_NOTICE
+                if allow_plaintext_upload
+                else PLAINTEXT_FALLBACK_NOTICE,
             )
             noise_psk = None
         else:

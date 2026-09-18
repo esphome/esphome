@@ -27,11 +27,11 @@ from esphome.const import (
 )
 from esphome.core import CORE, coroutine_with_priority
 from esphome.coroutine import CoroPriority
+from esphome.espota2 import CONF_ALLOW_PLAINTEXT_UPLOAD
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
 CONF_ALLOW_PARTITION_ACCESS = "allow_partition_access"
-CONF_ALLOW_PLAINTEXT_UPLOAD = "allow_plaintext_upload"
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -254,9 +254,7 @@ _ENCRYPTION_SCHEMA = ENCRYPTION_SCHEMA.extend(
 
 def _encryption_schema(config: ConfigType | None) -> ConfigType:
     # A bare `encryption:` block inherits the api key
-    if config is None:
-        config = {}
-    return _ENCRYPTION_SCHEMA(config)
+    return _ENCRYPTION_SCHEMA(config or {})
 
 
 # Also called on merged same-port configs in final validate, where schemas
