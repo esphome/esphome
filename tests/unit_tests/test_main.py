@@ -2291,6 +2291,56 @@ def test_upload_program_serial_ignores_prompted_key(
     assert any("ignored for /dev/ttyUSB0" in r.message for r in caplog.records)
 
 
+def test_command_run_prompts_for_ota_key_before_compile() -> None:
+    """The prompt comes first so it is not buried in minutes of build output."""
+    setup_core(
+        config={CONF_OTA: [{CONF_PLATFORM: CONF_ESPHOME}]}, platform=PLATFORM_ESP32
+    )
+    key = "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="
+    args = MockArgs(prompt_ota_key=True)
+    calls: list[str] = []
+
+    def read(prompt: str) -> str:
+        calls.append("prompt")
+        return key
+
+    def compile_program(*_: Any) -> int:
+        calls.append("compile")
+        assert args.ota_key == key
+        return 1  # stop before the upload
+
+    with (
+        patch("esphome.__main__.read_secret_line", side_effect=read),
+        patch("esphome.__main__.write_cpp", return_value=0),
+        patch("esphome.__main__.compile_program", side_effect=compile_program),
+    ):
+        assert command_run(args, CORE.config) == 1
+    assert calls == ["prompt", "compile"]
+
+
+def test_upload_program_platform_hook_ignores_prompted_key(
+    mock_get_port_type: Mock,
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A platform's own network upload path (nrf52 mcumgr) has no key
+    handshake; the key is dropped with a warning, never silently."""
+    setup_core(platform=PLATFORM_ESP32, tmp_path=tmp_path)
+    mock_get_port_type.return_value = "NETWORK"
+    config = {CONF_OTA: [{CONF_PLATFORM: CONF_ESPHOME, CONF_PORT: 3232}]}
+    with (
+        patch(
+            "esphome.__main__.platform_hooks.get_platform_hook",
+            return_value=lambda *_: True,
+        ),
+        caplog.at_level(logging.WARNING),
+    ):
+        exit_code, host = upload_program(config, MockArgs(ota_key="key"), ["dev.local"])
+
+    assert (exit_code, host) == (0, "dev.local")
+    assert any("ignored for dev.local" in r.message for r in caplog.records)
+
+
 def test_read_ota_key_stores_prompted_key() -> None:
     """The key lands on args and never in argv."""
     key = "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="
