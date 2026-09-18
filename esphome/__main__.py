@@ -2192,13 +2192,7 @@ ROTATE_KEY_PRECHECK_TIMEOUT = 15.0
 
 
 def command_rotate_key(args: ArgsProtocol, config: ConfigType) -> int | None:
-    """Change the OTA encryption key over the air.
-
-    The device only accepts the key it runs, so the new key is written to
-    the yaml (or secrets.yaml), built, uploaded with the current key, and
-    then confirmed with a handshake using the new key. Any failure puts the
-    previous key back so the configuration keeps matching the device.
-    """
+    """Write a new key, build with it, upload with the current one, confirm."""
     from esphome import espota2
     from esphome.components.noise import (
         generate_encryption_key,

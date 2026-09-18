@@ -1,11 +1,5 @@
-"""Rewrite the OTA encryption key where it lives in the user's yaml.
-
-The key is located through the source ranges the yaml loader records on
-every value, so the line to rewrite is the one the parser read the key
-from: a `key:` line in the configuration, or the `secrets.yaml` line a
-`!secret` on it points to. Only that line changes; quotes and comments on
-it stay. The result is parsed again before it counts.
-"""
+"""Rewrite the OTA encryption key in place: the `key:` line the loader read
+it from, or the secrets.yaml line a `!secret` on it points to."""
 
 from __future__ import annotations
 
@@ -48,8 +42,7 @@ class KeyEdit:
 
 
 def _esphome_ota_item(raw: ConfigType) -> ConfigType | None:
-    """The esphome ota item of a raw config, where ``ota:`` may still be a
-    single mapping rather than a list."""
+    """The esphome ota item; a raw ``ota:`` may be a mapping, not a list."""
     ota = raw.get(CONF_OTA) or []
     items = [ota] if isinstance(ota, dict) else ota
     return next(
@@ -63,8 +56,7 @@ def _esphome_ota_item(raw: ConfigType) -> ConfigType | None:
 
 
 def _key_nodes(raw: ConfigType, key: str) -> list[str]:
-    """The api and esphome ota key values equal to ``key``; from a loaded
-    yaml they carry the source range they were read from."""
+    """The api and esphome ota key values equal to ``key``."""
     nodes = [static_encryption_key(raw.get(CONF_API) or {})]
     if (item := _esphome_ota_item(raw)) is not None:
         nodes.append(static_encryption_key(item))
@@ -72,8 +64,7 @@ def _key_nodes(raw: ConfigType, key: str) -> list[str]:
 
 
 def _key_line_re(prefix: str, key: str) -> re.Pattern[str]:
-    """Match ``<prefix><quote><key><quote><comment>``, keeping every part
-    around the key so the rewrite can put the new key in the same place."""
+    """Match a key line, capturing what surrounds the key."""
     return re.compile(rf"^({prefix})([\"']?){re.escape(key)}\2(\s*(?:#.*)?)$")
 
 
@@ -82,8 +73,7 @@ def _rewrite(match: re.Match[str], new_key: str) -> str:
 
 
 def _editable_source(node: str) -> tuple[Path, int]:
-    """The file and line a key was read from, refusing sources that cannot
-    be edited in place."""
+    """The file and line a key was read from; refuses uneditable sources."""
     rng = getattr(node, "esp_range", None)
     if rng is None:
         raise EsphomeError(
@@ -105,9 +95,7 @@ def _editable_source(node: str) -> tuple[Path, int]:
 
 
 def _secret_edit(doc: Path, name: str, old_key: str, new_key: str) -> KeyEdit:
-    """The edit for a ``!secret name`` read from ``doc``: the one line in
-    the secrets.yaml the loader would consult that defines the name with
-    the current key."""
+    """The secrets.yaml line ``!secret name`` in ``doc`` resolves to."""
     secrets_path = secrets_path_for(doc)
     line_re = _key_line_re(rf"{re.escape(name)}:\s*", old_key)
     hits = [
@@ -125,9 +113,8 @@ def _secret_edit(doc: Path, name: str, old_key: str, new_key: str) -> KeyEdit:
 
 
 def locate_key_edits(old_key: str, new_key: str) -> list[KeyEdit]:
-    """Find every yaml line that carries the current key and prepare its
-    rewrite. Raises EsphomeError for anything that cannot be edited line by
-    line, such as a substitution, a flow mapping or a remote package."""
+    """The edits that replace the current key; raises EsphomeError for a
+    substitution, flow mapping or remote package."""
     literal_re = _key_line_re(rf"\s*{CONF_KEY}:\s*", old_key)
     secret_re = re.compile(rf"^\s*{CONF_KEY}:\s*!secret\s+([^\s#]+)")
     nodes = _key_nodes(CORE.raw_config or {}, old_key)
@@ -154,9 +141,7 @@ def locate_key_edits(old_key: str, new_key: str) -> list[KeyEdit]:
 
 
 def old_key_edit(old_key: str) -> KeyEdit:
-    """Keep the key being replaced as ``old_key:`` under the esphome ota
-    ``encryption:`` block, so an install still reaches a device that runs
-    it. Rewrites an existing ``old_key:`` line or adds one to the block."""
+    """Set ``old_key:`` on the esphome ota block, rewriting or adding it."""
     item = _esphome_ota_item(CORE.raw_config or {})
     if item is None or CONF_ENCRYPTION not in item:
         raise EsphomeError("The esphome OTA platform has no 'encryption:' block")
@@ -189,13 +174,8 @@ def old_key_edit(old_key: str) -> KeyEdit:
 
 
 def apply_key_edits(edits: list[KeyEdit]) -> dict[Path, str]:
-    """Rewrite the located lines, atomically per file, and return the
-    original text of every touched file for a rollback.
-
-    Every touched file is loaded again afterwards; a rewrite that broke the
-    yaml is undone here, one that missed a node fails the compile that
-    follows and is undone by the caller.
-    """
+    """Rewrite the located lines and return each touched file's original
+    text for a rollback; a file that no longer loads is undone here."""
     from esphome import yaml_util
     from esphome.compiled_config import invalidate_compiled_config
 
