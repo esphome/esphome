@@ -40,4 +40,139 @@ TEST_F(UFM01Test, StartPassiveReadSendsCommand) {
   EXPECT_EQ(this->mock_uart_.written_data[6], FRAME_STOP_BYTE);
 }
 
+TEST_F(UFM01Test, StartupActiveWaitTimeoutSendsSetPassiveMode) {
+  this->ufm01_.prepare_active_wait_timeout();
+
+  this->ufm01_.loop_startup();
+
+  EXPECT_EQ(this->ufm01_.startup_phase(), StartupPhase::SET_PASSIVE_WAIT_ACK);
+  ASSERT_EQ(this->mock_uart_.written_data.size(), 7u);
+  EXPECT_EQ(this->mock_uart_.written_data[3], 0x5C);
+  EXPECT_EQ(this->mock_uart_.written_data[4], 0x01);
+  EXPECT_EQ(this->mock_uart_.written_data[5], 0x5D);
+}
+
+TEST_F(UFM01Test, StartupSetPassiveWaitAckStartsPassiveRead) {
+  this->ufm01_.prepare_active_wait_timeout();
+  this->ufm01_.loop_startup();
+  this->mock_uart_.enqueue({COMMAND_ACK});
+  this->mock_uart_.written_data.clear();
+
+  this->ufm01_.loop_startup();
+
+  EXPECT_EQ(this->ufm01_.startup_phase(), StartupPhase::PASSIVE_WAIT_REPLY);
+  ASSERT_EQ(this->mock_uart_.written_data.size(), 7u);
+  EXPECT_EQ(this->mock_uart_.written_data[3], 0x5B);
+}
+
+TEST_F(UFM01Test, StaleActiveStreamSendsSetPassiveMode) {
+  // Leftover stream noise should be flushed before SET_PASSIVE_MODE
+  this->mock_uart_.enqueue({0x3C, 0x32, 0x00});
+  this->ufm01_.prepare_stale_active_stream();
+
+  this->ufm01_.loop_active_stream();
+
+  EXPECT_EQ(this->ufm01_.operating_mode(), OperatingMode::ENTERING_PASSIVE);
+  EXPECT_EQ(this->ufm01_.read_index(), 0);
+  ASSERT_EQ(this->mock_uart_.written_data.size(), 7u);
+  EXPECT_EQ(this->mock_uart_.written_data[0], 0xFE);
+  EXPECT_EQ(this->mock_uart_.written_data[1], 0xFE);
+  EXPECT_EQ(this->mock_uart_.written_data[2], 0x11);
+  EXPECT_EQ(this->mock_uart_.written_data[3], 0x5C);  // set mode
+  EXPECT_EQ(this->mock_uart_.written_data[4], 0x01);  // passive
+  EXPECT_EQ(this->mock_uart_.written_data[5], 0x5D);  // checksum
+  EXPECT_EQ(this->mock_uart_.written_data[6], FRAME_STOP_BYTE);
+  EXPECT_EQ(this->mock_uart_.available(), 0u);  // RX flushed
+}
+
+#ifdef USE_SENSOR
+TEST_F(UFM01Test, StaleActiveStreamPublishesNanToFlowAndTemperature) {
+  this->attach_flow_and_temperature_sensors();
+  this->ufm01_.prepare_stale_active_stream();
+
+  this->ufm01_.loop_active_stream();
+
+  EXPECT_TRUE(std::isnan(this->flow_sensor_.get_state()));
+  EXPECT_TRUE(std::isnan(this->temperature_sensor_.get_state()));
+}
+
+TEST_F(UFM01Test, RepeatedPassiveFailuresPublishNanBeforeReset) {
+  this->attach_flow_and_temperature_sensors();
+  constexpr uint8_t escalate_count = 8;
+  this->ufm01_.set_operating_mode(OperatingMode::PASSIVE_POLL);
+
+  for (uint8_t i = 0; i < escalate_count - 1; ++i) {
+    this->ufm01_.prepare_timed_out_passive_read();
+    this->ufm01_.loop_passive_poll();
+  }
+
+  this->ufm01_.prepare_timed_out_passive_read();
+  this->ufm01_.loop_passive_poll();
+
+  EXPECT_TRUE(std::isnan(this->flow_sensor_.get_state()));
+  EXPECT_TRUE(std::isnan(this->temperature_sensor_.get_state()));
+}
+#endif
+
+TEST_F(UFM01Test, EnteringPassiveAdvancesOnAck) {
+  this->ufm01_.set_operating_mode(OperatingMode::ENTERING_PASSIVE);
+  this->mock_uart_.enqueue({0x00, COMMAND_ACK});
+
+  this->ufm01_.loop_entering_passive();
+
+  EXPECT_EQ(this->ufm01_.operating_mode(), OperatingMode::PASSIVE_POLL);
+}
+
+TEST_F(UFM01Test, EnteringPassiveStaysPendingWithoutAck) {
+  this->ufm01_.prepare_stale_active_stream();
+  this->ufm01_.loop_active_stream();  // ENTERING_PASSIVE with fresh phase_start_ms_
+  ASSERT_EQ(this->ufm01_.operating_mode(), OperatingMode::ENTERING_PASSIVE);
+
+  this->ufm01_.loop_entering_passive();
+
+  EXPECT_EQ(this->ufm01_.operating_mode(), OperatingMode::ENTERING_PASSIVE);
+}
+
+TEST_F(UFM01Test, PassivePollSuccessClearsFailureCount) {
+  this->ufm01_.set_operating_mode(OperatingMode::PASSIVE_POLL);
+
+  for (int i = 0; i < 3; ++i) {
+    this->ufm01_.prepare_timed_out_passive_read();
+    this->ufm01_.loop_passive_poll();
+  }
+  ASSERT_EQ(this->ufm01_.consecutive_passive_failures(), 3u);
+
+  auto frame = make_passive_frame();
+  this->mock_uart_.enqueue(std::vector<uint8_t>(frame.begin(), frame.end()));
+  this->ufm01_.begin_pending_passive_read();
+  this->ufm01_.loop_passive_poll();
+
+  EXPECT_EQ(this->ufm01_.consecutive_passive_failures(), 0u);
+  EXPECT_EQ(this->ufm01_.operating_mode(), OperatingMode::PASSIVE_POLL);
+}
+
+TEST_F(UFM01Test, RepeatedPassiveFailuresEscalateToReset) {
+  // Matches PASSIVE_FAIL_ESCALATE_COUNT in ufm01.cpp
+  constexpr uint8_t escalate_count = 8;
+  this->ufm01_.set_operating_mode(OperatingMode::PASSIVE_POLL);
+
+  for (uint8_t i = 0; i < escalate_count - 1; ++i) {
+    this->ufm01_.prepare_timed_out_passive_read();
+    this->ufm01_.loop_passive_poll();
+    ASSERT_EQ(this->ufm01_.operating_mode(), OperatingMode::PASSIVE_POLL) << "i=" << static_cast<int>(i);
+  }
+  EXPECT_EQ(this->ufm01_.consecutive_passive_failures(), escalate_count - 1);
+
+  this->mock_uart_.written_data.clear();
+  this->ufm01_.prepare_timed_out_passive_read();
+  this->ufm01_.loop_passive_poll();
+
+  EXPECT_EQ(this->ufm01_.operating_mode(), OperatingMode::STARTUP);
+  EXPECT_EQ(this->ufm01_.startup_phase(), StartupPhase::RESET_WAIT_ACK);
+  EXPECT_EQ(this->ufm01_.consecutive_passive_failures(), 0u);
+  ASSERT_EQ(this->mock_uart_.written_data.size(), 7u);
+  EXPECT_EQ(this->mock_uart_.written_data[3], 0x5D);  // RESET_DEVICE
+  EXPECT_EQ(this->mock_uart_.written_data[4], 0xCB);
+}
+
 }  // namespace esphome::ufm01::testing
