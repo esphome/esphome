@@ -23,7 +23,9 @@ from zeroconf import ServiceStateChange
 from esphome import __main__ as main, yaml_util
 from esphome.__main__ import (
     Purpose,
+    _apply_key_edits,
     _get_configured_xtal_freq,
+    _locate_key_edits,
     _make_crystal_freq_callback,
     _read_ota_key,
     _redact_with_legacy_fallback,
@@ -44,6 +46,7 @@ from esphome.__main__ import (
     command_dashboard,
     command_idedata,
     command_rename,
+    command_rotate_key,
     command_run,
     command_update_all,
     command_upload,
@@ -1556,6 +1559,10 @@ class MockArgs:
     prompt_ota_key: bool = False
     ota_key: str | None = None
     env_ota_key: str | None = None
+    device: list[str] | None = None
+    prompt_new_key: bool = False
+    yes: bool = False
+    substitution: list[list[str]] | None = None
 
 
 # The keyword half of every run_ota call; a test overrides the one it is about
@@ -8009,3 +8016,435 @@ def test_command_run_host_executes_program(caplog: pytest.LogCaptureFixture) -> 
         assert main.command_run(SimpleNamespace(), {}) == 0
     mock_run.assert_called_with("/b/program")
     assert "Running program from path '/b/program'" in caplog.text
+
+
+# ---- rotate-key ---------------------------------------------------------
+
+ROTATE_OLD_KEY = "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="
+ROTATE_NEW_KEY = "AQIDBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyA="
+
+
+def _rotate_setup(tmp_path: Path, yaml_text: str, secrets: str | None = None) -> Path:
+    """Write the yaml (and secrets.yaml), point CORE at it and load the raw
+    config the way read_config does, so key nodes carry their source range."""
+    from esphome import yaml_util
+
+    setup_core(platform=PLATFORM_ESP32, tmp_path=tmp_path)
+    path = CORE.config_path
+    path.write_text(yaml_text, encoding="utf-8")
+    if secrets is not None:
+        (tmp_path / "secrets.yaml").write_text(secrets, encoding="utf-8")
+    CORE.raw_config = yaml_util.load_yaml(path)
+    return path
+
+
+API_BARE_YAML = f"""esphome:
+  name: test
+
+api:
+  encryption:
+    key: "{ROTATE_OLD_KEY}"  # shared with ota
+
+ota:
+  - platform: esphome
+    encryption:
+"""
+
+
+def test_locate_key_edits_inline_api_key(tmp_path: Path) -> None:
+    """A bare ota block inherits the api key, so the api line is the one
+    rewritten, quotes and comment kept."""
+    path = _rotate_setup(tmp_path, API_BARE_YAML)
+    edits = _locate_key_edits(ROTATE_OLD_KEY, ROTATE_NEW_KEY)
+    assert [(e.path, e.line, e.api) for e in edits] == [(path, 5, True)]
+    assert edits[0].new_line == f'    key: "{ROTATE_NEW_KEY}"  # shared with ota'
+    originals = _apply_key_edits(edits, ROTATE_OLD_KEY, ROTATE_NEW_KEY)
+    assert originals == {path: API_BARE_YAML}
+    assert path.read_text() == API_BARE_YAML.replace(ROTATE_OLD_KEY, ROTATE_NEW_KEY)
+
+
+def test_locate_key_edits_secret(tmp_path: Path) -> None:
+    """Both blocks pointing at one secret give one edit, in secrets.yaml."""
+    yaml_text = """esphome:
+  name: test
+
+api:
+  encryption:
+    key: !secret device_key
+
+ota:
+  - platform: esphome
+    encryption:
+      key: !secret device_key
+"""
+    secrets = f"""wifi_password: hunter2
+device_key: '{ROTATE_OLD_KEY}'
+other_key: "{ROTATE_OLD_KEY}"
+"""
+    _rotate_setup(tmp_path, yaml_text, secrets)
+    edits = _locate_key_edits(ROTATE_OLD_KEY, ROTATE_NEW_KEY)
+    assert len(edits) == 1
+    assert edits[0].path == tmp_path / "secrets.yaml"
+    assert edits[0].line == 1
+    assert edits[0].api is True
+    _apply_key_edits(edits, ROTATE_OLD_KEY, ROTATE_NEW_KEY)
+    # Only the named secret changes; another secret with the same value stays
+    assert (tmp_path / "secrets.yaml").read_text() == secrets.replace(
+        f"device_key: '{ROTATE_OLD_KEY}'", f"device_key: '{ROTATE_NEW_KEY}'"
+    )
+
+
+def test_locate_key_edits_secret_rewrites_only_its_line(tmp_path: Path) -> None:
+    yaml_text = """esphome:
+  name: test
+
+api:
+  encryption:
+    key: !secret device_key
+
+ota:
+  - platform: esphome
+    encryption:
+"""
+    secrets = f"""wifi_password: hunter2
+device_key: '{ROTATE_OLD_KEY}'  # keep
+"""
+    _rotate_setup(tmp_path, yaml_text, secrets)
+    edits = _locate_key_edits(ROTATE_OLD_KEY, ROTATE_NEW_KEY)
+    _apply_key_edits(edits, ROTATE_OLD_KEY, ROTATE_NEW_KEY)
+    assert (tmp_path / "secrets.yaml").read_text() == (
+        f"wifi_password: hunter2\ndevice_key: '{ROTATE_NEW_KEY}'  # keep\n"
+    )
+    assert CORE.config_path.read_text() == yaml_text
+
+
+def test_locate_key_edits_explicit_ota_key_next_to_api(tmp_path: Path) -> None:
+    yaml_text = f"""esphome:
+  name: test
+
+api:
+  encryption:
+    key: {ROTATE_OLD_KEY}
+
+ota:
+  - platform: esphome
+    encryption:
+      key: {ROTATE_OLD_KEY}
+"""
+    path = _rotate_setup(tmp_path, yaml_text)
+    edits = _locate_key_edits(ROTATE_OLD_KEY, ROTATE_NEW_KEY)
+    assert sorted((e.line, e.api) for e in edits) == [(5, True), (10, False)]
+    _apply_key_edits(edits, ROTATE_OLD_KEY, ROTATE_NEW_KEY)
+    assert path.read_text() == yaml_text.replace(ROTATE_OLD_KEY, ROTATE_NEW_KEY)
+
+
+def test_apply_key_edits_rolls_back_a_broken_rewrite(tmp_path: Path) -> None:
+    """A rewrite the parser does not agree with is undone before anything
+    else happens."""
+    path = _rotate_setup(tmp_path, API_BARE_YAML)
+    edits = _locate_key_edits(ROTATE_OLD_KEY, ROTATE_NEW_KEY)
+    edits[0].new_line = "    key: [unterminated"
+    with pytest.raises(EsphomeError, match="no longer loads"):
+        _apply_key_edits(edits, ROTATE_OLD_KEY, ROTATE_NEW_KEY)
+    assert path.read_text() == API_BARE_YAML
+
+
+def test_locate_key_edits_own_ota_key_without_api(tmp_path: Path) -> None:
+    yaml_text = f"""esphome:
+  name: test
+
+mqtt:
+  broker: broker.local
+
+ota:
+  - platform: esphome
+    encryption:
+      key: "{ROTATE_OLD_KEY}"
+"""
+    _rotate_setup(tmp_path, yaml_text)
+    edits = _locate_key_edits(ROTATE_OLD_KEY, ROTATE_NEW_KEY)
+    assert [(e.line, e.api) for e in edits] == [(9, False)]
+
+
+@pytest.mark.parametrize(
+    ("yaml_text", "secrets", "match"),
+    [
+        (
+            f"""esphome:
+  name: test
+substitutions:
+  k: "{ROTATE_OLD_KEY}"
+api:
+  encryption:
+    key: ${{k}}
+ota:
+  - platform: esphome
+    encryption:
+""",
+            None,
+            "edit the key by hand",
+        ),
+        (
+            f"""esphome:
+  name: test
+api:
+  encryption: {{key: "{ROTATE_OLD_KEY}"}}
+ota:
+  - platform: esphome
+    encryption:
+""",
+            None,
+            "edit the key by hand",
+        ),
+    ],
+    ids=["substitution", "flow_mapping"],
+)
+def test_locate_key_edits_refuses(
+    tmp_path: Path, yaml_text: str, secrets: str | None, match: str
+) -> None:
+    from esphome.config import do_substitution_pass
+
+    _rotate_setup(tmp_path, yaml_text, secrets)
+    CORE.raw_config = do_substitution_pass(CORE.raw_config, None)
+    with pytest.raises(EsphomeError, match=match):
+        _locate_key_edits(ROTATE_OLD_KEY, ROTATE_NEW_KEY)
+
+
+@pytest.fixture
+def rotate_env(tmp_path: Path) -> Generator[dict[str, Mock]]:
+    """A config with an inline api key and every network step mocked."""
+    _rotate_setup(tmp_path, API_BARE_YAML)
+    CORE.config = {
+        CONF_API: {CONF_ENCRYPTION: {CONF_KEY: ROTATE_OLD_KEY}},
+        CONF_OTA: [
+            {
+                CONF_PLATFORM: CONF_ESPHOME,
+                CONF_PORT: 3232,
+                CONF_ENCRYPTION: {CONF_KEY: ROTATE_OLD_KEY},
+            }
+        ],
+    }
+    with (
+        patch("esphome.__main__.choose_upload_log_host", return_value=["dev.local"]),
+        patch("esphome.__main__._resolve_network_devices", return_value=["dev.local"]),
+        patch("esphome.__main__.get_port_type", return_value="NETWORK"),
+        patch("esphome.espota2.probe_ota_key", return_value=True) as probe,
+        patch("esphome.__main__.run_external_process", return_value=0) as compile_,
+        patch(
+            "esphome.__main__.upload_program", return_value=(0, "dev.local")
+        ) as upload,
+        patch("esphome.__main__.safe_input", return_value="y") as confirm,
+        patch("esphome.__main__.sys.stdin") as stdin,
+        patch("esphome.__main__.secrets.token_bytes", return_value=bytes(range(1, 33))),
+    ):
+        stdin.isatty.return_value = True
+        yield {
+            "probe": probe,
+            "compile": compile_,
+            "upload": upload,
+            "confirm": confirm,
+            "stdin": stdin,
+        }
+
+
+def test_command_rotate_key_success(
+    rotate_env: dict[str, Mock], capfd: pytest.CaptureFixture[str]
+) -> None:
+    """Generate, write, compile in a child, upload with the old key, confirm
+    with the new one, print it."""
+    args = MockArgs()
+    assert command_rotate_key(args, CORE.config) == 0
+
+    assert CORE.config_path.read_text() == API_BARE_YAML.replace(
+        ROTATE_OLD_KEY, ROTATE_NEW_KEY
+    )
+    rotate_env["confirm"].assert_called_once()
+    assert rotate_env["probe"].call_args_list[0].args[2] == ROTATE_OLD_KEY
+    assert rotate_env["probe"].call_args_list[1].args[2] == ROTATE_NEW_KEY
+    compile_args = rotate_env["compile"].call_args.args
+    assert compile_args[-2:] == ("compile", str(CORE.config_path))
+    assert args.ota_key == ROTATE_OLD_KEY
+    rotate_env["upload"].assert_called_once_with(CORE.config, args, ["dev.local"])
+    out = capfd.readouterr().out
+    assert ROTATE_NEW_KEY in out
+    assert "SUCCESS" in out
+
+
+def test_command_rotate_key_yes_skips_confirmation(
+    rotate_env: dict[str, Mock],
+) -> None:
+    assert command_rotate_key(MockArgs(yes=True), CORE.config) == 0
+    rotate_env["confirm"].assert_not_called()
+
+
+def test_command_rotate_key_declined(rotate_env: dict[str, Mock]) -> None:
+    rotate_env["confirm"].return_value = "n"
+    assert command_rotate_key(MockArgs(), CORE.config) == 1
+    assert CORE.config_path.read_text() == API_BARE_YAML
+    rotate_env["probe"].assert_not_called()
+
+
+def test_command_rotate_key_no_terminal_needs_yes(
+    rotate_env: dict[str, Mock],
+) -> None:
+    rotate_env["stdin"].isatty.return_value = False
+    assert command_rotate_key(MockArgs(), CORE.config) == 1
+    assert CORE.config_path.read_text() == API_BARE_YAML
+
+
+def test_command_rotate_key_own_ota_key_asks_nothing(
+    rotate_env: dict[str, Mock], tmp_path: Path
+) -> None:
+    """Without an api key nothing changes for Home Assistant."""
+    yaml_text = f"""esphome:
+  name: test
+ota:
+  - platform: esphome
+    encryption:
+      key: "{ROTATE_OLD_KEY}"
+"""
+    _rotate_setup(tmp_path, yaml_text)
+    config = {
+        CONF_OTA: [
+            {
+                CONF_PLATFORM: CONF_ESPHOME,
+                CONF_PORT: 3232,
+                CONF_ENCRYPTION: {CONF_KEY: ROTATE_OLD_KEY},
+            }
+        ]
+    }
+    assert command_rotate_key(MockArgs(), config) == 0
+    rotate_env["confirm"].assert_not_called()
+    assert ROTATE_NEW_KEY in CORE.config_path.read_text()
+
+
+def test_command_rotate_key_prompted_new_key(rotate_env: dict[str, Mock]) -> None:
+    key = "AgMEBQYHCAkKCwwNDg8QERITFBUWFxgZGhscHR4fICE="
+    with patch("esphome.__main__.read_secret_line", return_value=key):
+        assert command_rotate_key(MockArgs(prompt_new_key=True), CORE.config) == 0
+    assert key in CORE.config_path.read_text()
+    assert rotate_env["probe"].call_args_list[1].args[2] == key
+
+
+@pytest.mark.parametrize("key", ["not-base64", ROTATE_OLD_KEY], ids=["invalid", "same"])
+def test_command_rotate_key_rejects_bad_new_key(
+    rotate_env: dict[str, Mock], key: str
+) -> None:
+    with patch("esphome.__main__.read_secret_line", return_value=key):
+        assert command_rotate_key(MockArgs(prompt_new_key=True), CORE.config) == 1
+    assert CORE.config_path.read_text() == API_BARE_YAML
+    rotate_env["probe"].assert_not_called()
+
+
+def test_command_rotate_key_precheck_fails_writes_nothing(
+    rotate_env: dict[str, Mock], capfd: pytest.CaptureFixture[str]
+) -> None:
+    rotate_env["probe"].return_value = False
+    assert command_rotate_key(MockArgs(), CORE.config) == 1
+    assert CORE.config_path.read_text() == API_BARE_YAML
+    rotate_env["compile"].assert_not_called()
+    assert "did not accept the current key" in capfd.readouterr().out
+
+
+@pytest.mark.parametrize("step", ["compile", "upload"])
+def test_command_rotate_key_restores_on_failure(
+    rotate_env: dict[str, Mock], step: str
+) -> None:
+    if step == "compile":
+        rotate_env["compile"].return_value = 1
+    else:
+        rotate_env["upload"].return_value = (1, None)
+    assert command_rotate_key(MockArgs(), CORE.config) == 1
+    assert CORE.config_path.read_text() == API_BARE_YAML
+    assert rotate_env["probe"].call_count == 1
+
+
+def test_command_rotate_key_restores_when_device_keeps_old_key(
+    rotate_env: dict[str, Mock], capfd: pytest.CaptureFixture[str]
+) -> None:
+    """After a completed upload the device may still run the new key, so the
+    key is repeated for a manual fix."""
+    rotate_env["probe"].side_effect = [True, False]
+    assert command_rotate_key(MockArgs(), CORE.config) == 1
+    assert CORE.config_path.read_text() == API_BARE_YAML
+    assert ROTATE_NEW_KEY in capfd.readouterr().out
+
+
+def test_command_rotate_key_restores_on_interrupt(
+    rotate_env: dict[str, Mock],
+) -> None:
+    rotate_env["compile"].side_effect = KeyboardInterrupt
+    assert command_rotate_key(MockArgs(), CORE.config) == 1
+    assert CORE.config_path.read_text() == API_BARE_YAML
+
+
+def test_command_rotate_key_clears_validated_cache(
+    rotate_env: dict[str, Mock],
+) -> None:
+    from esphome.compiled_config import compiled_config_path
+
+    cache = compiled_config_path(CORE.config_filename)
+    cache.parent.mkdir(parents=True, exist_ok=True)
+    cache.write_text("{}")
+    assert command_rotate_key(MockArgs(), CORE.config) == 0
+    assert not cache.exists()
+
+
+@pytest.mark.parametrize(
+    ("config", "port_type", "match"),
+    [
+        (
+            {CONF_OTA: [{CONF_PLATFORM: CONF_ESPHOME, CONF_PORT: 3232}]},
+            "NETWORK",
+            "needs 'encryption:'",
+        ),
+        (
+            {CONF_OTA: [{CONF_PLATFORM: CONF_WEB_SERVER}]},
+            "NETWORK",
+            "esphome OTA platform",
+        ),
+        (
+            {
+                CONF_OTA: [
+                    {
+                        CONF_PLATFORM: CONF_ESPHOME,
+                        CONF_PORT: 3232,
+                        CONF_ENCRYPTION: {CONF_KEY: ROTATE_OLD_KEY},
+                    }
+                ]
+            },
+            PortType.SERIAL,
+            "over the air",
+        ),
+    ],
+    ids=["no_encryption", "web_server_only", "serial"],
+)
+def test_command_rotate_key_refuses(
+    rotate_env: dict[str, Mock],
+    capfd: pytest.CaptureFixture[str],
+    config: dict[str, Any],
+    port_type: str,
+    match: str,
+) -> None:
+    with patch("esphome.__main__.get_port_type", return_value=port_type):
+        assert command_rotate_key(MockArgs(), config) == 1
+    assert match in capfd.readouterr().out
+    rotate_env["probe"].assert_not_called()
+
+
+def test_parse_args_rotate_key() -> None:
+    args = parse_args(
+        [
+            "esphome",
+            "rotate-key",
+            "--device",
+            "dev.local",
+            "--prompt-new-key",
+            "-y",
+            "device.yaml",
+        ]
+    )
+    assert args.command == "rotate-key"
+    assert args.device == ["dev.local"]
+    assert args.prompt_new_key is True
+    assert args.yes is True

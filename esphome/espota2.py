@@ -550,37 +550,19 @@ class NoiseSocketWrapper:
         return data
 
 
-def perform_ota(
+def _negotiate_session(
     sock: socket.socket,
-    password: str | None,
-    file_handle: io.IOBase,
-    filename: Path,
-    ota_type: int = OTA_TYPE_UPDATE_APP,
-    noise_psk: str | None = None,
-    plaintext_fallback: bool = False,
-    allow_plaintext_upload: bool = False,
-) -> None:
-    # Validate up front; an out-of-range value would only surface as a
-    # ValueError deep inside send_check, bypassing OTAError handling
-    if not isinstance(ota_type, int) or not 0 <= ota_type <= 0xFF:
-        raise OTAError(
-            f"Invalid ota_type {ota_type!r}; expected an integer in range 0-255"
-        )
-    if ota_type not in _SUPPORTED_OTA_TYPES:
-        supported = ", ".join(f"0x{t:02X}" for t in sorted(_SUPPORTED_OTA_TYPES))
-        raise OTAError(
-            f"Unsupported OTA type 0x{ota_type:02X}; this ESPHome supports: {supported}"
-        )
+    noise_psk: str | None,
+    plaintext_fallback: bool,
+    allow_plaintext_upload: bool,
+) -> tuple[socket.socket | NoiseSocketWrapper, int, int, bool]:
+    """Magic, version and feature exchange, then the Noise handshake when a
+    key is given and the device offers.
 
-    if noise_psk is not None and not noise_psk:
-        raise OTAError(
-            "An empty OTA encryption key was provided; refusing to upload in plaintext"
-        )
-
-    file_contents = file_handle.read()
-    file_size = len(file_contents)
-    _LOGGER.info("Uploading %s (%s bytes)", filename, file_size)
-
+    Returns the socket to continue on (wrapped once encrypted), the protocol
+    version, the server feature flags and whether the extended protocol is
+    in use.
+    """
     # Enable nodelay, we need it for phase 1
     sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
     send_check(sock, MAGIC_BYTES, "magic bytes")
@@ -670,6 +652,43 @@ def perform_ota(
         _LOGGER.info("Encrypted connection established")
         if allow_plaintext_upload:
             _LOGGER.warning(ALLOW_PLAINTEXT_UPLOAD_REMOVE_WARNING)
+    return sock, version, features, extended_proto
+
+
+def perform_ota(
+    sock: socket.socket,
+    password: str | None,
+    file_handle: io.IOBase,
+    filename: Path,
+    ota_type: int = OTA_TYPE_UPDATE_APP,
+    noise_psk: str | None = None,
+    plaintext_fallback: bool = False,
+    allow_plaintext_upload: bool = False,
+) -> None:
+    # Validate up front; an out-of-range value would only surface as a
+    # ValueError deep inside send_check, bypassing OTAError handling
+    if not isinstance(ota_type, int) or not 0 <= ota_type <= 0xFF:
+        raise OTAError(
+            f"Invalid ota_type {ota_type!r}; expected an integer in range 0-255"
+        )
+    if ota_type not in _SUPPORTED_OTA_TYPES:
+        supported = ", ".join(f"0x{t:02X}" for t in sorted(_SUPPORTED_OTA_TYPES))
+        raise OTAError(
+            f"Unsupported OTA type 0x{ota_type:02X}; this ESPHome supports: {supported}"
+        )
+
+    if noise_psk is not None and not noise_psk:
+        raise OTAError(
+            "An empty OTA encryption key was provided; refusing to upload in plaintext"
+        )
+
+    file_contents = file_handle.read()
+    file_size = len(file_contents)
+    _LOGGER.info("Uploading %s (%s bytes)", filename, file_size)
+
+    sock, version, features, extended_proto = _negotiate_session(
+        sock, noise_psk, plaintext_fallback, allow_plaintext_upload
+    )
 
     if ota_type != OTA_TYPE_UPDATE_APP:
         # Any non-app OTA type requires the extended protocol and the
@@ -865,6 +884,60 @@ def perform_ota(
 
     # Do not connect logs until it is fully on
     time.sleep(1)
+
+
+PROBE_TIMEOUT = 120.0
+PROBE_RETRY_DELAY = 3.0
+
+
+def probe_ota_key(
+    remote_host: str | list[str],
+    remote_port: int,
+    noise_psk: str,
+    *,
+    timeout: float = PROBE_TIMEOUT,
+) -> bool:
+    """Whether the device accepts a Noise handshake with the key.
+
+    Completes the handshake, reads the auth byte the device sends over the
+    encrypted channel and closes without sending an image. Keeps trying until
+    the deadline, since right after an upload the device is still rebooting
+    and the old firmware may answer once more; a device that does not offer
+    encryption or rejects the key is a failed attempt, not a final answer.
+    """
+    from esphome.core import CORE
+
+    try:
+        res = resolve_ip_address(
+            remote_host, remote_port, address_cache=CORE.address_cache
+        )
+    except EsphomeError as err:
+        raise OTAError(f"Error resolving IP address of {remote_host}: {err}") from err
+    if not res:
+        raise OTAError(f"No addresses to connect to for {remote_host}")
+
+    deadline = time.monotonic() + timeout
+    attempt = 0
+    while True:
+        af, socktype, _, _, sa = res[attempt % len(res)]
+        attempt += 1
+        sock = socket.socket(af, socktype)
+        sock.settimeout(10.0)
+        with contextlib.closing(sock):
+            try:
+                sock.connect(sa)
+                session, _, _, _ = _negotiate_session(sock, noise_psk, False, False)
+                receive_exactly(session, 1, "auth", RESPONSE_AUTH_OK)
+            except (OSError, OTAError) as err:
+                last_error = str(err)
+            else:
+                _LOGGER.info("Device %s accepted the key", sa[0])
+                return True
+        if time.monotonic() >= deadline:
+            _LOGGER.warning("The device did not accept the key: %s", last_error)
+            return False
+        _LOGGER.debug("Key not accepted yet (%s); retrying", last_error)
+        time.sleep(PROBE_RETRY_DELAY)
 
 
 def run_ota_impl_(

@@ -82,6 +82,7 @@ class FakeEncryptedDevice(threading.Thread):
         self.require_noise = require_noise
         self.prologue_features_override = prologue_features_override
         self.received: bytes | None = None
+        self.probes = 0  # clients that left right after the handshake
         self.error: Exception | None = None
         self.listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.listener.bind(("127.0.0.1", 0))
@@ -195,7 +196,12 @@ class FakeEncryptedDevice(threading.Thread):
     ) -> None:
         """The post-handshake exchange, identical over both transports."""
         send_byte(espota2.RESPONSE_AUTH_OK)
-        recv_unit(1)  # ota type
+        try:
+            recv_unit(1)  # ota type
+        except ConnectionError:
+            # A key probe leaves here, like the firmware it is patterned on
+            self.probes += 1
+            return
         size = int.from_bytes(recv_unit(4), "big")
         send_byte(espota2.RESPONSE_UPDATE_PREPARE_OK)
         md5_hex = recv_unit(32)
@@ -664,6 +670,47 @@ def test_non_key_reject_reason_is_a_device_error(
     assert rc == 1
     assert not any("retrying with 'old_key'" in r.message for r in caplog.records)
     assert not any("Retrying in plaintext" in r.message for r in caplog.records)
+
+
+def test_probe_ota_key_accepts_the_running_key() -> None:
+    pytest.importorskip("aioesphomeapi.noise")
+    device = FakeEncryptedDevice()
+    device.start()
+    assert espota2.probe_ota_key("127.0.0.1", device.port, PSK, timeout=5) is True
+    device.join_and_check()
+    assert device.probes == 1
+    assert device.received is None
+
+
+@pytest.mark.parametrize(
+    "device_kwargs",
+    [{"psk": OTHER_PSK}, {"offer_noise": False, "require_noise": False}],
+    ids=["wrong_key", "no_offer"],
+)
+def test_probe_ota_key_gives_up_at_the_deadline(
+    device_kwargs: dict[str, Any], caplog: pytest.LogCaptureFixture
+) -> None:
+    pytest.importorskip("aioesphomeapi.noise")
+    device = FakeEncryptedDevice(connections=2, **device_kwargs)
+    device.start()
+    with patch("time.sleep"), caplog.at_level(logging.WARNING):
+        assert (
+            espota2.probe_ota_key("127.0.0.1", device.port, PSK, timeout=0.5) is False
+        )
+    device.join_and_check()
+    assert any("did not accept the key" in r.message for r in caplog.records)
+    assert device.received is None
+
+
+def test_probe_ota_key_retries_after_a_transport_fault() -> None:
+    """The device may still be rebooting right after the upload."""
+    pytest.importorskip("aioesphomeapi.noise")
+    device = FakeEncryptedDevice(connections=2, drop_handshakes=1)
+    device.start()
+    with patch("time.sleep"):
+        assert espota2.probe_ota_key("127.0.0.1", device.port, PSK, timeout=5) is True
+    device.join_and_check()
+    assert device.probes == 1
 
 
 def test_bare_block_refuses_a_device_that_cannot_encrypt(
