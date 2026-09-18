@@ -255,6 +255,7 @@ class _EncryptionAttempt:
     ) -> None:
         self.noise_psk = noise_psk
         self.old_noise_psk = old_noise_psk
+        self.tried_old_key = False
         self.plaintext_fallback = plaintext_fallback
         self.handshake_faults = 0
 
@@ -267,6 +268,7 @@ class _EncryptionAttempt:
         )
         self.noise_psk = self.old_noise_psk
         self.old_noise_psk = None
+        self.tried_old_key = True
         return True
 
     # Remove before 2027.3.0
@@ -911,11 +913,12 @@ def run_ota_impl_(
     total_attempts = len(res) + EXTRA_UPLOAD_ATTEMPTS
     last_error = ""
     reached_device = False
+    reconnect = False  # the device closed on purpose; nothing to wait for
     attempt = 0
     encryption = _EncryptionAttempt(noise_psk, plaintext_fallback, old_noise_psk)
     while attempt < total_attempts:
         af, socktype, _, _, sa = res[attempt % len(res)]
-        if reached_device or attempt >= len(res):
+        if not reconnect and (reached_device or attempt >= len(res)):
             _LOGGER.info(
                 "Retrying in %.0f seconds (attempt %d of %d)...",
                 UPLOAD_RETRY_DELAY,
@@ -924,6 +927,7 @@ def run_ota_impl_(
             )
             time.sleep(UPLOAD_RETRY_DELAY)
         reached_device = False
+        reconnect = False
         _LOGGER.info("Connecting to %s port %s...", sa[0], sa[1])
         sock = socket.socket(af, socktype)
         sock.settimeout(20.0)
@@ -954,13 +958,17 @@ def run_ota_impl_(
                 # The device sent a reject and closed on its own, so reconnect
                 # at once, on the same address and attempt budget
                 last_error = str(err)
-                reached_device = False
+                reconnect = True
                 if encryption.retry_with_old_key():
                     continue
                 # Remove before 2027.3.0
                 if encryption.plaintext_fallback:
                     encryption.downgrade(last_error)
                     continue
+                if encryption.tried_old_key:
+                    raise OTAKeyRejected(
+                        f"The device rejected both 'key' and '{CONF_OLD_KEY}'"
+                    ) from err
                 raise
             except OTAHandshakeNetworkError as err:
                 last_error = str(err)
