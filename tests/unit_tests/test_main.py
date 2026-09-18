@@ -8230,7 +8230,9 @@ def test_command_rotate_key_restores_when_the_device_was_never_reached(
     rotate_env["upload"].return_value = (1, None)
     assert command_rotate_key(MockArgs(), CORE.config) == 1
     assert CORE.config_path.read_text() == ROTATE_API_YAML
-    assert "Restored the previous key" in capfd.readouterr().out
+    out = capfd.readouterr().out
+    assert "did not reach the device" in out
+    assert "Restored the previous key" in out
 
 
 def test_command_rotate_key_keeps_the_edit_after_a_failed_upload(

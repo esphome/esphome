@@ -755,18 +755,41 @@ def test_probe_ota_key_retries_after_a_transport_fault() -> None:
     assert device.probes == 1
 
 
-@pytest.mark.parametrize("resolved", [EsphomeError("no such host"), []])
-def test_probe_ota_key_resolution_failure(resolved: object) -> None:
-    kwargs = (
-        {"side_effect": resolved}
-        if isinstance(resolved, Exception)
-        else {"return_value": resolved}
-    )
+@pytest.mark.parametrize(
+    "kwargs",
+    [{"side_effect": EsphomeError("no such host")}, {"return_value": []}],
+    ids=["error", "empty"],
+)
+def test_probe_ota_key_resolution_failure(
+    kwargs: dict[str, Any], caplog: pytest.LogCaptureFixture
+) -> None:
+    """A name that never resolves is retried until the deadline, then reported."""
+    pytest.importorskip("aioesphomeapi.noise")
     with (
-        patch("esphome.espota2.resolve_ip_address", **kwargs),
-        pytest.raises(espota2.OTAError),
+        patch("esphome.espota2.resolve_ip_address", **kwargs) as resolve,
+        patch("time.sleep"),
+        caplog.at_level(logging.WARNING),
     ):
-        espota2.probe_ota_key("nowhere.local", 3232, PSK, timeout=1)
+        assert espota2.probe_ota_key("nowhere.local", 3232, PSK, timeout=0.2) is False
+    assert resolve.call_count > 1
+    assert any("did not accept the key" in r.message for r in caplog.records)
+
+
+def test_probe_ota_key_resolves_again_after_a_reboot() -> None:
+    """The lookup fails while the device reboots, then the probe goes on."""
+    pytest.importorskip("aioesphomeapi.noise")
+    device = FakeEncryptedDevice()
+    device.start()
+    real = espota2.resolve_ip_address
+    with (
+        patch(
+            "esphome.espota2.resolve_ip_address",
+            side_effect=[EsphomeError("not yet"), real("127.0.0.1", device.port)],
+        ),
+        patch("time.sleep"),
+    ):
+        assert espota2.probe_ota_key("127.0.0.1", device.port, PSK, timeout=5) is True
+    device.join_and_check()
 
 
 def test_bare_block_refuses_a_device_that_cannot_encrypt(

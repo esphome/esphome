@@ -222,13 +222,21 @@ def _write_keeping_mode(path: Path, text: str) -> None:
         raise EsphomeError(f"Could not keep the mode of {path}: {err}") from err
 
 
-def _other_config_texts(own: set[Path]) -> list[tuple[Path, str]]:
+def _other_config_texts(own: set[Path], strict: bool = False) -> list[tuple[Path, str]]:
     """Every yaml file in the configuration directory outside ``own`` and
-    the build data, with its text; a file that cannot be read is skipped,
-    the scan only feeds a warning."""
+    the build data, with its text. A file or directory that cannot be read
+    is skipped when the scan feeds a warning, refused when it decides."""
     data_dir = CORE.data_dir.resolve()
     found = []
-    for dirpath, dirnames, filenames in os.walk(CORE.config_dir.resolve()):
+    skipped: list[str] = []
+
+    def skip(what: object) -> None:
+        skipped.append(str(what))
+        _LOGGER.debug("Skipping %s", what)
+
+    for dirpath, dirnames, filenames in os.walk(
+        CORE.config_dir.resolve(), onerror=skip
+    ):
         dirnames[:] = [d for d in dirnames if Path(dirpath, d) != data_dir]
         for filename in filenames:
             path = Path(dirpath, filename)
@@ -237,7 +245,11 @@ def _other_config_texts(own: set[Path]) -> list[tuple[Path, str]]:
             try:
                 found.append((path, _read_text(path)))
             except EsphomeError as err:
-                _LOGGER.debug("Skipping %s: %s", path, err)
+                skip(err)
+    if strict and skipped:
+        raise EsphomeError(
+            "Could not read every configuration to check the secret: " + skipped[0]
+        )
     return sorted(found)
 
 
@@ -396,7 +408,8 @@ def old_key_edit(old_key: str) -> list[KeyEdit]:
         # nobody uses is a leftover of an earlier rotation
         if (kept := _secret_rewrite(secrets_path, f"{name}_old", old_key)) is not None:
             ref = _secret_use_re(f"{name}_old")
-            if users := [p for p, t in _other_config_texts(set()) if ref.search(t)]:
+            texts = _other_config_texts(set(), strict=True)
+            if users := [p for p, t in texts if ref.search(t)]:
                 raise EsphomeError(
                     f"'{name}_old:' in {secrets_path} is used by "
                     + ", ".join(str(p) for p in users)

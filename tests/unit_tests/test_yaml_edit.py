@@ -881,6 +881,16 @@ def test_key_secret_with_a_folded_value_gets_no_old_line(tmp_path: Path) -> None
         old_key_edit(OLD_KEY)
 
 
+def test_old_secret_collision_check_refuses_an_unreadable_file(
+    tmp_path: Path,
+) -> None:
+    """A file the scan cannot read might use the line, so it is not reused."""
+    (tmp_path / "latin1.yaml").write_bytes(b"caf\xe9: 1\n")
+    _setup(tmp_path, SECRET_YAML, f"device_key: {OLD_KEY}\ndevice_key_old: hunter2\n")
+    with pytest.raises(EsphomeError, match="Could not read every configuration"):
+        old_key_edit(OLD_KEY)
+
+
 def test_old_key_secret_with_a_folded_value_is_refused(tmp_path: Path) -> None:
     yaml_text = SECRET_YAML.replace(
         "      key: !secret device_key\n",

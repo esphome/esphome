@@ -963,13 +963,34 @@ def probe_ota_key(
     is sent. Retries until the deadline, a rejection too when
     ``retry_rejected`` (the old firmware may answer once more after an upload).
     """
+    from esphome.core import CORE
+
     noise_handshake(noise_psk, b"")  # a local fault must not read as the device's no
-    res = _resolve_targets(remote_host, remote_port)
     deadline = time.monotonic() + timeout
+    res: list[Any] = []
     attempts = 0
     answered: set[int] = set()  # addresses whose answer no retry changes
     last_error = "no time left"
     while (remaining := deadline - time.monotonic()) > 0:
+        if not res:
+            # A rebooting device may drop off mDNS for a while; keep asking
+            try:
+                res = resolve_ip_address(
+                    remote_host, remote_port, address_cache=CORE.address_cache
+                )
+            except EsphomeError as err:
+                last_error = str(err)
+            if not res:
+                last_error = (
+                    last_error
+                    if last_error != "no time left"
+                    else f"no addresses for {remote_host}"
+                )
+                _LOGGER.debug("Host not resolved yet (%s); retrying", last_error)
+                time.sleep(
+                    max(0.0, min(PROBE_RETRY_DELAY, deadline - time.monotonic()))
+                )
+                continue
         index = attempts % len(res)
         af, socktype, _, _, sa = res[index]
         attempts += 1
