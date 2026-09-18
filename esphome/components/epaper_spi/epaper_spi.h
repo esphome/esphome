@@ -1,8 +1,10 @@
 #pragma once
 
+#include "colorconv.h"
 #include "esphome/components/display/display.h"
 #include "esphome/components/spi/spi.h"
 #include "esphome/components/split_buffer/split_buffer.h"
+#include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 
 namespace esphome::epaper_spi {
@@ -80,15 +82,7 @@ class EPaperBase : public Display,
 
   DisplayType get_display_type() override { return this->display_type_; };
 
-  // Default implementations for monochrome displays
-  static uint8_t color_to_bit(Color color) {
-    // It's always a shade of gray. Map to BLACK or WHITE.
-    // We split the luminance at a suitable point
-    if ((color.r + color.g + color.b) >= 382) {
-      return 1;
-    }
-    return 0;
-  }
+  // Default implementation for monochrome displays
   void fill(Color color) override {
     // If clipping is active, fall back to base implementation
     if (this->get_clipping().is_set()) {
@@ -96,7 +90,7 @@ class EPaperBase : public Display,
       return;
     }
 
-    auto pixel_color = color_to_bit(color) ? 0xFF : 0x00;
+    auto pixel_color = color_to_mono(color) ? 0xFF : 0x00;
 
     // We store 8 pixels per byte
     this->buffer_.fill(pixel_color);
@@ -114,6 +108,7 @@ class EPaperBase : public Display,
   int get_width() override { return this->effective_transform_ & SWAP_XY ? this->height_ : this->width_; }
   int get_height() override { return this->effective_transform_ & SWAP_XY ? this->width_ : this->height_; }
   void draw_pixel_at(int x, int y, Color color) override;
+  void reset_update_count() { this->update_count_ = 0; }
 
  protected:
   int get_height_internal() override { return this->height_; };
@@ -201,6 +196,15 @@ class EPaperBase : public Display,
   EPaperState state_{EPaperState::IDLE};
   uint32_t reset_duration_{10};
   uint8_t full_update_every_{1};
+};
+
+template<typename... Ts> class FullUpdateNextAction final : public Action<Ts...> {
+ public:
+  explicit FullUpdateNextAction(EPaperBase *parent) : parent_(parent) {}
+  void play(const Ts &...) override { this->parent_->reset_update_count(); }
+
+ protected:
+  EPaperBase *parent_;
 };
 
 }  // namespace esphome::epaper_spi

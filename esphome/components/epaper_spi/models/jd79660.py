@@ -10,6 +10,8 @@ from . import EpaperModel
 
 class JD79660(EpaperModel):
     def __init__(self, name, class_name="EPaperJD79660", fast_update=None, **kwargs):
+        # Only a fast_update sequence lets the driver do anything but a full refresh
+        kwargs.setdefault("partial_update", fast_update is not None)
         super().__init__(name, class_name, **kwargs)
         self.fast_update = fast_update
 
