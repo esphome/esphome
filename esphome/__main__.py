@@ -1284,6 +1284,8 @@ def upload_program(
     network_devices = _resolve_network_devices(devices, config, args)
 
     if chosen_platform == CONF_WEB_SERVER:
+        if ota_key:
+            raise EsphomeError(OTA_KEY_PLATFORM_ERROR)
         if is_partition_table or is_bootloader:
             raise EsphomeError(
                 f"{option_string} is only supported with the esphome OTA platform; "
@@ -1756,6 +1758,9 @@ def _host_program_path(config: ConfigType) -> str:
 
 
 ENV_OTA_KEY = "ESPHOME_OTA_KEY"
+OTA_KEY_PLATFORM_ERROR = (
+    f"--prompt-ota-key and {ENV_OTA_KEY} only apply to the {CONF_ESPHOME} OTA platform"
+)
 
 
 def _read_ota_key(args: ArgsProtocol, config: ConfigType) -> None:
@@ -1767,23 +1772,22 @@ def _read_ota_key(args: ArgsProtocol, config: ConfigType) -> None:
     if not prompt and env_key is None:
         return
     # The HTTP path has no key handshake; decide before prompting or
-    # compiling. A serial target, or a config without OTA, is a serial
-    # flash, which warns later instead.
+    # compiling when the platform or a network target is named. A serial
+    # target, or none yet (the chooser may pick a serial port), is left to
+    # upload_program, which warns or refuses there.
+    requested = getattr(args, "ota_platform", None)
     devices = getattr(args, "device", None) or []
-    serial_target = bool(devices) and (
-        devices[0] == "SERIAL"
-        or get_port_type(devices[0]) in (PortType.SERIAL, PortType.BOOTSEL)
+    network_target = bool(devices) and (
+        devices[0] != "SERIAL"
+        and get_port_type(devices[0]) not in (PortType.SERIAL, PortType.BOOTSEL)
     )
     chosen = (
-        _choose_ota_platform(config, getattr(args, "ota_platform", None))
-        if _ota_upload_platforms(config) and not serial_target
+        _choose_ota_platform(config, requested)
+        if (requested is not None or network_target) and _ota_upload_platforms(config)
         else None
     )
     if chosen == CONF_WEB_SERVER:
-        raise EsphomeError(
-            f"--prompt-ota-key and {ENV_OTA_KEY} only apply to the "
-            f"{CONF_ESPHOME} OTA platform"
-        )
+        raise EsphomeError(OTA_KEY_PLATFORM_ERROR)
     from esphome.components.noise import validate_encryption_key
     from esphome.config_validation import Invalid
 
