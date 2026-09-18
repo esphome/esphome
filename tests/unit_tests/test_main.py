@@ -2243,10 +2243,7 @@ def test_upload_program_bare_encryption_block_never_falls_back(
     with patch("esphome.espota2.run_ota", return_value=(0, "192.168.1.100")) as run_ota:
         upload_program(config, MockArgs(), ["192.168.1.100"])
     assert run_ota.call_args.args[5] == key
-    assert run_ota.call_args.kwargs == {
-        "plaintext_fallback": False,
-        "allow_plaintext_upload": False,
-    }
+    assert run_ota.call_args.kwargs == RUN_OTA_DEFAULT_KWARGS
 
 
 def test_upload_program_ota_allow_plaintext_upload(
