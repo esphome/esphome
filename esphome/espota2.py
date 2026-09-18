@@ -992,12 +992,12 @@ def probe_ota_key(
             else:
                 _LOGGER.info("Device %s accepted the key", sa[0])
                 return True
-        if time.monotonic() >= deadline:
+        now = time.monotonic()
+        if now >= deadline:
             break
         _LOGGER.debug("Key not accepted yet (%s); retrying", last_error)
         if attempts % len(res):
             continue  # the next address is fresh; nothing to wait for
-        now = time.monotonic()
         time.sleep(max(0.0, min(PROBE_RETRY_DELAY - (now - started), deadline - now)))
     _LOGGER.warning("The device did not accept the key: %s", last_error)
     return False

@@ -6,6 +6,7 @@ import unicodedata
 
 import voluptuous as vol
 
+from esphome.components.noise import generate_encryption_key
 import esphome.config_validation as cv
 from esphome.const import ALLOWED_NAME_CHARS, ENV_QUICKWIZARD
 from esphome.core import CORE
@@ -514,8 +515,6 @@ def wizard(path: Path) -> int:
         )
         safe_print()
         sleep(0.5)
-
-        from esphome.components.noise import generate_encryption_key
 
         api_encryption_key = generate_encryption_key()
 

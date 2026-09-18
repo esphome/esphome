@@ -4,11 +4,13 @@ from __future__ import annotations
 
 from pathlib import Path
 import sys
+from unittest.mock import patch
 
 import pytest
 
 from esphome import yaml_edit, yaml_util
 from esphome.compiled_config import compiled_config_path
+from esphome.config import do_substitution_pass
 from esphome.core import CORE, EsphomeError
 from esphome.yaml_edit import (
     apply_key_edits,
@@ -127,8 +129,6 @@ ota:
   - platform: esphome
     encryption:
 """
-    from esphome.config import do_substitution_pass
-
     _setup(tmp_path, yaml_text)
     # Includes are deferred until the substitution pass, as in read_config
     CORE.raw_config = do_substitution_pass(CORE.raw_config, None)
@@ -181,8 +181,6 @@ ota:
     ids=["substitution", "flow_mapping"],
 )
 def test_refuses_what_it_cannot_rewrite(tmp_path: Path, yaml_text: str) -> None:
-    from esphome.config import do_substitution_pass
-
     _setup(tmp_path, yaml_text)
     CORE.raw_config = do_substitution_pass(CORE.raw_config, None)
     with pytest.raises(EsphomeError, match="edit the key by hand"):
@@ -218,8 +216,6 @@ def test_refuses_a_line_that_changed_since_it_was_located(tmp_path: Path) -> Non
 
 
 def test_restore_reports_every_file_it_could_not_write(tmp_path: Path) -> None:
-    from unittest.mock import patch
-
     _setup(tmp_path, API_YAML)
     good = tmp_path / "a.yaml"
     (tmp_path / "b.yaml").write_bytes(b"")
@@ -377,8 +373,6 @@ def test_values_replaced_by_validation_still_locate(tmp_path: Path) -> None:
 
 def test_key_from_the_data_dir_is_refused(tmp_path: Path) -> None:
     """Remote packages are checked out under .esphome and are not the user's."""
-    from esphome.config import do_substitution_pass
-
     (tmp_path / ".esphome").mkdir()
     (tmp_path / ".esphome" / "api.yaml").write_text(
         f'encryption:\n  key: "{OLD_KEY}"\n', encoding="utf-8"
@@ -401,8 +395,6 @@ ota:
 
 
 def test_secret_in_an_include_falls_back_to_the_main_secrets(tmp_path: Path) -> None:
-    from esphome.config import do_substitution_pass
-
     (tmp_path / "sub").mkdir()
     (tmp_path / "sub" / "api.yaml").write_text(
         "encryption:\n  key: !secret device_key\n", encoding="utf-8"
@@ -444,8 +436,6 @@ ota:
 
 
 def test_old_key_from_a_substitution_is_refused(tmp_path: Path) -> None:
-    from esphome.config import do_substitution_pass
-
     _setup(
         tmp_path,
         f"""esphome:
@@ -609,8 +599,6 @@ def test_old_key_goes_into_the_included_block(tmp_path: Path) -> None:
     """`encryption: !include enc.yaml` keeps the key in another file; old_key
     is inserted after that file's key line, not at the same line number of
     the main yaml."""
-    from esphome.config import do_substitution_pass
-
     (tmp_path / "enc.yaml").write_bytes(f'key: "{OLD_KEY}"\n'.encode())
     _setup(
         tmp_path,
@@ -662,8 +650,6 @@ def test_secret_shared_with_other_configs_is_reported(tmp_path: Path) -> None:
 
 
 def test_rolls_back_when_the_cache_cannot_be_dropped(tmp_path: Path) -> None:
-    from unittest.mock import patch
-
     path = _setup(tmp_path, API_YAML)
     edits = locate_key_edits(OLD_KEY, NEW_KEY)
     with (
@@ -678,8 +664,6 @@ def test_rolls_back_when_the_cache_cannot_be_dropped(tmp_path: Path) -> None:
 
 
 def test_rolls_back_on_an_interrupt_during_the_reload(tmp_path: Path) -> None:
-    from unittest.mock import patch
-
     path = _setup(tmp_path, API_YAML)
     edits = locate_key_edits(OLD_KEY, NEW_KEY)
     with (
@@ -691,8 +675,6 @@ def test_rolls_back_on_an_interrupt_during_the_reload(tmp_path: Path) -> None:
 
 
 def test_apply_reports_a_rollback_that_also_failed(tmp_path: Path) -> None:
-    from unittest.mock import patch
-
     _setup(tmp_path, API_YAML)
     edits = locate_key_edits(OLD_KEY, NEW_KEY)
     with (
