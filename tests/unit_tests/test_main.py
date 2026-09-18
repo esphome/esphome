@@ -8287,6 +8287,20 @@ def test_parse_args_rotate_key() -> None:
     assert args.yes is True
 
 
+def test_command_rotate_key_reports_a_cache_it_could_not_remove(
+    rotate_env: dict[str, Mock], capfd: pytest.CaptureFixture[str]
+) -> None:
+    from esphome.compiled_config import compiled_config_path
+
+    cache = compiled_config_path(CORE.config_filename)
+    cache.parent.mkdir(parents=True, exist_ok=True)
+    cache.write_text("{}")
+    with patch("pathlib.Path.unlink", side_effect=OSError("busy")):
+        assert command_rotate_key(MockArgs(), CORE.config) == 0
+    out = capfd.readouterr().out
+    assert "could not be removed" in out and "SUCCESS" in out
+
+
 def test_command_rotate_key_refuses_host(rotate_env: dict[str, Mock]) -> None:
     CORE.data[KEY_CORE][KEY_TARGET_PLATFORM] = "host"
     assert command_rotate_key(MockArgs(), CORE.config) == 1

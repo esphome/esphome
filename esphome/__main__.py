@@ -2194,6 +2194,7 @@ ROTATE_KEY_PRECHECK_TIMEOUT = 15.0
 def command_rotate_key(args: ArgsProtocol, config: ConfigType) -> int | None:
     """Write a new key, build with it, upload with the current one, confirm."""
     from esphome import espota2
+    from esphome.compiled_config import compiled_config_path
     from esphome.components.noise import (
         generate_encryption_key,
         static_encryption_key,
@@ -2345,6 +2346,16 @@ def command_rotate_key(args: ArgsProtocol, config: ConfigType) -> int | None:
         else:
             safe_print(f"New OTA encryption key: {color(AnsiFore.CYAN, new_key)}")
 
+    # A cache the mtime check cannot see would hand a later upload the
+    # previous key without the old_key fallback
+    if (stale := compiled_config_path(CORE.config_filename)).exists():
+        safe_print(
+            color(
+                AnsiFore.BOLD_YELLOW,
+                f"The validated config cache {stale} could not be removed and "
+                "still holds the previous key; delete it before the next upload.",
+            )
+        )
     safe_print(color(AnsiFore.BOLD_GREEN, "SUCCESS"))
     return 0
 
