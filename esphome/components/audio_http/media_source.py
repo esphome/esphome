@@ -81,4 +81,3 @@ async def to_code(config: ConfigType) -> None:
         with Path(ca_cert_path).open(encoding="utf-8") as f:
             ca_cert_content = f.read()
         cg.add(var.set_http_ca_certificate(ca_cert_content))
-
