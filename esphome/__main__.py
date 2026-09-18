@@ -1325,6 +1325,19 @@ def _choose_ota_platform(config: ConfigType, requested: str | None) -> str:
     return CONF_WEB_SERVER
 
 
+ALLOW_PLAINTEXT_UPLOAD_WARNING = """
+******************************************************************
+*  'allow_plaintext_upload' is set under 'ota: encryption:'.
+*
+*  If the device does not offer encryption this upload is sent in
+*  PLAINTEXT: anyone on the network can capture the firmware image,
+*  including the wifi credentials and the api encryption key.
+*
+*  This option is for ONE migration install only. Remove it from
+*  the configuration as soon as the device runs this build.
+******************************************************************"""
+
+
 def _upload_via_native_api(
     config: ConfigType, network_devices: list[str], args: ArgsProtocol
 ) -> tuple[int, str | None]:
@@ -1347,7 +1360,9 @@ def _upload_via_native_api(
     allow_plaintext_upload = False
     if (encryption_conf := ota_conf.get(CONF_ENCRYPTION)) is not None:
         noise_psk = encryption_conf.get(CONF_KEY)
-        allow_plaintext_upload = bool(encryption_conf.get(CONF_ALLOW_PLAINTEXT_UPLOAD))
+        if encryption_conf.get(CONF_ALLOW_PLAINTEXT_UPLOAD):
+            allow_plaintext_upload = True
+            _LOGGER.warning(ALLOW_PLAINTEXT_UPLOAD_WARNING)
         if not noise_psk:
             raise EsphomeError(
                 "OTA encryption is configured but no key was resolved; "
