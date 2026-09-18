@@ -38,6 +38,13 @@ def compiled_config_path(config_filename: str) -> Path:
     return CORE.data_dir / "storage" / f"{config_filename}.validated.json"
 
 
+def invalidate_compiled_config() -> None:
+    """Drop the cache after a change it cannot see: freshness keys off the
+    main yaml's mtime, so a rewrite of secrets.yaml or an included file
+    leaves a cache that still holds the old values."""
+    compiled_config_path(CORE.config_filename).unlink(missing_ok=True)
+
+
 def save_compiled_config(config: ConfigType) -> None:
     """Write the validated-config cache. Always-write so mtime stays fresh.
 

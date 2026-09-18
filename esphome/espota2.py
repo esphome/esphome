@@ -5,6 +5,7 @@ import contextlib
 import gzip
 import hashlib
 import io
+import itertools
 import logging
 from pathlib import Path
 import secrets
@@ -888,74 +889,14 @@ def perform_ota(
 
 PROBE_TIMEOUT = 120.0
 PROBE_RETRY_DELAY = 3.0
+PROBE_CONNECT_TIMEOUT = 3.0
 
 
-def probe_ota_key(
-    remote_host: str | list[str],
-    remote_port: int,
-    noise_psk: str,
-    *,
-    timeout: float = PROBE_TIMEOUT,
-) -> bool:
-    """Whether the device accepts a Noise handshake with the key.
-
-    Completes the handshake, reads the auth byte the device sends over the
-    encrypted channel and closes without sending an image. Keeps trying until
-    the deadline, since right after an upload the device is still rebooting
-    and the old firmware may answer once more; a device that does not offer
-    encryption or rejects the key is a failed attempt, not a final answer.
-    """
+def _resolve_targets(remote_host: str | list[str], remote_port: int) -> list[Any]:
+    """Every address to try for the host, resolved once through the cache."""
     from esphome.core import CORE
 
     try:
-        res = resolve_ip_address(
-            remote_host, remote_port, address_cache=CORE.address_cache
-        )
-    except EsphomeError as err:
-        raise OTAError(f"Error resolving IP address of {remote_host}: {err}") from err
-    if not res:
-        raise OTAError(f"No addresses to connect to for {remote_host}")
-
-    deadline = time.monotonic() + timeout
-    attempt = 0
-    while True:
-        af, socktype, _, _, sa = res[attempt % len(res)]
-        attempt += 1
-        sock = socket.socket(af, socktype)
-        sock.settimeout(10.0)
-        with contextlib.closing(sock):
-            try:
-                sock.connect(sa)
-                session, _, _, _ = _negotiate_session(sock, noise_psk, False, False)
-                receive_exactly(session, 1, "auth", RESPONSE_AUTH_OK)
-            except (OSError, OTAError) as err:
-                last_error = str(err)
-            else:
-                _LOGGER.info("Device %s accepted the key", sa[0])
-                return True
-        if time.monotonic() >= deadline:
-            _LOGGER.warning("The device did not accept the key: %s", last_error)
-            return False
-        _LOGGER.debug("Key not accepted yet (%s); retrying", last_error)
-        time.sleep(PROBE_RETRY_DELAY)
-
-
-def run_ota_impl_(
-    remote_host: str | list[str],
-    remote_port: int,
-    password: str | None,
-    filename: Path,
-    ota_type: int = OTA_TYPE_UPDATE_APP,
-    noise_psk: str | None = None,
-    plaintext_fallback: bool = False,
-    allow_plaintext_upload: bool = False,
-    old_noise_psk: str | None = None,
-) -> tuple[int, str | None]:
-    from esphome.core import CORE
-
-    # Handle both single host and list of hosts
-    try:
-        # Resolve all hosts at once for parallel DNS resolution
         res = resolve_ip_address(
             remote_host, remote_port, address_cache=CORE.address_cache
         )
@@ -971,9 +912,76 @@ def run_ota_impl_(
             "https://esphome.io/components/wifi/#manual-ips)"
         )
         raise OTAError(err) from err
-
     if not res:
         _LOGGER.error("No addresses to connect to for %s", remote_host)
+    return res
+
+
+def probe_ota_key(
+    remote_host: str | list[str],
+    remote_port: int,
+    noise_psk: str,
+    *,
+    timeout: float = PROBE_TIMEOUT,
+    retry_rejected: bool = True,
+) -> bool:
+    """Whether the device accepts a Noise handshake with the key.
+
+    Completes the handshake, reads the auth byte the device sends over the
+    encrypted channel and closes without sending an image. Transport faults
+    are retried until the deadline, since right after an upload the device
+    is still rebooting. A device that rejects the key or does not offer
+    encryption is retried too when ``retry_rejected`` is set, because the
+    old firmware may answer once more before the new one is up; a device in
+    steady state gives its final answer on the first attempt.
+    """
+    res = _resolve_targets(remote_host, remote_port)
+    if not res:
+        raise OTAError(f"No addresses to connect to for {remote_host}")
+    deadline = time.monotonic() + timeout
+    for af, socktype, _, _, sa in itertools.cycle(res):
+        started = time.monotonic()
+        sock = socket.socket(af, socktype)
+        # A dead host must not eat the budget; the handshake is one round trip
+        sock.settimeout(PROBE_CONNECT_TIMEOUT)
+        with contextlib.closing(sock):
+            try:
+                sock.connect(sa)
+                sock.settimeout(10.0)
+                session, _, _, _ = _negotiate_session(sock, noise_psk, False, False)
+                receive_exactly(session, 1, "auth", RESPONSE_AUTH_OK)
+            except OTAKeyRejected as err:
+                last_error = str(err)
+                if not retry_rejected:
+                    break
+            except (OSError, OTAError) as err:
+                last_error = str(err)
+                if not retry_rejected and "did not offer" in last_error:
+                    break
+            else:
+                _LOGGER.info("Device %s accepted the key", sa[0])
+                return True
+        if time.monotonic() >= deadline:
+            break
+        _LOGGER.debug("Key not accepted yet (%s); retrying", last_error)
+        time.sleep(max(0.0, PROBE_RETRY_DELAY - (time.monotonic() - started)))
+    _LOGGER.warning("The device did not accept the key: %s", last_error)
+    return False
+
+
+def run_ota_impl_(
+    remote_host: str | list[str],
+    remote_port: int,
+    password: str | None,
+    filename: Path,
+    ota_type: int = OTA_TYPE_UPDATE_APP,
+    noise_psk: str | None = None,
+    plaintext_fallback: bool = False,
+    allow_plaintext_upload: bool = False,
+    old_noise_psk: str | None = None,
+) -> tuple[int, str | None]:
+    res = _resolve_targets(remote_host, remote_port)
+    if not res:
         return 1, None
 
     # Every address is tried at least once and EXTRA_UPLOAD_ATTEMPTS retries

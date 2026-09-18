@@ -470,7 +470,6 @@ void ESPHomeOTAComponent::handle_data_() {
       if (this->remote_closed_) {
         // A key probe (esphome rotate-key) leaves right after the handshake;
         // nothing was started, so no error status or listener callback
-        ESP_LOGD(TAG, "Client left after the handshake");
         this->cleanup_connection_();
         return;
       }
@@ -483,11 +482,6 @@ void ESPHomeOTAComponent::handle_data_() {
 
   // Read size, 4 bytes MSB first
   if (!this->data_readall_(buf, 4)) {
-    if (this->remote_closed_) {
-      ESP_LOGD(TAG, "Client left after the handshake");
-      this->cleanup_connection_();
-      return;
-    }
     this->log_read_error_(LOG_STR("size"));
     goto error;  // NOLINT(cppcoreguidelines-avoid-goto)
   }

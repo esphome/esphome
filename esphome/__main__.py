@@ -1,16 +1,13 @@
 # PYTHON_ARGCOMPLETE_OK
 import argparse
-import base64
 from collections.abc import Callable
 from contextlib import suppress
-from dataclasses import dataclass
 import functools
 import importlib
 import logging
 import os
 from pathlib import Path
 import re
-import secrets
 import sys
 import time
 from typing import TYPE_CHECKING, Protocol
@@ -1350,14 +1347,22 @@ def _choose_ota_platform(config: ConfigType, requested: str | None) -> str:
     return CONF_WEB_SERVER
 
 
+def _esphome_ota_conf(config: ConfigType) -> ConfigType | None:
+    """The validated esphome OTA platform block, if configured."""
+    return next(
+        (
+            item
+            for item in config.get(CONF_OTA, [])
+            if item.get(CONF_PLATFORM) == CONF_ESPHOME
+        ),
+        None,
+    )
+
+
 def _upload_via_native_api(
     config: ConfigType, network_devices: list[str], args: ArgsProtocol
 ) -> tuple[int, str | None]:
-    ota_conf: ConfigType = {}
-    for ota_item in config.get(CONF_OTA, []):
-        if ota_item.get(CONF_PLATFORM) == CONF_ESPHOME:
-            ota_conf = ota_item
-            break
+    ota_conf = _esphome_ota_conf(config) or {}
 
     from esphome import espota2
     from esphome.components.noise import static_encryption_key
@@ -2183,170 +2188,6 @@ def command_analyze_memory(args: ArgsProtocol, config: ConfigType) -> int:
     return 0
 
 
-@dataclass
-class _KeyEdit:
-    """One yaml line that holds the current key, and its replacement."""
-
-    path: Path
-    line: int
-    new_line: str
-    api: bool
-
-
-def _key_nodes(raw: ConfigType, old_key: str) -> list[tuple[str, bool]]:
-    """The api and esphome ota key nodes whose value is the current key,
-    with their source ranges, as (node, is_api) pairs."""
-    nodes: list[tuple[str, bool]] = []
-    api_key = ((raw.get(CONF_API) or {}).get(CONF_ENCRYPTION) or {}).get(CONF_KEY)
-    if api_key is not None and str(api_key) == old_key:
-        nodes.append((api_key, True))
-    ota = raw.get(CONF_OTA) or []
-    for item in ota if isinstance(ota, list) else [ota]:
-        if not isinstance(item, dict) or item.get(CONF_PLATFORM) != CONF_ESPHOME:
-            continue
-        ota_key = (item.get(CONF_ENCRYPTION) or {}).get(CONF_KEY)
-        if ota_key is not None and str(ota_key) == old_key:
-            nodes.append((ota_key, False))
-    return nodes
-
-
-def _locate_key_edits(old_key: str, new_key: str) -> list[_KeyEdit]:
-    """Find every yaml line that carries the current key and prepare its
-    rewrite: the `key:` line itself, or the secrets.yaml line a `!secret`
-    on it points to. Refuses anything that cannot be edited line by line."""
-    from esphome.yaml_util import SECRET_YAML
-
-    config_dir = CORE.config_dir.resolve()
-    data_dir = CORE.data_dir.resolve()
-    key_value = re.escape(old_key)
-    literal_re = re.compile(rf"^(\s*{CONF_KEY}:\s*)([\"']?){key_value}\2(\s*(?:#.*)?)$")
-    secret_re = re.compile(rf"^\s*{CONF_KEY}:\s*!secret\s+([^\s#]+)")
-    edits: dict[tuple[Path, int], _KeyEdit] = {}
-    nodes = _key_nodes(CORE.raw_config or {}, old_key)
-    if not nodes:
-        raise EsphomeError("The current key was not found in the yaml")
-    for node, is_api in nodes:
-        rng = getattr(node, "esp_range", None)
-        if rng is None:
-            raise EsphomeError(
-                "The key has no source location; it comes from a package or "
-                "substitution that cannot be edited in place"
-            )
-        doc = Path(rng.start_mark.document)
-        resolved = doc.resolve()
-        if (
-            not doc.is_file()
-            or not resolved.is_relative_to(config_dir)
-            or resolved.is_relative_to(data_dir)
-        ):
-            raise EsphomeError(
-                f"The key comes from {doc}, which is not an editable file in "
-                "the configuration directory"
-            )
-        lines = doc.read_text(encoding="utf-8").splitlines(keepends=True)
-        line_no = rng.start_mark.line
-        text = lines[line_no].rstrip("\r\n") if line_no < len(lines) else ""
-        if match := secret_re.match(text):
-            secrets_path = doc.parent / SECRET_YAML
-            if not secrets_path.is_file():
-                secrets_path = CORE.config_dir / SECRET_YAML
-            name_re = re.compile(
-                rf"^({re.escape(match.group(1))}:\s*)([\"']?){key_value}\2(\s*(?:#.*)?)$"
-            )
-            secret_lines = secrets_path.read_text(encoding="utf-8").splitlines(
-                keepends=True
-            )
-            hits = [
-                (i, m)
-                for i, raw_line in enumerate(secret_lines)
-                if (m := name_re.match(raw_line.rstrip("\r\n")))
-            ]
-            if len(hits) != 1:
-                raise EsphomeError(
-                    f"Expected exactly one '{match.group(1)}:' line with the "
-                    f"current key in {secrets_path}, found {len(hits)}"
-                )
-            i, m = hits[0]
-            edit = _KeyEdit(
-                secrets_path,
-                i,
-                f"{m.group(1)}{m.group(2)}{new_key}{m.group(2)}{m.group(3)}",
-                is_api,
-            )
-        elif match := literal_re.match(text):
-            edit = _KeyEdit(
-                doc,
-                line_no,
-                f"{match.group(1)}{match.group(2)}{new_key}{match.group(2)}{match.group(3)}",
-                is_api,
-            )
-        else:
-            raise EsphomeError(
-                f"{doc}:{line_no + 1} does not hold the key as a plain value or a "
-                "!secret; edit the key by hand"
-            )
-        previous = edits.get((edit.path, edit.line))
-        if previous is not None:
-            previous.api = previous.api or is_api
-        else:
-            edits[(edit.path, edit.line)] = edit
-    return list(edits.values())
-
-
-def _apply_key_edits(
-    edits: list[_KeyEdit], old_key: str, new_key: str
-) -> dict[Path, str]:
-    """Rewrite the located lines, atomically per file, and return the
-    original text of every touched file for a rollback.
-
-    The result is parsed again and every key node must resolve to the new
-    key; a line rewrite that broke the yaml or missed a node is undone.
-    """
-    from esphome import yaml_util
-    from esphome.helpers import read_file, write_file
-
-    expected = len(_key_nodes(CORE.raw_config or {}, old_key))
-    originals: dict[Path, str] = {}
-    by_path: dict[Path, list[_KeyEdit]] = {}
-    for edit in edits:
-        by_path.setdefault(edit.path, []).append(edit)
-    try:
-        for path, path_edits in by_path.items():
-            original = read_file(path)
-            originals[path] = original
-            lines = original.splitlines(keepends=True)
-            for edit in path_edits:
-                ending = "\n" if lines[edit.line].endswith("\n") else ""
-                lines[edit.line] = edit.new_line + ending
-            write_file(path, "".join(lines))
-        try:
-            reloaded = yaml_util.load_yaml(CORE.config_path)
-        except EsphomeError as err:
-            raise EsphomeError(f"The rewritten yaml no longer loads: {err}") from err
-        if len(_key_nodes(reloaded, new_key)) != expected:
-            raise EsphomeError("Rewriting the key did not take; the yaml is unchanged")
-    except EsphomeError:
-        for path, text in originals.items():
-            write_file(path, text)
-        raise
-    return originals
-
-
-def _restore_key_files(originals: dict[Path, str]) -> None:
-    from esphome.compiled_config import compiled_config_path
-    from esphome.helpers import write_file
-
-    for path, text in originals.items():
-        write_file(path, text)
-    compiled_config_path(CORE.config_filename).unlink(missing_ok=True)
-    safe_print(
-        color(
-            AnsiFore.BOLD_YELLOW,
-            "Restored the previous key in " + ", ".join(str(p) for p in originals),
-        )
-    )
-
-
 ROTATE_KEY_PRECHECK_TIMEOUT = 15.0
 
 
@@ -2359,26 +2200,23 @@ def command_rotate_key(args: ArgsProtocol, config: ConfigType) -> int | None:
     previous key back so the configuration keeps matching the device.
     """
     from esphome import espota2
-    from esphome.compiled_config import compiled_config_path
-    from esphome.components.noise import validate_encryption_key
+    from esphome.components.noise import (
+        generate_encryption_key,
+        static_encryption_key,
+        validate_encryption_key,
+    )
     from esphome.config_validation import Invalid
+    from esphome.yaml_edit import apply_key_edits, locate_key_edits, restore_key_files
 
     def fail(message: str) -> int:
         safe_print(color(AnsiFore.BOLD_RED, message))
         return 1
 
-    ota_conf = next(
-        (
-            item
-            for item in config.get(CONF_OTA, [])
-            if item.get(CONF_PLATFORM) == CONF_ESPHOME
-        ),
-        None,
-    )
+    ota_conf = _esphome_ota_conf(config)
     if ota_conf is None:
         return fail("rotate-key needs the esphome OTA platform in the configuration")
-    encryption = ota_conf.get(CONF_ENCRYPTION)
-    if encryption is None or not encryption.get(CONF_KEY):
+    old_key = static_encryption_key(ota_conf)
+    if old_key is None:
         return fail(
             "rotate-key needs 'encryption:' under the esphome OTA platform with a "
             "key in the yaml; a key provisioned at runtime is rotated from Home "
@@ -2386,7 +2224,7 @@ def command_rotate_key(args: ArgsProtocol, config: ConfigType) -> int | None:
         )
     if CORE.is_host:
         return fail("rotate-key is for devices updated over the air")
-    old_key = str(encryption[CONF_KEY])
+    old_key = str(old_key)
     remote_port = int(ota_conf[CONF_PORT])
 
     devices = choose_upload_log_host(
@@ -2402,7 +2240,7 @@ def command_rotate_key(args: ArgsProtocol, config: ConfigType) -> int | None:
     if getattr(args, "prompt_new_key", False):
         new_key = read_secret_line("New OTA encryption key: ")
     else:
-        new_key = base64.b64encode(secrets.token_bytes(32)).decode()
+        new_key = generate_encryption_key()
     try:
         validate_encryption_key(new_key)
     except Invalid as err:
@@ -2411,11 +2249,13 @@ def command_rotate_key(args: ArgsProtocol, config: ConfigType) -> int | None:
         return fail("The new key is the same as the current one")
 
     try:
-        edits = _locate_key_edits(old_key, new_key)
+        edits = locate_key_edits(old_key, new_key)
     except EsphomeError as err:
         return fail(str(err))
 
-    if any(edit.api for edit in edits):
+    # With the recommended shape the ota inherits the api key, so rotating
+    # it changes what Home Assistant connects with
+    if str(static_encryption_key(config.get(CONF_API) or {})) == old_key:
         safe_print(
             color(
                 AnsiFore.BOLD_YELLOW,
@@ -2431,7 +2271,11 @@ def command_rotate_key(args: ArgsProtocol, config: ConfigType) -> int | None:
 
     safe_print("Checking that the device accepts the current key...")
     if not espota2.probe_ota_key(
-        network_devices, remote_port, old_key, timeout=ROTATE_KEY_PRECHECK_TIMEOUT
+        network_devices,
+        remote_port,
+        old_key,
+        timeout=ROTATE_KEY_PRECHECK_TIMEOUT,
+        retry_rejected=False,
     ):
         return fail(
             "The device did not accept the current key over an encrypted OTA "
@@ -2440,10 +2284,9 @@ def command_rotate_key(args: ArgsProtocol, config: ConfigType) -> int | None:
         )
 
     try:
-        originals = _apply_key_edits(edits, old_key, new_key)
+        originals = apply_key_edits(edits)
     except EsphomeError as err:
         return fail(str(err))
-    compiled_config_path(CORE.config_filename).unlink(missing_ok=True)
     safe_print(
         "Wrote the new key to "
         + ", ".join(color(AnsiFore.CYAN, str(p)) for p in originals)
@@ -2454,36 +2297,35 @@ def command_rotate_key(args: ArgsProtocol, config: ConfigType) -> int | None:
         cli_args += ["-s", key, value]
     if getattr(args, "dashboard", False):
         cli_args.insert(0, "--dashboard")
+    done = False
     try:
-        rc = run_external_process(*ESPHOME_COMMAND, *cli_args)
-        if rc != 0:
-            _restore_key_files(originals)
+        if run_external_process(*ESPHOME_COMMAND, *cli_args) != 0:
             return fail("Compiling with the new key failed")
-
         args.ota_key = old_key
-        rc, _ = upload_program(config, args, network_devices)
-        if rc != 0:
-            _restore_key_files(originals)
+        if upload_program(config, args, network_devices)[0] != 0:
             return fail(
                 "Uploading with the current key failed; nothing changed on the device"
             )
-
         safe_print("Waiting for the device to come back with the new key...")
-        accepted = espota2.probe_ota_key(network_devices, remote_port, new_key)
-    except KeyboardInterrupt:
-        _restore_key_files(originals)
-        return 1
-    if not accepted:
-        _restore_key_files(originals)
-        safe_print(
-            color(
-                AnsiFore.BOLD_RED,
+        if not espota2.probe_ota_key(network_devices, remote_port, new_key):
+            return fail(
                 "The upload completed but the device did not answer with the new "
                 "key. If it comes back running the new key, put it in the "
-                f"configuration by hand: {new_key}",
+                f"configuration by hand: {new_key}"
             )
-        )
+        done = True
+    except KeyboardInterrupt:
         return 1
+    finally:
+        if not done:
+            restore_key_files(originals)
+            safe_print(
+                color(
+                    AnsiFore.BOLD_YELLOW,
+                    "Restored the previous key in "
+                    + ", ".join(str(p) for p in originals),
+                )
+            )
 
     safe_print(f"New OTA encryption key: {color(AnsiFore.CYAN, new_key)}")
     safe_print(color(AnsiFore.BOLD_GREEN, "SUCCESS"))
