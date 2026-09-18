@@ -86,6 +86,7 @@
 #define USE_INFRARED
 #define USE_IR_RF
 #define USE_JSON
+#define USE_JSON_ARENA
 #define USE_RADIO_FREQUENCY
 #define USE_LIGHT
 #define USE_LIGHT_GAMMA_LUT

@@ -316,7 +316,7 @@ class AsyncEventSourceResponse {
   bool stash_chunk_(const char *prefix, size_t prefix_len, const char *message, size_t message_len, size_t total,
                     size_t sent);
   // Send a state event; JSON too large for the stack buffer is serialized into tail_ instead
-  bool send_json_(json::JsonBuilder &builder);
+  bool send_json_(void *source, message_generator_t *generator);
   // Warn once, and close the session once the stall timeout passes with no memory for the tail
   void tail_alloc_failed_(size_t cap);
   void request_close_();
@@ -362,6 +362,7 @@ class AsyncEventSourceResponse {
   static constexpr size_t MAX_SEND_IOV = 1 + 2 * MAX_SEND_LINES;
   // Chunk header, retry/id/event lines and the first "data: "
   static constexpr size_t PREFIX_BUF_SIZE = 128;
+
   // Stack buffer for a state event's JSON; a larger document is serialized into the tail
   static constexpr size_t JSON_BUF_SIZE = 1024;
   // Same ceiling JsonBuilder::serialize() applies (max_heap_size in json_util.cpp); a larger
