@@ -8258,3 +8258,19 @@ def test_parse_args_rotate_key() -> None:
     assert args.device == ["dev.local"]
     assert args.prompt_new_key is True
     assert args.yes is True
+
+
+def test_command_rotate_key_refuses_host(rotate_env: dict[str, Mock]) -> None:
+    CORE.data[KEY_CORE][KEY_TARGET_PLATFORM] = "host"
+    assert command_rotate_key(MockArgs(), CORE.config) == 1
+    rotate_env["probe"].assert_not_called()
+
+
+@pytest.mark.parametrize("helper", ["locate_key_edits", "apply_key_edits"])
+def test_command_rotate_key_reports_edit_errors(
+    rotate_env: dict[str, Mock], capfd: pytest.CaptureFixture[str], helper: str
+) -> None:
+    with patch(f"esphome.yaml_edit.{helper}", side_effect=EsphomeError("nope")):
+        assert command_rotate_key(MockArgs(), CORE.config) == 1
+    assert "nope" in capfd.readouterr().out
+    assert CORE.config_path.read_text() == ROTATE_API_YAML

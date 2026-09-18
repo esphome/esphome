@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from esphome import yaml_util
+from esphome import yaml_edit, yaml_util
 from esphome.compiled_config import compiled_config_path
 from esphome.core import CORE, EsphomeError
 from esphome.yaml_edit import (
@@ -297,3 +297,113 @@ def test_keeps_windows_line_endings_and_a_bare_last_line(tmp_path: Path) -> None
         path.read_bytes()
         == (text.replace(OLD_KEY, NEW_KEY) + f'\r\n      old_key: "{OLD_KEY}"').encode()
     )
+
+
+def test_unreadable_file(tmp_path: Path) -> None:
+    with pytest.raises(EsphomeError, match="Error reading file"):
+        yaml_edit._read_text(tmp_path)
+
+
+def test_key_missing_from_the_yaml(tmp_path: Path) -> None:
+    _setup(tmp_path, API_YAML)
+    with pytest.raises(EsphomeError, match="was not found"):
+        locate_key_edits(NEW_KEY, OLD_KEY)
+
+
+def test_key_without_a_source_location(tmp_path: Path) -> None:
+    """A raw config built in code has no ranges to edit from."""
+    _setup(tmp_path, API_YAML)
+    CORE.raw_config = {"api": {"encryption": {"key": OLD_KEY}}}
+    with pytest.raises(EsphomeError, match="no source location"):
+        locate_key_edits(OLD_KEY, NEW_KEY)
+
+
+def test_key_from_the_data_dir_is_refused(tmp_path: Path) -> None:
+    """Remote packages are checked out under .esphome and are not the user's."""
+    from esphome.config import do_substitution_pass
+
+    (tmp_path / ".esphome").mkdir()
+    (tmp_path / ".esphome" / "api.yaml").write_text(
+        f'encryption:\n  key: "{OLD_KEY}"\n', encoding="utf-8"
+    )
+    _setup(
+        tmp_path,
+        """esphome:
+  name: test
+
+api: !include .esphome/api.yaml
+
+ota:
+  - platform: esphome
+    encryption:
+""",
+    )
+    CORE.raw_config = do_substitution_pass(CORE.raw_config, None)
+    with pytest.raises(EsphomeError, match="not an editable file"):
+        locate_key_edits(OLD_KEY, NEW_KEY)
+
+
+def test_secret_in_an_include_falls_back_to_the_main_secrets(tmp_path: Path) -> None:
+    from esphome.config import do_substitution_pass
+
+    (tmp_path / "sub").mkdir()
+    (tmp_path / "sub" / "api.yaml").write_text(
+        "encryption:\n  key: !secret device_key\n", encoding="utf-8"
+    )
+    _setup(
+        tmp_path,
+        """esphome:
+  name: test
+
+api: !include sub/api.yaml
+
+ota:
+  - platform: esphome
+    encryption:
+""",
+        f"device_key: {OLD_KEY}\n",
+    )
+    CORE.raw_config = do_substitution_pass(CORE.raw_config, None)
+    edits = locate_key_edits(OLD_KEY, NEW_KEY)
+    assert [(e.path, e.line) for e in edits] == [(tmp_path / "secrets.yaml", 0)]
+
+
+def test_old_key_needs_an_encryption_block(tmp_path: Path) -> None:
+    _setup(
+        tmp_path,
+        f"""esphome:
+  name: test
+
+api:
+  encryption:
+    key: "{OLD_KEY}"
+
+ota:
+  - platform: esphome
+""",
+    )
+    with pytest.raises(EsphomeError, match="no 'encryption:' block"):
+        old_key_edit(OLD_KEY)
+
+
+def test_old_key_from_a_substitution_is_refused(tmp_path: Path) -> None:
+    from esphome.config import do_substitution_pass
+
+    _setup(
+        tmp_path,
+        f"""esphome:
+  name: test
+substitutions:
+  prev: "{NEW_KEY}"
+api:
+  encryption:
+    key: "{OLD_KEY}"
+ota:
+  - platform: esphome
+    encryption:
+      old_key: ${{prev}}
+""",
+    )
+    CORE.raw_config = do_substitution_pass(CORE.raw_config, None)
+    with pytest.raises(EsphomeError, match="edit it by hand"):
+        old_key_edit(OLD_KEY)
