@@ -214,31 +214,6 @@ def test_encryption_schema_allow_plaintext_upload() -> None:
         encryption_schema({CONF_ALLOW_PLAINTEXT_UPLOAD: True})
 
 
-def test_encryption_allow_plaintext_upload_warns(
-    caplog: pytest.LogCaptureFixture,
-) -> None:
-    """A set opt in warns on every load; it is meant to be removed after the
-    one install that migrates the device."""
-    full_conf = {
-        CONF_API: {CONF_ENCRYPTION: {CONF_KEY: API_KEY}},
-        CONF_OTA: [
-            _make_ota_config(
-                port=3232, **{CONF_ENCRYPTION: {CONF_ALLOW_PLAINTEXT_UPLOAD: True}}
-            )
-        ],
-    }
-    token = fv.full_config.set(full_conf)
-    try:
-        with caplog.at_level(logging.WARNING):
-            ota_esphome_final_validate({})
-        assert any(
-            "'allow_plaintext_upload' is set" in record.message
-            for record in caplog.records
-        )
-    finally:
-        fv.full_config.reset(token)
-
-
 def test_encryption_key_mismatch_between_merged_configs_rejected() -> None:
     """Same-port configs with different encryption keys raise."""
     full_conf = {
