@@ -46,6 +46,7 @@ from esphome.__main__ import (
     command_rename,
     command_run,
     command_update_all,
+    command_upload,
     command_wizard,
     compile_program,
     detect_external_components,
@@ -2340,6 +2341,26 @@ def test_upload_program_platform_hook_ignores_prompted_key(
 
     assert (exit_code, host) == (0, "dev.local")
     assert any("ignored for dev.local" in r.message for r in caplog.records)
+
+
+def test_command_upload_reads_the_ota_key_first() -> None:
+    """The upload command takes the key before choosing a device, like run."""
+    setup_core(
+        config={CONF_OTA: [{CONF_PLATFORM: CONF_ESPHOME}]}, platform=PLATFORM_ESP32
+    )
+    key = "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="
+    args = MockArgs(prompt_ota_key=True)
+    args.device = None
+    with (
+        patch("esphome.__main__.read_secret_line", return_value=key),
+        patch("esphome.__main__.choose_upload_log_host", return_value=["dev.local"]),
+        patch(
+            "esphome.__main__.upload_program", return_value=(0, "dev.local")
+        ) as upload,
+    ):
+        assert command_upload(args, CORE.config) == 0
+    assert args.ota_key == key
+    upload.assert_called_once()
 
 
 def test_read_ota_key_stores_prompted_key() -> None:
