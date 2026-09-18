@@ -2486,13 +2486,20 @@ def test_read_ota_key_rejects_bad_input(line: str) -> None:
     assert args.ota_key is None
 
 
-def test_read_ota_key_lets_a_serial_target_through(mock_get_port_type: Mock) -> None:
+@pytest.mark.parametrize(
+    ("device", "port_type"),
+    [("/dev/ttyUSB0", PortType.SERIAL), ("SERIAL", PortType.NETWORK)],
+)
+def test_read_ota_key_lets_a_serial_target_through(
+    mock_get_port_type: Mock, device: str, port_type: PortType
+) -> None:
     """A serial flash of a web_server only config is not refused; the key
-    is ignored with a warning at upload time."""
-    mock_get_port_type.return_value = PortType.SERIAL
+    is ignored with a warning at upload time. The SERIAL selector is only
+    resolved to a port later, so it counts by name."""
+    mock_get_port_type.return_value = port_type
     key = "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="
     args = MockArgs(prompt_ota_key=True)
-    args.device = ["/dev/ttyUSB0"]
+    args.device = [device]
     with patch("esphome.__main__.read_secret_line", return_value=key):
         _read_ota_key(args, {CONF_OTA: [{CONF_PLATFORM: CONF_WEB_SERVER}]})
     assert args.ota_key == key
