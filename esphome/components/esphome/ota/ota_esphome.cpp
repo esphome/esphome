@@ -467,6 +467,13 @@ void ESPHomeOTAComponent::handle_data_() {
   if (this->extended_proto_()) {
     // Read ota type, 1 byte
     if (!this->data_readall_(buf, 1)) {
+      if (this->remote_closed_) {
+        // A key probe (esphome rotate-key) leaves right after the handshake;
+        // nothing was started, so no error status or listener callback
+        ESP_LOGD(TAG, "Client left after the handshake");
+        this->cleanup_connection_();
+        return;
+      }
       this->log_read_error_(LOG_STR("OTA type"));
       goto error;  // NOLINT(cppcoreguidelines-avoid-goto)
     }
@@ -476,6 +483,11 @@ void ESPHomeOTAComponent::handle_data_() {
 
   // Read size, 4 bytes MSB first
   if (!this->data_readall_(buf, 4)) {
+    if (this->remote_closed_) {
+      ESP_LOGD(TAG, "Client left after the handshake");
+      this->cleanup_connection_();
+      return;
+    }
     this->log_read_error_(LOG_STR("size"));
     goto error;  // NOLINT(cppcoreguidelines-avoid-goto)
   }
@@ -667,6 +679,7 @@ bool ESPHomeOTAComponent::readall_(uint8_t *buf, size_t len) {
       }
     } else if (read == 0) {
       ESP_LOGW(TAG, "Remote closed");
+      this->remote_closed_ = true;
       return false;
     } else {
       at += read;
@@ -793,6 +806,7 @@ void ESPHomeOTAComponent::cleanup_connection_() {
   this->handshake_buf_pos_ = 0;
   this->ota_state_ = OTAState::IDLE;
   this->ota_features_ = 0;
+  this->remote_closed_ = false;
   this->backend_ = nullptr;
 #ifdef USE_OTA_PASSWORD
   this->cleanup_auth_();
