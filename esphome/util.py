@@ -136,6 +136,8 @@ def read_secret_line(prompt: str) -> str:
         import getpass
 
         return getpass.getpass(prompt).strip()
+    # Still say what is awaited, so a pipe held open is not a silent hang
+    print(prompt, end="", file=sys.stderr, flush=True)
     return sys.stdin.readline().strip()
 
 
