@@ -210,6 +210,8 @@ def test_encryption_schema_allow_plaintext_upload() -> None:
     }
     assert _encryption_schema({CONF_KEY: API_KEY}) == {CONF_KEY: API_KEY}
     with pytest.raises(cv.Invalid):
+        _encryption_schema(False)
+    with pytest.raises(cv.Invalid):
         encryption_schema({CONF_ALLOW_PLAINTEXT_UPLOAD: True})
 
 

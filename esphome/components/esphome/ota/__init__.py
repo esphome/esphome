@@ -242,8 +242,8 @@ _ENCRYPTION_SCHEMA = ENCRYPTION_SCHEMA.extend(
 
 
 def _encryption_schema(config: ConfigType | None) -> ConfigType:
-    # A bare `encryption:` block inherits the api key
-    return _ENCRYPTION_SCHEMA(config or {})
+    # Only a bare `encryption:` block is keyless; `false` or a list must fail
+    return _ENCRYPTION_SCHEMA({} if config is None else config)
 
 
 # Also called on merged same-port configs in final validate, where schemas
