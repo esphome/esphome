@@ -65,14 +65,14 @@ async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await media_source.register_media_source(var, config)
-    
+
     if config.get(CONF_TASK_STACK_IN_PSRAM):
         cg.add(var.set_task_stack_in_psram(True))
         psram.request_external_task_stack()
-        
+
     cg.add(var.set_buffer_size(config[CONF_BUFFER_SIZE]))
     cg.add(var.set_persistent_ring_buffer(config[CONF_PERSISTENT_RING_BUFFER]))
-    
+
     # Embed the certificate content, like http_request does. Passed to
     # micro_decoder's DecoderConfig::http_ca_certificate, which then uses it as
     # the sole trust anchor for HTTPS playback URLs instead of the certificate
@@ -81,4 +81,4 @@ async def to_code(config: ConfigType) -> None:
         with Path(ca_cert_path).open(encoding="utf-8") as f:
             ca_cert_content = f.read()
         cg.add(var.set_http_ca_certificate(ca_cert_content))
-        
+
