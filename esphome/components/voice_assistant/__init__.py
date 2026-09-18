@@ -49,6 +49,7 @@ CONF_MICRO_WAKE_WORD = "micro_wake_word"
 CONF_WAKE_WORD = "wake_word"
 
 CONF_CONVERSATION_TIMEOUT = "conversation_timeout"
+CONF_TTS_PLAYBACK_START_TIMEOUT = "tts_playback_start_timeout"
 
 CONF_ON_TIMER_STARTED = "on_timer_started"
 CONF_ON_TIMER_UPDATED = "on_timer_updated"
@@ -126,6 +127,9 @@ CONFIG_SCHEMA = cv.All(
             ),
             cv.Optional(
                 CONF_CONVERSATION_TIMEOUT, default="300s"
+            ): cv.positive_time_period_milliseconds,
+            cv.Optional(
+                CONF_TTS_PLAYBACK_START_TIMEOUT, default="2s"
             ): cv.positive_time_period_milliseconds,
             cv.Optional(CONF_VOLUME_MULTIPLIER, default=1.0): cv.float_range(
                 min=0.0, min_included=False
@@ -235,6 +239,7 @@ async def to_code(config: ConfigType) -> None:
     cg.add(var.set_auto_gain(config[CONF_AUTO_GAIN]))
     cg.add(var.set_volume_multiplier(config[CONF_VOLUME_MULTIPLIER]))
     cg.add(var.set_conversation_timeout(config[CONF_CONVERSATION_TIMEOUT]))
+    cg.add(var.set_tts_playback_start_timeout(config[CONF_TTS_PLAYBACK_START_TIMEOUT]))
 
     if CONF_ON_LISTENING in config:
         await automation.build_automation(
