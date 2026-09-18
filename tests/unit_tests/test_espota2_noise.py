@@ -24,6 +24,7 @@ from unittest.mock import Mock, patch
 import pytest
 
 from esphome import espota2
+from esphome.core import EsphomeError
 
 PSK = base64.b64encode(bytes(range(32))).decode()
 OTHER_PSK = base64.b64encode(bytes(range(1, 33))).decode()
@@ -672,6 +673,8 @@ def test_non_key_reject_reason_is_a_device_error(
     assert not any("Retrying in plaintext" in r.message for r in caplog.records)
 
 
+
+
 def test_probe_ota_key_accepts_the_running_key() -> None:
     pytest.importorskip("aioesphomeapi.noise")
     device = FakeEncryptedDevice()
@@ -728,6 +731,20 @@ def test_probe_ota_key_retries_after_a_transport_fault() -> None:
         assert espota2.probe_ota_key("127.0.0.1", device.port, PSK, timeout=5) is True
     device.join_and_check()
     assert device.probes == 1
+
+
+@pytest.mark.parametrize("resolved", [EsphomeError("no such host"), []])
+def test_probe_ota_key_resolution_failure(resolved: object) -> None:
+    kwargs = (
+        {"side_effect": resolved}
+        if isinstance(resolved, Exception)
+        else {"return_value": resolved}
+    )
+    with (
+        patch("esphome.espota2.resolve_ip_address", **kwargs),
+        pytest.raises(espota2.OTAError),
+    ):
+        espota2.probe_ota_key("nowhere.local", 3232, PSK, timeout=1)
 
 
 def test_bare_block_refuses_a_device_that_cannot_encrypt(
