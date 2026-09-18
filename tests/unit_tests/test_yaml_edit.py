@@ -797,9 +797,11 @@ def test_own_includes_and_similar_names_are_not_shared_users(tmp_path: Path) -> 
 def test_existing_old_secret_used_elsewhere_is_not_overwritten(
     tmp_path: Path,
 ) -> None:
-    """A `<name>_old` line this configuration does not use belongs to
-    whoever references it; a leftover nobody uses is reused."""
-    _setup(tmp_path, SECRET_YAML, f"device_key: {OLD_KEY}\ndevice_key_old: hunter2\n")
+    """A `<name>_old` line belongs to whoever references it, this
+    configuration included since it has no old_key; a leftover nobody uses
+    is reused."""
+    secrets = f"device_key: {OLD_KEY}\ndevice_key_old: hunter2\n"
+    _setup(tmp_path, SECRET_YAML, secrets)
     (edit, kept) = old_key_edit(OLD_KEY)
     assert (kept.new_line, kept.shared_with) == (f"device_key_old: {OLD_KEY}", [])
     (tmp_path / "other.yaml").write_bytes(
@@ -807,6 +809,14 @@ def test_existing_old_secret_used_elsewhere_is_not_overwritten(
     )
     with pytest.raises(
         EsphomeError, match="'device_key_old:' in .* is used by .*other.yaml"
+    ):
+        old_key_edit(OLD_KEY)
+    (tmp_path / "other.yaml").unlink()
+    _setup(
+        tmp_path, SECRET_YAML + "wifi:\n  password: !secret device_key_old\n", secrets
+    )
+    with pytest.raises(
+        EsphomeError, match="'device_key_old:' in .* is used by .*test.yaml"
     ):
         old_key_edit(OLD_KEY)
 

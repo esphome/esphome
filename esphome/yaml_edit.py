@@ -380,16 +380,17 @@ def old_key_edit(old_key: str) -> list[KeyEdit]:
         secret_doc, name = secret
         rendered = f"{CONF_OLD_KEY}: !secret {name}_old"
         secrets_path = _secret_file(secret_doc)
-        # A `<name>_old` line this configuration does not use is a leftover
-        # of an earlier rotation, unless another configuration uses it
+        # This configuration has no old_key, so any use of an existing
+        # `<name>_old` line, its own included, is another setting; a line
+        # nobody uses is a leftover of an earlier rotation
         if (kept := _secret_rewrite(secrets_path, f"{name}_old", old_key)) is not None:
-            if users := _with_sharers([kept])[0].shared_with:
+            ref = _secret_use_re(f"{name}_old")
+            if users := [p for p, t in _other_config_texts(set()) if ref.search(t)]:
                 raise EsphomeError(
                     f"'{name}_old:' in {secrets_path} is used by "
                     + ", ".join(str(p) for p in users)
                     + f"; rename it or add '{CONF_OLD_KEY}' by hand"
                 )
-            kept.shared_with = []
         extra = [kept or _secret_insert(secrets_path, name, f"{name}_old", old_key)]
     # The anchor sets the indent: the block's own key line, in whichever
     # file holds it, else one level under a bare `encryption:` line
