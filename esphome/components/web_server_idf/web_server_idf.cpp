@@ -58,7 +58,7 @@ namespace esphome::web_server_idf {
 static const char *const TAG = "web_server_idf";
 
 // Only send_json_() may hold the JSON arena: every other frame in this file is capped below one
-// arena. Measured at -Os on GCC 14 and 15; older toolchains skip the check.
+// arena. Measured at -Os on GCC 14; newer toolchains stay checked on purpose, older ones skip it.
 #if defined(__GNUC__) && !defined(__clang__) && __GNUC__ >= 14 && defined(__OPTIMIZE_SIZE__)
 #pragma GCC diagnostic error "-Wstack-usage=2048"
 #endif
