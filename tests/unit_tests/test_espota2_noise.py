@@ -30,6 +30,8 @@ PSK = base64.b64encode(bytes(range(32))).decode()
 OTHER_PSK = base64.b64encode(bytes(range(1, 33))).decode()
 
 MAGIC = bytes(espota2.MAGIC_BYTES)
+# One resolved loopback address, as resolve_ip_address returns it
+RESOLVED = [(2, 1, 0, "", ("127.0.0.1", 1))]
 
 
 def _recv_exact(sock: socket.socket, amount: int) -> bytes:
@@ -788,7 +790,7 @@ def test_probe_ota_key_recomputes_the_budget_after_connect() -> None:
     with (
         patch(
             "esphome.espota2.resolve_ip_address",
-            return_value=[(2, 1, 0, "", ("127.0.0.1", 1))],
+            return_value=RESOLVED,
         ),
         patch("socket.socket") as sock_cls,
         patch("time.sleep"),
@@ -841,7 +843,7 @@ def test_probe_ota_key_takes_a_password_challenge_as_proof(answer: int) -> None:
     with (
         patch(
             "esphome.espota2.resolve_ip_address",
-            return_value=[(2, 1, 0, "", ("127.0.0.1", 1))],
+            return_value=RESOLVED,
         ),
         patch("socket.socket"),
         patch("esphome.espota2._negotiate_session", return_value=(session, 2, 0, True)),
@@ -849,12 +851,41 @@ def test_probe_ota_key_takes_a_password_challenge_as_proof(answer: int) -> None:
         assert espota2.probe_ota_key("h", 1, PSK, timeout=30) is True
 
 
+def test_probe_ota_key_waits_for_every_address_to_answer() -> None:
+    """One address rejecting does not stand in for another that only failed
+    to connect so far."""
+    session = Mock()
+    with (
+        patch(
+            "esphome.espota2.resolve_ip_address",
+            return_value=[
+                (2, 1, 0, "", ("10.0.0.1", 1)),
+                (2, 1, 0, "", ("10.0.0.2", 1)),
+            ],
+        ),
+        patch("socket.socket"),
+        patch(
+            "esphome.espota2._negotiate_session",
+            side_effect=[
+                espota2.OTAKeyRejected("no"),
+                OSError("refused"),
+                espota2.OTAKeyRejected("no"),
+                (session, 2, 0, True),
+            ],
+        ) as negotiate,
+        patch("esphome.espota2.receive_exactly"),
+        patch("time.sleep"),
+    ):
+        assert espota2.probe_ota_key("h", 1, PSK, timeout=30, retry_rejected=False)
+    assert negotiate.call_count == 4
+
+
 def test_probe_ota_key_takes_another_device_answer_as_final() -> None:
     """An unsupported protocol version does not change with a retry."""
     with (
         patch(
             "esphome.espota2.resolve_ip_address",
-            return_value=[(2, 1, 0, "", ("127.0.0.1", 1))],
+            return_value=RESOLVED,
         ),
         patch("socket.socket"),
         patch(
@@ -896,7 +927,7 @@ def test_probe_ota_key_stops_when_connect_used_the_budget() -> None:
     with (
         patch(
             "esphome.espota2.resolve_ip_address",
-            return_value=[(2, 1, 0, "", ("127.0.0.1", 1))],
+            return_value=RESOLVED,
         ),
         patch("socket.socket") as sock_cls,
         patch("time.sleep") as sleep,
@@ -916,7 +947,7 @@ def test_probe_ota_key_never_waits_past_its_deadline() -> None:
     with (
         patch(
             "esphome.espota2.resolve_ip_address",
-            return_value=[(2, 1, 0, "", ("127.0.0.1", 1))],
+            return_value=RESOLVED,
         ),
         patch("socket.socket") as sock_cls,
         patch("time.sleep") as sleep,

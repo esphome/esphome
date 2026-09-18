@@ -8040,7 +8040,12 @@ ROTATE_OTA_CONF = {
 
 
 @pytest.fixture
-def rotate_env(tmp_path: Path) -> Generator[dict[str, Mock]]:
+def rotate_env(
+    tmp_path: Path,
+    mock_get_port_type: Mock,
+    mock_run_ota: Mock,
+    mock_run_external_process: Mock,
+) -> Generator[dict[str, Mock]]:
     """A config with an inline api key, loaded the way read_config does so
     the key node carries its source range, and every network step mocked."""
     from esphome import yaml_util
@@ -8055,10 +8060,7 @@ def rotate_env(tmp_path: Path) -> Generator[dict[str, Mock]]:
     with (
         patch("esphome.__main__.choose_upload_log_host", return_value=["dev.local"]),
         patch("esphome.__main__._resolve_network_devices", return_value=["dev.local"]),
-        patch("esphome.__main__.get_port_type", return_value=PortType.NETWORK),
         patch("esphome.espota2.probe_ota_key", return_value=True) as probe,
-        patch("esphome.__main__.run_external_process", return_value=0) as compile_,
-        patch("esphome.espota2.run_ota") as upload,
         patch("esphome.__main__.safe_input", return_value="y") as confirm,
         patch("esphome.__main__.sys.stdin") as stdin,
         patch(
@@ -8067,6 +8069,9 @@ def rotate_env(tmp_path: Path) -> Generator[dict[str, Mock]]:
         ),
     ):
         stdin.isatty.return_value = True
+        mock_get_port_type.return_value = PortType.NETWORK
+        compile_ = mock_run_external_process
+        upload = mock_run_ota
         # The real upload reports the connection before its result
         upload.return_value = (0, "dev.local")
 
@@ -8142,12 +8147,17 @@ def test_command_rotate_key_warns_about_a_shared_secret(
     from esphome.yaml_edit import KeyEdit
 
     edit = KeyEdit(
-        CORE.config_path, 0, "x", "y", shared_with=[CORE.config_dir / "b.yaml"]
+        CORE.config_path,
+        0,
+        "x",
+        "y",
+        secret="device_key",
+        shared_with=[CORE.config_dir / "b.yaml"],
     )
     with patch("esphome.yaml_edit.locate_key_edits", return_value=[edit]):
         rotate_env["confirm"].return_value = "n"
         assert command_rotate_key(MockArgs(), CORE.config) == 1
-    assert "also used by b.yaml" in capfd.readouterr().out
+    assert "b.yaml (secret 'device_key')" in capfd.readouterr().out
 
 
 def test_command_rotate_key_no_terminal_needs_yes(
