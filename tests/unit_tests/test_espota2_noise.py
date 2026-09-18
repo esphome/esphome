@@ -305,7 +305,9 @@ def test_tampered_negotiation_breaks_handshake() -> None:
 def test_client_fails_closed_when_device_lacks_encryption() -> None:
     """With a key configured, a device not offering noise aborts the upload."""
     device = FakeEncryptedDevice(offer_noise=False, require_noise=False)
-    with pytest.raises(espota2.OTAError, match="refusing to send the image"):
+    with pytest.raises(
+        espota2.OTAError, match="refusing to send the image.*allow_plaintext_upload"
+    ):
         _upload(device, b"firmware", PSK)
     device.join_and_check()
 
