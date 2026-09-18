@@ -2154,7 +2154,7 @@ def test_upload_program_ota_encryption_key(
         OTA_TYPE_UPDATE_APP,
         key,
         plaintext_fallback=False,
-        allow_plaintext_upload=None,
+        allow_plaintext_upload=False,
     )
 
 
