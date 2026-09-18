@@ -18,7 +18,10 @@
 #ifdef USE_WEBSERVER
 #include "esphome/components/json/json_util.h"
 #include "esphome/components/web_server/list_entities.h"
+#include "sse_chunk.h"
 #endif
+
+struct iovec;  // NOLINT(readability-identifier-naming) - forward decl of lwip's gather list entry
 
 namespace esphome {
 #ifdef USE_WEBSERVER
@@ -255,7 +258,7 @@ class AsyncWebHandler {
 class AsyncEventSource;
 class AsyncEventSourceResponse;
 
-using message_generator_t = json::SerializationBuffer<>(esphome::web_server::WebServer *, void *);
+using message_generator_t = void(esphome::web_server::WebServer *, void *, json::JsonBuilder &);
 
 /*
   This class holds a pointer to the source component that wants to publish a state event, and a pointer to a function
@@ -300,8 +303,30 @@ class AsyncEventSourceResponse {
 
   void deq_push_back_with_dedup_(void *source, message_generator_t *message_generator);
   void process_deferred_queue_();
-  void process_buffer_();
+  // A new chunk may go out: not re-entered from a log line, session alive, tail empty
+  bool ready_to_send_();
+  // Non-blocking gather write. Returns bytes written, 0 on would-block or a socket that is not
+  // ours, -1 after requesting the close on any other error.
+  ssize_t send_(struct iovec *iov, int iovcnt);
+  // Push what is left of the chunk in tail_ to the socket; owns the stall timer.
+  void drain_tail_();
+  // Grow tail_ to hold len bytes, kept at its high-water mark. False on OOM.
+  bool reserve_tail_(size_t len);
+  // Keep the whole chunk in tail_ and continue from sent; false when the tail cannot be allocated.
+  bool stash_chunk_(const char *prefix, size_t prefix_len, const char *message, size_t message_len, size_t total,
+                    size_t sent);
+  // Send a state event; JSON too large for the stack buffer is serialized into tail_ instead
+  bool send_json_(json::JsonBuilder &builder);
+  // Warn once, and close the session once the stall timeout passes with no memory for the tail
+  void tail_alloc_failed_(size_t cap);
   void request_close_();
+
+  // A log line emitted inside a send re-enters try_send_nodefer on this session; refuse it
+  struct SendGuard {
+    AsyncEventSourceResponse &owner;
+    explicit SendGuard(AsyncEventSourceResponse &owner) : owner(owner) { owner.sending_ = true; }
+    ~SendGuard() { this->owner.sending_ = false; }
+  };
   void process_close_();
   static void close_session_work(void *arg);
 
@@ -317,15 +342,33 @@ class AsyncEventSourceResponse {
   std::vector<DeferredEvent> deferred_queue_;
   esphome::web_server::WebServer *web_server_;
   esphome::web_server::ListEntitiesIterator entities_iterator_;
-  std::string event_buffer_;
-  size_t event_bytes_sent_;
+  // One chunk the socket did not take whole, allocated on the first stall; the only heap use
+  // on the send path
+  RAMUniquePtr<uint8_t[]> tail_;
   uint32_t send_failure_started_ms_{0};  // Zero means no send stall in progress.
   uint32_t next_close_attempt_ms_{0};
-  // Main-loop only; the HTTPD task never reads or writes this flag.
-  bool close_requested_{false};
-  bool close_retry_warning_logged_{false};
+  uint16_t tail_cap_{0};
+  uint16_t tail_len_{0};  // Zero means nothing pending
+  uint16_t tail_sent_{0};
   // Set on the main loop before queueing close work, cleared by the HTTPD-task callback when done.
   std::atomic<bool> close_work_queued_{false};
+  // Main-loop only; the HTTPD task never reads or writes these flags.
+  bool close_requested_{false};
+  bool close_retry_warning_logged_{false};
+  bool sending_{false};
+  // The longest multi line log message in the tree (a climate dump_config) has 22 lines; a
+  // longer one goes through the tail
+  static constexpr size_t MAX_SEND_LINES = 22;
+  static constexpr size_t MAX_SEND_IOV = 1 + 2 * MAX_SEND_LINES;
+  // Chunk header, retry/id/event lines and the first "data: "
+  static constexpr size_t PREFIX_BUF_SIZE = 128;
+  // Stack buffer for a state event's JSON; a larger document is serialized into the tail
+  static constexpr size_t JSON_BUF_SIZE = 1024;
+  // Same ceiling JsonBuilder::serialize() applies (max_heap_size in json_util.cpp); a larger
+  // document is dropped before anything is on the wire
+  static constexpr size_t JSON_MAX_SIZE = 5120;
+  // Most RAM a stalled session keeps: the largest state document plus any accepted framing
+  static constexpr size_t TAIL_MAX_SIZE = JSON_MAX_SIZE + PREFIX_BUF_SIZE + SSE_SUFFIX_LEN;
   static constexpr uint32_t SEND_STALL_TIMEOUT_MS = 20000;
   static constexpr uint32_t CLOSE_RETRY_INTERVAL_MS = 250;
   static constexpr uint32_t CLOSE_CONFIRM_INTERVAL_MS = 1000;

@@ -1,4 +1,6 @@
 #include "json_util.h"
+
+#include <cstring>
 #include "esphome/core/log.h"
 
 // ArduinoJson::Allocator is included via ArduinoJson.h in json_util.h
@@ -68,6 +70,22 @@ JsonDocument parse_json(const uint8_t *data, size_t len) {
 
 JsonBuilder::JsonBuilder() = default;
 
+size_t JsonBuilder::serialize_to(char *buf, size_t cap) {
+  if (doc_.overflowed()) {
+    ESP_LOGE(TAG, "JSON document overflow");
+    // Same contract as serializeJson; written by hand so no "{}" literal lives in RAM on ESP8266
+    size_t n = 0;
+    if (n < cap)
+      buf[n++] = '{';
+    if (n < cap)
+      buf[n++] = '}';
+    if (n < cap)
+      buf[n] = '\0';
+    return n;
+  }
+  return serializeJson(doc_, buf, cap);
+}
+
 SerializationBuffer<> JsonBuilder::serialize() {
   // ===========================================================================================
   // CRITICAL: NRVO (Named Return Value Optimization) - DO NOT REFACTOR WITHOUT UNDERSTANDING
@@ -109,17 +127,7 @@ SerializationBuffer<> JsonBuilder::serialize() {
   constexpr size_t buf_size = SerializationBuffer<>::BUFFER_SIZE;
   SerializationBuffer<> result(buf_size - 1);  // Max content size (reserve 1 for null)
 
-  if (doc_.overflowed()) {
-    ESP_LOGE(TAG, "JSON document overflow");
-    auto *buf = result.data_writable_();
-    buf[0] = '{';
-    buf[1] = '}';
-    buf[2] = '\0';
-    result.set_size_(2);
-    return result;
-  }
-
-  size_t size = serializeJson(doc_, result.data_writable_(), buf_size);
+  size_t size = this->serialize_to(result.data_writable_(), buf_size);
   if (size < buf_size) {
     // Fits in stack buffer - update size to actual length
     result.set_size_(size);
@@ -134,7 +142,7 @@ SerializationBuffer<> JsonBuilder::serialize() {
   size_t heap_size = buf_size * 2;
   while (heap_size <= max_heap_size) {
     result.reallocate_heap_(heap_size - 1);
-    size = serializeJson(doc_, result.data_writable_(), heap_size);
+    size = this->serialize_to(result.data_writable_(), heap_size);
     if (size < heap_size) {
       result.set_size_(size);
       return result;
