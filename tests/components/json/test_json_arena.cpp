@@ -1,5 +1,6 @@
 #include <gtest/gtest.h>
 
+#include <cstddef>
 #include <cstdint>
 #include <cstring>
 #include <string>
@@ -132,8 +133,7 @@ TEST(JsonArena, FailedMoveKeepsTheBlockReserved) {
 }
 
 // NOLINTBEGIN(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
-// Mirrors JSON_ARENA_SIZE in web_server_idf.h: one pool plus 1152 bytes for copied string nodes
-constexpr size_t ARENA = esphome::json::JSON_POOL_BYTES + 1152;
+constexpr size_t ARENA = esphome::json::JSON_ARENA_SIZE;
 
 // The documents the event stream sends must fit without touching the fallback, and their copied
 // strings must land in the headroom above the pool

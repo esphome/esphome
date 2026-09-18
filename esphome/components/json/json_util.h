@@ -1,6 +1,7 @@
 #pragma once
 
 #include <algorithm>
+#include <cstddef>
 #include <cstring>
 #include <string>
 #include <vector>
@@ -172,6 +173,9 @@ ArduinoJson::Allocator *heap_json_allocator();
 #ifdef USE_JSON_ARENA
 /// Size of one ArduinoJson slot pool, the first allocation every document makes (1 KB on 32 bit targets)
 constexpr size_t JSON_POOL_BYTES = ARDUINOJSON_POOL_CAPACITY * sizeof(ArduinoJson::detail::VariantData);
+/// Arena for a state document: one pool plus room for copied string nodes (2176 bytes on 32 bit
+/// targets). A 40 option select fits once its options are linked; anything larger spills to the heap.
+constexpr size_t JSON_ARENA_SIZE = JSON_POOL_BYTES + 1152;
 
 /// Bump allocator over a fixed buffer for a document built and serialized in one scope. What the
 /// buffer cannot hold goes to the heap allocator; nothing is freed until the arena goes away.
