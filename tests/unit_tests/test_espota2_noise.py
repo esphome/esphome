@@ -830,6 +830,44 @@ def test_probe_ota_key_tries_every_address_before_a_final_no() -> None:
     sleep.assert_not_called()
 
 
+@pytest.mark.parametrize(
+    "answer", [espota2.RESPONSE_REQUEST_AUTH, espota2.RESPONSE_REQUEST_SHA256_AUTH]
+)
+def test_probe_ota_key_takes_a_password_challenge_as_proof(answer: int) -> None:
+    """A device with a password as well as encryption answers the handshake
+    with a challenge; it arrives encrypted, so the key was accepted."""
+    session = Mock()
+    session.recv.return_value = bytes([answer])
+    with (
+        patch(
+            "esphome.espota2.resolve_ip_address",
+            return_value=[(2, 1, 0, "", ("127.0.0.1", 1))],
+        ),
+        patch("socket.socket"),
+        patch("esphome.espota2._negotiate_session", return_value=(session, 2, 0, True)),
+    ):
+        assert espota2.probe_ota_key("h", 1, PSK, timeout=30) is True
+
+
+def test_probe_ota_key_takes_another_device_answer_as_final() -> None:
+    """An unsupported protocol version does not change with a retry."""
+    with (
+        patch(
+            "esphome.espota2.resolve_ip_address",
+            return_value=[(2, 1, 0, "", ("127.0.0.1", 1))],
+        ),
+        patch("socket.socket"),
+        patch(
+            "esphome.espota2._negotiate_session",
+            side_effect=espota2.OTAError("unsupported OTA version 9"),
+        ) as negotiate,
+        patch("time.sleep") as sleep,
+    ):
+        assert espota2.probe_ota_key("h", 1, PSK, timeout=30) is False
+    negotiate.assert_called_once()
+    sleep.assert_not_called()
+
+
 def test_probe_ota_key_deadline_spans_the_whole_negotiation() -> None:
     """Each read re-arms the timeout from what is left, so a slow peer
     cannot stretch the probe one full timeout per read."""
