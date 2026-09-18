@@ -1767,10 +1767,15 @@ def _read_ota_key(args: ArgsProtocol, config: ConfigType) -> None:
         return
     # The HTTP path has no key handshake; decide before prompting or
     # compiling. A config without OTA is a serial flash, which warns later.
-    try:
-        chosen = _choose_ota_platform(config, getattr(args, "ota_platform", None))
-    except EsphomeError:
-        chosen = None
+    ota_configured = any(
+        item.get(CONF_PLATFORM) in (CONF_ESPHOME, CONF_WEB_SERVER)
+        for item in config.get(CONF_OTA, [])
+    )
+    chosen = (
+        _choose_ota_platform(config, getattr(args, "ota_platform", None))
+        if ota_configured
+        else None
+    )
     if chosen == CONF_WEB_SERVER:
         raise EsphomeError(
             f"--prompt-ota-key and {ENV_OTA_KEY} only apply to the "
@@ -2781,9 +2786,6 @@ def run_esphome(argv):
     args = parse_args(argv)
     CORE.dashboard = args.dashboard
     CORE.testing_mode = args.testing_mode
-    # Taken out of the environment before any command runs, so no build
-    # tool inherits a key a calling program handed over
-    args.env_ota_key = os.environ.pop(ENV_OTA_KEY, None)
 
     # Create address cache from command-line arguments
     CORE.address_cache = AddressCache.from_cli_args(
@@ -2796,6 +2798,13 @@ def run_esphome(argv):
         args.log_level = "CRITICAL"
 
     setup_log(log_level=args.log_level)
+    # Taken out of the environment before any command runs, so no build
+    # tool inherits a key a calling program handed over
+    args.env_ota_key = os.environ.pop(ENV_OTA_KEY, None)
+    if args.env_ota_key is not None and args.command not in ("upload", "run"):
+        _LOGGER.warning(
+            "%s is set but the %s command does not use it", ENV_OTA_KEY, args.command
+        )
     _warn_if_source_tree_mismatch()
 
     if args.command in PRE_CONFIG_ACTIONS:
