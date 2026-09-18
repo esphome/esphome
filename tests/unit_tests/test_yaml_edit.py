@@ -778,6 +778,56 @@ def test_restore_reports_a_cache_it_could_not_drop(tmp_path: Path) -> None:
         restore_key_files({path: API_YAML})
 
 
+def test_own_includes_and_similar_names_are_not_shared_users(tmp_path: Path) -> None:
+    """A file this configuration reaches through another include is its own,
+    and `wifi_common.yaml` does not mention `common.yaml`."""
+    (tmp_path / "common.yaml").write_bytes(f'key: "{OLD_KEY}"\n'.encode())
+    (tmp_path / "base.yaml").write_bytes(b"encryption: !include common.yaml\n")
+    (tmp_path / "other.yaml").write_bytes(b"api: !include base.yaml\n")
+    (tmp_path / "lookalike.yaml").write_bytes(b"wifi: !include wifi_common.yaml\n")
+    _setup(
+        tmp_path,
+        "esphome:\n  name: test\n\napi: !include base.yaml\n\n"
+        "ota:\n  - platform: esphome\n    encryption:\n",
+    )
+    CORE.raw_config = do_substitution_pass(CORE.raw_config, None)
+    edits = locate_key_edits(OLD_KEY, NEW_KEY)
+    assert [(e.path.name, e.shared_with) for e in edits] == [("common.yaml", [])]
+
+
+def test_existing_old_secret_used_elsewhere_is_reported(tmp_path: Path) -> None:
+    """A `<name>_old` line another configuration uses is rewritten with a
+    warning, like the shared key itself."""
+    (tmp_path / "other.yaml").write_bytes(
+        b"wifi:\n  password: !secret device_key_old\n"
+    )
+    _setup(tmp_path, SECRET_YAML, f"device_key: {OLD_KEY}\ndevice_key_old: hunter2\n")
+    edits = old_key_edit(OLD_KEY)
+    assert [(e.new_line, e.shared_with) for e in edits] == [
+        ("      old_key: !secret device_key_old", []),
+        (f"device_key_old: {OLD_KEY}", [tmp_path.resolve() / "other.yaml"]),
+    ]
+
+
+def test_old_key_secret_with_a_folded_value_is_refused(tmp_path: Path) -> None:
+    yaml_text = SECRET_YAML.replace(
+        "      key: !secret device_key\n",
+        "      key: !secret device_key\n      old_key: !secret device_key_old\n",
+    )
+    _setup(
+        tmp_path, yaml_text, f"device_key: {OLD_KEY}\ndevice_key_old: >-\n  {NEW_KEY}\n"
+    )
+    with pytest.raises(EsphomeError, match="No plain 'device_key_old:' line"):
+        old_key_edit(OLD_KEY)
+
+
+def test_file_shortened_after_the_load_is_reported(tmp_path: Path) -> None:
+    path = _setup(tmp_path, API_YAML)
+    path.write_bytes(b"esphome:\n  name: test\n")
+    with pytest.raises(EsphomeError, match="changed since it was read"):
+        locate_key_edits(OLD_KEY, NEW_KEY)
+
+
 def test_rolls_back_when_the_cache_cannot_be_dropped(tmp_path: Path) -> None:
     path = _setup(tmp_path, API_YAML)
     edits = locate_key_edits(OLD_KEY, NEW_KEY)

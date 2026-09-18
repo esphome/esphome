@@ -77,12 +77,34 @@ def _key_blocks(raw: ConfigType, key: str) -> list[ConfigType]:
 
 def _line_at(doc: Path, line_no: int) -> str:
     lines = _read_text(doc).splitlines()
-    return lines[line_no] if line_no < len(lines) else ""
+    if line_no >= len(lines):
+        raise EsphomeError(f"{doc}:{line_no + 1} changed since it was read")
+    return lines[line_no]
+
+
+def _own_documents() -> set[Path]:
+    """Every file the loader read for this configuration."""
+    documents = {str(CORE.config_path)}
+
+    def walk(node: object) -> None:
+        if (rng := getattr(node, "esp_range", None)) is not None:
+            documents.add(rng.start_mark.document)
+        if isinstance(node, dict):
+            for key, value in node.items():
+                walk(key)
+                walk(value)
+        elif isinstance(node, list):
+            for value in node:
+                walk(value)
+
+    walk(CORE.raw_config or {})
+    return {Path(document).resolve() for document in documents}
 
 
 _INDENT_RE = re.compile(r"\s*")
-# A plain scalar: optional matching quotes, then the line's trailing comment
-_PLAIN_SCALAR = r"[^\s#\"']*"
+# A plain scalar with no yaml indicator, so a block scalar (`>-`, `|`) or a
+# flow collection never counts; then optional matching quotes and the trailer
+_PLAIN_SCALAR = r"[^\s#\"'>|&*!%@`\[\]{},]*"
 _TRAILER = r"(?P<quote>[\"']?){value}(?P=quote)(?P<trail>\s*(?:#.*)?)$"
 # `!secret name`, the name optionally quoted
 _SECRET_REF = r"!secret\s+(?P<q>[\"']?)(?P<name>[^\s#\"']+)(?P=q)"
@@ -121,7 +143,8 @@ def _secret_use_re(name: str) -> re.Pattern[str]:
 
 
 def _file_use_re(file_name: str) -> re.Pattern[str]:
-    return re.compile(re.escape(file_name))
+    """The file name at a path boundary; `wifi_api.yaml` is not `api.yaml`."""
+    return re.compile(rf"(?<![\w.-]){re.escape(file_name)}(?![\w.])")
 
 
 def _rewrite(match: re.Match[str], value: str) -> str:
@@ -237,16 +260,26 @@ def _secret_edit(
 
 
 def _old_secret_edit(
-    doc: Path, name: str, old_key: str, after: str | None = None
+    doc: Path, name: str, old_key: str, own: set[Path], after: str | None = None
 ) -> KeyEdit:
     """Keep the previous key in the secrets file as ``name``: rewritten in
-    place, or added under the ``after`` line it came from. One of the two
-    lines exists, the loader resolved it."""
+    place, noting other configurations that use it, or added under the
+    ``after`` line it came from."""
     secrets_path = _editable_file(secrets_path_for(doc))
     if (hit := _secret_line(secrets_path, name)) is not None:
         i, m = hit
-        return KeyEdit(secrets_path, i, m.string, _rewrite(m, old_key))
-    i, m = _secret_line(secrets_path, after)
+        return KeyEdit(
+            secrets_path,
+            i,
+            m.string,
+            _rewrite(m, old_key),
+            shared_with=_files_referencing(_secret_use_re(name), own),
+        )
+    if after is None or (hit := _secret_line(secrets_path, after)) is None:
+        raise EsphomeError(
+            f"No plain '{after or name}:' line in {secrets_path}; edit it by hand"
+        )
+    i, m = hit
     return KeyEdit(
         secrets_path,
         i,
@@ -265,7 +298,7 @@ def locate_key_edits(old_key: str, new_key: str) -> list[KeyEdit]:
         raise EsphomeError("The current key was not found on a line of the yaml")
     sources = [_editable_source(block, CONF_KEY) for block in blocks]
     main = CORE.config_path.resolve()
-    own = {doc for doc, _ in sources} | {main}
+    own = _own_documents()
     edits: list[KeyEdit] = []
     for doc, line_no in sources:
         text = _line_at(doc, line_no)
@@ -325,7 +358,7 @@ def old_key_edit(old_key: str) -> list[KeyEdit]:
         doc, line_no = _editable_source(encryption, CONF_OLD_KEY)
         text = _line_at(doc, line_no)
         if match := _OLD_KEY_SECRET_RE.match(text):
-            return [_old_secret_edit(doc, match["name"], old_key)]
+            return [_old_secret_edit(doc, match["name"], old_key, _own_documents())]
         match = _field_line_re(CONF_OLD_KEY, str(existing)).match(text)
         if match is None:
             raise EsphomeError(
@@ -339,7 +372,11 @@ def old_key_edit(old_key: str) -> list[KeyEdit]:
     else:
         secret_doc, name = secret
         rendered = f"{CONF_OLD_KEY}: !secret {name}_old"
-        extra = [_old_secret_edit(secret_doc, f"{name}_old", old_key, after=name)]
+        extra = [
+            _old_secret_edit(
+                secret_doc, f"{name}_old", old_key, _own_documents(), after=name
+            )
+        ]
     # The block's own key line sets the indent, in whichever file holds it
     if _source_of(encryption, CONF_KEY) is not None:
         doc, line_no = _editable_source(encryption, CONF_KEY)
