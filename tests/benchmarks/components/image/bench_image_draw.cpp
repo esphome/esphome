@@ -1,6 +1,7 @@
 #include <benchmark/benchmark.h>
 
 #include <cstdint>
+#include <cstring>
 #include <memory>
 
 #include "esphome/components/display/display_buffer.h"
@@ -32,6 +33,28 @@ class BenchDisplay : public display::DisplayBuffer {
 
  public:
   uint8_t pixel(int x, int y) const { return this->frame_[y * kStride + x]; }
+};
+
+// Models a driver with a bulk path: rows of little endian RGB565 are copied
+// straight into a 16 bit frame, as the TFT drivers do for their own format.
+class BulkBenchDisplay : public BenchDisplay {
+ public:
+  BulkBenchDisplay() : frame565_(std::make_unique<uint16_t[]>(kStride * kStride)) {}
+  void draw_pixels_at(int x_start, int y_start, int w, int h, const uint8_t *ptr, display::ColorOrder order,
+                      display::ColorBitness bitness, bool big_endian, int x_offset, int y_offset, int x_pad) override {
+    if (bitness != display::COLOR_BITNESS_565 || big_endian) {
+      BenchDisplay::draw_pixels_at(x_start, y_start, w, h, ptr, order, bitness, big_endian, x_offset, y_offset, x_pad);
+      return;
+    }
+    const size_t stride = x_offset + w + x_pad;
+    for (int y = 0; y < h; y++) {
+      memcpy(this->frame565_.get() + (y_start + y) * kStride + x_start, ptr + ((y_offset + y) * stride + x_offset) * 2,
+             w * 2);
+    }
+  }
+
+ protected:
+  std::unique_ptr<uint16_t[]> frame565_;
 };
 
 // Draws the image at rotation 0 and 90 and checks the second frame is the
@@ -95,6 +118,18 @@ BENCHMARK(ImageDraw_RGB565);
 
 static void ImageDraw_RGB(benchmark::State &state) { draw_image(state, IMAGE_TYPE_RGB, TRANSPARENCY_OPAQUE); }
 BENCHMARK(ImageDraw_RGB);
+
+// The same opaque RGB565 image on a display with a bulk path.
+static void ImageDraw_RGB565_Bulk(benchmark::State &state) {
+  auto data = make_pixels();
+  Image image(data.get(), kWidth, kHeight, IMAGE_TYPE_RGB565, TRANSPARENCY_OPAQUE);
+  BulkBenchDisplay display;
+  for (auto _ : state) {
+    image.draw(0, 0, &display, display::COLOR_ON, display::COLOR_OFF);
+  }
+  state.SetItemsProcessed(state.iterations() * kWidth * kHeight);
+}
+BENCHMARK(ImageDraw_RGB565_Bulk);
 
 static void ImageDraw_RGB_Rotated(benchmark::State &state) {
   draw_image(state, IMAGE_TYPE_RGB, TRANSPARENCY_OPAQUE, display::DISPLAY_ROTATION_90_DEGREES);
