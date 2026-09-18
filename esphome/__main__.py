@@ -2206,7 +2206,12 @@ def command_rotate_key(args: ArgsProtocol, config: ConfigType) -> int | None:
         validate_encryption_key,
     )
     from esphome.config_validation import Invalid
-    from esphome.yaml_edit import apply_key_edits, locate_key_edits, restore_key_files
+    from esphome.yaml_edit import (
+        apply_key_edits,
+        locate_key_edits,
+        old_key_edit,
+        restore_key_files,
+    )
 
     def fail(message: str) -> int:
         safe_print(color(AnsiFore.BOLD_RED, message))
@@ -2249,7 +2254,9 @@ def command_rotate_key(args: ArgsProtocol, config: ConfigType) -> int | None:
         return fail("The new key is the same as the current one")
 
     try:
-        edits = locate_key_edits(old_key, new_key)
+        # The previous key stays in the config as old_key so an install still
+        # reaches the device if it ends up running either key
+        edits = [*locate_key_edits(old_key, new_key), old_key_edit(old_key)]
     except EsphomeError as err:
         return fail(str(err))
 

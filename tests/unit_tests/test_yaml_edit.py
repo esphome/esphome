@@ -9,7 +9,12 @@ import pytest
 from esphome import yaml_util
 from esphome.compiled_config import compiled_config_path
 from esphome.core import CORE, EsphomeError
-from esphome.yaml_edit import apply_key_edits, locate_key_edits, restore_key_files
+from esphome.yaml_edit import (
+    apply_key_edits,
+    locate_key_edits,
+    old_key_edit,
+    restore_key_files,
+)
 
 OLD_KEY = "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="
 NEW_KEY = "AQIDBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyA="
@@ -212,3 +217,56 @@ def test_clears_the_validated_cache(tmp_path: Path) -> None:
     cache.write_text("{}")
     restore_key_files(originals)
     assert not cache.exists()
+
+
+def test_old_key_added_to_a_bare_block(tmp_path: Path) -> None:
+    """A bare block gets old_key one level in; the api line is rewritten."""
+    path = _setup(tmp_path, API_YAML)
+    edits = [*locate_key_edits(OLD_KEY, NEW_KEY), old_key_edit(OLD_KEY)]
+    apply_key_edits(edits)
+    assert path.read_text() == (
+        API_YAML.replace(OLD_KEY, NEW_KEY) + f'      old_key: "{OLD_KEY}"\n'
+    )
+
+
+def test_old_key_added_after_an_explicit_key(tmp_path: Path) -> None:
+    yaml_text = f"""esphome:
+  name: test
+
+mqtt:
+  broker: broker.local
+
+ota:
+  - platform: esphome
+    encryption:
+      key: "{OLD_KEY}"
+    port: 3232
+"""
+    path = _setup(tmp_path, yaml_text)
+    apply_key_edits([*locate_key_edits(OLD_KEY, NEW_KEY), old_key_edit(OLD_KEY)])
+    assert path.read_text() == yaml_text.replace(
+        f'      key: "{OLD_KEY}"\n',
+        f'      key: "{NEW_KEY}"\n      old_key: "{OLD_KEY}"\n',
+    )
+
+
+def test_old_key_rewritten_when_present(tmp_path: Path) -> None:
+    """A second rotation replaces the previous old_key in place."""
+    older = "AgMEBQYHCAkKCwwNDg8QERITFBUWFxgZGhscHR4fICE="
+    yaml_text = f"""esphome:
+  name: test
+
+api:
+  encryption:
+    key: "{OLD_KEY}"
+
+ota:
+  - platform: esphome
+    encryption:
+      old_key: '{older}'  # from the last rotation
+"""
+    path = _setup(tmp_path, yaml_text)
+    apply_key_edits([*locate_key_edits(OLD_KEY, NEW_KEY), old_key_edit(OLD_KEY)])
+    assert path.read_text() == yaml_text.replace(OLD_KEY, NEW_KEY).replace(
+        older, OLD_KEY
+    )

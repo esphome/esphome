@@ -8085,8 +8085,10 @@ def test_command_rotate_key_success(
     args = MockArgs()
     assert command_rotate_key(args, CORE.config) == 0
 
-    assert CORE.config_path.read_text() == ROTATE_API_YAML.replace(
-        ROTATE_OLD_KEY, ROTATE_NEW_KEY
+    assert (
+        CORE.config_path.read_text()
+        == ROTATE_API_YAML.replace(ROTATE_OLD_KEY, ROTATE_NEW_KEY)
+        + f'      old_key: "{ROTATE_OLD_KEY}"\n'
     )
     rotate_env["confirm"].assert_called_once()
     precheck, confirm = rotate_env["probe"].call_args_list
