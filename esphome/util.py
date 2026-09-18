@@ -131,16 +131,12 @@ def safe_input(prompt=""):
 
 
 def read_secret_line(prompt: str) -> str:
-    """Read a secret without echo, or one line from a pipe.
-
-    Secrets never come from argv or the environment: both are readable by
-    other processes on the host.
-    """
+    """Read a secret without echo on a terminal, or one line from a pipe."""
     if sys.stdin.isatty():
         import getpass
 
         return getpass.getpass(prompt).strip()
-    return sys.stdin.readline().rstrip("\r\n").strip()
+    return sys.stdin.readline().strip()
 
 
 def shlex_quote(s: str | Path) -> str:
