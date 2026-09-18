@@ -1,5 +1,8 @@
 #include <gtest/gtest.h>
 
+#include <cerrno>
+#include <cstring>
+
 #include "esphome/components/socket/socket.h"
 
 #ifdef USE_HOST
@@ -7,7 +10,7 @@
 namespace esphome::socket::testing {
 
 // =========================================================================
-// set_sockaddr — IPv4
+// Independent of USE_NETWORK_IPV6
 // =========================================================================
 
 TEST(SetSockaddr, IPv4Basic) {
@@ -17,17 +20,15 @@ TEST(SetSockaddr, IPv4Basic) {
   auto *in = reinterpret_cast<sockaddr_in *>(&addr);
   EXPECT_EQ(in->sin_family, AF_INET);
   EXPECT_EQ(ntohs(in->sin_port), 6053);
+  EXPECT_EQ(in->sin_addr.s_addr, htonl(0xC0A80101));
 }
 
 TEST(SetSockaddr, IPv4Broadcast) {
-  // inet_addr() returns INADDR_NONE for this literal too -- must not be treated as a parse
-  // failure.
+  // 255.255.255.255 is INADDR_NONE's bit pattern but also a valid address.
   struct sockaddr_storage addr {};
   socklen_t len = set_sockaddr((struct sockaddr *) &addr, sizeof(addr), "255.255.255.255", 12345);
   ASSERT_EQ(len, sizeof(sockaddr_in));
   auto *in = reinterpret_cast<sockaddr_in *>(&addr);
-  // 255.255.255.255 happens to equal INADDR_NONE's bit pattern -- confirms the "valid
-  // broadcast, not a parse failure" special case this function documents.
   EXPECT_EQ(in->sin_addr.s_addr, ESPHOME_INADDR_NONE);
 }
 
@@ -39,7 +40,7 @@ TEST(SetSockaddr, IPv4MalformedYieldsZeroAndEINVAL) {
   EXPECT_EQ(errno, EINVAL);
 }
 
-TEST(SetSockaddr, BufferTooSmallYieldsZero) {
+TEST(SetSockaddr, IPv4BufferTooSmallYieldsZeroAndEINVAL) {
   struct sockaddr_storage addr {};
   errno = 0;
   socklen_t len = set_sockaddr((struct sockaddr *) &addr, sizeof(sockaddr_in) - 1, "192.168.1.1", 1);
@@ -55,54 +56,6 @@ TEST(SetSockaddr, StringOverloadMatchesCStringOverload) {
   ASSERT_EQ(len_c, len_s);
   EXPECT_EQ(std::memcmp(&addr_c, &addr_s, len_c), 0);
 }
-
-// =========================================================================
-// set_sockaddr — IPv6
-// =========================================================================
-
-#if USE_NETWORK_IPV6
-
-TEST(SetSockaddr, IPv6Basic) {
-  struct sockaddr_storage addr {};
-  socklen_t len = set_sockaddr((struct sockaddr *) &addr, sizeof(addr), "::1", 443);
-  ASSERT_EQ(len, sizeof(sockaddr_in6));
-  auto *in6 = reinterpret_cast<sockaddr_in6 *>(&addr);
-  EXPECT_EQ(in6->sin6_family, AF_INET6);
-  EXPECT_EQ(ntohs(in6->sin6_port), 443);
-}
-
-TEST(SetSockaddr, IPv6MalformedYieldsZeroAndEINVAL) {
-  struct sockaddr_storage addr {};
-  errno = 0;
-  socklen_t len = set_sockaddr((struct sockaddr *) &addr, sizeof(addr), "gg::not-ipv6", 1);
-  EXPECT_EQ(len, 0u);
-  EXPECT_EQ(errno, EINVAL);
-}
-
-#endif  // USE_NETWORK_IPV6
-
-// =========================================================================
-// set_sockaddr_any
-// =========================================================================
-
-TEST(SetSockaddrAny, PortIsSetFamilyMatchesBuild) {
-  struct sockaddr_storage addr {};
-  socklen_t len = set_sockaddr_any((struct sockaddr *) &addr, sizeof(addr), 9999);
-  ASSERT_GT(len, 0u);
-#if USE_NETWORK_IPV6
-  ASSERT_EQ(len, sizeof(sockaddr_in6));
-  EXPECT_EQ(reinterpret_cast<sockaddr_in6 *>(&addr)->sin6_family, AF_INET6);
-  EXPECT_EQ(ntohs(reinterpret_cast<sockaddr_in6 *>(&addr)->sin6_port), 9999);
-#else
-  ASSERT_EQ(len, sizeof(sockaddr_in));
-  EXPECT_EQ(reinterpret_cast<sockaddr_in *>(&addr)->sin_family, AF_INET);
-  EXPECT_EQ(ntohs(reinterpret_cast<sockaddr_in *>(&addr)->sin_port), 9999);
-#endif
-}
-
-// =========================================================================
-// format_sockaddr_to
-// =========================================================================
 
 TEST(FormatSockaddrTo, IPv4RoundTrip) {
   struct sockaddr_storage addr {};
@@ -123,7 +76,39 @@ TEST(FormatSockaddrTo, UnknownFamilyYieldsEmptyString) {
   EXPECT_STREQ(buf, "");
 }
 
+// =========================================================================
+// IPv6 - this directory's __init__.py forces USE_NETWORK_IPV6 on
+// =========================================================================
+
 #if USE_NETWORK_IPV6
+
+TEST(SetSockaddr, IPv6Basic) {
+  struct sockaddr_storage addr {};
+  socklen_t len = set_sockaddr((struct sockaddr *) &addr, sizeof(addr), "::1", 443);
+  ASSERT_EQ(len, sizeof(sockaddr_in6));
+  auto *in6 = reinterpret_cast<sockaddr_in6 *>(&addr);
+  EXPECT_EQ(in6->sin6_family, AF_INET6);
+  EXPECT_EQ(ntohs(in6->sin6_port), 443);
+  EXPECT_TRUE(IN6_IS_ADDR_LOOPBACK(&in6->sin6_addr));
+}
+
+TEST(SetSockaddr, IPv6MalformedYieldsZeroAndEINVAL) {
+  struct sockaddr_storage addr {};
+  errno = 0;
+  socklen_t len = set_sockaddr((struct sockaddr *) &addr, sizeof(addr), "gg::not-ipv6", 1);
+  EXPECT_EQ(len, 0u);
+  EXPECT_EQ(errno, EINVAL);
+}
+
+TEST(SetSockaddrAny, FillsIPv6AnyAddressWithPort) {
+  struct sockaddr_storage addr {};
+  socklen_t len = set_sockaddr_any((struct sockaddr *) &addr, sizeof(addr), 9999);
+  ASSERT_EQ(len, sizeof(sockaddr_in6));
+  auto *in6 = reinterpret_cast<sockaddr_in6 *>(&addr);
+  EXPECT_EQ(in6->sin6_family, AF_INET6);
+  EXPECT_EQ(ntohs(in6->sin6_port), 9999);
+  EXPECT_TRUE(IN6_IS_ADDR_UNSPECIFIED(&in6->sin6_addr));
+}
 
 TEST(FormatSockaddrTo, IPv6RoundTrip) {
   struct sockaddr_storage addr {};
@@ -145,24 +130,16 @@ TEST(FormatSockaddrTo, V4MappedFormatsAsPlainIPv4) {
   EXPECT_STREQ(buf, "198.51.100.9");
 }
 
-#endif  // USE_NETWORK_IPV6
-
-// =========================================================================
-// socket_ip / socket_ip_loop_monitored — domain selection
-// =========================================================================
-
-TEST(SocketIp, PicksDomainMatchingBuild) {
+TEST(SocketIp, CreatesIPv6Socket) {
   auto sock = socket_ip(SOCK_DGRAM, IPPROTO_UDP);
   ASSERT_NE(sock, nullptr);
   struct sockaddr_storage addr {};
   socklen_t len = sizeof(addr);
   ASSERT_EQ(sock->getsockname((struct sockaddr *) &addr, &len), 0);
-#if USE_NETWORK_IPV6
   EXPECT_EQ(addr.ss_family, AF_INET6);
-#else
-  EXPECT_EQ(addr.ss_family, AF_INET);
-#endif
 }
+
+#endif  // USE_NETWORK_IPV6
 
 }  // namespace esphome::socket::testing
 
