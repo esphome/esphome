@@ -468,8 +468,8 @@ void ESPHomeOTAComponent::handle_data_() {
     // Read ota type, 1 byte
     if (!this->data_readall_(buf, 1)) {
       if (this->remote_closed_) {
-        // A key probe (esphome rotate-key) leaves right after the handshake;
-        // nothing was started, so no error status or listener callback
+        // A client that only wanted the handshake (a key probe, a scanner)
+        // leaves here; nothing was started, so no error status or callback
         ESP_LOGD(TAG, "Client left after the handshake");
         this->cleanup_connection_();
         return;
