@@ -289,3 +289,7 @@ def test_secrets_path_beside_an_include_falls_back_to_the_main_one(
     assert secrets_path_for(include) == tmp_path / "secrets.yaml"
     (include.parent / "secrets.yaml").write_bytes(b"wifi: y\n")
     assert secrets_path_for(include) == include.parent / "secrets.yaml"
+    # The loader also falls back over a file beside the include that does
+    # not parse, so the edit must target the file the loader read
+    (include.parent / "secrets.yaml").write_bytes(b": :\n")
+    assert secrets_path_for(include) == tmp_path / "secrets.yaml"

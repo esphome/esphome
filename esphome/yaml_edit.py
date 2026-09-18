@@ -129,11 +129,18 @@ def source_line(mapping: ConfigType, name: str) -> tuple[Path, int, str]:
 
 def secrets_path_for(document: Path) -> Path:
     """The secrets.yaml a ``!secret`` in ``document`` resolves against: the
-    one beside the document when it exists, else the main config's."""
+    one beside the document when it loads, else the main config's, the
+    way the loader falls back."""
+    from esphome import yaml_util
+
     beside = document.parent / SECRET_YAML
-    if beside.is_file() or document == CORE.config_path:
+    if document == CORE.config_path:
         return beside
-    return CORE.config_path.parent / SECRET_YAML
+    try:
+        yaml_util.load_yaml(beside, clear_secrets=False, track_document_range=False)
+    except EsphomeError:
+        return CORE.config_path.parent / SECRET_YAML
+    return beside
 
 
 def secret_line_re(indent_: str, name: str, value: str | None) -> re.Pattern[str]:
