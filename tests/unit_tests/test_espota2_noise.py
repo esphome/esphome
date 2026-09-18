@@ -319,6 +319,29 @@ def test_allow_plaintext_upload_when_device_does_not_offer(
     assert device.received == firmware
     assert any("'allow_plaintext_upload' is set" in r.message for r in caplog.records)
     assert not any("2027.3.0" in r.message for r in caplog.records)
+    assert not any(
+        "Remove it from the configuration" in r.message for r in caplog.records
+    )
+
+
+def test_allow_plaintext_upload_warns_once_device_encrypts(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """The removal warning appears exactly when it is safe to act on: the
+    device offered encryption and accepted the key with the option still set."""
+    firmware = b"firmware"
+    device = FakeEncryptedDevice()
+    with caplog.at_level(logging.WARNING):
+        _upload(device, firmware, PSK, allow_plaintext_upload=True)
+    device.join_and_check()
+    assert device.received == firmware
+    assert any(
+        "Remove it from the configuration now" in r.message for r in caplog.records
+    )
+    with caplog.at_level(logging.WARNING):
+        caplog.clear()
+        _upload(FakeEncryptedDevice(), firmware, PSK)
+    assert not caplog.records
 
 
 def test_allow_plaintext_upload_keeps_wrong_key_failing(

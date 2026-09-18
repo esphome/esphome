@@ -215,9 +215,19 @@ class OTAEncryptionFallback(OTAError):
 # name so the upload path never loads the component module
 CONF_ALLOW_PLAINTEXT_UPLOAD = "allow_plaintext_upload"
 ALLOW_PLAINTEXT_UPLOAD_NOTICE = (
-    f"'{CONF_ALLOW_PLAINTEXT_UPLOAD}' is set; remove it once the device runs "
-    "this build."
+    f"'{CONF_ALLOW_PLAINTEXT_UPLOAD}' is set and this build offers encryption, "
+    "so the next upload is encrypted and says when to remove the option."
 )
+# Logged only once the device is seen encrypting, so the migration install
+# itself is never nagged and the user learns exactly when removal is safe
+ALLOW_PLAINTEXT_UPLOAD_REMOVE_WARNING = f"""
+******************************************************************
+*  This device offers OTA encryption and accepted the key, so
+*  '{CONF_ALLOW_PLAINTEXT_UPLOAD}' under 'ota: encryption:' has done
+*  its job. Remove it from the configuration now: leaving it in
+*  place lets an attacker on the network strip the encryption offer
+*  and downgrade a future upload to plaintext.
+******************************************************************"""
 
 # Remove before 2027.3.0
 PLAINTEXT_FALLBACK_NOTICE = (
@@ -631,6 +641,8 @@ def perform_ota(
                 raise OTAEncryptionFallback(str(err)) from err
             raise
         _LOGGER.info("Encrypted connection established")
+        if allow_plaintext_upload:
+            _LOGGER.warning(ALLOW_PLAINTEXT_UPLOAD_REMOVE_WARNING)
 
     if ota_type != OTA_TYPE_UPDATE_APP:
         # Any non-app OTA type requires the extended protocol and the

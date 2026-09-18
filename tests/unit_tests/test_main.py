@@ -2162,10 +2162,8 @@ def test_upload_program_ota_allow_plaintext_upload(
     mock_run_ota: Mock,
     mock_get_port_type: Mock,
     tmp_path: Path,
-    caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """The uploader side opt in reaches run_ota without the removed fallback
-    and every upload carries the migration only warning."""
+    """The uploader side opt in reaches run_ota without the removed fallback."""
     setup_core(platform=PLATFORM_ESP32, tmp_path=tmp_path)
     mock_get_port_type.return_value = "NETWORK"
     mock_run_ota.return_value = (0, "192.168.1.100")
@@ -2180,11 +2178,9 @@ def test_upload_program_ota_allow_plaintext_upload(
             }
         ]
     }
-    with caplog.at_level(logging.WARNING):
-        exit_code, _ = upload_program(config, MockArgs(), ["192.168.1.100"])
+    exit_code, _ = upload_program(config, MockArgs(), ["192.168.1.100"])
 
     assert exit_code == 0
-    assert any("remove the option" in record.message for record in caplog.records)
     assert mock_run_ota.call_args.args[5] == key
     assert mock_run_ota.call_args.kwargs == {
         "plaintext_fallback": False,

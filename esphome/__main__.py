@@ -1325,21 +1325,6 @@ def _choose_ota_platform(config: ConfigType, requested: str | None) -> str:
     return CONF_WEB_SERVER
 
 
-ALLOW_PLAINTEXT_UPLOAD_WARNING = """
-******************************************************************
-*  'allow_plaintext_upload' is set under 'ota: encryption:'.
-*
-*  This is the install that turns encryption on. If the device
-*  cannot encrypt yet, the upload goes in plaintext exactly as every
-*  upload to it has so far, so this install is no less secure than
-*  before, and it is the step that makes the next ones encrypted.
-*
-*  Once the device runs this build, remove the option: a device that
-*  encrypts must not keep a plaintext path open, since an attacker
-*  on the network could use it to downgrade a future upload.
-******************************************************************"""
-
-
 def _upload_via_native_api(
     config: ConfigType, network_devices: list[str], args: ArgsProtocol
 ) -> tuple[int, str | None]:
@@ -1364,8 +1349,6 @@ def _upload_via_native_api(
         allow_plaintext_upload = bool(
             encryption_conf.get(espota2.CONF_ALLOW_PLAINTEXT_UPLOAD)
         )
-        if allow_plaintext_upload:
-            _LOGGER.warning(ALLOW_PLAINTEXT_UPLOAD_WARNING)
         if not noise_psk:
             raise EsphomeError(
                 "OTA encryption is configured but no key was resolved; "

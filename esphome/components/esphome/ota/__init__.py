@@ -131,17 +131,6 @@ def ota_esphome_final_validate(config: ConfigType) -> None:
         _validate_no_password_with_encryption(ota_conf)
         if (encryption_conf := ota_conf.get(CONF_ENCRYPTION)) is not None:
             _resolve_encryption_key(encryption_conf, api_conf)
-            if encryption_conf.get(CONF_ALLOW_PLAINTEXT_UPLOAD):
-                _LOGGER.warning(
-                    "'%s' is set under '%s' %s: an upload continues in plaintext "
-                    "when the device does not offer encryption, which is no less "
-                    "secure than the uploads it has had so far. Remove it once the "
-                    "device runs a build that offers encryption; left in place it "
-                    "lets an attacker on the network downgrade a future upload",
-                    CONF_ALLOW_PLAINTEXT_UPLOAD,
-                    CONF_OTA,
-                    CONF_ENCRYPTION,
-                )
         elif CONF_PASSWORD in ota_conf and static_encryption_key(api_conf) is not None:
             _LOGGER.warning(
                 "'%s' %s wastes significant flash and RAM (about 3.5 KB and 60 "
