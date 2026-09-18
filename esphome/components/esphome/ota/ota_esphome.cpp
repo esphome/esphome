@@ -543,10 +543,11 @@ void ESPHomeOTAComponent::handle_data_() {
 #ifdef USE_OTA_ENCRYPTION
     if (this->noise_ != nullptr) {
       // One frame per call; noise_read_data_ waits internally (readall_), so
-      // there is no would-block retry here
+      // there is no would-block retry here and failures are already logged.
       read = this->noise_read_data_(buf, requested);
       if (read <= 0) {
-        this->log_read_error_(LOG_STR("data"));
+        if (this->remote_closed_)
+          this->log_remote_closed_(LOG_STR("data"));
         error_code = ota::OTA_RESPONSE_ERROR_UNKNOWN;
         goto error;  // NOLINT(cppcoreguidelines-avoid-goto)
       }
@@ -671,7 +672,6 @@ bool ESPHomeOTAComponent::readall_(uint8_t *buf, size_t len) {
         return false;
       }
     } else if (read == 0) {
-      // Reported by the caller: a close before the transfer starts is clean
       this->remote_closed_ = true;
       return false;
     } else {
@@ -719,9 +719,7 @@ void ESPHomeOTAComponent::log_socket_error_(const LogString *msg) {
 }
 
 bool ESPHomeOTAComponent::client_left_before_start_() {
-  // A client that only wanted the handshake (a key probe, a scanner) hangs
-  // up before the first transfer byte; nothing was started, so no error
-  // status or callback
+  // Key probes and scanners hang up right after the handshake; nothing started, so no error status or callback
   if (!this->remote_closed_)
     return false;
   ESP_LOGD(TAG, "Client left after the handshake");
