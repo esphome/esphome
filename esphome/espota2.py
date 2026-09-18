@@ -934,16 +934,19 @@ def probe_ota_key(
         raise OTAError(f"No addresses to connect to for {remote_host}")
     deadline = time.monotonic() + timeout
     addresses = itertools.cycle(res)
-    while True:
+    last_error = "no time left"
+    while (remaining := deadline - time.monotonic()) > 0:
         af, socktype, _, _, sa = next(addresses)
         started = time.monotonic()
         sock = socket.socket(af, socktype)
         # A dead host must not eat the budget; the handshake is one round trip
-        sock.settimeout(min(PROBE_CONNECT_TIMEOUT, max(0.1, deadline - started)))
+        sock.settimeout(min(PROBE_CONNECT_TIMEOUT, remaining))
         with contextlib.closing(sock):
             try:
                 sock.connect(sa)
-                remaining = max(0.1, deadline - time.monotonic())
+                if (remaining := deadline - time.monotonic()) <= 0:
+                    last_error = "connected with no time left for the handshake"
+                    break
                 sock.settimeout(min(PROBE_HANDSHAKE_TIMEOUT, remaining))
                 session, _, _, _ = _negotiate_session(sock, noise_psk, False, False)
                 receive_exactly(session, 1, "auth", RESPONSE_AUTH_OK)
@@ -975,6 +978,7 @@ def run_ota_impl_(
     plaintext_fallback: bool = False,
     allow_plaintext_upload: bool = False,
     old_noise_psk: str | None = None,
+    on_connect: Callable[[], None] | None = None,
 ) -> tuple[int, str | None]:
     res = _resolve_targets(remote_host, remote_port)
     if not res:
@@ -1021,6 +1025,8 @@ def run_ota_impl_(
 
         _LOGGER.info("Connected to %s", sa[0])
         reached_device = True
+        if on_connect is not None:
+            on_connect()
         with contextlib.closing(sock), Path(filename).open("rb") as file_handle:
             try:
                 perform_ota(
@@ -1092,7 +1098,10 @@ def run_ota(
     plaintext_fallback: bool = False,
     allow_plaintext_upload: bool = False,
     old_noise_psk: str | None = None,
+    on_connect: Callable[[], None] | None = None,
 ) -> tuple[int, str | None]:
+    """``on_connect`` runs once a connection to the device is open, the point
+    from which an upload may have committed."""
     try:
         return run_ota_impl_(
             remote_host,
@@ -1104,6 +1113,7 @@ def run_ota(
             plaintext_fallback,
             allow_plaintext_upload,
             old_noise_psk,
+            on_connect,
         )
     except OTAError as err:
         _LOGGER.error(err)

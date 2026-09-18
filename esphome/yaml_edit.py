@@ -6,6 +6,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 import re
+import stat
 
 from esphome.components.noise import static_encryption_key
 from esphome.const import (
@@ -87,27 +88,46 @@ def _source_of(mapping: ConfigType, name: str) -> tuple[Path, int] | None:
     return Path(rng.start_mark.document), rng.start_mark.line
 
 
+def _editable_file(path: Path) -> Path:
+    """``path`` resolved, so a rewrite lands on a symlink's target; refuses a
+    file outside the configuration directory or under the build data."""
+    resolved = path.resolve()
+    if (
+        not path.is_file()
+        or not resolved.is_relative_to(CORE.config_dir.resolve())
+        or resolved.is_relative_to(CORE.data_dir.resolve())
+    ):
+        raise EsphomeError(
+            f"The key comes from {path}, which is not an editable file in the "
+            "configuration directory"
+        )
+    return resolved
+
+
 def _editable_source(mapping: ConfigType, name: str) -> tuple[Path, int]:
     """The file and line ``name:`` was read from; refuses uneditable sources."""
     if (source := _source_of(mapping, name)) is None:
         raise EsphomeError(f"'{name}' was not read from a file")
     doc, line_no = source
-    resolved = doc.resolve()
-    if (
-        not doc.is_file()
-        or not resolved.is_relative_to(CORE.config_dir.resolve())
-        or resolved.is_relative_to(CORE.data_dir.resolve())
-    ):
-        raise EsphomeError(
-            f"The key comes from {doc}, which is not an editable file in the "
-            "configuration directory"
-        )
-    return doc, line_no
+    return _editable_file(doc), line_no
+
+
+def _write_keeping_mode(path: Path, text: str) -> None:
+    """secrets.yaml is often 0600; write_file would widen it to 0644."""
+    try:
+        mode = stat.S_IMODE(path.stat().st_mode)
+    except OSError as err:
+        raise EsphomeError(f"Could not read {path}: {err}") from err
+    write_file(path, text, private=True)
+    try:
+        path.chmod(mode)
+    except OSError as err:
+        raise EsphomeError(f"Could not keep the mode of {path}: {err}") from err
 
 
 def _secret_edit(doc: Path, name: str, old_key: str, new_key: str) -> KeyEdit:
     """The secrets.yaml line ``!secret name`` in ``doc`` resolves to."""
-    secrets_path = secrets_path_for(doc)
+    secrets_path = _editable_file(secrets_path_for(doc))
     # The name may be quoted; nested lines are indented and never match
     line_re = _key_line_re(rf"[\"']?{re.escape(name)}[\"']?:\s*", old_key)
     hits = [
@@ -236,7 +256,7 @@ def apply_key_edits(edits: list[KeyEdit]) -> dict[Path, str]:
             else:
                 lines[edit.line] = edit.new_line + ending
         for path, lines in current.items():
-            write_file(path, "".join(lines))
+            _write_keeping_mode(path, "".join(lines))
         for path in originals:
             try:
                 yaml_util.load_yaml(path)
@@ -260,7 +280,7 @@ def restore_key_files(originals: dict[Path, str]) -> None:
     failed = []
     for path, text in originals.items():
         try:
-            write_file(path, text)
+            _write_keeping_mode(path, text)
         except EsphomeError as err:
             failed.append(f"{path}: {err}")
     try:

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import sys
 
 import pytest
 
@@ -221,6 +222,8 @@ def test_restore_reports_every_file_it_could_not_write(tmp_path: Path) -> None:
 
     _setup(tmp_path, API_YAML)
     good = tmp_path / "a.yaml"
+    (tmp_path / "b.yaml").write_bytes(b"")
+    good.write_bytes(b"")
     with (
         patch("esphome.yaml_edit.write_file", side_effect=[EsphomeError("disk"), None]),
         pytest.raises(EsphomeError, match="Could not restore .*b.yaml: disk"),
@@ -558,6 +561,48 @@ def test_quoted_secret_reference(tmp_path: Path) -> None:
     assert [(e.path.name, e.new_line) for e in edits] == [
         ("secrets.yaml", f"device_key: {NEW_KEY}")
     ]
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="posix file modes")
+def test_keeps_the_secrets_file_mode(tmp_path: Path) -> None:
+    """A 0600 secrets.yaml stays 0600 through the rewrite and the restore."""
+    _setup(tmp_path, SECRET_YAML, f"device_key: {OLD_KEY}\n")
+    secrets = tmp_path / "secrets.yaml"
+    secrets.chmod(0o600)
+    originals = apply_key_edits(locate_key_edits(OLD_KEY, NEW_KEY))
+    assert secrets.stat().st_mode & 0o777 == 0o600
+    assert NEW_KEY in secrets.read_text()
+    restore_key_files(originals)
+    assert secrets.stat().st_mode & 0o777 == 0o600
+    assert OLD_KEY in secrets.read_text()
+
+
+def test_symlinked_secrets_file_is_edited_in_place(tmp_path: Path) -> None:
+    """The rewrite lands on the link's target, so the link survives and
+    other configurations sharing the file see the new key."""
+    target = tmp_path / "shared" / "secrets.yaml"
+    target.parent.mkdir()
+    target.write_bytes(f"device_key: {OLD_KEY}\n".encode())
+    (tmp_path / "secrets.yaml").symlink_to(target)
+    _setup(tmp_path, SECRET_YAML)
+    edits = locate_key_edits(OLD_KEY, NEW_KEY)
+    assert [e.path for e in edits] == [target.resolve()]
+    apply_key_edits(edits)
+    assert (tmp_path / "secrets.yaml").is_symlink()
+    assert NEW_KEY in target.read_text()
+
+
+def test_refuses_a_secrets_file_linked_outside_the_config_dir(
+    tmp_path: Path,
+) -> None:
+    config_dir = tmp_path / "config"
+    config_dir.mkdir()
+    outside = tmp_path / "secrets.yaml"
+    outside.write_bytes(f"device_key: {OLD_KEY}\n".encode())
+    (config_dir / "secrets.yaml").symlink_to(outside)
+    _setup(config_dir, SECRET_YAML)
+    with pytest.raises(EsphomeError, match="not an editable file"):
+        locate_key_edits(OLD_KEY, NEW_KEY)
 
 
 def test_rolls_back_when_the_cache_cannot_be_dropped(tmp_path: Path) -> None:

@@ -2306,11 +2306,23 @@ def command_rotate_key(args: ArgsProtocol, config: ConfigType) -> int | None:
         cli_args += ["compile", str(CORE.config_path)]
         if run_external_process(*ESPHOME_COMMAND, *cli_args) != 0:
             return fail("Compiling with the new key failed")
-        args.ota_key = old_key
-        # An attempted upload may have committed; the edited config reaches
-        # the device on either key from here on
-        uploaded = True
-        if upload_program(config, args, network_devices)[0] != 0:
+
+        def device_reached() -> None:
+            # The upload may commit from here on; the edited config reaches
+            # the device on either key
+            nonlocal uploaded
+            uploaded = True
+
+        rc, _ = espota2.run_ota(
+            network_devices,
+            remote_port,
+            ota_conf.get(CONF_PASSWORD),
+            CORE.firmware_bin,
+            noise_psk=old_key,
+            plaintext_fallback=False,
+            on_connect=device_reached,
+        )
+        if rc != 0:
             return fail(
                 "Uploading with the current key failed. The configuration keeps "
                 "the new key with the previous one as old_key, so the next "

@@ -948,8 +948,26 @@ def test_invalidate_compiled_config_reports_an_unlink_failure(
     from esphome.compiled_config import invalidate_compiled_config
 
     CORE.config_path = tmp_path / "test.yaml"
+    cache = compiled_config_path("test.yaml")
+    cache.parent.mkdir(parents=True)
+    cache.write_text("{}")
     with (
         patch("pathlib.Path.unlink", side_effect=OSError("busy")),
         pytest.raises(EsphomeError, match="validated config cache"),
     ):
         invalidate_compiled_config()
+
+
+def test_invalidate_compiled_config_drops_every_cache(tmp_path: Path) -> None:
+    """Another configuration sharing the edited secrets.yaml or include has
+    a cache the mtime check would keep serving."""
+    from esphome.compiled_config import invalidate_compiled_config
+
+    CORE.config_path = tmp_path / "test.yaml"
+    storage = compiled_config_path("test.yaml").parent
+    storage.mkdir(parents=True)
+    for name in ("test.yaml", "other.yaml"):
+        (storage / f"{name}.validated.json").write_text("{}")
+    (storage / "other.json").write_text("{}")
+    invalidate_compiled_config()
+    assert sorted(p.name for p in storage.iterdir()) == ["other.json"]

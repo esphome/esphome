@@ -257,6 +257,7 @@ def _run_ota(
     noise_psk: str,
     plaintext_fallback: bool = True,
     old_noise_psk: str | None = None,
+    **kwargs: Any,
 ) -> int:
     """Drive the retry loop, which is where the fallback and the old key reconnect."""
     path = tmp_path / "firmware.bin"
@@ -270,8 +271,29 @@ def _run_ota(
         noise_psk=noise_psk,
         plaintext_fallback=plaintext_fallback,
         old_noise_psk=old_noise_psk,
+        **kwargs,
     )
     return rc
+
+
+def test_on_connect_runs_once_per_connection(tmp_path: Path) -> None:
+    """The old_key reconnect reports again; a refused connect never does."""
+    pytest.importorskip("aioesphomeapi.noise")
+    device = FakeEncryptedDevice(psk=OTHER_PSK, connections=2)
+    on_connect = Mock()
+    with patch("time.sleep"):
+        rc = _run_ota(
+            device,
+            b"firmware",
+            tmp_path,
+            PSK,
+            plaintext_fallback=False,
+            old_noise_psk=OTHER_PSK,
+            on_connect=on_connect,
+        )
+    device.join_and_check()
+    assert rc == 0
+    assert on_connect.call_count == 2
 
 
 THIRD_PSK = base64.b64encode(bytes(range(2, 34))).decode()
@@ -781,6 +803,26 @@ def test_probe_ota_key_recomputes_the_budget_after_connect() -> None:
     )
     assert connect_timeout == 0.5
     assert handshake_timeout == pytest.approx(0.1)
+
+
+def test_probe_ota_key_stops_when_connect_used_the_budget() -> None:
+    """No handshake timeout is granted past the deadline."""
+    clock = [0.0]
+    with (
+        patch(
+            "esphome.espota2.resolve_ip_address",
+            return_value=[(2, 1, 0, "", ("127.0.0.1", 1))],
+        ),
+        patch("socket.socket") as sock_cls,
+        patch("time.sleep") as sleep,
+        patch("time.monotonic", side_effect=lambda: clock[0]),
+    ):
+        sock = sock_cls.return_value
+        sock.connect.side_effect = lambda _sa: clock.__setitem__(0, clock[0] + 1.0)
+        assert espota2.probe_ota_key("h", 1, PSK, timeout=0.5) is False
+    assert [c.args[0] for c in sock.settimeout.call_args_list] == [0.5]
+    sock.sendall.assert_not_called()
+    sleep.assert_not_called()
 
 
 def test_probe_ota_key_never_waits_past_its_deadline() -> None:
