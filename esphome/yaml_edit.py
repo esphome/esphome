@@ -104,9 +104,9 @@ def _scalar_line_re(prefix: str, value: str | None = None) -> re.Pattern[str]:
     return re.compile(rf"^(?P<prefix>{prefix}){_TRAILER.format(value=scalar)}")
 
 
-def _field_line_re(field: str, value: str) -> re.Pattern[str]:
-    """``field: value`` at any indent."""
-    return _scalar_line_re(rf"\s*{field}\s*:\s*", value)
+def _field_line_re(name: str, value: str) -> re.Pattern[str]:
+    """``name: value`` at any indent."""
+    return _scalar_line_re(rf"\s*{name}\s*:\s*", value)
 
 
 def _secret_line_re(indent: str, name: str, value: str | None) -> re.Pattern[str]:
