@@ -11,11 +11,13 @@ import pytest
 from esphome import config_validation as cv
 from esphome.components.esphome.ota import (
     AUTO_LOAD,
+    CONF_ALLOW_PLAINTEXT_UPLOAD,
     FILTER_SOURCE_FILES,
+    _encryption_schema,
     _validate_no_password_with_encryption,
     ota_esphome_final_validate,
 )
-from esphome.components.noise import static_encryption_key
+from esphome.components.noise import encryption_schema, static_encryption_key
 from esphome.const import (
     CONF_API,
     CONF_ENCRYPTION,
@@ -194,6 +196,47 @@ def test_encryption_without_any_key_rejected() -> None:
     try:
         with pytest.raises(cv.Invalid, match="no 'api' encryption key to inherit"):
             ota_esphome_final_validate({})
+    finally:
+        fv.full_config.reset(token)
+
+
+def test_encryption_schema_allow_plaintext_upload() -> None:
+    """The opt in is an ota only option that defaults off; the shared api
+    schema does not know it."""
+    assert _encryption_schema(None) == {CONF_ALLOW_PLAINTEXT_UPLOAD: False}
+    assert _encryption_schema({CONF_ALLOW_PLAINTEXT_UPLOAD: True}) == {
+        CONF_ALLOW_PLAINTEXT_UPLOAD: True
+    }
+    conf = _encryption_schema({CONF_KEY: API_KEY})
+    assert conf[CONF_KEY] == API_KEY
+    assert conf[CONF_ALLOW_PLAINTEXT_UPLOAD] is False
+    with pytest.raises(cv.Invalid):
+        encryption_schema({CONF_ALLOW_PLAINTEXT_UPLOAD: True})
+
+
+def test_encryption_allow_plaintext_upload_warns(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A set opt in warns on every load; it is meant to be removed after the
+    one install that migrates the device."""
+    full_conf = {
+        CONF_API: {CONF_ENCRYPTION: {CONF_KEY: API_KEY}},
+        CONF_OTA: [
+            _make_ota_config(
+                port=3232, **{CONF_ENCRYPTION: {CONF_ALLOW_PLAINTEXT_UPLOAD: True}}
+            )
+        ],
+    }
+    token = fv.full_config.set(full_conf)
+    try:
+        with caplog.at_level(logging.WARNING):
+            ota_esphome_final_validate({})
+        assert any(
+            "'allow_plaintext_upload' is set" in record.message
+            for record in caplog.records
+        )
+        updated = fv.full_config.get()
+        assert updated[CONF_OTA][0][CONF_ENCRYPTION][CONF_KEY] == API_KEY
     finally:
         fv.full_config.reset(token)
 

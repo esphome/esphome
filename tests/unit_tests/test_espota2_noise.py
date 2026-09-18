@@ -218,6 +218,7 @@ def _upload(
     firmware: bytes,
     noise_psk: str | None,
     plaintext_fallback: bool = False,
+    allow_plaintext_upload: bool = False,
 ) -> None:
     device.start()
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -231,6 +232,7 @@ def _upload(
             Path("firmware.bin"),
             noise_psk=noise_psk,
             plaintext_fallback=plaintext_fallback,
+            allow_plaintext_upload=allow_plaintext_upload,
         )
     finally:
         sock.close()
@@ -302,6 +304,37 @@ def test_client_fails_closed_when_device_lacks_encryption() -> None:
     with pytest.raises(espota2.OTAError, match="refusing to send the image"):
         _upload(device, b"firmware", PSK)
     device.join_and_check()
+
+
+def test_allow_plaintext_upload_when_device_does_not_offer(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """The explicit opt in sends the image in plaintext to a device that
+    cannot encrypt, naming the option in the warning."""
+    firmware = b"firmware"
+    device = FakeEncryptedDevice(offer_noise=False, require_noise=False)
+    with patch("time.sleep"), caplog.at_level(logging.WARNING):
+        _upload(device, firmware, PSK, allow_plaintext_upload=True)
+    device.join_and_check()
+    assert device.received == firmware
+    assert any("'allow_plaintext_upload' is set" in r.message for r in caplog.records)
+    assert not any("2027.3.0" in r.message for r in caplog.records)
+
+
+def test_allow_plaintext_upload_keeps_wrong_key_failing(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """The opt in only covers a device that does not offer; a rejected key
+    never turns into a plaintext upload."""
+    device = FakeEncryptedDevice(psk=OTHER_PSK, require_noise=False)
+    with (
+        caplog.at_level(logging.WARNING),
+        pytest.raises(espota2.OTAError, match="encryption key correct"),
+    ):
+        _upload(device, b"firmware", PSK, allow_plaintext_upload=True)
+    device.join_and_check()
+    assert device.received != b"firmware"
+    assert not any("plaintext" in r.message for r in caplog.records)
 
 
 # Remove before 2027.3.0

@@ -512,6 +512,7 @@ def perform_ota(
     ota_type: int = OTA_TYPE_UPDATE_APP,
     noise_psk: str | None = None,
     plaintext_fallback: bool = False,
+    allow_plaintext_upload: bool = False,
 ) -> None:
     # Validate up front; an out-of-range value would only surface as a
     # ValueError deep inside send_check, bypassing OTAError handling
@@ -577,7 +578,16 @@ def perform_ota(
         features = 0
 
     if noise_psk and not (extended_proto and features & SERVER_FEATURE_SUPPORTS_NOISE):
-        if plaintext_fallback:
+        if allow_plaintext_upload:
+            # The running firmware cannot encrypt and the user opted in; the
+            # build being sent requires encryption, so this is a one time path
+            _LOGGER.warning(
+                "The device did not offer OTA encryption; continuing in plaintext "
+                "because 'allow_plaintext_upload' is set. Remove it once the "
+                "device runs this build."
+            )
+            noise_psk = None
+        elif plaintext_fallback:
             # Remove before 2027.3.0: older firmware that cannot encrypt still
             # gets its update on this connection
             _LOGGER.warning(
@@ -824,6 +834,7 @@ def run_ota_impl_(
     ota_type: int = OTA_TYPE_UPDATE_APP,
     noise_psk: str | None = None,
     plaintext_fallback: bool = False,
+    allow_plaintext_upload: bool = False,
 ) -> tuple[int, str | None]:
     from esphome.core import CORE
 
@@ -899,6 +910,7 @@ def run_ota_impl_(
                     ota_type,
                     encryption.noise_psk,
                     encryption.plaintext_fallback,
+                    allow_plaintext_upload=allow_plaintext_upload,
                 )
             except OTAEncryptionFallback as err:
                 # Same address and attempt budget: not a network retry
@@ -940,6 +952,7 @@ def run_ota(
     ota_type: int = OTA_TYPE_UPDATE_APP,
     noise_psk: str | None = None,
     plaintext_fallback: bool = False,
+    allow_plaintext_upload: bool = False,
 ) -> tuple[int, str | None]:
     try:
         return run_ota_impl_(
@@ -950,6 +963,7 @@ def run_ota(
             ota_type,
             noise_psk,
             plaintext_fallback,
+            allow_plaintext_upload,
         )
     except OTAError as err:
         _LOGGER.error(err)

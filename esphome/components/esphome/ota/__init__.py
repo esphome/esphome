@@ -2,7 +2,7 @@ import logging
 
 import esphome.codegen as cg
 from esphome.components.noise import (
-    encryption_schema,
+    ENCRYPTION_SCHEMA,
     new_psk_progmem,
     static_encryption_key,
 )
@@ -31,6 +31,7 @@ import esphome.final_validate as fv
 from esphome.types import ConfigType
 
 CONF_ALLOW_PARTITION_ACCESS = "allow_partition_access"
+CONF_ALLOW_PLAINTEXT_UPLOAD = "allow_plaintext_upload"
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -130,6 +131,15 @@ def ota_esphome_final_validate(config: ConfigType) -> None:
         _validate_no_password_with_encryption(ota_conf)
         if (encryption_conf := ota_conf.get(CONF_ENCRYPTION)) is not None:
             _resolve_encryption_key(encryption_conf, api_conf)
+            if encryption_conf.get(CONF_ALLOW_PLAINTEXT_UPLOAD):
+                _LOGGER.warning(
+                    "'%s' is set under '%s' %s: an upload continues in plaintext "
+                    "when the device does not offer encryption. Remove it once "
+                    "the device runs a build that offers encryption",
+                    CONF_ALLOW_PLAINTEXT_UPLOAD,
+                    CONF_OTA,
+                    CONF_ENCRYPTION,
+                )
         elif CONF_PASSWORD in ota_conf and static_encryption_key(api_conf) is not None:
             _LOGGER.warning(
                 "'%s' %s wastes significant flash and RAM (about 3.5 KB and 60 "
@@ -231,6 +241,22 @@ def _resolve_encryption_key(encryption_conf: ConfigType, api_conf: ConfigType) -
         encryption_conf[CONF_KEY] = api_key
 
 
+# Uploader side options live only on the ota block; the api block keeps the
+# shared schema
+_ENCRYPTION_SCHEMA = ENCRYPTION_SCHEMA.extend(
+    {
+        cv.Optional(CONF_ALLOW_PLAINTEXT_UPLOAD, default=False): cv.boolean,
+    }
+)
+
+
+def _encryption_schema(config: ConfigType | None) -> ConfigType:
+    # A bare `encryption:` block inherits the api key
+    if config is None:
+        config = {}
+    return _ENCRYPTION_SCHEMA(config)
+
+
 # Also called on merged same-port configs in final validate, where schemas
 # do not run
 def _validate_no_password_with_encryption(config: ConfigType) -> ConfigType:
@@ -269,7 +295,7 @@ CONFIG_SCHEMA = cv.All(
             ): cv.port,
             cv.Optional(CONF_ALLOW_PARTITION_ACCESS, default=False): cv.boolean,
             cv.Optional(CONF_PASSWORD): cv.sensitive(),
-            cv.Optional(CONF_ENCRYPTION): encryption_schema,
+            cv.Optional(CONF_ENCRYPTION): _encryption_schema,
             cv.Optional(CONF_NUM_ATTEMPTS): cv.invalid(
                 f"'{CONF_SAFE_MODE}' (and its related configuration variables) has moved from 'ota' to its own component. See https://esphome.io/components/safe_mode"
             ),
