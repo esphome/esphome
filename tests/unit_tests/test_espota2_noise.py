@@ -702,6 +702,23 @@ def test_probe_ota_key_gives_up_at_the_deadline(
     assert device.received is None
 
 
+def test_probe_ota_key_fails_fast_on_a_definitive_answer() -> None:
+    """A device in steady state that rejects the key gives its final answer
+    on the first attempt; the precheck does not wait out the deadline."""
+    pytest.importorskip("aioesphomeapi.noise")
+    device = FakeEncryptedDevice(psk=OTHER_PSK)
+    device.start()
+    with patch("time.sleep") as sleep:
+        assert (
+            espota2.probe_ota_key(
+                "127.0.0.1", device.port, PSK, timeout=30, retry_rejected=False
+            )
+            is False
+        )
+    device.join_and_check()
+    sleep.assert_not_called()
+
+
 def test_probe_ota_key_retries_after_a_transport_fault() -> None:
     """The device may still be rebooting right after the upload."""
     pytest.importorskip("aioesphomeapi.noise")

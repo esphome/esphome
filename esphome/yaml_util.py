@@ -775,9 +775,7 @@ class ESPHomeLoaderMixin:
             if self.name == CORE.config_path:
                 raise e
             try:
-                main_config_dir = CORE.config_path.parent
-                main_secret_yml = main_config_dir / SECRET_YAML
-                secrets = self.yaml_loader(main_secret_yml)
+                secrets = self.yaml_loader(CORE.config_path.parent / SECRET_YAML)
             except EsphomeError as er:
                 raise EsphomeError(f"{e}\n{er}") from er
 
@@ -1106,6 +1104,15 @@ def find_files(directory: Path, pattern: str) -> Iterator[Path]:
             if _is_file_valid(f) and filename.match(pattern):
                 filename = Path(root) / filename
                 yield filename
+
+
+def secrets_path_for(document: Path) -> Path:
+    """The secrets.yaml a ``!secret`` in ``document`` resolves against: the
+    one beside the document when it exists, else the main config's."""
+    beside = document.parent / SECRET_YAML
+    if beside.is_file() or document == CORE.config_path:
+        return beside
+    return CORE.config_path.parent / SECRET_YAML
 
 
 def is_secret(value):

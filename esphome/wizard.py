@@ -1,4 +1,3 @@
-import base64
 from pathlib import Path
 import secrets
 import string
@@ -516,9 +515,9 @@ def wizard(path: Path) -> int:
         safe_print()
         sleep(0.5)
 
-        # Generate encryption key (32 bytes, base64 encoded) for secure API communication
-        noise_psk = secrets.token_bytes(32)
-        api_encryption_key = base64.b64encode(noise_psk).decode()
+        from esphome.components.noise import generate_encryption_key
+
+        api_encryption_key = generate_encryption_key()
 
         safe_print(
             "For secure API communication, I've generated a random encryption key."
