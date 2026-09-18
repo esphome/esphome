@@ -100,6 +100,31 @@ class LvAnimationTimingEaseInOut : public LvAnimationTiming {
   float slope_;
 };
 
+class LvAnimationTimingEaseIn : public LvAnimationTiming {
+ public:
+  LvAnimationTimingEaseIn(float slope) : slope_(slope) {}
+  float map_progress(float value) override {
+    const float sqr = value * value;
+    return this->slope_ * sqr + (1.0f - this->slope_) * value;
+  }
+
+ protected:
+  float slope_;
+};
+
+class LvAnimationTimingEaseOut : public LvAnimationTiming {
+ public:
+  LvAnimationTimingEaseOut(float slope) : slope_(slope) {}
+  float map_progress(float value) override {
+    const float inv = 1.0f - value;
+    const float sqr = 1.0f - inv * inv;
+    return this->slope_ * sqr + (1.0f - this->slope_) * value;
+  }
+
+ protected:
+  float slope_;
+};
+
 template<size_t DATA_SIZE, bool AUTO_START = false> class LvAnimation : public Component {
  public:
   LvAnimation(void (*update_callback)(const lv_coord_t *data), std::vector<TemplatableValue<lv_coord_t>> from,
