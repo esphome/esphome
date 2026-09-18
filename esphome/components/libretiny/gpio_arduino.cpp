@@ -8,7 +8,7 @@ namespace esphome::libretiny {
 static const char *const TAG = "libretiny.gpio";
 
 static int IRAM_ATTR flags_to_mode(gpio::Flags flags) {
-  flags = (gpio::Flags)(flags & ~(gpio::FLAG_HOLD));
+  flags = (gpio::Flags)(flags & (gpio::FLAG_IO_MASK | gpio::FLAG_PULL_MASK));
   if (flags == gpio::FLAG_INPUT) {
     return INPUT;
   } else if (flags == gpio::FLAG_OUTPUT) {
