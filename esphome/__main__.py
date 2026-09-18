@@ -2287,21 +2287,22 @@ def command_rotate_key(args: ArgsProtocol, config: ConfigType) -> int | None:
     try:
         originals = apply_key_edits(edits)
     except EsphomeError as err:
+        safe_print(f"Previous key: {old_key}\nNew key: {new_key}")
         return fail(str(err))
-    safe_print(
-        "Wrote the new key to "
-        + ", ".join(color(AnsiFore.CYAN, str(p)) for p in originals)
-    )
-
-    # Global options go before the subcommand; the compile parser is strict
-    cli_args = ["--dashboard"] if getattr(args, "dashboard", False) else []
-    if toolchain := getattr(args, "toolchain", None):
-        cli_args += ["--toolchain", str(toolchain)]
-    for key, value in getattr(args, "substitution", None) or []:
-        cli_args += ["-s", key, value]
-    cli_args += ["compile", str(CORE.config_path)]
+    # From here every exit restores or reports, so nothing sits outside the try
     uploaded = False
     try:
+        safe_print(
+            "Wrote the new key to "
+            + ", ".join(color(AnsiFore.CYAN, str(p)) for p in originals)
+        )
+        # Global options go before the subcommand; the compile parser is strict
+        cli_args = ["--dashboard"] if getattr(args, "dashboard", False) else []
+        if toolchain := getattr(args, "toolchain", None):
+            cli_args += ["--toolchain", str(toolchain)]
+        for key, value in getattr(args, "substitution", None) or []:
+            cli_args += ["-s", key, value]
+        cli_args += ["compile", str(CORE.config_path)]
         if run_external_process(*ESPHOME_COMMAND, *cli_args) != 0:
             return fail("Compiling with the new key failed")
         args.ota_key = old_key

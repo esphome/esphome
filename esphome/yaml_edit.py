@@ -225,8 +225,11 @@ def apply_key_edits(edits: list[KeyEdit]) -> dict[Path, str]:
                 yaml_util.load_yaml(path)
             except EsphomeError as err:
                 raise EsphomeError(f"{path} no longer loads: {err}") from err
-    except EsphomeError:
-        restore_key_files(originals)
+    except BaseException as err:
+        try:
+            restore_key_files(originals)
+        except EsphomeError as restore_err:
+            raise EsphomeError(f"{err}; {restore_err}") from err
         raise
     invalidate_compiled_config()
     return originals

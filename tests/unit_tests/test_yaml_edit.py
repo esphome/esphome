@@ -545,3 +545,29 @@ nested:
     _setup(tmp_path, SECRET_YAML, secrets)
     edits = locate_key_edits(OLD_KEY, NEW_KEY)
     assert [(e.line, e.new_line) for e in edits] == [(3, f'"device_key": {NEW_KEY}')]
+
+
+def test_rolls_back_on_an_interrupt_during_the_reload(tmp_path: Path) -> None:
+    from unittest.mock import patch
+
+    path = _setup(tmp_path, API_YAML)
+    edits = locate_key_edits(OLD_KEY, NEW_KEY)
+    with (
+        patch("esphome.yaml_util.load_yaml", side_effect=KeyboardInterrupt),
+        pytest.raises(KeyboardInterrupt),
+    ):
+        apply_key_edits(edits)
+    assert path.read_text() == API_YAML
+
+
+def test_apply_reports_a_rollback_that_also_failed(tmp_path: Path) -> None:
+    from unittest.mock import patch
+
+    _setup(tmp_path, API_YAML)
+    edits = locate_key_edits(OLD_KEY, NEW_KEY)
+    with (
+        patch("esphome.yaml_util.load_yaml", side_effect=EsphomeError("broken")),
+        patch("esphome.yaml_edit.write_file", side_effect=[None, EsphomeError("disk")]),
+        pytest.raises(EsphomeError, match="broken; Could not restore .*disk"),
+    ):
+        apply_key_edits(edits)
