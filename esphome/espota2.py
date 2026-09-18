@@ -932,7 +932,9 @@ def probe_ota_key(
     if not res:
         raise OTAError(f"No addresses to connect to for {remote_host}")
     deadline = time.monotonic() + timeout
-    for af, socktype, _, _, sa in itertools.cycle(res):
+    addresses = itertools.cycle(res)
+    while True:
+        af, socktype, _, _, sa = next(addresses)
         started = time.monotonic()
         sock = socket.socket(af, socktype)
         # A dead host must not eat the budget; the handshake is one round trip

@@ -8201,8 +8201,10 @@ def test_command_rotate_key_child_compile_gets_global_options_first(
     rotate_env: dict[str, Mock],
 ) -> None:
     """The compile parser is strict, so -s and --toolchain precede it."""
+    from esphome.core import Toolchain
+
     args = MockArgs(substitution=[["name", "kitchen"]], dashboard=True)
-    args.toolchain = "platformio"
+    args.toolchain = Toolchain.PLATFORMIO
     assert command_rotate_key(args, CORE.config) == 0
     assert rotate_env["compile"].call_args.args[len(ESPHOME_COMMAND) :] == (
         "--dashboard",

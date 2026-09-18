@@ -673,8 +673,6 @@ def test_non_key_reject_reason_is_a_device_error(
     assert not any("Retrying in plaintext" in r.message for r in caplog.records)
 
 
-
-
 def test_probe_ota_key_accepts_the_running_key() -> None:
     pytest.importorskip("aioesphomeapi.noise")
     device = FakeEncryptedDevice()
