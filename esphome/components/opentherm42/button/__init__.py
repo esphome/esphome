@@ -92,7 +92,7 @@ CODES: dict[str, tuple[int, str]] = {
     CONF_REMOTE_REQUEST_AUTOMATIC_HYDRONIC_AIR_PURGE: (12, ENTITY_CATEGORY_CONFIG),
 }
 
-# §5.3.4 Class 4: these 14 counter/hour ids are all "R W" with reset-by-writing-zero optional for the
+# §5.3.4 Class 4: these 15 counter/hour ids are all "R W" with reset-by-writing-zero optional for the
 # boiler; pressing a button sends WRITE-DATA(id, 0x0000, 0x0000). ID 111 (Electricity production) is
 # read-only and has no reset button. Clearing a stored statistic is a maintenance action, not
 # something read day-to-day -- CONFIG (matching e.g. the core `factory_reset` button).

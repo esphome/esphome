@@ -584,7 +584,7 @@ class OpenTherm42Hub : public Component {
   OT42_SET_SENSOR(sensor_and_informational_data_dhw_pump_valve_operation_hours, dhw_pump_valve_operation_hours_sensor_)
   OT42_SET_SENSOR(sensor_and_informational_data_dhw_burner_operation_hours, dhw_burner_operation_hours_sensor_)
 
-  // §5.3.4 Class 4: the 14 counter/hour ids above are all "R W" with reset-by-writing-zero optional for
+  // §5.3.4 Class 4: the 15 counter/hour ids above are all "R W" with reset-by-writing-zero optional for
   // the boiler. Called by OpenTherm42ResetCounterButton::press_action() with the data-id its config
   // maps to; queued on demand, same priority tier as Class 3's remote requests and Class 6's TSP
   // writes. ID 98 (RF sensor status information) and ID 111 (Electricity production, read-only, can't
