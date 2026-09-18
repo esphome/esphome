@@ -1420,7 +1420,7 @@ def _upload_via_native_api(
     if ota_type == espota2.OTA_TYPE_UPDATE_BOOTLOADER:
         _validate_bootloader_binary(binary)
 
-    result = espota2.run_ota(
+    return espota2.run_ota(
         network_devices,
         remote_port,
         password,
@@ -1431,15 +1431,18 @@ def _upload_via_native_api(
         allow_plaintext_upload=allow_plaintext_upload,
         old_noise_psk=old_noise_psk,
     )
-    # Only an app image built from this config replaces the key the device runs
-    if (
-        result[0] == 0
-        and old_noise_psk
-        and ota_type == espota2.OTA_TYPE_UPDATE_APP
-        and getattr(args, "file", None) is None
-    ):
-        _LOGGER.warning(espota2.OLD_KEY_REMOVE_NOTICE)
-    return result
+
+
+def _old_key_notice(config: ConfigType) -> None:
+    """After `run`, whose image was just built from this config; a plain
+    `upload` may send a stale image that still carries the previous key."""
+    from esphome import espota2
+
+    for item in config.get(CONF_OTA, []):
+        if item.get(CONF_PLATFORM) == CONF_ESPHOME and (
+            item.get(CONF_ENCRYPTION) or {}
+        ).get(espota2.CONF_OLD_KEY):
+            _LOGGER.warning(espota2.OLD_KEY_REMOVE_NOTICE)
 
 
 def _upload_via_web_server(
@@ -1886,6 +1889,7 @@ def command_run(args: ArgsProtocol, config: ConfigType) -> int | None:
     exit_code, successful_device = upload_program(config, args, devices)
     if exit_code == 0:
         _LOGGER.info("Successfully uploaded program.")
+        _old_key_notice(config)
     else:
         _LOGGER.warning("Failed to upload to %s", devices)
         return exit_code
