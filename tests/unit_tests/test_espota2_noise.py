@@ -310,11 +310,6 @@ def test_old_key_retry(
     assert (
         any("retrying with 'old_key'" in r.message for r in caplog.records) is retried
     )
-    # The build just sent runs the current key, so a configured old_key is
-    # obsolete whether or not it was needed
-    assert any("remove 'old_key'" in r.message for r in caplog.records) is (
-        expected_rc == 0 and old_noise_psk is not None
-    )
     assert not any("plaintext" in r.message for r in caplog.records)
 
 
@@ -643,35 +638,12 @@ def test_recv_serves_buffered_plaintext_without_new_frame() -> None:
     wrapper._decrypt.decrypt.assert_called_once()
 
 
-def test_old_key_notice_only_after_an_app_image(tmp_path: Path) -> None:
-    """A partition table or bootloader leaves the running key alone."""
-    pytest.importorskip("aioesphomeapi.noise")
-    device = FakeEncryptedDevice()
-    path = tmp_path / "firmware.bin"
-    path.write_bytes(b"firmware")
-    device.start()
-    with patch("time.sleep"), patch("esphome.espota2._LOGGER") as logger:
-        rc, _ = espota2.run_ota(
-            "127.0.0.1",
-            device.port,
-            None,
-            path,
-            espota2.OTA_TYPE_UPDATE_APP,
-            noise_psk=PSK,
-            old_noise_psk=OTHER_PSK,
-        )
-    device.join_and_check()
-    assert rc == 0
-    assert any(
-        "remove 'old_key'" in str(c.args[0]) for c in logger.warning.call_args_list
-    )
-
-
-def test_non_key_reject_reason_is_not_retried_with_old_key(
-    caplog: pytest.LogCaptureFixture, tmp_path: Path
+@pytest.mark.parametrize("plaintext_fallback", [False, True])
+def test_non_key_reject_reason_is_a_device_error(
+    caplog: pytest.LogCaptureFixture, tmp_path: Path, plaintext_fallback: bool
 ) -> None:
-    """Only a key failure spends the old_key retry; another reject reason
-    is a device error."""
+    """Only a key failure spends the old_key retry or, until 2027.3.0, the
+    plaintext fallback; another reject reason fails at once."""
     pytest.importorskip("aioesphomeapi.noise")
     device = FakeEncryptedDevice(reject_reason="Busy")
     with patch("time.sleep"), caplog.at_level(logging.WARNING):
@@ -680,12 +652,13 @@ def test_non_key_reject_reason_is_not_retried_with_old_key(
             b"firmware",
             tmp_path,
             PSK,
-            plaintext_fallback=False,
+            plaintext_fallback=plaintext_fallback,
             old_noise_psk=OTHER_PSK,
         )
     device.join_and_check()
     assert rc == 1
     assert not any("retrying with 'old_key'" in r.message for r in caplog.records)
+    assert not any("Retrying in plaintext" in r.message for r in caplog.records)
 
 
 def test_bare_block_refuses_a_device_that_cannot_encrypt(

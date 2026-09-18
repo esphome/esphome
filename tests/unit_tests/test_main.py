@@ -2142,6 +2142,7 @@ def test_upload_program_ota_encryption_key(
     mock_get_port_type: Mock,
     tmp_path: Path,
     old_key: str | None,
+    caplog: pytest.LogCaptureFixture,
 ) -> None:
     """The resolved encryption key, and the previous one when set, are passed
     through to run_ota."""
@@ -2158,7 +2159,8 @@ def test_upload_program_ota_encryption_key(
             {CONF_PLATFORM: CONF_ESPHOME, CONF_PORT: 3232, CONF_ENCRYPTION: encryption}
         ]
     }
-    exit_code, host = upload_program(config, MockArgs(), ["192.168.1.100"])
+    with caplog.at_level(logging.WARNING):
+        exit_code, host = upload_program(config, MockArgs(), ["192.168.1.100"])
 
     assert exit_code == 0
     assert host == "192.168.1.100"
@@ -2174,6 +2176,44 @@ def test_upload_program_ota_encryption_key(
         key,
         **RUN_OTA_DEFAULT_KWARGS | {"old_noise_psk": old_key},
     )
+    assert any("remove 'old_key'" in r.message for r in caplog.records) is (
+        old_key is not None
+    )
+
+
+@pytest.mark.parametrize(
+    "args", [MockArgs(file="other.bin"), MockArgs(bootloader=True)]
+)
+def test_upload_program_old_key_notice_needs_an_app_image_from_this_config(
+    mock_run_ota: Mock,
+    mock_get_port_type: Mock,
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+    args: MockArgs,
+) -> None:
+    """A foreign image or a bootloader leaves the running key unknown."""
+    setup_core(platform=PLATFORM_ESP32, tmp_path=tmp_path)
+    mock_get_port_type.return_value = "NETWORK"
+    mock_run_ota.return_value = (0, "192.168.1.100")
+    config = {
+        CONF_OTA: [
+            {
+                CONF_PLATFORM: CONF_ESPHOME,
+                CONF_PORT: 3232,
+                "allow_partition_access": True,
+                CONF_ENCRYPTION: {
+                    CONF_KEY: "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=",
+                    "old_key": "AQIDBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyA=",
+                },
+            }
+        ]
+    }
+    with (
+        patch("esphome.__main__._validate_bootloader_binary"),
+        caplog.at_level(logging.WARNING),
+    ):
+        assert upload_program(config, args, ["192.168.1.100"])[0] == 0
+    assert not any("remove 'old_key'" in r.message for r in caplog.records)
 
 
 def test_upload_program_bare_encryption_block_never_falls_back(
