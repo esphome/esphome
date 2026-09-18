@@ -36,6 +36,10 @@ extern const size_t ESPHOME_WEBSERVER_JS_INCLUDE_SIZE;
 
 namespace esphome::web_server {
 
+// ESP-IDF cuts a log event here: nothing a browser log view needs is longer, and it bounds the
+// tail a stalled client keeps. The Arduino backend takes a C string and sends the whole line.
+constexpr size_t LOG_EVENT_MAX_LEN = 512;
+
 // Type for parameter names that can be stored in flash on ESP8266
 #ifdef USE_ESP8266
 using ParamNameType = const __FlashStringHelper *;
