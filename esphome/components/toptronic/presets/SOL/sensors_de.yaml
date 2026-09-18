@@ -1,0 +1,657 @@
+sensor:
+  - platform: toptronic
+    name: TKO1 Kollektor Temperatur
+    device_type: SOL
+    function_group: 22
+    function_number: 0
+    datapoint: 14
+    id: SOL_22_0_14
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: TKO2 Kollektor Temperatur
+    device_type: SOL
+    function_group: 22
+    function_number: 1
+    datapoint: 14
+    id: SOL_22_1_14
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: Gesamtertrag Kollektor (2)
+    device_type: SOL
+    function_group: 22
+    function_number: 1
+    datapoint: 2034
+    id: SOL_22_1_2034
+    type: S32
+    unit_of_measurement: kWh
+    icon: mdi:flash
+    device_class: energy
+    state_class: measurement
+  - platform: toptronic
+    name: Kollektorleistung aktuell (2)
+    device_type: SOL
+    function_group: 22
+    function_number: 1
+    datapoint: 2030
+    id: SOL_22_1_2030
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: kW
+    icon: mdi:lightning-bolt
+    device_class: power
+    state_class: measurement
+  - platform: toptronic
+    name: Betriebsstunden PS Pumpe Solar (1)
+    device_type: SOL
+    function_group: 22
+    function_number: 0
+    datapoint: 2032
+    id: SOL_22_0_2032
+    type: U16
+  - platform: toptronic
+    name: Betriebsstunden PS Pumpe Solar (2)
+    device_type: SOL
+    function_group: 22
+    function_number: 1
+    datapoint: 2032
+    id: SOL_22_1_2032
+    type: U16
+  - platform: toptronic
+    name: Gesamtertrag Kollektor (1)
+    device_type: SOL
+    function_group: 22
+    function_number: 0
+    datapoint: 2034
+    id: SOL_22_0_2034
+    type: S32
+    unit_of_measurement: kWh
+    icon: mdi:flash
+    device_class: energy
+    state_class: measurement
+  - platform: toptronic
+    name: Kollektorleistung aktuell (1)
+    device_type: SOL
+    function_group: 22
+    function_number: 0
+    datapoint: 2030
+    id: SOL_22_0_2030
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: kW
+    icon: mdi:lightning-bolt
+    device_class: power
+    state_class: measurement
+  - platform: toptronic
+    name: Status Solarregelung (1)
+    device_type: SOL
+    function_group: 22
+    function_number: 0
+    datapoint: 2056
+    id: SOL_22_0_2056
+    type: U8
+  - platform: toptronic
+    name: Status Solarregelung (2)
+    device_type: SOL
+    function_group: 22
+    function_number: 1
+    datapoint: 2056
+    id: SOL_22_1_2056
+    type: U8
+  - platform: toptronic
+    name: TU Speicher unten Temp. (1)
+    device_type: SOL
+    function_group: 23
+    function_number: 0
+    datapoint: 16
+    id: SOL_23_0_16
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: TO Speicher oben Temp. (1)
+    device_type: SOL
+    function_group: 23
+    function_number: 0
+    datapoint: 15
+    id: SOL_23_0_15
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: TU Speicher unten Temp. (2)
+    device_type: SOL
+    function_group: 23
+    function_number: 1
+    datapoint: 16
+    id: SOL_23_1_16
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: TO Speicher oben Temp. (2)
+    device_type: SOL
+    function_group: 23
+    function_number: 1
+    datapoint: 15
+    id: SOL_23_1_15
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: TU Speicher unten Temp. (3)
+    device_type: SOL
+    function_group: 23
+    function_number: 2
+    datapoint: 16
+    id: SOL_23_2_16
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: TO Speicher oben Temp. (3)
+    device_type: SOL
+    function_group: 23
+    function_number: 2
+    datapoint: 15
+    id: SOL_23_2_15
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: TU Speicher unten Temp. (4)
+    device_type: SOL
+    function_group: 23
+    function_number: 3
+    datapoint: 16
+    id: SOL_23_3_16
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: TO Speicher oben Temp. (4)
+    device_type: SOL
+    function_group: 23
+    function_number: 3
+    datapoint: 15
+    id: SOL_23_3_15
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: VSol Volumenstrom Solarkreis (1)
+    device_type: SOL
+    function_group: 22
+    function_number: 0
+    datapoint: 62
+    id: SOL_22_0_62
+    type: S16
+    accuracy_decimals: 2
+    filters:
+      - multiply: 0.01
+    unit_of_measurement: l/min
+    icon: mdi:water-outline
+    device_class: volume_flow_rate
+    state_class: measurement
+  - platform: toptronic
+    name: TKV Kollektorvorlauf Temp. (1)
+    device_type: SOL
+    function_group: 22
+    function_number: 0
+    datapoint: 60
+    id: SOL_22_0_60
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: TKR Kollektorruecklauf Temp. (1)
+    device_type: SOL
+    function_group: 22
+    function_number: 0
+    datapoint: 61
+    id: SOL_22_0_61
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: PS akt. Drehzahl Pumpe Solar (1)
+    device_type: SOL
+    function_group: 22
+    function_number: 0
+    datapoint: 1050
+    id: SOL_22_0_1050
+    type: U8
+    unit_of_measurement: '%'
+    icon: mdi:percent
+    device_class: power_factor
+    state_class: measurement
+  - platform: toptronic
+    name: VSol Volumenstrom Solarkreis (2)
+    device_type: SOL
+    function_group: 22
+    function_number: 1
+    datapoint: 62
+    id: SOL_22_1_62
+    type: S16
+    accuracy_decimals: 2
+    filters:
+      - multiply: 0.01
+    unit_of_measurement: l/min
+    icon: mdi:water-outline
+    device_class: volume_flow_rate
+    state_class: measurement
+  - platform: toptronic
+    name: TKV Kollektorvorlauf Temp. (2)
+    device_type: SOL
+    function_group: 22
+    function_number: 1
+    datapoint: 60
+    id: SOL_22_1_60
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: TKR Kollektorruecklauf Temp. (2)
+    device_type: SOL
+    function_group: 22
+    function_number: 1
+    datapoint: 61
+    id: SOL_22_1_61
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: PS akt. Drehzahl Pumpe Solar (2)
+    device_type: SOL
+    function_group: 22
+    function_number: 1
+    datapoint: 1050
+    id: SOL_22_1_1050
+    type: U8
+    unit_of_measurement: '%'
+    icon: mdi:percent
+    device_class: power_factor
+    state_class: measurement
+  - platform: toptronic
+    name: "Priorit\xE4t Speicher (1)"
+    device_type: SOL
+    function_group: 23
+    function_number: 0
+    datapoint: 8056
+    id: SOL_23_0_8056
+    type: U8
+    internal: true
+  - platform: toptronic
+    name: "Priorit\xE4t Speicher (2)"
+    device_type: SOL
+    function_group: 23
+    function_number: 1
+    datapoint: 8056
+    id: SOL_23_1_8056
+    type: U8
+    internal: true
+  - platform: toptronic
+    name: "Priorit\xE4t Speicher (3)"
+    device_type: SOL
+    function_group: 23
+    function_number: 2
+    datapoint: 8056
+    id: SOL_23_2_8056
+    type: U8
+    internal: true
+  - platform: toptronic
+    name: "Priorit\xE4t Speicher (4)"
+    device_type: SOL
+    function_group: 23
+    function_number: 3
+    datapoint: 8056
+    id: SOL_23_3_8056
+    type: U8
+    internal: true
+  - platform: toptronic
+    name: MaximalTemp. Speicher (1)
+    device_type: SOL
+    function_group: 23
+    function_number: 0
+    datapoint: 8059
+    id: SOL_23_0_8059
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+    internal: true
+  - platform: toptronic
+    name: MaximalTemp. Speicher (2)
+    device_type: SOL
+    function_group: 23
+    function_number: 1
+    datapoint: 8059
+    id: SOL_23_1_8059
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+    internal: true
+  - platform: toptronic
+    name: MaximalTemp. Speicher (3)
+    device_type: SOL
+    function_group: 23
+    function_number: 2
+    datapoint: 8059
+    id: SOL_23_2_8059
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+    internal: true
+  - platform: toptronic
+    name: MaximalTemp. Speicher (4)
+    device_type: SOL
+    function_group: 23
+    function_number: 3
+    datapoint: 8059
+    id: SOL_23_3_8059
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+    internal: true
+  - platform: toptronic
+    name: SchutzTemp. Speicher (1)
+    device_type: SOL
+    function_group: 23
+    function_number: 0
+    datapoint: 8060
+    id: SOL_23_0_8060
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+    internal: true
+  - platform: toptronic
+    name: SchutzTemp. Speicher (2)
+    device_type: SOL
+    function_group: 23
+    function_number: 1
+    datapoint: 8060
+    id: SOL_23_1_8060
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+    internal: true
+  - platform: toptronic
+    name: SchutzTemp. Speicher (3)
+    device_type: SOL
+    function_group: 23
+    function_number: 2
+    datapoint: 8060
+    id: SOL_23_2_8060
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+    internal: true
+  - platform: toptronic
+    name: SchutzTemp. Speicher (4)
+    device_type: SOL
+    function_group: 23
+    function_number: 3
+    datapoint: 8060
+    id: SOL_23_3_8060
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+    internal: true
+  - platform: toptronic
+    name: Solltemperatur Speicher (1)
+    device_type: SOL
+    function_group: 23
+    function_number: 0
+    datapoint: 8062
+    id: SOL_23_0_8062
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+    internal: true
+  - platform: toptronic
+    name: Solltemperatur Speicher (2)
+    device_type: SOL
+    function_group: 23
+    function_number: 1
+    datapoint: 8062
+    id: SOL_23_1_8062
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+    internal: true
+  - platform: toptronic
+    name: Solltemperatur Speicher (3)
+    device_type: SOL
+    function_group: 23
+    function_number: 2
+    datapoint: 8062
+    id: SOL_23_2_8062
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+    internal: true
+  - platform: toptronic
+    name: Solltemperatur Speicher (4)
+    device_type: SOL
+    function_group: 23
+    function_number: 3
+    datapoint: 8062
+    id: SOL_23_3_8062
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+    internal: true
+  - platform: toptronic
+    name: Akt. Soll Kollektor Temp. (1)
+    device_type: SOL
+    function_group: 22
+    function_number: 0
+    datapoint: 1014
+    id: SOL_22_0_1014
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: Akt. Soll Kollektor Temp. (2)
+    device_type: SOL
+    function_group: 22
+    function_number: 1
+    datapoint: 1014
+    id: SOL_22_1_1014
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: UVP akt. Zustand Umschaltventil (1)
+    device_type: SOL
+    function_group: 23
+    function_number: 0
+    datapoint: 1052
+    id: SOL_23_0_1052
+    type: U8
+  - platform: toptronic
+    name: UVP akt. Zustand Umschaltventil (2)
+    device_type: SOL
+    function_group: 23
+    function_number: 1
+    datapoint: 1052
+    id: SOL_23_1_1052
+    type: U8
+  - platform: toptronic
+    name: UVP akt. Zustand Umschaltventil (3)
+    device_type: SOL
+    function_group: 23
+    function_number: 2
+    datapoint: 1052
+    id: SOL_23_2_1052
+    type: U8
+  - platform: toptronic
+    name: Teilertrag Kollektor (1)
+    device_type: SOL
+    function_group: 22
+    function_number: 0
+    datapoint: 2031
+    id: SOL_22_0_2031
+    type: U16
+    unit_of_measurement: kWh
+    icon: mdi:flash
+    device_class: energy
+    state_class: measurement
+  - platform: toptronic
+    name: Teilertrag Kollektor (2)
+    device_type: SOL
+    function_group: 22
+    function_number: 1
+    datapoint: 2031
+    id: SOL_22_1_2031
+    type: U16
+    unit_of_measurement: kWh
+    icon: mdi:flash
+    device_class: energy
+    state_class: measurement
