@@ -479,12 +479,14 @@ class NoiseSocketWrapper:
             raise OTAError(f"Device rejected the noise handshake: {reason}")
         try:
             self._handshake.read_message(payload[1:])
-        except (ValueError, self._invalid_tag) as err:
-            # InvalidTag is a wrong key; ValueError covers a device sending an
-            # invalid curve point, which cryptography rejects during the DH
+        except self._invalid_tag as err:
             raise OTAKeyRejected(
                 "Noise handshake failed; is the OTA encryption key correct?"
             ) from err
+        except ValueError as err:
+            # An invalid curve point, rejected by cryptography during the DH;
+            # the device is broken, not the key
+            raise OTAError(f"Noise handshake failed: {err}") from err
         self._encrypt, self._decrypt = self._handshake.get_ciphers()
 
     def sendall(self, data: bytes) -> None:

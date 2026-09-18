@@ -550,21 +550,21 @@ def test_handshake_reject_with_other_reason() -> None:
 
 
 def test_handshake_garbage_second_message() -> None:
-    """A valid-looking point with a garbage MAC fails cleanly."""
+    """A valid-looking point with a garbage MAC is a key failure."""
     wrapper = _wrapper(_frame(b"\x00" + bytes(range(48))))
     with pytest.raises(
-        espota2.OTAError, match="handshake failed; is the OTA encryption key"
+        espota2.OTAKeyRejected, match="handshake failed; is the OTA encryption key"
     ):
         wrapper.do_handshake()
 
 
 def test_handshake_invalid_curve_point() -> None:
-    """An all-zero x25519 point is rejected as a clean error, not a crash."""
+    """An all-zero x25519 point is a clean error, not a crash, and not a
+    key failure: it must not spend the old_key retry."""
     wrapper = _wrapper(_frame(b"\x00" + bytes(48)))
-    with pytest.raises(
-        espota2.OTAError, match="handshake failed; is the OTA encryption key"
-    ):
+    with pytest.raises(espota2.OTAError, match="handshake failed: ") as info:
         wrapper.do_handshake()
+    assert not isinstance(info.value, espota2.OTAKeyRejected)
 
 
 def test_recv_closed_at_frame_boundary_returns_empty() -> None:
