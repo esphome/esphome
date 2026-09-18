@@ -1237,20 +1237,16 @@ def upload_program(
             "The options --partition-table and --bootloader can't be used together."
         )
     option_string = "--partition-table" if is_partition_table else "--bootloader"
-    if port_type in (PortType.SERIAL, PortType.BOOTSEL) and (
-        is_partition_table or is_bootloader
-    ):
-        raise EsphomeError(
-            f"The option {option_string} can only be used for Over The Air updates."
-        )
-
-    if getattr(args, "ota_key", None) and port_type in (
-        PortType.SERIAL,
-        PortType.BOOTSEL,
-    ):
-        _LOGGER.warning(
-            "--prompt-ota-key only applies to network uploads; ignored for %s", host
-        )
+    if port_type in (PortType.SERIAL, PortType.BOOTSEL):
+        if is_partition_table or is_bootloader:
+            raise EsphomeError(
+                f"The option {option_string} can only be used for Over The Air updates."
+            )
+        if getattr(args, "ota_key", None):
+            _LOGGER.warning(
+                "--prompt-ota-key only applies to network uploads; ignored for %s",
+                host,
+            )
 
     if port_type == PortType.BOOTSEL:
         exit_code = upload_using_picotool(config)
@@ -1282,10 +1278,6 @@ def upload_program(
             raise EsphomeError(
                 f"{option_string} is only supported with the esphome OTA platform; "
                 "the web_server OTA path can only update the firmware image."
-            )
-        if getattr(args, "ota_key", None):
-            raise EsphomeError(
-                f"--prompt-ota-key only applies to the {CONF_ESPHOME} OTA platform"
             )
         binary = CORE.firmware_bin
         if getattr(args, "file", None) is not None:
@@ -1752,7 +1744,7 @@ def _host_program_path(config: ConfigType) -> str:
     return str(get_idedata(config).firmware_elf_path)
 
 
-def _read_ota_key(args: ArgsProtocol) -> None:
+def _read_ota_key(args: ArgsProtocol, config: ConfigType) -> None:
     """Ask for the key to present to the device for this upload.
 
     Read before any compile so the prompt is not buried after minutes of
@@ -1760,7 +1752,11 @@ def _read_ota_key(args: ArgsProtocol) -> None:
     """
     if not getattr(args, "prompt_ota_key", False):
         return
-    if getattr(args, "ota_platform", None) == CONF_WEB_SERVER:
+    # The HTTP path has no key handshake; decide before prompting or compiling
+    if (
+        _choose_ota_platform(config, getattr(args, "ota_platform", None))
+        != CONF_ESPHOME
+    ):
         raise EsphomeError(
             f"--prompt-ota-key only applies to the {CONF_ESPHOME} OTA platform"
         )
@@ -1768,8 +1764,6 @@ def _read_ota_key(args: ArgsProtocol) -> None:
     from esphome.config_validation import Invalid
 
     key = read_secret_line("OTA encryption key: ")
-    if not key:
-        raise EsphomeError("No OTA encryption key was entered")
     try:
         validate_encryption_key(key)
     except Invalid as err:
@@ -1778,7 +1772,7 @@ def _read_ota_key(args: ArgsProtocol) -> None:
 
 
 def command_upload(args: ArgsProtocol, config: ConfigType) -> int | None:
-    _read_ota_key(args)
+    _read_ota_key(args, config)
     # Get devices, resolving special identifiers like OTA
     devices = choose_upload_log_host(
         default=args.device,
@@ -1814,7 +1808,7 @@ def command_logs(args: ArgsProtocol, config: ConfigType) -> int | None:
 
 
 def command_run(args: ArgsProtocol, config: ConfigType) -> int | None:
-    _read_ota_key(args)
+    _read_ota_key(args, config)
     exit_code = write_cpp(config)
     if exit_code != 0:
         return exit_code
