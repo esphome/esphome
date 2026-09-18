@@ -437,6 +437,32 @@ ota:
     )
     edits = locate_key_edits(OLD_KEY, NEW_KEY)
     assert [(e.path, e.line) for e in edits] == [(tmp_path / "secrets.yaml", 0)]
+    # A file beside the include that does not parse is skipped by the
+    # loader too, so the main one is still the target
+    (tmp_path / "sub" / "secrets.yaml").write_bytes(b": :\n")
+    edits = locate_key_edits(OLD_KEY, NEW_KEY)
+    assert [(e.path, e.line) for e in edits] == [(tmp_path / "secrets.yaml", 0)]
+
+
+def test_split_with_key_first_and_old_key_later(tmp_path: Path) -> None:
+    """old_key lands on the entry that already carries it, whichever entry
+    comes first; a second old_key would make the merged config inconsistent."""
+    yaml_text = f"""esphome:
+  name: test
+
+ota:
+  - platform: esphome
+    encryption:
+      key: "{OLD_KEY}"
+  - platform: esphome
+    encryption:
+      old_key: "{OLDER_KEY}"
+"""
+    path = _setup(tmp_path, yaml_text)
+    _rotate()
+    assert path.read_text() == yaml_text.replace(OLD_KEY, NEW_KEY).replace(
+        OLDER_KEY, OLD_KEY
+    )
 
 
 def test_old_key_needs_an_encryption_block(tmp_path: Path) -> None:

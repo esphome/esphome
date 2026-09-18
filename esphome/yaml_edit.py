@@ -357,11 +357,12 @@ def old_key_edit(old_key: str) -> list[KeyEdit]:
     ]
     if not items:
         raise EsphomeError("The esphome OTA platform has no 'encryption:' block")
+    # An entry that already carries old_key wins over one that carries key
     item = next(
         (
             item
-            for item in items
             for name in (CONF_OLD_KEY, CONF_KEY)
+            for item in items
             if _source_of(item[CONF_ENCRYPTION] or {}, name) is not None
         ),
         items[0],
