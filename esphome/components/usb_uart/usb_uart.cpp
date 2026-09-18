@@ -21,8 +21,6 @@ static optional<CdcEps> get_cdc(const usb_config_desc_t *config_desc, uint8_t in
   int conf_offset, ep_offset;
   // look for an interface with an interrupt endpoint (notify), and one with two bulk endpoints (data in/out)
   CdcEps eps{};
-  eps.bulk_interface_number = 0xFF;
-  eps.interrupt_interface_number = 0xFF;
   for (;;) {
     const auto *intf_desc = usb_parse_interface_descriptor(config_desc, intf_idx++, 0, &conf_offset);
     if (!intf_desc) {
@@ -660,6 +658,8 @@ bool USBUartComponent::run_config_machine_() {
     this->cfg_single_ = nullptr;
   } else if (++this->cfg_channel_idx_ >= this->channels_.size()) {
     this->cfg_active_ = false;
+    // Init is done and the line settings are on the wire: now the device is ready to use
+    this->report_connected_();
   }
 
   // If the machine just went idle and a reload was requested while it was busy, start it now.

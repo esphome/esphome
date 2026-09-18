@@ -1640,6 +1640,22 @@ void APIConnection::on_serial_proxy_get_modem_pins_request(const SerialProxyGetM
   }
 }
 
+void APIConnection::on_subscribe_serial_proxy_identity_request() {
+  this->flags_.serial_proxy_identity_subscription = true;
+  for (auto *proxy : App.get_serial_proxies()) {
+    proxy->send_identity(this);
+  }
+}
+
+void APIConnection::send_serial_proxy_identity(const SerialProxyIdentity &msg) {
+  if (!this->flags_.serial_proxy_identity_subscription) {
+    return;
+  }
+  if (!this->send_message(msg)) {
+    API_LOG_MSG_DROPPED(TAG, "Serial proxy identity");
+  }
+}
+
 void APIConnection::on_serial_proxy_request(const SerialProxyRequest &msg) {
   auto &proxies = App.get_serial_proxies();
   if (msg.instance >= proxies.size()) {
@@ -1811,7 +1827,7 @@ bool APIConnection::send_hello_response_(const HelloRequest &msg) {
 
   HelloResponse resp;
   resp.api_version_major = 1;
-  resp.api_version_minor = 17;
+  resp.api_version_minor = 18;
   // Send only the version string - the client only logs this for debugging and doesn't use it otherwise
   resp.server_info = ESPHOME_VERSION_REF;
   resp.name = StringRef(App.get_name());

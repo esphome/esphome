@@ -33,10 +33,11 @@ struct CdcEps {
   const usb_ep_desc_t *notify_ep;
   const usb_ep_desc_t *in_ep;
   const usb_ep_desc_t *out_ep;
-  uint8_t bulk_interface_number;
+  // 0xFF marks a channel that was never matched to a CDC function on the device
+  uint8_t bulk_interface_number{0xFF};
   // Also the wIndex target for CDC class requests (SET_LINE_CODING etc.), so it
   // must remain valid even when the interface itself is not claimed.
-  uint8_t interrupt_interface_number;
+  uint8_t interrupt_interface_number{0xFF};
   bool interrupt_interface_claimed{false};
 };
 
@@ -167,6 +168,13 @@ class USBUartChannelBase : public uart::UARTComponent, public Parented<USBUartCo
   /// they arrive, eliminating one full main-loop-wakeup cycle of latency.
   void set_rx_callback(std::function<void()> cb) { this->rx_callback_ = std::move(cb); }
 
+  /// USB interface number a host driver binds to for this channel: the communication
+  /// interface of a CDC ACM function, otherwise the data interface.
+  uint8_t get_interface_number() const {
+    return this->cdc_dev_.interrupt_interface_number != 0xFF ? this->cdc_dev_.interrupt_interface_number
+                                                             : this->cdc_dev_.bulk_interface_number;
+  }
+
  protected:
   // Not directly instantiable; construct a concrete channel type instead.
   USBUartChannelBase(uint8_t index, uint16_t buffer_size) : input_buffer_(RingBuffer(buffer_size)), index_(index) {}
@@ -251,6 +259,10 @@ class USBUartComponent : public usb_host::USBClient {
   // Optional one-time device-level setup run before the per-channel phase on init only
   // (e.g. CH34x chip detection). Same contract as config_step_(). Default: no steps.
   virtual bool config_device_step(uint8_t step, bool ok, const uint8_t *response) { return false; }
+
+  // The device is only usable once the config machine has applied every channel's line
+  // settings, so the connected report waits for run_config_machine_() to finish the init
+  bool reports_connection_itself() const override { return true; }
 
   std::vector<USBUartChannelBase *> channels_{};
 
