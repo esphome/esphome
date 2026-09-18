@@ -8167,7 +8167,7 @@ def test_command_rotate_key_precheck_fails_writes_nothing(
 
 @pytest.mark.parametrize("step", ["compile", "interrupt"])
 def test_command_rotate_key_restores_before_the_upload(
-    rotate_env: dict[str, Mock], step: str
+    rotate_env: dict[str, Mock], capfd: pytest.CaptureFixture[str], step: str
 ) -> None:
     if step == "compile":
         rotate_env["compile"].return_value = 1
@@ -8176,6 +8176,9 @@ def test_command_rotate_key_restores_before_the_upload(
     assert command_rotate_key(MockArgs(), CORE.config) == 1
     assert CORE.config_path.read_text() == ROTATE_API_YAML
     assert rotate_env["probe"].call_count == 1
+    assert ("Interrupted before the upload" in capfd.readouterr().out) is (
+        step == "interrupt"
+    )
 
 
 def test_command_rotate_key_keeps_the_edit_after_a_failed_upload(
@@ -8219,7 +8222,9 @@ def test_command_rotate_key_keeps_the_new_key_after_the_upload(
     assert command_rotate_key(MockArgs(), CORE.config) == 1
     assert ROTATE_NEW_KEY in CORE.config_path.read_text()
     assert f'old_key: "{ROTATE_OLD_KEY}"' in CORE.config_path.read_text()
-    assert ROTATE_NEW_KEY in capfd.readouterr().out
+    out = capfd.readouterr().out
+    assert ROTATE_NEW_KEY in out
+    assert ("Interrupted" in out) is (outcome == "interrupted")
 
 
 def test_command_rotate_key_child_compile_gets_global_options_first(
