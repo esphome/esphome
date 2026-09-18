@@ -467,13 +467,8 @@ void ESPHomeOTAComponent::handle_data_() {
   if (this->extended_proto_()) {
     // Read ota type, 1 byte
     if (!this->data_readall_(buf, 1)) {
-      if (this->remote_closed_) {
-        // A client that only wanted the handshake (a key probe, a scanner)
-        // leaves here; nothing was started, so no error status or callback
-        ESP_LOGD(TAG, "Client left after the handshake");
-        this->cleanup_connection_();
+      if (this->client_left_before_start_())
         return;
-      }
       this->log_read_error_(LOG_STR("OTA type"));
       goto error;  // NOLINT(cppcoreguidelines-avoid-goto)
     }
@@ -483,6 +478,8 @@ void ESPHomeOTAComponent::handle_data_() {
 
   // Read size, 4 bytes MSB first
   if (!this->data_readall_(buf, 4)) {
+    if (this->client_left_before_start_())
+      return;
     this->log_read_error_(LOG_STR("size"));
     goto error;  // NOLINT(cppcoreguidelines-avoid-goto)
   }
@@ -719,6 +716,17 @@ float ESPHomeOTAComponent::get_setup_priority() const { return setup_priority::A
 
 void ESPHomeOTAComponent::log_socket_error_(const LogString *msg) {
   ESP_LOGW(TAG, "Socket %s: errno %d", LOG_STR_ARG(msg), errno);
+}
+
+bool ESPHomeOTAComponent::client_left_before_start_() {
+  // A client that only wanted the handshake (a key probe, a scanner) hangs
+  // up before the first transfer byte; nothing was started, so no error
+  // status or callback
+  if (!this->remote_closed_)
+    return false;
+  ESP_LOGD(TAG, "Client left after the handshake");
+  this->cleanup_connection_();
+  return true;
 }
 
 void ESPHomeOTAComponent::log_read_error_(const LogString *what) {

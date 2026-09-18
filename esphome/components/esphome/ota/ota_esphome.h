@@ -134,6 +134,7 @@ class ESPHomeOTAComponent final : public ota::OTAComponent {
   void server_failed_(const LogString *msg);
   void log_socket_error_(const LogString *msg);
   void log_read_error_(const LogString *what);
+  bool client_left_before_start_();
   void log_start_(const LogString *phase);
   void log_remote_closed_(const LogString *during);
   void cleanup_connection_();
