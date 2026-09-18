@@ -22,6 +22,7 @@ from zeroconf import ServiceStateChange
 
 from esphome import __main__ as main, yaml_util
 from esphome.__main__ import (
+    ESPHOME_COMMAND,
     Purpose,
     _get_configured_xtal_freq,
     _make_crystal_freq_callback,
@@ -8179,15 +8180,40 @@ def test_command_rotate_key_restores_on_failure(
     assert rotate_env["probe"].call_count == 1
 
 
-def test_command_rotate_key_restores_when_device_keeps_old_key(
-    rotate_env: dict[str, Mock], capfd: pytest.CaptureFixture[str]
+@pytest.mark.parametrize("outcome", ["unconfirmed", "interrupted"])
+def test_command_rotate_key_keeps_the_new_key_after_the_upload(
+    rotate_env: dict[str, Mock], capfd: pytest.CaptureFixture[str], outcome: str
 ) -> None:
-    """After a completed upload the device may still run the new key, so the
-    key is repeated for a manual fix."""
-    rotate_env["probe"].side_effect = [True, False]
+    """Once the upload went through the device most likely runs the new key
+    and old_key covers the other case, so the files stay and the key is
+    printed."""
+    rotate_env["probe"].side_effect = [
+        True,
+        KeyboardInterrupt if outcome == "interrupted" else False,
+    ]
     assert command_rotate_key(MockArgs(), CORE.config) == 1
-    assert CORE.config_path.read_text() == ROTATE_API_YAML
+    assert ROTATE_NEW_KEY in CORE.config_path.read_text()
+    assert f'old_key: "{ROTATE_OLD_KEY}"' in CORE.config_path.read_text()
     assert ROTATE_NEW_KEY in capfd.readouterr().out
+
+
+def test_command_rotate_key_child_compile_gets_global_options_first(
+    rotate_env: dict[str, Mock],
+) -> None:
+    """The compile parser is strict, so -s and --toolchain precede it."""
+    args = MockArgs(substitution=[["name", "kitchen"]], dashboard=True)
+    args.toolchain = "platformio"
+    assert command_rotate_key(args, CORE.config) == 0
+    assert rotate_env["compile"].call_args.args[len(ESPHOME_COMMAND) :] == (
+        "--dashboard",
+        "--toolchain",
+        "platformio",
+        "-s",
+        "name",
+        "kitchen",
+        "compile",
+        str(CORE.config_path),
+    )
 
 
 @pytest.mark.parametrize(
