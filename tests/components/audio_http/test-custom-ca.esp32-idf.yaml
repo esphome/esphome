@@ -1,0 +1,6 @@
+media_source:
+  - platform: audio_http
+    id: audio_http_ca_source
+    ca_certificate_path: $component_dir/test_ca.pem
+    
+<<: !include common.yaml
