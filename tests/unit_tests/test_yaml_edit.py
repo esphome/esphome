@@ -766,6 +766,18 @@ def test_old_key_refuses_a_flow_style_key(tmp_path: Path) -> None:
         old_key_edit(OLD_KEY)
 
 
+def test_restore_reports_a_cache_it_could_not_drop(tmp_path: Path) -> None:
+    path = _setup(tmp_path, API_YAML)
+    with (
+        patch(
+            "esphome.compiled_config.invalidate_compiled_config",
+            side_effect=EsphomeError("busy"),
+        ),
+        pytest.raises(EsphomeError, match="Could not restore busy"),
+    ):
+        restore_key_files({path: API_YAML})
+
+
 def test_rolls_back_when_the_cache_cannot_be_dropped(tmp_path: Path) -> None:
     path = _setup(tmp_path, API_YAML)
     edits = locate_key_edits(OLD_KEY, NEW_KEY)
