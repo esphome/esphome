@@ -1782,8 +1782,8 @@ def _read_ota_key(args: ArgsProtocol, config: ConfigType) -> None:
         _LOGGER.warning("A host program runs locally; the presented OTA key is ignored")
         return
     # The HTTP path has no key handshake; decide before prompting or
-    # compiling. A serial target is a serial flash, which warns later
-    # instead, and --ota-platform means nothing to it.
+    # compiling. A serial target is a serial flash: the key is not even
+    # asked for, and --ota-platform means nothing to it.
     devices = getattr(args, "device", None) or []
     serial_target = bool(devices) and (
         devices[0] == "SERIAL"
@@ -1799,9 +1799,13 @@ def _read_ota_key(args: ArgsProtocol, config: ConfigType) -> None:
     from esphome.components.noise import validate_encryption_key
     from esphome.config_validation import Invalid
 
-    key = read_secret_line("OTA encryption key: ") if prompt else env_key
     if serial_target:
-        return  # ignored with a warning at upload time; still consumed from stdin
+        _LOGGER.warning(
+            "The presented OTA key only applies to network uploads; ignored for %s",
+            devices[0],
+        )
+        return
+    key = read_secret_line("OTA encryption key: ") if prompt else env_key
     try:
         validate_encryption_key(key)
     except Invalid as err:
@@ -1858,7 +1862,6 @@ def command_run(args: ArgsProtocol, config: ConfigType) -> int | None:
         # Elsewhere the flag is ignored, so serial stays fine there.
         _LOGGER.error("--skip-bootloader builds cannot be flashed over serial")
         return 1
-    _read_ota_key(args)
     _read_ota_key(args, config)
     exit_code = write_cpp(config)
     if exit_code != 0:
