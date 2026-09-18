@@ -441,3 +441,14 @@ ota:
     CORE.raw_config = do_substitution_pass(CORE.raw_config, None)
     with pytest.raises(EsphomeError, match="edit it by hand"):
         old_key_edit(OLD_KEY)
+
+
+def test_old_key_on_a_block_without_source(tmp_path: Path) -> None:
+    """An ota block built in code has no line to add old_key after."""
+    _setup(tmp_path, API_YAML)
+    CORE.raw_config = {
+        "api": {"encryption": {"key": OLD_KEY}},
+        "ota": [{"platform": "esphome", "encryption": {"old_key": NEW_KEY}}],
+    }
+    with pytest.raises(EsphomeError, match="was not read from a file"):
+        old_key_edit(OLD_KEY)

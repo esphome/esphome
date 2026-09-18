@@ -2296,7 +2296,7 @@ def command_rotate_key(args: ArgsProtocol, config: ConfigType) -> int | None:
     # Global options go before the subcommand; the compile parser is strict
     cli_args = ["--dashboard"] if getattr(args, "dashboard", False) else []
     if toolchain := getattr(args, "toolchain", None):
-        cli_args += ["--toolchain", toolchain]
+        cli_args += ["--toolchain", str(toolchain)]
     for key, value in getattr(args, "substitution", None) or []:
         cli_args += ["-s", key, value]
     cli_args += ["compile", str(CORE.config_path)]
