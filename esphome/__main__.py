@@ -2324,7 +2324,11 @@ def command_rotate_key(args: ArgsProtocol, config: ConfigType) -> int | None:
                 "reaches the device either way."
             )
     except KeyboardInterrupt:
-        return 1
+        return fail(
+            "Interrupted; the device's key was not confirmed"
+            if uploaded
+            else "Interrupted before the upload"
+        )
     finally:
         # Before the upload nothing changed on the device; after it the device
         # most likely runs the new key, and old_key covers the other case
