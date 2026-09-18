@@ -2305,11 +2305,15 @@ def command_rotate_key(args: ArgsProtocol, config: ConfigType) -> int | None:
         if run_external_process(*ESPHOME_COMMAND, *cli_args) != 0:
             return fail("Compiling with the new key failed")
         args.ota_key = old_key
+        # An attempted upload may have committed; the edited config reaches
+        # the device on either key from here on
+        uploaded = True
         if upload_program(config, args, network_devices)[0] != 0:
             return fail(
-                "Uploading with the current key failed; nothing changed on the device"
+                "Uploading with the current key failed. The configuration keeps "
+                "the new key with the previous one as old_key, so the next "
+                "install reaches the device whichever key it runs."
             )
-        uploaded = True
         safe_print("Waiting for the device to come back with the new key...")
         if not espota2.probe_ota_key(network_devices, remote_port, new_key):
             return fail(
@@ -2323,14 +2327,19 @@ def command_rotate_key(args: ArgsProtocol, config: ConfigType) -> int | None:
         # Before the upload nothing changed on the device; after it the device
         # most likely runs the new key, and old_key covers the other case
         if not uploaded:
-            restore_key_files(originals)
-            safe_print(
-                color(
-                    AnsiFore.BOLD_YELLOW,
-                    "Restored the previous key in "
-                    + ", ".join(str(p) for p in originals),
+            try:
+                restore_key_files(originals)
+            except EsphomeError as err:
+                safe_print(color(AnsiFore.BOLD_RED, str(err)))
+                safe_print(f"Previous key: {old_key}\nNew key: {new_key}")
+            else:
+                safe_print(
+                    color(
+                        AnsiFore.BOLD_YELLOW,
+                        "Restored the previous key in "
+                        + ", ".join(str(p) for p in originals),
+                    )
                 )
-            )
         else:
             safe_print(f"New OTA encryption key: {color(AnsiFore.CYAN, new_key)}")
 
