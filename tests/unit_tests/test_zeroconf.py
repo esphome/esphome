@@ -28,6 +28,7 @@ def _make_service_info(
     network: str | None = "wifi",
     friendly_name: str | None = "Living Room",
     version: str | None = "2025.1.0",
+    ota_signed: str | None = None,
 ) -> MagicMock:
     """Build a fake ``AsyncServiceInfo`` with the TXT records we care about.
 
@@ -48,6 +49,8 @@ def _make_service_info(
         properties[b"friendly_name"] = friendly_name.encode()
     if version is not None:
         properties[b"version"] = version.encode()
+    if ota_signed is not None:
+        properties[b"ota_signed"] = ota_signed.encode()
     info.properties = properties
     info.load_from_cache.return_value = True
     return info
@@ -77,6 +80,7 @@ def test_added_service_populates_import_state_and_fires_callback() -> None:
     assert entry.project_version == "1.0.0"
     assert entry.network == "wifi"
     assert entry.friendly_name == "Living Room"
+    assert entry.ota_signed is False
     on_update.assert_called_once_with(name, entry)
 
 
@@ -204,6 +208,22 @@ def test_network_defaults_to_wifi_when_txt_absent() -> None:
     discovery._process_service_info(name, info)
 
     assert discovery.import_state[name].network == "wifi"
+
+
+def test_ota_signed_txt_is_parsed() -> None:
+    """``ota_signed=1`` marks a device that only accepts signed OTA images.
+
+    Devices built with signed OTA verification reject any image not
+    signed by a trusted key, so device-builder cannot install a build
+    it compiled itself — the user has to flash over serial. The flag
+    is what lets it say so before the install fails.
+    """
+    discovery = DashboardImportDiscovery()
+    info = _make_service_info(ota_signed="1")
+    name = f"signed.{ESPHOME_SERVICE_TYPE}"
+    discovery._process_service_info(name, info)
+
+    assert discovery.import_state[name].ota_signed is True
 
 
 def test_friendly_name_optional() -> None:

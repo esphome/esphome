@@ -1,0 +1,16 @@
+# Signed OTA verification alongside the native api, so the ota_signed TXT
+# record is compiled into the _esphomelib service.
+esp32:
+  variant: esp32s3
+  framework:
+    type: esp-idf
+    advanced:
+      signed_ota_verification:
+
+wifi:
+  ssid: MySSID
+  password: password1
+
+api:
+
+mdns:
