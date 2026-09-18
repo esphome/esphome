@@ -18,6 +18,7 @@ from esphome.core import CORE, CoroPriority, coroutine_with_priority
 from esphome.types import ConfigType
 
 from .const import (
+    CONF_ANTENNA,
     CONF_ENDPOINT,
     CONF_MAX_EP_NUMBER,
     CONF_ON_JOIN,
@@ -25,7 +26,6 @@ from .const import (
     CONF_REPORT,
     CONF_ROUTER,
     CONF_USE_DEVICE_TYPE,
-    CONF_ANTENNA,
     CONF_WIPE_ON_BOOT,
     KEY_ZIGBEE,
     POWER_SOURCE,

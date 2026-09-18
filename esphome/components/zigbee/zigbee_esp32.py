@@ -9,8 +9,8 @@ from esphome.components.esp32 import (
     add_idf_component,
     add_idf_sdkconfig_option,
     add_partition,
-    include_builtin_idf_component,
     get_board,
+    include_builtin_idf_component,
     require_vfs_select,
 )
 import esphome.config_validation as cv
@@ -38,13 +38,13 @@ from .const import (
     ANALOG_INPUT_APPTYPE,
     BACNET_UNIT_NO_UNITS,
     BACNET_UNITS,
+    CONF_ANTENNA,
     CONF_ENDPOINT,
     CONF_POWER_SOURCE,
     CONF_REPORT,
     CONF_ROUTER,
     CONF_USE_DEVICE_TYPE,
     KEY_ZIGBEE,
-    CONF_ANTENNA,
     POWER_SOURCE,
     ZigbeeAttribute,
 )
