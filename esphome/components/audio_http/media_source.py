@@ -33,7 +33,10 @@ def _default_ca_certificate_path(config: ConfigType) -> ConfigType:
     if CONF_CA_CERTIFICATE_PATH in config:
         return config
     http_request_config = (CORE.raw_config or {}).get(CONF_HTTP_REQUEST)
-    if isinstance(http_request_config, dict) and CONF_CA_CERTIFICATE_PATH in http_request_config:
+    if (
+        isinstance(http_request_config, dict)
+        and CONF_CA_CERTIFICATE_PATH in http_request_config
+    ):
         config[CONF_CA_CERTIFICATE_PATH] = cv.file_(
             http_request_config[CONF_CA_CERTIFICATE_PATH]
         )
@@ -78,6 +81,7 @@ async def to_code(config: ConfigType) -> None:
     # the sole trust anchor for HTTPS playback URLs instead of the certificate
     # bundle.
     if ca_cert_path := config.get(CONF_CA_CERTIFICATE_PATH):
+        cg.add_define("USE_AUDIO_HTTP_CA_CERTIFICATE")
         with Path(ca_cert_path).open(encoding="utf-8") as f:
             ca_cert_content = f.read()
         cg.add(var.set_http_ca_certificate(ca_cert_content))
