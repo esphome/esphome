@@ -311,6 +311,8 @@ def test_old_key_retry(
         any("retrying with 'old_key'" in r.message for r in caplog.records) is retried
     )
     assert not any("plaintext" in r.message for r in caplog.records)
+    if expected_rc == 1 and old_noise_psk is not None:
+        assert any("rejected both" in r.message for r in caplog.records)
 
 
 def test_encrypted_upload_success() -> None:
