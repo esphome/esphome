@@ -8055,7 +8055,7 @@ def rotate_env(tmp_path: Path) -> Generator[dict[str, Mock]]:
     with (
         patch("esphome.__main__.choose_upload_log_host", return_value=["dev.local"]),
         patch("esphome.__main__._resolve_network_devices", return_value=["dev.local"]),
-        patch("esphome.__main__.get_port_type", return_value="NETWORK"),
+        patch("esphome.__main__.get_port_type", return_value=PortType.NETWORK),
         patch("esphome.espota2.probe_ota_key", return_value=True) as probe,
         patch("esphome.__main__.run_external_process", return_value=0) as compile_,
         patch("esphome.espota2.run_ota") as upload,
@@ -8069,10 +8069,14 @@ def rotate_env(tmp_path: Path) -> Generator[dict[str, Mock]]:
         stdin.isatty.return_value = True
         # The real upload reports the connection before its result
         upload.return_value = (0, "dev.local")
-        upload.side_effect = lambda *_a, **kw: (
-            kw["on_connect"](),
-            upload.return_value,
-        )[1]
+
+        def upload_after_connecting(
+            *_args: Any, **kwargs: Any
+        ) -> tuple[int, str | None]:
+            kwargs["on_connect"]()
+            return upload.return_value
+
+        upload.side_effect = upload_after_connecting
         yield {
             "probe": probe,
             "compile": compile_,
@@ -8271,7 +8275,8 @@ def test_command_rotate_key_child_compile_gets_global_options_first(
     """The compile parser is strict, so -s and --toolchain precede it."""
     from esphome.core import Toolchain
 
-    args = MockArgs(substitution=[["name", "kitchen"]], dashboard=True)
+    args = MockArgs(substitution=[["name", "kitchen"]])
+    CORE.dashboard = True
     args.toolchain = Toolchain.PLATFORMIO
     assert command_rotate_key(args, CORE.config) == 0
     assert rotate_env["compile"].call_args.args[len(ESPHOME_COMMAND) :] == (

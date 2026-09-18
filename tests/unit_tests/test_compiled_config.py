@@ -18,6 +18,7 @@ from esphome.__main__ import run_esphome
 from esphome.compiled_config import (
     _LAMBDA_KEY,
     compiled_config_path,
+    invalidate_compiled_config,
     load_compiled_config,
     save_compiled_config,
     save_compiled_config_and_sidecar,
@@ -943,10 +944,6 @@ def test_invalidate_compiled_config_reports_an_unlink_failure(
     tmp_path: Path,
 ) -> None:
     """A cache that cannot be removed would serve the old key later."""
-    from unittest.mock import patch
-
-    from esphome.compiled_config import invalidate_compiled_config
-
     CORE.config_path = tmp_path / "test.yaml"
     cache = compiled_config_path("test.yaml")
     cache.parent.mkdir(parents=True)
@@ -961,8 +958,6 @@ def test_invalidate_compiled_config_reports_an_unlink_failure(
 def test_invalidate_compiled_config_drops_every_cache(tmp_path: Path) -> None:
     """Another configuration sharing the edited secrets.yaml or include has
     a cache the mtime check would keep serving."""
-    from esphome.compiled_config import invalidate_compiled_config
-
     CORE.config_path = tmp_path / "test.yaml"
     storage = compiled_config_path("test.yaml").parent
     storage.mkdir(parents=True)

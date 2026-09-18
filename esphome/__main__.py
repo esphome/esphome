@@ -2295,10 +2295,11 @@ def command_rotate_key(args: ArgsProtocol, config: ConfigType) -> int | None:
             "the current configuration first, then rotate."
         )
 
+    keys = f"Previous key: {old_key}\nNew key: {new_key}"
     try:
         originals = apply_key_edits(edits)
     except EsphomeError as err:
-        safe_print(f"Previous key: {old_key}\nNew key: {new_key}")
+        safe_print(keys)
         return fail(str(err))
     # From here every exit restores or reports, so nothing sits outside the try
     uploaded = False
@@ -2308,7 +2309,7 @@ def command_rotate_key(args: ArgsProtocol, config: ConfigType) -> int | None:
             + ", ".join(color(AnsiFore.CYAN, str(p)) for p in originals)
         )
         # Global options go before the subcommand; the compile parser is strict
-        cli_args = ["--dashboard"] if getattr(args, "dashboard", False) else []
+        cli_args = ["--dashboard"] if CORE.dashboard else []
         if toolchain := getattr(args, "toolchain", None):
             cli_args += ["--toolchain", str(toolchain)]
         for key, value in getattr(args, "substitution", None) or []:
@@ -2359,7 +2360,7 @@ def command_rotate_key(args: ArgsProtocol, config: ConfigType) -> int | None:
                 restore_key_files(originals)
             except EsphomeError as err:
                 safe_print(color(AnsiFore.BOLD_RED, str(err)))
-                safe_print(f"Previous key: {old_key}\nNew key: {new_key}")
+                safe_print(keys)
             else:
                 safe_print(
                     color(

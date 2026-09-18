@@ -72,6 +72,15 @@ def _key_blocks(raw: ConfigType, key: str) -> list[ConfigType]:
     ]
 
 
+def _line_at(doc: Path, line_no: int) -> str:
+    lines = _read_text(doc).splitlines()
+    return lines[line_no] if line_no < len(lines) else ""
+
+
+def _indent(text: str) -> str:
+    return re.match(r"\s*", text).group()
+
+
 def _key_line_re(prefix: str, key: str) -> re.Pattern[str]:
     """Match a key line, capturing what surrounds the key."""
     return re.compile(rf"^({prefix})([\"']?){re.escape(key)}\2(\s*(?:#.*)?)$")
@@ -182,8 +191,7 @@ def locate_key_edits(old_key: str, new_key: str) -> list[KeyEdit]:
     own = {doc for doc, _ in sources} | {CORE.config_path.resolve()}
     edits: list[KeyEdit] = []
     for doc, line_no in sources:
-        lines = _read_text(doc).splitlines()
-        text = lines[line_no] if line_no < len(lines) else ""
+        text = _line_at(doc, line_no)
         if match := secret_re.match(text):
             edit = _secret_edit(doc, match.group(2), old_key, new_key, own)
         elif match := literal_re.match(text):
@@ -225,8 +233,7 @@ def old_key_edit(old_key: str) -> KeyEdit:
     rendered = f'{CONF_OLD_KEY}: "{old_key}"'
     if (existing := encryption.get(CONF_OLD_KEY)) is not None:
         doc, line_no = _editable_source(encryption, CONF_OLD_KEY)
-        lines = _read_text(doc).splitlines()
-        text = lines[line_no] if line_no < len(lines) else ""
+        text = _line_at(doc, line_no)
         match = _key_line_re(rf"\s*{CONF_OLD_KEY}:\s*", str(existing)).match(text)
         if match is None:
             raise EsphomeError(
@@ -237,24 +244,22 @@ def old_key_edit(old_key: str) -> KeyEdit:
     # The block's own key line sets the indent, in whichever file holds it
     if _source_of(encryption, CONF_KEY) is not None:
         doc, line_no = _editable_source(encryption, CONF_KEY)
-        lines = _read_text(doc).splitlines()
-        text = lines[line_no] if line_no < len(lines) else ""
+        text = _line_at(doc, line_no)
         if not re.match(rf"\s*{CONF_KEY}:", text):
             raise EsphomeError(
                 f"{doc}:{line_no + 1} does not hold '{CONF_KEY}'; edit it by hand"
             )
-        indent = text[: len(text) - len(text.lstrip())]
-        return KeyEdit(doc, line_no, text, f"{indent}{rendered}", insert_after=True)
+        return KeyEdit(doc, line_no, text, _indent(text) + rendered, insert_after=True)
     # A bare block indents one level below the `encryption:` key
     doc, line_no = _editable_source(item, CONF_ENCRYPTION)
-    lines = _read_text(doc).splitlines()
-    block_text = lines[line_no] if line_no < len(lines) else ""
-    if not re.fullmatch(rf"\s*{CONF_ENCRYPTION}:\s*(#.*)?", block_text):
+    text = _line_at(doc, line_no)
+    if not re.fullmatch(rf"\s*{CONF_ENCRYPTION}:\s*(#.*)?", text):
         raise EsphomeError(
             f"{doc}:{line_no + 1} writes the block in flow style; edit it by hand"
         )
-    indent = block_text[: len(block_text) - len(block_text.lstrip())] + "  "
-    return KeyEdit(doc, line_no, block_text, f"{indent}{rendered}", insert_after=True)
+    return KeyEdit(
+        doc, line_no, text, f"{_indent(text)}  {rendered}", insert_after=True
+    )
 
 
 def apply_key_edits(edits: list[KeyEdit]) -> dict[Path, str]:
@@ -265,6 +270,7 @@ def apply_key_edits(edits: list[KeyEdit]) -> dict[Path, str]:
 
     originals: dict[Path, str] = {}
     current: dict[Path, list[str]] = {}
+    newline: dict[Path, str] = {}
     try:
         # Highest line first, so an insertion never shifts a later edit; an
         # insertion after a line goes before that line's own rewrite
@@ -272,8 +278,9 @@ def apply_key_edits(edits: list[KeyEdit]) -> dict[Path, str]:
             if edit.path not in originals:
                 originals[edit.path] = _read_text(edit.path)
                 current[edit.path] = originals[edit.path].splitlines(keepends=True)
+                newline[edit.path] = "\r\n" if "\r\n" in originals[edit.path] else "\n"
             lines = current[edit.path]
-            nl = "\r\n" if "\r\n" in originals[edit.path] else "\n"
+            nl = newline[edit.path]
             text = lines[edit.line].rstrip("\r\n") if edit.line < len(lines) else None
             if text != edit.old_line:
                 raise EsphomeError(
@@ -289,7 +296,7 @@ def apply_key_edits(edits: list[KeyEdit]) -> dict[Path, str]:
             _write_keeping_mode(path, "".join(lines))
         for path in originals:
             try:
-                yaml_util.load_yaml(path)
+                yaml_util.load_yaml(path, track_document_range=False)
             except EsphomeError as err:
                 raise EsphomeError(f"{path} no longer loads: {err}") from err
         invalidate_compiled_config()
