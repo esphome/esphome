@@ -889,6 +889,7 @@ def perform_ota(
 PROBE_TIMEOUT = 120.0
 PROBE_RETRY_DELAY = 3.0
 PROBE_CONNECT_TIMEOUT = 3.0
+PROBE_HANDSHAKE_TIMEOUT = 10.0
 
 
 def _resolve_targets(remote_host: str | list[str], remote_port: int) -> list[Any]:
@@ -938,11 +939,12 @@ def probe_ota_key(
         started = time.monotonic()
         sock = socket.socket(af, socktype)
         # A dead host must not eat the budget; the handshake is one round trip
-        sock.settimeout(PROBE_CONNECT_TIMEOUT)
+        remaining = max(0.1, deadline - started)
+        sock.settimeout(min(PROBE_CONNECT_TIMEOUT, remaining))
         with contextlib.closing(sock):
             try:
                 sock.connect(sa)
-                sock.settimeout(10.0)
+                sock.settimeout(min(PROBE_HANDSHAKE_TIMEOUT, remaining))
                 session, _, _, _ = _negotiate_session(sock, noise_psk, False, False)
                 receive_exactly(session, 1, "auth", RESPONSE_AUTH_OK)
             except (OTAKeyRejected, OTAEncryptionNotOffered) as err:
@@ -957,7 +959,8 @@ def probe_ota_key(
         if time.monotonic() >= deadline:
             break
         _LOGGER.debug("Key not accepted yet (%s); retrying", last_error)
-        time.sleep(max(0.0, PROBE_RETRY_DELAY - (time.monotonic() - started)))
+        now = time.monotonic()
+        time.sleep(max(0.0, min(PROBE_RETRY_DELAY - (now - started), deadline - now)))
     _LOGGER.warning("The device did not accept the key: %s", last_error)
     return False
 

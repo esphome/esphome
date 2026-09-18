@@ -758,3 +758,22 @@ def test_bare_block_refuses_a_device_that_cannot_encrypt(
     assert device.received != b"firmware"
     assert any("refusing to send the image" in r.message for r in caplog.records)
     assert not any("Retrying in plaintext" in r.message for r in caplog.records)
+
+
+def test_probe_ota_key_never_waits_past_its_deadline() -> None:
+    """Connect and handshake timeouts and the retry sleep are all capped by
+    what is left of the budget."""
+    with (
+        patch(
+            "esphome.espota2.resolve_ip_address",
+            return_value=[(2, 1, 0, "", ("127.0.0.1", 1))],
+        ),
+        patch("socket.socket") as sock_cls,
+        patch("time.sleep") as sleep,
+    ):
+        sock = sock_cls.return_value
+        sock.connect.side_effect = OSError("refused")
+        assert espota2.probe_ota_key("h", 1, PSK, timeout=0.5) is False
+    timeouts = [c.args[0] for c in sock.settimeout.call_args_list]
+    assert all(t <= 0.5 for t in timeouts)
+    assert all(c.args[0] <= 0.5 for c in sleep.call_args_list)
