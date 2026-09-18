@@ -206,6 +206,10 @@ class OTANetworkError(OTAError):
     """Network-level OTA failure (timeout, reset, closed connection); retrying may succeed."""
 
 
+class OTAKeyRejected(OTAError):
+    """The Noise handshake failed on the key; another key may succeed."""
+
+
 # Uploader side options under `ota: encryption:`; the ota component imports
 # the names so the upload path never loads the component module
 CONF_ALLOW_PLAINTEXT_UPLOAD = "allow_plaintext_upload"
@@ -240,10 +244,6 @@ OLD_KEY_REMOVE_NOTICE = (
     f"The device now runs the current key; remove '{CONF_OLD_KEY}' from "
     "'ota: encryption:'"
 )
-
-
-class OTAKeyRejected(OTAError):
-    """The device refused the Noise handshake with the presented key."""
 
 
 class _EncryptionAttempt:
@@ -473,7 +473,7 @@ class NoiseSocketWrapper:
         if payload[0] != NOISE_HANDSHAKE_OK:
             reason = payload[1:].decode("utf-8", "replace")
             if reason == NOISE_MAC_FAILURE_REASON:
-                raise OTAError(
+                raise OTAKeyRejected(
                     "Device rejected the handshake; is the OTA encryption key correct?"
                 )
             raise OTAError(f"Device rejected the noise handshake: {reason}")
@@ -482,7 +482,7 @@ class NoiseSocketWrapper:
         except (ValueError, self._invalid_tag) as err:
             # InvalidTag is a wrong key; ValueError covers a device sending an
             # invalid curve point, which cryptography rejects during the DH
-            raise OTAError(
+            raise OTAKeyRejected(
                 "Noise handshake failed; is the OTA encryption key correct?"
             ) from err
         self._encrypt, self._decrypt = self._handshake.get_ciphers()
@@ -665,8 +665,6 @@ def perform_ota(
         except OTANetworkError as err:
             # A transport fault: retry encrypted before considering plaintext
             raise OTAHandshakeNetworkError(str(err)) from err
-        except OTAError as err:
-            raise OTAKeyRejected(str(err)) from err
         _LOGGER.info("Encrypted connection established")
         if allow_plaintext_upload:
             _LOGGER.warning(ALLOW_PLAINTEXT_UPLOAD_REMOVE_WARNING)
@@ -986,9 +984,8 @@ def run_ota_impl_(
                 _LOGGER.error(str(err))
                 return 1, None
 
-        # Successfully uploaded to sa[0]; the build just sent carries the
-        # current key, so a previous key has nothing left to unlock
-        if old_noise_psk:
+        # Only an app image replaces the key the device runs
+        if old_noise_psk and ota_type == OTA_TYPE_UPDATE_APP:
             _LOGGER.warning(OLD_KEY_REMOVE_NOTICE)
         return 0, sa[0]
 

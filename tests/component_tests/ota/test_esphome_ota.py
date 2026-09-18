@@ -243,6 +243,30 @@ def test_encryption_old_key_keeps_inherited_key() -> None:
         fv.full_config.reset(token)
 
 
+def test_encryption_old_key_mismatch_between_merged_configs_rejected() -> None:
+    """Same-port blocks that pin different old keys raise like differing keys."""
+    full_conf = {
+        CONF_API: {CONF_ENCRYPTION: {CONF_KEY: API_KEY}},
+        CONF_OTA: [
+            _make_ota_config(port=3232, **{CONF_ENCRYPTION: {CONF_OLD_KEY: OTHER_KEY}}),
+            _make_ota_config(
+                port=3232,
+                **{
+                    CONF_ENCRYPTION: {
+                        CONF_OLD_KEY: "AgMEBQYHCAkKCwwNDg8QERITFBUWFxgZGhscHR4fICE="
+                    }
+                },
+            ),
+        ],
+    }
+    token = fv.full_config.set(full_conf)
+    try:
+        with pytest.raises(cv.Invalid, match="old_key is inconsistent"):
+            ota_esphome_final_validate({})
+    finally:
+        fv.full_config.reset(token)
+
+
 def test_encryption_old_key_equal_to_key_rejected() -> None:
     """An old_key that matches key is a leftover from a finished rotation."""
     full_conf = {
@@ -272,7 +296,7 @@ def test_encryption_key_mismatch_between_merged_configs_rejected() -> None:
     }
     token = fv.full_config.set(full_conf)
     try:
-        with pytest.raises(cv.Invalid, match="encryption is inconsistent"):
+        with pytest.raises(cv.Invalid, match="encryption key is inconsistent"):
             ota_esphome_final_validate({})
     finally:
         fv.full_config.reset(token)
