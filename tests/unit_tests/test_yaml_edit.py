@@ -571,3 +571,41 @@ def test_apply_reports_a_rollback_that_also_failed(tmp_path: Path) -> None:
         pytest.raises(EsphomeError, match="broken; Could not restore .*disk"),
     ):
         apply_key_edits(edits)
+
+
+def test_two_same_port_entries_from_a_package_split(tmp_path: Path) -> None:
+    """A bare block from a package and a keyed block from the device: the
+    keyed one is rewritten and gets old_key, the bare one is left alone."""
+    yaml_text = f"""esphome:
+  name: test
+
+ota:
+  - platform: esphome
+    encryption:
+  - platform: esphome
+    encryption:
+      key: "{OLD_KEY}"
+"""
+    path = _setup(tmp_path, yaml_text)
+    apply_key_edits([*locate_key_edits(OLD_KEY, NEW_KEY), old_key_edit(OLD_KEY)])
+    assert path.read_text() == yaml_text.replace(
+        f'      key: "{OLD_KEY}"\n',
+        f'      key: "{NEW_KEY}"\n      old_key: "{OLD_KEY}"\n',
+    )
+
+
+def test_flow_style_bare_block_is_refused(tmp_path: Path) -> None:
+    yaml_text = f"""esphome:
+  name: test
+
+api:
+  encryption:
+    key: "{OLD_KEY}"
+
+ota:
+  - platform: esphome
+    encryption: {{}}
+"""
+    _setup(tmp_path, yaml_text)
+    with pytest.raises(EsphomeError, match="flow style"):
+        old_key_edit(OLD_KEY)

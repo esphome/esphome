@@ -43,25 +43,21 @@ class KeyEdit:
     insert_after: bool = False
 
 
-def _esphome_ota_item(raw: ConfigType) -> ConfigType | None:
-    """The esphome ota item; a raw ``ota:`` may be a mapping, not a list."""
+def _esphome_ota_items(raw: ConfigType) -> list[ConfigType]:
+    """The esphome ota entries; a raw ``ota:`` may be a mapping, not a list,
+    and a package/device split may contribute several same-port entries."""
     ota = raw.get(CONF_OTA) or []
     items = [ota] if isinstance(ota, dict) else ota
-    return next(
-        (
-            item
-            for item in items
-            if isinstance(item, dict) and item.get(CONF_PLATFORM) == CONF_ESPHOME
-        ),
-        None,
-    )
+    return [
+        item
+        for item in items
+        if isinstance(item, dict) and item.get(CONF_PLATFORM) == CONF_ESPHOME
+    ]
 
 
 def _key_blocks(raw: ConfigType, key: str) -> list[ConfigType]:
     """The api and esphome ota ``encryption:`` mappings whose key is ``key``."""
-    blocks = [raw.get(CONF_API) or {}]
-    if (item := _esphome_ota_item(raw)) is not None:
-        blocks.append(item)
+    blocks = [raw.get(CONF_API) or {}, *_esphome_ota_items(raw)]
     # Validation writes the inherited api key into a bare ota block; only a
     # `key:` that was read from a file has a range
     return [
@@ -157,10 +153,27 @@ def locate_key_edits(old_key: str, new_key: str) -> list[KeyEdit]:
 
 
 def old_key_edit(old_key: str) -> KeyEdit:
-    """Set ``old_key:`` on the esphome ota block, rewriting or adding it."""
-    item = _esphome_ota_item(CORE.raw_config or {})
-    if item is None or CONF_ENCRYPTION not in item:
+    """Set ``old_key:`` on the esphome ota block, rewriting or adding it.
+
+    With several same-port entries the one that carries ``old_key`` or
+    ``key`` in its own lines gets it, else the first with a block.
+    """
+    items = [
+        item
+        for item in _esphome_ota_items(CORE.raw_config or {})
+        if CONF_ENCRYPTION in item
+    ]
+    if not items:
         raise EsphomeError("The esphome OTA platform has no 'encryption:' block")
+    item = next(
+        (
+            item
+            for item in items
+            for name in (CONF_OLD_KEY, CONF_KEY)
+            if _source_of(item[CONF_ENCRYPTION] or {}, name) is not None
+        ),
+        items[0],
+    )
     encryption = item[CONF_ENCRYPTION] or {}
     rendered = f'{CONF_OLD_KEY}: "{old_key}"'
     if (existing := encryption.get(CONF_OLD_KEY)) is not None:
@@ -186,6 +199,10 @@ def old_key_edit(old_key: str) -> KeyEdit:
             doc, key_line, key_text, f"{indent}{rendered}", insert_after=True
         )
     block_text = lines[line_no]
+    if not re.fullmatch(rf"\s*{CONF_ENCRYPTION}:\s*(#.*)?", block_text):
+        raise EsphomeError(
+            f"{doc}:{line_no + 1} writes the block in flow style; edit it by hand"
+        )
     indent = block_text[: len(block_text) - len(block_text.lstrip())] + "  "
     return KeyEdit(doc, line_no, block_text, f"{indent}{rendered}", insert_after=True)
 
