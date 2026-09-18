@@ -1,0 +1,6 @@
+climate:
+  - platform: pd_pioneer_ir
+    name: Pioneer AC
+    transmitter_id: xmitr
+    receiver_id: rcvr
+    use_fahrenheit: true
