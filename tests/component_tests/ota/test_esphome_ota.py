@@ -225,11 +225,8 @@ def test_encryption_old_key_schema() -> None:
         encryption_schema({CONF_OLD_KEY: OTHER_KEY})
 
 
-def test_encryption_old_key_warns_and_keeps_inherited_key(
-    caplog: pytest.LogCaptureFixture,
-) -> None:
-    """A bare block with old_key inherits the api key as the current one and
-    warns on every load that old_key is temporary."""
+def test_encryption_old_key_keeps_inherited_key() -> None:
+    """A bare block with old_key inherits the api key as the current one."""
     full_conf = {
         CONF_API: {CONF_ENCRYPTION: {CONF_KEY: API_KEY}},
         CONF_OTA: [
@@ -238,9 +235,7 @@ def test_encryption_old_key_warns_and_keeps_inherited_key(
     }
     token = fv.full_config.set(full_conf)
     try:
-        with caplog.at_level(logging.WARNING):
-            ota_esphome_final_validate({})
-        assert any("'old_key' is set" in record.message for record in caplog.records)
+        ota_esphome_final_validate({})
         updated = fv.full_config.get()
         assert updated[CONF_OTA][0][CONF_ENCRYPTION][CONF_KEY] == API_KEY
         assert updated[CONF_OTA][0][CONF_ENCRYPTION][CONF_OLD_KEY] == OTHER_KEY

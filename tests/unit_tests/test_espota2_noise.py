@@ -305,6 +305,11 @@ def test_old_key_retry(
     assert (
         any("retrying with 'old_key'" in r.message for r in caplog.records) is retried
     )
+    # The build just sent runs the current key, so a configured old_key is
+    # obsolete whether or not it was needed
+    assert any("remove 'old_key'" in r.message for r in caplog.records) is (
+        expected_rc == 0 and old_noise_psk is not None
+    )
     assert not any("plaintext" in r.message for r in caplog.records)
 
 
