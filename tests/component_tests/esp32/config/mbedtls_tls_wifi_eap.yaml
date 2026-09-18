@@ -12,6 +12,3 @@ wifi:
     identity: "user@example.org"
     username: "user"
     password: "secret"
-
-http_request:
-  verify_ssl: true
