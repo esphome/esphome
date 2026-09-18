@@ -189,6 +189,24 @@ TEST(JsonArena, StateDocumentsFitWithoutTouchingTheFallback) {
   }
   EXPECT_EQ(counting_select.allocs, 0);
   EXPECT_GT(select_arena.used(), esphome::json::JSON_POOL_BYTES);
+
+  // The same select with its 40 options copied, as the generator does before the strings are
+  // linked, does not fit: the headroom is sized for linked options and the rest spills
+  Counting counting_copied;
+  JsonArena<ARENA> copied_arena(&counting_copied);
+  {
+    JsonBuilder builder(&copied_arena);
+    JsonArray options = builder.root()["option"].to<JsonArray>();
+    char option_bufs[40][34];
+    for (int i = 0; i < 40; i++) {
+      snprintf(option_bufs[i], sizeof(option_bufs[i]), "option number %02d padded to twenty", i);
+      options.add(static_cast<const char *>(option_bufs[i]));
+    }
+    char out[2048];
+    EXPECT_LT(builder.serialize_to(out, sizeof(out)), sizeof(out));
+  }
+  EXPECT_GT(counting_copied.allocs, 0);
+  EXPECT_GT(copied_arena.used(), ARENA - 64);  // the arena filled up before the spill began
 }
 
 TEST(JsonArena, DocumentMatchesTheHeapAllocator) {

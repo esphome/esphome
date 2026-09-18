@@ -57,8 +57,9 @@ namespace esphome::web_server_idf {
 static const char *const TAG = "web_server_idf";
 
 // The main loop stack is 8 KB. Only send_json_() may hold the JSON arena, so every other frame in
-// this file is capped below one arena and a second arena fails the build.
-#if defined(__GNUC__) && !defined(__clang__)
+// this file is capped below one arena and a second arena fails the build. The budget is measured
+// at -Os; the pragma argument is honoured by GCC 14 and 15, older toolchains skip the check.
+#if defined(__GNUC__) && !defined(__clang__) && __GNUC__ >= 14 && defined(__OPTIMIZE_SIZE__)
 #pragma GCC diagnostic error "-Wstack-usage=2048"
 #endif
 
@@ -1085,7 +1086,7 @@ void AsyncEventSourceResponse::loop() {
   this->entities_iterator_.try_advance(1);
 }
 
-#if defined(__GNUC__) && !defined(__clang__)
+#if defined(__GNUC__) && !defined(__clang__) && __GNUC__ >= 14 && defined(__OPTIMIZE_SIZE__)
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wstack-usage="  // the one frame that holds the arena and the JSON buffer
 #endif
@@ -1145,7 +1146,7 @@ bool AsyncEventSourceResponse::send_json_(void *source, message_generator_t *gen
   drain_tail_();
   return true;
 }
-#if defined(__GNUC__) && !defined(__clang__)
+#if defined(__GNUC__) && !defined(__clang__) && __GNUC__ >= 14 && defined(__OPTIMIZE_SIZE__)
 #pragma GCC diagnostic pop
 #endif
 
