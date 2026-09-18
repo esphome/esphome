@@ -112,7 +112,8 @@ def _editable_source(mapping: ConfigType, name: str) -> tuple[Path, int]:
 def _secret_edit(doc: Path, name: str, old_key: str, new_key: str) -> KeyEdit:
     """The secrets.yaml line ``!secret name`` in ``doc`` resolves to."""
     secrets_path = secrets_path_for(doc)
-    line_re = _key_line_re(rf"{re.escape(name)}:\s*", old_key)
+    # The name may be quoted; nested lines are indented and never match
+    line_re = _key_line_re(rf"[\"']?{re.escape(name)}[\"']?:\s*", old_key)
     hits = [
         (i, m)
         for i, text in enumerate(_read_text(secrets_path).splitlines())
