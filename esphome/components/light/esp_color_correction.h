@@ -1,6 +1,7 @@
 #pragma once
 
 #include "esphome/core/color.h"
+#include "esphome/core/defines.h"
 #include "esphome/core/hal.h"
 
 namespace esphome::light {
@@ -24,6 +25,11 @@ class ESPColorCorrection {
  public:
   void set_max_brightness(const Color &max_brightness) { this->max_brightness_ = max_brightness; }
   void set_local_brightness(uint8_t local_brightness) { this->local_brightness_ = local_brightness; }
+#ifdef USE_LIGHT_POWER_ESTIMATION
+  // Global dimming factor applied on top of local_brightness to enforce a current limit.
+  // Inverted by color_uncorrect_*, so it never compounds across read-modify-write effect frames.
+  void set_power_brightness(uint8_t power_brightness) { this->power_brightness_ = power_brightness; }
+#endif
   void set_gamma_table(const uint16_t *table) { this->gamma_table_ = table; }
   inline Color color_correct(Color color) const ESPHOME_ALWAYS_INLINE {
     // corrected = (uncorrected * max_brightness * local_brightness) ^ gamma
@@ -32,19 +38,19 @@ class ESPColorCorrection {
   }
   inline uint8_t color_correct_red(uint8_t red) const ESPHOME_ALWAYS_INLINE {
     uint8_t res = esp_scale8_twice(red, this->max_brightness_.red, this->local_brightness_);
-    return this->gamma_correct_(res);
+    return this->power_scale_(this->gamma_correct_(res));
   }
   inline uint8_t color_correct_green(uint8_t green) const ESPHOME_ALWAYS_INLINE {
     uint8_t res = esp_scale8_twice(green, this->max_brightness_.green, this->local_brightness_);
-    return this->gamma_correct_(res);
+    return this->power_scale_(this->gamma_correct_(res));
   }
   inline uint8_t color_correct_blue(uint8_t blue) const ESPHOME_ALWAYS_INLINE {
     uint8_t res = esp_scale8_twice(blue, this->max_brightness_.blue, this->local_brightness_);
-    return this->gamma_correct_(res);
+    return this->power_scale_(this->gamma_correct_(res));
   }
   inline uint8_t color_correct_white(uint8_t white) const ESPHOME_ALWAYS_INLINE {
     uint8_t res = esp_scale8_twice(white, this->max_brightness_.white, this->local_brightness_);
-    return this->gamma_correct_(res);
+    return this->power_scale_(this->gamma_correct_(res));
   }
   Color color_uncorrect(Color color) const;
   inline uint8_t color_uncorrect_red(uint8_t red) const ESPHOME_ALWAYS_INLINE {
@@ -61,6 +67,15 @@ class ESPColorCorrection {
   }
 
  protected:
+  /// Apply the power-limit factor after gamma so the stored value scales linearly with it
+  /// (matches the linear current estimate). No-op when power estimation isn't compiled in.
+  inline uint8_t power_scale_(uint8_t value) const ESPHOME_ALWAYS_INLINE {
+#ifdef USE_LIGHT_POWER_ESTIMATION
+    return esp_scale8(value, this->power_brightness_);
+#else
+    return value;
+#endif
+  }
   /// Forward gamma: read uint16 PROGMEM table, convert to uint8
   uint8_t gamma_correct_(uint8_t value) const;
   /// Reverse gamma: binary search the forward PROGMEM table
@@ -72,6 +87,9 @@ class ESPColorCorrection {
   const uint16_t *gamma_table_{nullptr};
   Color max_brightness_{255, 255, 255, 255};
   uint8_t local_brightness_{255};
+#ifdef USE_LIGHT_POWER_ESTIMATION
+  uint8_t power_brightness_{255};
+#endif
 };
 
 }  // namespace esphome::light
