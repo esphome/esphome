@@ -43,6 +43,11 @@ struct SavedNoisePsk {
   noise::psk_t psk;
 } PACKED;  // NOLINT
 #endif
+#if defined(USE_API_NOISE) && defined(USE_OTA_ENCRYPTION_PROVISIONED)
+/// One-shot read of the provisioned key for a boot without an api server (safe mode); false when
+/// there is no key
+bool load_saved_noise_psk(noise::psk_t &out);
+#endif
 
 class APIServer final : public Component,
                         public Controller

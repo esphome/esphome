@@ -29,6 +29,7 @@ from .const import (
     PROVISIONING_PSK,
     ZERO_PSK,
 )
+from .host_prefs import force_safe_mode
 from .types import APIClientConnectedFactory, CompileFunction, ConfigWriter
 
 DEVICE_NAME = "host-ota-test"
@@ -166,6 +167,15 @@ class _Device:
         assert self.proc.returncode is None, "process died on rejected OTA"
 
 
+async def _provision_key(
+    dev: _Device, api_client_connected: APIClientConnectedFactory
+) -> None:
+    """Provision PROVISIONING_PSK over the api and wait for it to activate."""
+    async with api_client_connected(port=dev.api_port, noise_psk=ZERO_PSK) as client:
+        assert await client.noise_encryption_set_key(PROVISIONING_PSK) is True
+    await asyncio.sleep(KEY_ACTIVATION_DELAY)
+
+
 @pytest.mark.asyncio
 async def test_host_ota_self_update(
     yaml_config: str,
@@ -225,6 +235,31 @@ async def test_host_ota_encrypted(
             None, None, "plaintext upload to an encrypted device must fail"
         )
         await dev.ota(None, API_KEY, "encrypted OTA reported failure")
+
+
+@pytest.mark.asyncio
+async def test_host_ota_encrypted_safe_mode(
+    yaml_config: str,
+    write_yaml_config: ConfigWriter,
+    compile_esphome: CompileFunction,
+    reserved_tcp_port: tuple[int, socket.socket],
+) -> None:
+    """Safe mode never constructs the api server, so an encrypted OTA with the
+    api key has to run on the ota component's own copy of that key."""
+    pytest.importorskip("aioesphomeapi.noise")
+    dev = _Device(
+        *await _build(
+            yaml_config, write_yaml_config, compile_esphome, reserved_tcp_port
+        )
+    )
+    # The api port never opens in safe mode, so wait for the log line instead
+    force_safe_mode(DEVICE_NAME)
+    async with run_binary(dev.binary_path, line_callback=dev.on_log) as (proc, lines):
+        dev.proc = proc
+        await _wait_for_line(lines, "SAFE MODE IS ACTIVE", PORT_WAIT_TIMEOUT)
+        await _wait_for_port(LOCALHOST, dev.ota_port, PORT_WAIT_TIMEOUT)
+        # The safe mode boot clears the counter, so the re-exec boots normally
+        await dev.ota(None, API_KEY, "encrypted OTA in safe mode reported failure")
 
 
 @pytest.mark.asyncio
@@ -305,11 +340,7 @@ async def test_host_ota_provisioned_api_key(
             None, None, "plaintext upload to an unprovisioned device must succeed"
         )
 
-        async with api_client_connected(
-            port=dev.api_port, noise_psk=ZERO_PSK
-        ) as client:
-            assert await client.noise_encryption_set_key(PROVISIONING_PSK) is True
-        await asyncio.sleep(KEY_ACTIVATION_DELAY)
+        await _provision_key(dev, api_client_connected)
 
         key = PROVISIONING_PSK.decode()
         await dev.ota(
@@ -317,6 +348,45 @@ async def test_host_ota_provisioned_api_key(
         )
         await dev.ota(None, key, "the key loaded at boot must feed the OTA offer")
         await dev.ota(None, None, "plaintext must stay accepted on an offering device")
+
+
+@pytest.mark.asyncio
+async def test_host_ota_provisioned_api_key_safe_mode(
+    yaml_config: str,
+    write_yaml_config: ConfigWriter,
+    compile_esphome: CompileFunction,
+    reserved_tcp_port: tuple[int, socket.socket],
+    api_client_connected: APIClientConnectedFactory,
+) -> None:
+    """Safe mode never constructs the api server, so the OTA has to load the
+    provisioned key from preferences itself to keep encrypting there."""
+    pytest.importorskip("aioesphomeapi.noise")
+    dev = _Device(
+        *await _build(
+            yaml_config, write_yaml_config, compile_esphome, reserved_tcp_port
+        )
+    )
+    async with run_binary(dev.binary_path, line_callback=dev.on_log) as (proc, _lines):
+        dev.proc = proc
+        await _wait_for_port(LOCALHOST, dev.api_port, PORT_WAIT_TIMEOUT)
+        await _provision_key(dev, api_client_connected)
+
+    # The saved key is already on disk; a host reboot outside an OTA just
+    # exits, so safe mode takes a second start
+    force_safe_mode(DEVICE_NAME)
+    key = PROVISIONING_PSK.decode()
+    async with run_binary(dev.binary_path, line_callback=dev.on_log) as (proc, lines):
+        dev.proc = proc
+        await _wait_for_line(lines, "SAFE MODE IS ACTIVE", PORT_WAIT_TIMEOUT)
+        await _wait_for_port(LOCALHOST, dev.ota_port, PORT_WAIT_TIMEOUT)
+        await dev.ota(
+            None,
+            key,
+            "encrypted upload with the provisioned key must succeed in safe mode",
+        )
+        # The re-exec boots normally and the api reads the same record
+        async with api_client_connected(port=dev.api_port, noise_psk=key):
+            pass
 
 
 @pytest.mark.asyncio
