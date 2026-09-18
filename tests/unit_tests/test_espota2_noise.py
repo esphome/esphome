@@ -239,7 +239,11 @@ def _upload(
 
 
 def _run_ota(
-    device: FakeEncryptedDevice, firmware: bytes, tmp_path: Path, noise_psk: str
+    device: FakeEncryptedDevice,
+    firmware: bytes,
+    tmp_path: Path,
+    noise_psk: str,
+    plaintext_fallback: bool = True,
 ) -> int:
     """Drive the retry loop, which is where the plaintext fallback reconnects."""
     path = tmp_path / "firmware.bin"
@@ -251,7 +255,7 @@ def _run_ota(
         None,
         path,
         noise_psk=noise_psk,
-        plaintext_fallback=True,
+        plaintext_fallback=plaintext_fallback,
     )
     return rc
 
@@ -577,3 +581,18 @@ def test_recv_serves_buffered_plaintext_without_new_frame() -> None:
     assert wrapper.recv(1) == b"A"  # reads and decrypts one frame
     assert wrapper.recv(1) == b"B"  # served from the buffer, no new frame
     wrapper._decrypt.decrypt.assert_called_once()
+
+
+def test_bare_block_refuses_a_device_that_cannot_encrypt(
+    caplog: pytest.LogCaptureFixture, tmp_path: Path
+) -> None:
+    """What the CLI sends for a bare `encryption:` block: a key with neither
+    fallback. The retry loop never reconnects in plaintext."""
+    device = FakeEncryptedDevice(offer_noise=False, require_noise=False)
+    with patch("time.sleep"), caplog.at_level(logging.WARNING):
+        rc = _run_ota(device, b"firmware", tmp_path, PSK, plaintext_fallback=False)
+    device.join_and_check()
+    assert rc == 1
+    assert device.received != b"firmware"
+    assert any("refusing to send the image" in r.message for r in caplog.records)
+    assert not any("Retrying in plaintext" in r.message for r in caplog.records)

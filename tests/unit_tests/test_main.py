@@ -2158,6 +2158,39 @@ def test_upload_program_ota_encryption_key(
     )
 
 
+def test_upload_program_bare_encryption_block_never_falls_back(
+    mock_get_port_type: Mock,
+    tmp_path: Path,
+) -> None:
+    """A bare `ota: encryption:` (the api key inherited by final validate, no
+    option) fails closed against a device that does not offer encryption."""
+    from esphome.components.esphome.ota import ota_esphome_final_validate
+    import esphome.final_validate as fv
+
+    setup_core(platform=PLATFORM_ESP32, tmp_path=tmp_path)
+    mock_get_port_type.return_value = "NETWORK"
+    key = "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="
+    config = {
+        CONF_API: {CONF_ENCRYPTION: {CONF_KEY: key}},
+        CONF_OTA: [{CONF_PLATFORM: CONF_ESPHOME, CONF_PORT: 3232, CONF_ENCRYPTION: {}}],
+    }
+    token = fv.full_config.set(config)
+    try:
+        ota_esphome_final_validate({})
+        config = fv.full_config.get()
+    finally:
+        fv.full_config.reset(token)
+    assert config[CONF_OTA][0][CONF_ENCRYPTION] == {CONF_KEY: key}
+
+    with patch("esphome.espota2.run_ota", return_value=(0, "192.168.1.100")) as run_ota:
+        upload_program(config, MockArgs(), ["192.168.1.100"])
+    assert run_ota.call_args.args[5] == key
+    assert run_ota.call_args.kwargs == {
+        "plaintext_fallback": False,
+        "allow_plaintext_upload": False,
+    }
+
+
 def test_upload_program_ota_allow_plaintext_upload(
     mock_run_ota: Mock,
     mock_get_port_type: Mock,
