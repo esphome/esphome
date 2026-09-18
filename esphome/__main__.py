@@ -1343,11 +1343,13 @@ def _upload_via_native_api(
     # fall back to a plaintext upload
     noise_psk = None
     plaintext_fallback = False
-    allow_plaintext_upload = False
+    # With an encryption block the option is tri-state: unset follows the
+    # release default, which espota2 resolves
+    allow_plaintext_upload: bool | None = False
     if (encryption_conf := ota_conf.get(CONF_ENCRYPTION)) is not None:
         noise_psk = encryption_conf.get(CONF_KEY)
-        allow_plaintext_upload = bool(
-            encryption_conf.get(espota2.CONF_ALLOW_PLAINTEXT_UPLOAD)
+        allow_plaintext_upload = encryption_conf.get(
+            espota2.CONF_ALLOW_PLAINTEXT_UPLOAD
         )
         if not noise_psk:
             raise EsphomeError(
