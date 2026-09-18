@@ -2486,6 +2486,18 @@ def test_read_ota_key_rejects_bad_input(line: str) -> None:
     assert args.ota_key is None
 
 
+def test_read_ota_key_lets_a_serial_target_through(mock_get_port_type: Mock) -> None:
+    """A serial flash of a web_server only config is not refused; the key
+    is ignored with a warning at upload time."""
+    mock_get_port_type.return_value = PortType.SERIAL
+    key = "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="
+    args = MockArgs(prompt_ota_key=True)
+    args.device = ["/dev/ttyUSB0"]
+    with patch("esphome.__main__.read_secret_line", return_value=key):
+        _read_ota_key(args, {CONF_OTA: [{CONF_PLATFORM: CONF_WEB_SERVER}]})
+    assert args.ota_key == key
+
+
 def test_read_ota_key_reports_a_bad_platform_before_prompting() -> None:
     args = MockArgs(prompt_ota_key=True, ota_platform=CONF_WEB_SERVER)
     with (

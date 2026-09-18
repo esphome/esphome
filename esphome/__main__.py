@@ -1767,10 +1767,16 @@ def _read_ota_key(args: ArgsProtocol, config: ConfigType) -> None:
     if not prompt and env_key is None:
         return
     # The HTTP path has no key handshake; decide before prompting or
-    # compiling. A config without OTA is a serial flash, which warns later.
+    # compiling. A serial target, or a config without OTA, is a serial
+    # flash, which warns later instead.
+    devices = getattr(args, "device", None) or []
+    serial_target = bool(devices) and get_port_type(devices[0]) in (
+        PortType.SERIAL,
+        PortType.BOOTSEL,
+    )
     chosen = (
         _choose_ota_platform(config, getattr(args, "ota_platform", None))
-        if _ota_upload_platforms(config)
+        if _ota_upload_platforms(config) and not serial_target
         else None
     )
     if chosen == CONF_WEB_SERVER:
