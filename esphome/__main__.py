@@ -48,8 +48,11 @@ from esphome.const import (
     CONF_WEB_SERVER,
     CONF_WIFI,
     ENV_NOGITIGNORE,
+    KEY_CORE,
     KEY_ESP32,
+    KEY_TARGET_PLATFORM,
     KEY_VARIANT,
+    PLATFORM_HOST,
     SECRETS_FILES,
     Toolchain,
 )
@@ -1772,6 +1775,9 @@ def _read_ota_key(args: ArgsProtocol, config: ConfigType) -> None:
     env_key = getattr(args, "env_ota_key", None)
     if not prompt and env_key is None:
         return
+    if CORE.data.get(KEY_CORE, {}).get(KEY_TARGET_PLATFORM) == PLATFORM_HOST:
+        _LOGGER.warning("A host program runs locally; the presented OTA key is ignored")
+        return
     # The HTTP path has no key handshake; decide before prompting or
     # compiling. A serial target is a serial flash, which warns later
     # instead, and --ota-platform means nothing to it.
@@ -1791,6 +1797,8 @@ def _read_ota_key(args: ArgsProtocol, config: ConfigType) -> None:
     from esphome.config_validation import Invalid
 
     key = read_secret_line("OTA encryption key: ") if prompt else env_key
+    if serial_target:
+        return  # ignored with a warning at upload time; still consumed from stdin
     try:
         validate_encryption_key(key)
     except Invalid as err:
