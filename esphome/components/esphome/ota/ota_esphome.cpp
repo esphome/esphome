@@ -470,6 +470,7 @@ void ESPHomeOTAComponent::handle_data_() {
       if (this->remote_closed_) {
         // A key probe (esphome rotate-key) leaves right after the handshake;
         // nothing was started, so no error status or listener callback
+        ESP_LOGD(TAG, "Client left after the handshake");
         this->cleanup_connection_();
         return;
       }
@@ -545,9 +546,10 @@ void ESPHomeOTAComponent::handle_data_() {
 #ifdef USE_OTA_ENCRYPTION
     if (this->noise_ != nullptr) {
       // One frame per call; noise_read_data_ waits internally (readall_), so
-      // there is no would-block retry here and failures are already logged.
+      // there is no would-block retry here
       read = this->noise_read_data_(buf, requested);
       if (read <= 0) {
+        this->log_read_error_(LOG_STR("data"));
         error_code = ota::OTA_RESPONSE_ERROR_UNKNOWN;
         goto error;  // NOLINT(cppcoreguidelines-avoid-goto)
       }
