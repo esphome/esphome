@@ -52,6 +52,19 @@ class KeyEdit:
     shared_with: list[Path] = field(default_factory=list)
 
 
+@dataclass
+class Snapshot:
+    """A rewritten file's text before and after; the restore only puts
+    ``original`` back over ``written``, never over the user's own edit."""
+
+    original: str
+    written: str | None = None
+
+    def __post_init__(self) -> None:
+        if self.written is None:
+            self.written = self.original
+
+
 def _esphome_ota_items(raw: ConfigType) -> list[ConfigType]:
     """The esphome ota entries; a raw ``ota:`` may be a mapping, not a list,
     and a package/device split may contribute several same-port entries."""
@@ -203,10 +216,7 @@ def _write_keeping_mode(path: Path, text: str) -> None:
     """secrets.yaml is often 0600; write_file would widen it to 0644."""
     try:
         mode = stat.S_IMODE(path.stat().st_mode)
-    except OSError as err:
-        raise EsphomeError(f"Could not read {path}: {err}") from err
-    write_file(path, text, private=True)
-    try:
+        write_file(path, text, private=True)
         path.chmod(mode)
     except OSError as err:
         raise EsphomeError(f"Could not keep the mode of {path}: {err}") from err
@@ -410,21 +420,23 @@ def old_key_edit(old_key: str) -> list[KeyEdit]:
     return _with_sharers([edit, *extra])
 
 
-def apply_key_edits(edits: list[KeyEdit]) -> dict[Path, str]:
-    """Rewrite the located lines and return each touched file's original
-    text for a rollback; a file that no longer loads is undone here."""
+def apply_key_edits(edits: list[KeyEdit]) -> dict[Path, Snapshot]:
+    """Rewrite the located lines and return each touched file's text before
+    and after, for a rollback; a file that no longer loads is undone here."""
     from esphome import yaml_util
     from esphome.compiled_config import invalidate_compiled_config
 
-    originals: dict[Path, str] = {}
+    originals: dict[Path, Snapshot] = {}
     current: dict[Path, list[str]] = {}
     try:
         # Highest line first, so an insertion never shifts a later edit; an
         # insertion after a line goes before that line's own rewrite
         for edit in sorted(edits, key=lambda e: (e.line, e.insert_after), reverse=True):
             if edit.path not in originals:
-                originals[edit.path] = _read_text(edit.path)
-                current[edit.path] = originals[edit.path].splitlines(keepends=True)
+                originals[edit.path] = Snapshot(_read_text(edit.path))
+                current[edit.path] = originals[edit.path].original.splitlines(
+                    keepends=True
+                )
             lines = current[edit.path]
             text = lines[edit.line].rstrip("\r\n") if edit.line < len(lines) else None
             if text != edit.old_line:
@@ -434,13 +446,16 @@ def apply_key_edits(edits: list[KeyEdit]) -> dict[Path, str]:
             ending = lines[edit.line][len(text) :]
             if edit.insert_after:
                 # A last line without a newline gets the file's own kind
-                nl = ending or ("\r\n" if "\r\n" in originals[edit.path] else "\n")
+                nl = ending or (
+                    "\r\n" if "\r\n" in originals[edit.path].original else "\n"
+                )
                 lines[edit.line] = text + nl
                 lines.insert(edit.line + 1, edit.new_line + ending)
             else:
                 lines[edit.line] = edit.new_line + ending
         for path, lines in current.items():
-            _write_keeping_mode(path, "".join(lines))
+            originals[path].written = "".join(lines)
+            _write_keeping_mode(path, originals[path].written)
         for path in originals:
             try:
                 yaml_util.load_yaml(path, track_document_range=False)
@@ -456,15 +471,18 @@ def apply_key_edits(edits: list[KeyEdit]) -> dict[Path, str]:
     return originals
 
 
-def restore_key_files(originals: dict[Path, str]) -> None:
+def restore_key_files(originals: dict[Path, Snapshot]) -> None:
     """Put back the files apply_key_edits rewrote; every file is tried and
-    the ones that failed are reported together."""
+    the ones that failed, or that the user changed meanwhile, are reported
+    together and left alone."""
     from esphome.compiled_config import invalidate_compiled_config
 
     failed = []
-    for path, text in originals.items():
+    for path, snapshot in originals.items():
         try:
-            _write_keeping_mode(path, text)
+            if _read_text(path) != snapshot.written:
+                raise EsphomeError("changed since it was written, left as is")
+            _write_keeping_mode(path, snapshot.original)
         except EsphomeError as err:
             failed.append(f"{path}: {err}")
     try:

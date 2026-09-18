@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 import sys
+from typing import Any
 from unittest.mock import patch
 
 import pytest
@@ -14,6 +15,7 @@ from esphome.config import do_substitution_pass
 from esphome.core import CORE, EsphomeError
 from esphome.yaml_edit import (
     KeyEdit,
+    Snapshot,
     apply_key_edits,
     locate_key_edits,
     old_key_edit,
@@ -78,7 +80,7 @@ def test_inline_api_key(tmp_path: Path) -> None:
     assert [(e.path, e.line) for e in edits] == [(path, 5)]
     assert edits[0].new_line == f'    key: "{NEW_KEY}"  # shared with ota'
     originals = apply_key_edits(edits)
-    assert originals == {path: API_YAML}
+    assert originals == {path: Snapshot(API_YAML, API_YAML.replace(OLD_KEY, NEW_KEY))}
     assert path.read_text() == API_YAML.replace(OLD_KEY, NEW_KEY)
     restore_key_files(originals)
     assert path.read_text() == API_YAML
@@ -245,7 +247,9 @@ def test_restore_reports_every_file_it_could_not_write(tmp_path: Path) -> None:
         patch("esphome.yaml_edit.write_file", side_effect=[EsphomeError("disk"), None]),
         pytest.raises(EsphomeError, match="Could not restore .*b.yaml: disk"),
     ):
-        restore_key_files({tmp_path / "b.yaml": "x", good: "y"})
+        restore_key_files(
+            {tmp_path / "b.yaml": Snapshot("x", ""), good: Snapshot("y", "")}
+        )
 
 
 def test_clears_the_validated_cache(tmp_path: Path) -> None:
@@ -750,9 +754,9 @@ def test_literal_key_in_a_shared_include_is_reported(tmp_path: Path) -> None:
 def test_restore_reports_a_missing_file(tmp_path: Path) -> None:
     _setup(tmp_path, API_YAML)
     with pytest.raises(
-        EsphomeError, match="Could not restore .*gone.yaml: Could not read"
+        EsphomeError, match="Could not restore .*gone.yaml: Error reading file"
     ):
-        restore_key_files({tmp_path / "gone.yaml": "x"})
+        restore_key_files({tmp_path / "gone.yaml": Snapshot("x")})
 
 
 def test_mode_failure_is_reported(tmp_path: Path) -> None:
@@ -798,7 +802,7 @@ def test_restore_reports_a_cache_it_could_not_drop(tmp_path: Path) -> None:
         ),
         pytest.raises(EsphomeError, match="Could not restore busy"),
     ):
-        restore_key_files({path: API_YAML})
+        restore_key_files({path: Snapshot(API_YAML)})
 
 
 def test_own_includes_and_similar_names_are_not_shared_users(tmp_path: Path) -> None:
@@ -870,6 +874,18 @@ def test_file_shortened_after_the_load_is_reported(tmp_path: Path) -> None:
         locate_key_edits(OLD_KEY, NEW_KEY)
 
 
+def test_restore_leaves_a_file_the_user_changed_alone(tmp_path: Path) -> None:
+    """An edit made during the compile is not overwritten by the rollback;
+    the file is reported so the previous key can be put back by hand."""
+    path = _setup(tmp_path, API_YAML)
+    originals = apply_key_edits(locate_key_edits(OLD_KEY, NEW_KEY))
+    edited = path.read_text() + "logger:\n"
+    path.write_bytes(edited.encode())
+    with pytest.raises(EsphomeError, match="changed since it was written, left as is"):
+        restore_key_files(originals)
+    assert path.read_text() == edited
+
+
 def test_rolls_back_when_the_cache_cannot_be_dropped(tmp_path: Path) -> None:
     path = _setup(tmp_path, API_YAML)
     edits = locate_key_edits(OLD_KEY, NEW_KEY)
@@ -896,11 +912,22 @@ def test_rolls_back_on_an_interrupt_during_the_reload(tmp_path: Path) -> None:
 
 
 def test_apply_reports_a_rollback_that_also_failed(tmp_path: Path) -> None:
+    """The rewrite lands, the reload fails, and the rollback write fails too."""
+    from esphome.yaml_edit import write_file
+
     _setup(tmp_path, API_YAML)
     edits = locate_key_edits(OLD_KEY, NEW_KEY)
+    writes: list[int] = []
+
+    def write_then_fail(*args: Any, **kwargs: Any) -> None:
+        writes.append(1)
+        if len(writes) > 1:
+            raise EsphomeError("disk")
+        write_file(*args, **kwargs)
+
     with (
         patch("esphome.yaml_util.load_yaml", side_effect=EsphomeError("broken")),
-        patch("esphome.yaml_edit.write_file", side_effect=[None, EsphomeError("disk")]),
+        patch("esphome.yaml_edit.write_file", side_effect=write_then_fail),
         pytest.raises(EsphomeError, match="broken; Could not restore .*disk"),
     ):
         apply_key_edits(edits)
