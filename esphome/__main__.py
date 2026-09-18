@@ -1420,7 +1420,7 @@ def _upload_via_native_api(
     if ota_type == espota2.OTA_TYPE_UPDATE_BOOTLOADER:
         _validate_bootloader_binary(binary)
 
-    return espota2.run_ota(
+    result = espota2.run_ota(
         network_devices,
         remote_port,
         password,
@@ -1431,6 +1431,15 @@ def _upload_via_native_api(
         allow_plaintext_upload=allow_plaintext_upload,
         old_noise_psk=old_noise_psk,
     )
+    # Only an app image built from this config replaces the key the device runs
+    if (
+        result[0] == 0
+        and old_noise_psk
+        and ota_type == espota2.OTA_TYPE_UPDATE_APP
+        and getattr(args, "file", None) is None
+    ):
+        _LOGGER.warning(espota2.OLD_KEY_REMOVE_NOTICE)
+    return result
 
 
 def _upload_via_web_server(
