@@ -128,7 +128,7 @@ def locate_key_edits(old_key: str, new_key: str) -> list[KeyEdit]:
     """The edits that replace the current key; raises EsphomeError for a
     substitution, flow mapping or remote package."""
     literal_re = _key_line_re(rf"\s*{CONF_KEY}:\s*", old_key)
-    secret_re = re.compile(rf"^\s*{CONF_KEY}:\s*!secret\s+([^\s#]+)")
+    secret_re = re.compile(rf"^\s*{CONF_KEY}:\s*!secret\s+([\"']?)([^\s#\"']+)\1")
     blocks = _key_blocks(CORE.raw_config or {}, old_key)
     if not blocks:
         raise EsphomeError("The current key was not found on a line of the yaml")
@@ -138,7 +138,7 @@ def locate_key_edits(old_key: str, new_key: str) -> list[KeyEdit]:
         lines = _read_text(doc).splitlines()
         text = lines[line_no] if line_no < len(lines) else ""
         if match := secret_re.match(text):
-            edit = _secret_edit(doc, match.group(1), old_key, new_key)
+            edit = _secret_edit(doc, match.group(2), old_key, new_key)
         elif match := literal_re.match(text):
             edit = KeyEdit(doc, line_no, text, _rewrite(match, new_key))
         else:
@@ -242,13 +242,13 @@ def apply_key_edits(edits: list[KeyEdit]) -> dict[Path, str]:
                 yaml_util.load_yaml(path)
             except EsphomeError as err:
                 raise EsphomeError(f"{path} no longer loads: {err}") from err
+        invalidate_compiled_config()
     except BaseException as err:
         try:
             restore_key_files(originals)
         except EsphomeError as restore_err:
             raise EsphomeError(f"{err}; {restore_err}") from err
         raise
-    invalidate_compiled_config()
     return originals
 
 
@@ -263,6 +263,9 @@ def restore_key_files(originals: dict[Path, str]) -> None:
             write_file(path, text)
         except EsphomeError as err:
             failed.append(f"{path}: {err}")
-    invalidate_compiled_config()
+    try:
+        invalidate_compiled_config()
+    except EsphomeError as err:
+        failed.append(str(err))
     if failed:
         raise EsphomeError("Could not restore " + "; ".join(failed))

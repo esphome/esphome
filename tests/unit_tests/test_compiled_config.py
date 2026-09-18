@@ -5,7 +5,6 @@ from __future__ import annotations
 from contextlib import contextmanager
 from ipaddress import IPv4Address, IPv4Network
 import json
-import logging
 import os
 from pathlib import Path
 from typing import Any
@@ -940,9 +939,10 @@ def test_load_compiled_config_rejects_wizard_only_sidecar(
     assert load_compiled_config(yaml_path) is None
 
 
-def test_invalidate_compiled_config_logs_an_unlink_failure(
-    tmp_path: Path, caplog: pytest.LogCaptureFixture
+def test_invalidate_compiled_config_reports_an_unlink_failure(
+    tmp_path: Path,
 ) -> None:
+    """A cache that cannot be removed would serve the old key later."""
     from unittest.mock import patch
 
     from esphome.compiled_config import invalidate_compiled_config
@@ -950,7 +950,6 @@ def test_invalidate_compiled_config_logs_an_unlink_failure(
     CORE.config_path = tmp_path / "test.yaml"
     with (
         patch("pathlib.Path.unlink", side_effect=OSError("busy")),
-        caplog.at_level(logging.WARNING),
+        pytest.raises(EsphomeError, match="validated config cache"),
     ):
         invalidate_compiled_config()
-    assert any("validated config cache" in r.message for r in caplog.records)

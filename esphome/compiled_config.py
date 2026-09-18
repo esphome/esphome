@@ -45,7 +45,10 @@ def invalidate_compiled_config() -> None:
     try:
         path.unlink(missing_ok=True)
     except OSError as err:
-        _LOGGER.warning("Could not remove the validated config cache %s: %s", path, err)
+        # A stale cache would present the old key on the next upload
+        raise EsphomeError(
+            f"Could not remove the validated config cache {path}: {err}"
+        ) from err
 
 
 def save_compiled_config(config: ConfigType) -> None:
