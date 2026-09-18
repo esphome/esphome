@@ -241,8 +241,8 @@ PLAINTEXT_FALLBACK_NOTICE = (
 
 
 OLD_KEY_REMOVE_NOTICE = (
-    f"The device now runs the current key; remove '{CONF_OLD_KEY}' from "
-    "'ota: encryption:'"
+    "Once the device has booted this firmware it runs the current key; remove "
+    f"'{CONF_OLD_KEY}' from 'ota: encryption:'"
 )
 
 
@@ -992,6 +992,13 @@ def run_ota_impl_(
                 _LOGGER.error(str(err))
                 return 1, None
 
+        if encryption.tried_old_key:
+            # Kept next to the result: a device that should already run the
+            # current key but answered to the previous one is worth a look
+            _LOGGER.warning(
+                "The device accepted '%s'; it was still running the previous key",
+                CONF_OLD_KEY,
+            )
         return 0, sa[0]
 
     _LOGGER.error("Upload failed after %d attempts: %s", total_attempts, last_error)
