@@ -110,7 +110,7 @@ void RemoteTransmitterComponent::deliver_completion_() {
   if (!this->stall_aborted_)
     this->status_clear_warning();
   this->complete_pending_ = false;
-  this->complete_trigger_.trigger();
+  this->fire_complete_(!this->stall_aborted_);
 }
 
 // Waits until no chain is in flight, delivering any deferred completions; a completion
@@ -152,20 +152,21 @@ void RemoteTransmitterComponent::arm_chain_(uint32_t send_times, uint32_t send_w
   this->start_isr_item_(0);
 }
 
+void RemoteTransmitterComponent::flush_pending_completion() { this->wait_until_idle_(); }
+
 void RemoteTransmitterComponent::send_internal(uint32_t send_times, uint32_t send_wait) {
   if (!this->envelope_ready_()) {
     // both triggers still fire, so an on_complete-sequenced automation does not stall
     ESP_LOGW(TAG, "Cannot send: PWM not initialized");
     this->transmit_trigger_.trigger();
-    this->deliver_completion_();
+    this->fire_complete_(false);
     return;
   }
-  this->wait_until_idle_();
   if (send_times == 0) {
     // parity with the loop-based implementations: transmit nothing, but both triggers
     // still fire so an on_complete-sequenced automation does not stall
     this->transmit_trigger_.trigger();
-    this->deliver_completion_();
+    this->fire_complete_(false);
     return;
   }
   ESP_LOGD(TAG, "Sending remote code");
@@ -175,7 +176,7 @@ void RemoteTransmitterComponent::send_internal(uint32_t send_times, uint32_t sen
   if (this->isr_data_.empty()) {
     ESP_LOGW(TAG, "Empty data");
     this->transmit_trigger_.trigger();
-    this->deliver_completion_();
+    this->fire_complete_(false);
     return;
   }
   // trigger first: the deadline computed in arm_chain_ must not be charged for user code
