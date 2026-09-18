@@ -672,7 +672,7 @@ bool ESPHomeOTAComponent::readall_(uint8_t *buf, size_t len) {
         return false;
       }
     } else if (read == 0) {
-      ESP_LOGW(TAG, "Remote closed");
+      // Reported by the caller: a close before the transfer starts is clean
       this->remote_closed_ = true;
       return false;
     } else {
@@ -719,7 +719,13 @@ void ESPHomeOTAComponent::log_socket_error_(const LogString *msg) {
   ESP_LOGW(TAG, "Socket %s: errno %d", LOG_STR_ARG(msg), errno);
 }
 
-void ESPHomeOTAComponent::log_read_error_(const LogString *what) { ESP_LOGW(TAG, "Read %s failed", LOG_STR_ARG(what)); }
+void ESPHomeOTAComponent::log_read_error_(const LogString *what) {
+  if (this->remote_closed_) {
+    this->log_remote_closed_(what);
+    return;
+  }
+  ESP_LOGW(TAG, "Read %s failed", LOG_STR_ARG(what));
+}
 
 void ESPHomeOTAComponent::log_start_(const LogString *phase) {
   char peername[socket::SOCKADDR_STR_LEN];
