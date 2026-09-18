@@ -2496,19 +2496,27 @@ def test_read_ota_key_rejects_bad_input(line: str) -> None:
     ids=["port", "port_with_ota_platform", "selector"],
 )
 def test_read_ota_key_lets_a_serial_target_through(
-    mock_get_port_type: Mock, device: str, port_type: PortType, ota_platform: str | None
+    mock_get_port_type: Mock,
+    caplog: pytest.LogCaptureFixture,
+    device: str,
+    port_type: PortType,
+    ota_platform: str | None,
 ) -> None:
     """A serial flash of a web_server only config is not refused, whatever
-    --ota-platform says, and the key is not even validated: it is ignored
-    with a warning at upload time. The SERIAL selector only resolves to a
-    port later, so it counts by name."""
+    --ota-platform says; the key is not asked for and the user is told it is
+    ignored. The SERIAL selector only resolves to a port later, so it counts
+    by name."""
     mock_get_port_type.return_value = port_type
     args = MockArgs(prompt_ota_key=True, ota_platform=ota_platform)
     args.device = [device]
-    with patch("esphome.__main__.read_secret_line", return_value="typo") as read:
+    with (
+        patch("esphome.__main__.read_secret_line") as read,
+        caplog.at_level(logging.WARNING),
+    ):
         _read_ota_key(args, {CONF_OTA: [{CONF_PLATFORM: CONF_WEB_SERVER}]})
-    read.assert_called_once()
+    read.assert_not_called()
     assert args.ota_key is None
+    assert any(f"ignored for {device}" in r.message for r in caplog.records)
 
 
 def test_read_ota_key_ignored_for_a_host_build(
