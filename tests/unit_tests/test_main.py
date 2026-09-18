@@ -2487,19 +2487,24 @@ def test_read_ota_key_rejects_bad_input(line: str) -> None:
 
 
 @pytest.mark.parametrize(
-    ("device", "port_type"),
-    [("/dev/ttyUSB0", PortType.SERIAL), ("SERIAL", PortType.NETWORK)],
+    ("devices", "port_type"),
+    [
+        (["/dev/ttyUSB0"], PortType.SERIAL),
+        (["SERIAL"], PortType.NETWORK),
+        (None, PortType.NETWORK),
+    ],
+    ids=["port", "selector", "chooser"],
 )
 def test_read_ota_key_lets_a_serial_target_through(
-    mock_get_port_type: Mock, device: str, port_type: PortType
+    mock_get_port_type: Mock, devices: list[str] | None, port_type: PortType
 ) -> None:
-    """A serial flash of a web_server only config is not refused; the key
-    is ignored with a warning at upload time. The SERIAL selector is only
-    resolved to a port later, so it counts by name."""
+    """A serial flash of a web_server only config is not refused here; the
+    key is ignored with a warning at upload time. The SERIAL selector and
+    the chooser only resolve to a port later."""
     mock_get_port_type.return_value = port_type
     key = "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="
     args = MockArgs(prompt_ota_key=True)
-    args.device = [device]
+    args.device = devices
     with patch("esphome.__main__.read_secret_line", return_value=key):
         _read_ota_key(args, {CONF_OTA: [{CONF_PLATFORM: CONF_WEB_SERVER}]})
     assert args.ota_key == key
@@ -2532,12 +2537,14 @@ def test_read_ota_key_reports_a_bad_platform_before_prompting() -> None:
     ids=["requested", "only_platform"],
 )
 def test_read_ota_key_refuses_web_server_platform(
-    ota_platform: str | None, config: dict[str, Any]
+    mock_get_port_type: Mock, ota_platform: str | None, config: dict[str, Any]
 ) -> None:
     """The HTTP path has no key handshake, so the flag is refused before the
     prompt and before any compile, whether web_server was asked for or is the
-    only platform in the config."""
+    only platform in the config for a network target."""
+    mock_get_port_type.return_value = PortType.NETWORK
     args = MockArgs(prompt_ota_key=True, ota_platform=ota_platform)
+    args.device = ["192.168.1.100"]
     with (
         patch("esphome.__main__.read_secret_line") as read,
         pytest.raises(EsphomeError, match="only apply to the esphome OTA"),
@@ -3210,6 +3217,22 @@ def test_upload_program_web_server_only_auto_dispatches(
         ["192.168.1.100"], 80, "admin", "pw", expected_firmware
     )
     mock_run_ota.assert_not_called()
+
+
+def test_upload_program_web_server_refuses_a_presented_key(
+    mock_run_web_server_ota: Mock,
+    mock_get_port_type: Mock,
+    tmp_path: Path,
+) -> None:
+    """A network target picked in the chooser reaches the HTTP path with the
+    key; it is refused rather than silently dropped."""
+    setup_core(platform=PLATFORM_ESP32, tmp_path=tmp_path)
+    mock_get_port_type.return_value = "NETWORK"
+    config = {CONF_OTA: [{CONF_PLATFORM: CONF_WEB_SERVER}], CONF_WEB_SERVER: {}}
+    args = MockArgs(ota_key="AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=")
+    with pytest.raises(EsphomeError, match="only apply to the esphome OTA"):
+        upload_program(config, args, ["192.168.1.100"])
+    mock_run_web_server_ota.assert_not_called()
 
 
 def test_upload_program_web_server_no_auth(
