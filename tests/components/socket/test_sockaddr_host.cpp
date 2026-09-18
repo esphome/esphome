@@ -32,7 +32,6 @@ TEST(SetSockaddr, IPv4Broadcast) {
 }
 
 TEST(SetSockaddr, IPv4MalformedYieldsZeroAndEINVAL) {
-  GTEST_SKIP();  // known bug, fix in a follow-up commit
   struct sockaddr_storage addr {};
   errno = 0;
   socklen_t len = set_sockaddr((struct sockaddr *) &addr, sizeof(addr), "not-an-ip", 1);
