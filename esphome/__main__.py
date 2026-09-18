@@ -2299,12 +2299,14 @@ def command_rotate_key(args: ArgsProtocol, config: ConfigType) -> int | None:
         + ", ".join(color(AnsiFore.CYAN, str(p)) for p in originals)
     )
 
-    cli_args = ["compile", str(CORE.config_path)]
+    # Global options go before the subcommand; the compile parser is strict
+    cli_args = ["--dashboard"] if getattr(args, "dashboard", False) else []
+    if toolchain := getattr(args, "toolchain", None):
+        cli_args += ["--toolchain", toolchain]
     for key, value in getattr(args, "substitution", None) or []:
         cli_args += ["-s", key, value]
-    if getattr(args, "dashboard", False):
-        cli_args.insert(0, "--dashboard")
-    done = False
+    cli_args += ["compile", str(CORE.config_path)]
+    uploaded = False
     try:
         if run_external_process(*ESPHOME_COMMAND, *cli_args) != 0:
             return fail("Compiling with the new key failed")
@@ -2313,18 +2315,20 @@ def command_rotate_key(args: ArgsProtocol, config: ConfigType) -> int | None:
             return fail(
                 "Uploading with the current key failed; nothing changed on the device"
             )
+        uploaded = True
         safe_print("Waiting for the device to come back with the new key...")
         if not espota2.probe_ota_key(network_devices, remote_port, new_key):
             return fail(
-                "The upload completed but the device did not answer with the new "
-                "key. If it comes back running the new key, put it in the "
-                f"configuration by hand: {new_key}"
+                "The device did not answer with the new key. The configuration "
+                "keeps it, with the previous key as old_key, so the next install "
+                "reaches the device either way."
             )
-        done = True
     except KeyboardInterrupt:
         return 1
     finally:
-        if not done:
+        # Before the upload nothing changed on the device; after it the device
+        # most likely runs the new key, and old_key covers the other case
+        if not uploaded:
             restore_key_files(originals)
             safe_print(
                 color(
@@ -2333,8 +2337,9 @@ def command_rotate_key(args: ArgsProtocol, config: ConfigType) -> int | None:
                     + ", ".join(str(p) for p in originals),
                 )
             )
+        else:
+            safe_print(f"New OTA encryption key: {color(AnsiFore.CYAN, new_key)}")
 
-    safe_print(f"New OTA encryption key: {color(AnsiFore.CYAN, new_key)}")
     safe_print(color(AnsiFore.BOLD_GREEN, "SUCCESS"))
     return 0
 

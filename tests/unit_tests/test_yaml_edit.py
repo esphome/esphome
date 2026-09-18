@@ -270,3 +270,30 @@ ota:
     assert path.read_text() == yaml_text.replace(OLD_KEY, NEW_KEY).replace(
         older, OLD_KEY
     )
+
+
+def test_ota_written_as_a_mapping(tmp_path: Path) -> None:
+    """A single-platform ota: written without the list dash is still found."""
+    yaml_text = f"""esphome:
+  name: test
+
+ota:
+  platform: esphome
+  encryption:
+    key: "{OLD_KEY}"
+"""
+    path = _setup(tmp_path, yaml_text)
+    apply_key_edits([*locate_key_edits(OLD_KEY, NEW_KEY), old_key_edit(OLD_KEY)])
+    assert path.read_text() == yaml_text.replace(OLD_KEY, NEW_KEY) + (
+        f'    old_key: "{OLD_KEY}"\n'
+    )
+
+
+def test_keeps_windows_line_endings_and_a_bare_last_line(tmp_path: Path) -> None:
+    text = API_YAML.replace("\n", "\r\n").rstrip("\r\n")
+    path = _setup(tmp_path, text)
+    apply_key_edits([*locate_key_edits(OLD_KEY, NEW_KEY), old_key_edit(OLD_KEY)])
+    assert (
+        path.read_bytes()
+        == (text.replace(OLD_KEY, NEW_KEY) + f'\r\n      old_key: "{OLD_KEY}"').encode()
+    )

@@ -24,9 +24,17 @@ from esphome.const import (
 )
 from esphome.core import CORE, EsphomeError
 from esphome.espota2 import CONF_OLD_KEY
-from esphome.helpers import read_file, write_file
+from esphome.helpers import write_file
 from esphome.types import ConfigType
 from esphome.yaml_util import secrets_path_for
+
+
+def _read_text(path: Path) -> str:
+    """The file as written, line endings included; read_file would fold them."""
+    try:
+        return path.read_bytes().decode("utf-8")
+    except (OSError, UnicodeDecodeError) as err:
+        raise EsphomeError(f"Error reading file {path}: {err}") from err
 
 
 @dataclass
@@ -39,15 +47,27 @@ class KeyEdit:
     insert_after: bool = False
 
 
+def _esphome_ota_item(raw: ConfigType) -> ConfigType | None:
+    """The esphome ota item of a raw config, where ``ota:`` may still be a
+    single mapping rather than a list."""
+    ota = raw.get(CONF_OTA) or []
+    items = [ota] if isinstance(ota, dict) else ota
+    return next(
+        (
+            item
+            for item in items
+            if isinstance(item, dict) and item.get(CONF_PLATFORM) == CONF_ESPHOME
+        ),
+        None,
+    )
+
+
 def _key_nodes(raw: ConfigType, key: str) -> list[str]:
     """The api and esphome ota key values equal to ``key``; from a loaded
     yaml they carry the source range they were read from."""
     nodes = [static_encryption_key(raw.get(CONF_API) or {})]
-    nodes += [
-        static_encryption_key(item)
-        for item in raw.get(CONF_OTA) or []
-        if item.get(CONF_PLATFORM) == CONF_ESPHOME
-    ]
+    if (item := _esphome_ota_item(raw)) is not None:
+        nodes.append(static_encryption_key(item))
     return [node for node in nodes if node is not None and str(node) == key]
 
 
@@ -92,7 +112,7 @@ def _secret_edit(doc: Path, name: str, old_key: str, new_key: str) -> KeyEdit:
     line_re = _key_line_re(rf"{re.escape(name)}:\s*", old_key)
     hits = [
         (i, m)
-        for i, text in enumerate(read_file(secrets_path).splitlines())
+        for i, text in enumerate(_read_text(secrets_path).splitlines())
         if (m := line_re.match(text))
     ]
     if len(hits) != 1:
@@ -116,7 +136,7 @@ def locate_key_edits(old_key: str, new_key: str) -> list[KeyEdit]:
     edits: list[KeyEdit] = []
     for node in nodes:
         doc, line_no = _editable_source(node)
-        lines = read_file(doc).splitlines()
+        lines = _read_text(doc).splitlines()
         text = lines[line_no] if line_no < len(lines) else ""
         if match := secret_re.match(text):
             edit = _secret_edit(doc, match.group(1), old_key, new_key)
@@ -133,17 +153,6 @@ def locate_key_edits(old_key: str, new_key: str) -> list[KeyEdit]:
     return edits
 
 
-def _esphome_ota_item(raw: ConfigType) -> ConfigType | None:
-    return next(
-        (
-            item
-            for item in raw.get(CONF_OTA) or []
-            if item.get(CONF_PLATFORM) == CONF_ESPHOME
-        ),
-        None,
-    )
-
-
 def old_key_edit(old_key: str) -> KeyEdit:
     """Keep the key being replaced as ``old_key:`` under the esphome ota
     ``encryption:`` block, so an install still reaches a device that runs
@@ -155,7 +164,7 @@ def old_key_edit(old_key: str) -> KeyEdit:
     rendered = f'{CONF_OLD_KEY}: "{old_key}"'
     if (existing := encryption.get(CONF_OLD_KEY)) is not None:
         doc, line_no = _editable_source(existing)
-        lines = read_file(doc).splitlines()
+        lines = _read_text(doc).splitlines()
         text = lines[line_no] if line_no < len(lines) else ""
         match = _key_line_re(rf"\s*{CONF_OLD_KEY}:\s*", str(existing)).match(text)
         if match is None:
@@ -168,7 +177,7 @@ def old_key_edit(old_key: str) -> KeyEdit:
     # level below the `encryption:` key
     block_key = next(k for k in item if k == CONF_ENCRYPTION)
     doc, line_no = _editable_source(block_key)
-    lines = read_file(doc).splitlines()
+    lines = _read_text(doc).splitlines()
     if (key := encryption.get(CONF_KEY)) is not None:
         _, key_line = _editable_source(key)
         key_text = lines[key_line]
@@ -196,14 +205,15 @@ def apply_key_edits(edits: list[KeyEdit]) -> dict[Path, str]:
         # Highest line first, so an insertion never shifts a later edit
         for edit in sorted(edits, key=lambda e: e.line, reverse=True):
             if edit.path not in originals:
-                originals[edit.path] = read_file(edit.path)
+                originals[edit.path] = _read_text(edit.path)
                 current[edit.path] = originals[edit.path].splitlines(keepends=True)
             lines = current[edit.path]
-            ending = "\n" if lines[edit.line].endswith("\n") else ""
+            nl = "\r\n" if "\r\n" in originals[edit.path] else "\n"
+            text = lines[edit.line].rstrip("\r\n")
+            ending = lines[edit.line][len(text) :]
             if edit.insert_after:
-                lines.insert(edit.line + 1, edit.new_line + "\n")
-                if not ending:
-                    lines[edit.line] += "\n"
+                lines[edit.line] = text + nl
+                lines.insert(edit.line + 1, edit.new_line + ending)
             else:
                 lines[edit.line] = edit.new_line + ending
         for path, lines in current.items():

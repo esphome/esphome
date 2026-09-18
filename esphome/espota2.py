@@ -211,6 +211,10 @@ class OTAKeyRejected(OTAError):
     """The Noise handshake failed on the key; another key may succeed."""
 
 
+class OTAEncryptionNotOffered(OTAError):
+    """A key is configured but the device cannot encrypt."""
+
+
 # Uploader side options under `ota: encryption:`; the ota component imports
 # the names so the upload path never loads the component module
 CONF_ALLOW_PLAINTEXT_UPLOAD = "allow_plaintext_upload"
@@ -624,7 +628,7 @@ def _negotiate_session(
             # capture the image (wifi credentials, api key)
             # Remove before 2027.3.0: installing without the block no longer
             # falls back then; advise 'allow_plaintext_upload: true' instead
-            raise OTAError(
+            raise OTAEncryptionNotOffered(
                 "An OTA encryption key is configured but the device did not "
                 "offer encryption; refusing to send the image in plaintext. "
                 "The running firmware predates ESPHome 2026.9.0 or has no "
@@ -950,14 +954,12 @@ def probe_ota_key(
                 sock.settimeout(10.0)
                 session, _, _, _ = _negotiate_session(sock, noise_psk, False, False)
                 receive_exactly(session, 1, "auth", RESPONSE_AUTH_OK)
-            except OTAKeyRejected as err:
+            except (OTAKeyRejected, OTAEncryptionNotOffered) as err:
                 last_error = str(err)
                 if not retry_rejected:
                     break
             except (OSError, OTAError) as err:
                 last_error = str(err)
-                if not retry_rejected and "did not offer" in last_error:
-                    break
             else:
                 _LOGGER.info("Device %s accepted the key", sa[0])
                 return True
