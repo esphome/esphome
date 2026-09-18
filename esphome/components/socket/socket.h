@@ -94,7 +94,7 @@ inline bool Socket::ready() const {
 /// Create a socket of the given domain, type and protocol.
 std::unique_ptr<Socket> socket(int domain, int type, int protocol);
 /// Create a socket in the newest available IP domain (IPv6 or IPv4) of the given type and protocol.
-/// Unlike socket_ip_loop_monitored(), IPV6_V6ONLY is not cleared — use for outgoing connections only.
+/// Not registered with the main loop's select() - use socket_ip_loop_monitored() if you need that.
 std::unique_ptr<Socket> socket_ip(int type, int protocol);
 
 /// Create a socket and monitor it for data in the main loop.
@@ -150,7 +150,9 @@ socklen_t set_sockaddr_any(struct sockaddr *addr, socklen_t addrlen, uint16_t po
 /// Join a multicast group on the given socket.
 /// @param sock         The socket to join on
 /// @param ip_address   Null-terminated multicast address string (IPv4 or IPv6)
-/// @param if_index_out If non-null, receives the interface index used (IPv4 always writes 0)
+/// @param if_index_out If non-null, receives the interface index used (IPv4 always writes 0). For
+///                      link-local IPv6 groups, the caller must also copy this into sin6_scope_id
+///                      before bind() -- POSIX requires it, LwIP ignores it.
 /// @return true on success, false on failure (errno set)
 bool join_multicast_group(Socket *sock, const char *ip_address, uint32_t *if_index_out = nullptr);
 

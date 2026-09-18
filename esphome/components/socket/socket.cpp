@@ -308,11 +308,10 @@ bool join_multicast_group(Socket *sock, const char *ip_address, uint32_t *if_ind
 
 #if USE_NETWORK_IPV6
 bool set_ipv6_multicast_if(Socket *sock, uint32_t if_index_in) {
-#ifdef USE_ZEPHYR
-  // This Zephyr fork has no IPV6_MULTICAST_IF setsockopt at all. That's not a gap to work
-  // around: nRF52 is a Thread/OpenThread device with exactly one IPv6-capable interface, so
-  // there is nothing to select between -- whatever the stack already sends on is "the"
-  // multicast interface. Treat this as trivially already satisfied.
+#if defined(USE_ZEPHYR) || defined(USE_SOCKET_IMPL_LWIP_SOCKETS)
+  // IPV6_MULTICAST_IF is an ESP-IDF/glibc extension; upstream lwIP (Zephyr's fork and
+  // LibreTiny's) never defines it. Both targets have exactly one IPv6-capable interface,
+  // so there is nothing to select between.
   (void) sock;
   (void) if_index_in;
   return true;
