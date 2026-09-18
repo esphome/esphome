@@ -1329,16 +1329,14 @@ ALLOW_PLAINTEXT_UPLOAD_WARNING = """
 ******************************************************************
 *  'allow_plaintext_upload' is set under 'ota: encryption:'.
 *
-*  If the device does not offer encryption this upload is sent in
-*  PLAINTEXT: anyone on the network can capture the firmware image,
-*  including the wifi credentials and the api encryption key.
+*  This is the install that turns encryption on. If the device
+*  cannot encrypt yet, the upload goes in plaintext exactly as every
+*  upload to it has so far, so this install is no less secure than
+*  before, and it is the step that makes the next ones encrypted.
 *
-*  Left in place, it lets an attacker on the network strip the
-*  encryption offer from a device that does encrypt and capture
-*  every future upload the same way.
-*
-*  This option is for ONE migration install only. Remove it from
-*  the configuration as soon as the device runs this build.
+*  Once the device runs this build, remove the option: a device that
+*  encrypts must not keep a plaintext path open, since an attacker
+*  on the network could use it to downgrade a future upload.
 ******************************************************************"""
 
 

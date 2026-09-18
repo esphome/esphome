@@ -2184,9 +2184,7 @@ def test_upload_program_ota_allow_plaintext_upload(
         exit_code, _ = upload_program(config, MockArgs(), ["192.168.1.100"])
 
     assert exit_code == 0
-    assert any(
-        "ONE migration install only" in record.message for record in caplog.records
-    )
+    assert any("remove the option" in record.message for record in caplog.records)
     assert mock_run_ota.call_args.args[5] == key
     assert mock_run_ota.call_args.kwargs == {
         "plaintext_fallback": False,
