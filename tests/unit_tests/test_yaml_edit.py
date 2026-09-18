@@ -50,9 +50,10 @@ def _setup(tmp_path: Path, yaml_text: str, secrets: str | None = None) -> Path:
     config the way read_config does, so key nodes carry their source range."""
     CORE.reset()
     CORE.config_path = tmp_path / "test.yaml"
-    CORE.config_path.write_text(yaml_text, encoding="utf-8")
+    # Bytes, so Windows does not turn the newlines into CRLF on the way in
+    CORE.config_path.write_bytes(yaml_text.encode())
     if secrets is not None:
-        (tmp_path / "secrets.yaml").write_text(secrets, encoding="utf-8")
+        (tmp_path / "secrets.yaml").write_bytes(secrets.encode())
     CORE.raw_config = yaml_util.load_yaml(CORE.config_path)
     return CORE.config_path
 
