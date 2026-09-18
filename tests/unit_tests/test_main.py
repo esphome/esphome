@@ -8165,19 +8165,44 @@ def test_command_rotate_key_precheck_fails_writes_nothing(
     assert "did not accept the current key" in capfd.readouterr().out
 
 
-@pytest.mark.parametrize("step", ["compile", "upload", "interrupt"])
-def test_command_rotate_key_restores_on_failure(
+@pytest.mark.parametrize("step", ["compile", "interrupt"])
+def test_command_rotate_key_restores_before_the_upload(
     rotate_env: dict[str, Mock], step: str
 ) -> None:
     if step == "compile":
         rotate_env["compile"].return_value = 1
-    elif step == "upload":
-        rotate_env["upload"].return_value = (1, None)
     else:
         rotate_env["compile"].side_effect = KeyboardInterrupt
     assert command_rotate_key(MockArgs(), CORE.config) == 1
     assert CORE.config_path.read_text() == ROTATE_API_YAML
     assert rotate_env["probe"].call_count == 1
+
+
+def test_command_rotate_key_keeps_the_edit_after_a_failed_upload(
+    rotate_env: dict[str, Mock], capfd: pytest.CaptureFixture[str]
+) -> None:
+    """An attempted upload may have committed, so the config keeps both keys
+    and the new one is printed."""
+    rotate_env["upload"].return_value = (1, None)
+    assert command_rotate_key(MockArgs(), CORE.config) == 1
+    text = CORE.config_path.read_text()
+    assert ROTATE_NEW_KEY in text and f'old_key: "{ROTATE_OLD_KEY}"' in text
+    assert ROTATE_NEW_KEY in capfd.readouterr().out
+    assert rotate_env["probe"].call_count == 1
+
+
+def test_command_rotate_key_reports_a_failed_restore(
+    rotate_env: dict[str, Mock], capfd: pytest.CaptureFixture[str]
+) -> None:
+    rotate_env["compile"].return_value = 1
+    with patch(
+        "esphome.yaml_edit.restore_key_files",
+        side_effect=EsphomeError("Could not restore x"),
+    ):
+        assert command_rotate_key(MockArgs(), CORE.config) == 1
+    out = capfd.readouterr().out
+    assert "Could not restore x" in out
+    assert ROTATE_OLD_KEY in out and ROTATE_NEW_KEY in out
 
 
 @pytest.mark.parametrize("outcome", ["unconfirmed", "interrupted"])

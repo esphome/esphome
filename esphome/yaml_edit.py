@@ -33,10 +33,12 @@ def _read_text(path: Path) -> str:
 
 @dataclass
 class KeyEdit:
-    """One yaml line to rewrite, or a line to add right after it."""
+    """One yaml line to rewrite, or a line to add right after it; ``old_line``
+    is what the line held when it was located."""
 
     path: Path
     line: int
+    old_line: str
     new_line: str
     insert_after: bool = False
 
@@ -122,7 +124,7 @@ def _secret_edit(doc: Path, name: str, old_key: str, new_key: str) -> KeyEdit:
             f"{secrets_path}, found {len(hits)}"
         )
     i, m = hits[0]
-    return KeyEdit(secrets_path, i, _rewrite(m, new_key))
+    return KeyEdit(secrets_path, i, m.string, _rewrite(m, new_key))
 
 
 def locate_key_edits(old_key: str, new_key: str) -> list[KeyEdit]:
@@ -141,7 +143,7 @@ def locate_key_edits(old_key: str, new_key: str) -> list[KeyEdit]:
         if match := secret_re.match(text):
             edit = _secret_edit(doc, match.group(1), old_key, new_key)
         elif match := literal_re.match(text):
-            edit = KeyEdit(doc, line_no, _rewrite(match, new_key))
+            edit = KeyEdit(doc, line_no, text, _rewrite(match, new_key))
         else:
             raise EsphomeError(
                 f"{doc}:{line_no + 1} does not hold the key as a plain value or "
@@ -170,7 +172,7 @@ def old_key_edit(old_key: str) -> KeyEdit:
                 f"{doc}:{line_no + 1} does not hold '{CONF_OLD_KEY}' as a plain "
                 "value; edit it by hand"
             )
-        return KeyEdit(doc, line_no, _rewrite(match, old_key))
+        return KeyEdit(doc, line_no, text, _rewrite(match, old_key))
     # The block's own key line sets the indent; a bare block indents one
     # level below the `encryption:` key
     doc, line_no = _editable_source(item, CONF_ENCRYPTION)
@@ -179,10 +181,12 @@ def old_key_edit(old_key: str) -> KeyEdit:
         _, key_line = key_source
         key_text = lines[key_line]
         indent = key_text[: len(key_text) - len(key_text.lstrip())]
-        return KeyEdit(doc, key_line, f"{indent}{rendered}", insert_after=True)
+        return KeyEdit(
+            doc, key_line, key_text, f"{indent}{rendered}", insert_after=True
+        )
     block_text = lines[line_no]
     indent = block_text[: len(block_text) - len(block_text.lstrip())] + "  "
-    return KeyEdit(doc, line_no, f"{indent}{rendered}", insert_after=True)
+    return KeyEdit(doc, line_no, block_text, f"{indent}{rendered}", insert_after=True)
 
 
 def apply_key_edits(edits: list[KeyEdit]) -> dict[Path, str]:
@@ -194,14 +198,19 @@ def apply_key_edits(edits: list[KeyEdit]) -> dict[Path, str]:
     originals: dict[Path, str] = {}
     current: dict[Path, list[str]] = {}
     try:
-        # Highest line first, so an insertion never shifts a later edit
-        for edit in sorted(edits, key=lambda e: e.line, reverse=True):
+        # Highest line first, so an insertion never shifts a later edit; an
+        # insertion after a line goes before that line's own rewrite
+        for edit in sorted(edits, key=lambda e: (e.line, e.insert_after), reverse=True):
             if edit.path not in originals:
                 originals[edit.path] = _read_text(edit.path)
                 current[edit.path] = originals[edit.path].splitlines(keepends=True)
             lines = current[edit.path]
             nl = "\r\n" if "\r\n" in originals[edit.path] else "\n"
             text = lines[edit.line].rstrip("\r\n")
+            if text != edit.old_line:
+                raise EsphomeError(
+                    f"{edit.path}:{edit.line + 1} changed since it was read"
+                )
             ending = lines[edit.line][len(text) :]
             if edit.insert_after:
                 lines[edit.line] = text + nl
@@ -216,17 +225,23 @@ def apply_key_edits(edits: list[KeyEdit]) -> dict[Path, str]:
             except EsphomeError as err:
                 raise EsphomeError(f"{path} no longer loads: {err}") from err
     except EsphomeError:
-        for path, text in originals.items():
-            write_file(path, text)
+        restore_key_files(originals)
         raise
     invalidate_compiled_config()
     return originals
 
 
 def restore_key_files(originals: dict[Path, str]) -> None:
-    """Put back the files apply_key_edits rewrote."""
+    """Put back the files apply_key_edits rewrote; every file is tried and
+    the ones that failed are reported together."""
     from esphome.compiled_config import invalidate_compiled_config
 
+    failed = []
     for path, text in originals.items():
-        write_file(path, text)
+        try:
+            write_file(path, text)
+        except EsphomeError as err:
+            failed.append(f"{path}: {err}")
     invalidate_compiled_config()
+    if failed:
+        raise EsphomeError("Could not restore " + "; ".join(failed))

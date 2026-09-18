@@ -208,6 +208,26 @@ def test_rolls_back_a_broken_rewrite(tmp_path: Path) -> None:
     assert path.read_text() == API_YAML
 
 
+def test_refuses_a_line_that_changed_since_it_was_located(tmp_path: Path) -> None:
+    path = _setup(tmp_path, API_YAML)
+    edits = locate_key_edits(OLD_KEY, NEW_KEY)
+    path.write_bytes(API_YAML.replace("  # shared with ota", "").encode())
+    with pytest.raises(EsphomeError, match="changed since it was read"):
+        apply_key_edits(edits)
+
+
+def test_restore_reports_every_file_it_could_not_write(tmp_path: Path) -> None:
+    from unittest.mock import patch
+
+    _setup(tmp_path, API_YAML)
+    good = tmp_path / "a.yaml"
+    with (
+        patch("esphome.yaml_edit.write_file", side_effect=[EsphomeError("disk"), None]),
+        pytest.raises(EsphomeError, match="Could not restore .*b.yaml: disk"),
+    ):
+        restore_key_files({tmp_path / "b.yaml": "x", good: "y"})
+
+
 def test_clears_the_validated_cache(tmp_path: Path) -> None:
     _setup(tmp_path, API_YAML)
     cache = compiled_config_path(CORE.config_filename)
