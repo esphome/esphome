@@ -1193,8 +1193,10 @@ def test_read_secret_line(is_tty: bool) -> None:
     assert stdin.readline.called is not is_tty
 
 
-def test_read_secret_line_empty_pipe() -> None:
+def test_read_secret_line_empty_pipe(capsys: pytest.CaptureFixture[str]) -> None:
+    """The prompt still goes to stderr on a pipe so a blocked read is diagnosable."""
     with patch("esphome.util.sys.stdin") as stdin:
         stdin.isatty.return_value = False
         stdin.readline.return_value = ""
         assert util.read_secret_line("Key: ") == ""
+    assert capsys.readouterr().err == "Key: "

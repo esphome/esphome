@@ -1220,13 +1220,25 @@ def upload_program(
     config: ConfigType, args: ArgsProtocol, devices: list[str]
 ) -> tuple[int, str | None]:
     host = devices[0]
+    port_type = get_port_type(host)
+    ota_key = getattr(args, "ota_key", None)
+    if ota_key and port_type in (PortType.SERIAL, PortType.BOOTSEL):
+        _LOGGER.warning(
+            "--prompt-ota-key only applies to network uploads; ignored for %s", host
+        )
+
     platform_upload = platform_hooks.get_platform_hook(
         CORE.target_platform, "upload_program"
     )
     if platform_upload is not None and platform_upload(config, args, host):
+        if ota_key and port_type not in (PortType.SERIAL, PortType.BOOTSEL):
+            # A platform's own network path (nrf52 mcumgr) has no key handshake
+            _LOGGER.warning(
+                "--prompt-ota-key only applies to the %s OTA platform; ignored for %s",
+                CONF_ESPHOME,
+                host,
+            )
         return 0, host
-
-    port_type = get_port_type(host)
 
     # MQTT and MQTTIP are also OTA paths; MQTTIP gets resolved to a real IP later by
     # _resolve_network_devices(). Only SERIAL and BOOTSEL are non-OTA upload paths.
@@ -1237,16 +1249,12 @@ def upload_program(
             "The options --partition-table and --bootloader can't be used together."
         )
     option_string = "--partition-table" if is_partition_table else "--bootloader"
-    if port_type in (PortType.SERIAL, PortType.BOOTSEL):
-        if is_partition_table or is_bootloader:
-            raise EsphomeError(
-                f"The option {option_string} can only be used for Over The Air updates."
-            )
-        if getattr(args, "ota_key", None):
-            _LOGGER.warning(
-                "--prompt-ota-key only applies to network uploads; ignored for %s",
-                host,
-            )
+    if port_type in (PortType.SERIAL, PortType.BOOTSEL) and (
+        is_partition_table or is_bootloader
+    ):
+        raise EsphomeError(
+            f"The option {option_string} can only be used for Over The Air updates."
+        )
 
     if port_type == PortType.BOOTSEL:
         exit_code = upload_using_picotool(config)
