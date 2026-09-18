@@ -1297,6 +1297,16 @@ def upload_program(
     return _upload_via_native_api(config, network_devices, args)
 
 
+def _ota_upload_platforms(config: ConfigType) -> dict[str, None]:
+    """The network OTA platforms the config provides, one entry each, in
+    config order; the web_server final-validate hook merges duplicates."""
+    return {
+        platform: None
+        for ota_item in config.get(CONF_OTA, [])
+        if (platform := ota_item.get(CONF_PLATFORM)) in (CONF_ESPHOME, CONF_WEB_SERVER)
+    }
+
+
 def _choose_ota_platform(config: ConfigType, requested: str | None) -> str:
     """Pick the OTA platform to use, optionally honoring ``--ota-platform``.
 
@@ -1310,16 +1320,7 @@ def _choose_ota_platform(config: ConfigType, requested: str | None) -> str:
     sent uncompressed regardless of which platform is used.) Falls back to
     ``web_server`` only when that is the only available platform.
     """
-    # Use a dict (insertion-ordered) instead of a list so error messages and
-    # membership checks see one entry per platform even if the user has
-    # multiple ``ota:`` items of the same platform; the web_server OTA
-    # platform's final-validate hook merges duplicates anyway.
-    available: dict[str, None] = {}
-    for ota_item in config.get(CONF_OTA, []):
-        platform = ota_item.get(CONF_PLATFORM)
-        if platform in (CONF_ESPHOME, CONF_WEB_SERVER):
-            available[platform] = None
-
+    available = _ota_upload_platforms(config)
     if not available:
         raise EsphomeError(
             f"Cannot upload Over the Air as the {CONF_OTA} configuration is not "
@@ -1767,13 +1768,9 @@ def _read_ota_key(args: ArgsProtocol, config: ConfigType) -> None:
         return
     # The HTTP path has no key handshake; decide before prompting or
     # compiling. A config without OTA is a serial flash, which warns later.
-    ota_configured = any(
-        item.get(CONF_PLATFORM) in (CONF_ESPHOME, CONF_WEB_SERVER)
-        for item in config.get(CONF_OTA, [])
-    )
     chosen = (
         _choose_ota_platform(config, getattr(args, "ota_platform", None))
-        if ota_configured
+        if _ota_upload_platforms(config)
         else None
     )
     if chosen == CONF_WEB_SERVER:
@@ -2804,6 +2801,15 @@ def run_esphome(argv):
     if args.env_ota_key is not None and args.command not in ("upload", "run"):
         _LOGGER.warning(
             "%s is set but the %s command does not use it", ENV_OTA_KEY, args.command
+        )
+    # One key is one device's; several configs run in child processes that
+    # would never see it
+    if (args.env_ota_key is not None or getattr(args, "prompt_ota_key", False)) and len(
+        getattr(args, "configuration", []) or []
+    ) > 1:
+        raise EsphomeError(
+            f"--prompt-ota-key and {ENV_OTA_KEY} take one configuration; "
+            f"{len(args.configuration)} were given"
         )
     _warn_if_source_tree_mismatch()
 
