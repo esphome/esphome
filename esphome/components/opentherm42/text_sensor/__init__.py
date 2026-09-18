@@ -27,6 +27,7 @@ from ..const import (
     CONF_CONTROL_OF_SPECIAL_APPLICATIONS_REMOTE_OVERRIDE_OPERATING_MODE_HEATING_HC2,
     CONF_OPENTHERM42_ID,
     CONF_REMOTE_REQUEST_LAST_RESPONSE,
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_DATE_TIME,
 )
 
 # device_class is left unset throughout: Home Assistant text sensors only support "date" and
@@ -128,6 +129,16 @@ TYPES: dict[str, cv.Schema] = {
     # §5.3.8.3 Class 8, ID 99 LB bits 4-7: Remote Override Operating Mode Heating HC2, same encoding
     # as HC1.
     CONF_CONTROL_OF_SPECIAL_APPLICATIONS_REMOTE_OVERRIDE_OPERATING_MODE_HEATING_HC2: text_sensor.text_sensor_schema(),
+    # §5.3.4 Class 4, IDs 20/21/22 (read side): the boiler's own reported Day-of-week/Time, Date and
+    # Year, combined into one "<Weekday>, YYYY-MM-DD HH:MM"-formatted string -- each of the three
+    # underlying conversations (id=20/21/22) can succeed or fail independently, so a field this
+    # sensor doesn't currently know shows as a placeholder (YYYY/MM/DD/HH/mm, or "?" for the
+    # weekday) rather than the whole sensor going unknown -- see hub.cpp's
+    # publish_date_time_text_(). Independent of time_id: a clock-drift/troubleshooting value, not
+    # something watched day-to-day, so DIAGNOSTIC -- same reasoning as time_synchronized.
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_DATE_TIME: text_sensor.text_sensor_schema(
+        entity_category=ENTITY_CATEGORY_DIAGNOSTIC
+    ),
 }
 
 CONFIG_SCHEMA = cv.Schema(

@@ -202,6 +202,31 @@ static const char *heating_operating_mode_to_string(uint8_t code) {
   }
 }
 
+// §5.3.4 Class 4, ID 20 HB bits 7-5 (read side): 1=Monday..7=Sunday. Returns "?" both when the
+// boiler reports 0 ("no day-of-week information available" per the spec's own ID 20 table) and
+// when this sub-field hasn't been read yet -- date_time_text_sensor_ doesn't need to distinguish
+// those two cases from each other.
+static const char *day_of_week_to_string(uint8_t code) {
+  switch (code) {
+    case 1:
+      return "Monday";
+    case 2:
+      return "Tuesday";
+    case 3:
+      return "Wednesday";
+    case 4:
+      return "Thursday";
+    case 5:
+      return "Friday";
+    case 6:
+      return "Saturday";
+    case 7:
+      return "Sunday";
+    default:
+      return "?";
+  }
+}
+
 const SimpleSensorInfo *OpenTherm42Hub::find_simple_sensor_(RequestKind kind) const {
   for (auto const &info : SIMPLE_SENSORS) {
     if (info.kind == kind) {
@@ -347,6 +372,13 @@ void OpenTherm42Hub::build_schedule_() {
     this->essential_requests_.push_back(RequestKind::DAY_TIME);
     this->essential_requests_.push_back(RequestKind::DATE);
     this->essential_requests_.push_back(RequestKind::YEAR);
+  }
+  // IDs 20/21/22 (read side): independent of time_id_ -- see hub.h's RequestKind::DAY_TIME_READ
+  // comment. All three feed the same date_time_text_sensor_, so they're scheduled together.
+  if (this->date_time_text_sensor_ != nullptr) {
+    this->informational_requests_.push_back(RequestKind::DAY_TIME_READ);
+    this->informational_requests_.push_back(RequestKind::DATE_READ);
+    this->informational_requests_.push_back(RequestKind::YEAR_READ);
   }
   // IDs 27/38/78/79: the "_set" number (essential, write) and the plain sensor (informational,
   // read) are scheduled independently -- both can be configured at once, see hub.h's RequestKind
@@ -640,6 +672,19 @@ Frame OpenTherm42Hub::build_next_request_() {
       break;
     case RequestKind::YEAR:
       this->build_time_sync_frame_(2, frame);
+      break;
+
+    case RequestKind::DAY_TIME_READ:
+      frame.type = static_cast<uint8_t>(MessageType::READ_DATA);
+      frame.id = 20;
+      break;
+    case RequestKind::DATE_READ:
+      frame.type = static_cast<uint8_t>(MessageType::READ_DATA);
+      frame.id = 21;
+      break;
+    case RequestKind::YEAR_READ:
+      frame.type = static_cast<uint8_t>(MessageType::READ_DATA);
+      frame.id = 22;
       break;
 
     case RequestKind::OUTSIDE_TEMPERATURE:
@@ -1354,6 +1399,49 @@ void OpenTherm42Hub::handle_response_(const Frame &frame) {
       this->publish_time_synchronized_();
       return;
 
+    // IDs 20/21/22 (read side): each of the three conversations only resets/sets its own
+    // sub-field(s) on failure/success -- date_time_text_sensor_ shows a placeholder for just the
+    // affected part rather than going fully unknown, since the other two conversations' data is
+    // still perfectly valid.
+    case RequestKind::DAY_TIME_READ:
+      if (type != MessageType::READ_ACK) {
+        ESP_LOGE(TAG, "Day of Week & Time of Day (id=20) read was rejected (message type %u)", frame.type);
+        this->read_day_of_week_.reset();
+        this->read_hour_.reset();
+        this->read_minute_.reset();
+        this->publish_date_time_text_();
+        return;
+      }
+      this->read_day_of_week_ = (frame.value_hb >> 5) & 0x7;
+      this->read_hour_ = frame.value_hb & 0x1F;
+      this->read_minute_ = frame.value_lb;
+      this->publish_date_time_text_();
+      return;
+
+    case RequestKind::DATE_READ:
+      if (type != MessageType::READ_ACK) {
+        ESP_LOGE(TAG, "Date (id=21) read was rejected (message type %u)", frame.type);
+        this->read_month_.reset();
+        this->read_day_of_month_.reset();
+        this->publish_date_time_text_();
+        return;
+      }
+      this->read_month_ = frame.value_hb;
+      this->read_day_of_month_ = frame.value_lb;
+      this->publish_date_time_text_();
+      return;
+
+    case RequestKind::YEAR_READ:
+      if (type != MessageType::READ_ACK) {
+        ESP_LOGE(TAG, "Year (id=22) read was rejected (message type %u)", frame.type);
+        this->read_year_.reset();
+        this->publish_date_time_text_();
+        return;
+      }
+      this->read_year_ = frame.value_u16();
+      this->publish_date_time_text_();
+      return;
+
     case RequestKind::OUTSIDE_TEMPERATURE:
       if (type != MessageType::WRITE_ACK) {
         ESP_LOGE(TAG, "Outside temperature (id=27) write was rejected (message type %u)", frame.type);
@@ -1809,6 +1897,47 @@ void OpenTherm42Hub::publish_time_synchronized_() {
   }
 }
 
+void OpenTherm42Hub::publish_date_time_text_() {
+  if (this->date_time_text_sensor_ == nullptr) {
+    return;
+  }
+  char year_buf[5];
+  char month_buf[3];
+  char day_buf[3];
+  char hour_buf[3];
+  char minute_buf[3];
+  if (this->read_year_.has_value()) {
+    snprintf(year_buf, sizeof(year_buf), "%04u", *this->read_year_);
+  } else {
+    snprintf(year_buf, sizeof(year_buf), "YYYY");
+  }
+  if (this->read_month_.has_value()) {
+    snprintf(month_buf, sizeof(month_buf), "%02u", *this->read_month_);
+  } else {
+    snprintf(month_buf, sizeof(month_buf), "MM");
+  }
+  if (this->read_day_of_month_.has_value()) {
+    snprintf(day_buf, sizeof(day_buf), "%02u", *this->read_day_of_month_);
+  } else {
+    snprintf(day_buf, sizeof(day_buf), "DD");
+  }
+  if (this->read_hour_.has_value()) {
+    snprintf(hour_buf, sizeof(hour_buf), "%02u", *this->read_hour_);
+  } else {
+    snprintf(hour_buf, sizeof(hour_buf), "HH");
+  }
+  if (this->read_minute_.has_value()) {
+    snprintf(minute_buf, sizeof(minute_buf), "%02u", *this->read_minute_);
+  } else {
+    snprintf(minute_buf, sizeof(minute_buf), "mm");
+  }
+  char buf[40];
+  snprintf(buf, sizeof(buf), "%s, %s-%s-%s %s:%s",
+           this->read_day_of_week_.has_value() ? day_of_week_to_string(*this->read_day_of_week_) : "?", year_buf,
+           month_buf, day_buf, hour_buf, minute_buf);
+  this->date_time_text_sensor_->publish_state(buf);
+}
+
 void OpenTherm42Hub::invalidate_response_(RequestKind kind) {
   switch (kind) {
     case RequestKind::BOILER_CONFIG:
@@ -2028,6 +2157,24 @@ void OpenTherm42Hub::invalidate_response_(RequestKind kind) {
     case RequestKind::YEAR:
       this->year_write_ok_ = false;
       this->publish_time_synchronized_();
+      return;
+
+    case RequestKind::DAY_TIME_READ:
+      this->read_day_of_week_.reset();
+      this->read_hour_.reset();
+      this->read_minute_.reset();
+      this->publish_date_time_text_();
+      return;
+
+    case RequestKind::DATE_READ:
+      this->read_month_.reset();
+      this->read_day_of_month_.reset();
+      this->publish_date_time_text_();
+      return;
+
+    case RequestKind::YEAR_READ:
+      this->read_year_.reset();
+      this->publish_date_time_text_();
       return;
 
     case RequestKind::OUTSIDE_TEMPERATURE:
@@ -2284,6 +2431,12 @@ static const char *bespoke_request_kind_name(RequestKind kind) {
     case RequestKind::DATE:
       return "Date (id=21)";
     case RequestKind::YEAR:
+      return "Year (id=22)";
+    case RequestKind::DAY_TIME_READ:
+      return "Day of Week & Time of Day (id=20)";
+    case RequestKind::DATE_READ:
+      return "Date (id=21)";
+    case RequestKind::YEAR_READ:
       return "Year (id=22)";
     case RequestKind::OUTSIDE_TEMPERATURE:
     case RequestKind::OUTSIDE_TEMPERATURE_READ:

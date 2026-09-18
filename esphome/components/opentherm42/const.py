@@ -416,6 +416,13 @@ CONF_SENSOR_AND_INFORMATIONAL_DATA_TIME_SYNCHRONIZED = (
 )
 CONF_SENSOR_AND_INFORMATIONAL_DATA_SYNC_TIME = "sensor_and_informational_data_sync_time"
 
+# §5.3.4 Class 4, IDs 20/21/22 (read side): a synthetic entity too -- unlike ids 27/38/78/79 below,
+# which each get a real 1:1 "_set" number / plain sensor pair, ids 20/21/22's write side has no
+# config marker of its own (see hub.h's RequestKind::DAY_TIME_READ comment), so there's no "_set"
+# marker to pair this against. Independent of time_id: reading the boiler's own clock is useful
+# diagnostic information even for a setup that never writes to it.
+CONF_SENSOR_AND_INFORMATIONAL_DATA_DATE_TIME = "sensor_and_informational_data_date_time"
+
 # §5.3.4 Class 4: reset-by-writing-zero buttons for the 14 counter/hour ids above (optional for the
 # boiler to honor). ID 111 (Electricity production) is read-only and has no reset.
 CONF_SENSOR_AND_INFORMATIONAL_DATA_COOLING_OPERATION_HOURS_RESET = (

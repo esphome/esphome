@@ -87,6 +87,19 @@ enum class RequestKind : uint8_t {
   DAY_TIME,
   DATE,
   YEAR,
+  // §5.3.4 Class 4, IDs 20/21/22 (read side): independently configurable from the write side above
+  // -- unlike every other R/W id in this component (27/38/78/79 below, 56/57/87 in Class 5), the
+  // write here has no config marker of its own (it's driven purely by time_id being set), so
+  // there's no "_set" marker to pair a "_READ" suffix against. These three kinds are simply the
+  // informational-rotation reads, schedulable with or without time_id configured (see
+  // build_schedule_()) -- "what time does the boiler's own clock report" is useful diagnostic
+  // information even for a setup that never writes to it. All three feed a single combined
+  // date_time_text_sensor_ (see handle_response_()/publish_date_time_text_()), so none of them --
+  // including YEAR_READ, despite being a single plain u16 like other SIMPLE_SENSORS entries -- are
+  // dispatched through the generic SIMPLE_SENSORS table.
+  DAY_TIME_READ,
+  DATE_READ,
+  YEAR_READ,
   // §5.3.4 Class 4, IDs 27/38/78/79: R/W ids -- the "_set" number and the plain sensor can be
   // configured independently and simultaneously: the number is WRITE_DATA'd every essential
   // rotation if configured, and the sensor is READ_DATA'd every informational rotation if
@@ -504,6 +517,9 @@ class OpenTherm42Hub : public Component {
     this->time_sync_pending_ = true;
     this->time_sync_step_ = 0;
   }
+  // §5.3.4 Class 4, IDs 20/21/22 (read side): independent of time_id -- see
+  // RequestKind::DAY_TIME_READ's comment above.
+  OT42_SET_PLAIN_TEXT_SENSOR(sensor_and_informational_data_date_time, date_time_text_sensor_)
 
   // §5.3.4 Class 4: write-only numbers.
   OT42_SET_NUMBER(sensor_and_informational_data_room_setpoint, room_setpoint_number_)
@@ -701,6 +717,12 @@ class OpenTherm42Hub : public Component {
   // Recomputes and publishes time_synchronized_binary_sensor_ from day_time_write_ok_/
   // date_write_ok_/year_write_ok_ -- called after each of the three writes' response.
   void publish_time_synchronized_();
+  // Rebuilds date_time_text_sensor_'s displayed string from whichever of read_day_of_week_/
+  // read_hour_/read_minute_/read_month_/read_day_of_month_/read_year_ are currently known,
+  // substituting a placeholder token for any that aren't -- called after each of the three reads'
+  // response (DAY_TIME_READ/DATE_READ/YEAR_READ), success or failure. No-op if the sensor isn't
+  // configured.
+  void publish_date_time_text_();
   // Moves startup_phase_ to the next phase, skipping any BRAND* phase with no text_sensor configured.
   void advance_startup_phase_();
   bool startup_phase_actionable_(StartupPhase phase) const;
@@ -830,6 +852,16 @@ class OpenTherm42Hub : public Component {
   bool year_write_ok_{false};
   bool time_sync_pending_{false};
   uint8_t time_sync_step_{0};
+  // §5.3.4 Class 4, IDs 20/21/22 (read side): the boiler's own reported clock, tracked per
+  // wire-subfield since DAY_TIME_READ/DATE_READ/YEAR_READ are three independent conversations
+  // that can each succeed or fail on their own -- see publish_date_time_text_().
+  text_sensor::TextSensor *date_time_text_sensor_{nullptr};
+  optional<uint8_t> read_day_of_week_{};
+  optional<uint8_t> read_hour_{};
+  optional<uint8_t> read_minute_{};
+  optional<uint8_t> read_month_{};
+  optional<uint8_t> read_day_of_month_{};
+  optional<uint16_t> read_year_{};
 
   number::Number *room_setpoint_number_{nullptr};
   number::Number *room_setpoint_ch2_number_{nullptr};
