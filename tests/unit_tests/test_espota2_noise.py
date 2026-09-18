@@ -310,6 +310,9 @@ def test_old_key_retry(
     assert (
         any("retrying with 'old_key'" in r.message for r in caplog.records) is retried
     )
+    assert any("accepted 'old_key'" in r.message for r in caplog.records) is (
+        retried and expected_rc == 0
+    )
     assert not any("plaintext" in r.message for r in caplog.records)
     if expected_rc == 1 and old_noise_psk is not None:
         assert any("rejected both" in r.message for r in caplog.records)
