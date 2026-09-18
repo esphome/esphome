@@ -135,7 +135,9 @@ def ota_esphome_final_validate(config: ConfigType) -> None:
                 _LOGGER.warning(
                     "'%s' is set under '%s' %s: an upload continues in plaintext "
                     "when the device does not offer encryption. Remove it once "
-                    "the device runs a build that offers encryption",
+                    "the device runs a build that offers encryption; left in "
+                    "place it lets an attacker on the network strip the offer "
+                    "and capture every future upload",
                     CONF_ALLOW_PLAINTEXT_UPLOAD,
                     CONF_OTA,
                     CONF_ENCRYPTION,
