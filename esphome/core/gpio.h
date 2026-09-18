@@ -29,6 +29,9 @@ enum Flags : uint8_t {
   FLAG_PULLDOWN = 0x10,
 };
 
+const uint8_t FLAG_IO_MASK = FLAG_INPUT | FLAG_OUTPUT | FLAG_OPEN_DRAIN;
+const uint8_t FLAG_PULL_MASK = FLAG_PULLUP | FLAG_PULLDOWN;
+
 class FlagsHelper {
  public:
   constexpr FlagsHelper(Flags val) : val_(val) {}
