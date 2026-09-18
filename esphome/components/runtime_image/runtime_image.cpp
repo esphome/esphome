@@ -41,14 +41,11 @@ inline bool is_color_on(const Color &color) {
 
 RuntimeImage::RuntimeImage(ImageFormat format, image::ImageType type, image::Transparency transparency,
                            image::Image *placeholder, bool is_big_endian, int fixed_width, int fixed_height)
-    : Image(nullptr, 0, 0, type, transparency),
+    : Image(nullptr, 0, 0, type, transparency, is_big_endian),
       format_(format),
       fixed_width_(fixed_width),
       fixed_height_(fixed_height),
-      placeholder_(placeholder),
-      is_big_endian_(is_big_endian) {
-  this->big_endian_ = is_big_endian;
-}
+      placeholder_(placeholder) {}
 
 RuntimeImage::~RuntimeImage() { this->release(); }
 
@@ -123,7 +120,7 @@ void RuntimeImage::draw_pixel(int x, int y, const Color &color) {
       Color mapped_color = color;
       this->map_chroma_key(mapped_color);
       uint16_t rgb565 = display::ColorUtil::color_to_565(mapped_color);
-      if (this->is_big_endian_) {
+      if (this->big_endian_) {
         this->buffer_[pos + 0] = static_cast<uint8_t>((rgb565 >> 8) & 0xFF);
         this->buffer_[pos + 1] = static_cast<uint8_t>(rgb565 & 0xFF);
       } else {

@@ -360,6 +360,11 @@ class Display : public PollingComponent {
    * \param x_pad How many pixels are in each line after the end of the pixels to be copied.
    *
    * The length of each source buffer line (stride) will be x_offset + w + x_pad.
+   *
+   * The destination is in drawn coordinates, so an override that copies the block straight into
+   * its buffer must hand anything it cannot copy as is (another pixel format or byte order, a
+   * software rotation, an active clipping rectangle) to this base implementation, which goes
+   * through draw_pixel_at(). Callers keep the block on screen.
    */
   virtual void draw_pixels_at(int x_start, int y_start, int w, int h, const uint8_t *ptr, ColorOrder order,
                               ColorBitness bitness, bool big_endian, int x_offset, int y_offset, int x_pad);

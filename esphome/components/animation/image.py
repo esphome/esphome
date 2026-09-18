@@ -114,9 +114,8 @@ async def setup_animation(config: ConfigType) -> None:
         frame_count,
         image_type,
         trans_value,
+        config.get(CONF_BYTE_ORDER) == "BIG_ENDIAN",
     )
-    if config.get(CONF_BYTE_ORDER) == "BIG_ENDIAN":
-        cg.add(var.set_big_endian(True))
     if loop_config := config.get(CONF_LOOP):
         start = loop_config[CONF_START_FRAME]
         end = loop_config.get(CONF_END_FRAME, frame_count)

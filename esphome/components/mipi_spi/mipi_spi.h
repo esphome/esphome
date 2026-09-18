@@ -188,8 +188,9 @@ class MipiSpi : public display::Display,
       return;
     if (w <= 0 || h <= 0)
       return;
-    if (get_pixel_mode(bitness) != BUFFERPIXEL || big_endian != IS_BIG_ENDIAN) {
-      // Not the buffer's own format: convert per pixel through draw_pixel_at()
+    if (get_pixel_mode(bitness) != BUFFERPIXEL || big_endian != IS_BIG_ENDIAN ||
+        (!HAS_HARDWARE_ROTATION && this->rotation_ != display::DISPLAY_ROTATION_0_DEGREES)) {
+      // Not the buffer's own format, or rotated in software: go per pixel through draw_pixel_at()
       display::Display::draw_pixels_at(x_start, y_start, w, h, ptr, order, bitness, big_endian, x_offset, y_offset,
                                        x_pad);
       return;

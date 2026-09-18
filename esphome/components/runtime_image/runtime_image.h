@@ -227,11 +227,6 @@ class RuntimeImage : public image::Image {
 
   // Configuration
   bool progressive_display_{false};
-  /**
-   * Whether the image is stored in big-endian format.
-   * This is used to determine how to store 16 bit colors in the buffer.
-   */
-  bool is_big_endian_{false};
   /** Whether buffer_ belongs to the caller, so it must not be freed or resized here. */
   bool external_buffer_{false};
 };

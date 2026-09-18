@@ -254,10 +254,14 @@ async def new_image(config: ConfigType) -> MockObj:
     """
     prog_arr, width, height, image_type, trans_value, _ = await write_image(config)
     var = cg.new_Pvariable(
-        config[CONF_ID], prog_arr, width, height, image_type, trans_value
+        config[CONF_ID],
+        prog_arr,
+        width,
+        height,
+        image_type,
+        trans_value,
+        config.get(CONF_BYTE_ORDER) == "BIG_ENDIAN",
     )
-    if config.get(CONF_BYTE_ORDER) == "BIG_ENDIAN":
-        cg.add(var.set_big_endian(True))
     add_metadata(
         config[CONF_ID], width, height, config[CONF_TYPE], config[CONF_TRANSPARENCY]
     )
