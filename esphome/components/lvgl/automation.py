@@ -1,4 +1,4 @@
-from collections.abc import Callable
+from collections.abc import Callable, Generator, Mapping, Sequence
 from typing import Any
 
 from esphome import automation
@@ -86,6 +86,18 @@ from .widgets import (
 # successive compilations / unit tests via ``CORE.reset()``.
 
 
+def _iter_lambdas(value: Any) -> Generator[Lambda]:
+    """Yield lambdas from a nested action configuration."""
+    if isinstance(value, Lambda):
+        yield value
+    elif isinstance(value, Mapping):
+        for child in value.values():
+            yield from _iter_lambdas(child)
+    elif isinstance(value, Sequence) and not isinstance(value, (str, bytes)):
+        for child in value:
+            yield from _iter_lambdas(child)
+
+
 async def layers_to_code(lv_component, config):
     if top_conf := config.get(CONF_TOP_LAYER):
         top_layer = lv_expr.display_get_layer_top(lv_component.get_disp())
@@ -131,10 +143,9 @@ async def action_to_code(
 ):
     # Ensure all required ids have been processed, so our LambdaContext doesn't get context-switched.
     if config:
-        for lamb in config.values():
-            if isinstance(lamb, Lambda):
-                for id_ in lamb.requires_ids:
-                    await get_variable(id_)
+        for lamb in _iter_lambdas(config):
+            for id_ in lamb.requires_ids:
+                await get_variable(id_)
     await wait_for_widgets()
     async with LambdaContext(parameters=args, where=action_id) as context:
         for widget in widgets:
