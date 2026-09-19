@@ -5147,6 +5147,35 @@ def test_command_rename_refuses_a_name_without_a_source_line(
     assert "was not read from" in capfd.readouterr().out
 
 
+def test_command_rename_passes_dashboard_to_the_install(
+    tmp_path: Path,
+    mock_run_external_process: Mock,
+) -> None:
+    config_file = tmp_path / "oldname.yaml"
+    config_file.write_text("esphome:\n  name: oldname\n")
+    setup_core(tmp_path=tmp_path)
+    CORE.config_path = config_file
+    CORE.config = {CONF_ESPHOME: {CONF_NAME: "oldname"}}
+    assert command_rename(MockArgs(name="newname", dashboard=True), {}) == 0
+    install = mock_run_external_process.call_args_list[-1].args
+    assert install[-6:-4] == ("--dashboard", "run")
+
+
+def test_command_rename_interrupted_install_reverts(
+    tmp_path: Path,
+    mock_run_external_process: Mock,
+) -> None:
+    config_file = tmp_path / "oldname.yaml"
+    config_file.write_text("esphome:\n  name: oldname\n")
+    setup_core(tmp_path=tmp_path)
+    CORE.config_path = config_file
+    CORE.config = {CONF_ESPHOME: {CONF_NAME: "oldname"}}
+    mock_run_external_process.side_effect = [0, KeyboardInterrupt]
+    assert command_rename(MockArgs(name="newname", dashboard=False), {}) == 1
+    assert not (tmp_path / "newname.yaml").exists()
+    assert config_file.exists()
+
+
 def test_command_rename_reads_a_config_linked_from_outside(
     tmp_path: Path,
     mock_run_external_process: Mock,
