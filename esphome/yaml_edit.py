@@ -49,8 +49,10 @@ class KeyEdit:
     insert_after: bool = False
     # The secrets file name this line holds, when it is one
     secret: str | None = None
-    # Other configurations that use the rewritten secret or include
+    # Other configurations that use the rewritten secret or include, and
+    # what the scan for them could not read
     shared_with: list[Path] = field(default_factory=list)
+    unchecked: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -199,7 +201,9 @@ def _source_line(mapping: ConfigType, name: str) -> tuple[Path, int, str]:
     if (source := _source_of(mapping, name)) is None:
         raise EsphomeError(f"'{name}' was not read from a file")
     doc, line_no = source
-    doc = _editable_file(doc)
+    # Checked resolved, returned as the loader saw it: a `!secret` in a
+    # symlinked include resolves beside the link, not beside its target
+    _editable_file(doc)
     return doc, line_no, _line_at(doc, line_no)
 
 
@@ -213,10 +217,13 @@ def _write_keeping_mode(path: Path, text: str) -> None:
         raise EsphomeError(f"Could not keep the mode of {path}: {err}") from err
 
 
-def _other_config_texts(own: set[Path], strict: bool = False) -> list[tuple[Path, str]]:
+def _other_config_texts(
+    own: set[Path], strict: bool = False
+) -> tuple[list[tuple[Path, str]], list[str]]:
     """Every yaml file in the configuration directory outside ``own`` and
-    the build data, with its text. A file or directory that cannot be read
-    is skipped when the scan feeds a warning, refused when it decides."""
+    the build data, with its text, and what could not be read. A symlinked
+    directory is not walked and counts as unread. With ``strict`` anything
+    unread is refused, for a check that must not fail open."""
     data_dir = CORE.data_dir.resolve()
     found = []
     skipped: list[str] = []
@@ -228,10 +235,16 @@ def _other_config_texts(own: set[Path], strict: bool = False) -> list[tuple[Path
     for dirpath, dirnames, filenames in os.walk(
         CORE.config_dir.resolve(), onerror=skip
     ):
-        dirnames[:] = [d for d in dirnames if Path(dirpath, d) != data_dir]
+        for name in list(dirnames):
+            path = Path(dirpath, name)
+            if path == data_dir:
+                dirnames.remove(name)
+            elif path.is_symlink():
+                dirnames.remove(name)
+                skip(f"{path} is a link")
         for filename in filenames:
             path = Path(dirpath, filename)
-            if path.suffix not in _YAML_SUFFIXES or path in own:
+            if path.suffix not in _YAML_SUFFIXES or path.resolve() in own:
                 continue
             try:
                 found.append((path, _read_text(path)))
@@ -241,25 +254,39 @@ def _other_config_texts(own: set[Path], strict: bool = False) -> list[tuple[Path
         raise EsphomeError(
             "Could not read every configuration to check the secret: " + skipped[0]
         )
-    return sorted(found)
+    return sorted(found), skipped
 
 
 def _with_sharers(edits: list[KeyEdit]) -> list[KeyEdit]:
     """Fill in the other configurations each rewritten line serves: users of
-    its secret, or of the include it sits in; an added line serves none."""
+    its secret, or of the include it sits in, and the files that include
+    those in turn; an added line serves none."""
     main = CORE.config_path.resolve()
     refs = {
         id(edit): _secret_use_re(edit.secret)
         if edit.secret
         else _file_use_re(edit.path.name)
         for edit in edits
-        if not edit.insert_after and (edit.secret or edit.path != main)
+        if not edit.insert_after and (edit.secret or edit.path.resolve() != main)
     }
-    if refs:
-        texts = _other_config_texts(_own_documents())
-        for edit in edits:
-            if (ref := refs.get(id(edit))) is not None:
-                edit.shared_with = [path for path, text in texts if ref.search(text)]
+    if not refs:
+        return edits
+    texts, skipped = _other_config_texts(_own_documents())
+    for edit in edits:
+        if (ref := refs.get(id(edit))) is None:
+            continue
+        users = {path for path, text in texts if ref.search(text)}
+        frontier = users
+        while frontier:
+            frontier = {
+                path
+                for name in {p.name for p in frontier}
+                for path, text in texts
+                if path not in users and _file_use_re(name).search(text)
+            }
+            users |= frontier
+        edit.shared_with = sorted(users)
+        edit.unchecked = skipped
     return edits
 
 
@@ -333,7 +360,27 @@ def locate_key_edits(old_key: str, new_key: str) -> list[KeyEdit]:
         # The api and ota blocks may share one !secret line
         if edit not in edits:
             edits.append(edit)
+    for edit in edits:
+        if edit.secret:
+            _refuse_other_own_uses(edit.secret, blocks)
     return _with_sharers(edits)
+
+
+def _refuse_other_own_uses(name: str, blocks: list[ConfigType]) -> None:
+    """The secret may only feed the key lines: a wifi password on the same
+    secret would change with it and take the device off the network."""
+    key_lines = {
+        (doc.resolve(), line)
+        for doc, line, _ in (_source_line(b, CONF_KEY) for b in blocks)
+    }
+    ref = _secret_use_re(name)
+    for doc in _own_documents():
+        for i, text in enumerate(_read_text(doc).splitlines()):
+            if ref.search(text) and (doc, i) not in key_lines:
+                raise EsphomeError(
+                    f"'{name}' is also used at {doc}:{i + 1}; a rotation would "
+                    "change that value too, edit the key by hand"
+                )
 
 
 def _key_secret(old_key: str) -> tuple[Path, str] | None:
@@ -387,26 +434,6 @@ def old_key_edit(old_key: str) -> list[KeyEdit]:
                 "value; edit it by hand"
             )
         return _with_sharers([KeyEdit(doc, line_no, text, _rewrite(match, old_key))])
-    if (secret := _key_secret(old_key)) is None:
-        rendered = f'{CONF_OLD_KEY}: "{old_key}"'
-        extra = []
-    else:
-        secret_doc, name = secret
-        rendered = f"{CONF_OLD_KEY}: !secret {name}_old"
-        secrets_path = _secret_file(secret_doc)
-        # This configuration has no old_key, so any use of an existing
-        # `<name>_old` line, its own included, is another setting; a line
-        # nobody uses is a leftover of an earlier rotation
-        if (kept := _secret_rewrite(secrets_path, f"{name}_old", old_key)) is not None:
-            ref = _secret_use_re(f"{name}_old")
-            texts = _other_config_texts(set(), strict=True)
-            if users := [p for p, t in texts if ref.search(t)]:
-                raise EsphomeError(
-                    f"'{name}_old:' in {secrets_path} is used by "
-                    + ", ".join(str(p) for p in users)
-                    + f"; rename it or add '{CONF_OLD_KEY}' by hand"
-                )
-        extra = [kept or _secret_insert(secrets_path, name, f"{name}_old", old_key)]
     # The anchor sets the indent: the block's own key line, in whichever
     # file holds it, else one level under a bare `encryption:` line
     if _source_of(encryption, CONF_KEY) is not None:
@@ -419,6 +446,27 @@ def old_key_edit(old_key: str) -> list[KeyEdit]:
             f"{doc}:{line_no + 1} does not hold '{anchor}:' as a block line; "
             "edit it by hand"
         )
+    if (secret := _key_secret(old_key)) is None:
+        rendered = f'{CONF_OLD_KEY}: "{old_key}"'
+        extra = []
+    else:
+        name = secret[1]
+        rendered = f"{CONF_OLD_KEY}: !secret {name}_old"
+        # `!secret <name>_old` resolves from the file that gets old_key
+        secrets_path = _secret_file(doc)
+        # This configuration has no old_key, so any use of an existing
+        # `<name>_old` line, its own included, is another setting; a line
+        # nobody uses is a leftover of an earlier rotation
+        if (kept := _secret_rewrite(secrets_path, f"{name}_old", old_key)) is not None:
+            ref = _secret_use_re(f"{name}_old")
+            texts, _ = _other_config_texts(set(), strict=True)
+            if users := [p for p, t in texts if ref.search(t)]:
+                raise EsphomeError(
+                    f"'{name}_old:' in {secrets_path} is used by "
+                    + ", ".join(str(p) for p in users)
+                    + f"; rename it or add '{CONF_OLD_KEY}' by hand"
+                )
+        extra = [kept or _secret_insert(secrets_path, name, f"{name}_old", old_key)]
     edit = KeyEdit(
         doc, line_no, text, f"{_indent(text)}{step}{rendered}", insert_after=True
     )
@@ -473,6 +521,9 @@ def apply_key_edits(edits: list[KeyEdit]) -> dict[Path, Snapshot]:
         try:
             restore_key_files(originals)
         except EsphomeError as restore_err:
+            if not isinstance(err, Exception):
+                err.add_note(str(restore_err))  # an interrupt stays one
+                raise err from None
             raise EsphomeError(f"{err}; {restore_err}") from err
         raise
     return originals
@@ -485,7 +536,10 @@ def restore_key_files(originals: dict[Path, Snapshot]) -> None:
     failed = []
     for path, snapshot in originals.items():
         try:
-            if _read_text(path) != snapshot.written:
+            current = _read_text(path)
+            if current == snapshot.original:
+                continue  # never written, or already put back
+            if current != snapshot.written:
                 raise EsphomeError("changed since it was written, left as is")
             _write_keeping_mode(path, snapshot.original)
         except EsphomeError as err:

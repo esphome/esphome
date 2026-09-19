@@ -928,9 +928,29 @@ def test_probe_ota_key_takes_another_device_answer_as_final() -> None:
         ) as negotiate,
         patch("time.sleep") as sleep,
     ):
-        assert espota2.probe_ota_key("h", 1, PSK, timeout=30) is False
+        assert (
+            espota2.probe_ota_key("h", 1, PSK, timeout=30, retry_rejected=False)
+            is False
+        )
     negotiate.assert_called_once()
     sleep.assert_not_called()
+
+
+def test_probe_ota_key_retries_a_device_error_while_it_reboots() -> None:
+    """After an upload the device may answer oddly until it is back."""
+    session = Mock()
+    with (
+        patch("esphome.espota2.resolve_ip_address", return_value=RESOLVED),
+        patch("socket.socket"),
+        patch(
+            "esphome.espota2._negotiate_session",
+            side_effect=[espota2.OTAError("busy"), (session, 2, 0, True)],
+        ) as negotiate,
+        patch("esphome.espota2.receive_exactly"),
+        patch("time.sleep"),
+    ):
+        assert espota2.probe_ota_key("h", 1, PSK, timeout=30) is True
+    assert negotiate.call_count == 2
 
 
 def test_probe_ota_key_deadline_spans_the_whole_negotiation() -> None:

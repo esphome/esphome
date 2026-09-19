@@ -2269,6 +2269,11 @@ def command_rotate_key(args: ArgsProtocol, config: ConfigType) -> int | None:
             shared.setdefault(
                 str(path.relative_to(CORE.config_dir.resolve())), set()
             ).add(what)
+    if unchecked := sorted({what for edit in edits for what in edit.unchecked}):
+        warnings.append(
+            "Could not check every configuration for shared use: "
+            + "; ".join(unchecked)
+        )
     if shared:
         warnings.append(
             "Other configurations share what is rewritten: "

@@ -43,7 +43,15 @@ def invalidate_compiled_config() -> None:
     mtime check cannot see, such as secrets.yaml or an include; other
     configurations may share that file."""
     storage = compiled_config_path(CORE.config_filename).parent
-    for path in storage.glob("*.validated.json"):
+    try:
+        caches = [p for p in storage.iterdir() if p.name.endswith(".validated.json")]
+    except FileNotFoundError:
+        return
+    except OSError as err:
+        raise EsphomeError(
+            f"Could not list the validated config caches in {storage}: {err}"
+        ) from err
+    for path in caches:
         try:
             path.unlink(missing_ok=True)
         except OSError as err:

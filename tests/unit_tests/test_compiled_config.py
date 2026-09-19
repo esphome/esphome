@@ -966,3 +966,18 @@ def test_invalidate_compiled_config_drops_every_cache(tmp_path: Path) -> None:
     (storage / "other.json").write_text("{}")
     invalidate_compiled_config()
     assert sorted(p.name for p in storage.iterdir()) == ["other.json"]
+
+
+def test_invalidate_compiled_config_reports_a_storage_dir_it_cannot_list(
+    tmp_path: Path,
+) -> None:
+    CORE.config_path = tmp_path / "test.yaml"
+    storage = compiled_config_path("test.yaml").parent
+    storage.mkdir(parents=True)
+    with (
+        patch("pathlib.Path.iterdir", side_effect=OSError("denied")),
+        pytest.raises(EsphomeError, match="Could not list"),
+    ):
+        invalidate_compiled_config()
+    storage.rmdir()
+    invalidate_compiled_config()  # no storage dir yet is nothing to drop

@@ -8153,11 +8153,14 @@ def test_command_rotate_key_warns_about_a_shared_secret(
         "y",
         secret="device_key",
         shared_with=[CORE.config_dir / "b.yaml"],
+        unchecked=["c.yaml is a link"],
     )
     with patch("esphome.yaml_edit.locate_key_edits", return_value=[edit]):
         rotate_env["confirm"].return_value = "n"
         assert command_rotate_key(MockArgs(), CORE.config) == 1
-    assert "b.yaml (secret 'device_key')" in capfd.readouterr().out
+    out = capfd.readouterr().out
+    assert "b.yaml (secret 'device_key')" in out
+    assert "Could not check every configuration for shared use: c.yaml is a link" in out
 
 
 def test_command_rotate_key_no_terminal_needs_yes(
