@@ -802,3 +802,38 @@ def test_command_rename_reports_an_orphan_it_could_not_remove(
     out = capfd.readouterr().out
     assert "Rename failed" in out
     assert "Could not remove" in out and "newname.yaml" in out
+
+
+def test_command_rename_install_failure_says_so(
+    tmp_path: Path,
+    capfd: CaptureFixture[str],
+    mock_run_external_process: Mock,
+) -> None:
+    """The device may already carry the new name; the user is told."""
+    config_file = tmp_path / "oldname.yaml"
+    config_file.write_text("esphome:\n  name: oldname\n")
+    setup_core(tmp_path=tmp_path)
+    CORE.config_path = config_file
+    CORE.config = {CONF_ESPHOME: {CONF_NAME: "oldname"}}
+    mock_run_external_process.side_effect = [0, 1]
+    assert command_rename(MockArgs(name="newname", dashboard=False), {}) == 1
+    out = capfd.readouterr().out
+    assert "Rename failed: the install did not finish" in out
+    assert "may already run the new name" in out
+
+
+def test_command_rename_validation_revert_reports_an_orphan(
+    tmp_path: Path,
+    capfd: CaptureFixture[str],
+    mock_run_external_process: Mock,
+) -> None:
+    config_file = tmp_path / "oldname.yaml"
+    config_file.write_text("esphome:\n  name: oldname\n")
+    setup_core(tmp_path=tmp_path)
+    CORE.config_path = config_file
+    CORE.config = {CONF_ESPHOME: {CONF_NAME: "oldname"}}
+    mock_run_external_process.return_value = 1
+    with patch("pathlib.Path.unlink", side_effect=OSError("busy")):
+        assert command_rename(MockArgs(name="newname", dashboard=False), {}) == 1
+    out = capfd.readouterr().out
+    assert "does not validate" in out and "Could not remove" in out
