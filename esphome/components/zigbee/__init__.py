@@ -18,6 +18,7 @@ from esphome.core import CORE, CoroPriority, coroutine_with_priority
 from esphome.types import ConfigType
 
 from .const import (
+    CONF_ANTENNA,
     CONF_ENDPOINT,
     CONF_MAX_EP_NUMBER,
     CONF_ON_JOIN,
@@ -125,6 +126,9 @@ CONFIG_SCHEMA = cv.All(
                     cv.one_of(*["random"], lower=True),
                 ),
                 cv.requires_component("nrf52"),
+            ),
+            cv.Optional(CONF_ANTENNA, default="internal"): cv.one_of(
+                "internal", "external", lower=True
             ),
             cv.OnlyWith(CONF_SLEEPY, "nrf52", default=False): cv.All(
                 cv.boolean,
