@@ -18,7 +18,7 @@ from esphome.yaml_edit import (
     read_text,
     rewrite,
     rewritten_text,
-    source_line,
+    source_of,
     write_keeping_mode,
 )
 
@@ -42,7 +42,8 @@ def _setup(tmp_path: Path, yaml_text: str) -> Path:
 
 
 def _name_edit(new_name: str) -> LineEdit:
-    doc, line_no, text = source_line(CORE.raw_config[CONF_ESPHOME], CONF_NAME)
+    doc, line_no = source_of(CORE.raw_config[CONF_ESPHOME], CONF_NAME)
+    text = line_at(doc, line_no)
     match = field_line_re(CONF_NAME, "kitchen").match(text)
     return LineEdit(doc, line_no, text, rewrite(match, new_name))
 
@@ -97,33 +98,26 @@ def test_a_comment_needs_whitespace_and_a_scalar_is_not_empty() -> None:
     assert field_line_re("key", "abc#def").match("key: abc#def") is not None
 
 
-def test_source_line_refuses_an_uneditable_source(tmp_path: Path) -> None:
-    """A value validation added has no range; a file under the build data
-    or outside the configuration directory is not the user's."""
-    _setup(tmp_path, YAML)
-    with pytest.raises(EsphomeError, match="was not read from a file"):
-        source_line({"name": "kitchen"}, "name")
-    outside = tmp_path.parent / "elsewhere.yaml"
-    outside.write_bytes(b"esphome:\n  name: kitchen\n")
-    try:
-        (tmp_path / "test.yaml").unlink()
-        (tmp_path / "test.yaml").symlink_to(outside)
-        CORE.raw_config = yaml_util.load_yaml(CORE.config_path)
-        with pytest.raises(EsphomeError, match="not an editable file"):
-            source_line(CORE.raw_config[CONF_ESPHOME], CONF_NAME)
-    finally:
-        outside.unlink()
+def test_source_of_is_none_for_a_value_validation_added() -> None:
+    """Only a key read from a file carries a range."""
+    assert source_of({"name": "kitchen"}, "name") is None
 
 
-def test_source_line_resolves_a_symlink(tmp_path: Path) -> None:
+def test_source_of_names_the_file_the_loader_read(tmp_path: Path) -> None:
+    """An include has its own document; a symlink is reported as given."""
+    (tmp_path / "base.yaml").write_bytes(b"name: kitchen\n")
+    _setup(tmp_path, "esphome: !include base.yaml\n")
+    assert source_of(CORE.raw_config[CONF_ESPHOME], CONF_NAME) == (
+        tmp_path / "base.yaml",
+        0,
+    )
     target = tmp_path / "shared" / "test.yaml"
     target.parent.mkdir()
     target.write_bytes(YAML.encode())
-    CORE.reset()
-    CORE.config_path = tmp_path / "test.yaml"
+    CORE.config_path.unlink()
     CORE.config_path.symlink_to(target)
     CORE.raw_config = yaml_util.load_yaml(CORE.config_path)
-    assert _name_edit("garage").path == target.resolve()
+    assert _name_edit("garage").path == CORE.config_path
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="posix file modes")
