@@ -1,0 +1,14 @@
+esphome:
+  name: test
+
+esp32:
+  variant: esp32
+
+esp32_ble_server:
+  id: ble_server
+  services:
+    - uuid: 2a24b789-7aab-4535-af3e-ee76a35cc12d
+      characteristics:
+        - uuid: cad48e28-7fbe-41cf-bae9-d77a6c233423
+          read: true
+          value: [1, 2, 3, 4]

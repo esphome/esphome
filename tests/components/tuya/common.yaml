@@ -80,3 +80,24 @@ switch:
   - platform: tuya
     id: tuya_switch
     switch_datapoint: 1
+
+water_heater:
+  - platform: tuya
+    id: tuya_water_heater
+    name: Tuya Water Heater
+    switch_datapoint: 1
+    current_temperature_datapoint: 3
+    target_temperature_datapoint: 2
+    current_temperature_multiplier: 0.5
+    target_temperature_multiplier: 0.5
+    mode_datapoint: 4
+    eco_value: 0
+    electric_value: 2
+    supported_modes:
+      - "OFF"
+      - ECO
+      - ELECTRIC
+    visual:
+      min_temperature: 30
+      max_temperature: 75
+      target_temperature_step: 1

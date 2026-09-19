@@ -118,6 +118,35 @@ TEST(ModbusClientDeviceFanOut, ReadHoldingRegistersSuccess) {
   EXPECT_FALSE(call.status.has_value());
 }
 
+// FC 0x17: the response carries only the read block, so it decodes as a holding-register read of the read
+// start/count. The write half has no client-side ack callback - it is confirmed by a successful response.
+TEST(ModbusClientDeviceFanOut, ReadWriteMultipleRegistersDeliversReadBlockAsHolding) {
+  RecordingDevice device;
+  // read 2 regs at 0x0010, write 1 reg (0x00FF) at 0x0020
+  const uint8_t request[] = {0x17, 0x00, 0x10, 0x00, 0x02, 0x00, 0x20, 0x00, 0x01, 0x02, 0x00, 0xFF};
+  const uint8_t response[] = {0x17, 0x04, 0x00, 0x2A, 0x01, 0x00};  // read-back: 0x002A, 0x0100
+  device.on_response(request, response);
+
+  ASSERT_EQ(device.holding_calls.size(), 1u);
+  const auto &call = device.holding_calls.front();
+  EXPECT_EQ(call.start_address, 0x0010);  // the READ start address, not the write
+  EXPECT_EQ(call.registers, (std::vector<uint16_t>{0x002A, 0x0100}));
+  EXPECT_FALSE(call.status.has_value());
+  EXPECT_TRUE(device.write_multiple_registers_calls.empty());  // no separate write-ack on the client side
+}
+
+// A 0x17 response shorter than the requested read count is self-consistent but wrong; it must be diverted
+// to on_custom_response(), never clamped and delivered as if complete.
+TEST(ModbusClientDeviceFanOut, ReadWriteMultipleRegistersShortResponseGoesToCustom) {
+  RecordingDevice device;
+  const uint8_t request[] = {0x17, 0x00, 0x10, 0x00, 0x02, 0x00, 0x20, 0x00, 0x01, 0x02, 0x00, 0xFF};
+  const uint8_t response[] = {0x17, 0x02, 0x00, 0x2A};  // only 1 register, but 2 were requested
+  device.on_response(request, response);
+
+  EXPECT_TRUE(device.holding_calls.empty());
+  EXPECT_EQ(device.custom_requests.size(), 1u);
+}
+
 TEST(ModbusClientDeviceFanOut, ReadInputRegistersDelegateToGeneric) {
   GenericDevice device;
   const uint8_t request[] = {0x04, 0x00, 0x10, 0x00, 0x01};

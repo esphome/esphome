@@ -6,3 +6,10 @@ packages:
 wifi:
   ssid: MySSID
   password: password1
+
+# Regression test for https://github.com/esphome/esphome/issues/18054: the
+# MideaUART ESP-IDF shims must not make unqualified millis() ambiguous
+interval:
+  - interval: 10s
+    then:
+      - lambda: ESP_LOGD("test", "%u", millis());

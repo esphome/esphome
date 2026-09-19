@@ -67,7 +67,7 @@ static constexpr uint32_t TEARDOWN_TIMEOUT_REBOOT_MS = 1000;  // 1 second for qu
 class Application {
  public:
 #ifdef ESPHOME_NAME_ADD_MAC_SUFFIX
-  // Called before Logger::pre_setup() — must not log (global_logger is not yet set).
+  // Runs after Logger::pre_setup() (emitted at EARLY_INIT priority), so the app name is not set yet there.
   /// Pre-setup with MAC suffix: overwrites placeholder in mutable static buffers with actual MAC.
   void pre_setup(char *name, size_t name_len, char *friendly_name, size_t friendly_name_len) {
     arch_init();
@@ -87,7 +87,7 @@ class Application {
     this->friendly_name_ = StringRef(friendly_name, friendly_name_len);
   }
 #else
-  // Called before Logger::pre_setup() — must not log (global_logger is not yet set).
+  // Runs after Logger::pre_setup() (emitted at EARLY_INIT priority), so the app name is not set yet there.
   /// Pre-setup without MAC suffix: StringRef points directly at const string literals in flash.
   void pre_setup(const char *name, size_t name_len, const char *friendly_name, size_t friendly_name_len) {
     arch_init();
@@ -120,8 +120,8 @@ class Application {
 // NOLINTBEGIN(bugprone-macro-parentheses)
 #define ENTITY_TYPE_(type, singular, plural, count, upper) \
   void register_##singular(type *obj) { this->plural##_.push_back(obj); } \
-  void register_##singular(type *obj, const char *name, uint32_t entity_key, uint32_t entity_fields) { \
-    obj->configure_entity_(name, entity_key, entity_fields); \
+  void register_##singular(type *obj, const char *name, uint32_t object_id_hash, uint32_t entity_fields) { \
+    obj->configure_entity_(name, object_id_hash, entity_fields); \
     this->plural##_.push_back(obj); \
   }
 #define ENTITY_CONTROLLER_TYPE_(type, singular, plural, count, upper, callback) \
@@ -329,7 +329,7 @@ class Application {
 #define GET_ENTITY_METHOD(entity_type, entity_name, entities_member) \
   entity_type *get_##entity_name##_by_key(uint32_t key, uint32_t device_id, bool include_internal = false) { \
     for (auto *obj : this->entities_member##_) { \
-      if (obj->get_entity_key() == key && obj->get_device_id() == device_id && \
+      if (obj->get_object_id_hash() == key && obj->get_device_id() == device_id && \
           (include_internal || !obj->is_internal())) \
         return obj; \
     } \
@@ -340,7 +340,7 @@ class Application {
 #define GET_ENTITY_METHOD(entity_type, entity_name, entities_member) \
   entity_type *get_##entity_name##_by_key(uint32_t key, bool include_internal = false) { \
     for (auto *obj : this->entities_member##_) { \
-      if (obj->get_entity_key() == key && (include_internal || !obj->is_internal())) \
+      if (obj->get_object_id_hash() == key && (include_internal || !obj->is_internal())) \
         return obj; \
     } \
     return nullptr; \
@@ -528,7 +528,7 @@ class Application {
 
   // 1-byte members (grouped together to minimize padding)
   uint8_t app_state_{0};
-  bool name_add_mac_suffix_;
+  bool name_add_mac_suffix_{false};
   bool in_loop_{false};
   volatile bool has_pending_enable_loop_requests_{false};
 
