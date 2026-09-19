@@ -19,6 +19,17 @@ from esphome.types import ConfigType
 from esphome.util import ESPHOME_COMMAND, run_external_process, safe_print
 
 
+def _revert(new_path: Path, why: str) -> int:
+    """Say why the rename stopped and take the new file back; an orphan the
+    next attempt would trip over is reported."""
+    safe_print(color(AnsiFore.BOLD_RED, f"Rename failed: {why}"))
+    try:
+        new_path.unlink(missing_ok=True)
+    except OSError as err:
+        safe_print(color(AnsiFore.BOLD_RED, f"Could not remove {new_path}: {err}"))
+    return 1
+
+
 def command_rename(args: argparse.Namespace, config: ConfigType) -> int | None:
     """Rename the device: a new file with the name line rewritten, validated
     and installed, then the old file removed."""
@@ -120,20 +131,10 @@ def command_rename(args: argparse.Namespace, config: ConfigType) -> int | None:
             like=CORE.config_path,
         )
     except EsphomeError as err:
-        safe_print(color(AnsiFore.BOLD_RED, f"Rename failed: {err}"))
-        try:
-            new_path.unlink(missing_ok=True)
-        except OSError as unlink_err:
-            safe_print(
-                color(AnsiFore.BOLD_RED, f"Could not remove {new_path}: {unlink_err}")
-            )
-        return 1
+        return _revert(new_path, str(err))
 
-    rc = run_external_process(*ESPHOME_COMMAND, "config", str(new_path))
-    if rc != 0:
-        safe_print(color(AnsiFore.BOLD_RED, "Rename failed. Reverting changes."))
-        new_path.unlink()
-        return 1
+    if run_external_process(*ESPHOME_COMMAND, "config", str(new_path)) != 0:
+        return _revert(new_path, "the new configuration does not validate")
 
     cli_args = [
         "run",
@@ -151,11 +152,12 @@ def command_rename(args: argparse.Namespace, config: ConfigType) -> int | None:
     except KeyboardInterrupt:
         rc = 1
     if rc != 0:
-        new_path.unlink()
-        return 1
+        return _revert(
+            new_path,
+            "the install did not finish; the device may already run the new name",
+        )
 
-    if CORE.config_path != new_path:
-        CORE.config_path.unlink()
+    CORE.config_path.unlink()
 
     safe_print(color(AnsiFore.BOLD_GREEN, "SUCCESS"))
     print()
