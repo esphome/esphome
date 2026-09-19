@@ -1,5 +1,6 @@
 #include "noise.h"
 #ifdef USE_NOISE
+#include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
 #include <algorithm>
@@ -14,6 +15,14 @@
 namespace esphome::noise {
 
 static const char *const TAG = "noise";
+
+void NoiseContext::load_psk(psk_t &out) const {
+  if (this->psk_ == nullptr) {
+    out.fill(0);
+    return;
+  }
+  progmem_memcpy(out.data(), this->psk_, out.size());
+}
 
 const LogString *noise_err_to_logstr(int err) {
   if (err == NOISE_ERROR_NO_MEMORY)
