@@ -716,6 +716,7 @@ class EsphomeCore:
         self.defines = set()
         self.platformio_options = {}
         self.loaded_integrations = set()
+        self.loaded_platforms = set()
         self.component_ids = set()
         self.platform_counts = defaultdict(int)
         self.unique_ids = {}
@@ -907,9 +908,7 @@ class EsphomeCore:
         """
         if not self.using_toolchain_sdk_zephyr:
             return None
-        from esphome.components.zephyr.mcuboot import (
-            zephyr_swap_method,  # noqa: PLC0415
-        )
+        from esphome.components.zephyr.mcuboot import zephyr_swap_method  # noqa: PLC0415
 
         if zephyr_swap_method() != "direct":
             return None

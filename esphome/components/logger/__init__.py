@@ -427,15 +427,19 @@ async def to_code(config: ConfigType) -> None:
     # pre_setup() switches on uart_ to decide which hardware to initialize
     # (e.g. UART0 vs USB_SERIAL_JTAG). Without this, uart_ is still the
     # default UART_SELECTION_UART0 and the wrong hardware gets initialized.
-    if CONF_HARDWARE_UART in config:
-        hw_uart = config[CONF_HARDWARE_UART]
+    # uart_ is UART0 in C++ except on LibreTiny where it is DEFAULT; skip the
+    # setter when the config matches it.
+    cpp_default_uart = DEFAULT if CORE.is_libretiny else UART0
+    if (
+        hardware_uart := config.get(CONF_HARDWARE_UART)
+    ) is not None and hardware_uart != cpp_default_uart:
         # An explicit "&<label>" override is always a plain hardware UART -- on Zephyr,
         # UART_SELECTION_UART0/UART1 both resolve identically via LOGGER_UART_NODE_LABEL
         # (see logger_zephyr.cpp), so either works as the runtime discriminator.
         selected_uart = (
             logger_ns.UART_SELECTION_UART0
-            if hw_uart.startswith("&")
-            else HARDWARE_UART_TO_UART_SELECTION[hw_uart]
+            if hardware_uart.startswith("&")
+            else HARDWARE_UART_TO_UART_SELECTION[hardware_uart]
         )
         cg.add(log.set_uart_selection(selected_uart))
     # pre_setup() sets global_logger and must run before any other code
