@@ -158,9 +158,8 @@ def config_schema(config: ConfigType) -> ConfigType:
 
 
 async def to_code(config: ConfigType) -> None:
-    from .. import zephyr_add_prj_conf, zephyr_setup_preferences, zephyr_to_code
+    from .. import zephyr_add_prj_conf, zephyr_setup_preferences
 
-    zephyr_to_code(config)
     cg.add_build_flag("-DUSE_ZEPHYR_VARIANT_NRF52")
     cg.add_define("ESPHOME_BOARD", config[CONF_BOARD])
     cg.add_define("ESPHOME_VARIANT", "NRF52")
@@ -176,8 +175,9 @@ async def to_code(config: ConfigType) -> None:
     ):
         from ..dts_lookup import get_board_partitions
 
-        # zephyr_to_code() above already fetched this board's DTS (fetch_board_dts) and
-        # validated it exists, so this reflects the real board -- not a guess. Only the
+        # zephyr/__init__.py's to_code() already fetched this board's DTS
+        # (fetch_board_dts) and validated it exists before calling here, so this
+        # reflects the real board -- not a guess. Only the
         # itsybitsy's stock DTS (nrf52840_partition_uf2_sdv6.dtsi) ships a "SoftDevice"
         # partition; picking this bootloader on a board without one (e.g. the default
         # adafruit_feather_nrf52840, whose nrf52840_partition.dtsi has no such

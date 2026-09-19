@@ -128,10 +128,8 @@ async def to_code(config: ConfigType) -> None:
         zephyr_add_prj_conf,
         zephyr_add_sysbuild_conf,
         zephyr_setup_preferences,
-        zephyr_to_code,
     )
 
-    zephyr_to_code(config)
     cg.add_build_flag("-DUSE_ZEPHYR_VARIANT_EFR32MG24")
     cg.add_define("ESPHOME_BOARD", config[CONF_BOARD])
     cg.add_define("ESPHOME_VARIANT", "EFR32MG24")

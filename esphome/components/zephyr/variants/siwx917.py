@@ -184,9 +184,8 @@ def config_schema(config: ConfigType) -> ConfigType:
 
 
 async def to_code(config: ConfigType) -> None:
-    from .. import zephyr_add_prj_conf, zephyr_setup_preferences, zephyr_to_code
+    from .. import zephyr_add_prj_conf, zephyr_setup_preferences
 
-    zephyr_to_code(config)
     cg.add_build_flag("-DUSE_ZEPHYR_VARIANT_SIWX917")
     cg.add_define("ESPHOME_BOARD", config[CONF_BOARD])
     cg.add_define("ESPHOME_VARIANT", "SIWX917")

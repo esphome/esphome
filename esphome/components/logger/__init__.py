@@ -32,16 +32,18 @@ from esphome.components.libretiny.const import (
 from esphome.components.zephyr import (
     KEY_BOARD,
     VARIANTS,
-    ZEPHYR_VARIANT_ESP32_C3,
-    ZEPHYR_VARIANT_ESP32_C5,
-    ZEPHYR_VARIANT_ESP32_C6,
-    ZEPHYR_VARIANT_ESP32_H2,
     zephyr_add_cdc_acm,
     zephyr_add_overlay,
     zephyr_add_prj_conf,
     zephyr_data,
     zephyr_variant,
     zephyr_variant_family,
+)
+from esphome.components.zephyr.const import (
+    ZEPHYR_VARIANT_ESP32_C3,
+    ZEPHYR_VARIANT_ESP32_C5,
+    ZEPHYR_VARIANT_ESP32_C6,
+    ZEPHYR_VARIANT_ESP32_H2,
 )
 from esphome.config_helpers import filter_source_files_from_platform
 import esphome.config_validation as cv
