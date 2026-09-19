@@ -9,7 +9,6 @@ from pathlib import Path
 import re
 import stat
 
-from esphome import compiled_config, yaml_util
 from esphome.core import CORE, EsphomeError
 from esphome.helpers import write_file
 from esphome.types import ConfigType
@@ -31,23 +30,12 @@ def read_text(path: Path) -> str:
 
 @dataclass
 class LineEdit:
-    """One line to rewrite, or a line to add right after it; ``old_line`` is
-    what the line held when it was located."""
+    """One line to rewrite; ``old_line`` is what it held when located."""
 
     path: Path
     line: int
     old_line: str
     new_line: str
-    insert_after: bool = False
-
-
-@dataclass
-class Snapshot:
-    """A rewritten file's text before and after; the restore only puts
-    ``original`` back over ``written``, never over the user's own edit."""
-
-    original: str
-    written: str
 
 
 def field_line_re(
@@ -124,70 +112,9 @@ def rewritten_text(original: str, edits: list[LineEdit]) -> str:
     """``original`` with the edits applied; every edit must still find the
     line it was located on."""
     lines = original.splitlines(keepends=True)
-    file_newline = "\r\n" if "\r\n" in original else "\n"
-    # Highest line first, so an insertion never shifts a later edit; an
-    # insertion after a line goes before that line's own rewrite
-    for edit in sorted(edits, key=lambda e: (e.line, e.insert_after), reverse=True):
+    for edit in edits:
         text = lines[edit.line].rstrip("\r\n") if edit.line < len(lines) else None
         if text != edit.old_line:
             raise EsphomeError(f"{edit.path}:{edit.line + 1} changed since it was read")
-        ending = lines[edit.line][len(text) :]
-        if edit.insert_after:
-            # A last line without a newline gets the file's own kind
-            lines[edit.line] = text + (ending or file_newline)
-            lines.insert(edit.line + 1, edit.new_line + ending)
-        else:
-            lines[edit.line] = edit.new_line + ending
+        lines[edit.line] = edit.new_line + lines[edit.line][len(text) :]
     return "".join(lines)
-
-
-def apply_line_edits(edits: list[LineEdit]) -> dict[Path, Snapshot]:
-    """Rewrite the located lines in place and return each touched file's
-    text before and after, for a rollback. Every file is rewritten in
-    memory before any is written, so a stale line touches nothing; a file
-    that no longer loads is undone here."""
-    by_path: dict[Path, list[LineEdit]] = {}
-    for edit in edits:
-        # Resolved here as well, so a hand-built edit cannot reach a symlink
-        # itself or a file outside the configuration directory
-        by_path.setdefault(editable_file(edit.path), []).append(edit)
-    snapshots = {}
-    for path, own in by_path.items():
-        original = read_text(path)
-        snapshots[path] = Snapshot(original, rewritten_text(original, own))
-    try:
-        for path, snapshot in snapshots.items():
-            write_keeping_mode(path, snapshot.written)
-        for path in snapshots:
-            try:
-                yaml_util.load_yaml(path, track_document_range=False)
-            except EsphomeError as err:
-                raise EsphomeError(f"{path} no longer loads: {err}") from err
-        compiled_config.invalidate_compiled_config()
-    except BaseException as err:
-        try:
-            restore_files(snapshots)
-        except EsphomeError as restore_err:
-            raise EsphomeError(f"{err}; {restore_err}") from err
-        raise
-    return snapshots
-
-
-def restore_files(snapshots: dict[Path, Snapshot]) -> None:
-    """Put back the files apply_line_edits rewrote; every file is tried and
-    the ones that failed, or that the user changed meanwhile, are reported
-    together and left alone."""
-    failed = []
-    for path, snapshot in snapshots.items():
-        try:
-            if read_text(path) != snapshot.written:
-                raise EsphomeError("changed since it was written, left as is")
-            write_keeping_mode(path, snapshot.original)
-        except EsphomeError as err:
-            failed.append(f"{path}: {err}")
-    try:
-        compiled_config.invalidate_compiled_config()
-    except EsphomeError as err:
-        failed.append(str(err))
-    if failed:
-        raise EsphomeError("Could not restore " + "; ".join(failed))

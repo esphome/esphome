@@ -1,28 +1,25 @@
-"""Tests for rewriting single lines of a yaml file in place."""
+"""Tests for rewriting single lines of a yaml file."""
 
 from __future__ import annotations
 
 from pathlib import Path
 import sys
-from unittest.mock import patch
 
 import pytest
 
 from esphome import yaml_util
-from esphome.compiled_config import compiled_config_path
 from esphome.config import do_substitution_pass
 from esphome.const import CONF_ESPHOME, CONF_NAME
 from esphome.core import CORE, EsphomeError
 from esphome.yaml_edit import (
     LineEdit,
-    Snapshot,
-    apply_line_edits,
     field_line_re,
     line_at,
-    restore_files,
+    read_text,
     rewrite,
     rewritten_text,
     source_line,
+    write_keeping_mode,
 )
 
 YAML = """esphome:
@@ -33,15 +30,13 @@ wifi:
 """
 
 
-def _setup(tmp_path: Path, yaml_text: str, secrets: str | None = None) -> Path:
-    """Write the yaml (and secrets.yaml), point CORE at it and load it the way
-    read_config does, so every node carries its source range."""
+def _setup(tmp_path: Path, yaml_text: str) -> Path:
+    """Write the yaml, point CORE at it and load it the way read_config does,
+    so every node carries its source range."""
     CORE.reset()
     CORE.config_path = tmp_path / "test.yaml"
     # Bytes, so Windows does not turn the newlines into CRLF on the way in
     CORE.config_path.write_bytes(yaml_text.encode())
-    if secrets is not None:
-        (tmp_path / "secrets.yaml").write_bytes(secrets.encode())
     CORE.raw_config = do_substitution_pass(yaml_util.load_yaml(CORE.config_path), None)
     return CORE.config_path
 
@@ -57,13 +52,9 @@ def test_rewrite_keeps_the_rest_of_the_line(tmp_path: Path) -> None:
     path = _setup(tmp_path, YAML.replace("name: kitchen", "name: 'kitchen'"))
     edit = _name_edit("garage")
     assert (edit.line, edit.new_line) == (1, "  name: 'garage'  # the device")
-    snapshots = apply_line_edits([edit])
-    assert path.read_text() == YAML.replace("name: kitchen", "name: 'garage'")
-    assert snapshots == {
-        path: Snapshot(
-            YAML.replace("name: kitchen", "name: 'kitchen'"), path.read_text()
-        )
-    }
+    assert rewritten_text(read_text(path), [edit]) == YAML.replace(
+        "name: kitchen", "name: 'garage'"
+    )
 
 
 def test_rewrite_can_force_quotes() -> None:
@@ -73,138 +64,37 @@ def test_rewrite_can_force_quotes() -> None:
 
 def test_only_the_located_line_changes(tmp_path: Path) -> None:
     """A lookalike `name:` under another block has its own range."""
-    path = _setup(
-        tmp_path, YAML + "sensor:\n  - platform: template\n    name: kitchen\n"
-    )
-    apply_line_edits([_name_edit("garage")])
-    assert path.read_text().endswith("    name: kitchen\n")
-    assert "  name: garage  # the device" in path.read_text()
+    yaml_text = YAML + "sensor:\n  - platform: template\n    name: kitchen\n"
+    path = _setup(tmp_path, yaml_text)
+    text = rewritten_text(read_text(path), [_name_edit("garage")])
+    assert text.endswith("    name: kitchen\n")
+    assert "  name: garage  # the device" in text
 
 
 def test_line_endings_are_kept(tmp_path: Path) -> None:
     path = _setup(tmp_path, YAML.replace("\n", "\r\n"))
-    edit = _name_edit("garage")
-    insert = LineEdit(
-        path, edit.line, edit.old_line, "  comment: added", insert_after=True
-    )
-    apply_line_edits([edit, insert])
-    assert path.read_bytes() == (
-        b"esphome:\r\n  name: garage  # the device\r\n  comment: added\r\n\r\nwifi:\r\n  ssid: kitchen\r\n"
-    )
-
-
-def test_insert_after_the_last_line_without_a_newline() -> None:
-    text = "esphome:\n  name: kitchen"
-    edit = LineEdit(
-        Path("x"), 1, "  name: kitchen", "  comment: added", insert_after=True
-    )
-    assert rewritten_text(text, [edit]) == "esphome:\n  name: kitchen\n  comment: added"
+    assert rewritten_text(read_text(path), [_name_edit("garage")]) == YAML.replace(
+        "\n", "\r\n"
+    ).replace("name: kitchen", "name: garage")
 
 
 def test_stale_line_is_refused(tmp_path: Path) -> None:
     path = _setup(tmp_path, YAML)
     edit = _name_edit("garage")
-    path.write_bytes(YAML.replace("kitchen  #", "pantry  #").encode())
     with pytest.raises(EsphomeError, match="changed since it was read"):
-        apply_line_edits([edit])
-    path.write_bytes(b"esphome:\n")
+        rewritten_text(YAML.replace("kitchen  #", "pantry  #"), [edit])
     with pytest.raises(EsphomeError, match="changed since it was read"):
-        apply_line_edits([edit])
+        rewritten_text("esphome:\n", [edit])
     with pytest.raises(EsphomeError, match="changed since it was read"):
         line_at(path, 5)
 
 
-def test_a_file_that_no_longer_loads_is_rolled_back(tmp_path: Path) -> None:
-    path = _setup(tmp_path, YAML)
-    edit = _name_edit("garage")
-    edit.new_line = "  name: [broken"
-    with pytest.raises(EsphomeError, match="no longer loads"):
-        apply_line_edits([edit])
-    assert path.read_text() == YAML
-
-
-def test_rollback_reports_a_restore_that_also_failed(tmp_path: Path) -> None:
-    """The rewrite lands, the reload fails, and the rollback write fails too."""
-    _setup(tmp_path, YAML)
-    edit = _name_edit("garage")
-    with (
-        patch("esphome.yaml_util.load_yaml", side_effect=EsphomeError("broken")),
-        patch("pathlib.Path.chmod", side_effect=[None, OSError("disk")]),
-        pytest.raises(EsphomeError, match="broken; Could not restore .*disk"),
-    ):
-        apply_line_edits([edit])
-
-
-def test_rolls_back_on_an_interrupt(tmp_path: Path) -> None:
-    path = _setup(tmp_path, YAML)
-    with (
-        patch("esphome.yaml_util.load_yaml", side_effect=KeyboardInterrupt),
-        pytest.raises(KeyboardInterrupt),
-    ):
-        apply_line_edits([_name_edit("garage")])
-    assert path.read_text() == YAML
-
-
-def test_restore_leaves_a_file_the_user_changed_alone(tmp_path: Path) -> None:
-    path = _setup(tmp_path, YAML)
-    snapshots = apply_line_edits([_name_edit("garage")])
-    edited = path.read_text() + "logger:\n"
-    path.write_bytes(edited.encode())
-    with pytest.raises(EsphomeError, match="changed since it was written, left as is"):
-        restore_files(snapshots)
-    assert path.read_text() == edited
-
-
-def test_restore_reports_every_file_it_could_not_write(tmp_path: Path) -> None:
-    _setup(tmp_path, YAML)
-    with pytest.raises(
-        EsphomeError, match="Could not restore .*gone.yaml: Error reading"
-    ):
-        restore_files({tmp_path / "gone.yaml": Snapshot("x", "x")})
-
-
-def test_restore_reports_a_cache_it_could_not_drop(tmp_path: Path) -> None:
-    path = _setup(tmp_path, YAML)
-    with (
-        patch(
-            "esphome.compiled_config.invalidate_compiled_config",
-            side_effect=EsphomeError("busy"),
-        ),
-        pytest.raises(EsphomeError, match="Could not restore busy"),
-    ):
-        restore_files({path: Snapshot(YAML, YAML)})
-
-
-def test_clears_the_validated_cache(tmp_path: Path) -> None:
-    _setup(tmp_path, YAML)
-    cache = compiled_config_path(CORE.config_filename)
-    cache.parent.mkdir(parents=True, exist_ok=True)
-    cache.write_text("{}")
-    snapshots = apply_line_edits([_name_edit("garage")])
-    assert not cache.exists()
-    cache.write_text("{}")
-    restore_files(snapshots)
-    assert not cache.exists()
-
-
-@pytest.mark.skipif(sys.platform == "win32", reason="posix file modes")
-def test_keeps_the_file_mode(tmp_path: Path) -> None:
-    path = _setup(tmp_path, YAML)
-    path.chmod(0o600)
-    snapshots = apply_line_edits([_name_edit("garage")])
-    assert path.stat().st_mode & 0o777 == 0o600
-    restore_files(snapshots)
-    assert path.stat().st_mode & 0o777 == 0o600
-
-
-def test_mode_failure_is_reported(tmp_path: Path) -> None:
-    path = _setup(tmp_path, YAML)
-    with (
-        patch("pathlib.Path.chmod", side_effect=OSError("denied")),
-        pytest.raises(EsphomeError, match="Could not keep the mode"),
-    ):
-        apply_line_edits([_name_edit("garage")])
-    assert path.read_text() == YAML
+def test_a_comment_needs_whitespace_and_a_scalar_is_not_empty() -> None:
+    """`abc#def` is one value to the loader, and a bare `key:` heads a block."""
+    assert field_line_re("key", "abc").match("key: abc#def") is None
+    assert field_line_re("key").match("key:") is None
+    assert field_line_re("key").match("key: abc  # c")["trail"] == "  # c"
+    assert field_line_re("key", "abc#def").match("key: abc#def") is not None
 
 
 def test_source_line_refuses_an_uneditable_source(tmp_path: Path) -> None:
@@ -225,7 +115,7 @@ def test_source_line_refuses_an_uneditable_source(tmp_path: Path) -> None:
         outside.unlink()
 
 
-def test_symlinked_file_is_edited_at_its_target(tmp_path: Path) -> None:
+def test_source_line_resolves_a_symlink(tmp_path: Path) -> None:
     target = tmp_path / "shared" / "test.yaml"
     target.parent.mkdir()
     target.write_bytes(YAML.encode())
@@ -233,21 +123,33 @@ def test_symlinked_file_is_edited_at_its_target(tmp_path: Path) -> None:
     CORE.config_path = tmp_path / "test.yaml"
     CORE.config_path.symlink_to(target)
     CORE.raw_config = yaml_util.load_yaml(CORE.config_path)
-    edit = _name_edit("garage")
-    assert edit.path == target.resolve()
-    # A hand-built edit through the link lands on the target as well
-    edit.path = CORE.config_path
-    apply_line_edits([edit])
-    assert CORE.config_path.is_symlink()
-    assert "name: garage" in target.read_text()
-    edit.path = tmp_path.parent / "outside.yaml"
-    with pytest.raises(EsphomeError, match="not an editable file"):
-        apply_line_edits([edit])
+    assert _name_edit("garage").path == target.resolve()
 
 
-def test_a_comment_needs_whitespace_and_a_scalar_is_not_empty() -> None:
-    """`abc#def` is one value to the loader, and a bare `key:` heads a block."""
-    assert field_line_re("key", "abc").match("key: abc#def") is None
-    assert field_line_re("key").match("key:") is None
-    assert field_line_re("key").match("key: abc  # c")["trail"] == "  # c"
-    assert field_line_re("key", "abc#def").match("key: abc#def") is not None
+@pytest.mark.skipif(sys.platform == "win32", reason="posix file modes")
+def test_write_keeps_the_mode_of_the_file_or_another(tmp_path: Path) -> None:
+    path = _setup(tmp_path, YAML)
+    path.chmod(0o600)
+    write_keeping_mode(path, YAML)
+    assert path.stat().st_mode & 0o777 == 0o600
+    other = tmp_path / "other.yaml"
+    write_keeping_mode(other, YAML, like=path)
+    assert other.stat().st_mode & 0o777 == 0o600
+
+
+def test_mode_failure_is_reported(tmp_path: Path) -> None:
+    from unittest.mock import patch
+
+    path = _setup(tmp_path, YAML)
+    with (
+        patch("pathlib.Path.chmod", side_effect=OSError("denied")),
+        pytest.raises(EsphomeError, match="Could not keep the mode"),
+    ):
+        write_keeping_mode(path, YAML)
+
+
+def test_read_text_reports_a_file_it_cannot_decode(tmp_path: Path) -> None:
+    path = tmp_path / "latin1.yaml"
+    path.write_bytes(b"caf\xe9: 1\n")
+    with pytest.raises(EsphomeError, match="Error reading file"):
+        read_text(path)
