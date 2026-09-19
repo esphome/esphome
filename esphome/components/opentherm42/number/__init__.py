@@ -114,33 +114,6 @@ TYPES: dict[str, tuple[cv.Schema, dict, int]] = {
         {"min_value": -40, "max_value": 127, "step": 0.1},
         23,
     ),
-    # §5.3.4 Class 4, ID 24: Room temperature -- this master's own sensed room temperature
-    # (degrees C, -40..127), pushed to the boiler. A sensor-value feed rather than a demand, so
-    # it's CONFIG rather than primary.
-    CONF_SENSOR_AND_INFORMATIONAL_DATA_ROOM_TEMPERATURE: (
-        _number_schema(
-            "°C",
-            -40,
-            127,
-            device_class=DEVICE_CLASS_TEMPERATURE,
-            entity_category=ENTITY_CATEGORY_CONFIG,
-        ),
-        {"min_value": -40, "max_value": 127, "step": 0.1},
-        24,
-    ),
-    # §5.3.4 Class 4, ID 37: TrCH2 -- room temperature for the 2nd CH circuit (degrees C, -40..127),
-    # same sensor-value-feed nature as ID 24 above.
-    CONF_SENSOR_AND_INFORMATIONAL_DATA_TRCH2: (
-        _number_schema(
-            "°C",
-            -40,
-            127,
-            device_class=DEVICE_CLASS_TEMPERATURE,
-            entity_category=ENTITY_CATEGORY_CONFIG,
-        ),
-        {"min_value": -40, "max_value": 127, "step": 0.1},
-        37,
-    ),
     # §5.3.5 Class 5, ID 56: DHW Setpoint -- domestic hot water temperature setpoint (degrees C,
     # 0..127). A single number entity serves both directions -- see hub.h's RequestKind comment for
     # why only a successful read ever updates what's displayed.
@@ -188,12 +161,38 @@ TYPES: dict[str, tuple[cv.Schema, dict, int]] = {
     ),
 }
 
-# §5.3.4 Class 4, IDs 27/38/78/79: this master's own external sensor readings, pushed to the boiler.
-# Unlike TYPES above, these take no initial_value -- there's nothing for this component to invent a
-# default for (see OpenTherm42SensorFeedNumber's class comment) -- and the constructor also needs the
-# OpenTherm data-id, which the hub uses to route control()'s value to the right internal field (see
-# hub.h's set_sensor_feed_write_value()). Keyed by marker -> (schema, number.new_number traits, id).
+# §5.3.4 Class 4, IDs 24/37 and IDs 27/38/78/79: this master's own external sensor readings, pushed to the
+# boiler. Unlike TYPES above, these take no initial_value -- there's nothing for this component to
+# invent a default for (see OpenTherm42SensorFeedNumber's class comment) -- and the constructor also
+# needs the OpenTherm data-id, which the hub uses to route control()'s value to the right internal
+# field (see hub.h's set_sensor_feed_write_value()). Keyed by marker -> (schema, number.new_number
+# traits, id).
 SENSOR_FEED_TYPES: dict[str, tuple[cv.Schema, dict, int]] = {
+    # §5.3.4 Class 4, ID 24: Room temperature -- this master's own sensed room temperature
+    # (degrees C, -40..127), pushed to the boiler. A sensor-value feed rather than a demand, so
+    # it's CONFIG rather than primary.
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_ROOM_TEMPERATURE: (
+        number.number_schema(
+            OpenTherm42SensorFeedNumber,
+            unit_of_measurement="°C",
+            device_class=DEVICE_CLASS_TEMPERATURE,
+            entity_category=ENTITY_CATEGORY_CONFIG,
+        ),
+        {"min_value": -40, "max_value": 127, "step": 0.1},
+        24,
+    ),
+    # §5.3.4 Class 4, ID 37: TrCH2 -- room temperature for the 2nd CH circuit (degrees C, -40..127).
+    # Same nature as ID 24 above.
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_TRCH2: (
+        number.number_schema(
+            OpenTherm42SensorFeedNumber,
+            unit_of_measurement="°C",
+            device_class=DEVICE_CLASS_TEMPERATURE,
+            entity_category=ENTITY_CATEGORY_CONFIG,
+        ),
+        {"min_value": -40, "max_value": 127, "step": 0.1},
+        37,
+    ),
     # §5.3.4 Class 4, ID 27: Outside temperature (degrees C, -40..127). A sensor-value feed, so CONFIG.
     CONF_SENSOR_AND_INFORMATIONAL_DATA_OUTSIDE_TEMPERATURE: (
         number.number_schema(

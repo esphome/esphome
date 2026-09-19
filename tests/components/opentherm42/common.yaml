@@ -95,14 +95,14 @@ number:
       name: "Sensor and Informational Data: Room Setpoint CH2"
       initial_value: 20.0
     # §5.3.4 Class 4, ID 24: Room temperature -- this master's own sensed room temperature
-    # (degrees C, -40..127), pushed to the boiler.
+    # (degrees C, -40..127), pushed to the boiler. No initial_value -- see
+    # OpenTherm42SensorFeedNumber's class comment.
     sensor_and_informational_data_room_temperature:
       name: "Sensor and Informational Data: Room temperature"
-      initial_value: 20.0
     # §5.3.4 Class 4, ID 37: TrCH2 -- room temperature for the 2nd CH circuit (degrees C, -40..127).
+    # Same nature as ID 24 above. No initial_value.
     sensor_and_informational_data_trch2:
       name: "Sensor and Informational Data: TrCH2"
-      initial_value: 20.0
     # §5.3.4 Class 4, ID 27: Outside temperature (degrees C, -40..127), provided by this master. No
     # initial_value -- see OpenTherm42SensorFeedNumber's class comment.
     sensor_and_informational_data_outside_temperature:

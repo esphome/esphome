@@ -355,18 +355,14 @@ void OpenTherm42Hub::build_schedule_() {
   }
 
   // §5.3.4 Class 4: write-only numbers -- essential, like the Class 1 setpoints, since they represent
-  // this master's active control input.
+  // this master's active control input. ROOM_TEMPERATURE (ID 24) and TRCH2 (ID 37) are deliberately
+  // absent here -- like the sensor-feed ids below, they only join essential_requests_ once
+  // set_sensor_feed_write_value() has a real value, see hub.h's RequestKind comment.
   if (this->room_setpoint_number_ != nullptr) {
     this->essential_requests_.push_back(RequestKind::ROOM_SETPOINT);
   }
   if (this->room_setpoint_ch2_number_ != nullptr) {
     this->essential_requests_.push_back(RequestKind::ROOM_SETPOINT_CH2);
-  }
-  if (this->room_temperature_number_ != nullptr) {
-    this->essential_requests_.push_back(RequestKind::ROOM_TEMPERATURE);
-  }
-  if (this->trch2_number_ != nullptr) {
-    this->essential_requests_.push_back(RequestKind::TRCH2);
   }
   if (this->time_id_ != nullptr) {
     this->essential_requests_.push_back(RequestKind::DAY_TIME);
@@ -833,6 +829,14 @@ void OpenTherm42Hub::set_sensor_feed_write_value(uint8_t id, float value) {
   float *write_value;
   RequestKind kind;
   switch (id) {
+    case 24:
+      write_value = &this->room_temperature_write_value_;
+      kind = RequestKind::ROOM_TEMPERATURE;
+      break;
+    case 37:
+      write_value = &this->trch2_write_value_;
+      kind = RequestKind::TRCH2;
+      break;
     case 27:
       write_value = &this->outside_temperature_write_value_;
       kind = RequestKind::OUTSIDE_TEMPERATURE;
@@ -874,12 +878,6 @@ void OpenTherm42Hub::set_write_value(uint8_t id, float value) {
       return;
     case 23:
       this->room_setpoint_ch2_write_value_ = value;
-      return;
-    case 24:
-      this->room_temperature_write_value_ = value;
-      return;
-    case 37:
-      this->trch2_write_value_ = value;
       return;
     case 56:
       this->dhw_setpoint_write_value_ = value;

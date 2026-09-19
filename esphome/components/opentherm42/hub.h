@@ -77,11 +77,17 @@ enum class RequestKind : uint8_t {
   // §5.3.3 Class 3, ID 4: a remote request command. Sent on demand (button press), not scheduled.
   REMOTE_REQUEST,
 
-  // §5.3.4 Class 4: write-only numbers this master provides to the boiler.
+  // §5.3.4 Class 4: write-only numbers this master provides to the boiler. ROOM_TEMPERATURE (ID 24)
+  // and TRCH2 (ID 37) are special cases: like the sensor-feed ids further below (27/38/78/79), they're
+  // this master's own external sensor readings with nothing for the component to invent a
+  // config-time default for, so they take no initial_value and only join the essential rotation once
+  // OpenTherm42SensorFeedNumber::control() has supplied a real value (see
+  // set_sensor_feed_write_value()) -- but unlike those, they have no READ-DATA counterpart at all, so
+  // control() also publishes .state directly there instead of leaving that to a READ_ACK.
   ROOM_SETPOINT,      // ID 16
   ROOM_SETPOINT_CH2,  // ID 23
-  ROOM_TEMPERATURE,   // ID 24
-  TRCH2,              // ID 37
+  ROOM_TEMPERATURE,   // ID 24 -- see note above; uses OpenTherm42SensorFeedNumber, not OpenTherm42Number
+  TRCH2,              // ID 37 -- see note above; uses OpenTherm42SensorFeedNumber, not OpenTherm42Number
   // §5.3.4 Class 4, IDs 20/21/22: Day-of-week/Time, Date, Year -- written once per essential rotation
   // from the configured time_id, so the boiler's clock stays in sync with this master's.
   DAY_TIME,
@@ -103,14 +109,14 @@ enum class RequestKind : uint8_t {
   // §5.3.4 Class 4, IDs 27/38/78/79: R/W ids, but unlike Class 5's pre-defined remote boiler
   // parameters (see below), the spec gives the boiler no ownership of these values -- they're this
   // master's own external sensor readings (outside temperature, relative humidity, ...) pushed to the
-  // boiler, so there's nothing to seed a write from. WRITE and READ are independently-scheduled
-  // RequestKinds (see build_schedule_()): the WRITE side only joins the essential rotation once
-  // OpenTherm42SensorFeedNumber::control() has supplied a real value (see
-  // set_sensor_feed_write_value()) -- no config-time default is invented, and the WRITE-ACK's echoed
-  // value is NOT trusted for display (real hardware has been observed acking a write while echoing an
-  // unrelated/stale value, despite genuinely accepting the write). Only a successful READ_DATA, on its
-  // own independent informational-rotation schedule, ever updates the number's displayed .state (see
-  // handle_response_()).
+  // boiler, same nature as ROOM_TEMPERATURE/TRCH2 (IDs 24/37) above, just with a READ-DATA counterpart
+  // those don't have. WRITE and READ are independently-scheduled RequestKinds (see build_schedule_()): the
+  // WRITE side only joins the essential rotation once OpenTherm42SensorFeedNumber::control() has
+  // supplied a real value (see set_sensor_feed_write_value()) -- no config-time default is invented,
+  // and the WRITE-ACK's echoed value is NOT trusted for display (real hardware has been observed
+  // acking a write while echoing an unrelated/stale value, despite genuinely accepting the write).
+  // Only a successful READ_DATA, on its own independent informational-rotation schedule, ever updates
+  // the number's displayed .state (see handle_response_()).
   OUTSIDE_TEMPERATURE,                 // ID 27 (write)
   OUTSIDE_TEMPERATURE_READ,            // ID 27 (read)
   RELATIVE_HUMIDITY,                   // ID 38 (write)
@@ -361,7 +367,7 @@ class OpenTherm42Hub : public Component {
   OT42_SET_NUMBER(control_and_status_information_control_setpoint_ventilation_heat_recovery,
                   control_setpoint_ventilation_number_)
   // Called by every OpenTherm42Number's control()/setup() (every write-capable number except ids
-  // 27/38/78/79 -- see set_sensor_feed_write_value() for those) to push the value that
+  // 24/27/37/38/78/79 -- see set_sensor_feed_write_value() for those) to push the value that
   // build_next_request_() should send next for that data-id. Unlike set_sensor_feed_write_value(),
   // there's no scheduling side effect: every id handled here is already unconditionally in
   // essential_requests_ from build_schedule_() (each one always has a real value by the time
@@ -543,18 +549,20 @@ class OpenTherm42Hub : public Component {
   // §5.3.4 Class 4: write-only numbers.
   OT42_SET_NUMBER(sensor_and_informational_data_room_setpoint, room_setpoint_number_)
   OT42_SET_NUMBER(sensor_and_informational_data_room_setpoint_ch2, room_setpoint_ch2_number_)
+
+  // §5.3.4 Class 4, IDs 24/37 and IDs 27/38/78/79: this master's own external sensor readings -- a
+  // single OpenTherm42SensorFeedNumber entity per id. control() routes through
+  // set_sensor_feed_write_value() to join the essential rotation once a real value exists -- see the
+  // RequestKind comments and that class's own comment for why (IDs 24/37 have no READ-DATA
+  // counterpart, so control() also publishes .state directly there; 27/38/78/79 do, and only a
+  // successful READ_DATA ever updates theirs).
   OT42_SET_NUMBER(sensor_and_informational_data_room_temperature, room_temperature_number_)
   OT42_SET_NUMBER(sensor_and_informational_data_trch2, trch2_number_)
-
-  // §5.3.4 Class 4, IDs 27/38/78/79: R/W ids -- a single OpenTherm42SensorFeedNumber entity per id,
-  // both directions: control() routes through set_sensor_feed_write_value() to join the essential
-  // rotation once a real value exists, and the informational rotation's READ_DATA keeps its displayed
-  // .state accurate -- see the RequestKind comment and that class's own comment.
   OT42_SET_NUMBER(sensor_and_informational_data_outside_temperature, outside_temperature_number_)
   OT42_SET_NUMBER(sensor_and_informational_data_relative_humidity, relative_humidity_number_)
   OT42_SET_NUMBER(sensor_and_informational_data_relative_humidity_exhaust_air, relative_humidity_exhaust_air_number_)
   OT42_SET_NUMBER(sensor_and_informational_data_co2_level, co2_level_number_)
-  // Called by OpenTherm42SensorFeedNumber::control() (ids 27/38/78/79 only) every time the user
+  // Called by OpenTherm42SensorFeedNumber::control() (ids 24/27/37/38/78/79 only) every time the user
   // commands a new value. The first call for a given id adds its WRITE RequestKind to the essential
   // rotation, since before that there's nothing legitimate to send -- see that class's comment for why
   // these ids get no config-time default. Later calls just update the value.
@@ -897,23 +905,23 @@ class OpenTherm42Hub : public Component {
 
   number::Number *room_setpoint_number_{nullptr};
   number::Number *room_setpoint_ch2_number_{nullptr};
-  number::Number *room_temperature_number_{nullptr};
-  number::Number *trch2_number_{nullptr};
-  // §5.3.4 Class 4, IDs 16/23/24/37 (write side): see set_write_value()'s declaration comment.
+  // §5.3.4 Class 4, IDs 16/23 (write side): see set_write_value()'s declaration comment.
   float room_setpoint_write_value_{0};
   float room_setpoint_ch2_write_value_{0};
-  float room_temperature_write_value_{0};
-  float trch2_write_value_{0};
 
+  number::Number *room_temperature_number_{nullptr};
+  number::Number *trch2_number_{nullptr};
   number::Number *outside_temperature_number_{nullptr};
   number::Number *relative_humidity_number_{nullptr};
   number::Number *relative_humidity_exhaust_air_number_{nullptr};
   number::Number *co2_level_number_{nullptr};
-  // §5.3.4 Class 4, IDs 27/38/78/79 (write side): the value most recently commanded via
+  // §5.3.4 Class 4, IDs 24/37 and IDs 27/38/78/79 (write side): the value most recently commanded via
   // OpenTherm42SensorFeedNumber::control(), routed through set_sensor_feed_write_value(). NAN means
   // "never commanded" -- which also means the id's WRITE RequestKind isn't in essential_requests_ yet
   // (see that method). Kept on the hub rather than the entity so hub.h doesn't need to know
   // OpenTherm42SensorFeedNumber's concrete type -- same reasoning as tsp_write_value_ below.
+  float room_temperature_write_value_{NAN};
+  float trch2_write_value_{NAN};
   float outside_temperature_write_value_{NAN};
   float relative_humidity_write_value_{NAN};
   float relative_humidity_exhaust_air_write_value_{NAN};
