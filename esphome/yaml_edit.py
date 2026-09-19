@@ -193,9 +193,10 @@ def _source_of(mapping: ConfigType, name: str) -> tuple[Path, int] | None:
         return None
     # An included mapping carries the `!include` line of its parent, so only
     # a key in the same document can be placed against the mapping
+    if (own := getattr(mapping, "esp_range", None)) is None:
+        return None  # a mapping built in code, its keys are not on its lines
     if (
-        (own := getattr(mapping, "esp_range", None)) is not None
-        and rng.start_mark.document == own.start_mark.document
+        rng.start_mark.document == own.start_mark.document
         and not own.start_mark.line <= rng.start_mark.line <= own.end_mark.line
     ):
         return None
@@ -234,10 +235,19 @@ def _write_keeping_mode(path: Path, text: str) -> None:
     """secrets.yaml is often 0600; write_file would widen it to 0644."""
     try:
         mode = stat.S_IMODE(path.stat().st_mode)
+    except OSError as err:
+        raise EsphomeError(f"Could not read the mode of {path}: {err}") from err
+    try:
         write_file(path, text, private=True)
+    except EsphomeError as err:
+        # write_file keeps the reason in the cause only
+        raise EsphomeError(f"{err}: {err.__cause__}") from err
+    try:
         path.chmod(mode)
     except OSError as err:
-        raise EsphomeError(f"Could not keep the mode of {path}: {err}") from err
+        raise EsphomeError(
+            f"{path} was written but could not get its mode back: {err}"
+        ) from err
 
 
 def _other_config_texts(

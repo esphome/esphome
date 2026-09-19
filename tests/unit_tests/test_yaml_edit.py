@@ -794,7 +794,9 @@ def test_mode_failure_is_reported(tmp_path: Path) -> None:
     edits = locate_key_edits(OLD_KEY, NEW_KEY)
     with (
         patch("pathlib.Path.chmod", side_effect=OSError("denied")),
-        pytest.raises(EsphomeError, match="Could not keep the mode"),
+        pytest.raises(
+            EsphomeError, match="was written but could not get its mode back"
+        ),
     ):
         apply_key_edits(edits)
     assert path.read_text() == API_YAML
@@ -1225,3 +1227,24 @@ def test_a_key_merged_from_an_anchor_is_refused(tmp_path: Path) -> None:
     )
     with pytest.raises(EsphomeError, match="was not found on a line of the yaml"):
         locate_key_edits(OLD_KEY, NEW_KEY)
+
+
+def test_write_failures_say_which_step_and_why(tmp_path: Path) -> None:
+    path = _setup(tmp_path, API_YAML)
+    with pytest.raises(EsphomeError, match="Could not read the mode of .*gone.yaml"):
+        yaml_edit._write_keeping_mode(tmp_path / "gone.yaml", "x")
+
+    def refuse(*_args: object, **_kwargs: object) -> None:
+        raise EsphomeError(f"Could not write file at {path}") from OSError("disk full")
+
+    with (
+        patch("esphome.yaml_edit.write_file", side_effect=refuse),
+        pytest.raises(EsphomeError, match="Could not write file at .*: disk full"),
+    ):
+        yaml_edit._write_keeping_mode(path, "x")
+
+
+def test_a_mapping_built_in_code_cannot_place_its_keys(tmp_path: Path) -> None:
+    _setup(tmp_path, API_YAML)
+    loaded_key = next(iter(CORE.raw_config["api"]["encryption"]))
+    assert yaml_edit._source_of({loaded_key: "x"}, "key") is None
