@@ -74,6 +74,64 @@ FILTER_IDF_LINES: list[str] = [
     r"Stopping at filesystem boundary",
 ]
 
+# Windows code page identifier for UTF-8, as used by ``chcp 65001``.
+UTF8_CODEPAGE = 65001
+
+
+def _get_kernel32():
+    """Return the Windows kernel32 module, or None on any other platform."""
+    if sys.platform != "win32":
+        return None
+    import ctypes
+
+    return ctypes.windll.kernel32
+
+
+class _Utf8Console:
+    """Keep an attached Windows console on UTF-8 for the length of the build.
+
+    The build tree runs in UTF-8 mode, so esp_idf_size draws its table with
+    Unicode box characters. ``idf.py size`` reaches it through ``cmake -P``,
+    and CMake re-decodes the child's output with the console code page before
+    printing it, which turns the table into mojibake on any code page but
+    UTF-8. Every process in the build shares this console, so switching it
+    here covers CMake too. The old code pages go back on exit so the user's
+    terminal is left as it was.
+
+    A console that is already on UTF-8 is left alone. The code page belongs to
+    the console, not to this process, so a build that overlaps another one
+    must not save UTF-8 as the page to go back to.
+    """
+
+    def __init__(self, kernel32) -> None:
+        self._kernel32 = kernel32
+        self._codepages: tuple[int, int] | None = None
+
+    def __enter__(self) -> None:
+        kernel32 = self._kernel32
+        if kernel32 is None:
+            return
+        old_in = kernel32.GetConsoleCP()
+        old_out = kernel32.GetConsoleOutputCP()
+        # Both calls return 0 when no console is attached.
+        if not old_in or not old_out:
+            return
+        if old_in == UTF8_CODEPAGE and old_out == UTF8_CODEPAGE:
+            return
+        # Record the old pages first so a switch that fails part way through
+        # still gets put back on exit.
+        self._codepages = (old_in, old_out)
+        kernel32.SetConsoleCP(UTF8_CODEPAGE)
+        kernel32.SetConsoleOutputCP(UTF8_CODEPAGE)
+
+    def __exit__(self, *exc_info: object) -> None:
+        if self._codepages is None:
+            return
+        old_in, old_out = self._codepages
+        self._codepages = None
+        self._kernel32.SetConsoleCP(old_in)
+        self._kernel32.SetConsoleOutputCP(old_out)
+
 
 def main() -> int:
     # ---- sys.path fix-up ---------------------------------------------------
@@ -269,8 +327,29 @@ def main() -> int:
     is_verbose = any(arg in ("-v", "--verbose") for arg in sys.argv[2:])
     filter_lines = None if is_verbose else FILTER_IDF_LINES or None
 
-    stdout_shim = sys.stdout = _FilteringTTYStream(sys.stdout, filter_lines)  # type: ignore[assignment]
-    stderr_shim = sys.stderr = _FilteringTTYStream(sys.stderr, filter_lines)  # type: ignore[assignment]
+    class _FilteredStreams:
+        """Route ``sys.stdout`` and ``sys.stderr`` through the filtering shims.
+
+        On exit each shim releases a last line that never got its
+        terminator. The shims made here are drained rather than whatever
+        ``sys.stdout`` holds by then, which the script is free to replace.
+        """
+
+        def __init__(self, filter_lines: list[str] | None) -> None:
+            self._stdout = _FilteringTTYStream(sys.stdout, filter_lines)
+            self._stderr = _FilteringTTYStream(sys.stderr, filter_lines)
+
+        def __enter__(self) -> None:
+            sys.stdout = self._stdout  # type: ignore[assignment]
+            sys.stderr = self._stderr  # type: ignore[assignment]
+
+        def __exit__(self, *exc_info: object) -> None:
+            # Drain stderr from a finally so a surprise from the first one
+            # cannot strand the second.
+            try:
+                self._stdout.drain()
+            finally:
+                self._stderr.drain()
 
     # Shift argv so the target script sees its own path as argv[0] and
     # its own arguments starting at argv[1]. runpy.run_path does not
@@ -288,19 +367,11 @@ def main() -> int:
 
     # If idf.py calls sys.exit(), SystemExit propagates out of run_path
     # and carries the exit code back to our caller. For normal returns,
-    # fall through and exit with 0. Either way the streams get a chance to
-    # release a last line that never got its terminator. Drain the shims we
-    # made rather than sys.stdout, which the script is free to replace, and
-    # report instead of raising so cleanup cannot bury the real exit code.
-    try:
+    # fall through and exit with 0. Either way the context managers drain
+    # the streams and put the console back on the way out, and they report
+    # instead of raising so cleanup cannot bury the real exit code.
+    with _FilteredStreams(filter_lines), _Utf8Console(_get_kernel32()):
         runpy.run_path(script_path, run_name="__main__")
-    finally:
-        # Drain stderr from a finally so a surprise from the first one cannot
-        # strand the second.
-        try:
-            stdout_shim.drain()
-        finally:
-            stderr_shim.drain()
     return 0
 
 

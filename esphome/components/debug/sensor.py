@@ -23,11 +23,7 @@ from esphome.const import (
 )
 from esphome.types import ConfigType
 
-from . import (  # noqa: F401  pylint: disable=unused-import
-    CONF_DEBUG_ID,
-    FILTER_SOURCE_FILES,
-    DebugComponent,
-)
+from . import CONF_DEBUG_ID, FILTER_SOURCE_FILES, DebugComponent  # noqa: F401  pylint: disable=unused-import
 
 DEPENDENCIES = ["debug"]
 

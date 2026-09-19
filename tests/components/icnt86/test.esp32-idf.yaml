@@ -1,0 +1,14 @@
+substitutions:
+  interrupt_pin_touch: GPIO4
+  reset_pin_touch: GPIO32
+  cs_pin_display: GPIO33
+  dc_pin_display: GPIO21
+  busy_pin_display: GPIO27
+  reset_pin_display: GPIO14
+  clk_pin: GPIO25
+  mosi_pin: GPIO26
+
+packages:
+  i2c: !include ../../test_build_components/common/i2c/esp32-idf.yaml
+  spi: !include ../../test_build_components/common/spi/esp32-idf.yaml
+  icnt86: !include common.yaml
