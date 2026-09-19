@@ -58,6 +58,7 @@ class PIDClimate final : public climate::Climate, public Component {
   float get_derivative_term() const { return controller_.derivative_term_; }
   int get_output_samples() { return controller_.output_samples_; }
   int get_derivative_samples() { return controller_.derivative_samples_; }
+  float get_active_output_value() const { return active_output_value_; }
 
   float get_threshold_low() { return controller_.threshold_low_; }
   float get_threshold_high() { return controller_.threshold_high_; }
@@ -101,7 +102,9 @@ class PIDClimate final : public climate::Climate, public Component {
   output::FloatOutput *heat_output_{nullptr};
   PIDController controller_;
   /// Output value as reported by the PID controller, for PIDClimateSensor
-  float output_value_;
+  float output_value_{0.0f};
+  /// Output value applied to the outputs after climate mode restrictions
+  float active_output_value_{0.0f};
   CallbackManager<void()> pid_computed_callback_;
   float default_target_temperature_;
   std::unique_ptr<PIDAutotuner> autotuner_;
