@@ -1042,6 +1042,11 @@ void OpenTherm42Hub::handle_response_(const Frame &frame) {
     ESP_LOGD(TAG, "RX %s: %s id=%u hb=%u lb=%u", kind_desc, message_type_to_string(type), frame.id, frame.value_hb,
              frame.value_lb);
   }
+  // See should_invalidate_now_(): every kind's most recent success is tracked unconditionally, whether
+  // or not this specific case's switch below actually wanted this particular ack type.
+  if (type == MessageType::READ_ACK || type == MessageType::WRITE_ACK) {
+    this->last_success_ms_[static_cast<size_t>(this->pending_request_kind_)] = millis();
+  }
   switch (this->pending_request_kind_) {
     case RequestKind::BOILER_CONFIG:
       if (type != MessageType::READ_ACK) {
@@ -1093,7 +1098,9 @@ void OpenTherm42Hub::handle_response_(const Frame &frame) {
     case RequestKind::STATUS:
       if (type != MessageType::READ_ACK) {
         ESP_LOGE(TAG, "Status exchange (id=0) was rejected (message type %s)", message_type_to_string(type));
-        this->invalidate_response_(RequestKind::STATUS);
+        if (this->should_invalidate_now_(RequestKind::STATUS, type)) {
+          this->invalidate_response_(RequestKind::STATUS);
+        }
         return;
       }
       this->boiler_status_ = frame.value_lb;
@@ -1109,7 +1116,8 @@ void OpenTherm42Hub::handle_response_(const Frame &frame) {
       // or restored at boot, and only an explicit rejection below ever changes it.
       if (type != MessageType::WRITE_ACK) {
         ESP_LOGE(TAG, "Control setpoint (id=1) write was rejected (message type %s)", message_type_to_string(type));
-        if (this->control_setpoint_number_ != nullptr) {
+        if (this->should_invalidate_now_(RequestKind::CONTROL_SETPOINT, type) &&
+            this->control_setpoint_number_ != nullptr) {
           invalidate_entity(this->control_setpoint_number_);
         }
       }
@@ -1119,7 +1127,8 @@ void OpenTherm42Hub::handle_response_(const Frame &frame) {
       // See CONTROL_SETPOINT above: WRITE-ACK's echo is not trusted for display.
       if (type != MessageType::WRITE_ACK) {
         ESP_LOGE(TAG, "Control setpoint 2 (id=8) write was rejected (message type %s)", message_type_to_string(type));
-        if (this->control_setpoint_2_number_ != nullptr) {
+        if (this->should_invalidate_now_(RequestKind::CONTROL_SETPOINT_2, type) &&
+            this->control_setpoint_2_number_ != nullptr) {
           invalidate_entity(this->control_setpoint_2_number_);
         }
       }
@@ -1134,7 +1143,9 @@ void OpenTherm42Hub::handle_response_(const Frame &frame) {
         // has no ventilation/heat-recovery system, so the master-status switches can never have
         // any real effect either.
         this->ventilation_status_write_.invalidate();
-        this->invalidate_response_(RequestKind::VENTILATION_STATUS);
+        if (this->should_invalidate_now_(RequestKind::VENTILATION_STATUS, type)) {
+          this->invalidate_response_(RequestKind::VENTILATION_STATUS);
+        }
         return;
       }
       this->ventilation_status_read_.publish(frame.value_lb);
@@ -1145,7 +1156,8 @@ void OpenTherm42Hub::handle_response_(const Frame &frame) {
       if (type != MessageType::WRITE_ACK) {
         ESP_LOGE(TAG, "Control setpoint ventilation/heat-recovery (id=71) write was rejected (message type %s)",
                  message_type_to_string(type));
-        if (this->control_setpoint_ventilation_number_ != nullptr) {
+        if (this->should_invalidate_now_(RequestKind::CONTROL_SETPOINT_VENTILATION, type) &&
+            this->control_setpoint_ventilation_number_ != nullptr) {
           invalidate_entity(this->control_setpoint_ventilation_number_);
         }
       }
@@ -1155,7 +1167,9 @@ void OpenTherm42Hub::handle_response_(const Frame &frame) {
       if (type != MessageType::READ_ACK) {
         ESP_LOGE(TAG, "Application-specific fault flags (id=5) read was rejected (message type %s)",
                  message_type_to_string(type));
-        this->invalidate_response_(RequestKind::FAULT_FLAGS);
+        if (this->should_invalidate_now_(RequestKind::FAULT_FLAGS, type)) {
+          this->invalidate_response_(RequestKind::FAULT_FLAGS);
+        }
         return;
       }
       this->fault_flags_read_.publish(frame.value_hb);
@@ -1170,7 +1184,9 @@ void OpenTherm42Hub::handle_response_(const Frame &frame) {
                  "Application-specific fault flags ventilation/heat-recovery (id=72) read was rejected "
                  "(message type %s)",
                  message_type_to_string(type));
-        this->invalidate_response_(RequestKind::VENTILATION_FAULT_FLAGS);
+        if (this->should_invalidate_now_(RequestKind::VENTILATION_FAULT_FLAGS, type)) {
+          this->invalidate_response_(RequestKind::VENTILATION_FAULT_FLAGS);
+        }
         return;
       }
       this->ventilation_fault_flags_read_.publish(frame.value_hb);
@@ -1186,10 +1202,12 @@ void OpenTherm42Hub::handle_response_(const Frame &frame) {
         // Reaching handle_response_() at all means a valid frame was received -- unlike a
         // transient datalink error, a non-ACK type here is the boiler's definitive answer that it
         // has no Solar Storage feature, so the select can never have any real effect either.
-        if (this->master_solar_storage_status_solar_mode_select_ != nullptr) {
-          invalidate_entity(this->master_solar_storage_status_solar_mode_select_);
+        if (this->should_invalidate_now_(RequestKind::SOLAR_STORAGE_STATUS, type)) {
+          if (this->master_solar_storage_status_solar_mode_select_ != nullptr) {
+            invalidate_entity(this->master_solar_storage_status_solar_mode_select_);
+          }
+          this->invalidate_response_(RequestKind::SOLAR_STORAGE_STATUS);
         }
-        this->invalidate_response_(RequestKind::SOLAR_STORAGE_STATUS);
         return;
       }
       // HB bits 2,1,0 and LB bits 3,2,1 both encode "Solar mode" (same 5-value enum, different byte);
@@ -1213,7 +1231,9 @@ void OpenTherm42Hub::handle_response_(const Frame &frame) {
       if (type != MessageType::READ_ACK) {
         ESP_LOGE(TAG, "Solar storage specific fault flags (id=102) read was rejected (message type %s)",
                  message_type_to_string(type));
-        this->invalidate_response_(RequestKind::SOLAR_STORAGE_FAULT_FLAGS);
+        if (this->should_invalidate_now_(RequestKind::SOLAR_STORAGE_FAULT_FLAGS, type)) {
+          this->invalidate_response_(RequestKind::SOLAR_STORAGE_FAULT_FLAGS);
+        }
         return;
       }
       if (this->oem_fault_code_solar_storage_sensor_ != nullptr) {
@@ -1224,7 +1244,9 @@ void OpenTherm42Hub::handle_response_(const Frame &frame) {
     case RequestKind::OEM_DIAGNOSTIC_CODE:
       if (type != MessageType::READ_ACK) {
         ESP_LOGE(TAG, "OEM diagnostic code (id=115) read was rejected (message type %s)", message_type_to_string(type));
-        this->invalidate_response_(RequestKind::OEM_DIAGNOSTIC_CODE);
+        if (this->should_invalidate_now_(RequestKind::OEM_DIAGNOSTIC_CODE, type)) {
+          this->invalidate_response_(RequestKind::OEM_DIAGNOSTIC_CODE);
+        }
         return;
       }
       if (this->oem_diagnostic_code_sensor_ != nullptr) {
@@ -1236,7 +1258,9 @@ void OpenTherm42Hub::handle_response_(const Frame &frame) {
       if (type != MessageType::READ_ACK) {
         ESP_LOGE(TAG, "OEM diagnostic code ventilation/heat-recovery (id=73) read was rejected (message type %s)",
                  message_type_to_string(type));
-        this->invalidate_response_(RequestKind::OEM_DIAGNOSTIC_CODE_VENTILATION);
+        if (this->should_invalidate_now_(RequestKind::OEM_DIAGNOSTIC_CODE_VENTILATION, type)) {
+          this->invalidate_response_(RequestKind::OEM_DIAGNOSTIC_CODE_VENTILATION);
+        }
         return;
       }
       if (this->oem_diagnostic_code_ventilation_sensor_ != nullptr) {
@@ -1271,7 +1295,9 @@ void OpenTherm42Hub::handle_response_(const Frame &frame) {
       if (type != MessageType::READ_ACK) {
         ESP_LOGE(TAG, "Configuration ventilation/heat-recovery (id=74) read was rejected (message type %s)",
                  message_type_to_string(type));
-        this->invalidate_response_(RequestKind::VENTILATION_CONFIGURATION);
+        if (this->should_invalidate_now_(RequestKind::VENTILATION_CONFIGURATION, type)) {
+          this->invalidate_response_(RequestKind::VENTILATION_CONFIGURATION);
+        }
         return;
       }
       if (this->configuration_information_configuration_ventilation_heat_recovery_system_type_text_sensor_ != nullptr) {
@@ -1296,7 +1322,9 @@ void OpenTherm42Hub::handle_response_(const Frame &frame) {
       if (type != MessageType::READ_ACK) {
         ESP_LOGE(TAG, "Solar Storage configuration (id=103) read was rejected (message type %s)",
                  message_type_to_string(type));
-        this->invalidate_response_(RequestKind::SOLAR_STORAGE_CONFIGURATION);
+        if (this->should_invalidate_now_(RequestKind::SOLAR_STORAGE_CONFIGURATION, type)) {
+          this->invalidate_response_(RequestKind::SOLAR_STORAGE_CONFIGURATION);
+        }
         return;
       }
       if (this->configuration_information_solar_storage_configuration_system_type_text_sensor_ != nullptr) {
@@ -1312,7 +1340,9 @@ void OpenTherm42Hub::handle_response_(const Frame &frame) {
       if (type != MessageType::READ_ACK) {
         ESP_LOGE(TAG, "Boiler product version number and type (id=127) read was rejected (message type %s)",
                  message_type_to_string(type));
-        this->invalidate_response_(RequestKind::PRODUCT_VERSION_BOILER);
+        if (this->should_invalidate_now_(RequestKind::PRODUCT_VERSION_BOILER, type)) {
+          this->invalidate_response_(RequestKind::PRODUCT_VERSION_BOILER);
+        }
         return;
       }
       if (this->boiler_product_type_sensor_ != nullptr) {
@@ -1329,7 +1359,9 @@ void OpenTherm42Hub::handle_response_(const Frame &frame) {
                  "Ventilation/heat-recovery product version number and type (id=76) read was rejected "
                  "(message type %s)",
                  message_type_to_string(type));
-        this->invalidate_response_(RequestKind::PRODUCT_VERSION_VENTILATION);
+        if (this->should_invalidate_now_(RequestKind::PRODUCT_VERSION_VENTILATION, type)) {
+          this->invalidate_response_(RequestKind::PRODUCT_VERSION_VENTILATION);
+        }
         return;
       }
       if (this->ventilation_product_type_sensor_ != nullptr) {
@@ -1344,7 +1376,9 @@ void OpenTherm42Hub::handle_response_(const Frame &frame) {
       if (type != MessageType::READ_ACK) {
         ESP_LOGE(TAG, "Solar Storage product version number and type (id=104) read was rejected (message type %s)",
                  message_type_to_string(type));
-        this->invalidate_response_(RequestKind::PRODUCT_VERSION_SOLAR_STORAGE);
+        if (this->should_invalidate_now_(RequestKind::PRODUCT_VERSION_SOLAR_STORAGE, type)) {
+          this->invalidate_response_(RequestKind::PRODUCT_VERSION_SOLAR_STORAGE);
+        }
         return;
       }
       if (this->solar_storage_product_type_sensor_ != nullptr) {
@@ -1371,7 +1405,9 @@ void OpenTherm42Hub::handle_response_(const Frame &frame) {
       if (type != MessageType::WRITE_ACK) {
         ESP_LOGE(TAG, "Remote request (id=4, code=%u) was rejected (message type %s)", this->remote_request_code_,
                  message_type_to_string(type));
-        this->invalidate_response_(RequestKind::REMOTE_REQUEST);
+        if (this->should_invalidate_now_(RequestKind::REMOTE_REQUEST, type)) {
+          this->invalidate_response_(RequestKind::REMOTE_REQUEST);
+        }
         return;
       }
       if (this->remote_request_last_response_code_sensor_ != nullptr) {
@@ -1388,7 +1424,7 @@ void OpenTherm42Hub::handle_response_(const Frame &frame) {
       // See CONTROL_SETPOINT's comment above: WRITE-ACK's echo is not trusted for display.
       if (type != MessageType::WRITE_ACK) {
         ESP_LOGE(TAG, "Room Setpoint (id=16) write was rejected (message type %s)", message_type_to_string(type));
-        if (this->room_setpoint_number_ != nullptr) {
+        if (this->should_invalidate_now_(RequestKind::ROOM_SETPOINT, type) && this->room_setpoint_number_ != nullptr) {
           invalidate_entity(this->room_setpoint_number_);
         }
       }
@@ -1398,7 +1434,8 @@ void OpenTherm42Hub::handle_response_(const Frame &frame) {
       // See CONTROL_SETPOINT's comment above: WRITE-ACK's echo is not trusted for display.
       if (type != MessageType::WRITE_ACK) {
         ESP_LOGE(TAG, "Room Setpoint CH2 (id=23) write was rejected (message type %s)", message_type_to_string(type));
-        if (this->room_setpoint_ch2_number_ != nullptr) {
+        if (this->should_invalidate_now_(RequestKind::ROOM_SETPOINT_CH2, type) &&
+            this->room_setpoint_ch2_number_ != nullptr) {
           invalidate_entity(this->room_setpoint_ch2_number_);
         }
       }
@@ -1408,7 +1445,8 @@ void OpenTherm42Hub::handle_response_(const Frame &frame) {
       // See CONTROL_SETPOINT's comment above: WRITE-ACK's echo is not trusted for display.
       if (type != MessageType::WRITE_ACK) {
         ESP_LOGE(TAG, "Room temperature (id=24) write was rejected (message type %s)", message_type_to_string(type));
-        if (this->room_temperature_number_ != nullptr) {
+        if (this->should_invalidate_now_(RequestKind::ROOM_TEMPERATURE, type) &&
+            this->room_temperature_number_ != nullptr) {
           invalidate_entity(this->room_temperature_number_);
         }
       }
@@ -1418,7 +1456,7 @@ void OpenTherm42Hub::handle_response_(const Frame &frame) {
       // See CONTROL_SETPOINT's comment above: WRITE-ACK's echo is not trusted for display.
       if (type != MessageType::WRITE_ACK) {
         ESP_LOGE(TAG, "TrCH2 (id=37) write was rejected (message type %s)", message_type_to_string(type));
-        if (this->trch2_number_ != nullptr) {
+        if (this->should_invalidate_now_(RequestKind::TRCH2, type) && this->trch2_number_ != nullptr) {
           invalidate_entity(this->trch2_number_);
         }
       }
@@ -1500,7 +1538,8 @@ void OpenTherm42Hub::handle_response_(const Frame &frame) {
       // rejected/clamped/falsely-acked write self-corrects on the next read.
       if (type != MessageType::WRITE_ACK) {
         ESP_LOGE(TAG, "Outside temperature (id=27) write was rejected (message type %s)", message_type_to_string(type));
-        if (this->outside_temperature_number_ != nullptr) {
+        if (this->should_invalidate_now_(RequestKind::OUTSIDE_TEMPERATURE, type) &&
+            this->outside_temperature_number_ != nullptr) {
           invalidate_entity(this->outside_temperature_number_);
         }
       }
@@ -1509,7 +1548,9 @@ void OpenTherm42Hub::handle_response_(const Frame &frame) {
     case RequestKind::OUTSIDE_TEMPERATURE_READ:
       if (type != MessageType::READ_ACK) {
         ESP_LOGE(TAG, "Outside temperature (id=27) read was rejected (message type %s)", message_type_to_string(type));
-        this->invalidate_response_(RequestKind::OUTSIDE_TEMPERATURE_READ);
+        if (this->should_invalidate_now_(RequestKind::OUTSIDE_TEMPERATURE_READ, type)) {
+          this->invalidate_response_(RequestKind::OUTSIDE_TEMPERATURE_READ);
+        }
         return;
       }
       if (this->outside_temperature_number_ != nullptr) {
@@ -1521,7 +1562,8 @@ void OpenTherm42Hub::handle_response_(const Frame &frame) {
       // See OUTSIDE_TEMPERATURE above: WRITE-ACK's echo is not trusted for display.
       if (type != MessageType::WRITE_ACK) {
         ESP_LOGE(TAG, "Relative Humidity (id=38) write was rejected (message type %s)", message_type_to_string(type));
-        if (this->relative_humidity_number_ != nullptr) {
+        if (this->should_invalidate_now_(RequestKind::RELATIVE_HUMIDITY, type) &&
+            this->relative_humidity_number_ != nullptr) {
           invalidate_entity(this->relative_humidity_number_);
         }
       }
@@ -1530,7 +1572,9 @@ void OpenTherm42Hub::handle_response_(const Frame &frame) {
     case RequestKind::RELATIVE_HUMIDITY_READ:
       if (type != MessageType::READ_ACK) {
         ESP_LOGE(TAG, "Relative Humidity (id=38) read was rejected (message type %s)", message_type_to_string(type));
-        this->invalidate_response_(RequestKind::RELATIVE_HUMIDITY_READ);
+        if (this->should_invalidate_now_(RequestKind::RELATIVE_HUMIDITY_READ, type)) {
+          this->invalidate_response_(RequestKind::RELATIVE_HUMIDITY_READ);
+        }
         return;
       }
       if (this->relative_humidity_number_ != nullptr) {
@@ -1543,7 +1587,8 @@ void OpenTherm42Hub::handle_response_(const Frame &frame) {
       if (type != MessageType::WRITE_ACK) {
         ESP_LOGE(TAG, "Relative humidity exhaust air (id=78) write was rejected (message type %s)",
                  message_type_to_string(type));
-        if (this->relative_humidity_exhaust_air_number_ != nullptr) {
+        if (this->should_invalidate_now_(RequestKind::RELATIVE_HUMIDITY_EXHAUST_AIR, type) &&
+            this->relative_humidity_exhaust_air_number_ != nullptr) {
           invalidate_entity(this->relative_humidity_exhaust_air_number_);
         }
       }
@@ -1553,7 +1598,9 @@ void OpenTherm42Hub::handle_response_(const Frame &frame) {
       if (type != MessageType::READ_ACK) {
         ESP_LOGE(TAG, "Relative humidity exhaust air (id=78) read was rejected (message type %s)",
                  message_type_to_string(type));
-        this->invalidate_response_(RequestKind::RELATIVE_HUMIDITY_EXHAUST_AIR_READ);
+        if (this->should_invalidate_now_(RequestKind::RELATIVE_HUMIDITY_EXHAUST_AIR_READ, type)) {
+          this->invalidate_response_(RequestKind::RELATIVE_HUMIDITY_EXHAUST_AIR_READ);
+        }
         return;
       }
       if (this->relative_humidity_exhaust_air_number_ != nullptr) {
@@ -1565,7 +1612,7 @@ void OpenTherm42Hub::handle_response_(const Frame &frame) {
       // See OUTSIDE_TEMPERATURE above: WRITE-ACK's echo is not trusted for display.
       if (type != MessageType::WRITE_ACK) {
         ESP_LOGE(TAG, "CO2 level (id=79) write was rejected (message type %s)", message_type_to_string(type));
-        if (this->co2_level_number_ != nullptr) {
+        if (this->should_invalidate_now_(RequestKind::CO2_LEVEL, type) && this->co2_level_number_ != nullptr) {
           invalidate_entity(this->co2_level_number_);
         }
       }
@@ -1574,7 +1621,9 @@ void OpenTherm42Hub::handle_response_(const Frame &frame) {
     case RequestKind::CO2_LEVEL_READ:
       if (type != MessageType::READ_ACK) {
         ESP_LOGE(TAG, "CO2 level (id=79) read was rejected (message type %s)", message_type_to_string(type));
-        this->invalidate_response_(RequestKind::CO2_LEVEL_READ);
+        if (this->should_invalidate_now_(RequestKind::CO2_LEVEL_READ, type)) {
+          this->invalidate_response_(RequestKind::CO2_LEVEL_READ);
+        }
         return;
       }
       if (this->co2_level_number_ != nullptr) {
@@ -1585,7 +1634,9 @@ void OpenTherm42Hub::handle_response_(const Frame &frame) {
     case RequestKind::BOILER_FAN_SPEED:
       if (type != MessageType::READ_ACK) {
         ESP_LOGE(TAG, "Boiler fan speed (id=35) read was rejected (message type %s)", message_type_to_string(type));
-        this->invalidate_response_(RequestKind::BOILER_FAN_SPEED);
+        if (this->should_invalidate_now_(RequestKind::BOILER_FAN_SPEED, type)) {
+          this->invalidate_response_(RequestKind::BOILER_FAN_SPEED);
+        }
         return;
       }
       // §5.3.4 ID 35: wire value is in Hz (RPM/60); convert to RPM to match the sensor's unit.
@@ -1601,7 +1652,9 @@ void OpenTherm42Hub::handle_response_(const Frame &frame) {
       if (type != MessageType::READ_ACK) {
         ESP_LOGE(TAG, "Remote-parameter transfer-enable/read-write flags (id=6) read was rejected (message type %s)",
                  message_type_to_string(type));
-        this->invalidate_response_(RequestKind::REMOTE_PARAMETER_FLAGS);
+        if (this->should_invalidate_now_(RequestKind::REMOTE_PARAMETER_FLAGS, type)) {
+          this->invalidate_response_(RequestKind::REMOTE_PARAMETER_FLAGS);
+        }
         return;
       }
       if (this->pre_defined_remote_boiler_parameters_transfer_enable_flags_dhw_setpoint_text_sensor_ != nullptr) {
@@ -1628,7 +1681,9 @@ void OpenTherm42Hub::handle_response_(const Frame &frame) {
                  "Remote-parameter transfer-enable/read-write flags ventilation/heat-recovery (id=86) read was "
                  "rejected (message type %s)",
                  message_type_to_string(type));
-        this->invalidate_response_(RequestKind::REMOTE_PARAMETER_FLAGS_VENTILATION);
+        if (this->should_invalidate_now_(RequestKind::REMOTE_PARAMETER_FLAGS_VENTILATION, type)) {
+          this->invalidate_response_(RequestKind::REMOTE_PARAMETER_FLAGS_VENTILATION);
+        }
         return;
       }
       if (this->pre_defined_remote_boiler_parameters_transfer_enable_flags_ventilation_heat_recovery_nominal_ventilation_value_text_sensor_ !=
@@ -1647,7 +1702,9 @@ void OpenTherm42Hub::handle_response_(const Frame &frame) {
       if (type != MessageType::READ_ACK) {
         ESP_LOGE(TAG, "DHWsetp upp-/low-bound (id=48) read was rejected (message type %s)",
                  message_type_to_string(type));
-        this->invalidate_response_(RequestKind::DHWSETP_BOUNDS);
+        if (this->should_invalidate_now_(RequestKind::DHWSETP_BOUNDS, type)) {
+          this->invalidate_response_(RequestKind::DHWSETP_BOUNDS);
+        }
         return;
       }
       if (this->dhwsetp_upper_bound_sensor_ != nullptr) {
@@ -1662,7 +1719,9 @@ void OpenTherm42Hub::handle_response_(const Frame &frame) {
       if (type != MessageType::READ_ACK) {
         ESP_LOGE(TAG, "max CHsetp upp-/low-bnd (id=49) read was rejected (message type %s)",
                  message_type_to_string(type));
-        this->invalidate_response_(RequestKind::MAX_CHSETP_BOUNDS);
+        if (this->should_invalidate_now_(RequestKind::MAX_CHSETP_BOUNDS, type)) {
+          this->invalidate_response_(RequestKind::MAX_CHSETP_BOUNDS);
+        }
         return;
       }
       if (this->max_chsetp_upper_bound_sensor_ != nullptr) {
@@ -1678,7 +1737,7 @@ void OpenTherm42Hub::handle_response_(const Frame &frame) {
       // DHW_SETPOINT_READ below updates .state.
       if (type != MessageType::WRITE_ACK) {
         ESP_LOGE(TAG, "DHW Setpoint (id=56) write was rejected (message type %s)", message_type_to_string(type));
-        if (this->dhw_setpoint_number_ != nullptr) {
+        if (this->should_invalidate_now_(RequestKind::DHW_SETPOINT, type) && this->dhw_setpoint_number_ != nullptr) {
           invalidate_entity(this->dhw_setpoint_number_);
         }
       }
@@ -1687,7 +1746,9 @@ void OpenTherm42Hub::handle_response_(const Frame &frame) {
     case RequestKind::DHW_SETPOINT_READ:
       if (type != MessageType::READ_ACK) {
         ESP_LOGE(TAG, "DHW Setpoint (id=56) read was rejected (message type %s)", message_type_to_string(type));
-        this->invalidate_response_(RequestKind::DHW_SETPOINT_READ);
+        if (this->should_invalidate_now_(RequestKind::DHW_SETPOINT_READ, type)) {
+          this->invalidate_response_(RequestKind::DHW_SETPOINT_READ);
+        }
         return;
       }
       if (this->dhw_setpoint_number_ != nullptr) {
@@ -1700,7 +1761,8 @@ void OpenTherm42Hub::handle_response_(const Frame &frame) {
       if (type != MessageType::WRITE_ACK) {
         ESP_LOGE(TAG, "max CH water Setpoint (id=57) write was rejected (message type %s)",
                  message_type_to_string(type));
-        if (this->max_ch_water_setpoint_number_ != nullptr) {
+        if (this->should_invalidate_now_(RequestKind::MAX_CH_WATER_SETPOINT, type) &&
+            this->max_ch_water_setpoint_number_ != nullptr) {
           invalidate_entity(this->max_ch_water_setpoint_number_);
         }
       }
@@ -1710,7 +1772,9 @@ void OpenTherm42Hub::handle_response_(const Frame &frame) {
       if (type != MessageType::READ_ACK) {
         ESP_LOGE(TAG, "max CH water Setpoint (id=57) read was rejected (message type %s)",
                  message_type_to_string(type));
-        this->invalidate_response_(RequestKind::MAX_CH_WATER_SETPOINT_READ);
+        if (this->should_invalidate_now_(RequestKind::MAX_CH_WATER_SETPOINT_READ, type)) {
+          this->invalidate_response_(RequestKind::MAX_CH_WATER_SETPOINT_READ);
+        }
         return;
       }
       if (this->max_ch_water_setpoint_number_ != nullptr) {
@@ -1723,7 +1787,8 @@ void OpenTherm42Hub::handle_response_(const Frame &frame) {
       if (type != MessageType::WRITE_ACK) {
         ESP_LOGE(TAG, "Nominal ventilation value (id=87) write was rejected (message type %s)",
                  message_type_to_string(type));
-        if (this->nominal_ventilation_value_number_ != nullptr) {
+        if (this->should_invalidate_now_(RequestKind::NOMINAL_VENTILATION_VALUE, type) &&
+            this->nominal_ventilation_value_number_ != nullptr) {
           invalidate_entity(this->nominal_ventilation_value_number_);
         }
       }
@@ -1733,7 +1798,9 @@ void OpenTherm42Hub::handle_response_(const Frame &frame) {
       if (type != MessageType::READ_ACK) {
         ESP_LOGE(TAG, "Nominal ventilation value (id=87) read was rejected (message type %s)",
                  message_type_to_string(type));
-        this->invalidate_response_(RequestKind::NOMINAL_VENTILATION_VALUE_READ);
+        if (this->should_invalidate_now_(RequestKind::NOMINAL_VENTILATION_VALUE_READ, type)) {
+          this->invalidate_response_(RequestKind::NOMINAL_VENTILATION_VALUE_READ);
+        }
         return;
       }
       if (this->nominal_ventilation_value_number_ != nullptr) {
@@ -1742,6 +1809,9 @@ void OpenTherm42Hub::handle_response_(const Frame &frame) {
       return;
 
     case RequestKind::TSP: {
+      // Deliberately not gated by should_invalidate_now_(): every TSP slot shares this one
+      // RequestKind, so a single per-kind last-success timestamp can't tell which specific slot most
+      // recently succeeded -- unlike everything else, a rejected TSP read always invalidates right away.
       auto const &slot = this->tsp_slots_[this->pending_tsp_slot_index_];
       if (this->pending_tsp_is_write_) {
         if (type != MessageType::WRITE_ACK) {
@@ -1766,6 +1836,7 @@ void OpenTherm42Hub::handle_response_(const Frame &frame) {
     }
 
     case RequestKind::FHB: {
+      // See TSP above: not gated by should_invalidate_now_(), for the same per-slot-vs-per-kind reason.
       auto const &slot = this->fhb_slots_[this->pending_fhb_slot_index_];
       if (type != MessageType::READ_ACK) {
         ESP_LOGE(TAG, "FHB read (id=%u, index=%u) was rejected (message type %s)", slot.data_id, slot.index,
@@ -1786,7 +1857,8 @@ void OpenTherm42Hub::handle_response_(const Frame &frame) {
       if (type != MessageType::WRITE_ACK) {
         ESP_LOGE(TAG, "Cooling control signal (id=7) write was rejected (message type %s)",
                  message_type_to_string(type));
-        if (this->cooling_control_signal_number_ != nullptr) {
+        if (this->should_invalidate_now_(RequestKind::COOLING_CONTROL_SIGNAL, type) &&
+            this->cooling_control_signal_number_ != nullptr) {
           invalidate_entity(this->cooling_control_signal_number_);
         }
       }
@@ -1797,7 +1869,8 @@ void OpenTherm42Hub::handle_response_(const Frame &frame) {
       if (type != MessageType::WRITE_ACK) {
         ESP_LOGE(TAG, "Maximum relative modulation level setting (id=14) write was rejected (message type %s)",
                  message_type_to_string(type));
-        if (this->max_rel_mod_level_setting_number_ != nullptr) {
+        if (this->should_invalidate_now_(RequestKind::MAX_REL_MOD_LEVEL_SETTING, type) &&
+            this->max_rel_mod_level_setting_number_ != nullptr) {
           invalidate_entity(this->max_rel_mod_level_setting_number_);
         }
       }
@@ -1807,7 +1880,9 @@ void OpenTherm42Hub::handle_response_(const Frame &frame) {
       if (type != MessageType::READ_ACK) {
         ESP_LOGE(TAG, "Maximum boiler capacity & Minimum modulation level (id=15) read was rejected (message type %s)",
                  message_type_to_string(type));
-        this->invalidate_response_(RequestKind::MAX_CAPACITY_MIN_MOD_LEVEL);
+        if (this->should_invalidate_now_(RequestKind::MAX_CAPACITY_MIN_MOD_LEVEL, type)) {
+          this->invalidate_response_(RequestKind::MAX_CAPACITY_MIN_MOD_LEVEL);
+        }
         return;
       }
       if (this->maximum_boiler_capacity_sensor_ != nullptr) {
@@ -1825,7 +1900,9 @@ void OpenTherm42Hub::handle_response_(const Frame &frame) {
       if (type != MessageType::READ_ACK) {
         ESP_LOGE(TAG, "Remote Override Operating Modes (id=99) request was rejected (message type %s)",
                  message_type_to_string(type));
-        this->invalidate_response_(RequestKind::REMOTE_OVERRIDE_OPERATING_MODES);
+        if (this->should_invalidate_now_(RequestKind::REMOTE_OVERRIDE_OPERATING_MODES, type)) {
+          this->invalidate_response_(RequestKind::REMOTE_OVERRIDE_OPERATING_MODES);
+        }
         return;
       }
       if (this->remote_override_operating_mode_dhw_text_sensor_ != nullptr) {
@@ -1846,7 +1923,9 @@ void OpenTherm42Hub::handle_response_(const Frame &frame) {
       if (type != MessageType::READ_ACK) {
         ESP_LOGE(TAG, "Remote Override Room Setpoint function (id=100) read was rejected (message type %s)",
                  message_type_to_string(type));
-        this->invalidate_response_(RequestKind::REMOTE_OVERRIDE_ROOM_SETPOINT_FUNCTION);
+        if (this->should_invalidate_now_(RequestKind::REMOTE_OVERRIDE_ROOM_SETPOINT_FUNCTION, type)) {
+          this->invalidate_response_(RequestKind::REMOTE_OVERRIDE_ROOM_SETPOINT_FUNCTION);
+        }
         return;
       }
       this->remote_override_room_setpoint_function_read_.publish(frame.value_lb);
@@ -1872,7 +1951,7 @@ void OpenTherm42Hub::handle_response_(const Frame &frame) {
       }
       if (type != MessageType::READ_ACK) {
         ESP_LOGE(TAG, "%s read was rejected (message type %s)", info->log_name, message_type_to_string(type));
-        if (sensor_ptr != nullptr) {
+        if (this->should_invalidate_now_(info->kind, type) && sensor_ptr != nullptr) {
           invalidate_entity(sensor_ptr);
         }
         return;
@@ -1977,6 +2056,14 @@ void OpenTherm42Hub::publish_date_time_text_() {
            this->read_day_of_week_.has_value() ? day_of_week_to_string(*this->read_day_of_week_) : "?", year_buf,
            month_buf, day_buf, hour_buf, minute_buf);
   this->date_time_text_sensor_->publish_state(buf);
+}
+
+bool OpenTherm42Hub::should_invalidate_now_(RequestKind kind, MessageType type) const {
+  if (type != MessageType::DATA_INVALID || this->max_data_invalid_ms_ == 0) {
+    return true;
+  }
+  uint32_t last_success = this->last_success_ms_[static_cast<size_t>(kind)];
+  return millis() - last_success >= this->max_data_invalid_ms_;
 }
 
 void OpenTherm42Hub::invalidate_response_(RequestKind kind) {

@@ -27,6 +27,7 @@ AUTO_LOAD = [
 
 CONF_IN_PIN = "in_pin"
 CONF_OUT_PIN = "out_pin"
+CONF_MAX_DATA_INVALID = "max_data_invalid"
 
 # §5.3.2 Class 2: this master's own identity, written to the boiler once at startup (IDs 2 LB/126).
 # Kept as static hub-level config rather than entities -- unlike the boiler's status/measurements,
@@ -82,6 +83,14 @@ CONFIG_SCHEMA = cv.All(
             # §5.3.4 Class 4, IDs 20/21/22: if set, this master keeps the boiler's Day-of-week/Time,
             # Date and Year synced to this clock. Left unset, those three ids are never sent.
             cv.Optional(CONF_TIME_ID): cv.use_id(time_.RealTimeClock),
+            # §4.4.1: DATA_INVALID ("the data ID is recognised... but the data requested is not
+            # available or invalid") has been observed on real hardware as a transient condition for
+            # some ids, self-correcting within a second or two with no apparent cause. Default 0
+            # disables this grace period entirely (an entity goes to Unknown on the very first
+            # DATA_INVALID, as before this option existed) -- see hub.h's set_max_data_invalid().
+            cv.Optional(
+                CONF_MAX_DATA_INVALID, default="0s"
+            ): cv.positive_time_period_milliseconds,
         }
     ).extend(cv.COMPONENT_SCHEMA),
     # datalink.cpp only implements a hardware-timer backend for ESP32 (gptimer) and ESP8266 (Arduino
@@ -107,6 +116,8 @@ async def to_code(config: dict) -> None:
     if (time_id := config.get(CONF_TIME_ID)) is not None:
         time_var = await cg.get_variable(time_id)
         cg.add(var.set_time_id(time_var))
+
+    cg.add(var.set_max_data_invalid(config[CONF_MAX_DATA_INVALID]))
 
     if CORE.is_esp32:
         # §4.3/§3.3.2 bit-timing (datalink.h) needs a hardware timer for microsecond-accurate sampling.

@@ -21,6 +21,9 @@ opentherm42:
   controller_product_version: 0
   # §5.3.4 Class 4, IDs 20/21/22: keeps the boiler's clock synced to this time source.
   time_id: my_time
+  # §4.4.1: tolerate a DATA_INVALID for up to 5s before actually invalidating an entity, since real
+  # hardware has been observed answering DATA_INVALID transiently for a second or two.
+  max_data_invalid: 5s
 
 switch:
   - platform: opentherm42

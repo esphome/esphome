@@ -222,6 +222,9 @@ enum class RequestKind : uint8_t {
   REMOTE_OVERRIDE_OPERATING_MODES,
   // §5.3.8.3 Class 8, ID 100 LB: Remote Override Room Setpoint function flags.
   REMOTE_OVERRIDE_ROOM_SETPOINT_FUNCTION,
+  // Not a real conversation -- a sentinel giving the enum's cardinality, so last_success_ms_ (see its
+  // declaration comment) can be sized at compile time without hand-counting entries above.
+  REQUEST_KIND_COUNT,
 };
 
 class OpenTherm42Hub;
@@ -329,6 +332,18 @@ class OpenTherm42Hub : public Component {
  public:
   void set_in_pin(InternalGPIOPin *in_pin) { this->in_pin_ = in_pin; }
   void set_out_pin(InternalGPIOPin *out_pin) { this->out_pin_ = out_pin; }
+
+  // How long a data-id may keep answering DATA_INVALID (§4.4.1: "the data ID is recognised... but the
+  // data requested is not available or invalid") before its entity is actually invalidated. Real
+  // hardware has been observed answering DATA_INVALID for a data-id for a second or two before
+  // reverting to a normal READ_ACK/WRITE_ACK on the very next conversation for that same id, with no
+  // apparent cause -- immediately invalidating on every single DATA_INVALID made affected entities
+  // flap to Unknown and back every few seconds. 0 (the default) means invalidate immediately, matching
+  // the behavior before this option existed. Deliberately does NOT apply to UNKNOWN_DATA_ID (§4.4.1:
+  // the boiler doesn't recognise the data identifier at all) or any datalink-level failure (timeout,
+  // frame error) -- those mean the boiler has either never heard of this id or the bus itself is
+  // unreliable, neither of which this grace period is meant to paper over. See should_invalidate_now_().
+  void set_max_data_invalid(uint32_t max_data_invalid_ms) { this->max_data_invalid_ms_ = max_data_invalid_ms; }
 
   float get_setup_priority() const override { return setup_priority::HARDWARE; }
 
@@ -764,6 +779,12 @@ class OpenTherm42Hub : public Component {
   // On a failed conversation, every read-only entity that conversation would have updated must show
   // unknown rather than keep stale data.
   void invalidate_response_(RequestKind kind);
+  // Whether a rejected conversation should actually invalidate its entity/entities right now -- see
+  // set_max_data_invalid()'s declaration comment for the reasoning. Every handle_response_() rejection
+  // branch (except TSP/FHB, whose slots share one RequestKind across many independent data-ids, so a
+  // single per-kind timestamp can't distinguish which slot last succeeded) gates its invalidate_*()
+  // call(s) on this.
+  bool should_invalidate_now_(RequestKind kind, MessageType type) const;
   // Formats a short "Name (id=N)"-style description of the given request kind into buf, for the raw
   // datalink error log in loop() -- that log fires before any frame is parsed, so unlike
   // handle_response_()/invalidate_response_() it has no message-type context of its own to name the
@@ -794,6 +815,15 @@ class OpenTherm42Hub : public Component {
   uint32_t last_conversation_end_ms_{0};
   RequestKind pending_request_kind_{RequestKind::BOILER_CONFIG};
   StartupPhase startup_phase_{StartupPhase::BOILER_CONFIG};
+
+  // See set_max_data_invalid()'s declaration comment. 0 disables the grace period (default).
+  uint32_t max_data_invalid_ms_{0};
+  // millis() timestamp each RequestKind's conversation last got a READ_ACK/WRITE_ACK, updated
+  // unconditionally at the top of handle_response_() -- see should_invalidate_now_(). Indexed directly
+  // by the enum value; 0 (the default, for a kind that has never once succeeded) means
+  // should_invalidate_now_() always invalidates right away, which is correct: with no prior success
+  // there's no stale-but-plausibly-still-valid state worth protecting.
+  std::array<uint32_t, static_cast<size_t>(RequestKind::REQUEST_KIND_COUNT)> last_success_ms_{};
 
   // Populated once at setup() from the configured entities; sized small (Class 1 alone has at most 5
   // essential and 6 informational kinds) so std::vector's one-time setup-time growth never touches the
