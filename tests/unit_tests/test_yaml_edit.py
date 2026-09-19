@@ -103,6 +103,20 @@ def test_source_of_is_none_for_a_value_validation_added() -> None:
     assert source_of({"name": "kitchen"}, "name") is None
 
 
+def test_source_of_is_none_for_a_merged_key(tmp_path: Path) -> None:
+    """A key a merge brought in points at the anchor, which other mappings
+    may merge as well; it is not this mapping's own line."""
+    _setup(
+        tmp_path,
+        "named: &named\n  name: kitchen\n\nesphome:\n  <<: *named\n  friendly_name: x\n",
+    )
+    assert source_of(CORE.raw_config[CONF_ESPHOME], CONF_NAME) is None
+    assert source_of(CORE.raw_config[CONF_ESPHOME], "friendly_name") == (
+        tmp_path / "test.yaml",
+        5,
+    )
+
+
 def test_source_of_names_the_file_the_loader_read(tmp_path: Path) -> None:
     """An include has its own document; a symlink is reported as given."""
     (tmp_path / "base.yaml").write_bytes(b"name: kitchen\n")
