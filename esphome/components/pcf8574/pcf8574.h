@@ -5,14 +5,13 @@
 #include "esphome/components/i2c/i2c.h"
 #include "esphome/components/gpio_expander/cached_gpio.h"
 
-namespace esphome {
-namespace pcf8574 {
+namespace esphome::pcf8574 {
 
 // PCF8574(8 pins)/PCF8575(16 pins) always read/write all pins in a single I2C transaction
 // so we use uint16_t as bank type to ensure all pins are in one bank and cached together
-class PCF8574Component : public Component,
-                         public i2c::I2CDevice,
-                         public gpio_expander::CachedGpioExpander<uint16_t, 16> {
+class PCF8574Component final : public Component,
+                               public i2c::I2CDevice,
+                               public gpio_expander::CachedGpioExpander<uint16_t, 16> {
  public:
   PCF8574Component() = default;
 
@@ -50,8 +49,11 @@ class PCF8574Component : public Component,
 };
 
 /// Helper class to expose a PCF8574 pin as an internal input GPIO pin.
-class PCF8574GPIOPin : public GPIOPin {
+class PCF8574GPIOPin final : public GPIOPin {
  public:
+  // User provided, not "= default": `new(p) PCF8574GPIOPin()` would zero-fill .bss that is already zero.
+  PCF8574GPIOPin() {}
+
   void setup() override;
   void pin_mode(gpio::Flags flags) override;
   bool digital_read() override;
@@ -66,11 +68,10 @@ class PCF8574GPIOPin : public GPIOPin {
   gpio::Flags get_flags() const override { return this->flags_; }
 
  protected:
-  PCF8574Component *parent_;
-  uint8_t pin_;
-  bool inverted_;
-  gpio::Flags flags_;
+  PCF8574Component *parent_{nullptr};
+  uint8_t pin_{0};
+  bool inverted_{false};
+  gpio::Flags flags_{};
 };
 
-}  // namespace pcf8574
-}  // namespace esphome
+}  // namespace esphome::pcf8574

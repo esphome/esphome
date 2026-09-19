@@ -16,8 +16,7 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 
-namespace esphome {
-namespace esp32_ble_beacon {
+namespace esphome::esp32_ble_beacon {
 
 static const char *const TAG = "esp32_ble_beacon";
 
@@ -68,6 +67,8 @@ void ESP32BLEBeacon::setup() {
       this->on_advertise_();
     }
   });
+  // A beacon always needs the device to advertise, and never releases the request
+  global_ble->advertising_start();
 }
 
 void ESP32BLEBeacon::on_advertise_() {
@@ -129,7 +130,6 @@ void ESP32BLEBeacon::gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap
   }
 }
 
-}  // namespace esp32_ble_beacon
-}  // namespace esphome
+}  // namespace esphome::esp32_ble_beacon
 
 #endif

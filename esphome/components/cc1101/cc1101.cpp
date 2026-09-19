@@ -106,6 +106,30 @@ void IRAM_ATTR CC1101Component::gpio_intr(CC1101Component *arg) { arg->enable_lo
 
 void CC1101Component::setup() {
   this->spi_setup();
+
+  if (this->gdo0_pin_ != nullptr) {
+    this->gdo0_pin_->setup();
+  }
+
+  this->configure();
+  if (this->is_failed()) {
+    return;
+  }
+
+  // Defer pin mode setup until after all components have completed setup()
+  // This handles the case where remote_transmitter runs after CC1101 and changes pin mode
+  if (this->gdo0_pin_ != nullptr) {
+    this->defer([this]() {
+      this->gdo0_pin_->pin_mode(gpio::FLAG_INPUT);
+      if (this->state_.PKT_FORMAT == static_cast<uint8_t>(PacketFormat::PACKET_FORMAT_FIFO)) {
+        this->gdo0_pin_->attach_interrupt(&CC1101Component::gpio_intr, this, gpio::INTERRUPT_RISING_EDGE);
+      }
+    });
+  }
+}
+
+void CC1101Component::configure() {
+  // Manual reset sequence per CC1101 datasheet section 19.1.2
   this->cs_->digital_write(true);
   delayMicroseconds(1);
   this->cs_->digital_write(false);
@@ -128,11 +152,6 @@ void CC1101Component::setup() {
     return;
   }
 
-  // Setup GDO0 pin if configured
-  if (this->gdo0_pin_ != nullptr) {
-    this->gdo0_pin_->setup();
-  }
-
   this->initialized_ = true;
 
   for (uint8_t i = 0; i <= static_cast<uint8_t>(Register::TEST0); i++) {
@@ -142,20 +161,10 @@ void CC1101Component::setup() {
     this->write_(static_cast<Register>(i));
   }
   this->set_output_power(this->output_power_requested_);
+
   if (!this->enter_rx_()) {
     this->mark_failed();
     return;
-  }
-
-  // Defer pin mode setup until after all components have completed setup()
-  // This handles the case where remote_transmitter runs after CC1101 and changes pin mode
-  if (this->gdo0_pin_ != nullptr) {
-    this->defer([this]() {
-      this->gdo0_pin_->pin_mode(gpio::FLAG_INPUT);
-      if (this->state_.PKT_FORMAT == static_cast<uint8_t>(PacketFormat::PACKET_FORMAT_FIFO)) {
-        this->gdo0_pin_->attach_interrupt(&CC1101Component::gpio_intr, this, gpio::INTERRUPT_RISING_EDGE);
-      }
-    });
   }
 }
 
@@ -273,7 +282,7 @@ void CC1101Component::begin_rx() {
 
 void CC1101Component::reset() {
   this->strobe_(Command::RES);
-  this->setup();
+  this->configure();
 }
 
 void CC1101Component::set_idle() {
@@ -660,6 +669,69 @@ void CC1101Component::set_hyst_level(HystLevel value) {
   this->state_.HYST_LEVEL = static_cast<uint8_t>(value);
   if (this->initialized_) {
     this->write_(Register::AGCCTRL0);
+  }
+}
+
+void CC1101Component::set_foc_bs_cs_gate(bool value) {
+  this->state_.FOC_BS_CS_GATE = value ? 1 : 0;
+  if (this->initialized_) {
+    this->write_(Register::FOCCFG);
+  }
+}
+
+void CC1101Component::set_foc_limit(FocLimit value) {
+  this->state_.FOC_LIMIT = static_cast<uint8_t>(value);
+  if (this->initialized_) {
+    this->write_(Register::FOCCFG);
+  }
+}
+
+void CC1101Component::set_foc_pre_k(FocPreK value) {
+  this->state_.FOC_PRE_K = static_cast<uint8_t>(value);
+  if (this->initialized_) {
+    this->write_(Register::FOCCFG);
+  }
+}
+
+void CC1101Component::set_foc_post_k(FocPostK value) {
+  this->state_.FOC_POST_K = static_cast<uint8_t>(value);
+  if (this->initialized_) {
+    this->write_(Register::FOCCFG);
+  }
+}
+
+void CC1101Component::set_bs_limit(BsLimit value) {
+  this->state_.BS_LIMIT = static_cast<uint8_t>(value);
+  if (this->initialized_) {
+    this->write_(Register::BSCFG);
+  }
+}
+
+void CC1101Component::set_bs_pre_ki(BsPreKi value) {
+  this->state_.BS_PRE_KI = static_cast<uint8_t>(value);
+  if (this->initialized_) {
+    this->write_(Register::BSCFG);
+  }
+}
+
+void CC1101Component::set_bs_pre_kp(BsPreKp value) {
+  this->state_.BS_PRE_KP = static_cast<uint8_t>(value);
+  if (this->initialized_) {
+    this->write_(Register::BSCFG);
+  }
+}
+
+void CC1101Component::set_bs_post_ki(BsPostKi value) {
+  this->state_.BS_POST_KI = static_cast<uint8_t>(value);
+  if (this->initialized_) {
+    this->write_(Register::BSCFG);
+  }
+}
+
+void CC1101Component::set_bs_post_kp(BsPostKp value) {
+  this->state_.BS_POST_KP = static_cast<uint8_t>(value);
+  if (this->initialized_) {
+    this->write_(Register::BSCFG);
   }
 }
 

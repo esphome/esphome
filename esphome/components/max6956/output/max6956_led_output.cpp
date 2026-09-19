@@ -2,8 +2,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace max6956 {
+namespace esphome::max6956 {
 
 static const char *const TAG = "max6956_led_channel";
 
@@ -22,5 +21,4 @@ void MAX6956LedChannel::dump_config() {
   LOG_FLOAT_OUTPUT(this);
 }
 
-}  // namespace max6956
-}  // namespace esphome
+}  // namespace esphome::max6956

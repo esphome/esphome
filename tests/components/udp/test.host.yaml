@@ -4,7 +4,7 @@ udp:
   addresses: ["239.0.60.53"]
   on_receive:
     - logger.log:
-        format: "Received %d bytes"
+        format: "Received %zu bytes"
         args: [data.size()]
     - udp.write:
         id: my_udp

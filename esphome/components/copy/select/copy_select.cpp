@@ -1,8 +1,7 @@
 #include "copy_select.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace copy {
+namespace esphome::copy {
 
 static const char *const TAG = "copy.select";
 
@@ -24,5 +23,4 @@ void CopySelect::control(size_t index) {
   call.perform();
 }
 
-}  // namespace copy
-}  // namespace esphome
+}  // namespace esphome::copy

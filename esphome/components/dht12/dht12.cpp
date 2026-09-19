@@ -5,8 +5,7 @@
 #include "dht12.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace dht12 {
+namespace esphome::dht12 {
 
 static const char *const TAG = "dht12";
 
@@ -65,5 +64,4 @@ bool DHT12Component::read_data_(uint8_t *data) {
   return true;
 }
 
-}  // namespace dht12
-}  // namespace esphome
+}  // namespace esphome::dht12

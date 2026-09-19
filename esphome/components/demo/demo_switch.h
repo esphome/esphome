@@ -4,13 +4,12 @@
 #include "esphome/core/helpers.h"
 #include "esphome/components/switch/switch.h"
 
-namespace esphome {
-namespace demo {
+namespace esphome::demo {
 
-class DemoSwitch : public switch_::Switch, public Component {
+class DemoSwitch final : public switch_::Switch, public Component {
  public:
   void setup() override {
-    bool initial = random_float() < 0.5;
+    bool initial = random_float() < 0.5f;
     this->publish_state(initial);
   }
 
@@ -18,5 +17,4 @@ class DemoSwitch : public switch_::Switch, public Component {
   void write_state(bool state) override { this->publish_state(state); }
 };
 
-}  // namespace demo
-}  // namespace esphome
+}  // namespace esphome::demo

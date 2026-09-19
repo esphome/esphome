@@ -6,8 +6,7 @@
 #include "esphome/core/gpio.h"
 #include "esphome/core/hal.h"
 
-namespace esphome {
-namespace ft5x06 {
+namespace esphome::ft5x06 {
 
 enum VendorId {
   FT5X06_ID_UNKNOWN = 0,
@@ -35,7 +34,7 @@ enum FTMode : uint8_t {
 
 static const size_t MAX_TOUCHES = 5;  // max number of possible touches reported
 
-class FT5x06Touchscreen : public touchscreen::Touchscreen, public i2c::I2CDevice {
+class FT5x06Touchscreen final : public touchscreen::Touchscreen, public i2c::I2CDevice {
  public:
   void setup() override;
   void dump_config() override;
@@ -52,5 +51,4 @@ class FT5x06Touchscreen : public touchscreen::Touchscreen, public i2c::I2CDevice
   InternalGPIOPin *interrupt_pin_{nullptr};
 };
 
-}  // namespace ft5x06
-}  // namespace esphome
+}  // namespace esphome::ft5x06

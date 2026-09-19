@@ -2,8 +2,7 @@
 
 #include <cinttypes>
 
-namespace esphome {
-namespace atm90e32 {
+namespace esphome::atm90e32 {
 
 /* STATUS REGISTERS */
 static const uint16_t ATM90E32_REGISTER_METEREN = 0x00;        // Metering Enable
@@ -268,5 +267,4 @@ static const uint16_t ATM90E32_REGISTER_UANGLEA = 0xFD;  // A Voltage Phase Angl
 static const uint16_t ATM90E32_REGISTER_UANGLEB = 0xFE;  // B Voltage Phase Angle
 static const uint16_t ATM90E32_REGISTER_UANGLEC = 0xFF;  // C Voltage Phase Angle
 
-}  // namespace atm90e32
-}  // namespace esphome
+}  // namespace esphome::atm90e32

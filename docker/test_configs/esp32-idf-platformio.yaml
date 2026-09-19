@@ -1,0 +1,10 @@
+esphome:
+  name: docker-test-esp32-idf-pio
+
+esp32:
+  variant: esp32
+  framework:
+    type: esp-idf
+  toolchain: platformio
+
+logger:

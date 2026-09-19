@@ -1,13 +1,9 @@
 #include "pid_autotuner.h"
 #include "esphome/core/log.h"
 #include <cinttypes>
+#include <numbers>
 
-#ifndef M_PI
-#define M_PI 3.1415926535897932384626433
-#endif
-
-namespace esphome {
-namespace pid {
+namespace esphome::pid {
 
 static const char *const TAG = "pid.autotune";
 
@@ -127,7 +123,7 @@ PIDAutotuner::PIDAutotuneResult PIDAutotuner::update(float setpoint, float proce
   float osc_ampl = this->amplitude_detector_.get_mean_oscillation_amplitude();
   float d = (this->relay_function_.output_positive - this->relay_function_.output_negative) / 2.0f;
   ESP_LOGVV(TAG, "  Relay magnitude: %f", d);
-  this->ku_ = 4.0f * d / float(M_PI * osc_ampl);
+  this->ku_ = 4.0f * d / (std::numbers::pi_v<float> * osc_ampl);
   this->pu_ = this->frequency_detector_.get_mean_oscillation_period();
 
   this->state_ = AUTOTUNE_SUCCEEDED;
@@ -301,7 +297,7 @@ bool PIDAutotuner::OscillationFrequencyDetector::is_increase_decrease_symmetrica
     min_interval = std::min(min_interval, interval);
   }
   float ratio = min_interval / float(max_interval);
-  return ratio >= 0.66;
+  return ratio >= 0.66f;
 }
 
 // ================== OscillationAmplitudeDetector ==================
@@ -368,5 +364,4 @@ bool PIDAutotuner::OscillationAmplitudeDetector::is_amplitude_convergent() const
   return (mean_amplitude - global_amplitude) / (global_amplitude) < 0.05f;
 }
 
-}  // namespace pid
-}  // namespace esphome
+}  // namespace esphome::pid

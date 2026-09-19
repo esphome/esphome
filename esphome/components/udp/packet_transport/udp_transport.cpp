@@ -3,8 +3,7 @@
 #include "esphome/components/network/util.h"
 #include "udp_transport.h"
 
-namespace esphome {
-namespace udp {
+namespace esphome::udp {
 
 static const char *const TAG = "udp_transport";
 
@@ -17,5 +16,4 @@ void UDPTransport::setup() {
 }
 
 void UDPTransport::send_packet(const std::vector<uint8_t> &buf) const { this->parent_->send_packet(buf); }
-}  // namespace udp
-}  // namespace esphome
+}  // namespace esphome::udp

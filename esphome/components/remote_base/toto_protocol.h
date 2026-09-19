@@ -2,8 +2,7 @@
 
 #include "remote_base.h"
 
-namespace esphome {
-namespace remote_base {
+namespace esphome::remote_base {
 
 struct TotoData {
   uint8_t rc_code_1 : 4;
@@ -17,9 +16,9 @@ struct TotoData {
 
 class TotoProtocol : public RemoteProtocol<TotoData> {
  public:
-  void encode(RemoteTransmitData *dst, const TotoData &data) override;
-  optional<TotoData> decode(RemoteReceiveData src) override;
-  void dump(const TotoData &data) override;
+  void encode(RemoteTransmitData *dst, const TotoData &data);
+  optional<TotoData> decode(RemoteReceiveData src);
+  void dump(const TotoData &data);
 };
 
 DECLARE_REMOTE_PROTOCOL(Toto)
@@ -39,5 +38,4 @@ template<typename... Ts> class TotoAction : public RemoteTransmitterActionBase<T
   }
 };
 
-}  // namespace remote_base
-}  // namespace esphome
+}  // namespace esphome::remote_base

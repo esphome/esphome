@@ -26,25 +26,23 @@ extern "C" {
 struct lwip_sock *esphome_lwip_get_sock(int fd);
 
 /// Check if a cached LwIP socket has data ready via unlocked hint read of rcvevent.
-/// This avoids lwIP core lock contention between the main loop (CPU0) and
-/// streaming/networking work (CPU1). Correctness is preserved because callers
-/// already handle EWOULDBLOCK on nonblocking sockets — a stale hint simply causes
-/// a harmless retry on the next loop iteration. In practice, stale reads have not
-/// been observed across multi-day testing, but the design does not depend on that.
-///
-/// The sock pointer must have been obtained from esphome_lwip_get_sock() and must
-/// remain valid (caller owns socket lifetime — no concurrent close).
-/// Hot path: inlined volatile 16-bit load — no function call overhead.
-/// Uses offset-based access because lwip/priv/sockets_priv.h conflicts with C++.
+/// On ESPHOME_THREAD_MULTI_ATOMICS builds, the caller must run on the main
+/// loop task after Application::loop's per-iter std::atomic_thread_fence
+/// (memory_order_acquire); that fence pairs with the TCP/IP thread's
+/// SYS_ARCH_UNPROTECT release, so a plain load suffices and avoids the
+/// per-call `memw` that volatile would emit on Xtensa under default
+/// -mserialize-volatile. Without atomics (e.g. BK72xx), the fence is skipped
+/// and the volatile load provides ordering on its own.
+/// Stale reads are harmless either way: the hooked event_callback
+/// xTaskNotifyGives on RCVPLUS, so the next iteration re-snapshots and
+/// ulTaskNotifyTake never loses a wake.
 /// The offset and size are verified at compile time in lwip_fast_select.c.
 static inline bool esphome_lwip_socket_has_data(struct lwip_sock *sock) {
-  // Unlocked hint read — no lwIP core lock needed.
-  // volatile prevents the compiler from caching/reordering this cross-thread read.
-  // The write side (TCP/IP thread) commits via SYS_ARCH_UNPROTECT which releases a
-  // FreeRTOS mutex (ESP32) or resumes the scheduler (LibreTiny), ensuring the value
-  // is visible. Aligned 16-bit reads are single-instruction loads (L16SI/LH/LDRH) on
-  // Xtensa/RISC-V/ARM and cannot produce torn values.
+#ifdef ESPHOME_THREAD_MULTI_ATOMICS
+  return *(int16_t *) ((char *) sock + (int) ESPHOME_LWIP_SOCK_RCVEVENT_OFFSET) > 0;
+#else
   return *(volatile int16_t *) ((char *) sock + (int) ESPHOME_LWIP_SOCK_RCVEVENT_OFFSET) > 0;
+#endif
 }
 
 /// Hook a socket's netconn callback to notify the main loop task on receive events.
@@ -52,6 +50,12 @@ static inline bool esphome_lwip_socket_has_data(struct lwip_sock *sock) {
 /// Must be called from the main loop after socket creation.
 /// The sock pointer must have been obtained from esphome_lwip_get_sock().
 void esphome_lwip_hook_socket(struct lwip_sock *sock);
+
+/// Set the listener netconn that the fast-select callback filters OTA wakes against.
+/// After this is called, the OTA wake hook only fires for RCVPLUS events whose `conn`
+/// matches this listener. Passing NULL disables OTA wakes (no event matches a NULL
+/// listener) — correct behavior before install and after teardown.
+void esphome_fast_select_set_ota_listener_sock(struct lwip_sock *sock);
 
 /// Set or clear TCP_NODELAY on a socket's tcp_pcb directly.
 /// Must be called with the TCPIP core lock held (LwIPLock in C++).

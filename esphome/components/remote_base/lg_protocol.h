@@ -5,8 +5,7 @@
 
 #include <cinttypes>
 
-namespace esphome {
-namespace remote_base {
+namespace esphome::remote_base {
 
 struct LGData {
   uint32_t data;
@@ -17,9 +16,9 @@ struct LGData {
 
 class LGProtocol : public RemoteProtocol<LGData> {
  public:
-  void encode(RemoteTransmitData *dst, const LGData &data) override;
-  optional<LGData> decode(RemoteReceiveData src) override;
-  void dump(const LGData &data) override;
+  void encode(RemoteTransmitData *dst, const LGData &data);
+  optional<LGData> decode(RemoteReceiveData src);
+  void dump(const LGData &data);
 };
 
 DECLARE_REMOTE_PROTOCOL(LG)
@@ -37,5 +36,4 @@ template<typename... Ts> class LGAction : public RemoteTransmitterActionBase<Ts.
   }
 };
 
-}  // namespace remote_base
-}  // namespace esphome
+}  // namespace esphome::remote_base

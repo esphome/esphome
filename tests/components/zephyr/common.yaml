@@ -1,0 +1,8 @@
+esphome:
+  on_boot:
+    - lambda: |-
+        ESP_LOGD("test", "millis=%u micros=%u cycles=%u",
+                 (unsigned) millis(), (unsigned) micros(),
+                 (unsigned) arch_get_cpu_cycle_count());
+        delay(1);
+        delayMicroseconds(1);

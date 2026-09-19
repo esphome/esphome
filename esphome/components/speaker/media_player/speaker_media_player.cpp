@@ -9,17 +9,19 @@
 #include "esphome/components/ota/ota_backend.h"
 #endif
 
-namespace esphome {
-namespace speaker {
+namespace esphome::speaker {
 
 // Framework:
 //  - Media player that can handle two streams: one for media and one for announcements
 //    - Each stream has an individual speaker component for output
 //  - Each stream is handled by an ``AudioPipeline`` object with two parts/tasks
 //    - ``AudioReader`` handles reading from an HTTP source or from a PROGMEM flash set at compile time
-//    - ``AudioDecoder`` handles decoding the audio file. All formats are limited to two channels and 16 bits per sample
+//    - ``AudioDecoder`` handles decoding the audio file. All formats are limited to two channels and 16 bits per
+//    sample.
+//      Each format is enabled independently at compile time:
 //      - FLAC
 //      - MP3 (based on the libhelix decoder)
+//      - Ogg Opus
 //      - WAV
 //    - Each task runs until it is done processing the file or it receives a stop command
 //    - Inter-task communication uses a FreeRTOS Event Group
@@ -502,7 +504,7 @@ void SpeakerMediaPlayer::control(const media_player::MediaPlayerCall &call) {
     media_command.announce = false;
   }
 
-  auto media_url = call.get_media_url();
+  const auto &media_url = call.get_media_url();
   if (media_url.has_value()) {
     media_command.url =
         new std::string(*media_url);  // Must be manually deleted after receiving media_command from a queue
@@ -593,8 +595,11 @@ void SpeakerMediaPlayer::set_mute_state_(bool mute_state) {
 }
 
 void SpeakerMediaPlayer::set_volume_(float volume, bool publish) {
-  // Remap the volume to fit with in the configured limits
-  float bounded_volume = remap<float, float>(volume, 0.0f, 1.0f, this->volume_min_, this->volume_max_);
+  // Remap the volume to fit within the configured limits. An effectively zero volume is passed through as zero so
+  // the speaker silences it, otherwise volume_min would make it audible.
+  float bounded_volume = (volume < SILENT_VOLUME_THRESHOLD)
+                             ? 0.0f
+                             : remap<float, float>(volume, 0.0f, 1.0f, this->volume_min_, this->volume_max_);
 
   if (this->media_speaker_ != nullptr) {
     this->media_speaker_->set_volume(bounded_volume);
@@ -609,17 +614,9 @@ void SpeakerMediaPlayer::set_volume_(float volume, bool publish) {
     this->save_volume_restore_state_();
   }
 
-  // Turn on the mute state if the volume is effectively zero, off otherwise
-  if (volume < 0.001) {
-    this->set_mute_state_(true);
-  } else {
-    this->set_mute_state_(false);
-  }
-
   this->defer([this, volume]() { this->volume_trigger_.trigger(volume); });
 }
 
-}  // namespace speaker
-}  // namespace esphome
+}  // namespace esphome::speaker
 
 #endif

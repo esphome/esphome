@@ -9,8 +9,7 @@
 #include <vector>
 #include <map>
 
-namespace esphome {
-namespace touchscreen {
+namespace esphome::touchscreen {
 
 static const uint8_t STATE_RELEASED = 0x00;
 static const uint8_t STATE_PRESSED = 0x01;
@@ -120,5 +119,4 @@ class Touchscreen : public PollingComponent {
   bool skip_update_{false};
 };
 
-}  // namespace touchscreen
-}  // namespace esphome
+}  // namespace esphome::touchscreen

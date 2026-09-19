@@ -1,18 +1,18 @@
 #pragma once
 #include "esphome/core/defines.h"
-#ifdef USE_NETWORK
+#if defined(USE_NETWORK) && !defined(USE_ZEPHYR)
 #include "esphome/components/button/button.h"
 #include "esphome/core/component.h"
+#include "esphome/core/helpers.h"
 #if defined(USE_SOCKET_IMPL_BSD_SOCKETS) || defined(USE_SOCKET_IMPL_LWIP_SOCKETS)
 #include "esphome/components/socket/socket.h"
 #else
 #include "WiFiUdp.h"
 #endif
 
-namespace esphome {
-namespace wake_on_lan {
+namespace esphome::wake_on_lan {
 
-class WakeOnLanButton : public button::Button, public Component {
+class WakeOnLanButton final : public button::Button, public Component {
  public:
   void set_macaddr(uint8_t a, uint8_t b, uint8_t c, uint8_t d, uint8_t e, uint8_t f);
 
@@ -28,9 +28,9 @@ class WakeOnLanButton : public button::Button, public Component {
 #endif
   void press_action() override;
   uint16_t port_{9};
-  uint8_t macaddr_[6];
+  uint8_t macaddr_[MAC_ADDRESS_SIZE];
 };
 
-}  // namespace wake_on_lan
-}  // namespace esphome
-#endif
+}  // namespace esphome::wake_on_lan
+
+#endif  // USE_NETWORK && !USE_ZEPHYR

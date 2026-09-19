@@ -3,8 +3,7 @@
 #include "esphome/core/log.h"
 #include <cstring>
 
-namespace esphome {
-namespace pmsa003i {
+namespace esphome::pmsa003i {
 
 static const char *const TAG = "pmsa003i";
 
@@ -89,7 +88,11 @@ void PMSA003IComponent::update() {
 bool PMSA003IComponent::read_data_(PM25AQIData *data) {
   uint8_t buffer[COUNT_DATA_BYTES];
 
-  this->read_bytes_raw(buffer, COUNT_DATA_BYTES);
+  const i2c::ErrorCode error = this->read(buffer, COUNT_DATA_BYTES);
+  if (error != i2c::ERROR_OK) {
+    ESP_LOGW(TAG, "I2C error %d", error);
+    return false;
+  }
 
   // https://github.com/adafruit/Adafruit_PM25AQI
 
@@ -131,5 +134,4 @@ bool PMSA003IComponent::read_data_(PM25AQIData *data) {
   return true;
 }
 
-}  // namespace pmsa003i
-}  // namespace esphome
+}  // namespace esphome::pmsa003i

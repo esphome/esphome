@@ -17,10 +17,11 @@ from ..defines import (
     CONF_TITLE,
     LV_OBJ_FLAG,
     TYPE_FLEX,
+    add_lv_use,
     add_warning,
     literal,
 )
-from ..helpers import add_lv_use, lvgl_msgboxes
+from ..helpers import lvgl_msgboxes
 from ..lv_validation import lv_bool, lv_image, lv_text, pixels_or_percent
 from ..lvcode import (
     EVENT_ARG,

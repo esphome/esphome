@@ -5,12 +5,11 @@
 #include "esphome/components/i2c/i2c.h"
 #include "esphome/core/automation.h"
 
-namespace esphome {
-namespace htu21d {
+namespace esphome::htu21d {
 
 enum HTU21DSensorModels { HTU21D_SENSOR_MODEL_HTU21D = 0, HTU21D_SENSOR_MODEL_SI7021, HTU21D_SENSOR_MODEL_SHT21 };
 
-class HTU21DComponent : public PollingComponent, public i2c::I2CDevice {
+class HTU21DComponent final : public PollingComponent, public i2c::I2CDevice {
  public:
   void set_temperature(sensor::Sensor *temperature) { temperature_ = temperature; }
   void set_humidity(sensor::Sensor *humidity) { humidity_ = humidity; }
@@ -35,7 +34,7 @@ class HTU21DComponent : public PollingComponent, public i2c::I2CDevice {
   HTU21DSensorModels sensor_model_{HTU21D_SENSOR_MODEL_HTU21D};
 };
 
-template<typename... Ts> class SetHeaterLevelAction : public Action<Ts...>, public Parented<HTU21DComponent> {
+template<typename... Ts> class SetHeaterLevelAction final : public Action<Ts...>, public Parented<HTU21DComponent> {
  public:
   TEMPLATABLE_VALUE(uint8_t, level)
 
@@ -46,7 +45,7 @@ template<typename... Ts> class SetHeaterLevelAction : public Action<Ts...>, publ
   }
 };
 
-template<typename... Ts> class SetHeaterAction : public Action<Ts...>, public Parented<HTU21DComponent> {
+template<typename... Ts> class SetHeaterAction final : public Action<Ts...>, public Parented<HTU21DComponent> {
  public:
   TEMPLATABLE_VALUE(bool, status)
 
@@ -57,5 +56,4 @@ template<typename... Ts> class SetHeaterAction : public Action<Ts...>, public Pa
   }
 };
 
-}  // namespace htu21d
-}  // namespace esphome
+}  // namespace esphome::htu21d

@@ -9,8 +9,7 @@
 
 #define BME280_ERROR_WRONG_CHIP_ID "Wrong chip ID or no response"
 
-namespace esphome {
-namespace bme280_base {
+namespace esphome::bme280_base {
 
 static const char *const TAG = "bme280.sensor";
 
@@ -342,7 +341,6 @@ void BME280Component::set_pressure_oversampling(BME280Oversampling pressure_over
 void BME280Component::set_humidity_oversampling(BME280Oversampling humidity_over_sampling) {
   this->humidity_oversampling_ = humidity_over_sampling;
 }
-void BME280Component::set_iir_filter(BME280IIRFilter iir_filter) { this->iir_filter_ = iir_filter; }
 uint8_t BME280Component::read_u8_(uint8_t a_register) {
   uint8_t data = 0;
   this->read_byte(a_register, &data);
@@ -355,5 +353,4 @@ uint16_t BME280Component::read_u16_le_(uint8_t a_register) {
 }
 int16_t BME280Component::read_s16_le_(uint8_t a_register) { return this->read_u16_le_(a_register); }
 
-}  // namespace bme280_base
-}  // namespace esphome
+}  // namespace esphome::bme280_base

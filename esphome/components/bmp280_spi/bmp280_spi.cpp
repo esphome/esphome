@@ -4,8 +4,7 @@
 #include "bmp280_spi.h"
 #include <esphome/components/bmp280_base/bmp280_base.h>
 
-namespace esphome {
-namespace bmp280_spi {
+namespace esphome::bmp280_spi {
 
 uint8_t set_bit(uint8_t num, uint8_t position) {
   uint8_t mask = 1 << position;
@@ -61,5 +60,4 @@ bool BMP280SPIComponent::bmp_read_byte_16(uint8_t a_register, uint16_t *data) {
   return true;
 }
 
-}  // namespace bmp280_spi
-}  // namespace esphome
+}  // namespace esphome::bmp280_spi

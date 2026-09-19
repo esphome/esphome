@@ -8,8 +8,7 @@
 
 #include "ltr_definitions.h"
 
-namespace esphome {
-namespace ltr_als_ps {
+namespace esphome::ltr_als_ps {
 
 enum LtrDataAvail : uint8_t { LTR_NO_DATA, LTR_BAD_DATA, LTR_DATA_OK };
 
@@ -162,5 +161,4 @@ class LTRAlsPsComponent : public PollingComponent, public i2c::I2CDevice {
   CallbackManager<void()> on_ps_high_trigger_callback_;
   CallbackManager<void()> on_ps_low_trigger_callback_;
 };
-}  // namespace ltr_als_ps
-}  // namespace esphome
+}  // namespace esphome::ltr_als_ps

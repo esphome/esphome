@@ -1,10 +1,7 @@
 #include "xiaomi_mhoc303.h"
 #include "esphome/core/log.h"
 
-#ifdef USE_ESP32
-
-namespace esphome {
-namespace xiaomi_mhoc303 {
+namespace esphome::xiaomi_mhoc303 {
 
 static const char *const TAG = "xiaomi_mhoc303";
 
@@ -15,7 +12,7 @@ void XiaomiMHOC303::dump_config() {
   LOG_SENSOR("  ", "Battery Level", this->battery_level_);
 }
 
-bool XiaomiMHOC303::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
+bool XiaomiMHOC303::parse_device(const ble_device_base::ESPBTDevice &device) {
   if (device.address_uint64() != this->address_) {
     ESP_LOGVV(TAG, "parse_device(): unknown MAC address.");
     return false;
@@ -55,7 +52,4 @@ bool XiaomiMHOC303::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
   return success;
 }
 
-}  // namespace xiaomi_mhoc303
-}  // namespace esphome
-
-#endif
+}  // namespace esphome::xiaomi_mhoc303

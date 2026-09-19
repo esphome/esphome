@@ -3,8 +3,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace qspi_dbi {
+namespace esphome::qspi_dbi {
 
 // Maximum bytes to log in verbose hex output
 static constexpr size_t QSPI_DBI_MAX_LOG_BYTES = 64;
@@ -226,6 +225,5 @@ void QspiDbi::dump_config() {
   LOG_PIN("  Reset Pin: ", this->reset_pin_);
 }
 
-}  // namespace qspi_dbi
-}  // namespace esphome
+}  // namespace esphome::qspi_dbi
 #endif

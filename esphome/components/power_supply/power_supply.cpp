@@ -1,8 +1,7 @@
 #include "power_supply.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace power_supply {
+namespace esphome::power_supply {
 
 static const char *const TAG = "power_supply";
 
@@ -22,7 +21,11 @@ void PowerSupply::dump_config() {
   LOG_PIN("  Pin: ", this->pin_);
 }
 
-float PowerSupply::get_setup_priority() const { return setup_priority::IO; }
+float PowerSupply::get_setup_priority() const {
+  if (this->pin_->is_internal() && this->enable_on_boot_)
+    return setup_priority::POWER;
+  return setup_priority::IO;
+}
 
 bool PowerSupply::is_enabled() const { return this->active_requests_ != 0; }
 
@@ -54,5 +57,4 @@ void PowerSupply::on_powerdown() {
   this->pin_->digital_write(false);
 }
 
-}  // namespace power_supply
-}  // namespace esphome
+}  // namespace esphome::power_supply

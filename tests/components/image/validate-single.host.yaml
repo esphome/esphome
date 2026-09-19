@@ -1,0 +1,16 @@
+# Legacy top-level `image:` single-dict form (a bare image dict instead of a
+# list; deprecated, migrates to `platform: file`). Config-only test exercising
+# the deprecation/migration path.
+display:
+  - platform: sdl
+    id: image_display
+    auto_clear_enabled: false
+    dimensions:
+      width: 480
+      height: 480
+
+image:
+  id: legacy_single_image
+  file: ../../pnglogo.png
+  type: RGB565
+  transparency: opaque

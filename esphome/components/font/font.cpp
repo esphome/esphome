@@ -4,8 +4,7 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace font {
+namespace esphome::font {
 static const char *const TAG = "font";
 
 #ifdef USE_LVGL_FONT
@@ -359,5 +358,4 @@ void Font::print(int x_start, int y_start, display::Display *display, Color colo
   }
 }
 #endif
-}  // namespace font
-}  // namespace esphome
+}  // namespace esphome::font

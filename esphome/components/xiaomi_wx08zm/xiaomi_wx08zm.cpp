@@ -1,10 +1,7 @@
 #include "xiaomi_wx08zm.h"
 #include "esphome/core/log.h"
 
-#ifdef USE_ESP32
-
-namespace esphome {
-namespace xiaomi_wx08zm {
+namespace esphome::xiaomi_wx08zm {
 
 static const char *const TAG = "xiaomi_wx08zm";
 
@@ -15,7 +12,7 @@ void XiaomiWX08ZM::dump_config() {
   LOG_SENSOR("  ", "Battery Level", this->battery_level_);
 }
 
-bool XiaomiWX08ZM::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
+bool XiaomiWX08ZM::parse_device(const ble_device_base::ESPBTDevice &device) {
   if (device.address_uint64() != this->address_) {
     ESP_LOGVV(TAG, "parse_device(): unknown MAC address.");
     return false;
@@ -56,7 +53,4 @@ bool XiaomiWX08ZM::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
   return success;
 }
 
-}  // namespace xiaomi_wx08zm
-}  // namespace esphome
-
-#endif
+}  // namespace esphome::xiaomi_wx08zm

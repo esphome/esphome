@@ -3,12 +3,11 @@
 #include "esphome/components/sx1509/sx1509.h"
 #include "esphome/components/output/float_output.h"
 
-namespace esphome {
-namespace sx1509 {
+namespace esphome::sx1509 {
 
 class SX1509Component;
 
-class SX1509FloatOutputChannel : public output::FloatOutput, public Component {
+class SX1509FloatOutputChannel final : public output::FloatOutput, public Component {
  public:
   void set_parent(SX1509Component *parent) { this->parent_ = parent; }
   void set_pin(uint8_t pin) { pin_ = pin; }
@@ -23,5 +22,4 @@ class SX1509FloatOutputChannel : public output::FloatOutput, public Component {
   uint8_t pin_;
 };
 
-}  // namespace sx1509
-}  // namespace esphome
+}  // namespace esphome::sx1509

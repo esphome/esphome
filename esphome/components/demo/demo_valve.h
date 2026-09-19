@@ -2,15 +2,14 @@
 
 #include "esphome/components/valve/valve.h"
 
-namespace esphome {
-namespace demo {
+namespace esphome::demo {
 
 enum class DemoValveType {
   TYPE_1,
   TYPE_2,
 };
 
-class DemoValve : public valve::Valve {
+class DemoValve final : public valve::Valve {
  public:
   valve::ValveTraits get_traits() override {
     valve::ValveTraits traits;
@@ -53,5 +52,4 @@ class DemoValve : public valve::Valve {
   DemoValveType type_{};
 };
 
-}  // namespace demo
-}  // namespace esphome
+}  // namespace esphome::demo

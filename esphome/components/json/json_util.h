@@ -13,8 +13,7 @@
 
 #include <ArduinoJson.h>
 
-namespace esphome {
-namespace json {
+namespace esphome::json {
 
 /// Buffer for JSON serialization that uses stack allocation for small payloads.
 /// Template parameter STACK_SIZE specifies the stack buffer size (default 512 bytes).
@@ -169,6 +168,9 @@ inline JsonDocument parse_json(const std::string &data) {
 /// Builder class for creating JSON documents without lambdas
 class JsonBuilder {
  public:
+  // Out of line: inlining the JsonDocument constructor duplicates it at every call site
+  JsonBuilder();
+
   JsonObject root() {
     if (!root_created_) {
       root_ = doc_.to<JsonObject>();
@@ -192,5 +194,4 @@ class JsonBuilder {
   bool root_created_{false};
 };
 
-}  // namespace json
-}  // namespace esphome
+}  // namespace esphome::json

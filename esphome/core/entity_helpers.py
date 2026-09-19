@@ -23,8 +23,15 @@ from esphome.core.config import (
     UNIT_OF_MEASUREMENT_MAX_LENGTH,
 )
 from esphome.cpp_generator import MockObj, RawStatement, add, get_variable
+from esphome.cpp_types import App
 import esphome.final_validate as fv
-from esphome.helpers import cpp_string_escape, fnv1_hash_object_id, sanitize, snake_case
+from esphome.helpers import (
+    cpp_string_escape,
+    fnv1_hash,
+    fnv1_hash_object_id,
+    sanitize,
+    snake_case,
+)
 from esphome.types import ConfigType, EntityMetadata
 
 _LOGGER = logging.getLogger(__name__)
@@ -51,6 +58,12 @@ _ENTITY_CATEGORY_SHIFT = 26
 _KEY_INTERNAL = "_entity_internal"
 _KEY_DISABLED_BY_DEFAULT = "_entity_disabled_by_default"
 _KEY_ENTITY_CATEGORY = "_entity_category"
+
+# Private config key for the App.register_<method> entry point.
+# When set, finalize_entity_strings() emits a single combined call
+# `App.register_<method>(var, name, hash, packed)` instead of separate
+# `App.register_<method>(var)` and `var->configure_entity_(...)` calls.
+_KEY_REGISTER_METHOD = "_entity_register_method"
 
 # Maximum unique strings per category (8-bit index, 0 = not set)
 _MAX_DEVICE_CLASSES = 0xFF  # 255
@@ -271,11 +284,26 @@ def _describe_packed_flags(config: ConfigType, entity_category: int) -> str:
     return ", ".join(parts)
 
 
+def queue_entity_register(method_name: str, config: ConfigType) -> None:
+    """Defer ``App.register_<method_name>(var)`` emission to ``finalize_entity_strings``.
+
+    When the deferred call is emitted, it is folded with ``configure_entity_`` into
+    a single ``App.register_<method_name>(var, name, hash, packed)`` call site,
+    which removes one statement and one method dispatch per entity from the
+    generated ``main.cpp``.
+    """
+    config[_KEY_REGISTER_METHOD] = method_name
+
+
 def finalize_entity_strings(var: MockObj, config: ConfigType) -> None:
-    """Emit a single configure_entity_() call with name, hash, packed string indices, and flags.
+    """Emit the entity-registration / configure_entity_ tail.
 
     Call this at the end of each component's setup function, after
     setup_entity() and any register_device_class/register_unit_of_measurement calls.
+
+    If queue_entity_register() was called for this entity, emits one combined call
+    ``App.register_<method>(var, name, hash, packed)``. Otherwise falls back to a
+    standalone ``var->configure_entity_(name, hash, packed)``.
     """
     entity_name = config[_KEY_ENTITY_NAME]
     object_id_hash = config[_KEY_OBJECT_ID_HASH]
@@ -295,7 +323,13 @@ def finalize_entity_strings(var: MockObj, config: ConfigType) -> None:
     )
     # Build inline comment describing the packed flags for readability
     comment = _describe_packed_flags(config, entity_category)
-    expr = var.configure_entity_(entity_name, object_id_hash, packed)
+    register_method = config.get(_KEY_REGISTER_METHOD)
+    if register_method is not None:
+        expr = getattr(App, f"register_{register_method}")(
+            var, entity_name, object_id_hash, packed
+        )
+    else:
+        expr = var.configure_entity_(entity_name, object_id_hash, packed)
     if comment:
         add(RawStatement(f"{expr};  // {comment}"))
     else:
@@ -309,7 +343,7 @@ def get_base_entity_object_id(
 
     This function calculates what object_id_c_str_ should be set to in C++.
 
-    The C++ EntityBase::get_object_id() (entity_base.cpp lines 38-49) works as:
+    The C++ EntityBase::write_object_id_to() (entity_base.cpp) works as:
     - If !has_own_name && is_name_add_mac_suffix_enabled():
         return str_sanitize(str_snake_case(App.get_friendly_name()))  // Dynamic
     - Else:
@@ -528,8 +562,11 @@ def entity_duplicate_validator(platform: str) -> Callable[[ConfigType], ConfigTy
             entity_name, CORE.friendly_name, device_name
         )
 
-        # Check for duplicates
-        unique_key = (device_id, platform, name_key)
+        # Check for duplicates by the FNV-1 hash of the object_id, which is the entity
+        # key that routes state to API clients. This rejects names that sanitize to the
+        # same object_id, and also two different object_ids whose 32-bit hashes collide.
+        name_hash = fnv1_hash(name_key)
+        unique_key = (device_id, platform, name_hash)
         if unique_key in CORE.unique_ids:
             # Get the existing entity metadata
             existing = CORE.unique_ids[unique_key]
@@ -553,15 +590,26 @@ def entity_duplicate_validator(platform: str) -> Callable[[ConfigType], ConfigTy
             if existing_component != "unknown":
                 conflict_msg += f" from component '{existing_component}'"
 
-            # Show both original names and their ASCII-only versions if they differ
-            sanitized_msg = ""
+            # Distinguish names that sanitize to the same object_id from a genuine
+            # 32-bit hash collision between two different object_ids
+            collision_msg = ""
             if entity_name != existing_name:
-                sanitized_msg = (
-                    f"\n  Original names: '{entity_name}' and '{existing_name}'"
-                    f"\n  Both convert to ASCII ID: '{name_key}'"
-                    "\n  To fix: Add unique ASCII characters (e.g., '1', '2', or 'A', 'B')"
-                    "\n          to distinguish them"
+                existing_object_id = get_base_entity_object_id(
+                    existing_name, CORE.friendly_name, existing_device or None
                 )
+                if existing_object_id == name_key:
+                    collision_msg = (
+                        f"\n  Original names: '{entity_name}' and '{existing_name}'"
+                        f"\n  Both convert to ASCII ID: '{name_key}'"
+                        "\n  To fix: Add unique ASCII characters (e.g., '1', '2', or 'A', 'B')"
+                        "\n          to distinguish them"
+                    )
+                else:
+                    collision_msg = (
+                        f"\n  The object_ids '{name_key}' and '{existing_object_id}'"
+                        f"\n  produce the same entity key hash ({name_hash:#010x})."
+                        "\n  To fix: Rename one of the entities"
+                    )
 
             # Skip duplicate entity name validation when testing_mode is enabled
             # This flag is used for grouped component testing
@@ -570,7 +618,7 @@ def entity_duplicate_validator(platform: str) -> Callable[[ConfigType], ConfigTy
                     f"Duplicate {platform} entity with name '{entity_name}' found{device_prefix}. "
                     f"{conflict_msg}. "
                     "Each entity on a device must have a unique name within its platform."
-                    f"{sanitized_msg}"
+                    f"{collision_msg}"
                 )
 
         # Store metadata about this entity

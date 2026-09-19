@@ -3,8 +3,7 @@
 #include "esphome/core/application.h"
 #include <cinttypes>
 
-namespace esphome {
-namespace status_led {
+namespace esphome::status_led {
 
 static const char *const TAG = "status_led";
 
@@ -71,5 +70,4 @@ void StatusLEDLightOutput::output_state_(bool state) {
     this->output_->set_state(state);
 }
 
-}  // namespace status_led
-}  // namespace esphome
+}  // namespace esphome::status_led

@@ -3,8 +3,7 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 
-namespace esphome {
-namespace image {
+namespace esphome::image {
 
 void Image::draw(int x, int y, display::Display *display, Color color_on, Color color_off) {
   int img_x0 = 0;
@@ -49,14 +48,12 @@ void Image::draw(int x, int y, display::Display *display, Color color_on, Color 
                 continue;  // skip drawing
               }
               break;
-            case TRANSPARENCY_ALPHA_CHANNEL: {
-              auto on = (float) gray / 255.0f;
-              auto off = 1.0f - on;
-              // blend color_on and color_off
-              color = Color(color_on.r * on + color_off.r * off, color_on.g * on + color_off.g * off,
-                            color_on.b * on + color_off.b * off, 0xFF);
+            case TRANSPARENCY_ALPHA_CHANNEL:
+              // gray is the alpha: blend from color_off to color_on, drawn opaque
+              color = Color(Color::blend_channel(color_off.r, color_on.r, gray),
+                            Color::blend_channel(color_off.g, color_on.g, gray),
+                            Color::blend_channel(color_off.b, color_on.b, gray), 0xFF);
               break;
-            }
             default:
               break;
           }
@@ -124,26 +121,18 @@ lv_image_dsc_t *Image::get_lv_image_dsc() {
         break;
 
       case IMAGE_TYPE_RGB:
-#if LV_COLOR_DEPTH == 32
         switch (this->transparency_) {
           case TRANSPARENCY_ALPHA_CHANNEL:
-            this->dsc_.header.cf = LV_IMG_CF_TRUE_COLOR_ALPHA;
+            this->dsc_.header.cf = LV_COLOR_FORMAT_ARGB8888;
             break;
           case TRANSPARENCY_CHROMA_KEY:
-            this->dsc_.header.cf = LV_IMG_CF_TRUE_COLOR_CHROMA_KEYED;
-            break;
           default:
-            this->dsc_.header.cf = LV_IMG_CF_TRUE_COLOR;
+            this->dsc_.header.cf = LV_COLOR_FORMAT_RGB888;
             break;
         }
-#else
-        this->dsc_.header.cf =
-            this->transparency_ == TRANSPARENCY_ALPHA_CHANNEL ? LV_COLOR_FORMAT_ARGB8888 : LV_COLOR_FORMAT_RGB888;
-#endif
         break;
 
       case IMAGE_TYPE_RGB565:
-#if LV_COLOR_DEPTH == 16
         switch (this->transparency_) {
           case TRANSPARENCY_ALPHA_CHANNEL:
             this->dsc_.header.cf = LV_COLOR_FORMAT_RGB565A8;
@@ -151,10 +140,6 @@ lv_image_dsc_t *Image::get_lv_image_dsc() {
           default:
             this->dsc_.header.cf = LV_COLOR_FORMAT_RGB565;
         }
-#else
-        this->dsc_.header.cf =
-            this->transparency_ == TRANSPARENCY_ALPHA_CHANNEL ? LV_IMG_CF_RGB565A8 : LV_IMG_CF_RGB565;
-#endif
         break;
     }
   }
@@ -189,7 +174,7 @@ Color Image::get_rgb_pixel_(int x, int y) const {
 }
 Color Image::get_rgb565_pixel_(int x, int y) const {
   const uint8_t *pos = this->data_start_ + (x + y * this->width_) * this->bpp_ / 8;
-  uint16_t rgb565 = encode_uint16(progmem_read_byte(pos), progmem_read_byte(pos + 1));
+  uint16_t rgb565 = encode_uint16(progmem_read_byte(pos + 1), progmem_read_byte(pos));
   auto r = (rgb565 & 0xF800) >> 11;
   auto g = (rgb565 & 0x07E0) >> 5;
   auto b = rgb565 & 0x001F;
@@ -243,5 +228,4 @@ Image::Image(const uint8_t *data_start, int width, int height, ImageType type, T
   }
 }
 
-}  // namespace image
-}  // namespace esphome
+}  // namespace esphome::image

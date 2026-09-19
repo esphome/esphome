@@ -1,8 +1,7 @@
 #include "hbridge_fan.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace hbridge {
+namespace esphome::hbridge {
 
 static const char *const TAG = "fan.hbridge";
 
@@ -93,5 +92,4 @@ void HBridgeFan::write_state_() {
     this->oscillating_->set_state(this->oscillating);
 }
 
-}  // namespace hbridge
-}  // namespace esphome
+}  // namespace esphome::hbridge

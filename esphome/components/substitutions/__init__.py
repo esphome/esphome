@@ -1,5 +1,7 @@
 from collections import ChainMap
+from itertools import product
 import logging
+import re
 from typing import Any
 
 import esphome
@@ -7,13 +9,16 @@ from esphome import core
 from esphome.config_helpers import Extend, Remove, merge_config, merge_dicts_ordered
 import esphome.config_validation as cv
 from esphome.const import CONF_SUBSTITUTIONS, VALID_SUBSTITUTIONS_CHARACTERS
+from esphome.expression import JINJA_PROG
 from esphome.types import ConfigType
 from esphome.util import OrderedDict
 from esphome.yaml_util import (
     ConfigContext,
+    DocumentPath,
     ESPHomeDataBase,
     ESPLiteralValue,
     IncludeFile,
+    format_path,
     make_data_base,
 )
 
@@ -23,11 +28,48 @@ CODEOWNERS = ["@esphome/core"]
 _LOGGER = logging.getLogger(__name__)
 
 ContextVars = ChainMap[str, Any]
-SubstitutionPath = list[int | str]
-ErrList = list[tuple[UndefinedError, SubstitutionPath, Any]]
+ErrList = list[tuple[UndefinedError, DocumentPath, Any]]
+
+# Candidate-pattern shaping for include_candidate_patterns.
+_ADJACENT_WILDCARDS_RE = re.compile(r"\*+")
+# Dots are included so a variant like `../*` counts as fully dynamic too;
+# it would otherwise glob everything in the parent directory.
+_WILDCARDS_ONLY_RE = re.compile(r"[*./\\]+")
+_GLOB_META_RE = re.compile(r"[?\[]")
+_STRING_LITERAL_RE = re.compile(r"'([^']*)'|\"([^\"]*)\"")
+
 # Module-level instance is safe: context_vars is passed per-call, and context_trace
 # is stack-saved/restored within expand(). Not thread-safe — only use from one thread.
 jinja = Jinja()
+
+
+def raise_first_undefined(
+    errors: ErrList,
+    context_label: str,
+) -> None:
+    """If *errors* is non-empty, raise ``cv.Invalid`` for the first undefined variable.
+
+    The raised error names the missing variable and its location in the include
+    stack. Only the first error is surfaced; the user will re-run after fixing it
+    and any remaining undefined variables will be reported then.
+
+    ``context_label`` is the noun describing where the undefined variable
+    appeared (e.g. ``"package definition"``).
+    """
+    if not errors:
+        return
+    err, err_path, err_value = errors[0]
+    if len(errors) > 1:
+        # Log any further undefined variables so debug-level output covers
+        # the full set, even though only the first is surfaced to the user.
+        extras = ", ".join(
+            f"{e.message} at '{'->'.join(str(p) for p in p_path)}'"
+            for e, p_path, _ in errors[1:]
+        )
+        _LOGGER.debug("Additional undefined variables in %s: %s", context_label, extras)
+    raise cv.Invalid(
+        f"Undefined variable in {context_label}: {err.message}\n{format_path(err_path, err_value)}"
+    )
 
 
 def validate_substitution_key(value: Any) -> str:
@@ -95,7 +137,7 @@ def _resolve_var(name: str, context_vars: ContextVars) -> Any:
 
 def _handle_undefined(
     err: UndefinedError,
-    path: SubstitutionPath,
+    path: DocumentPath,
     value: Any,
     strict_undefined: bool,
     errors: ErrList | None,
@@ -113,7 +155,7 @@ def _handle_undefined(
 
 def _expand_substitutions(
     value: str,
-    path: SubstitutionPath,
+    path: DocumentPath,
     context_vars: ContextVars,
     strict_undefined: bool,
     errors: ErrList | None,
@@ -186,9 +228,9 @@ def _expand_substitutions(
                 f"\nEvaluation stack: (most recent evaluation last)"
                 f"\n{err.stack_trace_str()}"
                 f"\nRelevant context:\n{err.context_trace_str()}"
-                f"\nSee {'->'.join(str(x) for x in path)}",
+                f"\n{format_path(path, orig_value)}",
                 path,
-            )
+            ) from err
         else:
             if isinstance(orig_value, ESPHomeDataBase):
                 value = _restore_data_base(value, orig_value)
@@ -247,7 +289,18 @@ def _push_context(
         """Resolve a variable, recursively resolving any dependencies it references."""
         value = unresolved_vars.pop(key, Missing)
         if value is Missing:
-            return Missing
+            # Either already resolved (in resolved_vars) or currently being
+            # resolved (self-reference from inside a dict-valued substitution).
+            # Returning what we have lets sibling references inside a dict
+            # value, e.g. ``${device.manufacturer}`` inside ``device.name``,
+            # see literal sibling values during their own resolution.
+            return resolved_vars.get(key, Missing)
+        if isinstance(value, dict):
+            # Dict-valued substitutions form a namespace; eagerly publish the
+            # original mapping so its members can reference each other while
+            # the dict's own substitution pass is still running. The entry is
+            # replaced with the fully-substituted dict once recursion returns.
+            resolved_vars[key] = value
         try:
             value = substitute(value, [], resolver_context, True)
         except UndefinedError as err:
@@ -295,14 +348,12 @@ def push_context(
 
 def resolve_include(
     include: IncludeFile,
-    path: list[int | str],
+    path: DocumentPath,
     context_vars: ContextVars,
     strict_undefined: bool = True,
     errors: ErrList | None = None,
-) -> tuple[Any, str]:
+) -> Any:
     """Resolve an include, substituting the filename if needed.
-
-    Returns the loaded content and the resolved filename.
 
     Note: no path-traversal validation is performed on the resolved filename.
     A substitution that resolves to an absolute path will bypass the parent
@@ -311,44 +362,80 @@ def resolve_include(
     values (including command-line substitutions), so path restrictions are
     an explicit non-goal here.
     """
-    original = str(include.file)
+    original = include.file
     filename = str(
         _expand_substitutions(
             original, path + ["file"], context_vars, strict_undefined, errors
         )
     )
-    if filename != original:
-        include = IncludeFile(
-            include.parent_file, filename, include.vars, include.yaml_loader
-        )
+    substituted = filename != original
+    if substituted:
+        include = include.with_file(filename)
     try:
-        return include.load(), filename
+        return include.load()
     except esphome.core.EsphomeError as err:
+        resolved = f" (expanded from '{original}')" if substituted else ""
         raise cv.Invalid(
-            f"Error including file '{filename}': {err}",
+            f"Error including file '{filename}'{resolved}: {err}"
+            f"\n{format_path(path, original)}",
             path + [f"<{filename}>"],
         ) from err
 
 
+def include_candidate_patterns(value: str) -> list[str]:
+    """Expand a substitution/Jinja-templated path into glob-style candidate patterns.
+
+    Mirrors the two phases of :func:`_expand_substitutions` without variable
+    values: ``$var`` / ``${var}`` references become ``*`` and each remaining
+    Jinja expression contributes one pattern per quoted string literal it
+    holds (``*`` when it holds none), so every conditional branch is a
+    candidate — deliberately over-inclusive. Emitted wildcard patterns are
+    glob-safe: adjacent wildcards collapse (no recursive ``**``), ``[`` /
+    ``?`` from the filename text are escaped, and variants reduced to
+    nothing but wildcards, dots and separators are dropped so a fully
+    dynamic filename never expands to "everything in the directory",
+    including via a ``../*`` parent traversal.
+    """
+    # Replacing $var / ${var} first also keeps JINJA_PROG's first-} span
+    # matching correct for references nested inside string literals, the
+    # same ordering _expand_substitutions relies on.
+    value = cv.VARIABLE_PROG.sub("*", value)
+    options = [
+        [a or b for a, b in _STRING_LITERAL_RE.findall(expr)] or ["*"]
+        for expr in JINJA_PROG.findall(value)
+    ]
+
+    variants: list[str] = []
+    for combination in product(*options):
+        replacements = iter(combination)
+        spliced = JINJA_PROG.sub(lambda _, _next=replacements: next(_next), value)
+        variants.append(_ADJACENT_WILDCARDS_RE.sub("*", spliced))
+
+    patterns: list[str] = []
+    for variant in dict.fromkeys(variants):
+        if not variant or _WILDCARDS_ONLY_RE.fullmatch(variant):
+            continue
+        if "*" in variant:
+            variant = _GLOB_META_RE.sub(r"[\g<0>]", variant)
+        patterns.append(variant)
+    return patterns
+
+
 def _substitute_include(
     include: IncludeFile,
-    path: list[int | str],
+    path: DocumentPath,
     context_vars: ContextVars,
     strict_undefined: bool,
     errors: ErrList | None,
 ) -> Any:
     """Resolve an include and substitute its content."""
-    content, filename = resolve_include(
-        include, path, context_vars, strict_undefined, errors
-    )
-    return substitute(
-        content, path + [f"<{filename}>"], context_vars, strict_undefined, errors
-    )
+    content = resolve_include(include, path, context_vars, strict_undefined, errors)
+    return substitute(content, path, context_vars, strict_undefined, errors)
 
 
 def substitute(
     item: Any,
-    path: SubstitutionPath,
+    path: DocumentPath,
     parent_context: ContextVars,
     strict_undefined: bool,
     errors: ErrList | None = None,
@@ -401,17 +488,41 @@ def _warn_unresolved_variables(errors: ErrList) -> None:
     for err, path, expression in errors:
         if "password" in path:
             continue
-        location: str = "->".join(str(x) for x in path)
-        if isinstance(expression, ESPHomeDataBase) and expression.esp_range is not None:
-            location += f" in {str(expression.esp_range.start_mark)}"
-
         _LOGGER.warning(
             "The string '%s' looks like an expression,"
-            " but could not resolve all the variables: %s (see %s)",
+            " but could not resolve all the variables: %s\n%s",
             expression,
             err.message,
-            location,
+            format_path(path, expression),
         )
+
+
+def resolve_substitutions_block(
+    substitutions: Any,
+    command_line_substitutions: dict[str, Any] | None,
+) -> dict[str, Any]:
+    """Resolve a deferred ``substitutions: !include file.yaml`` and validate the shape.
+
+    The caller is responsible for wrapping the call in
+    ``cv.prepend_path(CONF_SUBSTITUTIONS)`` for error reporting.
+    ``command_line_substitutions`` seeds the filename context so
+    ``substitutions: !include ${var}.yaml`` can reference CLI-provided vars.
+    """
+    if isinstance(substitutions, IncludeFile):
+        # Single-shot resolution — matches ``_walk_packages`` for the
+        # ``packages: !include`` entry point.  Chained includes (an include that
+        # itself loads another ``!include`` at the top level) are not supported.
+        substitutions = resolve_include(
+            substitutions,
+            [],
+            ContextVars(command_line_substitutions or {}),
+            strict_undefined=False,
+        )
+    if not isinstance(substitutions, dict):
+        raise cv.Invalid(
+            f"Substitutions must be a key to value mapping, got {type(substitutions)}"
+        )
+    return substitutions
 
 
 def do_substitution_pass(
@@ -429,10 +540,9 @@ def do_substitution_pass(
     # Use merge_dicts_ordered to preserve OrderedDict type for move_to_end()
     substitutions = config.pop(CONF_SUBSTITUTIONS, {})
     with cv.prepend_path(CONF_SUBSTITUTIONS):
-        if not isinstance(substitutions, dict):
-            raise cv.Invalid(
-                f"Substitutions must be a key to value mapping, got {type(substitutions)}"
-            )
+        substitutions = resolve_substitutions_block(
+            substitutions, command_line_substitutions
+        )
         substitutions = merge_dicts_ordered(
             substitutions, command_line_substitutions or {}
         )

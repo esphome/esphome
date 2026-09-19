@@ -4,6 +4,9 @@ import esphome.codegen as cg
 from esphome.components import i2c
 import esphome.config_validation as cv
 from esphome.const import CONF_FREQUENCY, CONF_ID
+from esphome.core import ID
+from esphome.cpp_generator import MockObj, TemplateArgsType
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@X-Ryl669"]
 DEPENDENCIES = ["i2c"]
@@ -70,7 +73,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)
@@ -91,7 +94,12 @@ AT581XSettingsAction = at581x_ns.class_("AT581XSettingsAction", automation.Actio
     ),
     synchronous=True,
 )
-async def at581x_reset_to_code(config, action_id, template_arg, args):
+async def at581x_reset_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
 
@@ -163,7 +171,12 @@ RADAR_SETTINGS_SCHEMA = cv.Schema(
     RADAR_SETTINGS_SCHEMA,
     synchronous=True,
 )
-async def at581x_settings_to_code(config, action_id, template_arg, args):
+async def at581x_settings_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
 
@@ -183,19 +196,19 @@ async def at581x_settings_to_code(config, action_id, template_arg, args):
         cg.add(var.set_sensing_distance(template_))
 
     if selfcheck := config.get(CONF_POWERON_SELFCHECK_TIME):
-        template_ = await cg.templatable(selfcheck, args, cg.int32)
+        template_ = await cg.templatable(selfcheck, args, cg.int_)
         cg.add(var.set_poweron_selfcheck_time(template_))
 
     if protect := config.get(CONF_PROTECT_TIME):
-        template_ = await cg.templatable(protect, args, cg.int32)
+        template_ = await cg.templatable(protect, args, cg.int_)
         cg.add(var.set_protect_time(template_))
 
     if trig_base := config.get(CONF_TRIGGER_BASE):
-        template_ = await cg.templatable(trig_base, args, cg.int32)
+        template_ = await cg.templatable(trig_base, args, cg.int_)
         cg.add(var.set_trigger_base(template_))
 
     if trig_keep := config.get(CONF_TRIGGER_KEEP):
-        template_ = await cg.templatable(trig_keep, args, cg.int32)
+        template_ = await cg.templatable(trig_keep, args, cg.int_)
         cg.add(var.set_trigger_keep(template_))
 
     if (stage_gain := config.get(CONF_STAGE_GAIN)) is not None:
