@@ -2795,12 +2795,7 @@ async def to_code(config):
     # ESP32-C2 defaults to the ROM's newlib "nano" printf, which does not
     # understand %zu or %lld and crashes on any %s that follows one.
     if variant == VARIANT_ESP32C2:
-        nano_format = (
-            "CONFIG_LIBC_NEWLIB_NANO_FORMAT"
-            if idf_version() >= cv.Version(5, 5, 0)
-            else "CONFIG_NEWLIB_NANO_FORMAT"
-        )
-        add_idf_sdkconfig_option(nano_format, False)
+        add_idf_sdkconfig_option("CONFIG_LIBC_NEWLIB_NANO_FORMAT", False)
 
     # Set minimum chip revision for ESP32 variant
     # Setting this to 3.0 or higher reduces flash size by excluding workaround code,
