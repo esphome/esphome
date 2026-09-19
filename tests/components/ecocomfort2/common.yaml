@@ -1,0 +1,106 @@
+wifi:
+  ssid: MySSID
+  password: password1
+
+time:
+  - platform: sntp
+    id: sntp_time
+    servers:
+      - 0.pool.ntp.org
+      - 1.pool.ntp.org
+      - 192.168.178.1
+
+esp32_ble_tracker:
+
+ble_client:
+  - mac_address: 01:02:03:04:05:06
+    id: ecocomfort2_ble_1
+  - mac_address: 01:02:03:04:05:07
+    id: ecocomfort2_ble_2
+
+ecocomfort2:
+  - id: ecocomfort2_hub_1
+    ble_client_id: ecocomfort2_ble_1
+    time_id: sntp_time
+  - id: ecocomfort2_hub_2
+    ble_client_id: ecocomfort2_ble_2
+
+fan:
+  - platform: ecocomfort2
+    name: Ecocomfort2 Fan 1
+    ecocomfort2_id: ecocomfort2_hub_1
+  - platform: ecocomfort2
+    name: Ecocomfort2 Fan 2
+    ecocomfort2_id: ecocomfort2_hub_2
+
+sensor:
+  - platform: ecocomfort2
+    ecocomfort2_id: ecocomfort2_hub_1
+    temperature:
+      name: Ecocomfort2 Temperature
+    humidity:
+      name: Ecocomfort2 Humidity
+    voc:
+      name: Ecocomfort2 VOC
+    direction:
+      name: Ecocomfort2 Direction
+    actual_mode:
+      name: Ecocomfort2 Actual Mode
+    actual_speed:
+      name: Ecocomfort2 Actual Speed
+    role:
+      name: Ecocomfort2 Role
+    temp_offset:
+      name: Ecocomfort2 Temp Offset
+    humidity_offset:
+      name: Ecocomfort2 Humidity Offset
+
+binary_sensor:
+  - platform: ecocomfort2
+    ecocomfort2_id: ecocomfort2_hub_1
+    connected:
+      name: Ecocomfort2 Connected
+    boost:
+      name: Ecocomfort2 Boost
+
+text_sensor:
+  - platform: ecocomfort2
+    ecocomfort2_id: ecocomfort2_hub_1
+    firmware:
+      name: Ecocomfort2 Firmware
+
+select:
+  - platform: ecocomfort2
+    ecocomfort2_id: ecocomfort2_hub_1
+    season:
+      name: Ecocomfort2 Season
+    free_cooling:
+      name: Ecocomfort2 Free Cooling
+
+number:
+  - platform: ecocomfort2
+    ecocomfort2_id: ecocomfort2_hub_1
+    humidity_threshold:
+      name: Ecocomfort2 Humidity Threshold
+    luminosity_threshold:
+      name: Ecocomfort2 Luminosity Threshold
+    voc_threshold:
+      name: Ecocomfort2 VOC Threshold
+    temp_offset_number:
+      name: Ecocomfort2 Temp Offset Number
+    humidity_offset_number:
+      name: Ecocomfort2 Humidity Offset Number
+
+switch:
+  - platform: ecocomfort2
+    ecocomfort2_id: ecocomfort2_hub_1
+    humidity_advanced:
+      name: Ecocomfort2 Humidity Advanced
+    voc_advanced:
+      name: Ecocomfort2 VOC Advanced
+
+button:
+  - platform: ecocomfort2
+    ecocomfort2_id: ecocomfort2_hub_1
+    pair:
+      name: Ecocomfort2 Pair
