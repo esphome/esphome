@@ -120,6 +120,13 @@ void BL0939::received_package_(const DataPacket *data) const {
     energy_sensor_sum_->publish_state(total_energy_consumption);
   }
 
+  if (this->internal_temperature_sensor_ != nullptr) {
+    const uint16_t raw_temperature = (uint16_t(data->tps1.h) << 8) | data->tps1.l;
+    // Datasheet temperature conversion: Tx = (170 / 448) * (TB / 2 - 32) - 45.
+    const float temperature = (170.0f / 448.0f) * (raw_temperature / 2.0f - 32.0f) - 45.0f;
+    this->internal_temperature_sensor_->publish_state(temperature);
+  }
+
   ESP_LOGV(TAG,
            "BL0939: U %fV, I1 %fA, I2 %fA, P1 %fW, P2 %fW, CntA %" PRId32 ", CntB %" PRId32 ", ∫P1 %fkWh, ∫P2 %fkWh",
            v_rms, ia_rms, ib_rms, a_watt, b_watt, cfa_cnt, cfb_cnt, a_energy_consumption, b_energy_consumption);
@@ -135,6 +142,7 @@ void BL0939::dump_config() {  // NOLINT(readability-function-cognitive-complexit
   LOG_SENSOR("", "Energy 1", this->energy_sensor_1_);
   LOG_SENSOR("", "Energy 2", this->energy_sensor_2_);
   LOG_SENSOR("", "Energy sum", this->energy_sensor_sum_);
+  LOG_SENSOR("", "Internal Temperature", this->internal_temperature_sensor_);
 }
 
 uint32_t BL0939::to_uint32_t(ube24_t input) { return input.h << 16 | input.m << 8 | input.l; }

@@ -3,14 +3,17 @@ from esphome.components import sensor, uart
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ID,
+    CONF_INTERNAL_TEMPERATURE,
     CONF_VOLTAGE,
     DEVICE_CLASS_CURRENT,
     DEVICE_CLASS_ENERGY,
     DEVICE_CLASS_POWER,
+    DEVICE_CLASS_TEMPERATURE,
     DEVICE_CLASS_VOLTAGE,
     STATE_CLASS_MEASUREMENT,
     STATE_CLASS_TOTAL_INCREASING,
     UNIT_AMPERE,
+    UNIT_CELSIUS,
     UNIT_KILOWATT_HOURS,
     UNIT_VOLT,
     UNIT_WATT,
@@ -82,6 +85,12 @@ CONFIG_SCHEMA = (
                 device_class=DEVICE_CLASS_ENERGY,
                 state_class=STATE_CLASS_TOTAL_INCREASING,
             ),
+            cv.Optional(CONF_INTERNAL_TEMPERATURE): sensor.sensor_schema(
+                unit_of_measurement=UNIT_CELSIUS,
+                accuracy_decimals=1,
+                device_class=DEVICE_CLASS_TEMPERATURE,
+                state_class=STATE_CLASS_MEASUREMENT,
+            ),
         }
     )
     .extend(cv.polling_component_schema("60s"))
@@ -118,3 +127,6 @@ async def to_code(config: ConfigType) -> None:
     if energy_total_config := config.get(CONF_ENERGY_TOTAL):
         sens = await sensor.new_sensor(energy_total_config)
         cg.add(var.set_energy_sensor_sum(sens))
+    if temperature_config := config.get(CONF_INTERNAL_TEMPERATURE):
+        sens = await sensor.new_sensor(temperature_config)
+        cg.add(var.set_internal_temperature_sensor(sens))
