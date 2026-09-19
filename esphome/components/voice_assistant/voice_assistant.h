@@ -236,7 +236,7 @@ class VoiceAssistant final : public Component {
   void set_state_(State state);
   void set_state_(State state, State desired_state);
   void signal_stop_();
-  void start_playback_timeout_();
+  void start_playback_timeout_(uint32_t timeout_ms);
 
   // Drains the exposed microphone audio and sends it to Home Assistant over the API in one loop() pass.
   void stream_api_audio_();
