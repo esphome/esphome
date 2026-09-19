@@ -33,6 +33,11 @@ class _Schema(vol.Schema):
         # doing things.
         self._extra_schemas = extra_schemas or []
 
+    @property
+    def extra_schemas(self) -> list:
+        """Validators registered with add_extra()/prepend_extra(), run after the mapping."""
+        return self._extra_schemas
+
     def __call__(self, data):
         res = super().__call__(data)
         for extra in self._extra_schemas:
