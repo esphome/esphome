@@ -42,7 +42,7 @@ ENCODERS_CONFIG = cv.ensure_list(
 
 async def encoders_to_code(var, config, default_group):
     for enc_conf in config[CONF_ENCODERS]:
-        add_lv_use("KEY_LISTENER", "ROTARY_ENCODER")
+        add_lv_use("KEY_LISTENER")
         lpt = enc_conf[CONF_LONG_PRESS_TIME].total_milliseconds
         lprt = enc_conf[CONF_LONG_PRESS_REPEAT_TIME].total_milliseconds
         listener = cg.new_Pvariable(
@@ -56,6 +56,7 @@ async def encoders_to_code(var, config, default_group):
                 b_sensor = await cg.get_variable(sensor_config[CONF_RIGHT_BUTTON])
                 cg.add(listener.add_button(b_sensor, lv_key_t.LV_KEY_RIGHT))
             else:
+                add_lv_use("ROTARY_ENCODER")
                 sensor_config = await cg.get_variable(sensor_config)
                 lv_add(listener.set_sensor(sensor_config))
         b_sensor = await cg.get_variable(enc_conf[CONF_ENTER_BUTTON])
