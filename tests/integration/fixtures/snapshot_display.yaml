@@ -14,6 +14,16 @@ api:
             id: snapshot_display
             filename: !lambda return name;
 
+    - action: take_animation
+      variables:
+        name: string
+      then:
+        - snapshot.take:
+            id: snapshot_display
+            filename: !lambda return name;
+            frames: 5
+            frame_rate: 20fps
+
 logger:
   level: DEBUG
 

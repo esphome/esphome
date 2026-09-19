@@ -21,6 +21,8 @@ CODEOWNERS = ["@clydebarrow"]
 DOMAIN = "snapshot"
 
 CONF_FILENAME = "filename"
+CONF_FRAMES = "frames"
+CONF_FRAME_RATE = "frame_rate"
 
 snapshot_ns = cg.esphome_ns.namespace("snapshot")
 Snapshot = snapshot_ns.class_("Snapshot")
@@ -34,6 +36,11 @@ SnapshotAction = snapshot_ns.class_("SnapshotAction", automation.Action)
         {
             cv.GenerateID(): cv.use_id(Snapshot),
             cv.Optional(CONF_FILENAME): cv.templatable(cv.string),
+            # Asking for frames makes a GIF instead of a single BMP picture.
+            cv.Inclusive(CONF_FRAMES, "animation"): cv.positive_not_null_int,
+            cv.Inclusive(CONF_FRAME_RATE, "animation"): cv.All(
+                cv.framerate, cv.Range(min=0.1, max=50)
+            ),
         }
     ),
     synchronous=True,
@@ -48,6 +55,8 @@ async def snapshot_take_to_code(
     await cg.register_parented(var, config[CONF_ID])
     if (filename := config.get(CONF_FILENAME)) is not None:
         cg.add(var.set_filename(await cg.templatable(filename, args, cg.std_string)))
+    if (frames := config.get(CONF_FRAMES)) is not None:
+        cg.add(var.set_animation(frames, config[CONF_FRAME_RATE]))
     return var
 
 
