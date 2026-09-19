@@ -14,6 +14,7 @@
 #include "esphome/components/time/real_time_clock.h"
 #include "datalink.h"
 #include "flag_bits.h"
+#include "number/opentherm42_number.h"
 
 namespace esphome::opentherm42 {
 
@@ -100,13 +101,15 @@ enum class RequestKind : uint8_t {
   DAY_TIME_READ,
   DATE_READ,
   YEAR_READ,
-  // §5.3.4 Class 4, IDs 27/38/78/79: R/W ids -- the "_set" number and the plain sensor can be
-  // configured independently and simultaneously: the number is WRITE_DATA'd every essential
-  // rotation if configured, and the sensor is READ_DATA'd every informational rotation if
-  // configured, each as its own separate RequestKind (see build_schedule_()). A successful
-  // WRITE-ACK also feeds the sensor immediately, since it echoes exactly the value a READ-ACK
-  // would return -- but the sensor's own periodic READ is what keeps it correct independently of
-  // whether the write ever happens or is rejected (see handle_response_()).
+  // §5.3.4 Class 4, IDs 27/38/78/79: R/W ids -- a single number entity per id serves both
+  // directions, WRITE_DATA'd from write_value() every essential rotation and READ_DATA'd every
+  // informational rotation, each its own separate RequestKind (see build_schedule_()). Unlike a
+  // WRITE-only id, the WRITE-ACK's echoed value is NOT trusted for display here (real hardware has
+  // been observed acking a write while echoing an unrelated/stale value, despite genuinely
+  // accepting the write -- confirmed by the very next READ returning the correct value) -- only a
+  // successful READ_DATA ever updates the number's displayed .state (see handle_response_()).
+  // write_value() (what gets sent) is unaffected either way, so a bad echo can never make this
+  // component re-send the wrong value, and a rejected/clamped write is caught by the next READ.
   OUTSIDE_TEMPERATURE,                 // ID 27 (write)
   OUTSIDE_TEMPERATURE_READ,            // ID 27 (read)
   RELATIVE_HUMIDITY,                   // ID 38 (write)
@@ -169,8 +172,8 @@ enum class RequestKind : uint8_t {
   DHWSETP_BOUNDS,
   // §5.3.5 Class 5, ID 49: HB max CHsetp upp-bound, LB max CHsetp low-bnd.
   MAX_CHSETP_BOUNDS,
-  // §5.3.5 Class 5, IDs 56/57/87: R/W ids -- same independently-schedulable write/read split as
-  // Class 4's IDs 27/38/78/79 above.
+  // §5.3.5 Class 5, IDs 56/57/87: R/W ids -- same single-number-entity, READ-is-authoritative
+  // pattern as Class 4's IDs 27/38/78/79 above.
   DHW_SETPOINT,                    // ID 56 (write)
   DHW_SETPOINT_READ,               // ID 56 (read)
   MAX_CH_WATER_SETPOINT,           // ID 57 (write)
@@ -289,7 +292,7 @@ struct FhbSlot {
 // Declares set_<name>_number()/set_<name>_sensor()/set_<name>_binary_sensor()/set_<name>_select()
 // for a standalone (non-flag-byte) entity backed by a single named member pointer.
 #define OT42_SET_NUMBER(name, member) \
-  void set_##name##_number(number::Number *n) { this->member = n; }
+  void set_##name##_number(OpenTherm42Number *n) { this->member = n; }
 #define OT42_SET_SENSOR(name, member) \
   void set_##name##_sensor(sensor::Sensor *s) { this->member = s; }
 #define OT42_SET_BINARY_SENSOR(name, member) \
@@ -527,16 +530,13 @@ class OpenTherm42Hub : public Component {
   OT42_SET_NUMBER(sensor_and_informational_data_room_temperature, room_temperature_number_)
   OT42_SET_NUMBER(sensor_and_informational_data_trch2, trch2_number_)
 
-  // §5.3.4 Class 4, IDs 27/38/78/79: R/W ids -- both directions' entities, see the RequestKind comment.
-  OT42_SET_NUMBER(sensor_and_informational_data_outside_temperature_set, outside_temperature_number_)
-  OT42_SET_SENSOR(sensor_and_informational_data_outside_temperature, outside_temperature_sensor_)
-  OT42_SET_NUMBER(sensor_and_informational_data_relative_humidity_set, relative_humidity_number_)
-  OT42_SET_SENSOR(sensor_and_informational_data_relative_humidity, relative_humidity_sensor_)
-  OT42_SET_NUMBER(sensor_and_informational_data_relative_humidity_exhaust_air_set,
-                  relative_humidity_exhaust_air_number_)
-  OT42_SET_SENSOR(sensor_and_informational_data_relative_humidity_exhaust_air, relative_humidity_exhaust_air_sensor_)
-  OT42_SET_NUMBER(sensor_and_informational_data_co2_level_set, co2_level_number_)
-  OT42_SET_SENSOR(sensor_and_informational_data_co2_level, co2_level_sensor_)
+  // §5.3.4 Class 4, IDs 27/38/78/79: R/W ids -- a single number entity per id, both directions: the
+  // essential rotation WRITE_DATA's it from write_value(), and the informational rotation's
+  // READ_DATA keeps its displayed .state accurate -- see the RequestKind comment.
+  OT42_SET_NUMBER(sensor_and_informational_data_outside_temperature, outside_temperature_number_)
+  OT42_SET_NUMBER(sensor_and_informational_data_relative_humidity, relative_humidity_number_)
+  OT42_SET_NUMBER(sensor_and_informational_data_relative_humidity_exhaust_air, relative_humidity_exhaust_air_number_)
+  OT42_SET_NUMBER(sensor_and_informational_data_co2_level, co2_level_number_)
 
   // §5.3.4 Class 4, ID 35: HB Boiler fan speed Setpoint, LB Boiler fan speed.
   OT42_SET_SENSOR(sensor_and_informational_data_boiler_fan_speed_setpoint, boiler_fan_speed_setpoint_sensor_)
@@ -620,13 +620,11 @@ class OpenTherm42Hub : public Component {
   OT42_SET_SENSOR(pre_defined_remote_boiler_parameters_max_chsetp_upper_bound, max_chsetp_upper_bound_sensor_)
   OT42_SET_SENSOR(pre_defined_remote_boiler_parameters_max_chsetp_lower_bound, max_chsetp_lower_bound_sensor_)
 
-  // §5.3.5 Class 5, IDs 56/57/87: the remote boiler parameters themselves.
-  OT42_SET_NUMBER(pre_defined_remote_boiler_parameters_dhw_setpoint_set, dhw_setpoint_number_)
-  OT42_SET_SENSOR(pre_defined_remote_boiler_parameters_dhw_setpoint, dhw_setpoint_sensor_)
-  OT42_SET_NUMBER(pre_defined_remote_boiler_parameters_max_ch_water_setpoint_set, max_ch_water_setpoint_number_)
-  OT42_SET_SENSOR(pre_defined_remote_boiler_parameters_max_ch_water_setpoint, max_ch_water_setpoint_sensor_)
-  OT42_SET_NUMBER(pre_defined_remote_boiler_parameters_nominal_ventilation_value_set, nominal_ventilation_value_number_)
-  OT42_SET_SENSOR(pre_defined_remote_boiler_parameters_nominal_ventilation_value, nominal_ventilation_value_sensor_)
+  // §5.3.5 Class 5, IDs 56/57/87: the remote boiler parameters themselves -- a single number entity
+  // per id, same pattern as IDs 27/38/78/79 above.
+  OT42_SET_NUMBER(pre_defined_remote_boiler_parameters_dhw_setpoint, dhw_setpoint_number_)
+  OT42_SET_NUMBER(pre_defined_remote_boiler_parameters_max_ch_water_setpoint, max_ch_water_setpoint_number_)
+  OT42_SET_NUMBER(pre_defined_remote_boiler_parameters_nominal_ventilation_value, nominal_ventilation_value_number_)
 
   // §5.3.6 Class 6, IDs 10/88/105 HB: number of TSPs supported, one per family.
   OT42_SET_SENSOR(transparent_boiler_parameters_number_of_tsps, number_of_tsps_sensor_)
@@ -741,13 +739,11 @@ class OpenTherm42Hub : public Component {
   // handle_response_()/invalidate_response_() it has no message-type context of its own to name the
   // failed conversation by.
   void describe_request_kind_(RequestKind kind, char *buf, size_t buf_len) const;
-  // TEMPORARY debug instrumentation for investigating the write-value/echo issue described in
-  // hub.cpp -- logs every outgoing frame build_next_request_() produces (one call site per
-  // early-return branch plus the main switch's tail) and every incoming frame handle_response_()
-  // receives, in each case naming the RequestKind (via describe_request_kind_() above), the
-  // message type (via message_type_to_string()), and the raw id/HB/LB bytes -- exactly what's
-  // needed to cross-check the wire communication against what the spec requires, before deciding
-  // on a fix. Remove once the investigation concludes.
+  // Debug instrumentation: logs every outgoing frame build_next_request_() produces (one call site
+  // per early-return branch plus the main switch's tail) and every incoming frame
+  // handle_response_() receives, in each case naming the RequestKind (via describe_request_kind_()
+  // above), the message type (via message_type_to_string()), and the raw id/HB/LB bytes -- lets the
+  // wire communication be cross-checked against what the spec requires without a logic analyzer.
   void log_outgoing_frame_(const Frame &frame) const;
   // Looks up a single-value, non-bit-decomposed read-only sensor's data-id/sensor pointer/log name --
   // the fallback every class after Class 1 dispatches "plain" reads through. Returns nullptr for kinds
@@ -792,9 +788,9 @@ class OpenTherm42Hub : public Component {
   FlagReadBits fault_flags_read_;
   FlagReadBits ventilation_fault_flags_read_;
 
-  number::Number *control_setpoint_number_{nullptr};
-  number::Number *control_setpoint_2_number_{nullptr};
-  number::Number *control_setpoint_ventilation_number_{nullptr};
+  OpenTherm42Number *control_setpoint_number_{nullptr};
+  OpenTherm42Number *control_setpoint_2_number_{nullptr};
+  OpenTherm42Number *control_setpoint_ventilation_number_{nullptr};
 
   sensor::Sensor *oem_fault_code_sensor_{nullptr};
   sensor::Sensor *oem_fault_code_ventilation_sensor_{nullptr};
@@ -873,19 +869,15 @@ class OpenTherm42Hub : public Component {
   optional<uint8_t> read_day_of_month_{};
   optional<uint16_t> read_year_{};
 
-  number::Number *room_setpoint_number_{nullptr};
-  number::Number *room_setpoint_ch2_number_{nullptr};
-  number::Number *room_temperature_number_{nullptr};
-  number::Number *trch2_number_{nullptr};
+  OpenTherm42Number *room_setpoint_number_{nullptr};
+  OpenTherm42Number *room_setpoint_ch2_number_{nullptr};
+  OpenTherm42Number *room_temperature_number_{nullptr};
+  OpenTherm42Number *trch2_number_{nullptr};
 
-  number::Number *outside_temperature_number_{nullptr};
-  sensor::Sensor *outside_temperature_sensor_{nullptr};
-  number::Number *relative_humidity_number_{nullptr};
-  sensor::Sensor *relative_humidity_sensor_{nullptr};
-  number::Number *relative_humidity_exhaust_air_number_{nullptr};
-  sensor::Sensor *relative_humidity_exhaust_air_sensor_{nullptr};
-  number::Number *co2_level_number_{nullptr};
-  sensor::Sensor *co2_level_sensor_{nullptr};
+  OpenTherm42Number *outside_temperature_number_{nullptr};
+  OpenTherm42Number *relative_humidity_number_{nullptr};
+  OpenTherm42Number *relative_humidity_exhaust_air_number_{nullptr};
+  OpenTherm42Number *co2_level_number_{nullptr};
 
   sensor::Sensor *boiler_fan_speed_setpoint_sensor_{nullptr};
   sensor::Sensor *boiler_fan_speed_sensor_{nullptr};
@@ -948,12 +940,9 @@ class OpenTherm42Hub : public Component {
   sensor::Sensor *max_chsetp_upper_bound_sensor_{nullptr};
   sensor::Sensor *max_chsetp_lower_bound_sensor_{nullptr};
 
-  number::Number *dhw_setpoint_number_{nullptr};
-  sensor::Sensor *dhw_setpoint_sensor_{nullptr};
-  number::Number *max_ch_water_setpoint_number_{nullptr};
-  sensor::Sensor *max_ch_water_setpoint_sensor_{nullptr};
-  number::Number *nominal_ventilation_value_number_{nullptr};
-  sensor::Sensor *nominal_ventilation_value_sensor_{nullptr};
+  OpenTherm42Number *dhw_setpoint_number_{nullptr};
+  OpenTherm42Number *max_ch_water_setpoint_number_{nullptr};
+  OpenTherm42Number *nominal_ventilation_value_number_{nullptr};
 
   // §5.3.6 Class 6 entities.
   sensor::Sensor *number_of_tsps_sensor_{nullptr};
@@ -982,8 +971,8 @@ class OpenTherm42Hub : public Component {
   size_t pending_fhb_slot_index_{0};
 
   // §5.3.8 Class 8 entities.
-  number::Number *cooling_control_signal_number_{nullptr};
-  number::Number *max_rel_mod_level_setting_number_{nullptr};
+  OpenTherm42Number *cooling_control_signal_number_{nullptr};
+  OpenTherm42Number *max_rel_mod_level_setting_number_{nullptr};
   sensor::Sensor *maximum_boiler_capacity_sensor_{nullptr};
   sensor::Sensor *minimum_modulation_level_sensor_{nullptr};
   sensor::Sensor *remote_override_room_setpoint_sensor_{nullptr};

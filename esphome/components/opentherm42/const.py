@@ -267,30 +267,18 @@ CONF_SENSOR_AND_INFORMATIONAL_DATA_ROOM_TEMPERATURE = (
 )
 CONF_SENSOR_AND_INFORMATIONAL_DATA_TRCH2 = "sensor_and_informational_data_trch2"
 
-# §5.3.4 Class 4, IDs 27/38/78/79: R/W ids -- if the "_set" number is configured this master writes
-# its own value; otherwise, if the plain sensor is configured, this master reads the boiler's.
+# §5.3.4 Class 4, IDs 27/38/78/79: R/W ids -- a single number entity serves both directions, see
+# hub.h's RequestKind comment.
 CONF_SENSOR_AND_INFORMATIONAL_DATA_OUTSIDE_TEMPERATURE = (
     "sensor_and_informational_data_outside_temperature"
-)
-CONF_SENSOR_AND_INFORMATIONAL_DATA_OUTSIDE_TEMPERATURE_SET = (
-    "sensor_and_informational_data_outside_temperature_set"
 )
 CONF_SENSOR_AND_INFORMATIONAL_DATA_RELATIVE_HUMIDITY = (
     "sensor_and_informational_data_relative_humidity"
 )
-CONF_SENSOR_AND_INFORMATIONAL_DATA_RELATIVE_HUMIDITY_SET = (
-    "sensor_and_informational_data_relative_humidity_set"
-)
 CONF_SENSOR_AND_INFORMATIONAL_DATA_RELATIVE_HUMIDITY_EXHAUST_AIR = (
     "sensor_and_informational_data_relative_humidity_exhaust_air"
 )
-CONF_SENSOR_AND_INFORMATIONAL_DATA_RELATIVE_HUMIDITY_EXHAUST_AIR_SET = (
-    "sensor_and_informational_data_relative_humidity_exhaust_air_set"
-)
 CONF_SENSOR_AND_INFORMATIONAL_DATA_CO2_LEVEL = "sensor_and_informational_data_co2_level"
-CONF_SENSOR_AND_INFORMATIONAL_DATA_CO2_LEVEL_SET = (
-    "sensor_and_informational_data_co2_level_set"
-)
 
 # §5.3.4 Class 4: read-only sensors.
 CONF_SENSOR_AND_INFORMATIONAL_DATA_RELATIVE_MODULATION_LEVEL = (
@@ -504,25 +492,16 @@ CONF_PRE_DEFINED_REMOTE_BOILER_PARAMETERS_MAX_CHSETP_LOWER_BOUND = (
     "pre_defined_remote_boiler_parameters_max_chsetp_lower_bound"
 )
 
-# §5.3.5 Class 5, IDs 56/57/87: the remote boiler parameters themselves -- R/W ids, same "_set" number
-# takes priority over plain sensor" pattern as Class 4's IDs 27/38/78/79.
+# §5.3.5 Class 5, IDs 56/57/87: the remote boiler parameters themselves -- R/W ids, same
+# single-number-entity pattern as Class 4's IDs 27/38/78/79.
 CONF_PRE_DEFINED_REMOTE_BOILER_PARAMETERS_DHW_SETPOINT = (
     "pre_defined_remote_boiler_parameters_dhw_setpoint"
-)
-CONF_PRE_DEFINED_REMOTE_BOILER_PARAMETERS_DHW_SETPOINT_SET = (
-    "pre_defined_remote_boiler_parameters_dhw_setpoint_set"
 )
 CONF_PRE_DEFINED_REMOTE_BOILER_PARAMETERS_MAX_CH_WATER_SETPOINT = (
     "pre_defined_remote_boiler_parameters_max_ch_water_setpoint"
 )
-CONF_PRE_DEFINED_REMOTE_BOILER_PARAMETERS_MAX_CH_WATER_SETPOINT_SET = (
-    "pre_defined_remote_boiler_parameters_max_ch_water_setpoint_set"
-)
 CONF_PRE_DEFINED_REMOTE_BOILER_PARAMETERS_NOMINAL_VENTILATION_VALUE = (
     "pre_defined_remote_boiler_parameters_nominal_ventilation_value"
-)
-CONF_PRE_DEFINED_REMOTE_BOILER_PARAMETERS_NOMINAL_VENTILATION_VALUE_SET = (
-    "pre_defined_remote_boiler_parameters_nominal_ventilation_value_set"
 )
 
 # §5.3.6 Class 6, IDs 10/88/105 HB: number of TSPs supported, one per family.

@@ -104,37 +104,36 @@ number:
       name: "Sensor and Informational Data: TrCH2"
       initial_value: 20.0
     # §5.3.4 Class 4, ID 27: Outside temperature (degrees C, -40..127), provided by this master.
-    # Configured alongside the sensor platform's plain outside_temperature below to exercise both
-    # being enabled for the same id at once.
-    sensor_and_informational_data_outside_temperature_set:
-      name: "Sensor and Informational Data: Outside temperature (set)"
+    # This one number entity serves both the write and, once configured, the boiler's read-back of
+    # the same id -- see hub.h's RequestKind comment.
+    sensor_and_informational_data_outside_temperature:
+      name: "Sensor and Informational Data: Outside temperature"
       initial_value: 10.0
     # §5.3.4 Class 4, ID 38: Relative Humidity (0..100%), provided by this master.
-    sensor_and_informational_data_relative_humidity_set:
-      name: "Sensor and Informational Data: Relative Humidity (set)"
+    sensor_and_informational_data_relative_humidity:
+      name: "Sensor and Informational Data: Relative Humidity"
       initial_value: 50.0
     # §5.3.4 Class 4, ID 78 LB: Relative humidity exhaust air (0..100%), provided by this master.
-    sensor_and_informational_data_relative_humidity_exhaust_air_set:
-      name: "Sensor and Informational Data: Relative humidity exhaust air (set)"
+    sensor_and_informational_data_relative_humidity_exhaust_air:
+      name: "Sensor and Informational Data: Relative humidity exhaust air"
       initial_value: 50.0
     # §5.3.4 Class 4, ID 79: CO2 level exhaust air (0..2000 ppm), provided by this master.
-    sensor_and_informational_data_co2_level_set:
-      name: "Sensor and Informational Data: CO2 level (set)"
+    sensor_and_informational_data_co2_level:
+      name: "Sensor and Informational Data: CO2 level"
       initial_value: 0
     # §5.3.5 Class 5, ID 56: DHW Setpoint -- domestic hot water temperature setpoint (degrees C, 0..127).
-    # Configured alongside the sensor platform's plain dhw_setpoint below to exercise both being
-    # enabled for the same id at once.
-    pre_defined_remote_boiler_parameters_dhw_setpoint_set:
-      name: "Pre-Defined Remote Boiler Parameters: DHW Setpoint (set)"
+    # Same write/read-back sharing as ID 27 above.
+    pre_defined_remote_boiler_parameters_dhw_setpoint:
+      name: "Pre-Defined Remote Boiler Parameters: DHW Setpoint"
       initial_value: 60.0
     # §5.3.5 Class 5, ID 57: max CH water Setpoint -- maximum allowable CH water Setpoint (degrees C, 0..127).
-    pre_defined_remote_boiler_parameters_max_ch_water_setpoint_set:
-      name: "Pre-Defined Remote Boiler Parameters: max CH water Setpoint (set)"
+    pre_defined_remote_boiler_parameters_max_ch_water_setpoint:
+      name: "Pre-Defined Remote Boiler Parameters: max CH water Setpoint"
       initial_value: 80.0
     # §5.3.5 Class 5, ID 87 HB: Nominal ventilation value -- nominal relative value for ventilation
     # (0-100%), i.e. the value for the mid position in case of a 3-speed ventilation system.
-    pre_defined_remote_boiler_parameters_nominal_ventilation_value_set:
-      name: "Pre-Defined Remote Boiler Parameters: Nominal ventilation value (set)"
+    pre_defined_remote_boiler_parameters_nominal_ventilation_value:
+      name: "Pre-Defined Remote Boiler Parameters: Nominal ventilation value"
       initial_value: 50
     # §5.3.6 Class 6, IDs 11/89/106: TSP values are opaque and manufacturer-specific, so unlike every
     # other option here there's no spec-provided name/description -- name and index come from whatever
@@ -515,10 +514,6 @@ sensor:
     # §5.3.4 Class 4, ID 26: DHW temperature -- domestic hot water temperature (degrees C).
     sensor_and_informational_data_dhw_temperature:
       name: "Sensor and Informational Data: DHW temperature"
-    # §5.3.4 Class 4, ID 27: Outside temperature (degrees C), read from the boiler. Configured
-    # alongside the number platform's outside_temperature_set above -- see that entry's comment.
-    sensor_and_informational_data_outside_temperature:
-      name: "Sensor and Informational Data: Outside temperature"
     # §5.3.4 Class 4, ID 28: Return water temperature to the boiler (degrees C).
     sensor_and_informational_data_return_water_temperature:
       name: "Sensor and Informational Data: Return water temperature"
@@ -549,21 +544,9 @@ sensor:
     # §5.3.4 Class 4, ID 36: Flame current -- electrical current through the burner flame (uA, 0..127).
     sensor_and_informational_data_flame_current:
       name: "Sensor and Informational Data: Flame current"
-    # §5.3.4 Class 4, ID 38: Relative Humidity (0..100%), read from the boiler. Configured alongside
-    # the number platform's relative_humidity_set above.
-    sensor_and_informational_data_relative_humidity:
-      name: "Sensor and Informational Data: Relative Humidity"
     # §5.3.4 Class 4, ID 77 LB: Relative ventilation (0-100%). 0% is minimum set value, 100% is maximum.
     sensor_and_informational_data_relative_ventilation:
       name: "Sensor and Informational Data: Relative ventilation"
-    # §5.3.4 Class 4, ID 78 LB: Relative humidity exhaust air (0..100%), read from the boiler.
-    # Configured alongside the number platform's relative_humidity_exhaust_air_set above.
-    sensor_and_informational_data_relative_humidity_exhaust_air:
-      name: "Sensor and Informational Data: Relative humidity exhaust air"
-    # §5.3.4 Class 4, ID 79: CO2 level exhaust air (0..2000 ppm), read from the boiler. Configured
-    # alongside the number platform's co2_level_set above.
-    sensor_and_informational_data_co2_level:
-      name: "Sensor and Informational Data: CO2 level"
     # §5.3.4 Class 4, ID 80: Supply inlet temperature (degrees C).
     sensor_and_informational_data_supply_inlet_temperature:
       name: "Sensor and Informational Data: Supply inlet temperature"
@@ -642,18 +625,6 @@ sensor:
     # §5.3.5 Class 5, ID 49 LB: max CHsetp low-bnd -- lower bound for adjustment of maxCHsetp (degrees C).
     pre_defined_remote_boiler_parameters_max_chsetp_lower_bound:
       name: "Pre-Defined Remote Boiler Parameters: max CHsetp low-bnd"
-    # §5.3.5 Class 5, ID 56: DHW Setpoint -- domestic hot water temperature Setpoint (degrees C), read
-    # from the boiler. Configured alongside the number platform's dhw_setpoint_set above.
-    pre_defined_remote_boiler_parameters_dhw_setpoint:
-      name: "Pre-Defined Remote Boiler Parameters: DHW Setpoint"
-    # §5.3.5 Class 5, ID 57: max CH water Setpoint (degrees C), read from the boiler. Configured
-    # alongside the number platform's max_ch_water_setpoint_set above.
-    pre_defined_remote_boiler_parameters_max_ch_water_setpoint:
-      name: "Pre-Defined Remote Boiler Parameters: max CH water Setpoint"
-    # §5.3.5 Class 5, ID 87 HB: Nominal ventilation value (0-100%), read from the boiler. Configured
-    # alongside the number platform's nominal_ventilation_value_set above.
-    pre_defined_remote_boiler_parameters_nominal_ventilation_value:
-      name: "Pre-Defined Remote Boiler Parameters: Nominal ventilation value"
     # §5.3.6 Class 6, ID 10 HB: Number of transparent-boiler-parameter's supported by the boiler.
     transparent_boiler_parameters_number_of_tsps:
       name: "Transparent Boiler Parameters: Number of TSP's"

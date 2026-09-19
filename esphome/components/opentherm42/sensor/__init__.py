@@ -5,7 +5,6 @@ from esphome.const import (
     CONF_INDEX,
     DEVICE_CLASS_CURRENT,
     DEVICE_CLASS_DURATION,
-    DEVICE_CLASS_HUMIDITY,
     DEVICE_CLASS_POWER,
     DEVICE_CLASS_VOLUME_FLOW_RATE,
     ENTITY_CATEGORY_DIAGNOSTIC,
@@ -41,13 +40,10 @@ from ..const import (
     CONF_FAULT_HISTORY_DATA_SIZE_OF_FAULT_BUFFER_SOLAR_STORAGE,
     CONF_FAULT_HISTORY_DATA_SIZE_OF_FAULT_BUFFER_VENTILATION_HEAT_RECOVERY,
     CONF_OPENTHERM42_ID,
-    CONF_PRE_DEFINED_REMOTE_BOILER_PARAMETERS_DHW_SETPOINT,
     CONF_PRE_DEFINED_REMOTE_BOILER_PARAMETERS_DHWSETP_LOWER_BOUND,
     CONF_PRE_DEFINED_REMOTE_BOILER_PARAMETERS_DHWSETP_UPPER_BOUND,
-    CONF_PRE_DEFINED_REMOTE_BOILER_PARAMETERS_MAX_CH_WATER_SETPOINT,
     CONF_PRE_DEFINED_REMOTE_BOILER_PARAMETERS_MAX_CHSETP_LOWER_BOUND,
     CONF_PRE_DEFINED_REMOTE_BOILER_PARAMETERS_MAX_CHSETP_UPPER_BOUND,
-    CONF_PRE_DEFINED_REMOTE_BOILER_PARAMETERS_NOMINAL_VENTILATION_VALUE,
     CONF_REMOTE_REQUEST_LAST_RESPONSE_CODE,
     CONF_SENSOR_AND_INFORMATIONAL_DATA_ACTUAL_EXHAUST_FAN_SPEED,
     CONF_SENSOR_AND_INFORMATIONAL_DATA_ACTUAL_INLET_FAN_SPEED,
@@ -59,7 +55,6 @@ from ..const import (
     CONF_SENSOR_AND_INFORMATIONAL_DATA_CH_PUMP_OPERATION_HOURS,
     CONF_SENSOR_AND_INFORMATIONAL_DATA_CH_PUMP_STARTS,
     CONF_SENSOR_AND_INFORMATIONAL_DATA_CH_WATER_PRESSURE,
-    CONF_SENSOR_AND_INFORMATIONAL_DATA_CO2_LEVEL,
     CONF_SENSOR_AND_INFORMATIONAL_DATA_COOLING_OPERATION_HOURS,
     CONF_SENSOR_AND_INFORMATIONAL_DATA_CUMULATIVE_ELECTRICITY_PRODUCTION,
     CONF_SENSOR_AND_INFORMATIONAL_DATA_DHW2_TEMPERATURE,
@@ -79,10 +74,7 @@ from ..const import (
     CONF_SENSOR_AND_INFORMATIONAL_DATA_FLOW_TEMPERATURE_CH2,
     CONF_SENSOR_AND_INFORMATIONAL_DATA_NUMBER_OF_TIMES_FLAME_SIGNAL_TOO_LOW,
     CONF_SENSOR_AND_INFORMATIONAL_DATA_NUMBER_OF_UNSUCCESSFUL_BURNER_STARTS,
-    CONF_SENSOR_AND_INFORMATIONAL_DATA_OUTSIDE_TEMPERATURE,
     CONF_SENSOR_AND_INFORMATIONAL_DATA_POWER_CYCLES,
-    CONF_SENSOR_AND_INFORMATIONAL_DATA_RELATIVE_HUMIDITY,
-    CONF_SENSOR_AND_INFORMATIONAL_DATA_RELATIVE_HUMIDITY_EXHAUST_AIR,
     CONF_SENSOR_AND_INFORMATIONAL_DATA_RELATIVE_MODULATION_LEVEL,
     CONF_SENSOR_AND_INFORMATIONAL_DATA_RELATIVE_VENTILATION,
     CONF_SENSOR_AND_INFORMATIONAL_DATA_RETURN_WATER_TEMPERATURE,
@@ -394,36 +386,6 @@ TYPES: dict[str, cv.Schema] = {
     CONF_SENSOR_AND_INFORMATIONAL_DATA_DHW_BURNER_OPERATION_HOURS: _hours_schema(
         entity_category=ENTITY_CATEGORY_DIAGNOSTIC
     ),
-    # §5.3.4 Class 4, ID 27: Outside temperature (degrees C), read from the boiler. Independent of
-    # the number platform's outside_temperature_set -- both may be configured at once, see hub.h's
-    # RequestKind::OUTSIDE_TEMPERATURE_READ comment.
-    CONF_SENSOR_AND_INFORMATIONAL_DATA_OUTSIDE_TEMPERATURE: _TEMPERATURE_SCHEMA,
-    # §5.3.4 Class 4, ID 38: Relative Humidity (0..100%), read from the boiler. Independent of the
-    # number platform's relative_humidity_set -- both may be configured at once.
-    CONF_SENSOR_AND_INFORMATIONAL_DATA_RELATIVE_HUMIDITY: sensor.sensor_schema(
-        unit_of_measurement="%",
-        accuracy_decimals=1,
-        device_class=DEVICE_CLASS_HUMIDITY,
-        state_class="measurement",
-    ),
-    # §5.3.4 Class 4, ID 78 LB: Relative humidity exhaust air (0..100%), read from the boiler.
-    # Independent of the number platform's relative_humidity_exhaust_air_set -- both may be
-    # configured at once. Wire value is a plain u8, not f8.8 like ID 38's Relative Humidity, so no
-    # fractional part is ever possible -- accuracy_decimals=0.
-    CONF_SENSOR_AND_INFORMATIONAL_DATA_RELATIVE_HUMIDITY_EXHAUST_AIR: sensor.sensor_schema(
-        unit_of_measurement="%",
-        accuracy_decimals=0,
-        device_class=DEVICE_CLASS_HUMIDITY,
-        state_class="measurement",
-    ),
-    # §5.3.4 Class 4, ID 79: CO2 level exhaust air (0..2000 ppm), read from the boiler. Independent
-    # of the number platform's co2_level_set -- both may be configured at once.
-    CONF_SENSOR_AND_INFORMATIONAL_DATA_CO2_LEVEL: sensor.sensor_schema(
-        unit_of_measurement="ppm",
-        accuracy_decimals=0,
-        device_class="carbon_dioxide",
-        state_class="measurement",
-    ),
     # §5.3.5 Class 5, IDs 48/49: fixed installation-time adjustment bounds for the DHW Setpoint / max
     # CH water Setpoint, not something the user watches change -- DIAGNOSTIC.
     #
@@ -444,25 +406,6 @@ TYPES: dict[str, cv.Schema] = {
     ),
     # §5.3.5 Class 5, ID 49 LB: max CHsetp low-bnd -- lower bound for adjustment of maxCHsetp (degrees C).
     CONF_PRE_DEFINED_REMOTE_BOILER_PARAMETERS_MAX_CHSETP_LOWER_BOUND: _temperature_schema(
-        accuracy_decimals=0, entity_category=ENTITY_CATEGORY_DIAGNOSTIC
-    ),
-    # §5.3.5 Class 5, ID 56: DHW Setpoint -- domestic hot water temperature Setpoint (degrees C), read
-    # from the boiler. Independent of the number platform's dhw_setpoint_set -- both may be
-    # configured at once. The actual operating target (what temperature the hot water is set to), so
-    # primary -- unlike the bounds/limits above.
-    CONF_PRE_DEFINED_REMOTE_BOILER_PARAMETERS_DHW_SETPOINT: _TEMPERATURE_SCHEMA,
-    # §5.3.5 Class 5, ID 57: max CH water Setpoint -- maximum allowable CH water Setpoint (degrees C),
-    # read from the boiler. Independent of the number platform's max_ch_water_setpoint_set -- both
-    # may be configured at once. An installation-time ceiling on the Control Setpoint, not something
-    # adjusted day-to-day, so DIAGNOSTIC.
-    CONF_PRE_DEFINED_REMOTE_BOILER_PARAMETERS_MAX_CH_WATER_SETPOINT: _temperature_schema(
-        entity_category=ENTITY_CATEGORY_DIAGNOSTIC
-    ),
-    # §5.3.5 Class 5, ID 87 HB: Nominal ventilation value (0-100%), read from the boiler. Independent
-    # of the number platform's nominal_ventilation_value_set -- both may be configured at once. A
-    # fixed system parameter rather than a live demand, so DIAGNOSTIC. Wire value is a plain u8, so
-    # no fractional part is ever possible -- accuracy_decimals=0.
-    CONF_PRE_DEFINED_REMOTE_BOILER_PARAMETERS_NOMINAL_VENTILATION_VALUE: _percent_schema(
         accuracy_decimals=0, entity_category=ENTITY_CATEGORY_DIAGNOSTIC
     ),
     # §5.3.6 Class 6, IDs 10/88/105: static capability counts (how many parameters the boiler/

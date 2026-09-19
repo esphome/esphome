@@ -18,13 +18,13 @@ from ..const import (
     CONF_CONTROL_OF_SPECIAL_APPLICATIONS_COOLING_CONTROL_SIGNAL,
     CONF_CONTROL_OF_SPECIAL_APPLICATIONS_MAXIMUM_RELATIVE_MODULATION_LEVEL_SETTING,
     CONF_OPENTHERM42_ID,
-    CONF_PRE_DEFINED_REMOTE_BOILER_PARAMETERS_DHW_SETPOINT_SET,
-    CONF_PRE_DEFINED_REMOTE_BOILER_PARAMETERS_MAX_CH_WATER_SETPOINT_SET,
-    CONF_PRE_DEFINED_REMOTE_BOILER_PARAMETERS_NOMINAL_VENTILATION_VALUE_SET,
-    CONF_SENSOR_AND_INFORMATIONAL_DATA_CO2_LEVEL_SET,
-    CONF_SENSOR_AND_INFORMATIONAL_DATA_OUTSIDE_TEMPERATURE_SET,
-    CONF_SENSOR_AND_INFORMATIONAL_DATA_RELATIVE_HUMIDITY_EXHAUST_AIR_SET,
-    CONF_SENSOR_AND_INFORMATIONAL_DATA_RELATIVE_HUMIDITY_SET,
+    CONF_PRE_DEFINED_REMOTE_BOILER_PARAMETERS_DHW_SETPOINT,
+    CONF_PRE_DEFINED_REMOTE_BOILER_PARAMETERS_MAX_CH_WATER_SETPOINT,
+    CONF_PRE_DEFINED_REMOTE_BOILER_PARAMETERS_NOMINAL_VENTILATION_VALUE,
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_CO2_LEVEL,
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_OUTSIDE_TEMPERATURE,
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_RELATIVE_HUMIDITY,
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_RELATIVE_HUMIDITY_EXHAUST_AIR,
     CONF_SENSOR_AND_INFORMATIONAL_DATA_ROOM_SETPOINT,
     CONF_SENSOR_AND_INFORMATIONAL_DATA_ROOM_SETPOINT_CH2,
     CONF_SENSOR_AND_INFORMATIONAL_DATA_ROOM_TEMPERATURE,
@@ -130,10 +130,10 @@ TYPES: dict[str, tuple[cv.Schema, dict]] = {
         {"min_value": -40, "max_value": 127, "step": 0.1},
     ),
     # §5.3.4 Class 4, ID 27: Outside temperature (degrees C, -40..127), provided by this master.
-    # Independent of the sensor platform's plain outside_temperature -- both may be configured at
-    # once; a successful write also updates that sensor immediately (see hub.h's RequestKind
-    # comment). A sensor-value feed, so CONFIG.
-    CONF_SENSOR_AND_INFORMATIONAL_DATA_OUTSIDE_TEMPERATURE_SET: (
+    # Both this master's write and the boiler's own read-back of the same id share this one number
+    # entity -- see hub.h's RequestKind comment for why only a successful read ever updates what's
+    # displayed. A sensor-value feed, so CONFIG.
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_OUTSIDE_TEMPERATURE: (
         _number_schema(
             "°C",
             -40,
@@ -143,9 +143,9 @@ TYPES: dict[str, tuple[cv.Schema, dict]] = {
         ),
         {"min_value": -40, "max_value": 127, "step": 0.1},
     ),
-    # §5.3.4 Class 4, ID 38: Relative Humidity (0..100%), provided by this master. A sensor-value
-    # feed, so CONFIG.
-    CONF_SENSOR_AND_INFORMATIONAL_DATA_RELATIVE_HUMIDITY_SET: (
+    # §5.3.4 Class 4, ID 38: Relative Humidity (0..100%), provided by this master. Same
+    # write/read-back sharing as ID 27 above. A sensor-value feed, so CONFIG.
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_RELATIVE_HUMIDITY: (
         _number_schema(
             "%",
             0,
@@ -156,8 +156,8 @@ TYPES: dict[str, tuple[cv.Schema, dict]] = {
         {"min_value": 0, "max_value": 100, "step": 1},
     ),
     # §5.3.4 Class 4, ID 78 LB: Relative humidity exhaust air (0..100%), provided by this master.
-    # A sensor-value feed, so CONFIG.
-    CONF_SENSOR_AND_INFORMATIONAL_DATA_RELATIVE_HUMIDITY_EXHAUST_AIR_SET: (
+    # Same write/read-back sharing as ID 27 above. A sensor-value feed, so CONFIG.
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_RELATIVE_HUMIDITY_EXHAUST_AIR: (
         _number_schema(
             "%",
             0,
@@ -167,9 +167,9 @@ TYPES: dict[str, tuple[cv.Schema, dict]] = {
         ),
         {"min_value": 0, "max_value": 100, "step": 1},
     ),
-    # §5.3.4 Class 4, ID 79: CO2 level exhaust air (0..2000 ppm), provided by this master. A
-    # sensor-value feed, so CONFIG.
-    CONF_SENSOR_AND_INFORMATIONAL_DATA_CO2_LEVEL_SET: (
+    # §5.3.4 Class 4, ID 79: CO2 level exhaust air (0..2000 ppm), provided by this master. Same
+    # write/read-back sharing as ID 27 above. A sensor-value feed, so CONFIG.
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_CO2_LEVEL: (
         _number_schema(
             "ppm",
             0,
@@ -179,16 +179,16 @@ TYPES: dict[str, tuple[cv.Schema, dict]] = {
         ),
         {"min_value": 0, "max_value": 2000, "step": 1},
     ),
-    # §5.3.5 Class 5, ID 56: DHW Setpoint -- domestic hot water temperature setpoint (degrees C, 0..127).
-    # Independent of the sensor platform's plain dhw_setpoint -- both may be configured at once.
-    CONF_PRE_DEFINED_REMOTE_BOILER_PARAMETERS_DHW_SETPOINT_SET: (
+    # §5.3.5 Class 5, ID 56: DHW Setpoint -- domestic hot water temperature setpoint (degrees C,
+    # 0..127). Same write/read-back sharing as ID 27 above.
+    CONF_PRE_DEFINED_REMOTE_BOILER_PARAMETERS_DHW_SETPOINT: (
         _number_schema("°C", 0, 127, device_class=DEVICE_CLASS_TEMPERATURE),
         {"min_value": 0, "max_value": 127, "step": 0.1},
     ),
     # §5.3.5 Class 5, ID 57: max CH water Setpoint -- maximum allowable CH water Setpoint (degrees C,
-    # 0..127). An installation-time ceiling on ID 1's Control Setpoint, not something adjusted
-    # day-to-day, so CONFIG.
-    CONF_PRE_DEFINED_REMOTE_BOILER_PARAMETERS_MAX_CH_WATER_SETPOINT_SET: (
+    # 0..127). Same write/read-back sharing as ID 27 above. An installation-time ceiling on ID 1's
+    # Control Setpoint, not something adjusted day-to-day, so CONFIG.
+    CONF_PRE_DEFINED_REMOTE_BOILER_PARAMETERS_MAX_CH_WATER_SETPOINT: (
         _number_schema(
             "°C",
             0,
@@ -199,9 +199,10 @@ TYPES: dict[str, tuple[cv.Schema, dict]] = {
         {"min_value": 0, "max_value": 127, "step": 0.1},
     ),
     # §5.3.5 Class 5, ID 87 HB: Nominal ventilation value -- nominal relative value for ventilation
-    # (0-100%), i.e. the value for the mid position in case of a 3-speed ventilation system. A fixed
-    # system parameter rather than a live demand, so CONFIG.
-    CONF_PRE_DEFINED_REMOTE_BOILER_PARAMETERS_NOMINAL_VENTILATION_VALUE_SET: (
+    # (0-100%), i.e. the value for the mid position in case of a 3-speed ventilation system. Same
+    # write/read-back sharing as ID 27 above. A fixed system parameter rather than a live demand, so
+    # CONFIG.
+    CONF_PRE_DEFINED_REMOTE_BOILER_PARAMETERS_NOMINAL_VENTILATION_VALUE: (
         _number_schema("%", 0, 100, entity_category=ENTITY_CATEGORY_CONFIG),
         {"min_value": 0, "max_value": 100, "step": 1},
     ),

@@ -380,31 +380,23 @@ void OpenTherm42Hub::build_schedule_() {
     this->informational_requests_.push_back(RequestKind::DATE_READ);
     this->informational_requests_.push_back(RequestKind::YEAR_READ);
   }
-  // IDs 27/38/78/79: the "_set" number (essential, write) and the plain sensor (informational,
-  // read) are scheduled independently -- both can be configured at once, see hub.h's RequestKind
-  // comment for how a WRITE-ACK also keeps the sensor fresh without waiting for its own read.
+  // IDs 27/38/78/79: a single number entity per id drives both the essential-rotation write and
+  // the informational-rotation read -- see hub.h's RequestKind comment for why only the read
+  // updates the displayed value.
   if (this->outside_temperature_number_ != nullptr) {
     this->essential_requests_.push_back(RequestKind::OUTSIDE_TEMPERATURE);
-  }
-  if (this->outside_temperature_sensor_ != nullptr) {
     this->informational_requests_.push_back(RequestKind::OUTSIDE_TEMPERATURE_READ);
   }
   if (this->relative_humidity_number_ != nullptr) {
     this->essential_requests_.push_back(RequestKind::RELATIVE_HUMIDITY);
-  }
-  if (this->relative_humidity_sensor_ != nullptr) {
     this->informational_requests_.push_back(RequestKind::RELATIVE_HUMIDITY_READ);
   }
   if (this->relative_humidity_exhaust_air_number_ != nullptr) {
     this->essential_requests_.push_back(RequestKind::RELATIVE_HUMIDITY_EXHAUST_AIR);
-  }
-  if (this->relative_humidity_exhaust_air_sensor_ != nullptr) {
     this->informational_requests_.push_back(RequestKind::RELATIVE_HUMIDITY_EXHAUST_AIR_READ);
   }
   if (this->co2_level_number_ != nullptr) {
     this->essential_requests_.push_back(RequestKind::CO2_LEVEL);
-  }
-  if (this->co2_level_sensor_ != nullptr) {
     this->informational_requests_.push_back(RequestKind::CO2_LEVEL_READ);
   }
   if (this->boiler_fan_speed_setpoint_sensor_ != nullptr || this->boiler_fan_speed_sensor_ != nullptr) {
@@ -438,20 +430,14 @@ void OpenTherm42Hub::build_schedule_() {
   }
   if (this->dhw_setpoint_number_ != nullptr) {
     this->essential_requests_.push_back(RequestKind::DHW_SETPOINT);
-  }
-  if (this->dhw_setpoint_sensor_ != nullptr) {
     this->informational_requests_.push_back(RequestKind::DHW_SETPOINT_READ);
   }
   if (this->max_ch_water_setpoint_number_ != nullptr) {
     this->essential_requests_.push_back(RequestKind::MAX_CH_WATER_SETPOINT);
-  }
-  if (this->max_ch_water_setpoint_sensor_ != nullptr) {
     this->informational_requests_.push_back(RequestKind::MAX_CH_WATER_SETPOINT_READ);
   }
   if (this->nominal_ventilation_value_number_ != nullptr) {
     this->essential_requests_.push_back(RequestKind::NOMINAL_VENTILATION_VALUE);
-  }
-  if (this->nominal_ventilation_value_sensor_ != nullptr) {
     this->informational_requests_.push_back(RequestKind::NOMINAL_VENTILATION_VALUE_READ);
   }
 
@@ -580,12 +566,14 @@ Frame OpenTherm42Hub::build_next_request_() {
     case RequestKind::CONTROL_SETPOINT:
       frame.type = static_cast<uint8_t>(MessageType::WRITE_DATA);
       frame.id = 1;
-      frame.set_value_f88(this->control_setpoint_number_ != nullptr ? this->control_setpoint_number_->state : 0.0f);
+      frame.set_value_f88(this->control_setpoint_number_ != nullptr ? this->control_setpoint_number_->write_value()
+                                                                    : 0.0f);
       break;
     case RequestKind::CONTROL_SETPOINT_2:
       frame.type = static_cast<uint8_t>(MessageType::WRITE_DATA);
       frame.id = 8;
-      frame.set_value_f88(this->control_setpoint_2_number_ != nullptr ? this->control_setpoint_2_number_->state : 0.0f);
+      frame.set_value_f88(this->control_setpoint_2_number_ != nullptr ? this->control_setpoint_2_number_->write_value()
+                                                                      : 0.0f);
       break;
     case RequestKind::VENTILATION_STATUS:
       frame.type = static_cast<uint8_t>(MessageType::READ_DATA);
@@ -596,7 +584,7 @@ Frame OpenTherm42Hub::build_next_request_() {
       frame.type = static_cast<uint8_t>(MessageType::WRITE_DATA);
       frame.id = 71;
       frame.value_lb = this->control_setpoint_ventilation_number_ != nullptr
-                           ? static_cast<uint8_t>(this->control_setpoint_ventilation_number_->state)
+                           ? static_cast<uint8_t>(this->control_setpoint_ventilation_number_->write_value())
                            : 0;
       break;
     case RequestKind::FAULT_FLAGS:
@@ -655,22 +643,24 @@ Frame OpenTherm42Hub::build_next_request_() {
     case RequestKind::ROOM_SETPOINT:
       frame.type = static_cast<uint8_t>(MessageType::WRITE_DATA);
       frame.id = 16;
-      frame.set_value_f88(this->room_setpoint_number_ != nullptr ? this->room_setpoint_number_->state : 0.0f);
+      frame.set_value_f88(this->room_setpoint_number_ != nullptr ? this->room_setpoint_number_->write_value() : 0.0f);
       break;
     case RequestKind::ROOM_SETPOINT_CH2:
       frame.type = static_cast<uint8_t>(MessageType::WRITE_DATA);
       frame.id = 23;
-      frame.set_value_f88(this->room_setpoint_ch2_number_ != nullptr ? this->room_setpoint_ch2_number_->state : 0.0f);
+      frame.set_value_f88(this->room_setpoint_ch2_number_ != nullptr ? this->room_setpoint_ch2_number_->write_value()
+                                                                     : 0.0f);
       break;
     case RequestKind::ROOM_TEMPERATURE:
       frame.type = static_cast<uint8_t>(MessageType::WRITE_DATA);
       frame.id = 24;
-      frame.set_value_f88(this->room_temperature_number_ != nullptr ? this->room_temperature_number_->state : 0.0f);
+      frame.set_value_f88(this->room_temperature_number_ != nullptr ? this->room_temperature_number_->write_value()
+                                                                    : 0.0f);
       break;
     case RequestKind::TRCH2:
       frame.type = static_cast<uint8_t>(MessageType::WRITE_DATA);
       frame.id = 37;
-      frame.set_value_f88(this->trch2_number_ != nullptr ? this->trch2_number_->state : 0.0f);
+      frame.set_value_f88(this->trch2_number_ != nullptr ? this->trch2_number_->write_value() : 0.0f);
       break;
 
     case RequestKind::DAY_TIME:
@@ -699,8 +689,8 @@ Frame OpenTherm42Hub::build_next_request_() {
     case RequestKind::OUTSIDE_TEMPERATURE:
       frame.type = static_cast<uint8_t>(MessageType::WRITE_DATA);
       frame.id = 27;
-      frame.set_value_f88(this->outside_temperature_number_ != nullptr ? this->outside_temperature_number_->state
-                                                                       : 0.0f);
+      frame.set_value_f88(
+          this->outside_temperature_number_ != nullptr ? this->outside_temperature_number_->write_value() : 0.0f);
       break;
     case RequestKind::OUTSIDE_TEMPERATURE_READ:
       frame.type = static_cast<uint8_t>(MessageType::READ_DATA);
@@ -709,7 +699,8 @@ Frame OpenTherm42Hub::build_next_request_() {
     case RequestKind::RELATIVE_HUMIDITY:
       frame.type = static_cast<uint8_t>(MessageType::WRITE_DATA);
       frame.id = 38;
-      frame.set_value_f88(this->relative_humidity_number_ != nullptr ? this->relative_humidity_number_->state : 0.0f);
+      frame.set_value_f88(this->relative_humidity_number_ != nullptr ? this->relative_humidity_number_->write_value()
+                                                                     : 0.0f);
       break;
     case RequestKind::RELATIVE_HUMIDITY_READ:
       frame.type = static_cast<uint8_t>(MessageType::READ_DATA);
@@ -719,7 +710,7 @@ Frame OpenTherm42Hub::build_next_request_() {
       frame.type = static_cast<uint8_t>(MessageType::WRITE_DATA);
       frame.id = 78;
       frame.value_lb = this->relative_humidity_exhaust_air_number_ != nullptr
-                           ? static_cast<uint8_t>(this->relative_humidity_exhaust_air_number_->state)
+                           ? static_cast<uint8_t>(this->relative_humidity_exhaust_air_number_->write_value())
                            : 0;
       break;
     case RequestKind::RELATIVE_HUMIDITY_EXHAUST_AIR_READ:
@@ -729,8 +720,8 @@ Frame OpenTherm42Hub::build_next_request_() {
     case RequestKind::CO2_LEVEL:
       frame.type = static_cast<uint8_t>(MessageType::WRITE_DATA);
       frame.id = 79;
-      frame.set_value_u16(this->co2_level_number_ != nullptr ? static_cast<uint16_t>(this->co2_level_number_->state)
-                                                             : 0);
+      frame.set_value_u16(
+          this->co2_level_number_ != nullptr ? static_cast<uint16_t>(this->co2_level_number_->write_value()) : 0);
       break;
     case RequestKind::CO2_LEVEL_READ:
       frame.type = static_cast<uint8_t>(MessageType::READ_DATA);
@@ -762,7 +753,7 @@ Frame OpenTherm42Hub::build_next_request_() {
     case RequestKind::DHW_SETPOINT:
       frame.type = static_cast<uint8_t>(MessageType::WRITE_DATA);
       frame.id = 56;
-      frame.set_value_f88(this->dhw_setpoint_number_ != nullptr ? this->dhw_setpoint_number_->state : 0.0f);
+      frame.set_value_f88(this->dhw_setpoint_number_ != nullptr ? this->dhw_setpoint_number_->write_value() : 0.0f);
       break;
     case RequestKind::DHW_SETPOINT_READ:
       frame.type = static_cast<uint8_t>(MessageType::READ_DATA);
@@ -771,8 +762,8 @@ Frame OpenTherm42Hub::build_next_request_() {
     case RequestKind::MAX_CH_WATER_SETPOINT:
       frame.type = static_cast<uint8_t>(MessageType::WRITE_DATA);
       frame.id = 57;
-      frame.set_value_f88(this->max_ch_water_setpoint_number_ != nullptr ? this->max_ch_water_setpoint_number_->state
-                                                                         : 0.0f);
+      frame.set_value_f88(
+          this->max_ch_water_setpoint_number_ != nullptr ? this->max_ch_water_setpoint_number_->write_value() : 0.0f);
       break;
     case RequestKind::MAX_CH_WATER_SETPOINT_READ:
       frame.type = static_cast<uint8_t>(MessageType::READ_DATA);
@@ -782,7 +773,7 @@ Frame OpenTherm42Hub::build_next_request_() {
       frame.type = static_cast<uint8_t>(MessageType::WRITE_DATA);
       frame.id = 87;
       frame.value_hb = this->nominal_ventilation_value_number_ != nullptr
-                           ? static_cast<uint8_t>(this->nominal_ventilation_value_number_->state)
+                           ? static_cast<uint8_t>(this->nominal_ventilation_value_number_->write_value())
                            : 0;
       break;
     case RequestKind::NOMINAL_VENTILATION_VALUE_READ:
@@ -818,14 +809,15 @@ Frame OpenTherm42Hub::build_next_request_() {
     case RequestKind::COOLING_CONTROL_SIGNAL:
       frame.type = static_cast<uint8_t>(MessageType::WRITE_DATA);
       frame.id = 7;
-      frame.set_value_f88(this->cooling_control_signal_number_ != nullptr ? this->cooling_control_signal_number_->state
-                                                                          : 0.0f);
+      frame.set_value_f88(
+          this->cooling_control_signal_number_ != nullptr ? this->cooling_control_signal_number_->write_value() : 0.0f);
       break;
     case RequestKind::MAX_REL_MOD_LEVEL_SETTING:
       frame.type = static_cast<uint8_t>(MessageType::WRITE_DATA);
       frame.id = 14;
-      frame.set_value_f88(
-          this->max_rel_mod_level_setting_number_ != nullptr ? this->max_rel_mod_level_setting_number_->state : 0.0f);
+      frame.set_value_f88(this->max_rel_mod_level_setting_number_ != nullptr
+                              ? this->max_rel_mod_level_setting_number_->write_value()
+                              : 0.0f);
       break;
     case RequestKind::MAX_CAPACITY_MIN_MOD_LEVEL:
       frame.type = static_cast<uint8_t>(MessageType::READ_DATA);
@@ -993,7 +985,7 @@ void OpenTherm42Hub::advance_startup_phase_() {
 void OpenTherm42Hub::handle_response_(const Frame &frame) {
   auto const type = static_cast<MessageType>(frame.type);
   {
-    // See log_outgoing_frame_()'s declaration comment in hub.h -- temporary debug instrumentation.
+    // See log_outgoing_frame_()'s declaration comment in hub.h -- debug instrumentation.
     char kind_desc[80];
     this->describe_request_kind_(this->pending_request_kind_, kind_desc, sizeof(kind_desc));
     ESP_LOGD(TAG, "RX %s: %s id=%u hb=%u lb=%u", kind_desc, message_type_to_string(type), frame.id, frame.value_hb,
@@ -1460,21 +1452,15 @@ void OpenTherm42Hub::handle_response_(const Frame &frame) {
       return;
 
     case RequestKind::OUTSIDE_TEMPERATURE:
+      // WRITE-ACK's echoed value is not trusted for display -- real hardware has been observed
+      // acking a write while echoing a stale/unrelated value despite genuinely accepting it (see
+      // hub.h's RequestKind comment). Only OUTSIDE_TEMPERATURE_READ below updates .state; a
+      // rejected/clamped/falsely-acked write self-corrects on the next read.
       if (type != MessageType::WRITE_ACK) {
         ESP_LOGE(TAG, "Outside temperature (id=27) write was rejected (message type %u)", frame.type);
         if (this->outside_temperature_number_ != nullptr) {
           invalidate_entity(this->outside_temperature_number_);
         }
-        return;
-      }
-      // §4.4.2/§5.1: WRITE-ACK echoes the value the boiler actually accepted -- feed the sensor too
-      // (if configured), since it's the exact same underlying value a READ would return, without
-      // waiting for the sensor's own informational-rotation turn.
-      if (this->outside_temperature_number_ != nullptr) {
-        this->outside_temperature_number_->publish_state(frame.value_f88());
-      }
-      if (this->outside_temperature_sensor_ != nullptr) {
-        this->outside_temperature_sensor_->publish_state(frame.value_f88());
       }
       return;
 
@@ -1484,24 +1470,18 @@ void OpenTherm42Hub::handle_response_(const Frame &frame) {
         this->invalidate_response_(RequestKind::OUTSIDE_TEMPERATURE_READ);
         return;
       }
-      if (this->outside_temperature_sensor_ != nullptr) {
-        this->outside_temperature_sensor_->publish_state(frame.value_f88());
+      if (this->outside_temperature_number_ != nullptr) {
+        this->outside_temperature_number_->publish_state(frame.value_f88());
       }
       return;
 
     case RequestKind::RELATIVE_HUMIDITY:
+      // See OUTSIDE_TEMPERATURE above: WRITE-ACK's echo is not trusted for display.
       if (type != MessageType::WRITE_ACK) {
         ESP_LOGE(TAG, "Relative Humidity (id=38) write was rejected (message type %u)", frame.type);
         if (this->relative_humidity_number_ != nullptr) {
           invalidate_entity(this->relative_humidity_number_);
         }
-        return;
-      }
-      if (this->relative_humidity_number_ != nullptr) {
-        this->relative_humidity_number_->publish_state(frame.value_f88());
-      }
-      if (this->relative_humidity_sensor_ != nullptr) {
-        this->relative_humidity_sensor_->publish_state(frame.value_f88());
       }
       return;
 
@@ -1511,24 +1491,18 @@ void OpenTherm42Hub::handle_response_(const Frame &frame) {
         this->invalidate_response_(RequestKind::RELATIVE_HUMIDITY_READ);
         return;
       }
-      if (this->relative_humidity_sensor_ != nullptr) {
-        this->relative_humidity_sensor_->publish_state(frame.value_f88());
+      if (this->relative_humidity_number_ != nullptr) {
+        this->relative_humidity_number_->publish_state(frame.value_f88());
       }
       return;
 
     case RequestKind::RELATIVE_HUMIDITY_EXHAUST_AIR:
+      // See OUTSIDE_TEMPERATURE above: WRITE-ACK's echo is not trusted for display.
       if (type != MessageType::WRITE_ACK) {
         ESP_LOGE(TAG, "Relative humidity exhaust air (id=78) write was rejected (message type %u)", frame.type);
         if (this->relative_humidity_exhaust_air_number_ != nullptr) {
           invalidate_entity(this->relative_humidity_exhaust_air_number_);
         }
-        return;
-      }
-      if (this->relative_humidity_exhaust_air_number_ != nullptr) {
-        this->relative_humidity_exhaust_air_number_->publish_state(frame.value_lb);
-      }
-      if (this->relative_humidity_exhaust_air_sensor_ != nullptr) {
-        this->relative_humidity_exhaust_air_sensor_->publish_state(frame.value_lb);
       }
       return;
 
@@ -1538,24 +1512,18 @@ void OpenTherm42Hub::handle_response_(const Frame &frame) {
         this->invalidate_response_(RequestKind::RELATIVE_HUMIDITY_EXHAUST_AIR_READ);
         return;
       }
-      if (this->relative_humidity_exhaust_air_sensor_ != nullptr) {
-        this->relative_humidity_exhaust_air_sensor_->publish_state(frame.value_lb);
+      if (this->relative_humidity_exhaust_air_number_ != nullptr) {
+        this->relative_humidity_exhaust_air_number_->publish_state(frame.value_lb);
       }
       return;
 
     case RequestKind::CO2_LEVEL:
+      // See OUTSIDE_TEMPERATURE above: WRITE-ACK's echo is not trusted for display.
       if (type != MessageType::WRITE_ACK) {
         ESP_LOGE(TAG, "CO2 level (id=79) write was rejected (message type %u)", frame.type);
         if (this->co2_level_number_ != nullptr) {
           invalidate_entity(this->co2_level_number_);
         }
-        return;
-      }
-      if (this->co2_level_number_ != nullptr) {
-        this->co2_level_number_->publish_state(frame.value_u16());
-      }
-      if (this->co2_level_sensor_ != nullptr) {
-        this->co2_level_sensor_->publish_state(frame.value_u16());
       }
       return;
 
@@ -1565,8 +1533,8 @@ void OpenTherm42Hub::handle_response_(const Frame &frame) {
         this->invalidate_response_(RequestKind::CO2_LEVEL_READ);
         return;
       }
-      if (this->co2_level_sensor_ != nullptr) {
-        this->co2_level_sensor_->publish_state(frame.value_u16());
+      if (this->co2_level_number_ != nullptr) {
+        this->co2_level_number_->publish_state(frame.value_u16());
       }
       return;
 
@@ -1660,18 +1628,13 @@ void OpenTherm42Hub::handle_response_(const Frame &frame) {
       return;
 
     case RequestKind::DHW_SETPOINT:
+      // See hub.h's RequestKind comment: WRITE-ACK's echo is not trusted for display -- only
+      // DHW_SETPOINT_READ below updates .state.
       if (type != MessageType::WRITE_ACK) {
         ESP_LOGE(TAG, "DHW Setpoint (id=56) write was rejected (message type %u)", frame.type);
         if (this->dhw_setpoint_number_ != nullptr) {
           invalidate_entity(this->dhw_setpoint_number_);
         }
-        return;
-      }
-      if (this->dhw_setpoint_number_ != nullptr) {
-        this->dhw_setpoint_number_->publish_state(frame.value_f88());
-      }
-      if (this->dhw_setpoint_sensor_ != nullptr) {
-        this->dhw_setpoint_sensor_->publish_state(frame.value_f88());
       }
       return;
 
@@ -1681,24 +1644,18 @@ void OpenTherm42Hub::handle_response_(const Frame &frame) {
         this->invalidate_response_(RequestKind::DHW_SETPOINT_READ);
         return;
       }
-      if (this->dhw_setpoint_sensor_ != nullptr) {
-        this->dhw_setpoint_sensor_->publish_state(frame.value_f88());
+      if (this->dhw_setpoint_number_ != nullptr) {
+        this->dhw_setpoint_number_->publish_state(frame.value_f88());
       }
       return;
 
     case RequestKind::MAX_CH_WATER_SETPOINT:
+      // See DHW_SETPOINT above: WRITE-ACK's echo is not trusted for display.
       if (type != MessageType::WRITE_ACK) {
         ESP_LOGE(TAG, "max CH water Setpoint (id=57) write was rejected (message type %u)", frame.type);
         if (this->max_ch_water_setpoint_number_ != nullptr) {
           invalidate_entity(this->max_ch_water_setpoint_number_);
         }
-        return;
-      }
-      if (this->max_ch_water_setpoint_number_ != nullptr) {
-        this->max_ch_water_setpoint_number_->publish_state(frame.value_f88());
-      }
-      if (this->max_ch_water_setpoint_sensor_ != nullptr) {
-        this->max_ch_water_setpoint_sensor_->publish_state(frame.value_f88());
       }
       return;
 
@@ -1708,24 +1665,18 @@ void OpenTherm42Hub::handle_response_(const Frame &frame) {
         this->invalidate_response_(RequestKind::MAX_CH_WATER_SETPOINT_READ);
         return;
       }
-      if (this->max_ch_water_setpoint_sensor_ != nullptr) {
-        this->max_ch_water_setpoint_sensor_->publish_state(frame.value_f88());
+      if (this->max_ch_water_setpoint_number_ != nullptr) {
+        this->max_ch_water_setpoint_number_->publish_state(frame.value_f88());
       }
       return;
 
     case RequestKind::NOMINAL_VENTILATION_VALUE:
+      // See DHW_SETPOINT above: WRITE-ACK's echo is not trusted for display.
       if (type != MessageType::WRITE_ACK) {
         ESP_LOGE(TAG, "Nominal ventilation value (id=87) write was rejected (message type %u)", frame.type);
         if (this->nominal_ventilation_value_number_ != nullptr) {
           invalidate_entity(this->nominal_ventilation_value_number_);
         }
-        return;
-      }
-      if (this->nominal_ventilation_value_number_ != nullptr) {
-        this->nominal_ventilation_value_number_->publish_state(frame.value_hb);
-      }
-      if (this->nominal_ventilation_value_sensor_ != nullptr) {
-        this->nominal_ventilation_value_sensor_->publish_state(frame.value_hb);
       }
       return;
 
@@ -1735,8 +1686,8 @@ void OpenTherm42Hub::handle_response_(const Frame &frame) {
         this->invalidate_response_(RequestKind::NOMINAL_VENTILATION_VALUE_READ);
         return;
       }
-      if (this->nominal_ventilation_value_sensor_ != nullptr) {
-        this->nominal_ventilation_value_sensor_->publish_state(frame.value_hb);
+      if (this->nominal_ventilation_value_number_ != nullptr) {
+        this->nominal_ventilation_value_number_->publish_state(frame.value_hb);
       }
       return;
 
@@ -2228,8 +2179,8 @@ void OpenTherm42Hub::invalidate_response_(RequestKind kind) {
       return;
 
     case RequestKind::OUTSIDE_TEMPERATURE_READ:
-      if (this->outside_temperature_sensor_ != nullptr) {
-        invalidate_entity(this->outside_temperature_sensor_);
+      if (this->outside_temperature_number_ != nullptr) {
+        invalidate_entity(this->outside_temperature_number_);
       }
       return;
 
@@ -2240,8 +2191,8 @@ void OpenTherm42Hub::invalidate_response_(RequestKind kind) {
       return;
 
     case RequestKind::RELATIVE_HUMIDITY_READ:
-      if (this->relative_humidity_sensor_ != nullptr) {
-        invalidate_entity(this->relative_humidity_sensor_);
+      if (this->relative_humidity_number_ != nullptr) {
+        invalidate_entity(this->relative_humidity_number_);
       }
       return;
 
@@ -2252,8 +2203,8 @@ void OpenTherm42Hub::invalidate_response_(RequestKind kind) {
       return;
 
     case RequestKind::RELATIVE_HUMIDITY_EXHAUST_AIR_READ:
-      if (this->relative_humidity_exhaust_air_sensor_ != nullptr) {
-        invalidate_entity(this->relative_humidity_exhaust_air_sensor_);
+      if (this->relative_humidity_exhaust_air_number_ != nullptr) {
+        invalidate_entity(this->relative_humidity_exhaust_air_number_);
       }
       return;
 
@@ -2264,8 +2215,8 @@ void OpenTherm42Hub::invalidate_response_(RequestKind kind) {
       return;
 
     case RequestKind::CO2_LEVEL_READ:
-      if (this->co2_level_sensor_ != nullptr) {
-        invalidate_entity(this->co2_level_sensor_);
+      if (this->co2_level_number_ != nullptr) {
+        invalidate_entity(this->co2_level_number_);
       }
       return;
 
@@ -2331,8 +2282,8 @@ void OpenTherm42Hub::invalidate_response_(RequestKind kind) {
       return;
 
     case RequestKind::DHW_SETPOINT_READ:
-      if (this->dhw_setpoint_sensor_ != nullptr) {
-        invalidate_entity(this->dhw_setpoint_sensor_);
+      if (this->dhw_setpoint_number_ != nullptr) {
+        invalidate_entity(this->dhw_setpoint_number_);
       }
       return;
 
@@ -2343,8 +2294,8 @@ void OpenTherm42Hub::invalidate_response_(RequestKind kind) {
       return;
 
     case RequestKind::MAX_CH_WATER_SETPOINT_READ:
-      if (this->max_ch_water_setpoint_sensor_ != nullptr) {
-        invalidate_entity(this->max_ch_water_setpoint_sensor_);
+      if (this->max_ch_water_setpoint_number_ != nullptr) {
+        invalidate_entity(this->max_ch_water_setpoint_number_);
       }
       return;
 
@@ -2355,8 +2306,8 @@ void OpenTherm42Hub::invalidate_response_(RequestKind kind) {
       return;
 
     case RequestKind::NOMINAL_VENTILATION_VALUE_READ:
-      if (this->nominal_ventilation_value_sensor_ != nullptr) {
-        invalidate_entity(this->nominal_ventilation_value_sensor_);
+      if (this->nominal_ventilation_value_number_ != nullptr) {
+        invalidate_entity(this->nominal_ventilation_value_number_);
       }
       return;
 
