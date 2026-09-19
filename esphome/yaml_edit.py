@@ -186,9 +186,18 @@ def _root_indent(lines: list[str]) -> str:
 
 def _source_of(mapping: ConfigType, name: str) -> tuple[Path, int] | None:
     """The file and line ``name:`` was read from, None when validation added
-    it. Mapping keys keep their range through validation, values may not."""
+    it or a merge key brought it in from an anchor elsewhere. Mapping keys
+    keep their range through validation, values may not."""
     rng = getattr(next((k for k in mapping if k == name), None), "esp_range", None)
     if rng is None:
+        return None
+    # An included mapping carries the `!include` line of its parent, so only
+    # a key in the same document can be placed against the mapping
+    if (
+        (own := getattr(mapping, "esp_range", None)) is not None
+        and rng.start_mark.document == own.start_mark.document
+        and not own.start_mark.line <= rng.start_mark.line <= own.end_mark.line
+    ):
         return None
     return Path(rng.start_mark.document), rng.start_mark.line
 
