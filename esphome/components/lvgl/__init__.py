@@ -231,6 +231,7 @@ def multi_conf_validate(configs: list[dict]):
             CONF_COLOR_DEPTH,
             CONF_BYTE_ORDER,
             df.CONF_TRANSPARENCY_KEY,
+            df.CONF_DEBUG_BORDERS,
         ):
             if base_config[item] != config[item]:
                 raise cv.Invalid(
@@ -386,6 +387,7 @@ async def to_code(configs):
         df.add_define("LV_FONT_DEFAULT", await lvalid.lv_font.process(default_font))
     cg.add(lvgl_static.esphome_lvgl_init())
     default_group = get_default_group(config_0)
+    df.get_options()[df.CONF_DEBUG_BORDERS] = config_0[df.CONF_DEBUG_BORDERS]
 
     for config in configs:
         frac = config[CONF_BUFFER_SIZE]
@@ -627,6 +629,7 @@ LVGL_TOP_LEVEL_SCHEMA = (
             cv.GenerateID(df.CONF_DEFAULT_GROUP): cv.declare_id(lv_group_t),
             cv.Optional(df.CONF_RESUME_ON_INPUT, default=True): cv.boolean,
             cv.Optional(df.CONF_PAUSED, default=False): cv.boolean,
+            cv.Optional(df.CONF_DEBUG_BORDERS, default=False): cv.boolean,
         }
     )
     .extend(DISP_BG_SCHEMA)
