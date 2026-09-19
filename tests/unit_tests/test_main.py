@@ -5120,6 +5120,23 @@ def test_command_rename_removes_the_new_file_when_its_mode_cannot_be_set(
     assert "Rename failed" in capfd.readouterr().out
 
 
+def test_command_rename_refuses_a_name_without_a_source_line(
+    tmp_path: Path,
+    capfd: CaptureFixture[str],
+    mock_run_external_process: Mock,
+) -> None:
+    """A key the loader did not read from a file cannot be located."""
+    config_file = tmp_path / "oldname.yaml"
+    config_file.write_text("esphome:\n  name: oldname\n")
+    setup_core(tmp_path=tmp_path)
+    CORE.config_path = config_file
+    CORE.config = {CONF_ESPHOME: {CONF_NAME: "oldname"}}
+    with patch("esphome.yaml_edit.source_of", return_value=None):
+        assert command_rename(MockArgs(name="newname", dashboard=False), {}) == 1
+    mock_run_external_process.assert_not_called()
+    assert "was not read from" in capfd.readouterr().out
+
+
 def test_command_rename_reads_a_config_linked_from_outside(
     tmp_path: Path,
     mock_run_external_process: Mock,
