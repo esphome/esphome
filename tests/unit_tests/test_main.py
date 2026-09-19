@@ -5002,8 +5002,15 @@ def test_command_rename_keeps_line_endings_and_mode(
         ("esphome:\n  name: ${missing}\n", {}),
         ("esphome: {name: oldname}\n", {}),
         ("esphome: !include base.yaml\n", {"base.yaml": "name: oldname\n"}),
+        (
+            (
+                "named: &named\n  name: oldname\n\nesphome:\n  <<: *named\n\n"
+                "sensor:\n  - platform: template\n    <<: *named\n"
+            ),
+            {},
+        ),
     ],
-    ids=["missing_substitution", "flow_mapping", "included_name"],
+    ids=["missing_substitution", "flow_mapping", "included_name", "merged_name"],
 )
 def test_command_rename_refuses_shapes_without_a_plain_name_line(
     tmp_path: Path,
