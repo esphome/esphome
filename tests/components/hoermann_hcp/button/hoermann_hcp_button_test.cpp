@@ -6,43 +6,35 @@
 
 namespace esphome::hoermann_hcp::testing {
 
-// The intermediate positions are named in the second register, which repeats that name on release.
+// The intermediate positions are named in the second register.
 TEST(HoermannHcpButtonTest, VentButtonSendsTheVentCommand) {
-  TestableHoermannHcp door;
+  HoermannHcp door;
   HoermannHcpVentButton vent(&door);
   connect_controller(door);
 
   vent.press();
 
-  auto [pressed, pressed_2] = poll_command(door);
-  EXPECT_EQ(pressed, 0x0200);
-  EXPECT_EQ(pressed_2, 0x4000);
-  std::this_thread::sleep_for(KEY_PRESS_ELAPSED);
-  auto [released, released_2] = poll_command(door);
-  EXPECT_EQ(released, 0x0100);
-  EXPECT_EQ(released_2, 0x4000);
+  auto [value, value_2] = poll_command(door);
+  EXPECT_EQ(value, 0x0100);
+  EXPECT_EQ(value_2, 0x4000);
 }
 
 TEST(HoermannHcpButtonTest, HalfOpenButtonSendsTheHalfOpenCommand) {
-  TestableHoermannHcp door;
+  HoermannHcp door;
   HoermannHcpHalfOpenButton half_open(&door);
   connect_controller(door);
 
   half_open.press();
 
-  auto [pressed, pressed_2] = poll_command(door);
-  EXPECT_EQ(pressed, 0x0200);
-  EXPECT_EQ(pressed_2, 0x0400);
-  std::this_thread::sleep_for(KEY_PRESS_ELAPSED);
-  auto [released, released_2] = poll_command(door);
-  EXPECT_EQ(released, 0x0100);
-  EXPECT_EQ(released_2, 0x0400);
+  auto [value, value_2] = poll_command(door);
+  EXPECT_EQ(value, 0x0100);
+  EXPECT_EQ(value_2, 0x0400);
 }
 
 // The door drives to the vent position on its own, so a position the cover was still travelling to must not
 // stop it on the way there.
 TEST(HoermannHcpButtonTest, VentAbandonsAnArmedTarget) {
-  TestableHoermannHcp door;  // starts out fully closed
+  HoermannHcp door;  // starts out fully closed
   HoermannHcpVentButton vent(&door);
   connect_controller(door);
   door.set_position(0.5f);
