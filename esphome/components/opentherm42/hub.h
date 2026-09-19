@@ -101,15 +101,17 @@ enum class RequestKind : uint8_t {
   DAY_TIME_READ,
   DATE_READ,
   YEAR_READ,
-  // §5.3.4 Class 4, IDs 27/38/78/79: R/W ids -- a single number entity per id serves both
-  // directions, WRITE_DATA'd from write_value() every essential rotation and READ_DATA'd every
-  // informational rotation, each its own separate RequestKind (see build_schedule_()). Unlike a
-  // WRITE-only id, the WRITE-ACK's echoed value is NOT trusted for display here (real hardware has
-  // been observed acking a write while echoing an unrelated/stale value, despite genuinely
-  // accepting the write -- confirmed by the very next READ returning the correct value) -- only a
-  // successful READ_DATA ever updates the number's displayed .state (see handle_response_()).
-  // write_value() (what gets sent) is unaffected either way, so a bad echo can never make this
-  // component re-send the wrong value, and a rejected/clamped write is caught by the next READ.
+  // §5.3.4 Class 4, IDs 27/38/78/79: R/W ids, but unlike Class 5's pre-defined remote boiler
+  // parameters (see below), the spec gives the boiler no ownership of these values -- they're this
+  // master's own external sensor readings (outside temperature, relative humidity, ...) pushed to the
+  // boiler, so there's nothing to seed a write from. WRITE and READ are independently-scheduled
+  // RequestKinds (see build_schedule_()): the WRITE side only joins the essential rotation once
+  // OpenTherm42SensorFeedNumber::control() has supplied a real value (see
+  // set_sensor_feed_write_value()) -- no config-time default is invented, and the WRITE-ACK's echoed
+  // value is NOT trusted for display (real hardware has been observed acking a write while echoing an
+  // unrelated/stale value, despite genuinely accepting the write). Only a successful READ_DATA, on its
+  // own independent informational-rotation schedule, ever updates the number's displayed .state (see
+  // handle_response_()).
   OUTSIDE_TEMPERATURE,                 // ID 27 (write)
   OUTSIDE_TEMPERATURE_READ,            // ID 27 (read)
   RELATIVE_HUMIDITY,                   // ID 38 (write)
@@ -293,6 +295,12 @@ struct FhbSlot {
 // for a standalone (non-flag-byte) entity backed by a single named member pointer.
 #define OT42_SET_NUMBER(name, member) \
   void set_##name##_number(OpenTherm42Number *n) { this->member = n; }
+// Same as OT42_SET_NUMBER, but for OpenTherm42SensorFeedNumber entities (see that class): the member
+// only needs the generic number::Number interface (publish_state()/invalidate_entity()), so this takes
+// the base pointer type rather than the concrete one, avoiding a circular include with hub.h (that
+// header includes hub.h for the hub-callback constructor, same reasoning as TspSlot::number below).
+#define OT42_SET_SENSOR_FEED_NUMBER(name, member) \
+  void set_##name##_number(number::Number *n) { this->member = n; }
 #define OT42_SET_SENSOR(name, member) \
   void set_##name##_sensor(sensor::Sensor *s) { this->member = s; }
 #define OT42_SET_BINARY_SENSOR(name, member) \
@@ -530,13 +538,20 @@ class OpenTherm42Hub : public Component {
   OT42_SET_NUMBER(sensor_and_informational_data_room_temperature, room_temperature_number_)
   OT42_SET_NUMBER(sensor_and_informational_data_trch2, trch2_number_)
 
-  // §5.3.4 Class 4, IDs 27/38/78/79: R/W ids -- a single number entity per id, both directions: the
-  // essential rotation WRITE_DATA's it from write_value(), and the informational rotation's
-  // READ_DATA keeps its displayed .state accurate -- see the RequestKind comment.
-  OT42_SET_NUMBER(sensor_and_informational_data_outside_temperature, outside_temperature_number_)
-  OT42_SET_NUMBER(sensor_and_informational_data_relative_humidity, relative_humidity_number_)
-  OT42_SET_NUMBER(sensor_and_informational_data_relative_humidity_exhaust_air, relative_humidity_exhaust_air_number_)
-  OT42_SET_NUMBER(sensor_and_informational_data_co2_level, co2_level_number_)
+  // §5.3.4 Class 4, IDs 27/38/78/79: R/W ids -- a single OpenTherm42SensorFeedNumber entity per id,
+  // both directions: control() routes through set_sensor_feed_write_value() to join the essential
+  // rotation once a real value exists, and the informational rotation's READ_DATA keeps its displayed
+  // .state accurate -- see the RequestKind comment and that class's own comment.
+  OT42_SET_SENSOR_FEED_NUMBER(sensor_and_informational_data_outside_temperature, outside_temperature_number_)
+  OT42_SET_SENSOR_FEED_NUMBER(sensor_and_informational_data_relative_humidity, relative_humidity_number_)
+  OT42_SET_SENSOR_FEED_NUMBER(sensor_and_informational_data_relative_humidity_exhaust_air,
+                              relative_humidity_exhaust_air_number_)
+  OT42_SET_SENSOR_FEED_NUMBER(sensor_and_informational_data_co2_level, co2_level_number_)
+  // Called by OpenTherm42SensorFeedNumber::control() (ids 27/38/78/79 only) every time the user
+  // commands a new value. The first call for a given id adds its WRITE RequestKind to the essential
+  // rotation, since before that there's nothing legitimate to send -- see that class's comment for why
+  // these ids get no config-time default. Later calls just update the value.
+  void set_sensor_feed_write_value(uint8_t id, float value);
 
   // §5.3.4 Class 4, ID 35: HB Boiler fan speed Setpoint, LB Boiler fan speed.
   OT42_SET_SENSOR(sensor_and_informational_data_boiler_fan_speed_setpoint, boiler_fan_speed_setpoint_sensor_)
@@ -874,10 +889,19 @@ class OpenTherm42Hub : public Component {
   OpenTherm42Number *room_temperature_number_{nullptr};
   OpenTherm42Number *trch2_number_{nullptr};
 
-  OpenTherm42Number *outside_temperature_number_{nullptr};
-  OpenTherm42Number *relative_humidity_number_{nullptr};
-  OpenTherm42Number *relative_humidity_exhaust_air_number_{nullptr};
-  OpenTherm42Number *co2_level_number_{nullptr};
+  number::Number *outside_temperature_number_{nullptr};
+  number::Number *relative_humidity_number_{nullptr};
+  number::Number *relative_humidity_exhaust_air_number_{nullptr};
+  number::Number *co2_level_number_{nullptr};
+  // §5.3.4 Class 4, IDs 27/38/78/79 (write side): the value most recently commanded via
+  // OpenTherm42SensorFeedNumber::control(), routed through set_sensor_feed_write_value(). NAN means
+  // "never commanded" -- which also means the id's WRITE RequestKind isn't in essential_requests_ yet
+  // (see that method). Kept on the hub rather than the entity so hub.h doesn't need to know
+  // OpenTherm42SensorFeedNumber's concrete type -- same reasoning as tsp_write_value_ below.
+  float outside_temperature_write_value_{NAN};
+  float relative_humidity_write_value_{NAN};
+  float relative_humidity_exhaust_air_write_value_{NAN};
+  float co2_level_write_value_{NAN};
 
   sensor::Sensor *boiler_fan_speed_setpoint_sensor_{nullptr};
   sensor::Sensor *boiler_fan_speed_sensor_{nullptr};

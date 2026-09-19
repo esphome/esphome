@@ -380,23 +380,19 @@ void OpenTherm42Hub::build_schedule_() {
     this->informational_requests_.push_back(RequestKind::DATE_READ);
     this->informational_requests_.push_back(RequestKind::YEAR_READ);
   }
-  // IDs 27/38/78/79: a single number entity per id drives both the essential-rotation write and
-  // the informational-rotation read -- see hub.h's RequestKind comment for why only the read
-  // updates the displayed value.
+  // IDs 27/38/78/79: the READ side is unconditional whenever the number is configured -- see hub.h's
+  // RequestKind comment. The WRITE side only joins the essential rotation once a real value has been
+  // commanded (see set_sensor_feed_write_value()), so it's deliberately absent here.
   if (this->outside_temperature_number_ != nullptr) {
-    this->essential_requests_.push_back(RequestKind::OUTSIDE_TEMPERATURE);
     this->informational_requests_.push_back(RequestKind::OUTSIDE_TEMPERATURE_READ);
   }
   if (this->relative_humidity_number_ != nullptr) {
-    this->essential_requests_.push_back(RequestKind::RELATIVE_HUMIDITY);
     this->informational_requests_.push_back(RequestKind::RELATIVE_HUMIDITY_READ);
   }
   if (this->relative_humidity_exhaust_air_number_ != nullptr) {
-    this->essential_requests_.push_back(RequestKind::RELATIVE_HUMIDITY_EXHAUST_AIR);
     this->informational_requests_.push_back(RequestKind::RELATIVE_HUMIDITY_EXHAUST_AIR_READ);
   }
   if (this->co2_level_number_ != nullptr) {
-    this->essential_requests_.push_back(RequestKind::CO2_LEVEL);
     this->informational_requests_.push_back(RequestKind::CO2_LEVEL_READ);
   }
   if (this->boiler_fan_speed_setpoint_sensor_ != nullptr || this->boiler_fan_speed_sensor_ != nullptr) {
@@ -687,10 +683,11 @@ Frame OpenTherm42Hub::build_next_request_() {
       break;
 
     case RequestKind::OUTSIDE_TEMPERATURE:
+      // Only ever scheduled once set_sensor_feed_write_value() has a real value -- see hub.h's
+      // RequestKind comment.
       frame.type = static_cast<uint8_t>(MessageType::WRITE_DATA);
       frame.id = 27;
-      frame.set_value_f88(
-          this->outside_temperature_number_ != nullptr ? this->outside_temperature_number_->write_value() : 0.0f);
+      frame.set_value_f88(this->outside_temperature_write_value_);
       break;
     case RequestKind::OUTSIDE_TEMPERATURE_READ:
       frame.type = static_cast<uint8_t>(MessageType::READ_DATA);
@@ -699,8 +696,7 @@ Frame OpenTherm42Hub::build_next_request_() {
     case RequestKind::RELATIVE_HUMIDITY:
       frame.type = static_cast<uint8_t>(MessageType::WRITE_DATA);
       frame.id = 38;
-      frame.set_value_f88(this->relative_humidity_number_ != nullptr ? this->relative_humidity_number_->write_value()
-                                                                     : 0.0f);
+      frame.set_value_f88(this->relative_humidity_write_value_);
       break;
     case RequestKind::RELATIVE_HUMIDITY_READ:
       frame.type = static_cast<uint8_t>(MessageType::READ_DATA);
@@ -709,9 +705,7 @@ Frame OpenTherm42Hub::build_next_request_() {
     case RequestKind::RELATIVE_HUMIDITY_EXHAUST_AIR:
       frame.type = static_cast<uint8_t>(MessageType::WRITE_DATA);
       frame.id = 78;
-      frame.value_lb = this->relative_humidity_exhaust_air_number_ != nullptr
-                           ? static_cast<uint8_t>(this->relative_humidity_exhaust_air_number_->write_value())
-                           : 0;
+      frame.value_lb = static_cast<uint8_t>(this->relative_humidity_exhaust_air_write_value_);
       break;
     case RequestKind::RELATIVE_HUMIDITY_EXHAUST_AIR_READ:
       frame.type = static_cast<uint8_t>(MessageType::READ_DATA);
@@ -720,8 +714,7 @@ Frame OpenTherm42Hub::build_next_request_() {
     case RequestKind::CO2_LEVEL:
       frame.type = static_cast<uint8_t>(MessageType::WRITE_DATA);
       frame.id = 79;
-      frame.set_value_u16(
-          this->co2_level_number_ != nullptr ? static_cast<uint16_t>(this->co2_level_number_->write_value()) : 0);
+      frame.set_value_u16(static_cast<uint16_t>(this->co2_level_write_value_));
       break;
     case RequestKind::CO2_LEVEL_READ:
       frame.type = static_cast<uint8_t>(MessageType::READ_DATA);
@@ -846,6 +839,35 @@ Frame OpenTherm42Hub::build_next_request_() {
   }
   this->log_outgoing_frame_(frame);
   return frame;
+}
+
+void OpenTherm42Hub::set_sensor_feed_write_value(uint8_t id, float value) {
+  float *write_value;
+  RequestKind kind;
+  switch (id) {
+    case 27:
+      write_value = &this->outside_temperature_write_value_;
+      kind = RequestKind::OUTSIDE_TEMPERATURE;
+      break;
+    case 38:
+      write_value = &this->relative_humidity_write_value_;
+      kind = RequestKind::RELATIVE_HUMIDITY;
+      break;
+    case 78:
+      write_value = &this->relative_humidity_exhaust_air_write_value_;
+      kind = RequestKind::RELATIVE_HUMIDITY_EXHAUST_AIR;
+      break;
+    case 79:
+      write_value = &this->co2_level_write_value_;
+      kind = RequestKind::CO2_LEVEL;
+      break;
+    default:
+      return;
+  }
+  if (std::isnan(*write_value)) {
+    this->essential_requests_.push_back(kind);
+  }
+  *write_value = value;
 }
 
 Frame OpenTherm42Hub::build_startup_request_() {

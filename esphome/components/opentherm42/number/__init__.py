@@ -37,6 +37,9 @@ from ..const import (
 OpenTherm42Number = opentherm42_ns.class_(
     "OpenTherm42Number", number.Number, cg.Component
 )
+OpenTherm42SensorFeedNumber = opentherm42_ns.class_(
+    "OpenTherm42SensorFeedNumber", number.Number, cg.Component
+)
 OpenTherm42TspNumber = opentherm42_ns.class_(
     "OpenTherm42TspNumber", number.Number, cg.Component
 )
@@ -129,65 +132,16 @@ TYPES: dict[str, tuple[cv.Schema, dict]] = {
         ),
         {"min_value": -40, "max_value": 127, "step": 0.1},
     ),
-    # §5.3.4 Class 4, ID 27: Outside temperature (degrees C, -40..127), provided by this master.
-    # Both this master's write and the boiler's own read-back of the same id share this one number
-    # entity -- see hub.h's RequestKind comment for why only a successful read ever updates what's
-    # displayed. A sensor-value feed, so CONFIG.
-    CONF_SENSOR_AND_INFORMATIONAL_DATA_OUTSIDE_TEMPERATURE: (
-        _number_schema(
-            "°C",
-            -40,
-            127,
-            device_class=DEVICE_CLASS_TEMPERATURE,
-            entity_category=ENTITY_CATEGORY_CONFIG,
-        ),
-        {"min_value": -40, "max_value": 127, "step": 0.1},
-    ),
-    # §5.3.4 Class 4, ID 38: Relative Humidity (0..100%), provided by this master. Same
-    # write/read-back sharing as ID 27 above. A sensor-value feed, so CONFIG.
-    CONF_SENSOR_AND_INFORMATIONAL_DATA_RELATIVE_HUMIDITY: (
-        _number_schema(
-            "%",
-            0,
-            100,
-            device_class=DEVICE_CLASS_HUMIDITY,
-            entity_category=ENTITY_CATEGORY_CONFIG,
-        ),
-        {"min_value": 0, "max_value": 100, "step": 1},
-    ),
-    # §5.3.4 Class 4, ID 78 LB: Relative humidity exhaust air (0..100%), provided by this master.
-    # Same write/read-back sharing as ID 27 above. A sensor-value feed, so CONFIG.
-    CONF_SENSOR_AND_INFORMATIONAL_DATA_RELATIVE_HUMIDITY_EXHAUST_AIR: (
-        _number_schema(
-            "%",
-            0,
-            100,
-            device_class=DEVICE_CLASS_HUMIDITY,
-            entity_category=ENTITY_CATEGORY_CONFIG,
-        ),
-        {"min_value": 0, "max_value": 100, "step": 1},
-    ),
-    # §5.3.4 Class 4, ID 79: CO2 level exhaust air (0..2000 ppm), provided by this master. Same
-    # write/read-back sharing as ID 27 above. A sensor-value feed, so CONFIG.
-    CONF_SENSOR_AND_INFORMATIONAL_DATA_CO2_LEVEL: (
-        _number_schema(
-            "ppm",
-            0,
-            2000,
-            device_class=DEVICE_CLASS_CARBON_DIOXIDE,
-            entity_category=ENTITY_CATEGORY_CONFIG,
-        ),
-        {"min_value": 0, "max_value": 2000, "step": 1},
-    ),
     # §5.3.5 Class 5, ID 56: DHW Setpoint -- domestic hot water temperature setpoint (degrees C,
-    # 0..127). Same write/read-back sharing as ID 27 above.
+    # 0..127). A single number entity serves both directions -- see hub.h's RequestKind comment for
+    # why only a successful read ever updates what's displayed.
     CONF_PRE_DEFINED_REMOTE_BOILER_PARAMETERS_DHW_SETPOINT: (
         _number_schema("°C", 0, 127, device_class=DEVICE_CLASS_TEMPERATURE),
         {"min_value": 0, "max_value": 127, "step": 0.1},
     ),
     # §5.3.5 Class 5, ID 57: max CH water Setpoint -- maximum allowable CH water Setpoint (degrees C,
-    # 0..127). Same write/read-back sharing as ID 27 above. An installation-time ceiling on ID 1's
-    # Control Setpoint, not something adjusted day-to-day, so CONFIG.
+    # 0..127). Same read/write sharing as ID 56 above. An installation-time ceiling on ID 1's Control
+    # Setpoint, not something adjusted day-to-day, so CONFIG.
     CONF_PRE_DEFINED_REMOTE_BOILER_PARAMETERS_MAX_CH_WATER_SETPOINT: (
         _number_schema(
             "°C",
@@ -200,7 +154,7 @@ TYPES: dict[str, tuple[cv.Schema, dict]] = {
     ),
     # §5.3.5 Class 5, ID 87 HB: Nominal ventilation value -- nominal relative value for ventilation
     # (0-100%), i.e. the value for the mid position in case of a 3-speed ventilation system. Same
-    # write/read-back sharing as ID 27 above. A fixed system parameter rather than a live demand, so
+    # read/write sharing as ID 56 above. A fixed system parameter rather than a live demand, so
     # CONFIG.
     CONF_PRE_DEFINED_REMOTE_BOILER_PARAMETERS_NOMINAL_VENTILATION_VALUE: (
         _number_schema("%", 0, 100, entity_category=ENTITY_CATEGORY_CONFIG),
@@ -217,6 +171,58 @@ TYPES: dict[str, tuple[cv.Schema, dict]] = {
     CONF_CONTROL_OF_SPECIAL_APPLICATIONS_MAXIMUM_RELATIVE_MODULATION_LEVEL_SETTING: (
         _number_schema("%", 0, 100, entity_category=ENTITY_CATEGORY_CONFIG),
         {"min_value": 0, "max_value": 100, "step": 1},
+    ),
+}
+
+# §5.3.4 Class 4, IDs 27/38/78/79: this master's own external sensor readings, pushed to the boiler.
+# Unlike TYPES above, these take no initial_value -- there's nothing for this component to invent a
+# default for (see OpenTherm42SensorFeedNumber's class comment) -- and the constructor also needs the
+# OpenTherm data-id, which the hub uses to route control()'s value to the right internal field (see
+# hub.h's set_sensor_feed_write_value()). Keyed by marker -> (schema, number.new_number traits, id).
+SENSOR_FEED_TYPES: dict[str, tuple[cv.Schema, dict, int]] = {
+    # §5.3.4 Class 4, ID 27: Outside temperature (degrees C, -40..127). A sensor-value feed, so CONFIG.
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_OUTSIDE_TEMPERATURE: (
+        number.number_schema(
+            OpenTherm42SensorFeedNumber,
+            unit_of_measurement="°C",
+            device_class=DEVICE_CLASS_TEMPERATURE,
+            entity_category=ENTITY_CATEGORY_CONFIG,
+        ),
+        {"min_value": -40, "max_value": 127, "step": 0.1},
+        27,
+    ),
+    # §5.3.4 Class 4, ID 38: Relative Humidity (0..100%). Same nature as ID 27 above.
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_RELATIVE_HUMIDITY: (
+        number.number_schema(
+            OpenTherm42SensorFeedNumber,
+            unit_of_measurement="%",
+            device_class=DEVICE_CLASS_HUMIDITY,
+            entity_category=ENTITY_CATEGORY_CONFIG,
+        ),
+        {"min_value": 0, "max_value": 100, "step": 1},
+        38,
+    ),
+    # §5.3.4 Class 4, ID 78 LB: Relative humidity exhaust air (0..100%). Same nature as ID 27 above.
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_RELATIVE_HUMIDITY_EXHAUST_AIR: (
+        number.number_schema(
+            OpenTherm42SensorFeedNumber,
+            unit_of_measurement="%",
+            device_class=DEVICE_CLASS_HUMIDITY,
+            entity_category=ENTITY_CATEGORY_CONFIG,
+        ),
+        {"min_value": 0, "max_value": 100, "step": 1},
+        78,
+    ),
+    # §5.3.4 Class 4, ID 79: CO2 level exhaust air (0..2000 ppm). Same nature as ID 27 above.
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_CO2_LEVEL: (
+        number.number_schema(
+            OpenTherm42SensorFeedNumber,
+            unit_of_measurement="ppm",
+            device_class=DEVICE_CLASS_CARBON_DIOXIDE,
+            entity_category=ENTITY_CATEGORY_CONFIG,
+        ),
+        {"min_value": 0, "max_value": 2000, "step": 1},
+        79,
     ),
 }
 
@@ -249,6 +255,10 @@ CONFIG_SCHEMA = cv.Schema(
             for marker, (schema, _traits) in TYPES.items()
         },
         **{
+            cv.Optional(marker): schema.extend(cv.COMPONENT_SCHEMA)
+            for marker, (schema, _traits, _id) in SENSOR_FEED_TYPES.items()
+        },
+        **{
             cv.Optional(marker, default=[]): cv.ensure_list(TSP_ENTRY_SCHEMA)
             for marker in TSP_FAMILY_DATA_IDS
         },
@@ -263,6 +273,12 @@ async def to_code(config: dict) -> None:
             var = await number.new_number(marker_config, **traits)
             await cg.register_component(var, marker_config)
             cg.add(var.set_initial_value(marker_config[CONF_INITIAL_VALUE]))
+            cg.add(getattr(hub, f"set_{marker}_number")(var))
+
+    for marker, (_schema, traits, data_id) in SENSOR_FEED_TYPES.items():
+        if (marker_config := config.get(marker)) is not None:
+            var = await number.new_number(marker_config, hub, data_id, **traits)
+            await cg.register_component(var, marker_config)
             cg.add(getattr(hub, f"set_{marker}_number")(var))
 
     slot_index = 0

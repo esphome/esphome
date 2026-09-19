@@ -103,26 +103,21 @@ number:
     sensor_and_informational_data_trch2:
       name: "Sensor and Informational Data: TrCH2"
       initial_value: 20.0
-    # §5.3.4 Class 4, ID 27: Outside temperature (degrees C, -40..127), provided by this master.
-    # This one number entity serves both the write and, once configured, the boiler's read-back of
-    # the same id -- see hub.h's RequestKind comment.
+    # §5.3.4 Class 4, ID 27: Outside temperature (degrees C, -40..127), provided by this master. No
+    # initial_value -- see OpenTherm42SensorFeedNumber's class comment.
     sensor_and_informational_data_outside_temperature:
       name: "Sensor and Informational Data: Outside temperature"
-      initial_value: 10.0
     # §5.3.4 Class 4, ID 38: Relative Humidity (0..100%), provided by this master.
     sensor_and_informational_data_relative_humidity:
       name: "Sensor and Informational Data: Relative Humidity"
-      initial_value: 50.0
     # §5.3.4 Class 4, ID 78 LB: Relative humidity exhaust air (0..100%), provided by this master.
     sensor_and_informational_data_relative_humidity_exhaust_air:
       name: "Sensor and Informational Data: Relative humidity exhaust air"
-      initial_value: 50.0
     # §5.3.4 Class 4, ID 79: CO2 level exhaust air (0..2000 ppm), provided by this master.
     sensor_and_informational_data_co2_level:
       name: "Sensor and Informational Data: CO2 level"
-      initial_value: 0
     # §5.3.5 Class 5, ID 56: DHW Setpoint -- domestic hot water temperature setpoint (degrees C, 0..127).
-    # Same write/read-back sharing as ID 27 above.
+    # A single number entity serves both directions -- see hub.h's RequestKind comment.
     pre_defined_remote_boiler_parameters_dhw_setpoint:
       name: "Pre-Defined Remote Boiler Parameters: DHW Setpoint"
       initial_value: 60.0
