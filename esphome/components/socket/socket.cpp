@@ -208,10 +208,8 @@ socklen_t set_sockaddr(struct sockaddr *addr, socklen_t addrlen, const char *ip_
     return 0;
   }
 #else
-  server->sin_addr.s_addr = inet_addr(ip_address);
-  // INADDR_NONE also means valid 255.255.255.255, not just parse failure
-  if (server->sin_addr.s_addr == ESPHOME_INADDR_NONE && strcmp(ip_address, "255.255.255.255") != 0) {
-    memset(server, 0, sizeof(sockaddr_in));
+  // inet_aton() reports failure separately from the address, so 255.255.255.255 needs no special case
+  if (inet_aton(ip_address, &server->sin_addr) == 0) {
     errno = EINVAL;
     return 0;
   }
