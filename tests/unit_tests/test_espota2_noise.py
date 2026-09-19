@@ -70,10 +70,12 @@ class FakeEncryptedDevice(threading.Thread):
         prologue_features_override: int | None = None,
         connections: int = 1,
         drop_handshakes: int = 0,
+        reject_reason: str | None = None,
     ) -> None:
         super().__init__(daemon=True)
         self.connections = connections
         self.drop_handshakes = drop_handshakes  # hang up mid-handshake this many times
+        self.reject_reason = reject_reason  # refuse every handshake with this reason
         self.psk = psk
         self.version = version
         self.offer_noise = offer_noise
@@ -160,6 +162,9 @@ class FakeEncryptedDevice(threading.Thread):
         if self.drop_handshakes > 0:
             self.drop_handshakes -= 1
             return  # a transport fault: the socket closes with no reply
+        if self.reject_reason is not None:
+            _send_frame(sock, b"\x01" + self.reject_reason.encode())
+            return
         try:
             proto.read_message(msg1[1:])
         except InvalidTag:
@@ -244,8 +249,9 @@ def _run_ota(
     tmp_path: Path,
     noise_psk: str,
     plaintext_fallback: bool = True,
+    old_noise_psk: str | None = None,
 ) -> int:
-    """Drive the retry loop, which is where the plaintext fallback reconnects."""
+    """Drive the retry loop, which is where the fallback and the old key reconnect."""
     path = tmp_path / "firmware.bin"
     path.write_bytes(firmware)
     device.start()
@@ -256,8 +262,60 @@ def _run_ota(
         path,
         noise_psk=noise_psk,
         plaintext_fallback=plaintext_fallback,
+        old_noise_psk=old_noise_psk,
     )
     return rc
+
+
+THIRD_PSK = base64.b64encode(bytes(range(2, 34))).decode()
+
+
+@pytest.mark.parametrize(
+    ("device_psk", "old_noise_psk", "expected_rc", "retried"),
+    [
+        # The device still runs the previous key: one reconnect with old_key
+        (OTHER_PSK, OTHER_PSK, 0, True),
+        # The device already runs the new key: old_key is never presented
+        (PSK, OTHER_PSK, 0, False),
+        # Neither key matches: the retry is spent, then it fails closed
+        (THIRD_PSK, OTHER_PSK, 1, True),
+        # No old_key configured: a rejected key is a device error
+        (OTHER_PSK, None, 1, False),
+    ],
+    ids=["old_key_accepted", "key_accepted", "both_rejected", "no_old_key"],
+)
+def test_old_key_retry(
+    caplog: pytest.LogCaptureFixture,
+    tmp_path: Path,
+    device_psk: str,
+    old_noise_psk: str | None,
+    expected_rc: int,
+    retried: bool,
+) -> None:
+    pytest.importorskip("aioesphomeapi.noise")
+    firmware = b"firmware"
+    device = FakeEncryptedDevice(psk=device_psk, connections=2 if retried else 1)
+    with patch("time.sleep"), caplog.at_level(logging.WARNING):
+        rc = _run_ota(
+            device,
+            firmware,
+            tmp_path,
+            PSK,
+            plaintext_fallback=False,
+            old_noise_psk=old_noise_psk,
+        )
+    device.join_and_check()
+    assert rc == expected_rc
+    assert (device.received == firmware) is (expected_rc == 0)
+    assert (
+        any("retrying with 'old_key'" in r.message for r in caplog.records) is retried
+    )
+    assert any("accepted 'old_key'" in r.message for r in caplog.records) is (
+        retried and expected_rc == 0
+    )
+    assert not any("plaintext" in r.message for r in caplog.records)
+    if expected_rc == 1 and old_noise_psk is not None:
+        assert any("rejected both" in r.message for r in caplog.records)
 
 
 def test_encrypted_upload_success() -> None:
@@ -495,21 +553,21 @@ def test_handshake_reject_with_other_reason() -> None:
 
 
 def test_handshake_garbage_second_message() -> None:
-    """A valid-looking point with a garbage MAC fails cleanly."""
+    """A valid-looking point with a garbage MAC is a key failure."""
     wrapper = _wrapper(_frame(b"\x00" + bytes(range(48))))
     with pytest.raises(
-        espota2.OTAError, match="handshake failed; is the OTA encryption key"
+        espota2.OTAKeyRejected, match="handshake failed; is the OTA encryption key"
     ):
         wrapper.do_handshake()
 
 
 def test_handshake_invalid_curve_point() -> None:
-    """An all-zero x25519 point is rejected as a clean error, not a crash."""
+    """An all-zero x25519 point is a clean error, not a crash, and not a
+    key failure: it must not spend the old_key retry."""
     wrapper = _wrapper(_frame(b"\x00" + bytes(48)))
-    with pytest.raises(
-        espota2.OTAError, match="handshake failed; is the OTA encryption key"
-    ):
+    with pytest.raises(espota2.OTAError, match="handshake failed: ") as info:
         wrapper.do_handshake()
+    assert not isinstance(info.value, espota2.OTAKeyRejected)
 
 
 def test_recv_closed_at_frame_boundary_returns_empty() -> None:
@@ -583,6 +641,29 @@ def test_recv_serves_buffered_plaintext_without_new_frame() -> None:
     assert wrapper.recv(1) == b"A"  # reads and decrypts one frame
     assert wrapper.recv(1) == b"B"  # served from the buffer, no new frame
     wrapper._decrypt.decrypt.assert_called_once()
+
+
+@pytest.mark.parametrize("plaintext_fallback", [False, True])
+def test_non_key_reject_reason_is_a_device_error(
+    caplog: pytest.LogCaptureFixture, tmp_path: Path, plaintext_fallback: bool
+) -> None:
+    """Only a key failure spends the old_key retry or, until 2027.3.0, the
+    plaintext fallback; another reject reason fails at once."""
+    pytest.importorskip("aioesphomeapi.noise")
+    device = FakeEncryptedDevice(reject_reason="Busy")
+    with patch("time.sleep"), caplog.at_level(logging.WARNING):
+        rc = _run_ota(
+            device,
+            b"firmware",
+            tmp_path,
+            PSK,
+            plaintext_fallback=plaintext_fallback,
+            old_noise_psk=OTHER_PSK,
+        )
+    device.join_and_check()
+    assert rc == 1
+    assert not any("retrying with 'old_key'" in r.message for r in caplog.records)
+    assert not any("Retrying in plaintext" in r.message for r in caplog.records)
 
 
 def test_bare_block_refuses_a_device_that_cannot_encrypt(
