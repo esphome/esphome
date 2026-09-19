@@ -562,14 +562,12 @@ Frame OpenTherm42Hub::build_next_request_() {
     case RequestKind::CONTROL_SETPOINT:
       frame.type = static_cast<uint8_t>(MessageType::WRITE_DATA);
       frame.id = 1;
-      frame.set_value_f88(this->control_setpoint_number_ != nullptr ? this->control_setpoint_number_->write_value()
-                                                                    : 0.0f);
+      frame.set_value_f88(this->control_setpoint_write_value_);
       break;
     case RequestKind::CONTROL_SETPOINT_2:
       frame.type = static_cast<uint8_t>(MessageType::WRITE_DATA);
       frame.id = 8;
-      frame.set_value_f88(this->control_setpoint_2_number_ != nullptr ? this->control_setpoint_2_number_->write_value()
-                                                                      : 0.0f);
+      frame.set_value_f88(this->control_setpoint_2_write_value_);
       break;
     case RequestKind::VENTILATION_STATUS:
       frame.type = static_cast<uint8_t>(MessageType::READ_DATA);
@@ -579,9 +577,7 @@ Frame OpenTherm42Hub::build_next_request_() {
     case RequestKind::CONTROL_SETPOINT_VENTILATION:
       frame.type = static_cast<uint8_t>(MessageType::WRITE_DATA);
       frame.id = 71;
-      frame.value_lb = this->control_setpoint_ventilation_number_ != nullptr
-                           ? static_cast<uint8_t>(this->control_setpoint_ventilation_number_->write_value())
-                           : 0;
+      frame.value_lb = static_cast<uint8_t>(this->control_setpoint_ventilation_write_value_);
       break;
     case RequestKind::FAULT_FLAGS:
       frame.type = static_cast<uint8_t>(MessageType::READ_DATA);
@@ -639,24 +635,22 @@ Frame OpenTherm42Hub::build_next_request_() {
     case RequestKind::ROOM_SETPOINT:
       frame.type = static_cast<uint8_t>(MessageType::WRITE_DATA);
       frame.id = 16;
-      frame.set_value_f88(this->room_setpoint_number_ != nullptr ? this->room_setpoint_number_->write_value() : 0.0f);
+      frame.set_value_f88(this->room_setpoint_write_value_);
       break;
     case RequestKind::ROOM_SETPOINT_CH2:
       frame.type = static_cast<uint8_t>(MessageType::WRITE_DATA);
       frame.id = 23;
-      frame.set_value_f88(this->room_setpoint_ch2_number_ != nullptr ? this->room_setpoint_ch2_number_->write_value()
-                                                                     : 0.0f);
+      frame.set_value_f88(this->room_setpoint_ch2_write_value_);
       break;
     case RequestKind::ROOM_TEMPERATURE:
       frame.type = static_cast<uint8_t>(MessageType::WRITE_DATA);
       frame.id = 24;
-      frame.set_value_f88(this->room_temperature_number_ != nullptr ? this->room_temperature_number_->write_value()
-                                                                    : 0.0f);
+      frame.set_value_f88(this->room_temperature_write_value_);
       break;
     case RequestKind::TRCH2:
       frame.type = static_cast<uint8_t>(MessageType::WRITE_DATA);
       frame.id = 37;
-      frame.set_value_f88(this->trch2_number_ != nullptr ? this->trch2_number_->write_value() : 0.0f);
+      frame.set_value_f88(this->trch2_write_value_);
       break;
 
     case RequestKind::DAY_TIME:
@@ -746,7 +740,7 @@ Frame OpenTherm42Hub::build_next_request_() {
     case RequestKind::DHW_SETPOINT:
       frame.type = static_cast<uint8_t>(MessageType::WRITE_DATA);
       frame.id = 56;
-      frame.set_value_f88(this->dhw_setpoint_number_ != nullptr ? this->dhw_setpoint_number_->write_value() : 0.0f);
+      frame.set_value_f88(this->dhw_setpoint_write_value_);
       break;
     case RequestKind::DHW_SETPOINT_READ:
       frame.type = static_cast<uint8_t>(MessageType::READ_DATA);
@@ -755,8 +749,7 @@ Frame OpenTherm42Hub::build_next_request_() {
     case RequestKind::MAX_CH_WATER_SETPOINT:
       frame.type = static_cast<uint8_t>(MessageType::WRITE_DATA);
       frame.id = 57;
-      frame.set_value_f88(
-          this->max_ch_water_setpoint_number_ != nullptr ? this->max_ch_water_setpoint_number_->write_value() : 0.0f);
+      frame.set_value_f88(this->max_ch_water_setpoint_write_value_);
       break;
     case RequestKind::MAX_CH_WATER_SETPOINT_READ:
       frame.type = static_cast<uint8_t>(MessageType::READ_DATA);
@@ -765,9 +758,7 @@ Frame OpenTherm42Hub::build_next_request_() {
     case RequestKind::NOMINAL_VENTILATION_VALUE:
       frame.type = static_cast<uint8_t>(MessageType::WRITE_DATA);
       frame.id = 87;
-      frame.value_hb = this->nominal_ventilation_value_number_ != nullptr
-                           ? static_cast<uint8_t>(this->nominal_ventilation_value_number_->write_value())
-                           : 0;
+      frame.value_hb = static_cast<uint8_t>(this->nominal_ventilation_value_write_value_);
       break;
     case RequestKind::NOMINAL_VENTILATION_VALUE_READ:
       frame.type = static_cast<uint8_t>(MessageType::READ_DATA);
@@ -802,15 +793,12 @@ Frame OpenTherm42Hub::build_next_request_() {
     case RequestKind::COOLING_CONTROL_SIGNAL:
       frame.type = static_cast<uint8_t>(MessageType::WRITE_DATA);
       frame.id = 7;
-      frame.set_value_f88(
-          this->cooling_control_signal_number_ != nullptr ? this->cooling_control_signal_number_->write_value() : 0.0f);
+      frame.set_value_f88(this->cooling_control_signal_write_value_);
       break;
     case RequestKind::MAX_REL_MOD_LEVEL_SETTING:
       frame.type = static_cast<uint8_t>(MessageType::WRITE_DATA);
       frame.id = 14;
-      frame.set_value_f88(this->max_rel_mod_level_setting_number_ != nullptr
-                              ? this->max_rel_mod_level_setting_number_->write_value()
-                              : 0.0f);
+      frame.set_value_f88(this->max_rel_mod_level_setting_write_value_);
       break;
     case RequestKind::MAX_CAPACITY_MIN_MOD_LEVEL:
       frame.type = static_cast<uint8_t>(MessageType::READ_DATA);
@@ -868,6 +856,49 @@ void OpenTherm42Hub::set_sensor_feed_write_value(uint8_t id, float value) {
     this->essential_requests_.push_back(kind);
   }
   *write_value = value;
+}
+
+void OpenTherm42Hub::set_write_value(uint8_t id, float value) {
+  switch (id) {
+    case 1:
+      this->control_setpoint_write_value_ = value;
+      return;
+    case 8:
+      this->control_setpoint_2_write_value_ = value;
+      return;
+    case 71:
+      this->control_setpoint_ventilation_write_value_ = value;
+      return;
+    case 16:
+      this->room_setpoint_write_value_ = value;
+      return;
+    case 23:
+      this->room_setpoint_ch2_write_value_ = value;
+      return;
+    case 24:
+      this->room_temperature_write_value_ = value;
+      return;
+    case 37:
+      this->trch2_write_value_ = value;
+      return;
+    case 56:
+      this->dhw_setpoint_write_value_ = value;
+      return;
+    case 57:
+      this->max_ch_water_setpoint_write_value_ = value;
+      return;
+    case 87:
+      this->nominal_ventilation_value_write_value_ = value;
+      return;
+    case 7:
+      this->cooling_control_signal_write_value_ = value;
+      return;
+    case 14:
+      this->max_rel_mod_level_setting_write_value_ = value;
+      return;
+    default:
+      return;
+  }
 }
 
 Frame OpenTherm42Hub::build_startup_request_() {

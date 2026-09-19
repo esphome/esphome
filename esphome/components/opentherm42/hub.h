@@ -14,7 +14,6 @@
 #include "esphome/components/time/real_time_clock.h"
 #include "datalink.h"
 #include "flag_bits.h"
-#include "number/opentherm42_number.h"
 
 namespace esphome::opentherm42 {
 
@@ -292,14 +291,15 @@ struct FhbSlot {
 #define OT42_FLAG_READ_BIT(name, byte, bit) \
   void set_##name##_binary_sensor(binary_sensor::BinarySensor *s) { this->byte.bits[bit] = s; }
 // Declares set_<name>_number()/set_<name>_sensor()/set_<name>_binary_sensor()/set_<name>_select()
-// for a standalone (non-flag-byte) entity backed by a single named member pointer.
+// for a standalone (non-flag-byte) entity backed by a single named member pointer. Number entities are
+// always OpenTherm42Number or OpenTherm42SensorFeedNumber in practice, but the member only ever needs
+// the generic number::Number interface (publish_state()/invalidate_entity()), so this deliberately takes
+// the base pointer type rather than either concrete one -- hub.h must stay buildable for configs that
+// don't use any opentherm42 number at all, so it can never include either subclass's header (both
+// include hub.h themselves, for their hub-callback constructor -- same reasoning as TspSlot::number
+// below). See set_write_value()/set_sensor_feed_write_value() for how the hub instead receives values
+// pushed from those constructors, without needing to read anything back off the entity.
 #define OT42_SET_NUMBER(name, member) \
-  void set_##name##_number(OpenTherm42Number *n) { this->member = n; }
-// Same as OT42_SET_NUMBER, but for OpenTherm42SensorFeedNumber entities (see that class): the member
-// only needs the generic number::Number interface (publish_state()/invalidate_entity()), so this takes
-// the base pointer type rather than the concrete one, avoiding a circular include with hub.h (that
-// header includes hub.h for the hub-callback constructor, same reasoning as TspSlot::number below).
-#define OT42_SET_SENSOR_FEED_NUMBER(name, member) \
   void set_##name##_number(number::Number *n) { this->member = n; }
 #define OT42_SET_SENSOR(name, member) \
   void set_##name##_sensor(sensor::Sensor *s) { this->member = s; }
@@ -360,6 +360,14 @@ class OpenTherm42Hub : public Component {
   OT42_SET_NUMBER(control_and_status_information_control_setpoint_2_tsetch2, control_setpoint_2_number_)
   OT42_SET_NUMBER(control_and_status_information_control_setpoint_ventilation_heat_recovery,
                   control_setpoint_ventilation_number_)
+  // Called by every OpenTherm42Number's control()/setup() (every write-capable number except ids
+  // 27/38/78/79 -- see set_sensor_feed_write_value() for those) to push the value that
+  // build_next_request_() should send next for that data-id. Unlike set_sensor_feed_write_value(),
+  // there's no scheduling side effect: every id handled here is already unconditionally in
+  // essential_requests_ from build_schedule_() (each one always has a real value by the time
+  // build_next_request_() can run, thanks to initial_value/flash restore -- see OpenTherm42Number's
+  // class comment), so this just stores the value.
+  void set_write_value(uint8_t id, float value);
 
   // §5.3.1 Class 1, ID 0 LB: Boiler status.
   OT42_FLAG_READ_BIT(control_and_status_information_boiler_status_fault_indication, boiler_status_read_, 0)
@@ -542,11 +550,10 @@ class OpenTherm42Hub : public Component {
   // both directions: control() routes through set_sensor_feed_write_value() to join the essential
   // rotation once a real value exists, and the informational rotation's READ_DATA keeps its displayed
   // .state accurate -- see the RequestKind comment and that class's own comment.
-  OT42_SET_SENSOR_FEED_NUMBER(sensor_and_informational_data_outside_temperature, outside_temperature_number_)
-  OT42_SET_SENSOR_FEED_NUMBER(sensor_and_informational_data_relative_humidity, relative_humidity_number_)
-  OT42_SET_SENSOR_FEED_NUMBER(sensor_and_informational_data_relative_humidity_exhaust_air,
-                              relative_humidity_exhaust_air_number_)
-  OT42_SET_SENSOR_FEED_NUMBER(sensor_and_informational_data_co2_level, co2_level_number_)
+  OT42_SET_NUMBER(sensor_and_informational_data_outside_temperature, outside_temperature_number_)
+  OT42_SET_NUMBER(sensor_and_informational_data_relative_humidity, relative_humidity_number_)
+  OT42_SET_NUMBER(sensor_and_informational_data_relative_humidity_exhaust_air, relative_humidity_exhaust_air_number_)
+  OT42_SET_NUMBER(sensor_and_informational_data_co2_level, co2_level_number_)
   // Called by OpenTherm42SensorFeedNumber::control() (ids 27/38/78/79 only) every time the user
   // commands a new value. The first call for a given id adds its WRITE RequestKind to the essential
   // rotation, since before that there's nothing legitimate to send -- see that class's comment for why
@@ -803,9 +810,13 @@ class OpenTherm42Hub : public Component {
   FlagReadBits fault_flags_read_;
   FlagReadBits ventilation_fault_flags_read_;
 
-  OpenTherm42Number *control_setpoint_number_{nullptr};
-  OpenTherm42Number *control_setpoint_2_number_{nullptr};
-  OpenTherm42Number *control_setpoint_ventilation_number_{nullptr};
+  number::Number *control_setpoint_number_{nullptr};
+  number::Number *control_setpoint_2_number_{nullptr};
+  number::Number *control_setpoint_ventilation_number_{nullptr};
+  // §5.3.1 Class 1, IDs 1/8/71 (write side): see set_write_value()'s declaration comment.
+  float control_setpoint_write_value_{0};
+  float control_setpoint_2_write_value_{0};
+  float control_setpoint_ventilation_write_value_{0};
 
   sensor::Sensor *oem_fault_code_sensor_{nullptr};
   sensor::Sensor *oem_fault_code_ventilation_sensor_{nullptr};
@@ -884,10 +895,15 @@ class OpenTherm42Hub : public Component {
   optional<uint8_t> read_day_of_month_{};
   optional<uint16_t> read_year_{};
 
-  OpenTherm42Number *room_setpoint_number_{nullptr};
-  OpenTherm42Number *room_setpoint_ch2_number_{nullptr};
-  OpenTherm42Number *room_temperature_number_{nullptr};
-  OpenTherm42Number *trch2_number_{nullptr};
+  number::Number *room_setpoint_number_{nullptr};
+  number::Number *room_setpoint_ch2_number_{nullptr};
+  number::Number *room_temperature_number_{nullptr};
+  number::Number *trch2_number_{nullptr};
+  // §5.3.4 Class 4, IDs 16/23/24/37 (write side): see set_write_value()'s declaration comment.
+  float room_setpoint_write_value_{0};
+  float room_setpoint_ch2_write_value_{0};
+  float room_temperature_write_value_{0};
+  float trch2_write_value_{0};
 
   number::Number *outside_temperature_number_{nullptr};
   number::Number *relative_humidity_number_{nullptr};
@@ -964,9 +980,13 @@ class OpenTherm42Hub : public Component {
   sensor::Sensor *max_chsetp_upper_bound_sensor_{nullptr};
   sensor::Sensor *max_chsetp_lower_bound_sensor_{nullptr};
 
-  OpenTherm42Number *dhw_setpoint_number_{nullptr};
-  OpenTherm42Number *max_ch_water_setpoint_number_{nullptr};
-  OpenTherm42Number *nominal_ventilation_value_number_{nullptr};
+  number::Number *dhw_setpoint_number_{nullptr};
+  number::Number *max_ch_water_setpoint_number_{nullptr};
+  number::Number *nominal_ventilation_value_number_{nullptr};
+  // §5.3.5 Class 5, IDs 56/57/87 (write side): see set_write_value()'s declaration comment.
+  float dhw_setpoint_write_value_{0};
+  float max_ch_water_setpoint_write_value_{0};
+  float nominal_ventilation_value_write_value_{0};
 
   // §5.3.6 Class 6 entities.
   sensor::Sensor *number_of_tsps_sensor_{nullptr};
@@ -995,8 +1015,11 @@ class OpenTherm42Hub : public Component {
   size_t pending_fhb_slot_index_{0};
 
   // §5.3.8 Class 8 entities.
-  OpenTherm42Number *cooling_control_signal_number_{nullptr};
-  OpenTherm42Number *max_rel_mod_level_setting_number_{nullptr};
+  number::Number *cooling_control_signal_number_{nullptr};
+  number::Number *max_rel_mod_level_setting_number_{nullptr};
+  // §5.3.8.1/§5.3.8.2 Class 8, IDs 7/14 (write side): see set_write_value()'s declaration comment.
+  float cooling_control_signal_write_value_{0};
+  float max_rel_mod_level_setting_write_value_{0};
   sensor::Sensor *maximum_boiler_capacity_sensor_{nullptr};
   sensor::Sensor *minimum_modulation_level_sensor_{nullptr};
   sensor::Sensor *remote_override_room_setpoint_sensor_{nullptr};

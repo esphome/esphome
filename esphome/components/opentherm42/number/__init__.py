@@ -75,37 +75,44 @@ def _number_schema(
 # integration's main purpose -- telling the boiler/ventilation/cooling plant what to do right now.
 # It's set to CONFIG for values that either (a) forward this master's own external sensor reading
 # into the boiler's control loop rather than expressing a demand, or (b) are installation-time
-# limits/tuning parameters that aren't part of day-to-day operation.
-TYPES: dict[str, tuple[cv.Schema, dict]] = {
+# limits/tuning parameters that aren't part of day-to-day operation. Keyed by marker -> (schema,
+# number.new_number traits, OpenTherm data-id -- OpenTherm42Number's constructor needs it to route
+# control()'s value to the right internal field on the hub, see hub.h's set_write_value()).
+TYPES: dict[str, tuple[cv.Schema, dict, int]] = {
     # §5.3.1 Class 1, ID 1: Control Setpoint, i.e. CH water temperature setpoint (degrees C, 0..100).
     # The CHenable bit (see switch platform) has priority: the boiler must ignore this value while
     # CH is disabled.
     CONF_CONTROL_AND_STATUS_INFORMATION_CONTROL_SETPOINT: (
         _number_schema("°C", 0, 100, device_class=DEVICE_CLASS_TEMPERATURE),
         {"min_value": 0, "max_value": 100, "step": 0.1},
+        1,
     ),
     # §5.3.1 Class 1, ID 8: Control Setpoint 2 (TsetCH2), i.e. setpoint for the 2nd CH circuit
     # (degrees C, 0..100).
     CONF_CONTROL_AND_STATUS_INFORMATION_CONTROL_SETPOINT_2_TSETCH2: (
         _number_schema("°C", 0, 100, device_class=DEVICE_CLASS_TEMPERATURE),
         {"min_value": 0, "max_value": 100, "step": 0.1},
+        8,
     ),
     # §5.3.1 Class 1, ID 71 LB: Control Setpoint ventilation/heat-recovery. Relative ventilation
     # position (0-100%): 0% is the minimum set ventilation, 100% is the maximum set ventilation.
     CONF_CONTROL_AND_STATUS_INFORMATION_CONTROL_SETPOINT_VENTILATION_HEAT_RECOVERY: (
         _number_schema("%", 0, 100),
         {"min_value": 0, "max_value": 100, "step": 1},
+        71,
     ),
     # §5.3.4 Class 4, ID 16: Room Setpoint -- current room temperature setpoint (degrees C, -40..127).
     CONF_SENSOR_AND_INFORMATIONAL_DATA_ROOM_SETPOINT: (
         _number_schema("°C", -40, 127, device_class=DEVICE_CLASS_TEMPERATURE),
         {"min_value": -40, "max_value": 127, "step": 0.1},
+        16,
     ),
     # §5.3.4 Class 4, ID 23: Room Setpoint CH2 -- current room setpoint for the 2nd CH circuit
     # (degrees C, -40..127).
     CONF_SENSOR_AND_INFORMATIONAL_DATA_ROOM_SETPOINT_CH2: (
         _number_schema("°C", -40, 127, device_class=DEVICE_CLASS_TEMPERATURE),
         {"min_value": -40, "max_value": 127, "step": 0.1},
+        23,
     ),
     # §5.3.4 Class 4, ID 24: Room temperature -- this master's own sensed room temperature
     # (degrees C, -40..127), pushed to the boiler. A sensor-value feed rather than a demand, so
@@ -119,6 +126,7 @@ TYPES: dict[str, tuple[cv.Schema, dict]] = {
             entity_category=ENTITY_CATEGORY_CONFIG,
         ),
         {"min_value": -40, "max_value": 127, "step": 0.1},
+        24,
     ),
     # §5.3.4 Class 4, ID 37: TrCH2 -- room temperature for the 2nd CH circuit (degrees C, -40..127),
     # same sensor-value-feed nature as ID 24 above.
@@ -131,6 +139,7 @@ TYPES: dict[str, tuple[cv.Schema, dict]] = {
             entity_category=ENTITY_CATEGORY_CONFIG,
         ),
         {"min_value": -40, "max_value": 127, "step": 0.1},
+        37,
     ),
     # §5.3.5 Class 5, ID 56: DHW Setpoint -- domestic hot water temperature setpoint (degrees C,
     # 0..127). A single number entity serves both directions -- see hub.h's RequestKind comment for
@@ -138,6 +147,7 @@ TYPES: dict[str, tuple[cv.Schema, dict]] = {
     CONF_PRE_DEFINED_REMOTE_BOILER_PARAMETERS_DHW_SETPOINT: (
         _number_schema("°C", 0, 127, device_class=DEVICE_CLASS_TEMPERATURE),
         {"min_value": 0, "max_value": 127, "step": 0.1},
+        56,
     ),
     # §5.3.5 Class 5, ID 57: max CH water Setpoint -- maximum allowable CH water Setpoint (degrees C,
     # 0..127). Same read/write sharing as ID 56 above. An installation-time ceiling on ID 1's Control
@@ -151,6 +161,7 @@ TYPES: dict[str, tuple[cv.Schema, dict]] = {
             entity_category=ENTITY_CATEGORY_CONFIG,
         ),
         {"min_value": 0, "max_value": 127, "step": 0.1},
+        57,
     ),
     # §5.3.5 Class 5, ID 87 HB: Nominal ventilation value -- nominal relative value for ventilation
     # (0-100%), i.e. the value for the mid position in case of a 3-speed ventilation system. Same
@@ -159,11 +170,13 @@ TYPES: dict[str, tuple[cv.Schema, dict]] = {
     CONF_PRE_DEFINED_REMOTE_BOILER_PARAMETERS_NOMINAL_VENTILATION_VALUE: (
         _number_schema("%", 0, 100, entity_category=ENTITY_CATEGORY_CONFIG),
         {"min_value": 0, "max_value": 100, "step": 1},
+        87,
     ),
     # §5.3.8.1 Class 8, ID 7: Cooling control signal -- signal for the cooling plant (0..100%).
     CONF_CONTROL_OF_SPECIAL_APPLICATIONS_COOLING_CONTROL_SIGNAL: (
         _number_schema("%", 0, 100),
         {"min_value": 0, "max_value": 100, "step": 1},
+        7,
     ),
     # §5.3.8.2 Class 8, ID 14: Maximum relative modulation level setting, for sequencer and
     # off-low&pump control applications (0..100%). An advanced, installation-specific tuning
@@ -171,6 +184,7 @@ TYPES: dict[str, tuple[cv.Schema, dict]] = {
     CONF_CONTROL_OF_SPECIAL_APPLICATIONS_MAXIMUM_RELATIVE_MODULATION_LEVEL_SETTING: (
         _number_schema("%", 0, 100, entity_category=ENTITY_CATEGORY_CONFIG),
         {"min_value": 0, "max_value": 100, "step": 1},
+        14,
     ),
 }
 
@@ -252,7 +266,7 @@ CONFIG_SCHEMA = cv.Schema(
         cv.GenerateID(CONF_OPENTHERM42_ID): cv.use_id(OpenTherm42Hub),
         **{
             cv.Optional(marker): schema.extend(cv.COMPONENT_SCHEMA)
-            for marker, (schema, _traits) in TYPES.items()
+            for marker, (schema, _traits, _id) in TYPES.items()
         },
         **{
             cv.Optional(marker): schema.extend(cv.COMPONENT_SCHEMA)
@@ -268,9 +282,9 @@ CONFIG_SCHEMA = cv.Schema(
 
 async def to_code(config: dict) -> None:
     hub = await cg.get_variable(config[CONF_OPENTHERM42_ID])
-    for marker, (_schema, traits) in TYPES.items():
+    for marker, (_schema, traits, data_id) in TYPES.items():
         if (marker_config := config.get(marker)) is not None:
-            var = await number.new_number(marker_config, **traits)
+            var = await number.new_number(marker_config, hub, data_id, **traits)
             await cg.register_component(var, marker_config)
             cg.add(var.set_initial_value(marker_config[CONF_INITIAL_VALUE]))
             cg.add(getattr(hub, f"set_{marker}_number")(var))
