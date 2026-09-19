@@ -98,9 +98,13 @@ def test_a_comment_needs_whitespace_and_a_scalar_is_not_empty() -> None:
     assert field_line_re("key", "abc#def").match("key: abc#def") is not None
 
 
-def test_source_of_is_none_for_a_value_validation_added() -> None:
-    """Only a key read from a file carries a range."""
+def test_source_of_is_none_for_a_value_validation_added(tmp_path: Path) -> None:
+    """Only a key read from a file carries a range, and only a mapping read
+    from a file can place its keys; a mapping built in code cannot."""
     assert source_of({"name": "kitchen"}, "name") is None
+    _setup(tmp_path, YAML)
+    loaded_key = next(iter(CORE.raw_config[CONF_ESPHOME]))
+    assert source_of({loaded_key: "kitchen"}, CONF_NAME) is None
 
 
 def test_source_of_is_none_for_a_merged_key(tmp_path: Path) -> None:
@@ -145,13 +149,28 @@ def test_write_keeps_the_mode_of_the_file_or_another(tmp_path: Path) -> None:
     assert other.stat().st_mode & 0o777 == 0o600
 
 
-def test_mode_failure_is_reported(tmp_path: Path) -> None:
+def test_write_failures_say_which_step_and_why(tmp_path: Path) -> None:
+    """A missing mode source, a write that fails, and a mode that cannot be
+    put back after the write are three different situations."""
     from unittest.mock import patch
 
     path = _setup(tmp_path, YAML)
+    with pytest.raises(EsphomeError, match="Could not read the mode of .*gone.yaml"):
+        write_keeping_mode(path, YAML, like=tmp_path / "gone.yaml")
     with (
         patch("pathlib.Path.chmod", side_effect=OSError("denied")),
-        pytest.raises(EsphomeError, match="Could not keep the mode"),
+        pytest.raises(
+            EsphomeError, match="was written but could not get its mode back: denied"
+        ),
+    ):
+        write_keeping_mode(path, YAML)
+
+    def refuse(*_args: object, **_kwargs: object) -> None:
+        raise EsphomeError(f"Could not write file at {path}") from OSError("disk full")
+
+    with (
+        patch("esphome.yaml_edit.write_file", side_effect=refuse),
+        pytest.raises(EsphomeError, match="Could not write file at .*: disk full"),
     ):
         write_keeping_mode(path, YAML)
 
