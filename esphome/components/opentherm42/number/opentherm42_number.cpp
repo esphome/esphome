@@ -5,6 +5,8 @@ namespace esphome::opentherm42 {
 static const char *const TAG = "opentherm42.number";
 
 void OpenTherm42Number::control(float value) {
+  // TEMPORARY debug instrumentation -- see hub.h's log_outgoing_frame_() declaration comment.
+  ESP_LOGD(TAG, "'%s' commanded to %.2f", this->get_name().c_str(), value);
   this->publish_state(value);
   this->pref_.save(&value);
 }

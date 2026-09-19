@@ -741,6 +741,14 @@ class OpenTherm42Hub : public Component {
   // handle_response_()/invalidate_response_() it has no message-type context of its own to name the
   // failed conversation by.
   void describe_request_kind_(RequestKind kind, char *buf, size_t buf_len) const;
+  // TEMPORARY debug instrumentation for investigating the write-value/echo issue described in
+  // hub.cpp -- logs every outgoing frame build_next_request_() produces (one call site per
+  // early-return branch plus the main switch's tail) and every incoming frame handle_response_()
+  // receives, in each case naming the RequestKind (via describe_request_kind_() above), the
+  // message type (via message_type_to_string()), and the raw id/HB/LB bytes -- exactly what's
+  // needed to cross-check the wire communication against what the spec requires, before deciding
+  // on a fix. Remove once the investigation concludes.
+  void log_outgoing_frame_(const Frame &frame) const;
   // Looks up a single-value, non-bit-decomposed read-only sensor's data-id/sensor pointer/log name --
   // the fallback every class after Class 1 dispatches "plain" reads through. Returns nullptr for kinds
   // with bespoke handling (bit-decomposed, write-only, dual-mode, ...).

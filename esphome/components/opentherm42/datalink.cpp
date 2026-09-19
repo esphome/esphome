@@ -28,6 +28,20 @@ const char *data_link_error_to_string(DataLinkError error) {
   }
 }
 
+const char *message_type_to_string(MessageType type) {
+  switch (type) {
+    TO_STRING_CASE(MessageType::READ_DATA)
+    TO_STRING_CASE(MessageType::WRITE_DATA)
+    TO_STRING_CASE(MessageType::INVALID_DATA)
+    TO_STRING_CASE(MessageType::READ_ACK)
+    TO_STRING_CASE(MessageType::WRITE_ACK)
+    TO_STRING_CASE(MessageType::DATA_INVALID)
+    TO_STRING_CASE(MessageType::UNKNOWN_DATA_ID)
+    default:
+      return "<INVALID>";
+  }
+}
+
 const char *timer_error_to_string(TimerError error) {
   switch (error) {
     TO_STRING_CASE(TimerError::TIMER_ERROR_NONE)

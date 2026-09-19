@@ -40,6 +40,8 @@ enum class MessageType : uint8_t {
   UNKNOWN_DATA_ID = 0b111,
 };
 
+const char *message_type_to_string(MessageType type);
+
 // Every way a frame can fail to be usable, at the bit level (§3.3.3, §4.2.1) or the conversation level
 // (§4.3.1, §4.5). One enum so every caller reports failures the same way instead of inventing ad hoc
 // error strings -- see error_to_string() below.

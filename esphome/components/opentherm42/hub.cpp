@@ -497,6 +497,7 @@ Frame OpenTherm42Hub::build_next_request_() {
     frame.type = static_cast<uint8_t>(MessageType::WRITE_DATA);
     frame.id = 4;
     frame.value_hb = this->remote_request_code_;
+    this->log_outgoing_frame_(frame);
     return frame;
   }
   if (this->tsp_write_pending_) {
@@ -510,6 +511,7 @@ Frame OpenTherm42Hub::build_next_request_() {
     frame.id = slot.data_id;
     frame.value_hb = slot.index;
     frame.value_lb = this->tsp_write_value_;
+    this->log_outgoing_frame_(frame);
     return frame;
   }
   if (this->manual_dhw_push2_pending_) {
@@ -522,6 +524,7 @@ Frame OpenTherm42Hub::build_next_request_() {
     // override" so this momentary push doesn't also set a persistent mode override.
     frame.value_hb = 0x10;
     frame.value_lb = 0x00;
+    this->log_outgoing_frame_(frame);
     return frame;
   }
   if (this->reset_counter_pending_) {
@@ -533,6 +536,7 @@ Frame OpenTherm42Hub::build_next_request_() {
       frame.type = static_cast<uint8_t>(MessageType::WRITE_DATA);
       frame.id = info->id;
       frame.set_value_u16(0);
+      this->log_outgoing_frame_(frame);
     }
     return frame;
   }
@@ -547,6 +551,7 @@ Frame OpenTherm42Hub::build_next_request_() {
     if (this->time_sync_step_ >= 3) {
       this->time_sync_pending_ = false;
     }
+    this->log_outgoing_frame_(frame);
     return frame;
   }
 
@@ -847,6 +852,7 @@ Frame OpenTherm42Hub::build_next_request_() {
       break;  // info == nullptr only for startup-only kinds, unreachable here
     }
   }
+  this->log_outgoing_frame_(frame);
   return frame;
 }
 
@@ -986,6 +992,13 @@ void OpenTherm42Hub::advance_startup_phase_() {
 
 void OpenTherm42Hub::handle_response_(const Frame &frame) {
   auto const type = static_cast<MessageType>(frame.type);
+  {
+    // See log_outgoing_frame_()'s declaration comment in hub.h -- temporary debug instrumentation.
+    char kind_desc[80];
+    this->describe_request_kind_(this->pending_request_kind_, kind_desc, sizeof(kind_desc));
+    ESP_LOGD(TAG, "RX %s: %s id=%u hb=%u lb=%u", kind_desc, message_type_to_string(type), frame.id, frame.value_hb,
+             frame.value_lb);
+  }
   switch (this->pending_request_kind_) {
     case RequestKind::BOILER_CONFIG:
       if (type != MessageType::READ_ACK) {
@@ -2561,6 +2574,13 @@ void OpenTherm42Hub::describe_request_kind_(RequestKind kind, char *buf, size_t 
   } else {
     snprintf(buf, buf_len, "kind=%u", static_cast<unsigned>(kind));
   }
+}
+
+void OpenTherm42Hub::log_outgoing_frame_(const Frame &frame) const {
+  char kind_desc[80];
+  this->describe_request_kind_(this->pending_request_kind_, kind_desc, sizeof(kind_desc));
+  ESP_LOGD(TAG, "TX %s: %s id=%u hb=%u lb=%u", kind_desc, message_type_to_string(static_cast<MessageType>(frame.type)),
+           frame.id, frame.value_hb, frame.value_lb);
 }
 
 void OpenTherm42Hub::dump_config() {
