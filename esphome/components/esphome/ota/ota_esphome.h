@@ -190,6 +190,7 @@ class ESPHomeOTAComponent final : public ota::OTAComponent {
   uint8_t auth_buf_pos_{0};
   uint8_t auth_type_{0};  // Store auth type to know which hasher to use
 #endif                    // USE_OTA_PASSWORD
+  bool use_sha256_checksum_{false};
 };
 
 }  // namespace esphome

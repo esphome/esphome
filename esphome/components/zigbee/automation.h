@@ -4,7 +4,7 @@
 #ifdef USE_ESP32
 #include "zigbee_esp32.h"
 #endif
-#ifdef USE_NRF52
+#if defined(USE_NRF52) || defined(USE_ZEPHYR_FRAMEWORK_ZIGBEE)
 #include "zigbee_zephyr.h"
 #endif
 namespace esphome::zigbee {

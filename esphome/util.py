@@ -468,6 +468,25 @@ def get_serial_ports() -> list[SerialPort]:
     return result
 
 
+def get_serial_number(port: str) -> str | None:
+    """Look up the USB serial number reported by the device backing a serial port.
+
+    Debug-probe boards (JLink, CMSIS-DAP/DAPLink, Simplicity Commander, ...) expose
+    their probe's serial number as the USB serial descriptor of the CDC-ACM port they
+    enumerate, so this doubles as a stable probe identifier -- useful to disambiguate
+    which physical board to flash when more than one is attached at once.
+
+    Returns None if the port can't be found or reports no serial number (e.g. it isn't
+    backed by a USB device at all).
+    """
+    from serial.tools.list_ports import comports
+
+    for info in comports(include_links=True):
+        if info.device == port:
+            return info.serial_number
+    return None
+
+
 PICOTOOL_PACKAGE = "tool-picotool-rp2040-earlephilhower"
 
 

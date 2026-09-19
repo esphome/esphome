@@ -6,7 +6,12 @@ from esphome.components.noise import (
     new_psk_progmem,
     static_encryption_key,
 )
-from esphome.components.ota import BASE_OTA_SCHEMA, OTAComponent, ota_to_code
+from esphome.components.ota import (
+    BASE_OTA_SCHEMA,
+    SWAP_METHOD_SCHEMA,
+    OTAComponent,
+    ota_to_code,
+)
 from esphome.config_helpers import filter_source_files_from_defines, merge_config
 import esphome.config_validation as cv
 from esphome.const import (
@@ -252,6 +257,17 @@ def _consume_ota_sockets(config: ConfigType) -> ConfigType:
     return config
 
 
+def _validate_swap_method(config: ConfigType) -> ConfigType:
+    # Deferred import: esphome.components.zephyr is a heavy module (git, subprocess,
+    # west/sysbuild handling) that every non-Zephyr platform using platform: esphome
+    # would otherwise import just to build this schema.
+    if not CORE.is_zephyr:
+        return config
+    from esphome.components.zephyr.mcuboot import validate_swap_method
+
+    return validate_swap_method(config)
+
+
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
@@ -266,8 +282,10 @@ CONFIG_SCHEMA = cv.All(
                 ln882x=8820,
                 rtl87xx=8892,
                 host=8082,
+                zephyr=4232,
             ): cv.port,
             cv.Optional(CONF_ALLOW_PARTITION_ACCESS, default=False): cv.boolean,
+            **SWAP_METHOD_SCHEMA,
             cv.Optional(CONF_PASSWORD): cv.sensitive(),
             cv.Optional(CONF_ENCRYPTION): encryption_schema,
             cv.Optional(CONF_NUM_ATTEMPTS): cv.invalid(
@@ -285,6 +303,7 @@ CONFIG_SCHEMA = cv.All(
     .extend(cv.COMPONENT_SCHEMA),
     _validate_no_password_with_encryption,
     _consume_ota_sockets,
+    _validate_swap_method,
 )
 
 FINAL_VALIDATE_SCHEMA = ota_esphome_final_validate
@@ -330,6 +349,11 @@ async def to_code(config: ConfigType) -> None:
 
     # Build flag so lwip_fast_select.c (a .c file that can't include defines.h) sees it.
     cg.add_build_flag("-DUSE_OTA_PLATFORM_ESPHOME")
+
+    if CORE.is_zephyr:
+        from esphome.components.zephyr.mcuboot import apply_swap_method
+
+        apply_swap_method(config)
 
     await cg.register_component(var, config)
     await ota_to_code(var, config)

@@ -1,0 +1,11 @@
+output:
+  - platform: zephyr_pwm
+    id: pwm_output_1
+    # GTIOC1A -- the only two PWM-capable pins on this variant (pwm1's channel A/B).
+    pin: P405
+  - platform: zephyr_pwm
+    id: pwm_output_2
+    # GTIOC1B, same GPT instance/frequency as pwm_output_1.
+    pin:
+      number: P406
+      inverted: true

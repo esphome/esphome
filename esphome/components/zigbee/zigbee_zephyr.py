@@ -2,7 +2,13 @@ import datetime
 import random
 
 import esphome.codegen as cg
-from esphome.components.zephyr import zephyr_add_prj_conf
+from esphome.components.zephyr import (
+    request_zephyr_module,
+    zephyr_add_prj_conf,
+    zephyr_framework_type,
+    zephyr_variant,
+)
+from esphome.components.zephyr.variants import VARIANTS, resolve_sdk
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ID,
@@ -57,45 +63,85 @@ ZigbeeSensor = zigbee_ns.class_("ZigbeeSensor", cg.Component)
 ZigbeeSwitch = zigbee_ns.class_("ZigbeeSwitch", cg.Component)
 ZigbeeNumber = zigbee_ns.class_("ZigbeeNumber", cg.Component)
 
+
+def zigbee_zephyr_supported() -> bool:
+    """True on platform: nrf52, or on platform: zephyr when the active variant has
+    zigbee radio support and the active root SDK actually offers a "zigbee" module.
+    ncs-zigbee (ZBOSS) is Nordic-proprietary; as of NCS 3.4.0 it lives only in the
+    separate ncs-zigbee add-on module, not in plain framework: type: ncs anymore --
+    see variants.NCS_ZIGBEE_TEMPLATE / NCS.modules. A structural check only (resolvable
+    at config_schema() time, before any to_code() has run) -- not "was the module
+    already requested," since this is called from config validators that run first.
+    """
+    if "nrf52" in CORE.loaded_integrations:
+        return True
+    if not CORE.is_zephyr:
+        return False
+    variant = VARIANTS.get(zephyr_variant())
+    if variant is None or "zigbee" not in variant.transports:
+        return False
+    _, sdk = resolve_sdk(variant, zephyr_framework_type())
+    return "zigbee" in sdk.modules
+
+
+def requires_zigbee_zephyr_supported(value):
+    """Raise a clear error if ZBOSS zigbee isn't usable here -- see zigbee_zephyr_supported()."""
+    if not zigbee_zephyr_supported():
+        raise cv.Invalid(
+            "This option requires platform: nrf52, or platform: zephyr with a "
+            "zigbee-capable variant"
+        )
+    return value
+
+
+# CONF_ZIGBEE_ID and these declare-id keys are left un-defaulted here -- they're
+# defaulted in zigbee/__init__.py's consume_endpoint() instead, once zigbee_zephyr_supported()
+# is known (a plain cv.Schema like this one can't call zigbee_zephyr_supported() itself and
+# still stay dict-extendable for the .extend() chains in zigbee/__init__.py and
+# esphome/components/binary_sensor|sensor|switch|number/__init__.py).
 zephyr_binary_sensor = cv.Schema(
     {
-        cv.OnlyWith(CONF_ZIGBEE_ID, ["nrf52", "zigbee"]): cv.use_id(ZigbeeComponent),
-        cv.OnlyWith(CONF_ZIGBEE_BINARY_SENSOR, ["nrf52", "zigbee"]): cv.declare_id(
-            ZigbeeBinarySensor
-        ),
+        cv.Optional(CONF_ZIGBEE_ID): cv.use_id(ZigbeeComponent),
+        cv.Optional(CONF_ZIGBEE_BINARY_SENSOR): cv.declare_id(ZigbeeBinarySensor),
     }
 )
 
 zephyr_sensor = cv.Schema(
     {
-        cv.OnlyWith(CONF_ZIGBEE_ID, ["nrf52", "zigbee"]): cv.use_id(ZigbeeComponent),
-        cv.OnlyWith(CONF_ZIGBEE_SENSOR, ["nrf52", "zigbee"]): cv.declare_id(
-            ZigbeeSensor
-        ),
+        cv.Optional(CONF_ZIGBEE_ID): cv.use_id(ZigbeeComponent),
+        cv.Optional(CONF_ZIGBEE_SENSOR): cv.declare_id(ZigbeeSensor),
     }
 )
 
 zephyr_switch = cv.Schema(
     {
-        cv.OnlyWith(CONF_ZIGBEE_ID, ["nrf52", "zigbee"]): cv.use_id(ZigbeeComponent),
-        cv.OnlyWith(CONF_ZIGBEE_SWITCH, ["nrf52", "zigbee"]): cv.declare_id(
-            ZigbeeSwitch
-        ),
+        cv.Optional(CONF_ZIGBEE_ID): cv.use_id(ZigbeeComponent),
+        cv.Optional(CONF_ZIGBEE_SWITCH): cv.declare_id(ZigbeeSwitch),
     }
 )
 
 zephyr_number = cv.Schema(
     {
-        cv.OnlyWith(CONF_ZIGBEE_ID, ["nrf52", "zigbee"]): cv.use_id(ZigbeeComponent),
-        cv.OnlyWith(CONF_ZIGBEE_NUMBER, ["nrf52", "zigbee"]): cv.declare_id(
-            ZigbeeNumber
-        ),
+        cv.Optional(CONF_ZIGBEE_ID): cv.use_id(ZigbeeComponent),
+        cv.Optional(CONF_ZIGBEE_NUMBER): cv.declare_id(ZigbeeNumber),
     }
 )
 
 
 async def zephyr_to_code(config: ConfigType) -> "MockObj":
-    zephyr_add_prj_conf("ZIGBEE", True)
+    if CORE.is_zephyr:
+        # zigbee_zephyr_supported() already confirmed the active SDK offers a
+        # "zigbee" module (see there) -- this can't fail.
+        request_zephyr_module("zigbee")
+        cg.add_define("USE_ZEPHYR_FRAMEWORK_ZIGBEE")
+
+    # Top-level Zigbee-stack-enable Kconfig symbol: "ZIGBEE" for platform: nrf52's
+    # legacy inline stack, "ZIGBEE_ADD_ON" for the separate ncs-zigbee module (the
+    # only option on platform: zephyr -- see zigbee_zephyr_supported()).
+    zigbee_enable_symbol = (
+        "ZIGBEE" if "nrf52" in CORE.loaded_integrations else "ZIGBEE_ADD_ON"
+    )
+    zephyr_add_prj_conf(zigbee_enable_symbol, True)
     zephyr_add_prj_conf("ZIGBEE_APP_UTILS", True)
     if config[CONF_ROUTER]:
         zephyr_add_prj_conf("ZIGBEE_ROLE_ROUTER", True)

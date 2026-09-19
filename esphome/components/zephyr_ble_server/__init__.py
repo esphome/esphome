@@ -1,6 +1,7 @@
 from esphome import automation
 import esphome.codegen as cg
-from esphome.components.zephyr import zephyr_add_prj_conf
+from esphome.components.zephyr import zephyr_add_prj_conf, zephyr_variant
+from esphome.components.zephyr.variants import VARIANTS
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, Framework
 from esphome.core import CORE, ID
@@ -13,6 +14,19 @@ BLEServer = zephyr_ble_server_ns.class_("BLEServer", cg.Component)
 CONF_ON_NUMERIC_COMPARISON_REQUEST = "on_numeric_comparison_request"
 CONF_ACCEPT = "accept"
 
+
+def _validate_variant(config):
+    # The standalone `platform: nrf52` target has no `variant`/VARIANTS entry --
+    # BLE is inherent to all its boards, so there's nothing to check.
+    if CORE.is_nrf52:
+        return config
+    variant_name = zephyr_variant()
+    variant = VARIANTS.get(variant_name)
+    if variant is None or "ble" not in variant.transports:
+        raise cv.Invalid(f"ble is not supported on Zephyr variant '{variant_name}'")
+    return config
+
+
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
@@ -23,6 +37,7 @@ CONFIG_SCHEMA = cv.All(
         }
     ).extend(cv.COMPONENT_SCHEMA),
     cv.only_with_framework(Framework.ZEPHYR),
+    _validate_variant,
 )
 
 _CALLBACK_AUTOMATIONS = (
