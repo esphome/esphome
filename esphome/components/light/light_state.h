@@ -44,33 +44,7 @@ class LightTargetStateReachedListener {
   virtual void on_light_target_state_reached() = 0;
 };
 
-enum LightRestoreMode : uint8_t {
-  LIGHT_RESTORE_DEFAULT_OFF,
-  LIGHT_RESTORE_DEFAULT_ON,
-  LIGHT_ALWAYS_OFF,
-  LIGHT_ALWAYS_ON,
-  LIGHT_RESTORE_INVERTED_DEFAULT_OFF,
-  LIGHT_RESTORE_INVERTED_DEFAULT_ON,
-  LIGHT_RESTORE_AND_OFF,
-  LIGHT_RESTORE_AND_ON,
-};
-
 struct LightStateRTCState {
-  LightStateRTCState(ColorMode color_mode, bool state, float brightness, float color_brightness, float red, float green,
-                     float blue, float white, float color_temp, float cold_white, float warm_white)
-      : brightness(brightness),
-        color_brightness(color_brightness),
-        red(red),
-        green(green),
-        blue(blue),
-        white(white),
-        color_temp(color_temp),
-        cold_white(cold_white),
-        warm_white(warm_white),
-        effect(0),
-        color_mode(color_mode),
-        state(state) {}
-  LightStateRTCState() = default;
   // Group 4-byte aligned members first
   float brightness{1.0f};
   float color_brightness{1.0f};
@@ -189,12 +163,14 @@ class LightState : public EntityBase, public Component {
   float gamma_uncorrect_lut(float value) const { return value; }
 #endif  // USE_LIGHT_GAMMA_LUT
 
-  /// Set the restore mode of this light
-  void set_restore_mode(LightRestoreMode restore_mode) { this->restore_mode_ = restore_mode; }
+  /// Set the callback that resolves the boot-time state, called once during setup then
+  /// cleared. `restored` is true only when a persisted state actually loaded, in which
+  /// case the state argument already holds the loaded values; otherwise it is freshly
+  /// default-constructed. Values live in flash as code.
+  void set_state_callback(void (*callback)(LightStateRTCState &, bool restored)) { this->state_callback_ = callback; }
 
-  /// Set a callback to populate the initial state defaults during setup.
-  /// The callback is called once, then cleared. Values live in flash as code.
-  void set_initial_state(void (*callback)(LightStateRTCState &)) { this->initial_state_callback_ = callback; }
+  /// Set whether this light persists its state to preferences at all.
+  void set_save_enabled(bool save_enabled) { this->save_enabled_ = save_enabled; }
 
   /// Return whether the light has any effects that meet the trait requirements.
   bool supports_effects() const { return !this->effects_.empty(); }
@@ -347,9 +323,9 @@ class LightState : public EntityBase, public Component {
    */
   std::unique_ptr<std::vector<LightTargetStateReachedListener *>> target_state_reached_listeners_;
 
-  /// Callback to populate initial state defaults — called once during setup, then cleared.
+  /// Callback that resolves the boot-time state — called once during setup, then cleared.
   /// Values live in flash as function body; no per-instance data storage beyond this pointer.
-  void (*initial_state_callback_)(LightStateRTCState &){nullptr};
+  void (*state_callback_)(LightStateRTCState &, bool restored){nullptr};
 
   /// Value for storing the index of the currently active effect. 0 if no effect is active
   uint32_t active_effect_index_{};
@@ -367,8 +343,8 @@ class LightState : public EntityBase, public Component {
   bool next_write_{true};
   // for effects, true if a transformer (transition) is active.
   bool is_transformer_active_{false};
-  /// Restore mode of the light.
-  LightRestoreMode restore_mode_;
+  /// Whether this light persists its state to preferences at all.
+  bool save_enabled_{false};
 };
 
 }  // namespace esphome::light

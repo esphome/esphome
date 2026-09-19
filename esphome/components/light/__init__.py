@@ -10,20 +10,13 @@ from esphome.components.const import CONF_CHANNEL_COLORS, CONF_IS_WRGB
 from esphome.config_helpers import filter_source_files_from_defines
 import esphome.config_validation as cv
 from esphome.const import (
-    CONF_BLUE,
-    CONF_BRIGHTNESS,
-    CONF_COLD_WHITE,
     CONF_COLD_WHITE_COLOR_TEMPERATURE,
-    CONF_COLOR_BRIGHTNESS,
     CONF_COLOR_CORRECT,
-    CONF_COLOR_MODE,
-    CONF_COLOR_TEMPERATURE,
     CONF_DEFAULT_TRANSITION_LENGTH,
     CONF_EFFECTS,
     CONF_ENTITY_CATEGORY,
     CONF_FLASH_TRANSITION_LENGTH,
     CONF_GAMMA_CORRECT,
-    CONF_GREEN,
     CONF_ICON,
     CONF_ID,
     CONF_INITIAL_STATE,
@@ -35,17 +28,14 @@ from esphome.const import (
     CONF_ON_TURN_ON,
     CONF_OUTPUT_ID,
     CONF_POWER_SUPPLY,
-    CONF_RED,
     CONF_RESTORE_MODE,
+    CONF_RESTORE_STATE,
     CONF_RGB_ORDER,
-    CONF_STATE,
     CONF_TRIGGER_ID,
-    CONF_WARM_WHITE,
     CONF_WARM_WHITE_COLOR_TEMPERATURE,
     CONF_WEB_SERVER,
-    CONF_WHITE,
 )
-from esphome.core import CORE, ID, CoroPriority, HexInt, Lambda, coroutine_with_priority
+from esphome.core import CORE, ID, CoroPriority, HexInt, coroutine_with_priority
 from esphome.core.entity_helpers import (
     entity_duplicate_validator,
     queue_entity_register,
@@ -63,6 +53,17 @@ from .effects import (
     MONOCHROMATIC_EFFECTS,
     RGB_EFFECTS,
     validate_effects,
+)
+from .restore_state import (
+    LEGACY_RESTORE_MODES,
+    RESTORE_STATE_NONE,
+    RESTORE_STATE_SCHEMA,
+    _build_state_lambda,
+    _initial_state_overridden_by_legacy_mode,
+    _initial_state_statements,
+    _legacy_cold_boot_statements,
+    _legacy_restore_statements,
+    _restore_state_statements,
 )
 from .types import (  # noqa: F401
     AddressableLight,
@@ -273,11 +274,29 @@ def migrate_channel_colors(
 
 
 def _final_validate(config: ConfigType) -> None:
-    """Validate all recorded effect name references against their target lights.
+    """Validate every configured light's own resolved config, and all recorded
+    effect name references against their target lights.
 
-    This runs once per light platform instance. If no light platform is configured,
-    this never runs — but the ID validator will catch the missing light ID separately.
+    FINAL_VALIDATE_SCHEMA for a platform-based domain like `light:` runs once for
+    the whole domain, not once per entry -- `config` is the full list of light
+    platform entries across the file, not a single light's own config.
     """
+    for light_config in config:
+        restore_mode = light_config.get(CONF_RESTORE_MODE)
+        if restore_mode is not None:
+            legacy = LEGACY_RESTORE_MODES[restore_mode]
+            if _initial_state_overridden_by_legacy_mode(
+                legacy, light_config.get(CONF_INITIAL_STATE)
+            ):
+                _LOGGER.warning(
+                    "[%s] 'initial_state: state' is ignored because 'restore_mode: %s' "
+                    "always sets the light %s at boot; use 'restore_state:' instead for "
+                    "per-field control",
+                    light_config.get(CONF_NAME) or light_config[CONF_ID],
+                    restore_mode,
+                    "ON" if legacy.cold_boot_state else "OFF",
+                )
+
     data = _get_data()
     if not data.effect_refs and not data.effect_cycle_refs:
         return
@@ -328,18 +347,6 @@ def _final_validate(config: ConfigType) -> None:
 FINAL_VALIDATE_SCHEMA = _final_validate
 
 
-LightRestoreMode = light_ns.enum("LightRestoreMode")
-RESTORE_MODES = {
-    "RESTORE_DEFAULT_OFF": LightRestoreMode.LIGHT_RESTORE_DEFAULT_OFF,
-    "RESTORE_DEFAULT_ON": LightRestoreMode.LIGHT_RESTORE_DEFAULT_ON,
-    "ALWAYS_OFF": LightRestoreMode.LIGHT_ALWAYS_OFF,
-    "ALWAYS_ON": LightRestoreMode.LIGHT_ALWAYS_ON,
-    "RESTORE_INVERTED_DEFAULT_OFF": LightRestoreMode.LIGHT_RESTORE_INVERTED_DEFAULT_OFF,
-    "RESTORE_INVERTED_DEFAULT_ON": LightRestoreMode.LIGHT_RESTORE_INVERTED_DEFAULT_ON,
-    "RESTORE_AND_OFF": LightRestoreMode.LIGHT_RESTORE_AND_OFF,
-    "RESTORE_AND_ON": LightRestoreMode.LIGHT_RESTORE_AND_ON,
-}
-
 # Schema default that also matches the C++ initializer in light_state.h; codegen
 # skips the setter when the config equals it.
 DEFAULT_FLASH_TRANSITION_LENGTH = "0s"
@@ -353,9 +360,10 @@ LIGHT_SCHEMA = (
             cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(
                 mqtt.MQTTJSONLightComponent
             ),
-            cv.Optional(CONF_RESTORE_MODE, default="ALWAYS_OFF"): cv.enum(
-                RESTORE_MODES, upper=True, space="_"
+            cv.Exclusive(CONF_RESTORE_MODE, "restore"): cv.one_of(
+                *LEGACY_RESTORE_MODES, upper=True, space="_"
             ),
+            cv.Exclusive(CONF_RESTORE_STATE, "restore"): RESTORE_STATE_SCHEMA,
             cv.Optional(CONF_ON_TURN_ON): auto.validate_automation(
                 {
                     cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(LightTurnOnTrigger),
@@ -424,6 +432,20 @@ class LightType(enum.IntEnum):
     ADDRESSABLE = 3
 
 
+def _apply_default_restore_mode(
+    default_restore_mode: str,
+) -> Callable[[ConfigType], ConfigType]:
+    # cv.Exclusive has no default, so apply the default here if neither key is configured.
+    def validator(config: ConfigType) -> ConfigType:
+        if CONF_RESTORE_MODE not in config and CONF_RESTORE_STATE not in config:
+            config[CONF_RESTORE_MODE] = cv.one_of(
+                *LEGACY_RESTORE_MODES, upper=True, space="_"
+            )(default_restore_mode)
+        return config
+
+    return validator
+
+
 def light_schema(
     class_: MockObjClass,
     type_: LightType,
@@ -439,25 +461,25 @@ def light_schema(
     for key, default, validator in [
         (CONF_ENTITY_CATEGORY, entity_category, cv.entity_category),
         (CONF_ICON, icon, cv.icon),
-        (
-            CONF_RESTORE_MODE,
-            default_restore_mode,
-            cv.enum(RESTORE_MODES, upper=True, space="_"),
-        ),
     ]:
         if default is not cv.UNDEFINED:
             schema[cv.Optional(key, default=default)] = validator
 
     if type_ == LightType.BINARY:
-        return BINARY_LIGHT_SCHEMA.extend(schema)
-    if type_ == LightType.BRIGHTNESS_ONLY:
-        return BRIGHTNESS_ONLY_LIGHT_SCHEMA.extend(schema)
-    if type_ == LightType.RGB:
-        return RGB_LIGHT_SCHEMA.extend(schema)
-    if type_ == LightType.ADDRESSABLE:
-        return ADDRESSABLE_LIGHT_SCHEMA.extend(schema)
+        base_schema = BINARY_LIGHT_SCHEMA
+    elif type_ == LightType.BRIGHTNESS_ONLY:
+        base_schema = BRIGHTNESS_ONLY_LIGHT_SCHEMA
+    elif type_ == LightType.RGB:
+        base_schema = RGB_LIGHT_SCHEMA
+    elif type_ == LightType.ADDRESSABLE:
+        base_schema = ADDRESSABLE_LIGHT_SCHEMA
+    else:
+        raise ValueError(f"Invalid light type: {type_}")
 
-    raise ValueError(f"Invalid light type: {type_}")
+    result = base_schema.extend(schema)
+    if default_restore_mode is not cv.UNDEFINED:
+        result.add_extra(_apply_default_restore_mode(default_restore_mode))
+    return result
 
 
 def validate_color_temperature_channels(value):
@@ -476,31 +498,43 @@ def validate_color_temperature_channels(value):
 
 @setup_entity("light")
 async def setup_light_core_(light_var, config, output_var):
-    cg.add(light_var.set_restore_mode(config[CONF_RESTORE_MODE]))
+    # All 8 legacy restore_mode values, and the restore_state key, are just different
+    # ways to build the same state callback and save_enabled flag that LightState's
+    # runtime actually understands.
+    initial_state_config = config.get(CONF_INITIAL_STATE)
+    initial_statements = await _initial_state_statements(initial_state_config)
 
-    if (initial_state_config := config.get(CONF_INITIAL_STATE)) is not None:
-        # Emit a stateless lambda that constructs the initial state — values live
-        # in flash as code, not stored in the LightState object (~40 bytes saved).
-        initial_state = LightStateRTCState(
-            initial_state_config.get(CONF_COLOR_MODE, ColorMode.UNKNOWN),
-            initial_state_config.get(CONF_STATE, False),
-            initial_state_config.get(CONF_BRIGHTNESS, 1.0),
-            initial_state_config.get(CONF_COLOR_BRIGHTNESS, 1.0),
-            initial_state_config.get(CONF_RED, 1.0),
-            initial_state_config.get(CONF_GREEN, 1.0),
-            initial_state_config.get(CONF_BLUE, 1.0),
-            initial_state_config.get(CONF_WHITE, 1.0),
-            initial_state_config.get(CONF_COLOR_TEMPERATURE, 1.0),
-            initial_state_config.get(CONF_COLD_WHITE, 1.0),
-            initial_state_config.get(CONF_WARM_WHITE, 1.0),
+    restore_mode = config.get(CONF_RESTORE_MODE)
+    restore_state_config = config.get(CONF_RESTORE_STATE)
+    if restore_state_config == RESTORE_STATE_NONE:
+        # restore_state: none is explicit shorthand for "no restoring at all" --
+        restore_state_config = None
+
+    if restore_mode is not None:
+        legacy = LEGACY_RESTORE_MODES[restore_mode]
+        initial_statements.extend(
+            _legacy_cold_boot_statements(legacy, initial_state_config)
         )
-        args = [(LightStateRTCState.operator("ref"), "s")]
-        lamb = await cg.process_lambda(
-            Lambda(f"s = {initial_state};"),
-            args,
-            return_type=cg.void,
+        restore_statements = _legacy_restore_statements(legacy)
+        save_enabled = legacy.save_enabled
+    elif restore_state_config is not None:
+        restore_statements = await _restore_state_statements(
+            restore_state_config, initial_state_config
         )
-        cg.add(light_var.set_initial_state(lamb))
+        save_enabled = True
+    else:
+        # Neither key configured: no persistence, and no cold-boot forcing either.
+        restore_statements = []
+        save_enabled = False
+
+    if (
+        lamb := await _build_state_lambda(
+            initial_statements, restore_statements, save_enabled
+        )
+    ) is not None:
+        cg.add(light_var.set_state_callback(lamb))
+    if save_enabled:  # matches LightState::save_enabled_'s own default of false
+        cg.add(light_var.set_save_enabled(save_enabled))
 
     if (
         default_transition_length := config.get(CONF_DEFAULT_TRANSITION_LENGTH)
