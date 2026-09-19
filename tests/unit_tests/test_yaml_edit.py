@@ -836,8 +836,9 @@ def test_restore_reports_a_cache_it_could_not_drop(tmp_path: Path) -> None:
 
 
 def test_own_includes_and_similar_names_are_not_shared_users(tmp_path: Path) -> None:
-    """A file this configuration reaches through another include is its own,
-    and `wifi_common.yaml` does not mention `common.yaml`."""
+    """A file this configuration reaches through another include is its own
+    but still a path for other devices, and `wifi_common.yaml` does not
+    mention `common.yaml`."""
     (tmp_path / "common.yaml").write_bytes(f'key: "{OLD_KEY}"\n'.encode())
     (tmp_path / "base.yaml").write_bytes(b"encryption: !include common.yaml\n")
     (tmp_path / "other.yaml").write_bytes(b"api: !include base.yaml\n")
@@ -847,8 +848,12 @@ def test_own_includes_and_similar_names_are_not_shared_users(tmp_path: Path) -> 
         "esphome:\n  name: test\n\napi: !include base.yaml\n\n"
         "ota:\n  - platform: esphome\n    encryption:\n",
     )
+    # other.yaml reaches common.yaml through this configuration's own
+    # base.yaml, so it is a sharer; base.yaml itself and the lookalike are not
     edits = locate_key_edits(OLD_KEY, NEW_KEY)
-    assert [(e.path.name, e.shared_with) for e in edits] == [("common.yaml", [])]
+    assert [(e.path.name, [p.name for p in e.shared_with]) for e in edits] == [
+        ("common.yaml", ["other.yaml"])
+    ]
 
 
 def test_existing_old_secret_used_elsewhere_is_not_overwritten(
@@ -1155,3 +1160,24 @@ def test_rollback_after_a_failed_second_write_leaves_the_untouched_file_alone(
     ):
         apply_key_edits(edits)
     assert "changed since it was written" not in str(info.value)
+
+
+def test_a_commented_out_secret_use_does_not_count(tmp_path: Path) -> None:
+    _setup(
+        tmp_path,
+        SECRET_YAML
+        + "wifi:\n  # password: !secret device_key\n  password: x  # !secret device_key\n",
+        f"device_key: {OLD_KEY}\n",
+    )
+    assert len(locate_key_edits(OLD_KEY, NEW_KEY)) == 1
+
+
+def test_a_directory_include_is_reported_as_unchecked(tmp_path: Path) -> None:
+    """`!include_dir_*` pulls in files by directory, which the name scan
+    cannot follow."""
+    (tmp_path / "other.yaml").write_bytes(b"packages: !include_dir_named packages\n")
+    _setup(tmp_path, SECRET_YAML, f"device_key: {OLD_KEY}\n")
+    edits = locate_key_edits(OLD_KEY, NEW_KEY)
+    assert edits[0].unchecked == [
+        f"{tmp_path.resolve() / 'other.yaml'} includes the directory packages"
+    ]

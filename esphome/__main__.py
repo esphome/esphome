@@ -2351,7 +2351,7 @@ def command_rotate_key(args: ArgsProtocol, config: ConfigType) -> int | None:
                 "the new key with the previous one as old_key, so the next "
                 "install reaches the device whichever key it runs."
                 if uploaded
-                else "The upload did not reach the device; the previous key is put back."
+                else "The upload did not reach the device."
             )
         safe_print("Waiting for the device to come back with the new key...")
         if not espota2.probe_ota_key(network_devices, remote_port, new_key):
