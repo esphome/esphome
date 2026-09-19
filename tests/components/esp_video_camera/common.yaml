@@ -1,0 +1,12 @@
+esp_video_camera:
+  name: Test Camera
+  i2c_id: i2c_bus
+  device: jpeg
+  # A MIPI sensor's resolution is fixed when the firmware is built, so naming
+  # the sensor is what makes any resolution other than the driver's default
+  # reachable. 1600x900 is one of the SC202CS formats; leaving both out (the
+  # "auto" default) is the other path.
+  sensor_model: sc202cs
+  resolution: 1600x900
+  jpeg_quality: 80
+  max_framerate: 10
