@@ -5043,12 +5043,11 @@ def test_command_rename_removes_the_new_file_when_its_mode_cannot_be_set(
     assert "Rename failed" in capfd.readouterr().out
 
 
-def test_command_rename_refuses_a_config_linked_from_outside(
+def test_command_rename_reads_a_config_linked_from_outside(
     tmp_path: Path,
-    capfd: CaptureFixture[str],
     mock_run_external_process: Mock,
 ) -> None:
-    """The file is not the user's to rewrite when it lives elsewhere."""
+    """The source is only read; the new file lands in the config directory."""
     outside = tmp_path / "elsewhere.yaml"
     outside.write_text("esphome:\n  name: oldname\n")
     config_dir = tmp_path / "config"
@@ -5058,9 +5057,31 @@ def test_command_rename_refuses_a_config_linked_from_outside(
     setup_core(tmp_path=config_dir)
     CORE.config_path = config_file
     CORE.config = {CONF_ESPHOME: {CONF_NAME: "oldname"}}
-    assert command_rename(MockArgs(name="newname", dashboard=False), {}) == 1
-    mock_run_external_process.assert_not_called()
-    assert "complex yaml" in capfd.readouterr().out.lower()
+    assert command_rename(MockArgs(name="newname", dashboard=False), {}) == 0
+    assert (config_dir / "newname.yaml").read_text() == 'esphome:\n  name: "newname"\n'
+    assert not config_file.exists()
+    assert outside.exists()
+
+
+def test_command_rename_reports_an_orphan_it_could_not_remove(
+    tmp_path: Path,
+    capfd: CaptureFixture[str],
+    mock_run_external_process: Mock,
+) -> None:
+    """The write failure is the message; a cleanup failure is added to it."""
+    config_file = tmp_path / "oldname.yaml"
+    config_file.write_text("esphome:\n  name: oldname\n")
+    setup_core(tmp_path=tmp_path)
+    CORE.config_path = config_file
+    CORE.config = {CONF_ESPHOME: {CONF_NAME: "oldname"}}
+    with (
+        patch("pathlib.Path.chmod", side_effect=OSError("read-only share")),
+        patch("pathlib.Path.unlink", side_effect=OSError("busy")),
+    ):
+        assert command_rename(MockArgs(name="newname", dashboard=False), {}) == 1
+    out = capfd.readouterr().out
+    assert "Rename failed" in out
+    assert "Could not remove" in out and "newname.yaml" in out
 
 
 def test_command_update_all_path_string_conversion(

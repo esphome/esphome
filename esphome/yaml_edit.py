@@ -9,7 +9,7 @@ from pathlib import Path
 import re
 import stat
 
-from esphome.core import CORE, EsphomeError
+from esphome.core import EsphomeError
 from esphome.helpers import write_file
 from esphome.types import ConfigType
 
@@ -70,31 +70,6 @@ def source_of(mapping: ConfigType, name: str) -> tuple[Path, int] | None:
     if rng is None:
         return None
     return Path(rng.start_mark.document), rng.start_mark.line
-
-
-def editable_file(path: Path) -> Path:
-    """``path`` resolved, so a rewrite lands on a symlink's target; refuses a
-    file outside the configuration directory or under the build data."""
-    resolved = path.resolve()
-    if (
-        not path.is_file()
-        or not resolved.is_relative_to(CORE.config_dir.resolve())
-        or resolved.is_relative_to(CORE.data_dir.resolve())
-    ):
-        raise EsphomeError(
-            f"{path} is not an editable file in the configuration directory"
-        )
-    return resolved
-
-
-def source_line(mapping: ConfigType, name: str) -> tuple[Path, int, str]:
-    """The file, line number and text ``name:`` was read from; refuses a
-    source that was not read from an editable file."""
-    if (source := source_of(mapping, name)) is None:
-        raise EsphomeError(f"'{name}' was not read from a file")
-    doc, line_no = source
-    doc = editable_file(doc)
-    return doc, line_no, line_at(doc, line_no)
 
 
 def write_keeping_mode(path: Path, text: str, like: Path | None = None) -> None:

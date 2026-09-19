@@ -2084,10 +2084,11 @@ def command_rename(args: ArgsProtocol, config: ConfigType) -> int | None:
     from esphome.yaml_edit import (
         LineEdit,
         field_line_re,
+        line_at,
         read_text,
         rewrite,
         rewritten_text,
-        source_line,
+        source_of,
         write_keeping_mode,
     )
 
@@ -2118,12 +2119,15 @@ def command_rename(args: ArgsProtocol, config: ConfigType) -> int | None:
             if not isinstance(mapping, dict) or field not in mapping:
                 raise EsphomeError(f"the substitution '{field}' is not in the file")
             old_name = str(mapping[field])
-        doc, line_no, text = source_line(mapping, field)
-        line_match = field_line_re(field, old_name).match(text)
-        if doc != CORE.config_path.resolve() or line_match is None:
-            raise EsphomeError(
-                f"'{field}' is not a plain value on a line of {CORE.config_path}"
-            )
+        # Only read here; the rewritten text goes to a new file, so the
+        # source may live anywhere the config path points to
+        source = source_of(mapping, field)
+        if source is None or source[0].resolve() != CORE.config_path.resolve():
+            raise EsphomeError(f"'{field}' was not read from {CORE.config_path}")
+        doc, line_no = source
+        text = line_at(doc, line_no)
+        if (line_match := field_line_re(field, old_name).match(text)) is None:
+            raise EsphomeError(f"'{field}' is not a plain value on {doc}:{line_no + 1}")
         # The new value is always quoted, whatever the old line had
         return old_name, LineEdit(
             doc, line_no, text, rewrite(line_match, new_name, '"')
@@ -2186,8 +2190,13 @@ def command_rename(args: ArgsProtocol, config: ConfigType) -> int | None:
             like=CORE.config_path,
         )
     except EsphomeError as err:
-        new_path.unlink(missing_ok=True)
         safe_print(color(AnsiFore.BOLD_RED, f"Rename failed: {err}"))
+        try:
+            new_path.unlink(missing_ok=True)
+        except OSError as unlink_err:
+            safe_print(
+                color(AnsiFore.BOLD_RED, f"Could not remove {new_path}: {unlink_err}")
+            )
         return 1
 
     rc = run_external_process(*ESPHOME_COMMAND, "config", str(new_path))
