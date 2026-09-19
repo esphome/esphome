@@ -314,7 +314,10 @@ def mock_has_mqtt_logging() -> Generator[Mock]:
 @pytest.fixture
 def mock_run_external_process() -> Generator[Mock]:
     """Mock run_external_process for testing."""
-    with patch("esphome.__main__.run_external_process") as mock:
+    with (
+        patch("esphome.__main__.run_external_process") as mock,
+        patch("esphome.cli.rename.run_external_process", mock),
+    ):
         mock.return_value = 0  # Default to success
         yield mock
 
