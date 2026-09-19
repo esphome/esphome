@@ -1244,7 +1244,58 @@ def test_write_failures_say_which_step_and_why(tmp_path: Path) -> None:
         yaml_edit._write_keeping_mode(path, "x")
 
 
-def test_a_mapping_built_in_code_cannot_place_its_keys(tmp_path: Path) -> None:
+def test_a_mapping_built_in_code_places_only_this_configurations_keys(
+    tmp_path: Path,
+) -> None:
+    """merge_config rebuilds a mapping without a range; a key read for this
+    configuration is still placed, one read from elsewhere is not."""
     _setup(tmp_path, API_YAML)
-    loaded_key = next(iter(CORE.raw_config["api"]["encryption"]))
-    assert yaml_edit._source_of({loaded_key: "x"}, "key") is None
+    own_key = next(iter(CORE.raw_config["api"]["encryption"]))
+    assert yaml_edit._source_of({own_key: "x"}, "key") == (CORE.config_path, 5)
+    (tmp_path / "elsewhere.yaml").write_bytes(API_YAML.encode())
+    other = yaml_util.load_yaml(tmp_path / "elsewhere.yaml")
+    other_key = next(iter(other["api"]["encryption"]))
+    assert yaml_edit._source_of({other_key: "x"}, "key") is None
+
+
+def test_key_overridden_on_top_of_a_package_block(tmp_path: Path) -> None:
+    """The device yaml's line wins the merge and is the one rewritten."""
+    from esphome.config_helpers import merge_config
+
+    (tmp_path / "package.yaml").write_bytes(
+        f'api:\n  encryption:\n    key: "{OLDER_KEY}"\n'.encode()
+    )
+    path = _setup(tmp_path, API_YAML)
+    package = yaml_util.load_yaml(tmp_path / "package.yaml")
+    CORE.raw_config = merge_config(package, CORE.raw_config)
+    edits = locate_key_edits(OLD_KEY, NEW_KEY)
+    assert [(e.path, e.line) for e in edits] == [(path, 5)]
+
+
+def test_own_documents_include_a_file_that_only_gives_substitutions(
+    tmp_path: Path,
+) -> None:
+    (tmp_path / "subs.yaml").write_bytes(b"substitutions:\n  x: y\n")
+    _setup(tmp_path, API_YAML + "packages:\n  subs: !include subs.yaml\n")
+    CORE.raw_config = {}  # what is left after substitutions are taken out
+    assert (tmp_path / "subs.yaml").resolve() in yaml_edit._own_documents()
+
+
+def test_a_substituted_include_path_is_reported_as_unchecked(tmp_path: Path) -> None:
+    (tmp_path / "other.yaml").write_bytes(b"packages:\n  base: !include ${common}\n")
+    (tmp_path / "third.yaml").write_bytes(
+        b"packages:\n  base:\n    url: x\n    file: ${pkg}\n"
+    )
+    _setup(tmp_path, SECRET_YAML, f"device_key: {OLD_KEY}\n")
+    edits = locate_key_edits(OLD_KEY, NEW_KEY)
+    assert sorted(edits[0].unchecked) == [
+        f"{tmp_path.resolve() / 'other.yaml'} includes ${{common}} through a substitution",
+        f"{tmp_path.resolve() / 'third.yaml'} includes ${{pkg}} through a substitution",
+    ]
+
+
+def test_another_device_including_the_main_file_is_a_sharer(tmp_path: Path) -> None:
+    (tmp_path / "other.yaml").write_bytes(b"packages:\n  base: !include test.yaml\n")
+    _setup(tmp_path, API_YAML)
+    edits = locate_key_edits(OLD_KEY, NEW_KEY)
+    assert [p.name for p in edits[0].shared_with] == ["other.yaml"]

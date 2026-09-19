@@ -8382,7 +8382,6 @@ def test_command_rotate_key_reports_edit_errors(
         assert command_rotate_key(MockArgs(), CORE.config) == 1
     out = capfd.readouterr().out
     assert "nope" in out
-    # A failed apply may have left files half done; both keys are printed
     # A refusal, or an edit rolled back cleanly, shows no key
     assert ROTATE_NEW_KEY not in out
     assert CORE.config_path.read_text() == ROTATE_API_YAML
