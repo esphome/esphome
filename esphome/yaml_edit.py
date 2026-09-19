@@ -117,7 +117,13 @@ def _own_documents() -> set[Path]:
                 walk(value)
 
     walk(CORE.raw_config or {})
-    return {Path(document).resolve() for document in documents}
+    # A file that only contributed substitutions leaves no node behind; the
+    # tracker also lists a secrets file the loader tried and fell back from.
+    # The configuration loaded once already, so this parse cannot fail on it
+    documents.update(
+        map(str, yaml_util.discover_user_yaml_files(CORE.config_path).files)
+    )
+    return {p.resolve() for d in documents if (p := Path(d)).is_file()}
 
 
 _INDENT_RE = re.compile(r"\s*")
@@ -154,6 +160,10 @@ def _field_line_re(
 
 _COMMENT_RE = re.compile(r"(?:^|\s)#.*$")
 _INCLUDE_DIR_RE = re.compile(r"!include_dir_\w+\s+(?P<dir>[^\s#]+)")
+# An include or package file whose path holds a substitution
+_SUBSTITUTED_INCLUDE_RE = re.compile(
+    r"(?:!include\w*\s+|\bfile:\s*)[\"']?(?P<target>[^\s#\"']*\$[^\s#\"']*)"
+)
 
 
 def _without_comment(text: str) -> str:
@@ -194,7 +204,14 @@ def _source_of(mapping: ConfigType, name: str) -> tuple[Path, int] | None:
     # An included mapping carries the `!include` line of its parent, so only
     # a key in the same document can be placed against the mapping
     if (own := getattr(mapping, "esp_range", None)) is None:
-        return None  # a mapping built in code, its keys are not on its lines
+        # A mapping merge_config rebuilt has no range of its own and keeps
+        # the first mapping's key objects with the last mapping's values, so
+        # the value's range names the line that won; trusted when it came
+        # from this configuration
+        rng = getattr(mapping.get(name), "esp_range", None) or rng
+        if Path(rng.start_mark.document).resolve() not in _own_documents():
+            return None
+        return Path(rng.start_mark.document), rng.start_mark.line
     if (
         rng.start_mark.document == own.start_mark.document
         and not own.start_mark.line <= rng.start_mark.line <= own.end_mark.line
@@ -301,12 +318,13 @@ def _with_sharers(edits: list[KeyEdit]) -> list[KeyEdit]:
     them, since another device may reach the line through one of those. A
     directory include cannot be followed by name and is reported as unread."""
     main = CORE.config_path.resolve()
+    # The main file counts too: another device may include it
     refs = {
         id(edit): _secret_use_re(edit.secret)
         if edit.secret
         else _file_use_re(edit.path.name)
         for edit in edits
-        if not edit.insert_after and (edit.secret or edit.path.resolve() != main)
+        if not edit.insert_after
     }
     if not refs:
         return edits
@@ -315,6 +333,8 @@ def _with_sharers(edits: list[KeyEdit]) -> list[KeyEdit]:
     for path, text in texts:
         if match := _INCLUDE_DIR_RE.search(text):
             skipped.append(f"{path} includes the directory {match['dir']}")
+        if match := _SUBSTITUTED_INCLUDE_RE.search(text):
+            skipped.append(f"{path} includes {match['target']} through a substitution")
     for edit in edits:
         if (ref := refs.get(id(edit))) is None:
             continue
