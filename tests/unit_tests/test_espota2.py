@@ -957,10 +957,10 @@ def test_run_ota_impl_device_error_not_retried(
 def test_run_ota_impl_no_addresses(
     firmware_file: Path, mock_resolve_ip: Mock, mock_sleep: Mock
 ) -> None:
-    """Test run_ota_impl_ fails cleanly when resolution yields no addresses."""
+    """An empty resolution is reported once and fails cleanly."""
     mock_resolve_ip.return_value = []
 
-    result_code, result_host = espota2.run_ota_impl_(
+    result_code, result_host = espota2.run_ota(
         "test.local", 3232, "password", str(firmware_file)
     )
 
