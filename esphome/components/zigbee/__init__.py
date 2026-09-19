@@ -18,6 +18,7 @@ from esphome.core import CORE, CoroPriority, coroutine_with_priority
 from esphome.types import ConfigType
 
 from .const import (
+    CONF_CLUSTER,
     CONF_ENDPOINT,
     CONF_MAX_EP_NUMBER,
     CONF_ON_JOIN,
@@ -43,6 +44,7 @@ from .zigbee_esp32 import (
     final_validate_esp32,
     validate_binary_sensor_esp32,
     validate_sensor_esp32,
+    validate_switch_esp32,
     zigbee_require_vfs_select,
 )
 from .zigbee_zephyr import (
@@ -67,29 +69,58 @@ def _check_report_deprecation(value: str) -> str:
     return value
 
 
-BASE_SCHEMA = cv.Schema(
-    {
-        cv.Optional(CONF_REPORT): cv.All(
-            cv.requires_component("zigbee"),
-            cv.requires_component("esp32"),
-            _check_report_deprecation,
-            cv.enum(REPORT, lower=True),
-        ),
-        cv.Optional(CONF_ENDPOINT): cv.All(
-            cv.requires_component("zigbee"),
-            cv.requires_component("esp32"),
-            cv.int_range(1, CONF_MAX_EP_NUMBER),
-        ),
-        cv.Optional(CONF_USE_DEVICE_TYPE): cv.All(
-            cv.requires_component("zigbee"),
-            cv.requires_component("esp32"),
-            cv.boolean,
-        ),
-    }
+def _get_base_schema(cluster_options: list[str] | None = None) -> cv.Schema:
+    schema = cv.Schema(
+        {
+            cv.Optional(CONF_REPORT): cv.All(
+                cv.requires_component("zigbee"),
+                cv.requires_component("esp32"),
+                _check_report_deprecation,
+                cv.enum(REPORT, lower=True),
+            ),
+            cv.Optional(CONF_ENDPOINT): cv.All(
+                cv.requires_component("zigbee"),
+                cv.requires_component("esp32"),
+                cv.int_range(1, CONF_MAX_EP_NUMBER),
+            ),
+            cv.Optional(CONF_USE_DEVICE_TYPE): cv.All(
+                cv.requires_component("zigbee"),
+                cv.requires_component("esp32"),
+                cv.boolean,
+            ),
+        }
+    )
+    if cluster_options:
+        schema = cv.Schema(
+            {
+                cv.OnlyWith(
+                    CONF_CLUSTER, ["esp32", "zigbee"], default=cluster_options[0]
+                ): cv.All(
+                    cv.requires_component("zigbee"),
+                    cv.requires_component("esp32"),
+                    cv.one_of(*cluster_options, lower=True),
+                ),
+            }
+        ).extend(schema)
+    return schema
+
+
+# set BASE_SCHEMA for CI and backwards compatibility
+BASE_SCHEMA = _get_base_schema()
+
+BINARY_SENSOR_SCHEMA = (
+    cv.Schema({})
+    .extend(_get_base_schema(["generic", "device_class"]))
+    .extend(zephyr_binary_sensor)
 )
-BINARY_SENSOR_SCHEMA = cv.Schema({}).extend(BASE_SCHEMA).extend(zephyr_binary_sensor)
-SENSOR_SCHEMA = cv.Schema({}).extend(BASE_SCHEMA).extend(zephyr_sensor)
-SWITCH_SCHEMA = cv.Schema({}).extend(zephyr_switch)
+SENSOR_SCHEMA = (
+    cv.Schema({})
+    .extend(_get_base_schema(["generic", "device_class"]))
+    .extend(zephyr_sensor)
+)
+SWITCH_SCHEMA = (
+    cv.Schema({}).extend(_get_base_schema(["generic", "on_off"])).extend(zephyr_switch)
+)
 NUMBER_SCHEMA = cv.Schema({}).extend(zephyr_number)
 
 
@@ -197,30 +228,39 @@ async def to_code(config: ConfigType) -> None:
 
 
 async def setup_binary_sensor(entity: cg.MockObj, config: ConfigType) -> None:
-    if not config.get(CONF_ZIGBEE_ID) or config.get(CONF_INTERNAL):
+    if "zigbee" not in CORE.loaded_integrations or config.get(CONF_INTERNAL):
         return
     if CORE.using_zephyr:
-        from .zigbee_zephyr import zephyr_setup_binary_sensor
-
-        await zephyr_setup_binary_sensor(entity, config)
+        if not config.get(CONF_ZIGBEE_ID):
+            return
+        from .zigbee_zephyr import add_binary_sensor
+    else:
+        from .zigbee_esp32 import add_component as add_binary_sensor
+    CORE.add_job(add_binary_sensor, entity, config)
 
 
 async def setup_sensor(entity: cg.MockObj, config: ConfigType) -> None:
-    if not config.get(CONF_ZIGBEE_ID) or config.get(CONF_INTERNAL):
+    if "zigbee" not in CORE.loaded_integrations or config.get(CONF_INTERNAL):
         return
     if CORE.using_zephyr:
-        from .zigbee_zephyr import zephyr_setup_sensor
-
-        await zephyr_setup_sensor(entity, config)
+        if not config.get(CONF_ZIGBEE_ID):
+            return
+        from .zigbee_zephyr import add_sensor
+    else:
+        from .zigbee_esp32 import add_component as add_sensor
+    CORE.add_job(add_sensor, entity, config)
 
 
 async def setup_switch(entity: cg.MockObj, config: ConfigType) -> None:
-    if not config.get(CONF_ZIGBEE_ID) or config.get(CONF_INTERNAL):
+    if "zigbee" not in CORE.loaded_integrations or config.get(CONF_INTERNAL):
         return
     if CORE.using_zephyr:
-        from .zigbee_zephyr import zephyr_setup_switch
-
-        await zephyr_setup_switch(entity, config)
+        if not config.get(CONF_ZIGBEE_ID):
+            return
+        from .zigbee_zephyr import add_switch
+    else:
+        from .zigbee_esp32 import add_component as add_switch
+    CORE.add_job(add_switch, entity, config)
 
 
 async def setup_number(
@@ -273,7 +313,7 @@ def validate_switch(config: ConfigType) -> ConfigType:
     if "zigbee" not in CORE.loaded_integrations or config.get(CONF_INTERNAL):
         return config
     if CORE.is_esp32:
-        return config
+        return validate_switch_esp32(config)
     return consume_endpoint(config)
 
 
