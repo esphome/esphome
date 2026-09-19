@@ -1927,11 +1927,16 @@ void OpenTherm42Hub::publish_date_time_text_() {
   if (this->date_time_text_sensor_ == nullptr) {
     return;
   }
-  char year_buf[5];
-  char month_buf[3];
-  char day_buf[3];
-  char hour_buf[3];
-  char minute_buf[3];
+  // Sized for each field's full C++ type width (uint16_t/uint8_t), not just the in-spec range
+  // (0..9999/0..99): read_year_/read_month_/read_day_of_month_/read_hour_/read_minute_ are set
+  // directly from unvalidated wire bytes, so a non-compliant boiler could in principle send a
+  // value outside the spec's documented range -- snprintf() itself can't overflow regardless, but
+  // sizing for the type's true worst case avoids ever truncating a legitimately out-of-range value.
+  char year_buf[6];    // "65535" + '\0'
+  char month_buf[4];   // "255" + '\0'
+  char day_buf[4];     // "255" + '\0'
+  char hour_buf[4];    // "255" + '\0'
+  char minute_buf[4];  // "255" + '\0'
   if (this->read_year_.has_value()) {
     snprintf(year_buf, sizeof(year_buf), "%04u", *this->read_year_);
   } else {

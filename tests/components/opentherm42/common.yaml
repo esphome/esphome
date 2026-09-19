@@ -435,7 +435,7 @@ text_sensor:
     # §5.3.4 Class 4, IDs 20/21/22: the boiler's own reported Day-of-week/Time, Date and Year --
     # independent of time_id above (that's the write side).
     sensor_and_informational_data_date_time:
-      name: "Sensor and Informational Data: Date/time"
+      name: "Sensor and Informational Data: Date and time"
 
 select:
   - platform: opentherm42
