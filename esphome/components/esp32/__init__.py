@@ -2792,11 +2792,8 @@ async def to_code(config):
             config.get(CONF_ENGINEERING_SAMPLE, False),
         )
 
-    # ESP32-C2: ESP-IDF defaults to the ROM's newlib "nano" printf, which only
-    # understands the h/l/L length modifiers. %zu and %lld mis-parse and shift
-    # the argument list, so any following %s dereferences an integer and
-    # crashes. Link the full newlib formatter instead (~12KB flash).
-    # The option was renamed in IDF 5.5.
+    # ESP32-C2 defaults to the ROM's newlib "nano" printf, which does not
+    # understand %zu or %lld and crashes on any %s that follows one.
     if variant == VARIANT_ESP32C2:
         nano_format = (
             "CONFIG_LIBC_NEWLIB_NANO_FORMAT"
