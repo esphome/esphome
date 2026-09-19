@@ -14,13 +14,16 @@ namespace esphome::opentherm42 {
 // a corrupt/missing preference -- see CLAUDE.md's write-only-entity rule: the master must be guaranteed
 // to display the value it last successfully wrote to the boiler, not silently revert to a fixed default.
 //
-// .state (inherited from number::Number) is what's *displayed*. For ids with no read-back (no
-// corresponding READ-DATA data-id defined by the spec), it's republished from whatever the boiler's
-// WRITE-ACK most recently echoed back (see hub.cpp's handle_response_()), per §4.4.2/§5.1's convention
-// that the echo reflects what was actually accepted (the boiler may have clamped it) -- though real
-// hardware has been observed not honoring this convention for at least one id, which is why ids with a
-// real READ-DATA counterpart instead update .state from that read, never from the WRITE-ACK (see hub.h's
-// RequestKind::DHW_SETPOINT_READ-style comments).
+// .state (inherited from number::Number) is what's *displayed*: it's set exactly twice -- optimistically
+// in control()/setup(), and on an explicit rejection (DATA_INVALID/UNKNOWN_DATA_ID), which invalidates it
+// back to Unknown (see hub.cpp's handle_response_()). A successful WRITE-ACK never touches it: §4.4.2's
+// convention is that the echoed value reflects what the boiler actually accepted (it may have clamped
+// it), but real hardware has been observed acking with an echo of 0 (or some other unrelated value)
+// regardless of what was actually written, on more than one id -- trusting it produced a phantom "reverts
+// to 0" display bug with no correlation to what the boiler is actually doing. Since these ids have no
+// READ-DATA counterpart to independently verify against (see OpenTherm42SensorFeedNumber and the
+// RequestKind::DHW_SETPOINT-style comments in hub.h for ids that do), there's no trustworthy alternative
+// source of truth -- the last commanded value is the best available approximation.
 //
 // What's *sent* is a completely separate concern, deliberately not stored here: every control()/setup()
 // value gets pushed straight to the hub via set_write_value(id, ...), which build_next_request_() reads

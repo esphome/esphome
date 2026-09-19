@@ -1102,30 +1102,27 @@ void OpenTherm42Hub::handle_response_(const Frame &frame) {
       return;
 
     case RequestKind::CONTROL_SETPOINT:
+      // WRITE-ACK's echoed value is not trusted for display -- real hardware has been observed
+      // acking a write while echoing 0 (or some other unrelated value) regardless of what was
+      // actually accepted (see hub.h's RequestKind::OUTSIDE_TEMPERATURE comment for the same
+      // observation on a paired-READ id). Since this id has no READ counterpart to self-correct from,
+      // the display simply stays at whatever was last commanded (see OpenTherm42Number::control())
+      // or restored at boot, and only an explicit rejection below ever changes it.
       if (type != MessageType::WRITE_ACK) {
         ESP_LOGE(TAG, "Control setpoint (id=1) write was rejected (message type %u)", frame.type);
         if (this->control_setpoint_number_ != nullptr) {
           invalidate_entity(this->control_setpoint_number_);
         }
-        return;
-      }
-      // §4.4.2/§5.1: WRITE-ACK echoes the value the boiler actually accepted -- always trust that
-      // over whatever was requested, in case the boiler clamped or otherwise modified it.
-      if (this->control_setpoint_number_ != nullptr) {
-        this->control_setpoint_number_->publish_state(frame.value_f88());
       }
       return;
 
     case RequestKind::CONTROL_SETPOINT_2:
+      // See CONTROL_SETPOINT above: WRITE-ACK's echo is not trusted for display.
       if (type != MessageType::WRITE_ACK) {
         ESP_LOGE(TAG, "Control setpoint 2 (id=8) write was rejected (message type %u)", frame.type);
         if (this->control_setpoint_2_number_ != nullptr) {
           invalidate_entity(this->control_setpoint_2_number_);
         }
-        return;
-      }
-      if (this->control_setpoint_2_number_ != nullptr) {
-        this->control_setpoint_2_number_->publish_state(frame.value_f88());
       }
       return;
 
@@ -1144,16 +1141,13 @@ void OpenTherm42Hub::handle_response_(const Frame &frame) {
       return;
 
     case RequestKind::CONTROL_SETPOINT_VENTILATION:
+      // See CONTROL_SETPOINT above: WRITE-ACK's echo is not trusted for display.
       if (type != MessageType::WRITE_ACK) {
         ESP_LOGE(TAG, "Control setpoint ventilation/heat-recovery (id=71) write was rejected (message type %u)",
                  frame.type);
         if (this->control_setpoint_ventilation_number_ != nullptr) {
           invalidate_entity(this->control_setpoint_ventilation_number_);
         }
-        return;
-      }
-      if (this->control_setpoint_ventilation_number_ != nullptr) {
-        this->control_setpoint_ventilation_number_->publish_state(frame.value_lb);
       }
       return;
 
@@ -1386,54 +1380,42 @@ void OpenTherm42Hub::handle_response_(const Frame &frame) {
       return;
 
     case RequestKind::ROOM_SETPOINT:
+      // See CONTROL_SETPOINT's comment above: WRITE-ACK's echo is not trusted for display.
       if (type != MessageType::WRITE_ACK) {
         ESP_LOGE(TAG, "Room Setpoint (id=16) write was rejected (message type %u)", frame.type);
         if (this->room_setpoint_number_ != nullptr) {
           invalidate_entity(this->room_setpoint_number_);
         }
-        return;
-      }
-      if (this->room_setpoint_number_ != nullptr) {
-        this->room_setpoint_number_->publish_state(frame.value_f88());
       }
       return;
 
     case RequestKind::ROOM_SETPOINT_CH2:
+      // See CONTROL_SETPOINT's comment above: WRITE-ACK's echo is not trusted for display.
       if (type != MessageType::WRITE_ACK) {
         ESP_LOGE(TAG, "Room Setpoint CH2 (id=23) write was rejected (message type %u)", frame.type);
         if (this->room_setpoint_ch2_number_ != nullptr) {
           invalidate_entity(this->room_setpoint_ch2_number_);
         }
-        return;
-      }
-      if (this->room_setpoint_ch2_number_ != nullptr) {
-        this->room_setpoint_ch2_number_->publish_state(frame.value_f88());
       }
       return;
 
     case RequestKind::ROOM_TEMPERATURE:
+      // See CONTROL_SETPOINT's comment above: WRITE-ACK's echo is not trusted for display.
       if (type != MessageType::WRITE_ACK) {
         ESP_LOGE(TAG, "Room temperature (id=24) write was rejected (message type %u)", frame.type);
         if (this->room_temperature_number_ != nullptr) {
           invalidate_entity(this->room_temperature_number_);
         }
-        return;
-      }
-      if (this->room_temperature_number_ != nullptr) {
-        this->room_temperature_number_->publish_state(frame.value_f88());
       }
       return;
 
     case RequestKind::TRCH2:
+      // See CONTROL_SETPOINT's comment above: WRITE-ACK's echo is not trusted for display.
       if (type != MessageType::WRITE_ACK) {
         ESP_LOGE(TAG, "TrCH2 (id=37) write was rejected (message type %u)", frame.type);
         if (this->trch2_number_ != nullptr) {
           invalidate_entity(this->trch2_number_);
         }
-        return;
-      }
-      if (this->trch2_number_ != nullptr) {
-        this->trch2_number_->publish_state(frame.value_f88());
       }
       return;
 
@@ -1785,29 +1767,23 @@ void OpenTherm42Hub::handle_response_(const Frame &frame) {
     }
 
     case RequestKind::COOLING_CONTROL_SIGNAL:
+      // See CONTROL_SETPOINT's comment above: WRITE-ACK's echo is not trusted for display.
       if (type != MessageType::WRITE_ACK) {
         ESP_LOGE(TAG, "Cooling control signal (id=7) write was rejected (message type %u)", frame.type);
         if (this->cooling_control_signal_number_ != nullptr) {
           invalidate_entity(this->cooling_control_signal_number_);
         }
-        return;
-      }
-      if (this->cooling_control_signal_number_ != nullptr) {
-        this->cooling_control_signal_number_->publish_state(frame.value_f88());
       }
       return;
 
     case RequestKind::MAX_REL_MOD_LEVEL_SETTING:
+      // See CONTROL_SETPOINT's comment above: WRITE-ACK's echo is not trusted for display.
       if (type != MessageType::WRITE_ACK) {
         ESP_LOGE(TAG, "Maximum relative modulation level setting (id=14) write was rejected (message type %u)",
                  frame.type);
         if (this->max_rel_mod_level_setting_number_ != nullptr) {
           invalidate_entity(this->max_rel_mod_level_setting_number_);
         }
-        return;
-      }
-      if (this->max_rel_mod_level_setting_number_ != nullptr) {
-        this->max_rel_mod_level_setting_number_->publish_state(frame.value_f88());
       }
       return;
 
