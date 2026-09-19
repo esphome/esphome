@@ -1,4 +1,4 @@
-import esphome.codegen as cg
+from esphome import automation, codegen as cg
 from esphome.components.binary_sensor import BinarySensor
 from esphome.components.rotary_encoder.sensor import RotaryEncoderSensor
 import esphome.config_validation as cv
@@ -12,12 +12,22 @@ from .defines import (
     CONF_LEFT_BUTTON,
     CONF_LONG_PRESS_REPEAT_TIME,
     CONF_LONG_PRESS_TIME,
+    CONF_LVGL_ID,
     CONF_RIGHT_BUTTON,
     add_lv_use,
 )
-from .lvcode import lv, lv_add, lv_assign, lv_expr, lv_Pvariable
-from .schemas import ENCODER_SCHEMA
-from .types import lv_group_t, lv_indev_type_t, lv_key_t
+from .lvcode import (
+    LVGL_COMP_ARG,
+    LambdaContext,
+    add_line_marks,
+    lv,
+    lv_add,
+    lv_assign,
+    lv_expr,
+    lv_Pvariable,
+)
+from .schemas import ENCODER_SCHEMA, SET_GROUP_ACTION_SCHEMA
+from .types import LvglAction, lv_group_t, lv_indev_type_t, lv_key_t
 from .widgets import get_widgets
 
 ENCODERS_CONFIG = cv.ensure_list(
@@ -67,6 +77,7 @@ async def encoders_to_code(var, config, default_group):
                 lv_add(listener.set_sensor(sensor_config))
         b_sensor = await cg.get_variable(enc_conf[CONF_ENTER_BUTTON])
         cg.add(listener.add_button(b_sensor, lv_key_t.LV_KEY_ENTER))
+
         if group := enc_conf.get(CONF_GROUP):
             group = lv_Pvariable(lv_group_t, group)
             lv_assign(group, lv_expr.group_create())
@@ -75,8 +86,25 @@ async def encoders_to_code(var, config, default_group):
         lv.indev_set_group(listener.get_drv(), group)
 
 
-async def initial_focus_to_code(config):
+async def encoder_initial_focus_to_code(config):
     for enc_conf in config[CONF_ENCODERS]:
         if default_focus := enc_conf.get(CONF_INITIAL_FOCUS):
             widget = await get_widgets(default_focus)
             lv.group_focus_obj(widget[0].obj)
+
+
+initial_focus_to_code = encoder_initial_focus_to_code
+
+
+@automation.register_action(
+    "lvgl.encoder.set_group", LvglAction, SET_GROUP_ACTION_SCHEMA
+)
+async def set_group_to_code(config, action_id, template_arg, args):
+    listener = await cg.get_variable(config[CONF_ID])
+    group = await cg.get_variable(config[CONF_GROUP])
+    async with LambdaContext(LVGL_COMP_ARG) as context:
+        add_line_marks(action_id)
+        lv.indev_set_group(listener.get_drv(), group)
+    var = cg.new_Pvariable(action_id, template_arg, await context.get_lambda())
+    await cg.register_parented(var, config[CONF_LVGL_ID])
+    return var
