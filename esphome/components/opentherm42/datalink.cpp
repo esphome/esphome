@@ -1,4 +1,5 @@
 #include "datalink.h"
+#include <cstring>
 #include "esphome/core/helpers.h"
 
 #ifdef USE_ESP32
@@ -10,9 +11,12 @@
 
 namespace esphome::opentherm42 {
 
+// name is always an enum-qualified expression (e.g. MessageType::DATA_INVALID) -- stringifying it
+// directly would return the whole "EnumType::VALUE" text; strrchr + 1 trims everything up to and
+// including the last ':', leaving just "VALUE" for log output.
 #define TO_STRING_CASE(name) \
   case name: \
-    return #name;
+    return strrchr(#name, ':') + 1;
 
 const char *data_link_error_to_string(DataLinkError error) {
   switch (error) {
