@@ -68,7 +68,7 @@ bool HOT EPaperMono::transfer_data() {
   while (this->current_data_index_ != this->y_high_) {
     size_t data_idx = this->current_data_index_ * this->row_width_ + this->x_low_ / 8;
     for (size_t i = 0; i != row_length; i++) {
-      bytes_to_send[i] = this->send_red_ ? 0 : this->buffer_[data_idx++];
+      bytes_to_send[i] = this->send_red_ && !this->send_red_as_image_ ? 0 : this->buffer_[data_idx++];
     }
     ++this->current_data_index_;
     this->write_array(&bytes_to_send.front(), row_length);  // NOLINT
