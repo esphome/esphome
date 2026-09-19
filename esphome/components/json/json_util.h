@@ -6,6 +6,7 @@
 
 #include "esphome/core/defines.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/progmem.h"
 
 #define ARDUINOJSON_ENABLE_STD_STRING 1  // NOLINT
 
@@ -14,6 +15,17 @@
 #include <ArduinoJson.h>
 
 namespace esphome::json {
+
+// Link a string into the document instead of copying it. Only for a literal, a codegen table
+// entry or a name set once during setup; never a stack buffer or an entity state.
+inline JsonString linked(const char *s) { return JsonString(s, true); }
+inline JsonString linked(const char *s, size_t len) { return JsonString(s, len, true); }
+inline JsonString linked(const std::string &s) { return JsonString(s.c_str(), s.size(), true); }
+JsonString linked(std::string &&) = delete;  // a temporary dies before the document is serialized
+#ifdef USE_ESP8266
+// A PROGMEM string is copied out of flash
+inline ProgmemStr linked(ProgmemStr s) { return s; }
+#endif
 
 /// Buffer for JSON serialization that uses stack allocation for small payloads.
 /// Template parameter STACK_SIZE specifies the stack buffer size (default 512 bytes).

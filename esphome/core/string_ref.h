@@ -257,8 +257,14 @@ inline double stod(const StringRef &str, size_t *pos = nullptr) {
 // NOLINTEND(readability-identifier-naming,google-runtime-int,readability-non-const-parameter)
 
 #ifdef USE_JSON
+// A StringRef may view a scratch buffer (mqtt topics do), so the document copies it
 // NOLINTNEXTLINE(readability-identifier-naming)
 inline void convertToJson(const StringRef &src, JsonVariant dst) { dst.set(src.c_str()); }
+
+namespace json {
+// For a StringRef that outlives the document, see json_util.h
+inline JsonString linked(const StringRef &s) { return JsonString(s.c_str(), s.size(), true); }
+}  // namespace json
 #endif  // USE_JSON
 
 }  // namespace esphome
