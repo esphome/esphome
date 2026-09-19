@@ -102,6 +102,101 @@ def register_condition(name: str, condition_type: MockObjClass, schema: cv.Schem
     return CONDITION_REGISTRY.register(name, condition_type, schema)
 
 
+async def _build_with_parent(
+    config: ConfigType,
+    automation_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
+    parent = await cg.get_variable(config[CONF_ID])
+    return cg.new_Pvariable(automation_id, template_arg, parent)
+
+
+async def _build_without_parent(
+    config: ConfigType,
+    automation_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
+    return cg.new_Pvariable(automation_id, template_arg)
+
+
+async def _build_parented(
+    config: ConfigType,
+    automation_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
+    var = cg.new_Pvariable(automation_id, template_arg)
+    await cg.register_parented(var, config[CONF_ID])
+    return var
+
+
+def register_simple_action(
+    name: str,
+    action_type: MockObjClass,
+    schema: cv.Schema,
+    *,
+    synchronous: bool,
+) -> None:
+    """Register an action whose constructor takes the object named by ``config[CONF_ID]``.
+
+    Use the ``register_action`` decorator instead when the builder must also set fields.
+    """
+    register_action(name, action_type, schema, synchronous=synchronous)(
+        _build_with_parent
+    )
+
+
+def register_simple_condition(
+    name: str, condition_type: MockObjClass, schema: cv.Schema
+) -> None:
+    """Condition counterpart of ``register_simple_action``."""
+    register_condition(name, condition_type, schema)(_build_with_parent)
+
+
+def register_bare_action(
+    name: str,
+    action_type: MockObjClass,
+    schema: cv.Schema,
+    *,
+    synchronous: bool,
+) -> None:
+    """Register an action whose constructor takes no arguments."""
+    register_action(name, action_type, schema, synchronous=synchronous)(
+        _build_without_parent
+    )
+
+
+def register_bare_condition(
+    name: str, condition_type: MockObjClass, schema: cv.Schema
+) -> None:
+    """Condition counterpart of ``register_bare_action``."""
+    register_condition(name, condition_type, schema)(_build_without_parent)
+
+
+def register_parented_action(
+    name: str,
+    action_type: MockObjClass,
+    schema: cv.Schema,
+    *,
+    synchronous: bool,
+) -> None:
+    """Register an action deriving from ``Parented<T>``.
+
+    The object is constructed without arguments and ``set_parent()`` receives the object
+    named by ``config[CONF_ID]``.
+    """
+    register_action(name, action_type, schema, synchronous=synchronous)(_build_parented)
+
+
+def register_parented_condition(
+    name: str, condition_type: MockObjClass, schema: cv.Schema
+) -> None:
+    """Condition counterpart of ``register_parented_action``."""
+    register_condition(name, condition_type, schema)(_build_parented)
+
+
 Action = cg.esphome_ns.class_("Action")
 Trigger = cg.esphome_ns.class_("Trigger")
 ACTION_REGISTRY = Registry()
@@ -534,44 +629,20 @@ async def lambda_action_to_code(
     return new_lambda_pvariable(action_id, lambda_, StatelessLambdaAction, template_arg)
 
 
-@register_action(
+register_simple_action(
     "component.update",
     UpdateComponentAction,
-    maybe_simple_id(
-        {
-            cv.Required(CONF_ID): cv.use_id(cg.PollingComponent),
-        }
-    ),
+    maybe_simple_id({cv.Required(CONF_ID): cv.use_id(cg.PollingComponent)}),
     synchronous=True,
 )
-async def component_update_action_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    comp = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, comp)
 
 
-@register_action(
+register_simple_action(
     "component.suspend",
     SuspendComponentAction,
-    maybe_simple_id(
-        {
-            cv.Required(CONF_ID): cv.use_id(cg.PollingComponent),
-        }
-    ),
+    maybe_simple_id({cv.Required(CONF_ID): cv.use_id(cg.PollingComponent)}),
     synchronous=True,
 )
-async def component_suspend_action_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    comp = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, comp)
 
 
 @register_action(

@@ -475,6 +475,19 @@ TYPE_INFO: dict[int, TypeInfo] = {}
 # TYPE_DOUBLE = 1, TYPE_FIXED64 = 6, TYPE_SFIXED64 = 16, TYPE_SINT64 = 18
 UNSUPPORTED_TYPES = {1: "double", 6: "fixed64", 16: "sfixed64", 18: "sint64"}
 
+# The plaintext frame header budgets 2 varint bytes for the message type
+# (APIPlaintextFrameHelper::HEADER_PADDING), which caps message IDs at 16383.
+MAX_MESSAGE_ID = 16383
+
+
+def validate_message_id(message_id: int, message_name: str) -> None:
+    """Reject message IDs whose plaintext type varint would not fit in 2 bytes."""
+    if message_id > MAX_MESSAGE_ID:
+        raise ValueError(
+            f"Message ID {message_id} for {message_name} exceeds the plaintext "
+            f"2-byte type varint maximum ({MAX_MESSAGE_ID})"
+        )
+
 
 def validate_field_type(field_type: int, field_name: str = "") -> None:
     """Validate that the field type is supported by ESPHome API.
@@ -498,6 +511,15 @@ def create_field_type_info(
     needs_encode: bool = True,
 ) -> TypeInfo:
     """Create the appropriate TypeInfo instance for a field, handling repeated fields and custom options."""
+    if get_field_opt(field, pb.track_presence, False) and (
+        field.label == FieldDescriptorProto.LABEL_REPEATED
+        or field.type != 11
+        or not needs_decode
+    ):
+        raise ValueError(
+            f"track_presence on field '{field.name}' has no effect; it requires "
+            "a non-repeated message field in a message that is decoded"
+        )
     if field.label == FieldDescriptorProto.LABEL_REPEATED:
         # Check if this is a packed_buffer field (zero-copy packed repeated)
         if get_field_opt(field, pb.packed_buffer, False):
@@ -541,6 +563,8 @@ def create_field_type_info(
         return PointerToStringBufferType(field, None)
 
     validate_field_type(field.type, field.name)
+    if field.type == 11:
+        return MessageType(field, needs_decode, needs_encode)
     return TYPE_INFO[field.type](field)
 
 
@@ -938,8 +962,32 @@ class MessageType(TypeInfo):
         return None
 
     @property
+    def public_content(self) -> list[str]:
+        content = [self.class_member]
+        if self._track_presence:
+            content.append(f"bool has_{self.name}{{false}};")
+        return content
+
+    @property
+    def _track_presence(self) -> bool:
+        # Presence is only observable on the decode side
+        return self._needs_decode and get_field_opt(
+            self._field, pb.track_presence, False
+        )
+
+    @property
     def decode_length_content(self) -> str:
         # Custom decode that doesn't use templates
+        if self._track_presence:
+            # decode_to_message() cannot report failure, so setting the flag
+            # afterwards only documents intent; a status-returning decode could
+            # gate it for real without touching callers.
+            return (
+                f"case {self.number}:\n"
+                f"      value.decode_to_message(this->{self.field_name});\n"
+                f"      this->has_{self.name} = true;\n"
+                f"      break;"
+            )
         return f"case {self.number}: value.decode_to_message(this->{self.field_name}); break;"
 
     def dump(self, name: str) -> str:
@@ -947,7 +995,10 @@ class MessageType(TypeInfo):
 
     @property
     def dump_content(self) -> str:
-        o = f'out.append(2, \' \').append_p(ESPHOME_PSTR("{self.name}")).append(": ");\n'
+        o = ""
+        if self._track_presence:
+            o += f'dump_field(out, ESPHOME_PSTR("has_{self.name}"), this->has_{self.name});\n'
+        o += f'out.append(2, \' \').append_p(ESPHOME_PSTR("{self.name}")).append(": ");\n'
         o += f"this->{self.field_name}.dump_to(out);\n"
         o += 'out.append("\\n");'
         return o
@@ -2511,14 +2562,10 @@ def build_message_type(
 
     # Add MESSAGE_TYPE method if this is a service message
     if message_id is not None:
-        # Validate that message_id fits in uint8_t
-        if message_id > 255:
-            raise ValueError(
-                f"Message ID {message_id} for {desc.name} exceeds uint8_t maximum (255)"
-            )
+        validate_message_id(message_id, desc.name)
 
         # Add static constexpr for message type
-        public_content.append(f"static constexpr uint8_t MESSAGE_TYPE = {message_id};")
+        public_content.append(f"static constexpr uint16_t MESSAGE_TYPE = {message_id};")
 
         # Add estimated size constant
         estimated_size = calculate_message_estimated_size(desc)
@@ -3174,8 +3221,12 @@ def main() -> None:
 #include "api_pb2_includes.h"
 """
 
-    content += """
-namespace esphome::api {
+    content += f"""
+namespace esphome::api {{
+
+// Upper bound on message IDs, enforced by the code generator: the plaintext
+// frame header budgets 2 varint bytes for the type (HEADER_PADDING).
+static constexpr uint16_t MAX_MESSAGE_TYPE = {MAX_MESSAGE_ID};
 
 """
 
