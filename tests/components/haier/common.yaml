@@ -115,3 +115,11 @@ switch:
       name: Haier health mode
     quiet_mode:
       name: Haier quiet mode
+
+select:
+  - platform: haier
+    haier_id: haier_ac
+    horizontal_airflow:
+      name: Haier airflow horizontal
+    vertical_airflow:
+      name: Haier airflow vertical
