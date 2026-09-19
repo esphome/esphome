@@ -2201,6 +2201,7 @@ def command_rotate_key(args: ArgsProtocol, config: ConfigType) -> int | None:
     )
     from esphome.config_validation import Invalid
     from esphome.yaml_edit import (
+        RestoreError,
         apply_key_edits,
         locate_key_edits,
         old_key_edit,
@@ -2307,11 +2308,14 @@ def command_rotate_key(args: ArgsProtocol, config: ConfigType) -> int | None:
             "the current configuration first, then rotate."
         )
 
+    # Both keys are shown only when a file could not be put back
     keys = f"Previous key: {old_key}\nNew key: {new_key}"
     try:
         originals = apply_key_edits(edits)
-    except EsphomeError as err:
+    except RestoreError as err:
         safe_print(keys)
+        return fail(str(err))
+    except EsphomeError as err:
         return fail(str(err))
     # From here every exit restores or reports, so nothing sits outside the try
     uploaded = False
