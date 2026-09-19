@@ -21,6 +21,14 @@ enum class DoorState : uint8_t {
   STOPPED,
 };
 
+// Steps of announcing that the accessory is about to go quiet.
+enum class PauseState : uint8_t {
+  PAUSE_STATE_IDLE,
+  PAUSE_STATE_WAITING_FOR_ACK,
+  PAUSE_STATE_SETTLING,
+  PAUSE_STATE_DONE,
+};
+
 // A HCP command is a simulated key press: the pressed value is presented to the bus controller, then after a
 // short delay the released value. Each half also carries a second register, which names the buttons that do
 // not fit into the first.
@@ -38,6 +46,16 @@ class HoermannHcp : public PollingComponent, public modbus::ModbusServerDevice {
  public:
   void update() override;
   void dump_config() override;
+  void on_shutdown() override;
+
+  /** Tells the bus controller the accessory is about to go quiet, then waits briefly for it to answer.
+   *
+   * The controller registered this accessory during its bus scan, so one that simply stops answering is a
+   * fault to it rather than an absence. Blocks, serving the bus itself, because neither caller runs where
+   * the main loop would turn it. Goes quiet either way; the return value only says whether it was
+   * acknowledged.
+   */
+  bool announce_pause();
 
   // Registered by child entities to be notified when the door state changes.
   template<typename F> void add_on_state_callback(F &&callback) {
@@ -96,6 +114,27 @@ class HoermannHcp : public PollingComponent, public modbus::ModbusServerDevice {
   void on_state_reg_(uint16_t value);
   void on_light_reg_(uint16_t value);
 
+  // Reads a payload transfer and arms the answer the controller expects on the read half of the same request.
+  void take_transfer_(const modbus::RegisterValues &registers);
+  void push_transfer_answer_(modbus::RegisterValues &registers, uint16_t number_of_registers);
+  /** Moves the announcement along one step and reports whether anything is left to say.
+   *
+   * Decides everything from the clock so it can be called repeatedly, which is what lets the restart path
+   * and the ota trigger share the same steps and makes them testable without a bus.
+   */
+  bool advance_pause_();
+  // Drops a command the controller has not been shown yet. Unlike drop_command_ it keeps the travel target:
+  // nothing can be sent until the announcement is over, but if no restart follows, the next position the
+  // door reports still stops it where it was told to stop.
+  void drop_unsent_command_();
+  // Ends the announcement, however it ended, and puts the device back to answering normally.
+  void end_pause_();
+  // The pause replaces the ordinary state answer until the whole announcement is over.
+  bool announcing_pause_() const {
+    return this->pause_state_ == PauseState::PAUSE_STATE_WAITING_FOR_ACK ||
+           this->pause_state_ == PauseState::PAUSE_STATE_SETTLING;
+  }
+
   void set_valid_(bool valid);
   void set_door_state_(DoorState state);
   // Recomputes the reported position from position_raw_ and the current door state.
@@ -121,11 +160,20 @@ class HoermannHcp : public PollingComponent, public modbus::ModbusServerDevice {
   // When the door was last handed a lamp key press. It reports the lamp a moment later, so this bounds the
   // wait. Queueing another toggle deliberately leaves it alone, so the one already sent keeps its deadline.
   uint32_t light_toggle_released_at_{0};
+  uint32_t pause_started_at_{0};
 
   // A command is "pressed" for this long before its end value is sent.
   uint16_t key_press_delay_ms_{100};
   // Drop the "connected" flag if the bus controller has not polled us for this long.
   uint16_t connection_timeout_ms_{2000};
+  // How long the announcement waits to be acknowledged. The controller polls several times a second.
+  uint16_t pause_ack_timeout_ms_{800};
+  // Nothing arriving for this long means no telegram is in flight, so a restart lands between them.
+  uint16_t pause_quiet_ms_{40};
+  // A controller that never falls quiet must not hold up the restart for longer than this.
+  uint16_t pause_settle_ms_{200};
+  // Ceiling on the whole announcement, so a controller that keeps a key press open cannot hold it open.
+  uint16_t pause_total_timeout_ms_{1500};
   // The state starts on a value the bus controller never reports, so the first broadcast is decoded even when
   // it reads 0x0000.
   uint16_t prev_state_reg_{0xFFFF};
@@ -140,6 +188,14 @@ class HoermannHcp : public PollingComponent, public modbus::ModbusServerDevice {
   // Position as reported by the bus controller, 0..200 across the full travel.
   uint8_t position_raw_{0};
   uint8_t light_toggles_in_flight_{0};
+  // Running counter and code of a payload transfer still to be answered on the following read half.
+  uint8_t transfer_answer_counter_{0};
+  uint8_t transfer_answer_code_{0};
+  bool transfer_answer_pending_{false};
+  PauseState pause_state_{PauseState::PAUSE_STATE_IDLE};
+  bool pause_confirmed_{false};
+  // Guards the blocking announcement against being entered from inside itself.
+  bool announcing_{false};
   bool target_started_{false};
   bool valid_{false};
   bool changed_{false};

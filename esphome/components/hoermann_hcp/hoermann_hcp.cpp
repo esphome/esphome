@@ -1,5 +1,6 @@
 #include "hoermann_hcp.h"
 
+#include "esphome/core/application.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
@@ -15,6 +16,18 @@ static constexpr float CLOSE_POSITION_THRESHOLD = 0.05f;
 static constexpr float OPEN_POSITION_THRESHOLD = 0.95f;
 // Only the parity of the outstanding toggles says where the lamp is heading, so the count must not run away.
 static constexpr uint8_t MAX_LIGHT_TOGGLES_IN_FLIGHT = 4;
+
+// Replaces the ordinary 0x0001 status while a pause is announced. The protocol calls this a pause, not a
+// departure: the accessory is going quiet, it is not asking to be forgotten.
+static constexpr uint16_t RESPONSE_PAUSE = 0x0029;
+// Payload transfers arrive as this command in the low byte of the command register.
+static constexpr uint8_t TRANSFER_COMMAND = 0x04;
+static constexpr uint8_t TRANSFER_SUB_PAUSE_ACK = 0x19;
+static constexpr uint8_t TRANSFER_ACK = 0xFD;
+static constexpr uint8_t TRANSFER_NAK = 0xFE;
+// Bit 15 of the counter register selects the half of a split payload and is not part of the count. Only
+// transfers carry it, so only the answer to one masks it off; the ordinary echo is left as it was.
+static constexpr uint16_t COUNTER_MASK = 0x7F00;
 
 // Command encoding: the high byte of the first register is the phase (0x02 pressed, 0x01 released) and the
 // rest names the button - the low byte for the door commands, the second register for those that do not fit
@@ -113,6 +126,12 @@ modbus::ResponseStatus HoermannHcp::on_read_holding_registers(uint16_t start_add
 
   this->record_response_();
 
+  // A payload transfer the write half just took is answered here, whatever the controller reads next.
+  if (this->transfer_answer_pending_) {
+    this->push_transfer_answer_(registers, number_of_registers);
+    return {};
+  }
+
   // 0x17 read half: STATE_REG is read back right after COMMAND_REG was written, so echo the stored message
   // counter (high byte) and command (low byte). The read length identifies which internal block is requested.
   const uint16_t counter = this->command_reg_value_ & 0xFF00;
@@ -120,6 +139,13 @@ modbus::ResponseStatus HoermannHcp::on_read_holding_registers(uint16_t start_add
 
   switch (number_of_registers) {
     case 8:
+      if (this->announcing_pause_()) {
+        registers.push_back(counter);
+        registers.push_back(static_cast<uint16_t>(RESPONSE_PAUSE | command));
+        registers.push_back(this->get_address());
+        push_zeros(registers, 5);
+        break;
+      }
       // Command request: return the internal state, injecting any pending command.
       registers.push_back(counter);
       registers.push_back(static_cast<uint16_t>(0x0001 | command));
@@ -156,6 +182,8 @@ modbus::ResponseStatus HoermannHcp::on_write_registers(uint16_t start_address,
     // command byte back from STATE_REG. The hub always runs the write before the read within one request.
     this->record_response_();
     this->command_reg_value_ = registers[0];
+    // The same block carries payload transfers, which are answered rather than ignored.
+    this->take_transfer_(registers);
     return {};
   }
 
@@ -217,6 +245,136 @@ void HoermannHcp::push_command_registers_(modbus::RegisterValues &registers) {
   registers.push_back(command->released_value_2);
 }
 
+void HoermannHcp::take_transfer_(const modbus::RegisterValues &registers) {
+  // Only while a pause is out. The command byte alone is too thin a discriminator to start answering
+  // transfers in steady state, and an answer armed there would pre-empt the next read of any length.
+  if (!this->announcing_pause_() || registers.size() < 2)
+    return;
+  // Low byte of the first register is what the controller wants from us, high byte its running counter.
+  if (static_cast<uint8_t>(registers[0] & 0x00FF) != TRANSFER_COMMAND)
+    return;
+
+  const bool is_pause_ack = static_cast<uint8_t>(registers[1] >> 8) == TRANSFER_SUB_PAUSE_ACK;
+  // Answered either way. Leaving a transfer open is worse than refusing one we did not understand, and an
+  // undefined answer code is worse still.
+  this->transfer_answer_counter_ = static_cast<uint8_t>(registers[0] >> 8);
+  this->transfer_answer_code_ = is_pause_ack ? TRANSFER_ACK : TRANSFER_NAK;
+  this->transfer_answer_pending_ = true;
+
+  // The address the controller is pausing sits astride two registers: the low byte of the sub-code register
+  // and the high byte of the next.
+  if (!is_pause_ack || registers.size() < 3)
+    return;
+  const uint16_t named = static_cast<uint16_t>(((registers[1] & 0x00FF) << 8) | (registers[2] >> 8));
+  if (named == this->get_address())
+    this->pause_confirmed_ = true;
+}
+
+void HoermannHcp::push_transfer_answer_(modbus::RegisterValues &registers, uint16_t number_of_registers) {
+  // A read too short to carry the answer leaves it armed for the next one rather than swallowing it.
+  if (number_of_registers < 2) {
+    push_zeros(registers, number_of_registers);
+    return;
+  }
+  this->transfer_answer_pending_ = false;
+  registers.push_back(static_cast<uint16_t>((this->transfer_answer_counter_ << 8) & COUNTER_MASK));
+  registers.push_back(static_cast<uint16_t>((TRANSFER_COMMAND << 8) | this->transfer_answer_code_));
+  push_zeros(registers, number_of_registers - 2);
+}
+
+void HoermannHcp::drop_unsent_command_() {
+  // Cleared first so the settling below no longer counts this command among the toggles still to be sent.
+  const bool was_light_toggle = this->is_light_toggle_pending_();
+  this->next_command_ = nullptr;
+  if (was_light_toggle)
+    this->light_toggle_settled_();
+  this->changed_ = true;
+}
+
+void HoermannHcp::end_pause_() {
+  this->transfer_answer_pending_ = false;
+  this->pause_state_ = PauseState::PAUSE_STATE_DONE;
+}
+
+bool HoermannHcp::advance_pause_() {
+  const uint32_t now = millis();
+  switch (this->pause_state_) {
+    case PauseState::PAUSE_STATE_IDLE:
+      // Nobody to tell: nothing has ever arrived, or nothing recently enough for anyone to still be
+      // listening. A restart must not pay for that.
+      if (this->last_response_ == 0 || now - this->last_response_ > this->connection_timeout_ms_) {
+        this->end_pause_();
+        return true;
+      }
+      // A key press already shown to the controller has to be released first. Dropping it here would leave
+      // the controller holding a key that is never let go.
+      if (this->command_written_at_ != 0)
+        return false;
+      this->drop_unsent_command_();
+      this->pause_started_at_ = now;
+      this->pause_state_ = PauseState::PAUSE_STATE_WAITING_FOR_ACK;
+      return false;
+
+    case PauseState::PAUSE_STATE_WAITING_FOR_ACK:
+      if (this->pause_confirmed_) {
+        ESP_LOGI(TAG, "Bus controller confirmed the pause");
+      } else if (now - this->pause_started_at_ < this->pause_ack_timeout_ms_) {
+        return false;
+      } else {
+        ESP_LOGW(TAG, "Bus controller did not confirm the pause, going quiet anyway");
+      }
+      this->pause_started_at_ = now;
+      this->pause_state_ = PauseState::PAUSE_STATE_SETTLING;
+      return false;
+
+    case PauseState::PAUSE_STATE_SETTLING:
+      // A gap in what the controller sends us, so the last exchange is finished rather than cut short.
+      // Only frames addressed to us, so it is a courtesy rather than a guarantee, and it gives up.
+      if (now - this->last_response_ > this->pause_quiet_ms_ ||
+          now - this->pause_started_at_ >= this->pause_settle_ms_) {
+        this->end_pause_();
+        return true;
+      }
+      return false;
+
+    default:
+      return true;
+  }
+}
+
+bool HoermannHcp::announce_pause() {
+  // Re-entering would clear the announcement the outer call is still waiting on, and would turn the hub from
+  // inside its own frame handling.
+  if (this->announcing_)
+    return false;
+  this->announcing_ = true;
+  // Every announcement starts afresh. The guard above means no other one is in flight, and every exit below
+  // ends in PAUSE_STATE_DONE, so there is never anything here worth carrying over.
+  this->pause_confirmed_ = false;
+  this->pause_state_ = PauseState::PAUSE_STATE_IDLE;
+  const uint32_t started = millis();
+  while (!this->advance_pause_() && millis() - started < this->pause_total_timeout_ms_) {
+    App.feed_wdt();
+    // The loop cannot turn the hub from here, so the bus is served by hand for as long as this takes.
+    this->service_bus_();
+    delay(1);
+  }
+  // Out of time with the announcement unfinished. It must not be left standing: the pause replaces the
+  // answer that carries key presses, so the door would stop taking commands until the next restart.
+  if (this->pause_state_ != PauseState::PAUSE_STATE_DONE) {
+    ESP_LOGW(TAG, "Gave up announcing the pause, going quiet without it");
+    this->end_pause_();
+  }
+  // One more pass, so a reply the last one parked still reaches the wire.
+  this->service_bus_();
+  this->announcing_ = false;
+  return this->pause_confirmed_;
+}
+
+// The UART driver is deleted in its own on_shutdown, and components are torn down in reverse setup
+// priority, so this is the last point at which the controller can still be told anything.
+void HoermannHcp::on_shutdown() { this->announce_pause(); }
+
 void HoermannHcp::on_position_reg_(uint16_t value) {
   // Low byte: current position.
   const uint8_t position = static_cast<uint8_t>(value);
@@ -270,6 +428,12 @@ void HoermannHcp::on_light_reg_(uint16_t value) {
 }
 
 bool HoermannHcp::queue_command_(const HoermannHcpCommand &command) {
+  // The pause replaces the answer a key press travels in, so one taken here could only be presented after
+  // the announcement, to a door that has moved on since. Refusing says so at once.
+  if (this->announcing_pause_()) {
+    ESP_LOGW(TAG, "Refused '%s' command: the restart has been announced to the bus controller", command.name);
+    return false;
+  }
   if (!this->valid_) {
     // Queueing now would fire the command whenever the controller comes back, which may be much later.
     ESP_LOGW(TAG, "Not connected to the bus controller, dropping '%s' command", command.name);
@@ -365,6 +529,7 @@ void HoermannHcp::set_valid_(bool valid) {
   }
   ESP_LOGW(TAG, "Bus controller connection lost (no request for %" PRIu32 "ms)", millis() - this->last_response_);
   // Drop what the controller never fetched, so it neither blocks later commands nor fires on reconnect.
+  this->transfer_answer_pending_ = false;
   this->drop_command_();
   // The door cannot be watched while the bus is quiet, so a target left armed would stop it long afterwards.
   this->clear_target_();
