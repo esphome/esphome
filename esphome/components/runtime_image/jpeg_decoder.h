@@ -3,7 +3,9 @@
 #include "image_decoder.h"
 #include "runtime_image.h"
 #include "esphome/core/defines.h"
-#ifdef USE_RUNTIME_IMAGE_JPEG
+// When libjpeg-turbo is selected it replaces JPEGDEC for the whole build,
+// and the JPEGDEC library (and its header) is not available.
+#if defined(USE_RUNTIME_IMAGE_JPEG) && !defined(USE_RUNTIME_IMAGE_JPEG_TURBO)
 #include <JPEGDEC.h>
 
 namespace esphome::runtime_image {
@@ -29,4 +31,4 @@ class JpegDecoder : public ImageDecoder {
 
 }  // namespace esphome::runtime_image
 
-#endif  // USE_RUNTIME_IMAGE_JPEG
+#endif  // USE_RUNTIME_IMAGE_JPEG && !USE_RUNTIME_IMAGE_JPEG_TURBO
