@@ -48,7 +48,7 @@ const uint8_t DAIKIN_BRC_PREAMBLE_SIZE = 7;
 // Transmit Frame size - includes a preamble
 const uint8_t DAIKIN_BRC_TRANSMIT_FRAME_SIZE = DAIKIN_BRC_PREAMBLE_SIZE + DAIKIN_BRC_STATE_FRAME_SIZE;
 
-class DaikinBrcClimate : public climate_ir::ClimateIR {
+class DaikinBrcClimate final : public climate_ir::ClimateIR {
  public:
   DaikinBrcClimate()
       : climate_ir::ClimateIR(DAIKIN_BRC_TEMP_MIN_C, DAIKIN_BRC_TEMP_MAX_C, 0.5f, true, true,

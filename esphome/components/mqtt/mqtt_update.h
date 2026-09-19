@@ -10,7 +10,7 @@
 
 namespace esphome::mqtt {
 
-class MQTTUpdateComponent : public mqtt::MQTTComponent {
+class MQTTUpdateComponent final : public mqtt::MQTTComponent {
  public:
   explicit MQTTUpdateComponent(update::UpdateEntity *update);
 

@@ -7,7 +7,7 @@
 
 namespace esphome::globals {
 
-template<typename T> class GlobalsComponent : public Component {
+template<typename T> class GlobalsComponent final : public Component {
  public:
   using value_type = T;
   explicit GlobalsComponent() = default;
@@ -127,7 +127,7 @@ template<typename T, uint8_t SZ> class RestoringGlobalStringComponent : public P
   ESPPreferenceObject rtc_;
 };
 
-template<class C, typename... Ts> class GlobalVarSetAction : public Action<Ts...> {
+template<class C, typename... Ts> class GlobalVarSetAction final : public Action<Ts...> {
  public:
   explicit GlobalVarSetAction(C *parent) : parent_(parent) {}
 

@@ -17,7 +17,7 @@ namespace esphome::esp32_camera_web_server {
 
 enum Mode { STREAM, SNAPSHOT };
 
-class CameraWebServer : public Component, public camera::CameraListener {
+class CameraWebServer final : public Component, public camera::CameraListener {
  public:
   CameraWebServer();
   ~CameraWebServer();

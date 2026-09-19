@@ -9,7 +9,7 @@
 
 namespace esphome::tlc5971 {
 
-class TLC5971 : public Component {
+class TLC5971 final : public Component {
  public:
   const uint8_t N_CHANNELS_PER_CHIP = 12;
 

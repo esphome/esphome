@@ -25,7 +25,7 @@ void A01nyubComponent::check_buffer_() {
   if (this->buffer_[3] == checksum) {
     float distance = (this->buffer_[1] << 8) + this->buffer_[2];
     if (distance > 280) {
-      float meters = distance / 1000.0;
+      float meters = distance / 1000.0f;
       ESP_LOGV(TAG, "Distance from sensor: %f mm, %f m", distance, meters);
       this->publish_state(meters);
     } else {

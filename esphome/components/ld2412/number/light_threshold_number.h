@@ -5,9 +5,10 @@
 
 namespace esphome::ld2412 {
 
-class LightThresholdNumber : public number::Number, public Parented<LD2412Component> {
+class LightThresholdNumber final : public number::Number, public Parented<LD2412Component> {
  public:
-  LightThresholdNumber() = default;
+  // User provided, not "= default": `new(p) LightThresholdNumber()` would zero-fill .bss that is already zero.
+  LightThresholdNumber() {}
 
  protected:
   void control(float value) override;

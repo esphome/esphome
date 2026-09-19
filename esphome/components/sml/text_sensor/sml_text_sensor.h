@@ -6,7 +6,7 @@
 
 namespace esphome::sml {
 
-class SmlTextSensor : public SmlListener, public text_sensor::TextSensor, public Component {
+class SmlTextSensor final : public SmlListener, public text_sensor::TextSensor, public Component {
  public:
   SmlTextSensor(std::string server_id, std::string obis_code, SmlType format);
   void publish_val(const ObisInfo &obis_info) override;

@@ -43,7 +43,7 @@ enum AS5600MagnetStatus : uint8_t {
   MAGNET_WEAK = 6,    // 0b110 / magnet too weak
 };
 
-class AS5600Component : public Component, public i2c::I2CDevice {
+class AS5600Component final : public Component, public i2c::I2CDevice {
  public:
   /// Set up the internal sensor array.
   void setup() override;

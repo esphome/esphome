@@ -1,0 +1,28 @@
+# Legacy top-level `animation:` form. Exercises the deprecation shim and the
+# shared codegen path through the real read_config/codegen pipeline.
+esphome:
+  name: test
+
+esp32:
+  board: esp32s3box
+
+animation:
+  - id: test_animation
+    file: anim.gif
+    type: rgb565
+    loop:
+      start_frame: 0
+      end_frame: 2
+      repeat: 3
+
+spi:
+  mosi_pin: 6
+  clk_pin: 7
+
+psram:
+  mode: quad
+
+display:
+  - platform: mipi_spi
+    id: lcd_display
+    model: s3box

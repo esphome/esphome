@@ -37,7 +37,7 @@ class CST816ButtonListener {
   virtual void update_button(bool state) = 0;
 };
 
-class CST816Touchscreen : public touchscreen::Touchscreen, public i2c::I2CDevice {
+class CST816Touchscreen final : public touchscreen::Touchscreen, public i2c::I2CDevice {
  public:
   void setup() override;
   void update_touches() override;

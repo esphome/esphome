@@ -4,6 +4,7 @@ from esphome.components import switch
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ASSUMED_STATE,
+    CONF_DEVICE_CLASS,
     CONF_ID,
     CONF_LAMBDA,
     CONF_OPTIMISTIC,
@@ -31,7 +32,11 @@ def validate(config):
 
 
 CONFIG_SCHEMA = cv.All(
-    switch.switch_schema(TemplateSwitch)
+    cv.with_visibility(
+        switch.switch_schema(TemplateSwitch),
+        cv.Visibility.UI,
+        CONF_DEVICE_CLASS,
+    )
     .extend(
         {
             cv.Optional(CONF_LAMBDA): cv.returning_lambda,
@@ -67,8 +72,11 @@ async def to_code(config):
         await automation.build_automation(
             var.get_turn_on_trigger(), [], config[CONF_TURN_ON_ACTION]
         )
-    cg.add(var.set_optimistic(config[CONF_OPTIMISTIC]))
-    cg.add(var.set_assumed_state(config[CONF_ASSUMED_STATE]))
+    # optimistic_ and assumed_state_ are false in C++; only emit setters to turn them on.
+    if config[CONF_OPTIMISTIC]:
+        cg.add(var.set_optimistic(True))
+    if config[CONF_ASSUMED_STATE]:
+        cg.add(var.set_assumed_state(True))
 
 
 @automation.register_action(

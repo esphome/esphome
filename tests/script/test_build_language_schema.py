@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import ast
+from collections.abc import Callable
 import importlib.util
 import json
 from pathlib import Path
 import subprocess
 import sys
+from typing import Any
 
 import pytest
 
@@ -139,6 +141,28 @@ def test_convert_walks_callable_schema_extractor() -> None:
     assert "foo" in config_var["schema"]["config_vars"]
 
 
+def test_convert_emits_variant_enum() -> None:
+    """A per-variant enum is dumped with each value tagged by its variants."""
+    from esphome.components.esp32 import (
+        VARIANT_ESP32,
+        VARIANT_ESP32S3,
+        variant_filtered_enum,
+    )
+
+    validator = variant_filtered_enum(
+        {VARIANT_ESP32: ("quad",), VARIANT_ESP32S3: ("quad", "octal")},
+        lower=True,
+    )
+    config_var: dict = {}
+    _bls.convert(validator, config_var, "/test")
+
+    assert config_var["type"] == "enum"
+    assert config_var["values"] == {
+        "quad": {"variants": [VARIANT_ESP32, VARIANT_ESP32S3]},
+        "octal": {"variants": [VARIANT_ESP32S3]},
+    }
+
+
 def test_convert_keys_emits_heuristic_sensitive_marker() -> None:
     converted: dict = {}
     _bls.convert_keys(converted, {cv.Optional("password"): cv.string}, "/root")
@@ -181,6 +205,47 @@ def test_convert_keys_no_marker_for_non_sensitive_field() -> None:
     entry = converted["schema"]["config_vars"]["hostname"]
     assert "sensitive" not in entry
     assert "sensitive_source" not in entry
+
+
+def _wildcard_validator(value: Any) -> Any:
+    return value
+
+
+def test_convert_keys_marker_wrapped_callable_key_normalizes() -> None:
+    converted: dict = {}
+    _bls.convert_keys(converted, {cv.Optional(_wildcard_validator): cv.string}, "/root")
+
+    config_vars = converted["schema"]["config_vars"]
+    assert set(config_vars) == {"string"}
+    assert config_vars["string"]["key"] == "Optional"
+    assert config_vars["string"]["key_type"] == "_wildcard_validator"
+
+
+def test_convert_keys_marker_wrapped_callable_beside_fixed_keys() -> None:
+    converted: dict = {}
+    _bls.convert_keys(
+        converted,
+        {cv.Required("id"): cv.string, cv.Optional(_wildcard_validator): cv.string},
+        "/root",
+    )
+
+    assert set(converted["schema"]["config_vars"]) == {"id", "string"}
+
+
+def test_convert_keys_bare_callable_dotted_qualname() -> None:
+    def make_validator() -> Callable[[Any], Any]:
+        def validator(value: Any) -> Any:
+            return value
+
+        return validator
+
+    converted: dict = {}
+    _bls.convert_keys(converted, {make_validator(): cv.string}, "/root")
+
+    assert converted["key"] == "String"
+    assert converted["key_type"].endswith("make_validator.<locals>.validator")
+    assert "at 0x" not in converted["key_type"]
+    assert set(converted["schema"]["config_vars"]) == {"string"}
 
 
 # ---------------------------------------------------------------------------

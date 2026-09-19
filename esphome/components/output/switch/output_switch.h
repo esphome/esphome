@@ -6,7 +6,7 @@
 
 namespace esphome::output {
 
-class OutputSwitch : public switch_::Switch, public Component {
+class OutputSwitch final : public switch_::Switch, public Component {
  public:
   void set_output(BinaryOutput *output) { output_ = output; }
 
