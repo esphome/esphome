@@ -1,9 +1,10 @@
+import functools
 import ipaddress
 import re
 
 from esphome import automation
 import esphome.codegen as cg
-from esphome.components import time
+from esphome.components import network, time
 from esphome.components.esp32 import CORE, add_idf_sdkconfig_option
 import esphome.config_validation as cv
 from esphome.const import (
@@ -101,6 +102,7 @@ CONFIG_SCHEMA = cv.All(
             PLATFORM_LN882X,
         ]
     ),
+    functools.partial(network.require_ipv4, name="wireguard"),
 )
 
 

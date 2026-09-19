@@ -1,7 +1,15 @@
+import functools
+
 from esphome import automation
 from esphome.automation import register_action, register_condition
 import esphome.codegen as cg
-from esphome.components import media_player, micro_wake_word, microphone, speaker
+from esphome.components import (
+    media_player,
+    micro_wake_word,
+    microphone,
+    network,
+    speaker,
+)
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ID,
@@ -186,6 +194,7 @@ CONFIG_SCHEMA = cv.All(
         }
     ).extend(cv.COMPONENT_SCHEMA),
     tts_stream_validate,
+    functools.partial(network.require_ipv4, name="voice_assistant"),
 )
 
 FINAL_VALIDATE_SCHEMA = cv.All(

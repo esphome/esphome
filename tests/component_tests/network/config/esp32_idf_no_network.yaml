@@ -1,0 +1,5 @@
+esphome:
+  name: platformtest
+
+esp32:
+  board: esp32dev

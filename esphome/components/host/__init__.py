@@ -1,4 +1,7 @@
+import functools
+
 import esphome.codegen as cg
+from esphome.components import network
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_MAC_ADDRESS,
@@ -39,6 +42,7 @@ CONFIG_SCHEMA = cv.All(
     ),
     cv.require_platformio_toolchain("host"),
     set_core_data,
+    functools.partial(network.require_ipv4, name=PLATFORM_HOST),
 )
 
 
