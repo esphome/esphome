@@ -8,6 +8,7 @@ namespace esphome::esp8266 {
 static const char *const TAG = "esp8266";
 
 static int flags_to_mode(gpio::Flags flags, uint8_t pin) {
+  flags = (gpio::Flags)(flags & ~(gpio::FLAG_HOLD));
   if (flags == gpio::FLAG_OUTPUT || flags == (gpio::FLAG_OUTPUT | gpio::FLAG_INPUT)) {
     return OUTPUT;
   }
