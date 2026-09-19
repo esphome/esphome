@@ -8252,13 +8252,26 @@ def test_command_rotate_key_keeps_the_edit_after_a_failed_upload(
     assert rotate_env["probe"].call_count == 1
 
 
+def test_command_rotate_key_shows_both_keys_only_when_a_file_stayed_rewritten(
+    rotate_env: dict[str, Mock], capfd: pytest.CaptureFixture[str]
+) -> None:
+    from esphome.yaml_edit import RestoreError
+
+    with patch("esphome.yaml_edit.apply_key_edits", side_effect=RestoreError("stuck")):
+        assert command_rotate_key(MockArgs(), CORE.config) == 1
+    out = capfd.readouterr().out
+    assert "stuck" in out and ROTATE_OLD_KEY in out and ROTATE_NEW_KEY in out
+
+
 def test_command_rotate_key_reports_a_failed_restore(
     rotate_env: dict[str, Mock], capfd: pytest.CaptureFixture[str]
 ) -> None:
     rotate_env["compile"].return_value = 1
+    from esphome.yaml_edit import RestoreError
+
     with patch(
         "esphome.yaml_edit.restore_key_files",
-        side_effect=EsphomeError("Could not restore x"),
+        side_effect=RestoreError("Could not restore x"),
     ):
         assert command_rotate_key(MockArgs(), CORE.config) == 1
     out = capfd.readouterr().out
@@ -8370,5 +8383,6 @@ def test_command_rotate_key_reports_edit_errors(
     out = capfd.readouterr().out
     assert "nope" in out
     # A failed apply may have left files half done; both keys are printed
-    assert (ROTATE_NEW_KEY in out) is (helper == "apply_key_edits")
+    # A refusal, or an edit rolled back cleanly, shows no key
+    assert ROTATE_NEW_KEY not in out
     assert CORE.config_path.read_text() == ROTATE_API_YAML

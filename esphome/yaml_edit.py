@@ -29,6 +29,10 @@ from esphome.yaml_util import secrets_path_for
 _LOGGER = logging.getLogger(__name__)
 
 
+class RestoreError(EsphomeError):
+    """A rollback left at least one file as it was written."""
+
+
 def _read_text(path: Path) -> str:
     """The file as written, line endings included; read_file would fold them."""
     try:
@@ -124,7 +128,8 @@ _INDENT_RE = re.compile(r"\s*")
 _PLAIN_SCALAR = r"[^\s#\"'>|&*!%@`\[\]{},]+"
 _TRAILER = r"(?P<quote>[\"']?){value}(?P=quote)(?P<trail>(?:\s+#.*)?\s*)$"
 # `!secret name`, the name optionally quoted
-_SECRET_REF = r"!secret\s+(?P<q>[\"']?)(?P<name>[^\s#\"']+)(?P=q)"
+# The whole scalar, so `!secret ota key` is not read as the secret `ota`
+_SECRET_REF = r"!secret\s+(?P<q>[\"']?)(?P<name>[^\s#\"']+)(?P=q)(?=\s*(?:#|$))"
 _KEY_SECRET_RE = re.compile(rf"^\s*{CONF_KEY}\s*:\s*{_SECRET_REF}")
 _OLD_KEY_SECRET_RE = re.compile(rf"^\s*{CONF_OLD_KEY}\s*:\s*{_SECRET_REF}")
 _KEY_FIELD_RE = re.compile(rf"^\s*{CONF_KEY}\s*:")
@@ -256,9 +261,12 @@ def _other_config_texts(
             if path.suffix not in _YAML_SUFFIXES or path.resolve() in own:
                 continue
             try:
-                found.append((path, _read_text(path)))
+                text = _read_text(path)
             except EsphomeError as err:
                 skip(err)
+                continue
+            # Searched, never edited: comments do not count
+            found.append((path, "\n".join(map(_without_comment, text.splitlines()))))
     if strict and skipped:
         raise EsphomeError(
             "Could not read every configuration to check the secret: " + skipped[0]
@@ -286,7 +294,7 @@ def _with_sharers(edits: list[KeyEdit]) -> list[KeyEdit]:
     own = _own_documents()
     texts, skipped = _other_config_texts({main})
     for path, text in texts:
-        if match := _INCLUDE_DIR_RE.search(_without_comment(text)):
+        if match := _INCLUDE_DIR_RE.search(text):
             skipped.append(f"{path} includes the directory {match['dir']}")
     for edit in edits:
         if (ref := refs.get(id(edit))) is None:
@@ -376,23 +384,24 @@ def locate_key_edits(old_key: str, new_key: str) -> list[KeyEdit]:
         # The api and ota blocks may share one !secret line
         if edit not in edits:
             edits.append(edit)
-    for edit in edits:
-        if edit.secret:
-            _refuse_other_own_uses(edit.secret, blocks)
-    return _with_sharers(edits)
-
-
-def _refuse_other_own_uses(name: str, blocks: list[ConfigType]) -> None:
-    """The secret may only feed the key lines: a wifi password on the same
-    secret would change with it and take the device off the network."""
     key_lines = {
         (doc.resolve(), line)
         for doc, line, _ in (_source_line(b, CONF_KEY) for b in blocks)
     }
+    for edit in edits:
+        if edit.secret:
+            _refuse_other_own_uses(edit.secret, key_lines)
+    return _with_sharers(edits)
+
+
+def _refuse_other_own_uses(name: str, allowed: set[tuple[Path, int]]) -> None:
+    """The secret may only feed the ``allowed`` lines: a wifi password on
+    the same secret would change with it and take the device off the
+    network."""
     ref = _secret_use_re(name)
     for doc in _own_documents():
         for i, text in enumerate(_read_text(doc).splitlines()):
-            if ref.search(_without_comment(text)) and (doc, i) not in key_lines:
+            if ref.search(_without_comment(text)) and (doc, i) not in allowed:
                 raise EsphomeError(
                     f"'{name}' is also used at {doc}:{i + 1}; a rotation would "
                     "change that value too, edit the key by hand"
@@ -442,6 +451,7 @@ def old_key_edit(old_key: str) -> list[KeyEdit]:
                 raise EsphomeError(
                     f"No plain '{name}:' line in {secrets_path}; edit it by hand"
                 )
+            _refuse_other_own_uses(name, {(doc.resolve(), line_no)})
             return _with_sharers([edit])
         match = _field_line_re(CONF_OLD_KEY, str(existing)).match(text)
         if match is None:
@@ -536,11 +546,11 @@ def apply_key_edits(edits: list[KeyEdit]) -> dict[Path, Snapshot]:
     except BaseException as err:
         try:
             restore_key_files(originals)
-        except EsphomeError as restore_err:
+        except RestoreError as restore_err:
             if not isinstance(err, Exception):
                 err.add_note(str(restore_err))  # an interrupt stays one
                 raise err from None
-            raise EsphomeError(f"{err}; {restore_err}") from err
+            raise RestoreError(f"{err}; {restore_err}") from err
         raise
     return originals
 
@@ -565,4 +575,4 @@ def restore_key_files(originals: dict[Path, Snapshot]) -> None:
     except EsphomeError as err:
         failed.append(str(err))
     if failed:
-        raise EsphomeError("Could not restore " + "; ".join(failed))
+        raise RestoreError("Could not restore " + "; ".join(failed))
