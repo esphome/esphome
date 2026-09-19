@@ -12,7 +12,7 @@ namespace esphome::mdns {
 
 static const char *const TAG = "mdns";
 
-#ifndef USE_OPENTHREAD
+#if !defined(USE_OPENTHREAD) || defined(USE_OPENTHREAD_BORDER_ROUTER)
 static esp_err_t add_service(const MDNSService &service) {
   // Stack buffer for up to 16 txt records, heap fallback for more
   SmallBufferWithHeapFallback<16, mdns_txt_item_t> txt_records(service.txt_records.size());
