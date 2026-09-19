@@ -1033,3 +1033,125 @@ def test_secret_beside_a_symlinked_main_config(tmp_path: Path) -> None:
     CORE.raw_config = yaml_util.load_yaml(CORE.config_path)
     edits = locate_key_edits(OLD_KEY, NEW_KEY)
     assert [e.path for e in edits] == [(tmp_path / "secrets.yaml").resolve()]
+
+
+def test_secret_in_a_symlinked_include_resolves_beside_the_link(tmp_path: Path) -> None:
+    """The loader looks beside the include as written, not beside its target."""
+    shared = tmp_path / "shared"
+    shared.mkdir()
+    (shared / "api.yaml").write_bytes(b"encryption:\n  key: !secret device_key\n")
+    (shared / "secrets.yaml").write_bytes(b"device_key: other\n")
+    sub = tmp_path / "sub"
+    sub.mkdir()
+    (sub / "api.yaml").symlink_to(shared / "api.yaml")
+    (sub / "secrets.yaml").write_bytes(f"device_key: {OLD_KEY}\n".encode())
+    _setup(
+        tmp_path,
+        "esphome:\n  name: test\n\napi: !include sub/api.yaml\n\n"
+        "ota:\n  - platform: esphome\n    encryption:\n",
+    )
+    edits = locate_key_edits(OLD_KEY, NEW_KEY)
+    assert [e.path for e in edits] == [(sub / "secrets.yaml").resolve()]
+
+
+def test_scan_reports_what_it_could_not_read(tmp_path: Path) -> None:
+    """An unreadable file or a linked directory makes the shared-use check
+    incomplete; the warning says so, and the collision check refuses."""
+    (tmp_path / "latin1.yaml").write_bytes(b"caf\xe9: 1\n")
+    elsewhere = tmp_path.parent / "elsewhere_configs"
+    elsewhere.mkdir(exist_ok=True)
+    (tmp_path / "linked").symlink_to(elsewhere)
+    _setup(tmp_path, SECRET_YAML, f"device_key: {OLD_KEY}\ndevice_key_old: x\n")
+    edits = locate_key_edits(OLD_KEY, NEW_KEY)
+    assert len(edits[0].unchecked) == 2
+    assert any("latin1.yaml" in u for u in edits[0].unchecked)
+    assert any("is a link" in u for u in edits[0].unchecked)
+    with pytest.raises(EsphomeError, match="Could not read every configuration"):
+        old_key_edit(OLD_KEY)
+
+
+def test_secret_used_elsewhere_in_this_configuration_is_refused(
+    tmp_path: Path,
+) -> None:
+    """A wifi password on the key's secret would change with it."""
+    _setup(
+        tmp_path,
+        SECRET_YAML + "wifi:\n  password: !secret device_key\n",
+        f"device_key: {OLD_KEY}\n",
+    )
+    with pytest.raises(EsphomeError, match="also used at .*test.yaml:13"):
+        locate_key_edits(OLD_KEY, NEW_KEY)
+
+
+def test_sharers_include_the_files_that_include_a_sharer(tmp_path: Path) -> None:
+    """`other.yaml` reaches the secret through `base.yaml`."""
+    (tmp_path / "base.yaml").write_bytes(
+        b"api:\n  encryption:\n    key: !secret device_key\n"
+    )
+    (tmp_path / "other.yaml").write_bytes(b"packages:\n  base: !include base.yaml\n")
+    (tmp_path / "third.yaml").write_bytes(b"packages:\n  base: !include other.yaml\n")
+    _setup(tmp_path, SECRET_YAML, f"device_key: {OLD_KEY}\n")
+    edits = locate_key_edits(OLD_KEY, NEW_KEY)
+    assert [p.name for p in edits[0].shared_with] == [
+        "base.yaml",
+        "other.yaml",
+        "third.yaml",
+    ]
+
+
+def test_old_secret_goes_to_the_secrets_file_of_the_block_that_gets_old_key(
+    tmp_path: Path,
+) -> None:
+    """`!secret device_key_old` in the main file resolves from the main
+    secrets; when the key only lives beside an include, that is refused
+    rather than left to fail at compile time."""
+    sub = tmp_path / "sub"
+    sub.mkdir()
+    (sub / "api.yaml").write_bytes(b"encryption:\n  key: !secret device_key\n")
+    (sub / "secrets.yaml").write_bytes(f"device_key: {OLD_KEY}\n".encode())
+    _setup(
+        tmp_path,
+        "esphome:\n  name: test\n\napi: !include sub/api.yaml\n\n"
+        "ota:\n  - platform: esphome\n    encryption:\n",
+        "wifi: x\n",
+    )
+    with pytest.raises(
+        EsphomeError, match="No plain 'device_key:' line in .*secrets.yaml"
+    ):
+        old_key_edit(OLD_KEY)
+
+
+def test_a_failed_rollback_keeps_an_interrupt_an_interrupt(tmp_path: Path) -> None:
+    _setup(tmp_path, API_YAML)
+    edits = locate_key_edits(OLD_KEY, NEW_KEY)
+    with (
+        patch("esphome.yaml_util.load_yaml", side_effect=KeyboardInterrupt),
+        patch("pathlib.Path.chmod", side_effect=[None, OSError("disk")]),
+        pytest.raises(KeyboardInterrupt) as info,
+    ):
+        apply_key_edits(edits)
+    assert "disk" in "".join(info.value.__notes__)
+
+
+def test_rollback_after_a_failed_second_write_leaves_the_untouched_file_alone(
+    tmp_path: Path,
+) -> None:
+    """The file that was never written is not reported as changed."""
+    (tmp_path / "enc.yaml").write_bytes(f'key: "{OLD_KEY}"\n'.encode())
+    _setup(
+        tmp_path,
+        "esphome:\n  name: test\n\napi:\n  encryption:\n"
+        f'    key: "{OLD_KEY}"\n\nota:\n  - platform: esphome\n'
+        "    encryption: !include enc.yaml\n",
+    )
+    edits = locate_key_edits(OLD_KEY, NEW_KEY)
+    assert len(edits) == 2
+    with (
+        patch(
+            "esphome.yaml_edit._write_keeping_mode",
+            side_effect=[None, EsphomeError("disk")],
+        ),
+        pytest.raises(EsphomeError) as info,
+    ):
+        apply_key_edits(edits)
+    assert "changed since it was written" not in str(info.value)

@@ -1022,8 +1022,11 @@ def probe_ota_key(
             except (OSError, OTANetworkError) as err:
                 last_error = str(err)
             except OTAError as err:
+                # Final in the precheck; a rebooting device may answer
+                # differently once it is back
                 last_error = str(err)
-                answered.add(index)
+                if not retry_rejected:
+                    answered.add(index)
             else:
                 _LOGGER.info("Device %s accepted the key", sa[0])
                 return True
