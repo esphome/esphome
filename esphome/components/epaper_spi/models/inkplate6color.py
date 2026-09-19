@@ -7,7 +7,7 @@ from . import EpaperModel
 
 class Inkplate6ColorModel(EpaperModel):
     def __init__(self, name, class_name="EPaperInkplate6Color", **kwargs):
-        super().__init__(name, class_name, **kwargs)
+        super().__init__(name, class_name=class_name, **kwargs)
 
     # fmt: off
     def get_init_sequence(self, config: dict):

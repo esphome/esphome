@@ -1,6 +1,9 @@
 packages:
   spi: !include ../../test_build_components/common/spi/esp32-s3-idf.yaml
 
+psram:
+  mode: octal
+
 display:
   - platform: epaper_spi
     spi_id: spi_bus
@@ -90,6 +93,17 @@ display:
     # Override pins to avoid conflict with other display configs
     busy_pin: 43
     dc_pin: 42
+
+  # Seeed reTerminal Sticky, four-level grayscale (800x480, SSD1677)
+  # dc_pin/reset_pin overridden to avoid conflict with other display configs
+  # full_update_every is not supported by this model, so left at its default of 1
+  - platform: epaper_spi
+    model: seeed-reterminal-sticky-gray4
+    dc_pin: 45
+    reset_pin: 9
+    lambda: |-
+      it.filled_rectangle(0, 0, it.get_width(), it.get_height(), Color(170, 170, 170));
+      it.circle(it.get_width() / 2, it.get_height() / 2, 100, Color::BLACK);
 
   # WeAct 2.13" 3-color e-paper (122x250, SSD1680)
   - platform: epaper_spi

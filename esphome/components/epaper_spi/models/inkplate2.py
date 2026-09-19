@@ -5,7 +5,7 @@ from . import EpaperModel
 
 class Inkplate2Model(EpaperModel):
     def __init__(self, name, class_name="EPaperInkplate2", **kwargs):
-        super().__init__(name, class_name, **kwargs)
+        super().__init__(name, class_name=class_name, **kwargs)
 
     def get_init_sequence(self, config: dict):
         width, height = self.get_dimensions(config)
