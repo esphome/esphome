@@ -1214,3 +1214,14 @@ def test_existing_old_key_secret_used_elsewhere_is_refused(tmp_path: Path) -> No
     _setup(tmp_path, yaml_text, f"device_key: {OLD_KEY}\ndevice_key_old: {OLDER_KEY}\n")
     with pytest.raises(EsphomeError, match="'device_key_old' is also used at"):
         old_key_edit(OLD_KEY)
+
+
+def test_a_key_merged_from_an_anchor_is_refused(tmp_path: Path) -> None:
+    """The anchor's line may be merged into other mappings as well."""
+    _setup(
+        tmp_path,
+        f'named: &named\n  key: "{OLD_KEY}"\n\napi:\n  encryption:\n    <<: *named\n\n'
+        "ota:\n  - platform: esphome\n    encryption:\n",
+    )
+    with pytest.raises(EsphomeError, match="was not found on a line of the yaml"):
+        locate_key_edits(OLD_KEY, NEW_KEY)
