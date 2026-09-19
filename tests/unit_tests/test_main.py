@@ -8235,6 +8235,7 @@ def test_command_rotate_key_restores_when_the_device_was_never_reached(
     assert CORE.config_path.read_text() == ROTATE_API_YAML
     out = capfd.readouterr().out
     assert "did not reach the device" in out
+    assert "put back" not in out
     assert "Restored the previous key" in out
 
 

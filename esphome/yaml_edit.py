@@ -147,6 +147,15 @@ def _field_line_re(
     return re.compile(rf"^(?P<prefix>{prefix}){_TRAILER.format(value=scalar)}")
 
 
+_COMMENT_RE = re.compile(r"(?:^|\s)#.*$")
+_INCLUDE_DIR_RE = re.compile(r"!include_dir_\w+\s+(?P<dir>[^\s#]+)")
+
+
+def _without_comment(text: str) -> str:
+    """The line up to its comment, which starts at a `#` after whitespace."""
+    return _COMMENT_RE.sub("", text)
+
+
 def _secret_use_re(name: str) -> re.Pattern[str]:
     return re.compile(rf"!secret\s+[\"']?{re.escape(name)}[\"']?(?=[\s#]|$)")
 
@@ -260,7 +269,10 @@ def _other_config_texts(
 def _with_sharers(edits: list[KeyEdit]) -> list[KeyEdit]:
     """Fill in the other configurations each rewritten line serves: users of
     its secret, or of the include it sits in, and the files that include
-    those in turn; an added line serves none."""
+    those in turn; an added line serves none. The search starts from every
+    file but this configuration's own, this configuration's includes among
+    them, since another device may reach the line through one of those. A
+    directory include cannot be followed by name and is reported as unread."""
     main = CORE.config_path.resolve()
     refs = {
         id(edit): _secret_use_re(edit.secret)
@@ -271,7 +283,11 @@ def _with_sharers(edits: list[KeyEdit]) -> list[KeyEdit]:
     }
     if not refs:
         return edits
-    texts, skipped = _other_config_texts(_own_documents())
+    own = _own_documents()
+    texts, skipped = _other_config_texts({main})
+    for path, text in texts:
+        if match := _INCLUDE_DIR_RE.search(_without_comment(text)):
+            skipped.append(f"{path} includes the directory {match['dir']}")
     for edit in edits:
         if (ref := refs.get(id(edit))) is None:
             continue
@@ -285,7 +301,7 @@ def _with_sharers(edits: list[KeyEdit]) -> list[KeyEdit]:
                 if path not in users and _file_use_re(name).search(text)
             }
             users |= frontier
-        edit.shared_with = sorted(users)
+        edit.shared_with = sorted(p for p in users if p.resolve() not in own)
         edit.unchecked = skipped
     return edits
 
@@ -376,7 +392,7 @@ def _refuse_other_own_uses(name: str, blocks: list[ConfigType]) -> None:
     ref = _secret_use_re(name)
     for doc in _own_documents():
         for i, text in enumerate(_read_text(doc).splitlines()):
-            if ref.search(text) and (doc, i) not in key_lines:
+            if ref.search(_without_comment(text)) and (doc, i) not in key_lines:
                 raise EsphomeError(
                     f"'{name}' is also used at {doc}:{i + 1}; a rotation would "
                     "change that value too, edit the key by hand"
