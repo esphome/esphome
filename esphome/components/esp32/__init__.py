@@ -2792,6 +2792,19 @@ async def to_code(config):
             config.get(CONF_ENGINEERING_SAMPLE, False),
         )
 
+    # ESP32-C2: ESP-IDF defaults to the ROM's newlib "nano" printf, which only
+    # understands the h/l/L length modifiers. %zu and %lld mis-parse and shift
+    # the argument list, so any following %s dereferences an integer and
+    # crashes. Link the full newlib formatter instead (~12KB flash).
+    # The option was renamed in IDF 5.5.
+    if variant == VARIANT_ESP32C2:
+        nano_format = (
+            "CONFIG_LIBC_NEWLIB_NANO_FORMAT"
+            if idf_version() >= cv.Version(5, 5, 0)
+            else "CONFIG_NEWLIB_NANO_FORMAT"
+        )
+        add_idf_sdkconfig_option(nano_format, False)
+
     # Set minimum chip revision for ESP32 variant
     # Setting this to 3.0 or higher reduces flash size by excluding workaround code,
     # and for PSRAM users saves significant IRAM by keeping C library functions in ROM.
