@@ -161,14 +161,15 @@ bool ES7210::configure_mic_gain_() {
                                                   this->es7210_gain_reg_value_(this->channel_gains_[1])));
 
   // Configure mic 3
-  ES7210_ERROR_CHECK(this->es7210_update_reg_bit_(ES7210_CLOCK_OFF_REG01, 0x0b, 0x00));
+  // MIC3 uses the ADC3/4 and MIC3/4 clock domains (bits 2 and 4), not the MIC1/2 domains.
+  ES7210_ERROR_CHECK(this->es7210_update_reg_bit_(ES7210_CLOCK_OFF_REG01, 0x15, 0x00));
   ES7210_ERROR_CHECK(this->write_byte(ES7210_MIC34_POWER_REG4C, 0x00));
   ES7210_ERROR_CHECK(this->es7210_update_reg_bit_(ES7210_MIC3_GAIN_REG45, 0x10, 0x10));
   ES7210_ERROR_CHECK(this->es7210_update_reg_bit_(ES7210_MIC3_GAIN_REG45, 0x0f,
                                                   this->es7210_gain_reg_value_(this->channel_gains_[2])));
 
   // Configure mic 4
-  ES7210_ERROR_CHECK(this->es7210_update_reg_bit_(ES7210_CLOCK_OFF_REG01, 0x0b, 0x00));
+  ES7210_ERROR_CHECK(this->es7210_update_reg_bit_(ES7210_CLOCK_OFF_REG01, 0x15, 0x00));
   ES7210_ERROR_CHECK(this->write_byte(ES7210_MIC34_POWER_REG4C, 0x00));
   ES7210_ERROR_CHECK(this->es7210_update_reg_bit_(ES7210_MIC4_GAIN_REG46, 0x10, 0x10));
   ES7210_ERROR_CHECK(this->es7210_update_reg_bit_(ES7210_MIC4_GAIN_REG46, 0x0f,
