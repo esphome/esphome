@@ -3,6 +3,7 @@
 
 #include <algorithm>
 #include <cstring>
+#include <iterator>
 
 namespace esphome::snapshot {
 
