@@ -14,7 +14,12 @@ esphome:
 
 uart:
   - id: uart_id
-    tx_pin: 17
+    tx_pin:
+      number: 17
+      pullup: true
+      mode:
+        output: true
+        hold_during_sleep: true
     rx_pin: 16
     flow_control_pin: 4
     baud_rate: 9600
