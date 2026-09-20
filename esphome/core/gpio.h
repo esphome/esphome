@@ -86,7 +86,7 @@ class GPIOPin {
   virtual bool is_internal() { return false; }
 #ifdef USE_GPIO_HOLD
   inline bool get_hold() const { return this->get_flags() & gpio::FLAG_HOLD; }
-  virtual inline bool is_held() const { return false; };
+  virtual inline bool is_held() const { return false; }
 #else
   inline bool get_hold() const { return false; }
   inline bool is_held() const { return false; }
