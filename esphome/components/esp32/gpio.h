@@ -32,7 +32,7 @@ class ESP32InternalGPIOPin final : public InternalGPIOPin {
   gpio_num_t get_pin_num() const { return static_cast<gpio_num_t>(this->pin_); }
   gpio_drive_cap_t get_drive_strength() const { return static_cast<gpio_drive_cap_t>(this->pin_flags_.drive_strength); }
 #ifdef USE_GPIO_HOLD
-  inline bool is_held() const override {
+  bool is_held() const override {
     esp_reset_reason_t reason = esp_reset_reason();
     return (reason != ESP_RST_POWERON && reason != ESP_RST_BROWNOUT) && this->get_hold();
   }
