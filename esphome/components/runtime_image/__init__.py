@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+import subprocess
 
 import esphome.codegen as cg
 from esphome.components.const import CONF_BYTE_ORDER
@@ -39,6 +40,22 @@ def _get_data() -> RuntimeImageData:
     if DOMAIN not in CORE.data:
         CORE.data[DOMAIN] = RuntimeImageData()
     return CORE.data[DOMAIN]
+
+
+def _host_jpeg_flags() -> list[str]:
+    """Compiler and linker flags for the system libjpeg on the host platform."""
+    try:
+        return (
+            subprocess.check_output(
+                ["pkg-config", "--cflags", "--libs", "libjpeg"], close_fds=False
+            )
+            .decode()
+            .split()
+        )
+    except (OSError, subprocess.CalledProcessError):
+        # pkg-config is often not installed even where libjpeg is. Fall back to the
+        # default search paths; the linker reports a clear error if it is missing.
+        return ["-ljpeg"]
 
 
 runtime_image_ns = cg.esphome_ns.namespace("runtime_image")
@@ -113,16 +130,20 @@ class JPEGFormat(Format):
     def actions(self) -> None:
         cg.add_define("USE_RUNTIME_IMAGE_JPEG")
         if _get_data().jpeg_decoder == DECODER_LIBJPEG_TURBO:
-            from esphome.components.esp32 import add_idf_component
-
             # libjpeg-turbo supports progressive JPEG images, which JPEGDEC
             # does not.
-            #
+            cg.add_define("USE_RUNTIME_IMAGE_JPEG_TURBO")
+            if CORE.is_host:
+                # Host links the system libjpeg rather than building a copy.
+                for flag in _host_jpeg_flags():
+                    cg.add_build_flag(flag)
+                return
+            from esphome.components.esp32 import add_idf_component
+
             # Fetched via git instead of the component registry: the registry
             # checkout is named espressif__libjpeg-turbo, which breaks the
             # component's own reference to the idf::libjpeg-turbo CMake
             # target. A git dependency keeps the plain component name.
-            cg.add_define("USE_RUNTIME_IMAGE_JPEG_TURBO")
             add_idf_component(
                 name="libjpeg-turbo",
                 repo="https://github.com/espressif/idf-extra-components.git",
@@ -195,9 +216,10 @@ AUTO_FORMAT = AUTOFormat()
 def _validate_jpeg_decoder(config: ConfigType) -> ConfigType:
     """Record the build-wide JPEG decoder so every image uses the same one."""
     decoder = config[CONF_JPEG_DECODER]
-    if decoder == DECODER_LIBJPEG_TURBO and not CORE.is_esp32:
+    if decoder == DECODER_LIBJPEG_TURBO and not (CORE.is_esp32 or CORE.is_host):
         raise cv.Invalid(
-            f"'{CONF_JPEG_DECODER}: {DECODER_LIBJPEG_TURBO}' is only supported on ESP32",
+            f"'{CONF_JPEG_DECODER}: {DECODER_LIBJPEG_TURBO}' is only supported on "
+            "ESP32 and host",
             [CONF_JPEG_DECODER],
         )
     _get_data().jpeg_decoder = decoder
