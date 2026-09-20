@@ -145,6 +145,7 @@ std::unique_ptr<ListenSocket> socket_ip_loop_monitored(int type, int protocol) {
 #endif
 
 #if defined(USE_SOCKET_IMPL_BSD_SOCKETS) || defined(USE_SOCKET_IMPL_LWIP_SOCKETS)
+// Callback must be a temporary lambda
 template<typename F> static bool foreach_eligible_ipv6_if(F &&callback) {
 #if defined(USE_HOST)
   struct ifaddrs *ifaddr;
@@ -179,11 +180,15 @@ template<typename F> static bool foreach_eligible_ipv6_if(F &&callback) {
   struct EligibleIfContext {
     F *callback;
     bool found_any = false;
+    bool done = false;
   };
   EligibleIfContext ctx{&callback};
   net_if_foreach(
       [](struct net_if *iface, void *user_data) {
         auto *ctx = static_cast<EligibleIfContext *>(user_data);
+        if (ctx->done) {
+          return;
+        }
         if (!net_if_flag_is_set(iface, NET_IF_UP) || !net_if_flag_is_set(iface, NET_IF_IPV6) ||
             net_if_flag_is_set(iface, NET_IF_IPV6_NO_MLD)) {
           return;
@@ -193,7 +198,9 @@ template<typename F> static bool foreach_eligible_ipv6_if(F &&callback) {
           return;
         }
         ctx->found_any = true;
-        (*ctx->callback)(static_cast<unsigned int>(idx));
+        if ((*ctx->callback)(static_cast<unsigned int>(idx))) {
+          ctx->done = true;
+        }
       },
       &ctx);
   if (!ctx.found_any) {
@@ -309,9 +316,8 @@ bool join_multicast_group(Socket *sock, const char *ip_address, uint32_t *if_ind
 #if USE_NETWORK_IPV6
 bool set_ipv6_multicast_if(Socket *sock, uint32_t if_index_in) {
 #if defined(USE_ZEPHYR) || defined(USE_SOCKET_IMPL_LWIP_SOCKETS)
-  // IPV6_MULTICAST_IF is an ESP-IDF/glibc extension; upstream lwIP (Zephyr's fork and
-  // LibreTiny's) never defines it. Both targets have exactly one IPv6-capable interface,
-  // so there is nothing to select between.
+  // Upstream lwIP (Zephyr's fork, LibreTiny) has no IPV6_MULTICAST_IF; outgoing
+  // multicast follows the default netif. Zephyr gains ZSOCK_IPV6_MULTICAST_IF in NCS 3.4.0.
   (void) sock;
   (void) if_index_in;
   return true;
