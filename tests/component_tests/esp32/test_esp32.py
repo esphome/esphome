@@ -1457,7 +1457,7 @@ def test_esp32_s31_gpio_validation(
     pin = {CONF_NUMBER: 36, CONF_MODE: input_mode}
     with caplog.at_level("WARNING"):
         validate_supports(pin)
-    assert "GPIO36 is a strapping PIN" in caplog.text
+    assert "GPIO36 is a strapping pin" in caplog.text
 
 
 _TLS_SERVER_OPTIONS = (
