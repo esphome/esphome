@@ -51,7 +51,6 @@ void DistanceUARTSensor::dump_config() {
   if (this->max_range_mm_ > 0) {
     ESP_LOGCONFIG(TAG, "  Max Range: %.2fm", this->max_range_mm_ / 1000.0f);
   }
-  this->check_uart_settings(this->baud_rate_);
 }
 
 void DistanceUARTSensor::update() {
