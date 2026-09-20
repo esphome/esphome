@@ -34,7 +34,7 @@ class ESP32InternalGPIOPin final : public InternalGPIOPin {
 #ifdef USE_GPIO_HOLD
   inline bool is_held() const override {
     esp_reset_reason_t reason = esp_reset_reason();
-    return (reason != ESP_RSO_PWRON && reason != ESP_RSO_BROWNOUT) && this->get_hold()
+    return (reason != ESP_RST_POWERON && reason != ESP_RST_BROWNOUT) && this->get_hold()
   }
 #endif
 
