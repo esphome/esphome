@@ -1,7 +1,15 @@
-"""buffer_size reaches the receiver when set, and always on the pulse ring targets."""
+"""buffer_size is bytes on the pulse ring targets and only reaches RMT targets when set."""
 
 from collections.abc import Callable
 from pathlib import Path
+
+import pytest
+
+from esphome.components import remote_receiver
+from esphome.components.esp8266 import gpio as esp8266_gpio  # noqa: F401  registers the pin schema
+from esphome.config_validation import Invalid
+from esphome.const import PlatformFramework
+from tests.component_tests.types import SetCoreConfigCallable
 
 
 def test_explicit_buffer_size_is_passed_through(
@@ -12,17 +20,29 @@ def test_explicit_buffer_size_is_passed_through(
     assert "rcvr->set_buffer_size(2000);" in main_cpp
 
 
-def test_pulse_ring_target_keeps_a_default(
+@pytest.mark.parametrize(
+    "target", ["esp8266", "rp2", "bk72xx", "rtl87xx", "ln882x", "esp32_c2", "esp32_c61"]
+)
+def test_pulse_ring_default_holds_1000_pulses(
     generate_main: Callable[[str | Path], str],
     component_config_path: Callable[[str], Path],
+    target: str,
 ) -> None:
-    main_cpp = generate_main(component_config_path("receiver_esp8266.yaml"))
-    assert "rcvr->set_buffer_size(1000);" in main_cpp
+    main_cpp = generate_main(component_config_path(f"receiver_{target}.yaml"))
+    assert "rcvr->set_buffer_size(4000);" in main_cpp
 
 
-def test_esp32_variant_without_rmt_keeps_a_default(
-    generate_main: Callable[[str | Path], str],
-    component_config_path: Callable[[str], Path],
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [("32b", None), ("64b", 64), ("65b", 65), ("65535b", 65535), ("65536b", None)],
+)
+def test_buffer_size_range(
+    set_core_config: SetCoreConfigCallable, value: str, expected: int | None
 ) -> None:
-    main_cpp = generate_main(component_config_path("receiver_esp32_c2.yaml"))
-    assert "rcvr->set_buffer_size(1000);" in main_cpp
+    set_core_config(PlatformFramework.ESP8266_ARDUINO)
+    config = {"pin": "GPIO4", "buffer_size": value}
+    if expected is None:
+        with pytest.raises(Invalid):
+            remote_receiver.CONFIG_SCHEMA(config)
+    else:
+        assert remote_receiver.CONFIG_SCHEMA(config)["buffer_size"] == expected
