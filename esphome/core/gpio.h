@@ -83,6 +83,11 @@ class GPIOPin {
   virtual size_t dump_summary(char *buffer, size_t len) const;
 
   virtual bool is_internal() { return false; }
+#ifdef USE_GPIO_HOLD
+  inline bool get_hold() const { return this->get_flags() & gpio::FLAG_HOLD; }
+#else
+  inline bool get_hold() const { return false; }
+#endif
 };
 
 /// Copy of GPIOPin that is safe to use from ISRs (with no virtual functions)

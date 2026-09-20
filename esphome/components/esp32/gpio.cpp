@@ -86,7 +86,7 @@ ISRInternalGPIOPin ESP32InternalGPIOPin::to_isr() const {
   arg->flags = gpio::FLAG_NONE;
   arg->inverted = this->pin_flags_.inverted;
 #ifdef USE_GPIO_HOLD
-  arg->hold = this->get_hold_();
+  arg->hold = this->get_hold();
 #endif
 #if defined(USE_ESP32_VARIANT_ESP32)
   arg->use_rtc = rtc_gpio_is_valid_gpio(this->get_pin_num());
@@ -133,6 +133,12 @@ size_t ESP32InternalGPIOPin::dump_summary(char *buffer, size_t len) const {
 }
 
 void ESP32InternalGPIOPin::setup() {
+#ifdef USE_GPIO_HOLD
+  // hold the pin if requested, so that it will retain its state. Outputs will apply the config only on first write
+  if (this->get_hold()) {
+    gpio_hold_en(this->get_pin_num());
+  }
+#endif
   gpio_config_t conf{};
   conf.pin_bit_mask = 1ULL << static_cast<uint32_t>(this->pin_);
   conf.mode = flags_to_mode(this->flags_);
@@ -148,15 +154,15 @@ void ESP32InternalGPIOPin::setup() {
     gpio_set_drive_capability(this->get_pin_num(), this->get_drive_strength());
   }
 #ifdef USE_GPIO_HOLD
-  if (conf.mode == GPIO_MODE_INPUT || !this->get_hold_()) {
-    // for inputs apply config now in case it was configured as output before sleep
+  if (this->flags_ & gpio::FLAG_INPUT || !this->get_hold()) {
+    // for inputs apply config now so reading works immediately
     // for outputs defer until the first write
     if (GPIO_IS_VALID_OUTPUT_GPIO(this->get_pin_num())) {
       gpio_hold_dis(this->get_pin_num());
+      if (this->get_hold()) {
+        gpio_hold_en(this->get_pin_num());
+      }
     }
-  }
-  if (this->get_hold_()) {
-    gpio_hold_en(this->get_pin_num());
   }
 #else
   // release any hold left over from a previous firmware that used hold_during_sleep;
@@ -180,7 +186,7 @@ void ESP32InternalGPIOPin::pin_mode(gpio::Flags flags) {
   }
   gpio_set_pull_mode(this->get_pin_num(), pull_mode);
 #ifdef USE_GPIO_HOLD
-  if (this->get_hold_()) {
+  if (this->get_hold()) {
     refresh_hold(this->get_pin_num());
   }
 #endif
@@ -192,7 +198,7 @@ bool ESP32InternalGPIOPin::digital_read() {
 void ESP32InternalGPIOPin::digital_write(bool value) {
   gpio_set_level(this->get_pin_num(), value != this->pin_flags_.inverted ? 1 : 0);
 #ifdef USE_GPIO_HOLD
-  if (this->get_hold_()) {
+  if (this->get_hold()) {
     refresh_hold(this->get_pin_num());
   }
 #endif
