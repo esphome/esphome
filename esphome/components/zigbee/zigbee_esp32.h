@@ -30,11 +30,15 @@ static const uint32_t EZB_PRIMARY_CHANNEL_MASK = 0x07FFF800U; /* channels 11-26 
 
 uint8_t *get_zcl_string(const char *str, uint8_t max_size, bool use_max_size = false);
 
+struct AttrValue {
+  ezb_zcl_attr_desc_t attr_desc;
+  void *value_p;
+};
+
 class ZigbeeAttribute;
 
 class ZigbeeComponent final : public Component {
  public:
-  ZigbeeComponent();
   void setup() override;
   void loop() override;
   void dump_config() override;
@@ -88,7 +92,8 @@ class ZigbeeComponent final : public Component {
   // automations
   // key tuple could be replaced by single 64 (48) bit int with bit fields for endpoint, cluster, role and attr_id
   std::map<std::tuple<uint8_t, uint16_t, uint8_t, uint16_t>, ZigbeeAttribute *> attributes_;
-  ezb_af_device_desc_t dev_desc_;
+  std::vector<AttrValue> attr_values_;
+  ezb_af_device_desc_t dev_desc_ = ezb_af_create_device_desc();
   CallbackManager<void(bool)> join_cb_{};
   LazyCallbackManager<void()> start_cb_{};
   bool start_reported_{false};
@@ -133,7 +138,11 @@ void ZigbeeComponent::add_attr_(ZigbeeAttribute *attr, uint8_t endpoint_id, uint
   if (cluster_desc == NULL) {
     return;
   }
-  esphome_zb_cluster_add_or_update_attr(cluster_id, cluster_desc, attr_id, value_p);
+  ezb_zcl_attr_desc_t attr_desc = esphome_zb_cluster_add_or_update_attr(cluster_id, cluster_desc, attr_id, value_p);
+
+  if (attr_desc != NULL) {
+    attr_values_.push_back({attr_desc, value_p});
+  }
 
   if (attr != nullptr) {
     this->attributes_[{endpoint_id, cluster_id, role, attr_id}] = attr;

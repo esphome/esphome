@@ -272,7 +272,9 @@ static void ezb_task(void *pv_parameters) {
   vTaskDelete(NULL);
 }
 
-ZigbeeComponent::ZigbeeComponent() {
+void ZigbeeComponent::setup() {
+  global_zigbee = this;
+
   esp_zigbee_platform_config_t platform_config = {
       .storage_partition_name = "nvs",
       .radio_config = EZB_DEFAULT_RADIO_CONFIG(),
@@ -299,11 +301,7 @@ ZigbeeComponent::ZigbeeComponent() {
     this->mark_failed();
     return;
   }
-  this->dev_desc_ = ezb_af_create_device_desc();
-}
 
-void ZigbeeComponent::setup() {
-  global_zigbee = this;
 #ifdef USE_WIFI
   if (esp_coex_wifi_i154_enable() != ESP_OK) {
     this->mark_failed();
@@ -340,6 +338,17 @@ void ZigbeeComponent::setup() {
       .current_power_source_level = EZB_AF_NODE_POWER_SOURCE_LEVEL_100_PERCENT,
   };
   ezb_af_set_node_power_desc(&desc);
+
+  // Finish zigbee data model
+  for (auto &attr_value : this->attr_values_) {
+    ezb_zcl_attr_desc_t attr_desc = attr_value.attr_desc;
+    void *value_p = attr_value.value_p;
+    if (attr_desc != NULL) {
+      ezb_zcl_attr_desc_set_value(attr_desc, value_p);
+    }
+  }
+  // free memory
+  this->attr_values_.clear();
 
   // Start the Zigbee task with priority 1 to ensure main loop can still run even if Zigbee is busy
   xTaskCreate(ezb_task, "Zigbee_main", 4096, NULL, 1, NULL);
