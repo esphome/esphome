@@ -63,13 +63,16 @@ int HOT JpegTurboDecoder::decode(uint8_t *buffer, size_t size) {
     // Control returns here when libjpeg encounters a fatal error
     int msg_code = error_manager.pub.msg_code;
     jpeg_destroy_decompress(&cinfo);
-    if (msg_code == JERR_OUT_OF_MEMORY)
-      return DECODE_ERROR_OUT_OF_MEMORY;
-    if (msg_code == JERR_NO_SOI)
-      return DECODE_ERROR_INVALID_TYPE;
-    if (msg_code == JERR_NOT_COMPILED)
-      return DECODE_ERROR_UNSUPPORTED_FORMAT;
-    return DECODE_ERROR_INTERNAL_DECODER_ERROR;
+    switch (msg_code) {
+      case JERR_OUT_OF_MEMORY:
+        return DECODE_ERROR_OUT_OF_MEMORY;
+      case JERR_NO_SOI:
+        return DECODE_ERROR_INVALID_TYPE;
+      case JERR_NOT_COMPILED:
+        return DECODE_ERROR_UNSUPPORTED_FORMAT;
+      default:
+        return DECODE_ERROR_INTERNAL_DECODER_ERROR;
+    }
   }
 
   jpeg_create_decompress(&cinfo);
