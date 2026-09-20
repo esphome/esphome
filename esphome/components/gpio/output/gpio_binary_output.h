@@ -11,7 +11,7 @@ class GPIOBinaryOutput final : public output::BinaryOutput, public Component {
   void set_pin(GPIOPin *pin) { pin_ = pin; }
 
   void setup() override {
-    if (pin_state_held_from_deep_sleep(this->pin_)) {
+    if (this->pin_->get_hold()) {
       // keep state and don't turn off
       this->pin_->setup();
     } else {

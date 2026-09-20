@@ -7,7 +7,7 @@ static const char *const TAG = "power_supply";
 
 void PowerSupply::setup() {
   this->pin_->setup();
-  if (!pin_state_held_from_deep_sleep(this->pin_)) {
+  if (!this->pin_->get_hold()) {
     this->pin_->digital_write(false);
 #if defined(USE_DEEP_SLEEP) && defined(USE_GPIO_HOLD)
     this->disable_loop();  // nothing to reconcile: pin is already off
@@ -74,7 +74,7 @@ void PowerSupply::loop() {
 void PowerSupply::on_powerdown() {
 #if defined(USE_DEEP_SLEEP) && defined(USE_GPIO_HOLD)
   // only turn off if pin is not held.
-  if (this->pin_->get_flags() & gpio::FLAG_HOLD) {
+  if (this->pin_->get_hold()) {
     return;
   }
 #endif
