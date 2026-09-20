@@ -51,6 +51,18 @@ text_sensor:
           text:
             argument: x
 
+globals:
+  - id: counter
+    type: int
+
+script:
+  - id: add_row
+    then:
+      - lvgl.list.add:
+          id: test_list_id
+          label:
+            text: row
+
 lvgl:
   id: lvgl_id
   rotation: 90
@@ -1313,7 +1325,7 @@ lvgl:
               then:
                 - logger.log:
                     format: "table selected row %u col %u"
-                    args: [row, column]
+                    args: [(unsigned)row, (unsigned)column]
             on_click:
               then:
                 - lvgl.table.cell.update:
@@ -1369,10 +1381,12 @@ lvgl:
               - logger.log:
                   format: "list entry added at %d"
                   args: [list_index]
+              - lambda: "id(counter)++;"
             on_remove:
               - logger.log:
                   format: "list entry removed at %d"
                   args: [list_index]
+              - lambda: "id(counter)--;"
             on_click:
               - lvgl.list.add_text:
                   id: test_list_id

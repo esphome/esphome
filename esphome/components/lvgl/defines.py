@@ -10,12 +10,7 @@ from typing import Any
 from esphome import codegen as cg, config_validation as cv
 from esphome.const import CONF_ITEMS
 from esphome.core import CORE, ID, Lambda
-from esphome.cpp_generator import (
-    CallExpression,
-    LambdaExpression,
-    MockObj,
-    MockObjClass,
-)
+from esphome.cpp_generator import MockObj, StaticCastExpression, call_lambda
 from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 from esphome.types import Expression, SafeExpType
 
@@ -157,17 +152,6 @@ def get_refreshed_widgets() -> set:
     return _get_data(KEY_REFRESHED_WIDGETS, set())
 
 
-class StaticCastExpression(Expression):
-    __slots__ = ("type", "exp")
-
-    def __init__(self, type: Any, exp: SafeExpType):
-        self.type = str(type)
-        self.exp = cg.safe_exp(exp)
-
-    def __str__(self):
-        return f"static_cast<{self.type}>({self.exp})"
-
-
 def add_define(macro: str, value="1"):
     lv_defines = get_defines()
     value = str(value)
@@ -190,31 +174,6 @@ def literal(arg) -> MockObj:
 
 def addr(arg) -> MockObj:
     return MockObj(f"&{arg}")
-
-
-def call_lambda(lamb: LambdaExpression) -> Expression:
-    """
-    Given a lambda, either reduce to a simple expression or call it, possibly with parameters
-    from the surrounding context
-    :param lamb:
-    :return:
-    """
-    expr = lamb.content.strip()
-    if expr.startswith("return") and expr.endswith(";"):
-        # Convert a lambda returning a simple expression to just that expression
-        expr = cg.RawExpression(expr[6:-1].strip())
-        # Don't cast if the return type is a class
-        if isinstance(lamb.return_type, MockObjClass):
-            return expr
-        return StaticCastExpression(lamb.return_type, expr)
-    # If lambda has parameters, call it with their names
-    # Parameter names come from hardcoded component code (like "x", "it", "event")
-    # not from user input, so they're safe to use directly
-    if lamb.parameters and lamb.parameters.parameters:
-        return CallExpression(
-            lamb, *[MockObj(x.id) for x in lamb.parameters.parameters]
-        )
-    return CallExpression(lamb)
 
 
 class LValidator:
