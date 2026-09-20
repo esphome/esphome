@@ -7,7 +7,7 @@ static const char *const TAG = "power_supply";
 
 void PowerSupply::setup() {
   this->pin_->setup();
-  if (!this->pin_->get_hold()) {
+  if (!this->pin_->is_held()) {
     this->pin_->digital_write(false);
 #if defined(USE_GPIO_HOLD)
     this->disable_loop();  // nothing to reconcile: pin is already off
