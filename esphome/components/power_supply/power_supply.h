@@ -9,7 +9,7 @@ namespace esphome::power_supply {
 
 class PowerSupply final : public Component {
  public:
-#if defined(USE_DEEP_SLEEP) && defined(USE_GPIO_HOLD)
+#if defined(USE_GPIO_HOLD)
   void loop() override;
 #endif
   void set_pin(GPIOPin *pin) { pin_ = pin; }

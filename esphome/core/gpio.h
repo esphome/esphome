@@ -2,6 +2,7 @@
 #include <algorithm>
 #include <cstdint>
 
+#include "esphome/core/defines.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
@@ -85,8 +86,10 @@ class GPIOPin {
   virtual bool is_internal() { return false; }
 #ifdef USE_GPIO_HOLD
   inline bool get_hold() const { return this->get_flags() & gpio::FLAG_HOLD; }
+  virtual inline bool is_held() const = 0;
 #else
   inline bool get_hold() const { return false; }
+  inline bool is_held() const { return false; }
 #endif
 };
 

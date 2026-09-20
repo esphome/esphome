@@ -12,7 +12,7 @@ float GPIOSwitch::get_setup_priority() const { return setup_priority::HARDWARE; 
 void GPIOSwitch::setup() {
   bool initial_state = this->get_initial_state_with_restore_mode().value_or(false);
 
-  if (!this->pin_->get_hold()) {
+  if (!this->pin_->is_held()) {
     // write state before setup. If state is held we need to setup first
     this->control(initial_state);
   }
