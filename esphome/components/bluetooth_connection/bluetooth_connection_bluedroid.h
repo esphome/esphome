@@ -31,6 +31,9 @@ class BluetoothConnection;
 // void disconnect() cannot overload with an int-returning twin.
 class BluedroidGattClient final : public esp32_ble_tracker::ESPBTClient, public Component {
  public:
+  // User provided, not "= default": `new(p) BluedroidGattClient()` would zero-fill .bss that is already zero.
+  BluedroidGattClient() {}
+
   static constexpr uint16_t UNSET_CONN_ID = 0xFFFF;
 
   // Lifecycle of one connection attempt's service search.
