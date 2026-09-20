@@ -419,8 +419,6 @@ def iter_ids(config, path=None):
     elif isinstance(config, core.Lambda):
         for id in config.requires_ids:
             yield id, path
-        for id in config.explicit_ids:
-            yield id, path
     elif isinstance(config, list):
         for i, item in enumerate(config):
             yield from iter_ids(item, path + [i])
@@ -1117,13 +1115,25 @@ class IDPassValidationStep(ConfigValidationStep):
                     # practice, but match.type.inherits_from(...) below would raise
                     # AttributeError if it somehow weren't one.
                     continue
+                if id.type is None:
+                    # Untyped: the usual case for an id parsed out of a hand-written
+                    # lambda's `id(...)` text -- `Lambda.requires_ids` builds those
+                    # with `type=None`, since the text alone carries no type
+                    # information to check against.
+                    continue
                 # id.type may be a single accepted type, or a tuple of acceptable
                 # alternatives (e.g. from the `entity_state:` shorthand).
                 allowed_types = id.type if isinstance(id.type, tuple) else (id.type,)
-                allowed_types = tuple(
-                    t for t in allowed_types if isinstance(t, MockObjClass)
-                )
-                if not allowed_types:
+                if not all(
+                    isinstance(t, MockObjClass) for t in allowed_types
+                ):  # pragma: no cover
+                    # Defensive: every allowed type here comes from cv.use_id(...)/
+                    # cv.declare_id(...) or the entity_state: shorthand's
+                    # lambda_shorthand.state_bearing_types(), which are always real
+                    # MockObjClass instances -- this never fires in practice. If it
+                    # somehow did, skip the check entirely rather than silently
+                    # narrowing against a partially-filtered list of only the
+                    # entries that passed.
                     continue
                 if not any(match.type.inherits_from(t) for t in allowed_types):
                     types_s = ", ".join(str(t) for t in allowed_types)

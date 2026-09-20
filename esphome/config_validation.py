@@ -25,7 +25,7 @@ import uuid as uuid_
 
 import voluptuous as vol
 
-from esphome import core
+from esphome import core, lambda_shorthand
 import esphome.codegen as cg
 from esphome.const import (
     ALLOWED_NAME_CHARS,
@@ -751,6 +751,21 @@ positive_not_null_int = int_range(min=0, min_included=False)
 positive_not_null_float = float_range(min=0, min_included=False)
 
 
+def _validate_cpp_name_chars(value: str, what: str) -> str:
+    """Character-set and reserved-word checks shared by `validate_id_name` (a full
+    ESPHome ID) and `_validate_argument_name` (a bare `argument:` lambda parameter
+    name)."""
+    valid_chars = f"{ascii_letters + digits}_"
+    for char in value:
+        if char not in valid_chars:
+            raise Invalid(
+                f"{what}s must only consist of upper/lowercase characters, the underscorecharacter and numbers. The character '{char}' cannot be used"
+            )
+    if value in RESERVED_IDS:
+        raise Invalid(f"{what} '{value}' is reserved internally and cannot be used")
+    return value
+
+
 def validate_id_name(value):
     """Validate that the given value would be a valid C++ identifier name."""
     value = string(value)
@@ -770,19 +785,33 @@ def validate_id_name(value):
         if sub_match:
             return value
 
-    valid_chars = f"{ascii_letters + digits}_"
-    for char in value:
-        if char not in valid_chars:
-            raise Invalid(
-                f"IDs must only consist of upper/lowercase characters, the underscorecharacter and numbers. The character '{char}' cannot be used"
-            )
-    if value in RESERVED_IDS:
-        raise Invalid(f"ID '{value}' is reserved internally and cannot be used")
+    value = _validate_cpp_name_chars(value, "ID")
     if value in CORE.loaded_integrations:
         raise Invalid(
             f"ID '{value}' conflicts with the name of an esphome integration, please use another ID name."
         )
     return value
+
+
+def _validate_argument_name(value):
+    """Validate an `argument:` lambda-shorthand parameter name.
+
+    Unlike `validate_id_name`, this does *not* check `CORE.loaded_integrations`: an
+    `argument:` name is a bare C++ lambda parameter, not an ESPHome ID, and some of
+    ESPHome's own hardcoded parameter names (e.g. `event`, from LVGL's event
+    lambdas) are also real component names. Rejecting those would depend on which
+    components happen to be loaded, which is not what the user's config controls.
+    """
+    value = string(value)
+    if not value:
+        raise Invalid("argument name must not be empty")
+    if value[0].isdigit():
+        raise Invalid("First character in an argument name cannot be a digit.")
+    if "-" in value:
+        raise Invalid(
+            "Dashes are not supported in argument names, please use underscores instead."
+        )
+    return _validate_cpp_name_chars(value, "argument name")
 
 
 def use_id(type):
@@ -834,104 +863,8 @@ def declare_id(type):
 # order vary with PYTHONHASHSEED.
 LAMBDA_SHORTHAND_KEYS = (CONF_ARGUMENT, CONF_ENTITY_STATE)
 
-# Coarse category for a `.state` field's C++ type, and for the value a templatable
-# field's own (non-templated) validator expects. Used only to catch `entity_state:`
-# references that are guaranteed not to compile (e.g. a std::string state feeding a
-# float field) -- not to police every stylistic mismatch.
-_KIND_NUMERIC = "numeric"
-_KIND_BOOLEAN = "boolean"
-_KIND_STRING = "string"
 
-# Validators recognized well enough to narrow which `entity_state:` types are accepted.
-# Anything not listed here (composed schemas, custom validators, ...) is left unchecked,
-# so the shorthand stays lenient rather than risking false positives. Built lazily (not at
-# module-load time) since `percentage` is defined later in this file.
-_VALIDATOR_KINDS = None
-
-
-def _validator_kinds() -> dict:
-    global _VALIDATOR_KINDS  # noqa: PLW0603
-    if _VALIDATOR_KINDS is None:
-        _VALIDATOR_KINDS = {
-            boolean: _KIND_BOOLEAN,
-            string: _KIND_STRING,
-            string_strict: _KIND_STRING,
-        }
-        for numeric_validator in (
-            float_,
-            int_,
-            positive_float,
-            positive_int,
-            positive_not_null_int,
-            positive_not_null_float,
-            percentage,
-            zero_to_one_float,
-            negative_one_to_one_float,
-        ):
-            _VALIDATOR_KINDS[numeric_validator] = _KIND_NUMERIC
-    return _VALIDATOR_KINDS
-
-
-# bool <-> numeric both implicitly convert in C++; std::string converts to neither.
-_KIND_COMPATIBLE = {
-    frozenset({_KIND_NUMERIC}): {_KIND_NUMERIC, _KIND_BOOLEAN},
-    frozenset({_KIND_BOOLEAN}): {_KIND_NUMERIC, _KIND_BOOLEAN},
-    frozenset({_KIND_STRING}): {_KIND_STRING},
-}
-
-_STATE_BEARING_TYPES = None
-
-
-def _state_bearing_types() -> list:
-    """Declared-id types with a public, directly-usable `.state` C++ field, and the
-    kind of that field, as a list of `(type, kind)` pairs -- `MockObjClass` isn't
-    hashable, so this can't be a dict keyed by type. Lazily imported: importing
-    component modules at this module's top level would be circular, since every
-    component module imports this one.
-    """
-    global _STATE_BEARING_TYPES  # noqa: PLW0603
-    if _STATE_BEARING_TYPES is None:
-        from esphome.components.binary_sensor import BinarySensor
-        from esphome.components.fan import Fan
-        from esphome.components.light.types import LightState
-        from esphome.components.number import Number
-        from esphome.components.sensor import Sensor
-        from esphome.components.switch import Switch
-        from esphome.components.text_sensor import TextSensor
-
-        _STATE_BEARING_TYPES = [
-            (Sensor, _KIND_NUMERIC),
-            (Number, _KIND_NUMERIC),
-            (BinarySensor, _KIND_BOOLEAN),
-            (Switch, _KIND_BOOLEAN),
-            (Fan, _KIND_BOOLEAN),
-            (LightState, _KIND_BOOLEAN),
-            (TextSensor, _KIND_STRING),
-        ]
-    return _STATE_BEARING_TYPES
-
-
-def _entity_state_allowed_types(other_validators) -> tuple:
-    """The declared-id types `entity_state:` may point at, narrowed to those whose
-    `.state` kind is compatible with `other_validators` when that validator is
-    recognized; otherwise every known state-bearing type is accepted.
-    """
-    types_by_kind = _state_bearing_types()
-    try:
-        field_kind = _validator_kinds().get(other_validators)
-    except TypeError:
-        # other_validators is a dict/list schema (unhashable) rather than a single
-        # recognized validator function.
-        field_kind = None
-    if field_kind is None:
-        return tuple(t for t, _ in types_by_kind)
-    compatible_kinds = _KIND_COMPATIBLE[frozenset({field_kind})]
-    return tuple(t for t, kind in types_by_kind if kind in compatible_kinds)
-
-
-def convert_id_state_to_lambda(
-    value, allowed_types: Callable[[], tuple] | None = None
-) -> Lambda | None:
+def convert_id_state_to_lambda(value) -> Lambda | None:
     """
     Recognize the `entity_state:`/`argument:` lambda shorthand and expand it into the
     equivalent hand-written lambda: `{entity_state: some_id}` becomes a lambda returning
@@ -940,19 +873,18 @@ def convert_id_state_to_lambda(
     normal handling.
 
     The returned lambda carries extra metadata a plain hand-written one wouldn't:
-    - `entity_state:` attaches a typed `core.ID` (see `explicit_ids` on `Lambda`) so the
-      id-resolution pass rejects both a nonexistent id and one whose declared type has no
-      `.state` field, instead of only failing later at C++ compile time.
+    - `entity_state:` sets a typed `core.ID` as the lambda's sole `requires_ids` entry
+      (see `Lambda.set_requires_ids`), typed as every known state-bearing type (see
+      `lambda_shorthand.state_bearing_types`), so the id-resolution pass rejects both
+      a nonexistent id and one whose declared type has no `.state` field at all,
+      instead of only failing later at C++ compile time. Whether that `.state`'s kind
+      (numeric/boolean/string) is actually compatible with the field it feeds is
+      checked later, at codegen time (`cpp_generator._check_entity_state_shorthand`),
+      once the field's real C++ return type is known -- which, unlike a config-time
+      validator, is available uniformly regardless of how that validator was built.
     - `argument:` attaches the raw parameter name (see `argument_name` on `Lambda`) so
       `process_lambda` can check it against the parameters actually available at the call
       site -- information only known there, not here.
-
-    `allowed_types`, if given, is called with no arguments to get the declared-id types
-    `entity_state:` may point at (see `_entity_state_allowed_types`); the id-resolution
-    pass then rejects a reference to a declared id of any other type. It's a callable,
-    not a precomputed tuple, so its (import-triggering) cost is only paid once we already
-    know `value` is this shorthand -- `templatable()` calls this for every value, most of
-    which aren't. Defaults to every known state-bearing type.
     """
     if not isinstance(value, dict) or not any(
         k in value for k in LAMBDA_SHORTHAND_KEYS
@@ -961,21 +893,23 @@ def convert_id_state_to_lambda(
     source = value
     value = has_exactly_one_key(*LAMBDA_SHORTHAND_KEYS)(
         Schema(
-            {Optional(x): validate_id_name for x in LAMBDA_SHORTHAND_KEYS},
+            {
+                Optional(CONF_ENTITY_STATE): validate_id_name,
+                Optional(CONF_ARGUMENT): _validate_argument_name,
+            }
         )(value)
     )
     # has_exactly_one_key guarantees exactly one of these keys is present and, per
-    # validate_id_name, non-empty.
+    # the validators above, non-empty.
     if entity_state := value.get(CONF_ENTITY_STATE):
         state_lambda = _lambda_at_source(f"return id({entity_state}).state;", source)
-        types = (
-            tuple(t for t, _ in _state_bearing_types())
-            if allowed_types is None
-            else allowed_types()
+        types = tuple(t for t, _ in lambda_shorthand.state_bearing_types())
+        # Set directly rather than leaving it to be parsed from the generated source:
+        # that would produce a second, untyped ID for the same `id(...)` reference,
+        # and the id-resolution pass would then report a bad id twice.
+        state_lambda.set_requires_ids(
+            [core.ID(entity_state, is_declaration=False, type=types)]
         )
-        state_lambda.explicit_ids = [
-            core.ID(entity_state, is_declaration=False, type=types)
-        ]
         return state_lambda
     argument = value[CONF_ARGUMENT]
     argument_lambda = _lambda_at_source(f"return {argument};", source)
@@ -1010,9 +944,7 @@ def templatable(other_validators):
         if value == SCHEMA_EXTRACT:
             return other_validators
 
-        if id_state := convert_id_state_to_lambda(
-            value, lambda: _entity_state_allowed_types(other_validators)
-        ):
+        if id_state := convert_id_state_to_lambda(value):
             return id_state
         if isinstance(value, Lambda):
             return returning_lambda(value)
@@ -2129,8 +2061,9 @@ def returning_lambda(value):
 
     Additionally, make sure the lambda returns something.
     """
-    if id_state := convert_id_state_to_lambda(value):
-        return id_state
+    # `lambda_` already expands the entity_state:/argument: shorthand (via
+    # convert_id_state_to_lambda) -- no need to check for it here too. Its output is
+    # always a `return ...;` statement, so the check below passes trivially for it.
     value = lambda_(value)
     if LAMBDA_RETURN_KEYWORD_PROG.search(Lambda.comment_remover(value.value)) is None:
         raise Invalid(

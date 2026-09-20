@@ -2655,6 +2655,40 @@ def test_lambda_entity_state_shorthand() -> None:
     assert result.value == "return id(some_sensor).state;"
 
 
+def test_argument_shorthand_name_not_checked_against_loaded_integrations() -> None:
+    """Regression: `argument:` used to reuse `validate_id_name`, which rejects a name
+    that collides with a loaded integration. That's right for `entity_state:` (a real
+    ESPHome id) but wrong for `argument:` (a bare C++ lambda parameter name) -- some of
+    ESPHome's own hardcoded parameter names, e.g. `event` from LVGL's event lambdas,
+    are also real component names, and whether that component happens to be loaded is
+    not something the user's `argument:` config controls.
+    """
+    CORE.loaded_integrations = {"event"}
+    result = cv.templatable(cv.float_)({CONF_ARGUMENT: "event"})
+    assert isinstance(result, Lambda)
+    assert result.argument_name == "event"
+
+
+def test_argument_shorthand_rejects_reserved_word() -> None:
+    with pytest.raises(Invalid, match="reserved"):
+        cv.templatable(cv.float_)({CONF_ARGUMENT: "class"})
+
+
+def test_argument_shorthand_rejects_invalid_chars() -> None:
+    with pytest.raises(Invalid):
+        cv.templatable(cv.float_)({CONF_ARGUMENT: "not-valid"})
+
+
+def test_argument_shorthand_rejects_empty_name() -> None:
+    with pytest.raises(Invalid, match="must not be empty"):
+        cv.templatable(cv.float_)({CONF_ARGUMENT: ""})
+
+
+def test_argument_shorthand_rejects_digit_leading_name() -> None:
+    with pytest.raises(Invalid, match="cannot be a digit"):
+        cv.templatable(cv.float_)({CONF_ARGUMENT: "1x"})
+
+
 def _contains_type(types, target) -> bool:
     # MockObjClass overloads `==` to build a C++ expression rather than compare
     # equality, so `in`/`not in` can't be used on a tuple of these -- compare by
@@ -2664,65 +2698,61 @@ def _contains_type(types, target) -> bool:
 
 def test_templatable_entity_state_shorthand_attaches_typed_id() -> None:
     """The id embedded by `entity_state:` must carry a type, not just a name, so the
-    id-resolution pass can reject a reference to an id with no `.state` member.
+    id-resolution pass can reject a reference to an id with no `.state` member at
+    all. It's always every known state-bearing type, regardless of the field's own
+    validator (e.g. `cv.float_` vs `cv.string`) -- whether a *specific* one of those
+    types' `.state` kind is actually compatible with the field is checked separately,
+    at codegen time once the field's real return type is known (see
+    TestProcessLambda.test_process_lambda__entity_state_shorthand_* in
+    test_cpp_generator.py), which covers composed/custom validators uniformly instead
+    of only a hand-list of recognized ones.
     """
     from esphome.components.sensor import Sensor
     from esphome.components.text_sensor import TextSensor
 
     result = cv.templatable(cv.float_)({CONF_ENTITY_STATE: "some_sensor"})
-    assert len(result.explicit_ids) == 1
-    explicit_id = result.explicit_ids[0]
-    assert explicit_id.id == "some_sensor"
-    assert not explicit_id.is_declaration
-    assert _contains_type(explicit_id.type, Sensor)
-    assert not _contains_type(explicit_id.type, TextSensor)
+    assert len(result.requires_ids) == 1
+    required_id = result.requires_ids[0]
+    assert required_id.id == "some_sensor"
+    assert not required_id.is_declaration
+    assert _contains_type(required_id.type, Sensor)
+    assert _contains_type(required_id.type, TextSensor)
 
 
-def test_templatable_entity_state_shorthand_narrows_by_validator_kind() -> None:
-    """A float-typed field should not accept a std::string state, and vice versa --
-    both would fail to compile."""
+@pytest.mark.parametrize(
+    "other_validators",
+    [
+        cv.float_,
+        cv.string,
+        cv.All(cv.float_, cv.Range(min=0)),
+        {cv.Required("x"): cv.int_},
+    ],
+    ids=["float_", "string", "composed", "dict_schema"],
+)
+def test_templatable_entity_state_shorthand_allowed_types_unaffected_by_validator(
+    other_validators,
+) -> None:
+    """The allowed-types tuple `entity_state:` attaches is the same regardless of the
+    field's own validator, dict schemas (unhashable) included -- kind-narrowing is
+    not done at this layer at all any more, see the docstring above."""
     from esphome.components.sensor import Sensor
     from esphome.components.text_sensor import TextSensor
 
-    numeric_types = (
-        cv.templatable(cv.float_)({CONF_ENTITY_STATE: "x"}).explicit_ids[0].type
-    )
-    assert _contains_type(numeric_types, Sensor)
-    assert not _contains_type(numeric_types, TextSensor)
-
-    string_types = (
-        cv.templatable(cv.string)({CONF_ENTITY_STATE: "x"}).explicit_ids[0].type
-    )
-    assert _contains_type(string_types, TextSensor)
-    assert not _contains_type(string_types, Sensor)
+    result = cv.templatable(other_validators)({CONF_ENTITY_STATE: "x"})
+    assert _contains_type(result.requires_ids[0].type, Sensor)
+    assert _contains_type(result.requires_ids[0].type, TextSensor)
 
 
-def test_templatable_entity_state_shorthand_unrestricted_for_unknown_validator() -> (
-    None
-):
-    """A composed/custom validator isn't recognized, so the shorthand stays lenient
-    rather than risking a false-positive rejection."""
-    from esphome.components.sensor import Sensor
-    from esphome.components.text_sensor import TextSensor
-
-    result = cv.templatable(cv.All(cv.float_, cv.Range(min=0)))(
-        {CONF_ENTITY_STATE: "x"}
-    )
-    assert _contains_type(result.explicit_ids[0].type, Sensor)
-    assert _contains_type(result.explicit_ids[0].type, TextSensor)
-
-
-def test_templatable_entity_state_shorthand_unrestricted_for_dict_validator() -> None:
-    """A dict-schema `other_validators` (e.g. `cv.templatable({cv.Required("x"): ...})`)
-    is unhashable, unlike the recognized primitive validators -- covers the fallback path
-    that catches the `TypeError` from that lookup instead of narrowing the allowed types.
+def test_templatable_entity_state_shorthand_excludes_light_state() -> None:
+    """Regression: `light::LightState` has no directly-usable `.state` field (the
+    boolean "on" state lives behind `remote_values.is_on()`), unlike Sensor,
+    BinarySensor, etc. `entity_state:` must not accept a light id -- it would validate
+    cleanly and then fail to compile.
     """
-    from esphome.components.sensor import Sensor
-    from esphome.components.text_sensor import TextSensor
+    from esphome.components.light.types import LightState
 
-    result = cv.templatable({cv.Required("x"): cv.int_})({CONF_ENTITY_STATE: "x"})
-    assert _contains_type(result.explicit_ids[0].type, Sensor)
-    assert _contains_type(result.explicit_ids[0].type, TextSensor)
+    result = cv.templatable(cv.float_)({CONF_ENTITY_STATE: "x"})
+    assert not _contains_type(result.requires_ids[0].type, LightState)
 
 
 def test_returning_lambda_argument_shorthand() -> None:
