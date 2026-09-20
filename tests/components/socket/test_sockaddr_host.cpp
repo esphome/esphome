@@ -67,13 +67,13 @@ TEST(FormatSockaddrTo, IPv4RoundTrip) {
   EXPECT_STREQ(buf, "203.0.113.7");
 }
 
-TEST(FormatSockaddrTo, UnknownFamilyYieldsEmptyString) {
+TEST(FormatSockaddrTo, UnknownFamilyYieldsFamilyMarker) {
   struct sockaddr addr {};
   addr.sa_family = AF_UNSPEC;
   char buf[SOCKADDR_STR_LEN] = {'x', '\0'};
   size_t written = format_sockaddr_to(&addr, sizeof(addr), buf);
-  EXPECT_EQ(written, 0u);
-  EXPECT_STREQ(buf, "");
+  EXPECT_EQ(written, strlen("<af=0>"));
+  EXPECT_STREQ(buf, "<af=0>");
 }
 
 // =========================================================================
