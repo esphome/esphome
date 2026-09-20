@@ -16,10 +16,10 @@ uart:
   - id: uart_id
     tx_pin:
       number: 17
-      pullup: true
       mode:
+        pullup: true
         output: true
-        hold_during_sleep: true
+      hold_during_sleep: true
     rx_pin: 16
     flow_control_pin: 4
     baud_rate: 9600
