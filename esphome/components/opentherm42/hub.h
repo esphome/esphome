@@ -216,10 +216,11 @@ enum class RequestKind : uint8_t {
   // SIMPLE_SENSORS table (plain f8.8 reads).
   REMOTE_OVERRIDE_ROOM_SETPOINT,
   REMOTE_OVERRIDE_ROOM_SETPOINT_2,
-  // §5.3.8.3 Class 8, ID 99: Remote Override Operating Modes (read) and Manual DHW push2 (write) --
-  // same one-id-two-directions pattern as Class 6's TSP, minus the periodic-write case (push2 is
-  // purely on-demand, there's nothing to keep synced between pushes).
-  REMOTE_OVERRIDE_OPERATING_MODES,
+  // §5.3.8.3 Class 8, ID 99: Operating Mode HC1/HC2/DHW and Manual DHW push2, packed into one byte
+  // pair -- same essential-write/informational-read split as Class 5's DHW_SETPOINT/DHW_SETPOINT_READ
+  // above, generalized to 4 sub-fields sharing one frame instead of 1.
+  REMOTE_OVERRIDE_OPERATING_MODES,       // ID 99 (write)
+  REMOTE_OVERRIDE_OPERATING_MODES_READ,  // ID 99 (read)
   // §5.3.8.3 Class 8, ID 100 LB: Remote Override Room Setpoint function flags.
   REMOTE_OVERRIDE_ROOM_SETPOINT_FUNCTION,
   // Not a real conversation -- a sentinel giving the enum's cardinality, so last_success_ms_ (see its
@@ -316,6 +317,11 @@ struct FhbSlot {
   void set_##name##_binary_sensor(binary_sensor::BinarySensor *s) { this->member = s; }
 #define OT42_SET_SELECT(name, member) \
   void set_##name##_select(select::Select *s) { this->member = s; }
+// For a standalone (non-flag-byte) switch, e.g. one packed into the same byte as other non-flag
+// fields (Class 8, ID 99's Manual DHW push2 bit) where OT42_FLAG_WRITE_BIT's whole-byte FlagWriteBits
+// doesn't apply.
+#define OT42_SET_SWITCH(name, member) \
+  void set_##name##_switch(switch_::Switch *s) { this->member = s; }
 // For the indexed-character-read accumulator struct (see IndexedStringRead below) used by the
 // Class 2 brand-identification strings.
 #define OT42_SET_TEXT_SENSOR(name, member) \
@@ -715,18 +721,20 @@ class OpenTherm42Hub : public Component {
   OT42_SET_SENSOR(control_of_special_applications_remote_override_room_setpoint, remote_override_room_setpoint_sensor_)
   OT42_SET_SENSOR(control_of_special_applications_remote_override_room_setpoint_2,
                   remote_override_room_setpoint_2_sensor_)
-  // §5.3.8.3 Class 8, ID 99: Remote Override Operating Modes -- small named enums, shown as
-  // text_sensors rather than raw codes.
-  OT42_SET_PLAIN_TEXT_SENSOR(control_of_special_applications_remote_override_operating_mode_dhw,
-                             remote_override_operating_mode_dhw_text_sensor_)
-  OT42_SET_PLAIN_TEXT_SENSOR(control_of_special_applications_remote_override_operating_mode_heating_hc1,
-                             remote_override_operating_mode_heating_hc1_text_sensor_)
-  OT42_SET_PLAIN_TEXT_SENSOR(control_of_special_applications_remote_override_operating_mode_heating_hc2,
-                             remote_override_operating_mode_heating_hc2_text_sensor_)
-  // §5.3.8.3 Class 8, ID 99 HB bit 4: Manual DHW push2 -- queued on demand, serviced ahead of the
-  // essential/informational rotation, same priority tier as Class 3's remote requests and Class 6's
-  // TSP writes.
-  void push_manual_dhw_push2() { this->manual_dhw_push2_pending_ = true; }
+  // §5.3.8.3 Class 8, ID 99: Operating Mode HC1/HC2/DHW -- small named enums, read/write, packed as
+  // nibbles into one byte pair. Sent every essential rotation (see the REMOTE_OVERRIDE_OPERATING_MODES
+  // case in build_next_request_()); displayed state comes only from the periodic read (see
+  // REMOTE_OVERRIDE_OPERATING_MODES_READ in handle_response_()), never from a write-ack echo.
+  OT42_SET_SELECT(control_of_special_applications_remote_override_operating_mode_dhw,
+                  remote_override_operating_mode_dhw_select_)
+  OT42_SET_SELECT(control_of_special_applications_remote_override_operating_mode_heating_hc1,
+                  remote_override_operating_mode_heating_hc1_select_)
+  OT42_SET_SELECT(control_of_special_applications_remote_override_operating_mode_heating_hc2,
+                  remote_override_operating_mode_heating_hc2_select_)
+  // §5.3.8.3 Class 8, ID 99 HB bit 4: Manual DHW push2 -- same packed-into-id-99 read/write pattern as
+  // the three Operating Mode selects above, not a momentary command: repeated every essential
+  // rotation for as long as the switch is on.
+  OT42_SET_SWITCH(control_of_special_applications_manual_dhw_push2, manual_dhw_push2_switch_)
   // §5.3.8.3 Class 8, ID 100 LB: Remote Override Room Setpoint function -- each bit is a small 2-state
   // named enum, so a text_sensor showing the spec's own wording rather than a bare on/off, same as
   // id=6/86's remote-parameter flags (see hub.cpp's handle_response_() REMOTE_OVERRIDE_ROOM_SETPOINT_FUNCTION
@@ -1067,10 +1075,10 @@ class OpenTherm42Hub : public Component {
   sensor::Sensor *minimum_modulation_level_sensor_{nullptr};
   sensor::Sensor *remote_override_room_setpoint_sensor_{nullptr};
   sensor::Sensor *remote_override_room_setpoint_2_sensor_{nullptr};
-  text_sensor::TextSensor *remote_override_operating_mode_dhw_text_sensor_{nullptr};
-  text_sensor::TextSensor *remote_override_operating_mode_heating_hc1_text_sensor_{nullptr};
-  text_sensor::TextSensor *remote_override_operating_mode_heating_hc2_text_sensor_{nullptr};
-  bool manual_dhw_push2_pending_{false};
+  select::Select *remote_override_operating_mode_dhw_select_{nullptr};
+  select::Select *remote_override_operating_mode_heating_hc1_select_{nullptr};
+  select::Select *remote_override_operating_mode_heating_hc2_select_{nullptr};
+  switch_::Switch *manual_dhw_push2_switch_{nullptr};
   text_sensor::TextSensor *remote_override_room_setpoint_function_manual_change_priority_text_sensor_{nullptr};
   text_sensor::TextSensor *remote_override_room_setpoint_function_program_change_priority_text_sensor_{nullptr};
 };

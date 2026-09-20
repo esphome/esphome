@@ -22,9 +22,6 @@ from ..const import (
     CONF_CONFIGURATION_INFORMATION_SOLAR_STORAGE_CONFIGURATION_SYSTEM_TYPE,
     CONF_CONTROL_AND_STATUS_INFORMATION_SOLAR_STORAGE_MODE_AND_STATUS_SOLAR_MODE,
     CONF_CONTROL_AND_STATUS_INFORMATION_SOLAR_STORAGE_MODE_AND_STATUS_SOLAR_STATUS,
-    CONF_CONTROL_OF_SPECIAL_APPLICATIONS_REMOTE_OVERRIDE_OPERATING_MODE_DHW,
-    CONF_CONTROL_OF_SPECIAL_APPLICATIONS_REMOTE_OVERRIDE_OPERATING_MODE_HEATING_HC1,
-    CONF_CONTROL_OF_SPECIAL_APPLICATIONS_REMOTE_OVERRIDE_OPERATING_MODE_HEATING_HC2,
     CONF_CONTROL_OF_SPECIAL_APPLICATIONS_REMOTE_OVERRIDE_ROOM_SETPOINT_FUNCTION_MANUAL_CHANGE_PRIORITY,
     CONF_CONTROL_OF_SPECIAL_APPLICATIONS_REMOTE_OVERRIDE_ROOM_SETPOINT_FUNCTION_PROGRAM_CHANGE_PRIORITY,
     CONF_OPENTHERM42_ID,
@@ -154,17 +151,6 @@ TYPES: dict[str, cv.Schema] = {
     # §5.3.1 Class 1, ID 101 LB bits 5,4: Solar Storage mode and status: Solar status (Standby/
     # Loading By Sun/Loading By Boiler/Anti-Legionella).
     CONF_CONTROL_AND_STATUS_INFORMATION_SOLAR_STORAGE_MODE_AND_STATUS_SOLAR_STATUS: text_sensor.text_sensor_schema(),
-    # §5.3.8.3 Class 8, ID 99 HB bits 0-3: Remote Override Operating Mode DHW -- read-only (per the
-    # spec's own note: "the master can read on Data ID 99 the remote override Operating Modes"; the
-    # only master-written part of this id is bit 4, Manual DHW push2, already a button).
-    CONF_CONTROL_OF_SPECIAL_APPLICATIONS_REMOTE_OVERRIDE_OPERATING_MODE_DHW: text_sensor.text_sensor_schema(),
-    # §5.3.8.3 Class 8, ID 99 LB bits 0-3: Remote Override Operating Mode Heating HC1 -- same
-    # read-only nature as the DHW mode above, but its own distinct 7-state enum (Comfort here is
-    # state 2, not Anti-Legionella; Precomfort exists here, not in the DHW variant).
-    CONF_CONTROL_OF_SPECIAL_APPLICATIONS_REMOTE_OVERRIDE_OPERATING_MODE_HEATING_HC1: text_sensor.text_sensor_schema(),
-    # §5.3.8.3 Class 8, ID 99 LB bits 4-7: Remote Override Operating Mode Heating HC2, same encoding
-    # as HC1.
-    CONF_CONTROL_OF_SPECIAL_APPLICATIONS_REMOTE_OVERRIDE_OPERATING_MODE_HEATING_HC2: text_sensor.text_sensor_schema(),
     # §5.3.8.3 Class 8, ID 100 LB bit 0: Manual change priority [ disable overruling remote Setpoint
     # by manual Setpoint change, enable overruling remote Setpoint by manual Setpoint change ] -- a
     # small named enum, so a text_sensor showing the spec's own wording rather than a bare on/off,

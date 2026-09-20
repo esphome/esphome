@@ -5,7 +5,6 @@ from esphome.const import ENTITY_CATEGORY_CONFIG
 
 from .. import OpenTherm42Hub, opentherm42_ns, validate_requires_time_id
 from ..const import (
-    CONF_CONTROL_OF_SPECIAL_APPLICATIONS_MANUAL_DHW_PUSH2,
     CONF_OPENTHERM42_ID,
     CONF_REMOTE_REQUEST_AUTOMATIC_HYDRONIC_AIR_PURGE,
     CONF_REMOTE_REQUEST_BACK_TO_NORMAL_OPERATION_MODE,
@@ -41,9 +40,6 @@ from ..const import (
 OpenTherm42RemoteRequestButton = opentherm42_ns.class_(
     "OpenTherm42RemoteRequestButton", button.Button, cg.Component
 )
-OpenTherm42ManualDhwPush2Button = opentherm42_ns.class_(
-    "OpenTherm42ManualDhwPush2Button", button.Button, cg.Component
-)
 OpenTherm42ResetCounterButton = opentherm42_ns.class_(
     "OpenTherm42ResetCounterButton", button.Button, cg.Component
 )
@@ -58,11 +54,11 @@ OpenTherm42SyncTimeButton = opentherm42_ns.class_(
 # a button always changes something when pressed, and Home Assistant's own definition of DIAGNOSTIC
 # is an entity that "does not allow changing" -- so DIAGNOSTIC never applies to a write entity like a
 # button (see the read-only remote_request_last_response_code sensor for that side of this
-# request/response pair). None of these are primary either: unlike the Class 8 manual DHW push2
-# button, none is a "press this as part of normal day-to-day use" action -- they're all
-# technician/installer actions, either entering or leaving a diagnostic test procedure (CO2
-# measurement, spark test, fan speed test) or a one-off corrective/commissioning action (resetting a
-# lockout or service flag, filling the CH circuit, purging air).
+# request/response pair). None of these are primary either: none is a "press this as part of normal
+# day-to-day use" action -- they're all technician/installer actions, either entering or leaving a
+# diagnostic test procedure (CO2 measurement, spark test, fan speed test) or a one-off
+# corrective/commissioning action (resetting a lockout or service flag, filling the CH circuit,
+# purging air).
 CODES: dict[str, tuple[int, str]] = {
     # 0: Back to Normal operation mode -- exits whichever "Service mode ..." test below was entered.
     CONF_REMOTE_REQUEST_BACK_TO_NORMAL_OPERATION_MODE: (0, ENTITY_CATEGORY_CONFIG),
@@ -123,15 +119,6 @@ CONFIG_SCHEMA = cv.Schema(
             ).extend(cv.COMPONENT_SCHEMA)
             for marker, (_code, entity_category) in CODES.items()
         },
-        # §5.3.8.3 Class 8, ID 99 HB bit 4: Manual DHW push2 -- rises the DHW temperature once to
-        # Comfort level and returns to the previous Operating Mode. Left as a primary entity (no
-        # entity_category): a "boost my hot water now" action a user presses as part of normal use,
-        # not a maintenance/admin action.
-        cv.Optional(
-            CONF_CONTROL_OF_SPECIAL_APPLICATIONS_MANUAL_DHW_PUSH2
-        ): button.button_schema(OpenTherm42ManualDhwPush2Button).extend(
-            cv.COMPONENT_SCHEMA
-        ),
         **{
             cv.Optional(marker): button.button_schema(
                 OpenTherm42ResetCounterButton, entity_category=ENTITY_CATEGORY_CONFIG
@@ -158,14 +145,6 @@ async def to_code(config: dict) -> None:
         if (marker_config := config.get(marker)) is not None:
             var = await button.new_button(marker_config, hub, code)
             await cg.register_component(var, marker_config)
-
-    if (
-        marker_config := config.get(
-            CONF_CONTROL_OF_SPECIAL_APPLICATIONS_MANUAL_DHW_PUSH2
-        )
-    ) is not None:
-        var = await button.new_button(marker_config, hub)
-        await cg.register_component(var, marker_config)
 
     for marker, data_id in RESETTABLE_COUNTERS.items():
         if (marker_config := config.get(marker)) is not None:

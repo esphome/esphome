@@ -84,6 +84,15 @@ static void invalidate_entity(binary_sensor::BinarySensor *entity) {
   ControllerRegistry::notify_binary_sensor_update(entity);
 #endif
 }
+static void invalidate_entity(switch_::Switch *entity) {
+  if (entity == nullptr) {
+    return;
+  }
+  entity->set_has_state(false);
+#ifdef USE_SWITCH
+  ControllerRegistry::notify_switch_update(entity);
+#endif
+}
 
 // clang-format off
 const SimpleSensorInfo OpenTherm42Hub::SIMPLE_SENSORS[] = {
@@ -167,52 +176,6 @@ static const char *solar_status_to_string(uint8_t code) {
       return "Loading By Boiler";
     default:
       return "Anti-Legionella";
-  }
-}
-
-// §5.3.8.3 Class 8, ID 99 HB bits 0-3: Remote Override Operating Mode DHW. Read-only -- distinct
-// enum from the HC1/HC2 heating variant below (Anti-Legionella here, not Comfort, is state 2).
-static const char *dhw_operating_mode_to_string(uint8_t code) {
-  switch (code) {
-    case 0:
-      return "No Override";
-    case 1:
-      return "Auto";
-    case 2:
-      return "Anti-Legionella";
-    case 3:
-      return "Comfort";
-    case 4:
-      return "Reduced";
-    case 5:
-      return "Protection";
-    case 6:
-      return "Off";
-    default:
-      return "Reserved";
-  }
-}
-
-// §5.3.8.3 Class 8, ID 99 LB bits 0-3/4-7: Remote Override Operating Mode Heating HC1/HC2 -- same
-// enum shared by both zones.
-static const char *heating_operating_mode_to_string(uint8_t code) {
-  switch (code) {
-    case 0:
-      return "No Override";
-    case 1:
-      return "Auto";
-    case 2:
-      return "Comfort";
-    case 3:
-      return "Precomfort";
-    case 4:
-      return "Reduced";
-    case 5:
-      return "Protection";
-    case 6:
-      return "Off";
-    default:
-      return "Reserved";
   }
 }
 
@@ -468,10 +431,12 @@ void OpenTherm42Hub::build_schedule_() {
   if (this->maximum_boiler_capacity_sensor_ != nullptr || this->minimum_modulation_level_sensor_ != nullptr) {
     this->informational_requests_.push_back(RequestKind::MAX_CAPACITY_MIN_MOD_LEVEL);
   }
-  if (this->remote_override_operating_mode_dhw_text_sensor_ != nullptr ||
-      this->remote_override_operating_mode_heating_hc1_text_sensor_ != nullptr ||
-      this->remote_override_operating_mode_heating_hc2_text_sensor_ != nullptr) {
-    this->informational_requests_.push_back(RequestKind::REMOTE_OVERRIDE_OPERATING_MODES);
+  if (this->remote_override_operating_mode_dhw_select_ != nullptr ||
+      this->remote_override_operating_mode_heating_hc1_select_ != nullptr ||
+      this->remote_override_operating_mode_heating_hc2_select_ != nullptr ||
+      this->manual_dhw_push2_switch_ != nullptr) {
+    this->essential_requests_.push_back(RequestKind::REMOTE_OVERRIDE_OPERATING_MODES);
+    this->informational_requests_.push_back(RequestKind::REMOTE_OVERRIDE_OPERATING_MODES_READ);
   }
   if (this->remote_override_room_setpoint_function_manual_change_priority_text_sensor_ != nullptr ||
       this->remote_override_room_setpoint_function_program_change_priority_text_sensor_ != nullptr) {
@@ -504,19 +469,6 @@ Frame OpenTherm42Hub::build_next_request_() {
     frame.id = slot.data_id;
     frame.value_hb = slot.index;
     frame.value_lb = this->tsp_write_value_;
-    this->log_outgoing_frame_(frame);
-    return frame;
-  }
-  if (this->manual_dhw_push2_pending_) {
-    this->manual_dhw_push2_pending_ = false;
-    this->pending_request_kind_ = RequestKind::REMOTE_OVERRIDE_OPERATING_MODES;
-    Frame frame{};
-    frame.type = static_cast<uint8_t>(MessageType::WRITE_DATA);
-    frame.id = 99;
-    // Bit 4 set: Manual DHW push2. Bits 0-3 (Operating Mode DHW) and LB (HC1/HC2) left at "No
-    // override" so this momentary push doesn't also set a persistent mode override.
-    frame.value_hb = 0x10;
-    frame.value_lb = 0x00;
     this->log_outgoing_frame_(frame);
     return frame;
   }
@@ -815,9 +767,27 @@ Frame OpenTherm42Hub::build_next_request_() {
       frame.type = static_cast<uint8_t>(MessageType::READ_DATA);
       frame.id = 15;
       break;
-    case RequestKind::REMOTE_OVERRIDE_OPERATING_MODES:
-      // Only reached for the periodic-read rotation -- the on-demand Manual DHW push2 write is
-      // intercepted by the manual_dhw_push2_pending_ check above this switch.
+    case RequestKind::REMOTE_OVERRIDE_OPERATING_MODES: {
+      frame.type = static_cast<uint8_t>(MessageType::WRITE_DATA);
+      frame.id = 99;
+      uint8_t hc1 = this->remote_override_operating_mode_heating_hc1_select_ != nullptr
+                        ? static_cast<uint8_t>(
+                              this->remote_override_operating_mode_heating_hc1_select_->active_index().value_or(0))
+                        : 0;
+      uint8_t hc2 = this->remote_override_operating_mode_heating_hc2_select_ != nullptr
+                        ? static_cast<uint8_t>(
+                              this->remote_override_operating_mode_heating_hc2_select_->active_index().value_or(0))
+                        : 0;
+      uint8_t dhw =
+          this->remote_override_operating_mode_dhw_select_ != nullptr
+              ? static_cast<uint8_t>(this->remote_override_operating_mode_dhw_select_->active_index().value_or(0))
+              : 0;
+      bool push2 = this->manual_dhw_push2_switch_ != nullptr && this->manual_dhw_push2_switch_->state;
+      frame.value_lb = static_cast<uint8_t>((hc2 << 4) | hc1);
+      frame.value_hb = static_cast<uint8_t>((push2 ? 0x10 : 0x00) | dhw);
+      break;
+    }
+    case RequestKind::REMOTE_OVERRIDE_OPERATING_MODES_READ:
       frame.type = static_cast<uint8_t>(MessageType::READ_DATA);
       frame.id = 99;
       break;
@@ -1971,30 +1941,41 @@ void OpenTherm42Hub::handle_response_(const Frame &frame) {
       return;
 
     case RequestKind::REMOTE_OVERRIDE_OPERATING_MODES:
-      if (type == MessageType::WRITE_ACK) {
-        return;  // response to the on-demand Manual DHW push2 write -- nothing further to do
-      }
-      if (type != MessageType::READ_ACK) {
+      // WRITE-ACK's echo is not trusted for display -- only REMOTE_OVERRIDE_OPERATING_MODES_READ
+      // below updates .state (see DHW_SETPOINT above for the same convention).
+      if (type != MessageType::WRITE_ACK) {
         bool invalidate_now = this->should_invalidate_now_(RequestKind::REMOTE_OVERRIDE_OPERATING_MODES, type);
         OT42_LOG_REJECTION(invalidate_now,
-                           "Remote Override Operating Modes (id=99) request was rejected (message type %s)",
+                           "Remote Override Operating Modes (id=99) write was rejected (message type %s)",
                            message_type_to_string(type));
         if (invalidate_now) {
           this->invalidate_response_(RequestKind::REMOTE_OVERRIDE_OPERATING_MODES);
         }
+      }
+      return;
+
+    case RequestKind::REMOTE_OVERRIDE_OPERATING_MODES_READ:
+      if (type != MessageType::READ_ACK) {
+        bool invalidate_now = this->should_invalidate_now_(RequestKind::REMOTE_OVERRIDE_OPERATING_MODES_READ, type);
+        OT42_LOG_REJECTION(invalidate_now,
+                           "Remote Override Operating Modes (id=99) read was rejected (message type %s)",
+                           message_type_to_string(type));
+        if (invalidate_now) {
+          this->invalidate_response_(RequestKind::REMOTE_OVERRIDE_OPERATING_MODES_READ);
+        }
         return;
       }
-      if (this->remote_override_operating_mode_dhw_text_sensor_ != nullptr) {
-        this->remote_override_operating_mode_dhw_text_sensor_->publish_state(
-            dhw_operating_mode_to_string(frame.value_hb & 0x0F));
+      if (this->remote_override_operating_mode_heating_hc1_select_ != nullptr) {
+        this->remote_override_operating_mode_heating_hc1_select_->publish_state(frame.value_lb & 0x0F);
       }
-      if (this->remote_override_operating_mode_heating_hc1_text_sensor_ != nullptr) {
-        this->remote_override_operating_mode_heating_hc1_text_sensor_->publish_state(
-            heating_operating_mode_to_string(frame.value_lb & 0x0F));
+      if (this->remote_override_operating_mode_heating_hc2_select_ != nullptr) {
+        this->remote_override_operating_mode_heating_hc2_select_->publish_state((frame.value_lb >> 4) & 0x0F);
       }
-      if (this->remote_override_operating_mode_heating_hc2_text_sensor_ != nullptr) {
-        this->remote_override_operating_mode_heating_hc2_text_sensor_->publish_state(
-            heating_operating_mode_to_string((frame.value_lb >> 4) & 0x0F));
+      if (this->remote_override_operating_mode_dhw_select_ != nullptr) {
+        this->remote_override_operating_mode_dhw_select_->publish_state(frame.value_hb & 0x0F);
+      }
+      if (this->manual_dhw_push2_switch_ != nullptr) {
+        this->manual_dhw_push2_switch_->publish_state((frame.value_hb & 0x10) != 0);
       }
       return;
 
@@ -2574,14 +2555,18 @@ void OpenTherm42Hub::invalidate_response_(RequestKind kind) {
       return;
 
     case RequestKind::REMOTE_OVERRIDE_OPERATING_MODES:
-      if (this->remote_override_operating_mode_dhw_text_sensor_ != nullptr) {
-        invalidate_entity(this->remote_override_operating_mode_dhw_text_sensor_);
+    case RequestKind::REMOTE_OVERRIDE_OPERATING_MODES_READ:
+      if (this->remote_override_operating_mode_heating_hc1_select_ != nullptr) {
+        invalidate_entity(this->remote_override_operating_mode_heating_hc1_select_);
       }
-      if (this->remote_override_operating_mode_heating_hc1_text_sensor_ != nullptr) {
-        invalidate_entity(this->remote_override_operating_mode_heating_hc1_text_sensor_);
+      if (this->remote_override_operating_mode_heating_hc2_select_ != nullptr) {
+        invalidate_entity(this->remote_override_operating_mode_heating_hc2_select_);
       }
-      if (this->remote_override_operating_mode_heating_hc2_text_sensor_ != nullptr) {
-        invalidate_entity(this->remote_override_operating_mode_heating_hc2_text_sensor_);
+      if (this->remote_override_operating_mode_dhw_select_ != nullptr) {
+        invalidate_entity(this->remote_override_operating_mode_dhw_select_);
+      }
+      if (this->manual_dhw_push2_switch_ != nullptr) {
+        invalidate_entity(this->manual_dhw_push2_switch_);
       }
       return;
 
@@ -2717,6 +2702,7 @@ static const char *bespoke_request_kind_name(RequestKind kind) {
     case RequestKind::MAX_CAPACITY_MIN_MOD_LEVEL:
       return "Maximum boiler capacity & Minimum modulation level (id=15)";
     case RequestKind::REMOTE_OVERRIDE_OPERATING_MODES:
+    case RequestKind::REMOTE_OVERRIDE_OPERATING_MODES_READ:
       return "Remote Override Operating Modes (id=99)";
     case RequestKind::REMOTE_OVERRIDE_ROOM_SETPOINT_FUNCTION:
       return "Remote Override Room Setpoint function (id=100)";
