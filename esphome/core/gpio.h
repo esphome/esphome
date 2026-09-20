@@ -124,7 +124,7 @@ class InternalGPIOPin : public GPIOPin {
   virtual bool is_inverted() const = 0;
 
 #ifdef USE_GPIO_HOLD
-  virtual inline bool is_held() const override = 0;
+  inline bool is_held() const override = 0;
 #endif
 
  protected:
