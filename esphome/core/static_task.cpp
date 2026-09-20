@@ -32,7 +32,17 @@ bool StaticTask::create(TaskFunction_t fn, const char *name, uint32_t stack_size
     return false;
   }
 
-  this->handle_ = xTaskCreateStatic(fn, name, this->stack_size_, param, priority, this->stack_buffer_, &this->tcb_);
+  if (this->tcb_ == nullptr) {
+    RAMAllocator<StaticTask_t> allocator(RAMAllocator<StaticTask_t>::ALLOC_INTERNAL);
+    this->tcb_ = allocator.make_unique();
+  }
+  if (this->tcb_ == nullptr) {
+    this->deallocate();
+    return false;
+  }
+
+  this->handle_ =
+      xTaskCreateStatic(fn, name, this->stack_size_, param, priority, this->stack_buffer_, this->tcb_.get());
   if (this->handle_ == nullptr) {
     this->deallocate();
     return false;
@@ -72,6 +82,7 @@ bool StaticTask::deallocate() {
     this->stack_buffer_ = nullptr;
     this->stack_size_ = 0;
   }
+  this->tcb_.reset();
   return true;
 }
 

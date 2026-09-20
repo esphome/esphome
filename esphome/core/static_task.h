@@ -5,12 +5,14 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 
+#include "esphome/core/helpers.h"
+
 #include <cstdint>
 
 namespace esphome {
 
 /** Helper for FreeRTOS static task management.
- * Bundles TaskHandle_t, StaticTask_t, and the stack buffer into one object with create/destroy methods.
+ * Stores the TCB in internal RAM and manages the stack buffer with create/destroy methods.
  * Call destroy() and deallocate() from another task: a task cannot free the stack it is still running on.
  */
 class StaticTask {
@@ -32,21 +34,21 @@ class StaticTask {
   bool create(TaskFunction_t fn, const char *name, uint32_t stack_size, void *param, UBaseType_t priority,
               bool use_psram);
 
-  /// @brief Delete the task, keeping the stack buffer allocated for reuse by a subsequent create() call.
+  /// @brief Delete the task, keeping the TCB and stack buffer allocated for reuse by a subsequent create() call.
   /// The task must have finished its work and parked itself, either suspended or blocked indefinitely: it is
   /// suspended here so that it cannot be scheduled again, and it is given no chance to clean up.
   /// @return true if the task was deleted; false if it is still running on another core, in which case the
   /// caller should try again later.
   bool destroy();
 
-  /// @brief Delete the task (if created) and free the stack buffer.
-  /// @return true if the stack buffer was freed; false if the task is still running on another core, in
+  /// @brief Delete the task (if created) and free the TCB and stack buffer.
+  /// @return true if the buffers were freed; false if the task is still running on another core, in
   /// which case the caller should try again later.
   bool deallocate();
 
  protected:
   TaskHandle_t handle_{nullptr};
-  StaticTask_t tcb_;
+  RAMUniquePtr<StaticTask_t> tcb_;
   StackType_t *stack_buffer_{nullptr};
   uint32_t stack_size_{0};
   bool use_psram_{false};
