@@ -9,7 +9,6 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 
-#include "esphome/core/defines.h"
 #include "esphome/core/time_conversion.h"
 
 #ifndef PROGMEM
