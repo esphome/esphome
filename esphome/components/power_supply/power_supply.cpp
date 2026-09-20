@@ -9,7 +9,7 @@ void PowerSupply::setup() {
   this->pin_->setup();
   if (!this->pin_->get_hold()) {
     this->pin_->digital_write(false);
-#if defined(USE_DEEP_SLEEP) && defined(USE_GPIO_HOLD)
+#if defined(USE_GPIO_HOLD)
     this->disable_loop();  // nothing to reconcile: pin is already off
 #endif
   }
@@ -62,7 +62,7 @@ void PowerSupply::turn_off_() {
   }
 }
 
-#if defined(USE_DEEP_SLEEP) && defined(USE_GPIO_HOLD)
+#if defined(USE_GPIO_HOLD)
 void PowerSupply::loop() {
   // Run once after setup().
   // Need to turn off the pin if no component requested it during setup() otherwise it will stay on forever.
@@ -72,7 +72,7 @@ void PowerSupply::loop() {
 #endif
 
 void PowerSupply::on_powerdown() {
-#if defined(USE_DEEP_SLEEP) && defined(USE_GPIO_HOLD)
+#if defined(USE_GPIO_HOLD)
   // only turn off if pin is not held.
   if (this->pin_->get_hold()) {
     return;
