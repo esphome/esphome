@@ -162,10 +162,23 @@ def add_context(value: Any, context_vars: dict[str, Any] | None) -> Any:
     If the value is already tagged, the new context vars are merged with existing ones,
     with new vars taking precedence. Returns the value tagged with ConfigContext. Returns
     the original value if value is not a list/string/dict.
+
+    Raises EsphomeError if a `defaults:` key is present but is not a mapping.
     """
     if isinstance(value, dict) and CONF_DEFAULTS in value:
+        defaults = value.pop(CONF_DEFAULTS)
+        if defaults is None:
+            raise EsphomeError(
+                f"'{CONF_DEFAULTS}' is empty; "
+                f"remove the key or give it at least one value"
+            )
+        if not isinstance(defaults, dict):
+            raise EsphomeError(
+                f"'{CONF_DEFAULTS}' must be a key to value mapping, "
+                f"got {type(defaults)}"
+            )
         context_vars = {
-            **value.pop(CONF_DEFAULTS),
+            **defaults,
             **(context_vars or {}),
         }
 
