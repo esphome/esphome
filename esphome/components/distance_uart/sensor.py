@@ -257,6 +257,7 @@ CONFIG_SCHEMA = cv.All(
     .extend(cv.polling_component_schema("1s")),
 )
 
+
 def final_validate_config(config):
     # Determine the effective mode
     effective_mode_str = config.get(CONF_MODE, "AUTO")
@@ -266,13 +267,15 @@ def final_validate_config(config):
             effective_mode_str = model_conf["mode"]
 
     require_tx = False
-    
+
     # If in CONTROLLED mode and no trigger_pin is provided, it relies on UART TX
-    if effective_mode_str.upper() == "CONTROLLED" and CONF_TRIGGER_PIN not in config:
-        require_tx = True
-        
-    # If in AUTO mode and output_mode is specified without a dedicated pin, it relies on UART TX
-    elif effective_mode_str.upper() == "AUTO" and CONF_OUTPUT_MODE in config and CONF_OUTPUT_MODE_PIN not in config:
+    if (
+        effective_mode_str.upper() == "CONTROLLED"
+        and CONF_TRIGGER_PIN not in config
+        or effective_mode_str.upper() == "AUTO"
+        and CONF_OUTPUT_MODE in config
+        and CONF_OUTPUT_MODE_PIN not in config
+    ):
         require_tx = True
 
     # Build and execute the dynamic schema validation
@@ -286,7 +289,9 @@ def final_validate_config(config):
         stop_bits=1,
     )(config)
 
+
 FINAL_VALIDATE_SCHEMA = final_validate_config
+
 
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
