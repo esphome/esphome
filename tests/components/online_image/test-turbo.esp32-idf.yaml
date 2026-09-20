@@ -7,12 +7,14 @@ wifi:
 
 http_request:
 
+runtime_image:
+  jpeg_decoder: LIBJPEG_TURBO
+
 image:
   - platform: online_image
     id: online_progressive_jpeg_image
     url: http://www.faqs.org/images/library.jpg
     format: JPEG
-    decoder: LIBJPEG_TURBO
     type: RGB565
 
 display:

@@ -14,16 +14,32 @@ from esphome.config_helpers import filter_source_files_from_defines
 import esphome.config_validation as cv
 from esphome.const import CONF_FORMAT, CONF_ID, CONF_RESIZE, CONF_TYPE
 from esphome.core import CORE
+from esphome.types import ConfigType
 
 AUTO_LOAD = ["image"]
 CODEOWNERS = ["@guillempages", "@clydebarrow", "@kahrendt"]
+DOMAIN = "runtime_image"
 
-CONF_DECODER = "decoder"
+CONF_JPEG_DECODER = "jpeg_decoder"
 CONF_PLACEHOLDER = "placeholder"
 CONF_TRANSPARENCY = "transparency"
 
 DECODER_JPEGDEC = "JPEGDEC"
 DECODER_LIBJPEG_TURBO = "LIBJPEG_TURBO"
+
+
+@dataclass
+class RuntimeImageData:
+    """Build-wide runtime_image settings, shared by every image in the config."""
+
+    jpeg_decoder: str = DECODER_JPEGDEC
+
+
+def _get_data() -> RuntimeImageData:
+    if DOMAIN not in CORE.data:
+        CORE.data[DOMAIN] = RuntimeImageData()
+    return CORE.data[DOMAIN]
+
 
 runtime_image_ns = cg.esphome_ns.namespace("runtime_image")
 
@@ -62,7 +78,7 @@ class Format:
         self.name = name
         self.decoder_class = decoder_class
 
-    def actions(self, config: dict) -> None:
+    def actions(self) -> None:
         """Add defines and libraries needed for this format."""
 
 
@@ -72,10 +88,10 @@ class AUTOFormat(Format):
     def __init__(self) -> None:
         super().__init__("AUTO", None)
 
-    def actions(self, config: dict) -> None:
+    def actions(self) -> None:
         # dict.fromkeys dedupes the JPG/JPEG alias so each format runs once
         for image_format in dict.fromkeys(IMAGE_FORMATS.values()):
-            image_format.actions(config)
+            image_format.actions()
 
 
 class BMPFormat(Format):
@@ -84,7 +100,7 @@ class BMPFormat(Format):
     def __init__(self) -> None:
         super().__init__("BMP", BmpDecoder)
 
-    def actions(self, config: dict) -> None:
+    def actions(self) -> None:
         cg.add_define("USE_RUNTIME_IMAGE_BMP")
 
 
@@ -94,15 +110,13 @@ class JPEGFormat(Format):
     def __init__(self) -> None:
         super().__init__("JPEG", JpegDecoder)
 
-    def actions(self, config: dict) -> None:
+    def actions(self) -> None:
         cg.add_define("USE_RUNTIME_IMAGE_JPEG")
-        if config.get(CONF_DECODER) == DECODER_LIBJPEG_TURBO:
+        if _get_data().jpeg_decoder == DECODER_LIBJPEG_TURBO:
             from esphome.components.esp32 import add_idf_component
 
             # libjpeg-turbo supports progressive JPEG images, which JPEGDEC
-            # does not. Note: this replaces the JPEG decoder for the whole
-            # build, so every JPEG image in the configuration is decoded by
-            # libjpeg-turbo when any image selects it.
+            # does not.
             #
             # Fetched via git instead of the component registry: the registry
             # checkout is named espressif__libjpeg-turbo, which breaks the
@@ -137,7 +151,7 @@ class PNGFormat(Format):
     def __init__(self) -> None:
         super().__init__("PNG", PngDecoder)
 
-    def actions(self, config: dict) -> None:
+    def actions(self) -> None:
         cg.add_define("USE_RUNTIME_IMAGE_PNG")
         cg.add_library("pngle", "1.1.0")
 
@@ -148,7 +162,7 @@ class QOIFormat(Format):
     def __init__(self):
         super().__init__("QOI", QoiDecoder)
 
-    def actions(self, config: dict) -> None:
+    def actions(self) -> None:
         cg.add_define("USE_RUNTIME_IMAGE_QOI")
 
 
@@ -169,12 +183,37 @@ FILTER_SOURCE_FILES = filter_source_files_from_defines(
     {
         "bmp_decoder.cpp": "USE_RUNTIME_IMAGE_BMP",
         "jpeg_decoder.cpp": "USE_RUNTIME_IMAGE_JPEG",
+        "jpeg_turbo_decoder.cpp": "USE_RUNTIME_IMAGE_JPEG_TURBO",
         "png_decoder.cpp": "USE_RUNTIME_IMAGE_PNG",
         "qoi_decoder.cpp": "USE_RUNTIME_IMAGE_QOI",
     }
 )
 
 AUTO_FORMAT = AUTOFormat()
+
+
+def _validate_jpeg_decoder(config: ConfigType) -> ConfigType:
+    """Record the build-wide JPEG decoder so every image uses the same one."""
+    decoder = config[CONF_JPEG_DECODER]
+    if decoder == DECODER_LIBJPEG_TURBO and not CORE.is_esp32:
+        raise cv.Invalid(
+            f"'{CONF_JPEG_DECODER}: {DECODER_LIBJPEG_TURBO}' is only supported on ESP32",
+            [CONF_JPEG_DECODER],
+        )
+    _get_data().jpeg_decoder = decoder
+    return config
+
+
+CONFIG_SCHEMA = cv.All(
+    cv.Schema(
+        {
+            cv.Optional(CONF_JPEG_DECODER, default=DECODER_JPEGDEC): cv.one_of(
+                DECODER_JPEGDEC, DECODER_LIBJPEG_TURBO, upper=True
+            ),
+        }
+    ),
+    _validate_jpeg_decoder,
+)
 
 
 def get_format(format_name: str) -> Format | None:
@@ -185,11 +224,11 @@ def get_format(format_name: str) -> Format | None:
     return IMAGE_FORMATS.get(name)
 
 
-def enable_format(format_name: str, config: dict) -> Format | None:
+def enable_format(format_name: str) -> Format | None:
     """Enable a specific image format by adding its defines and libraries."""
     format_obj = get_format(format_name)
     if format_obj:
-        format_obj.actions(config)
+        format_obj.actions()
         return format_obj
     return None
 
@@ -201,9 +240,6 @@ def runtime_image_schema(image_class: cg.MockObjClass = RuntimeImage) -> cv.Sche
         {
             cv.Required(CONF_ID): cv.declare_id(image_class),
             cv.Required(CONF_FORMAT): cv.one_of(*IMAGE_FORMATS, upper=True),
-            cv.Optional(CONF_DECODER): cv.one_of(
-                DECODER_JPEGDEC, DECODER_LIBJPEG_TURBO, upper=True
-            ),
             cv.Optional(CONF_RESIZE): cv.dimensions,
             cv.Required(CONF_TYPE): validate_type(IMAGE_TYPE),
             cv.Optional(CONF_BYTE_ORDER): validate_byte_order,
@@ -215,18 +251,7 @@ def runtime_image_schema(image_class: cg.MockObjClass = RuntimeImage) -> cv.Sche
 
 def validate_runtime_image_settings(config: dict) -> dict:
     """Apply validate_settings from image component to runtime image config."""
-    config = validate_settings(config)
-    if (decoder := config.get(CONF_DECODER)) is not None:
-        if config[CONF_FORMAT].upper() not in ("JPEG", "JPG"):
-            raise cv.Invalid(
-                f"'{CONF_DECODER}' is only valid for JPEG images", [CONF_DECODER]
-            )
-        if decoder == DECODER_LIBJPEG_TURBO and not CORE.is_esp32:
-            raise cv.Invalid(
-                f"'{CONF_DECODER}: {DECODER_LIBJPEG_TURBO}' is only supported on ESP32",
-                [CONF_DECODER],
-            )
-    return config
+    return validate_settings(config)
 
 
 @dataclass
@@ -255,7 +280,7 @@ async def process_runtime_image_config(config: dict) -> RuntimeImageSettings:
     # Handle format (required for runtime images)
     format_name = config[CONF_FORMAT]
     # Enable the format in the runtime_image component
-    enable_format(format_name, config)
+    enable_format(format_name)
     # Map format names to enum values (handle JPG as alias for JPEG)
     if format_name.upper() == "JPG":
         format_name = "JPEG"

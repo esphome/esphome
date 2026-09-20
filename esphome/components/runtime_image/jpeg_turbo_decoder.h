@@ -23,7 +23,6 @@ class JpegTurboDecoder : public ImageDecoder {
    */
   JpegTurboDecoder(RuntimeImage *image) : ImageDecoder(image, JPEG) {}
 
-  int prepare(size_t expected_size) override;
   int HOT decode(uint8_t *buffer, size_t size) override;
 };
 

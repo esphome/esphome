@@ -45,12 +45,6 @@ static void feed_watchdog() {
   }
 }
 
-int JpegTurboDecoder::prepare(size_t expected_size) {
-  ImageDecoder::prepare(expected_size);
-  // JPEG decoder needs complete data before decoding
-  return 0;
-}
-
 int HOT JpegTurboDecoder::decode(uint8_t *buffer, size_t size) {
   // JPEG decoder requires complete data
   // If we know the expected size, wait for it
@@ -71,8 +65,10 @@ int HOT JpegTurboDecoder::decode(uint8_t *buffer, size_t size) {
     jpeg_destroy_decompress(&cinfo);
     if (msg_code == JERR_OUT_OF_MEMORY)
       return DECODE_ERROR_OUT_OF_MEMORY;
-    if (msg_code == JERR_NO_SOI || msg_code == JERR_NOT_COMPILED)
+    if (msg_code == JERR_NO_SOI)
       return DECODE_ERROR_INVALID_TYPE;
+    if (msg_code == JERR_NOT_COMPILED)
+      return DECODE_ERROR_UNSUPPORTED_FORMAT;
     return DECODE_ERROR_INTERNAL_DECODER_ERROR;
   }
 
@@ -84,7 +80,15 @@ int HOT JpegTurboDecoder::decode(uint8_t *buffer, size_t size) {
     return DECODE_ERROR_INVALID_TYPE;
   }
   cinfo.out_color_space = JCS_RGB;
-  jpeg_start_decompress(&cinfo);
+  // For a progressive image this performs the full multi-pass decode, which can take
+  // seconds on a large image, so feed the watchdog on either side of it.
+  feed_watchdog();
+  if (!jpeg_start_decompress(&cinfo)) {
+    jpeg_destroy_decompress(&cinfo);
+    ESP_LOGE(TAG, "Could not start JPEG decompression");
+    return DECODE_ERROR_INTERNAL_DECODER_ERROR;
+  }
+  feed_watchdog();
   ESP_LOGD(TAG, "Image size: %u x %u, progressive: %s", cinfo.output_width, cinfo.output_height,
            YESNO(jpeg_has_multiple_scans(&cinfo)));
 
@@ -101,8 +105,11 @@ int HOT JpegTurboDecoder::decode(uint8_t *buffer, size_t size) {
   while (cinfo.output_scanline < cinfo.output_height) {
     feed_watchdog();
     size_t y = cinfo.output_scanline;
-    if (jpeg_read_scanlines(&cinfo, row, 1) != 1)
-      break;
+    if (jpeg_read_scanlines(&cinfo, row, 1) != 1) {
+      jpeg_destroy_decompress(&cinfo);
+      ESP_LOGE(TAG, "Could not read scanline %zu of %u", y, cinfo.output_height);
+      return DECODE_ERROR_INTERNAL_DECODER_ERROR;
+    }
     const uint8_t *pixel = row[0];
     for (size_t x = 0; x < cinfo.output_width; x++, pixel += 3) {
       Color color(pixel[0], pixel[1], pixel[2], 0xFF);
