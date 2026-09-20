@@ -2795,6 +2795,11 @@ async def to_code(config):
             config.get(CONF_ENGINEERING_SAMPLE, False),
         )
 
+    # ESP32-C2 defaults to the ROM's newlib "nano" printf, which does not
+    # understand %zu or %lld and crashes on any %s that follows one.
+    if variant == VARIANT_ESP32C2:
+        add_idf_sdkconfig_option("CONFIG_LIBC_NEWLIB_NANO_FORMAT", False)
+
     # Set minimum chip revision for ESP32 variant
     # Setting this to 3.0 or higher reduces flash size by excluding workaround code,
     # and for PSRAM users saves significant IRAM by keeping C library functions in ROM.
