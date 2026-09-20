@@ -86,7 +86,7 @@ class GPIOPin {
   virtual bool is_internal() { return false; }
 #ifdef USE_GPIO_HOLD
   inline bool get_hold() const { return this->get_flags() & gpio::FLAG_HOLD; }
-  virtual inline bool is_held() const = 0;
+  virtual inline bool is_held() const { return false; }
 #else
   inline bool get_hold() const { return false; }
   inline bool is_held() const { return false; }
@@ -122,6 +122,10 @@ class InternalGPIOPin : public GPIOPin {
   bool is_internal() override { return true; }
 
   virtual bool is_inverted() const = 0;
+
+#ifdef USE_GPIO_HOLD
+  inline bool is_held() const override = 0;
+#endif
 
  protected:
   virtual void attach_interrupt(void (*func)(void *), void *arg, gpio::InterruptType type) const = 0;
