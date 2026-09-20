@@ -101,17 +101,8 @@ def to_code(config: ConfigType) -> None:
     import esphome.codegen as cg  # noqa: PLC0415
     from esphome.const import CONF_LOG_LEVEL  # noqa: PLC0415
 
-    from .. import (  # noqa: PLC0415 -- avoids circular import at module load
-        zephyr_add_overlay,
-        zephyr_add_prj_conf,
-        zephyr_data,
-        zephyr_variant,
-    )
-    from ..const import (  # noqa: PLC0415
-        BOOTLOADER_MCUBOOT,
-        KEY_BOOTLOADER,
-        ZEPHYR_VARIANT_RP2040,
-    )
+    from .. import zephyr_add_overlay, zephyr_add_prj_conf, zephyr_data, zephyr_variant  # noqa: PLC0415 -- avoids circular import at module load
+    from ..const import BOOTLOADER_MCUBOOT, KEY_BOOTLOADER, ZEPHYR_VARIANT_RP2040  # noqa: PLC0415
 
     zephyr_add_prj_conf("CPP", True)
     zephyr_add_prj_conf("REQUIRES_FULL_LIBCPP", True)

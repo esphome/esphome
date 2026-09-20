@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import sys
 from unittest.mock import patch
 
 import platformdirs
@@ -58,7 +59,13 @@ def _fake_extract(archive, extract_dir, **kwargs) -> None:
 
 
 @pytest.fixture
-def mock_sdk_download_ops():
+def linux_host(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The SDK archive name is picked from sys.platform, which is unsupported on Windows."""
+    monkeypatch.setattr(sys, "platform", "linux")
+
+
+@pytest.fixture
+def mock_sdk_download_ops(linux_host: None):
     """Patch the download/extract seams -- download_and_extract() resolves its
     internals in framework_helpers, matching how nrf52's own check_and_install
     tests are patched."""
@@ -135,6 +142,7 @@ def test_check_and_install_reuses_sdk_path_for_a_second_toolchain(
     assert (sdk_path / ".esphome_complete_riscv64-zephyr-elf").exists()
 
 
+@pytest.mark.usefixtures("linux_host")
 def test_check_and_install_cleans_up_sdk_path_on_extract_failure(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

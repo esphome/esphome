@@ -23,10 +23,7 @@ def to_code(config: ConfigType) -> None:
     import esphome.codegen as cg  # noqa: PLC0415
     from esphome.const import CONF_LOG_LEVEL  # noqa: PLC0415
 
-    from .. import (  # noqa: PLC0415 -- avoids circular import at module load
-        zephyr_add_prj_conf,
-        zephyr_variant,
-    )
+    from .. import zephyr_add_prj_conf, zephyr_variant  # noqa: PLC0415 -- avoids circular import at module load
 
     zephyr_add_prj_conf("CPP", True)
     zephyr_add_prj_conf("REQUIRES_FULL_LIBCPP", True)
@@ -96,9 +93,7 @@ def _i2c_value_role(value: int, signal_ids: dict[str, int]) -> str | None:
 
 def i2c_value_role_decoder(bus_label: str) -> Callable[[int], str | None] | None:
     """None if the instance/variant isn't in _I2C_INSTANCE_SIGNAL_IDS."""
-    from .. import (
-        zephyr_variant,  # noqa: PLC0415 -- avoids circular import at module load
-    )
+    from .. import zephyr_variant  # noqa: PLC0415 -- avoids circular import at module load
 
     instance = int(bus_label.removeprefix("i2c")) if bus_label[3:].isdigit() else None
     signal_ids = _I2C_INSTANCE_SIGNAL_IDS.get(zephyr_variant(), {}).get(instance)
@@ -169,9 +164,7 @@ def uart_pinctrl(
     """Return (group_role_resolver, value_role_decoder) bound to port_label's real
     UART instance signal IDs, or None if the instance/variant isn't in
     _UART_INSTANCE_SIGNAL_BASE (falls back to the positional guess)."""
-    from .. import (
-        zephyr_variant,  # noqa: PLC0415 -- avoids circular import at module load
-    )
+    from .. import zephyr_variant  # noqa: PLC0415 -- avoids circular import at module load
 
     instance = (
         int(port_label.removeprefix("uart")) if port_label[4:].isdigit() else None
@@ -319,9 +312,7 @@ def spi_pinctrl(
     """Return (group_role_resolver, value_role_decoder) bound to bus_label's
     signal IDs, or None if unknown (falls back to the single-shared-group guess
     in _resolve_spi_pinctrl_states())."""
-    from .. import (
-        zephyr_variant,  # noqa: PLC0415 -- avoids circular import at module load
-    )
+    from .. import zephyr_variant  # noqa: PLC0415 -- avoids circular import at module load
 
     instance = int(bus_label.removeprefix("spi")) if bus_label[3:].isdigit() else None
     signal_ids = _SPI_INSTANCE_SIGNAL_IDS.get(zephyr_variant(), {}).get(instance)

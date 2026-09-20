@@ -294,11 +294,7 @@ def zephyr_setup_uart_pinctrl(
     zephyr_setup_spi_pinctrl()'s shape: this owns the whole family-specific
     macro/group-role resolution internally so callers only ever deal in real
     pin numbers, not devicetree overlay text."""
-    from . import (  # noqa: PLC0415 -- avoids circular import at module load
-        zephyr_add_overlay,
-        zephyr_variant,
-        zephyr_variant_family,
-    )
+    from . import zephyr_add_overlay, zephyr_variant, zephyr_variant_family  # noqa: PLC0415 -- avoids circular import at module load
 
     if tx_pin is None and rx_pin is None:
         from .dts_lookup import has_pinctrl_configured
@@ -384,12 +380,7 @@ def zephyr_setup_i2c_pinctrl(
     whichever pin was actually given, "board default" for whichever wasn't
     (independently, not all-or-nothing: giving only one remaps just that
     signal, leaving the other at the board's own existing wiring)."""
-    from . import (  # noqa: PLC0415 -- avoids circular import at module load
-        zephyr_add_overlay,
-        zephyr_data,
-        zephyr_variant,
-        zephyr_variant_family,
-    )
+    from . import zephyr_add_overlay, zephyr_data, zephyr_variant, zephyr_variant_family  # noqa: PLC0415 -- avoids circular import at module load
 
     variant_name = zephyr_data().get("variant") or ""
     sda_display = f"GPIO{sda}" if sda is not None else "board default"

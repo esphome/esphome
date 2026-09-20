@@ -14,10 +14,7 @@ def to_code(config: ConfigType) -> None:
     import esphome.codegen as cg  # noqa: PLC0415
     from esphome.const import CONF_LOG_LEVEL  # noqa: PLC0415
 
-    from .. import (  # noqa: PLC0415 -- avoids circular import at module load
-        zephyr_add_prj_conf,
-        zephyr_variant,
-    )
+    from .. import zephyr_add_prj_conf, zephyr_variant  # noqa: PLC0415 -- avoids circular import at module load
     from ..const import ZEPHYR_VARIANT_STM32F1, ZEPHYR_VARIANT_STM32F4  # noqa: PLC0415
 
     zephyr_add_prj_conf("CPP", True)
