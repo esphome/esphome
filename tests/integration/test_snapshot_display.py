@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import io
 from pathlib import Path
 
 from aioesphomeapi import LogLevel
@@ -34,7 +35,8 @@ async def wait_for_gif(path: Path, frames: int, timeout: float = 5.0) -> Image.I
     while loop.time() < deadline:
         try:
             data = path.read_bytes()
-            image = Image.open(path)
+            # Open the bytes just read, so the trailer check and the decode see the same file.
+            image = Image.open(io.BytesIO(data))
             if data.endswith(b";") and image.n_frames == frames:
                 # Decoding every frame proves the compressed data is all there and valid.
                 for frame in range(frames):

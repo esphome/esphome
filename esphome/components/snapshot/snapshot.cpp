@@ -261,8 +261,11 @@ struct Snapshot::Recording {
         frames(frames),
         frame_rate(frame_rate) {}
   ~Recording() {
-    if (this->file != nullptr)
+    // The file is still open only if the recording did not finish, so do not leave a partial one behind.
+    if (this->file != nullptr) {
       fclose(this->file);
+      ::unlink(this->path.c_str());
+    }
   }
 
   /// When the frame with this number is due, in milliseconds after the recording began.
@@ -318,6 +321,10 @@ bool Snapshot::take_animation(const char *filename, uint32_t frames, float frame
     ESP_LOGW(TAG, "Already recording %s, not starting another", this->recording_->path.c_str());
     return false;
   }
+  if (frames == 0 || !(frame_rate > 0)) {
+    ESP_LOGE(TAG, "Animation requested with %u frames at %.1f frames a second", frames, frame_rate);
+    return false;
+  }
   const int width = this->snapshot_width();
   const int height = this->snapshot_height();
   if (width <= 0 || height <= 0 || width > GIF_MAX_SIZE || height > GIF_MAX_SIZE) {
@@ -347,9 +354,7 @@ bool Snapshot::take_animation(const char *filename, uint32_t frames, float frame
 bool Snapshot::record_frame_() {
   Recording &recording = *this->recording_;
   if (!this->capture_bgr(recording.pixels.get(), recording.row_stride)) {
-    // capture_bgr() has said why. Leave no half-finished file behind.
-    fclose(std::exchange(recording.file, nullptr));
-    ::unlink(recording.path.c_str());
+    // capture_bgr() has said why. Resetting removes the half-finished file.
     this->recording_.reset();
     return false;
   }
