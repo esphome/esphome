@@ -727,11 +727,16 @@ class OpenTherm42Hub : public Component {
   // essential/informational rotation, same priority tier as Class 3's remote requests and Class 6's
   // TSP writes.
   void push_manual_dhw_push2() { this->manual_dhw_push2_pending_ = true; }
-  // §5.3.8.3 Class 8, ID 100 LB: Remote Override Room Setpoint function.
-  OT42_FLAG_READ_BIT(control_of_special_applications_remote_override_room_setpoint_function_manual_change_priority,
-                     remote_override_room_setpoint_function_read_, 0)
-  OT42_FLAG_READ_BIT(control_of_special_applications_remote_override_room_setpoint_function_program_change_priority,
-                     remote_override_room_setpoint_function_read_, 1)
+  // §5.3.8.3 Class 8, ID 100 LB: Remote Override Room Setpoint function -- each bit is a small 2-state
+  // named enum, so a text_sensor showing the spec's own wording rather than a bare on/off, same as
+  // id=6/86's remote-parameter flags (see hub.cpp's handle_response_() REMOTE_OVERRIDE_ROOM_SETPOINT_FUNCTION
+  // case).
+  OT42_SET_PLAIN_TEXT_SENSOR(
+      control_of_special_applications_remote_override_room_setpoint_function_manual_change_priority,
+      remote_override_room_setpoint_function_manual_change_priority_text_sensor_)
+  OT42_SET_PLAIN_TEXT_SENSOR(
+      control_of_special_applications_remote_override_room_setpoint_function_program_change_priority,
+      remote_override_room_setpoint_function_program_change_priority_text_sensor_)
 
  protected:
   // §4.3.1: minimum time between the end of one conversation and the start of the next.
@@ -1066,7 +1071,8 @@ class OpenTherm42Hub : public Component {
   text_sensor::TextSensor *remote_override_operating_mode_heating_hc1_text_sensor_{nullptr};
   text_sensor::TextSensor *remote_override_operating_mode_heating_hc2_text_sensor_{nullptr};
   bool manual_dhw_push2_pending_{false};
-  FlagReadBits remote_override_room_setpoint_function_read_;
+  text_sensor::TextSensor *remote_override_room_setpoint_function_manual_change_priority_text_sensor_{nullptr};
+  text_sensor::TextSensor *remote_override_room_setpoint_function_program_change_priority_text_sensor_{nullptr};
 };
 
 }  // namespace esphome::opentherm42

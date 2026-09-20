@@ -30,8 +30,6 @@ from ..const import (
     CONF_CONTROL_AND_STATUS_INFORMATION_STATUS_VENTILATION_HEAT_RECOVERY_FAULT_INDICATION,
     CONF_CONTROL_AND_STATUS_INFORMATION_STATUS_VENTILATION_HEAT_RECOVERY_FREE_VENTILATION_STATUS,
     CONF_CONTROL_AND_STATUS_INFORMATION_STATUS_VENTILATION_HEAT_RECOVERY_VENTILATION_MODE,
-    CONF_CONTROL_OF_SPECIAL_APPLICATIONS_REMOTE_OVERRIDE_ROOM_SETPOINT_FUNCTION_MANUAL_CHANGE_PRIORITY,
-    CONF_CONTROL_OF_SPECIAL_APPLICATIONS_REMOTE_OVERRIDE_ROOM_SETPOINT_FUNCTION_PROGRAM_CHANGE_PRIORITY,
     CONF_OPENTHERM42_ID,
     CONF_SENSOR_AND_INFORMATIONAL_DATA_TIME_SYNCHRONIZED,
 )
@@ -159,20 +157,6 @@ DESCRIPTIONS: dict[str, tuple[str | None, str | None]] = {
     CONF_CONTROL_AND_STATUS_INFORMATION_SOLAR_STORAGE_MODE_AND_STATUS_FAULT_INDICATION: (
         "problem",
         None,
-    ),
-    # §5.3.8.3 Class 8, ID 100 LB bit 0: Manual change priority
-    # [ disable overruling remote Setpoint by manual Setpoint change, enable overruling remote Setpoint
-    # by manual Setpoint change ]
-    CONF_CONTROL_OF_SPECIAL_APPLICATIONS_REMOTE_OVERRIDE_ROOM_SETPOINT_FUNCTION_MANUAL_CHANGE_PRIORITY: (
-        None,
-        ENTITY_CATEGORY_DIAGNOSTIC,
-    ),
-    # §5.3.8.3 Class 8, ID 100 LB bit 1: Program change priority
-    # [ disable overruling remote Setpoint by program Setpoint change, enable overruling remote Setpoint
-    # by program Setpoint change ]
-    CONF_CONTROL_OF_SPECIAL_APPLICATIONS_REMOTE_OVERRIDE_ROOM_SETPOINT_FUNCTION_PROGRAM_CHANGE_PRIORITY: (
-        None,
-        ENTITY_CATEGORY_DIAGNOSTIC,
     ),
     # §5.3.4 Class 4, IDs 20/21/22: synthetic diagnostic entity (not a real spec data-id) -- true only
     # once the most recent Day-of-week/Time, Date and Year writes described by opentherm42/__init__.py's

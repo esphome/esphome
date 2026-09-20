@@ -473,7 +473,8 @@ void OpenTherm42Hub::build_schedule_() {
       this->remote_override_operating_mode_heating_hc2_text_sensor_ != nullptr) {
     this->informational_requests_.push_back(RequestKind::REMOTE_OVERRIDE_OPERATING_MODES);
   }
-  if (this->remote_override_room_setpoint_function_read_.any_configured()) {
+  if (this->remote_override_room_setpoint_function_manual_change_priority_text_sensor_ != nullptr ||
+      this->remote_override_room_setpoint_function_program_change_priority_text_sensor_ != nullptr) {
     this->informational_requests_.push_back(RequestKind::REMOTE_OVERRIDE_ROOM_SETPOINT_FUNCTION);
   }
 }
@@ -2008,7 +2009,14 @@ void OpenTherm42Hub::handle_response_(const Frame &frame) {
         }
         return;
       }
-      this->remote_override_room_setpoint_function_read_.publish(frame.value_lb);
+      if (this->remote_override_room_setpoint_function_manual_change_priority_text_sensor_ != nullptr) {
+        this->remote_override_room_setpoint_function_manual_change_priority_text_sensor_->publish_state(
+            (frame.value_lb & 0x01) ? "Manual change has priority" : "Remote Setpoint has priority");
+      }
+      if (this->remote_override_room_setpoint_function_program_change_priority_text_sensor_ != nullptr) {
+        this->remote_override_room_setpoint_function_program_change_priority_text_sensor_->publish_state(
+            (frame.value_lb & 0x02) ? "Program change has priority" : "Remote Setpoint has priority");
+      }
       return;
 
     default: {
@@ -2578,7 +2586,12 @@ void OpenTherm42Hub::invalidate_response_(RequestKind kind) {
       return;
 
     case RequestKind::REMOTE_OVERRIDE_ROOM_SETPOINT_FUNCTION:
-      this->remote_override_room_setpoint_function_read_.invalidate();
+      if (this->remote_override_room_setpoint_function_manual_change_priority_text_sensor_ != nullptr) {
+        invalidate_entity(this->remote_override_room_setpoint_function_manual_change_priority_text_sensor_);
+      }
+      if (this->remote_override_room_setpoint_function_program_change_priority_text_sensor_ != nullptr) {
+        invalidate_entity(this->remote_override_room_setpoint_function_program_change_priority_text_sensor_);
+      }
       return;
 
     default: {
