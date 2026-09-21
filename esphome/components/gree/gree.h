@@ -94,6 +94,8 @@ class GreeClimate final : public climate_ir::ClimateIR {
  protected:
   // Transmit via IR the state of this climate controller.
   void transmit_state() override;
+  // Decode an IR state received from a remote control.
+  bool on_receive(remote_base::RemoteReceiveData data) override;
   climate::ClimateTraits traits() override;
 
   uint8_t operation_mode_();

@@ -157,6 +157,162 @@ void GreeClimate::transmit_state() {
   transmit.perform();
 }
 
+bool GreeClimate::on_receive(remote_base::RemoteReceiveData data) {
+  uint8_t remote_state[GREE_STATE_FRAME_SIZE] = {0};
+
+  // Header mark and space. YAC1FB9 remotes use a slightly longer header space.
+  if (!data.expect_item(GREE_HEADER_MARK, GREE_HEADER_SPACE) &&
+      !data.expect_item(GREE_HEADER_MARK, GREE_YAC1FB9_HEADER_SPACE)) {
+    return false;
+  }
+
+  // First half of the frame: bytes 0..3, least significant bit first.
+  for (int i = 0; i < 4; i++) {
+    for (uint8_t mask = 1; mask > 0; mask <<= 1) {
+      if (data.expect_item(GREE_BIT_MARK, GREE_ONE_SPACE)) {
+        remote_state[i] |= mask;
+      } else if (!data.expect_item(GREE_BIT_MARK, GREE_ZERO_SPACE)) {
+        return false;
+      }
+    }
+  }
+
+  // The two halves are joined by three separator bits (0, 1, 0).
+  if (!data.expect_item(GREE_BIT_MARK, GREE_ZERO_SPACE) || !data.expect_item(GREE_BIT_MARK, GREE_ONE_SPACE) ||
+      !data.expect_item(GREE_BIT_MARK, GREE_ZERO_SPACE)) {
+    return false;
+  }
+
+  // Gap between the two halves. YAC1FB9 remotes use a slightly longer gap.
+  if (!data.expect_item(GREE_BIT_MARK, GREE_MESSAGE_SPACE) &&
+      !data.expect_item(GREE_BIT_MARK, GREE_YAC1FB9_MESSAGE_SPACE)) {
+    return false;
+  }
+
+  // Second half of the frame: bytes 4..7, least significant bit first.
+  for (int i = 4; i < 8; i++) {
+    for (uint8_t mask = 1; mask > 0; mask <<= 1) {
+      if (data.expect_item(GREE_BIT_MARK, GREE_ONE_SPACE)) {
+        remote_state[i] |= mask;
+      } else if (!data.expect_item(GREE_BIT_MARK, GREE_ZERO_SPACE)) {
+        return false;
+      }
+    }
+  }
+
+  if (!data.expect_mark(GREE_BIT_MARK)) {
+    return false;
+  }
+
+  // Check the checksum, matching the formula transmit_state() uses for this model.
+  uint8_t checksum;
+  if (this->model_ == GREE_YAN || this->model_ == GREE_YX1FF) {
+    checksum = (uint8_t) ((remote_state[0] << 4) + (remote_state[1] << 4) + 0xC0);
+  } else {
+    checksum = (uint8_t) (((remote_state[0] & 0x0F) + (remote_state[1] & 0x0F) + (remote_state[2] & 0x0F) +
+                           (remote_state[3] & 0x0F) + ((remote_state[4] & 0xF0) >> 4) +
+                           ((remote_state[5] & 0xF0) >> 4) + ((remote_state[6] & 0xF0) >> 4) + 0x0A)
+                          << 4);
+  }
+  if (checksum != remote_state[7]) {
+    return false;
+  }
+
+  ESP_LOGV(TAG, "Received: %02X %02X %02X %02X   %02X %02X %02X %02X", remote_state[0], remote_state[1],
+           remote_state[2], remote_state[3], remote_state[4], remote_state[5], remote_state[6], remote_state[7]);
+
+  // Bit 3 of byte 0 is the power state (GREE_MODE_ON); bits 0..2 hold the mode.
+  if (!(remote_state[0] & GREE_MODE_ON)) {
+    this->mode = climate::CLIMATE_MODE_OFF;
+  } else {
+    switch (remote_state[0] & 0x07) {
+      case GREE_MODE_AUTO:
+        this->mode = climate::CLIMATE_MODE_HEAT_COOL;
+        break;
+      case GREE_MODE_COOL:
+        this->mode = climate::CLIMATE_MODE_COOL;
+        break;
+      case GREE_MODE_DRY:
+        this->mode = climate::CLIMATE_MODE_DRY;
+        break;
+      case GREE_MODE_FAN:
+        this->mode = climate::CLIMATE_MODE_FAN_ONLY;
+        break;
+      case GREE_MODE_HEAT:
+        this->mode = climate::CLIMATE_MODE_HEAT;
+        break;
+      default:
+        return false;
+    }
+  }
+
+  // Bits 4..5 of byte 0 hold the fan speed.
+  switch (remote_state[0] & 0x30) {
+    case GREE_FAN_AUTO:
+      this->fan_mode = climate::CLIMATE_FAN_AUTO;
+      break;
+    case GREE_FAN_1:
+      this->fan_mode = this->model_ == GREE_YX1FF ? climate::CLIMATE_FAN_QUIET : climate::CLIMATE_FAN_LOW;
+      break;
+    case GREE_FAN_2:
+      this->fan_mode = this->model_ == GREE_YX1FF ? climate::CLIMATE_FAN_LOW : climate::CLIMATE_FAN_MEDIUM;
+      break;
+    case GREE_FAN_3:
+      this->fan_mode = this->model_ == GREE_YX1FF ? climate::CLIMATE_FAN_MEDIUM : climate::CLIMATE_FAN_HIGH;
+      break;
+  }
+
+  // YX1FF encodes its highest fan speed (turbo) as a bit in byte 2.
+  if (this->model_ == GREE_YX1FF && (remote_state[2] & GREE_FAN_TURBO_BIT)) {
+    this->fan_mode = climate::CLIMATE_FAN_HIGH;
+  }
+
+  // Byte 1 holds the target temperature. Some remotes store it as an absolute
+  // value (16..30), others relative to the minimum (0..14).
+  if (remote_state[1] >= GREE_TEMP_MIN && remote_state[1] <= GREE_TEMP_MAX) {
+    this->target_temperature = remote_state[1];
+  } else if (remote_state[1] <= GREE_TEMP_MAX - GREE_TEMP_MIN) {
+    this->target_temperature = remote_state[1] + GREE_TEMP_MIN;
+  } else {
+    return false;
+  }
+
+  // Bit 6 of byte 0 enables vertical swing; the high nibble of byte 4 holds
+  // the horizontal swing position (only transmitted on YAC/YAG). On YAG bit 6
+  // is a general "swing active" flag, so a horizontal-only YAG swing reads
+  // back as swinging in both directions.
+  bool swing_vertical = remote_state[0] & 0x40;
+  bool swing_horizontal = (remote_state[4] & 0xF0) == (GREE_HDIR_SWING << 4);
+  if (swing_vertical && swing_horizontal) {
+    this->swing_mode = climate::CLIMATE_SWING_BOTH;
+  } else if (swing_vertical) {
+    this->swing_mode = climate::CLIMATE_SWING_VERTICAL;
+  } else if (swing_horizontal) {
+    this->swing_mode = climate::CLIMATE_SWING_HORIZONTAL;
+  } else {
+    this->swing_mode = climate::CLIMATE_SWING_OFF;
+  }
+
+  // The sleep preset is only available on YX1FF. Turbo and sleep share bit 7
+  // of byte 0, but turbo is additionally flagged in byte 2, so only report
+  // sleep when turbo is not set.
+  if (this->model_ == GREE_YX1FF) {
+    bool turbo = remote_state[2] & GREE_FAN_TURBO_BIT;
+    this->preset = (!turbo && (remote_state[0] & GREE_PRESET_SLEEP_BIT)) ? climate::CLIMATE_PRESET_SLEEP
+                                                                         : climate::CLIMATE_PRESET_NONE;
+  }
+
+  // Remember the extra switch bits (turbo, light, health, x-fan) so the next
+  // transmission reflects the state the unit acknowledged.
+  if (this->model_ == GREE_YAN || this->model_ == GREE_YAA || this->model_ == GREE_YAC ||
+      this->model_ == GREE_YAC1FB9) {
+    this->mode_bits_ = remote_state[2] & 0xF0;
+  }
+
+  this->publish_state();
+  return true;
+}
+
 uint8_t GreeClimate::operation_mode_() {
   uint8_t operating_mode = GREE_MODE_ON;
 
