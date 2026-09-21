@@ -2,8 +2,7 @@
 
 #include "remote_base.h"
 
-namespace esphome {
-namespace remote_base {
+namespace esphome::remote_base {
 
 struct RC6Data {
   uint8_t mode : 3;
@@ -16,9 +15,9 @@ struct RC6Data {
 
 class RC6Protocol : public RemoteProtocol<RC6Data> {
  public:
-  void encode(RemoteTransmitData *dst, const RC6Data &data) override;
-  optional<RC6Data> decode(RemoteReceiveData src) override;
-  void dump(const RC6Data &data) override;
+  void encode(RemoteTransmitData *dst, const RC6Data &data);
+  optional<RC6Data> decode(RemoteReceiveData src);
+  void dump(const RC6Data &data);
 };
 
 DECLARE_REMOTE_PROTOCOL(RC6)
@@ -42,5 +41,4 @@ template<typename... Ts> class RC6Action : public RemoteTransmitterActionBase<Ts
   uint8_t toggle_{0};
 };
 
-}  // namespace remote_base
-}  // namespace esphome
+}  // namespace esphome::remote_base

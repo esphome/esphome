@@ -1,6 +1,6 @@
 #pragma once
 
-#ifdef USE_ARDUINO
+#if (defined(USE_ARDUINO) && !defined(USE_RP2) && !defined(USE_LIBRETINY)) || defined(USE_ESP_IDF)
 
 // MideaUART
 #include <Appliance/AirConditioner/AirConditioner.h>
@@ -8,9 +8,7 @@
 #include "esphome/components/climate/climate_traits.h"
 #include "air_conditioner.h"
 
-namespace esphome {
-namespace midea {
-namespace ac {
+namespace esphome::midea::ac {
 
 using MideaMode = dudanov::midea::ac::Mode;
 using MideaSwingMode = dudanov::midea::ac::SwingMode;
@@ -44,8 +42,6 @@ class Converters {
   static void to_climate_traits(ClimateTraits &traits, const dudanov::midea::ac::Capabilities &capabilities);
 };
 
-}  // namespace ac
-}  // namespace midea
-}  // namespace esphome
+}  // namespace esphome::midea::ac
 
-#endif  // USE_ARDUINO
+#endif  // USE_ARDUINO || USE_ESP_IDF

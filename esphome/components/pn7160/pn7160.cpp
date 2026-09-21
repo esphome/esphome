@@ -7,8 +7,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace pn7160 {
+namespace esphome::pn7160 {
 
 static const char *const TAG = "pn7160";
 
@@ -266,8 +265,8 @@ uint8_t PN7160::reset_core_(const bool reset_config, const bool power) {
   }
 
   ESP_LOGD(TAG, "Configuration %s, NCI version: %s, Manufacturer ID: 0x%02X",
-           rx.get_message()[4] ? "reset" : "retained", rx.get_message()[5] == 0x20 ? "2.0" : "1.0",
-           rx.get_message()[6]);
+           rx.get_message()[4] ? LOG_STR_LITERAL("reset") : LOG_STR_LITERAL("retained"),
+           rx.get_message()[5] == 0x20 ? LOG_STR_LITERAL("2.0") : LOG_STR_LITERAL("1.0"), rx.get_message()[6]);
   rx.get_message().erase(rx.get_message().begin(), rx.get_message().begin() + 8);
   char mfr_buf[nfc::FORMAT_BYTES_BUFFER_SIZE];
   ESP_LOGD(TAG, "Manufacturer info: %s", nfc::format_bytes_to(mfr_buf, rx.get_message()));
@@ -1186,5 +1185,4 @@ uint8_t PN7160::wait_for_irq_(uint16_t timeout, bool pin_state) {
   return nfc::STATUS_FAILED;
 }
 
-}  // namespace pn7160
-}  // namespace esphome
+}  // namespace esphome::pn7160

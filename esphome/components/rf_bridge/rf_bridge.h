@@ -7,8 +7,7 @@
 #include "esphome/components/uart/uart.h"
 #include "esphome/core/automation.h"
 
-namespace esphome {
-namespace rf_bridge {
+namespace esphome::rf_bridge {
 
 static const uint8_t RF_MESSAGE_SIZE = 9;
 static const uint8_t RF_CODE_START = 0xAA;
@@ -31,6 +30,17 @@ static const uint8_t RF_CODE_BEEP = 0xC0;
 static const uint8_t RF_CODE_STOP = 0x55;
 static const uint8_t RF_DEBOUNCE = 200;
 static const size_t MAX_RX_BUFFER_SIZE = 512;
+// ~10 byte times at 19200 baud: long enough to prove the UART went quiet
+// after a possible bucket-frame terminator, short enough to finish well
+// before the next radio capture can be delivered.
+static const uint32_t BUCKET_CANDIDATE_QUIET_MS = 5;
+// Portisch drains a B1 frame's header, bucket table, and pulse data as
+// separate UART writes, so an in-progress bucket frame tolerates a longer
+// inter-region gap than the generic 50 ms inter-byte timeout.
+static const uint32_t BUCKET_FRAME_TIMEOUT_MS = 250;
+// Portisch's uart_put_RF_buckets sends at most 7 buckets plus the sync
+// bucket, so a B1 count byte above 8 (or 0) is malformed for any protocol.
+static const uint8_t B1_MAX_BUCKET_COUNT = 8;
 
 struct RFBridgeData {
   uint16_t sync;
@@ -45,7 +55,7 @@ struct RFBridgeAdvancedData {
   std::string code;
 };
 
-class RFBridgeComponent : public uart::UARTDevice, public Component {
+class RFBridgeComponent final : public uart::UARTDevice, public Component {
  public:
   void loop() override;
   void dump_config() override;
@@ -68,16 +78,18 @@ class RFBridgeComponent : public uart::UARTDevice, public Component {
   void ack_();
   void decode_();
   bool parse_bridge_byte_(uint8_t byte);
+  void finish_bucket_frame_();
   void write_byte_str_(const std::string &codes);
 
   std::vector<uint8_t> rx_buffer_;
   uint32_t last_bridge_byte_{0};
+  bool bucket_frame_candidate_{false};
 
   CallbackManager<void(RFBridgeData)> data_callback_;
   CallbackManager<void(RFBridgeAdvancedData)> advanced_data_callback_;
 };
 
-template<typename... Ts> class RFBridgeSendCodeAction : public Action<Ts...> {
+template<typename... Ts> class RFBridgeSendCodeAction final : public Action<Ts...> {
  public:
   RFBridgeSendCodeAction(RFBridgeComponent *parent) : parent_(parent) {}
   TEMPLATABLE_VALUE(uint16_t, sync)
@@ -98,7 +110,7 @@ template<typename... Ts> class RFBridgeSendCodeAction : public Action<Ts...> {
   RFBridgeComponent *parent_;
 };
 
-template<typename... Ts> class RFBridgeSendAdvancedCodeAction : public Action<Ts...> {
+template<typename... Ts> class RFBridgeSendAdvancedCodeAction final : public Action<Ts...> {
  public:
   RFBridgeSendAdvancedCodeAction(RFBridgeComponent *parent) : parent_(parent) {}
   TEMPLATABLE_VALUE(uint8_t, length)
@@ -117,7 +129,7 @@ template<typename... Ts> class RFBridgeSendAdvancedCodeAction : public Action<Ts
   RFBridgeComponent *parent_;
 };
 
-template<typename... Ts> class RFBridgeLearnAction : public Action<Ts...> {
+template<typename... Ts> class RFBridgeLearnAction final : public Action<Ts...> {
  public:
   RFBridgeLearnAction(RFBridgeComponent *parent) : parent_(parent) {}
 
@@ -127,7 +139,7 @@ template<typename... Ts> class RFBridgeLearnAction : public Action<Ts...> {
   RFBridgeComponent *parent_;
 };
 
-template<typename... Ts> class RFBridgeStartAdvancedSniffingAction : public Action<Ts...> {
+template<typename... Ts> class RFBridgeStartAdvancedSniffingAction final : public Action<Ts...> {
  public:
   RFBridgeStartAdvancedSniffingAction(RFBridgeComponent *parent) : parent_(parent) {}
 
@@ -137,7 +149,7 @@ template<typename... Ts> class RFBridgeStartAdvancedSniffingAction : public Acti
   RFBridgeComponent *parent_;
 };
 
-template<typename... Ts> class RFBridgeStopAdvancedSniffingAction : public Action<Ts...> {
+template<typename... Ts> class RFBridgeStopAdvancedSniffingAction final : public Action<Ts...> {
  public:
   RFBridgeStopAdvancedSniffingAction(RFBridgeComponent *parent) : parent_(parent) {}
 
@@ -147,7 +159,7 @@ template<typename... Ts> class RFBridgeStopAdvancedSniffingAction : public Actio
   RFBridgeComponent *parent_;
 };
 
-template<typename... Ts> class RFBridgeStartBucketSniffingAction : public Action<Ts...> {
+template<typename... Ts> class RFBridgeStartBucketSniffingAction final : public Action<Ts...> {
  public:
   RFBridgeStartBucketSniffingAction(RFBridgeComponent *parent) : parent_(parent) {}
 
@@ -157,7 +169,7 @@ template<typename... Ts> class RFBridgeStartBucketSniffingAction : public Action
   RFBridgeComponent *parent_;
 };
 
-template<typename... Ts> class RFBridgeSendRawAction : public Action<Ts...> {
+template<typename... Ts> class RFBridgeSendRawAction final : public Action<Ts...> {
  public:
   RFBridgeSendRawAction(RFBridgeComponent *parent) : parent_(parent) {}
   TEMPLATABLE_VALUE(std::string, raw)
@@ -168,7 +180,7 @@ template<typename... Ts> class RFBridgeSendRawAction : public Action<Ts...> {
   RFBridgeComponent *parent_;
 };
 
-template<typename... Ts> class RFBridgeBeepAction : public Action<Ts...> {
+template<typename... Ts> class RFBridgeBeepAction final : public Action<Ts...> {
  public:
   RFBridgeBeepAction(RFBridgeComponent *parent) : parent_(parent) {}
   TEMPLATABLE_VALUE(uint16_t, duration)
@@ -179,5 +191,4 @@ template<typename... Ts> class RFBridgeBeepAction : public Action<Ts...> {
   RFBridgeComponent *parent_;
 };
 
-}  // namespace rf_bridge
-}  // namespace esphome
+}  // namespace esphome::rf_bridge

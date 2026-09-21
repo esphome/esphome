@@ -7,8 +7,7 @@
 #include "esphome/components/remote_transmitter/remote_transmitter.h"
 #include "esphome/components/sensor/sensor.h"
 
-namespace esphome {
-namespace climate_ir {
+namespace esphome::climate_ir {
 
 /* A base for climate which works by sending (and receiving) IR codes
 
@@ -71,5 +70,4 @@ class ClimateIR : public Component,
   sensor::Sensor *humidity_sensor_{nullptr};
 };
 
-}  // namespace climate_ir
-}  // namespace esphome
+}  // namespace esphome::climate_ir

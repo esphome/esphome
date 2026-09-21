@@ -2,8 +2,7 @@
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
 
-namespace esphome {
-namespace ms5611 {
+namespace esphome::ms5611 {
 
 static const char *const TAG = "ms5611";
 
@@ -123,5 +122,4 @@ void MS5611Component::calculate_values_(uint32_t raw_temperature, uint32_t raw_p
   this->status_clear_warning();
 }
 
-}  // namespace ms5611
-}  // namespace esphome
+}  // namespace esphome::ms5611

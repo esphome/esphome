@@ -2,8 +2,7 @@
 #include "esphome/core/log.h"
 #include <cinttypes>
 
-namespace esphome {
-namespace remote_base {
+namespace esphome::remote_base {
 
 static const char *const TAG = "remote.aeha";
 
@@ -98,5 +97,4 @@ void AEHAProtocol::dump(const AEHAData &data) {
   ESP_LOGI(TAG, "Received AEHA: address=0x%04X, data=[%s]", data.address, data_str.c_str());
 }
 
-}  // namespace remote_base
-}  // namespace esphome
+}  // namespace esphome::remote_base

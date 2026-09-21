@@ -1,8 +1,7 @@
 #include "tlc5971.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace tlc5971 {
+namespace esphome::tlc5971 {
 
 static const char *const TAG = "tlc5971";
 
@@ -68,13 +67,8 @@ void TLC5971::transfer_(uint8_t send) {
   uint8_t startbit = 0x80;
 
   bool towrite, lastmosi = !(send & startbit);
-  uint8_t bitdelay_us = (1000000 / 1000000) / 2;
 
   for (uint8_t b = startbit; b != 0; b = b >> 1) {
-    if (bitdelay_us) {
-      delayMicroseconds(bitdelay_us);
-    }
-
     towrite = send & b;
     if ((lastmosi != towrite)) {
       this->data_pin_->digital_write(towrite);
@@ -82,11 +76,6 @@ void TLC5971::transfer_(uint8_t send) {
     }
 
     this->clock_pin_->digital_write(true);
-
-    if (bitdelay_us) {
-      delayMicroseconds(bitdelay_us);
-    }
-
     this->clock_pin_->digital_write(false);
   }
 }
@@ -100,5 +89,4 @@ void TLC5971::set_channel_value(uint16_t channel, uint16_t value) {
   this->pwm_amounts_[channel] = value;
 }
 
-}  // namespace tlc5971
-}  // namespace esphome
+}  // namespace esphome::tlc5971

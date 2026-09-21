@@ -9,7 +9,7 @@ uint32_t temp_single_get_current_temperature(uint32_t *temp_value);
 
 namespace esphome::internal_temperature {
 
-static const char *const TAG = "internal_temperature.bk72xx";
+static const char *const TAG = "internal_temperature";
 
 void InternalTemperatureSensor::update() {
   float temperature = NAN;
@@ -20,8 +20,6 @@ void InternalTemperatureSensor::update() {
   success = (result == 0);
 #if defined(USE_LIBRETINY_VARIANT_BK7231N)
   temperature = raw * -0.38f + 156.0f;
-#elif defined(USE_LIBRETINY_VARIANT_BK7231T)
-  temperature = raw * 0.04f;
 #else   // USE_LIBRETINY_VARIANT
   temperature = raw * 0.128f;
 #endif  // USE_LIBRETINY_VARIANT

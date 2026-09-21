@@ -7,7 +7,7 @@
 
 #ifdef USE_NETWORK
 namespace esphome::syslog {
-class Syslog : public Component, public Parented<udp::UDPComponent> {
+class Syslog final : public Component, public Parented<udp::UDPComponent> {
  public:
   Syslog(int level, time::RealTimeClock *time) : log_level_(level), time_(time) {}
   void setup() override;

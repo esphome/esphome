@@ -4,8 +4,7 @@
 #include <cmath>
 #include <cinttypes>
 
-namespace esphome {
-namespace max31865 {
+namespace esphome::max31865 {
 
 static const char *const TAG = "max31865";
 
@@ -81,12 +80,14 @@ void MAX31865Sensor::dump_config() {
   LOG_SENSOR("", "MAX31865", this);
   LOG_PIN("  CS Pin: ", this->cs_);
   LOG_UPDATE_INTERVAL(this);
-  ESP_LOGCONFIG(TAG,
-                "  Reference Resistance: %.2fΩ\n"
-                "  RTD: %u-wire %.2fΩ\n"
-                "  Mains Filter: %s",
-                reference_resistance_, rtd_wires_, rtd_nominal_resistance_,
-                (filter_ == FILTER_60HZ ? "60 Hz" : (filter_ == FILTER_50HZ ? "50 Hz" : "Unknown!")));
+  ESP_LOGCONFIG(
+      TAG,
+      "  Reference Resistance: %.2fΩ\n"
+      "  RTD: %u-wire %.2fΩ\n"
+      "  Mains Filter: %s",
+      reference_resistance_, rtd_wires_, rtd_nominal_resistance_,
+      (filter_ == FILTER_60HZ ? LOG_STR_LITERAL("60 Hz")
+                              : (filter_ == FILTER_50HZ ? LOG_STR_LITERAL("50 Hz") : LOG_STR_LITERAL("Unknown!"))));
 }
 
 void MAX31865Sensor::read_data_() {
@@ -226,5 +227,4 @@ float MAX31865Sensor::calc_temperature_(float rtd_ratio) {
   return neg_temp;
 }
 
-}  // namespace max31865
-}  // namespace esphome
+}  // namespace esphome::max31865

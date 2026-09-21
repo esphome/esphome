@@ -1,3 +1,6 @@
+import logging
+from typing import Any
+
 from esphome import pins
 import esphome.codegen as cg
 from esphome.components import display, power_supply, spi
@@ -17,6 +20,7 @@ from esphome.const import (
     CONF_ROTATION,
     CONF_WIDTH,
 )
+from esphome.types import ConfigType
 
 from . import st7789v_ns
 
@@ -26,6 +30,8 @@ CODEOWNERS = ["@kbx81"]
 
 DEPENDENCIES = ["spi"]
 
+LOGGER = logging.getLogger(__name__)
+
 ST7789V = st7789v_ns.class_(
     "ST7789V", cg.PollingComponent, spi.SPIDevice, display.DisplayBuffer
 )
@@ -34,7 +40,9 @@ MODEL_PRESETS = "model_presets"
 REQUIRE_PS = "require_ps"
 
 
-def model_spec(require_ps=False, presets=None):
+def model_spec(
+    require_ps: bool = False, presets: dict[str, Any] | None = None
+) -> dict[str, Any]:
     if presets is None:
         presets = {}
     return {MODEL_PRESETS: presets, REQUIRE_PS: require_ps}
@@ -45,8 +53,8 @@ MODELS = {
         presets={
             CONF_HEIGHT: 240,
             CONF_WIDTH: 135,
-            CONF_OFFSET_HEIGHT: 52,
-            CONF_OFFSET_WIDTH: 40,
+            CONF_OFFSET_HEIGHT: 40,
+            CONF_OFFSET_WIDTH: 52,
             CONF_CS_PIN: "GPIO5",
             CONF_DC_PIN: "GPIO16",
             CONF_RESET_PIN: "GPIO23",
@@ -68,8 +76,8 @@ MODELS = {
         presets={
             CONF_HEIGHT: 280,
             CONF_WIDTH: 240,
-            CONF_OFFSET_HEIGHT: 0,
-            CONF_OFFSET_WIDTH: 20,
+            CONF_OFFSET_HEIGHT: 20,
+            CONF_OFFSET_WIDTH: 0,
         }
     ),
     "ADAFRUIT_S2_TFT_FEATHER_240X135": model_spec(
@@ -77,8 +85,8 @@ MODELS = {
         presets={
             CONF_HEIGHT: 240,
             CONF_WIDTH: 135,
-            CONF_OFFSET_HEIGHT: 52,
-            CONF_OFFSET_WIDTH: 40,
+            CONF_OFFSET_HEIGHT: 40,
+            CONF_OFFSET_WIDTH: 52,
             CONF_CS_PIN: "GPIO7",
             CONF_DC_PIN: "GPIO39",
             CONF_RESET_PIN: "GPIO40",
@@ -89,8 +97,8 @@ MODELS = {
         presets={
             CONF_HEIGHT: 320,
             CONF_WIDTH: 170,
-            CONF_OFFSET_HEIGHT: 35,
-            CONF_OFFSET_WIDTH: 0,
+            CONF_OFFSET_HEIGHT: 0,
+            CONF_OFFSET_WIDTH: 35,
             CONF_ROTATION: 270,
             CONF_CS_PIN: "GPIO10",
             CONF_DC_PIN: "GPIO13",
@@ -102,8 +110,8 @@ MODELS = {
         presets={
             CONF_HEIGHT: 320,
             CONF_WIDTH: 172,
-            CONF_OFFSET_HEIGHT: 34,
-            CONF_OFFSET_WIDTH: 0,
+            CONF_OFFSET_HEIGHT: 0,
+            CONF_OFFSET_WIDTH: 34,
             CONF_ROTATION: 90,
             CONF_CS_PIN: "GPIO21",
             CONF_DC_PIN: "GPIO22",
@@ -115,7 +123,7 @@ MODELS = {
 }
 
 
-def validate_st7789v(config):
+def validate_st7789v(config: ConfigType) -> ConfigType:
     model_data = MODELS[config[CONF_MODEL]]
     presets = model_data[MODEL_PRESETS]
     for key, value in presets.items():
@@ -174,7 +182,10 @@ FINAL_VALIDATE_SCHEMA = spi.final_validate_device_schema(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
+    LOGGER.warning(
+        "The 'st7789v' component is deprecated, it is recommended to use 'mipi_spi' instead."
+    )
     var = cg.new_Pvariable(config[CONF_ID])
     await display.register_display(var, config)
     await spi.register_spi_device(var, config, write_only=True)

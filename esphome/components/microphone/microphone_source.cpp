@@ -1,7 +1,6 @@
 #include "microphone_source.h"
 
-namespace esphome {
-namespace microphone {
+namespace esphome::microphone {
 
 static const int32_t Q25_MAX_VALUE = (1 << 25) - 1;
 static const int32_t Q25_MIN_VALUE = ~Q25_MAX_VALUE;
@@ -73,5 +72,4 @@ void MicrophoneSource::process_audio_(const std::vector<uint8_t> &data, std::vec
   }
 }
 
-}  // namespace microphone
-}  // namespace esphome
+}  // namespace esphome::microphone

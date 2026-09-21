@@ -4,8 +4,7 @@
 
 // Datasheet: https://www.belling.com.cn/media/file_object/bel_product/BL0942/datasheet/BL0942_V1.06_en.pdf
 
-namespace esphome {
-namespace bl0942 {
+namespace esphome::bl0942 {
 
 static const char *const TAG = "bl0942";
 
@@ -125,14 +124,14 @@ void BL0942::setup() {
   // If either current or voltage references are set explicitly by the user,
   // calculate the power reference from it unless that is also explicitly set.
   if ((this->current_reference_set_ || this->voltage_reference_set_) && !this->power_reference_set_) {
-    this->power_reference_ = (this->voltage_reference_ * this->current_reference_ * 3537.0 / 305978.0) / 73989.0;
+    this->power_reference_ = (this->voltage_reference_ * this->current_reference_ * 3537.0f / 305978.0f) / 73989.0f;
     this->power_reference_set_ = true;
   }
 
   // Similarly for energy reference, if the power reference was set by the user
   // either implicitly or explicitly.
   if (this->power_reference_set_ && !this->energy_reference_set_) {
-    this->energy_reference_ = this->power_reference_ * 3600000 / 419430.4;
+    this->energy_reference_ = this->power_reference_ * 3600000 / 419430.4f;
     this->energy_reference_set_ = true;
   }
 
@@ -161,13 +160,9 @@ void BL0942::received_package_(DataPacket *data) {
     return;
   }
 
-  // cf_cnt is only 24 bits, so track overflows
+  // cf_cnt wraps at 24 bits; total_increasing on the energy sensor handles the
+  // wrap (and any spurious chip resets) downstream.
   uint32_t cf_cnt = (uint24_t) data->cf_cnt;
-  cf_cnt |= this->prev_cf_cnt_ & 0xff000000;
-  if (cf_cnt < this->prev_cf_cnt_) {
-    cf_cnt += 0x1000000;
-  }
-  this->prev_cf_cnt_ = cf_cnt;
 
   float v_rms = (uint24_t) data->v_rms / voltage_reference_;
   float i_rms = (uint24_t) data->i_rms / current_reference_;
@@ -214,5 +209,4 @@ void BL0942::dump_config() {  // NOLINT(readability-function-cognitive-complexit
   LOG_SENSOR("", "Frequency", this->frequency_sensor_);
 }
 
-}  // namespace bl0942
-}  // namespace esphome
+}  // namespace esphome::bl0942

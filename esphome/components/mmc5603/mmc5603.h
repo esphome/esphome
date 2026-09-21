@@ -4,8 +4,7 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/i2c/i2c.h"
 
-namespace esphome {
-namespace mmc5603 {
+namespace esphome::mmc5603 {
 
 enum MMC5603Datarate {
   MMC5603_DATARATE_75_0_HZ,
@@ -13,7 +12,7 @@ enum MMC5603Datarate {
   MMC5603_DATARATE_255_0_HZ,
 };
 
-class MMC5603Component : public PollingComponent, public i2c::I2CDevice {
+class MMC5603Component final : public PollingComponent, public i2c::I2CDevice {
  public:
   void setup() override;
   void dump_config() override;
@@ -40,5 +39,4 @@ class MMC5603Component : public PollingComponent, public i2c::I2CDevice {
   } error_code_{NONE};
 };
 
-}  // namespace mmc5603
-}  // namespace esphome
+}  // namespace esphome::mmc5603

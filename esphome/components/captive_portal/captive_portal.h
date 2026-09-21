@@ -12,11 +12,9 @@
 #include "esphome/core/preferences.h"
 #include "esphome/components/web_server_base/web_server_base.h"
 
-namespace esphome {
+namespace esphome::captive_portal {
 
-namespace captive_portal {
-
-class CaptivePortal : public AsyncWebHandler, public Component {
+class CaptivePortal final : public AsyncWebHandler, public Component {
  public:
   CaptivePortal(web_server_base::WebServerBase *base);
   void setup() override;
@@ -69,6 +67,6 @@ class CaptivePortal : public AsyncWebHandler, public Component {
 
 extern CaptivePortal *global_captive_portal;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
-}  // namespace captive_portal
-}  // namespace esphome
+}  // namespace esphome::captive_portal
+
 #endif

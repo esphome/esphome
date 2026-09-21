@@ -5,3 +5,10 @@ packages:
   uart: !include ../../test_build_components/common/uart/esp32-ard.yaml
 
 <<: !include common.yaml
+
+sensor:
+  - platform: dsmr
+    energy_delivered_lux:
+      name: "Energy Consumed Luxembourg. OBIS: 1-0:1.8.0"
+    energy_delivered_tariff1:
+      name: "Energy Consumed Tariff 1. OBIS: 1-0:1.8.1"

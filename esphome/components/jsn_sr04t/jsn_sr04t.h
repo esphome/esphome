@@ -6,15 +6,14 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/uart/uart.h"
 
-namespace esphome {
-namespace jsn_sr04t {
+namespace esphome::jsn_sr04t {
 
 enum Model {
   JSN_SR04T,
   AJ_SR04M,
 };
 
-class Jsnsr04tComponent : public sensor::Sensor, public PollingComponent, public uart::UARTDevice {
+class Jsnsr04tComponent final : public sensor::Sensor, public PollingComponent, public uart::UARTDevice {
  public:
   void set_model(Model model) { this->model_ = model; }
 
@@ -30,5 +29,4 @@ class Jsnsr04tComponent : public sensor::Sensor, public PollingComponent, public
   std::vector<uint8_t> buffer_;
 };
 
-}  // namespace jsn_sr04t
-}  // namespace esphome
+}  // namespace esphome::jsn_sr04t

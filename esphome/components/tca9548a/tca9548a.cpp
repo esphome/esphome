@@ -1,8 +1,7 @@
 #include "tca9548a.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace tca9548a {
+namespace esphome::tca9548a {
 
 static const char *const TAG = "tca9548a";
 
@@ -44,5 +43,4 @@ void TCA9548AComponent::disable_all_channels() {
   }
 }
 
-}  // namespace tca9548a
-}  // namespace esphome
+}  // namespace esphome::tca9548a

@@ -3,10 +3,11 @@
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
 
-namespace esphome {
-namespace feedback {
+namespace esphome::feedback {
 
 static const char *const TAG = "feedback.cover";
+
+static constexpr uint32_t DIRECTION_CHANGE_TIMEOUT_ID = 1;
 
 using namespace esphome::cover;
 
@@ -37,7 +38,7 @@ void FeedbackCover::setup() {
   }
 #endif
 
-  this->last_recompute_time_ = this->start_dir_time_ = millis();
+  this->last_recompute_time_ = this->start_dir_time_ = App.get_loop_component_start_time();
 }
 
 CoverTraits FeedbackCover::get_traits() {
@@ -92,7 +93,8 @@ void FeedbackCover::set_open_sensor(binary_sensor::BinarySensor *open_feedback) 
 
   // setup callbacks to react to sensor changes
   open_feedback->add_on_state_callback([this](bool state) {
-    ESP_LOGD(TAG, "'%s' - Open feedback '%s'.", this->name_.c_str(), state ? "STARTED" : "ENDED");
+    ESP_LOGD(TAG, "'%s' - Open feedback '%s'.", this->name_.c_str(),
+             state ? LOG_STR_LITERAL("STARTED") : LOG_STR_LITERAL("ENDED"));
     this->recompute_position_();
     if (!state && this->infer_endstop_ && this->current_trigger_operation_ == COVER_OPERATION_OPENING) {
       this->endstop_reached_(true);
@@ -105,7 +107,8 @@ void FeedbackCover::set_close_sensor(binary_sensor::BinarySensor *close_feedback
   this->close_feedback_ = close_feedback;
 
   close_feedback->add_on_state_callback([this](bool state) {
-    ESP_LOGD(TAG, "'%s' - Close feedback '%s'.", this->name_.c_str(), state ? "STARTED" : "ENDED");
+    ESP_LOGD(TAG, "'%s' - Close feedback '%s'.", this->name_.c_str(),
+             state ? LOG_STR_LITERAL("STARTED") : LOG_STR_LITERAL("ENDED"));
     this->recompute_position_();
     if (!state && this->infer_endstop_ && this->current_trigger_operation_ == COVER_OPERATION_CLOSING) {
       this->endstop_reached_(false);
@@ -135,7 +138,7 @@ void FeedbackCover::set_close_endstop(binary_sensor::BinarySensor *close_endstop
 #endif
 
 void FeedbackCover::endstop_reached_(bool open_endstop) {
-  const uint32_t now = millis();
+  const uint32_t now = App.get_loop_component_start_time();
 
   this->position = open_endstop ? COVER_OPEN : COVER_CLOSED;
 
@@ -143,7 +146,8 @@ void FeedbackCover::endstop_reached_(bool open_endstop) {
   // from a position slightly past the endpoint
   if (this->current_trigger_operation_ == (open_endstop ? COVER_OPERATION_OPENING : COVER_OPERATION_CLOSING)) {
     float dur = (now - this->start_dir_time_) / 1e3f;
-    ESP_LOGD(TAG, "'%s' - %s endstop reached. Took %.1fs.", this->name_.c_str(), open_endstop ? "Open" : "Close", dur);
+    ESP_LOGD(TAG, "'%s' - %s endstop reached. Took %.1fs.", this->name_.c_str(),
+             open_endstop ? LOG_STR_LITERAL("Open") : LOG_STR_LITERAL("Close"), dur);
 
     // if there is no external mechanism, stop the cover
     if (!this->has_built_in_endstop_) {
@@ -174,7 +178,7 @@ void FeedbackCover::set_current_operation_(cover::CoverOperation operation, bool
   if (!is_triggered || (this->open_feedback_ == nullptr || this->close_feedback_ == nullptr))
 #endif
   {
-    auto now = millis();
+    const uint32_t now = App.get_loop_component_start_time();
     this->current_operation = operation;
     this->start_dir_time_ = this->last_recompute_time_ = now;
     this->publish_state();
@@ -306,7 +310,7 @@ void FeedbackCover::control(const CoverCall &call) {
 
 void FeedbackCover::stop_prev_trigger_() {
   if (this->direction_change_waittime_.has_value()) {
-    this->cancel_timeout("direction_change");
+    this->cancel_timeout(DIRECTION_CHANGE_TIMEOUT_ID);
   }
   if (this->prev_command_trigger_ != nullptr) {
     this->prev_command_trigger_->stop_action();
@@ -365,7 +369,7 @@ void FeedbackCover::start_direction_(CoverOperation dir) {
   // the case when an obstacle appears while moving is handled in the callback
   if (obstacle != nullptr && obstacle->state) {
     ESP_LOGD(TAG, "'%s' - %s obstacle detected. Action not started.", this->name_.c_str(),
-             dir == COVER_OPERATION_OPENING ? "Open" : "Close");
+             dir == COVER_OPERATION_OPENING ? LOG_STR_LITERAL("Open") : LOG_STR_LITERAL("Close"));
     return;
   }
 #endif
@@ -374,19 +378,17 @@ void FeedbackCover::start_direction_(CoverOperation dir) {
   // check if we have a wait time
   if (this->direction_change_waittime_.has_value() && dir != COVER_OPERATION_IDLE &&
       this->current_operation != COVER_OPERATION_IDLE && dir != this->current_operation) {
+    const uint32_t waittime = *this->direction_change_waittime_;
     ESP_LOGD(TAG, "'%s' - Reversing direction.", this->name_.c_str());
     this->start_direction_(COVER_OPERATION_IDLE);
-
-    this->set_timeout("direction_change", *this->direction_change_waittime_,
-                      [this, dir]() { this->start_direction_(dir); });
-
+    this->set_timeout(DIRECTION_CHANGE_TIMEOUT_ID, waittime, [this, dir]() { this->start_direction_(dir); });
   } else {
     this->set_current_operation_(dir, true);
     this->prev_command_trigger_ = trig;
     ESP_LOGD(TAG, "'%s' - Firing '%s' trigger.", this->name_.c_str(),
-             dir == COVER_OPERATION_OPENING   ? "OPEN"
-             : dir == COVER_OPERATION_CLOSING ? "CLOSE"
-                                              : "STOP");
+             dir == COVER_OPERATION_OPENING   ? LOG_STR_LITERAL("OPEN")
+             : dir == COVER_OPERATION_CLOSING ? LOG_STR_LITERAL("CLOSE")
+                                              : LOG_STR_LITERAL("STOP"));
     trig->trigger();
   }
 }
@@ -395,7 +397,7 @@ void FeedbackCover::recompute_position_() {
   if (this->current_operation == COVER_OPERATION_IDLE)
     return;
 
-  const uint32_t now = millis();
+  const uint32_t now = App.get_loop_component_start_time();
   float dir;
   float action_dur;
   float min_pos;
@@ -451,5 +453,4 @@ void FeedbackCover::recompute_position_() {
   this->last_recompute_time_ = now;
 }
 
-}  // namespace feedback
-}  // namespace esphome
+}  // namespace esphome::feedback

@@ -2,8 +2,7 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace gdk101 {
+namespace esphome::gdk101 {
 
 static const char *const TAG = "gdk101";
 static constexpr uint8_t NUMBER_OF_READ_RETRIES = 5;
@@ -206,5 +205,4 @@ bool GDK101Component::read_measurement_duration_(uint8_t *data) {
   return true;
 }
 
-}  // namespace gdk101
-}  // namespace esphome
+}  // namespace esphome::gdk101

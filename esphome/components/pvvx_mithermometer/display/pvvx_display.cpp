@@ -1,16 +1,17 @@
-#include "pvvx_display.h"
-#include "esphome/components/esp32_ble/ble_uuid.h"
-#include "esphome/core/log.h"
+#include "esphome/core/defines.h"
 
 #ifdef USE_ESP32
-namespace esphome {
-namespace pvvx_mithermometer {
+#include "pvvx_display.h"
+#include "esphome/components/ble_device_base/ble_device.h"
+#include "esphome/core/log.h"
+
+namespace esphome::pvvx_mithermometer {
 
 static const char *const TAG = "display.pvvx_mithermometer";
 
 void PVVXDisplay::dump_config() {
-  char service_buf[esp32_ble::UUID_STR_LEN];
-  char char_buf[esp32_ble::UUID_STR_LEN];
+  char service_buf[ble_device_base::UUID_STR_LEN];
+  char char_buf[ble_device_base::UUID_STR_LEN];
   ESP_LOGCONFIG(TAG,
                 "PVVX MiThermometer display:\n"
                 "  MAC address           : %s\n"
@@ -186,7 +187,6 @@ void PVVXDisplay::sync_time_() {
 }
 #endif
 
-}  // namespace pvvx_mithermometer
-}  // namespace esphome
+}  // namespace esphome::pvvx_mithermometer
 
-#endif
+#endif  // USE_ESP32

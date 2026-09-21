@@ -101,6 +101,17 @@ class AddressCache:
         """Check if any cache entries exist."""
         return bool(self.mdns_cache or self.dns_cache)
 
+    def add_mdns_addresses(self, hostname: str, addresses: list[str]) -> None:
+        """Store resolved mDNS addresses for ``hostname`` in the cache.
+
+        Callers that discover ``.local`` hosts (e.g. via mDNS browse) can use
+        this to avoid a second resolution round-trip during the upload path.
+        No-op when ``addresses`` is empty.
+        """
+        if not addresses:
+            return
+        self.mdns_cache[normalize_hostname(hostname)] = addresses
+
     @classmethod
     def from_cli_args(
         cls, mdns_args: Iterable[str], dns_args: Iterable[str]

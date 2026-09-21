@@ -1,8 +1,7 @@
 #include "bang_bang_climate.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace bang_bang {
+namespace esphome::bang_bang {
 
 static const char *const TAG = "bang_bang.climate";
 
@@ -204,15 +203,9 @@ void BangBangClimate::set_away_config(const BangBangClimateTargetTempConfig &awa
   this->away_config_ = away_config;
 }
 
-void BangBangClimate::set_sensor(sensor::Sensor *sensor) { this->sensor_ = sensor; }
-void BangBangClimate::set_humidity_sensor(sensor::Sensor *humidity_sensor) { this->humidity_sensor_ = humidity_sensor; }
-
 Trigger<> *BangBangClimate::get_idle_trigger() { return &this->idle_trigger_; }
 Trigger<> *BangBangClimate::get_cool_trigger() { return &this->cool_trigger_; }
 Trigger<> *BangBangClimate::get_heat_trigger() { return &this->heat_trigger_; }
-
-void BangBangClimate::set_supports_cool(bool supports_cool) { this->supports_cool_ = supports_cool; }
-void BangBangClimate::set_supports_heat(bool supports_heat) { this->supports_heat_ = supports_heat; }
 
 void BangBangClimate::dump_config() {
   LOG_CLIMATE("", "Bang Bang Climate", this);
@@ -231,5 +224,4 @@ BangBangClimateTargetTempConfig::BangBangClimateTargetTempConfig(float default_t
                                                                  float default_temperature_high)
     : default_temperature_low(default_temperature_low), default_temperature_high(default_temperature_high) {}
 
-}  // namespace bang_bang
-}  // namespace esphome
+}  // namespace esphome::bang_bang

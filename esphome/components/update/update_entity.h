@@ -5,8 +5,7 @@
 #include "esphome/core/component.h"
 #include "esphome/core/entity_base.h"
 
-namespace esphome {
-namespace update {
+namespace esphome::update {
 
 struct UpdateInfo {
   std::string latest_version;
@@ -17,7 +16,7 @@ struct UpdateInfo {
   std::string firmware_url;
   std::string md5;
   bool has_progress{false};
-  float progress;
+  float progress{0};
 };
 
 enum UpdateState : uint8_t {
@@ -58,5 +57,4 @@ class UpdateEntity : public EntityBase {
   std::unique_ptr<Trigger<const UpdateInfo &>> update_available_trigger_{nullptr};
 };
 
-}  // namespace update
-}  // namespace esphome
+}  // namespace esphome::update

@@ -5,8 +5,7 @@
 
 #include "esphome/core/helpers.h"
 
-namespace esphome {
-namespace dfrobot_sen0395 {
+namespace esphome::dfrobot_sen0395 {
 
 class DfrobotSen0395Component;
 
@@ -150,5 +149,4 @@ class SensitivityCommand : public Command {
   uint8_t sensitivity_;
 };
 
-}  // namespace dfrobot_sen0395
-}  // namespace esphome
+}  // namespace esphome::dfrobot_sen0395

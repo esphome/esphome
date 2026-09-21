@@ -1,7 +1,6 @@
 #pragma once
 
-namespace esphome {
-namespace mcp2515 {
+namespace esphome::mcp2515 {
 
 static const uint8_t CANCTRL_REQOP = 0xE0;
 static const uint8_t CANCTRL_ABAT = 0x10;
@@ -371,5 +370,4 @@ static const uint8_t MCP_20MHZ_33K3BPS_CFG1 = 0x0B;
 static const uint8_t MCP_20MHZ_33K3BPS_CFG2 = 0xFF;
 static const uint8_t MCP_20MHZ_33K3BPS_CFG3 = 0x87;
 
-}  // namespace mcp2515
-}  // namespace esphome
+}  // namespace esphome::mcp2515

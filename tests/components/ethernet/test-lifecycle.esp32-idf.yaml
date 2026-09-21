@@ -1,0 +1,39 @@
+ethernet:
+  id: eth
+  type: W5500
+  clk_pin: 19
+  mosi_pin: 21
+  miso_pin: 23
+  cs_pin: 18
+  interrupt_pin: 36
+  reset_pin: 22
+  enable_on_boot: false
+  manual_ip:
+    static_ip: 192.168.178.56
+    gateway: 192.168.178.1
+    subnet: 255.255.255.0
+  mac_address: "02:AA:BB:CC:DD:01"
+  interface: spi2
+
+esphome:
+  on_boot:
+    priority: 200
+    then:
+      - if:
+          condition:
+            not:
+              ethernet.enabled:
+          then:
+            - ethernet.enable:
+
+button:
+  - platform: template
+    name: "Disable Ethernet"
+    on_press:
+      - ethernet.disable:
+
+binary_sensor:
+  - platform: template
+    name: "Ethernet Connected"
+    lambda: |-
+      return id(eth).is_connected();

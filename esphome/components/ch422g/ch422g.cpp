@@ -1,8 +1,7 @@
 #include "ch422g.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace ch422g {
+namespace esphome::ch422g {
 
 static const uint8_t CH422G_REG_MODE = 0x24;
 static const uint8_t CH422G_MODE_OUTPUT = 0x01;      // enables output mode on 0-7
@@ -136,5 +135,4 @@ void CH422GGPIOPin::set_flags(gpio::Flags flags) {
   this->parent_->pin_mode(this->pin_, flags);
 }
 
-}  // namespace ch422g
-}  // namespace esphome
+}  // namespace esphome::ch422g

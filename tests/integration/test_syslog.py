@@ -110,7 +110,7 @@ async def syslog_udp_listener() -> AsyncGenerator[tuple[int, SyslogReceiver]]:
                     receiver.on_message(msg)
             except BlockingIOError:
                 await asyncio.sleep(0.01)
-            except Exception:
+            except Exception:  # noqa: BLE001
                 break
 
     task = asyncio.create_task(receive_messages())

@@ -25,6 +25,16 @@
 #define ESPHOME_strncasecmp_P strncasecmp_P
 // Type for pointers to PROGMEM strings (for use with ESPHOME_F return values)
 using ProgmemStr = const __FlashStringHelper *;
+// Storage class for PROGMEM_STRING_TABLE data. Mirrors the logger's choice of
+// LOG_STR_ARG: when LOG_STR_ARG treats the LogString as PROGMEM (PGM_P), the
+// table data must actually be in flash; when LOG_STR_ARG treats it as a plain
+// const char* (assumes RAM), the table data must live in RAM or non-logger
+// consumers (ArduinoJson, Print, MQTT publish) crash on unaligned flash reads.
+#ifdef USE_STORE_LOG_STR_IN_FLASH
+#define ESPHOME_PROGMEM_STRING_TABLE_STORAGE PROGMEM
+#else
+#define ESPHOME_PROGMEM_STRING_TABLE_STORAGE
+#endif
 #else
 #define ESPHOME_F(string_literal) (string_literal)
 #define ESPHOME_PGM_P const char *
@@ -38,6 +48,8 @@ using ProgmemStr = const __FlashStringHelper *;
 #define ESPHOME_strncasecmp_P strncasecmp
 // Type for pointers to strings (no PROGMEM on non-ESP8266 platforms)
 using ProgmemStr = const char *;
+// No-op on non-ESP8266 platforms where PROGMEM itself is a no-op.
+#define ESPHOME_PROGMEM_STRING_TABLE_STORAGE
 #endif
 
 namespace esphome {
@@ -100,8 +112,8 @@ struct LogString;
     static constexpr size_t COUNT = Table::COUNT; \
     static constexpr uint8_t LAST_INDEX = COUNT - 1; \
     static constexpr size_t BLOB_SIZE = Table::BLOB_SIZE; \
-    static constexpr auto BLOB PROGMEM = Table::make_blob(); \
-    static constexpr auto OFFSETS PROGMEM = Table::make_offsets(); \
+    static constexpr auto BLOB ESPHOME_PROGMEM_STRING_TABLE_STORAGE = Table::make_blob(); \
+    static constexpr auto OFFSETS ESPHOME_PROGMEM_STRING_TABLE_STORAGE = Table::make_offsets(); \
     static const char *get_(uint8_t idx, uint8_t fallback) { \
       if (idx >= COUNT) \
         idx = fallback; \

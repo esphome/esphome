@@ -3,8 +3,7 @@
 #include "esphome/core/component.h"
 #include "remote_base.h"
 
-namespace esphome {
-namespace remote_base {
+namespace esphome::remote_base {
 
 struct RC5Data {
   uint8_t address;
@@ -15,9 +14,9 @@ struct RC5Data {
 
 class RC5Protocol : public RemoteProtocol<RC5Data> {
  public:
-  void encode(RemoteTransmitData *dst, const RC5Data &data) override;
-  optional<RC5Data> decode(RemoteReceiveData src) override;
-  void dump(const RC5Data &data) override;
+  void encode(RemoteTransmitData *dst, const RC5Data &data);
+  optional<RC5Data> decode(RemoteReceiveData src);
+  void dump(const RC5Data &data);
 };
 
 DECLARE_REMOTE_PROTOCOL(RC5)
@@ -35,5 +34,4 @@ template<typename... Ts> class RC5Action : public RemoteTransmitterActionBase<Ts
   }
 };
 
-}  // namespace remote_base
-}  // namespace esphome
+}  // namespace esphome::remote_base

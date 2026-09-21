@@ -3,8 +3,7 @@
 
 #ifdef USE_ESP32
 
-namespace esphome {
-namespace am43 {
+namespace esphome::am43 {
 
 static const char *const TAG = "am43_cover";
 
@@ -115,13 +114,13 @@ void Am43Component::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
       this->decoder_->decode(param->notify.value, param->notify.value_len);
 
       if (this->decoder_->has_position()) {
-        this->position = ((float) this->decoder_->position_ / 100.0);
+        this->position = ((float) this->decoder_->position_ / 100.0f);
         if (!this->invert_position_)
           this->position = 1 - this->position;
-        if (this->position > 0.97)
-          this->position = 1.0;
-        if (this->position < 0.02)
-          this->position = 0.0;
+        if (this->position > 0.97f)
+          this->position = 1.0f;
+        if (this->position < 0.02f)
+          this->position = 0.0f;
         this->publish_state();
       }
 
@@ -154,7 +153,6 @@ void Am43Component::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
   }
 }
 
-}  // namespace am43
-}  // namespace esphome
+}  // namespace esphome::am43
 
 #endif

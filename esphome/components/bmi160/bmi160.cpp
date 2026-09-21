@@ -2,8 +2,7 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace bmi160 {
+namespace esphome::bmi160 {
 
 static const char *const TAG = "bmi160";
 static constexpr uint32_t GYRO_WAKEUP_TIMEOUT_MS = 100;
@@ -265,5 +264,4 @@ void BMI160Component::update() {
   this->status_clear_warning();
 }
 
-}  // namespace bmi160
-}  // namespace esphome
+}  // namespace esphome::bmi160

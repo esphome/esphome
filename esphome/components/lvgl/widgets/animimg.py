@@ -4,7 +4,6 @@ from esphome.const import CONF_DURATION, CONF_ID
 
 from ..automation import action_to_code
 from ..defines import CONF_AUTO_START, CONF_MAIN, CONF_REPEAT_COUNT, CONF_SRC
-from ..helpers import lvgl_components_required
 from ..lv_validation import lv_image_list, lv_milliseconds
 from ..lvcode import lv
 from ..types import LvType, ObjUpdateAction
@@ -55,8 +54,6 @@ class AnimimgType(WidgetType):
         )
 
     async def to_code(self, w: Widget, config):
-        lvgl_components_required.add(CONF_IMAGE)
-        lvgl_components_required.add(CONF_ANIMIMG)
         if srcs := config.get(CONF_SRC):
             srcs = await lv_image_list.process(srcs)
             lv.animimg_set_src(w.obj, srcs)
@@ -68,7 +65,7 @@ class AnimimgType(WidgetType):
             lv.animimg_start(w.obj)
 
     def get_uses(self):
-        return "img", CONF_IMAGE, CONF_LABEL
+        return CONF_IMAGE, CONF_LABEL
 
 
 animimg_spec = AnimimgType()

@@ -14,6 +14,7 @@ from esphome.const import (
     UNIT_DEGREES,
     UNIT_KILOMETER_PER_HOUR,
 )
+from esphome.types import ConfigType
 
 tx20_ns = cg.esphome_ns.namespace("tx20")
 Tx20Component = tx20_ns.class_("Tx20Component", cg.Component)
@@ -39,7 +40,7 @@ CONFIG_SCHEMA = cv.Schema(
 ).extend(cv.COMPONENT_SCHEMA)
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
 

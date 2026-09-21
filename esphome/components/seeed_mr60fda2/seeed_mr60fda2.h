@@ -19,8 +19,7 @@
 
 #include <map>
 
-namespace esphome {
-namespace seeed_mr60fda2 {
+namespace esphome::seeed_mr60fda2 {
 
 static const uint8_t DATA_BUF_MAX_SIZE = 28;
 static const uint8_t FRAME_BUF_MAX_SIZE = 37;
@@ -57,8 +56,8 @@ static const char *const INSTALL_HEIGHT_STR[7] = {"2.4m", "2.5m", "2.6", "2.7m",
 static const char *const HEIGHT_THRESHOLD_STR[7] = {"0.0m", "0.1m", "0.2m", "0.3m", "0.4m", "0.5m", "0.6m"};
 static const char *const SENSITIVITY_STR[3] = {"1", "2", "3"};
 
-class MR60FDA2Component : public Component,
-                          public uart::UARTDevice {  // The class name must be the name defined by text_sensor.py
+class MR60FDA2Component final : public Component,
+                                public uart::UARTDevice {  // The class name must be the name defined by text_sensor.py
 #ifdef USE_BINARY_SENSOR
   SUB_BINARY_SENSOR(people_exist)
   SUB_BINARY_SENSOR(fall_detected)
@@ -97,5 +96,4 @@ class MR60FDA2Component : public Component,
   void factory_reset();
 };
 
-}  // namespace seeed_mr60fda2
-}  // namespace esphome
+}  // namespace esphome::seeed_mr60fda2

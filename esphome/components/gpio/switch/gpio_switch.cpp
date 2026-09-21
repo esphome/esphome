@@ -1,8 +1,7 @@
 #include "gpio_switch.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace gpio {
+namespace esphome::gpio {
 
 static const char *const TAG = "switch.gpio";
 #ifdef USE_GPIO_SWITCH_INTERLOCK
@@ -14,18 +13,10 @@ void GPIOSwitch::setup() {
   bool initial_state = this->get_initial_state_with_restore_mode().value_or(false);
 
   // write state before setup
-  if (initial_state) {
-    this->turn_on();
-  } else {
-    this->turn_off();
-  }
+  this->control(initial_state);
   this->pin_->setup();
   // write after setup again for other IOs
-  if (initial_state) {
-    this->turn_on();
-  } else {
-    this->turn_off();
-  }
+  this->control(initial_state);
 }
 void GPIOSwitch::dump_config() {
   LOG_SWITCH("", "GPIO Switch", this);
@@ -79,5 +70,4 @@ void GPIOSwitch::write_state(bool state) {
 void GPIOSwitch::set_interlock(const std::initializer_list<Switch *> &interlock) { this->interlock_ = interlock; }
 #endif
 
-}  // namespace gpio
-}  // namespace esphome
+}  // namespace esphome::gpio
