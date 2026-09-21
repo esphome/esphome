@@ -60,6 +60,7 @@ class ClimateIR : public Component,
 
   bool supports_cool_{true};
   bool supports_heat_{true};
+  bool supports_heat_cool_{true};
   bool supports_dry_{false};
   bool supports_fan_only_{false};
   climate::ClimateFanModeMask fan_modes_{};
