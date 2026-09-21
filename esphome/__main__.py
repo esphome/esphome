@@ -657,6 +657,8 @@ def _resolve_network_devices(
 
         _add_network_device(device, network_devices)
 
+    options = [(f"{ip}", ip) for ip in network_devices]
+    network_devices = [choose_prompt(options, purpose="upload")]
     return network_devices
 
 
