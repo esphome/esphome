@@ -45,7 +45,7 @@ void TFLuna::setup() {
     this->status_set_warning(ESP_LOG_MSG_COMM_FAIL);
     return;
   }
-  char version[11];
+  char version[12];
   snprintf(version, sizeof(version), "%d.%d.%d", buf[2], buf[1], buf[0]);
   ESP_LOGI(TAG, "Firmware: %s", version);
 
