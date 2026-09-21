@@ -39,22 +39,6 @@ void TFLuna::dump_config() {
 }
 
 void TFLuna::setup() {
-  uint8_t buf[3];
-
-  if (!this->read_bytes(VERSION_REVISION_REGISTER, buf, sizeof(buf))) {
-    this->status_set_warning(ESP_LOG_MSG_COMM_FAIL);
-    return;
-  }
-  char version[12];
-  snprintf(version, sizeof(version), "%d.%d.%d", buf[2], buf[1], buf[0]);
-  ESP_LOGI(TAG, "Firmware: %s", version);
-
-#ifdef USE_TEXT_SENSOR
-  if (this->version_text_sensor_ != nullptr) {
-    this->version_text_sensor_->publish_state(version);
-  }
-#endif
-
   uint8_t mode;
   if (!this->read_byte(MODE_REGISTER, &mode)) {
     ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
@@ -74,6 +58,22 @@ void TFLuna::setup() {
       return;
     }
   }
+
+  uint8_t buf[3];
+
+  if (!this->read_bytes(VERSION_REVISION_REGISTER, buf, sizeof(buf))) {
+    this->status_set_warning(ESP_LOG_MSG_COMM_FAIL);
+    return;
+  }
+  char version[12];
+  snprintf(version, sizeof(version), "%d.%d.%d", buf[2], buf[1], buf[0]);
+  ESP_LOGI(TAG, "Firmware: %s", version);
+
+#ifdef USE_TEXT_SENSOR
+  if (this->version_text_sensor_ != nullptr) {
+    this->version_text_sensor_->publish_state(version);
+  }
+#endif
 }
 
 [[nodiscard]] bool TFLuna::read_data_() {
