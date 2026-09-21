@@ -16,9 +16,9 @@ struct TotoData {
 
 class TotoProtocol : public RemoteProtocol<TotoData> {
  public:
-  void encode(RemoteTransmitData *dst, const TotoData &data) override;
-  optional<TotoData> decode(RemoteReceiveData src) override;
-  void dump(const TotoData &data) override;
+  void encode(RemoteTransmitData *dst, const TotoData &data);
+  optional<TotoData> decode(RemoteReceiveData src);
+  void dump(const TotoData &data);
 };
 
 DECLARE_REMOTE_PROTOCOL(Toto)

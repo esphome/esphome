@@ -3,6 +3,9 @@ from esphome.components.light.effects import register_addressable_effect
 from esphome.components.light.types import AddressableLightEffect
 import esphome.config_validation as cv
 from esphome.const import CONF_CHANNELS, CONF_ID, CONF_METHOD, CONF_NAME
+from esphome.core import ID
+from esphome.cpp_generator import MockObj
+from esphome.types import ConfigType
 
 AUTO_LOAD = ["socket"]
 DEPENDENCIES = ["network"]
@@ -32,7 +35,7 @@ CONFIG_SCHEMA = cv.Schema(
 ).extend(cv.COMPONENT_SCHEMA)
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     cg.add(var.set_method(METHODS[config[CONF_METHOD]]))
@@ -48,7 +51,7 @@ async def to_code(config):
         cv.Optional(CONF_CHANNELS, default="RGB"): cv.one_of(*CHANNELS, upper=True),
     },
 )
-async def e131_light_effect_to_code(config, effect_id):
+async def e131_light_effect_to_code(config: ConfigType, effect_id: ID) -> MockObj:
     parent = await cg.get_variable(config[CONF_E131_ID])
 
     effect = cg.new_Pvariable(effect_id, config[CONF_NAME])
