@@ -49,8 +49,7 @@ VARIANT = ZephyrVariant(
     blobs=("hal_espressif", ".*", ".blobs_hal_espressif_ready"),
     transports=frozenset({"ble", "openthread"}),
     soc="esp32h2",
-    # offset excluded: upstream's BOOT_PREFER_SWAP_OFFSET requires !SOC_FAMILY_ESPRESSIF_ESP32.
-    swap_methods=frozenset({"scratch", "move", "direct"}),
+    swap_methods=frozenset({"scratch", "move", "direct", "offset"}),
     # https://github.com/espressif/esp-idf/blob/master/components/soc/esp32h2/include/soc/adc_channel.h
     adc1_channel_map={1: 0, 2: 1, 3: 2, 4: 3, 5: 4},
     uart_node_labels={},

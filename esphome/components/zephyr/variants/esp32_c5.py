@@ -46,8 +46,7 @@ VARIANT = ZephyrVariant(
     transport_drivers={"wifi": ("WIFI_ESP32", "wifi")},
     soc="esp32c5",
     qualifier="hpcore",
-    # offset excluded: upstream's BOOT_PREFER_SWAP_OFFSET requires !SOC_FAMILY_ESPRESSIF_ESP32.
-    swap_methods=frozenset({"scratch", "move", "direct"}),
+    swap_methods=frozenset({"scratch", "move", "direct", "offset"}),
     # esp32c5_common.dtsi's adc0 node declares channel-count = <6> -- GPIO0-5 map directly
     # to ADC1 channel 0-5 (devicetree channel@N address IS the real silicon channel, same
     # as esp32_c6/esp32_h2).
