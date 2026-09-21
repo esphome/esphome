@@ -14,11 +14,8 @@ bool StaticTask::create(TaskFunction_t fn, const char *name, uint32_t stack_size
   }
 
   if (this->stack_buffer_ != nullptr && (stack_size > this->stack_size_ || use_psram != this->use_psram_)) {
-    // Existing buffer is too small or wrong memory type; deallocate to reallocate below
-    RAMAllocator<StackType_t> allocator(this->use_psram_ ? RAMAllocator<StackType_t>::ALLOC_EXTERNAL
-                                                         : RAMAllocator<StackType_t>::ALLOC_INTERNAL);
-    allocator.deallocate(this->stack_buffer_, this->stack_size_);
-    this->stack_buffer_ = nullptr;
+    // Existing buffer is too small or wrong memory type; free it to reallocate below
+    this->stack_buffer_.reset();
   }
 
   if (this->stack_buffer_ == nullptr) {
@@ -26,7 +23,7 @@ bool StaticTask::create(TaskFunction_t fn, const char *name, uint32_t stack_size
     this->use_psram_ = use_psram;
     RAMAllocator<StackType_t> allocator(use_psram ? RAMAllocator<StackType_t>::ALLOC_EXTERNAL
                                                   : RAMAllocator<StackType_t>::ALLOC_INTERNAL);
-    this->stack_buffer_ = allocator.allocate(stack_size);
+    this->stack_buffer_ = allocator.make_unique_array_for_overwrite(stack_size);
   }
   if (this->stack_buffer_ == nullptr) {
     return false;
@@ -42,7 +39,7 @@ bool StaticTask::create(TaskFunction_t fn, const char *name, uint32_t stack_size
   }
 
   this->handle_ =
-      xTaskCreateStatic(fn, name, this->stack_size_, param, priority, this->stack_buffer_, this->tcb_.get());
+      xTaskCreateStatic(fn, name, this->stack_size_, param, priority, this->stack_buffer_.get(), this->tcb_.get());
   if (this->handle_ == nullptr) {
     this->deallocate();
     return false;
@@ -75,13 +72,8 @@ bool StaticTask::deallocate() {
   if (!this->destroy()) {
     return false;
   }
-  if (this->stack_buffer_ != nullptr) {
-    RAMAllocator<StackType_t> allocator(this->use_psram_ ? RAMAllocator<StackType_t>::ALLOC_EXTERNAL
-                                                         : RAMAllocator<StackType_t>::ALLOC_INTERNAL);
-    allocator.deallocate(this->stack_buffer_, this->stack_size_);
-    this->stack_buffer_ = nullptr;
-    this->stack_size_ = 0;
-  }
+  this->stack_buffer_.reset();
+  this->stack_size_ = 0;
   this->tcb_.reset();
   return true;
 }
