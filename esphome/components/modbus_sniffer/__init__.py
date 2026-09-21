@@ -8,12 +8,16 @@ CODEOWNERS = ["@dalklein"]
 DEPENDENCIES = ["modbus"]
 MULTI_CONF = True
 
-# A span, not a copy, matching modbus_client.
-_PAYLOAD_SPAN = cg.std_span.template(cg.uint8.operator("const"))
+CONF_ON_REQUEST = "on_request"
+
+# Spans, not copies, matching modbus_client. The PDUs are handed over undecoded so a lambda can
+# pass them straight to the modbus::helpers functions.
+_PDU_SPAN = cg.std_span.template(cg.uint8.operator("const"))
 
 CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(modbus.CONF_MODBUS_ID): cv.use_id(modbus.ModbusSniffer),
+        cv.Optional(CONF_ON_REQUEST): automation.validate_automation(single=True),
         cv.Optional(CONF_ON_RESPONSE): automation.validate_automation(single=True),
     }
 )
@@ -24,14 +28,20 @@ async def to_code(config):
     # behaviour to it.
     hub = await cg.get_variable(config[modbus.CONF_MODBUS_ID])
 
+    if on_request := config.get(CONF_ON_REQUEST):
+        await automation.build_automation(
+            hub.get_request_trigger(),
+            [(cg.uint8, "address"), (_PDU_SPAN, "request_pdu")],
+            on_request,
+        )
+
     if on_response := config.get(CONF_ON_RESPONSE):
         await automation.build_automation(
             hub.get_response_trigger(),
             [
                 (cg.uint8, "address"),
-                (cg.uint8, "function_code"),
-                (cg.uint16, "start_address"),
-                (_PAYLOAD_SPAN, "payload"),
+                (_PDU_SPAN, "request_pdu"),
+                (_PDU_SPAN, "response_pdu"),
             ],
             on_response,
         )

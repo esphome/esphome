@@ -8,7 +8,6 @@
 #include "esphome/components/modbus/modbus_helpers.h"
 
 #include <array>
-#include <map>
 #include <cstring>
 #include <memory>
 #include <span>
@@ -405,9 +404,13 @@ class ModbusServerHub : public ModbusPeerHub {
 
 /** Watches a bus without taking part in it: registers nothing, answers nothing, transmits nothing.
  *
- * A Modbus response carries no register address -- only the request does -- so each request is
- * retained until its reply arrives, keyed by server address. A single slot would drift: on a real
- * bus a polled address often never answers, and its stale request would capture the next reply.
+ * A Modbus response carries no register address -- only the request does -- so the request is
+ * retained until its reply arrives and both are handed to the automation together. Nothing is
+ * decoded here: the PDUs go out raw and the lambda uses modbus::helpers to read them, so every
+ * function code works without this class knowing any of them.
+ *
+ * One slot is enough. RTU is half duplex, so a master cannot issue a second request before the
+ * first resolves, and a new request simply replaces the one before it.
  *
  * Address 0 is never paired, being the broadcast address, so a device using it as a unit ID
  * (some BMS clones ship that way) is unsupported.
@@ -415,32 +418,28 @@ class ModbusServerHub : public ModbusPeerHub {
 class ModbusSnifferHub final : public ModbusPeerHub {
  public:
   ModbusSnifferHub() = default;
-  void loop() override;
   void dump_config() override;
 
-  /// address, function code, start register, response payload (big-endian registers)
-  Trigger<uint8_t, uint8_t, uint16_t, std::span<const uint8_t>> *get_response_trigger() {
+  /// address, request PDU. Fires for every request seen, answered or not.
+  Trigger<uint8_t, std::span<const uint8_t>> *get_request_trigger() { return &this->request_trigger_; }
+
+  /// address, request PDU, response PDU.
+  Trigger<uint8_t, std::span<const uint8_t>, std::span<const uint8_t>> *get_response_trigger() {
     return &this->response_trigger_;
   }
 
  protected:
-  /// A request seen but not yet answered.
-  struct Pending {
-    uint16_t start_address;
-    uint16_t count;
-    uint8_t function_code;
-  };
-
   void process_modbus_client_frame(uint8_t address, uint8_t function_code, std::span<const uint8_t> data) override;
   void process_modbus_server_frame(uint8_t address, std::span<const uint8_t> pdu) override;
   void process_broadcast_frame(uint8_t, std::span<const uint8_t>) override {}
 
-  std::map<uint8_t, Pending> pending_;
-  Trigger<uint8_t, uint8_t, uint16_t, std::span<const uint8_t>> response_trigger_;
+  /// The request awaiting its reply, function code first, as it appeared on the wire. Empty once
+  /// consumed. The inline size covers every standard read and single write without allocating.
+  SmallInlineBuffer<MODBUS_FRAME_INLINE_SIZE> request_;
+  uint8_t request_address_{0};
 
-  uint32_t paired_{0};
-  uint32_t unpaired_{0};
-  uint32_t last_report_{0};
+  Trigger<uint8_t, std::span<const uint8_t>> request_trigger_;
+  Trigger<uint8_t, std::span<const uint8_t>, std::span<const uint8_t>> response_trigger_;
 };
 
 /// Callback contract. Each accepted request ends in exactly ONE terminal: on_response() (data),
