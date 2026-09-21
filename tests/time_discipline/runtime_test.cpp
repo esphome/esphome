@@ -14,6 +14,8 @@ int64_t system_us;
 int64_t pending_adjustment_us;
 int64_t reference_us = 1700000000000000;
 double drift;
+bool weak_heap_alignment;
+alignas(64) unsigned char weak_heap_storage[8192];
 
 void advance() {
   reference_us += 1000000;
@@ -23,6 +25,16 @@ void advance() {
   pending_adjustment_us -= correction;
   system_us += ticks + correction;
 }
+}
+
+extern "C" void *__real_malloc(size_t size);
+extern "C" void *__wrap_malloc(size_t size) {
+  if (weak_heap_alignment && size == esphome_time_size()) {
+    assert(size + 4 <= sizeof(weak_heap_storage));
+    // ESP-IDF's ordinary heap allocation guarantees only four-byte alignment.
+    return weak_heap_storage + 4;
+  }
+  return __real_malloc(size);
 }
 
 int64_t esp_timer_get_time() { return monotonic_us; }
@@ -125,7 +137,10 @@ int main(int argc, char **argv) {
   discipline.set_source_timeout(1, 900000);
   unsigned notifications = 0;
   external.add_on_time_sync_callback([&]() { notifications++; });
+  weak_heap_alignment = true;
   discipline.setup();
+  weak_heap_alignment = false;
+  assert(discipline.get_error() == 0);
   direct.epoch(reference_us / 1000000);
   assert(discipline.get_observation_count() == 1);  // Common setter is not counted twice.
   assert(direct.timestamp_now() == reference_us / 1000000);

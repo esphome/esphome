@@ -25,8 +25,11 @@ ClockDiscipline::ClockDiscipline(uint8_t source_count) : PollingComponent(1000),
 }
 
 void ClockDiscipline::setup() {
-  this->storage_ = std::malloc(esphome_time_size());
+  // ESP-IDF malloc only guarantees four-byte alignment; Rust requires eight on C6.
+  this->storage_ = ::aligned_alloc(esphome_time_alignment(), esphome_time_size());
   if (this->storage_ == nullptr || reinterpret_cast<uintptr_t>(this->storage_) % esphome_time_alignment() != 0) {
+    ESP_LOGE(TAG, "Unable to allocate %u bytes with %u-byte alignment for Rust",
+             static_cast<unsigned>(esphome_time_size()), static_cast<unsigned>(esphome_time_alignment()));
     this->check_(ESPHOME_TIME_INVALID_ARGUMENT);
     return;
   }
@@ -149,7 +152,12 @@ void ClockDiscipline::update() {
 }
 
 void ClockDiscipline::refresh_estimate_() {
-  this->has_estimate_ = this->check_(esphome_time_estimate(this->storage_, &this->estimate_));
+  // The component's heap address may only be four-byte aligned. Use an aligned
+  // stack buffer for Rust's double fields, then copy into the C++ diagnostics.
+  alignas(8) EsphomeTimeEstimate estimate;
+  this->has_estimate_ = this->check_(esphome_time_estimate(this->storage_, &estimate));
+  if (this->has_estimate_)
+    this->estimate_ = estimate;
 }
 
 bool ClockDiscipline::check_(uint32_t status) {

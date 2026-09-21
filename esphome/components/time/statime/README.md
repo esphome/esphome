@@ -91,7 +91,11 @@ is an explicit draft dependency, not an accepted upstream release. Replace it
 with a tested upstream revision before considering this integration merge-ready.
 
 `include/time_discipline.h` defines the internal ABI. Opaque, aligned storage is
-allocated once during setup and never moved. Rust does not allocate. Calls are
+allocated once during setup with the alignment reported by Rust and never moved.
+ESP-IDF's ordinary heap only guarantees four-byte alignment, so it is insufficient
+for the eight-byte Rust state alignment on C6. Estimates cross the FFI boundary
+through an explicitly aligned stack buffer before being copied into the component.
+Rust does not allocate. Calls are
 serialized on the ESPHome thread; only the capture mailbox crosses threads.
 Callbacks and context must outlive the controller. Timestamps are signed 64-bit
 TAI nanoseconds, frequency is seconds per second, and uncertainty is a positive
@@ -108,6 +112,8 @@ public system time, holdover and outliers. Minute-spaced observations with bound
 20 ms timestamp noise check steering saturation and accuracy in both drift
 directions. Its OS clock is simulated: it does not
 change the host clock or prove real-device accuracy.
+The runtime test also models a four-byte-aligned ordinary heap allocation to
+check initialization with Rust's stricter alignment requirement.
 
 Run at the repository root, with Rust 1.98.1 active:
 

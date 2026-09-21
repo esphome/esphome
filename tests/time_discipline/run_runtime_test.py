@@ -102,6 +102,7 @@ def main() -> None:
                 str(root / "esphome/components/time/clock_discipline.cpp"),
                 str(root / "esphome/components/time/real_time_clock.cpp"),
                 str(archive),
+                "-Wl,--wrap=malloc",
                 "-lpthread",
                 "-ldl",
                 "-lm",
