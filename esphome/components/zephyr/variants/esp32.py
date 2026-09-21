@@ -91,8 +91,7 @@ VARIANT = ZephyrVariant(
     # like esp32_c6 -- Zephyr's WIFI_ESP32 driver requires `!SMP` (single scheduled core),
     # so only the procpu image is built, mirroring esp32_c6's hpcore-only build.
     qualifier="procpu",
-    # offset excluded: upstream's BOOT_PREFER_SWAP_OFFSET requires !SOC_FAMILY_ESPRESSIF_ESP32.
-    swap_methods=frozenset({"scratch", "move", "direct"}),
+    swap_methods=frozenset({"scratch", "move", "direct", "offset"}),
     # https://github.com/espressif/esp-idf/blob/master/components/soc/esp32/include/soc/adc_channel.h
     adc1_channel_map={36: 0, 37: 1, 38: 2, 39: 3, 32: 4, 33: 5, 34: 6, 35: 7},
     uart_node_labels={},

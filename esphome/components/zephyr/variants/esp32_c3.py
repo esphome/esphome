@@ -48,8 +48,7 @@ VARIANT = ZephyrVariant(
     transports=frozenset({"wifi", "ble"}),
     transport_drivers={"wifi": ("WIFI_ESP32", "wifi")},
     soc="esp32c3",
-    # offset excluded: upstream's BOOT_PREFER_SWAP_OFFSET requires !SOC_FAMILY_ESPRESSIF_ESP32.
-    swap_methods=frozenset({"scratch", "move", "direct"}),
+    swap_methods=frozenset({"scratch", "move", "direct", "offset"}),
     # https://github.com/espressif/esp-idf/blob/master/components/soc/esp32c3/include/soc/adc_channel.h
     adc1_channel_map={0: 0, 1: 1, 2: 2, 3: 3, 4: 4},
     uart_node_labels={},
