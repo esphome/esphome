@@ -4,8 +4,7 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/sensirion_common/i2c_sensirion.h"
 
-namespace esphome {
-namespace stcc4 {
+namespace esphome::stcc4 {
 
 enum class MeasurementMode : uint8_t {
   CONTINUOUS = 0,
@@ -49,5 +48,4 @@ class STCC4Component final : public PollingComponent, public sensirion_common::S
   uint16_t ambient_pressure_in_pa_2_{0};
 };
 
-}  // namespace stcc4
-}  // namespace esphome
+}  // namespace esphome::stcc4

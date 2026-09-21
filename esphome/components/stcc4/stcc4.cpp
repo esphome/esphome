@@ -2,8 +2,7 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace stcc4 {
+namespace esphome::stcc4 {
 
 static const char *const TAG = "stcc4";
 
@@ -221,5 +220,4 @@ bool STCC4Component::write_ambient_pressure_compensation_() {
   return true;
 }
 
-}  // namespace stcc4
-}  // namespace esphome
+}  // namespace esphome::stcc4
