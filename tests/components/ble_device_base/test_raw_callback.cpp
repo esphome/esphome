@@ -13,17 +13,12 @@ namespace esphome::ble_device_base::testing {
 //
 // The in-tree emit site (BK72xxBLETracker::on_scan_report) compiles against
 // the Beken SDK and cannot run host-side, so the guard-and-fire semantics are
-// pinned here through a minimal host BLEHub implementation instead.
+// pinned here through a minimal host hub carrying only the slot under test.
 namespace {
 
-class FakeHub : public BLEHub {
+class FakeHub {
  public:
-  void register_listener(ESPBTDeviceListener *listener) override {}
-  void set_raw_advertisement_callback(RawAdvertisementCallback callback) override { this->callback_ = callback; }
-  HubCapabilities get_capabilities() const override { return {false, false, false}; }
-  void get_adapter_mac(uint8_t out[6]) override {}
-  bool scan_running() override { return false; }
-  bool scan_active() override { return false; }
+  void set_raw_advertisement_callback(RawAdvertisementCallback callback) { this->callback_ = callback; }
 
   /// The emit path every tracker implements: fire only when a subscriber is set.
   void emit(const RawAdvertisement &adv) {

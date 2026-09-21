@@ -241,7 +241,7 @@ class ESPBTDevice {
   // the 2-byte element header); every in-tree tracker scans legacy PDUs only.
   static constexpr uint8_t MAX_ADV_NAME_LEN = 29;
 
-  uint8_t address_[6]{0};
+  uint8_t address_[MAC_ADDRESS_SIZE]{0};
   uint8_t address_type_{0};
   int rssi_{0};
   // Fixed buffer instead of std::string: no per-advertisement heap churn on

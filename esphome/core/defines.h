@@ -13,6 +13,7 @@
 #define ESPHOME_PROJECT_VERSION "v2"
 #define ESPHOME_PROJECT_VERSION_30 "v2"
 #define ESPHOME_VARIANT "ESP32"
+#define ESPHOME_SNAPSHOT_DIR "."
 #define ESPHOME_NAME_ADD_MAC_SUFFIX
 #define ESPHOME_DEBUG_SCHEDULER
 #define ESPHOME_DEBUG_API
@@ -43,7 +44,9 @@
 #define USE_ALARM_CONTROL_PANEL
 #define USE_AREAS
 #define USE_BINARY_SENSOR
+#define USE_BINARY_SENSOR_CLICK_TRIGGER
 #define USE_BINARY_SENSOR_FILTER
+#define USE_BINARY_SENSOR_MULTI_CLICK_TRIGGER
 #define USE_BLE_DEVICE_IRK
 #define USE_BUTTON
 #define USE_CAMERA
@@ -67,9 +70,10 @@
 #define USE_ESP32_CAMERA_JPEG_CONVERSION
 #define USE_ESP32_HOSTED
 #define USE_ESP32_HOSTED_HTTP_UPDATE
-#define USE_ESP32_IMPROV_STATE_CALLBACK
+#define USE_ESP_NOW_HOSTED
 #define USE_EVENT
 #define USE_FAN
+#define USE_GPIO_BINARY_SENSOR_INTERRUPT
 #define USE_GPIO_SWITCH_INTERLOCK
 #define USE_GRAPH
 #define USE_GRAPHICAL_DISPLAY_MENU
@@ -78,8 +82,7 @@
 #define USE_HTTP_REQUEST_OTA_WATCHDOG_TIMEOUT 8000  // NOLINT
 #define USE_I2S_AUDIO_SPDIF_MODE
 #define USE_IMAGE
-#define USE_IMPROV_SERIAL
-#define USE_IMPROV_SERIAL_NEXT_URL
+#define USE_IMPROV_BLE_STATE_CALLBACK
 #define USE_INFRARED
 #define USE_IR_RF
 #define USE_JSON
@@ -133,11 +136,50 @@
 #define MDNS_DYNAMIC_TXT_COUNT 2
 #define MICRONOVA_LISTENER_COUNT 1
 #define USE_MICRONOVA_WRITER
+#define MK2PVROUTER_LISTENER_COUNT 1
+#define REMOTE_BASE_DUMPER_COUNT 1
+#define REMOTE_BASE_LISTENER_COUNT 1
+#define USE_REMOTE_PROTOCOL_ABBWELCOME
+#define USE_REMOTE_PROTOCOL_AEHA
+#define USE_REMOTE_PROTOCOL_BEO4
+#define USE_REMOTE_PROTOCOL_BRENNENSTUHL
+#define USE_REMOTE_PROTOCOL_BYRONSX
+#define USE_REMOTE_PROTOCOL_CANALSAT
+#define USE_REMOTE_PROTOCOL_COOLIX
+#define USE_REMOTE_PROTOCOL_DISH
+#define USE_REMOTE_PROTOCOL_DOOYA
+#define USE_REMOTE_PROTOCOL_DRAYTON
+#define USE_REMOTE_PROTOCOL_DYSON
+#define USE_REMOTE_PROTOCOL_GOBOX
+#define USE_REMOTE_PROTOCOL_HAIER
+#define USE_REMOTE_PROTOCOL_JVC
+#define USE_REMOTE_PROTOCOL_KEELOQ
+#define USE_REMOTE_PROTOCOL_LG
+#define USE_REMOTE_PROTOCOL_MAGIQUEST
+#define USE_REMOTE_PROTOCOL_MIDEA
+#define USE_REMOTE_PROTOCOL_MIRAGE
+#define USE_REMOTE_PROTOCOL_NEC
+#define USE_REMOTE_PROTOCOL_NEXA
+#define USE_REMOTE_PROTOCOL_PANASONIC
+#define USE_REMOTE_PROTOCOL_PIONEER
+#define USE_REMOTE_PROTOCOL_PRONTO
+#define USE_REMOTE_PROTOCOL_RAW
+#define USE_REMOTE_PROTOCOL_RC5
+#define USE_REMOTE_PROTOCOL_RC6
+#define USE_REMOTE_PROTOCOL_RC_SWITCH
+#define USE_REMOTE_PROTOCOL_ROOMBA
+#define USE_REMOTE_PROTOCOL_SAMSUNG
+#define USE_REMOTE_PROTOCOL_SAMSUNG36
+#define USE_REMOTE_PROTOCOL_SONY
+#define USE_REMOTE_PROTOCOL_SYMPHONY
+#define USE_REMOTE_PROTOCOL_TOSHIBA_AC
+#define USE_REMOTE_PROTOCOL_TOTO
 #define SERIAL_PROXY_COUNT 2
 #define SNTP_SERVER_COUNT 3
 #define USE_MEDIA_PLAYER
 #define USE_MEDIA_SOURCE
 #define USE_NETWORK
+#define USE_NETWORK_DEFAULT_ROUTE
 #define USE_NETWORK_PRIMARY_INTERFACE_WIFI
 #define USE_NEXTION_COMMAND_SPACING
 #define USE_NEXTION_CONF_START_UP_PAGE
@@ -156,10 +198,17 @@
 #define USE_OUTPUT
 #define USE_OUTPUT_FLOAT_POWER_SCALING
 #define USE_POWER_SUPPLY
-#define USE_PREFERENCES_SYNC_EVERY_LOOP
-// Only defined by key-lookup preference backends (esp32, libretiny, host, zephyr);
-// slot-based platforms (esp8266, rp2040) never set it in generated builds
+// Only defined by key-lookup preference backends; the slot-based platforms
+// (esp8266, rp2040) never set it in generated builds, and their preferences
+// managers do not provide load_from_key(), so the PreferencesKeyLookupContract
+// assert would fail their clang-tidy environments. Written as a deny-list so
+// the no-platform analysis configuration (whose Preferences stub provides
+// load_from_key()) keeps covering the key-lookup code paths, and so a future
+// slot-based platform fails the assert loudly instead of silently losing
+// analysis coverage.
+#if !defined(USE_ESP8266) && !defined(USE_RP2)
 #define USE_PREFERENCE_KEY_LOOKUP
+#endif
 #define USE_PROVISIONING
 #define USE_QR_CODE
 #define USE_SAFE_MODE_BOOT_IS_GOOD_ON_SHUTDOWN
@@ -169,6 +218,7 @@
 #define USE_SENSOR
 #define USE_SENSOR_FILTER
 #define USE_SERIAL_PROXY
+#define USE_SERIAL_PROXY_TAP
 #define USE_SETUP_PRIORITY_OVERRIDE
 #define USE_STATUS_LED
 #define USE_STATUS_SENSOR
@@ -177,10 +227,12 @@
 #define USE_TEXT_SENSOR
 #define USE_TEXT_SENSOR_FILTER
 #define USE_TIME
+#define USE_TIME_TRIGGERS
 #define USE_TOUCHSCREEN
 #define USE_UART_DEBUGGER
 #define USE_UART_WAKE_LOOP_ON_RX
 #define USE_UPDATE
+#define USE_UPTIME_TIMESTAMP
 #define USE_VALVE
 #define USE_WATER_HEATER
 #define USE_WATER_HEATER_VISUAL_OVERRIDES
@@ -206,11 +258,17 @@
 #define USE_API_PLAINTEXT
 #define USE_API_USER_DEFINED_ACTIONS
 #define USE_API_CUSTOM_SERVICES
+#define USE_API_USER_DEFINED_ACTION_METADATA
 #define USE_API_USER_DEFINED_ACTION_RESPONSES
 #define USE_API_USER_DEFINED_ACTION_RESPONSES_JSON
 #define API_MAX_SEND_QUEUE 8
+#define API_USER_ACTION_STRINGS_SCRATCH_SIZE 64
 #define MAX_API_CONNECTIONS 6
+// The Improv library is not in the Zephyr tidy environment
+#define USE_IMPROV_SERIAL
+#define USE_IMPROV_NEXT_URL
 #define USE_MD5
+#define USE_NOISE
 #define USE_SHA256
 #ifndef USE_RP2  // no MQTT backend or esp_wireguard library on RP2
 #define USE_MQTT
@@ -219,10 +277,14 @@
 #endif
 #define USE_RTTTL_FINISHED_PLAYBACK_CALLBACK
 #define USE_RUNTIME_IMAGE_BMP
-#define USE_RUNTIME_IMAGE_PNG
 #define USE_RUNTIME_IMAGE_JPEG
+#define USE_RUNTIME_IMAGE_PNG
+#define USE_RUNTIME_IMAGE_QOI
 #define USE_RUNTIME_STATS
 #define USE_OTA
+#define USE_OTA_ENCRYPTION
+#define USE_OTA_ENCRYPTION_PROVISIONED
+#define USE_OTA_ENCRYPTION_REQUIRED
 #define USE_OTA_PASSWORD
 #define USE_OTA_VERSION 2
 #define USE_TIME_TIMEZONE
@@ -235,6 +297,8 @@
 #ifdef USE_ARDUINO
 #define USE_PROMETHEUS
 #define USE_WIFI_WPA2_EAP
+// Kept in the Arduino block so clang-tidy sees both scan storage paths
+#define USE_WIFI_MULTI_SSID
 #endif
 
 // Platforms with native 64-bit time sources (no rollover tracking needed)
@@ -252,24 +316,30 @@
 // platforms whose API/network types the proxy header cannot assume.
 #if defined(USE_ESP32) || defined(USE_LIBRETINY) || defined(USE_RP2)
 #define USE_BLUETOOTH_PROXY
-#define USE_BLE_SCANNER_STATE_CALLBACK
 // Mirror the codegen values per platform: _to_code_esp32() emits the connection
-// count (default 3), _to_code_ble_hub() emits the slot count (1 on rp2, 0 on
-// advertisement-only hubs) — so static analysis checks the same
-// std::array<uint64_t, N> instantiation a real build produces.
+// count (default 3) and the scanner-state push slot, _to_code_ble_hub() emits
+// the slot count (3 on rp2, 0 on advertisement-only hubs) — so static analysis
+// checks the same instantiations a real build produces.
 #ifdef USE_ESP32
+#define USE_BLE_SCANNER_STATE_CALLBACK
 #define BLUETOOTH_PROXY_MAX_CONNECTIONS 3
+#define USE_BLUETOOTH_PROXY_CONNECTIONS
 #elif defined(USE_RP2)
-#define BLUETOOTH_PROXY_MAX_CONNECTIONS 1
+#define BLUETOOTH_PROXY_MAX_CONNECTIONS 3
+#define USE_BLUETOOTH_PROXY_CONNECTIONS
 #else
 #define BLUETOOTH_PROXY_MAX_CONNECTIONS 0
 #endif
+// Defined here so static analysis parses the slot and its call site.
+#define USE_BLUETOOTH_PROXY_ADVERTISEMENT_FILTER
 #define BLUETOOTH_PROXY_ADVERTISEMENT_BATCH_SIZE 16
 #endif
 
 // ESP32-specific feature flags
 #ifdef USE_ESP32
 #define USE_ESP32_CRASH_HANDLER
+#define USE_ESP32_VASPRINTF_STUB
+#define USE_ESP32_INTERNAL_GPIO
 #define USE_MQTT_IDF_ENQUEUE
 #define USE_ESPHOME_TASK_LOG_BUFFER
 #define ESPHOME_TASK_LOG_BUFFER_SIZE 768
@@ -305,6 +375,9 @@
 #define USE_ESP32_BLE_SERVER_DESCRIPTOR_ON_WRITE
 #define USE_ESP32_BLE_SERVER_ON_CONNECT
 #define USE_ESP32_BLE_SERVER_ON_DISCONNECT
+#define USE_ESP32_BLE_TRACKER
+#define USE_BLE_GATT_CLIENT
+#define ESPHOME_BLE_GATT_CLIENT_COUNT 1
 #define ESPHOME_ESP32_BLE_TRACKER_LISTENER_COUNT 1
 #define ESPHOME_ESP32_BLE_TRACKER_CLIENT_COUNT 1
 #define ESPHOME_BLE_DEVICE_BASE_LISTENER_COUNT 1
@@ -318,8 +391,7 @@
 #define USE_ESP32_CAMERA_JPEG_ENCODER
 #define USE_HTTP_REQUEST_RESPONSE
 #define USE_I2C
-#define USE_IMPROV
-#define USE_ESP32_IMPROV_NEXT_URL
+#define USE_IMPROV_BLE
 #define USE_MICROPHONE
 #define USE_PSRAM
 #define USE_SENDSPIN
@@ -327,6 +399,7 @@
 #define USE_SENDSPIN_CONTROLLER
 #define USE_SENDSPIN_METADATA
 #define USE_SENDSPIN_PLAYER
+#define USE_SENDSPIN_SWITCH
 #define USE_SENDSPIN_VISUALIZER
 #define USE_SENDSPIN_PORT 8928  // NOLINT
 #define USE_SOCKET_IMPL_BSD_SOCKETS
@@ -335,6 +408,7 @@
 #define USE_SPEAKER
 #define USE_SPEAKER_MEDIA_PLAYER_ON_OFF
 #define USE_SPI
+#define USE_SPI_PSRAM_DMA
 #define USE_VOICE_ASSISTANT
 #define USE_WEBSERVER
 #define USE_WEBSERVER_AUTH
@@ -386,6 +460,7 @@
 #define USE_ETHERNET_W6100
 #define USE_ETHERNET_W6300
 #define USE_ETHERNET_DM9051
+#define USE_ETHERNET_CH390
 #define CONFIG_ETH_SPI_ETHERNET_W5500 1
 #define CONFIG_ETH_SPI_ETHERNET_DM9051 1
 #define CONFIG_ETH_USE_ESP32_EMAC 1
@@ -402,6 +477,9 @@
 #if defined(USE_ESP32_VARIANT_ESP32C6) || defined(USE_ESP32_VARIANT_ESP32H2)
 #define USE_OPENTHREAD
 #define USE_ZIGBEE
+#endif
+#ifndef USE_OPENTHREAD
+#define USE_MDNS_SUPPORTS_ENABLE_DISABLE
 #endif
 #endif
 
@@ -458,17 +536,19 @@
 // rp2/__init__.py codegen also defines USE_RP2040 as a back-compat alias
 // for external custom components that may still test for it.
 #ifdef USE_RP2
-#define USE_ARDUINO_VERSION_CODE VERSION_CODE(6, 0, 0)
+#define USE_ARDUINO_VERSION_CODE VERSION_CODE(6, 1, 0)
 #define USE_RP2_CRASH_HANDLER
 #define USE_HTTP_REQUEST_RESPONSE
 #define USE_I2C
 #define USE_LOGGER_USB_CDC
 #define USE_SOCKET_IMPL_LWIP_TCP
 #define USE_RP2040_BLE
+#define USE_RP2_BLE_TRACKER
 #define RP2040_BLE_SCAN_LISTENER_COUNT 1
 #define ESPHOME_BLE_DEVICE_BASE_LISTENER_COUNT 1
+#define USE_BLE_SCAN_RESPONSE_MERGER
 #define USE_BLE_GATT_CLIENT
-#define ESPHOME_BLE_GATT_CLIENT_COUNT 1
+#define ESPHOME_BLE_GATT_CLIENT_COUNT 3
 #define USE_RP2040_VARIANT_RP2040
 #define USE_SPI
 #ifndef USE_ETHERNET
@@ -489,7 +569,16 @@
 #define BK72XX_BLE_SCAN_LISTENER_COUNT 1
 #define USE_LN882H_BLE
 #define LN882H_BLE_SCAN_LISTENER_COUNT 1
+// One tracker arm per build: ln882x gets its real hub; bk72xx also stands in
+// for hub-less LibreTiny chips (rtl87xx) so bluetooth_proxy.h has a BLEHub
+// to parse against.
+#ifdef USE_LN882X
+#define USE_LN882H_BLE_TRACKER
+#else
+#define USE_BK72XX_BLE_TRACKER
+#endif
 #define ESPHOME_BLE_DEVICE_BASE_LISTENER_COUNT 1
+#define USE_BLE_SCAN_RESPONSE_MERGER
 #define USE_CAPTIVE_PORTAL
 #define USE_WIFI_SCAN_RESULTS_LOCK
 #define USE_SOCKET_IMPL_LWIP_SOCKETS
@@ -504,6 +593,8 @@
 
 #ifdef USE_HOST
 #define USE_HTTP_REQUEST_RESPONSE
+// Host only: the uart arm would shadow the native logger UART arms in other envs
+#define USE_IMPROV_SERIAL_UART
 #define USE_SOCKET_IMPL_BSD_SOCKETS
 #define USE_ESPHOME_TASK_LOG_BUFFER
 #define ESPHOME_TASK_LOG_BUFFER_SIZE 64
