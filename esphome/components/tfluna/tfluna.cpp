@@ -145,6 +145,7 @@ void TFLuna::factory_reset() {
     return;
   }
   this->status_set_warning("Factory reset issued; waiting for device to become ready");
+  this->set_timeout("_setup", 100, [this]() { this->setup(); });
 }
 
 void TFLuna::restart() {
