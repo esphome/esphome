@@ -55,16 +55,24 @@ void TFLuna::setup() {
   }
 #endif
 
-  if (!this->write_byte(MODE_REGISTER, MODE_TRIGGER)) {
+  uint8_t mode;
+  if (!this->read_byte(MODE_REGISTER, &mode)) {
     ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
     this->mark_failed();
     return;
   }
+  if (mode != MODE_TRIGGER) {
+    if (!this->write_byte(MODE_REGISTER, MODE_TRIGGER)) {
+      ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
+      this->mark_failed();
+      return;
+    }
 
-  if (!this->write_byte(SAVE_REGISTER, 1)) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-    this->mark_failed();
-    return;
+    if (!this->write_byte(SAVE_REGISTER, 1)) {
+      ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
+      this->mark_failed();
+      return;
+    }
   }
 }
 
