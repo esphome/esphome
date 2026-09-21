@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import dataclasses
 from pathlib import Path
 from unittest.mock import patch
 
@@ -35,6 +36,7 @@ from esphome.components.zephyr import (
 )
 from esphome.components.zephyr.const import CONF_BOARD_SOURCE, KEY_ZEPHYR
 from esphome.components.zephyr.pinctrl import (
+    _build_i2c_pinctrl_states_overlay,
     _build_uart_pinctrl_states_overlay,
     _positional_uart_group_roles,
     _resolve_i2c_pinctrl_states,
@@ -593,6 +595,21 @@ def test_zephyr_setup_i2c_pinctrl_rp2040_requires_both_pins_together() -> None:
         zephyr_setup_i2c_pinctrl("some_board", "i2c0", sda=2, scl=None)
 
 
+def test_zephyr_setup_i2c_pinctrl_uses_variants_pinctrl_node_label() -> None:
+    _set_non_nrf52_target_platform()
+    CORE.data[KEY_ZEPHYR] = _empty_zephyr_data(variant="RP2040")
+    variant = dataclasses.replace(VARIANTS["RP2040"], pinctrl_node_label="pinctrl0")
+    with (
+        patch("esphome.components.zephyr.pinctrl.VARIANTS", {"RP2040": variant}),
+        patch(
+            "esphome.components.zephyr.dts_lookup.get_pinctrl_states",
+            return_value=[("i2c1_default", ["group1"])],
+        ),
+    ):
+        zephyr_setup_i2c_pinctrl("some_board", "i2c1", sda=2, scl=3)
+    assert "&pinctrl0 {" in CORE.data[KEY_ZEPHYR]["overlay"][""]
+
+
 # ---------------------------------------------------------------------------
 # UART pinctrl state/group-role resolution
 # ---------------------------------------------------------------------------
@@ -946,6 +963,26 @@ def test_build_uart_pinctrl_states_overlay_skips_empty_states() -> None:
     assert "uart0_sleep" not in overlay
 
 
+def test_build_uart_pinctrl_states_overlay_uses_given_pinctrl_label() -> None:
+    states = [("uart0_default", [("group1", "<TX>")])]
+    assert "&pinctrl {" in _build_uart_pinctrl_states_overlay(states, "pinmux")
+    assert "&pinctrl0 {" in _build_uart_pinctrl_states_overlay(
+        states, "pinmux", "pinctrl0"
+    )
+
+
+def test_build_i2c_pinctrl_states_overlay_uses_given_pinctrl_label() -> None:
+    args = (
+        "some_board",
+        [("i2c0_default", "group1")],
+        "pinmux",
+        {"sda": "<SDA>"},
+        None,
+    )
+    assert "&pinctrl {" in _build_i2c_pinctrl_states_overlay(*args)
+    assert "&pinctrl0 {" in _build_i2c_pinctrl_states_overlay(*args, "pinctrl0")
+
+
 # ---------------------------------------------------------------------------
 # zephyr_setup_uart_pinctrl -- the public entry point uart/__init__.py calls;
 # owns family/group-role resolution internally so callers only pass real pins.
@@ -1089,6 +1126,20 @@ def test_zephyr_setup_uart_pinctrl_rpi_pico_uses_p_suffix_and_position() -> None
     overlay = CORE.data[KEY_ZEPHYR]["overlay"][""]
     assert "UART1_TX_P8" in overlay
     assert "UART1_RX_P9" in overlay
+
+
+def test_zephyr_setup_uart_pinctrl_uses_variants_pinctrl_node_label() -> None:
+    CORE.data[KEY_ZEPHYR] = _empty_zephyr_data(variant="RP2040")
+    variant = dataclasses.replace(VARIANTS["RP2040"], pinctrl_node_label="pinctrl0")
+    with (
+        patch("esphome.components.zephyr.pinctrl.VARIANTS", {"RP2040": variant}),
+        patch(
+            "esphome.components.zephyr.dts_lookup.get_pinctrl_states",
+            return_value=None,
+        ),
+    ):
+        zephyr_setup_uart_pinctrl("some_board", "uart1", 8, 9, 115200)
+    assert "&pinctrl0 {" in CORE.data[KEY_ZEPHYR]["overlay"][""]
 
 
 # RP2XXX_PINMUX(pin_num, alt_func=UART) -- role is recovered by looking the pin

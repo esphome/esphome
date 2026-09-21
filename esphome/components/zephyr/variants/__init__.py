@@ -280,10 +280,8 @@ class ZephyrVariant:
     # wired up so far names it "pinctrl" (a shared convention across EFR32/
     # Nordic/ESP32/RP2040), which the SPI/UART/I2C pinctrl-overlay builders in
     # zephyr/__init__.py hardcode -- SiWx91x is the first exception, whose SoC
-    # dtsi names it "pinctrl0" instead. Only threaded through the SPI path so
-    # far (the only one siwx91x actually exercises); UART/I2C custom pin
-    # remapping would need the same treatment if ever enabled for a family
-    # using a different label.
+    # dtsi names it "pinctrl0" instead. Threaded through the SPI, UART and I2C
+    # pinctrl-overlay builders.
     pinctrl_node_label: str = "pinctrl"
     # Devicetree node labels backing the `logger: hardware_uart: UART0`/`UART1` symbolic
     # selections. ESP32-family and nRF52 boards both label their two console-capable UARTs

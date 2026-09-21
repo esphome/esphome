@@ -74,9 +74,12 @@ def _build_i2c_pinctrl_states_overlay(
     property_name: str,
     role_values: dict[str, str],
     value_role_decoder: Callable[[int], str | None] | None,
+    pinctrl_label: str = "pinctrl",
 ) -> str:
-    """Build a `&pinctrl { <label> { <group> { <property_name> = <merged>; }; };
-    ... };` overlay for every (label, group) in `states`. `role_values` only has
+    """Build a `&<pinctrl_label> { <label> { <group> { <property_name> =
+    <merged>; }; }; ... };` overlay for every (label, group) in `states`.
+    pinctrl_label is the variant's own pinctrl controller node label (see
+    ZephyrVariant.pinctrl_node_label). `role_values` only has
     entries for the signal(s) actually being remapped -- when only one of
     sda/scl is given, `value_role_decoder` reads the group's real existing
     values and restates whichever one isn't touched (as its raw integer), since
@@ -114,7 +117,7 @@ def _build_i2c_pinctrl_states_overlay(
         for label, group in states
     )
     return f"""
-        &pinctrl {{
+        &{pinctrl_label} {{
             {blocks}
         }};
     """
@@ -250,12 +253,16 @@ def _resolve_uart_pinctrl_states(
 
 
 def _build_uart_pinctrl_states_overlay(
-    states: list[tuple[str, list[tuple[str, str]]]], property_name: str
+    states: list[tuple[str, list[tuple[str, str]]]],
+    property_name: str,
+    pinctrl_label: str = "pinctrl",
 ) -> str:
-    """Build the `&pinctrl { ... }` overlay from _resolve_uart_pinctrl_states()'s
-    output. The `<label>:` prefix (re-)establishes the phandle even for a state
-    the board never pinctrl'd itself -- without it, `&<label>` in the bus-enable
-    overlay resolves to nothing and fails at DTS-compile time."""
+    """Build the `&<pinctrl_label> { ... }` overlay from
+    _resolve_uart_pinctrl_states()'s output. The `<label>:` prefix
+    (re-)establishes the phandle even for a state the board never pinctrl'd
+    itself -- without it, `&<label>` in the bus-enable overlay resolves to
+    nothing and fails at DTS-compile time. pinctrl_label is the variant's own
+    pinctrl controller node label (see ZephyrVariant.pinctrl_node_label)."""
     state_blocks = []
     for label, group_values in states:
         if not group_values:
@@ -276,7 +283,7 @@ def _build_uart_pinctrl_states_overlay(
             """
         )
     return f"""
-        &pinctrl {{
+        &{pinctrl_label} {{
             {"".join(state_blocks)}
         }};
     """
@@ -349,7 +356,11 @@ def zephyr_setup_uart_pinctrl(
         value_role_decoder=value_role_decoder,
         property_name=property_name,
     )
-    zephyr_add_overlay(_build_uart_pinctrl_states_overlay(states, property_name))
+    zephyr_add_overlay(
+        _build_uart_pinctrl_states_overlay(
+            states, property_name, VARIANTS[zephyr_variant()].pinctrl_node_label
+        )
+    )
     # A board whose stock node already declares >1 pinctrl state (e.g. "sleep" for
     # PM) needs every pinctrl-<N> restated to match, or the now-uncovered old state
     # is a pinctrl-names count mismatch at DTS-compile time.
@@ -493,7 +504,12 @@ def zephyr_setup_i2c_pinctrl(
         fallback_state_suffixes=fallback_state_suffixes,
     )
     pinctrl_overlay = _build_i2c_pinctrl_states_overlay(
-        board, states, property_name, role_values, value_role_decoder
+        board,
+        states,
+        property_name,
+        role_values,
+        value_role_decoder,
+        VARIANTS[variant_name].pinctrl_node_label,
     )
     if family == "esp32" and zephyr_variant() == ZEPHYR_VARIANT_ESP32:
         # sda/scl are both real ints here (raised above otherwise).
