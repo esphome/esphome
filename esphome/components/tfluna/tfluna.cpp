@@ -122,6 +122,8 @@ void TFLuna::read_data_timeout_() {
 }
 
 void TFLuna::update() {
+  this->cancel_timeout("read_data");
+  this->attempt_ = 0;
   if (!this->write_byte(TRIGGER_ONESHOT_REGISTER, 0x01)) {
     this->status_set_warning(ESP_LOG_MSG_COMM_FAIL);
     return;
