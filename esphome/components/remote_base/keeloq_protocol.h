@@ -24,9 +24,9 @@ struct KeeloqData {
 
 class KeeloqProtocol : public RemoteProtocol<KeeloqData> {
  public:
-  void encode(RemoteTransmitData *dst, const KeeloqData &data) override;
-  optional<KeeloqData> decode(RemoteReceiveData src) override;
-  void dump(const KeeloqData &data) override;
+  void encode(RemoteTransmitData *dst, const KeeloqData &data);
+  optional<KeeloqData> decode(RemoteReceiveData src);
+  void dump(const KeeloqData &data);
 };
 
 DECLARE_REMOTE_PROTOCOL(Keeloq)
