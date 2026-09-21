@@ -7,6 +7,7 @@
 #include "esphome/core/helpers.h"
 #include "time_discipline.h"
 #include <array>
+#include <cmath>
 #include <sys/time.h>
 
 namespace esphome::time {
@@ -30,6 +31,13 @@ class ClockDiscipline final : public PollingComponent {
   uint32_t get_active_sources() const { return this->estimate_.active_sources; }
   double get_offset_seconds() const { return this->estimate_.offset_seconds; }
   double get_frequency_ppm() const { return this->clock_.get_frequency() * 1e6; }
+  // Statime estimates the steered clock. Remove the applied correction in its
+  // additive frequency model to estimate the free-running clock; positive is fast.
+  double get_estimated_drift_ppm() const {
+    return (this->estimate_.frequency_ratio - this->clock_.get_frequency()) * 1e6;
+  }
+  // One standard deviation of the drift estimate, not a measured error bound.
+  double get_drift_uncertainty_ppm() const { return std::sqrt(this->estimate_.frequency_variance) * 1e6; }
   double get_uncertainty_seconds() const { return this->estimate_.dispersion_seconds; }
   uint32_t get_update_duration_us() const { return this->update_duration_us_; }
   uint32_t get_stack_free_bytes() const { return this->stack_free_bytes_; }

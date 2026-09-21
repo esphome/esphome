@@ -92,8 +92,10 @@ void test_noisy_observations() {
       saturated += correction >= 199.999;
     }
   }
-  std::printf("noisy drift=%+.0f ppm correction=%+.3f ppm maximum=%.3f ppm saturated=%u error=%.6f s\n",
-              drift * 1e6, discipline.get_frequency_ppm(), max_correction, saturated,
+  std::printf("noisy drift=%+.0f ppm estimated=%+.3f ppm uncertainty=%.3f ppm correction=%+.3f ppm "
+              "maximum=%.3f ppm saturated=%u error=%.6f s\n",
+              drift * 1e6, discipline.get_estimated_drift_ppm(), discipline.get_drift_uncertainty_ppm(),
+              discipline.get_frequency_ppm(), max_correction, saturated,
               (system_us - reference_us) / 1e6);
   std::fflush(stdout);
   assert(discipline.get_observation_count() == 1441);
@@ -101,6 +103,9 @@ void test_noisy_observations() {
   assert(saturated == 0);
   assert(std::abs(system_us - reference_us) < 50000);
   assert(std::abs(discipline.get_frequency_ppm() + drift * 1e6) < 10);
+  assert(std::abs(discipline.get_estimated_drift_ppm() - drift * 1e6) < 10);
+  assert(std::isfinite(discipline.get_drift_uncertainty_ppm()));
+  assert(discipline.get_drift_uncertainty_ppm() > 0);
 }
 
 int main(int argc, char **argv) {
@@ -140,6 +145,7 @@ int main(int argc, char **argv) {
   assert(discipline.get_observation_count() == 193);
   assert(discipline.has_estimate());
   assert(std::abs(discipline.get_frequency_ppm() + drift * 1e6) < 5);
+  assert(std::abs(discipline.get_estimated_drift_ppm() - drift * 1e6) < 5);
   const int64_t start_error = system_us - reference_us;
   for (unsigned second = 0; second < 21600; second++) {
     advance();

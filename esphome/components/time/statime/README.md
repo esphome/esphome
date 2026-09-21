@@ -69,6 +69,14 @@ it is not a guarantee that frequency learning completes in ten minutes.
 UTC/TAI conversion currently assumes the 37-second offset in effect
 since 2017; leap announcements and future leap changes are not implemented.
 
+For diagnostics, `get_estimated_drift_ppm()` removes the applied steering from
+Statime's frequency estimate in its additive model. Positive drift means the
+uncorrected local clock runs fast. `get_drift_uncertainty_ppm()` returns the
+model's one-standard-deviation uncertainty. These are estimates, not independent
+hardware measurements. `get_frequency_ppm()` still reports the applied correction,
+including phase slewing. Read these diagnostics only when `has_estimate()` is true;
+frequency learning requires observations separated in time.
+
 ## Dependency and ABI
 
 `statime-algo` and `statime-base` use the exact integration revision
