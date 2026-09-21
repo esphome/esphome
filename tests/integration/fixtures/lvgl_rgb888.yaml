@@ -1,0 +1,91 @@
+esphome:
+  name: lvgl-rgb888-test
+host:
+logger:
+api:
+  actions:
+    - action: take_screenshot
+      variables:
+        name: string
+      then:
+        - snapshot.take:
+            id: panel
+            filename: !lambda return name;
+    - action: next_frame
+      then:
+        - animation.next_frame: frames
+        - lvgl.image.update:
+            id: animated_image
+            src: frames
+    - action: change_colour
+      then:
+        - lvgl.widget.update:
+            id: patch
+            bg_color: 0x123456
+
+display:
+  - platform: snapshot
+    id: panel
+    color_depth: DEPTH
+    auto_clear_enabled: false
+    update_interval: never
+    dimensions:
+      width: WIDTH
+      height: HEIGHT
+
+image:
+  - platform: file
+    id: ramp
+    file: SOURCE_PATH
+    type: AUTO
+    target_display: panel
+  - platform: file
+    id: alpha
+    file: ALPHA_PATH
+    type: AUTO
+    transparency: alpha_channel
+  - platform: animation
+    id: frames
+    file: ANIMATION_PATH
+    type: AUTO
+    transparency: alpha_channel
+
+lvgl:
+  displays: panel
+  color_depth: DEPTH
+  rotation: ROTATION
+  draw_rounding: 1
+  buffer_size: 25%
+  widgets:
+    - obj:
+        width: 100%
+        height: 100%
+        bg_color: 0x000000
+        bg_opa: cover
+        border_width: 0
+        radius: 0
+        pad_all: 0
+        widgets:
+          - image:
+              src: ramp
+              x: 0
+              y: 0
+          - image:
+              src: alpha
+              x: 2
+              y: 12
+          - image:
+              id: animated_image
+              src: frames
+              x: 30
+              y: 12
+          - obj:
+              id: patch
+              x: 5
+              y: 22
+              width: 17
+              height: 9
+              bg_color: 0x563412
+              bg_opa: cover
+              border_width: 0
+              radius: 0

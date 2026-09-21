@@ -172,6 +172,9 @@ class DisplayMetaData:
     has_writer: bool = False
     rotation: int = 0
     draw_rounding: int = 0
+    # Precision preserved through the configured framebuffer and panel interface.
+    # None means the driver has not declared its capabilities.
+    native_color_depth: int | None = None
 
 
 def _get_metadata_list() -> list[tuple]:
@@ -240,6 +243,8 @@ def add_metadata(
     has_writer: bool = False,
     rotation: int = 0,
     draw_rounding: int = 0,
+    *,
+    native_color_depth: int | None = None,
 ):
     entries = _get_metadata_list()
     assert not any(existing_id is id for existing_id, _ in entries), (
@@ -256,6 +261,7 @@ def add_metadata(
                 has_writer=has_writer,
                 rotation=rotation,
                 draw_rounding=draw_rounding,
+                native_color_depth=native_color_depth,
             ),
         )
     )

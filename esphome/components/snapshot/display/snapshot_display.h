@@ -18,6 +18,8 @@ class SnapshotDisplay final : public display::DisplayBuffer, public Snapshot {
   float get_setup_priority() const override { return setup_priority::HARDWARE; }
   display::DisplayType get_display_type() override { return display::DISPLAY_TYPE_COLOR; }
 
+  void set_color_depth(uint8_t depth) { this->bytes_per_pixel_ = depth / 8; }
+
   void set_dimensions(uint16_t width, uint16_t height) {
     this->width_ = width;
     this->height_ = height;
@@ -39,6 +41,7 @@ class SnapshotDisplay final : public display::DisplayBuffer, public Snapshot {
   /// a byte pointer; this is the same memory seen as what is actually stored in it.
   uint16_t *pixels_() { return reinterpret_cast<uint16_t *>(this->buffer_); }
 
+  uint8_t bytes_per_pixel_{2};
   int width_{};
   int height_{};
 };

@@ -172,6 +172,9 @@ def _config_schema(config: ConfigType) -> ConfigType:
         or config.get(CONF_AUTO_CLEAR_ENABLED) is True,
         rotation=config.get(CONF_ROTATION, 0),
         draw_rounding=config.get(CONF_DRAW_ROUNDING, 0),
+        native_color_depth=min(
+            get_color_depth(config), int(config[CONF_PIXEL_MODE].removesuffix("bit"))
+        ),
     )
     return config
 

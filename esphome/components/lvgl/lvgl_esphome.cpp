@@ -7,6 +7,7 @@
 #include "core/lv_global.h"
 #include "core/lv_obj_class_private.h"
 
+#include <limits>
 #include <numeric>
 
 static void *lv_alloc_draw_buf(size_t size, bool internal);
@@ -310,8 +311,8 @@ bool LvglComponent::ppa_rotate_(const lv_color_data *src, lv_color_data *dst, ui
   srm_config.in.block_h = height;
 #if LV_COLOR_DEPTH == 16
   srm_config.in.srm_cm = PPA_SRM_COLOR_MODE_RGB565;
-#elif LV_COLOR_DEPTH == 32
-  srm_config.in.srm_cm = PPA_SRM_COLOR_MODE_ARGB8888;
+#elif LV_COLOR_DEPTH == 24
+  srm_config.in.srm_cm = PPA_SRM_COLOR_MODE_RGB888;
 #endif
   srm_config.out.buffer = dst;
   srm_config.out.buffer_size = out_buf_size;
@@ -319,8 +320,8 @@ bool LvglComponent::ppa_rotate_(const lv_color_data *src, lv_color_data *dst, ui
   srm_config.out.pic_h = out_h;
 #if LV_COLOR_DEPTH == 16
   srm_config.out.srm_cm = PPA_SRM_COLOR_MODE_RGB565;
-#elif LV_COLOR_DEPTH == 32
-  srm_config.out.srm_cm = PPA_SRM_COLOR_MODE_ARGB8888;
+#elif LV_COLOR_DEPTH == 24
+  srm_config.out.srm_cm = PPA_SRM_COLOR_MODE_RGB888;
 #endif
   srm_config.rotation_angle = angle;
   srm_config.scale_x = 1.0f;
@@ -329,9 +330,10 @@ bool LvglComponent::ppa_rotate_(const lv_color_data *src, lv_color_data *dst, ui
 
   esp_err_t ret = ppa_do_scale_rotate_mirror(this->ppa_client_, &srm_config);
   if (ret != ESP_OK) {
-    ESP_LOGW(TAG, "PPA rotation failed: %s", esp_err_to_name(ret));
-    ESP_LOGW(TAG, "PPA SRM: in=%ux%u src=%p, out=%ux%u dst=%p size=%zu, angle=%d", width, height, src, out_w, out_h,
-             dst, out_buf_size, (int) angle);
+    if (!this->ppa_failure_logged_) {
+      ESP_LOGW(TAG, "PPA rotation failed (%s), using software rotation", esp_err_to_name(ret));
+      this->ppa_failure_logged_ = true;
+    }
     return false;
   }
   return true;
@@ -341,7 +343,7 @@ bool LvglComponent::ppa_rotate_(const lv_color_data *src, lv_color_data *dst, ui
 void LvglComponent::draw_buffer_(const lv_area_t *area, lv_color_data *ptr) {
   auto width = lv_area_get_width(area);
   auto height = lv_area_get_height(area);
-  auto height_rounded = (height + this->draw_rounding - 1) / this->draw_rounding * this->draw_rounding;
+  auto height_rounded = height;
   auto x1 = area->x1;
   auto y1 = area->y1;
   if (this->rotation_type_ == ROTATION_SOFTWARE) {
@@ -720,11 +722,14 @@ void LvglComponent::write_random_() {
     if (area.y2 >= height)
       area.y2 = height - 1;
 
-    // line_len can't exceed 1024, and minimum buffer size is 2048, so this won't overflow the buffer
-    size_t line_len = lv_area_get_width(&area) * lv_area_get_height(&area) / 2;
-    for (size_t i = 0; i != line_len; i++) {
-      reinterpret_cast<uint32_t *>(this->draw_buf_)[i] = random_uint32();
-    }
+    // RGB888 needs three bytes per pixel, including the final odd pixel.
+    size_t row_bytes = lv_area_get_width(&area) * sizeof(lv_color_data);
+    size_t rows = std::min<size_t>(lv_area_get_height(&area), this->draw_buf_size_ / row_bytes);
+    if (rows == 0)
+      continue;
+    area.y2 = area.y1 + rows - 1;
+    for (size_t i = 0; i != rows * row_bytes; i++)
+      this->draw_buf_[i] = random_uint32();
     this->draw_buffer_(&area, reinterpret_cast<lv_color_data *>(this->draw_buf_));
   }
 }
@@ -801,7 +806,17 @@ void LvglComponent::setup() {
   auto frac = this->buffer_frac_;
   if (frac == 0)
     frac = 1;
-  auto buf_bytes = clamp_at_least(width * height / frac * LV_COLOR_DEPTH / 8, MIN_BUFFER_SIZE);
+  if (width <= 0 || height <= 0 ||
+      static_cast<size_t>(width) >
+          (std::numeric_limits<uint32_t>::max() - LV_DRAW_BUF_ALIGN) / sizeof(lv_color_data) / height) {
+    this->mark_failed(LOG_STR("Invalid LVGL buffer dimensions"));
+    return;
+  }
+  const size_t row_bytes = static_cast<size_t>(width) * sizeof(lv_color_data);
+  const size_t rows = std::max<size_t>(height / frac, rounding);
+  size_t buf_bytes = std::max<size_t>(row_bytes * rows, MIN_BUFFER_SIZE);
+  // Keep whole rows, including after the fallback allocation below.
+  buf_bytes = (buf_bytes + row_bytes - 1) / row_bytes * row_bytes;
   void *buffer = nullptr;
   // for small buffers, try to allocate in internal memory first to improve performance
   if (this->buffer_frac_ >= MIN_BUFFER_FRAC / 2)
@@ -811,18 +826,21 @@ void LvglComponent::setup() {
   // if specific buffer size not set and can't get 100%, try for a smaller one
   if (buffer == nullptr && this->buffer_frac_ == 0) {
     frac = MIN_BUFFER_FRAC;
-    buf_bytes /= MIN_BUFFER_FRAC;
+    buf_bytes = row_bytes * std::max<size_t>(height / frac, rounding);
     buffer = lv_alloc_draw_buf(buf_bytes, false);  // NOLINT
   }
   this->buffer_frac_ = frac;
   if (buffer == nullptr) {
+    ESP_LOGE(TAG, "Cannot allocate %zu bytes for %ux%u %u-bit LVGL draw buffer; reduce buffer_size or color_depth",
+             buf_bytes, unsigned(width), unsigned(height), LV_COLOR_DEPTH);
     this->status_set_error(LOG_STR("Memory allocation failure"));
     this->mark_failed();
     return;
   }
   this->draw_buf_ = static_cast<uint8_t *>(buffer);
+  this->draw_buf_size_ = buf_bytes;
   this->set_resolution_();
-  lv_display_set_color_format(this->disp_, LV_COLOR_FORMAT_RGB565);
+  lv_display_set_color_format(this->disp_, LV_COLOR_FORMAT_NATIVE);
   lv_display_set_flush_cb(this->disp_, static_flush_cb);
   lv_display_set_user_data(this->disp_, this);
   lv_display_add_event_cb(this->disp_, rounder_cb, LV_EVENT_INVALIDATE_AREA, this);
@@ -831,6 +849,7 @@ void LvglComponent::setup() {
   if (this->rotation_type_ == ROTATION_SOFTWARE) {
     this->rotate_buf_ = static_cast<lv_color_t *>(lv_alloc_draw_buf(buf_bytes, false));  // NOLINT
     if (this->rotate_buf_ == nullptr) {
+      ESP_LOGE(TAG, "Cannot allocate %zu bytes for %u-bit LVGL rotation buffer", buf_bytes, LV_COLOR_DEPTH);
       this->status_set_error(LOG_STR("Memory allocation failure"));
       this->mark_failed();
       return;

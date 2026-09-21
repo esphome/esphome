@@ -23,7 +23,7 @@ constexpr uint16_t BLUE_MAX = 0x1F;
 }  // namespace
 
 void SnapshotDisplay::setup() {
-  this->init_internal_(static_cast<uint32_t>(this->width_) * this->height_ * 2);
+  this->init_internal_(static_cast<uint32_t>(this->width_) * this->height_ * this->bytes_per_pixel_);
   if (this->buffer_ == nullptr) {
     this->mark_failed(LOG_STR("Could not allocate display buffer"));
   }
@@ -34,7 +34,14 @@ void SnapshotDisplay::dump_config() { LOG_DISPLAY("", "Snapshot", this); }
 void SnapshotDisplay::draw_absolute_pixel_internal(int x, int y, Color color) {
   if (this->buffer_ == nullptr || x < 0 || x >= this->width_ || y < 0 || y >= this->height_)
     return;
-  this->pixels_()[y * this->width_ + x] = display::ColorUtil::color_to_565(color, display::COLOR_ORDER_RGB);
+  if (this->bytes_per_pixel_ == 3) {
+    auto *pixel = this->buffer_ + (y * this->width_ + x) * 3;
+    pixel[0] = color.b;
+    pixel[1] = color.g;
+    pixel[2] = color.r;
+  } else {
+    this->pixels_()[y * this->width_ + x] = display::ColorUtil::color_to_565(color, display::COLOR_ORDER_RGB);
+  }
 }
 
 void SnapshotDisplay::draw_pixels_at(int x_start, int y_start, int w, int h, const uint8_t *ptr,
@@ -44,17 +51,19 @@ void SnapshotDisplay::draw_pixels_at(int x_start, int y_start, int w, int h, con
     return;
   // Anything that is not already laid out the way the buffer is, or that would reach outside it,
   // goes through the base class, which turns it into one call per pixel with the bounds checked.
-  const bool copyable = this->rotation_ == display::DISPLAY_ROTATION_0_DEGREES &&
-                        bitness == display::COLOR_BITNESS_565 && !big_endian && x_start >= 0 && y_start >= 0 &&
-                        x_start + w <= this->width_ && y_start + h <= this->height_;
+  const bool copyable =
+      this->rotation_ == display::DISPLAY_ROTATION_0_DEGREES && order == display::COLOR_ORDER_RGB &&
+      bitness == (this->bytes_per_pixel_ == 2 ? display::COLOR_BITNESS_565 : display::COLOR_BITNESS_888) &&
+      !big_endian && x_start >= 0 && y_start >= 0 && x_start + w <= this->width_ && y_start + h <= this->height_;
   if (!copyable) {
     DisplayBuffer::draw_pixels_at(x_start, y_start, w, h, ptr, order, bitness, big_endian, x_offset, y_offset, x_pad);
     return;
   }
   const size_t stride = static_cast<size_t>(x_offset) + w + x_pad;
-  const uint8_t *src = ptr + (stride * y_offset + x_offset) * 2;
+  const uint8_t *src = ptr + (stride * y_offset + x_offset) * this->bytes_per_pixel_;
   for (int y = 0; y != h; y++) {
-    memcpy(&this->pixels_()[(y_start + y) * this->width_ + x_start], src + y * stride * 2, w * 2);
+    memcpy(this->buffer_ + ((y_start + y) * this->width_ + x_start) * this->bytes_per_pixel_,
+           src + y * stride * this->bytes_per_pixel_, w * this->bytes_per_pixel_);
   }
 }
 
@@ -62,6 +71,11 @@ bool SnapshotDisplay::capture_bgr(uint8_t *dest, size_t row_stride) {
   if (this->buffer_ == nullptr) {
     ESP_LOGE(TAG, "Snapshot requested but there is no buffer to read");
     return false;
+  }
+  if (this->bytes_per_pixel_ == 3) {
+    for (int y = 0; y != this->height_; y++)
+      memcpy(dest + y * row_stride, this->buffer_ + y * this->width_ * 3, this->width_ * 3);
+    return true;
   }
   const uint16_t *src = this->pixels_();
   for (int y = 0; y != this->height_; y++) {

@@ -11,7 +11,8 @@ from PIL import Image, UnidentifiedImageError
 
 from esphome import core, external_files
 import esphome.codegen as cg
-from esphome.components.const import CONF_BYTE_ORDER
+from esphome.components import display
+from esphome.components.const import CONF_BYTE_ORDER, CONF_COLOR_DEPTH
 from esphome.components.image import (
     CONF_INVERT_ALPHA,
     CONF_OPAQUE,
@@ -45,11 +46,15 @@ from esphome.const import (
 from esphome.core import HexInt
 from esphome.cpp_generator import MockObj, MockObjClass
 from esphome.external_files import RemoteFile
+from esphome.final_validate import full_config
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@esphome/core"]
 
 _LOGGER = logging.getLogger(__name__)
+
+CONF_TARGET_DISPLAY = "target_display"
+TYPE_AUTO = "AUTO"
 
 SOURCE_LOCAL = "local"
 SOURCE_WEB = "web"
@@ -224,8 +229,62 @@ def image_schema(class_: MockObjClass = Image_) -> cv.Schema:
             cv.Required(CONF_FILE): cv.Any(validate_file_shorthand, TYPED_FILE_SCHEMA),
             cv.GenerateID(CONF_RAW_DATA_ID): cv.declare_id(cg.uint8),
             **OPTIONS_SCHEMA,
-            cv.Required(CONF_TYPE): validate_type(IMAGE_TYPE),
+            cv.Required(CONF_TYPE): cv.Any(
+                cv.one_of(TYPE_AUTO, upper=True), validate_type(IMAGE_TYPE)
+            ),
+            cv.Optional(CONF_TARGET_DISPLAY): cv.use_id(display.Display),
         }
+    )
+
+
+def validate_file_image_settings(config: ConfigType) -> ConfigType:
+    """Validate source files now, and AUTO's concrete format after IDs resolve."""
+    if config[CONF_TYPE] == TYPE_AUTO:
+        # Both possible encoders accept the same transparency options. RGB565
+        # also permits byte_order, whose applicability is checked after resolution.
+        validate_settings({**config, CONF_TYPE: "RGB565"})
+    else:
+        if CONF_TARGET_DISPLAY in config:
+            raise cv.Invalid(
+                "target_display is only valid with type: AUTO", [CONF_TARGET_DISPLAY]
+            )
+        validate_settings(config)
+    return config
+
+
+def resolve_image_type(config: ConfigType) -> None:
+    """Resolve AUTO from validated configuration before any image is encoded."""
+    if config.get(CONF_TYPE) != TYPE_AUTO:
+        return
+    global_config = full_config.get()
+    target = config.get(CONF_TARGET_DISPLAY)
+    if target is None:
+        displays = global_config.get("display", [])
+        if len(displays) != 1:
+            raise cv.Invalid(
+                f"Image '{config[CONF_ID]}' with type: AUTO needs target_display "
+                "when there is not exactly one display.",
+                [CONF_TARGET_DISPLAY],
+            )
+        target = displays[0][CONF_ID]
+    depth = display.get_display_metadata(target).native_color_depth
+    for ui in global_config.get("lvgl", []):
+        if any(str(d) == str(target) for d in ui["displays"]):
+            depth = ui[CONF_COLOR_DEPTH]
+            break
+    if depth not in (16, 24):
+        raise cv.Invalid(
+            f"Cannot determine the image format for display '{target}'. "
+            "Select type: RGB or RGB565 explicitly, or use a display with declared colour depth.",
+            [CONF_TARGET_DISPLAY],
+        )
+    config[CONF_TYPE] = "RGB565" if depth == 16 else "RGB"
+    validate_settings(config)
+    _LOGGER.info(
+        "Image %s: AUTO -> %s for display %s",
+        config[CONF_ID],
+        config[CONF_TYPE],
+        target,
     )
 
 
@@ -236,6 +295,7 @@ def validate_image_final(config: ConfigType) -> None:
     fill in that default when the user did not specify a byte order and warn
     when big-endian was explicitly requested.
     """
+    resolve_image_type(config)
     if byte_order := config.get(CONF_BYTE_ORDER):
         if byte_order == "BIG_ENDIAN":
             _LOGGER.warning(
@@ -348,7 +408,7 @@ async def write_image(
 
 # The built-in static-image platform: pixels embedded at compile time from a
 # local file, a downloaded web image, or a Material Design Icon.
-CONFIG_SCHEMA = cv.All(image_schema(Image_), validate_settings)
+CONFIG_SCHEMA = cv.All(image_schema(Image_), validate_file_image_settings)
 
 FINAL_VALIDATE_SCHEMA = validate_image_final
 

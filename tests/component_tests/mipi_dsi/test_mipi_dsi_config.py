@@ -207,3 +207,31 @@ def test_code_generation(
     assert "p4_86->set_rotation(display::DISPLAY_ROTATION_0_DEGREES);" not in main_cpp
     assert "custom_id->set_rotation(display::DISPLAY_ROTATION_180_DEGREES);" in main_cpp
     # assert "backlight_id = new light::LightState(mipi_dsi_dsibacklight_id);" in main_cpp
+
+
+@pytest.mark.parametrize(
+    ("buffer_depth", "pixel_mode", "expected"),
+    [(16, "16bit", 16), (24, "24bit", 24), (24, "16bit", 16), (16, "24bit", 16)],
+)
+def test_native_colour_depth(
+    set_core_config: SetCoreConfigCallable,
+    buffer_depth: int,
+    pixel_mode: str,
+    expected: int,
+) -> None:
+    """Capability must describe the complete path, not just accepted input."""
+    from esphome.components.display import get_display_metadata
+    from esphome.components.mipi_dsi.display import CONFIG_SCHEMA
+
+    set_core_config(
+        PlatformFramework.ESP32_IDF,
+        platform_data={KEY_BOARD: "esp32-p4-evboard", KEY_VARIANT: VARIANT_ESP32P4},
+    )
+    config = CONFIG_SCHEMA(
+        {
+            "model": "WAVESHARE-ESP32-P4-WIFI6-TOUCH-LCD-3.4C",
+            "color_depth": buffer_depth,
+            "pixel_mode": pixel_mode,
+        }
+    )
+    assert get_display_metadata(config["id"]).native_color_depth == expected

@@ -45,9 +45,11 @@ namespace esphome::lvgl {
 
 #if LV_COLOR_DEPTH == 16
 using lv_color_data = uint16_t;
-#endif
-#if LV_COLOR_DEPTH == 32
-using lv_color_data = uint32_t;
+#elif LV_COLOR_DEPTH == 24
+using lv_color_data = lv_color_t;
+static_assert(sizeof(lv_color_data) == 3);
+#else
+#error "ESPHome LVGL supports colour depths 16 and 24"
 #endif
 
 extern lv_event_code_t lv_update_event;  // NOLINT
@@ -64,10 +66,9 @@ uint32_t lv_table_get_selected_column(lv_obj_t *obj);
 #endif
 #if LV_COLOR_DEPTH == 16
 static const display::ColorBitness LV_BITNESS = display::ColorBitness::COLOR_BITNESS_565;
-#elif LV_COLOR_DEPTH == 32
+#elif LV_COLOR_DEPTH == 24
 static const display::ColorBitness LV_BITNESS = display::ColorBitness::COLOR_BITNESS_888;
-#else   // LV_COLOR_DEPTH
-static const display::ColorBitness LV_BITNESS = display::ColorBitness::COLOR_BITNESS_332;
+
 #endif  // LV_COLOR_DEPTH
 
 #if defined(USE_FONT) && defined(USE_LVGL_FONT)
@@ -358,6 +359,7 @@ class LvglComponent final : public PollingComponent {
   bool resume_on_input_{};
   bool update_when_display_idle_{};
 
+  size_t draw_buf_size_{};
   uint8_t *draw_buf_{};
   lv_display_t *disp_{};
   // The display's own periodic refresh timer, effectively paused while the display is busy (see
@@ -390,6 +392,7 @@ class LvglComponent final : public PollingComponent {
   display::DisplayRotation rotation_{display::DISPLAY_ROTATION_0_DEGREES};
   RotationType rotation_type_;
 #ifdef USE_ESP32_VARIANT_ESP32P4
+  bool ppa_failure_logged_{};
   ppa_client_handle_t ppa_client_{};
 #endif
 };

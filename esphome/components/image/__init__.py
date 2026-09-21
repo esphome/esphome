@@ -349,6 +349,11 @@ def validate_transparency(choices=TRANSPARENCY_TYPES):
 
 def validate_type(image_types):
     def validate(value):
+        if isinstance(value, str) and value.upper() == "AUTO":
+            raise cv.Invalid(
+                "type: AUTO is available only for file and animation images encoded "
+                "during the build. Select an explicit type for runtime images."
+            )
         value = cv.one_of(*image_types, upper=True)(value)
         return IMAGE_TYPE[value].validate(value)
 
