@@ -1,8 +1,10 @@
 import errno
 import functools
 from importlib import resources
+import json
 import logging
 from pathlib import Path
+import sys
 
 import tzlocal
 
@@ -42,7 +44,7 @@ from esphome.const import (
 )
 from esphome.core import CORE, CoroPriority, EsphomeError, coroutine_with_priority
 import esphome.final_validate as fv
-from esphome.helpers import cpp_string_escape
+from esphome.helpers import cpp_string_escape, write_file_if_changed
 from esphome.types import ConfigType
 
 _LOGGER = logging.getLogger(__name__)
@@ -524,6 +526,12 @@ async def to_code(config: ConfigType) -> None:
         cg.add_build_flag("-Wl,--wrap=settimeofday")
         esp32.add_idf_component(
             name="statime", path=str(Path(__file__).parent / "statime")
+        )
+        # CMake's IDF Python environment does not contain ESPHome's build helpers.
+        # Record the builder's interpreter; no toolchain is installed during codegen.
+        write_file_if_changed(
+            CORE.relative_build_path("time_discipline.json"),
+            json.dumps({"python": sys.executable}),
         )
         for index, entry in enumerate(config):
             source = await cg.get_variable(entry[CONF_ID])

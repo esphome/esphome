@@ -12,19 +12,38 @@ clock_discipline}` to one existing time source. At most two sources are supporte
 The source's existing update interval controls acquisition; the discipline uses
 ESPHome's polling scheduler once per second for steering and holdover.
 
-Rust must already be installed in the firmware build environment. On ESP32-C6:
+Rust is installed automatically on the first firmware build that enables
+`discipline`. C6 uses Rust 1.98.1 (minimal profile and only its RISC-V target);
+ESP32/S3 use esp-rs 1.97.0.0 with matching sources for `-Zbuild-std=core`.
+The adapter is always compiled from source with `--locked`; no prebuilt firmware
+library is downloaded. `esphome config` and code generation do not install Rust.
 
-```sh
-rustup toolchain install 1.98.1 --profile minimal --target riscv32imac-unknown-none-elf
-```
+`build.py` uses ESPHome's existing verified/resumable download and archive helpers.
+Rustup 1.29.1 bootstrap and esp-rs archives have committed SHA-256 checksums;
+Rustup verifies its versioned compiler/target downloads. Installation is protected
+by an inter-process lock. Completed toolchains are reused without network checks,
+and incomplete installs do not get a completion marker.
 
-ESP32/S3 require the esp-rs Xtensa toolchain registered as `esp-1.97.0.0`, with
-its matching Rust sources for `-Zbuild-std=core`. CMake resolves both Cargo and
-rustc through rustup and builds the archive from source with `--locked`.
-ESP32-C3 is rejected because the dependency needs atomic operations unavailable
-on `riscv32imc-unknown-none-elf`. Normal ESPHome builders do not yet install these
-Rust toolchains automatically; `external_components` alone does not install them.
-Toolchain provisioning is a remaining upstream integration requirement.
+Everything is kept under the existing ESP-IDF tools cache's `rust/` directory,
+including an isolated Cargo dependency cache and Rustup home. The existing
+`ESPHOME_ESP_IDF_PREFIX` override controls its location, so Docker builders can
+reuse their persistent IDF cache. No shell profiles, global PATH or personal Rust
+installations are changed. An empty builder needs network access on its first
+build. On Linux x86-64, the C6 Rust cache is approximately 672 MiB after a build;
+Xtensa adds its compiler and sources only when an ESP32/S3 build needs them.
+
+Host packages are selected for Linux glibc x86-64/AArch64, macOS Intel/Apple
+Silicon, and Windows x86-64. The esp-rs release has no Intel macOS package, so
+ESP32/S3 builds on that host are rejected explicitly. Musl and 32-bit Linux hosts
+are not supported by this draft. A native host linker is still required for Cargo
+build scripts (on Windows, MSVC Build Tools). End-to-end installation/build checks
+have been run on Linux x86-64; the other hosts still need physical CI runners.
+ESP32-C3 remains unsupported because the dependency requires unavailable atomics.
+
+The helper is bundled with the external `time` component so the existing ESPHome
+2026.9 builder can load this draft without a core upgrade. CMake invokes it using
+the ESPHome interpreter recorded during code generation, rather than IDF's Python
+venv. It can be moved to shared build infrastructure in a subsequent PR split.
 
 ## Legacy observations and steering
 
@@ -90,5 +109,5 @@ storage is 1688 bytes; individual release stack frames include approximately
 These are not complete call-chain bounds. Full stack bounds and physical-device
 high-water measurements remain required; the 32768-byte configuration is not a
 claim of proven worst-case stack safety. ESP32/S3 runtime resource validation,
-standard CI/toolchain integration, and public user documentation are also pending.
+host-platform CI coverage and public user documentation are also pending.
 Board-specific YAML and display fixtures are intentionally not part of this PR.
