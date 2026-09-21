@@ -309,7 +309,7 @@ bool ModbusPeerHub::parse_modbus_client_frame_() {
       return false;
   }
 
-  // Clear before processing: process_modbus_client_frame_ dispatches to a server device which sends
+  // Clear before processing: process_modbus_client_frame dispatches to a server device which sends
   // a response immediately. We need to clear the rx buffer first so the response doesn't snag tx_blocked.
   // This requires copying the frame data to a local buffer beforehand.
   uint8_t data_offset = helpers::client_frame_data_offset(this->rx_buffer_.data(), this->rx_buffer_.size());
@@ -321,9 +321,9 @@ bool ModbusPeerHub::parse_modbus_client_frame_() {
 
   if (address == BROADCAST_ADDRESS) {
     // Keep the unicast response buffers out of the broadcast call chain.
-    this->process_broadcast_frame_(function_code, data);
+    this->process_broadcast_frame(function_code, data);
   } else {
-    this->process_modbus_client_frame_(address, function_code, data);
+    this->process_modbus_client_frame(address, function_code, data);
   }
 
   return true;
@@ -506,7 +506,7 @@ void ModbusServerHub::assemble_registers_(std::span<const uint8_t> values, Regis
   }
 }
 
-void ModbusServerHub::process_broadcast_frame_(uint8_t function_code, std::span<const uint8_t> data) {
+void ModbusServerHub::process_broadcast_frame(uint8_t function_code, std::span<const uint8_t> data) {
   // Broadcasts are only meaningful for writes and are never answered (Modbus 4.1 / 6.12), so an unsupported
   // function code or a validation failure is silently dropped instead of replying with an exception. Both
   // register writes (FC 0x06/0x10) and coil writes (FC 0x05/0x0F) are broadcastable by spec, and each shares
@@ -604,8 +604,8 @@ bool ModbusServerHub::build_or_reject_read_response_(uint8_t address, uint8_t fu
   return true;
 }
 
-void ModbusServerHub::process_modbus_client_frame_(uint8_t address, uint8_t function_code,
-                                                   std::span<const uint8_t> data) {
+void ModbusServerHub::process_modbus_client_frame(uint8_t address, uint8_t function_code,
+                                                  std::span<const uint8_t> data) {
   ModbusServerDevice *device = this->find_device_(address);
   if (device == nullptr) {
     this->expecting_peer_response_ = address;
@@ -1405,8 +1405,8 @@ void ModbusClientDevice::on_custom_response(std::span<const uint8_t> request_pdu
   }
 }
 
-void ModbusSnifferHub::process_modbus_client_frame_(uint8_t address, uint8_t function_code,
-                                                    std::span<const uint8_t> data) {
+void ModbusSnifferHub::process_modbus_client_frame(uint8_t address, uint8_t function_code,
+                                                   std::span<const uint8_t> data) {
   // Arm FIRST, for EVERY request, whatever the function code: this is what tells the parse layer
   // the next frame is a reply. Without it every response fails to parse as a request and is
   // discarded.
