@@ -335,9 +335,9 @@ class ModbusPeerHub : public Modbus {
   bool parse_modbus_client_frame_();
 
   /// A request seen on the bus.
-  virtual void process_modbus_client_frame(uint8_t address, uint8_t function_code, std::span<const uint8_t> data) = 0;
+  virtual void process_modbus_client_frame(uint8_t address, std::span<const uint8_t> pdu) = 0;
   /// A broadcast (address 0), which is never answered.
-  virtual void process_broadcast_frame(uint8_t function_code, std::span<const uint8_t> data) = 0;
+  virtual void process_broadcast_frame(std::span<const uint8_t> pdu) = 0;
 
   /// Server address whose reply is expected next; 0 means none. Armed by a request this hub does
   /// not serve, which is what lets it follow someone else's exchange.
@@ -354,9 +354,9 @@ class ModbusServerHub : public ModbusPeerHub {
 
  protected:
   void process_modbus_server_frame(uint8_t address, std::span<const uint8_t> pdu) override;
-  void process_modbus_client_frame(uint8_t address, uint8_t function_code, std::span<const uint8_t> data) override;
+  void process_modbus_client_frame(uint8_t address, std::span<const uint8_t> pdu) override;
   // Dispatches a broadcast (address 0) write to every registered device; broadcasts are never answered.
-  void process_broadcast_frame(uint8_t function_code, std::span<const uint8_t> data) override;
+  void process_broadcast_frame(std::span<const uint8_t> pdu) override;
   // Parses a WRITE_SINGLE_REGISTER / WRITE_MULTIPLE_REGISTERS PDU into start_address and the address order register
   // values, validating the register count and address range. Shared by unicast and broadcast writes.
   ResponseStatus parse_write_single_(std::span<const uint8_t> data, uint16_t &start_address, RegisterValues &registers);
@@ -429,9 +429,9 @@ class ModbusSnifferHub final : public ModbusPeerHub {
   }
 
  protected:
-  void process_modbus_client_frame(uint8_t address, uint8_t function_code, std::span<const uint8_t> data) override;
+  void process_modbus_client_frame(uint8_t address, std::span<const uint8_t> pdu) override;
   void process_modbus_server_frame(uint8_t address, std::span<const uint8_t> pdu) override;
-  void process_broadcast_frame(uint8_t, std::span<const uint8_t>) override {}
+  void process_broadcast_frame(std::span<const uint8_t>) override {}
 
   /// The request awaiting its reply, function code first, as it appeared on the wire. Empty once
   /// consumed. The inline size covers every standard read and single write without allocating.
