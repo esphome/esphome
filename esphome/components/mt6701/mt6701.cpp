@@ -3,17 +3,6 @@
 
 namespace esphome::mt6701 {
 
-uint8_t crc6_mt6701(uint32_t data18) {
-  uint8_t crc = 0;
-  for (int8_t i = 17; i >= 0; i--) {
-    uint8_t bit = ((data18 >> i) & 0x01) ^ ((crc >> 5) & 0x01);
-    crc = (crc << 1) & 0x3F;
-    if (bit != 0)
-      crc ^= 0x03;  // x^6 + x + 1 -> feedback taps at bit 1 and bit 0
-  }
-  return crc;
-}
-
 void MT6701Component::handle_read_error_() {
   if (this->consecutive_errors_ >= MAX_CONSECUTIVE_ERRORS)
     return;
@@ -26,8 +15,9 @@ void MT6701Component::handle_read_error_() {
 }
 
 bool MT6701Component::read_encoder() {
-  // Leave the bus alone while a transport has suspended it (EEPROM burn).
-  if (this->suspend_sampling_)
+  // Never sample a hub that failed setup (SSI noise can pass the 6-bit CRC), nor
+  // one whose bus is suspended for EEPROM programming.
+  if (this->is_failed() || this->suspend_sampling_)
     return false;
 
   uint16_t count;

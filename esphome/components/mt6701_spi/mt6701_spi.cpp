@@ -5,16 +5,22 @@ namespace esphome::mt6701_spi {
 
 static const char *const TAG = "mt6701_spi";
 
+// ESPHome's core CRC helpers are 8 and 16 bits wide; the SSI frame uses a 6-bit CRC.
+uint8_t crc6_mt6701(uint32_t data18) {
+  uint8_t crc = 0;
+  for (int8_t i = 17; i >= 0; i--) {
+    uint8_t bit = ((data18 >> i) & 0x01) ^ ((crc >> 5) & 0x01);
+    crc = (crc << 1) & 0x3F;
+    if (bit != 0)
+      crc ^= 0x03;  // x^6 + x + 1 -> feedback taps at bit 1 and bit 0
+  }
+  return crc;
+}
+
 void MT6701SPIComponent::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
   this->spi_setup();
-  // Probe: require several CRC-valid frames, at least one of them non-zero.
-  // Random noise passes the 6-bit CRC ~1/64 of the time, and a dead or
-  // stuck-low data line reads all-zero frames which pass trivially
-  // (crc6(0) == 0) - neither may count as a present encoder. A real encoder
-  // sitting at exactly count 0 with zero jitter would be misdetected here, but
-  // that is a 1-in-16384 alignment and the angle LSBs always jitter in
-  // practice.
+  // Noise passes the 6-bit CRC 1 time in 64 and a stuck-low data line reads all-zero
+  // frames that pass it too, so a present encoder must send 3 valid frames, one non-zero.
   uint8_t valid = 0;
   bool nonzero = false;
   for (uint8_t i = 0; i < 10 && (valid < 3 || !nonzero); i++) {
@@ -37,32 +43,30 @@ void MT6701SPIComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "MT6701 (SSI/SPI):");
   LOG_PIN("  CS Pin: ", this->cs_);
   LOG_UPDATE_INTERVAL(this);
-  if (this->is_failed())
+  if (this->is_failed()) {
     ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
+  }
 }
 
 bool MT6701SPIComponent::read_count(uint16_t &count) {
-  // The SSI frame is 24 bits: 14-bit angle, 4-bit status, 6-bit CRC.
+  // The 24-bit SSI frame is a 14-bit angle, 4-bit status and 6-bit CRC over the
+  // first 18 bits, most significant bit first.
   uint8_t buffer[3] = {0, 0, 0};
   this->enable();
   this->read_array(buffer, 3);
   this->disable();
 
-  // Frame layout: 14-bit angle, 4-bit status, 6-bit CRC (most significant
-  // first). The CRC covers the top 18 bits (angle + status).
   uint32_t frame = encode_uint24(buffer[0], buffer[1], buffer[2]);
   uint32_t data18 = frame >> 6;
   uint8_t crc = frame & 0x3F;
-  if (mt6701::crc6_mt6701(data18) != crc)
+  if (crc6_mt6701(data18) != crc)
     return false;
 
   count = data18 >> 4;
   uint8_t status = data18 & 0x0F;  // bit3 track loss, bit2 push button, bits1:0 field strength
 
-  // Publish only after the setup probe confirmed the device: noise frames that
-  // happen to pass the CRC during probing must not emit entity states. The
-  // 0xFF sentinel stays untouched until then, so the first post-setup read
-  // publishes the initial states.
+  // Hold entity states back until the setup probe has confirmed the encoder; the
+  // 0xFF sentinel then makes the first read after setup publish them.
   if (this->setup_complete_ && status != this->last_status_) {
     this->last_status_ = status;
 #ifdef USE_BINARY_SENSOR
@@ -75,13 +79,13 @@ bool MT6701SPIComponent::read_count(uint16_t &count) {
     if (this->field_status_text_sensor_ != nullptr) {
       const char *text;
       switch (status & 0x03) {
-        case static_cast<uint8_t>(mt6701::MT6701FieldStatus::NORMAL):
+        case static_cast<uint8_t>(MT6701FieldStatus::MT6701_FIELD_STATUS_NORMAL):
           text = "OK";
           break;
-        case static_cast<uint8_t>(mt6701::MT6701FieldStatus::TOO_STRONG):
+        case static_cast<uint8_t>(MT6701FieldStatus::MT6701_FIELD_STATUS_TOO_STRONG):
           text = "TOO_STRONG";
           break;
-        case static_cast<uint8_t>(mt6701::MT6701FieldStatus::TOO_WEAK):
+        case static_cast<uint8_t>(MT6701FieldStatus::MT6701_FIELD_STATUS_TOO_WEAK):
           text = "TOO_WEAK";
           break;
         default:  // 0b11 is reserved in the datasheet

@@ -2,6 +2,7 @@ import esphome.codegen as cg
 from esphome.components import binary_sensor
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, DEVICE_CLASS_PROBLEM, ENTITY_CATEGORY_DIAGNOSTIC
+from esphome.types import ConfigType
 
 from .. import CONF_MT6701_SPI_ID, MT6701SPIComponent
 
@@ -21,7 +22,7 @@ CONFIG_SCHEMA = {
 }
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     hub = await cg.get_variable(config[CONF_MT6701_SPI_ID])
     if push_button_config := config.get(CONF_PUSH_BUTTON):
         sens = await binary_sensor.new_binary_sensor(push_button_config)

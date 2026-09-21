@@ -11,7 +11,7 @@ namespace esphome::mt6701 {
 ///
 /// The main entity is the absolute shaft angle in degrees; the raw count is an
 /// optional sub-sensor. Derived values such as multi-turn position or speed are
-/// left to the user to compute in YAML (see the README examples).
+/// left to the user to compute in YAML.
 class MT6701Sensor final : public PollingComponent, public Parented<MT6701Component>, public sensor::Sensor {
   SUB_SENSOR(raw_count)
 

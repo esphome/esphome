@@ -7,16 +7,17 @@
 
 namespace esphome::mt6701_i2c {
 
-// Angle output register (D[13:6] at 0x03, D[5:0] in bits 7:2 of 0x04). Both
-// bytes are read in a single burst starting here.
+// Angle output registers: D[13:6] at 0x03, D[5:0] in bits 7:2 of 0x04.
 static const uint8_t REG_ANGLE_H = 0x03;
+static const uint8_t REG_ANGLE_L = 0x04;
 
-// EEPROM programming registers (see datasheet section 8.2).
-static const uint8_t REG_EEPROM_KEY = 0x09;  // write 0xB3
-static const uint8_t REG_EEPROM_CMD = 0x0A;  // write 0x05, then wait >= 600 ms
+// EEPROM programming sequence (datasheet section 8.2). The chip must be left
+// alone for more than 600 ms afterwards, so the wait carries a margin.
+static const uint8_t REG_EEPROM_KEY = 0x09;
+static const uint8_t REG_EEPROM_CMD = 0x0A;
 static const uint8_t EEPROM_KEY_VALUE = 0xB3;
 static const uint8_t EEPROM_CMD_VALUE = 0x05;
-static const uint32_t EEPROM_PROGRAM_DELAY_MS = 600;
+static const uint32_t EEPROM_PROGRAM_DELAY_MS = 700;
 
 // Configuration registers (writable over I2C only). Several of these also
 // contain manufacturer-reserved bits, so every write is read-modify-write.
@@ -39,18 +40,18 @@ class MT6701I2CComponent final : public mt6701::MT6701Component, public i2c::I2C
 
   // Configuration setters. Every option is optional: values that are not set in
   // YAML are never written, so the chip keeps its factory / EEPROM defaults.
-  void set_direction(uint8_t dir_bit) { this->direction_ = dir_bit; }
-  void set_zero_offset(uint16_t raw12) { this->zero_offset_ = raw12; }
-  void set_hysteresis(uint8_t hyst) { this->hysteresis_ = hyst; }
-  void set_output_mode_uvw(bool uvw) { this->output_mode_uvw_ = uvw; }
-  void set_abz_pulses_per_revolution(uint16_t ppr) { this->abz_ppr_ = ppr; }
+  void set_direction(uint8_t direction) { this->direction_ = direction; }
+  void set_zero_offset(uint16_t position) { this->zero_offset_ = position; }
+  void set_hysteresis(uint8_t hysteresis) { this->hysteresis_ = hysteresis; }
+  void set_output_mode(uint8_t output_mode) { this->output_mode_ = output_mode; }
+  void set_abz_pulses_per_revolution(uint16_t pulses) { this->abz_pulses_per_revolution_ = pulses; }
   void set_z_pulse_width(uint8_t width) { this->z_pulse_width_ = width; }
   void set_uvw_pole_pairs(uint8_t pole_pairs) { this->uvw_pole_pairs_ = pole_pairs; }
-  void set_out_pin_pwm(bool pwm) { this->out_pin_pwm_ = pwm; }
-  void set_pwm_frequency(uint8_t freq) { this->pwm_freq_ = freq; }
-  void set_pwm_polarity(uint8_t pol) { this->pwm_pol_ = pol; }
-  void set_analog_start(uint16_t raw12) { this->analog_start_ = raw12; }
-  void set_analog_stop(uint16_t raw12) { this->analog_stop_ = raw12; }
+  void set_out_pin_mode(uint8_t out_pin_mode) { this->out_pin_mode_ = out_pin_mode; }
+  void set_pwm_frequency(uint8_t pwm_frequency) { this->pwm_frequency_ = pwm_frequency; }
+  void set_pwm_polarity(uint8_t pwm_polarity) { this->pwm_polarity_ = pwm_polarity; }
+  void set_analog_start(uint16_t position) { this->analog_start_ = position; }
+  void set_analog_stop(uint16_t position) { this->analog_stop_ = position; }
 
   /// Persist the current register contents to the chip's EEPROM.
   ///
@@ -70,13 +71,13 @@ class MT6701I2CComponent final : public mt6701::MT6701Component, public i2c::I2C
   optional<uint8_t> direction_;
   optional<uint16_t> zero_offset_;
   optional<uint8_t> hysteresis_;
-  optional<bool> output_mode_uvw_;
-  optional<uint16_t> abz_ppr_;
+  optional<uint8_t> output_mode_;
+  optional<uint16_t> abz_pulses_per_revolution_;
   optional<uint8_t> z_pulse_width_;
   optional<uint8_t> uvw_pole_pairs_;
-  optional<bool> out_pin_pwm_;
-  optional<uint8_t> pwm_freq_;
-  optional<uint8_t> pwm_pol_;
+  optional<uint8_t> out_pin_mode_;
+  optional<uint8_t> pwm_frequency_;
+  optional<uint8_t> pwm_polarity_;
   optional<uint16_t> analog_start_;
   optional<uint16_t> analog_stop_;
 };

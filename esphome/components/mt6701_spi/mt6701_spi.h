@@ -13,6 +13,17 @@
 
 namespace esphome::mt6701_spi {
 
+/// Magnetic field strength reported in the SSI status bits Mg[1:0].
+enum class MT6701FieldStatus : uint8_t {
+  MT6701_FIELD_STATUS_NORMAL = 0,
+  MT6701_FIELD_STATUS_TOO_STRONG = 1,
+  MT6701_FIELD_STATUS_TOO_WEAK = 2,
+};
+
+/// Compute the 6-bit CRC of an SSI frame's 18 data bits (14-bit angle followed
+/// by the 4-bit status): polynomial x^6 + x + 1, MSB first, initial value 0.
+uint8_t crc6_mt6701(uint32_t data18);
+
 /// MT6701 driver over the SSI (SPI-compatible) interface.
 ///
 /// SSI is read-only: it cannot write configuration registers, but it does

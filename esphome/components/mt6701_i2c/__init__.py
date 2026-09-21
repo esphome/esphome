@@ -1,10 +1,13 @@
+from typing import Any
+
 from esphome import automation
 import esphome.codegen as cg
 from esphome.components import i2c
 import esphome.config_validation as cv
 from esphome.const import CONF_DIRECTION, CONF_HYSTERESIS, CONF_ID, CONF_MODE
+from esphome.types import ConfigType
 
-from ..mt6701 import MT6701Component, position12
+from ..mt6701 import MT6701Component
 
 CODEOWNERS = ["@slimcdk"]
 AUTO_LOAD = ["mt6701"]
@@ -78,8 +81,41 @@ PWM_POLARITY = {
     "LOW": 1,
 }
 
+# The configurable position registers (zero offset, analog start/stop) are
+# 12-bit values covering one full revolution.
+RESOLUTION_12BIT = 4096
+MAX_POSITION_12BIT = RESOLUTION_12BIT - 1
+ANGLE_TO_POSITION_12 = RESOLUTION_12BIT / 360
 
-def validate_hysteresis(value):
+
+def _angle_to_position_12(value: Any) -> int:
+    value = cv.float_range(min=0, max=360)(
+        cv.float_with_unit("angle", "(°|deg)")(value)
+    )
+    # The register cannot represent a full 360°, so clamp the top of the range
+    # to the maximum count instead of letting it wrap back to 0.
+    return min(round(value * ANGLE_TO_POSITION_12), MAX_POSITION_12BIT)
+
+
+def _percent_to_position_12(value: Any) -> int:
+    value = cv.percentage(value)
+    return min(round(value * RESOLUTION_12BIT), MAX_POSITION_12BIT)
+
+
+def position12(value: Any) -> int:
+    """Validate a 12-bit position register value.
+
+    Accepts a raw integer count (0-4095), an angle such as ``45deg`` or ``90°``,
+    or a percentage of a full revolution such as ``25%``.
+    """
+    if isinstance(value, str) and value.endswith("%"):
+        return _percent_to_position_12(value)
+    if isinstance(value, str) and value.endswith(("°", "deg")):
+        return _angle_to_position_12(value)
+    return cv.int_range(min=0, max=MAX_POSITION_12BIT)(value)
+
+
+def validate_hysteresis(value: Any) -> int:
     value = cv.float_(value)
     if value not in HYSTERESIS:
         raise cv.Invalid(
@@ -125,7 +161,7 @@ CONFIG_SCHEMA = (
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)
@@ -137,9 +173,7 @@ async def to_code(config):
     if (hysteresis := config.get(CONF_HYSTERESIS)) is not None:
         cg.add(var.set_hysteresis(hysteresis))
     if (output_mode := config.get(CONF_OUTPUT_MODE)) is not None:
-        # cv.enum returns the (always truthy) key string; the register code
-        # sits in enum_value (ABZ=0, UVW=1).
-        cg.add(var.set_output_mode_uvw(bool(output_mode.enum_value)))
+        cg.add(var.set_output_mode(output_mode))
 
     if abz := config.get(CONF_ABZ):
         if (ppr := abz.get(CONF_PULSES_PER_REVOLUTION)) is not None:
@@ -151,8 +185,7 @@ async def to_code(config):
         cg.add(var.set_uvw_pole_pairs(uvw[CONF_POLE_PAIRS]))
 
     if out_pin := config.get(CONF_OUT_PIN):
-        # Same enum-key caveat as output_mode above (ANALOG=0, PWM=1).
-        cg.add(var.set_out_pin_pwm(bool(out_pin[CONF_MODE].enum_value)))
+        cg.add(var.set_out_pin_mode(out_pin[CONF_MODE]))
         if (freq := out_pin.get(CONF_PWM_FREQUENCY)) is not None:
             cg.add(var.set_pwm_frequency(freq))
         if (pol := out_pin.get(CONF_PWM_POLARITY)) is not None:
@@ -169,13 +202,9 @@ MT6701_SAVE_EEPROM_ACTION_SCHEMA = automation.maybe_simple_id(
     }
 )
 
-
-@automation.register_action(
+automation.register_simple_action(
     "mt6701_i2c.save_eeprom",
     SaveEEPROMAction,
     MT6701_SAVE_EEPROM_ACTION_SCHEMA,
     synchronous=True,
 )
-async def save_eeprom_action_to_code(config, action_id, template_arg, args):
-    parent = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, parent)

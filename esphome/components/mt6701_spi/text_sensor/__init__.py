@@ -2,6 +2,7 @@ import esphome.codegen as cg
 from esphome.components import text_sensor
 import esphome.config_validation as cv
 from esphome.const import ENTITY_CATEGORY_DIAGNOSTIC, ICON_MAGNET
+from esphome.types import ConfigType
 
 from .. import CONF_MT6701_SPI_ID, MT6701SPIComponent
 
@@ -17,7 +18,7 @@ CONFIG_SCHEMA = text_sensor.text_sensor_schema(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     hub = await cg.get_variable(config[CONF_MT6701_SPI_ID])
     var = await text_sensor.new_text_sensor(config)
     cg.add(hub.set_field_status_text_sensor(var))

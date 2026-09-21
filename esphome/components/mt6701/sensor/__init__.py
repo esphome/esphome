@@ -8,6 +8,7 @@ from esphome.const import (
     UNIT_DEGREES,
     UNIT_EMPTY,
 )
+from esphome.types import ConfigType
 
 from .. import CONF_MT6701_ID, MT6701Component, mt6701_ns
 
@@ -40,7 +41,7 @@ CONFIG_SCHEMA = (
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_parented(var, config[CONF_MT6701_ID])
     await cg.register_component(var, config)

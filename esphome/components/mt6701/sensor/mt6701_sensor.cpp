@@ -6,10 +6,6 @@ namespace esphome::mt6701 {
 static const char *const TAG = "mt6701.sensor";
 
 void MT6701Sensor::update() {
-  // A hub that failed setup must not be polled: on SSI, bus noise can pass the
-  // 6-bit CRC and would publish garbage from a dead device.
-  if (this->parent_->is_failed())
-    return;
   // Trigger a fresh read; skip publishing when it failed so we never emit a
   // stale or garbage value.
   if (!this->parent_->read_encoder())

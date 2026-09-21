@@ -13,7 +13,6 @@ static const uint8_t CONFIG_REGS[] = {
 static const uint8_t CONFIG_REG_COUNT = sizeof(CONFIG_REGS);
 
 void MT6701I2CComponent::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
   // Probe the device by reading the angle registers.
   uint16_t count;
   if (!this->read_count(count)) {
@@ -32,39 +31,54 @@ void MT6701I2CComponent::dump_config() {
     ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
     return;
   }
-  if (this->direction_.has_value())
+  if (this->direction_.has_value()) {
     ESP_LOGCONFIG(TAG, "  Direction bit: %u", *this->direction_);
-  if (this->zero_offset_.has_value())
+  }
+  if (this->zero_offset_.has_value()) {
     ESP_LOGCONFIG(TAG, "  Zero offset: %u", *this->zero_offset_);
-  if (this->hysteresis_.has_value())
+  }
+  if (this->hysteresis_.has_value()) {
     ESP_LOGCONFIG(TAG, "  Hysteresis code: %u", *this->hysteresis_);
-  if (this->output_mode_uvw_.has_value())
-    ESP_LOGCONFIG(TAG, "  Output mode: %s", *this->output_mode_uvw_ ? "UVW" : "ABZ");
-  if (this->abz_ppr_.has_value())
-    ESP_LOGCONFIG(TAG, "  ABZ pulses/rev: %u", *this->abz_ppr_);
-  if (this->z_pulse_width_.has_value())
+  }
+  if (this->output_mode_.has_value()) {
+    ESP_LOGCONFIG(TAG, "  Output mode: %s", *this->output_mode_ != 0 ? LOG_STR_LITERAL("UVW") : LOG_STR_LITERAL("ABZ"));
+  }
+  if (this->abz_pulses_per_revolution_.has_value()) {
+    ESP_LOGCONFIG(TAG, "  ABZ pulses/rev: %u", *this->abz_pulses_per_revolution_);
+  }
+  if (this->z_pulse_width_.has_value()) {
     ESP_LOGCONFIG(TAG, "  Z pulse width code: %u", *this->z_pulse_width_);
-  if (this->uvw_pole_pairs_.has_value())
+  }
+  if (this->uvw_pole_pairs_.has_value()) {
     ESP_LOGCONFIG(TAG, "  UVW pole pairs: %u", *this->uvw_pole_pairs_);
-  if (this->out_pin_pwm_.has_value())
-    ESP_LOGCONFIG(TAG, "  Output pin mode: %s", *this->out_pin_pwm_ ? "PWM" : "analog");
-  if (this->pwm_freq_.has_value())
-    ESP_LOGCONFIG(TAG, "  PWM frequency code: %u", *this->pwm_freq_);
-  if (this->pwm_pol_.has_value())
-    ESP_LOGCONFIG(TAG, "  PWM polarity code: %u", *this->pwm_pol_);
-  if (this->analog_start_.has_value())
+  }
+  if (this->out_pin_mode_.has_value()) {
+    ESP_LOGCONFIG(TAG, "  Output pin mode: %s",
+                  *this->out_pin_mode_ != 0 ? LOG_STR_LITERAL("PWM") : LOG_STR_LITERAL("analog"));
+  }
+  if (this->pwm_frequency_.has_value()) {
+    ESP_LOGCONFIG(TAG, "  PWM frequency code: %u", *this->pwm_frequency_);
+  }
+  if (this->pwm_polarity_.has_value()) {
+    ESP_LOGCONFIG(TAG, "  PWM polarity code: %u", *this->pwm_polarity_);
+  }
+  if (this->analog_start_.has_value()) {
     ESP_LOGCONFIG(TAG, "  Analog start: %u", *this->analog_start_);
-  if (this->analog_stop_.has_value())
+  }
+  if (this->analog_stop_.has_value()) {
     ESP_LOGCONFIG(TAG, "  Analog stop: %u", *this->analog_stop_);
+  }
 }
 
 bool MT6701I2CComponent::read_count(uint16_t &count) {
-  // Burst read both angle registers so the two bytes are consistent.
-  uint8_t data[2];
-  if (this->read_register(REG_ANGLE_H, data, 2) != i2c::ERROR_OK)
+  // The datasheet specifies single-byte reads, 0x03 before 0x04; it does not
+  // document register auto-increment for a burst read.
+  uint8_t high;
+  uint8_t low;
+  if (this->read_register(REG_ANGLE_H, &high, 1) != i2c::ERROR_OK ||
+      this->read_register(REG_ANGLE_L, &low, 1) != i2c::ERROR_OK)
     return false;
-  // 14-bit angle: D[13:6] in data[0], D[5:0] in the top 6 bits of data[1].
-  count = encode_uint16(data[0], data[1]) >> 2;
+  count = encode_uint16(high, low) >> 2;
   return true;
 }
 
@@ -96,8 +110,8 @@ void MT6701I2CComponent::apply_config_() {
 
   if (this->direction_.has_value())
     add(REG_ABZ_MUX_DIR, 0x02, *this->direction_ << 1);
-  if (this->output_mode_uvw_.has_value())
-    add(REG_ABZ_MUX_DIR, 0x40, *this->output_mode_uvw_ ? 0x40 : 0x00);
+  if (this->output_mode_.has_value())
+    add(REG_ABZ_MUX_DIR, 0x40, (*this->output_mode_ & 0x01) << 6);
   if (this->zero_offset_.has_value()) {
     add(REG_CONFIG_H, 0x0F, *this->zero_offset_ >> 8);
     add(REG_ZERO_L, 0xFF, *this->zero_offset_ & 0xFF);
@@ -106,9 +120,9 @@ void MT6701I2CComponent::apply_config_() {
     add(REG_CONFIG_H, 0x80, (*this->hysteresis_ & 0x04) << 5);  // HYST[2] -> bit7
     add(REG_HYST_L, 0xC0, (*this->hysteresis_ & 0x03) << 6);    // HYST[1:0] -> bits7:6
   }
-  if (this->abz_ppr_.has_value()) {
+  if (this->abz_pulses_per_revolution_.has_value()) {
     // ABZ_RES is stored as (pulses per revolution - 1), 10 bits.
-    uint16_t res = *this->abz_ppr_ - 1;
+    uint16_t res = *this->abz_pulses_per_revolution_ - 1;
     add(REG_RES_H, 0x03, res >> 8);
     add(REG_ABZ_RES_L, 0xFF, res & 0xFF);
   }
@@ -118,12 +132,12 @@ void MT6701I2CComponent::apply_config_() {
     // UVW_RES is stored as (pole pairs - 1), 4 bits, in the high nibble.
     add(REG_RES_H, 0xF0, (*this->uvw_pole_pairs_ - 1) << 4);
   }
-  if (this->out_pin_pwm_.has_value())
-    add(REG_OUT, 0x20, *this->out_pin_pwm_ ? 0x20 : 0x00);
-  if (this->pwm_freq_.has_value())
-    add(REG_OUT, 0x80, (*this->pwm_freq_ & 0x01) << 7);
-  if (this->pwm_pol_.has_value())
-    add(REG_OUT, 0x40, (*this->pwm_pol_ & 0x01) << 6);
+  if (this->out_pin_mode_.has_value())
+    add(REG_OUT, 0x20, (*this->out_pin_mode_ & 0x01) << 5);
+  if (this->pwm_frequency_.has_value())
+    add(REG_OUT, 0x80, (*this->pwm_frequency_ & 0x01) << 7);
+  if (this->pwm_polarity_.has_value())
+    add(REG_OUT, 0x40, (*this->pwm_polarity_ & 0x01) << 6);
   if (this->analog_start_.has_value()) {
     add(REG_A_HIGH, 0x0F, *this->analog_start_ >> 8);
     add(REG_A_START_L, 0xFF, *this->analog_start_ & 0xFF);
@@ -168,7 +182,9 @@ void MT6701I2CComponent::save_eeprom() {
 
   this->set_timeout("eeprom", EEPROM_PROGRAM_DELAY_MS, [this]() {
     this->suspend_sampling_ = false;
-    ESP_LOGI(TAG, "EEPROM programming complete");
+    // The datasheet verifies programming only after a power cycle, which this
+    // component cannot do.
+    ESP_LOGI(TAG, "EEPROM programming finished. Power-cycle the MT6701 to verify the stored configuration");
   });
 }
 
