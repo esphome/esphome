@@ -13,6 +13,8 @@ from esphome.const import (
 
 from .. import CONF_TFLUNA_ID, TFLunaComponent, tfluna_ns
 
+DEPENDENCIES = ["tfluna"]
+
 ResetButton = tfluna_ns.class_("ResetButton", button.Button)
 RestartButton = tfluna_ns.class_("RestartButton", button.Button)
 
