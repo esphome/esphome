@@ -12,6 +12,10 @@
 
 namespace esphome::time {
 
+#ifdef USE_TIME_DISCIPLINE
+class ClockDiscipline;
+#endif
+
 /// The RealTimeClock class exposes common timekeeping functions via the device's local real-time clock.
 ///
 /// \note
@@ -36,12 +40,23 @@ class RealTimeClock : public PollingComponent {
   }
 
   void dump_config() override;
+#ifdef USE_TIME_DISCIPLINE
+  void set_discipline(ClockDiscipline *discipline, uint8_t source) {
+    this->discipline_ = discipline;
+    this->discipline_source_ = source;
+  }
+#endif
 
  protected:
   /// Report a unix epoch as current time.
   void synchronize_epoch_(uint32_t epoch);
 
   LazyCallbackManager<void()> time_sync_callback_;
+#ifdef USE_TIME_DISCIPLINE
+  ClockDiscipline *discipline_{nullptr};
+  uint8_t discipline_source_{0};
+  bool discipline_observed_{false};
+#endif
 };
 
 template<typename... Ts> class TimeHasTimeCondition final : public Condition<Ts...> {

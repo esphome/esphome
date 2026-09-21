@@ -1,0 +1,16 @@
+esp32:
+  toolchain: esp-idf
+  framework:
+    advanced:
+      loop_task_stack_size: 32768
+
+wifi:
+  ssid: MySSID
+  password: password1
+
+time:
+  - platform: sntp
+    id: reference_time
+    timezone: UTC
+    discipline:
+      id: clock_discipline
