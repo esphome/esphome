@@ -56,7 +56,7 @@ void Syslog::log_(const int level, const char *tag, const char *message, size_t 
   }
   auto now = this->time_->now();
   if (this->format_ == SYSLOG_FORMAT_RFC5424) {
-    offset = buf_append_printf(packet, sizeof(packet), offset, "1 ");
+    offset = buf_append_str(packet, sizeof(packet), offset, "1 ");
 
     char timestamp[32];
     size_t timestamp_len = now.is_valid() ? now.strftime(timestamp, sizeof(timestamp), "%Y-%m-%dT%H:%M:%S%z") : 0;
@@ -68,7 +68,7 @@ void Syslog::log_(const int level, const char *tag, const char *message, size_t 
       timestamp[22] = ':';
       offset = buf_append_printf(packet, sizeof(packet), offset, "%s", timestamp);
     } else {
-      offset = buf_append_printf(packet, sizeof(packet), offset, "-");
+      offset = buf_append_str(packet, sizeof(packet), offset, "-");
     }
     offset = buf_append_printf(packet, sizeof(packet), offset, " %s %s - - - %.*s", App.get_name().c_str(), tag,
                                (int) len, message);
