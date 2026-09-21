@@ -54,7 +54,11 @@ modbus:
 sensor:
   - platform: sdm_meter
     address: 2
-    update_interval: 1s
+    id: sdm_meter_1
+    # update_interval is set to never to avoid automatic polling before the test starts the scenario.
+    # The test will manually start the poller after subscribing to states, to ensure no state changes are missed.
+    # This also allows us to assert there are no modbus errors/warnings during the initial request/response.
+    update_interval: never
     phase_a:
       voltage:
         name: sdm_voltage
@@ -64,4 +68,7 @@ button:
     name: "Start Scenario"
     id: start_scenario_btn
     on_press:
-      - lambda: "id(virtual_uart_dev).start_scenario();"
+      - lambda: |-
+          id(virtual_uart_dev).start_scenario();
+          id(sdm_meter_1).set_update_interval(1000);
+          id(sdm_meter_1).start_poller();

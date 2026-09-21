@@ -7,7 +7,7 @@
 
 namespace esphome::pm1006 {
 
-class PM1006Component : public PollingComponent, public uart::UARTDevice {
+class PM1006Component final : public PollingComponent, public uart::UARTDevice {
  public:
   PM1006Component() = default;
 

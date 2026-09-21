@@ -11,6 +11,7 @@ from esphome.const import (
     CONF_SSID,
     ENTITY_CATEGORY_DIAGNOSTIC,
 )
+from esphome.types import ConfigType
 
 DEPENDENCIES = ["wifi"]
 
@@ -70,14 +71,14 @@ CONFIG_SCHEMA = cv.Schema(
 )
 
 
-async def setup_conf(config, key):
+async def setup_conf(config: ConfigType, key: str) -> None:
     if key in config:
         conf = config[key]
         var = await text_sensor.new_text_sensor(conf)
         await cg.register_component(var, conf)
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     # Request specific WiFi listeners based on which sensors are configured
     # Each sensor needs its own listener slot - call request for EACH sensor
 

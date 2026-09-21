@@ -27,7 +27,7 @@ enum class State : uint8_t {
   STOPPING,
 };
 
-class Rtttl : public Component {
+class Rtttl final : public Component {
  public:
 #ifdef USE_OUTPUT
   void set_output(output::FloatOutput *output) { this->output_ = output; }
@@ -116,7 +116,7 @@ class Rtttl : public Component {
 #endif
 };
 
-template<typename... Ts> class PlayAction : public Action<Ts...> {
+template<typename... Ts> class PlayAction final : public Action<Ts...> {
  public:
   PlayAction(Rtttl *rtttl) : rtttl_(rtttl) {}
   TEMPLATABLE_VALUE(std::string, value)
@@ -127,12 +127,12 @@ template<typename... Ts> class PlayAction : public Action<Ts...> {
   Rtttl *rtttl_;
 };
 
-template<typename... Ts> class StopAction : public Action<Ts...>, public Parented<Rtttl> {
+template<typename... Ts> class StopAction final : public Action<Ts...>, public Parented<Rtttl> {
  public:
   void play(const Ts &...x) override { this->parent_->stop(); }
 };
 
-template<typename... Ts> class IsPlayingCondition : public Condition<Ts...>, public Parented<Rtttl> {
+template<typename... Ts> class IsPlayingCondition final : public Condition<Ts...>, public Parented<Rtttl> {
  public:
   bool check(const Ts &...x) override { return this->parent_->is_playing(); }
 };

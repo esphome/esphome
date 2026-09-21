@@ -263,22 +263,39 @@ def prepare_component_body(comp_data: dict, comp_name: str, comp_dir: Path) -> d
         else {}
     )
 
-    packages_value = comp_data.get("packages")
-    if isinstance(packages_value, dict):
-        common_bus_packages = get_common_bus_packages()
-        for pkg_name, pkg_value in list(packages_value.items()):
-            if pkg_name in common_bus_packages:
-                continue
-            if isinstance(pkg_value, yaml_util.IncludeFile):
-                pkg_value = pkg_value.load()
-            if isinstance(pkg_value, dict):
-                comp_data = merge_config(comp_data, pkg_value)
-    elif isinstance(packages_value, list):
-        for pkg_value in packages_value:
-            if isinstance(pkg_value, yaml_util.IncludeFile):
-                pkg_value = pkg_value.load()
-            if isinstance(pkg_value, dict):
-                comp_data = merge_config(comp_data, pkg_value)
+    # Expand component-specific package includes inline. A package include may
+    # itself pull in further component-specific packages (e.g. web_server's test
+    # includes common_v2, which includes common with the wifi/network config), so
+    # keep expanding until only common bus packages remain -- otherwise the nested
+    # includes are silently dropped when the packages key is removed below.
+    common_bus_packages = get_common_bus_packages()
+    while True:
+        packages_value = comp_data.get("packages")
+        expanded = False
+        if isinstance(packages_value, dict):
+            for pkg_name, pkg_value in list(packages_value.items()):
+                if pkg_name in common_bus_packages:
+                    continue
+                # Drop before merging so a nested packages dict introduced by the
+                # include does not re-add this same key on the next iteration.
+                del packages_value[pkg_name]
+                if isinstance(pkg_value, yaml_util.IncludeFile):
+                    pkg_value = pkg_value.load()
+                if isinstance(pkg_value, dict):
+                    comp_data = merge_config(comp_data, pkg_value)
+                expanded = True
+        elif isinstance(packages_value, list):
+            # List-style packages never contain common bus packages, so expand
+            # them all and drop the key entirely.
+            comp_data.pop("packages", None)
+            for pkg_value in packages_value:
+                if isinstance(pkg_value, yaml_util.IncludeFile):
+                    pkg_value = pkg_value.load()
+                if isinstance(pkg_value, dict):
+                    comp_data = merge_config(comp_data, pkg_value)
+                    expanded = True
+        if not expanded:
+            break
     # Common bus packages are re-added once by the caller; drop them here.
     comp_data.pop("packages", None)
 

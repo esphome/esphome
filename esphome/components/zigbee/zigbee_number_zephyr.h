@@ -98,7 +98,7 @@ void zb_zcl_analog_output_init_client();
 
 namespace esphome::zigbee {
 
-class ZigbeeNumber : public ZigbeeEntity, public Component {
+class ZigbeeNumber final : public ZigbeeEntity, public Component {
  public:
   ZigbeeNumber(number::Number *n) : number_(n) {}
   void set_cluster_attributes(AnalogAttrsOutput &cluster_attributes) {

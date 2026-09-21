@@ -1,54 +1,66 @@
 sensor:
   - platform: lsm6ds
-    name: "lsm6ds Temperature"
+    name: "LSM6DS Temperature"
 
   - platform: motion
+    motion_id: lsm6ds_motion
     type: acceleration_x
-    name: "Accel X"
+    name: "LSM6DS Accel X"
     accuracy_decimals: 4
     filters:
       - sliding_window_moving_average:
           window_size: 4
           send_every: 1
   - platform: motion
+    motion_id: lsm6ds_motion
     type: acceleration_y
-    name: "Accel Y"
+    name: "LSM6DS Accel Y"
     accuracy_decimals: 4
   - platform: motion
+    motion_id: lsm6ds_motion
     type: acceleration_z
-    name: "Accel Z"
+    name: "LSM6DS Accel Z"
     accuracy_decimals: 4
 
     # Gyroscope axes (unit: °/s)
   - platform: motion
+    motion_id: lsm6ds_motion
     type: gyroscope_x
-    name: "Gyro X"
+    name: "LSM6DS Gyro X"
   - platform: motion
+    motion_id: lsm6ds_motion
     type: gyroscope_y
-    name: "Gyro Y"
+    name: "LSM6DS Gyro Y"
   - platform: motion
+    motion_id: lsm6ds_motion
     type: gyroscope_z
-    name: "Gyro Z"
+    name: "LSM6DS Gyro Z"
 
   - platform: motion
+    motion_id: lsm6ds_motion
     type: angular_rate_x
-    name: "Angular Rate X"
+    name: "LSM6DS Angular Rate X"
   - platform: motion
+    motion_id: lsm6ds_motion
     type: angular_rate_y
-    name: "Angular Rate Y"
+    name: "LSM6DS Angular Rate Y"
   - platform: motion
+    motion_id: lsm6ds_motion
     type: angular_rate_z
-    name: "Angular Rate Z"
+    name: "LSM6DS Angular Rate Z"
 
   - platform: motion
+    motion_id: lsm6ds_motion
     type: pitch
-    name: "Pitch"
+    name: "LSM6DS Pitch"
   - platform: motion
+    motion_id: lsm6ds_motion
     type: roll
-    name: "Roll"
+    name: "LSM6DS Roll"
 
 motion:
   - platform: lsm6ds
+    id: lsm6ds_motion
   # Accelerometer full-scale range: 2G | 4G | 8G | 16G
     accelerometer_range: 4G
 

@@ -1,0 +1,26 @@
+# Shared "test display" package for component tests.
+#
+# Provides a no-op display (id: test_display_screen) that uses no pins and no
+# bus, so tests that only need a display to exist -- touchscreens especially --
+# don't have to instantiate a real driver and fight it over GPIOs. Include it
+# like a common bus package; the consuming test does NOT need to declare
+# external_components itself:
+#
+#   packages:
+#     test_display: !include ../../test_build_components/common/test_display/test_display.yaml
+#
+# then point the touchscreen (or other display consumer) at `test_display_screen`.
+#
+# The test_display platform lives at tests/components/test_display/components/ and
+# is loaded via external_components. The source path is written relative to the
+# build directory (tests/test_build_components/build/), which every test --
+# standalone or grouped -- is generated into, so this always resolves to the
+# component under tests/components/test_display/.
+external_components:
+  - source: ../../components/test_display/components
+    components: [test_display]
+
+display:
+  - platform: test_display
+    id: test_display_screen
+    dimensions: 240x320

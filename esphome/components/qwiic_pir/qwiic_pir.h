@@ -29,7 +29,7 @@ enum DebounceMode {
 
 static const uint8_t QWIIC_PIR_DEVICE_ID = 0x72;
 
-class QwiicPIRComponent : public Component, public i2c::I2CDevice, public binary_sensor::BinarySensor {
+class QwiicPIRComponent final : public Component, public i2c::I2CDevice, public binary_sensor::BinarySensor {
  public:
   void setup() override;
   void loop() override;

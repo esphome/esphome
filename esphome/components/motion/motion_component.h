@@ -85,7 +85,7 @@ class MotionComponent : public PollingComponent {
 
 // --- Actions ---
 
-template<typename... Ts> class CalibrateLevelAction : public Action<Ts...> {
+template<typename... Ts> class CalibrateLevelAction final : public Action<Ts...> {
  public:
   explicit CalibrateLevelAction(MotionComponent *parent) : parent_(parent) {}
   void set_save(bool save) { this->save_ = save; }
@@ -110,7 +110,7 @@ template<typename... Ts> class CalibrateLevelAction : public Action<Ts...> {
   bool save_{false};
 };
 
-template<typename... Ts> class CalibrateHeadingAction : public Action<Ts...> {
+template<typename... Ts> class CalibrateHeadingAction final : public Action<Ts...> {
  public:
   explicit CalibrateHeadingAction(MotionComponent *parent) : parent_(parent) {}
   void set_save(bool save) { this->save_ = save; }
@@ -135,7 +135,7 @@ template<typename... Ts> class CalibrateHeadingAction : public Action<Ts...> {
   bool save_{false};
 };
 
-template<typename... Ts> class ClearCalibrationAction : public Action<Ts...> {
+template<typename... Ts> class ClearCalibrationAction final : public Action<Ts...> {
  public:
   explicit ClearCalibrationAction(MotionComponent *parent) : parent_(parent) {}
   void set_save(bool save) { this->save_ = save; }

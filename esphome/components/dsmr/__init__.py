@@ -40,9 +40,7 @@ CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(Dsmr),
-            cv.Optional(CONF_DECRYPTION_KEY): lambda value: cv.bind_key(
-                value, name="Decryption key"
-            ),
+            cv.Optional(CONF_DECRYPTION_KEY): cv.bind_key(name="Decryption key"),
             cv.Optional(CONF_CRC_CHECK, default=True): cv.boolean,
             cv.Optional(CONF_GAS_MBUS_ID, default=1): cv.int_,
             cv.Optional(CONF_WATER_MBUS_ID, default=2): cv.int_,
@@ -62,7 +60,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     uart_component = await cg.get_variable(config[CONF_UART_ID])
     if CONF_REQUEST_PIN in config:
         request_pin = await cg.gpio_pin_expression(config[CONF_REQUEST_PIN])
@@ -90,7 +88,7 @@ async def to_code(config):
     cg.add_library("esphome/dsmr_parser", "1.9.0")
 
 
-def final_validate(config: ConfigType) -> ConfigType:
+def final_validate(config: ConfigType) -> None:
     full_config = fv.full_config.get()
 
     for uart_conf in full_config["uart"]:
@@ -103,8 +101,6 @@ def final_validate(config: ConfigType) -> ConfigType:
                     rx_buffer_size,
                 )
             break
-
-    return config
 
 
 FINAL_VALIDATE_SCHEMA = final_validate

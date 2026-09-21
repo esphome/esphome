@@ -31,7 +31,7 @@ float MCP3204::read_data(uint8_t pin, bool differential) {
   this->disable();
 
   uint16_t digital_value = encode_uint16(b0, b1) >> 4;
-  return float(digital_value) / 4096.000 * this->reference_voltage_;  // in V
+  return float(digital_value) / 4096.000f * this->reference_voltage_;  // in V
 }
 
 }  // namespace esphome::mcp3204

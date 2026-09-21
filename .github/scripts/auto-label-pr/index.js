@@ -88,7 +88,7 @@ module.exports = async ({ github, context }) => {
 
   // Early exit for release and beta branches only
   if (baseRef === 'release' || baseRef === 'beta') {
-    const branchLabels = await detectMergeBranch(context);
+    const branchLabels = await detectMergeBranch(github, context);
     const finalLabels = Array.from(branchLabels);
 
     console.log('Computed labels (merge branch only):', finalLabels.join(', '));
@@ -118,12 +118,12 @@ module.exports = async ({ github, context }) => {
     deprecatedResult,
     maintainerAccess
   ] = await Promise.all([
-    detectMergeBranch(context),
+    detectMergeBranch(github, context),
     detectComponentPlatforms(changedFiles, apiData),
     detectNewComponents(github, context, prFiles),
     detectNewPlatforms(github, context, prFiles, apiData),
     detectCoreChanges(changedFiles),
-    detectPRSize(prFiles, totalAdditions, totalDeletions, totalChanges, isMegaPR, SMALL_PR_THRESHOLD, MEDIUM_PR_THRESHOLD, TOO_BIG_THRESHOLD),
+    detectPRSize(prFiles, totalAdditions, totalDeletions, isMegaPR, SMALL_PR_THRESHOLD, MEDIUM_PR_THRESHOLD, TOO_BIG_THRESHOLD),
     detectDashboardChanges(changedFiles),
     detectGitHubActionsChanges(changedFiles),
     detectCodeOwner(github, context, changedFiles),
