@@ -334,8 +334,9 @@ void Fan::dump_traits_(const char *tag, const char *prefix) {
   }
   if (traits.supports_preset_modes()) {
     ESP_LOGCONFIG(tag, "%s  Supported presets:", prefix);
-    for (const char *s : traits.supported_preset_modes())
+    for (const char *s : traits.supported_preset_modes()) {
       ESP_LOGCONFIG(tag, "%s    - %s", prefix, s);
+    }
   }
 }
 

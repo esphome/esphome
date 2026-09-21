@@ -22,6 +22,7 @@ from esphome.components.esp32 import (
     request_bluetooth,
 )
 from esphome.components.esp32.const import VARIANT_ESP32C2
+from esphome.config_helpers import filter_source_files_from_defines
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ENABLE_ON_BOOT,
@@ -637,3 +638,10 @@ async def ble_disable_to_code(
     args: TemplateArgsType,
 ) -> MockObj:
     return cg.new_Pvariable(action_id, template_arg)
+
+
+# ble_advertising.cpp is fully #ifdef'd on USE_ESP32_BLE_ADVERTISING, set
+# when advertising is enabled here or by esp32_ble_server / esp32_ble_beacon.
+FILTER_SOURCE_FILES = filter_source_files_from_defines(
+    {"ble_advertising.cpp": "USE_ESP32_BLE_ADVERTISING"}
+)

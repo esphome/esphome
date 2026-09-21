@@ -40,11 +40,6 @@
 #include <ESP8266WiFi.h>
 #include <ESP8266WiFiType.h>
 
-#if defined(USE_ESP8266) && USE_ARDUINO_VERSION_CODE < VERSION_CODE(2, 4, 0)
-extern "C" {
-#include <user_interface.h>
-};
-#endif
 #endif
 
 #ifdef USE_RP2
@@ -183,12 +178,12 @@ struct EAPAuth {
 
 using bssid_t = std::array<uint8_t, 6>;
 
-/// Initial reserve size for filtered scan results (typical: 1-3 matching networks per SSID)
-static constexpr size_t WIFI_SCAN_RESULT_FILTERED_RESERVE = 8;
+// ESP32 with one configured network: the driver filters the scan by its SSID and only this many of
+// its BSSIDs are kept, the strongest ones
+static constexpr size_t WIFI_SCAN_RESULT_BOUND = 12;
 
-// Use std::vector for RP2040 (callback-based) and ESP32 (destructive scan API)
-// Use FixedVector for ESP8266 and LibreTiny where two-pass exact allocation is possible
-#if defined(USE_RP2) || defined(USE_ESP32)
+// RP2040's callback delivers results one at a time with no count, so it needs a growable vector
+#if defined(USE_RP2)
 template<typename T> using wifi_scan_vector_t = std::vector<T>;
 #else
 template<typename T> using wifi_scan_vector_t = FixedVector<T>;
@@ -478,6 +473,13 @@ class WiFiComponent final : public Component {
 
   bool is_connected() const { return this->connected_; }
 
+  /// True while a post-connect roaming scan holds the radio off-channel.
+  bool is_roaming_scan_active() const { return this->roaming_state_ == RoamingState::SCANNING; }
+
+  /// True while a post-connect roam is in progress (scanning off-channel, reassociating,
+  /// or recovering from a failed roam).
+  bool is_roaming() const { return this->roaming_state_ != RoamingState::IDLE; }
+
 #ifdef USE_ESP32
   /// esp_netif handle of the station interface, used by network for default-route
   /// arbitration. nullptr until wifi_lazy_init_() has run.
@@ -552,9 +554,6 @@ class WiFiComponent final : public Component {
   void set_sta_priority(bssid_t bssid, int8_t priority);
 
   network::IPAddresses wifi_sta_ip_addresses();
-  // Remove before 2026.9.0
-  ESPDEPRECATED("Use wifi_ssid_to() instead. Removed in 2026.9.0", "2026.3.0")
-  std::string wifi_ssid();
   /// Write SSID to buffer without heap allocation.
   /// Returns pointer to buffer, or empty string if not connected.
   const char *wifi_ssid_to(std::span<char, SSID_BUFFER_SIZE> buffer);
@@ -565,6 +564,12 @@ class WiFiComponent final : public Component {
   void set_enable_on_boot(bool enable_on_boot) { this->enable_on_boot_ = enable_on_boot; }
   void set_keep_scan_results(bool keep_scan_results) { this->keep_scan_results_ = keep_scan_results; }
   void set_post_connect_roaming(bool enabled) { this->post_connect_roaming_ = enabled; }
+
+  /** Force an immediate post-connect roaming check, bypassing the periodic interval and the
+   * per-connection attempt limit. Does nothing (besides a debug log) if not connected, if a
+   * roam scan or connect is already in progress, or if roaming is currently suppressed.
+   */
+  void force_roam_check();
 
 #ifdef USE_WIFI_CONNECT_TRIGGER
   Trigger<> *get_connect_trigger() { return &this->connect_trigger_; }
@@ -792,7 +797,7 @@ class WiFiComponent final : public Component {
   network::IPAddress wifi_dns_ip_(int num);
 
   bool is_captive_portal_active_();
-  bool is_esp32_improv_active_();
+  bool is_improv_ble_active_();
 
 #ifdef USE_WIFI_FAST_CONNECT
   bool load_fast_connect_settings_(WiFiAP &params);
@@ -914,11 +919,11 @@ class WiFiComponent final : public Component {
   float output_power_{NAN};
   uint32_t action_started_;
   uint32_t last_connected_{0};
-  uint32_t reboot_timeout_{};
+  uint32_t reboot_timeout_{900000};  // Keep in sync with DEFAULT_REBOOT_TIMEOUT in __init__.py
   uint32_t roaming_last_check_{0};
   uint32_t roaming_scan_end_{0};  // Timestamp when last roaming scan completed
 #ifdef USE_WIFI_AP
-  uint32_t ap_timeout_{};
+  uint32_t ap_timeout_{90000};  // Keep in sync with DEFAULT_AP_TIMEOUT in __init__.py
 #endif
 
   // 1-byte enums and integers
@@ -949,11 +954,25 @@ class WiFiComponent final : public Component {
   uint8_t num_ipv6_addresses_{0};
 #endif /* USE_NETWORK_IPV6 */
   bool error_from_callback_{false};
+#if defined(USE_ESP32) && !defined(USE_WIFI_MULTI_SSID)
+  bool scan_driver_filtered_{false};
+  bool is_scan_driver_filtered_() const { return this->scan_driver_filtered_; }
+#else
+  constexpr bool is_scan_driver_filtered_() const { return false; }
+#endif
 #if defined(USE_ESP8266) || defined(USE_LIBRETINY)
   // Platform-specific STA state enum, defined in platform cpp file.
   // On ESP8266, written from SDK system context (wifi_event_callback) —
   // uint8_t writes are atomic on Xtensa LX106 so no synchronization is needed.
   uint8_t sta_state_{0};
+#endif
+#ifdef USE_LIBRETINY
+  // First attempt since STA-up (re-armed on every STA off->on); the
+  // pre-attempt teardown is skipped then.
+  bool lt_first_connect_attempt_{true};
+  // A self-inflicted disconnect from that teardown is pending; it must not
+  // consume an ignored-disconnect slot.
+  bool lt_teardown_event_pending_{false};
 #endif
   RetryHiddenMode retry_hidden_mode_{RetryHiddenMode::BLIND_RETRY};
   RoamingState roaming_state_{RoamingState::IDLE};
