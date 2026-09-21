@@ -14,6 +14,8 @@ static const uint8_t SHUTDOWN_REBOOT_REGISTER = 0x21;
 static const uint8_t MODE_REGISTER = 0x23;
 static const uint8_t MODE_TRIGGER = 0x01;
 static const uint8_t TRIGGER_ONESHOT_REGISTER = 0x24;
+static const uint8_t MAX_READ_ATTEMPTS = 5;
+static const uint8_t READ_RETRY_MS = 5;
 static const char *const TAG = "tfluna";
 
 void TFLuna::dump_config() {
@@ -109,9 +111,9 @@ void TFLuna::read_data_timeout_() {
   if (this->read_data_()) {
     this->attempt_ = 0;
   } else {
-    if (this->attempt_ < 5) {
+    if (this->attempt_ < MAX_READ_ATTEMPTS) {
       this->attempt_++;
-      this->set_timeout("read_data_timeout_", 5, [this]() { this->read_data_timeout_(); });
+      this->set_timeout("read_data_timeout_", READ_RETRY_MS, [this]() { this->read_data_timeout_(); });
     } else {
       this->status_set_warning("Hung device, restarting...");
       this->restart();
