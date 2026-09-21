@@ -4,6 +4,7 @@ from esphome.components import modbus
 import esphome.config_validation as cv
 from esphome.const import CONF_ON_RESPONSE
 
+CODEOWNERS = ["@dalklein"]
 DEPENDENCIES = ["modbus"]
 MULTI_CONF = True
 
