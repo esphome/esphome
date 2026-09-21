@@ -22,7 +22,22 @@ static const char *const TAG = "image_decoder.jpeg_turbo";
 struct DecoderErrorManager {
   struct jpeg_error_mgr pub;  // Must be the first member so it can be cast back from cinfo->err
   jmp_buf jump_buffer;
+  bool truncated;
 };
+
+static void handle_message(j_common_ptr cinfo, int msg_level) {
+  if (msg_level >= 0)  // Trace messages are not interesting here
+    return;
+  auto *err = reinterpret_cast<DecoderErrorManager *>(cinfo->err);
+  if (cinfo->err->msg_code == JWRN_JPEG_EOF)
+    err->truncated = true;
+  if (cinfo->err->num_warnings == 0) {  // Corrupt files can warn a lot; log only the first
+    char message[JMSG_LENGTH_MAX];
+    (*cinfo->err->format_message)(cinfo, message);
+    ESP_LOGW(TAG, "%s", message);
+  }
+  cinfo->err->num_warnings++;
+}
 
 // libjpeg reports fatal errors through this callback; jump back into decode()
 // instead of the library's default behavior of terminating the program.
@@ -34,13 +49,18 @@ static void handle_fatal_error(j_common_ptr cinfo) {
   longjmp(err->jump_buffer, 1);
 }
 
-// Some very big images take too long to decode, so feed the watchdog regularly
-// to avoid crashing if the executing task has a watchdog enabled.
-static void feed_watchdog() {
-#ifdef USE_ESP_IDF
-  if (esp_task_wdt_status(nullptr) == ESP_OK)
-#endif
-  {
+struct DecoderProgressManager {
+  struct jpeg_progress_mgr pub;  // Must be the first member so it can be cast back from cinfo->progress
+  bool feed_wdt;
+};
+
+// Installed as libjpeg's progress_monitor: big images take too long to decode, so feed
+// the watchdog to avoid crashing if the executing task has a watchdog enabled.
+// libjpeg calls this once per scanline, so the subscription check is done once up front
+// rather than here: esp_task_wdt_status() takes the watchdog spinlock on every call.
+static void feed_watchdog(j_common_ptr cinfo) {
+  auto *progress = reinterpret_cast<DecoderProgressManager *>(cinfo->progress);
+  if (progress->feed_wdt) {
     App.feed_wdt();
   }
 }
@@ -57,6 +77,8 @@ int HOT JpegTurboDecoder::decode(uint8_t *buffer, size_t size) {
   DecoderErrorManager error_manager;
   cinfo.err = jpeg_std_error(&error_manager.pub);
   error_manager.pub.error_exit = handle_fatal_error;
+  error_manager.pub.emit_message = handle_message;
+  error_manager.truncated = false;
   // setjmp/longjmp is the documented libjpeg error handling mechanism; exceptions
   // are not available (ESPHome builds with -fno-exceptions).
   if (setjmp(error_manager.jump_buffer)) {  // NOLINT(cert-err52-cpp,modernize-avoid-setjmp-longjmp)
@@ -83,15 +105,22 @@ int HOT JpegTurboDecoder::decode(uint8_t *buffer, size_t size) {
     return DECODE_ERROR_INVALID_TYPE;
   }
   cinfo.out_color_space = JCS_RGB;
-  // For a progressive image this performs the full multi-pass decode, which can take
-  // seconds on a large image, so feed the watchdog on either side of it.
-  feed_watchdog();
+  // libjpeg calls progress_monitor from inside its long-running loops, including the
+  // multi-scan absorb loop in jpeg_start_decompress() that a progressive image spends
+  // nearly all of its time in. Feeding there covers the whole decode; nothing else can,
+  // because that loop never returns to us until the image is fully absorbed.
+  DecoderProgressManager progress{};
+  progress.pub.progress_monitor = feed_watchdog;
+  progress.feed_wdt = true;
+#ifdef USE_ESP_IDF
+  progress.feed_wdt = esp_task_wdt_status(nullptr) == ESP_OK;
+#endif
+  cinfo.progress = &progress.pub;
   if (!jpeg_start_decompress(&cinfo)) {
     jpeg_destroy_decompress(&cinfo);
     ESP_LOGE(TAG, "Could not start JPEG decompression");
     return DECODE_ERROR_INTERNAL_DECODER_ERROR;
   }
-  feed_watchdog();
   ESP_LOGD(TAG, "Image size: %u x %u, progressive: %s", cinfo.output_width, cinfo.output_height,
            YESNO(jpeg_has_multiple_scans(&cinfo)));
 
@@ -106,7 +135,6 @@ int HOT JpegTurboDecoder::decode(uint8_t *buffer, size_t size) {
       (*cinfo.mem->alloc_sarray)((j_common_ptr) &cinfo, JPOOL_IMAGE, cinfo.output_width * cinfo.output_components, 1);
 
   while (cinfo.output_scanline < cinfo.output_height) {
-    feed_watchdog();
     size_t y = cinfo.output_scanline;
     if (jpeg_read_scanlines(&cinfo, row, 1) != 1) {
       jpeg_destroy_decompress(&cinfo);
@@ -121,7 +149,12 @@ int HOT JpegTurboDecoder::decode(uint8_t *buffer, size_t size) {
   }
 
   jpeg_finish_decompress(&cinfo);
+  const bool truncated = error_manager.truncated;
   jpeg_destroy_decompress(&cinfo);
+  if (truncated) {
+    ESP_LOGE(TAG, "JPEG data is incomplete");
+    return DECODE_ERROR_INVALID_TYPE;
+  }
   this->decoded_bytes_ = size;
   return size;
 }

@@ -151,6 +151,7 @@ class JPEGFormat(Format):
                 path="libjpeg-turbo",
             )
             return
+        cg.add_define("USE_RUNTIME_IMAGE_JPEG_DEC")
         cg.add_library("JPEGDEC", "1.8.4", "https://github.com/bitbank2/JPEGDEC#1.8.4")
         if CORE.is_host:
             # JPEGDEC's host detection checks __MACH__/__LINUX__, but gcc only
@@ -203,7 +204,7 @@ IMAGE_FORMATS = {
 FILTER_SOURCE_FILES = filter_source_files_from_defines(
     {
         "bmp_decoder.cpp": "USE_RUNTIME_IMAGE_BMP",
-        "jpeg_decoder.cpp": "USE_RUNTIME_IMAGE_JPEG",
+        "jpeg_decoder.cpp": "USE_RUNTIME_IMAGE_JPEG_DEC",
         "jpeg_turbo_decoder.cpp": "USE_RUNTIME_IMAGE_JPEG_TURBO",
         "png_decoder.cpp": "USE_RUNTIME_IMAGE_PNG",
         "qoi_decoder.cpp": "USE_RUNTIME_IMAGE_QOI",
@@ -216,10 +217,15 @@ AUTO_FORMAT = AUTOFormat()
 def _validate_jpeg_decoder(config: ConfigType) -> ConfigType:
     """Record the build-wide JPEG decoder so every image uses the same one."""
     decoder = config[CONF_JPEG_DECODER]
-    if decoder == DECODER_LIBJPEG_TURBO and not (CORE.is_esp32 or CORE.is_host):
+    # The libjpeg-turbo component is only fetched by the esp-idf build generator, so on
+    # the PlatformIO toolchain the dependency is silently dropped and the build fails
+    # later on a missing jpeglib.h. Reject it here instead.
+    if decoder == DECODER_LIBJPEG_TURBO and not (
+        (CORE.is_esp32 and CORE.using_toolchain_esp_idf) or CORE.is_host
+    ):
         raise cv.Invalid(
-            f"'{CONF_JPEG_DECODER}: {DECODER_LIBJPEG_TURBO}' is only supported on "
-            "ESP32 and host",
+            f"'{CONF_JPEG_DECODER}: {DECODER_LIBJPEG_TURBO}' is only supported on ESP32 "
+            "with the esp-idf toolchain, and on host",
             [CONF_JPEG_DECODER],
         )
     _get_data().jpeg_decoder = decoder
