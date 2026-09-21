@@ -3,7 +3,6 @@ from datetime import datetime
 import json
 import logging
 from pathlib import Path
-import re
 import ssl
 import tempfile
 import time
@@ -190,7 +189,7 @@ def get_esphome_device_ip(
     dev_ip = None
     failed = False
 
-    topic = "esphome/discover/+"
+    topic = "esphome/discover/" + dev_name
     _LOGGER.info("Starting looking for IP in topic %s", topic)
 
     def on_message(client, userdata, msg):
@@ -209,12 +208,7 @@ def get_esphome_device_ip(
                 # A raise in this handler would kill paho's network thread
                 _LOGGER.warning("Ignoring unparsable discovery payload")
                 return
-            if "name" not in data or (
-                data["name"] != dev_name
-                and not re.fullmatch(
-                    rf"{re.escape(dev_name)}-[0-9a-fA-F]{{6}}", data["name"]
-                )
-            ):
+            if "name" not in data or data["name"] != dev_name:
                 _LOGGER.warning("Wrong device answer")
                 return
 
@@ -243,7 +237,7 @@ def get_esphome_device_ip(
                 failed = True
                 return
 
-            dev_ip = (dev_ip or []) + addresses
+            dev_ip = addresses
             failed = False  # a complete answer wins over an earlier empty one
             client.disconnect()
 

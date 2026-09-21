@@ -657,10 +657,6 @@ def _resolve_network_devices(
 
         _add_network_device(device, network_devices)
 
-    # This additional prompt breaks tests :-(
-    # if len(network_devices) > 1:
-    #    options = [(f"{ip}", ip) for ip in network_devices]
-    #    network_devices = [choose_prompt(options, purpose="upload")]
     return network_devices
 
 
