@@ -15,7 +15,6 @@ from esphome.const import (
     ICON_THERMOMETER,
     ICON_TIMER,
     STATE_CLASS_MEASUREMENT,
-    STATE_CLASS_TOTAL_INCREASING,
     UNIT_CELSIUS,
     UNIT_CENTIMETER,
     UNIT_MILLISECOND,
@@ -54,7 +53,6 @@ CONFIG_SCHEMA = {
         accuracy_decimals=0,
         unit_of_measurement=UNIT_MILLISECOND,
         device_class=DEVICE_CLASS_DURATION,
-        state_class=STATE_CLASS_TOTAL_INCREASING,
         entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
     ),
 }
