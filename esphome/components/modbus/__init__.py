@@ -36,6 +36,7 @@ MAX_NUM_OF_REGISTERS_TO_WRITE_RW = 121
 modbus_ns = cg.esphome_ns.namespace("modbus")
 Modbus = modbus_ns.class_("Modbus", cg.Component, uart.UARTDevice)
 ModbusServer = modbus_ns.class_("ModbusServerHub", Modbus)
+ModbusSniffer = modbus_ns.class_("ModbusSnifferHub", Modbus)
 ModbusClient = modbus_ns.class_("ModbusClientHub", Modbus)
 ModbusDevice = modbus_ns.class_("ModbusDevice")
 ModbusClientDevice = modbus_ns.class_("ModbusClientDevice")
@@ -287,6 +288,14 @@ CONFIG_SCHEMA = cv.typed_schema(
             {
                 cv.GenerateID(): cv.declare_id(ModbusServer),
                 cv.Optional(CONF_FLOW_CONTROL_PIN): pins.gpio_output_pin_schema,
+            }
+        )
+        .extend(cv.COMPONENT_SCHEMA)
+        .extend(uart.UART_DEVICE_SCHEMA),
+        # No flow_control_pin: nothing is ever transmitted, and the absence is the safety property.
+        "sniffer": cv.Schema(
+            {
+                cv.GenerateID(): cv.declare_id(ModbusSniffer),
             }
         )
         .extend(cv.COMPONENT_SCHEMA)

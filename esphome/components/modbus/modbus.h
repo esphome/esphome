@@ -1,5 +1,6 @@
 #pragma once
 
+#include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/components/uart/uart.h"
 
@@ -7,6 +8,7 @@
 #include "esphome/components/modbus/modbus_helpers.h"
 
 #include <array>
+#include <map>
 #include <cstring>
 #include <memory>
 #include <span>
@@ -242,6 +244,11 @@ struct ModbusDeviceCommand {
   }
 };
 
+/** Owns the conversation: sends requests, waits for replies to its own frames.
+ *
+ * Derives from Modbus directly, unlike the other two hubs. A client knows what it sent, so it
+ * never needs ModbusPeerHub's machinery for following someone else's exchange.
+ */
 class ModbusClientHub : public Modbus {
  public:
   ModbusClientHub() = default;
@@ -314,19 +321,43 @@ inline bool succeeded(ResponseStatus status) { return !status.has_value(); }
 // the capacity of this type.
 using RegisterValues = StaticVector<uint16_t, MAX_NUM_OF_REGISTERS_TO_READ>;
 
-class ModbusServerHub : public Modbus {
+/** Shared by the hubs that WATCH an exchange rather than own one. A server must track exchanges
+ * it is not party to, so it knows a reply is coming for someone else; a sniffer is party to none.
+ * Both need identical framing and differ only in what they do with a parsed frame.
+ *
+ * The boundary is the process layer: the process_*_frame functions are pure virtual.
+ */
+class ModbusPeerHub : public Modbus {
+ public:
+  ModbusPeerHub() = default;
+
+ protected:
+  void parse_modbus_frames() override;
+  bool parse_modbus_client_frame_();
+
+  /// A request seen on the bus.
+  virtual void process_modbus_client_frame_(uint8_t address, uint8_t function_code, std::span<const uint8_t> data) = 0;
+  /// A broadcast (address 0), which is never answered.
+  virtual void process_broadcast_frame_(uint8_t function_code, std::span<const uint8_t> data) = 0;
+
+  /// Server address whose reply is expected next; 0 means none. Armed by a request this hub does
+  /// not serve, which is what lets it follow someone else's exchange.
+  uint8_t expecting_peer_response_{0};
+};
+
+/// Not final, unlike ModbusSnifferHub: existing tests subclass this to override tx_blocked() and
+/// drive rx_buffer_, and tx_blocked()'s timing gate has no controllable clock on host.
+class ModbusServerHub : public ModbusPeerHub {
  public:
   ModbusServerHub() = default;
   void dump_config() override;
   void register_device(ModbusServerDevice *device) { this->devices_.push_back(device); }
 
  protected:
-  void parse_modbus_frames() override;
-  bool parse_modbus_client_frame_();
   void process_modbus_server_frame(uint8_t address, std::span<const uint8_t> pdu) override;
-  void process_modbus_client_frame_(uint8_t address, uint8_t function_code, std::span<const uint8_t> data);
+  void process_modbus_client_frame_(uint8_t address, uint8_t function_code, std::span<const uint8_t> data) override;
   // Dispatches a broadcast (address 0) write to every registered device; broadcasts are never answered.
-  void process_broadcast_frame_(uint8_t function_code, std::span<const uint8_t> data);
+  void process_broadcast_frame_(uint8_t function_code, std::span<const uint8_t> data) override;
   // Parses a WRITE_SINGLE_REGISTER / WRITE_MULTIPLE_REGISTERS PDU into start_address and the address order register
   // values, validating the register count and address range. Shared by unicast and broadcast writes.
   ResponseStatus parse_write_single_(std::span<const uint8_t> data, uint16_t &start_address, RegisterValues &registers);
@@ -364,13 +395,52 @@ class ModbusServerHub : public Modbus {
   bool rejected_(uint8_t address, uint8_t function_code, ResponseStatus status);
   void send_exception_(uint8_t address, uint8_t function_code, ExceptionCode exception_code);
   void send_response_(uint8_t address, uint8_t function_code, const uint8_t *payload, uint16_t payload_len);
-  uint8_t expecting_peer_response_{0};
   std::vector<ModbusServerDevice *> devices_;
 
   // Holds the raw payload of a single reply deferred for sending when tx was blocked at send time.
   // Only one server reply can be waiting at once, so a single fixed buffer avoids heap allocation.
   std::array<uint8_t, MAX_RAW_SIZE> deferred_payload_;
   uint16_t deferred_payload_len_{0};
+};
+
+/** Watches a bus without taking part in it: registers nothing, answers nothing, transmits nothing.
+ *
+ * A Modbus response carries no register address -- only the request does -- so each request is
+ * retained until its reply arrives, keyed by server address. A single slot would drift: on a real
+ * bus a polled address often never answers, and its stale request would capture the next reply.
+ *
+ * Address 0 is never paired, being the broadcast address, so a device using it as a unit ID
+ * (some BMS clones ship that way) is unsupported.
+ */
+class ModbusSnifferHub final : public ModbusPeerHub {
+ public:
+  ModbusSnifferHub() = default;
+  void loop() override;
+  void dump_config() override;
+
+  /// address, function code, start register, response payload (big-endian registers)
+  Trigger<uint8_t, uint8_t, uint16_t, std::span<const uint8_t>> *get_response_trigger() {
+    return &this->response_trigger_;
+  }
+
+ protected:
+  /// A request seen but not yet answered.
+  struct Pending {
+    uint16_t start_address;
+    uint16_t count;
+    uint8_t function_code;
+  };
+
+  void process_modbus_client_frame_(uint8_t address, uint8_t function_code, std::span<const uint8_t> data) override;
+  void process_modbus_server_frame(uint8_t address, std::span<const uint8_t> pdu) override;
+  void process_broadcast_frame_(uint8_t, std::span<const uint8_t>) override {}
+
+  std::map<uint8_t, Pending> pending_;
+  Trigger<uint8_t, uint8_t, uint16_t, std::span<const uint8_t>> response_trigger_;
+
+  uint32_t paired_{0};
+  uint32_t unpaired_{0};
+  uint32_t last_report_{0};
 };
 
 /// Callback contract. Each accepted request ends in exactly ONE terminal: on_response() (data),

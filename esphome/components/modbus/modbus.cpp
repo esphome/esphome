@@ -201,7 +201,7 @@ void ModbusClientHub::parse_modbus_frames() {
   }
 }
 
-void ModbusServerHub::parse_modbus_frames() {
+void ModbusPeerHub::parse_modbus_frames() {
   while (!this->rx_buffer_.empty()) {
     size_t size = this->rx_buffer_.size();
     ESP_LOGVV(TAG, "Parsing frames buffer size = %" PRIu32, size);
@@ -289,7 +289,7 @@ bool Modbus::parse_modbus_server_frame_() {
   return true;
 }
 
-bool ModbusServerHub::parse_modbus_client_frame_() {
+bool ModbusPeerHub::parse_modbus_client_frame_() {
   size_t size = this->rx_buffer_.size();
   uint16_t frame_length = helpers::client_frame_length(this->rx_buffer_.data(), this->rx_buffer_.size());
 
@@ -1404,5 +1404,89 @@ void ModbusClientDevice::on_custom_response(std::span<const uint8_t> request_pdu
     ESP_LOGV(TAG, "Non-standard request or response for function code 0x%X (unhandled)", function_code);
   }
 }
+
+void ModbusSnifferHub::process_modbus_client_frame_(uint8_t address, uint8_t function_code,
+                                                    std::span<const uint8_t> data) {
+  // Arm FIRST, for EVERY request, whatever the function code: this is what tells the parse layer
+  // the next frame is a reply. Without it every response fails to parse as a request and is
+  // discarded.
+  this->expecting_peer_response_ = address;
+
+  // Register access only, for now. 0x01/0x02 would pair the same way but deliver packed bits, and
+  // the multi-write echoes carry no data; both want a payload contract this callback does not have.
+  // Anything else is observed and dropped, but the expectation above is armed, so its reply still
+  // parses cleanly.
+  if (data.size() < 4)
+    return;
+  uint16_t count;
+  switch (static_cast<FunctionCode>(function_code)) {
+    case FunctionCode::READ_HOLDING_REGISTERS:
+    case FunctionCode::READ_INPUT_REGISTERS:
+    // 0x17 reads and writes at once; its READ start address and count sit at the same offsets as a
+    // plain read's, and its response carries only the read data.
+    case FunctionCode::READ_WRITE_MULTIPLE_REGISTERS:
+      count = helpers::get_data<uint16_t>(data.data(), 2);
+      break;
+    // 0x06 puts the value where a read puts its count, and always writes exactly one register.
+    case FunctionCode::WRITE_SINGLE_REGISTER:
+      count = 1;
+      break;
+    default:
+      return;
+  }
+  Pending p;
+  p.start_address = helpers::get_data<uint16_t>(data.data(), 0);
+  p.count = count;
+  p.function_code = function_code;
+  this->pending_[address] = p;
+  ESP_LOGV(TAG, "sniffer: request addr=%u fc=%u start=%u count=%u", address, function_code, p.start_address, p.count);
+}
+
+void ModbusSnifferHub::process_modbus_server_frame(uint8_t address, std::span<const uint8_t> pdu) {
+  // Consume on every path out. Left armed, the next request can parse as a plausible reply --
+  // an 8-byte FC 0x06 write carries its own valid CRC.
+  this->expecting_peer_response_ = 0;
+
+  const auto it = this->pending_.find(address);
+  if (it == this->pending_.end()) {
+    this->unpaired_++;  // reply with no retained request: the register address is unknowable
+    return;
+  }
+  const Pending req = it->second;
+  this->pending_.erase(it);  // one request yields exactly one response
+
+  const uint8_t function_code = helpers::pdu_function_code(pdu);
+  if (function_code != req.function_code) {
+    this->unpaired_++;
+    return;
+  }
+  auto payload = helpers::server_pdu_payload(pdu);
+  // A 0x06 response echoes the register address before the value. Drop it, so payload always starts
+  // at start_address and a lambda indexes every function code the same way.
+  if (function_code == static_cast<uint8_t>(FunctionCode::WRITE_SINGLE_REGISTER)) {
+    if (payload.size() < 4) {
+      this->unpaired_++;
+      return;
+    }
+    payload = payload.subspan(2);
+  }
+  if (payload.size() < static_cast<size_t>(req.count) * 2) {
+    this->unpaired_++;
+    return;
+  }
+  this->paired_++;
+  this->response_trigger_.trigger(address, function_code, req.start_address, payload);
+}
+
+void ModbusSnifferHub::loop() {
+  ModbusPeerHub::loop();  // MUST delegate: the base reads the uart and drives parsing
+  const uint32_t now = millis();
+  if (now - this->last_report_ < 60000)
+    return;
+  this->last_report_ = now;
+  ESP_LOGI(TAG, "sniffer: paired=%" PRIu32 " unpaired=%" PRIu32, this->paired_, this->unpaired_);
+}
+
+void ModbusSnifferHub::dump_config() { ESP_LOGCONFIG(TAG, "Modbus Sniffer Hub (passive, never transmits)"); }
 
 }  // namespace esphome::modbus
