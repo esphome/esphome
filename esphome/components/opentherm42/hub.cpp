@@ -1141,12 +1141,13 @@ void OpenTherm42Hub::handle_response_(const Frame &frame) {
         OT42_LOG_REJECTION(invalidate_now,
                            "Ventilation/heat-recovery status exchange (id=70) was rejected (message type %s)",
                            message_type_to_string(type));
-        // Reaching handle_response_() at all means a valid frame was received -- unlike a
-        // transient datalink error, a non-ACK type here is the boiler's definitive answer that it
-        // has no ventilation/heat-recovery system, so the master-status switches can never have
-        // any real effect either.
-        this->ventilation_status_write_.invalidate();
+        // Same max_data_invalid grace period as every other id's DATA_INVALID handling (see
+        // should_invalidate_now_()'s declaration comment) -- a genuine "this boiler has no
+        // ventilation/heat-recovery system" answer is UNKNOWN_DATA_ID, which should_invalidate_now_()
+        // already treats as immediate regardless of the mask; only a possibly-transient DATA_INVALID
+        // gets the grace period, same as the read side below.
         if (invalidate_now) {
+          this->ventilation_status_write_.invalidate();
           this->invalidate_response_(RequestKind::VENTILATION_STATUS);
         }
         return;
