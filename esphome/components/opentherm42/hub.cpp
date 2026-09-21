@@ -553,12 +553,13 @@ Frame OpenTherm42Hub::build_next_request_() {
     case RequestKind::SOLAR_STORAGE_STATUS:
       frame.type = static_cast<uint8_t>(MessageType::READ_DATA);
       frame.id = 101;
-      // §5.3.1 ID 101 HB: master-authored (see hub.h's RequestKind comment) -- send whatever the
-      // select last published, exactly like the STATUS/VENTILATION_STATUS master-status bytes.
-      frame.value_hb =
-          this->master_solar_storage_status_solar_mode_select_ != nullptr
-              ? static_cast<uint8_t>(this->master_solar_storage_status_solar_mode_select_->active_index().value_or(0))
-              : 0;
+      // §5.3.1 ID 101 HB: master-authored (see hub.h's RequestKind comment) -- send whatever was
+      // last commanded, exactly like the STATUS/VENTILATION_STATUS master-status bytes. Read from
+      // solar_storage_solar_mode_write_value_, not the select's own ->active_index(): the latter
+      // returns nullopt once the select is invalidated, which would otherwise silently start
+      // sending index 0 on the wire in addition to displaying Unknown (see set_solar_storage_
+      // solar_mode_write_value()'s declaration comment).
+      frame.value_hb = this->solar_storage_solar_mode_write_value_;
       break;
     case RequestKind::SOLAR_STORAGE_FAULT_FLAGS:
       frame.type = static_cast<uint8_t>(MessageType::READ_DATA);
@@ -1108,6 +1109,12 @@ void OpenTherm42Hub::handle_response_(const Frame &frame) {
         if (invalidate_now && this->control_setpoint_number_ != nullptr) {
           invalidate_entity(this->control_setpoint_number_);
         }
+        return;
+      }
+      // A later successful WRITE-ACK, after a prior rejection invalidated this entity, must bring it
+      // back out of Unknown -- republish the last commanded value (never the untrusted echo above).
+      if (this->control_setpoint_number_ != nullptr) {
+        this->control_setpoint_number_->publish_state(this->control_setpoint_write_value_);
       }
       return;
 
@@ -1120,6 +1127,11 @@ void OpenTherm42Hub::handle_response_(const Frame &frame) {
         if (invalidate_now && this->control_setpoint_2_number_ != nullptr) {
           invalidate_entity(this->control_setpoint_2_number_);
         }
+        return;
+      }
+      // See CONTROL_SETPOINT above: a later success must recover a previously-invalidated entity.
+      if (this->control_setpoint_2_number_ != nullptr) {
+        this->control_setpoint_2_number_->publish_state(this->control_setpoint_2_write_value_);
       }
       return;
 
@@ -1152,6 +1164,11 @@ void OpenTherm42Hub::handle_response_(const Frame &frame) {
         if (invalidate_now && this->control_setpoint_ventilation_number_ != nullptr) {
           invalidate_entity(this->control_setpoint_ventilation_number_);
         }
+        return;
+      }
+      // See CONTROL_SETPOINT above: a later success must recover a previously-invalidated entity.
+      if (this->control_setpoint_ventilation_number_ != nullptr) {
+        this->control_setpoint_ventilation_number_->publish_state(this->control_setpoint_ventilation_write_value_);
       }
       return;
 
@@ -1208,8 +1225,15 @@ void OpenTherm42Hub::handle_response_(const Frame &frame) {
       }
       // HB bits 2,1,0 and LB bits 3,2,1 both encode "Solar mode" (same 5-value enum, different byte);
       // LB bit 0 is a fault flag and LB bits 5,4 are "Solar status" -- see the spec's ID 101 table.
-      // HB is never read back into the select here -- same precedent as STATUS/VENTILATION_STATUS,
-      // whose master-status bytes are one-way (local state, resent every turn, never confirmed).
+      // HB's echoed frame content is never trusted for the select's display -- same precedent as
+      // STATUS/VENTILATION_STATUS, whose master-status bytes are one-way (local state, resent every
+      // turn, never confirmed). But reaching here at all means this conversation succeeded, so a
+      // previously-invalidated select must still recover -- republish the last commanded value
+      // (never frame.value_hb) so it doesn't stay stuck at Unknown forever after one rejection.
+      if (this->master_solar_storage_status_solar_mode_select_ != nullptr) {
+        this->master_solar_storage_status_solar_mode_select_->publish_state(
+            this->solar_storage_solar_mode_write_value_);
+      }
       if (this->solar_storage_fault_indication_binary_sensor_ != nullptr) {
         this->solar_storage_fault_indication_binary_sensor_->publish_state(frame.value_lb & 0x1);
       }
@@ -1440,6 +1464,11 @@ void OpenTherm42Hub::handle_response_(const Frame &frame) {
         if (invalidate_now && this->room_setpoint_number_ != nullptr) {
           invalidate_entity(this->room_setpoint_number_);
         }
+        return;
+      }
+      // See CONTROL_SETPOINT above: a later success must recover a previously-invalidated entity.
+      if (this->room_setpoint_number_ != nullptr) {
+        this->room_setpoint_number_->publish_state(this->room_setpoint_write_value_);
       }
       return;
 
@@ -1452,6 +1481,11 @@ void OpenTherm42Hub::handle_response_(const Frame &frame) {
         if (invalidate_now && this->room_setpoint_ch2_number_ != nullptr) {
           invalidate_entity(this->room_setpoint_ch2_number_);
         }
+        return;
+      }
+      // See CONTROL_SETPOINT above: a later success must recover a previously-invalidated entity.
+      if (this->room_setpoint_ch2_number_ != nullptr) {
+        this->room_setpoint_ch2_number_->publish_state(this->room_setpoint_ch2_write_value_);
       }
       return;
 
@@ -1464,6 +1498,13 @@ void OpenTherm42Hub::handle_response_(const Frame &frame) {
         if (invalidate_now && this->room_temperature_number_ != nullptr) {
           invalidate_entity(this->room_temperature_number_);
         }
+        return;
+      }
+      // See CONTROL_SETPOINT above: a later success must recover a previously-invalidated entity.
+      // room_temperature_write_value_ is guaranteed real (not NAN) here -- this id only joins the
+      // essential rotation once set_sensor_feed_write_value() has supplied one.
+      if (this->room_temperature_number_ != nullptr) {
+        this->room_temperature_number_->publish_state(this->room_temperature_write_value_);
       }
       return;
 
@@ -1476,6 +1517,12 @@ void OpenTherm42Hub::handle_response_(const Frame &frame) {
         if (invalidate_now && this->trch2_number_ != nullptr) {
           invalidate_entity(this->trch2_number_);
         }
+        return;
+      }
+      // See ROOM_TEMPERATURE above: a later success must recover a previously-invalidated entity;
+      // trch2_write_value_ is guaranteed real here for the same reason.
+      if (this->trch2_number_ != nullptr) {
+        this->trch2_number_->publish_state(this->trch2_write_value_);
       }
       return;
 
@@ -1904,6 +1951,11 @@ void OpenTherm42Hub::handle_response_(const Frame &frame) {
         if (invalidate_now && this->cooling_control_signal_number_ != nullptr) {
           invalidate_entity(this->cooling_control_signal_number_);
         }
+        return;
+      }
+      // See CONTROL_SETPOINT above: a later success must recover a previously-invalidated entity.
+      if (this->cooling_control_signal_number_ != nullptr) {
+        this->cooling_control_signal_number_->publish_state(this->cooling_control_signal_write_value_);
       }
       return;
 
@@ -1917,6 +1969,11 @@ void OpenTherm42Hub::handle_response_(const Frame &frame) {
         if (invalidate_now && this->max_rel_mod_level_setting_number_ != nullptr) {
           invalidate_entity(this->max_rel_mod_level_setting_number_);
         }
+        return;
+      }
+      // See CONTROL_SETPOINT above: a later success must recover a previously-invalidated entity.
+      if (this->max_rel_mod_level_setting_number_ != nullptr) {
+        this->max_rel_mod_level_setting_number_->publish_state(this->max_rel_mod_level_setting_write_value_);
       }
       return;
 

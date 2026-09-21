@@ -105,7 +105,7 @@ async def to_code(config: dict) -> None:
     hub = await cg.get_variable(config[CONF_OPENTHERM42_ID])
     marker = CONF_CONTROL_AND_STATUS_INFORMATION_MASTER_SOLAR_STORAGE_STATUS_SOLAR_MODE
     if (marker_config := config.get(marker)) is not None:
-        var = await select.new_select(marker_config, options=SOLAR_MODE_OPTIONS)
+        var = await select.new_select(marker_config, hub, options=SOLAR_MODE_OPTIONS)
         await cg.register_component(var, marker_config)
         cg.add(var.set_initial_option(marker_config[CONF_INITIAL_OPTION]))
         cg.add(getattr(hub, f"set_{marker}_select")(var))

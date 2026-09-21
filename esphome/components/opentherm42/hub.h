@@ -460,6 +460,13 @@ class OpenTherm42Hub : public Component {
                          solar_storage_fault_indication_binary_sensor_)
   OT42_SET_SELECT(control_and_status_information_master_solar_storage_status_solar_mode,
                   master_solar_storage_status_solar_mode_select_)
+  // Called by OpenTherm42Select's control()/setup() to push the commanded solar-mode index somewhere
+  // that survives has_state()==false -- build_next_request_() reads this instead of
+  // ->active_index(), and handle_response_()'s SOLAR_STORAGE_STATUS success path republishes the
+  // select from it, so a later successful conversation recovers a previously-invalidated select
+  // instead of leaving it stuck at Unknown (and silently sending index 0 on the wire in the
+  // meantime, since active_index() itself returns nullopt once invalidated).
+  void set_solar_storage_solar_mode_write_value(uint8_t value) { this->solar_storage_solar_mode_write_value_ = value; }
   OT42_SET_PLAIN_TEXT_SENSOR(control_and_status_information_solar_storage_mode_and_status_solar_mode,
                              solar_storage_mode_and_status_solar_mode_text_sensor_)
   OT42_SET_PLAIN_TEXT_SENSOR(control_and_status_information_solar_storage_mode_and_status_solar_status,
@@ -875,6 +882,9 @@ class OpenTherm42Hub : public Component {
   sensor::Sensor *oem_diagnostic_code_sensor_{nullptr};
   sensor::Sensor *oem_diagnostic_code_ventilation_sensor_{nullptr};
   select::Select *master_solar_storage_status_solar_mode_select_{nullptr};
+  // §5.3.1 Class 1, ID 101 HB (write side): see set_solar_storage_solar_mode_write_value()'s
+  // declaration comment.
+  uint8_t solar_storage_solar_mode_write_value_{0};
   text_sensor::TextSensor *solar_storage_mode_and_status_solar_mode_text_sensor_{nullptr};
   text_sensor::TextSensor *solar_storage_mode_and_status_solar_status_text_sensor_{nullptr};
   binary_sensor::BinarySensor *solar_storage_fault_indication_binary_sensor_{nullptr};
