@@ -1236,8 +1236,7 @@ void Modbus::clear_rx_buffer_(const LogString *reason, bool warn, size_t bytes_t
                micros() - this->last_send_);
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
       char hex_buf[format_hex_pretty_size(MODBUS_MAX_LOG_BYTES)];
-      ESP_LOGV(TAG, "  discarded: %s%s",
-               format_hex_pretty_to(hex_buf, this->rx_buffer_.data(), std::min(bytes, MODBUS_MAX_LOG_BYTES)),
+      ESP_LOGV(TAG, "  discarded: %s%s", format_hex_pretty_to(hex_buf, this->rx_buffer_.data(), bytes),
                bytes > MODBUS_MAX_LOG_BYTES ? LOG_STR_LITERAL(" ...") : LOG_STR_LITERAL(""));
 #endif
     } else {
