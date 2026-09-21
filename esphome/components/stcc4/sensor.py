@@ -22,7 +22,7 @@ from esphome.const import (
     UNIT_PERCENT,
 )
 
-CODEOWNERS = ["@will-tm"]
+CODEOWNERS = ["@will-tm", "@j9brown"]
 DEPENDENCIES = ["i2c"]
 AUTO_LOAD = ["sensirion_common"]
 
@@ -31,13 +31,14 @@ STCC4Component = stcc4_ns.class_(
     "STCC4Component", cg.PollingComponent, sensirion_common.SensirionI2CDevice
 )
 
-MeasurementMode = stcc4_ns.enum("MeasurementMode")
-CONF_HUMIDITY_SOURCE = "humidity_source"
+MeasurementMode = stcc4_ns.enum("MeasurementMode", is_class=True)
 
 MEASUREMENT_MODE_OPTIONS = {
     "continuous": MeasurementMode.CONTINUOUS,
     "single_shot": MeasurementMode.SINGLE_SHOT,
 }
+
+CONF_HUMIDITY_SOURCE = "humidity_source"
 
 CONFIG_SCHEMA = (
     cv.Schema(

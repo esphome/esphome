@@ -7,12 +7,12 @@
 namespace esphome {
 namespace stcc4 {
 
-enum MeasurementMode : uint8_t {
-  CONTINUOUS,
+enum class MeasurementMode : uint8_t {
+  CONTINUOUS = 0,
   SINGLE_SHOT,
 };
 
-class STCC4Component : public PollingComponent, public sensirion_common::SensirionI2CDevice {
+class STCC4Component final : public PollingComponent, public sensirion_common::SensirionI2CDevice {
  public:
   void setup() override;
   void dump_config() override;
@@ -28,9 +28,11 @@ class STCC4Component : public PollingComponent, public sensirion_common::Sensiri
   void set_measurement_mode(MeasurementMode mode) { this->measurement_mode_ = mode; }
 
  protected:
-  bool update_rht_compensation_();
-  bool update_ambient_pressure_compensation_(uint16_t pressure_in_hpa);
-  bool start_measurement_();
+  void finish_setup_();
+  void read_measurement_();
+  void update_rht_compensation_from_source_();
+  void update_ambient_pressure_compensation_from_source_();
+  bool write_ambient_pressure_compensation_();
 
   sensor::Sensor *co2_sensor_{nullptr};
   sensor::Sensor *temperature_sensor_{nullptr};
@@ -39,9 +41,12 @@ class STCC4Component : public PollingComponent, public sensirion_common::Sensiri
   sensor::Sensor *humidity_source_{nullptr};
   sensor::Sensor *ambient_pressure_source_{nullptr};
 
-  uint16_t ambient_pressure_{0};
-  bool initialized_{false};
-  MeasurementMode measurement_mode_{CONTINUOUS};
+  MeasurementMode measurement_mode_{MeasurementMode::CONTINUOUS};
+
+  bool ready_{false};
+  uint16_t temperature_ticks_{0};
+  uint16_t humidity_ticks_{0};
+  uint16_t ambient_pressure_in_pa_2_{0};
 };
 
 }  // namespace stcc4
