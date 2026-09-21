@@ -7,6 +7,7 @@ from esphome.const import (
     CONF_COMPENSATION,
     CONF_GAIN_FACTOR,
     CONF_GATING_MAX_DURATION_MINUTES,
+    CONF_HUMIDITY_SOURCE,
     CONF_ID,
     CONF_INDEX_OFFSET,
     CONF_LEARNING_TIME_GAIN_HOURS,
@@ -32,8 +33,6 @@ SGP4xComponent = sgp4x_ns.class_(
     cg.PollingComponent,
     sensirion_common.SensirionI2CDevice,
 )
-
-CONF_HUMIDITY_SOURCE = "humidity_source"
 
 
 def validate_sensors(config: ConfigType) -> ConfigType:

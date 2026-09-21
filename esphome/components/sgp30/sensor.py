@@ -5,6 +5,7 @@ from esphome.const import (
     CONF_BASELINE,
     CONF_COMPENSATION,
     CONF_ECO2,
+    CONF_HUMIDITY_SOURCE,
     CONF_ID,
     CONF_STORE_BASELINE,
     CONF_TEMPERATURE_SOURCE,
@@ -31,7 +32,6 @@ SGP30Component = sgp30_ns.class_(
 CONF_ECO2_BASELINE = "eco2_baseline"
 CONF_TVOC_BASELINE = "tvoc_baseline"
 CONF_UPTIME = "uptime"
-CONF_HUMIDITY_SOURCE = "humidity_source"
 
 
 CONFIG_SCHEMA = (
