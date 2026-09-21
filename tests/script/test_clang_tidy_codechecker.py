@@ -14,6 +14,8 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from esphome.core import EsphomeError
+
 script_dir = str((Path(__file__).parent / ".." / ".." / "script").resolve())
 sys.path.insert(0, script_dir)
 _loader = importlib.machinery.SourceFileLoader(
@@ -31,6 +33,9 @@ import clang_tidy_hash  # noqa: E402
 # these still call the real implementation regardless of that patch.
 _get_codechecker_binary = clang_tidy_script._get_codechecker_binary
 _verify_codechecker_clang_tidy = clang_tidy_script._verify_codechecker_clang_tidy
+
+# Stands in for the CodeChecker binary inside the nRF52 Python environment.
+_CODECHECKER_PATH = Path("/nrf52-env/bin/CodeChecker")
 
 
 def _codechecker_version_stdout(analyzer_version: str, web_version: str) -> str:
@@ -106,6 +111,10 @@ def _common_mocks(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         clang_tidy_script, "_verify_codechecker_clang_tidy", lambda *a, **k: None
     )
+    monkeypatch.setattr(
+        "esphome.components.nrf52.clang_tidy.prepare_environment",
+        lambda work_dir: _CODECHECKER_PATH,
+    )
 
 
 def test_codechecker_pinned_version_parses_requirements_file() -> None:
@@ -124,7 +133,7 @@ def test_get_codechecker_binary_accepts_matching_pin(
         "run",
         lambda *a, **k: MagicMock(returncode=0, stdout=stdout, stderr=""),
     )
-    assert _get_codechecker_binary(pin) == "CodeChecker"
+    assert _get_codechecker_binary(pin, _CODECHECKER_PATH) == str(_CODECHECKER_PATH)
 
 
 def test_get_codechecker_binary_accepts_newer_minor(
@@ -139,7 +148,7 @@ def test_get_codechecker_binary_accepts_newer_minor(
         "run",
         lambda *a, **k: MagicMock(returncode=0, stdout=stdout, stderr=""),
     )
-    assert _get_codechecker_binary(pin) == "CodeChecker"
+    assert _get_codechecker_binary(pin, _CODECHECKER_PATH) == str(_CODECHECKER_PATH)
 
 
 def test_get_codechecker_binary_rejects_older_minor(
@@ -156,7 +165,7 @@ def test_get_codechecker_binary_rejects_older_minor(
         lambda *a, **k: MagicMock(returncode=0, stdout=stdout, stderr=""),
     )
     with pytest.raises(RuntimeError, match=f"{pin[0]}.{pin[1] - 1}"):
-        _get_codechecker_binary(pin)
+        _get_codechecker_binary(pin, _CODECHECKER_PATH)
 
 
 def test_get_codechecker_binary_rejects_field_collision(
@@ -176,7 +185,7 @@ def test_get_codechecker_binary_rejects_field_collision(
         lambda *a, **k: MagicMock(returncode=0, stdout=stdout, stderr=""),
     )
     with pytest.raises(RuntimeError, match=f"{mismatched_major}.30"):
-        _get_codechecker_binary(pin)
+        _get_codechecker_binary(pin, _CODECHECKER_PATH)
 
 
 def test_get_codechecker_binary_rejects_newer_major(
@@ -193,7 +202,7 @@ def test_get_codechecker_binary_rejects_newer_major(
         lambda *a, **k: MagicMock(returncode=0, stdout=stdout, stderr=""),
     )
     with pytest.raises(RuntimeError, match=f"{newer_major}.0"):
-        _get_codechecker_binary(pin)
+        _get_codechecker_binary(pin, _CODECHECKER_PATH)
 
 
 def test_get_codechecker_binary_raises_when_missing(
@@ -204,7 +213,9 @@ def test_get_codechecker_binary_raises_when_missing(
 
     monkeypatch.setattr(clang_tidy_script.subprocess, "run", fake_run)
     with pytest.raises(FileNotFoundError):
-        _get_codechecker_binary(clang_tidy_script._codechecker_pinned_version())
+        _get_codechecker_binary(
+            clang_tidy_script._codechecker_pinned_version(), _CODECHECKER_PATH
+        )
 
 
 def test_get_codechecker_binary_raises_on_unparseable_output(
@@ -218,7 +229,9 @@ def test_get_codechecker_binary_raises_on_unparseable_output(
         ),
     )
     with pytest.raises(RuntimeError, match="unknown"):
-        _get_codechecker_binary(clang_tidy_script._codechecker_pinned_version())
+        _get_codechecker_binary(
+            clang_tidy_script._codechecker_pinned_version(), _CODECHECKER_PATH
+        )
 
 
 def test_get_codechecker_binary_includes_stderr_in_error(
@@ -236,7 +249,9 @@ def test_get_codechecker_binary_includes_stderr_in_error(
         ),
     )
     with pytest.raises(RuntimeError, match="ImportError: No module named 'thrift'"):
-        _get_codechecker_binary(clang_tidy_script._codechecker_pinned_version())
+        _get_codechecker_binary(
+            clang_tidy_script._codechecker_pinned_version(), _CODECHECKER_PATH
+        )
 
 
 def test_clang_tidy_pinned_major_parses_requirements_file() -> None:
@@ -323,7 +338,7 @@ def test_run_codechecker_zephyr_reports_missing_clang_tidy_distinctly(
     assert result == 1
     stderr = capsys.readouterr().err
     assert "clang-tidy is not installed" in stderr
-    assert "CodeChecker is not installed" not in stderr
+    assert "CodeChecker not found" not in stderr
 
 
 def test_run_codechecker_zephyr_reports_missing_codechecker_binary(
@@ -343,7 +358,85 @@ def test_run_codechecker_zephyr_reports_missing_codechecker_binary(
 
     assert result == 1
     stderr = capsys.readouterr().err
-    assert "CodeChecker is not installed" in stderr
+    assert f"CodeChecker not found at {_CODECHECKER_PATH}" in stderr
+    # Names the fix: the environment is not rebuilt when only the binary is gone.
+    assert f"Delete {_CODECHECKER_PATH.parent.parent}" in stderr
+
+
+def test_run_codechecker_zephyr_checks_clang_tidy_before_preparing_environment(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A missing clang-tidy must fail before prepare_environment() can start
+    the SDK download."""
+    prepared = []
+    monkeypatch.setattr(
+        "esphome.components.nrf52.clang_tidy.prepare_environment",
+        lambda work_dir: prepared.append(work_dir) or _CODECHECKER_PATH,
+    )
+
+    def missing_clang_tidy(*a: object, **k: object) -> None:
+        raise FileNotFoundError("clang-tidy")
+
+    monkeypatch.setattr(
+        clang_tidy_script, "_verify_codechecker_clang_tidy", missing_clang_tidy
+    )
+
+    assert clang_tidy_script.run_codechecker_zephyr(["file.cpp"], _args()) == 1
+    assert prepared == []
+
+
+@pytest.mark.parametrize("error", [EsphomeError("pip failed"), RuntimeError("no venv")])
+def test_run_codechecker_zephyr_reports_environment_setup_failure(
+    error: Exception,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A failed venv/SDK install must print a named reason, not a traceback."""
+
+    def failing_prepare(work_dir: Path) -> Path:
+        raise error
+
+    monkeypatch.setattr(
+        "esphome.components.nrf52.clang_tidy.prepare_environment", failing_prepare
+    )
+
+    assert clang_tidy_script.run_codechecker_zephyr(["file.cpp"], _args()) == 1
+    stderr = capsys.readouterr().err
+    assert f"Could not prepare the nRF52 environment: {error}" in stderr
+    assert "CodeChecker not found" not in stderr
+
+
+def test_run_codechecker_zephyr_runs_codechecker_from_nrf52_environment(
+    tmp_path: Path,
+    explicit_compile_commands: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """The binary prepare_environment() returns is version-checked and is the
+    one that runs analyze, not whatever CodeChecker is on PATH."""
+    output_dir = tmp_path / "codechecker-nrf52-adafruit"
+    checked = []
+
+    def fake_get_binary(pin: tuple[int, int], executable: Path) -> str:
+        checked.append(executable)
+        return str(executable)
+
+    monkeypatch.setattr(clang_tidy_script, "_get_codechecker_binary", fake_get_binary)
+    invoked = []
+
+    def fake_run(cmd: list[str], **kwargs: object) -> MagicMock:
+        invoked.append(cmd[0])
+        if cmd[1] == "analyze":
+            _write_metadata(output_dir, successful=1, failed=0)
+        return MagicMock(returncode=0)
+
+    monkeypatch.setattr(clang_tidy_script.subprocess, "run", fake_run)
+
+    assert clang_tidy_script.run_codechecker_zephyr(["file.cpp"], _args()) == 0
+    assert checked == [_CODECHECKER_PATH]
+    assert f"Using CodeChecker: {_CODECHECKER_PATH}" in capsys.readouterr().out
+    assert invoked
+    assert set(invoked) == {str(_CODECHECKER_PATH)}
 
 
 def test_run_codechecker_zephyr_reports_pin_lookup_failure_distinctly(
@@ -364,7 +457,7 @@ def test_run_codechecker_zephyr_reports_pin_lookup_failure_distinctly(
     assert result == 1
     stderr = capsys.readouterr().err
     assert "Could not determine pinned tool versions" in stderr
-    assert "CodeChecker is not installed" not in stderr
+    assert "CodeChecker not found" not in stderr
     assert "clang-tidy is not installed" not in stderr
 
 
@@ -973,7 +1066,7 @@ def test_codechecker_matcher_parses_report_line() -> None:
             pytest.fail(
                 "codechecker_report_converter is not importable even though "
                 "ESPHOME_REQUIRE_CODECHECKER is set -- this must not skip in "
-                "the CI leg that installs requirements_codechecker.txt"
+                "the CI leg that installs the codechecker pin from nrf52/requirements.txt"
             )
         pytest.skip("codechecker_report_converter is not installed")
 

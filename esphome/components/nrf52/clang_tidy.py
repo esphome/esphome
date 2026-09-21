@@ -190,6 +190,25 @@ def _setup_core(work_dir: Path) -> None:
     )
 
 
+def prepare_environment(work_dir: Path) -> Path:
+    """Install or refresh the nRF52 Python environment and SDK.
+
+    Safe to call repeatedly: an up-to-date installation is only checked.
+
+    Returns the path to the environment's ``CodeChecker`` binary.
+    """
+    from .framework import check_and_install, get_build_paths
+
+    # Surface ESPHome's INFO logs (sdk-nrf download/west update) -- they go
+    # through logging, which the clang-tidy script otherwise leaves at
+    # WARNING, so the first-run installation looks silent without this.
+    logging.basicConfig(level=logging.INFO, format="%(message)s")
+
+    _setup_core(work_dir)
+    check_and_install()
+    return get_build_paths()["codechecker_executable"]
+
+
 def generate_compile_commands(
     work_dir: Path, platformio_ini: Path, source_files: list[str]
 ) -> Path:
@@ -204,18 +223,12 @@ def generate_compile_commands(
     from esphome.framework_helpers import run_command_ok
     from esphome.helpers import rmtree
 
-    from .framework import check_and_install, get_build_env, get_build_paths
-
-    # Surface ESPHome's INFO logs (sdk-nrf download/west update) -- they go
-    # through logging, which the clang-tidy script otherwise leaves at
-    # WARNING, so the first-run installation looks silent without this.
-    logging.basicConfig(level=logging.INFO, format="%(message)s")
+    from .framework import get_build_env, get_build_paths
 
     build_dir = work_dir / "build"
     compile_commands_path = build_dir / "compile_commands.json"
 
-    _setup_core(work_dir)
-    check_and_install()
+    prepare_environment(work_dir)
 
     library_include_dirs = "\n".join(
         f'  "{d}"' for d in _library_include_dirs(platformio_ini)

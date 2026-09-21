@@ -351,7 +351,8 @@ def _read_pinned_version(requirements_path: Path, package: str) -> tuple[int, in
 
 def _codechecker_pinned_version() -> tuple[int, int]:
     return _read_pinned_version(
-        Path(root_path) / "requirements_codechecker.txt", "codechecker"
+        Path(root_path) / "esphome" / "components" / "nrf52" / "requirements.txt",
+        "codechecker",
     )
 
 
@@ -370,18 +371,18 @@ def _format_version(version: tuple[int, int] | int | None) -> str:
     return str(version)
 
 
-def _get_codechecker_binary(pinned_version: tuple[int, int]) -> str:
+def _get_codechecker_binary(pinned_version: tuple[int, int], executable: Path) -> str:
     """Verify the installed CodeChecker analyzer package version is pin-compatible.
 
     Hard-pins the major version, soft-pins the minor version (installed must be
     >= pinned), and does not pin the patch version at all. Raises
     FileNotFoundError if the binary itself is missing (propagated from
     subprocess.run), or RuntimeError if it ran but didn't report a
-    pin-compatible analyzer version.
+    pin-compatible analyzer version. Returns ``executable`` as a string.
     """
     pinned_major, pinned_minor = pinned_version
     result = subprocess.run(
-        ["CodeChecker", "version"], text=True, capture_output=True, check=False
+        [str(executable), "version"], text=True, capture_output=True, check=False
     )
     section_match = re.search(
         r"CodeChecker analyzer version:(.*?)(?:CodeChecker web version:|\Z)",
@@ -401,7 +402,7 @@ def _get_codechecker_binary(pinned_version: tuple[int, int]) -> str:
         and found_version[0] == pinned_major
         and found_version[1] >= pinned_minor
     ):
-        return "CodeChecker"
+        return str(executable)
 
     stderr = result.stderr.strip()
     raise RuntimeError(
@@ -452,7 +453,11 @@ def run_codechecker_zephyr(files: list[str], args: argparse.Namespace) -> int:
     per-file compile command for each requested source and would fail the
     coverage check below.
     """
-    from esphome.components.nrf52.clang_tidy import generate_compile_commands
+    from esphome.components.nrf52.clang_tidy import (
+        generate_compile_commands,
+        prepare_environment,
+    )
+    from esphome.core import EsphomeError
 
     try:
         # clang-tidy is what CodeChecker invokes as its analyzer, so its pin
@@ -463,21 +468,6 @@ def run_codechecker_zephyr(files: list[str], args: argparse.Namespace) -> int:
         # Read before the binary-presence checks below so a missing/renamed
         # requirements file isn't misattributed to a missing binary.
         print(f"Could not determine pinned tool versions: {err}", file=sys.stderr)
-        return 1
-
-    try:
-        executable = _get_codechecker_binary(codechecker_pin)
-    except FileNotFoundError:
-        # CodeChecker is deliberately kept out of requirements_dev.txt (see
-        # requirements_codechecker.txt), so script/setup won't install it.
-        print(
-            "CodeChecker is not installed in this venv. Activate the venv and install it with:\n"
-            "  pip install -r requirements_codechecker.txt",
-            file=sys.stderr,
-        )
-        return 1
-    except RuntimeError as err:
-        print(f"CodeChecker version check failed: {err}", file=sys.stderr)
         return 1
 
     try:
@@ -494,6 +484,31 @@ def run_codechecker_zephyr(files: list[str], args: argparse.Namespace) -> int:
         return 1
 
     work_dir = Path(temp_folder) / f"zephyr-{args.environment}"
+
+    # After the clang-tidy check so a missing clang-tidy fails before the
+    # (possibly multi-GB) SDK install. CodeChecker comes from the nRF52 Python
+    # environment, where this also installs it if missing.
+    try:
+        codechecker_path = prepare_environment(work_dir)
+    except (EsphomeError, RuntimeError) as err:
+        print(f"Could not prepare the nRF52 environment: {err}", file=sys.stderr)
+        return 1
+    try:
+        executable = _get_codechecker_binary(codechecker_pin, codechecker_path)
+    except FileNotFoundError:
+        # The environment is only rebuilt when its interpreter or requirements
+        # marker is missing, so a lone missing binary needs a manual reset.
+        print(
+            f"CodeChecker not found at {codechecker_path}. "
+            f"Delete {codechecker_path.parent.parent} and re-run to reinstall it.",
+            file=sys.stderr,
+        )
+        return 1
+    except RuntimeError as err:
+        print(f"CodeChecker version check failed: {err}", file=sys.stderr)
+        return 1
+    print(f"Using CodeChecker: {executable}")
+
     platformio_ini = Path(root_path) / "platformio.ini"
 
     from clang_tidy_hash import cache_key, is_cached, update_cache

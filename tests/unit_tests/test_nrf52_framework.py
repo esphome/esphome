@@ -21,6 +21,7 @@ from esphome.components.nrf52.framework import (
     _needs_venv_rebuild,
     check_and_install,
     get_build_env,
+    get_build_paths,
     get_sdk_nrf_tools_path,
     setup_platformio_python_env,
 )
@@ -539,6 +540,19 @@ def test_get_build_env(
     assert "Zephyr-sdk_DIR" not in env
     # The rest of the process environment is inherited
     assert env["SOME_PREEXISTING_VAR"] == "kept"
+
+
+def test_get_build_paths_puts_codechecker_in_the_python_env(
+    nrf52_dirs: SimpleNamespace,
+) -> None:
+    """script/clang-tidy runs CodeChecker from the same venv west runs from."""
+    penv = get_sdk_nrf_tools_path() / "penvs" / f"v{_TEST_SDK_VERSION}"
+
+    paths = get_build_paths()
+
+    assert paths["codechecker_executable"] == get_python_env_executable_path(
+        penv, "CodeChecker"
+    )
 
 
 # ---------------------------------------------------------------------------
