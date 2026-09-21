@@ -1,0 +1,12 @@
+esphome:
+  name: bk-power-save
+
+bk72xx:
+  board: cb2s
+
+wifi:
+  ssid: test
+  password: testtest
+  power_save_mode: high
+
+bk72xx_ble:
