@@ -1,7 +1,6 @@
 import hashlib
 import logging
 from pathlib import Path
-import re
 import shutil
 import subprocess
 import tempfile
@@ -24,7 +23,7 @@ from esphome.const import (
 from esphome.core import CORE, TimePeriodSeconds
 from esphome.types import ConfigType
 
-from .const import KEY_SDK_SOURCE_RESOLVED_REF, KEY_ZEPHYR
+from .const import COMMIT_SHA_RE, KEY_SDK_SOURCE_RESOLVED_REF, KEY_ZEPHYR
 from .variants import ZephyrSDK
 
 _LOGGER = logging.getLogger(__name__)
@@ -49,10 +48,6 @@ def _sdk_source_version_cache_root() -> Path:
 def _manifest_revision_cache_root() -> Path:
     return tools_cache_path(*SDK_ZEPHYR_TOOLS_CACHE) / "manifest_revision_cache"
 
-
-# A fork-pinned boards revision (e.g. Silabs' zephyr-silabs west.yml) is a raw commit
-# SHA, which `git clone --branch` can't resolve.
-_COMMIT_SHA_RE = re.compile(r"^[0-9a-f]{40}$")
 
 _DTS_SPARSE_PATHS = (
     # scripts/dts/python-devicetree/ is the bundled edtlib, needed because the PyPI
@@ -84,7 +79,7 @@ def _git_sparse_fetch(
     A raw SHA is fetched and checked out explicitly, since `git clone --branch` can't
     resolve it.
     """
-    if _COMMIT_SHA_RE.fullmatch(ref):
+    if COMMIT_SHA_RE.fullmatch(ref):
         subprocess.run(
             ["git", "init", str(dest)], check=True, capture_output=True, text=True
         )

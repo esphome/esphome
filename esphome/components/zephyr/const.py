@@ -1,3 +1,4 @@
+import re
 from typing import Final
 
 import esphome.codegen as cg
@@ -50,6 +51,10 @@ KEY_MODULE_OVERRIDES: Final = "module_overrides"
 # install) read this instead of independently re-resolving the moving ref against
 # their own timer, so a single build can't silently mix commits across the three.
 KEY_SDK_SOURCE_RESOLVED_REF: Final = "resolved_ref"
+
+# A raw commit SHA (e.g. a fork-pinned boards revision, or a resolved sdk_source: ref)
+# can't be passed to `git clone --branch` or `west init --mr`.
+COMMIT_SHA_RE: Final = re.compile(r"^[0-9a-f]{40}$")
 
 zephyr_ns = cg.esphome_ns.namespace("zephyr")
 CdcAcm = zephyr_ns.class_("CdcAcm", cg.Component)
