@@ -236,7 +236,14 @@ pub unsafe extern "C" fn esphome_time_init(
         select_max_window_size: 10.0,
         minimum_agreeing_sources: 1,
     };
-    let (controller, id) = match Algorithm::new(clock, ClockConfig::default(), config) {
+    let clock_config = ClockConfig {
+        // Legacy observations have coarse uncertainty and may be minutes apart.
+        // Spread phase correction over ten minutes so millisecond timestamp noise
+        // does not repeatedly exhaust the clock's 200 ppm steering range.
+        slew_time_constant: Duration::from_seconds_nanos(600, 0),
+        ..ClockConfig::default()
+    };
+    let (controller, id) = match Algorithm::new(clock, clock_config, config) {
         Ok(result) => result,
         Err(error) => return error_code(error),
     };

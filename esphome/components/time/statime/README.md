@@ -62,7 +62,11 @@ learn local frequency error and continue steering during holdover. A private
 affine clock model supplies Statime's clock callbacks; steps and repeated
 `adjtime()` corrections publish its time through the existing ESP system clock.
 Consumers do not read a separate public clock. Frequency correction is limited
-to 200 ppm. UTC/TAI conversion currently assumes the 37-second offset in effect
+to 200 ppm. Offset slewing uses a ten-minute time constant: the upstream default
+of eight seconds can exhaust that range with only 1.6 ms of estimated offset.
+The slower phase correction reduces steering driven by noisy legacy timestamps;
+it is not a guarantee that frequency learning completes in ten minutes.
+UTC/TAI conversion currently assumes the 37-second offset in effect
 since 2017; leap announcements and future leap changes are not implemented.
 
 ## Dependency and ABI
@@ -92,7 +96,9 @@ unwinding across C. No historical Statime API compatibility shims are provided.
 The Rust tests include simulated +/-50 ppm drift, learning, six-hour holdover,
 and reacquisition. The host runtime test links the actual C++ bridge to the Rust
 archive and checks both legacy input paths, callbacks, duplicate/ambiguous syncs,
-public system time, holdover and outliers. Its OS clock is simulated: it does not
+public system time, holdover and outliers. Minute-spaced observations with bounded
+20 ms timestamp noise check steering saturation and accuracy in both drift
+directions. Its OS clock is simulated: it does not
 change the host clock or prove real-device accuracy.
 
 Run at the repository root, with Rust 1.98.1 active:

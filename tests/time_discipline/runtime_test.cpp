@@ -62,9 +62,55 @@ class LegacySource : public esphome::time::RealTimeClock {
   void notify() { this->time_sync_callback_.call(); }
 };
 
+// Exercise minute-spaced legacy observations with bounded timestamp noise.
+// This represents uncertain observations, not a simulation of the NTP protocol.
+void test_noisy_observations() {
+  esphome::time::ClockDiscipline discipline(1);
+  LegacySource source;
+  source.set_discipline(&discipline, 0);
+  discipline.set_source_timeout(0, 60000);
+  discipline.setup();
+  source.epoch(reference_us / 1000000);
+  uint32_t random = 1;
+  unsigned saturated = 0;
+  double max_correction = 0;
+  for (unsigned second = 1; second <= 86400; second++) {
+    advance();
+    if (second % 60 == 0) {
+      random = random * 1664525U + 1013904223U;
+      const int64_t noise_us = static_cast<int64_t>(random % 40001) - 20000;
+      const int64_t observed_us = reference_us + noise_us;
+      timeval tv{static_cast<time_t>(observed_us / 1000000), static_cast<suseconds_t>(observed_us % 1000000)};
+      assert(settimeofday(&tv, nullptr) == 0);
+      source.notify();
+    }
+    discipline.update();
+    assert(discipline.get_error() == 0);
+    if (second >= 3600) {
+      const double correction = std::abs(discipline.get_frequency_ppm());
+      max_correction = std::max(max_correction, correction);
+      saturated += correction >= 199.999;
+    }
+  }
+  std::printf("noisy drift=%+.0f ppm correction=%+.3f ppm maximum=%.3f ppm saturated=%u error=%.6f s\n",
+              drift * 1e6, discipline.get_frequency_ppm(), max_correction, saturated,
+              (system_us - reference_us) / 1e6);
+  std::fflush(stdout);
+  assert(discipline.get_observation_count() == 1441);
+  assert(discipline.get_rejected_count() == 0);
+  assert(saturated == 0);
+  assert(std::abs(system_us - reference_us) < 50000);
+  assert(std::abs(discipline.get_frequency_ppm() + drift * 1e6) < 10);
+}
+
 int main(int argc, char **argv) {
-  assert(argc == 2);
+  assert(argc == 2 || argc == 3);
   drift = std::strtod(argv[1], nullptr) * 1e-6;
+  if (argc == 3) {
+    assert(std::strcmp(argv[2], "noisy") == 0);
+    test_noisy_observations();
+    return 0;
+  }
   esphome::time::ClockDiscipline discipline(2);
   LegacySource direct;
   LegacySource external;

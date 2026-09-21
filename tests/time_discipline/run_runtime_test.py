@@ -112,6 +112,7 @@ def main() -> None:
         )
         for drift in ("50", "-50"):
             subprocess.run([str(executable), drift], check=True)
+            subprocess.run([str(executable), drift, "noisy"], check=True)
 
 
 if __name__ == "__main__":
