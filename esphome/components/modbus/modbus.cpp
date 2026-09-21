@@ -1410,15 +1410,30 @@ void ModbusClientDevice::on_custom_response(std::span<const uint8_t> request_pdu
 void ModbusSnifferHub::process_modbus_client_frame(uint8_t address, std::span<const uint8_t> pdu) {
   this->expecting_peer_response_ = address;
   this->request_.set(pdu.data(), pdu.size());
-  this->request_address_ = address;
   this->request_trigger_.trigger(address, this->request_);
 }
 
 void ModbusSnifferHub::process_modbus_server_frame(uint8_t address, std::span<const uint8_t> pdu) {
+  // The armed address IS the retained request's: both come from the same client frame. Read it
+  // before clearing, which must happen on every path out.
+  const uint8_t expected_address = this->expecting_peer_response_;
   this->expecting_peer_response_ = 0;
 
-  if (this->request_.empty() || this->request_address_ != address)
+  if (this->request_.empty()) {
+    ESP_LOGW(TAG, "Response from %" PRIu8 " with no retained request; its register address is unknowable", address);
     return;
+  }
+
+  // Masked, as the client hub does: an exception reply carries the request's code with bit 7 set,
+  // and is that request's response.
+  const uint8_t function_code = pdu[0];
+  const uint8_t expected_function_code = this->request_.data()[0];
+  if (expected_address != address || expected_function_code != (function_code & FUNCTION_CODE_MASK)) {
+    ESP_LOGW(TAG, "Response address %" PRIu8 " <> %" PRIu8 " or function code 0x%X <> 0x%X", address, expected_address,
+             (function_code & FUNCTION_CODE_MASK), expected_function_code);
+    this->request_.init(0);
+    return;
+  }
 
   this->response_trigger_.trigger(address, this->request_, pdu);
   this->request_.init(0);

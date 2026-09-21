@@ -237,6 +237,19 @@ TEST(ModbusSniffer, DropsResponseFromADifferentAddress) {
   EXPECT_TRUE(f.captured.empty());
 }
 
+// A reply whose function code is not the request's is not that request's reply. Compared masked,
+// so the exception case above still pairs.
+TEST(ModbusSniffer, DropsResponseWithMismatchedFunctionCode) {
+  SnifferFixture f;
+  const uint16_t registers[] = {0x0001};
+
+  f.uart.inject_frame(0x0F, read_request(FC_READ_HOLDING, 700, 1));
+  f.uart.inject_frame(0x0F, read_response(FC_READ_INPUT, registers));
+  f.run();
+
+  EXPECT_TRUE(f.captured.empty());
+}
+
 // Documented limitation: address 0 is the broadcast address and is never answered.
 TEST(ModbusSniffer, DoesNotPairAddressZero) {
   SnifferFixture f;

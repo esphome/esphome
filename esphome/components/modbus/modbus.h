@@ -430,8 +430,8 @@ class ModbusSnifferHub final : public ModbusPeerHub {
 
   /// The request awaiting its reply, function code first, as it appeared on the wire. Empty once
   /// consumed. The inline size covers every standard read and single write without allocating.
+  /// Its address is expecting_peer_response_, armed from the same frame.
   SmallInlineBuffer<MODBUS_FRAME_INLINE_SIZE> request_;
-  uint8_t request_address_{0};
 
   Trigger<uint8_t, std::span<const uint8_t>> request_trigger_;
   Trigger<uint8_t, std::span<const uint8_t>, std::span<const uint8_t>> response_trigger_;
