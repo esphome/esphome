@@ -43,6 +43,8 @@ class TFLuna : public i2c::I2CDevice, public PollingComponent {
   void restart();
 
  private:
+  uint8_t version_[3];
+
   uint16_t previous_timestamp_ = 0;
 
   bool read_data_();
@@ -50,6 +52,8 @@ class TFLuna : public i2c::I2CDevice, public PollingComponent {
   void read_data_timeout_();
 
   uint8_t attempt_ = 0;
+
+  std::string get_version_string_();
 };
 
 }  // namespace esphome::tfluna
