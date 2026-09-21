@@ -62,7 +62,7 @@ void GreeClimate::transmit_state() {
     remote_state[5] = 0x40;
 
     if (this->vertical_swing_() == GREE_VDIR_SWING || this->horizontal_swing_() == GREE_HDIR_SWING) {
-      remote_state[0] |= (1 << 6);
+      remote_state[0] |= GREE_SWING_BIT;
     }
   }
 
@@ -76,7 +76,7 @@ void GreeClimate::transmit_state() {
     remote_state[6] = 0x20;  // YAA1FB, FAA1FB1, YB1F2 bits 4..7 always 0010
 
     if (this->vertical_swing_() == GREE_VDIR_SWING) {
-      remote_state[0] |= (1 << 6);  // Enable swing by setting bit 6
+      remote_state[0] |= GREE_SWING_BIT;  // Enable swing by setting bit 6
     } else if (this->vertical_swing_() != GREE_VDIR_AUTO) {
       remote_state[5] = this->vertical_swing_();
     }
@@ -225,7 +225,7 @@ bool GreeClimate::on_receive(remote_base::RemoteReceiveData data) {
   if (!(remote_state[0] & GREE_MODE_ON)) {
     this->mode = climate::CLIMATE_MODE_OFF;
   } else {
-    switch (remote_state[0] & 0x07) {
+    switch (remote_state[0] & GREE_MODE_MASK) {
       case GREE_MODE_AUTO:
         this->mode = climate::CLIMATE_MODE_HEAT_COOL;
         break;
@@ -247,7 +247,7 @@ bool GreeClimate::on_receive(remote_base::RemoteReceiveData data) {
   }
 
   // Bits 4..5 of byte 0 hold the fan speed.
-  switch (remote_state[0] & 0x30) {
+  switch (remote_state[0] & GREE_FAN_SPEED_MASK) {
     case GREE_FAN_AUTO:
       this->fan_mode = climate::CLIMATE_FAN_AUTO;
       break;
@@ -281,8 +281,8 @@ bool GreeClimate::on_receive(remote_base::RemoteReceiveData data) {
   // the horizontal swing position (only transmitted on YAC/YAG). On YAG bit 6
   // is a general "swing active" flag, so a horizontal-only YAG swing reads
   // back as swinging in both directions.
-  bool swing_vertical = remote_state[0] & 0x40;
-  bool swing_horizontal = (remote_state[4] & 0xF0) == (GREE_HDIR_SWING << 4);
+  bool swing_vertical = remote_state[0] & GREE_SWING_BIT;
+  bool swing_horizontal = (remote_state[4] >> 4) == GREE_HDIR_SWING;
   if (swing_vertical && swing_horizontal) {
     this->swing_mode = climate::CLIMATE_SWING_BOTH;
   } else if (swing_vertical) {
@@ -306,7 +306,7 @@ bool GreeClimate::on_receive(remote_base::RemoteReceiveData data) {
   // transmission reflects the state the unit acknowledged.
   if (this->model_ == GREE_YAN || this->model_ == GREE_YAA || this->model_ == GREE_YAC ||
       this->model_ == GREE_YAC1FB9) {
-    this->mode_bits_ = remote_state[2] & 0xF0;
+    this->mode_bits_ = remote_state[2] & GREE_SWITCH_BITS_MASK;
   }
 
   this->publish_state();

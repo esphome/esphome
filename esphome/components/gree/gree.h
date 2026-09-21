@@ -25,6 +25,12 @@ static constexpr uint8_t GREE_FAN_1 = 0x10;
 static constexpr uint8_t GREE_FAN_2 = 0x20;
 static constexpr uint8_t GREE_FAN_3 = 0x30;
 
+// Bit masks for the state frame bytes
+static constexpr uint8_t GREE_MODE_MASK = 0x07;         // byte 0 bits 0..2
+static constexpr uint8_t GREE_FAN_SPEED_MASK = 0x30;    // byte 0 bits 4..5
+static constexpr uint8_t GREE_SWING_BIT = 0x40;         // byte 0 bit 6
+static constexpr uint8_t GREE_SWITCH_BITS_MASK = 0xF0;  // byte 2 bits 4..7 (turbo, light, health, x-fan)
+
 // IR Transmission
 static constexpr uint32_t GREE_IR_FREQUENCY = 38000;
 static constexpr uint32_t GREE_HEADER_MARK = 9000;

@@ -4,6 +4,7 @@ climate:
     id: my_gree_ac
     model: YAN
     transmitter_id: xmitr
+    receiver_id: rcvr
 
 switch:
   - platform: gree
