@@ -356,6 +356,7 @@ enum SerialProxyRequestType : uint32_t {
   SERIAL_PROXY_REQUEST_TYPE_FLUSH = 2,
   SERIAL_PROXY_REQUEST_TYPE_CONFIGURE = 3,
   SERIAL_PROXY_REQUEST_TYPE_SET_MODEM_PINS = 4,
+  SERIAL_PROXY_REQUEST_TYPE_SET_MODE = 5,
 };
 enum SerialProxyStatus : uint32_t {
   SERIAL_PROXY_STATUS_OK = 0,
@@ -365,6 +366,10 @@ enum SerialProxyStatus : uint32_t {
   SERIAL_PROXY_STATUS_NOT_SUPPORTED = 4,
   SERIAL_PROXY_STATUS_PORT_IN_USE = 5,
   SERIAL_PROXY_STATUS_INVALID_ARGUMENT = 6,
+};
+enum SerialProxyMode : uint32_t {
+  SERIAL_PROXY_MODE_RAW = 0,
+  SERIAL_PROXY_MODE_PROTOCOL = 1,
 };
 #endif
 
@@ -1317,6 +1322,12 @@ class ListEntitiesServicesArgument final : public ProtoMessage {
  public:
   StringRef name{};
   enums::ServiceArgType type{};
+#ifdef USE_API_USER_DEFINED_ACTION_METADATA
+  StringRef description{};
+#endif
+#ifdef USE_API_USER_DEFINED_ACTION_METADATA
+  StringRef example{};
+#endif
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const;
   uint32_t calculate_size() const;
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -1328,7 +1339,7 @@ class ListEntitiesServicesArgument final : public ProtoMessage {
 class ListEntitiesServicesResponse final : public ProtoMessage {
  public:
   static constexpr uint16_t MESSAGE_TYPE = 41;
-  static constexpr uint8_t ESTIMATED_SIZE = 50;
+  static constexpr uint8_t ESTIMATED_SIZE = 59;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const LogString *message_name() const override { return LOG_STR("list_entities_services_response"); }
 #endif
@@ -1336,6 +1347,9 @@ class ListEntitiesServicesResponse final : public ProtoMessage {
   uint32_t key{0};
   FixedVector<ListEntitiesServicesArgument> args{};
   enums::SupportsResponseType supports_response{};
+#ifdef USE_API_USER_DEFINED_ACTION_METADATA
+  StringRef description{};
+#endif
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const;
   uint32_t calculate_size() const;
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -1911,11 +1925,10 @@ class MediaPlayerSupportedFormat final : public ProtoMessage {
 class ListEntitiesMediaPlayerResponse final : public InfoResponseProtoMessage {
  public:
   static constexpr uint16_t MESSAGE_TYPE = 63;
-  static constexpr uint8_t ESTIMATED_SIZE = 80;
+  static constexpr uint8_t ESTIMATED_SIZE = 78;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const LogString *message_name() const override { return LOG_STR("list_entities_media_player_response"); }
 #endif
-  bool supports_pause{false};
   std::vector<MediaPlayerSupportedFormat> supported_formats{};
   uint32_t feature_flags{0};
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const;
@@ -3394,6 +3407,22 @@ class SerialProxyRequestResponse final : public ProtoMessage {
 #endif
 
  protected:
+};
+class SerialProxySetModeRequest final : public ProtoDecodableMessage {
+ public:
+  static constexpr uint16_t MESSAGE_TYPE = 152;
+  static constexpr uint8_t ESTIMATED_SIZE = 6;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  const LogString *message_name() const override { return LOG_STR("serial_proxy_set_mode_request"); }
+#endif
+  uint32_t instance{0};
+  enums::SerialProxyMode mode{};
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  const char *dump_to(DumpBuffer &out) const override;
+#endif
+
+ protected:
+  bool decode_varint(uint32_t field_id, proto_varint_value_t value) override;
 };
 #endif
 #ifdef USE_BLUETOOTH_PROXY_CONNECTIONS

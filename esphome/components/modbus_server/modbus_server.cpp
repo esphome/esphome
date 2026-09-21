@@ -269,7 +269,8 @@ void ModbusServer::dump_config() {
                 "    Enabled: %s\n"
                 "    Register Last Address: 0x%02X\n"
                 "    Register Value: %" PRIu16,
-                this->address_, this->server_courtesy_response_.enabled ? "true" : "false",
+                this->address_,
+                this->server_courtesy_response_.enabled ? LOG_STR_LITERAL("true") : LOG_STR_LITERAL("false"),
                 this->server_courtesy_response_.register_last_address, this->server_courtesy_response_.register_value);
 
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
@@ -280,8 +281,9 @@ void ModbusServer::dump_config() {
   }
   ESP_LOGCONFIG(TAG, "server bits");
   for (auto &b : this->server_bits_) {
-    ESP_LOGCONFIG(TAG, "  Address=0x%04X readable=%s writable=%s", b->address, b->read_lambda ? "true" : "false",
-                  b->write_lambda ? "true" : "false");
+    ESP_LOGCONFIG(TAG, "  Address=0x%04X readable=%s writable=%s", b->address,
+                  b->read_lambda ? LOG_STR_LITERAL("true") : LOG_STR_LITERAL("false"),
+                  b->write_lambda ? LOG_STR_LITERAL("true") : LOG_STR_LITERAL("false"));
   }
 #endif
 }

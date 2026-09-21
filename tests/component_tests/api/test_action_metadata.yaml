@@ -1,0 +1,14 @@
+esphome:
+  name: test
+
+esp32:
+  board: esp32dev
+
+wifi:
+  ssid: MySSID
+  password: password1
+
+logger:
+
+packages:
+  api: !include test_action_metadata_common.yaml
