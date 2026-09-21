@@ -101,6 +101,9 @@ class TestableRuntimeImage : public RuntimeImage {
   explicit TestableRuntimeImage(ImageFormat format, image::Transparency transparency = image::TRANSPARENCY_OPAQUE)
       : RuntimeImage(format, image::IMAGE_TYPE_RGB, transparency, nullptr, false, 0, 0) {}
 
+  TestableRuntimeImage(ImageFormat format, image::ImageType type, bool is_big_endian, int fixed_width, int fixed_height)
+      : RuntimeImage(format, type, image::TRANSPARENCY_OPAQUE, nullptr, is_big_endian, fixed_width, fixed_height) {}
+
   ImageDecoder *decoder() { return this->decoder_.get(); }
 };
 
@@ -372,6 +375,42 @@ TEST(RuntimeImageDecoder, JpegDecoderStaysWarmAcrossDecodes) {
   ASSERT_TRUE(decode_all(img, JPEG_GRADIENT, sizeof(JPEG_GRADIENT)));
   EXPECT_EQ(img.decoder(), first);
   EXPECT_EQ(pixel_bytes(img), first_pixels) << "reused decoder must reproduce identical pixels";
+}
+
+TEST(RuntimeImageDecoder, JpegDecodesDirectlyToScaledRgb565InEitherByteOrder) {
+  TestableRuntimeImage rgb(JPEG);
+  TestableRuntimeImage rgb565_little_endian(JPEG, image::IMAGE_TYPE_RGB565, false, 4, 4);
+  TestableRuntimeImage rgb565_big_endian(JPEG, image::IMAGE_TYPE_RGB565, true, 4, 4);
+
+  ASSERT_TRUE(decode_all(rgb, JPEG_GRADIENT, sizeof(JPEG_GRADIENT)));
+  ASSERT_TRUE(decode_all(rgb565_little_endian, JPEG_GRADIENT, sizeof(JPEG_GRADIENT)));
+  ASSERT_TRUE(decode_all(rgb565_big_endian, JPEG_GRADIENT, sizeof(JPEG_GRADIENT)));
+  ASSERT_EQ(rgb.get_width(), 8);
+  ASSERT_EQ(rgb.get_height(), 8);
+  ASSERT_EQ(rgb565_little_endian.get_width(), 4);
+  ASSERT_EQ(rgb565_little_endian.get_height(), 4);
+  ASSERT_EQ(rgb565_big_endian.get_width(), 4);
+  ASSERT_EQ(rgb565_big_endian.get_height(), 4);
+
+  const uint8_t *little = rgb565_little_endian.get_data_start();
+  const uint8_t *big = rgb565_big_endian.get_data_start();
+  for (int y = 0; y < 4; y++) {
+    for (int x = 0; x < 4; x++) {
+      SCOPED_TRACE(::testing::Message() << "pixel (" << x << "," << y << ")");
+      const size_t pos = (x + y * 4) * 2;
+      EXPECT_EQ(little[pos], big[pos + 1]);
+      EXPECT_EQ(little[pos + 1], big[pos]);
+
+      const uint16_t value = little[pos] | (static_cast<uint16_t>(little[pos + 1]) << 8);
+      const uint8_t red = ((value >> 11) << 3) | ((value >> 11) >> 2);
+      const uint8_t green = (((value >> 5) & 0x3F) << 2) | (((value >> 5) & 0x3F) >> 4);
+      const uint8_t blue = ((value & 0x1F) << 3) | ((value & 0x1F) >> 2);
+      const Color expected = rgb.get_pixel(x * 2, y * 2);
+      EXPECT_NEAR(red, expected.r, 7);
+      EXPECT_NEAR(green, expected.g, 3);
+      EXPECT_NEAR(blue, expected.b, 7);
+    }
+  }
 }
 #endif  // USE_RUNTIME_IMAGE_JPEG
 
