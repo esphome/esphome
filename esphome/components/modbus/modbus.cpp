@@ -1408,31 +1408,20 @@ void ModbusClientDevice::on_custom_response(std::span<const uint8_t> request_pdu
 }
 
 void ModbusSnifferHub::process_modbus_client_frame(uint8_t address, std::span<const uint8_t> pdu) {
-  // Arm FIRST, for EVERY request, whatever the function code: this is what tells the parse layer
-  // the next frame is a reply. Without it every response fails to parse as a request and is
-  // discarded.
   this->expecting_peer_response_ = address;
-
-  // Stored whole and undecoded -- what the request means is the automation's business, not this
-  // hub's.
   this->request_.set(pdu.data(), pdu.size());
   this->request_address_ = address;
-
   this->request_trigger_.trigger(address, this->request_);
 }
 
 void ModbusSnifferHub::process_modbus_server_frame(uint8_t address, std::span<const uint8_t> pdu) {
-  // Consume on every path out. Left armed, the next request can parse as a plausible reply --
-  // an 8-byte FC 0x06 write carries its own valid CRC.
   this->expecting_peer_response_ = 0;
 
-  // A reply with no retained request, or from another device: the request half is unknowable, and
-  // without it the response PDU cannot be placed. Happens on the first exchange after a reset.
   if (this->request_.empty() || this->request_address_ != address)
     return;
 
   this->response_trigger_.trigger(address, this->request_, pdu);
-  this->request_.init(0);  // one request yields exactly one response
+  this->request_.init(0);
 }
 
 void ModbusSnifferHub::dump_config() { ESP_LOGCONFIG(TAG, "Modbus Sniffer Hub (passive, never transmits)"); }

@@ -243,11 +243,6 @@ struct ModbusDeviceCommand {
   }
 };
 
-/** Owns the conversation: sends requests, waits for replies to its own frames.
- *
- * Derives from Modbus directly, unlike the other two hubs. A client knows what it sent, so it
- * never needs ModbusPeerHub's machinery for following someone else's exchange.
- */
 class ModbusClientHub : public Modbus {
  public:
   ModbusClientHub() = default;
