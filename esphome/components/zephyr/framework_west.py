@@ -1,3 +1,4 @@
+import configparser
 import hashlib
 import logging
 import os
@@ -18,7 +19,7 @@ from esphome.framework_helpers import (
 )
 from esphome.types import ConfigType
 
-from .const import KEY_SDK_SOURCE_RESOLVED_REF
+from .const import COMMIT_SHA_RE, KEY_SDK_SOURCE_RESOLVED_REF
 from .variants import ZephyrModule, ZephyrSDK
 
 _LOGGER = logging.getLogger(__name__)
@@ -92,6 +93,39 @@ def _effective_requirements(overrides: dict[str, str | None]) -> str:
         override = overrides.get(pkg)
         lines.append(f"{pkg}=={override}" if override else line)
     return "\n".join(lines) + "\n"
+
+
+def _is_commit_sha(rev: str | None) -> bool:
+    return rev is not None and COMMIT_SHA_RE.fullmatch(rev) is not None
+
+
+def _manifest_repo_dir(framework: Path) -> Path:
+    """The manifest repository's directory, as recorded by `west init` in .west/config.
+
+    It is the manifest's own `self: path:` (Zephyr: "zephyr", NCS: "nrf"), else the URL's
+    basename -- not always framework/zephyr.
+    """
+    config = configparser.ConfigParser()
+    config.read(framework / ".west" / "config")
+    return framework / config.get("manifest", "path")
+
+
+def _pin_manifest_repo(manifest_dir: Path, sha: str, label: str) -> None:
+    """Point the manifest repository at `sha`.
+
+    `west init --mr` can't take a commit SHA (it uses `git clone --branch`), and `west
+    update` never alters the manifest repository, so this is done with git before
+    `west update` reads the manifest from it.
+    """
+    _LOGGER.info("Pinning Zephyr manifest repository to %s ...", label)
+    if not run_command_ok(
+        ["git", "fetch", "--depth=1", "--", "origin", sha], cwd=str(manifest_dir)
+    ):
+        raise EsphomeError(f"Can't fetch Zephyr manifest repository ({label})")
+    if not run_command_ok(
+        ["git", "reset", "--hard", "FETCH_HEAD"], cwd=str(manifest_dir)
+    ):
+        raise EsphomeError(f"Can't update Zephyr manifest repository ({label})")
 
 
 def _generate_synthetic_manifest(
@@ -202,12 +236,14 @@ def check_and_install(
     for the write-up this needs once real docs exist (recommend a dedicated directory per
     checkout, not reusing an existing unrelated working tree).
 
-    A git source is pinned to one resolved commit SHA before this function ever runs (see
+    A git source is pinned to one resolved commit SHA before this function runs (see
     dts_fetch.resolve_sdk_source_version(), which stashes it onto source under
-    KEY_SDK_SOURCE_RESOLVED_REF) -- like the official source, pinned to an immutable tag,
-    it never needs an independent re-check here. `local:` is the one case that always
-    re-runs `west update` (cheap/no-op if nothing changed, since the user's checkout can
-    move between builds).
+    KEY_SDK_SOURCE_RESOLVED_REF). The workspace is keyed by ref name, so when a moved ref
+    resolves to a new SHA the manifest repository (or, with modules, the generated
+    manifest) is re-pointed and `west update` re-run in place. `local:` always re-runs
+    `west update` (cheap/no-op if nothing changed, since the user's checkout can move
+    between builds); the official source is pinned to an immutable tag and never
+    refreshes.
 
     Returns (python_bin, framework_path, west_env) where:
       - python_bin      — Python executable inside the managed venv
@@ -297,10 +333,23 @@ def check_and_install(
     sentinel = framework / ".ready"
     needs_init = install_venv or not (framework / ".west").is_dir()
     # local: (a user-edited checkout) can change between builds, so always re-run
-    # `west update` -- cheap/no-op if unchanged. A git source: is pinned to an exact
-    # resolved commit before this function runs (dts_fetch.resolve_sdk_source_version()),
-    # so -- like the official source, pinned to an immutable tag -- it never needs this.
+    # `west update` -- cheap/no-op if unchanged. The official source is pinned to an
+    # immutable tag and never needs this.
     needs_refresh = is_local
+
+    # A git source: is pinned to one commit per run (dts_fetch.resolve_sdk_source_version()),
+    # but the workspace directory is keyed by ref name, so a moved branch must be
+    # re-pointed in place. The commit last fetched is recorded in a marker file.
+    pinned = source is not None and not is_local and _is_commit_sha(manifest_rev)
+    resolved_marker = framework / ".resolved_ref"
+    if (
+        pinned
+        and not needs_init
+        and (
+            not resolved_marker.is_file() or resolved_marker.read_text() != manifest_rev
+        )
+    ):
+        needs_refresh = True
 
     if needs_init:
         if is_local:
@@ -339,11 +388,26 @@ def check_and_install(
             _LOGGER.info("Initializing Zephyr SDK %s (%s) ...", ver_tag, label)
             rmdir(framework, msg=f"Clean up {ver_tag} framework")
             cmd = [str(python_bin), "-m", "west", "init", "-m", manifest_url]
-            if manifest_rev:
-                cmd += ["--mr", manifest_rev]
+            # A pinned SHA can't be a --mr value; init at the source's ref, then pin.
+            init_rev = source.get(CONF_REF) if pinned else manifest_rev
+            if init_rev:
+                cmd += ["--mr", init_rev]
             cmd.append(str(framework))
             if not run_command_ok(cmd):
                 raise EsphomeError(f"Can't initialize Zephyr SDK {ver_tag} ({label})")
+
+    if pinned and (needs_init or needs_refresh):
+        if git_modules:
+            if needs_refresh:  # a fresh init already wrote the manifest with the SHA
+                _generate_synthetic_manifest(
+                    framework,
+                    manifest_url,
+                    manifest_rev,
+                    git_modules,
+                    west_project_name=sdk.west_project_name,
+                )
+        else:
+            _pin_manifest_repo(_manifest_repo_dir(framework), manifest_rev, label)
 
     if needs_init or needs_refresh:
         _LOGGER.info(
@@ -363,7 +427,7 @@ def check_and_install(
         if result.returncode != 0:
             raise EsphomeError(f"Can't update Zephyr SDK {ver_tag} ({label})")
 
-        if needs_init:
+        if needs_init or pinned:
             zephyr_reqs = zephyr_dir / "scripts" / "requirements.txt"
             if zephyr_reqs.exists():
                 _LOGGER.info("Installing Zephyr Python requirements ...")
@@ -378,6 +442,8 @@ def check_and_install(
                 if not run_command_ok(req_cmd):
                     raise EsphomeError("Can't install Zephyr Python requirements")
 
+        if pinned:
+            resolved_marker.write_text(manifest_rev)
         sentinel.touch()
 
     return python_bin, framework, west_env
