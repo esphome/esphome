@@ -23,12 +23,12 @@ from esphome.const import (
     CONF_WHITE,
 )
 from esphome.core import Lambda
-from esphome.cpp_generator import call_lambda
+from esphome.cpp_generator import MockObj, call_lambda
 from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 from esphome.types import ConfigType
 
 from .automation import validate_light_state
-from .types import COLOR_MODES, LightStateRTCState
+from .types import COLOR_MODES, ColorMode, LightStateRTCState
 
 RESTORE_STATE_KEEP = "KEEP"
 RESTORE_STATE_INVERT = "INVERT"
@@ -81,6 +81,43 @@ _MEMBER_ORDER: tuple[str, ...] = tuple(member for _, member in _ALL_STATE_FIELDS
 
 # A pending `s.<member> = <value>;` statement, tagged with the member it writes.
 StateStatement = tuple[str, str]
+
+# The colour mode that provides each colour-related field, used to infer a colour mode
+# when `initial_state:` sets such fields without naming one.
+_FIELD_COLOR_MODES: dict[str, MockObj] = {
+    CONF_BRIGHTNESS: ColorMode.BRIGHTNESS,
+    CONF_COLOR_BRIGHTNESS: ColorMode.RGB,
+    CONF_RED: ColorMode.RGB,
+    CONF_GREEN: ColorMode.RGB,
+    CONF_BLUE: ColorMode.RGB,
+    CONF_WHITE: ColorMode.WHITE,
+    CONF_COLOR_TEMPERATURE: ColorMode.COLOR_TEMPERATURE,
+    CONF_COLD_WHITE: ColorMode.COLD_WARM_WHITE,
+    CONF_WARM_WHITE: ColorMode.COLD_WARM_WHITE,
+}
+
+
+def _inferred_color_mode(initial_state_config: ConfigType | None) -> str | None:
+    """A C++ expression for the capabilities needed by the colour fields `initial_state:`
+    sets, or None if `color_mode:` is given or no colour field is set.
+
+    Colour modes are bitmasks of capabilities, so the result is a bare capability set,
+    not necessarily a real mode; LightState::setup() resolves it to a mode the light
+    actually supports.
+    """
+    if not initial_state_config or CONF_COLOR_MODE in initial_state_config:
+        return None
+    modes = {
+        str(mode)
+        for conf_key, mode in _FIELD_COLOR_MODES.items()
+        if initial_state_config.get(conf_key) is not None
+    }
+    if not modes:
+        return None
+    if len(modes) == 1:
+        return modes.pop()
+    mask = " | ".join(f"static_cast<uint8_t>({mode})" for mode in sorted(modes))
+    return f"static_cast<{ColorMode}>({mask})"
 
 
 def _partition_state_statements(
@@ -183,6 +220,8 @@ async def _initial_state_statements(
         statements.append(
             (member, f"s.{member} = {await _process_value(value, member)};")
         )
+    if (inferred := _inferred_color_mode(initial_state_config)) is not None:
+        statements.append(("color_mode", f"s.color_mode = {inferred};"))
     return statements
 
 
@@ -197,6 +236,10 @@ async def _resolve_initial_value(
         and (value := initial_state_config.get(conf_key)) is not None
     ):
         return await _process_value(value, member)
+    if conf_key == CONF_COLOR_MODE and (
+        inferred := _inferred_color_mode(initial_state_config)
+    ):
+        return inferred
     return f"LightStateRTCState{{}}.{member}"
 
 

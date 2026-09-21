@@ -23,11 +23,13 @@ from esphome.components.light.restore_state import (
     RESTORE_STATE_SCHEMA,
     StateStatement,
     _initial_state_overridden_by_legacy_mode,
+    _initial_state_statements,
     _legacy_cold_boot_statements,
     _partition_state_statements,
     _restore_state_statements,
     _validate_restore_state_state,
 )
+from esphome.components.light.types import ColorMode
 import esphome.config_validation as cv
 from esphome.const import CONF_STATE
 from esphome.core import Lambda
@@ -467,3 +469,48 @@ async def test_restore_state_initial_resolves_templated_non_boolean_field() -> N
         restore_state_config, initial_state_config
     )
     assert statements == [("brightness", "s.brightness = static_cast<float>(0.75);")]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("initial_state_config", "expected"),
+    [
+        ({CONF_STATE: True}, None),
+        ({"red": 0.3}, "light::ColorMode::RGB"),
+        ({"red": 0.3, "green": 0.0, "color_brightness": 0.5}, "light::ColorMode::RGB"),
+        ({"brightness": 0.5}, "light::ColorMode::BRIGHTNESS"),
+        ({"white": 0.5}, "light::ColorMode::WHITE"),
+        ({"cold_white": 0.5, "warm_white": 0.5}, "light::ColorMode::COLD_WARM_WHITE"),
+        (
+            {"red": 0.3, "white": 0.5},
+            (
+                "static_cast<light::ColorMode>(static_cast<uint8_t>(light::ColorMode::RGB)"
+                " | static_cast<uint8_t>(light::ColorMode::WHITE))"
+            ),
+        ),
+        ({"red": Lambda("return 0.3;")}, "light::ColorMode::RGB"),
+    ],
+)
+async def test_initial_state_infers_color_mode_from_colour_fields(
+    initial_state_config: dict, expected: str | None
+) -> None:
+    statements = dict(await _initial_state_statements(initial_state_config))
+    if expected is None:
+        assert "color_mode" not in statements
+    else:
+        assert statements["color_mode"] == f"s.color_mode = {expected};"
+
+
+@pytest.mark.asyncio
+async def test_initial_state_explicit_color_mode_is_not_inferred() -> None:
+    statements = dict(
+        await _initial_state_statements({"color_mode": ColorMode.RGB, "red": 0.3})
+    )
+    assert statements["color_mode"] == "s.color_mode = light::ColorMode::RGB;"
+
+
+@pytest.mark.asyncio
+async def test_restore_state_initial_color_mode_uses_inferred_mode() -> None:
+    restore_state_config = RESTORE_STATE_SCHEMA({"color_mode": "initial"})
+    statements = await _restore_state_statements(restore_state_config, {"red": 0.3})
+    assert statements == [("color_mode", "s.color_mode = light::ColorMode::RGB;")]

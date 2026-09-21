@@ -7,6 +7,21 @@ logger:
 
 output:
   - platform: template
+    id: test_inferred_red
+    type: float
+    write_action:
+      - lambda: ""
+  - platform: template
+    id: test_inferred_green
+    type: float
+    write_action:
+      - lambda: ""
+  - platform: template
+    id: test_inferred_blue
+    type: float
+    write_action:
+      - lambda: ""
+  - platform: template
     id: test_red
     type: float
     write_action:
@@ -72,3 +87,17 @@ light:
       color_mode: BRIGHTNESS
       state: true
       brightness: 60%
+
+  # No color_mode: it must be inferred from the colour fields, not left unknown (which
+  # would drop the colours and leave the light full white).
+  - platform: rgb
+    name: "Test Inferred Color Mode Light"
+    id: test_inferred_color_mode_light
+    red: test_inferred_red
+    green: test_inferred_green
+    blue: test_inferred_blue
+    initial_state:
+      state: true
+      red: 30%
+      green: 0%
+      blue: 0%

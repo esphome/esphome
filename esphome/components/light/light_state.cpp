@@ -10,6 +10,20 @@ namespace esphome::light {
 
 static const char *const TAG = "light";
 
+// Colour modes are bitmasks of capabilities. A mode the light doesn't support may be a bare set of
+// required capabilities (see restore_state.py's colour mode inference): use the first supported
+// mode that provides all of them, or leave it unchanged if there is none.
+static ColorMode resolve_color_mode(const LightTraits &traits, ColorMode requested) {
+  if (requested == ColorMode::UNKNOWN || traits.supports_color_mode(requested))
+    return requested;
+  auto wanted = static_cast<uint8_t>(requested);
+  for (ColorMode mode : traits.get_supported_color_modes()) {
+    if ((static_cast<uint8_t>(mode) & wanted) == wanted)
+      return mode;
+  }
+  return requested;
+}
+
 LightState::LightState(LightOutput *output) : output_(output) {}
 
 LightTraits LightState::get_traits() { return this->output_->get_traits(); }
@@ -55,7 +69,7 @@ void LightState::setup() {
     recovered.brightness = 1.0f;
   }
 
-  call.set_color_mode_if_supported(recovered.color_mode);
+  call.set_color_mode_if_supported(resolve_color_mode(traits, recovered.color_mode));
   call.set_state(recovered.state);
   call.set_brightness_if_supported(recovered.brightness);
   call.set_color_brightness_if_supported(recovered.color_brightness);

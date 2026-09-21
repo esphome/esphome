@@ -51,3 +51,13 @@ async def test_light_initial_state(
         no_restore_key_state = helper.initial_states[no_restore_key_light.key]
         assert no_restore_key_state.state is True
         assert no_restore_key_state.brightness == pytest.approx(0.6, abs=0.01)
+
+        # color_mode omitted: inferred from the colour fields, so they are applied (the
+        # light comes up red rather than the default white). RGB values are normalised to
+        # proportions, so 30% red on its own is pure red.
+        inferred_light = require_entity(entities, "test_inferred_color_mode_light")
+        inferred_state = helper.initial_states[inferred_light.key]
+        assert inferred_state.state is True
+        assert inferred_state.red == pytest.approx(1.0, abs=0.01)
+        assert inferred_state.green == pytest.approx(0.0, abs=0.01)
+        assert inferred_state.blue == pytest.approx(0.0, abs=0.01)
