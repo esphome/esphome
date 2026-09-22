@@ -1,5 +1,5 @@
 #include "ota_esphome.h"
-#ifdef USE_OTA_ENCRYPTION_FROM_API
+#ifdef USE_OTA_ENCRYPTION_PROVISIONED
 #include "esphome/components/api/api_server.h"
 #endif
 #ifdef USE_OTA
@@ -32,11 +32,13 @@ static const char *const TAG = "esphome.ota";
 
 #ifdef USE_OTA_ENCRYPTION
 const noise::NoiseContext &ESPHomeOTAComponent::noise_context_() const {
-#ifdef USE_OTA_ENCRYPTION_FROM_API
-  return api::global_api_server->get_noise_ctx();
-#else
-  return this->noise_ctx_;
+#ifdef USE_OTA_ENCRYPTION_PROVISIONED
+  // The api server holds the live key; safe mode never constructs it, and then
+  // noise_ctx_ holds the saved key setup() found, if any
+  if (api::global_api_server != nullptr)
+    return api::global_api_server->get_noise_ctx();
 #endif
+  return this->noise_ctx_;
 }
 #endif
 static constexpr uint16_t OTA_BLOCK_SIZE = 8192;
@@ -58,6 +60,16 @@ extern "C" void esphome_wake_ota_component_any_context() {
 }
 
 void ESPHomeOTAComponent::setup() {
+#ifdef USE_OTA_ENCRYPTION_PROVISIONED
+  // Safe mode never constructs the api server, so read the key it saved
+  noise::psk_t psk;
+  if (api::global_api_server == nullptr && api::load_saved_noise_psk(psk)) {
+    this->saved_psk_ = RAMAllocator<noise::psk_t>().make_unique(psk);
+    if (this->saved_psk_ != nullptr) {
+      this->noise_ctx_.set_psk(this->saved_psk_->data());
+    }
+  }
+#endif
   this->server_ = socket::socket_ip_loop_monitored(SOCK_STREAM, 0).release();  // monitored for incoming connections
   if (this->server_ == nullptr) {
     this->server_failed_(LOG_STR("creation"));
@@ -842,7 +854,14 @@ bool ESPHomeOTAComponent::handle_auth_send_() {
     const size_t hex_size = hasher.get_size() * 2;
     const size_t nonce_len = hasher.get_size() / 4;
     const size_t auth_buf_size = 1 + 3 * hex_size;
-    this->auth_buf_ = std::make_unique<uint8_t[]>(auth_buf_size);
+    // Internal RAM first: 128 of these bytes go straight into the hardware SHA engine
+    this->auth_buf_ =
+        RAMAllocator<uint8_t>(RAMAllocator<uint8_t>::PREFER_INTERNAL).make_unique_array_for_overwrite(auth_buf_size);
+    if (!this->auth_buf_) {
+      this->log_auth_warning_(LOG_STR("No memory"));
+      this->send_error_and_cleanup_(ota::OTA_RESPONSE_ERROR_UNKNOWN);
+      return false;
+    }
     this->auth_buf_pos_ = 0;
 
     char *buf = reinterpret_cast<char *>(this->auth_buf_.get() + 1);

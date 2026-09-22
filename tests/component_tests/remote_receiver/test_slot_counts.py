@@ -1,13 +1,16 @@
 """Listener and dumper StaticVector sizes come from codegen slot counts."""
 
-from collections.abc import Callable
+from collections.abc import Callable, Generator
 from pathlib import Path
+import sys
 
 import pytest
 
+from esphome import loader
 from esphome.automation import ACTION_REGISTRY
 from esphome.components import remote_base
 import esphome.config_validation as cv
+from esphome.core import CORE
 
 from ..helpers import get_define_value
 
@@ -27,7 +30,9 @@ def test_bare_receiver_emits_no_counts(
     generate_main: Callable[[str | Path], str],
     component_config_path: Callable[[str], Path],
 ) -> None:
-    generate_main(component_config_path("receiver_bare.yaml"))
+    main_cpp = generate_main(component_config_path("receiver_bare.yaml"))
+    # the RMT ring is sized in setup() unless buffer_size is set
+    assert "set_buffer_size" not in main_cpp
     assert get_define_value("REMOTE_BASE_DUMPER_COUNT") is None
     assert get_define_value("REMOTE_BASE_LISTENER_COUNT") is None
 
@@ -70,6 +75,47 @@ def test_every_registry_name_maps_to_a_protocol_source() -> None:
     assert len(names) > 40
     for name in names:
         assert remote_base._protocol_stem(name) in remote_base._PROTOCOL_STEMS, name
+
+
+@pytest.fixture
+def restore_protocol_registries() -> Generator[None]:
+    """Loading an external protocol component adds to module-level registries; undo that.
+
+    The loader caches the component too, so drop it or a second load would skip the
+    decorators and leave the restored registries without the external names.
+    """
+    registries = (
+        remote_base.BINARY_SENSOR_REGISTRY,
+        remote_base.TRIGGER_REGISTRY,
+        remote_base.DUMPER_REGISTRY,
+        ACTION_REGISTRY,
+    )
+    saved = [dict(registry) for registry in registries]
+    yield
+    for registry, entries in zip(registries, saved, strict=True):
+        registry.clear()
+        registry.update(entries)
+    loader._COMPONENT_CACHE.pop("fake_protocol", None)
+    sys.modules.pop("esphome.components.fake_protocol", None)
+
+
+@pytest.mark.usefixtures("restore_protocol_registries")
+def test_external_protocols_register_without_a_remote_base_source(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """An external protocol goes through all four decorators without a source file here, so no define is emitted."""
+    main_cpp = generate_main(
+        component_config_path("receiver_with_external_protocol.yaml")
+    )
+    defines = {define.name for define in CORE.defines}
+    assert "USE_REMOTE_PROTOCOL_NEC" in defines
+    assert "USE_REMOTE_PROTOCOL_FAKE" not in defines
+    for cls in ("FakeBinarySensor", "FakeTrigger", "FakeDumper", "FakeAction"):
+        assert f"fake_protocol::{cls}" in main_cpp, cls
+    # fake and nec dumpers; on_fake and on_nec triggers plus the fake binary sensor
+    assert get_define_value("REMOTE_BASE_DUMPER_COUNT") == "2"
+    assert get_define_value("REMOTE_BASE_LISTENER_COUNT") == "3"
 
 
 def test_request_protocol_rejects_unknown_names() -> None:
