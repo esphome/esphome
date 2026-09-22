@@ -254,15 +254,23 @@ def _apply_template(
     apply_field: ApplyField | ApplyCall,
 ) -> tuple[str, tuple[_ApplyMember, ...]]:
     if isinstance(apply_field, ApplyCall):
-        return apply_field.target, tuple(
+        target = apply_field.target
+        members: tuple[_ApplyMember, ...] = tuple(
             (key, type_, None) for key, type_ in apply_field.args
         )
-    target = (
-        apply_field.target
-        if "{}" in apply_field.target
-        else f"{apply_field.target}({{}})"
-    )
-    return target, ((apply_field.conf_key, apply_field.type_, apply_field.const_fn),)
+    else:
+        target = (
+            apply_field.target
+            if "{}" in apply_field.target
+            else f"{apply_field.target}({{}})"
+        )
+        members = ((apply_field.conf_key, apply_field.type_, apply_field.const_fn),)
+    if target.count("{}") != len(members):
+        raise ValueError(
+            f"apply target {target!r} has {target.count('{}')} placeholder(s) "
+            f"for {len(members)} config key(s)"
+        )
+    return target, members
 
 
 def _config_lookup(config: ConfigType, key: str | tuple[str, ...]) -> Any:

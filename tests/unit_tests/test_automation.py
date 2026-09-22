@@ -756,3 +756,25 @@ async def test_apply_field_nested_key_and_const_fn(
     mock_cg.new_pvariable.reset_mock()
     await _run_apply_action(registries, fields, {"vertical": {}})
     assert "set_" not in _apply_lambda(mock_cg)
+
+
+def test_apply_target_placeholder_count_is_checked(
+    registries: tuple[Registry, Registry],
+) -> None:
+    with pytest.raises(ValueError, match="2 placeholder"):
+        register_apply_action(
+            "my.apply", {}, ApplyCall("set_range({}, {})", (("low", cg.float_),))
+        )
+
+
+@pytest.mark.asyncio
+async def test_apply_field_lambda_with_trailing_statements_is_called_not_reduced(
+    registries: tuple[Registry, Registry], mock_cg: MockCodegen
+) -> None:
+    fields = (ApplyField("kp", "set_kp", cg.float_),)
+    await _run_apply_action(
+        registries, fields, {"kp": Lambda('return 1.0f;\nESP_LOGD("x", "no");')}
+    )
+    text = _apply_lambda(mock_cg)
+    assert "static_cast" not in text
+    assert f"{PARENT_OBJ}->set_kp([]() -> float {{" in text
