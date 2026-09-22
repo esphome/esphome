@@ -462,8 +462,8 @@ file does, and it is the authority when they disagree. The most useful starting 
         spelling. `ApplyCall("set_range({}, {})", ((CONF_LOW, cg.float_), (CONF_HIGH, cg.float_)))` folds
         several keys into one statement emitted only when every key is present, and
         `ApplyCall("publish_state()")` with no args is an unconditional follow-up call. Actions that build
-        a call object pass `call="make_call"`; the statements then target `call` and end with
-        `call.perform()`. See `cover.control` and `cover.template.publish`. `TEMPLATABLE_VALUE` with
+        a call object pass `call="make_call"`; every statement, follow-up calls included, then targets
+        `call`, and `call.perform()` is appended last. See `cover.control` and `cover.template.publish`. `TEMPLATABLE_VALUE` with
         `cg.templatable` stays for actions whose `play()` has real logic beyond forwarding values.
 
     *   **Conditions:**

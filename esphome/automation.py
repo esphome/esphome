@@ -219,10 +219,12 @@ class ApplyField:
 
     ``conf_key`` is the YAML key, or a key path into nested sections. ``target``
     is a setter name (``"set_kp"``) or, when it contains ``{}``, a statement
-    template such as ``"position = {}"``. ``type_`` is the C++ type a user
-    lambda must return. ``const_fn`` renders a constant into argument text from
-    the action config and the value when ``cg.safe_exp`` is not the right
-    spelling. An absent key emits nothing.
+    template such as ``"position = {}"``; a literal brace in a template is
+    doubled. ``type_`` is the C++ type a user lambda must return. ``const_fn``
+    renders a constant into argument text from the action config and the value
+    when ``cg.safe_exp`` is not the right spelling; a lambda value bypasses it,
+    so the target must also accept a plain ``type_`` argument. An absent key
+    emits nothing.
     """
 
     conf_key: str | tuple[str, ...]
@@ -237,12 +239,14 @@ class ApplyCall:
 
     ``args`` pairs each placeholder with ``(conf_key, type_)``. Emitted only when
     every key is present so a setter that validates its arguments as a pair
-    always sees both; with no args it is emitted unconditionally, which is how a
-    follow-up call such as ``ApplyCall("publish_state()")`` is expressed.
+    always sees both; make the keys required or ``cv.Inclusive`` so a partial
+    set is rejected at validation instead of dropped here. With no args it is
+    emitted unconditionally, which is how a follow-up call such as
+    ``ApplyCall("publish_state()")`` is expressed.
     """
 
     target: str
-    args: tuple[tuple[str, SafeExpType], ...] = ()
+    args: tuple[tuple[str | tuple[str, ...], SafeExpType], ...] = ()
 
 
 _ApplyMember = tuple[
@@ -293,8 +297,9 @@ def register_apply_action(
     No C++ class is written: the action is the core ``ApplyAction<Ts...>`` holding one
     stateless function generated from ``fields``, in order. The parent named by
     ``CONF_ID`` and every constant are baked into that function; user lambdas are
-    called inline with the trigger args. With ``call`` the statements target
-    ``auto call = parent->call()`` and end with ``call.perform()``.
+    called inline with the trigger args. With ``call`` every statement, follow-up
+    calls included, targets ``auto call = parent->call()``, and ``call.perform()``
+    is appended last.
     """
     templates = tuple(_apply_template(apply_field) for apply_field in fields)
 
