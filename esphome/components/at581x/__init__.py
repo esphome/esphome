@@ -181,11 +181,11 @@ async def at581x_settings_to_code(
     await cg.register_parented(var, config[CONF_ID])
 
     # Radar configuration
-    if frontend_reset := config.get(CONF_HW_FRONTEND_RESET):
+    if (frontend_reset := config.get(CONF_HW_FRONTEND_RESET)) is not None:
         template_ = await cg.templatable(frontend_reset, args, cg.int8)
         cg.add(var.set_hw_frontend_reset(template_))
 
-    if freq := config.get(CONF_FREQUENCY):
+    if (freq := config.get(CONF_FREQUENCY)) is not None:
         if not cg.is_template(freq):
             freq = int(freq / 1000000)
         template_ = await cg.templatable(freq, args, cg.int_)
@@ -195,19 +195,19 @@ async def at581x_settings_to_code(
         template_ = await cg.templatable(sens_dist, args, cg.int_)
         cg.add(var.set_sensing_distance(template_))
 
-    if selfcheck := config.get(CONF_POWERON_SELFCHECK_TIME):
+    if (selfcheck := config.get(CONF_POWERON_SELFCHECK_TIME)) is not None:
         template_ = await cg.templatable(selfcheck, args, cg.int_)
         cg.add(var.set_poweron_selfcheck_time(template_))
 
-    if protect := config.get(CONF_PROTECT_TIME):
+    if (protect := config.get(CONF_PROTECT_TIME)) is not None:
         template_ = await cg.templatable(protect, args, cg.int_)
         cg.add(var.set_protect_time(template_))
 
-    if trig_base := config.get(CONF_TRIGGER_BASE):
+    if (trig_base := config.get(CONF_TRIGGER_BASE)) is not None:
         template_ = await cg.templatable(trig_base, args, cg.int_)
         cg.add(var.set_trigger_base(template_))
 
-    if trig_keep := config.get(CONF_TRIGGER_KEEP):
+    if (trig_keep := config.get(CONF_TRIGGER_KEEP)) is not None:
         template_ = await cg.templatable(trig_keep, args, cg.int_)
         cg.add(var.set_trigger_keep(template_))
 
@@ -215,7 +215,7 @@ async def at581x_settings_to_code(
         template_ = await cg.templatable(stage_gain, args, cg.int_)
         cg.add(var.set_stage_gain(template_))
 
-    if power := config.get(CONF_POWER_CONSUMPTION):
+    if (power := config.get(CONF_POWER_CONSUMPTION)) is not None:
         if not cg.is_template(power):
             power = int(power * 1000000)
         template_ = await cg.templatable(power, args, cg.int_)
