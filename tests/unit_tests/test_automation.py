@@ -730,3 +730,28 @@ async def test_apply_action_call_shape(
     ]
     positions = [text.index(line) for line in lines]
     assert positions == sorted(positions)
+
+
+@pytest.mark.asyncio
+async def test_apply_field_nested_key_and_const_fn(
+    registries: tuple[Registry, Registry], mock_cg: MockCodegen
+) -> None:
+    fields = (
+        ApplyField(("vertical", "direction"), "set_direction", cg.int_),
+        ApplyField(
+            "name",
+            "set_name",
+            cg.std_string,
+            const_fn=lambda config, value: f"{cg.safe_exp(value)}, {len(value)}",
+        ),
+    )
+    await _run_apply_action(
+        registries, fields, {"vertical": {"direction": 3}, "name": "abc"}
+    )
+    text = _apply_lambda(mock_cg)
+    assert f"{PARENT_OBJ}->set_direction(3);" in text
+    assert f'{PARENT_OBJ}->set_name("abc", 3);' in text
+
+    mock_cg.new_pvariable.reset_mock()
+    await _run_apply_action(registries, fields, {"vertical": {}})
+    assert "set_" not in _apply_lambda(mock_cg)

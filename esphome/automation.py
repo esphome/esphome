@@ -1,6 +1,7 @@
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 import logging
+from typing import Any
 
 import esphome.codegen as cg
 import esphome.config_validation as cv
@@ -216,14 +217,18 @@ ApplyAction = cg.esphome_ns.class_("ApplyAction", Action)
 class ApplyField:
     """One config key forwarded to one statement on the receiver.
 
-    ``target`` is a setter name (``"set_kp"``) or, when it contains ``{}``, a
-    statement template such as ``"position = {}"``. ``type_`` is the C++ type a
-    user lambda must return. An absent key emits nothing.
+    ``conf_key`` is the YAML key, or a key path into nested sections. ``target``
+    is a setter name (``"set_kp"``) or, when it contains ``{}``, a statement
+    template such as ``"position = {}"``. ``type_`` is the C++ type a user
+    lambda must return. ``const_fn`` renders a constant into argument text from
+    the action config and the value when ``cg.safe_exp`` is not the right
+    spelling. An absent key emits nothing.
     """
 
-    conf_key: str
+    conf_key: str | tuple[str, ...]
     target: str
     type_: SafeExpType
+    const_fn: Callable[[ConfigType, Any], str] | None = None
 
 
 @dataclass(frozen=True)
@@ -239,17 +244,33 @@ class ApplyCall:
     args: tuple[tuple[str, SafeExpType], ...]
 
 
+_ApplyMember = tuple[
+    str | tuple[str, ...], SafeExpType, Callable[[ConfigType, Any], str] | None
+]
+
+
 def _apply_template(
     apply_field: ApplyField | ApplyCall,
-) -> tuple[str, tuple[tuple[str, SafeExpType], ...]]:
+) -> tuple[str, tuple[_ApplyMember, ...]]:
     if isinstance(apply_field, ApplyCall):
-        return apply_field.target, apply_field.args
+        return apply_field.target, tuple(
+            (key, type_, None) for key, type_ in apply_field.args
+        )
     target = (
         apply_field.target
         if "{}" in apply_field.target
         else f"{apply_field.target}({{}})"
     )
-    return target, ((apply_field.conf_key, apply_field.type_),)
+    return target, ((apply_field.conf_key, apply_field.type_, apply_field.const_fn),)
+
+
+def _config_lookup(config: ConfigType, key: str | tuple[str, ...]) -> Any:
+    if isinstance(key, str):
+        return config.get(key)
+    for part in key:
+        if (config := config.get(part)) is None:
+            return None
+    return config
 
 
 def register_apply_action(
@@ -288,15 +309,18 @@ def register_apply_action(
         statements = [f"auto call = {parent}->{call}();"] if call else []
         for target, members in templates:
             exprs: list[str] = []
-            for conf_key, type_ in members:
-                if (value := config.get(conf_key)) is None:
+            for conf_key, type_, const_fn in members:
+                if (value := _config_lookup(config, conf_key)) is None:
                     break
                 if isinstance(value, Lambda):
                     inner = await cg.process_lambda(
                         value, lambda_args, return_type=type_
                     )
-                    value = call_lambda(inner)
-                exprs.append(str(cg.safe_exp(value)))
+                    exprs.append(str(cg.safe_exp(call_lambda(inner))))
+                elif const_fn is not None:
+                    exprs.append(const_fn(config, value))
+                else:
+                    exprs.append(str(cg.safe_exp(value)))
             else:
                 statements.append(f"{receiver}{target.format(*exprs)};")
         statements.extend(f"{receiver}{line};" for line in epilogue)
