@@ -15,4 +15,4 @@ esphome:
   libraries: !include {file: includes/list.yaml, vars: {var1: Wire}}
 
 esp8266:
-  board: !include {file: includes/scalar.yaml, vars: {var1: nodemcu}}
+  board: !include {file: includes/scalar.yaml, vars: {var1: nodemcu}, condition: true}

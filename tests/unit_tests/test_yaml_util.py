@@ -54,6 +54,24 @@ def test_include_with_vars(fixture_path: Path) -> None:
     assert actual["wifi"]["ssid"] == "my_custom_ssid"
 
 
+def test_include_with_no_file(fixture_path: Path) -> None:
+    """Ensure that an error is emitted when the file field is missing."""
+    yaml_file = fixture_path / "yaml_util" / "includetest_no_file.yaml"
+
+    with pytest.raises(EsphomeError, match=r"Must include 'file'"):
+        yaml_util.load_yaml(yaml_file)
+
+
+def test_include_with_invalid_condition_type(fixture_path: Path) -> None:
+    """Ensure that an error is emitted when the condition field is an invalid type."""
+    yaml_file = fixture_path / "yaml_util" / "includetest_invalid_condition_type.yaml"
+
+    with pytest.raises(
+        EsphomeError, match=r"Include 'condition' must be a boolean or string"
+    ):
+        yaml_util.load_yaml(yaml_file)
+
+
 def test_loading_a_missing_file(fixture_path):
     """We throw EsphomeError when loading a missing file."""
     yaml_file = fixture_path / "yaml_util" / "missing.yaml"
