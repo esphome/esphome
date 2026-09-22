@@ -1,0 +1,11 @@
+mipi_csi:
+  name: MIPI CSI Camera
+  sensor: OV5647
+  # resolution is optional; without it the sensor keeps its own default format.
+  pixel_format: YUV422
+  framerate: 15 fps
+  sccb_frequency: 400kHz
+  reset_pin: GPIO21
+  external_clock:
+    pin: GPIO20
+    frequency: 24MHz
