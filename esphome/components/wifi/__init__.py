@@ -11,8 +11,8 @@ from esphome.components.esp32 import (
     const,
     get_esp32_variant,
     only_on_variant,
-    request_tls,
     request_wifi,
+    require_mbedtls_tls,
     require_mbedtls_tls_extras,
 )
 from esphome.components.network import (
@@ -675,8 +675,9 @@ async def to_code(config):
         add_idf_sdkconfig_option("CONFIG_ESP_WIFI_ENTERPRISE_SUPPORT", has_eap)
         if has_eap:
             # The supplicant's Kconfig select cannot override the IDF 5 TLS
-            # role choice; the EAP client also needs every trimmed extra.
-            request_tls()
+            # role choice; the EAP client talks to mbedTLS directly (no
+            # esp-tls) and needs every trimmed extra.
+            require_mbedtls_tls()
             require_mbedtls_tls_extras()
 
     # Only define USE_WIFI_MANUAL_IP if any AP uses manual IP

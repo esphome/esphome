@@ -781,6 +781,7 @@ class MbedtlsSdkconfigData:
     """
 
     ecp_required: bool = False  # ECDH/ECDSA without TLS (openthread SRP host key)
+    tls_required: bool = False  # mbedTLS TLS role needed without the esp-tls wrapper
     tls_server_required: bool = False  # server-side TLS/DTLS handshake
     tls_extras_required: set[str] = field(default_factory=set)  # kept TLS extras
     peer_cert_required: bool = False  # keep the peer certificate after the handshake
@@ -814,13 +815,14 @@ _ESP_TLS_LINKING_COMPONENTS = (
 
 
 def _mbedtls_tls_required() -> bool:
-    """TLS stays in the build: an esp_tls-linking component was re-included.
+    """TLS stays in the build: requested, or an esp_tls-linking component was re-included.
 
-    request_tls() funnels into this signal too, and it keeps external
-    components working whose only obligation before request_tls() existed was
-    include_builtin_idf_component() of esp-tls or of a component that links
-    it (esp_http_client, IDF mqtt).
+    The exclusion-set signal keeps external components working whose only
+    obligation before request_tls() existed was include_builtin_idf_component()
+    of esp-tls or of a component that links it (esp_http_client, IDF mqtt).
     """
+    if _mbedtls_sdkconfig().tls_required:
+        return True
     excluded = CORE.data[KEY_ESP32][KEY_EXCLUDE_COMPONENTS]
     return any(name not in excluded for name in _ESP_TLS_LINKING_COMPONENTS)
 
@@ -834,13 +836,22 @@ def _mbedtls_tls_compiled_out() -> bool:
     )
 
 
+def require_mbedtls_tls() -> None:
+    """Keep the mbedTLS TLS stack without compiling the esp-tls wrapper.
+
+    For code that talks to mbedTLS directly (wpa_supplicant's EAP client).
+    Components that use esp_tls call request_tls() instead.
+    """
+    _mbedtls_sdkconfig().tls_required = True
+
+
 def request_tls() -> None:
     """Request the mbedTLS TLS stack and the esp-tls wrapper.
 
     Without a request TLS and its ECP/PEM-write/CRL/CSR crypto compile out;
-    hashes, AES and RSA stay available. Re-including esp-tls is itself the
-    request signal the reconciler reads.
+    hashes, AES and RSA stay available.
     """
+    require_mbedtls_tls()
     include_builtin_idf_component("esp-tls")
 
 
@@ -2547,8 +2558,9 @@ async def _reconcile_mbedtls_sdkconfig() -> None:
         # Enterprise WiFi selects TLS back on; wifi writes this itself, but
         # esp_wifi can also be in the build without a wifi: block (openthread).
         set_idf_sdkconfig_default("CONFIG_ESP_WIFI_ENTERPRISE_SUPPORT", False)
-        # WiFi (ESP_WIFI_MBEDTLS_CRYPTO), Bluetooth and signed apps
-        # (SECURE_SIGNED_APPS) select ECP back on through Kconfig.
+        # WiFi (ESP_WIFI_MBEDTLS_CRYPTO) and Bluetooth deliberately stay on
+        # the select-wins path: an unconditional request from request_wifi()
+        # would defeat the ECP trim for users who disable that select.
         if not data.ecp_required:
             set_idf_sdkconfig_default("CONFIG_MBEDTLS_ECP_C", False)
         set_idf_sdkconfig_default("CONFIG_MBEDTLS_PEM_WRITE_C", False)

@@ -635,6 +635,16 @@ _IDF6 = cv.Version(6, 0, 0)
             id="idf_disable_tls_opt_out",
         ),
         pytest.param(
+            # require_mbedtls_tls() keeps TLS with every wrapper still excluded.
+            PlatformFramework.ESP32_IDF,
+            _IDF5,
+            MbedtlsSdkconfigData(tls_required=True),
+            {},
+            {**_TLS_CLIENT_ONLY, **_TLS_EXTRAS_OFF, **_PEER_CERT_PKCS7_OFF},
+            set(_ESP_TLS_LINKING_COMPONENTS),
+            id="idf_require_mbedtls_tls",
+        ),
+        pytest.param(
             # TLS kept: a required server role blocks the client-only trim.
             PlatformFramework.ESP32_IDF,
             _IDF5,
@@ -709,28 +719,44 @@ def test_user_sdkconfig_wants_tls(options: dict[str, Any], wants_tls: bool) -> N
 
 
 @pytest.mark.parametrize(
-    ("config_file", "tls_off", "ecp_off"),
+    ("config_file", "tls_off", "ecp_off", "esp_tls_excluded"),
     [
-        pytest.param("network_ethernet_only.yaml", True, True, id="ethernet_api"),
+        pytest.param("network_ethernet_only.yaml", True, True, True, id="ethernet_api"),
         pytest.param(
-            "exclusion_reincludes_web_server.yaml", True, True, id="web_server_idf"
+            "exclusion_reincludes_web_server.yaml",
+            True,
+            True,
+            True,
+            id="web_server_idf",
         ),
         pytest.param(
-            "exclusion_reincludes_http_request.yaml", False, False, id="http_request"
+            "exclusion_reincludes_http_request.yaml",
+            False,
+            False,
+            False,
+            id="http_request",
         ),
-        pytest.param("exclusion_reincludes_mqtt.yaml", False, False, id="mqtt"),
-        pytest.param("exclusion_reincludes_nextion.yaml", False, False, id="nextion"),
-        pytest.param("mbedtls_tls_wifi_eap.yaml", False, False, id="wifi_eap"),
+        pytest.param("exclusion_reincludes_mqtt.yaml", False, False, False, id="mqtt"),
         pytest.param(
-            "certificate_bundle_sdkconfig.yaml", False, False, id="raw_bundle"
+            "exclusion_reincludes_nextion.yaml", False, False, False, id="nextion"
         ),
-        pytest.param("tls_sdkconfig_esp_tls.yaml", False, False, id="raw_esp_tls"),
+        pytest.param("mbedtls_tls_wifi_eap.yaml", False, False, True, id="wifi_eap"),
+        # zigbee requests ECP for the esp-zigbee-lib blobs, without TLS.
+        pytest.param("tls_zigbee_c6.yaml", True, False, True, id="zigbee"),
+        pytest.param(
+            "certificate_bundle_sdkconfig.yaml", False, False, False, id="raw_bundle"
+        ),
+        pytest.param(
+            "tls_sdkconfig_esp_tls.yaml", False, False, False, id="raw_esp_tls"
+        ),
         # A role option set to n is not a request.
         pytest.param(
-            "tls_sdkconfig_tls_enabled_n.yaml", True, True, id="raw_tls_enabled_n"
+            "tls_sdkconfig_tls_enabled_n.yaml", True, True, True, id="raw_tls_enabled_n"
         ),
         # ECDSA signed OTA requests ECP itself (SECURE_SIGNED_APPS selects it too).
-        pytest.param("signed_ota_ecdsa256_c6.yaml", True, False, id="signed_ota_ecdsa"),
+        pytest.param(
+            "signed_ota_ecdsa256_c6.yaml", True, False, True, id="signed_ota_ecdsa"
+        ),
     ],
 )
 def test_tls_disabled_sdkconfig(
@@ -739,13 +765,16 @@ def test_tls_disabled_sdkconfig(
     config_file: str,
     tls_off: bool,
     ecp_off: bool,
+    esp_tls_excluded: bool,
 ) -> None:
     """TLS is compiled out unless a component or a raw sdkconfig option asks for it."""
     generate_main(component_config_path(config_file))
     sdkconfig = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
     assert (sdkconfig.get("CONFIG_MBEDTLS_TLS_DISABLED") is True) is tls_off
     assert sdkconfig.get("CONFIG_MBEDTLS_ECP_C") is (False if ecp_off else None)
-    assert ("esp-tls" in CORE.data[KEY_ESP32][KEY_EXCLUDE_COMPONENTS]) is tls_off
+    assert (
+        "esp-tls" in CORE.data[KEY_ESP32][KEY_EXCLUDE_COMPONENTS]
+    ) is esp_tls_excluded
 
 
 def test_execute_from_psram_s3_sdkconfig(
