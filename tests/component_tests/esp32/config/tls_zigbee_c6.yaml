@@ -7,3 +7,5 @@ esp32:
     type: esp-idf
 
 zigbee:
+  model: zigbee_test
+  power_source: MAINS_SINGLE_PHASE
