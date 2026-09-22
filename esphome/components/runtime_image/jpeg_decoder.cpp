@@ -16,10 +16,10 @@ static const char *const TAG = "image_decoder.jpeg";
 namespace esphome::runtime_image {
 
 bool JpegDecoder::prepare_rgb565_scaling_(int width, int height) {
-  if (this->x_boundaries_.capacity() != static_cast<size_t>(width + 1) && !this->x_boundaries_.try_init(width + 1)) {
+  if (this->x_boundaries_.capacity() < static_cast<size_t>(width + 1) && !this->x_boundaries_.try_init(width + 1)) {
     return false;
   }
-  if (this->y_boundaries_.capacity() != static_cast<size_t>(height + 1) && !this->y_boundaries_.try_init(height + 1)) {
+  if (this->y_boundaries_.capacity() < static_cast<size_t>(height + 1) && !this->y_boundaries_.try_init(height + 1)) {
     return false;
   }
 

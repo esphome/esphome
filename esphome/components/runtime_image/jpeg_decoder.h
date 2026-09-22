@@ -1,4 +1,5 @@
 #pragma once
+#include "esphome/components/image/image.h"
 
 #include "image_decoder.h"
 #include "runtime_image.h"

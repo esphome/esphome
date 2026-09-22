@@ -390,14 +390,10 @@ TEST(RuntimeImageDecoder, JpegDecodesDirectlyToScaledRgb565WithBothByteOrders) {
 
   const uint8_t *little = rgb565_little_endian.get_data_start();
   const uint8_t *big = rgb565_big_endian.get_data_start();
-  bool little_nonzero = false;
-  bool big_nonzero = false;
-  for (size_t pos = 0; pos < 4 * 4 * 2; pos++) {
-    little_nonzero |= little[pos] != 0;
-    big_nonzero |= big[pos] != 0;
+  for (size_t pos = 0; pos < 4 * 4 * 2; pos += 2) {
+    EXPECT_EQ(little[pos], big[pos + 1]) << "byte order mismatch at byte " << pos;
+    EXPECT_EQ(little[pos + 1], big[pos]) << "byte order mismatch at byte " << pos + 1;
   }
-  EXPECT_TRUE(little_nonzero);
-  EXPECT_TRUE(big_nonzero);
 }
 #endif  // USE_RUNTIME_IMAGE_JPEG
 
