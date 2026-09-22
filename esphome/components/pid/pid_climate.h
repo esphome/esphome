@@ -163,7 +163,7 @@ template<typename... Ts> class PIDSetControlParametersAction final : public Acti
   PIDClimate *parent_;
 };
 
-template<typename... Ts> class PIDSetDeadbandControlParametersMultipliersAction : public Action<Ts...> {
+template<typename... Ts> class PIDSetDeadbandControlParametersMultipliersAction final : public Action<Ts...> {
  public:
   PIDSetDeadbandControlParametersMultipliersAction(PIDClimate *parent) : parent_(parent) {}
 
@@ -185,7 +185,7 @@ template<typename... Ts> class PIDSetDeadbandControlParametersMultipliersAction 
   PIDClimate *parent_;
 };
 
-template<typename... Ts> class PIDSetDeadbandThresholdParametersAction : public Action<Ts...> {
+template<typename... Ts> class PIDSetDeadbandThresholdParametersAction final : public Action<Ts...> {
  public:
   PIDSetDeadbandThresholdParametersAction(PIDClimate *parent) : parent_(parent) {}
 
