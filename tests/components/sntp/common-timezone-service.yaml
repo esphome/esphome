@@ -1,0 +1,25 @@
+wifi:
+  ssid: MySSID
+  password: password1
+
+time:
+  - platform: sntp
+    id: sntp_time
+    timezone:
+      service: time.now
+      zone: Europe/London
+      update_interval: 30min
+
+text_sensor:
+  - platform: sntp
+    name: Timezone Abbreviation
+
+script:
+  - id: change_timezone
+    then:
+      - time.sntp.set_timezone: ip
+      - time.sntp.set_timezone:
+          id: sntp_time
+          zone: Australia/Sydney
+      - time.sntp.set_timezone:
+          zone: !lambda 'return "America/New_York";'

@@ -1,0 +1,19 @@
+esphome:
+  name: sntp-timezone-ip-test
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+wifi:
+  ssid: "testssid"
+  password: "testpassword"
+
+http_request:
+
+time:
+  - platform: sntp
+    id: sntp_time
+    timezone:
+      zone: IP
