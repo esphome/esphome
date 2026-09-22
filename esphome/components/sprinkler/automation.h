@@ -6,79 +6,11 @@
 
 namespace esphome::sprinkler {
 
-template<typename... Ts> class SetDividerAction final : public Action<Ts...> {
- public:
-  explicit SetDividerAction(Sprinkler *a_sprinkler) : sprinkler_(a_sprinkler) {}
-
-  TEMPLATABLE_VALUE(uint32_t, divider)
-
-  void play(const Ts &...x) override { this->sprinkler_->set_divider(this->divider_.optional_value(x...)); }
-
- protected:
-  Sprinkler *sprinkler_;
-};
-
-template<typename... Ts> class SetMultiplierAction final : public Action<Ts...> {
- public:
-  explicit SetMultiplierAction(Sprinkler *a_sprinkler) : sprinkler_(a_sprinkler) {}
-
-  TEMPLATABLE_VALUE(float, multiplier)
-
-  void play(const Ts &...x) override { this->sprinkler_->set_multiplier(this->multiplier_.optional_value(x...)); }
-
- protected:
-  Sprinkler *sprinkler_;
-};
-
-template<typename... Ts> class QueueValveAction final : public Action<Ts...> {
- public:
-  explicit QueueValveAction(Sprinkler *a_sprinkler) : sprinkler_(a_sprinkler) {}
-
-  TEMPLATABLE_VALUE(size_t, valve_number)
-  TEMPLATABLE_VALUE(uint32_t, valve_run_duration)
-
-  void play(const Ts &...x) override {
-    this->sprinkler_->queue_valve(this->valve_number_.optional_value(x...),
-                                  this->valve_run_duration_.optional_value(x...));
-  }
-
- protected:
-  Sprinkler *sprinkler_;
-};
-
 template<typename... Ts> class ClearQueuedValvesAction final : public Action<Ts...> {
  public:
   explicit ClearQueuedValvesAction(Sprinkler *a_sprinkler) : sprinkler_(a_sprinkler) {}
 
   void play(const Ts &...x) override { this->sprinkler_->clear_queued_valves(); }
-
- protected:
-  Sprinkler *sprinkler_;
-};
-
-template<typename... Ts> class SetRepeatAction final : public Action<Ts...> {
- public:
-  explicit SetRepeatAction(Sprinkler *a_sprinkler) : sprinkler_(a_sprinkler) {}
-
-  TEMPLATABLE_VALUE(uint32_t, repeat)
-
-  void play(const Ts &...x) override { this->sprinkler_->set_repeat(this->repeat_.optional_value(x...)); }
-
- protected:
-  Sprinkler *sprinkler_;
-};
-
-template<typename... Ts> class SetRunDurationAction final : public Action<Ts...> {
- public:
-  explicit SetRunDurationAction(Sprinkler *a_sprinkler) : sprinkler_(a_sprinkler) {}
-
-  TEMPLATABLE_VALUE(size_t, valve_number)
-  TEMPLATABLE_VALUE(uint32_t, valve_run_duration)
-
-  void play(const Ts &...x) override {
-    this->sprinkler_->set_valve_run_duration(this->valve_number_.optional_value(x...),
-                                             this->valve_run_duration_.optional_value(x...));
-  }
 
  protected:
   Sprinkler *sprinkler_;
