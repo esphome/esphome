@@ -1,3 +1,4 @@
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 import logging
 
@@ -24,9 +25,10 @@ from esphome.cpp_generator import (
     MockObj,
     MockObjClass,
     TemplateArgsType,
+    call_lambda,
 )
 from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
-from esphome.types import ConfigType
+from esphome.types import ConfigType, SafeExpType
 from esphome.util import Registry
 
 
@@ -206,6 +208,106 @@ validate_action = cv.validate_registry_entry("action", ACTION_REGISTRY)
 validate_action_list = cv.validate_registry("action", ACTION_REGISTRY)
 validate_condition = cv.validate_registry_entry("condition", CONDITION_REGISTRY)
 validate_condition_list = cv.validate_registry("condition", CONDITION_REGISTRY)
+
+ApplyAction = cg.esphome_ns.class_("ApplyAction", Action)
+
+
+@dataclass(frozen=True)
+class ApplyField:
+    """One config key forwarded to one statement on the receiver.
+
+    ``target`` is a setter name (``"set_kp"``) or, when it contains ``{}``, a
+    statement template such as ``"position = {}"``. ``type_`` is the C++ type a
+    user lambda must return. An absent key emits nothing.
+    """
+
+    conf_key: str
+    target: str
+    type_: SafeExpType
+
+
+@dataclass(frozen=True)
+class ApplyCall:
+    """Several config keys into one statement, e.g. ``"set_range({}, {})"``.
+
+    ``args`` pairs each placeholder with ``(conf_key, type_)``. Emitted only when
+    every key is present so a setter that validates its arguments as a pair
+    always sees both.
+    """
+
+    target: str
+    args: tuple[tuple[str, SafeExpType], ...]
+
+
+def _apply_template(
+    apply_field: ApplyField | ApplyCall,
+) -> tuple[str, tuple[tuple[str, SafeExpType], ...]]:
+    if isinstance(apply_field, ApplyCall):
+        return apply_field.target, apply_field.args
+    target = (
+        apply_field.target
+        if "{}" in apply_field.target
+        else f"{apply_field.target}({{}})"
+    )
+    return target, ((apply_field.conf_key, apply_field.type_),)
+
+
+def register_apply_action(
+    name: str,
+    schema: cv.Schema,
+    fields: Sequence[ApplyField | ApplyCall],
+    *,
+    call: str | None = None,
+    epilogue: Sequence[str] = (),
+) -> None:
+    """Register an action that only forwards configured values to its parent.
+
+    No C++ class is written: the action is the core ``ApplyAction<Ts...>`` holding one
+    stateless function generated from ``fields``. The parent named by ``CONF_ID`` and every
+    constant are baked into that function; user lambdas are called inline with the trigger
+    args. With ``call`` the statements target ``auto call = parent->call()`` and end with
+    ``call.perform()``. ``epilogue`` lists receiver-relative calls to append, e.g.
+    ``("publish_state()",)``.
+    """
+    templates = tuple(_apply_template(apply_field) for apply_field in fields)
+
+    async def builder(
+        config: ConfigType,
+        action_id: ID,
+        template_arg: cg.TemplateArguments,
+        args: TemplateArgsType,
+    ) -> MockObj:
+        parent = await cg.get_variable(config[CONF_ID])
+        # Spelled exactly as ApplyAction::ApplyFn so the captureless lambda converts
+        # to the function pointer without a copy of any trigger arg.
+        lambda_args = [
+            (cg.RawExpression(f"const std::remove_cvref_t<{cg.safe_exp(t)}> &"), name)
+            for t, name in args
+        ]
+        receiver = "call." if call else f"{parent}->"
+        statements = [f"auto call = {parent}->{call}();"] if call else []
+        for target, members in templates:
+            exprs: list[str] = []
+            for conf_key, type_ in members:
+                if (value := config.get(conf_key)) is None:
+                    break
+                if isinstance(value, Lambda):
+                    inner = await cg.process_lambda(
+                        value, lambda_args, return_type=type_
+                    )
+                    value = call_lambda(inner)
+                exprs.append(str(cg.safe_exp(value)))
+            else:
+                statements.append(f"{receiver}{target.format(*exprs)};")
+        statements.extend(f"{receiver}{line};" for line in epilogue)
+        if call:
+            statements.append("call.perform();")
+        apply_lambda = LambdaExpression(
+            ["\n".join(statements)], lambda_args, capture="", return_type=cg.void
+        )
+        return cg.new_Pvariable(action_id, template_arg, apply_lambda)
+
+    register_action(name, ApplyAction, schema, synchronous=True)(builder)
 
 
 def validate_potentially_and_condition(value):

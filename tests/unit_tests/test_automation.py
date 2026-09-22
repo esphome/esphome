@@ -8,12 +8,16 @@ from unittest.mock import AsyncMock, MagicMock, call, patch
 import pytest
 
 from esphome.automation import (
+    ApplyAction,
+    ApplyCall,
+    ApplyField,
     CallbackAutomation,
     TriggerForwarder,
     TriggerOnFalseForwarder,
     TriggerOnTrueForwarder,
     build_callback_automations,
     has_non_synchronous_actions,
+    register_apply_action,
     register_bare_action,
     register_bare_condition,
     register_parented_action,
@@ -22,8 +26,9 @@ from esphome.automation import (
     register_simple_condition,
 )
 import esphome.codegen as cg
+import esphome.config_validation as cv
 from esphome.const import CONF_ID
-from esphome.core import ID
+from esphome.core import ID, Lambda
 from esphome.cpp_generator import MockObj, RawExpression
 from esphome.util import Registry, RegistryEntry
 
@@ -594,3 +599,134 @@ def test_shared_builders_keep_synchronous_flag(
     assert actions["my.simple"].synchronous is synchronous
     assert actions["my.bare"].synchronous is synchronous
     assert actions["my.parented"].synchronous is synchronous
+
+
+FAN_DIRECTION = cg.esphome_ns.enum("FanDirection", is_class=True)
+
+
+async def _run_apply_action(
+    registries: tuple[Registry, Registry],
+    fields: tuple[ApplyField | ApplyCall, ...],
+    config: dict[str, object],
+    args: list[tuple[object, str]] | None = None,
+    **kwargs: object,
+) -> RegistryEntry:
+    """Register an apply action and run its builder with the given config."""
+    actions, _ = registries
+    register_apply_action("my.apply", {}, fields, **kwargs)
+    entry = actions["my.apply"]
+    args = args or []
+    template_arg = cg.TemplateArguments(*(t for t, _ in args))
+    await entry.fun({CONF_ID: PARENT_ID, **config}, ID("obj_1"), template_arg, args)
+    return entry
+
+
+def _apply_lambda(mock_cg: MockCodegen) -> str:
+    return str(mock_cg.new_pvariable.call_args.args[2])
+
+
+@pytest.mark.asyncio
+async def test_register_apply_action_entry(
+    registries: tuple[Registry, Registry], mock_cg: MockCodegen
+) -> None:
+    """The action is the core ApplyAction, synchronous, built from one lambda with const-ref args."""
+    entry = await _run_apply_action(
+        registries, (), {}, args=[(cg.int32, "x"), (cg.bool_, "y")]
+    )
+    assert entry.type_id is ApplyAction
+    assert entry.synchronous is True
+    mock_cg.get_variable.assert_awaited_once_with(PARENT_ID)
+    action_id, template_arg, apply_lambda = mock_cg.new_pvariable.call_args.args
+    assert action_id == ID("obj_1")
+    assert str(template_arg) == "<int32_t, bool>"
+    assert str(apply_lambda).startswith(
+        "[](const std::remove_cvref_t<int32_t> & x, "
+        "const std::remove_cvref_t<bool> & y) -> void {"
+    )
+
+
+@pytest.mark.asyncio
+async def test_apply_field_constants_are_immediates_and_absent_keys_skipped(
+    registries: tuple[Registry, Registry], mock_cg: MockCodegen
+) -> None:
+    direction = cv.enum({"FORWARD": FAN_DIRECTION.FORWARD})("FORWARD")
+    fields = (
+        ApplyField("kp", "set_kp", cg.float_),
+        ApplyField("ki", "set_ki", cg.float_),
+        ApplyField("on", "set_on", cg.bool_),
+        ApplyField("direction", "set_direction", FAN_DIRECTION),
+    )
+    await _run_apply_action(
+        registries, fields, {"kp": 0.0, "on": False, "direction": direction}
+    )
+    text = _apply_lambda(mock_cg)
+    assert f"{PARENT_OBJ}->set_kp(0.0f);" in text
+    assert f"{PARENT_OBJ}->set_on(false);" in text
+    assert f"{PARENT_OBJ}->set_direction({FAN_DIRECTION.FORWARD});" in text
+    assert "set_ki" not in text
+
+
+@pytest.mark.asyncio
+async def test_apply_field_lambda_is_called_inline_with_trigger_args(
+    registries: tuple[Registry, Registry], mock_cg: MockCodegen
+) -> None:
+    fields = (ApplyField("kp", "set_kp", cg.float_),)
+    await _run_apply_action(
+        registries,
+        fields,
+        {"kp": Lambda("if (x) return 1.0f;\nreturn 2.0f;")},
+        args=[(cg.int32, "x")],
+    )
+    text = _apply_lambda(mock_cg)
+    # Outer apply lambda and inner field lambda spell the trigger arg identically.
+    assert text.count("const std::remove_cvref_t<int32_t> & x") == 2
+    assert (
+        f"{PARENT_OBJ}->set_kp([](const std::remove_cvref_t<int32_t> & x) -> float {{"
+        in text
+    )
+    assert "}(x));" in text
+
+
+@pytest.mark.asyncio
+async def test_apply_field_statement_template(
+    registries: tuple[Registry, Registry], mock_cg: MockCodegen
+) -> None:
+    fields = (ApplyField("position", "position = {}", cg.float_),)
+    await _run_apply_action(
+        registries, fields, {"position": 0.5}, epilogue=("publish_state()",)
+    )
+    text = _apply_lambda(mock_cg)
+    assert text.index(f"{PARENT_OBJ}->position = 0.5f;") < text.index(
+        f"{PARENT_OBJ}->publish_state();"
+    )
+
+
+@pytest.mark.asyncio
+async def test_apply_call_needs_every_key(
+    registries: tuple[Registry, Registry], mock_cg: MockCodegen
+) -> None:
+    fields = (
+        ApplyCall("set_range({}, {})", (("low", cg.float_), ("high", cg.float_))),
+    )
+    await _run_apply_action(registries, fields, {"low": 1.0, "high": 2.0})
+    assert f"{PARENT_OBJ}->set_range(1.0f, 2.0f);" in _apply_lambda(mock_cg)
+
+    mock_cg.new_pvariable.reset_mock()
+    await _run_apply_action(registries, fields, {"low": 1.0})
+    assert "set_range" not in _apply_lambda(mock_cg)
+
+
+@pytest.mark.asyncio
+async def test_apply_action_call_shape(
+    registries: tuple[Registry, Registry], mock_cg: MockCodegen
+) -> None:
+    fields = (ApplyField("brightness", "set_brightness", cg.float_),)
+    await _run_apply_action(registries, fields, {"brightness": 0.5}, call="make_call")
+    text = _apply_lambda(mock_cg)
+    lines = [
+        f"auto call = {PARENT_OBJ}->make_call();",
+        "call.set_brightness(0.5f);",
+        "call.perform();",
+    ]
+    positions = [text.index(line) for line in lines]
+    assert positions == sorted(positions)

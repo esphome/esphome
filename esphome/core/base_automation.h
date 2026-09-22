@@ -11,6 +11,7 @@
 
 #include <array>
 #include <list>
+#include <type_traits>
 #include <vector>
 
 namespace esphome {
@@ -250,6 +251,21 @@ template<typename... Ts> class StatelessLambdaAction : public Action<Ts...> {
 
  protected:
   void (*f_)(Ts...);
+};
+
+/// Runs one codegen-generated stateless function with the trigger args. Codegen folds the
+/// parent and every configured field into that function, so the action stores one pointer
+/// regardless of field count. Unlike StatelessLambdaAction the args are passed by const
+/// reference, so a std::string trigger arg is never copied.
+template<typename... Ts> class ApplyAction final : public Action<Ts...> {
+ public:
+  using ApplyFn = void (*)(const std::remove_cvref_t<Ts> &...);
+  explicit ApplyAction(ApplyFn apply) : apply_(apply) {}
+
+  void play(const Ts &...x) override { this->apply_(x...); }
+
+ protected:
+  ApplyFn apply_;
 };
 
 /// Simple continuation action that calls play_next_ on a parent action.
