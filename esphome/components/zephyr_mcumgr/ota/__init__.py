@@ -1,4 +1,5 @@
 import esphome.codegen as cg
+from esphome.components.nrf52 import partitions as nrf52_partitions
 from esphome.components.nrf52.boards import BOOTLOADER_CONFIG
 from esphome.components.ota import BASE_OTA_SCHEMA, OTAComponent, ota_to_code
 from esphome.components.zephyr import (
@@ -168,51 +169,31 @@ async def to_code(config: ConfigType) -> None:
         # Derive partition addresses from the SoftDevice and bootloader sections so
         # that the DTS flash map matches what the Partition Manager produces:
         #   MCUboot sits immediately after the SoftDevice, then slot0, then slot1.
-        mcuboot_size = 0x9000
-        sd_end = next(s.address + s.size for s in sections if "SoftDevice" in s.name)
-        bl_start = next(s.address for s in sections if "Adafruit" in s.name)
-        slot0_start = sd_end + mcuboot_size
-        # Align slot size down to a 4 KB sector boundary
-        slot_size = ((bl_start - slot0_start) // 2 // 0x1000) * 0x1000
-        slot1_start = slot0_start + slot_size
-
-        def _mcuboot_partition_overlay() -> str:
-            def part(name: str, start: int, size: int) -> str:
-                return f"""
-                {name}: partition@{start:x} {{
-                    reg = <0x{start:x} 0x{size:x}>;
-                }};"""
-
-            return f"""
-                /delete-node/ &boot_partition;
-                /delete-node/ &storage_partition;
-                /delete-node/ &code_partition;
-                /delete-node/ &reserved_partition_0;
-
-                &flash0 {{
-                    partitions {{
-                        compatible = "fixed-partitions";
-                        #address-cells = <1>;
-                        #size-cells = <1>;
-                        {part("slot0_partition", slot0_start, slot_size)}
-                        {part("slot1_partition", slot1_start, slot_size)}
-                    }};
-                }};
+        # Settings/NVS storage for the app image (zephyr_setup_preferences() is
+        # always called for nrf52 -- see nrf52/__init__.py -- so a storage_partition
+        # must exist), and -- when zigbee is also configured -- the zboss_nvram/
+        # zboss_product_config partitions ncs-zigbee requires, are reserved from this
+        # same rebuild. Previously Partition Manager auto-generated the storage
+        # partition regardless of what this raw devicetree overlay said; NCS 3.4.0
+        # no longer does that, so it must be carved out here explicitly, coordinated
+        # with zigbee's needs in one place (see nrf52/partitions.py) instead of two
+        # independent overlays silently overlapping.
+        zigbee = "zigbee" in CORE.loaded_integrations
+        partition_overlay = nrf52_partitions.uf2_scheme_rebuild_overlay(
+            sections, zigbee
+        )
+        code_partition_overlay = """
+            / {
+                chosen {
+                    zephyr,code-partition = &slot0_partition;
+                };
+            };
             """
 
-        def _code_partition_overlay() -> str:
-            return """
-                / {
-                    chosen {
-                        zephyr,code-partition = &slot0_partition;
-                    };
-                };
-                """
-
-        zephyr_add_overlay(_mcuboot_partition_overlay())
-        zephyr_add_overlay(_mcuboot_partition_overlay(), "mcuboot")
-        zephyr_add_overlay(_code_partition_overlay())
-        zephyr_add_overlay(_code_partition_overlay(), "mcuboot")
+        zephyr_add_overlay(partition_overlay)
+        zephyr_add_overlay(partition_overlay, "mcuboot")
+        zephyr_add_overlay(code_partition_overlay)
+        zephyr_add_overlay(code_partition_overlay, "mcuboot")
         # mcuboot is second bootloader. It's only task is to swap partitions.
         # recovery can be done by first bootloader. Keep it small.
         zephyr_add_overlay(
@@ -226,5 +207,7 @@ async def to_code(config: ConfigType) -> None:
         zephyr_add_prj_conf("USB_DEVICE_STACK", False, image="mcuboot")
         zephyr_add_prj_conf("CONSOLE", False, image="mcuboot")
         zephyr_add_prj_conf(
-            "PM_PARTITION_SIZE_MCUBOOT", HexValue(mcuboot_size), image="mcuboot"
+            "PM_PARTITION_SIZE_MCUBOOT",
+            HexValue(nrf52_partitions.MCUBOOT_SIZE),
+            image="mcuboot",
         )

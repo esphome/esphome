@@ -18,9 +18,13 @@ CLANG_TIDY_GLOBAL_FILES = (
     "script/clang-tidy",
     "platformio.ini",
     "requirements_dev.txt",
+    "requirements_codechecker.txt",
     "esphome/idf_component.yml",
     "esphome/components/esp32/__init__.py",
     "esphome/components/nrf52/__init__.py",
+    "esphome/components/nrf52/clang_tidy.py",
+    "esphome/components/nrf52/framework.py",
+    "esphome/platformio/library.py",
 )
 
 # sdkconfig.defaults and per-target sdkconfig.defaults.<target> files flip the
@@ -75,6 +79,29 @@ def calculate_clang_tidy_hash(repo_root: Path | None = None) -> str:
         hasher.update(read_file_bytes(path))
 
     return hasher.hexdigest()
+
+
+def cache_key(extra: str = "") -> str:
+    """Compute the current cache key (plus extra).
+
+    Snapshot this once, before the work it gates -- recomputed after, it
+    would reflect edits made mid-run rather than what the work actually saw.
+    """
+    if not extra:
+        return calculate_clang_tidy_hash()
+    return hashlib.sha256((calculate_clang_tidy_hash() + extra).encode()).hexdigest()
+
+
+def is_cached(hash_path: Path, key: str) -> bool:
+    """True if hash_path already holds `key`."""
+    if not hash_path.is_file():
+        return False
+    return hash_path.read_text(encoding="utf-8").strip() == key
+
+
+def update_cache(hash_path: Path, key: str) -> None:
+    """Record `key` as the fresh cache key."""
+    hash_path.write_text(key + "\n", encoding="utf-8")
 
 
 def calculate_idedata_cache_hash(repo_root: Path | None = None) -> str:
