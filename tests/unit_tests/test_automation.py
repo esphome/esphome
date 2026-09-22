@@ -764,3 +764,11 @@ def test_apply_registration_checks(registries: tuple[Registry, Registry]) -> Non
     register_apply_action("my.ok", schema, ApplyField("kp", "set_kp", cg.float_))
     with pytest.raises(ValueError, match="'kd' is not in the schema"):
         register_apply_action("my.bad", schema, ApplyField("kd", "set_kd", cg.float_))
+    nested = cv.Schema({cv.Optional("v"): cv.Schema({cv.Optional("dir"): cv.int_})})
+    register_apply_action(
+        "my.nested", nested, ApplyField(("v", "dir"), "set_dir", cg.int_)
+    )
+    with pytest.raises(ValueError, match="'dri' is not in the schema"):
+        register_apply_action(
+            "my.bad2", nested, ApplyField(("v", "dri"), "set_dir", cg.int_)
+        )

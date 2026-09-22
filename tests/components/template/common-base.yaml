@@ -319,7 +319,7 @@ cover:
             logger.log: Cover is closed
   # Exercise cover.control / cover.template.publish action variants so they
   # get build coverage in CI (and so memory-impact analysis on PRs that
-  # touch ControlAction / CoverPublishAction sees real instances).
+  # touch these actions sees real instances).
   - platform: template
     name: "Template Cover Actions"
     id: template_cover_actions
@@ -493,7 +493,7 @@ valve:
     stop_action:
       - logger.log: stop_action
       # Exercise valve.control with various field combinations so the
-      # ControlAction codegen paths get build coverage.
+      # cover.control codegen paths get build coverage.
       - valve.control:
           id: template_valve
           stop: true

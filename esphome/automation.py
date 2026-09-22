@@ -264,6 +264,21 @@ def _config_lookup(config: ConfigType, key: str | tuple[str, ...]) -> Any:
     return config
 
 
+def _check_key_in_schema(
+    name: str, schema: Any, conf_key: str | tuple[str, ...]
+) -> None:
+    """Reject a key path a plain cv.Schema does not have; a typo would otherwise be a silent no-op."""
+    for part in (conf_key,) if isinstance(conf_key, str) else conf_key:
+        if not isinstance(getattr(schema, "schema", None), dict):
+            return
+        markers = {
+            getattr(marker, "schema", marker): marker for marker in schema.schema
+        }
+        if part not in markers:
+            raise ValueError(f"{name}: config key {part!r} is not in the schema")
+        schema = schema.schema[markers[part]]
+
+
 def register_apply_action(
     name: str,
     schema: cv.Schema,
@@ -280,16 +295,9 @@ def register_apply_action(
         (c.target, [(*arg, None)[:3] for arg in c.args])
         for c in (f if isinstance(f, ApplyCall) else f.call() for f in fields)
     ]
-    # A plain cv.Schema exposes its keys; a typo would otherwise be a silent no-op.
-    if isinstance(getattr(schema, "schema", None), dict):
-        keys = {getattr(marker, "schema", marker) for marker in schema.schema}
-        for _, members in statements_spec:
-            for conf_key, _, _ in members:
-                first = conf_key if isinstance(conf_key, str) else conf_key[0]
-                if first not in keys:
-                    raise ValueError(
-                        f"{name}: config key {first!r} is not in the schema"
-                    )
+    for _, members in statements_spec:
+        for conf_key, _, _ in members:
+            _check_key_in_schema(name, schema, conf_key)
 
     async def builder(
         config: ConfigType,
