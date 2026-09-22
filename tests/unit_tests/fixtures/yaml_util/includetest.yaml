@@ -11,8 +11,8 @@ esphome:
   # should be substituted as 'original',
   # not overwritten by vars in the !include above
   name: ${name}
-  name_add_mac_suffix: true
-  libraries: !include {file: includes/list.yaml, vars: {var1: Wire}}
+  name_add_mac_suffix: !include includes/true.yaml
+  libraries: !include {file: includes/list.yaml, vars: {var1: Wire}, condition: "true"}
 
 esp8266:
   board: !include {file: includes/scalar.yaml, vars: {var1: nodemcu}, condition: true}
