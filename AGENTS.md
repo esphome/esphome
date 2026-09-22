@@ -458,7 +458,7 @@ file does, and it is the authority when they disagree. The most useful starting 
         )
         ```
         `ApplyField`, `ApplyCall` and `register_apply_action` in `esphome/automation.py` document the
-        rest: statement templates, nested keys, `const_fn`, `type_fn`, multi-key calls and `call="make_call"`
+        rest: statement templates, nested keys, `const_fn`, per-instance type strings, multi-key calls and `call="make_call"`
         for actions that build a call object. See `cover.control` and `cover.template.publish`.
         `TEMPLATABLE_VALUE` with `cg.templatable` stays for actions whose `play()` has real logic beyond
         forwarding values.

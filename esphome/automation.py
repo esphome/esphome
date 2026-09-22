@@ -228,17 +228,16 @@ class ApplyField:
     """One config key forwarded as ``target(value)``, or as statement ``target`` when it has ``{}``.
 
     Double a literal brace in a template. ``conf_key`` may be a path into nested sections.
-    ``const_fn(config, value)`` renders a constant's argument text when ``cg.safe_exp`` is not
-    the right spelling; a lambda bypasses it, so the target must also take a plain ``type_``.
-    ``type_fn(parent)`` replaces ``type_`` when the C++ type is only known per instance. An
-    absent key emits nothing.
+    ``type_`` may be a C++ type string using ``{parent}`` when the type is only known per
+    instance. ``const_fn(config, value)`` renders a constant's argument text when ``cg.safe_exp``
+    is not the right spelling; a lambda bypasses it, so the target must also take a plain
+    ``type_``. An absent key emits nothing.
     """
 
     conf_key: str | tuple[str, ...]
     target: str
-    type_: SafeExpType | None = None
+    type_: SafeExpType | str
     const_fn: Callable[[ConfigType, Any], str] | None = None
-    type_fn: Callable[[MockObj], SafeExpType] | None = None
 
 
 @dataclass(frozen=True)
@@ -253,27 +252,19 @@ class ApplyCall:
     args: tuple[tuple[str | tuple[str, ...], SafeExpType], ...] = ()
 
 
-# (conf_key, type_, type_fn, render)
+# (conf_key, type_, render)
 _ApplyMember = tuple[
-    str | tuple[str, ...],
-    SafeExpType | None,
-    Callable[[MockObj], SafeExpType] | None,
-    Callable[[ConfigType, Any], str],
+    str | tuple[str, ...], SafeExpType | str, Callable[[ConfigType, Any], str]
 ]
 
 
 def _member(
     conf_key: str | tuple[str, ...],
-    type_: SafeExpType | None,
-    type_fn: Callable[[MockObj], SafeExpType] | None = None,
+    type_: SafeExpType | str,
     const_fn: Callable[[ConfigType, Any], str] | None = None,
 ) -> _ApplyMember:
-    if (type_ is None) == (type_fn is None):
-        raise ValueError(
-            f"apply field {conf_key!r} needs exactly one of type_ and type_fn"
-        )
     render = const_fn or (flash_string if type_ is cg.std_string else _safe_exp)
-    return conf_key, type_, type_fn, render
+    return conf_key, type_, render
 
 
 def _apply_template(
@@ -289,12 +280,7 @@ def _apply_template(
             else f"{apply_field.target}({{}})"
         )
         members = (
-            _member(
-                apply_field.conf_key,
-                apply_field.type_,
-                apply_field.type_fn,
-                apply_field.const_fn,
-            ),
+            _member(apply_field.conf_key, apply_field.type_, apply_field.const_fn),
         )
     if target.count("{}") != len(members):
         raise ValueError(
@@ -330,7 +316,7 @@ def register_apply_action(
     if isinstance(getattr(schema, "schema", None), dict):
         keys = {getattr(marker, "schema", marker) for marker in schema.schema}
         for _, members in templates:
-            for conf_key, _, _, _ in members:
+            for conf_key, _, _ in members:
                 first = conf_key if isinstance(conf_key, str) else conf_key[0]
                 if first not in keys:
                     raise ValueError(
@@ -359,13 +345,14 @@ def register_apply_action(
             tail = []
         for target, members in templates:
             exprs: list[str] = []
-            for conf_key, type_, type_fn, render in members:
+            for conf_key, type_, render in members:
                 if (value := _config_lookup(config, conf_key)) is None:
                     break
                 if isinstance(value, Lambda):
-                    return_type = type_fn(parent) if type_fn else type_
+                    if isinstance(type_, str):
+                        type_ = cg.RawExpression(type_.format(parent=parent))
                     inner = await cg.process_lambda(
-                        value, lambda_args, return_type=return_type
+                        value, lambda_args, return_type=type_
                     )
                     exprs.append(str(call_lambda(inner)))
                 else:

@@ -739,7 +739,7 @@ async def test_apply_action_call_shape(
 
 
 @pytest.mark.asyncio
-async def test_apply_field_nested_key_const_fn_and_type_fn(
+async def test_apply_field_nested_key_const_fn_and_type_string(
     registries: tuple[Registry, Registry], mock_cg: MockCodegen
 ) -> None:
     fields = (
@@ -750,11 +750,7 @@ async def test_apply_field_nested_key_const_fn_and_type_fn(
             cg.std_string,
             const_fn=lambda config, value: f"{cg.safe_exp(value)}, {len(value)}",
         ),
-        ApplyField(
-            "value",
-            "value() = {}",
-            type_fn=lambda parent: cg.RawExpression(f"decltype({parent}->value())"),
-        ),
+        ApplyField("value", "value() = {}", "decltype({parent}->value())"),
     )
     config = {
         "vertical": {"direction": 3},
@@ -780,8 +776,6 @@ def test_apply_registration_checks(registries: tuple[Registry, Registry]) -> Non
         register_apply_action(
             "my.apply", {}, ApplyCall("set_range({}, {})", (("low", cg.float_),))
         )
-    with pytest.raises(ValueError, match="exactly one of type_ and type_fn"):
-        register_apply_action("my.apply", {}, ApplyField("kp", "set_kp"))
     schema = cv.Schema({cv.Required(CONF_ID): cv.string, cv.Optional("kp"): cv.float_})
     register_apply_action("my.ok", schema, ApplyField("kp", "set_kp", cg.float_))
     with pytest.raises(ValueError, match="'kd' is not in the schema"):
