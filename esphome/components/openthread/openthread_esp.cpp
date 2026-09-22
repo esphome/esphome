@@ -304,14 +304,14 @@ void OpenThreadComponent::rcp_failure_handler() {
 
 void OpenThreadComponent::reset_rcp_(bool recovery_attempt) {
   if (recovery_attempt) {
-    static constexpr uint8_t max_reset_attempts = 5;
+    static constexpr uint8_t MAX_RESET_ATTEMPTS = 5;
     uint8_t attempt = ++this->rcp_reset_attempts_;
-    if (attempt > max_reset_attempts) {
-      ESP_LOGE(TAG, "RCP failed to recover after %u reset attempts", max_reset_attempts);
+    if (attempt > MAX_RESET_ATTEMPTS) {
+      ESP_LOGE(TAG, "RCP failed to recover after %u reset attempts", MAX_RESET_ATTEMPTS);
       this->mark_task_failed_();
       return;
     }
-    ESP_LOGW(TAG, "RCP failure detected, reset attempt %u of %u", attempt, max_reset_attempts);
+    ESP_LOGW(TAG, "RCP failure detected, reset attempt %u of %u", attempt, MAX_RESET_ATTEMPTS);
   }
   if (this->rcp_reset_pin_ == nullptr) {
     ESP_LOGE(TAG, "RCP failure detected but no reset pin is configured");
@@ -368,12 +368,12 @@ void OpenThreadComponent::loop() {
   if (!lock) {
     // Each loop() call retries after a 100 ms lock-acquire timeout; warn if it keeps
     // failing for a while so a wedged OpenThread task doesn't fail silently forever.
-    static constexpr uint16_t warn_after_attempts = 20;   // ~2s
-    static constexpr uint16_t fail_after_attempts = 100;  // ~10s
-    if (++this->lock_wait_failures_ == warn_after_attempts) {
+    static constexpr uint16_t WARN_AFTER_ATTEMPTS = 20;   // ~2s
+    static constexpr uint16_t FAIL_AFTER_ATTEMPTS = 100;  // ~10s
+    if (++this->lock_wait_failures_ == WARN_AFTER_ATTEMPTS) {
       ESP_LOGW(TAG, "Border router init has been waiting on the OpenThread lock for %u attempts",
                this->lock_wait_failures_);
-    } else if (this->lock_wait_failures_ >= fail_after_attempts) {
+    } else if (this->lock_wait_failures_ >= FAIL_AFTER_ATTEMPTS) {
       ESP_LOGE(TAG, "Border router init could not acquire the OpenThread lock after %u attempts, giving up",
                this->lock_wait_failures_);
       this->mark_failed();

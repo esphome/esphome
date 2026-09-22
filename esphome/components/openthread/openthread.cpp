@@ -267,14 +267,14 @@ void *OpenThreadSrpComponent::pool_alloc_(size_t size) {
 
 bool OpenThreadComponent::teardown() {
 #ifdef USE_OPENTHREAD_BORDER_ROUTER
-  static constexpr uint16_t warn_after_attempts = 20;
-  static constexpr uint16_t give_up_after_attempts = 100;
+  static constexpr uint16_t WARN_AFTER_ATTEMPTS = 20;
+  static constexpr uint16_t GIVE_UP_AFTER_ATTEMPTS = 100;
   if (this->border_router_started_) {
     auto lock = InstanceLock::try_acquire(100);
     if (!lock) {
-      if (++this->teardown_lock_failures_ == warn_after_attempts) {
+      if (++this->teardown_lock_failures_ == WARN_AFTER_ATTEMPTS) {
         ESP_LOGW(TAG, "OpenThread teardown is still waiting for the lock");
-      } else if (this->teardown_lock_failures_ >= give_up_after_attempts) {
+      } else if (this->teardown_lock_failures_ >= GIVE_UP_AFTER_ATTEMPTS) {
         ESP_LOGE(TAG, "Could not acquire the OpenThread lock; skipping Border Router deinitialization");
         this->border_router_started_ = false;
       } else {
@@ -297,19 +297,19 @@ bool OpenThreadComponent::teardown() {
         // the next call rather than giving up after a single failed attempt.
         if (!lock) {
 #ifdef USE_OPENTHREAD_BORDER_ROUTER
-          if (++this->teardown_lock_failures_ >= give_up_after_attempts) {
-            ESP_LOGE(TAG, "Could not acquire the OpenThread lock; forcing main loop shutdown");
-            global_openthread_component = nullptr;
-            this->teardown_stage_ = TeardownStage::TEARDOWN_STAGE_STOP_IN_PROCESS;
-            if (int error = this->openthread_stop_(); error != 0) {
-              ESP_LOGW(TAG, "Failed attempt to stop OpenThread %d", error);
-              this->teardown_stage_ = TeardownStage::TEARDOWN_STAGE_COMPLETED;
-            }
-            break;
+        if (++this->teardown_lock_failures_ >= GIVE_UP_AFTER_ATTEMPTS) {
+          ESP_LOGE(TAG, "Could not acquire the OpenThread lock; forcing main loop shutdown");
+          global_openthread_component = nullptr;
+          this->teardown_stage_ = TeardownStage::TEARDOWN_STAGE_STOP_IN_PROCESS;
+          if (int error = this->openthread_stop_(); error != 0) {
+            ESP_LOGW(TAG, "Failed attempt to stop OpenThread %d", error);
+            this->teardown_stage_ = TeardownStage::TEARDOWN_STAGE_COMPLETED;
           }
-          if (this->teardown_lock_failures_ == warn_after_attempts) {
-            ESP_LOGW(TAG, "OpenThread teardown is still waiting for the lock");
-          }
+          break;
+        }
+        if (this->teardown_lock_failures_ == WARN_AFTER_ATTEMPTS) {
+          ESP_LOGW(TAG, "OpenThread teardown is still waiting for the lock");
+        }
 #endif
           ESP_LOGV(TAG, "Failed to acquire OpenThread lock during teardown");
           return false;
