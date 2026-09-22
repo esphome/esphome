@@ -3435,10 +3435,24 @@ class SerialProxySetModeRequest final : public ProtoDecodableMessage {
  protected:
   bool decode_varint(uint32_t field_id, proto_varint_value_t value) override;
 };
+class UsbDeviceDescriptor final : public ProtoMessage {
+ public:
+  uint32_t vendor_id{0};
+  uint32_t product_id{0};
+  uint32_t bcd_device{0};
+  uint32_t interface_number{0};
+  uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const;
+  uint32_t calculate_size() const;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  const char *dump_to(DumpBuffer &out) const override;
+#endif
+
+ protected:
+};
 class SerialProxyIdentity final : public ProtoMessage {
  public:
   static constexpr uint16_t MESSAGE_TYPE = 155;
-  static constexpr uint8_t ESTIMATED_SIZE = 53;
+  static constexpr uint8_t ESTIMATED_SIZE = 54;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const LogString *message_name() const override { return LOG_STR("serial_proxy_identity"); }
 #endif
@@ -3448,10 +3462,7 @@ class SerialProxyIdentity final : public ProtoMessage {
   StringRef manufacturer{};
   StringRef product{};
   StringRef serial_number{};
-  uint32_t usb_vendor_id{0};
-  uint32_t usb_product_id{0};
-  uint32_t usb_bcd_device{0};
-  uint32_t usb_interface_number{0};
+  UsbDeviceDescriptor usb{};
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const;
   uint32_t calculate_size() const;
 #ifdef HAS_PROTO_MESSAGE_DUMP

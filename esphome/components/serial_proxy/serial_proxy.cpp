@@ -376,10 +376,10 @@ void SerialProxy::fill_identity_([[maybe_unused]] IdentityScratch &scratch, api:
       msg.flags |= api::enums::SERIAL_PROXY_IDENTITY_FLAG_ERROR;
       return;
     }
-    msg.usb_vendor_id = scratch.vendor_id;
-    msg.usb_product_id = scratch.product_id;
-    msg.usb_bcd_device = scratch.bcd_device;
-    msg.usb_interface_number = this->usb_channel_->get_interface_number();
+    msg.usb.vendor_id = scratch.vendor_id;
+    msg.usb.product_id = scratch.product_id;
+    msg.usb.bcd_device = scratch.bcd_device;
+    msg.usb.interface_number = this->usb_channel_->get_interface_number();
     msg.manufacturer = StringRef(scratch.manufacturer);
     msg.product = StringRef(scratch.product);
     msg.serial_number = StringRef(scratch.serial_number);

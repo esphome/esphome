@@ -2894,10 +2894,18 @@ enum SerialProxyIdentityFlag {
                                              // IDs below are empty
 }
 
+// The descriptor fields of a USB device as seen by the host stack
+message UsbDeviceDescriptor {
+  uint32 vendor_id = 1;
+  uint32 product_id = 2;
+  uint32 bcd_device = 3;
+  uint32 interface_number = 4;   // bInterfaceNumber the host driver binds to
+}
+
 // The identity of the device behind a port. Identifies one physical device among others of
 // the same kind, so a client matches on manufacturer and product regardless of source. The
-// strings and IDs are zero/empty for source NONE, and for source USB while nothing is
-// connected (since API 1.18).
+// strings are empty for source NONE, and for source USB while nothing is connected
+// (since API 1.18).
 message SerialProxyIdentity {
   option (id) = 155;
   option (source) = SOURCE_SERVER;
@@ -2909,11 +2917,7 @@ message SerialProxyIdentity {
   string manufacturer = 4;
   string product = 5;
   string serial_number = 6;
-  // Zero for sources other than USB
-  uint32 usb_vendor_id = 7;
-  uint32 usb_product_id = 8;
-  uint32 usb_bcd_device = 9;
-  uint32 usb_interface_number = 10;   // bInterfaceNumber the host driver binds to
+  UsbDeviceDescriptor usb = 7;    // Only sent for source USB
 }
 
 // ==================== BLUETOOTH CONNECTION PARAMS ====================
