@@ -215,15 +215,10 @@ ApplyAction = cg.esphome_ns.class_("ApplyAction", Action)
 
 @dataclass(frozen=True)
 class ApplyField:
-    """One config key forwarded to one statement on the receiver.
+    """One config key forwarded as ``target(value)``, or as statement ``target`` when it has ``{}``.
 
-    ``conf_key`` is the YAML key, or a key path into nested sections. ``target``
-    is a setter name (``"set_kp"``) or, when it contains ``{}``, a statement
-    template such as ``"position = {}"``; a literal brace in a template is
-    doubled. ``type_`` is the C++ type a user lambda must return. ``const_fn``
-    renders a constant into argument text from the action config and the value
-    when ``cg.safe_exp`` is not the right spelling; a lambda value bypasses it,
-    so the target must also accept a plain ``type_`` argument. An absent key
+    ``conf_key`` may be a path into nested sections. ``const_fn(config, value)`` renders a
+    constant when ``cg.safe_exp`` is not the right spelling; lambdas bypass it. An absent key
     emits nothing.
     """
 
@@ -235,14 +230,10 @@ class ApplyField:
 
 @dataclass(frozen=True)
 class ApplyCall:
-    """A statement with zero or more config keys, e.g. ``"set_range({}, {})"``.
+    """One statement from several keys, e.g. ``"set_range({}, {})"``, skipped unless all are present.
 
-    ``args`` pairs each placeholder with ``(conf_key, type_)``. Emitted only when
-    every key is present so a setter that validates its arguments as a pair
-    always sees both; make the keys required or ``cv.Inclusive`` so a partial
-    set is rejected at validation instead of dropped here. With no args it is
-    emitted unconditionally, which is how a follow-up call such as
-    ``ApplyCall("publish_state()")`` is expressed.
+    Pair the keys with ``cv.Inclusive`` or defaults. With no args it is an unconditional
+    follow-up such as ``ApplyCall("publish_state()")``.
     """
 
     target: str
@@ -292,14 +283,11 @@ def register_apply_action(
     *fields: ApplyField | ApplyCall,
     call: str | None = None,
 ) -> None:
-    """Register an action that only forwards configured values to its parent.
+    """Register an action that only forwards config values to its parent, with no C++ class.
 
-    No C++ class is written: the action is the core ``ApplyAction<Ts...>`` holding one
-    stateless function generated from ``fields``, in order. The parent named by
-    ``CONF_ID`` and every constant are baked into that function; user lambdas are
-    called inline with the trigger args. With ``call`` every statement, follow-up
-    calls included, targets ``auto call = parent->call()``, and ``call.perform()``
-    is appended last.
+    Generates one stateless function for ``ApplyAction<Ts...>``: parent and constants are baked
+    in, lambdas are called inline with the trigger args. With ``call`` every statement targets
+    ``auto call = parent->call()`` and ``call.perform()`` is appended.
     """
     templates = tuple(_apply_template(apply_field) for apply_field in fields)
 
@@ -310,8 +298,7 @@ def register_apply_action(
         args: TemplateArgsType,
     ) -> MockObj:
         parent = await cg.get_variable(config[CONF_ID])
-        # Spelled exactly as ApplyAction::ApplyFn so the captureless lambda converts
-        # to the function pointer without a copy of any trigger arg.
+        # Must match ApplyAction::ApplyFn exactly for the function pointer conversion.
         lambda_args = [
             (cg.RawExpression(f"const std::remove_cvref_t<{cg.safe_exp(t)}> &"), name)
             for t, name in args
