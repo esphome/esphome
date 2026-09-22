@@ -4,14 +4,25 @@ from typing import Any
 
 import pytest
 
-from esphome.components.esp32 import VARIANT_ESP32C6, VARIANT_ESP32S3
+from esphome.components.esp32 import (
+    VARIANT_ESP32,
+    VARIANT_ESP32C2,
+    VARIANT_ESP32C3,
+    VARIANT_ESP32C5,
+    VARIANT_ESP32C6,
+    VARIANT_ESP32C61,
+    VARIANT_ESP32S2,
+    VARIANT_ESP32S3,
+    VARIANT_ESP32S31,
+)
 from esphome.components.esp32.const import (
+    KEY_BOARD,
     KEY_ESP32,
     KEY_IDF_VERSION,
     KEY_SDKCONFIG_OPTIONS,
     KEY_VARIANT,
 )
-from esphome.components.openthread import _final_validate, _validate_rcp
+from esphome.components.openthread import _RCP_SCHEMA, _final_validate, _validate_rcp
 from esphome.components.openthread.const import (
     CONF_BORDER_ROUTER,
     CONF_DEVICE_TYPE,
@@ -20,6 +31,7 @@ from esphome.components.openthread.const import (
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_AP,
+    CONF_BAUD_RATE,
     CONF_ENABLE_IPV6,
     CONF_ENABLE_ON_BOOT,
     CONF_ID,
@@ -98,6 +110,7 @@ def _set_esp32_idf_core(
         PlatformFramework.ESP32_IDF,
         core_data={KEY_FRAMEWORK_VERSION: idf_version},
         platform_data={
+            KEY_BOARD: "esp32-s3-devkitc-1",
             KEY_IDF_VERSION: idf_version,
             KEY_VARIANT: variant,
             KEY_SDKCONFIG_OPTIONS: {},
@@ -124,6 +137,15 @@ def test_border_router_codegen(
     sdkconfig = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
     for option, value in OTBR_SDKCONFIG_OPTIONS.items():
         assert sdkconfig[option] == value
+    assert (
+        sdkconfig["CONFIG_OPENTHREAD_NETWORK_MASTERKEY"]
+        == "00112233445566778899aabbccddeeff"
+    )
+    assert sdkconfig["CONFIG_OPENTHREAD_NETWORK_EXTPANID"] == "00000000000000ab"
+    assert (
+        sdkconfig["CONFIG_OPENTHREAD_NETWORK_PSKC"]
+        == "000000000000000000000000000000cd"
+    )
     assert any(define.name == "USE_OPENTHREAD_BORDER_ROUTER" for define in CORE.defines)
 
 
@@ -184,14 +206,14 @@ def test_border_router_rejects_incompatible_config(
         _run_final_validation(otbr_config, full_config)
 
 
-def test_border_router_requires_esp32c6(
+def test_native_border_router_rejects_variant_without_ieee802154(
     set_core_config: SetCoreConfigCallable,
     otbr_config: ConfigType,
     full_config: ConfigType,
 ) -> None:
     _set_esp32_idf_core(set_core_config, "ESP32S3")
 
-    with pytest.raises(cv.Invalid, match="currently requires ESP32-C6"):
+    with pytest.raises(cv.Invalid, match="both Wi-Fi and IEEE 802.15.4"):
         _run_final_validation(otbr_config, full_config)
 
 
@@ -206,15 +228,30 @@ def test_border_router_requires_idf_5_5(
         _run_final_validation(otbr_config, full_config)
 
 
-def test_border_router_rcp_accepts_esp32s3(
+@pytest.mark.parametrize(
+    "variant",
+    [
+        VARIANT_ESP32,
+        VARIANT_ESP32C2,
+        VARIANT_ESP32C3,
+        VARIANT_ESP32C5,
+        VARIANT_ESP32C6,
+        VARIANT_ESP32C61,
+        VARIANT_ESP32S2,
+        VARIANT_ESP32S3,
+        VARIANT_ESP32S31,
+    ],
+)
+def test_border_router_rcp_accepts_wifi_variants(
     set_core_config: SetCoreConfigCallable,
     otbr_config: ConfigType,
     full_config: ConfigType,
+    variant: str,
 ) -> None:
-    _set_esp32_idf_core(set_core_config, VARIANT_ESP32S3)
+    _set_esp32_idf_core(set_core_config, variant)
     otbr_config[CONF_BORDER_ROUTER][CONF_RCP] = {
-        CONF_RX_PIN: {CONF_NUMBER: 18},
-        CONF_TX_PIN: {CONF_NUMBER: 17},
+        CONF_RX_PIN: 18,
+        CONF_TX_PIN: 17,
     }
 
     _run_final_validation(otbr_config, full_config)
@@ -239,8 +276,8 @@ def test_border_router_rcp_rejects_uart_conflicts(
 ) -> None:
     _set_esp32_idf_core(set_core_config, VARIANT_ESP32S3)
     otbr_config[CONF_BORDER_ROUTER][CONF_RCP] = {
-        CONF_RX_PIN: {CONF_NUMBER: 18},
-        CONF_TX_PIN: {CONF_NUMBER: 17},
+        CONF_RX_PIN: 18,
+        CONF_TX_PIN: 17,
     }
     full_config.update(extra_config)
 
@@ -252,8 +289,8 @@ def test_rcp_rejects_same_rx_tx_pin() -> None:
     with pytest.raises(cv.Invalid, match="RX and TX pins must be different"):
         _validate_rcp(
             {
-                CONF_RX_PIN: {CONF_NUMBER: 17},
-                CONF_TX_PIN: {CONF_NUMBER: 17},
+                CONF_RX_PIN: 17,
+                CONF_TX_PIN: 17,
             }
         )
 
@@ -262,11 +299,56 @@ def test_rcp_rejects_reset_pin_collision() -> None:
     with pytest.raises(cv.Invalid, match="must be different from RX and TX pins"):
         _validate_rcp(
             {
-                CONF_RX_PIN: {CONF_NUMBER: 18},
-                CONF_TX_PIN: {CONF_NUMBER: 17},
+                CONF_RX_PIN: 18,
+                CONF_TX_PIN: 17,
                 CONF_RESET_PIN: {CONF_NUMBER: 17, CONF_INVERTED: True},
             }
         )
+
+
+@pytest.mark.parametrize(
+    "baud_rate",
+    [0, 9599],
+)
+def test_rcp_rejects_invalid_baud_rate(
+    set_core_config: SetCoreConfigCallable, baud_rate: int
+) -> None:
+    _set_esp32_idf_core(set_core_config, VARIANT_ESP32S3)
+
+    with pytest.raises(cv.Invalid):
+        _RCP_SCHEMA(
+            {
+                CONF_RX_PIN: 18,
+                CONF_TX_PIN: 17,
+                CONF_BAUD_RATE: baud_rate,
+            }
+        )
+
+
+def test_rcp_rejects_unsupported_pin_options(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    _set_esp32_idf_core(set_core_config, VARIANT_ESP32S3)
+
+    with pytest.raises(cv.Invalid):
+        _RCP_SCHEMA(
+            {
+                CONF_RX_PIN: {CONF_NUMBER: 18, CONF_INVERTED: True},
+                CONF_TX_PIN: 17,
+            }
+        )
+
+
+@pytest.mark.parametrize("variant", [VARIANT_ESP32C5, VARIANT_ESP32C6])
+def test_native_border_router_accepts_wifi_ieee802154_variants(
+    set_core_config: SetCoreConfigCallable,
+    otbr_config: ConfigType,
+    full_config: ConfigType,
+    variant: str,
+) -> None:
+    _set_esp32_idf_core(set_core_config, variant)
+
+    _run_final_validation(otbr_config, full_config)
 
 
 def test_border_router_accepts_supported_config(
