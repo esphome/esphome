@@ -27,6 +27,7 @@ DEPENDENCIES = ["network"]
 # IMPORTANT: If you add a new component here, you must also update the corresponding
 # #ifdef blocks in mdns_component.cpp compile_records_() method
 COMPONENTS_WITH_MDNS_SERVICES = ("api", "prometheus", "sendspin", "web_server")
+CONF_BORDER_ROUTER = "border_router"
 
 mdns_ns = cg.esphome_ns.namespace("mdns")
 MDNSComponent = mdns_ns.class_("MDNSComponent", cg.Component)
@@ -189,17 +190,21 @@ def enable_mdns_storage() -> None:
 def request_service_enable_disable() -> bool:
     """Request MDNSComponent::set_service_enabled() support.
 
-    ESP32 only, not with OpenThread. Returns True when the
+    ESP32 only, not with OpenThread SRP. Returns True when the
     USE_MDNS_SUPPORTS_ENABLE_DISABLE define was added; guard C++ usage with it.
 
     Public API for external components. Do not remove.
     """
     mdns_config = CORE.config.get(CONF_MDNS)
+    openthread_config = CORE.config.get(CONF_OPENTHREAD)
     if (
         mdns_config is None
         or mdns_config[CONF_DISABLED]
         or not CORE.is_esp32
-        or CONF_OPENTHREAD in CORE.config
+        or (
+            openthread_config is not None
+            and CONF_BORDER_ROUTER not in openthread_config
+        )
     ):
         return False
     cg.add_define("USE_MDNS_SUPPORTS_ENABLE_DISABLE")

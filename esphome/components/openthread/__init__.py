@@ -92,6 +92,11 @@ CONF_DEVICE_TYPES = [
     "MTD",
 ]
 
+NATIVE_BORDER_ROUTER_VARIANTS = {
+    VARIANT_ESP32C5,
+    VARIANT_ESP32C6,
+}
+
 
 def _validate_txpower(value: Any) -> int | float:
     if CORE.is_esp32:
@@ -143,7 +148,7 @@ def set_sdkconfig_options(config: ConfigType) -> None:
 
         if (network_key := config.get(CONF_NETWORK_KEY)) is not None:
             add_idf_sdkconfig_option(
-                "CONFIG_OPENTHREAD_NETWORK_MASTERKEY", f"{network_key:X}".lower()
+                "CONFIG_OPENTHREAD_NETWORK_MASTERKEY", f"{network_key:032x}"
             )
 
         if (network_name := config.get(CONF_NETWORK_NAME)) is not None:
@@ -151,16 +156,14 @@ def set_sdkconfig_options(config: ConfigType) -> None:
 
         if (ext_pan_id := config.get(CONF_EXT_PAN_ID)) is not None:
             add_idf_sdkconfig_option(
-                "CONFIG_OPENTHREAD_NETWORK_EXTPANID", f"{ext_pan_id:X}".lower()
+                "CONFIG_OPENTHREAD_NETWORK_EXTPANID", f"{ext_pan_id:016x}"
             )
         if (mesh_local_prefix := config.get(CONF_MESH_LOCAL_PREFIX)) is not None:
             add_idf_sdkconfig_option(
                 "CONFIG_OPENTHREAD_MESH_LOCAL_PREFIX", f"{mesh_local_prefix}".lower()
             )
         if (pskc := config.get(CONF_PSKC)) is not None:
-            add_idf_sdkconfig_option(
-                "CONFIG_OPENTHREAD_NETWORK_PSKC", f"{pskc:X}".lower()
-            )
+            add_idf_sdkconfig_option("CONFIG_OPENTHREAD_NETWORK_PSKC", f"{pskc:032x}")
 
     add_idf_sdkconfig_option("CONFIG_OPENTHREAD_DNS64_CLIENT", not border_router)
     add_idf_sdkconfig_option("CONFIG_OPENTHREAD_SRP_CLIENT", not border_router)
@@ -214,10 +217,7 @@ def _validate_reset_pin(value: object) -> ConfigType:
 
 
 def _validate_rcp(config: ConfigType) -> ConfigType:
-    pin_numbers = {
-        config[CONF_RX_PIN][CONF_NUMBER],
-        config[CONF_TX_PIN][CONF_NUMBER],
-    }
+    pin_numbers = {config[CONF_RX_PIN], config[CONF_TX_PIN]}
     if len(pin_numbers) != 2:
         raise cv.Invalid("RCP UART RX and TX pins must be different")
     if (reset_pin := config.get(CONF_RESET_PIN)) is not None and reset_pin[
@@ -230,9 +230,9 @@ def _validate_rcp(config: ConfigType) -> ConfigType:
 _RCP_SCHEMA = cv.All(
     cv.Schema(
         {
-            cv.Required(CONF_RX_PIN): pins.internal_gpio_input_pin_schema,
-            cv.Required(CONF_TX_PIN): pins.internal_gpio_output_pin_schema,
-            cv.Optional(CONF_BAUD_RATE, default=460800): cv.positive_int,
+            cv.Required(CONF_RX_PIN): pins.internal_gpio_input_pin_number,
+            cv.Required(CONF_TX_PIN): pins.internal_gpio_output_pin_number,
+            cv.Optional(CONF_BAUD_RATE, default=460800): cv.int_range(min=9600),
             cv.Optional(CONF_RESET_PIN): _validate_reset_pin,
         }
     ),
@@ -371,9 +371,10 @@ def _final_validate(config: ConfigType) -> ConfigType:
             )
         if CORE.using_arduino:
             raise cv.Invalid("OpenThread Border Router requires the ESP-IDF framework.")
-        if rcp is None and get_esp32_variant() != VARIANT_ESP32C6:
+        if rcp is None and get_esp32_variant() not in NATIVE_BORDER_ROUTER_VARIANTS:
             raise cv.Invalid(
-                "OpenThread Border Router with a native radio currently requires ESP32-C6. "
+                "OpenThread Border Router with a native radio requires an ESP32 variant "
+                "with both Wi-Fi and IEEE 802.15.4 support. "
                 "Configure 'rcp:' to use an external OpenThread Radio Co-Processor."
             )
         if idf_version() < cv.Version(5, 5, 0):
@@ -473,8 +474,8 @@ async def to_code(config: ConfigType) -> None:
         ot = cg.new_Pvariable(
             config[CONF_ID],
             rcp[CONF_BAUD_RATE],
-            rcp[CONF_RX_PIN][CONF_NUMBER],
-            rcp[CONF_TX_PIN][CONF_NUMBER],
+            rcp[CONF_RX_PIN],
+            rcp[CONF_TX_PIN],
             reset_pin,
         )
     add_use_address(ot, config[CONF_USE_ADDRESS])

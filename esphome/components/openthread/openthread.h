@@ -56,8 +56,6 @@ class OpenThreadComponent final : public Component {
   bool is_connected() const { return this->connected_; }
   /// Returns true once esp_openthread_init() has completed and the OT lock is usable.
   bool is_lock_initialized() const { return this->lock_initialized_; }
-  bool is_ready() const { return this->ready_; }
-  bool has_task_failed() const { return this->task_failed_; }
   network::IPAddresses get_ip_addresses();
   std::optional<otIp6Address> get_omr_address();
   void ot_main();
@@ -95,7 +93,7 @@ class OpenThreadComponent final : public Component {
   void apply_linkmode_(otInstance *instance);
   void mark_task_failed_();
 #ifdef USE_OPENTHREAD_RCP_UART
-  void reset_rcp_();
+  void reset_rcp_(bool recovery_attempt);
 #endif
 
   std::optional<otIp6Address> get_omr_address_(InstanceLock &lock);
@@ -108,7 +106,7 @@ class OpenThreadComponent final : public Component {
   std::optional<int8_t> output_power_{};
   std::atomic<bool> lock_initialized_{false};
   std::atomic<TeardownStage> teardown_stage_{TeardownStage::TEARDOWN_STAGE_NOT_STARTED};
-  std::atomic<bool> ready_{false};
+  std::atomic<bool> mainloop_running_{false};
   std::atomic<bool> task_failed_{false};
   std::atomic<bool> connected_{false};
 #ifdef USE_ESP32
@@ -119,10 +117,12 @@ class OpenThreadComponent final : public Component {
   int rcp_rx_pin_{-1};
   int rcp_tx_pin_{-1};
   GPIOPin *rcp_reset_pin_{nullptr};
+  std::atomic<uint8_t> rcp_reset_attempts_{0};
 #endif
 #ifdef USE_OPENTHREAD_BORDER_ROUTER
   bool border_router_started_{false};
   uint16_t lock_wait_failures_{0};
+  uint16_t teardown_lock_failures_{0};
 #endif
 
  private:

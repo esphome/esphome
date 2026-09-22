@@ -40,7 +40,7 @@ namespace esphome::openthread {
 
 void OpenThreadComponent::setup() {
 #ifdef USE_OPENTHREAD_BORDER_ROUTER
-  esp_netif_t *backbone_netif = esp_netif_get_handle_from_ifkey("WIFI_STA_DEF");
+  esp_netif_t *backbone_netif = wifi::global_wifi_component->get_esp_netif_sta();
   if (backbone_netif == nullptr) {
     ESP_LOGE(TAG, "Wi-Fi STA backbone netif is not initialized");
     this->teardown_stage_ = TeardownStage::TEARDOWN_STAGE_COMPLETED;
@@ -135,11 +135,11 @@ void OpenThreadComponent::ot_main() {
   };
 
 #ifdef USE_OPENTHREAD_RCP_UART
+  esp_openthread_register_rcp_failure_handler(OpenThreadComponent::rcp_failure_handler);
+  esp_openthread_set_coprocessor_reset_failure_callback(OpenThreadComponent::rcp_failure_handler);
   if (this->rcp_reset_pin_ != nullptr) {
     this->rcp_reset_pin_->setup();
-    esp_openthread_register_rcp_failure_handler(OpenThreadComponent::rcp_failure_handler);
-    esp_openthread_set_coprocessor_reset_failure_callback(OpenThreadComponent::rcp_failure_handler);
-    this->reset_rcp_();
+    this->reset_rcp_(false);
   }
 #endif
 
@@ -267,9 +267,9 @@ void OpenThreadComponent::ot_main() {
   }
 
   if (launch_mainloop) {
-    this->ready_ = true;
+    this->mainloop_running_ = true;
     const esp_err_t err = esp_openthread_launch_mainloop();
-    this->ready_ = false;
+    this->mainloop_running_ = false;
     if (err != ESP_OK) {
       ESP_LOGE(TAG, "OpenThread main loop failed: %s", esp_err_to_name(err));
       this->mark_task_failed_();
@@ -299,10 +299,25 @@ void OpenThreadComponent::rcp_failure_handler() {
     ESP_LOGE(TAG, "RCP failure reported after OpenThread component was torn down");
     return;
   }
-  global_openthread_component->reset_rcp_();
+  global_openthread_component->reset_rcp_(true);
 }
 
-void OpenThreadComponent::reset_rcp_() {
+void OpenThreadComponent::reset_rcp_(bool recovery_attempt) {
+  if (recovery_attempt) {
+    static constexpr uint8_t max_reset_attempts = 5;
+    uint8_t attempt = ++this->rcp_reset_attempts_;
+    if (attempt > max_reset_attempts) {
+      ESP_LOGE(TAG, "RCP failed to recover after %u reset attempts", max_reset_attempts);
+      this->mark_task_failed_();
+      return;
+    }
+    ESP_LOGW(TAG, "RCP failure detected, reset attempt %u of %u", attempt, max_reset_attempts);
+  }
+  if (this->rcp_reset_pin_ == nullptr) {
+    ESP_LOGE(TAG, "RCP failure detected but no reset pin is configured");
+    this->mark_task_failed_();
+    return;
+  }
   this->rcp_reset_pin_->digital_write(true);
   vTaskDelay(pdMS_TO_TICKS(10));
   this->rcp_reset_pin_->digital_write(false);
@@ -345,7 +360,7 @@ void OpenThreadComponent::loop() {
     this->mark_failed();
     return;
   }
-  if (!this->ready_ || !wifi::global_wifi_component->is_connected()) {
+  if (!this->mainloop_running_ || !wifi::global_wifi_component->is_connected()) {
     return;
   }
 
@@ -353,12 +368,12 @@ void OpenThreadComponent::loop() {
   if (!lock) {
     // Each loop() call retries after a 100 ms lock-acquire timeout; warn if it keeps
     // failing for a while so a wedged OpenThread task doesn't fail silently forever.
-    static constexpr uint16_t WARN_AFTER_ATTEMPTS = 20;   // ~2s
-    static constexpr uint16_t FAIL_AFTER_ATTEMPTS = 100;  // ~10s
-    if (++this->lock_wait_failures_ == WARN_AFTER_ATTEMPTS) {
+    static constexpr uint16_t warn_after_attempts = 20;   // ~2s
+    static constexpr uint16_t fail_after_attempts = 100;  // ~10s
+    if (++this->lock_wait_failures_ == warn_after_attempts) {
       ESP_LOGW(TAG, "Border router init has been waiting on the OpenThread lock for %u attempts",
                this->lock_wait_failures_);
-    } else if (this->lock_wait_failures_ >= FAIL_AFTER_ATTEMPTS) {
+    } else if (this->lock_wait_failures_ >= fail_after_attempts) {
       ESP_LOGE(TAG, "Border router init could not acquire the OpenThread lock after %u attempts, giving up",
                this->lock_wait_failures_);
       this->mark_failed();
@@ -375,6 +390,7 @@ void OpenThreadComponent::loop() {
     return;
   }
   this->border_router_started_ = true;
+  this->disable_loop();
 }
 #endif
 

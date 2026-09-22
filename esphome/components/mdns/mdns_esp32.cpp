@@ -62,7 +62,7 @@ static void register_esp32(MDNSComponent *comp, StaticVector<MDNSService, MDNS_S
 #endif
 }
 
-#if defined(USE_MDNS_SUPPORTS_ENABLE_DISABLE) && !defined(USE_OPENTHREAD)
+#if defined(USE_MDNS_SUPPORTS_ENABLE_DISABLE) && (!defined(USE_OPENTHREAD) || defined(USE_OPENTHREAD_BORDER_ROUTER))
 bool MDNSComponent::set_service_enabled(const char *service_type, const char *proto, bool enabled) {
   // services_ is compiled in setup()
   if (!this->is_ready()) {
@@ -87,7 +87,7 @@ bool MDNSComponent::set_service_enabled(const char *service_type, const char *pr
   ESP_LOGW(TAG, "Service %s not found", service_type);
   return false;
 }
-#endif  // USE_MDNS_SUPPORTS_ENABLE_DISABLE && !USE_OPENTHREAD
+#endif
 
 void MDNSComponent::setup() { this->setup_buffers_and_register_(register_esp32); }
 
