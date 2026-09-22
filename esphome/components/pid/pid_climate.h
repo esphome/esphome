@@ -26,6 +26,7 @@ class PIDClimate final : public climate::Climate, public Component {
   void set_kd(float kd) { controller_.kd_ = kd; }
   void set_min_integral(float min_integral) { controller_.min_integral_ = min_integral; }
   void set_max_integral(float max_integral) { controller_.max_integral_ = max_integral; }
+  bool set_deadband_thresholds(float threshold_low, float threshold_high);
   void set_output_samples(int in) { controller_.output_samples_ = in; }
   void set_derivative_samples(int in) {
     controller_.derivative_samples_ = in;
@@ -193,8 +194,7 @@ template<typename... Ts> class PIDSetDeadbandThresholdParametersAction final : p
     auto threshold_high = this->threshold_high_.value(x...);
     auto threshold_low = this->threshold_low_.value(x...);
 
-    this->parent_->set_threshold_high(threshold_high);
-    this->parent_->set_threshold_low(threshold_low);
+    this->parent_->set_deadband_thresholds(threshold_low, threshold_high);
   }
 
  protected:
