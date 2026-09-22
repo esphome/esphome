@@ -1,0 +1,45 @@
+esphome:
+  name: test-missing-state
+
+host:
+api:
+  batch_delay: 0ms  # Disable batching to receive all state updates
+logger:
+
+# None of these publish a state at startup, so each one starts out unknown
+switch:
+  - platform: template
+    name: "Test Switch"
+    id: test_switch
+    optimistic: true
+    restore_mode: DISABLED
+
+climate:
+  - platform: template
+    name: "Test Climate"
+    id: test_climate
+    optimistic: true
+    supported_modes:
+      - "OFF"
+      - HEAT
+
+water_heater:
+  - platform: template
+    name: "Test Water Heater"
+    id: test_water_heater
+    supported_modes:
+      - "OFF"
+      - ECO
+
+button:
+  - platform: template
+    name: "Publish States"
+    id: publish_states_button
+    on_press:
+      - switch.turn_on: test_switch
+      - climate.template.publish:
+          id: test_climate
+          mode: HEAT
+      - water_heater.template.publish:
+          id: test_water_heater
+          mode: ECO
