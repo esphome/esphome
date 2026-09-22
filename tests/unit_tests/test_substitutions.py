@@ -738,8 +738,9 @@ def test_include_non_existent_file(tmp_path: Path) -> None:
     config = yaml_util.load_yaml(main_file)
     with pytest.raises(
         cv.Invalid, match=r"Error including file 'non_existent_include_file.yaml'"
-    ):
+    ) as exc_info:
         substitutions.do_substitution_pass(config)
+    assert "main.yaml" in str(exc_info.value)
 
 
 def test_include_broken_file(tmp_path: Path) -> None:
@@ -750,8 +751,11 @@ def test_include_broken_file(tmp_path: Path) -> None:
     main_file.write_text("result: !include broken_file.yaml\n")
 
     config = yaml_util.load_yaml(main_file)
-    with pytest.raises(cv.Invalid, match=r"Error including file 'broken_file.yaml'"):
+    with pytest.raises(
+        cv.Invalid, match=r"Error including file 'broken_file.yaml'"
+    ) as exc_info:
         substitutions.do_substitution_pass(config)
+    assert "main.yaml" in str(exc_info.value)
 
 
 def test_include_filename_substitution_undefined_var(tmp_path: Path) -> None:
