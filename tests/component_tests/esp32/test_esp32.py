@@ -1503,6 +1503,17 @@ def test_mbedtls_tls_openthread_keeps_only_what_it_uses(
         assert sdkconfig.get(name) is (None if name in _OPENTHREAD_EXTRAS else False)
 
 
+def test_mbedtls_tls_zigbee_keeps_only_what_it_uses(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """The Zigbee config keeps CCM and deterministic ECDSA; the rest is trimmed."""
+    generate_main(component_config_path("tls_zigbee_c6.yaml"))
+    sdkconfig = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
+    for name in MBEDTLS_TLS_EXTRA_OPTIONS:
+        assert sdkconfig.get(name) is (None if name in _OPENTHREAD_EXTRAS else False)
+
+
 def test_mbedtls_tls_user_sdkconfig_wins(
     generate_main: Callable[[str | Path], str],
     component_config_path: Callable[[str], Path],
@@ -1529,6 +1540,15 @@ def test_mbedtls_tls_openthread_requires_server_and_extras(
     """The OpenThread hooks mark the DTLS server and CCM/deterministic ECDSA as required."""
     generate_main(component_config_path("mbedtls_tls_openthread.yaml"))
     assert CORE.data[KEY_ESP32][KEY_MBEDTLS_TLS_SERVER_REQUIRED] is True
+    assert CORE.data[KEY_ESP32][KEY_MBEDTLS_TLS_EXTRAS_REQUIRED] == _OPENTHREAD_EXTRAS
+
+
+def test_mbedtls_tls_zigbee_requires_extras(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """The Zigbee hooks mark the CCM/deterministic ECDSA as required."""
+    generate_main(component_config_path("tls_zigbee_c6.yaml"))
     assert CORE.data[KEY_ESP32][KEY_MBEDTLS_TLS_EXTRAS_REQUIRED] == _OPENTHREAD_EXTRAS
 
 
