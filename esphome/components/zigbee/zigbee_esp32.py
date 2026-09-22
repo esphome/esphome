@@ -10,6 +10,7 @@ from esphome.components.esp32 import (
     add_idf_sdkconfig_option,
     add_partition,
     include_builtin_idf_component,
+    require_mbedtls_ecp,
     require_vfs_select,
 )
 import esphome.config_validation as cv
@@ -288,6 +289,9 @@ async def esp32_to_code(config: ConfigType) -> "MockObj":
         name="espressif/esp-zigbee-lib",
         ref="2.0.4",
     )
+    # The esp-zigbee-lib blobs reference mbedtls_ecp_* (Zigbee Direct, install
+    # code ECDH); keep ECP without relying on esp_wifi's Kconfig select.
+    require_mbedtls_ecp()
 
     if CONF_WIFI in CORE.config:
         # zigbee_esp32.cpp uses esp_coexist.h when WiFi is present
