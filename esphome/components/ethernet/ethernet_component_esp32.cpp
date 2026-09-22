@@ -50,9 +50,18 @@
 #include "esp_eth_enc28j60.h"
 #endif
 
+// CH390 headers exist on all IDF versions (always an external component)
+#ifdef USE_ETHERNET_CH390
+#include "esp_eth_mac_ch390.h"
+#include "esp_eth_phy_ch390.h"
+#endif
+
 #ifdef USE_ETHERNET_SPI
 #include <driver/gpio.h>
 #include <driver/spi_master.h>
+#ifdef USE_SPI
+#include "esphome/components/spi/spi.h"
+#endif
 #endif
 
 namespace esphome::ethernet {
@@ -162,25 +171,34 @@ void EthernetComponent::ethernet_lazy_init_() {
   // Install GPIO ISR handler to be able to service SPI Eth modules interrupts
   gpio_install_isr_service(0);
 
-  spi_bus_config_t buscfg = {
-      .mosi_io_num = this->mosi_pin_,
-      .miso_io_num = this->miso_pin_,
-      .sclk_io_num = this->clk_pin_,
-      .quadwp_io_num = -1,
-      .quadhd_io_num = -1,
-      .data4_io_num = -1,
-      .data5_io_num = -1,
-      .data6_io_num = -1,
-      .data7_io_num = -1,
-      .max_transfer_sz = 0,
-      .flags = 0,
-      .intr_flags = 0,
-  };
+  spi_host_device_t host;
+#ifdef USE_SPI
+  if (this->spi_parent_ != nullptr) {
+    // The bus is owned and already initialized by the spi component; share its host.
+    host = this->spi_parent_->get_interface();
+  } else
+#endif
+  {
+    spi_bus_config_t buscfg = {
+        .mosi_io_num = this->mosi_pin_,
+        .miso_io_num = this->miso_pin_,
+        .sclk_io_num = this->clk_pin_,
+        .quadwp_io_num = -1,
+        .quadhd_io_num = -1,
+        .data4_io_num = -1,
+        .data5_io_num = -1,
+        .data6_io_num = -1,
+        .data7_io_num = -1,
+        .max_transfer_sz = 0,
+        .flags = 0,
+        .intr_flags = 0,
+    };
 
-  auto host = this->interface_;
+    host = this->interface_;
 
-  err = spi_bus_initialize(host, &buscfg, SPI_DMA_CH_AUTO);
-  ESPHL_ERROR_CHECK(err, "SPI bus initialize error");
+    err = spi_bus_initialize(host, &buscfg, SPI_DMA_CH_AUTO);
+    ESPHL_ERROR_CHECK(err, "SPI bus initialize error");
+  }
 #endif
   // Network interface setup handled by network component
 
@@ -215,6 +233,8 @@ void EthernetComponent::ethernet_lazy_init_() {
   eth_dm9051_config_t dm9051_config = ETH_DM9051_DEFAULT_CONFIG(host, &devcfg);
 #elif defined(USE_ETHERNET_ENC28J60)
   eth_enc28j60_config_t enc28j60_config = ETH_ENC28J60_DEFAULT_CONFIG(host, &devcfg);
+#elif defined(USE_ETHERNET_CH390)
+  eth_ch390_config_t ch390_config = ETH_CH390_DEFAULT_CONFIG(host, &devcfg);
 #endif
 
 #if defined(USE_ETHERNET_W5500)
@@ -232,8 +252,15 @@ void EthernetComponent::ethernet_lazy_init_() {
   dm9051_config.poll_period_ms = this->polling_interval_;
 #endif
 #elif defined(USE_ETHERNET_ENC28J60)
+  // ENC28J60 does not support poll_period_ms. CS must stay asserted for the chip's CS hold
+  // time (t10, 210 ns) after the last clock or MAC/MII register reads fail ("wrong chip ID")
+  enc28j60_config.spi_devcfg->cs_ena_posttrans = enc28j60_cal_spi_cs_hold_time((this->clock_speed_ + 999999) / 1000000);
   enc28j60_config.int_gpio_num = this->interrupt_pin_;
-  // ENC28J60 does not support poll_period_ms
+#elif defined(USE_ETHERNET_CH390)
+  ch390_config.int_gpio_num = this->interrupt_pin_;
+#ifdef USE_ETHERNET_SPI_POLLING_SUPPORT
+  ch390_config.poll_period_ms = this->polling_interval_;
+#endif
 #endif
 
   phy_config.phy_addr = this->phy_addr_spi_;
@@ -358,6 +385,12 @@ void EthernetComponent::ethernet_lazy_init_() {
       this->phy_ = esp_eth_phy_new_enc28j60(&phy_config);
       break;
     }
+#elif defined(USE_ETHERNET_CH390)
+    case ETHERNET_TYPE_CH390: {
+      mac = esp_eth_mac_new_ch390(&ch390_config, &mac_config);
+      this->phy_ = esp_eth_phy_new_ch390(&phy_config);
+      break;
+    }
 #endif
 #endif
     default: {
@@ -408,9 +441,9 @@ void EthernetComponent::ethernet_lazy_init_() {
 #endif  // !USE_ETHERNET_SPI
 
   // use ESP internal eth mac
-  uint8_t mac_addr[6];
+  uint8_t mac_addr[MAC_ADDRESS_SIZE];
   if (this->fixed_mac_.has_value()) {
-    memcpy(mac_addr, this->fixed_mac_->data(), 6);
+    memcpy(mac_addr, this->fixed_mac_->data(), MAC_ADDRESS_SIZE);
   } else {
     esp_read_mac(mac_addr, ESP_MAC_ETH);
   }
@@ -517,6 +550,10 @@ void EthernetComponent::dump_config() {
     case ETHERNET_TYPE_ENC28J60:
       eth_type = "ENC28J60";
       break;
+#elif defined(USE_ETHERNET_CH390)
+    case ETHERNET_TYPE_CH390:
+      eth_type = "CH390";
+      break;
 #endif
 #ifdef USE_ETHERNET_OPENETH
     case ETHERNET_TYPE_OPENETH:
@@ -550,17 +587,25 @@ void EthernetComponent::dump_config() {
                 YESNO(this->is_connected()));
   this->dump_connect_params_();
 #ifdef USE_ETHERNET_SPI
-  ESP_LOGCONFIG(TAG,
-                "  CLK Pin: %u\n"
-                "  MISO Pin: %u\n"
-                "  MOSI Pin: %u\n"
-                "  CS Pin: %u",
-                this->clk_pin_, this->miso_pin_, this->mosi_pin_, this->cs_pin_);
-  const char *spi_interface = "spi3";
-  if (this->interface_ == SPI2_HOST) {
-    spi_interface = "spi2";
+#ifdef USE_SPI
+  if (this->spi_parent_ != nullptr) {
+    // Pins and interface come from the shared spi bus; only CS is ours.
+    ESP_LOGCONFIG(TAG, "  CS Pin: %u", this->cs_pin_);
+  } else
+#endif
+  {
+    ESP_LOGCONFIG(TAG,
+                  "  CLK Pin: %u\n"
+                  "  MISO Pin: %u\n"
+                  "  MOSI Pin: %u\n"
+                  "  CS Pin: %u",
+                  this->clk_pin_, this->miso_pin_, this->mosi_pin_, this->cs_pin_);
+    const char *spi_interface = "spi3";
+    if (this->interface_ == SPI2_HOST) {
+      spi_interface = "spi2";
+    }
+    ESP_LOGCONFIG(TAG, "  Interface: %s", spi_interface);
   }
-  ESP_LOGCONFIG(TAG, "  Interface: %s", spi_interface);
 #ifdef USE_ETHERNET_SPI_POLLING_SUPPORT
   if (this->polling_interval_ != 0) {
     ESP_LOGCONFIG(TAG, "  Polling Interval: %" PRIu32 " ms", this->polling_interval_);
@@ -764,16 +809,25 @@ void EthernetComponent::start_connect_() {
 
 #ifdef USE_ETHERNET_MANUAL_IP
   if (this->manual_ip_.has_value()) {
-    LwIPLock lock;
+    // Set DNS through esp_netif so the servers are stored in the netif's own
+    // dns[] array; raw dns_setserver() would be lost when the default-route
+    // arbitration re-applies the default netif's DNS.
+    // Log-only on failure: the link still has a working IP/gateway, so degraded
+    // name resolution does not justify marking the whole component failed.
+    esp_netif_dns_info_t dns{};
     if (this->manual_ip_->dns1.is_set()) {
-      ip_addr_t d;
-      d = this->manual_ip_->dns1;
-      dns_setserver(0, &d);
+      dns.ip = this->manual_ip_->dns1;
+      err = esp_netif_set_dns_info(this->eth_netif_, ESP_NETIF_DNS_MAIN, &dns);
+      if (err != ESP_OK) {
+        ESP_LOGE(TAG, "Set main DNS failed: %s", esp_err_to_name(err));
+      }
     }
     if (this->manual_ip_->dns2.is_set()) {
-      ip_addr_t d;
-      d = this->manual_ip_->dns2;
-      dns_setserver(1, &d);
+      dns.ip = this->manual_ip_->dns2;
+      err = esp_netif_set_dns_info(this->eth_netif_, ESP_NETIF_DNS_BACKUP, &dns);
+      if (err != ESP_OK) {
+        ESP_LOGE(TAG, "Set backup DNS failed: %s", esp_err_to_name(err));
+      }
     }
   } else
 #endif
@@ -874,25 +928,7 @@ void EthernetComponent::dump_connect_params_() {
 #endif /* USE_NETWORK_IPV6 */
 }
 
-#ifdef USE_ETHERNET_SPI
-void EthernetComponent::set_clk_pin(uint8_t clk_pin) { this->clk_pin_ = clk_pin; }
-void EthernetComponent::set_miso_pin(uint8_t miso_pin) { this->miso_pin_ = miso_pin; }
-void EthernetComponent::set_mosi_pin(uint8_t mosi_pin) { this->mosi_pin_ = mosi_pin; }
-void EthernetComponent::set_cs_pin(uint8_t cs_pin) { this->cs_pin_ = cs_pin; }
-void EthernetComponent::set_interrupt_pin(uint8_t interrupt_pin) { this->interrupt_pin_ = interrupt_pin; }
-void EthernetComponent::set_reset_pin(uint8_t reset_pin) { this->reset_pin_ = reset_pin; }
-void EthernetComponent::set_clock_speed(int clock_speed) { this->clock_speed_ = clock_speed; }
-void EthernetComponent::set_interface(spi_host_device_t interface) { this->interface_ = interface; }
-#ifdef USE_ETHERNET_SPI_POLLING_SUPPORT
-void EthernetComponent::set_polling_interval(uint32_t polling_interval) { this->polling_interval_ = polling_interval; }
-#endif
-#else
-void EthernetComponent::set_phy_addr(uint8_t phy_addr) { this->phy_addr_ = phy_addr; }
-void EthernetComponent::set_power_pin(int power_pin) { this->power_pin_ = power_pin; }
-void EthernetComponent::set_mdc_pin(uint8_t mdc_pin) { this->mdc_pin_ = mdc_pin; }
-void EthernetComponent::set_mdio_pin(uint8_t mdio_pin) { this->mdio_pin_ = mdio_pin; }
-void EthernetComponent::set_clk_pin(uint8_t clk_pin) { this->clk_pin_ = clk_pin; }
-void EthernetComponent::set_clk_mode(emac_rmii_clock_mode_t clk_mode) { this->clk_mode_ = clk_mode; }
+#ifndef USE_ETHERNET_SPI
 void EthernetComponent::add_phy_register(PHYRegister register_value) { this->phy_registers_.push_back(register_value); }
 #endif
 
@@ -901,7 +937,7 @@ void EthernetComponent::get_eth_mac_address_raw(uint8_t *mac) {
     // External callers (mdns, ethernet_info, etc.) may ask for the MAC before/regardless
     // of whether ethernet is enabled. Use the configured MAC if set, else the system ETH MAC.
     if (this->fixed_mac_.has_value()) {
-      memcpy(mac, this->fixed_mac_->data(), 6);
+      memcpy(mac, this->fixed_mac_->data(), MAC_ADDRESS_SIZE);
     } else {
       esp_read_mac(mac, ESP_MAC_ETH);
     }
@@ -912,14 +948,9 @@ void EthernetComponent::get_eth_mac_address_raw(uint8_t *mac) {
   ESPHL_ERROR_CHECK(err, "ETH_CMD_G_MAC error");
 }
 
-std::string EthernetComponent::get_eth_mac_address_pretty() {
-  char buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
-  return std::string(this->get_eth_mac_address_pretty_into_buffer(buf));
-}
-
 const char *EthernetComponent::get_eth_mac_address_pretty_into_buffer(
     std::span<char, MAC_ADDRESS_PRETTY_BUFFER_SIZE> buf) {
-  uint8_t mac[6];
+  uint8_t mac[MAC_ADDRESS_SIZE];
   get_eth_mac_address_raw(mac);
   format_mac_addr_upper(mac, buf.data());
   return buf.data();

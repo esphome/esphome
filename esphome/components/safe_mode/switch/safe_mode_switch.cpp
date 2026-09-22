@@ -7,10 +7,6 @@ namespace esphome::safe_mode {
 
 static const char *const TAG = "safe_mode.switch";
 
-void SafeModeSwitch::set_safe_mode(SafeModeComponent *safe_mode_component) {
-  this->safe_mode_component_ = safe_mode_component;
-}
-
 void SafeModeSwitch::write_state(bool state) {
   // Acknowledge
   this->publish_state(false);

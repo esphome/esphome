@@ -1,8 +1,9 @@
 #include "debug_component.h"
 #ifdef USE_RP2
 #include "esphome/core/defines.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
-#include <Arduino.h>
+#include <hardware/clocks.h>
 #include <hardware/watchdog.h>
 #if defined(PICO_RP2350)
 #include <hardware/structs/powman.h>
@@ -68,13 +69,14 @@ const char *DebugComponent::get_reset_reason_(std::span<char, RESET_REASON_BUFFE
 
 const char *DebugComponent::get_wakeup_cause_(std::span<char, WAKEUP_CAUSE_BUFFER_SIZE> buffer) { return ""; }
 
-uint32_t DebugComponent::get_free_heap_() { return ::rp2040.getFreeHeap(); }
+// RAMAllocator already implements the free-heap calculation for this platform, so it is not duplicated here.
+uint32_t DebugComponent::get_free_heap_() { return RAMAllocator<uint8_t>().get_free_heap_size(); }
 
 size_t DebugComponent::get_device_info_(std::span<char, DEVICE_INFO_BUFFER_SIZE> buffer, size_t pos) {
   constexpr size_t size = DEVICE_INFO_BUFFER_SIZE;
   char *buf = buffer.data();
 
-  uint32_t cpu_freq = RP2040::f_cpu();
+  uint32_t cpu_freq = clock_get_hz(clk_sys);
   ESP_LOGD(TAG, "CPU Frequency: %" PRIu32, cpu_freq);
   pos = buf_append_printf(buf, size, pos, "|CPU Frequency: %" PRIu32, cpu_freq);
 
