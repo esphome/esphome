@@ -17,6 +17,7 @@ from esphome.components.zephyr.framework_west import (
     check_and_install,
 )
 from esphome.components.zephyr.variants import ZephyrModule, ZephyrSDK
+from esphome.framework_helpers import get_python_env_executable_path
 
 _FAKE_SDK = ZephyrSDK(manifest_url="https://example.invalid/zephyr")
 _CACHE_KEY = "v4.4.1-my-branch-00000000"
@@ -49,7 +50,9 @@ def _make_fake_run_command_ok(tmp_path: Path, manifest_path: str = "zephyr"):
 
 
 def _fake_create_venv(root: Path, msg: str | None = None) -> None:
-    python = Path(root) / "bin" / "python"
+    # Must match get_python_env_executable_path()'s real path (bin/python vs.
+    # Scripts/python.exe), or install_venv looks true forever on Windows.
+    python = get_python_env_executable_path(root, "python")
     python.parent.mkdir(parents=True, exist_ok=True)
     python.touch()
 
