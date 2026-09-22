@@ -1,0 +1,13 @@
+# The camera's supply rail is brought up by an esp_ldo entry here, as a board with a MIPI-DSI
+# display would do, so the camera is expected to leave that channel alone by itself.
+esp_ldo:
+  - channel: 3
+    voltage: 2.5V
+
+mipi_csi:
+  name: MIPI CSI Camera
+  sensor: SC2336
+  resolution: 1280x720
+  pixel_format: RGB565
+  framerate: 10 fps
+  reset_pin: GPIO21
