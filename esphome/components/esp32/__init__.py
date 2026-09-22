@@ -775,9 +775,9 @@ class MbedtlsSdkconfigData:
     """Inputs for the mbedTLS sdkconfig flags, reconciled at FINAL.
 
     Components call the require_mbedtls_*() helpers (and request_tls(), which
-    signals through the esp-tls exclusion instead) rather than writing the
-    CONFIG_MBEDTLS_* flags directly; _reconcile_mbedtls_sdkconfig() decides
-    the final values once every to_code has run.
+    sets tls_required and also un-excludes the esp-tls component) rather than
+    writing the CONFIG_MBEDTLS_* flags directly; _reconcile_mbedtls_sdkconfig()
+    decides the final values once every to_code has run.
     """
 
     ecp_required: bool = False  # ECDH/ECDSA without TLS (openthread SRP host key)
@@ -1926,8 +1926,9 @@ def require_certificate_bundle() -> None:
     certificates (http_request, audio streaming) call this so the bundle is
     compiled and gen_crt_bundle runs only when something uses it.
     """
-    # esp_crt_bundle.c calls mbedtls_ssl_conf_*, so a bundle always needs TLS.
-    request_tls()
+    # esp_crt_bundle.c lives in the mbedtls component and calls
+    # mbedtls_ssl_conf_*, so a bundle needs the TLS role but not esp-tls.
+    require_mbedtls_tls()
     CORE.data[KEY_ESP32][KEY_CERT_BUNDLE] = True
 
 
@@ -2519,6 +2520,8 @@ _MBEDTLS_TLS_ON_OPTIONS = (
     "CONFIG_OPENTHREAD_COMMISSIONER",
     "CONFIG_OPENTHREAD_JOINER",
     "CONFIG_OPENTHREAD_BORDER_AGENT_ENABLE",
+    # Border router defaults the border agent (and its DTLS) on.
+    "CONFIG_OPENTHREAD_BORDER_ROUTER",
 )
 # Any user option under these prefixes only makes sense with TLS compiled in.
 _TLS_OPTION_PREFIXES = ("CONFIG_ESP_TLS_", "CONFIG_MBEDTLS_SSL_", "CONFIG_ESP_HTTPS_")

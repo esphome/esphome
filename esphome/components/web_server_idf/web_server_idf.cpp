@@ -544,8 +544,12 @@ bool AsyncWebServerRequest::authenticate(const char *username, const char *passw
   constexpr size_t max_digest_len = 350;
   char digest[max_digest_len];
   size_t out;
-  mbedtls_base64_encode(reinterpret_cast<uint8_t *>(digest), max_digest_len, &out,
-                        reinterpret_cast<const uint8_t *>(user_info), user_info_len);
+  // The buffer bound above makes failure unreachable; reject rather than
+  // compare against an unwritten digest if that ever changes.
+  if (mbedtls_base64_encode(reinterpret_cast<uint8_t *>(digest), max_digest_len, &out,
+                            reinterpret_cast<const uint8_t *>(user_info), user_info_len) != 0) {
+    return false;
+  }
 
   // Constant-time comparison to avoid timing side channels.
   // No early return on length mismatch — the length difference is folded

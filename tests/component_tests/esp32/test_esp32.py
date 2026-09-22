@@ -710,6 +710,7 @@ def test_esp_tls_linking_components_are_excluded_by_default() -> None:
         pytest.param({"CONFIG_ESP_HTTPS_OTA_ALLOW_HTTP": "y"}, True, id="https_prefix"),
         pytest.param({"CONFIG_OPENTHREAD_COMMISSIONER": "y"}, True, id="ot_dtls_y"),
         pytest.param({"CONFIG_OPENTHREAD_JOINER": "n"}, False, id="ot_dtls_n"),
+        pytest.param({"CONFIG_OPENTHREAD_BORDER_ROUTER": "y"}, True, id="ot_br_y"),
         pytest.param({"CONFIG_LWIP_IPV6": "y"}, False, id="unrelated"),
     ],
 )
@@ -743,8 +744,9 @@ def test_user_sdkconfig_wants_tls(options: dict[str, Any], wants_tls: bool) -> N
         pytest.param("mbedtls_tls_wifi_eap.yaml", False, False, True, id="wifi_eap"),
         # zigbee requests ECP for the esp-zigbee-lib blobs, without TLS.
         pytest.param("tls_zigbee_c6.yaml", True, False, True, id="zigbee"),
+        # A raw bundle keeps the TLS role but no longer compiles esp-tls.
         pytest.param(
-            "certificate_bundle_sdkconfig.yaml", False, False, False, id="raw_bundle"
+            "certificate_bundle_sdkconfig.yaml", False, False, True, id="raw_bundle"
         ),
         pytest.param(
             "tls_sdkconfig_esp_tls.yaml", False, False, False, id="raw_esp_tls"
