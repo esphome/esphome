@@ -1488,7 +1488,7 @@ def test_mbedtls_tls_trim_sdkconfig(
     assert {sdkconfig.get(name) for name in MBEDTLS_TLS_EXTRA_OPTIONS} == {extras}
 
 
-_OPENTHREAD_EXTRAS = {"CONFIG_MBEDTLS_CCM_C", "CONFIG_MBEDTLS_ECDSA_DETERMINISTIC"}
+_CCM_ECDSA_EXTRAS = {"CONFIG_MBEDTLS_CCM_C", "CONFIG_MBEDTLS_ECDSA_DETERMINISTIC"}
 
 
 def test_mbedtls_tls_openthread_keeps_only_what_it_uses(
@@ -1500,7 +1500,7 @@ def test_mbedtls_tls_openthread_keeps_only_what_it_uses(
     sdkconfig = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
     assert tuple(sdkconfig.get(name) for name in _TLS_SERVER_OPTIONS) == (None, None)
     for name in MBEDTLS_TLS_EXTRA_OPTIONS:
-        assert sdkconfig.get(name) is (None if name in _OPENTHREAD_EXTRAS else False)
+        assert sdkconfig.get(name) is (None if name in _CCM_ECDSA_EXTRAS else False)
 
 
 def test_mbedtls_tls_zigbee_keeps_only_what_it_uses(
@@ -1510,8 +1510,9 @@ def test_mbedtls_tls_zigbee_keeps_only_what_it_uses(
     """The Zigbee config keeps CCM and deterministic ECDSA; the rest is trimmed."""
     generate_main(component_config_path("tls_zigbee_c6.yaml"))
     sdkconfig = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
+    assert tuple(sdkconfig.get(name) for name in _TLS_SERVER_OPTIONS) == (True, False)
     for name in MBEDTLS_TLS_EXTRA_OPTIONS:
-        assert sdkconfig.get(name) is (None if name in _OPENTHREAD_EXTRAS else False)
+        assert sdkconfig.get(name) is (None if name in _CCM_ECDSA_EXTRAS else False)
 
 
 def test_mbedtls_tls_user_sdkconfig_wins(
@@ -1540,7 +1541,7 @@ def test_mbedtls_tls_openthread_requires_server_and_extras(
     """The OpenThread hooks mark the DTLS server and CCM/deterministic ECDSA as required."""
     generate_main(component_config_path("mbedtls_tls_openthread.yaml"))
     assert CORE.data[KEY_ESP32][KEY_MBEDTLS_TLS_SERVER_REQUIRED] is True
-    assert CORE.data[KEY_ESP32][KEY_MBEDTLS_TLS_EXTRAS_REQUIRED] == _OPENTHREAD_EXTRAS
+    assert CORE.data[KEY_ESP32][KEY_MBEDTLS_TLS_EXTRAS_REQUIRED] == _CCM_ECDSA_EXTRAS
 
 
 def test_mbedtls_tls_zigbee_requires_extras(
@@ -1549,7 +1550,7 @@ def test_mbedtls_tls_zigbee_requires_extras(
 ) -> None:
     """The Zigbee hooks mark the CCM/deterministic ECDSA as required."""
     generate_main(component_config_path("tls_zigbee_c6.yaml"))
-    assert CORE.data[KEY_ESP32][KEY_MBEDTLS_TLS_EXTRAS_REQUIRED] == _OPENTHREAD_EXTRAS
+    assert CORE.data[KEY_ESP32][KEY_MBEDTLS_TLS_EXTRAS_REQUIRED] == _CCM_ECDSA_EXTRAS
 
 
 _VASPRINTF_STUB_FLAGS = {"-Wl,--wrap=vasprintf", "-Wl,--undefined=__wrap_vasprintf"}
