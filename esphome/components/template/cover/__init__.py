@@ -116,9 +116,7 @@ async def to_code(config):
 
 
 # CONF_STATE and CONF_POSITION are cv.Exclusive in the schema, so at most
-# one is present and both map to the position field. Publish mutates the
-# Cover fields directly (no CoverCall) since it is a state push, not a
-# control request.
+# one is present and both map to the position field.
 automation.register_apply_action(
     "cover.template.publish",
     cv.Schema(

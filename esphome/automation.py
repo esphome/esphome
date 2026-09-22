@@ -1,7 +1,6 @@
 from collections.abc import Callable
 from dataclasses import dataclass, field
 import logging
-from types import FunctionType
 from typing import Any
 
 import esphome.codegen as cg
@@ -215,38 +214,66 @@ validate_condition_list = cv.validate_registry("condition", CONDITION_REGISTRY)
 ApplyAction = cg.esphome_ns.class_("ApplyAction", Action)
 
 
+def flash_string(config: ConfigType, value: str) -> str:
+    """Default renderer for ``std::string`` constants; keeps the literal in flash on ESP8266."""
+    return f"progmem_string({FlashStringLiteral(value)})"
+
+
+def _safe_exp(config: ConfigType, value: Any) -> str:
+    return str(cg.safe_exp(value))
+
+
 @dataclass(frozen=True)
 class ApplyField:
     """One config key forwarded as ``target(value)``, or as statement ``target`` when it has ``{}``.
 
     Double a literal brace in a template. ``conf_key`` may be a path into nested sections.
-    ``type_`` may be a function ``(config, parent)`` when the C++ type is only known per instance.
-    ``const_fn(config, value)`` renders a constant when ``cg.safe_exp`` is not the right spelling;
-    a lambda bypasses it, so the target must also take a plain ``type_``. ``std::string``
-    constants stay in flash on ESP8266. An absent key emits nothing.
+    ``const_fn(config, value)`` renders a constant's argument text when ``cg.safe_exp`` is not
+    the right spelling; a lambda bypasses it, so the target must also take a plain ``type_``.
+    ``type_fn(parent)`` replaces ``type_`` when the C++ type is only known per instance. An
+    absent key emits nothing.
     """
 
     conf_key: str | tuple[str, ...]
     target: str
-    type_: SafeExpType | Callable[[ConfigType, MockObj], SafeExpType]
+    type_: SafeExpType | None = None
     const_fn: Callable[[ConfigType, Any], str] | None = None
+    type_fn: Callable[[MockObj], SafeExpType] | None = None
 
 
 @dataclass(frozen=True)
 class ApplyCall:
     """One statement from several keys, e.g. ``"set_range({}, {})"``, skipped unless all are present.
 
-    Pair the keys with ``cv.Inclusive`` or defaults. With no args it is an unconditional
-    follow-up such as ``ApplyCall("publish_state()")``.
+    Pair the keys with ``cv.Inclusive`` or defaults. With no keys the statement is always
+    emitted, e.g. ``ApplyCall("stop()")`` or a trailing ``ApplyCall("publish_state()")``.
     """
 
     target: str
     args: tuple[tuple[str | tuple[str, ...], SafeExpType], ...] = ()
 
 
+# (conf_key, type_, type_fn, render)
 _ApplyMember = tuple[
-    str | tuple[str, ...], SafeExpType, Callable[[ConfigType, Any], str] | None
+    str | tuple[str, ...],
+    SafeExpType | None,
+    Callable[[MockObj], SafeExpType] | None,
+    Callable[[ConfigType, Any], str],
 ]
+
+
+def _member(
+    conf_key: str | tuple[str, ...],
+    type_: SafeExpType | None,
+    type_fn: Callable[[MockObj], SafeExpType] | None = None,
+    const_fn: Callable[[ConfigType, Any], str] | None = None,
+) -> _ApplyMember:
+    if (type_ is None) == (type_fn is None):
+        raise ValueError(
+            f"apply field {conf_key!r} needs exactly one of type_ and type_fn"
+        )
+    render = const_fn or (flash_string if type_ is cg.std_string else _safe_exp)
+    return conf_key, type_, type_fn, render
 
 
 def _apply_template(
@@ -254,16 +281,21 @@ def _apply_template(
 ) -> tuple[str, tuple[_ApplyMember, ...]]:
     if isinstance(apply_field, ApplyCall):
         target = apply_field.target
-        members: tuple[_ApplyMember, ...] = tuple(
-            (key, type_, None) for key, type_ in apply_field.args
-        )
+        members = tuple(_member(key, type_) for key, type_ in apply_field.args)
     else:
         target = (
             apply_field.target
             if "{}" in apply_field.target
             else f"{apply_field.target}({{}})"
         )
-        members = ((apply_field.conf_key, apply_field.type_, apply_field.const_fn),)
+        members = (
+            _member(
+                apply_field.conf_key,
+                apply_field.type_,
+                apply_field.type_fn,
+                apply_field.const_fn,
+            ),
+        )
     if target.count("{}") != len(members):
         raise ValueError(
             f"apply target {target!r} has {target.count('{}')} placeholder(s) "
@@ -298,7 +330,7 @@ def register_apply_action(
     if isinstance(getattr(schema, "schema", None), dict):
         keys = {getattr(marker, "schema", marker) for marker in schema.schema}
         for _, members in templates:
-            for conf_key, _, _ in members:
+            for conf_key, _, _, _ in members:
                 first = conf_key if isinstance(conf_key, str) else conf_key[0]
                 if first not in keys:
                     raise ValueError(
@@ -317,30 +349,30 @@ def register_apply_action(
             (cg.RawExpression(f"const std::remove_cvref_t<{cg.safe_exp(t)}> &"), name)
             for t, name in args
         ]
-        receiver = "call." if call else f"{parent}->"
-        statements = [f"auto call = {parent}->{call}();"] if call else []
+        if call:
+            receiver = "call."
+            statements = [f"auto call = {parent}->{call}();"]
+            tail = ["call.perform();"]
+        else:
+            receiver = f"{parent}->"
+            statements = []
+            tail = []
         for target, members in templates:
             exprs: list[str] = []
-            for conf_key, type_, const_fn in members:
+            for conf_key, type_, type_fn, render in members:
                 if (value := _config_lookup(config, conf_key)) is None:
                     break
-                if isinstance(type_, FunctionType):
-                    type_ = type_(config, parent)
                 if isinstance(value, Lambda):
+                    return_type = type_fn(parent) if type_fn else type_
                     inner = await cg.process_lambda(
-                        value, lambda_args, return_type=type_
+                        value, lambda_args, return_type=return_type
                     )
-                    exprs.append(str(cg.safe_exp(call_lambda(inner))))
-                elif const_fn is not None:
-                    exprs.append(const_fn(config, value))
-                elif type_ is cg.std_string and isinstance(value, str):
-                    exprs.append(f"progmem_string({FlashStringLiteral(value)})")
+                    exprs.append(str(call_lambda(inner)))
                 else:
-                    exprs.append(str(cg.safe_exp(value)))
+                    exprs.append(render(config, value))
             else:
                 statements.append(f"{receiver}{target.format(*exprs)};")
-        if call:
-            statements.append("call.perform();")
+        statements.extend(tail)
         apply_lambda = LambdaExpression(
             ["\n".join(statements)], lambda_args, capture="", return_type=cg.void
         )

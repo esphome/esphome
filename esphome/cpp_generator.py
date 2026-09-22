@@ -1211,9 +1211,8 @@ def call_lambda(lamb: LambdaExpression) -> Expression:
     # Developer error if this is called with a lambda that doesn't have a return type
     assert lamb.return_type is not None, "Lambda must have a return type to be called"
     expr = lamb.content.strip()
-    # Only a lone `return <expr>;` reduces; a body with further statements is called as is.
+    # A lone `return <expr>;` reduces to the expression; anything longer is called as is.
     if re.match(r"^return\b", expr) and expr.endswith(";") and expr.count(";") == 1:
-        # Convert a lambda returning a simple expression to just that expression
         expr = RawExpression(expr[6:-1].strip())
         # Don't cast if the return type is a class
         if isinstance(lamb.return_type, MockObjClass):

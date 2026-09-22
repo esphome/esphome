@@ -457,16 +457,11 @@ file does, and it is the authority when they disagree. The most useful starting 
             automation.ApplyField(CONF_KI, "set_ki", cg.float_),
         )
         ```
-        A `target` containing `{}` is a statement template (`"position = {}"`), a `conf_key` tuple walks
-        nested config sections, `type_` may be a function of `(config, parent)` when the C++ type is only
-        known per instance, `const_fn` renders a constant when `cg.safe_exp` is not the right spelling, and
-        `std::string` constants are emitted with `progmem_string(ESPHOME_F(...))` so they stay in flash on
-        ESP8266. `ApplyCall("set_range({}, {})", ((CONF_LOW, cg.float_), (CONF_HIGH, cg.float_)))` folds
-        several keys into one statement emitted only when every key is present, and
-        `ApplyCall("publish_state()")` with no args is an unconditional follow-up call. Actions that build
-        a call object pass `call="make_call"`; every statement, follow-up calls included, then targets
-        `call`, and `call.perform()` is appended last. See `cover.control` and `cover.template.publish`. `TEMPLATABLE_VALUE` with
-        `cg.templatable` stays for actions whose `play()` has real logic beyond forwarding values.
+        `ApplyField`, `ApplyCall` and `register_apply_action` in `esphome/automation.py` document the
+        rest: statement templates, nested keys, `const_fn`, `type_fn`, multi-key calls and `call="make_call"`
+        for actions that build a call object. See `cover.control` and `cover.template.publish`.
+        `TEMPLATABLE_VALUE` with `cg.templatable` stays for actions whose `play()` has real logic beyond
+        forwarding values.
 
     *   **Conditions:**
         ```cpp

@@ -254,7 +254,8 @@ template<typename... Ts> class StatelessLambdaAction : public Action<Ts...> {
 };
 
 /// Runs one codegen-generated function that has the parent and every field baked in, so the
-/// action holds one pointer. Args pass by const reference, so a std::string arg is never copied.
+/// action holds one pointer. Args pass by const reference so a std::string arg is never copied;
+/// StatelessLambdaAction keeps by-value parameters because user `lambda:` code owns them.
 template<typename... Ts> class ApplyAction final : public Action<Ts...> {
  public:
   using ApplyFn = void (*)(const std::remove_cvref_t<Ts> &...);

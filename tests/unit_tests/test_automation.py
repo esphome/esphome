@@ -609,11 +609,11 @@ async def _run_apply_action(
     fields: tuple[ApplyField | ApplyCall, ...],
     config: dict[str, object],
     args: list[tuple[object, str]] | None = None,
-    **kwargs: object,
+    call: str | None = None,
 ) -> RegistryEntry:
     """Register an apply action and run its builder with the given config."""
     actions, _ = registries
-    register_apply_action("my.apply", {}, *fields, **kwargs)
+    register_apply_action("my.apply", {}, *fields, call=call)
     entry = actions["my.apply"]
     args = args or []
     template_arg = cg.TemplateArguments(*(t for t, _ in args))
@@ -646,60 +646,65 @@ async def test_register_apply_action_entry(
 
 
 @pytest.mark.asyncio
-async def test_apply_field_constants_are_immediates_and_absent_keys_skipped(
+async def test_apply_constants(
     registries: tuple[Registry, Registry], mock_cg: MockCodegen
 ) -> None:
+    """Constants are immediates, strings stay in flash, absent keys emit nothing, order is kept."""
     direction = cv.enum({"FORWARD": FAN_DIRECTION.FORWARD})("FORWARD")
     fields = (
         ApplyField("kp", "set_kp", cg.float_),
         ApplyField("ki", "set_ki", cg.float_),
         ApplyField("on", "set_on", cg.bool_),
         ApplyField("direction", "set_direction", FAN_DIRECTION),
+        ApplyField("song", "play", cg.std_string),
+        ApplyField("position", "position = {}", cg.float_),
+        ApplyCall("publish_state()"),
     )
-    await _run_apply_action(
-        registries, fields, {"kp": 0.0, "on": False, "direction": direction}
-    )
+    config = {
+        "kp": 0.0,
+        "on": False,
+        "direction": direction,
+        "song": "a:b",
+        "position": 0.5,
+    }
+    await _run_apply_action(registries, fields, config)
     text = _apply_lambda(mock_cg)
-    assert f"{PARENT_OBJ}->set_kp(0.0f);" in text
-    assert f"{PARENT_OBJ}->set_on(false);" in text
-    assert f"{PARENT_OBJ}->set_direction({FAN_DIRECTION.FORWARD});" in text
+    lines = [
+        f"{PARENT_OBJ}->set_kp(0.0f);",
+        f"{PARENT_OBJ}->set_on(false);",
+        f"{PARENT_OBJ}->set_direction({FAN_DIRECTION.FORWARD});",
+        f'{PARENT_OBJ}->play(progmem_string(ESPHOME_F("a:b")));',
+        f"{PARENT_OBJ}->position = 0.5f;",
+        f"{PARENT_OBJ}->publish_state();",
+    ]
+    positions = [text.index(line) for line in lines]
+    assert positions == sorted(positions)
     assert "set_ki" not in text
 
 
 @pytest.mark.asyncio
-async def test_apply_field_lambda_is_called_inline_with_trigger_args(
+async def test_apply_lambdas(
     registries: tuple[Registry, Registry], mock_cg: MockCodegen
 ) -> None:
-    fields = (ApplyField("kp", "set_kp", cg.float_),)
-    await _run_apply_action(
-        registries,
-        fields,
-        {"kp": Lambda("if (x) return 1.0f;\nreturn 2.0f;")},
-        args=[(cg.int32, "x")],
+    """A single return reduces to a cast, anything longer is called inline with the trigger args."""
+    fields = (
+        ApplyField("kp", "set_kp", cg.float_),
+        ApplyField("ki", "set_ki", cg.float_),
     )
+    config = {
+        "kp": Lambda("return x * 2;"),
+        "ki": Lambda("if (x) return 1.0f;\nreturn 2.0f;"),
+    }
+    await _run_apply_action(registries, fields, config, args=[(cg.int32, "x")])
     text = _apply_lambda(mock_cg)
+    assert f"{PARENT_OBJ}->set_kp(static_cast<float>(x * 2));" in text
     # Outer apply lambda and inner field lambda spell the trigger arg identically.
     assert text.count("const std::remove_cvref_t<int32_t> & x") == 2
     assert (
-        f"{PARENT_OBJ}->set_kp([](const std::remove_cvref_t<int32_t> & x) -> float {{"
+        f"{PARENT_OBJ}->set_ki([](const std::remove_cvref_t<int32_t> & x) -> float {{"
         in text
     )
     assert "}(x));" in text
-
-
-@pytest.mark.asyncio
-async def test_apply_field_statement_template(
-    registries: tuple[Registry, Registry], mock_cg: MockCodegen
-) -> None:
-    fields = (
-        ApplyField("position", "position = {}", cg.float_),
-        ApplyCall("publish_state()"),
-    )
-    await _run_apply_action(registries, fields, {"position": 0.5})
-    text = _apply_lambda(mock_cg)
-    assert text.index(f"{PARENT_OBJ}->position = 0.5f;") < text.index(
-        f"{PARENT_OBJ}->publish_state();"
-    )
 
 
 @pytest.mark.asyncio
@@ -734,7 +739,7 @@ async def test_apply_action_call_shape(
 
 
 @pytest.mark.asyncio
-async def test_apply_field_nested_key_and_const_fn(
+async def test_apply_field_nested_key_const_fn_and_type_fn(
     registries: tuple[Registry, Registry], mock_cg: MockCodegen
 ) -> None:
     fields = (
@@ -745,73 +750,38 @@ async def test_apply_field_nested_key_and_const_fn(
             cg.std_string,
             const_fn=lambda config, value: f"{cg.safe_exp(value)}, {len(value)}",
         ),
+        ApplyField(
+            "value",
+            "value() = {}",
+            type_fn=lambda parent: cg.RawExpression(f"decltype({parent}->value())"),
+        ),
     )
-    await _run_apply_action(
-        registries, fields, {"vertical": {"direction": 3}, "name": "abc"}
-    )
+    config = {
+        "vertical": {"direction": 3},
+        "name": "abc",
+        "value": Lambda("return 42;"),
+    }
+    await _run_apply_action(registries, fields, config)
     text = _apply_lambda(mock_cg)
     assert f"{PARENT_OBJ}->set_direction(3);" in text
     assert f'{PARENT_OBJ}->set_name("abc", 3);' in text
+    assert (
+        f"{PARENT_OBJ}->value() = static_cast<decltype({PARENT_OBJ}->value())>(42);"
+        in text
+    )
 
     mock_cg.new_pvariable.reset_mock()
-    await _run_apply_action(registries, fields, {"vertical": {}})
-    assert "set_" not in _apply_lambda(mock_cg)
+    await _run_apply_action(registries, fields[:1], {"vertical": {}})
+    assert "set_direction" not in _apply_lambda(mock_cg)
 
 
-def test_apply_target_placeholder_count_is_checked(
-    registries: tuple[Registry, Registry],
-) -> None:
+def test_apply_registration_checks(registries: tuple[Registry, Registry]) -> None:
     with pytest.raises(ValueError, match="2 placeholder"):
         register_apply_action(
             "my.apply", {}, ApplyCall("set_range({}, {})", (("low", cg.float_),))
         )
-
-
-@pytest.mark.asyncio
-async def test_apply_field_lambda_with_trailing_statements_is_called_not_reduced(
-    registries: tuple[Registry, Registry], mock_cg: MockCodegen
-) -> None:
-    fields = (ApplyField("kp", "set_kp", cg.float_),)
-    await _run_apply_action(
-        registries, fields, {"kp": Lambda('return 1.0f;\nESP_LOGD("x", "no");')}
-    )
-    text = _apply_lambda(mock_cg)
-    assert "static_cast" not in text
-    assert f"{PARENT_OBJ}->set_kp([]() -> float {{" in text
-
-
-@pytest.mark.asyncio
-async def test_apply_field_string_constant_stays_in_flash(
-    registries: tuple[Registry, Registry], mock_cg: MockCodegen
-) -> None:
-    fields = (ApplyField("song", "play", cg.std_string),)
-    await _run_apply_action(registries, fields, {"song": "a:b"})
-    assert f'{PARENT_OBJ}->play(progmem_string(ESPHOME_F("a:b")));' in _apply_lambda(
-        mock_cg
-    )
-
-
-@pytest.mark.asyncio
-async def test_apply_field_type_from_config_and_parent(
-    registries: tuple[Registry, Registry], mock_cg: MockCodegen
-) -> None:
-    fields = (
-        ApplyField(
-            "value",
-            "value() = {}",
-            lambda config, parent: cg.RawExpression(f"decltype({parent}->value())"),
-        ),
-    )
-    await _run_apply_action(registries, fields, {"value": Lambda("return 42;")})
-    assert (
-        f"{PARENT_OBJ}->value() = static_cast<decltype({PARENT_OBJ}->value())>(42);"
-        in _apply_lambda(mock_cg)
-    )
-
-
-def test_apply_field_key_must_exist_in_schema(
-    registries: tuple[Registry, Registry],
-) -> None:
+    with pytest.raises(ValueError, match="exactly one of type_ and type_fn"):
+        register_apply_action("my.apply", {}, ApplyField("kp", "set_kp"))
     schema = cv.Schema({cv.Required(CONF_ID): cv.string, cv.Optional("kp"): cv.float_})
     register_apply_action("my.ok", schema, ApplyField("kp", "set_kp", cg.float_))
     with pytest.raises(ValueError, match="'kd' is not in the schema"):
