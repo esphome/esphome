@@ -1,0 +1,69 @@
+esphome:
+  name: test-invert-filter
+
+host:
+api:
+  batch_delay: 0ms  # Disable batching to receive every state transition
+logger:
+  level: DEBUG
+
+# The invert filter's condition can be a plain templatable boolean or a full
+# automation condition (e.g. switch.is_on). This fixture exercises both:
+# `invert_lambda_sensor` uses a `!lambda` condition, `invert_switch_sensor`
+# uses `switch.is_on` so the inversion can be toggled at runtime.
+switch:
+  - platform: template
+    name: "Invert Switch"
+    id: invert_switch
+    optimistic: true
+    restore_mode: ALWAYS_OFF
+
+binary_sensor:
+  - platform: template
+    name: "Invert Switch Sensor"
+    id: invert_switch_sensor
+    filters:
+      - invert:
+          switch.is_on: invert_switch
+
+  - platform: template
+    name: "Invert Lambda Sensor"
+    id: invert_lambda_sensor
+    filters:
+      - invert: !lambda "return id(invert_switch).state;"
+
+button:
+  # invalidate_state forces the next publish to always report a state change
+  # over the API, even if the filtered output happens to match the sensor's
+  # previous value -- the test needs to observe every filter transition.
+  - platform: template
+    name: "Publish True"
+    id: publish_true_button
+    on_press:
+      - binary_sensor.invalidate_state: invert_switch_sensor
+      - binary_sensor.template.publish:
+          id: invert_switch_sensor
+          state: true
+      - binary_sensor.invalidate_state: invert_lambda_sensor
+      - binary_sensor.template.publish:
+          id: invert_lambda_sensor
+          state: true
+
+  - platform: template
+    name: "Publish False"
+    id: publish_false_button
+    on_press:
+      - binary_sensor.invalidate_state: invert_switch_sensor
+      - binary_sensor.template.publish:
+          id: invert_switch_sensor
+          state: false
+      - binary_sensor.invalidate_state: invert_lambda_sensor
+      - binary_sensor.template.publish:
+          id: invert_lambda_sensor
+          state: false
+
+  - platform: template
+    name: "Enable Invert"
+    id: enable_invert_button
+    on_press:
+      - switch.turn_on: invert_switch

@@ -3,6 +3,8 @@
 
 #include "filter.h"
 
+#include <type_traits>
+
 #include "binary_sensor.h"
 #include "esphome/core/application.h"
 
@@ -61,7 +63,18 @@ optional<bool> DelayedOffFilter::new_value(bool value) {
   }
 }
 
-optional<bool> InvertFilter::new_value(bool value) { return !value; }
+template<typename T> optional<bool> InvertFilter<T>::new_value(bool value) {
+  bool invert;
+  if constexpr (std::is_pointer_v<T>) {
+    invert = this->condition_->check();
+  } else {
+    invert = this->condition_.value();
+  }
+  return invert ? !value : value;
+}
+
+template class InvertFilter<TemplatableFn<bool>>;
+template class InvertFilter<Condition<> *>;
 
 // AutorepeatFilterBase
 // Two independent timers per instance, keyed off two stable addresses inside

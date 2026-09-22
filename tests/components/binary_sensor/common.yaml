@@ -152,3 +152,27 @@ binary_sensor:
       max_length: 350ms
       then:
         - logger.log: "Double clicked"
+
+  # Test invert filter with a templatable condition
+  - platform: template
+    id: invert_conditional
+    name: "Invert Conditional"
+    lambda: return true;
+    filters:
+      - invert: false
+      - invert: !lambda "return id(binary_sensor_some_binary_sensor).state;"
+
+  # Test invert filter with an automation condition (not just a templatable boolean)
+  - platform: template
+    id: invert_switch_condition
+    name: "Invert Switch Condition"
+    lambda: return true;
+    filters:
+      - invert:
+          switch.is_on: invert_condition_switch
+
+switch:
+  - platform: template
+    id: invert_condition_switch
+    name: "Invert Condition Switch"
+    optimistic: true

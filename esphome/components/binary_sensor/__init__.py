@@ -151,6 +151,8 @@ DelayedOnOffFilter = binary_sensor_ns.class_("DelayedOnOffFilter", Filter)
 DelayedOnFilter = binary_sensor_ns.class_("DelayedOnFilter", Filter)
 DelayedOffFilter = binary_sensor_ns.class_("DelayedOffFilter", Filter)
 InvertFilter = binary_sensor_ns.class_("InvertFilter", Filter)
+AlwaysInvertCondition = binary_sensor_ns.class_("AlwaysInvertCondition")
+TemplatableFn = cg.esphome_ns.class_("TemplatableFn")
 AutorepeatFilter = binary_sensor_ns.class_("AutorepeatFilter", Filter)
 LambdaFilter = binary_sensor_ns.class_("LambdaFilter", Filter)
 StatelessLambdaFilter = binary_sensor_ns.class_("StatelessLambdaFilter", Filter)
@@ -166,9 +168,33 @@ def register_filter(name, filter_type, schema):
     return FILTER_REGISTRY.register(name, filter_type, schema)
 
 
-@register_filter("invert", InvertFilter, {})
+def validate_invert_filter(value):
+    # Bare `invert:`/`invert` with no value means "always invert"
+    if value == {}:
+        return True
+    # A dict or list names an automation condition (e.g. `switch.is_on: my_switch`,
+    # `and: [...]`) rather than a plain templatable boolean.
+    if isinstance(value, (dict, list)):
+        return automation.validate_potentially_and_condition(value)
+    return cv.templatable(cv.boolean)(value)
+
+
+@register_filter("invert", InvertFilter, validate_invert_filter)
 async def invert_filter_to_code(config, filter_id):
-    return cg.new_Pvariable(filter_id)
+    filter_id = filter_id.copy()
+    if config is True:
+        # Degenerates to the pre-templated implementation -- no condition to store or evaluate.
+        filter_id.type = InvertFilter.template(AlwaysInvertCondition)
+        return cg.new_Pvariable(filter_id)
+    if isinstance(config, dict):
+        condition = await automation.build_condition(config, cg.TemplateArguments(), [])
+        filter_id.type = InvertFilter.template(
+            automation.Condition.template().operator("ptr")
+        )
+    else:
+        condition = await cg.templatable(config, [], bool)
+        filter_id.type = InvertFilter.template(TemplatableFn.template(bool))
+    return cg.new_Pvariable(filter_id, condition)
 
 
 @register_filter(
