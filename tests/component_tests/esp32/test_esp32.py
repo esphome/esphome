@@ -711,6 +711,9 @@ def test_esp_tls_linking_components_are_excluded_by_default() -> None:
         pytest.param({"CONFIG_OPENTHREAD_COMMISSIONER": "y"}, True, id="ot_dtls_y"),
         pytest.param({"CONFIG_OPENTHREAD_JOINER": "n"}, False, id="ot_dtls_n"),
         pytest.param({"CONFIG_OPENTHREAD_BORDER_ROUTER": "y"}, True, id="ot_br_y"),
+        pytest.param(
+            {"CONFIG_ESP_WIFI_ENTERPRISE_SUPPORT": "y"}, True, id="wifi_enterprise_y"
+        ),
         pytest.param({"CONFIG_LWIP_IPV6": "y"}, False, id="unrelated"),
     ],
 )

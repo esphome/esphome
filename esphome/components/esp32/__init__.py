@@ -2522,6 +2522,8 @@ _MBEDTLS_TLS_ON_OPTIONS = (
     "CONFIG_OPENTHREAD_BORDER_AGENT_ENABLE",
     # Border router defaults the border agent (and its DTLS) on.
     "CONFIG_OPENTHREAD_BORDER_ROUTER",
+    # Enterprise WiFi selects TLS back on (see the TLS-off block).
+    "CONFIG_ESP_WIFI_ENTERPRISE_SUPPORT",
 )
 # Any user option under these prefixes only makes sense with TLS compiled in.
 _TLS_OPTION_PREFIXES = ("CONFIG_ESP_TLS_", "CONFIG_MBEDTLS_SSL_", "CONFIG_ESP_HTTPS_")
