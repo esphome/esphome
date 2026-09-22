@@ -69,6 +69,7 @@ from esphome.core.entity_helpers import (
     setup_entity,
 )
 from esphome.cpp_generator import MockObjClass
+from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 from esphome.util import Registry
 
 CODEOWNERS = ["@esphome/core"]
@@ -168,15 +169,26 @@ def register_filter(name, filter_type, schema):
     return FILTER_REGISTRY.register(name, filter_type, schema)
 
 
+# A dict or list names an automation condition (e.g. `switch.is_on: my_switch`,
+# `and: [...]`); otherwise it's a plain templatable boolean. Expressed as `cv.Any` (rather
+# than branching on `isinstance`) so the language-schema generator can walk both
+# alternatives -- see `script/build_language_schema.py`'s handling of `cv.Any`/`.validators`.
+_INVERT_CONDITION_SCHEMA = cv.Any(
+    automation.validate_potentially_and_condition,
+    cv.templatable(cv.boolean),
+)
+
+
+@schema_extractor("schema")
 def validate_invert_filter(value):
+    if value is SCHEMA_EXTRACT:
+        # Expose the inner schema so the language-schema dumper can walk the
+        # boolean/lambda and automation-condition alternatives.
+        return _INVERT_CONDITION_SCHEMA
     # Bare `invert:`/`invert` with no value means "always invert"
     if value == {}:
         return True
-    # A dict or list names an automation condition (e.g. `switch.is_on: my_switch`,
-    # `and: [...]`) rather than a plain templatable boolean.
-    if isinstance(value, (dict, list)):
-        return automation.validate_potentially_and_condition(value)
-    return cv.templatable(cv.boolean)(value)
+    return _INVERT_CONDITION_SCHEMA(value)
 
 
 @register_filter("invert", InvertFilter, validate_invert_filter)

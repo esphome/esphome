@@ -2,19 +2,14 @@
 
 from __future__ import annotations
 
-from pathlib import Path
-
 import pytest
 
 from esphome.components import binary_sensor
 import esphome.components.switch  # noqa: F401  (registers the switch.is_on condition)
 import esphome.config_validation as cv
-from esphome.core import CORE, Lambda
+from esphome.core import Lambda
 
-
-@pytest.fixture(autouse=True)
-def _setup_core(tmp_path: Path) -> None:
-    CORE.config_path = tmp_path / "test.yaml"
+pytestmark = pytest.mark.usefixtures("setup_core")
 
 
 def test_invert_filter_bare_defaults_to_true() -> None:
