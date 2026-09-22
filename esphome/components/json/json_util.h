@@ -168,6 +168,9 @@ inline JsonDocument parse_json(const std::string &data) {
 /// Builder class for creating JSON documents without lambdas
 class JsonBuilder {
  public:
+  // Out of line: inlining the JsonDocument constructor duplicates it at every call site
+  JsonBuilder();
+
   JsonObject root() {
     if (!root_created_) {
       root_ = doc_.to<JsonObject>();

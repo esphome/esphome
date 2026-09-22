@@ -98,6 +98,8 @@ class TimeCall {
   optional<uint8_t> second_;
 };
 
+inline TimeCall TimeEntity::make_call() { return TimeCall(this); }
+
 template<typename... Ts> class TimeSetAction final : public Action<Ts...>, public Parented<TimeEntity> {
  public:
   TEMPLATABLE_VALUE(ESPTime, time)

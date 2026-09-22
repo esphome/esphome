@@ -254,7 +254,7 @@ class Scheduler {
       // This is correct because millis_major_ that creates these values is also 16 bits.
       next_execution_high_ = static_cast<uint16_t>(value >> 32);
     }
-    constexpr const char *get_type_str() const { return (type == TIMEOUT) ? "timeout" : "interval"; }
+    const LogString *get_type_str() const { return (type == TIMEOUT) ? LOG_STR("timeout") : LOG_STR("interval"); }
     // The owning component, or nullptr for SELF_POINTER items (whose slot holds source_name instead).
     // All component access goes through this so SELF_POINTER items read as component-less.
     Component *get_component() const { return name_type_ == NameType::SELF_POINTER ? nullptr : component; }
@@ -404,7 +404,7 @@ class Scheduler {
 #ifdef ESPHOME_DEBUG_SCHEDULER
   // Helper for debug logging in set_timer_common_ - extracted to reduce code size
   void debug_log_timer_(const SchedulerItem *item, NameType name_type, const char *static_name, uint32_t hash_or_id,
-                        SchedulerItem::Type type, uint32_t delay, uint64_t now);
+                        uint32_t delay, uint64_t now);
 #endif /* ESPHOME_DEBUG_SCHEDULER */
 
 #ifndef ESPHOME_THREAD_SINGLE

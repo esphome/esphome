@@ -205,6 +205,9 @@ class ClimateTraits {
   float get_visual_max_humidity() const { return this->visual_max_humidity_; }
   void set_visual_max_humidity(float visual_max_humidity) { this->visual_max_humidity_ = visual_max_humidity; }
 
+  TemperatureUnit get_temperature_unit() const { return this->temperature_unit_; }
+  void set_temperature_unit(TemperatureUnit unit) { this->temperature_unit_ = unit; }
+
  protected:
   void set_mode_support_(climate::ClimateMode mode, bool supported) {
     if (supported) {
@@ -274,6 +277,7 @@ class ClimateTraits {
   climate::ClimateFanModeMask supported_fan_modes_;
   climate::ClimateSwingModeMask supported_swing_modes_;
   climate::ClimatePresetMask supported_presets_;
+  TemperatureUnit temperature_unit_{TemperatureUnit::CELSIUS};
 
   /** Custom mode storage - pointers to vectors owned by the Climate base class.
    *
