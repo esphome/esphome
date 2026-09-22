@@ -50,9 +50,8 @@ def _make_fake_run_command_ok(tmp_path: Path, manifest_path: str = "zephyr"):
 
 
 def _fake_create_venv(root: Path, msg: str | None = None) -> None:
-    # check_and_install() checks python_bin.exists() (get_python_env_executable_path())
-    # to decide install_venv -- bin/python on POSIX, Scripts/python.exe on Windows --
-    # so the fake must create whichever one the platform under test actually looks for.
+    # Must match get_python_env_executable_path()'s real path (bin/python vs.
+    # Scripts/python.exe), or install_venv looks true forever on Windows.
     python = get_python_env_executable_path(root, "python")
     python.parent.mkdir(parents=True, exist_ok=True)
     python.touch()
