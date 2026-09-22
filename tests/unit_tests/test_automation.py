@@ -17,6 +17,7 @@ from esphome.automation import (
     TriggerOnTrueForwarder,
     build_callback_automations,
     has_non_synchronous_actions,
+    maybe_simple_id,
     register_apply_action,
     register_bare_action,
     register_bare_condition,
@@ -613,7 +614,7 @@ async def _run_apply_action(
 ) -> RegistryEntry:
     """Register an apply action and run its builder with the given config."""
     actions, _ = registries
-    register_apply_action("my.apply", {}, *fields, call=call)
+    register_apply_action("my.apply", None, *fields, call=call)
     entry = actions["my.apply"]
     args = args or []
     template_arg = cg.TemplateArguments(*(t for t, _ in args))
@@ -774,9 +775,35 @@ async def test_apply_field_nested_key_const_fn_and_type_string(
 def test_apply_registration_checks(registries: tuple[Registry, Registry]) -> None:
     with pytest.raises(ValueError, match="2 placeholder"):
         register_apply_action(
-            "my.apply", {}, ApplyCall("set_range({}, {})", (("low", cg.float_),))
+            "my.apply", None, ApplyCall("set_range({}, {})", (("low", cg.float_),))
         )
     schema = cv.Schema({cv.Required(CONF_ID): cv.string, cv.Optional("kp"): cv.float_})
     register_apply_action("my.ok", schema, ApplyField("kp", "set_kp", cg.float_))
     with pytest.raises(ValueError, match="'kd' is not in the schema"):
         register_apply_action("my.bad", schema, ApplyField("kd", "set_kd", cg.float_))
+    wrapped = maybe_simple_id(
+        {cv.Required(CONF_ID): cv.string, cv.Optional("kp"): cv.float_}
+    )
+    with pytest.raises(ValueError, match="'kd' is not in the schema"):
+        register_apply_action("my.bad2", wrapped, ApplyField("kd", "set_kd", cg.float_))
+
+
+def test_apply_call_keys_must_be_present_together(
+    registries: tuple[Registry, Registry],
+) -> None:
+    pair = (("low", cg.float_), ("high", cg.float_))
+    ok = cv.Schema(
+        {
+            cv.Required("low"): cv.float_,
+            cv.Optional("high", default=1.0): cv.float_,
+            cv.Inclusive("a", "g"): cv.float_,
+            cv.Inclusive("b", "g"): cv.float_,
+        }
+    )
+    register_apply_action("my.ok", ok, ApplyCall("set_range({}, {})", pair))
+    register_apply_action(
+        "my.ok2", ok, ApplyCall("set_ab({}, {})", (("a", cg.float_), ("b", cg.float_)))
+    )
+    loose = cv.Schema({cv.Required("low"): cv.float_, cv.Optional("high"): cv.float_})
+    with pytest.raises(ValueError, match="must be required, defaulted or cv.Inclusive"):
+        register_apply_action("my.bad", loose, ApplyCall("set_range({}, {})", pair))

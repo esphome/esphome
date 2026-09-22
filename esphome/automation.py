@@ -1,7 +1,9 @@
 from collections.abc import Callable
 from dataclasses import dataclass, field
 import logging
-from typing import Any
+from typing import Any, NamedTuple
+
+import voluptuous as vol
 
 import esphome.codegen as cg
 import esphome.config_validation as cv
@@ -252,24 +254,78 @@ class ApplyCall:
     args: tuple[tuple[str | tuple[str, ...], SafeExpType], ...] = ()
 
 
-# (conf_key, type_, render)
-_ApplyMember = tuple[
-    str | tuple[str, ...], SafeExpType | str, Callable[[ConfigType, Any], str]
-]
+class _Member(NamedTuple):
+    conf_key: str | tuple[str, ...]
+    type_: SafeExpType | str
+    render: Callable[[ConfigType, Any], str]
 
 
 def _member(
     conf_key: str | tuple[str, ...],
     type_: SafeExpType | str,
     const_fn: Callable[[ConfigType, Any], str] | None = None,
-) -> _ApplyMember:
+) -> _Member:
     render = const_fn or (flash_string if type_ is cg.std_string else _safe_exp)
-    return conf_key, type_, render
+    return _Member(conf_key, type_, render)
+
+
+def _schema_markers(schema: Any) -> dict[str, Any] | None:
+    """Map config keys to their markers, or None when the schema cannot be inspected."""
+    if isinstance(schema, dict):
+        return {getattr(marker, "schema", marker): marker for marker in schema}
+    if isinstance(getattr(schema, "schema", None), dict):
+        return _schema_markers(schema.schema)
+    if validators := getattr(schema, "validators", None):  # cv.All / cv.Any
+        markers: dict[str, Any] = {}
+        for validator in validators:
+            markers.update(_schema_markers(validator) or {})
+        return markers or None
+    if callable(schema):  # maybe_simple_id and friends answer SCHEMA_EXTRACT
+        try:
+            extracted = schema(SCHEMA_EXTRACT)
+        except (vol.Invalid, TypeError, ValueError, AttributeError):
+            return None
+        if isinstance(extracted, tuple):
+            return _schema_markers(extracted[0])
+    return None
+
+
+def _check_fields_against_schema(
+    name: str, schema: Any, templates: tuple[tuple[str, tuple[_Member, ...]], ...]
+) -> None:
+    """Reject a key the schema does not have, and multi-key calls whose keys may be absent alone."""
+    if (markers := _schema_markers(schema)) is None:
+        return
+    for target, members in templates:
+        groups = set()
+        for member in members:
+            key = (
+                member.conf_key
+                if isinstance(member.conf_key, str)
+                else member.conf_key[0]
+            )
+            if key not in markers:
+                raise ValueError(f"{name}: config key {key!r} is not in the schema")
+            marker = markers[key]
+            if len(members) < 2 or isinstance(member.conf_key, tuple):
+                continue
+            if isinstance(marker, vol.Inclusive):
+                groups.add(marker.group_of_inclusion)
+            elif not isinstance(marker, vol.Required) and (
+                not isinstance(marker, vol.Optional) or marker.default is vol.UNDEFINED
+            ):
+                raise ValueError(
+                    f"{name}: {key!r} in {target!r} must be required, defaulted or cv.Inclusive"
+                )
+        if len(groups) > 1:
+            raise ValueError(
+                f"{name}: keys of {target!r} are in different cv.Inclusive groups"
+            )
 
 
 def _apply_template(
     apply_field: ApplyField | ApplyCall,
-) -> tuple[str, tuple[_ApplyMember, ...]]:
+) -> tuple[str, tuple[_Member, ...]]:
     if isinstance(apply_field, ApplyCall):
         target = apply_field.target
         members = tuple(_member(key, type_) for key, type_ in apply_field.args)
@@ -312,16 +368,7 @@ def register_apply_action(
     calls included, targets ``auto call = parent->call()`` and ``call.perform()`` is appended.
     """
     templates = tuple(_apply_template(apply_field) for apply_field in fields)
-    # A plain cv.Schema exposes its keys; a typo would otherwise be a silent no-op.
-    if isinstance(getattr(schema, "schema", None), dict):
-        keys = {getattr(marker, "schema", marker) for marker in schema.schema}
-        for _, members in templates:
-            for conf_key, _, _ in members:
-                first = conf_key if isinstance(conf_key, str) else conf_key[0]
-                if first not in keys:
-                    raise ValueError(
-                        f"{name}: config key {first!r} is not in the schema"
-                    )
+    _check_fields_against_schema(name, schema, templates)
 
     async def builder(
         config: ConfigType,
