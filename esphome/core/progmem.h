@@ -3,7 +3,9 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <cstring>
 #include <new>
+#include <string>
 
 #include "esphome/core/hal.h"  // For PROGMEM definition
 
@@ -53,6 +55,18 @@ using ProgmemStr = const char *;
 #endif
 
 namespace esphome {
+
+/// Copies a string stored with ESPHOME_F into a std::string.
+inline std::string progmem_string(ProgmemStr str) {
+#ifdef USE_ESP8266
+  auto *src = reinterpret_cast<PGM_P>(str);
+  std::string result(strlen_P(src), '\0');
+  memcpy_P(result.data(), src, result.size());
+  return result;
+#else
+  return std::string(str);
+#endif
+}
 
 /// Helper for C++20 string literal template arguments
 template<size_t N> struct FixedString {

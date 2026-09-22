@@ -1,6 +1,7 @@
 from collections.abc import Callable
 from dataclasses import dataclass, field
 import logging
+from types import FunctionType
 from typing import Any
 
 import esphome.codegen as cg
@@ -22,6 +23,7 @@ from esphome.const import (
 )
 from esphome.core import ID, Lambda
 from esphome.cpp_generator import (
+    FlashStringLiteral,
     LambdaExpression,
     MockObj,
     MockObjClass,
@@ -217,14 +219,15 @@ ApplyAction = cg.esphome_ns.class_("ApplyAction", Action)
 class ApplyField:
     """One config key forwarded as ``target(value)``, or as statement ``target`` when it has ``{}``.
 
-    ``conf_key`` may be a path into nested sections. ``const_fn(config, value)`` renders a
-    constant when ``cg.safe_exp`` is not the right spelling; lambdas bypass it. An absent key
-    emits nothing.
+    ``conf_key`` may be a path into nested sections. ``type_`` may be a function
+    ``(config, parent)`` when the C++ type is only known per instance. ``const_fn(config, value)``
+    renders a constant when ``cg.safe_exp`` is not the right spelling; lambdas bypass it.
+    ``std::string`` constants stay in flash on ESP8266. An absent key emits nothing.
     """
 
     conf_key: str | tuple[str, ...]
     target: str
-    type_: SafeExpType
+    type_: SafeExpType | Callable[[ConfigType, MockObj], SafeExpType]
     const_fn: Callable[[ConfigType, Any], str] | None = None
 
 
@@ -310,6 +313,8 @@ def register_apply_action(
             for conf_key, type_, const_fn in members:
                 if (value := _config_lookup(config, conf_key)) is None:
                     break
+                if isinstance(type_, FunctionType):
+                    type_ = type_(config, parent)
                 if isinstance(value, Lambda):
                     inner = await cg.process_lambda(
                         value, lambda_args, return_type=type_
@@ -317,6 +322,8 @@ def register_apply_action(
                     exprs.append(str(cg.safe_exp(call_lambda(inner))))
                 elif const_fn is not None:
                     exprs.append(const_fn(config, value))
+                elif type_ is cg.std_string and isinstance(value, str):
+                    exprs.append(f"progmem_string({FlashStringLiteral(value)})")
                 else:
                     exprs.append(str(cg.safe_exp(value)))
             else:

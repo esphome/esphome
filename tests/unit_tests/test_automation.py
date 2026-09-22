@@ -778,3 +778,32 @@ async def test_apply_field_lambda_with_trailing_statements_is_called_not_reduced
     text = _apply_lambda(mock_cg)
     assert "static_cast" not in text
     assert f"{PARENT_OBJ}->set_kp([]() -> float {{" in text
+
+
+@pytest.mark.asyncio
+async def test_apply_field_string_constant_stays_in_flash(
+    registries: tuple[Registry, Registry], mock_cg: MockCodegen
+) -> None:
+    fields = (ApplyField("song", "play", cg.std_string),)
+    await _run_apply_action(registries, fields, {"song": "a:b"})
+    assert f'{PARENT_OBJ}->play(progmem_string(ESPHOME_F("a:b")));' in _apply_lambda(
+        mock_cg
+    )
+
+
+@pytest.mark.asyncio
+async def test_apply_field_type_from_config_and_parent(
+    registries: tuple[Registry, Registry], mock_cg: MockCodegen
+) -> None:
+    fields = (
+        ApplyField(
+            "value",
+            "value() = {}",
+            lambda config, parent: cg.RawExpression(f"decltype({parent}->value())"),
+        ),
+    )
+    await _run_apply_action(registries, fields, {"value": Lambda("return 42;")})
+    assert (
+        f"{PARENT_OBJ}->value() = static_cast<decltype({PARENT_OBJ}->value())>(42);"
+        in _apply_lambda(mock_cg)
+    )
