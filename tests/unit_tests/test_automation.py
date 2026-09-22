@@ -17,7 +17,6 @@ from esphome.automation import (
     TriggerOnTrueForwarder,
     build_callback_automations,
     has_non_synchronous_actions,
-    maybe_simple_id,
     register_apply_action,
     register_bare_action,
     register_bare_condition,
@@ -29,7 +28,7 @@ from esphome.automation import (
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.const import CONF_ID
-from esphome.core import ID, Lambda
+from esphome.core import ID, EsphomeError, Lambda
 from esphome.cpp_generator import MockObj, RawExpression
 from esphome.util import Registry, RegistryEntry
 
@@ -602,9 +601,6 @@ def test_shared_builders_keep_synchronous_flag(
     assert actions["my.parented"].synchronous is synchronous
 
 
-FAN_DIRECTION = cg.esphome_ns.enum("FanDirection", is_class=True)
-
-
 async def _run_apply_action(
     registries: tuple[Registry, Registry],
     fields: tuple[ApplyField | ApplyCall, ...],
@@ -630,20 +626,13 @@ def _apply_lambda(mock_cg: MockCodegen) -> str:
 async def test_register_apply_action_entry(
     registries: tuple[Registry, Registry], mock_cg: MockCodegen
 ) -> None:
-    """The action is the core ApplyAction, synchronous, built from one lambda with const-ref args."""
-    entry = await _run_apply_action(
-        registries, (), {}, args=[(cg.int32, "x"), (cg.bool_, "y")]
-    )
+    entry = await _run_apply_action(registries, (), {}, args=[(cg.int32, "x")])
     assert entry.type_id is ApplyAction
     assert entry.synchronous is True
     mock_cg.get_variable.assert_awaited_once_with(PARENT_ID)
-    action_id, template_arg, apply_lambda = mock_cg.new_pvariable.call_args.args
+    action_id, template_arg, _ = mock_cg.new_pvariable.call_args.args
     assert action_id == ID("obj_1")
-    assert str(template_arg) == "<int32_t, bool>"
-    assert str(apply_lambda).startswith(
-        "[](const std::remove_cvref_t<int32_t> & x, "
-        "const std::remove_cvref_t<bool> & y) -> void {"
-    )
+    assert str(template_arg) == "<int32_t>"
 
 
 @pytest.mark.asyncio
@@ -651,29 +640,20 @@ async def test_apply_constants(
     registries: tuple[Registry, Registry], mock_cg: MockCodegen
 ) -> None:
     """Constants are immediates, strings stay in flash, absent keys emit nothing, order is kept."""
-    direction = cv.enum({"FORWARD": FAN_DIRECTION.FORWARD})("FORWARD")
     fields = (
         ApplyField("kp", "set_kp", cg.float_),
         ApplyField("ki", "set_ki", cg.float_),
         ApplyField("on", "set_on", cg.bool_),
-        ApplyField("direction", "set_direction", FAN_DIRECTION),
         ApplyField("song", "play", cg.std_string),
         ApplyField("position", "position = {}", cg.float_),
         ApplyCall("publish_state()"),
     )
-    config = {
-        "kp": 0.0,
-        "on": False,
-        "direction": direction,
-        "song": "a:b",
-        "position": 0.5,
-    }
+    config = {"kp": 0.0, "on": False, "song": "a:b", "position": 0.5}
     await _run_apply_action(registries, fields, config)
     text = _apply_lambda(mock_cg)
     lines = [
         f"{PARENT_OBJ}->set_kp(0.0f);",
         f"{PARENT_OBJ}->set_on(false);",
-        f"{PARENT_OBJ}->set_direction({FAN_DIRECTION.FORWARD});",
         f'{PARENT_OBJ}->play(progmem_string(ESPHOME_F("a:b")));',
         f"{PARENT_OBJ}->position = 0.5f;",
         f"{PARENT_OBJ}->publish_state();",
@@ -698,6 +678,7 @@ async def test_apply_lambdas(
     }
     await _run_apply_action(registries, fields, config, args=[(cg.int32, "x")])
     text = _apply_lambda(mock_cg)
+    assert text.startswith("[](const std::remove_cvref_t<int32_t> & x) -> void {")
     assert f"{PARENT_OBJ}->set_kp(static_cast<float>(x * 2));" in text
     # Outer apply lambda and inner field lambda spell the trigger arg identically.
     assert text.count("const std::remove_cvref_t<int32_t> & x") == 2
@@ -709,9 +690,10 @@ async def test_apply_lambdas(
 
 
 @pytest.mark.asyncio
-async def test_apply_call_needs_every_key(
+async def test_apply_call_keys(
     registries: tuple[Registry, Registry], mock_cg: MockCodegen
 ) -> None:
+    """A multi-key call needs all keys, is skipped with none, and errors on a partial set."""
     fields = (
         ApplyCall("set_range({}, {})", (("low", cg.float_), ("high", cg.float_))),
     )
@@ -719,8 +701,11 @@ async def test_apply_call_needs_every_key(
     assert f"{PARENT_OBJ}->set_range(1.0f, 2.0f);" in _apply_lambda(mock_cg)
 
     mock_cg.new_pvariable.reset_mock()
-    await _run_apply_action(registries, fields, {"low": 1.0})
+    await _run_apply_action(registries, fields, {})
     assert "set_range" not in _apply_lambda(mock_cg)
+
+    with pytest.raises(EsphomeError, match="needs all of"):
+        await _run_apply_action(registries, fields, {"low": 1.0})
 
 
 @pytest.mark.asyncio
@@ -767,43 +752,11 @@ async def test_apply_field_nested_key_const_fn_and_type_string(
         in text
     )
 
-    mock_cg.new_pvariable.reset_mock()
-    await _run_apply_action(registries, fields[:1], {"vertical": {}})
-    assert "set_direction" not in _apply_lambda(mock_cg)
-
 
 def test_apply_registration_checks(registries: tuple[Registry, Registry]) -> None:
     with pytest.raises(ValueError, match="2 placeholder"):
-        register_apply_action(
-            "my.apply", None, ApplyCall("set_range({}, {})", (("low", cg.float_),))
-        )
+        ApplyCall("set_range({}, {})", (("low", cg.float_),))
     schema = cv.Schema({cv.Required(CONF_ID): cv.string, cv.Optional("kp"): cv.float_})
     register_apply_action("my.ok", schema, ApplyField("kp", "set_kp", cg.float_))
     with pytest.raises(ValueError, match="'kd' is not in the schema"):
         register_apply_action("my.bad", schema, ApplyField("kd", "set_kd", cg.float_))
-    wrapped = maybe_simple_id(
-        {cv.Required(CONF_ID): cv.string, cv.Optional("kp"): cv.float_}
-    )
-    with pytest.raises(ValueError, match="'kd' is not in the schema"):
-        register_apply_action("my.bad2", wrapped, ApplyField("kd", "set_kd", cg.float_))
-
-
-def test_apply_call_keys_must_be_present_together(
-    registries: tuple[Registry, Registry],
-) -> None:
-    pair = (("low", cg.float_), ("high", cg.float_))
-    ok = cv.Schema(
-        {
-            cv.Required("low"): cv.float_,
-            cv.Optional("high", default=1.0): cv.float_,
-            cv.Inclusive("a", "g"): cv.float_,
-            cv.Inclusive("b", "g"): cv.float_,
-        }
-    )
-    register_apply_action("my.ok", ok, ApplyCall("set_range({}, {})", pair))
-    register_apply_action(
-        "my.ok2", ok, ApplyCall("set_ab({}, {})", (("a", cg.float_), ("b", cg.float_)))
-    )
-    loose = cv.Schema({cv.Required("low"): cv.float_, cv.Optional("high"): cv.float_})
-    with pytest.raises(ValueError, match="must be required, defaulted or cv.Inclusive"):
-        register_apply_action("my.bad", loose, ApplyCall("set_range({}, {})", pair))

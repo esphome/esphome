@@ -444,11 +444,7 @@ file does, and it is the authority when they disagree. The most useful starting 
         Use `synchronous=True` for actions that run to completion inside `play()` without deferring. Use `synchronous=False` if the action may suspend/defer execution (e.g. `delay`, `wait_until`, `script.wait`) or store trigger arguments for later use.
 
         **Actions that only forward templatable values to their parent need no C++ class.** Register them
-        with `register_apply_action`: the action is the core `ApplyAction<Ts...>`, holding one stateless
-        function generated from a field table. The parent and every constant are baked into that
-        function, user lambdas are called inline with the trigger args, and absent optional keys emit
-        nothing, so the action costs one pointer regardless of field count. Do not write a
-        `TEMPLATABLE_VALUE` class or a builder for this shape.
+        with `register_apply_action`; do not write a `TEMPLATABLE_VALUE` class or a builder for this shape.
         ```python
         automation.register_apply_action(
             "my_component.set_gains",
@@ -457,11 +453,9 @@ file does, and it is the authority when they disagree. The most useful starting 
             automation.ApplyField(CONF_KI, "set_ki", cg.float_),
         )
         ```
-        `ApplyField`, `ApplyCall` and `register_apply_action` in `esphome/automation.py` document the
-        rest: statement templates, nested keys, `const_fn`, per-instance type strings, multi-key calls and `call="make_call"`
-        for actions that build a call object. See `cover.control` and `cover.template.publish`.
-        `TEMPLATABLE_VALUE` with `cg.templatable` stays for actions whose `play()` has real logic beyond
-        forwarding values.
+        The `ApplyField`, `ApplyCall` and `register_apply_action` docstrings in `esphome/automation.py` cover
+        the rest; `cover.control` and `cover.template.publish` are in-tree examples. `TEMPLATABLE_VALUE` with
+        `cg.templatable` stays for actions whose `play()` has real logic beyond forwarding values.
 
     *   **Conditions:**
         ```cpp

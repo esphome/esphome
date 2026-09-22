@@ -1,9 +1,7 @@
 from collections.abc import Callable
 from dataclasses import dataclass, field
 import logging
-from typing import Any, NamedTuple
-
-import voluptuous as vol
+from typing import Any
 
 import esphome.codegen as cg
 import esphome.config_validation as cv
@@ -22,7 +20,7 @@ from esphome.const import (
     CONF_TYPE_ID,
     CONF_UPDATE_INTERVAL,
 )
-from esphome.core import ID, Lambda
+from esphome.core import ID, EsphomeError, Lambda
 from esphome.cpp_generator import (
     FlashStringLiteral,
     LambdaExpression,
@@ -221,129 +219,40 @@ def flash_string(config: ConfigType, value: str) -> str:
     return f"progmem_string({FlashStringLiteral(value)})"
 
 
-def _safe_exp(config: ConfigType, value: Any) -> str:
-    return str(cg.safe_exp(value))
+@dataclass(frozen=True)
+class ApplyCall:
+    """One statement from config keys, e.g. ``"set_range({}, {})"`` with ``((CONF_LOW, cg.float_), ...)``.
+
+    Each arg is ``(conf_key, type_)`` or ``(conf_key, type_, const_fn)``. A ``conf_key`` may be a
+    path into nested sections. A plain ``str`` ``type_`` is raw C++ type text and may use
+    ``{parent}``. ``const_fn(config, value)`` renders a constant's argument text; a lambda bypasses
+    it. The statement is skipped when none of its keys is set, always emitted when it has no
+    keys, and a partial set is a config error.
+    """
+
+    target: str
+    args: tuple[tuple[Any, ...], ...] = ()
+
+    def __post_init__(self) -> None:
+        if self.target.count("{}") != len(self.args):
+            raise ValueError(
+                f"apply target {self.target!r} has {self.target.count('{}')} "
+                f"placeholder(s) for {len(self.args)} config key(s)"
+            )
 
 
 @dataclass(frozen=True)
 class ApplyField:
-    """One config key forwarded as ``target(value)``, or as statement ``target`` when it has ``{}``.
-
-    Double a literal brace in a template. ``conf_key`` may be a path into nested sections.
-    ``type_`` may be a C++ type string using ``{parent}`` when the type is only known per
-    instance. ``const_fn(config, value)`` renders a constant's argument text when ``cg.safe_exp``
-    is not the right spelling; a lambda bypasses it, so the target must also take a plain
-    ``type_``. An absent key emits nothing.
-    """
+    """One config key forwarded as ``target(value)``, or as statement ``target`` when it has ``{}``."""
 
     conf_key: str | tuple[str, ...]
     target: str
-    type_: SafeExpType | str
+    type_: SafeExpType
     const_fn: Callable[[ConfigType, Any], str] | None = None
 
-
-@dataclass(frozen=True)
-class ApplyCall:
-    """One statement from several keys, e.g. ``"set_range({}, {})"``, skipped unless all are present.
-
-    Pair the keys with ``cv.Inclusive`` or defaults. With no keys the statement is always
-    emitted, e.g. ``ApplyCall("stop()")`` or a trailing ``ApplyCall("publish_state()")``.
-    """
-
-    target: str
-    args: tuple[tuple[str | tuple[str, ...], SafeExpType], ...] = ()
-
-
-class _Member(NamedTuple):
-    conf_key: str | tuple[str, ...]
-    type_: SafeExpType | str
-    render: Callable[[ConfigType, Any], str]
-
-
-def _member(
-    conf_key: str | tuple[str, ...],
-    type_: SafeExpType | str,
-    const_fn: Callable[[ConfigType, Any], str] | None = None,
-) -> _Member:
-    render = const_fn or (flash_string if type_ is cg.std_string else _safe_exp)
-    return _Member(conf_key, type_, render)
-
-
-def _schema_markers(schema: Any) -> dict[str, Any] | None:
-    """Map config keys to their markers, or None when the schema cannot be inspected."""
-    if isinstance(schema, dict):
-        return {getattr(marker, "schema", marker): marker for marker in schema}
-    if isinstance(getattr(schema, "schema", None), dict):
-        return _schema_markers(schema.schema)
-    if validators := getattr(schema, "validators", None):  # cv.All / cv.Any
-        markers: dict[str, Any] = {}
-        for validator in validators:
-            markers.update(_schema_markers(validator) or {})
-        return markers or None
-    if callable(schema):  # maybe_simple_id and friends answer SCHEMA_EXTRACT
-        try:
-            extracted = schema(SCHEMA_EXTRACT)
-        except (vol.Invalid, TypeError, ValueError, AttributeError):
-            return None
-        if isinstance(extracted, tuple):
-            return _schema_markers(extracted[0])
-    return None
-
-
-def _check_fields_against_schema(
-    name: str, schema: Any, templates: tuple[tuple[str, tuple[_Member, ...]], ...]
-) -> None:
-    """Reject a key the schema does not have, and multi-key calls whose keys may be absent alone."""
-    if (markers := _schema_markers(schema)) is None:
-        return
-    for target, members in templates:
-        groups = set()
-        for member in members:
-            key = (
-                member.conf_key
-                if isinstance(member.conf_key, str)
-                else member.conf_key[0]
-            )
-            if key not in markers:
-                raise ValueError(f"{name}: config key {key!r} is not in the schema")
-            marker = markers[key]
-            if len(members) < 2 or isinstance(member.conf_key, tuple):
-                continue
-            if isinstance(marker, vol.Inclusive):
-                groups.add(marker.group_of_inclusion)
-            elif not isinstance(marker, vol.Required) and (
-                not isinstance(marker, vol.Optional) or marker.default is vol.UNDEFINED
-            ):
-                raise ValueError(
-                    f"{name}: {key!r} in {target!r} must be required, defaulted or cv.Inclusive"
-                )
-        if len(groups) > 1:
-            raise ValueError(
-                f"{name}: keys of {target!r} are in different cv.Inclusive groups"
-            )
-
-
-def _apply_template(
-    apply_field: ApplyField | ApplyCall,
-) -> tuple[str, tuple[_Member, ...]]:
-    if isinstance(apply_field, ApplyCall):
-        target = apply_field.target
-        members = tuple(_member(key, type_) for key, type_ in apply_field.args)
-    else:
-        target = (
-            apply_field.target
-            if "{}" in apply_field.target
-            else f"{apply_field.target}({{}})"
-        )
-        members = (
-            _member(apply_field.conf_key, apply_field.type_, apply_field.const_fn),
-        )
-    if target.count("{}") != len(members):
-        raise ValueError(
-            f"apply target {target!r} has {target.count('{}')} placeholder(s) "
-            f"for {len(members)} config key(s)"
-        )
-    return target, members
+    def call(self) -> ApplyCall:
+        target = self.target if "{}" in self.target else f"{self.target}({{}})"
+        return ApplyCall(target, ((self.conf_key, self.type_, self.const_fn),))
 
 
 def _config_lookup(config: ConfigType, key: str | tuple[str, ...]) -> Any:
@@ -364,11 +273,23 @@ def register_apply_action(
     """Register an action that only forwards config values to its parent, with no C++ class.
 
     Generates one stateless function for ``ApplyAction<Ts...>``: parent and constants are baked
-    in, lambdas are called inline with the trigger args. With ``call`` every statement, follow-up
-    calls included, targets ``auto call = parent->call()`` and ``call.perform()`` is appended.
+    in, lambdas are called inline with the trigger args. With ``call`` every statement targets
+    ``auto call = parent->call()`` and ``call.perform()`` is appended.
     """
-    templates = tuple(_apply_template(apply_field) for apply_field in fields)
-    _check_fields_against_schema(name, schema, templates)
+    statements_spec = [
+        (c.target, [(*arg, None)[:3] for arg in c.args])
+        for c in (f if isinstance(f, ApplyCall) else f.call() for f in fields)
+    ]
+    # A plain cv.Schema exposes its keys; a typo would otherwise be a silent no-op.
+    if isinstance(getattr(schema, "schema", None), dict):
+        keys = {getattr(marker, "schema", marker) for marker in schema.schema}
+        for _, members in statements_spec:
+            for conf_key, _, _ in members:
+                first = conf_key if isinstance(conf_key, str) else conf_key[0]
+                if first not in keys:
+                    raise ValueError(
+                        f"{name}: config key {first!r} is not in the schema"
+                    )
 
     async def builder(
         config: ConfigType,
@@ -379,22 +300,20 @@ def register_apply_action(
         parent = await cg.get_variable(config[CONF_ID])
         # Must match ApplyAction::ApplyFn exactly for the function pointer conversion.
         lambda_args = [
-            (cg.RawExpression(f"const std::remove_cvref_t<{cg.safe_exp(t)}> &"), name)
-            for t, name in args
+            (cg.RawExpression(f"const std::remove_cvref_t<{cg.safe_exp(t)}> &"), arg)
+            for t, arg in args
         ]
-        if call:
-            receiver = "call."
-            statements = [f"auto call = {parent}->{call}();"]
-            tail = ["call.perform();"]
-        else:
-            receiver = f"{parent}->"
-            statements = []
-            tail = []
-        for target, members in templates:
+        receiver = "call." if call else f"{parent}->"
+        statements: list[str] = []
+        for target, members in statements_spec:
+            values = [_config_lookup(config, key) for key, _, _ in members]
+            if members and all(value is None for value in values):
+                continue
+            if any(value is None for value in values):
+                keys = [key for key, _, _ in members]
+                raise EsphomeError(f"{name}: {target!r} needs all of {keys}")
             exprs: list[str] = []
-            for conf_key, type_, render in members:
-                if (value := _config_lookup(config, conf_key)) is None:
-                    break
+            for (_, type_, const_fn), value in zip(members, values, strict=True):
                 if isinstance(value, Lambda):
                     if isinstance(type_, str):
                         type_ = cg.RawExpression(type_.format(parent=parent))
@@ -402,11 +321,19 @@ def register_apply_action(
                         value, lambda_args, return_type=type_
                     )
                     exprs.append(str(call_lambda(inner)))
+                elif const_fn is not None:
+                    exprs.append(const_fn(config, value))
+                elif type_ is cg.std_string:
+                    exprs.append(flash_string(config, value))
                 else:
-                    exprs.append(render(config, value))
-            else:
-                statements.append(f"{receiver}{target.format(*exprs)};")
-        statements.extend(tail)
+                    exprs.append(str(cg.safe_exp(value)))
+            statements.append(f"{receiver}{target.format(*exprs)};")
+        if call:
+            statements = [
+                f"auto call = {parent}->{call}();",
+                *statements,
+                "call.perform();",
+            ]
         apply_lambda = LambdaExpression(
             ["\n".join(statements)], lambda_args, capture="", return_type=cg.void
         )
