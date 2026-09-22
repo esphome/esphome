@@ -320,12 +320,10 @@ COVER_CONTROL_ACTION_SCHEMA = cv.Schema(
 automation.register_apply_action(
     "cover.control",
     COVER_CONTROL_ACTION_SCHEMA,
-    (
-        automation.ApplyField(CONF_STOP, "set_stop", cg.bool_),
-        automation.ApplyField(CONF_STATE, "set_position", cg.float_),
-        automation.ApplyField(CONF_POSITION, "set_position", cg.float_),
-        automation.ApplyField(CONF_TILT, "set_tilt", cg.float_),
-    ),
+    automation.ApplyField(CONF_STOP, "set_stop", cg.bool_),
+    automation.ApplyField(CONF_STATE, "set_position", cg.float_),
+    automation.ApplyField(CONF_POSITION, "set_position", cg.float_),
+    automation.ApplyField(CONF_TILT, "set_tilt", cg.float_),
     call="make_call",
 )
 

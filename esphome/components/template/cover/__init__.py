@@ -132,13 +132,11 @@ automation.register_apply_action(
             cv.Optional(CONF_TILT): cv.templatable(cv.zero_to_one_float),
         }
     ),
-    (
-        automation.ApplyField(CONF_STATE, "position = {}", cg.float_),
-        automation.ApplyField(CONF_POSITION, "position = {}", cg.float_),
-        automation.ApplyField(CONF_TILT, "tilt = {}", cg.float_),
-        automation.ApplyField(
-            CONF_CURRENT_OPERATION, "current_operation = {}", cover.CoverOperation
-        ),
+    automation.ApplyField(CONF_STATE, "position = {}", cg.float_),
+    automation.ApplyField(CONF_POSITION, "position = {}", cg.float_),
+    automation.ApplyField(CONF_TILT, "tilt = {}", cg.float_),
+    automation.ApplyField(
+        CONF_CURRENT_OPERATION, "current_operation = {}", cover.CoverOperation
     ),
-    epilogue=("publish_state()",),
+    automation.ApplyCall("publish_state()"),
 )

@@ -613,7 +613,7 @@ async def _run_apply_action(
 ) -> RegistryEntry:
     """Register an apply action and run its builder with the given config."""
     actions, _ = registries
-    register_apply_action("my.apply", {}, fields, **kwargs)
+    register_apply_action("my.apply", {}, *fields, **kwargs)
     entry = actions["my.apply"]
     args = args or []
     template_arg = cg.TemplateArguments(*(t for t, _ in args))
@@ -691,10 +691,11 @@ async def test_apply_field_lambda_is_called_inline_with_trigger_args(
 async def test_apply_field_statement_template(
     registries: tuple[Registry, Registry], mock_cg: MockCodegen
 ) -> None:
-    fields = (ApplyField("position", "position = {}", cg.float_),)
-    await _run_apply_action(
-        registries, fields, {"position": 0.5}, epilogue=("publish_state()",)
+    fields = (
+        ApplyField("position", "position = {}", cg.float_),
+        ApplyCall("publish_state()"),
     )
+    await _run_apply_action(registries, fields, {"position": 0.5})
     text = _apply_lambda(mock_cg)
     assert text.index(f"{PARENT_OBJ}->position = 0.5f;") < text.index(
         f"{PARENT_OBJ}->publish_state();"

@@ -453,18 +453,18 @@ file does, and it is the authority when they disagree. The most useful starting 
         automation.register_apply_action(
             "my_component.set_gains",
             schema,
-            (
-                automation.ApplyField(CONF_KP, "set_kp", cg.float_),
-                automation.ApplyField(CONF_KI, "set_ki", cg.float_),
-            ),
+            automation.ApplyField(CONF_KP, "set_kp", cg.float_),
+            automation.ApplyField(CONF_KI, "set_ki", cg.float_),
         )
         ```
-        A `target` containing `{}` is a statement template (`"position = {}"`), and
-        `ApplyCall("set_range({}, {})", ((CONF_LOW, cg.float_), (CONF_HIGH, cg.float_)))` folds several
-        keys into one statement emitted only when every key is present. Actions that build a call object
-        pass `call="make_call"`; the statements then target `call` and end with `call.perform()`. See
-        `cover.control` and `cover.template.publish`. `TEMPLATABLE_VALUE` with `cg.templatable` stays for
-        actions whose `play()` has real logic beyond forwarding values.
+        A `target` containing `{}` is a statement template (`"position = {}"`), a `conf_key` tuple walks
+        nested config sections, and `const_fn` renders a constant when `cg.safe_exp` is not the right
+        spelling. `ApplyCall("set_range({}, {})", ((CONF_LOW, cg.float_), (CONF_HIGH, cg.float_)))` folds
+        several keys into one statement emitted only when every key is present, and
+        `ApplyCall("publish_state()")` with no args is an unconditional follow-up call. Actions that build
+        a call object pass `call="make_call"`; the statements then target `call` and end with
+        `call.perform()`. See `cover.control` and `cover.template.publish`. `TEMPLATABLE_VALUE` with
+        `cg.templatable` stays for actions whose `play()` has real logic beyond forwarding values.
 
     *   **Conditions:**
         ```cpp

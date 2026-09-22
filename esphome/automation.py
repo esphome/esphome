@@ -1,4 +1,4 @@
-from collections.abc import Callable, Sequence
+from collections.abc import Callable
 from dataclasses import dataclass, field
 import logging
 from typing import Any
@@ -233,15 +233,16 @@ class ApplyField:
 
 @dataclass(frozen=True)
 class ApplyCall:
-    """Several config keys into one statement, e.g. ``"set_range({}, {})"``.
+    """A statement with zero or more config keys, e.g. ``"set_range({}, {})"``.
 
     ``args`` pairs each placeholder with ``(conf_key, type_)``. Emitted only when
     every key is present so a setter that validates its arguments as a pair
-    always sees both.
+    always sees both; with no args it is emitted unconditionally, which is how a
+    follow-up call such as ``ApplyCall("publish_state()")`` is expressed.
     """
 
     target: str
-    args: tuple[tuple[str, SafeExpType], ...]
+    args: tuple[tuple[str, SafeExpType], ...] = ()
 
 
 _ApplyMember = tuple[
@@ -276,19 +277,16 @@ def _config_lookup(config: ConfigType, key: str | tuple[str, ...]) -> Any:
 def register_apply_action(
     name: str,
     schema: cv.Schema,
-    fields: Sequence[ApplyField | ApplyCall],
-    *,
+    *fields: ApplyField | ApplyCall,
     call: str | None = None,
-    epilogue: Sequence[str] = (),
 ) -> None:
     """Register an action that only forwards configured values to its parent.
 
     No C++ class is written: the action is the core ``ApplyAction<Ts...>`` holding one
-    stateless function generated from ``fields``. The parent named by ``CONF_ID`` and every
-    constant are baked into that function; user lambdas are called inline with the trigger
-    args. With ``call`` the statements target ``auto call = parent->call()`` and end with
-    ``call.perform()``. ``epilogue`` lists receiver-relative calls to append, e.g.
-    ``("publish_state()",)``.
+    stateless function generated from ``fields``, in order. The parent named by
+    ``CONF_ID`` and every constant are baked into that function; user lambdas are
+    called inline with the trigger args. With ``call`` the statements target
+    ``auto call = parent->call()`` and end with ``call.perform()``.
     """
     templates = tuple(_apply_template(apply_field) for apply_field in fields)
 
@@ -323,7 +321,6 @@ def register_apply_action(
                     exprs.append(str(cg.safe_exp(value)))
             else:
                 statements.append(f"{receiver}{target.format(*exprs)};")
-        statements.extend(f"{receiver}{line};" for line in epilogue)
         if call:
             statements.append("call.perform();")
         apply_lambda = LambdaExpression(
