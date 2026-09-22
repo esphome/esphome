@@ -635,6 +635,16 @@ _IDF6 = cv.Version(6, 0, 0)
             id="idf_disable_tls_opt_out",
         ),
         pytest.param(
+            # TLS kept: a required server role blocks the client-only trim.
+            PlatformFramework.ESP32_IDF,
+            _IDF5,
+            MbedtlsSdkconfigData(tls_server_required=True),
+            {},
+            {**_TLS_EXTRAS_OFF, **_PEER_CERT_PKCS7_OFF},
+            set(_ESP_TLS_LINKING_COMPONENTS) - {"esp-tls"},
+            id="idf_tls_server_required",
+        ),
+        pytest.param(
             PlatformFramework.ESP32_ARDUINO,
             _IDF5,
             MbedtlsSdkconfigData(),
@@ -719,8 +729,8 @@ def test_user_sdkconfig_wants_tls(options: dict[str, Any], wants_tls: bool) -> N
         pytest.param(
             "tls_sdkconfig_tls_enabled_n.yaml", True, True, id="raw_tls_enabled_n"
         ),
-        # SECURE_SIGNED_APPS selects ECP back on in Kconfig; ESPHome still writes the default.
-        pytest.param("signed_ota_ecdsa256_c6.yaml", True, True, id="signed_ota_ecdsa"),
+        # ECDSA signed OTA requests ECP itself (SECURE_SIGNED_APPS selects it too).
+        pytest.param("signed_ota_ecdsa256_c6.yaml", True, False, id="signed_ota_ecdsa"),
     ],
 )
 def test_tls_disabled_sdkconfig(

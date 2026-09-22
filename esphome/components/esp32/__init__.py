@@ -3193,6 +3193,10 @@ async def to_code(config):
 
         for key, flag in SIGNING_SCHEMES.items():
             add_idf_sdkconfig_option(flag, scheme == key)
+        if scheme in (SIGNING_SCHEME_ECDSA256, SIGNING_SCHEME_ECDSA_V1):
+            # SECURE_SIGNED_APPS selects ECP in Kconfig anyway; requesting it
+            # keeps the resolved sdkconfig consistent with what ESPHome wrote.
+            require_mbedtls_ecp()
 
         if CONF_SIGNING_KEY in signed_ota:
             # Private key mode — auto-sign binaries during build
