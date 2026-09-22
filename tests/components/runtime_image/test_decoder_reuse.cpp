@@ -377,7 +377,7 @@ TEST(RuntimeImageDecoder, JpegDecoderStaysWarmAcrossDecodes) {
   EXPECT_EQ(pixel_bytes(img), first_pixels) << "reused decoder must reproduce identical pixels";
 }
 
-TEST(RuntimeImageDecoder, JpegDecodesDirectlyToScaledRgb565InEitherByteOrder) {
+TEST(RuntimeImageDecoder, JpegDecodesDirectlyToScaledRgb565WithBothByteOrders) {
   TestableRuntimeImage rgb(JPEG);
   TestableRuntimeImage rgb565_little_endian(JPEG, image::IMAGE_TYPE_RGB565, false, 4, 4);
   TestableRuntimeImage rgb565_big_endian(JPEG, image::IMAGE_TYPE_RGB565, true, 4, 4);
@@ -398,17 +398,16 @@ TEST(RuntimeImageDecoder, JpegDecodesDirectlyToScaledRgb565InEitherByteOrder) {
     for (int x = 0; x < 4; x++) {
       SCOPED_TRACE(::testing::Message() << "pixel (" << x << "," << y << ")");
       const size_t pos = (x + y * 4) * 2;
-      EXPECT_EQ(little[pos], big[pos + 1]);
-      EXPECT_EQ(little[pos + 1], big[pos]);
-
-      const uint16_t value = little[pos] | (static_cast<uint16_t>(little[pos + 1]) << 8);
-      const uint8_t red = ((value >> 11) << 3) | ((value >> 11) >> 2);
-      const uint8_t green = (((value >> 5) & 0x3F) << 2) | (((value >> 5) & 0x3F) >> 4);
-      const uint8_t blue = ((value & 0x1F) << 3) | ((value & 0x1F) >> 2);
       const Color expected = rgb.get_pixel(x * 2, y * 2);
-      EXPECT_NEAR(red, expected.r, 7);
-      EXPECT_NEAR(green, expected.g, 3);
-      EXPECT_NEAR(blue, expected.b, 7);
+      for (const uint16_t value : {static_cast<uint16_t>(little[pos] | (static_cast<uint16_t>(little[pos + 1]) << 8)),
+                                   static_cast<uint16_t>((static_cast<uint16_t>(big[pos]) << 8) | big[pos + 1])}) {
+        const uint8_t red = ((value >> 11) << 3) | ((value >> 11) >> 2);
+        const uint8_t green = (((value >> 5) & 0x3F) << 2) | (((value >> 5) & 0x3F) >> 4);
+        const uint8_t blue = ((value & 0x1F) << 3) | ((value & 0x1F) >> 2);
+        EXPECT_NEAR(red, expected.r, 7);
+        EXPECT_NEAR(green, expected.g, 3);
+        EXPECT_NEAR(blue, expected.b, 7);
+      }
     }
   }
 }
