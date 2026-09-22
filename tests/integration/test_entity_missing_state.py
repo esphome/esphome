@@ -27,6 +27,13 @@ import pytest
 from .state_utils import InitialStateHelper, require_entity
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
+# The device sends the field either way; this only reads it back. Drop the skip once
+# requirements.txt pins an aioesphomeapi that carries it on these three state models.
+pytestmark = pytest.mark.skipif(
+    "missing_state" not in SwitchState.__dataclass_fields__,
+    reason="aioesphomeapi does not carry missing_state on these states yet",
+)
+
 
 @pytest.mark.asyncio
 async def test_entity_missing_state(
@@ -37,8 +44,9 @@ async def test_entity_missing_state(
     """Test that a switch, climate and water heater start out unknown.
 
     This verifies that:
-    1. All three report missing_state=True while nothing has published
+    1. They report missing_state=True while nothing has published
     2. Publishing clears missing_state and reports the published value
+    3. A first value that happens to equal the default still publishes
     """
     loop = asyncio.get_running_loop()
     futures: dict[int, asyncio.Future[EntityState]] = {}
@@ -60,10 +68,18 @@ async def test_entity_missing_state(
         water_heater_info = require_entity(
             entities, "test_water_heater", WaterHeaterInfo
         )
+        lambda_water_heater_info = require_entity(
+            entities, "lambda_water_heater", WaterHeaterInfo
+        )
         publish_button = require_entity(
             entities, "publish_states", description="Publish States button"
         )
-        stateful: list[EntityInfo] = [switch_info, climate_info, water_heater_info]
+        stateful: list[EntityInfo] = [
+            switch_info,
+            climate_info,
+            water_heater_info,
+            lambda_water_heater_info,
+        ]
 
         initial_state_helper = InitialStateHelper(entities)
         client.subscribe_states(initial_state_helper.on_state_wrapper(on_state))
@@ -73,7 +89,7 @@ async def test_entity_missing_state(
         except TimeoutError:
             pytest.fail("Timeout waiting for initial states")
 
-        # Nothing has published yet, so all three must report unknown
+        # Nothing has published yet, so all of them must report unknown
         for info in stateful:
             state = initial_state_helper.initial_states.get(info.key)
             assert state is not None, f"No initial state received for {info.object_id}"
@@ -105,3 +121,10 @@ async def test_entity_missing_state(
         assert isinstance(water_heater_state, WaterHeaterState)
         assert water_heater_state.missing_state is False
         assert water_heater_state.mode is WaterHeaterMode.ECO
+
+        # Its first value is OFF, which is also the default the entity starts on,
+        # so it only leaves unknown if the first value publishes regardless
+        lambda_state = futures[lambda_water_heater_info.key].result()
+        assert isinstance(lambda_state, WaterHeaterState)
+        assert lambda_state.missing_state is False
+        assert lambda_state.mode is WaterHeaterMode.OFF

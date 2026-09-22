@@ -23,6 +23,11 @@ climate:
       - "OFF"
       - HEAT
 
+globals:
+  - id: lambda_mode_known
+    type: bool
+    initial_value: "false"
+
 water_heater:
   - platform: template
     name: "Test Water Heater"
@@ -30,6 +35,19 @@ water_heater:
     supported_modes:
       - "OFF"
       - ECO
+
+  # Reports OFF, which is also the default, once the MCU-equivalent global says so
+  - platform: template
+    name: "Lambda Water Heater"
+    id: lambda_water_heater
+    supported_modes:
+      - "OFF"
+      - ECO
+    mode: |-
+      if (!id(lambda_mode_known)) {
+        return {};
+      }
+      return water_heater::WATER_HEATER_MODE_OFF;
 
 button:
   - platform: template
@@ -43,3 +61,6 @@ button:
       - water_heater.template.publish:
           id: test_water_heater
           mode: ECO
+      - globals.set:
+          id: lambda_mode_known
+          value: "true"
