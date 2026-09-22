@@ -10,6 +10,7 @@ from esphome.components.esp32 import (
     add_idf_sdkconfig_option,
     add_partition,
     include_builtin_idf_component,
+    require_mbedtls_tls_extras,
     require_vfs_select,
 )
 import esphome.config_validation as cv
