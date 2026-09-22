@@ -15,6 +15,10 @@ static constexpr uint8_t PLL_LOCK_RETRIES = 3;
 static constexpr uint8_t STATUS_CRC_OK_MASK = 0x80;
 static constexpr uint8_t STATUS_LQI_MASK = 0x7F;
 
+static constexpr uint16_t MAX_PACKET_LENGTH = 1024;
+static constexpr uint16_t PACKET_IDLE_TIMEOUT_BYTES = 64;
+static constexpr uint32_t PACKET_IDLE_TIMEOUT_MIN_MS = 5;
+
 static constexpr uint8_t BUS_BURST = 0x40;
 static constexpr uint8_t BUS_READ = 0x80;
 static constexpr uint8_t BUS_WRITE = 0x00;
