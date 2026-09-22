@@ -35,6 +35,8 @@ async def to_code(config: ConfigType) -> None:
     elif CORE.is_libretiny:
         # https://github.com/ESP32Async/AsyncTCP
         cg.add_library("ESP32Async/AsyncTCP", "3.4.5")
+        # Ignore the old ESP32 AsyncTCP copy the Docker image ships
+        CORE.add_platformio_option("lib_ignore", ["AsyncTCP-esphome"])
     elif CORE.is_esp8266:
         # https://github.com/ESP32Async/ESPAsyncTCP
         cg.add_library("ESP32Async/ESPAsyncTCP", "2.0.0")

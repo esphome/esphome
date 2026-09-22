@@ -1,0 +1,13 @@
+---
+esphome:
+  name: test
+
+bk72xx:
+  board: generic-bk7231t-qfn32-tuya
+
+wifi:
+  ssid: test
+  password: test-password
+
+mqtt:
+  broker: 192.168.1.1
