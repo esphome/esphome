@@ -752,6 +752,10 @@ async def test_apply_field_nested_key_const_fn_and_type_string(
         in text
     )
 
+    mock_cg.new_pvariable.reset_mock()
+    await _run_apply_action(registries, fields[:1], {})
+    assert "set_direction" not in _apply_lambda(mock_cg)
+
 
 def test_apply_registration_checks(registries: tuple[Registry, Registry]) -> None:
     with pytest.raises(ValueError, match="2 placeholder"):
