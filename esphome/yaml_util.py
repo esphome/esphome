@@ -224,16 +224,18 @@ class IncludeFile:
 
     Created during YAML parsing instead of loading the file immediately,
     allowing substitution variables to appear in the filename path
-    (e.g. ``!include device-${platform}.yaml``). The actual file is
-    loaded on the first call to ``load()``, and the result is cached.
+    (e.g. ``!include device-${platform}.yaml``) and in an optional condition.
+    The actual file is loaded on the first call to ``load()``, and the result
+    is cached. The client is responsible for testing the condition if needed.
     """
 
     def __init__(
         self,
         parent_file: Path,
         file: str,
-        vars: dict[str, Any] | None,
         yaml_loader: Callable[[Path], Any],
+        vars: dict[str, Any] | None = None,
+        condition: bool | str | None = None,
     ) -> None:
         self.parent_file = parent_file
         # The raw include text may be a substitution/Jinja expression, so it
@@ -241,8 +243,9 @@ class IncludeFile:
         # rewrites "/" to "\", which Jinja then decodes as escapes like
         # "\b" -> backspace (issue #18545).
         self.file = file
-        self.vars = vars
         self.yaml_loader = yaml_loader
+        self.vars = vars
+        self.condition = condition
         self._content: Any = _UNSET
 
     def __repr__(self) -> str:
@@ -272,7 +275,13 @@ class IncludeFile:
 
     def with_file(self, file: str) -> IncludeFile:
         """Clone this include with *file* as the filename."""
-        return IncludeFile(self.parent_file, file, self.vars, self.yaml_loader)
+        return IncludeFile(
+            self.parent_file,
+            file,
+            self.yaml_loader,
+            vars=self.vars,
+            condition=self.condition,
+        )
 
 
 def _is_visible_path(rel: Path) -> bool:
@@ -791,11 +800,11 @@ class ESPHomeLoaderMixin:
 
     @_add_data_ref
     def construct_include(self, node: yaml.Node) -> Any:
-        from esphome.const import CONF_VARS
+        from esphome.const import CONF_CONDITION, CONF_FILE, CONF_VARS
 
-        def extract_file_vars(node):
+        def extract_fields(node):
             fields = self.construct_yaml_map(node)
-            file = fields.get("file")
+            file = fields.get(CONF_FILE)
             if file is None:
                 raise yaml.MarkedYAMLError("Must include 'file'", node.start_mark)
             if not isinstance(file, str):
@@ -803,14 +812,21 @@ class ESPHomeLoaderMixin:
                     "Include 'file' must be a string", node.start_mark
                 )
             vars = fields.get(CONF_VARS)
-            return file, vars
+            condition = fields.get(CONF_CONDITION)
+            if condition is not None and not isinstance(condition, (bool, str)):
+                raise yaml.MarkedYAMLError(
+                    "Include 'condition' must be a boolean or string", node.start_mark
+                )
+            return file, vars, condition
 
         if isinstance(node, yaml.nodes.MappingNode):
-            file, vars = extract_file_vars(node)
+            file, vars, condition = extract_fields(node)
         else:
-            file, vars = node.value, None
+            file, vars, condition = node.value, None, None
 
-        return IncludeFile(self.name, file, vars, self.yaml_loader)
+        return IncludeFile(
+            self.name, file, self.yaml_loader, vars=vars, condition=condition
+        )
 
     # Directory includes (!include_dir_*) load eagerly during YAML parsing
     # because their paths are directory names, not individual files, and
@@ -1358,8 +1374,12 @@ class ESPHomeDumper(yaml.SafeDumper):
         return self.represent_scalar(tag="!remove", value=value.value)
 
     def represent_include_file(self, value):
-        if value.vars:
-            mapping = {"file": value.file, "vars": value.vars}
+        if value.vars or value.condition is not None:
+            mapping = {"file": value.file}
+            if value.vars:
+                mapping["vars"] = value.vars
+            if value.condition is not None:
+                mapping["condition"] = value.condition
             return self.represent_mapping(
                 tag="!include", mapping=mapping, flow_style=False
             )

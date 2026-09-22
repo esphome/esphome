@@ -573,6 +573,65 @@ def test_undefined_variable_warning(
     assert "'undefined_var' is undefined" in caplog.text
 
 
+def test_undefined_variable_warning_avoided_by_include_condition(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Compare two different ways to conditionally enable an !include file
+    that defines and uses new variables. One way generates a undefined
+    variable warning when disabled and the other does not."""
+    include_file = tmp_path / "include.yaml"
+    include_file.write_text("substitutions:\n  var: 1\nresult: ${var}\n")
+    method_a_file = tmp_path / "method_a.yaml"
+    method_a_file.write_text(
+        "packages:\n"
+        "  - !include\n"
+        "    file: include.yaml\n"
+        "    condition: ${enable == 'y'}\n"
+    )
+    method_b_file = tmp_path / "method_b.yaml"
+    method_b_file.write_text(
+        "substitutions:\n"
+        "  content: !include include.yaml\n"
+        "packages:\n"
+        "  - ${content if enable == 'y' else {}}\n"
+    )
+
+    def process_file(file, enable):
+        with caplog.at_level(logging.WARNING):
+            args = {"enable": enable}
+            config = yaml_util.load_yaml(file)
+            config = do_packages_pass(config, command_line_substitutions=args)
+            return substitutions.do_substitution_pass(
+                config, command_line_substitutions=args
+            )
+
+    # Case: method A with include enabled produces a result and no warnings
+    config = process_file(method_a_file, "y")
+    assert caplog.text == ""
+    assert config["packages"][0]["result"] == 1
+
+    # Case: method A with include disabled produces no result and no warnings
+    # because the file was not even loaded
+    config = process_file(method_a_file, "n")
+    assert caplog.text == ""
+    assert config["packages"][0] == {}
+
+    # Case: method B with include enabled produces a result and no warnings (same as method A)
+    config = process_file(method_b_file, "y")
+    assert caplog.text == ""
+    assert config["packages"][0]["result"] == 1
+
+    # Case: method B with include disabled produces no result and an undefined variable warning
+    # because the file is loaded into a variable and its own variables cannot be expanded
+    # (different from method A)
+    config = process_file(method_b_file, "n")
+    assert (
+        "Could not resolve substitution variable 'content': 'var' is undefined"
+        in caplog.text
+    )
+    assert config["packages"][0] == {}
+
+
 def test_password_field_warnings_suppressed(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
@@ -717,11 +776,9 @@ def test_resolve_package_max_depth_exceeded(tmp_path: Path) -> None:
     # Each call to the loader returns a fresh IncludeFile pointing at itself,
     # so PACKAGE_SCHEMA always sees an IncludeFile and never a dict.
     def always_returns_include(path: Path) -> yaml_util.IncludeFile:
-        return yaml_util.IncludeFile(parent, path.name, None, always_returns_include)
+        return yaml_util.IncludeFile(parent, path.name, always_returns_include)
 
-    package_config = yaml_util.IncludeFile(
-        parent, "test.yaml", None, always_returns_include
-    )
+    package_config = yaml_util.IncludeFile(parent, "test.yaml", always_returns_include)
     processor = _PackageProcessor({}, None)
     with pytest.raises(
         cv.Invalid,
@@ -791,6 +848,22 @@ def test_include_filename_jinja_expression_with_path_separator(
     assert config["result"] == {"value": 42}
 
 
+def test_include_condition_substitution_undefined_var(tmp_path: Path) -> None:
+    """!include with an undefined substitution variable raises cv.Invalid.
+
+    The error message must reference the unresolved condition template so the
+    user knows which include failed, rather than seeing a bare file-not-found.
+    """
+    main_file = tmp_path / "main.yaml"
+    main_file.write_text(
+        "result: !include\n  file: file.yaml\n  condition: ${undefined_var}\n"
+    )
+
+    config = yaml_util.load_yaml(main_file)
+    with pytest.raises(cv.Invalid, match=r"\$\{undefined_var\}"):
+        substitutions.do_substitution_pass(config)
+
+
 def test_raise_first_undefined_logs_extras_at_debug(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
@@ -838,7 +911,7 @@ def test_do_substitution_pass_included_substitutions_must_be_mapping(
     def loader(path: Path):
         return ["not", "a", "mapping"]
 
-    include = yaml_util.IncludeFile(parent, "subs.yaml", None, loader)
+    include = yaml_util.IncludeFile(parent, "subs.yaml", loader)
     config = OrderedDict({CONF_SUBSTITUTIONS: include})
 
     with pytest.raises(
@@ -861,7 +934,7 @@ def test_do_packages_pass_included_substitutions_must_be_mapping(
     def loader(path: Path):
         return ["not", "a", "mapping"]
 
-    include = yaml_util.IncludeFile(parent, "subs.yaml", None, loader)
+    include = yaml_util.IncludeFile(parent, "subs.yaml", loader)
     config = OrderedDict(
         {
             CONF_SUBSTITUTIONS: include,
@@ -888,9 +961,7 @@ def test_resolve_package_undefined_var_in_include_filename(tmp_path: Path) -> No
     def loader(path: Path):
         raise EsphomeError(f"Error reading file {path}: No such file")
 
-    package_config = yaml_util.IncludeFile(
-        parent, "${undefined_var}.yaml", None, loader
-    )
+    package_config = yaml_util.IncludeFile(parent, "${undefined_var}.yaml", loader)
     processor = _PackageProcessor({}, None)
     with pytest.raises(cv.Invalid, match="unresolved substitutions"):
         processor.resolve_package(package_config, substitutions.ContextVars(), [])
@@ -906,7 +977,7 @@ def test_resolve_include_error_shows_expanded_from_when_substituted(
     def failing_loader(_path: Path) -> None:
         raise EsphomeError("File not found")
 
-    include = yaml_util.IncludeFile(parent, "${device}.yaml", None, failing_loader)
+    include = yaml_util.IncludeFile(parent, "${device}.yaml", failing_loader)
     context = substitutions.ContextVars({"device": "my_device"})
 
     with pytest.raises(cv.Invalid) as exc_info:
@@ -927,7 +998,7 @@ def test_resolve_include_error_no_expanded_from_for_literal_filename(
     def failing_loader(_path: Path) -> None:
         raise EsphomeError("File not found")
 
-    include = yaml_util.IncludeFile(parent, "literal.yaml", None, failing_loader)
+    include = yaml_util.IncludeFile(parent, "literal.yaml", failing_loader)
 
     with pytest.raises(cv.Invalid) as exc_info:
         substitutions.resolve_include(include, [], substitutions.ContextVars())
@@ -946,7 +1017,7 @@ def test_include_vars_applied_to_lambda_value(tmp_path: Path) -> None:
     included.write_text('!lambda |-\n  return "${foo}";\n')
 
     include = yaml_util.IncludeFile(
-        tmp_path / "main.yaml", "lambda.yaml", {"foo": "bar"}, yaml_util.load_yaml
+        tmp_path / "main.yaml", "lambda.yaml", yaml_util.load_yaml, vars={"foo": "bar"}
     )
     config = OrderedDict({"value": include.load()})
     result = substitutions.do_substitution_pass(config)

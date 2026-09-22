@@ -570,7 +570,7 @@ def test_represent_remove() -> None:
 def test_represent_include_file() -> None:
     """Test that IncludeFile objects are dumped as !include scalars."""
     include = yaml_util.IncludeFile(
-        Path("/fake/main.yaml"), "path/to/file.yaml", None, lambda _: {}
+        Path("/fake/main.yaml"), "path/to/file.yaml", lambda _: {}
     )
     assert yaml_util.dump({"key": include}) == "key: !include 'path/to/file.yaml'\n"
 
@@ -580,8 +580,8 @@ def test_represent_include_file_with_vars() -> None:
     include = yaml_util.IncludeFile(
         Path("/fake/main.yaml"),
         "path/to/file.yaml",
-        {"key": "value"},
         lambda _: {},
+        vars={"key": "value"},
     )
     result = yaml_util.dump({"key": include})
     assert "!include" in result
@@ -596,7 +596,7 @@ def test_represent_include_file_with_data_base_mixin() -> None:
     subclass. add_multi_representer must match this subclass through the MRO.
     """
     include = yaml_util.IncludeFile(
-        Path("/fake/main.yaml"), "common/spi.yaml", None, lambda _: {}
+        Path("/fake/main.yaml"), "common/spi.yaml", lambda _: {}
     )
     wrapped = yaml_util.make_data_base(include)
     assert isinstance(wrapped, yaml_util.ESPHomeDataBase)
@@ -609,7 +609,7 @@ def test_represent_include_file_with_data_base_mixin() -> None:
 def test_include_file_repr(tmp_path: Path) -> None:
     """repr() includes the filename so it appears usefully in error messages."""
     parent = tmp_path / "main.yaml"
-    include = yaml_util.IncludeFile(parent, "some/nested.yaml", None, lambda _: {})
+    include = yaml_util.IncludeFile(parent, "some/nested.yaml", lambda _: {})
     assert repr(include) == "IncludeFile(some/nested.yaml)"
 
 
@@ -624,7 +624,7 @@ def test_include_file_load_caches_result(tmp_path: Path) -> None:
         call_count += 1
         return content
 
-    include = yaml_util.IncludeFile(parent, "child.yaml", None, counting_loader)
+    include = yaml_util.IncludeFile(parent, "child.yaml", counting_loader)
     first = include.load()
     second = include.load()
 
@@ -641,7 +641,7 @@ def test_include_file_load_caches_none_result(tmp_path: Path) -> None:
         nonlocal call_count
         call_count += 1
 
-    include = yaml_util.IncludeFile(parent, "empty.yaml", None, counting_loader)
+    include = yaml_util.IncludeFile(parent, "empty.yaml", counting_loader)
     first = include.load()
     second = include.load()
 
@@ -653,7 +653,7 @@ def test_include_file_load_caches_none_result(tmp_path: Path) -> None:
 def test_include_file_load_raises_on_unresolved_expressions(tmp_path: Path) -> None:
     """load() raises if the filename contains unresolved substitutions or expressions."""
     parent = tmp_path / "main.yaml"
-    include = yaml_util.IncludeFile(parent, "${undefined_var}.yaml", None, lambda _: {})
+    include = yaml_util.IncludeFile(parent, "${undefined_var}.yaml", lambda _: {})
     with pytest.raises(cv.Invalid, match="unresolved"):
         include.load()
 
@@ -675,7 +675,7 @@ def test_include_file_has_unresolved_expressions(
 ) -> None:
     """has_unresolved_expressions() detects substitution patterns in the filename."""
     parent = tmp_path / "main.yaml"
-    include = yaml_util.IncludeFile(parent, filename, None, lambda _: {})
+    include = yaml_util.IncludeFile(parent, filename, lambda _: {})
     assert include.has_unresolved_expressions() == expected
 
 
@@ -691,7 +691,7 @@ def test_include_file_templated_filename_stays_raw_string(tmp_path: Path) -> Non
     """A templated filename keeps its verbatim text (issue #18545)."""
     parent = tmp_path / "main.yaml"
     expr = '${ "bluetooth/proxy.yaml" if enable_bluetooth_proxy else "../empty.yaml" }'
-    include = yaml_util.IncludeFile(parent, expr, None, lambda _: {})
+    include = yaml_util.IncludeFile(parent, expr, lambda _: {})
     assert include.file == expr
     assert include.has_unresolved_expressions()
     assert repr(include) == f"IncludeFile({expr})"
@@ -700,7 +700,7 @@ def test_include_file_templated_filename_stays_raw_string(tmp_path: Path) -> Non
 def test_represent_include_file_templated() -> None:
     """Dumping a templated IncludeFile emits the raw expression unchanged."""
     expr = '${ "a/b.yaml" if flag else "../c.yaml" }'
-    include = yaml_util.IncludeFile(Path("/fake/main.yaml"), expr, None, lambda _: {})
+    include = yaml_util.IncludeFile(Path("/fake/main.yaml"), expr, lambda _: {})
     assert yaml_util.dump({"key": include}) == f"key: !include '{expr}'\n"
 
 
@@ -710,12 +710,12 @@ def test_include_in_list_context() -> None:
     parent = Path("/fake/main.yaml")
 
     # The nested IncludeFile resolves to a plain string value
-    inner = yaml_util.IncludeFile(parent, "inner.yaml", None, lambda _: "gamma")
+    inner = yaml_util.IncludeFile(parent, "inner.yaml", lambda _: "gamma")
 
     # The outer IncludeFile returns a list whose last element is itself an IncludeFile,
     # exercising the substitution pass's ability to recurse into loaded content.
     outer = yaml_util.IncludeFile(
-        parent, "items.yaml", None, lambda _: ["alpha", "beta", inner]
+        parent, "items.yaml", lambda _: ["alpha", "beta", inner]
     )
 
     config = OrderedDict({"values": outer})
@@ -742,9 +742,7 @@ def test_include_plain_filename_loads_after_deferred_refactor() -> None:
     Regression guard: the deferred-loading refactor must not break the simple case.
     """
     parent = Path("/fake/main.yaml")
-    include = yaml_util.IncludeFile(
-        parent, "child.yaml", None, lambda _: {"answer": 42}
-    )
+    include = yaml_util.IncludeFile(parent, "child.yaml", lambda _: {"answer": 42})
 
     config = OrderedDict({"result": include})
     config = substitutions.do_substitution_pass(config)
@@ -775,8 +773,8 @@ def test_yaml_merge_chain_include_resolves() -> None:
     """Chained includes in merge keys resolve through multiple IncludeFile layers."""
     parent = Path("/fake/main.yaml")
 
-    inner = yaml_util.IncludeFile(parent, "inner.yaml", None, lambda _: {"x": 1})
-    outer = yaml_util.IncludeFile(parent, "outer.yaml", None, lambda _: inner)
+    inner = yaml_util.IncludeFile(parent, "inner.yaml", lambda _: {"x": 1})
+    outer = yaml_util.IncludeFile(parent, "outer.yaml", lambda _: inner)
 
     yaml_text = "base:\n  existing: value\n  <<: !include outer.yaml\n"
     config = yaml_util.parse_yaml(parent, io.StringIO(yaml_text), lambda _: outer)
@@ -791,7 +789,7 @@ def test_yaml_merge_chain_include_depth_exceeded() -> None:
     parent = Path("/fake/main.yaml")
 
     def self_referencing_loader(path: Path) -> yaml_util.IncludeFile:
-        return yaml_util.IncludeFile(parent, path.name, None, self_referencing_loader)
+        return yaml_util.IncludeFile(parent, path.name, self_referencing_loader)
 
     yaml_text = "base:\n  <<: !include loop.yaml\n"
     with pytest.raises(EsphomeError, match="Maximum include chain depth"):
