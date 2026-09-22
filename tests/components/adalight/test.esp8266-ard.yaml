@@ -1,0 +1,22 @@
+logger:
+  baud_rate: 0
+
+uart:
+  rx_buffer_size: 1024
+  baud_rate: 115200
+  rx_pin: 1
+  tx_pin: 0
+
+adalight:
+
+light:
+  - platform: neopixelbus
+    id: adalight_light
+    name: Neopixelbus Light
+    method: esp8266_uart
+    num_leds: 5
+    pin: 2
+    type: GRBW
+    variant: SK6812
+    effects:
+      - adalight:
