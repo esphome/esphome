@@ -807,3 +807,12 @@ async def test_apply_field_type_from_config_and_parent(
         f"{PARENT_OBJ}->value() = static_cast<decltype({PARENT_OBJ}->value())>(42);"
         in _apply_lambda(mock_cg)
     )
+
+
+def test_apply_field_key_must_exist_in_schema(
+    registries: tuple[Registry, Registry],
+) -> None:
+    schema = cv.Schema({cv.Required(CONF_ID): cv.string, cv.Optional("kp"): cv.float_})
+    register_apply_action("my.ok", schema, ApplyField("kp", "set_kp", cg.float_))
+    with pytest.raises(ValueError, match="'kd' is not in the schema"):
+        register_apply_action("my.bad", schema, ApplyField("kd", "set_kd", cg.float_))

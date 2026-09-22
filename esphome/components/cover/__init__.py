@@ -68,7 +68,6 @@ _LOGGER = logging.getLogger(__name__)
 cover_ns = cg.esphome_ns.namespace("cover")
 
 Cover = cover_ns.class_("Cover", cg.EntityBase)
-CoverCall = cover_ns.class_("CoverCall")
 
 COVER_OPEN = cover_ns.COVER_OPEN
 COVER_CLOSED = cover_ns.COVER_CLOSED

@@ -219,10 +219,11 @@ ApplyAction = cg.esphome_ns.class_("ApplyAction", Action)
 class ApplyField:
     """One config key forwarded as ``target(value)``, or as statement ``target`` when it has ``{}``.
 
-    ``conf_key`` may be a path into nested sections. ``type_`` may be a function
-    ``(config, parent)`` when the C++ type is only known per instance. ``const_fn(config, value)``
-    renders a constant when ``cg.safe_exp`` is not the right spelling; lambdas bypass it.
-    ``std::string`` constants stay in flash on ESP8266. An absent key emits nothing.
+    Double a literal brace in a template. ``conf_key`` may be a path into nested sections.
+    ``type_`` may be a function ``(config, parent)`` when the C++ type is only known per instance.
+    ``const_fn(config, value)`` renders a constant when ``cg.safe_exp`` is not the right spelling;
+    a lambda bypasses it, so the target must also take a plain ``type_``. ``std::string``
+    constants stay in flash on ESP8266. An absent key emits nothing.
     """
 
     conf_key: str | tuple[str, ...]
@@ -289,10 +290,20 @@ def register_apply_action(
     """Register an action that only forwards config values to its parent, with no C++ class.
 
     Generates one stateless function for ``ApplyAction<Ts...>``: parent and constants are baked
-    in, lambdas are called inline with the trigger args. With ``call`` every statement targets
-    ``auto call = parent->call()`` and ``call.perform()`` is appended.
+    in, lambdas are called inline with the trigger args. With ``call`` every statement, follow-up
+    calls included, targets ``auto call = parent->call()`` and ``call.perform()`` is appended.
     """
     templates = tuple(_apply_template(apply_field) for apply_field in fields)
+    # A plain cv.Schema exposes its keys; a typo would otherwise be a silent no-op.
+    if isinstance(getattr(schema, "schema", None), dict):
+        keys = {getattr(marker, "schema", marker) for marker in schema.schema}
+        for _, members in templates:
+            for conf_key, _, _ in members:
+                first = conf_key if isinstance(conf_key, str) else conf_key[0]
+                if first not in keys:
+                    raise ValueError(
+                        f"{name}: config key {first!r} is not in the schema"
+                    )
 
     async def builder(
         config: ConfigType,
