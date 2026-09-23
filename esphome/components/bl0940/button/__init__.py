@@ -2,6 +2,7 @@ import esphome.codegen as cg
 from esphome.components import button
 import esphome.config_validation as cv
 from esphome.const import ENTITY_CATEGORY_CONFIG, ICON_RESTART
+from esphome.types import ConfigType
 
 from .. import CONF_BL0940_ID, bl0940_ns
 from ..sensor import BL0940
@@ -21,7 +22,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = await button.new_button(config)
     await cg.register_component(var, config)
     await cg.register_parented(var, config[CONF_BL0940_ID])

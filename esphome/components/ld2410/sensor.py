@@ -15,6 +15,7 @@ from esphome.const import (
     UNIT_CENTIMETER,
     UNIT_PERCENT,
 )
+from esphome.types import ConfigType
 
 from . import CONF_LD2410_ID, LD2410Component
 
@@ -155,7 +156,7 @@ CONFIG_SCHEMA = CONFIG_SCHEMA.extend(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     ld2410_component = await cg.get_variable(config[CONF_LD2410_ID])
     if moving_distance_config := config.get(CONF_MOVING_DISTANCE):
         sens = await sensor.new_sensor(moving_distance_config)

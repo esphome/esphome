@@ -9,9 +9,12 @@ from esphome.const import (
     CONF_SUPPORTS_COOL,
     CONF_SUPPORTS_HEAT,
 )
-from esphome.cpp_generator import MockObjClass
+from esphome.cpp_generator import MockObj, MockObjClass
+from esphome.types import ConfigType, SafeExpType
 
 _LOGGER = logging.getLogger(__name__)
+
+CONF_SUPPORTS_HEAT_COOL = "supports_heat_cool"
 
 DEPENDENCIES = ["remote_transmitter"]
 AUTO_LOAD = ["sensor", "remote_base"]
@@ -36,6 +39,7 @@ def climate_ir_schema(
             {
                 cv.Optional(CONF_SUPPORTS_COOL, default=True): cv.boolean,
                 cv.Optional(CONF_SUPPORTS_HEAT, default=True): cv.boolean,
+                cv.Optional(CONF_SUPPORTS_HEAT_COOL): cv.boolean,
                 cv.Optional(CONF_SENSOR): cv.use_id(sensor.Sensor),
                 cv.Optional(CONF_HUMIDITY_SENSOR): cv.use_id(sensor.Sensor),
             }
@@ -57,11 +61,16 @@ def climate_ir_with_receiver_schema(
     )
 
 
-async def register_climate_ir(var, config):
+async def register_climate_ir(var: MockObj, config: ConfigType) -> None:
     await cg.register_component(var, config)
     await remote_base.register_transmittable(var, config)
-    cg.add(var.set_supports_cool(config[CONF_SUPPORTS_COOL]))
-    cg.add(var.set_supports_heat(config[CONF_SUPPORTS_HEAT]))
+    supports_cool = config[CONF_SUPPORTS_COOL]
+    supports_heat = config[CONF_SUPPORTS_HEAT]
+    cg.add(var.set_supports_cool(supports_cool))
+    cg.add(var.set_supports_heat(supports_heat))
+    # The header default is true, so only the false case needs a call.
+    if not config.get(CONF_SUPPORTS_HEAT_COOL, supports_cool and supports_heat):
+        cg.add(var.set_supports_heat_cool(False))
     if remote_base.CONF_RECEIVER_ID in config:
         await remote_base.register_listener(var, config)
     if sensor_id := config.get(CONF_SENSOR):
@@ -72,7 +81,7 @@ async def register_climate_ir(var, config):
         cg.add(var.set_humidity_sensor(sens))
 
 
-async def new_climate_ir(config, *args):
+async def new_climate_ir(config: ConfigType, *args: SafeExpType) -> MockObj:
     var = await climate.new_climate(config, *args)
     await register_climate_ir(var, config)
     return var
