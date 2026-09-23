@@ -37,13 +37,13 @@ def test_hlk_fm22x_entities_and_actions(generate_main) -> None:
     assert "true" in _returned_values(main_cpp, "set_admin", "bool")
     assert "false" in _returned_values(main_cpp, "set_allow_duplicate", "bool")
     assert "set_timeout_seconds(20)" in main_cpp
-    # A scan with its own timeout and the default one used by the shorthand enroll
-    assert "set_timeout_seconds(15)" in main_cpp
+    # The default timeout used by the shorthand enroll
     assert "set_timeout_seconds(10)" in main_cpp
 
-    assert "hlk_fm22x::CancelAction<>" in main_cpp
-    assert "hlk_fm22x::GetFaceDetailsAction<>" in main_cpp
-    assert "3" in _returned_values(main_cpp, "set_face_id", "int16_t")
+    # Forwarding actions call the component directly
+    assert "->scan_face(15);" in main_cpp
+    assert "->cancel();" in main_cpp
+    assert "->get_face_details(3);" in main_cpp
 
 
 def test_hlk_fm22x_legacy_config(

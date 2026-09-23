@@ -289,21 +289,6 @@ template<typename... Ts> class EnrollmentAction final : public Action<Ts...>, pu
   uint8_t timeout_s_{HLK_FM22X_DEFAULT_TIMEOUT_S};
 };
 
-template<typename... Ts> class ScanAction final : public Action<Ts...>, public Parented<HlkFm22xComponent> {
- public:
-  void set_timeout_seconds(uint8_t timeout_s) { this->timeout_s_ = timeout_s; }
-
-  void play(const Ts &...x) override { this->parent_->scan_face(this->timeout_s_); }
-
- protected:
-  uint8_t timeout_s_{HLK_FM22X_DEFAULT_TIMEOUT_S};
-};
-
-template<typename... Ts> class CancelAction final : public Action<Ts...>, public Parented<HlkFm22xComponent> {
- public:
-  void play(const Ts &...x) override { this->parent_->cancel(); }
-};
-
 template<typename... Ts> class DeleteAction final : public Action<Ts...>, public Parented<HlkFm22xComponent> {
  public:
   TEMPLATABLE_VALUE(int16_t, face_id)
@@ -314,13 +299,6 @@ template<typename... Ts> class DeleteAction final : public Action<Ts...>, public
 template<typename... Ts> class DeleteAllAction final : public Action<Ts...>, public Parented<HlkFm22xComponent> {
  public:
   void play(const Ts &...x) override { this->parent_->delete_all_faces(); }
-};
-
-template<typename... Ts> class GetFaceDetailsAction final : public Action<Ts...>, public Parented<HlkFm22xComponent> {
- public:
-  TEMPLATABLE_VALUE(int16_t, face_id)
-
-  void play(const Ts &...x) override { this->parent_->get_face_details(this->face_id_.value(x...)); }
 };
 
 template<typename... Ts> class ResetAction final : public Action<Ts...>, public Parented<HlkFm22xComponent> {

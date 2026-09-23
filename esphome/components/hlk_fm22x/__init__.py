@@ -52,11 +52,8 @@ HlkFm22xComponent = hlk_fm22x_ns.class_(
 HlkFm22xFaceDirection = hlk_fm22x_ns.enum("HlkFm22xFaceDirection")
 
 EnrollmentAction = hlk_fm22x_ns.class_("EnrollmentAction", automation.Action)
-ScanAction = hlk_fm22x_ns.class_("ScanAction", automation.Action)
-CancelAction = hlk_fm22x_ns.class_("CancelAction", automation.Action)
 DeleteAction = hlk_fm22x_ns.class_("DeleteAction", automation.Action)
 DeleteAllAction = hlk_fm22x_ns.class_("DeleteAllAction", automation.Action)
-GetFaceDetailsAction = hlk_fm22x_ns.class_("GetFaceDetailsAction", automation.Action)
 ResetAction = hlk_fm22x_ns.class_("ResetAction", automation.Action)
 
 FACE_DIRECTIONS = {
@@ -224,45 +221,26 @@ async def hlk_fm22x_enroll_to_code(
     return var
 
 
-@automation.register_action(
+automation.register_apply_action(
     "hlk_fm22x.scan",
-    ScanAction,
     cv.Schema(
         {
             cv.GenerateID(): cv.use_id(HlkFm22xComponent),
             cv.Optional(CONF_TIMEOUT, default="10s"): TIMEOUT_SCHEMA,
         }
     ),
-    synchronous=True,
+    automation.ApplyField(CONF_TIMEOUT, "scan_face", cg.uint8),
 )
-async def hlk_fm22x_scan_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    var = await _new_action(config, action_id, template_arg)
-    cg.add(var.set_timeout_seconds(int(config[CONF_TIMEOUT].total_seconds)))
-    return var
 
-
-@automation.register_action(
+automation.register_apply_action(
     "hlk_fm22x.cancel",
-    CancelAction,
     cv.Schema(
         {
             cv.GenerateID(): cv.use_id(HlkFm22xComponent),
         }
     ),
-    synchronous=True,
+    automation.ApplyCall("cancel()"),
 )
-async def hlk_fm22x_cancel_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    return await _new_action(config, action_id, template_arg)
 
 
 @automation.register_action(
@@ -308,9 +286,8 @@ async def hlk_fm22x_delete_all_to_code(
     return await _new_action(config, action_id, template_arg)
 
 
-@automation.register_action(
+automation.register_apply_action(
     "hlk_fm22x.get_face_details",
-    GetFaceDetailsAction,
     cv.maybe_simple_value(
         {
             cv.GenerateID(): cv.use_id(HlkFm22xComponent),
@@ -318,18 +295,8 @@ async def hlk_fm22x_delete_all_to_code(
         },
         key=CONF_FACE_ID,
     ),
-    synchronous=True,
+    automation.ApplyField(CONF_FACE_ID, "get_face_details", cg.int16),
 )
-async def hlk_fm22x_get_face_details_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    var = await _new_action(config, action_id, template_arg)
-    template_ = await cg.templatable(config[CONF_FACE_ID], args, cg.int16)
-    cg.add(var.set_face_id(template_))
-    return var
 
 
 @automation.register_action(
