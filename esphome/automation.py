@@ -288,6 +288,8 @@ def _config_lookup(config: ConfigType, key: str | tuple[str, ...]) -> Any:
 
 def _dict_schema(schema: Any) -> Any:
     """The dict-backed cv.Schema inside cv.All and maybe_* wrappers, or None; cv.Any is not inspected."""
+    if isinstance(schema, dict):
+        return cv.Schema(schema)
     if isinstance(getattr(schema, "schema", None), dict):
         return schema
     if isinstance(schema, cv.All):

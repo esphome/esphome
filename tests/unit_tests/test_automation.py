@@ -778,6 +778,7 @@ def test_apply_registration_checks(registries: tuple[Registry, Registry]) -> Non
     register_apply_action("my.any", either, ApplyField("kd", "set_kd", cg.float_))
     for wrapped in (
         maybe_simple_id(schema),
+        maybe_simple_id(schema.schema),
         cv.All(schema),
         cv.maybe_simple_value(schema, key="kp"),
     ):
