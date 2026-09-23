@@ -935,10 +935,6 @@ ARDUINO_FRAMEWORK_VERSION_LOOKUP = {
     "latest": cv.Version(3, 3, 11),
     "dev": cv.Version(3, 3, 11),
 }
-# arduino-esp32 releases that are on GitHub but not on the component registry
-# yet; the native ESP-IDF toolchain fetches these from git by tag instead.
-ARDUINO_COMPONENT_GIT_VERSIONS = {cv.Version(4, 0, 0, "RC1")}
-ARDUINO_COMPONENT_GIT_REPO = "https://github.com/espressif/arduino-esp32.git"
 ARDUINO_PLATFORM_VERSION_LOOKUP = {
     cv.Version(
         4, 0, 0, "RC1"
@@ -3519,13 +3515,11 @@ def _write_idf_component_yml():
                 rmtree(stub_path)
 
         if CORE.using_toolchain_esp_idf:
-            arduino_version = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
+            # The registry lowercases prerelease tags (4.0.0-rc1) while the
+            # GitHub release keeps them as tagged (4.0.0-RC1).
             add_idf_component(
                 name=ARDUINO_ESP32_COMPONENT_NAME,
-                repo=ARDUINO_COMPONENT_GIT_REPO
-                if arduino_version in ARDUINO_COMPONENT_GIT_VERSIONS
-                else None,
-                ref=str(arduino_version),
+                ref=str(CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]).lower(),
             )
 
     if CORE.using_toolchain_esp_idf:
