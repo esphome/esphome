@@ -36,6 +36,7 @@ class DFPlayer final : public uart::UARTDevice, public Component {
   void play_file(uint16_t file, bool loop) { loop ? this->play_file_loop(file) : this->play_file(file); }
   void play_folder(uint16_t folder, uint16_t file);
   void play_folder_loop(uint16_t folder);
+  // The loop command plays the whole folder, so file is ignored when loop is set.
   void play_folder(uint16_t folder, uint16_t file, bool loop) {
     loop ? this->play_folder_loop(folder) : this->play_folder(folder, file);
   }
