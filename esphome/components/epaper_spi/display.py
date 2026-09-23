@@ -54,13 +54,10 @@ EPaperBase = epaper_spi_ns.class_(
 )
 Transform = epaper_spi_ns.enum("Transform")
 
-FullUpdateNextAction = epaper_spi_ns.class_("FullUpdateNextAction", automation.Action)
-
-automation.register_simple_action(
+automation.register_apply_action(
     "epaper_spi.full_update_next",
-    FullUpdateNextAction,
     automation.maybe_simple_id({cv.Required(CONF_ID): cv.use_id(EPaperBase)}),
-    synchronous=True,
+    automation.ApplyCall("reset_update_count()"),
 )
 
 # Import all models dynamically from the models package

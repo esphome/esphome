@@ -4,7 +4,6 @@
 #include "esphome/components/display/display.h"
 #include "esphome/components/spi/spi.h"
 #include "esphome/components/split_buffer/split_buffer.h"
-#include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 
 namespace esphome::epaper_spi {
@@ -196,15 +195,6 @@ class EPaperBase : public Display,
   EPaperState state_{EPaperState::IDLE};
   uint32_t reset_duration_{10};
   uint8_t full_update_every_{1};
-};
-
-template<typename... Ts> class FullUpdateNextAction final : public Action<Ts...> {
- public:
-  explicit FullUpdateNextAction(EPaperBase *parent) : parent_(parent) {}
-  void play(const Ts &...) override { this->parent_->reset_update_count(); }
-
- protected:
-  EPaperBase *parent_;
 };
 
 }  // namespace esphome::epaper_spi

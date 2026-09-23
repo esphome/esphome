@@ -548,9 +548,7 @@ def test_full_update_next_action_code_generation(
     """The epaper_spi.full_update_next action targets the configured display."""
     main_cpp = generate_main(component_config_path("full_update_next_test.yaml"))
 
-    assert re.search(
-        r"epaper_spi::FullUpdateNextAction<>\([^;]*epaper_display\);", main_cpp
-    )
+    assert "epaper_display->reset_update_count();" in main_cpp
 
 
 def test_model_with_no_default_init_sequence_generates(
