@@ -1,3 +1,6 @@
+psram:
+  speed: 100MHz
+
 mipi_csi:
   name: MIPI CSI Camera
   sensor: SC2336
@@ -6,6 +9,7 @@ mipi_csi:
   jpeg_quality: 50
   framerate: 10 fps
   idle_framerate: 0.1 fps
+  sccb_frequency: 100kHz
   frame_buffer_count: 2
   horizontal_flip: false
   vertical_flip: true

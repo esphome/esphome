@@ -1,3 +1,6 @@
+psram:
+  speed: 100MHz
+
 mipi_csi:
   name: MIPI CSI Camera
   sensor: OV5647
